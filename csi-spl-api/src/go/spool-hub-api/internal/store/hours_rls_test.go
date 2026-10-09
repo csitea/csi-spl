@@ -31,7 +31,8 @@ func seedHours(ctx context.Context, pg *Postgres, tenant, member string, at time
 			args []any
 		}{
 			{`INSERT INTO hours_minutes (tenant_id, member_id, minute, target, src, tz)
-				VALUES ($1, $2, date_trunc('minute', $3::timestamptz, 'UTC'), 'ch:lobby', 'tab', 'UTC')`, []any{tenant, member, at}},
+				VALUES ($1, $2, date_trunc('minute', $3::timestamptz, 'UTC'), 'ch:lobby', 'tab', 'UTC')
+				ON CONFLICT DO NOTHING`, []any{tenant, member, at}}, // the member's own post may have written this minute (spec 107 T005)
 			{`INSERT INTO hours_entries (tenant_id, member_id, day, target, minutes, suggested_minutes, state, updated_by)
 				VALUES ($1, $2, $3::date, 'ws', 15, 15, 'approved', $2)`, []any{tenant, member, day}},
 			{`INSERT INTO hours_periods (tenant_id, member_id, period_start, period_end, state, minutes, decided_by)

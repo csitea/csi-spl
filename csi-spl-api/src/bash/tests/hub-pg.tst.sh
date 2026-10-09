@@ -143,24 +143,35 @@ public_logins() { # <db>: a migrated db
 # 20m is ~2x the worst green (503 s) and still ends a hung test with its
 # goroutine dump before the job's timeout-minutes (10_ci-quality.yml) does.
 GO_TEST_TIMEOUT="${SPOOL_TEST_GO_TIMEOUT:-20m}"
+# spec 113's workspace-doc suites (property 5 seeds x 5,000 ops, 8 writers x
+# 500 ops, timing at 11,111 items) run as their own process on their own
+# database, beside the store run that skips them: with them inside it the
+# store run hit the 20m timeout (runs 37977375803, 37991567317), DB-latency
+# bound, not a hang. Locally (docker pg16, load 38, n = 1) they were 207 s of
+# the package's 489 s of test time, the property test alone 171 s.
+WSDOC_TESTS='^TestWorkspaceDoc'
 pids=()
-for pkg in store hub auth repodocs; do # repodocs: the repo-edit worker (spec 075 T10) on its own queue
-  db="spool_hub_$pkg"
+for pkg in store wsdoc hub auth repodocs; do # repodocs: the repo-edit worker (spec 075 T10) on its own queue
+  db="spool_hub_$pkg" dir="$pkg" sel=()
+  case "$pkg" in
+    store) sel=(-skip "$WSDOC_TESTS") ;;
+    wsdoc) dir=store sel=(-run "$WSDOC_TESTS") ;;
+  esac
   mkdb "$db"
   pdsn="$(app_dsn "$db")"
   "$BIN" migrate --db "$pdsn" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
   own_sql "$db" "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
-  [ "$pkg" = store ] && { public_logins "$db"; public_logins "$db"; } # the second run: idempotent
+  [ "$dir" = store ] && { public_logins "$db"; public_logins "$db"; } # the second run: idempotent
   ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" SPOOL_TEST_PG_RUNTIME_DSN="$(rt_dsn "$db")" \
       SPOOL_TEST_PG_PUBLIC_EXPORT_DSN="$(login_dsn spool_public_export "$db")" \
       SPOOL_TEST_PG_PUBLIC_NAMES_DSN="$(login_dsn spool_public_names "$db")" \
-      CGO_ENABLED=1 go test -race -count=1 -timeout "$GO_TEST_TIMEOUT" "./internal/$pkg/" ) &
+      CGO_ENABLED=1 go test -race -count=1 -timeout "$GO_TEST_TIMEOUT" "${sel[@]}" "./internal/$dir/" ) &
   pids+=("$!")
 done
 rc=0
 for p in "${pids[@]}"; do wait "$p" || rc=1; done
 [ "$rc" -eq 0 ] || { echo "FAIL - Postgres package suites"; exit 1; }
-echo "ok   - internal/store + internal/hub + internal/auth (015 CredStore) + internal/repodocs (075 worker) suites green against Postgres"
+echo "ok   - internal/store (spec 113 workspace docs in their own run) + internal/hub + internal/auth (015 CredStore) + internal/repodocs (075 worker) suites green against Postgres"
 
 # 017 T021 + FR-SEC-014 CONTROL: EVERY ^TestRLS test must RUN and PASS (a
 # skip is a failure), counted from the source so a new one cannot hide.

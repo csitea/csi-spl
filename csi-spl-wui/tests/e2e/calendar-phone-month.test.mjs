@@ -283,6 +283,20 @@ async function viewMid(p) {
   })
 }
 
+/** `sel` once it has stopped moving (the sheet slides up): a loaded runner (wf 10 run
+ * 37987822308, 124 s for this file) clicked Cancel mid-slide, so the tap missed it */
+async function still(p, sel) {
+  await p.waitForFunction((s) => {
+    const el = document.querySelector(s)
+    if (!el) return false
+    const top = Math.round(el.getBoundingClientRect().top)
+    const was = el.dataset.e2eTop
+    el.dataset.e2eTop = String(top)
+    return was === String(top)
+  }, { polling: 100, timeout: 5000 }, sel).catch(() => {})
+  return sel
+}
+
 /** a closed sheet or peek: the selected cell takes a tap again (what is under its centre).
  * The cell is scrolled into view first: since spec 107 T011 a working day's agenda carries a
  * Working hours line, so tapping a lower card scrolls the grid's top row under the top bar. */
@@ -402,7 +416,7 @@ try {
     /* T008's sheet (teleported to body) opens on that date; Cancel closes it */
     const sheet = await p.waitForSelector('[data-test=calphone-sheet-date]', { visible: true, timeout: 5000 }).then(() => p.$eval('[data-test=calphone-sheet-date]', (el) => el.getAttribute('data-value')), () => null)
     ok(`S2-3 ${w}: the add sheet is preset to that day`, sheet === EMPTY, sheet)
-    if (sheet !== null) await p.click('[data-test=calphone-sheet-cancel]')
+    if (sheet !== null) await p.click(await still(p, '[data-test=calphone-sheet-cancel]'))
     await settled(p)
 
     /* the 3-day event: a dot on each day */

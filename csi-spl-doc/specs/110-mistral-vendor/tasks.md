@@ -268,6 +268,15 @@ the owner's Team login on each box.
   cost cap is in force: the cnf `max_price` or a console spend limit. Done: 7i (n = 1 per box), with
   `vibe --version` = the pin, and the first usage-limit hit time recorded in
   `spec.md` 5.
+
+  Status (c-595, 2026-10-09): every precondition is recorded in `spec.md`
+  5.1. The owner waived the training toggles (msg 3e6decdf). The ToS and
+  the 30-day retention are quoted. The key bills to Team. The live run
+  passed on both boxes with 0 nudges and no 429: m-629 committed
+  `bf9e78fa4`, m-627 committed `b72f877e6`. Each seat showed as a tmux
+  window and in the prd/t1 desk roster (+109..139 s and +304..314 s).
+  **Still open:** the owner's WUI roster screenshot of a running m- row.
+  m-629 is held open for it.
 - [x] T013 **the switch, D1 + D4** (needs T001 applied, T003 and T013a on
   trunk; NOT T014). It is listed after T014 only for reading order. cnf
   `agent_split` `grok: 0, mistral: 55`, and the owner's workspace split moved

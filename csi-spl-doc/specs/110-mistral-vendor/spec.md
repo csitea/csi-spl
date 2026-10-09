@@ -537,6 +537,39 @@ training off for the whole org (precondition 1).
 - **Pilot:** m-595 (main box) took a doc seat (spec 111 s111-5, 5bace0c59). It
   took about 18 min, needed one nudge, and left 0 watchdog lines.
 
+**Live run (7i, n = 1 per box, 2026-10-09).** c-001 spawned both seats from
+one brief, `dispatch/brief-5c3bb16a-t014-live-mlane.md`. A lane may not
+spawn: `spawn-window.sh` refuses with "requester c-595 is a lane".
+
+| | main box | satellite |
+|---|---|---|
+| seat | m-629 | m-627 |
+| spawned (UTC) | 05:11:04Z | 05:11:10Z |
+| `vibe --version` | `vibe 2.26.0` (= the pin) | `vibe 2.26.0` (= the pin) |
+| commit, on master | `bf9e78fa4` at 05:11:53Z (+49 s), one file `live/m-629.md` | `b72f877e6` at 05:12:18Z (+68 s), one file `live/m-627.md` |
+| report to c-595 | 05:12:18Z (+74 s) | 05:12:4xZ |
+| nudges | 0 | 0 |
+| (a) tmux window | `m-629@<main-box> t014-live %141` (checked on the main box by c-002 and c-003, n = 1 each) | `m-627@sat t014-live %31`, seen 05:11:13Z (+3 s) |
+| (b) desk roster (prd/t1 `.hub/roster.json`, the hub view the WUI reads) | first seen 05:12:53..05:13:23Z (+109..139 s) | first seen 05:16:14..05:16:24Z (+304..314 s, one desk tick) |
+| (b) WUI roster screenshot | **open**: needs a member session (the owner) | **open**: same |
+| first usage limit (429) | none hit | none hit; 0 pane lines match `429`, `rate limit`, `usage limit` or `quota` |
+
+The m- pilot findings, checked for each seat:
+
+- **False "done" / invented sha:** none. Each full sha resolves
+  (`git rev-parse --verify`), is an ancestor of origin/master, and touches
+  only that lane's file.
+- **Deleting other work:** none. Each commit adds one 4-line file.
+- **Unquoted shell in a send:** none seen. Both bodies are plain text.
+- **Stopping mid-task / strays:** none. `git status --porcelain --ignored`
+  shows nothing on the main box. On the satellite it shows only the ignored
+  `csi-spl-iac/dat/`.
+- **Wrong topic:** m-629 replied on task `654597dd`, not on the brief's
+  `dispatch-5c3bb16a`. Minor: the body was right.
+
+m-627 was closed and retired at 05:17:01Z. c-001 closes m-629. The
+satellite has no dev desk roster: the owner's desk is prd/t1.
+
 ## 6. Data rule
 
 **DECIDED (D2, msg 803c3b38): mistral lanes may take personal-data and

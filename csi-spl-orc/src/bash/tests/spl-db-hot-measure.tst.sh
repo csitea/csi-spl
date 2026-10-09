@@ -61,8 +61,10 @@ grep -q "default_transaction_read_only=on" "$PROJ_ROOT/src/bash/run/spl-db-hot-m
 
 # --- 3. the hub's own settings per statement, and the overrides ------------------------
 stmts="walk_all walk_dm thread flow_counts ch_counts ch_marked ch_hidden walk_all_head walk_dm_head walk_dm_head_worst walk_parent_head"
-# settings <script> <name> <tag> -> the four SETs just before name.tag's first sample
-settings() { awk -v at="\\echo @@ $2$3" '/^SET /{s[++k]=$0} $0 == at {for (i = k - 3; i <= k; i++) print s[i]; exit}' <<<"$1"; }
+# settings <script> <name> <tag> -> the four SETs just before name.tag's first sample.
+# The marker goes in through ENVIRON, not -v: -v runs escape processing, and gawk
+# (the hosted runner's awk) reads the "\e" of "\echo" as "e" where mawk keeps it.
+settings() { AT="\\echo @@ $2$3" awk '/^SET /{s[++k]=$0} $0 == ENVIRON["AT"] {for (i = k - 3; i <= k; i++) print s[i]; exit}' <<<"$1"; }
 def=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 hub "" 0' in_orc 2>&1)
 for name in $stmts; do
   grep -q "^\\\\echo @@ $name.hub$" <<<"$def" || fail "$name is not measured by default"

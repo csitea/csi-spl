@@ -81,6 +81,11 @@ kill "$(cat "$T_TMP/p.pid" 2>/dev/null)" 2>/dev/null
 # server env carries SPOOL_TEST=1 but not the test's SPOOL_ROOT.
 mkdir -p "$T_TMP/live"; : >"$T_TMP/guard.log"
 for h in after-new-window after-rename-window window-linked window-unlinked; do tm set-hook -gu "$h"; done
+# Case 7's hook sorter runs detached and can still be mid-pass (or about to
+# take its pending pass); it would swap on names read before the rename
+# below. Hold its lock: this waits it out, and a late pass then backs off.
+exec 8<>"$T_TMP/.tmux-sort-windows.$(printf '%s' "$SPOOL_TMUX_SOCKET" | tr -c 'A-Za-z0-9' '_').lock"
+flock -w 10 8; eq "9. case 7's hook sorter lets go of the sort lock" "0" "$?"
 mkdir -p "$T_TMP/l9"
 tm rename-window -t "$(tm list-windows -t t -F '#{window_id} #{window_name}' | awk '$2=="AAB-2"{print $1}')" 'ZZZ-9'
 hook9() {

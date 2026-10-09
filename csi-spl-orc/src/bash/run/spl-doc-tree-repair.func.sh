@@ -72,6 +72,13 @@ spl_doc_tree_repair_exec() {
 # variables :doc, :actor. Output rows: LOCKED <0|1>, R <renumbered>
 # <reattached> <ids>.
 spl_doc_tree_repair_sql() {
+  _spl_doc_tree_repair_sql_lock
+  _spl_doc_tree_repair_sql_reattach
+  _spl_doc_tree_repair_sql_renumber_log
+}
+
+# _spl_doc_tree_repair_sql_lock: BEGIN, the operator scope, the doc lock.
+_spl_doc_tree_repair_sql_lock() {
   cat <<'SQL'
 BEGIN;
 SET LOCAL app.rls_scope = 'operator';
@@ -86,7 +93,12 @@ SELECT 'LOCKED', CASE WHEN :'locked' THEN 1 ELSE 0 END;
 ROLLBACK;
 \q
 \endif
+SQL
+}
 
+# _spl_doc_tree_repair_sql_reattach: step 1, sets :reattached, :reattached_ids.
+_spl_doc_tree_repair_sql_reattach() {
+  cat <<'SQL'
 -- 1. Re-attach. reach and u as in the check (I3); cut = the smallest id of
 -- each cycle; orphan = an unreachable item whose parent is not in the doc.
 -- Both go to the end of the root, in id order.
@@ -122,7 +134,13 @@ fix AS (
 )
 SELECT count(*) AS reattached, coalesce(string_agg(id::text, ',' ORDER BY id), '') AS reattached_ids
 FROM moved \gset
+SQL
+}
 
+# _spl_doc_tree_repair_sql_renumber_log: steps 2-4 (renumber, the rev bump and
+# its log entry, the deferred triggers) and the R row.
+_spl_doc_tree_repair_sql_renumber_log() {
+  cat <<'SQL'
 -- 2. Renumber every sibling list 1..k in (ord, id) order, ONE statement (the
 -- deferrable UNIQUE is checked at its end). The root keeps ord 1.
 WITH n AS (

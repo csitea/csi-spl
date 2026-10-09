@@ -30,7 +30,7 @@
 do_spl_blog_media_put() {
   local src="${BLOG_IMG_SRC:-}" name="${BLOG_IMG_NAME:-}" sha bucket uri rc=0
   spl_require_cloud_env || return 1
-  spl_blog_media_check "$src" "$name" || return 2
+  spl_blog_media_put_check "$src" "$name" || return 2
   sha="$(sha256sum <"$src" | awk '{print $1}')"
 
   do_require_bin gcloud yq sha256sum || return 1
@@ -74,9 +74,9 @@ spl_blog_media_put_verified() {
   do_log "OK $ENV $uri sha256=$sha"
 }
 
-# spl_blog_media_check <src> <name>: every local refusal, with its reason, and
+# spl_blog_media_put_check <src> <name>: every local refusal, with its reason, and
 # no gcloud call. The magic bytes decide the type: a PNG named .webp is refused.
-spl_blog_media_check() {
+spl_blog_media_put_check() {
   local src="$1" name="$2" size
   [[ -n "$src" ]] || { do_log "FATAL BLOG_IMG_SRC is required (the local .webp file)"; return 1; }
   [[ -f "$src" && -r "$src" ]] || { do_log "FATAL BLOG_IMG_SRC $src is not a readable file"; return 1; }

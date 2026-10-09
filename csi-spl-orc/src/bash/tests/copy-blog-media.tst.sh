@@ -104,6 +104,23 @@ reset; cb
 reset; mkdir -p "$T/out/blog-md"; echo '{"locales":{"en":[{"id":"'"$ID"'","title":"t"}]}}' >"$T/out/blog-md/index.json"; cb
 ((rc == 0)) && ! grep -q gcloud "$T/calls.log" && pass "no post names a picture: rc 0, no gcloud call" || fail "no picture: rc=$rc"
 
+# --- 4b. every orc file sourced, as ./run does (wf 30 run 37892580445) -------
+# cb re-sources the action LAST, which hid a later file redefining one of its
+# helpers: spl-blog-media-put.func.sh's two-argument spl_blog_media_check won
+# under ./run and the deploy died on "$2: unbound variable".
+PUT="$PROJ_ROOT/src/bash/run/spl-blog-media-put.func.sh"
+run_all() { SNIPPET="$1 do_copy_blog_media" in_orc FAKE_BUCKET="$B" BLOG_MEDIA_OUT="$T/out" \
+  GCP_ACCOUNT=test-sa@example.com </dev/null >"$T/o" 2>&1; rc=$?; }
+reset; webp "$B/$ID.webp"; index "$ID.webp"; run_all ""
+((rc == 0)) && copied "$ID.webp" && pass "with every orc file sourced (put file too) a good webp is copied" ||
+  fail "all sourced: rc=$rc $(cat "$T/o")"
+sed 's/spl_blog_media_put_check/spl_blog_media_check/g' "$PUT" >"$T/put-dup.sh"
+if cmp -s "$PUT" "$T/put-dup.sh"; then fail "CONTROL clash: the sed changed nothing"; else
+  reset; webp "$B/$ID.webp"; index "$ID.webp"; run_all "source '$T/put-dup.sh';"
+  ((rc != 0)) && ! copied "$ID.webp" && pass "CONTROL: the put file's old duplicate name breaks the copy (red)" ||
+    fail "CONTROL clash: still copied with the duplicate name: rc=$rc"
+fi
+
 # --- 5. controls ------------------------------------------------------------
 # mutant <name> <sed-expr>: the action with one check removed; must differ
 mutant() {

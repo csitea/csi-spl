@@ -5,6 +5,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, root_validator
 from pydantic_yaml import YamlModel
 
+from .agent_split import Box
+
 
 class Cloud(BaseModel):
     """spec 076: the cloud provider the env runs on; gcp unless the cnf says otherwise."""
@@ -34,7 +36,7 @@ class Env(YamlModel):
     auth: Any
     i18n: I18n
     mail: Any
-    box: Any
+    box: Box
 
 
 class CnfModel(YamlModel):

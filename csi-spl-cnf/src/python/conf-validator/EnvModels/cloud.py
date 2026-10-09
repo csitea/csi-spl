@@ -8,6 +8,8 @@ from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, root_validator
 from pydantic_yaml import YamlModel
 
+from .agent_split import Box
+
 # GCP's own project id rule
 GCP_PROJECT_ID = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
 
@@ -62,7 +64,7 @@ class Env(YamlModel):
     auth: Any
     i18n: I18n
     mail: Any
-    box: Any
+    box: Box
 
     @root_validator(skip_on_failure=True)
     def realm(cls, values):

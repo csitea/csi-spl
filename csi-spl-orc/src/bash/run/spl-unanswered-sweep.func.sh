@@ -20,10 +20,14 @@
 # @description   test     - a test workspace (SWEEP_SKIP_TENANTS, SWEEP_SKIP_RE)
 # @description   closed   - the topic card is archived, or its channel is
 # @description              archived or deleted
-# @description   to-human - a post addressed to a human (to=HUM-n/GST-n),
-# @description              or a null-channel post to ALL-0 in a topic no
-# @description              agent has posted in. A null-channel post to
-# @description              ALL-0 after an agent post is open (cstate thread)
+# @description   to-human - a post addressed to a human (to=HUM-n/GST-n)
+# @description   nobody   - a null-channel post to ALL-0 in a topic no agent
+# @description              has posted in: read by its writer alone (spec
+# @description              117 1.3). LISTED in its own table ("Reached
+# @description              nobody", ids and seat only), never sent;
+# @description              do_spl_msg_unreadable alerts on these. A
+# @description              null-channel post to ALL-0 after an agent post
+# @description              is open (cstate thread)
 # @description   channel  - a channel in SWEEP_SKIP_CHANNELS (#issues, #tasks)
 # @description   fresh    - younger than SWEEP_MIN_AGE (the live path has it)
 # @description   ack      - a pure acknowledgement ("ok", "thanks", emoji
@@ -242,7 +246,8 @@ SQL
 # A null channel is a DM (cstate dm) only when no agent has posted in the
 # topic. Once one has (from_id not HUM-/GST-, and not a terminal mirror),
 # cstate is thread: the classifier then keeps a later human post to ALL-0
-# open. A human-to-human DM, and a null-channel ALL-0 with no agent, stay dm.
+# open. A human-to-human DM, and a null-channel ALL-0 with no agent (the
+# classifier's 'nobody'), stay dm.
 # Perf edition 20261004 E17: DISTINCT ON over m.* sorted every 7-day row at
 # full width (bodies, envelopes) and spilled 8 MB to disk each run; prd
 # EXPLAIN ANALYZE 110..448 ms -> 71..78 ms, dev 55..59 -> 11..13 ms (n=3 each,

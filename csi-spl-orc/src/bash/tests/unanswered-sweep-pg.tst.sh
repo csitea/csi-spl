@@ -75,7 +75,7 @@ m csi-rel 6 9 "" HUM-27 CLE-7 60 "dm with	a tab
 and a newline"                                              # topic 6: a DM to an agent
 m t1 8 b "" c-003 HUM-10 50 "outage note with no channel"   # topic 8: agent, null channel
 m t1 8 c "" HUM-10 ALL-0 40 "please fix this class of miss" # topic 8: human last, thread
-m t1 9 d "" HUM-3 ALL-0 40 "two humans, no agent"           # topic 9: dm, to-human
+m t1 9 d "" HUM-3 ALL-0 40 "two humans, no agent"           # topic 9: dm, reached nobody
 psql_owner -c "UPDATE messages SET archived_at = now(), archived_by = 'HUM-1' WHERE msg_id = '10000000-0000-4000-8000-000000000006'" >/dev/null
 m t1 7 a dev CLE-5 box-desk 80 "typed in the terminal"     # topic 7: a terminal-typed line (specs/036)
 psql_owner -c "UPDATE messages SET typed_by = 'HUM-2' WHERE msg_id = '10000000-0000-4000-8000-00000000000a'" >/dev/null || fail "seed typed_by"
@@ -114,6 +114,10 @@ env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/row
   grep -q '^| open | t1 | dm ALL-0 | 00000000-0000-4000-8000-000000000008 |' "$T/o" &&
   ! grep -q '^| open | .*00000000-0000-4000-8000-000000000009 |' "$T/o" &&
   pass "5. CONTROL: the classifier lists the open topics, including the null-channel follow-up, not the human-only DM" || fail "5. $(cat "$T/o")"
+nb="$(sed -n '/^### Reached nobody/,/^###/p' "$T/o")"
+grep -q '^| t1 | 00000000-0000-4000-8000-000000000009 | 10000000-0000-4000-8000-00000000000d | .* | HUM-3 |$' <<<"$nb" &&
+  ! grep -q 'two humans, no agent' "$T/o" &&
+  pass "6. the writer-only row (topic 9) is in the reached-nobody table, ids and seat only" || fail "6. reached nobody: $(cat "$T/o")"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

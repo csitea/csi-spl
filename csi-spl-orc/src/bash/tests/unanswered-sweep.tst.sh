@@ -6,11 +6,13 @@
 #          spool binary, no real crontab is touched.
 #   1. classification: human-last listed; agent-last, archived topic, archived
 #      channel, test workspace (list + name pattern), human DM, a channel post
-#      to a human, a null-channel ALL-0 with no agent, a null-channel post
+#      to a human, a null-channel post
 #      addressed to a human even after an agent, a terminal-typed line, the
 #      probe human HUM-1 (prd), #issues and a fresh post left out; a
 #      null-channel ALL-0 after an agent post (cstate thread) is open;
 #      ack-only listed apart and never sent
+#      a null-channel ALL-0 with no agent (read by its writer alone) is
+#      listed in the "Reached nobody" table, ids only (spec 117 1.3)
 #   2. DELIVER=0 sends and writes nothing
 #   3. DELIVER=1: one note to the lease holder with the NEW items only; state
 #      + last written; an immediate second sweep sends nothing
@@ -110,9 +112,18 @@ for t in 02 03 04 05 06 07 08 09 e1 e2 e3 e6 e7; do
 done
 pass "1. agent-last, archived topic/channel, e2e, proof-*, to a human, terminal, HUM-1, #issues, fresh: left out"
 [[ "$(grep -c '^| ack |' "$T/o")" == 2 ]] && pass "1. 'ok thanks!' and an emoji-only post are listed as acks" || fail "1. acks: $(grep '^| ack' "$T/o")"
-grep -q '^| t1 | 2 | 0 | 0 | 0 | 2 | 1 | 1 | 2 | 0 | 1 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 2 | 1 | 0 | 0 |$' "$T/o" &&
-  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=4 ack=2 new=4 resend=0 escalate=0$' "$T/o" &&
+grep -q '^| t1 | 2 | 0 | 0 | 0 | 2 | 1 | 1 | 2 | 0 | 0 | 1 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 1 | 1 | 1 | 0 | 0 |$' "$T/o" &&
+  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=4 ack=2 nobody=1 new=4 resend=0 escalate=0$' "$T/o" &&
   pass "1. per-workspace counts" || fail "1. counts: $(grep -A10 'Per workspace' "$T/o")"
+# spec 117 1.3: a null-channel ALL-0 with no agent in the topic is read by its
+# writer alone. It used to be counted as to-human and listed nowhere; now it
+# has its own table, ids and seat only (never the body), and is never sent.
+nb="$(sed -n '/^### Reached nobody/,/^###/p' "$T/o")"
+[[ "$(grep -c '^| csitea | ' <<<"$nb")" == 1 ]] &&
+  grep -q '^| csitea | 00000000-0000-4000-8000-0000000000e6 | 10000000-0000-4000-8000-0000000000e6 | .* | HUM-3 |$' <<<"$nb" &&
+  ! grep -q 'humans only, no agent' "$T/o" && ! grep -q '0000000000e7\|0000000000e4\|000000000007 ' <<<"$nb" &&
+  pass "1. the reached-nobody table lists the writer-only row (ids + seat, no body); a DM to a human and a thread are not in it" ||
+  fail "1. reached nobody: $nb"
 [[ ! -e "$T/sent" && ! -e "$S/dispatch/unanswered.state" && ! -e "$S/dispatch/unanswered.last" ]] &&
   grep -q '^PLAN send to CLE-002: \*\*Unanswered sweep\*\*' "$T/o" &&
   pass "2. DELIVER=0: a PLAN line, nothing sent or written" || fail "2. wrote or sent: $(ls "$S/dispatch") $(cat "$T/o")"

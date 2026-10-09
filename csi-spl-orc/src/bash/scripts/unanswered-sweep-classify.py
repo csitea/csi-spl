@@ -62,7 +62,7 @@ def cell(s):
 def utc(t):
     return time.strftime("%Y-%m-%dT%H:%MZ", time.gmtime(t))
 
-counts, items, acks = {}, [], []
+counts, items, acks, nobody = {}, [], [], []
 for line in open(rows_f, encoding="utf-8", errors="replace"):
     f = line.rstrip("\n").split("\t")
     if len(f) < 13:
@@ -71,7 +71,7 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
     body = "\t".join(f[12:])
     ts = int(ts)
     c = counts.setdefault(tenant, {k: 0 for k in
-        ("open", "ack", "fresh", "closed", "answered", "terminal", "handled", "test", "to-human", "channel", "human")})
+        ("open", "ack", "fresh", "closed", "answered", "terminal", "handled", "test", "to-human", "nobody", "channel", "human")})
     if tenant in skip_t or (skip_re and (skip_re.search(tenant) or (tname and skip_re.search(tname)))):
         c["test"] += 1; continue
     if by == "terminal":
@@ -80,11 +80,18 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
         c["answered"] += 1; continue
     if topic == "archived" or cstate in ("archived", "deleted"):
         c["closed"] += 1; continue
-    # Addressed to a person, or a null-channel ALL-0 in a topic no agent has
-    # posted in (cstate dm). cstate thread is that null channel once an agent
-    # has posted: the human's ALL-0 follow-up is open, not to-human.
-    if re.match(r"(HUM|GST)-", to_id) or (cstate == "dm" and to_id == "ALL-0"):
+    # Addressed to a person: that person reads it, no agent has to.
+    if re.match(r"(HUM|GST)-", to_id):
         c["to-human"] += 1; continue
+    # A null-channel ALL-0 in a topic no agent has posted in (cstate dm) is
+    # read by its writer ALONE: the read door shows a channel-less row to its
+    # from and its to, and ALL-0 is no seat (spec 117 1.3). It used to be
+    # counted as to-human; it is listed in its own table, ids only, never
+    # sent (do_spl_msg_unreadable alerts on it). cstate thread is that null
+    # channel once an agent has posted: the follow-up is open, as before.
+    if cstate == "dm" and to_id == "ALL-0":
+        c["nobody"] += 1
+        nobody.append(dict(tenant=tenant, task=task, msg=msg, ts=ts, who=who)); continue
     if chan in skip_ch:
         c["channel"] += 1; continue
     if who in skip_hum:
@@ -102,6 +109,7 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
         c["open"] += 1; items.append(row)
 items.sort(key=lambda r: r["ts"])
 acks.sort(key=lambda r: r["ts"])
+nobody.sort(key=lambda r: r["ts"])
 
 # state: key \t stage \t first-sent \t last-sent ; stage 1 sent, 2 re-sent, 3 escalated
 state = {}
@@ -142,13 +150,18 @@ rep = "## Unanswered sweep %s %s\n\n" % (envn, stamp)
 rep += "Topics whose last message is a human's, older than %d min (sent to %s; escalation %s).\n\n" % (min_age // 60, to, orch)
 rep += HDR + (table(items, "open") if items else "| - | (none) | | | | | | |\n")
 rep += "\n### Acknowledgements only (listed, never sent)\n\n" + HDR + (table(acks, "ack") if acks else "| - | (none) | | | | | | |\n")
-COLS = ("open", "ack", "handled", "fresh", "closed", "answered", "terminal", "to-human", "channel", "human", "test")
+rep += ("\n### Reached nobody (read by their writer alone: no channel, to ALL-0, no agent in the topic; "
+        "listed, never sent)\n\n| workspace | topic | msg | posted | age | who |\n|---|---|---|---|---|---|\n")
+rep += "".join("| %s | %s | %s | %s | %s | %s |\n" % (cell(r["tenant"]), r["task"], r["msg"], utc(r["ts"]),
+               age(now - r["ts"]), cell(r["who"])) for r in nobody) or "| (none) | | | | | |\n"
+COLS = ("open", "ack", "handled", "fresh", "closed", "answered", "terminal", "to-human", "nobody", "channel", "human", "test")
 rep += "\n### Per workspace\n\n| workspace | " + " | ".join(COLS) + " |\n|" + "---|" * (len(COLS) + 1) + "\n"
 for t in sorted(counts):
     rep += "| %s | " % cell(t) + " | ".join(str(counts[t][k]) for k in COLS) + " |\n"
 n_open = sum(c["open"] for c in counts.values())
 n_ack = sum(c["ack"] for c in counts.values())
-rep += "\nSUM open=%d ack=%d new=%d resend=%d escalate=%d\n" % (n_open, n_ack, len(send_new), len(send_again), len(escalate))
+rep += "\nSUM open=%d ack=%d nobody=%d new=%d resend=%d escalate=%d\n" % (
+    n_open, n_ack, len(nobody), len(send_new), len(send_again), len(escalate))
 open(os.path.join(out, "report.md"), "w").write(rep)
 
 holder = ""

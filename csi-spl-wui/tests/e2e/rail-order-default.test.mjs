@@ -169,11 +169,31 @@ async function sameRouteTabs(browser, base) {
   await sleep(800)
   const ctl = await panel2Mutations(p, 'topics')
   check('1440px T007 CONTROL: Topics from #lobby changes the route and panel 2 mutates', ctl.path === '/' && ctl.n > 0, ctl)
-  
-  // T008: Home route does not show sidebar-panel-topics in panel 1
-  await p.goto(`${base}/`);
-  const topicsPanel = await p.$('#sidebar-panel-topics');
-  check('1440px T008: Home route does not show sidebar-panel-topics in panel 1', topicsPanel === null, { topicsPanel });
+}
+
+/* spec 109 T008 (FR-006, owner Q2 = a): on `/` the centre (panel 2) is the
+   topic list, so panel 1 shows Channels, not the same list again. A fresh load
+   of `/`, read once the centre has its rows: the VISIBLE panel 1 list must be
+   Channels. The old check (`#sidebar-panel-topics` absent) passed on the old
+   code too; this one reads what is shown. A topic page (/t/<id>, its
+   messages, not the index) keeps Topics in panel 1. */
+const shownPanels = (p) => p.$$eval('.sidebar-panel', (els) => els.filter((e) => e.offsetParent !== null).map((e) => e.id))
+async function homeOneList(browser, base) {
+  const p = await browser.newPage()
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+  await p.waitForSelector('.spool-main .topic-row', { timeout: NAV })
+  await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
+  await sleep(800)
+  const shown = await shownPanels(p)
+  const centre = await p.$$eval('.spool-main .topic-row', (els) => els.length)
+  check('1440px T008: / shows the topic list once - panel 2 has it, panel 1 shows Channels', centre > 0 && same(shown, ['sidebar-panel-channels']), { shown, centre })
+  const key = await p.$eval('.spool-main .topic-row', (e) => e.getAttribute('data-key'))
+  await go(p, '/t/' + key)
+  await sleep(800)
+  const onTopic = await shownPanels(p)
+  check('1440px T008: a topic page still shows the Topics list in panel 1', same(onTopic, ['sidebar-panel-topics']), { onTopic })
+  await p.close()
 }
 
 const server = await startServer()
@@ -182,6 +202,7 @@ let code = 0
 try {
   for (const [w, touch] of [[1440, false], [820, true], [360, true]]) await run(browser, server.base, w, touch)
   await sameRouteTabs(browser, server.base)
+  await homeOneList(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

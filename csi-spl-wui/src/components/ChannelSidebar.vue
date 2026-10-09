@@ -804,6 +804,7 @@ import { useLoopStrip } from '~/composables/useLoopStrip'
 import { useSectionExit } from '~/composables/useSectionExit'
 import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
 import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, CALENDAR_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { productPath } from '~/utils/signed-out-redirect.mjs'
 import { setLinkOpenHook } from '~/utils/msg-jump.mjs'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
 import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
@@ -918,6 +919,15 @@ const searchStore = useSearchStore()
 const route = useRoute()
 const mobileStack = useMobileStack()
 const onSearchPage = computed(() => isSearchPage(route.path))
+/* spec 109 T008 (FR-006, owner Q2 = a): on a desktop the centre of `/` IS
+   the topic list, so panel 1 opens on Channels there instead of the same
+   list twice. A topic page (/t/<id>) keeps Topics; the phone, where `/` is
+   one list on its own, keeps Topics too. */
+function routeTab(path: string) {
+  const next = tabForPath(path)
+  if (next === 'topics' && !mobileStack.isMobile.value && productPath(path) === '/') return 'channels'
+  return next
+}
 watch(() => route.path, (path) => {
   rowMenu.value = ''
   if (isSearchPage(path)) {
@@ -933,7 +943,7 @@ watch(() => route.path, (path) => {
   /* SPL-989: on a phone at level 1 this list IS the screen - Back to it
      keeps the section the reader left from, whatever page sits behind */
   if (mobileStack.isMobile.value && mobileStack.level.value === 1) return
-  const next = tabForPath(path)
+  const next = routeTab(path)
   if (next) tab.value = next
 }, { immediate: true })
 /* HUM-10 (t1 36ea84a6): a followed link to a message or a topic shows its
@@ -1203,7 +1213,7 @@ async function selectTab(next: SideTab) {
 /* CLE-77884: the search list's X - back to the list the page belongs to */
 function closeSearch() {
   holdSearch.value = false
-  tab.value = tabForPath(route.path) || 'channels'
+  tab.value = routeTab(route.path) || 'channels'
   if (isSearchPage(route.path)) void navigateTo(localePath('/'))
 }
 const sidePane = useSidePane()

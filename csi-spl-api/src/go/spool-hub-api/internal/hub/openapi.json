@@ -6312,6 +6312,97 @@
         ]
       }
     },
+    "/v1/public/calendar/events": {
+      "get": {
+        "description": "No session needed (rdb 0158). The workspace is the page Origin's tenant host (the apex tenant on the apex), else a legacy tenant Host; no parameter names another. Only events with audience web are answered, with the internet-safe fields only. Rate-limited per client address.",
+        "operationId": "getPublicCalendarEvents",
+        "parameters": [
+          {
+            "description": "Range start, RFC 3339 with a zone",
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Range end (exclusive), at most 400 days after start",
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "events": {
+                      "items": {
+                        "properties": {
+                          "all_day": {
+                            "type": "boolean"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "ends_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "starts_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "description",
+                          "starts_at",
+                          "ends_at",
+                          "all_day"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "events"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the web events overlapping the range, by start"
+          },
+          "400": {
+            "description": "Bad range"
+          },
+          "404": {
+            "description": "No workspace on this host (unknown_tenant)"
+          },
+          "429": {
+            "description": "Too many reads from this address; Retry-After says when"
+          }
+        },
+        "security": [],
+        "summary": "Read a workspace's web calendar events signed out",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
     "/v1/release-notes": {
       "get": {
         "operationId": "getReleaseNotes",

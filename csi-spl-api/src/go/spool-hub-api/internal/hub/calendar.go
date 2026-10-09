@@ -587,13 +587,15 @@ func (s *Server) calendarViewer(r *http.Request, t store.Tenant) (string, bool) 
 	return hum, s.isDemoVisitor(r.Context(), t.ID, hum)
 }
 
-// visibleTo drops what a demo visitor may not see: everything but public (the
-// store already dropped the private events it is not named on).
+// visibleTo drops what a demo visitor may not see: everything but public and
+// web (the store already dropped the private events it is not named on).
 func visibleTo(evs []store.CalendarEvent, demo bool) []store.CalendarEvent {
 	if !demo {
 		return evs
 	}
-	return slices.DeleteFunc(evs, func(e store.CalendarEvent) bool { return e.Audience != store.CalendarPublic })
+	return slices.DeleteFunc(evs, func(e store.CalendarEvent) bool {
+		return e.Audience != store.CalendarPublic && e.Audience != store.CalendarWeb
+	})
 }
 
 // deadlinesIn is the workspace's issue deadlines inside rg (read only here).
@@ -1194,6 +1196,7 @@ func (s *Server) routeCalendar(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/calendar/events/{id}/rsvp", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/trash", s.calendarPreflight)
 	s.routeCalendarSearch(mux) // specs/097 T009
+	s.routeCalendarWeb(mux)    // rdb 0158: the signed-out web events
 }
 
 // routeWorkItems registers the issues (specs/039) and the calendar that

@@ -245,6 +245,7 @@ type Server struct {
 	evLim        *edge.Window // events.go, per-human writes
 	joinLim      *edge.Window // join_tokens.go, per-human mint / revoke
 	redeemLim    *edge.Window // join_tokens.go, per-address redeems
+	calWebLim    *edge.Window // calendar_web.go, per-address signed-out reads
 
 	searchRate *edge.Window // search.go, per (tenant, reader)
 	fileUsage  *fileUsage   // fileusage.go, per-tenant stored file bytes

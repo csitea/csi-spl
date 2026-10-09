@@ -41,6 +41,7 @@ do_check_fleet_rules_drift() {
   _frd_ceiling_number "$tree" || rc=1
   _frd_data_rule "$tree" "$home" || rc=1
   _frd_language_rule "$tree" "$home" || rc=1
+  _frd_per_kind_main "$tree" "$home" || rc=1
   _frd_commit_address "$tree" || rc=1
 
   if (( rc )); then
@@ -157,6 +158,40 @@ _frd_data_rule() {  # <tree> <home>
 }
 _frd_language_rule() {  # <tree> <home>
   _frd_pins language-rule language-rule-final 's/.*_spl_lane_mix_want ([a-z]+) "kind i18n:.*/\1/p' "i18n pick" "$1" "$2"
+}
+
+_frd_per_kind_main() {  # <tree> <home>
+  local t="$1" h="$2" rx want f ln kind main bad=0 n=0
+  rx='^\| *([a-z_]+) *\| *([a-z]+) *\|.*\|$'
+  want="specs_and_docs agy
+tests claude
+simple_coding mistral
+complex_coding claude
+i18n agy
+secret claude"
+  
+  for f in "$t/$_FRD_FRAG/20-spawn-an-agent.md" "$t/$_FRD_CMDS/spawn-an-agent.md"; do
+    [[ -f "$f" ]] || { _frd_log "FAIL per-kind-main: $f not found"; bad=1; continue; }
+    while IFS= read -r ln; do
+      if [[ "$ln" =~ $rx ]]; then
+        kind="${BASH_REMATCH[1]}"
+        main="${BASH_REMATCH[2]}"
+        n=$((n + 1))
+        if ! grep -q "^$kind $main$" <<<"$want"; then
+          _frd_log "FAIL per-kind-main: ${f#"$t"/}:$ln defines $kind main as $main, but the spec says $(grep "^$kind " <<<"$want" | cut -d' ' -f2)"
+          bad=1
+        fi
+      fi
+    done < <(grep -n -E '\| *[a-z_]+ *\| *[a-z]+ *\|' "$f")
+  done
+  
+  if (( n == 0 )); then
+    _frd_log "FAIL per-kind-main: no per-kind main table found in 20-spawn-an-agent.md or spawn-an-agent.md"
+    bad=1
+  elif (( bad == 0 )); then
+    _frd_log "OK per-kind-main: $n per-kind main vendors match the spec"
+  fi
+  return "$bad"
 }
 
 _frd_commit_address() {  # <tree>

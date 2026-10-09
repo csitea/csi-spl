@@ -93,7 +93,11 @@ run "$T/p"; rc=$?; control "8b language-rule pins" "language-rule: $CMDS/spawn-a
 plant; sed -i 's/_spl_lane_mix_want agy "kind i18n:/_spl_lane_mix_want claude "kind i18n:/' "$T/p/csi-spl-orc/src/bash/run/spl-lane-mix.func.sh"
 run "$T/p"; rc=$?; control "8c language-rule code" "language-rule: do_spl_lane_mix's i18n pick is claude"
 
-# 9. commit-address: a commit by the same name with another address.
+# 9. per-kind-main: a per-kind main vendor is altered.
+plant; sed -i 's/| specs_and_docs *| agy *|/| specs_and_docs | mistral |/' "$T/p/$FRAG/20-spawn-an-agent.md"
+run "$T/p"; rc=$?; control "9 per-kind-main" "per-kind-main: $FRAG/20-spawn-an-agent.md:[0-9]* defines specs_and_docs main as mistral"
+
+# 10. commit-address: a commit by the same name with another address.
 plant; echo x >>"$T/p/x"; git -C "$T/p" add x
 git -C "$T/p" -c user.name="$NAME" -c user.email="other@example.com" commit -q -m drift
 run "$T/p"; rc=$?; control "9 commit-address" "commit-address: a commit by that author name uses <other@example.com>"

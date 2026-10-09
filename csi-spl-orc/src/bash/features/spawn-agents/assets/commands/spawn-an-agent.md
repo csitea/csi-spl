@@ -2,11 +2,8 @@
 name: spawn-an-agent
 description: >
   Route a piece of work to the right agent launcher and spawn it. Name the
-  task kind, then let do_spl_lane_mix pick from the box's vendor split
-  (cnf env.box.agent_split): spec work and multilingual text to /agy-spawn, secrets and the most
-  complex coding to /claude-spawn, everything else to the larger of the grok
-  and mistral shares (/grok-spawn or /mistral-spawn). An omitted kind and an
-  omitted difficulty are that default, not claude. Use when the user says
+  task kind, then let do_spl_lane_mix pick the per-kind main and backup vendors
+  (cnf env.box.agent_split_by_kind). Use when the user says
   "spawn an agent", "give this to an agent", or hands you work that belongs in
   another lane. A leading c-NNN / g-NNN / a-NNN / q-NNN / m-NNN id (or a legacy
   CLE-nn) sends the rest to that agent instead.
@@ -29,36 +26,31 @@ Name the task kind, estimate difficulty against your own maximum capacity
 launcher:
 
 ```bash
-cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<spec|i18n|secret|hard|> LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> ./run -a do_spl_lane_mix
+cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<specs_and_docs|tests|simple_coding|complex_coding|i18n|secret> LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> LANE_MIX_TASK=<task_id> ./run -a do_spl_lane_mix
 ```
 
 Its last line, `pick=<vendor> launcher=/<vendor>-spawn reason=...`, is the
-launcher. The split is cnf `env.box.agent_split` (all.env.yaml: claude,
-grok, agy, qwen and mistral, each +/- 5 over the box's last 20 spawns), an
-approximate ratio, never a quota. Mistral takes grok's share (spec 110 D1):
-`grok: 55` becomes `mistral: 55, grok: 0`.
+launcher. The split is cnf `env.box.agent_split_by_kind` (all.env.yaml), which defines the per-kind main and backup vendors:
+
+| the task | main    | backup  |
+|----------|---------|---------|
+| specs, docs, plans, reviews: `LANE_MIX_KIND=specs_and_docs` | agy     | claude  |
+| writing tests: `LANE_MIX_KIND=tests` | claude  | mistral |
+| simple and routine coding: `LANE_MIX_KIND=simple_coding` | mistral | claude  |
+| hard coding, architecture, hi-fi work: `LANE_MIX_KIND=complex_coding` | claude  | mistral |
+| translation, or the language review of user-facing text in several languages: `LANE_MIX_KIND=i18n` | agy     | claude  |
+| personal data or secrets: `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude  | mistral |
+
+The backup vendor takes over after 2 failed tries of the main on the same task.
 
 <!-- fleet-pin data-rule-vendors: claude mistral -->
-<!-- fleet-pin language-rule-final: agy -->
-| the task | goes to |
-|---|---|
-| spec writing or spec review: `LANE_MIX_KIND=spec` | agy |
-| translation, or the language review of user-facing text in several languages (blog posts, WUI i18n locale files, help pages): `LANE_MIX_KIND=i18n` | agy, whatever the shares: agy has the final word on multilingual text (owner, 2026-10-08) |
-| personal data or secrets (credentials, keys, customer data): `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude; mistral may take it too (spec 110 D2), but only when you pick `/mistral-spawn` by hand. Never qwen, grok or agy (the data rule: global CLAUDE.md, "Spawn an agent") |
-| the most complex coding: `LANE_MIX_KIND=hard`, or difficulty 60 or more | claude |
-| everything else, tests included: kind unset or `default`, difficulty omitted | the larger share of grok and mistral (mistral once the share has moved) |
-| under 60%, kind unset: easy, mechanical, well specified | the vendor furthest below its share by more than the tolerance; inside the band, the largest non-claude share |
+**Data rule**: Work that carries personal data or secrets (credentials, keys, customer data) always goes to `/claude-spawn` or `/mistral-spawn`, never to qwen, grok, or agy. The backup for `secret` is mistral, and the work is never routed to agy, grok, or qwen.
 
-A vendor whose CLI is not installed or not signed in on this box is skipped
-and its share goes to claude (a spec with no agy there goes to claude).
-mistral is the exception (spec 110 D4): a box without `~/.vibe/.env` passes
-its pick down the chain mistral -> agy -> claude. An `i18n` task with no agy
-there falls to claude (spec 110 D4: the next vendor in the chain): claude
-drafts, and the text WAITS for an agy review before it ships (ask the
-orchestrator for an agy lane on another box). It never ships flagged as
-unreviewed: the owner gave agy the final word. An estimate near the line
-counts as harder than it looks. Omitting the difficulty is the default, not
-a hard task. A user who names a launcher wins over the pick.
+<!-- fleet-pin language-rule-final: agy -->
+**Language rule**: agy has the final word on multilingual text. Any user-facing text in several languages (blog posts, WUI i18n locale files, help pages) gets an agy review as the LAST step before it ships. With no agy on the box, claude drafts and the text waits for an agy review; it never ships unreviewed.
+
+A vendor whose CLI is not installed or not signed in on this box is skipped.
+The backup vendor is tried next, and if it is also unavailable, the work falls to claude (the default and last fallback). An `i18n` task with no agy on the box falls to claude, but the text WAITS for an agy review before it ships.
 
 ## 3. Before spawning
 

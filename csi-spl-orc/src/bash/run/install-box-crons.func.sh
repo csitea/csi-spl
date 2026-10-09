@@ -12,6 +12,8 @@
 # @description script is not in this checkout yet (its lane not landed) is
 # @description refused unless BOX_CRONS_ONLY leaves it out. From a linked
 # @description worktree the install is refused (its paths vanish with it).
+# @description An @reboot row waits for its script and log dir first
+# @description (spl_cron_boot_gate, BOOT_CRON_WAIT).
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param BOX_CRONS_ACTION (optional) - install (default) | remove (drops the
 # @param   tagged lines only; it never puts an engine line back)
@@ -54,8 +56,7 @@ do_install_box_crons() {
   box_crons_filter <"$before" >"$after"
   if [[ "$act" == install ]]; then
     for i in "${sel[@]}"; do
-      printf "%s /bin/bash '%s' >> '%s' 2>&1 # csi-spl:box-cron:%s\n" \
-        "${scheds[$i]}" "$PROJ_PATH/${scripts[$i]}" "$state/${logs[$i]}" "${names[$i]}" >>"$after"
+      box_crons_line "$i" >>"$after" || { rm -f "$before" "$after"; return 1; }
     done
   fi
   if cmp -s "$before" "$after"; then
@@ -74,6 +75,20 @@ do_install_box_crons() {
   $ct "$after" || { rm -f "$before" "$after"; do_log "FATAL crontab refused the new file"; return 1; }
   rm -f "$before" "$after"
   do_log "OK the box crons are $([[ "$act" == install ]] && echo "installed (${#sel[@]} row(s))" || echo removed)"
+}
+
+# box_crons_line <index> - the crontab line of one row. An @reboot row runs
+# behind the boot gate (spl_cron_boot_gate): cron's @reboot pass comes before
+# the nofail binds that hold the script and the log (drill 8, 2026-10-09)
+box_crons_line() {
+  local i="$1" pre="" tag="csi-spl:box-cron:${names[$1]}"
+  if [[ "${scheds[$i]}" == @reboot ]]; then
+    declare -F spl_cron_boot_gate >/dev/null ||
+      source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-install-service.func.sh"
+    pre="$(spl_cron_boot_gate "$state/${logs[$i]}" "$PROJ_PATH/${scripts[$i]}" "$tag")" || return 1
+  fi
+  printf "%s %s/bin/bash '%s' >> '%s' 2>&1 # %s\n" \
+    "${scheds[$i]}" "$pre" "$PROJ_PATH/${scripts[$i]}" "$state/${logs[$i]}" "$tag"
 }
 
 # box_crons_read_manifest <file> - fills names/scheds/scripts/logs/repls of the

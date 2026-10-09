@@ -50,7 +50,7 @@ inst() { SNIPPET="PROJ_PATH=$O; do_install_box_crons" in_orc BOX_CRONS_CRONTAB="
 
 out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_ALLOW_WORKTREE=1 2>&1)"; rc=$?
 [ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z-]*$' <<<"$out")" = 5 ] \
-  && grep -q "^  +@reboot /bin/bash '$PROJ_ROOT/src/bash/features/box-sessions/scripts/sessions-boot.sh' >> '/var/csi/csi-spl/box-sessions/boot.log' 2>&1 # csi-spl:box-cron:box-sessions-boot$" <<<"$out" \
+  && grep -q "^  +@reboot i=0; until .* BOOT start csi-spl:box-cron:box-sessions-boot .*/bin/bash '$PROJ_ROOT/src/bash/features/box-sessions/scripts/sessions-boot.sh' >> '/var/csi/csi-spl/box-sessions/boot.log' 2>&1 # csi-spl:box-cron:box-sessions-boot$" <<<"$out" \
   && grep -q "^  +17 7 \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh' >> '/var/csi/csi-spl/msg-unreadable/cron.log' 2>&1 # csi-spl:box-cron:msg-unreadable$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh" ] \
   && pass "1. the real manifest plans C1..C4 and the daily msg-unreadable run from this checkout" || fail "1. real manifest (rc $rc: $out)"

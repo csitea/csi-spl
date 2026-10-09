@@ -7,6 +7,9 @@
 # @description watchdogs' own start command do_spl_wd_inst_start ("start the
 # @description missing instances of 1..3"). Installing them drops the 093
 # @description keeper line (`# <org>-<app>:wd-ensure`): no separate keeper.
+# @description It also drops the hand-installed starter pair of T023b
+# @description (`# <org>-<app>:wd-inst-start` and `:wd-inst-start-boot`,
+# @description whose @reboot line has no boot gate).
 # @description WD_CRON_KIND=ensure installs that legacy keeper line instead
 # @description (spec 093 section 6, do_spl_wd_ensure), as before. Every tag is
 # @description matched EXACTLY at the end of the line; idempotent (a tagged
@@ -85,9 +88,13 @@ spl_wd_cron_prep() {
   SPL_WD_CRON_NAME=wd-start
   SPL_WD_CRON_TAG="$SPL_ORG_APP:wd-start"
   SPL_WD_CRON_LINE="* * * * * $cmd # $SPL_WD_CRON_TAG"
-  SPL_WD_CRON_TAGS=("$SPL_WD_CRON_TAG" "$SPL_ORG_APP:wd-start-boot" "$SPL_ORG_APP:wd-ensure")
+  # the hand-installed T023b pair (WD_INST_START="1 2 3" do_spl_watchdog,
+  # no installer, an @reboot with no boot gate) starts the same instances:
+  # out with the keeper line, the gated wd-start-boot does its job
+  SPL_WD_CRON_TAGS=("$SPL_WD_CRON_TAG" "$SPL_ORG_APP:wd-start-boot" "$SPL_ORG_APP:wd-ensure"
+    "$SPL_ORG_APP:wd-inst-start" "$SPL_ORG_APP:wd-inst-start-boot")
   local gate; gate="$(spl_cron_boot_gate "$SPL_WD_CRON_LOGDIR/starter.out" "$SPL_WD_CRON_SCRIPT" "$SPL_ORG_APP:wd-start-boot")" || return 1
-  SPL_WD_CRON_LINES=("$SPL_WD_CRON_LINE" "@reboot $gate$cmd # $SPL_ORG_APP:wd-start-boot" "")
+  SPL_WD_CRON_LINES=("$SPL_WD_CRON_LINE" "@reboot $gate$cmd # $SPL_ORG_APP:wd-start-boot" "" "" "")
   return 0
 }
 

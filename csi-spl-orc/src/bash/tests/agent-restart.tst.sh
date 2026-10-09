@@ -60,7 +60,9 @@
 #      seeds deep is cut back to the real brief (one seed header, the brief
 #      path in section A). Controls: an unanswered blocker -> "4. Then WAIT",
 #      a final result -> "4. Then FINISH", neither tells it to continue; an
-#      answered blocker -> CONTINUE again
+#      answered blocker -> CONTINUE again; a message newer than the result
+#      (m-682 2026-10-09: a reject 27 s after it) -> "4. Then ACT" naming
+#      it, no FINISH; a restart ACK newer than the result still FINISHes
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -485,6 +487,19 @@ world; lane c-973 %73 -; reborn c-973; msg17 c-973 outbox blocker 600; msg17 c-9
 rc="$(go ID=c-973 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-973)"
 [[ "$rc" == 0 ]] && grep -q '^4\. Then CONTINUE the brief now' <<<"$sd" &&
   pass "17. control: a blocker answered since -> CONTINUE again" || fail "17. answered rc=$rc: $(grep -A3 '^4\.' <<<"$sd")"
+
+world; lane c-974 %74 -; reborn c-974; msg17 c-974 outbox result 300; msg17 c-974 archive reject 100
+rc="$(go ID=c-974 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-974)"
+[[ "$rc" == 0 ]] && ! grep -q 'FINISH' <<<"$sd" && grep -q '^4\. Then ACT on the newer message' <<<"$sd" &&
+  grep -q '<- c-970 \[dispatch-319\] the reject text' <<<"$sd" &&
+  pass "17. a message newer than the result (m-682) -> the seed says ACT on it, names it, no FINISH" ||
+  fail "17. reopened rc=$rc: $(grep -A3 '^4\.' <<<"$sd")"
+world; lane c-975 %75 -; reborn c-975; msg17 c-975 outbox result 300
+jq -n '{v: 1, ts: "2027-01-15T07:00:00Z", from: "c-975", to: "c-975", kind: "result", task_id: "restart-x", body: "ACK"}' > "$S/c-975/inbox/ack.json"
+touch -d "@$(( $(date +%s) - 100 ))" "$S/c-975/inbox/ack.json"
+rc="$(go ID=c-975 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-975)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then FINISH: your brief is done' <<<"$sd" &&
+  pass "17. control: only a restart ACK newer than the result -> still FINISH" || fail "17. ack rc=$rc: $(grep -A3 '^4\.' <<<"$sd")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

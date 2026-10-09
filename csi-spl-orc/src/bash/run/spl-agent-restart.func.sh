@@ -603,17 +603,40 @@ spl_ars_brief_unnest() {
 # spl_ars_lane_state ID: where the lane's own task stood, from its spool files
 # (the newest message it sent against the newest it got): "blocked <line>" =
 # its last message is a blocker nobody answered yet; "done <line>" = its last
-# message is a result (the final summary); else "in-flight".
+# message is a result (the final summary) and nothing reached it since;
+# "reopened <line>" = a result, but a message reached it after that (m-682
+# 2026-10-09: a reject 27 s after its result, the seed said FINISH); the line
+# names that newer message. Else "in-flight".
 spl_ars_lane_state() {
-  local d="$SPOOL_ROOT/$1" out in kind
+  local d="$SPOOL_ROOT/$1" out in kind newer
   out="$(find "$d/outbox" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n 1p)"
   in="$(find "$d/inbox" "$d/archive" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n 1p)"
   [[ -n "$out" ]] || { echo in-flight; return 0; }
   kind="$(jq -r '.kind // empty' "${out#* }" 2>/dev/null || true)"
   if [[ "$kind" == blocker ]] && { [[ -z "$in" ]] || awk -v i="${in%% *}" -v o="${out%% *}" 'BEGIN { exit !(i < o) }'; }; then kind=blocked
-  elif [[ "$kind" == result && "$(jq -r '.task_id // ""' "${out#* }" 2>/dev/null)" != restart-* ]]; then kind="done"
+  elif [[ "$kind" == result && "$(jq -r '.task_id // ""' "${out#* }" 2>/dev/null)" != restart-* ]]; then
+    newer="$(spl_ars_newer_in "$d" "${out%% *}")"
+    if [[ -n "$newer" ]]; then echo "reopened $(spl_ars_msg_line "$newer" from)"; return 0; fi
+    kind="done"
   else echo in-flight; return 0; fi
-  echo "$kind $(jq -r '"\(.ts // "?") -> \(.to // "?") [\(.task_id // "" | .[0:12])] \((.body // "") | gsub("\\s+"; " ") | .[0:160])"' "${out#* }" 2>/dev/null)"
+  echo "$kind $(spl_ars_msg_line "${out#* }" to)"
+}
+
+# spl_ars_newer_in DIR MTIME: the newest inbox/archive message newer than MTIME
+# that is not a restart ACK (task restart-*, the lane's own), else nothing.
+spl_ars_newer_in() {
+  local t p
+  while read -r t p; do
+    awk -v i="$t" -v o="$2" 'BEGIN { exit !(i > o) }' || return 0
+    [[ "$(jq -r '.task_id // ""' "$p" 2>/dev/null)" == restart-* ]] || { echo "$p"; return 0; }
+  done < <(find "$1/inbox" "$1/archive" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn)
+  return 0
+}
+
+# spl_ars_msg_line FILE to|from: "<ts> -> <to>" or "<ts> <- <from>", the task
+# and the first 160 chars of the body, on one line.
+spl_ars_msg_line() {
+  jq -r --arg w "$2" '"\(.ts // "?") \(if $w == "to" then "->" else "<-" end) \(.[$w] // "?") [\(.task_id // "" | .[0:12])] \((.body // "") | gsub("\\s+"; " ") | .[0:160])"' "$1" 2>/dev/null
 }
 
 # The lane's step 4 of the seed: an in-flight lane goes on with its brief by
@@ -629,6 +652,9 @@ spl_ars_seed_next() {
     done*)    echo "4. Then FINISH: your brief is done. Your last message was your result:"
               echo "   ${st#done }"
               echo "   Take no new work; run only the closing steps still left (teardown, /exit-clean)." ;;
+    reopened*) echo "4. Then ACT on the newer message: your last message was a result, but this reached you after it:"
+              echo "   ${st#reopened }"
+              echo "   Your brief is NOT done: read it (spool recv / tail --task), do what it asks, then the closing steps." ;;
     *)        echo "4. Then CONTINUE the brief now, by yourself: this lane was in flight (no open blocker, no final"
               echo "   result sent), so nobody will tell you to go on. Re-read the full brief file section A names,"
               echo "   check the worktree (git status, git log --oneline origin/master..HEAD, the branch) and the"

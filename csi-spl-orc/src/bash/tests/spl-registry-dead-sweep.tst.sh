@@ -42,7 +42,7 @@ touch "$R/c-906/heartbeat.json"
 } >"$R/registry.tsv"
 
 env SPOOL_AGENT_ID=c-901 sleep 120 & live=$!
-tmux -S "$TM" new-session -d -s sweep -n 'tag: c-902 lane' 'sleep 120'
+tmux -S "$TM" -f /dev/null new-session -d -s sweep -n 'tag: c-902 lane' 'sleep 120'
 trap 'kill "$live" 2>/dev/null; tmux -S "$TM" kill-server 2>/dev/null; rm -rf "$T"' EXIT
 orc_stub 1 sudo
 

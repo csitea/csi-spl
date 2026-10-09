@@ -63,7 +63,6 @@ TW_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$TW_DIR/../lib/spool-env.inc.sh"
 # shellcheck source=../lib/agent-state.inc.sh
 . "$TW_DIR/../lib/agent-state.inc.sh"
-SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
 tw_socket() {  # [PATH] -> TW_SOCK and TM=( tmux -u ... ), hopping to the owner
   TW_SOCK="${1:-}"
@@ -108,6 +107,26 @@ while [ "$#" -gt 0 ]; do
     *) echo "tmux-sort-windows: unknown argument: $1" >&2; exit 1 ;;
   esac
 done
+
+# A hook fired on a TEST's scratch server inherits the test's SPOOL_TEST=1 but
+# not always its SPOOL_ROOT (a server started without -f /dev/null loads the
+# box's tmux.conf, whose hooks call this script), and the spool guard then
+# refuses the live root and turns the suite red. The sorter writes nothing
+# under the spool root, so under a test with no root of its own it takes a
+# throwaway one and sorts only the server it was named (--socket, else the
+# hook's $TMUX) - never the live default socket.
+tw_test_context() {
+  [ "${SPOOL_TEST:-}" = 1 ] || return 0
+  local live
+  live="$(readlink -m -- "${SPOOL_LIVE_ROOT:-/var/spool-hub}")"
+  [ "$(readlink -m -- "${SPOOL_ROOT:-$live}")" = "$live" ] || return 0
+  local sock="${SOCKET_ARG:-${TMUX%%,*}}"
+  case "$sock" in ''|/tmp/tmux-[0-9]*/default) exit 0 ;; esac
+  SPOOL_ROOT="${TMPDIR:-/tmp}/.tmux-sort-windows.no-spool-root"
+}
+TMUX="${TMUX:-}"
+tw_test_context
+SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
 log() { [ "$VERBOSE" = 1 ] && echo "tmux-sort-windows: $*" >&2; return 0; }
 # Hooks run detached with nowhere to print, so a wrong bar is otherwise

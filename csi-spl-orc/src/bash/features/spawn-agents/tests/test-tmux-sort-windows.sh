@@ -11,6 +11,8 @@
 #   7. the rendered tmux snippet's hook sorts a renamed window by itself
 #   8. spec 061 ids: c-NNN and legacy CLE-NNNN are ONE kind, numerically;
 #      a-/q- sort with AGY/QWN; <ID>@<box> and "<tag>: " prefixes are display only
+#   9. a hook on a test's server (SPOOL_TEST=1, no SPOOL_ROOT of its own) sorts
+#      that server and never trips the live-root guard; with no socket it no-ops
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -74,4 +76,21 @@ tm rename-window -t "$w" 'AAB-2'
 for _ in $(seq 1 30); do [ "$(tm list-windows -t t -F '#{window_name}' | sed -n 2p)" = AAB-2 ] && break; sleep 0.2; done
 eq "7. the snippet's after-rename hook sorts the renamed window" "AAB-2" "$(tm list-windows -t t -F '#{window_name}' | sed -n 2p)"
 kill "$(cat "$T_TMP/p.pid" 2>/dev/null)" 2>/dev/null
+
+# 9. what a box tmux.conf hook does on a scratch server a test started: the
+# server env carries SPOOL_TEST=1 but not the test's SPOOL_ROOT.
+mkdir -p "$T_TMP/live"; : >"$T_TMP/guard.log"
+for h in after-new-window after-rename-window window-linked window-unlinked; do tm set-hook -gu "$h"; done
+mkdir -p "$T_TMP/l9"
+tm rename-window -t "$(tm list-windows -t t -F '#{window_id} #{window_name}' | awk '$2=="AAB-2"{print $1}')" 'ZZZ-9'
+hook9() {
+  env -u SPOOL_ROOT -u SPOOL_TMUX_SOCKET SPOOL_TEST=1 SPOOL_LIVE_ROOT="$T_TMP/live" \
+    SPOOL_TEST_GUARD_LOG="$T_TMP/guard.log" WINDOW_SORT_DEBOUNCE=0 TMUX_WINDOWS_LOCK_DIR="$T_TMP/l9" "$@" bash "$SUT" --hook 2>&1
+}
+out="$(hook9 TMUX="$SPOOL_TMUX_SOCKET,1,0")"; rc=$?
+eq "9. a test-server hook with no spool root exits 0" "0" "$rc"
+eq "9. ... logs no live-root refusal" "" "$(cat "$T_TMP/guard.log")$out"
+eq "9. ... and sorts its own server" "ZZZ-9" "$(tm list-windows -t t -F '#{window_name}' | grep -E '^[A-Z]+-[0-9]' | tail -1)"
+out="$(hook9 TMUX=)"; rc=$?
+eq "9. with no socket named it is a no-op, not a refusal" "0|" "$rc|$(cat "$T_TMP/guard.log")$out"
 t_done

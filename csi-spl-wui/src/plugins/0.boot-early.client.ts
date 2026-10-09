@@ -18,6 +18,9 @@ export default defineNuxtPlugin({
   setup() {
     if (!import.meta.client) return
     if (useSpoolApi().mock) return
+    // spec 111 3.1: the public blog makes no API call - an anonymous reader's
+    // page never asks the hub who they are (Sign in probes on arrival)
+    if (/^\/(?:[a-z]{2,3}\/)?blog(?:\/|$)/.test(window.location.pathname)) return
     const auth = useAuthClient()
     const parked = takeParkedSession(window, sessionProbeUrl(useAuthBase()))
     startEarlySession(() => auth.session(parked))

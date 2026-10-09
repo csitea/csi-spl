@@ -84,6 +84,14 @@ FIELDS = ("v", "id", "kind", "session_id", "session_name", "worktree", "title", 
 # then, so a mapped but not yet renamed agent keeps its old id everywhere.
 RENAMED = {}
 
+# The spool root this map belongs to (the parent of --dir), set by main().
+# facts() walks ALL of /proc, so the box's per-minute record also met the CI
+# runner's fake agents (argv[0] claude, SPOOL_AGENT_ID=CLE-72, read through the
+# owner hop) and filed them into the live map (sat, 2026-10-09: CLE-10..72).
+# A process belongs here only when its own SPOOL_ROOT is unset or this root,
+# and a test's process (SPOOL_TEST=1) only in a map written under SPOOL_TEST.
+MAP_ROOT = ""
+
 
 def load_renamed(agents_dir):
     root = os.path.dirname(os.path.abspath(agents_dir))
@@ -317,6 +325,13 @@ def facts(proc, panes):
         aid = renamed(env.get("SPOOL_AGENT_ID", "") or env.get("MCP_BOT_AGENT_ID", ""))
         if not ID_RE.match(aid):
             skipped.append((pid, kind, "its environment carries no agent id (unreadable, or not a fleet agent)"))
+            continue
+        proot = env.get("SPOOL_ROOT", "")
+        if MAP_ROOT and proot and os.path.realpath(proot) != os.path.realpath(MAP_ROOT):
+            skipped.append((pid, kind, "%s belongs to spool root %s, not %s" % (aid, proot, MAP_ROOT)))
+            continue
+        if env.get("SPOOL_TEST") == "1" and os.environ.get("SPOOL_TEST") != "1":
+            skipped.append((pid, kind, "%s is a test's process (SPOOL_TEST=1)" % aid))
             continue
         sid, cwd, sname = "", "", ""
         if kind == "claude":
@@ -864,6 +879,17 @@ def main():
     rt.add_argument("id")
     rt.add_argument("gen")
     args = ap.parse_args()
+    global MAP_ROOT
+    MAP_ROOT = os.path.dirname(os.path.abspath(args.dir))
+    # The fleet's test guard (CLE-77923, spool_test_guard): under SPOOL_TEST=1
+    # nothing writes the live root's map. SPOOL_LIVE_ROOT is for the guard's
+    # own test, which cannot aim at the real root to prove the refusal.
+    writes = args.cmd in ("set-title", "adopt", "rename", "retire") or getattr(args, "apply", False)
+    live = os.environ.get("SPOOL_LIVE_ROOT") or "/var/spool-hub"
+    if writes and os.environ.get("SPOOL_TEST") == "1" and os.path.realpath(MAP_ROOT) == os.path.realpath(live):
+        sys.stderr.write("agent-identity: REFUSED: SPOOL_TEST=1 and %s is the live spool root's map; "
+                         "a test must give its own SPOOL_ROOT\n" % args.dir)
+        return 96
     proc = Proc(args.proc_root)
     RENAMED.update(load_renamed(args.dir))
     if args.cmd == "facts":

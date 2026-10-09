@@ -23,6 +23,9 @@
 #   6. ai_alive: the pid for the live agent; no once the pid is reused
 #      (another start time), is not the agent's CLI (a shell with the env id),
 #      or carries another id
+#   7. a process of another spool root, or a test's (SPOOL_TEST=1) under a
+#      writer outside a test, is never recorded; under SPOOL_TEST=1 a write to
+#      the live root's map is refused with exit 96 (control: a temp root writes)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -155,5 +158,37 @@ sed -i 's/ 999 0$/ 502 0/' "$P/102/stat"
 printf 'SPOOL_AGENT_ID=CLE-9\0' > "$P/102/environ"
 if ai_alive CLE-1 >/dev/null; then nok "6. ai_alive CLE-1: no, when the pid carries another id"; else ok "6. ai_alive CLE-1: no, when the pid carries another id"; fi
 if ai_alive CLE-404 >/dev/null; then nok "6. ai_alive of an unknown id is no"; else ok "6. ai_alive of an unknown id is no"; fi
+
+# --- 7 --------------------------------------------------------------------------
+# The box's per-minute record walks ALL of /proc: on sat it filed the CI
+# runner's fake agents (CLE-10..72, a test's SPOOL_ROOT) into the live map.
+penv() { local pid="$1"; shift; printf '%s\0' "$@" > "$P/$pid/environ"; }
+proc 700 1 700 /usr/bin/claude "$W/CLE-72" CLE-72; penv 700 SPOOL_AGENT_ID=CLE-72 "SPOOL_ROOT=$T_TMP/other/spool"
+proc 710 1 710 /usr/bin/claude "$W/CLE-71" CLE-71; penv 710 SPOOL_AGENT_ID=CLE-71 SPOOL_TEST=1
+proc 720 1 720 /usr/bin/claude "$W/CLE-73" CLE-73; penv 720 SPOOL_AGENT_ID=CLE-73 "SPOOL_ROOT=$SPOOL_ROOT/"
+out="$(ai_record)"
+has "7. a process of another spool root is skipped, with the reason" "CLE-72 belongs to spool root $T_TMP/other/spool" "$out"
+hasnt "7. ... and not recorded" "PLAN CLE-72" "$out"
+has "7. a process of THIS root (spelled with a trailing /) is recorded" "PLAN CLE-73" "$out"
+has "7. a test's process is recorded by a writer under SPOOL_TEST" "PLAN CLE-71" "$out"
+out="$(env -u SPOOL_TEST bash -c '. "$1/lib/agent-identity.inc.sh"; ai_record' _ "$T_FEAT")"
+has "7. ... and skipped by one outside a test (the live box's cron)" "CLE-71 is a test's process (SPOOL_TEST=1)" "$out"
+hasnt "7. ... not recorded there" "PLAN CLE-71" "$out"
+rm -rf "$P/700" "$P/710" "$P/720"
+
+# The guard: under SPOOL_TEST=1 a write to the live root's map is refused
+# (exit 96, nothing written); SPOOL_LIVE_ROOT aims it at a scratch "live" root.
+LIVE="$T_TMP/live"
+out="$(SPOOL_LIVE_ROOT="$LIVE" SPOOL_ROOT="$LIVE" bash -c '. "$1/lib/agent-identity.inc.sh"; ai_record --apply' _ "$T_FEAT" 2>&1)"; rc=$?
+eq "7. SPOOL_TEST=1: record --apply on the live root -> exit 96" 96 "$rc"
+has "7. ... REFUSED, named" "REFUSED: SPOOL_TEST=1" "$out"
+check "7. ... and nothing written there" test ! -e "$LIVE/agents"
+SPOOL_LIVE_ROOT="$LIVE" SPOOL_ROOT="$LIVE/" python3 "$AI_PY" --dir "$LIVE/agents/" set-title CLE-1 x >/dev/null 2>&1; rc=$?
+eq "7. ... set-title too, however the root is spelled" 96 "$rc"
+out="$(SPOOL_LIVE_ROOT="$LIVE" SPOOL_ROOT="$LIVE" bash -c '. "$1/lib/agent-identity.inc.sh"; ai_record' _ "$T_FEAT" 2>&1)"; rc=$?
+eq "7. ... a dry run (no write) still runs" 0 "$rc"
+out="$(SPOOL_LIVE_ROOT="$LIVE" SPOOL_ROOT="$T_TMP/ctl" bash -c '. "$1/lib/agent-identity.inc.sh"; ai_record --apply' _ "$T_FEAT" 2>&1)"; rc=$?
+eq "7. control: the same write to a temp root -> exit 0" 0 "$rc"
+check "7. ... and it wrote the records" test -s "$T_TMP/ctl/agents/CLE-2.json"
 
 t_done

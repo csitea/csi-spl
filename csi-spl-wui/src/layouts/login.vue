@@ -49,6 +49,7 @@
     <footer class="login-foot" data-test="login-foot">
       <a :href="localePath('/blog')" data-test="login-foot-blog">Blog</a>
     </footer>
+
   </div>
 </template>
 
@@ -174,8 +175,8 @@ watch(kb, async () => {
      instead of pinned to the start (left). `safe` keeps it top/left-anchored
      rather than clipped when the content is taller/wider than the body — e.g.
      a phone with the on-screen keyboard open. */
-  justify-content: safe center;
-  align-items: safe center;
+  justify-content: center;
+  align-items: center;
   /* The card sits at the true viewport centre. The bar is in flow and eats
      --top-bar-h off the top, so an equal amount below it keeps the centre on
      the viewport middle (not the middle of the strip under the bar). `safe`
@@ -204,6 +205,12 @@ watch(kb, async () => {
   .login-body :deep(.login-card) { padding: 20px 16px; }
 }
 .login-foot {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--color-sidebar);
+  border-top: 1px solid var(--color-border);
   position: relative;
   z-index: 1;
   flex-shrink: 0;

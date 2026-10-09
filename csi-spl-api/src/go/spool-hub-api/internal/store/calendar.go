@@ -41,13 +41,19 @@ import (
 // row and each write keeps its guest rows in step; every guest id is in
 // mentions too, so the private filter above serves guests unchanged.
 
-// Calendar audiences (rdb 0125 check). An empty audience on create is public
-// (owner decision D2).
+// Calendar audiences (rdb 0125 check, web added by 0158). An empty audience
+// on create is public (owner decision D2): everyone in the workspace. web is
+// public plus signed-out visitors of the workspace (calendar_web.go); it is
+// set only on purpose, never as a default.
 const (
 	CalendarPublic   = "public"
 	CalendarInternal = "internal"
 	CalendarPrivate  = "private"
+	CalendarWeb      = "web"
 )
+
+// calendarAudiences is rdb 0158's audience check.
+var calendarAudiences = []string{CalendarPublic, CalendarInternal, CalendarPrivate, CalendarWeb}
 
 // calendarKinds is rdb 0125's kind check, widened by 0156 (specs/112).
 var calendarKinds = []string{"release", "deploy", "maintenance", "freeze", "agent_task", "reminder", "other", "goal", "milestone"}
@@ -326,8 +332,8 @@ func validateCalendarEvent(e *CalendarEvent) error {
 		return bad("description must be at most 4000 characters")
 	case !slices.Contains(calendarKinds, e.Kind):
 		return bad("unknown kind")
-	case e.Audience != CalendarPublic && e.Audience != CalendarInternal && e.Audience != CalendarPrivate:
-		return bad("audience must be public, internal or private")
+	case !slices.Contains(calendarAudiences, e.Audience):
+		return bad("audience must be public, internal, private or web")
 	case e.CreatorType != "human" && e.CreatorType != "agent" && e.CreatorType != "system":
 		return bad("creator_type must be human, agent or system")
 	case e.CreatorID == "" || utf8.RuneCountInString(e.CreatorID) > 64:

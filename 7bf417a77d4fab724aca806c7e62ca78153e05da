@@ -1,0 +1,6 @@
+Lay-What: Admins can now set, for each type of task, how new agent work is shared between the AI vendors.
+Lay-How: The server stores one row of shares per type of task and refuses a row that breaks the sharing rules.
+Lay-Why: The owner wants documentation, tests, simple and hard coding each to go mostly to the vendor best at it.
+Tech-What: New GET and PATCH /v1/agent-split read and write the per-kind vendor split of rdb 0163.
+Tech-How: store.SplitKinds on Memory and Postgres, one transaction per PATCH; CheckSplitKind mirrors the table CHECKs as a 400.
+Tech-Why: Spec 115 HUB-1: the picker and the WUI need the per-kind rows; the old five-column split covers one kind only.

@@ -4,7 +4,7 @@
 // security headers as routeRules, long-lived vendor chunks, @nuxtjs/i18n.
 // The spool keeps its own runtimeConfig (tenant host template, mock mode,
 // lobby task id) and the lde auth devProxy (spec 010).
-import { readFileSync } from "node:fs"
+import { readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Rollup } from "vite"
@@ -15,6 +15,7 @@ import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
 import { buildEarlyConfigScript } from "./src/utils/runtime-config.mjs"
 import { buildSignedOutRedirectScript } from "./src/utils/signed-out-redirect-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
+import { buildRobotsTxt, buildSitemapXml, injectPublicHead, isPublicSeoPath, publicPageHead, robotsContent, sitemapEntries } from "./src/utils/public-seo.mjs"
 import { plainStatics, writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
 import { writePublicCalendar } from "./src/node/pubcal/public-calendar-data.mjs"
 import {
@@ -299,14 +300,16 @@ const PRERENDER_PAGES = ["/", "/login"]
 // locale without its copy of a post still gets the page: the en text with
 // lang="en" (pages/blog/[...slug].vue). No copy (lde, typecheck) = /blog only.
 const BLOG_PAGE_SIZE = 20
-function blogPages(): string[] {
-  let ids: string[] = []
+type BlogIndex = { locales?: Record<string, Array<{ id: string, date?: string, published?: string }>> }
+function blogIndex(): BlogIndex | null {
   try {
-    const index = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "src/public/blog-md/index.json"), "utf8"))
-    ids = (index?.locales?.en || []).map((e: { id: string }) => e.id)
+    return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "src/public/blog-md/index.json"), "utf8"))
   } catch {
-    /* no copy yet */
+    return null /* no copy yet */
   }
+}
+function blogPages(): string[] {
+  const ids = (blogIndex()?.locales?.en || []).map((e) => e.id)
   const pages = Math.max(1, Math.ceil(ids.length / BLOG_PAGE_SIZE))
   return ["/blog", ...Array.from({ length: pages - 1 }, (_, i) => `/blog/page/${i + 2}`), ...ids.map((id) => `/blog/${id}`)]
 }
@@ -363,11 +366,11 @@ const BLOG_STRIPPED_SCRIPTS: string[] = wuiUseMock() === "0"
   : []
 
 // ── The blog's documents are public (spec 111 3.1, T003) ────────────────
-// A /blog/** document makes no API call and is indexable: prerender:generate
-// takes out BLOG_STRIPPED_SCRIPTS and the hub preconnects, and makes any noindex
-// robots meta `index, follow`. Then it checks: a blog document still naming
-// the auth path or config.json, or still noindex, fails the whole generate (a
-// throw inside the hook only drops that one document, so collect).
+// A /blog/** document makes no API call: prerender:generate takes out
+// BLOG_STRIPPED_SCRIPTS and the hub preconnects. Then it checks: a blog
+// document still naming the auth path or config.json fails the whole
+// generate (a throw inside the hook only drops that one document, so
+// collect). Its robots meta is the page's own, checked by publicSeoModule.
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 function blogDocumentsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   const scripts = BLOG_STRIPPED_SCRIPTS.map((body) => new RegExp(`<script\\b[^>]*>${escapeRe(body)}</script>`, "g"))
@@ -387,11 +390,9 @@ function blogDocumentsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
       let html = route.contents
       for (const re of scripts) html = html.replace(re, "")
       html = html.replace(/<link\b[^>]*\brel="preconnect"[^>]*>/g, "")
-      html = html.replace(/(<meta\b[^>]*\bname="robots"[^>]*\bcontent=")noindex, nofollow"/g, '$1index, follow"')
       const bad = [
         /\/api\/v1\/auth\//.test(html) && "the auth path",
         /config\.json/.test(html) && "config.json",
-        /\bnoindex\b/.test(html) && "noindex",
       ].filter(Boolean)
       if (bad.length) failed.push(`${route.route}: still holds ${bad.join(", ")}`)
       route.contents = html
@@ -410,6 +411,66 @@ function blogDocumentsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
 function publicCalendarModule() {
   const n = writePublicCalendar({ mock: wuiUseMock() === "1" })
   console.info(`public calendar: ${n} events`)
+}
+
+// ── The public pages search engines index (spec 116 T7) ────────────────
+// /login, /help/** and /blog/** (src/utils/public-seo.mjs) are `index,
+// follow` with an apex canonical on an indexable build: cnf
+// env.wui.seo_index (prd) -> NUXT_PUBLIC_SEO_INDEX=1 (wf 30). Every other
+// document stays noindex, and on any other build every document does. The
+// help pages prerender in the default locale (their text is one language;
+// the /<lang>/help copies canonicalise there). prerender:done fails the
+// generate on a document that breaks that, then writes robots.txt and, when
+// indexable, sitemap.xml from the same routes (dev: Disallow: /, no sitemap).
+// The served X-Robots-Tag is render-wui-firebase-json.sh's, from the same cnf.
+const SEO_INDEX = process.env.NUXT_PUBLIC_SEO_INDEX === "1"
+const SITE_URL = (process.env.NUXT_PUBLIC_SITE_URL || "").replace(/\/+$/, "")
+if (SEO_INDEX && !/^https:\/\/[^/]+$/.test(SITE_URL)) {
+  throw new Error("NUXT_PUBLIC_SEO_INDEX=1 needs NUXT_PUBLIC_SITE_URL = the apex https://<fqdn> (canonical, hreflang, sitemap)")
+}
+function helpSlugs(): string[] {
+  try {
+    const list = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "src/public/help-md/pages.json"), "utf8"))
+    return (list?.pages || []).map((p: { slug?: string }) => String(p?.slug || "")).filter((s: string) => /^[a-z0-9][a-z0-9-]*$/.test(s))
+  } catch {
+    return []
+  }
+}
+function publicSeoModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
+  nuxt.hook("nitro:init", (nitro) => {
+    const failed: string[] = []
+    nitro.hooks.hook("prerender:generate", (route) => {
+      const name = route.fileName || ""
+      if (!name.endsWith(".html") || /^\/(200|404)\.html$/.test(name) || typeof route.contents !== "string") return
+      // /help renders client-only (layouts/default.vue): its head is written here
+      const seg = route.route.split("/")[1] || ""
+      const own = publicPageHead({ path: route.route, locale: LOCALE_CODES.includes(seg) ? seg : DEFAULT_LOCALE, codes: LOCALE_CODES, defaultLocale: DEFAULT_LOCALE, siteUrl: SITE_URL })
+      if (own) route.contents = injectPublicHead(route.contents, own, robotsContent(route.route, LOCALE_CODES, SEO_INDEX))
+      const html = route.contents
+      const pub = SEO_INDEX && isPublicSeoPath(route.route, LOCALE_CODES)
+      const robots = html.match(/<meta\b[^>]*\bname="robots"[^>]*>/g) || []
+      const want = pub ? 'content="index, follow"' : 'content="noindex, nofollow"'
+      const bad = [
+        robots.length !== 1 && `${robots.length} robots metas`,
+        robots.length === 1 && !robots[0].includes(want) && `robots is not ${want}`,
+        pub && !new RegExp(`<link\\b[^>]*\\brel="canonical"[^>]*\\bhref="${escapeRe(SITE_URL)}/`).test(html) && "no apex canonical",
+        pub && !/<meta\b[^>]*\bproperty="og:title"/.test(html) && "no og:title",
+        pub && !/<meta\b[^>]*\bname="description"/.test(html) && "no description",
+      ].filter(Boolean)
+      if (bad.length) failed.push(`${route.route}: ${bad.join(", ")}`)
+    })
+    nitro.hooks.hook("prerender:done", () => {
+      if (failed.length) throw new Error(`public SEO (spec 116 T7) failed for ${failed.length} documents:\n${failed.join("\n")}`)
+      const out = nitro.options.output.publicDir
+      writeFileSync(join(out, "robots.txt"), buildRobotsTxt({ siteUrl: SITE_URL, codes: LOCALE_CODES, defaultLocale: DEFAULT_LOCALE, indexOn: SEO_INDEX }))
+      if (!SEO_INDEX) return
+      const entries = sitemapEntries({
+        codes: LOCALE_CODES, defaultLocale: DEFAULT_LOCALE, help: helpSlugs(), pageSize: BLOG_PAGE_SIZE,
+        blog: blogIndex(), today: new Date().toISOString().slice(0, 10),
+      })
+      writeFileSync(join(out, "sitemap.xml"), buildSitemapXml({ siteUrl: SITE_URL, defaultLocale: DEFAULT_LOCALE, entries }))
+    })
+  })
 }
 
 // ── First-screen hints (perf round 3 P3-01) ─────────────────────────────
@@ -519,7 +580,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches
@@ -567,6 +628,9 @@ export default defineNuxtConfig({
       // every other tenant is https://<tenant>.<fqdn> (src/utils/tenant-host.mjs).
       // "1" = on; off (lde, and until cnf turns it on) keeps specs/026 as is.
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || "",
+      // spec 116 T7: "1" = the public pages are indexable (cnf
+      // env.wui.seo_index, prd only, via wf 30); a build value, never config.json
+      seoIndex: SEO_INDEX ? "1" : "0",
       tenantHosts: process.env.NUXT_PUBLIC_TENANT_HOSTS || "0",
       // spec 066: the real-user timing collector, cnf env.perf via wf30.
       // "1" = on; off (lde, and until cnf turns it on) collects nothing.
@@ -725,6 +789,8 @@ export default defineNuxtConfig({
         ),
         "/channel/general", "/channel/tasks", "/channel/alerts",
         ...blogPages().flatMap((p) => I18N_LOCALES.map((l) => (l.code === DEFAULT_LOCALE ? p : `/${l.code}${p}`))),
+        // spec 116 T7: the public help pages, default locale only
+        "/help", ...helpSlugs().map((s) => `/help/${s}`),
       ],
     },
   },

@@ -135,7 +135,10 @@ watch(() => [livePane.taskId, topic.open], closeTopicPanel)
 onMounted(closeTopicPanel)
 watch(slug, () => { if (import.meta.client) void load() })
 onMounted(() => { void load() })
-useHead(() => ({ title: t('help.title') }))
+/* spec 116 T7: a help page is public (robots, canonical, og); its tab and
+   search title is its own name */
+usePublicSeo()
+useHead(() => ({ title: pages.value.find((p) => p.slug === slug.value)?.title || t('help.title') }))
 </script>
 
 <style scoped>

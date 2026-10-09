@@ -54,6 +54,8 @@ const localePath = useLocalePath()
 const session = useSessionStore()
 const { t } = useI18n({ useScope: 'global' })
 const copy = useAuthCopy()
+/* spec 116 T7: the front page's search-engine head (robots, canonical, og, JSON-LD) */
+usePublicSeo()
 /* the auth_error code, rendered in the active locale (spec 021) */
 const errorCode = ref('')
 const error = computed(() => copy.authError(errorCode.value))

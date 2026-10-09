@@ -101,6 +101,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
+import { SITE_IMAGE, SITE_NAME, jsonLd, localeLinks, seoIndexOn, socialMeta } from '~/utils/public-seo.mjs'
 
 /* one record for all three paths (spec 111 3.1): nuxt.config sets its path
    to /blog/:slug(.*)* (blogDocumentsModule); a "..." file name would put
@@ -183,7 +184,9 @@ const { data } = await useAsyncData(
     const html = await readBlog(`${c.fallback ? 'en' : locale.value}/${v.id}.html`)
     if (html === null) return null
     const brief = (x?: Copy) => (x ? { id: x.entry.id, title: x.entry.title } : null)
-    return { post: { ...c, html, newer: brief(all[i - 1]), older: brief(all[i + 1]) } }
+    /* spec 116 T7: hreflang only for the locales that have this post */
+    const langs = Object.keys(index?.locales || {}).filter((l) => l === 'en' || (index.locales[l] || []).some((e: BlogEntry) => e.id === v.id))
+    return { post: { ...c, html, langs, newer: brief(all[i - 1]), older: brief(all[i + 1]) } }
   },
   { watch: [locale] },
 )
@@ -200,7 +203,7 @@ function unprefixed(path: string): string {
   return m && codes.includes(m[1]) ? (m[2] || '/') : path
 }
 const absolute = (path: string) => `${siteUrl}${path}`
-const localized = (code: string, path: string) => (code === defaultLocale ? path : `/${code}${path}`)
+const indexOn = seoIndexOn(pub.seoIndex)
 
 useHead(() => {
   const base = unprefixed(route.path).replace(/\/+$/, '') || '/blog'
@@ -208,25 +211,38 @@ useHead(() => {
   const title = p ? p.entry.title : view.value.kind === 'list' ? 'Blog' : 'Not found'
   const description = p ? p.entry.summary : 'News and events from the spool.'
   const codes = (locales.value as Array<{ code: string }>).map((l) => l.code)
+  if (view.value.kind === 'none') return { title, meta: [{ name: 'robots', content: 'noindex, nofollow' }, { name: 'description', content: description }] }
+  /* spec 116 T7: a copy the locale lacks (the en text) canonicalises to the default one */
+  const link = localeLinks({ siteUrl, base, canonicalCode: p?.fallback ? defaultLocale : locale.value, langs: p ? p.langs : codes, defaultLocale })
+  const url = link[0].href
+  const image = p?.entry.image ? absolute(`/blog/img/${p.entry.image.replace(/\.webp$/, '-og.webp')}`) : absolute(SITE_IMAGE)
   const meta: Array<Record<string, string>> = [
-    /* spec 111 3.1: the blog is indexable (the app default is noindex) */
-    { name: 'robots', content: view.value.kind === 'none' ? 'noindex, nofollow' : 'index, follow' },
+    /* spec 111 3.1 + 116 T7: the blog is indexable on an indexable build only (the app default is noindex) */
+    { name: 'robots', content: indexOn ? 'index, follow' : 'noindex, nofollow' },
     { name: 'description', content: description },
-    { property: 'og:title', content: title },
-    { property: 'og:description', content: description },
-    { property: 'og:type', content: p ? 'article' : 'website' },
-    { property: 'og:url', content: absolute(route.path) },
+    ...socialMeta({ title, description, url, image, type: p ? 'article' : 'website' }),
   ]
   if (p?.entry.published) meta.push({ property: 'article:published_time', content: p.entry.published })
-  if (p?.entry.image) meta.push({ property: 'og:image', content: absolute(`/blog/img/${p.entry.image.replace(/\.webp$/, '-og.webp')}`) })
-  const link: Array<Record<string, string>> = view.value.kind === 'none'
-    ? []
-    : [
-        { rel: 'canonical', href: absolute(localized(p?.fallback ? defaultLocale : locale.value, base)) },
-        ...codes.map((c) => ({ rel: 'alternate', hreflang: c, href: absolute(localized(c, base)) })),
-        { rel: 'alternate', hreflang: 'x-default', href: absolute(base) },
-      ]
-  return { title, meta, link }
+  const script = p
+    ? [{
+        type: 'application/ld+json',
+        key: 'ld-post',
+        innerHTML: jsonLd({
+          '@context': 'https://schema.org',
+          '@type': 'BlogPosting',
+          headline: p.entry.title,
+          description,
+          datePublished: p.entry.published || p.entry.date,
+          inLanguage: p.fallback ? 'en' : locale.value,
+          author: { '@type': 'Person', name: p.entry.author },
+          publisher: { '@type': 'Organization', '@id': `${siteUrl}/#organization`, name: SITE_NAME, logo: absolute('/logo.webp') },
+          image,
+          mainEntityOfPage: url,
+          ...(p.entry.tags?.length ? { keywords: p.entry.tags.join(', ') } : {}),
+        }),
+      }]
+    : []
+  return { title, meta, link, script }
 })
 </script>
 

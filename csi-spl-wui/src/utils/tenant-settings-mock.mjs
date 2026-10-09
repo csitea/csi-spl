@@ -3,7 +3,7 @@
  * module so spool-client loads it only in a mock build (dynamic import): the
  * initial chunk stays inside the 027 budget.
  */
-import { issuePrefixOf, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from './tenant-settings.mjs'
+import { AGENT_SPLIT_KINDS, DEFAULT_SPLIT_KINDS, issuePrefixOf, SPLIT_TASK_KINDS, splitKindRule, splitMainOf, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from './tenant-settings.mjs'
 import { HOURS_DEFAULTS, HOURS_KEY_GRACE, HOURS_KEY_IDLE, HOURS_KEY_PERIOD, HOURS_KEY_TZ, hoursSettingValid } from './hours-settings.mjs'
 
 
@@ -38,6 +38,43 @@ const MOCK_CHANNELS = Object.freeze([
   { channel: 'secret', name: 'Secret', visibility: 'members', members: 1, agents: 0, messages: 2, no_fallback: true, archivable: true, created_by: 'HUM-12' },
 ])
 
+/** spec 115 HUB-1 (rdb 0163): GET / PATCH /v1/agent-split on the mock. */
+function mockSplitKinds() {
+  // the kinds this workspace set; the rest read as the spec 115 section 2 default
+  const kinds = {}
+  const splitKinds = () => ({
+    tenant_id: 'mock',
+    vendors: [...AGENT_SPLIT_KINDS],
+    kinds: SPLIT_TASK_KINDS.map((kind) => {
+      const k = kinds[kind] || DEFAULT_SPLIT_KINDS[kind]
+      return { kind, weights: { ...k.weights }, backup: k.backup, main: splitMainOf(k.weights), set: Boolean(kinds[kind]) }
+    }),
+  })
+  return {
+    splitKinds,
+    /** PATCH /v1/agent-split: every kind is checked before any is written, like the hub. */
+    patchSplitKinds(p) {
+      const asked = p && typeof p === 'object' && p.kinds && typeof p.kinds === 'object' ? p.kinds : {}
+      const next = {}
+      for (const [kind, row] of Object.entries(asked)) {
+        if (!SPLIT_TASK_KINDS.includes(kind)) throw mockErr(400, 'bad_split')
+        if (row === null) { next[kind] = null; continue }
+        const weights = {}
+        for (const v of AGENT_SPLIT_KINDS) weights[v] = row.weights?.[v] ?? 0
+        if (Object.keys(row.weights || {}).some((v) => !AGENT_SPLIT_KINDS.includes(v))) throw mockErr(400, 'bad_split')
+        if (splitKindRule(kind, weights, row.backup)) throw mockErr(400, 'bad_split')
+        next[kind] = { weights, backup: row.backup }
+      }
+      if (!Object.keys(next).length) throw mockErr(400, 'bad_split')
+      for (const [kind, row] of Object.entries(next)) {
+        if (row) kinds[kind] = row
+        else delete kinds[kind]
+      }
+      return splitKinds()
+    },
+  }
+}
+
 export function createMockTenant() {
   const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0 } }
   const channels = MOCK_CHANNELS.map((c) => ({ ...c }))
@@ -52,6 +89,7 @@ export function createMockTenant() {
   const settings = () => ({ tenant_id: 'mock', ...cfg, responders: cfg.responders.slice(), agent_split: { ...cfg.agent_split }, max_responders: 20, settings: { ...KV_DEFAULTS, ...kv } })
   return {
     settings,
+    ...mockSplitKinds(),
     patch(p) {
       if (p.display_name !== undefined) {
         const n = String(p.display_name).trim()

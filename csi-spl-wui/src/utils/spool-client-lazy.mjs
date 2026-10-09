@@ -430,6 +430,24 @@ async function patchTenantSettings(ctx, patch = {}) {
   })
 }
 
+/** GET /v1/agent-split (spec 115 HUB-1, tenant.settings): the vendor split per task kind. */
+async function getAgentSplit(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).splitKinds()
+  return live('/v1/agent-split')
+}
+
+/** PATCH /v1/agent-split { kinds: { <kind>: { weights, backup } | null } } → every kind again. */
+async function patchAgentSplit(ctx, kinds = {}) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).patchSplitKinds({ kinds })
+  return live('/v1/agent-split', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kinds }),
+  })
+}
+
 let joinMock = null
 const joinTokensMock = async () => (joinMock ||= (await import('./join-tokens-mock.mjs')).createMockJoinTokens())
 
@@ -1381,6 +1399,8 @@ export const lazySpoolMethods = {
   patchTenantUser,
   getTenantSettings,
   patchTenantSettings,
+  getAgentSplit,
+  patchAgentSplit,
   getMarketingSwitch,
   patchMarketingSwitch,
   mintJoinToken,

@@ -22,6 +22,8 @@
 //   PROVE_RED=no-archive node tests/e2e/tenant-settings.test.mjs
 // (Performance: the compare is skipped, so step 16d goes red)
 //   PROVE_RED=no-compare node tests/e2e/tenant-settings.test.mjs
+// (Vendor split per kind: agy 10 in simple coding is saved, so step 8o goes red)
+//   PROVE_RED=agy-coding node tests/e2e/tenant-settings.test.mjs
 // (Join tokens: the biz_owner mock is not set, so step 17 goes red)
 //   PROVE_RED=biz-sees-join node tests/e2e/tenant-settings.test.mjs
 //
@@ -221,6 +223,42 @@ try {
   await sleep(100)
   const moved = await splitOf()
   ok('8h mistral 55, grok 0 is saved and read back', moved === 'claude=25 grok=0 agy=10 qwen=10 mistral=55', moved)
+
+  // spec 115 HUB-1: the split per task kind. The table shows the section 2
+  // defaults; agy in a coding kind is refused before Save (the CONTROL:
+  // PROVE_RED=agy-coding saves it anyway and the mock hub refuses it, 8o
+  // red); new weights save and read back after a section change.
+  await p.waitForSelector('[data-test=split-kind-simple_coding-mistral]', { visible: true, timeout: 10000 })
+  const kindRow = (k) => p.$$eval(`[data-test^=split-kind-${k}-]`, (els, kk) => els.filter((e) => e.tagName === 'INPUT' || e.tagName === 'SELECT')
+    .map((e) => `${e.getAttribute('data-test').slice(12 + kk.length)}=${e.value}`).join(' '), k)
+  const kinds0 = { simple: await kindRow('simple_coding'), main: await text(p, '[data-test=split-kind-simple_coding-main]'), i18n: await text(p, '[data-test=split-kind-i18n-main]') }
+  ok('8m the per-kind table shows the spec 115 defaults and the main', kinds0.simple === 'claude=20 grok=0 agy=0 qwen=0 mistral=80 backup=claude' && kinds0.main === 'Mistral' && kinds0.i18n === 'Antigravity', kinds0)
+  await setNum('[data-test=split-kind-simple_coding-mistral]', '70')
+  await setNum('[data-test=split-kind-simple_coding-agy]', '10')
+  await sleep(100)
+  const agy = { rule: await text(p, '[data-test=split-kind-simple_coding-main]'), disabled: await p.$eval('[data-test=split-kinds-save]', (el) => el.disabled) }
+  ok('8n CONTROL: agy 10 in simple coding names the rule and keeps Save off', agy.rule === 'Antigravity writes no code' && agy.disabled === true, agy)
+  if (RED === 'agy-coding') {
+    await p.$eval('[data-test=split-kinds-save]', (el) => { el.disabled = false })
+    await p.click('[data-test=split-kinds-save]')
+    await sleep(300)
+  } else {
+    await setNum('[data-test=split-kind-simple_coding-agy]', '0')
+    await setNum('[data-test=split-kind-simple_coding-mistral]', '60')
+    await setNum('[data-test=split-kind-simple_coding-claude]', '30')
+    await setNum('[data-test=split-kind-simple_coding-grok]', '10')
+    await sleep(100)
+    await p.click('[data-test=split-kinds-save]')
+    await p.waitForSelector('[data-test=split-kinds-notice]', { visible: true, timeout: 5000 }).catch(() => null)
+  }
+  await p.click('[data-test=tenant-settings-nav-channels]')
+  await p.waitForSelector('[data-test=tenant-channel-row]', { visible: true, timeout: 10000 })
+  await p.click('[data-test=tenant-settings-nav-split]')
+  await p.waitForSelector('[data-test=split-kind-simple_coding-mistral]', { visible: true, timeout: 10000 })
+  await sleep(100)
+  const kinds1 = { simple: await kindRow('simple_coding'), reset: Boolean(await p.$('[data-test=split-kind-simple_coding-reset]')), tests: await kindRow('tests') }
+  ok('8o new per-kind weights save and read back', kinds1.simple === 'claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=claude' && kinds1.reset && kinds1.tests === 'claude=70 grok=0 agy=0 qwen=0 mistral=30 backup=mistral', kinds1)
+  if (process.env.SPLIT_SHOT) await p.screenshot({ path: process.env.SPLIT_SHOT, fullPage: true })
 
   // 4. Channels: no-fallback + archive
   await p.click('[data-test=tenant-settings-nav-channels]')

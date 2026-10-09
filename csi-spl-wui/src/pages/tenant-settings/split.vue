@@ -1,9 +1,12 @@
 <!-- Tenant settings -> Vendor split (owner t1 e837eeab): how new agent work
      is shared across Claude, Grok, Antigravity, Qwen and Mistral (spec 110).
+     First the split per task kind (spec 115 HUB-1, AgentSplitKinds), then
+     the flat split below, the row for a kind the picker does not know.
      The five whole
      numbers sum to 100. They are a guideline, not a quota: nothing in the
      hub refuses a spawn that drifts. tenant.settings. -->
 <template>
+  <AgentSplitKinds />
   <SettingsSection id="tenant-split" :title="t('tenant_settings.split_title')" data-test="tenant-settings-split">
     <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
     <p v-else-if="loadError" class="ts-error" role="alert">{{ loadError }}</p>
@@ -43,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import AgentSplitKinds from '~/components/AgentSplitKinds.vue'
 import SettingsSection from '~/components/SettingsSection.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'

@@ -100,3 +100,77 @@ export function tenantSettingsErrorKey(err) {
   const known = ['forbidden', 'bad_setting', 'bad_split', 'bad_responder', 'channel_public', 'unknown_channel', 'shared_account', 'bad_name', 'bad_locale', 'last_admin', 'last_owner', 'self']
   return 'tenant_settings.error.' + (known.includes(token) ? token : 'generic')
 }
+
+/** spec 115 (rdb 0163): the task kinds, in the order the Vendor split table lists them. */
+export const SPLIT_TASK_KINDS = Object.freeze(['specs_and_docs', 'tests', 'simple_coding', 'complex_coding', 'i18n', 'secret'])
+
+/** The kinds agy never serves (spec 115 G2): 0 and never the backup. */
+const SPLIT_CODING_KINDS = Object.freeze(['tests', 'simple_coding', 'complex_coding'])
+
+/** spec 115 section 2: the row of a kind the workspace has not set. */
+export const DEFAULT_SPLIT_KINDS = Object.freeze({
+  specs_and_docs: { weights: { claude: 10, grok: 0, agy: 70, qwen: 0, mistral: 20 }, backup: 'claude' },
+  tests: { weights: { claude: 70, grok: 0, agy: 0, qwen: 0, mistral: 30 }, backup: 'mistral' },
+  simple_coding: { weights: { claude: 20, grok: 0, agy: 0, qwen: 0, mistral: 80 }, backup: 'claude' },
+  complex_coding: { weights: { claude: 80, grok: 0, agy: 0, qwen: 0, mistral: 20 }, backup: 'mistral' },
+  i18n: { weights: { claude: 0, grok: 0, agy: 100, qwen: 0, mistral: 0 }, backup: 'claude' },
+  secret: { weights: { claude: 100, grok: 0, agy: 0, qwen: 0, mistral: 0 }, backup: 'mistral' },
+})
+
+/** The vendor with the strict highest weight, '' on a tie. */
+export function splitMainOf(weights) {
+  let main = ''
+  let top = -1
+  let tie = false
+  for (const v of AGENT_SPLIT_KINDS) {
+    const w = weights[v]
+    if (w > top) { main = v; top = w; tie = false } else if (w === top) tie = true
+  }
+  return tie ? '' : main
+}
+
+/**
+ * The first spec 115 section 2 rule a row breaks, as its i18n key suffix
+ * (split_rule_<x>), or '' when the hub would take it: whole numbers 0..100
+ * summing to 100 ('sum'), one strict main ('tie'), a backup other than the
+ * main ('backup'), agy 0 and never the backup in a coding kind ('agy'),
+ * only claude or mistral in secret ('secret'). The hub checks the same.
+ */
+export function splitKindRule(kind, weights, backup) {
+  let sum = 0
+  for (const v of AGENT_SPLIT_KINDS) {
+    const n = weights[v]
+    if (!Number.isInteger(n) || n < 0 || n > 100) return 'sum'
+    sum += n
+  }
+  if (sum !== 100) return 'sum'
+  const main = splitMainOf(weights)
+  if (!main) return 'tie'
+  if (!AGENT_SPLIT_KINDS.includes(backup) || backup === main) return 'backup'
+  if (SPLIT_CODING_KINDS.includes(kind) && (weights.agy > 0 || backup === 'agy')) return 'agy'
+  if (kind === 'secret' && (AGENT_SPLIT_KINDS.some((v) => v !== 'claude' && v !== 'mistral' && weights[v] > 0) || !['claude', 'mistral'].includes(backup))) return 'secret'
+  return ''
+}
+
+/**
+ * A GET/PATCH /v1/agent-split body → one row per kind of SPLIT_TASK_KINDS,
+ * in order. A kind absent or broken in the body reads as its default, unset.
+ */
+export function normalizeAgentSplitKinds(body) {
+  const b = body && typeof body === 'object' ? body : {}
+  const got = {}
+  for (const k of Array.isArray(b.kinds) ? b.kinds : []) {
+    if (k && typeof k === 'object' && SPLIT_TASK_KINDS.includes(k.kind)) got[k.kind] = k
+  }
+  return SPLIT_TASK_KINDS.map((kind) => {
+    const src = got[kind]
+    const weights = {}
+    for (const v of AGENT_SPLIT_KINDS) weights[v] = src && src.weights && typeof src.weights === 'object' ? src.weights[v] ?? 0 : 0
+    const backup = src ? str(src.backup) : ''
+    if (!src || splitKindRule(kind, weights, backup)) {
+      const d = DEFAULT_SPLIT_KINDS[kind]
+      return { kind, weights: { ...d.weights }, backup: d.backup, main: splitMainOf(d.weights), set: false, updatedBy: '', updatedAt: '' }
+    }
+    return { kind, weights, backup, main: splitMainOf(weights), set: src.set === true, updatedBy: str(src.updated_by), updatedAt: str(src.updated_at) }
+  })
+}

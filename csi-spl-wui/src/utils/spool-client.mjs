@@ -34,6 +34,8 @@ const LAZY_METHODS = [
   'patchTenantUser',
   'getTenantSettings',
   'patchTenantSettings',
+  'getAgentSplit',
+  'patchAgentSplit',
   'getMarketingSwitch',
   'patchMarketingSwitch',
   'mintJoinToken',

@@ -104,6 +104,8 @@ declare module '~/utils/spool-client.mjs' {
     patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean, access_until?: string | null }): Promise<null>
     getTenantSettings(): Promise<unknown>
     patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number, mistral: number }, settings?: Record<string, string | number | null> }): Promise<unknown>
+    getAgentSplit(): Promise<unknown>
+    patchAgentSplit(kinds: Record<string, { weights: Record<string, number>, backup: string } | null>): Promise<unknown>
     getMarketingSwitch(): Promise<{ tenant_id?: string, enabled?: boolean }>
     patchMarketingSwitch(enabled: boolean): Promise<{ tenant_id?: string, enabled?: boolean }>
     listTenantChannels(): Promise<unknown>
@@ -1578,6 +1580,12 @@ declare module '~/utils/tenant-settings.mjs' {
   export function issuePrefixOf(s: unknown): string
   export function moveItem<T>(list: T[], i: number, delta: number): T[]
   export function tenantSettingsErrorKey(err: unknown): string
+  export type SplitKindRow = { kind: string, weights: AgentSplit, backup: string, main: string, set: boolean, updatedBy: string, updatedAt: string }
+  export const SPLIT_TASK_KINDS: readonly string[]
+  export const DEFAULT_SPLIT_KINDS: Readonly<Record<string, { weights: AgentSplit, backup: string }>>
+  export function splitMainOf(weights: Record<string, number>): string
+  export function splitKindRule(kind: string, weights: Record<string, number>, backup: string): string
+  export function normalizeAgentSplitKinds(body: unknown): SplitKindRow[]
 }
 
 declare module '~/utils/connect-agent.mjs' {

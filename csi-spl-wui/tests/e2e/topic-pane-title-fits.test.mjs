@@ -159,3 +159,51 @@ try {
 const failed = results.filter((r) => !r.ok)
 console.log(`\ntopic-pane-title-fits: ${results.length - failed.length}/${results.length} passed`)
 process.exit(failed.length ? 1 : 0)
+
+// T011: LiveTopicPane header gate (FR-011).
+test('T011: LiveTopicPane header is one line, controls are labelled', async ({ page }) => {
+  await page.goto('/')
+  await page.waitForSelector('[data-test=topic-section]', { state: 'visible' })
+  
+  // Open a topic pane (e.g., #lobby).
+  await page.click('[data-test=topic-row]:first-child')
+  await page.waitForSelector('[data-test=topic-heading]', { state: 'visible' })
+  
+  // 1. Header height <= 48 px.
+  const header = page.locator('[data-test=topic-heading]')
+  const headerHeight = await header.evaluate(el => el.getBoundingClientRect().height)
+  expect(headerHeight).toBeLessThanOrEqual(48)
+  
+  // 2. Every control has an accessible name.
+  const closeButtons = page.locator('[data-test=live-topic-close]')
+  for (let i = 0; i < await closeButtons.count(); i++) {
+    const name = await closeButtons.nth(i).evaluate(el => el.getAttribute('aria-label'))
+    expect(name).toBe('Close topic')
+  }
+  
+  const archivedBadge = page.locator('[aria-label=Archived
+// T011: LiveTopicPane header gate (FR-011).
+test("T011: LiveTopicPane header is one line, controls are labelled", async ({ page }) => {
+  await page.goto("/")
+  await page.waitForSelector("[data-test=topic-section]", { state: "visible" })
+  await page.click("[data-test=topic-row]:first-child")
+  await page.waitForSelector("[data-test=topic-heading]", { state: "visible" })
+  const header = page.locator("[data-test=topic-heading]")
+  const headerHeight = await header.evaluate(el => el.getBoundingClientRect().height)
+  expect(headerHeight).toBeLessThanOrEqual(48)
+  const closeButtons = page.locator("[data-test=live-topic-close]")
+  for (let i = 0; i < await closeButtons.count(); i++) {
+    const name = await closeButtons.nth(i).evaluate(el => el.getAttribute("aria-label"))
+    expect(name).toBe("Close topic")
+  }
+  const archivedBadge = page.locator("[aria-label=Archived\ topic]")
+  if (await archivedBadge.count() > 0) {
+    const name = await archivedBadge.evaluate(el => el.getAttribute("aria-label"))
+    expect(name).toBe("Archived topic")
+  }
+  const clipControl = page.locator("[aria-label=Clip\ replies]")
+  if (await clipControl.count() > 0) {
+    const name = await clipControl.evaluate(el => el.getAttribute("aria-label"))
+    expect(name).toBe("Clip replies to this topic")
+  }
+})

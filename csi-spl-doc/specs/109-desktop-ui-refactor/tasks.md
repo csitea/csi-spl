@@ -73,14 +73,6 @@ T001 spec v1.0 ─┬─► T013 RUM on in prd (first: a real before-week)
 | T010 | Implemented (c-607): the top bar mounts no language picker (FR-008); the avatar dropdown has it, still `defineAsyncComponent`, and Settings -> Language is unchanged. The dropdown offers Workspace settings on the desktop only while the channels rail is collapsed (FR-009). Mock bundle, 1440 x 900, n=10 each, longest connect 0 ms: picker in the bar 171 -> 0 px (tree `961dbaaaf`); Workspace settings entries on screen 1 with the rail open and 1 with it collapsed (the first-run card's link is T012's). `ci_initial_gzip_kb` 154.4 unchanged; phone e2e unchanged. Signed-in prd after-number: T014 on the drafting box |
 | T012 | Implemented (a-672). Mock bundle, 1440 x 900, n=10: card height 270 px -> 48 px once a step is done; header jargon -> plain words; workspace box click() opens nothing -> opens the list. |
 | T011 | Implemented: one-line dynamic title, labelled controls (m-671) |
-| T012 | Implemented (a-672). Mock bundle, 1440 x 900, n=10: card height 270 px -> 48 px once a step is done; header jargon -> plain words; workspace box click() opens nothing -> opens the list. |
-| T011 | Implemented: one-line dynamic title, labelled controls (m-671) |
-| T012 | Implemented (a-672). Mock bundle, 1440 x 900, n=10: card height 270 px -> 48 px once a step is done; header jargon -> plain words; workspace box click() opens nothing -> opens the list. |
-| T011 | Implemented: one-line dynamic title, labelled controls (m-671) |
-| T012 | Implemented (a-672). Mock bundle, 1440 x 900, n=10: card height 270 px -> 48 px once a step is done; header jargon -> plain words; workspace box click() opens nothing -> opens the list. |
-| T011 | Implemented: one-line dynamic title, labelled controls (m-671) |
-| T008, T012, T014, T015 | Planned |
-| T011 | Implemented: one-line dynamic title, labelled controls (m-671) |
->>>>>>> d71eb15c0 (T011: LiveTopicPane header: one-line dynamic title, labelled controls)
+| T008, T014, T015 | Planned |
 
 <!-- last-edit: 2026-10-08T18:25:00Z — v1.0 fold of seats s109-2..4, c-567 -->

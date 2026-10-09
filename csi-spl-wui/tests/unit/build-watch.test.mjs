@@ -4,7 +4,8 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CHECK_EVERY_MS, decide, isNewer, normCommit, pageBusy, readLiveCommit } from '../../src/utils/build-watch.mjs'
+import { CHECK_EVERY_MS, isNewer, normCommit } from '../../src/utils/build-watch.mjs'
+import { decide, pageBusy, readLiveCommit } from '../../src/utils/build-watch-rules.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
@@ -121,8 +122,13 @@ describe('build watch: wiring', () => {
     assert.match(read('nuxt.config.ts'), /buildCommit:.*GITHUB_SHA/)
   })
   it('the plugin listens to visibility, focus and bfcache, and sets window.__BUILD__', () => {
-    const src = read('src/plugins/build-watch.client.ts')
+    /* the polling loads once the app is ready (utils/build-watch-run.ts, off
+       the initial download); the plugin sets __BUILD__ and starts it */
+    const plugin = read('src/plugins/build-watch.client.ts')
+    const src = plugin + read('src/utils/build-watch-run.ts')
     for (const s of ["'visibilitychange'", "'focus'", "'pageshow'", 'window.__BUILD__', 'CHECK_EVERY_MS']) assert.ok(src.includes(s), s)
+    assert.match(plugin, /onNuxtReady\(\(\) => void import\('~\/utils\/build-watch-run'\)/)
+    assert.doesNotMatch(plugin, /from '~\/utils\/build-watch\.mjs'/)
   })
   it('the bar is EAGER (an old build\'s lazy chunks are gone after a deploy)', () => {
     const app = read('src/app.vue')

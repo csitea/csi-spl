@@ -5,7 +5,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RESUME_AFTER_MS, RETRY_DELAYS_MS, decide, isResume, pageBusy, retryDelay } from '../../src/utils/build-watch.mjs'
+import { RESUME_AFTER_MS } from '../../src/utils/build-watch.mjs'
+import { RETRY_DELAYS_MS, decide, isResume, pageBusy, retryDelay } from '../../src/utils/build-watch-rules.mjs'
 import {
   RECOVER_DELAYS_MS, RECOVER_EVERY_MS, WAS_SIGNED_IN_KEY,
   markSignedIn, recoverDelay, reprobeOnReturn, unsettled, wasSignedIn,
@@ -127,7 +128,7 @@ describe('session ended: the sign-in page says so', () => {
 
 describe('wiring', () => {
   it('build-watch: a resume skips the gap and retries; online asks again', () => {
-    const src = read('src/plugins/build-watch.client.ts')
+    const src = read('src/utils/build-watch-run.ts')
     for (const s of ['isResume(hiddenAt)', 'retryDelay(++failed)', "'online'", 'pageBusy(document, { resumed })']) assert.ok(src.includes(s), s)
   })
   it('session-recover: backoff, a return to the tab and online re-probe; live builds only', () => {

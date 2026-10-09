@@ -8,7 +8,7 @@
 // manifest and its 192 px icon while the first screen's chunks were still
 // loading - 2 requests / 36.7 KB before the left rail on prd's cold first
 // load (do_spl_wui_perf_first_load_net). Install needs neither earlier.
-import { IDLE_POLL_MS, decide, normCommit, pageBusy } from '~/utils/build-watch.mjs'
+import { IDLE_POLL_MS, normCommit } from '~/utils/build-watch.mjs'
 import { readReloadGuard, reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 
 const MANIFEST_HREF = '/manifest.webmanifest'
@@ -16,6 +16,28 @@ const MANIFEST_HREF = '/manifest.webmanifest'
 // (read in the background) already names another build - see sw.js.
 const SHELL_STALE = 'spool:shell-stale'
 const SHELL_ASK = 'spool:shell-ask'
+
+/** build-watch's decision for the build the worker's shell reported (W9). */
+function actOnShellBuild(
+  { decide, pageBusy }: typeof import('~/utils/build-watch-rules.mjs'),
+  watch: ReturnType<typeof useBuildWatch>,
+  live: string,
+) {
+  const guard = readReloadGuard()
+  const act = decide({ running: watch.value.running, live, busy: pageBusy(), guard })
+  if (act === 'reload') return reloadForBuild(live)
+  watch.value.prompt = act === 'prompt'
+  // as build-watch: a busy page reloads by itself once idle on two reads
+  // in a row, unless this tab already reloaded for that build (bar only)
+  if (act !== 'prompt' || guard === live) return
+  let idleSeen = 0
+  const idleTimer = setInterval(() => {
+    idleSeen = pageBusy() ? 0 : idleSeen + 1
+    if (idleSeen < 2) return
+    clearInterval(idleTimer)
+    reloadForBuild(live)
+  }, IDLE_POLL_MS)
+}
 
 export default defineNuxtPlugin(() => {
   onNuxtReady(() => {
@@ -62,20 +84,8 @@ export default defineNuxtPlugin(() => {
     if (!live) return
     acted = d.build
     watch.value.live = live
-    const guard = readReloadGuard()
-    const act = decide({ running: watch.value.running, live, busy: pageBusy(), guard })
-    if (act === 'reload') return reloadForBuild(live)
-    watch.value.prompt = act === 'prompt'
-    // as build-watch: a busy page reloads by itself once idle on two reads
-    // in a row, unless this tab already reloaded for that build (bar only)
-    if (act !== 'prompt' || guard === live) return
-    let idleSeen = 0
-    const idleTimer = setInterval(() => {
-      idleSeen = pageBusy() ? 0 : idleSeen + 1
-      if (idleSeen < 2) return
-      clearInterval(idleTimer)
-      reloadForBuild(live)
-    }, IDLE_POLL_MS)
+    /* the rules load here, after ready, not in the first download (ci_initial_gzip_kb) */
+    void import('~/utils/build-watch-rules.mjs').then((rules) => actOnShellBuild(rules, watch, live))
   }
   navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => onShellBuild(e.data))
   const sw = navigator.serviceWorker.controller

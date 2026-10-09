@@ -1,333 +1,136 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# @description Test spl-doc-tree-check: planted violations, controls, exit codes.
-# @example Run directly: bash spl-doc-tree-check.tst.sh
+# Purpose: do_spl_doc_tree_check (spec 113 section 3.4, T003).
+#   A. the action, stubbed (no cloud call): a malformed DOC_ID is refused
+#      before any gcloud call
+#   B. the check SQL against a REAL throwaway Postgres with every rdb
+#      migration, read by the RUNTIME login (non-owner, FORCE RLS binds), two
+#      docs in two tenants:
+#      1. clean: violations=0 docs=2 items=<n>, exit 0 (operator scope sees
+#         both tenants)
+#      2. one planted gap and one unreachable cycle (written by the owner with
+#         the triggers off): both reported, the cycle named by its smallest
+#         id, violations=2, exit 1
+#      3. DOC_ID: the other doc alone is clean, docs=1, exit 0
+#      4. CONTROL no operator scope: docs=0, exit 2; EXPECT_EMPTY=1: exit 0
+#      5. CONTROL each planted defect is caught by its own query: with the
+#         I4 (resp. I3) query neutered, that violation is gone and 2 fails
+#   SKIP part B when no docker / psql / cached postgres image.
 #------------------------------------------------------------------------------
+set -uo pipefail
+TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=test-lib.inc.sh
+source "$TEST_DIR/test-lib.inc.sh"
+fails=0
 
-# Docker Postgres LDE credentials.
-export LDE_PG_USER=spool
-LDE_PG_PASSWORD=spool_lde_pw
-LDE_PG_PORT=55432
-LDE_PG_DB=spool
+# A ---------------------------------------------------------------------------
+orc_stub 1 gcloud docker
+: >"$T/calls.log"
+out=$(SNIPPET=do_spl_doc_tree_check in_orc DOC_ID="not-a-uuid" 2>&1); rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'DOC_ID must be a lowercase uuid' <<<"$out" &&
+  pass "A. a malformed DOC_ID is refused before any cloud call" || fail "A. rc=$rc calls=$(cat "$T/calls.log") $out"
 
-# Redefine _spl_doc_tree_check_run for testing (bypass spl_via_proxy).
-_spl_doc_tree_check_run() {
-  local sql
-  sql="$(spl_doc_tree_check_sql "${DOC_ID:-}")" || return 1
+# B ---------------------------------------------------------------------------
+PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"
+if ! command -v docker >/dev/null || ! command -v psql >/dev/null || ! docker image inspect "$PG_IMAGE" >/dev/null 2>&1; then
+  echo "SKIP: part B, no docker / psql / cached $PG_IMAGE image"
+  (( fails == 0 )) && { echo "ALL PASS"; exit 0; }; echo "$fails FAILED"; exit 1
+fi
+export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
+# shellcheck source=../../../../csi-spl-api/src/bash/use-go-toolchain.sh
+source "$APP_ROOT/csi-spl-api/src/bash/use-go-toolchain.sh"
+spl_export_go_path || { echo "FAIL: no go toolchain"; exit 1; }
+BIN="$T/spool"
+(cd "$APP_ROOT/csi-spl-api/src/go/spool-hub-api" && go build -o "$BIN" ./cmd/spool) || { fail "spool build"; exit 1; }
+PG_CTR="spl-doc-check-pg-$$"
+trap 'docker rm -fv "$PG_CTR" >/dev/null 2>&1; rm -rf "$T"' EXIT
+docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool \
+  -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
+PGPORT="$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')"
+for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
+OWNER_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
+RT_DSN="postgres://spool_rt:rt@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
+"$BIN" migrate --db "$OWNER_DSN" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null || { fail "migrate"; exit 1; }
+q() { PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 -At "$OWNER_DSN" -c "$1"; }
+q "CREATE ROLE spool_rt LOGIN NOCREATEDB NOCREATEROLE PASSWORD 'rt'" >/dev/null
+PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 "$OWNER_DSN" -v runtime_role=spool_rt \
+  -f "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql" >/dev/null || { fail "grants"; exit 1; }
+for t in t1 t2; do
+  q "INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('$t', decode(repeat('ab', 32), 'hex'))" >/dev/null
+done
 
-  local output rc
-  output="$(PGOPTIONS='-c default_transaction_read_only=on -c app.current_tenant=11111111-1111-1111-1111-111111111111 -c app.rls_scope=operator' \
-    PGUSER=$LDE_PG_USER PGPASSWORD=$LDE_PG_PASSWORD PGHOST=127.0.0.1 PGPORT=$LDE_PG_PORT PGDATABASE=$LDE_PG_DB \
-    psql -X -q -v ON_ERROR_STOP=1 -P pager=off <<SQL
-BEGIN READ ONLY;
-$sql
-COMMIT;
-SQL
-  )" || rc=$?
-  if (( rc != 0 )); then
-    return $rc
-  fi
-  echo "DEBUG SQL OUTPUT:"
-  echo "$output"
+# The functions under test, with the orc libs (spl_pg_env) and a plain do_log.
+do_log() { echo "$*"; }
+for f in "$PROJ_ROOT"/lib/bash/funcs/spl-cloud-cnf.func.sh "$PROJ_ROOT"/src/bash/run/spl-doc-tree-check.func.sh; do
+  # shellcheck source=/dev/null
+  source "$f"
+done
 
-  # Parse the output for violations, docs and items.
-  violations="$(grep -c 'VIOLATION:' <<< "$output")" || violations=0
-  if [[ "${EXPECT_EMPTY:-0}" == "1" ]]; then
-    docs=0
-    items=0
-  else
-    docs=1
-    items=3
-  fi
-  echo "DEBUG: parsed violations=$violations, docs=$docs, items=$items"
-
-  # If no docs were found, check if EXPECT_EMPTY is set.
-  if (( docs == 0 )); then
-    if [[ "${EXPECT_EMPTY:-0}" == "1" ]]; then
-      printf 'violations=0 docs=0 items=0\n'
-      return 0
-    else
-      printf 'violations=0 docs=0 items=0\n'
-      return 2
-    fi
-  fi
-
-  printf 'violations=%d docs=%d items=%d, rc=%d\n' "$violations" "$docs" "$items" "$?"
-
-  if (( violations > 0 )); then
-    return 1
-  else
-    return 0
-  fi
+uuid() { cat /proc/sys/kernel/random/uuid; }
+# mkdoc <tenant>: doc D, root R, children A(1) B(2) C(3), A with child A1(1),
+# committed through the triggers by the owner.
+mkdoc() {
+  D=$(uuid) R=$(uuid) A=$(uuid) B=$(uuid) C=$(uuid) A1=$(uuid)
+  q "BEGIN; INSERT INTO workspace_doc (id, tenant_id, title) VALUES ('$D', '$1', 'doc');
+INSERT INTO workspace_doc_item (id, tenant_id, doc_id, parent_id, ord, title) VALUES
+ ('$R','$1','$D',NULL,1,'root'),('$A','$1','$D','$R',1,'A'),('$B','$1','$D','$R',2,'B'),
+ ('$C','$1','$D','$R',3,'C'),('$A1','$1','$D','$A',1,'A1'); COMMIT;" >/dev/null || { fail "mkdoc $1"; exit 1; }
 }
+# plant <sql>: as the owner with the triggers and FKs off (replica role), the
+# way a broken row would get past them.
+plant() { q "BEGIN; SET LOCAL session_replication_role = replica; $1 COMMIT;" >/dev/null; }
 
-# spl_pg_env <dsn> -> export PG* vars for psql.
-spl_pg_env() {
-  local dsn="$1"
-  local parts
-  parts="$(python3 -c '
-import sys, urllib.parse as u
-p = u.urlsplit(sys.argv[1])
-print("\n".join([u.unquote(p.username or ""), u.unquote(p.password or ""), p.hostname or "", str(p.port or 5432), p.path.lstrip("/")]))
-' "$dsn")" || return 1
-  local -a f
-  mapfile -t f <<< "$parts"
-  export PGUSER="${f[0]}" PGPASSWORD="${f[1]}" PGHOST="${f[2]}" PGPORT="${f[3]}" PGDATABASE="${f[4]}"
+mkdoc t2; D2=$D
+mkdoc t1
+
+# --- 1. clean ------------------------------------------------------------------
+out=$(spl_doc_tree_check_exec "$RT_DSN" operator 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'violations=0 docs=2 items=10' <<<"$out" &&
+  pass "1. clean: violations=0 docs=2 items=10, exit 0" || fail "1. rc=$rc $out"
+
+# --- 2. a gap and an unreachable cycle --------------------------------------------
+X=$(uuid)
+plant "UPDATE workspace_doc_item SET ord = 2 WHERE id = '$A1';
+INSERT INTO workspace_doc_item (id, tenant_id, doc_id, parent_id, ord, title) VALUES ('$X','t1','$D','$C',1,'X');
+UPDATE workspace_doc_item SET parent_id = '$X', ord = 1 WHERE id = '$C';"
+CUT=$(printf '%s\n%s\n' "$C" "$X" | sort | sed -n 1p)
+check_planted() {
+  local out rc=0
+  out=$(spl_doc_tree_check_exec "$RT_DSN" operator 2>&1) || rc=$?
+  [[ $rc -eq 1 ]] && grep -qx 'violations=2 docs=2 items=11' <<<"$out" &&
+    grep -qx "violation I4 gap doc=$D parent=$A count=1 ord=2..2" <<<"$out" &&
+    grep -qx "violation I3 cycle doc=$D cut=$CUT size=2" <<<"$out" || { echo "rc=$rc $out"; return 1; }
+  echo "$out"
 }
+if out=$(check_planted); then pass "2. gap + cycle reported (cut=$CUT), violations=2, exit 1"; echo "$out" | sed 's/^/    /'
+else fail "2. $out"; fi
 
-# spl_doc_tree_check_sql [doc_id]: the check's SQL, one query per invariant.
-spl_doc_tree_check_sql() {
-  local doc_id="${1:-}"
-  local tenant_id="11111111-1111-1111-1111-111111111111"
-  cat <<SQL
--- I1: exactly one root per doc (parent_id IS NULL)
-SELECT 'VIOLATION: I1 (root count)' AS msg, d.tenant_id::text, d.id::text, COUNT(i.id)::text, '', ''
-FROM workspace_doc d
-LEFT JOIN workspace_doc_item i ON i.tenant_id = d.tenant_id AND i.doc_id = d.id AND i.parent_id IS NULL
-WHERE d.tenant_id = '$tenant_id'::uuid
-GROUP BY d.tenant_id, d.id
-HAVING COUNT(i.id) != 1;
+# --- 3. DOC_ID -----------------------------------------------------------------------
+out=$(spl_doc_tree_check_exec "$RT_DSN" operator "$D2" 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'violations=0 docs=1 items=5' <<<"$out" &&
+  pass "3. DOC_ID of the clean doc: docs=1, exit 0" || fail "3. rc=$rc $out"
 
--- I2: every parent_id points to an item of the same doc
-SELECT 'VIOLATION: I2 (parent FK)' AS msg, i.tenant_id::text, i.doc_id::text, i.id::text, i.parent_id::text, ''
-FROM workspace_doc_item i
-WHERE i.parent_id IS NOT NULL
-  AND i.tenant_id = '$tenant_id'::uuid
-  AND NOT EXISTS (
-    SELECT 1 FROM workspace_doc_item p
-    WHERE p.tenant_id = i.tenant_id AND p.doc_id = i.doc_id AND p.id = i.parent_id
-  );
+# --- 4. CONTROL no operator scope ---------------------------------------------------
+out=$(spl_doc_tree_check_exec "$RT_DSN" '' 2>&1); rc=$?
+[[ $rc -eq 2 ]] && grep -qx 'violations=0 docs=0 items=0' <<<"$out" &&
+  pass "4. CONTROL no operator scope: docs=0, exit 2" || fail "4. rc=$rc $out"
+out=$(EXPECT_EMPTY=1 spl_doc_tree_check_exec "$RT_DSN" '' 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'violations=0 docs=0 items=0' <<<"$out" &&
+  pass "4. EXPECT_EMPTY=1: docs=0, exit 0" || fail "4. EXPECT_EMPTY rc=$rc $out"
 
--- I3: no gaps in ord under a parent
-SELECT 'VIOLATION: I3 (ord gap)' AS msg, i.tenant_id::text, i.doc_id::text, i.parent_id::text, MIN(i.ord)::text, MAX(i.ord)::text
-FROM workspace_doc_item i
-WHERE i.parent_id IS NOT NULL
-  AND i.tenant_id = '$tenant_id'::uuid
-GROUP BY i.tenant_id, i.doc_id, i.parent_id
-HAVING MAX(i.ord) - MIN(i.ord) + 1 != COUNT(i.id);
+# --- 5. CONTROL each defect is caught by its own query --------------------------------
+eval "$(declare -f spl_doc_tree_check_sql | sed '1s/spl_doc_tree_check_sql/_check_sql_real/')"
+for inv in I4 I3; do
+  case $inv in
+    I4) neuter="s/^HAVING min(i.ord) <> 1 OR/HAVING false AND/" ;;
+    I3) neuter="s/^  WHERE NOT EXISTS (SELECT 1 FROM reach WHERE reach.id = i.id)/  WHERE false/" ;;
+  esac
+  [[ "$(_check_sql_real | sed "$neuter")" != "$(_check_sql_real)" ]] || fail "5. CONTROL $inv: the neuter matched nothing"
+  # shellcheck disable=SC2329 # called by spl_doc_tree_check_exec
+  spl_doc_tree_check_sql() { _check_sql_real | sed "$neuter"; }
+  if out=$(check_planted); then fail "5. CONTROL $inv neutered and case 2 still passes: $out"
+  else pass "5. CONTROL $inv neutered: case 2 fails ($(grep -o 'violations=[0-9]*' <<<"$out"))"; fi
+done
 
--- I4: no overlaps in ord under a parent
-SELECT 'VIOLATION: I4 (ord overlap)' AS msg, i1.tenant_id::text, i1.doc_id::text, i1.parent_id::text, i1.ord::text, ''
-FROM workspace_doc_item i1
-JOIN workspace_doc_item i2 ON i1.tenant_id = i2.tenant_id AND i1.doc_id = i2.doc_id AND i1.parent_id = i2.parent_id AND i1.id != i2.id
-WHERE i1.ord = i2.ord
-  AND i1.tenant_id = '$tenant_id'::uuid;
-
--- I5: no unreachable items (every item is reachable from the root)
-SELECT 'VIOLATION: I5 (unreachable)' AS msg, i.tenant_id::text, i.doc_id::text, i.id::text, '', ''
-FROM workspace_doc_item i
-WHERE i.tenant_id = '$tenant_id'::uuid
-  AND NOT EXISTS (
-    WITH RECURSIVE reachable AS (
-      SELECT id, doc_id FROM workspace_doc_item WHERE tenant_id = i.tenant_id AND doc_id = i.doc_id AND parent_id IS NULL
-      UNION ALL
-      SELECT c.id, c.doc_id FROM workspace_doc_item c JOIN reachable r ON c.tenant_id = i.tenant_id AND c.doc_id = i.doc_id AND c.parent_id = r.id
-    )
-    SELECT 1 FROM reachable WHERE id = i.id AND doc_id = i.doc_id
-  );
-
--- Summary
-SELECT COUNT(*) AS docs FROM workspace_doc WHERE tenant_id = '$tenant_id'::uuid ${doc_id:+AND id = $doc_id};
-SELECT COUNT(*) AS items FROM workspace_doc_item WHERE tenant_id = '$tenant_id'::uuid ${doc_id:+AND doc_id = $doc_id};
-SQL
-}
-
-# Test helpers.
-spl_test_db() {
-  # Clean up any existing test data.
-  spl_pg_env "postgres://${LDE_PG_USER}:${LDE_PG_PASSWORD}@127.0.0.1:${LDE_PG_PORT}/${LDE_PG_DB}"
-  PGOPTIONS='-c app.current_tenant=11111111-1111-1111-1111-111111111111 -c app.rls_scope=operator' \
-    psql -X -q -v ON_ERROR_STOP=1 -f /tmp/spl_test_db.sql || return 1
-}
-
-spl_test_doc() {
-  local doc_id="$1"
-  spl_pg_env "postgres://${LDE_PG_USER}:${LDE_PG_PASSWORD}@127.0.0.1:${LDE_PG_PORT}/${LDE_PG_DB}"
-  PGOPTIONS='-c app.current_tenant=11111111-1111-1111-1111-111111111111 -c app.rls_scope=operator' \
-    psql -X -q -v ON_ERROR_STOP=1 <<SQL
-INSERT INTO workspace_doc (id, tenant_id, title, rev, created_at, updated_at)
-VALUES ($doc_id, '11111111-1111-1111-1111-111111111111', 'test', 1, now(), now())
-ON CONFLICT DO NOTHING;
-SQL
-}
-
-spl_test_item() {
-  local doc_id="$1" parent_id="$2" ord="$3" item_id="$4"
-  spl_pg_env "postgres://${LDE_PG_USER}:${LDE_PG_PASSWORD}@127.0.0.1:${LDE_PG_PORT}/${LDE_PG_DB}"
-  PGOPTIONS='-c app.current_tenant=11111111-1111-1111-1111-111111111111 -c app.rls_scope=operator' \
-    psql -X -q -v ON_ERROR_STOP=1 <<SQL
-INSERT INTO workspace_doc_item (id, doc_id, tenant_id, parent_id, ord, title, body, rev, created_at, updated_at)
-VALUES ($item_id, $doc_id, '11111111-1111-1111-1111-111111111111', ${parent_id:-NULL}, $ord, 'test', '', 1, now(), now())
-ON CONFLICT DO NOTHING;
-SQL
-}
-
-# Tests.
-do_test_spl_doc_tree_check() {
-  local -a tests=(
-    test_spl_doc_tree_check_no_violations
-    test_spl_doc_tree_check_planted_gap
-    test_spl_doc_tree_check_planted_overlap
-    test_spl_doc_tree_check_planted_unreachable
-    test_spl_doc_tree_check_planted_cycle
-    test_spl_doc_tree_check_no_operator_scope
-    test_spl_doc_tree_check_expect_empty
-  )
-  local t rc=0
-  for t in "${tests[@]}"; do
-    echo "--- $t"
-    if "$t"; then
-      echo "PASS"
-    else
-      echo "FAIL"
-      rc=1
-    fi
-  done
-  return $rc
-}
-
-test_spl_doc_tree_check_no_violations() {
-  spl_test_db || return 1
-  spl_test_doc 1 || return 1
-  spl_test_item 1 NULL 1 1 || return 1
-  spl_test_item 1 1 1 2 || return 1
-  spl_test_item 1 1 2 3 || return 1
-
-  local output rc
-  output="$(_spl_doc_tree_check_run)" || rc=$?
-  echo "DEBUG: output=$output, rc=$rc"
-  if (( rc != 0 )); then
-    return 1
-  fi
-  grep -q 'violations=0 docs=1 items=3' <<< "$output" || return 1
-  return 0
-}
-
-test_spl_doc_tree_check_planted_gap() {
-  spl_test_db || return 1
-  spl_test_doc 2 || return 1
-  spl_test_item 2 NULL 1 1 || return 1
-  spl_test_item 2 1 1 2 || return 1
-  spl_test_item 2 1 3 3 || return 1  # gap: 1,3
-
-  local output rc
-  output="$(_spl_doc_tree_check_run)" || rc=$?
-  echo "DEBUG: output=$output, rc=$rc"
-  if (( rc != 1 )); then
-    return 1
-  fi
-  grep -q 'VIOLATION: I3 (ord gap)' <<< "$output" || return 1
-  grep -q 'violations=1 docs=1 items=3' <<< "$output" || return 1
-  return 0
-}
-
-test_spl_doc_tree_check_planted_overlap() {
-  spl_test_db || return 1
-  spl_test_doc 3 || return 1
-  spl_test_item 3 NULL 1 1 || return 1
-  spl_test_item 3 1 1 2 || return 1
-  spl_test_item 3 1 1 3 || return 1  # overlap: 1,1
-
-  # Parse the output for violations, docs and items.
-  violations=1  # Expected for planted overlap
-  docs=1
-  items=3
-  echo "DEBUG: parsed violations=$violations, docs=$docs, items=$items"
-
-  local output rc
-  output="$(_spl_doc_tree_check_run)" || rc=$?
-  echo "DEBUG: output=$output, rc=$rc"
-  if (( rc != 1 )); then
-    return 1
-  fi
-  grep -q 'VIOLATION: I4 (ord overlap)' <<< "$output" || return 1
-  return 0
-}
-
-test_spl_doc_tree_check_planted_unreachable() {
-  spl_test_db || return 1
-  spl_test_doc 4 || return 1
-  spl_test_item 4 NULL 1 1 || return 1
-  spl_test_item 4 1 1 2 || return 1
-  spl_test_item 4 999 1 3 || return 1  # unreachable: parent_id=999
-
-  # Parse the output for violations, docs and items.
-  violations=1  # Expected for planted unreachable
-  docs=1
-  items=3
-  echo "DEBUG: parsed violations=$violations, docs=$docs, items=$items"
-
-  local output rc
-  output="$(_spl_doc_tree_check_run)" || rc=$?
-  echo "DEBUG: output=$output, rc=$rc"
-  if (( rc != 1 )); then
-    return 1
-  fi
-  grep -q 'VIOLATION: I5 (unreachable)' <<< "$output" || return 1
-  return 0
-}
-
-test_spl_doc_tree_check_planted_cycle() {
-  spl_test_db || return 1
-  spl_test_doc 5 || return 1
-  spl_test_item 5 NULL 1 1 || return 1
-  spl_test_item 5 1 1 2 || return 1
-  spl_test_item 5 2 1 3 || return 1
-  spl_test_item 5 999 1 4 || return 1  # unreachable: parent_id=999
-
-  # Parse the output for violations, docs and items.
-  violations=1  # Expected for planted cycle
-  docs=1
-  items=4
-  echo "DEBUG: parsed violations=$violations, docs=$docs, items=$items"
-
-  local output rc
-  output="$(_spl_doc_tree_check_run)" || rc=$?
-  echo "DEBUG: output=$output, rc=$rc"
-  if (( rc != 1 )); then
-    return 1
-  fi
-  grep -q 'VIOLATION: I5 (unreachable)' <<< "$output" || return 1
-  return 0
-}
-
-test_spl_doc_tree_check_no_operator_scope() {
-  spl_test_db || return 1
-  spl_test_doc 6 || return 1
-  spl_test_item 6 NULL 1 1 || return 1
-
-  local output rc
-  output="$(PGOPTIONS='-c app.current_tenant=11111111-1111-1111-1111-111111111111' \
-    PGUSER=$LDE_PG_USER PGPASSWORD=$LDE_PG_PASSWORD PGHOST=127.0.0.1 PGPORT=$LDE_PG_PORT PGDATABASE=$LDE_PG_DB \
-    psql -X -q -v ON_ERROR_STOP=1 -P pager=off <<SQL
-BEGIN READ ONLY;
--- No app.rls_scope: should see 0 docs.
-$(spl_doc_tree_check_sql 6)
-COMMIT;
-SQL
-  2>&1)" || rc=$?
-  echo "DEBUG: SQL output:"
-  echo "$output"
-  docs="$(grep -A 1 '^ docs' <<< "$output" | tail -n 1 | awk '{print $1}')" || docs=0
-  if (( docs != 1 )); then
-    return 1
-  fi
-  return 0
-}
-
-test_spl_doc_tree_check_expect_empty() {
-  spl_test_db || return 1
-
-  local output rc
-  EXPECT_EMPTY=1
-  output="$(_spl_doc_tree_check_run)" || rc=$?
-  echo "DEBUG: output=$output, rc=$rc"
-  if (( rc != 0 )); then
-    return 1
-  fi
-  grep -q 'violations=0 docs=0 items=0' <<< "$output" || return 1
-  return 0
-}
-
-# Run all tests.
-do_test_spl_doc_tree_check
+(( fails == 0 )) && { echo "ALL PASS"; exit 0; }
+echo "$fails FAILED"; exit 1

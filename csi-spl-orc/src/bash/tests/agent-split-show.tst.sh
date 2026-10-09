@@ -5,6 +5,9 @@
 #          proxy as the project SA, with the tenant id as a psql variable,
 #          and prints "claude=N grok=N agy=N qwen=N mistral=N". A row that does not sum
 #          to 100 is refused. gcloud and psql are stubbed.
+#          --kind <k> (spec 115 HUB-1, rdb 0163) prints that kind's row with
+#          its backup, from the workspace's rows, else from the cnf
+#          env.box.agent_split_by_kind row; a bad kind never calls the cloud.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -111,6 +114,37 @@ in_orc 'do_spl_agent_split_show' TENANT_ID=t1 STUB_PSQL_OUT='40|50|10|0|10'; rc=
 in_orc 'do_spl_agent_split_show' TENANT_ID=t1 STUB_PSQL_OUT='40|50|10|0'; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'no agent split row for tenant t1' "$T/out" && ! grep -q '^claude=' "$T/out" \
   && pass "3. control: a four-column row (no mistral) is not read as a split" || fail "3. four: rc=$rc $(cat "$T/out")"
+
+# --- 4. --kind (spec 115 HUB-1) ---------------------------------------------
+in_orc 'do_spl_agent_split_show --kind=opus' TENANT_ID=t1; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q "FATAL --kind must be" "$T/out" \
+  && pass "4. a kind outside the six is refused before any call" || fail "4. opus: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_agent_split_show --kind "x'"'"'; drop table tenants"' TENANT_ID=t1; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "4. an injected kind is refused before any call" || fail "4. injected kind: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_agent_split_show --kind simple_coding' TENANT_ID=t1 STUB_PSQL_OUT=$'agy|0|false\nclaude|30|true\ngrok|10|false\nmistral|60|false\nqwen|0|false'; rc=$?
+[[ $rc -eq 0 ]] \
+  && grep -qx 'claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=claude' "$T/out" \
+  && grep -q 'FROM tenant_agent_split_kind' "$T/stdin" \
+  && grep -q "kind = :'kind'" "$T/stdin" \
+  && grep -q 'BEGIN TRANSACTION READ ONLY;' "$T/stdin" \
+  && ! grep -qiE '\b(insert|update|delete|drop|truncate|alter)\b' "$T/stdin" \
+  && grep -q '\[kind=simple_coding\]' "$T/calls.log" \
+  && grep -q 'source=workspace' "$T/out" \
+  && pass "4. --kind prints the workspace's row and its backup, kind as -v" \
+  || fail "4. kind: rc=$rc $(cat "$T/out") --- $(cat "$T/calls.log")"
+in_orc 'do_spl_agent_split_show --kind hard' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'claude=80 grok=0 agy=0 qwen=0 mistral=20 backup=mistral' "$T/out" \
+  && grep -q '\[kind=complex_coding\]' "$T/calls.log" && grep -q 'source=cnf' "$T/out" \
+  && pass "4. an unset kind (alias hard) prints the cnf row" || fail "4. cnf: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_agent_split_show --kind i18n' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'claude=0 grok=0 agy=100 qwen=0 mistral=0 backup=claude' "$T/out" \
+  && pass "4. a cnf backup with no weight is printed as the backup" || fail "4. cnf backup: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_agent_split_show --kind tests' TENANT_ID=t1 STUB_PSQL_OUT=$'claude|70|false\nmistral|29|true'; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'sums to 99, not 100' "$T/out" && ! grep -q '^claude=' "$T/out" \
+  && pass "4. a kind that does not sum to 100 is not printed" || fail "4. kind sum: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_agent_split_show --kind tests' TENANT_ID=t1 STUB_PSQL_OUT=$'claude|70|false\nmistral|30|false'; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'names no backup' "$T/out" && ! grep -q '^claude=' "$T/out" \
+  && pass "4. control: a kind with no backup is not printed" || fail "4. no backup: rc=$rc $(cat "$T/out")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

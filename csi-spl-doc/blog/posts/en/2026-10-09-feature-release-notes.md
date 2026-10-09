@@ -15,10 +15,21 @@ image_alt: "An abstract, modern digital changelog and update tracker, showing ve
 image_prompt: "An abstract, modern digital changelog and update tracker, showing versions and release notes in a clean UI"
 ---
 **What it is**
-You can now easily read what's changed directly inside the app. Clicking the version number at the bottom of the left pane (or on the status strip on phones) and selecting "Release notes" opens a clear, detailed log of recent application changes.
 
-**How it works**
-- **The dialog:** It presents a table of the 30 newest changes, including the version, short commit hash, commit time, and the change title.
-- **Detailed notes:** Clicking a change title opens the full release note, explaining the update in plain words and technical terms based on its commit message trailers.
-- **Pagination and navigation:** You can click "Load older versions" to continuously read past changes down to the very first entry. The view fully supports keyboard shortcuts on desktop (like `j` and `k` to move between rows), and it is optimized for smaller phone screens with a condensed layout.
-- **Direct links:** Every note can be directly shared via the `/releases/<ref>` route.
+The Release notes dialog is a dedicated changelog tracker. It extracts plain language and technical release notes from commit message trailers and presents them directly in the workspace.
+
+**Why use it**
+
+It keeps everyone—from everyday users to engineers—informed about what changed, how it was changed, and why, without needing to dig through git logs or external change trackers.
+
+**How to use it**
+
+Click the app version at the bottom of the left pane (or the status strip on a phone) and select 'Release notes'. A dialog opens showing the 30 most recent changes. Click any change to read its full description in both plain words and technical terms. You can use `j` and `k` to navigate rows on a desktop, or click 'Load older versions' at the bottom to see older entries. Each note can be shared via a stable `/releases/<ref>` link.
+
+**The old way**
+
+Changes were often tracked manually in external documents, or users had to rely on separate announcements and raw git histories to understand new features and fixes. 
+
+**The new way**
+
+Release notes are now automatically integrated. Every valid change is populated straight from commit trailers, ensuring the changelog is always accurate and available to everyone in a readable table layout right where they work.

@@ -11,6 +11,7 @@ import {
   calPhoneMonthGrid, calPhoneNextFullHour, calPhoneRange, calPhoneSpanOf, calPhoneStep, calPhoneTitle,
   calPhoneWeekStrip,
 } from '../../src/utils/calendar-phone-nav.mjs'
+import { hoursShowsLine } from '../../src/utils/hours-calendar.mjs'
 
 describe('period step', () => {
   it('month / week / day turn by one period, both ways', () => {
@@ -97,6 +98,15 @@ describe('the week strip and folded days', () => {
     assert.deepEqual(rows.map((r) => (r.kind === 'fold' ? `fold ${calPhoneFoldLabel(r)}` : `${r.kind} ${r.iso}`)),
       ['day 2026-10-05', 'fold Tue-Thu', 'empty 2026-10-09', 'fold Sat-Sun'])
     assert.equal(calPhoneFoldLabel({ from: '2026-10-08', to: '2026-10-08' }), 'Thu')
+  })
+  it('a working day never folds (owner HUM-10): an empty Mon shows, an empty Sat-Sun still folds', () => {
+    const days = calPhoneWeekStrip('2026-10-07').map((x) => x.iso)
+    const index = new Map([['2026-10-10', { total: 30, rows: [] }]])
+    const rows = calPhoneFoldDays(days, (d) => (d === '2026-10-07' ? 1 : 0), new Set(), (d) => hoursShowsLine(d, index))
+    assert.deepEqual(rows.map((r) => (r.kind === 'fold' ? `fold ${calPhoneFoldLabel(r)}` : `${r.kind} ${r.iso}`)),
+      ['empty 2026-10-05', 'empty 2026-10-06', 'day 2026-10-07', 'empty 2026-10-08', 'empty 2026-10-09', 'empty 2026-10-10', 'fold Sun'])
+    const none = calPhoneFoldDays(days, () => 0, new Set(), (d) => hoursShowsLine(d, new Map()))
+    assert.deepEqual(none.map((r) => (r.kind === 'fold' ? `fold ${calPhoneFoldLabel(r)}` : r.kind)), ['empty', 'empty', 'empty', 'empty', 'empty', 'fold Sat-Sun'])
   })
 })
 

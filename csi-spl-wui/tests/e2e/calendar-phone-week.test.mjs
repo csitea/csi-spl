@@ -7,20 +7,23 @@
 //           list opens at today (today's row under the strip, on screen)
 //   next    "see next week" in 1 tap (>) and in 1 swipe (on the strip)
 //   fold    next week, seeded with a 3-day all-day event Mon-Wed and a timed
-//           event Fri: Mon, Tue, Wed and Fri are day rows, Thu folds alone,
-//           Sat-Sun fold into one row "Sat-Sun: nothing planned"
+//           event Fri: Mon, Tue, Wed and Fri are day rows, the empty Thu is
+//           a working day and never folds (owner HUM-10): an empty row with
+//           its Working hours line; Sat-Sun fold into one row
+//           "Sat-Sun: nothing planned"
 //   S4-3    the all-day event lists under Mon, Tue and Wed by its UTC date in
 //           both zones, as "Day 1 of 3" .. "Day 3 of 3"
-//   S2-7    a tap on the Sat-Sun fold unfolds Sat and Sun in place, each with
-//           a + (>= 44x44); a tap on Thu's chip unfolds Thu and scrolls the
-//           list to it; a + opens the add panel
+//   S2-7    a tap on Sat's chip unfolds Sat and scrolls the list to it; a
+//           tap on the Sun fold left unfolds Sun in place, each with a +
+//           (>= 44x44); a + opens the add panel
 //   H7      every agenda row and chip >= 44 px tall
 //   H3      nothing scrolls sideways, also at font level 5 with a
 //           200-character unbroken title
 //   dots    every event dot draws box-shadow: var(--cal-dot-ring)
 //
 // Control: before T006 the Week slot is a placeholder and there is no
-// [data-test=calphone-week], so every check FAILs.
+// [data-test=calphone-week], so every check FAILs. Before HUM-10 the empty
+// Thu folds alone, so the "working day never folds" checks FAIL.
 //
 // Run:
 //   BASE_URL=<generated mock bundle> SHOT_DIR=/var/tmp/shots pnpm run test:e2e calendar-phone-week
@@ -190,8 +193,10 @@ try {
       /* the folds and S4-3 */
       const rows = await readRows(p)
       const shape = rows.map((r) => (r.kind === 'fold' ? `fold:${r.day}..${r.to}` : `${r.kind}:${r.day}`))
-      const wantShape = [`day:${nd(0)}`, `day:${nd(1)}`, `day:${nd(2)}`, `fold:${nd(3)}..${nd(3)}`, `day:${nd(4)}`, `fold:${nd(5)}..${nd(6)}`]
-      ok(`fold ${w}: Mon-Wed and Fri are days, Thu folds alone, Sat-Sun fold together`, shape.join() === wantShape.join(), shape)
+      const wantShape = [`day:${nd(0)}`, `day:${nd(1)}`, `day:${nd(2)}`, `empty:${nd(3)}`, `day:${nd(4)}`, `fold:${nd(5)}..${nd(6)}`]
+      ok(`fold ${w}: Mon-Wed and Fri are days, the empty Thu (a working day) never folds, Sat-Sun fold together`, shape.join() === wantShape.join(), shape)
+      const thuLine = await p.$eval(`${WEEK} [data-test=calweek-list] > [data-day="${nd(3)}"] [data-test=calendar-hours-line]`, (el) => el.offsetParent !== null).catch(() => false)
+      ok(`fold ${w}: the empty Thu shows its Working hours line unfolded, with a +`, thuLine && Boolean(await p.$(`${WEEK} [data-test=calweek-add][data-day="${nd(3)}"]`)), thuLine)
       const satSun = rows.find((r) => r.kind === 'fold' && r.day === nd(5))
       ok(`fold ${w}: the folded row reads "Sat-Sun: nothing planned"`, satSun?.text === 'Sat-Sun: nothing planned', satSun?.text)
       const offsite = [0, 1, 2].map((i) => rows.find((r) => r.day === nd(i))?.spans.join('|'))
@@ -201,18 +206,18 @@ try {
       ok(`H7 ${w}: every chip, row and button in Week >= 44x44`, small(await targets(p)).length === 0, small(await targets(p)))
 
       /* S2-7: a folded day's chip unfolds and scrolls to it */
-      await p.click(`${WEEK} [data-test=calweek-chip][data-day="${nd(3)}"]`)
+      await p.click(`${WEEK} [data-test=calweek-chip][data-day="${nd(5)}"]`)
       await sleep(250)
-      const thu = (await readRows(p)).find((r) => r.day === nd(3))
-      const thuAt = await placeOf(p, nd(3))
-      ok(`S2-7 ${w}: Thu's chip unfolds Thu into an empty row with a +`, thu?.kind === 'empty' && Boolean(await p.$(`${WEEK} [data-test=calweek-add][data-day="${nd(3)}"]`)), thu)
-      ok(`S2-7 ${w}: and scrolls the list to it`, onScreen(thuAt), thuAt)
+      const sat = (await readRows(p)).find((r) => r.day === nd(5))
+      const satAt = await placeOf(p, nd(5))
+      ok(`S2-7 ${w}: Sat's chip unfolds Sat into an empty row with a +`, sat?.kind === 'empty' && Boolean(await p.$(`${WEEK} [data-test=calweek-add][data-day="${nd(5)}"]`)), sat)
+      ok(`S2-7 ${w}: and scrolls the list to it`, onScreen(satAt), satAt)
 
       /* S2-7: a tap on the fold unfolds it in place */
-      await p.click(`${WEEK} [data-test=calweek-fold][data-day="${nd(5)}"] button`)
+      await p.click(`${WEEK} [data-test=calweek-fold][data-day="${nd(6)}"] button`)
       await sleep(200)
       const after = (await readRows(p)).map((r) => `${r.kind}:${r.day}`)
-      ok(`S2-7 ${w}: the Sat-Sun fold unfolds into two empty rows`, after.slice(-2).join() === `empty:${nd(5)},empty:${nd(6)}` && !after.some((r) => r.startsWith('fold')), after)
+      ok(`S2-7 ${w}: the Sun fold unfolds in place, leaving Sat and Sun empty rows`, after.slice(-2).join() === `empty:${nd(5)},empty:${nd(6)}` && !after.some((r) => r.startsWith('fold')), after)
       const plus = small(await targets(p))
       ok(`H7 ${w}: the unfolded + buttons are >= 44x44`, plus.length === 0, plus)
       await shot(p, `${vp.width}-${zone.split('/')[1]}-unfolded`)

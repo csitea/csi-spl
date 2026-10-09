@@ -96,13 +96,16 @@ export function calPhoneWeekStrip(iso) {
  * Week's agenda rows: a day with events is a `day` row; each run of empty
  * days folds into one `fold` row (`from`..`to`, "Thu-Sat: nothing planned",
  * spec 4.2). A day in `open` (unfolded by a tap, S2-7) is an `empty` row of
- * its own and splits the run around it.
+ * its own and splits the run around it, and so is a day `keep` holds: a
+ * working day never folds (owner HUM-10, t1 a28dc5c9), so its Working hours
+ * line shows; the caller passes the one working-day rule, hoursShowsLine.
  * @param {string[]} days
  * @param {(day: string) => number} countOf events on that day
  * @param {Set<string>} [open]
+ * @param {(day: string) => boolean} [keep] a day that never folds
  * @returns {({ kind: 'day' | 'empty', iso: string } | { kind: 'fold', from: string, to: string, days: string[] })[]}
  */
-export function calPhoneFoldDays(days, countOf, open = new Set()) {
+export function calPhoneFoldDays(days, countOf, open = new Set(), keep = () => false) {
   /** @type {({ kind: 'day' | 'empty', iso: string } | { kind: 'fold', from: string, to: string, days: string[] })[]} */
   const out = []
   /** @type {string[]} */
@@ -115,7 +118,7 @@ export function calPhoneFoldDays(days, countOf, open = new Set()) {
     if ((Number(countOf(day)) || 0) > 0) {
       flush()
       out.push({ kind: 'day', iso: day })
-    } else if (open.has(day)) {
+    } else if (open.has(day) || keep(day)) {
       flush()
       out.push({ kind: 'empty', iso: day })
     } else {

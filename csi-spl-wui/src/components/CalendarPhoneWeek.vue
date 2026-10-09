@@ -1,7 +1,7 @@
 <!-- spec 106 T006: the phone calendar's Week (FR-004, spec 4.2), inside a
      CalendarPhone page. A strip of seven day chips on top, then the seven
-     days as an agenda list. A run of empty days folds into one thin row
-     ("Thu-Sat: nothing planned"); a tap on it unfolds those days in place,
+     days as an agenda list. A run of empty non-working days folds into one
+     thin row ("Sat-Sun: nothing planned"; a working day never folds); a tap on it unfolds those days in place,
      each an empty row with a + (S2-7), and a chip scrolls the list to its day
      and unfolds it. A multi-day event lists under every day it covers as
      "Day X of Y", all-day ones by their UTC date (S4-3). The list opens at
@@ -152,12 +152,14 @@ const byDay = computed(() => {
 })
 const counts = computed(() => new Map([...byDay.value].map(([d, l]) => [d, l.length])))
 
-/* the empty days a tap unfolded; today never folds, so the list opens on it */
+/* the empty days a tap unfolded; today never folds, so the list opens on it,
+   nor does a working day (owner HUM-10): its Working hours line stays shown */
 const opened = ref(new Set<string>())
 const rows = computed<Row[]>(() => {
   const open = new Set(opened.value)
   open.add(props.today)
-  return calPhoneFoldDays(days.value.map((d) => d.iso), (d: string) => counts.value.get(d) || 0, open) as Row[]
+  const index = calHours?.index.value || new Map()
+  return calPhoneFoldDays(days.value.map((d) => d.iso), (d: string) => counts.value.get(d) || 0, open, (d: string) => hoursShowsLine(d, index)) as Row[]
 })
 const foldLabel = (row: Fold) => calPhoneFoldLabel(row, weekdays.value)
 

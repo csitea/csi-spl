@@ -29,7 +29,7 @@ phase 2). T002's tests gate everything after it. T000b is independent.
   - Depends: none.
   - Owns: `csi-spl-doc/specs/113-workspace-docs-qto/spec.md`, `tasks.md`, `bench/`.
   - Done: `grep -cE '^## 1[01]\.' spec.md` -> 2 (one each); `bash bench/tree-bench.sh` prints the spec 2.1 table with n = 5 and exits 0. Control: each model's planted broken row is reported as `CONTROL <model> caught` in the raw output (6 of 6).
-- [x] **T000b**: the bench gains a 1 x 10,000 wide-parent case (spec 2.1, seat 4 change 1).
+- [ ] **T000b**: the bench gains a 1 x 10,000 wide-parent case (spec 2.1, seat 4 change 1).
   - Depends: none.
   - Owns: `bench/common.sql` (a wide seed), `bench/tree-bench.sh` (the case), a new `bench/result-<date>.md` + `raw-<date>.txt`.
   - Done: `BENCH_REPS=5 bash bench/tree-bench.sh` prints a row per model at 1 x 10,000 (insert first, append, move, read); adj insert-first lands in the 200-ms range seat 4 measured (218-233 ms, n = 3). Control: a planted gap in the wide seed is reported `CONTROL adj caught`.

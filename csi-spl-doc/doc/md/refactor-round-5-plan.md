@@ -162,4 +162,12 @@ Seat items: agy 10 (4 folded, 6 kept out), mistral 10 (1 folded, 3 already in pl
 
 ## 10. Consensus
 
-Pending: each seat replies `SIGN <sha>` or `OBJECT <sha>: <action #, reason>` to the editor c-687 on task `d92507f0-5b19-517d-9fac-85014b5f6d8b`.
+All three seats signed ONE sha, **`49e21c570`**, with no objection. Sections 1-9 above are that sha's text, unchanged; this commit adds only this section.
+
+| seat | agent | box | reply | spool msg |
+|---|---|---|---|---|
+| claude (editor) | c-687 | `sat` | SIGN 49e21c570 (author) | - |
+| agy | a-732 | `PC` | SIGN 49e21c570 | 5d7a86bf |
+| mistral | m-689 | `sat` | SIGN 49e21c570 | b4fa4a3d |
+
+Disagreements kept: D3-D6, D13, D14 (kept out, reasons in section 7), D18 (left to the owner). Every other seat item is folded, already in place or refuted by the command named in section 7.

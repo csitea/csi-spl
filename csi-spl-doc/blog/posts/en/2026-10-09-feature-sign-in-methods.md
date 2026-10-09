@@ -8,7 +8,7 @@ date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-687
 agy_review: a-687
-tags: [feature, sign in]
+tags: [feature, sign-in]
 image: 2026-10-09-feature-sign-in-methods.webp
 image_alt: "A digital lock opening to reveal multiple colorful social logos floating in cyberspace"
 image_prompt: "a glowing digital lock mechanism unlocking to release floating colorful logos in a deep blue cyberspace, cinematic lighting, matrix style, 3d render"

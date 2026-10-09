@@ -7,7 +7,9 @@
 #      plans the notes and sends / writes nothing; DRY_RUN=0 sends ONE note
 #      per crossing, a second tick sends none, a mount back under its limit
 #      is CLEAR and warns again on its next crossing; a failed send is
-#      retried next tick; df failing is a WARN and a note.
+#      retried next tick; df failing is a WARN and a note; blocks at the
+#      critical limit (93) is a second, CRITICAL note, once per crossing
+#      (CONTROL: 92% sends only the 85% note).
 #      CONTROLS: the same fixture under the limits sends nothing and exits 0;
 #      a lower env limit turns a quiet mount into a crossing; the real df
 #      measures this box's / .
@@ -81,6 +83,18 @@ chk DRY_RUN=0 >/dev/null
 touch "$T/df.fail"; out="$(chk DRY_RUN=0)"; rc=$?; rm -f "$T/df.fail"
 [ "$rc" = 1 ] && grep -q 'WARN df failed, nothing was measured: df: boom' <<<"$out" && grep -q 'df failed' "$SENT" \
   && pass "1. df failing is a WARN and a note, never silent" || fail "1. df fail (rc $rc: $out)"
+rm -rf "$ST" "$SENT"; rows 92% 20%
+chk DRY_RUN=0 >/dev/null
+[ "$(sends)" = 1 ] && ! grep -q CRITICAL "$SENT" && pass "1. CONTROL: 92% (under the critical 93%) sends only the 85% note" || fail "1. crit control ($(cat "$SENT"))"
+rows 94% 20%; out="$(chk DRY_RUN=0)"
+[ "$(sends)" = 2 ] && grep -q 'DISK HEADROOM .*CRITICAL /data (xfs, /dev/sdb1) blocks 94% >= 93%: the disk is about to fill' "$SENT" \
+  && pass "1. the planted 94% crosses the critical limit: a second, CRITICAL note" || fail "1. crit ($out / $(cat "$SENT"))"
+rows 99% 20%; chk DRY_RUN=0 >/dev/null
+[ "$(sends)" = 2 ] && pass "1. ...once per crossing: 99% next tick sends nothing new" || fail "1. crit repeat ($(cat "$SENT"))"
+rows 90% 20%; out="$(chk DRY_RUN=0)"
+grep -q 'CLEAR crit:blocks:/data' <<<"$out" && ! grep -q 'CLEAR blocks:/data' <<<"$out" \
+  && pass "1. back to 90%: the critical crossing is CLEAR, the 85% one stays" || fail "1. crit clear ($out)"
+rm -rf "$ST" "$SENT"
 out="$(chk DRY_RUN=7)"; rc=$?
 [ "$rc" = 2 ] && grep -q 'DRY_RUN must be 0 or 1' <<<"$out" && pass "1. DRY_RUN is checked" || fail "1. DRY_RUN=7 ($out)"
 

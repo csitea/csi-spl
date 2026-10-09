@@ -6,7 +6,9 @@
 # file, so the next ticks stay quiet while the mount stays high, and a mount
 # that falls back below is logged CLEAR and may warn again on its next
 # crossing. A note that could not be sent is not remembered: it is retried on
-# the next tick.
+# the next tick. Blocks >= DISK_HEADROOM_CRIT_PCT (93) is a SECOND crossing
+# with its own CRITICAL note: on 2026-10-09 /mnt/data warned once at 85% and
+# then sat silent for two days, through 99%, until it was full.
 #
 # Real mounts: df's list without the pseudo filesystems
 # (DISK_HEADROOM_SKIP_TYPES: tmpfs, devtmpfs, ramfs, overlay, squashfs,
@@ -25,6 +27,8 @@
 #   DRY_RUN=1 (default) | 0       1: no note sent, no state written
 #   DISK_HEADROOM_BLOCK_PCT       default 85
 #   DISK_HEADROOM_INODE_PCT       default 80
+#   DISK_HEADROOM_CRIT_PCT        default 93 (blocks; the sweep's crit level,
+#                                 BOX_SWEEP_CRIT_FREE_PCT 7, from the other side)
 #   DISK_HEADROOM_SKIP_TYPES      space separated fs types not checked
 #   DISK_HEADROOM_STATE_DIR       default $SPL_STATE_DIR/disk-headroom, else
 #                                 ~/.local/share/<org>-<app>/cloud/self/disk-headroom
@@ -47,6 +51,7 @@ app="$(basename "$ORC")"; app="${app%-orc}"
 dry="${DRY_RUN:-1}"
 bpct="${DISK_HEADROOM_BLOCK_PCT:-85}"
 ipct="${DISK_HEADROOM_INODE_PCT:-80}"
+cpct="${DISK_HEADROOM_CRIT_PCT:-93}"
 skip_types=" ${DISK_HEADROOM_SKIP_TYPES:-tmpfs devtmpfs ramfs overlay squashfs efivarfs autofs nsfs proc sysfs cgroup cgroup2} "
 state_dir="${DISK_HEADROOM_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/share/$app/cloud/self}/disk-headroom}"
 to="${DISK_HEADROOM_TO:-orchestrator}"
@@ -62,9 +67,9 @@ box="${box:-$(hostname -s 2>/dev/null)}"
 who="$(id -un)"
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || { say "FATAL DRY_RUN must be 0 or 1, got '$dry'"; exit 2; }
-for v in "$bpct" "$ipct"; do
+for v in "$bpct" "$ipct" "$cpct"; do
   [[ "$v" =~ ^[0-9]+$ ]] && (( v >= 1 && v <= 100 )) ||
-    { say "FATAL DISK_HEADROOM_BLOCK_PCT / DISK_HEADROOM_INODE_PCT must be 1..100, got '$v'"; exit 2; }
+    { say "FATAL DISK_HEADROOM_BLOCK_PCT / _INODE_PCT / _CRIT_PCT must be 1..100, got '$v'"; exit 2; }
 done
 
 state="$state_dir/crossings"
@@ -117,6 +122,9 @@ while read -r src typ pc ipc target; do
   if [[ "$pc" =~ ^[0-9]+$ ]] && (( pc >= bpct )); then
     note "blocks:$target" "$target ($typ, $src) blocks ${pc}% >= ${bpct}%"
   fi
+  if [[ "$pc" =~ ^[0-9]+$ ]] && (( pc >= cpct )); then
+    note "crit:blocks:$target" "CRITICAL $target ($typ, $src) blocks ${pc}% >= ${cpct}%: the disk is about to fill"
+  fi
   if [[ "$ipc" =~ ^[0-9]+$ ]] && (( ipc >= ipct )); then
     note "inodes:$target" "$target ($typ, $src) inodes ${ipc}% >= ${ipct}%"
   fi
@@ -127,5 +135,5 @@ for k in "${!was[@]}"; do [[ -n "${now[$k]:-}" ]] || say "CLEAR $k is back under
 if [[ "$dry" == 0 ]] && (( can_state )); then
   { for k in "${!now[@]}"; do printf '%s\n' "$k"; done; } | sort >"$state.tmp" && mv -f "$state.tmp" "$state"
 fi
-say "CHECK box=$box user=$who dry_run=$dry limits=${bpct}%b/${ipct}%i mounts=$n skipped=$nskip high=${#now[@]}${line}"
+say "CHECK box=$box user=$who dry_run=$dry limits=${bpct}%b/${ipct}%i/crit=${cpct}%b mounts=$n skipped=$nskip high=${#now[@]}${line}"
 exit "$rc"

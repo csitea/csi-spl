@@ -160,6 +160,62 @@ try {
     await ctx.close()
   }
 
+  /* spec 107 v1.2 T013 + T014 on a phone (owner R9, R10; spec 5.2): last
+     week's Monday (every day closed). The common case is 2 taps from the
+     calendar: the line, then [Approve N days]; Approve week is the sheet's
+     sticky bottom button; the stepper, + Add and the 1440 refusal fit 390 px
+     with 44 px controls. CONTROL: before T013 / T014 the sheet is read only
+     (no hours-approve-open, no stepper), so these FAIL. */
+  for (const run of [RUNS[0], RUNS[3]]) {
+    const w = `${run.vp.width} ${run.theme} L${run.level}`
+    const lastMon = calAddDays(mon, -7)
+    const { p, ctx } = await open(browser, run.vp, { ...run, day: lastMon })
+    const SH = '[data-test=calphone-sheet][data-mode=hours]'
+    await p.waitForFunction((s, d) => document.querySelector(`${s} [data-test=calendar-hours-line][data-day="${d}"]`)?.getAttribute('data-total') === '185', { timeout: 10000 }, PAGE, lastMon).catch(() => {})
+    await p.tap(`${PAGE} [data-test=calendar-hours-line][data-day="${lastMon}"]`).catch(() => p.click(`${PAGE} [data-test=calendar-hours-line][data-day="${lastMon}"]`))
+    await p.waitForSelector(`${SH} [data-test=hours-day-row]`, { visible: true, timeout: 10000 }).catch(() => null)
+    /* the sheet slides up (calsheet-up): measure and tap once it rests */
+    await p.waitForFunction(() => { const s = document.querySelector('[data-test=calphone-sheet]'); return s && s.getAnimations({ subtree: true }).every((a) => a.playState !== 'running') }, { timeout: 5000 }).catch(() => {})
+    const wk =await p.$eval(`${SH} [data-test=hours-approve-week]`, (el) => {
+      const b = el.getBoundingClientRect()
+      return { bottom: Math.round(b.bottom), h: Math.round(b.height), vh: window.innerHeight, sticky: getComputedStyle(el.parentElement).position }
+    }).catch(() => null)
+    ok(`mine ${w}: Approve week is the sheet's sticky bottom button, in view`, Boolean(wk) && wk.sticky === 'sticky' && wk.bottom <= wk.vh && wk.h >= 44, wk)
+    await p.tap(`${SH} [data-test=hours-approve-open]`).catch(() => p.click(`${SH} [data-test=hours-approve-open]`))
+    await p.waitForFunction((s) => document.querySelector(`${s} [data-test=hours-day-banner]`)?.getAttribute('data-open') === '0', { timeout: 8000 }, SH).catch(() => {})
+    const states = await p.$$eval(`${SH} [data-test=hours-day-row]`, (els) => els.map((e) => e.getAttribute('data-row-state')))
+    ok(`mine ${w}: 2 taps from the calendar approve the closed days`, states.length === 3 && states.every((s) => s === 'approved'), states)
+    const small = await p.$$eval(`${SH} [data-test=hours-row-min], ${SH} [data-test=hours-row-plus], ${SH} [data-test=hours-row-reject], ${SH} [data-test=hours-add]`, (els) => els.map((e) => Math.round(e.getBoundingClientRect().height)).filter((h) => h < 44))
+    ok(`mine ${w}: the row controls are >= 44 px`, small.length === 0, small)
+    const topic = 't:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    await p.click(`${SH} [data-test=hours-day-row][data-target="${topic}"] [data-test=hours-row-min]`)
+    await p.click(`${SH} [data-test=hours-stepper-minus]`)
+    await p.click(`${SH} [data-test=hours-stepper-save]`)
+    ok(`mine ${w}: the stepper edits in place (1:50 - 0:15 = 1:35)`, await p.waitForFunction((s, tg) => document.querySelector(`${s} [data-test=hours-day-row][data-target="${tg}"]`)?.getAttribute('data-minutes') === '95', { timeout: 8000 }, SH, topic).then(() => true, () => false))
+    await p.click(`${SH} [data-test=hours-day-row][data-target="${topic}"] [data-test=hours-row-min]`)
+    await p.$eval(`${SH} [data-test=hours-stepper-input]`, (el) => { el.value = '' })
+    await p.type(`${SH} [data-test=hours-stepper-input]`, '1440')
+    await p.click(`${SH} [data-test=hours-stepper-save]`)
+    const err = await p.waitForSelector(`${SH} [data-test=hours-day-error]`, { visible: true, timeout: 8000 }).then((el) => el.evaluate((e) => e.textContent.trim())).catch(() => '')
+    ok(`mine ${w}: the 1440-minute refusal is shown`, err.includes('1440'), err)
+    await p.click(`${SH} [data-test=hours-add]`)
+    const pick = await p.waitForSelector(`${SH} [data-test=hours-picker-row]`, { visible: true, timeout: 10000 }).catch(() => null)
+    ok(`mine ${w}: + Add opens the target picker in the sheet`, Boolean(pick))
+    if (pick) {
+      /* the list re-renders once topics and issues load: click by selector */
+      await sleep(600)
+      /* centred: at the scroller's bottom edge the sticky Approve week covers it */
+      const target = await p.$eval(`${SH} [data-test=hours-picker-row]`, (el) => { el.scrollIntoView({ block: 'center' }); return el.getAttribute('data-target') })
+      await p.click(`${SH} [data-test=hours-picker-row][data-target="${target}"]`)
+      await p.waitForSelector(`${SH} [data-test=hours-add-save]`, { visible: true, timeout: 5000 }).catch(() => null)
+      await p.click(`${SH} [data-test=hours-add-save]`)
+      ok(`mine ${w}: + Add books 0:30`, await p.waitForFunction((s, tg) => Boolean(document.querySelector(`${s} [data-test=hours-day-row][data-target="${tg}"]`)), { timeout: 8000 }, SH, target).then(() => true, () => false), target)
+    }
+    ok(`mine ${w}: no sideways scroll`, await sideways(p))
+    await shot(p, `${run.vp.width}-${run.theme}-L${run.level}-mine`)
+    await ctx.close()
+  }
+
   /* a weekend day without hours shows no line (CONTROL for "every working day") */
   const { p, ctx } = await open(browser, RUNS[0].vp, { ...RUNS[0], day: sat })
   await sleep(800)

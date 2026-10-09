@@ -5,8 +5,9 @@
      its days newest first with their total and state; a click on a day
      opens that day's Working hours dialog (`open-day`). Team and Download
      show only to a holder of hours.read (T015, on T008 / T009:
-     CalendarHoursTeam, CalendarHoursDownload). Mine is read only here:
-     T013 adds Approve. Its own lazy chunk. -->
+     CalendarHoursTeam, CalendarHoursDownload). T013: [Approve N
+     days] in Mine's banner, Approve week (closed days only) and a returned
+     period's Resubmit. Its own lazy chunk. -->
 <template>
   <section class="hours-panel" data-test="hours-panel" :data-tab="tab" :data-state="hours.state.value">
     <header class="hours-panel__head">
@@ -35,8 +36,15 @@
       >{{ t('hours_cal.tab_' + id) }}</button>
     </div>
     <div v-if="tab === 'mine'" class="hours-panel__body" role="tabpanel" data-test="hours-panel-mine">
-      <p v-if="banner" class="hours-panel__banner" data-test="hours-panel-banner" :data-open="banner.openDays.length">{{ bannerText }}</p>
-      <p v-if="banner && banner.state === 'returned' && banner.note" class="hours-panel__banner" data-test="hours-panel-returned">{{ t('hours_cal.banner_returned', { note: banner.note }) }}</p>
+      <div v-if="banner" class="hours-panel__banner" data-test="hours-panel-banner" :data-open="banner.openDays.length">
+        <span>{{ bannerText }}</span>
+        <button v-if="periodOpen && banner.openDays.length" type="button" class="btn primary hours-panel__btn" data-test="hours-panel-approve-open" :disabled="w.busy.value" @click="approveClosed">{{ t('hours_cal.approve_open', { n: banner.openDays.length }) }}</button>
+      </div>
+      <div v-if="banner && banner.state === 'returned'" class="hours-panel__banner" data-test="hours-panel-returned">
+        <span>{{ t('hours_cal.banner_returned', { note: banner.note }) }}</span>
+        <button type="button" class="btn primary hours-panel__btn" data-test="hours-panel-resubmit" :disabled="w.busy.value" @click="resubmit">{{ t('hours_cal.resubmit') }}</button>
+      </div>
+      <p v-if="w.error.value" class="hours-panel__error" role="alert" data-test="hours-panel-error">{{ t(w.error.value) }}</p>
       <p v-if="hours.state.value === 'failed'" class="muted" role="alert" data-test="hours-panel-failed">{{ t('hours_cal.load_failed') }}</p>
       <ul class="hours-panel__days">
         <li v-for="d in days" :key="d.date">
@@ -64,6 +72,15 @@
         <span>{{ t('hours_cal.period_total') }}</span>
         <strong dir="ltr">{{ hoursHhmm(periodTotal) }}</strong>
       </p>
+      <button
+        v-if="periodOpen"
+        type="button"
+        class="btn primary hours-panel__week"
+        data-test="hours-panel-approve-week"
+        :data-open="openCount"
+        :disabled="w.busy.value || openCount === 0"
+        @click="approveClosed"
+      >{{ t('hours_cal.approve_week', { n: openCount }) }}</button>
     </div>
     <!-- T015: Team and Download, each its own lazy chunk, fetched when its tab shows -->
     <div v-else class="hours-panel__body" role="tabpanel" :data-test="'hours-panel-' + tab">
@@ -76,7 +93,8 @@
 <script setup lang="ts">
 import { calWeekday } from '~/utils/calendar-year.mjs'
 import { hoursBanner, hoursFreezeText, hoursHhmm, hoursLineState, hoursShowsLine } from '~/utils/hours-calendar.mjs'
-import { useCalendarHours } from '~/composables/useCalendarHours'
+import { hoursApproveEntries, hoursOpenCount } from '~/utils/hours-mine.mjs'
+import { useCalendarHours, useHoursWrite } from '~/composables/useCalendarHours'
 import { useAccessStore } from '~/stores/access'
 
 const props = defineProps<{ focus: string, today: string, closable?: boolean }>()
@@ -94,6 +112,21 @@ const bannerText = computed(() => {
   const at = hoursFreezeText(b.freezesAt, hours.tz.value)
   return b.openDays.length ? t('hours_cal.banner_open', { n: b.openDays.length, at }) : t('hours_cal.banner_none', { at })
 })
+
+/* T013 (spec 4.1, 5.4): Approve N days / Approve week approve the closed
+   days only; a returned period's Resubmit. The panel re-reads on the write's
+   HOURS_CHANGED_EVENT, as every calendar view does. */
+const w = useHoursWrite(() => String(body.value?.today || props.today))
+const periodOpen = computed(() => Boolean(body.value) && ['open', 'returned'].includes(String(body.value?.period?.state || 'open')))
+const openCount = computed(() => (body.value ? hoursOpenCount(body.value) : 0))
+async function approveClosed() {
+  const entries = body.value ? hoursApproveEntries(body.value, 'closed') : []
+  if (entries.length) await w.write({ entries })
+}
+async function resubmit() {
+  const d = String(body.value?.period?.start || '')
+  if (d) await w.write({ resubmit: d })
+}
 
 /* spec 5.4: Team and Download for a holder of hours.read only (never fail open) */
 const holds = (perm: string) => Boolean(access.me && Array.isArray(access.me.permissions) && access.me.permissions.includes(perm))
@@ -140,7 +173,13 @@ function dayHead(iso: string) {
 }
 .hours-panel__tab--on { border-block-end-color: var(--color-accent); font-weight: 600; }
 .hours-panel__body { display: flex; flex-direction: column; gap: 8px; min-block-size: 0; overflow: auto; }
-.hours-panel__banner { margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--color-selected); }
+.hours-panel__banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--color-selected); }
+.hours-panel__banner > span { flex: 1 1 10rem; min-inline-size: 0; overflow-wrap: anywhere; }
+.hours-panel__btn { min-block-size: 44px; }
+.hours-panel__error { margin: 0; font-weight: 600; }
+.hours-panel__week { min-block-size: 44px; }
+.hours-panel__btn:disabled,
+.hours-panel__week:disabled { opacity: 0.5; cursor: default; }
 .hours-panel__days { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .hours-panel__day {
   display: grid;

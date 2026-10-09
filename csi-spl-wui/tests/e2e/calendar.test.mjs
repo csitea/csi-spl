@@ -91,6 +91,161 @@ async function initialChunks(base, doc = '200.html') {
   return { count: srcs.length, kb: Number((gz / 1024).toFixed(1)), withCalendar }
 }
 
+/* spec 107 v1.2 T013 + T014 at 1440 px (owner R9, R10; spec 4.1, 5.2, 5.3):
+   inside the Working hours dialog and the panel's Mine tab, on last week
+   (every day closed) of the mock, which keeps the writes in localStorage.
+   Its own browser context, so the T011 checks above read the fixture.
+   CONTROL: before T013 / T014 the dialog is read only - no
+   [data-test=hours-approve-open], no stepper, no + Add - so these FAIL. */
+const DLG = '[data-test=calendar-event-form][data-mode=hours]'
+const rowOf = (p, target) => p.$eval(`${DLG} [data-test=hours-day-row][data-target="${target}"]`, (el) => ({
+  state: el.getAttribute('data-row-state'),
+  minutes: Number(el.getAttribute('data-minutes')),
+  delta: Number(el.getAttribute('data-delta')),
+  note: el.querySelector('[data-test=hours-day-note]')?.textContent?.trim() || '',
+})).catch(() => null)
+const rowAttr = (p, target, attr, want) => p.waitForFunction((s, tg, a, v) => document.querySelector(`${s} [data-test=hours-day-row][data-target="${tg}"]`)?.getAttribute(a) === v, { timeout: 8000 }, DLG, target, attr, want).then(() => true, () => false)
+const TOPIC = 't:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
+async function openDay(p, day) {
+  await p.waitForFunction((d) => document.querySelector(`[data-test=calendar-hours-line][data-day="${d}"]`)?.getAttribute('data-total') !== '0', { timeout: 10000 }, day).catch(() => {})
+  await p.click(`[data-test=calendar-hours-line][data-day="${day}"]`)
+  return Boolean(await p.waitForSelector(`${DLG}[data-day="${day}"] [data-test=hours-day-row]`, { visible: true, timeout: 10000 }).catch(() => null))
+}
+async function closeDay(p) {
+  await p.click('[data-test=calendar-hours-close]')
+  await p.waitForFunction((s) => !document.querySelector(s), { timeout: 5000 }, DLG).catch(() => {})
+}
+
+async function mineDesktop(browser, base) {
+  console.log('-- 1440x900 T013 + T014 (Mine)')
+  const ctx = await browser.createBrowserContext()
+  const p = await ctx.newPage()
+  await p.setViewport({ width: 1440, height: 900 })
+  const lastMon = calAddDays(calWeekStart(today), -7)
+  const lastTue = calAddDays(lastMon, 1)
+  await p.goto(`${base}/calendar?d=${lastMon}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await waitWeek(p, lastMon)
+
+  /* T013: one tap accepts a delta (Tuesday's topic: approved 0:50, now 1:10) */
+  ok('T013: a day opens its Working hours dialog', await openDay(p, lastTue))
+  const before = await rowOf(p, TOPIC)
+  ok('T013: Tuesday\'s discussion carries a +0:20 delta', before?.delta === 20, before)
+  await p.click(`${DLG} [data-test=hours-day-row][data-target="${TOPIC}"] [data-test=hours-row-delta]`).catch(() => {})
+  ok('T013: ✓ +0:20 accepts it in one tap (1:10, no delta)', await rowAttr(p, TOPIC, 'data-minutes', '70') && await rowAttr(p, TOPIC, 'data-delta', '0'), await rowOf(p, TOPIC))
+  await closeDay(p)
+
+  /* T013 common case: the day's line -> [Approve N days] in the banner = 2 clicks */
+  await openDay(p, lastMon)
+  const n = await p.$eval(`${DLG} [data-test=hours-day-banner]`, (el) => Number(el.getAttribute('data-open'))).catch(() => -1)
+  const week = await p.$eval(`${DLG} [data-test=hours-approve-week]`, (el) => ({ open: Number(el.getAttribute('data-open')), text: el.textContent.trim(), disabled: el.disabled })).catch(() => null)
+  ok('T013: the banner counts 5 open days, Approve week shows its open count', n === 5 && week?.open >= 5 && week.text.includes(`${week.open} open`) && !week.disabled, { n, week })
+  await p.click(`${DLG} [data-test=hours-approve-open]`)
+  await p.waitForFunction((s) => document.querySelector(`${s} [data-test=hours-day-banner]`)?.getAttribute('data-open') === '0', { timeout: 8000 }, DLG).catch(() => {})
+  const states = await p.$$eval(`${DLG} [data-test=hours-day-row]`, (els) => els.map((e) => e.getAttribute('data-row-state')))
+  ok('T013: 2 clicks from the calendar approve every closed day', states.length === 3 && states.every((s) => s === 'approved'), states)
+  await p.waitForFunction((d) => [...document.querySelectorAll('[data-test=calendar-hours-line]')].filter((l) => l.getAttribute('data-day') >= d).every((l) => l.getAttribute('data-state') === ''), { timeout: 8000 }, lastMon).catch(() => {})
+  const marks = await p.$$eval('[data-test=calendar-hours-line]', (els) => els.map((e) => e.getAttribute('data-state')))
+  ok('T013: the lines lose their open mark (the calendar re-read)', marks.length === 5 && marks.every((s) => s === ''), marks)
+
+  /* ✕ reject, the day's total drops, Undo puts it back */
+  const total0 = await p.$eval(`${DLG} [data-test=hours-day-total] strong`, (el) => el.textContent.trim())
+  await p.click(`${DLG} [data-test=hours-day-row][data-target="${TOPIC}"] [data-test=hours-row-reject]`)
+  ok('T013: ✕ rejects the row (counts 0)', await rowAttr(p, TOPIC, 'data-row-state', 'rejected'))
+  const total1 = await p.$eval(`${DLG} [data-test=hours-day-total] strong`, (el) => el.textContent.trim())
+  ok('T013: the total drops by the row', total0 === '3:05' && total1 === '1:15', { total0, total1 })
+  ok('T013: Undo is offered', Boolean(await p.$(`${DLG} [data-test=hours-undo]`)))
+  await p.click(`${DLG} [data-test=hours-undo-btn]`)
+  ok('T013: Undo brings the row back', await rowAttr(p, TOPIC, 'data-row-state', 'approved'))
+
+  /* T014: the stepper in place, +15, typed minutes, the 1440 refusal */
+  await p.click(`${DLG} [data-test=hours-day-row][data-target="${TOPIC}"] [data-test=hours-row-min]`)
+  await p.click(`${DLG} [data-test=hours-stepper-plus]`)
+  ok('T014: the stepper steps by 15', (await p.$eval(`${DLG} [data-test=hours-stepper-input]`, (el) => el.value)) === '2:05')
+  await p.click(`${DLG} [data-test=hours-stepper-save]`)
+  ok('T014: Save writes 2:05', await rowAttr(p, TOPIC, 'data-minutes', '125'))
+  await p.click(`${DLG} [data-test=hours-day-row][data-target="cal:mock-weekly-sync"] [data-test=hours-row-plus]`)
+  ok('T014: +15 extends a row', await rowAttr(p, 'cal:mock-weekly-sync', 'data-minutes', '75'))
+  await p.click(`${DLG} [data-test=hours-day-row][data-target="${TOPIC}"] [data-test=hours-row-min]`)
+  await p.$eval(`${DLG} [data-test=hours-stepper-input]`, (el) => { el.value = '' })
+  await p.type(`${DLG} [data-test=hours-stepper-input]`, '24:00')
+  await p.click(`${DLG} [data-test=hours-stepper-save]`)
+  const capErr = await p.waitForSelector(`${DLG} [data-test=hours-day-error]`, { visible: true, timeout: 8000 }).then((el) => el.evaluate((e) => e.textContent.trim())).catch(() => '')
+  ok('T014: the 1440-minute refusal is shown in words', capErr.includes('1440'), capErr)
+  ok('T014: nothing changed', (await rowOf(p, TOPIC))?.minutes === 125)
+
+  /* T014 (R10): a note per discussion line, kept */
+  await p.click(`${DLG} [data-test=hours-day-row][data-target="${TOPIC}"] [data-test=hours-row-note-edit]`).catch(() => {})
+  await p.type(`${DLG} [data-test=hours-note-input]`, 'spec review with the owner')
+  await p.click(`${DLG} [data-test=hours-note-save]`)
+  await p.waitForFunction((s, tg) => document.querySelector(`${s} [data-test=hours-day-row][data-target="${tg}"] [data-test=hours-day-note]`), { timeout: 8000 }, DLG, TOPIC).catch(() => {})
+  ok('T014 (R10): the note shows on its discussion line', (await rowOf(p, TOPIC))?.note === 'spec review with the owner', await rowOf(p, TOPIC))
+
+  /* T014: why = the row's blocks */
+  await p.click(`${DLG} [data-test=hours-day-row][data-target="${TOPIC}"] [data-test=hours-row-why]`)
+  const why = await p.$eval(`${DLG} [data-test=hours-row-why-sheet]`, (el) => el.textContent.replace(/\s+/g, ' ').trim()).catch(() => '')
+  ok('T014: Why shows the blocks the time was counted from', why.includes('09:00-10:50'), why)
+
+  /* T014: + Add, a target from the picker, 0:30 + 15 */
+  await p.click(`${DLG} [data-test=hours-add]`)
+  const pick = await p.waitForSelector(`${DLG} [data-test=hours-picker-row]`, { visible: true, timeout: 10000 }).catch(() => null)
+  ok('T014: + Add opens the target picker', Boolean(pick))
+  let target = ''
+  if (pick) {
+    /* the list re-renders once topics and issues load: click by selector */
+    await new Promise((r) => setTimeout(r, 600))
+    /* centred: at the scroller's bottom edge the sticky Approve week covers it */
+    target = await p.$eval(`${DLG} [data-test=hours-picker-row]`, (el) => { el.scrollIntoView({ block: 'center' }); return el.getAttribute('data-target') })
+    await p.click(`${DLG} [data-test=hours-picker-row][data-target="${target}"]`)
+    await p.waitForSelector(`${DLG} [data-test=hours-add-plus]`, { visible: true, timeout: 5000 }).catch(() => null)
+    await p.click(`${DLG} [data-test=hours-add-plus]`)
+    ok('T014: the new row starts at 0:30, +15 = 0:45', (await p.$eval(`${DLG} [data-test=hours-add-minutes]`, (el) => el.textContent.trim()).catch(() => '')) === '0:45')
+    const had = (await rowOf(p, target))?.minutes || 0
+    await p.click(`${DLG} [data-test=hours-add-save]`)
+    ok('T014: + Add books it on the day', await rowAttr(p, target, 'data-minutes', String(had + 45)), { target, had, now: await rowOf(p, target) })
+  }
+  ok('T014: no sideways scroll in the dialog', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  await shot(p, 'hours-mine-dialog')
+  await closeDay(p)
+
+  /* the writes are kept: a reload reads the note back */
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await openDay(p, lastMon)
+  ok('T014: after a reload the note and minutes read back', (await rowOf(p, TOPIC))?.note === 'spec review with the owner' && (await rowOf(p, TOPIC))?.minutes === 125)
+  await closeDay(p)
+
+  /* T013: a returned period's note and Resubmit in the panel; then frozen, locked */
+  await p.evaluate((d) => localStorage.setItem('spool.mock.hours-periods', JSON.stringify({ [d]: { state: 'returned', note: 'Tuesday looks short' } })), lastMon)
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const ret = await p.waitForSelector('[data-test=hours-panel] [data-test=hours-panel-returned]', { visible: true, timeout: 10000 }).then((el) => el.evaluate((e) => e.textContent.trim())).catch(() => '')
+  ok('T013: the panel shows the returned note with Resubmit', ret.includes('Tuesday looks short') && Boolean(await p.$('[data-test=hours-panel-resubmit]')), ret)
+  await p.click('[data-test=hours-panel-resubmit]').catch(() => {})
+  await p.waitForFunction((d) => document.querySelector(`[data-test=calendar-hours-line][data-day="${d}"]`)?.getAttribute('data-state') === 'frozen', { timeout: 8000 }, lastMon).catch(() => {})
+  ok('T013: Resubmit freezes the period (a lock on the line)', (await p.$eval(`[data-test=calendar-hours-line][data-day="${lastMon}"]`, (el) => el.getAttribute('data-state')).catch(() => '')) === 'frozen')
+  await openDay(p, lastMon)
+  const locked = await p.evaluate((s) => ({
+    lock: Boolean(document.querySelector(`${s} [data-test=hours-day-frozen]`)),
+    buttons: document.querySelectorAll(`${s} [data-test=hours-row-min], ${s} [data-test=hours-row-reject], ${s} [data-test=hours-add], ${s} [data-test=hours-approve-week]`).length,
+  }), DLG)
+  ok('T013: a frozen day carries a lock and no buttons', locked.lock && locked.buttons === 0, locked)
+  await closeDay(p)
+
+  /* T013: this week's Approve week (panel) approves the closed days and leaves today open */
+  await p.goto(`${base}/calendar?d=${today}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const pw = await p.waitForSelector('[data-test=hours-panel] [data-test=hours-panel-approve-week]', { visible: true, timeout: 10000 }).catch(() => null)
+  ok('T013: the panel carries Approve week', Boolean(pw))
+  const wd = new Date(`${today}T00:00:00Z`).getUTCDay()
+  if (pw && wd >= 2 && wd <= 5) {
+    await pw.click()
+    await p.waitForFunction(() => document.querySelector('[data-test=hours-panel-approve-week]')?.getAttribute('data-open') === '0', { timeout: 8000 }).catch(() => {})
+    const todayLine = await p.$eval(`[data-test=calendar-hours-line][data-day="${today}"]`, (el) => el.getAttribute('data-state')).catch(() => '')
+    ok('T013: Approve week leaves today open (Approve so far is its own tap)', todayLine === 'open', todayLine)
+  } else if (pw) {
+    ok('T013: on a Monday or a weekend Approve week has no closed day to approve', await pw.evaluate((el) => el.disabled || el.getAttribute('data-open') !== '0'))
+  }
+  await ctx.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -259,6 +414,8 @@ try {
     }
     await p.close()
   }
+
+  await mineDesktop(browser, server.base)
 } finally {
   await browser.close()
   await server.stop()

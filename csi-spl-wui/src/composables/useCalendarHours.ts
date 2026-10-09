@@ -6,7 +6,8 @@
  */
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { hoursIndex } from '~/utils/hours-calendar.mjs'
-import { loadHoursRange } from '~/utils/hours-calendar-api.mjs'
+import { loadHoursRange, putMyHours } from '~/utils/hours-calendar-api.mjs'
+import { hoursRefusalKey } from '~/utils/hours-mine.mjs'
 
 /** the window event a write of hours sends, so every calendar view re-reads */
 export const HOURS_CHANGED_EVENT = 'spool:hours-changed'
@@ -62,4 +63,33 @@ export function useCalendarHours(range: () => { first: string, last: string }, t
   }
 
   return { bodies, index, state, tz, reload: load, entryFor }
+}
+
+/**
+ * Spec 107 T013 / T014: the member's writes (PUT /v1/me/hours). One at a
+ * time; a refusal is kept as an i18n key (409 frozen, 400 day cap). After a
+ * write every calendar view and the panel re-read (HOURS_CHANGED_EVENT); the
+ * answer (the period as it now reads) is returned for the caller to show at
+ * once.
+ */
+export function useHoursWrite(today: () => string) {
+  const api = useSpoolApi()
+  const busy = ref(false)
+  const error = ref('')
+  async function write(body: { entries?: unknown[], remove?: unknown[], resubmit?: string }): Promise<HoursBody | null> {
+    if (busy.value) return null
+    busy.value = true
+    error.value = ''
+    try {
+      const out = await putMyHours(api, body, today()) as HoursBody
+      window.dispatchEvent(new Event(HOURS_CHANGED_EVENT))
+      return out
+    } catch (e) {
+      error.value = hoursRefusalKey(e)
+      return null
+    } finally {
+      busy.value = false
+    }
+  }
+  return { busy, error, write }
 }

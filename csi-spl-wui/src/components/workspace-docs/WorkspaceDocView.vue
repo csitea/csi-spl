@@ -3,7 +3,10 @@
      paragraphs"). One continuous document: per item a heading with its
      logical number (1 / 1.1 / 1.1.1) and its title, edited in place, the text
      as a paragraph below it, edited in place, then the optional source block
-     and image (attrs.src, attrs.img_http_path). Qto's dots control at the far
+     and image (attrs.src, attrs.img_http_path), both edited in place too: the
+     menu's Add code block / Add image put them on the section, the image
+     uploaded to the hub (POST /{doc}/images). The document's title is edited
+     in place (the hub's rename; cleared, it is the default). Qto's dots control at the far
      left of every title opens the section menu (a click or a right-click, as
      does a right-click on the number or a contents entry): open the branch
      alone, open it as a list (the grid), export it to Markdown or a
@@ -76,7 +79,19 @@
     </div>
     <div v-else class="wsdoc__cols">
       <article class="wsdoc__doc" data-test="ws-doc-doc">
-        <h2 class="wsdoc__doctitle" data-test="ws-doc-doctitle">{{ title || t('ws_doctree.default_doc_title') }}</h2>
+        <h2
+          ref="docTitleEl"
+          class="wsdoc__doctitle"
+          data-test="ws-doc-doctitle"
+          contenteditable="plaintext-only"
+          spellcheck="false"
+          role="textbox"
+          :aria-label="t('ws_doctree.edit_doc_title')"
+          @keydown.enter.prevent="($event.target as HTMLElement).blur()"
+          @keydown.esc.prevent="revertDocTitle"
+          @blur="renameDoc"
+          v-text="title || t('ws_doctree.default_doc_title')"
+        />
         <p v-if="!shown.length" class="wsdoc__note muted" data-test="ws-doc-search-none">{{ t('ws_doctree.search_none') }}</p>
         <section
           v-for="it in shown"
@@ -138,10 +153,36 @@
           <p v-if="links(it.body).length" class="wsdoc__links" data-test="ws-doc-links">
             <a v-for="(u, i) in links(it.body)" :key="i" :href="u" target="_blank" rel="noopener noreferrer">{{ u }}</a>
           </p>
-          <pre v-if="attr(it, 'src')" class="wsdoc__src" data-test="ws-doc-src"><code>{{ attr(it, 'src') }}</code></pre>
-          <figure v-if="attr(it, 'img_http_path')" class="wsdoc__fig">
-            <figcaption v-if="attr(it, 'img_name')">{{ attr(it, 'img_name') }}</figcaption>
-            <img loading="lazy" :src="attr(it, 'img_http_path')" :alt="attr(it, 'img_name') || it.title">
+          <textarea
+            v-if="attr(it, 'src') || codeOpen.has(it.id)"
+            class="wsdoc__src"
+            data-test="ws-doc-src"
+            rows="2"
+            spellcheck="false"
+            :value="attr(it, 'src')"
+            :placeholder="t('ws_doctree.code_placeholder')"
+            :aria-label="t('ws_doctree.edit_code') + ' ' + it.outline"
+            @input="grow($event.target as HTMLTextAreaElement)"
+            @keydown.esc.prevent="revert($event.target as HTMLTextAreaElement, attr(it, 'src'))"
+            @blur="commitAttrs(it, { src: ($event.target as HTMLTextAreaElement).value })"
+          />
+          <figure v-if="attr(it, 'img_http_path')" class="wsdoc__fig" data-test="ws-doc-fig">
+            <img v-if="imgUrl[attr(it, 'img_http_path')]" loading="lazy" data-test="ws-doc-img" :src="imgUrl[attr(it, 'img_http_path')]" :alt="attr(it, 'img_name') || it.title">
+            <figcaption class="wsdoc__figcap">
+              <input
+                class="wsdoc__caption"
+                data-test="ws-doc-img-name"
+                maxlength="1000"
+                :value="attr(it, 'img_name')"
+                :placeholder="t('ws_doctree.image_caption')"
+                :aria-label="t('ws_doctree.image_caption') + ' ' + it.outline"
+                @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
+                @blur="commitAttrs(it, { img_name: ($event.target as HTMLInputElement).value.trim() })"
+              >
+              <button type="button" class="icon-btn" data-test="ws-doc-img-remove" :aria-label="t('ws_doctree.image_remove')" :disabled="busy" @click="commitAttrs(it, { img_http_path: '', img_name: '' })">
+                <UiIcon name="x" :size="16" />
+              </button>
+            </figcaption>
           </figure>
         </section>
       </article>
@@ -173,6 +214,16 @@
       </nav>
     </div>
 
+    <input
+      ref="fileEl"
+      type="file"
+      class="sr-only"
+      tabindex="-1"
+      aria-hidden="true"
+      data-test="ws-doc-img-file"
+      :accept="DOC_IMAGE_TYPES.join(',')"
+      @change="onImageFile"
+    >
     <UiPointMenu
       :open="Boolean(menu)"
       :x="menu?.x ?? 0"
@@ -208,12 +259,12 @@ import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import {
-  docMenuItems, editDocItem, removeDocItem, runDocOp, moveTarget,
+  DOC_IMAGE_MAX, DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget,
   type DocHead, type DocHit, type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
 
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[] }>()
-const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string] }>()
+const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string], renamed: [title: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
 /* below this width the contents are a drawer over the document, closed at first */
@@ -237,6 +288,14 @@ const hits = ref<DocHit[] | null>(null)
 const paraOpen = reactive(new Set<string>())
 /** paragraph text is optional at every level; level 1 shows none until asked (owner msgs 9debc0df, ab5b890e) */
 const paraShown = (it: DocItem) => it.depth > 1 || Boolean(it.body) || paraOpen.has(it.id)
+/* the sections whose (empty) code block the user opened from the menu */
+const codeOpen = reactive(new Set<string>())
+/* an image's hub path -> the URL the <img> shows (an object URL of the bytes) */
+const imgUrl = reactive<Record<string, string>>({})
+const docTitleEl = ref<HTMLElement | null>(null)
+const fileEl = ref<HTMLInputElement | null>(null)
+/* the section the file picker adds an image to */
+const imageFor = ref<DocItem | null>(null)
 const tocOpen = ref(true)
 const menu = ref<{ x: number, y: number, item: DocItem } | null>(null)
 const doomed = ref<DocItem | null>(null)
@@ -278,6 +337,17 @@ const attr = (it: DocItem, k: string) => {
   return typeof v === 'string' ? v : ''
 }
 
+/** resolve each image's src once (the hub path is read with the session's credentials) */
+function resolveImages() {
+  for (const it of items.value) {
+    const p = attr(it, 'img_http_path')
+    if (p && !(p in imgUrl)) {
+      imgUrl[p] = ''
+      void props.session.client.imageSrc(p).then((u) => { imgUrl[p] = u })
+    }
+  }
+}
+
 /** the whole document, in document order (false = it did not load) */
 async function load(): Promise<boolean> {
   const s = props.session
@@ -285,6 +355,7 @@ async function load(): Promise<boolean> {
   if (!r) return false
   items.value = r.items
   s.rev.value = r.rev
+  resolveImages()
   await nextTick()
   growAll()
   return true
@@ -313,6 +384,65 @@ async function commit(it: DocItem, field: 'title' | 'body', value: string) {
   if (await editDocItem(props.session, it, field, value)) items.value = [...items.value]
 }
 
+/** a code block or image edit: one attrs edit under the item's rev */
+async function commitAttrs(it: DocItem, set: Record<string, string>) {
+  if (await editDocAttrs(props.session, it, set)) {
+    if ('src' in set && !set.src) codeOpen.delete(it.id)
+    items.value = [...items.value]
+    resolveImages()
+  }
+}
+
+function revertDocTitle() {
+  const el = docTitleEl.value
+  if (!el) return
+  el.textContent = props.title || t('ws_doctree.default_doc_title')
+  el.blur()
+}
+
+/** the document's title, renamed in place under the doc rev; cleared, the hub gives the default */
+async function renameDoc() {
+  const el = docTitleEl.value
+  if (!el) return
+  const typed = (el.textContent || '').replace(/\s+/g, ' ').trim()
+  if (typed === props.title) return
+  const s = props.session
+  const r = await s.run(() => s.client.rename(s.doc, s.rev.value, typed))
+  if (!r) {
+    el.textContent = props.title || t('ws_doctree.default_doc_title')
+    return
+  }
+  s.rev.value = r.rev
+  el.textContent = r.title
+  emit('renamed', r.title)
+}
+
+/** the file picker's image: checked here as the hub checks it, uploaded, then set on the section */
+async function onImageFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  const it = imageFor.value
+  input.value = ''
+  imageFor.value = null
+  if (!file || !it) return
+  const s = props.session
+  if (!DOC_IMAGE_TYPES.includes(file.type) || file.size > DOC_IMAGE_MAX) {
+    s.error.value = 'ws_doctree.err_image'
+    return
+  }
+  busy.value = true
+  try {
+    const up = await s.run(() => s.client.uploadImage(s.doc, file))
+    if (!up) {
+      if (s.error.value === 'ws_doctree.err_failed') s.error.value = 'ws_doctree.err_image'
+      return
+    }
+    await commitAttrs(it, { img_http_path: up.img_http_path, img_name: attr(it, 'img_name') || file.name.replace(/\.[^.]+$/, '') })
+  } finally {
+    busy.value = false
+  }
+}
+
 function shapeOf(it: DocItem): DocShape {
   const sib = byParent.value.get(it.parent) ?? []
   const i = sib.findIndex((s) => s.id === it.id)
@@ -327,6 +457,8 @@ const menuItems = computed(() => {
   const ops = new Map(docMenuItems({ indent: can('indent'), outdent: can('outdent'), up: can('up'), down: can('down') }).map((m) => [m.id, m]))
   const more: PointMenuItem[] = [
     { id: 'add_paragraph', icon: 'pencil', labelKey: 'ws_doctree.menu.add_paragraph' },
+    { id: 'add_code', icon: 'file-code', labelKey: 'ws_doctree.menu.add_code' },
+    { id: 'add_image', icon: 'file-image', labelKey: attr(it, 'img_http_path') ? 'ws_doctree.menu.replace_image' : 'ws_doctree.menu.add_image' },
     { id: 'open_branch', icon: 'book-open', labelKey: 'ws_doctree.menu.open_branch' },
     { id: 'open_list', icon: 'file-spreadsheet', labelKey: 'ws_doctree.menu.open_list' },
     { id: 'export_md', icon: 'file-code', labelKey: 'ws_doctree.menu.export_md' },
@@ -334,9 +466,10 @@ const menuItems = computed(() => {
   ]
   for (const m of more) ops.set(m.id, m)
   /* the owner's order (msg dd291fb8): add paragraph, promote, demote, delete, and so on */
-  const order = ['add_paragraph', 'outdent', 'indent', 'delete', 'add_sibling', 'add_child', 'add_parent', 'up', 'down',
+  const order = ['add_paragraph', 'add_code', 'add_image', 'outdent', 'indent', 'delete', 'add_sibling', 'add_child', 'add_parent', 'up', 'down',
     'open_branch', 'open_list', 'export_md', 'export_csv', 'print']
-  return order.filter((id) => id !== 'add_paragraph' || !paraShown(it)).map((id) => ops.get(id)).filter((m): m is PointMenuItem => Boolean(m))
+  const hasCode = Boolean(attr(it, 'src')) || codeOpen.has(it.id)
+  return order.filter((id) => (id !== 'add_paragraph' || !paraShown(it)) && (id !== 'add_code' || !hasCode)).map((id) => ops.get(id)).filter((m): m is PointMenuItem => Boolean(m))
 })
 
 /** the menu's view-only entries: open the branch alone or as a list, export it */
@@ -345,6 +478,17 @@ async function viewOp(id: string, it: DocItem): Promise<boolean> {
     paraOpen.add(it.id)
     await nextTick()
     rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-text]`)?.focus()
+    return true
+  }
+  if (id === 'add_code') {
+    codeOpen.add(it.id)
+    await nextTick()
+    rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-src]`)?.focus()
+    return true
+  }
+  if (id === 'add_image') {
+    imageFor.value = it
+    fileEl.value?.click()
     return true
   }
   if (id === 'open_branch') {
@@ -675,6 +819,12 @@ onBeforeUnmount(() => {
 /* an empty title or text shows its placeholder (Heading 1.1, Paragraph text), typed over in place */
 .wsdoc__title::placeholder, .wsdoc__body::placeholder { color: var(--color-muted); opacity: 1; font-style: italic; }
 .wsdoc__src {
+  display: block;
+  inline-size: 100%;
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
   margin: 6px 0;
   padding: 10px 12px;
   border: 1px solid var(--color-border);
@@ -686,7 +836,22 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 .wsdoc__fig { margin: 8px 0 16px; color: var(--color-muted); font-size: 0.8rem; font-weight: 700; }
+.wsdoc__src:focus { border-color: var(--color-border-strong); }
+.wsdoc__fig { display: flex; flex-direction: column-reverse; }
 .wsdoc__fig img { display: block; max-width: 100%; height: auto; margin-top: 6px; }
+.wsdoc__figcap { display: flex; align-items: center; gap: 4px; }
+.wsdoc__caption {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.wsdoc__caption:hover, .wsdoc__caption:focus { border-color: var(--color-border-strong); }
+.wsdoc__doctitle[contenteditable]:focus { outline: 1px solid var(--color-border-strong); outline-offset: 2px; border-radius: var(--radius-sm); }
 
 /* the contents: Qto's rgt_side_nav, sticky beside the document */
 .wsdoc__toc {

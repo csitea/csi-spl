@@ -62,7 +62,7 @@
       <p v-else-if="session?.error.value" class="wsdocs-error" role="alert" data-test="ws-docs-error">{{ t(session.error.value) }}</p>
 
       <template v-if="session && root">
-        <WorkspaceDocView v-if="view === 'doc'" :key="'doc' + mount" :session="session" :root="root" :title="docTitle" :docs="docs" @print="printBranch" @list="openList" @open="openAt" />
+        <WorkspaceDocView v-if="view === 'doc'" :key="'doc' + mount" :session="session" :root="root" :title="docTitle" :docs="docs" @print="printBranch" @list="openList" @open="openAt" @renamed="renamed" />
         <WorkspaceGridView v-else :key="'grid' + mount" :session="session" :filter="String(route.query.q || '')" @print="printBranch" />
       </template>
     </div>
@@ -139,6 +139,11 @@ async function open() {
 async function pick(id: string) {
   await setQuery({ doc: id })
   await open()
+}
+
+/** the doc view renamed the open document: the picker shows the new title, the view stays mounted */
+function renamed(title: string) {
+  docs.value = docs.value.map((d) => (d.id === docId.value ? { ...d, title } : d))
 }
 
 function reopen() {

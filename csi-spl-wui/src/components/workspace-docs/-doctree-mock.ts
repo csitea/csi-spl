@@ -163,9 +163,62 @@ function edit(d: Doc, id: string, b: Body): MockReply {
   const value = str(b.value)
   if (field === 'title') it.title = value
   else if (field === 'body') it.body = value
-  else return fail(422, 'refused', `refused: field "${field}" is not editable`)
+  else if (field === 'attrs') {
+    const attrs = parseAttrs(value)
+    if (!attrs) return fail(422, 'refused', 'refused: attrs is not a JSON object the hub takes')
+    it.attrs = attrs
+  } else return fail(422, 'refused', `refused: field "${field}" is not editable`)
   it.rev++
   return { status: 200, body: { item_rev: it.rev } }
+}
+
+/** the hub's attrs gate (store.docAttrsCheck): an object, kind code | image,
+    string keys, img_http_path an https URL or a hub image path */
+function parseAttrs(value: string): Record<string, unknown> | null {
+  let m: unknown
+  try { m = JSON.parse(value) } catch { return null }
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return null
+  const a = m as Record<string, unknown>
+  if ('kind' in a && a.kind !== 'code' && a.kind !== 'image') return null
+  for (const k of ['kind', 'src', 'lang', 'img_name', 'img_http_path']) if (k in a && typeof a[k] !== 'string') return null
+  const p = str(a.img_http_path)
+  if (p && !p.startsWith('https://') && !p.startsWith('/v1/workspace/doctree/')) return null
+  return a
+}
+
+/** rename: the doc rev is the precondition; '' or blanks give the default */
+function rename(d: Doc, b: Body): MockReply {
+  if (stale(d, num(b.rev))) return STALE()
+  const title = str(b.title).trim() || UNTITLED
+  if (title.length > 500) return fail(400, 'bad_request', 'title is at most 500 characters')
+  d.title = title
+  return { status: 200, body: { rev: bump(d), title } }
+}
+
+const UNTITLED = 'Untitled document'
+
+/* the uploaded images: hub path -> an object URL of the bytes */
+const images = new Map<string, string>()
+const IMAGE_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' }
+
+/** test hook and the upload's mock twin: the hub's types and 5 MiB cap; the
+    name is a stand-in for the hub's sha256 (unique per upload here) */
+export function mockDocTreeImage(doc: string, file: Blob): MockReply {
+  seed()
+  if (!docs.has(doc)) return GONE()
+  const ext = IMAGE_EXT[file.type]
+  if (!ext) return fail(415, 'bad_image', 'an image is png, jpeg, gif or webp')
+  if (file.size > 5 << 20) return fail(413, 'too_large', 'an image is at most 5242880 bytes')
+  if (!file.size) return fail(400, 'bad_body', 'the image bytes did not arrive')
+  const name = uuid().replace(/-/g, '').padEnd(64, '0') + '.' + ext
+  const path = `/v1/workspace/doctree/${doc}/images/${name}`
+  images.set(path, URL.createObjectURL(file))
+  return { status: 200, body: { name, bytes: file.size, img_http_path: path } }
+}
+
+/** an uploaded image's object URL ('' = none) */
+export function mockDocTreeImageUrl(path: string): string {
+  return images.get(path) || ''
 }
 
 const SORTS: Record<string, (a: Wire, b: Wire) => number> = {
@@ -231,14 +284,15 @@ export function mockDocTree(method: string, path: string, body: Body = {}): Mock
     return { status: 200, body: { hits: hits.slice(0, 100) } }
   }
   if (!docId && method === 'POST') {
-    const title = str(body.title).trim()
-    if (!title) return fail(400, 'bad_request', 'title is 1..500 characters')
+    const title = str(body.title).trim() || UNTITLED
+    if (title.length > 500) return fail(400, 'bad_request', 'title is at most 500 characters')
     const d = create(title)
     return { status: 200, body: { id: d.id, root: d.root, rev: 1 } }
   }
   const d = docs.get(docId || '')
   if (!d) return GONE()
   if (method === 'GET') return reads(d, sub, url.searchParams)
+  if (!sub && method === 'PATCH') return rename(d, body)
   if (sub === 'items' && method === 'POST' && !id) return add(d, body)
   if (sub === 'items' && method === 'POST' && verb === 'move') return move(d, id, body)
   if (sub === 'items' && method === 'DELETE' && id) return remove(d, id, Number(url.searchParams.get('rev') || 0))

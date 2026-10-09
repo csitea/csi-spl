@@ -7,6 +7,9 @@
 // The doc view is Qto's view-doc (t1 519a4ee9): one continuous document,
 // titles and texts edited in place, a contents panel whose links scroll,
 // a search box, and print (contents first, a page break, the document).
+// The hub follow-up (owner go 33ced864): the document renamed in place (a
+// cleared title is the default), a code block and an uploaded image added
+// to a section and edited there, each read back from the hub.
 //
 //   node tests/e2e/workspace-doctree.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/workspace-doctree.test.mjs
@@ -423,6 +426,91 @@ try {
   ok('CONTROL: before the reload the page still shows its own copy', beforeReload[0] === '1 Alpha', beforeReload)
   ok('after a reload every create, update and delete is still there (read from the hub)', JSON.stringify(got) === JSON.stringify(wantReloaded)
     && texts[0] === 'Level-1 paragraph, see https://example.com/qto' && texts[1] === 'Text edited in place.', { got, texts })
+
+  /* rename in place (the hub's PATCH /{doc}); cleared, it is the default title.
+     The CONTROL reads the title back from the hub, not from the page */
+  const renameTo = async (text) => {
+    await p.click('[data-test=ws-doc-doctitle]')
+    await p.keyboard.down('Control')
+    await p.keyboard.press('KeyA')
+    await p.keyboard.up('Control')
+    if (text) await p.keyboard.type(text)
+    else await p.keyboard.press('Backspace')
+    await p.keyboard.press('Enter')
+  }
+  const docTitles = async () => ({
+    h: await p.$eval('[data-test=ws-doc-doctitle]', (e) => e.textContent.trim()),
+    sel: await p.$eval('[data-test=ws-docs-select]', (e) => e.selectedOptions[0]?.textContent?.trim()),
+    hub: (await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}`), docOf)).title,
+  })
+  await renameTo('Renamed doc')
+  await p.waitForFunction(() => document.querySelector('[data-test=ws-docs-select]').selectedOptions[0]?.textContent?.trim() === 'Renamed doc', { timeout: STEP }).catch(() => null)
+  const named = await docTitles()
+  await renameTo('')
+  await p.waitForFunction(() => document.querySelector('[data-test=ws-docs-select]').selectedOptions[0]?.textContent?.trim() === 'Untitled document', { timeout: STEP }).catch(() => null)
+  const cleared = await docTitles()
+  ok('rename the document in place; clearing the title brings "Untitled document" back (read from the hub)',
+    named.h === 'Renamed doc' && named.sel === 'Renamed doc' && named.hub === 'Renamed doc'
+    && cleared.h === 'Untitled document' && cleared.sel === 'Untitled document' && cleared.hub === 'Untitled document', { named, cleared })
+
+  /* a code block: the menu adds it to the section, edited in place, kept on the item */
+  const attrsOf = async (id) => (await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}/subtree`), docOf)).items.find((x) => x.id === id).attrs
+  const delta = await p.$eval(titleSel('2'), (e) => e.dataset.id)
+  /* wait until the hub holds attrs[k] === v for Delta (the blur's save is async) */
+  const attrIs = (k, v) => p.waitForFunction(async (d, id, k, v) => {
+    const r = await window.__wsDocTreeCall('GET', `/${d}/subtree`)
+    return (r.items.find((x) => x.id === id)?.attrs?.[k] ?? '') === v
+  }, { timeout: STEP, polling: 200 }, docOf, delta, k, v).catch(() => null)
+  await menu(p, 'doc', 'Delta', 'add_code')
+  await p.waitForFunction(() => document.activeElement?.dataset?.test === 'ws-doc-src', { timeout: STEP }).catch(() => null)
+  await p.keyboard.type('make deploy ENV=dev')
+  await p.click('[data-test=ws-doc-search]')
+  await attrIs('src', 'make deploy ENV=dev')
+  const code = await attrsOf(delta)
+  await p.click(`${titleSel('2')} [data-test=ws-doc-title]`, { button: 'right' })
+  await p.waitForSelector('[data-testid="ws-doc-menu-delete"]', { visible: true, timeout: STEP }).catch(() => null)
+  const opsWithCode = await opsOf()
+  await p.keyboard.press('Escape')
+  ok('Add code block puts an editable code block on the section, saved to the hub', code.src === 'make deploy ENV=dev' && !opsWithCode.includes('add_code') && opsWithCode.includes('add_image'), { code, opsWithCode })
+
+  /* an image: the file picker, the upload, the caption, then remove; an svg is refused */
+  const { writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join: pjoin } = await import('node:path')
+  const png = pjoin(tmpdir(), `wsdoc-e2e-${process.pid}.png`)
+  writeFileSync(png, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64'))
+  const svg = pjoin(tmpdir(), `wsdoc-e2e-${process.pid}.svg`)
+  writeFileSync(svg, '<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+  const pick = async (file) => {
+    const [fc] = await Promise.all([p.waitForFileChooser({ timeout: STEP }), menu(p, 'doc', 'Delta', 'add_image')])
+    await fc.accept([file])
+  }
+  await pick(svg)
+  const refused = await p.waitForSelector('[data-test=ws-docs-error]', { visible: true, timeout: STEP }).then((e) => e.evaluate((x) => x.textContent.trim())).catch(() => '')
+  const afterSvg = await attrsOf(delta)
+  await pick(png)
+  await p.waitForFunction((sel) => document.querySelector(`${sel} [data-test=ws-doc-img]`)?.naturalWidth === 1, { timeout: STEP }, titleSel('2')).catch(() => null)
+  const img = await p.evaluate((sel) => ({
+    shown: document.querySelector(`${sel} [data-test=ws-doc-img]`)?.naturalWidth ?? 0,
+    caption: document.querySelector(`${sel} [data-test=ws-doc-img-name]`)?.value,
+  }), titleSel('2'))
+  const withImg = await attrsOf(delta)
+  ok('Add image uploads the file and shows it on the section; an svg is refused and writes nothing',
+    img.shown === 1 && img.caption === `wsdoc-e2e-${process.pid}` && String(withImg.img_http_path).startsWith('/v1/workspace/doctree/')
+    && withImg.src === 'make deploy ENV=dev' && refused.startsWith('That image was refused') && !afterSvg.img_http_path, { img, withImg, refused, afterSvg })
+  await p.click(`${titleSel('2')} [data-test=ws-doc-img-name]`)
+  await p.keyboard.down('Control')
+  await p.keyboard.press('KeyA')
+  await p.keyboard.up('Control')
+  await p.keyboard.type('Deploy diagram')
+  await p.keyboard.press('Enter')
+  await attrIs('img_name', 'Deploy diagram')
+  const captioned = await attrsOf(delta)
+  await p.click(`${titleSel('2')} [data-test=ws-doc-img-remove]`)
+  await p.waitForFunction((sel) => !document.querySelector(`${sel} [data-test=ws-doc-fig]`), { timeout: STEP }, titleSel('2')).catch(() => null)
+  const removed = await attrsOf(delta)
+  ok('the caption is edited in place and the image is removed, the code block kept',
+    captioned.img_name === 'Deploy diagram' && !removed.img_http_path && !removed.img_name && removed.src === 'make deploy ENV=dev', { captioned, removed })
 
   /* a document always has a title: Create with none typed uses the default */
   await p.click('[data-test=ws-docs-create]')

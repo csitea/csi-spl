@@ -15,6 +15,15 @@ export type DocGrid = { doc: string, rev: number, total: number, items: DocItem[
 export type DocHit = { doc: string, item: string, title: string, rank: number }
 export type DocWhere = 'sibling' | 'parent' | 'child'
 export type DocMoveKind = 'indent' | 'outdent' | 'up' | 'down'
+/** attrs is the item's JSON object as a string: its code block (src) and image (img_http_path, img_name) */
+export type DocField = 'title' | 'body' | 'attrs'
+
+/** the hub's own image route: an uploaded image's img_http_path starts with it */
+export const HUB_IMAGE_PREFIX = '/v1/workspace/doctree/'
+
+/** the image types the hub stores (no svg) and its size cap */
+export const DOC_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+export const DOC_IMAGE_MAX = 5 << 20
 
 /** A refused call: 412 stale (reload), 404 gone, 422 refused, 413 too large. */
 export class DocTreeError extends Error {
@@ -25,6 +34,51 @@ export class DocTreeError extends Error {
 
 type Mock = typeof import('./-doctree-mock')
 let mockMod: Promise<Mock> | null = null
+
+type SpoolApi = ReturnType<typeof useSpoolApi>
+
+/** the image half of the client: an image's src for an <img>, and the upload */
+function docImages(api: SpoolApi, mock: () => Promise<Mock>) {
+  /* an image's src: an https URL as is; a hub path (the upload's
+     img_http_path) read with the session's credentials into an object URL,
+     since an <img> cannot send the Authorization header. Cached per path. */
+  const images = new Map<string, Promise<string>>()
+  function imageSrc(path: string): Promise<string> {
+    if (!path.startsWith(HUB_IMAGE_PREFIX)) return Promise.resolve(path.startsWith('https://') ? path : '')
+    let p = images.get(path)
+    if (!p) {
+      p = api.mock
+        ? mock().then((m) => m.mockDocTreeImageUrl(path))
+        : fetch(`${api.base}${path}`, {
+          headers: api.token ? { authorization: `Bearer ${api.token}` } : {},
+          credentials: api.credentials,
+          signal: AbortSignal.timeout(docFetchTimeoutMs('GET')),
+        }).then(async (r) => (r.ok ? URL.createObjectURL(await r.blob()) : ''))
+      p = p.catch(() => '')
+      images.set(path, p)
+    }
+    return p
+  }
+
+  /** POST the image's bytes as they are; the answer's img_http_path is the item's attrs value */
+  async function uploadImage(doc: string, file: Blob): Promise<{ name: string, img_http_path: string }> {
+    if (api.mock) {
+      const r = (await mock()).mockDocTreeImage(doc, file)
+      if (r.status !== 200) throw new DocTreeError(r.status, 'bad_image', 'refused image')
+      return r.body as { name: string, img_http_path: string }
+    }
+    const headers: Record<string, string> = { 'content-type': file.type }
+    if (api.token) headers.authorization = `Bearer ${api.token}`
+    const r = await fetch(`${api.base}/v1/workspace/doctree/${encodeURIComponent(doc)}/images`, {
+      method: 'POST', headers, credentials: api.credentials, body: file,
+      signal: AbortSignal.timeout(docFetchTimeoutMs('POST')),
+    })
+    const out = await r.json().catch(() => ({})) as { error?: string, message?: string, name?: string, img_http_path?: string }
+    if (!r.ok) throw new DocTreeError(r.status, out.error || 'error', out.message || `doctree ${r.status}`)
+    return { name: out.name || '', img_http_path: out.img_http_path || '' }
+  }
+  return { imageSrc, uploadImage }
+}
 
 export function useDocTree() {
   const api = useSpoolApi()
@@ -59,8 +113,14 @@ export function useDocTree() {
     return out as T
   }
 
+  const { imageSrc, uploadImage } = docImages(api, mock)
+
   const enc = encodeURIComponent
   return {
+    imageSrc,
+    uploadImage,
+    /** rename the document under the doc rev read; '' gives the default title */
+    rename: (doc: string, rev: number, title: string) => call<{ rev: number, title: string }>('PATCH', `/${enc(doc)}`, { title, rev }),
     list: () => call<{ docs: DocHead[] }>('GET', '').then((r) => r.docs),
     create: (title: string) => call<{ id: string, root: string, rev: number }>('POST', '', { title }),
     head: (doc: string) => call<DocHead>('GET', `/${enc(doc)}`),
@@ -83,7 +143,7 @@ export function useDocTree() {
       call<{ rev: number }>('POST', `/${enc(doc)}/items/${enc(item)}/move`, { rev, parent, ord }),
     remove: (doc: string, rev: number, item: string) =>
       call<{ rev: number }>('DELETE', `/${enc(doc)}/items/${enc(item)}?rev=${rev}`),
-    edit: (doc: string, item: string, field: 'title' | 'body', value: string, rev: number) =>
+    edit: (doc: string, item: string, field: DocField, value: string, rev: number) =>
       call<{ item_rev: number }>('PATCH', `/${enc(doc)}/items/${enc(item)}`, { field, value, rev }),
     /** Qto's search on Enter: the items of every document (doc '' ) or one, best first */
     search: (q: string, doc = '') => call<{ hits: DocHit[] }>('GET', `/search?q=${enc(q.trim())}${doc ? '&doc=' + enc(doc) : ''}`).then((r) => r.hits),
@@ -217,6 +277,25 @@ export async function removeDocItem(s: DocSession, it: DocItem): Promise<boolean
   const r = await s.run(() => s.client.remove(s.doc, s.rev.value, it.id))
   if (r) s.rev.value = r.rev
   return Boolean(r)
+}
+
+/**
+ * set (a string) or drop ('') attrs keys of an item, the others kept, as one
+ * attrs edit under the item's rev; the item is updated in place.
+ */
+export async function editDocAttrs(s: DocSession, it: DocItem, set: Record<string, string>): Promise<boolean> {
+  const next: Record<string, unknown> = { ...(it.attrs || {}) }
+  for (const [k, v] of Object.entries(set)) {
+    if (v) next[k] = v
+    else delete next[k]
+  }
+  const value = JSON.stringify(next)
+  if (value === JSON.stringify(it.attrs || {})) return true
+  const r = await s.run(() => s.client.edit(s.doc, it.id, 'attrs', value, it.rev))
+  if (!r) return false
+  it.attrs = next
+  it.rev = r.item_rev
+  return true
 }
 
 /** a text edit under the item's own rev; the item is updated in place. */

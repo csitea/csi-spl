@@ -1,27 +1,34 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_spl_goals_backfill_db (spec 112 8.2, ORC-3, read and write halves).
+# Purpose: do_spl_goals_backfill_db (spec 112 8.2 + 12.7, ORC-3 and ORC-6, read
+#          and write halves, no cnf workspace and no cnf approver role).
 #          Part A stubs the cloud (spl_via_proxy records its call); part B
 #          runs the action's SQL against a REAL throwaway Postgres with the
 #          real rdb migrations, as a NON-owner login so rdb 0014 row-level
 #          security binds (SKIP when no docker / psql / cached postgres image).
 #   A1. no WORKSPACE: refused with "WORKSPACE must be set (no default)",
 #       before any DB call; a non-slug WORKSPACE and ENV=lde are refused too
-#   A2. no APPROVER_ROLE and no cnf env.roadmap.approver_role: refused;
-#       CONTROL: the cnf key alone is enough
+#   A2. no cnf env.roadmap.* is needed: the read runs on WORKSPACE alone, a
+#       stray APPROVER_ROLE / cnf approver_role changes nothing, and the
+#       action never reads env.roadmap
 #   A3. the output dir must sit under $HOME; a bad SINCE is refused
 #   A4. the SQL: BEGIN TRANSACTION READ ONLY + SET LOCAL app.tenant_id, no
 #       rls_scope, and the output file is 0600 in a 0700 dir under $HOME
 #   A5. KEPT_FILE (the write half) against a stub route: exactly the kept
 #       rows as db:<topic_id>, audience internal, one per topic, no goals[]
 #       and nothing else; CONTROL: a batch that also carries a goal: key turns
-#       the check red, and the action refuses it before any call; no quote in
-#       a log line or argv; refused without WORKSPACE, the cnf roadmap tenant,
-#       the hub URL or a token, on another workspace's or a non-0600 file
+#       the check red, and the action refuses it before any call; every event
+#       names WORKSPACE (ORC-6, HUB-2's 400 without one), with no cnf
+#       env.roadmap.tenant_id; CONTROL: an event naming another workspace is
+#       refused before any call; no quote in a log line or argv; refused
+#       without WORKSPACE, the hub URL or a token, on another workspace's or a
+#       non-0600 file
 #   B1. two workspaces seeded; run in A as the runtime login: the output
 #       holds A's owner decision / drill / launch candidates and none of B's
-#       topic ids; a non-approver's "yes" and owner chatter are not
-#       candidates; an owner's "go" typed through a box is
+#       topic ids; owner = biz_owner OR admin in A (12.3): a biz_owner's
+#       "approved" is a candidate; CONTROL: a developer's "yes" and a
+#       product_owner's "DECIDED" (members without either role) are not;
+#       owner chatter is not; an owner's "go" typed through a box is
 #   B2. quote: <= 140 chars, one line, no tab; no other message text
 #   B3. CONTROL: B's rows exist, counted as the operator; the same count in
 #       A's tenant scope is 0
@@ -72,13 +79,13 @@ runa admin ENV=lde WORKSPACE=ta; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "A1. ENV=lde is refused" || fail "A1. lde rc=$rc $(cat "$T/calls")"
 
 runa - ENV=dev WORKSPACE=ta; rc=$?
-[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'approver_role must be an rbac role id' "$T/e" &&
-  pass "A2. no approver role anywhere: refused, no DB call" || fail "A2. rc=$rc $(cat "$T/calls" "$T/e")"
-runa admin ENV=dev WORKSPACE=ta; rc=$?
-[[ $rc -eq 0 ]] && grep -q '^proxy _spl_goals_backfill_db_run .* ta admin 1970-01-01T00:00:00Z$' "$T/calls" &&
-  pass "A2. CONTROL: the cnf approver role is used" || fail "A2. cnf rc=$rc $(cat "$T/calls" "$T/e")"
-runa admin ENV=dev WORKSPACE=ta APPROVER_ROLE=biz_owner; rc=$?
-[[ $rc -eq 0 ]] && grep -q ' ta biz_owner ' "$T/calls" && pass "A2. APPROVER_ROLE overrides the cnf" || fail "A2. env rc=$rc $(cat "$T/calls")"
+[[ $rc -eq 0 ]] && grep -q '^proxy _spl_goals_backfill_db_run [^ ]*\.tsv ta 1970-01-01T00:00:00Z$' "$T/calls" &&
+  pass "A2. no cnf env.roadmap: the read runs on WORKSPACE alone" || fail "A2. rc=$rc $(cat "$T/calls" "$T/e")"
+runa developer ENV=dev WORKSPACE=ta APPROVER_ROLE=developer; rc=$?
+[[ $rc -eq 0 ]] && grep -q '^proxy _spl_goals_backfill_db_run [^ ]*\.tsv ta 1970-01-01T00:00:00Z$' "$T/calls" &&
+  pass "A2. a stray APPROVER_ROLE / cnf approver_role changes nothing" || fail "A2. role rc=$rc $(cat "$T/calls")"
+! grep -qE 'env\.roadmap|APPROVER_ROLE' "$FUNC" && pass "A2. the action reads no env.roadmap.* and no APPROVER_ROLE" ||
+  fail "A2. still read: $(grep -nE 'env\.roadmap|APPROVER_ROLE' "$FUNC")"
 
 runa admin ENV=dev WORKSPACE=ta GOALS_BACKFILL_DIR="$T/outside"; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'must be under \$HOME' "$T/e" &&
@@ -96,12 +103,12 @@ sql=$(bash -c 'source "$1"; spl_goals_backfill_db_sql' _ "$FUNC")
   pass "A4. the SQL is READ ONLY + SET LOCAL app.tenant_id, no rls_scope" || fail "A4. sql: $(head -3 <<<"$sql")"
 
 # A5 (the WRITE half) -----------------------------------------------------------
-# runw <cnf-tenant> <kept-file> [VAR=val ...]: KEPT_FILE mode; the stub route
-# keeps the body curl would send (@<file>) in $T/sent.json.
+# runw <kept-file> [VAR=val ...]: KEPT_FILE mode, a cnf with no env.roadmap;
+# the stub route keeps the body curl would send (@<file>) in $T/sent.json.
 runw() {
-  local tenant="$1" kept="$2"; shift 2
+  local kept="$1"; shift
   rm -f "$T/sent.json"; : >"$T/calls"
-  printf 'env:\n  gcp:\n    project: x\n  roadmap:\n    tenant_id: %s\n' "$tenant" >"$T/cnf.yaml"
+  printf 'env:\n  gcp:\n    project: x\n' >"$T/cnf.yaml"
   env -u WORKSPACE -u APPROVER_ROLE -u SINCE -u GOALS_BACKFILL_DIR HOME="$T/home" FUNC="$FUNC" T="$T" KEPT_FILE="$kept" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*" >&2; }
@@ -122,6 +129,8 @@ runw() {
 }
 # only_db <body.json>: the batch holds db: keys only, no goals[], audience internal
 only_db() { jq -e '(has("goals") | not) and all(.events[]; (.source_key | startswith("db:")) and .audience == "internal")' "$1" >/dev/null; }
+# names_ws <body.json> <ws>: every event names workspace <ws> (HUB-2: 400 without)
+names_ws() { jq -e --arg ws "$2" '(.events | length) > 0 and all(.events[]; .workspace == $ws)' "$1" >/dev/null; }
 KD="$T/home/.csi-spl/goals-backfill"; mkdir -p "$KD"
 K="$KD/db-candidates-dev-ta-20261009T000000Z.tsv"
 U1=aaaaaaaa-0000-4000-8000-000000000011 U2=aaaaaaaa-0000-4000-8000-000000000012 U3=aaaaaaaa-0000-4000-8000-000000000013
@@ -129,41 +138,46 @@ SECRET="Quote-$RANDOM-not-in-a-log"
 printf 'topic_id\tmsg_id\tts\tkind\tquote\tkeep\n%s\tm2\t2026-10-01T11:00:00Z\tdrill\tthe drill passed\ty\n%s\tm1\t2026-10-01T10:00:00Z\tdecision\t%s\tyes\n%s\tm3\t2026-10-02T10:00:00Z\tlaunch\twe launched\tx\n%s\tm4\t2026-10-03T10:00:00Z\tdecision\tnot this one\tn\n' \
   "$U1" "$U1" "$SECRET" "$U2" "$U3" >"$K"; chmod 600 "$K"
 
-runw ta "$K" ENV=dev WORKSPACE=ta; rc=$?
+runw "$K" ENV=dev WORKSPACE=ta; rc=$?
 [[ $rc -eq 0 && "$(cat "$T/calls")" == "call PUT /v1/calendar/sync @$KD/.sync-body."* ]] &&
   pass "A5. KEPT_FILE: one PUT /v1/calendar/sync, the body as @<file>" || fail "A5. rc=$rc $(cat "$T/calls" "$T/e")"
 [[ "$(jq -c '[.events[] | [.source_key, .audience, .topic_id, .kind, .starts_at]]' "$T/sent.json" 2>/dev/null)" == \
   "[[\"db:$U1\",\"internal\",\"$U1\",\"milestone\",\"2026-10-01T10:00:00Z\"],[\"db:$U2\",\"internal\",\"$U2\",\"milestone\",\"2026-10-02T10:00:00Z\"]]" ]] &&
   [[ "$(jq -c 'keys' "$T/sent.json")" == '["events"]' && "$(jq -r '.events[0].title' "$T/sent.json")" == "$SECRET" ]] &&
+  [[ "$(jq -c '.events[0] | keys' "$T/sent.json")" == '["all_day","audience","description","ends_at","kind","source_key","starts_at","title","topic_id","workspace"]' ]] &&
   pass "A5. exactly the kept rows, one db:<topic_id> per topic (earliest), audience internal, nothing else" || fail "A5. sent: $(cat "$T/sent.json" 2>/dev/null)"
 only_db "$T/sent.json" && pass "A5. the batch carries only the db: family" || fail "A5. only_db: $(cat "$T/sent.json")"
+names_ws "$T/sent.json" ta && pass "A5. every db: event names workspace ta, with no cnf env.roadmap.tenant_id" ||
+  fail "A5. workspace: $(jq -c '[.events[].workspace]' "$T/sent.json" 2>/dev/null)"
+jq '.events[0] |= del(.workspace)' "$T/sent.json" >"$T/nows.json"
+! names_ws "$T/nows.json" ta && pass "A5. CONTROL: an event without workspace turns names_ws red" || fail "A5. control: names_ws passed a missing workspace"
 ! grep -q "$SECRET" "$T/e" "$T/o" "$T/calls" && [[ -z "$(compgen -G "$KD/.sync-body.*")" ]] &&
   pass "A5. no quote in a log line or argv; the 0600 body file is removed" || fail "A5. quote leaked: $(cat "$T/e" "$T/calls")"
 jq '.events += [{source_key: "goal:G01:deadline", audience: "internal"}]' "$T/sent.json" >"$T/goal.json"
 ! only_db "$T/goal.json" && pass "A5. CONTROL: a batch that also carries a goal: key turns only_db red" || fail "A5. control: only_db passed a goal: key"
-runw ta "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_goals_backfill_db_body() { echo "{\"events\":[{\"source_key\":\"goal:G01:deadline\"}]}"; }'; rc=$?
+runw "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_goals_backfill_db_body() { echo "{\"events\":[{\"source_key\":\"goal:G01:deadline\"}]}"; }'; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'carries a non-db: key: refused' "$T/e" &&
   pass "A5. CONTROL: the action refuses a goal: key itself, no call" || fail "A5. goal guard rc=$rc $(cat "$T/calls" "$T/e")"
+runw "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_goals_backfill_db_body() { echo "{\"events\":[{\"source_key\":\"db:x\",\"workspace\":\"tb\"}]}"; }'; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'names a workspace other than ta: refused' "$T/e" &&
+  pass "A5. CONTROL: an event naming workspace tb in a run in ta is refused, no call" || fail "A5. ws guard rc=$rc $(cat "$T/calls" "$T/e")"
 
-runw ta "$K" ENV=dev; rc=$?
+runw "$K" ENV=dev; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'WORKSPACE must be set (no default)' "$T/e" && pass "A5. no WORKSPACE: refused, no call" || fail "A5. ws rc=$rc"
-runw '~' "$K" ENV=dev WORKSPACE=ta; rc=$?
-[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'is not cnf env.roadmap.tenant_id' "$T/e" &&
-  pass "A5. WORKSPACE must be the cnf roadmap tenant (unset: refused, no call)" || fail "A5. tenant rc=$rc $(cat "$T/e")"
-runw ta "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_hub_operator_url() { do_log "FATAL env.dns.api_fqdn is not set"; return 1; }'; rc=$?
+runw "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_hub_operator_url() { do_log "FATAL env.dns.api_fqdn is not set"; return 1; }'; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "A5. no hub base URL in the cnf: refused, no call" || fail "A5. url rc=$rc"
-runw ta "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_hub_operator_call() { do_log "FATAL could not mint an id token"; return 1; }'; rc=$?
+runw "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_hub_operator_call() { do_log "FATAL could not mint an id token"; return 1; }'; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'could not mint an id token' "$T/e" && [[ -z "$(compgen -G "$KD/.sync-body.*")" ]] &&
   pass "A5. no token: fails, the body file is removed" || fail "A5. token rc=$rc"
-runw ta "$K" ENV=dev WORKSPACE=ta STUB_STATUS=503; rc=$?
+runw "$K" ENV=dev WORKSPACE=ta STUB_STATUS=503; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'answered 503 roadmap_not_configured' "$T/e" && pass "A5. a 503 roadmap_not_configured fails" || fail "A5. 503 rc=$rc $(cat "$T/e")"
 cp "$K" "$KD/db-candidates-dev-tb-20261009T000000Z.tsv"
-runw ta "$KD/db-candidates-dev-tb-20261009T000000Z.tsv" ENV=dev WORKSPACE=ta; rc=$?
+runw "$KD/db-candidates-dev-tb-20261009T000000Z.tsv" ENV=dev WORKSPACE=ta; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "A5. another workspace's file is refused" || fail "A5. tb file rc=$rc"
 cp "$K" "$T/outside.tsv"
-runw ta "$T/outside.tsv" ENV=dev WORKSPACE=ta; rc=$?
+runw "$T/outside.tsv" ENV=dev WORKSPACE=ta; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "A5. a file outside \$HOME is refused" || fail "A5. outside rc=$rc"
-chmod 644 "$K"; runw ta "$K" ENV=dev WORKSPACE=ta; rc=$?; chmod 600 "$K"
+chmod 644 "$K"; runw "$K" ENV=dev WORKSPACE=ta; rc=$?; chmod 600 "$K"
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'mode 0600' "$T/e" && pass "A5. a non-0600 file is refused" || fail "A5. mode rc=$rc"
 
 # B ---------------------------------------------------------------------------
@@ -192,13 +206,15 @@ q "CREATE ROLE spool_rt LOGIN NOCREATEDB NOCREATEROLE PASSWORD 'rt'" >/dev/null
 PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 "$OWNER_DSN" -v runtime_role=spool_rt \
   -f "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql" >/dev/null || { fail "grants"; exit 1; }
 
-# ta: HUM-1 admin (the approver), HUM-3 developer. tb: HUM-2 admin, HUM-1 admin.
+# ta: HUM-1 admin, HUM-4 biz_owner (the two approver roles, 12.3), HUM-3
+# developer, HUM-5 product_owner (members without either). tb: HUM-2 admin, HUM-1 admin.
 TA1=aaaaaaaa-0000-4000-8000-000000000001 TA2=aaaaaaaa-0000-4000-8000-000000000002
 TB1=bbbbbbbb-0000-4000-8000-000000000001 TB2=bbbbbbbb-0000-4000-8000-000000000002
-q "INSERT INTO humans (human_id) VALUES ('HUM-1'), ('HUM-2'), ('HUM-3')" >/dev/null
+q "INSERT INTO humans (human_id) VALUES ('HUM-1'), ('HUM-2'), ('HUM-3'), ('HUM-4'), ('HUM-5')" >/dev/null
 for t in ta tb; do q "INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('$t', decode(repeat('ab', 32), 'hex'))" >/dev/null; done
 q "INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by) VALUES
      ('ta', 'HUM-1', 'admin', 'operator'), ('ta', 'HUM-3', 'developer', 'operator'),
+     ('ta', 'HUM-4', 'biz_owner', 'operator'), ('ta', 'HUM-5', 'product_owner', 'operator'),
      ('tb', 'HUM-2', 'admin', 'operator'), ('tb', 'HUM-1', 'admin', 'operator')" >/dev/null
 LONG="launched the relay in prd"$'\t'"today"$'\n'"$(printf 'x%.0s' $(seq 1 200))"
 ins() { # <tenant> <msg_id> <task_id> <ts> <from_id> <typed_by|NULL> <body>
@@ -211,10 +227,12 @@ ins ta 10000000-0000-4000-8000-000000000003 "$TA2" 2026-10-02T10:00:00Z HUM-1 NU
 ins ta 10000000-0000-4000-8000-000000000004 "$TA2" 2026-10-02T11:00:00Z HUM-1 NULL "how is the weather"
 ins ta 10000000-0000-4000-8000-000000000005 "$TA2" 2026-10-02T12:00:00Z HUM-3 NULL "yes, approved"
 ins ta 10000000-0000-4000-8000-000000000006 "$TA2" 2026-10-03T10:00:00Z c-002 "'HUM-1'" "yes, do it"
+ins ta 10000000-0000-4000-8000-000000000007 "$TA2" 2026-10-03T11:00:00Z HUM-4 NULL "approved, ship the hub"
+ins ta 10000000-0000-4000-8000-000000000008 "$TA2" 2026-10-03T12:00:00Z HUM-5 NULL "DECIDED: the drill is on friday"
 ins tb 20000000-0000-4000-8000-000000000001 "$TB1" 2026-10-01T10:00:00Z HUM-2 NULL "go"
 ins tb 20000000-0000-4000-8000-000000000002 "$TB2" 2026-10-01T12:00:00Z HUM-1 NULL "yes, the drill and the launch"
 
-# runb <dsn> [SINCE]: the action's SQL path on a real DB, workspace ta, role admin
+# runb <dsn> [SINCE]: the action's SQL path on a real DB, workspace ta
 runb() {
   rm -f "$T/out.tsv"
   env FUNC="$FUNC" SPL_PROXY_DSN="$1" bash -c '
@@ -222,24 +240,26 @@ runb() {
     do_log() { echo "$*" >&2; }
     source "${FUNC%/src/bash/run/*}/lib/bash/funcs/spl-cloud-cnf.func.sh"
     source "$FUNC"
-    _spl_goals_backfill_db_run "$1" ta admin "$2"' _ "$T/out.tsv" "${2:-1970-01-01T00:00:00Z}" >"$T/o" 2>&1
+    _spl_goals_backfill_db_run "$1" ta "$2"' _ "$T/out.tsv" "${2:-1970-01-01T00:00:00Z}" >"$T/o" 2>&1
 }
 col() { tail -n +2 "$T/out.tsv" | cut -f"$1" | paste -sd, -; }
 
 runb "$RT_DSN"; rc=$?
 [[ $rc -eq 0 && "$(head -1 "$T/out.tsv")" == $'topic_id\tmsg_id\tts\tkind\tquote' ]] &&
   pass "B1. ran in ta as the runtime login, header written" || fail "B1. rc=$rc $(cat "$T/o")"
-[[ "$(col 2)" == 10000000-0000-4000-8000-000000000001,10000000-0000-4000-8000-000000000002,10000000-0000-4000-8000-000000000003,10000000-0000-4000-8000-000000000006 ]] &&
-  pass "B1. candidates: the owner's go, drill, launch and box-typed yes" || fail "B1. msg ids: $(col 2)"
-[[ "$(col 4)" == decision,drill,launch,decision ]] && pass "B1. kinds decision,drill,launch,decision" || fail "B1. kinds: $(col 4)"
+[[ "$(col 2)" == 10000000-0000-4000-8000-000000000001,10000000-0000-4000-8000-000000000002,10000000-0000-4000-8000-000000000003,10000000-0000-4000-8000-000000000006,10000000-0000-4000-8000-000000000007 ]] &&
+  pass "B1. candidates: the admin's go, drill, launch and box-typed yes, and the biz_owner's approval" || fail "B1. msg ids: $(col 2)"
+[[ "$(col 4)" == decision,drill,launch,decision,decision ]] && pass "B1. kinds decision,drill,launch,decision,decision" || fail "B1. kinds: $(col 4)"
 [[ "$(col 3)" == 2026-10-01T10:00:00Z,* ]] && pass "B1. ts is UTC ISO-8601" || fail "B1. ts: $(col 3)"
 grep -qE "$TB1|$TB2|20000000-" "$T/out.tsv" && fail "B1. B's ids leaked: $(cat "$T/out.tsv")" || pass "B1. the output holds none of B's topic ids"
-grep -q -- '-000000000004\|-000000000005' "$T/out.tsv" && fail "B1. chatter / non-approver listed" || pass "B1. owner chatter and a non-approver's yes are not candidates"
+grep -q -- '-000000000004' "$T/out.tsv" && fail "B1. owner chatter listed" || pass "B1. owner chatter is not a candidate"
+grep -q -- '-000000000005\|-000000000008' "$T/out.tsv" && fail "B1. CONTROL: a member's message listed: $(cut -f2 "$T/out.tsv" | paste -sd, -)" ||
+  pass "B1. CONTROL: a developer's yes and a product_owner's DECIDED (neither biz_owner nor admin) are not candidates"
 st=$(stat -c '%a' "$T/out.tsv")
 [[ "$st" == 600 ]] && pass "B1. the file is 0600" || fail "B1. mode $st"
 
 q3=$(awk -F'\t' 'NR==4 {print $5}' "$T/out.tsv")
-[[ ${#q3} -le 140 && ${#q3} -ge 100 && "$q3" == "launched the relay in prd today xxx"* && $(wc -l <"$T/out.tsv") -eq 5 ]] &&
+[[ ${#q3} -le 140 && ${#q3} -ge 100 && "$q3" == "launched the relay in prd today xxx"* && $(wc -l <"$T/out.tsv") -eq 6 ]] &&
   awk -F'\t' 'NR>1 && NF!=5 {bad=1} END {exit bad}' "$T/out.tsv" &&
   pass "B2. the quote is <= 140 chars, one line, whitespace folded" || fail "B2. quote(${#q3}): $q3"
 
@@ -252,7 +272,7 @@ runb "$OWNER_DSN"; rc=$?
   pass "B4. CONTROL: a superuser login is refused, nothing written" || fail "B4. rc=$rc $(cat "$T/o")"
 
 runb "$RT_DSN" 2026-10-02T00:00:00Z; rc=$?
-[[ $rc -eq 0 && "$(col 2)" == 10000000-0000-4000-8000-000000000003,10000000-0000-4000-8000-000000000006 ]] &&
+[[ $rc -eq 0 && "$(col 2)" == 10000000-0000-4000-8000-000000000003,10000000-0000-4000-8000-000000000006,10000000-0000-4000-8000-000000000007 ]] &&
   pass "B5. SINCE: only the later candidates" || fail "B5. rc=$rc $(col 2) $(cat "$T/o")"
 
 (( fails == 0 )) && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

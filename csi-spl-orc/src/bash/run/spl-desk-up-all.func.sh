@@ -21,7 +21,9 @@
 # @description Prints one JSON line (seated, retired, failed) and a per-agent
 # @description log. Dry run unless DRY_RUN=0.
 # @description SAFETY: with no live agent at all this refuses to retire
-# @description anything. "tmux is not answering" and "this box has no agents"
+# @description anything, but still starts the box's hub-run sidecar when it is
+# @description down (_spl_desk_up_all_no_window): the box is reachable from the
+# @description first tick after a boot, not from the first agent window. "tmux is not answering" and "this box has no agents"
 # @description are different facts and only one of them means retire.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant the desks are seated in
@@ -79,6 +81,7 @@ do_spl_desk_up_all() {
   mapfile -t live < <(spl_desk_live_agents)
   if [[ ${#live[@]} -eq 0 ]]; then
     do_log "FAIL no live agent window on the box user's tmux socket: nothing to seat, and nothing is retired either - a tmux server that is not answering is not the same fact as a box with no agents"
+    _spl_desk_up_all_no_window "$d" "$tenant" "$box" "$dry"
     return 1
   fi
   do_log "INFO live agent windows: ${live[*]}"
@@ -141,6 +144,41 @@ do_spl_desk_up_all() {
 
   flock -u 8; exec 8>&-
   _spl_desk_up_all_report "$tenant" "$box" "$d" "${#live[@]}" "${#seat[@]}" "$hub" "$hrc"
+}
+
+# _spl_desk_up_all_no_window <state dir> <tenant> <box> <dry>: with NO live
+# agent window, still bring the box's hub-run sidecar up. Measured on sat
+# 2026-10-09 (drill 3): the box booted at 03:44:43Z and its prd sidecar first
+# started at 04:06:03Z, because seating waited for an agent window; for those
+# 21 min no remote message reached the box. The sidecar serves the box, not a
+# window, so it starts on the first cron tick after the box is up.
+# Same set as do_spl_desk_up_boxes: a desk whose sidecar was started and not
+# stopped (pid file; do_spl_desk_down removes it), with an agent dir, not moved
+# away by do_spl_desk_rebox. A live sidecar on the current binary is left
+# alone (no second one); a dead or stale one is restarted through
+# spl_desk_box_restart, which seats the desk's first agent dir and keeps its
+# hand mute. Nothing is retired: that still needs a live window to compare.
+_spl_desk_up_all_no_window() {
+  local d="$1" tenant="$2" box="$3" dry="$4" agent why
+  [[ -e "$d/spool/.hub/hub-run.pid" ]] || { do_log "INFO no sidecar was started for $box in $tenant, or it was stopped: none is started"; return 0; }
+  [[ -e "$d/rebox-seated.txt" || -d "$d/rebox-retired" ]] && return 0
+  agent="$(spl_desk_box_agents "$d" | sed -n 1p)"
+  [[ -n "$agent" ]] || { do_log "INFO $box in $tenant has no agent dir: its sidecar would announce nobody"; return 0; }
+  why="$(spl_desk_box_state "$d")"
+  if [[ "$why" == up ]]; then
+    do_log "INFO the hub-run sidecar of $box in $tenant is already live with no agent window: no second one"
+    return 0
+  fi
+  if (( dry )); then
+    do_log "INFO DRY_RUN would: start the hub-run sidecar of $box in $tenant ($why) with no agent window, by seating $agent"
+    return 0
+  fi
+  if spl_desk_box_restart "$d" "$tenant" "$box" "$agent"; then
+    do_log "INFO started the hub-run sidecar of $box in $tenant ($why) with no agent window, by seating $agent"
+  else
+    do_log "FAIL could not start the hub-run sidecar of $box in $tenant ($why): see $d/spool/.hub/hub-run.log"
+  fi
+  return 0
 }
 
 # _spl_desk_up_all_check_args <tenant> <box> <retire> <hubcheck>: 0 when the

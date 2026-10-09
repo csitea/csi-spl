@@ -32,6 +32,9 @@
 #      seated desk box (box-rsp, prd 2026-10-02); CONTROL: a box on the current
 #      binary, a reboxed box-desk, a stopped box and the default box are left
 #      alone, and do_spl_desk_up_tenants still drives the default box only
+#  11. with NO tmux session or agent window (a box just booted) the tick still
+#      starts the default desk's dead sidecar; CONTROL: a live sidecar is not
+#      started twice, and a desk stopped by hand stays down
 # No real crontab, no real tmux, no cloud call: crontab and tmux are stubs.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -434,6 +437,38 @@ out=$(SNIPPET="$TSTUB2; do_spl_desk_up_tenants" in_orc SPL_STATE_DIR="$T/boxes/p
 for p in "$OLD1" "$OLD2" "$CUR"; do pkill -P "$p" 2>/dev/null; kill "$p" 2>/dev/null; done
 grep -q 'do_spl_desk_up_boxes' "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" &&
   pass "the cron tick calls do_spl_desk_up_boxes" || fail "the cron tick does not call do_spl_desk_up_boxes"
+
+# --- 11. the sidecar comes up at BOOT, with no agent window (drill 3, 2026-10-09) ----
+# sat booted at 03:44:43Z and its prd sidecar first started at 04:06:03Z: the
+# reconcile refused with "no live agent window" until an agent came back, and
+# for those 21 min no remote message reached the box. With no window the tick
+# still starts the box's sidecar; a live one is never doubled.
+BD="$T/boot/dev/desk/t1/box-desk"
+mkdir -p "$BD/spool/.hub" "$BD/spool/c-101/inbox" "$BD/spool/c-102/inbox"
+touch "$BD/spool/c-101/.no-poke"
+bash -c 'exit 0' & BDEAD=$!; wait "$BDEAD"
+echo "$BDEAD" >"$BD/spool/.hub/hub-run.pid"
+BUP='do_spl_desk_up() { echo "CALL up $TENANT_ID $DESK_BOX $DESK_AGENT poke=$DESK_POKE"; }'
+boot() { SNIPPET="$BUP; do_spl_desk_up_all" in_orc SPL_STATE_DIR="$T/boot/dev" TENANT_ID=t1 "$@" 2>&1; }
+out=$(boot DRY_RUN=0); rc=$?
+[[ "$out" == *"CALL up t1 box-desk c-101 poke=0"* && "$out" == *"started the hub-run sidecar of box-desk in t1 (sidecar-dead) with no agent window"* ]] &&
+  pass "no tmux session or agent window: the dead sidecar is STARTED anyway, keeping the hand mute" || fail "boot start: $out"
+[[ $rc -ne 0 && "$out" == *"not the same fact"* && -d "$BD/spool/c-102" ]] &&
+  pass "…and the tick still reports no live window and retires nothing" || fail "boot verdict (rc=$rc): $out"
+out=$(boot)
+[[ "$out" != *"CALL "* && "$out" == *"DRY_RUN would: start the hub-run sidecar of box-desk in t1 (sidecar-dead)"* ]] &&
+  pass "the dry run plans that start and touches nothing" || fail "boot dry run: $out"
+# CONTROL: a sidecar already running gets no second start.
+bash -c 'sleep 60; :' _ hub-run & BLIVE=$!
+echo "$BLIVE" >"$BD/spool/.hub/hub-run.pid"
+out=$(boot DRY_RUN=0)
+[[ "$out" != *"CALL "* && "$out" == *"already live with no agent window: no second one"* ]] &&
+  pass "CONTROL an already-running sidecar is not started a second time" || fail "CONTROL live sidecar: $out"
+pkill -P "$BLIVE" 2>/dev/null; kill "$BLIVE" 2>/dev/null; wait "$BLIVE" 2>/dev/null
+# CONTROL: a desk stopped by hand (do_spl_desk_down removed the pid file) stays down.
+rm -f "$BD/spool/.hub/hub-run.pid"
+out=$(boot DRY_RUN=0)
+[[ "$out" != *"CALL "* ]] && pass "CONTROL a desk stopped by hand (no pid file) is not started" || fail "CONTROL stopped desk: $out"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-up-all.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

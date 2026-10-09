@@ -338,6 +338,16 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// tenant_agent_split_kind (rdb 0163, spec 115 RDB-1): the secret kind,
+	// claude 100 with mistral the backup. No store API yet (HUB-1), so raw
+	// rows under inTenant.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO tenant_agent_split_kind (tenant_id, kind, vendor, weight, is_backup)
+			VALUES ($1, 'secret', 'claude', 100, false), ($1, 'secret', 'mistral', 0, true)`, s.tenant)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

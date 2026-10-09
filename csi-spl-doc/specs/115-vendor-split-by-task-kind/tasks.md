@@ -42,9 +42,9 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
 
 ## 4. Hub (rdb + API)
 
-- [ ] **RDB-1**: Migration `<next>_tenant_agent_split_kind.sql`.
+- [x] **RDB-1**: Migration `0163_tenant_agent_split_kind.sql`.
   - Depends: none. Apply to dev and prd before HUB-1 deploys.
-  - Owns: `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_tenant_agent_split_kind.sql`.
+  - Owns: `csi-spl-rdb/src/sql/postgres/spool-hub/0163_tenant_agent_split_kind.sql`.
   - Done: `tenant_agent_split_kind(tenant_id, kind, vendor, weight, is_backup)` under RLS, with the table rules of section 2; forward-only and additive; the migration catalogue gate is green. Control: a row with `agy > 0` in a coding kind turns the test red.
   - Vendor: claude (main: `complex_coding`). Box: one with docker Postgres.
 

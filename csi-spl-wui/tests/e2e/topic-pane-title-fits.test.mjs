@@ -158,10 +158,15 @@ try {
 
 const failed = results.filter((r) => !r.ok)
 console.log(`\ntopic-pane-title-fits: ${results.length - failed.length}/${results.length} passed`)
+  await t011HeaderGate(p)
 process.exit(failed.length ? 1 : 0)
 
 // T011: LiveTopicPane header gate (FR-011).
-test('T011: LiveTopicPane header is one line, controls are labelled', async ({ page }) => {
+//   1. Header height <= 48 px.
+//   2. Every control has an accessible name.
+// Run: BASE_URL=<generated bundle> pnpm test:e2e topic-pane-title-fits
+
+async function t011HeaderGate(page) {
   await page.goto('/')
   await page.waitForSelector('[data-test=topic-section]', { state: 'visible' })
   
@@ -170,40 +175,61 @@ test('T011: LiveTopicPane header is one line, controls are labelled', async ({ p
   await page.waitForSelector('[data-test=topic-heading]', { state: 'visible' })
   
   // 1. Header height <= 48 px.
-  const header = page.locator('[data-test=topic-heading]')
+  const header = await page.locator('[data-test=topic-heading]')
   const headerHeight = await header.evaluate(el => el.getBoundingClientRect().height)
-  expect(headerHeight).toBeLessThanOrEqual(48)
-  
-  // 2. Every control has an accessible name.
-  const closeButtons = page.locator('[data-test=live-topic-close]')
-  for (let i = 0; i < await closeButtons.count(); i++) {
-    const name = await closeButtons.nth(i).evaluate(el => el.getAttribute('aria-label'))
-    expect(name).toBe('Close topic')
+  if (headerHeight > 48) {
+    console.error()
+    process.exit(1)
   }
   
-  const archivedBadge = page.locator('[aria-label=Archived
+  // 2. Every control has an accessible name.
+  const closeButtons = await page.locator('[data-test=live-topic-close]').all()
+  for (const btn of closeButtons) {
+    const name = await btn.evaluate(el => el.getAttribute('aria-label'))
+    if (name !== 'Close topic') {
+      console.error()
+      process.exit(1)
+    }
+  }
+  
+  const archivedBadge = await page.locator('[aria-label=Archived
 // T011: LiveTopicPane header gate (FR-011).
-test("T011: LiveTopicPane header is one line, controls are labelled", async ({ page }) => {
+//   1. Header height <= 48 px.
+//   2. Every control has an accessible name.
+// Run: BASE_URL=<generated bundle> pnpm test:e2e topic-pane-title-fits
+async function t011HeaderGate(page) {
   await page.goto("/")
   await page.waitForSelector("[data-test=topic-section]", { state: "visible" })
   await page.click("[data-test=topic-row]:first-child")
   await page.waitForSelector("[data-test=topic-heading]", { state: "visible" })
-  const header = page.locator("[data-test=topic-heading]")
+  const header = await page.locator("[data-test=topic-heading]")
   const headerHeight = await header.evaluate(el => el.getBoundingClientRect().height)
-  expect(headerHeight).toBeLessThanOrEqual(48)
-  const closeButtons = page.locator("[data-test=live-topic-close]")
-  for (let i = 0; i < await closeButtons.count(); i++) {
-    const name = await closeButtons.nth(i).evaluate(el => el.getAttribute("aria-label"))
-    expect(name).toBe("Close topic")
+  if (headerHeight > 48) {
+    console.error("T011 FAIL: Header height " + headerHeight + " > 48 px")
+    process.exit(1)
   }
-  const archivedBadge = page.locator("[aria-label=Archived\ topic]")
-  if (await archivedBadge.count() > 0) {
-    const name = await archivedBadge.evaluate(el => el.getAttribute("aria-label"))
-    expect(name).toBe("Archived topic")
+  const closeButtons = await page.locator("[data-test=live-topic-close]").all()
+  for (const btn of closeButtons) {
+    const name = await btn.evaluate(el => el.getAttribute("aria-label"))
+    if (name !== "Close topic") {
+      console.error("T011 FAIL: Close button missing aria-label (got: " + name + ")")
+      process.exit(1)
+    }
   }
-  const clipControl = page.locator("[aria-label=Clip\ replies]")
-  if (await clipControl.count() > 0) {
-    const name = await clipControl.evaluate(el => el.getAttribute("aria-label"))
-    expect(name).toBe("Clip replies to this topic")
+  const archivedBadge = await page.locator("[aria-label=Archived\ topic]").all()
+  for (const badge of archivedBadge) {
+    const name = await badge.evaluate(el => el.getAttribute("aria-label"))
+    if (name !== "Archived topic") {
+      console.error("T011 FAIL: Archived badge missing aria-label (got: " + name + ")")
+      process.exit(1)
+    }
   }
-})
+  const clipControl = await page.locator("[aria-label=Clip\ replies]").all()
+  for (const control of clipControl) {
+    const name = await control.evaluate(el => el.getAttribute("aria-label"))
+    if (name !== "Clip replies to this topic") {
+      console.error("T011 FAIL: Clip control missing aria-label (got: " + name + ")")
+      process.exit(1)
+    }
+  }
+}

@@ -1,4 +1,4 @@
-# Spec 114: Vendor Split by Task Kind
+# Spec 115: Vendor Split by Task Kind
 
 ## 1. Goals
 Distribute agent workloads across different AI vendors based on the *kind* of task rather than a single global split ratio. This maximizes cost-efficiency and leverages each vendor's strengths:

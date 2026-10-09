@@ -1,0 +1,7 @@
+date,member_id,member_name,target_type,target_id,target_name,issue_key,minutes,hours_decimal,suggested_minutes,note,period_state,approved_by,approved_at
+2026-09-29,HUM-a,FirstName LastName,channel,general,general,,25,0.42,20,'=SUM(A1:A9),approved,HUM-owner,2026-10-07T09:30:00Z
+2026-09-29,HUM-a,FirstName LastName,issue,task-issue,Export the hours,SPL-12,90,1.50,75,"edited, ""quoted""",approved,HUM-owner,2026-10-07T09:30:00Z
+2026-09-29,HUM-a,FirstName LastName,meeting,ev-1,Weekly sync,,60,1.00,60,,approved,HUM-owner,2026-10-07T09:30:00Z
+2026-09-30,HUM-a,FirstName LastName,dm,HUM-b,Second Member,,10,0.17,10,,approved,HUM-owner,2026-10-07T09:30:00Z
+2026-09-30,HUM-a,FirstName LastName,other,,,,30,0.50,0,call with a customer,approved,HUM-owner,2026-10-07T09:30:00Z
+2026-09-30,HUM-a,FirstName LastName,topic,task-topic,,,120,2.00,120,,approved,HUM-owner,2026-10-07T09:30:00Z

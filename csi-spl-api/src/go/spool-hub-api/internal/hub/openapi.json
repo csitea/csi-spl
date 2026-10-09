@@ -3012,6 +3012,111 @@
         ]
       }
     },
+    "/v1/hours/export": {
+      "get": {
+        "operationId": "getHoursExport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "a day of the workspace period; default today in hours.tz",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "csv (default) or xlsx (one sheet, minutes and hours as numeric cells)",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "enum": [
+                "csv",
+                "xlsx"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "true (default): only biz-owner-approved periods; false adds frozen, returned and open periods",
+            "in": "query",
+            "name": "final",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "line order: member (default), target or day",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "enum": [
+                "member",
+                "target",
+                "day"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "one member (HUM-*)",
+            "in": "query",
+            "name": "member",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "one target or a type (t, ch, dm, cal, ws)",
+            "in": "query",
+            "name": "target",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "text/csv; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK: one line per approved entry, columns date, member_id, member_name, target_type, target_id, target_name, issue_key, minutes, hours_decimal, suggested_minutes, note, period_state, approved_by, approved_at; Content-Disposition attachment; filename=\"hours-<tenant>-<period_start>-<period_end>.<ext>\". Rejected rows and open suggestions never appear. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §6.2, §6.3."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Download the team's approved hours, CSV or XLSX (hours.read)",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
     "/v1/hours/periods": {
       "put": {
         "operationId": "putTeamHoursPeriods",

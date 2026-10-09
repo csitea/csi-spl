@@ -345,4 +345,6 @@ func (s *Server) routeTeamHours(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/hours", s.hoursPreflight)
 	mux.HandleFunc("PUT /v1/hours/periods", s.handlePutTeamHoursPeriods)
 	mux.HandleFunc("OPTIONS /v1/hours/periods", s.hoursPreflight)
+	mux.HandleFunc("GET /v1/hours/export", s.handleGetHoursExport) // T009, hours_export.go
+	mux.HandleFunc("OPTIONS /v1/hours/export", s.hoursPreflight)
 }

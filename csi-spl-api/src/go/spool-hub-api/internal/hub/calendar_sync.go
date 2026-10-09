@@ -63,6 +63,10 @@ const (
 	calendarSyncMaxBody     = 4 << 20
 	calPropRoadmapURL       = "roadmap_url"
 	calendarRoadmapURLMax   = 512
+	calSyncPropSpecs        = "specs"
+	calSyncPropDoneLines    = "done_lines"
+	calendarSyncListMax     = 100
+	calendarSyncLineMax     = 500
 )
 
 // calendarSyncFamilies are the key families the store prunes (calendarPruned).
@@ -71,6 +75,9 @@ var calendarSyncFamilies = []string{"goal:", "spec:"}
 // roadmapApproverRoles are the roles whose holder in a goal's workspace
 // approves it (spec 12.3; owner msg 26477898: "both biz_owner and admin").
 var roadmapApproverRoles = []string{rbac.BizOwner, rbac.Admin}
+
+// calSyncSpecRe is one of a goal's specs: a three-digit spec id.
+var calSyncSpecRe = regexp.MustCompile(`^[0-9]{3}$`)
 
 // goalIDRe is spec 2's goal id; its first three characters (G01) are the
 // goal's part of a goal: key (goal:G01:deadline, goal:G01:m:<key>).
@@ -85,19 +92,21 @@ type calendarSyncGoal struct {
 }
 
 type calendarSyncEventIn struct {
-	SourceKey      string  `json:"source_key"`
-	Workspace      string  `json:"workspace"`
-	Title          string  `json:"title"`
-	Description    string  `json:"description"`
-	Kind           string  `json:"kind"`
-	StartsAt       string  `json:"starts_at"`
-	EndsAt         string  `json:"ends_at"`
-	AllDay         bool    `json:"all_day"`
-	Audience       *string `json:"audience"`
-	TimeZone       string  `json:"time_zone"`
-	TopicID        string  `json:"topic_id"`
-	ReleaseVersion string  `json:"release_version"`
-	RoadmapURL     string  `json:"roadmap_url"`
+	SourceKey      string   `json:"source_key"`
+	Workspace      string   `json:"workspace"`
+	Title          string   `json:"title"`
+	Description    string   `json:"description"`
+	Kind           string   `json:"kind"`
+	StartsAt       string   `json:"starts_at"`
+	EndsAt         string   `json:"ends_at"`
+	AllDay         bool     `json:"all_day"`
+	Audience       *string  `json:"audience"`
+	TimeZone       string   `json:"time_zone"`
+	TopicID        string   `json:"topic_id"`
+	ReleaseVersion string   `json:"release_version"`
+	RoadmapURL     string   `json:"roadmap_url"`
+	Specs          []string `json:"specs"`
+	DoneLines      []string `json:"done_lines"`
 }
 
 type calendarSyncRequest struct {
@@ -171,6 +180,12 @@ func (in calendarSyncEventIn) syncEvent(public bool) (store.CalendarSyncEvent, *
 	if in.RoadmapURL != "" && (!strings.HasPrefix(in.RoadmapURL, "/roadmap") || len(in.RoadmapURL) > calendarRoadmapURLMax) {
 		return store.CalendarSyncEvent{}, badCalendar("source_key " + k + ": roadmap_url must be a /roadmap path")
 	}
+	if !syncLinesOK(in.Specs, calSyncSpecRe) {
+		return store.CalendarSyncEvent{}, badCalendar("source_key " + k + ": specs are three-digit spec ids")
+	}
+	if !syncLinesOK(in.DoneLines, nil) {
+		return store.CalendarSyncEvent{}, badCalendar("source_key " + k + ": done_lines are non-empty lines")
+	}
 	e := store.CalendarEvent{Title: in.Title, Description: in.Description, Kind: in.Kind, StartsAt: *start, EndsAt: *end,
 		AllDay: in.AllDay, Audience: aud, Mentions: []string{}, CreatorType: calendarSyncCreatorType,
 		CreatorID: calendarSyncCreatorID, TopicID: in.TopicID, ReleaseVersion: in.ReleaseVersion,
@@ -178,7 +193,27 @@ func (in calendarSyncEventIn) syncEvent(public bool) (store.CalendarSyncEvent, *
 	if in.RoadmapURL != "" {
 		e.Props[calPropRoadmapURL] = in.RoadmapURL
 	}
+	if len(in.Specs) > 0 {
+		e.Props[calSyncPropSpecs] = in.Specs
+	}
+	if len(in.DoneLines) > 0 {
+		e.Props[calSyncPropDoneLines] = in.DoneLines
+	}
 	return store.CalendarSyncEvent{SourceKey: k, Event: e}, nil
+}
+
+// syncLinesOK answers whether ls is a short list of non-empty, bounded lines,
+// each matching re when re is set.
+func syncLinesOK(ls []string, re *regexp.Regexp) bool {
+	if len(ls) > calendarSyncListMax {
+		return false
+	}
+	for _, l := range ls {
+		if strings.TrimSpace(l) == "" || len(l) > calendarSyncLineMax || (re != nil && !re.MatchString(l)) {
+			return false
+		}
+	}
+	return true
 }
 
 // goalOfKey is the goal part of a goal: key (G01 of goal:G01:deadline).

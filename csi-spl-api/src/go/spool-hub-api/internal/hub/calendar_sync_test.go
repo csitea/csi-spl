@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"sort"
@@ -407,5 +408,39 @@ func TestCalendarSyncedReadOnlyAndLookup(t *testing.T) {
 	}
 	if got := liveKeys(t, e, tid); got != "goal:G01:deadline,goal:G01:m:start,goal:G11:deadline" {
 		t.Fatalf("synced after the refusals: %q", got)
+	}
+}
+
+// ORC-2 sends a deadline event's goal specs and done lines as top-level wire
+// fields (specs/112); the sync keeps them in the event's props.
+func TestCalendarSyncSpecsAndDoneLines(t *testing.T) {
+	e, tid := syncEnv(t)
+	admin := seat(t, e, tid, rbac.Admin)
+	ev := syncEv(tid, "goal:G01:deadline", "2026-12-31")
+	ev["specs"] = []string{"089", "112"}
+	ev["done_lines"] = []string{"100% of specs are [x]"}
+	plain := syncEv(tid, "goal:G01:m:start", "2026-11-01")
+	goals := []map[string]any{syncGoal(tid, "G01-first", approvalMsg(t, e, tid, admin, ""))}
+	if code, out := syncCall(t, e, tid, goals, []map[string]any{ev, plain}); code != http.StatusOK || num(out, "created") != 2 {
+		t.Fatalf("sync: %d %v", code, out)
+	}
+	props := func(ev store.CalendarEvent) string {
+		b, _ := json.Marshal([]any{ev.Props["specs"], ev.Props["done_lines"]})
+		return ev.SourceKey + "=" + string(b)
+	}
+	want := `goal:G01:deadline=[["089","112"],["100% of specs are [x]"]],goal:G01:m:start=[null,null]`
+	if got := syncedOf(t, e, tid, props); got != want {
+		t.Fatalf("props:\n got %s\nwant %s", got, want)
+	}
+	// CONTROL: a spec that is not a three-digit id, or a blank done line, is 400
+	for k, v := range map[string]any{"specs": []string{"G01"}, "done_lines": []string{" "}} {
+		bad := syncEv(tid, "goal:G01:deadline", "2026-12-31")
+		bad[k] = v
+		if code, out := syncCall(t, e, tid, goals, []map[string]any{bad, plain}); code != http.StatusBadRequest {
+			t.Fatalf("bad %s: %d %v", k, code, out)
+		}
+	}
+	if got := syncedOf(t, e, tid, props); got != want {
+		t.Fatalf("a refused call changed props: %s", got)
 	}
 }

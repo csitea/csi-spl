@@ -27,9 +27,16 @@ describe('Buy a workspace (047 W2)', () => {
     assert.match(link, /t\('checkout\.price', \{ price \}\)/)
   })
 
-  it('rides in the prerendered product shell and on the sign-in page (with the price)', () => {
+  it('rides in the prerendered product shell', () => {
     assert.match(src('src/layouts/default.vue'), /<template #fallback>\s*(<!--[\s\S]*?-->\s*)?<div class="login"><p class="muted">\{\{ \$t\('app\.loading'\) \}\}<\/p><BuyWorkspaceLink \/><\/div>/)
-    assert.match(src('src/pages/login.vue'), /<BuyWorkspaceLink v-if="session\.state !== 'in'" with-price \/>/)
+  })
+
+  // HUM-10 (t1 07d2f6ca, msg 8b8d4369): the sign-in page no longer shows it;
+  // /checkout still answers by direct URL.
+  it('is not on the sign-in page', () => {
+    const login = src('src/pages/login.vue')
+    assert.doesNotMatch(login, /BuyWorkspaceLink/)
+    assert.doesNotMatch(login, /buy-workspace/)
   })
 })
 

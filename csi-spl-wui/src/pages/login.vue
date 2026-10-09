@@ -26,7 +26,6 @@
       <button class="btn ghost" type="button" @click="session.logout()">{{ t('auth.login.sign_out') }}</button>
     </p>
     <ChangePasswordForm v-if="session.state === 'in' && session.claims?.p === 'password'" @changed="changed = true" />
-    <BuyWorkspaceLink v-if="session.state !== 'in'" with-price />
     <!-- W14 (spec 047): the help pages, also before sign-in -->
     <p class="muted login-help"><NuxtLink :to="localePath('/help')" data-test="login-help">{{ t('help.title') }}</NuxtLink></p>
   </div>
@@ -37,7 +36,6 @@ import { hintedProvider, loginHintOf, safeRedirect } from '~/utils/auth-client.m
 import SocialAuthButtons from '~/components/SocialAuthButtons.vue'
 import NativeAuthForm from '~/components/NativeAuthForm.vue'
 import ChangePasswordForm from '~/components/ChangePasswordForm.vue'
-import BuyWorkspaceLink from '~/components/BuyWorkspaceLink.vue'
 import { useSessionStore } from '~/stores/session'
 import { hostTenant, useSpoolApi } from '~/composables/useSpoolApi'
 import { useSettledQuery } from '~/composables/useSettledQuery'

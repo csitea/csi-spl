@@ -1,18 +1,18 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: v1.0 (unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13 carry the panel's recommendation and do not block the build)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
 Reviews, unchanged beside this file: [s107-2](reviews/s107-2.md) (`a231ea1e`) · [s107-3](reviews/s107-3.md) (`ec87f9b4`) · [s107-4](reviews/s107-4.md) (`efdbd856`).
 
-Builds on, and does not change:
-- [089 the Calendar section](../089-calendar-section/spec.md), [097 full editing](../097-calendar-full-editing/spec.md), [106 the phone calendar](../106-calendar-phone-rewrite/spec.md): read-only source of meetings (section 7).
+Builds on:
+- [089 the Calendar section](../089-calendar-section/spec.md), [097 full editing](../097-calendar-full-editing/spec.md), [106 the phone calendar](../106-calendar-phone-rewrite/spec.md): read-only source of meetings (section 7), and since v1.2 **the home of the member's hours UI**: a "Working hours" line on every working day and an entry type "Working hours" in the event dialog (section 5). Their tables and routes do not change.
 - [039 issues](../039-spool-issues/spec.md): an issue's discussion is an ordinary topic on `issues.task_id` (section 8).
 - [025 tenant RBAC](../025-spool-tenant-rbac/spec.md): roles and permissions; two new permissions (section 6).
 - [098 tenant settings jsonb](../098-tenant-settings-jsonb/spec.md): four registered scalar keys for the workspace's hours settings.
 - [043 mobile WUI](../043-spool-wui-mobile/spec.md): the phone stack (level 1/2/3, Back).
-- [027 performance](../027-spool-performance/spec.md): the 155 KB initial chunk; the Hours page loads lazily and no always-on client plugin is added.
+- [027 performance](../027-spool-performance/spec.md): the 155 KB initial chunk; the hours UI rides the calendar's lazy chunks and no always-on client plugin is added.
 
 Prose says **workspace** (a tenant), **member** (a HUM-* in it) and **biz owner** (a member whose role is `biz_owner`, `internal/rbac/rbac.go`). Agents (roster ids) do not log hours in v1.
 
@@ -31,6 +31,17 @@ Prose says **workspace** (a tenant), **member** (a HUM-* in it) and **biz owner*
 | R5 | `30389671` | "it should be somehow integretable with the calendar" | 7 |
 | R6 | `9b9080af` | "it should be integrated with the issues as well .." | 8 |
 | R7 | `e7197854` | "biz owners should be able to approve the hours and download them in csv , xls etc." | 4.4, 6 |
+
+The owner's design change of 2026-10-08 (HUM-10, t1 `a28dc5c9`, after asking "but how can I as a regular user track my hours , what is the interface for it", msg `7d1d63ff`):
+
+| # | msg | text | answered in |
+|---|---|---|---|
+| R8 | `57d94c2a` | "it should be integrated with the calendar , just add a new daily entry - hours" | **5** (v1.2) |
+| R9 | `37805fdf` | "or as a simple line in the calendar by default for every working day , which clicks will pop - up the dialog fo r the calendar entry of type "workfing hours"" | **5** (v1.2) |
+| R10 | `8ab9bf08` | "than each time a user participates in a discussion those discussion links will be shown in the description of the hours ... and he / she would be able to modify additionally for those automatic entries more notes" | **5.2** (v1.2) |
+| R11 | `5134bd6b` | "than the right side of the calendar will have tabs for hours" | **5.4** (v1.2) |
+
+R8 and R9 replace the v1.0 rail item and page: there is **no Hours rail entry and no `/hours` page**.
 
 R4 and R7 are requirements, not options: hours are **prefilled** from suggestions, the **worker approves** them, a **freeze** locks a period (**weekly by default, configurable**), the **biz owner approves** them a second time and **downloads** them as CSV and XLSX.
 
@@ -128,7 +139,7 @@ Calls, an editor, a whiteboard: the hub cannot see them and v1 **does not guess*
 1. The hub computes a (member, day)'s suggestions **on read**, from **one** table plus the calendar: `hours_minutes` by its primary key and the member's meetings by the calendar range index. No job, no cache table.
 2. **No suggestion is computed for a frozen day, nor for a day in a returned period** (4.3). In a returned period the worker edits, rejects and adds entries only; the period's raw minutes are already pruned.
 3. Once the member approves, edits or rejects a row, it is **an entry** (3.2) and replaces the suggestion for that (day, target). Activity later that day shows as a **delta** on the row ("+0:20 since you approved") with its own one-tap accept **✓ +0:20**; an approved number never changes silently.
-4. **Prefilled** means the Hours page opens with every day of the open period filled; the member never starts from an empty grid.
+4. **Prefilled** means a day's "Working hours" dialog (5.2) opens with that day filled; the member never starts from an empty grid.
 
 ---
 
@@ -145,7 +156,7 @@ Calls, an editor, a whiteboard: the hub cannot see them and v1 **does not guess*
 | who sees whose hours | RBAC (rdb 0021, `internal/rbac/rbac.go` `Defaults`): two new permission rows |
 | audit of a return | `member_activity`, new kind `hours_returned` (**with a CHECK widening**, see 3.3) |
 | names of topics, issues, channels, members | the existing view, issue and roster reads |
-| the Hours badge count | one field on the view the rail already loads (5.1) |
+| the day totals of the "Working hours" lines | `GET /v1/me/hours?period=` (T006), read by the calendar's lazy chunk (5.1) |
 
 ### 3.2 New: three tables, each FORCE RLS
 
@@ -200,7 +211,7 @@ One forward-only migration, the next free number, holds:
 1. the three tables of 3.2;
 2. the two permission rows `hours.read`, `hours.approve`, granted to `biz_owner` (6.1);
 3. a widening of `member_activity_kind_check` (0091, last redefined in `0148_session_revocations.sql:30`) that adds `hours_returned`, the 0148 pattern; the auth-row 90-day sweep must not prune it;
-4. a widening of `humans_rail_order_check` (0133) with a 12-entry branch that adds `hours`, the 0133 pattern.
+4. a widening of `humans_rail_order_check` (0133) with a 12-entry branch that adds `hours`, the 0133 pattern. Since v1.2 (no rail entry) nothing writes that branch; it stays, harmless, as rdb 0151 shipped it (forward-only).
 
 ---
 
@@ -247,12 +258,12 @@ Set by a holder of `tenant.settings` (biz owner, admin) through the existing ten
 - **The sweep persists it.** At `period end + grace`, the hub's existing sweep writes an `hours_periods` row `frozen` for **every current human member at sweep time, plus any member with an `hours_entries` or `hours_minutes` row in the period** (a member removed mid-period who logged time). A member with nothing gets a row with 0 minutes: the biz owner signs off a zero, never a missing row. Agents never get a row. Then it prunes the period's `hours_minutes`.
 - **Unapproved suggestions at the freeze** count **zero** and disappear (owner Q2: A zero, B auto-approved; under B the sweep writes those entries **before** it prunes).
 - **Changing `hours.period`** takes effect from the first day after the member's latest `hours_periods.period_end` (or after the workspace's last frozen period, for a member with no row). A switch week -> month never pulls passed days into a new period.
-- **Reminder**: the Hours rail item carries a **count badge** (closed days of open periods with open suggestions or deltas, plus 1 for a returned period), and the Hours page a **banner**: "2 days not approved · freezes Wed 00:00 · [Approve 2 days]". No pop-up in v1 (5.1).
+- **Reminder** (v1.2): each working day's "Working hours" line shows the day's total and marks a day with open suggestions or deltas; the dialog's **banner** says "2 days not approved · freezes Wed 00:00 · [Approve 2 days]". No rail badge and no pop-up in v1 (5.1).
 - The calendar's `kind = 'freeze'` (a deploy freeze, rdb 0125) is a different thing; the hours freeze never writes a calendar event.
 
 ### 4.3 Return
 
-- **Return** (one member, a required note) sets that member's row to `returned`: it **reopens that period for that member only**. The return counts in the worker's Hours badge and the banner shows the note with [Review] (S2-7); the worker sees the note on top of the period, fixes entries (no suggestions, 2.2) and taps **Resubmit**; the row goes back to `frozen` and into the biz owner's list. A `member_activity` row `hours_returned` records each return.
+- **Return** (one member, a required note) sets that member's row to `returned`: it **reopens that period for that member only**. The return marks the worker's "Working hours" lines of that period and the dialog's banner shows the note with [Review] (S2-7); the worker sees the note on top of the period, fixes entries (no suggestions, 2.2) and taps **Resubmit**; the row goes back to `frozen` and into the biz owner's list. A `member_activity` row `hours_returned` records each return.
 - **Return all** (Team header, one note) returns every `frozen` member row of the period: the mass correction.
 - **No workspace-wide unfreeze and no "freeze now" in v1** (S4-5, S3-10; owner Q4). Return and Return all are the only ways back.
 
@@ -265,16 +276,28 @@ Set by a holder of `tenant.settings` (biz owner, admin) through the existing ten
 
 ---
 
-## 5. Screens: one page, phone and desktop (R2)
+## 5. Screens: inside the calendar, phone and desktop (R2, R8, R9)
 
-### 5.1 Where, and the badge
+v1.2 (owner R8, R9): the member's hours live **in the existing calendar**. There is no Hours rail entry and no `/hours` page (the v1.0 design, kept below only where the dialog reuses it).
 
-- One new rail item **Hours** (`/hours`), the 12th rail entry: it widens the 0133 CHECK (3.3) and `parseRailOrder` (`utils/rail-order.mjs:109`) appends it to stored 11-entry orders. Justified: approving needs a place; inside Settings it is 3+ taps on the phone, inside the calendar it would change 089/106 files, and an issue tab does not cover channels and DMs.
-- The page loads lazily (027).
-- **The badge adds no always-on client code** (s107-4's condition): its count is one field, `hours_open_days`, on the view the rail already loads. No new client plugin, no extra request at start. The acceptance test runs the 155 KB budget check (`perf-budget.py`).
+### 5.1 Where: one "Working hours" line per working day
+
+- **Every working day** (Monday..Friday of the civil date; the day is the member's day in their zone, 1.6) shows, **by default**, one simple line **Working hours** in the calendar: the all-day row of that day in the desktop week (089 / 097 `CalendarMainView`), and the day's list in the phone Day, Week and Month views (106). Saturday and Sunday show the line only when the day has minutes, entries or suggestions.
+- The line carries the **day's total** (`h:mm`: approved entries plus open suggestions) when there are minutes, and a mark when the day has open suggestions or deltas (the reminder of 4.2), "Final" / a lock for a frozen day.
+- **It is not a calendar event**: no `calendar_events` row, no event route, not in search, reminders, the trash, `/public-calendar` or a calendar export. It is drawn from `GET /v1/me/hours?period=` (T006), one call per period the shown range touches, by the calendar's own lazy chunk.
+- **A click (tap) opens the existing calendar entry dialog** (desktop `CalendarEventDialog`, phone `CalendarPhoneSheet`) with the entry type **Working hours** (5.2): the owner's "pop-up the dialog for the calendar entry of type working hours". The type is the dialog's, not the hub's: the event kinds and `calendar_events` do not change, so no hub change is needed for it.
+- **No always-on client code** (s107-4's condition): the hours code loads with the calendar chunks (lazy, 027), nothing at app start, no new client plugin. The acceptance test runs the 155 KB budget check (`perf-budget.py`).
+- **No rail badge**: the v1.0 `hours_open_days` field (T010) has no consumer under v1.2 and is dropped; the lines and the dialog's banner are the reminder.
 - **No pop-up in v1**: the only notification pop-up is the calendar's (`CalendarReminderPopup.vue`, `calendar-reminder-timer.ts`, 089 code). A pop-up with [Approve N days] is a later hook (P1, section 11).
 
-### 5.2 Mine (the default tab)
+### 5.2 The "Working hours" dialog: Mine (the default tab)
+
+The dialog of type Working hours opens on the clicked day and shows that day's per-target rows; its banner and **Approve week** cover the period (the layout below is the period at a glance; the dialog scrolls to the clicked day).
+
+**Description: the day's discussions, with notes (owner R10).** The dialog's description lists, for the day, **one line per discussion the member took part in** (every row whose target is a topic `t:<task_id>`, recorded by the hub on a post, an edit or a reaction, T005, plus the tab minutes when counted): the topic's subject as a **link** to the topic, its time `h:mm` and its blocks (`09:12-10:40`). Meetings (`cal:`), channels and "other" follow as plain rows. Each line takes a **free-text note** (<= 500 characters):
+- **One note per line**, i.e. per (day, target) entry; **no separate per-day note** in v1 (a note for the day as a whole goes on its "other" row).
+- **No hub change**: `hours_entries.note` (rdb 0151) and `PUT /v1/me/hours` `entries[].note` (T006) already hold it, and `GET /v1/me/hours` returns it per row. A note typed on an open suggestion is saved with that line's approval (the entry is written `approved` with the suggested minutes and the note); a note on an approved line is an edit of that entry. A frozen day's notes are read-only (409 `period_frozen`).
+- The note reaches the biz owner's Team view and the download's `note` column (6.2) once the line is approved, as any entry note does.
 
 ```
  Hours                                   Week 41  < >
@@ -293,19 +316,31 @@ Set by a holder of `tenant.settings` (biz owner, admin) through the existing ten
  Week  31:05 suggested · 18:20 approved     [Approve week · 2 open]
 ```
 
-- **Common case, desktop**: open Hours -> **Approve 2 days** in the banner (or **Approve week**): 2 clicks.
-- **Common case, phone**: tap Hours in the rail -> **Approve 2 days**: 2 taps from the rail (Back taps to reach the rail are not counted). Day cards stack newest first; **Approve week** is the sticky bottom button.
+- **Common case, desktop**: in the calendar, click a day's **Working hours** line -> **Approve 2 days** in the banner (or **Approve day** / **Approve week**): 2 clicks.
+- **Common case, phone**: in the calendar, tap a day's **Working hours** line -> **Approve 2 days**: 2 taps from the calendar view. **Approve week** is the sticky bottom button of the sheet.
 - A row's number opens the stepper in place; the row's name opens the "why" sheet (its blocks, `09:12-10:40`, 1.7).
 - Frozen days carry a lock and no buttons; an approved period says "Final"; a returned one shows the biz owner's note and **Resubmit**.
 - No horizontal scroll on the phone (the 106 rule); controls 44..48 px.
 
 ### 5.3 Add a row
 
-`+ Add` under a day: a target picker (recent topics, issues, channels first; search) and a minutes stepper (default 0:30). Two taps plus the pick. In-app time is measured; off-app time is added, extended or timed with the header timer (1.5, owner Q7 = B). The picker is one component (`HoursTargetPicker.vue`), shared by `+ Add` and the timer.
+`+ Add` in the day's Working hours dialog: a target picker (recent topics, issues, channels first; search) and a minutes stepper (default 0:30). Two taps plus the pick. In-app time is measured; off-app time is added, extended or timed with the header timer (1.5, owner Q7 = B). The picker is one component (`HoursTargetPicker.vue`), shared by `+ Add` and the timer.
 
-### 5.4 Team (holders of `hours.read`)
+### 5.4 The calendar's right side: hours tabs (owner R11)
 
-Members x days of the period, approved minutes per cell, totals per row and column, a per-target breakdown on tap. Each member row shows its period state (open / frozen / returned / final) and, for a holder of `hours.approve`, **Approve** and **Return**; the header has **Approve all** and **Return all**. Filters: member, target type, issue. **Download**: CSV or XLSX (6.2). On the phone, one card per member with total and Approve / Return.
+v1.2: the calendar page gets a **right-side panel with tabs for hours** (desktop, > 820 px: a third column after the year strip and the main view, about 320 px, collapsible from its header; its open / closed state is kept in this browser). The per-day entry stays the day's Working hours line and dialog (5.1, 5.2); the panel holds the period-wide views:
+
+| tab | who | holds | task |
+|---|---|---|---|
+| **Mine** (default) | every member | the open period's days, newest first: each day's total and state (open mark, approved, frozen lock, Final), the banner "2 days not approved · freezes Wed 00:00 · [Approve 2 days]", **Approve week**, a returned period's note and **Resubmit**; a click on a day opens its Working hours dialog | T011 (read), T013 (approve) |
+| **Team** | `hours.read` | the grid below, Approve / Return for `hours.approve` | T015 |
+| **Download** | `hours.read` | period picker, CSV / XLSX, Final only (6.2) | T015 on T009 |
+
+A member without `hours.read` sees Mine only (no tab strip). The panel loads with the calendar's lazy chunks; its data is `GET /v1/me/hours` (Mine) and `GET /v1/hours` (Team), fetched when the tab shows.
+
+**Phone (<= 820 px, 390 px):** no third column; the phone calendar's header menu (`calphone-menu`) gains **Hours**, which opens the same tabs as a full-height sheet (the 106 sheet pattern, Back / swipe down closes it): Mine, and Team and Download for `hours.read`. No sideways scroll, controls 44..48 px.
+
+**Team (holders of `hours.read`):** members x days of the period, approved minutes per cell, totals per row and column, a per-target breakdown on tap. Each member row shows its period state (open / frozen / returned / final) and, for a holder of `hours.approve`, **Approve** and **Return**; the header has **Approve all** and **Return all**. Filters: member, target type, issue. **Download** (its own tab): CSV or XLSX (6.2). On the phone, one card per member with total and Approve / Return.
 
 ---
 
@@ -345,15 +380,16 @@ Admins and product owners get neither new permission by default (owner Q5); a bi
 | `GET /v1/hours/export?period=&format=csv\|xlsx&final=` | `hours.read` | the download |
 | `PUT /v1/hours/periods` | `hours.approve` | approve or return member periods, a batch (Approve all / Return all) |
 
-Seven routes. Settings go through the existing tenant settings route (098); the badge count rides on the existing view (5.1).
+Seven routes. Settings go through the existing tenant settings route (098); the calendar's Working hours lines read `GET /v1/me/hours` (5.1, v1.2).
 
 ---
 
 ## 7. Calendar (R5): v1 and later
 
-**v1** (reads only; no 089/097/106 file changes):
+**v1** (calendar tables and routes read only):
 - Meetings become suggestions (1.4).
-- An entry with target `cal:<event_id>` shows the event's title in Hours and the download.
+- An entry with target `cal:<event_id>` shows the event's title in the Working hours dialog and the download.
+- **v1.2 (R8, R9)**: the Working hours line on every working day and the dialog's entry type Working hours (5.1, 5.2). These change the 089 / 097 / 106 **WUI files** that draw the day and the dialog (`CalendarMainView`, `CalendarEventDialog`, `CalendarPhone*`), never their tables or routes. This replaces the later hooks C1 and C2.
 
 **Later** (hooks the calendar would need; later tasks for a calendar lane, `tasks.md` "Later"):
 - **C1** an Hours lane in the desktop Day / Week view (089 / 097): approved hours per day, read from `GET /v1/me/hours`.
@@ -395,17 +431,17 @@ An issue's discussion is a topic on `issues.task_id` (`internal/store/issues.go`
 | FR-08 | Raw minutes only through `/v1/me/hours*`; pruned at freeze / 45 days (1.7) | Planned |
 | FR-09 | `hours.read`, `hours.approve`; Team view; CSV and one-sheet XLSX, periods only (6) | Planned |
 | FR-10 | Three tables FORCE RLS; cross-tenant and no-leak test (3.2, 6.1) | Planned |
-| FR-11 | Hours rail item (12th entry) with a badge from the existing view, no always-on client code; banner (5.1) | Planned |
-| FR-12 | Phone: 2 taps from the rail for the common case, no sideways scroll, 44..48 px controls (5.2) | Planned |
+| FR-11 | v1.2: a Working hours line on every working day in the calendar (desktop week, phone Day / Week / Month) with the day's total; a click opens the event dialog of type Working hours, its description the day's discussions as links with a note each; the calendar's right-side hours tabs Mine / Team / Download (a sheet on the phone); no rail entry, no page, no always-on client code; banner (5.1) | Planned |
+| FR-12 | Phone: 2 taps from the calendar view for the common case, no sideways scroll, 44..48 px controls (5.2) | Planned |
 | FR-13 | Meetings suggested (7 v1); issues via their topics (8 v1) | Planned |
 
-**Acceptance** (the live proof task): a seeded member with posts, tab minutes and a meeting on Monday opens Hours at 390 px and at 1440 px and sees Monday prefilled with the fixture's rows; approves the closed days in 2 taps from the rail; today stays open until **Approve so far**; after the freeze (with and without the sweep having run) the week is read-only and its open suggestions are gone; the biz owner returns it with a note, the member resubmits, the biz owner approves; the biz owner's CSV and XLSX hold exactly the approved lines with `period_state = approved`; a second workspace's biz owner reads none of them; a `hours.read` holder never receives a raw minute; `perf-budget.py` stays under 155 KB.
+**Acceptance** (the live proof task): a seeded member with posts, tab minutes and a meeting on Monday opens the calendar at 390 px and at 1440 px, sees a Working hours line with Monday's total, opens it and sees Monday prefilled with the fixture's rows; approves the closed days in 2 taps from the calendar view; today stays open until **Approve so far**; after the freeze (with and without the sweep having run) the week is read-only and its open suggestions are gone; the biz owner returns it with a note, the member resubmits, the biz owner approves; the biz owner's CSV and XLSX hold exactly the approved lines with `period_state = approved`; a second workspace's biz owner reads none of them; a `hours.read` holder never receives a raw minute; `perf-budget.py` stays under 155 KB.
 
 ---
 
 ## 10. Phone and desktop
 
-One page, two layouts at 820 px (043). Desktop: the period as day cards (Mine) and a grid (Team). Phone: the same cards in the mobile stack (level 2), Back returns to the rail; the Team grid becomes one card per member.
+v1.2: the calendar's own two layouts at 820 px. Desktop: the line in the week's all-day row, the Working hours dialog (`CalendarEventDialog`) per day, and the right-side hours panel with Mine / Team / Download (5.4). Phone: the line in the Day / Week / Month lists, the dialog as the phone's entry sheet (`CalendarPhoneSheet`), the hours tabs as a sheet from the calendar menu; the Team grid becomes one card per member.
 
 ---
 
@@ -419,7 +455,8 @@ One page, two layouts at 820 px (043). Desktop: the period as day cards (Mine) a
 - **P1** a reminder pop-up with [Approve N days]; e-mail reminders.
 - XLSX totals row and totals sheet; rounding in the export; free from..to ranges; ODS, PDF or other formats.
 - Cross-workspace totals for a member in several workspaces.
-- Calendar hooks C1..C4, issue hooks I1..I4.
+- Calendar hooks C3, C4 (C1 and C2 are replaced by the v1.2 Working hours line, 7), issue hooks I1..I4.
+- A rail entry or a page for hours (v1.0 design, replaced by R8, R9).
 - Activity outside the hub's write path and the WUI tab (the `spool` CLI, git, an editor).
 - Editing raw minutes (the member edits entries, not signals).
 
@@ -502,6 +539,21 @@ HUM-10, msg `54eda621` (2026-10-08): "accept the suggestions from the panel , ex
 
 - **Q7 = B**: a start/stop timer in the app header, built as T019 (1.5, 5.3; `POST /v1/me/hours/timer`).
 
+### 13.2 The owner's design change (v1.2)
+
+HUM-10, t1 `a28dc5c9`, 2026-10-08, msgs `57d94c2a`, `37805fdf`, `8ab9bf08` and `5134bd6b` (R8..R11, verbatim in section 0): the member UI moves into the calendar, the dialog's description lists the day's discussions with a note each, and the calendar's right side carries the hours tabs. What it changes:
+
+| v1.0 | v1.2 | tasks |
+|---|---|---|
+| Hours rail item (12th entry), `/hours` page | a Working hours line on every working day in the calendar; a click opens the event dialog of type Working hours | T011 rewritten |
+| rail badge `hours_open_days` on the rail's view | dropped: no consumer; the line shows the day's total and open mark from `GET /v1/me/hours` | T010 dropped |
+| Mine tab of the page (cards, approve, stepper, add, why) | the same controls inside the Working hours dialog | T013, T014 |
+| a row's note (edit only) | the description lists the day's discussions as links with their time, each with a note (R10); no hub change | T011 (links), T014 (notes) |
+| Mine / Team tabs of the page, Download button | the calendar's right-side hours panel (R11): Mine, Team (`hours.read`), Download (`hours.read`); on a phone a sheet from the calendar menu | T011 (panel + Mine read), T013, T015 |
+| "no 089 / 097 / 106 file changes" | their WUI files that draw the day and the dialog change; their tables and routes do not | rules in `tasks.md` |
+
+The panel's v1.0 consensus ("rail item + one page is the smallest UI", 12.1) is superseded on this one point by the owner; every other section stands.
+
 ---
 
 ## 14. Version log
@@ -511,5 +563,6 @@ HUM-10, msg `54eda621` (2026-10-08): "accept the suggestions from the panel , ex
 | 0.1 | 2026-10-07 | c-522 (s107-1) | first draft: definition of time worked, signals measured on `aa7523ea`, worker approval, freeze, biz-owner approval, CSV/XLSX, calendar and issue v1/later, owner questions Q1..Q5 |
 | 1.0 | 2026-10-07 | c-522 (s107-1) | fold of reviews s107-2, s107-3, s107-4 (section 12.2); unanimous consensus recorded; owner Q1..Q7; `tasks.md` |
 | 1.1 | 2026-10-08 | c-566 | owner Q7 = B recorded (13.1): the header timer, 1.5, 5.3, 11; task T019 |
+| 1.2 | 2026-10-08 | c-713 | owner R8..R11 (t1 `a28dc5c9`, 13.2): discussion links with a note per line (5.2); the calendar's right-side hours tabs Mine / Team / Download, a sheet on the phone (5.4); no rail entry, no page; a Working hours line on every working day in the calendar opens the event dialog of type Working hours (5, 7, 9, 10, 11); T010 dropped, T011 rewritten, T013..T015 inside the dialog |
 
-<!-- version: 1.1.0 · updated: 2026-10-08 · last-edit: 2026-10-08T17:30:00Z -->
+<!-- version: 1.2.0 · updated: 2026-10-08 · last-edit: 2026-10-08T20:00:00Z -->

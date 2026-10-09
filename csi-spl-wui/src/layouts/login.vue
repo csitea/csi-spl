@@ -100,6 +100,9 @@ watch(kb, async () => {
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
+  /* the containing block of the out-of-flow blog footer */
+  position: relative;
+  --login-foot-h: calc(2.25rem + env(safe-area-inset-bottom, 0px));
 }
 .login-bar {
   position: sticky;
@@ -175,8 +178,8 @@ watch(kb, async () => {
      instead of pinned to the start (left). `safe` keeps it top/left-anchored
      rather than clipped when the content is taller/wider than the body — e.g.
      a phone with the on-screen keyboard open. */
-  justify-content: center;
-  align-items: center;
+  justify-content: safe center;
+  align-items: safe center;
   /* The card sits at the true viewport centre. The bar is in flow and eats
      --top-bar-h off the top, so an equal amount below it keeps the centre on
      the viewport middle (not the middle of the strip under the bar). `safe`
@@ -195,25 +198,25 @@ watch(kb, async () => {
 /* SPL-993: phones. A narrower frame around the card, the keyboard's height
    added below it, and 16 px fields so iOS does not zoom on focus. */
 @media (max-width: 820px) {
-  .login-body { padding-bottom: calc(24px + var(--kb-inset, 0px)); }
+  .login-body { padding-bottom: calc(24px + var(--login-foot-h) + var(--kb-inset, 0px)); }
   .login-body :deep(input),
   .login-body :deep(textarea),
   .login-body :deep(select) { font-size: max(16px, 1rem); }
 }
 @media (max-width: 600px) {
-  .login-body { padding: 12px 12px calc(12px + var(--kb-inset, 0px)); }
+  .login-body { padding: 12px 12px calc(12px + var(--login-foot-h) + var(--kb-inset, 0px)); }
   .login-body :deep(.login-card) { padding: 20px 16px; }
 }
 .login-foot {
-  position: fixed;
+  /* Out of flow, pinned to the frame's bottom edge: in flow it took its
+     height from the centring box and pulled the card up by half of it. The
+     body's bottom padding (--top-bar-h on desktop, --login-foot-h on phones)
+     keeps the card clear of it. */
+  position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  background: var(--color-sidebar);
-  border-top: 1px solid var(--color-border);
-  position: relative;
   z-index: 1;
-  flex-shrink: 0;
   display: flex;
   justify-content: center;
   gap: 16px;

@@ -19,6 +19,12 @@
 #   3. a refusal by something else (another rotation's hold): counted
 #      refused, retried next tick; WD_BOOT_TRIES refusals -> given up, done;
 #      not back in WD_BOOT_BACK_WAIT -> started again
+#   4. sat drill 4 (2026-10-09, n=1): no tmux server after the boot, the pass
+#      creates one, the spawn of m-617 FAILs: tried again next tick, up to
+#      WD_BOOT_TRIES, then reported failed (boot.result). The tmux server, a
+#      daemon, inherited the pass's fd 5 (boot.lock) and held it for good:
+#      every later pass gave up on the lock in silence, boot.q/m-617 kept
+#      try 1. Control: a tmux call that keeps fd 5 -> no retry, no log
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -34,7 +40,17 @@ printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_USER=%s\nSPOOL_BOX_TAG=box1\nSPOOL_DESK_B
 
 # ---- stubs -------------------------------------------------------------------
 printf '#!/usr/bin/env bash\ncat "%s/ps"\n' "$T" > "$T/bin/ps"
-printf '#!/usr/bin/env bash\ncase "$1" in list-panes) cat "%s/tmux/panes" ;; esac\nexit 0\n' "$T" > "$T/bin/tmux"
+# tmux: no server until new-session (no tmux/up), which starts a daemon that
+# keeps every fd it was given, as tmux's server does
+cat > "$T/bin/tmux" <<STUB
+#!/usr/bin/env bash
+case "\$1" in
+  list-panes) cat "$T/tmux/panes" ;;
+  has-session) [[ -e "$T/tmux/up" ]] || exit 1 ;;
+  new-session) touch "$T/tmux/up"; ( setsid sleep 600 < /dev/null > /dev/null 2>&1 & echo "\$!" >> "$T/tmux/daemons" ) ;;
+esac
+exit 0
+STUB
 printf '#!/usr/bin/env bash\necho "send $*" >> "%s/sent"\n' "$T" > "$T/bin/send"
 printf '#!/usr/bin/env bash\ncase "${1:-}" in --norm|--scrub) cat ;; esac\nexit 0\n' > "$T/sit/s3.sh"
 # the restart: the real gate's slot and rotate.hold refusals, then it runs until go.<id>
@@ -42,6 +58,7 @@ cat > "$T/bin/takeover" <<STUB
 #!/usr/bin/env bash
 id="\$ID" T="$T" H="$D/rotate.hold" got=""
 echo "\$id cause=\$CAUSE" >> "\$T/takeovers"
+if [[ -e "\$T/fail.\$id" ]]; then echo "2027-01-15T08:05:00Z x-rs-\$id RS-SPAWN FAIL no mistral session carrying \$id started in %5 within 120s"; exit 1; fi
 first=1 last=4; [[ "\$id" =~ -00[1-4]\$ ]] && first=0 last=0
 mkdir -p "$S/peer"
 for (( n = first; n <= last; n++ )); do
@@ -65,6 +82,7 @@ box() {
   local id
   rm -rf "${S:?}" "${T:?}/proc" "${T:?}/wt" "$T"/takeovers "$T"/refused "$T"/ran "$T"/go.* "$T"/end.*
   mkdir -p "$W" "$T/proc" "$T/wt" "$S/peer"; : > "$T/ps"; : > "$T/tmux/panes"; : > "$S/registry.tsv"
+  touch "$T/tmux/up"; rm -f "$T"/fail.*
   cp "$T/box.env" "$S/box.env"
   printf 'cpu  1 2 3\nbtime %s\nprocesses 1\n' "$BT" > "$T/proc/stat"
   echo "$(( BT - 120 ))" > "$W/last.tick"; touch "$T/fresh"
@@ -184,6 +202,34 @@ grep -q 'c-101 refused (try 2): rotate.hold names c-555' "$D/wd.log" && pass "th
 grep -q 'c-101 given up: not back after 2 tries' "$D/wd.log" && [[ "$(cat "$W/boot.d/c-101" 2>/dev/null)" == "$BT" ]] && pass "WD_BOOT_TRIES=2 used: given up, done (boot.d)" || fail "given up: $(ls "$W/boot.d" 2>/dev/null)"
 grep -q 'BOOT .*: 0 started, 1 refused, 0 queued.*1 in flight' "$D/wd.log" && pass "summary: 1 refused (not started), c-102 in flight" || fail "summary: $(last_sum)"
 rm -f "$D/rotate.hold"; cleanup_stubs
+
+# ---- 4. a failed spawn, after the pass made the tmux server -----------------------
+echo "=== 4. drill 4: tmux server made by the pass, the spawn FAILs -> tried again, then reported"
+# kill_daemons: the stub tmux servers of a case
+kill_daemons() { local p; while read -r p; do kill "$p" 2>/dev/null; done < "$T/tmux/daemons" 2>/dev/null; rm -f "$T/tmux/daemons"; }
+# drill4 [WD_EXTRA [label]]: m-617 ran before the boot, no tmux server, every spawn fails
+drill4() {
+  IDS="m-617"; box; rm -f "$T/tmux/up"; touch "$T/fail.m-617"; wd $(( BT + 60 ))
+  WD_BOOT_TRIES=2 WD_EXTRA="${1:-}" wd $(( BT + 300 )); sleep 0.3
+  [[ -e "$T/tmux/up" ]] && grep -q "session 'main' created" "$D/wd.log" && pass "${2:-}tick 1: the pass made the tmux server" || fail "${2:-}tick 1: no tmux session ($(last_sum))"
+  WD_BOOT_TRIES=2 WD_EXTRA="${1:-}" wd $(( BT + 330 )); sleep 0.3
+  WD_BOOT_TRIES=2 WD_EXTRA="${1:-}" wd $(( BT + 360 ))
+}
+drill4
+[[ "$(started)" == 2 ]] && pass "m-617 started twice (WD_BOOT_TRIES=2)" || fail "m-617 started $(started) time(s), want 2"
+grep -q 'BOOT .* m-617 failed (try 1): .*RS-SPAWN FAIL no mistral session' "$D/wd.log" && grep -q 'm-617: restart started, try 2' "$D/wd.log" \
+  && pass "tick 2: the FAIL read, tried again (try 2)" || fail "tick 2: $(grep m-617 "$D/wd.log" | tail -3)"
+grep -q 'm-617 given up: not back after 2 tries' "$D/wd.log" && [[ "$(cat "$W/boot.result" 2>/dev/null)" == "$BT back=0 failed=1 m-617" ]] \
+  && pass "tick 3: given up, reported (boot.result failed=1 m-617)" || fail "tick 3: boot.result '$(cat "$W/boot.result" 2>/dev/null)'"
+[[ "$(cat "$W/boot.seen" 2>/dev/null)" == "$BT" && ! -e "$W/boot.q/m-617" ]] && pass "boot.seen written, boot.q/m-617 gone" || fail "boot.seen '$(cat "$W/boot.seen" 2>/dev/null)', boot.q: $(cat "$W/boot.q/m-617" 2>/dev/null)"
+kill_daemons
+# control: the tmux call keeps fd 5, as before the fix (fd 7: on sat the loop
+# that ran on holds it already, a tick of this test would wait on it instead)
+drill4 'spl_wd_tmux() { timeout -k 1 5 "$ROTATE_TMUX" "$@" 6>&- 7>&- 8>&- 9>&-; }' "control: "
+[[ "$(started)" == 1 ]] && pass "red: started once, never again (drill 4)" || fail "control started $(started) time(s), want 1"
+[[ "$(awk '{print $3}' "$W/boot.q/m-617" 2>/dev/null)" == 1 ]] && ! grep -q 'm-617 failed (try' "$D/wd.log" \
+  && pass "red: boot.q/m-617 keeps try 1, the pass logs nothing (boot.lock held by the tmux server)" || fail "control: boot.q '$(cat "$W/boot.q/m-617" 2>/dev/null)'"
+kill_daemons
 
 echo
 if (( fails == 0 )); then echo "wd-boot-queue: all passed"; else echo "wd-boot-queue: $fails failed"; fi

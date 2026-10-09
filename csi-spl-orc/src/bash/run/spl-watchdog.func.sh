@@ -250,13 +250,16 @@ spl_wd_log_trim() {
 }
 
 # tmux, bounded: a hung server costs one call 5 s. ROTATE_TMUX replaces it in tests.
+# Fds 5..9 (the watchdog's locks) closed: a call that starts the server (the
+# boot pass's new-session) hands it every open fd for good, and a server that
+# held boot.lock stopped every later boot pass (sat drill 4, 2026-10-09).
 spl_wd_tmux() {
   if [[ -n "${ROTATE_TMUX:-}" ]]; then
-    timeout -k 1 5 "$ROTATE_TMUX" "$@" 6>&- 9>&-
+    timeout -k 1 5 "$ROTATE_TMUX" "$@" 5>&- 6>&- 7>&- 8>&- 9>&-
     return
   fi
   spool_tmux_argv
-  timeout -k 1 5 "${SPOOL_TM[@]}" "$@" 6>&- 9>&-
+  timeout -k 1 5 "${SPOOL_TM[@]}" "$@" 5>&- 6>&- 7>&- 8>&- 9>&-
 }
 
 # "pid ppid etimes comm" for every process. WD_PS_CMD replaces ps in tests.

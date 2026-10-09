@@ -231,24 +231,34 @@ drill4 'spl_wd_tmux() { timeout -k 1 5 "$ROTATE_TMUX" "$@" 6>&- 7>&- 8>&- 9>&-; 
   && pass "red: boot.q/m-617 keeps try 1, the pass logs nothing (boot.lock held by the tmux server)" || fail "control: boot.q '$(cat "$W/boot.q/m-617" 2>/dev/null)'"
 kill_daemons
 
-echo
-echo "=== 5. drill 5: a tmux window exists, but no harness process is running -> not back, retried"
+# ---- 5. a window, no harness process ----------------------------------------------
+echo "=== 5. drill 5: a tmux window exists, but no harness process runs -> not back, retried, given up"
+# window_only <id>...: each restart ends, a window carries the id, only a shell runs in it
+window_only() {
+  local id
+  for id in "$@"; do
+    touch "$T/go.$id"
+    for _ in $(seq 1 100); do [[ -e "$T/end.$id" ]] && break; sleep 0.05; done
+    pid=$(( pid + 2 ))
+    printf '%%%s\t%s\t$1\t%s@box1\tsh\n' "$pid" "$pid" "$id" >> "$T/tmux/panes"
+    printf '%s 1 60 sh\n' "$pid" >> "$T/ps"
+  done
+}
 IDS="m-617"; box; wd $(( BT + 60 ))
-t=$(( BT + 300 ))
-# A tmux window exists, but no harness process is running (just a shell)
-pid=7000
-printf "%%%s\\t%s\\t$1\\tm-617@box1\\tsh\\n" "$pid" "$pid" >> "$T/tmux/panes"
-printf "%s 1 60 sh\\n" "$pid" >> "$T/ps"
-WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd "$t"; t=$(( t + 30 ))
-[[ ! -e "$W/boot.q/m-617" ]] && grep -q "m-617 back: it runs (a window or a process carries it)" "$D/wd.log" && fail "red: m-617 logged back (the defect)"
-[[ -e "$W/boot.q/m-617" ]] && grep -q "m-617: restart started, try 1" "$D/wd.log" && pass "m-617 not back, restart started (try 1)" || fail "m-617 not retried: $(grep m-617 "$D/wd.log" | tail -3)"
-
-# After the fix, the agent is retried and eventually given up
+b="$(started)"; WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd $(( BT + 300 )); settle 1
+[[ "$(new_ids "$b")" == "m-617" ]] && grep -q 'm-617: restart started, try 1' "$D/wd.log" && pass "tick 1: m-617 started (try 1)" || fail "tick 1: started '$(new_ids "$b")'"
+window_only m-617
+WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd $(( BT + 330 ))
+! grep -q 'm-617 back' "$D/wd.log" && [[ -e "$W/boot.q/m-617" ]] && pass "tick 2: a window with only a shell is not back, still in flight" || fail "tick 2: $(grep m-617 "$D/wd.log" | tail -2)"
+b="$(started)"; WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd $(( BT + 400 )); settle 2
+[[ "$(new_ids "$b")" == "m-617" ]] && grep -q 'm-617 not back 100s after try 1' "$D/wd.log" && grep -q 'm-617: restart started, try 2' "$D/wd.log" \
+  && pass "tick 3: not back in WD_BOOT_BACK_WAIT, started again (try 2)" || fail "tick 3: started '$(new_ids "$b")', $(grep m-617 "$D/wd.log" | tail -2)"
+window_only m-617
+WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd $(( BT + 500 ))
+grep -q 'm-617 given up: not back after 2 tries' "$D/wd.log" && [[ "$(cat "$W/boot.result" 2>/dev/null)" == "$BT back=0 failed=1 m-617" ]] \
+  && pass "tick 4: given up, reported (boot.result failed=1 m-617)" || fail "tick 4: boot.result '$(cat "$W/boot.result" 2>/dev/null)', $(grep m-617 "$D/wd.log" | tail -2)"
 cleanup_stubs
-WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd "$t"; t=$(( t + 30 ))
-grep -q "m-617 given up: not back after 2 tries" "$D/wd.log" && pass "m-617 given up after 2 tries" || fail "m-617 not given up: $(grep m-617 "$D/wd.log" | tail -3)"
 
-kill_daemons
 echo
 if (( fails == 0 )); then echo "wd-boot-queue: all passed"; else echo "wd-boot-queue: $fails failed"; fi
 exit $(( fails > 0 ))

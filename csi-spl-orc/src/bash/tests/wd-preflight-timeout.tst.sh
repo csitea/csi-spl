@@ -14,6 +14,7 @@
 #      a new sha drops the old sha's counter; rc 137 is a timeout too
 #   4. a real timeout (./run sleeps past WD_UPD_CHECK_MAX=1) -> rc 124, RETRY
 #   5. a timeout whose output shows a script error is a failure, quarantined
+#      (2026-10-09 a283fa4c2: rc 124 after 'line 431: b: unbound variable')
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -95,6 +96,11 @@ snap "$E" 'echo "s1.sh: line 3: nosuchcmd: command not found"; exit 124'
 pf "$E" >/dev/null
 [[ -f "$W/code/$E.bad" && ! -f "$W/code/$E.slow" ]] && grep -q "FAILED ${E:0:9}: pre-flight: the proof tick from the snapshot failed (rc 124" "$LOG" &&
   pass "5 a timed-out tick that shows a script error is quarantined" || fail "5 err: $(grep "${E:0:9}" "$LOG")"
+U=1212121212121212121212121212121212121212
+snap "$U" 'echo "/x/code/$0/csi-spl-orc/src/bash/run/spl-watchdog.func.sh: line 431: b: unbound variable" >&2; exit 124'
+pf "$U" >/dev/null
+[[ -f "$W/code/$U.bad" && ! -f "$W/code/$U.slow" && "$(cnt "RETRY ${U:0:9}" "$LOG")" == 0 ]] &&
+  pass "5 rc 124 after an 'unbound variable' line (a283fa4c2) is quarantined, never retried" || fail "5 unbound: $(grep "${U:0:9}" "$LOG")"
 
 echo "wd-preflight-timeout: $fails failure(s)"
 [[ $fails -eq 0 ]]

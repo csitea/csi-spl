@@ -8,8 +8,8 @@
 
 set -euo pipefail
 
-# Hardcode the function file path for now
-FUNCTION_FILE="/opt/csi/csi-spl-wt/m-734/csi-spl-orc/src/bash/run/spl-goals-backfill-git.func.sh"
+# The func, resolved from this test's own dir
+FUNCTION_FILE="$(cd "$(dirname "$0")" && pwd)/../run/spl-goals-backfill-git.func.sh"
 
 # Define functions first
 test_fails_fast_if_workspace_unset() {
@@ -24,6 +24,7 @@ test_fails_fast_if_workspace_unset() {
 }
 
 test_builds_batch_with_tags_specs_and_milestones() {
+    # shellcheck source=../run/spl-goals-backfill-git.func.sh
     source "${FUNCTION_FILE}"
 
     local batch_file="$(mktemp)"
@@ -57,6 +58,7 @@ test_syncs_to_the_hub() {
     }
     export -f curl
 
+    # shellcheck source=../run/spl-goals-backfill-git.func.sh
     source "${FUNCTION_FILE}"
 
     local batch_file="$(mktemp)"

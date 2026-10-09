@@ -94,8 +94,12 @@ lines() { grep -c . "$1" 2>/dev/null || true; }
 reset
 "$T/bin/actor" c-901 A 600 >"$T/oA" 2>&1 & pa=$!
 "$T/bin/actor" c-901 B 600 >"$T/oB" 2>&1 & pb=$!
-# the refused one exits; the one that runs holds until it is killed
+# the refused one exits; the one that runs holds until it is killed. The
+# refusal can come before the winner writes ran.c-901 (it still polls for
+# its holder's token): wait for that line, never kill a winner mid-start
+# (gate 10 runs 37793965167, 37975079178: 'rcs=4 ran=')
 wait -n "$pa" "$pb"; rcs=$?
+for _ in $(seq 300); do [[ -s "$T/ran.c-901" ]] && break; sleep 0.1; done
 kill "$pa" "$pb" 2>/dev/null; wait "$pa" 2>/dev/null; wait "$pb" 2>/dev/null
 [[ "$rcs" == 4 && "$(lines "$T/ran.c-901")" == 1 ]] && grep -q 'REFUSED [AB] rc=4: the id lock of c-901 is held by [AB] ' "$T/oA" "$T/oB" &&
   pass "1. two actors on c-901 at once: exactly one runs, the other exits 4" || fail "1. rcs=$rcs ran=$(cat "$T/ran.c-901" 2>/dev/null) $(cat "$T/oA" "$T/oB")"

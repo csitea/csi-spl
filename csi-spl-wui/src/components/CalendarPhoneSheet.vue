@@ -427,7 +427,14 @@ let armed = false
 let lock: '' | 'x' | 'y' = ''
 const sheetStyle = computed(() => {
   const s: Record<string, string> = {}
-  if (lift.value) s.bottom = `${lift.value}px`
+  if (lift.value) {
+    /* the lifted sheet fits above the keyboard: a full-height one (Edit)
+       lifted whole slid its header and title off the top (t1 650cec31) */
+    const room = `calc(100% - ${lift.value}px - env(safe-area-inset-top, 0px))`
+    s.bottom = `${lift.value}px`
+    s.maxHeight = room
+    s.minHeight = `min(50%, ${room})`
+  }
   if (dy.value > 0) s.transform = `translateY(${dy.value}px)`
   return s
 })

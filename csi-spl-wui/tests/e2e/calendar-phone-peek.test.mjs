@@ -26,6 +26,11 @@
 //   second event with a new id and leaves the source as it was
 //   /calendar?event=<id> (a reminder's Open, 089 T006) opens that event's
 //   peek (spec 106 T011)
+//   t1 650cec31: Edit, then a tap on the title with a 300 px keyboard over
+//   the page (the visual viewport shrinks, the layout one does not): the
+//   title stays on screen and focused while it is typed into, deleted from
+//   and the page resized; Save shows the new title. Control: before the fix
+//   the lifted full-height sheet slid its title off the top (top -229).
 //
 // Controls: before T009 there is no [data-test=calpeek], so every check
 // FAILs; in-run, a planted 2000 px scroller in the peek must trip H3, and
@@ -98,10 +103,23 @@ const SEEDED = [
 const DUP_FORM = { mode: 'copy', full: 'true', title: 'Dup source', date: calIsoDay(Date.parse(at('16:00')) + 9 * 3600000), start: '01:00', end: '02:30', allDay: false, zone: 'Asia/Tokyo', location: 'Room 7', reminders: '2 hours', color: 'grape', private: true, description: 'Agenda: copy me' }
 
 /** a fresh page: the theme, level 3, Week, the seeded events */
-async function open(browser, vp, { theme = 'dark', path = '/calendar' } = {}) {
+async function open(browser, vp, { theme = 'dark', path = '/calendar', keyboard = false } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   await p.emulateTimezone('UTC')
+  /* a phone keyboard that overlays the page: window.__keyboard(h) shrinks
+     the visual viewport by h px, the layout viewport keeps its height */
+  if (keyboard) {
+    await p.evaluateOnNewDocument(() => {
+      const vv = new EventTarget()
+      let kb = 0
+      for (const [k, get] of Object.entries({ height: () => window.innerHeight - kb, width: () => window.innerWidth, offsetTop: () => 0, offsetLeft: () => 0, pageTop: () => 0, pageLeft: () => 0, scale: () => 1 })) {
+        Object.defineProperty(vv, k, { get })
+      }
+      Object.defineProperty(window, 'visualViewport', { get: () => vv, configurable: true })
+      window.__keyboard = (h) => { kb = h; vv.dispatchEvent(new Event('resize')) }
+    })
+  }
   await p.evaluateOnNewDocument((s) => {
     try {
       if (sessionStorage.getItem('calpeek-seeded')) return
@@ -362,6 +380,54 @@ try {
   {
     const { p, ctx } = await open(browser, PHONES[1], { path: `/calendar?event=${PLAIN_ID}` })
     ok('?event=<id> (a reminder\'s Open) opens that event\'s peek', await peekShown(p, PLAIN_ID))
+    await ctx.close()
+  }
+
+  /* t1 650cec31: the title of a saved event stays editable with the phone's
+     keyboard up - it never slides off screen or loses focus until Save */
+  {
+    const vp = { width: 390, height: 844 }
+    const { p, ctx } = await open(browser, vp, { keyboard: true })
+    const TITLE = '[data-test=calphone-sheet] [data-test=calphone-sheet-title]'
+    /* the title on screen above the keyboard, the one hit at its centre, focused */
+    const field = (tag) => p.evaluate((sel, tag) => {
+      const el = document.querySelector(sel)
+      if (!el) return { tag, gone: true }
+      const b = el.getBoundingClientRect()
+      const vh = window.visualViewport.height
+      const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
+      return { tag, top: Math.round(b.top), bottom: Math.round(b.bottom), vh, onScreen: b.top >= 0 && b.bottom <= vh, hit: hit === el, focused: document.activeElement === el, value: el.value }
+    }, TITLE, tag)
+    const editable = (f) => !f.gone && f.onScreen && f.hit && f.focused
+    await tap(p, row(PLAIN_ID))
+    await peekShown(p, PLAIN_ID)
+    await tap(p, `${PEEK} [data-test=calpeek-edit]`)
+    await p.waitForSelector('[data-test=calphone-sheet]', { visible: true, timeout: 8000 }).catch(() => null)
+    await sleep(300)
+    await tap(p, TITLE)
+    await p.evaluate(() => window.__keyboard(300))
+    await sleep(200)
+    const up = await field('keyboard up')
+    ok('650cec31: a tap on the title, the keyboard up - the title stays on screen and focused', editable(up), up)
+    await p.keyboard.press('End')
+    await p.keyboard.type(' movedX')
+    const typed = await field('typed')
+    ok('650cec31: typing keeps the title open', editable(typed) && typed.value === 'Lunch movedX', typed)
+    await p.keyboard.press('Backspace')
+    const deleted = await field('deleted')
+    ok('650cec31: deleting keeps the title open', editable(deleted) && deleted.value === 'Lunch moved', deleted)
+    /* the keyboard resizes the page too (a browser that resizes content) */
+    await setPageViewport(p, { ...vp, height: vp.height - 300, hasTouch: true })
+    await p.evaluate(() => window.__keyboard(0))
+    await sleep(300)
+    const resized = await field('page resized')
+    ok('650cec31: a keyboard resize keeps the title open', editable(resized) && resized.value === 'Lunch moved', resized)
+    await tap(p, '[data-test=calphone-sheet-save]')
+    ok('650cec31: Save closes the sheet', await sheetGone(p))
+    await p.waitForFunction((s) => document.querySelector(s)?.textContent?.includes('Lunch moved'), { timeout: 5000 }, row(PLAIN_ID)).catch(() => {})
+    const shown = await p.$eval(row(PLAIN_ID), (el) => el.textContent.trim()).catch(() => '')
+    const stored = (await kept(p, 'Lunch moved')).find((e) => e.id === PLAIN_ID)
+    ok('650cec31: the saved event shows its new title', shown.includes('Lunch moved') && Boolean(stored), { shown, stored: stored?.title })
     await ctx.close()
   }
 } finally {

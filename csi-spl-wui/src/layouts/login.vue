@@ -329,42 +329,4 @@ watch(kb, async () => {
     opacity: 0;
   }
 }
-.login-foot__peers {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.login-foot__peer {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  background: var(--color-surface);
-  border-radius: var(--radius-sm);
-}
-
-.login-foot__peer-id {
-  font-family: monospace;
-  font-size: 0.8rem;
-}
-
-.login-foot__restart {
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}
-
-.login-foot__restart:hover:not(:disabled) {
-  color: var(--color-accent);
-}
-
-.login-foot__restart:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 </style>

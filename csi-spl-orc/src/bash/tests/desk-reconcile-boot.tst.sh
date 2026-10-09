@@ -45,7 +45,8 @@ EOF
 chmod +x "$T/stub/crontab"
 
 svc() {
-  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$R" SPL_ORG_APP="$OA" STUB_CRONTAB="$CT" PATH="$T/stub:$PATH" \
+  env SPOOL_TEST=1 SPOOL_BOX_ENV="$T/no-box.env" \
+    PROJ_PATH="$PROJ_ROOT" APP_PATH="$R" SPL_ORG_APP="$OA" STUB_CRONTAB="$CT" PATH="$T/stub:$PATH" \
     TENANT_ID=t1 DESK_CRON_LOG_DIR="$L" DESK_BOOT_HOST=hub.example.com DESK_MUTE=c-010 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }

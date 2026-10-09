@@ -1,0 +1,87 @@
+# uptime before:  20:55:55 up  1:32, 14 users,  load average: 14.26, 15.96, 46.67
+M0 postgres (PostgreSQL) 16.15 load=13.84 cpus=16 reps=5
+PASS P1 b sees 0 of a docs
+PASS P1 b sees 0 of a items
+PASS P1 b sees its own doc
+PASS P2 grant naming b as owner of a doc (refused 23503: insert or update on table "workspace_doc_share" violates foreign key constraint "workspace_doc_share_doc_fk")
+PASS P2 grant as a from b scope (refused 42501: new row violates row-level security policy for table "workspace_doc_share")
+PASS P3 a cannot share with itself (refused 23514: new row for relation "workspace_doc_share" violates check constraint "workspace_doc_share_not_self")
+PASS P11 b sees the pending grant
+PASS P11 pending grant opens 0 docs
+PASS P11 pending grant opens 0 items
+PASS P11 owner cannot accept for the receiver (refused 23514: workspace_doc_share_revoke_only: grant 00000000-0000-0000-0005-000000000001 may only be revoked, once)
+PASS P11 receiver accepts
+PASS P11 second accept (refused 23514: workspace_doc_share_revoke_only: grant 00000000-0000-0000-0005-000000000001 may only be accepted by its receiver, once)
+PASS P3 b sees shared A1
+PASS P3 b sees A1 items
+PASS P3 b still sees 0 of A2
+PASS P3 b sees the grant row
+PASS P13 read receiver sees 0 pre-share rev entries
+PASS P3 c sees 0 of a
+PASS P3 c sees 0 grants
+PASS P4 b update on read share hits 0 rows
+PASS P4 b delete on read share hits 0 rows
+PASS P4 b re-shares A1 to c (refused 42501: new row violates row-level security policy for table "workspace_doc_share")
+PASS P4 b cannot revoke a grant it received (refused 23514: workspace_doc_share_revoke_only: grant 00000000-0000-0000-0005-000000000001 may only be accepted by its receiver, once)
+PASS P5 access change in place (refused 23514: workspace_doc_share_revoke_only: grant 00000000-0000-0000-0005-000000000001 may only be accepted or revoked, once)
+PASS P5 second revoke (refused 23514: workspace_doc_share_revoke_only: grant 00000000-0000-0000-0005-000000000001 may only be revoked, once)
+PASS P5 b sees 0 of A1 after revoke
+PASS P5 b still sees the revoked grant (audit)
+PASS P6 b edit landed in A1
+PASS P6 b item tagged b in a doc (refused 23503: insert or update on table "workspace_doc_item" violates foreign key constraint "workspace_doc_item_doc_fk")
+PASS P6 edit cannot delete the doc
+PASS P6 edit still sees 0 of A2
+PASS P6 b writes into unshared A2 (refused 42501: new row violates row-level security policy for table "workspace_doc_item")
+PASS P8 receiver forges created_by (refused 23514: workspace_doc_share_edit_cols: doc 00000000-0000-0000-0000-0000000000a1 id, tenant_id, created_by, created_at never change)
+PASS P8 receiver jumps rev (refused 23514: workspace_doc_share_edit_cols: a receiver moves doc 00000000-0000-0000-0000-0000000000a1 rev by +1 only (2 -> 999999))
+PASS P8 receiver re-tags the header to itself (refused 23514: workspace_doc_share_edit_cols: doc 00000000-0000-0000-0000-0000000000a1 id, tenant_id, created_by, created_at never change)
+PASS P8 receiver renames with a +1 bump
+PASS P8 owner cannot rewrite created_at (refused 23514: workspace_doc_share_edit_cols: doc 00000000-0000-0000-0000-0000000000a1 id, tenant_id, created_by, created_at never change)
+PASS P9 receiver forges an owner actor (refused 42501: new row violates row-level security policy for table "workspace_doc_rev_log")
+PASS P9 receiver pre-fills the next rev slot (refused 23514: workspace_doc_rev_log_reached: rev 4 of doc 00000000-0000-0000-0000-0000000000a1 not reached)
+PASS P9 receiver pre-fills a far rev slot (refused 23514: workspace_doc_rev_log_reached: rev 1000000 of doc 00000000-0000-0000-0000-0000000000a1 not reached)
+PASS P9 owner next bump still lands
+PASS P13 edit receiver sees the 3 rev entries since its grant
+PASS P13 edit receiver sees 0 pre-share rev entries
+PASS P10 own list with a live grant shows only own docs
+PASS P10 shared list shows the shared doc
+PASS P14 revoked receiver bump hits 0 rows
+PASS P14 revoked receiver item update hits 0 rows
+PASS P14 revoked receiver adds an item (refused 42501: new row violates row-level security policy for table "workspace_doc_item")
+PASS P14 revoked receiver writes the rev log (refused 42501: new row violates row-level security policy for table "workspace_doc_rev_log")
+PASS P12 policy set of the four tables is the pinned one
+PASS P12 fence: a USING (true) policy still shows no scope 0 items
+PASS P7 no tenant sees 0 docs
+PASS P7 no tenant sees 0 grants
+PASS P7 operator sees 3 docs
+PASS P7 operator sees 2 grants
+CONTROL c1-no-force caught (c reads 4 of a items)
+CONTROL c2-no-revoke-filter caught (b reads 3 revoked items)
+CONTROL c3-no-column-trigger caught (b forged created_by and rev of A1)
+CONTROL c4-no-reached-trigger caught (b pre-filled rev 1000000 of A1)
+CONTROL c5-no-actor-check caught (b wrote a rev entry as owner-admin@a)
+CONTROL c6-no-consent caught (b reads 3 items of a pending grant)
+CONTROL c7-no-fence caught (no scope reads 5 items)
+CONTROL c8-extra-policy caught (policy set differs from the pin)
+CONTROL c9-no-history-bound caught (b reads 1 pre-share rev entry)
+CONTROL c10-store-list-no-tenant-filter caught (b own list shows 2 docs, owns 1)
+CONTROL c11-no-revoke-on-edit caught (b added an item after revoke)
+SUMMARY pass=55 controls_caught=11 of 11
+M5 exec_noop_ms=95 load=13.84
+M1 model=a n=6 create_ms=280 alter_fanout_ms=92 relations=16
+M2 model=b n=6 create_ms=710 alter_fanout_ms=122 relations=60 db_bytes=8870935 ws_1_fns_without_search_path=2
+M5 n=6 alter_server_ms model=a 10.4 model=b 32.4 (12 statements)
+M3 model=c n=6 create_ms=2838 alter_fanout_ms=635 db_bytes=47818890
+M3 model=c n=6 one_conn_per_db connected=6 refused=0 max_connections=25
+M1 model=a n=100 create_ms=196 alter_fanout_ms=111 relations=16
+M2 model=b n=100 create_ms=5511 alter_fanout_ms=345 relations=1000 db_bytes=24869911 ws_1_fns_without_search_path=2
+M5 n=100 alter_server_ms model=a 4.1 model=b 245.9 (200 statements)
+M3 model=c n=100 create_ms=40669 alter_fanout_ms=11508 db_bytes=796989692
+M3 model=c n=100 one_conn_per_db connected=22 refused=78 max_connections=25
+M4 model=a items=111100 policy=with-share query=own rows=1111 median_ms=1.077 scan="Bitmap Heap Scan on workspace_doc_item"
+M4 model=a items=111100 policy=with-share query=shared rows=1111 median_ms=1.118 scan="Bitmap Heap Scan on workspace_doc_item"
+M4 model=a items=111100 policy=with-share query=list rows=6 median_ms=0.241 scan="Seq Scan on workspace_doc"
+M4 model=a items=111100 policy=without-share query=own rows=1111 median_ms=0.951 scan="Bitmap Heap Scan on workspace_doc_item"
+M4 model=a items=111100 policy=without-share query=shared rows=0 median_ms=0.584 scan="Bitmap Heap Scan on workspace_doc_item"
+M4 model=a items=111100 policy=without-share query=list rows=1 median_ms=0.169 scan="Seq Scan on workspace_doc"
+# uptime after:  20:58:20 up  1:35, 14 users,  load average: 12.73, 14.86, 41.82

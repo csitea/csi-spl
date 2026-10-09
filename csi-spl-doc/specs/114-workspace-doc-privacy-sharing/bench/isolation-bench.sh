@@ -46,9 +46,35 @@ pg -U postgres -c 'CREATE ROLE spl_owner LOGIN'
 mkdb proof
 pg -U spl_owner -d proof -c "INSERT INTO tenants VALUES ('a'), ('b'), ('c')"
 pg -U spl_owner -d proof -f /b/0157_workspace_docs.sql -f /b/share-grant.sql
-pg -U spl_owner -d proof -f /b/share-proof.sql 2>&1 | sed -n 's/^.*NOTICE:  //p'
-pg -U postgres -d proof -t -A -v control=c1 -f /b/share-control.sql | grep CONTROL
-pg -U spl_owner -d proof -t -A -v control=c2 -f /b/share-control.sql | grep CONTROL
+proof=$(pg -U spl_owner -d proof -f /b/share-proof.sql 2>&1 | sed -n 's/^.*NOTICE:  //p; /ERROR/p')
+echo "$proof"
+controls=$(pg -U postgres -d proof -t -A -v control=c1 -f /b/share-control.sql | grep CONTROL)$'\n'
+for c in c2 c3 c4 c5 c6 c7 c8 c9 c10 c11; do
+  controls+=$(pg -U spl_owner -d proof -t -A -v control="$c" -f /b/share-control.sql 2>&1 | grep -E 'CONTROL|ERROR' || echo "CONTROL $c MISSED (no output)")$'\n'
+done
+printf '%s' "$controls"
+echo "SUMMARY pass=$(grep -c '^PASS' <<< "$proof") controls_caught=$(grep -c 'caught' <<< "$controls") of 11"
+
+# M5: the ALTER fan-out timed INSIDE Postgres (clock_timestamp, a COMMIT per
+# statement as a migration run does), so the docker exec + psql start every
+# pg() call pays is not in it (c-715 #1). exec_noop = that client cost alone.
+noop=$(for _ in $(seq 1 "$reps"); do s=$(now_ms); pg -U postgres -c 'SELECT 1' >/dev/null; echo $(( $(now_ms) - s )); done | median)
+echo "M5 exec_noop_ms=$noop load=$(cut -d' ' -f1 /proc/loadavg)"
+srv_alter() {
+  pg -U spl_owner -d "$1" -t -A 2>&1 <<SQL | sed -n 's/^.*NOTICE:  ms=//p'
+CREATE PROCEDURE pg_temp.bench_alter(nsch int) LANGUAGE plpgsql AS \$p\$
+DECLARE t0 timestamptz := clock_timestamp(); tbl text;
+BEGIN
+  FOR i IN 1..greatest(nsch, 1) LOOP
+    tbl := CASE WHEN nsch = 0 THEN 'workspace_doc' ELSE format('ws_%s.workspace_doc', i) END;
+    EXECUTE format('ALTER TABLE %s ADD COLUMN bench_x text', tbl); COMMIT;
+    EXECUTE format('ALTER TABLE %s DROP COLUMN bench_x', tbl); COMMIT;
+  END LOOP;
+  RAISE NOTICE 'ms=%', round(extract(epoch FROM clock_timestamp() - t0)::numeric * 1000, 1);
+END \$p\$;
+CALL pg_temp.bench_alter($2);
+SQL
+}
 
 for n in "${ns[@]}"; do
   # --- M1 model (a): one set of tables, n tenant rows ----------------------
@@ -80,7 +106,13 @@ for n in "${ns[@]}"; do
     s=$(now_ms); pg -U spl_owner -d "b$n" -f /b/b-alter.sql; echo $(( $(now_ms) - s ))
   done | median)
   rel=$(pg -U spl_owner -d "b$n" -t -A -c "SELECT count(*) FROM pg_class c JOIN pg_namespace s ON s.oid = c.relnamespace WHERE s.nspname LIKE 'ws\_%'")
-  echo "M2 model=b n=$n create_ms=$((t1 - t0)) alter_fanout_ms=$alter relations=$rel db_bytes=$(pg -U postgres -t -A -c "SELECT pg_database_size('b$n')")"
+  # the search_path trap (c-715 #3): 0157's trigger functions copied into a
+  # schema carry no SET search_path, so they resolve tables via the caller's.
+  unpinned=$(pg -U spl_owner -d "b$n" -t -A -c "SELECT count(*) FROM pg_proc WHERE pronamespace = 'ws_1'::regnamespace AND proconfig IS NULL")
+  echo "M2 model=b n=$n create_ms=$((t1 - t0)) alter_fanout_ms=$alter relations=$rel db_bytes=$(pg -U postgres -t -A -c "SELECT pg_database_size('b$n')") ws_1_fns_without_search_path=$unpinned"
+  srva=$(for _ in $(seq 1 "$reps"); do srv_alter "a$n" 0; done | median)
+  srvb=$(for _ in $(seq 1 "$reps"); do srv_alter "b$n" "$n"; done | median)
+  echo "M5 n=$n alter_server_ms model=a $srva model=b $srvb ($((2 * n)) statements)"
 
   # --- M3 model (c): a database per workspace ------------------------------
   t0=$(now_ms)
@@ -129,8 +161,8 @@ INSERT INTO workspace_doc_item (id, tenant_id, doc_id, parent_id, ord, title)
     SELECT md5(tenant_id || '/' || a || '.' || b || '.' || c)::uuid, tenant_id, md5(tenant_id || '/doc')::uuid,
            md5(tenant_id || '/' || a || '.' || b)::uuid, c, 'l3'
       FROM tenants, generate_series(1, 10) a, generate_series(1, 10) b, generate_series(1, 10) c;
-INSERT INTO workspace_doc_share (tenant_id, doc_id, to_tenant, access, granted_by)
-    SELECT 'w' || g, md5('w' || g || '/doc')::uuid, 'w1', 'read', 'bench' FROM generate_series(2, 6) g;
+INSERT INTO workspace_doc_share (tenant_id, doc_id, to_tenant, access, granted_by, accepted_at, accepted_by)
+    SELECT 'w' || g, md5('w' || g || '/doc')::uuid, 'w1', 'read', 'bench', now(), 'bench' FROM generate_series(2, 6) g;
 COMMIT;
 ANALYZE workspace_doc;
 ANALYZE workspace_doc_item;

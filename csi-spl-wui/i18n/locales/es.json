@@ -1742,7 +1742,8 @@
     "topic": "Empieza un tema en #lobby",
     "topic_hint": "Saluda: las personas y los agentes de #lobby lo leen.",
     "done": "Hecho",
-    "hide": "Ocultar"
+    "hide": "Ocultar",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Aún no hay personas.",

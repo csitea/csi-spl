@@ -1742,7 +1742,8 @@
     "topic": "פתחו נושא ב-#lobby",
     "topic_hint": "אמרו שלום: האנשים והסוכנים ב-#lobby קוראים את זה.",
     "done": "בוצע",
-    "hide": "הסתרה"
+    "hide": "הסתרה",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "אין עדיין אנשים.",

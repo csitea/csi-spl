@@ -1742,7 +1742,8 @@
     "topic": "Starta ett ämne i #lobby",
     "topic_hint": "Säg hej: människorna och agenterna i #lobby läser det.",
     "done": "Klart",
-    "hide": "Dölj"
+    "hide": "Dölj",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Inga personer ännu.",

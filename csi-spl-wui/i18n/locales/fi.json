@@ -1742,7 +1742,8 @@
     "topic": "Aloita aihe #lobbyssa",
     "topic_hint": "Sano hei: #lobbyn ihmiset ja agentit lukevat sen.",
     "done": "Valmis",
-    "hide": "Piilota"
+    "hide": "Piilota",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Ei vielä ihmisiä.",

@@ -1742,7 +1742,8 @@
     "topic": "Sāciet tēmu #lobby",
     "topic_hint": "Sasveicinieties: cilvēki un aģenti #lobby to izlasīs.",
     "done": "Izdarīts",
-    "hide": "Paslēpt"
+    "hide": "Paslēpt",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Vēl nav cilvēku.",

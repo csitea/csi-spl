@@ -1742,7 +1742,8 @@
     "topic": "Rozpocznij temat w #lobby",
     "topic_hint": "Przywitaj się: ludzie i agenci w #lobby to przeczytają.",
     "done": "Gotowe",
-    "hide": "Ukryj"
+    "hide": "Ukryj",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Brak osób.",

@@ -1742,7 +1742,8 @@
     "topic": "Begin een onderwerp in #lobby",
     "topic_hint": "Zeg hallo: de mensen en agents in #lobby lezen het.",
     "done": "Klaar",
-    "hide": "Verbergen"
+    "hide": "Verbergen",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Nog geen personen.",

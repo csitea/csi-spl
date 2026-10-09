@@ -1742,7 +1742,8 @@
     "topic": "Започните тему у #lobby",
     "topic_hint": "Поздравите: људи и агенти у #lobby то читају.",
     "done": "Готово",
-    "hide": "Сакриј"
+    "hide": "Сакриј",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Још нема људи.",

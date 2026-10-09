@@ -1742,7 +1742,8 @@
     "topic": "Alusta teemat #lobby's",
     "topic_hint": "Ütle tere: #lobby inimesed ja agendid loevad seda.",
     "done": "Tehtud",
-    "hide": "Peida"
+    "hide": "Peida",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Inimesi veel pole.",

@@ -1742,7 +1742,8 @@
     "topic": "Start a topic in #lobby",
     "topic_hint": "Say hello: the people and agents in #lobby read it.",
     "done": "Done",
-    "hide": "Hide"
+    "hide": "Hide",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "No people yet.",

@@ -18,9 +18,14 @@
 # arg 4 (a readable file), lifetime/session.json .brief, lifetime/brief.md,
 # the spec 102 handoff.md (its "## 2. brief" path, else the handoff itself);
 # the kick is restore-claude.sh's own (restore-core _rs_kick: re-read the
-# brief, the inbox, continue). No brief on disk: no prompt is invented, the
-# seat resumes bare and is reported to the orchestrator (RESTORE_REPORT_SEND
-# overrides the sender; with RESTORE_PRINT=1 nothing is sent unless it is set).
+# brief, the inbox, continue), and a seat ALWAYS gets it, as a claude restore
+# does: a vibe --continue / --resume with no prompt waits at an empty prompt
+# for good (a box reboot, 2026-10-09 16:23Z: m-630, spawned before lifetime/brief.md
+# existed, came back bare and idle). The spawn seed lifetime/prompt.txt ("task
+# brief at <path>") is one more source, after lifetime/brief.md. No brief file
+# on disk: the kick points at the session's first message (the seed) and the
+# seat is reported to the orchestrator (RESTORE_REPORT_SEND overrides the
+# sender; with RESTORE_PRINT=1 nothing is sent unless it is set).
 # An arg 4 that is not a file is still a literal kick.
 #
 # Usage: restore-mistral.sh <TITLE> <RUNDIR> [SESSION_ID|-] [BRIEF_FILE|KICK_PROMPT]
@@ -59,6 +64,8 @@ _rs_mistral_brief() {  # ID ARG4
   b="$(jq -r '.brief // empty' "$lt/session.json" 2>/dev/null || true)"
   if [ -n "$b" ] && [ -r "$b" ]; then echo "$b"; return 0; fi
   if [ -s "$lt/brief.md" ]; then echo "$lt/brief.md"; return 0; fi
+  b="$(grep -oE 'task brief at [^[:space:]]+' "$lt/prompt.txt" 2>/dev/null | sed -n '1{s/^task brief at //;s/[.,;:]$//;p}')"
+  if [ -n "$b" ] && [ -r "$b" ]; then echo "$b"; return 0; fi
   [ -s "$ho" ] || return 0
   sec="$(awk '/^## /{on = ($0 == "## 2. brief"); next} on' "$ho" | sed '/^[[:space:]]*$/d')"
   [ -n "$sec" ] && [ "$sec" != "(none)" ] || return 0
@@ -67,7 +74,7 @@ _rs_mistral_brief() {  # ID ARG4
 }
 
 _rs_mistral_nobrief() {  # ID RUNDIR
-  local msg="NO-BRIEF $1: restored with no prompt, no brief on disk (arg 4, $SPOOL_ROOT/$1/lifetime/session.json .brief, lifetime/brief.md, handoff.md section 2). It waits at an empty prompt in $2: send it its task."
+  local msg="NO-BRIEF $1: restored with the generic restore kick only, no brief on disk (arg 4, $SPOOL_ROOT/$1/lifetime/session.json .brief, lifetime/brief.md, lifetime/prompt.txt, handoff.md section 2). It is told to re-read its session's first message in $2: check that it continues, else send it its task."
   echo "$msg" >&2
   [ "${RESTORE_PRINT:-0}" = 1 ] && [ -z "${RESTORE_REPORT_SEND:-}" ] && return 0
   ${RESTORE_REPORT_SEND:-bash "$_rs_here/spool-send.sh"} --from "$1" --to orchestrator --kind blocker \
@@ -77,7 +84,9 @@ _rs_mistral_nobrief() {  # ID RUNDIR
 SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
 if spool_valid_id "${1:-}" 2>/dev/null && [ -d "${2:-}" ] && { [ -z "${4:-}" ] || [ -f "${4:-}" ]; }; then
   _rs_brief="$(_rs_mistral_brief "$1" "${4:-}")"
-  if [ -n "$_rs_brief" ]; then RESTORE_KICK_MODE=brief; else _rs_mistral_nobrief "$1" "$2"; fi
+  RESTORE_KICK_MODE=brief
+  RESTORE_NOBRIEF_CLAUSE="Your task brief is the first message of this session (your spawn seed): re-read it to reload the full scope. "
+  [ -n "$_rs_brief" ] || _rs_mistral_nobrief "$1" "$2"
   restore_main "$1" "$2" "${3:-}" "$_rs_brief"
 else
   restore_main "$@"

@@ -14,6 +14,10 @@
 #      task back - the kick re-points at its brief, found as arg 4 (the
 #      action's <id>/brief.md), lifetime/session.json .brief, lifetime/brief.md
 #      or handoff.md section 2; no brief on disk = no prompt, a NO-BRIEF report
+#   10 (c-709, a box reboot 2026-10-09: m-630 came back bare and idle): no brief
+#      on disk still gets the restore kick - it points at the session's first
+#      message - plus the NO-BRIEF report; a claude restore's kick is unchanged
+#   11 the spawn seed lifetime/prompt.txt names the brief ("task brief at <path>")
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -93,9 +97,13 @@ has "9. ... a gone brief path: the handoff itself" "Re-read your task brief at $
 
 printf '# handoff m-910\n\n## 2. brief\n\n(none)\n\n## 3. done\n' > "$SPOOL_ROOT/m-910/handoff.md"
 out="$(rr m-910)"
-hasnt "10. no brief on disk: no prompt is invented" "SESSION RESTORED" "$out"
-has "10. ... the seat still resumes" "--max-price 3.50 --continue" "$out"
-has "10. ... and it is reported" "NO-BRIEF m-910: restored with no prompt" "$out"
+has "10. no brief on disk: the seat still gets the restore kick (a bare --continue idles for good)" "--max-price 3.50 --continue \"Read and follow your restore note: $SPOOL_ROOT/m-910/lifetime/kick.txt\"" "$out"
+has "10. ... the restore kick itself" "SESSION RESTORED" "$out"
+has "10. ... pointing at the session's first message" "Your task brief is the first message of this session (your spawn seed)" "$out"
+has "10. ... and it is reported" "NO-BRIEF m-910: restored with the generic restore kick only" "$out"
+cout="$(env RESTORE_PRINT=1 CLAUDE_BIN=claude bash "$T_SCRIPTS/restore-claude.sh" c-910 "$T_TMP/wt910" s-910 2>&1)"
+has "10. control: a claude restore with no brief still gets its kick" "SESSION RESTORED" "$cout"
+hasnt "10. control: ... without the vibe seed sentence" "first message of this session" "$cout"
 printf '#!/usr/bin/env bash\nprintf "%%s " "$@" > "%s"\n' "$T_TMP/sent" > "$T_TMP/send.sh"
 env RESTORE_REPORT_SEND="bash $T_TMP/send.sh" RESTORE_PRINT=1 MISTRAL_BIN=vibe SPOOL_MISTRAL_MAX_PRICE=3.50 \
   bash "$T_SCRIPTS/restore-mistral.sh" m-910 "$T_TMP/wt910" - >/dev/null 2>&1
@@ -103,5 +111,13 @@ has "10. ... to the orchestrator, as a blocker" "--from m-910 --to orchestrator 
 has "10. control: a literal (non-file) arg 4 is still the kick" "--continue \"Read and follow your restore note: $SPOOL_ROOT/m-910/lifetime/kick.txt\"
 KICK-BEGIN $SPOOL_ROOT/m-910/lifetime/kick.txt
 go on" "$(rr m-910 - 'go on')"
+
+P="$T_TMP/brief-910-seed.md"; echo "# Brief: from the seed" > "$P"
+printf 'As your VERY FIRST action, rename. Then read your full task brief at %s and implement it.\n' "$P" > "$L/prompt.txt"
+out="$(rr m-910)"
+has "11. the spawn seed lifetime/prompt.txt names the brief" "Re-read your task brief at $P to reload" "$out"
+hasnt "11. ... so it is no NO-BRIEF seat" "NO-BRIEF" "$out"
+echo "# Brief: lifetime" > "$L/brief.md"
+has "11. control: lifetime/brief.md still comes first" "Re-read your task brief at $L/brief.md " "$(rr m-910)"
 
 t_done

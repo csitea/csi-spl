@@ -29,6 +29,8 @@
 #   RESTORE_EXEC_PREFIX words before spool-harness and the CLI, as spawn's
 #                       SPAWN_EXEC_PREFIX (mistral: env -u MISTRAL_API_KEY ...)
 #   RESTORE_EXTRA_FLAGS flags after the permission flags (mistral: --max-price N)
+#   RESTORE_NOBRIEF_CLAUSE the brief sentence of a brief-mode kick given no
+#                       brief file (mistral: re-read the session's first message)
 #
 # Usage (every adapter): restore-<kind>.sh <TITLE> <RUNDIR> <SESSION_ID> [BRIEF_FILE|KICK]
 # RESTORE_PRINT=1 prints the command instead of running it.
@@ -48,7 +50,8 @@ _rs_fail() { echo "ERROR: $*" >&2; [ "${RESTORE_PRINT:-0}" = 1 ] && exit 1; exec
 # destructive there.
 _rs_kick() {  # TITLE RUNDIR BRANCH BRIEF
   local title="$1" rundir="$2" branch="$3" brief="$4" gd cd kind=worker clause=""
-  [ -n "$brief" ] && [ -f "$brief" ] && clause="Re-read your task brief at ${brief} to reload the full scope. "
+  if [ -n "$brief" ] && [ -f "$brief" ]; then clause="Re-read your task brief at ${brief} to reload the full scope. "
+  else clause="${RESTORE_NOBRIEF_CLAUSE:-}"; fi
   if agent_is_orc "$title" || [ "${title#ORC}" != "$title" ]; then kind=neutral
   else
     gd="$(git -C "$rundir" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"

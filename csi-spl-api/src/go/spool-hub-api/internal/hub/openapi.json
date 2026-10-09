@@ -877,6 +877,109 @@
         ],
         "type": "object"
       },
+      "TeamHours": {
+        "description": "Every member's approved entries and period states of one workspace period; never a raw minute, a rejected row or a suggestion (spec 1.7). Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §4.3, §4.4, §6.3.",
+        "properties": {
+          "changed": {
+            "description": "PUT /v1/hours/periods only: the rows moved",
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "properties": {
+                "day": {
+                  "format": "date",
+                  "type": "string"
+                },
+                "member_id": {
+                  "type": "string"
+                },
+                "minutes": {
+                  "type": "integer"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "suggested_minutes": {
+                  "type": "integer"
+                },
+                "target": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "members": {
+            "items": {
+              "properties": {
+                "decided_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "decided_by": {
+                  "type": "string"
+                },
+                "member_id": {
+                  "type": "string"
+                },
+                "minutes": {
+                  "description": "approved minutes of the shown entries",
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "period_end": {
+                  "format": "date",
+                  "type": "string"
+                },
+                "period_minutes": {
+                  "description": "the period row's total",
+                  "type": "integer"
+                },
+                "period_start": {
+                  "format": "date",
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "open",
+                    "frozen",
+                    "returned",
+                    "approved"
+                  ],
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "period": {
+            "properties": {
+              "end": {
+                "format": "date",
+                "type": "string"
+              },
+              "freezes_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "start": {
+                "format": "date",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
       "TopicSummary": {
         "description": "One topic (thread) of a list. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.3.",
         "properties": {
@@ -2843,6 +2946,147 @@
         "summary": "Read health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/v1/hours": {
+      "get": {
+        "operationId": "getTeamHours",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "a day of the workspace period; default today in hours.tz",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "one member (HUM-*)",
+            "in": "query",
+            "name": "member",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "one target (t:<task_id>, ch:<name>, dm:<peer>, cal:<event_id>, ws) or a type (t, ch, dm, cal, ws)",
+            "in": "query",
+            "name": "target",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamHours"
+                }
+              }
+            },
+            "description": "OK: the workspace period. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §4.3, §4.4, §6.3."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the team's approved hours (hours.read)",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/v1/hours/periods": {
+      "put": {
+        "operationId": "putTeamHoursPeriods",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Approve or return the frozen period rows covering period; no members = every frozen row (Approve all / Return all). All or none: a named row that is not frozen is 409 period_state. A return needs a note and writes member_activity hours_returned. Unknown fields are 400 bad_json. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §4.3, §4.4, §6.3.",
+                "properties": {
+                  "action": {
+                    "enum": [
+                      "approve",
+                      "return"
+                    ],
+                    "type": "string"
+                  },
+                  "members": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "note": {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "period": {
+                    "description": "a day of the period",
+                    "format": "date",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "period",
+                  "action"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamHours"
+                }
+              }
+            },
+            "description": "OK: the workspace period. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §4.3, §4.4, §6.3."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "period_state: a named row is not frozen"
+          }
+        },
+        "summary": "Approve or return member periods (hours.approve)",
+        "tags": [
+          "hours"
         ]
       }
     },

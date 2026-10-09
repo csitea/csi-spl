@@ -386,6 +386,7 @@ func (s *Server) Handler() http.Handler {
 	s.routeMoves(mux)   // specs/045 + 714c7028
 	s.routePromote(mux) // 8f588edd
 	s.routeMe(mux)      // SPL-1034, spec 096
+	s.routeTeamHours(mux)
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}/reactions", s.handleDeleteReaction)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/reactions", s.reactionPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)

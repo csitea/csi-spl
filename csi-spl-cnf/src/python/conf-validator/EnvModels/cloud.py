@@ -6,7 +6,8 @@
 import re
 from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, root_validator
-from pydantic_yaml import YamlModel
+from pydantic import BaseModel
+from pydantic_yaml import parse_yaml_raw_as, to_yaml_str
 
 # GCP's own project id rule
 GCP_PROJECT_ID = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
@@ -47,7 +48,7 @@ class I18n(BaseModel):
         return values
 
 
-class Env(YamlModel):
+class Env(BaseModel):
     ENV: str
     ORG: str
     APP: str
@@ -83,7 +84,7 @@ class Env(YamlModel):
         return values
 
 
-class CnfModel(YamlModel):
+class CnfModel(BaseModel):
     """The base configuration model
 
     Description:

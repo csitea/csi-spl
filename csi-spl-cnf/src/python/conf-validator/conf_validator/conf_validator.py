@@ -29,8 +29,10 @@ EXIT_INVALID = 1
 EXIT_CANNOT_CHECK = 2
 
 
-@app.command()
-def validate(file: str, env: str):
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def validate(file: str, env: str, ctx: typer.Context):
+    if ctx.args and ctx.args[0] == "all":
+        env = "all"
 
     try:
         model = ModelType[env].value

@@ -94,8 +94,11 @@ plant; sed -i 's/_spl_lane_mix_want agy "kind i18n:/_spl_lane_mix_want claude "k
 run "$T/p"; rc=$?; control "8c language-rule code" "language-rule: do_spl_lane_mix's i18n pick is claude"
 
 # 9. per-kind-main: a per-kind main vendor is altered.
-plant; sed -i 's/| specs_and_docs *| agy *|/| specs_and_docs | mistral |/' "$T/p/$FRAG/20-spawn-an-agent.md"
+plant; sed -i 's/(`specs_and_docs`) *| agy *|/(`specs_and_docs`) | mistral |/' "$T/p/$FRAG/20-spawn-an-agent.md"
 run "$T/p"; rc=$?; control "9 per-kind-main" "per-kind-main: $FRAG/20-spawn-an-agent.md:[0-9]* defines specs_and_docs main as mistral"
+# 9b. the launcher's table sits further down the file (15080ef2e read lines 13..18 only).
+plant; sed -i 's/`LANE_MIX_KIND=i18n` *| agy *|/`LANE_MIX_KIND=i18n` | grok |/' "$T/p/$CMDS/spawn-an-agent.md"
+run "$T/p"; rc=$?; control "9b per-kind-main launcher" "per-kind-main: $CMDS/spawn-an-agent.md:[0-9]* defines i18n main as grok"
 
 # 10. commit-address: a commit by the same name with another address.
 plant; echo x >>"$T/p/x"; git -C "$T/p" add x

@@ -19,7 +19,10 @@
 #                     its pin, and do_spl_lane_mix's secret pick is in the set
 #   5 language-rule   the same for `fleet-pin language-rule-final` pins and
 #                     do_spl_lane_mix's i18n pick
-#   6 commit-address  the address on the repo CLAUDE.md "Commits:" line = the
+#   6 per-kind-main   each per-kind table (found by its "main | backup"
+#                     header, anywhere in the file) in the installed fragment
+#                     and the spawn-an-agent launcher names the spec's main
+#   7 commit-address  the address on the repo CLAUDE.md "Commits:" line = the
 #                     address of every recent commit by that author name
 #   It runs in the pre-push hygiene part (do_check_pre_push) and in the orc
 #   suite (tests/check-fleet-rules-drift.tst.sh). Read-only.
@@ -48,7 +51,7 @@ do_check_fleet_rules_drift() {
     _frd_log "FAIL fleet rules drift: two sources disagree (above); fix the copy that is not the home named in fleet-rules-index.md"
     return 1
   fi
-  _frd_log "OK fleet rules: no drift over 6 pinned facts in $tree${home:+ and the installed copies under $home/.claude}"
+  _frd_log "OK fleet rules: no drift over 7 pinned facts in $tree${home:+ and the installed copies under $home/.claude}"
 }
 
 _frd_log() { if declare -F do_log >/dev/null; then do_log "$*"; else echo "$*"; fi; }
@@ -160,37 +163,48 @@ _frd_language_rule() {  # <tree> <home>
   _frd_pins language-rule language-rule-final 's/.*_spl_lane_mix_want ([a-z]+) "kind i18n:.*/\1/p' "i18n pick" "$1" "$2"
 }
 
+# _frd_kind_rows <file>: "<line> <kind> <main>" per row of the per-kind table,
+# found by its header row (cells "main" and "backup"), wherever it sits
+_frd_kind_rows() {
+  awk '
+    /^\|/ && $0 ~ /\| *main *\|/ && $0 ~ /\| *backup *\|/ { in_t = 1; next }
+    in_t && !/^\|/ { in_t = 0 }
+    in_t && /^\|[-| ]+\|$/ { next }
+    in_t {
+      split($0, c, "|"); kind = ""; main = c[3]; gsub(/ /, "", main)
+      if (match(c[2], /LANE_MIX_KIND=[a-z0-9_]+/)) kind = substr(c[2], RSTART + 14, RLENGTH - 14)
+      else if (match(c[2], /`[a-z0-9_]+`/)) kind = substr(c[2], RSTART + 1, RLENGTH - 2)
+      print NR, (kind == "" ? "?" : kind), main
+    }' "$1"
+}
+
 _frd_per_kind_main() {  # <tree> <home>
-  local t="$1" h="$2" want f ln kind main bad=0 n=0
+  local t="$1" want f ln kind main exp seen bad=0 n=0
   want="specs_and_docs agy
 tests claude
 simple_coding mistral
 complex_coding claude
 i18n agy
 secret claude"
-  
+
   for f in "$t/$_FRD_FRAG/20-spawn-an-agent.md" "$t/$_FRD_CMDS/spawn-an-agent.md"; do
     [[ -f "$f" ]] || { _frd_log "FAIL per-kind-main: $f not found"; bad=1; continue; }
-    for ln in 13 14 15 16 17 18; do
-      line=$(sed -n "${ln}p" "$f")
-      if [[ "$line" =~ \`([a-z_]+)\` ]]; then
-        kind="${BASH_REMATCH[1]}"
-        if [[ "$line" =~ \|[[:space:]]*([a-z]+)[[:space:]]*\| ]]; then
-          main="${BASH_REMATCH[1]}"
-          n=$((n + 1))
-          if ! grep -q "^$kind $main$" <<<"$want"; then
-            _frd_log "FAIL per-kind-main: ${f#"$t"/}:$line defines $kind main as $main, but the spec says $(grep "^$kind " <<<"$want" | cut -d' ' -f2)"
-            bad=1
-          fi
-        fi
+    seen=""
+    while read -r ln kind main; do
+      n=$((n + 1)); seen+="$kind "
+      exp="$(grep "^$kind " <<<"$want" | cut -d' ' -f2)"
+      if [[ -z "$exp" ]]; then
+        _frd_log "FAIL per-kind-main: ${f#"$t"/}:$ln names kind '$kind', the spec has no such kind"; bad=1
+      elif [[ "$main" != "$exp" ]]; then
+        _frd_log "FAIL per-kind-main: ${f#"$t"/}:$ln defines $kind main as $main, but the spec says $exp"; bad=1
       fi
-    done
+    done < <(_frd_kind_rows "$f")
+    while read -r kind _; do
+      [[ " $seen" == *" $kind "* ]] || { _frd_log "FAIL per-kind-main: ${f#"$t"/} has no per-kind table row for $kind"; bad=1; }
+    done <<<"$want"
   done
-  
-  if (( n == 0 )); then
-    _frd_log "FAIL per-kind-main: no per-kind main table found in 20-spawn-an-agent.md or spawn-an-agent.md"
-    bad=1
-  elif (( bad == 0 )); then
+
+  if (( bad == 0 )); then
     _frd_log "OK per-kind-main: $n per-kind main vendors match the spec"
   fi
   return "$bad"

@@ -65,8 +65,8 @@ export function useDocTree() {
     head: (doc: string) => call<DocHead>('GET', `/${enc(doc)}`),
     /** the lazy unit: one node's children ('' = the top level) */
     children: (doc: string, parent = '') => call<DocChildren>('GET', `/${enc(doc)}/children${parent ? '?parent=' + enc(parent) : ''}`),
-    /** print branch: the item and everything under it */
-    subtree: (doc: string, item: string) => call<{ rev: number, items: DocItem[] }>('GET', `/${enc(doc)}/subtree?item=${enc(item)}`),
+    /** the item and everything under it, in document order; no item = the whole document (the doc view, print) */
+    subtree: (doc: string, item = '') => call<{ rev: number, items: DocItem[] }>('GET', `/${enc(doc)}/subtree${item ? '?item=' + enc(item) : ''}`),
     grid: (doc: string, q: string, sort: string, desc: boolean) => {
       const p = new URLSearchParams()
       if (q.trim()) p.set('q', q.trim())

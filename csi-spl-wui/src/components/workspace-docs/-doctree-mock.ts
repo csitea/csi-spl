@@ -91,12 +91,15 @@ function insert(d: Doc, parent: string, ord: number, title: string, body = ''): 
 function seed() {
   if (docs.size) return
   const d = create('Handbook')
-  const a = insert(d, d.root, 0, 'Introduction', 'Why this document exists.')
-  insert(d, a.id, 0, 'Scope')
-  insert(d, a.id, 0, 'Audience')
-  const b = insert(d, d.root, 0, 'Operations')
-  insert(d, b.id, 0, 'Deploy')
-  insert(d, d.root, 0, 'Glossary')
+  const a = insert(d, d.root, 0, 'Introduction', 'Why this document exists: one place for how the team works, read top to bottom or by section.')
+  const sc = insert(d, a.id, 0, 'Scope', 'What the handbook covers and what it leaves to other documents.')
+  insert(d, sc.id, 0, 'In scope', 'Day-to-day operations, releases and the on-call rota.')
+  insert(d, sc.id, 0, 'Out of scope', 'Contracts, pricing and anything a customer signs.')
+  insert(d, a.id, 0, 'Audience', 'Everyone in the workspace; new members start here.')
+  const b = insert(d, d.root, 0, 'Operations', 'How a change goes from a commit to production.')
+  const dep = insert(d, b.id, 0, 'Deploy', 'Every deploy is one command, first to dev and then to prd.')
+  dep.attrs = { src: 'ENV=dev ./run -a do_deploy\nENV=prd ./run -a do_deploy' }
+  insert(d, d.root, 0, 'Glossary', 'The words this handbook uses, in one list.')
 }
 
 /** the structural precondition: 0 = none, else the doc rev the caller read */

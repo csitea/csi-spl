@@ -1,80 +1,135 @@
-<!-- Spec 113 T006: the doc view, an outline numbered 1 / 1.1 / 1.1.1 over
-     one workspace document. Lazy: the top level loads first and each
-     expand loads that one node's children (the hub's lazy unit, spec 6),
-     never the whole document. Every edit is one of the hub's ops (spec 3.3)
-     with the doc rev it read; a 412 sets the session stale and the page shows
-     its reload prompt. The item menu (the ... button or a right-click) adds a
-     sibling / parent / child, moves (indent, outdent, up, down), prints or
-     deletes the branch. -->
+<!-- Spec 113 T006, the doc view, ported from Qto's view-doc (the owner, t1
+     519a4ee9: "needs to look exactly how the qto did - a doc with titles and
+     paragraphs"). One continuous document: per item a heading with its
+     logical number (1 / 1.1 / 1.1.1) and its title, edited in place, the text
+     as a paragraph below it, edited in place, then the optional source block
+     and image (attrs.src, attrs.img_http_path). A '#' permalink per heading,
+     the numbered contents on the right (indented by level, collapsible, a
+     click scrolls), the item menu on the number (a right-click or a tap), a
+     search box filtering the items, and print (contents first, then a page
+     break). One read of the whole document (/subtree with no item); every
+     edit is one of the hub's ops with the doc rev it read, and a 412 sets
+     the session stale (the page shows its reload prompt). -->
 <template>
-  <div class="wsdoc" data-test="ws-doc-view">
+  <div ref="rootEl" class="wsdoc" :class="{ 'wsdoc--toc': tocOpen }" data-test="ws-doc-view">
+    <div ref="barEl" class="wsdoc__bar">
+      <label class="wsdoc__search">
+        <UiIcon name="search" :size="16" />
+        <span class="sr-only">{{ t('ws_doctree.search') }}</span>
+        <input
+          v-model="search"
+          type="search"
+          data-test="ws-doc-search"
+          :placeholder="t('ws_doctree.search_placeholder')"
+          :aria-label="t('ws_doctree.search')"
+        >
+      </label>
+      <button type="button" class="btn ghost wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)">
+        <UiIcon name="file-text" :size="16" /><span>{{ t('ws_doctree.print_doc') }}</span>
+      </button>
+      <button
+        type="button"
+        class="btn ghost wsdoc__tool"
+        data-test="ws-doc-toc-toggle"
+        aria-controls="ws-doc-toc"
+        :aria-expanded="tocOpen ? 'true' : 'false'"
+        @click="toggleToc"
+      >
+        <UiIcon name="menu" :size="16" /><span>{{ t('ws_doctree.toc') }}</span>
+      </button>
+    </div>
+
     <p v-if="state === 'loading'" class="wsdoc__note muted">{{ t('ws_doctree.loading') }}</p>
     <p v-else-if="state === 'failed'" class="wsdoc__note" role="alert">{{ t('ws_doctree.load_failed') }}</p>
-    <template v-else>
-      <div v-if="!rows.length" class="wsdoc__empty" data-test="ws-doc-empty">
-        <p class="muted">{{ t('ws_doctree.empty_doc') }}</p>
-        <button type="button" class="btn" data-test="ws-doc-add-first" :disabled="busy" @click="addFirst">
-          <UiIcon name="plus" :size="16" /><span>{{ t('ws_doctree.add_first') }}</span>
-        </button>
-      </div>
-      <ul v-else class="wsdoc__list" role="tree" :aria-label="t('ws_doctree.view_doc')">
-        <li
-          v-for="row in rows"
-          :key="row.item.id"
-          class="wsdoc__row"
-          role="treeitem"
-          :aria-level="row.depth"
-          :aria-expanded="isLeaf(row.item.id) ? undefined : expanded.has(row.item.id) ? 'true' : 'false'"
-          :style="{ '--wsdoc-depth': row.depth - 1 }"
+    <div v-else-if="!items.length" class="wsdoc__empty" data-test="ws-doc-empty">
+      <p class="muted">{{ t('ws_doctree.empty_doc') }}</p>
+      <button type="button" class="btn" data-test="ws-doc-add-first" :disabled="busy" @click="addFirst">
+        <UiIcon name="plus" :size="16" /><span>{{ t('ws_doctree.add_first') }}</span>
+      </button>
+    </div>
+    <div v-else class="wsdoc__cols">
+      <article class="wsdoc__doc" data-test="ws-doc-doc">
+        <p v-if="!shown.length" class="wsdoc__note muted" data-test="ws-doc-search-none">{{ t('ws_doctree.search_none') }}</p>
+        <section
+          v-for="it in shown"
+          :key="it.id"
+          class="wsdoc__item"
           data-test="ws-doc-row"
-          :data-id="row.item.id"
-          :data-outline="row.item.outline"
-          @contextmenu.prevent="openMenu(row.item, $event.clientX, $event.clientY)"
+          :data-id="it.id"
+          :data-outline="it.outline"
+          :data-depth="it.depth"
         >
-          <button
-            type="button"
-            class="icon-btn wsdoc__toggle"
-            data-test="ws-doc-toggle"
-            :disabled="isLeaf(row.item.id)"
-            :aria-label="expanded.has(row.item.id) ? t('ws_doctree.collapse') : t('ws_doctree.expand')"
-            @click="toggle(row.item.id)"
-          >
-            <UiIcon v-if="!isLeaf(row.item.id)" :name="expanded.has(row.item.id) ? 'chevron-down' : 'chevron-right'" :size="16" />
-            <span v-else class="wsdoc__dot" aria-hidden="true" />
+          <h3 :id="anchor(it.id)" class="wsdoc__h">
+            <a class="wsdoc__perma" :href="'#' + anchor(it.id)" data-test="ws-doc-permalink" :aria-label="t('ws_doctree.permalink')" @click.prevent="goTo(it.id)">#</a>
+            <button
+              type="button"
+              class="wsdoc__num"
+              data-test="ws-doc-num"
+              aria-haspopup="menu"
+              :aria-label="t('ws_doctree.actions') + ' ' + it.outline"
+              @click="openMenuAt(it, $event)"
+              @contextmenu.prevent="openMenu(it, $event.clientX, $event.clientY)"
+            >{{ it.outline }}</button>
+            <textarea
+              class="wsdoc__title"
+              data-test="ws-doc-title"
+              rows="1"
+              maxlength="1000"
+              :value="it.title"
+              :placeholder="t('ws_doctree.untitled')"
+              :aria-label="t('ws_doctree.edit_title') + ' ' + it.outline"
+              @input="grow($event.target as HTMLTextAreaElement)"
+              @keydown.enter.prevent="($event.target as HTMLTextAreaElement).blur()"
+              @keydown.esc.prevent="revert($event.target as HTMLTextAreaElement, it.title)"
+              @blur="commit(it, 'title', ($event.target as HTMLTextAreaElement).value.replace(/\s+/g, ' ').trim())"
+            />
+          </h3>
+          <textarea
+            class="wsdoc__body"
+            data-test="ws-doc-text"
+            rows="1"
+            :value="it.body"
+            :placeholder="t('ws_doctree.body_placeholder')"
+            :aria-label="t('ws_doctree.edit_body') + ' ' + it.outline"
+            @input="grow($event.target as HTMLTextAreaElement)"
+            @keydown.esc.prevent="revert($event.target as HTMLTextAreaElement, it.body)"
+            @blur="commit(it, 'body', ($event.target as HTMLTextAreaElement).value)"
+          />
+          <pre v-if="attr(it, 'src')" class="wsdoc__src" data-test="ws-doc-src"><code>{{ attr(it, 'src') }}</code></pre>
+          <figure v-if="attr(it, 'img_http_path')" class="wsdoc__fig">
+            <figcaption v-if="attr(it, 'img_name')">{{ attr(it, 'img_name') }}</figcaption>
+            <img loading="lazy" :src="attr(it, 'img_http_path')" :alt="attr(it, 'img_name') || it.title">
+          </figure>
+        </section>
+      </article>
+      <nav
+        v-show="tocOpen"
+        id="ws-doc-toc"
+        class="wsdoc__toc"
+        data-test="ws-doc-toc"
+        :aria-label="t('ws_doctree.toc')"
+        :style="{ '--wsdoc-toc-top': tocTop + 'px' }"
+      >
+        <div class="wsdoc__toc-head">
+          <span>{{ t('ws_doctree.toc') }}</span>
+          <button type="button" class="icon-btn" data-test="ws-doc-toc-close" :aria-label="t('ws_doctree.toc_hide')" @click="tocOpen = false">
+            <UiIcon name="chevron-right" :size="16" />
           </button>
-          <span class="wsdoc__num" data-test="ws-doc-num">{{ row.item.outline }}</span>
-          <input
-            v-if="editing === row.item.id"
-            ref="editInput"
-            v-model="draft"
-            class="wsdoc__input"
-            data-test="ws-doc-title-input"
-            :aria-label="t('ws_doctree.edit_title')"
-            @keydown.enter.prevent="commitTitle(row.item)"
-            @keydown.esc.prevent="editing = ''"
-            @blur="commitTitle(row.item)"
+        </div>
+        <ol class="wsdoc__toc-list">
+          <li
+            v-for="it in shown"
+            :key="it.id"
+            :style="{ '--wsdoc-depth': it.depth - 1 }"
+            data-test="ws-doc-toc-item"
+            @contextmenu.prevent="openMenu(it, $event.clientX, $event.clientY)"
           >
-          <button
-            v-else
-            type="button"
-            class="wsdoc__title"
-            data-test="ws-doc-title"
-            :title="t('ws_doctree.edit_title')"
-            @click="startEdit(row.item)"
-          >{{ row.item.title || t('ws_doctree.untitled') }}</button>
-          <button
-            type="button"
-            class="icon-btn wsdoc__more"
-            data-test="ws-doc-menu-btn"
-            :aria-label="t('ws_doctree.actions')"
-            aria-haspopup="menu"
-            @click="openMenuAt(row.item, $event)"
-          >
-            <UiIcon name="more" :size="16" />
-          </button>
-        </li>
-      </ul>
-    </template>
+            <a :href="'#' + anchor(it.id)" @click.prevent="goTo(it.id)"><span class="wsdoc__toc-num">{{ it.outline }}</span> {{ it.title || t('ws_doctree.untitled') }}</a>
+          </li>
+        </ol>
+      </nav>
+    </div>
+
     <UiPointMenu
       :open="Boolean(menu)"
       :x="menu?.x ?? 0"
@@ -105,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import {
@@ -114,73 +169,90 @@ import {
 } from './-doctree-api'
 
 const props = defineProps<{ session: DocSession, root: string }>()
-const emit = defineEmits<{ print: [item: DocItem] }>()
+const emit = defineEmits<{ print: [item: DocItem | null] }>()
 const { t } = useI18n({ useScope: 'global' })
 
-const nodes = reactive(new Map<string, DocItem>())
-/* parent id -> its loaded children, in order; a parent not in here is not loaded */
-const kids = reactive(new Map<string, string[]>())
-const expanded = reactive(new Set<string>())
+/* below this width the contents are a drawer over the document, closed at first */
+const NARROW = 760
+const ANCHOR = 'ws-doc-'
+
+const rootEl = ref<HTMLElement | null>(null)
+const barEl = ref<HTMLElement | null>(null)
+/* on a narrow screen the contents drop down under the sticky bar, wherever the document is scrolled */
+const tocTop = ref(0)
+const items = shallowRef<DocItem[]>([])
 const state = ref<'loading' | 'ready' | 'failed'>('loading')
 const busy = ref(false)
-const editing = ref('')
-const draft = ref('')
-const editInput = ref<HTMLInputElement[] | HTMLInputElement | null>(null)
+const search = ref('')
+const tocOpen = ref(true)
 const menu = ref<{ x: number, y: number, item: DocItem } | null>(null)
 const doomed = ref<DocItem | null>(null)
 
-/** the visible rows: the top level, and under each expanded node its children */
-const rows = computed(() => {
-  const out: { item: DocItem, depth: number }[] = []
-  const walk = (parent: string, depth: number) => {
-    for (const id of kids.get(parent) ?? []) {
-      const item = nodes.get(id)
-      if (!item) continue
-      out.push({ item, depth })
-      if (expanded.has(id)) walk(id, depth + 1)
-    }
+const byId = computed(() => new Map(items.value.map((it) => [it.id, it])))
+/** parent id -> its children in order */
+const byParent = computed(() => {
+  const m = new Map<string, DocItem[]>()
+  for (const it of items.value) {
+    const sib = m.get(it.parent)
+    if (sib) sib.push(it)
+    else m.set(it.parent, [it])
   }
-  walk(props.root, 1)
-  return out
+  for (const sib of m.values()) sib.sort((a, b) => a.ord - b.ord)
+  return m
 })
 
-const isLeaf = (id: string) => kids.has(id) && (kids.get(id)?.length ?? 0) === 0
+/** Qto's search: the items whose title or text holds the words, or whose number starts with them */
+const shown = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return items.value
+  return items.value.filter((it) => it.title.toLowerCase().includes(q) || it.body.toLowerCase().includes(q) || it.outline.startsWith(q))
+})
 
-/** one lazy unit: parent's children (false = it did not load) */
-async function load(parent: string): Promise<boolean> {
+const anchor = (id: string) => ANCHOR + id
+const attr = (it: DocItem, k: string) => {
+  const v = it.attrs?.[k]
+  return typeof v === 'string' ? v : ''
+}
+
+/** the whole document, in document order (false = it did not load) */
+async function load(): Promise<boolean> {
   const s = props.session
-  const r = await s.run(() => s.client.children(s.doc, parent === props.root ? '' : parent))
+  const r = await s.run(() => s.client.subtree(s.doc))
   if (!r) return false
-  for (const it of r.items) nodes.set(it.id, it)
-  kids.set(r.parent, r.items.map((it) => it.id))
+  items.value = r.items
   s.rev.value = r.rev
+  await nextTick()
+  growAll()
   return true
 }
 
-/** after a structural op: the top level and every still-open node, again */
-async function reload() {
-  const open = [props.root, ...rows.value.filter((r) => expanded.has(r.item.id)).map((r) => r.item.id)]
-  kids.clear()
-  for (const id of open) {
-    if (id !== props.root && !nodes.has(id)) continue
-    if (!(await load(id))) expanded.delete(id)
-  }
-  for (const id of [...expanded]) if (!kids.has(id)) expanded.delete(id)
+/* a textarea as tall as its text; field-sizing: content does it where the browser has it */
+const fieldSizing = typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content')
+function grow(el: HTMLTextAreaElement) {
+  if (fieldSizing) return
+  el.style.height = 'auto'
+  el.style.height = el.scrollHeight + 'px'
+}
+function growAll() {
+  if (fieldSizing) return
+  rootEl.value?.querySelectorAll<HTMLTextAreaElement>('.wsdoc__item textarea').forEach(grow)
 }
 
-async function toggle(id: string) {
-  if (expanded.has(id)) {
-    expanded.delete(id)
-    return
-  }
-  expanded.add(id)
-  if (!kids.has(id) && !(await load(id))) expanded.delete(id)
+function revert(el: HTMLTextAreaElement, was: string) {
+  el.value = was
+  grow(el)
+  el.blur()
+}
+
+async function commit(it: DocItem, field: 'title' | 'body', value: string) {
+  if (it[field] === value) return
+  if (await editDocItem(props.session, it, field, value)) items.value = [...items.value]
 }
 
 function shapeOf(it: DocItem): DocShape {
-  const sib = kids.get(it.parent) ?? []
-  const i = sib.indexOf(it.id)
-  return { prev: i > 0 ? nodes.get(sib[i - 1] ?? '') : undefined, parent: nodes.get(it.parent), count: sib.length }
+  const sib = byParent.value.get(it.parent) ?? []
+  const i = sib.findIndex((s) => s.id === it.id)
+  return { prev: i > 0 ? sib[i - 1] : undefined, parent: byId.value.get(it.parent), count: sib.length }
 }
 
 const menuItems = computed(() => {
@@ -199,6 +271,16 @@ function openMenuAt(item: DocItem, e: MouseEvent) {
   openMenu(item, r.left, r.bottom)
 }
 
+/** focus the title of a new item, its text selected (Qto opens a new node for naming) */
+async function editTitle(id: string) {
+  await nextTick()
+  const el = rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${id}"] [data-test=ws-doc-title]`)
+  if (!el) return
+  el.scrollIntoView({ block: 'nearest' })
+  el.focus()
+  el.select()
+}
+
 async function choose(id: string) {
   const it = menu.value?.item
   menu.value = null
@@ -213,12 +295,9 @@ async function choose(id: string) {
   try {
     const r = await runDocOp(props.session, op, it, shapeOf(it), t('ws_doctree.untitled'))
     if (!r) return
-    if (r.expand) expanded.add(r.expand)
-    await reload()
-    if (r.item) {
-      const made = nodes.get(r.item)
-      if (made) startEdit(made)
-    }
+    search.value = ''
+    await load()
+    if (r.item) await editTitle(r.item)
   } finally {
     busy.value = false
   }
@@ -231,9 +310,8 @@ async function addFirst() {
     const r = await s.run(() => s.client.add(s.doc, s.rev.value, '', 'child', t('ws_doctree.untitled')))
     if (!r) return
     s.rev.value = r.rev
-    await reload()
-    const made = nodes.get(r.item)
-    if (made) startEdit(made)
+    await load()
+    await editTitle(r.item)
   } finally {
     busy.value = false
   }
@@ -244,79 +322,230 @@ async function confirmDelete() {
   if (!it) return
   busy.value = true
   try {
-    if (await removeDocItem(props.session, it)) {
-      expanded.delete(it.id)
-      await reload()
-    }
+    if (await removeDocItem(props.session, it)) await load()
   } finally {
     busy.value = false
     doomed.value = null
   }
 }
 
-function startEdit(it: DocItem) {
-  editing.value = it.id
-  draft.value = it.title
-  void nextTick(() => {
-    const el = Array.isArray(editInput.value) ? editInput.value[0] : editInput.value
-    el?.focus()
-    el?.select()
-  })
+function narrow() {
+  return (rootEl.value?.clientWidth ?? 0) < NARROW
 }
 
-async function commitTitle(it: DocItem) {
-  if (editing.value !== it.id) return
-  editing.value = ''
-  await editDocItem(props.session, it, 'title', draft.value.trim())
+function toggleToc() {
+  tocTop.value = Math.max(0, Math.round(barEl.value?.getBoundingClientRect().bottom ?? 0))
+  tocOpen.value = !tocOpen.value
 }
 
+/** a contents link or a permalink: scroll the heading in, the URL carries its anchor */
+function goTo(id: string) {
+  const el = document.getElementById(anchor(id))
+  if (!el) return
+  el.scrollIntoView({ block: 'start' })
+  history.replaceState(history.state, '', '#' + anchor(id))
+  if (narrow()) tocOpen.value = false
+}
+
+let ro: ResizeObserver | null = null
+let lastWidth = 0
 onMounted(async () => {
-  state.value = (await load(props.root)) ? 'ready' : 'failed'
+  tocOpen.value = !narrow()
+  state.value = (await load()) ? 'ready' : 'failed'
+  /* Qto's scrollToHash: a permalink opened from elsewhere lands on its heading */
+  const h = decodeURIComponent(location.hash.slice(1))
+  if (h.startsWith(ANCHOR)) {
+    await nextTick()
+    document.getElementById(h)?.scrollIntoView({ block: 'start' })
+  }
+  if (!fieldSizing && typeof ResizeObserver !== 'undefined' && rootEl.value) {
+    ro = new ResizeObserver(() => {
+      const w = rootEl.value?.clientWidth ?? 0
+      if (w !== lastWidth) {
+        lastWidth = w
+        growAll()
+      }
+    })
+    ro.observe(rootEl.value)
+  }
 })
+onBeforeUnmount(() => ro?.disconnect())
 </script>
 
 <style scoped>
-.wsdoc { padding: 8px 0; }
-.wsdoc__note { padding: 12px 16px; }
-.wsdoc__empty { display: grid; gap: 12px; justify-items: start; padding: 16px; }
-.wsdoc__list { list-style: none; margin: 0; padding: 0; }
-.wsdoc__row {
+.wsdoc { container-type: inline-size; position: relative; }
+.wsdoc__bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+.wsdoc__search {
+  flex: 1 1 14rem;
+  max-width: 28rem;
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: var(--tap, 36px);
-  padding-inline-start: calc(8px + var(--wsdoc-depth, 0) * 24px);
-  padding-inline-end: 8px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-2);
+  color: var(--color-muted);
 }
-.wsdoc__row:hover { background: var(--color-selected); }
-.wsdoc__toggle { flex: none; }
-.wsdoc__toggle:disabled { cursor: default; opacity: 1; }
-.wsdoc__dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--color-muted); }
-.wsdoc__num { flex: none; min-width: 3.5em; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.wsdoc__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+  padding: 4px 0;
+}
+.wsdoc__tool { display: inline-flex; align-items: center; gap: 4px; }
+.wsdoc__note { padding: 12px 16px; }
+.wsdoc__empty { display: grid; gap: 12px; justify-items: start; padding: 16px; }
+
+.wsdoc__cols { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.wsdoc--toc .wsdoc__cols { grid-template-columns: minmax(0, 1fr) minmax(12rem, 27%); }
+
+/* the document: Qto's lft_body, one column of headings and paragraphs */
+.wsdoc__doc { padding: 16px clamp(12px, 6%, 64px) 40vh; min-width: 0; }
+.wsdoc__item { max-width: 52rem; }
+.wsdoc__h {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 1.25rem 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  scroll-margin-top: 4rem;
+}
+.wsdoc__perma {
+  flex: none;
+  width: 1.25rem;
+  margin-inline-start: -1.25rem;
+  padding-top: 4px;
+  color: var(--color-muted);
+  text-decoration: none;
+  text-align: center;
+  opacity: 0;
+}
+.wsdoc__h:hover .wsdoc__perma, .wsdoc__perma:focus-visible { opacity: 1; }
+.wsdoc__num {
+  flex: none;
+  padding: 4px 4px;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: context-menu;
+  border-radius: var(--radius-sm);
+}
+.wsdoc__num:hover { text-decoration: underline; }
+.wsdoc__title, .wsdoc__body {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+}
 .wsdoc__title {
   flex: 1;
-  min-width: 0;
-  text-align: start;
-  background: none;
-  border: 0;
   padding: 4px 6px;
-  color: var(--color-fg);
-  font: inherit;
-  cursor: text;
+  color: var(--color-heading);
+  font-weight: 700;
+  line-height: 1.5;
+}
+.wsdoc__body {
+  margin-top: 2px;
+  padding: 6px 8px;
+  line-height: 1.6;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
-  border-radius: var(--radius-sm);
+  min-height: 2rem;
 }
-.wsdoc__input {
-  flex: 1;
-  min-width: 0;
-  font: inherit;
-  padding: 3px 5px;
-  border: 1px solid var(--color-accent);
+.wsdoc__title:hover, .wsdoc__body:hover, .wsdoc__title:focus, .wsdoc__body:focus { border-color: var(--color-border-strong); }
+.wsdoc__title::placeholder, .wsdoc__body::placeholder { color: var(--color-muted); opacity: 0; }
+.wsdoc__title::placeholder { opacity: 1; }
+.wsdoc__body:hover::placeholder, .wsdoc__body:focus::placeholder { opacity: 1; }
+.wsdoc__src {
+  margin: 6px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-bg);
+  background: var(--color-bg-2);
   color: var(--color-fg);
+  font: 0.875rem/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
-.wsdoc__more { flex: none; opacity: 0.6; }
-.wsdoc__row:hover .wsdoc__more, .wsdoc__more:focus-visible { opacity: 1; }
+.wsdoc__fig { margin: 8px 0 16px; color: var(--color-muted); font-size: 0.8rem; font-weight: 700; }
+.wsdoc__fig img { display: block; max-width: 100%; height: auto; margin-top: 6px; }
+
+/* the contents: Qto's rgt_side_nav, sticky beside the document */
+.wsdoc__toc {
+  position: sticky;
+  top: 3.5rem;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+  margin: 12px 12px 12px 0;
+  padding: 8px 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-2);
+  font-size: 0.875rem;
+}
+.wsdoc__toc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 6px 8px;
+  color: var(--color-muted);
+  font-weight: 700;
+}
+.wsdoc__toc-list { list-style: none; margin: 0; padding: 0; }
+.wsdoc__toc-list li { padding-inline-start: calc(var(--wsdoc-depth, 0) * 0.9rem); }
+.wsdoc__toc-list a {
+  display: block;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.wsdoc__toc-list a:hover { background: var(--color-surface-hover); }
+.wsdoc__toc-num { color: var(--color-accent); font-variant-numeric: tabular-nums; }
+
+@container (max-width: 760px) {
+  .wsdoc--toc .wsdoc__cols { grid-template-columns: minmax(0, 1fr); }
+  .wsdoc__doc { padding-inline: 1.5rem 8px; }
+  .wsdoc__perma { opacity: 0.5; }
+  .wsdoc__toc {
+    position: fixed;
+    top: var(--wsdoc-toc-top, 0px);
+    right: 0;
+    z-index: 30;
+    width: min(20rem, 88vw);
+    max-height: calc(100dvh - var(--wsdoc-toc-top, 0px) - 7rem);
+    margin: 0;
+    border-radius: var(--radius-md);
+    border-width: 0 0 1px 1px;
+    box-shadow: var(--focus-3d);
+  }
+}
 </style>

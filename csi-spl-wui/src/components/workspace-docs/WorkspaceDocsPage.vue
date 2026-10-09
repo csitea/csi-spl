@@ -164,11 +164,11 @@ function afterPrint() {
   printItems.value = []
 }
 
-/** print branch (D-Q2): one subtree read, the browser's print */
-async function printBranch(item: DocItem) {
+/** print (D-Q2): one subtree read (no item = the whole document), the browser's print */
+async function printBranch(item: DocItem | null) {
   const s = session.value
   if (!s) return
-  const r = await s.run(() => client.subtree(s.doc, item.id))
+  const r = await s.run(() => client.subtree(s.doc, item?.id))
   if (!r) return
   printItems.value = r.items
   await nextTick()

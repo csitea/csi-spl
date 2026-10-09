@@ -1742,7 +1742,8 @@
     "topic": "#lobby'de bir konu başlatın",
     "topic_hint": "Merhaba deyin: #lobby'deki kişiler ve ajanlar okur.",
     "done": "Tamam",
-    "hide": "Gizle"
+    "hide": "Gizle",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Henüz kişi yok.",

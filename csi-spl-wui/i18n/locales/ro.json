@@ -1742,7 +1742,8 @@
     "topic": "Începeți un subiect în #lobby",
     "topic_hint": "Salutați: oamenii și agenții din #lobby îl citesc.",
     "done": "Gata",
-    "hide": "Ascunde"
+    "hide": "Ascunde",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Încă nu există persoane.",

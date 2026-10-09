@@ -1742,7 +1742,8 @@
     "topic": "Започнете тема в #lobby",
     "topic_hint": "Кажете здравей: хората и агентите в #lobby го четат.",
     "done": "Готово",
-    "hide": "Скрий"
+    "hide": "Скрий",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Все още няма хора.",

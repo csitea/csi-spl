@@ -6,31 +6,37 @@
      the viewer presses Hide (this browser, per tenant). Loaded lazily by
      pages/index.vue, only for a viewer who may open Tenant settings. -->
 <template>
-  <section v-if="shown" class="first-run" aria-labelledby="first-run-h" data-test="first-run">
-    <header class="first-run__head">
-      <h3 id="first-run-h">{{ t('first_run.title') }}</h3>
+  <section v-if="shown" class="first-run" :class="{ 'first-run--chip': isChip }" aria-labelledby="first-run-h" data-test="first-run">
+    <template v-if="isChip">
+      <h3 id="first-run-h" class="first-run__chip-title">{{ t('first_run.chip') }}</h3>
       <button type="button" class="btn ghost first-run__hide" data-test="first-run-hide" @click="hide">{{ t('first_run.hide') }}</button>
-    </header>
-    <p class="muted first-run__intro">{{ t('first_run.intro') }}</p>
-    <ol class="first-run__steps">
-      <li
-        v-for="(s, i) in steps"
-        :key="s.id"
-        class="first-run__step"
-        :class="{ 'first-run__step--done': s.done }"
-        :data-test="'first-run-step-' + s.id"
-        :data-done="s.done ? 'true' : 'false'"
-      >
-        <span class="first-run__mark" aria-hidden="true">
-          <UiIcon v-if="s.done" name="check" :size="16" />
-          <template v-else>{{ i + 1 }}</template>
-        </span>
-        <span class="first-run__text">
-          <NuxtLink :to="localePath(s.to)" class="first-run__link" :data-test="`first-run-link-${s.id}`">{{ t(`first_run.${s.id}`) }}</NuxtLink>
-          <span class="muted first-run__hint">{{ s.done ? t('first_run.done') : t(`first_run.${s.id}_hint`) }}</span>
-        </span>
-      </li>
-    </ol>
+    </template>
+    <template v-else>
+      <header class="first-run__head">
+        <h3 id="first-run-h">{{ t('first_run.title') }}</h3>
+        <button type="button" class="btn ghost first-run__hide" data-test="first-run-hide" @click="hide">{{ t('first_run.hide') }}</button>
+      </header>
+      <p class="muted first-run__intro">{{ t('first_run.intro') }}</p>
+      <ol class="first-run__steps">
+        <li
+          v-for="(s, i) in steps"
+          :key="s.id"
+          class="first-run__step"
+          :class="{ 'first-run__step--done': s.done }"
+          :data-test="'first-run-step-' + s.id"
+          :data-done="s.done ? 'true' : 'false'"
+        >
+          <span class="first-run__mark" aria-hidden="true">
+            <UiIcon v-if="s.done" name="check" :size="16" />
+            <template v-else>{{ i + 1 }}</template>
+          </span>
+          <span class="first-run__text">
+            <NuxtLink :to="localePath(s.to)" class="first-run__link" :data-test="`first-run-link-${s.id}`">{{ t(`first_run.${s.id}`) }}</NuxtLink>
+            <span class="muted first-run__hint">{{ s.done ? t('first_run.done') : t(`first_run.${s.id}_hint`) }}</span>
+          </span>
+        </li>
+      </ol>
+    </template>
   </section>
 </template>
 
@@ -50,6 +56,7 @@ const hidden = ref(false)
 const loaded = ref(false)
 
 const steps = computed(() => firstRunSteps({ members: members.value, invites: invites.value, roster: roster.value, topics: props.topics }))
+const isChip = computed(() => steps.value.some((s) => s.done))
 const shown = computed(() => loaded.value && firstRunVisible({ canSetUp: true, hidden: hidden.value, steps: steps.value }))
 
 function hide() {
@@ -79,6 +86,18 @@ onMounted(async () => {
   padding: 12px 16px;
   margin: 0 0 12px;
   min-width: 0;
+}
+.first-run--chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  gap: 8px;
+}
+.first-run__chip-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 .first-run__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .first-run__head h3 { margin: 0; font-size: 1rem; }

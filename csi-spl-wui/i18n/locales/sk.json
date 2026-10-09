@@ -1742,7 +1742,8 @@
     "topic": "Začnite tému v #lobby",
     "topic_hint": "Pozdravte: ľudia a agenti v #lobby si to prečítajú.",
     "done": "Hotovo",
-    "hide": "Skryť"
+    "hide": "Skryť",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Zatiaľ žiadni ľudia.",

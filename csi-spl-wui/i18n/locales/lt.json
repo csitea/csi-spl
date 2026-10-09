@@ -1742,7 +1742,8 @@
     "topic": "Pradėkite temą #lobby",
     "topic_hint": "Pasisveikinkite: žmonės ir agentai #lobby tai perskaitys.",
     "done": "Atlikta",
-    "hide": "Slėpti"
+    "hide": "Slėpti",
+    "chip": "Workspace setup in progress"
   },
   "people": {
     "none": "Žmonių dar nėra.",

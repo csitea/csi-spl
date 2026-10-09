@@ -227,7 +227,7 @@ describe('the drop box sits in the top bar where the brand text was', () => {
     const box = vue.slice(vue.indexOf('data-testid="tenant-switcher"'), vue.indexOf('</template>'))
     const field = box.slice(box.indexOf('class="tenant-switcher__field"'))
     assert.match(field, /data-testid="tenant-switcher-box"/)
-    assert.match(field, /@mousedown="onTenantBoxPress"/)
+    assert.match(field, /@click="onTenantBoxPress"/)
     assert.ok(field.indexOf('<input') > 0 && field.indexOf('tenant-switcher-arrow') > field.indexOf('<input'), 'the name (input) then the arrow inside the box')
     const style = vue.slice(vue.indexOf('<style'))
     const rule = style.slice(style.indexOf('.tenant-switcher__field {'), style.indexOf('}', style.indexOf('.tenant-switcher__field {')))

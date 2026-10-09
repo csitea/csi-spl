@@ -23,7 +23,7 @@
         class="tenant-switcher__field"
         data-testid="tenant-switcher-box"
         :style="{ gap: (TENANT_DESKTOP_ARROW_GAP_PX - TENANT_TEXT_PAD_PX) + 'px' }"
-        @mousedown="onTenantBoxPress"
+        @click="onTenantBoxPress"
       >
       <input
         ref="tenantSelectEl"

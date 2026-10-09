@@ -156,7 +156,7 @@ describe('the box follows the line, not the open pane', () => {
   it('a reply into another channel does not ride the DM peer or this feed', () => {
     const live = src('src/stores/channel.ts')
     assert.match(live, /task_id: parentTaskId \|\| newId\(\)/)
-    assert.match(live, /const asDm = !channelId && Boolean\(peer\.value\)/)
+    assert.match(live, /const asDm = !channelId && Boolean\(dmTo\)/)
     assert.match(live, /const showHere = !channelId \|\| channelId === active\.value/)
   })
 

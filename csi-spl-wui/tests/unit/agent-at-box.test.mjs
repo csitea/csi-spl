@@ -103,7 +103,9 @@ describe('specs/058: the same id on two boxes is two agents (CLE-77932)', () => 
 
   it('every live send path hands the box to the socket', () => {
     const channel = src('src/stores/channel.ts')
-    assert.match(channel, /const \[peerId, peerBox\] = String\(peer\.value/)
+    /* spec 117 FR-4: the /dm peer, or the DM topic's other end from /t/<id> */
+    assert.match(channel, /const dmTo = peer\.value \|\| dmPeer \|\| ''/)
+    assert.match(channel, /const \[peerId, peerBox\] = dmTo\.split\('@'\)/)
     assert.match(channel, /const toBox = asDm \? peerBox : parsed\.toBox/)
     assert.match(channel, /if \(frame\.to && toBox\) frame\.to_box = toBox/)
     assert.match(src('src/stores/live.ts'), /to_box: to \? parsed\.toBox : undefined/)

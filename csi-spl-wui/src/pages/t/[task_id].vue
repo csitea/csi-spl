@@ -538,6 +538,25 @@ function paneVisible() {
   return topic.open
 }
 
+/* spec 117 FR-4 (t1 f87e6c9d): this page holds no DM peer, so a reply in a
+   person-to-person DM topic went out with no `to`, and the hub stored it as
+   ALL-0 that only its sender could read. A topic with no channel and exactly
+   one other end sends to that end, as /dm/<peer> does. */
+async function dmPeerOfTopic(id: string): Promise<string> {
+  const me = String(editor.viewerId.value || '')
+  const row = viewer.topics.find((r) => r.task_id === id)
+  if (row) {
+    if (row.channel) return ''
+    const ends = (row.participants || []).filter((p) => {
+      const who = String(p || '').split('@')[0]
+      return Boolean(who) && who !== me && who !== 'ALL-0'
+    })
+    return ends.length === 1 ? String(ends[0]) : ''
+  }
+  const root = await cardOf(id)
+  return root && !root.channel ? dmPeerOf(root, me) : ''
+}
+
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const fresh = startsNewTopic(text)
   const visible = paneVisible()
@@ -556,6 +575,7 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
       files,
       channelId,
       isParentFlag({ paneVisible: visible && !fresh, replyTaskId: target || '' }),
+      target && !channelId && !channel.peer ? await dmPeerOfTopic(target) : undefined,
     )
     if (sent) viewer.topics = bumpTopic(viewer.topics, sent as unknown as Record<string, unknown>) as typeof viewer.topics
   } finally {

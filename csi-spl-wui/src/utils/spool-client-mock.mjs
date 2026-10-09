@@ -69,6 +69,16 @@ export function mockSendMessage(state, p, uuid) {
      (same msg_id) stores nothing new - the mock does the same */
   const dup = msg_id ? state.messages.find((m) => m.msg_id === msg_id) : null
   if (dup) return dup
+  /* spec 117 FR-1: a reply with no channel and no `to` into a topic that has
+     no single other end names nobody to deliver it to, and the hub refuses it
+     (400 dm_needs_to). With one other end the hub re-addresses it; the mock
+     stores it as sent, so a reply the WUI did not address still shows. */
+  const topic = task_id || parent_task_id
+  if (!channel && (!to || to === '@channel') && topic) {
+    const rows = state.messages.filter((m) => m.task_id === topic || m.parent_task_id === topic)
+    const ends = new Set(rows.flatMap((m) => [m.from, m.to]).filter((i) => i && i !== state.me.id && i !== 'ALL-0' && i !== '@channel'))
+    if (rows.length && ends.size !== 1) throw Object.assign(new Error('say who this is for'), { status: 400, token: 'dm_needs_to' })
+  }
   /* spec 068: what the hub's insert stores - <to>@<to_box> for a
      message to one agent; the mock reads a bare peer's box off the roster */
   const seatBox = toBox || Object.keys(state.roster || {}).find((b) => (state.roster[b] || []).includes(to))

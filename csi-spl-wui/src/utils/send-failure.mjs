@@ -24,8 +24,10 @@
 
 /** The rejection's token, when the thrower set one ('closed', 'timeout', …). */
 export function failureToken(err) {
-  if (!err || typeof err !== 'object') return ''
-  const t = /** @type {{ token?: unknown }} */ (err).token
+  /* spec 117: `?.` reads nothing off null or a primitive, so no object test.
+     The initial chunk has no headroom (027): these three helpers are written
+     short to pay for the DM peer channel.send takes (FR-4). */
+  const t = /** @type {{ token?: unknown } | null | undefined} */ (err)?.token
   return typeof t === 'string' ? t : ''
 }
 
@@ -95,9 +97,8 @@ export function sendFailureKey(err) {
  * @returns {{ key: string, params: { retired: string } } | null}
  */
 export function sendFallbackNote(ack) {
-  if (!ack || typeof ack !== 'object') return null
-  const a = /** @type {{ fallback?: unknown, retired?: unknown }} */ (ack)
-  if (a.fallback !== 'topic' || typeof a.retired !== 'string' || !a.retired) return null
+  const a = /** @type {{ fallback?: unknown, retired?: unknown } | null | undefined} */ (ack)
+  if (a?.fallback !== 'topic' || typeof a.retired !== 'string' || !a.retired) return null
   return { key: 'composer.sent_to_topic_retired', params: { retired: a.retired } }
 }
 
@@ -116,9 +117,7 @@ export function sendFallbackNote(ack) {
  * mention as its body and sends, so it never reaches this guard.
  */
 export function isEmptySend(body, files) {
-  const hasText = String(body == null ? '' : body).trim().length > 0
-  const hasFiles = Array.isArray(files) && files.length > 0
-  return !hasText && !hasFiles
+  return !String(body == null ? '' : body).trim() && !(Array.isArray(files) && files.length)
 }
 
 /** The rejection isEmptySend() earns; carries a token like every other one. */

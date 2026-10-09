@@ -389,11 +389,13 @@ export const useChannelStore = defineStore('channel', () => {
     })
   }
 
-  async function send(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number) {
-    if (!api.mock) return sendLive(text, parentTaskId, files, channelId, isParent)
+  /* spec 117 FR-4: `dmPeer` is the other end of a DM topic answered from
+     /t/<task_id>, where the store holds no peer; it is sent as on /dm */
+  async function send(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string) {
+    if (!api.mock) return sendLive(text, parentTaskId, files, channelId, isParent, dmPeer)
     const req = {
       channel: channelId || active.value,
-      peer: channelId ? undefined : (peer.value || undefined),
+      peer: channelId ? undefined : (peer.value || dmPeer || undefined),
       text,
       parent_task_id: parentTaskId,
       is_parent: (isParent === 0 ? 0 : 1) as 0 | 1,
@@ -464,13 +466,14 @@ export const useChannelStore = defineStore('channel', () => {
    * when this page is a DM, and the row stays out of this feed when that
    * channel is not the one on screen.
    */
-  async function sendLive(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number) {
+  async function sendLive(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string) {
     const live = useLive()
     const client = live.ensure()
     if (!client) throw new Error(`live socket unavailable (${api.configError || 'no base'})`)
-    const [peerId, peerBox] = String(peer.value || '').split('@')
+    const dmTo = peer.value || dmPeer || ''
+    const [peerId, peerBox] = dmTo.split('@')
     const parsed = parseMention(text)
-    const asDm = !channelId && Boolean(peer.value)
+    const asDm = !channelId && Boolean(dmTo)
     const parentBit: 0 | 1 = isParent === 0 ? 0 : 1
     const frame: SendFrame = {
       task_id: parentTaskId || newId(),

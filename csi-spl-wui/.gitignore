@@ -12,3 +12,5 @@ i18n/.split/
 src/public/blog-md/
 # HUM-10 public calendar: release tags + feature posts, made at build time (src/node/pubcal/public-calendar-data.mjs)
 src/public/pub-cal/
+# owner HUM-10 e3ce4c34: the public docs copy, made by pnpm run generate (src/node/docs/sync-public-docs.mjs)
+src/public/docs-public/

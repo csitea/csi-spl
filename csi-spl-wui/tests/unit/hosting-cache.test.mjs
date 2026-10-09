@@ -66,8 +66,8 @@ for (const [name, load] of [['render (deploy)', rendered], ['checked-in firebase
     before(() => { doc = load() })
 
     it('every unhashed picture, icon and the manifest in src/public is fresh for an hour, then stale-while-revalidate', () => {
-      /* the help pages (047 W14, /help-md), the blog copy (spec 111, /blog-md), the public calendar's data (HUM-10, /pub-cal) and the static .html pages (049 /privacy, /terms) are text a deploy changes: they revalidate, below */
-      const media = walk(PUBLIC).map((f) => '/' + relative(PUBLIC, f)).filter((p) => !p.endsWith('.js') && !p.endsWith('.html') && !p.startsWith('/help-md/') && !p.startsWith('/blog-md/') && !p.startsWith('/pub-cal/'))
+      /* the help pages (047 W14, /help-md), the blog copy (spec 111, /blog-md), the public calendar's data (HUM-10, /pub-cal), the public docs copy (owner HUM-10 e3ce4c34, /docs-public) and the static .html pages (049 /privacy, /terms) are text a deploy changes: they revalidate, below */
+      const media = walk(PUBLIC).map((f) => '/' + relative(PUBLIC, f)).filter((p) => !p.endsWith('.js') && !p.endsWith('.html') && !p.startsWith('/help-md/') && !p.startsWith('/blog-md/') && !p.startsWith('/pub-cal/') && !p.startsWith('/docs-public/'))
       assert.ok(media.length >= 10, media.join(' '))
       for (const p of media) assert.equal(effective(doc, p), MEDIA, p)
     })

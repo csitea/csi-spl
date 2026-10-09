@@ -5,7 +5,11 @@
      the repo's folders (tree.json); right: the doc, rendered by MarkdownBlock
      in the current theme. /docs/<repo path> is the doc's stable address;
      a relative .md link opens the target doc here. /docs shows README.md.
-     Signed-in members only (signed-out-redirect + the hub's door).
+     Signed-in members read every doc through the hub. Owner HUM-10
+     (e3ce4c34): a signed-out visitor reads the docs marked `public: true`,
+     from the build-time copy (src/node/docs/sync-public-docs.mjs) and never
+     the hub; any other /docs path sends them to /login. This page is that
+     door (signed-out-redirect no longer lists /docs).
      At <= 820 px the tree folds above the doc behind its Folders button.
      t1 c13e8023 (owner): on a desktop the explorer is the left pane and
      the document is the second, each scrolling on its own. The sidebar
@@ -43,6 +47,7 @@
         <nav id="docs-tree" class="docs-tree" :aria-label="t('docs.tree_label')" data-test="docs-tree">
           <!-- spec 104 T006: the API reference, pinned above every other row -->
           <NuxtLink
+            v-if="reader === 'in'"
             :to="route(DOCS_API)"
             class="docs-tree__item docs-tree__file docs-tree__api"
             :class="{ 'docs-tree__file--active': apiPage }"
@@ -54,7 +59,7 @@
           </NuxtLink>
           <!-- t1 199cafc7 (owner could not find Edit / New doc): the workspace
                docs, the editable ones, come first; the repo tree is long -->
-          <DocsWorkspaceTree :active="wsPath" />
+          <DocsWorkspaceTree v-if="reader === 'in'" :active="wsPath" />
           <p v-if="treeState === 'loading'" class="muted">{{ t('common.loading') }}</p>
           <p v-else-if="treeState === 'off'" class="muted" role="status">{{ t('docs.off') }}</p>
           <p v-else-if="treeState === 'failed'" class="muted" role="alert">{{ t('docs.load_failed') }}</p>
@@ -98,9 +103,9 @@
           </ul>
         </nav>
         <article class="docs-content" aria-labelledby="docs-h" data-test="docs-content" :data-page="docPath">
-          <ApiDocViewer v-if="apiPage" />
-          <DocsWorkspaceDoc v-else-if="wsPath" :path="wsPath" />
-          <RepoDocMyEdits v-else-if="showMine" :path="docPath" />
+          <ApiDocViewer v-if="apiPage && reader === 'in'" />
+          <DocsWorkspaceDoc v-else-if="wsPath && reader === 'in'" :path="wsPath" />
+          <RepoDocMyEdits v-else-if="showMine && reader === 'in'" :path="docPath" />
           <template v-else>
           <div class="docs-content__bar">
             <p class="docs-content__path muted" data-test="docs-path">{{ docPath }}</p>
@@ -146,6 +151,11 @@ import DocsWorkspaceTree from '~/components/DocsWorkspaceTree.vue'
 import { wsPathOf } from '~/utils/ws-docs.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { DOCS_HOME, buildDocsTree, docsAncestors, docsRepoUrl, rewriteDocsLinks, validDocsPath, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
+import { PUBLIC_DOCS_DIR, docsBody, publicDocsList } from '~/utils/public-docs.mjs'
+import { useSessionStore } from '~/stores/session'
+import { safeRedirect } from '~/utils/auth-client.mjs'
+import { signedOutLoginHref } from '~/utils/signed-out-redirect.mjs'
+import { wasSignedIn } from '~/utils/session-recover.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
@@ -232,10 +242,63 @@ async function hubDoc(path: string, meta?: { base: string }): Promise<string | n
   return r.text()
 }
 
+/* Owner HUM-10 (e3ce4c34): who reads. 'out' is a settled signed-out
+   session (the mock's default too, specs/054); every other state reads
+   through the hub, as before. Settled once per page. */
+const session = useSessionStore()
+const reader = ref<'unknown' | 'in' | 'out'>('unknown')
+let who: Promise<'in' | 'out'> | null = null
+function whoReads() {
+  if (!who) {
+    who = (async () => {
+      /* a failed probe leaves the state as it is: not 'out' reads via the hub, as before */
+      if (session.state === 'loading') await session.probe().catch(() => {})
+      reader.value = session.state === 'out' ? 'out' : 'in'
+      return reader.value
+    })()
+  }
+  return who
+}
+
+/* the build-time copy's index of the public docs ([] when there is none) */
+let publicIndex: Promise<TreeFile[]> | null = null
+function publicDocs() {
+  if (!publicIndex) {
+    publicIndex = fetch(PUBLIC_DOCS_DIR + 'index.json', { cache: 'no-cache', signal: AbortSignal.timeout(DOC_READ_TIMEOUT_MS) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => publicDocsList(b))
+      .catch(() => [])
+  }
+  return publicIndex
+}
+
+/* a public doc out of the copy: only a path its index lists, else null */
+async function publicDoc(path: string): Promise<string | null> {
+  if (!(await publicDocs()).some((f) => f.path === path)) return null
+  const r = await fetch(PUBLIC_DOCS_DIR + path, { cache: 'no-cache', signal: AbortSignal.timeout(DOC_READ_TIMEOUT_MS) })
+  if (!r.ok) throw new Error('docs ' + r.status)
+  return r.text()
+}
+
+/* a signed-out visitor on a doc that is not public: /login, back here after.
+   While hydrating, a real navigation (middleware/signed-out-redirect). */
+const nuxtApp = useNuxtApp()
+function toLogin() {
+  const redirect = safeRedirect(current.fullPath)
+  const ended = wasSignedIn()
+  if (nuxtApp.isHydrating) {
+    return navigateTo(signedOutLoginHref(localePath('/login'), redirect, ended), { external: true, replace: true })
+  }
+  return navigateTo({ path: localePath('/login'), query: ended ? { redirect, ended: '1' } : { redirect } }, { replace: true })
+}
+
 let seq = 0
 async function load() {
   const mine = ++seq
   const p = docPath.value
+  const out = (await whoReads()) === 'out'
+  if (mine !== seq) return
+  if (out && (wsPath.value || apiPage.value || !validDocsPath(p))) { void toLogin(); return }
   if (wsPath.value || apiPage.value) return
   state.value = 'loading'
   editing.value = false
@@ -244,14 +307,16 @@ async function load() {
   for (const a of docsAncestors(p)) if (!open.value.has(a)) toggle(a)
   try {
     const meta = { base: '' }
-    const md = await hubDoc(p, meta)
+    const md = out ? await publicDoc(p) : await hubDoc(p, meta)
+    if (mine !== seq) return
+    if (out && md === null) { void toLogin(); return }
     if (mine !== seq) return
     if (md === 'off') { state.value = 'off'; return }
     if (md === null) { state.value = 'missing'; return }
     raw.value = md
     base.value = meta.base
     docBase.loaded(meta.base)
-    text.value = rewriteDocsLinks(md, p, route)
+    text.value = rewriteDocsLinks(docsBody(md), p, route)
     state.value = 'ready'
   } catch {
     if (mine === seq) state.value = 'failed'
@@ -260,6 +325,11 @@ async function load() {
 
 async function loadTree() {
   try {
+    if ((await whoReads()) === 'out') {
+      tree.value = buildDocsTree(await publicDocs())
+      treeState.value = 'ready'
+      return
+    }
     const raw = await hubDoc('tree.json')
     if (raw === 'off') { treeState.value = 'off'; return }
     const body = raw ? JSON.parse(raw) as { files?: TreeFile[] } : null
@@ -286,7 +356,7 @@ async function openEditor() {
 function onSaved(md: string) {
   docBase.saved()
   raw.value = md
-  text.value = rewriteDocsLinks(md, docPath.value, route)
+  text.value = rewriteDocsLinks(docsBody(md), docPath.value, route)
   editing.value = false
   savedNote.value = true
 }

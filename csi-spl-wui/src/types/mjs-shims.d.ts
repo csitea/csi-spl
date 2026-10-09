@@ -1644,6 +1644,12 @@ declare module '~/utils/docs.mjs' {
   export function visibleDocsRows(root: DocsDir, open: Set<string>): DocsRow[]
 }
 
+declare module '~/utils/public-docs.mjs' {
+  export function docsBody(md: unknown): string
+  export const PUBLIC_DOCS_DIR: string
+  export function publicDocsList(body: unknown): { path: string, title: string }[]
+}
+
 declare module '~/utils/docs-mock.mjs' {
   export function mockDocs(path: string): string | null
 }

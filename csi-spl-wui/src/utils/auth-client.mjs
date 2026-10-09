@@ -346,13 +346,9 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
      */
     async session(pending) {
       if (mock) {
-        // specs/054 e2e: signed-out by default; signed-in only when the act-as
-        // spec opts in (so the login specs are untouched). Live never takes this.
-        const { mockSessionGet } = await import('./act-as-mock.mjs')
-        const claims = mockSessionGet()
-        // 'unknown' with no opt-in, exactly as the pre-054 mock answered (its
-        // /session probe 404'd), so the other e2e specs are byte-for-byte the same.
-        return claims ? { state: 'in', claims } : { state: 'unknown', claims: null }
+        // specs/054 e2e: the mock's answer lives in its lazy chunk (act-as-mock).
+        // Live never takes this.
+        return (await import('./act-as-mock.mjs')).mockSessionAnswer()
       }
       let res
       try {

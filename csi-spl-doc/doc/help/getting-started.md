@@ -1,3 +1,6 @@
+---
+public: true
+---
 # Getting Started with Spool
 
 This guide walks you through signing in, setting up your environment, understanding workspace roles, and installing Spool as a desktop or mobile application.

@@ -259,7 +259,7 @@ try {
 
   /* ── wiring ────────────────────────────────────────────────────────── */
   const pkg = JSON.parse(readFileSync(join(WUI, 'package.json'), 'utf8'))
-  ok('pnpm run generate runs the sync first', /^node src\/node\/blog\/sync-blog\.mjs && nuxt generate$/.test(pkg.scripts.generate), pkg.scripts.generate)
+  ok('pnpm run generate runs the sync first', /^node src\/node\/blog\/sync-blog\.mjs && (node src\/node\/docs\/sync-public-docs\.mjs && )?nuxt generate$/.test(pkg.scripts.generate), pkg.scripts.generate)
   ok('src/public/blog-md/ is git-ignored', /^src\/public\/blog-md\/$/m.test(readFileSync(join(WUI, '.gitignore'), 'utf8')))
   const wf = join(REPO, '.github/workflows/30_wui-build-deploy.yml')
   if (existsSync(wf)) ok('wf 30 deploys on a post commit', /^\s+- 'csi-spl-doc\/blog\/posts\/\*\*'/m.test(readFileSync(wf, 'utf8')))

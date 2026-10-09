@@ -21,6 +21,29 @@ export function mockSessionGet(store) {
   return storageGetJson(MOCK_SESSION_KEY, null, store)
 }
 
+// Owner HUM-10 (e3ce4c34): the docs e2e reads a public doc as a settled
+// signed-OUT visitor. The mock's default answer is 'unknown' (read as signed
+// in), so that spec opts into 'out' with this key (`true`). Never consulted
+// in a live build.
+export const MOCK_SIGNED_OUT_KEY = 'spool.mock.signed_out'
+
+/** Did the e2e opt into a settled signed-out mock session? */
+export function mockSignedOut(store) {
+  return storageGetJson(MOCK_SIGNED_OUT_KEY, false, store) === true
+}
+
+/**
+ * The mock's answer to the session probe (auth-client session()): signed-in
+ * only when the act-as spec opts in, 'out' when the docs spec opts in, else
+ * 'unknown', exactly as the pre-054 mock answered (its /session probe 404'd),
+ * so the other e2e specs are byte-for-byte the same.
+ */
+export function mockSessionAnswer(store) {
+  if (mockSignedOut(store)) return { state: 'out', claims: null }
+  const claims = mockSessionGet(store)
+  return claims ? { state: 'in', claims } : { state: 'unknown', claims: null }
+}
+
 /** Clear the opt-in mock session (the mock's stand-in for a real sign-out). */
 export function mockSessionClear(store) {
   try {

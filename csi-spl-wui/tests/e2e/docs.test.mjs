@@ -21,7 +21,10 @@
 // gate does). Controls: the row and the reference are absent before T006;
 // the CSP is shown to be live (an injected inline script is blocked); the
 // same page with the fetch failing shows the error state, not the
-// reference; the signed-out door names /docs/api only with the hint set.
+// reference.
+//
+// Owner HUM-10 (e3ce4c34): signed out, a doc marked `public: true` reads;
+// the feature doc and /docs/api go to /login, their text absent.
 //
 // Run:
 //   pnpm run test:e2e docs
@@ -33,6 +36,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { earlyLoginHref } from '../../src/utils/signed-out-redirect-script.mjs'
+import { MOCK_SIGNED_OUT_KEY } from '../../src/utils/act-as-mock.mjs'
 import { SIGNED_OUT_HINT_COOKIE } from '../../src/utils/signed-out-hint.mjs'
 import { SIGNED_OUT_LOCALE_CODES, signedOutLoginTarget } from '../../src/utils/signed-out-redirect.mjs'
 import { startServer } from './lib/server.mjs'
@@ -73,6 +77,8 @@ const TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const SPEC = 'csi-spl-doc/specs/072-rapid-deployability/spec.md'
 const FEATURE = 'csi-spl-doc/doc/md/csi-spl.feature.md'
 const POST = 'csi-spl-doc/doc/help/how-to-post.md'
+/* marked `public: true` (owner HUM-10 e3ce4c34) */
+const PUBLIC_DOC = 'csi-spl-doc/doc/help/getting-started.md'
 const page = (p, path) => p.waitForFunction((want) => {
   const c = document.querySelector('[data-test=docs-content]')
   return c && c.getAttribute('data-page') === want && c.querySelector('[data-testid=md-block][data-rendered=true]')
@@ -404,14 +410,43 @@ try {
   ok('CONTROL with the fetch failing no route is listed', (await f.$$('[data-test=api-doc-tag]')).length === 0)
   await f.close()
 
-  /* the mock tenant has no sign-in (no early script, the middleware skips
-     it), so the signed-out door is proven on the code both use */
-  const early = (cookie) => earlyLoginHref({ path: '/docs/api', search: '', hash: '', cookie, cookieKey: SIGNED_OUT_HINT_COOKIE, locales: [...SIGNED_OUT_LOCALE_CODES], defaultLocale: 'en' })
-  ok('signed-out: the early script sends /docs/api to /login', early(`${SIGNED_OUT_HINT_COOKIE}=1`) === '/login?redirect=%2Fdocs%2Fapi', early(`${SIGNED_OUT_HINT_COOKIE}=1`))
-  ok('CONTROL with no signed-out hint it stays on /docs/api', early('') === '')
-  const target = signedOutLoginTarget('/docs/api', 'out', false)
-  ok('signed-out: the middleware sends /docs/api to /login', target?.path === '/login' && target.query.redirect === '/docs/api', target)
-  ok('CONTROL a signed-in session stays on /docs/api', signedOutLoginTarget('/docs/api', 'in', false) === null)
+  /* Owner HUM-10 (e3ce4c34): /docs is no longer a product screen; the docs
+     page is the door. The early script and the middleware leave /docs/* to
+     it, and still send the other product screens to /login. */
+  const early = (path) => earlyLoginHref({ path, search: '', hash: '', cookie: `${SIGNED_OUT_HINT_COOKIE}=1`, cookieKey: SIGNED_OUT_HINT_COOKIE, locales: [...SIGNED_OUT_LOCALE_CODES], defaultLocale: 'en' })
+  ok('signed-out: the early script leaves /docs/api to the docs page', early('/docs/api') === '', early('/docs/api'))
+  ok('CONTROL the early script still sends /settings to /login', early('/settings') === '/login?redirect=%2Fsettings', early('/settings'))
+  ok('signed-out: the middleware leaves /docs/api to the docs page', signedOutLoginTarget('/docs/api', 'out', false) === null)
+  ok('CONTROL the middleware still sends /settings to /login', signedOutLoginTarget('/settings', 'out', false)?.path === '/login')
+
+  /* Owner HUM-10 (e3ce4c34): a settled signed-out visitor (the mock opts
+     into it, MOCK_SIGNED_OUT_KEY) reads a doc marked `public: true` from the
+     build-time copy (sync-public-docs.mjs); any other doc sends them to /login
+     and its text never shows. Control: with markedPublic always true the
+     feature doc is in the copy, renders here, and the "absent" checks FAIL. */
+  console.log('-- signed out')
+  const o = await browser.newPage()
+  await o.setViewport({ width: 1280, height: 800 })
+  await o.setBypassServiceWorker(true)
+  await o.evaluateOnNewDocument((key) => { try { localStorage.setItem(key, 'true') } catch { /* no storage: the checks below fail */ } }, MOCK_SIGNED_OUT_KEY)
+  await o.goto(server.base + '/docs/' + PUBLIC_DOC, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok('signed-out: the public doc renders', await page(o, PUBLIC_DOC) && (await h1(o)) === 'Getting Started with Spool', await h1(o).catch(() => ''))
+  const shown = await o.$eval('[data-test=docs-content]', (el) => el.textContent || '').catch(() => '')
+  ok('signed-out: its frontmatter is not shown', !/public:\s*true/.test(shown))
+  const rows = await o.$$eval('[data-test=docs-tree] a', (as) => as.map((a) => a.getAttribute('href') || '')).catch(() => [])
+  ok('signed-out: the tree lists the public docs only', rows.some((h) => h.endsWith(PUBLIC_DOC)) && !rows.some((h) => h.endsWith(FEATURE) || h.endsWith('/docs/api')), rows)
+  await shot(o, 'signed-out-public')
+  for (const [name, path, text] of [['the feature doc', FEATURE, /csi-spl — the spool|Spool feature/], ['the API reference', 'api', /API/]]) {
+    await o.goto(server.base + '/docs/' + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await o.waitForFunction(() => location.pathname.endsWith('/login'), { timeout: 15000 }).catch(() => {})
+    const at = new URL(o.url())
+    ok(`signed-out: ${name} goes to /login`, at.pathname.endsWith('/login') && at.searchParams.get('redirect') === '/docs/' + path, o.url())
+    const h = await o.$eval('[data-test=docs-content] h1', (el) => el.textContent || '').catch(() => '')
+    ok(`signed-out: ${name}'s text is absent`, !text.test(h), h)
+  }
+  const copy = await o.evaluate(async (p) => (await fetch('/docs-public/' + p)).text().catch(() => ''), FEATURE)
+  ok('signed-out: the copy does not hold the feature doc', !/^# csi-spl|# Spool feature/m.test(copy), copy.slice(0, 80))
+  await o.close()
 } finally {
   await browser.close()
   await server.stop()

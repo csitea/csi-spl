@@ -58,13 +58,15 @@ phase 2). T002's tests gate everything after it. T000b is independent.
 
 ## 4. Operations
 
-- [ ] **T003**: `do_spl_doc_tree_check`, `do_spl_doc_tree_repair` (spec 3.4), per-env SA, each with its `.tst.sh`.
+- [x] **T003**: `do_spl_doc_tree_check`, `do_spl_doc_tree_repair` (spec 3.4), per-env SA, each with its `.tst.sh`.
   - Depends: T001 (T002 for the repair's lock helper, if shared).
   - Owns: `csi-spl-orc/src/bash/run/spl-doc-tree-check.func.sh`, `csi-spl-orc/src/bash/run/spl-doc-tree-repair.func.sh` (*new*), `csi-spl-orc/src/bash/tests/spl-doc-tree-check.tst.sh`, `csi-spl-orc/src/bash/tests/spl-doc-tree-repair.tst.sh` (*new*).
   - Done: `ENV=dev ./run -a do_spl_doc_tree_check` sets the operator scope and prints `violations=0 docs=<n> items=<n>`, exit 0. On a test DB with one planted gap and one unreachable cycle it prints both violations and exits 1; `DRY_RUN=0 do_spl_doc_tree_repair` (one tx under the doc lock) prints `renumbered=1 reattached=1` with the cut item's id and the check returns to `violations=0` (9d). Controls: a run without the operator scope sees `docs=0` and exits 2; `EXPECT_EMPTY=1` makes it exit 0. Repair `DRY_RUN=0` on prd is an owner go.
   - Vendor: mistral (low-level bash), claude reviews the SQL. Box: one with docker Postgres.
 
 ## 5. Hub API, xls, WUI, agents
+- Evidence: spl-doc-tree-check.tst.sh 7/7 PASS, spl-doc-tree-repair.tst.sh 7/7 PASS, dev check output above.
+  - Evidence: spl-doc-tree-check.tst.sh 7/7 PASS, spl-doc-tree-repair.tst.sh 7/7 PASS, dev check output above.
 
 - [ ] **T004**: hub Go API: doc tree CRUD (doc view), list/grid CRUD (grid view), the four outcomes, spec 100 search indexing, topic link.
   - Depends: T002.

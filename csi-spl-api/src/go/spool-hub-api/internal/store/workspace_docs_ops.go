@@ -56,7 +56,7 @@ func (d *wsDocTx) add(ctx context.Context, r DocItemAddReq) (DocOpResult, error)
 	if r.Where == DocParent {
 		err = d.deferSiblingOrd(ctx)
 	} else {
-		err = d.shift(ctx, parent, ord, 1, "")
+		err = d.shift(ctx, parent, ord, wsOrdTop, 1, "")
 	}
 	if err != nil {
 		return DocOpResult{}, err
@@ -135,10 +135,7 @@ func (d *wsDocTx) move(ctx context.Context, r DocItemMoveReq) (DocOpResult, erro
 	if err := d.deferSiblingOrd(ctx); err != nil {
 		return DocOpResult{}, err
 	}
-	if err := d.shift(ctx, p.fromParent, p.fromOrd+1, -1, r.ItemID); err != nil {
-		return DocOpResult{}, err
-	}
-	if err := d.shift(ctx, r.Parent, p.toOrd, 1, r.ItemID); err != nil {
+	if err := d.moveShifts(ctx, p, r); err != nil {
 		return DocOpResult{}, err
 	}
 	if _, err := d.tx.Exec(ctx, `UPDATE workspace_doc_item SET parent_id = $3, ord = $4
@@ -148,6 +145,23 @@ func (d *wsDocTx) move(ctx context.Context, r DocItemMoveReq) (DocOpResult, erro
 	rev, err := d.bump(ctx, r.Actor, map[string]any{"kind": "move", "item": r.ItemID,
 		"from_parent": p.fromParent, "from_ord": p.fromOrd, "to_parent": r.Parent, "to_ord": p.toOrd})
 	return DocOpResult{Rev: rev, ItemID: r.ItemID}, err
+}
+
+// moveShifts makes room: across parents, the old gap closed and a new one
+// opened; within one parent, only the run between the two positions shifts.
+func (d *wsDocTx) moveShifts(ctx context.Context, p movePlan, r DocItemMoveReq) error {
+	switch {
+	case p.fromParent != r.Parent:
+		if err := d.shift(ctx, p.fromParent, p.fromOrd+1, wsOrdTop, -1, r.ItemID); err != nil {
+			return err
+		}
+		return d.shift(ctx, r.Parent, p.toOrd, wsOrdTop, 1, r.ItemID)
+	case p.toOrd < p.fromOrd:
+		return d.shift(ctx, r.Parent, p.toOrd, p.fromOrd-1, 1, r.ItemID)
+	case p.toOrd > p.fromOrd:
+		return d.shift(ctx, r.Parent, p.fromOrd+1, p.toOrd, -1, r.ItemID)
+	}
+	return nil
 }
 
 type movePlan struct {
@@ -212,7 +226,7 @@ func (d *wsDocTx) deleteSubtree(ctx context.Context, rev int64, item, actor stri
 		return DocOpResult{}, err
 	}
 	if !wsDocPlant.skipGapClose {
-		if err := d.shift(ctx, parent, ord+1, -1, ""); err != nil {
+		if err := d.shift(ctx, parent, ord+1, wsOrdTop, -1, ""); err != nil {
 			return DocOpResult{}, err
 		}
 	}

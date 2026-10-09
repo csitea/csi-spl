@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"sync/atomic"
 
@@ -221,14 +222,22 @@ func (d *wsDocTx) maxOrd(ctx context.Context, parent string) (int, error) {
 	return n, err
 }
 
-// shift moves the siblings under parent with ord >= from by delta, in ONE
-// statement (the deferrable UNIQUE is checked at its end), never parking.
+// shift moves the siblings under parent with from <= ord <= to by delta, in
+// ONE statement (the deferrable UNIQUE is checked at its end), never parking.
 // skip is an item the statement leaves alone ("" = none).
-func (d *wsDocTx) shift(ctx context.Context, parent string, from, delta int, skip string) error {
-	_, err := d.tx.Exec(ctx, `UPDATE workspace_doc_item SET ord = ord + $4
-		WHERE doc_id = $1 AND parent_id = $2 AND ord >= $3 AND id::text <> $5`, d.doc, parent, from, delta, skip)
+func (d *wsDocTx) shift(ctx context.Context, parent string, from, to, delta int, skip string) error {
+	var skipID any
+	if skip != "" {
+		skipID = skip
+	}
+	_, err := d.tx.Exec(ctx, `UPDATE workspace_doc_item SET ord = ord + $5
+		WHERE doc_id = $1 AND parent_id = $2 AND ord BETWEEN $3 AND $4 AND id IS DISTINCT FROM $6::uuid`,
+		d.doc, parent, from, to, delta, skipID)
 	return err
 }
+
+// wsOrdTop is "to the end of the list" for shift.
+const wsOrdTop = math.MaxInt32
 
 // deferSiblingOrd defers the I4 overlap key to commit for an op that writes
 // one sibling list in more than one statement (a move, an add parent).

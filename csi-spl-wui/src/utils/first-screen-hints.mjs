@@ -100,7 +100,7 @@ export function firstScreenRoutePage(route, pages, localeCodes, defaultLocale) {
   if (path.length > 1) path = path.replace(/\/+$/, '')
   const exact = pages.find((p) => p.path === path)
   const page = exact || pages.find((p) => p.path.includes(':')
-    && new RegExp('^' + p.path.replace(/:[^/]+/g, '[^/]+') + '$').test(path))
+    && new RegExp('^' + p.path.replace(/\/:[^/]+\?/g, '(?:/[^/]+)?').replace(/:[^/]+/g, '[^/]+') + '$').test(path))
   return page ? { file: page.file || '', locale } : null
 }
 

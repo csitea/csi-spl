@@ -49,7 +49,7 @@ describe('first-screen hints: the static closure from the chunk graph', () => {
 })
 
 describe('first-screen hints: route -> page, layout', () => {
-  const pages = [{ path: '/', file: '/w/src/pages/index.vue' }, { path: '/login', file: '/w/src/pages/login.vue' }, { path: '/channel/:name()', file: '/w/src/pages/channel/[name].vue' }]
+  const pages = [{ path: '/', file: '/w/src/pages/index.vue' }, { path: '/login', file: '/w/src/pages/login.vue' }, { path: '/channel/:name()', file: '/w/src/pages/channel/[name].vue' }, { path: '/help/:page?', file: '/w/src/pages/help/[[page]].vue' }]
   const codes = ['bg', 'en', 'fi']
 
   it('strips the locale prefix and names the locale', () => {
@@ -59,6 +59,12 @@ describe('first-screen hints: route -> page, layout', () => {
     assert.deepEqual(firstScreenRoutePage('/login/', pages, codes, 'en'), { file: '/w/src/pages/login.vue', locale: 'en' })
     assert.deepEqual(firstScreenRoutePage('/channel/general', pages, codes, 'en'), { file: '/w/src/pages/channel/[name].vue', locale: 'en' })
     assert.equal(firstScreenRoutePage('/nope', pages, codes, 'en'), null)
+  })
+
+  it('matches an optional param with and without its segment (spec 116 T7: /help prerenders)', () => {
+    assert.deepEqual(firstScreenRoutePage('/help', pages, codes, 'en'), { file: '/w/src/pages/help/[[page]].vue', locale: 'en' })
+    assert.deepEqual(firstScreenRoutePage('/help/agents', pages, codes, 'en'), { file: '/w/src/pages/help/[[page]].vue', locale: 'en' })
+    assert.equal(firstScreenRoutePage('/help/a/b', pages, codes, 'en'), null)
   })
 
   it('reads the layout from definePageMeta, else default', () => {

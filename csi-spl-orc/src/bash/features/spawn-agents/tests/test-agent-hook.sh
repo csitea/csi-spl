@@ -222,6 +222,12 @@ printf '%s\n' "$pay" > "$T_TMP/pay.json"
 printf '%s\n' 'exec python3 -S -c pass' > "$T_TMP/floor.sh"
 : > "$T_TMP/t.hook"; : > "$T_TMP/t.floor"
 export SPOOL_AGENT_ID="$ID"
+# Warm-up, not measured: the first runs pay for a cold page cache (bash,
+# python3, the hook file), which is not the hook's cost.
+for i in $(seq 5); do
+  bash "$HOOK" PostToolUse <"$T_TMP/pay.json" >/dev/null 2>&1
+  bash "$T_TMP/floor.sh" PostToolUse <"$T_TMP/pay.json" >/dev/null 2>&1
+done
 for i in $(seq 200); do
   ms bash "$HOOK" PostToolUse <"$T_TMP/pay.json" >>"$T_TMP/t.hook"
   ms bash "$T_TMP/floor.sh" PostToolUse <"$T_TMP/pay.json" >>"$T_TMP/t.floor"
@@ -234,26 +240,29 @@ med() { pct "$1" 50; }
 over() { awk -v b="$2" '$1 >= b' "$1" | wc -l; }
 mh="$(med "$T_TMP/t.hook")"; mf="$(med "$T_TMP/t.floor")"
 ph="$(pct "$T_TMP/t.hook" 90)"; pf="$(pct "$T_TMP/t.floor" 90)"
+lh="$(pct "$T_TMP/t.hook" 0)"; lf="$(pct "$T_TMP/t.floor" 0)"
 BUDGET="${HOOK_BUDGET_MS:-50}"
-echo "  hook median ${mh} ms, bare python3 median ${mf} ms, max $(sort -rn "$T_TMP/t.hook" | sed -n 1p) ms, over ${BUDGET} ms: $(over "$T_TMP/t.hook" "$BUDGET")/200"
-# Wall time on a shared box scales with its load, so the always-on check is
-# relative: the hook may cost at most 2.5x a bare interpreter of the same
-# shape (measured 1.5x .. 1.7x at load 30 .. 120 on 16 cpus).
-slow() { awk -v h="$1" -v f="$2" 'BEGIN{exit !(h * 2 > f * 5)}'; }
-if slow "$mh" "$mf"; then nok "the hook's median ($mh ms) is over 2.5x a bare interpreter's ($mf ms)"; else ok "the hook's median ($mh ms) is within 2.5x a bare interpreter's ($mf ms)"; fi
-check "CONTROL: the ratio check fires on 130 ms vs 50 ms" slow 130 50
-# The tail, by the same relative bound: the hook's 90th percentile at most
-# 2.5x the floor's. Runs are interleaved, so a load spike lands on both
-# samples; an absolute ms bound cannot tell a slow hook from a busy box (50 ms
-# failed 15/200 at load 8 on 16 cpus, run alone). Measured 2026-10-09 under
-# run-ci-tests.sh at 6 jobs, load 6.8 .. 13.5 on 16 cpus, n=10: median 1.9x ..
-# 2.1x, p90 1.9x .. 2.1x; 1 .. 8 of 200 runs over 50 ms each time.
-if slow "$ph" "$pf"; then nok "the hook's p90 ($ph ms) is over 2.5x a bare interpreter's ($pf ms)"; else ok "the hook's p90 ($ph ms) is within 2.5x a bare interpreter's ($pf ms)"; fi
+echo "  hook min/median/p90 ${lh}/${mh}/${ph} ms, bare python3 ${lf}/${mf}/${pf} ms, max $(sort -rn "$T_TMP/t.hook" | sed -n 1p) ms, over ${BUDGET} ms: $(over "$T_TMP/t.hook" "$BUDGET")/200, load $(cut -d' ' -f1 /proc/loadavg)"
+# The always-on check is spec 093's budget (50 ms a run) on the FASTEST of
+# the 200 runs. Load only ever adds time, so the minimum is the run that
+# waited least: the hook's own cost, whatever the box is doing. A median, a
+# p90 or a ratio to a bare interpreter reads load too: on the shared CI runner
+# (sat, 2026-10-09, run 37888917837, pool of 6) the floor's median was 25 ms
+# against a p90 of 56 ms and the unchanged hook's median read 2.9x the floor's
+# (its p90 1.8x); even the ratio of minima is 2.3x .. 2.6x on sat alone, as
+# its floor is only 11 .. 12 ms. The hook's minimum was 27 .. 29 ms there, and
+# 26 .. 27 ms here under run-ci-tests.sh at 6 jobs, load 7 .. 15.6, n=10. A
+# real regression moves the minimum: a 100 ms sleep in the hook reads 129 ..
+# 130 ms and fails this (n=3).
+fast() { awk -v h="$1" -v b="$2" 'BEGIN{exit !(h < b)}'; }
+if fast "$lh" "$BUDGET"; then ok "the hook's fastest of 200 runs ($lh ms) is under ${BUDGET} ms"; else nok "the hook's fastest of 200 runs ($lh ms) is not under ${BUDGET} ms (bare interpreter: $lf ms)"; fi
+yn() { "$@" && echo y || echo n; }
+eq "CONTROL: the budget check fires at ${BUDGET} ms, not at $((BUDGET - 1))" "n y" "$(yn fast "$BUDGET" "$BUDGET") $(yn fast $((BUDGET - 1)) "$BUDGET")"
 printf '%s\n' 10 20 30 40 50 60 70 80 90 100 > "$T_TMP/t.ctl"
-eq "CONTROL: pct reads the 90th and the 50th percentile" "90 50" "$(pct "$T_TMP/t.ctl" 90) $(pct "$T_TMP/t.ctl" 50)"
+eq "CONTROL: pct reads the 90th, the 50th and the 0th (min) percentile" "90 50 10" "$(pct "$T_TMP/t.ctl" 90) $(pct "$T_TMP/t.ctl" 50) $(pct "$T_TMP/t.ctl" 0)"
 printf '%s\n' 10 20 61 > "$T_TMP/t.ctl"
 eq "CONTROL: the over-budget counter fires on a 61 ms run" 1 "$(over "$T_TMP/t.ctl" "$BUDGET")"
-# The absolute bound is opt-in: HOOK_BUDGET_MS=<ms> on a box known to be idle.
+# The bound on EVERY run is opt-in: HOOK_BUDGET_MS=<ms> on a box known to be idle.
 if [ -n "${HOOK_BUDGET_MS:-}" ]; then
   eq "200 runs, each under ${BUDGET} ms (HOOK_BUDGET_MS, load $(cut -d' ' -f1 /proc/loadavg))" 0 "$(over "$T_TMP/t.hook" "$BUDGET")"
 fi

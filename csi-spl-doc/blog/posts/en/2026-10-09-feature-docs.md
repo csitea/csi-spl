@@ -15,9 +15,21 @@ image_alt: "A sleek digital library and documentation explorer, abstract represe
 image_prompt: "A sleek digital library and documentation explorer, abstract representation with neat folders and text documents"
 ---
 **What it is**
-The Docs icon sits under Help in the left rail. It renders the repository's markdown content—including readmes and specifications—directly inside the app using its native theme, so you no longer need to leave your workspace to read documentation.
 
-**How it works**
-- **Explorer and viewer:** On a wide screen, the Docs interface uses two scrolling panes. The left pane acts as a folder explorer, while the right pane displays the selected markdown document.
-- **Mobile view:** On a phone, Docs uses a single column where you can toggle the folder explorer and swipe to go back.
-- **Stable links:** The root `/docs` route opens the repository readme. Navigating to other pages updates your address (`/docs/` plus the path), ensuring your links remain stable. Internal links pointing to other markdown files open inside the viewer, while external links redirect you properly.
+The Docs explorer is a native viewer for your repository's markdown files. Located under Help on the left rail, it renders readmes, specifications, and other `.md` files directly in the app. 
+
+**Why use it**
+
+It eliminates the need to leave your workspace or go to an external source like GitHub to read project documentation. All files are rendered in the app's native theme.
+
+**How to use it**
+
+Click the Docs icon. On wide screens, the explorer opens in two panes: an interactive folder tree on the left and the document viewer on the right. You can expand folders to find documents or click links inside documents to navigate. On a phone, you see a single column with a 'Folders' button to toggle the explorer above the document. You can easily share links since URLs follow the `/docs/<repo path>` structure.
+
+**The old way**
+
+Previously, users had to navigate to the external repository host or read raw markdown files locally to view project documentation. 
+
+**The new way**
+
+Documents are now parsed and rendered beautifully within the workspace. The viewer supports relative routing for links between files and maintains your position intuitively.

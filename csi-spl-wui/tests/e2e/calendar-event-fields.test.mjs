@@ -65,7 +65,7 @@ const POPOVER = '[data-test=calendar-event-popover]'
 const STAMP = '2026-01-01T00:00:00Z'
 const event = (id, title, fields = {}) => ({
   id, source: 'event', title, description: '', kind: 'other', starts_at: `${today}T10:00:00Z`, ends_at: `${today}T11:00:00Z`,
-  all_day: false, audience: 'public', mentions: [], creator_type: 'human', creator_id: 'HUM-1', remind_at: '', topic_id: '',
+  all_day: false, audience: 'workspace', mentions: [], creator_type: 'human', creator_id: 'HUM-1', remind_at: '', topic_id: '',
   release_version: '', issue_key: '', created_at: STAMP, updated_at: STAMP,
   time_zone: 'UTC', location: '', color: '', reminders: [], ...fields,
 })

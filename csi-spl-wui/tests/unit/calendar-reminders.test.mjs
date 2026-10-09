@@ -86,7 +86,7 @@ describe('calendar reminders: the mock answers the 6.1 shapes', () => {
     for (const k of ['id', 'source', 'title', 'description', 'kind', 'starts_at', 'ends_at', 'all_day', 'audience', 'mentions', 'creator_type', 'creator_id', 'remind_at', 'topic_id', 'release_version', 'issue_key', 'created_at', 'updated_at']) {
       assert.ok(k in body.reminders[0], k)
     }
-    assert.equal(body.reminders[0].audience, 'public')
+    assert.equal(body.reminders[0].audience, 'workspace')
   })
 })
 

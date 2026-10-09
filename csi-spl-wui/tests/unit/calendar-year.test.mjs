@@ -82,7 +82,7 @@ describe('the mock answers 6.1', () => {
       for (const k of FIELDS) assert.notEqual(x[k], null, `${x.id}.${k}`)
       assert.ok(Array.isArray(x.mentions))
       assert.ok(['event', 'issue', 'official_day'].includes(x.source))
-      assert.ok(['public', 'internal', 'private'].includes(x.audience))
+      assert.ok(['workspace', 'internal', 'private'].includes(x.audience))
       assert.ok(Date.parse(x.ends_at) >= Date.parse(x.starts_at), x.id)
       if (x.source === 'issue') assert.equal(x.issue_key, x.id)
       if (x.source === 'official_day') assert.equal(x.all_day, true)

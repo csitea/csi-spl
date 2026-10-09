@@ -18,7 +18,7 @@ function item(fields) {
     starts_at: '',
     ends_at: '',
     all_day: false,
-    audience: 'public',
+    audience: 'workspace',
     mentions: [],
     creator_type: 'human',
     creator_id: 'HUM-1',
@@ -64,7 +64,7 @@ export function mockCalendarCreate(body = {}) {
     starts_at: String(body.starts_at || ''),
     ends_at: String(body.ends_at || ''),
     all_day: Boolean(body.all_day),
-    audience: ['public', 'internal', 'private', 'web'].includes(String(body.audience)) ? String(body.audience) : 'public',
+    audience: mockAudience(body.audience) || 'workspace',
     topic_id: String(body.topic_id || ''),
     time_zone: String(body.time_zone || 'UTC'),
     location: String(body.location || ''),
@@ -109,6 +109,18 @@ function mockFind(id, todayIso) {
 }
 
 /**
+ * An audience as the hub of the rename's step 1 (rdb 0159) stores it, or ''
+ * for an unknown one: `public` is its old name for workspace, `web` the
+ * signed-out audience.
+ * @param {unknown} a
+ */
+function mockAudience(a) {
+  const s = String(a ?? '')
+  if (s === 'public') return 'workspace'
+  return ['workspace', 'internal', 'private', 'web'].includes(s) ? s : ''
+}
+
+/**
  * PATCH /v1/calendar/events/{id} (6.1.2) in the mock workspace: the set
  * fields of `patch` over the event. Like the hub, only the event's creator
  * (the mock viewer is HUM-1) moves it to or from `private` (403).
@@ -118,6 +130,7 @@ function mockFind(id, todayIso) {
  */
 export function mockCalendarUpdate(id, patch, todayIso) {
   const cur = mockFind(id, todayIso)
+  if (patch.audience !== undefined) patch = { ...patch, audience: mockAudience(patch.audience) || cur.audience }
   const aud = patch.audience
   if (aud !== undefined && aud !== cur.audience && (aud === 'private' || cur.audience === 'private') && cur.creator_id !== 'HUM-1') {
     throw Object.assign(new Error('calendar event 403'), { status: 403, token: 'private_owner_only' })

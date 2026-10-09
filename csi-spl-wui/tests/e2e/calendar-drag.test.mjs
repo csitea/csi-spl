@@ -71,7 +71,7 @@ const DIALOG = '[data-test=calendar-event-form]'
 const STAMP = '2026-01-01T00:00:00Z'
 const event = (id, title, day, from, to) => ({
   id, source: 'event', title, description: '', kind: 'other', starts_at: `${day}T${from}:00Z`, ends_at: `${day}T${to}:00Z`,
-  all_day: false, audience: 'public', mentions: [], creator_type: 'human', creator_id: 'HUM-1', remind_at: '', topic_id: '',
+  all_day: false, audience: 'workspace', mentions: [], creator_type: 'human', creator_id: 'HUM-1', remind_at: '', topic_id: '',
   release_version: '', issue_key: '', created_at: STAMP, updated_at: STAMP,
 })
 

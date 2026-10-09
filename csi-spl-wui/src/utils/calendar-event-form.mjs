@@ -6,14 +6,21 @@
 // A timed event's date and clock are the VIEWER's wall time (utils/date-iso),
 // the zone every calendar clock prints in; an all-day event is whole UTC days
 // [D 00:00Z, D+1 00:00Z), as the hub stores official days. Audience: the
-// Private switch off is `public` (089 4.2, the default), on is `private`; an
-// `internal` event keeps `internal` while the switch is not moved (v1 does
-// not offer `internal`, the field stays). The Web switch (rdb 0158, owner
-// t1 a3ce2031) is `web`: the event shows to signed-out visitors on
-// /public-calendar. It is never on by default - a new event, a Duplicate
-// (calFormCopy, even of a web event) and an event of another audience open
-// with it off - and Private wins over it, so a form with both on never
-// sends `web`.
+// Private switch off is `workspace` (089 4.2, the default: everyone in the
+// workspace), on is `private`; an `internal` event keeps `internal` while
+// the switch is not moved (v1 does not offer `internal`, the field stays).
+// The Public switch (rdb 0158, owner t1 a3ce2031) shows the event to
+// signed-out visitors on /public-calendar. It is never on by default - a new
+// event, a Duplicate (calFormCopy, even of a public event) and an event of
+// another audience open with it off - and Private wins over it, so a form
+// with both on never sends the public audience.
+//
+// The rename (owner t1 a3ce2031 msg bad3799a, the docs' naming; rdb 0159):
+// workspace was called `public`, and public was called `web`. The hub rolls
+// in steps and takes `public` as workspace until its step 4, so this form
+// sends the public audience as CAL_PUBLIC_WIRE and reads both names as
+// public (calIsPublic); the hub never sends `public` for workspace once
+// 0159's hub serves.
 //
 // spec 097 T014..T016 add fields here (time zone, location, guests, reminders,
 // colour) in the order of 097 section 5: one key in calFormFromEvent, one
@@ -95,7 +102,7 @@ export function calFormFromEvent(ev, day) {
     const timeZone = calDefaultZone()
     return {
       title: '', date: day, start: '09:00', end: '10:00', allDay: false, endDays: 0,
-      timeZone, zoneWas: timeZone, location: '', reminders: [], color: '', private: false, web: false, description: '',
+      timeZone, zoneWas: timeZone, location: '', reminders: [], color: '', private: false, public: false, description: '',
     }
   }
   const allDay = Boolean(ev.all_day)
@@ -121,17 +128,25 @@ export function calFormFromEvent(ev, day) {
     reminders: calRemindersOf(ev).map((r) => ({ amount: String(r.amount), unit: r.unit })),
     color: CAL_COLORS.includes(ev.color) ? ev.color : '',
     private: ev.audience === 'private',
-    web: ev.audience === 'web',
+    public: calIsPublic(ev),
     description: String(ev.description || ''),
   }
 }
 
 /**
  * Duplicate (G11): the form of `ev` for a new event, every field kept but
- * the Web switch - the internet sees an event only when someone chose it.
+ * the Public switch - the internet sees an event only when someone chose it.
  */
 export function calFormCopy(ev, day) {
-  return { ...calFormFromEvent(ev, day), web: false }
+  return { ...calFormFromEvent(ev, day), public: false }
+}
+
+/** The public audience as this WUI sends it: `web` until the hub's rename step 4 takes `public`. */
+export const CAL_PUBLIC_WIRE = 'web'
+
+/** `ev` is shown to signed-out visitors: audience `public`, or `web` (its name before the rename). */
+export function calIsPublic(ev) {
+  return Boolean(ev) && (ev.audience === 'public' || ev.audience === 'web')
 }
 
 /** A new event's zone: the member's `time_zone` preference, else the browser's, else UTC. */
@@ -177,24 +192,24 @@ function remindersBody(rows) {
 }
 const remindersKey = (list) => list.map((r) => `${r.amount} ${r.unit}`).join(',')
 
-/** The audience the switch means for `ev` (null = a new event). */
+/** The audience the switches mean for `ev` (null = a new event); a public event left public keeps its stored name. */
 function audienceOf(form, ev) {
   if (form.private) return 'private'
-  if (form.web) return 'web'
-  return ev && ev.audience && ev.audience !== 'private' && ev.audience !== 'web' ? ev.audience : 'public'
+  if (form.public) return calIsPublic(ev) ? ev.audience : CAL_PUBLIC_WIRE
+  return ev && ev.audience && ev.audience !== 'private' && !calIsPublic(ev) ? ev.audience : 'workspace'
 }
 
 /**
  * The form after one of the two exclusive switches moved: Private on turns
- * Web off, Web on turns Private off.
- * @template {{ private: boolean, web: boolean }} F
+ * Public off, Public on turns Private off.
+ * @template {{ private: boolean, public: boolean }} F
  * @param {F} form
- * @param {'private' | 'web'} which
+ * @param {'private' | 'public'} which
  * @returns {F}
  */
 export function calAudienceSwitched(form, which) {
-  if (which === 'private' && form.private) return { ...form, web: false }
-  if (which === 'web' && form.web) return { ...form, private: false }
+  if (which === 'private' && form.private) return { ...form, public: false }
+  if (which === 'public' && form.public) return { ...form, private: false }
   return form
 }
 

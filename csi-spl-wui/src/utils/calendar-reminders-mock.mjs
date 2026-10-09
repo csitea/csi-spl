@@ -14,7 +14,7 @@ export const MOCK_REMINDERS_SEED_KEY = 'spool.mock.calendar-reminders'
 function eventOf(s) {
   return {
     id: '', source: 'event', title: '', description: '', kind: 'other', starts_at: '', ends_at: '', all_day: false,
-    audience: 'public', mentions: [], creator_type: 'human', creator_id: 'HUM-1', remind_at: '', topic_id: '',
+    audience: 'workspace', mentions: [], creator_type: 'human', creator_id: 'HUM-1', remind_at: '', topic_id: '',
     release_version: '', issue_key: '', created_at: '', updated_at: '',
     ...s,
   }

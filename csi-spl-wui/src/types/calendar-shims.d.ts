@@ -18,7 +18,7 @@ declare module '~/utils/calendar-year.mjs' {
 declare module '~/utils/calendar-mock.mjs' {
   export type CalendarItem = {
     id: string, source: 'event' | 'issue' | 'official_day', title: string, description: string, kind: string,
-    starts_at: string, ends_at: string, all_day: boolean, audience: 'public' | 'internal' | 'private', mentions: string[],
+    starts_at: string, ends_at: string, all_day: boolean, audience: 'workspace' | 'internal' | 'private' | 'public' | 'web', mentions: string[],
     creator_type: 'human' | 'agent' | 'system', creator_id: string, remind_at: string, topic_id: string,
     release_version: string, issue_key: string, created_at: string, updated_at: string,
     /** 097 4.1; absent on an 089 hub */
@@ -50,7 +50,7 @@ declare module '~/utils/calendar-event-form.mjs' {
   export type CalForm = {
     title: string, date: string, start: string, end: string, allDay: boolean, endDays: number,
     timeZone: string, zoneWas: string, location: string, reminders: CalReminderRow[], color: string,
-    private: boolean, web: boolean, description: string,
+    private: boolean, public: boolean, description: string,
   }
   type Item = import('~/utils/calendar-mock.mjs').CalendarItem
   export const CAL_TITLE_MAX: number
@@ -64,7 +64,9 @@ declare module '~/utils/calendar-event-form.mjs' {
   export function calReminderError(row: CalReminderRow): string
   export function calNewReminder(rows: CalReminderRow[]): CalReminderRow | null
   export function calEditable(ev: Item | null | undefined): boolean
-  export function calAudienceSwitched<F extends { private: boolean, web: boolean }>(form: F, which: 'private' | 'web'): F
+  export function calAudienceSwitched<F extends { private: boolean, public: boolean }>(form: F, which: 'private' | 'public'): F
+  export const CAL_PUBLIC_WIRE: string
+  export function calIsPublic(ev: { audience?: string } | null | undefined): boolean
   export function calCanSetPrivate(ev: Item | null | undefined, viewerId: string): boolean
   export function calWallToUtc(date: string, hhmm: string, zone?: string): string
   export function calFormFromEvent(ev: Item | null, day: string): CalForm

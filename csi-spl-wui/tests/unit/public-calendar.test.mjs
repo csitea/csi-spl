@@ -3,7 +3,7 @@
 //     link, only v<X.Y.Z>[-cN]; live `feature` blog posts (spec 111); a draft,
 //     an untagged post and a bad tag are left out
 //   - publicCalendarEvent keeps only those two kinds with their own links:
-//     a tenant calendar event (spec 089 6.1.1, audience `public`) is dropped.
+//     a tenant calendar event (spec 089 6.1.1, audience `workspace`) is dropped.
 //     Control: the same tenant title as a feature row passes, so the drop
 //     is the filter, not a malformed fixture.
 //   - the shown month and the day groups
@@ -69,7 +69,7 @@ ok('feature rows: no blog copy = none', featureRows(null).length === 0)
 const mock = mockReleaseRows()
 ok('mock releases: one entry per day, 70 versions in all', mock.length > 0 && mock.length < 70 && mock.reduce((a, r) => a + r.n, 0) === 70 && new Set(mock.map((r) => r.day)).size === mock.length, String(mock.length))
 
-const TENANT = { id: '00000000-0000-4000-8000-000000000999', source: 'event', title: 'Tenant board meeting', kind: 'other', audience: 'public', starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z' }
+const TENANT = { id: '00000000-0000-4000-8000-000000000999', source: 'event', title: 'Tenant board meeting', kind: 'other', audience: 'workspace', starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z' }
 ok('a tenant calendar event is not a public event', publicCalendarEvent(TENANT) === null)
 ok('control: the same title as a feature row passes', publicCalendarEvent({ kind: 'feature', title: TENANT.title, day: '2026-10-09', href: '/blog/2026-10-09-board' }) !== null)
 ok('a feature linking elsewhere is dropped', publicCalendarEvent({ kind: 'feature', title: 'x', day: '2026-10-09', href: 'https://evil.example/x' }) === null)
@@ -140,7 +140,7 @@ const ls = new Map()
 globalThis.localStorage = { getItem: (k) => ls.get(k) ?? null, setItem: (k, v) => ls.set(k, String(v)) }
 ls.set('spool.mock.calendar-added', JSON.stringify([
   { id: 'w1', title: 'Mock open day', starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z', audience: 'web' },
-  { id: 'p1', title: TENANT.title, starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z', audience: 'public' },
+  { id: 'p1', title: TENANT.title, starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z', audience: 'workspace' },
 ]))
 const mockRows = await fetchWebCalendar({ mock: true }, '2026-10', '2026-10-09')
 ok('mock read: the web event, not the workspace one', mockRows.length === 1 && mockRows[0].title === 'Mock open day', JSON.stringify(mockRows))

@@ -14,7 +14,7 @@
 // title, so its absence above is the public view, not a seed that failed.
 // rdb 0158 (owner t1 a3ce2031): a `web` event seeded beside it, today, IS
 // shown on today's month (kind Event, its title, no link), read through the
-// signed-out web source; the `public` one still is not.
+// signed-out web source; the `workspace` one still is not.
 //
 // Run:
 //   BASE_URL=<generated mock bundle> pnpm run test:e2e public-calendar
@@ -56,7 +56,7 @@ const SEED = [{
   title: TENANT_TITLE,
   starts_at: `${today}T09:00:00Z`,
   ends_at: `${today}T10:00:00Z`,
-  audience: 'public',
+  audience: 'workspace',
 }, {
   id: '00000000-0000-4000-8000-0000000007f4',
   title: WEB_TITLE,

@@ -11,9 +11,10 @@
      The fields stand in spec 097 section 5's order, so 097 T014..T016 add
      theirs between them without a rewrite: title; date, time, all-day
      [097: time zone, repeat, location, guests, reminders, colour]; audience
-     (the Private switch, then the Web switch); description.
+     (the Private switch, then the Public switch); description.
 
-     rdb 0158 (owner t1 a3ce2031): the Web switch, for every member, puts the
+     rdb 0158 (owner t1 a3ce2031): the Public switch (named Web before the
+     rename of msg bad3799a, rdb 0159), for every member, puts the
      event on the signed-out /public-calendar. Never on by default (a new
      event, a Duplicate); on, it turns Private off and the other way round.
 
@@ -170,21 +171,21 @@
           >
           <span>{{ t('calendar_event.field_private') }}</span>
         </label>
-        <small class="muted" data-test="calendar-event-audience-hint">{{ form.private ? t('calendar_event.private_hint') : t('calendar_event.public_hint') }}</small>
+        <small class="muted" data-test="calendar-event-audience-hint">{{ form.private ? t('calendar_event.private_hint') : t('calendar_event.workspace_hint') }}</small>
       </div>
-      <div class="cal-dlg__field cal-dlg__field--wide" data-test="calendar-event-web-field">
+      <div class="cal-dlg__field cal-dlg__field--wide" data-test="calendar-event-public-field">
         <label class="cal-dlg__check">
           <input
-            v-model="form.web"
+            v-model="form.public"
             type="checkbox"
             role="switch"
-            :aria-checked="form.web ? 'true' : 'false'"
-            data-test="calendar-event-web"
+            :aria-checked="form.public ? 'true' : 'false'"
+            data-test="calendar-event-public"
             :disabled="busy"
           >
-          <span>{{ t('calendar_event.field_web') }}</span>
+          <span>{{ t('calendar_event.field_public') }}</span>
         </label>
-        <small v-if="form.web" class="muted" data-test="calendar-event-web-hint">{{ t('calendar_event.web_hint') }}</small>
+        <small v-if="form.public" class="muted" data-test="calendar-event-public-hint">{{ t('calendar_event.public_hint') }}</small>
       </div>
       <label class="cal-dlg__field cal-dlg__field--wide">
         <span>{{ t('calendar_event.field_description') }}</span>
@@ -290,9 +291,9 @@ function reset() {
   confirmDelete.value = false
 }
 watch(() => [props.open, props.event, props.copy, props.day], () => { if (props.open) reset() }, { immediate: true })
-/* Private and Web exclude each other: the one switched on turns the other off */
+/* Private and Public exclude each other: the one switched on turns the other off */
 watch(() => form.value.private, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'private') })
-watch(() => form.value.web, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'web') })
+watch(() => form.value.public, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'public') })
 onMounted(() => { void access.load() })
 
 /* a new start keeps the event's length at one hour when the end would fall before it */

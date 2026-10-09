@@ -7,12 +7,12 @@
      The quick part (half height): the title (focused), the date chip, the
      start and end chips, the All-day switch. More grows the same sheet to
      full height with 097's fields in 097's order (time zone, location,
-     reminders, colour, private, web, description; 097 T015 / T016 add repeat
+     reminders, colour, private, public, description; 097 T015 / T016 add repeat
      and guests where the event dialog has them). Edit opens full height on
      the event; Delete sits at the bottom start, and its confirm question
      never moves Save. Duplicate (`copy`, 097 G11) opens a new event full
-     height, filled from its source as the 089 dialog's: calFormCopy (the Web
-     switch off, rdb 0158).
+     height, filled from its source as the 089 dialog's: calFormCopy (the
+     Public switch off, rdb 0158).
 
      The chips are WUI controls showing ISO dates and the 24-hour clock: the
      native date / time input lies transparent over the chip text (the
@@ -270,21 +270,21 @@
                   :disabled="busy"
                 >
               </label>
-              <small class="calsheet__hint">{{ form.private ? t('calendar_event.private_hint') : t('calendar_event.public_hint') }}</small>
+              <small class="calsheet__hint">{{ form.private ? t('calendar_event.private_hint') : t('calendar_event.workspace_hint') }}</small>
             </div>
-            <div class="calsheet__field" data-test="calphone-sheet-web-field">
+            <div class="calsheet__field" data-test="calphone-sheet-public-field">
               <label class="calsheet__switch">
-                <span>{{ t('calendar_event.field_web') }}</span>
+                <span>{{ t('calendar_event.field_public') }}</span>
                 <input
-                  v-model="form.web"
+                  v-model="form.public"
                   type="checkbox"
                   role="switch"
-                  :aria-checked="form.web ? 'true' : 'false'"
-                  data-test="calphone-sheet-web"
+                  :aria-checked="form.public ? 'true' : 'false'"
+                  data-test="calphone-sheet-public"
                   :disabled="busy"
                 >
               </label>
-              <small v-if="form.web" class="calsheet__hint">{{ t('calendar_event.web_hint') }}</small>
+              <small v-if="form.public" class="calsheet__hint">{{ t('calendar_event.public_hint') }}</small>
             </div>
             <label class="calsheet__field">
               <span>{{ t('calendar_event.field_description') }}</span>
@@ -615,9 +615,9 @@ watch(() => props.open, (v) => {
   else closed()
 }, { immediate: true })
 watch(() => [props.event, props.copy, props.day, props.hour], () => { if (props.open) reset() })
-/* rdb 0158: Private and Web exclude each other (calAudienceSwitched) */
+/* rdb 0158: Private and Public exclude each other (calAudienceSwitched) */
 watch(() => form.value.private, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'private') })
-watch(() => form.value.web, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'web') })
+watch(() => form.value.public, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'public') })
 onBeforeUnmount(() => { if (props.open) closed() })
 onMounted(() => { void access.load() })
 

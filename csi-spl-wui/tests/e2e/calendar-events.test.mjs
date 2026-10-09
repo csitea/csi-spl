@@ -1,9 +1,9 @@
 // spec 089 T008 v1 (owner msgs 12938ef0 + 72db6282): any member adds a
-// calendar event, public by default, private on request.
+// calendar event, workspace by default, private on request.
 //
 // AC-03: New event, or a click on a day, opens the event dialog; Save
 //        creates the event and it shows in the week.
-// AC-09 (UI): the event is public unless the Private switch is on; on, it is
+// AC-09 (UI): the event is workspace unless the Private switch is on; on, it is
 //        stored private. The switch shows only to the event's creator: an
 //        agent's event (the mock's c-007 maintenance) opens with no switch.
 // AC-05: a click on an event opens the same dialog to edit or delete it; an
@@ -74,14 +74,14 @@ const closed = (p) => p.waitForFunction((s) => !document.querySelector(s), { tim
 const state = (p) => p.evaluate((s) => {
   const form = document.querySelector(s)
   const sw = document.querySelector('[data-test=calendar-event-private]')
-  const web = document.querySelector('[data-test=calendar-event-web]')
+  const pub = document.querySelector('[data-test=calendar-event-public]')
   return {
     mode: form?.getAttribute('data-mode') || '',
     date: document.querySelector('[data-test=calendar-event-date]')?.value || '',
     title: document.querySelector('[data-test=calendar-event-title]')?.value || '',
     focused: document.activeElement?.getAttribute('data-test') || '',
     switch: sw ? (sw.checked ? 'on' : 'off') : 'none',
-    web: web ? (web.checked ? 'on' : 'off') : 'none',
+    pub: pub ? (pub.checked ? 'on' : 'off') : 'none',
     del: Boolean(document.querySelector('[data-test=calendar-event-delete]')),
   }
 }, DIALOG)
@@ -126,16 +126,16 @@ try {
   const p = await browser.newPage()
   await open(p, { width: 1440, height: 900 })
 
-  /* AC-03 + AC-09: New event -> public */
+  /* AC-03 + AC-09: New event -> workspace */
   const btn = await p.$('[data-test=calendar-new]')
   ok('AC-03: the bar carries a New event button', Boolean(btn))
   if (btn) await btn.click()
   ok('AC-03: New event opens the dialog', await dialog(p))
   let s = await state(p)
   ok('a create dialog on the shown day, the title focused', s.mode === 'create' && s.date === today && s.focused === 'calendar-event-title', s)
-  ok('AC-09: the creator sees the Private switch, off (public is the default)', s.switch === 'off', s)
+  ok('AC-09: the creator sees the Private switch, off (workspace is the default)', s.switch === 'off', s)
   ok('a new event has no Delete', !s.del, s)
-  ok('rdb 0158: the Web switch is there, off (never the default)', s.web === 'off', s)
+  ok('rdb 0158: the Public switch is there, off (never the default)', s.pub === 'off', s)
   await typeTitle(p, 'E2E public')
   await shot(p, 'dialog-1440')
   ok('the dialog fits 1440 px with no sideways scroll', await noSideways(p))
@@ -143,7 +143,7 @@ try {
   ok('Save closes the dialog', await closed(p))
   ok('AC-03: the event shows in the week', await waitItem(p, 'E2E public'))
   let it = await item(p, 'E2E public')
-  ok('AC-09: created without the switch it is public', it?.audience === 'public' && !it.badge && (await stored(p, 'E2E public')) === 'public', it)
+  ok('AC-09: created without the switch it is workspace', it?.audience === 'workspace' && !it.badge && (await stored(p, 'E2E public')) === 'workspace', it)
 
   /* a click on a day -> a dialog for that day; Private on -> stored private */
   const days = calWeekDays(today)
@@ -175,7 +175,7 @@ try {
   await p.keyboard.press('Escape')
   ok('Escape closes it', await closed(p))
 
-  /* AC-05: the creator edits theirs back to public */
+  /* AC-05: the creator edits theirs back to workspace */
   await p.click('[data-test=calendar-today]')
   await waitItem(p, 'E2E private')
   await clickItem(p, 'E2E private')
@@ -185,20 +185,21 @@ try {
   await p.click('[data-test=calendar-event-private]')
   await p.click('[data-test=calendar-event-save]')
   await closed(p)
-  ok('AC-05: switched off and saved, it is public again', await waitItem(p, 'E2E private', 'public'), await item(p, 'E2E private'))
+  ok('AC-05: switched off and saved, it is workspace again', await waitItem(p, 'E2E private', 'workspace'), await item(p, 'E2E private'))
 
-  /* rdb 0158: edit -> Web; Web on turns Private off, saved it is `web` */
+  /* rdb 0158: edit -> Public; Public on turns Private off, saved it is the
+     public audience, `web` while the hub is at rename step 1 (rdb 0159) */
   await clickItem(p, 'E2E private')
   await dialog(p)
   s = await state(p)
-  ok('rdb 0158: a public event opens with Web off', s.mode === 'edit' && s.web === 'off', s)
+  ok('rdb 0158: a workspace event opens with Public off', s.mode === 'edit' && s.pub === 'off', s)
   await p.click('[data-test=calendar-event-private]')
-  await p.click('[data-test=calendar-event-web]')
+  await p.click('[data-test=calendar-event-public]')
   s = await state(p)
-  ok('rdb 0158: Web on turns Private off', s.web === 'on' && s.switch === 'off', s)
+  ok('rdb 0158: Public on turns Private off', s.pub === 'on' && s.switch === 'off', s)
   await p.click('[data-test=calendar-event-save]')
   await closed(p)
-  ok('rdb 0158: saved with Web on, it is web', await waitItem(p, 'E2E private', 'web') && (await stored(p, 'E2E private')) === 'web', await item(p, 'E2E private'))
+  ok('rdb 0158: saved with Public on, it is web (rename step 1)', await waitItem(p, 'E2E private', 'web') && (await stored(p, 'E2E private')) === 'web', await item(p, 'E2E private'))
 
   /* AC-05: delete asks once, then deletes */
   await clickItem(p, 'E2E public')

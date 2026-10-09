@@ -32,6 +32,8 @@ HUM-10, prd t1, topic `aa35699c` msg `8e68f7d6`, moved to topic `4979bb24`
 > address is in that message on the hub and is never written into this repo,
 > distribution-hygiene rules 4 and 5)
 
+Amendment 2026-10-09: "add the demo account for the LinkedInn" (HUM-10, t1 topic `f452a1f5`, msg `fafec44f`): **LinkedIn** opens the demo too, beside Google and Facebook (FR-004); every other provider and password stay refused.
+
 | answer | folded into |
 |---|---|
 | A visitor from the Internet signs in with **Google or Facebook only**; no email + password sign-up into the demo | Q1, 3.4, FR-004 |

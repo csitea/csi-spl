@@ -29,7 +29,7 @@
 # @example DRY_RUN=0 ./run -a do_spl_box_restart_run
 #------------------------------------------------------------------------------
 # Test seams: BOX_RESTART_EPOCH (now), BOX_RESTART_REBOOT_CMD (sudo -n
-# systemctl reboot), and the prepare's LEASE_PROC_ROOT / BOX_RESTART_PS_CMD /
+# systemctl reboot), BOX_RESTART_CGROUP_ROOT (/sys/fs/cgroup), and the prepare's LEASE_PROC_ROOT / BOX_RESTART_PS_CMD /
 # BOX_RESTART_SEND.
 declare -F spl_brs_agents >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-box-restart-prepare.func.sh"
@@ -128,8 +128,21 @@ spl_brx_runner_states() {
   gh api "orgs/$1/actions/runners" --paginate --jq '.runners[] | [.name, .status, (.busy | tostring)] | @tsv' 2>/dev/null || true
 }
 
-# Stop each active runner unit once the API reports it idle (no new job, no
-# killed job); 1 when one is still busy after BOX_RESTART_WAIT. The stopped
+# 0 when a Runner.Worker (a job) runs in UNIT's cgroup. The local truth, read
+# right before the stop: the API's busy flag lags a job assignment, and a
+# stop in that window cancels the job. Unreadable cgroup: 1 (the API decides).
+spl_brx_unit_working() {
+  local cg p
+  cg="$(systemctl show -p ControlGroup --value "$1" 2>/dev/null)"
+  [[ -n "$cg" ]] || return 1
+  for p in $(cat "${BOX_RESTART_CGROUP_ROOT:-/sys/fs/cgroup}$cg/cgroup.procs" 2>/dev/null); do
+    [[ "$(cat "${LEASE_PROC_ROOT:-/proc}/$p/comm" 2>/dev/null)" == Runner.Worker ]] && return 0
+  done
+  return 1
+}
+
+# Stop each active runner unit once the API reports it idle and no
+# Runner.Worker runs in it (no new job, no killed job); 1 when one is still busy after BOX_RESTART_WAIT. The stopped
 # units go into SPL_BRX_STOPPED (spl_brx_runners_start takes them back).
 spl_brx_drain() {
   local dry="$1" units u name states left end busy
@@ -146,7 +159,10 @@ spl_brx_drain() {
       systemctl is-active -q "$u" 2>/dev/null || continue
       name="$(spl_brx_unit_name "$u")"
       busy="$(awk -F'\t' -v n="$name" '$1 == n {print $3}' <<<"$states")"
-      if [[ "$busy" == false ]] && sudo -n systemctl stop "$u"; then
+      if [[ "$busy" == false ]] && spl_brx_unit_working "$u"; then
+        do_log "INFO $name: the API says idle, but a Runner.Worker runs in its unit (a job just taken): not stopped"
+        left=$((left + 1))
+      elif [[ "$busy" == false ]] && sudo -n systemctl stop "$u"; then
         SPL_BRX_STOPPED+=("$u"); do_log "OK drained $name: idle, its unit is stopped"
       else left=$((left + 1)); fi
     done

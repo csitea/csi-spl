@@ -7,6 +7,9 @@
 #      runner is stopped, nothing is written, nothing reboots
 #   2. a busy runner REFUSES the reboot (DEFER, the drained runners started
 #      again); control: every runner idle -> drained, prepared, rebooted
+#   2b. the API says idle but a Runner.Worker runs in the unit (the job
+#      assignment the API has not reported yet): not stopped, DEFER;
+#      control: the same unit without the worker is stopped
 #   3. a wf 20 deploy in flight refuses without touching a runner; the wait:
 #      a deploy that ends, and a runner that goes idle, within the wait reboot
 #   4. do_spl_box_restart_after: the drained runners started (a parked one
@@ -26,7 +29,7 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 
-SP="$T/spool" P="$T/proc" D="$T/desk" O="$T/origin.git" G="$T/gh" A="$T/active"
+SP="$T/spool" P="$T/proc" D="$T/desk" O="$T/origin.git" G="$T/gh" A="$T/active" CG="$T/cgroup"
 mkdir -p "$SP/dispatch" "$P" "$T/bin" "$G" "$A" "$T/stub"
 printf 'c-901\tclaude\t%%1\t/x\t20261008T000000Z\nc-902\tclaude\t%%2\t/x\t20261008T000000Z\n' >"$SP/registry.tsv"
 proc() { mkdir -p "$P/$1"; printf 'HOME=/x\0SPOOL_AGENT_ID=%s\0' "$2" >"$P/$1/environ"; }
@@ -66,7 +69,7 @@ case "\$1" in
   stop) rm -f "$A/\$2" ;;
   start) touch "$A/\$2" ;;
   show) u=""; k=""; while [ \$# -gt 0 ]; do case "\$1" in -p) k="\$2"; shift ;; actions.*) u="\$1" ;; esac; shift; done
-    case "\$k" in ActiveState) if [ -e "$A/\$u" ]; then echo active; else echo inactive; fi ;; Restart) echo always ;; *) id -un ;; esac ;;
+    case "\$k" in ControlGroup) echo "/sys.slice/\$u" ;; ActiveState) if [ -e "$A/\$u" ]; then echo active; else echo inactive; fi ;; Restart) echo always ;; *) id -un ;; esac ;;
   reboot) echo REBOOTED >>"$T/reboot.log" ;;
 esac
 EOF
@@ -80,14 +83,14 @@ printf '#!/bin/sh\nif [ "$1" = -l ]; then cat "%s" 2>/dev/null; else cp "$1" "%s
 chmod +x "$T/stub/"*
 
 idle() { printf 'box-spl-01\tonline\tfalse\nbox-spl-02\tonline\tfalse\nother-01\tonline\ttrue\n' >"$G/runners"; }
-reset() { rm -rf "$T/docker.rc" "$T/budget" "$SP/dispatch/box-restart" "$T/reboot.log" "$T/calls.log" "$T/sent.log" "${G:?}"/*; touch "$A/$U1" "$A/$U2"; idle; boot 1000; }
+reset() { rm -rf "${CG:?}" "$T/docker.rc" "$T/budget" "$SP/dispatch/box-restart" "$T/reboot.log" "$T/calls.log" "$T/sent.log" "${G:?}"/*; touch "$A/$U1" "$A/$U2"; idle; boot 1000; }
 SUN=1791682500
 run() {
   local s="$1"; shift
   SNIPPET="$s" in_orc SPOOL_ROOT="$SP" LEASE_PROC_ROOT="$P" BOX_RESTART_PS_CMD="cat $T/ps" BOX_RESTART_DESK="$D" \
     BOX_RESTART_SEND="$T/bin/send" BOX_RESTART_NOW=20261011T013500Z BOX_RESTART_EPOCH="$SUN" BOX_RESTART_REPO=o/r \
     BOX_RESTART_WAIT=0 BOX_RESTART_POLL=0 BOX_RESTART_GRACE=0 BOX_RESTART_RUNNER_WAIT=0 BOX_RESTART_AGENT_WAIT=0 \
-    BOX_RESTART_TMUX_CMD="echo 'c-901 x'" CPU_BUDGET_STATE_DIR="$T/budget" SPOOL_AGENT_ID=c-001 "$@" 2>&1
+    BOX_RESTART_CGROUP_ROOT="$CG" BOX_RESTART_TMUX_CMD="echo 'c-901 x'" CPU_BUDGET_STATE_DIR="$T/budget" SPOOL_AGENT_ID=c-001 "$@" 2>&1
 }
 BR="$SP/dispatch/box-restart"
 
@@ -112,6 +115,20 @@ out="$(run do_spl_box_restart_run DRY_RUN=0)"; rc=$?
   && grep -q 'note to c-902' <<<"$out" && pass "2. control: every runner idle -> drained, prepared, rebooted" || fail "2. control (rc $rc: $out)"
 grep -qP '^since\t2026-10-11T01:35:00Z$' "$BR/pending" && grep -qP '^btime\t1000$' "$BR/pending" && [ "$(cat "$BR/last-week")" = 2026-W41 ] \
   && grep -qP "^drained\t$U1 $U2\$" "$BR/pending" && pass "2. pending: since, btime, the drained units; last-week" || fail "2. pending ($(cat "$BR/pending" "$BR/last-week" 2>&1))"
+
+# ---- 2b. idle per the API, a job in the unit: not stopped ----------------------------
+# drill 3 (2026-10-09) killed no job, but stop-on-API-idle has this window:
+# a job assigned after the API read is cancelled by the stop.
+worker() { mkdir -p "$CG/sys.slice/$1" "$P/$2"; printf '901\n%s\n' "$2" >"$CG/sys.slice/$1/cgroup.procs"; echo "$3" >"$P/$2/comm"; }
+reset; worker "$U2" 950 Runner.Worker
+out="$(run do_spl_box_restart_run DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && grep -q 'box-spl-02: the API says idle, but a Runner.Worker runs' <<<"$out" && grep -q 'DEFER the restart: a runner is still busy' <<<"$out" \
+  && ! grep -q "systemctl stop $U2" "$T/calls.log" && [ -e "$A/$U2" ] && [ ! -e "$T/reboot.log" ] \
+  && pass "2b. API idle, a Runner.Worker in the unit: not stopped, DEFER" || fail "2b. worker (rc $rc: $out)"
+reset; worker "$U2" 950 Runner.Listener
+out="$(run do_spl_box_restart_run DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && grep -q "systemctl stop $U2" "$T/calls.log" && grep -q REBOOTED "$T/reboot.log" \
+  && pass "2b. control: only the listener in the unit -> stopped, rebooted" || fail "2b. control (rc $rc: $out)"
 
 # ---- 3. a deploy in flight; the wait --------------------------------------------------
 reset; echo 4711 >"$G/inflight.20_hub-build-deploy.yml.in_progress"

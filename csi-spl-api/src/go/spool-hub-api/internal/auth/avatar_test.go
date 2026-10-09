@@ -6,6 +6,7 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -58,11 +59,14 @@ func TestFetchAvatarPolicy(t *testing.T) {
 		w.Write(big[1024:]) //nolint:errcheck
 	})
 	mux.HandleFunc("/404.png", http.NotFound)
+	// A valid png after a 2 s wait: only the timeout can refuse it.
 	mux.HandleFunc("/slow.png", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 		case <-time.After(2 * time.Second):
 		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(pic) //nolint:errcheck
 	})
 	mux.HandleFunc("/to-http", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, plainURL+"/ok.png", http.StatusFound)
@@ -123,11 +127,16 @@ func TestFetchAvatarPolicy(t *testing.T) {
 		"over the cap":      tls.URL + "/big.png",
 		"over cap, chunked": tls.URL + "/big-chunked.png",
 		"404":               tls.URL + "/404.png",
-		"timeout":           tls.URL + "/slow.png",
 	} {
 		if b, _, err := fetchAvatar(ctx, hc, u, ""); !errors.Is(err, errAvatar) || b != nil {
 			t.Errorf("%s: want errAvatar and no bytes, got %v (%d bytes)", name, err, len(b))
 		}
+	}
+	// The slow png is refused by the timeout itself, not by its content.
+	b, _, err := fetchAvatar(ctx, hc, tls.URL+"/slow.png", "")
+	var ne net.Error
+	if !errors.Is(err, errAvatar) || b != nil || !errors.As(err, &ne) || !ne.Timeout() {
+		t.Errorf("timeout: want errAvatar wrapping a net.Error timeout and no bytes, got %v (%d bytes)", err, len(b))
 	}
 	// http->http redirects are refused even on the fake IdP origin.
 	if _, _, err := fetchAvatar(ctx, hc, plain.URL+"/to-https", plain.URL); !errors.Is(err, errAvatar) {

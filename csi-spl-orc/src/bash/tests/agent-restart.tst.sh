@@ -366,8 +366,10 @@ rc="$(go ID=c-942 CAUSE=hard-end DRY_RUN=0)"
 # --- 13. a dialog on the new session fails the start at once ------------------------------------
 world; lane c-943 %43 -; reborn c-943
 printf '  Settings Warning\n  ❯ 1. Continue\n    2. Fix with Claude\n    3. Exit and fix manually\n' > "$T/tmux/screen.%3943"
-t0=$SECONDS; rc="$(go ID=c-943 CAUSE=rebirth DRY_RUN=0 ROTATE_START_CHECK_WAIT=20)"; took=$((SECONDS - t0))
-[[ "$rc" == 1 && "$took" -lt 15 && "$(nproc c-943)" == 0 ]] &&
+# "at once" = well inside the check's wait: a whole restart under it took
+# 17 s on a loaded runner (gate 10 run 37976556608) against the old 15 of 20
+t0=$SECONDS; rc="$(go ID=c-943 CAUSE=rebirth DRY_RUN=0 ROTATE_START_CHECK_WAIT=120)"; took=$((SECONDS - t0))
+[[ "$rc" == 1 && "$took" -lt 60 && "$(nproc c-943)" == 0 ]] &&
   grep -q "RS-SPAWN FAIL the new session in %3943 is stopped on a 'Settings Warning' dialog" "$D/rotate.log" &&
   grep -q '^kill -TERM 3943$' "$T/kill.log" && ! grep -q '^keys %3943 ' "$T/tmux/log" 2>/dev/null &&
   pass "13. Settings Warning on the new session: RS-SPAWN FAIL at once (${took}s), named, signalled, nothing typed" ||

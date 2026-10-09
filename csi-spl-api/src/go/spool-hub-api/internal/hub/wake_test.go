@@ -65,13 +65,15 @@ func wakeRig(t *testing.T, wake bool) (*env, *hub.Server, *box, *box) {
 
 func TestWakePushesAcrossProcesses(t *testing.T) {
 	_, _, sender, desk := wakeRig(t, true)
-	start := time.Now()
 	for i, body := range []string{"one", "two", "three"} {
 		// queued, or already sent when the peer's wake-up won the race
 		if out := send(t, sender, "GRK-03", "CLE-07", "note", body, "box-desk"); out.Delivery != wire.DeliveryQueued && out.Delivery != wire.DeliverySent {
 			t.Fatalf("send %d: %q", i, out.Delivery)
 		}
 	}
+	// The clock starts after the sends: it times the wake-up, not three sends
+	// under -race on a loaded runner (wf 10 run 37991567317: 2.11 s for all).
+	start := time.Now()
 	eventually(t, "all three on the peer's box without a relay tick", func() bool {
 		return len(inbox(t, desk, "CLE-07")) == 3
 	})

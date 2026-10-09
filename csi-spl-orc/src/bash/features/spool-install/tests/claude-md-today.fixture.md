@@ -87,27 +87,25 @@ than doing the work yourself, just spawn it.** Do not ask, do not offer it as a
 question, do not flag it for a decision — below the ceiling the answer is
 always yes, and asking costs a round trip the human should never have to spend.
 
-**Which launcher to use** — standing order, 2026-08-28. Judge the task's
-difficulty against your own maximum capacity:
+**Which launcher to use** — standing order, 2026-10-09. Judge the task's
+kind and let the per-kind main and backup vendors decide:
 
-| your difficulty estimate | launcher |
-|---|---|
-| **< 60%** of what you could handle | `/qwen-spawn` |
-| **>= 60%**, or you are unsure | `/claude-spawn` |
+| task kind               | main    | backup  |
+|-------------------------|---------|---------|
+| specs, docs, plans, reviews (`specs_and_docs`) | agy     | claude  |
+| writing tests (`tests`) | claude  | mistral |
+| simple and routine coding (`simple_coding`) | mistral | claude  |
+| hard coding, architecture, hi-fi work (`complex_coding`) | claude  | mistral |
+| translations, language reviews (`i18n`) | agy     | claude  |
+| secrets, personal data (`secret`) | claude  | mistral |
 
-Cheap, well-specified, mechanically-bounded work goes to qwen (the cheap lane);
-architectural, ambiguous, or correctness-critical work goes to claude. When the estimate sits
-near the line, treat that uncertainty as evidence the task is harder than it
-looks and use `/claude-spawn`.
+The backup vendor takes over after 2 failed tries of the main on the same task.
 
 <!-- fleet-pin data-rule-vendors: claude mistral -->
-**Data rule, overrides difficulty** (owner, 2026-10-08, msg 803c3b38, spec 110
+**Data rule, overrides kind** (owner, 2026-10-08, msg 803c3b38, spec 110
 D2): work that carries personal data or secrets (credentials, keys, customer
-data) always goes to `/claude-spawn` or `/mistral-spawn`, never to qwen (its
-endpoints are run by a Chinese provider), grok or agy, and a brief for those
-lanes never names a credential path. `do_spl_lane_mix` routes
-`LANE_MIX_KIND=secret` to claude; a mistral lane for such work is a
-`/mistral-spawn` picked by hand.
+data) always goes to `/claude-spawn` or `/mistral-spawn`, never to qwen, grok or agy.
+The backup for `secret` is mistral, and the work is never routed to agy, grok, or qwen.
 
 <!-- fleet-pin language-rule-final: agy -->
 **Language rule, owner 2026-10-08** (t1 msg 296582df: "there the final word
@@ -115,8 +113,7 @@ on the actual content should have the agy - because he is BEST with
 languages"): agy has the final word on multilingual text. Any user-facing text
 in several languages (blog posts, WUI i18n locale files, help pages) gets an
 agy review as the LAST step before it ships: `/agy-spawn`
-(`LANE_MIX_KIND=i18n`). It complements spec 110 D5 (mistral writes docs and
-low-level code; agy reviews the languages). With no agy on the box, claude
+(`LANE_MIX_KIND=i18n`). It complements spec 115. With no agy on the box, claude
 drafts and the text waits for an agy review; it never ships unreviewed.
 
 The only limit is **40 concurrent agent windows**. This box is sized for that
@@ -142,7 +139,7 @@ absorbing them yourself.
 
 **`/spawn-an-agent` is the front door** — it applies the table above, checks
 the 40-agent ceiling, keeps the new scope disjoint from every live worktree,
-and then invokes `/claude-spawn` or `/qwen-spawn`, which handle the worktree,
+and then invokes `/claude-spawn`, `/mistral-spawn`, or `/agy-spawn`, which handle the worktree,
 the inbox dirs and the seed prompt. Invoke a launcher directly only when you
 have already decided which one.
 
@@ -215,7 +212,7 @@ absence**. Any confident claim that something is NOT happening has to come from
 somewhere other than such a control.
 
 <!-- /fragment -->
-<!-- spool-install: end claude-md sha256=a3fe6df4294d2c9a4e45b4976d99a4b5a2451bf7761d288794ff3c95f3b44896 -->
+<!-- spool-install: end claude-md sha256=1d88056f4ced65adc81a466b8cc06467b8ccf0046d6e8fd08fd904cc2d3b51ce -->
 <!-- fragment org/55-personal -->
 ## Personal rule
 

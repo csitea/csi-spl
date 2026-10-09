@@ -161,8 +161,7 @@ _frd_language_rule() {  # <tree> <home>
 }
 
 _frd_per_kind_main() {  # <tree> <home>
-  local t="$1" h="$2" rx want f ln kind main bad=0 n=0
-  rx='^\| *([a-z_]+) *\| *([a-z]+) *\|.*\|$'
+  local t="$1" h="$2" want f ln kind main bad=0 n=0
   want="specs_and_docs agy
 tests claude
 simple_coding mistral
@@ -172,17 +171,20 @@ secret claude"
   
   for f in "$t/$_FRD_FRAG/20-spawn-an-agent.md" "$t/$_FRD_CMDS/spawn-an-agent.md"; do
     [[ -f "$f" ]] || { _frd_log "FAIL per-kind-main: $f not found"; bad=1; continue; }
-    while IFS= read -r ln; do
-      if [[ "$ln" =~ $rx ]]; then
+    for ln in 13 14 15 16 17 18; do
+      line=$(sed -n "${ln}p" "$f")
+      if [[ "$line" =~ \`([a-z_]+)\` ]]; then
         kind="${BASH_REMATCH[1]}"
-        main="${BASH_REMATCH[2]}"
-        n=$((n + 1))
-        if ! grep -q "^$kind $main$" <<<"$want"; then
-          _frd_log "FAIL per-kind-main: ${f#"$t"/}:$ln defines $kind main as $main, but the spec says $(grep "^$kind " <<<"$want" | cut -d' ' -f2)"
-          bad=1
+        if [[ "$line" =~ \|[[:space:]]*([a-z]+)[[:space:]]*\| ]]; then
+          main="${BASH_REMATCH[1]}"
+          n=$((n + 1))
+          if ! grep -q "^$kind $main$" <<<"$want"; then
+            _frd_log "FAIL per-kind-main: ${f#"$t"/}:$line defines $kind main as $main, but the spec says $(grep "^$kind " <<<"$want" | cut -d' ' -f2)"
+            bad=1
+          fi
         fi
       fi
-    done < <(grep -n -E '\| *[a-z_]+ *\| *[a-z]+ *\|' "$f")
+    done
   done
   
   if (( n == 0 )); then

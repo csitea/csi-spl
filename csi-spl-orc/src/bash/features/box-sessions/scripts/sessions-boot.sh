@@ -11,7 +11,9 @@
 #   1. the landing session BOX_SESSIONS_LANDING (default main), when no server
 #      runs, with a placeholder window that goes once anything else is there.
 #   2. every saved `shell` window that is not there, by session + name, in its
-#      cwd ($HOME when that is gone). Nothing is typed into it.
+#      cwd ($HOME when that is gone). Nothing is typed into it. A rotation's
+#      retiring window (<ID>-<hhmm>Z-retiring, spec 060) is the old session's
+#      leftover: neither made nor expected back.
 #   3. the agent seats: BOX_SESSIONS_AGENT_RESTORE_CMD, default
 #      do_spl_agent_boot_restore DRY_RUN=0 from this orc checkout (the identity
 #      map: each agent's own session, worktree and user). Empty = skipped.
@@ -96,7 +98,7 @@ fi
 # ── 2. the shell windows ────────────────────────────────────────────────────
 win_present() { btmux list-windows -t "=$1" -F '#{window_name}' 2>/dev/null | grep -xF -- "$2" >/dev/null; }
 declare -a WANT_WIN=() WANT_ID=()
-shells=0; made=0
+shells=0; made=0; retiring=0
 if [ ! -r "$BS_STATE" ]; then
   log "WARN no saved state at $BS_STATE - only the agent seats come back"
 elif [ -z "$FAIL" ]; then
@@ -107,6 +109,10 @@ elif [ -z "$FAIL" ]; then
       shell) ;;
       *) continue ;;
     esac
+    # box reboot 2026-10-09: made, renamed by the box tag, then "not back"
+    if [[ "$nm" =~ -[0-9]{4}Z-retiring$ ]]; then
+      retiring=$((retiring + 1)); log "skip window $s:$nm: a rotation's retiring window"; continue
+    fi
     shells=$((shells + 1)); WANT_WIN+=("$s"$'\t'"$nm")
     win_present "$s" "$nm" && continue
     [ -d "$c" ] || c="$HOME"
@@ -115,7 +121,7 @@ elif [ -z "$FAIL" ]; then
     if win_present "$s" "$nm"; then made=$((made + 1)); log "window $s:$nm in $c"
     else log "WARN window $s:$nm could not be created"; fi
   done < "$BS_STATE"
-  log "shell windows: $shells saved, $made created, $((shells - made)) already there or failed"
+  log "shell windows: $shells saved, $made created, $((shells - made)) already there or failed$( [ "$retiring" = 0 ] || echo ", $retiring retiring skipped")"
 fi
 
 # The save may now trust this server: no grace wait on it.

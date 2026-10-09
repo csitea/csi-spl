@@ -109,6 +109,21 @@ BOX_SESSIONS_AGENT_RESTORE_CMD="" bash "$SCRIPTS/sessions-boot.sh" --state "$sna
 eq "no stdout without --foreground" "" "$(cat "$T/quiet.out")"
 has "boot.log written" "=== box-sessions boot done" "$(cat "$BOX_SESSIONS_DIR/boot.log")"
 
+# ── 5b. a rotation's retiring window is not a window to bring back ────────
+# box reboot 2026-10-09: state.tsv held c-003-1615Z-retiring (the old window of
+# an hourly rotation, a bare shell) as a shell row; the boot made it, the box
+# tag renamed it, and verify FAILED on it. The stub plays that rename.
+tm kill-server; sleep 0.3
+ret="$T/retiring.tsv"; cp "$snap" "$ret"
+printf 'main\t9\tc-901-1615Z-retiring\t%s\t0\tshell\t-\n' "$T/notes" >> "$ret"
+RENAME="tmux -u -S '$SOCK' rename-window -t 'main:c-901-1615Z-retiring' 'c-901@box ! -1615Z-retiring' 2>/dev/null; $STUB_OK"
+BOX_SESSIONS_VERIFY_SEC=2 BOX_SESSIONS_AGENT_RESTORE_CMD="$RENAME" bash "$SCRIPTS/sessions-boot.sh" --foreground --state "$ret" > "$T/boot5.out" 2>&1; rv=$?
+boot="$(cat "$T/boot5.out")"
+eq "retiring: boot exits 0" 0 "$rv"
+hasnt "retiring: the window is not made" "retiring" "$(windows)"
+has "retiring: the skip is logged" "a rotation's retiring window" "$boot"
+hasnt "retiring: verify does not want it" "retiring;" "$boot"
+
 # ── 6. hygiene: no engine path, no literal home, no box user ───────────────
 src="$(cat "$SCRIPTS"/*.sh)"
 hasnt "no engine path" "ysg-box" "$src"

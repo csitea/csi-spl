@@ -184,8 +184,13 @@ try {
         await sleep(200)
         const bx = await sideways(b.p, 'body')
         ok(`5 ${tag}: reading switch, no sideways scroll`, on && flat(bx), bx)
-        const rh = await heights(b.p, `${READING} label`)
-        ok(`6 ${tag}: reading switch row 44..48 px`, tapOk(rh), rh)
+        /* 44..48 px; at L5 on 360 px a wider font (the hosted runner's DejaVu Sans, run 37975966358)
+         * wraps the label to two lines: the row may then grow by the words' own height, never by padding */
+        const rh = await b.p.$$eval(`${READING} label`, (els) => els.filter((e) => e.offsetParent !== null).map((e) => {
+          const w = e.querySelector('.hr-setting__label')
+          return { h: Math.round(e.getBoundingClientRect().height * 10) / 10, words: w ? Math.round(w.getBoundingClientRect().height * 10) / 10 : 0 }
+        }))
+        ok(`6 ${tag}: reading switch row 44..48 px, or its wrapped words' height`, rh.length > 0 && rh.every((c) => c.h >= 44 && c.h <= Math.max(48, c.words + 1)), rh)
         ok(`${tag}: no unexpected page errors`, g.errors.length === 0 && b.errors.length === 0, [...g.errors, ...b.errors])
         await b.ctx.close()
       }

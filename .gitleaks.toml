@@ -10,6 +10,10 @@
 #     dev/prd (yaml, json, 030 tfvars): the LinkedIn app's Client ID. Public by
 #     OAuth design (it is in every authorize redirect); the secret is only in
 #     Secret Manager. Allowlisted as that exact value, not as a pattern.
+#   - Triage 2026-10-09, rule generic-api-key, 1 hit in commit 8302c899c
+#     (orc spawn-an-agent.md, the lane-kind table row "personal data or
+#     secrets: `LANE_MIX_KIND=secret`"): an env-var name and a lane-kind word,
+#     not a credential. Allowlisted as that exact value, anchored.
 # A real credential still fails the scan. The control plants an AKIA key in
 # a throwaway git repo and requires gitleaks to exit 1 on it.
 title = "csi-spl secret scan"
@@ -28,4 +32,5 @@ regexes = [
     '''S2V5LW5vdC1yZWFsLWJ1dC02NC1ieXRlcy1sb25nLWZvci10aGUtdGVzdC1vbmx5IQ==''',
     '''c2VjcmV0LWtleS1ieXRlcy1ub3QtYS1yZWFsLWtleQ==''',
     '''bm90LWEta2V5''',
+    '''^LANE_MIX_KIND=secret$''',
 ]

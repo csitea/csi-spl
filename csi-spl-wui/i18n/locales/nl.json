@@ -2393,8 +2393,17 @@
       "open_branch": "Open deze tak",
       "open_list": "Openen als lijst",
       "export_md": "Exporteren naar Markdown",
-      "export_csv": "Exporteren naar een spreadsheet (CSV)"
-    }
+      "export_csv": "Exporteren naar een spreadsheet (CSV)",
+      "add_code": "Codeblok toevoegen",
+      "add_image": "Afbeelding toevoegen",
+      "replace_image": "Afbeelding vervangen"
+    },
+    "edit_doc_title": "Document hernoemen",
+    "edit_code": "Codeblok bewerken",
+    "code_placeholder": "Code",
+    "image_caption": "Bijschrift",
+    "image_remove": "Afbeelding verwijderen",
+    "err_image": "De afbeelding is geweigerd: gebruik een PNG-, JPEG-, GIF- of WebP-bestand van maximaal 5 MB."
   },
   "hours_cal": {
     "line": "Werkuren",

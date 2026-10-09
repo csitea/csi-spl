@@ -2393,8 +2393,17 @@
       "open_branch": "פתח את הענף הזה",
       "open_list": "פתח כרשימה",
       "export_md": "ייצא ל-Markdown",
-      "export_csv": "ייצא לגיליון אלקטרוני (CSV)"
-    }
+      "export_csv": "ייצא לגיליון אלקטרוני (CSV)",
+      "add_code": "הוספת בלוק קוד",
+      "add_image": "הוספת תמונה",
+      "replace_image": "החלפת התמונה"
+    },
+    "edit_doc_title": "שינוי שם המסמך",
+    "edit_code": "עריכת בלוק הקוד",
+    "code_placeholder": "קוד",
+    "image_caption": "כיתוב לתמונה",
+    "image_remove": "הסרת התמונה",
+    "err_image": "התמונה נדחתה: יש להשתמש בקובץ PNG,‏ JPEG,‏ GIF או WebP בגודל של עד 5 MB."
   },
   "hours_cal": {
     "line": "שעות עבודה",

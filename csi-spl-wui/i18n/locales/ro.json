@@ -2393,8 +2393,17 @@
       "open_branch": "Deschide această ramură",
       "open_list": "Deschide ca listă",
       "export_md": "Exportă în Markdown",
-      "export_csv": "Exportă într-o foaie de calcul (CSV)"
-    }
+      "export_csv": "Exportă într-o foaie de calcul (CSV)",
+      "add_code": "Adaugă bloc de cod",
+      "add_image": "Adaugă imagine",
+      "replace_image": "Înlocuiește imaginea"
+    },
+    "edit_doc_title": "Redenumește documentul",
+    "edit_code": "Editează blocul de cod",
+    "code_placeholder": "Cod",
+    "image_caption": "Legenda imaginii",
+    "image_remove": "Elimină imaginea",
+    "err_image": "Imaginea a fost refuzată: folosește un fișier PNG, JPEG, GIF sau WebP de cel mult 5 MB."
   },
   "hours_cal": {
     "line": "Ore de lucru",

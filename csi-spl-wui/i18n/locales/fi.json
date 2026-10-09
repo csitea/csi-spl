@@ -2393,8 +2393,17 @@
       "open_branch": "Avaa tämä haara",
       "open_list": "Avaa luettelona",
       "export_md": "Vie Markdown-muotoon",
-      "export_csv": "Vie taulukkolaskentaan (CSV)"
-    }
+      "export_csv": "Vie taulukkolaskentaan (CSV)",
+      "add_code": "Lisää koodilohko",
+      "add_image": "Lisää kuva",
+      "replace_image": "Vaihda kuva"
+    },
+    "edit_doc_title": "Nimeä asiakirja uudelleen",
+    "edit_code": "Muokkaa koodilohkoa",
+    "code_placeholder": "Koodi",
+    "image_caption": "Kuvateksti",
+    "image_remove": "Poista kuva",
+    "err_image": "Kuva hylättiin: käytä enintään 5 Mt:n PNG-, JPEG-, GIF- tai WebP-tiedostoa."
   },
   "hours_cal": {
     "line": "Työtunnit",

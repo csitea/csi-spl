@@ -2393,8 +2393,17 @@
       "open_branch": "Отвори ја оваа гранка",
       "open_list": "Отвори како листа",
       "export_md": "Експортирај во Markdown",
-      "export_csv": "Експортирај во табела (CSV)"
-    }
+      "export_csv": "Експортирај во табела (CSV)",
+      "add_code": "Додај блок со код",
+      "add_image": "Додај слика",
+      "replace_image": "Замени ја сликата"
+    },
+    "edit_doc_title": "Преименувај го документот",
+    "edit_code": "Уреди го блокот со код",
+    "code_placeholder": "Код",
+    "image_caption": "Опис на сликата",
+    "image_remove": "Отстрани ја сликата",
+    "err_image": "Сликата е одбиена: користете PNG, JPEG, GIF или WebP датотека до 5 MB."
   },
   "hours_cal": {
     "line": "Работни часови",

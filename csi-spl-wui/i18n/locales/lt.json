@@ -2393,8 +2393,17 @@
       "open_branch": "Atidaryti šią šaką",
       "open_list": "Atidaryti kaip sąrašą",
       "export_md": "Eksportuoti į Markdown",
-      "export_csv": "Eksportuoti į skaičiuoklę (CSV)"
-    }
+      "export_csv": "Eksportuoti į skaičiuoklę (CSV)",
+      "add_code": "Pridėti kodo bloką",
+      "add_image": "Pridėti paveikslėlį",
+      "replace_image": "Pakeisti paveikslėlį"
+    },
+    "edit_doc_title": "Pervadinti dokumentą",
+    "edit_code": "Redaguoti kodo bloką",
+    "code_placeholder": "Kodas",
+    "image_caption": "Paveikslėlio antraštė",
+    "image_remove": "Pašalinti paveikslėlį",
+    "err_image": "Paveikslėlis atmestas: naudokite PNG, JPEG, GIF arba WebP failą, ne didesnį nei 5 MB."
   },
   "hours_cal": {
     "line": "Darbo valandos",

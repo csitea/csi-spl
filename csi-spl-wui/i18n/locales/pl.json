@@ -2393,8 +2393,17 @@
       "open_branch": "Otwórz tę gałąź",
       "open_list": "Otwórz jako listę",
       "export_md": "Eksportuj do Markdown",
-      "export_csv": "Eksportuj do arkusza kalkulacyjnego (CSV)"
-    }
+      "export_csv": "Eksportuj do arkusza kalkulacyjnego (CSV)",
+      "add_code": "Dodaj blok kodu",
+      "add_image": "Dodaj obraz",
+      "replace_image": "Zastąp obraz"
+    },
+    "edit_doc_title": "Zmień nazwę dokumentu",
+    "edit_code": "Edytuj blok kodu",
+    "code_placeholder": "Kod",
+    "image_caption": "Podpis obrazu",
+    "image_remove": "Usuń obraz",
+    "err_image": "Obraz odrzucono: użyj pliku PNG, JPEG, GIF lub WebP o rozmiarze do 5 MB."
   },
   "hours_cal": {
     "line": "Godziny pracy",

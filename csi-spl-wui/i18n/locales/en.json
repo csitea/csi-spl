@@ -2393,8 +2393,17 @@
       "open_branch": "Open this branch",
       "open_list": "Open as list",
       "export_md": "Export to Markdown",
-      "export_csv": "Export to a spreadsheet (CSV)"
-    }
+      "export_csv": "Export to a spreadsheet (CSV)",
+      "add_code": "Add code block",
+      "add_image": "Add image",
+      "replace_image": "Replace image"
+    },
+    "edit_doc_title": "Rename the document",
+    "edit_code": "Edit the code block",
+    "code_placeholder": "Code",
+    "image_caption": "Image caption",
+    "image_remove": "Remove the image",
+    "err_image": "That image was refused: use a PNG, JPEG, GIF or WebP file of at most 5 MB."
   },
   "hours_cal": {
     "line": "Working hours",

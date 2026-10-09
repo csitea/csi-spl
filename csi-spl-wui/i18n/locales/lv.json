@@ -2393,8 +2393,17 @@
       "open_branch": "Atvērt šo zaru",
       "open_list": "Atvērt kā sarakstu",
       "export_md": "Eksportēt uz Markdown",
-      "export_csv": "Eksportēt uz izklājlapu (CSV)"
-    }
+      "export_csv": "Eksportēt uz izklājlapu (CSV)",
+      "add_code": "Pievienot koda bloku",
+      "add_image": "Pievienot attēlu",
+      "replace_image": "Aizstāt attēlu"
+    },
+    "edit_doc_title": "Pārdēvēt dokumentu",
+    "edit_code": "Rediģēt koda bloku",
+    "code_placeholder": "Kods",
+    "image_caption": "Attēla paraksts",
+    "image_remove": "Noņemt attēlu",
+    "err_image": "Attēls tika noraidīts: izmantojiet PNG, JPEG, GIF vai WebP failu līdz 5 MB."
   },
   "hours_cal": {
     "line": "Darba stundas",

@@ -2393,8 +2393,17 @@
       "open_branch": "Öppna den här grenen",
       "open_list": "Öppna som lista",
       "export_md": "Exportera till Markdown",
-      "export_csv": "Exportera till ett kalkylblad (CSV)"
-    }
+      "export_csv": "Exportera till ett kalkylblad (CSV)",
+      "add_code": "Lägg till kodblock",
+      "add_image": "Lägg till bild",
+      "replace_image": "Ersätt bild"
+    },
+    "edit_doc_title": "Byt namn på dokumentet",
+    "edit_code": "Redigera kodblocket",
+    "code_placeholder": "Kod",
+    "image_caption": "Bildtext",
+    "image_remove": "Ta bort bilden",
+    "err_image": "Bilden avvisades: använd en PNG-, JPEG-, GIF- eller WebP-fil på högst 5 MB."
   },
   "hours_cal": {
     "line": "Arbetstid",

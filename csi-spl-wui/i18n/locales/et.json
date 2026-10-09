@@ -2393,8 +2393,17 @@
       "open_branch": "Ava see haru",
       "open_list": "Ava loendina",
       "export_md": "Ekspordi Markdowni",
-      "export_csv": "Ekspordi arvutustabelisse (CSV)"
-    }
+      "export_csv": "Ekspordi arvutustabelisse (CSV)",
+      "add_code": "Lisa koodiplokk",
+      "add_image": "Lisa pilt",
+      "replace_image": "Asenda pilt"
+    },
+    "edit_doc_title": "Nimeta dokument ümber",
+    "edit_code": "Muuda koodiplokki",
+    "code_placeholder": "Kood",
+    "image_caption": "Pildi allkiri",
+    "image_remove": "Eemalda pilt",
+    "err_image": "Pilt lükati tagasi: kasuta PNG-, JPEG-, GIF- või WebP-faili, mis on kuni 5 MB."
   },
   "hours_cal": {
     "line": "Tööajad",

@@ -2393,8 +2393,17 @@
       "open_branch": "Otvoriť túto vetvu",
       "open_list": "Otvoriť ako zoznam",
       "export_md": "Exportovať do Markdown",
-      "export_csv": "Exportovať do tabuľky (CSV)"
-    }
+      "export_csv": "Exportovať do tabuľky (CSV)",
+      "add_code": "Pridať blok kódu",
+      "add_image": "Pridať obrázok",
+      "replace_image": "Nahradiť obrázok"
+    },
+    "edit_doc_title": "Premenovať dokument",
+    "edit_code": "Upraviť blok kódu",
+    "code_placeholder": "Kód",
+    "image_caption": "Popis obrázka",
+    "image_remove": "Odstrániť obrázok",
+    "err_image": "Obrázok bol odmietnutý: použite súbor PNG, JPEG, GIF alebo WebP s veľkosťou najviac 5 MB."
   },
   "hours_cal": {
     "line": "Pracovné hodiny",

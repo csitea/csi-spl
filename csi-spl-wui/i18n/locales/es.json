@@ -2393,8 +2393,17 @@
       "open_branch": "Abrir esta rama",
       "open_list": "Abrir como lista",
       "export_md": "Exportar a Markdown",
-      "export_csv": "Exportar a una hoja de cálculo (CSV)"
-    }
+      "export_csv": "Exportar a una hoja de cálculo (CSV)",
+      "add_code": "Añadir bloque de código",
+      "add_image": "Añadir imagen",
+      "replace_image": "Reemplazar imagen"
+    },
+    "edit_doc_title": "Cambiar el nombre del documento",
+    "edit_code": "Editar el bloque de código",
+    "code_placeholder": "Código",
+    "image_caption": "Pie de imagen",
+    "image_remove": "Quitar la imagen",
+    "err_image": "Se rechazó la imagen: usa un archivo PNG, JPEG, GIF o WebP de 5 MB como máximo."
   },
   "hours_cal": {
     "line": "Horas de trabajo",

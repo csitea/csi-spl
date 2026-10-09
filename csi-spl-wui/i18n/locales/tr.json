@@ -2393,8 +2393,17 @@
       "open_branch": "Bu dalı aç",
       "open_list": "Liste olarak aç",
       "export_md": "Markdown'a aktar",
-      "export_csv": "E-tabloya aktar (CSV)"
-    }
+      "export_csv": "E-tabloya aktar (CSV)",
+      "add_code": "Kod bloğu ekle",
+      "add_image": "Görsel ekle",
+      "replace_image": "Görseli değiştir"
+    },
+    "edit_doc_title": "Belgeyi yeniden adlandır",
+    "edit_code": "Kod bloğunu düzenle",
+    "code_placeholder": "Kod",
+    "image_caption": "Görsel açıklaması",
+    "image_remove": "Görseli kaldır",
+    "err_image": "Görsel reddedildi: en fazla 5 MB boyutunda bir PNG, JPEG, GIF veya WebP dosyası kullanın."
   },
   "hours_cal": {
     "line": "Çalışma saatleri",

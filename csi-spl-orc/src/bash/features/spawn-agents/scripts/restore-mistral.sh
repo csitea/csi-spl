@@ -12,7 +12,18 @@
 # vibe renames its process to "Vibe CLI" (comm and cmdline): match a live m-
 # lane by SPOOL_AGENT_ID in its environ, never by the name vibe.
 #
-# Usage: restore-mistral.sh <TITLE> <RUNDIR> [SESSION_ID|-] [KICK_PROMPT]
+# A restored m- seat gets its task back (restart drill 3, 2026-10-09: the
+# seats came back at an empty prompt, "0 tokens"). Arg 4 from the identity
+# restore is a brief FILE, not a prompt. The seat's brief is the first of:
+# arg 4 (a readable file), lifetime/session.json .brief, lifetime/brief.md,
+# the spec 102 handoff.md (its "## 2. brief" path, else the handoff itself);
+# the kick is restore-claude.sh's own (restore-core _rs_kick: re-read the
+# brief, the inbox, continue). No brief on disk: no prompt is invented, the
+# seat resumes bare and is reported to the orchestrator (RESTORE_REPORT_SEND
+# overrides the sender; with RESTORE_PRINT=1 nothing is sent unless it is set).
+# An arg 4 that is not a file is still a literal kick.
+#
+# Usage: restore-mistral.sh <TITLE> <RUNDIR> [SESSION_ID|-] [BRIEF_FILE|KICK_PROMPT]
 #   SPOOL_MISTRAL_MAX_PRICE overrides cnf env.box.mistral_vibe.max_price.
 # shellcheck disable=SC2034  # the RESTORE_* declarations are read by restore-core.inc.sh
 set -uo pipefail
@@ -40,4 +51,34 @@ _rs_max_price="${SPOOL_MISTRAL_MAX_PRICE:-$(_sp_cnf_max_price)}"
 [[ "$_rs_max_price" =~ ^[0-9]+(\.[0-9]+)?$ ]] \
   || _rs_fail "no cost cap: cnf env.box.mistral_vibe.max_price (or SPOOL_MISTRAL_MAX_PRICE) must be a dollar amount, got '${_rs_max_price}' (specs/110 2.5)"
 RESTORE_EXTRA_FLAGS="--max-price ${_rs_max_price}"
-restore_main "$@"
+
+# The seat's brief file (see the head), or nothing.
+_rs_mistral_brief() {  # ID ARG4
+  local lt="$SPOOL_ROOT/$1/lifetime" ho="$SPOOL_ROOT/$1/handoff.md" b sec
+  if [ -n "$2" ] && [ -f "$2" ] && [ -r "$2" ]; then echo "$2"; return 0; fi
+  b="$(jq -r '.brief // empty' "$lt/session.json" 2>/dev/null || true)"
+  if [ -n "$b" ] && [ -r "$b" ]; then echo "$b"; return 0; fi
+  if [ -s "$lt/brief.md" ]; then echo "$lt/brief.md"; return 0; fi
+  [ -s "$ho" ] || return 0
+  sec="$(awk '/^## /{on = ($0 == "## 2. brief"); next} on' "$ho" | sed '/^[[:space:]]*$/d')"
+  [ -n "$sec" ] && [ "$sec" != "(none)" ] || return 0
+  b="$(sed -n '1s/^brief: //p' <<<"$sec")"
+  if [ -n "$b" ] && [ -r "$b" ]; then echo "$b"; else echo "$ho"; fi
+}
+
+_rs_mistral_nobrief() {  # ID RUNDIR
+  local msg="NO-BRIEF $1: restored with no prompt, no brief on disk (arg 4, $SPOOL_ROOT/$1/lifetime/session.json .brief, lifetime/brief.md, handoff.md section 2). It waits at an empty prompt in $2: send it its task."
+  echo "$msg" >&2
+  [ "${RESTORE_PRINT:-0}" = 1 ] && [ -z "${RESTORE_REPORT_SEND:-}" ] && return 0
+  ${RESTORE_REPORT_SEND:-bash "$_rs_here/spool-send.sh"} --from "$1" --to orchestrator --kind blocker \
+    --task "restore-$1" --no-ask --body "$msg" >/dev/null 2>&1 || echo "WARN $1: the NO-BRIEF report was not sent" >&2
+}
+
+SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
+if spool_valid_id "${1:-}" 2>/dev/null && [ -d "${2:-}" ] && { [ -z "${4:-}" ] || [ -f "${4:-}" ]; }; then
+  _rs_brief="$(_rs_mistral_brief "$1" "${4:-}")"
+  if [ -n "$_rs_brief" ]; then RESTORE_KICK_MODE=brief; else _rs_mistral_nobrief "$1" "$2"; fi
+  restore_main "$1" "$2" "${3:-}" "$_rs_brief"
+else
+  restore_main "$@"
+fi

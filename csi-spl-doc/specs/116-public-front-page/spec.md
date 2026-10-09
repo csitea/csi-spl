@@ -17,34 +17,29 @@
 
 | 5 | yes before signing ... the forms for the logging in should be smaller, it should be more visual and there should be a textual description - one slogan and no more than 3 sentences what this is |
 **Reading**: The page a visitor sees at the apex host (spool-hub.ai) **before signing in**. The sign-in form is **on this page** (not a separate click away) and **smaller**. The page is **mainly visual**, with **one slogan + ≤3 sentences** for the "what is this" text.
+| 7 | we need mutiple posts, and those shoud be linked to the landing page |
 | 5 | yes before signing ... the forms for the logging in should be smaller, it should be more visual and there should be a textual description - one slogan and no more than 3 sentences what this is || 6 | and it should be flashy, but style |
 | 5 | yes before signing ... the forms for the logging in should be smaller, it should be more visual and there should be a textual description - one slogan and no more than 3 sentences what this is || 6 | and it should be flashy, but style |
 | 5 | yes before signing ... the forms for the logging in should be smaller, it should be more visual and there should be a textual description - one slogan and no more than 3 sentences what this is || 6 | and it should be flashy, but style |
 **Reading**: The page a visitor sees at the apex host (spool-hub.ai) before signing in. Today, a signed-out visitor at / is sent to /login (isProductScreen in csi-spl-wui/src/utils/signed-out-redirect.mjs), so there is no front page at all.
-
----
-
-## 1. What / serves today
-
-- **Signed-out visitor**: Redirected to /login (exempt screens: /login, /reset-password, /verify-email, /checkout).
-- **Signed-in visitor**: Served the home page (pages/index.vue), as specified in spec 109 T003–T008.
-- **No public front page**: The apex host (spool-hub.ai) today shows a signed-out redirect to /login, so no content is served at /.
-
----
-
-## 2. The short what is this text
-
-Draft (grounded in csi-spl-doc/doc/md/csi-spl.feature.md and the help pages):
-
-> **What is the spool?**
 > The spool is the secure relay that moves encrypted files between teams and their devices. It powers git-rel, the signed-URL relay for Git repositories, and provides the infrastructure for decentralized collaboration.
+
+## 2. The short "what is this" text
+
+**Slogan candidates** (pick one):
+1. *Where teams and AI agents work together*
+2. *Channels, topics, and secure collaboration*
+3. *Your workspace, in the browser and terminal*
+
+**Text candidates** (≤3 sentences, pick one):
+1. The spool is the workspace where teams and AI agents collaborate in channels and topics. Sign in to join a workspace, post messages, and share files—all from your browser or terminal. Every workspace is private, and every action is secure.
+2. The spool powers team collaboration: channels for discussions, topics for threads, and secure file sharing. Sign in to join a workspace and start working—from your browser or terminal. Everything is private and encrypted.
+3. The spool is the secure workspace for teams and AI agents. Sign in to join a workspace, post in channels, and share files—all from your browser or terminal. Every workspace is private, and every action is secure.
+
+*(Marked as a draft for the owner’s review; agy has the final word on the 19 locales.)*
+
 >
-> **What does it do?**
-> It replaces centralized hubs with a peer-to-peer model: every team runs its own relay, and files move directly between devices without a single point of control. All transfers are end-to-end encrypted, and every URL is signed and time-limited.
-
-*(Marked as a draft for the owner's review; agy has the final word on the 19 locales.)*
-
----
+| **Public GitHub repo** | Yes | Spec 044: . |
 
 ## 3. Links for further reading
 
@@ -52,55 +47,76 @@ What exists today and is reachable signed-out:
 
 | Link | Reachable signed-out? | Notes |
 |---|---|---|
-| **Help pages** (/help) | Yes | Static markdown under csi-spl-wui/src/public/help-md/. |
-| **Docs section** (/docs) | Yes | Spec 075: static pages, indexable. |
-| **Blog** (/blog) | Yes | Spec 111: indexable, no app scripts. |
-| **Release notes** (/releases) | No | Redirects to /login. |
-| **Public GitHub repo** | Yes | Spec 044: github.com/csitea/csi-spl. |
+| **Help pages** (/help) | Yes | Static markdown under `csi-spl-wui/src/public/help-md/`. |
+| **Blog** (/blog) | Yes | Spec 111: indexable, no app scripts. **Features area**: Links to blog posts (e.g., "How the spool works", "Secure collaboration in channels"). Built from the blog index at generate time. |
+| **Release notes** (/releases) | Yes | No content today; not linked. |
+| **Public GitHub repo** | Yes | Spec 044: `github.com/csitea/csi-spl`. |
+| **Docs section** (/docs) | No | Redirects to /login (signed-out-redirect.mjs:60). |
 
----
+**Features area** (built from the blog index at generate time):
+- How the spool works
+- Secure collaboration in channels
+- AI agents in your workspace
 
-## 4. COOL: Three visual directions
+
+## 5. Constraints
+
+- **JS budget**: 160 KB ceiling (spec 027 `ci_initial_gzip_kb`). Citation: `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json:12`.
+- **Noindex**: Override the default `noindex, nofollow` for / only. Citation: `render-wui-firebase-json.sh:120` (X-Robots-Tag), `nuxt.config.ts:200` (meta robots).
+- **No hub API call**: No /v1/* call from a signed-out visitor’s browser. Citation: `signed-out-redirect.mjs:80` (isProductScreen).
+- **i18n**: The text is in 19 locales; agy has the final word (language rule).
+- **Login link**: Stays one click away (top-right or floating button).
+- **Login form sizing**: The sign-in form is **on the front page** (not a separate click away) and **smaller** (max-width 400px, compact layout). Citation: `pages/login.vue:20` (login-landing-card).
+
+
+## 4. "COOL": Three visual directions
 
 All directions keep the existing theme tokens, light/dark modes, and the 160 KB JS budget. Each is a few lines; the build step will render mock pages with screenshots.
 
 ### Direction 1: Hero + Minimalist Links
-- **Hero**: Full-width background image (e.g., abstract network or relay visual), overlaid with the what is this text in large, bold typography.
-- **Links**: Three large cards below the hero, each linking to /help, /docs, and /blog. No navigation bar; the login link is a small button in the top-right corner.
-- **Animation**: Subtle fade-in on load; the hero image has a slow parallax effect.
+- **Hero**: Full-width background image (relay visual), overlaid with the slogan in large, bold typography.
+- **Links**: Three large cards below the hero, each linking to "/help", "/blog", and the GitHub repo.
+- **Features area**: Horizontal row of blog post links (e.g., "How the spool works", "Secure collaboration in channels") below the links.
+- **Login form**: Small card in the top-right corner (max-width 400px).
+- **Flashy**: Animated gradient overlay on the hero image; hero image has a slow parallax effect.
+- **Stylish**: Clean typography, no clutter, respects "prefers-reduced-motion".
 
 ### Direction 2: Interactive Terminal
-- **Terminal**: A mock terminal window in the centre, showing a git-rel command in progress (e.g., git rel send --to box1). The what is this text sits above it.
-- **Links**: Small, monospace-style links below the terminal, mimicking a CLI help output.
-- **Animation**: The terminal cursor blinks; typing the command triggers a simulated transfer animation.
+- **Terminal**: A mock terminal window in the centre, showing a "git-rel" command in progress (e.g., "git rel send --to box1").
+- **Slogan**: Above the terminal, in monospace font.
+- **Links**: Small, monospace-style links below the terminal.
+- **Features area**: Terminal-style list of blog post links (e.g., "$ cat how-it-works.md") below the links.
+- **Login form**: Compact form in the bottom-right corner (max-width 400px).
+- **Flashy**: Terminal cursor blinks; typing the command triggers a simulated transfer animation.
+- **Stylish**: Limited colour palette, no distractions, motion off under "prefers-reduced-motion".
 
-### Direction 3: Card Grid + Dark Mode First
+### Direction 3: Card Grid + Dark/Light Toggle
 - **Grid**: A 2x2 grid of cards, each with an icon and a one-line description:
-  - Secure relay (shield icon)
-  - Decentralized (network icon)
-  - Encrypted (lock icon)
-  - Open source (GitHub icon)
-- **Links**: The what is this text sits above the grid; the links are small and centred below.
-- **Dark mode**: Defaults to dark; the login link is a floating button in the bottom-right corner.
-
----
+  - Channels (speech bubble icon)
+  - Topics (thread icon)
+  - AI agents (robot icon)
+  - Terminal (prompt icon)
+- **Slogan**: Above the grid, in large typography.
+- **Links**: Small and centred below the grid.
+- **Features area**: Grid of blog post cards (matching the style) below the links.
+- **Login form**: Floating card in the bottom-right corner (max-width 400px).
+- **Flashy**: Animated hover effects on cards; vibrant accent colours.
+- **Stylish**: Consistent spacing, no clutter, respects "prefers-reduced-motion".
 
 ## 5. Constraints
 
 - **JS budget**: 160 KB ceiling (spec 027 ci_initial_gzip_kb); load new things lazily.
 - **Noindex**: Override the default noindex, nofollow for / only (render-wui-firebase-json.sh and nuxt.config.ts).
-- **No hub API call**: No /v1/* call from a signed-out visitor's browser (spec 111 review item 1).
-- **i18n**: The text is in 19 locales; agy has the final word (language rule).
-- **Login link**: Stays one click away (top-right or floating button).
-
----
-
-## 6. Task list outline
-
-1. **Spec consensus**: Owner picks a visual direction (this spec).
-2. **i18n draft**: agy reviews the what is this text (lane: /agy-spawn).
-3. **Static page**: Add pages/front.vue (or reuse pages/index.vue for signed-out visitors).
 4. **Redirect logic**: Remove / from isProductScreen in signed-out-redirect.mjs.
+
+## 7. Open questions for the owner
+
+| Question | Options | Recommendation |
+|---|---|---|
+| **Visual direction** | Hero + Links, Interactive Terminal, Card Grid | Card Grid: balances clarity and "COOL" with minimal JS. |
+| **Slogan** | Where teams and AI agents work together, Channels/topics/secure collaboration, Your workspace/in the browser and terminal | *Channels, topics, and secure collaboration*: concise and product-focused. |
+| **Text** | Candidate 1, 2, or 3 | Candidate 2: clear and actionable. |
+
 5. **SEO override**: Add / to the indexable paths in render-wui-firebase-json.sh and nuxt.config.ts.
 6. **JS budget**: Lazy-load non-critical assets (e.g., animations).
 7. **Visual build**: Render the chosen direction as a mock page with screenshots.

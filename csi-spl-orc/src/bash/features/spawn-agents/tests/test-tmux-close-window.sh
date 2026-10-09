@@ -51,7 +51,15 @@
 #      types nothing and the window stays. A CLI that never leaves (a running
 #      turn) is closed and retired by the timeout, with one log line. --retire
 #      without --agent is refused (2), closing nothing; control: the old code
-#      killed the window and retired nothing
+#      killed the window and retired nothing.
+#      2026-10-09 (c-638): claude's faint prompt suggestion read `❯ /exit`;
+#      the closer took the ghost text for typed input and never typed (no
+#      `typing /exit` line in its log). Now faint text is dropped, /exit is
+#      typed and the lane leaves; control: plain capture-pane types nothing.
+#      A lane that left a shell running gets claude's "Background work is
+#      running" dialog after /exit, and one whose /exit stays unsubmitted
+#      keeps `❯ /exit`: both get Enter and leave; control: the verify step
+#      spliced out leaves both to the timeout
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -263,9 +271,22 @@ cat >"$T_TMP/bin/claude-fake" <<'FAKECLAUDE'
 # fake claude: an idle screen with an empty `❯` prompt (NBSP after it, as the
 # real one), reads lines into $1, leaves on /exit; $2=busy keeps a running turn
 if [ "${2:-}" = busy ]; then n=0; while :; do n=$((n + 1)); printf '✶ Working… (%ss · ↓ 9 tokens)\n────\n❯ \n────\n  esc to interrupt\n' "$n"; sleep 0.2; done; fi
-printf '%s\n' '✻ Cogitated for 3s · done 1.00' '────' $'❯ ' '────' '  ⏵⏵ bypass permissions on (shift+tab to cycle)'
+# $2=ghost: the faint prompt suggestion `/exit` after the `❯` (c-638's screen);
+# $2=bgwork: the first /exit opens the "Background work is running" dialog,
+# Enter on it exits; $2=deaf: the first /exit stays unsubmitted in the prompt.
+if [ "${2:-}" = ghost ]; then
+  printf '%s\n' '✻ Cooked for 11m 36s · done 9.25 · 1 shell still running' '────' $'❯ \e[2m/exit\e[0m' '────' '  ⏵⏵ bypass permissions on · 1 shell'
+else printf '%s\n' '✻ Cogitated for 3s · done 1.00' '────' $'❯ ' '────' '  ⏵⏵ bypass permissions on (shift+tab to cycle)'; fi
+held=""
 while IFS= read -r line; do
   printf '%s\n' "$line" >>"$1"
+  if [ "$line" = /exit ] && [ -z "$held" ] && [ "${2:-}" = bgwork ]; then
+    held=1; printf '\033[2J\033[H'; printf '%s\n' '   Background work is running' '   The following will stop when you exit:' '   shell · sleep 400' $'   ❯ 1. Exit and stop tasks' '     2. Move to background and exit' '     3. Stay' '   Enter to confirm · Esc to cancel'; continue
+  fi
+  if [ "$line" = /exit ] && [ -z "$held" ] && [ "${2:-}" = deaf ]; then
+    held=1; printf '\033[2J\033[H'; printf '%s\n' '────' $'❯ /exit' '────'; continue
+  fi
+  [ -n "$held" ] && [ -z "$line" ] && { echo CLAUDE-EXITED >>"$1"; exit 0; }
   [ "$line" = /exit ] && { echo CLAUDE-EXITED >>"$1"; exit 0; }
 done
 sleep 600
@@ -376,4 +397,43 @@ awk '/^# --retire needs the id to retire/ { skip = 1 } skip { if (/^fi$/) skip =
 bash "$T_TMP/pre14r/scripts/tmux-close-window.sh" --pane "$P14D" --retire >"$T_TMP/o" 2>&1
 check "14. control: the old code kills the window ..." bash -c "! tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id}' | grep -qx '$P14D'"
 check "14. control: ... and leaves c-424 unretired" grep -q "^c-424	" "$SPOOL_ROOT/registry.tsv"
+# c-638 (2026-10-09): a faint prompt suggestion `❯ /exit` read as typed input.
+log14() { cat "$CLOSE_LOG_DIR"/kill-your-self-close-*.log 2>/dev/null; }
+rm -f "$CLOSE_LOG_DIR"/kill-your-self-close-*.log
+P14E="$(lane14 c-425 ghost)"
+sleep 1
+CLE_TMUX_PANE="$P14E" bash "$SUT" --agent c-425 --defer --retire --timeout 60 >"$T_TMP/o" 2>&1
+check "14. a ghost /exit suggestion: /exit is typed and the claude leaves" got_exit "$T_TMP/got-425" 40
+check "14. ... its window is closed and c-425 retired before the timeout" gone_and_retired "$P14E" c-425 20
+has "14. ... and the log says the typed /exit took" "the typed /exit took" "$(log14)"
+mkdir -p "$T_TMP/pre14g/scripts"; ln -s "$(cd "$(dirname "$SUT")/../lib" && pwd)" "$T_TMP/pre14g/lib"
+sed 's/capture-pane -p -e -t "\$1" 2>\/dev\/null | screen_drop_faint |/capture-pane -p -t "$1" 2>\/dev\/null |/' "$SUT" >"$T_TMP/pre14g/scripts/tmux-close-window.sh"
+hasnt "14. control: plain capture-pane is spliced back" "| screen_drop_faint |" "$(cat "$T_TMP/pre14g/scripts/tmux-close-window.sh")"
+# Background work dialog / unsubmitted /exit: Enter after our own /exit.
+P14F="$(lane14 c-426 bgwork)"; P14G="$(lane14 c-427 deaf)"
+sleep 1
+CLE_TMUX_PANE="$P14F" bash "$SUT" --agent c-426 --defer --retire --timeout 60 >"$T_TMP/o" 2>&1
+CLE_TMUX_PANE="$P14G" bash "$SUT" --agent c-427 --defer --retire --timeout 60 >"$T_TMP/o" 2>&1
+# Controls, run alongside: the ghost under plain capture-pane, the two others
+# with the verify step spliced out (EXIT_ENTERS < 0: never an Enter after /exit).
+mkdir -p "$T_TMP/pre14v/scripts"; ln -s "$(cd "$(dirname "$SUT")/../lib" && pwd)" "$T_TMP/pre14v/lib"
+sed 's/EXIT_ENTERS < 3 \&\& SECONDS/EXIT_ENTERS < 0 \&\& SECONDS/' "$SUT" >"$T_TMP/pre14v/scripts/tmux-close-window.sh"
+has "14. control: the verify step is spliced out" "EXIT_ENTERS < 0 && SECONDS" "$(cat "$T_TMP/pre14v/scripts/tmux-close-window.sh")"
+P14H="$(lane14 c-428 ghost)"; P14I="$(lane14 c-429 bgwork)"; P14J="$(lane14 c-430 deaf)"
+sleep 1
+CLE_TMUX_PANE="$P14H" bash "$T_TMP/pre14g/scripts/tmux-close-window.sh" --agent c-428 --defer --retire --timeout 15 >"$T_TMP/o" 2>&1
+CLE_TMUX_PANE="$P14I" bash "$T_TMP/pre14v/scripts/tmux-close-window.sh" --agent c-429 --defer --retire --timeout 15 >"$T_TMP/o" 2>&1
+CLE_TMUX_PANE="$P14J" bash "$T_TMP/pre14v/scripts/tmux-close-window.sh" --agent c-430 --defer --retire --timeout 15 >"$T_TMP/o" 2>&1
+check "14. the background-work dialog: Enter on 'Exit and stop tasks', the claude leaves" got_exit "$T_TMP/got-426" 40
+check "14. ... its window is closed and c-426 retired before the timeout" gone_and_retired "$P14F" c-426 20
+has "14. ... the log names the dialog" "the exit asks about background work: Exit and stop tasks: Enter (1)" "$(log14)"
+check "14. an unsubmitted /exit: Enter again, the claude leaves" got_exit "$T_TMP/got-427" 40
+check "14. ... its window is closed and c-427 retired before the timeout" gone_and_retired "$P14G" c-427 20
+has "14. ... the log names the unsubmitted /exit" "the typed /exit sits unsubmitted: Enter (1)" "$(log14)"
+eq "14. ... /exit was typed exactly once into each" "1 1 1" "$(for g in 425 426 427; do grep -cx /exit "$T_TMP/got-$g"; done | paste -sd " ")"
+check "14. controls: all three reach the 15 s timeout" gone_and_retired "$P14J" c-430 40
+eq "14. control: plain capture-pane types nothing into the ghost screen (c-638)" "" "$(cat "$T_TMP/got-428" 2>/dev/null)"
+eq "14. control: no verify = the dialog holds the claude to the timeout" 0 "$(grep -c CLAUDE-EXITED "$T_TMP/got-429" 2>/dev/null)"
+eq "14. control: no verify = the unsubmitted /exit holds the claude to the timeout" 0 "$(grep -c CLAUDE-EXITED "$T_TMP/got-430" 2>/dev/null)"
+eq "14. controls: ... each named by its timeout line" 3 "$(log14 | grep -cE 'timeout 15s: c-4(28|29|30) never left pane')"
 t_done

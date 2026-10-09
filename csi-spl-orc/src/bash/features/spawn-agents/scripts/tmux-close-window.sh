@@ -658,10 +658,55 @@ rebirth_human_watching() {
   "${TM[@]}" list-clients -F '#{window_id} #{client_activity}' 2>/dev/null |
     awk -v w="$wid" -v now="$(date +%s)" -v idle="${WD_HUMAN_IDLE:-120}" '$1 == w && now - $2 < idle { f = 1 } END { exit !f }'
 }
+# Faint (SGR 2) text dropped: claude's placeholder (`❯ Try "..."`) and its
+# prompt suggestion are faint ghost text after the `❯`, never typed input.
+# Plain capture-pane loses the attribute, so c-638 (2026-10-09 06:25Z) sat at
+# a ghost `❯ /exit`, read as typed, and the closer never typed /exit at all.
+# The SGR state carries across lines (capture-pane -e emits only changes).
+screen_drop_faint() {
+  perl -pe 'BEGIN { $f = 0 }
+    s{(\e\[([0-9;:]*)m)|(\e\[[0-9;?]*[A-Za-z])|([^\e\n]+)}{
+      if (defined $1) {
+        my @p = split /[;:]/, $2, -1; @p = (0) unless @p;
+        while (@p) {
+          my $x = shift @p; $x = 0 if $x eq "";
+          if ($x == 0 || $x == 22) { $f = 0 } elsif ($x == 2) { $f = 1 }
+          elsif ($x == 38 || $x == 48 || $x == 58) { my $m = shift @p; splice(@p, 0, $m == 5 ? 1 : 3) if defined $m }
+        }
+        ""
+      } elsif (defined $3) { "" } else { $f ? "" : $4 }
+    }ge'
+}
 rebirth_idle_screen() {
   # The finished-turn line ("✻ Crunched for 4s · done 12.34") dropped, NBSP read as space.
-  "${TM[@]}" capture-pane -p -t "$1" 2>/dev/null | sed 's/\xc2\xa0/ /g' |
+  "${TM[@]}" capture-pane -p -e -t "$1" 2>/dev/null | screen_drop_faint | sed 's/\xc2\xa0/ /g' |
     grep -vE '^[^[:alnum:][:space:]]+ [[:upper:]][^ ]* for [0-9]+(m|s)' || true
+}
+# After OUR /exit, what still holds the CLI and takes Enter: the /exit itself
+# sitting unsubmitted in the prompt (`❯ /exit`, plain text), or claude's
+# "Background work is running" dialog with `❯ 1. Exit and stop tasks` selected
+# (a lane that left a shell running, as c-638 did: `1 shell still running`).
+exit_wants_enter() {
+  local scr
+  scr="$(printf '%s\n' "$1" | sed 's/\xc2\xa0/ /g')"
+  if printf '%s\n' "$scr" | grep -E '^[[:space:]│|]*(>|❯|›)[[:space:]]*/exit[[:space:]]*[│|]?[[:space:]]*$' >/dev/null; then
+    echo "the typed /exit sits unsubmitted"
+  elif printf '%s\n' "$scr" | grep -F 'Background work is running' >/dev/null &&
+    printf '%s\n' "$scr" | grep -E '❯[[:space:]]*1\.[[:space:]]*Exit and stop tasks' >/dev/null; then
+    echo "the exit asks about background work: Exit and stop tasks"
+  else
+    return 1
+  fi
+}
+# Type /exit, then Enter as a separate key a second later (text and Enter in
+# one send-keys can land as a paste). A pane left in copy mode swallows keys:
+# leave it first (only reached when no human is active in that window).
+type_exit_into() {
+  [[ "$("${TM[@]}" display-message -p -t "$1" '#{pane_in_mode}' 2>/dev/null)" == 1 ]] &&
+    "${TM[@]}" send-keys -t "$1" -X cancel 2>/dev/null
+  "${TM[@]}" send-keys -t "$1" -l '/exit' 2>/dev/null
+  sleep 1
+  "${TM[@]}" send-keys -t "$1" Enter 2>/dev/null
 }
 rebirth_screen_idle() {
   local scr="$1"
@@ -703,9 +748,7 @@ rebirth_closer() {
       elif (( same >= 3 )) && rebirth_screen_idle "$scr"; then
         tries=$((tries + 1)) same=0 next=$((SECONDS + 10))
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) idle at an empty prompt: typing /exit (try $tries)"
-        "${TM[@]}" send-keys -t "$PANE" -l '/exit' 2>/dev/null
-        sleep 1
-        "${TM[@]}" send-keys -t "$PANE" Enter 2>/dev/null
+        type_exit_into "$PANE"
       fi
     fi
     sleep 0.5
@@ -773,15 +816,29 @@ done
 # prompt line; text typed into the prompt is left alone). Either way the screen
 # did not change for 3 polls, tries are >= 10 s apart, and never while a human
 # is active in that window. One that never reads idle is closed by the timeout.
-EXIT_LAST="" EXIT_SAME=0 EXIT_TRIES=0 EXIT_NEXT=0 EXIT_WATCHED=0
-type_exit_when_idle() {
-  (( ${#AGENT_PIDS[@]} > 0 && EXIT_TRIES < 3 && SECONDS >= EXIT_NEXT )) || return 0
-  local screen
+# The /exit is verified: the loop waits for the agent PIDs to go. One still
+# alive 3 s after the last key, on a screen exit_wants_enter names, gets Enter
+# (up to 3 times); the timeout stays the backstop.
+EXIT_LAST="" EXIT_SAME=0 EXIT_TRIES=0 EXIT_NEXT=0 EXIT_WATCHED=0 EXIT_TYPED_AT=-1 EXIT_ENTERS=0
+exit_screen() {
   if (( ${#AGY_PIDS[@]} > 0 )); then
-    screen="$("${TM[@]}" capture-pane -p -t "$GUARD_PANE" 2>/dev/null)" || return 0
+    "${TM[@]}" capture-pane -p -t "$GUARD_PANE" 2>/dev/null
   else
-    screen="$(rebirth_idle_screen "$GUARD_PANE")"
+    rebirth_idle_screen "$GUARD_PANE"
   fi
+}
+type_exit_when_idle() {
+  (( ${#AGENT_PIDS[@]} > 0 )) || return 0
+  local screen why
+  if (( EXIT_TYPED_AT >= 0 && EXIT_ENTERS < 3 && SECONDS >= EXIT_TYPED_AT + 3 )) &&
+    why="$(exit_wants_enter "$(exit_screen)")"; then
+    EXIT_ENTERS=$((EXIT_ENTERS + 1)) EXIT_TYPED_AT=$SECONDS EXIT_NEXT=$((SECONDS + 10))
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $why: Enter ($EXIT_ENTERS)"
+    "${TM[@]}" send-keys -t "$GUARD_PANE" Enter 2>/dev/null
+    return 0
+  fi
+  (( EXIT_TRIES < 3 && SECONDS >= EXIT_NEXT )) || return 0
+  screen="$(exit_screen)" || return 0
   if [[ "$screen" == "$EXIT_LAST" ]]; then EXIT_SAME=$((EXIT_SAME + 1)); else EXIT_SAME=0; EXIT_LAST="$screen"; fi
   (( EXIT_SAME >= 3 )) || return 0
   if (( ${#AGY_PIDS[@]} > 0 )); then
@@ -797,9 +854,8 @@ type_exit_when_idle() {
   fi
   EXIT_TRIES=$((EXIT_TRIES + 1)) EXIT_SAME=0 EXIT_NEXT=$((SECONDS + 10))
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) ${AGY_PIDS[*]:+agy }idle at an empty prompt: typing /exit (try $EXIT_TRIES)"
-  "${TM[@]}" send-keys -t "$GUARD_PANE" -l '/exit' 2>/dev/null
-  sleep 1
-  "${TM[@]}" send-keys -t "$GUARD_PANE" Enter 2>/dev/null
+  type_exit_into "$GUARD_PANE"
+  EXIT_TYPED_AT=$SECONDS
 }
 
 # Subshell inherits functions/vars; re-inlines wait then kill-window.
@@ -825,6 +881,8 @@ type_exit_when_idle() {
     if (( SECONDS >= deadline )); then
       # The one line that names a lane which cleaned up but never left.
       echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) timeout ${TIMEOUT}s: ${AGENT_ID:-the agent} never left pane ${PANE:-?}; closing window $WINDOW_TARGET$( ((RETIRE)) && [[ -n "${AGENT_ID:-}" ]] && printf ' and retiring %s' "$AGENT_ID")"
+    elif (( EXIT_TYPED_AT >= 0 )); then
+      echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) agent PIDs gone: the typed /exit took ($((SECONDS - EXIT_TYPED_AT)) s after the last key)"
     else
       echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) agent PIDs gone"
     fi

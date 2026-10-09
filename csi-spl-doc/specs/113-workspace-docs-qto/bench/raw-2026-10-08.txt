@@ -1,0 +1,313 @@
+# spec 113 tree bench raw output
+# utc=2026-10-08T20:11:05Z image=postgres:16-alpine reps=5 nproc=16
+# uptime: 23:11:05 up  1:53, 16 users,  load average: 12.49, 11.24, 11.45
+MODEL adj PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+psql:<stdin>:139: NOTICE:  table "seed" does not exist, skipping
+psql:<stdin>:140: NOTICE:  table "t_adj" does not exist, skipping
+LOADED adj items=1111 read_n=111
+psql:<stdin>:157: WARNING:  CONTROL adj caught: ASSERT FAILED: adj: sibling order 1..k
+BENCH adj 1111 insert 0
+Time: 2.370 ms
+BENCH adj 1111 append 0
+Time: 0.725 ms
+BENCH adj 1111 move 0
+Time: 1.930 ms
+BENCH adj 1111 read 0
+Time: 1.555 ms
+BENCH adj 1111 insert 1
+Time: 0.650 ms
+BENCH adj 1111 append 1
+Time: 0.390 ms
+BENCH adj 1111 move 1
+Time: 1.566 ms
+BENCH adj 1111 read 1
+Time: 1.704 ms
+BENCH adj 1111 insert 2
+Time: 0.877 ms
+BENCH adj 1111 append 2
+Time: 0.366 ms
+BENCH adj 1111 move 2
+Time: 1.122 ms
+BENCH adj 1111 read 2
+Time: 1.421 ms
+BENCH adj 1111 insert 3
+Time: 0.450 ms
+BENCH adj 1111 append 3
+Time: 0.306 ms
+BENCH adj 1111 move 3
+Time: 1.845 ms
+BENCH adj 1111 read 3
+Time: 1.968 ms
+BENCH adj 1111 insert 4
+Time: 0.409 ms
+BENCH adj 1111 append 4
+Time: 0.453 ms
+BENCH adj 1111 move 4
+Time: 1.788 ms
+BENCH adj 1111 read 4
+Time: 2.025 ms
+BENCH adj 1111 insert 5
+Time: 0.873 ms
+BENCH adj 1111 append 5
+Time: 0.541 ms
+BENCH adj 1111 move 5
+Time: 1.947 ms
+BENCH adj 1111 read 5
+Time: 2.431 ms
+LOADED adj items=11111 read_n=1111
+psql:<stdin>:399: WARNING:  CONTROL adj caught: ASSERT FAILED: adj: sibling order 1..k
+BENCH adj 11111 insert 0
+Time: 1.349 ms
+BENCH adj 11111 append 0
+Time: 1.082 ms
+BENCH adj 11111 move 0
+Time: 1.983 ms
+BENCH adj 11111 read 0
+Time: 7.785 ms
+BENCH adj 11111 insert 1
+Time: 1.410 ms
+BENCH adj 11111 append 1
+Time: 0.904 ms
+BENCH adj 11111 move 1
+Time: 1.779 ms
+BENCH adj 11111 read 1
+Time: 6.729 ms
+BENCH adj 11111 insert 2
+Time: 0.990 ms
+BENCH adj 11111 append 2
+Time: 1.150 ms
+BENCH adj 11111 move 2
+Time: 1.318 ms
+BENCH adj 11111 read 2
+Time: 5.016 ms
+BENCH adj 11111 insert 3
+Time: 0.618 ms
+BENCH adj 11111 append 3
+Time: 0.662 ms
+BENCH adj 11111 move 3
+Time: 0.927 ms
+BENCH adj 11111 read 3
+Time: 5.169 ms
+BENCH adj 11111 insert 4
+Time: 0.736 ms
+BENCH adj 11111 append 4
+Time: 0.648 ms
+BENCH adj 11111 move 4
+Time: 0.856 ms
+BENCH adj 11111 read 4
+Time: 5.165 ms
+BENCH adj 11111 insert 5
+Time: 0.770 ms
+BENCH adj 11111 append 5
+Time: 0.934 ms
+BENCH adj 11111 move 5
+Time: 0.983 ms
+BENCH adj 11111 read 5
+Time: 5.170 ms
+psql:<stdin>:4: NOTICE:  extension "ltree" already exists, skipping
+MODEL lt PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+psql:<stdin>:167: NOTICE:  table "t_lt" does not exist, skipping
+LOADED lt items=1111 read_n=111
+psql:<stdin>:184: WARNING:  CONTROL lt caught: ASSERT FAILED: lt: every parent exists
+BENCH lt 1111 insert 0
+Time: 4.811 ms
+BENCH lt 1111 append 0
+Time: 1.813 ms
+BENCH lt 1111 move 0
+Time: 6.535 ms
+BENCH lt 1111 read 0
+Time: 1.294 ms
+BENCH lt 1111 insert 1
+Time: 5.675 ms
+BENCH lt 1111 append 1
+Time: 1.061 ms
+BENCH lt 1111 move 1
+Time: 3.522 ms
+BENCH lt 1111 read 1
+Time: 1.045 ms
+BENCH lt 1111 insert 2
+Time: 2.595 ms
+BENCH lt 1111 append 2
+Time: 0.862 ms
+BENCH lt 1111 move 2
+Time: 2.792 ms
+BENCH lt 1111 read 2
+Time: 1.222 ms
+BENCH lt 1111 insert 3
+Time: 3.867 ms
+BENCH lt 1111 append 3
+Time: 3.126 ms
+BENCH lt 1111 move 3
+Time: 3.699 ms
+BENCH lt 1111 read 3
+Time: 1.502 ms
+BENCH lt 1111 insert 4
+Time: 4.714 ms
+BENCH lt 1111 append 4
+Time: 2.965 ms
+BENCH lt 1111 move 4
+Time: 5.384 ms
+BENCH lt 1111 read 4
+Time: 1.288 ms
+BENCH lt 1111 insert 5
+Time: 4.647 ms
+BENCH lt 1111 append 5
+Time: 1.939 ms
+BENCH lt 1111 move 5
+Time: 4.579 ms
+BENCH lt 1111 read 5
+Time: 1.104 ms
+LOADED lt items=11111 read_n=1111
+psql:<stdin>:426: WARNING:  CONTROL lt caught: ASSERT FAILED: lt: every parent exists
+BENCH lt 11111 insert 0
+Time: 39.749 ms
+BENCH lt 11111 append 0
+Time: 3.265 ms
+BENCH lt 11111 move 0
+Time: 26.055 ms
+BENCH lt 11111 read 0
+Time: 4.312 ms
+BENCH lt 11111 insert 1
+Time: 21.127 ms
+BENCH lt 11111 append 1
+Time: 2.206 ms
+BENCH lt 11111 move 1
+Time: 39.059 ms
+BENCH lt 11111 read 1
+Time: 5.444 ms
+BENCH lt 11111 insert 2
+Time: 23.787 ms
+BENCH lt 11111 append 2
+Time: 2.424 ms
+BENCH lt 11111 move 2
+Time: 25.412 ms
+BENCH lt 11111 read 2
+Time: 2.650 ms
+BENCH lt 11111 insert 3
+Time: 18.999 ms
+BENCH lt 11111 append 3
+Time: 2.337 ms
+BENCH lt 11111 move 3
+Time: 27.951 ms
+BENCH lt 11111 read 3
+Time: 3.589 ms
+BENCH lt 11111 insert 4
+Time: 37.896 ms
+BENCH lt 11111 append 4
+Time: 2.098 ms
+BENCH lt 11111 move 4
+Time: 31.785 ms
+BENCH lt 11111 read 4
+Time: 3.172 ms
+BENCH lt 11111 insert 5
+Time: 23.362 ms
+BENCH lt 11111 append 5
+Time: 2.178 ms
+BENCH lt 11111 move 5
+Time: 34.295 ms
+BENCH lt 11111 read 5
+Time: 3.131 ms
+psql:<stdin>:4: NOTICE:  extension "ltree" already exists, skipping
+MODEL ns PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+psql:<stdin>:182: NOTICE:  table "t_ns" does not exist, skipping
+LOADED ns items=1111 read_n=111
+psql:<stdin>:199: WARNING:  CONTROL ns caught: ASSERT FAILED: ns: bounds are 1..2N
+BENCH ns 1111 insert 0
+Time: 48.480 ms
+BENCH ns 1111 append 0
+Time: 1.921 ms
+BENCH ns 1111 move 0
+Time: 37.445 ms
+BENCH ns 1111 read 0
+Time: 1.236 ms
+BENCH ns 1111 insert 1
+Time: 33.777 ms
+BENCH ns 1111 append 1
+Time: 1.513 ms
+BENCH ns 1111 move 1
+Time: 20.553 ms
+BENCH ns 1111 read 1
+Time: 0.965 ms
+BENCH ns 1111 insert 2
+Time: 33.345 ms
+BENCH ns 1111 append 2
+Time: 1.570 ms
+BENCH ns 1111 move 2
+Time: 33.063 ms
+BENCH ns 1111 read 2
+Time: 1.057 ms
+BENCH ns 1111 insert 3
+Time: 31.257 ms
+BENCH ns 1111 append 3
+Time: 1.125 ms
+BENCH ns 1111 move 3
+Time: 20.764 ms
+BENCH ns 1111 read 3
+Time: 1.076 ms
+BENCH ns 1111 insert 4
+Time: 30.703 ms
+BENCH ns 1111 append 4
+Time: 0.978 ms
+BENCH ns 1111 move 4
+Time: 33.528 ms
+BENCH ns 1111 read 4
+Time: 0.786 ms
+BENCH ns 1111 insert 5
+Time: 30.613 ms
+BENCH ns 1111 append 5
+Time: 1.088 ms
+BENCH ns 1111 move 5
+Time: 22.515 ms
+BENCH ns 1111 read 5
+Time: 1.036 ms
+LOADED ns items=11111 read_n=1111
+psql:<stdin>:441: WARNING:  CONTROL ns caught: ASSERT FAILED: ns: bounds are 1..2N
+BENCH ns 11111 insert 0
+Time: 301.463 ms
+BENCH ns 11111 append 0
+Time: 1.690 ms
+BENCH ns 11111 move 0
+Time: 219.058 ms
+BENCH ns 11111 read 0
+Time: 1.991 ms
+BENCH ns 11111 insert 1
+Time: 234.422 ms
+BENCH ns 11111 append 1
+Time: 1.418 ms
+BENCH ns 11111 move 1
+Time: 207.623 ms
+BENCH ns 11111 read 1
+Time: 2.180 ms
+BENCH ns 11111 insert 2
+Time: 209.378 ms
+BENCH ns 11111 append 2
+Time: 0.724 ms
+BENCH ns 11111 move 2
+Time: 328.653 ms
+BENCH ns 11111 read 2
+Time: 1.756 ms
+BENCH ns 11111 insert 3
+Time: 207.441 ms
+BENCH ns 11111 append 3
+Time: 1.125 ms
+BENCH ns 11111 move 3
+Time: 255.885 ms
+BENCH ns 11111 read 3
+Time: 2.591 ms
+BENCH ns 11111 insert 4
+Time: 309.405 ms
+BENCH ns 11111 append 4
+Time: 1.218 ms
+BENCH ns 11111 move 4
+Time: 215.527 ms
+BENCH ns 11111 read 4
+Time: 2.794 ms
+BENCH ns 11111 insert 5
+Time: 332.086 ms
+BENCH ns 11111 append 5
+Time: 1.434 ms
+BENCH ns 11111 move 5
+Time: 213.936 ms
+BENCH ns 11111 read 5
+Time: 1.789 ms
+# uptime-after: 23:11:19 up  1:53, 15 users,  load average: 12.25, 11.24, 11.45

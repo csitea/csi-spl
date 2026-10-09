@@ -28,7 +28,7 @@ mention is a one-line pointer.
 | language rule: agy has the final word on multilingual text | 1.1 `20-spawn-an-agent.md` | repo `CLAUDE.md` (one line); the `i18n` row in 1.5 |
 | commit identity, no AI trailers | repo `CLAUDE.md`, the "Commits:" line (the canonical address the seed's LEAK-GATE defers to) | 1.4 section 5 (the why) |
 | spool posts are markdown | 1.7 | repo `CLAUDE.md` (one line) |
-| stay in your own lane („Всяка жаба да си знае гьола“): your brief only, a finding outside it to the orchestrator | 1.1 `25-stay-in-your-lane.md` | the mistral seed (`spawn-mistral.sh`, `spawn_rename_how`, one line), because vibe 2.26.0 keeps no memory file across sessions |
+| stay in your own lane („Всяка жаба да си знае гьола“): your brief only, a finding outside it to the orchestrator | 1.1 `25-stay-in-your-lane.md` | rendered, not copied, into every vendor's file: claude `~/.claude/CLAUDE.md` (y4; grok reads it through its default `compat.claude` scan), mistral `~/.vibe/AGENTS.md` (y8), agy `~/.gemini/config/rules/25-stay-in-your-lane.md` and qwen `~/.qwen/QWEN.md`, which is also qwen's memory file (y9); the mistral seed (`spawn-mistral.sh`, `spawn_rename_how`, one line), because vibe 2.26.0 keeps no memory file across sessions |
 | lane integration (commit, rebase, push, teardown) | the seed, `spawn-core.inc.sh` | 1.4 (the why) |
 
 ## 3. The drift check

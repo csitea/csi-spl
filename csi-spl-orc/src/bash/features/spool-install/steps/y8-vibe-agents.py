@@ -7,9 +7,17 @@ import hashlib, os, re, sys, time
 parts_dir, md, dry, force = sys.argv[1:5]
 vals = dict(a.split("=", 1) for a in sys.argv[5:])
 FRAG = re.compile(r"^(\d{2})-[a-z0-9][a-z0-9-]*\.md$")
-BEGIN = ("<!-- spool-install: begin agents-md (csi-spl fleet rules, the same parts as "
-         "~/.claude/CLAUDE.md; edit spool-install/assets/claude/claude-md, not this block) -->\n")
-END = re.compile(r"<!-- spool-install: end agents-md sha256=([0-9a-f]{64}) -->\n?")
+# Y8_ONLY=<NN-slug> renders that one part under the block tag Y8_TAG (y9: the
+# lane rule into agy's and qwen's own rules files); unset = every part, agents-md.
+ONLY = os.environ.get("Y8_ONLY", "")
+TAG = os.environ.get("Y8_TAG", "agents-md")
+if ONLY:
+    BEGIN = ("<!-- spool-install: begin %s (csi-spl fleet rule %s, the same part as in "
+             "~/.claude/CLAUDE.md; edit spool-install/assets/claude/claude-md, not this block) -->\n" % (TAG, ONLY))
+else:
+    BEGIN = ("<!-- spool-install: begin agents-md (csi-spl fleet rules, the same parts as "
+             "~/.claude/CLAUDE.md; edit spool-install/assets/claude/claude-md, not this block) -->\n")
+END = re.compile(r"<!-- spool-install: end %s sha256=([0-9a-f]{64}) -->\n?" % re.escape(TAG))
 def say(m): print("spool-install: vibe-agents: " + m, file=sys.stderr)
 def sha(s): return hashlib.sha256(s.encode()).hexdigest()
 def subst(text, where):
@@ -36,6 +44,10 @@ def backup_stamped(text):
 
 # The same parts, in the same NN order and wrapping, as y4's CLAUDE.md block.
 names = sorted(os.listdir(parts_dir))
+if ONLY:
+    names = [n for n in names if n == ONLY + ".md"]
+    if not names:
+        sys.exit("spool-install: vibe-agents: %s/%s.md: no such part" % (parts_dir, ONLY))
 parts = ""
 for fn in names:
     if not FRAG.match(fn):
@@ -44,7 +56,7 @@ for fn in names:
     body = subst(open(p).read(), p)
     if not body.endswith("\n"): body += "\n"
     parts += "<!-- fragment spool-install/%s -->\n%s<!-- /fragment -->\n" % (fn[:-3], body)
-block = BEGIN + parts + "<!-- spool-install: end agents-md sha256=%s -->\n" % sha(parts)
+block = BEGIN + parts + "<!-- spool-install: end %s sha256=%s -->\n" % (TAG, sha(parts))
 
 cur = open(md).read() if os.path.exists(md) else None
 if cur is None:

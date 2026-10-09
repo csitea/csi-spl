@@ -17,6 +17,9 @@
 #      check of section 1 - the check can see the missing file
 #   8. codeword: a stub vibe that reads ~/.vibe/AGENTS.md (vibe's global
 #      instructions) answers with a codeword planted in one part
+#   9. step y9: the lane rule part alone into agy's rules dir and qwen's
+#      QWEN.md (its memory text kept after our block); a re-run changes
+#      nothing; a HOME without ~/.gemini / ~/.qwen gets neither; SKIP=0 writes nothing
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -136,6 +139,28 @@ chmod +x "$T/vibe"
 H=$(fresh h8c); env HOME="$H" SPOOL_INSTALL_CLAUDE_ASSETS="$T/assets8" bash -c 'source "$0" && spool_install_claude_config' "$Y4" 2>/dev/null
 [ -z "$(env HOME="$H" "$T/vibe" -p 'the codeword?')" ] &&
   pass "8: control: with the rules only in CLAUDE.md the stub has no codeword" || fail "8: control answered"
+
+# ── 9. y9: the lane rule into agy's and qwen's own files ─────────────────────
+Y9="$TEST_DIR/../steps/y9-vendor-lane-rule.sh"
+y9() { local h="$1"; shift; env HOME="$h" "$@" bash -c 'source "$0" && spool_install_vendor_lane_rule' "$Y9"; }
+LANE='„Всяка жаба да си знае гьола“'
+H=$(fresh h9); mkdir -p "$H/.gemini/config/rules" "$H/.qwen"
+printf '## Qwen Added Memories\n- keep me\n' >"$H/.qwen/QWEN.md"
+y9 "$H" 2>"$T/err9"; rc=$?
+ag="$H/.gemini/config/rules/25-stay-in-your-lane.md" qw="$H/.qwen/QWEN.md"
+[ "$rc" = 0 ] && [ "$(grep -cF "$LANE" "$ag")" = 1 ] && [ "$(grep -cF "$LANE" "$qw")" = 1 ] &&
+  [ "$(grep -c '^<!-- fragment spool-install/' "$ag")" = 1 ] && grep -q '^<!-- fragment spool-install/25-stay-in-your-lane -->$' "$qw" &&
+  pass "9: agy rules file and QWEN.md carry the lane rule part, and only it" || { fail "9: lane rule not rendered (rc=$rc)"; cat "$T/err9"; }
+grep -q '^<!-- spool-install: begin lane-rule (csi-spl fleet rule 25-stay-in-your-lane' <<<"$(sed -n 1p "$qw")" && grep -q '^- keep me$' "$qw" &&
+  [ -n "$(find "$H/.qwen" -maxdepth 1 -name 'QWEN.md.bak-spool-install-*')" ] &&
+  pass "9: QWEN.md: our block first, qwen's memory text kept, the old file backed up" || fail "9: QWEN.md memory text or backup lost"
+before=$(cat "$ag" "$qw" | sha256sum); y9 "$H" 2>/dev/null
+[ "$(cat "$ag" "$qw" | sha256sum)" = "$before" ] && [ "$(find "$H" -name '*.bak-spool-install-*' | wc -l)" = 1 ] &&
+  pass "9: a re-run changes nothing" || fail "9: a re-run wrote"
+H=$(fresh h9n); y9 "$H" 2>/dev/null
+[ -z "$(find "$H" -mindepth 1)" ] && pass "9: no ~/.gemini, no ~/.qwen: nothing written" || fail "9: wrote into a HOME without agy / qwen"
+H=$(fresh h9s); mkdir -p "$H/.qwen"; y9 "$H" SPOOL_INSTALL_VENDOR_RULES=0 2>/dev/null; y9 "$H" DRY=1 >/dev/null 2>&1
+[ ! -e "$H/.qwen/QWEN.md" ] && pass "9: SPOOL_INSTALL_VENDOR_RULES=0 and DRY=1 write nothing" || fail "9: skip / dry wrote"
 
 echo "vibe-agents: $((n - fails))/$n passed"
 [ "$fails" = 0 ]

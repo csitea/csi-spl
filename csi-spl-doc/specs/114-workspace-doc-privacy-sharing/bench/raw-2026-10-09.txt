@@ -1,0 +1,46 @@
+M0 postgres (PostgreSQL) 16.15 load=4.90 cpus=16 reps=5
+PASS P1 b sees 0 of a docs
+PASS P1 b sees 0 of a items
+PASS P1 b sees its own doc
+PASS P2 grant naming b as owner of a doc (refused 23503: insert or update on table "workspace_doc_share" violates foreign key constraint "workspace_doc_share_doc_fk")
+PASS P2 grant as a from b scope (refused 42501: new row violates row-level security policy for table "workspace_doc_share")
+PASS P3 a cannot share with itself (refused 23514: new row for relation "workspace_doc_share" violates check constraint "workspace_doc_share_not_self")
+PASS P3 b sees shared A1
+PASS P3 b sees A1 items
+PASS P3 b still sees 0 of A2
+PASS P3 b sees the grant row
+PASS P3 c sees 0 of a
+PASS P3 c sees 0 grants
+PASS P4 b update on read share hits 0 rows
+PASS P4 b delete on read share hits 0 rows
+PASS P4 b re-shares A1 to c (refused 42501: new row violates row-level security policy for table "workspace_doc_share")
+PASS P4 b cannot revoke a grant it received
+PASS P5 access change in place (refused 23514: workspace_doc_share_revoke_only: grant 00000000-0000-0000-0005-000000000001 may only be revoked, once)
+PASS P5 second revoke (refused 23514: workspace_doc_share_revoke_only: grant 00000000-0000-0000-0005-000000000001 may only be revoked, once)
+PASS P5 b sees 0 of A1 after revoke
+PASS P5 b still sees the revoked grant (audit)
+PASS P6 b edit landed in A1
+PASS P6 b item tagged b in a doc (refused 23503: insert or update on table "workspace_doc_item" violates foreign key constraint "workspace_doc_item_doc_fk")
+PASS P6 edit cannot delete the doc
+PASS P6 edit still sees 0 of A2
+PASS P6 b writes into unshared A2 (refused 42501: new row violates row-level security policy for table "workspace_doc_item")
+PASS P7 no tenant sees 0 docs
+PASS P7 no tenant sees 0 grants
+PASS P7 operator sees 3 docs
+PASS P7 operator sees 2 grants
+CONTROL c1-no-force caught (c reads 4 of a items)
+CONTROL c2-no-revoke-filter caught (b reads 3 revoked items)
+M1 model=a n=6 create_ms=302 alter_fanout_ms=113 relations=16
+M2 model=b n=6 create_ms=717 alter_fanout_ms=147 relations=60 db_bytes=8870935
+M3 model=c n=6 create_ms=2936 alter_fanout_ms=693 db_bytes=47818890
+M3 model=c n=6 one_conn_per_db connected=6 refused=0 max_connections=25
+M1 model=a n=100 create_ms=334 alter_fanout_ms=121 relations=16
+M2 model=b n=100 create_ms=10178 alter_fanout_ms=605 relations=1000 db_bytes=24869911
+M3 model=c n=100 create_ms=44071 alter_fanout_ms=11101 db_bytes=796981500
+M3 model=c n=100 one_conn_per_db connected=22 refused=78 max_connections=25
+M4 model=a items=111100 policy=with-share query=own rows=1111 median_ms=1.034 scan="Bitmap Heap Scan on workspace_doc_item"
+M4 model=a items=111100 policy=with-share query=shared rows=1111 median_ms=0.941 scan="Bitmap Heap Scan on workspace_doc_item"
+M4 model=a items=111100 policy=with-share query=list rows=6 median_ms=0.235 scan="Seq Scan on workspace_doc"
+M4 model=a items=111100 policy=without-share query=own rows=1111 median_ms=0.421 scan="Bitmap Heap Scan on workspace_doc_item"
+M4 model=a items=111100 policy=without-share query=shared rows=0 median_ms=0.380 scan="Bitmap Heap Scan on workspace_doc_item"
+M4 model=a items=111100 policy=without-share query=list rows=1 median_ms=0.202 scan="Seq Scan on workspace_doc"

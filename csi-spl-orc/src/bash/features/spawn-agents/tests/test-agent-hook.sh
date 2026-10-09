@@ -25,9 +25,12 @@ D="$SPOOL_ROOT/$ID"
 mkdir -p "$D/inbox" "$D/archive"
 export SPOOL_HARNESS=claude SPOOL_BOX_ID=box-t HOOK_PID=4242
 
+# The payload goes in as a here-string, never through a pipe: a hook that
+# exits before reading stdin would SIGPIPE the writer, and under pipefail that
+# reads as rc=141 although the hook exited 0.
 hook() {  # EVENT NOW [PAYLOAD] — runs as agent $ID; stdout = the hook's
   local p="${3:-}"; [ -n "$p" ] || p='{}'
-  printf '%s' "$p" | env SPOOL_AGENT_ID="$ID" HOOK_NOW="$2" bash "$HOOK" "$1"
+  env SPOOL_AGENT_ID="$ID" HOOK_NOW="$2" bash "$HOOK" "$1" <<<"$p"
 }
 hb() {  # FIELD — from heartbeat.json
   python3 -c 'import json,sys; v=json.load(open(sys.argv[1])).get(sys.argv[2]); print("null" if v is None else (json.dumps(v) if isinstance(v,(list,dict)) else v))' "$D/heartbeat.json" "$1" 2>/dev/null
@@ -62,7 +65,7 @@ T0=1790000000   # 2026-09-21T14:13:20Z
 iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
 
 echo "# 1. not a spool agent"
-out="$(printf '{}' | env -u SPOOL_AGENT_ID HOOK_NOW=$T0 bash "$HOOK" PreToolUse; echo "rc=$?")"
+out="$(env -u SPOOL_AGENT_ID HOOK_NOW=$T0 bash "$HOOK" PreToolUse <<<'{}'; echo "rc=$?")"
 eq "no SPOOL_AGENT_ID: exit 0, no output" "rc=0" "$out"
 check "no SPOOL_AGENT_ID: no heartbeat" test ! -e "$D/heartbeat.json"
 hook PreToolUse $T0 '{"tool_name":"Bash"}' >/dev/null
@@ -200,13 +203,13 @@ eq "a heartbeat path that cannot be written: exit 0" "rc=0" "${out##*$'\n'}"
 check "  and the error is in hook.err" grep -q 'PostToolUse' "$D/hook.err"
 rmdir "$D/heartbeat.json"; mv "$T_TMP/hb.keep" "$D/heartbeat.json"
 : > "$T_TMP/rootfile"
-out="$(printf '{}' | env SPOOL_ROOT="$T_TMP/rootfile" SPOOL_AGENT_ID="$ID" HOOK_ERR_FALLBACK="$T_TMP/fallback.err" bash "$HOOK" Stop; echo "rc=$?")"
+out="$(env SPOOL_ROOT="$T_TMP/rootfile" SPOOL_AGENT_ID="$ID" HOOK_ERR_FALLBACK="$T_TMP/fallback.err" bash "$HOOK" Stop <<<'{}'; echo "rc=$?")"
 eq "a spool root that is a file: exit 0" "rc=0" "$out"
 check "  and the error is in the fallback log" grep -q 'no agent dir' "$T_TMP/fallback.err"
-out="$(printf '{}' | env SPOOL_LIVE_ROOT="$SPOOL_ROOT" SPOOL_AGENT_ID="$ID" bash "$HOOK" PreToolUse 2>&1; echo "rc=$?")"
+out="$(env SPOOL_LIVE_ROOT="$SPOOL_ROOT" SPOOL_AGENT_ID="$ID" bash "$HOOK" PreToolUse <<<'{}' 2>&1; echo "rc=$?")"
 has "SPOOL_TEST on the live root: refused" "REFUSED" "$out"
 has "  and still exit 0" "rc=0" "$out"
-printf 'not json' | env SPOOL_AGENT_ID="$ID" HOOK_NOW=$((T0 + 601)) bash "$HOOK" PreToolUse >/dev/null
+env SPOOL_AGENT_ID="$ID" HOOK_NOW=$((T0 + 601)) bash "$HOOK" PreToolUse <<<'not json' >/dev/null
 eq "a payload that is not JSON still beats" "$(iso $((T0 + 601)))" "$(hb ts)"
 
 echo "# 8. heartbeat.log ring + budget"
@@ -226,9 +229,11 @@ done
 unset SPOOL_AGENT_ID
 eq "heartbeat.log keeps the last 200 lines" 200 "$(wc -l < "$D/heartbeat.log")"
 check "200 runs wrote no hook.err" test ! -e "$D/hook.err"
-med() { sort -n "$1" | awk '{a[NR]=$1} END{print a[int((NR+1)/2)]}'; }
+pct() { sort -n "$1" | awk -v q="$2" '{a[NR]=$1} END{i=int(NR*q/100+0.999); print a[i<1?1:i]}'; }
+med() { pct "$1" 50; }
 over() { awk -v b="$2" '$1 >= b' "$1" | wc -l; }
 mh="$(med "$T_TMP/t.hook")"; mf="$(med "$T_TMP/t.floor")"
+ph="$(pct "$T_TMP/t.hook" 90)"; pf="$(pct "$T_TMP/t.floor" 90)"
 BUDGET="${HOOK_BUDGET_MS:-50}"
 echo "  hook median ${mh} ms, bare python3 median ${mf} ms, max $(sort -rn "$T_TMP/t.hook" | sed -n 1p) ms, over ${BUDGET} ms: $(over "$T_TMP/t.hook" "$BUDGET")/200"
 # Wall time on a shared box scales with its load, so the always-on check is
@@ -237,13 +242,20 @@ echo "  hook median ${mh} ms, bare python3 median ${mf} ms, max $(sort -rn "$T_T
 slow() { awk -v h="$1" -v f="$2" 'BEGIN{exit !(h * 2 > f * 5)}'; }
 if slow "$mh" "$mf"; then nok "the hook's median ($mh ms) is over 2.5x a bare interpreter's ($mf ms)"; else ok "the hook's median ($mh ms) is within 2.5x a bare interpreter's ($mf ms)"; fi
 check "CONTROL: the ratio check fires on 130 ms vs 50 ms" slow 130 50
+# The tail, by the same relative bound: the hook's 90th percentile at most
+# 2.5x the floor's. Runs are interleaved, so a load spike lands on both
+# samples; an absolute ms bound cannot tell a slow hook from a busy box (50 ms
+# failed 15/200 at load 8 on 16 cpus, run alone). Measured 2026-10-09 under
+# run-ci-tests.sh at 6 jobs, load 6.8 .. 13.5 on 16 cpus, n=10: median 1.9x ..
+# 2.1x, p90 1.9x .. 2.1x; 1 .. 8 of 200 runs over 50 ms each time.
+if slow "$ph" "$pf"; then nok "the hook's p90 ($ph ms) is over 2.5x a bare interpreter's ($pf ms)"; else ok "the hook's p90 ($ph ms) is within 2.5x a bare interpreter's ($pf ms)"; fi
+printf '%s\n' 10 20 30 40 50 60 70 80 90 100 > "$T_TMP/t.ctl"
+eq "CONTROL: pct reads the 90th and the 50th percentile" "90 50" "$(pct "$T_TMP/t.ctl" 90) $(pct "$T_TMP/t.ctl" 50)"
 printf '%s\n' 10 20 61 > "$T_TMP/t.ctl"
 eq "CONTROL: the over-budget counter fires on a 61 ms run" 1 "$(over "$T_TMP/t.ctl" "$BUDGET")"
-load="$(cut -d' ' -f1 /proc/loadavg)"
-if awk -v l="$load" -v n="$(nproc)" 'BEGIN{exit !(l / n < 0.5)}'; then
-  eq "200 runs, each under ${BUDGET} ms (load $load)" 0 "$(over "$T_TMP/t.hook" "$BUDGET")"
-else
-  echo "SKIP 200 runs each under ${BUDGET} ms: load $load on $(nproc) cpus (a bare python3 alone takes ${mf} ms here)"
+# The absolute bound is opt-in: HOOK_BUDGET_MS=<ms> on a box known to be idle.
+if [ -n "${HOOK_BUDGET_MS:-}" ]; then
+  eq "200 runs, each under ${BUDGET} ms (HOOK_BUDGET_MS, load $(cut -d' ' -f1 /proc/loadavg))" 0 "$(over "$T_TMP/t.hook" "$BUDGET")"
 fi
 
 echo "# 9. do_spl_agent_hooks_install"

@@ -72,7 +72,9 @@ export SPOOL_BOX_TAG=tg
 mkdir -p "$R/q-020/inbox"
 P2="$(t_window 'tg: q-020 done' 'sleep 600')"
 QWN_TMUX_PANE="$P2" bash "$CLOSE" --agent q-020 --defer --retire --timeout 10 >"$T_TMP/o" 2>&1; eq "--defer --retire returns 0 at once" 0 "$?"
-for _ in $(seq 1 30); do [ -e "$R/q-020" ] || break; sleep 0.5; done
+# Wait on the LAST side effect: agent-id-retire.sh moves the dir first and
+# writes its "retired" line to the close log at its very end (bounded, 30 s).
+for _ in $(seq 1 60); do grep -qs 'agent-id-retire: q-020 retired' "$CLOSE_LOG_DIR"/kill-your-self-close-*.log && break; sleep 0.5; done
 check "the window closed" bash -c "! tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id}' | grep -qx '$P2'"
 check "then the id was retired" test ! -e "$R/q-020" -a -n "$(ls -d "$R"/.retired/q-020.* 2>/dev/null)"
 has "the close log records the retire" "agent-id-retire: q-020 retired" "$(cat "$CLOSE_LOG_DIR"/kill-your-self-close-*.log)"

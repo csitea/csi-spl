@@ -81,7 +81,9 @@ mkdir -p "$R/a-107/inbox" "$R/agents"
 printf '{"id":"a-107","worktree":"%s"}\n' "$WTD/a-107" >"$R/agents/a-107.json"
 P="$(t_window 'tg: a-107 done' 'sleep 600')"
 AGY_TMUX_PANE="$P" bash "$CLOSE" --agent a-107 --defer --retire --timeout 10 >/dev/null 2>&1; eq "6. --defer --retire returns 0" 0 "$?"
-for _ in $(seq 1 40); do [ -e "$WTD/a-107" ] || break; sleep 0.5; done
+# Wait on the LAST side effect: the retire removes the worktree, then deletes
+# the branch, then logs "retired" to the close log (bounded, 30 s).
+for _ in $(seq 1 60); do grep -qs 'agent-id-retire: a-107 retired' "$CLOSE_LOG_DIR"/kill-your-self-close-*.log && break; sleep 0.5; done
 check "6. after the close + retire the agy lane's worktree is gone" test ! -e "$WTD/a-107"
 check "6. ...and its branch" bash -c "! git -C '$T_TMP/repo' show-ref --verify --quiet refs/heads/a-107-x"
 

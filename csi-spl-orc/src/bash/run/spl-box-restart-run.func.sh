@@ -24,7 +24,13 @@
 # @description right before the reboot: systemd 257 logind obeys it even for
 # @description root and answers "Access denied" (drill 7, 2026-10-09). cnf
 # @description env.box.restart.inhibitors: respect (default) defers, ignore
-# @description reboots past it (systemctl reboot --check-inhibitors=no).
+# @description reboots past it: PID 1 starts reboot.target (systemctl start
+# @description reboot.target --job-mode=replace-irreversibly --no-block, the
+# @description units stop cleanly). Not logind's --check-inhibitors=no: for
+# @description a strong block lock logind asks polkit with ALWAYS_CHECK even
+# @description for root, and reboot-ignore-inhibit is auth_admin_keep, so a
+# @description non-interactive root caller gets "Interactive authentication
+# @description required" (drill 7 rerun, 2026-10-09).
 # @description <dir>/last-week is written only once the reboot command has
 # @description returned 0. Dry run unless DRY_RUN=0: the read-only checks
 # @description run and the plan is printed; nothing stops, writes or reboots.
@@ -41,8 +47,8 @@
 # @example ./run -a do_spl_box_restart_run
 # @example DRY_RUN=0 ./run -a do_spl_box_restart_run
 #------------------------------------------------------------------------------
-# Test seams: BOX_RESTART_EPOCH (now), BOX_RESTART_REBOOT_CMD (sudo -n
-# systemctl reboot), BOX_RESTART_INHIBITORS_CMD (busctl ListInhibitors), BOX_RESTART_CGROUP_ROOT (/sys/fs/cgroup), and the prepare's LEASE_PROC_ROOT / BOX_RESTART_PS_CMD /
+# Test seams: BOX_RESTART_EPOCH (now), BOX_RESTART_SYSTEMCTL (sudo -n
+# systemctl, the reboot's), BOX_RESTART_INHIBITORS_CMD (busctl ListInhibitors), BOX_RESTART_CGROUP_ROOT (/sys/fs/cgroup), and the prepare's LEASE_PROC_ROOT / BOX_RESTART_PS_CMD /
 # BOX_RESTART_SEND.
 declare -F spl_brs_agents >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-box-restart-prepare.func.sh"
@@ -131,10 +137,15 @@ spl_brx_gh_auth() {
 spl_brx_now() { echo "${BOX_RESTART_EPOCH:-$(date +%s)}"; }
 # The waits' deadlines run on the real clock, never the seam.
 spl_brx_clock() { date +%s; }
+# respect: logind's reboot (a block lock is deferred on before this). ignore:
+# PID 1 directly, past logind and its polkit check, still a clean unit stop.
 spl_brx_reboot_cmd() {
-  local c="${BOX_RESTART_REBOOT_CMD:-sudo -n systemctl reboot}"
-  [[ "${SPL_BRX_INHIBIT:-respect}" == ignore ]] && c+=" --check-inhibitors=no"
-  echo "$c"
+  local s="${BOX_RESTART_SYSTEMCTL:-sudo -n systemctl}"
+  if [[ "${SPL_BRX_INHIBIT:-respect}" == ignore ]]; then
+    echo "$s start reboot.target --job-mode=replace-irreversibly --no-block"
+  else
+    echo "$s reboot"
+  fi
 }
 
 # The shutdown BLOCK inhibitor locks, one "<who> (<why>; uid <u> pid <p>)"

@@ -30,8 +30,10 @@
 #      refused reboot leaves NO last-week (the old code wrote it, so the slot
 #      window would skip the week) and no pending; a held block lock DEFERS
 #      before the drain and the notes (cnf env.box.restart.inhibitors =
-#      respect, the default); ignore reboots past it with
-#      --check-inhibitors=no; a delay lock is not a block; the tick writes
+#      respect, the default); ignore reboots past it through PID 1
+#      (start reboot.target): a stub systemctl that answers logind's reboot
+#      the way the box did in the rerun ("Interactive authentication
+#      required", even with --check-inhibitors=no) fails the old command; a delay lock is not a block; the tick writes
 #      last-week once the box has booted; gh: the token file when gh is not
 #      logged in, the repo from cnf. Control: the success path reboots with
 #      the plain command and writes last-week
@@ -178,7 +180,7 @@ reset5() { rm -rf "$BR5" "$L5" "$T/reboot5.log" "${G5:?}"/*; touch "$A5/$V1" "$A
 cp "$T/ps" "$T/ps.base"
 printf '100 1 claude claude --dangerously-skip-permissions\n201 1 claude claude\n' >"$T/ps.base"; proc 201 c-902
 run5() {
-  run "$1" PATH="$S5:$PATH" BOX_RESTART_REPO=o/r BOX_RESTART_REBOOT_CMD="$S5/reboot" \
+  run "$1" PATH="$S5:$PATH" BOX_RESTART_REPO=o/r BOX_RESTART_SYSTEMCTL="$S5/reboot" \
     BOX_RESTART_WAIT=3 BOX_RESTART_POLL=0 BOX_RESTART_GRACE=0 BOX_RESTART_CGROUP_ROOT="$T/nocg" \
     BOX_RESTART_INHIBITORS_CMD="cat $T/locks.json" "${@:2}"
 }
@@ -215,12 +217,12 @@ reset5; touch "$G5/deny.12"; out="$(run5 do_spl_box_restart_run DRY_RUN=0)"; rc=
 W6="$(TZ=UTC date +%G-W%V)"
 printf '#!/bin/sh\necho "DENIED $*" >>"%s"\necho "Call to Reboot failed: Access denied" >&2\nexit 1\n' "$T/reboot5.log" >"$S5/reboot-denied"
 chmod +x "$S5/reboot-denied"
-reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0 BOX_RESTART_REBOOT_CMD="$S5/reboot-denied")"; rc=$?
-[ "$rc" = 1 ] && grep -q 'Access denied' <<<"$out" && grep -q 'ERROR the reboot command failed' <<<"$out" && grep -q 'DENIED $' "$T/reboot5.log" \
+reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0 BOX_RESTART_SYSTEMCTL="$S5/reboot-denied")"; rc=$?
+[ "$rc" = 1 ] && grep -q 'Access denied' <<<"$out" && grep -q 'ERROR the reboot command failed' <<<"$out" && grep -q 'DENIED reboot$' "$T/reboot5.log" \
   && [ ! -e "$BR5/last-week" ] && [ ! -e "$BR5/pending" ] && [ -e "$A5/$V1" ] && [ -e "$A5/$V2" ] \
   && pass "6. a refused reboot (Access denied) writes no last-week, no pending; the runners run again" || fail "6. denied (rc $rc: $out; last-week: $(cat "$BR5/last-week" 2>&1))"
 reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0)"; rc=$?
-[ "$rc" = 0 ] && [ "$(cat "$T/reboot5.log")" = "REBOOTED " ] && [ "$(cat "$BR5/last-week" 2>/dev/null)" = "$W6" ] && [ -f "$BR5/pending" ] \
+[ "$rc" = 0 ] && [ "$(cat "$T/reboot5.log")" = "REBOOTED reboot" ] && [ "$(cat "$BR5/last-week" 2>/dev/null)" = "$W6" ] && [ -f "$BR5/pending" ] \
   && pass "6. control: success reboots with the plain command (delay locks only), last-week $W6, pending kept" || fail "6. success (rc $rc: $out; $(cat "$T/reboot5.log" 2>&1))"
 locks_set "$LOCK_DELAY" "$LOCK_BLOCK"
 reset5; : >"$T/sent.log"; out="$(run5 do_spl_box_restart_run DRY_RUN=0)"; rc=$?
@@ -231,9 +233,24 @@ reset5; : >"$T/sent.log"; out="$(run5 do_spl_box_restart_run DRY_RUN=0)"; rc=$?
 reset5; out="$(run5 do_spl_box_restart_run)"; rc=$?
 [ "$rc" = 0 ] && grep -q 'PLAN DEFER here, before the drain and the notes: a shutdown block inhibitor is held' <<<"$out" && [ ! -e "$BR5" ] \
   && pass "6. the dry run names the lock it would defer on" || fail "6. dry respect (rc $rc: $out)"
-reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0 BOX_RESTART_INHIBITORS=ignore)"; rc=$?
-[ "$rc" = 0 ] && [ "$(cat "$T/reboot5.log" 2>/dev/null)" = "REBOOTED --check-inhibitors=no" ] && grep -q 'WARN a shutdown block inhibitor is held' <<<"$out" \
-  && [ "$(cat "$BR5/last-week" 2>/dev/null)" = "$W6" ] && pass "6. ignore reboots past the lock: --check-inhibitors=no" || fail "6. ignore (rc $rc: $out)"
+# the box in the rerun: logind refuses every reboot past the lock, even
+# root's with --check-inhibitors=no (polkit ALWAYS_CHECK); PID 1 does not ask
+cat >"$S5/reboot-locked" <<EOF
+#!/bin/sh
+case "\$1" in
+  reboot) echo "DENIED \$*" >>"$T/reboot5.log"; echo "Call to Reboot failed: Interactive authentication required." >&2; exit 1 ;;
+  start) echo "REBOOTED \$*" >>"$T/reboot5.log" ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$S5/reboot-locked"
+reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0 BOX_RESTART_INHIBITORS=ignore BOX_RESTART_SYSTEMCTL="$S5/reboot-locked")"; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "$T/reboot5.log" 2>/dev/null)" = "REBOOTED start reboot.target --job-mode=replace-irreversibly --no-block" ] \
+  && grep -q 'WARN a shutdown block inhibitor is held' <<<"$out" && [ "$(cat "$BR5/last-week" 2>/dev/null)" = "$W6" ] \
+  && pass "6. ignore reboots past the lock through PID 1 (start reboot.target), not logind's refused reboot" || fail "6. ignore (rc $rc: $out; $(cat "$T/reboot5.log" 2>&1))"
+reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0 BOX_RESTART_SYSTEMCTL="$S5/reboot-locked")"; rc=$?
+[ "$rc" = 0 ] && grep -q 'DEFER the restart: a shutdown block inhibitor is held' <<<"$out" && [ ! -e "$T/reboot5.log" ] \
+  && pass "6. control: respect with the same lock still defers, nothing reboots" || fail "6. respect control (rc $rc: $out)"
 reset5; out="$(run5 do_spl_box_restart_run BOX_RESTART_INHIBITORS=force)"; rc=$?
 [ "$rc" = 1 ] && grep -q 'must be respect or ignore' <<<"$out" && pass "6. any other inhibitors value is refused" || fail "6. bad value (rc $rc: $out)"
 locks_set "$LOCK_DELAY"

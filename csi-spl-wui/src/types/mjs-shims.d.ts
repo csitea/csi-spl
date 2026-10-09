@@ -1368,6 +1368,7 @@ declare module '~/utils/app-link-label.mjs' {
   export function formatAppLinkSegments(segments: AppLinkSegment[]): string
   export function appLinkLabelContext(pageHref: string, pub?: { tenantHosts?: unknown, siteUrl?: unknown, tenant?: unknown }): { pageHref: string, siteUrl: string, apexTenant: string }
   export function appLinkLabel(href: string, ctx: { pageHref: string, siteUrl?: string, apexTenant?: string }): AppLinkLabel | null
+  export function withShortTimes(runs: { text: string, iso?: string }[], at: unknown): { text: string, iso?: string, dt?: string }[]
 }
 
 declare module '~/utils/markdown.mjs' {
@@ -2079,8 +2080,13 @@ declare module '~/utils/tenant-host-boot.mjs' {
 
 declare module '~/utils/body-times.mjs' {
   export const BODY_TIME_AT: string
-  export function bodyTimeRuns(text: string, at?: unknown): { text: string, iso?: string, dt?: string }[]
+  export function bodyTimeRuns(text: string, at?: unknown, short?: (runs: { text: string, iso?: string }[], at: unknown) => { text: string, iso?: string, dt?: string }[]): { text: string, iso?: string, dt?: string }[]
   export function hasBodyTime(text: string): boolean
+}
+
+declare module '~/utils/body-times-short.mjs' {
+  export function shortTimeRuns(s: string, at: number): { text: string, iso?: string, dt?: string }[]
+  export function withShortTimes(runs: { text: string, iso?: string }[], at: unknown): { text: string, iso?: string, dt?: string }[]
 }
 
 declare module '~/utils/date-iso.mjs' {
@@ -2089,8 +2095,6 @@ declare module '~/utils/date-iso.mjs' {
   export function knownTimeZones(): string[]
   export function setTimeZoneSource(source: () => string): void
   export function viewerTimeZone(): string
-  export function isoFields(value: unknown): { y: number, mo: number, da: number, h: number, mi: number, s: number } | null
-  export function zoneAbbr(value: unknown): string
   export function isoDate(value: unknown): string
   export function isoClock(value: unknown): string
   export function isoDateTime(value: unknown): string

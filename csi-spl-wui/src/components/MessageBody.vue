@@ -45,7 +45,7 @@ import { LinkPreviewsLazy, useLinkPreviewRefs } from '~/composables/useLinkPrevi
 const props = defineProps<{ body: string, markdown?: boolean, noPreviews?: boolean, at?: string | number }>()
 /* t1 179ef3f9: `at` = the message timestamp, the day a short `10:45Z` in the
    body is on (MessageRuns, body-times.mjs). No `at`: short forms stay as written. */
-provide(BODY_TIME_AT, toRef(props, 'at'))
+provide(BODY_TIME_AT, () => props.at)
 const blocks = computed(() => parseBody(props.body))
 const mdSource = computed(() => (props.markdown || looksLikeMarkdown(props.body) ? markdownSource(props.body) : null))
 const mdOn = ref(false)

@@ -145,7 +145,7 @@ describe('times written inside a message body (requirements 2 + 5)', () => {
   })
   it('the renderers use it: MessageRuns text runs, MarkdownBlock text, the event log hover', () => {
     const runs = readFileSync(join(SRC, 'components/MessageRuns.vue'), 'utf8')
-    assert.match(runs, /bodyTimeRuns\(p\.text, bodyTimeAt\)/)
+    assert.match(runs, /bodyTimeRuns\(p\.text, bodyAt\(\), labelMod\?\.withShortTimes\)/)
     assert.match(runs, /<time v-if="tr\.iso"[^>]*:datetime="tr\.dt \|\| tr\.iso"[^>]*:title="tr\.iso"/)
     assert.match(readFileSync(join(SRC, 'components/MarkdownBlock.vue'), 'utf8'), /hasBodyTime\(s\)/)
     const ev = readFileSync(join(SRC, 'pages/events.vue'), 'utf8')
@@ -160,14 +160,15 @@ describe('times written inside a message body (requirements 2 + 5)', () => {
 // (msg 4da3a44d): 1c reader clock + zone, then "(UTC as written)"; 2 another
 // day than the post's = "yyyy-mm-dd HH:MM"; 3b x = "about" the middle; 4b no marker.
 import { parseBody } from '../../src/utils/code-blocks.mjs'
+import { withShortTimes } from '../../src/utils/body-times-short.mjs'
 
 describe('short UTC times in a body (07:05:30Z, 10:45Z, 10:4xZ, ranges)', () => {
   const AT = '2026-10-09T06:50:00Z'
-  const shown = (zone, text, at = AT) => inZone(zone, () => bodyTimeRuns(text, at).map((r) => r.text).join(''))
+  const shown = (zone, text, at = AT) => inZone(zone, () => bodyTimeRuns(text, at, withShortTimes).map((r) => r.text).join(''))
   it('the owner\'s line, for a reader in Europe/Helsinki', () => {
     const line = 'Drill 5 has started: sat reboots at about 07:05:30Z.'
     assert.equal(shown('Europe/Helsinki', line), 'Drill 5 has started: sat reboots at about 10:05:30 EEST (07:05:30 UTC).')
-    const run = inZone('Europe/Helsinki', () => bodyTimeRuns(line, AT))[1]
+    const run = inZone('Europe/Helsinki', () => bodyTimeRuns(line, AT, withShortTimes))[1]
     assert.deepEqual(run, { text: '10:05:30 EEST (07:05:30 UTC)', iso: '07:05:30Z', dt: '2026-10-09T07:05:30.000Z' })
   })
   it('each form, a +03:00 reader', () => {
@@ -196,20 +197,29 @@ describe('short UTC times in a body (07:05:30Z, 10:45Z, 10:4xZ, ranges)', () => 
     assert.equal(shown('Europe/Helsinki', 'at 22:30Z', '2026-10-09T22:40:00Z'), 'at 01:30 EEST (22:30 UTC)')
   })
   it('the day is the post\'s: the UTC day that puts the time nearest to it', () => {
-    const run = inZone('UTC', () => bodyTimeRuns('23:50Z', '2026-10-09T00:10:00Z')[0])
+    const run = inZone('UTC', () => bodyTimeRuns('23:50Z', '2026-10-09T00:10:00Z', withShortTimes)[0])
     assert.equal(run.dt, '2026-10-08T23:50:00.000Z')
-    assert.equal(inZone('UTC', () => bodyTimeRuns('00:05Z', '2026-10-09T23:55:00Z')[0].dt), '2026-10-10T00:05:00.000Z')
+    assert.equal(inZone('UTC', () => bodyTimeRuns('00:05Z', '2026-10-09T23:55:00Z', withShortTimes)[0].dt), '2026-10-10T00:05:00.000Z')
   })
   it('CONTROL: a bare 10:45, a non-time and an x with seconds stay as written', () => {
     for (const t of ['bare 10:45', 'v10:45Z', '25:10Z', '10:4x:30Z', 'id ab:45Z']) {
-      assert.deepEqual(inZone('Europe/Helsinki', () => bodyTimeRuns(t, AT)), [{ text: t }], t)
+      assert.deepEqual(inZone('Europe/Helsinki', () => bodyTimeRuns(t, AT, withShortTimes)), [{ text: t }], t)
     }
     assert.equal(hasBodyTime('bare 10:45'), false)
     assert.equal(hasBodyTime('at 10:45Z'), true)
   })
-  it('CONTROL: no message timestamp (the old call) leaves the short forms as written', () => {
+  it('CONTROL: no message timestamp (the old call), or the lazy chunk not loaded yet: as written', () => {
     const t = 'reboots at 07:05:30Z, about 10:4xZ, 10:15-10:17Z'
     assert.deepEqual(inZone('Europe/Helsinki', () => bodyTimeRuns(t)), [{ text: t }])
+    assert.deepEqual(inZone('Europe/Helsinki', () => bodyTimeRuns(t, undefined, withShortTimes)), [{ text: t }])
+    assert.deepEqual(inZone('Europe/Helsinki', () => bodyTimeRuns(t, AT)), [{ text: t }])
+  })
+  it('the short-time code is a lazy chunk, never a static import of the first paint', () => {
+    for (const f of ['components/MessageRuns.vue', 'components/MarkdownBlock.vue', 'components/MessageBody.vue', 'utils/body-times.mjs']) {
+      assert.doesNotMatch(readFileSync(join(SRC, f), 'utf8'), /^import[^\n]*body-times-short/m, f)
+    }
+    assert.match(readFileSync(join(SRC, 'utils/app-link-label.mjs'), 'utf8'), /^export \{ withShortTimes \} from '\.\/body-times-short\.mjs'$/m)
+    assert.match(readFileSync(join(SRC, 'composables/useAppLinkLabel.ts'), 'utf8'), /import\('~\/utils\/app-link-label\.mjs'\)/)
   })
   it('inside `code` and a code block a short time is untouched', () => {
     const blocks = parseBody('run `date` at `10:45Z` then 10:45Z\n```\nlog 07:05:30Z\n```')
@@ -223,8 +233,8 @@ describe('short UTC times in a body (07:05:30Z, 10:45Z, 10:4xZ, ranges)', () => 
     assert.equal(shown('Europe/Helsinki', '2026-10-09T07:05Z and 07:05Z'), '2026-10-09 10:05 and 10:05 EEST (07:05 UTC)')
   })
   it('MessageCard hands the message timestamp to its body; no marker on the time (4b)', () => {
-    assert.match(readFileSync(join(SRC, 'components/MessageCard.vue'), 'utf8'), /<MessageBody v-else :body="String\(msg\.body \|\| ''\)" :at="msg\.ts \|\| undefined"/)
-    assert.match(readFileSync(join(SRC, 'components/MessageBody.vue'), 'utf8'), /provide\(BODY_TIME_AT, toRef\(props, 'at'\)\)/)
+    assert.match(readFileSync(join(SRC, 'components/MessageCard.vue'), 'utf8'), /<MessageBody v-else :body="String\(msg\.body \|\| ''\)" :at="msg\.ts"/)
+    assert.match(readFileSync(join(SRC, 'components/MessageBody.vue'), 'utf8'), /provide\(BODY_TIME_AT, \(\) => props\.at\)/)
     assert.doesNotMatch(readFileSync(join(SRC, 'components/MessageRuns.vue'), 'utf8'), /underline dotted/)
   })
 })

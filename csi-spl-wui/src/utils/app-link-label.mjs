@@ -196,3 +196,8 @@ export function appLinkLabel(href, ctx) {
   if (!text) return null
   return { segments, text, title: u.href }
 }
+
+/* t1 179ef3f9: the short UTC times of a message body ride this lazy chunk.
+   MessageRuns already loads it on every page; a second lazy import there
+   cost ~150 B gzip of the home chunks, which sit at their 027 ceiling. */
+export { withShortTimes } from './body-times-short.mjs'

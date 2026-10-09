@@ -24,7 +24,7 @@
       <!-- SPL-1009: a member id in plain text ("HUM-10 needs you in ...") reads the name -->
       <!-- CLE-77908: an ISO time with a zone reads in the viewer's zone; the hover keeps it as written -->
       <!-- t1 179ef3f9: a short 10:45Z too, on the day of the message that wrote it (MessageBody `at`) -->
-      <template v-for="(tr, i) in bodyTimeRuns(p.text, bodyTimeAt)" :key="i"><time v-if="tr.iso" class="msg-time" :datetime="tr.dt || tr.iso" :title="tr.iso" data-test="body-time">{{ tr.text }}</time><template v-else><template v-for="(r, k) in namedRuns(tr.text, people.names.value)" :key="k"><span v-if="r.title" class="person-name" :title="r.title">{{ r.text }}</span><template v-else>{{ r.text }}</template></template></template></template>
+      <template v-for="(tr, i) in bodyTimeRuns(p.text, bodyAt(), labelMod?.withShortTimes)" :key="i"><time v-if="tr.iso" class="msg-time" :datetime="tr.dt || tr.iso" :title="tr.iso" data-test="body-time">{{ tr.text }}</time><template v-else><template v-for="(r, k) in namedRuns(tr.text, people.names.value)" :key="k"><span v-if="r.title" class="person-name" :title="r.title">{{ r.text }}</span><template v-else>{{ r.text }}</template></template></template></template>
     </template>
   </template>
 </template>
@@ -32,10 +32,10 @@
 <script setup lang="ts">
 import { mentionDisplay, namedRuns } from '~/utils/channel-feed.mjs'
 import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp } from '~/utils/link-target.mjs'
-import { BODY_TIME_AT, bodyTimeRuns } from '~/utils/body-times.mjs'
 import { docsLinkHref } from '~/utils/docs.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useAppLinkLabel } from '~/composables/useAppLinkLabel'
+import { BODY_TIME_AT, bodyTimeRuns } from '~/utils/body-times.mjs'
 
 /* One run of a message body. Text interpolation only: a wiki region never
    becomes HTML, same rule as the rest of the body.
@@ -47,9 +47,10 @@ import { useAppLinkLabel } from '~/composables/useAppLinkLabel'
    repo-relative .md path opens our own /docs/<path> (docsLinkHref). */
 const props = defineProps<{ parts: { type: string, text: string, href?: string }[] }>()
 const people = useHumanNames()
-/* a top-level ref: the template reads it unwrapped */
-const bodyTimeAt = inject<Ref<string | number | undefined> | null>(BODY_TIME_AT, null)
 const labelMod = useAppLinkLabel()
+/* t1 179ef3f9: the message timestamp (MessageBody) is the day of a short
+   10:45Z; withShortTimes arrives with the lazy label chunk */
+const bodyAt = inject<() => unknown>(BODY_TIME_AT, () => undefined)
 const pub = useRuntimeConfig().public
 const requestURL = useRequestURL()
 const router = useRouter()

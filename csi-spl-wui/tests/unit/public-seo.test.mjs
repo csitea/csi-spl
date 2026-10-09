@@ -1,135 +1,260 @@
-// Spec 116 T7: which pages search engines may index, and what the build
-// writes for them (src/utils/public-seo.mjs). The documents themselves are
-// checked by the generate (nuxt.config publicSeoModule) and by
-// tests/e2e/blog.test.mjs (publicSeo).
-import { describe, it } from 'node:test'
-import assert from 'node:assert/strict'
-import {
-  buildRobotsTxt, buildSitemapXml, injectPublicHead, isPublicSeoPath, jsonLd, localeLinks, publicPageHead, robotsContent, seoBasePath, sitemapEntries,
-} from '../../src/utils/public-seo.mjs'
+/**
+ * Spec 116 T7 (HUM-10, t1 598f2807): the public, signed-out pages a search
+ * engine may index, and the head they carry. Public = /login (the front page:
+ * a signed-out visitor at / is sent there), /help and /help/<page>, and the
+ * blog (/blog, /blog/page/<n>, /blog/<id>), each also under /<lang>/. Every
+ * other screen, / included, stays `noindex, nofollow`.
+ *
+ * Indexing is on only where the build says so: cnf env.wui.seo_index (prd)
+ * -> NUXT_PUBLIC_SEO_INDEX=1. Canonical, hreflang and og:url are ALWAYS on
+ * the apex (NUXT_PUBLIC_SITE_URL), never the request host: the same files
+ * are served on every tenant host and on the bare Hosting site.
+ *
+ * Shared by app.vue (/login, /help), pages/blog.vue and nuxt.config.ts
+ * (publicSeoModule: the checks, robots.txt and sitemap.xml).
+ */
 
-const codes = ['bg', 'en', 'fi', 'dm']
-const site = 'https://apex.example.com'
+export const SITE_NAME = 'spool-hub'
+/** the og/twitter picture of a page with none of its own */
+export const SITE_IMAGE = '/spool-hub-emblem-1120.webp'
+const PUBLIC_RE = /^\/(?:login|help(?:\/[a-z0-9][a-z0-9-]*)?|blog(?:\/.*)?)$/
 
-describe('public SEO: which paths', () => {
-  it('the public pages, in any locale, are public', () => {
-    for (const p of ['/login', '/fi/login', '/login?login_hint=a%40b.example', '/help', '/help/agents', '/fi/help', '/blog', '/blog/page/2', '/fi/blog/2026-10-09-x', '/blog/']) {
-      assert.equal(isPublicSeoPath(p, codes), true, p)
+/**
+ * Pathname with the locale prefix, query, hash and trailing slash taken off.
+ * @param {string} path
+ * @param {string[]} codes the shipped locale codes
+ */
+export function seoBasePath(path, codes) {
+  let p = String(path || '/').split('#')[0].split('?')[0] || '/'
+  if (p.length > 1) p = p.replace(/\/+$/, '')
+  const m = /^\/([a-z]{2,3})(\/.*|$)/.exec(p)
+  if (m && codes.includes(m[1])) p = m[2] || '/'
+  return p
+}
+
+/** @param {string} path @param {string[]} codes */
+export function isPublicSeoPath(path, codes) {
+  return PUBLIC_RE.test(seoBasePath(path, codes))
+}
+
+/** @param {unknown} flag runtimeConfig.public.seoIndex */
+export function seoIndexOn(flag) {
+  return String(flag) === '1' || flag === true
+}
+
+/**
+ * The robots meta of a path: index only for a public page on an indexable build.
+ * @param {string} path @param {string[]} codes @param {boolean} indexOn
+ */
+export function robotsContent(path, codes, indexOn) {
+  return indexOn && isPublicSeoPath(path, codes) ? 'index, follow' : 'noindex, nofollow'
+}
+
+/**
+ * `path` in locale `code` (the default locale is unprefixed).
+ * @param {string} code @param {string} path @param {string} defaultLocale
+ */
+export function localizedPath(code, path, defaultLocale) {
+  return code === defaultLocale ? path : `/${code}${path === '/' ? '' : path}`
+}
+
+/**
+ * A JSON-LD body that cannot close its <script> element.
+ * @param {unknown} value
+ */
+export function jsonLd(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c')
+}
+
+/**
+ * og + twitter card tags of one page.
+ * @param {{ title: string, description: string, url: string, image: string, type?: string }} p
+ * @returns {Array<Record<string, string>>}
+ */
+export function socialMeta(p) {
+  return [
+    { property: 'og:site_name', content: SITE_NAME },
+    { property: 'og:type', content: p.type || 'website' },
+    { property: 'og:title', content: p.title },
+    { property: 'og:description', content: p.description },
+    { property: 'og:url', content: p.url },
+    { property: 'og:image', content: p.image },
+    { name: 'twitter:card', content: 'summary_large_image' },
+    { name: 'twitter:title', content: p.title },
+    { name: 'twitter:description', content: p.description },
+    { name: 'twitter:image', content: p.image },
+  ]
+}
+
+/**
+ * canonical + hreflang links: canonical on `canonicalCode`'s copy, one
+ * alternate per locale in `langs` (the locales the page really has) and
+ * x-default on the default-locale copy. One language = no alternates.
+ * @param {{ siteUrl: string, base: string, canonicalCode: string, langs: string[], defaultLocale: string }} o
+ */
+export function localeLinks(o) {
+  /** @param {string} code */
+  const abs = (code) => `${o.siteUrl}${localizedPath(code, o.base, o.defaultLocale)}`
+  const out = [{ rel: 'canonical', href: abs(o.canonicalCode) }]
+  if (o.langs.length > 1) {
+    for (const c of o.langs) out.push({ rel: 'alternate', hreflang: c, href: abs(c) })
+    out.push({ rel: 'alternate', hreflang: 'x-default', href: abs(o.defaultLocale) })
+  }
+  return out
+}
+
+const FRONT = {
+  title: 'Agents and people, one channel feed',
+  description: 'spool-hub is a channel feed where AI agents and people work side by side: channels, topics, direct messages, a calendar, help and release notes, in 19 languages.',
+}
+const HELP = {
+  title: 'Help',
+  description: 'How to use spool-hub: channels, topics, direct messages, agents, boxes, the calendar and the rest of the app.',
+}
+
+/**
+ * The head of /login and /help/** (the blog builds its own, pages/blog.vue),
+ * or null for any other path. /login exists in every locale; the help text
+ * is one language, so every /<lang>/help copy canonicalises to the default one.
+ * @param {{ path: string, locale: string, codes: string[], defaultLocale: string, siteUrl: string }} o
+ */
+export function publicPageHead(o) {
+  const base = seoBasePath(o.path, o.codes)
+  const site = String(o.siteUrl || '').replace(/\/+$/, '')
+  const login = base === '/login'
+  if (!login && !/^\/help(?:\/|$)/.test(base)) return null
+  const page = login ? FRONT : HELP
+  const link = localeLinks(login
+    ? { siteUrl: site, base, canonicalCode: o.locale, langs: o.codes, defaultLocale: o.defaultLocale }
+    : { siteUrl: site, base, canonicalCode: o.defaultLocale, langs: [], defaultLocale: o.defaultLocale })
+  const meta = [
+    { name: 'description', content: page.description },
+    ...socialMeta({ title: `${page.title} · ${SITE_NAME}`, description: page.description, url: link[0].href, image: `${site}${SITE_IMAGE}` }),
+  ]
+  const script = login
+    ? [{
+        type: 'application/ld+json',
+        key: 'ld-site',
+        innerHTML: jsonLd([
+          { '@context': 'https://schema.org', '@type': 'Organization', '@id': `${site}/#organization`, name: SITE_NAME, url: `${site}/`, logo: `${site}/logo.webp` },
+          { '@context': 'https://schema.org', '@type': 'WebSite', '@id': `${site}/#website`, name: SITE_NAME, url: `${site}/`, inLanguage: o.locale, publisher: { '@id': `${site}/#organization` } },
+        ]),
+      }]
+    : []
+  return { title: page.title, meta, link, script }
+}
+
+/** @param {string} s */
+const attr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+
+/**
+ * Write a page's publicPageHead into its prerendered document (build time).
+ * For a page whose layout renders it client-only (/help: layouts/default.vue),
+ * so no head of its own reaches the document; once hydrated the page sets the
+ * same tags, which unhead matches by key. Title, robots and description are
+ * replaced, the rest added before </head>. A document that already has a
+ * canonical is returned as is.
+ * @param {string} html
+ * @param {{ title: string, meta: Array<Record<string, string>>, link: Array<Record<string, string>>, script: Array<{ type: string, key: string, innerHTML: string }> }} head
+ * @param {string} robots
+ */
+export function injectPublicHead(html, head, robots) {
+  if (/<link\b[^>]*\brel="canonical"/.test(html)) return html
+  /** @param {string} name @param {Record<string, string>} a */
+  const tag = (name, a) => `<${name} ${Object.entries(a).map(([k, v]) => `${k}="${attr(v)}"`).join(' ')}>`
+  const description = head.meta.find((m) => m.name === 'description')?.content || ''
+  let out = html
+    .replace(/<title>[^<]*<\/title>/, `<title>${attr(`${head.title} · ${SITE_NAME}`)}</title>`)
+    .replace(/(<meta\b[^>]*\bname="robots"[^>]*\bcontent=")[^"]*"/, `$1${robots}"`)
+    .replace(/(<meta\b[^>]*\bname="description"[^>]*\bcontent=")[^"]*"/, `$1${attr(description)}"`)
+  const add = [
+    ...head.link.map((l) => tag('link', l)),
+    ...head.meta.filter((m) => m.name !== 'description').map((m) => tag('meta', m)),
+    ...head.script.map((x) => `<script type="${x.type}">${x.innerHTML}</script>`),
+  ]
+  out = out.replace('</head>', add.join('') + '</head>')
+  return out
+}
+
+// ── robots.txt + sitemap.xml (build time, nuxt.config publicSeoModule) ──────
+// Shapes taken from the two SEO sites on the fleet box: robots = the
+// generate-seo.js buildRobots of one (crawl rules + an absolute Sitemap
+// line), sitemap = the gen-sitemap of the other (every <url> carries its
+// whole hreflang group plus x-default).
+
+/** Static files a crawler needs to render a public page. */
+const ROBOTS_ASSETS = ['/_nuxt/', '/blog-md/', '/help-md/', '/icons/', '/config.json', '/build.json', '/manifest.webmanifest', '/*.webp$', '/*.avif$']
+
+/**
+ * robots.txt: on an indexable build only the public pages (and the files
+ * they render with) are crawlable, plus / itself (a noindex page that sends
+ * a visitor to /login); anything else is the app. Off = nothing is.
+ * @param {{ siteUrl: string, codes: string[], defaultLocale: string, indexOn: boolean }} o
+ */
+export function buildRobotsTxt(o) {
+  if (!o.indexOn || !o.siteUrl) return 'User-agent: *\nDisallow: /\n'
+  const lines = ['User-agent: *', 'Disallow: /', 'Allow: /$']
+  for (const c of o.codes) {
+    for (const p of ['/login', '/blog', '/help']) lines.push(`Allow: ${localizedPath(c, p, o.defaultLocale)}`)
+  }
+  for (const a of ROBOTS_ASSETS) lines.push(`Allow: ${a}`)
+  lines.push('', `Sitemap: ${o.siteUrl}/sitemap.xml`, '')
+  return lines.join('\n')
+}
+
+/** @param {string} s */
+const xmlEscape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/**
+ * The sitemap's pages: every canonical public URL with its lastmod and
+ * hreflang group, as the pages themselves declare them.
+ * @param {{ codes: string[], defaultLocale: string, today: string, help: string[], pageSize: number,
+ *   blog: { locales?: Record<string, Array<{ id: string, date?: string, published?: string }>> } | null }} o
+ * @returns {Array<{ base: string, code: string, langs: string[], lastmod: string }>}
+ */
+export function sitemapEntries(o) {
+  /** @type {Array<{ base: string, code: string, langs: string[], lastmod: string }>} */
+  const out = []
+  /** @param {string} base @param {string} lastmod */
+  const all = (base, lastmod) => { for (const c of o.codes) out.push({ base, code: c, langs: o.codes, lastmod }) }
+  all('/login', o.today)
+  for (const h of ['', ...o.help]) out.push({ base: h ? `/help/${h}` : '/help', code: o.defaultLocale, langs: [], lastmod: o.today })
+  const locales = o.blog?.locales || {}
+  const en = locales.en || []
+  /** @param {{ date?: string, published?: string }} e */
+  const day = (e) => String(e.published || e.date || o.today).slice(0, 10)
+  const newest = en.length ? en.map(day).sort().pop() || o.today : o.today
+  const pages = Math.max(1, Math.ceil(en.length / o.pageSize))
+  for (let n = 1; n <= pages; n++) all(n === 1 ? '/blog' : `/blog/page/${n}`, newest)
+  for (const e of en) {
+    const langs = o.codes.filter((c) => c === 'en' || (locales[c] || []).some((x) => x.id === e.id))
+    for (const c of langs) out.push({ base: `/blog/${e.id}`, code: c, langs, lastmod: day(e) })
+  }
+  return out
+}
+
+/**
+ * sitemap.xml of sitemapEntries, every URL on the apex.
+ * @param {{ siteUrl: string, defaultLocale: string, entries: Array<{ base: string, code: string, langs: string[], lastmod: string }> }} o
+ */
+export function buildSitemapXml(o) {
+  /** @param {string} code @param {string} base */
+  const abs = (code, base) => xmlEscape(`${o.siteUrl}${localizedPath(code, base, o.defaultLocale)}`)
+  const out = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+  ]
+  for (const e of o.entries) {
+    out.push('  <url>', `    <loc>${abs(e.code, e.base)}</loc>`, `    <lastmod>${e.lastmod}</lastmod>`)
+    if (e.langs.length > 1) {
+      for (const c of e.langs) out.push(`    <xhtml:link rel="alternate" hreflang="${c}" href="${abs(c, e.base)}"/>`)
+      out.push(`    <xhtml:link rel="alternate" hreflang="x-default" href="${abs(o.defaultLocale, e.base)}"/>`)
     }
-  })
-  it('every product screen, / first, is not', () => {
-    for (const p of ['/', '/fi', '/lobby', '/channel/general', '/dm/x', '/t/abc', '/settings', '/search', '/releases/v1.2.3', '/help/a/b', '/loginx', '/blogx']) {
-      assert.equal(isPublicSeoPath(p, codes), false, p)
-    }
-  })
-  it('a route named like a locale is not a prefix unless it is one', () => {
-    assert.equal(seoBasePath('/dm/login', ['bg', 'en']), '/dm/login')
-    assert.equal(seoBasePath('/fi/login/', codes), '/login')
-  })
-  it('index only for a public page on an indexable build', () => {
-    assert.equal(robotsContent('/login', codes, true), 'index, follow')
-    assert.equal(robotsContent('/login', codes, false), 'noindex, nofollow')
-    assert.equal(robotsContent('/lobby', codes, true), 'noindex, nofollow')
-    assert.equal(robotsContent('/', codes, true), 'noindex, nofollow')
-  })
-})
-
-describe('public SEO: head', () => {
-  it('/login: apex canonical without the query, hreflang per locale + x-default, og, twitter, JSON-LD', () => {
-    const h = publicPageHead({ path: '/fi/login?login_hint=a%40b.example', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site + '/' })
-    assert.ok(h)
-    assert.deepEqual(h.link[0], { rel: 'canonical', href: `${site}/fi/login` })
-    assert.equal(h.link.filter((l) => l.rel === 'alternate').length, codes.length + 1)
-    assert.ok(h.link.some((l) => l.hreflang === 'x-default' && l.href === `${site}/login`))
-    assert.ok(!JSON.stringify(h).includes('login_hint'))
-    const meta = Object.fromEntries(h.meta.map((m) => [m.property || m.name, m.content]))
-    assert.equal(meta['og:url'], `${site}/fi/login`)
-    assert.equal(meta['twitter:card'], 'summary_large_image')
-    assert.ok(meta['og:image'].startsWith(site + '/'))
-    assert.match(h.script[0].innerHTML, /"@type":"Organization".*"@type":"WebSite"/)
-  })
-  it('/public-calendar: apex canonical, hreflang per locale, og, twitter', () => {
-    const h = publicPageHead({ path: '/fi/public-calendar', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site })
-    assert.ok(h)
-    assert.deepEqual(h.link[0], { rel: 'canonical', href:  })
-    assert.equal(h.link.filter((l) => l.rel === 'alternate').length, codes.length + 1)
-    assert.ok(h.link.some((l) => l.hreflang === 'x-default' && l.href === ))
-    const meta = Object.fromEntries(h.meta.map((m) => [m.property || m.name, m.content]))
-    assert.equal(meta['og:url'], )
-    assert.equal(meta['twitter:card'], 'summary_large_image')
-    assert.ok(meta['og:image'].startsWith(site))
-  })
-  it('/<lang>/help canonicalises to the default copy, no alternates (one language)', () => {
-    const h = publicPageHead({ path: '/fi/help/agents', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site })
-    assert.ok(h)
-    assert.deepEqual(h.link, [{ rel: 'canonical', href: `${site}/help/agents` }])
-    assert.deepEqual(h.script, [])
-  })
-  it('no head of its own for the blog or a product screen', () => {
-    for (const p of ['/blog', '/lobby', '/']) assert.equal(publicPageHead({ path: p, locale: 'en', codes, defaultLocale: 'en', siteUrl: site }), null, p)
-  })
-  it('hreflang only for the locales given', () => {
-    const l = localeLinks({ siteUrl: site, base: '/blog/x', canonicalCode: 'en', langs: ['en', 'fi'], defaultLocale: 'en' })
-    assert.deepEqual(l.map((x) => x.hreflang || x.rel), ['canonical', 'en', 'fi', 'x-default'])
-  })
-  it('JSON-LD cannot close its script element', () => {
-    assert.ok(!jsonLd({ t: '</script><script>x' }).includes('</'))
-  })
-})
-
-describe('public SEO: robots.txt and sitemap.xml', () => {
-  it('an indexable build allows the public pages, disallows the rest, names the sitemap', () => {
-    const r = buildRobotsTxt({ siteUrl: site, codes: ['bg', 'en', 'fi'], defaultLocale: 'en', indexOn: true })
-    for (const l of ['Disallow: /', 'Allow: /login', 'Allow: /fi/login', 'Allow: /blog', 'Allow: /help', 'Allow: /_nuxt/', `Sitemap: ${site}/sitemap.xml`]) {
-      assert.ok(r.split('\n').includes(l), l)
-    }
-    assert.ok(!/Allow: \/(lobby|channel|dm\/|t\/|settings)/.test(r))
-  })
-  it('any other build disallows everything and names no sitemap', () => {
-    assert.equal(buildRobotsTxt({ siteUrl: site, codes, defaultLocale: 'en', indexOn: false }), 'User-agent: *\nDisallow: /\n')
-    assert.equal(buildRobotsTxt({ siteUrl: '', codes, defaultLocale: 'en', indexOn: true }), 'User-agent: *\nDisallow: /\n')
-  })
-  it('the sitemap: login per locale, help once, blog lists per locale, each post in the locales that have it, lastmod', () => {
-    const blog = { locales: { en: [{ id: '2026-10-09-a', published: '2026-10-09T14:18:00Z' }, { id: '2026-10-08-b', date: '2026-10-08' }], fi: [{ id: '2026-10-09-a' }] } }
-    const entries = sitemapEntries({ codes: ['en', 'fi'], defaultLocale: 'en', today: '2026-10-10', help: ['agents'], pageSize: 1, blog })
-    const xml = buildSitemapXml({ siteUrl: site, defaultLocale: 'en', entries })
-    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].slice(site.length))
-    assert.deepEqual(locs, ['/login', '/fi/login', '/help', '/help/agents', '/blog', '/fi/blog', '/blog/page/2', '/fi/blog/page/2', '/blog/2026-10-09-a', '/fi/blog/2026-10-09-a', '/blog/2026-10-08-b'])
-    assert.equal((xml.match(/<lastmod>/g) || []).length, locs.length)
-    assert.match(xml, /<loc>https:\/\/apex\.example\.com\/blog\/2026-10-09-a<\/loc>\n {4}<lastmod>2026-10-09<\/lastmod>/)
-    assert.match(xml, /<loc>https:\/\/apex\.example\.com\/blog<\/loc>\n {4}<lastmod>2026-10-09<\/lastmod>/)
-    // a one-language page carries no hreflang group; a post in two does
-    assert.ok(!/<loc>[^<]*\/blog\/2026-10-08-b<\/loc>\n {4}<lastmod>[^<]*<\/lastmod>\n {4}<xhtml/.test(xml))
-    assert.match(xml, /hreflang="fi" href="https:\/\/apex\.example\.com\/fi\/blog\/2026-10-09-a"/)
-  })
-})
-
-describe('public SEO: a client-only page head written at build time', () => {
-  const doc = '<html><head><title>spool-hub</title><meta name="robots" content="noindex, nofollow"><meta name="description" content="generic"></head><body></body></html>'
-  const head = publicPageHead({ path: '/help/agents', locale: 'en', codes, defaultLocale: 'en', siteUrl: site })
-  it('replaces title, robots and description, adds canonical + og once', () => {
-    const out = injectPublicHead(doc, head, 'index, follow')
-    assert.match(out, /<title>Help · spool-hub<\/title>/)
-    assert.match(out, /<meta name="robots" content="index, follow">/)
-    assert.equal((out.match(/name="description"/g) || []).length, 1)
-    assert.ok(!out.includes('content="generic"'))
-    assert.match(out, /<link rel="canonical" href="https:\/\/apex\.example\.com\/help\/agents">/)
-    assert.match(out, /<meta property="og:title" content="Help · spool-hub">/)
-    assert.equal(injectPublicHead(out, head, 'index, follow'), out)
-  })
-})
-
-  it('/public-calendar: apex canonical, hreflang per locale, og, twitter', () => {
-    const h = publicPageHead({ path: '/fi/public-calendar', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site })
-    assert.ok(h)
-    assert.deepEqual(h.link[0], { rel: 'canonical', href:  })
-    assert.equal(h.link.filter((l) => l.rel === 'alternate').length, codes.length + 1)
-    assert.ok(h.link.some((l) => l.hreflang === 'x-default' && l.href === ))
-    const meta = Object.fromEntries(h.meta.map((m) => [m.property || m.name, m.content]))
-    assert.equal(meta['og:url'], )
-    assert.equal(meta['twitter:card'], 'summary_large_image')
-    assert.ok(meta['og:image'].startsWith(site))
-  })
+    out.push('  </url>')
+  }
+  out.push('</urlset>', '')
+  return out.join('\n')
+}
 
   it("/public-calendar: public path", () => {
     assert.equal(isPublicSeoPath("/public-calendar", codes), true)

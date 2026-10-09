@@ -9,6 +9,10 @@
      or calendar month, in the viewer's zone (spec 089); the filter lives in
      the URL so a link reproduces it. /roadmap#spec-089 opens on that row.
      WUI-3 adds the workspace filter and the goal rows in its own files. -->
+<!-- Spec 112 WUI-3 (5.3 (a), 12.6): the goal part (RoadmapGoals.vue, its own
+     chunk) mounts above the spec rows; a spec row also matches a window when
+     a goal it serves has a date in it, and ?goal=G01 keeps that goal's specs
+     (utils/roadmap-goals roadmapGoalSpecRows). -->
 <template>
   <div class="feed-col roadmap-page" data-test="roadmap-page">
     <header class="feed-header">
@@ -35,6 +39,11 @@
           {{ t('roadmap.count', { shown: rows.length, total: specs.length }) }}
         </p>
       </div>
+      <RoadmapGoals
+        :workspaces="goalsOf.workspaces.value" :ws="goalsOf.ws.value" :blocked="goalsOf.blocked.value" :other-ws="goalsOf.otherWs.value"
+        :switching="goalsOf.switching.value" :state="goalsOf.state.value" :goals="goalsOf.goals.value" :specs="specs" :focus="goal"
+        @pick="goalsOf.setWs" @switch="goalsOf.switchToWs"
+      />
       <p v-if="state === 'loading'" class="muted" data-test="roadmap-loading">{{ t('common.loading') }}</p>
       <p v-else-if="state === 'error'" class="roadmap-error" role="alert" data-test="roadmap-error">{{ t('roadmap.error') }}</p>
       <p v-else-if="!rows.length" class="muted" data-test="roadmap-empty">{{ t(when ? 'roadmap.empty_window' : 'roadmap.empty') }}</p>
@@ -46,10 +55,12 @@
 
 <script setup lang="ts">
 import { isoDate } from '~/utils/date-iso.mjs'
-import { roadmapRows, roadmapSpecs, roadmapWhen } from '~/utils/roadmap-rows.mjs'
+import { roadmapSpecs, roadmapWhen } from '~/utils/roadmap-rows.mjs'
+import { roadmapGoalId, roadmapGoalSpecRows } from '~/utils/roadmap-goals.mjs'
 
 /* the spec-row table is its own chunk, fetched on route entry (spec 112 9) */
 const RoadmapSpecTable = defineAsyncComponent(() => import('~/components/RoadmapSpecTable.vue'))
+const RoadmapGoals = defineAsyncComponent(() => import('~/components/RoadmapGoals.vue'))
 
 interface RoadmapSpec {
   id: string
@@ -74,7 +85,9 @@ const sha = ref('')
 
 const when = computed(() => roadmapWhen(route.query.when))
 const focus = computed(() => decodeURIComponent(String(route.hash || '').replace(/^#/, '')))
-const rows = computed<RoadmapSpec[]>(() => roadmapRows(specs.value, when.value, isoDate(Date.now()), (iso: string) => isoDate(iso)))
+const goalsOf = useRoadmapGoals()
+const goal = computed(() => roadmapGoalId(route.query.goal))
+const rows = computed<RoadmapSpec[]>(() => roadmapGoalSpecRows(specs.value, goalsOf.goals.value, { when: when.value, goal: goal.value, today: isoDate(Date.now()), dayOf: (iso: string) => isoDate(iso) }))
 
 async function setWhen(w: string) {
   if (w === when.value) return

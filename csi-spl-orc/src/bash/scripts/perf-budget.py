@@ -23,8 +23,13 @@ Three measurements, nothing else:
                              Each sample also records time_namelookup and
                              time_connect so a DNS stall is visible.
 
+  route chunks               the lazy chunks of one route (spec 112 9: the
+                             roadmap, ci_roadmap_route_gzip_kb), found by the
+                             data-test values its compiled templates carry,
+                             gzipped the same way and summed.
+
 `bundle` reads a nuxt generate directory and checks ci_initial_gzip_kb and
-ci_home_gzip_kb.
+ci_home_gzip_kb, and each route chunk budget the budgets file carries.
 `live` talks to the hosts it is given. `check` compares an already written
 report. A value greater than its ceiling, or a required value that was not
 measured, exits 1. The password, the session cookie and every response body
@@ -71,6 +76,13 @@ CI_DOCS = (
     ("ci_home_gzip_kb", "index.html"),
 )
 CI_KEYS = tuple(key for key, _doc in CI_DOCS)
+# Each route chunk budget and the markers of its chunks: a chunk whose text
+# holds one of them is that route's (a quoted data-test value, as the
+# compiled template writes it). Gated when the budgets file has the key, so a
+# route whose markers match no chunk fails as not measured, never passes.
+ROUTE_CHUNKS = (
+    ("ci_roadmap_route_gzip_kb", ('"roadmap-page"', '"roadmap-spec-table"')),
+)
 # first_load_p95_ms is recorded and not gated: it is a new connection per
 # chunk on this box, and that tail is the resolver (T124), not the bundle.
 LIVE_KEYS = (
@@ -459,7 +471,10 @@ def summary_of(report, ok):
 
 
 def finish(report, ceilings, require, out_path):
-    ok, lines = check(report.get("metrics") or {}, ceilings, required_for(require))
+    required = required_for(require)
+    if require == "ci":
+        required += tuple(key for key, _markers in ROUTE_CHUNKS if key in ceilings)
+    ok, lines = check(report.get("metrics") or {}, ceilings, required)
     report["ok"] = ok
     report["lines"] = lines
     report["summary"] = summary_of(report, ok)
@@ -474,6 +489,23 @@ def finish(report, ceilings, require, out_path):
         print(line)
     print(report["summary"])
     return 0 if ok else 1
+
+
+def route_chunks(pub):
+    """{key: {chunks, gzip_kb}} for each ROUTE_CHUNKS entry: the _nuxt/*.js
+    files holding one of its markers, gzipped and summed."""
+    nuxt = os.path.join(pub, "_nuxt")
+    bodies = {}
+    for name in sorted(os.listdir(nuxt)):
+        if name.endswith(".js"):
+            with open(os.path.join(nuxt, name), "rb") as f:
+                bodies[name] = f.read()
+    out = {}
+    for key, markers in ROUTE_CHUNKS:
+        names = [n for n, body in bodies.items() if any(mk.encode() in body for mk in markers)]
+        total = sum(gzip_len(bodies[n]) for n in names)
+        out[key] = {"chunks": len(names), "gzip_kb": kb_of(total), "files": names}
+    return out
 
 
 def bundle_report(pub):
@@ -495,7 +527,11 @@ def bundle_report(pub):
         documents[doc] = {"chunks": chunks, "gzip_kb": gzip_kb}
         if doc in gated:
             metrics[gated[doc]] = gzip_kb
-    report = {"kind": "bundle", "n": 1, "documents": documents, "metrics": metrics}
+    routes = route_chunks(pub)
+    for key, row in routes.items():
+        if row["chunks"]:
+            metrics[key] = row["gzip_kb"]
+    report = {"kind": "bundle", "n": 1, "documents": documents, "routes": routes, "metrics": metrics}
     if "200.html" in documents:
         report["chunks"] = documents["200.html"]["chunks"]
     return report
@@ -510,6 +546,8 @@ def cmd_bundle(args):
         return 1
     for doc, row in sorted(report["documents"].items()):
         print(f"DOC {doc} {row['chunks']} chunk(s) gzip {row['gzip_kb']:g} KB")
+    for key, row in sorted(report["routes"].items()):
+        print(f"ROUTE {key} {row['chunks']} chunk(s) gzip {row['gzip_kb']:g} KB")
     return finish(report, ceilings, "ci", args.out)
 
 

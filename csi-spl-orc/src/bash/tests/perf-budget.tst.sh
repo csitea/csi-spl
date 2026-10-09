@@ -8,6 +8,9 @@
 #      ci_home_gzip_kb as well as 200.html against ci_initial_gzip_kb (spec
 #      109 T002). CONTROL: the 200.html figure (all the old code read) does
 #      not move when index.html grows, so only the new key can see it
+#   2c. a route chunk budget (spec 112 9): the roadmap's marked chunks are
+#      summed against ci_roadmap_route_gzip_kb when the budgets carry it.
+#      CONTROLS: over the ceiling exits 1; no marked chunk = not measured
 #   3. the ceiling check FAILS when a number is over, when a required number
 #      was not measured, and when the initial set is empty — and PASSES when
 #      the number is equal to the ceiling. The over case is the control that
@@ -151,6 +154,27 @@ python3 "$PY" bundle --pub "$T/home" --budgets "$T/under.json" >"$T/bout" 2>&1
 rc=$?
 [[ $rc -eq 1 ]] && grep -q 'ci_home_gzip_kb was not measured' "$T/bout" \
   && pass "CONTROL: a bundle without index.html fails, never passes unmeasured" || fail "CONTROL no index: rc=$rc $(cat "$T/bout")"
+
+# --- 2c. a route chunk budget (spec 112 9: the roadmap route <= 25 KB) ------------
+mkdir -p "$T/route/_nuxt"
+cp "$T/pub/_nuxt/"*.js "$T/pub/200.html" "$T/pub/index.html" "$T/route/" 2>/dev/null
+mv "$T/route/"*.js "$T/route/_nuxt/"
+python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/roadmap.js","wb").write(b"x={\"data-test\":\"roadmap-page\"};"+os.urandom(6000))' "$T/route"
+python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/table.js","wb").write(b"y={\"data-test\":\"roadmap-spec-table\"};"+os.urandom(3000))' "$T/route"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999,"ci_home_gzip_kb":99999,"ci_roadmap_route_gzip_kb":25}}' >"$T/route.json"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999,"ci_home_gzip_kb":99999,"ci_roadmap_route_gzip_kb":5}}' >"$T/routelow.json"
+python3 "$PY" bundle --pub "$T/route" --budgets "$T/route.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 0 ]] && grep -q '^ROUTE ci_roadmap_route_gzip_kb 2 chunk(s) gzip 8\.[0-9] KB' "$T/bout" && grep -q '^PASS ci_roadmap_route_gzip_kb ' "$T/bout" \
+  && pass "the roadmap route chunks (its two marked files, nothing else) are measured and pass 25 KB" || fail "route: rc=$rc $(cat "$T/bout")"
+python3 "$PY" bundle --pub "$T/route" --budgets "$T/routelow.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 1 ]] && grep -q '^FAIL ci_roadmap_route_gzip_kb ' "$T/bout" \
+  && pass "CONTROL: the route chunks over their ceiling exit 1" || fail "CONTROL route over: rc=$rc $(cat "$T/bout")"
+python3 "$PY" bundle --pub "$T/pub" --budgets "$T/route.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 1 ]] && grep -q 'ci_roadmap_route_gzip_kb was not measured' "$T/bout" \
+  && pass "CONTROL: a route budget whose chunks are missing fails, never passes unmeasured" || fail "CONTROL route missing: rc=$rc $(cat "$T/bout")"
 
 mkdir -p "$T/empty/_nuxt"
 printf 'console.log("orphan")\n' >"$T/empty/_nuxt/orphan.js"

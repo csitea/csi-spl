@@ -6,7 +6,8 @@
     "view_me_p95_ms": 2357,
     "view_channels_p95_ms": 2300,
     "view_roster_p95_ms": 2633,
-    "ci_home_gzip_kb": 352.1
+    "ci_home_gzip_kb": 352.1,
+    "ci_roadmap_route_gzip_kb": 25.0
   },
   "basis": {
     "measured_utc": "2026-09-25T18:38:45Z",
@@ -35,6 +36,7 @@
     "ci_gzip_kb_before_rebase": 218.8,
     "view_ttfb_measured_utc": "2026-09-25T19:50:48Z",
     "view_ttfb_hub_commit": "143229e55b28",
-    "ci_home_gzip_kb_basis": "ci_home_gzip_kb is the same set rule applied to the prerendered index.html (spec 109 T002, FR-002, D3), measured with the CI runner's node (20.20.2): 351.8 KB over 85 chunks in gate 10 run 37833216878 (tree f29bbf75a) and 351.9 KB on a box generate of trunk e92a13d4e (same csi-spl-wui tree), 2026-10-08, n=2. Two builds of one tree are not byte-identical: nuxt-i18n hashes the checkout path into the locale keys (locale_<l>_46json_<hash>), so each runner path moves the sum by about 0.1 KB; the ceiling is the larger of the two. Measure with the runner's node: the box's node 20.19.2 zlib reads about 0.7 KB lower (351.2 on e92a13d4e), which is how the first ceiling, 351.2, turned trunk red. Never ratcheted up; spec 109 T003 lowers it (target <= 175 KB). 2026-10-09 owner decision (t1 2b61230c msg 74f19856, option a): raised 351.9 -> 352.1 by the measured build-path noise only (n=3 trunk runs at 352.0; one same-source rebuild moved 97 B); no raise for features; spec 109 T003 still lowers it."
+    "ci_home_gzip_kb_basis": "ci_home_gzip_kb is the same set rule applied to the prerendered index.html (spec 109 T002, FR-002, D3), measured with the CI runner's node (20.20.2): 351.8 KB over 85 chunks in gate 10 run 37833216878 (tree f29bbf75a) and 351.9 KB on a box generate of trunk e92a13d4e (same csi-spl-wui tree), 2026-10-08, n=2. Two builds of one tree are not byte-identical: nuxt-i18n hashes the checkout path into the locale keys (locale_<l>_46json_<hash>), so each runner path moves the sum by about 0.1 KB; the ceiling is the larger of the two. Measure with the runner's node: the box's node 20.19.2 zlib reads about 0.7 KB lower (351.2 on e92a13d4e), which is how the first ceiling, 351.2, turned trunk red. Never ratcheted up; spec 109 T003 lowers it (target <= 175 KB). 2026-10-09 owner decision (t1 2b61230c msg 74f19856, option a): raised 351.9 -> 352.1 by the measured build-path noise only (n=3 trunk runs at 352.0; one same-source rebuild moved 97 B); no raise for features; spec 109 T003 still lowers it.",
+    "ci_roadmap_route_gzip_kb_basis": "ci_roadmap_route_gzip_kb is the roadmap route's own lazy chunks (spec 112 9, WUI-1): every mock nuxt generate _nuxt/*.js holding the data-test value \"roadmap-page\" or \"roadmap-spec-table\", gzipped by node zlib and summed (perf-budget.py route_chunks). 25 KB is the spec's ceiling, not a measurement plus headroom. Measured 3.0 KB over 2 chunks on a box generate of trunk 6dea66a55 plus WUI-1 (box node 20.19.2, 2026-10-09, n=1). The same build left 200.html at 153.8 KB against 153.7 KB on trunk 6dea66a55 (n=1 each): +219 B raw / +60 B gzip in the entry chunk, which is the router record for /roadmap and its preload list, never roadmap code or data (tests/e2e/roadmap.test.mjs)."
   }
 }

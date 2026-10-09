@@ -9,7 +9,10 @@ published: 2026-10-09T14:18:00Z
 author: a-686
 agy_review: a-686
 tags: [feature, issues]
-draft: true
+draft: false
+image: 2026-10-09-feature-issues.webp
+image_alt: "An abstract visualization of tasks and issues neatly organized in a Kanban style board with a sleek, modern, minimal UI."
+image_prompt: "An abstract visualization of tasks and issues neatly organized in a Kanban style board with a sleek, modern, minimal UI."
 ---
 **What it is**
 The Issues tab (the 📌 icon in the left rail) is Spool's tracker for work that outlives a single message. It handles epics, features, issues, and subtasks, each with a priority, a status, an owner, and an optional deadline. Every workspace has its own issue list, and conversation about an issue happens in that issue's own thread.

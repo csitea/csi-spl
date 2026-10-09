@@ -18,6 +18,9 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 RUNNER="$PROJ_ROOT/src/bash/tests/run-all-tests.sh"
 JOBS_VAR=ORC_TEST_JOBS
+# the suite under test reads these; a caller's values (a CI shard, a local
+# ORC_TEST_SLOWEST=300) must not reach it
+unset ORC_TEST_SHARD ORC_TEST_SLOWEST
 
 fails=0
 pass() { echo "PASS: $1"; }

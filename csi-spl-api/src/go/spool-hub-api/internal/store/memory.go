@@ -62,6 +62,8 @@ type Memory struct {
 	agentSplit map[string]AgentSplit
 	// marketing_switch.go (rdb 0129): marketing turned on, guarded by mu. Missing = off.
 	marketingOn map[string]bool
+	// roadmap_switch.go (rdb 0162): roadmap turned public, guarded by mu. Missing = internal.
+	roadmapPublic map[string]bool
 	// fleet_load.go (rdb 0118): the fleet load target, guarded by mu. Missing = the default.
 	fleetLoad map[string]FleetLoadStored
 	wake      memWake // wake.go (spec 059 S1), its own lock

@@ -1600,10 +1600,10 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: the counts (created, updated, unchanged, deleted, carried) and the unapproved goals (specs/112 HUB-1)"
+            "description": "OK: per workspace and in total the counts (created, updated, unchanged, deleted, carried), and the unapproved goals with their workspace (specs/112 HUB-2)"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "description": "A goal or event names no workspace or one that does not exist, a roadmap event carries an audience, or the body is malformed; nothing is written"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1612,10 +1612,10 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "503": {
-            "description": "The roadmap is not configured (cnf env.roadmap.tenant_id / approver_role) or the calendar is unavailable"
+            "description": "The calendar is unavailable"
           }
         },
-        "summary": "Sync the roadmap's goal, spec and release dates into the calendar (deploy identity only)",
+        "summary": "Sync the roadmap's goal, spec and release dates into the calendars of the workspaces they name (deploy identity only)",
         "tags": [
           "calendar"
         ],
@@ -9765,6 +9765,79 @@
         "summary": "Link the document to its discussion topic",
         "tags": [
           "workspace"
+        ]
+      }
+    },
+    "/v1/workspaces/{slug}/roadmap": {
+      "get": {
+        "operationId": "getWorkspaceRoadmapSwitch",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {workspace, public}, the roadmap visibility switch (specs/112 HUB-2, rdb 0162)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a workspace's roadmap visibility switch (a member of that workspace)",
+        "tags": [
+          "calendar"
+        ]
+      },
+      "patch": {
+        "operationId": "patchWorkspaceRoadmapSwitch",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {workspace, public}; the workspace's synced goal:, release: and spec: events moved to internal or public in the same transaction"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Turn a workspace's roadmap public or internal (a biz_owner or admin of that workspace)",
+        "tags": [
+          "calendar"
         ]
       }
     },

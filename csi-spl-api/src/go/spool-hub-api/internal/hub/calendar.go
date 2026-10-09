@@ -1191,7 +1191,8 @@ func (s *Server) routeCalendar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/calendar/events/{id}/restore", s.handleRestoreCalendarEvent)
 	mux.HandleFunc("POST /v1/calendar/events/{id}/rsvp", s.handleRSVPCalendarEvent)
 	mux.HandleFunc("GET /v1/calendar/trash", s.viewHandler(s.handleCalendarTrash))
-	mux.HandleFunc("PUT /v1/calendar/sync", s.handleCalendarSync) // specs/112 HUB-1, calendar_sync.go
+	mux.HandleFunc("PUT /v1/calendar/sync", s.handleCalendarSync) // specs/112 HUB-1, HUB-2, calendar_sync.go
+	s.routeRoadmapSwitch(mux)                                     // specs/112 HUB-2, roadmap_switch.go
 	mux.HandleFunc("OPTIONS /v1/calendar/events", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/events/{id}", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/marks", s.calendarPreflight)

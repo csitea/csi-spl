@@ -201,10 +201,6 @@ type Options struct {
 	// workspace outside it gets 404 on every /v1/marketing route; inside it,
 	// its admin turns marketing on or off (tenants.marketing_enabled).
 	MarketingWorkspaces []string
-	// RoadmapTenant and RoadmapApproverRole configure PUT /v1/calendar/sync
-	// (specs/112 HUB-1, calendar_sync.go); either "" = the sync fails fast.
-	RoadmapTenant       string
-	RoadmapApproverRole string
 	// DemoMaxStay is how long a demo seat lasts (specs/077 FR-005,
 	// demo_stay.go); <= 0 = store.DefaultDemoMaxStay. GET /v1/demo shows it
 	// and the stay sweep gives a seat admitted before T009 that end.

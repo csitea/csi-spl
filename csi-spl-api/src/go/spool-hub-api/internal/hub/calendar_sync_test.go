@@ -17,23 +17,22 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// specs/112 HUB-1: PUT /v1/calendar/sync. The deploy identity alone writes
-// (an agent token and a member session are 403); a goal is published only on
-// an approval message of a holder of the approver role (D2); the cnf keys
-// fail the sync fast; a partial batch never soft-deletes the goals (the
-// STORE-1 finding: this route prunes only the key families it carries); a
-// synced event is 409 to PATCH and DELETE and found by ?source_key=. Memory,
-// and Postgres under SPOOL_TEST_PG_DSN (PRE_PUSH_TIER=full).
+// specs/112 HUB-1, HUB-2: PUT /v1/calendar/sync. The deploy identity alone
+// writes (an agent token and a member session are 403); each goal and event
+// names its workspace, and the same key in two workspaces is two rows; a goal
+// is published only on an approval message of a biz_owner or an admin of the
+// goal's own workspace (12.3); a roadmap event carries no audience and is
+// written internal, or public when its workspace's switch is on (12.5); a
+// partial batch never soft-deletes the goals (the STORE-1 finding: this route
+// prunes only the key families it carries, per workspace); a synced event is
+// 409 to PATCH and DELETE and found by ?source_key=. Memory, and Postgres
+// under SPOOL_TEST_PG_DSN (PRE_PUSH_TIER=full).
 
 const syncPath = "/v1/calendar/sync"
 
-// syncEnv is a hub whose roadmap workspace is a fresh tenant, approver role
-// role ("" = the cnf key missing), with the operator token "good".
-func syncEnv(t *testing.T, role string) (*env, string) {
+// syncEnv is a hub whose operator token is "good", and one fresh workspace.
+func syncEnv(t *testing.T) (*env, string) {
 	t.Helper()
-	b := make([]byte, 4)
-	rand.Read(b) //nolint:errcheck
-	tid := "rm" + hex.EncodeToString(b)
 	e := rbacEnv(t, func(o *hub.Options) {
 		o.OperatorEmails = []string{operatorSA}
 		o.OperatorVerify = func(_ context.Context, token, _ string) (string, error) {
@@ -45,13 +44,21 @@ func syncEnv(t *testing.T, role string) (*env, string) {
 			}
 			return "", errors.New("token rejected")
 		}
-		o.RoadmapTenant, o.RoadmapApproverRole = tid, role
 	})
+	return e, syncWorkspace(t, e)
+}
+
+// syncWorkspace adds one more fresh workspace to e.
+func syncWorkspace(t *testing.T, e *env) string {
+	t.Helper()
+	b := make([]byte, 4)
+	rand.Read(b) //nolint:errcheck
+	tid := "rm" + hex.EncodeToString(b)
 	pub, _, _ := ed25519.GenerateKey(nil)
 	if err := e.st.CreateTenant(context.Background(), store.Tenant{ID: tid, RootPubKey: pub}); err != nil {
 		t.Fatal(err)
 	}
-	return e, tid
+	return tid
 }
 
 // approvalMsg stores a message of tid written by from in a member session
@@ -71,20 +78,21 @@ func approvalMsg(t *testing.T, e *env, tid, from, box string) string {
 	return id
 }
 
-func syncGoal(id, msgID string) map[string]any {
-	return map[string]any{"id": id, "approval": map[string]any{"msg_id": msgID}}
+func syncGoal(ws, id, msgID string) map[string]any {
+	return map[string]any{"id": id, "workspace": ws, "approval": map[string]any{"msg_id": msgID}}
 }
 
-func syncEv(key, day string) map[string]any {
+// syncEv is one wire event of workspace ws, with no audience.
+func syncEv(ws, key, day string) map[string]any {
 	kind := "goal"
 	switch {
-	case strings.HasPrefix(key, "spec:"):
+	case strings.HasPrefix(key, "spec:"), strings.HasPrefix(key, "db:"):
 		kind = "milestone"
 	case strings.HasPrefix(key, "release:"):
 		kind = "release"
 	}
-	return map[string]any{"source_key": key, "title": key, "kind": kind, "starts_at": day + "T00:00:00Z",
-		"ends_at": day + "T00:00:00Z", "all_day": true, "audience": "workspace", "roadmap_url": "/roadmap?goal=G01"}
+	return map[string]any{"source_key": key, "workspace": ws, "title": key, "kind": kind, "starts_at": day + "T00:00:00Z",
+		"ends_at": day + "T00:00:00Z", "all_day": true, "roadmap_url": "/roadmap?goal=G01"}
 }
 
 func syncCall(t *testing.T, e *env, tid string, goals, events []map[string]any) (int, map[string]any) {
@@ -98,13 +106,24 @@ func syncCall(t *testing.T, e *env, tid string, goals, events []map[string]any) 
 // liveKeys lists tid's live synced keys, read through the store.
 func liveKeys(t *testing.T, e *env, tid string) string {
 	t.Helper()
+	return syncedOf(t, e, tid, func(ev store.CalendarEvent) string { return ev.SourceKey })
+}
+
+// liveAudiences lists tid's live synced keys with their audience.
+func liveAudiences(t *testing.T, e *env, tid string) string {
+	t.Helper()
+	return syncedOf(t, e, tid, func(ev store.CalendarEvent) string { return ev.SourceKey + "=" + ev.Audience })
+}
+
+func syncedOf(t *testing.T, e *env, tid string, f func(store.CalendarEvent) string) string {
+	t.Helper()
 	evs, err := e.st.(store.CalendarSourced).CalendarBySourceKey(context.Background(), tid, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var ks []string
 	for _, ev := range evs {
-		ks = append(ks, ev.SourceKey)
+		ks = append(ks, f(ev))
 	}
 	sort.Strings(ks)
 	return strings.Join(ks, ",")
@@ -116,18 +135,18 @@ func num(out map[string]any, k string) int {
 }
 
 func TestCalendarSyncDeployIdentityOnly(t *testing.T) {
-	e, tid := syncEnv(t, rbac.Admin)
+	e, tid := syncEnv(t)
 	admin, dev := seat(t, e, tid, rbac.Admin), seat(t, e, tid, rbac.Developer)
 	b := e.box(tid, "box-a", "c-001")
 	e.pin(tid, b)
 	agent := e.uploadToken(tid, b)
-	body := map[string]any{"goals": []any{}, "events": []any{syncEv("release:v1.3.0", "2026-10-01")}}
+	body := map[string]any{"goals": []any{}, "events": []any{syncEv(tid, "release:v1.3.0", "2026-10-01")}}
 
 	// CONTROL: an agent token is 403, though a bearer
 	if code, out := opCall(t, e, tid, http.MethodPut, syncPath, agent, body); code != http.StatusForbidden || out["error"] != "deploy_identity_only" {
 		t.Fatalf("agent token: %d %v", code, out)
 	}
-	// a member session, the approver role's holder included, is 403
+	// a member session, a biz_owner's or an admin's included, is 403
 	for _, who := range []string{admin, dev} {
 		if code, out := call(t, e, tid, http.MethodPut, syncPath, who, body); code != http.StatusForbidden || out["error"] != "deploy_identity_only" {
 			t.Fatalf("member %s: %d %v", who, code, out)
@@ -144,7 +163,7 @@ func TestCalendarSyncDeployIdentityOnly(t *testing.T) {
 	}
 	// the deploy identity writes, as roadmap-sync
 	code, out := opCall(t, e, tid, http.MethodPut, syncPath, "good", body)
-	if code != http.StatusOK || num(out, "created") != 1 || out["tenant"] != tid {
+	if ws, _ := out["workspaces"].(map[string]any); code != http.StatusOK || num(out, "created") != 1 || num(ws[tid].(map[string]any), "created") != 1 {
 		t.Fatalf("deploy identity: %d %v", code, out)
 	}
 	_, list := call(t, e, tid, http.MethodGet, "/v1/calendar/events?source_key=release:", dev, nil)
@@ -154,101 +173,167 @@ func TestCalendarSyncDeployIdentityOnly(t *testing.T) {
 	}
 	ev := evs[0].(map[string]any)
 	if ev["creator_type"] != "system" || ev["creator_id"] != "roadmap-sync" || ev["source_key"] != "release:v1.3.0" ||
-		ev["roadmap_url"] != "/roadmap?goal=G01" {
+		ev["roadmap_url"] != "/roadmap?goal=G01" || ev["audience"] != store.CalendarInternal {
 		t.Fatalf("synced event: %v", ev)
 	}
 }
 
 func TestCalendarSyncApproval(t *testing.T) {
-	e, tid := syncEnv(t, rbac.Admin)
-	admin, dev := seat(t, e, tid, rbac.Admin), seat(t, e, tid, rbac.Developer)
-	other, _ := e.tenant()
+	e, tid := syncEnv(t)
+	owner, admin := seat(t, e, tid, rbac.BizOwner), seat(t, e, tid, rbac.Admin)
+	dev, user := seat(t, e, tid, rbac.Developer), seat(t, e, tid, rbac.RegularUser)
+	other := syncWorkspace(t, e)
 	elsewhere := seat(t, e, other, rbac.Admin)
 	goals := []map[string]any{
-		syncGoal("G01-first", approvalMsg(t, e, tid, admin, "")),
-		// CONTROL: an approval message from a non-admin member writes nothing
-		syncGoal("G02-second", approvalMsg(t, e, tid, dev, "")),
-		syncGoal("G03-draft", ""),
-		syncGoal("G04-boxed", approvalMsg(t, e, tid, admin, "box-a")),
-		syncGoal("G05-elsewhere", approvalMsg(t, e, other, elsewhere, "")),
-		syncGoal("G06-short", "5a9aab48"),
+		// a biz_owner approval and an admin approval each write the goal (12.3)
+		syncGoal(tid, "G01-owner", approvalMsg(t, e, tid, owner, "")),
+		syncGoal(tid, "G02-admin", approvalMsg(t, e, tid, admin, "")),
+		// CONTROL: a member's approval writes nothing, whatever their role
+		syncGoal(tid, "G03-developer", approvalMsg(t, e, tid, dev, "")),
+		syncGoal(tid, "G04-user", approvalMsg(t, e, tid, user, "")),
+		syncGoal(tid, "G05-draft", ""),
+		syncGoal(tid, "G06-boxed", approvalMsg(t, e, tid, admin, "box-a")),
+		// CONTROL: an admin of another workspace approves nothing here, by a
+		// message there or by one here
+		syncGoal(tid, "G07-elsewhere", approvalMsg(t, e, other, elsewhere, "")),
+		syncGoal(tid, "G08-stranger", approvalMsg(t, e, tid, elsewhere, "")),
+		syncGoal(tid, "G09-short", "5a9aab48"),
 	}
 	var events []map[string]any
-	for _, g := range []string{"G01", "G02", "G03", "G04", "G05", "G06"} {
-		events = append(events, syncEv("goal:"+g+":deadline", "2026-12-31"))
+	for _, g := range goals {
+		events = append(events, syncEv(tid, "goal:"+g["id"].(string)[:3]+":deadline", "2026-12-31"))
 	}
 	code, out := syncCall(t, e, tid, goals, events)
-	if code != http.StatusOK || num(out, "created") != 1 {
+	if code != http.StatusOK || num(out, "created") != 2 {
 		t.Fatalf("sync: %d %v", code, out)
 	}
-	if got := liveKeys(t, e, tid); got != "goal:G01:deadline" {
+	if got := liveKeys(t, e, tid); got != "goal:G01:deadline,goal:G02:deadline" {
 		t.Fatalf("written: %q", got)
 	}
 	un, _ := out["unapproved"].([]any)
 	var ids []string
 	for _, u := range un {
 		m := u.(map[string]any)
-		if m["reason"] == "" {
-			t.Fatalf("no reason: %v", m)
+		if m["reason"] == "" || m["workspace"] != tid {
+			t.Fatalf("no reason or workspace: %v", m)
 		}
 		ids = append(ids, m["id"].(string))
 	}
-	if strings.Join(ids, ",") != "G02-second,G03-draft,G04-boxed,G05-elsewhere,G06-short" {
+	if strings.Join(ids, ",") != "G03-developer,G04-user,G05-draft,G06-boxed,G07-elsewhere,G08-stranger,G09-short" {
 		t.Fatalf("unapproved: %v", un)
 	}
-	// the approver role is cnf, not a fixed id: with developer, G02 is the approved one
-	e2, tid2 := syncEnv(t, rbac.Developer)
-	dev2, admin2 := seat(t, e2, tid2, rbac.Developer), seat(t, e2, tid2, rbac.Admin)
-	code, out = syncCall(t, e2, tid2, []map[string]any{syncGoal("G01-first", approvalMsg(t, e2, tid2, admin2, "")),
-		syncGoal("G02-second", approvalMsg(t, e2, tid2, dev2, ""))}, events[:2])
-	if code != http.StatusOK || liveKeys(t, e2, tid2) != "goal:G02:deadline" {
-		t.Fatalf("approver developer: %d %v %q", code, out, liveKeys(t, e2, tid2))
+	if got := liveKeys(t, e, other); got != "" {
+		t.Fatalf("the other workspace got %q", got)
 	}
-	// a goal: key that names no goal in goals is refused whole
+	// a goal: key that names no goal of its workspace is refused whole, a
+	// goal of another workspace included
 	if code, out := syncCall(t, e, tid, goals[:1], events[:2]); code != http.StatusBadRequest || out["error"] != "bad_event" {
 		t.Fatalf("unknown goal key: %d %v", code, out)
 	}
-	// the audience rename (rdb 0159): a sync's public meant workspace before
-	// it, so public is refused whole, never put on the internet; so is web
-	for _, aud := range []string{"public", "web"} {
-		ev := syncEv("release:v1.3.0", "2026-10-01")
-		ev["audience"] = aud
-		if code, out := syncCall(t, e, tid, nil, []map[string]any{ev}); code != http.StatusBadRequest || out["error"] != "bad_event" {
-			t.Fatalf("sync audience %s: %d %v", aud, code, out)
-		}
+	cross := []map[string]any{syncGoal(other, "G01-owner", approvalMsg(t, e, other, elsewhere, ""))}
+	if code, out := syncCall(t, e, tid, cross, events[:1]); code != http.StatusBadRequest || out["error"] != "bad_event" {
+		t.Fatalf("goal of another workspace: %d %v", code, out)
 	}
 }
 
-func TestCalendarSyncConfigFailsFast(t *testing.T) {
-	events := []map[string]any{syncEv("release:v1.3.0", "2026-10-01")}
-	// CONTROL: a missing approver_role key fails the sync before any write
-	for _, role := range []string{"", "no-such-role"} {
-		e, tid := syncEnv(t, role)
-		code, out := syncCall(t, e, tid, nil, events)
-		if code != http.StatusServiceUnavailable || out["error"] != "roadmap_not_configured" {
-			t.Fatalf("approver_role %q: %d %v", role, code, out)
-		}
-		if got := liveKeys(t, e, tid); got != "" {
-			t.Fatalf("approver_role %q wrote %q", role, got)
+// TestCalendarSyncTwoWorkspaces (12.4): one request, two workspaces; the same
+// goal key is a row in each, and a request naming one leaves the other alone.
+func TestCalendarSyncTwoWorkspaces(t *testing.T) {
+	e, a := syncEnv(t)
+	b := syncWorkspace(t, e)
+	adminA, ownerB := seat(t, e, a, rbac.Admin), seat(t, e, b, rbac.BizOwner)
+	goals := []map[string]any{syncGoal(a, "G01-alpha", approvalMsg(t, e, a, adminA, "")),
+		syncGoal(b, "G01-beta", approvalMsg(t, e, b, ownerB, "")),
+		// CONTROL: an admin of a approving a goal of b writes nothing, though
+		// a is in the same request
+		syncGoal(b, "G02-crossed", approvalMsg(t, e, a, adminA, ""))}
+	events := []map[string]any{syncEv(a, "goal:G01:deadline", "2026-12-31"), syncEv(b, "goal:G01:deadline", "2027-03-31"),
+		syncEv(b, "spec:089:done", "2026-10-02"), syncEv(b, "goal:G02:deadline", "2027-01-31")}
+	code, out := syncCall(t, e, a, goals, events)
+	if un, _ := out["unapproved"].([]any); code != http.StatusOK || num(out, "created") != 3 || len(un) != 1 {
+		t.Fatalf("sync: %d %v", code, out)
+	}
+	// CONTROL: two rows, never one
+	if ka, kb := liveKeys(t, e, a), liveKeys(t, e, b); ka != "goal:G01:deadline" || kb != "goal:G01:deadline,spec:089:done" {
+		t.Fatalf("a=%q b=%q", ka, kb)
+	}
+	evA, _ := e.st.(store.CalendarSourced).CalendarBySourceKey(context.Background(), a, "", "goal:G01:")
+	evB, _ := e.st.(store.CalendarSourced).CalendarBySourceKey(context.Background(), b, "", "goal:G01:")
+	if len(evA) != 1 || len(evB) != 1 || evA[0].ID == evB[0].ID || evA[0].StartsAt.Equal(evB[0].StartsAt) {
+		t.Fatalf("one row for two workspaces: %+v %+v", evA, evB)
+	}
+	// a's goals again, alone: b is not touched (nothing pruned there)
+	code, out = syncCall(t, e, a, goals[:1], events[:1])
+	if code != http.StatusOK || num(out, "unchanged") != 1 || num(out, "deleted") != 0 || liveKeys(t, e, b) != "goal:G01:deadline,spec:089:done" {
+		t.Fatalf("a alone: %d %v b=%q", code, out, liveKeys(t, e, b))
+	}
+	// a workspace that does not exist, or none named, refuses the whole request
+	for _, ws := range []string{"rmnosuch1", ""} {
+		bad := append([]map[string]any{syncEv(a, "release:v9.0.0", "2026-10-01")}, syncEv(ws, "release:v9.0.1", "2026-10-01"))
+		if code, out := syncCall(t, e, a, nil, bad); code != http.StatusBadRequest || out["error"] != "bad_event" {
+			t.Fatalf("workspace %q: %d %v", ws, code, out)
 		}
 	}
-	e := rbacEnv(t, func(o *hub.Options) {
-		o.OperatorEmails = []string{operatorSA}
-		o.OperatorVerify = func(context.Context, string, string) (string, error) { return operatorSA, nil }
-		o.RoadmapApproverRole = rbac.Admin
-	})
-	tid, _ := e.tenant()
-	if code, out := syncCall(t, e, tid, nil, events); code != http.StatusServiceUnavailable || !strings.Contains(out["detail"].(string), "tenant_id") {
-		t.Fatalf("no tenant_id: %d %v", code, out)
+	if got := liveKeys(t, e, a); got != "goal:G01:deadline" {
+		t.Fatalf("a refused request wrote: %q", got)
+	}
+}
+
+// TestCalendarSyncAudience (12.5, 4.3): a roadmap event names no audience and
+// follows its workspace's switch; db: stays internal.
+func TestCalendarSyncAudience(t *testing.T) {
+	e, tid := syncEnv(t)
+	owner := seat(t, e, tid, rbac.BizOwner)
+	goals := []map[string]any{syncGoal(tid, "G01-first", approvalMsg(t, e, tid, owner, ""))}
+	db := syncEv(tid, "db:t-0001", "2026-09-20")
+	events := []map[string]any{syncEv(tid, "goal:G01:deadline", "2026-12-31"), syncEv(tid, "release:v1.3.0", "2026-10-01"), db}
+	// CONTROL: an audience on a roadmap event is refused, workspace or not
+	for _, aud := range []string{store.CalendarWorkspace, store.CalendarInternal, store.CalendarPublic, "web"} {
+		ev := syncEv(tid, "goal:G01:deadline", "2026-12-31")
+		ev["audience"] = aud
+		if code, out := syncCall(t, e, tid, goals, []map[string]any{ev}); code != http.StatusBadRequest || out["error"] != "bad_event" {
+			t.Fatalf("audience %s: %d %v", aud, code, out)
+		}
+	}
+	dbOpen := syncEv(tid, "db:t-0002", "2026-09-21")
+	dbOpen["audience"] = store.CalendarWorkspace
+	if code, out := syncCall(t, e, tid, nil, []map[string]any{dbOpen}); code != http.StatusBadRequest {
+		t.Fatalf("db: workspace: %d %v", code, out)
+	}
+	if got := liveKeys(t, e, tid); got != "" {
+		t.Fatalf("a refused audience wrote %q", got)
+	}
+	db["audience"] = store.CalendarInternal // a db: event may say internal
+	if code, out := syncCall(t, e, tid, goals, events); code != http.StatusOK || num(out, "created") != 3 {
+		t.Fatalf("sync: %d %v", code, out)
+	}
+	internal := "db:t-0001=internal,goal:G01:deadline=internal,release:v1.3.0=internal"
+	if got := liveAudiences(t, e, tid); got != internal {
+		t.Fatalf("internal by default: %q", got)
+	}
+	// the switch re-audiences at once, and the next sync writes the same
+	if code, out := call(t, e, tid, http.MethodPatch, "/v1/workspaces/"+tid+"/roadmap", owner, map[string]any{"public": true}); code != http.StatusOK || out["public"] != true {
+		t.Fatalf("switch: %d %v", code, out)
+	}
+	public := "db:t-0001=internal,goal:G01:deadline=" + store.CalendarPublic + ",release:v1.3.0=" + store.CalendarPublic
+	if got := liveAudiences(t, e, tid); got != public {
+		t.Fatalf("after the switch: %q", got)
+	}
+	if code, out := syncCall(t, e, tid, goals, events); code != http.StatusOK || num(out, "unchanged") != 3 || liveAudiences(t, e, tid) != public {
+		t.Fatalf("sync after the switch: %d %v %q", code, out, liveAudiences(t, e, tid))
+	}
+	delete(db, "audience") // or say nothing
+	if code, out := syncCall(t, e, tid, goals, events); code != http.StatusOK || num(out, "unchanged") != 3 {
+		t.Fatalf("db: no audience: %d %v", code, out)
 	}
 }
 
 func TestCalendarSyncPartialBatchKeepsGoals(t *testing.T) {
-	e, tid := syncEnv(t, rbac.Admin)
+	e, tid := syncEnv(t)
 	admin := seat(t, e, tid, rbac.Admin)
-	goals := []map[string]any{syncGoal("G01-first", approvalMsg(t, e, tid, admin, ""))}
-	full := []map[string]any{syncEv("goal:G01:deadline", "2026-12-31"), syncEv("goal:G01:m:start", "2026-09-17"),
-		syncEv("spec:089:done", "2026-10-02")}
+	goals := []map[string]any{syncGoal(tid, "G01-first", approvalMsg(t, e, tid, admin, ""))}
+	full := []map[string]any{syncEv(tid, "goal:G01:deadline", "2026-12-31"), syncEv(tid, "goal:G01:m:start", "2026-09-17"),
+		syncEv(tid, "spec:089:done", "2026-10-02")}
 	if code, out := syncCall(t, e, tid, goals, full); code != http.StatusOK || num(out, "created") != 3 {
 		t.Fatalf("full: %d %v", code, out)
 	}
@@ -257,7 +342,7 @@ func TestCalendarSyncPartialBatchKeepsGoals(t *testing.T) {
 		t.Fatalf("re-run: %d %v", code, out)
 	}
 	// CONTROL (finding 1): the 8.1 backfill's release: keys alone delete nothing
-	code, out := syncCall(t, e, tid, nil, []map[string]any{syncEv("release:v1.3.0", "2026-10-01")})
+	code, out := syncCall(t, e, tid, nil, []map[string]any{syncEv(tid, "release:v1.3.0", "2026-10-01")})
 	if code != http.StatusOK || num(out, "deleted") != 0 || num(out, "carried") != 3 || num(out, "created") != 1 {
 		t.Fatalf("partial: %d %v", code, out)
 	}
@@ -274,19 +359,19 @@ func TestCalendarSyncPartialBatchKeepsGoals(t *testing.T) {
 		t.Fatalf("after goal family: %q", got)
 	}
 	// a goal that turns unapproved loses its events though goals[] names it
-	code, out = syncCall(t, e, tid, []map[string]any{syncGoal("G01-first", "")}, full[:1])
+	code, out = syncCall(t, e, tid, []map[string]any{syncGoal(tid, "G01-first", "")}, full[:1])
 	if code != http.StatusOK || num(out, "deleted") != 1 || liveKeys(t, e, tid) != "release:v1.3.0,spec:089:done" {
 		t.Fatalf("unapproved: %d %v %q", code, out, liveKeys(t, e, tid))
 	}
 }
 
 func TestCalendarSyncedReadOnlyAndLookup(t *testing.T) {
-	e, tid := syncEnv(t, rbac.Admin)
+	e, tid := syncEnv(t)
 	admin := seat(t, e, tid, rbac.Admin)
-	goals := []map[string]any{syncGoal("G01-first", approvalMsg(t, e, tid, admin, "")),
-		syncGoal("G11-eleventh", approvalMsg(t, e, tid, admin, ""))}
-	events := []map[string]any{syncEv("goal:G01:deadline", "2026-12-31"), syncEv("goal:G01:m:start", "2026-09-17"),
-		syncEv("goal:G11:deadline", "2027-06-30")}
+	goals := []map[string]any{syncGoal(tid, "G01-first", approvalMsg(t, e, tid, admin, "")),
+		syncGoal(tid, "G11-eleventh", approvalMsg(t, e, tid, admin, ""))}
+	events := []map[string]any{syncEv(tid, "goal:G01:deadline", "2026-12-31"), syncEv(tid, "goal:G01:m:start", "2026-09-17"),
+		syncEv(tid, "goal:G11:deadline", "2027-06-30")}
 	if code, out := syncCall(t, e, tid, goals, events); code != http.StatusOK || num(out, "created") != 3 {
 		t.Fatalf("sync: %d %v", code, out)
 	}

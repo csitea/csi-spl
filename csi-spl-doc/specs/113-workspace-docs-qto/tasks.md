@@ -9,7 +9,7 @@ secrets = claude, multilingual text = agy review last) and a box hint (new
 lanes are placed by the orchestrator; Postgres tests need the box's docker
 Postgres, browser e2e needs Chrome or runs in CI on the mock bundle).
 Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial /
-in progress, `[x]` Planned).
+in progress, `[ ]` Planned).
 
 Version **v1.0** (2026-10-09), matching spec v1.0.
 
@@ -38,7 +38,7 @@ phase 2). T002's tests gate everything after it. T000b is independent.
 
 ## 2. Data model
 
-- [x] **T001**: migration `<next>_workspace_docs.sql` (spec 2.2, 2.3, 3.2).
+- [x] **T001**: migration `<next>_workspace_docs.sql` (spec 2.2, 2.3, 3.2). Landed as rdb `0157_workspace_docs.sql` (86b5e3a46), test `csi-spl-orc/src/bash/tests/workspace-docs-migration.tst.sh` (40 PASS, race 3 of 3 refused, both controls); `/version` `schema_head` = `0157_workspace_docs.sql` on dev and prd (v4.0.8). tenant_id is the workspace (rdb 0126), so no separate `workspace_id` column.
   - Depends: none. Applied to dev and prd before T002 ships (DDL first).
   - Owns: `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_workspace_docs.sql` (*new*; claim the number at build time), its SQL test.
   - Ports: the sibling's SQL test hierarchy table and its `*_doc` tables, as the column list only (they carry no constraint to port).
@@ -48,7 +48,7 @@ phase 2). T002's tests gate everything after it. T000b is independent.
 
 ## 3. Store
 
-- [x] **T002**: the structural ops of spec 3.3 in Go (pgx, under RLS), each one transaction, plus the subtree reader and the three tests of spec 3.5.
+- [ ] **T002**: the structural ops of spec 3.3 in Go (pgx, under RLS), each one transaction, plus the subtree reader and the three tests of spec 3.5.
   - Depends: T001.
   - Owns: `csi-spl-api/src/go/spool-hub-api/internal/store/workspace_docs*.go` (*new*) and their `_test.go`.
   - Ports: the sibling's DB writer hierarchical insert (~l.291-422) -> `DocItemAdd(sibling|parent|child)`; its hierarchical delete (~l.203-290) -> `DocItemDeleteSubtree` (refuses the root); its single-column update (~l.557) -> `DocItemUpdateField` (allow-listed column, `WHERE id AND rev`, 0 rows -> 404 if gone else 412); its DB reader branch select -> `DocSubtree` (recursive CTE, outline number derived) and `DocChildren` (one node's children + ancestors' ord path); new: `DocItemMove`, which refuses a target inside the moved item's own subtree (I3).
@@ -58,7 +58,7 @@ phase 2). T002's tests gate everything after it. T000b is independent.
 
 ## 4. Operations
 
-- [x] **T003**: `do_spl_doc_tree_check`, `do_spl_doc_tree_repair` (spec 3.4), per-env SA, each with its `.tst.sh`.
+- [ ] **T003**: `do_spl_doc_tree_check`, `do_spl_doc_tree_repair` (spec 3.4), per-env SA, each with its `.tst.sh`.
   - Depends: T001 (T002 for the repair's lock helper, if shared).
   - Owns: `csi-spl-orc/src/bash/run/spl-doc-tree-check.func.sh`, `csi-spl-orc/src/bash/run/spl-doc-tree-repair.func.sh` (*new*), `csi-spl-orc/src/bash/tests/spl-doc-tree-check.tst.sh`, `csi-spl-orc/src/bash/tests/spl-doc-tree-repair.tst.sh` (*new*).
   - Done: `ENV=dev ./run -a do_spl_doc_tree_check` sets the operator scope and prints `violations=0 docs=<n> items=<n>`, exit 0. On a test DB with one planted gap and one unreachable cycle it prints both violations and exits 1; `DRY_RUN=0 do_spl_doc_tree_repair` (one tx under the doc lock) prints `renumbered=1 reattached=1` with the cut item's id and the check returns to `violations=0` (9d). Controls: a run without the operator scope sees `docs=0` and exits 2; `EXPECT_EMPTY=1` makes it exit 0. Repair `DRY_RUN=0` on prd is an owner go.
@@ -66,24 +66,24 @@ phase 2). T002's tests gate everything after it. T000b is independent.
 
 ## 5. Hub API, xls, WUI, agents
 
-- [x] **T004**: hub Go API: doc tree CRUD (doc view), list/grid CRUD (grid view), the four outcomes, spec 100 search indexing, topic link.
+- [ ] **T004**: hub Go API: doc tree CRUD (doc view), list/grid CRUD (grid view), the four outcomes, spec 100 search indexing, topic link.
   - Depends: T002.
   - Owns: `csi-spl-api/src/go/spool-hub-api/internal/hub/workspace_docs.go` (*new*) + test.
   - Ports: the sibling's doc-view controller, grid (list) controller and the hierarchy create / delete / select controllers, onto the T002 store ops.
   - Done: `go test ./internal/hub -run WorkspaceDoc` green: the lazy route returns one node's children plus the ancestors' ord path; a whole-doc grid sort/filter returns the outline in document order up to 20,000 items and 413 above; a stale-rev write gets 412, a write to a deleted item 404. Control: a cross-tenant request returns 0 items and its structural op a 404 (9e).
   - Vendor: claude. Box: one with docker Postgres.
-- [x] **T005**: xls import/export: grid <-> xlsx.
+- [ ] **T005**: xls import/export: grid <-> xlsx.
   - Depends: T002.
   - Owns: `csi-spl-api/src/go/spool-hub-api/internal/hub/workspace_docs_xls.go` (*new*) + test.
   - Ports: the sibling's xls import (xls -> table/DB) and export (DB -> xls).
   - Done: an import builds the tree through T002's ops only, in ONE transaction that takes the doc lock once at the top (nested op calls reuse it); export then import of a 3-level doc round-trips to the same outline md5. Control: an xlsx row whose parent number does not exist is refused with its row number and nothing is written.
   - Vendor: claude. Box: any with docker Postgres.
-- [x] **T006**: WUI `WorkspaceDocView` and `WorkspaceGridView`, lazy (one node's children per load); doc view context menu (add sibling / parent / child, move, indent / outdent, delete branch, print branch via standard print CSS, D-Q2); grid inline edit, filter, sort; i18n.
+- [ ] **T006**: WUI `WorkspaceDocView` and `WorkspaceGridView`, lazy (one node's children per load); doc view context menu (add sibling / parent / child, move, indent / outdent, delete branch, print branch via standard print CSS, D-Q2); grid inline edit, filter, sort; i18n.
   - Depends: T004.
   - Owns: `csi-spl-wui/src/pages/workspace/docs.vue` (*new*), components under `csi-spl-wui/src/components/workspace-docs/` (*new*), their locale keys.
   - Done: `pnpm run typecheck` and the e2e drive add/move/delete in both views and read the same outline back; a 412 shows a reload prompt. Control: the initial-chunk budget test fails on an initial JS delta > 100 B (9g).
   - Vendor: claude; agy reviews the locale text last. Box: Chrome, or CI on the mock bundle.
-- [x] **T007**: spool `doc-read`, `doc-write`, `doc-list` verbs and their MCP tools, `doc-write` through T002's ops.
+- [ ] **T007**: spool `doc-read`, `doc-write`, `doc-list` verbs and their MCP tools, `doc-write` through T002's ops.
   - Depends: T004.
   - Owns: `csi-spl-api/src/go/spool-hub-api/internal/agent/doc_verbs.go` (*new*) + test.
   - Done: the verb test prints the outline it wrote and read back, and an op's outcome (committed rev / 412 / 404 / refused). Control: an unauthenticated request fails (9h).
@@ -91,7 +91,7 @@ phase 2). T002's tests gate everything after it. T000b is independent.
 
 ## 6. Export (phase 2)
 
-- [x] **T008**: one-way DB -> markdown (spec 5), layout mirroring 1 / 1.1 / 1.1.1, to the per-workspace bucket and/or a zip / repo commit.
+- [ ] **T008**: one-way DB -> markdown (spec 5), layout mirroring 1 / 1.1 / 1.1.1, to the per-workspace bucket and/or a zip / repo commit.
   - Depends: T002, T004.
   - Owns: `csi-spl-api/src/go/spool-hub-api/internal/hub/workspace_docs_export.go` (*new*) + test.
   - Done: regenerated (debounced) after any committed write, structural or text; reads the doc, its rev and the highest item rev in ONE REPEATABLE READ snapshot; the test exports a 3-level doc and lists the expected paths with `doc rev <n>, item rev <m>` in each header; after a text-only edit the export carries the new item rev. Control: an edited exported file changes nothing in the DB (9f).

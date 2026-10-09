@@ -24,6 +24,17 @@
 #      reboot and put back (PUT) by the after-boot restore; the dry run
 #      touches no label. Control: the DELETE refused -> the runner stays
 #      busy, DEFER, the units started again and every label put back
+#   6. the reboot logind refuses (drill 7, the desktop box, 2026-10-09: "Call to Reboot
+#      failed: Access denied", a desktop box whose GNOME session holds a
+#      shutdown BLOCK inhibitor; systemd 257 obeys it even for root): the
+#      refused reboot leaves NO last-week (the old code wrote it, so the slot
+#      window would skip the week) and no pending; a held block lock DEFERS
+#      before the drain and the notes (cnf env.box.restart.inhibitors =
+#      respect, the default); ignore reboots past it with
+#      --check-inhibitors=no; a delay lock is not a block; the tick writes
+#      last-week once the box has booted; gh: the token file when gh is not
+#      logged in, the repo from cnf. Control: the success path reboots with
+#      the plain command and writes last-week
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -161,15 +172,21 @@ case "\$1" in
 esac
 EOF
 printf '#!/bin/bash\nwhile [ "$1" = -n ]; do shift; done\nexec "$@"\n' >"$S5/sudo"
-printf '#!/bin/sh\necho REBOOTED >>"%s"\n' "$T/reboot5.log" >"$S5/reboot"
+printf '#!/bin/sh\necho "REBOOTED $*" >>"%s"\n' "$T/reboot5.log" >"$S5/reboot"
 chmod +x "$S5/"*
 reset5() { rm -rf "$BR5" "$L5" "$T/reboot5.log" "${G5:?}"/*; touch "$A5/$V1" "$A5/$V2"; boot 1000; cp "$T/ps.base" "$T/ps"; }
 cp "$T/ps" "$T/ps.base"
 printf '100 1 claude claude --dangerously-skip-permissions\n201 1 claude claude\n' >"$T/ps.base"; proc 201 c-902
 run5() {
   run "$1" PATH="$S5:$PATH" BOX_RESTART_REPO=o/r BOX_RESTART_REBOOT_CMD="$S5/reboot" \
-    BOX_RESTART_WAIT=3 BOX_RESTART_POLL=0 BOX_RESTART_GRACE=0 BOX_RESTART_CGROUP_ROOT="$T/nocg" "${@:2}"
+    BOX_RESTART_WAIT=3 BOX_RESTART_POLL=0 BOX_RESTART_GRACE=0 BOX_RESTART_CGROUP_ROOT="$T/nocg" \
+    BOX_RESTART_INHIBITORS_CMD="cat $T/locks.json" "${@:2}"
 }
+# no inhibitor but the delay locks every box has
+LOCK_DELAY='["sleep","NetworkManager","NetworkManager needs to turn off networks","delay",0,1177]'
+LOCK_BLOCK='["shutdown","dev-user","user session inhibited","block",1000,391047]'
+locks_set() { local IFS=,; printf '{"type":"a(ssssuu)","data":[[%s]]}\n' "$*" >"$T/locks.json"; }
+locks_set "$LOCK_DELAY"
 # stopped_while_busy: 0 when runner 12's last read before its stop said busy
 stopped_while_busy() { awk -v u="systemctl stop $V2" '/runner 12 busy=/ {b = $NF} $0 == u {exit b == "busy=true" ? 0 : 1} END {exit 1}' "$L5"; }
 
@@ -193,6 +210,43 @@ reset5; touch "$G5/deny.12"; out="$(run5 do_spl_box_restart_run DRY_RUN=0)"; rc=
   && ! grep -q "systemctl stop $V2" "$L5" && pass "5. control: the DELETE refused -> the runner keeps taking jobs, DEFER (API reads: $(cat "$G5/n"))" || fail "5. control (rc $rc: $out)"
 [ -e "$A5/$V1" ] && grep -q "systemctl start $V1" "$L5" && grep -q 'put 11 ' "$L5" && grep -q 'put 12 ' "$L5" && [ ! -e "$BR5/unlabeled" ] \
   && pass "5. control: the defer starts the drained unit again and puts every label back" || fail "5. control restore ($(cat "$L5"))"
+
+# ---- 6. the reboot logind refuses ------------------------------------------------
+W6="$(TZ=UTC date +%G-W%V)"
+printf '#!/bin/sh\necho "DENIED $*" >>"%s"\necho "Call to Reboot failed: Access denied" >&2\nexit 1\n' "$T/reboot5.log" >"$S5/reboot-denied"
+chmod +x "$S5/reboot-denied"
+reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0 BOX_RESTART_REBOOT_CMD="$S5/reboot-denied")"; rc=$?
+[ "$rc" = 1 ] && grep -q 'Access denied' <<<"$out" && grep -q 'ERROR the reboot command failed' <<<"$out" && grep -q 'DENIED $' "$T/reboot5.log" \
+  && [ ! -e "$BR5/last-week" ] && [ ! -e "$BR5/pending" ] && [ -e "$A5/$V1" ] && [ -e "$A5/$V2" ] \
+  && pass "6. a refused reboot (Access denied) writes no last-week, no pending; the runners run again" || fail "6. denied (rc $rc: $out; last-week: $(cat "$BR5/last-week" 2>&1))"
+reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "$T/reboot5.log")" = "REBOOTED " ] && [ "$(cat "$BR5/last-week" 2>/dev/null)" = "$W6" ] && [ -f "$BR5/pending" ] \
+  && pass "6. control: success reboots with the plain command (delay locks only), last-week $W6, pending kept" || fail "6. success (rc $rc: $out; $(cat "$T/reboot5.log" 2>&1))"
+locks_set "$LOCK_DELAY" "$LOCK_BLOCK"
+reset5; : >"$T/sent.log"; out="$(run5 do_spl_box_restart_run DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && grep -q 'DEFER the restart: a shutdown block inhibitor is held: dev-user (user session inhibited; uid 1000 pid 391047)' <<<"$out" \
+  && [ ! -e "$T/reboot5.log" ] && [ ! -s "$T/sent.log" ] && ! grep -q 'systemctl stop' "$L5" 2>/dev/null && ! grep -q 'gh api -X' "$L5" 2>/dev/null \
+  && [ ! -e "$BR5/last-week" ] && ls "$BR5"/*.deferred >/dev/null 2>&1 \
+  && pass "6. a held block lock (respect, the cnf default) DEFERS before the drain and the notes; no last-week" || fail "6. respect (rc $rc: $out)"
+reset5; out="$(run5 do_spl_box_restart_run)"; rc=$?
+[ "$rc" = 0 ] && grep -q 'PLAN DEFER here, before the drain and the notes: a shutdown block inhibitor is held' <<<"$out" && [ ! -e "$BR5" ] \
+  && pass "6. the dry run names the lock it would defer on" || fail "6. dry respect (rc $rc: $out)"
+reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0 BOX_RESTART_INHIBITORS=ignore)"; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "$T/reboot5.log" 2>/dev/null)" = "REBOOTED --check-inhibitors=no" ] && grep -q 'WARN a shutdown block inhibitor is held' <<<"$out" \
+  && [ "$(cat "$BR5/last-week" 2>/dev/null)" = "$W6" ] && pass "6. ignore reboots past the lock: --check-inhibitors=no" || fail "6. ignore (rc $rc: $out)"
+reset5; out="$(run5 do_spl_box_restart_run BOX_RESTART_INHIBITORS=force)"; rc=$?
+[ "$rc" = 1 ] && grep -q 'must be respect or ignore' <<<"$out" && pass "6. any other inhibitors value is refused" || fail "6. bad value (rc $rc: $out)"
+locks_set "$LOCK_DELAY"
+reset5; mkdir -p "$BR5"; printf 'utc\t20261008T120000Z\nweek\t%s\nbtime\t999\n' "$W6" >"$BR5/pending"
+out="$(run5 'do_spl_box_restart_after() { echo AFTER; }; do_spl_box_restart_tick' BOX_RESTART_AT='0 04:00 UTC')"; rc=$?
+[ "$rc" = 0 ] && grep -q AFTER <<<"$out" && [ "$(cat "$BR5/last-week" 2>/dev/null)" = "$W6" ] \
+  && pass "6. the tick writes last-week once the box has booted" || fail "6. tick (rc $rc: $out)"
+S6="$T/s6"; mkdir -p "$S6"; printf '#!/bin/sh\n[ "$1" = auth ] && exit 1\nexit 0\n' >"$S6/gh"; chmod +x "$S6/gh"
+echo tok-6 >"$T/token6"; repo6="$(yq -r '.env.steps."017-github-wif-deploy".github_repository' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")"
+out="$(run 'spl_brx_conf && echo "repo=$SPL_BRX_REPO tok=$GH_TOKEN mode=$SPL_BRX_INHIBIT"' PATH="$S6:$PATH" GH_TOKEN= BOX_RESTART_REPO= \
+  BOX_RESTART_GH_TOKEN_FILE="$T/token6" BOX_RESTART_INHIBITORS=)"; rc=$?
+[ "$rc" = 0 ] && [ -n "$repo6" ] && grep -qx "repo=$repo6 tok=tok-6 mode=respect" <<<"$out" \
+  && pass "6. gh not logged in: GH_TOKEN from the token file; the repo and inhibitors=respect from cnf" || fail "6. conf (rc $rc: $out)"
 
 echo "box-restart: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

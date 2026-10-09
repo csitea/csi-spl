@@ -19,20 +19,30 @@
 # @description the agents to push, (5) <dir>/pending, then reboot. A step that
 # @description is still busy after BOX_RESTART_WAIT DEFERS: the stopped runners
 # @description are started again and get their labels back, nothing reboots, the next tick in the slot
-# @description window retries. Dry run unless DRY_RUN=0: the read-only checks
+# @description window retries. A shutdown BLOCK inhibitor (a desktop box: the
+# @description GNOME session holds one) DEFERS too, before the notes and again
+# @description right before the reboot: systemd 257 logind obeys it even for
+# @description root and answers "Access denied" (drill 7, 2026-10-09). cnf
+# @description env.box.restart.inhibitors: respect (default) defers, ignore
+# @description reboots past it (systemctl reboot --check-inhibitors=no).
+# @description <dir>/last-week is written only once the reboot command has
+# @description returned 0. Dry run unless DRY_RUN=0: the read-only checks
 # @description run and the plan is printed; nothing stops, writes or reboots.
 # @param DRY_RUN (optional) - 1 (default) or 0; the tick always runs with 0
 # @param BOX_RESTART_WAIT (optional) - seconds to wait for deploys / the drain, default 1800
 # @param BOX_RESTART_POLL (optional) - seconds between the waits' polls, default 30
 # @param BOX_RESTART_GRACE (optional) - seconds between the notes and the reboot, default 300
-# @param BOX_RESTART_REPO (optional) - <owner>/<repo>; default the checkout's (gh repo view)
+# @param BOX_RESTART_REPO (optional) - <owner>/<repo>; default cnf github_repository, else gh repo view
+# @param BOX_RESTART_INHIBITORS (optional) - respect | ignore; default cnf env.box.restart.inhibitors, else respect
+# @param BOX_RESTART_CNF (optional) - default <checkout>/<org>-<app>-cnf/<org>-<app>/all.env.yaml
+# @param BOX_RESTART_GH_TOKEN_FILE (optional) - read into GH_TOKEN when gh is not logged in; default $HOME/.github/token
 # @param BOX_RESTART_DEPLOY_WORKFLOWS (optional) - default the wf 20 and wf 30 files
 # @param BOX_RESTART_FROM (optional) - the notes' sender, default SPOOL_AGENT_ID, else c-001
 # @example ./run -a do_spl_box_restart_run
 # @example DRY_RUN=0 ./run -a do_spl_box_restart_run
 #------------------------------------------------------------------------------
 # Test seams: BOX_RESTART_EPOCH (now), BOX_RESTART_REBOOT_CMD (sudo -n
-# systemctl reboot), BOX_RESTART_CGROUP_ROOT (/sys/fs/cgroup), and the prepare's LEASE_PROC_ROOT / BOX_RESTART_PS_CMD /
+# systemctl reboot), BOX_RESTART_INHIBITORS_CMD (busctl ListInhibitors), BOX_RESTART_CGROUP_ROOT (/sys/fs/cgroup), and the prepare's LEASE_PROC_ROOT / BOX_RESTART_PS_CMD /
 # BOX_RESTART_SEND.
 declare -F spl_brs_agents >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-box-restart-prepare.func.sh"
@@ -45,6 +55,9 @@ do_spl_box_restart_run() {
   utc="${BOX_RESTART_NOW:-$(date -u -d "@$(spl_brx_now)" +%Y%m%dT%H%M%SZ)}"; snap="$dir/$utc.before"
   SPL_BRX_STOPPED=(); SPL_BRX_DIR="$dir"; SPL_BRX_UNLABELED=0; t0="$(date -u -d "@$(spl_brx_now)" +%Y-%m-%dT%H:%M:%SZ)"
   [[ "$dry" == 1 ]] && do_log "INFO DRY RUN: the checks run, nothing is stopped, written or rebooted (DRY_RUN=0 does it)"
+  why="$(spl_brx_inhibited)"
+  if [[ -n "$why" && "$dry" == 0 ]]; then spl_brx_defer 0 "$dir" "$utc" "$why"; return 0; fi
+  [[ -n "$why" ]] && do_log "INFO PLAN DEFER here, before the drain and the notes: $why"
   if ! spl_brx_wait_quiet "$dry"; then spl_brx_defer "$dry" "$dir" "$utc" "a deploy or terraform run is still in flight after ${SPL_BRX_WAIT}s"; return 0; fi
   if ! spl_brx_drain "$dry"; then spl_brx_defer "$dry" "$dir" "$utc" "a runner is still busy after ${SPL_BRX_WAIT}s"; return 0; fi
   [[ "$dry" == 0 ]] && why="$(spl_brx_inflight)"
@@ -60,13 +73,17 @@ do_spl_box_restart_run() {
   sleep "$SPL_BRX_GRACE"
   # the CPU budget cron may have started a parked runner during the grace
   if ! spl_brx_drain 0; then spl_brx_defer 0 "$dir" "$utc" "a runner took a job during the grace and is still busy after ${SPL_BRX_WAIT}s"; return 0; fi
+  why="$(spl_brx_inhibited)"
+  if [[ -n "$why" ]]; then spl_brx_defer 0 "$dir" "$utc" "$why (taken during the grace)"; return 0; fi
   spl_brx_pending_write "$dir" "$utc" "$snap" "$t0" || { spl_brx_runners_start; return 1; }
   do_log "OK REBOOT now: $(spl_brx_reboot_cmd)"
   read -ra rb <<<"$(spl_brx_reboot_cmd)"
   if ! "${rb[@]}"; then
     rm -f "$dir/pending"; spl_brx_runners_start
-    do_log "ERROR the reboot command failed: nothing rebooted, the runners are started again"; return 1
+    do_log "ERROR the reboot command failed: nothing rebooted, the runners are started again, last-week not written (the slot window retries)"; return 1
   fi
+  # the reboot has started: the slot window does not reboot twice
+  spl_brx_pending_get "$dir/pending" week > "$dir/last-week"
 }
 
 # SPL_BRX_REPO / _WAIT / _POLL / _GRACE / _FROM / _WFS, each checked.
@@ -78,15 +95,70 @@ spl_brx_conf() {
   done
   SPL_BRX_FROM="${BOX_RESTART_FROM:-${SPOOL_AGENT_ID:-c-001}}"
   SPL_BRX_WFS="${BOX_RESTART_DEPLOY_WORKFLOWS:-20_hub-build-deploy.yml 30_wui-build-deploy.yml}"
-  SPL_BRX_REPO="${BOX_RESTART_REPO:-$(cd "${APP_PATH:-.}" 2>/dev/null && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)}"
+  spl_brx_gh_auth
+  SPL_BRX_REPO="${BOX_RESTART_REPO:-$(spl_brx_cnf_get '.. | select(type == "!!map" and has("github_repository")) | .github_repository')}"
+  [[ -n "$SPL_BRX_REPO" ]] ||
+    SPL_BRX_REPO="$(cd "${APP_PATH:-.}" 2>/dev/null && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)"
   [[ "$SPL_BRX_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] ||
-    { do_log "FATAL no <owner>/<repo>: set BOX_RESTART_REPO (gh repo view gave '${SPL_BRX_REPO}')"; return 1; }
+    { do_log "FATAL no <owner>/<repo>: set BOX_RESTART_REPO (cnf github_repository / gh repo view gave '${SPL_BRX_REPO}')"; return 1; }
+  SPL_BRX_INHIBIT="${BOX_RESTART_INHIBITORS:-$(spl_brx_cnf_get '.env.box.restart.inhibitors // ""')}"
+  SPL_BRX_INHIBIT="${SPL_BRX_INHIBIT:-respect}"
+  [[ "$SPL_BRX_INHIBIT" == respect || "$SPL_BRX_INHIBIT" == ignore ]] ||
+    { do_log "FATAL BOX_RESTART_INHIBITORS (cnf env.box.restart.inhibitors) must be respect or ignore, got: '$SPL_BRX_INHIBIT'"; return 1; }
+}
+
+# spl_brx_cnf_get EXPR: one value of the cnf all.env.yaml (yq), nothing when
+# there is no cnf or no yq.
+spl_brx_cnf_get() {
+  local oa="${SPL_ORG_APP:-$(basename "${PROJ_PATH:-x-orc}")}" cnf v
+  oa="${oa%-orc}"; cnf="${BOX_RESTART_CNF:-${APP_PATH:-.}/$oa-cnf/$oa/all.env.yaml}"
+  [[ -f "$cnf" ]] && command -v yq >/dev/null 2>&1 || return 0
+  v="$(yq -r "$1" "$cnf" 2>/dev/null)"; v="${v%%$'\n'*}"
+  [[ "$v" == null ]] || echo "$v"
+  return 0
+}
+
+# A cron job (and an agent on a box with no gh login) has no gh login of its
+# own: the box user's token file is read into GH_TOKEN (never printed).
+spl_brx_gh_auth() {
+  local f="${BOX_RESTART_GH_TOKEN_FILE:-$HOME/.github/token}"
+  [[ -n "${GH_TOKEN:-}" ]] && return 0
+  gh auth status >/dev/null 2>&1 && return 0
+  [[ -r "$f" ]] && { GH_TOKEN="$(cat "$f")"; export GH_TOKEN; }
+  return 0
 }
 
 spl_brx_now() { echo "${BOX_RESTART_EPOCH:-$(date +%s)}"; }
 # The waits' deadlines run on the real clock, never the seam.
 spl_brx_clock() { date +%s; }
-spl_brx_reboot_cmd() { echo "${BOX_RESTART_REBOOT_CMD:-sudo -n systemctl reboot}"; }
+spl_brx_reboot_cmd() {
+  local c="${BOX_RESTART_REBOOT_CMD:-sudo -n systemctl reboot}"
+  [[ "${SPL_BRX_INHIBIT:-respect}" == ignore ]] && c+=" --check-inhibitors=no"
+  echo "$c"
+}
+
+# The shutdown BLOCK inhibitor locks, one "<who> (<why>; uid <u> pid <p>)"
+# per line (logind ListInhibitors). Unreadable logind: nothing.
+spl_brx_inhibitors() {
+  local cmd="${BOX_RESTART_INHIBITORS_CMD:-busctl --json=short call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager ListInhibitors}"
+  $cmd 2>/dev/null | jq -r '.data[0][] | select(.[3] == "block" and (.[0] | split(":") | index("shutdown")))
+    | "\(.[1]) (\(.[2]); uid \(.[4]) pid \(.[5]))"' 2>/dev/null
+  return 0
+}
+
+# Why the restart must wait for the inhibitors, nothing when it need not:
+# with SPL_BRX_INHIBIT=respect a shutdown block lock defers (logind refuses
+# the reboot: "Access denied"); with ignore it is logged and reboots past it.
+spl_brx_inhibited() {
+  local locks
+  locks="$(spl_brx_inhibitors)"
+  [[ -n "$locks" ]] || return 0
+  if [[ "$SPL_BRX_INHIBIT" == ignore ]]; then
+    do_log "WARN a shutdown block inhibitor is held (${locks//$'\n'/; }): cnf env.box.restart.inhibitors=ignore reboots past it" >&2
+    return 0
+  fi
+  echo "a shutdown block inhibitor is held: ${locks//$'\n'/; } (cnf env.box.restart.inhibitors=respect; logind refuses the reboot; end that session or set ignore for this box)"
+}
 
 # What blocks a restart, one line each, nothing when quiet: a queued or
 # running deploy (wf 20/30), a terraform process. A gh error counts as busy.
@@ -249,13 +321,15 @@ spl_brx_defer() {
 }
 
 # <dir>/pending (key\tvalue): utc, since (the drain's start, ISO), snapshot,
-# btime, the week it counts for, the units the drain stopped; and <dir>/last-week, so the slot window does not reboot twice.
+# btime, the week it counts for, the units the drain stopped. <dir>/last-week
+# (the slot window does not reboot twice) is written only once the reboot
+# command returned 0, and again by the tick once the box has booted.
 spl_brx_pending_write() {
   local dir="$1" utc="$2" snap="$3" since="$4" week
   week="$(spl_brx_slot_week)"
   { printf 'utc\t%s\nsince\t%s\nsnapshot\t%s\nbtime\t%s\nweek\t%s\ndrained\t%s\n' "$utc" \
       "$since" "$snap" "$(spl_brs_btime)" "$week" "${SPL_BRX_STOPPED[*]}" > "$dir/pending.tmp" &&
-      mv "$dir/pending.tmp" "$dir/pending" && printf '%s\n' "$week" > "$dir/last-week"; } ||
+      mv "$dir/pending.tmp" "$dir/pending"; } ||
     { do_log "ERROR could not write $dir/pending: no reboot"; return 1; }
 }
 spl_brx_pending_get() { awk -F'\t' -v k="$2" '$1 == k {print $2; exit}' "$1" 2>/dev/null; }

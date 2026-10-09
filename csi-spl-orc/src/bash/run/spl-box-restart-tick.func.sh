@@ -24,6 +24,8 @@ do_spl_box_restart_tick() {
   if [[ -f "$dir/pending" ]]; then
     bt0="$(spl_brx_pending_get "$dir/pending" btime)"
     if [[ "$(spl_brs_btime)" != "$bt0" ]]; then
+      # the reboot happened: its week counts even when the run's own write was cut off
+      spl_brx_pending_get "$dir/pending" week > "$dir/last-week"
       do_spl_box_restart_after || rc=1
     else
       since="$(date -d "$(spl_brx_pending_get "$dir/pending" since)" +%s 2>/dev/null || echo 0)"

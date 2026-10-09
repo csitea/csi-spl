@@ -37,7 +37,7 @@
 #   SPAWN_ID_LETTER      the id letter (m); read only when SPAWN_ID_PREFIX is ""
 #   SPAWN_BIN_VAR        CLAUDE_BIN | GROK_BIN | AGY_BIN | QWEN_BIN | MISTRAL_BIN (resolved by spool-env)
 #   SPAWN_NAME_FLAG      the flag that names the session, or ""
-#   SPAWN_PROMPT_FLAG    the flag before the seed prompt, or "" (positional)
+#   SPAWN_PROMPT_FLAG    the flag before the seed pointer, or "" (positional)
 #   SPAWN_RESUME_FLAG    SPAWN_RESUME_ID   how the CLI resumes one session
 #   SPAWN_CONTINUE_FLAG  how it resumes the most recent one in a directory
 #   spawn_rename_how     function: the instruction that makes the agent
@@ -53,7 +53,8 @@
 # DRY RUN: SPAWN_DRY_RUN=1 performs NO side effect and prints the plan: one
 # `PLAN <step> …` line per side effect, then the seed prompt between
 # PROMPT-BEGIN / PROMPT-END. With SPAWN_PLAN_DIR set it also writes the exact
-# launch command (launch.cmd) and prompt (prompt.txt) there.
+# launch command (launch.cmd) and prompt (prompt.txt) there. The seed is never
+# in argv: the CLI gets "Read and follow your seed: <file>" (_spawn_seed_file).
 #
 # Usage (through an adapter): spawn-<kind>.sh <TITLE> <WORKDIR> [BRIEF_FILE] [SLUG]
 #   BRIEF_FILE  task brief the seed prompt points at; omit for a plain session
@@ -237,9 +238,30 @@ spawn_record_brief() {  # MSGDIR BRIEF
   return 0
 }
 
+# The seed travels in a FILE; the CLI's argv carries only a pointer to it
+# (c-698 2026-10-09: one 'pkill -f "git push"' matched the seed on 12
+# seats' argv and killed them all; vibe, whose seed was not in argv, lived).
+# Live: <spool root>/<id>/lifetime/prompt.txt. A dry run writes nothing here;
+# with SPAWN_PLAN_DIR the pointer names <plan dir>/prompt.txt, written below.
+# Sets SEED_FILE, PROMPT_ESC (the escaped pointer) and _sp_prompt_args.
+_spawn_seed_file() {
+  PROMPT_ESC=""; SEED_FILE="${MSGDIR}/lifetime/prompt.txt"
+  [ -n "$PROMPT" ] || return 0
+  if ! _sp_live; then
+    [ -n "${SPAWN_PLAN_DIR:-}" ] && SEED_FILE="${SPAWN_PLAN_DIR}/prompt.txt"
+  else
+    mkdir -p "${SEED_FILE%/*}" 2>/dev/null && chmod 0775 "${SEED_FILE%/*}" 2>/dev/null
+    printf '%s' "$PROMPT" 2>/dev/null > "$SEED_FILE" || _sp_fail "cannot write the seed to ${SEED_FILE}"
+    chmod 0664 "$SEED_FILE" 2>/dev/null || true
+  fi
+  _sp_plan seed "${#PROMPT} bytes -> ${SEED_FILE} 0664 (argv carries only its path)"
+  spool_dq_escape PROMPT_ESC "Read and follow your seed: ${SEED_FILE}"
+  _sp_prompt_args=" ${SPAWN_PROMPT_FLAG:+${SPAWN_PROMPT_FLAG} }\"${PROMPT_ESC}\""
+}
+
 spawn_main() {
   TITLE="${1:-}"; WORKDIR="${2:-}"; BRIEF="${3:-}"; SLUG="${4:-}"
-  local _sp_cli _sp_idl _sp_name_args="" _sp_prompt_args="" _sp_shown
+  local _sp_cli _sp_idl _sp_name_args="" _sp_prompt_args=""
 
   # A test sandbox (tests/lib.inc.sh t_sandbox) never launches a real agent:
   # without SPAWN_DRY_RUN=1 it is refused before any side effect (2026-10-01,
@@ -325,7 +347,7 @@ spawn_main() {
   if [ -n "$BRIEF" ]; then
     # c-440 (2026-10-06): one 'pkill -f do_check_pre_push' matched the action
     # name in every agent's argv (this prompt) and killed 15 sessions in 0.7 s.
-    STOP_RULE="Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f', 'killall' or 'pgrep -f | xargs kill' on a pattern: every action name is on every agent's argv."
+    STOP_RULE="Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f', 'killall' or 'pgrep -f | xargs kill' on a pattern: it matches other agents' processes."
     PROMPT="As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. When your task is verified done: report and /exit-clean. ${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
@@ -374,23 +396,17 @@ spawn_main() {
   RESTORE="$(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}} ${SPAWN_RESUME_FLAG} "
   _sp_plan restore "${RESTORE}<${SPAWN_RESUME_ID}>'"
 
-  # PROMPT travels inside a double-quoted argument of the agent's login shell,
-  # where " \ $ and ` are live: spool_dq_escape keeps every byte.
+  # The pointer travels inside a double-quoted argument of the agent's login
+  # shell, where " \ $ and ` are live: spool_dq_escape keeps every byte.
   [ -n "${SPAWN_NAME_FLAG:-}" ] && _sp_name_args="${SPAWN_NAME_FLAG} '${DISPLAY_NAME}' "
-  PROMPT_ESC=""
-  if [ -n "$PROMPT" ]; then
-    spool_dq_escape PROMPT_ESC "$PROMPT"
-    _sp_prompt_args=" ${SPAWN_PROMPT_FLAG:+${SPAWN_PROMPT_FLAG} }\"${PROMPT_ESC}\""
-  fi
+  _spawn_seed_file
   # specs/012 T013: the CLI starts THROUGH spool-harness (dirs, identity,
   # sidecar in hub mode, SPOOL_* env, and with --mirror the terminal mirror
   # hooks of specs/036), not with the env prepared inline here.
   LAUNCH="export ${_sp_pane_env}_TMUX_PANE='${PANE}' ${_sp_pane_env}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}; cd '${RUNDIR}' && exec ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror -- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${_sp_prompt_args}"
 
   if ! _sp_live; then
-    _sp_shown="$LAUNCH"
-    [ -n "$PROMPT_ESC" ] && _sp_shown="${LAUNCH/"$PROMPT_ESC"/<PROMPT>}"
-    _sp_plan launch "$(spool_agent_cmd_text) -c \"${_sp_shown}\""
+    _sp_plan launch "$(spool_agent_cmd_text) -c \"${LAUNCH}\""
     if [ -n "${SPAWN_PLAN_DIR:-}" ]; then
       printf '%s' "$LAUNCH" > "${SPAWN_PLAN_DIR}/launch.cmd"
       printf '%s' "$PROMPT" > "${SPAWN_PLAN_DIR}/prompt.txt"

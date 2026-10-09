@@ -73,10 +73,11 @@ rr() {  # ID [SID] [ARG4] -> the rendered command (+ stderr)
 }
 B="$T_TMP/brief-910.md"; echo "# Brief: task 910" > "$B"
 out="$(rr m-910 - "$B")"
-has "6. a brief file as arg 4 (the action's <id>/brief.md) becomes the restore kick" "--continue \"SESSION RESTORED" "$out"
+has "6. a brief file as arg 4 (the action's <id>/brief.md) becomes the restore kick" "--continue \"Read and follow your restore note: $SPOOL_ROOT/m-910/lifetime/kick.txt\"" "$out"
+has "6. ... whose text is the restore kick" "SESSION RESTORED" "$out"
 has "6. ... re-pointing the seat at its brief" "Re-read your task brief at $B to reload the full scope" "$out"
 hasnt "6. ... not the bare path as the prompt" "--continue \"$B\"" "$out"
-has "6. ... and with a session it resumes that session with the kick" "--resume s-910 \"SESSION RESTORED" "$(rr m-910 s-910 "$B")"
+has "6. ... and with a session it resumes that session with the kick" "--resume s-910 \"Read and follow your restore note: $SPOOL_ROOT/m-910/lifetime/kick.txt\"" "$(rr m-910 s-910 "$B")"
 
 L="$SPOOL_ROOT/m-910/lifetime"; mkdir -p "$L"
 B2="$T_TMP/brief-910-sj.md"; echo "# Brief: from session.json" > "$B2"
@@ -99,6 +100,8 @@ printf '#!/usr/bin/env bash\nprintf "%%s " "$@" > "%s"\n' "$T_TMP/sent" > "$T_TM
 env RESTORE_REPORT_SEND="bash $T_TMP/send.sh" RESTORE_PRINT=1 MISTRAL_BIN=vibe SPOOL_MISTRAL_MAX_PRICE=3.50 \
   bash "$T_SCRIPTS/restore-mistral.sh" m-910 "$T_TMP/wt910" - >/dev/null 2>&1
 has "10. ... to the orchestrator, as a blocker" "--from m-910 --to orchestrator --kind blocker --task restore-m-910" "$(cat "$T_TMP/sent" 2>/dev/null)"
-has "10. control: a literal (non-file) arg 4 is still the kick" "--continue \"go on\"" "$(rr m-910 - 'go on')"
+has "10. control: a literal (non-file) arg 4 is still the kick" "--continue \"Read and follow your restore note: $SPOOL_ROOT/m-910/lifetime/kick.txt\"
+KICK-BEGIN $SPOOL_ROOT/m-910/lifetime/kick.txt
+go on" "$(rr m-910 - 'go on')"
 
 t_done

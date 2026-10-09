@@ -28,9 +28,11 @@ has "1. grok resumes by session with both permission flags" "'grok' --dangerousl
 has "1. through spool-harness --as the id" "spool-harness.sh' --as 'GRK-07' --" "$out"
 has "1. ...with the terminal mirror (specs/036)" "spool-harness.sh' --as 'GRK-07' --mirror -- " "$out"
 has "1. exports its pane var, SPOOL_ROOT and the id" "export GRK_TMUX_PANE='' GRK_TMUX_SOCK='' SPOOL_ROOT='$SPOOL_ROOT' SPOOL_AGENT_ID='GRK-07'" "$out"
-has "3. grok takes the kick positionally" 's-1 "go on"' "$out"
-has "1+3. agy resumes by conversation, kick after --prompt-interactive" "'agy' --dangerously-skip-permissions --conversation c-2 --prompt-interactive \"hi\"" "$(r agy AGY-08 "$D" c-2 hi)"
-has "1+3. qwen: --yolo --resume, kick after --prompt-interactive" "'qwen' --yolo --resume q-3 --prompt-interactive \"hi\"" "$(r qwen QWN-09 "$D" q-3 hi)"
+has "3. grok takes the kick pointer positionally" "s-1 \"Read and follow your restore note: $SPOOL_ROOT/GRK-07/lifetime/kick.txt\"" "$out"
+has "3. ... the kick itself is in the plan, not the command" "KICK-BEGIN $SPOOL_ROOT/GRK-07/lifetime/kick.txt
+go on" "$out"
+has "1+3. agy resumes by conversation, kick after --prompt-interactive" "'agy' --dangerously-skip-permissions --conversation c-2 --prompt-interactive \"Read and follow your restore note: $SPOOL_ROOT/AGY-08/lifetime/kick.txt\"" "$(r agy AGY-08 "$D" c-2 hi)"
+has "1+3. qwen: --yolo --resume, kick after --prompt-interactive" "'qwen' --yolo --resume q-3 --prompt-interactive \"Read and follow your restore note: $SPOOL_ROOT/QWN-09/lifetime/kick.txt\"" "$(r qwen QWN-09 "$D" q-3 hi)"
 hasnt "3. no kick given, none passed" "prompt-interactive" "$(r qwen QWN-09 "$D" q-3)"
 
 # --- 2. claude kicks ------------------------------------------------------------------
@@ -60,7 +62,7 @@ r grok GRK-07 "$D" >/dev/null; eq "4. no session id is refused" 1 "$?"
 
 # --- 6. mistral ---------------------------------------------------------------------------
 out="$(SPOOL_MISTRAL_MAX_PRICE=3.50 r mistral m-007 "$D" s-7 'go on')"
-has "6. mistral resumes by session: vibe --auto-approve --resume <id>" "'vibe' --auto-approve --max-price 3.50 --resume s-7 \"go on\"" "$out"
+has "6. mistral resumes by session: vibe --auto-approve --resume <id>" "'vibe' --auto-approve --max-price 3.50 --resume s-7 \"Read and follow your restore note: $SPOOL_ROOT/m-007/lifetime/kick.txt\"" "$out"
 has "6. ... through spool-harness --as the id, with the mirror" "spool-harness.sh' --as 'm-007' --mirror -- 'vibe'" "$out"
 has "6. ... exporting MISTRAL_TMUX_PANE (no legacy prefix)" "export MISTRAL_TMUX_PANE='' MISTRAL_TMUX_SOCK='' SPOOL_ROOT='$SPOOL_ROOT' SPOOL_AGENT_ID='m-007'" "$out"
 has "6. ... under env -u MISTRAL_API_KEY, before the harness" "&& exec env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false" "$out"

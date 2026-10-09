@@ -18,7 +18,8 @@
 #   RESTORE_BIN_VAR     CLAUDE_BIN | GROK_BIN | AGY_BIN | QWEN_BIN | MISTRAL_BIN
 #   RESTORE_ARGS        a function: SESSION_ID -> the CLI args that resume it
 #                       (the permission flags come from spool_claude_perm_flags)
-#   RESTORE_KICK_FLAG   the flag before the kick prompt, or "" (positional)
+#   RESTORE_KICK_FLAG   the flag before the kick pointer, or "" (positional); the
+#                       kick itself goes to <spool root>/<id>/lifetime/kick.txt
 #   RESTORE_KICK_MODE   brief (arg 4 is a brief file; the kick is composed:
 #                       worker or neutral) | prompt (arg 4 is the kick itself)
 # and MAY set (unset = nothing added, so the other kinds' lines stay byte-identical):
@@ -82,8 +83,17 @@ _rs_clear_hold() {  # ID
   echo "hold of $1 cleared ($res): a restore by hand is the admin's clearing act (spec 102 6.1)"
 }
 
+# _rs_write_kick FILE KICK: the kick goes to a file and the CLI's argv carries
+# only its path, as a spawn's seed does (c-698 2026-10-09: 'pkill -f' on a
+# word in a prompt killed every seat whose argv held it).
+_rs_write_kick() {  # FILE KICK
+  mkdir -p "${1%/*}" 2>/dev/null && chmod 0775 "${1%/*}" 2>/dev/null
+  printf '%s' "$2" 2>/dev/null > "$1" || return 1
+  chmod 0664 "$1" 2>/dev/null || true
+}
+
 restore_main() {
-  local title="${1:-}" rundir="${2:-}" sid="${3:-}" arg4="${4:-}" bin_var bin branch kick="" kick_esc display cur args cmd stub pane sock pane_env
+  local title="${1:-}" rundir="${2:-}" sid="${3:-}" arg4="${4:-}" bin_var bin branch kick="" kick_esc kick_file display cur args cmd stub pane sock pane_env
   SPOOL_ENV_NO_BINS=0 spool_env_resolve
   spool_valid_id "$title" 2>/dev/null || _rs_fail "TITLE '${title}' is not an agent id (e.g. ${RESTORE_ID_PREFIX:-${RESTORE_KIND:0:1}}-07)"
   [ -n "$rundir" ] && [ -d "$rundir" ] || _rs_fail "RUNDIR '${rundir}' does not exist - the session cannot be restored in place; spawn it again"
@@ -110,13 +120,19 @@ restore_main() {
   [ "$RESTORE_KIND" = claude ] && args="--name '${display}' ${args}"
   cmd="export ${pane_env}_TMUX_PANE='${pane}' ${pane_env}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}' ${SPOOL_CLI_ENV}; cd '${rundir}' && exec ${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }bash '${_RS_DIR}/spool-harness.sh' --as '${title}' --mirror -- '${bin}' ${args}"
   stub="$(spool_agent_cmd_text) -c 'cd \"${rundir}\" ; ${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }${bin##*/} ${args}'"
-  if [ -n "$kick" ]; then spool_dq_escape kick_esc "$kick"; fi
+  kick_file="${SPOOL_ROOT}/${title}/lifetime/kick.txt"
+  if [ -n "$kick" ]; then spool_dq_escape kick_esc "Read and follow your restore note: ${kick_file}"; fi
   if [ "${RESTORE_PRINT:-0}" = 1 ]; then
     printf '%s\n' "${cmd}${kick:+ ${RESTORE_KICK_FLAG:+${RESTORE_KICK_FLAG} }\"${kick_esc}\"}"
+    [ -n "$kick" ] && printf 'KICK-BEGIN %s\n%s\nKICK-END\n' "$kick_file" "$kick"
     return 0
   fi
 
   _rs_clear_hold "$title"
+  if [ -n "$kick" ] && ! _rs_write_kick "$kick_file" "$kick"; then
+    echo "WARN ${title}: cannot write the kick to ${kick_file}; restoring without it" >&2
+    kick=""
+  fi
   history -s "$stub" 2>/dev/null || true
   echo "════════════════════════════════════════════════════════════════════"
   echo " RESTORING ${title} (${RESTORE_KIND})"

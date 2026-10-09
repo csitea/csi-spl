@@ -208,7 +208,7 @@ spl_brx_runner_states() {
 # Take the custom labels (spool-ci) off every active runner unit of UNITS
 # (STATES = spl_brx_runner_states): no queued job matches it any more, so a
 # busy runner ends its job and stays idle, and nothing is killed. Why labels:
-# a stop (svc.sh, SIGTERM/SIGINT to Runner.Listener) cancels the running job,
+# a stop (the runner service, SIGTERM/SIGINT to Runner.Listener) cancels the running job,
 # a once-mode needs a listener restart, and the API has no "offline" switch;
 # DELETE .../labels removes only the custom ones, PUT sets them back. One row
 # "<org>\t<name>\t<id>\t<labels>" per runner in <SPL_BRX_DIR>/unlabeled,

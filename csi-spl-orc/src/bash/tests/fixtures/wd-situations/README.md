@@ -15,4 +15,6 @@ screen and its transcripts are T001's, read from `../fleet-lease/`.
 | `working.pane` | a turn in progress: the spinner `(12s · ...)` | S2 / S1 spinner rows |
 | `limit-reset.pane` | a usage-limit banner with a reset time, idle | S2 kind=limit |
 | `idle.pane` | an idle pane with an empty input box | S3, S1 controls |
+| `vibe-idle-plan.pane` | vibe 2.26.0 idle at its `>` prompt after a Stop, todo summary `▶ 1/7 · ...` (m-617, 2026-10-09, path and text trimmed) | S1 plan hit |
+| `vibe-idle-done.pane` | the same with the list complete, `☑ 7/7 · All todos complete` | S1 plan control |
 | `s9-unknown-dialog.pane` | `modal-default-mode.pane` (the 2026-10-06 frozen pane) with its dialog words replaced by words no list contains | S9 hit (spec 102 8.3); S7 control 1: no hit |

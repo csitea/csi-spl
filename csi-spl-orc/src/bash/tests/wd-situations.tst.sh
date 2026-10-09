@@ -60,6 +60,10 @@
 #      to the dispatch lease holder; vibe's 429 text is S2 kind=limit; an
 #      idle m- lane with an unread job rings, and is not taken over while a
 #      tool runs (its heartbeat's pid the Vibe CLI pid). Each with a control
+#      An idle m- lane with its vibe plan open after a Stop (m-617 / m-618,
+#      sat 2026-10-09, n=2), inbox empty: S1 wakes it at 130 s and takes it
+#      over at 250 s when the wake starts no turn; controls: progress after
+#      the wake, the list complete, a working heartbeat, a moving spinner
 #  11. S2 kind=limit wakes after its reset (2026-10-08, a seat 2.5 h
 #      idle past "resets 1:50am (Europe/Helsinki)"): the reset read once per
 #      episode (1:50am Helsinki on a summer date = 22:50Z), no wake before
@@ -208,6 +212,24 @@ grep -q '^HIT S2 kind=login ' <<<"$(run_s s2)" && pass "S2 control: claude's Inv
 ctx s2ml; cp "$MF/pane-mistral-limit.txt" "$C/pane"
 grep -q '^HIT S2 kind=limit pane: Rate limits exceeded' <<<"$(run_s s2 m-900)" && pass "S2 vibe's 'Rate limits exceeded' (source text, not a real pane) is kind=limit" || fail "S2 vibe limit: $(run_s s2 m-900)"
 WD_STALL_RE='usage limit reached' nohit "S2 control: without the vibe pattern the same pane is no hit" s2 m-900
+
+# S1 on vibe's unfinished plan (c-001@sat 2026-10-09, m-617 / m-618 idle
+# mid-plan after a Stop, inbox empty, n=2): a job of its own
+ctx s1v; hb idle 600; cp "$FX/vibe-idle-plan.pane" "$C/pane"
+hit "S1 an idle vibe lane with its plan open (▶ 1/7), no inbox, progress 600 s ago" s1 m-900
+grep -q '^HIT S1 age=600 plan ▶ 1/7 · Implement ' <<<"$(run_s s1 m-900)" && pass "S1 plan: age is the time since the last progress, the step named" || fail "S1 plan line: $(run_s s1 m-900)"
+cp "$FX/vibe-idle-done.pane" "$C/pane"
+nohit "S1 plan control: the same lane with its list complete (☑ 7/7)" s1 m-900
+cp "$FX/vibe-idle-plan.pane" "$C/pane"; hb working 600
+nohit "S1 plan control: the turn has not ended (heartbeat working, not idle)" s1 m-900
+hb idle 90
+nohit "S1 plan control: progress 90 s ago (under WD_JOB_WAIT)" s1 m-900
+hb idle 600; echo 3 > "$C/spin_age"
+nohit "S1 plan control: a moving spinner" s1 m-900
+rm -f "$C/spin_age"; { cat "$FX/vibe-idle-plan.pane"; printf 'later\nlines\nbelow\nit\n'; } > "$C/pane"
+nohit "S1 plan control: the todo line quoted higher up the screen, not the summary row" s1 m-900
+cp "$FX/vibe-idle-plan.pane" "$C/pane"
+out="$(LC_ALL=C run_s s1 m-900)"; [[ "$out" == "HIT S1 age=600 plan "* ]] && pass "S1 plan under LC_ALL=C" || fail "S1 plan LC_ALL=C: $out"
 
 # S3: a bare shell in the agent's window
 ctx s3; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"
@@ -850,6 +872,27 @@ jq -n --arg p "$(iso $((T0 - 600)))" --arg s "$(iso $((T0 - 120)))" \
   '{v: 1, harness: "mistral", pid: 9999, state: "working", ts: $s, progress_ts: $p, tool: "bash", tool_since: $s, calls: []}' > "$S/m-976/heartbeat.json"
 out="$(wd)"; settle
 grep -qx 'takeover m-976 S1' "$T/takeovers" && pass "10 control: the heartbeat of another pid does not hold: taken over" || fail "10 hold control: $out"
+# m-617 / m-618 (c-001@sat 2026-10-09): a Stop mid-plan, the prompt idle, the
+# inbox empty. A wake at 130 s; the wake starts no turn: taken over at 250 s
+vhb() {  # vhb <id> <pid> <progress epoch> <ts epoch>: vibe's heartbeat after a Stop
+  jq -n --arg p "$(iso "$3")" --arg s "$(iso "$4")" --argjson pid "$2" \
+    '{v: 1, harness: "vibe", pid: $pid, event: "Stop", state: "idle", ts: $s, progress_ts: $p, tool: null, tool_since: null, calls: []}' > "$S/$1/heartbeat.json"
+}
+mreset; agent m-977 %1 4077 "Vibe CLI" 3600 "$FX/vibe-idle-plan.pane"; vhb m-977 4077 $((T0 - 130)) $((T0 - 110))
+out="$(wd)"
+grep -q 'm-977 HIT S1 age=130 plan ▶ 1/7 .*-> ring$' <<<"$out" && grep -q -- '--poke-only --from .* --to m-977' "$T/sent" && [[ ! -s "$T/takeovers" ]] &&
+  pass "10 an idle vibe lane with its plan open, inbox empty: woken at 130 s" || fail "10 plan wake: $out"
+vhb m-977 4077 $((T0 - 130)) $((T0 + 20))
+NOW=$((T0 + 120)) out="$(wd)"; settle
+grep -qx 'takeover m-977 S1' "$T/takeovers" && grep -q 'm-977 HIT S1 age=250 plan ' <<<"$out" &&
+  pass "10 the wake started no turn (a Stop, no progress): taken over at 250 s" || fail "10 plan takeover: $out / $(cat "$T/takeovers" 2>/dev/null)"
+mreset; agent m-978 %1 4078 "Vibe CLI" 3600 "$FX/vibe-idle-plan.pane"; vhb m-978 4078 $((T0 - 130)) $((T0 - 110))
+wd >/dev/null; vhb m-978 4078 $((T0 + 100)) $((T0 + 110))
+NOW=$((T0 + 120)) out="$(wd)"; settle
+grep -q '^m-978 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && pass "10 control: the wake started a turn (progress after the ring): OK, no takeover" || fail "10 plan control: $out / $(cat "$T/takeovers" 2>/dev/null)"
+mreset; agent m-979 %1 4079 "Vibe CLI" 3600 "$FX/vibe-idle-done.pane"; vhb m-979 4079 $((T0 - 600)) $((T0 - 590))
+out="$(wd)"; settle
+grep -q '^m-979 OK' <<<"$out" && [[ ! -s "$T/sent" && ! -s "$T/takeovers" ]] && pass "10 control: the same lane with its list complete: no wake, no takeover" || fail "10 done control: $out"
 
 # 11. S2 kind=limit: one wake once the reset + WD_LIMIT_GRACE passed
 L0="$(date -u -d 2026-10-08T20:13:47Z +%s)"; LR="$(date -u -d 2026-10-08T22:50:00Z +%s)"

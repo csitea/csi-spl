@@ -2,10 +2,8 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -46,6 +44,9 @@ func (s *Postgres) DocItemDeleteSubtree(ctx context.Context, tenant, doc string,
 
 // add: lock, anchor position, the new slot, the shift, the insert, the bump.
 func (d *wsDocTx) add(ctx context.Context, r DocItemAddReq) (DocOpResult, error) {
+	if err := docAttrsCheck(r.Attrs); err != nil {
+		return DocOpResult{}, err
+	}
 	if err := d.lock(ctx, r.Rev); err != nil {
 		return DocOpResult{}, err
 	}
@@ -62,9 +63,9 @@ func (d *wsDocTx) add(ctx context.Context, r DocItemAddReq) (DocOpResult, error)
 		return DocOpResult{}, err
 	}
 	var id string
-	err = d.tx.QueryRow(ctx, `INSERT INTO workspace_doc_item (tenant_id, doc_id, parent_id, ord, title, body)
-		SELECT tenant_id, id, $2, $3, $4, $5 FROM workspace_doc WHERE id = $1 RETURNING id::text`,
-		d.doc, parent, ord, r.Title, r.Body).Scan(&id)
+	err = d.tx.QueryRow(ctx, `INSERT INTO workspace_doc_item (tenant_id, doc_id, parent_id, ord, title, body, attrs)
+		SELECT tenant_id, id, $2, $3, $4, $5, coalesce(nullif($6, '')::jsonb, '{}') FROM workspace_doc WHERE id = $1 RETURNING id::text`,
+		d.doc, parent, ord, r.Title, r.Body, r.Attrs).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DocOpResult{}, ErrDocNotFound
 	}
@@ -255,8 +256,13 @@ func (s *Postgres) DocItemUpdateField(ctx context.Context, tenant, doc, item, fi
 	if !ok {
 		return 0, fmt.Errorf("%w: field %q is not editable", ErrDocRefused, field)
 	}
-	if field == "attrs" && (!json.Valid([]byte(value)) || !strings.HasPrefix(strings.TrimSpace(value), "{")) {
-		return 0, fmt.Errorf("%w: attrs is not a JSON object", ErrDocRefused)
+	if field == "attrs" {
+		if value == "" {
+			return 0, fmt.Errorf("%w: attrs is not a JSON object", ErrDocRefused)
+		}
+		if err := docAttrsCheck(value); err != nil {
+			return 0, err
+		}
 	}
 	if !isUUID(doc) || !isUUID(item) {
 		return 0, ErrDocItemNotFound

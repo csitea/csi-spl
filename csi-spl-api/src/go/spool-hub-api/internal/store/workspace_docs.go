@@ -71,6 +71,7 @@ type DocItemAddReq struct {
 	Ord    int
 	Title  string
 	Body   string
+	Attrs  string // a JSON object, "" = {} (docAttrsCheck)
 	Actor  string
 }
 

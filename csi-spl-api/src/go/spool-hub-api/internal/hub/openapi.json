@@ -9391,6 +9391,47 @@
         "tags": [
           "workspace"
         ]
+      },
+      "patch": {
+        "operationId": "patchWorkspaceDoctreeByDoc",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "stale rev: the document changed since it was read"
+          }
+        },
+        "summary": "Rename a workspace document (an empty title is \"Untitled document\")",
+        "tags": [
+          "workspace"
+        ]
       }
     },
     "/v1/workspace/doctree/{doc}/children": {
@@ -9504,6 +9545,98 @@
           }
         },
         "summary": "Read the whole document as grid rows, filtered and sorted",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}/images": {
+      "post": {
+        "operationId": "postWorkspaceDoctreeImages",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "the image is larger than 5 MiB"
+          },
+          "415": {
+            "description": "not a png, jpeg, gif or webp, or the Content-Type does not match the bytes"
+          }
+        },
+        "summary": "Upload an image of a workspace document (png, jpeg, gif or webp); answers its img_http_path",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}/images/{name}": {
+      "get": {
+        "operationId": "getWorkspaceDoctreeImagesByName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the image name: its sha256 and extension",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read one uploaded image of a workspace document",
         "tags": [
           "workspace"
         ]

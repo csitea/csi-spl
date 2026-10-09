@@ -26,14 +26,21 @@ import (
 //	POST   /v1/workspace/doctree                  create {title}
 //	GET    /v1/workspace/doctree/search           ?q= [&doc=]: items matching q (spec 100's words)
 //	GET    /v1/workspace/doctree/{doc}            one document's head: rev, items, root, topic
+//	PATCH  /v1/workspace/doctree/{doc}            rename {title, rev} ("" = "Untitled document")
 //	GET    /v1/workspace/doctree/{doc}/children   ?parent= (none = top level): the lazy unit
 //	GET    /v1/workspace/doctree/{doc}/subtree    ?item= (none = whole doc): print branch
 //	GET    /v1/workspace/doctree/{doc}/grid       ?q= &sort= &desc=1: the whole doc, filtered and sorted
-//	POST   /v1/workspace/doctree/{doc}/items      add {rev, anchor, where, ord, title, body}
+//	POST   /v1/workspace/doctree/{doc}/items      add {rev, anchor, where, ord, title, body, attrs}
 //	POST   /v1/workspace/doctree/{doc}/items/{item}/move   {rev, parent, ord}
 //	DELETE /v1/workspace/doctree/{doc}/items/{item}        ?rev= : delete the subtree
 //	PATCH  /v1/workspace/doctree/{doc}/items/{item}        {field, value, rev}: a text edit
 //	PUT    /v1/workspace/doctree/{doc}/topic      {topic_id} ("" unlinks): the discussion topic
+//	POST   /v1/workspace/doctree/{doc}/images     an image's bytes: its img_http_path (wsdoc_media.go)
+//	GET    /v1/workspace/doctree/{doc}/images/{name}  one uploaded image
+//
+// A code block or an image is an item whose attrs carry kind "code" (src,
+// lang) or "image" (img_http_path, img_name); the store checks them on every
+// write (store.docAttrsCheck).
 //
 // The four outcomes (spec 3.3): committed (200 with the rev it produced), 412
 // stale_rev (the doc rev on a structural op, the item rev on a text edit),
@@ -63,6 +70,7 @@ const (
 // docTreeStore is the store side: T002's ops plus the reads of wsdoc_hub.go.
 type docTreeStore interface {
 	DocCreate(ctx context.Context, tenant, title, actor string) (string, string, error)
+	DocRename(ctx context.Context, tenant, doc string, rev int64, title, actor string) (store.DocOpResult, error)
 	DocItemAdd(ctx context.Context, tenant string, r store.DocItemAddReq) (store.DocOpResult, error)
 	DocItemMove(ctx context.Context, tenant string, r store.DocItemMoveReq) (store.DocOpResult, error)
 	DocItemDeleteSubtree(ctx context.Context, tenant, doc string, rev int64, item, actor string) (store.DocOpResult, error)
@@ -81,6 +89,7 @@ func (s *Server) routeDocTree(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/workspace/doctree", s.handleDocTreeCreate)
 	mux.HandleFunc("GET /v1/workspace/doctree/search", s.handleDocTreeSearch)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}", s.handleDocTreeHead)
+	mux.HandleFunc("PATCH /v1/workspace/doctree/{doc}", s.handleDocTreeRename)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/children", s.handleDocTreeChildren)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/subtree", s.handleDocTreeSubtree)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/grid", s.handleDocTreeGrid)
@@ -89,6 +98,8 @@ func (s *Server) routeDocTree(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/workspace/doctree/{doc}/items/{item}", s.handleDocTreeDelete)
 	mux.HandleFunc("PATCH /v1/workspace/doctree/{doc}/items/{item}", s.handleDocTreeEdit)
 	mux.HandleFunc("PUT /v1/workspace/doctree/{doc}/topic", s.handleDocTreeTopic)
+	mux.HandleFunc("POST /v1/workspace/doctree/{doc}/images", s.handleDocTreeImagePut)
+	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/images/{name}", s.handleDocTreeImageGet)
 	mux.HandleFunc("OPTIONS /v1/workspace/doctree", s.docTreePreflight)
 	mux.HandleFunc("OPTIONS /v1/workspace/doctree/{rest...}", s.docTreePreflight)
 }
@@ -247,9 +258,9 @@ func (s *Server) handleDocTreeCreate(w http.ResponseWriter, r *http.Request) {
 	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only title)") {
 		return
 	}
-	in.Title = strings.TrimSpace(in.Title)
-	if n := utf8.RuneCountInString(in.Title); n < 1 || n > docTreeDocTitle {
-		writeErr(w, http.StatusBadRequest, "bad_request", "title is 1..500 characters")
+	in.Title = store.DocTitle(in.Title)
+	if utf8.RuneCountInString(in.Title) > docTreeDocTitle {
+		writeErr(w, http.StatusBadRequest, "bad_request", "title is at most 500 characters")
 		return
 	}
 	doc, root, err := c.st.DocCreate(r.Context(), c.tenant, in.Title, c.who)
@@ -258,6 +269,33 @@ func (s *Server) handleDocTreeCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": doc, "root": root, "rev": 1})
+}
+
+// handleDocTreeRename renames the document under the doc lock: rev is the
+// doc rev read (0 = none), "" or blanks give store.DocUntitled.
+func (s *Server) handleDocTreeRename(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.docTreeCaller(w, r, rbac.DocsWrite)
+	if !ok {
+		return
+	}
+	var in struct {
+		Title string `json:"title"`
+		Rev   int64  `json:"rev"`
+	}
+	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only title, rev)") {
+		return
+	}
+	title := store.DocTitle(in.Title)
+	if utf8.RuneCountInString(title) > docTreeDocTitle {
+		writeErr(w, http.StatusBadRequest, "bad_request", "title is at most 500 characters")
+		return
+	}
+	res, err := c.st.DocRename(r.Context(), c.tenant, r.PathValue("doc"), in.Rev, title, c.who)
+	if err != nil {
+		docTreeFail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rev": res.Rev, "title": title})
 }
 
 func (s *Server) handleDocTreeHead(w http.ResponseWriter, r *http.Request) {
@@ -504,14 +542,15 @@ func (s *Server) handleDocTreeAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Rev    int64  `json:"rev"`
-		Anchor string `json:"anchor"`
-		Where  string `json:"where"`
-		Ord    int    `json:"ord"`
-		Title  string `json:"title"`
-		Body   string `json:"body"`
+		Rev    int64           `json:"rev"`
+		Anchor string          `json:"anchor"`
+		Where  string          `json:"where"`
+		Ord    int             `json:"ord"`
+		Title  string          `json:"title"`
+		Body   string          `json:"body"`
+		Attrs  json.RawMessage `json:"attrs"`
 	}
-	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only rev, anchor, where, ord, title, body)") ||
+	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only rev, anchor, where, ord, title, body, attrs)") ||
 		!docTreeTextOK(w, in.Title, in.Body) {
 		return
 	}
@@ -520,13 +559,22 @@ func (s *Server) handleDocTreeAdd(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		var res store.DocOpResult
 		res, err = c.st.DocItemAdd(r.Context(), c.tenant, store.DocItemAddReq{DocID: doc, Rev: in.Rev, Anchor: anchor,
-			Where: store.DocWhere(in.Where), Ord: in.Ord, Title: in.Title, Body: in.Body, Actor: c.who})
+			Where: store.DocWhere(in.Where), Ord: in.Ord, Title: in.Title, Body: in.Body, Attrs: docTreeAttrsArg(in.Attrs), Actor: c.who})
 		if err == nil {
 			writeJSON(w, http.StatusOK, map[string]any{"rev": res.Rev, "item": res.ItemID})
 			return
 		}
 	}
 	docTreeFail(w, err)
+}
+
+// docTreeAttrsArg is the add's attrs as the store takes them: "" when absent
+// or null, else the raw JSON (the store refuses anything but an object).
+func docTreeAttrsArg(raw json.RawMessage) string {
+	if t := strings.TrimSpace(string(raw)); t != "null" {
+		return t
+	}
+	return ""
 }
 
 func (s *Server) handleDocTreeMove(w http.ResponseWriter, r *http.Request) {

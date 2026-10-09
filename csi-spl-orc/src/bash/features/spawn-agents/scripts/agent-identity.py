@@ -61,7 +61,9 @@ import time
 
 KINDS = ("claude", "grok", "agy", "qwen", "mistral")
 # A CLI whose binary is not named after its kind (specs/110: mistral runs vibe).
-BIN_KIND = {"vibe": "mistral"}
+# vibe renames itself "Vibe CLI" with setproctitle (cmdline AND comm): read
+# by that name only, a live m- seat was never recorded nor adopted (drill 6).
+BIN_KIND = {"vibe": "mistral", "Vibe CLI": "mistral"}
 LOADERS = ("node", "nodejs", "bun", "deno")
 # A python entry-point script (pipx / uv tool, as vibe is) runs as
 # `python3.13 <bin dir>/vibe ...`: its argv[1] names the CLI.
@@ -204,7 +206,7 @@ class Proc:
 def kind_of(argv):
     if not argv:
         return ""
-    base = os.path.basename(argv[0])
+    base = os.path.basename(argv[0]).rstrip()
     if base in LOADERS or base.startswith("ld-linux") or PY_LOADER.match(base):
         base = os.path.basename(argv[1]) if len(argv) > 1 else ""
     base = BIN_KIND.get(base, base)
@@ -837,7 +839,7 @@ def cmd_alive(args, proc):
     # comm, the rule the dispatch lease's /proc walk uses), so a shell that
     # merely inherited the env id never counts as alive.
     kind = r.get("kind") or "claude"
-    if kind_of(proc.argv(pid)) != kind and proc.read(pid, "comm").strip() != kind:
+    if kind not in (kind_of(proc.argv(pid)), kind_of([proc.read(pid, "comm").strip()])):
         return 1
     env = proc.environ(pid)
     if renamed(env.get("SPOOL_AGENT_ID") or env.get("MCP_BOT_AGENT_ID") or "") != args.id:

@@ -26,6 +26,9 @@
 #   7. a process of another spool root, or a test's (SPOOL_TEST=1) under a
 #      writer outside a test, is never recorded; under SPOOL_TEST=1 a write to
 #      the live root's map is refused with exit 96 (control: a temp root writes)
+#   8. a mistral seat whose vibe renamed itself "Vibe CLI" is recorded as
+#      mistral, and adopt + pane-of route a restarted one to its new pane
+#      (drill 6); controls: a shell or another id is never adopted
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -190,5 +193,39 @@ eq "7. ... a dry run (no write) still runs" 0 "$rc"
 out="$(SPOOL_LIVE_ROOT="$LIVE" SPOOL_ROOT="$T_TMP/ctl" bash -c '. "$1/lib/agent-identity.inc.sh"; ai_record --apply' _ "$T_FEAT" 2>&1)"; rc=$?
 eq "7. control: the same write to a temp root -> exit 0" 0 "$rc"
 check "7. ... and it wrote the records" test -s "$T_TMP/ctl/agents/CLE-2.json"
+
+# --- 8 --------------------------------------------------------------------------
+# Drill 6 (sat, 2026-10-09): every restart of an m- seat failed with "the
+# identity map routes m-617 to 'nothing'". vibe renames itself "Vibe CLI" with
+# setproctitle (cmdline padded with NULs, comm too), so the map never knew it
+# was mistral: no record, adopt refused the new pid, pane-of gave nothing.
+vibe() {  # PID PPID START CWD ID: a vibe after its setproctitle
+  proc "$1" "$2" "$3" "Vibe CLI" "$4" "$5" "" ""
+  printf 'Vibe CLI\n' > "$P/$1/comm"
+}
+proc 800 1 800 /bin/bash "$T_TMP" ""
+vibe 802 800 802 "$W/m-617" m-617
+printf 't\t@8\t%%8\t800\tbx: m-617 mistral seat\n' >> "$AI_PANES_FILE"
+out="$(ai_record --apply)"
+has "8. a 'Vibe CLI' process carrying m-617 is recorded" "WRITE m-617" "$out"
+eq "8. ... as kind mistral, in its pane" "mistral|%8" "$(rec m-617 kind)|$(rec m-617 pane_id)"
+eq "8. ... ai_alive (python) proves it" 802 "$(ai_alive m-617)"
+eq "8. ... ai_pane_of (bash) routes to it" "%8" "$(ai_pane_of m-617 "$(cut -f3 "$AI_PANES_FILE")")"
+# the restart: a fresh vibe in a new pane while the old one still runs
+proc 900 1 900 /bin/bash "$T_TMP" ""
+vibe 902 900 902 "$W/m-617" m-617
+printf 't\t@9\t%%9\t900\tbx: m-617 mistral seat\n' >> "$AI_PANES_FILE"
+out="$(ai_adopt m-617 902)"
+has "8. adopt takes the restarted vibe's pid" "adopt: m-617 -> pid 902 pane %9" "$out"
+eq "8. ... so pane-of routes m-617 to the new pane (drill 6's 'nothing')" "%9" "$(ai_pane_of m-617 "$(cut -f3 "$AI_PANES_FILE")")"
+# controls: a shell carrying the id, and a 'Vibe CLI' carrying another id
+proc 910 900 910 /bin/bash "$W/m-617" m-617
+has "8. control: adopt refuses a shell that merely carries m-617" "is not a live agent carrying m-617" "$(ai_adopt m-617 910)"
+vibe 920 900 920 "$W/m-629" m-629
+has "8. control: adopt refuses a vibe carrying another id" "is not a live agent carrying m-617" "$(ai_adopt m-617 920)"
+eq "8. ... and the map still routes m-617 to %9" "%9" "$(ai_pane_of m-617 "$(cut -f3 "$AI_PANES_FILE")")"
+printf 'SPOOL_AGENT_ID=m-629\0' > "$P/902/environ"
+if ai_pane_of m-617 "$(cut -f3 "$AI_PANES_FILE")" >/dev/null; then nok "8. control: no pane once the vibe carries another id"; else ok "8. control: no pane once the vibe carries another id"; fi
+rm -rf "$P/800" "$P/802" "$P/900" "$P/902" "$P/910" "$P/920"
 
 t_done

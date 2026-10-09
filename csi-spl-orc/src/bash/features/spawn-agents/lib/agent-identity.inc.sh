@@ -146,8 +146,11 @@ ai_alive_fast() {  # ID
   [ "${f[19]:-}" = "$start" ] || return 1
   { IFS= read -r -d '' a0; IFS= read -r -d '' a1; } < "$root/$pid/cmdline" 2>/dev/null
   { IFS= read -r comm < "$root/$pid/comm"; } 2>/dev/null
-  a0="${a0##*/}"; a1="${a1##*/}"
-  case "$a0" in node|nodejs|bun|deno|ld-linux*) a0="$a1" ;; esac
+  a0="${a0##*/}"; a1="${a1##*/}"; a0="${a0%"${a0##*[! ]}"}"
+  case "$a0" in node|nodejs|bun|deno|ld-linux*|python|python[0-9]*) a0="$a1" ;; esac
+  # mistral runs vibe, which renames itself "Vibe CLI" (cmdline and comm)
+  case "$a0" in vibe|"Vibe CLI") a0=mistral ;; esac
+  case "$comm" in vibe|"Vibe CLI") comm=mistral ;; esac
   [ "$a0" = "$kind" ] || [ "$comm" = "$kind" ] || return 1
   # Another user's agent (the agent user) through its owner (proc-owner.inc.sh);
   # a readable environ stays a builtin read, no fork.

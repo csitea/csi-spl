@@ -39,6 +39,11 @@ do_spl_doc_tree_timing() {
   # below: it is a dev/CI tool, not one the box user's verify checks
   # (satellite-ansible.tst.sh case 8 reads the required-tool lists).
   do_require_bin docker || return 1
+  # Sourced BEFORE the RETURN trap below: a finished `source` fires a RETURN
+  # trap too, which removed the container before the go test ran.
+  # The fleet's desk box id (specs/058), not hostname: hosts may share one.
+  # shellcheck source=../../../lib/bash/funcs/spl-desk-box.func.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
 
   local dsn="${TIMING_PG_DSN:-}" con=""
   if [[ -z "$dsn" ]]; then
@@ -50,9 +55,6 @@ do_spl_doc_tree_timing() {
 
   local sha load box rc=0
   sha="$(git -C "$mod" rev-parse --short=9 HEAD 2>/dev/null || echo unknown)"
-  # The fleet's desk box id (specs/058), not hostname: hosts may share one.
-  # shellcheck source=../../../lib/bash/funcs/spl-desk-box.func.sh
-  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
   box="$(spl_desk_box_default)"
   load="$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo unknown)"
   do_log "INFO doc tree timing: sha=$sha box=$box load=$load cpus=$(nproc) n=${WSDOC_TIMING_N:-5} ceilings=${WSDOC_TIMING_CEILINGS:-default}"

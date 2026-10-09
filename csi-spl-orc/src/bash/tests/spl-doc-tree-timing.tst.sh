@@ -4,7 +4,8 @@
 # a fake docker and a fake go:
 #   1. it runs ONLY TestWorkspaceDocTiming in ./internal/store/, with
 #      SPOOL_TEST_WSDOC_TIMING_GATE=1, without -race, on the DSN of the
-#      throwaway container, and removes the container; the go exit 0 is its 0
+#      throwaway container, and removes the container only AFTER the go test
+#      (a RETURN trap fired by a `source` once removed it first); go exit 0 is 0
 #   2. a red test (go exit 1) is a non-zero exit, and the container is still
 #      removed; WSDOC_TIMING_CEILINGS and WSDOC_TIMING_N reach the test
 #   3. TIMING_PG_DSN set: no container at all, that DSN is used
@@ -58,6 +59,7 @@ gl="$(grep '^go ' "$STUB_LOG")"
   && ! grep -q -- '-race' <<<"$gl" && grep -q 'gate=1 ' <<<"$gl" && grep -q 'pwd=.*/csi-spl-api/src/go/spool-hub-api ' <<<"$gl" \
   && grep -q 'dsn=postgres://spool_app:.*@127.0.0.1:54999/spool_hub_app' <<<"$gl" \
   && grep -q '^docker rm -fv spl-doc-timing-' "$STUB_LOG" && grep -q 'box=box-t load=.* cpus=' "$T/out" \
+  && [ "$(grep -nE '^(go |docker rm )' "$STUB_LOG" | cut -d' ' -f1 | tr '\n' ' ')" = "$(grep -n '^go ' "$STUB_LOG" | cut -d' ' -f1) $(grep -n '^docker rm ' "$STUB_LOG" | cut -d' ' -f1) " ] \
   && pass "1. one go test, the timing test alone, gated, no -race, on the container, removed" \
   || fail "1. green run (rc $rc): $(cat "$STUB_LOG" "$T/out")"
 

@@ -9,6 +9,9 @@ published: 2026-10-09T10:20:29Z
 author: a-663
 agy_review: a-663
 tags: [fleet, mistral, open-source]
+image: 2026-10-09-taking-up-mistral.webp
+image_alt: "The spool hub logo and the Mistral logo joined by a beam of light that turns from blue to orange"
+image_prompt: "two logos coming together on a dark navy background: the round spool hub logo on the left, the official Mistral icon on the right, joined by a thin horizontal beam of light that fades from blue through a bright white centre flare to orange; composed from the real logo files, not generated"
 draft: false
 ---
 The spool fleet now includes Mistral seats alongside its existing models. Bringing an EU vendor from France into the lineup is a step toward European sovereignty in artificial intelligence, adding a European model beside US ones.

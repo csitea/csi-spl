@@ -44,6 +44,14 @@
 #      the fork spliced out (the old marker-only --rebirth) types nothing.
 #      A human client active in THAT window: nothing typed; one active in
 #      ANOTHER window of the same session: /exit typed once
+#  14. 2026-10-08/09 (c-585 / c-602 / c-623): a lane that ran /exit-clean
+#      itself sat idle at an empty prompt and never left. The --defer closer
+#      types /exit into an idle claude, which leaves; the window closes and the
+#      id is retired well before the timeout. Control: the agy-only closer
+#      types nothing and the window stays. A CLI that never leaves (a running
+#      turn) is closed and retired by the timeout, with one log line. --retire
+#      without --agent is refused (2), closing nothing; control: the old code
+#      killed the window and retired nothing
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -319,4 +327,53 @@ check "13. a human in another window: the idle harness gets /exit and leaves" go
 sleep 3
 eq "13. ... /exit was typed exactly once" 1 "$(grep -cx /exit "$T_TMP/got-419" 2>/dev/null)"
 detach_humans
+
+# --- 14. a lane that ran /exit-clean itself is closed and retired (2026-10-08/09) --------
+# c-585 / c-602 / c-623 sent their result, scheduled the close and sat idle at
+# an empty prompt: nobody typed /exit, so the CLI never left and the window
+# waited out the timeout (or a human closed it). The closer now types /exit
+# into ANY harness idle at an empty prompt; the timeout still kills a CLI
+# that never leaves, and retires the id with one log line.
+retired() { ! grep -q "^$1	" "$SPOOL_ROOT/registry.tsv" && compgen -G "$SPOOL_ROOT/.retired/$1.*" >/dev/null; }
+gone_and_retired() { for _ in $(seq 1 "$3"); do ! alive "$1" && retired "$2" && return 0; sleep 0.5; done; return 1; }
+lane14() {  # ID [busy] -> pane of a fake claude lane with its registry row
+  local p
+  p="$(t_window "$1@tbox" "sh $T_TMP/bin/claude-pane $T_TMP/bin/claude-fake $T_TMP/got-${1#c-} ${2:-}")"
+  printf '%s\tclaude\t%s\t/x\t20261009T040000Z\tc-001\n' "$1" "$p" >>"$SPOOL_ROOT/registry.tsv"
+  printf '%s\n' "$p"
+}
+rm -f "$CLOSE_LOG_DIR"/kill-your-self-close-*.log
+P14="$(lane14 c-421)"
+sleep 1
+CLE_TMUX_PANE="$P14" bash "$SUT" --agent c-421 --defer --retire --timeout 60 >"$T_TMP/o" 2>&1; eq "14. --defer --retire returns 0 at once" 0 "$?"
+check "14. the idle claude gets /exit typed and leaves by itself" got_exit "$T_TMP/got-421" 40
+check "14. ... then its window is closed and c-421 retired, well before the 60 s timeout" gone_and_retired "$P14" c-421 20
+has "14. the log names the /exit it typed" "idle at an empty prompt: typing /exit (try 1)" "$(cat "$CLOSE_LOG_DIR"/kill-your-self-close-*.log 2>/dev/null)"
+# Control: the closer as it was (/exit typed into agy only) leaves the idle lane open.
+mkdir -p "$T_TMP/pre14/scripts"; ln -s "$(cd "$(dirname "$SUT")/../lib" && pwd)" "$T_TMP/pre14/lib"
+awk '{ print } /^type_exit_when_idle\(\) \{$/ { print "  (( ${#AGY_PIDS[@]} > 0 )) || return 0" }' "$SUT" >"$T_TMP/pre14/scripts/tmux-close-window.sh"
+has "14. control: the old agy-only guard is spliced in" '(( ${#AGY_PIDS[@]} > 0 )) || return 0' "$(cat "$T_TMP/pre14/scripts/tmux-close-window.sh")"
+P14B="$(lane14 c-422)"
+sleep 1
+CLE_TMUX_PANE="$P14B" bash "$T_TMP/pre14/scripts/tmux-close-window.sh" --agent c-422 --defer --retire --timeout 60 >"$T_TMP/o" 2>&1
+sleep 15
+eq "14. control: the old closer types nothing into the idle claude" "" "$(cat "$T_TMP/got-422" 2>/dev/null)"
+check "14. control: ... its window is still open" alive "$P14B"
+check "14. control: ... and c-422 is not retired" grep -q "^c-422	" "$SPOOL_ROOT/registry.tsv"
+# A CLI that never leaves (a running turn: no /exit is typed) is closed by the timeout.
+P14C="$(lane14 c-423 busy)"
+sleep 1
+CLE_TMUX_PANE="$P14C" bash "$SUT" --agent c-423 --defer --retire --timeout 4 >"$T_TMP/o" 2>&1
+check "14. a CLI that never leaves: the timeout closes the window and retires c-423" gone_and_retired "$P14C" c-423 30
+eq "14. ... nothing was typed into the running turn" "" "$(cat "$T_TMP/got-423" 2>/dev/null)"
+eq "14. ... with ONE log line naming it" 1 "$(cat "$CLOSE_LOG_DIR"/kill-your-self-close-*.log 2>/dev/null | grep -c 'timeout 4s: c-423 never left pane .* and retiring c-423$')"
+# --retire with no id to retire: refused before anything is closed (the orchestrator's side note).
+P14D="$(lane14 c-424)"
+bash "$SUT" --pane "$P14D" --retire >"$T_TMP/o" 2>&1; eq "14. --retire without --agent is refused (2)" 2 "$?"
+check "14. ... and closes nothing" alive "$P14D"
+mkdir -p "$T_TMP/pre14r/scripts"; ln -s "$(cd "$(dirname "$SUT")/../lib" && pwd)" "$T_TMP/pre14r/lib"
+awk '/^# --retire needs the id to retire/ { skip = 1 } skip { if (/^fi$/) skip = 0; next } { print }' "$SUT" >"$T_TMP/pre14r/scripts/tmux-close-window.sh"
+bash "$T_TMP/pre14r/scripts/tmux-close-window.sh" --pane "$P14D" --retire >"$T_TMP/o" 2>&1
+check "14. control: the old code kills the window ..." bash -c "! tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id}' | grep -qx '$P14D'"
+check "14. control: ... and leaves c-424 unretired" grep -q "^c-424	" "$SPOOL_ROOT/registry.tsv"
 t_done

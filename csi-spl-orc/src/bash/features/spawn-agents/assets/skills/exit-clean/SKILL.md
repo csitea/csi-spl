@@ -54,6 +54,11 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOU
 
 ## 3. Schedule the window close, then exit
 
+First stop every background shell or job you started that still runs (on
+claude: TaskStop on each; the footer must no longer read `N shell(s)`). A
+watch left running keeps the session open after /exit-clean (c-585, c-602,
+c-623, 2026-10-08/09).
+
 Pass YOUR OWN id; the helper refuses any window that does not carry it.
 Run it with NO outer `sudo`: `--defer` also needs your own pane
 (`$CLE_TMUX_PANE` ...), which sudo strips, and without it the helper refuses
@@ -85,15 +90,15 @@ bash {{HARNESS_DIR}}/scripts/tmux-close-window.sh --agent <YOUR-AGENT-ID> --rebi
 Then end your turn: your last message is the one-line report, nothing after it.
 
 `/exit` is a built-in CLI command, not a tool: you cannot run it, and asking
-the human to type it is wrong. Whoever invoked `/exit-clean` ends the session
+the human to type it is wrong. The `--defer` closer types `/exit` into your
+pane once you sit idle at an empty prompt (any harness), and kills the window
+and retires the id at its timeout if you never leave. Whoever invoked `/exit-clean` ends the session
 once your turn is over: the hourly rotation's RETIRE step sends
 `/exit-clean no-close` and types `/exit` into this pane when it reads idle
 (it closes the window itself: a retiring session whose successor carries the
 same id never schedules the close above), and the
-deferred close kills the window after its timeout. On agy the closer types
-`/exit` itself once agy sits idle at an empty `>` prompt, so agy leaves with
-status 0 and the window closes then; it runs detached, so agy ending your
-command does not stop it.
+deferred close kills the window after its timeout. The closer runs detached,
+so a harness ending your command (agy) does not stop it.
 
 ## 4. Arguments
 

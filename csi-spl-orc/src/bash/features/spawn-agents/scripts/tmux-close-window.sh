@@ -53,11 +53,13 @@
 # command in a fresh pty session and kills that session when the command
 # returns, so a plain `( ... ) & disown` closer died with it: a finished agy
 # agent's window then stayed open for good (a-420, a-424, a-474: empty or
-# missing close logs). agy has a /exit command but its model cannot type it,
-# so for an agy pane the closer types `/exit` itself once agy is idle: its
-# footer reads `? for shortcuts` (mid-turn it reads `esc to cancel`, and the
-# empty `>` input line shows either way). The scheduled closer is the done marker: only /exit-clean
-# schedules one, and an idle agy with no closer is never touched.
+# missing close logs). No model can type its own /exit, and after a lane runs
+# /exit-clean itself nobody else does (c-585 / c-602 / c-623 sat idle until a
+# human closed them), so the closer types `/exit` itself once the harness is
+# idle at an empty prompt (agy: its footer reads `? for shortcuts`, mid-turn
+# `esc to cancel`; others: rebirth_screen_idle). The scheduled closer is the
+# done marker: only /exit-clean schedules one, and an idle agent with no closer
+# is never touched. The timeout is the backstop: kill-window, then --retire.
 #
 # Usage:
 #   tmux-close-window.sh --agent CLE-07 --defer     # the teardown path
@@ -120,12 +122,15 @@ Options:
                      own live pane ($TMUX_PANE / $CLE_TMUX_PANE ...) or --pane.
   --pane %N          Explicit tmux pane id. Verified to exist.
   --defer            Fork a background closer that waits for claude|grok|agy|qwen|vibe in
-                     the resolved pane to exit (or --timeout), then kill-window.
+                     the resolved pane to exit (typing /exit once it is idle
+                     at an empty prompt) or --timeout, then kill-window.
                      Parent exits 0 immediately so the agent can /exit.
   --retire           After the window is closed, retire the --agent id
                      (scripts/agent-id-retire.sh, specs/061 3.6): its spool dir,
                      registry rows and identity record move aside, so the
                      allocator may reuse the number after the quarantine.
+                     Without --agent (or $MCP_BOT_AGENT_ID) it is refused
+                     (exit 2) and nothing is closed.
   --rebirth          /exit-clean --rebirth (specs/102 4.3): write
                      <spool root>/<id>/lifetime/rebirth, then a detached closer
                      types /exit into the caller's own pane once the harness is
@@ -195,6 +200,13 @@ if [[ -z "$TIMEOUT" && "$REBIRTH" -eq 1 ]]; then TIMEOUT=900; elif [[ -z "$TIMEO
 if [[ "$HELP" -eq 1 ]]; then
   usage
   exit 0
+fi
+# --retire needs the id to retire. Without one it used to kill the window and
+# retire nothing, leaving the registry row and spool dir open (the orchestrator,
+# 2026-10-09). Refuse before anything is closed.
+if [[ "$RETIRE" -eq 1 && -z "$AGENT_ARG" && -z "${MCP_BOT_AGENT_ID:-}" ]]; then
+  echo "tmux-close-window: REFUSED — --retire needs --agent <ID> (the id to retire); closed nothing" >&2
+  exit 2
 fi
 
 # --- socket + tmux-as-BOX_USER ---------------------------------------------
@@ -742,30 +754,49 @@ if [[ -z "${TCW_DETACHED:-}" && -z "${TCW_NO_SETSID:-}" ]] && command -v setsid 
   echo "tmux-close-window: setsid failed; closing from this session" >&2
 fi
 
-# agy cannot run its own /exit: type it into the pane once agy is idle.
+# Nobody types /exit after a lane runs /exit-clean itself: its own turn ends
+# and the CLI sits idle at an empty prompt until the timeout kills the window
+# (c-585 / c-602 / c-623, 2026-10-08/09: closed by hand as "never exited").
+# agy cannot type its /exit either. So the closer types `/exit` into ANY
+# harness once it sits idle at an empty prompt; the timeout stays the
+# backstop that kills the window and retires the id.
 AGY_PIDS=()
 for _pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
   _a0="$(ps -p "$_pid" -o args= 2>/dev/null)"; _a0="${_a0%% *}"
   [[ "${_a0##*/}" == agy ]] && AGY_PIDS+=("$_pid")
 done
 
-# Idle = the footer reads `? for shortcuts`, never `esc to cancel` (a turn in
-# progress, even one paused on a static screen: a-479 got three /exit tries
-# mid-turn on the screen-stability rule alone), the input line is an empty
-# `>`, and the screen did not change for 3 polls. Tries are >= 10 s apart.
-# An agy whose footer never reads idle is closed by the timeout, as before.
-AGY_LAST="" AGY_SAME=0 AGY_TRIES=0 AGY_NEXT=0
-agy_type_exit_when_idle() {
-  (( ${#AGY_PIDS[@]} > 0 && AGY_TRIES < 3 && SECONDS >= AGY_NEXT )) || return 0
+# agy idle = the footer reads `? for shortcuts`, never `esc to cancel` (a turn
+# in progress, even one paused on a static screen: a-479 got three /exit tries
+# mid-turn on the screen-stability rule alone), the input line is an empty `>`.
+# Any other harness: rebirth_screen_idle (no running turn, no dialog, an empty
+# prompt line; text typed into the prompt is left alone). Either way the screen
+# did not change for 3 polls, tries are >= 10 s apart, and never while a human
+# is active in that window. One that never reads idle is closed by the timeout.
+EXIT_LAST="" EXIT_SAME=0 EXIT_TRIES=0 EXIT_NEXT=0 EXIT_WATCHED=0
+type_exit_when_idle() {
+  (( ${#AGENT_PIDS[@]} > 0 && EXIT_TRIES < 3 && SECONDS >= EXIT_NEXT )) || return 0
   local screen
-  screen="$("${TM[@]}" capture-pane -p -t "$GUARD_PANE" 2>/dev/null)" || return 0
-  if [[ "$screen" == "$AGY_LAST" ]]; then AGY_SAME=$((AGY_SAME + 1)); else AGY_SAME=0; AGY_LAST="$screen"; fi
-  (( AGY_SAME >= 3 )) || return 0
-  printf '%s\n' "$screen" | grep -E '^>[[:space:]]*$' >/dev/null || return 0
-  printf '%s\n' "$screen" | grep -E '^[[:space:]]*\? for shortcuts' >/dev/null || return 0
-  printf '%s\n' "$screen" | grep -F 'esc to cancel' >/dev/null && return 0
-  AGY_TRIES=$((AGY_TRIES + 1)) AGY_SAME=0 AGY_NEXT=$((SECONDS + 10))
-  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) agy idle at an empty prompt: typing /exit (try $AGY_TRIES)"
+  if (( ${#AGY_PIDS[@]} > 0 )); then
+    screen="$("${TM[@]}" capture-pane -p -t "$GUARD_PANE" 2>/dev/null)" || return 0
+  else
+    screen="$(rebirth_idle_screen "$GUARD_PANE")"
+  fi
+  if [[ "$screen" == "$EXIT_LAST" ]]; then EXIT_SAME=$((EXIT_SAME + 1)); else EXIT_SAME=0; EXIT_LAST="$screen"; fi
+  (( EXIT_SAME >= 3 )) || return 0
+  if (( ${#AGY_PIDS[@]} > 0 )); then
+    printf '%s\n' "$screen" | grep -E '^>[[:space:]]*$' >/dev/null || return 0
+    printf '%s\n' "$screen" | grep -E '^[[:space:]]*\? for shortcuts' >/dev/null || return 0
+    printf '%s\n' "$screen" | grep -F 'esc to cancel' >/dev/null && return 0
+  else
+    rebirth_screen_idle "$screen" || return 0
+  fi
+  if rebirth_human_watching "$GUARD_PANE"; then
+    (( EXIT_WATCHED++ )) || echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) idle, but a human is active in this window: /exit waits"
+    return 0
+  fi
+  EXIT_TRIES=$((EXIT_TRIES + 1)) EXIT_SAME=0 EXIT_NEXT=$((SECONDS + 10))
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) ${AGY_PIDS[*]:+agy }idle at an empty prompt: typing /exit (try $EXIT_TRIES)"
   "${TM[@]}" send-keys -t "$GUARD_PANE" -l '/exit' 2>/dev/null
   sleep 1
   "${TM[@]}" send-keys -t "$GUARD_PANE" Enter 2>/dev/null
@@ -788,11 +819,12 @@ agy_type_exit_when_idle() {
         fi
       done
       (( alive == 0 )) && break
-      agy_type_exit_when_idle
+      type_exit_when_idle
       sleep 0.5
     done
     if (( SECONDS >= deadline )); then
-      echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) timeout waiting for agent PIDs; closing anyway"
+      # The one line that names a lane which cleaned up but never left.
+      echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) timeout ${TIMEOUT}s: ${AGENT_ID:-the agent} never left pane ${PANE:-?}; closing window $WINDOW_TARGET$( ((RETIRE)) && [[ -n "${AGENT_ID:-}" ]] && printf ' and retiring %s' "$AGENT_ID")"
     else
       echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) agent PIDs gone"
     fi

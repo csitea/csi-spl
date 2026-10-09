@@ -38,14 +38,17 @@
 #------------------------------------------------------------------------------
 # The checks a pull request must pass for the trunk ruleset: wf 11's one job
 # "gate" calls wf 10, so each check run is "gate / <wf 10 job name>". The
-# matrix e2e shards and gate-health (runs only on a failure) are left out.
-# oss-public-settings.tst.sh fails when one of these stops matching wf 10/11.
+# matrix e2e shards and gate-health (runs only on a failure) are left out;
+# the orc suite's two shards are both required ("<name> ${{ matrix.shard }}/2"
+# in wf 10). oss-public-settings.tst.sh fails when one of these stops
+# matching wf 10/11.
 oss_ruleset_checks() {
   printf '%s\n' \
     "gate / hub: gofmt, go vet, go test, smoke, Postgres + GCS gates" \
     "gate / wui: unit tests + typecheck" \
     "gate / iac: tfvars parity, step contracts, terraform validate" \
-    "gate / orc: hermetic action tests (stubbed gcloud/curl/docker)" \
+    "gate / orc: hermetic action tests (stubbed gcloud/curl/docker) 1/2" \
+    "gate / orc: hermetic action tests (stubbed gcloud/curl/docker) 2/2" \
     "gate / cnf: conf-validator exit codes" \
     "gate / spool source carries no ysg-box reference" \
     "gate / sec: gitleaks, trivy config, checkov (read-only)" \

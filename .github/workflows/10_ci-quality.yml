@@ -670,12 +670,19 @@ jobs:
   # and a throwaway postgres:16-alpine (pulled here, since the test never
   # pulls). No GCP, no tmux server, no running lde stack. Spawn-agents tests
   # are never part of this gate (016 FR-011).
+  # Two shards (ORC_TEST_SHARD=<k>/2, every 2nd file): one job reached the
+  # 20-min cap with 266 of 280 files done (runs 37851965128, 37857115383;
+  # green runs before took 16-17 min). Each shard prints its 10 slowest files.
   # ===========================================================================
   orc-suite:
-    name: "orc: hermetic action tests (stubbed gcloud/curl/docker)"
+    name: "orc: hermetic action tests (stubbed gcloud/curl/docker) ${{ matrix.shard }}/2"
     needs: classify
     if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     timeout-minutes: 20
     # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
     # in the run ends this one, so a red gate frees its slot.
@@ -750,6 +757,7 @@ jobs:
         env:
           GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}
           GH_TOKEN: ${{ github.token }}
+          ORC_TEST_SHARD: ${{ matrix.shard }}/2
         run: |
           set -euo pipefail
           bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
@@ -771,8 +779,10 @@ jobs:
       # host. They run here instead, in a throwaway container whose
       # user has passwordless sudo, setfacl and a `nobody`; yq is the runner's.
       # The container has no docker compose, so lde-stack's compose check
-      # SKIPs there -- the host run above covers it.
+      # SKIPs there -- the host run above covers it. Shard 1 only: it runs
+      # its three files whole, whichever shard runs them on the host.
       - name: Root-only sections in a container (sudo, setfacl, nobody)
+        if: matrix.shard == 1
         run: |
           set -euo pipefail
           docker build -q -t spl-orc-sudo:ci - <<'DOCKERFILE'

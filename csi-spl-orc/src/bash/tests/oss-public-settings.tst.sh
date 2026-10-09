@@ -128,8 +128,11 @@ DRY_RUN=0 OSS_SET_RULESET=1 act && grep -q '^api -X PUT repos/o/app/rulesets/9' 
 # the required check names are what wf 11 -> wf 10 really report
 grep -qE '^  gate:$' "$WF_DIR/11_ci-public.yml" && grep -qE '^    name: "gate"$' "$WF_DIR/11_ci-public.yml" \
   && ok "wf 11's one job is named gate" || no "wf 11 has no job named \"gate\": the ruleset's check names are stale"
+# a matrix shard "<name> k/m" is reported by a job named "<name> ${{ matrix.shard }}/m"
 while IFS= read -r c; do
-  grep -qF "    name: \"${c#gate / }\"" "$WF_DIR/10_ci-quality.yml" && ok "wf 10 reports: $c" || no "wf 10 has no job named \"${c#gate / }\" (update oss_ruleset_checks)"
+  n="${c#gate / }"
+  [[ "$n" =~ ^(.*)\ [0-9]+/([0-9]+)$ ]] && n="${BASH_REMATCH[1]} \${{ matrix.shard }}/${BASH_REMATCH[2]}"
+  grep -qF "    name: \"$n\"" "$WF_DIR/10_ci-quality.yml" && ok "wf 10 reports: $c" || no "wf 10 has no job named \"$n\" (update oss_ruleset_checks)"
 done < <(oss_ruleset_checks)
 
 echo "=== oss-public-settings: $fails failure(s)"

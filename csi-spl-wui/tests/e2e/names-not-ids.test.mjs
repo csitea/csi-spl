@@ -133,8 +133,14 @@ try {
     const who = card && card.querySelector('.person-name')
     return body ? { text: body.textContent.replace(/\s+/g, ' ').trim(), title: who ? who.getAttribute('title') : '' } : null
   }, { timeout: 15000 }, run).then((h) => h.jsonValue(), () => null)
+  /* red only on the hosted runner (3 of 10 runs, never reproduced on the box): say what the page held */
+  const seen = poke || await p.evaluate((o) => ({
+    field: document.querySelector(o)?.value ?? null,
+    lists: [...document.querySelectorAll('[role=listbox], [data-test=mention-list]')].filter((e) => e.offsetParent !== null).length,
+    last: [...document.querySelectorAll('.msg')].slice(-3).map((m) => m.textContent.replace(/\s+/g, ' ').trim().slice(0, 120)),
+  }), OMNI).catch(() => null)
   ok('4 "HUM-2 needs you in ..." reads "Ann Example needs you in ...", the id on hover',
-    !!poke && poke.text.startsWith('Ann Example needs you in') && poke.title === 'HUM-2', poke)
+    !!poke && poke.text.startsWith('Ann Example needs you in') && poke.title === 'HUM-2', seen)
   ok('6 CONTROL: a nameless member (HUM-9) and an agent (CLE-07) keep their ids',
     !!poke && poke.text.includes('(HUM-9, CLE-07)'), poke)
 

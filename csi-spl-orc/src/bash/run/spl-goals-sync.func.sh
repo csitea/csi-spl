@@ -20,16 +20,12 @@
 
 set -euo pipefail
 
-do_spl_goals_sync() {
-    local repo_root
-    local goals_dir
-    local cnf_file
-    local tenant_id
-    local approver_role
-    local hub_base_url
-    local deploy_token
-    local batch_file
+_build_goal_batch() {
+    local repo_root="$1"
+    local tenant_id="$2"
+    local approver_role="$3"
     local batch=()
+    local goals_dir="${repo_root}/csi-spl-doc/goals"
     local goal_file
     local goal_id
     local goal_deadline
@@ -46,43 +42,7 @@ do_spl_goals_sync() {
     local milestone_key
     local milestone_date
     local milestone_title
-    local response
-    local response_code
-    local response_body
 
-    repo_root="$(git rev-parse --show-toplevel)"
-    goals_dir="${repo_root}/csi-spl-doc/goals"
-    cnf_file="${repo_root}/csi-spl-cnf/csi-spl/all.env.yaml"
-
-    # Fail fast if cnf keys are missing
-    if ! grep -q "^env:" "${cnf_file}"; then
-        echo "ERROR: ${cnf_file} missing \"env:\" section" >&2
-        exit 1
-    fi
-
-    tenant_id="$(yq eval ".env.roadmap.tenant_id // \"\"" "${cnf_file}")"
-    approver_role="$(yq eval ".env.roadmap.approver_role // \"\"" "${cnf_file}")"
-    hub_base_url="$(yq eval ".env.hub.base_url // \"\"" "${cnf_file}")"
-
-    if [[ -z "${tenant_id}" || -z "${approver_role}" ]]; then
-        echo "ERROR: env.roadmap.tenant_id or env.roadmap.approver_role missing in ${cnf_file}" >&2
-        exit 1
-    fi
-
-    if [[ -z "${hub_base_url}" ]]; then
-        echo "ERROR: env.hub.base_url missing in ${cnf_file}" >&2
-        exit 1
-    fi
-
-    if [[ -z "${DEPLOY_ID_TOKEN:-}" ]]; then
-        echo "ERROR: DEPLOY_ID_TOKEN not set" >&2
-        exit 1
-    fi
-
-    deploy_token="${DEPLOY_ID_TOKEN}"
-    batch_file="$(mktemp)"
-
-    # Build batch: goal deadlines and milestones
     for goal_file in "${goals_dir}"/*/goal.yaml; do
         if [[ ! -f "${goal_file}" ]]; then
             continue
@@ -100,7 +60,6 @@ do_spl_goals_sync() {
             continue
         fi
 
-        # Skip if not approved (D2)
         if [[ -z "${goal_approval_msg_id}" ]]; then
             echo "INFO: Skipping unapproved goal ${goal_id}" >&2
             continue
@@ -127,7 +86,7 @@ do_spl_goals_sync() {
 
         # Milestones
         local milestone_count
-        milestone_count="$(echo "${goal_milestones}" | yq eval 'length' -)"
+        milestone_count="$(echo "${goal_milestones}" | yq eval "length" -)"
         for ((i=0; i<milestone_count; i++)); do
             milestone_key="$(echo "${goal_milestones}" | yq eval ".[${i}].key // \"\"" -)"
             milestone_date="$(echo "${goal_milestones}" | yq eval ".[${i}].date // \"\"" -)"
@@ -157,16 +116,17 @@ do_spl_goals_sync() {
         done
     done
 
-    if [[ ${#batch[@]} -eq 0 ]]; then
-        echo "INFO: No goals to sync" >&2
-        rm -f "${batch_file}"
-        return 0
-    fi
+    echo "${batch[@]}"
+}
 
-    # Write batch to file
-    printf "%s\n" "${batch[@]}" > "${batch_file}"
+_send_to_hub() {
+    local hub_base_url="$1"
+    local deploy_token="$2"
+    local batch_file="$3"
+    local response
+    local response_code
+    local response_body
 
-    # Send to hub
     response="$(curl -s -w "\n%{http_code}" -X PUT "${hub_base_url}/v1/calendar/sync" \
         -H "Authorization: Bearer ${deploy_token}" \
         -H "Content-Type: application/json" \
@@ -174,8 +134,6 @@ do_spl_goals_sync() {
 
     response_code="$(echo "${response}" | tail -n1)"
     response_body="$(echo "${response}" | sed "$ d")"
-
-    rm -f "${batch_file}"
 
     if [[ "${response_code}" -eq 503 && "${response_body}" == *roadmap_not_configured* ]]; then
         echo "WARNING: Roadmap not configured (503 roadmap_not_configured)" >&2
@@ -185,5 +143,57 @@ do_spl_goals_sync() {
         exit 1
     fi
 
-    echo "INFO: Synced ${#batch[@]} events to calendar" >&2
+    echo "INFO: Synced $(wc -l < "${batch_file}") events to calendar" >&2
+}
+
+do_spl_goals_sync() {
+    local repo_root
+    local cnf_file
+    local tenant_id
+    local approver_role
+    local hub_base_url
+    local deploy_token
+    local batch_file
+    local batch
+
+    repo_root="$(git rev-parse --show-toplevel)"
+    cnf_file="${repo_root}/csi-spl-cnf/csi-spl/all.env.yaml"
+
+    if ! grep -q "^env:" "${cnf_file}"; then
+        echo "ERROR: ${cnf_file} missing \"env:\" section" >&2
+        exit 1
+    fi
+
+    tenant_id="$(yq eval ".env.roadmap.tenant_id // \"\"" "${cnf_file}")"
+    approver_role="$(yq eval ".env.roadmap.approver_role // \"\"" "${cnf_file}")"
+    hub_base_url="$(yq eval ".env.hub.base_url // \"\"" "${cnf_file}")"
+
+    if [[ -z "${tenant_id}" || -z "${approver_role}" ]]; then
+        echo "ERROR: env.roadmap.tenant_id or env.roadmap.approver_role missing in ${cnf_file}" >&2
+        exit 1
+    fi
+
+    if [[ -z "${hub_base_url}" ]]; then
+        echo "ERROR: env.hub.base_url missing in ${cnf_file}" >&2
+        exit 1
+    fi
+
+    if [[ -z "${DEPLOY_ID_TOKEN:-}" ]]; then
+        echo "ERROR: DEPLOY_ID_TOKEN not set" >&2
+        exit 1
+    fi
+
+    deploy_token="${DEPLOY_ID_TOKEN}"
+    batch_file="$(mktemp)"
+
+    batch=($(_build_goal_batch "${repo_root}" "${tenant_id}" "${approver_role}"))
+    if [[ ${#batch[@]} -eq 0 ]]; then
+        echo "INFO: No goals to sync" >&2
+        rm -f "${batch_file}"
+        return 0
+    fi
+
+    printf "%s\n" "${batch[@]}" > "${batch_file}"
+    _send_to_hub "${hub_base_url}" "${deploy_token}" "${batch_file}"
+    rm -f "${batch_file}"
 }

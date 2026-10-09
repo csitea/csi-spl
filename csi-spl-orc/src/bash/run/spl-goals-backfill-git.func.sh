@@ -20,14 +20,14 @@
 
 set -euo pipefail
 
-do_spl_goals_backfill_git() {
-    local repo_root
-    local cnf_file
-    local tenant_id
-    local hub_base_url
-    local deploy_token
-    local batch_file
+_build_backfill_batch() {
+    local repo_root="$1"
+    local tenant_id="$2"
     local batch=()
+    local milestones_file="${repo_root}/csi-spl-doc/goals/milestones.yaml"
+    local milestone_line
+    local milestone_date
+    local milestone_title
     local tag
     local tag_date
     local tag_message
@@ -37,39 +37,6 @@ do_spl_goals_backfill_git() {
     local event_source_key
     local event_audience
     local event_json
-    local response
-    local response_code
-    local response_body
-    local milestones_file
-    local milestone_line
-    local milestone_date
-    local milestone_title
-
-    repo_root="$(git rev-parse --show-toplevel)"
-    cnf_file="${repo_root}/csi-spl-cnf/csi-spl/all.env.yaml"
-    milestones_file="${repo_root}/csi-spl-doc/goals/milestones.yaml"
-
-    # Fail fast if cnf keys are missing
-    if ! grep -q "^env:" "${cnf_file}"; then
-        echo "ERROR: ${cnf_file} missing \"env:\" section" >&2
-        exit 1
-    fi
-
-    tenant_id="$(yq eval ".env.roadmap.tenant_id // \"\"" "${cnf_file}")"
-    hub_base_url="$(yq eval ".env.hub.base_url // \"\"" "${cnf_file}")"
-
-    if [[ -z "${hub_base_url}" ]]; then
-        echo "ERROR: env.hub.base_url missing in ${cnf_file}" >&2
-        exit 1
-    fi
-
-    if [[ -z "${DEPLOY_ID_TOKEN:-}" ]]; then
-        echo "ERROR: DEPLOY_ID_TOKEN not set" >&2
-        exit 1
-    fi
-
-    deploy_token="${DEPLOY_ID_TOKEN}"
-    batch_file="$(mktemp)"
 
     # Backfill from milestones.yaml (starting with 2026-09-17 spool-hub started)
     if [[ -f "${milestones_file}" ]]; then
@@ -137,33 +104,50 @@ do_spl_goals_backfill_git() {
         batch+=("${event_json}")
     done < <(git tag -l)
 
+    echo "${batch[@]}"
+}
+
+do_spl_goals_backfill_git() {
+    local repo_root
+    local cnf_file
+    local tenant_id
+    local hub_base_url
+    local deploy_token
+    local batch_file
+    local batch
+
+    repo_root="$(git rev-parse --show-toplevel)"
+    cnf_file="${repo_root}/csi-spl-cnf/csi-spl/all.env.yaml"
+
+    if ! grep -q "^env:" "${cnf_file}"; then
+        echo "ERROR: ${cnf_file} missing \"env:\" section" >&2
+        exit 1
+    fi
+
+    tenant_id="$(yq eval ".env.roadmap.tenant_id // \"\"" "${cnf_file}")"
+    hub_base_url="$(yq eval ".env.hub.base_url // \"\"" "${cnf_file}")"
+
+    if [[ -z "${hub_base_url}" ]]; then
+        echo "ERROR: env.hub.base_url missing in ${cnf_file}" >&2
+        exit 1
+    fi
+
+    if [[ -z "${DEPLOY_ID_TOKEN:-}" ]]; then
+        echo "ERROR: DEPLOY_ID_TOKEN not set" >&2
+        exit 1
+    fi
+
+    deploy_token="${DEPLOY_ID_TOKEN}"
+    batch_file="$(mktemp)"
+
+    batch=($(_build_backfill_batch "${repo_root}" "${tenant_id}"))
     if [[ ${#batch[@]} -eq 0 ]]; then
         echo "INFO: No events to backfill" >&2
         rm -f "${batch_file}"
         return 0
     fi
 
-    # Write batch to file
     printf "%s\n" "${batch[@]}" > "${batch_file}"
-
-    # Send to hub
-    response="$(curl -s -w "\n%{http_code}" -X PUT "${hub_base_url}/v1/calendar/sync" \
-        -H "Authorization: Bearer ${deploy_token}" \
-        -H "Content-Type: application/json" \
-        -d "@${batch_file}")"
-
-    response_code="$(echo "${response}" | tail -n1)"
-    response_body="$(echo "${response}" | sed "$ d")"
-
+    _send_to_hub "${hub_base_url}" "${deploy_token}" "${batch_file}"
     rm -f "${batch_file}"
-
-    if [[ "${response_code}" -eq 503 && "${response_body}" == *roadmap_not_configured* ]]; then
-        echo "WARNING: Roadmap not configured (503 roadmap_not_configured)" >&2
-        return 0
-    elif [[ "${response_code}" -ne 200 ]]; then
-        echo "ERROR: Backfill failed with HTTP ${response_code}: ${response_body}" >&2
-        exit 1
-    fi
-
-    echo "INFO: Backfilled ${#batch[@]} events to calendar" >&2
 }

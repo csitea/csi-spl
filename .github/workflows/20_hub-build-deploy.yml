@@ -101,8 +101,8 @@ jobs:
       - name: Build and push
         run: |
           set -euo pipefail
-          docker build -t ${{ env.REGISTRY }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ needs.ver.outputs.sha }} -f csi-spl-api/src/docker/Dockerfile .
-          docker push ${{ env.REGISTRY }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ needs.ver.outputs.sha }}
+          docker build -t "${{ env.REGISTRY }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ needs.ver.outputs.sha }} -f csi-spl-api/src/docker/Dockerfile ."
+          docker push "${{ env.REGISTRY }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ needs.ver.outputs.sha }}"
 
   deploy:
     needs: [guard, ver, build]

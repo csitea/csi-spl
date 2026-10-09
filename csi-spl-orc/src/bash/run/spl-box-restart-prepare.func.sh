@@ -70,7 +70,7 @@ spl_brs_snapshot() {
   printf 'btime\t%s\n' "$(spl_brs_btime)"
   printf 'desk_sha\t%s\n' "$(spl_brs_desk_sha)"
   printf 'wd_boot_pass\t%s\n' "$(spl_brs_desk_pass)"
-  spl_brs_agents "$root" | awk -F'\t' -v OFS='\t' '!s[$1]++ {print "agent", $1, $2, $3}'
+  spl_brs_agents "$root" | awk -F'\t' -v OFS='\t' '!s[$1]++ {print "agent", $1, $2, $3, $4}'
   now="$(date +%s)"
   for f in "$root"/dispatch/wd.[acgmq]-[0-9][0-9][0-9]; do
     [[ -f "$f" ]] || continue
@@ -83,34 +83,49 @@ spl_brs_snapshot() {
 # The box's boot time (epoch s) from <proc root>/stat.
 spl_brs_btime() { awk '$1 == "btime" {print $2; exit}' "${LEASE_PROC_ROOT:-/proc}/stat" 2>/dev/null || true; }
 
-# "<id>\t<pid>\t<pane>" per top-level agent process of a registry id: a
-# claude/grok/agy/qwen/node/bun process carrying SPOOL_AGENT_ID=<id> with no
-# ancestor carrying the same id (an MCP child of a claude is not a second
-# session). The pane is the registry row's.
+# "<id>\t<pid>\t<pane>\t<comm>" per top-level agent process of a registry id:
+# a claude/grok/agy/qwen/vibe/node/bun process carrying SPOOL_AGENT_ID=<id>
+# with no ancestor carrying the same id (an MCP child of a claude is not a
+# second session), whose comm is a harness of the id's kind: an m- seat counts
+# only with its vibe, never with a stray node. The pane is the registry row's.
+# Drill 5 (2026-10-09): the old list had no vibe, so the snapshot missed every
+# m- seat and the check passed while one was down.
 spl_brs_agents() {
   local root="$1" ps
   ps="$(mktemp)"
   spl_brs_ps > "$ps"
   # shellcheck disable=SC2046 # pids, split on purpose
   spool_proc_env_get "${LEASE_PROC_ROOT:-/proc}" SPOOL_AGENT_ID \
-    $(awk '$3 ~ /^(claude|grok|agy|qwen|node|bun)$/ {print $1}' "$ps") 2>/dev/null |
+    $(awk '$3 ~ /^(claude|grok|agy|qwen|vibe|node|bun)$/ {print $1}' "$ps") 2>/dev/null |
     awk -v ps="$ps" -v reg="$root/registry.tsv" '
-      FILENAME == ps { pp[$1] = $2; next }
+      function fits(i, c,  k) { k = substr(i, 1, 1)
+        if (k == "m") return c == "vibe"
+        return c == "node" || c == "bun" || (k == "c" && c == "claude") || (k == "g" && c == "grok") ||
+               (k == "a" && c == "agy") || (k == "q" && c == "qwen") }
+      FILENAME == ps { pp[$1] = $2; cm[$1] = $3; next }
       FILENAME == reg { split($0, r, "\t"); i = r[1]; sub(/@.*/, "", i); pane[i] = (r[3] == "" ? "-" : r[3]); next }
       { id[$1] = $2; order[++n] = $1 }
       END { for (k = 1; k <= n; k++) { p = order[k]; i = id[p]; if (!(i in pane)) continue
               q = pp[p]; top = 1
               for (d = 0; d < 64 && q > 1; d++) { if (id[q] == i) { top = 0; break }; q = pp[q] }
-              if (top) print i "\t" p "\t" pane[i] } }' "$ps" "$root/registry.tsv" - | sort
+              if (top && fits(i, cm[p])) print i "\t" p "\t" pane[i] "\t" cm[p] } }' "$ps" "$root/registry.tsv" - | sort
   rm -f "$ps"
 }
 
-# "pid ppid comm args..." for every process.
+# "pid ppid comm args..." for every process. mistral's vibe renames itself
+# "Vibe CLI" (two words): its comm reads vibe here, one word per field, as in
+# spl_wd_ps.
 spl_brs_ps() {
   local -a cmd=(ps -e -o "pid=,ppid=,comm=,args=")
   # shellcheck disable=SC2206 # a command line, split on purpose
   [[ -n "${BOX_RESTART_PS_CMD:-}" ]] && cmd=($BOX_RESTART_PS_CMD)
-  "${cmd[@]}" 2>/dev/null || true
+  "${cmd[@]}" 2>/dev/null | awk '$3 == "Vibe" && $4 == "CLI" {$3 = "vibe"; $4 = ""; $0 = $0} {print}' || true
+}
+
+# The harness kind of an agent id: c- claude, m- mistral, a- agy, g- grok,
+# q- qwen.
+spl_brs_kind() {
+  case "${1:0:1}" in c) echo claude ;; m) echo mistral ;; a) echo agy ;; g) echo grok ;; q) echo qwen ;; *) echo other ;; esac
 }
 
 # (c) one note per live agent but the sender.

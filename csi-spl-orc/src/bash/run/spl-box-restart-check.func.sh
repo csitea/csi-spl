@@ -4,7 +4,10 @@
 # @description <SPOOL_ROOT>/dispatch/box-restart/<utc>.before written by
 # @description do_spl_box_restart_prepare (the drill's steps 4.2 and 4.4 as
 # @description one named action): btime changed, each id of the snapshot back
-# @description with exactly one agent process, the count of claude processes
+# @description with exactly one harness process of its kind (claude, vibe,
+# @description agy, grok, qwen; a window alone is not back), one "kinds:" line
+# @description (back/before per kind, so no kind can be down unseen), the
+# @description count of claude processes
 # @description started with --resume, the watchdog's last "BOOT ... done" line,
 # @description and the ids missing. Prints a table; exit 1 when an id is
 # @description missing or doubled (or there is no snapshot). Read-only.
@@ -15,7 +18,7 @@ declare -F spl_brs_agents >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-box-restart-prepare.func.sh"
 
 do_spl_box_restart_check() {
-  local root="${SPOOL_ROOT:-/var/spool-hub}" snap bt0 bt now_ids rc=0 id pid0 n verdict boot
+  local root="${SPOOL_ROOT:-/var/spool-hub}" snap bt0 bt now_ids rc=0 id pid0 n verdict boot kinds=""
   snap="${BOX_RESTART_BEFORE:-$(find "$root/dispatch/box-restart" -maxdepth 1 -name '*.before' 2>/dev/null | sort | tail -n 1)}"
   [[ -f "$snap" ]] || { do_log "ERROR no snapshot: run do_spl_box_restart_prepare before the restart"; return 1; }
   bt0="$(awk -F'\t' '$1 == "btime" {print $2}' "$snap")"
@@ -27,6 +30,7 @@ do_spl_box_restart_check() {
   printf '%-8s %-10s %-24s %s\n' id "pid before" "pids now" verdict
   while IFS=$'\t' read -r _ id pid0 _; do
     n="$(awk -F'\t' -v i="$id" '$1 == i' <<<"$now_ids" | grep -c . || true)"
+    kinds+="$(spl_brs_kind "$id") $(( n == 1 ))"$'\n'
     case "$n" in
       0) verdict="MISSING"; rc=1 ;;
       1) verdict="back" ;;
@@ -35,11 +39,13 @@ do_spl_box_restart_check() {
     printf '%-8s %-10s %-24s %s\n' "$id" "$pid0" \
       "$(awk -F'\t' -v i="$id" '$1 == i {printf "%s%s", s, $2; s = ","}' <<<"$now_ids")" "$verdict"
   done < <(awk -F'\t' '$1 == "agent"' "$snap")
+  do_log "INFO kinds: $(awk 'NF == 2 { if (!($1 in t)) o[++n] = $1; t[$1]++; b[$1] += $2 }
+    END { for (k = 1; k <= n; k++) printf "%s%s %d/%d", (k > 1 ? " " : ""), o[k], b[o[k]], t[o[k]] }' <<<"$kinds")"
   do_log "INFO --resume processes: $(spl_brs_ps | awk '$3 == "claude" && / --resume( |$)/' | grep -c . || true)"
   boot="$(grep -E ' BOOT .* done' "$root/dispatch/wd.log" 2>/dev/null | tail -n 1 || true)"
   do_log "INFO watchdog: ${boot:-no BOOT ... done line in $root/dispatch/wd.log}"
   if (( rc == 0 )); then do_log "OK every id of the snapshot is back with one process"
-  else do_log "ERROR ids missing: $(spl_brs_check_missing "$snap" "$now_ids")"; fi
+  else do_log "ERROR FAIL ids missing: $(spl_brs_check_missing "$snap" "$now_ids")"; fi
   return "$rc"
 }
 

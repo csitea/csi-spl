@@ -11,6 +11,11 @@
 #   3. do_spl_box_restart_check: every id back once passes; a missing id
 #      (control) and a doubled id fail; --resume is counted, the wd BOOT line
 #      shown; no snapshot fails
+#   4. every kind (drill 5, 2026-10-09): a claude and a mistral seat (comm
+#      "Vibe CLI", an MCP node child) are both in the snapshot; the check
+#      prints "kinds:" back/before per kind; the mistral seat with no vibe
+#      (only its orphan node) is MISSING and the check FAILs; control: both
+#      running -> OK
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -52,7 +57,7 @@ run() {
 out="$(run do_spl_box_restart_prepare)"; rc=$?
 [ "$rc" = 0 ] && [ ! -e "$SP/dispatch/box-restart" ] && [ ! -e "$T/sent.log" ] && [ "$(git -C "$D" rev-parse HEAD)" = "$head0" ] \
   && pass "1. the dry run writes, fetches and sends nothing" || fail "1. dry run (rc $rc: $out)"
-grep -qP '^  agent\tc-901\t100\t%1$' <<<"$out" && grep -qP '^  agent\tc-902\t201\t%2$' <<<"$out" \
+grep -qP '^  agent\tc-901\t100\t%1\tclaude$' <<<"$out" && grep -qP '^  agent\tc-902\t201\t%2\tclaude$' <<<"$out" \
   && [ "$(grep -c '  agent' <<<"$out")" = 2 ] && pass "1. one line per live registry id (pid, pane); no MCP child, no unregistered id" || fail "1. agents ($out)"
 grep -q 'PLAN note to c-902' <<<"$out" && ! grep -q 'note to c-901' <<<"$out" && pass "1. the notes are planned, never to the sender" || fail "1. notes ($out)"
 grep -qP '^  wd\tc-901 c-902$' <<<"$out" && grep -qP '^  btime\t1000$' <<<"$out" && pass "1. btime and the wd verdict list" || fail "1. btime/wd ($out)"
@@ -88,6 +93,32 @@ out="$(run do_spl_box_restart_check)"; rc=$?
 rm -rf "$SP/dispatch/box-restart"
 out="$(run do_spl_box_restart_check)"; rc=$?
 [ "$rc" = 1 ] && grep -q 'no snapshot' <<<"$out" && pass "3. no snapshot: exit 1" || fail "3. no snapshot (rc $rc: $out)"
+
+# ---- 4. every kind: a claude and a mistral seat ---------------------------------
+SP4="$T/spool4"; mkdir -p "$SP4/dispatch"; S4="$SP4/dispatch/box-restart/20261009T070000Z.before"
+printf 'c-911\tclaude\t%%11\t/x\t20261009T000000Z\nm-912\tmistral\t%%12\t/x\t20261009T000000Z\n' >"$SP4/registry.tsv"
+cat >"$T/ps4" <<'EOF'
+400 1 claude claude --dangerously-skip-permissions
+500 1 Vibe CLI Vibe CLI
+501 500 node node mcp-server
+EOF
+proc 400 c-911; proc 500 m-912; proc 501 m-912; boot 3000
+run4() { run "$1" SPOOL_ROOT="$SP4" BOX_RESTART_PS_CMD="cat $T/ps4" BOX_RESTART_NOW=20261009T070000Z "${@:2}"; }
+out="$(run4 do_spl_box_restart_prepare)"
+grep -qP '^  agent\tc-911\t400\t%11\tclaude$' <<<"$out" && grep -qP '^  agent\tm-912\t500\t%12\tvibe$' <<<"$out" \
+  && [ "$(grep -c '  agent' <<<"$out")" = 2 ] && grep -q 'PLAN note to m-912' <<<"$out" \
+  && pass "4. the snapshot lists the claude AND the mistral seat (vibe, not its node child)" || fail "4. kinds snapshot ($out)"
+run4 do_spl_box_restart_prepare DRY_RUN=0 >/dev/null
+[ "$(grep -c '^agent' "$S4" 2>/dev/null)" = 2 ] && pass "4. the written snapshot has both seats" || fail "4. snapshot ($(cat "$S4" 2>&1))"
+boot 4000
+out="$(run4 do_spl_box_restart_check)"; rc=$?
+[ "$rc" = 0 ] && grep -q 'kinds: claude 1/1 mistral 1/1$' <<<"$out" && grep -qE '^m-912 .* back$' <<<"$out" \
+  && pass "4. control: both kinds running -> OK, kinds: claude 1/1 mistral 1/1" || fail "4. both back (rc $rc: $out)"
+printf '400 1 claude claude --resume abc\n501 1 node node mcp-server\n' >"$T/ps4"
+out="$(run4 do_spl_box_restart_check)"; rc=$?
+[ "$rc" = 1 ] && grep -qE '^m-912 .*MISSING$' <<<"$out" && grep -q 'FAIL ids missing: m-912$' <<<"$out" \
+  && grep -q 'kinds: claude 1/1 mistral 0/1$' <<<"$out" && grep -qE '^c-911 .* back$' <<<"$out" \
+  && pass "4. the mistral seat with no vibe (a stray node only) FAILs, kinds: claude 1/1 mistral 0/1" || fail "4. no vibe (rc $rc: $out)"
 
 echo "box-restart: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

@@ -28,14 +28,6 @@ do_validate_params() {
     local var_name _rest
     read -r var_name _rest <<<"$param_def"
 
-    # Auto-resolve *_PAT vars from their *_PAT_FILE before checking required.
-    # Delegates to do_load_pat, which handles both raw-token and shell-export
-    # formats. Silent on failure — the regular "required" check below will
-    # surface a clean error if the PAT is still missing afterwards.
-    if [[ "$var_name" == *_PAT && -z "${!var_name:-}" ]] && type do_load_pat &>/dev/null; then
-      do_load_pat "${var_name%_PAT}" 2>/dev/null || true
-    fi
-
     # Check if marked as required. Case-insensitive, same as grep -i,
     # with no fork.
     if [[ "${param_def,,}" == *"(required)"* ]]; then

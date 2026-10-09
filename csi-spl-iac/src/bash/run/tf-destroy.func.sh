@@ -12,8 +12,6 @@ do_tf_destroy() {
   tf_destroy_log_fle=$PROJ_PATH/dat/log/tf_destroy.${ORG:-}-${APP:-}-${ENV:-}.${STEP:-}.log
   test -f "$tf_destroy_log_fle" && rm -f "$tf_destroy_log_fle"
 
-  # do_backup_region_dynamo_db_tables "$AWS_PROFILE" "$AWS_REGION"
-
   vars_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars"
   backend_config_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.backend-config.tfvars"
 

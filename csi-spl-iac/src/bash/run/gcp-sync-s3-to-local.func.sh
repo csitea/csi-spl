@@ -28,10 +28,6 @@ do_gcp_sync_s3_to_local() {
   do_require_var APP ${APP:-}
   do_require_var ENV ${ENV:-}
 
-  YAML_CONF_FILE="$BASE_PATH/$ORG/$APP/$APP-cnf/$APP/$ENV.env.yaml"
-  DOMAIN=$(yq -r '.env.dns.tld_domain' $YAML_CONF_FILE)
-  wui_fqdn=$(yq -r '.env.dns.wui_fqdn' $YAML_CONF_FILE)
-
   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gcp/.${ORG}/key-${ORG}-${APP}-${ENV}.json"
 
   # Authenticate using the service account key file

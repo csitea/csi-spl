@@ -22,8 +22,6 @@ do_tf_destroy_local_step_bucket() {
   do_export_json_section_vars "$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV.env.json" '.env.steps."'${main_step}'"' || return 1
   #do_export_json_section_vars "$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV.env.json" '.env.steps."'${tf_proj}'"'
 
-  # do_backup_region_dynamo_db_tables "$AWS_PROFILE" "$AWS_REGION"
-
   vars_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars"
 
   ts=$(date "+%Y%m%d_%H%M%S")

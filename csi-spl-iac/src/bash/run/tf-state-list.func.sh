@@ -9,8 +9,6 @@ do_tf_state_list() {
 
   do_tf_init
 
-  # do_backup_region_dynamo_db_tables "$AWS_PROFILE" "$AWS_REGION"
-
   local backend_config_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.backend-config.tfvars"
 
   set -e

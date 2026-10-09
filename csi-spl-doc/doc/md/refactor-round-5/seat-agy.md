@@ -1,4 +1,4 @@
-# Refactor Round 5 Proposal - agy (tnk)
+# Refactor Round 5 Proposal - agy (PC)
 
 1. **Practice**: 3. eliminate dead code, duplicate logic (DRY), unnecessary comments
    **Sites**: `csi-spl-iac/src/bash/run/gcp-sync-s3-to-local.func.sh`, `csi-spl-iac/src/bash/run/gcp-sync-local-to-s3.func.sh`

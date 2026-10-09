@@ -27,6 +27,9 @@ GRANT EXECUTE ON FUNCTION public.spool_search_candidates(tsquery, int) TO :"runt
 
 -- The migrator's ledger is read (do_spl_db_rls_check), never written, by the hub.
 REVOKE INSERT, UPDATE, DELETE ON spool_schema_migrations FROM :"runtime_role";
+-- spec 113 D-Q1 (rdb 0157): the doc revision log is append-only; a doc
+-- delete still removes its entries through the FK cascade (run as the owner).
+REVOKE UPDATE, DELETE ON workspace_doc_rev_log FROM :"runtime_role";
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role";

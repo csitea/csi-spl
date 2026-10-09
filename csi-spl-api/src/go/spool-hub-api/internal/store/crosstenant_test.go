@@ -319,6 +319,25 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedHours(ctx, pg, s.tenant, hum, now); err != nil {
 		t.Fatal(err)
 	}
+	// workspace_doc, workspace_doc_item, workspace_doc_rev_log (rdb 0157,
+	// spec 113 T001): a doc with its root and one rev-log entry. No store API
+	// yet (T002), so raw rows under inTenant.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		var doc string
+		if err := tx.QueryRow(ctx, `INSERT INTO workspace_doc (tenant_id, title, rev) VALUES ($1, 'seed', 1) RETURNING id::text`,
+			s.tenant).Scan(&doc); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO workspace_doc_item (tenant_id, doc_id, parent_id, ord) VALUES ($1, $2, NULL, 1)`,
+			s.tenant, doc); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO workspace_doc_rev_log (tenant_id, doc_id, rev, op, actor) VALUES ($1, $2, 1, '{"kind":"create"}', $3)`,
+			s.tenant, doc, hum)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

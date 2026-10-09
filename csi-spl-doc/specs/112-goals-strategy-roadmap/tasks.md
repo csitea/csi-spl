@@ -93,6 +93,12 @@ events) meant `workspace`; 12.5 supersedes it.
   - Owns: a goal-doc reader in `csi-spl-api/src/go/spool-hub-api/internal/hub/roadmap_goal_docs.go` and its test: a spec 113 workspace doc marked as a goal carries the `template-goal.yaml` fields (DOC-2); saving one runs the same approval check and upsert as HUB-2 for that workspace, with `creator_id = 'roadmap-sync'`.
   - Done: a workspace with no repo gets the same `goal:<id>:deadline` and `goal:<id>:m:<key>` events from its in-app goal doc as a repo workspace gets from `goal.yaml`; the spool's own roadmap is just another workspace (OQ2, no special case). First step: a five-line shape note in this task (which doc field marks a goal) agreed with the spec 113 lane before code. Control: an unapproved in-app goal writes no event; a goal doc in workspace B never writes into A.
   - Vendor: claude. Box: one with docker Postgres.
+  - Shape (agreed with the spec 113 lane c-686, msg 235e411e):
+    1. A goal doc is a spec 113 workspace doc (rdb 0157) whose hidden root item has `attrs.goal`, a JSON object. Nothing else marks a goal. Root `attrs.topic_id` stays the topic link and is kept on every write.
+    2. `attrs.goal` holds the `template-goal.yaml` fields: `id`, `owner_role`, `deadline`, `milestones [{key, date, title}]`, `done_lines`, `specs`, `approval {msg_id}` (also `public`, `backfill_start_sha`, `lanes`). It has no `workspace`: the doc's tenant is the goal's workspace.
+    3. `PUT /v1/workspace/doctree/{doc}/goal` (docs.write) saves it. It writes the root attrs under the root rev (412 when stale), then runs HUB-2's approval check and upsert for that workspace only, with `creator_id = 'roadmap-sync'`.
+    4. A save carries the workspace's other live `goal:` keys unchanged, so one goal doc never prunes another. An unapproved goal keeps none of its own `goal:<Gnn>:` events. A `goal:<Gnn>:` key that another source already holds is a 409.
+    5. The events are the same as ORC-2's from `goal.yaml`: `goal:<Gnn>:deadline` and `goal:<Gnn>:m:<key>`, all-day, with `roadmap_url` `/roadmap?ws=<workspace>&goal=<Gnn>`.
 
 ## 4. WUI
 

@@ -208,6 +208,10 @@ for h in dict.fromkeys(hosts):
 # connect}: absolute https origins, no path; a wildcard only as the leftmost
 # label under a named domain, e.g. https://*.<vendor-domain>). Empty = no card
 # rail on this env's WUI, and the policy is exactly what it was without it.
+# spec 116 T7: the public pages' served X-Robots-Tag (the WUI's
+# src/utils/public-seo.mjs is the same list; nuxt generate checks the meta)
+seo_index = bool((env.get("wui") or {}).get("seo_index"))
+SEO_PUBLIC_SOURCES = ("**/blog", "**/blog/**", "/login", "/*/login", "/help", "/help/**")
 card = (env.get("payment") or {}).get("wui_csp") or {}
 ORIGIN_RE = re.compile(r"^https://(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 def card_sources(kind):
@@ -258,10 +262,13 @@ doc = {
           {"key": "Cache-Control", "value": "public, max-age=0, must-revalidate"},
         ],
       },
-      # spec 111 3.1 (T003): the public blog is indexable, every locale copy
-      # too. After `**`, so it replaces that rule's noindex for these paths.
+      # spec 111 3.1 + spec 116 T7: the public pages (the blog, /login, /help)
+      # are indexable, every locale copy too, on an env with cnf
+      # env.wui.seo_index (prd); elsewhere `**`'s noindex stands. After `**`,
+      # so it replaces that rule's noindex for these paths. A header matches
+      # the path on any host: the pages' canonical names the apex.
       *[{"source": src, "headers": [{"key": "X-Robots-Tag", "value": "index, follow"}]}
-        for src in ("**/blog", "**/blog/**")],
+        for src in (SEO_PUBLIC_SOURCES if seo_index else ())],
       # Unhashed static media (logo, login wallpapers, icons, the manifest):
       # under `**` alone every reload revalidated each one, a full round trip
       # for a 304 (CLE-35076, prd /login warm reload: 7 of 10 round trips).

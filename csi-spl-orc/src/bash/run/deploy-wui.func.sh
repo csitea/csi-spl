@@ -100,6 +100,7 @@ print("lobby_task_id=" + str(e.get("hub", {}).get("env", {}).get("SPOOL_HUB_LOBB
 wui = e.get("wui", {})
 for k in ("repo_web_url", "repo_clone_url", "repo_commit_path", "repo_help_path"):
     print(k + "=" + str(wui.get(k) or "").strip())
+print("seo_index=" + ("1" if wui.get("seo_index") else "0"))
 PY
 }
 
@@ -110,6 +111,7 @@ _deploy_wui_val() { sed -n "/^$2=/{s/^$2=//p;q}" <<<"$1"; }
 _deploy_wui_generate() {
   (cd "$1" && NUXT_PUBLIC_USE_MOCK=0 NUXT_PUBLIC_AUTH_BASE="$(_deploy_wui_val "$2" auth_base)" \
     NUXT_PUBLIC_DEFAULT_LOCALE="$(_deploy_wui_val "$2" default_locale)" \
+    NUXT_PUBLIC_SEO_INDEX="$(_deploy_wui_val "$2" seo_index)" \
     NUXT_PUBLIC_SITE_URL="https://$(_deploy_wui_val "$2" fqdn)" NUXT_PUBLIC_APP_VERSION="$3" pnpm run generate)
 }
 

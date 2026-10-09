@@ -249,6 +249,8 @@ jobs:
           wui = e.get("wui", {})
           for k in ("repo_web_url", "repo_clone_url", "repo_commit_path", "repo_help_path"):
               print(k + "=" + str(wui.get(k) or "").strip())
+          # spec 116 T7: "1" = the public pages are indexable (prd only)
+          print("seo_index=" + ("1" if wui.get("seo_index") else "0"))
           PY
           # CLE-35057: the hub bakes the repo .version into GET /version
           echo "want_version=$(tr -d '[:space:]' < .version)" >> "$GITHUB_OUTPUT"
@@ -300,6 +302,8 @@ jobs:
           NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}
           # absolute base for the hreflang alternates (spec 021)
           NUXT_PUBLIC_SITE_URL: https://${{ steps.cfg.outputs.fqdn }}
+          # spec 116 T7: index /login, /help, /blog + robots.txt/sitemap.xml (cnf env.wui.seo_index)
+          NUXT_PUBLIC_SEO_INDEX: ${{ steps.cfg.outputs.seo_index }}
           # the footer version: the predicted one; regenerated below if the
           # mint differs
           NUXT_PUBLIC_APP_VERSION: ${{ steps.pre.outputs.version }}
@@ -393,6 +397,8 @@ jobs:
           NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}
           # absolute base for the hreflang alternates (spec 021)
           NUXT_PUBLIC_SITE_URL: https://${{ steps.cfg.outputs.fqdn }}
+          # spec 116 T7: index /login, /help, /blog + robots.txt/sitemap.xml (cnf env.wui.seo_index)
+          NUXT_PUBLIC_SEO_INDEX: ${{ steps.cfg.outputs.seo_index }}
           # the footer version: the one minted above, not csi-spl-wui/.version
           NUXT_PUBLIC_APP_VERSION: ${{ steps.ver.outputs.version }}
         run: pnpm run generate

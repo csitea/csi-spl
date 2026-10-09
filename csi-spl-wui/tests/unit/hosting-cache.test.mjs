@@ -35,22 +35,22 @@ function globRe(glob) {
   return new RegExp('^' + re + '$')
 }
 
-/** The Cache-Control a path is served with: the last matching rule's. */
-function effective(doc, path) {
+/** The Cache-Control (or `key`) a path is served with: the last matching rule's. */
+function effective(doc, path, key = 'Cache-Control') {
   let v = ''
   for (const rule of doc.hosting.headers) {
     if (!globRe(rule.source.startsWith('/') ? rule.source : '/' + rule.source).test(path)) continue
-    const h = rule.headers.find((x) => x.key === 'Cache-Control')
+    const h = rule.headers.find((x) => x.key === key)
     if (h) v = h.value
   }
   return v
 }
 
-function rendered() {
+function rendered(env = 'dev') {
   const pub = scratch('cache-bundle-')
   writeFileSync(join(pub, '200.html'), '<!doctype html><html><head></head><body><div id="__nuxt"></div></body></html>')
   const out = join(scratch('cache-out-'), 'firebase.json')
-  const r = spawnSync('bash', [RENDER], { env: { ...process.env, ENV: 'dev', OUT: out, PUBLIC_DIR: pub }, encoding: 'utf8' })
+  const r = spawnSync('bash', [RENDER], { env: { ...process.env, ENV: env, OUT: out, PUBLIC_DIR: pub }, encoding: 'utf8' })
   assert.equal(r.status, 0, r.stderr)
   return JSON.parse(readFileSync(out, 'utf8'))
 }
@@ -60,7 +60,23 @@ const MEDIA = 'public, max-age=3600, stale-while-revalidate=86400'
 const IMMUTABLE = 'public, max-age=31536000, immutable'
 const REVALIDATE = 'public, max-age=0, must-revalidate'
 
-for (const [name, load] of [['render (deploy)', rendered], ['checked-in firebase.json', () => JSON.parse(readFileSync(join(WUI, 'firebase.json'), 'utf8'))]]) {
+/* spec 116 T7: the served X-Robots-Tag follows cnf env.wui.seo_index - prd
+   indexes the public pages (every locale copy), dev indexes nothing */
+describe('Hosting X-Robots-Tag (spec 116 T7)', () => {
+  const PUBLIC_PAGES = ['/login', '/fi/login', '/help', '/help/agents', '/blog', '/blog/page/2', '/blog/2026-10-09-x', '/fi/blog/2026-10-09-x']
+  const APP = ['/', '/fi', '/lobby', '/channel/general', '/dm/x', '/t/abc', '/settings', '/fi/help', '/api/v1/auth/login', '/help-md/index.md', '/200.html']
+  it('prd: the public pages are index, follow; every app path stays noindex', () => {
+    const doc = rendered('prd')
+    for (const p of PUBLIC_PAGES) assert.equal(effective(doc, p, 'X-Robots-Tag'), 'index, follow', p)
+    for (const p of APP) assert.equal(effective(doc, p, 'X-Robots-Tag'), 'noindex, nofollow', p)
+  })
+  it('dev: nothing is indexable, the blog included', () => {
+    const doc = rendered('dev')
+    for (const p of [...PUBLIC_PAGES, ...APP]) assert.equal(effective(doc, p, 'X-Robots-Tag'), 'noindex, nofollow', p)
+  })
+})
+
+for (const [name, load] of [['render (deploy)', () => rendered()], ['checked-in firebase.json', () => JSON.parse(readFileSync(join(WUI, 'firebase.json'), 'utf8'))]]) {
   describe(`Hosting Cache-Control: ${name}`, () => {
     let doc
     before(() => { doc = load() })

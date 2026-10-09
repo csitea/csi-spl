@@ -82,14 +82,14 @@ for (const [name, load] of [['render (deploy)', () => rendered()], ['checked-in 
     before(() => { doc = load() })
 
     it('every unhashed picture, icon and the manifest in src/public is fresh for an hour, then stale-while-revalidate', () => {
-      /* the help pages (047 W14, /help-md), the blog copy (spec 111, /blog-md), the public calendar's data (HUM-10, /pub-cal), the public docs copy (owner HUM-10 e3ce4c34, /docs-public) and the static .html pages (049 /privacy, /terms) are text a deploy changes: they revalidate, below */
-      const media = walk(PUBLIC).map((f) => '/' + relative(PUBLIC, f)).filter((p) => !p.endsWith('.js') && !p.endsWith('.html') && !p.startsWith('/help-md/') && !p.startsWith('/blog-md/') && !p.startsWith('/pub-cal/') && !p.startsWith('/docs-public/'))
+      /* the help pages (047 W14, /help-md), the blog copy (spec 111, /blog-md), the public calendar's data (HUM-10, /pub-cal), the public docs copy (owner HUM-10 e3ce4c34, /docs-public), the roadmap's spec rows (spec 112 WUI-1, /roadmap.json) and the static .html pages (049 /privacy, /terms) are text a deploy changes: they revalidate, below */
+      const media = walk(PUBLIC).map((f) => '/' + relative(PUBLIC, f)).filter((p) => !p.endsWith('.js') && !p.endsWith('.html') && !p.startsWith('/help-md/') && !p.startsWith('/blog-md/') && !p.startsWith('/pub-cal/') && !p.startsWith('/docs-public/') && p !== '/roadmap.json')
       assert.ok(media.length >= 10, media.join(' '))
       for (const p of media) assert.equal(effective(doc, p), MEDIA, p)
     })
 
     it('the service worker, build.json and every page still revalidate on each load (a deploy is seen at once)', () => {
-      for (const p of ['/sw.js', '/build.json', '/200.html', '/login', '/', '/lobby', '/help-md/index.md', '/help-md/pages.json', '/blog-md/index.json', '/blog-md/en/x.html', '/pub-cal/events.json', '/privacy.html', '/terms.html']) assert.equal(effective(doc, p), REVALIDATE, p)
+      for (const p of ['/sw.js', '/build.json', '/200.html', '/login', '/', '/lobby', '/help-md/index.md', '/help-md/pages.json', '/blog-md/index.json', '/blog-md/en/x.html', '/pub-cal/events.json', '/roadmap.json', '/privacy.html', '/terms.html']) assert.equal(effective(doc, p), REVALIDATE, p)
     })
 
     it('hashed /_nuxt/ assets stay immutable, pictures included', () => {

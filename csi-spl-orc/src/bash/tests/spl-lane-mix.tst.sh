@@ -426,7 +426,8 @@ mix LANE_MIX_KIND=default
 
 # --- ORC-2: spawn-window.sh writes the journal row --------------------------
 journal() {
-  local id="$1" kind="${2:-simple_coding}" vendor="${3:-claude}" task_id="${4:-$id}" epoch="${5:-$(date -u +%s)}" outcome="${6:-run}"
+  local id="$1"
+  local kind="${2:-simple_coding}" vendor="${3:-claude}" task_id="${4:-$id}" epoch="${5:-$(date -u +%s)}" outcome="${6:-run}"
   mkdir -p "$T/$id"
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$task_id" "$kind" "$vendor" "$id" "$epoch" "$outcome" > "$T/$id/attempts.tsv"
 }

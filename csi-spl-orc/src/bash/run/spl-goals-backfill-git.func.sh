@@ -15,7 +15,6 @@
 #   Idempotent: a second run adds 0 events.
 #
 
-set -euo pipefail
 
 do_spl_goals_backfill_git() {
     : "${WORKSPACE:?WORKSPACE must be set (no default)}"
@@ -106,7 +105,7 @@ EOF
         return
     fi
 
-    cd "${repo_root}"
+    cd "${repo_root}" || return 1
     git fetch --tags 2>/dev/null || true
 
     # Get tags sorted by date (oldest first)

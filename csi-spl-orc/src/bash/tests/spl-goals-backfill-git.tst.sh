@@ -111,11 +111,21 @@ teardown() {
     rm -rf "${REPO_ROOT}"
 }
 
+# ./run sources every *.func.sh: a top-level set/shopt would change EVERY action.
+test_sets_no_top_level_shell_options() {
+    if grep -nE "^(set|shopt)[[:space:]]" "${FUNCTION_FILE}"; then
+        echo "✗ the func sets shell options at top level"
+        exit 1
+    fi
+    echo "✓ the func sets no shell options at top level"
+}
+
 # Run tests
 setup
 
 echo "Running tests..."
 
+test_sets_no_top_level_shell_options
 test_fails_fast_if_workspace_unset
 test_builds_batch_with_tags_specs_and_milestones
 test_syncs_to_the_hub

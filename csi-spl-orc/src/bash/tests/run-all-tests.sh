@@ -22,11 +22,14 @@
 #                                       "rc=<n> <k>/<m> test files passed"
 #                                       (poll: until [ -f <f> ]; do sleep 10; done)
 #
-# Timing guard: every file's wall time is measured and the run ends with
-# "--- slowest 10 test files (wall s)" (ORC_TEST_SLOWEST=<n>, 0 = off), so a
-# creep toward CI's timeout-minutes shows in the log before the cap cancels
-# the job. ORC_TEST_SHARD=<k>/<m> runs only every m-th file starting at the
-# k-th, so CI can split the suite across m parallel jobs.
+# Timing guard: every file's wall time and CPU (user + sys of the file and
+# its children) are measured and the run ends with "--- slowest 10 test
+# files (wall s, cpu s)" (ORC_TEST_SLOWEST=<n>, 0 = off), so a creep toward
+# CI's timeout-minutes shows in the log before the cap cancels the job. On a
+# CPU-quota'd runner the cpu column is what the quota divides.
+# ORC_TEST_SHARD=<k>/<m> runs only every m-th file starting at the k-th, so
+# CI can split the suite across m parallel jobs; it is unset before any file
+# runs, so a test that runs this script itself sees the whole suite.
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
 changed=0 bg=""
@@ -72,6 +75,7 @@ fi
 all=()
 for t in "$dir"/*.tst.sh; do [[ -f "$t" ]] && all+=("$t"); done
 shard="${ORC_TEST_SHARD:-}"
+unset ORC_TEST_SHARD
 if [[ -n "$shard" ]]; then
   [[ "$shard" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] && (( BASH_REMATCH[1] <= BASH_REMATCH[2] )) \
     || { echo "ORC_TEST_SHARD must be <k>/<m> with 1 <= k <= m (got '$shard')" >&2; exit 2; }
@@ -101,15 +105,17 @@ if (( changed )); then
   fi
 fi
 fails=0 n=0
-# <start> <end> <file> per test file, for the slowest-N report below.
+# <start> <end> <cpu s> <file> per test file, for the slowest-N report below.
 times=$(mktemp)
+TIMEFORMAT='%U %S'
 if (( njobs == 1 )); then
   for t in "${list[@]}"; do
     n=$((n + 1))
     echo "=== $(basename "$t")"
-    t0=$EPOCHREALTIME
-    bash "$t" || { echo "FAILED: $(basename "$t")"; fails=$((fails + 1)); }
-    echo "$t0 $EPOCHREALTIME $(basename "$t")" >>"$times"
+    t0=$EPOCHREALTIME rc=0
+    { time bash "$t" 2>&3; } 3>&2 2>"$times.cpu" || rc=$?
+    (( rc == 0 )) || { echo "FAILED: $(basename "$t")"; fails=$((fails + 1)); }
+    echo "$t0 $EPOCHREALTIME $(awk '{ print $1 + $2 }' "$times.cpu") $(basename "$t")" >>"$times"
   done
 else
   work=$(mktemp -d)
@@ -123,8 +129,11 @@ else
   n=${#files[@]}
   # start <i>: run file i in the background; <i>.rc appears only once the
   # file is done, so an existing <i>.rc means <i>.out is complete.
-  start() { ( t0=$EPOCHREALTIME; bash "${files[$1]}" </dev/null >"$work/$1.out" 2>&1; echo $? >"$work/$1.rc.tmp"
-    echo "$t0 $EPOCHREALTIME $(basename "${files[$1]}")" >"$work/$1.sec"; mv "$work/$1.rc.tmp" "$work/$1.rc" ) & }
+  start() { ( t0=$EPOCHREALTIME rc=0
+    { time bash "${files[$1]}" </dev/null >"$work/$1.out" 2>&1; } 2>"$work/$1.cpu" || rc=$?
+    echo "$rc" >"$work/$1.rc.tmp"
+    echo "$t0 $EPOCHREALTIME $(awk '{ print $1 + $2 }' "$work/$1.cpu") $(basename "${files[$1]}")" >"$work/$1.sec"
+    mv "$work/$1.rc.tmp" "$work/$1.rc" ) & }
   next=0
   flush() {
     while (( next < n )) && [[ -f "$work/$next.rc" ]]; do
@@ -146,11 +155,11 @@ fi
 echo "=== $((n - fails))/$n test files passed"
 slowest="${ORC_TEST_SLOWEST:-10}"
 if [[ -s "$times" && "$slowest" =~ ^[1-9][0-9]*$ ]]; then
-  echo "--- slowest $slowest test files (wall s)"
-  awk '{ printf "%8.1f  %s\n", $2 - $1, $3 }' "$times" | sort -rn | sed -n "1,${slowest}p"
-  awk '{ s += $2 - $1 } END { printf "--- sum of file wall times: %.0f s over %d files\n", s, NR }' "$times"
+  echo "--- slowest $slowest test files (wall s, cpu s)"
+  awk '{ printf "%8.1f %8.1f  %s\n", $2 - $1, $3, $4 }' "$times" | sort -rn | sed -n "1,${slowest}p"
+  awk '{ w += $2 - $1; c += $3 } END { printf "--- sum over %d files: wall %.0f s, cpu %.0f s\n", NR, w, c }' "$times"
 fi
-rm -f "$times"
+rm -f "$times" "$times.cpu"
 if [[ -s "$SPOOL_TEST_GUARD_LOG" ]]; then
   echo "FAILED: a test reached for the live spool root (refused by the SPOOL_TEST guard):"
   sed 's/^/  /' "$SPOOL_TEST_GUARD_LOG"

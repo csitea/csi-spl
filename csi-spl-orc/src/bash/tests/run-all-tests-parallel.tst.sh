@@ -9,8 +9,9 @@
 #   c-551), still FAIL and name the failing test, print each file's
 #   output right under its own header in suite order with the '# serial' test
 #   last and alone, and refuse a JOBS value that is not a positive integer.
-#   Timing guard: the run ends with the slowest files and their wall time;
-#   ORC_TEST_SHARD=<k>/<m> splits the files with no file lost or run twice.
+#   Timing guard: the run ends with the slowest files, their wall and CPU;
+#   ORC_TEST_SHARD=<k>/<m> splits the files with no file lost or run twice,
+#   and no test file inherits it (a test that runs the suite sees all of it).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -31,7 +32,7 @@ for f in a b c; do
   printf '[ "${BARRIER:-1}" = 0 ] || for _ in $(seq 600); do [ -e "%s/started-a" ] && [ -e "%s/started-b" ] && [ -e "%s/started-c" ] && break; sleep 0.1; done\n' "$T" "$T" "$T" >>"$T/$f-sleep.tst.sh"
   printf '[ "${BARRIER:-1}" = 0 ] || { [ -e "%s/started-a" ] && [ -e "%s/started-b" ] && [ -e "%s/started-c" ]; } || { echo "no-barrier-%s"; exit 1; }\necho "end-%s"\n' "$T" "$T" "$T" "$f" "$f" >>"$T/$f-sleep.tst.sh"
 done
-printf '#!/usr/bin/env bash\necho "out-d"\nexit 3\n' >"$T/d-fail.tst.sh"
+printf '#!/usr/bin/env bash\necho "out-d shard=${ORC_TEST_SHARD:-unset}"\nexit 3\n' >"$T/d-fail.tst.sh"
 # the serial test fails if any other test of the suite is still running
 printf '#!/usr/bin/env bash\n# serial\npgrep -f "%s/[a-d]-.*tst.sh" >/dev/null && { echo "ran-alongside"; exit 1; }\necho "out-s"\n' "$T" >"$T/s-alone.tst.sh"
 
@@ -57,11 +58,15 @@ env "$JOBS_VAR=x" bash "$T/run-all-tests.sh" >"$T/outx" 2>&1; rcx=$?
 [ "$rcx" -eq 2 ] && grep -q "$JOBS_VAR must be a positive integer" "$T/outx" \
   && pass "a bad $JOBS_VAR is refused (rc 2)" || fail "a bad $JOBS_VAR is refused" "rc=$rcx $(cat "$T/outx")"
 
-slow=$(sed -n '/^--- slowest 10 test files (wall s)$/,$p' "$T/out")
-[ "$(grep -cE '^ +[0-9]+\.[0-9]  [a-z]-[a-z]+\.tst\.sh$' <<<"$slow")" -eq 5 ] && grep -q '^--- sum of file wall times: [0-9]* s over 5 files$' <<<"$slow" \
-  && pass "the run ends with the slowest files and their wall time" || fail "the slowest-files report" "$(cat "$T/out")"
+slow=$(sed -n '/^--- slowest 10 test files (wall s, cpu s)$/,$p' "$T/out")
+[ "$(grep -cE '^ +[0-9]+\.[0-9] +[0-9]+\.[0-9]  [a-z]-[a-z]+\.tst\.sh$' <<<"$slow")" -eq 5 ] \
+  && grep -qE '^--- sum over 5 files: wall [0-9]+ s, cpu [0-9]+ s$' <<<"$slow" \
+  && pass "the run ends with the slowest files, their wall and cpu time" || fail "the slowest-files report" "$(cat "$T/out")"
 ORC_TEST_SLOWEST=2 BARRIER=0 bash "$T/run-all-tests.sh" >"$T/out2" 2>&1
-[ "$(grep -cE '^ +[0-9]+\.[0-9]  ' "$T/out2")" -eq 2 ] && pass "ORC_TEST_SLOWEST=2 lists two files" || fail "ORC_TEST_SLOWEST=2" "$(cat "$T/out2")"
+[ "$(grep -cE '^ +[0-9]+\.[0-9] +[0-9]+\.[0-9]  ' "$T/out2")" -eq 2 ] && pass "ORC_TEST_SLOWEST=2 lists two files" || fail "ORC_TEST_SLOWEST=2" "$(cat "$T/out2")"
+ORC_TEST_JOBS=1 BARRIER=0 bash "$T/run-all-tests.sh" >"$T/out1s" 2>&1
+[ "$(grep -cE '^ +[0-9]+\.[0-9] +[0-9]+\.[0-9]  [a-z]-[a-z]+\.tst\.sh$' "$T/out1s")" -eq 5 ] \
+  && pass "ORC_TEST_JOBS=1 reports the same timings" || fail "ORC_TEST_JOBS=1 timings" "$(cat "$T/out1s")"
 
 : >"$T/shards"
 for k in 1 2; do
@@ -71,6 +76,7 @@ done
 [ "$(sort "$T/shards" | tr '\n' ' ')" = "=== a-sleep.tst.sh === b-sleep.tst.sh === c-sleep.tst.sh === d-fail.tst.sh === s-alone.tst.sh " ] \
   && grep -q '^--- shard 1/2: 3 of 5 files$' "$T/outs1" && grep -q '^--- shard 2/2: 2 of 5 files$' "$T/outs2" \
   && pass "ORC_TEST_SHARD 1/2 + 2/2 run every file exactly once" || fail "shards" "$(cat "$T/outs1" "$T/outs2")"
+grep -qx 'out-d shard=unset' "$T/outs2" && pass "a test file does not inherit ORC_TEST_SHARD" || fail "ORC_TEST_SHARD leaks into a test" "$(cat "$T/outs2")"
 ORC_TEST_SHARD=3/2 bash "$T/run-all-tests.sh" >"$T/outb" 2>&1; rcb=$?
 [ "$rcb" -eq 2 ] && pass "a bad ORC_TEST_SHARD is refused (rc 2)" || fail "a bad ORC_TEST_SHARD" "rc=$rcb $(cat "$T/outb")"
 

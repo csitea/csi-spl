@@ -20,6 +20,7 @@ do_spl_doc_tree_check() {
   local doc_id="${DOC_ID:-}"
   local expect_empty="${EXPECT_EMPTY:-0}"
 
+  : "${expect_empty}"
   printf '===== csi-spl doc tree check: env=%s project=%s instance=%s db=%s doc=%s utc=%s\n' \
     "$ENV" "$SPL_PROJECT" "$SPL_SQL_INSTANCE" "$SPL_DB_NAME" "${doc_id:-all}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 

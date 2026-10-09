@@ -7,6 +7,8 @@
 //     output is dropped too (the allow-list).
 //   - utils/roadmap-rows.mjs: ?when=week|month (5.3 (b)) in an ISO week /
 //     calendar month. CONTROL: the toggle changes the row count of a fixture.
+//   - outside the repo (the OSS standalone image) the sync writes an empty
+//     list; in the repo a failing action fails it.
 //   - the page fetches /roadmap.json, never imports it (spec 112 9).
 //
 // Run: node tests/unit/roadmap.test.mjs
@@ -88,6 +90,14 @@ try {
   spawnSync('git', ['clone', '-q', '--depth', '1', `file://${repo}`, shallow], { encoding: 'utf8' })
   const sdoc = syncRoadmap({ repo: shallow, out: join(tmp('roadmap-out-'), 'roadmap.json') })
   ok('a shallow clone dates no tasks.md', sdoc.specs.length === 5 && sdoc.specs.every((s) => s.tasks_changed === ''), JSON.stringify(sdoc.specs.map((s) => s.tasks_changed)))
+
+  const lone = syncRoadmap({ repo: tmp('roadmap-lone-'), out: join(tmp('roadmap-out-'), 'roadmap.json'), action: '/nonexistent/spl-spec-progress.func.sh' })
+  ok('outside the repo (the standalone image): an empty spec list, not a failed build', lone.specs.length === 0 && lone.totals.specs === 0)
+  const bad = join(tmp('roadmap-bad-'), 'spl-spec-progress.func.sh')
+  writeFileSync(bad, 'do_spl_spec_progress() { echo broken >&2; return 1; }\n')
+  let red = false
+  try { syncRoadmap({ repo, out: join(tmp('roadmap-out-'), 'roadmap.json'), action: bad }) } catch { red = true }
+  ok('in the repo, a failing action still fails the sync', red)
 
   /* ── the this-week / this-month filter (5.3 (b)) ───────────────────────── */
   ok('?when= reads week / month, else all', roadmapWhen('week') === 'week' && roadmapWhen(['month']) === 'month' && roadmapWhen('year') === '' && roadmapWhen(undefined) === '')

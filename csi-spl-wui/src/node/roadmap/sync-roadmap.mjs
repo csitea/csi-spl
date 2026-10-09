@@ -13,6 +13,10 @@
 //   might print one day never reaches the file.
 // - Nothing re-counts boxes here (5.1): the action is sourced and called, with
 //   the two run-time helpers it needs (do_log, do_require_bin) as shims.
+// - A build outside the repo (the OSS standalone image copies csi-spl-wui/
+//   alone: no csi-spl-orc, no specs, no bash) writes an empty spec list and
+//   says so; the page then reads "No specs in this build". Inside the repo a
+//   failing action still fails the build.
 // - A shallow clone (the CI mock generate) cannot date a tasks.md: every file
 //   reads the one fetched commit. tasks_changed is then "" (unknown), never a
 //   wrong day that the this-week filter would match.
@@ -20,7 +24,7 @@
 // Usage (in csi-spl-wui):
 //   node src/node/roadmap/sync-roadmap.mjs        # write the copy (pnpm run generate)
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -80,9 +84,15 @@ export function roadmapOf(progress, { shallow = false } = {}) {
 
 /** Write roadmap.json; returns the object written. */
 export function syncRoadmap({ repo = ROADMAP_REPO, out = ROADMAP_OUT, action = ROADMAP_ACTION } = {}) {
+  mkdirSync(dirname(out), { recursive: true })
+  if (!existsSync(action) || !existsSync(join(repo, 'csi-spl-doc/specs'))) {
+    const doc = roadmapOf({ specs: [] })
+    writeFileSync(out, JSON.stringify(doc) + '\n')
+    console.log(`sync-roadmap: no repo here (${existsSync(action) ? 'no csi-spl-doc/specs' : 'no ' + action}): 0 spec rows -> ${out}`)
+    return doc
+  }
   const shallow = isShallow(repo)
   const doc = roadmapOf(specProgressJson(repo, action), { shallow })
-  mkdirSync(dirname(out), { recursive: true })
   writeFileSync(out, JSON.stringify(doc) + '\n')
   console.log(`sync-roadmap: ${doc.specs.length} spec row(s) at ${doc.sha || '?'}${shallow ? ' (shallow clone: no tasks.md dates)' : ''} -> ${out}`)
   return doc

@@ -8,7 +8,7 @@ date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685
 agy_review: a-685
-tags: [feature, Boxes]
+tags: [feature, boxes]
 draft: false
 image: 2026-10-09-feature-boxes.webp
 image_alt: "A dashboard displaying a network of glowing server boxes, symbolizing full visibility of a distributed fleet of agents"

@@ -46,11 +46,12 @@ and prd BEFORE STORE-1/HUB-1 ship; WUI-1 after ORC-1; WUI-2 after HUB-1.
   - Vendor: claude. Box: one with docker Postgres.
   - Landed: `0198be10c` (v4.0.4), `internal/store/calendar_sync.go`; `TestCalendarSyncBySourceKey` green on memory and Postgres (n=2 drivers x 8 syncs). Controls, each red with its guard removed: db: key audience public refused; same batch re-run = 4 unchanged, row count kept; `calendar_events` on the allow-list fails `TestPublicExportGrantsEqualAllowList`. Hub on dev and prd serves `0198be10`.
 
-- [ ] **HUB-1**: Sync route, read-only synced events, approval check (spec 4.1, 4.2, D2).
+- [x] **HUB-1**: Sync route, read-only synced events, approval check (spec 4.1, 4.2, D2).
   - Depends: STORE-1.
   - Owns: `csi-spl-api/src/go/spool-hub-api/internal/hub/calendar_sync.go`, `calendar_sync_test.go`, the 409 guard in `internal/hub/calendar.go`, the `source_key` prefix filter on the event list; cnf keys `env.roadmap.tenant_id` and `env.roadmap.approver_role` in `csi-spl-cnf/csi-spl/all.env.yaml` (no default).
   - Done: `PUT /v1/calendar/sync` upserts as `creator_type = 'system'`, `creator_id = 'roadmap-sync'` for the deploy identity and answers 403 for a human or agent seat; a goal whose `approval.msg_id` is missing, or not authored by a holder of `approver_role` in the roadmap workspace, is returned as `unapproved` and writes no event; PATCH or DELETE on an event with `source_key` set answers 409; `?source_key=goal:G01:` lists only that goal's events. Controls: an agent token gets 403; an approval message from a non-admin member writes nothing; a missing `approver_role` cnf key fails the sync fast.
   - Vendor: claude (auth). Box: one with docker Postgres.
+  - Landed: `f6aa81630` (route, `internal/hub/calendar_sync.go`) + `f2fb2eeeb` (cnf `env.roadmap.*` = `~`, 030 passes them as `SPOOL_HUB_ROADMAP_*`), v4.0.6 on dev and prd. Deploy identity = the operator ID token; a seat is 403 `deploy_identity_only`. Finding 1: the route prunes only the key families the request carries (a family it leaves out, goal: or spec:, is carried unchanged; one it carries is carried whole). Finding 2: `source_key` on the read path + `CalendarBySourceKey` (`internal/store/calendar_source.go`). `calendar_sync_test.go` 5 tests green on memory and Postgres; controls, each red with its guard removed: agent token 403; a non-admin approval writes nothing; missing `approver_role` 503 `roadmap_not_configured`; a release:-only batch deletes 0 and carries the goals. Both cnf values wait on the owner (the sync answers 503 until set).
 
 ## 4. WUI
 

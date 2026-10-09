@@ -2301,17 +2301,17 @@
     "err_network": "Nie zapisano: brak połączenia z serwerem. Czas jest zachowany; spróbuj ponownie."
   },
   "public_calendar": {
-    "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
-    "releases": "Releases ({n})"
+    "title": "Kalendarz",
+    "lede": "Wydania i nowe funkcje spool, dzień po dniu.",
+    "sign_in": "Zaloguj się",
+    "month_nav": "Miesiąc",
+    "prev_month": "Poprzedni miesiąc",
+    "next_month": "Następny miesiąc",
+    "loading": "Ładowanie kalendarza…",
+    "error": "Nie udało się załadować kalendarza. Spróbuj ponownie później.",
+    "empty_month": "W tym miesiącu nie było żadnych wydań.",
+    "feature": "Nowa funkcja",
+    "releases": "Wydania ({n})"
   },
   "ws_doctree": {
     "title": "Dokumenty",

@@ -2301,17 +2301,17 @@
     "err_network": "Ei kirjattu: palvelimeen ei saatu yhteyttä. Aika on tallessa; yritä uudelleen."
   },
   "public_calendar": {
-    "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
-    "releases": "Releases ({n})"
+    "title": "Kalenteri",
+    "lede": "Spoolin julkaisut ja uudet ominaisuudet päivittäin.",
+    "sign_in": "Kirjaudu sisään",
+    "month_nav": "Kuukausi",
+    "prev_month": "Edellinen kuukausi",
+    "next_month": "Seuraava kuukausi",
+    "loading": "Ladataan kalenteria…",
+    "error": "Kalenteria ei voitu ladata. Yritä myöhemmin uudelleen.",
+    "empty_month": "Tässä kuussa ei ollut julkaisuja.",
+    "feature": "Uusi ominaisuus",
+    "releases": "Julkaisut ({n})"
   },
   "ws_doctree": {
     "title": "Dokumentit",

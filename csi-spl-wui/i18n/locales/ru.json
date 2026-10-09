@@ -2301,17 +2301,17 @@
     "err_network": "Не записано: сервер недоступен. Время сохранено; повторите попытку."
   },
   "public_calendar": {
-    "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
-    "releases": "Releases ({n})"
+    "title": "Календарь",
+    "lede": "Релизы и новые функции пула, по дням.",
+    "sign_in": "Войти",
+    "month_nav": "Месяц",
+    "prev_month": "Предыдущий месяц",
+    "next_month": "Следующий месяц",
+    "loading": "Загрузка календаря…",
+    "error": "Не удалось загрузить календарь. Повторите попытку позже.",
+    "empty_month": "В этом месяце не было релизов.",
+    "feature": "Новая функция",
+    "releases": "Релизы ({n})"
   },
   "ws_doctree": {
     "title": "Документы",

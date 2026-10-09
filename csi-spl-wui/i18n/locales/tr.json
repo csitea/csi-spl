@@ -2301,17 +2301,17 @@
     "err_network": "Kaydedilmedi: sunucuya ulaşılamadı. Süre saklanıyor; tekrar dene."
   },
   "public_calendar": {
-    "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
-    "releases": "Releases ({n})"
+    "title": "Takvim",
+    "lede": "Gün gün spool sürümleri ve yeni özellikler.",
+    "sign_in": "Giriş yap",
+    "month_nav": "Ay",
+    "prev_month": "Önceki ay",
+    "next_month": "Sonraki ay",
+    "loading": "Takvim yükleniyor…",
+    "error": "Takvim yüklenemedi. Lütfen daha sonra tekrar deneyin.",
+    "empty_month": "Bu ay hiçbir sürüm yayınlanmadı.",
+    "feature": "Yeni özellik",
+    "releases": "Sürümler ({n})"
   },
   "ws_doctree": {
     "title": "Belgeler",

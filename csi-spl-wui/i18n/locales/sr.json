@@ -2301,17 +2301,17 @@
     "err_network": "Није уписано: сервер није доступан. Време је сачувано; покушај поново."
   },
   "public_calendar": {
-    "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
-    "releases": "Releases ({n})"
+    "title": "Календар",
+    "lede": "Издања и нове функције спула, по данима.",
+    "sign_in": "Пријава",
+    "month_nav": "Месец",
+    "prev_month": "Претходни месец",
+    "next_month": "Следећи месец",
+    "loading": "Учитавање календара…",
+    "error": "Није могуће учитати календар. Покушајте поново касније.",
+    "empty_month": "Овог месеца није било издања.",
+    "feature": "Нова функција",
+    "releases": "Издања ({n})"
   },
   "ws_doctree": {
     "title": "Документи",

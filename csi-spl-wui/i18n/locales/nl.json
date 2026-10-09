@@ -2301,16 +2301,16 @@
     "err_network": "Niet geboekt: de server is niet bereikbaar. De tijd blijft bewaard; probeer het opnieuw."
   },
   "public_calendar": {
-    "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
+    "title": "Kalender",
+    "lede": "Releases en nieuwe functies van de spool, per dag.",
+    "sign_in": "Inloggen",
+    "month_nav": "Maand",
+    "prev_month": "Vorige maand",
+    "next_month": "Volgende maand",
+    "loading": "Kalender laden…",
+    "error": "De kalender kon niet worden geladen. Probeer het later opnieuw.",
+    "empty_month": "Er zijn deze maand geen releases geweest.",
+    "feature": "Nieuwe functie",
     "releases": "Releases ({n})"
   },
   "ws_doctree": {

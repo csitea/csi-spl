@@ -2302,16 +2302,16 @@
   },
   "public_calendar": {
     "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
-    "releases": "Releases ({n})"
+    "lede": "Lansări și funcții noi ale spool-ului, pe zile.",
+    "sign_in": "Autentificare",
+    "month_nav": "Lună",
+    "prev_month": "Luna anterioară",
+    "next_month": "Luna următoare",
+    "loading": "Se încarcă calendarul…",
+    "error": "Calendarul nu a putut fi încărcat. Încercați din nou mai târziu.",
+    "empty_month": "Nu au existat lansări luna aceasta.",
+    "feature": "Funcție nouă",
+    "releases": "Lansări ({n})"
   },
   "ws_doctree": {
     "title": "Documente",

@@ -2301,17 +2301,17 @@
     "err_network": "Nezapísané: server je nedostupný. Čas zostáva uložený; skúste to znova."
   },
   "public_calendar": {
-    "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
-    "releases": "Releases ({n})"
+    "title": "Kalendár",
+    "lede": "Vydania a nové funkcie spoolu, po dňoch.",
+    "sign_in": "Prihlásiť sa",
+    "month_nav": "Mesiac",
+    "prev_month": "Predchádzajúci mesiac",
+    "next_month": "Nasledujúci mesiac",
+    "loading": "Načítava sa kalendár…",
+    "error": "Kalendár sa nepodarilo načítať. Skúste to znova neskôr.",
+    "empty_month": "Tento mesiac neboli žiadne vydania.",
+    "feature": "Nová funkcia",
+    "releases": "Vydania ({n})"
   },
   "ws_doctree": {
     "title": "Dokumenty",

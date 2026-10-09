@@ -2301,17 +2301,17 @@
     "err_network": "לא נרשם: אין חיבור לשרת. הזמן נשמר; נסו שוב."
   },
   "public_calendar": {
-    "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
-    "releases": "Releases ({n})"
+    "title": "יומן",
+    "lede": "גרסאות ותכונות חדשות של ה-spool, לפי יום.",
+    "sign_in": "כניסה",
+    "month_nav": "חודש",
+    "prev_month": "החודש הקודם",
+    "next_month": "החודש הבא",
+    "loading": "טוען את היומן…",
+    "error": "לא ניתן היה לטעון את היומן. נסה שוב מאוחר יותר.",
+    "empty_month": "לא היו שחרורים החודש.",
+    "feature": "תכונה חדשה",
+    "releases": "שחרורים ({n})"
   },
   "ws_doctree": {
     "title": "מסמכים",

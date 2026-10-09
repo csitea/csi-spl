@@ -2301,17 +2301,17 @@
     "err_network": "Nav reģistrēts: serveris nav sasniedzams. Laiks ir saglabāts; mēģini vēlreiz."
   },
   "public_calendar": {
-    "title": "Calendar",
-    "lede": "Releases and new features of the spool, by day.",
-    "sign_in": "Sign in",
-    "month_nav": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month",
-    "loading": "Loading the calendar…",
-    "error": "The calendar could not be loaded. Try again later.",
-    "empty_month": "Nothing was released this month.",
-    "feature": "New feature",
-    "releases": "Releases ({n})"
+    "title": "Kalendārs",
+    "lede": "Spool izlaidumi un jaunās funkcijas, pa dienām.",
+    "sign_in": "Pierakstīties",
+    "month_nav": "Mēnesis",
+    "prev_month": "Iepriekšējais mēnesis",
+    "next_month": "Nākamais mēnesis",
+    "loading": "Notiek kalendāra ielāde…",
+    "error": "Neizdevās ielādēt kalendāru. Mēģiniet vēlreiz vēlāk.",
+    "empty_month": "Šajā mēnesī nebija neviena izlaiduma.",
+    "feature": "Jauna funkcija",
+    "releases": "Izlaidumi ({n})"
   },
   "ws_doctree": {
     "title": "Dokumenti",

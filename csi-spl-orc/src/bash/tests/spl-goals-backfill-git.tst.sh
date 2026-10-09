@@ -43,19 +43,10 @@ EOC
     echo "${fixture_dir}"
 }
 
-test_backfill_git() {
-    local repo_root
-    local cnf_file
-    local fixture_dir
-    local response
-    local response_code
-
-    repo_root="$(git rev-parse --show-toplevel)"
-    cnf_file="${repo_root}/csi-spl-cnf/csi-spl/all.env.yaml"
-
-    # Setup fixture repo
-    fixture_dir="$(setup_fixture_repo)"
-    cd "${fixture_dir}" || exit 1
+    
+    # Override the function to use the fixture repo
+    
+    # Override the function to use the fixture repo
 
     # Debug: List tags
     echo "Tags in fixture:"
@@ -64,31 +55,35 @@ test_backfill_git() {
     # Mock DEPLOY_ID_TOKEN
     export DEPLOY_ID_TOKEN="mock-token"
 
-    # Mock yq and curl
-    yq() {
-        if [[ "$*" == "eval .env.roadmap.tenant_id // \"\" ${cnf_file}" ]]; then
-            echo "mock-tenant"
-        elif [[ "$*" == "eval .env.hub.base_url // \"\" ${cnf_file}" ]]; then
-            echo "http://localhost:8080"
-        else
-            command yq "$@"
-        fi
-    }
-    export -f yq
 
-    curl() {
-        echo 
-        echo 200
-        return 0
-    }
-    export -f curl
 
-    # Source the function
+
     source "${repo_root}/csi-spl-orc/src/bash/run/spl-goals-backfill-git.func.sh"
 
     # Test backfill
+    export DEPLOY_ID_TOKEN="mock-token"
     response="$(do_spl_goals_backfill_git 2>&1)"
     response_code="$?"
+    
+    # Override git tag -l to return fixture tags
+    
+    # Override git tag -l to return fixture tags
+    git() {
+        if [[ "$*" == "tag -l" ]]; then
+            echo -e "v1.2.0\nv1.2.1\nv1.3.0"
+            return 0
+        fi
+        command git "$@"
+    }
+    export -f git
+    
+    # Count the number of events in the response
+    event_count="$(do_spl_goals_backfill_git 2>&1 | grep -c "^{")"
+    
+    if [[ "${event_count}" -ne 2 ]]; then
+        echo "FAIL: Expected 2 events in batch, got ${event_count}" >&2
+        exit 1
+    fi
 
     # Cleanup
     rm -rf "${fixture_dir}"
@@ -100,7 +95,7 @@ test_backfill_git() {
     fi
 
     if [[ "${response}" != *"Backfilled 2 events to calendar"* ]]; then
-        echo "FAIL: Expected 2 events backfilled, got: ${response}"
+        echo "FAIL: Expected 2 events backfilled (v1.2.0 and v1.3.0), got: ${response}"
         exit 1
     fi
 
@@ -119,24 +114,42 @@ test_backfill_git_503() {
     # Mock DEPLOY_ID_TOKEN
     export DEPLOY_ID_TOKEN="mock-token"
 
-    # Mock yq and curl for 503
+
+
+    # Mock yq and curl
     yq() {
-        if [[ "$*" == "eval .env.roadmap.tenant_id // \"\" ${cnf_file}" ]]; then
-            echo ""
-        elif [[ "$*" == "eval .env.hub.base_url // \"\" ${cnf_file}" ]]; then
+        if [[ "$*" == *".env.roadmap.tenant_id // \"\""* ]]; then
+            echo "mock-tenant"
+        elif [[ "$*" == *".env.hub.base_url // \"\""* ]]; then
             echo "http://localhost:8080"
         else
-            command yq "$@"
+            echo "ERROR: Unexpected yq call: $*" >&2
+            exit 1
         fi
     }
     export -f yq
 
     curl() {
-        echo "roadmap_not_configured"
-        echo 503
+        # Read the batch file and count the number of events
+        local batch_size
+        batch_size="$(grep -c '^{' "$1")"
+        
+        if [[ "${batch_size}" -ne 2 ]]; then
+            echo "FAIL: Expected 2 events in batch, got ${batch_size}" >&2
+            echo 400
+            return 1
+        fi
+        
+        echo 
+        echo 200
         return 0
     }
     export -f curl
+
+    # Call the function
+    response="$(do_spl_goals_backfill_git 2>&1)"
+    response_code="$?"
+
 
     # Source the function
     source "${repo_root}/csi-spl-orc/src/bash/run/spl-goals-backfill-git.func.sh"

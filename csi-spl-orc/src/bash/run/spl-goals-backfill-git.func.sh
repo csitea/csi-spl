@@ -21,6 +21,10 @@
 set -euo pipefail
 
 do_spl_goals_backfill_git() {
+    if [[ -z "${DEPLOY_ID_TOKEN:-}" ]]; then
+        echo "ERROR: DEPLOY_ID_TOKEN not set" >&2
+        exit 1
+    fi
     local repo_root
     local cnf_file
     local tenant_id
@@ -50,12 +54,17 @@ do_spl_goals_backfill_git() {
     milestones_file="${repo_root}/csi-spl-doc/goals/milestones.yaml"
 
     # Fail fast if cnf keys are missing
+    if [[ ! -f "${cnf_file}" ]]; then
+        echo "ERROR: ${cnf_file} does not exist" >&2
+        exit 1
+    fi
     if ! grep -q "^env:" "${cnf_file}"; then
         echo "ERROR: ${cnf_file} missing \"env:\" section" >&2
         exit 1
     fi
 
     tenant_id="$(yq eval ".env.roadmap.tenant_id // \"\"" "${cnf_file}")"
+    
     hub_base_url="$(yq eval ".env.hub.base_url // \"\"" "${cnf_file}")"
 
     if [[ -z "${hub_base_url}" ]]; then
@@ -71,42 +80,11 @@ do_spl_goals_backfill_git() {
     deploy_token="${DEPLOY_ID_TOKEN}"
     batch_file="$(mktemp)"
 
-    # Backfill from milestones.yaml (starting with 2026-09-17 spool-hub started)
-    if [[ -f "${milestones_file}" ]]; then
-        while IFS= read -r milestone_line; do
-            if [[ "${milestone_line}" =~ ^# || -z "${milestone_line}" ]]; then
-                continue
-            fi
-
-            milestone_date="$(echo "${milestone_line}" | cut -d' ' -f1)"
-            milestone_title="$(echo "${milestone_line}" | cut -d' ' -f2-)"
-
-            if [[ -z "${milestone_date}" || -z "${milestone_title}" ]]; then
-                continue
-            fi
-
-            event_title="Release: ${milestone_title}"
-            event_date="${milestone_date}"
-            event_kind="release"
-            event_source_key="release:${milestone_date}"
-            event_audience="public"
-
-            event_json="{\
-                \"tenant_id\": \"${tenant_id}\", \
-                \"title\": \"${event_title}\", \
-                \"date\": \"${event_date}\", \
-                \"kind\": \"${event_kind}\", \
-                \"source_key\": \"${event_source_key}\", \
-                \"audience\": \"${event_audience}\", \
-                \"remind_at\": \"${milestone_date}T00:00:00Z\"\
-            }"
-
-            batch+=("${event_json}")
-        done < "${milestones_file}"
-    fi
+    # Backfill from milestones.yaml is NOT part of the git backfill (spec 112, ORC-2)
+    # Only git tags are processed in this function.
 
     # Backfill from git tags (v*.0 only, skip patch tags)
-    while IFS= read -r tag; do
+    for tag in $(git tag -l); do
         if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.0$ ]]; then
             continue
         fi
@@ -147,6 +125,7 @@ do_spl_goals_backfill_git() {
     printf "%s\n" "${batch[@]}" > "${batch_file}"
 
     # Send to hub
+    cat "${batch_file}" >&2
     response="$(curl -s -w "\n%{http_code}" -X PUT "${hub_base_url}/v1/calendar/sync" \
         -H "Authorization: Bearer ${deploy_token}" \
         -H "Content-Type: application/json" \

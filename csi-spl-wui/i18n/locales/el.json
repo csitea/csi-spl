@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Έγγραφα",
+    "open": "Έγγραφα (Qto)",
     "doc_label": "Έγγραφο",
     "view_label": "Προβολή",
     "view_doc": "Διάρθρωση",

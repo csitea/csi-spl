@@ -41,7 +41,7 @@ export const VIM_ACTIVE_ITEM = '[aria-current="true"], [aria-current="page"], [a
 export const PANE_SELECTORS = Object.freeze({
   0: Object.freeze({
     roots: Object.freeze(['.sidebar-rail']),
-    items: '.sidebar-tab, .sidebar-rail__help, .sidebar-rail__docs, .sidebar-rail__settings, [data-vim-item]',
+    items: '.sidebar-tab, .sidebar-rail__help, .sidebar-rail__docs, .sidebar-rail__qto, .sidebar-rail__settings, [data-vim-item]',
   }),
   1: Object.freeze({
     roots: Object.freeze(['.docs-tree', '.help-nav', '.settings-nav', '.calendar-body__strip', '.issues-chips', '.sidebar-body']),

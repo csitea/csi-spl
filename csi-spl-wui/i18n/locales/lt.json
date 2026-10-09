@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Dokumentai",
+    "open": "Dokumentai (Qto)",
     "doc_label": "Dokumentas",
     "view_label": "Rodinys",
     "view_doc": "Struktūra",

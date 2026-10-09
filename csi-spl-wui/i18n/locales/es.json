@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Documentos",
+    "open": "Documentos (Qto)",
     "doc_label": "Documento",
     "view_label": "Vista",
     "view_doc": "Esquema",

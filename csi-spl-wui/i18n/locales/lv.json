@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Dokumenti",
+    "open": "Dokumenti (Qto)",
     "doc_label": "Dokuments",
     "view_label": "Skats",
     "view_doc": "Struktūra",

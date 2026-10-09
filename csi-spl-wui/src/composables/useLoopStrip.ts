@@ -22,7 +22,7 @@ import { loopPosition } from '~/utils/section-strip.mjs'
  * /issues. The first visible frame has both copies and is centred (n=5).
  */
 
-const REAL = ':scope > .sidebar-rail__tabs > .sidebar-tab, :scope > .sidebar-rail__help, :scope > .sidebar-rail__docs, :scope > .sidebar-rail__settings'
+const REAL = ':scope > .sidebar-rail__tabs > .sidebar-tab, :scope > .sidebar-rail__help, :scope > .sidebar-rail__docs, :scope > .sidebar-rail__qto, :scope > .sidebar-rail__settings'
 
 type Snap = {
   span: number

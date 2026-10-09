@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Dokument",
+    "open": "Dokument (Qto)",
     "doc_label": "Dokument",
     "view_label": "Vy",
     "view_doc": "Disposition",

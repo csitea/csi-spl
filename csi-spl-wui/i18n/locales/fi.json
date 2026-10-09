@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Dokumentit",
+    "open": "Dokumentit (Qto)",
     "doc_label": "Dokumentti",
     "view_label": "Näkymä",
     "view_doc": "Jäsennys",

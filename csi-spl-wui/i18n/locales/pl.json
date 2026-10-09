@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Dokumenty",
+    "open": "Dokumenty (Qto)",
     "doc_label": "Dokument",
     "view_label": "Widok",
     "view_doc": "Konspekt",

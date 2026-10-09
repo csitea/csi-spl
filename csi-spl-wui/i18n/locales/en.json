@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Documents",
+    "open": "Docs (Qto)",
     "doc_label": "Document",
     "view_label": "View",
     "view_doc": "Outline",

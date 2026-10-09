@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Dokumenty",
+    "open": "Dokumenty (Qto)",
     "doc_label": "Dokument",
     "view_label": "Zobrazenie",
     "view_doc": "Osnova",

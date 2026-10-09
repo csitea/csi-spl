@@ -2315,6 +2315,7 @@
   },
   "ws_doctree": {
     "title": "Documente",
+    "open": "Documente (Qto)",
     "doc_label": "Document",
     "view_label": "Vizualizare",
     "view_doc": "Structură",

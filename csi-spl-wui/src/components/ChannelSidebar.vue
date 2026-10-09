@@ -71,6 +71,18 @@
       >
         <UiIcon name="book-open" :size="20" />
       </NuxtLink>
+      <!-- Docs (Qto) (owner HUM-10, t1 4296200d): the workspace documents of
+           spec 113 (/workspace/docs), for a signed-in member -->
+      <NuxtLink
+        v-if="qtoShown"
+        class="sidebar-rail__qto"
+        data-testid="qto-open"
+        :to="localePath('/workspace/docs')"
+        :title="t('ws_doctree.open')"
+        :aria-label="t('ws_doctree.open')"
+      >
+        <UiIcon name="file-text" :size="20" />
+      </NuxtLink>
       <!-- SPL-1037 (specs/046): the app / tenant settings, admins and
            biz_owners only; owner 2026-09-28: a gear -->
       <NuxtLink
@@ -126,6 +138,9 @@
           </NuxtLink>
           <NuxtLink class="sidebar-rail__docs" tabindex="-1" :to="localePath('/docs')">
             <UiIcon name="book-open" :size="20" />
+          </NuxtLink>
+          <NuxtLink v-if="qtoShown" class="sidebar-rail__qto" tabindex="-1" :to="localePath('/workspace/docs')">
+            <UiIcon name="file-text" :size="20" />
           </NuxtLink>
           <NuxtLink v-if="tenantSettingsShown" class="sidebar-rail__settings" tabindex="-1" :to="localePath('/tenant-settings')">
             <UiIcon name="settings" :size="20" />
@@ -1013,6 +1028,9 @@ const api = useSpoolApi()
 // hidden (the hub also 403s every DM endpoint for a clone).
 const acting = computed(() => Boolean(access.me?.actAs))
 const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
+/* Docs (Qto): a signed-in member only; the mock's settled session is 'unknown'
+   (read as signed in), 'out' when an e2e opts into a signed-out visitor */
+const qtoShown = computed(() => (api.mock ? session.state !== 'out' : session.state === 'in'))
 const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
@@ -1071,7 +1089,7 @@ const LOOP_SIDES = ['before', 'after'] as const
 const loop = useLoopStrip(railEl, {
   enabled: () => mobileStack.isMobile.value,
   selected: '.sidebar-tab[aria-selected="true"], .router-link-active:not([tabindex="-1"])',
-  watchKey: () => [tab.value, route.path, mobileStack.level.value, rail.value.length, tenantSettingsShown.value],
+  watchKey: () => [tab.value, route.path, mobileStack.level.value, rail.value.length, tenantSettingsShown.value, qtoShown.value],
 })
 function sectionUnread(prefix: string) {
   return Object.entries(notes.unread).some(([k, n]) => k.startsWith(prefix) && Number(n) > 0)
@@ -1819,6 +1837,7 @@ async function onCreate() {
 .sidebar-rail__help { margin-block-start: auto; }
 .sidebar-rail__help,
 .sidebar-rail__docs,
+.sidebar-rail__qto,
 .sidebar-rail__settings {
   display: grid;
   place-items: center;
@@ -1831,12 +1850,15 @@ async function onCreate() {
 }
 .sidebar-rail__help:hover,
 .sidebar-rail__docs:hover,
+.sidebar-rail__qto:hover,
 .sidebar-rail__settings:hover { background: var(--color-surface-hover); color: var(--color-fg); }
 .sidebar-rail__help.router-link-active,
 .sidebar-rail__docs.router-link-active,
+.sidebar-rail__qto.router-link-active,
 .sidebar-rail__settings.router-link-active { color: var(--color-fg); }
 .sidebar-rail__help :deep(svg),
 .sidebar-rail__docs :deep(svg),
+.sidebar-rail__qto :deep(svg),
 .sidebar-rail__settings :deep(svg) {
   width: min(22px, 70cqi);
   height: min(22px, 70cqi);
@@ -2265,6 +2287,7 @@ async function onCreate() {
   .sidebar-tab[data-on="true"],
   .sidebar-rail__help.router-link-active,
   .sidebar-rail__docs.router-link-active,
+  .sidebar-rail__qto.router-link-active,
   .sidebar-rail__settings.router-link-active {
     margin: 1px;
     min-height: 50px;
@@ -2294,10 +2317,12 @@ async function onCreate() {
   /* the phone strip: the gear ends the row, a 44 px target */
   .sidebar-rail__help,
   .sidebar-rail__docs,
+  .sidebar-rail__qto,
   .sidebar-rail__settings { margin-block-start: 0; flex: 0 0 auto; width: 52px; min-height: 52px; aspect-ratio: auto; container-type: normal; }
   .sidebar-rail__help { margin-inline-start: auto; }
   .sidebar-rail__help :deep(svg),
   .sidebar-rail__docs :deep(svg),
+  .sidebar-rail__qto :deep(svg),
   .sidebar-rail__settings :deep(svg) { width: 22px; height: 22px; }
   .sidebar.sidebar--rail { width: 100%; max-width: 100%; }
   .sidebar-body { padding-top: 4px; }

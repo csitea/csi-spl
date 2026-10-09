@@ -283,12 +283,15 @@ async function viewMid(p) {
   })
 }
 
-/** a closed sheet or peek: the selected cell takes a tap again (what is under its centre) */
+/** a closed sheet or peek: the selected cell takes a tap again (what is under its centre).
+ * The cell is scrolled into view first: since spec 107 T011 a working day's agenda carries a
+ * Working hours line, so tapping a lower card scrolls the grid's top row under the top bar. */
 async function settled(p) {
   const t0 = Date.now()
   const free = await p.waitForFunction((m, d) => {
     const c = document.querySelector(`${m} [data-test=calphone-month-cell][data-iso="${d}"]`)
     if (!c) return false
+    c.scrollIntoView({ block: 'nearest' })
     const r = c.getBoundingClientRect()
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
     return Boolean(hit && c.contains(hit))

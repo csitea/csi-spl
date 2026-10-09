@@ -689,6 +689,20 @@ jobs:
             *) echo "::error::cannot read the $ENV service state (rc $rc)"; exit 1 ;;
           esac
 
+      # spec 112 ORC-2: sync approved goals and milestones to the calendar after the hub deploy.
+      # Treats 503 roadmap_not_configured as a warning (not a failure) to avoid blocking deploys.
+      - name: Sync goals to calendar (do_spl_goals_sync)
+        if: steps.guard.outputs.ok == "true" && steps.ver.outputs.stale != "true"
+        run: |
+          set -euo pipefail
+          rc=0
+          ENV="$ENV" GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_spl_goals_sync || rc=$?
+          case "$rc" in
+            0) ;;
+            53) echo "::warning::$ENV: roadmap not configured (503 roadmap_not_configured)" ;;
+            *) echo "::error::goals sync failed (rc $rc)"; exit 1 ;;
+          esac
+
       # spec 065 L5: fill the release notes the version pop-up's "Release
       # notes" modal and the /releases/<sha> links read. The newest 500 trunk
       # commits, each with the first v-tag that contains it, upserted by sha

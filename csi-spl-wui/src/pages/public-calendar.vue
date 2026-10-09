@@ -88,6 +88,9 @@ import {
 
 definePageMeta({ layout: false })
 
+/* spec 116 T7: robots (index on prd), apex canonical, hreflang, og, in this
+   page's chunk and in its prerendered document (nuxt.config PRERENDER_PAGES) */
+usePublicSeo()
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const router = useRouter()

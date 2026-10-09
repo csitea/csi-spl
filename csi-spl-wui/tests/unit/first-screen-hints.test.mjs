@@ -73,6 +73,8 @@ describe('first-screen hints: route -> page, layout', () => {
     assert.equal(firstScreenPageLayout(''), 'default')
     assert.equal(firstScreenPageLayout(readFileSync(join(WUI, 'src/pages/login.vue'), 'utf8')), 'login')
     assert.equal(firstScreenPageLayout(readFileSync(join(WUI, 'src/pages/index.vue'), 'utf8')), 'default')
+    assert.equal(firstScreenPageLayout('definePageMeta({ layout: false })'), '')
+    assert.equal(firstScreenPageLayout(readFileSync(join(WUI, 'src/pages/public-calendar.vue'), 'utf8')), '')
   })
 })
 

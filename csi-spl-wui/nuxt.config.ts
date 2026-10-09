@@ -292,7 +292,8 @@ function i18nSplitModule(_options: unknown, nuxt: { hook: (name: "build:manifest
 // src/plugins/locale-cookie.client.ts, read by the root redirect script.
 const LOCALE_COOKIE = "i18n_redirected"
 // Pages prerendered per locale (the rest is the 200.html SPA fallback).
-const PRERENDER_PAGES = ["/", "/login"]
+// /login and /public-calendar are public (spec 116 T7): own head, in sitemap.xml
+const PRERENDER_PAGES = ["/", "/login", "/public-calendar"]
 
 // ── The blog (spec 111 T003) ──────────────────────────────────────────────
 // /blog, /blog/page/<n> and /blog/<id>, in every locale, prerendered from the
@@ -414,7 +415,7 @@ function publicCalendarModule() {
 }
 
 // ── The public pages search engines index (spec 116 T7) ────────────────
-// /login, /help/** and /blog/** (src/utils/public-seo.mjs) are `index,
+// /login, /public-calendar, /help/** and /blog/** (public-seo.mjs) are `index,
 // follow` with an apex canonical on an indexable build: cnf
 // env.wui.seo_index (prd) -> NUXT_PUBLIC_SEO_INDEX=1 (wf 30). Every other
 // document stays noindex, and on any other build every document does. The
@@ -466,6 +467,7 @@ function publicSeoModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
       if (!SEO_INDEX) return
       const entries = sitemapEntries({
         codes: LOCALE_CODES, defaultLocale: DEFAULT_LOCALE, help: helpSlugs(), pageSize: BLOG_PAGE_SIZE,
+        pages: PRERENDER_PAGES.filter((p) => isPublicSeoPath(p, LOCALE_CODES)),
         blog: blogIndex(), today: new Date().toISOString().slice(0, 10),
       })
       writeFileSync(join(out, "sitemap.xml"), buildSitemapXml({ siteUrl: SITE_URL, defaultLocale: DEFAULT_LOCALE, entries }))
@@ -512,9 +514,10 @@ function firstScreenHintsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
         return
       }
       const layout = firstScreenPageLayout(readFileSync(hit.file, "utf8"))
+      // `layout: false` (/public-calendar) runs no layout: no layout chunk to preload
       const roots = [
         hit.file,
-        join(nuxt.options.srcDir, "layouts", `${layout}.vue`),
+        ...(layout ? [join(nuxt.options.srcDir, "layouts", `${layout}.vue`)] : []),
         join(nuxt.options.rootDir, "i18n", "locales", LOCALE_FILES[hit.locale]),
       ]
       const files = firstScreenFiles(graph, roots)

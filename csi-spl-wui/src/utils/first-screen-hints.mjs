@@ -104,10 +104,10 @@ export function firstScreenRoutePage(route, pages, localeCodes, defaultLocale) {
   return page ? { file: page.file || '', locale } : null
 }
 
-/** The layout a page's definePageMeta names, else "default". */
+/** The layout a page's definePageMeta names, "" for `layout: false` (no layout), else "default". */
 export function firstScreenPageLayout(source) {
-  const m = /definePageMeta\(\s*\{[^}]*\blayout:\s*['"]([\w-]+)['"]/.exec(source || '')
-  return m ? m[1] : 'default'
+  const meta = /definePageMeta\(\s*\{[^}]*\blayout:\s*(false\b|['"]([\w-]+)['"])/.exec(source || '')
+  return meta ? meta[2] || '' : 'default'
 }
 
 /**

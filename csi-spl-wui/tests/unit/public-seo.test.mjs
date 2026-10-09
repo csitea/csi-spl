@@ -4,6 +4,9 @@
 // tests/e2e/blog.test.mjs (publicSeo).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   buildRobotsTxt, buildSitemapXml, injectPublicHead, isPublicSeoPath, jsonLd, localeLinks, publicPageHead, robotsContent, seoBasePath, sitemapEntries,
 } from '../../src/utils/public-seo.mjs'
@@ -135,5 +138,29 @@ describe('public SEO: a client-only page head written at build time', () => {
     assert.match(out, /<link rel="canonical" href="https:\/\/apex\.example\.com\/help\/agents">/)
     assert.match(out, /<meta property="og:title" content="Help · spool-hub">/)
     assert.equal(injectPublicHead(out, head, 'index, follow'), out)
+  })
+})
+
+/* c-652's follow-up (dispatch-598f2807): /public-calendar was public on paper
+   only - not prerendered, no head of its own, not in the sitemap - so its
+   document was 200.html's noindex on prd too. */
+describe('public SEO: /public-calendar is a prerendered, indexable page', () => {
+  const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+  const src = (f) => readFileSync(join(WUI, f), 'utf8')
+  it('is prerendered in every locale (nuxt.config PRERENDER_PAGES) and the sitemap takes it from there', () => {
+    const pages = /const PRERENDER_PAGES = (\[[^\]]*\])/.exec(src('nuxt.config.ts'))?.[1] || '[]'
+    assert.deepEqual(JSON.parse(pages).filter((p) => isPublicSeoPath(p, codes)), ['/login', '/public-calendar'])
+    assert.match(src('nuxt.config.ts'), /pages: PRERENDER_PAGES\.filter\(\(p\) => isPublicSeoPath\(p, LOCALE_CODES\)\)/)
+  })
+  it('sets its own head (usePublicSeo), in its page chunk', () => {
+    assert.match(src('src/pages/public-calendar.vue'), /^usePublicSeo\(\)$/m)
+  })
+  it('the sitemap lists it in every locale with its hreflang group + x-default', () => {
+    const entries = sitemapEntries({ codes: ['en', 'fi'], defaultLocale: 'en', today: '2026-10-10', help: [], pageSize: 10, pages: ['/login', '/public-calendar'], blog: null })
+    const xml = buildSitemapXml({ siteUrl: site, defaultLocale: 'en', entries })
+    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].slice(site.length))
+    assert.deepEqual(locs, ['/login', '/fi/login', '/public-calendar', '/fi/public-calendar', '/help', '/blog', '/fi/blog'])
+    assert.match(xml, /<loc>https:\/\/apex\.example\.com\/fi\/public-calendar<\/loc>\n {4}<lastmod>2026-10-10<\/lastmod>\n {4}<xhtml:link rel="alternate" hreflang="en" href="https:\/\/apex\.example\.com\/public-calendar"\/>/)
+    assert.match(xml, /hreflang="x-default" href="https:\/\/apex\.example\.com\/public-calendar"/)
   })
 })

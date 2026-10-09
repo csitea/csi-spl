@@ -147,7 +147,7 @@ async function publicSeo() {
   ok('robots.txt disallows the app', /^Disallow: \/$/m.test(robotsTxt) && !/^Allow: \/(?:lobby|channel|dm|t|settings|search)\b/m.test(robotsTxt))
   const apex = /^Sitemap: (https:\/\/[^/\s]+)\/sitemap\.xml$/m.exec(robotsTxt)?.[1] || ''
   const posts = (await get('/blog-md/index.json').then((r) => JSON.parse(r.text || '{}'), () => ({}))).locales?.en || []
-  const pub = ['/login', '/fi/login', '/blog', '/help', ...posts.slice(0, 1).map((e) => `/blog/${e.id}`)]
+  const pub = ['/login', '/fi/login', '/public-calendar', '/fi/public-calendar', '/blog', '/help', ...posts.slice(0, 1).map((e) => `/blog/${e.id}`)]
   for (const u of ['/', '/lobby']) {
     const h = head((await get(u)).text)
     ok(`${u} stays noindex`, h.robots === 'noindex, nofollow', h)
@@ -167,14 +167,14 @@ async function publicSeo() {
     const h = head((await get(u)).text)
     ok(`${u}: index, follow, apex canonical, og, twitter, description`, h.robots === 'index, follow' && h.canonical.startsWith(apex + '/') && h.og && h.twitter && h.description, h)
   }
-  for (const u of ['/login', '/fi/login', '/help']) ok(`${u} canonical is itself on the apex`, head((await get(u)).text).canonical === apex + u)
+  for (const u of ['/login', '/fi/login', '/public-calendar', '/fi/public-calendar', '/help']) ok(`${u} canonical is itself on the apex`, head((await get(u)).text).canonical === apex + u)
   ok('/login holds Organization + WebSite JSON-LD', /"@type":"Organization".*"@type":"WebSite"/.test((await get('/login')).text))
   if (posts.length) ok('a post holds BlogPosting JSON-LD', /"@type":"BlogPosting"/.test((await get(`/blog/${posts[0].id}`)).text))
   const sitemap = (await get('/sitemap.xml')).text
   const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
   const want = [...pub.map((u) => apex + u), ...posts.map((e) => `${apex}/blog/${e.id}`)]
   ok('sitemap.xml lists every public route and post', want.every((u) => locs.includes(u)), want.filter((u) => !locs.includes(u)))
-  ok('sitemap.xml lists no app URL and only the apex', locs.every((u) => u.startsWith(apex + '/') && /\/(?:[a-z]{2}\/)?(?:login|help|blog)(?:\/|$)/.test(u.slice(apex.length))), locs.length)
+  ok('sitemap.xml lists no app URL and only the apex', locs.every((u) => u.startsWith(apex + '/') && /\/(?:[a-z]{2}\/)?(?:login|public-calendar|help|blog)(?:\/|$)/.test(u.slice(apex.length))), locs.length)
   ok('every sitemap URL has a lastmod', (sitemap.match(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/g) || []).length === locs.length)
   /* the query variants are the same file: the hydrated head keeps the bare
      apex canonical (an invite email in login_hint never reaches the index) */

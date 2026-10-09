@@ -215,8 +215,10 @@ const xmlEscape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').
 
 /**
  * The sitemap's pages: every canonical public URL with its lastmod and
- * hreflang group, as the pages themselves declare them.
- * @param {{ codes: string[], defaultLocale: string, today: string, help: string[], pageSize: number,
+ * hreflang group, as the pages themselves declare them. `pages` = the public
+ * pages prerendered in every locale (nuxt.config PRERENDER_PAGES: /login,
+ * /public-calendar); default /login.
+ * @param {{ codes: string[], defaultLocale: string, today: string, help: string[], pageSize: number, pages?: string[],
  *   blog: { locales?: Record<string, Array<{ id: string, date?: string, published?: string }>> } | null }} o
  * @returns {Array<{ base: string, code: string, langs: string[], lastmod: string }>}
  */
@@ -225,7 +227,7 @@ export function sitemapEntries(o) {
   const out = []
   /** @param {string} base @param {string} lastmod */
   const all = (base, lastmod) => { for (const c of o.codes) out.push({ base, code: c, langs: o.codes, lastmod }) }
-  all('/login', o.today)
+  for (const p of o.pages || ['/login']) all(p, o.today)
   for (const h of ['', ...o.help]) out.push({ base: h ? `/help/${h}` : '/help', code: o.defaultLocale, langs: [], lastmod: o.today })
   const locales = o.blog?.locales || {}
   const en = locales.en || []

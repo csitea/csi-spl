@@ -15,6 +15,18 @@
 #   4. the canary key is in no output, stub argv/env or ps sample
 #   5. CONTROL: a planted echo of the key in the output, in argv and in an
 #      exported env var IS caught by the same leak check (T011's)
+#   6. Vertex route (owner t1 d49b6b76 option b): a 429 on AI Studio leads to
+#      the Vertex call in the cnf project + region, its token minted by a
+#      stubbed gcloud from a planted fake SA key (throwaway CLOUDSDK_CONFIG,
+#      the key by CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE, --account = the key's
+#      client_email) and sent as the Authorization header on fd 3; no crs
+#      goes to Vertex straight away; the key and the token leak nowhere
+#   7. CONTROL: a 500 on AI Studio does NOT go to Vertex; a 429 with no SA key,
+#      no cnf project, or a Vertex error: no picture, post unchanged, exit 0
+#   8. do_spl_blog_image_check: both keys + a mintable token = "routes
+#      aistudio+vertex", exit 0; the SA domain only, never the key, the token
+#      or the account; CONTROL a token that cannot be minted drops vertex,
+#      no key at all = "routes none", exit 1
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -34,20 +46,40 @@ printf '\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x05\x40\x00\x00\x03\x00\x0
 B64="$(base64 -w0 <"$T/fake.png")"
 
 # stub vendor: argv + env to the log; the fd-3 header compared, never logged;
-# the body kept; the answer by $FAKE_VENDOR (ok | http500 | noimage)
+# the body kept; the answer by $FAKE_VENDOR (ok | http429 | http500 | noimage)
+# for AI Studio, by $FAKE_VX (ok | http403) for a Vertex (aiplatform) URL
 cat >"$T/stub/curl" <<'EOF'
 #!/usr/bin/env bash
 { echo "curl $*"; env; } >>"$STUB_LOG"
-out="" hdr=""
-while (($#)); do case "$1" in -o) out="$2"; shift 2 ;; -H) [[ "$2" == @* ]] && hdr="${2#@}"; shift 2 ;; *) shift ;; esac; done
+out="" hdr="" url=""
+while (($#)); do case "$1" in -o) out="$2"; shift 2 ;; -H) [[ "$2" == @* ]] && hdr="${2#@}"; shift 2 ;; https://*) url="$1"; shift ;; *) shift ;; esac; done
 [[ -n "$out" ]] || exit 0
+ok() { printf '{"candidates":[{"content":{"parts":[{"inlineData":{"mimeType":"image/png","data":"%s"}}]}}]}' "$FAKE_B64" >"$out"; printf 200; }
+if [[ "$url" == *aiplatform* ]]; then
+  [[ -n "$hdr" && "$(cat "$hdr")" == "Authorization: Bearer $(cat "$FAKE_DIR/token")" ]] && echo ok >"$FAKE_DIR/vhdr" || echo bad >"$FAKE_DIR/vhdr"
+  cat >"$FAKE_DIR/vbody.json"
+  case "$FAKE_VX" in ok) ok ;; *) printf '{"error":{"code":403,"status":"PERMISSION_DENIED"}}' >"$out"; printf 403 ;; esac
+  exit 0
+fi
 [[ -n "$hdr" && "$(cat "$hdr")" == "x-goog-api-key: $(sed -n 's/^GEMINI_API_KEY=//p' "$FAKE_CRS")" ]] && echo ok >"$FAKE_DIR/hdr" || echo bad >"$FAKE_DIR/hdr"
 cat >"$FAKE_DIR/body.json"
 case "$FAKE_VENDOR" in
-  ok) printf '{"candidates":[{"content":{"parts":[{"inlineData":{"mimeType":"image/png","data":"%s"}}]}}]}' "$FAKE_B64" >"$out"; printf 200 ;;
+  ok) ok ;;
   noimage) printf '{"candidates":[{"finishReason":"IMAGE_SAFETY","content":{"parts":[]}}]}' >"$out"; printf 200 ;;
+  http429) printf '{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","message":"free_tier limit 0"}}' >"$out"; printf 429 ;;
   *) printf '{"error":{"code":500,"status":"INTERNAL","message":"boom"}}' >"$out"; printf 500 ;;
 esac
+EOF
+# stub gcloud: argv + env to the log; prints the fake token only for
+# "auth print-access-token" with a throwaway CLOUDSDK_CONFIG and the key by
+# CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+cat >"$T/stub/gcloud" <<'EOF'
+#!/usr/bin/env bash
+{ echo "gcloud $*"; env; } >>"$STUB_LOG"
+[[ "$1 $2" == "auth print-access-token" && -d "${CLOUDSDK_CONFIG:-}" && "$CLOUDSDK_CONFIG" != "$HOME/.config/gcloud" &&
+   -f "${CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE:-}" ]] || exit 1
+echo "$CLOUDSDK_CONFIG" >"$FAKE_DIR/gcfg"
+cat "$FAKE_DIR/token"
 EOF
 # stub encoder: argv to the log; writes a webp-shaped file ($FAKE_ENC: webp | junk | big)
 cat >"$T/stub/cwebp" <<'EOF'
@@ -61,6 +93,16 @@ case "$FAKE_ENC" in
 esac
 EOF
 chmod +x "$T/stub/"*
+
+# the cnf (a fake project + region) and a fake SA key with a canary private key
+VX_PROJECT="test-vx-proj${RANDOM}"; VX_LOC="europe-west9"
+printf 'env:\n  blog:\n    image:\n      vertex_project: %s\n      vertex_location: %s\n' "$VX_PROJECT" "$VX_LOC" >"$T/cnf.yaml"
+SAKEY_CANARY="canarySa${RANDOM}${RANDOM}k${RANDOM}"
+VX_ACCOUNT="blog-image@$VX_PROJECT.example"
+VX_KEY="$T/home/.gcp/.csi/key-$VX_PROJECT.json"
+TOKEN="ya29.canaryTok${RANDOM}${RANDOM}${RANDOM}x"; printf "%s\n" "$TOKEN" >"$T/token"
+plant_sa() { mkdir -p "$(dirname "$VX_KEY")"; jq -n --arg e "$VX_ACCOUNT" --arg k "$SAKEY_CANARY" \
+  '{type:"service_account",client_email:$e,private_key:$k}' >"$VX_KEY"; chmod 600 "$VX_KEY"; }
 
 post() {
   cat >"$T/posts/$ID.md" <<EOF
@@ -78,6 +120,7 @@ EOF
 # bi [VAR=value]...: in_orc with the hermetic key, dirs and stubs
 bi() {
   env -u TMUX HOME="$T/home" NANO_BANANA_CRS="$CRS" BLOG_FILE="$T/posts/$ID.md" BLOG_IMAGE_DIR="$T/img" \
+    BLOG_IMAGE_CNF="$T/cnf.yaml" FAKE_VX="${FAKE_VX:-ok}" \
     FAKE_CRS="$CRS" FAKE_DIR="$T" FAKE_B64="$B64" FAKE_VENDOR="${FAKE_VENDOR:-ok}" FAKE_ENC="${FAKE_ENC:-webp}" \
     SNIPPET="${SNIPPET:-do_spl_blog_image}" "$@" bash -c in_orc </dev/null >"$T/o" 2>&1
 }
@@ -159,6 +202,55 @@ plant() {
 plant 'sed -n s/^GEMINI_API_KEY=//p \"\$2\"' "output/log"
 plant 'curl -s \"\$(sed -n s/^GEMINI_API_KEY=//p \"\$2\")\"' "argv"
 plant 'K=\"\$(sed -n s/^GEMINI_API_KEY=//p \"\$2\")\" curl -s' "env"
+
+# --- 6. Vertex on a 429 -------------------------------------------------------------------------------
+vx_url="curl .*-H @/dev/fd/3 .*https://$VX_LOC-aiplatform.googleapis.com/v1/projects/$VX_PROJECT/locations/$VX_LOC/publishers/google/models/gemini-2.5-flash-image:generateContent"
+plant_sa; post; rm -f "$T/img/"*.webp "$T/vhdr" "$T/gcfg"; : >"$T/calls.log"; : >"$T/ps.log"
+FAKE_VENDOR=http429 bi; rc=$?
+[[ $rc -eq 0 ]] && webp "$T/img/$ID.webp" && grep -qx "image: $ID.webp" "$f" && grep -q 'generativelanguage' "$T/calls.log" &&
+  grep -q "$vx_url" "$T/calls.log" && grep -q "INFO AI Studio answered 429, using Vertex $VX_PROJECT/$VX_LOC" "$T/o" &&
+  pass "6: a 429 on AI Studio leads to the Vertex call in the cnf project + region, the picture is written" ||
+  fail "6: 429 -> Vertex (rc=$rc): $(tail -n3 "$T/o")"
+[[ "$(cat "$T/vhdr" 2>/dev/null)" == ok ]] && grep -q "^gcloud auth print-access-token --account=$VX_ACCOUNT\$" "$T/calls.log" &&
+  grep -q "^CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$VX_KEY\$" "$T/calls.log" && [[ -s "$T/gcfg" && ! -e "$(cat "$T/gcfg")" ]] &&
+  pass "6: the SA token (key override, --account = client_email, throwaway config removed after) is the Authorization header on fd 3" ||
+  fail "6: token path: vhdr=$(cat "$T/vhdr" 2>/dev/null) $(grep '^gcloud' "$T/calls.log")"
+jq -e '.contents[0].role == "user" and (.contents[0].parts[0].text | startswith("No people")) and .generationConfig.imageConfig.aspectRatio == "16:9"' \
+  "$T/vbody.json" >/dev/null && pass "6: the Vertex body carries role user, the fixed rule and 16:9" || fail "6: vbody: $(cat "$T/vbody.json")"
+no_leak "$SAKEY_CANARY" && no_leak "$TOKEN" && no_leak "$KEY" &&
+  pass "6: the SA key, the token and the AI Studio key are in no output, stub argv/env or ps sample" ||
+  fail "6: leak: $(grep -lF -e "$SAKEY_CANARY" -e "$TOKEN" -e "$KEY" "$T/o" "$T/calls.log" "$T/ps.log" | xargs -n1 basename | paste -sd' ')"
+post; : >"$T/calls.log"; bi NANO_BANANA_CRS="$T/none/crs" BLOG_IMAGE_VERTEX_KEY="$VX_KEY"
+[[ $? -eq 0 ]] && grep -qx "image: $ID.webp" "$f" && ! grep -q generativelanguage "$T/calls.log" && grep -q "$vx_url" "$T/calls.log" &&
+  grep -q 'INFO AI Studio has no key, using Vertex' "$T/o" && pass "6: no crs goes to Vertex straight away" || fail "6: no crs -> Vertex: $(tail -n2 "$T/o")"
+
+# --- 7. CONTROLS: what must not reach Vertex, and the never-block rule ---------------------------------
+: >"$T/calls.log"; nopic "a 500 on AI Studio (with an SA key)" FAKE_VENDOR=http500
+grep -q aiplatform "$T/calls.log" && fail "7: CONTROL a 500 went to Vertex" || pass "7: CONTROL a 500 on AI Studio does not go to Vertex"
+: >"$T/calls.log"; nopic "a Vertex error (http 403)" FAKE_VENDOR=http429 FAKE_VX=http403
+grep -q 'Vertex error http 403 403 PERMISSION_DENIED' "$T/o" || fail "7: the Vertex error is not named: $(tail -n2 "$T/o")"
+printf 'env: {}\n' >"$T/nocnf.yaml"; : >"$T/calls.log"; nopic "a 429 and no cnf project" FAKE_VENDOR=http429 BLOG_IMAGE_CNF="$T/nocnf.yaml"
+grep -q 'aiplatform\|^gcloud' "$T/calls.log" && fail "7: no cnf project still called Vertex" || pass "7: no cnf project: Vertex is never called"
+rm -f "$VX_KEY"; : >"$T/calls.log"; nopic "a 429 and no SA key" FAKE_VENDOR=http429
+grep -q 'aiplatform\|^gcloud' "$T/calls.log" && fail "7: no SA key still called Vertex" || pass "7: no SA key: Vertex is never called"
+: >"$T/calls.log"; nopic "no crs and no SA key" NANO_BANANA_CRS="$T/none/crs"
+grep -q 'and no Vertex key: no SA key at' "$T/o" && ! grep -q '^curl\|^gcloud' "$T/calls.log" &&
+  pass "7: no key at all: no vendor call, the reason names both keys" || fail "7: no key at all: $(tail -n2 "$T/o")"
+
+# --- 8. the named check -------------------------------------------------------------------------------
+plant_sa; : >"$T/calls.log"; : >"$T/ps.log"; SNIPPET=do_spl_blog_image_check bi; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'OK routes aistudio+vertex' "$T/o" && grep -qx 'INFO vertex_token ok' "$T/o" &&
+  grep -qx "INFO vertex_sa_key yes $VX_KEY (sa domain $VX_PROJECT.example)" "$T/o" && grep -qx "INFO vertex_cnf $VX_PROJECT/$VX_LOC" "$T/o" &&
+  pass "8: the check reports both routes, the cnf project/region, the key path and the SA domain, exit 0" || fail "8: check (rc=$rc): $(cat "$T/o")"
+no_leak "$SAKEY_CANARY" && no_leak "$TOKEN" && no_leak "$KEY" && ! grep -qF "$VX_ACCOUNT" "$T/o" &&
+  pass "8: the check prints no key, token or account" || fail "8: the check leaked"
+mv "$T/token" "$T/token.off"; SNIPPET=do_spl_blog_image_check bi NANO_BANANA_CRS="$T/none/crs" BLOG_IMAGE_VERTEX_KEY="$VX_KEY"; rc=$?
+mv "$T/token.off" "$T/token"
+[[ $rc -eq 1 ]] && grep -qx 'INFO vertex_token failed' "$T/o" && grep -q '^WARN routes none' "$T/o" &&
+  pass "8: CONTROL a token that cannot be minted drops the vertex route, exit 1" || fail "8: mint control (rc=$rc): $(cat "$T/o")"
+rm -f "$VX_KEY"; SNIPPET=do_spl_blog_image_check bi NANO_BANANA_CRS="$T/none/crs"; rc=$?
+[[ $rc -eq 1 ]] && grep -q '^WARN routes none' "$T/o" && grep -q '^INFO vertex_sa_key no no SA key at' "$T/o" &&
+  pass "8: CONTROL no key at all = routes none, exit 1" || fail "8: none (rc=$rc): $(cat "$T/o")"
 
 kill "$PS_PID" 2>/dev/null; wait "$PS_PID" 2>/dev/null
 echo "---"; [[ $fails -eq 0 ]] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAILED"; exit 1; }

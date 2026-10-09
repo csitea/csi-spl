@@ -8753,6 +8753,581 @@
         ]
       }
     },
+    "/v1/workspace/doctree": {
+      "get": {
+        "operationId": "getWorkspaceDoctree",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "only the documents linked to this topic id",
+            "in": "query",
+            "name": "topic",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the workspace documents (spec 113)",
+        "tags": [
+          "workspace"
+        ]
+      },
+      "post": {
+        "operationId": "postWorkspaceDoctree",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Create a workspace document (spec 113)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/search": {
+      "get": {
+        "operationId": "getWorkspaceDoctreeSearch",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the words",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "one document id",
+            "in": "query",
+            "name": "doc",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Search the items of the workspace documents (spec 113, spec 100 words)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}": {
+      "get": {
+        "operationId": "getWorkspaceDoctreeByDoc",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a workspace document's head",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}/children": {
+      "get": {
+        "operationId": "getWorkspaceDoctreeChildren",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the parent item id; none = the top level",
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read one node's children and its ord path (the lazy unit)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}/grid": {
+      "get": {
+        "operationId": "getWorkspaceDoctreeGrid",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "filter on title, body or outline",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "outline, title, body, rev, depth or attr:<key>",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "1 = descending",
+            "in": "query",
+            "name": "desc",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "the document has more than 20000 items"
+          }
+        },
+        "summary": "Read the whole document as grid rows, filtered and sorted",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}/items": {
+      "post": {
+        "operationId": "postWorkspaceDoctreeItems",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "stale rev: the document (or the item, on a text edit) changed since it was read"
+          },
+          "422": {
+            "description": "refused: the op would break the tree (a move into its own subtree, a delete of the root, a field off the list)"
+          }
+        },
+        "summary": "Add an item (sibling, parent or child of an anchor)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}/items/{item}": {
+      "delete": {
+        "operationId": "deleteWorkspaceDoctreeItem",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the item id",
+            "in": "path",
+            "name": "item",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the doc rev read",
+            "in": "query",
+            "name": "rev",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "stale rev: the document (or the item, on a text edit) changed since it was read"
+          },
+          "422": {
+            "description": "refused: the op would break the tree (a move into its own subtree, a delete of the root, a field off the list)"
+          }
+        },
+        "summary": "Delete an item's subtree",
+        "tags": [
+          "workspace"
+        ]
+      },
+      "patch": {
+        "operationId": "patchWorkspaceDoctreeItem",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the item id",
+            "in": "path",
+            "name": "item",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "stale rev: the document (or the item, on a text edit) changed since it was read"
+          },
+          "422": {
+            "description": "refused: the op would break the tree (a move into its own subtree, a delete of the root, a field off the list)"
+          }
+        },
+        "summary": "Edit one text field of an item (title, body or attrs)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}/items/{item}/move": {
+      "post": {
+        "operationId": "postWorkspaceDoctreeItemMove",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the item id",
+            "in": "path",
+            "name": "item",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "stale rev: the document (or the item, on a text edit) changed since it was read"
+          },
+          "422": {
+            "description": "refused: the op would break the tree (a move into its own subtree, a delete of the root, a field off the list)"
+          }
+        },
+        "summary": "Move an item with its subtree",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}/subtree": {
+      "get": {
+        "operationId": "getWorkspaceDoctreeSubtree",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the item id; none = the whole document",
+            "in": "query",
+            "name": "item",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "the document has more than 20000 items"
+          }
+        },
+        "summary": "Read an item's subtree in document order (print branch)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/{doc}/topic": {
+      "put": {
+        "operationId": "putWorkspaceDoctreeTopic",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "stale rev: the document (or the item, on a text edit) changed since it was read"
+          }
+        },
+        "summary": "Link the document to its discussion topic",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
     "/v1/ws": {
       "get": {
         "operationId": "getWs",

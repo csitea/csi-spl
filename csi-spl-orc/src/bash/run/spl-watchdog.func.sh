@@ -483,7 +483,7 @@ spl_wd_boot_hold() {
 # again, with " spent" when WD_BOOT_TRIES are used (given up). A failed spawn
 # is never in flight (sat drill 3: 7 "in flight" for good after a FAIL).
 spl_wd_boot_attempt() {
-  local id="$1" bt="$2" now="$3" at="$4" f="$WD_DIR/boot.q/$1" b t k o out line sz st=late
+  local id="$1" bt="$2" now="$3" at="$4" f="$WD_DIR/boot.q/$1" b="" t="" k="" o="" out line sz st=late
   read -r b t k o 2>/dev/null < "$f" || true
   [[ "$b" == "$bt" && "$t" =~ ^[0-9]+$ && "$k" =~ ^[0-9]+$ && "$o" =~ ^[0-9]+$ ]] || { echo new; return 0; }
   out="$WD_DIR/restart.$id.out"

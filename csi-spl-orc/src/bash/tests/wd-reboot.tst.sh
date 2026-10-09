@@ -42,6 +42,9 @@
 #      fails once (RS-SPAWN FAIL) is retried and back; control: the FAIL not
 #      read -> in flight for good; (c) a drill whose ids are given up writes
 #      boot.result failed and removes the retired marker
+#  10. no boot.q/<id> under set -u: the attempt prints new and the pass starts
+#      the agent; control: the old locals (no values) die on b: unbound
+#      variable and give an empty state
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -337,6 +340,41 @@ for k in 1 2 3 4; do WD_EXTRA='spl_wd_boot_tmux() { return 0; }' wd $(( BT + 270
 [[ "$(cat "$W/boot.result" 2>/dev/null)" == "$BT back=0 failed=2 c-101 c-102" ]] && pass "(c) 3 failed tries each: boot.result '$BT back=0 failed=2 c-101 c-102', boot handled" || fail "(c) result: '$(cat "$W/boot.result" 2>/dev/null)'; $(grep BOOT "$D/wd.log" | tail -3)"
 [[ ! -e "$T/log9/retired" ]] && grep -q 'retired marker .* removed' "$D/wd.log" && pass "(c) the failed drill removed the retired marker" || fail "(c) marker: $(ls "$T/log9"); $(grep marker "$D/wd.log")"
 wd_env=("${wd_env0[@]}")
+
+# ---- 10. no boot.q/<id> under set -u (c-625 msg 59c6339f) ---------------------
+echo "=== 10. no boot.q/<id> under ./run's set -u: the attempt is new, the pass starts it"
+# wd_u <now>: one tick under set -u -o pipefail (./run's do_set_vars), all output in $T/out
+wd_u() {
+  echo "$(( $1 - 30 ))" > "$W/last.tick"
+  env "${wd_env[@]}" LEASE_NOW="$1" WD_TICKS=1 WD_TICK=30 DRY_RUN=0 WD_EXTRA="${WD_EXTRA:-}" bash -c '
+    set -u -o pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"
+    eval "$WD_EXTRA"
+    do_spl_watchdog' > "$T/out" 2>&1
+}
+# attempt_u: spl_wd_boot_attempt c-101 under set -u with no boot.q/c-101 -> "st=<state>"
+attempt_u() {
+  env "${wd_env[@]}" LEASE_NOW=$(( BT + 300 )) WD_EXTRA="${WD_EXTRA:-}" bash -c '
+    set -u -o pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"
+    eval "$WD_EXTRA"
+    spl_wd_init >/dev/null || exit 1
+    rm -f "$WD_DIR/boot.q/c-101"
+    st="$(spl_wd_boot_attempt c-101 '"$BT"' '"$(( BT + 300 ))"' x)"; echo "st=$st"' 2>&1
+}
+M10="$(mutant spl_wd_boot_attempt 's/b="" t="" k="" o=""/b t k o/')"
+box "$BT"
+out="$(attempt_u)"
+[[ "$out" == "st=new" ]] && pass "no boot.q/c-101: the attempt prints new, nothing on stderr" || fail "attempt: '$out'"
+out="$(WD_EXTRA="$M10" attempt_u)"
+grep -q 'b: unbound variable' <<<"$out" && grep -qx 'st=' <<<"$out" && pass "red: the old locals (no values) die on b: unbound variable, empty state" || fail "control attempt: '$out'"
+box "$BT"; wd_u $(( BT + 60 )); wd_u $(( BT + 300 )); settle 2
+[[ "$(ids)" == "c-101 c-102" ]] && ! grep -q 'unbound variable' "$T/out" && pass "the boot pass under set -u starts c-101 and c-102, no unbound variable" || fail "set -u pass: '$(ids)'; $(grep -m3 unbound "$T/out")"
+box "$BT"; wd_u $(( BT + 60 )); WD_EXTRA="$M10" wd_u $(( BT + 300 )); settle 2
+grep -q 'b: unbound variable' "$T/out" && pass "red: the old locals print b: unbound variable in the pass" || fail "control pass output: $(head -3 "$T/out")"
+[[ "$(ids)" == "c-101 c-102" ]] && pass "(the empty state of the old code still starts c-101 and c-102: same path as new)" || fail "control pass started: '$(ids)'"
 
 echo
 if (( fails == 0 )); then echo "wd-reboot: all passed"; else echo "wd-reboot: $fails failed"; fi

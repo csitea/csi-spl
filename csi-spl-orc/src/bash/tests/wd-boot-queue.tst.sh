@@ -232,8 +232,6 @@ drill4 'spl_wd_tmux() { timeout -k 1 5 "$ROTATE_TMUX" "$@" 6>&- 7>&- 8>&- 9>&-; 
 kill_daemons
 
 echo
-if (( fails == 0 )); then echo "wd-boot-queue: all passed"; else echo "wd-boot-queue: $fails failed"; fi
-exit $(( fails > 0 ))
 echo "=== 5. drill 5: a tmux window exists, but no harness process is running -> not back, retried"
 IDS="m-617"; box; wd $(( BT + 60 ))
 t=$(( BT + 300 ))

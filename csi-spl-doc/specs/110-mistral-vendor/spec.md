@@ -496,7 +496,7 @@ training off for the whole org (precondition 1).
 
 | item | state | source |
 |---|---|---|
-| 1. training toggles (Vibe + API) off | **open**: asked of the dispatch lease holder (c-002@sat, msg 3a6c3d1f), who asked HUM-10 in t1 (post 817d1623, both switches OFF in each account); no confirmation yet. His msg id goes here | owner |
+| 1. training toggles (Vibe + API) off | **WAIVED by the owner**: "N no, Mistral can train or whatever we do, no problem." The toggles need not be off. Asked via c-002 (post 817d1623); relayed by c-002 (msg 67a8fc13) | owner HUM-10, t1 5c3bb16a, msg 3e6decdf, 2026-10-09T05:1xZ |
 | 2. ToS clause on automated use | **quoted below**: no clause bars automated or agent use | `legal.mistral.ai/terms/commercial-terms-of-service`, effective 2026-09-25, read 2026-10-08 |
 | 3. API retention | **30 rolling days** for abuse monitoring (quoted below) | `legal.mistral.ai/terms/privacy-policy`, effective 2026-09-03, read 2026-10-08 |
 | 4. plan the installed key bills to | **Team** (`plan_name: TEAM`, `plan_type: CHAT`, `organization_kind: S`, customer id prefix `06650ce8`) | live `GET console.mistral.ai/api/vibe/whoami` with the satellite key, as the agent user, 2026-10-08T21:01Z, HTTP 200 (n = 1) |

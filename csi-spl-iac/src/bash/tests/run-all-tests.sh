@@ -38,7 +38,7 @@ if [[ -z "$njobs" ]]; then
   if [[ "${GITHUB_ACTIONS:-}" == true ]]; then njobs=6; else njobs=4; fi
 fi
 [[ "$njobs" =~ ^[1-9][0-9]*$ ]] || { echo "IAC_TEST_JOBS must be a positive integer (got '$njobs')" >&2; exit 2; }
-fails=0 n=0 slow=0
+fails=0 n=0 slow=0 bad=()
 work="$(mktemp -d)"
 trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$work"' EXIT
 trap 'exit 130' INT TERM
@@ -75,11 +75,12 @@ flush() {
     cat "$out"
     if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
       echo "TIMED OUT (>$(file_to "${files[$next]}")s), killed: $name"; fails=$((fails + 1))
+      bad+=("$name (timed out >$(file_to "${files[$next]}")s)")
     elif [[ "$rc" -ne 0 ]]; then
-      echo "FAILED: $name"; fails=$((fails + 1))
+      echo "FAILED: $name"; fails=$((fails + 1)); bad+=("$name")
     elif [[ "$tier" == fast ]] && grep -q '^SKIP:' "$out"; then
       echo "FAILED: $name SKIPPED a check in the fast tier ($(grep -m1 '^SKIP:' "$out")) -- install what it names, or mark the test '# pre-push-tier: slow' so CI owns it"
-      fails=$((fails + 1))
+      fails=$((fails + 1)); bad+=("$name (skipped a check)")
     fi
     echo "--- $name took $(cat "$work/$next.secs")s"
     next=$((next + 1))
@@ -92,5 +93,9 @@ for ((i = 0; i < ${#pool[@]}; i++)); do
 done
 wait; flush
 for ((i = ${#pool[@]}; i < n; i++)); do start "$i"; wait; flush; done
-echo "=== $((n - fails))/$n test files passed (tier=$tier, $slow left to CI)"
+# The summary names what did not pass (c-729): in a 2,700-line CI log the
+# per-file verdicts sit hundreds of lines up.
+summary="=== $((n - fails))/$n test files passed (tier=$tier, $slow left to CI)"
+if (( ${#bad[@]} )); then summary+="; not passing: $(printf '%s, ' "${bad[@]}")"; summary="${summary%, }"; fi
+echo "$summary"
 [[ "$fails" -eq 0 ]]

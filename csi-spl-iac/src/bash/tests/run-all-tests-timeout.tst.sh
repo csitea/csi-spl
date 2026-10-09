@@ -9,6 +9,7 @@
 #   Control (c-411): a test whose header says '# test-timeout: 10' and sleeps 4 s
 #   PASSES under the same 2 s global bound (a named heavy test is not a hang),
 #   and every verdict block ends with that file's wall time.
+#   (c-729) the summary line names each file that did not pass, and only those.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -36,6 +37,9 @@ grep -q '2/3 test files passed' "$T/out" && pass "the passing tests still counte
 grep -q 'TIMED OUT.*mmm-heavy' "$T/out" && fail "a '# test-timeout:' header lifts that file's bound" "$(cat "$T/out")" || pass "a '# test-timeout:' header lifts that file's bound"
 grep -q 'TIMED OUT (>2s), killed: zzz-hang' "$T/out" && pass "a file without the header keeps the global bound" || fail "a file without the header keeps the global bound" "$(grep 'TIMED OUT' "$T/out")"
 grep -qE '^--- mmm-heavy.tst.sh took [4-9]s$' "$T/out" && pass "each verdict block prints the file's wall time" || fail "each verdict block prints the file's wall time" "$(grep '^--- ' "$T/out")"
+sum=$(grep '^=== [0-9]*/[0-9]* test files passed' "$T/out")
+[[ "$sum" == *"; not passing: zzz-hang.tst.sh (timed out >2s)" ]] && pass "the summary line names the timed-out file" || fail "the summary line names the timed-out file" "$sum"
+[[ "$sum" != *aaa-pass* && "$sum" != *mmm-heavy* ]] && pass "CONTROL: the summary names no passing file" || fail "CONTROL: the summary names no passing file" "$sum"
 
 echo "-- run-all-tests-timeout.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

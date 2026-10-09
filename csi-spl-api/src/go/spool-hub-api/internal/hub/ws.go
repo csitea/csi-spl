@@ -17,6 +17,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -973,7 +974,7 @@ func (s *Server) onTail(ctx context.Context, x *session, f wire.Frame) {
 }
 
 // onTailRSPCount answers a rsp_count tail (c-082): how many of the task's
-// messages an RSP-* responder sent, from ANY box - the one fact a box may
+// messages the responder (agentid.IsResponder: c-684, or a stored RSP-*) sent, from ANY box - the one fact a box may
 // learn about envelopes it does not hold, and only for a task it holds
 // something of (holds=false reads 0, like an unknown task_id).
 func (s *Server) onTailRSPCount(ctx context.Context, x *session, taskID string, holds bool) {
@@ -989,7 +990,7 @@ func (s *Server) onTailRSPCount(ctx context.Context, x *session, taskID string, 
 			if err != nil {
 				continue
 			}
-			if m, err := e.Inner(); err == nil && strings.HasPrefix(m.From, "RSP-") {
+			if m, err := e.Inner(); err == nil && agentid.IsResponder(m.From) {
 				n++
 			}
 		}

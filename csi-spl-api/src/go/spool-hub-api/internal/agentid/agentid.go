@@ -24,6 +24,16 @@ import (
 // SPOOL_LEGACY_ID_UNTIL and the WUI LEGACY_ID_UNTIL copy this value (FR-005).
 const LegacyUntilText = "2026-10-03T20:59:59Z"
 
+// Responder is the non-AI responder's agent id, the same on every box-rsp /
+// sat-rsp desk. It was RSP-01 until the legacy cutoff refused that id; the
+// bash SPL_RSP_AGENT (csi-spl-orc/lib/bash/funcs/spl-desk-agents.func.sh) is
+// its copy, and desk-agent-ids.tst.sh fails when the two differ.
+const Responder = "c-684"
+
+// IsResponder reports whether id is the responder: Responder, or the legacy
+// RSP-* form history keeps (FR-006).
+func IsResponder(id string) bool { return id == Responder || strings.HasPrefix(id, "RSP-") }
+
 // LegacyUntil is LegacyUntilText as an instant.
 var LegacyUntil = time.Date(2026, 10, 3, 20, 59, 59, 0, time.UTC)
 

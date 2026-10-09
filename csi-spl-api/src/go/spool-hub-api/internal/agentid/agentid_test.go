@@ -176,3 +176,22 @@ func TestSplitAtBox(t *testing.T) {
 		}
 	}
 }
+
+// The responder replaced RSP-01 at the cutoff: Responder is a new-grammar id,
+// and both it and the stored RSP-* form count as the responder. CONTROL: any
+// other agent, and a participant with another prefix, does not.
+func TestIsResponder(t *testing.T) {
+	if !IsNew(Responder) {
+		t.Fatalf("Responder %q is not a new-grammar agent id", Responder)
+	}
+	for _, id := range []string{Responder, "RSP-01", "RSP-7"} {
+		if !IsResponder(id) {
+			t.Errorf("IsResponder(%q) = false", id)
+		}
+	}
+	for _, id := range []string{"c-004", "c-685", "OPS-01", "HUM-10", ""} {
+		if IsResponder(id) {
+			t.Errorf("IsResponder(%q) = true", id)
+		}
+	}
+}

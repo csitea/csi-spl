@@ -301,9 +301,26 @@ spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
   return 0
 }
 
+# The BOX-0 row without a spawn (c-615): the lane map runs only on spawns
+# and checks, so a box that spawned nothing for an hour aged past
+# LANE_BOX_ROW_MAX_S and read `(no live row)` on every other box, its live
+# lanes invisible. The box-stats cron calls this every 5 min: one hub read,
+# then spl_lane_box_report as the map writes it (same row, same LANE_BOX_ROW_S
+# rate limit). Needs spl_lane_init first. Best effort, always 0.
+spl_lane_box_refresh() {  # LIVE_HERE (JSON array or null)
+  [[ "$LANE_MODE" == hub && "${1:-null}" != null ]] || return 0
+  local hub_json rows
+  hub_json="$(spl_lane_hub --fleet "$LANE_FLEET" 2>/dev/null)" && jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$hub_json" ||
+    { do_log "INFO the hub did not answer: the BOX-0 row of $LANE_BOX was not refreshed" >&2; return 0; }
+  LANE_HUB_STATE=ok
+  rows="$(spl_lane_merge "$hub_json" '[]')" || return 0
+  spl_lane_box_report "$rows" "$1" "$(spl_lane_load "$rows" "$1")"
+}
+
 # This box's hardware sample for the hub's history (rdb 0117), posted by
 # do_post_box_stats every 5 min from the box-stats cron (the lane map runs only
-# on spawns and checks, so its BOX-0 tick is no clock).
+# on spawns and checks, so its BOX-0 tick is no clock; that cron also keeps the
+# BOX-0 row fresh, spl_lane_box_refresh).
 # As one JSON object: /proc/loadavg (LANE_LOADAVG), nproc
 # (LANE_NPROC), /proc/meminfo (LANE_MEMINFO), the live agent count and the
 # disks (spl_lane_box_disks). Fails when load, cpus or memory cannot be read,

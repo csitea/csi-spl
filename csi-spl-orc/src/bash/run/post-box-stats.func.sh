@@ -5,12 +5,15 @@
 # @description memory and swap (/proc/meminfo), the agents with a live pane, as
 # @description and per mount the disk size, free and used space (rdb 0121; a
 # @description binary or hub that refuses used_kb gets the sample without it), as
-# @description `spool box-stats put` from this machine's desk box. Nothing else:
-# @description no lane-map read, no BOX-0 row. The box-stats cron runs it every
+# @description `spool box-stats put` from this machine's desk box. It also keeps
+# @description this box's BOX-0 load row fresh (spl_lane_box_refresh: one lane
+# @description read, a write at most once per LANE_BOX_ROW_S), so a box that
+# @description spawns nothing still reads live on the others. The box-stats cron runs it every
 # @description 5 min (do_setup_box_stats_cron); do_report_box_stats reads the
 # @description history. The hub, fleet, env and tenant are the lane map's
 # @description (spl_lane_init: env, then lease.conf).
 # @param LANE_FLEET / LANE_ENV / LANE_TENANT / LANE_DESK_BOX (optional) - as do_spl_lane_map
+# @param LANE_BOX_ROW_S (optional) - as do_spl_lane_map: the BOX-0 row is rewritten when it is this old, default 300 s
 # @param LANE_LOADAVG / LANE_MEMINFO / LANE_NPROC / LANE_DF_CMD / LANE_PANES_CMD / LANE_HUB_CMD (optional, tests) - replace the reads and the hub call
 # @example ./run -a do_post_box_stats
 #------------------------------------------------------------------------------
@@ -22,6 +25,7 @@ do_post_box_stats() {
   spl_lane_init || return 1
   [[ "$LANE_MODE" == hub ]] || { do_log "FATAL the box stats live on the hub: set LANE_FLEET (or LEASE_FLEET in lease.conf)"; return 1; }
   live="$(spl_lane_live_here)"
+  spl_lane_box_refresh "$live"
   [[ "$live" == null ]] && live='[]'
   sample="$(spl_lane_box_sample "$live")" ||
     { do_log "FATAL cannot read this box's load, cpus or memory (/proc/loadavg, nproc, /proc/meminfo)"; return 1; }

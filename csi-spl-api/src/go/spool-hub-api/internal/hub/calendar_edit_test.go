@@ -81,7 +81,7 @@ func TestCalendarOldBodyNewDefaults(t *testing.T) {
 		}
 	}
 	defaults := map[string]any{"time_zone": "UTC", "rrule": "", "recurring_event_id": "", "original_start": "",
-		"location": "", "color": "", "my_response": "", "deleted_at": ""}
+		"location": "", "color": "", "my_response": "", "deleted_at": "", "source_key": "", "roadmap_url": ""}
 	for k, v := range defaults {
 		if ev[k] != v {
 			t.Errorf("new field %s = %v, want its default %v", k, ev[k], v)
@@ -93,7 +93,7 @@ func TestCalendarOldBodyNewDefaults(t *testing.T) {
 		}
 	}
 	keys := slices.Sorted(maps.Keys(ev))
-	if len(keys) != 18+10 { // 089 6.1.1's 18 fields + 097 4.1's 10
+	if len(keys) != 18+10+2 { // 089 6.1.1's 18 fields + 097 4.1's 10 + 112 HUB-1's source_key, roadmap_url
 		t.Fatalf("event keys %v", keys)
 	}
 }

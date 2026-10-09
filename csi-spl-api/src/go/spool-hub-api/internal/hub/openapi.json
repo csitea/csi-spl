@@ -1487,6 +1487,38 @@
         ]
       }
     },
+    "/v1/calendar/sync": {
+      "put": {
+        "operationId": "putCalendarSync",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the counts (created, updated, unchanged, deleted, carried) and the unapproved goals (specs/112 HUB-1)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "description": "The roadmap is not configured (cnf env.roadmap.tenant_id / approver_role) or the calendar is unavailable"
+          }
+        },
+        "summary": "Sync the roadmap's goal, spec and release dates into the calendar (deploy identity only)",
+        "tags": [
+          "calendar"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/calendar/trash": {
       "get": {
         "operationId": "getCalendarTrash",

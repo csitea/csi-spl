@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -95,6 +96,10 @@ type calendarEventJSON struct {
 	Guests           []calendarGuestJSON `json:"guests"`
 	MyResponse       string              `json:"my_response"`
 	DeletedAt        string              `json:"deleted_at"`
+	// specs/112 HUB-1: a synced event's key ("" = a member's event, which
+	// alone may be changed here) and its roadmap link.
+	SourceKey  string `json:"source_key"`
+	RoadmapURL string `json:"roadmap_url"`
 }
 
 // calendarGuestJSON is one guest and their answer (spec 4.1).
@@ -141,7 +146,8 @@ func toCalendarJSON(e store.CalendarEvent, now time.Time, viewer string) calenda
 		TopicID: e.TopicID, ReleaseVersion: e.ReleaseVersion, CreatedAt: rfc(e.CreatedAt), UpdatedAt: rfc(e.UpdatedAt),
 		TimeZone: tz, RRule: e.RRule, RecurringEventID: e.RecurringEventID, OriginalStart: optCalTime(e.OriginalStart),
 		Location: propsString(e, calPropLocation), Color: propsString(e, calPropColor),
-		Reminders: eventReminders(e), Guests: guests, MyResponse: mine, DeletedAt: optCalTime(e.DeletedAt)}
+		Reminders: eventReminders(e), Guests: guests, MyResponse: mine, DeletedAt: optCalTime(e.DeletedAt),
+		SourceKey: e.SourceKey, RoadmapURL: propsString(e, calPropRoadmapURL)}
 }
 
 // calendarGuestsJSON is e's guests on the wire, the owner never listed (spec
@@ -626,8 +632,51 @@ func (s *Server) listCalendar(ctx context.Context, tenant, viewer string, demo b
 	return visibleTo(evs, demo), err
 }
 
-// GET /v1/calendar/events?start=&end=
+// calendarSourceKeyPrefixRe is a ?source_key= prefix: a key family and the
+// start of a key (store calendar_sync.go's key characters).
+var calendarSourceKeyPrefixRe = regexp.MustCompile(`^(goal|spec|release|db):[A-Za-z0-9._:-]{0,200}$`)
+
+// handleCalendarSourced is GET /v1/calendar/events?source_key=<prefix>
+// (specs/112 4.2 "Lookup"): the synced events whose key starts with it, so
+// the WUI never guesses an event id. start and end are optional here; given,
+// they bound the answer as on the range read. No issue deadline joins it.
+func (s *Server) handleCalendarSourced(w http.ResponseWriter, r *http.Request, t store.Tenant, prefix string) {
+	if !calendarSourceKeyPrefixRe.MatchString(prefix) {
+		writeIssueErr(w, badCalendarRange("source_key must be goal:, spec:, release: or db: and the start of a key"))
+		return
+	}
+	var rg *store.CalendarRange
+	if q := r.URL.Query(); q.Has("start") || q.Has("end") {
+		x, ie := calendarRange(r, "start", "end", calendarMaxRangeDays)
+		if ie != nil {
+			writeIssueErr(w, ie)
+			return
+		}
+		rg = &x
+	}
+	viewer, demo := s.calendarViewer(r, t)
+	out, now := []calendarEventJSON{}, s.o.Now()
+	if src, ok := s.o.Store.(store.CalendarSourced); ok {
+		evs, err := src.CalendarBySourceKey(r.Context(), t.ID, viewer, prefix)
+		if err != nil {
+			s.calendarFail(w, t.ID, "source_key", err)
+			return
+		}
+		for _, e := range visibleTo(evs, demo) {
+			if rg == nil || (e.StartsAt.Before(rg.End) && !e.EndsAt.Before(rg.Start)) {
+				out = append(out, toCalendarJSON(e, now, viewer))
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"source_key": prefix, "events": out})
+}
+
+// GET /v1/calendar/events?start=&end=, or ?source_key= (handleCalendarSourced)
 func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request, t store.Tenant) {
+	if r.URL.Query().Has("source_key") {
+		s.handleCalendarSourced(w, r, t, r.URL.Query().Get("source_key"))
+		return
+	}
 	rg, ie := calendarRange(r, "start", "end", calendarMaxRangeDays)
 	if ie != nil {
 		writeIssueErr(w, ie)
@@ -960,6 +1009,9 @@ func (s *Server) patchCalendarOnce(r *http.Request, c store.Calendar, tenant, ac
 	if err != nil {
 		return cur, nil, err
 	}
+	if cur.SourceKey != "" {
+		return cur, calendarSyncedReadOnly(), nil
+	}
 	if !want.IsZero() && !want.Equal(cur.UpdatedAt) {
 		return cur, nil, store.ErrEditConflict
 	}
@@ -979,6 +1031,12 @@ func (s *Server) patchCalendarOnce(r *http.Request, c store.Calendar, tenant, ac
 	p.IfUpdatedAt, p.Scope = cur.UpdatedAt, scope
 	out, err := c.UpdateCalendarEvent(r.Context(), tenant, actor, id, p, s.o.Now())
 	return out, nil, err
+}
+
+// calendarSyncedReadOnly is spec 112 4.1: a synced event (source_key set) is
+// changed in the repo only; the next sync would revert a calendar edit.
+func calendarSyncedReadOnly() *issueErr {
+	return &issueErr{http.StatusConflict, "synced_read_only", "this event is synced from the repo; change it there"}
 }
 
 // calendarWriteArgs reads If-Match and ?scope= of a PATCH or DELETE.
@@ -1039,6 +1097,10 @@ func (s *Server) handleDeleteCalendarEvent(w http.ResponseWriter, r *http.Reques
 	}
 	want, scope, ok := calendarWriteArgs(w, r)
 	if !ok {
+		return
+	}
+	if cur, err := c.GetCalendarEvent(r.Context(), t.ID, actor, r.PathValue("id")); err == nil && cur.SourceKey != "" {
+		writeIssueErr(w, calendarSyncedReadOnly())
 		return
 	}
 	out, err := c.TrashCalendarScope(r.Context(), t.ID, actor, r.PathValue("id"), scope, want, s.o.Now())
@@ -1123,6 +1185,7 @@ func (s *Server) routeCalendar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/calendar/events/{id}/restore", s.handleRestoreCalendarEvent)
 	mux.HandleFunc("POST /v1/calendar/events/{id}/rsvp", s.handleRSVPCalendarEvent)
 	mux.HandleFunc("GET /v1/calendar/trash", s.viewHandler(s.handleCalendarTrash))
+	mux.HandleFunc("PUT /v1/calendar/sync", s.handleCalendarSync) // specs/112 HUB-1, calendar_sync.go
 	mux.HandleFunc("OPTIONS /v1/calendar/events", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/events/{id}", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/marks", s.calendarPreflight)

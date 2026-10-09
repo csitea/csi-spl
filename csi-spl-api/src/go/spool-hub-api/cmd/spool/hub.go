@@ -294,6 +294,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		DemoMaxStay: hc.DemoMaxStay, DemoPostsPerMinute: hc.DemoPostsPerMinute, DemoPostsPerDay: hc.DemoPostsPerDay,
 		HelloTimeout: hc.HelloTimeout, PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout,
 		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion, MarketingWorkspaces: hc.MarketingWorkspaces,
+		RoadmapTenant: hc.RoadmapTenant, RoadmapApproverRole: hc.RoadmapApproverRole, // specs/112 HUB-1
 		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,
 			WSConnsPerIP: hc.EdgeWSConnsPerIP, WSConnsTotal: hc.EdgeWSConnsTotal,
 			WSHandshakesPerIP: hc.EdgeWSHandshakesPerIP, AuthPerIP: hc.EdgeAuthPerIP},

@@ -409,6 +409,12 @@ type Hub struct {
 	// on or off, or the one entry "all" (every workspace). Empty = off
 	// everywhere: every /v1/marketing route answers 404.
 	MarketingWorkspaces []string `env:"SPOOL_HUB_MARKETING_WORKSPACES" envSeparator:","`
+	// RoadmapTenant and RoadmapApproverRole are cnf env.roadmap.tenant_id and
+	// env.roadmap.approver_role (specs/112 4.1, D2): the one workspace the
+	// roadmap sync writes to, and the rbac role whose holder there approves a
+	// goal. No default: while either is "" PUT /v1/calendar/sync answers 503.
+	RoadmapTenant       string `env:"SPOOL_HUB_ROADMAP_TENANT"`
+	RoadmapApproverRole string `env:"SPOOL_HUB_ROADMAP_APPROVER_ROLE"`
 	// DemoMaxLive caps the live demo_user seats (cnf demo.max_live,
 	// specs/077 FR-006); the next visitor is refused demo_full.
 	DemoMaxLive int `env:"SPOOL_HUB_DEMO_MAX_LIVE" envDefault:"9"`

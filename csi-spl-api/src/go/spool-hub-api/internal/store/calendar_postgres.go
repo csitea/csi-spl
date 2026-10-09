@@ -20,6 +20,9 @@ const (
 	COALESCE(rrule, ''), recur_until, COALESCE(recurring_event_id::text, ''), original_start, status` + calendarGuestsSQL
 	calendarColsAs89 = `, '{}'::jsonb, 'UTC'::text, NULL::timestamptz, ''::text,
 	''::text, NULL::timestamptz, ''::text, NULL::timestamptz, 'confirmed'::text, '[]'::jsonb`
+	// rdb 0156's source_key ends every row, or '' before it.
+	calendarCols0156   = `, COALESCE(source_key, '')`
+	calendarColsAs0156 = `, ''::text`
 )
 
 // calendarPrivateSQL is the private filter with the viewer at $2 (spec 089
@@ -43,6 +46,7 @@ func (s *Postgres) hasCalendar(ctx context.Context) bool {
 // and the live filter, without it 089's row and no filter.
 type calendarSQL struct {
 	full   bool
+	key    bool   // rdb 0156: source_key is in cols
 	cols   string // the select list scanCalendarEvent reads
 	live   string // " AND deleted_at IS NULL", or ""
 	top    string // not an exception row: a single event or a series
@@ -57,10 +61,18 @@ func (s *Postgres) calendarShape(ctx context.Context) calendarSQL {
 			WHERE attrelid = to_regclass('calendar_events') AND attname = 'deleted_at' AND NOT attisdropped)`).Scan(&ok)
 		return ok, err
 	}, s.now())
-	if !full {
-		return calendarSQL{cols: calendarCols89 + calendarColsAs89}
+	hasKey := full && s.calKey.present(ctx, func(ctx context.Context) (ok bool, err error) {
+		err = s.pool.QueryRow(ctx, calendarHasSourceKey).Scan(&ok)
+		return ok, err
+	}, s.now())
+	key := calendarColsAs0156
+	if hasKey {
+		key = calendarCols0156
 	}
-	return calendarSQL{full: true, cols: calendarCols89 + calendarCols0139, live: ` AND deleted_at IS NULL`,
+	if !full {
+		return calendarSQL{cols: calendarCols89 + calendarColsAs89 + key}
+	}
+	return calendarSQL{full: true, key: hasKey, cols: calendarCols89 + calendarCols0139 + key, live: ` AND deleted_at IS NULL`,
 		top: ` AND recurring_event_id IS NULL`, single: ` AND rrule IS NULL AND recurring_event_id IS NULL`}
 }
 
@@ -69,7 +81,7 @@ func scanCalendarEvent(row pgx.Row) (CalendarEvent, error) {
 	var remind, deleted, until, orig *time.Time
 	err := row.Scan(&e.ID, &e.Title, &e.Description, &e.Kind, &e.StartsAt, &e.EndsAt, &e.AllDay, &e.Audience,
 		&e.Mentions, &e.CreatorType, &e.CreatorID, &remind, &e.TopicID, &e.ReleaseVersion, &e.CreatedAt, &e.UpdatedAt,
-		&e.Props, &e.TimeZone, &deleted, &e.DeletedBy, &e.RRule, &until, &e.RecurringEventID, &orig, &e.Status, &e.Guests)
+		&e.Props, &e.TimeZone, &deleted, &e.DeletedBy, &e.RRule, &until, &e.RecurringEventID, &orig, &e.Status, &e.Guests, &e.SourceKey)
 	for _, t := range []struct {
 		dst *time.Time
 		src *time.Time

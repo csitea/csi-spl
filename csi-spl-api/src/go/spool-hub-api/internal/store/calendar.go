@@ -129,6 +129,9 @@ type CalendarEvent struct {
 	// Guests (specs/097 T007) by type then id, never nil once stored; the
 	// creator is never one of them by the hub's rule, not the store's.
 	Guests []CalendarGuest
+	// SourceKey is a synced event's key (specs/112, rdb 0156; "" for an event
+	// a member wrote). Read only: only UpsertCalendarBySourceKey sets it.
+	SourceKey string
 }
 
 // CalendarPatch is an update: a nil field is left as it is. A zero *RemindAt

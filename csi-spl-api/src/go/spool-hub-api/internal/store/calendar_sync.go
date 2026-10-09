@@ -148,6 +148,7 @@ func (s *Memory) UpsertCalendarBySourceKey(_ context.Context, tenant string, bat
 			res.Updated++
 		}
 		n.UpdatedAt, n.DeletedAt, n.DeletedBy = at, time.Time{}, ""
+		n.SourceKey = k
 		n.RecurringEventID, n.OriginalStart, n.Status = "", time.Time{}, CalendarConfirmed
 		s.cal.events[tenant][n.ID] = &n
 		s.cal.keys[tenant][k] = n.ID

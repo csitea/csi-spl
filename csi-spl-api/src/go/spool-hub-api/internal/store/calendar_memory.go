@@ -62,6 +62,7 @@ func (s *Memory) CreateCalendarEvent(_ context.Context, tenant string, e Calenda
 		s.cal.events[tenant] = map[string]*CalendarEvent{}
 	}
 	e.ID = uuid.New() // rdb 0125's gen_random_uuid() shape
+	e.SourceKey = ""  // only a sync sets it (calendar_sync.go)
 	e.CreatedAt, e.UpdatedAt = calendarNow(now), calendarNow(now)
 	e.DeletedAt, e.DeletedBy = time.Time{}, ""
 	e.RecurringEventID, e.OriginalStart, e.Status = "", time.Time{}, CalendarConfirmed

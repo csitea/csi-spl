@@ -54,7 +54,7 @@ stay in the table so that an admin can give them points again.
 | kind | covers | agy | mistral | claude | grok | qwen | main | backup |
 |---|---|---|---|---|---|---|---|---|
 | `specs_and_docs` | specs, docs, plans, reviews of those | 70 | 20 | 10 | 0 | 0 | agy | claude |
-| `tests` | writing tests | 0 | 70 | 30 | 0 | 0 | mistral | claude (**owner Q1**) |
+| `tests` | writing tests | 0 | 30 | 70 | 0 | 0 | claude | mistral |
 | `simple_coding` | running tests, simple and routine coding | 0 | 80 | 20 | 0 | 0 | mistral | claude |
 | `complex_coding` | hard coding, architecture, hi-fi work | 0 | 20 | 80 | 0 | 0 | claude | mistral |
 | `i18n` | translations, the language review of multilingual text | 100 | 0 | 0 | 0 | 0 | agy | claude, then an agy review |
@@ -68,6 +68,7 @@ Rules on the table, enforced by the cnf validator and the hub PATCH:
   the backup: the secret row's mistral is the backup and is never in the mix.
 - In `simple_coding`, `complex_coding` and `tests`, agy is 0 and is never the backup.
 - In `secret`, only claude and mistral may be non-zero or the backup.
+- **Multilingual personal data** (an `i18n` task that is also `secret`): claude or mistral drafts the text under the data rule, then agy reviews a masked copy. The masking is a coded step with a test, and what counts as personal data for the mask must be named or listed as a build-time detail.
 
 Old kind names stay as aliases, so no caller breaks: `spec` is
 `specs_and_docs`, `hard` is `complex_coding`, `default` (or unset) is
@@ -106,7 +107,7 @@ env:
   box:
     agent_split_by_kind:
       specs_and_docs: { agy: 70, mistral: 20, claude: 10, backup: claude }
-      tests:          { mistral: 70, claude: 30, backup: claude }
+      tests:          { claude: 70, mistral: 30, backup: mistral }
       simple_coding:  { mistral: 80, claude: 20, backup: claude }
       complex_coding: { claude: 80, mistral: 20, backup: mistral }
       i18n:           { agy: 100, backup: claude }
@@ -239,38 +240,20 @@ These are coded checks with tests, never an agent's judgement (owner
 | T6 | `i18n` with agy out gives claude plus `needs_agy_review` | drop the flag |
 | T7 | aliases `spec`, `hard` and `default` give the same pick as the new names | remove an alias |
 | T8 | the validator refuses a row that does not sum to 100, a tied main, agy > 0 in a coding kind, or a secret backup outside {claude, mistral} | accept a tie |
+| T9 | `i18n` combined with `secret`: agy receives no unmasked personal data | send unmasked personal data |
 
 ## 9. Panel
 
 | seat | agent | verdict | changes it brought |
 |---|---|---|---|
 | author (agy) | a-647 | draft | kinds, main and backup, 2 tries, the data and i18n rules |
-| Claude | c-649 | agree with changes | renumbered to 115; weights kept per kind, with main = highest weight (2.1); the fixed chain retired for one rule, since it sent coding to agy (5); F1-F3 named on real sources, with S2 excluded and the F1 gap stated (6); D5 superseded for docs (0.2); stale 0109 and cnf comments; `tests` main as an owner question |
-| Mistral | m-650 | agree with changes | the secret backup to mistral (the picker holds today; D2 allows it: taken); the instance setting documented (3.3: taken); legacy and unclassified tasks via aliases (2: taken); the i18n review flag and tests (5, T6: taken); test cases T1, T2 and T6 (taken); the `tests` main as an owner question (taken as Q1). Item 1, the missing `tests` kind, was not taken: the draft had it. Item 6, weights for the easy nudge only, was not taken: see 2.1. |
+| Claude | c-649 | agree with changes | renumbered to 115; weights kept per kind, with main = highest weight (2.1); the fixed chain retired for one rule, since it sent coding to agy (5); F1-F3 named on real sources, with S2 excluded and the F1 gap stated (6); D5 superseded for docs (0.2); stale 0109 and cnf comments; `tests` main decided by owner |
+| Mistral | m-650 | agree with changes | the secret backup to mistral (the picker holds today; D2 allows it: taken); the instance setting documented (3.3: taken); legacy and unclassified tasks via aliases (2: taken); the i18n review flag and tests (5, T6: taken); test cases T1, T2 and T6 (taken); the `tests` main decided by owner. Item 1, the missing `tests` kind, was not taken: the draft had it. Item 6, weights for the easy nudge only, was not taken: see 2.1. |
 
-## 10. Owner questions
+## 10. Owner decisions (2026-10-09)
 
-**Q1. Who writes tests?** Your categories name "tests" apart from
-"execution of tests and simple coding tasks", but do not name its vendor.
+**Q1. Who writes tests?** (msg 82e2db70)
+"1b" - claude main (70), mistral 30, backup mistral. Tests guard correctness.
 
-- (a) mistral main (70), claude 30, backup claude. Tests are "regular"
-  coding, which you gave to Mistral.
-- (b) claude main (70), mistral 30, backup mistral. Tests guard
-  correctness, as complex coding does.
-
-Recommendation: **(a)**. Test writing here is mostly routine pairs and
-controls, and a hard test will still reach claude through its 30 weight and
-the 2-try backup.
-
-**Q2. Multilingual text that carries personal data.** Two of your rules
-meet here. The data rule says such work never goes to agy. The language rule
-says agy has the final word on multilingual text.
-
-- (a) The data rule wins. Claude (or mistral) writes it, no agy review is
-  made, and the post says that the language review was skipped for the
-  data rule.
-- (b) The language rule wins. agy reviews the text after the personal data
-  is masked.
-
-Recommendation: **(a)**. Masking is a manual step, and one missed field
-leaks the data, whereas a skipped language review only costs quality.
+**Q2. Multilingual text that carries personal data.** (msg 8c99399f)
+"2b" - the language rule wins; agy reviews the text after the personal data is masked out.

@@ -551,7 +551,7 @@ spawn: `spawn-window.sh` refuses with "requester c-595 is a lane".
 | nudges | 0 | 0 |
 | (a) tmux window | `m-629@<main-box> t014-live %141` (checked on the main box by c-002 and c-003, n = 1 each) | `m-627@sat t014-live %31`, seen 05:11:13Z (+3 s) |
 | (b) desk roster (prd/t1 `.hub/roster.json`, the hub view the WUI reads) | first seen 05:12:53..05:13:23Z (+109..139 s) | first seen 05:16:14..05:16:24Z (+304..314 s, one desk tick) |
-| (b) WUI roster screenshot | **open**: needs a member session (the owner) | **open**: same |
+| (b) WUI agents list | **seen by the owner** (msg c67bc6dc, "Yes, I can see"); no screenshot sent | m-627 was closed before the ask |
 | first usage limit (429) | none hit | none hit; 0 pane lines match `429`, `rate limit`, `usage limit` or `quota` |
 
 The m- pilot findings, checked for each seat:
@@ -567,7 +567,7 @@ The m- pilot findings, checked for each seat:
 - **Wrong topic:** m-629 replied on task `654597dd`, not on the brief's
   `dispatch-5c3bb16a`. Minor: the body was right.
 
-m-627 was closed and retired at 05:17:01Z. c-001 closes m-629. The
+m-627 was closed and retired at 05:17:01Z. c-001 closes m-629 after the owner saw it. The
 satellite has no dev desk roster: the owner's desk is prd/t1.
 
 ## 6. Data rule

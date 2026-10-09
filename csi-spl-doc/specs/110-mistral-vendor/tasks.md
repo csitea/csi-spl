@@ -247,7 +247,7 @@ the owner's Team login on each box.
     `RUN/spl-peer-restart.func.sh` compares `/proc/<pid>/comm` with
     `PEER_HARNESS=mistral`, but vibe's comm is `Vibe CLI`. A restarted m- lane's
     new session is therefore never seen as alive.
-- [ ] T014 **live** (needs T004..T012, T013a, T013b and the key-entry lane on trunk, and the owner's Team login, D3). The owner
+- [x] T014 **live** (needs T004..T012, T013a, T013b and the key-entry lane on trunk, and the owner's Team login, D3). The owner
   signs up, then:
   - runs `vibe --setup` as the agent user on the main box (and the satellite
     per Q2);
@@ -275,8 +275,9 @@ the owner's Team login on each box.
   passed on both boxes with 0 nudges and no 429: m-629 committed
   `bf9e78fa4`, m-627 committed `b72f877e6`. Each seat showed as a tmux
   window and in the prd/t1 desk roster (+109..139 s and +304..314 s).
-  **Still open:** the owner's WUI roster screenshot of a running m- row.
-  m-629 is held open for it.
+  **Done:** the owner saw m-629 in the WUI agents list (HUM-10, t1
+  5c3bb16a, msg c67bc6dc: "Yes, I can see. I think we can close this
+  discussion."). No screenshot was sent.
 - [x] T013 **the switch, D1 + D4** (needs T001 applied, T003 and T013a on
   trunk; NOT T014). It is listed after T014 only for reading order. cnf
   `agent_split` `grok: 0, mistral: 55`, and the owner's workspace split moved

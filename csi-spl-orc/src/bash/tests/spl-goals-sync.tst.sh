@@ -7,10 +7,15 @@
 #   run_tests
 #
 
+# shellcheck disable=SC1090  # the func is sourced from a path resolved at run time (GOALS_SYNC_FUNC)
 set -euo pipefail
 
+# The func under test, resolved from this test's own location (never a worktree path).
+GOALS_SYNC_FUNC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../run" && pwd)/spl-goals-sync.func.sh"
+
 setup_fixture() {
-    local fixture_dir="$(mktemp -d)"
+    local fixture_dir
+    fixture_dir="$(mktemp -d)"
     export FIXTURE_DIR="${fixture_dir}"
 
     # Create the goals directory
@@ -82,7 +87,7 @@ test_goal_without_workspace_fails() {
     export GOALS_DIR="${FIXTURE_DIR}/goals"
 
     # Expect failure
-    if (cd "${FIXTURE_DIR}" && GOALS_DIR="${FIXTURE_DIR}/goals" . /opt/csi/csi-spl-wt/m-733/csi-spl-orc/src/bash/run/spl-goals-sync.func.sh && do_spl_goals_sync 2>&1 | grep -q "ERROR: Goal G03-bad.*is missing 'workspace'."); then
+    if (cd "${FIXTURE_DIR}" && GOALS_DIR="${FIXTURE_DIR}/goals" . "${GOALS_SYNC_FUNC}" && do_spl_goals_sync 2>&1 | grep "ERROR: Goal G03-bad.*is missing 'workspace'." >/dev/null); then
         echo "PASS: Goal without workspace fails fast."
     else
         echo "ERROR: Expected failure for goal without workspace, but succeeded." >&2
@@ -95,13 +100,15 @@ test_batch_carries_no_audience() {
     echo "Test: Batch carries no audience..."
 
     local goals_dir="${FIXTURE_DIR}/goals"
-    local batch_file="$(mktemp)"
+    local batch_file
+    batch_file="$(mktemp)"
 
     # Override do_spl_goals_sync to capture the batch
     do_spl_goals_sync() {
         find "${goals_dir}" -name "goal.yaml" | while read -r goal_file; do
-            local goal_id="$(yq -r '.id' "${goal_file}")"
-            local workspace="$(yq -r '.workspace' "${goal_file}" 2>/dev/null || echo)"
+            local goal_id workspace
+            goal_id="$(yq -r '.id' "${goal_file}")"
+            workspace="$(yq -r '.workspace' "${goal_file}" 2>/dev/null || echo)"
 
             if [[ "${goal_id}" == "G03-bad" ]]; then
                 continue  # Skip the bad goal in this test
@@ -156,11 +163,11 @@ test_second_run_adds_zero_events() {
     export -f do_spl_goals_sync
 
     # First run
-    (cd "${FIXTURE_DIR}" && GOALS_DIR="${FIXTURE_DIR}/goals" . /opt/csi/csi-spl-wt/m-733/csi-spl-orc/src/bash/run/spl-goals-sync.func.sh && do_spl_goals_sync)
+    (cd "${FIXTURE_DIR}" && GOALS_DIR="${FIXTURE_DIR}/goals" . "${GOALS_SYNC_FUNC}" && do_spl_goals_sync)
     local first_call_count="${call_count}"
 
     # Second run
-    (cd "${FIXTURE_DIR}" && GOALS_DIR="${FIXTURE_DIR}/goals" . /opt/csi/csi-spl-wt/m-733/csi-spl-orc/src/bash/run/spl-goals-sync.func.sh && do_spl_goals_sync)
+    (cd "${FIXTURE_DIR}" && GOALS_DIR="${FIXTURE_DIR}/goals" . "${GOALS_SYNC_FUNC}" && do_spl_goals_sync)
     local second_call_count="${call_count}"
 
     if (( second_call_count != first_call_count )); then

@@ -1,4 +1,4 @@
-<!-- Spec 111 T003: the public blog, ONE route (/blog/:slug(.*)*) for /blog,
+<!-- Spec 111 T003: the public blog, ONE route (path /blog/:slug(.*)*) for /blog,
      /blog/page/<n> and /blog/<id> (and every /<lang>/ copy). Ported and adapted from a sibling
      project's blog (spec 047/049): list and post pages, prerendered so the
      HTML holds the post with JS off. The data is the build-time copy
@@ -102,9 +102,10 @@
 import { computed, ref } from 'vue'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 
-/* one record for all three paths (spec 111 3.1); a "..." file name would put
+/* one record for all three paths (spec 111 3.1): nuxt.config sets its path
+   to /blog/:slug(.*)* (blogDocumentsModule); a "..." file name would put
    "..." in a chunk name, which a ".."-refusing server loops on (docs.vue) */
-definePageMeta({ path: '/blog/:slug(.*)*', layout: false })
+definePageMeta({ layout: false })
 
 interface BlogEntry {
   id: string

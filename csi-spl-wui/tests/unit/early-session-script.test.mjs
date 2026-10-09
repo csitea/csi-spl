@@ -98,7 +98,7 @@ eq(/wuiUseMock\(\) === "0"\s*\?\s*\[[^\]]*innerHTML: buildEarlySessionScript/.te
 const plugin = readFileSync(join(WUI, 'src/plugins/0.boot-early.client.ts'), 'utf8')
 eq(/takeParkedSession\(window, sessionProbeUrl\(useAuthBase\(\)\)\)/.test(plugin), true, 'the boot plugin adopts the parked probe for its own address')
 // spec 111 3.1: a /blog document (any locale) starts no probe
-const blogSkip = plugin.indexOf('blog(?:')
+const blogSkip = plugin.indexOf('blog(\\/|$)')
 eq(blogSkip > 0 && blogSkip < plugin.indexOf('startEarlySession('), true, 'the boot plugin returns on /blog before it starts the probe')
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1) }

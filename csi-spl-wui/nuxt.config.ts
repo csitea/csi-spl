@@ -371,6 +371,15 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 function blogDocumentsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   const scripts = BLOG_STRIPPED_SCRIPTS.map((body) => new RegExp(`<script\\b[^>]*>${escapeRe(body)}</script>`, "g"))
   const failed: string[] = []
+  // ONE record for /blog, /blog/page/<n> and /blog/<id>, its path set here
+  // (after localeRouteCopiesModule kept the default-locale records; the
+  // router derives the /<lang> copies from it) rather than in the page's
+  // definePageMeta, whose meta object ships in the initial JS.
+  nuxt.hook("pages:resolved", (pages) => {
+    const blog = pages.find((p) => p.path === "/blog" && (p.file || "").endsWith("/pages/blog.vue"))
+    if (!blog) throw new Error("blog (spec 111 T003): no /blog record for pages/blog.vue")
+    blog.path = "/blog/:slug(.*)*"
+  })
   nuxt.hook("nitro:init", (nitro) => {
     nitro.hooks.hook("prerender:generate", (route) => {
       if (!BLOG_ROUTE_RE.test(route.route) || typeof route.contents !== "string" || !(route.fileName || "").endsWith(".html")) return
@@ -679,12 +688,12 @@ export default defineNuxtConfig({
     "/dm/**": { prerender: false },
     "/t/**": { prerender: false },
     "/lobby": { prerender: false },
-    // spec 111 3.1: the blog is indexable. Default-locale paths only: every
-    // rule here ships in the client's route-rules matcher (38 locale rules
-    // were +529 B gzip of initial JS); the /<lang>/blog copies carry it in
-    // their robots meta, and Hosting (render-wui-firebase-json.sh) in the header.
-    "/blog": { headers: { "X-Robots-Tag": "index, follow" } },
-    "/blog/**": { headers: { "X-Robots-Tag": "index, follow" } },
+    // spec 111 3.1: no /blog rule here on purpose. Every rule ships in the
+    // client's route-rules matcher, in the initial JS that ci_home_gzip_kb
+    // and ci_initial_gzip_kb count, and these headers only reach `nuxt
+    // preview`. The blog is indexable through its robots meta
+    // (blogDocumentsModule checks every document) and the deployed header
+    // (render-wui-firebase-json.sh).
   },
 
   nitro: {

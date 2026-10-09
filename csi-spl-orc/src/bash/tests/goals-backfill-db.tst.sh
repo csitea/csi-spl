@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_spl_goals_backfill_db (spec 112 8.2, ORC-3, the read half).
+# Purpose: do_spl_goals_backfill_db (spec 112 8.2, ORC-3, read and write halves).
 #          Part A stubs the cloud (spl_via_proxy records its call); part B
 #          runs the action's SQL against a REAL throwaway Postgres with the
 #          real rdb migrations, as a NON-owner login so rdb 0014 row-level
@@ -12,6 +12,12 @@
 #   A3. the output dir must sit under $HOME; a bad SINCE is refused
 #   A4. the SQL: BEGIN TRANSACTION READ ONLY + SET LOCAL app.tenant_id, no
 #       rls_scope, and the output file is 0600 in a 0700 dir under $HOME
+#   A5. KEPT_FILE (the write half) against a stub route: exactly the kept
+#       rows as db:<topic_id>, audience internal, one per topic, no goals[]
+#       and nothing else; CONTROL: a batch that also carries a goal: key turns
+#       the check red, and the action refuses it before any call; no quote in
+#       a log line or argv; refused without WORKSPACE, the cnf roadmap tenant,
+#       the hub URL or a token, on another workspace's or a non-0600 file
 #   B1. two workspaces seeded; run in A as the runtime login: the output
 #       holds A's owner decision / drill / launch candidates and none of B's
 #       topic ids; a non-approver's "yes" and owner chatter are not
@@ -88,6 +94,77 @@ sql=$(bash -c 'source "$1"; spl_goals_backfill_db_sql' _ "$FUNC")
 [[ "$(sed -n 1p <<<"$sql")" == "BEGIN TRANSACTION READ ONLY;" && "$(sed -n 2p <<<"$sql")" == "SET LOCAL app.tenant_id = :'ws';" ]] &&
   ! grep -q rls_scope <<<"$sql" && ! grep -q "app.rls_scope" "$FUNC" &&
   pass "A4. the SQL is READ ONLY + SET LOCAL app.tenant_id, no rls_scope" || fail "A4. sql: $(head -3 <<<"$sql")"
+
+# A5 (the WRITE half) -----------------------------------------------------------
+# runw <cnf-tenant> <kept-file> [VAR=val ...]: KEPT_FILE mode; the stub route
+# keeps the body curl would send (@<file>) in $T/sent.json.
+runw() {
+  local tenant="$1" kept="$2"; shift 2
+  rm -f "$T/sent.json"; : >"$T/calls"
+  printf 'env:\n  gcp:\n    project: x\n  roadmap:\n    tenant_id: %s\n' "$tenant" >"$T/cnf.yaml"
+  env -u WORKSPACE -u APPROVER_ROLE -u SINCE -u GOALS_BACKFILL_DIR HOME="$T/home" FUNC="$FUNC" T="$T" KEPT_FILE="$kept" "$@" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*" >&2; }
+    source "${FUNC%/src/bash/run/*}/lib/bash/funcs/spl-cloud-cnf.func.sh"
+    do_require_bin() { return 0; }
+    do_spl_cloud_cnf() { SPL_CNF="$T/cnf.yaml"; }
+    do_gcp_pin_account() { GCP_ACCOUNT=sa@example.com; }
+    do_gcp_require_live_account() { return 0; }
+    source "$FUNC"
+    spl_hub_operator_url() { SPL_HUB_URL=https://hub.invalid; }
+    spl_hub_operator_call() {
+      echo "call $*" >>"$T/calls"; cp "${3#@}" "$T/sent.json"
+      SPL_HUB_OP_STATUS="${STUB_STATUS:-200}"
+      SPL_HUB_OP_BODY="{\"error\":\"roadmap_not_configured\",\"created\":2,\"updated\":0,\"unchanged\":0,\"deleted\":0}"
+    }
+    ${STUB_BODY:+eval "$STUB_BODY"}
+    do_spl_goals_backfill_db' >"$T/o" 2>"$T/e"
+}
+# only_db <body.json>: the batch holds db: keys only, no goals[], audience internal
+only_db() { jq -e '(has("goals") | not) and all(.events[]; (.source_key | startswith("db:")) and .audience == "internal")' "$1" >/dev/null; }
+KD="$T/home/.csi-spl/goals-backfill"; mkdir -p "$KD"
+K="$KD/db-candidates-dev-ta-20261009T000000Z.tsv"
+U1=aaaaaaaa-0000-4000-8000-000000000011 U2=aaaaaaaa-0000-4000-8000-000000000012 U3=aaaaaaaa-0000-4000-8000-000000000013
+SECRET="Quote-$RANDOM-not-in-a-log"
+printf 'topic_id\tmsg_id\tts\tkind\tquote\tkeep\n%s\tm2\t2026-10-01T11:00:00Z\tdrill\tthe drill passed\ty\n%s\tm1\t2026-10-01T10:00:00Z\tdecision\t%s\tyes\n%s\tm3\t2026-10-02T10:00:00Z\tlaunch\twe launched\tx\n%s\tm4\t2026-10-03T10:00:00Z\tdecision\tnot this one\tn\n' \
+  "$U1" "$U1" "$SECRET" "$U2" "$U3" >"$K"; chmod 600 "$K"
+
+runw ta "$K" ENV=dev WORKSPACE=ta; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/calls")" == "call PUT /v1/calendar/sync @$KD/.sync-body."* ]] &&
+  pass "A5. KEPT_FILE: one PUT /v1/calendar/sync, the body as @<file>" || fail "A5. rc=$rc $(cat "$T/calls" "$T/e")"
+[[ "$(jq -c '[.events[] | [.source_key, .audience, .topic_id, .kind, .starts_at]]' "$T/sent.json" 2>/dev/null)" == \
+  "[[\"db:$U1\",\"internal\",\"$U1\",\"milestone\",\"2026-10-01T10:00:00Z\"],[\"db:$U2\",\"internal\",\"$U2\",\"milestone\",\"2026-10-02T10:00:00Z\"]]" ]] &&
+  [[ "$(jq -c 'keys' "$T/sent.json")" == '["events"]' && "$(jq -r '.events[0].title' "$T/sent.json")" == "$SECRET" ]] &&
+  pass "A5. exactly the kept rows, one db:<topic_id> per topic (earliest), audience internal, nothing else" || fail "A5. sent: $(cat "$T/sent.json" 2>/dev/null)"
+only_db "$T/sent.json" && pass "A5. the batch carries only the db: family" || fail "A5. only_db: $(cat "$T/sent.json")"
+! grep -q "$SECRET" "$T/e" "$T/o" "$T/calls" && [[ -z "$(compgen -G "$KD/.sync-body.*")" ]] &&
+  pass "A5. no quote in a log line or argv; the 0600 body file is removed" || fail "A5. quote leaked: $(cat "$T/e" "$T/calls")"
+jq '.events += [{source_key: "goal:G01:deadline", audience: "internal"}]' "$T/sent.json" >"$T/goal.json"
+! only_db "$T/goal.json" && pass "A5. CONTROL: a batch that also carries a goal: key turns only_db red" || fail "A5. control: only_db passed a goal: key"
+runw ta "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_goals_backfill_db_body() { echo "{\"events\":[{\"source_key\":\"goal:G01:deadline\"}]}"; }'; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'carries a non-db: key: refused' "$T/e" &&
+  pass "A5. CONTROL: the action refuses a goal: key itself, no call" || fail "A5. goal guard rc=$rc $(cat "$T/calls" "$T/e")"
+
+runw ta "$K" ENV=dev; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'WORKSPACE must be set (no default)' "$T/e" && pass "A5. no WORKSPACE: refused, no call" || fail "A5. ws rc=$rc"
+runw '~' "$K" ENV=dev WORKSPACE=ta; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'is not cnf env.roadmap.tenant_id' "$T/e" &&
+  pass "A5. WORKSPACE must be the cnf roadmap tenant (unset: refused, no call)" || fail "A5. tenant rc=$rc $(cat "$T/e")"
+runw ta "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_hub_operator_url() { do_log "FATAL env.dns.api_fqdn is not set"; return 1; }'; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "A5. no hub base URL in the cnf: refused, no call" || fail "A5. url rc=$rc"
+runw ta "$K" ENV=dev WORKSPACE=ta STUB_BODY='spl_hub_operator_call() { do_log "FATAL could not mint an id token"; return 1; }'; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'could not mint an id token' "$T/e" && [[ -z "$(compgen -G "$KD/.sync-body.*")" ]] &&
+  pass "A5. no token: fails, the body file is removed" || fail "A5. token rc=$rc"
+runw ta "$K" ENV=dev WORKSPACE=ta STUB_STATUS=503; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'answered 503 roadmap_not_configured' "$T/e" && pass "A5. a 503 roadmap_not_configured fails" || fail "A5. 503 rc=$rc $(cat "$T/e")"
+cp "$K" "$KD/db-candidates-dev-tb-20261009T000000Z.tsv"
+runw ta "$KD/db-candidates-dev-tb-20261009T000000Z.tsv" ENV=dev WORKSPACE=ta; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "A5. another workspace's file is refused" || fail "A5. tb file rc=$rc"
+cp "$K" "$T/outside.tsv"
+runw ta "$T/outside.tsv" ENV=dev WORKSPACE=ta; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "A5. a file outside \$HOME is refused" || fail "A5. outside rc=$rc"
+chmod 644 "$K"; runw ta "$K" ENV=dev WORKSPACE=ta; rc=$?; chmod 600 "$K"
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'mode 0600' "$T/e" && pass "A5. a non-0600 file is refused" || fail "A5. mode rc=$rc"
 
 # B ---------------------------------------------------------------------------
 PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"

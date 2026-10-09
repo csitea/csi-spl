@@ -399,6 +399,7 @@ func (s *Server) Handler() http.Handler {
 	s.routeDocs(mux)           // the Docs section: GET /v1/docs/{path...}
 	s.routeOpenAPI(mux)        // spec 104 §4.2: GET /v1/openapi.json
 	s.routeWorkspaceDocs(mux)  // specs/075 Phase 2: /v1/workspace/docs/{path...}
+	s.routeDocTree(mux)        // spec 113 T004: /v1/workspace/doctree (outline + grid)
 	s.routeBoxStats(mux)       // rdb 0117: GET /v1/tenant/box-stats
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {

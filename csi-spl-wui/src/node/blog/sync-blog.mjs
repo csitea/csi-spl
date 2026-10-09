@@ -10,7 +10,9 @@
 // - `draft: true` is skipped.
 // - THE CAP (6.2) holds here, in code the posting agent does not run: per
 //   publish day (env.blog.tz) at most env.blog.cap_per_day posts render, the
-//   digest first; other posts take at most cap - digest_reserved. A post
+//   digest first; other posts take at most cap - digest_reserved. A
+//   non-digest post tagged with one of env.blog.cap_exempt_tags (owner
+//   HUM-10 d940f865: the feature series) is neither counted nor held. A post
 //   counts once, by its `en` file. The day and the order come from GIT, never
 //   from the frontmatter: the first-parent commit that made the `en` file
 //   live (added, or flipped from `draft: true`), committer time. So a
@@ -46,7 +48,7 @@ export const BLOG_CNF = join(REPO, 'csi-spl-cnf/csi-spl/all.env.yaml')
 export const BLOG_LOCALES = join(WUI, 'i18n/locales')
 
 /** The spec's values (D-Q1, 6.2), used for a key env.blog does not carry. */
-export const BLOG_DEFAULTS = Object.freeze({ tz: 'Europe/Helsinki', cap_per_day: 7, digest_reserved: 1, digest_at: '23:00' })
+export const BLOG_DEFAULTS = Object.freeze({ tz: 'Europe/Helsinki', cap_per_day: 7, digest_reserved: 1, digest_at: '23:00', cap_exempt_tags: Object.freeze([]) })
 
 /** env.blog from the cnf, each missing key at its BLOG_DEFAULTS value. */
 export function blogCnf(cnf = BLOG_CNF) {
@@ -56,6 +58,8 @@ export function blogCnf(cnf = BLOG_CNF) {
   const m = /^( +)blog:[ \t]*\n((?:\1 +.*\n?|[ \t]*\n)*)/m.exec(text)
   if (!m) return out
   for (const line of m[2].split('\n')) {
+    const ex = /^\s+cap_exempt_tags:\s*\[([^\]]*)\]\s*(#.*)?$/.exec(line)
+    if (ex) { out.cap_exempt_tags = ex[1].split(',').map((t) => t.trim().replace(/^["']|["']$/g, '')).filter(Boolean); continue }
     const kv = /^\s+(tz|cap_per_day|digest_reserved|digest_at):\s*["']?([^"'#\s]+)["']?\s*(#.*)?$/.exec(line)
     if (!kv) continue
     out[kv[1]] = /^(cap_per_day|digest_reserved)$/.test(kv[1]) ? Number.parseInt(kv[2], 10) : kv[2]
@@ -256,7 +260,9 @@ function zoned(epochS, tz) {
 }
 
 /**
- * The cap (6.2). posts: [{ id, type, at, seq }], the live `en` posts.
+ * The cap (6.2). posts: [{ id, type, at, seq, tags }], the live `en` posts.
+ * A non-digest post with a tag in cnf.cap_exempt_tags always renders and
+ * takes no slot.
  * Returns { keep: Set<id>, dropped: [{ id, day, why }] }.
  */
 export function applyCap(posts, cnf = BLOG_DEFAULTS) {
@@ -265,6 +271,7 @@ export function applyCap(posts, cnf = BLOG_DEFAULTS) {
   const digestHour = Number.parseInt(String(cnf.digest_at).split(':')[0], 10)
   const reserved = Math.max(0, cnf.digest_reserved)
   const others = Math.max(0, cnf.cap_per_day - reserved)
+  const exempt = new Set(cnf.cap_exempt_tags || [])
   const days = new Map()
   for (const p of posts) {
     const z = zoned(p.at, cnf.tz)
@@ -282,6 +289,8 @@ export function applyCap(posts, cnf = BLOG_DEFAULTS) {
         if (p.hour !== digestHour) dropped.push({ id: p.id, day, why: `a digest outside ${cnf.digest_at}-24:00 ${cnf.tz}` })
         else if (digests >= reserved) dropped.push({ id: p.id, day, why: 'a second digest for the day' })
         else { digests++; keep.add(p.id) }
+      } else if ((p.tags || []).some((t) => exempt.has(t))) {
+        keep.add(p.id)
       } else if (rest >= others) {
         dropped.push({ id: p.id, day, why: `over the cap of ${cnf.cap_per_day} a day (${others} besides the digest)` })
       } else { rest++; keep.add(p.id) }
@@ -321,7 +330,7 @@ export function blogFiles({ src = BLOG_SRC, root = BLOG_REPO, cnf = blogCnf(), l
     if (!en.has(id)) errors.push(`${lang}/${id}.md: no live en/${id}.md it translates`)
   }
   const times = publishTimes(root, join(src, 'en'), [...en].map(([id, c]) => [id, c.text]), now)
-  const posts = [...en].filter(([id]) => times.has(id)).map(([id, c]) => ({ id, type: c.meta.type, ...times.get(id) }))
+  const posts = [...en].filter(([id]) => times.has(id)).map(([id, c]) => ({ id, type: c.meta.type, tags: c.meta.tags, ...times.get(id) }))
   const { keep, dropped } = applyCap(posts, cnf)
   const order = posts.filter((p) => keep.has(p.id))
     .sort((a, b) => b.at - a.at || b.seq - a.seq || b.id.localeCompare(a.id)).map((p) => p.id)

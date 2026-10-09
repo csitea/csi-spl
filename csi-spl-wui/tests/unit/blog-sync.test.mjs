@@ -6,6 +6,9 @@
 //        the digest among them; control: the same 9 over two days render all
 //        9; a back-dated `published`, a draft flipped later and an edit that
 //        changes `id` each count on their commit day
+//   cap_exempt_tags (owner HUM-10 d940f865, option a): 10 `feature` posts
+//        and 7 ordinary ones on one day: all 10 render, the ordinary ones
+//        stay capped; control: without the key the feature posts are capped
 //   9-c  (script controls) a planted <img src=x onerror=...> and a raw
 //        <script> in a post are refused by --check and by the render
 //
@@ -32,10 +35,10 @@ const CNF = { tz: 'Europe/Helsinki', cap_per_day: 7, digest_reserved: 1, digest_
 const scratch = []
 const tmp = (p) => { const d = mkdtempSync(join(tmpdir(), p)); scratch.push(d); return d }
 
-function post(id, { lang = 'en', type = 'news', draft = false, published = '', body = 'A plain body with a [link](https://example.com/x).' } = {}) {
+function post(id, { lang = 'en', type = 'news', draft = false, published = '', tags = 'release, fleet', body = 'A plain body with a [link](https://example.com/x).' } = {}) {
   return ['---', `id: ${id}`, `lang: ${lang}`, `type: ${type}`, `title: "Post ${id}"`, 'summary: "One sentence."',
     `date: ${id.slice(0, 10)}`, ...(published ? [`published: ${published}`] : []), 'author: m-004', 'agy_review: a-004',
-    'tags: [release, fleet]', `draft: ${draft}`, '---', body, ''].join('\n')
+    `tags: [${tags}]`, `draft: ${draft}`, '---', body, ''].join('\n')
 }
 
 /** A throwaway repo: commit(files, utc) writes {lang/id.md: text|null} and commits at `utc`. */
@@ -58,7 +61,7 @@ function repo() {
       const r = g(['commit', '-q', '--allow-empty', '-m', 'post'], { GIT_AUTHOR_DATE: utc, GIT_COMMITTER_DATE: utc })
       if (r.status !== 0) throw new Error(r.stderr)
     },
-    sync(now = Date.parse('2026-10-20T12:00:00Z')) { return blogFiles({ src, root, cnf: CNF, locales: LOCALES, now }) },
+    sync(now = Date.parse('2026-10-20T12:00:00Z'), cnf = CNF) { return blogFiles({ src, root, cnf, locales: LOCALES, now }) },
   }
 }
 
@@ -191,6 +194,27 @@ try {
     r5.commit({ [`en/${D}-digest.md`]: post(`${D}-digest`, { type: 'digest' }) }, at(D, '07:00'))
     const s5 = r5.sync()
     ok('9-l CONTROL a 10:00 digest does not render', !enIds(s5).includes(`${D}-digest`) && /outside 23:00/.test(s5.dropped[0]?.why || ''), JSON.stringify(s5.dropped))
+  }
+  /* ── cap_exempt_tags: the feature series is not held by the cap ───── */
+  {
+    const r = repo()
+    for (let i = 1; i <= 7; i++) r.commit({ [`en/${D}-n${i}.md`]: post(`${D}-n${i}`) }, at(D, `0${i}:00`))
+    for (let i = 10; i <= 19; i++) r.commit({ [`en/${D}-feature-f${i}.md`]: post(`${D}-feature-f${i}`, { tags: 'feature, fleet' }) }, at(D, `${i}:00`))
+    const feats = Array.from({ length: 10 }, (_, k) => `${D}-feature-f${k + 10}`)
+    const ex = enIds(r.sync(undefined, { ...CNF, cap_exempt_tags: ['feature'] }))
+    ok('cap_exempt_tags: 10 feature posts + 7 ordinary on one day: all 10 feature posts render', feats.every((f) => ex.includes(f)), ex.join())
+    ok('cap_exempt_tags: the ordinary ones are still capped at 6 + the digest slot (7)', ex.filter((x) => !x.includes('-feature-')).length === 6 && !ex.includes(`${D}-n7`), ex.join())
+    const ctl = r.sync(undefined, { ...CNF })
+    const cx = enIds(ctl)
+    ok('CONTROL without cap_exempt_tags the feature posts are capped again', cx.length === 6 && feats.every((f) => !cx.includes(f)) && ctl.dropped.filter((x) => /cap of 7/.test(x.why)).length === 11, cx.join())
+    const dg = repo()
+    dg.commit({ [`en/${D}-digest.md`]: post(`${D}-digest`, { type: 'digest', tags: 'feature' }) }, at(D, '07:00'))
+    ok('CONTROL an exempt tag does not lift the digest rules', !enIds(dg.sync(undefined, { ...CNF, cap_exempt_tags: ['feature'] })).includes(`${D}-digest`))
+    const dir = tmp('blog-sync-cnf-')
+    const yml = (extra) => { const f = join(dir, `c${extra.length}.yaml`); writeFileSync(f, `env:\n  blog:\n    cap_per_day: 7\n${extra}    digest_reserved: 1\n`); return f }
+    ok('blogCnf reads cap_exempt_tags: [feature]', blogCnf(yml('    cap_exempt_tags: [feature]\n')).cap_exempt_tags.join() === 'feature')
+    ok('CONTROL a cnf without the key exempts nothing', blogCnf(yml('')).cap_exempt_tags.length === 0)
+    ok('the repo cnf exempts the feature series', blogCnf().cap_exempt_tags.includes('feature'), JSON.stringify(blogCnf()))
   }
   let tzErr = ''
   try { applyCap([], { ...CNF, tz: 'Europe/Nowhere' }) } catch (e) { tzErr = e.message }

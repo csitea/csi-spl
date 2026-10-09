@@ -4,7 +4,7 @@
 # @description in it), over every workspace and every channel, DM and topic -
 # @description the owner order of t1 topic 35582e7b (2026-10-01): "remove all
 # @description of the duplicated msgs which were sent till now also, for all
-# @description the channels". The source (RSP-01 posting one "Seen" per post
+# @description the channels". The source (the responder posting one "Seen" per post
 # @description instead of one per topic) is fixed in do_spl_responder_run;
 # @description this action cleans what it left behind, and anything like it.
 # @description
@@ -20,7 +20,8 @@
 # @description
 # @description REPORT ONLY, never deleted: a human post answered by two or
 # @description more DIFFERENT agents (not identical messages - an operator
-# @description decides). The non-AI responder (RSP-*) "Seen" is its ack by
+# @description decides). The non-AI responder's "Seen" (SPL_RSP_AGENT, or a
+# @description stored RSP-*) is its ack by
 # @description design and does not count as an answer.
 # @description
 # @description SAFETY. DRY_RUN=1 (default) runs the SAME delete inside a
@@ -69,8 +70,10 @@ do_spl_msg_dedup() {
 # DUP <tenant> <channel> <topic> <msg_id> <ts> <sender> <kept msg_id> <head>.
 _spl_msg_dedup_run() {
   local out
+  # shellcheck source=../../../lib/bash/funcs/spl-desk-agents.func.sh
+  [[ -n "${SPL_RSP_AGENT:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-agents.func.sh"
   out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 \
-    -v tenant="$SPL_DEDUP_TENANT" -v dry="$SPL_DEDUP_DRY" <<'SQL'
+    -v tenant="$SPL_DEDUP_TENANT" -v dry="$SPL_DEDUP_DRY" -v rsp="$SPL_RSP_AGENT" <<'SQL'
 BEGIN;
 SET LOCAL app.rls_scope = 'operator';
 WITH m AS (
@@ -84,7 +87,7 @@ WITH m AS (
 SELECT 'MULTI', h.tenant_id, coalesce(h.channel, '-'), h.task_id, h.msg_id,
        string_agg(DISTINCT a.from_id, ',' ORDER BY a.from_id)
 FROM h JOIN m a ON a.tenant_id = h.tenant_id AND a.task_id = h.task_id
-  AND a.from_id NOT LIKE 'HUM-%' AND a.from_id NOT LIKE 'RSP-%'
+  AND a.from_id NOT LIKE 'HUM-%' AND a.from_id NOT LIKE 'RSP-%' AND a.from_id <> :'rsp'
   AND (a.ts, a.received_at, a.msg_id) > (h.ts, h.received_at, h.msg_id)
   AND (h.next_ts IS NULL OR a.ts < h.next_ts)
 GROUP BY h.tenant_id, h.channel, h.task_id, h.msg_id, h.ts

@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # Purpose: do_spl_responder_run (SPL-1265 / epic SPL-1238) — the non-AI
 #          responder. It validates its ids, stays offline in a dry run, and
-#          treats every HUM-* message in RSP-01's channel-less inbox as an
+#          treats every HUM-* message in the responder's channel-less inbox as an
 #          escalation to answer (and nothing else). No cloud call, no spool
 #          binary: the desk spool + reply legs are stubbed.
 #   1. a bad DESK_AGENT / RESP_FORWARD_TO is refused; the defaults pass
@@ -22,6 +22,8 @@ set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=test-lib.inc.sh
 source "$TEST_DIR/test-lib.inc.sh"
+# shellcheck source=../../../lib/bash/funcs/spl-desk-agents.func.sh
+. "$PROJ_ROOT/lib/bash/funcs/spl-desk-agents.func.sh"
 fails=0
 mkdir -p "$T/state/dev/desk/t1/box-rsp/spool"
 
@@ -127,12 +129,12 @@ grep -q "1 already seen" "$T/o" && pass "a re-delivered topic is logged as alrea
   fail "the repeat sweep did not say already seen: $(cat "$T/o")"
 
 rm -f "$D/seen-topics"; : >"$T/reply.log"
-mkdir -p "$D/spool/RSP-01/outbox"
-echo '{"v":1,"msg_id":"s1","from":"RSP-01","to":"HUM-10","task_id":"t-ddd","kind":"note","body":"Seen: routed to the team."}' >"$D/spool/RSP-01/outbox/s1.json"
+mkdir -p "$D/spool/$SPL_RSP_AGENT/outbox"
+echo '{"v":1,"msg_id":"s1","from":"'"$SPL_RSP_AGENT"'","to":"HUM-10","task_id":"t-ddd","kind":"note","body":"Seen: routed to the team."}' >"$D/spool/$SPL_RSP_AGENT/outbox/s1.json"
 SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 RESP_SEEN_REPLY=1 in_resp >"$T/o" 2>&1
 [ ! -s "$T/reply.log" ] && pass "a lost ledger: the outbox Seen still blocks a second reply" ||
   fail "replied again although the outbox holds the Seen: $(cat "$T/reply.log")"
-rm -f "$D/spool/RSP-01/outbox/s1.json" "$D/seen-topics"
+rm -f "$D/spool/$SPL_RSP_AGENT/outbox/s1.json" "$D/seen-topics"
 
 : >"$T/reply.log"
 ( exec 9>"$D/responder.lock"; flock -n 9; SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 RESP_SEEN_REPLY=1 in_resp >"$T/o" 2>&1 )

@@ -4,10 +4,10 @@
 # @description up and on the current spool binary - box-rsp, box-ci and the
 # @description like, the boxes that are not this machine's default desk box
 # @description (DESK_BOX, which do_spl_desk_up_all and do_spl_desk_up_tenants
-# @description reconcile). Their agents (RSP-01, OPS-01) have no tmux window,
+# @description reconcile). Their agents (SPL_RSP_AGENT, SPL_OPS_AGENT) have no tmux window,
 # @description so the live-window reconcile never sees them: on prd
 # @description 2026-10-02 all 6 box-rsp sidecars ran a DELETED spool binary
-# @description from 2026-10-01 that predated the c-NNN ids, and every RSP-01
+# @description from 2026-10-01 that predated the c-NNN ids, and every responder
 # @description relay to a c-NNN agent was moved to .hub/rejected until they
 # @description were restarted by hand.
 # @description A box is in the reconcile set when its dir under
@@ -70,12 +70,15 @@ do_spl_desk_up_boxes() {
 }
 
 # spl_desk_box_agents <desk dir>: the agent dirs under its spool root, sorted;
-# what the box announces from (hubclient scanAgents).
+# what the box announces from (hubclient scanAgents). A link is not an agent
+# dir: do_spl_desk_agent_rename leaves <old> -> <new> behind, and the retired
+# old id must never be the one seated.
 spl_desk_box_agents() {
   local e a
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for e in "$1"/spool/*/; do
-    a="${e%/}"; a="${a##*/}"
+    a="${e%/}"; [[ -L "$a" ]] && continue
+    a="${a##*/}"
     [[ "$a" =~ ^${SPOOL_PARTICIPANT_RX}$ && "${a%%-*}" != BOX ]] && printf '%s\n' "$a"
   done | sort
 }

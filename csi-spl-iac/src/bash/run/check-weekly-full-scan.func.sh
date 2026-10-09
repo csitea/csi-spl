@@ -16,7 +16,7 @@
 # @description Output: ONE report, <WEEKLY_SCAN_DIR>/<date>.md (one row per
 # @description scanner: verdict, findings, change vs last week, seconds, log),
 # @description a <date>.tsv for next week's deltas, and <date>.summary.txt, the
-# @description short text the cron posts to #spool-hub-ops as OPS-01. No triage,
+# @description short text the cron posts to #spool-hub-ops as the ops desk. No triage,
 # @description no issues.
 # @description MISSED WEEK: GitHub no longer runs these weekly, so a Friday the
 # @description box was down must be visible. When an earlier report exists but

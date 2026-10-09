@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # spl-ops-alarm-cron.sh (SPL-1254 + SPL-1255) — the box cron that posts deploy
 # alarms to #spool-hub-ops, every 10 min, as the seated CI ops desk. The owner
-# chose a box cron over GitHub workflows (OPS-01 on box-ci in t1, key on the box;
+# chose a box cron over GitHub workflows (the ops desk on box-ci in t1, key on the box;
 # no repo secret), 2026-09-30.
 #
 # Each tick:
@@ -14,14 +14,19 @@
 # It is DRY_RUN=1 unless told otherwise, so an accidental interactive run prints
 # what it WOULD post and sends nothing; the crontab entry sets DRY_RUN=0.
 #
-#   spl-ops-alarm-cron.sh [--envs dev,prd] [--tenant t1] [--agent OPS-01]
+#   spl-ops-alarm-cron.sh [--envs dev,prd] [--tenant t1] [--agent c-685]
 #                         [--box box-ci] [--print-crontab] [--check-tools]
 #
 # Exit: 0 ok (or another tick holds the lock), 1 an alarm/poll failed,
 #       2 usage, 3 a required tool is missing.
 set -uo pipefail
 
-ENVS="dev,prd" TENANT="t1" AGENT="OPS-01" BOX="box-ci" PRINT_CRONTAB=0 CHECK_TOOLS=0
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# SPL_OPS_AGENT, the CI ops desk's id: its one home.
+# shellcheck source=../../../lib/bash/funcs/spl-desk-agents.func.sh
+. "$HERE/../../../lib/bash/funcs/spl-desk-agents.func.sh"
+
+ENVS="dev,prd" TENANT="t1" AGENT="$SPL_OPS_AGENT" BOX="box-ci" PRINT_CRONTAB=0 CHECK_TOOLS=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --envs)  ENVS="${2:?}"; shift 2 ;;
@@ -35,7 +40,6 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 ROOT="$(cd "$HERE/../../../.." && pwd)"           # .../csi-spl-orc -> repo root
 RUN="$ROOT/csi-spl-orc/run"
 

@@ -5,7 +5,7 @@
 # posts the short summary to #spool-hub-ops as the seated CI ops desk, only so
 # the result is visible: no triage, no issues.
 #
-#   weekly-full-scan-cron.sh [--tenant t1] [--agent OPS-01] [--box box-ci]
+#   weekly-full-scan-cron.sh [--tenant t1] [--agent c-685] [--box box-ci]
 #                            [--channel spool-hub-ops]
 #
 # DRY_RUN=1 (the default) prints the scan plan and what it would post; the
@@ -13,7 +13,13 @@
 # 1 the scan or the post failed, 2 usage, 3 a required tool is missing.
 set -uo pipefail
 
-TENANT="t1" AGENT="OPS-01" BOX="box-ci" CHANNEL="spool-hub-ops"
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+ROOT="$(cd "$HERE/../../../.." && pwd)"          # .../csi-spl-iac -> repo root
+# SPL_OPS_AGENT, the CI ops desk's id: its one home.
+# shellcheck source=../../../../csi-spl-orc/lib/bash/funcs/spl-desk-agents.func.sh
+. "$ROOT/csi-spl-orc/lib/bash/funcs/spl-desk-agents.func.sh"
+
+TENANT="t1" AGENT="$SPL_OPS_AGENT" BOX="box-ci" CHANNEL="spool-hub-ops"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --tenant)  TENANT="${2:?}"; shift 2 ;;
@@ -23,9 +29,6 @@ while [ "$#" -gt 0 ]; do
     *) echo "weekly-full-scan-cron: unknown arg $1" >&2; exit 2 ;;
   esac
 done
-
-HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-ROOT="$(cd "$HERE/../../../.." && pwd)"          # .../csi-spl-iac -> repo root
 
 # cron runs with PATH=/usr/bin:/bin; the scanners live in /usr/local/bin and
 # ~/.local/bin (do_install_lint_tools).

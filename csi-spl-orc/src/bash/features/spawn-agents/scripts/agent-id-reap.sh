@@ -6,7 +6,9 @@
 # hand with ./run -a do_spl_agent_id_reap.
 #
 # The candidates are every id this machine holds: a spool dir, a registry.tsv
-# row, an identity record (agents/<ID>.json). Role ids (001-003) never are.
+# row, an identity record (agents/<ID>.json). Role ids (001-003) never are,
+# nor the desk ids (SPL_DESK_AGENT_IDS: the responder and the ops desk, which
+# have no tmux window by design).
 #
 #   alive   a tmux window carries the id, or its identity record proves a live
 #           process (ai_alive_fast). Alive drops the id's dead-since stamp.
@@ -47,6 +49,8 @@ spool_env_resolve
 . "$_here/../lib/agent-identity.inc.sh"
 # shellcheck source=../../../run/spl-rotate-lib.func.sh
 declare -F spl_agent_id_lock >/dev/null || . "$_here/../../../run/spl-rotate-lib.func.sh"
+# shellcheck source=../../../../../lib/bash/funcs/spl-desk-agents.func.sh
+. "$_here/../../../../../lib/bash/funcs/spl-desk-agents.func.sh"
 
 APPLY=0
 [ "${DRY_RUN:-1}" = 0 ] && APPLY=1
@@ -116,6 +120,7 @@ HELD="${WD_STATE_DIR:-$R/dispatch/wd}"
 say "START reap (${mode}): ${#cand[@]} id(s), reaped after ${REAP_H} h dead"
 for id in $(printf '%s\n' "${!cand[@]}" | sort); do
   case "${id#*-}" in 1|01|001|2|02|002|3|03|003) continue ;; esac
+  case " $SPL_DESK_AGENT_IDS " in *" $id "*) continue ;; esac
   has_window "$id" && continue
   if ai_alive_fast "$id" >/dev/null 2>&1; then
     say "KEEP ${id}: no window, but its record proves a live process"

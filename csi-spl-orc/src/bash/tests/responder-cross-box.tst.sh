@@ -30,7 +30,7 @@ printf '%s\n' "$*" >>"$SEND_LOG"
 SH
 
 # on_box <state dir> <box>: one machine. recv reads $INBOX; hub-rsp counts the
-# shared hub's RSP-* rows of the topic (HUB_DOWN=1: it fails, as unreachable);
+# shared hub's responder rows of the topic (agentid.IsResponder: SPL_RSP_AGENT or RSP-*) (HUB_DOWN=1: it fails, as unreachable);
 # the reply is a hub row from <box>.
 on_box() {
   local sd="$1" bx="$2"; shift 2
@@ -53,7 +53,7 @@ on_box() {
           [[ "$HUB_DOWN" == old ]] && { echo "spool: the hub does not answer rsp_count" >&2; return 1; }
           [[ "$HUB_DOWN" == bin ]] && { echo "unknown command \"hub-rsp\"" >&2; return 1; }
           local t="${@: -1}"
-          printf "{\"task_id\": \"%s\", \"rsp\": %s}\n" "$t" "$(awk -F "\t" -v t="$t" "\$1 == t && \$2 ~ /^RSP-/" "$HUB" | wc -l)" ;;
+          printf "{\"task_id\": \"%s\", \"rsp\": %s}\n" "$t" "$(awk -F "\t" -v t="$t" -v r="$SPL_RSP_AGENT" "\$1 == t && (\$2 ~ /^RSP-/ || \$2 == r)" "$HUB" | wc -l)" ;;
         *) echo "{}" ;;
       esac
     }
@@ -61,7 +61,9 @@ on_box() {
     do_spl_responder_run'
 }
 post() { printf '[{"v":1,"msg_id":"%s","from":"HUM-10","task_id":"%s","ts":"%s","to":"ALL-0","kind":"note","body":"hello?"}]\n' "$1" "$2" "$3" >"$T/inbox.json"; printf '%s\tHUM-10\tbox-wui\n' "$2" >>"$T/hub.tsv"; }
-seen_count() { awk -F '\t' -v t="$1" '$1 == t && $2 ~ /^RSP-/' "$T/hub.tsv" | wc -l; }
+# shellcheck source=../../../lib/bash/funcs/spl-desk-agents.func.sh
+. "$PROJ_ROOT/lib/bash/funcs/spl-desk-agents.func.sh"
+seen_count() { awk -F '\t' -v t="$1" -v r="$SPL_RSP_AGENT" '$1 == t && ($2 ~ /^RSP-/ || $2 == r)' "$T/hub.tsv" | wc -l; }
 
 # --- 1. machine A answers topic T ---------------------------------------------------
 post m1 t-139 2026-10-03T03:35:00Z

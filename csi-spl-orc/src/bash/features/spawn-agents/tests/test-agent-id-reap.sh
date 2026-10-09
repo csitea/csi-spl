@@ -89,6 +89,15 @@ out="$(SPOOL_TMUX_SOCKET="$T_TMP/none.sock" reap 2026-10-03T03:30:00Z --apply)";
 has "...and says why" "could not be asked: nothing decided" "$out"
 check "...and c-009 (dead 26 h by its record) is still held" test -d "$R/c-009/inbox"
 
+# --- a desk id has no window by design: never reaped (specs/061 follow-up) ---------
+. "$T_SCRIPTS/../../../../../lib/bash/funcs/spl-desk-agents.func.sh"
+agent "$SPL_RSP_AGENT"; rec "$SPL_RSP_AGENT" false 2026-10-02T01:00:00Z
+agent c-688; rec c-688 false 2026-10-02T01:00:00Z
+out="$(reap 2026-10-03T03:40:00Z --apply)"
+hasnt "the responder's desk id, dead 26 h by its record, is not a candidate" "$SPL_RSP_AGENT" "$out"
+check "...untouched" test -d "$R/$SPL_RSP_AGENT/inbox"
+has "CONTROL an ordinary id dead as long is reaped" "REAP c-688: dead 26 h" "$out"
+
 # --- usage ---------------------------------------------------------------------
 SPOOL_ID_REAP_H=0 bash "$REAP" >/dev/null 2>&1; eq "SPOOL_ID_REAP_H=0 is refused (2)" 2 "$?"
 bash "$REAP" --bogus >/dev/null 2>&1; eq "an unknown argument is refused (2)" 2 "$?"

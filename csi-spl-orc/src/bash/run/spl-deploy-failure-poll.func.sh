@@ -16,7 +16,7 @@
 # @param   "<run_id>\t<workflow>\t<url>\t<sha>\t<subject>\t<step>"; default uses gh
 # @param OPS_POST_FN (optional, testing) - the poster; default do_spl_deploy_failure_post
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example TENANT_ID=t1 DESK_AGENT=OPS-01 DESK_BOX=box-ci DRY_RUN=0 ./run -a do_spl_deploy_failure_poll
+# @example TENANT_ID=t1 DESK_AGENT=c-685 DESK_BOX=box-ci DRY_RUN=0 ./run -a do_spl_deploy_failure_poll
 #------------------------------------------------------------------------------
 
 # The real lister: failed 20/30 runs as TSV, newest first, with the failing step.

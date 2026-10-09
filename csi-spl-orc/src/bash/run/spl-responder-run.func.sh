@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # @description SPL-1265 / epic SPL-1238: the PERMANENT, NON-AI responder for
 # @description unheard human posts. It is a dedicated desk agent (default
-# @description RSP-01 on box-rsp) seated per fallback-on tenant; because it is
+# @description the responder SPL_RSP_AGENT on box-rsp) seated per fallback-on tenant; because it is
 # @description in no channel, EVERY message the hub delivers to it is an
 # @description escalation (an SPL-997/SPL-1225 fallback frame). For each one,
 # @description one pass of this action:
@@ -50,7 +50,8 @@
 # @description Sends real messages, so it is a DRY RUN unless DRY_RUN=0.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant whose RSP desk to drain
-# @param DESK_AGENT (optional) - the responder agent, default RSP-01
+# @param DESK_AGENT (optional) - the responder agent, default SPL_RSP_AGENT
+# @param   (lib/bash/funcs/spl-desk-agents.func.sh)
 # @param DESK_BOX (optional) - the responder box, default box-rsp
 # @param RESP_FORWARD_TO (optional) - who the escalation is filed to, default CLE-001
 # @param RESP_SEND (optional) - the send script, default spawn-agents spool-send.sh (tests stub it)
@@ -62,7 +63,7 @@
 do_spl_responder_run() {
   do_require_bin python3 yq || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-rsp}" agent="${DESK_AGENT:-RSP-01}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-rsp}" agent="${DESK_AGENT:-$SPL_RSP_AGENT}"
   local fwd="${RESP_FORWARD_TO:-CLE-001}" wait="${RESP_HUB_WAIT:-900}" reply="${RESP_SEEN_REPLY:-0}"
   [[ "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL RESP_HUB_WAIT must be whole seconds, got: '$wait'"; return 1; }
   [[ "$reply" =~ ^[01]$ ]] || { do_log "FATAL RESP_SEEN_REPLY must be 0 or 1, got: '$reply'"; return 1; }

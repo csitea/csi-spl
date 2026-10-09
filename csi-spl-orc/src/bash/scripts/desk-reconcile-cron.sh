@@ -339,7 +339,7 @@ fi
 
 # The OTHER desk boxes of every tenant (box-rsp, box-ci, ...): the two passes
 # above reconcile only the default desk box, so on prd 2026-10-02 all 6 box-rsp
-# sidecars ran a deleted spool binary that predated the c-NNN ids and RSP-01's
+# sidecars ran a deleted spool binary that predated the c-NNN ids and the responder's
 # relays went to .hub/rejected. A dead or stale sidecar there is restarted; a
 # box retired by do_spl_desk_rebox (box-desk) is never touched.
 # DESK_OTHER_BOXES=0 turns it off without touching the main reconcile.

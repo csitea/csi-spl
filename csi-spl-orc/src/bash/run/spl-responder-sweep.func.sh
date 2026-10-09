@@ -30,14 +30,15 @@
 # @param ENV - required: dev or prd
 # @param DESK_BOX (optional) - the responder box, default SPOOL_RSP_BOX
 # @param   from the box config ($SPOOL_BOX_ENV, default <spool root>/box.env), else box-rsp
-# @param DESK_AGENT (optional) - the responder agent, default RSP-01
+# @param DESK_AGENT (optional) - the responder agent, default SPL_RSP_AGENT
+# @param   (lib/bash/funcs/spl-desk-agents.func.sh)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_responder_sweep
 #------------------------------------------------------------------------------
 do_spl_responder_sweep() {
   do_require_bin python3 || return 1
   do_spl_cloud_cnf || return 1
-  local box="${DESK_BOX:-$(spl_rsp_box_default)}" agent="${DESK_AGENT:-RSP-01}"
+  local box="${DESK_BOX:-$(spl_rsp_box_default)}" agent="${DESK_AGENT:-$SPL_RSP_AGENT}"
   local deskroot="$SPL_STATE_DIR/desk" role dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_lease_init ro || return 1

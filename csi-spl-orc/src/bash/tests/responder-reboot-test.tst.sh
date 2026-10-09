@@ -16,6 +16,8 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+# shellcheck source=../../../lib/bash/funcs/spl-desk-agents.func.sh
+. "$PROJ_ROOT/lib/bash/funcs/spl-desk-agents.func.sh"
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
@@ -108,7 +110,7 @@ else
 fi
 
 # --- 5. holder: a down sidecar is seated, then the desk is answered ----------------
-if sweep_test "c-002@sat 1790000000" >"$T/o" 2>&1 && grep -q "^SEAT t1 box-rsp RSP-01" "$T/o" \
+if sweep_test "c-002@sat 1790000000" >"$T/o" 2>&1 && grep -q "^SEAT t1 box-rsp $SPL_RSP_AGENT" "$T/o" \
    && grep -q "^RAN t1" "$T/o" && [ "$(cat "$PIDF" 2>/dev/null)" = ALIVE ]; then
   pass "holder -> its down sidecar is seated, then answered"
 else
@@ -141,7 +143,7 @@ printf 'SPOOL_RSP_BOX=sat-rsp\n' >"$T/sat.env"
 # after the flip to sat: the PC (box pc) is standby, sat is the holder
 SPOOL_DESK_BOX=pc sweep_test "c-002@sat 1790000000" "$T/pc" >"$T/o1" 2>&1
 SPOOL_BOX_ENV="$T/sat.env" sweep_test "c-002@sat 1790000000" "$T/sat" >"$T/o2" 2>&1
-if [ ! -e "$T/pc/desk/t1/box-rsp/spool/.hub/hub-run.pid" ] && grep -q "^SEAT t1 sat-rsp RSP-01" "$T/o2" \
+if [ ! -e "$T/pc/desk/t1/box-rsp/spool/.hub/hub-run.pid" ] && grep -q "^SEAT t1 sat-rsp $SPL_RSP_AGENT" "$T/o2" \
    && [ "$(cat "$T/sat/desk/t1/sat-rsp/spool/.hub/hub-run.pid")" = ALIVE ] && ! grep -q "^RAN" "$T/o1" && grep -q "^RAN t1" "$T/o2"; then
   pass "lease flip -> one tick: the old holder downs box-rsp, the new one seats sat-rsp (SPOOL_RSP_BOX)"
 else

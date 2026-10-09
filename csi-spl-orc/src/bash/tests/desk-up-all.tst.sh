@@ -396,7 +396,7 @@ grep -q 'do_spl_desk_up_tenants' "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cro
 
 # --- 10. the OTHER desk boxes get the tick too (box-rsp, prd 2026-10-02) ------------
 # All 6 prd box-rsp sidecars ran a DELETED spool binary for ~14 h: the reconcile
-# only ever looked at the default desk box, and RSP-01 has no tmux window.
+# only ever looked at the default desk box, and the responder (then RSP-01) has no tmux window.
 B="$T/boxes/prd/desk"
 # A sidecar on a rebuilt binary: a copied bash whose file is then removed, so
 # /proc/<pid>/exe reads "<path> (deleted)", carrying " hub-run" in its argv.
@@ -408,19 +408,19 @@ bash -c 'exit 0' & DEAD=$!; wait "$DEAD"
 sleep 0.2; rm -f "$T/spool-old"
 seat_box() { mkdir -p "$B/$1/spool/.hub" "$B/$1/spool/$2/inbox"; [[ -n "${3:-}" ]] && echo "$3" >"$B/$1/spool/.hub/hub-run.pid"; return 0; }
 seat_box t1/box-main CLE-00 "$OLD2"            # the default box: up_boxes leaves it to up_all
-seat_box t1/box-rsp RSP-01 "$OLD1"        # stale binary -> restart
-seat_box csi-x/box-rsp RSP-01 "$DEAD"     # sidecar died -> restart, keeping the mute
-touch "$B/csi-x/box-rsp/spool/RSP-01/.no-poke"
-seat_box t1/box-ci OPS-01 "$CUR"          # live on the current binary -> left alone
+seat_box t1/box-rsp c-684 "$OLD1"        # stale binary -> restart
+seat_box csi-x/box-rsp c-684 "$DEAD"     # sidecar died -> restart, keeping the mute
+touch "$B/csi-x/box-rsp/spool/c-684/.no-poke"
+seat_box t1/box-ci c-685 "$CUR"          # live on the current binary -> left alone
 seat_box t1/box-desk CLE-00 "$DEAD"       # retired by do_spl_desk_rebox -> never touched
 mkdir -p "$B/t1/box-desk/rebox-retired"
 seat_box t1/box-mirror CLE-9              # no pid file: stopped by hand -> not in the set
 seat_box t1/box-wui CLE-9 "$DEAD"         # reserved
 BSTUB='do_spl_desk_up() { echo "CALL up $TENANT_ID $DESK_BOX $DESK_AGENT poke=$DESK_POKE boxpoke=$DESK_BOX_POKE"; }'
 out=$(SNIPPET="$BSTUB; do_spl_desk_up_boxes" in_orc SPL_STATE_DIR="$T/boxes/prd" DESK_BOX=box-main DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 && "$out" == *"CALL up t1 box-rsp RSP-01 poke=1 boxpoke=1"* && "$out" == *"restarted (stale-binary) for RSP-01"* ]] &&
+[[ $rc -eq 0 && "$out" == *"CALL up t1 box-rsp c-684 poke=1 boxpoke=1"* && "$out" == *"restarted (stale-binary) for c-684"* ]] &&
   pass "a non-default box (box-rsp) whose sidecar runs a deleted binary is restarted" || fail "stale box-rsp (rc=$rc): $out"
-[[ "$out" == *"CALL up csi-x box-rsp RSP-01 poke=0 "* && "$out" == *"restarted (sidecar-dead)"* ]] &&
+[[ "$out" == *"CALL up csi-x box-rsp c-684 poke=0 "* && "$out" == *"restarted (sidecar-dead)"* ]] &&
   pass "a non-default box of another tenant whose sidecar died is restarted, keeping the hand mute" || fail "dead csi-x box-rsp: $out"
 [[ "$(grep -c '^CALL up' <<<"$out")" == 2 ]] &&
   pass "CONTROL only those two: box-ci (current binary), box-desk (reboxed), box-mirror (stopped) and box-wui are not restarted" ||

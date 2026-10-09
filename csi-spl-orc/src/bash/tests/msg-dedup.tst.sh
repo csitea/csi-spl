@@ -7,7 +7,8 @@
 # RSP-01 "Seen" FIVE times (one copy with stray whitespace), a human "ok" sent
 # twice in a DM, and the near-misses that are NOT duplicates: same body by
 # another sender, in another topic, or with other files. Plus one post that
-# two different agents answered (report only).
+# two different agents answered (report only), and the responder's Seen
+# (c-684, RSP-01's successor) under it, which is no answer.
 #   - DRY_RUN=1 lists every later copy (t1: 5, t2: 1) and rolls back
 #   - DRY_RUN=0 needs MSG_DEDUP_CONFIRM=<env>/<scope>, is refused before cloud
 #   - TENANT_ID=t1 deletes t1's 5 only, keeps the FIRST copy, cascades the
@@ -120,6 +121,7 @@ msg t1 $TB HUM-10 23 "ok" '[{"file_id":"f1"}]' "'lobby'" >/dev/null
 msg t1 $TD HUM-10 40 "who takes this?" >/dev/null
 msg t1 $TD CLE-1 41 "I take it." >/dev/null
 msg t1 $TD CLE-2 42 "On it." >/dev/null
+msg t1 $TD c-684 43 "Seen: routed to the team." >/dev/null
 # t2: one duplicate
 msg t2 $TA CLE-3 0 "done" >/dev/null
 msg t2 $TA CLE-3 5 "done" >/dev/null
@@ -139,13 +141,13 @@ counts() { # <tenant> -> "msgs deliveries reactions meter"
     || ' ' || (SELECT count(*) FROM message_reactions WHERE tenant_id='$1')
     || ' ' || (SELECT coalesce(sum(messages), 0) FROM message_period_counts WHERE tenant_id='$1')"
 }
-[[ "$(counts t1)" == "14 14 14 14" && "$(counts t2)" == "2 2 2 2" ]] \
-  && pass "seeded: t1 14 messages, t2 2" || fail "seed: t1=$(counts t1) t2=$(counts t2)"
+[[ "$(counts t1)" == "15 15 15 15" && "$(counts t2)" == "2 2 2 2" ]] \
+  && pass "seeded: t1 15 messages, t2 2" || fail "seed: t1=$(counts t1) t2=$(counts t2)"
 
 dedup "" 1; rc=$?
 if [[ $rc -eq 0 ]] && grep -q "COUNT tenant=t1 duplicates=5" "$T/out" && grep -q "COUNT tenant=t2 duplicates=1" "$T/out" \
    && grep -q "6 duplicate(s) in dev/all would be deleted" "$T/out" \
-   && [[ "$(counts t1)" == "14 14 14 14" && "$(counts t2)" == "2 2 2 2" ]]; then
+   && [[ "$(counts t1)" == "15 15 15 15" && "$(counts t2)" == "2 2 2 2" ]]; then
   pass "DRY_RUN lists t1=5, t2=1 and rolls back: every count unchanged"
 else
   fail "dry: rc=$rc $(cat "$T/out") t1=$(counts t1) t2=$(counts t2)"
@@ -156,19 +158,19 @@ grep -q "^DUP tenant=t1 channel=lobby topic=$TB .*sender=HUM-10 .*| ok$" "$T/out
   && pass "a DUP row names tenant, channel, topic, sender and the body head" || fail "no lobby ok row: $(cat "$T/out")"
 grep -q "sender=HUM-11" "$T/out" || grep -q "topic=$TC" "$T/out" \
   && fail "a near-miss (other sender / other topic) was flagged" || pass "CONTROL: another sender or another topic is not a duplicate"
-grep -q "^MULTI tenant=t1 channel=- topic=$TD .*agents=CLE-1,CLE-2" "$T/out" && ! grep -q "^MULTI.*topic=$TA" "$T/out" \
-  && pass "two agents answering one post is reported (MULTI); RSP-01's Seen does not count" || fail "multi: $(grep MULTI "$T/out")"
+grep -q "^MULTI tenant=t1 channel=- topic=$TD .*agents=CLE-1,CLE-2$" "$T/out" && ! grep -q "^MULTI.*topic=$TA" "$T/out" \
+  && pass "two agents answering one post is reported (MULTI); the responder's Seen (RSP-01, c-684) does not count" || fail "multi: $(grep MULTI "$T/out")"
 
 dedup t1 0; rc=$?
 [[ $rc -eq 0 ]] && grep -q "deleted 5 duplicate(s) in dev/t1" "$T/out" \
   && pass "TENANT_ID=t1 DRY_RUN=0 deletes 5 and commits" || fail "t1: rc=$rc $(cat "$T/out")"
-[[ "$(counts t1)" == "9 9 9 9" ]] && pass "t1: 14 -> 9; deliveries and reactions cascaded, meter decremented" || fail "t1 after: $(counts t1)"
+[[ "$(counts t1)" == "10 10 10 10" ]] && pass "t1: 15 -> 10; deliveries and reactions cascaded, meter decremented" || fail "t1 after: $(counts t1)"
 [[ "$(psql_owner -c "SELECT count(*) FROM messages WHERE msg_id='$KEEP'")" == 1 ]] && pass "the FIRST Seen is kept" || fail "the first copy was deleted"
-[[ "$(psql_owner -c "SELECT count(*) FROM messages WHERE task_id='$TD'")" == 3 ]] && pass "the multi-agent answers are not deleted" || fail "a MULTI answer was deleted"
+[[ "$(psql_owner -c "SELECT count(*) FROM messages WHERE task_id='$TD'")" == 4 ]] && pass "the multi-agent answers are not deleted" || fail "a MULTI answer was deleted"
 [[ "$(counts t2)" == "2 2 2 2" ]] && pass "CONTROL: t2 is untouched by a t1 dedup" || fail "t2 after a t1 dedup: $(counts t2)"
 
 dedup t1 0; rc=$?
-[[ $rc -eq 0 ]] && grep -q "deleted 0 duplicate(s) in dev/t1" "$T/out" && [[ "$(counts t1)" == "9 9 9 9" ]] \
+[[ $rc -eq 0 ]] && grep -q "deleted 0 duplicate(s) in dev/t1" "$T/out" && [[ "$(counts t1)" == "10 10 10 10" ]] \
   && pass "a second run deletes nothing (idempotent)" || fail "rerun: rc=$rc $(cat "$T/out")"
 dedup "" 0; rc=$?
 [[ $rc -eq 0 ]] && grep -q "deleted 1 duplicate(s) in dev/all" "$T/out" && [[ "$(counts t2)" == "1 1 1 1" ]] \

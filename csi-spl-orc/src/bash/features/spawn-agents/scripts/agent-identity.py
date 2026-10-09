@@ -690,7 +690,13 @@ def cmd_restore_plan(args, proc):
         i, sid, wt, kind, ran = r["id"], r.get("session_id"), r.get("worktree"), r.get("kind") or "claude", r.get("user") or ""
         user = args.agent_user or ran
         why, copy_from = "", ""
-        if not sid:
+        if not sid and kind == "mistral":
+            # A fresh m- lane has no session id yet: its adapter takes '-'
+            # (restore-mistral.sh plans `vibe --continue` in the worktree).
+            sid = "-"
+            if not wt or not os.path.isdir(wt):
+                why = "its worktree %s is gone (a resume elsewhere would start a fresh conversation)" % wt
+        elif not sid:
             why = "its session is unknown; not guessing one"
         elif sid_n.get(sid, 0) > 1:
             why = "session %s is on %d records" % (sid, sid_n[sid])

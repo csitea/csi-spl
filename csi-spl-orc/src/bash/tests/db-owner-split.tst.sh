@@ -194,6 +194,8 @@ CREATE TABLE spool_schema_migrations (filename text PRIMARY KEY);
 INSERT INTO tenants VALUES ('t1'), ('t2');
 -- rdb 0143's search door: runtime-grants.sql names it, so a migrated schema has it
 CREATE FUNCTION spool_search_candidates(q tsquery, cap int) RETURNS SETOF text LANGUAGE sql STABLE AS 'SELECT NULL::text LIMIT 0';
+-- rdb 0157's doc revision log: runtime-grants.sql revokes UPDATE, DELETE on it by name
+CREATE TABLE workspace_doc_rev_log (tenant_id text NOT NULL REFERENCES tenants);
 EOF
   RPW="rt$RANDOM$RANDOM"
   real() { env PATH="$PATH" SPL_DB_USER=rt SPL_DB_OWNER_USER=own SPL_DB_ROLES_SQL="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles" \

@@ -21,6 +21,9 @@
 #   4. each started agent gets a fresh registry row naming its NEW pane
 #   5. afterwards the windows are named from the map and check reports no
 #      drift for them
+#   6. the automatic pass (no IDENTITY_RESTORE_IDS) runs each adapter with
+#      RESTORE_KEEP_HOLD=1: a spec 102 6.1 hold is the admin's to clear, and
+#      only a restore by hand clears it (restore-core.inc.sh)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -36,6 +39,7 @@ tm() { tmux -S "$SPOOL_TMUX_SOCKET" "$@"; }
 cat > "$A/restore-claude.sh" <<EOF
 #!/usr/bin/env bash
 printf '%s|%s|%s\n' "\$1" "\$2" "\$3" >> "$T_TMP/started"
+printf '%s keep=%s\n' "\$1" "\${RESTORE_KEEP_HOLD:-}" >> "$T_TMP/keep"
 cd "\$2" || exit 1
 export HOME="$H" SPOOL_AGENT_ID="\$1"
 st=\$(sed 's/^.*) //' /proc/\$\$/stat | cut -d' ' -f20)
@@ -110,5 +114,7 @@ has "5. its window is named from the map" "CLE-81 restored" "$(tm display -p -t 
 for i in CLE-81 CLE-82; do
   has "5. check: $i is alive and consistent" "$i " "$(printf '%s\n' "$out" | grep -E "^$i +[0-9]+ .* alive +ok$")"
 done
+
+eq "6. the automatic pass keeps every hold (RESTORE_KEEP_HOLD=1)" "CLE-81 keep=1 CLE-82 keep=1" "$(sort "$T_TMP/keep" | tr '\n' ' ' | sed 's/ $//')"
 
 t_done

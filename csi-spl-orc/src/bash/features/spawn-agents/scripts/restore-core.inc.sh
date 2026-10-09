@@ -63,6 +63,25 @@ _rs_kick() {  # TITLE RUNDIR BRANCH BRIEF
   fi
 }
 
+# _rs_clear_hold ID: spec 102 6.1, the hold "does not expire; the admin's
+# restart clears it". A restore by hand (an adapter a person runs, or
+# do_spl_agent_identity_restore with IDENTITY_RESTORE_IDS) IS that admin act:
+# <id>/lifetime/heldout and <WD_DIR>/<id>.heldout go, one HOLD-CLEARED line in
+# wd.log, so the next watchdog boot pass brings the id back (sat drill 4,
+# 2026-10-09: three seats restored by hand in drill 3 stayed held out at the
+# boot). The automatic identity restore sets RESTORE_KEEP_HOLD=1: no admin act.
+_rs_clear_hold() {  # ID
+  local lt="$SPOOL_ROOT/$1/lifetime/heldout" wd="${WD_STATE_DIR:-$SPOOL_ROOT/dispatch/wd}/$1.heldout" was res=OK
+  [ "${RESTORE_KEEP_HOLD:-0}" = 1 ] && return 0
+  [ -e "$lt" ] || [ -e "$wd" ] || return 0
+  was="$(head -c 200 "$lt" 2>/dev/null | tr '\n' ' ')"
+  rm -f "$lt" "$wd" 2>/dev/null || true
+  if [ -e "$lt" ] || [ -e "$wd" ]; then res=FAIL; fi
+  echo "$(date -u +%FT%TZ) HOLD-CLEARED $res $1: restored by hand (restore-${RESTORE_KIND}.sh as $(id -un)); was: ${was:-$wd only}" \
+    >> "$SPOOL_ROOT/dispatch/wd.log" 2>/dev/null || true
+  echo "hold of $1 cleared ($res): a restore by hand is the admin's clearing act (spec 102 6.1)"
+}
+
 restore_main() {
   local title="${1:-}" rundir="${2:-}" sid="${3:-}" arg4="${4:-}" bin_var bin branch kick="" kick_esc display cur args cmd stub pane sock pane_env
   SPOOL_ENV_NO_BINS=0 spool_env_resolve
@@ -97,6 +116,7 @@ restore_main() {
     return 0
   fi
 
+  _rs_clear_hold "$title"
   history -s "$stub" 2>/dev/null || true
   echo "════════════════════════════════════════════════════════════════════"
   echo " RESTORING ${title} (${RESTORE_KIND})"

@@ -30,6 +30,9 @@
 # @description <spool root>/<id>/lifetime/restart.lock) until the run ends:
 # @description an id another actor holds is REFUSED; a start and its outcome
 # @description are logged to rotate.log (run id <ts>-restore-<id>).
+# @description IDENTITY_RESTORE_IDS is a restore by hand, the admin's act that
+# @description clears a 6.1 hold (<id>/lifetime/heldout, restore-core.inc.sh);
+# @description without it the adapters run with RESTORE_KEEP_HOLD=1.
 # @description Dry run unless DRY_RUN=0: prints the plan (RESTORE / REFUSE / SKIP).
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param IDENTITY_RESTORE_IDS (optional) - only these ids ("CLE-07 CLE-12"); the since rule is not applied
@@ -70,7 +73,10 @@ do_spl_agent_identity_restore() {
   fi
   until="$(date -u -d "$since + $win minutes" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
   local plan line kind id user sid wt sess title from adapter brief pane rid reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
-  local n=0 refused=0 failed=0 now started=() tag
+  local n=0 refused=0 failed=0 now started=() tag keep=1
+  # Ids named by hand are the admin's restart (spec 102 6.1): the adapter
+  # clears their hold. The automatic pass (the boot) keeps every hold.
+  [[ -n "${IDENTITY_RESTORE_IDS:-}" ]] && keep=""
   # The box tag, resolved ONCE before any window exists: each agent comes back
   # as "<ID>@<tag>" (specs/058), its window and its CLI --name alike. An
   # @reboot job reads no profile, so ai_tag falls back to box.env.
@@ -104,7 +110,7 @@ do_spl_agent_identity_restore() {
         ai_tmux has-session -t "=$sess" 2>/dev/null || ai_tmux new-session -d -s "$sess" 2>/dev/null
         _ai_rlog "$rid" RESTORE START "$kind session $sid in $wt"
         pane="$(ai_tmux new-window -d -t "=$sess:" -n "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}" -P -F '#{pane_id}' \
-          "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -xE '%[0-9]+' | sed -n 1p)"
+          "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }${keep:+RESTORE_KEEP_HOLD=1 }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -xE '%[0-9]+' | sed -n 1p)"
         [[ -n "$pane" ]] || { echo "FAILED  $id: tmux new-window printed no pane"; failed=$((failed + 1)); _ai_rlog "$rid" FAIL FAIL "tmux new-window printed no pane"; continue; }
         now="$(date -u +%Y%m%dT%H%M%SZ)"
         printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$pane" "$wt" "$now" >> "$reg" 2>/dev/null

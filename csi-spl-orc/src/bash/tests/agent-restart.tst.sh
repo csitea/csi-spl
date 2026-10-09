@@ -50,6 +50,10 @@
 #      crash blocker journaled with the loop off is sent, oldest first, by
 #      the next restart's report. Control: ARS_REPORT_QUEUE=0 (the old code)
 #      -> "RS-REPORT FAIL the REBORN line was not delivered", nothing kept
+#  16. an m- (mistral / vibe) lane idle on its open plan after a Stop
+#      (c-001@sat 2026-10-09, m-617 / m-618, n=2): the m- id passes, S1 hits,
+#      the old pid stops first, a mistral session spawns. Controls: the plan
+#      complete (exit 3), an x- id (FATAL)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -156,7 +160,7 @@ unset SPOOL_AGENT_ID REQ_FROM WD_EVIDENCE CLAUDE_BIN DRY_RUN
 
 git init -q --bare "$T/remote.git"
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/sent" "$T/relay.down" "$T/spawn.mode."* "$T/ai."* "$D" "$S/peer" "$S"/[cg]-[0-9]* "$S/registry"*
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/sent" "$T/relay.down" "$T/spawn.mode."* "$T/ai."* "$D" "$S/peer" "$S"/[cgm]-[0-9]* "$S/registry"*
   mkdir -p "$D" "$S/peer"
   printf 'LEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' > "$D/lease.conf"
   : > "$T/ps"; : > "$T/tmux/panes"; : > "$T/tmux/clients"
@@ -405,6 +409,36 @@ world; lane c-949 %49 -; reborn c-949; touch "$T/relay.down"
 rc="$(go ID=c-949 CAUSE=rebirth DRY_RUN=0 ARS_REPORT_QUEUE=0)"
 [[ "$rc" == 0 && ! -e "$Q" ]] && grep -q 'rs-c-949 RS-REPORT FAIL the REBORN line was not delivered' "$D/rotate.log" &&
   pass "15. control: ARS_REPORT_QUEUE=0 (the old code) -> RS-REPORT FAIL as in the drill log, nothing kept" || fail "15. control rc=$rc: $(grep RS-REPORT "$D/rotate.log") $(ls -A "$Q" 2>&1)"
+
+# --- 16. an m- (mistral / vibe) lane: S1 on its open plan ------------------------------------
+# c-001@sat 2026-10-09 (n=2): m-617 / m-618 idle mid-plan after a Stop, inbox
+# empty; `ID=m-618 CAUSE=S1 do_spl_agent_restart` was "FATAL ID must be an
+# agent id". The m- id passes the gate, the S1 re-run hits on the plan, the
+# old Vibe CLI pid is stopped first and a mistral session spawns in the same
+# worktree. Controls: the plan complete -> no S1 hit (exit 3); an id of no
+# agent kind (x-) -> FATAL
+VFX="$PROJ_ROOT/src/bash/tests/fixtures/wd-situations"
+vlane() {  # vlane <id> <pane> <pid> <pane fixture>: an m- lane whose harness is "Vibe CLI", idle after a Stop
+  lane "$1" "$2" "$3" mistral
+  sed -i "s/^$3 1 \([0-9]*\) mistral\$/$3 1 \1 Vibe CLI/" "$T/ps"; echo "Vibe CLI" > "$T/proc/$3/comm"
+  cp "$4" "$T/tmux/screen.$2"
+  hb "$1" idle 600 "| .harness = \"vibe\" | .pid = $3"
+}
+world; vlane m-950 %50 4950 "$VFX/vibe-idle-plan.pane"
+rc="$(go ID=m-950 CAUSE=S1 DRY_RUN=0)"
+[[ "$rc" == 0 ]] && ! alive 4950 && alive 3950 && [[ "$(head -2 "$T/order.log" | tr '\n' ' ')" == "kill 4950 spawn m-950 " ]] &&
+  grep -q "^spawn mistral m-950 wd=$T/wt-m-950 SPAWN_REUSE_ID=1 " "$T/spawn.log" &&
+  grep -q 'rs-m-950 RS-GATE OK m-950 (mistral) cause=S1 S1 age=600 plan .* 1/7 ' "$D/rotate.log" &&
+  pass "16. an m- lane idle on its open plan: S1 restarts it (old pid first, a mistral spawn, same worktree)" ||
+  fail "16. m- S1 rc=$rc: $(cat "$T/order.log" "$T/spawn.log" 2>/dev/null) $(grep RS-GATE "$D/rotate.log" 2>/dev/null) $(tail -3 "$T/o")"
+world; vlane m-951 %51 4951 "$VFX/vibe-idle-done.pane"
+rc="$(go ID=m-951 CAUSE=S1 DRY_RUN=0)"
+[[ "$rc" == 3 ]] && alive 4951 && [[ ! -s "$T/spawn.log" ]] && grep -q 'REFUSED m-951: no S1 hit' "$T/o" &&
+  pass "16. control: the same lane with its list complete: no S1 hit, exit 3, nothing spawned" || fail "16. done control rc=$rc: $(tail -3 "$T/o")"
+world
+rc="$(go ID=x-952 CAUSE=S1 DRY_RUN=0)"
+[[ "$rc" == 1 ]] && grep -q "FATAL ID must be an agent id (c-NNN), got: 'x-952'" "$T/o" &&
+  pass "16. control: an id of no agent kind (x-952) is FATAL" || fail "16. x- control rc=$rc: $(tail -2 "$T/o")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

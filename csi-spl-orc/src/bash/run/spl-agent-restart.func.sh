@@ -80,7 +80,7 @@ ARS_CAUSES="rebirth hard-end S1 S3 S4 S5 S7 S9 reboot box-down login-reset"
 do_spl_agent_restart() {
   local id="${ID:-}" cause="${CAUSE:-}" req="${REQ_FROM:-${SPOOL_AGENT_ID:-}}" box=""
   if [[ "$id" == *@* ]]; then box="${id#*@}"; id="${id%@*}"; fi
-  [[ "$id" =~ ^[acgq]-[0-9]{3}$ ]] || { do_log "FATAL ID must be an agent id (c-NNN), got: '${ID:-}'"; return 1; }
+  [[ "$id" =~ ^[acgqm]-[0-9]{3}$ ]] || { do_log "FATAL ID must be an agent id (c-NNN), got: '${ID:-}'"; return 1; }
   [[ " $ARS_CAUSES " == *" $cause "* ]] || { do_log "FATAL CAUSE must be one of: $ARS_CAUSES; got: '$cause'"; return 1; }
   spl_wd_init || return 1
   spl_peer_init ro || return 1

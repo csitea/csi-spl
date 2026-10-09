@@ -272,7 +272,24 @@ Spool verbs `doc-read`, `doc-write`, `doc-list`; MCP tools wrap them
 | g | WUI: doc and grid views lazy, edits through the ops | initial JS delta > 100 B fails | 1 |
 | h | `doc-read` / `doc-write` / `doc-list` verbs work | an unauthenticated request fails | 1 |
 
-## 10. Owner questions (open, with recommendations)
+## 10. Review seats
+
+| seat | agent | verdict | changes |
+|---|---|---|---|
+| 2 | a-600 (agy) | agree | 0 |
+| 3 | m-618 (mistral) | agree with changes | 3 |
+| 4 | c-606 (claude) | - | - |
+| 5 | c-607 (claude) | - | - |
+
+Seat 3 (mistral) review:
+- **Verdict**: Agree with changes.
+- **Changes**:
+  1. Clarify T002's `DocItemMove`: add a note that it refuses moves into a subtree of the moved item (cycle prevention, I3).
+  2. Explicitly list the 9 avoided defects in section 3.6 for auditability.
+  3. Recommend Q1 (a) and Q2 (a): append-only JSONB log and print CSS.
+- **Perl Ports (T002/T004/T005)**: The spec's adjacency + ordinal model avoids all 9 defects of the sibling project (section 3.6) by design. The port preserves behavior while fixing concurrency (per-document lock) and adding revision control (412 on stale `rev`).
+
+## 11. Owner questions (open, with recommendations)
 
 **Q1. Revision history structure?**
 - (a) Keep it simple: append-only JSONB log. *(Recommended)*

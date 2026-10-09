@@ -67,7 +67,9 @@ phase 2). T002's tests gate everything after it. T000b is independent.
 
 ## 5. Hub API, xls, WUI, agents
 
-- [ ] **T004**: hub Go API: doc tree CRUD (doc view), list/grid CRUD (grid view), the four outcomes, spec 100 search indexing, topic link.
+- [x] **T004**: hub Go API: doc tree CRUD (doc view), list/grid CRUD (grid view), the four outcomes, spec 100 search indexing, topic link.
+  - Result: landed afc4e980c (c-691) as `/v1/workspace/doctree` in `internal/hub/wsdoc_tree.go` (the file name `workspace_docs.go` was taken by spec 075 phase 2), + `wsdoc_tree_test.go`, 12 openapi operations, and a read-only `internal/store/wsdoc_hub.go` (doc list, head with rev + item count + root, search); T002's `workspace_docs*.go` unchanged. Outcomes: 200 + rev, 412 `stale_rev`, 404 `not_found`, 422 `refused`. Search = spec 100's `spool_search` words, matched at query time under FORCE RLS (no GIN on `workspace_doc_item` yet: that needs its own rdb migration). Topic link = the hidden root's `attrs.topic_id` (no 075 T015 column yet), read both ways (`GET /v1/workspace/doctree?topic=`).
+  - Evidence: `go test ./internal/hub -run WorkspaceDoc -v` on testkit Postgres (postgres:16-alpine, non-superuser, n = 2 runs, 6 new tests PASS; full pre-push tier PASS): lazy `top="1 A, 2 B, 3 C"`, children of 2.1 = `2.1.1 B.1.1` path `[2 1]`; outcomes committed=3 412=2 404=3 refused=3; grid 20,000 items served in document order (last 3.19995), 20,001 -> 413 `doc_too_large`, a section still reads; 9e: own tenant 19 rows (control), other tenant 0 rows, its structural ops 404.
   - Depends: T002.
   - Owns: `csi-spl-api/src/go/spool-hub-api/internal/hub/workspace_docs.go` (*new*) + test.
   - Ports: the sibling's doc-view controller, grid (list) controller and the hierarchy create / delete / select controllers, onto the T002 store ops.

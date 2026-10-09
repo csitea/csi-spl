@@ -86,7 +86,8 @@ spl_wd_cron_prep() {
   SPL_WD_CRON_TAG="$SPL_ORG_APP:wd-start"
   SPL_WD_CRON_LINE="* * * * * $cmd # $SPL_WD_CRON_TAG"
   SPL_WD_CRON_TAGS=("$SPL_WD_CRON_TAG" "$SPL_ORG_APP:wd-start-boot" "$SPL_ORG_APP:wd-ensure")
-  SPL_WD_CRON_LINES=("$SPL_WD_CRON_LINE" "@reboot $cmd # $SPL_ORG_APP:wd-start-boot" "")
+  local gate; gate="$(spl_cron_boot_gate "$SPL_WD_CRON_LOGDIR/starter.out" "$SPL_WD_CRON_SCRIPT" "$SPL_ORG_APP:wd-start-boot")" || return 1
+  SPL_WD_CRON_LINES=("$SPL_WD_CRON_LINE" "@reboot $gate$cmd # $SPL_ORG_APP:wd-start-boot" "")
   return 0
 }
 

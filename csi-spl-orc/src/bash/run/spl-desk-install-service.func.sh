@@ -246,8 +246,8 @@ spl_desk_cron_tag() {
 }
 
 # spl_desk_cron_build_line <every> <env> <tenant> <mute> <src> <script> <logdir> <tag>
-# SPL_DESK_CRON_BOOT=1 builds the @reboot twin instead: schedule @reboot, no
-# self-update prefix, DESK_BOOT_HOST (the hub's api_fqdn from the cnf) and
+# SPL_DESK_CRON_BOOT=1 builds the @reboot twin instead: schedule @reboot, the
+# boot gate (spl_cron_boot_gate) in place of the self-update prefix, DESK_BOOT_HOST (the hub's api_fqdn from the cnf) and
 # DESK_BOOT_WAIT when set, and the script run with --boot.
 spl_desk_cron_build_line() {
   local every="$1" env_name="$2" tenant="$3" mute="$4" src="$5" script="$6" logdir="$7" tag="$8"
@@ -260,8 +260,10 @@ spl_desk_cron_build_line() {
   if (( off == 0 )); then sched="*/$every * * * *"; else sched="$off-59/$every * * * *"; fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+  [[ "$env_name" == dev ]] || out="cron-$env_name.out"
   if [[ "$boot" == 1 ]]; then
-    sched="@reboot" pre="" arg=" --boot"
+    sched="@reboot" arg=" --boot"
+    pre="$(spl_cron_boot_gate "$logdir/$out" "$script" "$tag")" || return 1
     spl_desk_cron_boot_env || return 1
     bootv="$SPL_DESK_CRON_BOOT_ENV"
   fi
@@ -274,7 +276,6 @@ spl_desk_cron_build_line() {
     local d="\$HOME/.local/share/$SPL_ORG_APP/cloud/$env_name/m3-e2e/$pt"
     probe=" PROBE_EMAIL=\$(cat $d/human-email) PROBE_PW_FILE=$d/pw-human"
   fi
-  [[ "$env_name" == dev ]] || out="cron-$env_name.out"
   printf '%s %sENV=%s TENANT_ID=%s%s%s%s %s%s >> %s/%s 2>&1 # %s\n' \
     "$sched" "$pre" "$env_name" "$tenant" "$mutev" "$probe" "$bootv" "$script" "$arg" "$logdir" "$out" "$tag"
 }
@@ -294,6 +295,28 @@ spl_desk_cron_boot_env() {
   [[ -n "$h" ]] && SPL_DESK_CRON_BOOT_ENV=" DESK_BOOT_HOST=$h"
   [[ -n "$w" ]] && SPL_DESK_CRON_BOOT_ENV+=" DESK_BOOT_WAIT=$w"
   return 0
+}
+
+# spl_cron_boot_gate <log file> <needed path> <tag>: the shell every @reboot
+# line runs BEFORE its command. Drill 8 on sat, 2026-10-09: cron ran the five
+# @reboot jobs at 18:38:48Z while /opt, /var/csi and /var/spool-hub (nofail
+# binds of /mnt/data, not ordered before cron) mounted 1..6 s later. Every
+# `>> /var/csi/...` redirect failed ("Directory nonexistent"), so no job ran,
+# and cron mailed the error to no MTA: not one line anywhere. The gate waits
+# (bounded, BOOT_CRON_WAIT seconds, default 300) for the needed path and the
+# log's dir, writes a ` BOOT start ` line to the log (to syslog when the log
+# never came), then waits (same bound) for network-online.target, so a git or
+# DNS step after it finds the network. Plain sh, no `%` (cron's newline). The
+# needed path comes first: spec 068 8.1 reads a line's first path as its script.
+spl_cron_boot_gate() {
+  local log="$1" need="$2" tag="$3" w="${BOOT_CRON_WAIT:-300}"
+  [[ "$w" =~ ^[0-9]+$ ]] || { do_log "FATAL BOOT_CRON_WAIT must be seconds, got: '$w'"; return 1; }
+  [[ "$log" =~ ^/[A-Za-z0-9._/@-]+$ && "$need" =~ ^/[A-Za-z0-9._/@-]+$ ]] ||
+    { do_log "FATAL the boot gate takes plain absolute paths, got: '$log' '$need'"; return 1; }
+  printf 'i=0; until [ -e %s ] && [ -d %s ] || [ $i -ge %s ]; do sleep 1; i=$((i+1)); done; ' "$need" "${log%/*}" "$w"
+  printf 'echo "$(date -u -Iseconds) BOOT start %s waited ${i}s" 2>/dev/null >> %s || logger -t %s "BOOT start %s: no %s after ${i}s"; ' \
+    "$tag" "$log" "${tag%%:*}" "$tag" "$log"
+  printf 'n=0; until [ ! -d /run/systemd/system ] || systemctl is-active -q network-online.target || [ $n -ge %s ]; do sleep 1; n=$((n+1)); done; ' "$w"
 }
 
 # spl_desk_cron_diff <tag> <new line|"">: the crontab before and after, as a

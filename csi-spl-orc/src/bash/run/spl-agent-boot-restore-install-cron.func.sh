@@ -53,7 +53,8 @@ do_spl_agent_boot_restore_install_cron() {
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
-  line="$(printf '@reboot %s%s >> %s/cron.out 2>&1 # %s' "$pre" "$script" "$logdir" "$tag")"
+  local gate; gate="$(spl_cron_boot_gate "$logdir/cron.out" "$script" "$tag")" || return 1
+  line="$(printf '@reboot %s%s%s >> %s/cron.out 2>&1 # %s' "$gate" "$pre" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
   local retired="$logdir/retired" res
   res="$(spl_agent_boot_restore_result)"

@@ -57,8 +57,10 @@ svc() {
 }
 
 PD="\$HOME/.local/share/$OA/cloud/prd/m3-e2e/e2e"
-DEVB="@reboot ENV=dev TENANT_ID=t1 DESK_MUTE=c-010 DESK_BOOT_HOST=hub.example.com $SCRIPT --boot >> $L/cron.out 2>&1 # $OA:desk-reconcile@boot"
-PRDB="@reboot ENV=prd TENANT_ID=t1 DESK_MUTE=c-010 PROBE_EMAIL=\$(cat $PD/human-email) PROBE_PW_FILE=$PD/pw-human DESK_BOOT_HOST=hub.example.com $SCRIPT --boot >> $L/cron-prd.out 2>&1 # $OA:desk-reconcile-prd@boot"
+# the boot gate every @reboot line starts with (boot-cron-gate.tst.sh covers it)
+gate() { bash -c 'do_log() { echo "$*"; }; source "$1"; shift; spl_cron_boot_gate "$@"' _ "$PROJ_ROOT/src/bash/run/spl-desk-install-service.func.sh" "$@"; }
+DEVB="@reboot $(gate $L/cron.out $SCRIPT $OA:desk-reconcile@boot)ENV=dev TENANT_ID=t1 DESK_MUTE=c-010 DESK_BOOT_HOST=hub.example.com $SCRIPT --boot >> $L/cron.out 2>&1 # $OA:desk-reconcile@boot"
+PRDB="@reboot $(gate $L/cron-prd.out $SCRIPT $OA:desk-reconcile-prd@boot)ENV=prd TENANT_ID=t1 DESK_MUTE=c-010 PROBE_EMAIL=\$(cat $PD/human-email) PROBE_PW_FILE=$PD/pw-human DESK_BOOT_HOST=hub.example.com $SCRIPT --boot >> $L/cron-prd.out 2>&1 # $OA:desk-reconcile-prd@boot"
 OTHER="0 4 * * * /usr/bin/true # someone-elses-job"
 
 # --- 1. install writes the @reboot twin --------------------------------------------------

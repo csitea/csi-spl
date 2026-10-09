@@ -120,7 +120,9 @@ cron() {
     source "$PROJ_PATH/src/bash/run/spl-agent-boot-restore-install-cron.func.sh"
     do_spl_agent_boot_restore_install_cron'
 }
-want="@reboot $SRC/csi-spl-orc/src/bash/scripts/agent-boot-restore-cron.sh >> $T_TMP/log/cron.out 2>&1 # csi-spl:agent-boot-restore"
+# the boot gate every @reboot line starts with (boot-cron-gate.tst.sh covers it)
+gate() { bash -c 'do_log() { echo "$*"; }; source "$1"; shift; spl_cron_boot_gate "$@"' _ "$T_REPO/csi-spl-orc/src/bash/run/spl-desk-install-service.func.sh" "$@"; }
+want="@reboot $(gate $T_TMP/log/cron.out $SRC/csi-spl-orc/src/bash/scripts/agent-boot-restore-cron.sh csi-spl:agent-boot-restore)$SRC/csi-spl-orc/src/bash/scripts/agent-boot-restore-cron.sh >> $T_TMP/log/cron.out 2>&1 # csi-spl:agent-boot-restore"
 before="$(md5sum < "$T_TMP/crontab")"
 out="$(cron 2>&1)"; rc=$?
 check "4. dry run writes nothing" test "$rc" -eq 0 -a "$(md5sum < "$T_TMP/crontab")" = "$before"

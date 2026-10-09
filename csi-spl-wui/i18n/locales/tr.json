@@ -2459,5 +2459,31 @@
     "err_session": "Saatlerini kaydetmek için yeniden oturum aç.",
     "err_network": "Bağlantı yok: saatler kaydedilmedi.",
     "err_minutes": "Süreyi s:dd olarak yaz, örneğin 1:30."
+  },
+  "roadmap": {
+    "title": "Yol haritası",
+    "when_label": "Göster",
+    "when_all": "Tümü",
+    "when_week": "Bu hafta",
+    "when_month": "Bu ay",
+    "count": "{shown} / {total} belirtim",
+    "error": "Yol haritası yüklenemedi. Daha sonra yeniden deneyin.",
+    "empty": "Bu sürümde belirtim yok.",
+    "empty_window": "Bu dönemde hiçbir belirtimin görevleri değişmedi.",
+    "rule_note": "Depodan sayıldı, sürüm",
+    "col_id": "Belirtim",
+    "col_title": "Başlık",
+    "col_state": "Durum",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "tasks.md içindeki tamamlanan / kısmi / açık kutular",
+    "col_pct": "Tamamlanan %",
+    "col_changed": "tasks.md değişti",
+    "state": {
+      "done": "Tamamlandı",
+      "in_progress": "Sürüyor",
+      "planned": "Planlandı",
+      "no_boxes": "Onay kutusu yok",
+      "no_tasks": "tasks.md yok"
+    }
   }
 }

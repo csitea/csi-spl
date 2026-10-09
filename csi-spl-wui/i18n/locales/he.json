@@ -2459,5 +2459,31 @@
     "err_session": "יש להתחבר מחדש כדי לשמור את השעות.",
     "err_network": "אין חיבור: השעות לא נשמרו.",
     "err_minutes": "יש להקליד את הזמן בתבנית ש:דד, למשל 1:30."
+  },
+  "roadmap": {
+    "title": "מפת דרכים",
+    "when_label": "הצג",
+    "when_all": "הכול",
+    "when_week": "השבוע",
+    "when_month": "החודש",
+    "count": "{shown} מתוך {total} מפרטים",
+    "error": "לא ניתן היה לטעון את מפת הדרכים. נסו שוב מאוחר יותר.",
+    "empty": "אין מפרטים בגרסה זו.",
+    "empty_window": "המשימות של אף מפרט לא השתנו בתקופה זו.",
+    "rule_note": "נספר מהמאגר בגרסה",
+    "col_id": "מפרט",
+    "col_title": "כותרת",
+    "col_state": "מצב",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "תיבות שבוצעו / חלקיות / פתוחות ב-tasks.md",
+    "col_pct": "בוצע %",
+    "col_changed": "tasks.md השתנה",
+    "state": {
+      "done": "בוצע",
+      "in_progress": "בתהליך",
+      "planned": "מתוכנן",
+      "no_boxes": "ללא תיבות סימון",
+      "no_tasks": "ללא tasks.md"
+    }
   }
 }

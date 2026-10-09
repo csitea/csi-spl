@@ -2459,5 +2459,31 @@
     "err_session": "Sign in again to save your hours.",
     "err_network": "No connection: the hours were not saved.",
     "err_minutes": "Type the time as h:mm, for example 1:30."
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "when_label": "Show",
+    "when_all": "All",
+    "when_week": "This week",
+    "when_month": "This month",
+    "count": "{shown} of {total} specs",
+    "error": "The roadmap could not be loaded. Try again later.",
+    "empty": "No specs in this build.",
+    "empty_window": "No spec's tasks changed in this period.",
+    "rule_note": "Counted from the repository at",
+    "col_id": "Spec",
+    "col_title": "Title",
+    "col_state": "State",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Done / partial / open boxes in tasks.md",
+    "col_pct": "Done %",
+    "col_changed": "tasks.md changed",
+    "state": {
+      "done": "Done",
+      "in_progress": "In progress",
+      "planned": "Planned",
+      "no_boxes": "No checkboxes",
+      "no_tasks": "No tasks.md"
+    }
   }
 }

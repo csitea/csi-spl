@@ -14,3 +14,5 @@ src/public/blog-md/
 src/public/pub-cal/
 # owner HUM-10 e3ce4c34: the public docs copy, made by pnpm run generate (src/node/docs/sync-public-docs.mjs)
 src/public/docs-public/
+# spec 112 WUI-1: the roadmap's spec rows, made by pnpm run generate (src/node/roadmap/sync-roadmap.mjs)
+src/public/roadmap.json

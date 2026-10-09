@@ -2459,5 +2459,31 @@
     "err_session": "Prihláste sa znova, aby ste uložili hodiny.",
     "err_network": "Bez pripojenia: hodiny sa neuložili.",
     "err_minutes": "Zadajte čas ako h:mm, napríklad 1:30."
+  },
+  "roadmap": {
+    "title": "Plán",
+    "when_label": "Zobraziť",
+    "when_all": "Všetky",
+    "when_week": "Tento týždeň",
+    "when_month": "Tento mesiac",
+    "count": "{shown} z {total} špecifikácií",
+    "error": "Plán sa nepodarilo načítať. Skúste to neskôr.",
+    "empty": "V tejto verzii nie sú žiadne špecifikácie.",
+    "empty_window": "V tomto období sa nezmenili úlohy žiadnej špecifikácie.",
+    "rule_note": "Spočítané z repozitára vo verzii",
+    "col_id": "Špecifikácia",
+    "col_title": "Názov",
+    "col_state": "Stav",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Hotové / čiastočné / otvorené políčka v tasks.md",
+    "col_pct": "Hotovo %",
+    "col_changed": "Zmena tasks.md",
+    "state": {
+      "done": "Hotovo",
+      "in_progress": "Prebieha",
+      "planned": "Naplánované",
+      "no_boxes": "Bez políčok",
+      "no_tasks": "Bez tasks.md"
+    }
   }
 }

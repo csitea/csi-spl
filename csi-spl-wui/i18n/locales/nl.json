@@ -2459,5 +2459,31 @@
     "err_session": "Meld je opnieuw aan om je uren op te slaan.",
     "err_network": "Geen verbinding: de uren zijn niet opgeslagen.",
     "err_minutes": "Typ de tijd als u:mm, bijvoorbeeld 1:30."
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "when_label": "Toon",
+    "when_all": "Alle",
+    "when_week": "Deze week",
+    "when_month": "Deze maand",
+    "count": "{shown} van {total} specificaties",
+    "error": "De roadmap kon niet worden geladen. Probeer het later opnieuw.",
+    "empty": "Geen specificaties in deze build.",
+    "empty_window": "Bij geen enkele specificatie zijn de taken in deze periode gewijzigd.",
+    "rule_note": "Geteld uit de repository op",
+    "col_id": "Specificatie",
+    "col_title": "Titel",
+    "col_state": "Status",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Afgevinkte / gedeeltelijke / open vakjes in tasks.md",
+    "col_pct": "Klaar %",
+    "col_changed": "tasks.md gewijzigd",
+    "state": {
+      "done": "Klaar",
+      "in_progress": "Bezig",
+      "planned": "Gepland",
+      "no_boxes": "Geen vakjes",
+      "no_tasks": "Geen tasks.md"
+    }
   }
 }

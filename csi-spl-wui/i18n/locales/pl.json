@@ -2459,5 +2459,31 @@
     "err_session": "Zaloguj się ponownie, aby zapisać godziny.",
     "err_network": "Brak połączenia: godziny nie zostały zapisane.",
     "err_minutes": "Wpisz czas jako g:mm, na przykład 1:30."
+  },
+  "roadmap": {
+    "title": "Plan rozwoju",
+    "when_label": "Pokaż",
+    "when_all": "Wszystkie",
+    "when_week": "Ten tydzień",
+    "when_month": "Ten miesiąc",
+    "count": "{shown} z {total} specyfikacji",
+    "error": "Nie udało się wczytać planu rozwoju. Spróbuj później.",
+    "empty": "Brak specyfikacji w tej wersji.",
+    "empty_window": "W tym okresie nie zmieniły się zadania żadnej specyfikacji.",
+    "rule_note": "Policzono z repozytorium w wersji",
+    "col_id": "Specyfikacja",
+    "col_title": "Tytuł",
+    "col_state": "Stan",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Pola zrobione / częściowe / otwarte w tasks.md",
+    "col_pct": "Zrobione %",
+    "col_changed": "Zmiana tasks.md",
+    "state": {
+      "done": "Zrobione",
+      "in_progress": "W toku",
+      "planned": "Zaplanowane",
+      "no_boxes": "Brak pól wyboru",
+      "no_tasks": "Brak tasks.md"
+    }
   }
 }

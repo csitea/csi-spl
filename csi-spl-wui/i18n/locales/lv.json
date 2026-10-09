@@ -2459,5 +2459,31 @@
     "err_session": "Piesakieties vēlreiz, lai saglabātu stundas.",
     "err_network": "Nav savienojuma: stundas netika saglabātas.",
     "err_minutes": "Ievadiet laiku formātā h:mm, piemēram, 1:30."
+  },
+  "roadmap": {
+    "title": "Ceļvedis",
+    "when_label": "Rādīt",
+    "when_all": "Visas",
+    "when_week": "Šonedēļ",
+    "when_month": "Šomēnes",
+    "count": "{shown} no {total} specifikācijām",
+    "error": "Ceļvedi neizdevās ielādēt. Mēģiniet vēlāk.",
+    "empty": "Šajā versijā nav specifikāciju.",
+    "empty_window": "Nevienas specifikācijas uzdevumi šajā periodā nav mainījušies.",
+    "rule_note": "Saskaitīts no repozitorija versijā",
+    "col_id": "Specifikācija",
+    "col_title": "Nosaukums",
+    "col_state": "Stāvoklis",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Izpildītās / daļējās / atvērtās rūtiņas failā tasks.md",
+    "col_pct": "Izpildīts %",
+    "col_changed": "tasks.md mainīts",
+    "state": {
+      "done": "Izpildīts",
+      "in_progress": "Procesā",
+      "planned": "Plānots",
+      "no_boxes": "Bez rūtiņām",
+      "no_tasks": "Bez tasks.md"
+    }
   }
 }

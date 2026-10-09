@@ -2459,5 +2459,31 @@
     "err_session": "Kirjaudu uudelleen tallentaaksesi tuntisi.",
     "err_network": "Ei yhteyttä: tunteja ei tallennettu.",
     "err_minutes": "Kirjoita aika muodossa h:mm, esimerkiksi 1:30."
+  },
+  "roadmap": {
+    "title": "Tiekartta",
+    "when_label": "Näytä",
+    "when_all": "Kaikki",
+    "when_week": "Tämä viikko",
+    "when_month": "Tämä kuukausi",
+    "count": "{shown} / {total} määrittelyä",
+    "error": "Tiekarttaa ei voitu ladata. Yritä myöhemmin uudelleen.",
+    "empty": "Tässä versiossa ei ole määrittelyjä.",
+    "empty_window": "Minkään määrittelyn tehtävät eivät muuttuneet tällä jaksolla.",
+    "rule_note": "Laskettu repositoriosta versiossa",
+    "col_id": "Määrittely",
+    "col_title": "Otsikko",
+    "col_state": "Tila",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Valmiit / osittaiset / avoimet ruudut tiedostossa tasks.md",
+    "col_pct": "Valmis %",
+    "col_changed": "tasks.md muuttui",
+    "state": {
+      "done": "Valmis",
+      "in_progress": "Kesken",
+      "planned": "Suunniteltu",
+      "no_boxes": "Ei valintaruutuja",
+      "no_tasks": "Ei tasks.md-tiedostoa"
+    }
   }
 }

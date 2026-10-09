@@ -2459,5 +2459,31 @@
     "err_session": "Logga in igen för att spara dina timmar.",
     "err_network": "Ingen anslutning: timmarna sparades inte.",
     "err_minutes": "Skriv tiden som t:mm, till exempel 1:30."
+  },
+  "roadmap": {
+    "title": "Färdplan",
+    "when_label": "Visa",
+    "when_all": "Alla",
+    "when_week": "Den här veckan",
+    "when_month": "Den här månaden",
+    "count": "{shown} av {total} specifikationer",
+    "error": "Färdplanen kunde inte läsas in. Försök igen senare.",
+    "empty": "Inga specifikationer i den här versionen.",
+    "empty_window": "Ingen specifikations uppgifter ändrades under perioden.",
+    "rule_note": "Räknat från förrådet vid",
+    "col_id": "Specifikation",
+    "col_title": "Titel",
+    "col_state": "Status",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Klara / delvisa / öppna rutor i tasks.md",
+    "col_pct": "Klart %",
+    "col_changed": "tasks.md ändrad",
+    "state": {
+      "done": "Klar",
+      "in_progress": "Pågår",
+      "planned": "Planerad",
+      "no_boxes": "Inga kryssrutor",
+      "no_tasks": "Ingen tasks.md"
+    }
   }
 }

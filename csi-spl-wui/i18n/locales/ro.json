@@ -2459,5 +2459,31 @@
     "err_session": "Conectează-te din nou pentru a-ți salva orele.",
     "err_network": "Fără conexiune: orele nu au fost salvate.",
     "err_minutes": "Scrie timpul ca h:mm, de exemplu 1:30."
+  },
+  "roadmap": {
+    "title": "Foaie de parcurs",
+    "when_label": "Arată",
+    "when_all": "Toate",
+    "when_week": "Săptămâna aceasta",
+    "when_month": "Luna aceasta",
+    "count": "{shown} din {total} specificații",
+    "error": "Foaia de parcurs nu a putut fi încărcată. Încearcă mai târziu.",
+    "empty": "Nu există specificații în această versiune.",
+    "empty_window": "Nicio specificație nu și-a schimbat sarcinile în această perioadă.",
+    "rule_note": "Numărat din depozit la",
+    "col_id": "Specificație",
+    "col_title": "Titlu",
+    "col_state": "Stare",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Casete bifate / parțiale / deschise în tasks.md",
+    "col_pct": "Gata %",
+    "col_changed": "tasks.md modificat",
+    "state": {
+      "done": "Gata",
+      "in_progress": "În lucru",
+      "planned": "Planificată",
+      "no_boxes": "Fără casete",
+      "no_tasks": "Fără tasks.md"
+    }
   }
 }

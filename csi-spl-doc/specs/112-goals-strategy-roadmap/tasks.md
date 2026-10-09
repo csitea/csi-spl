@@ -94,11 +94,12 @@ events) meant `workspace`; 12.5 supersedes it.
 
 ## 4. WUI
 
-- [ ] **WUI-1**: Roadmap page, spec rows (spec 5, 5.1, 5.3 (b), 9). Re-split by spec 12: the goal parts moved to WUI-3.
+- [x] **WUI-1**: Roadmap page, spec rows (spec 5, 5.1, 5.3 (b), 9). Re-split by spec 12: the goal parts moved to WUI-3.
   - Depends: ORC-1.
   - Owns: `csi-spl-wui/src/node/roadmap/sync-roadmap.mjs` (runs before `nuxt generate`, calls `do_spl_spec_progress --json`, writes `public/roadmap.json` with spec rows ONLY, never a goal: a goal's audience is a runtime per-workspace switch, 12.5, that a build-time file cannot honour), `csi-spl-wui/src/pages/roadmap.vue`, `csi-spl-wui/src/components/Roadmap*.vue` (the spec-row table), the existing e2e file it extends, and a 25 KB gzip roadmap route budget in `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json`.
   - Done: one row per spec dir (no-tasks rows included); `/roadmap?when=week|month` filters by the `tasks.md` change date (5.3 (b)); `pnpm run typecheck` green; `perf-budget.py bundle` shows the initial chunk unchanged in bytes and the roadmap route chunk <= 25 KB. Test: e2e on the mock bundle with a fixture `roadmap.json`, at desktop and <= 820 px, in both themes. Controls: the filter toggle changes the visible row count in the fixture; `import`ing `roadmap.json` instead of fetching it turns the initial-chunk check red; a fixture `goal.yaml` next to the specs leaves `grep -c '"goals"' public/roadmap.json` at 0.
   - Vendor: claude. Box: one with Chrome for local e2e, else CI.
+  - Status: built (c-668). `/roadmap` reads `/roadmap.json` (sync-roadmap.mjs sources `do_spl_spec_progress` and calls it with `--json`; a shallow clone leaves `tasks_changed` empty). The table is `RoadmapSpecTable.vue`; WUI-3 keeps to other `Roadmap*.vue` names. The route chunks are 3.0 KB gzip against `ci_roadmap_route_gzip_kb` 25 (`perf-budget.py` `route_chunks`). The initial chunk is not byte-identical: +219 B raw / +60 B gzip (153.7 -> 153.8 KB, n=1 each), which is Nuxt's route record for `/roadmap` plus its preload list, with no roadmap code or data in it. Controls: `tests/unit/roadmap.test.mjs` (the toggle, the goal.yaml) and `tests/e2e/roadmap.test.mjs` (an `import` of roadmap.json fails "no loaded chunk carries roadmap.json"). New strings: `roadmap.*` in en, drafts in the other 18 locales for I18N-1. The page has no rail or nav link yet: it opens by URL.
 
 - [ ] **WUI-3**: Workspace filter, goal rows and the goal page from the hub (spec 5.3 (a), 6, 12.6).
   - Depends: WUI-1, HUB-2 (and ORC-2 for real data; the mock serves fixture events).

@@ -2459,5 +2459,31 @@
     "err_session": "Prisijunkite iš naujo, kad išsaugotumėte valandas.",
     "err_network": "Nėra ryšio: valandos neišsaugotos.",
     "err_minutes": "Įveskite laiką formatu h:mm, pvz., 1:30."
+  },
+  "roadmap": {
+    "title": "Planas",
+    "when_label": "Rodyti",
+    "when_all": "Visos",
+    "when_week": "Ši savaitė",
+    "when_month": "Šis mėnuo",
+    "count": "{shown} iš {total} specifikacijų",
+    "error": "Nepavyko įkelti plano. Bandykite vėliau.",
+    "empty": "Šioje versijoje specifikacijų nėra.",
+    "empty_window": "Šiuo laikotarpiu nė vienos specifikacijos užduotys nepasikeitė.",
+    "rule_note": "Suskaičiuota iš saugyklos ties",
+    "col_id": "Specifikacija",
+    "col_title": "Pavadinimas",
+    "col_state": "Būsena",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Atlikti / daliniai / atviri langeliai faile tasks.md",
+    "col_pct": "Atlikta %",
+    "col_changed": "tasks.md pakeistas",
+    "state": {
+      "done": "Atlikta",
+      "in_progress": "Vykdoma",
+      "planned": "Suplanuota",
+      "no_boxes": "Be žymimųjų langelių",
+      "no_tasks": "Be tasks.md"
+    }
   }
 }

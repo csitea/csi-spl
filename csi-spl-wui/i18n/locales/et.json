@@ -2459,5 +2459,31 @@
     "err_session": "Logi uuesti sisse, et tunnid salvestada.",
     "err_network": "Ühendus puudub: tunde ei salvestatud.",
     "err_minutes": "Kirjuta aeg kujul h:mm, näiteks 1:30."
+  },
+  "roadmap": {
+    "title": "Teekaart",
+    "when_label": "Näita",
+    "when_all": "Kõik",
+    "when_week": "See nädal",
+    "when_month": "See kuu",
+    "count": "{shown} / {total} spetsifikatsiooni",
+    "error": "Teekaarti ei saanud laadida. Proovi hiljem uuesti.",
+    "empty": "Selles versioonis pole spetsifikatsioone.",
+    "empty_window": "Ühegi spetsifikatsiooni ülesanded ei muutunud selle perioodi jooksul.",
+    "rule_note": "Loetud hoidlast seisuga",
+    "col_id": "Spetsifikatsioon",
+    "col_title": "Pealkiri",
+    "col_state": "Olek",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Tehtud / osalised / avatud märkeruudud failis tasks.md",
+    "col_pct": "Tehtud %",
+    "col_changed": "tasks.md muudetud",
+    "state": {
+      "done": "Tehtud",
+      "in_progress": "Pooleli",
+      "planned": "Planeeritud",
+      "no_boxes": "Märkeruute pole",
+      "no_tasks": "tasks.md puudub"
+    }
   }
 }

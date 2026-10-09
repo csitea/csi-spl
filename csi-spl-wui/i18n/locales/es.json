@@ -2459,5 +2459,31 @@
     "err_session": "Vuelve a iniciar sesión para guardar tus horas.",
     "err_network": "Sin conexión: las horas no se guardaron.",
     "err_minutes": "Escribe el tiempo como h:mm, por ejemplo 1:30."
+  },
+  "roadmap": {
+    "title": "Hoja de ruta",
+    "when_label": "Mostrar",
+    "when_all": "Todas",
+    "when_week": "Esta semana",
+    "when_month": "Este mes",
+    "count": "{shown} de {total} especificaciones",
+    "error": "No se pudo cargar la hoja de ruta. Inténtalo más tarde.",
+    "empty": "No hay especificaciones en esta versión.",
+    "empty_window": "Ninguna especificación cambió sus tareas en este periodo.",
+    "rule_note": "Contado desde el repositorio en",
+    "col_id": "Especificación",
+    "col_title": "Título",
+    "col_state": "Estado",
+    "col_counts": "[x] / [~] / [ ]",
+    "col_counts_hint": "Casillas hechas / parciales / abiertas en tasks.md",
+    "col_pct": "Hecho %",
+    "col_changed": "Cambio de tasks.md",
+    "state": {
+      "done": "Hecha",
+      "in_progress": "En curso",
+      "planned": "Planificada",
+      "no_boxes": "Sin casillas",
+      "no_tasks": "Sin tasks.md"
+    }
   }
 }

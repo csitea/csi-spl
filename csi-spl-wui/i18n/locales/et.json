@@ -2348,7 +2348,7 @@
     "col_outline": "Nr",
     "col_title": "Pealkiri",
     "col_body": "Tekst",
-    "filter": "Filter",
+    "filter": "Filtreeri",
     "filter_placeholder": "Filtreeri teksti või numbri järgi",
     "sort_by": "Sordi veeru {col} järgi",
     "grid_total": "Elemente: {n}",

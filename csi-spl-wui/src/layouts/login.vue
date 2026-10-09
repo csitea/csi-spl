@@ -43,6 +43,12 @@
     <div class="login-body">
       <slot />
     </div>
+    <!-- spec 111 3.1: the public blog, linked from the signed-out frame only.
+         A plain link (the blog is a prerendered document): NuxtLink would add
+         its 2.3 KB gzip chunk to the sign-in page's first download. -->
+    <footer class="login-foot" data-test="login-foot">
+      <a :href="localePath('/blog')" data-test="login-foot-blog">Blog</a>
+    </footer>
   </div>
 </template>
 
@@ -59,6 +65,7 @@ const TenantDropBox = defineAsyncComponent(() => import('@/components/TenantDrop
 const TopBarTenant = defineAsyncComponent(() => import('@/components/TopBarTenant.vue'))
 
 const { t } = useI18n({ useScope: 'global' })
+const localePath = useLocalePath()
 const config = useRuntimeConfig()
 const title = loginBarTitle(config.public.envName, import.meta.dev)
 /* spool-dev -> dev beside the logo; prd (spool-hub) shows the logo alone */
@@ -196,6 +203,18 @@ watch(kb, async () => {
   .login-body { padding: 12px 12px calc(12px + var(--kb-inset, 0px)); }
   .login-body :deep(.login-card) { padding: 20px 16px; }
 }
+.login-foot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+  font-size: 0.85rem;
+}
+.login-foot a { color: var(--color-muted); }
+.login-foot a:hover { color: var(--color-accent); }
 /* The bar stays a solid strip. The picture shows in the field around the card. */
 .login-wallpaper {
   position: fixed;

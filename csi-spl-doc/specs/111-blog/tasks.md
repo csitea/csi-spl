@@ -79,7 +79,7 @@ Multilingual text gets agy's review last (repo language rule).
     only), `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` (the
     blog refusal only).
   - Done: 9-a, 9-l and the 9-c script controls.
-- [ ] T003 **wui pages** (needs T002). Ports the sibling project's blog
+- [x] T003 **wui pages** (needs T002; c-626). Ports the sibling project's blog
   pages (spec 047/049) into ONE route `pages/blog/[...slug].vue` for
   `/blog`, `/blog/page/<n>` and `/blog/<id>`, in every locale. Also: the
   prerender list from `index.json`; blog routes in the locale copies
@@ -99,6 +99,18 @@ Multilingual text gets agy's review last (repo language rule).
     `WUI/i18n/locales/*.json`.
   - Done: 9-c, 9-d, 9-e (measured on a tree past the 155 KB fix; version,
     tree and n in the report) and 9-f.
+  - Result (c-626, 2026-10-09): the route is `pages/blog.vue` with
+    `definePageMeta({ path: '/blog/:slug(.*)*' })`, because a `[...slug]`
+    file name puts "..." in a chunk name (`tests/unit/docs.test.mjs`), as in
+    `docs.vue`. `blogDocumentsModule` (nuxt.config) strips the probe and
+    the `config.json` and redirect scripts and fails the generate when one
+    is left. `tests/e2e/blog.test.mjs` covers 9-d and 9-f (27 checks, n = 1).
+    **9-e is over the bar.** Mock bundle, NUXT_PUBLIC_DEFAULT_LOCALE=en,
+    control = merge base 3d1740537, n = 1 per tree: 200.html +255 B gzip
+    and /login +326 B. The cost is the route record itself (record, meta,
+    dependency list). 38 per-locale `routeRules` would have added 529 B.
+    NuxtLink in the login footer would have added 2.3 KB, so the footer
+    uses a plain link.
 - [x] T004 **orc check** (needs T001; c-601). Builds `do_spl_blog_check` (4.4):
   every row, including the hex-token resolve on `origin/master`, the
   fail-closed secret ban list that never echoes a pattern, the

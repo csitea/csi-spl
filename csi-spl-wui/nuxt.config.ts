@@ -292,6 +292,26 @@ const LOCALE_COOKIE = "i18n_redirected"
 // Pages prerendered per locale (the rest is the 200.html SPA fallback).
 const PRERENDER_PAGES = ["/", "/login"]
 
+// ── The blog (spec 111 T003) ──────────────────────────────────────────────
+// /blog, /blog/page/<n> and /blog/<id>, in every locale, prerendered from the
+// copy sync-blog.mjs writes before `nuxt generate` (pnpm run generate). A
+// locale without its copy of a post still gets the page: the en text with
+// lang="en" (pages/blog/[...slug].vue). No copy (lde, typecheck) = /blog only.
+const BLOG_PAGE_SIZE = 20
+function blogPages(): string[] {
+  let ids: string[] = []
+  try {
+    const index = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "src/public/blog-md/index.json"), "utf8"))
+    ids = (index?.locales?.en || []).map((e: { id: string }) => e.id)
+  } catch {
+    /* no copy yet */
+  }
+  const pages = Math.max(1, Math.ceil(ids.length / BLOG_PAGE_SIZE))
+  return ["/blog", ...Array.from({ length: pages - 1 }, (_, i) => `/blog/page/${i + 2}`), ...ids.map((id) => `/blog/${id}`)]
+}
+/** A blog route or document, in any locale (`/blog`, `/fi/blog/<id>`, `/blog/index.html`). */
+const BLOG_ROUTE_RE = /^\/(?:[a-z]{2,3}\/)?blog(?:\/|\.html$|$)/
+
 // ── Locale route copies at runtime (CLE-77925) ───────────────────────────
 // i18n writes every page once per locale into the generated routes module
 // (589 records: 78 KB raw / 2.5 KB gzip of initial JS, all parsed on every
@@ -331,6 +351,47 @@ function localeRouteCopiesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) 
   })
 }
 
+// The app.head scripts a blog document must not run: the signed-out redirect,
+// the session probe and the /config.json fetch, built as app.head builds them.
+const BLOG_STRIPPED_SCRIPTS: string[] = wuiUseMock() === "0"
+  ? [
+      buildSignedOutRedirectScript({ locales: I18N_LOCALES.map((l) => l.code), defaultLocale: DEFAULT_LOCALE }),
+      buildEarlySessionScript({ authBase }),
+      buildEarlyConfigScript(),
+    ]
+  : []
+
+// ── The blog's documents are public (spec 111 3.1, T003) ────────────────
+// A /blog/** document makes no API call and is indexable: prerender:generate
+// takes out BLOG_STRIPPED_SCRIPTS and the hub preconnects, and makes any noindex
+// robots meta `index, follow`. Then it checks: a blog document still naming
+// the auth path or config.json, or still noindex, fails the whole generate (a
+// throw inside the hook only drops that one document, so collect).
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+function blogDocumentsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
+  const scripts = BLOG_STRIPPED_SCRIPTS.map((body) => new RegExp(`<script\\b[^>]*>${escapeRe(body)}</script>`, "g"))
+  const failed: string[] = []
+  nuxt.hook("nitro:init", (nitro) => {
+    nitro.hooks.hook("prerender:generate", (route) => {
+      if (!BLOG_ROUTE_RE.test(route.route) || typeof route.contents !== "string" || !(route.fileName || "").endsWith(".html")) return
+      let html = route.contents
+      for (const re of scripts) html = html.replace(re, "")
+      html = html.replace(/<link\b[^>]*\brel="preconnect"[^>]*>/g, "")
+      html = html.replace(/(<meta\b[^>]*\bname="robots"[^>]*\bcontent=")noindex, nofollow"/g, '$1index, follow"')
+      const bad = [
+        /\/api\/v1\/auth\//.test(html) && "the auth path",
+        /config\.json/.test(html) && "config.json",
+        /\bnoindex\b/.test(html) && "noindex",
+      ].filter(Boolean)
+      if (bad.length) failed.push(`${route.route}: still holds ${bad.join(", ")}`)
+      route.contents = html
+    })
+    nitro.hooks.hook("prerender:done", () => {
+      if (failed.length) throw new Error(`blog documents (spec 111 T003) are not public-clean, ${failed.length}:\n${failed.join("\n")}`)
+    })
+  })
+}
+
 // ── First-screen hints (perf round 3 P3-01) ─────────────────────────────
 // Each prerendered document modulepreloads the scripts and preloads the CSS
 // its first screen runs before the rail (page + layout + locale catalogue and
@@ -362,6 +423,8 @@ function firstScreenHintsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
     nitro.hooks.hook("prerender:generate", (route) => {
       const name = route.fileName || ""
       if (!name.endsWith(".html") || /^\/(200|404)\.html$/.test(name) || typeof route.contents !== "string") return
+      // the blog is a read-only page with no app frame (blogDocumentsModule)
+      if (BLOG_ROUTE_RE.test(route.route)) return
       const hit = firstScreenRoutePage(route.route, pages, LOCALE_CODES, DEFAULT_LOCALE)
       if (!graph || !hit || !hit.file) {
         failed.push(`${route.route}: no ${graph ? "page" : "client chunk graph"}`)
@@ -436,7 +499,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches
@@ -537,6 +600,7 @@ export default defineNuxtConfig({
         // before any JS loads; P3-03: the session probe leaves at parse time
         // and the app adopts it. Redirect first: the probe stays home when the
         // document leaves. A mock build has no sign-in and never probes.
+        // The blog strips all three (BLOG_STRIPPED_SCRIPTS).
         ...(wuiUseMock() === "0"
           ? [
               { innerHTML: buildSignedOutRedirectScript({ locales: I18N_LOCALES.map((l) => l.code), defaultLocale: DEFAULT_LOCALE }), tagPosition: "head" as const, tagPriority: "critical" as const },
@@ -615,6 +679,12 @@ export default defineNuxtConfig({
     "/dm/**": { prerender: false },
     "/t/**": { prerender: false },
     "/lobby": { prerender: false },
+    // spec 111 3.1: the blog is indexable. Default-locale paths only: every
+    // rule here ships in the client's route-rules matcher (38 locale rules
+    // were +529 B gzip of initial JS); the /<lang>/blog copies carry it in
+    // their robots meta, and Hosting (render-wui-firebase-json.sh) in the header.
+    "/blog": { headers: { "X-Robots-Tag": "index, follow" } },
+    "/blog/**": { headers: { "X-Robots-Tag": "index, follow" } },
   },
 
   nitro: {
@@ -634,6 +704,7 @@ export default defineNuxtConfig({
           I18N_LOCALES.map((l) => (l.code === DEFAULT_LOCALE ? p : `/${l.code}${p === "/" ? "" : p}`)),
         ),
         "/channel/general", "/channel/tasks", "/channel/alerts",
+        ...blogPages().flatMap((p) => I18N_LOCALES.map((l) => (l.code === DEFAULT_LOCALE ? p : `/${l.code}${p}`))),
       ],
     },
   },

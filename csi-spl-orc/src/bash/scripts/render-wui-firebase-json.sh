@@ -258,6 +258,10 @@ doc = {
           {"key": "Cache-Control", "value": "public, max-age=0, must-revalidate"},
         ],
       },
+      # spec 111 3.1 (T003): the public blog is indexable, every locale copy
+      # too. After `**`, so it replaces that rule's noindex for these paths.
+      *[{"source": src, "headers": [{"key": "X-Robots-Tag", "value": "index, follow"}]}
+        for src in ("**/blog", "**/blog/**")],
       # Unhashed static media (logo, login wallpapers, icons, the manifest):
       # under `**` alone every reload revalidated each one, a full round trip
       # for a 304 (CLE-35076, prd /login warm reload: 7 of 10 round trips).

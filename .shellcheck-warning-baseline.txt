@@ -1,1 +1,1 @@
-csi-spl-orc/src/bash/tests/spl-lane-mix.tst.sh:429:9: 2318: This assignment is used again in this 'local', but won't have taken effect. Use two 'local's.
+csi-spl-orc/src/bash/tests/spl-lane-mix.tst.sh:429:429:9:11: [2318] This assignment is used again in this 'local', but won't have taken effect. Use two 'local's.

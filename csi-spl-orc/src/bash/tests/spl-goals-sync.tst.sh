@@ -16,7 +16,6 @@ test_sync_goals() {
     local repo_root
     local goals_dir
     local cnf_file
-    local deploy_token
     local response
     local response_code
 
@@ -42,7 +41,7 @@ test_sync_goals() {
     export -f yq
 
     curl() {
-        echo '{}'
+        echo 
         echo 200
         return 0
     }
@@ -89,7 +88,6 @@ EOG
 test_sync_goals_503() {
     local repo_root
     local cnf_file
-    local deploy_token
     local response
     local response_code
 
@@ -114,7 +112,7 @@ test_sync_goals_503() {
     export -f yq
 
     curl() {
-        echo "roadmap_not_configured"
+        echo roadmap_not_configured
         echo 503
         return 0
     }

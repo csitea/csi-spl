@@ -75,7 +75,7 @@ and prd BEFORE STORE-1/HUB-1 ship; WUI-1 after ORC-1; WUI-2 after HUB-1.
 
 ## 5. Sync and backfill actions
 
-- [ ] **ORC-2**: Deploy-time goal sync and git backfill (spec 4.2, 8.1).
+- [x] **ORC-2**: Deploy-time goal sync and git backfill (spec 4.2, 8.1).
   - Depends: HUB-1, DOC-1.
   - Owns: `csi-spl-orc/src/bash/run/spl-goals-sync.func.sh` (`do_spl_goals_sync`), `csi-spl-orc/src/bash/run/spl-goals-backfill-git.func.sh` (`do_spl_goals_backfill_git`), their `.tst.sh`, and the wf 20 step that calls the sync after the hub deploy.
   - Done: both build a batch (goal deadlines and milestones; `x.y.0` tags, release notes, specs turned done, `milestones.yaml`, starting at 2026-09-17) and PUT it to the sync route with audience `public`; the first event is `2026-09-17 spool-hub started`; a second run adds 0 events. Test on a fixture repo: tags `v1.2.0`, `v1.2.1`, `v1.3.0` give exactly 2 release events. Control: a patch tag counted as major turns the test red.

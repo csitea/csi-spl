@@ -33,7 +33,6 @@ do_spl_goals_sync() {
     local goal_file
     local goal_id
     local goal_deadline
-    local goal_public
     local goal_approval_msg_id
     local goal_owner_role
     local goal_milestones
@@ -49,6 +48,7 @@ do_spl_goals_sync() {
     local milestone_title
     local response
     local response_code
+    local response_body
 
     repo_root="$(git rev-parse --show-toplevel)"
     goals_dir="${repo_root}/csi-spl-doc/goals"
@@ -90,7 +90,6 @@ do_spl_goals_sync() {
 
         goal_id="$(yq eval ".id // \"\"" "${goal_file}")"
         goal_deadline="$(yq eval ".deadline // \"\"" "${goal_file}")"
-        goal_public="$(yq eval ".public // true" "${goal_file}")"
         goal_approval_msg_id="$(yq eval ".approval.msg_id // \"\"" "${goal_file}")"
         goal_owner_role="$(yq eval ".owner_role // \"\"" "${goal_file}")"
         goal_milestones="$(yq eval ".milestones // []" "${goal_file}")"

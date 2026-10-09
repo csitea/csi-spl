@@ -47,7 +47,6 @@ test_backfill_git() {
     local repo_root
     local cnf_file
     local fixture_dir
-    local deploy_token
     local response
     local response_code
 
@@ -111,7 +110,6 @@ test_backfill_git() {
 test_backfill_git_503() {
     local repo_root
     local cnf_file
-    local deploy_token
     local response
     local response_code
 

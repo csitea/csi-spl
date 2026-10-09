@@ -23,7 +23,7 @@ spawn_rename_how() {
   # agent copy-pastes a command that cannot run $(...) from the title.
   local desc_esc
   spool_dq_escape desc_esc "${SLUG:-}"
-  printf '%s' "retitle your tmux window to the shortest possible description of the work you are about to implement (2-5 words) by running: bash ${_SP_DIR}/riname.sh --agent ${TITLE} \"${desc_esc}\" (agy cannot name its own session, so the window name is the one a human reads)"
+  printf '%s' "retitle your tmux window to the shortest possible description of the work you are about to implement (2-5 words) by running: bash ${_SP_DIR}/riname.sh --agent ${TITLE} \"${desc_esc}\" (agy cannot name its own session)"
 }
 _sp_core="$(dirname "$(readlink -f "$SPAWN_ADAPTER")")/spawn-core.inc.sh"
 # shellcheck source=spawn-core.inc.sh

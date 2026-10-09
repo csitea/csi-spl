@@ -13,8 +13,9 @@ git -C "$T_TMP/repo" branch -M master
 git -C "$T_TMP/repo" remote add origin "$T_TMP/origin.git"
 git -C "$T_TMP/repo" push -q origin master 2>/dev/null
 
-for k in claude qwen mistral; do
-  id=CLE-79; [ "$k" = qwen ] && id=QWN-79; [ "$k" = mistral ] && id=m-079
+for k in claude grok agy qwen mistral; do
+  id=CLE-79; [ "$k" = grok ] && id=GRK-79; [ "$k" = agy ] && id=AGY-79
+  [ "$k" = qwen ] && id=QWN-79; [ "$k" = mistral ] && id=m-079
   mkdir -p "$T_TMP/plan-$k"
   SPAWN_PLAN_DIR="$T_TMP/plan-$k" SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' \
     bash "$T_SCRIPTS/spawn-$k.sh" "$id" "$T_TMP/repo" "$T_TMP/brief.md" "fix it" >/dev/null 2>&1

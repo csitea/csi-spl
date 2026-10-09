@@ -50,7 +50,7 @@ spawn_rename_how() {
   # agent copy-pastes a command that cannot run $(...) from the title.
   local desc_esc
   spool_dq_escape desc_esc "${SLUG:-}"
-  printf '%s' "retitle your tmux window to the shortest possible description of the work you are about to implement (2-5 words) by running: bash ${_SP_DIR}/riname.sh --agent ${TITLE} \"${desc_esc}\" (vibe cannot name its own session, so the window name is the one a human reads); then read the workdir's CLAUDE.md, if it has one, and csi-spl-doc/doc/help/how-to-post.md: vibe loads only AGENTS.md, so CLAUDE.md's rules (commit identity, explicit pathspecs, ./run actions, the pre-push gate, hygiene) reach you only this way"
+  printf '%s' "retitle your tmux window to the shortest possible description of the work you are about to implement (2-5 words) by running: bash ${_SP_DIR}/riname.sh --agent ${TITLE} \"${desc_esc}\" (vibe cannot name its own session); then read the workdir's CLAUDE.md, if it has one, and csi-spl-doc/doc/help/how-to-post.md: vibe loads only AGENTS.md, so CLAUDE.md's rules reach you only this way"
 }
 # vibe runs every hook with its launch dir as cwd (vibe/core/hooks/executor.py,
 # 2.26.0), the post_agent DM mirror too: a lane that removed its worktree

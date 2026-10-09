@@ -243,20 +243,44 @@ ph="$(pct "$T_TMP/t.hook" 90)"; pf="$(pct "$T_TMP/t.floor" 90)"
 lh="$(pct "$T_TMP/t.hook" 0)"; lf="$(pct "$T_TMP/t.floor" 0)"
 BUDGET="${HOOK_BUDGET_MS:-50}"
 echo "  hook min/median/p90 ${lh}/${mh}/${ph} ms, bare python3 ${lf}/${mf}/${pf} ms, max $(sort -rn "$T_TMP/t.hook" | sed -n 1p) ms, over ${BUDGET} ms: $(over "$T_TMP/t.hook" "$BUDGET")/200, load $(cut -d' ' -f1 /proc/loadavg)"
-# The always-on check is spec 093's budget (50 ms a run) on the FASTEST of
-# the 200 runs. Load only ever adds time, so the minimum is the run that
-# waited least: the hook's own cost, whatever the box is doing. A median, a
-# p90 or a ratio to a bare interpreter reads load too: on the shared CI runner
-# (sat, 2026-10-09, run 37888917837, pool of 6) the floor's median was 25 ms
-# against a p90 of 56 ms and the unchanged hook's median read 2.9x the floor's
-# (its p90 1.8x); even the ratio of minima is 2.3x .. 2.6x on sat alone, as
-# its floor is only 11 .. 12 ms. The hook's minimum was 27 .. 29 ms there, and
-# 26 .. 27 ms here under run-ci-tests.sh at 6 jobs, load 7 .. 15.6, n=10. A
-# real regression moves the minimum: a 100 ms sleep in the hook reads 129 ..
-# 130 ms and fails this (n=3).
+# The always-on check is spec 093's budget (50 ms a run) on the FASTEST run.
+# Load only ever adds time, so the minimum is the run that waited least: the
+# hook's own cost. A median, a p90 or a ratio to a bare interpreter reads load
+# too: on the shared CI runner (sat, 2026-10-09, run 37888917837, pool of 6)
+# the floor's median was 25 ms against a p90 of 56 ms and the unchanged hook's
+# median read 2.9x the floor's (its p90 1.8x); even the ratio of minima is
+# 2.3x .. 2.6x on sat alone, as its floor is only 11 .. 12 ms. The hook's
+# minimum was 27 .. 29 ms there, and 26 .. 27 ms here under run-ci-tests.sh at
+# 6 jobs, load 7 .. 15.6, n=10.
+# A saturated runner moves even the minimum of 200 back-to-back runs: run
+# 37956915522 on 240b9e875 (sat, load 20.87) read the unchanged hook at
+# min/median 113/383 ms and the floor at a median of 192 ms (8x its usual),
+# 200/200 runs over 50 ms. So a minimum over budget is sampled again, 20 runs
+# a round 2 s apart, for up to HOOK_RETRY_S (90) s while the burst passes; it
+# stops at the first run under budget, so a sound hook on a quiet box pays
+# nothing. A real regression stays over budget in every round: a 100 ms sleep
+# can never run under 100 ms, so it fails, 90 s later (CONTROL below).
 fast() { awk -v h="$1" -v b="$2" 'BEGIN{exit !(h < b)}'; }
-if fast "$lh" "$BUDGET"; then ok "the hook's fastest of 200 runs ($lh ms) is under ${BUDGET} ms"; else nok "the hook's fastest of 200 runs ($lh ms) is not under ${BUDGET} ms (bare interpreter: $lf ms)"; fi
 yn() { "$@" && echo y || echo n; }
+resample() {  # SCRIPT MIN WINDOW_S -> "<min> <extra runs>"
+  local s="$1" m="$2" end=$(( $(date +%s) + $3 )) n=0 t i
+  while ! fast "$m" "$BUDGET" && [ "$(date +%s)" -lt "$end" ]; do
+    sleep 2
+    for i in $(seq 20); do
+      t="$(ms bash "$s" PostToolUse <"$T_TMP/pay.json")"; n=$((n + 1))
+      [ "$t" -lt "$m" ] && m="$t"
+    done
+  done
+  echo "$m $n"
+}
+read -r lh2 nx < <(SPOOL_AGENT_ID="$ID" resample "$HOOK" "$lh" "${HOOK_RETRY_S:-90}")
+[ "$nx" -eq 0 ] || echo "  fastest of 200 was $lh ms: $nx more runs, fastest $lh2 ms, load $(cut -d' ' -f1 /proc/loadavg)"
+if fast "$lh2" "$BUDGET"; then ok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is under ${BUDGET} ms"; else nok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is not under ${BUDGET} ms (bare interpreter: $lf ms)"; fi
+# The planted regression: the same hook behind a 100 ms sleep, through the
+# same resample, from a start over budget (one round of 20, ~3 s).
+printf 'sleep 0.1; exec bash %q "$@"\n' "$HOOK" > "$T_TMP/slow-hook.sh"
+read -r ls nxs < <(SPOOL_AGENT_ID="$ID" resample "$T_TMP/slow-hook.sh" 99999 1)
+eq "CONTROL: a 100 ms sleep in the hook stays over ${BUDGET} ms through the resample (fastest of $nxs: $ls ms)" "n" "$(yn fast "$ls" "$BUDGET")"
 eq "CONTROL: the budget check fires at ${BUDGET} ms, not at $((BUDGET - 1))" "n y" "$(yn fast "$BUDGET" "$BUDGET") $(yn fast $((BUDGET - 1)) "$BUDGET")"
 printf '%s\n' 10 20 30 40 50 60 70 80 90 100 > "$T_TMP/t.ctl"
 eq "CONTROL: pct reads the 90th, the 50th and the 0th (min) percentile" "90 50 10" "$(pct "$T_TMP/t.ctl" 90) $(pct "$T_TMP/t.ctl" 50) $(pct "$T_TMP/t.ctl" 0)"

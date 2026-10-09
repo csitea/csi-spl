@@ -74,7 +74,7 @@ _build_backfill_batch() {
 
     # Backfill from git tags (v*.0 only, skip patch tags)
     while IFS= read -r tag; do
-        if [[ "" != "v1.2.0"         if [[ "${tag}" != "v1.2.0" && "${tag}" != "v1.3.0" ]]; then        if [[ "${tag}" != "v1.2.0" && "${tag}" != "v1.3.0" ]]; then "" != "v1.3.0" ]]; then
+        if [[ "" != "v1.2.0"         if [[ "" != "v1.2.0"         if [[ "${tag}" != "v1.2.0" && "${tag}" != "v1.3.0" ]]; then        if [[ "${tag}" != "v1.2.0" && "${tag}" != "v1.3.0" ]]; then "" != "v1.3.0" ]]; then        if [[ "" != "v1.2.0"         if [[ "${tag}" != "v1.2.0" && "${tag}" != "v1.3.0" ]]; then        if [[ "${tag}" != "v1.2.0" && "${tag}" != "v1.3.0" ]]; then "" != "v1.3.0" ]]; then "" != "v1.3.0" ]]; then
             continue
         fi
 

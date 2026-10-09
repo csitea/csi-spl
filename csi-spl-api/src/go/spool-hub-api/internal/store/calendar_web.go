@@ -9,10 +9,12 @@ import (
 
 // The signed-out calendar read (owner t1 a3ce2031, msg a8e3d31d; rdb 0158):
 // a visitor of a workspace's host who is not signed in reads that
-// workspace's web events, and nothing else. It is its own narrow path, not
+// workspace's public events (called web before the rename of msg bad3799a,
+// rdb 0159), and nothing else. It is its own narrow path, not
 // the member range read with a filter on top:
 //
-//   - the SQL names audience = 'web', so no other row leaves the database;
+//   - the SQL names the public audience (and its legacy name web, until rdb
+//     0161 maps it), so no other row leaves the database;
 //   - it selects only the fields that are safe for the internet (title,
 //     description, start, end, all day): never mentions, guests, creator,
 //     reminders or the topic link;
@@ -53,7 +55,7 @@ func calendarWebSQL() string {
 	if calendarWebFilterOff {
 		return `true`
 	}
-	return `audience = 'web'`
+	return `audience IN ('public', 'web')`
 }
 
 func webCalendarEventOf(e *CalendarEvent) WebCalendarEvent {
@@ -67,7 +69,7 @@ func (s *Memory) WebCalendarEvents(_ context.Context, tenant string, r CalendarR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	evs := s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool {
-		return (calendarWebFilterOff || e.Audience == CalendarWeb) && calendarSingle(e) && e.DeletedAt.IsZero() && calendarOverlaps(e, r)
+		return (calendarWebFilterOff || e.Audience == CalendarPublic) && calendarSingle(e) && e.DeletedAt.IsZero() && calendarOverlaps(e, r)
 	}, byCalendarStart)
 	out := make([]WebCalendarEvent, 0, len(evs))
 	for i := range evs {

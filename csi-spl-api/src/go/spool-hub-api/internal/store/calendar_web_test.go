@@ -10,8 +10,8 @@ import (
 )
 
 // The signed-out read (calendar_web.go, rdb 0158) on Memory and Postgres:
-// (a) a web event is answered; (b) the workspace's public, internal and
-// private events are not (the leak test); (c) another workspace's web event
+// (a) a public event is answered; (b) the workspace's workspace, internal
+// and private events are not (the leak test); (c) another workspace's public event
 // is not; (d) the control: with the audience filter off, (b) fails.
 
 func webTitles(evs []WebCalendarEvent) string {
@@ -52,12 +52,12 @@ func TestCalendarWebSignedOutRead(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// (a) + (b) + (c): only workspace a's web event.
-			if got := webTitles(evs); got != "a-web" {
-				t.Fatalf("signed-out read of a = %q, want only a-web (n=%d)", got, len(evs))
+			// (a) + (b) + (c): only workspace a's public event.
+			if got := webTitles(evs); got != "a-public" {
+				t.Fatalf("signed-out read of a = %q, want only a-public (n=%d)", got, len(evs))
 			}
 			e := evs[0]
-			if e.Description != "about web" || !e.StartsAt.Equal(calT0) || !e.EndsAt.Equal(calT0.Add(time.Hour)) || e.AllDay {
+			if e.Description != "about public" || !e.StartsAt.Equal(calT0) || !e.EndsAt.Equal(calT0.Add(time.Hour)) || e.AllDay {
 				t.Fatalf("safe fields: %+v", e)
 			}
 			// Outside the range: nothing.
@@ -65,17 +65,17 @@ func TestCalendarWebSignedOutRead(t *testing.T) {
 			if evs, err := web.WebCalendarEvents(ctx, a, past); err != nil || len(evs) != 0 {
 				t.Fatalf("range: %v %v", evs, err)
 			}
-			// A trashed web event is gone too.
+			// A trashed public event is gone too.
 			mine, _ := cal.ListCalendarEvents(ctx, a, calOwner, calWeek())
 			for _, m := range mine {
-				if m.Audience == CalendarWeb {
+				if m.Audience == CalendarPublic {
 					if err := cal.DeleteCalendarEvent(ctx, a, calOwner, m.ID); err != nil {
 						t.Fatal(err)
 					}
 				}
 			}
 			if evs, err := web.WebCalendarEvents(ctx, a, calWeek()); err != nil || len(evs) != 0 {
-				t.Fatalf("trashed web event still read: %v %v", evs, err)
+				t.Fatalf("trashed public event still read: %v %v", evs, err)
 			}
 			if _, err := web.WebCalendarEvents(ctx, "", calWeek()); !errors.Is(err, ErrNoTenant) {
 				t.Fatalf("no tenant: %v", err)
@@ -98,7 +98,7 @@ func TestCalendarWebLeakControl(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := webTitles(evs); got == "a-web" {
+			if got := webTitles(evs); got == "a-public" {
 				t.Fatalf("CONTROL: with the filter off the read still answered only %q; the leak test is vacuous", got)
 			}
 			t.Logf("CONTROL: filter off answers %q (n=%d), so (b) fails without the filter", webTitles(evs), len(evs))
@@ -116,17 +116,17 @@ func TestCalendarWebAudienceValidation(t *testing.T) {
 			if err != nil || e.Audience != CalendarWorkspace {
 				t.Fatalf("default stays workspace: %+v %v", e, err)
 			}
-			web := CalendarWeb
-			if e, err = cal.UpdateCalendarEvent(ctx, tid, calOwner, e.ID, CalendarPatch{Audience: &web}, calT0); err != nil || e.Audience != CalendarWeb {
-				t.Fatalf("edit to web: %+v %v", e, err)
+			pub := CalendarPublic
+			if e, err = cal.UpdateCalendarEvent(ctx, tid, calOwner, e.ID, CalendarPatch{Audience: &pub}, calT0); err != nil || e.Audience != CalendarPublic {
+				t.Fatalf("edit to public: %+v %v", e, err)
 			}
 			bad := "internet"
 			if _, err := cal.UpdateCalendarEvent(ctx, tid, calOwner, e.ID, CalendarPatch{Audience: &bad}, calT0); !errors.Is(err, ErrInvalidCalendarEvent) {
 				t.Fatalf("unknown audience: %v", err)
 			}
-			// A member reads a web event like a public one.
-			if got, err := cal.GetCalendarEvent(ctx, tid, calMember, e.ID); err != nil || got.Audience != CalendarWeb {
-				t.Fatalf("member reads web: %+v %v", got, err)
+			// A member reads a public event like a workspace one.
+			if got, err := cal.GetCalendarEvent(ctx, tid, calMember, e.ID); err != nil || got.Audience != CalendarPublic {
+				t.Fatalf("member reads public: %+v %v", got, err)
 			}
 		})
 	}

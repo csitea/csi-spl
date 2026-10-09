@@ -61,9 +61,10 @@ func TestCalendarWebSignedOut(t *testing.T) {
 	for _, aud := range []string{"workspace", "internal", "private"} {
 		calCreate(t, e, a, devA, calBody("a-"+aud, map[string]any{"audience": aud, "mentions": []string{devA}}))
 	}
-	calCreate(t, e, a, devA, calBody("a-web", map[string]any{"audience": "web", "description": "open day",
+	calCreate(t, e, a, devA, calBody("a-web", map[string]any{"audience": "public", "description": "open day",
 		"mentions": []string{devA}}))
-	// web on edit: b's event starts workspace and is moved to web.
+	// on edit: b's event starts workspace and is moved to web, the legacy name
+	// of public (rdb 0159) a step-3 WUI still sends.
 	ev := calCreate(t, e, b, devB, calBody("b-web", nil))
 	if code, out := call(t, e, b, http.MethodPatch, "/v1/calendar/events/"+ev["id"].(string), devB,
 		map[string]any{"audience": "web"}); code != http.StatusOK {

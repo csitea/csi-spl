@@ -11,12 +11,13 @@ import (
 
 // GET /v1/public/calendar/events?start=&end= (owner t1 a3ce2031, msg
 // a8e3d31d; rdb 0158): the signed-out calendar. Anyone, signed in or not,
-// reads the web events of ONE workspace: the page host's (the Origin of a
+// reads the public events of ONE workspace: the page host's (the Origin of a
 // WUI tenant host, the apex tenant on the apex), else a legacy tenant Host.
 // That host only selects the workspace; it grants nothing else, and no query
 // parameter can name another one. The answer carries only the fields that
 // are safe for the internet (store.WebCalendarEvent); the store reads
-// audience = 'web' rows only, in the workspace's RLS scope. Per client
+// public rows only (web, their name before rdb 0159, until 0161), in the
+// workspace's RLS scope. Per client
 // address it is rate-limited like the other anonymous routes (join redeem).
 
 // calendarWebPerMin is the per-address read window.

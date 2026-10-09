@@ -134,14 +134,14 @@ func TestCalendarSearchRefusals(t *testing.T) {
 	}
 }
 
-// A demo visitor finds public events only, whatever audience it asks for.
+// A demo visitor finds workspace and public events only, whatever audience it asks for.
 func TestCalendarSearchDemoPublicOnly(t *testing.T) {
 	e, demo := demoEnv(t)
 	dev, visitor := seat(t, e, demo, rbac.Developer), seat(t, e, demo, rbac.DemoUser)
 	calCreate(t, e, demo, dev, calBody("Open", nil))
 	calCreate(t, e, demo, dev, calBody("Team", map[string]any{"audience": "internal"}))
 	calCreate(t, e, demo, dev, calBody("Own", map[string]any{"audience": "private", "mentions": []string{visitor}}))
-	for _, q := range []string{"", "audience=internal&audience=public", "q=o"} {
+	for _, q := range []string{"", "audience=internal&audience=workspace", "q=o"} {
 		if code, out := calSearch(t, e, demo, visitor, q+calSearchWeek); code != http.StatusOK || calTitles(out, "events") != "Open" {
 			t.Fatalf("demo %q: %d %v", q, code, out)
 		}

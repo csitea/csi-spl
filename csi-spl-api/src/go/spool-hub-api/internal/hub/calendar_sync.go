@@ -136,9 +136,12 @@ func (in calendarSyncEventIn) syncEvent() (store.CalendarSyncEvent, *issueErr) {
 	if ie != nil {
 		return store.CalendarSyncEvent{}, ie
 	}
+	// public is refused, never taken: until the rename (rdb 0159) a sync's
+	// public meant workspace, so a caller not yet renamed is a 400, not an
+	// event on the internet. A roadmap that may go public asks for it later.
 	switch {
-	case store.CalendarAudienceOf(in.Audience) != store.CalendarWorkspace && in.Audience != store.CalendarInternal:
-		return store.CalendarSyncEvent{}, badCalendar("source_key " + k + ": audience must be workspace or internal")
+	case in.Audience != store.CalendarWorkspace && in.Audience != store.CalendarInternal:
+		return store.CalendarSyncEvent{}, badCalendar("source_key " + k + ": audience must be workspace or internal (public was renamed workspace)")
 	case in.RoadmapURL != "" && (!strings.HasPrefix(in.RoadmapURL, "/roadmap") || len(in.RoadmapURL) > calendarRoadmapURLMax):
 		return store.CalendarSyncEvent{}, badCalendar("source_key " + k + ": roadmap_url must be a /roadmap path")
 	}

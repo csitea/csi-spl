@@ -80,13 +80,13 @@ func calendarSearchValuesOf(name string, vs []string) ([]string, *issueErr) {
 }
 
 // calendarSearchAudiences checks audience values against rdb 0159's set,
-// the legacy public read as workspace (store.CalendarAudienceOf).
+// the legacy web read as public (store.CalendarAudienceOf).
 func calendarSearchAudiences(vs []string) ([]string, *issueErr) {
 	out, ie := calendarSearchValuesOf("audience", vs)
 	for i, a := range out {
 		out[i] = store.CalendarAudienceOf(a)
-		if a = out[i]; a != store.CalendarWorkspace && a != store.CalendarInternal && a != store.CalendarPrivate && a != store.CalendarWeb {
-			return nil, badCalendarSearch("audience must be workspace, internal, private or web")
+		if a = out[i]; a != store.CalendarWorkspace && a != store.CalendarInternal && a != store.CalendarPrivate && a != store.CalendarPublic {
+			return nil, badCalendarSearch("audience must be workspace, internal, private or public")
 		}
 	}
 	return out, ie
@@ -149,10 +149,10 @@ func calendarSearchQuery(r *http.Request, now time.Time) (store.CalendarQuery, *
 	return q, readCalendarCursor(v.Get("cursor"), &q)
 }
 
-// demoAudiences narrows a demo visitor's search to workspace and web; false
+// demoAudiences narrows a demo visitor's search to workspace and public; false
 // when the asked audiences leave nothing it may read.
 func demoAudiences(q *store.CalendarQuery) bool {
-	open := []string{store.CalendarWorkspace, store.CalendarWeb}
+	open := []string{store.CalendarWorkspace, store.CalendarPublic}
 	if len(q.Audiences) > 0 {
 		open = slices.DeleteFunc(open, func(a string) bool { return !slices.Contains(q.Audiences, a) })
 	}

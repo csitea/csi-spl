@@ -592,13 +592,13 @@ func (s *Server) calendarViewer(r *http.Request, t store.Tenant) (string, bool) 
 }
 
 // visibleTo drops what a demo visitor may not see: everything but workspace
-// and web (the store already dropped the private events it is not named on).
+// and public (the store already dropped the private events it is not named on).
 func visibleTo(evs []store.CalendarEvent, demo bool) []store.CalendarEvent {
 	if !demo {
 		return evs
 	}
 	return slices.DeleteFunc(evs, func(e store.CalendarEvent) bool {
-		return e.Audience != store.CalendarWorkspace && e.Audience != store.CalendarWeb
+		return e.Audience != store.CalendarWorkspace && e.Audience != store.CalendarPublic
 	})
 }
 

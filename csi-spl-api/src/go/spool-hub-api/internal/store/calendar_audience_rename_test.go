@@ -10,40 +10,45 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// The audience rename, step 1 (rdb 0159, owner t1 a3ce2031 msg bad3799a):
-// the workspace audience is written as workspace, and the legacy public (its
-// old name) is taken and read as workspace, never as the signed-out audience.
+// The audience rename (rdb 0159's header, owner t1 a3ce2031 msg bad3799a):
+// workspace is everyone in the workspace (public before), public the
+// signed-out audience (web before). This hub is step 4: public is written
+// and read as the signed-out audience, and the legacy web is taken and read
+// as public.
 
-func TestCalendarAudienceLegacyPublicIsWorkspace(t *testing.T) {
+func TestCalendarAudiencePublicIsSignedOut(t *testing.T) {
 	ctx := context.Background()
 	for name, st := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
-			cal := st.(Calendar)
+			cal, web := st.(Calendar), st.(CalendarWebReader)
 			tid := newTenant(t, st)
-			e := calEvent("legacy")
-			e.Audience = calendarLegacyPublic
+			e := calEvent("open day")
+			e.Audience = CalendarPublic
 			out, err := cal.CreateCalendarEvent(ctx, tid, e, calT0)
-			if err != nil || out.Audience != CalendarWorkspace {
+			if err != nil || out.Audience != CalendarPublic {
 				t.Fatalf("create public: %+v %v", out, err)
 			}
-			web := CalendarWeb
-			if out, err = cal.UpdateCalendarEvent(ctx, tid, calOwner, out.ID, CalendarPatch{Audience: &web}, calT0); err != nil || out.Audience != CalendarWeb {
-				t.Fatalf("edit to web: %+v %v", out, err)
+			if evs, err := web.WebCalendarEvents(ctx, tid, calWeek()); err != nil || webTitles(evs) != "open day" {
+				t.Fatalf("a public event is not in the signed-out read: %+v %v", evs, err)
 			}
-			pub := calendarLegacyPublic
-			if out, err = cal.UpdateCalendarEvent(ctx, tid, calOwner, out.ID, CalendarPatch{Audience: &pub}, calT0); err != nil || out.Audience != CalendarWorkspace {
-				t.Fatalf("edit back to public: %+v %v", out, err)
+			ws := CalendarWorkspace
+			if out, err = cal.UpdateCalendarEvent(ctx, tid, calOwner, out.ID, CalendarPatch{Audience: &ws}, calT0); err != nil || out.Audience != CalendarWorkspace {
+				t.Fatalf("edit to workspace: %+v %v", out, err)
 			}
-			if evs, err := st.(CalendarWebReader).WebCalendarEvents(ctx, tid, calWeek()); err != nil || len(evs) != 0 {
-				t.Fatalf("a legacy public event reached the signed-out read: %+v %v", evs, err)
+			if evs, err := web.WebCalendarEvents(ctx, tid, calWeek()); err != nil || len(evs) != 0 {
+				t.Fatalf("a workspace event reached the signed-out read: %+v %v", evs, err)
+			}
+			legacy := calendarLegacyWeb
+			if out, err = cal.UpdateCalendarEvent(ctx, tid, calOwner, out.ID, CalendarPatch{Audience: &legacy}, calT0); err != nil || out.Audience != CalendarPublic {
+				t.Fatalf("edit to the legacy web: %+v %v", out, err)
 			}
 		})
 	}
 }
 
-// A row the running hub wrote before this step still holds public: it reads
-// as workspace and a search for workspace finds it.
-func TestCalendarAudienceStoredPublicReadsWorkspace(t *testing.T) {
+// A row written before step 4 still holds web: it reads as public, a search
+// for public finds it, and the signed-out read answers it.
+func TestCalendarAudienceStoredWebReadsPublic(t *testing.T) {
 	pg := pgOnly(t)
 	ctx := context.Background()
 	tid := newTenant(t, pg)
@@ -52,20 +57,20 @@ func TestCalendarAudienceStoredPublicReadsWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE calendar_events SET audience = 'public' WHERE event_id = $1::uuid`, e.ID)
+		_, err := tx.Exec(ctx, `UPDATE calendar_events SET audience = 'web' WHERE event_id = $1::uuid`, e.ID)
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := pg.GetCalendarEvent(ctx, tid, calOwner, e.ID); err != nil || got.Audience != CalendarWorkspace {
-		t.Fatalf("stored public reads: %+v %v", got, err)
+	if got, err := pg.GetCalendarEvent(ctx, tid, calOwner, e.ID); err != nil || got.Audience != CalendarPublic {
+		t.Fatalf("stored web reads: %+v %v", got, err)
 	}
-	q := CalendarQuery{Audiences: []string{CalendarWorkspace}, Range: calWeek()}
+	q := CalendarQuery{Audiences: []string{CalendarPublic}, Range: calWeek()}
 	if evs, err := pg.SearchCalendarEvents(ctx, tid, calOwner, q); err != nil || calIDs(evs) != "old row" {
-		t.Fatalf("search workspace: %q %v", calIDs(evs), err)
+		t.Fatalf("search public: %q %v", calIDs(evs), err)
 	}
-	if evs, err := pg.WebCalendarEvents(ctx, tid, calWeek()); err != nil || len(evs) != 0 {
-		t.Fatalf("a stored public row reached the signed-out read: %+v %v", evs, err)
+	if evs, err := pg.WebCalendarEvents(ctx, tid, calWeek()); err != nil || webTitles(evs) != "old row" {
+		t.Fatalf("a stored web row is not in the signed-out read: %+v %v", evs, err)
 	}
 }
 
@@ -125,7 +130,7 @@ func TestCalendarAudience0160MapsPublic(t *testing.T) {
 		t.Fatal(err)
 	}
 	after, upd1 := audiences()
-	want := map[string]string{"public": CalendarWorkspace, "web": CalendarWeb, "private": CalendarPrivate}
+	want := map[string]string{"public": CalendarWorkspace, "web": calendarLegacyWeb, "private": CalendarPrivate}
 	for title, a := range want {
 		if after[title] != a || !upd1[title].Equal(upd0[title]) {
 			t.Errorf("%s: audience %q (want %q), updated_at %v -> %v", title, after[title], a, upd0[title], upd1[title])

@@ -208,6 +208,15 @@ func TestCalendarSyncApproval(t *testing.T) {
 	if code, out := syncCall(t, e, tid, goals[:1], events[:2]); code != http.StatusBadRequest || out["error"] != "bad_event" {
 		t.Fatalf("unknown goal key: %d %v", code, out)
 	}
+	// the audience rename (rdb 0159): a sync's public meant workspace before
+	// it, so public is refused whole, never put on the internet; so is web
+	for _, aud := range []string{"public", "web"} {
+		ev := syncEv("release:v1.3.0", "2026-10-01")
+		ev["audience"] = aud
+		if code, out := syncCall(t, e, tid, nil, []map[string]any{ev}); code != http.StatusBadRequest || out["error"] != "bad_event" {
+			t.Fatalf("sync audience %s: %d %v", aud, code, out)
+		}
+	}
 }
 
 func TestCalendarSyncConfigFailsFast(t *testing.T) {

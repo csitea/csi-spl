@@ -720,6 +720,14 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 		m.To = rt.signing.agent
 		return rt, nil
 	}
+	// ... else a channel-less ALL-0 reply in a DM goes to its other person
+	peer, rf := s.topicReplyPerson(ctx, c, m, rt.channel, f.ParentTaskID)
+	if rf != nil {
+		return rt, rf
+	}
+	if peer != "" {
+		m.To = peer
+	}
 	rt.signing = wuiSigning{fanOut: rt.channel != "" && s.o.WUIDispatch && c.member != "" &&
 		s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)}
 	return rt, nil
@@ -736,7 +744,7 @@ func (s *Server) wuiAck(ctx context.Context, c *wuiConn, m *msg.Message, rt wuiR
 			return nil, &frameRefusal{"internal", http.StatusInternalServerError, "message lookup failed"}
 		}
 	}
-	ack := map[string]any{"type": "ack", "msg_id": m.MsgID, "task_id": m.TaskID,
+	ack := map[string]any{"type": "ack", "msg_id": m.MsgID, "task_id": m.TaskID, "to": m.To, // spec 117 FR-3: the final to
 		"cursor": encCursor(receivedAt, m.MsgID), "received_at": rfc(receivedAt)}
 	if rt.signing.agent != "" {
 		ack["to_box"], ack["delivery"] = rt.signing.box, r.delivery

@@ -32,6 +32,8 @@ func TestBoxReplyLevel(t *testing.T) {
 		f := map[string]any{"type": "send", "task_id": task, "body": "L1", "is_parent": 1}
 		if channel != "" {
 			f["channel"] = channel
+		} else { // spec 117 FR-2: a new topic outside a channel names its person
+			f["to"] = "HUM-2"
 		}
 		w.send(f)
 		if ack := w.read("ack"); ack.MsgID == "" {

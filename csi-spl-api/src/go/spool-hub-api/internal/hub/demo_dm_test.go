@@ -52,14 +52,22 @@ func TestDemoDMHumanRefused(t *testing.T) {
 	if f := sendDM(t, h, uuidV4(), humanDM, visitor, 1); f["type"] != "ack" {
 		t.Fatalf("a human's DM to a demo user: %v", f)
 	}
+	// spec 117 FR-1: a reply to nobody goes to the DM's one other person, so it
+	// runs in a DM only the human and the visitor wrote in, and its control is
+	// that human's (a developer's reply to nobody there is dm_needs_to).
+	quietDM := uuidV4()
+	if f := sendDM(t, h, uuidV4(), quietDM, visitor, 1); f["type"] != "ack" {
+		t.Fatalf("a human's second DM to a demo user: %v", f)
+	}
 	refused := []struct {
 		name, task, to string
 		isParent       int
+		ctl            *websocket.Conn
 	}{
-		{"new DM to a human", uuidV4(), hum, 1},
-		{"reply to the human", humanDM, hum, 0},
-		{"reply to nobody in a human DM", humanDM, "", 0},
-		{"reply to an agent in a human DM", humanDM, "CLE-07", 0},
+		{"new DM to a human", uuidV4(), hum, 1, d},
+		{"reply to the human", humanDM, hum, 0, d},
+		{"reply to nobody in a human DM", quietDM, "", 0, h},
+		{"reply to an agent in a human DM", humanDM, "CLE-07", 0, d},
 	}
 	for _, tc := range refused {
 		id := uuidV4()
@@ -70,9 +78,9 @@ func TestDemoDMHumanRefused(t *testing.T) {
 		if stored(t, e, demo, id) {
 			t.Errorf("%s: the refused DM was stored", tc.name)
 		}
-		// CONTROL: a developer's same frame is stored.
+		// CONTROL: a developer's (or the human end's) same frame is stored.
 		cid := uuidV4()
-		if f := sendDM(t, d, cid, tc.task, tc.to, tc.isParent); f["type"] != "ack" || !stored(t, e, demo, cid) {
+		if f := sendDM(t, tc.ctl, cid, tc.task, tc.to, tc.isParent); f["type"] != "ack" || !stored(t, e, demo, cid) {
 			t.Errorf("CONTROL %s by a developer: %v", tc.name, f)
 		}
 	}

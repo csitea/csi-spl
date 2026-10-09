@@ -221,7 +221,7 @@ func TestCrossTenantWUISocketNamesBsIds(t *testing.T) {
 	}
 
 	// A posts into "B's" task with B's msg_id, and attaches B's file.
-	w(map[string]any{"type": "send", "task_id": b.taskID, "msg_id": b.msgID, "body": "from A"})
+	w(map[string]any{"type": "send", "task_id": b.taskID, "msg_id": b.msgID, "to": "HUM-9", "body": "from A"}) // spec 117 FR-2: names its person
 	ack := read("ack")
 	if ack.MsgID != b.msgID {
 		t.Fatalf("ack %+v", ack)

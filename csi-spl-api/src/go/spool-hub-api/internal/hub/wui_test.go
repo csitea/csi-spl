@@ -394,7 +394,7 @@ func TestWUIChannelSubscribeNewRoot(t *testing.T) {
 	}
 	// A DM (no channel) on another task never reaches a channel subscriber;
 	// the next frame A sees must be its own marker below, not a duplicate.
-	b.send(map[string]any{"type": "send", "task_id": "6e5d4c3b-2a1f-4e0d-9c8b-7a6f5e4d3c2b", "body": "dm"})
+	b.send(map[string]any{"type": "send", "task_id": "6e5d4c3b-2a1f-4e0d-9c8b-7a6f5e4d3c2b", "to": "HUM-3", "body": "dm"})
 	b.read("ack")
 	a.send(map[string]string{"type": "unsubscribe", "channel": "lobby"})
 	a.send(map[string]string{"type": "subscribe", "task_id": "11111111-1111-4111-8111-111111111111"})

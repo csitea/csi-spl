@@ -8,9 +8,9 @@ and the owner's picks and three new requirements, quotes 8-13). Doc only.
 
 HUM-10, t1 topic 2242b163-053f-4460-97c7-c35adef3ab24, 2026-10-09, plus one
 post from topic afefc1d6-25ef-4a33-b7a1-f64e92a13317. Verbatim; ids read with
-`spool hub-tail --task <topic> --json` (n=7 posts, all found). Quotes 8-13
+`spool hub-tail --task <topic> --json` (n=7 posts, all found). Quotes 8-15
 were relayed verbatim by c-002 (msgs 68793c56, 0541b458, 0c91ce75, edde1d27,
-0a7cc2e8) and not re-read here: `spool hub-tail` on this seat says
+0a7cc2e8; 14-15 in 863eecd7) and not re-read here: `spool hub-tail` on this seat says
 `$SPOOL_HUB_URL is not set`. Quote 12 reached this lane cut at "...".
 
 | # | msg | time (UTC) | text |
@@ -28,6 +28,8 @@ were relayed verbatim by c-002 (msgs 68793c56, 0541b458, 0c91ce75, edde1d27,
 | 11 | 2c6081a6 | | the front page should also contain links to the blok and the opened documentation |
 | 12 | c88d7715 (topic 13b9c39e) | | revamp the new login page on mobile as well ... |
 | 13 | e5634adb (topic 13b9c39e) | | it should have links to the blog and the open docs section and the calendar |
+| 14 | cc7c952a | | the front buttons for the login etc. should be much much smaller |
+| 15 | 0136e0b4 | | the logo of the spool-hub.ai should be in the center |
 
 ## 1. Reading
 

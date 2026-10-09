@@ -1,4 +1,8 @@
 <template>
+  <!-- spec 116 T1: in a mock build, ?look=a|b|c wraps this card in one of the
+       three front-page looks for the owner to pick from; otherwise the
+       wrapper renders the card alone, so a live /login is unchanged. -->
+  <component :is="lookFrame" v-bind="look ? { look } : {}">
   <div class="login-card login-landing-card">
     <h1>{{ t('auth.login.where_humans_meet') }}</h1>
     <p v-if="error" class="login-error" role="alert">{{ error }}</p>
@@ -31,6 +35,7 @@
       <!-- owner HUM-10 (t1 41881574, de4f3d4e): the public docs, signed out too -->
       · <NuxtLink :to="localePath('/docs')" data-test="login-docs">{{ t('docs.title') }}</NuxtLink></p>
   </div>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -45,6 +50,7 @@ import { useAuthCopy } from '~/composables/useAuthCopy'
 import { takeEarlyLoginFlag } from '~/utils/signed-out-hint.mjs'
 import { loadDemo } from '~/utils/demo-info.mjs'
 import { ENDED_QUERY, markSignedIn } from '~/utils/session-recover.mjs'
+import type { FunctionalComponent } from 'vue'
 
 definePageMeta({ layout: 'login' })
 
@@ -98,6 +104,17 @@ watch(authError.value, (code) => {
   const { auth_error: _drop, ...rest } = route.query
   void router.replace({ query: rest })
 }, { immediate: true })
+
+/* spec 116 T1: the three mock looks, mock builds only and their own chunk
+   (a live build never asks for it). Without a look the card renders bare. */
+const Bare: FunctionalComponent = (_props, { slots }) => slots.default?.()
+const FrontLook = defineAsyncComponent(() => import('~/components/front-look/Frame.vue'))
+const lookQ = useSettledQuery('look')
+const look = computed(() => {
+  const v = String(lookQ.value.value || '')
+  return useSpoolApi().mock && /^[abc]$/.test(v) ? v : ''
+})
+const lookFrame = computed(() => (look.value ? FrontLook : Bare))
 
 /* specs/077 T020: the demo and its live limits; null (flag off, 404) = no
    intro. The mock tenant has no hub: it asks its own origin, which never

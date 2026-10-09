@@ -169,7 +169,11 @@ async function sameRouteTabs(browser, base) {
   await sleep(800)
   const ctl = await panel2Mutations(p, 'topics')
   check('1440px T007 CONTROL: Topics from #lobby changes the route and panel 2 mutates', ctl.path === '/' && ctl.n > 0, ctl)
-  await p.close()
+  
+  // T008: Home route does not show sidebar-panel-topics in panel 1
+  await p.goto(`${base}/`);
+  const topicsPanel = await p.$('#sidebar-panel-topics');
+  check('1440px T008: Home route does not show sidebar-panel-topics in panel 1', topicsPanel === null, { topicsPanel });
 }
 
 const server = await startServer()

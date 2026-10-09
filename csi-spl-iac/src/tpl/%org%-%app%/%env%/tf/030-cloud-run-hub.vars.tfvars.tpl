@@ -80,10 +80,6 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
     value, the workspace ids joined with commas, or the literal "all" #}
 {%- set mkt_ws = marketing["workspaces"] if (marketing is defined and marketing["workspaces"] is defined) else [] %}
 {%- set _ = run_env.update({"SPOOL_HUB_MARKETING_WORKSPACES": (mkt_ws if mkt_ws is string else (mkt_ws | join(",")))}) %}
-{#- spec 112 HUB-1: the roadmap sync's workspace and approver role (cnf
-    roadmap.*, no default: "" makes the sync answer 503) #}
-{%- set rm = roadmap if roadmap is defined else {} %}
-{%- set _ = run_env.update({"SPOOL_HUB_ROADMAP_TENANT": (rm.get("tenant_id") or ""), "SPOOL_HUB_ROADMAP_APPROVER_ROLE": (rm.get("approver_role") or "")}) %}
 {#- spec 075 repo-edit T01: the GitHub App key's slot is 07's own resource
     (imported, never in auth_secret_ids); SPOOL_GITHUB_APP_KEY is injected
     only while docs.repo_edit.inject is "true" (a version exists) #}

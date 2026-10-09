@@ -15,6 +15,11 @@
 | 3 | it has to provide pretty shortly as description on WHAT this is |
 | 4 | and than links for futher reading what is it |
 
+| 5 | yes before signing ... the forms for the logging in should be smaller, it should be more visual and there should be a textual description - one slogan and no more than 3 sentences what this is |
+**Reading**: The page a visitor sees at the apex host (spool-hub.ai) **before signing in**. The sign-in form is **on this page** (not a separate click away) and **smaller**. The page is **mainly visual**, with **one slogan + ≤3 sentences** for the "what is this" text.
+| 5 | yes before signing ... the forms for the logging in should be smaller, it should be more visual and there should be a textual description - one slogan and no more than 3 sentences what this is || 6 | and it should be flashy, but style |
+| 5 | yes before signing ... the forms for the logging in should be smaller, it should be more visual and there should be a textual description - one slogan and no more than 3 sentences what this is || 6 | and it should be flashy, but style |
+| 5 | yes before signing ... the forms for the logging in should be smaller, it should be more visual and there should be a textual description - one slogan and no more than 3 sentences what this is || 6 | and it should be flashy, but style |
 **Reading**: The page a visitor sees at the apex host (spool-hub.ai) before signing in. Today, a signed-out visitor at / is sent to /login (isProductScreen in csi-spl-wui/src/utils/signed-out-redirect.mjs), so there is no front page at all.
 
 ---

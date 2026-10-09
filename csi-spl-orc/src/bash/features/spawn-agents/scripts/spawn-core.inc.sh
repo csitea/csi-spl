@@ -225,8 +225,13 @@ spawn_registry_line() {  # TITLE KIND PANE RUNDIR STAMP REQUESTER
 # A copy of the brief at <spool root>/<id>/lifetime/brief.md, so a restore
 # hands the task back (restore-mistral.sh reads it; c-632 found no spawn
 # recorded one). A copy, not a link: a dispatch brief may be moved later.
+# A respawn of the id (SPAWN_REUSE_ID=1, the watchdog's restart) keeps the
+# brief it has: its BRIEF is the restart seed, and a seed copied in nests in
+# the next restart's seed (c-539@sat 2026-10-09: four reboots, four seeds
+# deep, the real brief cut off; it read its handoff and stopped idle).
 spawn_record_brief() {  # MSGDIR BRIEF
   [ -n "$2" ] && [ -r "$2" ] || return 0
+  [ "${SPAWN_REUSE_ID:-0}" = 1 ] && [ -s "$1/lifetime/brief.md" ] && return 0
   mkdir -p "$1/lifetime" 2>/dev/null && chmod 0775 "$1/lifetime" 2>/dev/null
   cp -f "$2" "$1/lifetime/brief.md" 2>/dev/null && chmod 0664 "$1/lifetime/brief.md" 2>/dev/null
   return 0

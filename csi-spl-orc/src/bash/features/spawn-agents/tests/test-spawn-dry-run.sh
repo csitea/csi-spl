@@ -213,6 +213,15 @@ hasnt "brief: a plain session records none" "PLAN brief" "$out"
 eq "brief: lifetime/brief.md is a copy of the brief" "brief" "$(cat "$T_TMP/rb/m-078/lifetime/brief.md" 2>/dev/null)"
 eq "brief: ... readable by the agent user and the box user (0664)" 664 "$(stat -c %a "$T_TMP/rb/m-078/lifetime/brief.md" 2>/dev/null)"
 check "brief: no brief, no lifetime dir" test ! -e "$T_TMP/rb/m-079"
+# c-539@sat (2026-10-09): a watchdog respawn passes its restart seed as the
+# brief; copied in, it nested in every later seed. A respawn keeps the brief.
+echo seed > "$T_TMP/seed.md"
+( . "$T_SCRIPTS/spawn-core.inc.sh"; SPAWN_REUSE_ID=1 spawn_record_brief "$T_TMP/rb/m-078" "$T_TMP/seed.md" )
+eq "brief: a respawn (SPAWN_REUSE_ID=1) keeps the recorded brief, not its seed" "brief" "$(cat "$T_TMP/rb/m-078/lifetime/brief.md" 2>/dev/null)"
+( . "$T_SCRIPTS/spawn-core.inc.sh"; SPAWN_REUSE_ID=1 spawn_record_brief "$T_TMP/rb/m-080" "$T_TMP/brief.md" )
+eq "brief: control: a respawn with no brief recorded yet records one" "brief" "$(cat "$T_TMP/rb/m-080/lifetime/brief.md" 2>/dev/null)"
+( . "$T_SCRIPTS/spawn-core.inc.sh"; spawn_record_brief "$T_TMP/rb/m-078" "$T_TMP/seed.md" )
+eq "brief: control: a fresh spawn of the id overwrites it" "seed" "$(cat "$T_TMP/rb/m-078/lifetime/brief.md" 2>/dev/null)"
 # The reader: restore-mistral's lookup finds it.
 check "brief: restore-mistral.sh reads lifetime/brief.md" grep -q 'lt/brief.md' "$T_SCRIPTS/restore-mistral.sh"
 

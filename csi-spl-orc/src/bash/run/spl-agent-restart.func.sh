@@ -23,7 +23,10 @@
 # @description   HANDOFF  - do_spl_agent_handoff and its snapshot
 # @description              <id>/handoff/<rid>.md (+ `## watchdog` for a crash);
 # @description              the rebirth marker consumed (lifetime/last-rebirth)
-# @description   SEED     - lifetime text + counts + the brief + the handoff;
+# @description   SEED     - lifetime text + counts + the brief + the handoff,
+# @description              a lane's step 4 (in flight: continue the brief;
+# @description              blocked: wait; done: finish); a brief.md nested
+# @description              in old seeds cut back to the real brief;
 # @description              a new lifetime/session.json
 # @description   SPAWN    - SPAWN_REUSE_ID=1; not started in WD_START_WAIT:
 # @description              nothing runs, the watchdog's episode flag is
@@ -568,6 +571,7 @@ spl_ars_seed() {
 # taken for a brief: after a restart the first prompt is the seed).
 spl_ars_brief() {
   local id="$1" f="$SPOOL_ROOT/$1/lifetime/brief.md" tr first=""
+  spl_ars_brief_unnest "$id" "$f"
   if [[ -n "$ARS_BRIEF" && -r "$ARS_BRIEF" ]]; then echo "$ARS_BRIEF"; return 0; fi
   if [[ -s "$f" ]]; then echo "$f"; return 0; fi
   [[ -z "${WDT_BOXENV:-}" ]] || return 0
@@ -579,6 +583,58 @@ spl_ars_brief() {
   [[ -n "$first" && "$first" != "# Brief: you are $id"* ]] || return 0
   if printf '%s\n' "$first" 2>/dev/null > "$f"; then echo "$f"; fi
   return 0
+}
+
+# spl_ars_brief_unnest ID FILE: a brief that is a restart seed (the spawn
+# copied each seed over lifetime/brief.md: c-539@sat 2026-10-09, four reboots,
+# seeds four deep, the real brief cut at 6000 bytes; the lane read its handoff
+# and stopped idle) is cut back to the innermost section A: the text after the
+# last "## A. Your brief" line, up to its "## B. The handoff".
+spl_ars_brief_unnest() {
+  local f="$2" inner
+  [[ -s "$f" && "$(head -n 1 "$f")" =~ ^"# Brief: you are $1@"[^\ ]*", restarted by the watchdog" ]] || return 0
+  inner="$(awk '/^## A\. Your brief/ { buf = ""; on = 1; skip = 1; next }
+    /^## B\. The handoff$/ { on = 0 } on { if (skip && $0 == "") next; skip = 0; buf = buf $0 "\n" } END { printf "%s", buf }' "$f")"
+  [[ -n "$inner" && "$inner" != "# Brief: you are $1@"* ]] || return 0
+  printf '%s\n' "$inner" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f" || rm -f "$f.tmp.$$"
+  return 0
+}
+
+# spl_ars_lane_state ID: where the lane's own task stood, from its spool files
+# (the newest message it sent against the newest it got): "blocked <line>" =
+# its last message is a blocker nobody answered yet; "done <line>" = its last
+# message is a result (the final summary); else "in-flight".
+spl_ars_lane_state() {
+  local d="$SPOOL_ROOT/$1" out in kind
+  out="$(find "$d/outbox" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n 1p)"
+  in="$(find "$d/inbox" "$d/archive" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n 1p)"
+  [[ -n "$out" ]] || { echo in-flight; return 0; }
+  kind="$(jq -r '.kind // empty' "${out#* }" 2>/dev/null || true)"
+  if [[ "$kind" == blocker ]] && { [[ -z "$in" ]] || awk -v i="${in%% *}" -v o="${out%% *}" 'BEGIN { exit !(i < o) }'; }; then kind=blocked
+  elif [[ "$kind" == result && "$(jq -r '.task_id // ""' "${out#* }" 2>/dev/null)" != restart-* ]]; then kind="done"
+  else echo in-flight; return 0; fi
+  echo "$kind $(jq -r '"\(.ts // "?") -> \(.to // "?") [\(.task_id // "" | .[0:12])] \((.body // "") | gsub("\\s+"; " ") | .[0:160])"' "${out#* }" 2>/dev/null)"
+}
+
+# The lane's step 4 of the seed: an in-flight lane goes on with its brief by
+# itself (owner rule A, t1 3192c200: after a reboot every lane that was working
+# carries on, no hand step); a blocked or done lane waits.
+spl_ars_seed_next() {
+  local st
+  st="$(spl_ars_lane_state "$1")"
+  case "$st" in
+    blocked*) echo "4. Then WAIT: your brief is blocked. Your last message was a blocker with no message to you since:"
+              echo "   ${st#blocked }"
+              echo "   Do not push on with the brief; act when the answer reaches your inbox." ;;
+    done*)    echo "4. Then FINISH: your brief is done. Your last message was your result:"
+              echo "   ${st#done }"
+              echo "   Take no new work; run only the closing steps still left (teardown, /exit-clean)." ;;
+    *)        echo "4. Then CONTINUE the brief now, by yourself: this lane was in flight (no open blocker, no final"
+              echo "   result sent), so nobody will tell you to go on. Re-read the full brief file section A names,"
+              echo "   check the worktree (git status, git log --oneline origin/master..HEAD, the branch) and the"
+              echo "   handoff's next step, then do the first step of the brief that has not landed, through its"
+              echo "   closing steps. Do not stop at an empty prompt after reading the handoff." ;;
+  esac
 }
 
 spl_ars_seed_text() {
@@ -605,6 +661,7 @@ spl_ars_seed_text() {
   fi
   echo "1. Section A is your brief: continue it. 2. Section B is the handoff. 3. Then drain your inbox:"
   echo "   SPOOL_ROOT=$SPOOL_ROOT spool recv --as $id"
+  if [[ -z "$ARS_SEAT" && -z "${WDT_BOXENV:-}" ]]; then spl_ars_seed_next "$id"; fi
   echo
   if [[ -n "${WDT_BOXENV:-}" ]]; then spl_wdt_seat_section "$id"
   elif [[ -n "$brief" ]]; then echo "## A. Your brief ($brief)"; echo; head -c 6000 "$brief"; echo

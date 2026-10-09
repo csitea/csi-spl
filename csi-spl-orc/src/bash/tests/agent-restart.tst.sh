@@ -54,6 +54,13 @@
 #      (c-001@sat 2026-10-09, m-617 / m-618, n=2): the m- id passes, S1 hits,
 #      the old pid stops first, a mistral session spawns. Controls: the plan
 #      complete (exit 3), an x- id (FATAL)
+#  17. a lane restored in flight continues its brief (owner rule A, t1
+#      3192c200; c-539@sat 2026-10-09 read its handoff and stopped idle):
+#      its seed carries "4. Then CONTINUE the brief", a brief.md nested four
+#      seeds deep is cut back to the real brief (one seed header, the brief
+#      path in section A). Controls: an unanswered blocker -> "4. Then WAIT",
+#      a final result -> "4. Then FINISH", neither tells it to continue; an
+#      answered blocker -> CONTINUE again
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -439,6 +446,45 @@ world
 rc="$(go ID=x-952 CAUSE=S1 DRY_RUN=0)"
 [[ "$rc" == 1 ]] && grep -q "FATAL ID must be an agent id (c-NNN), got: 'x-952'" "$T/o" &&
   pass "16. control: an id of no agent kind (x-952) is FATAL" || fail "16. x- control rc=$rc: $(tail -2 "$T/o")"
+
+# --- 17. a lane restored in flight continues its brief ---------------------------------------
+seed17() { cat "$S/$1/handoff/"*-rs-"$1".seed.md 2>/dev/null; }
+msg17() {  # msg17 <id> <dir> <kind> <age s>: one spool message of that kind, <age> seconds old
+  local f
+  f="$S/$1/$2/$(date -u +%Y%m%dT%H%M%SZ)-$3-$RANDOM.json"
+  mkdir -p "$S/$1/$2"
+  jq -n --arg k "$3" '{v: 1, ts: "2027-01-15T07:00:00Z", from: "c-970", to: "c-002", kind: $k, task_id: "dispatch-3192c200", body: "the \($k) text"}' > "$f"
+  touch -d "@$(( $(date +%s) - $4 ))" "$f"
+}
+world; lane c-970 %70 -; reborn c-970
+{ for n in 4 3 2 1; do
+    printf '# Brief: you are c-970@box1, restarted by the watchdog (2027011%sT0600Z-rs-c-970)\n\n1. Section A is your brief: continue it.\n\n## A. Your brief (%s)\n\n' "$n" "$S/c-970/lifetime/brief.md"
+  done
+  printf 'Read your full task brief at /briefs/T970.md and implement it.\n\n## B. The handoff\n\n# handoff c-970\n'
+} > "$S/c-970/lifetime/brief.md"
+rc="$(go ID=c-970 CAUSE=rebirth DRY_RUN=0)"
+sd="$(seed17 c-970)"
+bad=""
+[[ "$rc" == 0 ]] || bad+=" rc=$rc"
+grep -q '^4\. Then CONTINUE the brief now' <<<"$sd" || bad+=" no-continue"
+grep -q 'Do not stop at an empty prompt after reading the handoff' <<<"$sd" || bad+=" no-do-not-stop"
+[[ "$(grep -c '^# Brief: you are c-970@' <<<"$sd")" == 1 ]] || bad+=" nested-seeds=$(grep -c '^# Brief: you are c-970@' <<<"$sd")"
+grep -q 'brief at /briefs/T970.md' <<<"$sd" || bad+=" no-brief-path"
+[[ "$(head -1 "$S/c-970/lifetime/brief.md")" == "Read your full task brief at /briefs/T970.md and implement it." ]] || bad+=" brief.md=$(head -1 "$S/c-970/lifetime/brief.md")"
+[[ -z "$bad" ]] && pass "17. a lane in flight: its seed says CONTINUE the brief; a brief nested 4 seeds deep is cut back to the real one" ||
+  fail "17. in flight:$bad -- $(head -c 1500 <<<"$sd")"
+world; lane c-971 %71 -; reborn c-971; msg17 c-971 archive task 600; msg17 c-971 outbox blocker 300
+rc="$(go ID=c-971 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-971)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then WAIT: your brief is blocked' <<<"$sd" && grep -q 'the blocker text' <<<"$sd" && ! grep -q 'CONTINUE' <<<"$sd" &&
+  pass "17. control: an unanswered blocker -> the seed says WAIT, not CONTINUE" || fail "17. blocked rc=$rc: $(grep -A3 '^4\.' <<<"$sd")"
+world; lane c-972 %72 -; reborn c-972; msg17 c-972 outbox result 300
+rc="$(go ID=c-972 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-972)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then FINISH: your brief is done' <<<"$sd" && ! grep -q 'CONTINUE' <<<"$sd" &&
+  pass "17. control: a final result sent -> the seed says FINISH, not CONTINUE" || fail "17. done rc=$rc: $(grep -A3 '^4\.' <<<"$sd")"
+world; lane c-973 %73 -; reborn c-973; msg17 c-973 outbox blocker 600; msg17 c-973 archive note 300
+rc="$(go ID=c-973 CAUSE=rebirth DRY_RUN=0)"; sd="$(seed17 c-973)"
+[[ "$rc" == 0 ]] && grep -q '^4\. Then CONTINUE the brief now' <<<"$sd" &&
+  pass "17. control: a blocker answered since -> CONTINUE again" || fail "17. answered rc=$rc: $(grep -A3 '^4\.' <<<"$sd")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

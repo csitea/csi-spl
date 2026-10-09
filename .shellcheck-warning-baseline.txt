@@ -133,3 +133,4 @@ SC1010|csi-spl-orc/src/bash/tests/spec-import-issues.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/spec-import-issues.tst.sh|3
 SC2155|csi-spl-orc/src/bash/run/spl-goals-backfill-git.func.sh|1
 SC2155|csi-spl-orc/src/bash/tests/spl-goals-backfill-git.tst.sh|4
+SC1090|csi-spl-orc/src/bash/tests/spl-goals-backfill-git.tst.sh|2

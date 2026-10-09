@@ -128,7 +128,9 @@ How to read it (seat 4):
 
 **Size targets** (v1.0; the T002 timing test proves them, section 3.5):
 up to **20,000 items per document** and up to **1,000 siblings per
-parent**. Beyond them the ops still work but carry no time promise.
+parent**. Beyond them the ops still work but carry no time promise. The
+50 ms promise covers the document size; wide-parent times are printed only
+(owner, t1 d85e7d3c msg 12dafe5a).
 
 ### 2.2 Decision: adjacency list + sibling ordinal
 
@@ -328,9 +330,9 @@ its own subtree, a delete of the root).
   test times add (first / last child), move subtree, delete subtree and a
   subtree read at 11,111 items (fanout 10), at 1 x 1,000 siblings and at
   1 x 10,000 siblings, n = 5, prints median and max per op, and fails above
-  the ceilings: **50 ms** per op at 11,111 items and at 1 x 1,000 siblings
-  (the size targets of section 2.1); the 1 x 10,000 case is printed, not
-  gated.
+  the ceiling: **50 ms** per op at 11,111 items (the size target of section
+  2.1); the 1 x 1,000 and 1 x 10,000 cases are printed, not gated (owner,
+  t1 d85e7d3c msg 12dafe5a, option 3).
 - Controls, each a planted bug behind a test-only switch that must turn the
   test red: a delete that skips closing the sibling gap; a move that reads
   positions before the lock; a store that ignores the lock's row count.

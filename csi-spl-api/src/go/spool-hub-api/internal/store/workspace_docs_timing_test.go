@@ -19,8 +19,8 @@ import (
 // Postgres at 11,111 items (fanout 10), 1 x 1,000 and 1 x 10,000 siblings,
 // n = 5 each: add first / last child, move subtree, delete subtree, subtree
 // read. It prints median and max per op with the box load (/proc/loadavg:
-// load inflates these). The ceilings (50 ms at 11,111 items; 1 x 1,000
-// pending the owner, t1 d85e7d3c; 1 x 10,000 never, spec 3.5) are enforced
+// load inflates these). The one ceiling (50 ms at 11,111 items; 1 x 1,000
+// and 1 x 10,000 printed only, owner t1 d85e7d3c msg 12dafe5a) is enforced
 // only in a dedicated measurement run, SPOOL_TEST_WSDOC_TIMING_GATE=1: in the
 // shared suite (wf 10, go test -race, every package on one Postgres, a loaded
 // runner) the numbers are printed, never gated. Run 37928804138 measured
@@ -71,7 +71,7 @@ func TestWorkspaceDocTiming(t *testing.T) {
 
 // wsCeilings parses SPOOL_TEST_WSDOC_TIMING_CEILINGS, "<case>=<ms>,...": the
 // control's seam (a ceiling lowered below its median must turn the run red)
-// and the place the owner's 1 x 1,000 ceiling can be tried before it lands.
+// and a way to try a ceiling on the printed-only cases.
 // 0 ms = printed only. An unknown case or a bad number fails the test.
 func wsCeilings(t *testing.T, spec string) map[string]time.Duration {
 	out := map[string]time.Duration{}

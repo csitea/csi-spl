@@ -155,6 +155,9 @@ out=$(boot dev "$T/nowhere"); rc=$?
 [[ $rc -ne 0 && -z "$out" ]] && pass "CONTROL: bootstrap with no key and no cnf owner -> refused" || fail "bootstrap refuse: rc=$rc '$out'"
 
 # --- 2c. STATIC: who may reach the owner, and who resolves -------------------------
+# One find, and one grep per question over ALL files: a fork per file (749
+# files, 3+ processes each) ran 6 s idle but 18..121 s on a loaded CI runner
+# and was killed at the 120 s bound (c-729, wf 10 job 113993661903).
 code_files() {
   local d
   for d in "$APP_ROOT"/*-iac "$APP_ROOT"/*-orc; do
@@ -162,21 +165,20 @@ code_files() {
       -type f \( -name '*.sh' -o -name '*.bash' \) 2>/dev/null
   done | grep -v '/gcp-account-pin.func.sh$' | sort
 }
-owner_hits=$(code_files | while read -r f; do
-  grep -vE '^[[:space:]]*#' "$f" | grep -E 'do_gcp_(pin_)?bootstrap_account|gcp_account_owner_email|GCP_ACCOUNT_OWNER_EMAIL' >/dev/null || continue
-  [[ "$(basename "$f")" =~ ^gcp-00[0-4]- ]] || echo "$f"
-done)
+mapfile -t CODE_FILES < <(code_files)
+# code_hits <ERE>: the files with a NON-comment line matching <ERE>
+code_hits() {
+  grep -HE -- "$1" "${CODE_FILES[@]}" 2>/dev/null | grep -vE '^[^:]*:[[:space:]]*#' | cut -d: -f1 | sort -u
+}
+owner_hits=$(code_hits 'do_gcp_(pin_)?bootstrap_account|gcp_account_owner_email|GCP_ACCOUNT_OWNER_EMAIL' \
+  | while read -r f; do [[ "$(basename "$f")" =~ ^gcp-00[0-4]- ]] || echo "$f"; done)
 [[ -z "$owner_hits" ]] && pass "STATIC: only gcp-000..004 can reach the owner account" || fail "owner reachable outside the bootstrap: $owner_hits"
-n_boot=$(code_files | xargs grep -lE '^[[:space:]]*do_gcp_pin_bootstrap_account' | wc -l)
+n_boot=$(grep -lE '^[[:space:]]*do_gcp_pin_bootstrap_account' "${CODE_FILES[@]}" | wc -l)
 [[ "$n_boot" -eq 4 ]] && pass "STATIC: gcp-001..004 pin through the bootstrap resolver ($n_boot)" || fail "bootstrap resolver used by $n_boot files, want 4"
-n_gc=0; unresolved=""
-while read -r f; do
-  grep -vE '^[[:space:]]*#' "$f" \
-    | grep -E '(^|[;&|({]|\$\(|(^|[[:space:]])(if|then|do|else|elif|while|until|!|time)[[:space:]])[[:space:]]*(command[[:space:]]+)?(gcloud|\$\{?GCLOUD\}?)[[:space:]]' >/dev/null || continue
-  n_gc=$((n_gc + 1))
-  grep -qE 'do_gcp_(pin_)?(bootstrap_)?account|do_gcp_isolated_active_account|auth activate-service-account --key-file|--account="?\$\{?(GCP_ACCOUNT|account)\b|--account="?\$\{?1' "$f" \
-    || unresolved="$unresolved $(basename "$f")"
-done < <(code_files)
+mapfile -t gc_files < <(code_hits '(^|[;&|({]|\$\(|(^|[[:space:]])(if|then|do|else|elif|while|until|!|time)[[:space:]])[[:space:]]*(command[[:space:]]+)?(gcloud|\$\{?GCLOUD\}?)[[:space:]]')
+n_gc=${#gc_files[@]}; unresolved=""
+(( n_gc > 0 )) && unresolved=$(grep -LE 'do_gcp_(pin_)?(bootstrap_)?account|do_gcp_isolated_active_account|auth activate-service-account --key-file|--account="?\$\{?(GCP_ACCOUNT|account)\b|--account="?\$\{?1' "${gc_files[@]}" \
+  | while read -r f; do printf ' %s' "$(basename "$f")"; done)
 echo "INFO resolver scan: $n_gc file(s) call gcloud"
 [[ "$n_gc" -ge 25 ]] && pass "STATIC: the resolver scan sees $n_gc gcloud-calling files (0 would prove nothing)" || fail "resolver scan saw only $n_gc files"
 [[ -z "$unresolved" ]] && pass "STATIC: every gcloud-calling file resolves its identity (resolver, the key directly, or a pinned \$GCP_ACCOUNT)" \
@@ -197,9 +199,11 @@ cmp -s "$PIN" "$ORC_PIN" && pass "the iac and orc gcp-account-pin.func.sh are by
 # after ; & | ( $( or a shell keyword), so `command -v gcloud` and a do_log
 # message quoting a command are not calls. A file that sets
 # acct="--account=..." may pass "${acct}".
-scan_file() {
-  awk -v F="$1" '
-    FNR == 1 { buf = ""; start = 0 }
+scan_file() {  # <file>... -- one awk over every file
+  grep -lF 'acct="--account=' -- "$@" >"$T/acct.lst" 2>/dev/null
+  awk -v LST="$T/acct.lst" '
+    BEGIN { while ((getline l < LST) > 0) has[l] = 1 }
+    FNR == 1 { buf = ""; start = 0; F = FILENAME; acct = (F in has) }
     /^[[:space:]]*#/ && buf == "" { next }
     {
       line = $0
@@ -215,14 +219,16 @@ scan_file() {
       }
       buf = ""
     }
-  ' acct="$(grep -c 'acct="--account=' "$1")" "$1"
+  ' "$@"
 }
 scan_tree() {
   local root="$1" d
-  for d in "$root"/*-iac "$root"/*-orc; do
+  local -a files
+  mapfile -t files < <(for d in "$root"/*-iac "$root"/*-orc; do
     find "$d/src/bash/run" "$d/src/bash/scripts" "$d/src/bash/features" "$d/lib" \
       -type f \( -name '*.sh' -o -name '*.bash' \) 2>/dev/null
-  done | sort | while read -r f; do scan_file "$f"; done
+  done | sort)
+  scan_file "${files[@]}"
 }
 
 scan_tree "$APP_ROOT" >"$T/scan.txt"

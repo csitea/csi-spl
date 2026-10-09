@@ -2,8 +2,9 @@
 # Usage: Copy this file to <id>-<slug>/goal.yaml and fill in the fields.
 
 id: "G<XX>-<slug>"  # e.g., G01-first-million
-owner_role: "<role_id>"  # e.g., admin
-public: true  # Default: public. Set to false for internal-only goals.
+workspace: "<workspace slug>"  # Required: e.g., csi-spl. Events land in this workspace only.
+owner_role: "biz_owner or admin"  # e.g., biz_owner or admin (D2: approver role)
+public: true  # Default: public. D1 repo-doc flag, never the calendar audience (audience = workspace switch, RDB-2).
 backfill_start_sha: "<sha>"  # e.g., b588b50c2 (first commit)
 
 deadline: "YYYY-MM-DD"  # ISO date

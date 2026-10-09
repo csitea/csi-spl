@@ -5,7 +5,11 @@
 #   1. the prune: bad input exits 2; an unreachable daemon is a loud FAIL;
 #      the dry run (default) plans the unused old image only and calls no
 #      prune; DRY_RUN=0 prunes images and build cache with until=168h, never
-#      volumes or containers, and logs the reclaimed bytes; a CI job whose
+#      volumes or containers, and logs the reclaimed bytes: docker's count
+#      read from BOTH output shapes (image prune "Total reclaimed space:",
+#      buildx builder prune "Total:\t") and freed_bytes from the disk's free
+#      space delta (CONTROL: the planted reclaim, and none without it); the
+#      dry run states the build cache size; a CI job whose
 #      user reaches the socket is waited for, then a loud WARN skip with no
 #      prune; a CI job on a daemon of its own does not hold it; a held lock
 #      is a WARN skip
@@ -51,11 +55,20 @@ case "\$1 \$2" in
   "image prune")
     [ -f "\$T/eat" ] && touch "\$T/gone.sha256:aaa1111111111111"
     printf 'Deleted Images:\ndeleted: sha256:ccc3333333333333\n\nTotal reclaimed space: 1.5GB\n' ;;
-  "builder prune") printf 'ID\nx\nTotal reclaimed space: 250MB\n' ;;
+  "builder prune") touch "\$T/reclaimed"; printf 'ID\t\t\t\t\tRECLAIMABLE\tSIZE\nx\ttrue\t250MB\nTotal:\t250MB\n' ;;
+  "system df") printf 'Images|3GB|1GB\nBuild Cache|9.4GB|9.4GB\n' ;;
   *) exit 0 ;;
 esac
 EOF
 printf '#!/bin/sh\n[ "$1" = -eo ] && cat %q\n' "$T/procs" >"$T/stub/ps"
+# the fake disk: 1 GB free, 3 GB once the builder prune ran (the planted
+# reclaim); only while $T/fakedf exists, else the real df
+cat >"$T/stub/df" <<EOF
+#!/bin/sh
+[ -f '$T/fakedf' ] || exec /usr/bin/env -u PATH PATH=/usr/bin:/bin df "\$@"
+f=1000000000; [ -f '$T/reclaimed' ] && f=3000000000
+printf 'Filesystem 1-blocks Used Available Capacity Mounted\n/dev/x 9000000000 1 %s 50%% /fake\n' "\$f"
+EOF
 printf '#!/bin/sh\necho "send $*" >>%q\n' "$T/sent" >"$T/stub/send"
 chmod +x "$T/stub/"*
 : >"$T/procs"
@@ -91,8 +104,19 @@ out="$(prune DRY_RUN=0)"; rc=$?
 [ "$rc" = 0 ] && grep -q '^docker image prune -a -f --filter until=168h$' "$STUB_LOG" \
   && grep -q '^docker builder prune -f --filter until=168h$' "$STUB_LOG" \
   && pass "1. DRY_RUN=0 prunes images (-a) and build cache, until=168h" || fail "1. live ($out / $(cat "$STUB_LOG"))"
-grep -q 'RESULT box=testbox .* reclaimed_bytes=1750000000 images_bytes=1500000000 builder_bytes=250000000 free_bytes_before=[0-9]* free_bytes_after=[0-9]*' <<<"$out" \
-  && pass "1. the RESULT line logs the reclaimed bytes and the disk" || fail "1. RESULT ($out)"
+grep -q 'RESULT box=testbox .* reclaimed_bytes=1750000000 images_bytes=1500000000 builder_bytes=250000000 freed_bytes=-\?[0-9]* free_bytes_before=[0-9]* free_bytes_after=[0-9]*' <<<"$out" \
+  && pass "1. the RESULT line logs the reclaimed bytes (buildx's \"Total:\" line too) and the disk" || fail "1. RESULT ($out)"
+grep -q 'PLAN docker builder prune' <<<"$(prune)" && grep -q 'build cache now 9.4GB total, 9.4GB reclaimable' <<<"$(prune)" \
+  && pass "1. the dry run states the build cache size" || fail "1. PLAN builder ($(prune))"
+touch "$T/fakedf"; rm -f "$T/reclaimed"
+out="$(prune DRY_RUN=0)"
+grep -q 'RESULT .* freed_bytes=2000000000 free_bytes_before=1000000000 free_bytes_after=3000000000$' <<<"$out" \
+  && pass "1. freed_bytes is the disk's free-space delta: the planted 2 GB reclaim counts" || fail "1. freed ($out)"
+touch "$T/reclaimed"
+out="$(prune DRY_RUN=0)"
+grep -q 'RESULT .* freed_bytes=0 free_bytes_before=3000000000 free_bytes_after=3000000000$' <<<"$out" \
+  && pass "1. CONTROL: no reclaim on the disk, freed_bytes=0" || fail "1. freed control ($out)"
+rm -f "$T/fakedf" "$T/reclaimed"
 ! grep -qE 'volume|system prune|container prune|rmi| rm ' "$STUB_LOG" && [ ! -s "$T/sent" ] \
   && pass "1. never a volume or container, and a clean run sends no note" || fail "1. touched more ($(cat "$STUB_LOG"); sent: $(cat "$T/sent"))"
 

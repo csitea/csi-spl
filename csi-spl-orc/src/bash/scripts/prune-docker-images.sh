@@ -23,7 +23,11 @@
 #          and AFTER the prune (else a FAIL)
 #   PLAN   (dry run) the images and build cache a live run would remove
 #   PRUNE  docker image prune -a / docker builder prune, --filter until=
-#   RESULT box=<box> reclaimed_bytes=<n> (docker's count) + the disk's free
+#   RESULT box=<box> reclaimed_bytes=<n> (docker's count: `docker image
+#          prune` prints "Total reclaimed space:", `docker builder prune`
+#          (buildx) prints "Total:") and freed_bytes=<n>, the disk's free
+#          space after minus before (2026-10-09: builder_bytes read 0 while
+#          the disk gained 0.8G - the "Total:" line was never parsed)
 # A WARN or a FAIL also goes to the orchestrator as a spool note
 # (task docker-prune-<box>): a skip is never silent.
 # Exit: 0 done or skipped (WARN), 1 failed, 2 bad input.
@@ -75,8 +79,9 @@ to_bytes() {
     printf "%.0f\n", n * m }'
 }
 
-# reclaimed <prune output> - the "Total reclaimed space:" figure in bytes
-reclaimed() { to_bytes "$(sed -n 's/^Total reclaimed space: *//p' <<<"$1" | tail -1)"; }
+# reclaimed <prune output> - the "Total reclaimed space:" (image prune) or
+# "Total:" (builder prune, buildx) figure in bytes
+reclaimed() { to_bytes "$(sed -nE 's/^Total( reclaimed space)?:[[:space:]]*//p' <<<"$1" | tail -1)"; }
 
 # sock - the unix socket this user's docker talks to
 sock() {
@@ -180,7 +185,8 @@ if [[ "$DRY_RUN" == 1 ]]; then
   n="$(grep -c . <<<"$cand" || true)"
   b="$(grep . <<<"$cand" | xargs -r docker image inspect --format '{{.Size}}' 2>/dev/null | awk '{ t += $1 } END { printf "%.0f\n", t }')"
   say "PLAN docker image prune -a --filter until=$UNTIL: $n unused image(s), at most $b bytes (shared layers counted per image)"
-  say "PLAN docker builder prune --filter until=$UNTIL"
+  bc="$(docker system df --format '{{.Type}}|{{.Size}}|{{.Reclaimable}}' 2>/dev/null | awk -F'|' '$1 == "Build Cache" { print $2 " total, " $3 " reclaimable" }')"
+  say "PLAN docker builder prune --filter until=$UNTIL: build cache now ${bc:-unknown} (a live run removes the part unused for $UNTIL)"
   say "RESULT box=$BOX user=$ME dry_run=1 nothing removed. Re-run with DRY_RUN=0."
   exit 0
 fi
@@ -199,7 +205,8 @@ for name in "${!keep[@]}"; do
   docker image inspect "${keep[$name]}" >/dev/null 2>&1 || lost+="$name "
 done
 after="$(free_b)"
-say "RESULT box=$BOX user=$ME disk=${mnt:-?} reclaimed_bytes=$(( ri + rb )) images_bytes=$ri builder_bytes=$rb free_bytes_before=${before:-?} free_bytes_after=${after:-?}"
+freed="?"; [[ "$before" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]] && freed=$(( after - before ))
+say "RESULT box=$BOX user=$ME disk=${mnt:-?} reclaimed_bytes=$(( ri + rb )) images_bytes=$ri builder_bytes=$rb freed_bytes=$freed free_bytes_before=${before:-?} free_bytes_after=${after:-?}"
 [[ -z "$lost" ]] || { loud FAIL "infra stack image(s) gone after the prune: ${lost% }"; exit 1; }
 if (( rc_i || rc_b )); then
   loud FAIL "prune failed (image rc=$rc_i: $(tail -1 <<<"$out_i"); builder rc=$rc_b: $(tail -1 <<<"$out_b"))"; exit 1

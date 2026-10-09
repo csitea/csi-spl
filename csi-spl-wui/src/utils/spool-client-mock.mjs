@@ -73,11 +73,14 @@ export function mockSendMessage(state, p, uuid) {
      no single other end names nobody to deliver it to, and the hub refuses it
      (400 dm_needs_to). With one other end the hub re-addresses it; the mock
      stores it as sent, so a reply the WUI did not address still shows. */
+  /* FR-2: a new channel-less root with no `to` (no topic yet, or one with
+     no rows) is refused the same way: a new topic belongs in a channel or
+     goes to a person (22f73584 was readable by its author only) */
   const topic = task_id || parent_task_id
-  if (!channel && (!to || to === '@channel') && topic) {
-    const rows = state.messages.filter((m) => m.task_id === topic || m.parent_task_id === topic)
+  if (!channel && (!to || to === '@channel')) {
+    const rows = topic ? state.messages.filter((m) => m.task_id === topic || m.parent_task_id === topic) : []
     const ends = new Set(rows.flatMap((m) => [m.from, m.to]).filter((i) => i && i !== state.me.id && i !== 'ALL-0' && i !== '@channel'))
-    if (rows.length && ends.size !== 1) throw Object.assign(new Error('say who this is for'), { status: 400, token: 'dm_needs_to' })
+    if (!rows.length || ends.size !== 1) throw Object.assign(new Error('say who this is for'), { status: 400, token: 'dm_needs_to' })
   }
   /* spec 068: what the hub's insert stores - <to>@<to_box> for a
      message to one agent; the mock reads a bare peer's box off the roster */

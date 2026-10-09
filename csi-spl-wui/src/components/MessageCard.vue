@@ -330,7 +330,7 @@
             />
             <MentionList :picker="editMp" />
           </div>
-          <MessageBody v-else :body="String(msg.body || '')" no-previews />
+          <MessageBody v-else :body="String(msg.body || '')" :at="msg.ts || undefined" no-previews />
           <FileAttachment
             v-for="(f, i) in files"
             :key="String(f.file_id || f.path || i)"

@@ -2078,7 +2078,8 @@ declare module '~/utils/tenant-host-boot.mjs' {
 }
 
 declare module '~/utils/body-times.mjs' {
-  export function bodyTimeRuns(text: string): { text: string, iso?: string }[]
+  export const BODY_TIME_AT: string
+  export function bodyTimeRuns(text: string, at?: unknown): { text: string, iso?: string, dt?: string }[]
   export function hasBodyTime(text: string): boolean
 }
 
@@ -2088,6 +2089,8 @@ declare module '~/utils/date-iso.mjs' {
   export function knownTimeZones(): string[]
   export function setTimeZoneSource(source: () => string): void
   export function viewerTimeZone(): string
+  export function isoFields(value: unknown): { y: number, mo: number, da: number, h: number, mi: number, s: number } | null
+  export function zoneAbbr(value: unknown): string
   export function isoDate(value: unknown): string
   export function isoClock(value: unknown): string
   export function isoDateTime(value: unknown): string

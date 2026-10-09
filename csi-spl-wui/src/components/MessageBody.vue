@@ -23,6 +23,7 @@
 <script setup lang="ts">
 import { isMarkdownLang, looksLikeMarkdown, markdownSource, parseBody } from '~/utils/code-blocks.mjs'
 import MessageRuns from '~/components/MessageRuns.vue'
+import { BODY_TIME_AT } from '~/utils/body-times.mjs'
 import { LinkPreviewsLazy, useLinkPreviewRefs } from '~/composables/useLinkPreviewRefs'
 
 /* Slack-style ``` blocks and `inline code`; every string is text-interpolated,
@@ -41,7 +42,10 @@ import { LinkPreviewsLazy, useLinkPreviewRefs } from '~/composables/useLinkPrevi
    body when `markdown` is set (an issue description), renders whole through
    MarkdownBlock's bare mode; until that lazy chunk has rendered, and when it
    fails, the blocks below stay on screen. A plain body never loads it. */
-const props = defineProps<{ body: string, markdown?: boolean, noPreviews?: boolean }>()
+const props = defineProps<{ body: string, markdown?: boolean, noPreviews?: boolean, at?: string | number }>()
+/* t1 179ef3f9: `at` = the message timestamp, the day a short `10:45Z` in the
+   body is on (MessageRuns, body-times.mjs). No `at`: short forms stay as written. */
+provide(BODY_TIME_AT, toRef(props, 'at'))
 const blocks = computed(() => parseBody(props.body))
 const mdSource = computed(() => (props.markdown || looksLikeMarkdown(props.body) ? markdownSource(props.body) : null))
 const mdOn = ref(false)

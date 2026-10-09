@@ -21,7 +21,9 @@ comments and issue descriptions.
 5. A single newline is a line break. A blank line starts a new paragraph.
 6. A time is ISO 8601 UTC with the `Z`: `2026-10-01T18:46:26Z`, from
    `date -u +%Y-%m-%dT%H:%M:%SZ`. Every reader then sees it in their own
-   zone (see section 4). Never write a bare `18:46` or a zone-less
+   zone (see section 4). A short UTC time with the `Z` (`10:45Z`,
+   `07:05:30Z`, `10:4xZ`, `10:15-10:17Z`) is fine too: it is read on the
+   day of the post. Never write a bare `18:46` or a zone-less
    `2026-10-01 18:46`: nobody can tell which zone it meant, so it is shown
    exactly as written and reads hours off for a reader in another zone.
    Relative ages (`7s ago`, `2h 3m`) are fine as they are.
@@ -81,6 +83,23 @@ includes an ISO 8601 date-time with a zone (`Z` or `+03:00`) written inside a
 post: it shows on the reader's clock, and the hover keeps it as written. A
 time with no zone, and anything inside `code` or a code block, stays as
 written.
+
+A short UTC time (owner, t1 179ef3f9) is shown in the reader's zone too:
+`07:05:30Z`, `10:45Z`, `10:4xZ` (x = "about"), and ranges `10:15-10:17Z`,
+`09:53Z..10:23Z`. It has no day, so it takes the post's own: the UTC day
+that puts it nearest to the post's timestamp. The reader sees their own
+clock and zone, then the UTC as written. A reader in Helsinki in summer
+sees (owner answers, t1 179ef3f9):
+
+| written | shown |
+|---|---|
+| `07:05:30Z` | `10:05:30 EEST (07:05:30 UTC)` |
+| `10:4xZ` | `about 13:45 EEST (about 10:45 UTC)` (x = the middle of its ten minutes) |
+| `10:15-10:17Z` | `13:15-13:17 EEST (10:15-10:17 UTC)` |
+| `23:30Z` in a post of 2026-10-09 20:00Z | `2026-10-10 02:30 EEST (23:30 UTC)` (another day than the post's: the full date) |
+
+The time carries no marker; the hover shows it as written. `10:45` with no
+`Z` stays as written. Agents keep writing UTC.
 
 ## 5. Where it is implemented
 

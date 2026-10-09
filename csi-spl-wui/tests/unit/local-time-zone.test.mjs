@@ -145,11 +145,86 @@ describe('times written inside a message body (requirements 2 + 5)', () => {
   })
   it('the renderers use it: MessageRuns text runs, MarkdownBlock text, the event log hover', () => {
     const runs = readFileSync(join(SRC, 'components/MessageRuns.vue'), 'utf8')
-    assert.match(runs, /bodyTimeRuns\(p\.text\)/)
-    assert.match(runs, /<time v-if="tr\.iso"[^>]*:datetime="tr\.iso"[^>]*:title="tr\.iso"/)
+    assert.match(runs, /bodyTimeRuns\(p\.text, bodyTimeAt\)/)
+    assert.match(runs, /<time v-if="tr\.iso"[^>]*:datetime="tr\.dt \|\| tr\.iso"[^>]*:title="tr\.iso"/)
     assert.match(readFileSync(join(SRC, 'components/MarkdownBlock.vue'), 'utf8'), /hasBodyTime\(s\)/)
     const ev = readFileSync(join(SRC, 'pages/events.vue'), 'utf8')
     assert.match(ev, /<time :datetime="utcOf\(r\) \|\| undefined" :title="utcOf\(r\) \|\| undefined"/)
     assert.match(readFileSync(join(SRC, 'app.vue'), 'utf8'), /setTimeZoneSource\(\(\) => String\(session\.claims\?\.time_zone \|\| ''\)\)/)
+  })
+})
+
+// Owner HUM-10, t1 179ef3f9 (msgs aed5827e + 0fca98d5): "Drill 5 has started:
+// sat reboots at about 07:05:30Z" -> "convert each one of those times by the
+// agents to the time zone of the user reading". Format = the owner's answers
+// (msg 4da3a44d): 1c reader clock + zone, then "(UTC as written)"; 2 another
+// day than the post's = "yyyy-mm-dd HH:MM"; 3b x = "about" the middle; 4b no marker.
+import { parseBody } from '../../src/utils/code-blocks.mjs'
+
+describe('short UTC times in a body (07:05:30Z, 10:45Z, 10:4xZ, ranges)', () => {
+  const AT = '2026-10-09T06:50:00Z'
+  const shown = (zone, text, at = AT) => inZone(zone, () => bodyTimeRuns(text, at).map((r) => r.text).join(''))
+  it('the owner\'s line, for a reader in Europe/Helsinki', () => {
+    const line = 'Drill 5 has started: sat reboots at about 07:05:30Z.'
+    assert.equal(shown('Europe/Helsinki', line), 'Drill 5 has started: sat reboots at about 10:05:30 EEST (07:05:30 UTC).')
+    const run = inZone('Europe/Helsinki', () => bodyTimeRuns(line, AT))[1]
+    assert.deepEqual(run, { text: '10:05:30 EEST (07:05:30 UTC)', iso: '07:05:30Z', dt: '2026-10-09T07:05:30.000Z' })
+  })
+  it('each form, a +03:00 reader', () => {
+    const z = 'Europe/Helsinki'
+    assert.equal(shown(z, 'at 10:45Z'), 'at 13:45 EEST (10:45 UTC)')
+    assert.equal(shown(z, 'done 10:4xZ'), 'done about 13:45 EEST (about 10:45 UTC)')
+    assert.equal(shown(z, 'about 10:4xZ'), 'about 13:45 EEST (about 10:45 UTC)')
+    assert.equal(shown(z, 'window 10:15-10:17Z'), 'window 13:15-13:17 EEST (10:15-10:17 UTC)')
+    assert.equal(shown(z, 'from 09:53Z..10:23Z'), 'from 12:53..13:23 EEST (09:53..10:23 UTC)')
+    assert.equal(shown(z, 'ends 10:45Z.'), 'ends 13:45 EEST (10:45 UTC).')
+  })
+  it('a +05:30 reader: whole minutes, x = the middle of its ten minutes', () => {
+    const z = 'Asia/Kolkata'
+    assert.equal(shown(z, '07:05:30Z'), '12:35:30 GMT+5:30 (07:05:30 UTC)')
+    assert.equal(shown(z, '10:45Z'), '16:15 GMT+5:30 (10:45 UTC)')
+    assert.equal(shown(z, '10:4xZ'), 'about 16:15 GMT+5:30 (about 10:45 UTC)')
+  })
+  it('a UTC reader sees the same clock, named', () => {
+    assert.equal(shown('UTC', '10:45Z'), '10:45 UTC (10:45 UTC)')
+  })
+  it('another day than the post\'s for the reader: the full date, yyyy-mm-dd HH:MM', () => {
+    assert.equal(shown('Europe/Helsinki', 'at 23:30Z', '2026-10-09T20:00:00Z'), 'at 2026-10-10 02:30 EEST (23:30 UTC)')
+    assert.equal(shown('America/New_York', 'at 02:00Z', '2026-10-09T05:10:00Z'), 'at 2026-10-08 22:00 EDT (02:00 UTC)')
+    assert.equal(shown('Europe/Helsinki', '20:50-21:10Z', '2026-10-09T20:00:00Z'), '23:50-2026-10-10 00:10 EEST (20:50-21:10 UTC)')
+    /* the post itself is after midnight for the reader: same day, no date */
+    assert.equal(shown('Europe/Helsinki', 'at 22:30Z', '2026-10-09T22:40:00Z'), 'at 01:30 EEST (22:30 UTC)')
+  })
+  it('the day is the post\'s: the UTC day that puts the time nearest to it', () => {
+    const run = inZone('UTC', () => bodyTimeRuns('23:50Z', '2026-10-09T00:10:00Z')[0])
+    assert.equal(run.dt, '2026-10-08T23:50:00.000Z')
+    assert.equal(inZone('UTC', () => bodyTimeRuns('00:05Z', '2026-10-09T23:55:00Z')[0].dt), '2026-10-10T00:05:00.000Z')
+  })
+  it('CONTROL: a bare 10:45, a non-time and an x with seconds stay as written', () => {
+    for (const t of ['bare 10:45', 'v10:45Z', '25:10Z', '10:4x:30Z', 'id ab:45Z']) {
+      assert.deepEqual(inZone('Europe/Helsinki', () => bodyTimeRuns(t, AT)), [{ text: t }], t)
+    }
+    assert.equal(hasBodyTime('bare 10:45'), false)
+    assert.equal(hasBodyTime('at 10:45Z'), true)
+  })
+  it('CONTROL: no message timestamp (the old call) leaves the short forms as written', () => {
+    const t = 'reboots at 07:05:30Z, about 10:4xZ, 10:15-10:17Z'
+    assert.deepEqual(inZone('Europe/Helsinki', () => bodyTimeRuns(t)), [{ text: t }])
+  })
+  it('inside `code` and a code block a short time is untouched', () => {
+    const blocks = parseBody('run `date` at `10:45Z` then 10:45Z\n```\nlog 07:05:30Z\n```')
+    const parts = blocks.flatMap((b) => b.parts || [])
+    assert.ok(parts.some((p) => p.type === 'inline' && p.text === '10:45Z'))
+    assert.equal(blocks.find((b) => b.type === 'code').text.trim(), 'log 07:05:30Z')
+    const runs = readFileSync(join(SRC, 'components/MessageRuns.vue'), 'utf8')
+    assert.match(runs, /<code v-if="p\.type === 'inline'" class="code-inline">\{\{ p\.text \}\}<\/code>/)
+  })
+  it('an ISO time beside a short one: each converted once', () => {
+    assert.equal(shown('Europe/Helsinki', '2026-10-09T07:05Z and 07:05Z'), '2026-10-09 10:05 and 10:05 EEST (07:05 UTC)')
+  })
+  it('MessageCard hands the message timestamp to its body; no marker on the time (4b)', () => {
+    assert.match(readFileSync(join(SRC, 'components/MessageCard.vue'), 'utf8'), /<MessageBody v-else :body="String\(msg\.body \|\| ''\)" :at="msg\.ts \|\| undefined"/)
+    assert.match(readFileSync(join(SRC, 'components/MessageBody.vue'), 'utf8'), /provide\(BODY_TIME_AT, toRef\(props, 'at'\)\)/)
+    assert.doesNotMatch(readFileSync(join(SRC, 'components/MessageRuns.vue'), 'utf8'), /underline dotted/)
   })
 })

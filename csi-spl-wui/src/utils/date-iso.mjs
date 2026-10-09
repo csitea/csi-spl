@@ -91,6 +91,46 @@ function fields(d) {
   return { y: p.year, mo: p.month, da: p.day, h: p.hour % 24, mi: p.minute, s: p.second }
 }
 
+/** Wall-clock fields {y, mo, da, h, mi, s} of value in the viewer's zone, or null. */
+export function isoFields(value) {
+  const d = asDate(value)
+  return d ? fields(d) : null
+}
+
+const abbrCache = new Map()
+function abbrFormatter(locale, zone) {
+  const k = `${locale}|${zone}`
+  if (abbrCache.has(k)) return abbrCache.get(k)
+  let f = null
+  try {
+    f = new Intl.DateTimeFormat(locale, zone ? { timeZone: zone, timeZoneName: "short" } : { timeZoneName: "short" })
+  } catch {
+    f = null
+  }
+  abbrCache.set(k, f)
+  return f
+}
+
+/**
+ * The viewer's zone as a short name at that instant ("EEST", "EDT", "UTC"),
+ * else the offset Intl prints ("GMT+5:30"); "" when Intl cannot say. en-GB
+ * names the European zones, en-US the American ones: the first that is a
+ * name and not a GMT offset wins.
+ */
+export function zoneAbbr(value) {
+  const d = asDate(value)
+  if (!d) return ""
+  const zone = viewerTimeZone() || browserTimeZone()
+  let fallback = ""
+  for (const locale of ["en-GB", "en-US"]) {
+    const f = abbrFormatter(locale, zone)
+    const name = f ? (f.formatToParts(d).find((x) => x.type === "timeZoneName") || {}).value || "" : ""
+    if (name && !/^GMT[+-]/.test(name)) return name
+    fallback = fallback || name
+  }
+  return fallback
+}
+
 /** Calendar day in the viewer's zone, or "" when value is not a time. */
 export function isoDate(value) {
   const d = asDate(value)

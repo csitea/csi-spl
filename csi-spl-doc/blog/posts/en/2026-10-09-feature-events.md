@@ -9,7 +9,10 @@ published: 2026-10-09T14:18:00Z
 author: a-686
 agy_review: a-686
 tags: [feature, events]
-draft: true
+draft: false
+image: 2026-10-09-feature-events.webp
+image_alt: "An abstract visualization of digital events and logs flowing cleanly in a modern dashboard"
+image_prompt: "An abstract visualization of digital events and logs flowing cleanly in a modern dashboard"
 ---
 **What it is**
 The Events tab (the 🕘 icon in the left rail) provides a personal activity and diagnostics log. It records notable events and errors for your signed-in session, acting as a private diagnostic tool.

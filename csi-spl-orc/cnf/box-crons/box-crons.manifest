@@ -17,3 +17,4 @@ box-save-sessions   | * * * * *       | src/bash/features/box-sessions/scripts/s
 box-sessions-boot   | @reboot         | src/bash/features/box-sessions/scripts/sessions-boot.sh | box-sessions/boot.log | ysg-box-orc/src/bash/features/claude-sessions/scripts/claude-sessions-boot.sh,src/bash/scripts/agent-tmux-boot.sh
 graft-index-refresh | */15 8-19 * * * | src/bash/features/graft/scripts/graft-cron.sh           | graft/cron.log        | ysg-box-orc/src/bash/features/graft/scripts/graft-cron.sh
 graft-index-final   | 0 20 * * *      | src/bash/features/graft/scripts/graft-cron.sh           | graft/cron.log        | ysg-box-orc/src/bash/features/graft/scripts/graft-cron.sh
+msg-unreadable      | 17 7 * * *      | src/bash/scripts/msg-unreadable-cron.sh                 | msg-unreadable/cron.log |

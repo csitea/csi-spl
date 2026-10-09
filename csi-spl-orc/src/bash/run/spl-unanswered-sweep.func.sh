@@ -174,7 +174,8 @@ spl_sweep_holder() {
   else echo "$SWEEP_ORCH"; fi
 }
 
-# spl_sweep_send <to> <body file>: one spool note on task unanswered-sweep.
+# spl_sweep_send <to> <body file> [task]: one spool note on task unanswered-sweep
+# (or [task]: do_spl_msg_unreadable sends on msg-unreadable).
 # SWEEP_SEND replaces the sender script in the tests.
 spl_sweep_send() {
   local send="${SWEEP_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}" bin="${SPOOL_BIN:-}"
@@ -184,7 +185,7 @@ spl_sweep_send() {
     [[ -x "$bin" ]] || bin=spool
   fi
   SPOOL_BIN="$bin" SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "$SWEEP_FROM" --to "$1" \
-    --kind note --task unanswered-sweep --body-file "$2" >/dev/null 2>&1 8>&- 9>&- ||
+    --kind note --task "${3:-unanswered-sweep}" --body-file "$2" >/dev/null 2>&1 8>&- 9>&- ||
     { do_log "WARN could not send the sweep note to $1"; return 1; }
   echo "SENT $1: $(head -1 "$2")"
 }

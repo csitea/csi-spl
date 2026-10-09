@@ -30,8 +30,18 @@
 #      BOOT_CRON_ACTION=retire takes the @reboot line out (dry run: nothing)
 #      and leaves <log dir>/retired; a later install (a re-provision) skips,
 #      check passes; control: BOOT_CRON_FORCE=1 installs it again
+#      retire needs a PASSED drill (boot.result back >= 1, failed=0): no
+#      result or a failed one refuses it (control) and drops a stale marker;
+#      a failed result removes the marker on install, the line goes back in;
+#      remove leaves <log dir>/removed
 #   8. an open row with no lifetime dir: the boot pass writes nothing to
 #      stderr (control: the old read, 2>/dev/null after the <, leaks)
+#   9. sat drill 3 (2026-10-09, 0 of 7 back): (a) no tmux server after the
+#      boot -> the pass creates session main at 250x60 and the agents come
+#      back; control: without it every spawn fails, 0 back; (b) a spawn that
+#      fails once (RS-SPAWN FAIL) is retried and back; control: the FAIL not
+#      read -> in flight for good; (c) a drill whose ids are given up writes
+#      boot.result failed and removes the retired marker
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -217,7 +227,7 @@ cp "$PROJ_ROOT/src/bash/scripts/agent-boot-restore-cron.sh" "$SRC/csi-spl-orc/sr
 tag='# csi-spl:agent-boot-restore'
 printf '5 * * * * x # csi-spl:orch-rotate\n@reboot %s/csi-spl-orc/src/bash/scripts/agent-boot-restore-cron.sh >> %s/log/cron.out 2>&1 %s\n' "$SRC" "$T" "$tag" > "$T/crontab"
 cron() {
-  env PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SRC" BOOT_CRON_LOG_DIR="$T/log" \
+  env PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SRC" BOOT_CRON_LOG_DIR="$T/log" BOOT_CRON_RESULT="$T/boot.result" \
       PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" "$@" bash -c '
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
@@ -226,6 +236,14 @@ cron() {
     do_spl_agent_boot_restore_install_cron' 2>&1
 }
 before="$(md5sum < "$T/crontab")"
+rm -f "$T/boot.result"
+out="$(cron BOOT_CRON_ACTION=retire DRY_RUN=0)"; rc=$?
+[[ "$rc" == 1 ]] && grep -qF "$tag" "$T/crontab" && [[ ! -e "$T/log/retired" ]] && grep -q 'did not pass (none)' <<<"$out" && pass "control: no boot result -> retire refused, the line stays" || fail "retire with no result rc=$rc: $out"
+mkdir -p "$T/log"; echo stale > "$T/log/retired"
+echo "$BT back=1 failed=1 c-102" > "$T/boot.result"
+out="$(cron BOOT_CRON_ACTION=retire DRY_RUN=0)"; rc=$?
+[[ "$rc" == 1 ]] && grep -qF "$tag" "$T/crontab" && [[ ! -e "$T/log/retired" ]] && pass "control: a failed drill -> retire refused, the stale marker removed" || fail "retire after a failed drill rc=$rc: $out"
+echo "$BT back=2 failed=0" > "$T/boot.result"
 cron BOOT_CRON_ACTION=retire >/dev/null
 [[ "$(md5sum < "$T/crontab")" == "$before" && ! -e "$T/log/retired" ]] && pass "retire, dry run: nothing touched" || fail "retire dry run touched something"
 out="$(cron BOOT_CRON_ACTION=retire DRY_RUN=0)"; rc=$?
@@ -236,6 +254,13 @@ out="$(cron DRY_RUN=0)"
 cron BOOT_CRON_ACTION=check >/dev/null && pass "check passes while retired and out" || fail "check after retire: $(cron BOOT_CRON_ACTION=check)"
 out="$(cron DRY_RUN=0 BOOT_CRON_FORCE=1)"
 grep -qF "$tag" "$T/crontab" && [[ ! -e "$T/log/retired" ]] && pass "control: BOOT_CRON_FORCE=1 installs it again, marker gone" || fail "force install: $out"
+cron BOOT_CRON_ACTION=retire DRY_RUN=0 >/dev/null
+echo "$(( BT + 9000 )) back=0 failed=2 c-101 c-102" > "$T/boot.result"
+out="$(cron DRY_RUN=0)"
+grep -qF "$tag" "$T/crontab" && [[ ! -e "$T/log/retired" ]] && grep -q 'last reboot drill failed' <<<"$out" && pass "(c) a failed drill after the retire: install removes the marker and puts the line back" || fail "install after a failed drill: $out"
+rm -f "$T/log/removed"
+out="$(cron BOOT_CRON_ACTION=remove DRY_RUN=0)"
+! grep -qF "$tag" "$T/crontab" && grep -q "removed by .*$(id -un) " "$T/log/removed" && pass "remove: the line out, <log dir>/removed says when and who" || fail "remove: $out; $(cat "$T/log/removed" 2>/dev/null)"
 
 # ---- 8. a row with no lifetime dir: a quiet boot pass ---------------------------
 echo "=== 8. an open row with no lifetime dir: the boot pass writes nothing to stderr"
@@ -255,6 +280,63 @@ grep -q 'c-109' "$D/wd.log" && pass "c-109 still judged by the boot pass" || fai
 box "$BT"; row c-109; rm -rf "${S:?}/c-109/lifetime"; verdict c-109 $(( BT - 30 ))
 WD_EXTRA="$(mutant spl_wd_boot_running_box 's#read -r b 2> /dev/null < "$lt/running_box"#read -r b < "$lt/running_box" 2> /dev/null#')" wd_err $(( BT + 300 ))
 grep -q 'running_box: No such file' "$T/err" && pass "red: the old line (2>/dev/null after the <) leaks the error" || fail "control stderr: '$(head -3 "$T/err")'"
+
+# ---- 9. sat drill 3: no tmux server, a failed spawn, the failed drill ----------
+echo "=== 9. no tmux server after the boot; a spawn that fails once; a failed drill"
+# tmux with a server state: has-session fails until new-session ran
+cat > "$T/bin/tmux9" <<EOF
+#!/usr/bin/env bash
+case "\$1" in
+  list-panes) cat "$T/tmux/panes" ;;
+  has-session) [ -f "$T/tmux/server" ] || exit 1 ;;
+  new-session) echo "\$*" > "$T/tmux/server" ;;
+  set-option) echo "\$*" >> "$T/tmux/opts" ;;
+esac
+exit 0
+EOF
+# the restart: no server -> RS-SPAWN FAIL (as spawn-window); failonce.<id> -> one FAIL
+cat > "$T/bin/takeover9" <<EOF
+#!/usr/bin/env bash
+if [ ! -f "$T/tmux/server" ]; then echo "2027-01-15T08:05:00Z r-\$ID RS-SPAWN FAIL spawn printed no pane: spawn-window: no tmux session"; exit 1; fi
+if [ -f "$T/failonce.\$ID" ]; then rm -f "$T/failonce.\$ID"; echo "2027-01-15T08:05:00Z r-\$ID RS-SPAWN FAIL spawn printed no pane"; exit 1; fi
+echo "takeover \$ID cause=\$CAUSE" >> "$T/takeovers"
+EOF
+chmod +x "$T/bin/tmux9" "$T/bin/takeover9"
+wd_env0=("${wd_env[@]}")
+wd_env+=(ROTATE_TMUX="$T/bin/tmux9" WD_TAKEOVER_CMD="$T/bin/takeover9")
+# outs <n>: n restart outputs carry a FAIL line
+outs() { for _ in $(seq 1 40); do (( $(cat "$W"/restart.*.out 2>/dev/null | grep -c 'FAIL') >= $1 )) && break; sleep 0.05; done; sleep 0.3; }
+box9() { box "$BT"; rm -f "$T/tmux/server" "$T/tmux/opts" "$T"/failonce.*; }
+
+box9; wd $(( BT + 60 )); wd $(( BT + 300 )); settle 2
+[[ "$(ids)" == "c-101 c-102" ]] && pass "(a) no tmux server: the pass creates it and restarts c-101 and c-102" || fail "(a) restarted: '$(ids)'; $(grep BOOT "$D/wd.log" | tail -3)"
+grep -q -- '-s main -x 250 -y 60' "$T/tmux/server" 2>/dev/null && grep -q 'default-size 250x60' "$T/tmux/opts" 2>/dev/null && pass "(a) session main at 250x60, default-size 250x60 (not the detached 80x24)" || fail "(a) tmux: $(cat "$T/tmux/server" "$T/tmux/opts" 2>/dev/null)"
+grep -q "session 'main' created" "$D/wd.log" && pass "(a) wd.log names the created session" || fail "(a) log: $(grep BOOT "$D/wd.log" | tail -2)"
+back c-101 7101; back c-102 7102; wd $(( BT + 330 ))
+grep -q 'done: 2 restart\|done: 0 restart(s) started, 0 refused, 2 back' "$D/wd.log" && [[ "$(cut -d' ' -f1-3 "$W/boot.result")" == "$BT back=2 failed=0" ]] && pass "(a) both back: boot.result '$BT back=2 failed=0'" || fail "(a) result: $(cat "$W/boot.result" 2>/dev/null); $(grep BOOT "$D/wd.log" | tail -2)"
+box9; wd $(( BT + 60 ))
+WD_EXTRA='spl_wd_boot_tmux() { return 0; }' wd $(( BT + 300 )); outs 2
+WD_EXTRA='spl_wd_boot_tmux() { return 0; }' wd $(( BT + 330 )); outs 2
+[[ "$(started)" == 0 ]] && pass "(a) control: the old pass (no tmux ensure) -> every spawn fails, 0 back" || fail "(a) control started: $(ids)"
+
+box9; mkdir -p "$S"; touch "$T/failonce.c-101"; wd $(( BT + 60 )); wd $(( BT + 300 )); settle 1; outs 1
+[[ "$(ids)" == "c-102" ]] && pass "(b) try 1: c-101's spawn FAILs, c-102 starts" || fail "(b) try 1: '$(ids)'"
+wd $(( BT + 330 )); settle 2
+[[ "$(ids)" == "c-101 c-102" ]] && grep -q 'BOOT .* c-101 failed (try 1): .*RS-SPAWN FAIL' "$D/wd.log" && grep -q 'c-101: restart started, try 2' "$D/wd.log" && pass "(b) the next tick reads the FAIL and starts c-101 again (try 2, logged)" || fail "(b) retry: '$(ids)'; $(grep 'BOOT.*c-101' "$D/wd.log" | tail -3)"
+box9; touch "$T/failonce.c-101"; wd $(( BT + 60 ))
+M9="$(mutant spl_wd_boot_attempt 's/if \[\[ -n "\$line" \]\]; then/if false; then/')"
+WD_EXTRA="$M9" wd $(( BT + 300 )); settle 1; outs 1
+WD_EXTRA="$M9" wd $(( BT + 330 )); settle 2
+[[ "$(ids)" == "c-102" ]] && grep -q '0 started, 0 refused, 0 queued, 2 in flight' "$D/wd.log" && pass "(b) control: the FAIL not read -> c-101 stays in flight, never retried" || fail "(b) control: '$(ids)'; $(grep 'in flight' "$D/wd.log" | tail -1)"
+
+box9
+mkdir -p "$T/log9"; echo "x retired" > "$T/log9/retired"
+wd_env+=(BOOT_CRON_LOG_DIR="$T/log9")
+wd $(( BT + 60 ))
+for k in 1 2 3 4; do WD_EXTRA='spl_wd_boot_tmux() { return 0; }' wd $(( BT + 270 + 30 * k )); outs "$k"; done
+[[ "$(cat "$W/boot.result" 2>/dev/null)" == "$BT back=0 failed=2 c-101 c-102" ]] && pass "(c) 3 failed tries each: boot.result '$BT back=0 failed=2 c-101 c-102', boot handled" || fail "(c) result: '$(cat "$W/boot.result" 2>/dev/null)'; $(grep BOOT "$D/wd.log" | tail -3)"
+[[ ! -e "$T/log9/retired" ]] && grep -q 'retired marker .* removed' "$D/wd.log" && pass "(c) the failed drill removed the retired marker" || fail "(c) marker: $(ls "$T/log9"); $(grep marker "$D/wd.log")"
+wd_env=("${wd_env0[@]}")
 
 echo
 if (( fails == 0 )); then echo "wd-reboot: all passed"; else echo "wd-reboot: $fails failed"; fi

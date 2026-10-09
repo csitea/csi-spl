@@ -338,12 +338,15 @@ spl_wd_boot_pass() {
 # time; a role seat (001..003) holds rotate.hold, so nothing else starts in
 # its pass, and nothing starts while any rotate.hold stands; a lane only
 # into a free peer/restart.slot.1..RESTART_SLOTS. A started id waits in
-# boot.q/<id> until it runs (back) or its attempt ends: refused (its
-# restart.<id>.out) or not back in WD_BOOT_BACK_WAIT s (1200); then it is
-# started again, WD_BOOT_TRIES (3) times at most. boot.seen once none waits.
+# boot.q/<id> until it runs (back) or its attempt ends: refused or its spawn
+# failed (its restart.<id>.out) or not back in WD_BOOT_BACK_WAIT s (1200);
+# then it is started again, WD_BOOT_TRIES (3) times at most, then reported
+# failed. Before its first start the box user's tmux server and session exist
+# (spl_wd_boot_tmux; sat drill 3, 2026-10-09: no server after the boot, 0 of
+# 7 back). boot.seen once none waits, with boot.result (spl_wd_boot_result).
 spl_wd_boot_queue() {
   local now="$1" tick="$2" bt="$3" at="$4" snap="$5" last="$6" id why st out rc
-  local n=0 ref=0 q=0 fly=0 back=0 lanes stop="" seat=1
+  local n=0 ref=0 q=0 fly=0 back=0 lanes stop="" seat=1 tm="" failed=""
   lanes="$(spl_wd_boot_free_lanes)"
   spl_wd_boot_slot_free 0 || seat=""
   stop="$(spl_wd_boot_hold "$bt" "$at")"
@@ -358,26 +361,78 @@ spl_wd_boot_queue() {
     st="$(spl_wd_boot_attempt "$id" "$bt" "$now" "$at")"
     if [[ "$st" == fly ]]; then fly=$((fly + 1)); continue; fi
     [[ "$st" != refused* ]] || ref=$((ref + 1))
-    if [[ "$st" == *spent ]]; then spl_wd_boot_done "$id" "$bt"; continue; fi
+    if [[ "$st" == *spent ]]; then failed="$failed $id"; spl_wd_boot_done "$id" "$bt"; continue; fi
     if [[ -n "$stop" ]]; then q=$((q + 1)); continue; fi
     if spl_wd_boot_seat "$id"; then [[ -n "$seat" ]] || { q=$((q + 1)); continue; }
     elif (( lanes < 1 )); then q=$((q + 1)); continue; fi
+    [[ -n "$tm" ]] || { spl_wd_boot_tmux "$at" && tm=ok || tm=no; }
+    if [[ "$tm" == no ]]; then q=$((q + 1)); continue; fi
     rc=0; out="$(spl_wd_boot_start "$id" "$bt" "$now" "$at")" || rc=$?
     spl_wd_log "BOOT $at $id: $out"
     case "$rc" in
       0) n=$((n + 1)) ;;
       1) q=$((q + 1)); continue ;;
-      *) ref=$((ref + 1)); spl_wd_boot_done "$id" "$bt"; continue ;;
+      *) ref=$((ref + 1)); failed="$failed $id"; spl_wd_boot_done "$id" "$bt"; continue ;;
     esac
     if spl_wd_boot_seat "$id"; then seat=""; [[ "$id" =~ -00[1-3]$ ]] && stop="its restart of $id holds rotate.hold"
     else lanes=$((lanes - 1)); fi
   done < <(spl_wd_boot_ids | spl_wd_boot_order)
   if (( n + q + fly == 0 )); then
-    spl_wd_boot_seen "$bt" "BOOT $at done: $n restart(s) started, $ref refused, $back back (cause reboot)"
+    spl_wd_boot_result "$bt" "$at" "$back" "$failed"
+    spl_wd_boot_seen "$bt" "BOOT $at done: $n restart(s) started, $ref refused, $back back${failed:+, failed:$failed} (cause reboot)"
   else
     spl_wd_log "BOOT $at: $n started, $ref refused, $q queued${stop:+ ($stop)}, $fly in flight, $back back (cause reboot); retried next tick"
   fi
   return 0
+}
+
+# spl_wd_boot_tmux AT: the box user's tmux server and a session before the
+# first restart of the pass; nothing else creates them after a boot (the old
+# @reboot restore did). Created at WD_BOOT_TMUX_SIZE (250x60) with that
+# default-size: a detached session is 80x24 otherwise and every agent window
+# wraps there. 1: none and none could be made (the pass retries next tick).
+spl_wd_boot_tmux() {
+  local sz="${WD_BOOT_TMUX_SIZE:-250x60}" sess="${WD_BOOT_TMUX_SESSION:-main}" sock
+  spl_wd_tmux has-session 2>/dev/null && return 0
+  [[ "$sz" =~ ^[0-9]+x[0-9]+$ ]] || sz=250x60
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_wd_log "BOOT $1: no tmux server: would create session '$sess' (${sz})"; return 0; fi
+  if [[ -z "${ROTATE_TMUX:-}" ]]; then
+    sock="${SPOOL_TMUX_SOCKET:-}"
+    if [[ -z "$sock" ]]; then :
+    elif [[ "$(id -un)" == "${SPOOL_BOX_USER:-}" ]]; then mkdir -p "${sock%/*}" 2>/dev/null && chmod 700 "${sock%/*}" 2>/dev/null
+    else sudo -n -u "$SPOOL_BOX_USER" sh -c 'mkdir -p "$1" && chmod 700 "$1"' _ "${sock%/*}" 2>/dev/null; fi
+  fi
+  if spl_wd_tmux new-session -d -s "$sess" -x "${sz%x*}" -y "${sz#*x}" 2>/dev/null && spl_wd_tmux has-session -t "=$sess" 2>/dev/null; then
+    spl_wd_tmux set-option -g default-size "$sz" 2>/dev/null || true
+    spl_wd_log "BOOT $1: no tmux server after the boot: session '$sess' created (${sz})"; return 0
+  fi
+  spl_wd_log "BOOT $1: no tmux server, and session '$sess' could not be created: nothing started; retried next tick"
+  return 1
+}
+
+# spl_wd_boot_result BT AT BACK FAILED: <WD_DIR>/boot.result, "<bt> back=<n>
+# failed=<n>[ <ids>]", the drill's verdict (do_spl_agent_boot_restore_install_cron
+# BOOT_CRON_ACTION=retire needs one with back >= 1 and failed=0). A boot with a
+# failed id removes the boot restore's retired marker (spl_wd_boot_retired):
+# the fallback line may be installed again (sat drill 3, 2026-10-09).
+spl_wd_boot_result() {
+  local -a fl; read -ra fl <<<"$4"
+  local r="$1 back=$3 failed=${#fl[@]}${4}" m
+  [[ "${DRY_RUN:-1}" == 1 ]] && return 0
+  echo "$r" > "$WD_DIR/boot.result"
+  (( ${#fl[@]} > 0 )) || return 0
+  m="$(spl_wd_boot_retired)"
+  [[ -e "$m" ]] || return 0
+  if rm -f "$m" 2>/dev/null; then spl_wd_log "BOOT $2: ${#fl[@]} failed: the retired marker $m removed (the boot restore may be installed again)"
+  else spl_wd_log "BOOT $2: ${#fl[@]} failed, and the retired marker $m could not be removed"; fi
+}
+
+# The boot restore's retired marker: <BOOT_CRON_LOG_DIR>/retired, by default
+# /var/<org>/<org>-<app>/agent-boot-restore/retired (as the install-cron action).
+spl_wd_boot_retired() {
+  local oa="${SPL_ORG_APP:-$(basename "${PROJ_PATH:-x-orc}")}"
+  oa="${oa%-orc}"
+  echo "${BOOT_CRON_LOG_DIR:-/var/${oa%%-*}/$oa/agent-boot-restore}/retired"
 }
 
 # Seats first (their order), then the lanes.
@@ -423,22 +478,28 @@ spl_wd_boot_hold() {
 
 # spl_wd_boot_attempt ID BT NOW AT: the state of <id>'s last start of this
 # boot (boot.q/<id> = "<bt> <started> <tries> <out offset>"): new (none),
-# fly (running), refused / late (ended, not back: start it again), with
-# " spent" when WD_BOOT_TRIES are used (given up).
+# fly (running), refused / failed (its restart.<id>.out: a REFUSED line, or a
+# RS-SPAWN / DONE FAIL line) / late (not back in WD_BOOT_BACK_WAIT): start it
+# again, with " spent" when WD_BOOT_TRIES are used (given up). A failed spawn
+# is never in flight (sat drill 3: 7 "in flight" for good after a FAIL).
 spl_wd_boot_attempt() {
   local id="$1" bt="$2" now="$3" at="$4" f="$WD_DIR/boot.q/$1" b t k o out line sz st=late
   read -r b t k o 2>/dev/null < "$f" || true
   [[ "$b" == "$bt" && "$t" =~ ^[0-9]+$ && "$k" =~ ^[0-9]+$ && "$o" =~ ^[0-9]+$ ]] || { echo new; return 0; }
   out="$WD_DIR/restart.$id.out"
   sz="$(stat -c %s "$out" 2>/dev/null || echo 0)"
-  line="$(tail -c +$(( o + 1 )) "$out" 2>/dev/null | grep -m1 "^REFUSED $id:" || true)"
-  if [[ -n "$line" ]]; then
+  line="$(tail -c +$(( o + 1 )) "$out" 2>/dev/null | grep -m1 -E "^REFUSED $id:| (RS-SPAWN|DONE) FAIL " || true)"
+  if [[ "$line" == "REFUSED $id:"* ]]; then
     st=refused
     echo "$bt $t $k $sz" > "$f"
     spl_wd_log "BOOT $at $id refused (try $k): ${line#REFUSED "$id": }"
+  elif [[ -n "$line" ]]; then
+    st=failed
+    echo "$bt $t $k $sz" > "$f"
+    spl_wd_log "BOOT $at $id failed (try $k): ${line:0:300}"
   elif (( now - t < ${WD_BOOT_BACK_WAIT:-1200} )); then echo fly; return 0
   else spl_wd_log "BOOT $at $id not back $(( now - t ))s after try $k"; fi
-  if (( k >= ${WD_BOOT_TRIES:-3} )); then spl_wd_log "BOOT $at $id given up: not back after $k tries"; st="$st spent"; fi
+  if (( k >= ${WD_BOOT_TRIES:-3} )); then spl_wd_log "BOOT $at $id given up: not back after $k tries (failed)"; st="$st spent"; fi
   echo "$st"
 }
 

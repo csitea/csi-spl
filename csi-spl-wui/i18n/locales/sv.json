@@ -2166,7 +2166,8 @@
     "error_location_long": "Platsen är högst 300 tecken.",
     "error_reminders_many": "En händelse har högst 5 påminnelser.",
     "duplicate": "Duplicera",
-    "edit": "Redigera"
+    "edit": "Redigera",
+    "synced_link": "Ändra det i repot"
   },
   "calendar_phone_week": {
     "strip": "Veckans dagar",

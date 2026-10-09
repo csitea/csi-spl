@@ -2166,7 +2166,8 @@
     "error_location_long": "Miejsce ma najwyżej 300 znaków.",
     "error_reminders_many": "Wydarzenie ma najwyżej 5 przypomnień.",
     "duplicate": "Duplikuj",
-    "edit": "Edytuj"
+    "edit": "Edytuj",
+    "synced_link": "Zmień to w repozytorium"
   },
   "calendar_phone_week": {
     "strip": "Dni tygodnia",

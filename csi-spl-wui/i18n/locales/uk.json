@@ -2166,7 +2166,8 @@
     "error_location_long": "Місце не довше 300 символів.",
     "error_reminders_many": "У події не більше 5 нагадувань.",
     "duplicate": "Дублювати",
-    "edit": "Редагувати"
+    "edit": "Редагувати",
+    "synced_link": "Змініть це в репозиторії"
   },
   "calendar_phone_week": {
     "strip": "Дні тижня",

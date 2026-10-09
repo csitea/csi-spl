@@ -2166,7 +2166,8 @@
     "error_location_long": "Asukohas on kuni 300 märki.",
     "error_reminders_many": "Sündmusel on kuni 5 meeldetuletust.",
     "duplicate": "Paljunda",
-    "edit": "Muuda"
+    "edit": "Muuda",
+    "synced_link": "Muuda seda repositooriumis"
   },
   "calendar_phone_week": {
     "strip": "Nädala päevad",

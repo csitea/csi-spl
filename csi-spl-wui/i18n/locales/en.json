@@ -2166,7 +2166,8 @@
     "error_location_long": "The location is at most 300 characters.",
     "error_reminders_many": "An event has at most 5 reminders.",
     "duplicate": "Duplicate",
-    "edit": "Edit"
+    "edit": "Edit",
+    "synced_link": "Change it in the repo"
   },
   "calendar_phone_week": {
     "strip": "Days of the week",

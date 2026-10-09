@@ -2166,7 +2166,8 @@
     "error_location_long": "De locatie is hoogstens 300 tekens.",
     "error_reminders_many": "Een evenement heeft hoogstens 5 herinneringen.",
     "duplicate": "Dupliceren",
-    "edit": "Bewerken"
+    "edit": "Bewerken",
+    "synced_link": "Wijzig het in de repository"
   },
   "calendar_phone_week": {
     "strip": "Dagen van de week",

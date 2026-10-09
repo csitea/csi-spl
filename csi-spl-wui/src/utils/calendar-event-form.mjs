@@ -52,9 +52,32 @@ export const CAL_REMINDER_UNITS = { minutes: 40320, hours: 672, days: 28 }
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 const pad = (n) => String(n).padStart(2, '0')
 
-/** Only a stored event (source `event`) is edited here: an issue deadline and an official day are not. */
-export function calEditable(ev) {
+/** A stored event (source `event`): it opens its pop-over; an issue deadline and an official day do not. */
+export function calStored(ev) {
   return Boolean(ev && ev.id && (ev.source || 'event') === 'event')
+}
+
+/**
+ * specs/112 WUI-2 (4.1, 4.4): an event the roadmap sync wrote carries its
+ * `source_key` (goal:, spec:, release:, db:); it is changed in the repo, and
+ * the hub answers a PATCH or DELETE of it 409 `synced_read_only`.
+ */
+export function calSynced(ev) {
+  return Boolean(ev && ev.source_key)
+}
+
+/** Only a member's stored event is edited here: not a synced one, an issue deadline or an official day. */
+export function calEditable(ev) {
+  return calStored(ev) && !calSynced(ev)
+}
+
+/**
+ * A synced event's roadmap link, `props.roadmap_url` as the sync wrote it
+ * (never built here), or '' unless it is a path of this site.
+ */
+export function calRoadmapHref(ev) {
+  const href = String((ev && ev.roadmap_url) || '')
+  return href.startsWith('/') && !href.startsWith('//') ? href : ''
 }
 
 /**

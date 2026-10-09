@@ -23,6 +23,8 @@ declare module '~/utils/calendar-mock.mjs' {
     release_version: string, issue_key: string, created_at: string, updated_at: string,
     /** 097 4.1; absent on an 089 hub */
     time_zone?: string, location?: string, color?: string, reminders?: { amount: number, unit: string, method?: string }[],
+    /** specs/112 HUB-1: a synced event's key ('' or absent = a member's event) and its roadmap link */
+    source_key?: string, roadmap_url?: string,
   }
   export function mockCalendarItems(todayIso: string): CalendarItem[]
   export function mockCalendarCreate(body?: { title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[] }): CalendarItem
@@ -63,7 +65,10 @@ declare module '~/utils/calendar-event-form.mjs' {
   export function calReminderAmount(raw: unknown): string
   export function calReminderError(row: CalReminderRow): string
   export function calNewReminder(rows: CalReminderRow[]): CalReminderRow | null
+  export function calStored(ev: Item | null | undefined): boolean
+  export function calSynced(ev: Item | null | undefined): boolean
   export function calEditable(ev: Item | null | undefined): boolean
+  export function calRoadmapHref(ev: Item | null | undefined): string
   export function calAudienceSwitched<F extends { private: boolean, public: boolean }>(form: F, which: 'private' | 'public'): F
   export const CAL_PUBLIC_WIRE: string
   export function calIsPublic(ev: { audience?: string } | null | undefined): boolean

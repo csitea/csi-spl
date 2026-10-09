@@ -14,7 +14,11 @@
      PATCH with If-Match; edit_conflict takes the other change and says so.
      097 T017 (G13, spec 4.8 / 5.1.4): a delete shows "Event deleted · Undo"
      for 10 s (the shared UndoSnackbar); Undo restores it with the same id. The calendar menu (the ... button)
-     opens the trash: CalendarTrash, its own lazy chunk. -->
+     opens the trash: CalendarTrash, its own lazy chunk.
+     specs/112 WUI-2 (4.1, 4.4): an event with a `source_key` (the roadmap
+     sync's) is read-only here - no drag, no resize, a pop-over with no Edit
+     and a "change it in the repo" link - and /calendar?d=<iso>&event=<id>
+     (a roadmap row) opens its pop-over. -->
 <template>
   <section
     class="cal-main"
@@ -181,7 +185,7 @@ import { isoClock } from '~/utils/date-iso.mjs'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
-import { CAL_COLORS, calEditable } from '~/utils/calendar-event-form.mjs'
+import { CAL_COLORS, calEditable, calStored, calSynced } from '~/utils/calendar-event-form.mjs'
 import { calendarRestore, calendarUpdate } from '~/utils/calendar-events-api.mjs'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
@@ -349,7 +353,7 @@ function openEdit(ev: CalendarItem) {
   dialogOpen.value = true
 }
 function openPeek(ev: CalendarItem) {
-  if (!calEditable(ev)) return
+  if (!calStored(ev)) return
   peekEvent.value = ev
   peekOpen.value = true
 }
@@ -431,7 +435,8 @@ watch([items, () => route.query.event], () => {
   const ev = items.value.find((x) => x.id === id)
   if (!ev) return
   askedEvent = id
-  openEdit(ev)
+  if (calSynced(ev)) openPeek(ev)
+  else openEdit(ev)
 })
 
 /* ---- 097 T013: drag ---------------------------------------------------- */
@@ -463,10 +468,12 @@ const dragClick = (e: Event) => e.timeStamp - upStamp < 100
 
 function itemAttrs(ev: CalendarItem) {
   const edit = calEditable(ev)
+  const peek = calStored(ev)
   return {
     class: ['cal-week__item', {
       'cal-ev': !ev.all_day,
       'cal-week__item--edit': edit,
+      'cal-week__item--synced': calSynced(ev),
       'cal-week__item--lifted': lifted.value === ev.id,
       'cal-week__item--left': preview.value?.id === ev.id,
             'cal-week__item--saving': saving.value === ev.id,
@@ -476,11 +483,12 @@ function itemAttrs(ev: CalendarItem) {
     'data-source': ev.source,
     'data-kind': ev.kind,
     'data-audience': ev.audience,
+    'data-synced': calSynced(ev) ? 'true' : undefined,
     'data-starts': ev.starts_at,
     'data-ends': ev.ends_at,
     'data-color': ev.color || undefined,
-    role: edit ? 'button' : undefined,
-    tabindex: edit ? 0 : undefined,
+    role: peek ? 'button' : undefined,
+    tabindex: peek ? 0 : undefined,
     /* 097 T014 (G8): the event's colour, one of the palette's theme variables */
     style: ev.color && CAL_COLORS.includes(ev.color) ? { '--cal-ev-color': `var(--cal-color-${ev.color})` } : undefined,
   }
@@ -716,6 +724,8 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 .cal-week__item--edit { cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .cal-week__item--edit:hover { background: var(--color-bg-2); }
 .cal-week__item--edit:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.cal-week__item--synced { cursor: pointer; }
+.cal-week__item--synced:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .cal-main__new { display: inline-flex; align-items: center; gap: 4px; }
 .cal-week__time { color: var(--color-muted); }
 .cal-week__badge { font-size: 0.6875rem; padding: 0 4px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }

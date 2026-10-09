@@ -29,7 +29,7 @@ import assert from 'node:assert/strict'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import {
   CAL_COLORS, CAL_PUBLIC_WIRE, calAudienceSwitched, calCanSetPrivate, calEditable, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calIsPublic, calNewReminder,
-  calReminderAmount, calReminderError, calWallToUtc,
+  calReminderAmount, calReminderError, calRoadmapHref, calStored, calSynced, calWallToUtc,
 } from '../../src/utils/calendar-event-form.mjs'
 import { mockCalendarCreate, mockCalendarDelete, mockCalendarEvents, mockCalendarUpdate, mockWebCalendarEvents } from '../../src/utils/calendar-mock.mjs'
 
@@ -265,6 +265,22 @@ describe('who sees the switch, what opens', () => {
     assert.equal(calEditable(ev({ source: 'official_day' })), false)
     assert.equal(calEditable(null), false)
   })
+  it('specs/112 WUI-2: a synced event (source_key) opens its pop-over but is not edited', () => {
+    const synced = ev({ source_key: 'goal:G01:deadline', roadmap_url: '/roadmap?ws=demo&goal=G01#spec-112' })
+    assert.equal(calSynced(synced), true)
+    assert.equal(calStored(synced), true)
+    assert.equal(calEditable(synced), false, 'control: a synced event that is editable turns this red')
+    assert.equal(calSynced(ev({ source_key: '' })), false)
+    assert.equal(calEditable(ev({ source_key: '' })), true)
+    assert.equal(calStored(ev({ source: 'issue' })), false)
+  })
+  it('specs/112 WUI-2: the roadmap link is roadmap_url as given, a path of this site only', () => {
+    assert.equal(calRoadmapHref(ev({ roadmap_url: '/roadmap?ws=demo&goal=G01#spec-112' })), '/roadmap?ws=demo&goal=G01#spec-112')
+    assert.equal(calRoadmapHref(ev({ roadmap_url: 'https://example.com/roadmap' })), '')
+    assert.equal(calRoadmapHref(ev({ roadmap_url: '//example.com/roadmap' })), '')
+    assert.equal(calRoadmapHref(ev()), '')
+    assert.equal(calRoadmapHref(null), '')
+  })
   it('a moved start keeps an hour, capped at 23:59', () => {
     assert.equal(calHourAfter('09:15'), '10:15')
     assert.equal(calHourAfter('23:30'), '23:59')
@@ -316,5 +332,13 @@ describe('mock workspace writes', () => {
     mockCalendarDelete(release.id, today)
     assert.equal(week().some((x) => x.id === release.id), false)
     assert.throws(() => mockCalendarDelete('SPL-12', today), (e) => e.status === 404)
+  })
+  it('specs/112 HUB-1: a synced event is refused 409 synced_read_only, as the hub does', () => {
+    const at = '2026-10-07T13:00:00Z'
+    store.set('spool.mock.calendar-added', JSON.stringify([ev({ id: 's1', starts_at: at, ends_at: at, source_key: 'goal:G01:deadline' })]))
+    const refused = (e) => e.status === 409 && e.token === 'synced_read_only'
+    assert.throws(() => mockCalendarUpdate('s1', { title: 'x' }, today), refused)
+    assert.throws(() => mockCalendarDelete('s1', today), refused)
+    assert.equal(week().find((x) => x.id === 's1').title, 'Standup')
   })
 })

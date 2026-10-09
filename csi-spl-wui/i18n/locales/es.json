@@ -2166,7 +2166,8 @@
     "error_location_long": "La ubicación tiene como máximo 300 caracteres.",
     "error_reminders_many": "Un evento tiene como máximo 5 recordatorios.",
     "duplicate": "Duplicar",
-    "edit": "Editar"
+    "edit": "Editar",
+    "synced_link": "Cámbialo en el repositorio"
   },
   "calendar_phone_week": {
     "strip": "Días de la semana",

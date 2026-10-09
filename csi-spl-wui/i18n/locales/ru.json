@@ -2166,7 +2166,8 @@
     "error_location_long": "Место не длиннее 300 символов.",
     "error_reminders_many": "У события не больше 5 напоминаний.",
     "duplicate": "Дублировать",
-    "edit": "Изменить"
+    "edit": "Изменить",
+    "synced_link": "Измените это в репозитории"
   },
   "calendar_phone_week": {
     "strip": "Дни недели",

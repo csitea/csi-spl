@@ -2166,7 +2166,8 @@
     "error_location_long": "Miesto má najviac 300 znakov.",
     "error_reminders_many": "Udalosť má najviac 5 pripomienok.",
     "duplicate": "Duplikovať",
-    "edit": "Upraviť"
+    "edit": "Upraviť",
+    "synced_link": "Zmeňte to v repozitári"
   },
   "calendar_phone_week": {
     "strip": "Dni v týždni",

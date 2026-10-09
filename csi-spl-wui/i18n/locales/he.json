@@ -2166,7 +2166,8 @@
     "error_location_long": "המיקום הוא לכל היותר 300 תווים.",
     "error_reminders_many": "לאירוע יש לכל היותר 5 תזכורות.",
     "duplicate": "שכפול",
-    "edit": "עריכה"
+    "edit": "עריכה",
+    "synced_link": "שנו אותו במאגר"
   },
   "calendar_phone_week": {
     "strip": "ימי השבוע",

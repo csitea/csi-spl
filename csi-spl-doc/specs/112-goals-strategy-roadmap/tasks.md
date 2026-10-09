@@ -106,12 +106,13 @@ events) meant `workspace`; 12.5 supersedes it.
   - Done: `/roadmap?ws=<slug>&when=week|month&goal=G01` (the filter in the URL, 12.6); the workspace list holds only the workspaces the viewer is a member of, plus the host workspace's roadmap when it is `public` (read signed-out via the public calendar read); goal rows and the goal page (countdown, approval state, done-lines, share-done, mean pct, 6) read the `goal:<id>:` events of that workspace (`?source_key=goal:G01:`, HUB-1) joined with the spec rows of `roadmap.json`. Test: e2e on the mock, signed in as a member of A only and signed out, at desktop and <= 820 px. Controls: a fixture workspace B the viewer is not in never appears in the filter; signed out, an `internal` roadmap shows no goal row.
   - Vendor: claude. Box: one with Chrome for local e2e, else CI.
 
-- [ ] **WUI-2**: Synced events read-only in the calendar (spec 4.1, 4.4).
+- [x] **WUI-2**: Synced events read-only in the calendar (spec 4.1, 4.4).
   - Depends: HUB-1.
   - Owns: the synced-event branch in `csi-spl-wui/src/components/CalendarMainView.vue` and its event dialog; links to `/roadmap?goal=…#spec-…` from `props.roadmap_url`.
   - Done: an event with `source_key` shows no edit button and no drag, and a "change it in the repo" link; the roadmap row opens `/calendar?d=<iso>&event=<id>`. Test: e2e on the mock. Control: a synced event in the fixture with the edit button visible turns the test red.
   - Vendor: claude. Box: one with Chrome for local e2e, else CI.
   - Spec 12: scope unchanged. The roadmap link is `props.roadmap_url` as ORC-2 writes it (now with `ws=<slug>`); WUI-2 follows it, never builds it.
+  - Built (c-669): `calSynced` / `calStored` / `calRoadmapHref` in `csi-spl-wui/src/utils/calendar-event-form.mjs`; `calEditable` is false for an event with `source_key`, so the week grid gives it no drag and no resize, and `CalendarEventPopover` drops Edit and shows `calendar_event.synced_link` linking `roadmap_url` as given (a site path only). `/calendar?d=<iso>&event=<id>` opens a synced event's pop-over, a member's event its dialog. The mock refuses PATCH/DELETE of a synced event 409 `synced_read_only`, like the hub. e2e `tests/e2e/calendar-synced.test.mjs` 13/13 on the mock bundle; control: Edit left visible on a synced event -> 2 FAIL.
 
 - [ ] **I18N-1**: `roadmap.*` and `goal.*` strings in all 19 locales (spec 9).
   - Depends: WUI-1 and WUI-3 strings frozen.

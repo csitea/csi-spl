@@ -2166,7 +2166,8 @@
     "error_location_long": "Местото има најмногу 300 знаци.",
     "error_reminders_many": "Настанот има најмногу 5 потсетници.",
     "duplicate": "Удвои",
-    "edit": "Уреди"
+    "edit": "Уреди",
+    "synced_link": "Промени го во репозиториумот"
   },
   "calendar_phone_week": {
     "strip": "Денови од неделата",

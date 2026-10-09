@@ -2166,7 +2166,8 @@
     "error_location_long": "Paikassa on enintään 300 merkkiä.",
     "error_reminders_many": "Tapahtumalla on enintään 5 muistutusta.",
     "duplicate": "Monista",
-    "edit": "Muokkaa"
+    "edit": "Muokkaa",
+    "synced_link": "Muuta sitä repositoriossa"
   },
   "calendar_phone_week": {
     "strip": "Viikon päivät",

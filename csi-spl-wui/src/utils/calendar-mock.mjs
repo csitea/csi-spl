@@ -105,6 +105,8 @@ function mockKeep(added, hidden) {
 function mockFind(id, todayIso) {
   const ev = mockCalendarItems(todayIso).find((x) => x.id === id && x.source === 'event')
   if (!ev) throw Object.assign(new Error('calendar event 404'), { status: 404 })
+  /* specs/112 HUB-1: a synced event is changed in the repo, never here */
+  if (ev.source_key) throw Object.assign(new Error('calendar event 409'), { status: 409, token: 'synced_read_only' })
   return ev
 }
 

@@ -2166,7 +2166,8 @@
     "error_location_long": "Vietoje yra ne daugiau kaip 300 simbolių.",
     "error_reminders_many": "Įvykis turi ne daugiau kaip 5 priminimus.",
     "duplicate": "Dubliuoti",
-    "edit": "Redaguoti"
+    "edit": "Redaguoti",
+    "synced_link": "Pakeiskite tai repozitorijoje"
   },
   "calendar_phone_week": {
     "strip": "Savaitės dienos",

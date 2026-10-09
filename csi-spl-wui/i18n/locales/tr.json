@@ -2166,7 +2166,8 @@
     "error_location_long": "Konum en fazla 300 karakterdir.",
     "error_reminders_many": "Bir etkinliğin en fazla 5 hatırlatıcısı olur.",
     "duplicate": "Çoğalt",
-    "edit": "Düzenle"
+    "edit": "Düzenle",
+    "synced_link": "Depoda değiştirin"
   },
   "calendar_phone_week": {
     "strip": "Haftanın günleri",

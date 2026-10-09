@@ -2166,7 +2166,8 @@
     "error_location_long": "Vietā ir ne vairāk kā 300 rakstzīmju.",
     "error_reminders_many": "Notikumam ir ne vairāk kā 5 atgādinājumi.",
     "duplicate": "Dublēt",
-    "edit": "Rediģēt"
+    "edit": "Rediģēt",
+    "synced_link": "Mainiet to repozitorijā"
   },
   "calendar_phone_week": {
     "strip": "Nedēļas dienas",

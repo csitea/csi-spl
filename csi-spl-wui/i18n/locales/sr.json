@@ -2166,7 +2166,8 @@
     "error_location_long": "Место има највише 300 знакова.",
     "error_reminders_many": "Догађај има највише 5 подсетника.",
     "duplicate": "Удвостручи",
-    "edit": "Измени"
+    "edit": "Измени",
+    "synced_link": "Измени га у репозиторијуму"
   },
   "calendar_phone_week": {
     "strip": "Дани у недељи",

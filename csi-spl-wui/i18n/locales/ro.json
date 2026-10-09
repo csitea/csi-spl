@@ -2166,7 +2166,8 @@
     "error_location_long": "Locația are cel mult 300 de caractere.",
     "error_reminders_many": "Un eveniment are cel mult 5 mementouri.",
     "duplicate": "Duplică",
-    "edit": "Editează"
+    "edit": "Editează",
+    "synced_link": "Modifică-l în depozit"
   },
   "calendar_phone_week": {
     "strip": "Zilele săptămânii",

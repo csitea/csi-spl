@@ -6,7 +6,7 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
 
 ## 1. Configuration
 
-- [ ] **CNF-1**: Per-kind weights and backup in `csi-spl-cnf/csi-spl/all.env.yaml`.
+- [x] **CNF-1**: Per-kind weights and backup in `csi-spl-cnf/csi-spl/all.env.yaml`.
   - Depends: none.
   - Owns: `csi-spl-cnf/csi-spl/all.env.yaml` (`env.box.agent_split_by_kind`).
   - Done: the table of section 2 is written under `agent_split_by_kind`; the validator and `tpl-gen` are updated for the new keys; `do_check_dist_hygiene` prints nothing for `csi-spl-cnf/`. Control: a row that does not sum to 100 or a tied main turns the validator red.

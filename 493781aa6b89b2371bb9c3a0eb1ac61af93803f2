@@ -1,0 +1,6 @@
+Lay-What: A goal's deadline on the calendar can now carry the goal's list of specs and its definition of done.
+Lay-How: The server now accepts these two lists when the roadmap is synced, checks them and stores them with the deadline.
+Lay-Why: Until now the server refused any sync that included them, so goal deadlines could not show what done means.
+Tech-What: PUT /v1/calendar/sync takes top-level specs and done_lines ([]string) on an event and stores them in props.
+Tech-How: calendarSyncEventIn gains both fields; syncEvent checks them (3-digit ids, non-empty lines, <=100x500) and copies them into props like roadmap_url.
+Tech-Why: The decoder disallows unknown fields, so the ORC-2 batch carrying them was 400 bad_json.

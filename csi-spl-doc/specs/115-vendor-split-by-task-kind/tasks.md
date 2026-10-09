@@ -30,13 +30,13 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
 
 - [ ] **ORC-3**: Watchdog and lane restart write F2.
   - Depends: ORC-2.
-  - Owns: `csi-spl-orc/src/bash/features/spawn-agents/scripts/do_spl_lane_restart` and the watchdog in `spawn-window.sh`.
+  - Owns: `csi-spl-orc/src/bash/run/spl-lane-restart.func.sh` and `csi-spl-orc/src/bash/run/spl-watchdog.func.sh`.
   - Done: the watchdog writes `fail:F2` when the lane is held out; `do_spl_lane_restart` writes `fail:F2` when it refuses at the split count. Test: a fixture lane held out at 3 restarts writes `fail:F2`; a split refusal does the same. Control: a missing `source` field turns the test red.
   - Vendor: mistral (main: `simple_coding`). Box: any.
 
 - [ ] **ORC-4**: `/exit-clean` writes F3.
   - Depends: ORC-2.
-  - Owns: `/opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/exit-clean.sh`.
+  - Owns: `csi-spl-orc/src/bash/features/spawn-agents/scripts/tmux-close-window.sh`.
   - Done: `/exit-clean` checks F3 (CI on the lane's last landed sha, `git-fetch-fresh.sh --landed`) and writes `fail:F3` or `ok`. Test: a fixture lane with a red CI job it caused writes `fail:F3`; a green lane writes `ok`. Control: a missing `source` field turns the test red.
   - Vendor: mistral (main: `simple_coding`). Box: any.
 
@@ -58,7 +58,7 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
 
 - [ ] **DOC-1**: Update the global CLAUDE.md "Spawn an agent" section and `/spawn-an-agent`.
   - Depends: none.
-  - Owns: `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/20-spawn-an-agent.md` and `/opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-an-agent`.
+  - Owns: `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/20-spawn-an-agent.md` and `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/spawn-an-agent.md`.
   - Done: the section and the launcher say per-kind main and backup; `do_check_fleet_rules_drift` pins the per-kind main. Test: the launcher prints the per-kind table; the drift check fails when a main is changed. Control: a missing per-kind main turns the drift check red.
   - Vendor: mistral (main: `simple_coding`). Box: any.
 

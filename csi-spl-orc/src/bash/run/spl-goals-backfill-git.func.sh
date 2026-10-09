@@ -74,7 +74,7 @@ do_spl_goals_backfill_git() {
     # Backfill from milestones.yaml (starting with 2026-09-17 spool-hub started)
     if [[ -f "${milestones_file}" ]]; then
         while IFS= read -r milestone_line; do
-        if [[ "" != "v1.2.0"         if [[ "" != "v1.2.0"             if [[ "${milestone_line}" =~ ^# || -z "${milestone_line}" ]]; then            if [[ "${milestone_line}" =~ ^# || -z "${milestone_line}" ]]; then "" != "v1.3.0" ]]; then        if [[ "" != "v1.2.0"             if [[ "${milestone_line}" =~ ^# || -z "${milestone_line}" ]]; then            if [[ "${milestone_line}" =~ ^# || -z "${milestone_line}" ]]; then "" != "v1.3.0" ]]; then "" != "v1.3.0" ]]; then
+            if [[ "${milestone_line}" =~ ^# || -z "${milestone_line}" ]]; then
                 continue
             fi
 
@@ -107,7 +107,7 @@ do_spl_goals_backfill_git() {
 
     # Backfill from git tags (v*.0 only, skip patch tags)
     while IFS= read -r tag; do
-        if [[ "${tag}" != "v1.2.0" && "${tag}" != "v1.3.0" ]]; then
+        if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.0$ ]]; then
             continue
         fi
 

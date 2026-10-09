@@ -54,6 +54,9 @@
 #      loads AGENTS.md, never CLAUDE.md: spec 110), and the lane rule into
 #      agy's ~/.gemini/config/rules and qwen's ~/.qwen/QWEN.md. Without it your own
 #      Claude Code and vibe setup is left as it is
+#   6b. only with --fleet, and only as the agent user (SPOOL_AGENT_USER, else
+#      the box config's): `pkill` and `killall` guards in <prefix>/bin that
+#      refuse `pkill -f` and every `killall` (steps/y11-kill-guard.sh)
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
@@ -864,6 +867,7 @@ fi
 source "$_here/steps/y4-claude-config.sh" && spool_install_claude_config || die 6 "cannot render the fleet CLAUDE.md / settings.json (spec 069 Y4)"
 source "$_here/steps/y8-vibe-agents.sh" && spool_install_vibe_agents || die 6 "cannot render the fleet ~/.vibe/AGENTS.md (spec 110)"
 source "$_here/steps/y9-vendor-lane-rule.sh" && spool_install_vendor_lane_rule || die 6 "cannot render the lane rule into the agy / qwen rules files"
+. "$_here/steps/y11-kill-guard.sh" && spool_install_kill_guard "$BIN" "$DRY" "$FLEET" || die 7 "kill-guard: cannot install pkill / killall into $BIN"
 [ "$SKILLS" = 1 ] && { . "$_here/steps/y6-graft.sh" && y6_graft_install "$ORC" "$BIN" "$DRY" || die 6 "the graft step (spec 069 Y6) failed"; }
 
 # ── 6. the seat ───────────────────────────────────────────────────────────────

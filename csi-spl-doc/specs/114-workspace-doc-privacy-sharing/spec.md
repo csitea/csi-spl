@@ -70,8 +70,8 @@ BENCH_N="6 100" BENCH_REPS=5 bash csi-spl-doc/specs/114-workspace-doc-privacy-sh
 ```
 
 Raw output of the v0.2 run: [bench/raw-2026-10-09-v02.txt](bench/raw-2026-10-09-v02.txt)
-(`uptime` before and after it: load average 14.26 at 20:55:55Z, 12.73 at
-20:58:20Z; 16 CPUs). The v0.1 run (load 4.90) stays as
+(`uptime` before and after it: load average 14.26 at 17:55:55Z, 12.73 at
+17:58:20Z, the box clock reads UTC+3; 16 CPUs). The v0.1 run (load 4.90) stays as
 [bench/raw-2026-10-09.txt](bench/raw-2026-10-09.txt), and c-715 re-ran v0.1
 at load 7.61; every ranking below reproduced in all three runs, and the
 relation, byte and connection counts match exactly. n = 5 per timed migration

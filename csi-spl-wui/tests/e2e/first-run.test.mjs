@@ -62,12 +62,53 @@ try {
   const card = await p.waitForSelector('[data-test=first-run]', { visible: true, timeout: 10000 }).catch(() => null)
   ok('the checklist appears', Boolean(card))
   if (card) {
-        const isChip = await p.evaluate(() => document.querySelector('[data-test=first-run]').classList.contains('first-run--chip'))
+    const isChip = await p.evaluate(() => document.querySelector('[data-test=first-run]').classList.contains('first-run--chip'))
     ok('it is a one-line chip because invite and agent are done', isChip)
+    
+    // T012: The plain header words
+    const headerWords = await p.evaluate(() => document.querySelector('.feed-header .muted')?.textContent)
+    ok('it shows the plain header words', headerWords === 'Workspace topics', { words: headerWords })
+
     const chipText = await p.evaluate(() => document.querySelector('.first-run__chip-title')?.textContent)
     ok('it shows the chip title', chipText === 'Workspace setup in progress')
+    
+    // T012: Workspace settings link goes with it
+    const link = await p.evaluate(() => document.querySelector('.first-run__link')?.getAttribute('href'))
+    ok('the chip has the Workspace settings link', link && link.includes('/tenant-settings/members'), { link })
+
+    // T012: Measure card height (n=10)
+    const heights = []
+    for (let i = 0; i < 10; i++) {
+      const r2 = await card.boundingBox()
+      heights.push(r2.height)
+      await sleep(100)
+    }
+    console.log("  MEASURE: chip height is " + heights.join(" ") + " px (n=10)")
+    const maxH = Math.max(...heights)
+    ok('it is a one-line chip (height <= 48 px)', maxH <= 48, { maxH })
+
     const r = await card.boundingBox()
     ok('it sits in view at the top of the home list', Boolean(r && r.y >= 0 && r.y < 400), r)
+    
+    // T012: click() opens the list
+    const listboxHidden = await p.evaluate(() => {
+      const lb = document.querySelector('[role=listbox]')
+      return !lb || getComputedStyle(lb).display === 'none'
+    })
+    ok('workspace list is hidden initially', listboxHidden)
+    
+    await p.click('[data-testid=tenant-switcher-box]')
+    await sleep(300)
+    
+    const listboxVisible = await p.evaluate(() => {
+      const lb = document.querySelector('[role=listbox]')
+      return lb && getComputedStyle(lb).display !== 'none'
+    })
+    ok('click() opens the workspace list', listboxVisible)
+    
+    await p.keyboard.press('Escape')
+    await sleep(300)
+
     await p.click('[data-test=first-run-hide]')
     await sleep(300)
     ok('Hide takes it away', !(await p.$('[data-test=first-run]')))

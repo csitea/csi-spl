@@ -953,7 +953,7 @@
   "pages": {
     "feed_label": "{target}, newest first",
     "index": {
-      "subtitle": "read-only · workspace-scoped",
+      "subtitle": "Workspace topics",
       "empty": "No topics yet.",
       "messages": "{n} message | {n} messages",
       "older": "Older"

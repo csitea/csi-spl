@@ -8,7 +8,10 @@
 <template>
   <section v-if="shown" class="first-run" :class="{ 'first-run--chip': isChip }" aria-labelledby="first-run-h" data-test="first-run">
     <template v-if="isChip">
-      <h3 id="first-run-h" class="first-run__chip-title">{{ t('first_run.chip') }}</h3>
+      <div class="first-run__chip-content">
+        <h3 id="first-run-h" class="first-run__chip-title">{{ t('first_run.chip') }}</h3>
+        <NuxtLink :to="localePath('/tenant-settings/members')" class="first-run__link" data-test="first-run-settings-link">{{ t('tenant_settings.title') }}</NuxtLink>
+      </div>
       <button type="button" class="btn ghost first-run__hide" data-test="first-run-hide" @click="hide">{{ t('first_run.hide') }}</button>
     </template>
     <template v-else>
@@ -87,11 +90,19 @@ onMounted(async () => {
   margin: 0 0 12px;
   min-width: 0;
 }
-.first-run--chip {
+.first-run__chip-content {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+.first-run--chip {
+  display: flex;
+  height: 48px;
+  box-sizing: border-box;
+  overflow: hidden;
+  align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 6px 12px;
   gap: 8px;
 }
 .first-run__chip-title {

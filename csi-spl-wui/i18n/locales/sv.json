@@ -2299,5 +2299,18 @@
     "err_bad": "Inte loggat: servern avvisade intervallet ({detail}). Inget skrevs.",
     "err_session": "Inte loggat: din session tog slut. Logga in igen och försök sedan igen.",
     "err_network": "Inte loggat: servern gick inte att nå. Tiden sparas; försök igen."
+  },
+  "public_calendar": {
+    "title": "Calendar",
+    "lede": "Releases and new features of the spool, by day.",
+    "sign_in": "Sign in",
+    "month_nav": "Month",
+    "prev_month": "Previous month",
+    "next_month": "Next month",
+    "loading": "Loading the calendar…",
+    "error": "The calendar could not be loaded. Try again later.",
+    "empty_month": "Nothing was released this month.",
+    "feature": "New feature",
+    "releases": "Releases ({n})"
   }
 }

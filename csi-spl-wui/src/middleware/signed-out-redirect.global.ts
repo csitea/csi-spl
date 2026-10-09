@@ -11,7 +11,7 @@
 // hydrating, load that document with a real navigation. A later sign-out
 // stays a client navigation so the in-memory "password changed" flag still
 // arrives on the login page.
-import { isProductScreen, signedOutLoginHref, signedOutLoginTarget } from '~/utils/signed-out-redirect.mjs'
+import { hasPublicTwin, isProductScreen, signedOutLoginHref, signedOutLoginTarget, signedOutPublicTarget } from '~/utils/signed-out-redirect.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { wasSignedIn } from '~/utils/session-recover.mjs'
@@ -31,6 +31,11 @@ function armSignedOutRedirect(): void {
   // change) has no new route, so the middleware does not run again on its own.
   session.$subscribe(() => {
     if (suppress || api.mock) return
+    const pub = signedOutPublicTarget(router.currentRoute.value.fullPath, session.state, api.mock)
+    if (pub) {
+      void nuxtApp.runWithContext(() => navigateTo(localePath(pub), { replace: true }))
+      return
+    }
     const dest = signedOutLoginTarget(router.currentRoute.value.fullPath, session.state, api.mock, wasSignedIn())
     if (!dest) return
     void nuxtApp.runWithContext(() =>
@@ -47,7 +52,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const nuxtApp = useNuxtApp()
   armSignedOutRedirect()
   const session = useSessionStore()
-  if (session.state === 'loading' && isProductScreen(to.fullPath)) {
+  if (session.state === 'loading' && (isProductScreen(to.fullPath) || hasPublicTwin(to.fullPath))) {
     suppress = true
     /* the route resolves only after the probe, so its page chunks
        used to start downloading only then (after ~1-2 s of session probe on
@@ -61,6 +66,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
     } finally {
       suppress = false
     }
+  }
+  // HUM-10 t1 ef57739c: a signed-out /calendar shows the public calendar
+  const pub = signedOutPublicTarget(to.fullPath, session.state, api.mock)
+  if (pub) {
+    if (!nuxtApp.isHydrating) return nuxtApp.runWithContext(() => navigateTo(localePath(pub), { replace: true }))
+    suppress = true
+    return nuxtApp.runWithContext(() => navigateTo(localePath(pub), { external: true, replace: true }))
   }
   const dest = signedOutLoginTarget(to.fullPath, session.state, api.mock, wasSignedIn())
   if (!dest) return

@@ -2299,5 +2299,18 @@
     "err_bad": "Ei kirjattu: palvelin hylkäsi välin ({detail}). Mitään ei tallennettu.",
     "err_session": "Ei kirjattu: istuntosi päättyi. Kirjaudu uudelleen ja yritä sitten uudelleen.",
     "err_network": "Ei kirjattu: palvelimeen ei saatu yhteyttä. Aika on tallessa; yritä uudelleen."
+  },
+  "public_calendar": {
+    "title": "Calendar",
+    "lede": "Releases and new features of the spool, by day.",
+    "sign_in": "Sign in",
+    "month_nav": "Month",
+    "prev_month": "Previous month",
+    "next_month": "Next month",
+    "loading": "Loading the calendar…",
+    "error": "The calendar could not be loaded. Try again later.",
+    "empty_month": "Nothing was released this month.",
+    "feature": "New feature",
+    "releases": "Releases ({n})"
   }
 }

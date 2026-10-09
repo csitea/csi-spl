@@ -2299,5 +2299,18 @@
     "err_bad": "Ei kirjutatud: server lükkas vahemiku tagasi ({detail}). Midagi ei salvestatud.",
     "err_session": "Ei kirjutatud: seanss lõppes. Logi uuesti sisse ja proovi siis uuesti.",
     "err_network": "Ei kirjutatud: serveriga ei saadud ühendust. Aeg on alles; proovi uuesti."
+  },
+  "public_calendar": {
+    "title": "Calendar",
+    "lede": "Releases and new features of the spool, by day.",
+    "sign_in": "Sign in",
+    "month_nav": "Month",
+    "prev_month": "Previous month",
+    "next_month": "Next month",
+    "loading": "Loading the calendar…",
+    "error": "The calendar could not be loaded. Try again later.",
+    "empty_month": "Nothing was released this month.",
+    "feature": "New feature",
+    "releases": "Releases ({n})"
   }
 }

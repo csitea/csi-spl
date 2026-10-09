@@ -61,6 +61,28 @@ export function isProductScreen(input) {
   return false
 }
 
+/** HUM-10 t1 ef57739c: the public calendar (pages/public-calendar.vue). */
+export const PUBLIC_CALENDAR_PATH = '/public-calendar'
+
+/** The workspace calendar: signed out, it shows the public one, not /login. */
+export function hasPublicTwin(input) {
+  return productPath(input) === '/calendar'
+}
+
+/**
+ * Public page for a settled signed-out visitor of a screen that has one
+ * (hasPublicTwin), or null. The query and hash are dropped: /calendar's
+ * `?d=` is a workspace day, not a public month.
+ * @param {string} fullPath
+ * @param {unknown} sessionState
+ * @param {boolean} [mock]
+ * @returns {string | null}
+ */
+export function signedOutPublicTarget(fullPath, sessionState, mock = false) {
+  if (!isSignedOutVisitor(sessionState, mock)) return null
+  return hasPublicTwin(fullPath) ? PUBLIC_CALENDAR_PATH : null
+}
+
 /**
  * Login location for a settled signed-out visitor on a product screen.
  * Null means stay: not signed out, or this path must not redirect.

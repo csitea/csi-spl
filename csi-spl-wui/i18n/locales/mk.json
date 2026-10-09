@@ -2299,5 +2299,18 @@
     "err_bad": "Не е запишано: серверот го одби интервалот ({detail}). Ништо не е запишано.",
     "err_session": "Не е запишано: сесијата истече. Најави се повторно и обиди се пак.",
     "err_network": "Не е запишано: серверот е недостапен. Времето е зачувано; обиди се повторно."
+  },
+  "public_calendar": {
+    "title": "Calendar",
+    "lede": "Releases and new features of the spool, by day.",
+    "sign_in": "Sign in",
+    "month_nav": "Month",
+    "prev_month": "Previous month",
+    "next_month": "Next month",
+    "loading": "Loading the calendar…",
+    "error": "The calendar could not be loaded. Try again later.",
+    "empty_month": "Nothing was released this month.",
+    "feature": "New feature",
+    "releases": "Releases ({n})"
   }
 }

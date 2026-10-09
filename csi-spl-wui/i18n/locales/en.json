@@ -2299,5 +2299,18 @@
     "err_bad": "Not logged: the hub refused this interval ({detail}). Nothing was written.",
     "err_session": "Not logged: your session ended. Sign in again, then try again.",
     "err_network": "Not logged: the hub could not be reached. The time is kept; try again."
+  },
+  "public_calendar": {
+    "title": "Calendar",
+    "lede": "Releases and new features of the spool, by day.",
+    "sign_in": "Sign in",
+    "month_nav": "Month",
+    "prev_month": "Previous month",
+    "next_month": "Next month",
+    "loading": "Loading the calendar…",
+    "error": "The calendar could not be loaded. Try again later.",
+    "empty_month": "Nothing was released this month.",
+    "feature": "New feature",
+    "releases": "Releases ({n})"
   }
 }

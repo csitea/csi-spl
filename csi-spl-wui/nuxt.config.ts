@@ -16,6 +16,7 @@ import { buildEarlyConfigScript } from "./src/utils/runtime-config.mjs"
 import { buildSignedOutRedirectScript } from "./src/utils/signed-out-redirect-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
 import { plainStatics, writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
+import { writePublicCalendar } from "./src/node/pubcal/public-calendar-data.mjs"
 import {
   addFirstScreenHints, deferDocumentPrefetch, firstScreenChunkGraph, firstScreenFiles, firstScreenPageLayout,
   firstScreenRoutePage,
@@ -401,6 +402,16 @@ function blogDocumentsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   })
 }
 
+// ── The public calendar's data (HUM-10 t1 ef57739c) ──────────────────────
+// /public-calendar reads one static file, src/public/pub-cal/events.json,
+// written here from the release tags and the blog copy (sync-blog.mjs runs
+// before `nuxt generate`), never from a tenant API. The mock bundle shows the
+// mock tenant's releases (a CI clone is shallow and has no tags).
+function publicCalendarModule() {
+  const n = writePublicCalendar({ mock: wuiUseMock() === "1" })
+  console.info(`public calendar: ${n} events`)
+}
+
 // ── First-screen hints (perf round 3 P3-01) ─────────────────────────────
 // Each prerendered document modulepreloads the scripts and preloads the CSS
 // its first screen runs before the rail (page + layout + locale catalogue and
@@ -508,7 +519,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches

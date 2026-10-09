@@ -10,3 +10,5 @@ dist
 i18n/.split/
 # spec 111 T002: the blog copy, made by pnpm run generate (src/node/blog/sync-blog.mjs)
 src/public/blog-md/
+# HUM-10 public calendar: release tags + feature posts, made at build time (src/node/pubcal/public-calendar-data.mjs)
+src/public/pub-cal/

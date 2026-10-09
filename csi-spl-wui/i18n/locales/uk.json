@@ -2299,5 +2299,18 @@
     "err_bad": "Не записано: сервер відхилив інтервал ({detail}). Нічого не записано.",
     "err_session": "Не записано: сеанс завершився. Увійдіть знову й повторіть.",
     "err_network": "Не записано: сервер недоступний. Час збережено; повторіть спробу."
+  },
+  "public_calendar": {
+    "title": "Calendar",
+    "lede": "Releases and new features of the spool, by day.",
+    "sign_in": "Sign in",
+    "month_nav": "Month",
+    "prev_month": "Previous month",
+    "next_month": "Next month",
+    "loading": "Loading the calendar…",
+    "error": "The calendar could not be loaded. Try again later.",
+    "empty_month": "Nothing was released this month.",
+    "feature": "New feature",
+    "releases": "Releases ({n})"
   }
 }

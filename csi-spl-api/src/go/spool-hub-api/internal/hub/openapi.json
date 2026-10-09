@@ -9480,6 +9480,52 @@
         ]
       }
     },
+    "/v1/workspace/doctree/{doc}/goal": {
+      "put": {
+        "operationId": "putWorkspaceDoctreeGoal",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "goal_id_taken: another goal doc or a goal.yaml already holds this goal id in the workspace"
+          },
+          "412": {
+            "description": "stale rev: the root item changed since it was read"
+          }
+        },
+        "summary": "Save the document as an in-app goal and sync its goal events (specs/112 HUB-3)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
     "/v1/workspace/doctree/{doc}/grid": {
       "get": {
         "operationId": "getWorkspaceDoctreeGrid",

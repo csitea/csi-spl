@@ -106,7 +106,7 @@ parse_git_tags() {
 
         # Extract release notes (first line of the tag message)
         local release_note
-        release_note="$(git tag -l "${tag}" | head -1)"
+        release_note="$(git tag -l "${tag}" | sed -n 1p)"
 
         # Append to the batch
         cat >> "${batch_file}" <<EOF

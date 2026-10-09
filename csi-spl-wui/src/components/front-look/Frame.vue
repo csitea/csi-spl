@@ -12,7 +12,7 @@
     </div>
     <header class="front-look__brand" data-test="front-look-logo">
       <img class="front-look__logo" src="/logo.webp" alt="" width="64" height="64" decoding="async">
-      <span class="front-look__name">spool-hub.ai</span>
+      <span class="front-look__name">{{ SITE_NAME }}</span>
     </header>
     <div class="front-look__main">
       <section class="front-look__intro">
@@ -37,8 +37,13 @@
 import HeroChannel from './HeroChannel.vue'
 import HeroSignal from './HeroSignal.vue'
 import HeroTerminal from './HeroTerminal.vue'
+import { siteHostOf } from '~/utils/tenant-host-core.mjs'
 
 defineProps<{ look: 'a' | 'b' | 'c' }>()
+
+/* the site's own host (cnf BASE_DOMAIN via NUXT_PUBLIC_SITE_URL), never a
+   literal; a build without a site URL (lde, mock) shows the app name */
+const SITE_NAME = siteHostOf(String(useRuntimeConfig().public.siteUrl || '')) || 'spool-hub'
 
 const SLOGAN = 'Where people meet AI.'
 const ABOUT = 'Spool is a workspace where people and AI agents work together. '
@@ -95,7 +100,7 @@ const links = computed(() => [
 :global(.login-bar__title),
 :global(.login-foot) { visibility: hidden; }
 
-/* the owner (HUM-10 0136e0b4): the spool-hub.ai logo in the centre, on top */
+/* the owner (HUM-10 0136e0b4): the site's logo in the centre, on top */
 .front-look__brand {
   display: flex;
   flex-direction: column;

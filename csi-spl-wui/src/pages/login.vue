@@ -33,7 +33,9 @@
     <!-- W14 (spec 047): the help pages, also before sign-in -->
     <p class="muted login-help"><NuxtLink :to="localePath('/help')" data-test="login-help">{{ t('help.title') }}</NuxtLink>
       <!-- owner HUM-10 (t1 41881574, de4f3d4e): the public docs, signed out too -->
-      · <NuxtLink :to="localePath('/docs')" data-test="login-docs">{{ t('docs.title') }}</NuxtLink></p>
+      · <NuxtLink :to="localePath('/docs')" data-test="login-docs">{{ t('docs.title') }}</NuxtLink>
+      <!-- owner HUM-10 (t1 a3ce2031, e11ec822): the public calendar, signed out too -->
+      · <NuxtLink :to="localePath('/public-calendar')" data-test="login-public-calendar">{{ t('public_calendar.title') }}</NuxtLink></p>
   </div>
   </component>
 </template>

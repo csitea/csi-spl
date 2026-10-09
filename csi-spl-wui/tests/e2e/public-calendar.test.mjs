@@ -90,6 +90,18 @@ const server = await startServer()
 const browser = await launch()
 let failed = 0
 try {
+  /* owner HUM-10 (t1 a3ce2031, e11ec822): the public main page (/login)
+     links the public calendar. Control: before it, no login-public-calendar. */
+  const lc = await browser.createBrowserContext()
+  const lp = await lc.newPage()
+  await lp.goto(`${server.base}/login`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const calLink = await lp.waitForSelector('[data-test=login-public-calendar]', { visible: true, timeout: 10000 }).catch(() => null)
+  ok('signed-out: /login shows a public calendar link', Boolean(calLink))
+  if (calLink) await calLink.click()
+  const opened = await lp.waitForSelector('[data-test=public-calendar-heading]', { timeout: NAV_TIMEOUT }).then(() => true, () => false)
+  ok('signed-out: the link opens /public-calendar', opened && new URL(lp.url()).pathname.endsWith('/public-calendar'), lp.url())
+  await lc.close()
+
   const { ctx, p, calendarApi } = await seededPage(browser)
 
   const res = await p.goto(`${server.base}/pub-cal/events.json`, { waitUntil: 'load', timeout: NAV_TIMEOUT })

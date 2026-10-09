@@ -18,13 +18,11 @@
       <!-- SPL-989: on a phone the chevron is Back (level 3 -> 2); the X hides -->
       <MobileBack />
       <!-- SPL-1133: the X at the chosen corner (Mac = here, the default) -->
-      <UiCloseButton aria-label="Close topic" title="Close topic" side="start" class="icon-btn topic-close" data-test="live-topic-close" @click="close()" />
-<strong class="topic-heading__title" :class="{ 'is-archived': pane.archivedAt }" data-test="topic-heading" data-selected="true" aria-current="true" :title="titleText || heading">
-  <span class="topic-heading__text">{{ titleText || t('topic.title') }}</span>
-</strong>
-      <ArchivedBadge aria-label="Archived topic" title="This topic is archived" v-if="pane.archivedAt" :at="pane.archivedAt" :show-when="true" />
-      <LazyCardClipControl aria-label="Clip replies" title="Clip replies to this topic" pane="thread" />
-      <UiCloseButton aria-label="Close topic" title="Close topic" side="end" class="icon-btn topic-close" data-test="live-topic-close" @click="close()" />
+      <UiCloseButton side="start" class="icon-btn topic-close" data-test="live-topic-close" @click="close()" />
+      <strong class="topic-heading__title" :class="{ 'is-archived': pane.archivedAt }" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading"><span v-if="titleText" class="topic-heading__label">{{ t('topic.list_title', { text: '' }) }}</span><span class="topic-heading__text">{{ titleText || t('topic.title') }}</span></strong>
+      <ArchivedBadge v-if="pane.archivedAt" :at="pane.archivedAt" :show-when="true" />
+      <LazyCardClipControl pane="thread" />
+      <UiCloseButton side="end" class="icon-btn topic-close" data-test="live-topic-close" @click="close()" />
     </header>
     <!-- Topic c6994436: newest last puts the new-topic cards under the feed,
          at the newest end of the pane. -->

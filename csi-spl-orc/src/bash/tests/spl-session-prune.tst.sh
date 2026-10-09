@@ -29,10 +29,13 @@ source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 
 R="$T/projects" S="$T/sessions" A="$T/spool/agents" OUT="$T/outside"
-u_old=11111111-1111-4111-8111-111111111111 u_rest=22222222-2222-4222-8222-222222222222
-u_live=33333333-3333-4333-8333-333333333333 u_cmd=44444444-4444-4444-8444-444444444444
-u_new=55555555-5555-4555-8555-555555555555 u_dirnew=66666666-6666-4666-8666-666666666666
-u_orph=77777777-7777-4777-8777-777777777777 u_link=88888888-8888-4888-8888-888888888888
+# Fresh uuids per run: the sweep reads a uuid on ANY running command line of
+# ours as live, so a fixed one shared with another test (tmp-scratch-sweep's
+# u_recent was this file's u_cmd) or a second run of this test
+# on the box turns a fixture dir "live" (its "1. recent dir" FAIL, run 37868560155).
+uuid() { cat /proc/sys/kernel/random/uuid; }
+u_old=$(uuid) u_rest=$(uuid) u_live=$(uuid) u_cmd=$(uuid)
+u_new=$(uuid) u_dirnew=$(uuid) u_orph=$(uuid) u_link=$(uuid)
 P="$R/-opt-a"
 mkdir -p "$S" "$A" "$OUT" "$P/memory" "$P/$u_old/subagents" "$P/$u_dirnew/tool-results" "$P/$u_orph" "$R/-opt-b"
 for u in "$u_old" "$u_rest" "$u_live" "$u_cmd" "$u_new" "$u_dirnew"; do echo '{}' >"$P/$u.jsonl"; done

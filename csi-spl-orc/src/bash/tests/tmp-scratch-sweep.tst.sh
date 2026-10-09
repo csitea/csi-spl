@@ -17,9 +17,12 @@ source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 
 R="$T/scratch" S="$T/sessions" OUT="$T/outside"
-u_dead=11111111-1111-4111-8111-111111111111 u_live=22222222-2222-4222-8222-222222222222
-u_resumed=33333333-3333-4333-8333-333333333333 u_recent=44444444-4444-4444-8444-444444444444
-u_link=55555555-5555-4555-8555-555555555555 u_keep=66666666-6666-4666-8666-666666666666
+# Fresh uuids per run: the sweep reads a uuid on ANY running command line of
+# ours as live, so a fixed one shared with another test (spl-session-prune's
+# running process carried this file's u_recent) or a second run of this test
+# on the box turns a fixture dir "live" (FAIL "1. recent dir", run 37868560155).
+uuid() { cat /proc/sys/kernel/random/uuid; }
+u_dead=$(uuid) u_live=$(uuid) u_resumed=$(uuid) u_recent=$(uuid) u_link=$(uuid) u_keep=$(uuid)
 mkdir -p "$S" "$OUT/precious" "$R/gocache/aa" "$R/-opt-a/$u_dead/scratchpad" "$R/-opt-b/$u_live/scratchpad" \
   "$R/-opt-b/$u_resumed/tasks" "$R/-opt-c/$u_recent/scratchpad" "$R/-opt-d" "$R/-opt-e/$u_keep"
 echo x >"$R/-opt-a/$u_dead/scratchpad/big"; echo x >"$OUT/precious/file"; echo x >"$R/gocache/aa/obj"
@@ -31,8 +34,9 @@ printf '{"pid":%s,"sessionId":"%s"}\n' "$$" "$u_live" >"$S/$$.json"
 printf '{"pid":%s,"sessionId":"%s"}\n' 999999999 "$u_keep" >"$S/999999999.json"
 printf 'not json' >"$S/bad.json"
 # A resumed session: its uuid on a running process's command line only (the
-# trailing ':' stops bash from exec'ing sleep, which would drop the uuid).
-bash -c 'sleep 30; :' "$u_resumed" & resumed_pid=$!
+# second command stops bash from exec'ing sleep, which would drop the uuid;
+# 600 s outlives a loaded CI runner, and TERM at the end kills the sleep too).
+bash -c 'sleep 600 & trap "kill $!" TERM; wait' "$u_resumed" & resumed_pid=$!
 # u_keep's registry pid is dead, but the dir is kept by a later test below.
 touch "$R/-opt-e/$u_keep"
 

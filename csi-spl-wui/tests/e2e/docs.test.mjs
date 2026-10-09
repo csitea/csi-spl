@@ -24,7 +24,8 @@
 // reference.
 //
 // Owner HUM-10 (e3ce4c34): signed out, a doc marked `public: true` reads;
-// the feature doc and /docs/api go to /login, their text absent.
+// the feature doc and /docs/api go to /login, their text absent; the main
+// page's 'Docs' link opens the public list (README, DEPLOY), each doc opens.
 //
 // Run:
 //   pnpm run test:e2e docs
@@ -446,6 +447,25 @@ try {
   }
   const copy = await o.evaluate(async (p) => (await fetch('/docs-public/' + p)).text().catch(() => ''), FEATURE)
   ok('signed-out: the copy does not hold the feature doc', !/^# csi-spl|# Spool feature/m.test(copy), copy.slice(0, 80))
+
+  /* Owner HUM-10 (t1 41881574, da8869e6 + de4f3d4e): README.md and DEPLOY.md
+     are public, and the public main page (/login) links the docs. Signed out:
+     /login -> 'Docs' -> /docs shows README (DOCS_HOME), the tree lists both,
+     each opens. Control: on master README is not public, so /docs goes back
+     to /login and there is no login-docs link: these FAIL. */
+  await o.goto(server.base + '/login', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const docsLink = await o.waitForSelector('[data-test=login-docs]', { visible: true, timeout: 10000 }).catch(() => null)
+  ok('signed-out: the main page shows a Docs link', Boolean(docsLink))
+  if (docsLink) await docsLink.click()
+  ok('signed-out: the Docs link opens the docs, README first', await page(o, 'README.md') && new URL(o.url()).pathname.endsWith('/docs') && (await h1(o)) === 'spool-hub', o.url())
+  const listed = await o.$$eval('[data-test=docs-tree] a', (as) => as.map((a) => a.getAttribute('href') || '')).catch(() => [])
+  ok('signed-out: the docs list shows README and DEPLOY', ['README.md', 'DEPLOY.md'].every((d) => listed.some((h) => h.endsWith('/docs/' + d))), listed)
+  await shot(o, 'signed-out-login-docs')
+  for (const [doc, title] of [['DEPLOY.md', 'Deploying spool: choose your path'], ['README.md', 'spool-hub']]) {
+    const a = await o.$(`[data-test=docs-tree] a[href$="/docs/${doc}"]`)
+    if (a) await a.click()
+    ok(`signed-out: ${doc} opens from the list`, Boolean(a) && await page(o, doc) && (await h1(o)) === title, await h1(o).catch(() => ''))
+  }
   await o.close()
 } finally {
   await browser.close()

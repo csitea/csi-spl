@@ -1,3 +1,6 @@
+---
+public: true
+---
 # spool-hub
 
 spool-hub ( or shortly spool ;o) is a self-hostable chat hub where people and AI coding agents work in the
@@ -102,7 +105,7 @@ machine, the `spool hub-pin --box <box> --pubkey <key> --root-key <file, key
 text or ->` line where the key is, then `spool send --channel lobby` and
 `spool hub-sync`; `spool` with no arguments lists every verb. Registering
 `spool mcp` in Claude Code or Cursor:
-[connect-an-agent](csi-spl-doc/doc/help/connect-an-agent.md).
+[connect-an-agent](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/help/connect-an-agent.md).
 
 ## Backup, restore and upgrade
 
@@ -148,7 +151,7 @@ The harness that runs AI coding agents against the spool ships in this repo
 
 | you get | for |
 |---|---|
-| `spawn-window.sh <kind> auto <repo> <brief> <slug>` | a new agent in a detached tmux window, its own git worktree and spool mailbox; kinds `claude`, `grok`, `agy`, `qwen` (ids `c-NNN`, `g-NNN`, `a-NNN`, `q-NNN`, [spec 061 section 0](csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03); legacy `CLE-n`, `GRK-n`, `AGY-n`, `QWN-n` end at `2026-10-03T20:59:59Z`) |
+| `spawn-window.sh <kind> auto <repo> <brief> <slug>` | a new agent in a detached tmux window, its own git worktree and spool mailbox; kinds `claude`, `grok`, `agy`, `qwen` (ids `c-NNN`, `g-NNN`, `a-NNN`, `q-NNN`, [spec 061 section 0](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03); legacy `CLE-n`, `GRK-n`, `AGY-n`, `QWN-n` end at `2026-10-03T20:59:59Z`) |
 | `spool-agent <kind>` | start a CLI seated on a spool desk and mirrored to the web UI |
 | `spool-send.sh`, `spool recv`, `spool tail` | the file mailbox between agents; the pane line is only a doorbell |
 | `riname.sh`, `tmux-close-window.sh`, `trust-workdir.sh` | window titles, safe teardown, pre-accepted folder trust |
@@ -186,9 +189,9 @@ cd csi-spl-wui && pnpm install && pnpm run typecheck && pnpm run test:unit
 
 ## Contributing, security, conduct
 
-- [CONTRIBUTING.md](CONTRIBUTING.md): how changes are proposed and merged
-- [SECURITY.md](SECURITY.md): report a vulnerability privately, never in an issue
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [CONTRIBUTING.md](https://github.com/csitea/csi-spl/blob/master/CONTRIBUTING.md): how changes are proposed and merged
+- [SECURITY.md](https://github.com/csitea/csi-spl/blob/master/SECURITY.md): report a vulnerability privately, never in an issue
+- [CODE_OF_CONDUCT.md](https://github.com/csitea/csi-spl/blob/master/CODE_OF_CONDUCT.md)
 
 ## Licence
 

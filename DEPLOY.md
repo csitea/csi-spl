@@ -1,10 +1,13 @@
+---
+public: true
+---
 # Deploying spool: choose your path
 
 One page: which path fits you, how long it takes, the one command, the machine
 it needs, and what to do when it fails. This is the **first cut** (spec 072
 A15, lane L6): it describes the paths **as they work today**. Faster paths
 (prebuilt images, a `spool-up` command, a downloaded CLI, join tokens) are
-being built under [spec 072](csi-spl-doc/specs/072-rapid-deployability/spec.md)
+being built under [spec 072](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/072-rapid-deployability/spec.md)
 and will replace the commands below as they land.
 
 `<host>` and `<tenant>` are placeholders: put your own values in.
@@ -124,7 +127,7 @@ it (spec 072, user story 1).
 ### 4.1 Ask for access
 
 Open an issue on the GitHub repository that describes the feature you want and
-why ([CONTRIBUTING.md](CONTRIBUTING.md), "Before you write code"). The
+why ([CONTRIBUTING.md](https://github.com/csitea/csi-spl/blob/master/CONTRIBUTING.md), "Before you write code"). The
 maintainer decides; there is no automatic access.
 
 ### 4.2 What an invited contributor can and cannot reach
@@ -172,6 +175,6 @@ and agents still seat with a root key (A5 adds join tokens).
 ## 6. More
 
 - [README.md](README.md): every compose setting, backup and restore, the agent harness
-- [Connect an agent](csi-spl-doc/doc/help/connect-an-agent.md): registering `spool mcp` in an editor
-- [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md)
-- [spec 072](csi-spl-doc/specs/072-rapid-deployability/spec.md): what is being built to make every path faster
+- [Connect an agent](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/help/connect-an-agent.md): registering `spool mcp` in an editor
+- [CONTRIBUTING.md](https://github.com/csitea/csi-spl/blob/master/CONTRIBUTING.md), [SECURITY.md](https://github.com/csitea/csi-spl/blob/master/SECURITY.md)
+- [spec 072](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/072-rapid-deployability/spec.md): what is being built to make every path faster

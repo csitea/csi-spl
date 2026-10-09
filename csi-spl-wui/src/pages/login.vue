@@ -27,7 +27,9 @@
     </p>
     <ChangePasswordForm v-if="session.state === 'in' && session.claims?.p === 'password'" @changed="changed = true" />
     <!-- W14 (spec 047): the help pages, also before sign-in -->
-    <p class="muted login-help"><NuxtLink :to="localePath('/help')" data-test="login-help">{{ t('help.title') }}</NuxtLink></p>
+    <p class="muted login-help"><NuxtLink :to="localePath('/help')" data-test="login-help">{{ t('help.title') }}</NuxtLink>
+      <!-- owner HUM-10 (t1 41881574, de4f3d4e): the public docs, signed out too -->
+      · <NuxtLink :to="localePath('/docs')" data-test="login-docs">{{ t('docs.title') }}</NuxtLink></p>
   </div>
 </template>
 

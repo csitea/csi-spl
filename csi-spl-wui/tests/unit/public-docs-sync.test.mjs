@@ -64,7 +64,9 @@ if (existsSync(join(PUBLIC_DOCS_ROOT, '.git'))) {
   const paths = JSON.parse(publicDocsFiles().get('index.json')).files.map((f) => f.path)
   ok('the getting-started help doc is public', paths.includes('csi-spl-doc/doc/help/getting-started.md'), JSON.stringify(paths))
   ok('the feature doc is not', !paths.includes('csi-spl-doc/doc/md/csi-spl.feature.md'))
-  ok('README.md is not', !paths.includes('README.md'))
+  /* owner HUM-10 (t1 41881574, da8869e6): the readme and the install guide are public */
+  ok('README.md and DEPLOY.md are public', paths.includes('README.md') && paths.includes('DEPLOY.md'), JSON.stringify(paths))
+  ok('CONTRIBUTING.md is not', !paths.includes('CONTRIBUTING.md'))
 } else console.log('  SKIP no git checkout around csi-spl-wui')
 
 // 6. the page's reader of index.json

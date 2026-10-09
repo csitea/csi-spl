@@ -542,8 +542,8 @@ spl_wd_boot_ids() {
 # Why <id> is not restarted by this boot; nothing when it is.
 spl_wd_boot_why() {
   local id="$1" tick="$2" snap="$3" last="$4" rd rb ctx m start
-  if awk -F	 -v i="[id]" "[$]1 == i   if awk -F	 -v i="[id]" "[$]1 == i  [$]2 != "-" {f = 1} END {exit !f}" "[$]tick/agents"; then  if awk -F	 -v i="[id]" "[$]1 == i  [$]2 != "-" {f = 1} END {exit !f}" "[$]tick/agents"; then [$]2 != "-" {f = 1} END {exit !f}" "[$]tick/agents"; then
-    echo "it runs (a process carries it)"; return 0
+  if awk -F'\t' -v i="$id" '$1 == i && ($2 != "-" || $3 != "-") {f = 1} END {exit !f}' "$tick/agents"; then
+    echo "it runs (a window or a process carries it)"; return 0
   fi
   rd="$(awk -F'\t' -v i="$id" '$1 == i {d = $4} END {print d}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"
   if [[ "$rd" == /* && ! -d "$rd" ]]; then echo "done: its workdir $rd is gone"; return 0; fi

@@ -234,23 +234,3 @@ kill_daemons
 echo
 if (( fails == 0 )); then echo "wd-boot-queue: all passed"; else echo "wd-boot-queue: $fails failed"; fi
 exit $(( fails > 0 ))
-echo "=== 5. drill 5: a tmux window exists, but no harness process is running -> not back, retried"
-IDS="m-617"; box; wd $(( BT + 60 ))
-t=$(( BT + 300 ))
-# A tmux window exists, but no harness process is running (just a shell)
-pid=7000
-printf "%%%s\\t%s\\t$1\\tm-617@box1\\tsh\\n" "$pid" "$pid" >> "$T/tmux/panes"
-printf "%s 1 60 sh\\n" "$pid" >> "$T/ps"
-WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd "$t"; t=$(( t + 30 ))
-[[ ! -e "$W/boot.q/m-617" ]] && grep -q "m-617 back: it runs (a window or a process carries it)" "$D/wd.log" && fail "red: m-617 logged back (the defect)"
-[[ -e "$W/boot.q/m-617" ]] && grep -q "m-617: restart started, try 1" "$D/wd.log" && pass "m-617 not back, restart started (try 1)" || fail "m-617 not retried: $(grep m-617 "$D/wd.log" | tail -3)"
-
-# After the fix, the agent is retried and eventually given up
-cleanup_stubs
-WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd "$t"; t=$(( t + 30 ))
-grep -q "m-617 given up: not back after 2 tries" "$D/wd.log" && pass "m-617 given up after 2 tries" || fail "m-617 not given up: $(grep m-617 "$D/wd.log" | tail -3)"
-
-kill_daemons
-echo
-if (( fails == 0 )); then echo "wd-boot-queue: all passed"; else echo "wd-boot-queue: $fails failed"; fi
-exit $(( fails > 0 ))

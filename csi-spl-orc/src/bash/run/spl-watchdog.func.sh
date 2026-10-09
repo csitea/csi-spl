@@ -12,7 +12,8 @@
 # @description for the able check, prints one verdict line per agent and
 # @description acts: S1 rings at 120 s and takes over at 240 s, S2 never
 # @description restarts (a login: ONE blocker to the orchestrator; a dead
-# @description API key, kind=auth: ONE blocker to the dispatcher), S3 takes
+# @description API key, kind=auth: ONE blocker to the dispatcher; a usage
+# @description limit: ONE wake once its reset + WD_LIMIT_GRACE passed), S3 takes
 # @description over, S4 Escape then takeover, S5 Escape + note then takeover,
 # @description S6 clears a poke-shaped box and re-pokes, S7 Escape once (the
 # @description default-mode offer: bypass settings re-asserted + takeover,
@@ -52,6 +53,7 @@
 # @param RESTART_MAX_PER_HOUR (optional) - restarts per id per rolling hour, default 3 (spec 102 6.1)
 # @param WD_TAKEOVER_MAX (optional) - do_spl_wd_takeover's own limit (a seat's request), default 2
 # @param WD_TAKEOVER_RETRY (optional) - seconds after an S3 takeover whose session is dead again before it is retried, default WD_START_WAIT + WD_START_GRACE (300)
+# @param WD_LIMIT_GRACE (optional) - seconds past a usage limit's reset before the ONE wake of a seat still on its limit, default 120
 # @param WD_JOBS (optional) - agents checked at once, default 8
 # @param WD_S1_TOOL_CAP (optional) - seconds a running tool call (heartbeat tool + tool_since) holds S1, default 900
 # @param WD_SITUATIONS (optional) - the situation scripts dir (tests)
@@ -967,7 +969,7 @@ spl_wd_act() {
         elif [[ "$ev" == kind=login* ]]; then
           spl_wd_once "$id" S2 dm "$now" "$ctx" spl_wd_send orchestrator blocker "$id" \
             "WATCHDOG (093 S2): $id cannot act, a login or access screen: ${ev#kind=login }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. A restart does not fix a login: a human runs /login in that pane."
-        else echo "not able until the reset; no restart"; fi ;;
+        else spl_wd_s2_limit "$id" "$ev" "$pane" "$now" "$ctx"; fi ;;
     S3) spl_wd_once "$id" S3 takeover "$now" "$ctx" spl_wd_takeover "$id" S3 "$ev" ;;
     S4) spl_wd_s4 "$id" "$ev" "$pane" "$now" "$ctx" ;;
     S5) spl_wd_s5 "$id" "$ev" "$pane" "$now" "$ctx" ;;
@@ -981,6 +983,66 @@ spl_wd_act() {
           "WATCHDOG (093 S8): GAP $id - its hook is silent ($ev). Progress is read from its transcript until spool-agent-hook.sh runs for it." ;;
   esac
   return 0
+}
+
+# S2 kind=limit (093 S2: "out until the reset + 120 s, then back by
+# itself"): a parked seat comes back only when something types into it
+# (one box, 2026-10-08: 2.5 h idle after the 22:50Z reset). The banner's reset
+# time is read ONCE per episode into <WD_DIR>/<id>.ep.S2.reset (the episode's
+# end clears it); from reset + WD_LIMIT_GRACE on, a seat still on its limit
+# gets ONE wake, S6's shape: C-c a box holding text, then ring. A dialog on
+# the screen (an S7 hit) is never typed into. No reset time readable: as
+# before (no wake), and one wd.log line naming the text.
+spl_wd_s2_limit() {
+  local id="$1" ev="$2" pane="$3" now="$4" ctx="$5" f="$WD_DIR/$1.ep.S2.reset" r txt
+  if [[ ! -e "$f" ]]; then
+    r="$(spl_wd_limit_reset "$ev" "$now")"
+    txt="$(grep -oiE '(resets|automatically)[^·]*' "$ctx/pane" 2>/dev/null | tail -n 1 || true)"
+    [[ -n "$r" ]] || r="$(spl_wd_limit_reset "$txt" "$now")"
+    echo "${r:-none}" > "$f"
+    [[ -n "$r" ]] || spl_wd_log "LIMIT-RESET-UNREAD $id: no reset time in '$ev'${txt:+ / pane '$txt'}; no wake"
+  fi
+  r="$(cat "$f" 2>/dev/null || true)"
+  if ! [[ "$r" =~ ^[0-9]+$ ]]; then echo "not able until the reset; no restart"; return 0; fi
+  if (( now < r + ${WD_LIMIT_GRACE:-120} )); then
+    echo "not able until the reset $(date -u -d "@$r" +%FT%TZ) + ${WD_LIMIT_GRACE:-120}s; no restart"; return 0
+  fi
+  if grep -q '^HIT S7' "$ctx/hits" 2>/dev/null; then echo "past the reset, a dialog is up: no wake (S7)"; return 0; fi
+  spl_wd_once "$id" S2 wake "$now" "$ctx" spl_wd_limit_wake "$id" "$pane" "$ctx"
+}
+
+spl_wd_limit_wake() { if [[ -s "$3/input" ]]; then spl_wd_repoke "$1" "$2"; else spl_wd_ring "$1"; fi; }
+
+# spl_wd_limit_reset TEXT NOW: the epoch of "resets [Oct 10,] [at] 1[:50]am
+# [(Europe/Helsinki)]" (or "automatically at ..."); nothing when unreadable.
+# No zone named: the box's own (the harness renders in its local zone); an
+# unknown zone is unreadable, never a guess. A bare time is the occurrence
+# nearest NOW (within 12 h: a banner left on screen past its reset reads as
+# past); a dated one is this year's, or next year's once 180 days past.
+spl_wd_limit_reset() {
+  local re='(resets|automatically)[[:space:]]+(at[[:space:]]+)?(([a-z]{3})[a-z]*\.?[[:space:]]+([0-9]{1,2}),?[[:space:]]+(at[[:space:]]+)?)?([0-9]{1,2})(:([0-9]{2}))?[[:space:]]*([ap])\.?m([^(a-z]*\(([A-Za-z_]+(/[A-Za-z0-9_+-]+)*)\))?'
+  local now="$2" nc=0 hit="" mon day h m tz d c
+  shopt -q nocasematch || { shopt -s nocasematch; nc=1; }
+  [[ "$1" =~ $re ]] && hit=1
+  (( nc )) && shopt -u nocasematch
+  [[ -n "$hit" ]] || return 0
+  mon="${BASH_REMATCH[4]}" day="${BASH_REMATCH[5]}" h="${BASH_REMATCH[7]}" m="${BASH_REMATCH[9]:-00}" tz="${BASH_REMATCH[12]}"
+  (( 10#$h >= 1 && 10#$h <= 12 && 10#$m <= 59 )) || return 0
+  h=$(( 10#$h % 12 )); [[ "${BASH_REMATCH[10],,}" == p ]] && h=$(( h + 12 ))
+  if [[ -n "$tz" && ! -f "${TZDIR:-/usr/share/zoneinfo}/$tz" ]]; then return 0; fi
+  [[ -n "$tz" ]] || tz="${TZ:-:/etc/localtime}"
+  if [[ -n "$mon" ]]; then
+    d="$(TZ="$tz" date -d "@$now" +%Y)"
+    c="$(TZ="$tz" date -d "$mon $day $d $h:$m" +%s 2>/dev/null)" || return 0
+    if (( c < now - 180 * 86400 )); then c="$(TZ="$tz" date -d "$mon $day $((d + 1)) $h:$m" +%s)"; fi
+  else
+    d="$(TZ="$tz" date -d "@$now" +%F)"
+    c="$(TZ="$tz" date -d "$d $h:$m" +%s 2>/dev/null)" || return 0
+    if (( c > now + 43200 )); then d="$(TZ=UTC date -d "$d -1 day" +%F)"
+    elif (( c <= now - 43200 )); then d="$(TZ=UTC date -d "$d +1 day" +%F)"; fi
+    c="$(TZ="$tz" date -d "$d $h:$m" +%s)"
+  fi
+  echo "$c"
 }
 
 # spl_wd_once ID CODE TAG NOW CTX CMD...: run CMD once per episode of CODE,

@@ -60,6 +60,12 @@
 #      to the dispatch lease holder; vibe's 429 text is S2 kind=limit; an
 #      idle m- lane with an unread job rings, and is not taken over while a
 #      tool runs (its heartbeat's pid the Vibe CLI pid). Each with a control
+#  11. S2 kind=limit wakes after its reset (2026-10-08, a seat 2.5 h
+#      idle past "resets 1:50am (Europe/Helsinki)"): the reset read once per
+#      episode (1:50am Helsinki on a summer date = 22:50Z), no wake before
+#      reset + WD_LIMIT_GRACE, ONE wake after it and none on the next tick,
+#      a box holding text cleared first (S6's shape), an unreadable reset no
+#      wake + one wd.log line, the stored reset gone with the episode
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -844,6 +850,39 @@ jq -n --arg p "$(iso $((T0 - 600)))" --arg s "$(iso $((T0 - 120)))" \
   '{v: 1, harness: "mistral", pid: 9999, state: "working", ts: $s, progress_ts: $p, tool: "bash", tool_since: $s, calls: []}' > "$S/m-976/heartbeat.json"
 out="$(wd)"; settle
 grep -qx 'takeover m-976 S1' "$T/takeovers" && pass "10 control: the heartbeat of another pid does not hold: taken over" || fail "10 hold control: $out"
+
+# 11. S2 kind=limit: one wake once the reset + WD_LIMIT_GRACE passed
+L0="$(date -u -d 2026-10-08T20:13:47Z +%s)"; LR="$(date -u -d 2026-10-08T22:50:00Z +%s)"
+limit_pane() { printf '● Routed.\n\n  ⎿  Usage limit reached · %s\n\n────\n❯ %s\n────\n' "$1" "${2:-}" > "$T/limit.pane"; }
+# at <epoch>: a tick at <epoch> of a loop that ticked all along (no resume grace)
+at() { mkdir -p "$D/wd"; echo $(( $1 - 30 )) > "$D/wd/last.tick"; NOW=$1 wd; }
+wakes() { cat "$T/sent" 2>/dev/null | grep -c -- "--poke-only --from .* --to $1\$" || true; }
+reset_box; limit_pane 'resets 1:50am (Europe/Helsinki)'; agent c-980 %1 4080 claude 3600 "$T/limit.pane"
+at $L0 >/dev/null; out="$(at $((L0 + 30)))"
+grep -q 'c-980 HIT S2 kind=limit .*-> not able until the reset 2026-10-08T22:50:00Z + 120s; no restart$' <<<"$out" &&
+  [[ "$(cat "$D/wd/c-980.ep.S2.reset")" == "$LR" ]] && pass "11 1:50am (Europe/Helsinki) on 2026-10-08 is 22:50Z, stored once" || fail "11 tz: $out / $(cat "$D/wd/c-980.ep.S2.reset" 2>/dev/null)"
+out="$(at $((LR + 60)))"
+[[ "$(wakes c-980)" == 0 ]] && grep -q 'c-980 HIT S2 .*not able until the reset' <<<"$out" && pass "11 (a) reset + 60 s (under the 120 s grace): no wake" || fail "11 (a): $out / $(cat "$T/sent" 2>/dev/null)"
+out="$(DRY=1 at $((LR + 130)))"
+[[ "$(wakes c-980)" == 0 ]] && grep -q 'c-980 HIT S2 .*would wake (dry run)' <<<"$out" && pass "11 a dry run past the grace only says 'would wake'" || fail "11 dry: $out"
+out="$(at $((LR + 130)))"
+[[ "$(wakes c-980)" == 1 ]] && grep -q 'c-980 HIT S2 .*-> wake$' <<<"$out" && ! grep -q C-c "$T/tmux/log" 2>/dev/null &&
+  [[ ! -s "$T/takeovers" ]] && pass "11 (b) reset + 130 s, still on the limit: ONE wake (a ring, no takeover)" || fail "11 (b): $out / $(cat "$T/sent" 2>/dev/null)"
+out="$(at $((LR + 160)))"
+[[ "$(wakes c-980)" == 1 ]] && grep -q 'c-980 HIT S2 .*wake done 30s ago' <<<"$out" && pass "11 (b) the next tick: no second wake" || fail "11 (b) twice: $out"
+cp "$FX/idle.pane" "$T/tmux/screen.%1"
+at $((LR + 190)) >/dev/null
+[[ ! -e "$D/wd/c-980.ep.S2.reset" && ! -e "$D/wd/c-980.ep.S2.wake" ]] && pass "11 the episode's end clears the stored reset and the wake flag" || fail "11 episode end: $(echo "$D/wd"/c-980.*)"
+# a box holding text is cleared first (S6's repoke shape: C-c, then ring)
+reset_box; limit_pane 'resets 1:50am (Europe/Helsinki)'; agent c-981 %1 4081 claude 3600 "$T/limit.pane"; echo 'half a line' > "$T/tmux/input.%1"
+for n in $L0 $((L0 + 30)) $((LR + 130)); do out="$(at "$n")"; done
+[[ "$(wakes c-981)" == 1 ]] && grep -qx 'keys %1 C-c' "$T/tmux/log" && pass "11 a box holding text: C-c, then the wake" || fail "11 repoke: $out / $(cat "$T/tmux/log" 2>/dev/null)"
+# (c) an unreadable reset: today's behaviour, no wake, one wd.log line
+reset_box; limit_pane 'resets 1:50am (Mars/Base)'; agent c-982 %1 4082 claude 3600 "$T/limit.pane"
+for n in $L0 $((L0 + 30)) $((LR + 130)) $((L0 + 86400)); do out="$(at "$n")"; done
+[[ "$(wakes c-982)" == 0 ]] && grep -q 'c-982 HIT S2 kind=limit .*-> not able until the reset; no restart$' <<<"$out" &&
+  [[ "$(cat "$D/wd.log"* | grep -c "LIMIT-RESET-UNREAD c-982: .*resets 1:50am (Mars/Base)")" == 1 ]] &&
+  pass "11 (c) an unreadable reset (an unknown zone): no wake in a day, ONE wd.log line naming the text (rotated or not)" || fail "11 (c): $out / $(cat "$D/wd.log"* | grep LIMIT)"
 
 grep -q ERR-TRAP "$T/all.out" && fail "no tick may fire ./run's ERR trap: $(grep -m3 ERR-TRAP "$T/all.out")" || pass "no tick fired ./run's ERR trap"
 

@@ -328,12 +328,23 @@ spl_wd_boot_pass() {
   if [[ -z "$last" ]]; then spl_wd_boot_seen "$bt" "BOOT $at: no verdict before the boot, nothing ran here"; return 0; fi
   r="$(cat "$WD_DIR/resume$WD_SFX" 2>/dev/null || true)"
   [[ "$r" =~ ^[0-9]+$ ]] && (( r > bt )) || r="$bt"
-  if (( now - r < WD_START_GRACE )); then echo "BOOT $at: waits $(( WD_START_GRACE - now + r ))s (start and resume grace)"; return 0; fi
+  if (( now - r < WD_START_GRACE )); then spl_wd_boot_wait "$bt" "BOOT $at: waits $(( WD_START_GRACE - now + r ))s (start and resume grace)"; return 0; fi
   if declare -F spl_wd_box_fenced >/dev/null && spl_wd_box_fenced; then
     spl_wd_log "BOOT $at fenced (102 10.2): nothing started; retried next tick"; return 0
   fi
   [[ "${DRY_RUN:-1}" == 1 ]] || mkdir -p "$WD_DIR/boot.d" "$WD_DIR/boot.q" || return 0
   spl_wd_boot_queue "$now" "$tick" "$bt" "$at" "$snap" "$last"
+}
+
+# spl_wd_boot_wait BT LINE: LINE on stdout every tick and in wd.log once per
+# boot (boot.<bt>.wait), so wd.log tells a pass that waits from one that never
+# ran (box reboot 2026-10-09: 3 min with no BOOT line, the wait only in run.*.out).
+spl_wd_boot_wait() {
+  echo "$2"
+  [[ -e "$WD_DIR/boot.$1.wait" ]] && return 0
+  spl_wd_log "$2; logged once per boot, retried every tick"
+  [[ "${DRY_RUN:-1}" == 1 ]] || : > "$WD_DIR/boot.$1.wait" 2>/dev/null || true
+  return 0
 }
 
 # spl_wd_boot_queue NOW TICK BT AT SNAP LAST: the boot's restarts as a queue
@@ -546,7 +557,7 @@ spl_wd_boot_seen() {
   spl_wd_log "$2"
   [[ "${DRY_RUN:-1}" == 1 ]] && return 0
   echo "$1" > "$WD_DIR/boot.seen"
-  find "$WD_DIR" -maxdepth 1 \( -name 'boot.*.seen' ! -name "boot.$1.seen" -o -name 'boot.*.tally' \) -delete 2>/dev/null || true
+  find "$WD_DIR" -maxdepth 1 \( -name 'boot.*.seen' ! -name "boot.$1.seen" -o -name 'boot.*.tally' -o -name 'boot.*.wait' \) -delete 2>/dev/null || true
   return 0
 }
 

@@ -330,6 +330,16 @@ for s in 660 690 720; do wd $(( BT + s )); sleep 0.3; done
 [[ "$(lt S3)" == 1 ]] && pass "control: after the boot pass S3 restarts the dead seat (cause S3)" || fail "control: post-boot S3: $(cat "$S/c-002/lifetime/restarts" 2>/dev/null)"
 rm -f "$T/s3hit"; cleanup_stubs
 
+# ---- 8. the wait is in wd.log ---------------------------------------------------
+echo "=== 8. box reboot 2026-10-09: a pass inside its start grace leaves one BOOT line in wd.log"
+IDS="c-101"; box
+for s in 60 90 120; do wd $(( BT + s )); done
+n="$(grep -c 'BOOT 2027-01-15T08:00:00Z: waits [0-9]*s (start and resume grace)' "$D/wd.log" 2>/dev/null || true)"
+[[ "$n" == 1 ]] && pass "three ticks inside the grace: one wait line in wd.log" || fail "wait lines in wd.log: '${n:-0}', want 1 ($(grep -c BOOT "$D/wd.log" 2>/dev/null || true) BOOT lines)"
+wd $(( BT + 300 )); settle 1; release c-101; wd $(( BT + 330 ))
+[[ "$(cat "$W/boot.seen" 2>/dev/null)" == "$BT" && ! -e "$W/boot.$BT.wait" ]] && pass "boot done: boot.seen, the wait marker cleared" || fail "done: $(last_sum); $(find "$W" -maxdepth 1 -name 'boot*' -printf '%f ')"
+cleanup_stubs
+
 echo
 if (( fails == 0 )); then echo "wd-boot-queue: all passed"; else echo "wd-boot-queue: $fails failed"; fi
 exit $(( fails > 0 ))

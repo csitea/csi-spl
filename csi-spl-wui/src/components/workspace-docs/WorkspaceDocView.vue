@@ -3,11 +3,15 @@
      paragraphs"). One continuous document: per item a heading with its
      logical number (1 / 1.1 / 1.1.1) and its title, edited in place, the text
      as a paragraph below it, edited in place, then the optional source block
-     and image (attrs.src, attrs.img_http_path). A '#' permalink per heading,
-     the numbered contents on the right (indented by level, collapsible, a
-     click scrolls), the item menu on the number (a right-click or a tap), a
-     search box filtering the items, and print (contents first, then a page
-     break). One read of the whole document (/subtree with no item); every
+     and image (attrs.src, attrs.img_http_path). Qto's dots control at the far
+     left of every title opens the section menu (a click or a right-click, as
+     does a right-click on the number or a contents entry): open the branch
+     alone, open it as a list (the grid), export it to Markdown or a
+     spreadsheet, print it, add a sibling / child / parent, indent, outdent,
+     up, down, delete. A '#' permalink per heading, the numbered contents on
+     the right (indented by level, collapsible, a click scrolls), a search box
+     filtering the items ('/' focuses it, Enter searches every document), and
+     print (contents first, then a page break). One read of the whole document (/subtree with no item); every
      edit is one of the hub's ops with the doc rev it read, and a 412 sets
      the session stale (the page shows its reload prompt). -->
 <template>
@@ -17,8 +21,10 @@
         <UiIcon name="search" :size="16" />
         <span class="sr-only">{{ t('ws_doctree.search') }}</span>
         <input
+          ref="searchEl"
           v-model="search"
           type="search"
+          @keydown.enter.prevent="searchAll"
           data-test="ws-doc-search"
           :placeholder="t('ws_doctree.search_placeholder')"
           :aria-label="t('ws_doctree.search')"
@@ -39,6 +45,27 @@
       </button>
     </div>
 
+    <div v-if="hits" class="wsdoc__hits" data-test="ws-doc-hits">
+      <div class="wsdoc__hits-head">
+        <span>{{ t('ws_doctree.search_all') }}</span>
+        <button type="button" class="icon-btn" data-test="ws-doc-hits-close" :aria-label="t('ws_doctree.search_all_close')" @click="hits = null">
+          <UiIcon name="x" :size="16" />
+        </button>
+      </div>
+      <p v-if="!hits.length" class="muted">{{ t('ws_doctree.search_all_none') }}</p>
+      <ul v-else>
+        <li v-for="h in hits" :key="h.doc + h.item">
+          <button type="button" class="wsdoc__hit" data-test="ws-doc-hit" @click="openHit(h)">
+            <span class="wsdoc__hit-doc">{{ docs.find((d) => d.id === h.doc)?.title || '' }}</span>
+            <span>{{ h.title || t('ws_doctree.untitled') }}</span>
+          </button>
+        </li>
+      </ul>
+    </div>
+    <div v-if="branchItem" class="wsdoc__branch" data-test="ws-doc-branch">
+      <span>{{ t('ws_doctree.branch_showing', { n: branchItem.outline, title: branchItem.title || t('ws_doctree.untitled') }) }}</span>
+      <button type="button" class="btn ghost" data-test="ws-doc-branch-clear" @click="branch = ''">{{ t('ws_doctree.branch_all') }}</button>
+    </div>
     <p v-if="state === 'loading'" class="wsdoc__note muted">{{ t('ws_doctree.loading') }}</p>
     <p v-else-if="state === 'failed'" class="wsdoc__note" role="alert">{{ t('ws_doctree.load_failed') }}</p>
     <div v-else-if="!items.length" class="wsdoc__empty" data-test="ws-doc-empty">
@@ -49,6 +76,7 @@
     </div>
     <div v-else class="wsdoc__cols">
       <article class="wsdoc__doc" data-test="ws-doc-doc">
+        <h2 class="wsdoc__doctitle" data-test="ws-doc-doctitle">{{ title || t('ws_doctree.default_doc_title') }}</h2>
         <p v-if="!shown.length" class="wsdoc__note muted" data-test="ws-doc-search-none">{{ t('ws_doctree.search_none') }}</p>
         <section
           v-for="it in shown"
@@ -60,25 +88,34 @@
           :data-depth="it.depth"
         >
           <h3 :id="anchor(it.id)" class="wsdoc__h">
-            <a class="wsdoc__perma" :href="'#' + anchor(it.id)" data-test="ws-doc-permalink" :aria-label="t('ws_doctree.permalink')" @click.prevent="goTo(it.id)">#</a>
             <button
               type="button"
-              class="wsdoc__num"
-              data-test="ws-doc-num"
+              class="wsdoc__dots"
+              data-test="ws-doc-menu-btn"
               aria-haspopup="menu"
               :aria-label="t('ws_doctree.actions') + ' ' + it.outline"
               @click="openMenuAt(it, $event)"
               @contextmenu.prevent="openMenu(it, $event.clientX, $event.clientY)"
-            >{{ it.outline }}</button>
+            >
+              <UiIcon name="grip" :size="16" />
+            </button>
+            <a class="wsdoc__perma" :href="'#' + anchor(it.id)" data-test="ws-doc-permalink" :aria-label="t('ws_doctree.permalink')" @click.prevent="goTo(it.id)">#</a>
+            <span
+              class="wsdoc__num"
+              data-test="ws-doc-num"
+              @contextmenu.prevent="openMenu(it, $event.clientX, $event.clientY)"
+            >{{ it.outline }}</span>
             <textarea
               class="wsdoc__title"
               data-test="ws-doc-title"
               rows="1"
               maxlength="1000"
               :value="it.title"
-              :placeholder="t('ws_doctree.untitled')"
+              :placeholder="t('ws_doctree.heading_placeholder', { n: it.outline })"
               :aria-label="t('ws_doctree.edit_title') + ' ' + it.outline"
               @input="grow($event.target as HTMLTextAreaElement)"
+              @keyup.tab="($event.target as HTMLTextAreaElement).select()"
+              @contextmenu.prevent="openMenu(it, $event.clientX, $event.clientY)"
               @keydown.enter.prevent="($event.target as HTMLTextAreaElement).blur()"
               @keydown.esc.prevent="revert($event.target as HTMLTextAreaElement, it.title)"
               @blur="commit(it, 'title', ($event.target as HTMLTextAreaElement).value.replace(/\s+/g, ' ').trim())"
@@ -86,15 +123,21 @@
           </h3>
           <textarea
             class="wsdoc__body"
+            :class="{ 'wsdoc__body--closed': !paraShown(it) }"
             data-test="ws-doc-text"
             rows="1"
             :value="it.body"
-            :placeholder="t('ws_doctree.body_placeholder')"
+            :placeholder="paraShown(it) ? t('ws_doctree.body_placeholder') : ''"
+            @focus="paraOpen.add(it.id)"
             :aria-label="t('ws_doctree.edit_body') + ' ' + it.outline"
             @input="grow($event.target as HTMLTextAreaElement)"
+            @keyup.tab="($event.target as HTMLTextAreaElement).select()"
             @keydown.esc.prevent="revert($event.target as HTMLTextAreaElement, it.body)"
             @blur="commit(it, 'body', ($event.target as HTMLTextAreaElement).value)"
           />
+          <p v-if="links(it.body).length" class="wsdoc__links" data-test="ws-doc-links">
+            <a v-for="(u, i) in links(it.body)" :key="i" :href="u" target="_blank" rel="noopener noreferrer">{{ u }}</a>
+          </p>
           <pre v-if="attr(it, 'src')" class="wsdoc__src" data-test="ws-doc-src"><code>{{ attr(it, 'src') }}</code></pre>
           <figure v-if="attr(it, 'img_http_path')" class="wsdoc__fig">
             <figcaption v-if="attr(it, 'img_name')">{{ attr(it, 'img_name') }}</figcaption>
@@ -124,7 +167,7 @@
             data-test="ws-doc-toc-item"
             @contextmenu.prevent="openMenu(it, $event.clientX, $event.clientY)"
           >
-            <a :href="'#' + anchor(it.id)" @click.prevent="goTo(it.id)"><span class="wsdoc__toc-num">{{ it.outline }}</span> {{ it.title || t('ws_doctree.untitled') }}</a>
+            <a :href="'#' + anchor(it.id)" @click.prevent="goTo(it.id)"><span class="wsdoc__toc-num">{{ it.outline }}</span> {{ it.title || t('ws_doctree.heading_placeholder', { n: it.outline }) }}</a>
           </li>
         </ol>
       </nav>
@@ -160,16 +203,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
+import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import {
   docMenuItems, editDocItem, removeDocItem, runDocOp, moveTarget,
-  type DocItem, type DocMenuId, type DocSession, type DocShape,
+  type DocHead, type DocHit, type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
 
-const props = defineProps<{ session: DocSession, root: string }>()
-const emit = defineEmits<{ print: [item: DocItem | null] }>()
+const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[] }>()
+const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
 /* below this width the contents are a drawer over the document, closed at first */
@@ -184,6 +228,15 @@ const items = shallowRef<DocItem[]>([])
 const state = ref<'loading' | 'ready' | 'failed'>('loading')
 const busy = ref(false)
 const search = ref('')
+const searchEl = ref<HTMLInputElement | null>(null)
+/* Qto's "open as doc": one branch shown alone ('' = the whole document) */
+const branch = ref('')
+/* Enter in the search box: the hits in every document (null = closed) */
+const hits = ref<DocHit[] | null>(null)
+/* the level-1 sections whose (empty) paragraph the user opened */
+const paraOpen = reactive(new Set<string>())
+/** paragraph text is optional at every level; level 1 shows none until asked (owner msgs 9debc0df, ab5b890e) */
+const paraShown = (it: DocItem) => it.depth > 1 || Boolean(it.body) || paraOpen.has(it.id)
 const tocOpen = ref(true)
 const menu = ref<{ x: number, y: number, item: DocItem } | null>(null)
 const doomed = ref<DocItem | null>(null)
@@ -201,14 +254,25 @@ const byParent = computed(() => {
   return m
 })
 
+const branchItem = computed(() => (branch.value ? byId.value.get(branch.value) : undefined))
+
+/** the item and everything under it, in document order */
+function branchOf(it: DocItem): DocItem[] {
+  return items.value.filter((x) => x.id === it.id || x.outline.startsWith(it.outline + '.'))
+}
+
 /** Qto's search: the items whose title or text holds the words, or whose number starts with them */
 const shown = computed(() => {
   const q = search.value.trim().toLowerCase()
-  if (!q) return items.value
-  return items.value.filter((it) => it.title.toLowerCase().includes(q) || it.body.toLowerCase().includes(q) || it.outline.startsWith(q))
+  const all = branchItem.value ? branchOf(branchItem.value) : items.value
+  if (!q) return all
+  return all.filter((it) => it.title.toLowerCase().includes(q) || it.body.toLowerCase().includes(q) || it.outline.startsWith(q))
 })
 
 const anchor = (id: string) => ANCHOR + id
+/* Qto's lnkMayBe: the web links in a text, clickable under it */
+const LINK = /https?:\/\/[^\s<>"'`)\]]+/g
+const links = (text: string) => [...new Set(text.match(LINK) ?? [])].slice(0, 20)
 const attr = (it: DocItem, k: string) => {
   const v = it.attrs?.[k]
   return typeof v === 'string' ? v : ''
@@ -260,8 +324,48 @@ const menuItems = computed(() => {
   if (!it) return []
   const sh = shapeOf(it)
   const can = (k: 'indent' | 'outdent' | 'up' | 'down') => Boolean(moveTarget(k, it, sh.prev, sh.parent, sh.count))
-  return docMenuItems({ indent: can('indent'), outdent: can('outdent'), up: can('up'), down: can('down') })
+  const ops = new Map(docMenuItems({ indent: can('indent'), outdent: can('outdent'), up: can('up'), down: can('down') }).map((m) => [m.id, m]))
+  const more: PointMenuItem[] = [
+    { id: 'add_paragraph', icon: 'pencil', labelKey: 'ws_doctree.menu.add_paragraph' },
+    { id: 'open_branch', icon: 'book-open', labelKey: 'ws_doctree.menu.open_branch' },
+    { id: 'open_list', icon: 'file-spreadsheet', labelKey: 'ws_doctree.menu.open_list' },
+    { id: 'export_md', icon: 'file-code', labelKey: 'ws_doctree.menu.export_md' },
+    { id: 'export_csv', icon: 'file', labelKey: 'ws_doctree.menu.export_csv' },
+  ]
+  for (const m of more) ops.set(m.id, m)
+  /* the owner's order (msg dd291fb8): add paragraph, promote, demote, delete, and so on */
+  const order = ['add_paragraph', 'outdent', 'indent', 'delete', 'add_sibling', 'add_child', 'add_parent', 'up', 'down',
+    'open_branch', 'open_list', 'export_md', 'export_csv', 'print']
+  return order.filter((id) => id !== 'add_paragraph' || !paraShown(it)).map((id) => ops.get(id)).filter((m): m is PointMenuItem => Boolean(m))
 })
+
+/** the menu's view-only entries: open the branch alone or as a list, export it */
+async function viewOp(id: string, it: DocItem): Promise<boolean> {
+  if (id === 'add_paragraph') {
+    paraOpen.add(it.id)
+    await nextTick()
+    rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-text]`)?.focus()
+    return true
+  }
+  if (id === 'open_branch') {
+    branch.value = it.id
+    search.value = ''
+    await nextTick()
+    rootEl.value?.scrollIntoView({ block: 'start' })
+    return true
+  }
+  if (id === 'open_list') {
+    emit('list', it.outline)
+    return true
+  }
+  if (id !== 'export_md' && id !== 'export_csv') return false
+  const x = await import('./-doctree-export')
+  const part = branchOf(it)
+  const doc = props.title || t('ws_doctree.default_doc_title')
+  if (id === 'export_md') x.saveText(x.exportName(doc, it.outline, 'md'), x.branchToMarkdown(part, t('ws_doctree.untitled')), 'text/markdown;charset=utf-8')
+  else x.saveText(x.exportName(doc, it.outline, 'csv'), x.branchToCsv(part, [t('ws_doctree.col_outline'), t('ws_doctree.col_level'), t('ws_doctree.col_title'), t('ws_doctree.col_body')]), 'text/csv;charset=utf-8')
+  return true
+}
 
 function openMenu(item: DocItem, x: number, y: number) {
   menu.value = { x, y, item }
@@ -285,6 +389,7 @@ async function choose(id: string) {
   const it = menu.value?.item
   menu.value = null
   if (!it) return
+  if (await viewOp(id, it)) return
   const op = id as DocMenuId
   if (op === 'print') return emit('print', it)
   if (op === 'delete') {
@@ -320,9 +425,15 @@ async function addFirst() {
 async function confirmDelete() {
   const it = doomed.value
   if (!it) return
+  /* Qto lands on the item before the deleted one */
+  const before = items.value[items.value.findIndex((x) => x.id === it.id) - 1]
   busy.value = true
   try {
-    if (await removeDocItem(props.session, it)) await load()
+    if (await removeDocItem(props.session, it)) {
+      if (branch.value && !items.value.some((x) => x.id === branch.value && !x.outline.startsWith(it.outline + '.') && x.id !== it.id)) branch.value = ''
+      await load()
+      if (before && byId.value.has(before.id)) document.getElementById(anchor(before.id))?.scrollIntoView({ block: 'nearest' })
+    }
   } finally {
     busy.value = false
     doomed.value = null
@@ -347,9 +458,40 @@ function goTo(id: string) {
   if (narrow()) tocOpen.value = false
 }
 
+/** Enter in the search box: Qto's search over every document */
+async function searchAll() {
+  const q = search.value.trim()
+  if (!q) {
+    hits.value = null
+    return
+  }
+  const s = props.session
+  const r = await s.run(() => s.client.search(q))
+  if (r) hits.value = r
+}
+
+function openHit(h: DocHit) {
+  hits.value = null
+  if (h.doc !== props.session.doc) return emit('open', h.doc, h.item)
+  search.value = ''
+  branch.value = ''
+  void nextTick(() => goTo(h.item))
+}
+
+/* Qto: '/' focuses the search box, unless the caret is in a field; captured first and
+   defaultPrevented, so the top bar's own '/' (slash-focus.mjs) leaves it alone on this page */
+function onSlash(e: KeyboardEvent) {
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+  const a = document.activeElement as HTMLElement | null
+  if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return
+  e.preventDefault()
+  searchEl.value?.focus()
+}
+
 let ro: ResizeObserver | null = null
 let lastWidth = 0
 onMounted(async () => {
+  window.addEventListener('keydown', onSlash, true)
   tocOpen.value = !narrow()
   state.value = (await load()) ? 'ready' : 'failed'
   /* Qto's scrollToHash: a permalink opened from elsewhere lands on its heading */
@@ -369,7 +511,10 @@ onMounted(async () => {
     ro.observe(rootEl.value)
   }
 })
-onBeforeUnmount(() => ro?.disconnect())
+onBeforeUnmount(() => {
+  ro?.disconnect()
+  window.removeEventListener('keydown', onSlash, true)
+})
 </script>
 
 <style scoped>
@@ -408,6 +553,33 @@ onBeforeUnmount(() => ro?.disconnect())
   padding: 4px 0;
 }
 .wsdoc__tool { display: inline-flex; align-items: center; gap: 4px; }
+.wsdoc__hits, .wsdoc__branch {
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-2);
+}
+.wsdoc__hits-head { display: flex; align-items: center; justify-content: space-between; color: var(--color-muted); font-weight: 700; }
+.wsdoc__hits ul { list-style: none; margin: 4px 0 0; padding: 0; max-height: 40vh; overflow-y: auto; }
+.wsdoc__hit {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.wsdoc__hit:hover { background: var(--color-surface-hover); }
+.wsdoc__hit-doc { color: var(--color-muted); }
+.wsdoc__branch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.wsdoc__links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 2px 0 0; padding: 0 8px; font-size: 0.875rem; }
+.wsdoc__links a { color: var(--color-accent); overflow-wrap: anywhere; }
 .wsdoc__note { padding: 12px 16px; }
 .wsdoc__empty { display: grid; gap: 12px; justify-items: start; padding: 16px; }
 
@@ -417,6 +589,14 @@ onBeforeUnmount(() => ro?.disconnect())
 /* the document: Qto's lft_body, one column of headings and paragraphs */
 .wsdoc__doc { padding: 16px clamp(12px, 6%, 64px) 40vh; min-width: 0; }
 .wsdoc__item { max-width: 52rem; }
+.wsdoc__doctitle {
+  max-width: 52rem;
+  margin: 0.5rem 0 0.25rem;
+  color: var(--color-heading);
+  font-size: 1.5rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
 .wsdoc__h {
   display: flex;
   align-items: flex-start;
@@ -426,10 +606,26 @@ onBeforeUnmount(() => ro?.disconnect())
   line-height: 1.5;
   scroll-margin-top: 4rem;
 }
+/* Qto's section control: the dots at the far left of every title, a click or a right-click opens the section menu */
+.wsdoc__dots {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 2rem;
+  margin-inline-start: -2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-muted);
+  cursor: context-menu;
+}
+.wsdoc__dots:hover { color: var(--color-fg); background: var(--color-surface-hover); }
 .wsdoc__perma {
   flex: none;
   width: 1.25rem;
-  margin-inline-start: -1.25rem;
   padding-top: 4px;
   color: var(--color-muted);
   text-decoration: none;
@@ -440,16 +636,10 @@ onBeforeUnmount(() => ro?.disconnect())
 .wsdoc__num {
   flex: none;
   padding: 4px 4px;
-  border: 0;
-  background: none;
   color: var(--color-accent);
-  font: inherit;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  cursor: context-menu;
-  border-radius: var(--radius-sm);
 }
-.wsdoc__num:hover { text-decoration: underline; }
 .wsdoc__title, .wsdoc__body {
   display: block;
   width: 100%;
@@ -471,6 +661,8 @@ onBeforeUnmount(() => ro?.disconnect())
   font-weight: 700;
   line-height: 1.5;
 }
+/* a level-1 section starts without a paragraph (owner msg 9debc0df); a click under the heading or "Add paragraph" opens one */
+.wsdoc__body--closed:not(:focus) { block-size: 0.75rem; min-height: 0; padding-block: 0; cursor: text; }
 .wsdoc__body {
   margin-top: 2px;
   padding: 6px 8px;
@@ -480,9 +672,8 @@ onBeforeUnmount(() => ro?.disconnect())
   min-height: 2rem;
 }
 .wsdoc__title:hover, .wsdoc__body:hover, .wsdoc__title:focus, .wsdoc__body:focus { border-color: var(--color-border-strong); }
-.wsdoc__title::placeholder, .wsdoc__body::placeholder { color: var(--color-muted); opacity: 0; }
-.wsdoc__title::placeholder { opacity: 1; }
-.wsdoc__body:hover::placeholder, .wsdoc__body:focus::placeholder { opacity: 1; }
+/* an empty title or text shows its placeholder (Heading 1.1, Paragraph text), typed over in place */
+.wsdoc__title::placeholder, .wsdoc__body::placeholder { color: var(--color-muted); opacity: 1; font-style: italic; }
 .wsdoc__src {
   margin: 6px 0;
   padding: 10px 12px;
@@ -533,7 +724,7 @@ onBeforeUnmount(() => ro?.disconnect())
 
 @container (max-width: 760px) {
   .wsdoc--toc .wsdoc__cols { grid-template-columns: minmax(0, 1fr); }
-  .wsdoc__doc { padding-inline: 1.5rem 8px; }
+  .wsdoc__doc { padding-inline: 2.75rem 8px; }
   .wsdoc__perma { opacity: 0.5; }
   .wsdoc__toc {
     position: fixed;

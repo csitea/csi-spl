@@ -216,6 +216,20 @@ export function mockDocTree(method: string, path: string, body: Body = {}): Mock
   const url = new URL(path || '/', 'http://mock.invalid')
   const [docId, sub = '', id = '', verb = ''] = url.pathname.split('/').filter(Boolean)
   if (!docId && method === 'GET') return { status: 200, body: { docs: [...docs.values()].map(head) } }
+  if (docId === 'search' && method === 'GET') {
+    const q = (url.searchParams.get('q') || '').trim().toLowerCase()
+    if (!q) return fail(400, 'bad_query', 'q is 1..200 characters')
+    const only = url.searchParams.get('doc') || ''
+    const hits: { doc: string, item: string, title: string, rank: number }[] = []
+    for (const d of docs.values()) {
+      if (only && d.id !== only) continue
+      for (const it of d.items.values()) {
+        if (it.parent && (it.title.toLowerCase().includes(q) || it.body.toLowerCase().includes(q))) hits.push({ doc: d.id, item: it.id, title: it.title, rank: it.title.toLowerCase().includes(q) ? 1 : 0.5 })
+      }
+    }
+    hits.sort((a, b) => b.rank - a.rank)
+    return { status: 200, body: { hits: hits.slice(0, 100) } }
+  }
   if (!docId && method === 'POST') {
     const title = str(body.title).trim()
     if (!title) return fail(400, 'bad_request', 'title is 1..500 characters')

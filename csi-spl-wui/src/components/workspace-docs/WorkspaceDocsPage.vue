@@ -41,7 +41,7 @@
           :placeholder="t('ws_doctree.new_doc_placeholder')"
           :aria-label="t('ws_doctree.new_doc')"
         >
-        <button type="submit" class="btn" data-test="ws-docs-create" :disabled="!newTitle.trim() || creating">
+        <button type="submit" class="btn" data-test="ws-docs-create" :disabled="creating">
           <UiIcon name="plus" :size="16" /><span>{{ t('ws_doctree.create') }}</span>
         </button>
       </form>
@@ -62,8 +62,8 @@
       <p v-else-if="session?.error.value" class="wsdocs-error" role="alert" data-test="ws-docs-error">{{ t(session.error.value) }}</p>
 
       <template v-if="session && root">
-        <WorkspaceDocView v-if="view === 'doc'" :key="'doc' + mount" :session="session" :root="root" @print="printBranch" />
-        <WorkspaceGridView v-else :key="'grid' + mount" :session="session" @print="printBranch" />
+        <WorkspaceDocView v-if="view === 'doc'" :key="'doc' + mount" :session="session" :root="root" :title="docTitle" :docs="docs" @print="printBranch" @list="openList" @open="openAt" />
+        <WorkspaceGridView v-else :key="'grid' + mount" :session="session" :filter="String(route.query.q || '')" @print="printBranch" />
       </template>
     </div>
     <WorkspaceDocPrint :title="docTitle" :items="printItems" />
@@ -75,7 +75,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 
 import WorkspaceDocView from './WorkspaceDocView.vue'
 import WorkspaceGridView from './WorkspaceGridView.vue'
 import WorkspaceDocPrint from './WorkspaceDocPrint.vue'
-import { createDocSession, DocTreeError, useDocTree, type DocHead, type DocItem, type DocSession } from './-doctree-api'
+import { createDocSession, DocTreeError, seedStarterDoc, useDocTree, type DocHead, type DocItem, type DocSession } from './-doctree-api'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 
 const VIEWS = ['doc', 'grid'] as const
@@ -100,10 +100,24 @@ const view = computed<View>(() => (route.query.view === 'grid' ? 'grid' : 'doc')
 const docTitle = computed(() => docs.value.find((d) => d.id === docId.value)?.title || '')
 
 async function setQuery(q: Record<string, string>) {
-  await router.replace({ query: { ...route.query, ...q } })
+  const next: Record<string, unknown> = { ...route.query, ...q }
+  for (const k of Object.keys(next)) if (next[k] === '') delete next[k] /* an empty value leaves the URL */
+  await router.replace({ query: next as Record<string, string> })
 }
 function setView(v: View) {
-  void setQuery({ view: v })
+  void setQuery({ view: v, q: '' })
+}
+
+/** Qto's "open as list": the grid, filtered to one branch's number */
+function openList(outline: string) {
+  void setQuery({ view: 'grid', q: outline })
+}
+
+/** a search hit in another document: open it, then its heading */
+async function openAt(doc: string, item: string) {
+  const { q: _q, ...rest } = route.query
+  await router.replace({ query: { ...rest, doc, view: 'doc' }, hash: '#ws-doc-' + item })
+  await open()
 }
 
 /** open (or reopen) the current document: its head, a fresh session, the view remounted */
@@ -143,12 +157,13 @@ async function loadDocs() {
   }
 }
 
+/** a new document always has a title (the default when none is typed) and starts with the starter outline */
 async function createDoc() {
-  const title = newTitle.value.trim()
-  if (!title) return
+  const title = newTitle.value.trim() || t('ws_doctree.default_doc_title')
   creating.value = true
   try {
     const r = await client.create(title)
+    await seedStarterDoc(client, r.id, r.rev)
     newTitle.value = ''
     docs.value = await client.list()
     await pick(r.id)
@@ -180,7 +195,9 @@ async function printBranch(item: DocItem | null) {
 onMounted(() => {
   /* test hook (mock tenant only): another writer moves the doc rev on */
   if (useSpoolApi().mock) {
-    (window as unknown as Record<string, unknown>).__wsDocTreeBump = () => client.bumpForTest(docId.value)
+    const w = window as unknown as Record<string, unknown>
+    w.__wsDocTreeBump = () => client.bumpForTest(docId.value)
+    w.__wsDocTreeCall = (method: string, path: string, body?: Record<string, unknown>) => client.callForTest(method, path, body)
   }
   void loadDocs()
 })

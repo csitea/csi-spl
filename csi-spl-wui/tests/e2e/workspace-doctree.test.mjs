@@ -48,7 +48,7 @@ function outline(p, v) {
     const num = r.querySelector(`[data-test=ws-${v}-num]`)?.textContent?.trim() ?? ''
     const el = r.querySelector(`[data-test=ws-${v}-title]`)
     const title = el ? (el.tagName === 'TEXTAREA' ? el.value : el.textContent).trim() : '(editing)'
-    return `${num} ${title}`
+    return `${num} ${title}`.trim()
   }), v)
 }
 
@@ -59,25 +59,36 @@ async function outlineIs(p, v, want) {
       const num = r.querySelector(`[data-test=ws-${v}-num]`)?.textContent?.trim() ?? ''
       const el = r.querySelector(`[data-test=ws-${v}-title]`)
       const title = el ? (el.tagName === 'TEXTAREA' ? el.value : el.textContent).trim() : '(editing)'
-      return `${num} ${title}`
+      return `${num} ${title}`.trim()
     })
     return JSON.stringify(got) === JSON.stringify(want)
   }, { timeout: STEP }, v, want).catch(() => null)
   return outline(p, v)
 }
 
-/** open the item menu of the row titled title and choose op (the doc
-    view's menu is on the item's number, as Qto's) */
-async function menu(p, v, title, op) {
+/** open the item menu of the row titled title and choose op. The doc
+    view's menu opens as the owner asked (t1 519a4ee9, msg dd291fb8): a
+    right-click on the title; how = 'dots' clicks Qto's dots control instead. */
+async function menu(p, v, title, op, how = v === 'doc' ? 'right' : 'dots') {
   const idx = await p.evaluate((v, title) => [...document.querySelectorAll(`[data-test=ws-${v}-row]`)]
     .findIndex((r) => {
       const el = r.querySelector(`[data-test=ws-${v}-title]`)
       return (el?.tagName === 'TEXTAREA' ? el.value : el?.textContent)?.trim() === title
     }), v, title)
   if (idx < 0) throw new Error(`no ${v} row titled ${title}`)
-  const btns = await p.$$(`[data-test=ws-${v}-row] [data-test=ws-${v}-${v === 'doc' ? 'num' : 'menu-btn'}]`)
-  await btns[idx].click()
-  const item = await p.waitForSelector(`[data-testid="ws-${v}-menu-${op}"]`, { visible: true, timeout: STEP })
+  /* clear of the sticky tool bar, which would take the click */
+  await p.evaluate((v, idx) => document.querySelectorAll(`[data-test=ws-${v}-row]`)[idx].scrollIntoView({ block: 'center' }), v, idx)
+  if (how === 'right') {
+    const titles = await p.$$(`[data-test=ws-${v}-row] [data-test=ws-${v}-title]`)
+    await titles[idx].click({ button: 'right' })
+  } else {
+    const btns = await p.$$(`[data-test=ws-${v}-row] [data-test=ws-${v}-menu-btn]`)
+    await btns[idx].click()
+  }
+  const item = await p.waitForSelector(`[data-testid="ws-${v}-menu-${op}"]`, { visible: true, timeout: STEP }).catch(async (e) => {
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/ws-doctree-menu-${op}.png`, fullPage: true })
+    throw e
+  })
   await item.click()
 }
 
@@ -124,11 +135,40 @@ try {
   await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: NAV_TIMEOUT })
 
-  /* a new, empty document */
+  /* a new document never starts from nothing (t1 519a4ee9): its title, then
+     the starter headings 1 / 1.1 / 1.1.1 as placeholders, a paragraph
+     placeholder under levels 2 and 3 only */
   await p.type('[data-test=ws-docs-new-title]', 'E2E outline')
   await p.click('[data-test=ws-docs-create]')
+  let got = await outlineIs(p, 'doc', ['1', '1.1', '1.1.1'])
+  const starter = await p.evaluate(() => ({
+    title: document.querySelector('[data-test=ws-doc-doctitle]')?.textContent?.trim(),
+    rows: [...document.querySelectorAll('[data-test=ws-doc-row]')].map((r) => [
+      r.querySelector('[data-test=ws-doc-title]').placeholder, r.querySelector('[data-test=ws-doc-text]').placeholder]),
+  }))
+  ok('a new document opens with its title and the starter outline', JSON.stringify(got) === JSON.stringify(['1', '1.1', '1.1.1'])
+    && starter.title === 'E2E outline' && JSON.stringify(starter.rows) === JSON.stringify([['Heading 1', ''], ['Heading 1.1', 'Paragraph text'], ['Heading 1.1.1', 'Paragraph text']]), { got, starter })
+
+  /* every section action is on the title's right-click, and on Qto's dots */
+  const opsOf = () => p.$$eval('[data-testid^="ws-doc-menu-"][role=menuitem]', (l) => l.map((e) => e.dataset.testid.replace('ws-doc-menu-', '')))
+  const titles = await p.$$('[data-test=ws-doc-row] [data-test=ws-doc-title]')
+  await titles[0].click({ button: 'right' })
+  await p.waitForSelector('[data-testid="ws-doc-menu-add_paragraph"]', { visible: true, timeout: STEP }).catch(() => null)
+  const rightOps = await opsOf()
+  await p.keyboard.press('Escape')
+  const dots = await p.$$('[data-test=ws-doc-row] [data-test=ws-doc-menu-btn]')
+  await dots[1].click({ button: 'right' })
+  await p.waitForSelector('[data-testid="ws-doc-menu-delete"]', { visible: true, timeout: STEP }).catch(() => null)
+  const dotOps = await opsOf()
+  const labels = await p.$$eval('[data-testid^="ws-doc-menu-"][role=menuitem]', (l) => l.map((e) => e.textContent.trim()))
+  await p.keyboard.press('Escape')
+  ok('right-click on a title opens the section menu, Add paragraph first on level 1', rightOps[0] === 'add_paragraph' && rightOps.includes('outdent') && rightOps.includes('indent') && rightOps.includes('delete'), rightOps)
+  ok('Qto\'s dots open the same menu; Promote / Demote are the labels', dotOps.includes('add_child') && !dotOps.includes('add_paragraph') && labels.some((l) => l.startsWith('Promote')) && labels.some((l) => l.startsWith('Demote')), { dotOps, labels })
+
+  /* the starter is the user's to overwrite or remove: delete it, then the empty state */
+  await del(p, 'doc', '')
   const empty = await p.waitForSelector('[data-test=ws-doc-add-first]', { visible: true, timeout: STEP }).catch(() => null)
-  ok('a new document opens empty in the doc view', Boolean(empty))
+  ok('deleting the starter branch leaves the empty document', Boolean(empty))
   await empty.click()
   await name(p, 'doc', 'Alpha')
 
@@ -139,7 +179,7 @@ try {
   await name(p, 'doc', 'Gamma')
   await menu(p, 'doc', 'Beta', 'add_child')
   await name(p, 'doc', 'Beta child')
-  let got = await outlineIs(p, 'doc', ['1 Alpha', '2 Beta', '2.1 Beta child', '3 Gamma'])
+  got = await outlineIs(p, 'doc', ['1 Alpha', '2 Beta', '2.1 Beta child', '3 Gamma'])
   ok('doc view: add sibling and add child', JSON.stringify(got) === JSON.stringify(['1 Alpha', '2 Beta', '2.1 Beta child', '3 Gamma']), got)
 
   await menu(p, 'doc', 'Gamma', 'up')
@@ -285,6 +325,114 @@ try {
   })
   ok('print document: contents first, a page break, then the document', whole.calls === 2 && JSON.stringify(whole.order) === JSON.stringify(['ws-doc-print-toc', 'ws-doc-print-break'])
     && JSON.stringify(whole.toc) === JSON.stringify(afterReload) && whole.items === afterReload.length && whole.breakRule, whole)
+  await p.evaluate(() => window.dispatchEvent(new Event('afterprint')))
+
+  /* Qto parity: open the branch alone, export it to Markdown and CSV, '/' focuses the search, Enter searches every document */
+  await menu(p, 'doc', 'Alpha', 'open_branch')
+  got = await outlineIs(p, 'doc', ['1 Alpha', '1.1 Delta'])
+  const chip = await p.$('[data-test=ws-doc-branch]')
+  ok('open branch shows that branch alone', JSON.stringify(got) === JSON.stringify(['1 Alpha', '1.1 Delta']) && Boolean(chip), got)
+  await p.click('[data-test=ws-doc-branch-clear]')
+  await outlineIs(p, 'doc', afterReload)
+  await menu(p, 'doc', 'Alpha', 'open_list')
+  await p.waitForSelector('[data-test=ws-grid-view]', { visible: true, timeout: STEP }).catch(() => null)
+  got = await outlineIs(p, 'grid', ['1 Alpha', '1.1 Delta'])
+  const gq = await p.evaluate(() => ({ filter: document.querySelector('[data-test=ws-grid-filter]')?.value, q: new URL(location.href).searchParams.get('q') }))
+  ok('open as list opens the grid on that branch', JSON.stringify(got) === JSON.stringify(['1 Alpha', '1.1 Delta']) && gq.filter === '1' && gq.q === '1', { got, gq })
+  await view(p, 'doc')
+  await outlineIs(p, 'doc', afterReload)
+
+  await p.evaluate(() => {
+    window.__exports = []
+    const make = URL.createObjectURL
+    URL.createObjectURL = (b) => { b.text().then((t) => window.__exports.push(t)); return make.call(URL, b) }
+    HTMLAnchorElement.prototype.click = function () { if (this.download) window.__exportNames = [...(window.__exportNames || []), this.download] }
+  })
+  await menu(p, 'doc', 'Alpha', 'export_md')
+  await p.waitForFunction(() => window.__exports.length === 1, { timeout: STEP }).catch(() => null)
+  await menu(p, 'doc', 'Alpha', 'export_csv')
+  await p.waitForFunction(() => window.__exports.length === 2, { timeout: STEP }).catch(() => null)
+  const ex = await p.evaluate(() => ({ files: window.__exportNames, md: window.__exports[0], csv: window.__exports[1] }))
+  ok('export to Markdown and CSV carry the branch', JSON.stringify(ex.files) === JSON.stringify(['E2E-outline-1.md', 'E2E-outline-1.csv'])
+    && /^# 1 Alpha\n/.test(ex.md || '') && (ex.md || '').includes('## 1.1 Delta') && !(ex.md || '').includes('Beta')
+    && (ex.csv || '').split('\r\n').filter(Boolean).length === 3, ex)
+
+  const wasOn = await p.evaluate(() => { document.activeElement?.blur(); return document.activeElement?.tagName })
+  await p.keyboard.press('/')
+  const slash = await p.evaluate(() => document.activeElement?.dataset?.test || document.activeElement?.tagName)
+  ok("'/' focuses the search box", slash === 'ws-doc-search', { wasOn, slash })
+  await p.keyboard.type('introduction')
+  await p.keyboard.press('Enter')
+  await p.waitForSelector('[data-test=ws-doc-hit]', { visible: true, timeout: STEP }).catch(() => null)
+  const hit = await p.$$eval('[data-test=ws-doc-hit]', (l) => l.map((e) => e.textContent.replace(/\s+/g, ' ').trim()))
+  ok('Enter searches every document', hit.length === 1 && hit[0].includes('Handbook') && hit[0].includes('Introduction'), hit)
+  await p.click('[data-test=ws-doc-hits-close]')
+  await p.focus('[data-test=ws-doc-search]')
+  await p.keyboard.down('Control')
+  await p.keyboard.press('KeyA')
+  await p.keyboard.up('Control')
+  await p.keyboard.press('Backspace')
+  await outlineIs(p, 'doc', afterReload)
+
+  /* create, update, delete, then a reload re-reads the document from the hub
+     (the part Qto got wrong, t1 519a4ee9 msg 1ecb465b) */
+  const titleSel = (n) => `[data-test=ws-doc-row][data-outline="${n}"]`
+  const typeInto = async (sel, text) => {
+    await p.click(sel)
+    await p.keyboard.down('Control')
+    await p.keyboard.press('KeyA')
+    await p.keyboard.up('Control')
+    await p.keyboard.type(text)
+    await p.click('[data-test=ws-doc-doctitle]')
+  }
+  /* a level-1 section has no paragraph until "Add paragraph" (msgs 9debc0df, ab5b890e) */
+  await menu(p, 'doc', 'Alpha', 'add_paragraph')
+  await p.waitForFunction(() => document.activeElement?.dataset?.test === 'ws-doc-text', { timeout: STEP }).catch(() => null)
+  await p.keyboard.type('Level-1 paragraph, see https://example.com/qto')
+  await p.click('[data-test=ws-doc-doctitle]')
+  await menu(p, 'doc', 'Beta child', 'add_child')
+  await name(p, 'doc', 'New child')
+  await menu(p, 'doc', 'New child', 'add_parent')
+  await name(p, 'doc', 'New parent')
+  await menu(p, 'doc', 'After reload', 'add_sibling')
+  await name(p, 'doc', 'New sibling')
+  await menu(p, 'doc', 'Delta', 'outdent')
+  await typeInto(`${titleSel('3')} [data-test=ws-doc-title]`, 'Beta renamed')
+  await typeInto(`${titleSel('3')} [data-test=ws-doc-text]`, 'Text edited in place.')
+  await del(p, 'doc', 'New sibling')
+  const wantCrud = ['1 Alpha', '2 Delta', '3 Beta renamed', '4 After reload', '5 Beta child', '5.1 New parent', '5.1.1 New child']
+  got = await outlineIs(p, 'doc', wantCrud)
+  ok('add sibling / child / parent, promote, edit and delete in one session', JSON.stringify(got) === JSON.stringify(wantCrud), got)
+  const links = await p.$$eval(`${titleSel('1')} [data-test=ws-doc-links] a`, (l) => l.map((a) => a.href))
+  ok('a link in a text is clickable under it (Qto lnkMayBe)', JSON.stringify(links) === JSON.stringify(['https://example.com/qto']), links)
+
+  /* the CONTROL: another writer renames Alpha behind the page; only a real re-read shows it */
+  const docOf = await p.$eval('[data-test=ws-docs-select]', (e) => e.value)
+  const alpha = await p.$eval(titleSel('1'), (e) => e.dataset.id)
+  const sub = await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}/subtree`), docOf)
+  const alphaRev = sub.items.find((x) => x.id === alpha).rev
+  await p.evaluate((d, id, rev) => window.__wsDocTreeCall('PATCH', `/${d}/items/${id}`, { field: 'title', value: 'Alpha (other writer)', rev }), docOf, alpha, alphaRev)
+  const beforeReload = await outline(p, 'doc')
+  const otherDoc = await p.$$eval('[data-test=ws-docs-select] option', (o, d) => o.map((x) => x.value).find((v) => v !== d), docOf)
+  await p.select('[data-test=ws-docs-select]', otherDoc)
+  await p.waitForFunction((d) => new URL(location.href).searchParams.get('doc') === d, { timeout: STEP }, otherDoc).catch(() => null)
+  await p.select('[data-test=ws-docs-select]', docOf)
+  const wantReloaded = ['1 Alpha (other writer)', ...wantCrud.slice(1)]
+  got = await outlineIs(p, 'doc', wantReloaded)
+  const texts = await p.evaluate((a, b) => [document.querySelector(`${a} [data-test=ws-doc-text]`)?.value, document.querySelector(`${b} [data-test=ws-doc-text]`)?.value], titleSel('1'), titleSel('3'))
+  ok('CONTROL: before the reload the page still shows its own copy', beforeReload[0] === '1 Alpha', beforeReload)
+  ok('after a reload every create, update and delete is still there (read from the hub)', JSON.stringify(got) === JSON.stringify(wantReloaded)
+    && texts[0] === 'Level-1 paragraph, see https://example.com/qto' && texts[1] === 'Text edited in place.', { got, texts })
+
+  /* a document always has a title: Create with none typed uses the default */
+  await p.click('[data-test=ws-docs-create]')
+  await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent?.trim() === 'Untitled document', { timeout: STEP }).catch(() => null)
+  const dflt = await p.evaluate(() => ({
+    h: document.querySelector('[data-test=ws-doc-doctitle]')?.textContent?.trim(),
+    sel: document.querySelector('[data-test=ws-docs-select]').selectedOptions[0]?.textContent?.trim(),
+    rows: document.querySelectorAll('[data-test=ws-doc-row]').length,
+  }))
+  ok('Create with no title makes "Untitled document" with the starter outline', dflt.h === 'Untitled document' && dflt.sel === 'Untitled document' && dflt.rows === 3, dflt)
 } finally {
   await browser.close()
   await server.stop()

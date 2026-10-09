@@ -12,6 +12,7 @@ export type DocHead = { id: string, title: string, rev: number, items: number, r
 export type DocItem = { id: string, parent: string, ord: number, outline: string, depth: number, title: string, body: string, attrs: Record<string, unknown>, rev: number }
 export type DocChildren = { doc: string, rev: number, parent: string, path: number[], outline: string, items: DocItem[] }
 export type DocGrid = { doc: string, rev: number, total: number, items: DocItem[] }
+export type DocHit = { doc: string, item: string, title: string, rank: number }
 export type DocWhere = 'sibling' | 'parent' | 'child'
 export type DocMoveKind = 'indent' | 'outdent' | 'up' | 'down'
 
@@ -84,6 +85,12 @@ export function useDocTree() {
       call<{ rev: number }>('DELETE', `/${enc(doc)}/items/${enc(item)}?rev=${rev}`),
     edit: (doc: string, item: string, field: 'title' | 'body', value: string, rev: number) =>
       call<{ item_rev: number }>('PATCH', `/${enc(doc)}/items/${enc(item)}`, { field, value, rev }),
+    /** Qto's search on Enter: the items of every document (doc '' ) or one, best first */
+    search: (q: string, doc = '') => call<{ hits: DocHit[] }>('GET', `/search?q=${enc(q.trim())}${doc ? '&doc=' + enc(doc) : ''}`).then((r) => r.hits),
+    /** test hook (mock only): another writer's raw call, behind the page's back */
+    async callForTest(method: string, path: string, body?: Record<string, unknown>): Promise<unknown> {
+      return api.mock ? call(method, path, body) : null
+    },
     /** test hook (mock only): another writer moves the doc rev on */
     async bumpForTest(doc: string): Promise<number> {
       return api.mock ? (await mock()).mockDocTreeBumpRev(doc) : 0
@@ -181,6 +188,28 @@ export async function runDocOp(s: DocSession, op: Exclude<DocMenuId, 'print' | '
   if (!r) return null
   s.rev.value = r.rev
   return { expand: op === 'indent' ? to.parent : undefined }
+}
+
+/**
+ * The starter outline of a new document (the owner, t1 519a4ee9: a document
+ * never starts from nothing): headings 1, 1.1 and 1.1.1, every level the
+ * view draws; the view shows a paragraph placeholder under levels 2 and 3
+ * only (owner msg 9debc0df). Titles and texts are empty, so the view shows
+ * them as placeholders the user types over. Best effort: a
+ * refused add leaves the document as far as it got.
+ */
+export async function seedStarterDoc(client: DocTreeClient, doc: string, rev: number): Promise<void> {
+  let r = rev
+  const add = async (anchor: string, where: DocWhere) => {
+    const out = await client.add(doc, r, anchor, where, '')
+    r = out.rev
+    return out.item
+  }
+  try {
+    const h1 = await add('', 'child')
+    const h11 = await add(h1, 'child')
+    await add(h11, 'child')
+  } catch { /* the document opens with what was added */ }
 }
 
 /** delete branch: the item and everything under it. */

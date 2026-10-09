@@ -131,7 +131,7 @@ const FIELDS = ['title', 'body'] as const
 type Col = typeof COLS[number]
 type Field = typeof FIELDS[number]
 
-const props = defineProps<{ session: DocSession }>()
+const props = defineProps<{ session: DocSession, filter?: string }>()
 const emit = defineEmits<{ print: [item: DocItem] }>()
 const { t } = useI18n({ useScope: 'global' })
 
@@ -140,7 +140,8 @@ const rows = ref<DocItem[]>([])
    (a filtered or sorted grid does not show every sibling) */
 const whole = ref<DocItem[]>([])
 const state = ref<'loading' | 'ready' | 'failed'>('loading')
-const filter = ref('')
+/* Qto's "open as list": the doc view opens the grid on one branch's number */
+const filter = ref(props.filter ?? '')
 const sort = ref<Col>('outline')
 const desc = ref(false)
 const busy = ref(false)

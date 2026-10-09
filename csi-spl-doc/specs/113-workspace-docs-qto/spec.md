@@ -281,3 +281,12 @@ Spool verbs `doc-read`, `doc-write`, `doc-list`; MCP tools wrap them
 **Q2. Printing: PDF via a headless browser, or print CSS?**
 - (a) Standard print CSS. *(Recommended)*
 - (b) Headless browser PDF generation.
+
+## 11. Review seats
+
+| seat | agent | verdict | changes & answers |
+|---|---|---|---|
+| 2 | a-617 (agy) | agree with changes | 1. Section 3.2 (I3, I4 gap check): Clarify that the deferred trigger must handle `count = 0` (no children) so deleting a parent's last child does not fail the `min=1` condition.<br><br>Answers:<br>Q1: (a) Append-only JSONB log (keeps structure simple).<br>Q2: (a) Standard print CSS (avoids the heavy operational burden of headless browsers). |
+| 3 | | | |
+| 4 | | | |
+| 5 | | | |

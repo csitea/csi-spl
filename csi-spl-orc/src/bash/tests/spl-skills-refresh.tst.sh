@@ -97,9 +97,15 @@ for h in "$H1" "$H2"; do printf 'SPOOL_ENV=prd\nSPOOL_TENANT=t1\n' >"$h/.config/
 out="$(refresh DRY_RUN=0 SKILLS_REFRESH_INSTALLER="$T/as")"; rc=$?
 [ "$rc" -ne 0 ] && grep -q "renderer .* is not in $T/as" <<<"$out" && pass "5. an installer without 5b's renderer is refused" || fail "5. no renderer (rc $rc: $out)"
 
-# 6. not at trunk
+# 6. not at trunk: a throwaway two-commit checkout, so HEAD~1 exists in CI's
+# depth-1 clone too; its harness and installer link to this checkout's
+CO="$T/co"; orc="${PROJ_ROOT##*/}"
+mkdir -p "$CO/$orc/src/bash/features"
+for d in spawn-agents spool-install; do ln -s "$PROJ_ROOT/src/bash/features/$d" "$CO/$orc/src/bash/features/$d"; done
+gt() { git -C "$CO" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false "$@" >/dev/null 2>&1; }
+gt init -q && gt add -A && gt commit -qm one && gt commit -q --allow-empty -m two || fail "6. throwaway checkout"
 stale "$H1/$EC"; t2="$(tree)"
-out="$(refresh DRY_RUN=0 SKILLS_REFRESH_TRUNK=HEAD~1)"; rc=$?
+out="$(refresh DRY_RUN=0 SKILLS_REFRESH_CHECKOUT="$CO" SKILLS_REFRESH_TRUNK=HEAD~1)"; rc=$?
 [ "$rc" -ne 0 ] && [ "$(tree)" = "$t2" ] && grep -q 'fetch first' <<<"$out" \
   && pass "6. a checkout not at trunk is refused before any write" || fail "6. trunk (rc $rc: $out)"
 

@@ -699,6 +699,16 @@ jobs:
         continue-on-error: true
         run: DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_note_ingest
 
+      # specs/112 ORC-2: sync every csi-spl-doc/goals/*/goal.yaml into the
+      # calendar of the workspace each goal names (PUT /v1/calendar/sync, one
+      # batch, no audience, idempotent by source_key). No goal.yaml yet is a
+      # no-op, rc 0. After the roll + verify like the ingest above, so it never
+      # holds a deploy back; a failure still shows on the run.
+      - name: Sync the roadmap goals (do_spl_goals_sync)
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
+        continue-on-error: true
+        run: DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_spl_goals_sync
+
       - name: Deployment summary
         if: always() && steps.cfg.outcome == 'success'
         env:

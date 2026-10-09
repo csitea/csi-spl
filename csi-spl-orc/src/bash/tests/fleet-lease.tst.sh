@@ -70,6 +70,10 @@
 #  21. spec 093 T006: the lease reads the watchdog's dispatch/wd.<id>: a HIT
 #      at most 90 s old is not able ("wd <code>"), the standby box takes orch
 #      at 181 s; an OK, a stale HIT, a garbled file or no file are as before.
+#  22. a box back online renews within LEASE_UNREACHABLE_RETRY (10 s), not a
+#      full LEASE_PERIOD (2026-10-09: a box back 14:30:20Z, renewed 14:31:28Z,
+#      the standby took over 14:30:50Z): the real loop, a hub failing its first 2 reads
+#      per role, sleeps 10 10 then 60; LEASE_UNREACHABLE_RETRY=60 is the control
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -92,7 +96,7 @@ while [ $# -gt 0 ]; do case "$1" in --to) to="$2"; shift 2 ;; --body) body="$2";
 echo "$to :: $body" >>"$SENT"
 STUB
 # The hub stub: one file per fleet+role, "holder gen at"; HUB_NOW is its clock.
-# HUB_DOWN=1 fails every call; HUB_RACE=<holder> writes that holder first on a
+# HUB_DOWN=1 fails every call, HUB_FAILS=<file> the next <its count> calls; HUB_RACE=<holder> writes that holder first on a
 # cas, as another machine winning the race would. A call to another tenant
 # (LEASE_HUB_TENANT, the copies of section 16) has its own file
 # <tenant>.<fleet>.<role>, is logged to calls, and HUB_DOWN_TENANT=<tenant>
@@ -100,6 +104,7 @@ STUB
 cat >"$T/bin/hub" <<'STUB'
 #!/usr/bin/env bash
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
+[ -s "${HUB_FAILS:-/nonexistent}" ] && n=$(cat "$HUB_FAILS") && [ "$n" -gt 0 ] && { echo $((n - 1)) >"$HUB_FAILS"; echo "dial: lookup hub: no such host" >&2; exit 1; }
 [ -n "${LEASE_HUB_TENANT:-}" ] && [ "$LEASE_HUB_TENANT" = "${HUB_DOWN_TENANT:-}" ] && { echo "dial: i/o timeout" >&2; exit 1; }
 [ -n "${LEASE_HUB_TENANT:-}" ] && echo "$LEASE_HUB_TENANT" >>"$HUB_DIR/calls"
 shift
@@ -687,6 +692,35 @@ tick sat $((N + 141))
   pass "21. the HIT now 91 s old is stale and ignored: sat takes orch back on rank" || fail "21. back: $(hubh orch) $(cat "$T/sat/spool/dispatch/able.CLE-001")"
 rm -f "$T/sat/spool/dispatch/wd.CLE-001"
 PRIO=pc,sat
+
+hubh22() { cut -d' ' -f1 "$T/$1/hub/main.$2" 2>/dev/null; }
+# --- 22. fast retry after an unreachable tick (the real loop, sleep recorded) ----
+# loop22 <dir> [env...]: 4 ticks of spl_lease_loop fleet on pc, its hub failing
+# the first 4 calls (2 reads per role); prints the pauses it slept
+loop22() {
+  local d="$T/$1"; shift
+  mkdir -p "$d/hub" "$d/spool/dispatch"; agent "${d#"$T"/}" 300 CLE-001; agent "${d#"$T"/}" 301 CLE-002
+  echo 4 >"$d/fails"
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$d/spool" LEASE_PROC_ROOT="$d/proc" LEASE_SEND="$T/bin/send" LEASE_PANE_CMD="$T/bin/pane" \
+    SENT="$d/sent" LEASE_HUB_CMD="$T/bin/hub" HUB_DIR="$d/hub" HUB_FAILS="$d/fails" HUB_NOW=5000 LEASE_NOW=5000 \
+    LEASE_FLEET=main LEASE_MACHINE=pc LEASE_PRIORITY=pc,sat LEASE_HOLDDOWN=0 LEASE_ASKS=0 LEASE_AGENT_RUN=0 LEASE_TICKS=4 \
+    LEASE_ORCH=CLE-001 LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003 "$@" bash -c '
+    set -uo pipefail
+    do_log() { :; }
+    sleep() { echo "$1" >>"$SPOOL_ROOT/slept"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_lease_init && spl_lease_ids master failover orch && spl_fleet_ids && spl_fleet_hub_init && spl_lease_loop fleet' >>"$T/out" 2>&1
+  tr '\n' ' ' <"$d/spool/slept"
+}
+got="$(loop22 l22)"
+[[ "$got" == "10 10 60 " && "$(hubh22 l22 orch)" == CLE-001@pc && "$(hubh22 l22 dispatch)" == CLE-002@pc &&
+   "$(grep -c HUB-UNREACHABLE "$T/l22/spool/dispatch/lease.log")" == 2 && ! -e "$T/l22/spool/dispatch/fleet.orch.unreachable" ]] &&
+  pass "22. after an unreachable tick the loop retries in 10 s, then back to LEASE_PERIOD once the hub answers (logged once per role)" ||
+  fail "22. slept '$got': $(cat "$T/l22/spool/dispatch/lease.log" 2>&1)"
+got="$(loop22 l22c LEASE_UNREACHABLE_RETRY=60)"
+[[ "$got" == "60 60 60 " ]] && pass "22. control: LEASE_UNREACHABLE_RETRY=60 (the old pause) waits a full period" || fail "22. control slept '$got'"
+got="$(loop22 l22p LEASE_PERIOD=5)"
+[[ "$got" == "5 5 5 " ]] && pass "22. the retry is never longer than LEASE_PERIOD" || fail "22. cap slept '$got'"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

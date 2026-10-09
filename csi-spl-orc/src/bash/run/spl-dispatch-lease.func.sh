@@ -50,6 +50,7 @@
 # @param LEASE_ORCH (optional) - the orchestrator told of every transition (else lease.conf)
 # @param LEASE_PERIOD (optional) - seconds between ticks, default 60
 # @param LEASE_STALE (optional) - seconds of silence before a failover, default 180
+# @param LEASE_UNREACHABLE_RETRY (optional) - fleet mode: seconds between ticks while a hub call fails, default 10 (at most LEASE_PERIOD)
 # @param LEASE_FLEET (optional) - fleet mode: the fleet's name on the hub (else lease.conf)
 # @param LEASE_MACHINE (optional) - fleet mode: this machine's box, default its desk box id (spl_desk_box_default)
 # @param LEASE_PRIORITY (optional) - fleet mode: machines, comma-separated, preferred first
@@ -783,8 +784,20 @@ spl_lease_loop() {
   while :; do
     "spl_lease_${verb}_tick"
     [[ -n "${LEASE_TICKS:-}" ]] && { LEASE_TICKS=$((LEASE_TICKS - 1)); (( LEASE_TICKS > 0 )) || break; }
-    sleep "$LEASE_PERIOD"
+    sleep "$(spl_lease_pause "$verb")"
   done
+}
+
+# Seconds to the next tick: LEASE_PERIOD, but LEASE_UNREACHABLE_RETRY (default
+# 10, never above LEASE_PERIOD) while a fleet role's last hub call failed (its
+# fleet.<role>.unreachable marker, cleared by the first good tick). A box back
+# online renews within seconds, not a full period: a box on 2026-10-09 came back at
+# 14:30:20Z, renewed at 14:31:28Z, and the standby had taken over at 14:30:50Z.
+spl_lease_pause() {
+  local retry="${LEASE_UNREACHABLE_RETRY:-10}"
+  [[ "$retry" =~ ^[1-9][0-9]*$ ]] || retry=10
+  (( retry > LEASE_PERIOD )) && retry="$LEASE_PERIOD"
+  if [[ "$1" == fleet ]] && compgen -G "$LEASE_DIR/fleet.*.unreachable" >/dev/null; then echo "$retry"; else echo "$LEASE_PERIOD"; fi
 }
 
 # This file, as the loops run it; its hash is the code version. It also

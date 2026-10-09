@@ -61,12 +61,11 @@ phase 2). T002's tests gate everything after it. T000b is independent.
 - [x] **T003**: `do_spl_doc_tree_check`, `do_spl_doc_tree_repair` (spec 3.4), per-env SA, each with its `.tst.sh`.
   - Depends: T001 (T002 for the repair's lock helper, if shared).
   - Owns: `csi-spl-orc/src/bash/run/spl-doc-tree-check.func.sh`, `csi-spl-orc/src/bash/run/spl-doc-tree-repair.func.sh` (*new*), `csi-spl-orc/src/bash/tests/spl-doc-tree-check.tst.sh`, `csi-spl-orc/src/bash/tests/spl-doc-tree-repair.tst.sh` (*new*).
-  - Done: `ENV=dev ./run -a do_spl_doc_tree_check` sets the operator scope and prints `violations=0 docs=<n> items=<n>`, exit 0. On a test DB with one planted gap and one unreachable cycle it prints both violations and exits 1; `DRY_RUN=0 do_spl_doc_tree_repair` (one tx under the doc lock) prints `renumbered=1 reattached=1` with the cut item's id and the check returns to `violations=0` (9d). Controls: a run without the operator scope sees `docs=0` and exits 2; `EXPECT_EMPTY=1` makes it exit 0. Repair `DRY_RUN=0` on prd is an owner go.
+  - Done: `ENV=dev ./run -a do_spl_doc_tree_check` sets the operator scope and prints `violations=0 docs=<n> items=<n>`, exit 0. On a test DB with one planted gap and one unreachable cycle it prints both violations and exits 1; `DRY_RUN=0 do_spl_doc_tree_repair` (one tx under the doc lock) prints `renumbered=1 reattached=1` with the cut item's id and the check returns to `violations=0` (9d). Controls: a run without the operator scope sees `docs=0` and exits 2; `EXPECT_EMPTY=1` makes it exit 0. Repair `DRY_RUN=0` on prd is an owner go. The dev live check waits for a first doc on dev (the check half above is not ticked on dev yet).
   - Vendor: mistral (low-level bash), claude reviews the SQL. Box: one with docker Postgres.
+  - Evidence (bfb1ca83e): spl-doc-tree-check.tst.sh 8/8 PASS (gap + cycle: violations=2, exit 1; no operator scope: docs=0, exit 2; EXPECT_EMPTY=1: exit 0; I3/I4 controls fail as planted), spl-doc-tree-repair.tst.sh 10/10 PASS (DRY_RUN=0: renumbered=1 reattached=1 ids=<cut>, then violations=0; doc-lock wait; renumber control fails), n=3; wf 10 run 37940120620 and wf 67 run 37940120546 green; ENV=dev check: violations=0 docs=0 items=0 (no docs on dev yet; EXPECT_EMPTY=1 exits 0).
 
 ## 5. Hub API, xls, WUI, agents
-- Evidence: spl-doc-tree-check.tst.sh 7/7 PASS, spl-doc-tree-repair.tst.sh 7/7 PASS, dev check output above.
-  - Evidence: spl-doc-tree-check.tst.sh 7/7 PASS, spl-doc-tree-repair.tst.sh 7/7 PASS, dev check output above.
 
 - [ ] **T004**: hub Go API: doc tree CRUD (doc view), list/grid CRUD (grid view), the four outcomes, spec 100 search indexing, topic link.
   - Depends: T002.

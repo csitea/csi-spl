@@ -3,7 +3,8 @@
 # @description do_spl_box_restart_after - after the boot, once per pending
 # @description restart (spl-box-restart-run.func.sh wrote <dir>/pending): the
 # @description units the drain stopped started (never one the CPU budget
-# @description parked), the active ones online, do_check_gh_runner; every run
+# @description parked), the labels the drain took off put back, the active
+# @description ones online, do_check_gh_runner; every run
 # @description of the restart window with a failed or cancelled job on this
 # @description box's runners re-run (gh run rerun --failed), logged in
 # @description <dir>/<utc>.rerun; once the first agent window is up, ONE pass
@@ -31,7 +32,7 @@ do_spl_box_restart_after() {
   spl_brx_conf || return 1
   utc="$(spl_brx_pending_get "$p" utc)"
   do_log "INFO after the restart $utc"
-  spl_brx_after_runners "$(spl_brx_pending_get "$p" drained)" || rc=1
+  spl_brx_after_runners "$(spl_brx_pending_get "$p" drained)" "$dir" || rc=1
   spl_brx_after_rerun "$(spl_brx_pending_get "$p" since)" "$dir/$utc.rerun" || rc=1
   spl_brx_after_desk || rc=1
   BOX_RESTART_BEFORE="$(spl_brx_pending_get "$p" snapshot)" do_spl_box_restart_check || rc=1
@@ -44,14 +45,16 @@ do_spl_box_restart_after() {
 
 # The units the drain stopped started again unless the CPU budget parked
 # them meanwhile (CPU_BUDGET_STATE_DIR/parked: stopped on purpose, never
-# started here); every active runner online in the API; then
+# started here); the labels the drain took off back (DIR/unlabeled, a
+# parked runner's too); every active runner online in the API; then
 # do_check_gh_runner (service active or PARKED, Restart=always, rootless
 # docker enabled and answering).
 spl_brx_after_runners() {
-  local drained="$1" units u org names="" end states off rc=0
+  local drained="$1" dir="$2" units u org names="" end states off rc=0
   local parked="${CPU_BUDGET_STATE_DIR:-/var/tmp/gh-runner-cpu-budget}/parked"
+  spl_brx_labels_restore "$dir" || rc=1
   units="$(spl_brx_units)"
-  [[ -n "$units" ]] || { do_log "OK no runner unit on this box"; return 0; }
+  [[ -n "$units" ]] || { do_log "OK no runner unit on this box"; return "$rc"; }
   for u in $drained; do
     systemctl is-active -q "$u" 2>/dev/null && continue
     if grep -qxF "$u" "$parked" 2>/dev/null; then do_log "INFO $u is PARKED by the CPU budget: left stopped"; continue; fi

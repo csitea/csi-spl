@@ -16,6 +16,14 @@
 #      prints "kinds:" back/before per kind; the mistral seat with no vibe
 #      (only its orphan node) is MISSING and the check FAILs; control: both
 #      running -> OK
+#   5. the drain on a busy trunk (drills 6 and 7, 2026-10-09, DEFERRED): a
+#      busy runner that keeps its labels takes the next queued job and never
+#      shows idle. The drain takes the custom labels off first (DELETE),
+#      waits for the running job to end, then stops the unit (never while
+#      busy) and reboots; the labels are kept in <dir>/unlabeled across the
+#      reboot and put back (PUT) by the after-boot restore; the dry run
+#      touches no label. Control: the DELETE refused -> the runner stays
+#      busy, DEFER, the units started again and every label put back
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -119,6 +127,72 @@ out="$(run4 do_spl_box_restart_check)"; rc=$?
 [ "$rc" = 1 ] && grep -qE '^m-912 .*MISSING$' <<<"$out" && grep -q 'FAIL ids missing: m-912$' <<<"$out" \
   && grep -q 'kinds: claude 1/1 mistral 0/1$' <<<"$out" && grep -qE '^c-911 .* back$' <<<"$out" \
   && pass "4. the mistral seat with no vibe (a stray node only) FAILs, kinds: claude 1/1 mistral 0/1" || fail "4. no vibe (rc $rc: $out)"
+
+# ---- 5. the drain on a busy trunk ------------------------------------------------
+# Stubs: gh (runner 12 is busy while it has its labels: it takes the next
+# queued job; once they are off it ends its job two reads later), systemctl,
+# sudo and the reboot. Every call is logged in calls5.log, with each read's
+# busy flag of runner 12, so the order "idle, then stopped" is checkable.
+S5="$T/s5" G5="$T/g5" A5="$T/active5" L5="$T/calls5.log"; BR5="$SP/dispatch/box-restart"
+V1=actions.runner.o.box-spl-01.service V2=actions.runner.o.box-spl-02.service
+mkdir -p "$S5" "$G5" "$A5"
+cat >"$S5/gh" <<EOF
+#!/bin/bash
+echo "gh \$*" >>"$L5"
+case "\$*" in
+  "api orgs/o/actions/runners --paginate"*) n=\$(( \$(cat "$G5/n" 2>/dev/null || echo 0) + 1 )); echo \$n >"$G5/n"
+    l1=spool-ci; [ -f "$G5/off.11" ] && l1=""; l2=spool-ci; b2=true
+    if [ -f "$G5/off.12" ]; then l2=""; [ "\$n" -gt \$(( \$(cat "$G5/off.12") + 1 )) ] && b2=false; fi
+    echo "read \$n runner 12 busy=\$b2" >>"$L5"
+    printf 'box-spl-01\tonline\tfalse\t11\t%s\nbox-spl-02\tonline\t%s\t12\t%s\nother-01\tonline\ttrue\t13\tspool-ci\n' "\$l1" "\$b2" "\$l2" ;;
+  "api -X DELETE orgs/o/actions/runners/"*) [ -f "$G5/deny.\$(cut -d/ -f5 <<<"\$4")" ] && exit 1
+    id=\$(cut -d/ -f5 <<<"\$4"); cat "$G5/n" >"$G5/off.\$id" ;;
+  "api -X PUT orgs/o/actions/runners/"*) id=\$(cut -d/ -f5 <<<"\$4"); echo "put \$id \$(cat)" >>"$L5"; rm -f "$G5/off.\$id" ;;
+esac
+EOF
+cat >"$S5/systemctl" <<EOF
+#!/bin/bash
+echo "systemctl \$*" >>"$L5"
+case "\$1" in
+  list-units) for u in $V1 $V2; do printf '%s loaded active running x\n' "\$u"; done ;;
+  is-active) [ -e "$A5/\$3" ] ;;
+  stop) rm -f "$A5/\$2" ;;
+  start) touch "$A5/\$2" ;;
+esac
+EOF
+printf '#!/bin/bash\nwhile [ "$1" = -n ]; do shift; done\nexec "$@"\n' >"$S5/sudo"
+printf '#!/bin/sh\necho REBOOTED >>"%s"\n' "$T/reboot5.log" >"$S5/reboot"
+chmod +x "$S5/"*
+reset5() { rm -rf "$BR5" "$L5" "$T/reboot5.log" "${G5:?}"/*; touch "$A5/$V1" "$A5/$V2"; boot 1000; cp "$T/ps.base" "$T/ps"; }
+cp "$T/ps" "$T/ps.base"
+printf '100 1 claude claude --dangerously-skip-permissions\n201 1 claude claude\n' >"$T/ps.base"; proc 201 c-902
+run5() {
+  run "$1" PATH="$S5:$PATH" BOX_RESTART_REPO=o/r BOX_RESTART_REBOOT_CMD="$S5/reboot" \
+    BOX_RESTART_WAIT=3 BOX_RESTART_POLL=0 BOX_RESTART_GRACE=0 BOX_RESTART_CGROUP_ROOT="$T/nocg" "${@:2}"
+}
+# stopped_while_busy: 0 when runner 12's last read before its stop said busy
+stopped_while_busy() { awk -v u="systemctl stop $V2" '/runner 12 busy=/ {b = $NF} $0 == u {exit b == "busy=true" ? 0 : 1} END {exit 1}' "$L5"; }
+
+reset5; out="$(run5 do_spl_box_restart_run)"; rc=$?
+[ "$rc" = 0 ] && ! grep -q 'gh api -X' "$L5" 2>/dev/null && ! grep -q 'systemctl stop' "$L5" 2>/dev/null && [ ! -e "$BR5" ] \
+  && grep -q "PLAN drain $V2: take its custom labels off" <<<"$out" && pass "5. the dry run plans the label-off drain and touches no label" || fail "5. dry (rc $rc: $out)"
+reset5; out="$(run5 do_spl_box_restart_run DRY_RUN=0)"; rc=$?
+n5="$(cat "$G5/n" 2>/dev/null)"
+[ "$rc" = 0 ] && grep -q REBOOTED "$T/reboot5.log" 2>/dev/null && ! ls "$BR5"/*.deferred >/dev/null 2>&1 \
+  && grep -q 'gh api -X DELETE orgs/o/actions/runners/12/labels' "$L5" && grep -q 'gh api -X DELETE orgs/o/actions/runners/11/labels' "$L5" \
+  && ! grep -q 'runners/13/labels' "$L5" && pass "5. a busy runner: labels off, its job ends, drained, rebooted (API reads: $n5)" || fail "5. busy trunk (rc $rc: $out)"
+grep -q "systemctl stop $V2" "$L5" && ! stopped_while_busy && [ ! -e "$A5/$V2" ] \
+  && pass "5. the busy runner is stopped only after the API read it idle (no job killed)" || fail "5. stop order ($(cat "$L5"))"
+[ "$(grep -c . "$BR5/unlabeled" 2>/dev/null)" = 2 ] && grep -qP '^o\tbox-spl-02\t12\tspool-ci$' "$BR5/unlabeled" && [ -f "$BR5/pending" ] \
+  && ! grep -q 'gh api -X PUT' "$L5" && pass "5. the labels are kept in <dir>/unlabeled across the reboot, none put back yet" || fail "5. unlabeled ($(cat "$BR5/unlabeled" 2>&1))"
+out="$(run5 'spl_brx_labels_restore "$SPOOL_ROOT/dispatch/box-restart"')"; rc=$?
+[ "$rc" = 0 ] && grep -q 'put 12 {"labels":\["spool-ci"\]}' "$L5" && grep -q 'put 11 {"labels":\["spool-ci"\]}' "$L5" && [ ! -e "$BR5/unlabeled" ] \
+  && pass "5. the after-boot restore puts both runners' labels back and drops the file" || fail "5. restore (rc $rc: $out)"
+reset5; touch "$G5/deny.12"; out="$(run5 do_spl_box_restart_run DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && grep -q 'DEFER the restart: a runner is still busy' <<<"$out" && [ ! -e "$T/reboot5.log" ] && grep -q 'box-spl-02: could not take its labels' <<<"$out" \
+  && ! grep -q "systemctl stop $V2" "$L5" && pass "5. control: the DELETE refused -> the runner keeps taking jobs, DEFER (API reads: $(cat "$G5/n"))" || fail "5. control (rc $rc: $out)"
+[ -e "$A5/$V1" ] && grep -q "systemctl start $V1" "$L5" && grep -q 'put 11 ' "$L5" && grep -q 'put 12 ' "$L5" && [ ! -e "$BR5/unlabeled" ] \
+  && pass "5. control: the defer starts the drained unit again and puts every label back" || fail "5. control restore ($(cat "$L5"))"
 
 echo "box-restart: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

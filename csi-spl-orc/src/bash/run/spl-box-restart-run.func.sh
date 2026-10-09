@@ -10,12 +10,15 @@
 # @description do_spl_box_restart_run - the restart: (1) wait until no wf 20/30
 # @description deploy is queued or running and no terraform process runs
 # @description (the tf-runner container's), (2) drain this box's GitHub runners:
-# @description each runner unit is stopped the moment the API reports it idle,
-# @description so it takes no new job and no running job is killed, (3)
+# @description first their custom labels (spool-ci) come off, so no queued job
+# @description matches them any more, then each runner unit is stopped the
+# @description moment the API reports it idle: no running job is killed, and
+# @description a busy runner on a busy trunk ends its job instead of taking the
+# @description next one (drills 6 and 7, 2026-10-09, deferred on that), (3)
 # @description do_spl_box_restart_prepare (snapshot + notes), (4) a grace for
 # @description the agents to push, (5) <dir>/pending, then reboot. A step that
 # @description is still busy after BOX_RESTART_WAIT DEFERS: the stopped runners
-# @description are started again, nothing reboots, the next tick in the slot
+# @description are started again and get their labels back, nothing reboots, the next tick in the slot
 # @description window retries. Dry run unless DRY_RUN=0: the read-only checks
 # @description run and the plan is printed; nothing stops, writes or reboots.
 # @param DRY_RUN (optional) - 1 (default) or 0; the tick always runs with 0
@@ -40,7 +43,7 @@ do_spl_box_restart_run() {
   spl_brx_conf || return 1
   root="${SPOOL_ROOT:-/var/spool-hub}"; dir="$root/dispatch/box-restart"
   utc="${BOX_RESTART_NOW:-$(date -u -d "@$(spl_brx_now)" +%Y%m%dT%H%M%SZ)}"; snap="$dir/$utc.before"
-  SPL_BRX_STOPPED=(); t0="$(date -u -d "@$(spl_brx_now)" +%Y-%m-%dT%H:%M:%SZ)"
+  SPL_BRX_STOPPED=(); SPL_BRX_DIR="$dir"; SPL_BRX_UNLABELED=0; t0="$(date -u -d "@$(spl_brx_now)" +%Y-%m-%dT%H:%M:%SZ)"
   [[ "$dry" == 1 ]] && do_log "INFO DRY RUN: the checks run, nothing is stopped, written or rebooted (DRY_RUN=0 does it)"
   if ! spl_brx_wait_quiet "$dry"; then spl_brx_defer "$dry" "$dir" "$utc" "a deploy or terraform run is still in flight after ${SPL_BRX_WAIT}s"; return 0; fi
   if ! spl_brx_drain "$dry"; then spl_brx_defer "$dry" "$dir" "$utc" "a runner is still busy after ${SPL_BRX_WAIT}s"; return 0; fi
@@ -123,9 +126,57 @@ spl_brx_units() {
 # spl_brx_unit_org UNIT / spl_brx_unit_name UNIT
 spl_brx_unit_org() { local x="${1#actions.runner.}"; echo "${x%%.*}"; }
 spl_brx_unit_name() { local x="${1#actions.runner.}"; x="${x#*.}"; echo "${x%.service}"; }
-# "<name>\t<status>\t<busy>" per runner of ORG, from the API.
+# "<name>\t<status>\t<busy>\t<id>\t<custom labels, comma-joined>" per
+# runner of ORG, from the API.
 spl_brx_runner_states() {
-  gh api "orgs/$1/actions/runners" --paginate --jq '.runners[] | [.name, .status, (.busy | tostring)] | @tsv' 2>/dev/null || true
+  gh api "orgs/$1/actions/runners" --paginate \
+    --jq '.runners[] | [.name, .status, (.busy | tostring), (.id | tostring), ([.labels[] | select(.type == "custom") | .name] | join(","))] | @tsv' 2>/dev/null || true
+}
+
+# Take the custom labels (spool-ci) off every active runner unit of UNITS
+# (STATES = spl_brx_runner_states): no queued job matches it any more, so a
+# busy runner ends its job and stays idle, and nothing is killed. Why labels:
+# a stop (svc.sh, SIGTERM/SIGINT to Runner.Listener) cancels the running job,
+# a once-mode needs a listener restart, and the API has no "offline" switch;
+# DELETE .../labels removes only the custom ones, PUT sets them back. One row
+# "<org>\t<name>\t<id>\t<labels>" per runner in <SPL_BRX_DIR>/unlabeled,
+# written BEFORE the delete and kept across the reboot (the after-boot pass
+# restores it); a runner already there keeps its first row.
+spl_brx_unlabel() {
+  local units="$1" states="$2" f="$SPL_BRX_DIR/unlabeled" u org name id labels
+  for u in $units; do
+    systemctl is-active -q "$u" 2>/dev/null || continue
+    org="$(spl_brx_unit_org "$u")"; name="$(spl_brx_unit_name "$u")"
+    IFS=$'\t' read -r id labels < <(awk -F'\t' -v n="$name" '$1 == n {print $4 "\t" $5; exit}' <<<"$states")
+    [[ -n "$labels" ]] || continue
+    [[ "$id" =~ ^[0-9]+$ ]] || { do_log "WARN $name: no runner id from the API, its labels ($labels) stay"; continue; }
+    mkdir -p "$SPL_BRX_DIR" || return 1
+    awk -F'\t' -v n="$name" '$2 == n {f = 1} END {exit !f}' "$f" 2>/dev/null ||
+      printf '%s\t%s\t%s\t%s\n' "$org" "$name" "$id" "$labels" >>"$f" || return 1
+    SPL_BRX_UNLABELED=1
+    if gh api -X DELETE "orgs/$org/actions/runners/$id/labels" >/dev/null 2>&1; then
+      do_log "OK $name: labels $labels off, it takes no new job"
+    else do_log "ERROR $name: could not take its labels ($labels) off: it may take a new job"; fi
+  done
+}
+
+# Put back the labels spl_brx_unlabel took off (DIR/unlabeled); the file
+# goes once every row is back, a failed row stays for the next pass.
+spl_brx_labels_restore() {
+  local f="$1/unlabeled" org name id labels keep="" rc=0
+  [[ -s "$f" ]] || return 0
+  while IFS=$'\t' read -r org name id labels; do
+    [[ -n "$id" ]] || continue
+    if jq -cn --arg l "$labels" '{labels: ($l | split(","))}' |
+        gh api -X PUT "orgs/$org/actions/runners/$id/labels" --input - >/dev/null 2>&1; then
+      do_log "OK $name: labels $labels back"
+    else
+      keep+="$org"$'\t'"$name"$'\t'"$id"$'\t'"$labels"$'\n'; rc=1
+      do_log "ERROR $name: could not put its labels ($labels) back (kept in $f)"
+    fi
+  done <"$f"
+  if [[ -n "$keep" ]]; then printf '%s' "$keep" >"$f"; else rm -f "$f"; fi
+  return "$rc"
 }
 
 # 0 when a Runner.Worker (a job) runs in UNIT's cgroup. The local truth, read
@@ -141,20 +192,24 @@ spl_brx_unit_working() {
   return 1
 }
 
-# Stop each active runner unit once the API reports it idle and no
-# Runner.Worker runs in it (no new job, no killed job); 1 when one is still busy after BOX_RESTART_WAIT. The stopped
-# units go into SPL_BRX_STOPPED (spl_brx_runners_start takes them back).
+# Take every active runner's labels off (spl_brx_unlabel, each poll: a unit
+# the CPU budget starts meanwhile too), then stop each active runner unit
+# once the API reports it idle and no Runner.Worker runs in it (no new job,
+# no killed job); 1 when one is still busy after BOX_RESTART_WAIT. The
+# stopped units go into SPL_BRX_STOPPED (spl_brx_runners_start takes them
+# back, and the labels).
 spl_brx_drain() {
   local dry="$1" units u name states left end busy
   units="$(spl_brx_units)"
   [[ -n "$units" ]] || { do_log "OK no runner unit on this box: nothing to drain"; return 0; }
   if [[ "$dry" == 1 ]]; then
-    for u in $units; do do_log "INFO PLAN drain $u: stop it once idle (up to ${SPL_BRX_WAIT}s, then DEFER)"; done
+    for u in $units; do do_log "INFO PLAN drain $u: take its custom labels off (no new job), stop it once idle (up to ${SPL_BRX_WAIT}s, then DEFER)"; done
     return 0
   fi
   end=$(( $(spl_brx_clock) + SPL_BRX_WAIT ))
   while :; do
     left=0; states="$(spl_brx_runner_states "$(spl_brx_unit_org "${units%%$'\n'*}")")"
+    spl_brx_unlabel "$units" "$states"
     for u in $units; do
       systemctl is-active -q "$u" 2>/dev/null || continue
       name="$(spl_brx_unit_name "$u")"
@@ -173,13 +228,15 @@ spl_brx_drain() {
   done
 }
 
-# Start again the units the drain stopped.
+# Start again the units the drain stopped; the labels it took off go back.
 spl_brx_runners_start() {
   local u
   for u in "${SPL_BRX_STOPPED[@]}"; do
     if sudo -n systemctl start "$u"; then do_log "OK started $u again"; else do_log "ERROR could not start $u"; fi
   done
   SPL_BRX_STOPPED=()
+  [[ "${SPL_BRX_UNLABELED:-0}" == 1 ]] && { spl_brx_labels_restore "$SPL_BRX_DIR"; SPL_BRX_UNLABELED=0; }
+  return 0
 }
 
 # Defer: the runners back, the reason logged (and kept in <utc>.deferred).

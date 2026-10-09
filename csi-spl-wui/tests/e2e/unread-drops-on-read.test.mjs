@@ -50,26 +50,33 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
+/* The topic's row on `/`: the sidebar Topics list on a phone; on a desktop the
+   middle list (spec 109 T008: `/` shows the topic list once, panel 1 shows
+   Channels), whose row wears the same number (spec 079 FR-004) and menu. */
+const rowSel = (size) => (size.width > 820 ? `.spool-main a.topic-row[data-key="${TASK}"]` : `#sidebar-panel-topics .nav-item[data-key="${TASK}"]`)
+const badgeSel = (size) => (size.width > 820 ? '[data-testid=topic-row-unread]' : '[data-testid=topic-unread]')
+const menuSel = (size) => `[data-testid=sidebar-row-menu][data-menu-id="${size.width > 820 ? 'home' : 'th'}:${TASK}"]`
+
 /* The rail numbers and the topic row's badge, read from the DOM (a hidden level still holds them). */
-function counts(page) {
-  return page.evaluate((task) => {
+function counts(page, size) {
+  return page.evaluate((rowSel, badgeSel) => {
     const n = (sel) => parseInt(document.querySelector(sel)?.textContent.trim() || '0', 10) || 0
-    const row = document.querySelector(`#sidebar-panel-topics .nav-item[data-key="${task}"]`)
+    const row = document.querySelector(rowSel)
     return {
       topics: n('[data-testid=sidebar-tab-topics-count]'),
       channels: n('[data-testid=sidebar-tab-channels-count]'),
-      row: parseInt(row?.querySelector('[data-testid=topic-unread]')?.textContent.trim() || '0', 10) || 0,
+      row: parseInt(row?.querySelector(badgeSel)?.textContent.trim() || '0', 10) || 0,
       listed: Boolean(row),
     }
-  }, TASK)
+  }, rowSel(size), badgeSel(size))
 }
 
-async function settle(page, before) {
+async function settle(page, before, size) {
   await page.waitForFunction((task, t) => {
     const c = parseInt(document.querySelector('[data-testid=sidebar-tab-topics-count]')?.textContent.trim() || '0', 10) || 0
     return c < t
   }, { timeout: 8000 }, TASK, before.topics).catch(() => {})
-  return counts(page)
+  return counts(page, size)
 }
 
 async function fresh(browser, size) {
@@ -99,11 +106,11 @@ try {
       await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
       await applyViewport(p, size)
       await p.click('[data-testid=sidebar-tab-topics]')
-      await p.waitForSelector(`#sidebar-panel-topics .nav-item[data-key="${TASK}"] [data-testid=topic-unread]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
-      const before = await counts(p)
+      await p.waitForSelector(`${rowSel(size)} ${badgeSel(size)}`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+      const before = await counts(p, size)
       ok(`${tag} topics: the seeded topic is listed unread (2), the Topics total counts it`, before.listed && before.row === 2 && before.topics >= 2, before)
-      await p.click(`#sidebar-panel-topics .nav-item[data-key="${TASK}"]`)
-      const after = await settle(p, before)
+      await p.click(rowSel(size))
+      const after = await settle(p, before, size)
       ok(`${tag} topics: opening it drops the Topics total by what was read`, after.topics === before.topics - before.row, { before, after })
       ok(`${tag} topics: the row's own number goes`, after.row === 0, after)
       ok(`${tag} topics: the Channels total drops with it`, after.channels === Math.max(0, before.channels - before.row), { before, after })
@@ -117,8 +124,8 @@ try {
       await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
       await applyViewport(p, size)
       await p.click('[data-testid=sidebar-tab-topics]')
-      await p.waitForSelector(`#sidebar-panel-topics .nav-item[data-key="${TASK}"] [data-testid=topic-unread]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
-      const before = await counts(p)
+      await p.waitForSelector(`${rowSel(size)} ${badgeSel(size)}`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+      const before = await counts(p, size)
       await p.goto(server.base + '/channel/alerts', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
       await applyViewport(p, size)
       const card = `.msg[data-msg-id="${TASK}"]`
@@ -127,7 +134,7 @@ try {
         const el = [...document.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 0)
         el?.click()
       }, card)
-      const after = await settle(p, before)
+      const after = await settle(p, before, size)
       ok(`${tag} channel: opening the channel's topic drops the Topics total`, after.topics === before.topics - before.row && before.row === 2, { before, after })
       ok(`${tag} channel: the topic row's number goes`, after.row === 0, after)
       ok(`${tag} channel: no page error`, errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
@@ -140,13 +147,13 @@ try {
       await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
       await applyViewport(p, size)
       await p.click('[data-testid=sidebar-tab-topics]')
-      await p.waitForSelector(`#sidebar-panel-topics .nav-item[data-key="${TASK}"] [data-testid=topic-unread]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
-      const before = await counts(p)
-      await p.click(`[data-testid=sidebar-row-menu][data-menu-id="th:${TASK}"]`)
+      await p.waitForSelector(`${rowSel(size)} ${badgeSel(size)}`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+      const before = await counts(p, size)
+      await p.click(menuSel(size))
       const item = await p.waitForSelector('[data-testid=sidebar-row-menu-archive]', { visible: true, timeout: 10000 }).catch(() => null)
       ok(`${tag} archive: the row menu offers Archive`, Boolean(item))
       if (item) await item.click()
-      const after = await settle(p, before)
+      const after = await settle(p, before, size)
       const red = await p.evaluate((task) => [...document.querySelectorAll(`[data-key="${task}"] .badge-unread, [data-msg-id="${task}"] [data-test=topic-unread]`)]
         .filter((b) => b.getBoundingClientRect().width > 0).map((b) => b.textContent.trim()), TASK)
       ok(`${tag} archive: the Topics total drops by the archived topic's unread`, before.row === 2 && after.topics === before.topics - before.row, { before, after })

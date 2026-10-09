@@ -2,11 +2,15 @@
 // against the mock bundle at 1440 px. One line naming the reader in an
 // #alerts topic gives that topic one unread:
 //
-//   AC4  the sidebar Topics row and the middle Topics list row both show 1,
-//        the Topics rail counts it, and the tab title carries a number
-//   AC5  opening the topic from the middle list drops both rows to nothing,
+//   AC4  the middle Topics list row shows 1, the Topics rail counts it, and
+//        the tab title carries a number
+//   AC5  opening the topic from the middle list drops the row to nothing,
 //        the Topics rail and the title by that 1 - checked one
-//        requestAnimationFrame after the first row clears (FR-009)
+//        requestAnimationFrame after the row clears (FR-009)
+//
+// Spec 109 T008 (FR-006): a desktop `/` paints the topic list once, in the
+// middle; the sidebar Topics row is the phone's, and its number and its drop
+// are unread-drops-on-read's 390 px checks.
 //
 // The card's "<new>/<total>" reads the model with T006; its e2e are
 // topic-unread-count and channel-thread-unread.
@@ -61,7 +65,8 @@ const READ = (side, mid) => {
     mid: n(document.querySelector(`${mid} [data-testid=topic-row-unread]`)),
     rail: n(document.querySelector('[data-testid=sidebar-tab-topics-count]')),
     title: m ? Number(m[1]) : 0,
-    listed: Boolean(document.querySelector(side)) && Boolean(document.querySelector(mid)),
+    listed: Boolean(document.querySelector(mid)),
+    sideShown: Boolean(document.querySelector(side)?.checkVisibility({ visibilityProperty: true })),
   }
 }
 
@@ -81,26 +86,23 @@ try {
   await setPageViewport(p, SIZE)
   await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, SIZE)
-  await p.click('[data-testid=sidebar-tab-topics]')
-  await p.waitForSelector(`${SIDE} [data-testid=topic-unread]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
   await p.waitForSelector(`${MID} [data-testid=topic-row-unread]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
 
   const before = await p.evaluate(READ, SIDE, MID)
-  ok('AC4: the topic is listed in the sidebar and in the middle Topics list', before.listed, before)
-  ok('AC4: the sidebar Topics row shows 1', before.side === 1, before)
-  ok('AC4: the middle Topics row shows the same 1', before.mid === 1, before)
+  ok('AC4: the topic is listed in the middle Topics list', before.listed, before)
+  ok('AC4: the desktop paints no sidebar Topics row beside it (spec 109 T008)', !before.sideShown, before)
+  ok('AC4: the middle Topics row shows 1', before.mid === 1, before)
   ok('AC4: the Topics rail counts it', before.rail >= 1, before)
   ok('AC4: the tab title carries the unread', before.title >= 1, before)
 
   /* a CDP evaluate, not an in-page eval: the bundle's CSP stays untouched */
   await p.evaluate(`window.__unreadRead = ${READ}`)
   await p.click(MID)
-  /* the first row to clear, then ONE frame: every other surface must already agree */
-  await p.waitForFunction((side, mid) => !document.querySelector(`${side} [data-testid=topic-unread]`) || !document.querySelector(`${mid} [data-testid=topic-row-unread]`), { timeout: 8000 }, SIDE, MID).catch(() => {})
+  /* the row clears, then ONE frame: every other surface must already agree */
+  await p.waitForFunction((mid) => !document.querySelector(`${mid} [data-testid=topic-row-unread]`), { timeout: 8000 }, MID).catch(() => {})
   const after = await p.evaluate((side, mid) => new Promise((resolve) => {
     requestAnimationFrame(() => resolve(window.__unreadRead(side, mid)))
   }), SIDE, MID)
-  ok('AC5: the sidebar row drops to nothing', after.side === 0, after)
   ok('AC5: the middle row drops to nothing', after.mid === 0, after)
   ok('AC5: the Topics rail drops by that 1', after.rail === before.rail - 1, { before, after })
   ok('AC5: the title drops by that 1', after.title === before.title - 1, { before, after })

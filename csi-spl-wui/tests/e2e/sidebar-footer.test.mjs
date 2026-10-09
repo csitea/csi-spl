@@ -169,9 +169,12 @@ try {
         await p.click(`[data-testid=sidebar-tab-${tab}]`).catch(() => null)
         await sleep(400)
       }
-      await p.waitForFunction((t) => document.getElementById('sidebar-panel-' + t)?.offsetParent, { timeout: 10000 }, tab).catch(() => null)
+      /* spec 109 T008: on a desktop Topics opens `/`, whose centre is the
+         topic list; panel 1 shows the Channels list there */
+      const shown = !vp.mobile && tab === 'topics' ? 'channels' : tab
+      await p.waitForFunction((t) => document.getElementById('sidebar-panel-' + t)?.offsetParent, { timeout: 10000 }, shown).catch(() => null)
       await sleep(150)
-      const m = await measure(p, tab)
+      const m = await measure(p, shown)
       if (!m.rows) { ok(`${vp.name} ${tab}: the list draws rows`, false, m); continue }
       if (tab === 'issues') ok(`${vp.name} issues: the padded epics list overflows (the case that matters)`, m.overflow, { rows: m.rows })
       ok(`${vp.name} ${tab}: last row fully above the footer`, m.clear, { row: m.row, foot: m.foot, rows: m.rows, overflow: m.overflow })

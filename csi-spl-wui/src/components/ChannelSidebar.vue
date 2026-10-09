@@ -255,8 +255,8 @@
     </div>
       </div>
       <div
-        v-if="tab === 'channels' || (tabsBuilt.channels && !phone)"
-        v-show="tab === 'channels'"
+        v-if="panelTab === 'channels' || (tabsBuilt.channels && !phone)"
+        v-show="panelTab === 'channels'"
         id="sidebar-panel-channels"
         class="sidebar-panel"
         role="tabpanel"
@@ -451,8 +451,8 @@
     />
       </div>
       <div
-        v-if="tab === 'topics' || (tabsBuilt.topics && !phone)"
-        v-show="tab === 'topics'"
+        v-if="panelTab === 'topics' || (tabsBuilt.topics && !phone)"
+        v-show="panelTab === 'topics'"
         id="sidebar-panel-topics"
         class="sidebar-panel"
         role="tabpanel"
@@ -885,10 +885,7 @@ const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people', 'a
    DM list was 112 hidden nodes after Flow opened). Mount it only while it
    is the open tab. Desktop keeps tabsBuilt so a switch back is instant. */
 const tabsBuilt = reactive<Partial<Record<SideTab, boolean>>>({})
-/* not immediate: the route sets the real tab during setup, so the 'dm' the
-   ref starts with is never built unless it is shown */
-watch(tab, (open) => { tabsBuilt[open] = true })
-onMounted(() => { tabsBuilt[tab.value] = true })
+onMounted(() => { tabsBuilt[panelTab.value] = true })
 /* spec 082 FR-002: a Topics row is named by rowTitle (plain text, no
    `Topic:` prefix); with no opening, the people, then the id. */
 function peerName(id: string, box?: string) {
@@ -935,14 +932,14 @@ const route = useRoute()
 const mobileStack = useMobileStack()
 const onSearchPage = computed(() => isSearchPage(route.path))
 /* spec 109 T008 (FR-006, owner Q2 = a): on a desktop the centre of `/` IS
-   the topic list, so panel 1 opens on Channels there instead of the same
-   list twice. A topic page (/t/<id>) keeps Topics; the phone, where `/` is
-   one list on its own, keeps Topics too. */
-function routeTab(path: string) {
-  const next = tabForPath(path)
-  if (next === 'topics' && !mobileStack.isMobile.value && productPath(path) === '/') return 'channels'
-  return next
-}
+   the topic list, so there panel 1 shows the Channels list under the Topics
+   tab instead of the same list twice; the rail still marks Topics, the
+   section the reader is in. A topic page (/t/<id>) keeps the Topics list;
+   the phone, where `/` is that one list, too. */
+const panelTab = computed<SideTab>(() => (tab.value === 'topics' && !mobileStack.isMobile.value && productPath(route.path) === '/' ? 'channels' : tab.value))
+/* not immediate: the route sets the real tab during setup, so the 'dm' the
+   ref starts with is never built unless it is shown */
+watch(panelTab, (open) => { tabsBuilt[open] = true })
 watch(() => route.path, (path) => {
   rowMenu.value = ''
   if (isSearchPage(path)) {
@@ -958,7 +955,7 @@ watch(() => route.path, (path) => {
   /* SPL-989: on a phone at level 1 this list IS the screen - Back to it
      keeps the section the reader left from, whatever page sits behind */
   if (mobileStack.isMobile.value && mobileStack.level.value === 1) return
-  const next = routeTab(path)
+  const next = tabForPath(path)
   if (next) tab.value = next
 }, { immediate: true })
 /* HUM-10 (t1 36ea84a6): a followed link to a message or a topic shows its
@@ -1231,7 +1228,7 @@ async function selectTab(next: SideTab) {
 /* CLE-77884: the search list's X - back to the list the page belongs to */
 function closeSearch() {
   holdSearch.value = false
-  tab.value = routeTab(route.path) || 'channels'
+  tab.value = tabForPath(route.path) || 'channels'
   if (isSearchPage(route.path)) void navigateTo(localePath('/'))
 }
 const sidePane = useSidePane()

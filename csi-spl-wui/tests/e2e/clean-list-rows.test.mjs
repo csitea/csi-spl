@@ -1,6 +1,8 @@
 // Clean list rows (spec 082 T003: AC2, AC3), proved in a real browser.
 //
-// At 1440 px against the mock, on `/`:
+// At 1440 px against the mock, on `/` (spec 109 T008: a desktop paints the
+// Topics list there once, in the middle; the sidebar Topics list is read on
+// a 390 px phone's `/`, where it is painted):
 //   AC2  no Topics row, sidebar or middle list, starts with `Topic:` or
 //        carries `**` (FR-002, FR-006: what is read is what is heard);
 //   AC3  a desktop row time follows the list-time rule (FR-003): the
@@ -83,7 +85,7 @@ function shiftClock(fakeNow) {
   window.Date = Shifted
 }
 
-/** Open `/` with the Topics sidebar tab shown, then read both lists. */
+/** Open `/` and read the middle list, then the sidebar Topics list on a phone. */
 async function rowsAt(browser, server, fakeNow) {
   const page = watchPage(await browser.newPage(), `1440 clock=${fakeNow ? 'mock-day' : 'real'}`)
   const errors = []
@@ -100,24 +102,23 @@ async function rowsAt(browser, server, fakeNow) {
       if (i >= 2 || !/context was destroyed|detached|navigation|Timeout/i.test(String(e))) throw e
     }
   }
-  const shown = await page.evaluate(() => {
-    const panel = document.querySelector('#sidebar-panel-topics')
-    return Boolean(panel && panel.offsetParent)
-  })
-  if (!shown) await page.click('#sidebar-tab-topics')
-  await page.waitForSelector('#sidebar-panel-topics .nav-item .label', { visible: true, timeout: NAV_TIMEOUT })
   await sleep(500)
   await plant(page)
-  const rows = await page.evaluate(() => ({
-    middle: [...document.querySelectorAll('a.topic-row')].map((a) => ({
-      ts: a.getAttribute('data-ts') || '',
-      title: (a.querySelector('.topic-subject')?.textContent || '').trim(),
-      time: (a.querySelector('.msg-time')?.textContent || '').trim(),
-    })),
-    sidebar: [...document.querySelectorAll('#sidebar-panel-topics .nav-item .label')].map((el) => (el.textContent || '').trim()),
-  }))
+  const middle = await page.evaluate(() => [...document.querySelectorAll('a.topic-row')].map((a) => ({
+    ts: a.getAttribute('data-ts') || '',
+    title: (a.querySelector('.topic-subject')?.textContent || '').trim(),
+    time: (a.querySelector('.msg-time')?.textContent || '').trim(),
+  })))
+  await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
+  await page.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const shown = () => page.evaluate(() => [...document.querySelectorAll('#sidebar-panel-topics .nav-item .label')].some((el) => el.checkVisibility({ visibilityProperty: true })))
+  if (!(await shown())) await page.click('#sidebar-tab-topics')
+  await page.waitForFunction(() => [...document.querySelectorAll('#sidebar-panel-topics .nav-item .label')].some((el) => el.checkVisibility({ visibilityProperty: true })), { timeout: NAV_TIMEOUT })
+  await sleep(500)
+  await plant(page)
+  const sidebar = await page.evaluate(() => [...document.querySelectorAll('#sidebar-panel-topics .nav-item .label')].map((el) => (el.textContent || '').trim()))
   await page.close()
-  return { ...rows, errors }
+  return { middle, sidebar, errors }
 }
 
 /** Open `/` with the Flow sidebar tab shown, then read its entry texts. */
@@ -149,9 +150,9 @@ try {
   const real = await rowsAt(browser, server, 0)
   const titles = [...real.middle.map((r) => r.title), ...real.sidebar]
   const dirty = titles.filter((s) => s.startsWith('Topic:') || s.includes('**'))
-  ok('AC2 1440: middle and sidebar Topics rows are listed', real.middle.length > 0 && real.sidebar.length > 0,
+  ok('AC2 1440 + 390: middle and sidebar Topics rows are listed', real.middle.length > 0 && real.sidebar.length > 0,
     { middle: real.middle.length, sidebar: real.sidebar.length })
-  ok('AC2 1440: no Topics row starts with "Topic:" or carries "**"', titles.length > 0 && dirty.length === 0, { dirty: dirty.slice(0, 3) })
+  ok('AC2 1440 + 390: no Topics row starts with "Topic:" or carries "**"', titles.length > 0 && dirty.length === 0, { dirty: dirty.slice(0, 3) })
 
   const thisYear = String(new Date().getUTCFullYear())
   const dated = MOCK_DAY.slice(0, 4) === thisYear ? MOCK_DAY.slice(5) : MOCK_DAY

@@ -175,9 +175,9 @@ async function sameRouteTabs(browser, base) {
    topic list, so panel 1 shows Channels, not the same list again. A fresh load
    of `/`, read once the centre has its rows: the VISIBLE panel 1 list must be
    Channels. The old check (`#sidebar-panel-topics` absent) passed on the old
-   code too; this one reads what is shown. A topic page (/t/<id>, its
-   messages, not the index) keeps Topics in panel 1. */
-const shownPanels = (p) => p.$$eval('.sidebar-panel', (els) => els.filter((e) => e.offsetParent !== null).map((e) => e.id))
+   code too; this one reads what is painted. A topic page (/t/<id>) paints
+   one topic list too, its own: the shell sidebar is not painted there. */
+const shownPanels = (p) => p.$$eval('.sidebar-panel', (els) => els.filter((e) => e.checkVisibility({ visibilityProperty: true })).map((e) => e.id))
 async function homeOneList(browser, base) {
   const p = await browser.newPage()
   await p.setViewport({ width: 1440, height: 900 })
@@ -188,11 +188,28 @@ async function homeOneList(browser, base) {
   const shown = await shownPanels(p)
   const centre = await p.$$eval('.spool-main .topic-row', (els) => els.length)
   check('1440px T008: / shows the topic list once - panel 2 has it, panel 1 shows Channels', centre > 0 && same(shown, ['sidebar-panel-channels']), { shown, centre })
+  /* the rail still marks Topics, and a click on Topics (the tab already
+     open) keeps the one list: panel 1 stays on Channels */
+  const railOn = () => p.$$eval('[data-testid=sidebar-rail] [aria-selected=true]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
+  const marked = await railOn(p)
+  await p.click('#sidebar-tab-topics')
+  await sleep(600)
+  const again = await shownPanels(p)
+  check('1440px T008: on / the rail marks Topics; Topics again keeps panel 1 on Channels', same(marked, ['topics']) && same(again, ['sidebar-panel-channels']), { marked, again })
+  /* Topics from a channel page lands on / with the same one list */
+  await go(p, '/channel/lobby')
+  await p.waitForSelector('.spool-main [data-pane=msgs]', { timeout: NAV })
+  await p.click('#sidebar-tab-topics')
+  await p.waitForSelector('.spool-main .topic-row', { timeout: NAV })
+  await sleep(600)
+  const fromLobby = { path: await p.evaluate(() => location.pathname), shown: await shownPanels(p), marked: await railOn(p) }
+  check('1440px T008: Topics from #lobby opens / with Topics marked and Channels in panel 1', fromLobby.path === '/' && same(fromLobby.shown, ['sidebar-panel-channels']) && same(fromLobby.marked, ['topics']), fromLobby)
   const key = await p.$eval('.spool-main .topic-row', (e) => e.getAttribute('data-key'))
   await go(p, '/t/' + key)
   await sleep(800)
-  const onTopic = await shownPanels(p)
-  check('1440px T008: a topic page still shows the Topics list in panel 1', same(onTopic, ['sidebar-panel-topics']), { onTopic })
+  await p.waitForSelector('[data-test=topic-browse-list] a.topic-row', { visible: true, timeout: NAV })
+  const onTopic = { panels: await shownPanels(p), own: await p.$$eval('[data-test=topic-browse-list] a.topic-row', (as) => as.filter((a) => a.checkVisibility({ visibilityProperty: true })).length) }
+  check('1440px T008: a topic page paints one topic list, its own', onTopic.own > 0 && onTopic.panels.length === 0, onTopic)
   await p.close()
 }
 

@@ -16,14 +16,15 @@ const IDS = ['dm', 'channels', 'topics', 'flow', 'issues', 'events', 'people', '
 describe('a phone frees a rail panel it has left', () => {
   it('each panel stays mounted after a visit only on desktop', () => {
     for (const id of IDS) {
-      assert.match(src, new RegExp(`v-if="tab === '${id}' \\|\\| \\(tabsBuilt\\.${id} && !phone\\)"`))
+      /* spec 109 T008: Channels and Topics follow panelTab (a desktop `/` shows Channels under Topics) */
+      assert.match(src, new RegExp(`v-if="(?:tab|panelTab) === '${id}' \\|\\| \\(tabsBuilt\\.${id} && !phone\\)"`))
     }
-    assert.doesNotMatch(src, /v-if="tab === '[a-z]+' \|\| tabsBuilt\.[a-z]+"/)
+    assert.doesNotMatch(src, /v-if="(?:tab|panelTab) === '[a-z]+' \|\| tabsBuilt\.[a-z]+"/)
   })
 
   it('desktop still records the first open and does not build every tab on idle', () => {
     assert.match(src, /const tabsBuilt = reactive/)
-    assert.match(src, /watch\(tab, \(open\) => \{ tabsBuilt\[open\] = true \}\)/)
+    assert.match(src, /watch\(panelTab, \(open\) => \{ tabsBuilt\[open\] = true \}\)/)
     assert.doesNotMatch(src, /requestIdleCallback/)
   })
 })

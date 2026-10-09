@@ -19,7 +19,8 @@ const SIZE = { width: 1440, height: 900 }
 const SECTIONS = [
   { tab: 'dm', badge: '[data-test=dm-badge]' },
   { tab: 'channels', badge: '[data-testid=channel-unread]' },
-  { tab: 'topics', badge: '[data-testid=topic-unread]' },
+  /* spec 109 T008: a desktop `/` paints the Topics rows once, in the middle */
+  { tab: 'topics', badge: '[data-testid=topic-row-unread]', list: '.spool-main' },
 ]
 
 const results = []
@@ -47,13 +48,13 @@ async function launch() {
 }
 
 /* A section's rail number and the sum of its rows' badges ("2/7" reads 2). */
-function section(page, tab, badge) {
-  return page.evaluate((id, sel) => {
+function section(page, tab, badge, list) {
+  return page.evaluate((id, sel, list) => {
     const rail = document.querySelector(`[data-testid=sidebar-tab-${id}-count]`)?.textContent.trim() || ''
-    const panel = document.querySelector(`[data-testid=sidebar-panel-${id}]`) || document.getElementById(`sidebar-panel-${id}`)
+    const panel = list ? document.querySelector(list) : document.querySelector(`[data-testid=sidebar-panel-${id}]`) || document.getElementById(`sidebar-panel-${id}`)
     const rows = panel ? [...panel.querySelectorAll(sel)].map((b) => parseInt(b.textContent.trim(), 10) || 0) : []
     return { rail: rail === '' ? 0 : parseInt(rail, 10), rows, sum: rows.reduce((a, b) => a + b, 0), panel: Boolean(panel) }
-  }, tab, badge)
+  }, tab, badge, list || '')
 }
 
 const server = await startServer()
@@ -72,9 +73,9 @@ try {
   let places = 0
   for (const s of SECTIONS) {
     await p.click(`[data-testid=sidebar-tab-${s.tab}]`)
-    await p.waitForSelector(`#sidebar-panel-${s.tab}`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+    await p.waitForSelector(s.list || `#sidebar-panel-${s.tab}`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
     await new Promise((r) => setTimeout(r, 300))
-    const f = await section(p, s.tab, s.badge)
+    const f = await section(p, s.tab, s.badge, s.list)
     any += f.rail
     if (s.tab !== 'topics') places += f.sum
     ok(`${s.tab}: the section number is the sum of its rows' unread`, f.panel && f.rail === f.sum, f)

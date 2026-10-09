@@ -145,15 +145,15 @@ async function feedRun(browser, base, view, run) {
   }
 }
 
-/** Topics view: open the topic from the Topics list into the right pane. */
+/** Topics view: open the topic from the Topics list into the right pane (on a
+    desktop `/` that list is the middle one, spec 109 T008). */
 async function paneRun(browser, base, run) {
   const { ctx, p, errors } = await fresh(browser, PANE_EXTRA, { [`t:${PANE_TASK}`]: { ts: MARK, id: '', count: 1 } })
   const tag = `topics #${run}`
-  const row = `#sidebar-panel-topics .nav-item[data-key="${PANE_TASK}"]`
+  const row = `.spool-main a.topic-row[data-key="${PANE_TASK}"]`
   const pane = '[data-test=topic-root]'
   try {
     await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
-    await p.click('[data-testid=sidebar-tab-topics]')
     await p.waitForSelector(row, { visible: true, timeout: NAV })
     await p.click(row)
     await p.waitForSelector(`${pane} article.msg[data-msg-id="${PANE_TASK}"]`, { timeout: NAV })

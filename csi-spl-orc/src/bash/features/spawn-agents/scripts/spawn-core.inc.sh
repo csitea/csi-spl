@@ -222,6 +222,16 @@ spawn_registry_line() {  # TITLE KIND PANE RUNDIR STAMP REQUESTER
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$6"
 }
 
+# A copy of the brief at <spool root>/<id>/lifetime/brief.md, so a restore
+# hands the task back (restore-mistral.sh reads it; c-632 found no spawn
+# recorded one). A copy, not a link: a dispatch brief may be moved later.
+spawn_record_brief() {  # MSGDIR BRIEF
+  [ -n "$2" ] && [ -r "$2" ] || return 0
+  mkdir -p "$1/lifetime" 2>/dev/null && chmod 0775 "$1/lifetime" 2>/dev/null
+  cp -f "$2" "$1/lifetime/brief.md" 2>/dev/null && chmod 0664 "$1/lifetime/brief.md" 2>/dev/null
+  return 0
+}
+
 spawn_main() {
   TITLE="${1:-}"; WORKDIR="${2:-}"; BRIEF="${3:-}"; SLUG="${4:-}"
   local _sp_cli _sp_idl _sp_name_args="" _sp_prompt_args="" _sp_shown
@@ -297,6 +307,10 @@ spawn_main() {
     echo "INFO: spool dir ${MSGDIR} (inbox/ outbox/ archive/)"
   fi
   _sp_plan spooldir "${MSGDIR}/{inbox,outbox,archive} 0775"
+  if [ -n "$BRIEF" ]; then
+    if _sp_live; then spawn_record_brief "$MSGDIR" "$BRIEF"; fi
+    _sp_plan brief "${BRIEF} -> ${MSGDIR}/lifetime/brief.md 0664"
+  fi
 
   _spawn_worktree
   _spawn_lane_put

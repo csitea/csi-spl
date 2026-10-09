@@ -194,4 +194,18 @@ has "T001 control: ... and named" "spawn-qwen.sh" "$(t001_literal "$FX")"
 fleet="$T_FEAT/../spool-install/assets/claude/settings/00-fleet.json"
 eq "T001: 00-fleet.json env block turns the updater off" 1 "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["env"]["DISABLE_AUTOUPDATER"])' "$fleet")"
 
+# c-636 (restart drill 4): a spawn records its brief at <id>/lifetime/brief.md,
+# the file restore-mistral.sh reads, else a restored seat gets no task back.
+out="$(SPAWN_PLAN_DIR="$T_TMP/plan-claude" bash "$T_SCRIPTS/spawn-claude.sh" CLE-78 "$WD" "$T_TMP/brief.md" 2>&1)"
+has "brief: the plan records the brief under lifetime/" "PLAN brief      $T_TMP/brief.md -> ${SPOOL_ROOT}/CLE-78/lifetime/brief.md" "$out"
+out="$(SPAWN_PLAN_DIR="$T_TMP/plan-claude" bash "$T_SCRIPTS/spawn-claude.sh" CLE-79 "$WD" 2>&1)"
+hasnt "brief: a plain session records none" "PLAN brief" "$out"
+# shellcheck source=../scripts/spawn-core.inc.sh
+( . "$T_SCRIPTS/spawn-core.inc.sh"; spawn_record_brief "$T_TMP/rb/m-078" "$T_TMP/brief.md"; spawn_record_brief "$T_TMP/rb/m-079" "" )
+eq "brief: lifetime/brief.md is a copy of the brief" "brief" "$(cat "$T_TMP/rb/m-078/lifetime/brief.md" 2>/dev/null)"
+eq "brief: ... readable by the agent user and the box user (0664)" 664 "$(stat -c %a "$T_TMP/rb/m-078/lifetime/brief.md" 2>/dev/null)"
+check "brief: no brief, no lifetime dir" test ! -e "$T_TMP/rb/m-079"
+# The reader: restore-mistral's lookup finds it.
+check "brief: restore-mistral.sh reads lifetime/brief.md" grep -q 'lt/brief.md' "$T_SCRIPTS/restore-mistral.sh"
+
 t_done

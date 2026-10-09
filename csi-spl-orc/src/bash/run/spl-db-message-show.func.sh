@@ -27,46 +27,16 @@
 do_spl_db_message_show() {
   local provider
   provider="$(do_spl_cloud_provider)" || return 1
-  if [[ "$provider" == none ]]; then
-    do_require_bin psql python3 || return 1
-  else
-    do_require_bin gcloud psql python3 || return 1
-  fi
+  spl_db_require_bins "$provider" || return 1
   do_spl_cloud_cnf || return 1
   local where
   where="$(spl_db_message_filter)" || return 1
-  if [[ "$provider" == none ]]; then
-    local dsn none_rc=0
-    spl_db_runtime_local || return 1
-    _spl_db_message_show_query || none_rc=$?
-    unset dsn
-    return "$none_rc"
-  fi
-  local key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
-  [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
-  # the SA runs under a throwaway CLOUDSDK_CONFIG holding its activated
-  # credential: the EXIT trap removes it on every subshell exit (an
-  # interrupt too), the outer rm is the backstop. The same block lives in
-  # spl-hub-member-list.func.sh and spl-consumer-lag.func.sh (a shared helper is a later lane).
-  local cfg rc=0
-  cfg="$(mktemp -d)" || return 1
-  (
-    trap 'rm -rf "$cfg"' EXIT
-    export CLOUDSDK_CONFIG="$cfg"
-    gcloud auth activate-service-account --key-file="$key" >/dev/null 2>&1 ||
-      { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
-    GCP_ACCOUNT="$(do_gcp_isolated_active_account)" || exit 1
-    export GCP_ACCOUNT
-    spl_db_runtime_local || exit 1
-    _spl_db_message_show_query
-    exit $?
-  ) || rc=$?
-  rm -rf "$cfg"
-  return $rc
+  spl_db_query_rc "$provider" _spl_db_message_show_query
 }
 
 # _spl_db_message_show_query -> the read, once $dsn is the local login.
 # Exit 2 when nothing matches. Stops the proxy.
+# shellcheck disable=SC2154 # dsn: bound by spl_db_query_rc, via dynamic scope
 _spl_db_message_show_query() {
   local out qrc
   out="$(spl_psql_ro "$dsn" "$(spl_db_message_sql "$where")")"

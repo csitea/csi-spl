@@ -32,43 +32,14 @@
 do_spl_db_rls_check() {
   local provider
   provider="$(do_spl_cloud_provider)" || return 1
-  if [[ "$provider" == none ]]; then
-    do_require_bin psql python3 || return 1
-  else
-    do_require_bin gcloud psql python3 || return 1
-  fi
+  spl_db_require_bins "$provider" || return 1
   do_spl_cloud_cnf || return 1
-  if [[ "$provider" == none ]]; then
-    local dsn none_rc=0
-    spl_db_runtime_local || return 1
-    _spl_db_rls_query || none_rc=$?
-    unset dsn
-    return "$none_rc"
-  fi
-  local key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
-  [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
-  local cfg rc=0
-  # cfg holds the SA's activated credential. The subshell's EXIT trap removes
-  # it on an interrupt (bash then dies without returning, so no RETURN trap
-  # runs); the RETURN trap removes it on every return of this function.
-  cfg="$(mktemp -d)" || return 1
-  trap 'rm -rf "$cfg"; trap - RETURN' RETURN
-  (
-    trap 'rm -rf "$cfg"' EXIT
-    export CLOUDSDK_CONFIG="$cfg"
-    gcloud auth activate-service-account --key-file="$key" >/dev/null 2>&1 ||
-      { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
-    GCP_ACCOUNT="$(do_gcp_isolated_active_account)" || exit 1
-    export GCP_ACCOUNT
-    spl_db_runtime_local || exit 1
-    _spl_db_rls_query
-    exit $?
-  ) || rc=$?
-  return $rc
+  spl_db_query_rc "$provider" _spl_db_rls_query
 }
 
 # _spl_db_rls_query -> the catalog read, once $dsn is the local login.
 # The verdict's exit (0 / 3 / 4 / 5) is this function's. Stops the proxy.
+# shellcheck disable=SC2154 # dsn: bound by spl_db_query_rc, via dynamic scope
 _spl_db_rls_query() {
   local out qrc
   out="$(spl_psql_ro "$dsn" "$(spl_db_rls_sql)")"

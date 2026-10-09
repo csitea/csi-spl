@@ -19,43 +19,16 @@
 do_spl_db_period_count_check() {
   local provider
   provider="$(do_spl_cloud_provider)" || return 1
-  if [[ "$provider" == none ]]; then
-    do_require_bin psql python3 || return 1
-  else
-    do_require_bin gcloud psql python3 || return 1
-  fi
+  spl_db_require_bins "$provider" || return 1
   do_spl_cloud_cnf || return 1
   local t="${TENANT_ID:-}"
   [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$t'"; return 1; }
-  if [[ "$provider" == none ]]; then
-    local dsn none_rc=0
-    spl_db_runtime_local || return 1
-    _spl_db_period_count_query || none_rc=$?
-    unset dsn
-    return "$none_rc"
-  fi
-  local key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
-  [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
-  local cfg rc=0
-  cfg="$(mktemp -d)" || return 1
-  # the config holds the activated SA credential: the subshell's EXIT trap
-  # removes it on every exit, an interrupt too (a RETURN trap would not run)
-  (
-    trap 'rm -rf "$cfg"' EXIT
-    export CLOUDSDK_CONFIG="$cfg"
-    gcloud auth activate-service-account --key-file="$key" >/dev/null 2>&1 ||
-      { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
-    GCP_ACCOUNT="$(do_gcp_isolated_active_account)" || exit 1
-    export GCP_ACCOUNT
-    spl_db_runtime_local || exit 1
-    _spl_db_period_count_query
-    exit $?
-  ) || rc=$?
-  return $rc
+  spl_db_query_rc "$provider" _spl_db_period_count_query
 }
 
 # _spl_db_period_count_query -> the read, once $dsn is the local login.
 # Exit 3 when the counter and the row count differ. Stops the proxy.
+# shellcheck disable=SC2154 # dsn: bound by spl_db_query_rc, via dynamic scope
 _spl_db_period_count_query() {
   local out qrc
   out="$(spl_psql_ro "$dsn" "$(spl_db_period_count_sql "$t")")"

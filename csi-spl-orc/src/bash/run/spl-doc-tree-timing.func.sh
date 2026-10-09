@@ -35,7 +35,10 @@ do_spl_doc_tree_timing() {
       return 1
     fi
   fi
-  do_require_bin go docker || return 1
+  # go is found above (PATH, else the toolchain selector) and is not listed
+  # below: it is a dev/CI tool, not one the box user's verify checks
+  # (satellite-ansible.tst.sh case 8 reads the required-tool lists).
+  do_require_bin docker || return 1
 
   local dsn="${TIMING_PG_DSN:-}" con=""
   if [[ -z "$dsn" ]]; then

@@ -22,12 +22,17 @@
 # @description dies in its check, or a step past WD_UPD_STEP_MAX s halts the
 # @description rollout, quarantines the sha (code/<sha>.bad: never rolled
 # @description again), alerts the orchestrator, and every instance on that
-# @description sha execs back into code/good. Every step is an UPDATE line
-# @description in wd.log. The action prints the state, read-only.
+# @description sha execs back into code/good. A pre-flight proof tick that
+# @description only TIMED OUT (rc 124/137, no script error: a loaded box) is no
+# @description failure: RETRY, the sha stays un-quarantined and is pre-flighted
+# @description again on a later tick, quarantined only after
+# @description WD_UPD_TIMEOUT_TRIES timeouts in a row. Every step is an UPDATE
+# @description line in wd.log. The action prints the state, read-only.
 # @param WD_SELF_UPDATE (optional) - 1 rolls out new desk-cron code; default 1, and 0 under SPOOL_TEST=1
 # @param WD_UPD_SRC (optional) - the desk-cron checkout; default DESK_CRON_SRC, then <wd dir>/starter.src
 # @param WD_UPD_SLICE (optional) - seconds per sleep slice of a waiting instance, default 5
 # @param WD_UPD_CHECK_MAX (optional) - seconds for the pre-flight proof tick, default 20
+# @param WD_UPD_TIMEOUT_TRIES (optional) - pre-flight proof ticks that time out in a row before the sha is quarantined, default 5
 # @param WD_UPD_STEP_MAX (optional) - seconds one step (exec + check, or a baton wait) may take, default 45; the self-check tick's hang bound
 # @param WD_UPD_KEEP (optional) - snapshots kept besides the ones in use, default 3
 # @param WD_UPD_PREFLIGHT (optional) - 1 (default): pre-flight the candidate; 0 skips it (tests only)
@@ -53,6 +58,9 @@ do_spl_wd_self_update() {
   for s in "$WD_DIR"/code/*.bad; do
     [[ -f "$s" ]] && echo "bad: $(basename "$s" .bad) $(head -n 1 "$s")"
   done
+  for s in "$WD_DIR"/code/*.slow; do
+    [[ -f "$s" ]] && echo "pre-flight timed out: $(basename "$s" .slow) $(head -n 1 "$s") time(s)"
+  done
   return 0
 }
 
@@ -62,8 +70,8 @@ spl_wd_upd_conf() {
     WD_SELF_UPDATE=1
     [[ "${SPOOL_TEST:-}" == 1 ]] && WD_SELF_UPDATE=0
   fi
-  : "${WD_UPD_SLICE:=5}" "${WD_UPD_CHECK_MAX:=20}" "${WD_UPD_STEP_MAX:=45}" "${WD_UPD_KEEP:=3}" "${WD_UPD_PREFLIGHT:=1}"
-  for k in WD_SELF_UPDATE WD_UPD_SLICE WD_UPD_CHECK_MAX WD_UPD_STEP_MAX WD_UPD_KEEP WD_UPD_PREFLIGHT; do
+  : "${WD_UPD_SLICE:=5}" "${WD_UPD_CHECK_MAX:=20}" "${WD_UPD_STEP_MAX:=45}" "${WD_UPD_KEEP:=3}" "${WD_UPD_PREFLIGHT:=1}" "${WD_UPD_TIMEOUT_TRIES:=5}"
+  for k in WD_SELF_UPDATE WD_UPD_SLICE WD_UPD_CHECK_MAX WD_UPD_STEP_MAX WD_UPD_KEEP WD_UPD_PREFLIGHT WD_UPD_TIMEOUT_TRIES; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   (( WD_UPD_SLICE > 0 )) || { do_log "FATAL WD_UPD_SLICE must be at least 1"; return 1; }
@@ -271,9 +279,10 @@ spl_wd_upd_quorum() {
   return 1
 }
 
-# the candidate's scripts parse, and one dry proof tick from it runs green
+# the candidate's scripts parse, and one dry proof tick from it runs green.
+# A tick that only timed out is retried (spl_wd_upd_slow), not quarantined.
 spl_wd_upd_preflight() {
-  local sha="$1" now="$2" orc f out rc=0 pf="$WD_DIR/preflight"
+  local sha="$1" now="$2" orc f out rc=0 pf="$WD_DIR/preflight" t0 took
   [[ "$WD_UPD_PREFLIGHT" == 1 ]] || return 0
   orc="$WD_DIR/code/$sha/$(spl_wd_upd_orc)"
   while IFS= read -r -d '' f; do
@@ -283,13 +292,43 @@ spl_wd_upd_preflight() {
     fi
   done < <(find "$orc/src/bash/run" "$orc/src/bash/features/watchdog" -name '*.sh' -print0 2>/dev/null)
   rm -rf "$pf"; mkdir -p "$pf"
+  t0="$SECONDS"
   out="$(timeout -k 2 "$WD_UPD_CHECK_MAX" env WD_INST= INSTANCE= WD_UPD_EXEC= WD_STATE_DIR="$pf" \
     WD_ONLY=wd-preflight WD_TICKS=1 DRY_RUN=1 WD_SELF_UPDATE=0 WD_PEERS=0 \
     "$orc/run" -a do_spl_watchdog 2>&1 5>&- 7>&- 9>&-)" || rc=$?
-  if (( rc != 0 )) || grep -qE "$SPL_WD_UPD_ERR_RE" <<<"$out" || grep -qE "$SPL_WD_UPD_ERR_RE" "$pf/tick/err" 2>/dev/null; then
-    spl_wd_upd_fail "$sha" "$now" "pre-flight: the proof tick from the snapshot failed (rc $rc): $(tail -n 3 <<<"$out" | tr '\n' ' ')"
+  took=$(( SECONDS - t0 ))
+  if grep -qE "$SPL_WD_UPD_ERR_RE" <<<"$out" || grep -qE "$SPL_WD_UPD_ERR_RE" "$pf/tick/err" 2>/dev/null ||
+     (( rc != 0 && rc != 124 && rc != 137 )); then
+    spl_wd_upd_fail "$sha" "$now" "pre-flight: the proof tick from the snapshot failed (rc $rc, took ${took}s): $(tail -n 3 <<<"$out" | tr '\n' ' ')"
     return 1
   fi
+  if (( rc != 0 )); then
+    spl_wd_upd_slow "$sha" "$now" "$rc" "$took"
+    return 1
+  fi
+  rm -f "$WD_DIR/code/$sha.slow"
+  return 0
+}
+
+# spl_wd_upd_slow SHA NOW RC TOOK: the proof tick only timed out (rc 124/137,
+# no script error): a loaded box, not a bad sha (2026-10-09, load ~10: three
+# commits quarantined at rc 124, the next one green in 5 s). code/<sha>.slow
+# counts the timeouts in a row; the sha stays un-quarantined and is
+# pre-flighted again on a later tick, until WD_UPD_TIMEOUT_TRIES of them.
+spl_wd_upd_slow() {
+  local sha="$1" now="$2" rc="$3" took="$4" n f="$WD_DIR/code/$1.slow" s
+  # a timeout count is for the sha in the checkout now, never a superseded one
+  for s in "$WD_DIR"/code/*.slow; do [[ -f "$s" && "$s" != "$f" ]] && rm -f "$s"; done
+  n="$(head -n 1 "$f" 2>/dev/null || true)"
+  [[ "$n" =~ ^[0-9]+$ ]] || n=0
+  n=$(( n + 1 ))
+  if (( n >= ${WD_UPD_TIMEOUT_TRIES:-5} )); then
+    rm -f "$f"
+    spl_wd_upd_fail "$sha" "$now" "pre-flight: the proof tick from the snapshot timed out $n times in a row (rc $rc, last took ${took}s, limit ${WD_UPD_CHECK_MAX}s)"
+    return 0
+  fi
+  echo "$n" > "$f" 2>/dev/null || true
+  spl_wd_upd_log "RETRY ${sha:0:9}: pre-flight: the proof tick from the snapshot timed out (rc $rc, took ${took}s, limit ${WD_UPD_CHECK_MAX}s), $n of ${WD_UPD_TIMEOUT_TRIES:-5}; not quarantined, pre-flighted again on a later tick"
   return 0
 }
 
@@ -298,6 +337,7 @@ spl_wd_upd_fail() {
   local sha="$1" now="$2" why="$3" good
   good="$(spl_wd_upd_link good)"
   echo "$why" > "$WD_DIR/code/$sha.bad" 2>/dev/null || true
+  rm -f "$WD_DIR/code/$sha.slow"
   rm -f "$WD_DIR/update.state" "$WD_DIR/code/candidate"
   spl_wd_upd_log "FAILED ${sha:0:9}: $why; rollout halted, ${sha:0:9} quarantined (code/$sha.bad), the instances on it go back to good ${good:0:9}"
   spl_wd_peer_alert "update_${sha:0:9}" "$now" \

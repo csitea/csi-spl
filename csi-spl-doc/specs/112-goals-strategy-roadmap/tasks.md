@@ -132,11 +132,12 @@ events) meant `workspace`; 12.5 supersedes it.
   - Done: reads every `goal.yaml`, takes each goal's `workspace`, and PUTs one batch whose events and goals each name their workspace; it sends NO audience (HUB-2 sets `internal` or `public` from the workspace switch); `props.roadmap_url` = `/roadmap?ws=<slug>&goal=G01#spec-089` and the deadline event's props carry the goal's `specs` and `done_lines` (WUI-3 reads them); a second run adds 0 events. Test against a stub route on a fixture with goals in two workspaces. Controls: a goal without `workspace` fails the run before any call; a batch that carries an `audience` on a `goal:` key turns the test red.
   - Vendor: mistral. Box: any.
 
-- [ ] **ORC-5**: Git backfill, per workspace (spec 8.1, 12.7). Split out of ORC-2.
+- [x] **ORC-5**: Git backfill, per workspace (spec 8.1, 12.7). Split out of ORC-2.
   - Depends: HUB-2, DOC-1.
   - Owns: `csi-spl-orc/src/bash/run/spl-goals-backfill-git.func.sh` (`do_spl_goals_backfill_git`), its `.tst.sh`.
   - Done: `: "${WORKSPACE:?WORKSPACE must be set (no default)}"` first; builds the batch (`x.y.0` tags, release notes, specs turned done, `milestones.yaml`, starting at 2026-09-17) for that one workspace with no audience (HUB-2 sets it) and PUTs it to the sync route; the first event is `2026-09-17 spool-hub started`; a second run adds 0 events. Test on a fixture repo: tags `v1.2.0`, `v1.2.1`, `v1.3.0` give exactly 2 release events. Controls: a patch tag counted as major turns the test red; an unset `WORKSPACE` exits non-zero before any call.
   - Vendor: mistral. Box: any.
+  - Status: built (c-695, fix-forward of m-734; the `/tmp/` mock-tag branch is gone from the func): `do_spl_goals_backfill_git` refuses a batch that breaks the row (first event, an `audience`, another workspace, a patch `release:`) before any call; release descriptions are the note's `Lay-What` line; `DRY_RUN=1` prints the batch. On the live repo it reads 106 events, 88 of them `x.y.0` releases (the 0-9 version odometer makes every tenth tag a `.0`). Test green on a fixture repo against a stub route, with the patch-tag, audience and no-`WORKSPACE` controls each shown red on a mutant.
 
 - [x] **ORC-3**: DB backfill candidates, tenant-scoped (spec 8.2).
   - Depends: none for the read; HUB-1 for writing the kept ones.

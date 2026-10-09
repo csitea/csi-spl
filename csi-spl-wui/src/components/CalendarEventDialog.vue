@@ -21,10 +21,28 @@
      reminders (up to 5, a whole number and minutes / hours / days) and the
      colour swatches; `copy` opens a new event filled from another
      (Duplicate). Desktop only since spec 106 T011: a phone adds and edits
-     in CalendarPhoneSheet. -->
+     in CalendarPhoneSheet.
+
+     Spec 107 v1.2 T011 (owner R9, t1 a28dc5c9 msg 37805fdf): `hours` opens
+     the dialog as the entry of type Working hours for one day - the day's
+     rows and discussions (CalendarHoursDay, its own chunk) instead of the
+     event form, and Close as the only action. Not a calendar event: nothing
+     here writes /v1/calendar for it. -->
 <template>
-  <UiDialog :open="open" :title="event ? t('calendar_event.edit_title') : t('calendar_event.new_title')" size="md" @update:open="emit('update:open', $event)">
-    <form :id="formId" class="cal-dlg" data-test="calendar-event-form" :data-mode="event ? 'edit' : copy ? 'copy' : 'create'" @submit.prevent="save">
+  <UiDialog :open="open" :title="hours ? t('hours_cal.dialog_title', { day: hours.day }) : event ? t('calendar_event.edit_title') : t('calendar_event.new_title')" size="md" @update:open="emit('update:open', $event)">
+    <div v-if="hours" class="cal-dlg cal-dlg--hours" data-test="calendar-event-form" data-mode="hours" :data-type="HOURS_ENTRY_TYPE" :data-day="hours.day">
+      <p class="cal-dlg__type cal-dlg__field--wide" data-test="calendar-event-type">{{ t('hours_cal.type') }}</p>
+      <LazyCalendarHoursDay
+        class="cal-dlg__field--wide"
+        :day="hours.day"
+        :data="hours.data"
+        :body="hours.body"
+        :tz="hours.tz"
+        :state="hours.state"
+        @navigate="emit('update:open', false)"
+      />
+    </div>
+    <form v-else :id="formId" class="cal-dlg" data-test="calendar-event-form" :data-mode="event ? 'edit' : copy ? 'copy' : 'create'" @submit.prevent="save">
       <label class="cal-dlg__field cal-dlg__field--wide">
         <span>{{ t('calendar_event.field_title') }}</span>
         <input
@@ -175,7 +193,11 @@
       <p v-if="error" class="cal-dlg__error cal-dlg__field--wide" role="alert" data-test="calendar-event-error">{{ t(error) }}</p>
     </form>
     <template #footer>
-      <div class="cal-dlg__actions" data-test="calendar-event-actions">
+      <div v-if="hours" class="cal-dlg__actions" data-test="calendar-event-actions">
+        <span class="cal-dlg__spacer" />
+        <button type="button" class="btn" data-test="calendar-hours-close" @click="emit('update:open', false)">{{ t('common.close') }}</button>
+      </div>
+      <div v-else class="cal-dlg__actions" data-test="calendar-event-actions">
         <button
           v-if="event"
           type="button"
@@ -209,6 +231,8 @@ import { useLive } from '~/composables/useLive'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { HOURS_ENTRY_TYPE } from '~/utils/hours-calendar.mjs'
+import type { CalHoursEntry } from '~/composables/useCalendarHours'
 
 const props = defineProps<{
   open: boolean
@@ -220,6 +244,8 @@ const props = defineProps<{
   span?: { start: string, end: string } | null
   /** 097 T014 (G11): Duplicate - a new event (`event` null) filled from this one */
   copy?: CalendarItem | null
+  /** spec 107 v1.2 T011: the entry of type Working hours for one day (not an event) */
+  hours?: CalHoursEntry | null
 }>()
 const emit = defineEmits<{ 'update:open': [boolean], saved: [CalendarItem], deleted: [CalendarItem] }>()
 const { t } = useI18n({ useScope: 'global' })

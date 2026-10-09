@@ -2372,5 +2372,33 @@
       "cannot_up": "Už je prvá na svojej úrovni.",
       "cannot_down": "Už je posledná na svojej úrovni."
     }
+  },
+  "hours_cal": {
+    "line": "Pracovné hodiny",
+    "type": "Pracovné hodiny",
+    "dialog_title": "Pracovné hodiny · {day}",
+    "panel_title": "Hodiny",
+    "tab_mine": "Moje",
+    "tab_team": "Tím",
+    "tab_download": "Stiahnuť",
+    "team_soon": "Hodiny tímu sa tu čoskoro zobrazia.",
+    "download_soon": "Sťahovanie CSV a XLSX tu bude čoskoro.",
+    "total": "Spolu",
+    "period_total": "Spolu za obdobie",
+    "empty": "V tento deň zatiaľ nie sú hodiny.",
+    "rows": "Čas podľa diskusií",
+    "load_failed": "Hodiny sa nepodarilo načítať.",
+    "state_open": "Na schválenie",
+    "state_frozen": "Zmrazené",
+    "state_final": "Konečné",
+    "state_returned": "Vrátené",
+    "row_suggested": "navrhnuté",
+    "row_approved": "schválené",
+    "row_rejected": "zamietnuté",
+    "meeting": "Stretnutie",
+    "other": "Iné",
+    "banner_open": "{n} neschválené dni · zmrazí sa {at}",
+    "banner_none": "Nič nečaká · zmrazí sa {at}",
+    "banner_returned": "Vrátil vlastník: {note}"
   }
 }

@@ -2372,5 +2372,33 @@
       "cannot_up": "It is already first at its level.",
       "cannot_down": "It is already last at its level."
     }
+  },
+  "hours_cal": {
+    "line": "Working hours",
+    "type": "Working hours",
+    "dialog_title": "Working hours · {day}",
+    "panel_title": "Hours",
+    "tab_mine": "Mine",
+    "tab_team": "Team",
+    "tab_download": "Download",
+    "team_soon": "The team's hours appear here next.",
+    "download_soon": "CSV and XLSX downloads appear here next.",
+    "total": "Total",
+    "period_total": "Period total",
+    "empty": "No hours on this day yet.",
+    "rows": "Time by discussion",
+    "load_failed": "Hours could not be loaded.",
+    "state_open": "To approve",
+    "state_frozen": "Frozen",
+    "state_final": "Final",
+    "state_returned": "Returned",
+    "row_suggested": "suggested",
+    "row_approved": "approved",
+    "row_rejected": "rejected",
+    "meeting": "Meeting",
+    "other": "Other",
+    "banner_open": "{n} days not approved · freezes {at}",
+    "banner_none": "Nothing waiting · freezes {at}",
+    "banner_returned": "Returned by the biz owner: {note}"
   }
 }

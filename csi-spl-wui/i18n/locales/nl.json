@@ -2372,5 +2372,33 @@
       "cannot_up": "Het staat al als eerste op zijn niveau.",
       "cannot_down": "Het staat al als laatste op zijn niveau."
     }
+  },
+  "hours_cal": {
+    "line": "Werkuren",
+    "type": "Werkuren",
+    "dialog_title": "Werkuren · {day}",
+    "panel_title": "Uren",
+    "tab_mine": "Mijn",
+    "tab_team": "Team",
+    "tab_download": "Downloaden",
+    "team_soon": "De uren van het team verschijnen hier binnenkort.",
+    "download_soon": "CSV- en XLSX-downloads verschijnen hier binnenkort.",
+    "total": "Totaal",
+    "period_total": "Totaal periode",
+    "empty": "Nog geen uren op deze dag.",
+    "rows": "Tijd per discussie",
+    "load_failed": "De uren konden niet worden geladen.",
+    "state_open": "Goed te keuren",
+    "state_frozen": "Bevroren",
+    "state_final": "Definitief",
+    "state_returned": "Teruggestuurd",
+    "row_suggested": "voorgesteld",
+    "row_approved": "goedgekeurd",
+    "row_rejected": "afgewezen",
+    "meeting": "Vergadering",
+    "other": "Overig",
+    "banner_open": "{n} dagen niet goedgekeurd · bevriest {at}",
+    "banner_none": "Niets openstaand · bevriest {at}",
+    "banner_returned": "Teruggestuurd door de eigenaar: {note}"
   }
 }

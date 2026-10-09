@@ -85,7 +85,7 @@ async function initialChunks(base, doc = '200.html') {
   for (const src of srcs) {
     const body = Buffer.from(await (await fetch(new URL(src, base + '/'))).arrayBuffer())
     gz += gzipSync(body).length
-    if (/calendar-year-strip|calendar-main|\/v1\/calendar\//.test(body.toString('utf8'))) withCalendar.push(src)
+    if (/calendar-year-strip|calendar-main|\/v1\/calendar\/|calendar-hours-line|hours-panel/.test(body.toString('utf8'))) withCalendar.push(src)
   }
   return { count: srcs.length, kb: Number((gz / 1024).toFixed(1)), withCalendar }
 }
@@ -156,6 +156,49 @@ try {
     ok('the strip opens on this month', scroller.scrolled && scroller.inView, scroller)
     ok('this week is in the main view: today\'s release is shown', (await items(p)).includes('release'), await items(p))
     await shot(p, `desktop-${theme}`)
+
+    /* spec 107 v1.2 T011 (owner R8..R11): a Working hours line on every
+       working day of the week, Monday's total from the mock's
+       GET /v1/me/hours (3:05), a click opens the event dialog of type
+       Working hours with the day's discussions as links, and the right
+       side's hours panel lists the period. CONTROL: before T011 there is
+       no [data-test=calendar-hours-line] and no hours panel. */
+    const mon = calWeekStart(today)
+    await p.waitForFunction((d) => document.querySelector(`[data-test=calendar-hours-line][data-day="${d}"]`)?.getAttribute('data-total') === '185', { timeout: 10000 }, mon).catch(() => {})
+    const lines = await p.$$eval('[data-test=calendar-hours-line]', (els) => els.map((e) => ({ day: e.getAttribute('data-day'), total: e.getAttribute('data-total'), text: e.textContent.replace(/\s+/g, ' ').trim() })))
+    ok('T011: a Working hours line on Monday..Friday, none on the empty weekend', lines.length === 5 && lines.every((l) => [1, 2, 3, 4, 5].includes(new Date(l.day + 'T00:00:00Z').getUTCDay())), lines.map((l) => l.day))
+    const monLine = lines.find((l) => l.day === mon)
+    ok('T011: Monday\'s line carries the day\'s total 3:05', Boolean(monLine && monLine.total === '185' && monLine.text.includes('Working hours') && monLine.text.includes('3:05')), monLine)
+    await p.click(`[data-test=calendar-hours-line][data-day="${mon}"]`)
+    const dlg = await p.waitForSelector('[data-test=calendar-event-form][data-mode=hours] [data-test=hours-day-row]', { visible: true, timeout: 10000 }).catch(() => null)
+    ok('T011: a click opens the event dialog of type Working hours', Boolean(dlg))
+    const day = await p.evaluate(() => {
+      const f = document.querySelector('[data-test=calendar-event-form][data-mode=hours]')
+      return {
+        type: f?.getAttribute('data-type') || '',
+        day: f?.getAttribute('data-day') || '',
+        label: f?.querySelector('[data-test=calendar-event-type]')?.textContent?.trim() || '',
+        rows: [...(f?.querySelectorAll('[data-test=hours-day-row]') || [])].map((r) => r.getAttribute('data-kind')),
+        link: f?.querySelector('[data-test=hours-day-link]')?.getAttribute('href') || '',
+        total: f?.querySelector('[data-test=hours-day-total] strong')?.textContent?.trim() || '',
+        save: Boolean(document.querySelector('[data-test=calendar-event-save]')),
+      }
+    })
+    ok('T011: the dialog is the Working hours entry of that day', day.type === 'working_hours' && day.day === mon && day.label === 'Working hours', day)
+    ok('T011 (R10): the day\'s discussion first, as a link to its topic', day.rows[0] === 'topic' && day.link.endsWith('/t/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'), day)
+    ok('T011: the day\'s rows and total (meeting, other), no event Save', day.rows.length === 3 && day.rows.includes('meeting') && day.total === '3:05' && !day.save, day)
+    await shot(p, `hours-dialog-${theme}`)
+    await p.click('[data-test=calendar-hours-close]')
+    await p.waitForFunction(() => !document.querySelector('[data-test=calendar-event-form][data-mode=hours]'), { timeout: 5000 }).catch(() => {})
+    const panel = await p.waitForSelector('[data-test=hours-panel] [data-test=hours-panel-day]', { visible: true, timeout: 10000 }).catch(() => null)
+    ok('T011 (R11): the right side carries the hours panel with the period\'s days', Boolean(panel))
+    const pdays = await p.$$eval('[data-test=hours-panel-day]', (els) => els.map((e) => ({ day: e.getAttribute('data-day'), total: e.getAttribute('data-total') })))
+    ok('T011: the panel lists Monday with its total, newest first', pdays.some((d) => d.day === mon && d.total === '185') && pdays.every((d, i) => i === 0 || d.day < pdays[i - 1].day), pdays)
+    ok('T011: Mine only for a member without hours.read', !(await p.$('[data-test=hours-panel-tab-team]')))
+    await p.click(`[data-test=hours-panel-day][data-day="${mon}"]`)
+    ok('T011: a day in the panel opens its Working hours dialog', Boolean(await p.waitForSelector(`[data-test=calendar-event-form][data-mode=hours][data-day="${mon}"]`, { visible: true, timeout: 10000 }).catch(() => null)))
+    await p.click('[data-test=calendar-hours-close]')
+    ok('T011: no sideways scroll with the panel open', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
 
     /* AC-04: a click on a day 30 days on moves the main view to its week */
     const later = calAddDays(today, 30)

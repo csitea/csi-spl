@@ -2372,5 +2372,33 @@
       "cannot_up": "Se on jo tasonsa ensimmäinen.",
       "cannot_down": "Se on jo tasonsa viimeinen."
     }
+  },
+  "hours_cal": {
+    "line": "Työtunnit",
+    "type": "Työtunnit",
+    "dialog_title": "Työtunnit · {day}",
+    "panel_title": "Tunnit",
+    "tab_mine": "Omat",
+    "tab_team": "Tiimi",
+    "tab_download": "Lataa",
+    "team_soon": "Tiimin tunnit näkyvät tässä pian.",
+    "download_soon": "CSV- ja XLSX-lataukset näkyvät tässä pian.",
+    "total": "Yhteensä",
+    "period_total": "Jakso yhteensä",
+    "empty": "Tälle päivälle ei ole vielä tunteja.",
+    "rows": "Aika keskusteluittain",
+    "load_failed": "Tuntien lataus epäonnistui.",
+    "state_open": "Hyväksyttävänä",
+    "state_frozen": "Jäädytetty",
+    "state_final": "Lopullinen",
+    "state_returned": "Palautettu",
+    "row_suggested": "ehdotettu",
+    "row_approved": "hyväksytty",
+    "row_rejected": "hylätty",
+    "meeting": "Kokous",
+    "other": "Muu",
+    "banner_open": "{n} hyväksymätöntä päivää · jäätyy {at}",
+    "banner_none": "Ei odottavia · jäätyy {at}",
+    "banner_returned": "Omistaja palautti: {note}"
   }
 }

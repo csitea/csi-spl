@@ -2372,5 +2372,33 @@
       "cannot_up": "הוא כבר הראשון ברמה שלו.",
       "cannot_down": "הוא כבר האחרון ברמה שלו."
     }
+  },
+  "hours_cal": {
+    "line": "שעות עבודה",
+    "type": "שעות עבודה",
+    "dialog_title": "שעות עבודה · {day}",
+    "panel_title": "שעות",
+    "tab_mine": "שלי",
+    "tab_team": "צוות",
+    "tab_download": "הורדה",
+    "team_soon": "שעות הצוות יופיעו כאן בקרוב.",
+    "download_soon": "הורדות CSV ו-XLSX יופיעו כאן בקרוב.",
+    "total": "סה״כ",
+    "period_total": "סה״כ לתקופה",
+    "empty": "עדיין אין שעות ביום זה.",
+    "rows": "זמן לפי דיון",
+    "load_failed": "לא ניתן לטעון את השעות.",
+    "state_open": "לאישור",
+    "state_frozen": "מוקפא",
+    "state_final": "סופי",
+    "state_returned": "הוחזר",
+    "row_suggested": "מוצע",
+    "row_approved": "מאושר",
+    "row_rejected": "נדחה",
+    "meeting": "פגישה",
+    "other": "אחר",
+    "banner_open": "{n} ימים לא מאושרים · ננעל {at}",
+    "banner_none": "אין ממתינים · ננעל {at}",
+    "banner_returned": "הוחזר על ידי בעל העסק: {note}"
   }
 }

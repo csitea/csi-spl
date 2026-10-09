@@ -58,6 +58,7 @@
 
     <section v-if="interactive" class="calmonth__agenda" data-test="calphone-month-agenda" :data-day="day">
       <h2 class="calmonth__agenda-title">{{ dayName(day) }}</h2>
+      <CalendarHoursLine v-if="hoursLine(day)" class="calmonth__worked" compact :day="day" :data="calHours?.index.value.get(day)" @open="calHours?.open(day)" />
       <p v-if="state === 'failed'" class="calmonth__note">{{ t('calendar.load_failed') }}</p>
       <ul v-else-if="agenda.length" class="calmonth__list">
         <li v-for="ev in agenda" :key="ev.id">
@@ -89,6 +90,9 @@
 
 <script setup lang="ts">
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
+import type { Ref } from 'vue'
+import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
+import type { HoursDay } from '~/composables/useCalendarHours'
 import { calAddDays, calWeekday } from '~/utils/calendar-year.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
 import { calPhoneEventDays, calPhoneMonthGrid, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
@@ -103,6 +107,11 @@ const props = defineProps<{
   state: 'loading' | 'ready' | 'failed'
   interactive: boolean
 }>()
+
+/* spec 107 v1.2 T011 (owner R9): the shell's hours (CalendarPhone provides
+   them); a working day shows its Working hours line */
+const calHours = inject<{ index: Ref<Map<string, HoursDay>>, open: (day: string) => void } | null>('calphone-hours', null)
+const hoursLine = (iso: string) => Boolean(calHours && hoursShowsLine(iso, calHours.index.value))
 const emit = defineEmits<{ select: [day: string], openDay: [day: string], open: [ev: CalendarItem], add: [day: string] }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -201,6 +210,8 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <style scoped>
+/* spec 107 v1.2 T011: the Working hours line */
+.calmonth__worked { margin-block: 4px 8px; }
 .calmonth { min-width: 0; }
 
 /* ---- the grid: the scroller's 16 px gutters, no gap (S4-9) ---- */

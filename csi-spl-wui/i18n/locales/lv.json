@@ -2372,5 +2372,33 @@
       "cannot_up": "Tas jau ir pirmais savā līmenī.",
       "cannot_down": "Tas jau ir pēdējais savā līmenī."
     }
+  },
+  "hours_cal": {
+    "line": "Darba stundas",
+    "type": "Darba stundas",
+    "dialog_title": "Darba stundas · {day}",
+    "panel_title": "Stundas",
+    "tab_mine": "Manas",
+    "tab_team": "Komanda",
+    "tab_download": "Lejupielādēt",
+    "team_soon": "Komandas stundas drīz būs redzamas šeit.",
+    "download_soon": "CSV un XLSX lejupielādes drīz būs šeit.",
+    "total": "Kopā",
+    "period_total": "Perioda kopsumma",
+    "empty": "Šai dienai vēl nav stundu.",
+    "rows": "Laiks pa diskusijām",
+    "load_failed": "Neizdevās ielādēt stundas.",
+    "state_open": "Jāapstiprina",
+    "state_frozen": "Iesaldēts",
+    "state_final": "Galīgs",
+    "state_returned": "Atgriezts",
+    "row_suggested": "ieteikts",
+    "row_approved": "apstiprināts",
+    "row_rejected": "noraidīts",
+    "meeting": "Sapulce",
+    "other": "Cits",
+    "banner_open": "{n} neapstiprinātas dienas · iesaldē {at}",
+    "banner_none": "Nekas negaida · iesaldē {at}",
+    "banner_returned": "Atgrieza īpašnieks: {note}"
   }
 }

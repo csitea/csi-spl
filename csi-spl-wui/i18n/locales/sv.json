@@ -2372,5 +2372,33 @@
       "cannot_up": "Den är redan först på sin nivå.",
       "cannot_down": "Den är redan sist på sin nivå."
     }
+  },
+  "hours_cal": {
+    "line": "Arbetstid",
+    "type": "Arbetstid",
+    "dialog_title": "Arbetstid · {day}",
+    "panel_title": "Timmar",
+    "tab_mine": "Mina",
+    "tab_team": "Team",
+    "tab_download": "Ladda ner",
+    "team_soon": "Teamets timmar visas snart här.",
+    "download_soon": "Nedladdning av CSV och XLSX visas snart här.",
+    "total": "Totalt",
+    "period_total": "Totalt för perioden",
+    "empty": "Inga timmar den här dagen ännu.",
+    "rows": "Tid per diskussion",
+    "load_failed": "Timmarna kunde inte läsas in.",
+    "state_open": "Att godkänna",
+    "state_frozen": "Fryst",
+    "state_final": "Slutlig",
+    "state_returned": "Returnerad",
+    "row_suggested": "föreslaget",
+    "row_approved": "godkänt",
+    "row_rejected": "avvisat",
+    "meeting": "Möte",
+    "other": "Övrigt",
+    "banner_open": "{n} dagar ej godkända · fryses {at}",
+    "banner_none": "Inget väntar · fryses {at}",
+    "banner_returned": "Returnerad av ägaren: {note}"
   }
 }

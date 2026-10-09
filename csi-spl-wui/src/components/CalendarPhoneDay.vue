@@ -14,6 +14,7 @@
      utils/calendar-drag.mjs, and is saved with If-Match. -->
 <template>
   <div ref="rootEl" class="calday" data-test="calphone-day" :data-day="day" :data-hours="hours.length">
+    <CalendarHoursLine v-if="hoursLine(day)" class="calday__worked" compact :day="day" :data="calHours?.index.value.get(day)" @open="calHours?.open(day)" />
     <div v-if="allDay.length" class="calday__allday" data-test="calday-allday">
       <span class="calday__allday-label">{{ t('calendar_event.field_all_day') }}</span>
       <ul class="calday__allday-list">
@@ -136,6 +137,9 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import type { Ref } from 'vue'
+import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
+import type { HoursDay } from '~/composables/useCalendarHours'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { CAL_COLORS, calEditable } from '~/utils/calendar-event-form.mjs'
 import { calendarUpdate } from '~/utils/calendar-events-api.mjs'
@@ -153,6 +157,11 @@ type More = { top: number, events: CalendarItem[] }
 export type CalPhoneCreate = { date: string, start: string, endDate: string, end: string, at: string, endAt: string }
 
 const props = defineProps<{ day: string, today: string, items: CalendarItem[] }>()
+
+/* spec 107 v1.2 T011 (owner R9): the shell's hours (CalendarPhone provides
+   them); a working day shows its Working hours line */
+const calHours = inject<{ index: Ref<Map<string, HoursDay>>, open: (day: string) => void } | null>('calphone-hours', null)
+const hoursLine = (iso: string) => Boolean(calHours && hoursShowsLine(iso, calHours.index.value))
 const emit = defineEmits<{ create: [slot: CalPhoneCreate], peek: [ev: CalendarItem] }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -472,6 +481,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* spec 107 v1.2 T011: the Working hours line */
+.calday__worked { margin-block: 4px 8px; }
 .calday {
   --calday-gutter: 3rem;
   position: relative;

@@ -53,6 +53,7 @@
             <span class="calweek__day-iso">{{ row.iso }}</span>
             <span v-if="row.iso === today" class="calweek__day-today">{{ t('calendar_phone.today') }}</span>
           </h3>
+          <CalendarHoursLine v-if="hoursLine(row.iso)" class="calweek__worked" compact :day="row.iso" :data="calHours?.index.value.get(row.iso)" @open="calHours?.open(row.iso)" />
           <div v-if="row.kind === 'empty'" class="calweek__empty">
             <span class="calweek__empty-text">{{ t('calendar_phone_week.empty') }}</span>
             <button
@@ -92,6 +93,9 @@
 
 <script setup lang="ts">
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
+import type { Ref } from 'vue'
+import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
+import type { HoursDay } from '~/composables/useCalendarHours'
 import { CAL_COLORS } from '~/utils/calendar-event-form.mjs'
 import { calWeekday } from '~/utils/calendar-year.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
@@ -102,6 +106,11 @@ type Row = { kind: 'day' | 'empty', iso: string } | Fold
 type Entry = { ev: CalendarItem, time: string, span: { n: number, of: number } | null, all: boolean }
 
 const props = defineProps<{ day: string, today: string, items: CalendarItem[], state: string }>()
+
+/* spec 107 v1.2 T011 (owner R9): the shell's hours (CalendarPhone provides
+   them); a working day shows its Working hours line */
+const calHours = inject<{ index: Ref<Map<string, HoursDay>>, open: (day: string) => void } | null>('calphone-hours', null)
+const hoursLine = (iso: string) => Boolean(calHours && hoursShowsLine(iso, calHours.index.value))
 const emit = defineEmits<{ open: [ev: CalendarItem], add: [day: string] }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -197,6 +206,8 @@ watch(() => [props.state, props.day] as const, async ([state]) => {
 </script>
 
 <style scoped>
+/* spec 107 v1.2 T011: the Working hours line */
+.calweek__worked { margin-block: 4px 8px; }
 .calweek { min-width: 0; }
 
 /* ---- the strip: seven chips in one row, sticky over the list ---- */

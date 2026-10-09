@@ -2372,5 +2372,33 @@
       "cannot_up": "Jest już pierwszy na swoim poziomie.",
       "cannot_down": "Jest już ostatni na swoim poziomie."
     }
+  },
+  "hours_cal": {
+    "line": "Godziny pracy",
+    "type": "Godziny pracy",
+    "dialog_title": "Godziny pracy · {day}",
+    "panel_title": "Godziny",
+    "tab_mine": "Moje",
+    "tab_team": "Zespół",
+    "tab_download": "Pobierz",
+    "team_soon": "Godziny zespołu pojawią się tu wkrótce.",
+    "download_soon": "Pobieranie CSV i XLSX pojawi się tu wkrótce.",
+    "total": "Razem",
+    "period_total": "Razem w okresie",
+    "empty": "Brak godzin w tym dniu.",
+    "rows": "Czas według dyskusji",
+    "load_failed": "Nie udało się wczytać godzin.",
+    "state_open": "Do zatwierdzenia",
+    "state_frozen": "Zamrożony",
+    "state_final": "Ostateczny",
+    "state_returned": "Zwrócony",
+    "row_suggested": "proponowane",
+    "row_approved": "zatwierdzone",
+    "row_rejected": "odrzucone",
+    "meeting": "Spotkanie",
+    "other": "Inne",
+    "banner_open": "{n} niezatwierdzone dni · zamrożenie {at}",
+    "banner_none": "Nic nie czeka · zamrożenie {at}",
+    "banner_returned": "Zwrócone przez właściciela: {note}"
   }
 }

@@ -2372,5 +2372,33 @@
       "cannot_up": "Zaten kendi düzeyinde ilk sırada.",
       "cannot_down": "Zaten kendi düzeyinde son sırada."
     }
+  },
+  "hours_cal": {
+    "line": "Çalışma saatleri",
+    "type": "Çalışma saatleri",
+    "dialog_title": "Çalışma saatleri · {day}",
+    "panel_title": "Saatler",
+    "tab_mine": "Benim",
+    "tab_team": "Ekip",
+    "tab_download": "İndir",
+    "team_soon": "Ekibin saatleri yakında burada görünecek.",
+    "download_soon": "CSV ve XLSX indirmeleri yakında burada olacak.",
+    "total": "Toplam",
+    "period_total": "Dönem toplamı",
+    "empty": "Bu gün için henüz saat yok.",
+    "rows": "Tartışmaya göre süre",
+    "load_failed": "Saatler yüklenemedi.",
+    "state_open": "Onay bekliyor",
+    "state_frozen": "Donduruldu",
+    "state_final": "Kesin",
+    "state_returned": "İade edildi",
+    "row_suggested": "önerilen",
+    "row_approved": "onaylandı",
+    "row_rejected": "reddedildi",
+    "meeting": "Toplantı",
+    "other": "Diğer",
+    "banner_open": "{n} gün onaylanmadı · donma {at}",
+    "banner_none": "Bekleyen yok · donma {at}",
+    "banner_returned": "İşletme sahibi iade etti: {note}"
   }
 }

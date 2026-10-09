@@ -199,10 +199,22 @@
       :today="today"
       :hour="sheetFor.hour"
       :copy="sheetFor.copy"
+      :hours="sheetHours"
       @update:open="(v: boolean) => { if (!v && panel === 'add') panel = '' }"
     />
     <!-- T009: an event's peek, its own chunk on the first tap (openPeek is provided to the views) -->
     <LazyCalendarPhonePeek v-if="peekOn" :event="peekEv" :today="today" @close="peekEv = null" @edit="fromPeek($event, false)" @duplicate="fromPeek($event, true)" />
+    <!-- spec 107 v1.2 T011 (owner R11): the menu's Hours opens the hours tabs as a sheet -->
+    <div v-if="panel === 'menu'" class="calphone-menu-back" data-test="calphone-menu-backdrop" @click.self="panel = ''">
+      <div class="calphone-menu" role="menu" data-test="calphone-menu-panel">
+        <button type="button" role="menuitem" class="calphone-menu__item" data-test="calphone-menu-hours" @click="panel = 'hours'">
+          <UiIcon name="history" :size="18" />{{ t('hours_cal.panel_title') }}
+        </button>
+      </div>
+    </div>
+    <div v-if="panel === 'hours'" class="calphone-hours" role="dialog" aria-modal="true" :aria-label="t('hours_cal.panel_title')" data-test="calphone-hours-sheet">
+      <LazyCalendarHoursPanel :focus="shownDay" :today="today" closable @open-day="openHoursFromPanel" @close="panel = ''" />
+    </div>
     <CalendarPhoneYear v-if="panel === 'picker'" :day="shownDay" :today="today" @pick="jump('month', $event)" @close="panel = ''" />
     <CalendarPhoneSearch v-if="panel === 'search'" :today="today" @open="(day, ev) => { jump('day', day); openPeek(ev) }" @close="panel = ''" />
   </section>
@@ -216,6 +228,8 @@ import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneStep, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
+import { calAddDays } from '~/utils/calendar-year.mjs'
+import { useCalendarHours } from '~/composables/useCalendarHours'
 import { calSwipeClaims, calSwipeClassify, calSwipeInEdge, calSwipeLock } from '~/utils/calendar-swipe.mjs'
 import type { CalPhoneCreate } from './CalendarPhoneDay.vue'
 
@@ -275,9 +289,11 @@ const period = computed(() => calPhoneRange(view.value, shownDay.value)?.from ||
 const announced = ref('')
 watch(title, (v) => { announced.value = v })
 
-const panel = ref<'' | 'picker' | 'search' | 'menu' | 'add'>('')
+const panel = ref<'' | 'picker' | 'search' | 'menu' | 'add' | 'hours'>('')
 /* the day a panel opens on (T005: Month's empty state adds on its day) */
 const panelAt = ref<{ day?: string }>({})
+/* spec 107 v1.2 T011: Back closes the hours sheet */
+useMobileStack().overlay(() => panel.value === 'hours', () => { panel.value = '' })
 function openPanel(kind: 'picker' | 'search' | 'menu' | 'add', at: { day?: string } = {}) {
   panel.value = kind
   panelAt.value = at
@@ -306,15 +322,34 @@ watch(panel, (v) => { if (!v) addAt.value = null })
    the peek open it with inject('calphone-sheet'): a new event on a day (at a
    tapped hour), or an event to edit */
 const CalendarPhoneSheet = defineAsyncComponent(() => import('~/components/CalendarPhoneSheet.vue'))
-type SheetFor = { event: CalendarItem | null, day: string, hour: number, copy: CalendarItem | null }
+type SheetFor = { event: CalendarItem | null, day: string, hour: number, copy: CalendarItem | null, hours?: string }
 const sheetFor = shallowRef<SheetFor>({ event: null, day: '', hour: -1, copy: null })
 const sheetUsed = ref(false)
 function openSheet(o: Partial<SheetFor> = {}) {
-  sheetFor.value = { event: o.event ?? null, day: o.day ?? '', hour: o.hour ?? -1, copy: o.copy ?? null }
+  sheetFor.value = { event: o.event ?? null, day: o.day ?? '', hour: o.hour ?? -1, copy: o.copy ?? null, hours: o.hours ?? '' }
   sheetUsed.value = true
   panel.value = 'add'
 }
 provide('calphone-sheet', openSheet)
+
+/* spec 107 v1.2 T011 (owner R8, R9): the member's hours of the shown period
+   (GET /v1/me/hours); each view draws a Working hours line per working day
+   through inject('calphone-hours'), and a tap opens the sheet as the entry
+   of type Working hours for that day */
+const hoursRange = computed(() => {
+  const r = calPhoneRange(view.value, shownDay.value)
+  return r ? { first: r.from, last: calAddDays(r.to, -1) } : { first: '', last: '' }
+})
+const hours = useCalendarHours(() => hoursRange.value, () => props.today)
+function openHours(day: string) {
+  openSheet({ day, hours: day })
+}
+provide('calphone-hours', { index: hours.index, open: openHours })
+const sheetHours = computed(() => (sheetFor.value.hours ? hours.entryFor(sheetFor.value.hours) : null))
+function openHoursFromPanel(day: string) {
+  pick(day)
+  openHours(day)
+}
 /* T005: Month's empty state adds on its day */
 function addOn(day: string) {
   openSheet({ day })
@@ -609,6 +644,42 @@ async function turn(dir: 1 | -1, from = 0) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.calphone-menu-back { position: fixed; inset: 0; z-index: var(--z-modal); }
+.calphone-menu {
+  position: absolute;
+  inset-block-start: calc(var(--tap) + 8px);
+  inset-inline-end: 8px;
+  min-inline-size: 180px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+.calphone-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  min-block-size: var(--tap);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-fg);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.calphone-hours {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .calphone__icon {
   display: inline-grid;

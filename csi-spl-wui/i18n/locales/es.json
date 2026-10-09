@@ -2372,5 +2372,33 @@
       "cannot_up": "Ya es el primero de su nivel.",
       "cannot_down": "Ya es el último de su nivel."
     }
+  },
+  "hours_cal": {
+    "line": "Horas de trabajo",
+    "type": "Horas de trabajo",
+    "dialog_title": "Horas de trabajo · {day}",
+    "panel_title": "Horas",
+    "tab_mine": "Mías",
+    "tab_team": "Equipo",
+    "tab_download": "Descargar",
+    "team_soon": "Aquí aparecerán pronto las horas del equipo.",
+    "download_soon": "Aquí aparecerán pronto las descargas CSV y XLSX.",
+    "total": "Total",
+    "period_total": "Total del periodo",
+    "empty": "Aún no hay horas este día.",
+    "rows": "Tiempo por conversación",
+    "load_failed": "No se pudieron cargar las horas.",
+    "state_open": "Por aprobar",
+    "state_frozen": "Congelado",
+    "state_final": "Final",
+    "state_returned": "Devuelto",
+    "row_suggested": "sugerido",
+    "row_approved": "aprobado",
+    "row_rejected": "rechazado",
+    "meeting": "Reunión",
+    "other": "Otro",
+    "banner_open": "{n} días sin aprobar · se congela {at}",
+    "banner_none": "Nada pendiente · se congela {at}",
+    "banner_returned": "Devuelto por el propietario: {note}"
   }
 }

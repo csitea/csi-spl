@@ -68,6 +68,8 @@
       >
         <div class="cal-week__top">
           <h4 class="cal-week__head">{{ dayHead(day) }}</h4>
+          <!-- spec 107 v1.2 T011 (owner R9): the day's Working hours line -->
+          <CalendarHoursLine v-if="hoursShowsLine(day, hours.index.value)" :day="day" :data="hours.index.value.get(day)" @open="openHours" />
           <ul class="cal-week__list">
             <li
               v-for="ev in allDayOf(day)"
@@ -141,7 +143,7 @@
         </div>
       </div>
     </div>
-    <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :copy="dialogCopy" :day="dialogDay" :today="today" :span="dialogSpan" @saved="reload" @deleted="onDeleted" />
+    <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :copy="dialogCopy" :day="dialogDay" :today="today" :span="dialogSpan" :hours="hoursEntry" @saved="reload" @deleted="onDeleted" />
     <CalendarEventPopover v-model:open="peekOpen" :event="peekEvent" @edit="openEdit" @duplicate="openDuplicate" />
     <UiPointMenu
       :open="menu !== null"
@@ -189,6 +191,8 @@ import {
   calCreateSlot, calDayLayout, calDragErrorKey, calEventDay, calHhmm, calMinuteOf, calMoveTo, calResizeTo, calSameTimes, calSnap,
 } from '~/utils/calendar-drag.mjs'
 import type { CalTimes } from '~/utils/calendar-drag.mjs'
+import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
+import { useCalendarHours } from '~/composables/useCalendarHours'
 
 const props = defineProps<{ focus: string, today: string }>()
 const emit = defineEmits<{ move: [iso: string] }>()
@@ -327,6 +331,7 @@ const dialogCopy = shallowRef<CalendarItem | null>(null)
 const peekOpen = ref(false)
 const peekEvent = shallowRef<CalendarItem | null>(null)
 function openCreate(day: string, span: { start: string, end: string } | null = null) {
+  hoursDay.value = ''
   dialogEvent.value = null
   dialogCopy.value = null
   dialogDay.value = day
@@ -336,6 +341,7 @@ function openCreate(day: string, span: { start: string, end: string } | null = n
 function openEdit(ev: CalendarItem) {
   if (!calEditable(ev)) return
   peekOpen.value = false
+  hoursDay.value = ''
   dialogEvent.value = ev
   dialogCopy.value = null
   dialogDay.value = String(ev.starts_at || '').slice(0, 10)
@@ -349,6 +355,7 @@ function openPeek(ev: CalendarItem) {
 }
 function openDuplicate(ev: CalendarItem) {
   peekOpen.value = false
+  hoursDay.value = ''
   dialogEvent.value = null
   dialogCopy.value = ev
   dialogDay.value = String(ev.starts_at || '').slice(0, 10)
@@ -358,6 +365,25 @@ function openDuplicate(ev: CalendarItem) {
 function reload() {
   void load()
 }
+
+/* ---- spec 107 v1.2 T011: the Working hours line and its dialog ----------- */
+
+/* the member's hours of the shown days (GET /v1/me/hours, one answer per
+   period the week touches); the dialog of type Working hours reads them */
+const hours = useCalendarHours(() => ({ first: shown.value[0] || '', last: shown.value[shown.value.length - 1] || '' }), () => props.today)
+const hoursDay = ref('')
+const hoursEntry = computed(() => (hoursDay.value ? hours.entryFor(hoursDay.value) : null))
+function openHours(day: string) {
+  peekOpen.value = false
+  dialogEvent.value = null
+  dialogCopy.value = null
+  dialogDay.value = day
+  dialogSpan.value = null
+  hoursDay.value = day
+  dialogOpen.value = true
+}
+/* the page's hours panel opens a day here (pages/calendar.vue) */
+defineExpose({ openHours })
 
 /* ---- 097 T017: Undo after a delete, the menu, the trash ------------------ */
 

@@ -2372,5 +2372,33 @@
       "cannot_up": "Este deja primul pe nivelul său.",
       "cannot_down": "Este deja ultimul pe nivelul său."
     }
+  },
+  "hours_cal": {
+    "line": "Ore de lucru",
+    "type": "Ore de lucru",
+    "dialog_title": "Ore de lucru · {day}",
+    "panel_title": "Ore",
+    "tab_mine": "Ale mele",
+    "tab_team": "Echipă",
+    "tab_download": "Descarcă",
+    "team_soon": "Orele echipei vor apărea curând aici.",
+    "download_soon": "Descărcările CSV și XLSX vor apărea curând aici.",
+    "total": "Total",
+    "period_total": "Total perioadă",
+    "empty": "Încă nu există ore în această zi.",
+    "rows": "Timp pe discuții",
+    "load_failed": "Orele nu au putut fi încărcate.",
+    "state_open": "De aprobat",
+    "state_frozen": "Înghețat",
+    "state_final": "Final",
+    "state_returned": "Returnat",
+    "row_suggested": "sugerat",
+    "row_approved": "aprobat",
+    "row_rejected": "respins",
+    "meeting": "Întâlnire",
+    "other": "Altele",
+    "banner_open": "{n} zile neaprobate · se îngheață {at}",
+    "banner_none": "Nimic în așteptare · se îngheață {at}",
+    "banner_returned": "Returnat de proprietar: {note}"
   }
 }

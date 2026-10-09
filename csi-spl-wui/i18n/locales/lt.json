@@ -2372,5 +2372,33 @@
       "cannot_up": "Jis jau pirmas savo lygyje.",
       "cannot_down": "Jis jau paskutinis savo lygyje."
     }
+  },
+  "hours_cal": {
+    "line": "Darbo valandos",
+    "type": "Darbo valandos",
+    "dialog_title": "Darbo valandos · {day}",
+    "panel_title": "Valandos",
+    "tab_mine": "Mano",
+    "tab_team": "Komanda",
+    "tab_download": "Atsisiųsti",
+    "team_soon": "Komandos valandos netrukus bus rodomos čia.",
+    "download_soon": "CSV ir XLSX atsisiuntimai netrukus bus čia.",
+    "total": "Iš viso",
+    "period_total": "Laikotarpio suma",
+    "empty": "Šią dieną valandų dar nėra.",
+    "rows": "Laikas pagal diskusijas",
+    "load_failed": "Nepavyko įkelti valandų.",
+    "state_open": "Laukia patvirtinimo",
+    "state_frozen": "Užšaldyta",
+    "state_final": "Galutinė",
+    "state_returned": "Grąžinta",
+    "row_suggested": "pasiūlyta",
+    "row_approved": "patvirtinta",
+    "row_rejected": "atmesta",
+    "meeting": "Susitikimas",
+    "other": "Kita",
+    "banner_open": "{n} nepatvirtintos dienos · užšąla {at}",
+    "banner_none": "Nieko nelaukia · užšąla {at}",
+    "banner_returned": "Grąžino savininkas: {note}"
   }
 }

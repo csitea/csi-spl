@@ -34,13 +34,13 @@
       <div
         ref="sheetEl"
         class="calsheet"
-        :class="{ 'calsheet--full': full, 'calsheet--drag': dragging }"
+        :class="{ 'calsheet--full': full || hours, 'calsheet--drag': dragging }"
         role="dialog"
         aria-modal="true"
         :aria-labelledby="headId"
         data-test="calphone-sheet"
-        :data-mode="event ? 'edit' : copy ? 'copy' : 'create'"
-        :data-full="full ? 'true' : 'false'"
+        :data-mode="hours ? 'hours' : event ? 'edit' : copy ? 'copy' : 'create'"
+        :data-full="full || hours ? 'true' : 'false'"
         :style="sheetStyle"
         @keydown="onKeydown"
       >
@@ -55,8 +55,9 @@
           <span class="calsheet__grab" aria-hidden="true" data-test="calphone-sheet-grab" />
           <div class="calsheet__bar">
             <button type="button" class="calsheet__btn" data-test="calphone-sheet-cancel" :disabled="busy" @click="cancel">{{ t('common.cancel') }}</button>
-            <h2 :id="headId" ref="headEl" class="calsheet__heading" tabindex="-1">{{ event ? t('calendar_event.edit_title') : t('calendar_event.new_title') }}</h2>
+            <h2 :id="headId" ref="headEl" class="calsheet__heading" tabindex="-1">{{ hours ? t('hours_cal.dialog_title', { day: hours.day }) : event ? t('calendar_event.edit_title') : t('calendar_event.new_title') }}</h2>
             <button
+              v-if="!hours"
               type="submit"
               :form="formId"
               class="calsheet__btn calsheet__save"
@@ -65,7 +66,26 @@
             >{{ busy ? t('calendar_event.saving') : t('calendar_event.save') }}</button>
           </div>
         </header>
+        <!-- spec 107 v1.2 T011 (owner R9): the entry of type Working hours for
+             one day - the day's rows and discussions, no event form -->
+        <div
+          v-if="hours"
+          ref="bodyEl"
+          class="calsheet__body"
+          data-test="calphone-sheet-body"
+          data-mode="hours"
+          :data-type="HOURS_ENTRY_TYPE"
+          :data-day="hours.day"
+          @touchstart.passive="dragStart($event, false)"
+          @touchmove="dragMove"
+          @touchend.passive="dragEnd"
+          @touchcancel.passive="dragEnd"
+        >
+          <p class="calsheet__type" data-test="calendar-event-type">{{ t('hours_cal.type') }}</p>
+          <LazyCalendarHoursDay :day="hours.day" :data="hours.data" :body="hours.body" :tz="hours.tz" :state="hours.state" @navigate="emit('update:open', false)" />
+        </div>
         <form
+          v-else
           :id="formId"
           ref="bodyEl"
           class="calsheet__body"
@@ -304,6 +324,8 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useLive } from '~/composables/useLive'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
+import { HOURS_ENTRY_TYPE } from '~/utils/hours-calendar.mjs'
+import type { CalHoursEntry } from '~/composables/useCalendarHours'
 
 const props = defineProps<{
   open: boolean
@@ -316,6 +338,8 @@ const props = defineProps<{
   hour?: number
   /** Duplicate (097 G11): a new event (`event` null) filled from this one */
   copy?: CalendarItem | null
+  /** spec 107 v1.2 T011: the entry of type Working hours for one day (not an event) */
+  hours?: CalHoursEntry | null
 }>()
 const emit = defineEmits<{ 'update:open': [boolean], saved: [CalendarItem], deleted: [CalendarItem] }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -387,7 +411,7 @@ async function opened() {
      elements may land a frame or two later */
   for (let i = 0; i < 20 && props.open; i++) {
     await nextTick()
-    const el = props.event ? headEl.value : titleEl.value
+    const el = props.event || props.hours ? headEl.value : titleEl.value
     el?.focus()
     if (el && document.activeElement === el) return
     await new Promise((r) => requestAnimationFrame(r))

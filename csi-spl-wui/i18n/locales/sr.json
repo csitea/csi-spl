@@ -2372,5 +2372,33 @@
       "cannot_up": "Већ је прва на свом нивоу.",
       "cannot_down": "Већ је последња на свом нивоу."
     }
+  },
+  "hours_cal": {
+    "line": "Радни сати",
+    "type": "Радни сати",
+    "dialog_title": "Радни сати · {day}",
+    "panel_title": "Сати",
+    "tab_mine": "Моји",
+    "tab_team": "Тим",
+    "tab_download": "Преузми",
+    "team_soon": "Сати тима ће се ускоро приказивати овде.",
+    "download_soon": "Преузимања у CSV и XLSX ће ускоро бити овде.",
+    "total": "Укупно",
+    "period_total": "Укупно за период",
+    "empty": "За овај дан још нема сати.",
+    "rows": "Време по дискусијама",
+    "load_failed": "Сати нису могли да се учитају.",
+    "state_open": "За одобрење",
+    "state_frozen": "Замрзнут",
+    "state_final": "Коначан",
+    "state_returned": "Враћен",
+    "row_suggested": "предложено",
+    "row_approved": "одобрено",
+    "row_rejected": "одбијено",
+    "meeting": "Састанак",
+    "other": "Остало",
+    "banner_open": "{n} неодобрена дана · замрзавање {at}",
+    "banner_none": "Ништа не чека · замрзавање {at}",
+    "banner_returned": "Вратио власник: {note}"
   }
 }

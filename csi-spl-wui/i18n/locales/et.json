@@ -2372,5 +2372,33 @@
       "cannot_up": "See on juba oma taseme esimene.",
       "cannot_down": "See on juba oma taseme viimane."
     }
+  },
+  "hours_cal": {
+    "line": "Tööajad",
+    "type": "Tööajad",
+    "dialog_title": "Tööajad · {day}",
+    "panel_title": "Tunnid",
+    "tab_mine": "Minu",
+    "tab_team": "Meeskond",
+    "tab_download": "Laadi alla",
+    "team_soon": "Meeskonna tunnid ilmuvad siia peagi.",
+    "download_soon": "CSV ja XLSX allalaadimised ilmuvad siia peagi.",
+    "total": "Kokku",
+    "period_total": "Perioodi kokku",
+    "empty": "Sellel päeval pole veel tunde.",
+    "rows": "Aeg arutelude kaupa",
+    "load_failed": "Tunde ei õnnestunud laadida.",
+    "state_open": "Kinnitada",
+    "state_frozen": "Külmutatud",
+    "state_final": "Lõplik",
+    "state_returned": "Tagastatud",
+    "row_suggested": "soovitatud",
+    "row_approved": "kinnitatud",
+    "row_rejected": "tagasi lükatud",
+    "meeting": "Koosolek",
+    "other": "Muu",
+    "banner_open": "{n} kinnitamata päeva · külmub {at}",
+    "banner_none": "Midagi ei oota · külmub {at}",
+    "banner_returned": "Omanik tagastas: {note}"
   }
 }

@@ -19,17 +19,26 @@
       <SectionClose side="start" />
       <h2 data-test="calendar-heading">{{ t('calendar.title') }}</h2>
       <span class="calendar-spacer" />
+      <!-- spec 107 v1.2 T011 (owner R11): the right side's hours tabs, shown or hidden -->
+      <button
+        type="button"
+        class="btn ghost calendar-hours-toggle"
+        data-test="calendar-hours-toggle"
+        :aria-pressed="hoursPanel ? 'true' : 'false'"
+        @click="toggleHours"
+      >{{ t('hours_cal.panel_title') }}</button>
       <SectionClose side="end" />
     </header>
-    <div class="calendar-body">
+    <div class="calendar-body" :class="{ 'calendar-body--hours': hoursPanel }">
       <CalendarYearStrip class="calendar-body__strip"
         :focus="focus"
         :today="today"
         @pick="show"
       />
       <div class="calendar-body__main">
-        <CalendarMainView :focus="focus" :today="today" @move="show" />
+        <CalendarMainView ref="mainView" :focus="focus" :today="today" @move="show" />
       </div>
+      <CalendarHoursPanel v-if="hoursPanel" class="calendar-body__hours" :focus="focus" :today="today" closable @open-day="openHoursDay" @close="toggleHours" />
     </div>
     </template>
   </div>
@@ -48,6 +57,8 @@ import { signedOutCalendarTarget } from '~/utils/public-calendar.mjs'
 const CalendarMainView = defineAsyncComponent(() => import('~/components/CalendarMainView.vue'))
 /* spec 106 T004 (FR-001, FR-012): the phone calendar, a chunk of its own */
 const CalendarPhone = defineAsyncComponent(() => import('~/components/CalendarPhone.vue'))
+/* spec 107 v1.2 T011 (owner R11): the hours tabs on the right, a chunk of their own */
+const CalendarHoursPanel = defineAsyncComponent(() => import('~/components/CalendarHoursPanel.vue'))
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -67,6 +78,23 @@ const phone = computed(() => stack.isMobile.value)
 async function show(iso: string) {
   if (Number.isNaN(calDayMs(iso)) || iso === focus.value) return
   await router.replace({ query: { ...route.query, d: iso === today ? undefined : iso } })
+}
+
+/* spec 107 v1.2 T011: the hours panel is open unless the member closed it in
+   this browser; a day picked there moves the week and opens its dialog */
+const HOURS_PANEL_KEY = 'spool.calendar.hours-panel'
+const hoursPanel = ref(true)
+onMounted(() => {
+  try { hoursPanel.value = localStorage.getItem(HOURS_PANEL_KEY) !== 'off' } catch { /* private mode: open */ }
+})
+function toggleHours() {
+  hoursPanel.value = !hoursPanel.value
+  try { localStorage.setItem(HOURS_PANEL_KEY, hoursPanel.value ? 'on' : 'off') } catch { /* kept for this page */ }
+}
+const mainView = ref<{ openHours: (day: string) => void } | null>(null)
+async function openHoursDay(day: string) {
+  await show(day)
+  mainView.value?.openHours(day)
 }
 
 /* spec 2.1: no third pane - a topic panel open beside the channel the reader
@@ -107,7 +135,13 @@ useHead(() => ({ title: t('calendar.title') }))
   min-height: 0;
   overflow: hidden;
 }
+.calendar-body--hours { grid-template-columns: 240px minmax(0, 1fr) 300px; }
 .calendar-body__strip { min-height: 0; }
+.calendar-body__hours {
+  min-height: 0;
+  overflow: auto;
+  border-inline-start: 1px solid var(--border, #8883);
+}
 .calendar-body__main {
   min-width: 0;
   min-height: 0;

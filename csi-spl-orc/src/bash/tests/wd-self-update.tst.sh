@@ -253,9 +253,11 @@ wait "$JH"
 # the self-check verdict: by the tick's result, not its wall time (a loaded
 # box ran correct check ticks in 24..26 s against the old 20 s limit).
 # chk: instance 1's first tick on X ended AGO s after its exec; the state
-# afterwards and code/X.bad say the verdict. No sleeps: T0 is set back.
+# afterwards and code/X.bad say the verdict. No sleeps: T0 is set back, and
+# the clock is pinned (LEASE_NOW): a second boundary between n and the
+# verdict read 'green in 6s' for 5 (gate 10 run 37975966358)
 X=9999999999999999999999999999999999999999
-chk='mkdir -p "$WD_DIR/tick.u"; echo "${ERRLINE:-}" > "$WD_DIR/tick.u/err"; echo "c-901 ok" > "$WD_DIR/tick.u/out.c-901"
+chk='export LEASE_NOW="${LEASE_NOW:-$(date +%s)}"; mkdir -p "$WD_DIR/tick.u"; echo "${ERRLINE:-}" > "$WD_DIR/tick.u/err"; echo "c-901 ok" > "$WD_DIR/tick.u/out.c-901"
   WD_INST=1; WD_CODE_SHA=$X; n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=$$ since=$n start=$n" > "$WD_DIR/update.state"
   WD_UPD_EXEC=$X WD_UPD_ROLE=forward WD_UPD_T0=$(( n - AGO )); spl_wd_upd_checked "$WD_DIR/tick.u" ${TSTART:+$(( n - TSTART ))}
   echo "STATE $(cat "$WD_DIR/update.state" 2>/dev/null || true)"; echo "BAD $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -f "$WD_DIR/code/$X.bad" "$WD_DIR/update.state"'

@@ -131,6 +131,17 @@ out="$(run do_spl_box_restart_run DRY_RUN=0)"; rc=$?
 [ "$rc" = 0 ] && grep -q "systemctl stop $U2" "$T/calls.log" && grep -q REBOOTED "$T/reboot.log" \
   && pass "2b. control: only the listener in the unit -> stopped, rebooted" || fail "2b. control (rc $rc: $out)"
 
+# ---- 2c. the inhibitor probe is a seam: a stubbed shutdown block lock DEFERS ------
+cat >"$T/bin/locks" <<'EOF'
+#!/bin/sh
+echo '{"type":"a(ssssuu)","data":[[["shutdown","dev-user","user session inhibited","block",1000,42]]]}'
+EOF
+chmod +x "$T/bin/locks"
+reset; out="$(run do_spl_box_restart_run DRY_RUN=0 BOX_RESTART_INHIBITORS_CMD="$T/bin/locks")"; rc=$?
+[ "$rc" = 0 ] && grep -q 'DEFER the restart: a shutdown block inhibitor is held: dev-user (user session inhibited; uid 1000 pid 42)' <<<"$out" \
+  && [ ! -e "$T/reboot.log" ] && [ ! -e "$BR/last-week" ] && ! grep -q 'systemctl stop' "$T/calls.log" 2>/dev/null \
+  && pass "2c. control: a stubbed block lock DEFERS before the drain, no reboot, no last-week" || fail "2c. lock (rc $rc: $out)"
+
 # ---- 3. a deploy in flight; the wait --------------------------------------------------
 reset; echo 4711 >"$G/inflight.20_hub-build-deploy.yml.in_progress"
 out="$(run do_spl_box_restart_run DRY_RUN=0)"; rc=$?

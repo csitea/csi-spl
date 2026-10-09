@@ -7,6 +7,9 @@
 
 set -euo pipefail
 
+# Source the check function.
+source "/opt/csi/csi-spl-wt/m-668/csi-spl-orc/src/bash/run/spl-doc-tree-check.func.sh" || exit 1
+
 # Test DB credentials
 export PGUSER=spool
 export PGPASSWORD=spool_lde_pw

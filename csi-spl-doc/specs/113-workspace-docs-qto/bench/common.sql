@@ -35,6 +35,34 @@ BEGIN
     FROM seed s, generate_series(1, fanout) g
     WHERE s.depth = l - 1;
   END LOOP;
+  RETURN seed_finish();
+END $$;
+
+-- wide seed (spec 2.1, seat 4): a root with two sections. Section 1 holds
+-- `wide` flat children (the grid shape, 1 x 10,000); section 2 holds 10
+-- children and is the subtree the move op carries into section 1.
+CREATE OR REPLACE FUNCTION seed_build_wide(wide int) RETURNS bigint
+LANGUAGE plpgsql AS $$
+BEGIN
+  DROP TABLE IF EXISTS seed;
+  CREATE TABLE seed (
+    id bigint PRIMARY KEY, parent_id bigint, ord int NOT NULL,
+    depth int NOT NULL, sortkey int[] NOT NULL, pre int, sz int);
+  INSERT INTO seed (id, parent_id, ord, depth, sortkey) VALUES
+    (0, NULL, 1, 0, ARRAY[]::int[]), (1, 0, 1, 1, ARRAY[1]), (2, 0, 2, 1, ARRAY[2]);
+  INSERT INTO seed (id, parent_id, ord, depth, sortkey)
+  SELECT 2 + g, 1, g, 2, ARRAY[1, g] FROM generate_series(1, wide) g;
+  INSERT INTO seed (id, parent_id, ord, depth, sortkey)
+  SELECT 2 + wide + g, 2, g, 2, ARRAY[2, g] FROM generate_series(1, 10) g;
+  RETURN seed_finish();
+END $$;
+
+-- pre, sz and the sortkey index of the seed; returns the item count
+CREATE OR REPLACE FUNCTION seed_finish() RETURNS bigint
+LANGUAGE plpgsql AS $$
+DECLARE
+  n bigint;
+BEGIN
   CREATE UNIQUE INDEX seed_sortkey ON seed (sortkey);
   UPDATE seed s SET pre = x.r
   FROM (SELECT id, row_number() OVER (ORDER BY sortkey) r FROM seed) x

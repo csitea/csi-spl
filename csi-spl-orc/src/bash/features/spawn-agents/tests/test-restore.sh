@@ -77,6 +77,16 @@ has "6. ... so does a '-' session (the identity map's no-value)" "--max-price 3.
 has "6. the cap defaults to cnf env.box.mistral_vibe.max_price" "--max-price " "$(r mistral m-007 "$D" s-7)"
 SPOOL_MISTRAL_MAX_PRICE=lots r mistral m-007 "$D" s-7 >/dev/null; eq "6. a cap that is not a dollar amount is refused" 1 "$?"
 r qwen q-009 "$D" >/dev/null; eq "6. qwen still refuses a missing session id" 1 "$?"
+# the seat's own worktree gets spawn-mistral.sh's SPAWN_AGENT_ACL (rwX) back
+if command -v setfacl >/dev/null 2>&1; then
+  mkdir -p "$T_TMP/repo-wt/m-011"
+  out="$(SPOOL_AGENT_USER=nobody SPOOL_MISTRAL_MAX_PRICE=3.50 r mistral m-011 "$T_TMP/repo-wt/m-011" s-1)"
+  has "6. its own worktree <repo>-wt/<ID> gets rwX for the agent user again" "INFO m-011: setfacl -R -m u:nobody:rwX (+ default) $T_TMP/repo-wt/m-011" "$out"
+  hasnt "6. control: a dir that is not <repo>-wt/<ID> is never touched" "setfacl" "$(SPOOL_AGENT_USER=nobody SPOOL_MISTRAL_MAX_PRICE=3.50 r mistral m-012 "$T_TMP/repo-wt/m-011" s-1)$(SPOOL_AGENT_USER=nobody SPOOL_MISTRAL_MAX_PRICE=3.50 r mistral m-007 "$D" s-1)"
+  hasnt "6. control: an agent that is the box user needs no ACL" "setfacl" "$(SPOOL_MISTRAL_MAX_PRICE=3.50 r mistral m-011 "$T_TMP/repo-wt/m-011" s-1)"
+else
+  echo "SKIP 6. the mistral worktree ACL: no setfacl on this box"
+fi
 
 # --- 5. agent-top sees a restored agent ---------------------------------------------------------
 t_tmux

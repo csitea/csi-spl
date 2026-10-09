@@ -14,6 +14,9 @@
 #   6. Stop block once per turn: a stub / an untouched held job
 #   7. a broken spool root -> exit 0 + hook.err (control: a sound one, none)
 #   8. heartbeat.log keeps 200 lines; the budget (200 runs)
+#  10. vibe PostToolUse opens a file write_file made 0600 under cwd to the
+#      box user (g+rw,o+r, its new dirs g+rwx); controls: outside cwd and a
+#      claude seat keep their mode
 #   9. do_spl_agent_hooks_install: dry run, install, idempotent, mirror kept,
 #      uninstall, a bad file refused, the installed command runs
 set -uo pipefail
@@ -350,5 +353,21 @@ if [ -n "$gd" ] && [ "$gd" != "$cd_" ]; then
 else
   echo "SKIP the linked-worktree refusal: this checkout is not a linked worktree"
 fi
+
+# ---- 10. vibe: the file write_file made 0600 is opened to the box user --------
+W="$T_TMP/wt10"; mkdir -p "$W/new/deep" "$T_TMP/out10"; chmod 755 "$W/new" "$W/new/deep"
+printf 'x\n' >"$W/new/deep/a.txt"; printf 'x\n' >"$W/b.txt"; printf 'x\n' >"$T_TMP/out10/c.txt"
+chmod 600 "$W/new/deep/a.txt" "$W/b.txt" "$T_TMP/out10/c.txt"
+vpay() { printf '{"cwd":"%s","tool_name":"file_system.write_file","tool_input":{"file_path":"%s","content":"x"},"tool_status":"success"}' "$W" "$1"; }
+SPOOL_HARNESS=vibe hook PostToolUse $((T0 + 900)) "$(vpay "$W/new/deep/a.txt")" >/dev/null
+eq "10. vibe: the 0600 file write_file made is opened g+rw,o+r" 664 "$(stat -c %a "$W/new/deep/a.txt")"
+eq "10. ... its agent-owned dirs up to cwd g+rwx,o+rx" "775 775" "$(stat -c %a "$W/new" "$W/new/deep" | tr '\n' ' ' | sed 's/ $//')"
+SPOOL_HARNESS=vibe hook PostToolUse $((T0 + 901)) "$(vpay b.txt)" >/dev/null
+eq "10. ... a path relative to cwd too" 664 "$(stat -c %a "$W/b.txt")"
+SPOOL_HARNESS=vibe hook PostToolUse $((T0 + 902)) "$(vpay "$T_TMP/out10/c.txt")" >/dev/null
+eq "10. control: a file outside cwd keeps 0600" 600 "$(stat -c %a "$T_TMP/out10/c.txt")"
+chmod 600 "$W/b.txt"; SPOOL_HARNESS=claude hook PostToolUse $((T0 + 903)) "$(vpay b.txt)" >/dev/null
+eq "10. control: a claude seat's PostToolUse leaves the mode alone" 600 "$(stat -c %a "$W/b.txt")"
+eq "10. ... and the heartbeat still moved" "$(date -u -d "@$((T0 + 903))" +%Y-%m-%dT%H:%M:%SZ)" "$(hb progress_ts)"
 
 t_done

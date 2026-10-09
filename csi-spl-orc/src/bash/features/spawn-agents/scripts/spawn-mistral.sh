@@ -41,6 +41,14 @@ SPAWN_PROMPT_FLAG=
 SPAWN_RESUME_FLAG=--resume
 SPAWN_RESUME_ID=SESSION_ID
 SPAWN_CONTINUE_FLAG=--continue
+# SPAWN_AGENT_ACL=rwX: the m- seat writes its own worktree. Under the default
+# rX, vibe 2.26.0's write_file / search_replace fail (Permission denied) and
+# the model falls back to `sudo -u <box user> bash -c 'echo -e "..."'` / sed -i,
+# whose quoting ate `${...}`, quotes and backslashes and cut whole files
+# (m-707, m-710, m-689 2026-10-09). Repro n=3 each: rX -> a shell write 3/3,
+# `${x}` expanded 1/3; rwX -> write_file + search_replace 3/3, no shell write.
+# Its new files are 0600: spool-agent-hook.sh opens them to the box user's git.
+SPAWN_AGENT_ACL=rwX
 # SPT_NOENV=1: vibe renames itself "Vibe CLI" with setproctitle, which by default
 # zeroes /proc/<pid>/environ, so SPOOL_AGENT_ID vanished and the agent run
 # report (spl_lease_live_ids) never listed an m- lane: roster running = f.

@@ -30,6 +30,12 @@
 # from ~/.vibe/hooks.toml (spool-mirror-hooks.inc.sh) with SPOOL_HARNESS=vibe:
 # pre_tool -> PreToolUse, post_tool -> PostToolUse (tool_output for
 # tool_response), post_agent -> Stop, which is progress.
+#   open written (vibe) PostToolUse: the file its tool_input names (file_path),
+#               when it lies under the payload's cwd (the seat's worktree) and
+#               the agent owns it, gets g+rw,o+r, and each agent-owned dir up
+#               to cwd g+rwx,o+rx: vibe 2.26.0's write_file makes a NEW file
+#               0600, which the box user's git cannot read (spawn-mistral.sh,
+#               SPAWN_AGENT_ACL).
 #
 # Env: SPOOL_AGENT_ID, SPOOL_ROOT (default /var/spool-hub), SPOOL_BOX_ID,
 #      SPOOL_HARNESS (default: the parent process name), WD_LOOP_N,
@@ -111,6 +117,30 @@ def put(path, text):
     with open(tmp, "w") as f:
         f.write(text)
     os.replace(tmp, path)
+
+def open_written(payload):
+    ti = payload.get("tool_input")
+    p = ti.get("file_path") or ti.get("filePath") or ti.get("path") if isinstance(ti, dict) else None
+    cwd = payload.get("cwd")
+    if not (isinstance(p, str) and p and isinstance(cwd, str) and cwd):
+        return
+    top = os.path.realpath(cwd)
+    p = os.path.realpath(os.path.join(top, p))
+    me = os.getuid()
+    try:
+        st = os.stat(p)
+    except OSError:
+        return
+    if not p.startswith(top + "/") or st.st_uid != me or (st.st_mode & 0o170000) != 0o100000:
+        return
+    os.chmod(p, st.st_mode | 0o664)
+    dd = os.path.dirname(p)
+    while len(dd) > len(top):
+        st = os.stat(dd)
+        if st.st_uid != me:
+            break
+        os.chmod(dd, st.st_mode | 0o775)
+        dd = os.path.dirname(dd)
 
 def harness():
     h = os.environ.get("SPOOL_HARNESS")
@@ -302,6 +332,11 @@ def main():
         calls = (calls + [{"sig": sig, "res": res, "ts": iso(now)}])[-CALLS_KEEP:]
         hb.update(state="working", progress_ts=iso(now), api_error=None,
                   tool=None, tool_since=None, calls=calls)
+        if kind == "vibe":
+            try:
+                open_written(payload)
+            except OSError:
+                pass
         if claude:
             ctx.append(inject(False))
             if sum(1 for c in calls if c.get("sig") == sig and c.get("res") == res) == LOOP_N:

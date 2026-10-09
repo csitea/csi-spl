@@ -28,6 +28,10 @@
 # sender; with RESTORE_PRINT=1 nothing is sent unless it is set).
 # An arg 4 that is not a file is still a literal kick.
 #
+# The seat's own worktree (<repo>-wt/<ID>) gets spawn-mistral.sh's
+# SPAWN_AGENT_ACL (rwX) back before vibe starts: a seat spawned under the old
+# rX wrote through a shell and mangled the files (spawn-mistral.sh).
+#
 # Usage: restore-mistral.sh <TITLE> <RUNDIR> [SESSION_ID|-] [BRIEF_FILE|KICK_PROMPT]
 #   SPOOL_MISTRAL_MAX_PRICE overrides cnf env.box.mistral_vibe.max_price.
 # shellcheck disable=SC2034  # the RESTORE_* declarations are read by restore-core.inc.sh
@@ -45,11 +49,11 @@ _rs_core="$_rs_here/restore-core.inc.sh"
 # shellcheck source=restore-core.inc.sh
 . "$_rs_core" || { echo "ERROR: cannot load $_rs_core" >&2; exec bash; }
 
-# spawn-mistral.sh's own SPAWN_EXEC_PREFIX line and _sp_cnf_max_price
-# function (which reads the cnf next to $SPAWN_ADAPTER).
+# spawn-mistral.sh's own SPAWN_EXEC_PREFIX and SPAWN_AGENT_ACL lines and
+# _sp_cnf_max_price function (which reads the cnf next to $SPAWN_ADAPTER).
 SPAWN_ADAPTER="$_rs_here/spawn-mistral.sh"
-eval "$(sed -n -e '/^SPAWN_EXEC_PREFIX=/p' -e '/^_sp_cnf_max_price() {$/,/^}$/p' "$SPAWN_ADAPTER")"
-[ -n "${SPAWN_EXEC_PREFIX:-}" ] && declare -F _sp_cnf_max_price >/dev/null \
+eval "$(sed -n -e '/^SPAWN_EXEC_PREFIX=/p' -e '/^SPAWN_AGENT_ACL=/p' -e '/^_sp_cnf_max_price() {$/,/^}$/p' "$SPAWN_ADAPTER")"
+[ -n "${SPAWN_EXEC_PREFIX:-}" ] && [ -n "${SPAWN_AGENT_ACL:-}" ] && declare -F _sp_cnf_max_price >/dev/null \
   || _rs_fail "cannot read the launch line from $SPAWN_ADAPTER"
 RESTORE_EXEC_PREFIX="$SPAWN_EXEC_PREFIX"
 _rs_max_price="${SPOOL_MISTRAL_MAX_PRICE:-$(_sp_cnf_max_price)}"
@@ -81,7 +85,20 @@ _rs_mistral_nobrief() {  # ID RUNDIR
     --task "restore-$1" --no-ask --body "$msg" >/dev/null 2>&1 || echo "WARN $1: the NO-BRIEF report was not sent" >&2
 }
 
+# SPAWN_AGENT_ACL on RUNDIR when it is the seat's own worktree <repo>-wt/<ID>
+# and this (box) user owns it; never on any other dir. Non-fatal.
+_rs_mistral_acl() {  # ID RUNDIR
+  [ "$(basename "$2")" = "$1" ] && [[ "$(dirname "$2")" == *-wt ]] && [ -O "$2" ] || return 0
+  SPOOL_ENV_NO_BINS=0 spool_env_resolve
+  [ "$SPOOL_AGENT_USER" != "$SPOOL_BOX_USER" ] && command -v setfacl >/dev/null 2>&1 || return 0
+  echo "INFO $1: setfacl -R -m u:${SPOOL_AGENT_USER}:${SPAWN_AGENT_ACL} (+ default) $2" >&2
+  [ "${RESTORE_PRINT:-0}" = 1 ] && return 0
+  setfacl -R -m "u:${SPOOL_AGENT_USER}:${SPAWN_AGENT_ACL}" -m "d:u:${SPOOL_AGENT_USER}:${SPAWN_AGENT_ACL}" "$2" 2>/dev/null \
+    || echo "WARN $1: setfacl on $2 failed: its vibe writes through a shell" >&2
+}
+
 SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
+[ -z "${1:-}" ] || [ ! -d "${2:-}" ] || _rs_mistral_acl "$1" "$2"
 if spool_valid_id "${1:-}" 2>/dev/null && [ -d "${2:-}" ] && { [ -z "${4:-}" ] || [ -f "${4:-}" ]; }; then
   _rs_brief="$(_rs_mistral_brief "$1" "${4:-}")"
   RESTORE_KICK_MODE=brief

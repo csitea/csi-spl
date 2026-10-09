@@ -49,6 +49,10 @@
 #   SPAWN_EXTRA_FLAGS    flags after the permission flags (mistral: --max-price N)
 #   spawn_teardown_how   function: closing step (8) of the seed, in place of
 #                        "remove the worktree" (mistral: vibe runs its hooks in it)
+#   SPAWN_AGENT_ACL      the agent user's ACL on its own worktree, default rX
+#                        (its writes route through `sudo -u <box user>`); mistral
+#                        sets rwX: vibe's write_file / search_replace are its only
+#                        quoting-safe write path (spawn-mistral.sh)
 #
 # DRY RUN: SPAWN_DRY_RUN=1 performs NO side effect and prints the plan: one
 # `PLAN <step> …` line per side effect, then the seed prompt between
@@ -75,6 +79,17 @@ _sp_fail() {
   echo "ERROR: $*" >&2
   if _sp_live; then exec bash; fi
   exit 1
+}
+
+# The agent user's ACL on its worktree DIR: SPAWN_AGENT_ACL (default rX, the
+# r-x it has on the shared repo). Non-fatal, a no-op when the agent is the box
+# user; a set SPAWN_AGENT_ACL is a plan line (an unset one keeps the plan as it was).
+_sp_agent_acl() {
+  local acl="${SPAWN_AGENT_ACL:-rX}"
+  [ -z "${SPAWN_AGENT_ACL:-}" ] || _sp_plan acl "setfacl -R -m u:${SPOOL_AGENT_USER}:${acl} (+ default) $1"
+  _sp_live || return 0
+  [ "$SPOOL_AGENT_USER" != "$SPOOL_BOX_USER" ] && command -v setfacl >/dev/null 2>&1 || return 0
+  setfacl -R -m "u:${SPOOL_AGENT_USER}:${acl}" -m "d:u:${SPOOL_AGENT_USER}:${acl}" "$1" 2>/dev/null
 }
 
 # The checkout WORKDIR belongs to; inside a linked worktree, its MAIN checkout
@@ -133,6 +148,8 @@ _spawn_worktree() {
       bash "${_SP_DIR}/install-pre-push-hook.sh" "$WORKTREE_DIR" >/dev/null 2>&1 || true
     fi
     _sp_plan worktree "reuse ${WORKTREE_DIR} (branch ${BRANCH})"
+    # A respawn into a worktree made before SPAWN_AGENT_ACL gets it now.
+    [ -z "${SPAWN_AGENT_ACL:-}" ] || _sp_agent_acl "$WORKTREE_DIR"
     return 0
   fi
 
@@ -149,11 +166,6 @@ _spawn_worktree() {
     mkdir -p "$(dirname "$WORKTREE_DIR")" || _sp_fail "mkdir -p $(dirname "$WORKTREE_DIR") FAILED"
     git -C "$REPO" worktree add -b "$BRANCH" "$WORKTREE_DIR" "origin/${DEFBRANCH}"; rv=$?
     [ $rv -eq 0 ] || _sp_fail "git worktree add FAILED (rv=$rv)"
-    # The agent user gets the same r-x it has on the shared repo; its writes
-    # route through `sudo -u $SPOOL_BOX_USER`. Non-fatal.
-    if [ "$SPOOL_AGENT_USER" != "$SPOOL_BOX_USER" ] && command -v setfacl >/dev/null 2>&1; then
-      setfacl -R -m "u:${SPOOL_AGENT_USER}:rX" -m "d:u:${SPOOL_AGENT_USER}:rX" "$WORKTREE_DIR" 2>/dev/null
-    fi
     echo "INFO: created worktree ${WORKTREE_DIR} on branch ${BRANCH} off origin/${DEFBRANCH}"
     # SPL-1252: install the deploy-gate pre-push hook for THIS worktree only
     # (worktree-local core.hooksPath). Non-fatal: a spawn must not fail for it.
@@ -161,6 +173,7 @@ _spawn_worktree() {
       || echo "WARN: pre-push hook not installed for ${WORKTREE_DIR} (non-fatal)"
   fi
   _sp_plan worktree "add ${WORKTREE_DIR} -b ${BRANCH} origin/${DEFBRANCH}"
+  _sp_agent_acl "$WORKTREE_DIR"
   _sp_plan pre-push-hook "install-pre-push-hook.sh ${WORKTREE_DIR}"
   RUNDIR="$WORKTREE_DIR"
 }

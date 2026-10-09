@@ -25,8 +25,20 @@
 # @description SERVER restart with no reboot involved, and agents are spawned
 # @description all day. A boot hook covers neither. The interval covers both,
 # @description and covers a reboot within one tick.
+# @description PLUS AN @reboot LINE, because "within one tick" is too slow:
+# @description a box booted 16:23:00Z and its prd sidecar came back 16:25:09Z, and
+# @description in that gap every cross-box send failed rc=3 ("no live hub-run
+# @description sidecar"). So install also writes ONE `@reboot` line per env,
+# @description tagged `<tag>@boot`, running the SAME script with --boot: it
+# @description waits (bounded) for a default route and the hub's DNS, runs the
+# @description reconcile once and logs one BOOT line with the boot time and rc.
+# @description No self-update prefix on it: a fetch before the network is up
+# @description only fails, and the first tick moves the checkout anyway. The
+# @description `@boot` suffix is outside `desk-reconcile(-[a-z]+)?$`, so the
+# @description box-restart desk pass (which strips five schedule fields) never
+# @description runs the @reboot line.
 # @description Dry run unless DRY_RUN=0. --check / DESK_SERVICE_ACTION=check is
-# @description read-only and says whether the line is installed.
+# @description read-only and says whether the lines are installed.
 # @param DESK_SERVICE_ACTION (optional) - install (default) | remove | check
 # @param ENV (optional) - the env baked into the cron line, default dev
 # @param TENANT_ID (optional) - the tenant baked into the cron line, default t1
@@ -59,6 +71,9 @@
 # @param   of the line, so installing dev never touches the prd line (it did, as a
 # @param   prefix match, on 2026-10-01: prd stopped reconciling for 7 minutes)
 # @param DESK_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/desk-reconcile
+# @param DESK_BOOT_HOST (optional) - the host the @reboot run waits to resolve,
+# @param   default env.dns.api_fqdn of the cnf (none: it waits for a route only)
+# @param DESK_BOOT_WAIT (optional) - seconds the @reboot run waits, default 180
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example DESK_SERVICE_ACTION=check ./run -a do_spl_desk_install_service
 # @example ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_desk_install_service
@@ -94,29 +109,40 @@ do_spl_desk_install_service() {
     spl_is_participant_id "$a" || { do_log "FATAL DESK_MUTE holds '$a', which is not an agent id"; return 1; }
   done
   line="$(spl_desk_cron_build_line "$every" "$env_name" "$tenant" "$mute" "$src" "$script" "$logdir" "$tag")" || return 1
+  # the @reboot twin: same env, mute and probe, no self-update, --boot
+  local btag="$tag@boot" bline bcurrent
+  bline="$(SPL_DESK_CRON_BOOT=1 spl_desk_cron_build_line "$every" "$env_name" "$tenant" "$mute" "$src" "$script" "$logdir" "$btag")" || return 1
+  bcurrent="$(spl_desk_cron_line "$btag")"
 
   local installed=0 current=""
   current="$(spl_desk_cron_line "$tag")"
   [[ -n "$current" ]] && installed=1
 
   if [[ "$act" == check ]]; then
-    _spl_desk_service_check "$installed" "$current" "$line" "$logdir"
+    _spl_desk_service_check "$installed" "$current" "$line" "$logdir" "$bcurrent" "$bline"
     return
   fi
 
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
-    _spl_desk_service_dry_plan "$act" "$installed" "$current" "$line" "$tag" "$src" "$logdir"
+    _spl_desk_service_dry_plan "$act" "$installed" "$current" "$line" "$tag" "$src" "$logdir" "$btag" "$bline" "$bcurrent"
     return 0
   fi
 
   if [[ "$act" == remove ]]; then
-    spl_desk_cron_write "$tag" "" || return 1
-    do_log "OK the desk reconcile is out of the box user's crontab. Nothing re-seats agents now: run do_spl_desk_up_all by hand after a restart"
+    spl_desk_cron_write "$tag" "" && spl_desk_cron_write "$btag" "" || return 1
+    do_log "OK the desk reconcile (tick and @reboot) is out of the box user's crontab. Nothing re-seats agents now: run do_spl_desk_up_all by hand after a restart"
     return 0
   fi
+  _spl_desk_service_install "$src" "$script" "$logdir" "$tag" "$line" "$btag" "$bline" "$every"
+}
 
+# _spl_desk_service_install <checkout> <script> <log dir> <tag> <line> <boot
+# tag> <boot line> <every>: create the self-updating checkout when missing,
+# write both tagged lines and read them back (DRY_RUN=0 install).
+_spl_desk_service_install() {
+  local src="$1" script="$2" logdir="$3" tag="$4" line="$5" btag="$6" bline="$7" every="$8" got
   if [[ "$SPL_DESK_CRON_CREATE" == 1 ]]; then
     git -C "$SPL_DESK_CRON_REPO" fetch -q origin "${DESK_CRON_TRUNK:-master}" &&
       git -C "$SPL_DESK_CRON_REPO" worktree add -q --detach "$src" "origin/${DESK_CRON_TRUNK:-master}" ||
@@ -124,26 +150,34 @@ do_spl_desk_install_service() {
     [[ -x "$script" ]] || { do_log "FATAL $script is missing in the new checkout $src"; return 1; }
   fi
   mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
-  spl_desk_cron_write "$tag" "$line" || return 1
-  current="$(spl_desk_cron_line "$tag")"
-  [[ "$current" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${current:-<nothing>}"; return 1; }
-  do_log "OK the desk reconcile runs every ${every}m as the box user:"
+  spl_desk_cron_write "$tag" "$line" && spl_desk_cron_write "$btag" "$bline" || return 1
+  got="$(spl_desk_cron_line "$tag")"
+  [[ "$got" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${got:-<nothing>}"; return 1; }
+  got="$(spl_desk_cron_line "$btag")"
+  [[ "$got" == "$bline" ]] || { do_log "FATAL the crontab does not read back the @reboot line. Got: ${got:-<nothing>}"; return 1; }
+  do_log "OK the desk reconcile runs every ${every}m, and once at boot, as the box user:"
   spl_desk_cron_say "$line"
+  spl_desk_cron_say "$bline"
   do_log "OK verify it later with DESK_SERVICE_ACTION=check ./run -a do_spl_desk_install_service"
 }
 
-# _spl_desk_service_check <installed 0|1> <current line> <wanted line> <log dir>:
-# the JSON state of the reconcile's crontab line, then the verdict; 0 when the
-# installed line can still run.
+# _spl_desk_service_check <installed 0|1> <current line> <wanted line> <log dir>
+# <current boot line> <wanted boot line>: the JSON state of the reconcile's
+# crontab lines, then the verdict; 0 when the installed tick line can still run.
+# A missing @reboot line is a WARN, not a FAIL: the tick still re-seats every
+# desk, only ~2 minutes later after a boot.
 _spl_desk_service_check() {
-  local installed="$1" current="$2" line="$3" logdir="$4"
-  python3 - "$installed" "$current" "$line" "$logdir" <<'EOF_PY'
+  local installed="$1" current="$2" line="$3" logdir="$4" bcurrent="$5" bline="$6"
+  python3 - "$installed" "$current" "$line" "$logdir" "$bcurrent" "$bline" <<'EOF_PY'
 import json, sys
-installed, current, want, logdir = sys.argv[1:]
+installed, current, want, logdir, bcur, bwant = sys.argv[1:]
 print(json.dumps({"installed": installed == "1", "current": current or None,
                 "expected": want, "matches": current == want,
-                "log_dir": logdir}, sort_keys=True))
+                "boot_installed": bool(bcur), "boot_current": bcur or None,
+                "boot_expected": bwant, "log_dir": logdir}, sort_keys=True))
 EOF_PY
+  [[ -n "$bcurrent" ]] ||
+    do_log "WARN no @reboot desk reconcile line: after a boot the sidecars wait for the next tick. Install: DRY_RUN=0 ./run -a do_spl_desk_install_service"
   # The verdict is "can this line still run", not "does it match the flags I
   # happen to have set". An operator who installed it with a different
   # interval, env or tenant has a WORKING reconcile, and failing that check
@@ -168,22 +202,31 @@ EOF_PY
 }
 
 # _spl_desk_service_dry_plan <act> <installed 0|1> <current line> <wanted line>
-# <tag> <checkout> <log dir>: what install / remove would do (DRY_RUN=1).
+# <tag> <checkout> <log dir> <boot tag> <boot line> <current boot line>: what
+# install / remove would do (DRY_RUN=1).
 _spl_desk_service_dry_plan() {
   local act="$1" installed="$2" current="$3" line="$4" tag="$5" src="$6" logdir="$7"
+  local btag="$8" bline="$9" bcurrent="${10}"
   spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
+  spl_desk_cron_diff "$btag" "$([[ "$act" == install ]] && printf '%s' "$bline")"
   if [[ "$act" == install ]]; then
     [[ "$SPL_DESK_CRON_CREATE" == 1 ]] &&
       do_log "INFO DRY_RUN would: git worktree add --detach $src origin/${DESK_CRON_TRUNK:-master} (the self-updating checkout)"
     do_log "INFO DRY_RUN would: mkdir -p $logdir"
-    do_log "INFO DRY_RUN would: put ONE tagged line in the box user's crontab:"
+    do_log "INFO DRY_RUN would: put the tick line and its @reboot twin in the box user's crontab:"
     spl_desk_cron_say "$line"
+    spl_desk_cron_say "$bline"
     (( installed )) && spl_desk_cron_say "replacing the line already there: $current"
+    [[ -n "$bcurrent" ]] && spl_desk_cron_say "replacing the @reboot line already there: $bcurrent"
   else
     if (( installed )); then
       do_log "INFO DRY_RUN would: remove the tagged crontab line:"
       spl_desk_cron_say "$current"
-    else
+    fi
+    if [[ -n "$bcurrent" ]]; then
+      do_log "INFO DRY_RUN would: remove the @reboot line:"
+      spl_desk_cron_say "$bcurrent"
+    elif (( ! installed )); then
       do_log "INFO DRY_RUN nothing to remove: no line tagged $tag"
     fi
   fi
@@ -203,16 +246,25 @@ spl_desk_cron_tag() {
 }
 
 # spl_desk_cron_build_line <every> <env> <tenant> <mute> <src> <script> <logdir> <tag>
+# SPL_DESK_CRON_BOOT=1 builds the @reboot twin instead: schedule @reboot, no
+# self-update prefix, DESK_BOOT_HOST (the hub's api_fqdn from the cnf) and
+# DESK_BOOT_WAIT when set, and the script run with --boot.
 spl_desk_cron_build_line() {
   local every="$1" env_name="$2" tenant="$3" mute="$4" src="$5" script="$6" logdir="$7" tag="$8"
   local off sched pre="" probe="" mutev="" out="cron.out" trunk="${DESK_CRON_TRUNK:-master}"
+  local boot="${SPL_DESK_CRON_BOOT:-0}" bootv="" arg=""
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   off="${DESK_CRON_OFFSET:-$([[ "$env_name" == dev ]] && echo 0 || echo 1)}"
   [[ "$off" =~ ^[0-9]+$ ]] && (( off < every || off == 0 )) ||
     { do_log "FATAL DESK_CRON_OFFSET must be 0..$((every - 1)), got: '$off'"; return 1; }
-  if (( off == 0 )); then sched="*/$every"; else sched="$off-59/$every"; fi
+  if (( off == 0 )); then sched="*/$every * * * *"; else sched="$off-59/$every * * * *"; fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
+  if [[ "$boot" == 1 ]]; then
+    sched="@reboot" pre="" arg=" --boot"
+    spl_desk_cron_boot_env || return 1
+    bootv="$SPL_DESK_CRON_BOOT_ENV"
+  fi
   if [[ -n "$mute" ]]; then
     if [[ "$mute" == *" "* ]]; then mutev=" DESK_MUTE='$mute'"; else mutev=" DESK_MUTE=$mute"; fi
   fi
@@ -223,8 +275,25 @@ spl_desk_cron_build_line() {
     probe=" PROBE_EMAIL=\$(cat $d/human-email) PROBE_PW_FILE=$d/pw-human"
   fi
   [[ "$env_name" == dev ]] || out="cron-$env_name.out"
-  printf '%s * * * * %sENV=%s TENANT_ID=%s%s%s %s >> %s/%s 2>&1 # %s\n' \
-    "$sched" "$pre" "$env_name" "$tenant" "$mutev" "$probe" "$script" "$logdir" "$out" "$tag"
+  printf '%s %sENV=%s TENANT_ID=%s%s%s%s %s%s >> %s/%s 2>&1 # %s\n' \
+    "$sched" "$pre" "$env_name" "$tenant" "$mutev" "$probe" "$bootv" "$script" "$arg" "$logdir" "$out" "$tag"
+}
+
+# spl_desk_cron_boot_env: the " DESK_BOOT_HOST=<h>[ DESK_BOOT_WAIT=<s>]" the
+# @reboot line carries, into SPL_DESK_CRON_BOOT_ENV. The host is read from the
+# cnf here, at install time, so the boot run needs no yq and no cnf merge before
+# the network is up; DESK_BOOT_HOST overrides it.
+spl_desk_cron_boot_env() {
+  local h="${DESK_BOOT_HOST:-}" w="${DESK_BOOT_WAIT:-}"
+  SPL_DESK_CRON_BOOT_ENV=""
+  if [[ -z "$h" && -n "${SPL_CNF:-}" && -r "$SPL_CNF" ]] && command -v yq >/dev/null 2>&1; then
+    h="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF" 2>/dev/null)"
+  fi
+  [[ -z "$h" || "$h" =~ ^[A-Za-z0-9.-]+$ ]] || { do_log "FATAL DESK_BOOT_HOST is not a host name: '$h'"; return 1; }
+  [[ -z "$w" || "$w" =~ ^[0-9]+$ ]] || { do_log "FATAL DESK_BOOT_WAIT must be seconds, got: '$w'"; return 1; }
+  [[ -n "$h" ]] && SPL_DESK_CRON_BOOT_ENV=" DESK_BOOT_HOST=$h"
+  [[ -n "$w" ]] && SPL_DESK_CRON_BOOT_ENV+=" DESK_BOOT_WAIT=$w"
+  return 0
 }
 
 # spl_desk_cron_diff <tag> <new line|"">: the crontab before and after, as a

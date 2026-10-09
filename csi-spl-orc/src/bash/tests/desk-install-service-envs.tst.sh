@@ -60,9 +60,12 @@ PD="\$HOME/.local/share/$OA/cloud/prd/m3-e2e/e2e"
 DEV3="*/3 * * * * ${PRE}ENV=dev TENANT_ID=t1 DESK_MUTE=c-010 $SCRIPT >> $L/cron.out 2>&1 # $OA:desk-reconcile"
 PRD3="1-59/3 * * * * ${PRE}ENV=prd TENANT_ID=t1 DESK_MUTE=c-010 PROBE_EMAIL=\$(cat $PD/human-email) PROBE_PW_FILE=$PD/pw-human $SCRIPT >> $L/cron-prd.out 2>&1 # $OA:desk-reconcile-prd"
 OTHER="0 4 * * * /usr/bin/true # someone-elses-job"
+# the @reboot twins (desk-reconcile-boot.tst.sh covers them)
+DEVB="@reboot ENV=dev TENANT_ID=t1 DESK_MUTE=c-010 $SCRIPT --boot >> $L/cron.out 2>&1 # $OA:desk-reconcile@boot"
+PRDB="@reboot ENV=prd TENANT_ID=t1 DESK_MUTE=c-010 PROBE_EMAIL=\$(cat $PD/human-email) PROBE_PW_FILE=$PD/pw-human $SCRIPT --boot >> $L/cron-prd.out 2>&1 # $OA:desk-reconcile-prd@boot"
 
 # --- 1. the target state is a fixed point ---------------------------------------------
-printf '%s\n%s\n%s\n' "$OTHER" "$DEV3" "$PRD3" >"$CT"; cp "$CT" "$T/target"
+printf '%s\n%s\n%s\n%s\n%s\n' "$OTHER" "$DEV3" "$DEVB" "$PRD3" "$PRDB" >"$CT"; cp "$CT" "$T/target"
 svc ENV=dev DESK_CRON_EVERY=3 DESK_MUTE=c-010 DRY_RUN=0 >"$T/o"
 svc ENV=prd DESK_CRON_EVERY=3 DESK_MUTE=c-010 DRY_RUN=0 >>"$T/o"
 sort "$CT" >"$T/a"; sort "$T/target" >"$T/b"
@@ -80,7 +83,7 @@ grep -qxF "$DEV3" "$CT" && [[ "$(grep -c "# $OA:desk-reconcile\$" "$CT")" == 1 ]
 
 # --- 3. prd install ---------------------------------------------------------------------------
 svc ENV=prd DESK_CRON_EVERY=3 DESK_MUTE=c-010 DRY_RUN=0 >"$T/o"
-grep -qxF "$PRD3" "$CT" && grep -qxF "$DEV3" "$CT" && [[ "$(wc -l <"$CT")" == 3 ]] &&
+grep -qxF "$PRD3" "$CT" && grep -qxF "$DEV3" "$CT" && [[ "$(wc -l <"$CT")" == 5 ]] &&
   pass "3. a prd install writes the -prd line (offset, PROBE_*, cron-prd.out) and keeps dev" || fail "3. crontab: $(cat "$CT")"
 
 # --- 4. dry run: a diff, no write -----------------------------------------------------------

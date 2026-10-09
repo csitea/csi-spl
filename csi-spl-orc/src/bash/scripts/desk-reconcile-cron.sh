@@ -37,7 +37,14 @@
 #   still installed"; nothing answers it automatically.
 #
 #   desk-reconcile-cron.sh [--env dev] [--tenant t1] [--print-crontab]
-#                          [--check-tools]
+#                          [--check-tools] [--boot]
+#
+# --boot (the @reboot line): wait for a default route and for DESK_BOOT_HOST
+#   (the hub) to resolve, at most DESK_BOOT_WAIT seconds (default 180), run
+#   this reconcile once, then log ONE line: the boot time, how long it waited,
+#   whether the network came up, and the reconcile's rc (which it exits with).
+#   Measured 2026-10-09 on a satellite box: without it the sidecars came back 1..2 min
+#   after boot, at the next tick, and every cross-box send failed until then.
 #
 # Exit: 0 reconciled (or another tick held the lock), 1 something was not
 # seated or a welcome post failed, 2 usage or a refusal, 3 a tool this needs
@@ -75,12 +82,14 @@ ENV_NAME="${ENV:-dev}"
 TENANT="${TENANT_ID:-t1}"
 PRINT=0
 CHECK_TOOLS=0
+BOOT=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --env) ENV_NAME="${2:?}"; shift 2 ;;
     --tenant) TENANT="${2:?}"; shift 2 ;;
     --print-crontab) PRINT=1; shift ;;
     --check-tools) CHECK_TOOLS=1; shift ;;
+    --boot) BOOT=1; shift ;;
     -h|--help) sed -n '36p' "$0" | sed 's/^# *//'; exit 2 ;;
     *) echo "desk-reconcile-cron: unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -117,6 +126,35 @@ check_tools() {
   say "FATAL sets before this check (DESK_CRON_PATH_EXTRA, then the Go selector)."
   return 3
 }
+
+# 0 once the box has a default route and, when DESK_BOOT_HOST is set, that host
+# resolves. DESK_BOOT_PROBE replaces the check (a test's stub).
+boot_net_ready() {
+  if [ -n "${DESK_BOOT_PROBE:-}" ]; then bash -c "$DESK_BOOT_PROBE"; return; fi
+  [ -n "$(ip -4 route show default 2>/dev/null)$(ip -6 route show default 2>/dev/null)" ] || return 1
+  [ -z "${DESK_BOOT_HOST:-}" ] || getent hosts "$DESK_BOOT_HOST" >/dev/null 2>&1
+}
+
+# The @reboot run: wait (bounded) for the network, then the SAME reconcile, as
+# a child so its own exits and locks stay exactly what a tick does. It runs on
+# a timeout too: a reconcile that fails on no network costs nothing the next
+# tick does not repair, and a probe that is wrong must not cost the boot pass.
+if [ "$BOOT" = 1 ]; then
+  wait_max="${DESK_BOOT_WAIT:-180}" poll="${DESK_BOOT_POLL:-2}" waited=0 net=up
+  case "$wait_max$poll" in *[!0-9]*) say "FATAL DESK_BOOT_WAIT and DESK_BOOT_POLL must be seconds"; exit 2 ;; esac
+  btime="$(awk '/^btime /{print $2}' /proc/stat 2>/dev/null)"
+  boot_at="$( [ -n "$btime" ] && date -u -d "@$btime" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
+  start=$(date +%s)
+  until boot_net_ready; do
+    waited=$(( $(date +%s) - start ))
+    [ "$waited" -ge "$wait_max" ] && { net=timeout; break; }
+    sleep "$poll"
+  done
+  waited=$(( $(date +%s) - start ))
+  "${DESK_BOOT_RUN:-$SELF}" --env "$ENV_NAME" --tenant "$TENANT"; rc=$?
+  say "BOOT booted=$boot_at env=$ENV_NAME host=${DESK_BOOT_HOST:-<none>} net=$net waited=${waited}s reconcile_rc=$rc"
+  exit "$rc"
+fi
 
 if [ "$CHECK_TOOLS" = 1 ]; then
   check_tools || exit $?

@@ -221,12 +221,14 @@ for f in $(ls "$PROJ_ROOT" 2>/dev/null | sed -n 1,3p); do [[ "$out" == *" $f "* 
 [[ "$(wc -c <"$T/crontab.txt")" == 0 ]] && pass "…and it wrote nothing" || fail "the dry run wrote to the crontab"
 out=$(svc DRY_RUN=0)
 [[ $? -eq 0 ]] && pass "the install succeeds" || fail "install: $out"
-[[ "$(grep -cF "# $TAG" "$T/crontab.txt")" == 1 ]] && pass "…leaving exactly one tagged line" ||
+[[ "$(grep -c "# $TAG\$" "$T/crontab.txt")" == 1 && "$(grep -c "# $TAG@boot\$" "$T/crontab.txt")" == 1 ]] &&
+  pass "…leaving exactly one tagged line and one @reboot twin" ||
   fail "crontab after install: $(cat "$T/crontab.txt")"
 grep -q "ENV=dev TENANT_ID=t1" "$T/crontab.txt" && pass "…carrying the env and tenant" ||
   fail "the line has no env/tenant: $(cat "$T/crontab.txt")"
 svc DRY_RUN=0 >/dev/null 2>&1
-[[ "$(grep -cF "# $TAG" "$T/crontab.txt")" == 1 ]] && pass "installing twice is idempotent" ||
+[[ "$(grep -c "# $TAG\$" "$T/crontab.txt")" == 1 && "$(grep -c "# $TAG@boot\$" "$T/crontab.txt")" == 1 ]] &&
+  pass "installing twice is idempotent" ||
   fail "a second install appended: $(cat "$T/crontab.txt")"
 out=$(svc DESK_SERVICE_ACTION=check); rc=$?
 [[ $rc -eq 0 ]] && pass "check now passes" || fail "check after install: $out"

@@ -264,6 +264,17 @@ echo "  hook min/median/p90 ${lh}/${mh}/${ph} ms, bare python3 ${lf}/${mf}/${pf}
 # nothing. A real regression stays over budget in every round: a 100 ms sleep
 # can never run under 100 ms, so it fails, 90 s later (CONTROL below).
 fast() { awk -v h="$1" -v b="$2" 'BEGIN{exit !(h < b)}'; }
+# A runner loaded for the whole 90 s still reads over budget: run 37980811372
+# on 6dea66a55 (load 36.65) read the hook's fastest of 320 at 61 ms, but the
+# bare interpreter's fastest at 25 ms, twice its quiet 11 .. 12 ms; the hook
+# was 2.4x its floor, as on a quiet box (2.3x .. 2.6x; here 36/15 before and
+# 37/15 after a95f69d34, n=2 each). So only when the floor's own minimum
+# shows the box slow (>= BUDGET/3) is the hook judged by HOOK_FLOOR_X (3) x
+# that floor; on a quiet box the 50 ms budget alone decides.
+within() {  # HOOK_MIN FLOOR_MIN -> 0 = within budget
+  fast "$1" "$BUDGET" && return 0
+  awk -v h="$1" -v f="$2" -v b="$BUDGET" -v x="${HOOK_FLOOR_X:-3}" 'BEGIN{exit !(f * 3 >= b && h < f * x)}'
+}
 yn() { "$@" && echo y || echo n; }
 resample() {  # SCRIPT MIN WINDOW_S -> "<min> <extra runs>"
   local s="$1" m="$2" end=$(( $(date +%s) + $3 )) n=0 t i
@@ -278,12 +289,16 @@ resample() {  # SCRIPT MIN WINDOW_S -> "<min> <extra runs>"
 }
 read -r lh2 nx < <(SPOOL_AGENT_ID="$ID" resample "$HOOK" "$lh" "${HOOK_RETRY_S:-90}")
 [ "$nx" -eq 0 ] || echo "  fastest of 200 was $lh ms: $nx more runs, fastest $lh2 ms, load $(cut -d' ' -f1 /proc/loadavg)"
-if fast "$lh2" "$BUDGET"; then ok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is under ${BUDGET} ms"; else nok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is not under ${BUDGET} ms (bare interpreter: $lf ms)"; fi
+if fast "$lh2" "$BUDGET"; then ok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is under ${BUDGET} ms"
+elif within "$lh2" "$lf"; then ok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is within ${HOOK_FLOOR_X:-3}x a loaded floor ($lf ms >= $((BUDGET / 3)) ms)"; else nok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is not under ${BUDGET} ms (bare interpreter: $lf ms)"; fi
 # The planted regression: the same hook behind a 100 ms sleep, through the
 # same resample, from a start over budget (one round of 20, ~3 s).
 printf 'sleep 0.1; exec bash %q "$@"\n' "$HOOK" > "$T_TMP/slow-hook.sh"
 read -r ls nxs < <(SPOOL_AGENT_ID="$ID" resample "$T_TMP/slow-hook.sh" 99999 1)
 eq "CONTROL: a 100 ms sleep in the hook stays over ${BUDGET} ms through the resample (fastest of $nxs: $ls ms)" "n" "$(yn fast "$ls" "$BUDGET")"
+eq "CONTROL: the 100 ms sleep is not within ${HOOK_FLOOR_X:-3}x the floor either ($ls ms vs $lf ms)" "n" "$(yn within "$ls" "$lf")"
+eq "CONTROL: within: 61 on a loaded floor of 25 passes (run 37980811372); 61 on a quiet 12, 208 on 25 (the sleep there) and 76 on 25 fail" "y n n n" \
+  "$(yn within 61 25) $(yn within 61 12) $(yn within 208 25) $(yn within 76 25)"
 eq "CONTROL: the budget check fires at ${BUDGET} ms, not at $((BUDGET - 1))" "n y" "$(yn fast "$BUDGET" "$BUDGET") $(yn fast $((BUDGET - 1)) "$BUDGET")"
 printf '%s\n' 10 20 30 40 50 60 70 80 90 100 > "$T_TMP/t.ctl"
 eq "CONTROL: pct reads the 90th, the 50th and the 0th (min) percentile" "90 50 10" "$(pct "$T_TMP/t.ctl" 90) $(pct "$T_TMP/t.ctl" 50) $(pct "$T_TMP/t.ctl" 0)"

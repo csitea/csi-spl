@@ -2,11 +2,13 @@
 #------------------------------------------------------------------------------
 # @description Watchdog self-update on desk-cron changes (spec 102 10.4.4,
 # @description WD3, T025). The watchdogs never run from the moving desk-cron
-# @description checkout: each sha is exported (git archive <sha> <org>-<app>-orc)
+# @description checkout: each sha is exported (git archive <sha> of
+# @description <org>-<app>-orc plus what code run from it reads beside it:
+# @description <org>-<app>-iac/lib/bash and <org>-<app>-cnf/<org>-<app>; drill 5)
 # @description into <wd dir>/code/<sha>/, and code/good names the verified one
 # @description (spl_wd_inst_start starts every instance from it). At its tick
 # @description start instance 1 compares the checkout HEAD with code/good:
-# @description the orc tree unchanged -> code/good moves, nothing restarts;
+# @description the code (orc + iac lib) unchanged -> code/good moves, nothing restarts;
 # @description changed -> a rolling restart under update.lock: all 3
 # @description instances must be alive (else deferred + alert), the candidate
 # @description passes a pre-flight (bash -n of every script + one dry proof
@@ -107,14 +109,36 @@ spl_wd_upd_link() {
 # the orc dir name inside a snapshot (the checkout's <org>-<app>-orc)
 spl_wd_upd_orc() { basename "${PROJ_PATH:-csi-spl-orc}"; }
 
-# spl_wd_upd_snapshot SRC SHA: <wd dir>/code/<sha>/ from git archive, once
+# the code paths of a snapshot that a change restarts the watchdogs for:
+# the orc tree and the iac bash lib its scripts source (spl-cloud-cnf, lde-cnf)
+spl_wd_upd_code_paths() {
+  local orc
+  orc="$(spl_wd_upd_orc)"
+  echo "$orc ${orc%-orc}-iac/lib/bash"
+}
+
+# every path a snapshot carries: the code paths plus the cnf the scripts read
+# next to the orc tree (spawn-mistral.sh's max_price, the merged cnf). Drill 5
+# (2026-10-09): an orc-only snapshot made every Mistral boot restore refuse
+# "no cost cap" and lane-map die on a missing iac lib. No wui, api or doc.
+spl_wd_upd_paths() {
+  local oa
+  oa="$(spl_wd_upd_orc)"; oa="${oa%-orc}"
+  echo "$(spl_wd_upd_code_paths) $oa-cnf/$oa"
+}
+
+# spl_wd_upd_snapshot SRC SHA: <wd dir>/code/<sha>/ from git archive, once;
+# of spl_wd_upd_paths only those the sha has (git archive refuses a missing one)
 spl_wd_upd_snapshot() {
-  local src="$1" sha="$2" code="$WD_DIR/code" tmp orc
+  local src="$1" sha="$2" code="$WD_DIR/code" tmp orc paths
   [[ -f "$code/$sha/.sha" ]] && return 0
   orc="$(spl_wd_upd_orc)"
+  # shellcheck disable=SC2046
+  mapfile -t paths < <(spl_wd_upd_git "$src" ls-tree --name-only "$sha" -- $(spl_wd_upd_paths) 2>/dev/null)
   tmp="$code/.tmp.$sha.$$"
   mkdir -p "$tmp" || return 1
-  if ! spl_wd_upd_git "$src" archive --format=tar "$sha" "$orc" 2>/dev/null | tar -x -C "$tmp" 2>/dev/null ||
+  if ((${#paths[@]} == 0)) ||
+     ! spl_wd_upd_git "$src" archive --format=tar "$sha" "${paths[@]}" 2>/dev/null | tar -x -C "$tmp" 2>/dev/null ||
      [[ ! -x "$tmp/$orc/run" ]]; then
     rm -rf "$tmp"
     return 1
@@ -233,7 +257,8 @@ spl_wd_upd_detect() {
   fi
   spl_wd_upd_snapshot "$src" "$head" || { spl_wd_upd_log "cannot snapshot ${head:0:9} from $src"; return 0; }
   orc="$(spl_wd_upd_orc)"
-  if spl_wd_upd_git "$src" diff --quiet "$good" "$head" -- "$orc" 2>/dev/null; then
+  # shellcheck disable=SC2046
+  if spl_wd_upd_git "$src" diff --quiet "$good" "$head" -- $(spl_wd_upd_code_paths) 2>/dev/null; then
     ln -sfn "$head" "$WD_DIR/code/good"
     spl_wd_upd_log "good := ${head:0:9} ($orc unchanged since ${good:0:9}: no restart)"
     spl_wd_upd_prune

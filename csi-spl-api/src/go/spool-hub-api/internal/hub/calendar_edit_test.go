@@ -73,7 +73,7 @@ func TestCalendarOldBodyNewDefaults(t *testing.T) {
 	ev := calCreate(t, e, tid, dev, map[string]any{"title": "Deploy note", "description": "body\n\n---\n\nfrom #ops",
 		"starts_at": "2026-10-06T10:00:00Z", "ends_at": "2026-10-06T11:00:00Z", "topic_id": "8c0f4e1a-1111-4222-8333-944455556666"})
 	want089 := map[string]any{"source": "event", "title": "Deploy note", "kind": "other", "starts_at": "2026-10-06T10:00:00Z",
-		"ends_at": "2026-10-06T11:00:00Z", "all_day": false, "audience": "public", "creator_type": "human", "creator_id": dev,
+		"ends_at": "2026-10-06T11:00:00Z", "all_day": false, "audience": "workspace", "creator_type": "human", "creator_id": dev,
 		"remind_at": "", "topic_id": "8c0f4e1a-1111-4222-8333-944455556666", "release_version": "", "issue_key": ""}
 	for k, v := range want089 {
 		if ev[k] != v {

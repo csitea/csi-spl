@@ -170,7 +170,7 @@ func calendarGuestsJSON(e store.CalendarEvent, viewer string) ([]calendarGuestJS
 func deadlineJSON(i store.Issue) calendarEventJSON {
 	at := rfc(*i.Deadline)
 	return calendarEventJSON{ID: i.Key(), Source: calendarSourceIssue, Title: i.Title, Description: i.Description,
-		Kind: calendarKindDeadline, StartsAt: at, EndsAt: at, Audience: store.CalendarPublic, Mentions: []string{},
+		Kind: calendarKindDeadline, StartsAt: at, EndsAt: at, Audience: store.CalendarWorkspace, Mentions: []string{},
 		CreatorType: "human", CreatorID: i.CreatedBy, IssueKey: i.Key(), CreatedAt: rfc(i.CreatedAt), UpdatedAt: rfc(i.UpdatedAt),
 		TimeZone: store.CalendarUTC, Reminders: []calendarReminder{}, Guests: []calendarGuestJSON{}}
 }
@@ -261,6 +261,10 @@ func calMentions(in []string) ([]string, *issueErr) {
 func (q calendarRequest) patch(cur store.CalendarEvent) (store.CalendarPatch, *issueErr) {
 	p := store.CalendarPatch{Title: q.Title, Description: q.Description, Kind: q.Kind, AllDay: q.AllDay,
 		Audience: q.Audience, TopicID: q.TopicID, ReleaseVersion: q.ReleaseVersion}
+	if p.Audience != nil {
+		a := store.CalendarAudienceOf(*p.Audience)
+		p.Audience = &a
+	}
 	var ie *issueErr
 	if p.StartsAt, ie = optCalTimePtr("starts_at", q.StartsAt, false); ie != nil {
 		return p, ie
@@ -460,7 +464,7 @@ func (s *Server) checkGuestsInWorkspace(ctx context.Context, tenant string, q ca
 }
 
 // newEvent is a create: the defaults of spec 6.1.2 (kind other, audience
-// public) under the request's fields; the caller is the owner.
+// workspace) under the request's fields; the caller is the owner.
 func (q calendarRequest) newEvent(actor string) (store.CalendarEvent, *issueErr) {
 	if q.Title == nil || q.StartsAt == nil || q.EndsAt == nil {
 		return store.CalendarEvent{}, badCalendar("title, starts_at and ends_at are required")
@@ -476,7 +480,7 @@ func (q calendarRequest) newEvent(actor string) (store.CalendarEvent, *issueErr)
 	if ie != nil {
 		return store.CalendarEvent{}, ie
 	}
-	e := store.CalendarEvent{Kind: calendarDefaultKind, Audience: store.CalendarPublic, Mentions: []string{},
+	e := store.CalendarEvent{Kind: calendarDefaultKind, Audience: store.CalendarWorkspace, Mentions: []string{},
 		CreatorType: "human", CreatorID: actor, StartsAt: *p.StartsAt, EndsAt: *p.EndsAt, TimeZone: store.CalendarUTC}
 	if p.Props != nil {
 		e.Props = *p.Props
@@ -587,14 +591,14 @@ func (s *Server) calendarViewer(r *http.Request, t store.Tenant) (string, bool) 
 	return hum, s.isDemoVisitor(r.Context(), t.ID, hum)
 }
 
-// visibleTo drops what a demo visitor may not see: everything but public and
-// web (the store already dropped the private events it is not named on).
+// visibleTo drops what a demo visitor may not see: everything but workspace
+// and web (the store already dropped the private events it is not named on).
 func visibleTo(evs []store.CalendarEvent, demo bool) []store.CalendarEvent {
 	if !demo {
 		return evs
 	}
 	return slices.DeleteFunc(evs, func(e store.CalendarEvent) bool {
-		return e.Audience != store.CalendarPublic && e.Audience != store.CalendarWeb
+		return e.Audience != store.CalendarWorkspace && e.Audience != store.CalendarWeb
 	})
 }
 

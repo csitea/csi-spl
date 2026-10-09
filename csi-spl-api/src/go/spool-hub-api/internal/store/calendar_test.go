@@ -48,7 +48,7 @@ func TestCalendarAudience(t *testing.T) {
 			cal := st.(Calendar)
 			tid := newTenant(t, st)
 			pub, err := cal.CreateCalendarEvent(ctx, tid, calEvent("pub"), calT0)
-			if err != nil || pub.Audience != CalendarPublic || pub.ID == "" || len(pub.Mentions) != 0 {
+			if err != nil || pub.Audience != CalendarWorkspace || pub.ID == "" || len(pub.Mentions) != 0 {
 				t.Fatalf("default audience: %+v %v", pub, err)
 			}
 			priv := calEvent("priv")

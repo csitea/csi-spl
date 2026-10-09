@@ -124,7 +124,7 @@ func calendarSearchSQL(sh calendarSQL, tenant, viewer string, q CalendarQuery) (
 		b.WriteString(` AND kind = ANY (` + arg(q.Kinds) + `::text[])`)
 	}
 	if len(q.Audiences) > 0 {
-		b.WriteString(` AND audience = ANY (` + arg(q.Audiences) + `::text[])`)
+		b.WriteString(` AND audience = ANY (` + arg(calendarAudiencesStored(q.Audiences)) + `::text[])`)
 	}
 	if q.Guest != "" {
 		g := arg(q.Guest) + `::text`

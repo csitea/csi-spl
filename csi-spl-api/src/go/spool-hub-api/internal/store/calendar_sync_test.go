@@ -31,9 +31,9 @@ func syncBatch() []CalendarSyncEvent {
 	db := syncEv("db:t-0001", "Owner go", "milestone", CalendarInternal)
 	db.Event.TopicID = "t-0001"
 	return []CalendarSyncEvent{
-		syncEv("goal:G01:deadline", "G01 deadline", "goal", CalendarPublic),
-		syncEv("goal:G01:m:a", "G01 milestone a", "milestone", CalendarPublic),
-		syncEv("spec:089:done", "spec 089 done", "milestone", CalendarPublic),
+		syncEv("goal:G01:deadline", "G01 deadline", "goal", CalendarWorkspace),
+		syncEv("goal:G01:m:a", "G01 milestone a", "milestone", CalendarWorkspace),
+		syncEv("spec:089:done", "spec 089 done", "milestone", CalendarWorkspace),
 		db,
 	}
 }
@@ -99,7 +99,7 @@ func TestCalendarSyncBySourceKey(t *testing.T) {
 				t.Fatalf("prune left %+v", got)
 			}
 			run("prune again", keep, syncT0.Add(4*time.Hour), CalendarSyncResult{Unchanged: 2})
-			run("release and db keys are never pruned", []CalendarSyncEvent{b[0], syncEv("release:v1.3.0", "v1.3.0", "release", CalendarPublic)},
+			run("release and db keys are never pruned", []CalendarSyncEvent{b[0], syncEv("release:v1.3.0", "v1.3.0", "release", CalendarWorkspace)},
 				syncT0.Add(5*time.Hour), CalendarSyncResult{Created: 1, Unchanged: 1})
 			if got := list(tid); len(got) != 3 || got["Owner go"].ID == "" {
 				t.Fatalf("a release sync pruned a db: key: %+v", got)
@@ -110,15 +110,15 @@ func TestCalendarSyncBySourceKey(t *testing.T) {
 			}
 			before := len(list(tid))
 
-			pub := syncEv("db:t-0002", "leak", "milestone", CalendarPublic)
+			pub := syncEv("db:t-0002", "leak", "milestone", CalendarWorkspace)
 			none := syncEv("db:t-0003", "leak", "milestone", "")
-			twice := syncEv("goal:G02:deadline", "twice", "goal", CalendarPublic)
+			twice := syncEv("goal:G02:deadline", "twice", "goal", CalendarWorkspace)
 			for what, bad := range map[string][]CalendarSyncEvent{
 				"control: a db: key with audience public": {b[0], pub},
 				"a db: key with no audience":              {none},
-				"an unknown prefix":                       {syncEv("git:v1.2.0", "x", "release", CalendarPublic)},
+				"an unknown prefix":                       {syncEv("git:v1.2.0", "x", "release", CalendarWorkspace)},
 				"a key twice in one batch":                {twice, twice},
-				"a kind outside the nine":                 {syncEv("goal:G03:deadline", "x", "roadmap", CalendarPublic)},
+				"a kind outside the nine":                 {syncEv("goal:G03:deadline", "x", "roadmap", CalendarWorkspace)},
 			} {
 				if _, err := sync.UpsertCalendarBySourceKey(ctx, tid, bad, syncT0.Add(7*time.Hour)); !errors.Is(err, ErrInvalidCalendarEvent) {
 					t.Fatalf("%s: %v, want ErrInvalidCalendarEvent", what, err)

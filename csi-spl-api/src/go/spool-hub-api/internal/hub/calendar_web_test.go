@@ -58,12 +58,12 @@ func TestCalendarWebSignedOut(t *testing.T) {
 	a, _ := e.tenant()
 	b, _ := e.tenant()
 	devA, devB := seat(t, e, a, rbac.Developer), seat(t, e, b, rbac.Developer)
-	for _, aud := range []string{"public", "internal", "private"} {
+	for _, aud := range []string{"workspace", "internal", "private"} {
 		calCreate(t, e, a, devA, calBody("a-"+aud, map[string]any{"audience": aud, "mentions": []string{devA}}))
 	}
 	calCreate(t, e, a, devA, calBody("a-web", map[string]any{"audience": "web", "description": "open day",
 		"mentions": []string{devA}}))
-	// web on edit: b's event starts public and is moved to web.
+	// web on edit: b's event starts workspace and is moved to web.
 	ev := calCreate(t, e, b, devB, calBody("b-web", nil))
 	if code, out := call(t, e, b, http.MethodPatch, "/v1/calendar/events/"+ev["id"].(string), devB,
 		map[string]any{"audience": "web"}); code != http.StatusOK {

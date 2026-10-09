@@ -113,8 +113,8 @@ func TestCalendarWebAudienceValidation(t *testing.T) {
 			cal := st.(Calendar)
 			tid := newTenant(t, st)
 			e, err := cal.CreateCalendarEvent(ctx, tid, calEvent("w"), calT0)
-			if err != nil || e.Audience != CalendarPublic {
-				t.Fatalf("default stays public: %+v %v", e, err)
+			if err != nil || e.Audience != CalendarWorkspace {
+				t.Fatalf("default stays workspace: %+v %v", e, err)
 			}
 			web := CalendarWeb
 			if e, err = cal.UpdateCalendarEvent(ctx, tid, calOwner, e.ID, CalendarPatch{Audience: &web}, calT0); err != nil || e.Audience != CalendarWeb {

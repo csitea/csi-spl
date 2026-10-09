@@ -58,11 +58,11 @@ func TestCalendarPublicDefaultOwnerOnlyPrivate(t *testing.T) {
 	admin, owner := seat(t, e, tid, rbac.Admin), seat(t, e, tid, rbac.BizOwner)
 
 	ev := calCreate(t, e, tid, dev, calBody("Ship", map[string]any{"kind": "release", "release_version": "v1.4.0"}))
-	if ev["audience"] != "public" || ev["source"] != "event" || ev["creator_id"] != dev || ev["release_version"] != "v1.4.0" ||
+	if ev["audience"] != "workspace" || ev["source"] != "event" || ev["creator_id"] != dev || ev["release_version"] != "v1.4.0" ||
 		ev["remind_at"] != "" || ev["starts_at"] != "2026-10-06T09:00:00Z" || len(ev["mentions"].([]any)) != 0 {
 		t.Fatalf("default audience: %v", ev)
 	}
-	if bare := calCreate(t, e, tid, dev, calBody("Bare", nil)); bare["kind"] != "other" || bare["audience"] != "public" {
+	if bare := calCreate(t, e, tid, dev, calBody("Bare", nil)); bare["kind"] != "other" || bare["audience"] != "workspace" {
 		t.Fatalf("defaults: %v", bare)
 	}
 	path := "/v1/calendar/events/" + ev["id"].(string)
@@ -82,7 +82,7 @@ func TestCalendarPublicDefaultOwnerOnlyPrivate(t *testing.T) {
 		t.Fatalf("owner sets private: %d %v", code, out)
 	}
 	// The mentioned admin reads it, but may not take it out of private.
-	if code, out := call(t, e, tid, http.MethodPatch, path, admin, map[string]any{"audience": "public"}); code != http.StatusForbidden || out["error"] != "private_owner_only" {
+	if code, out := call(t, e, tid, http.MethodPatch, path, admin, map[string]any{"audience": "workspace"}); code != http.StatusForbidden || out["error"] != "private_owner_only" {
 		t.Fatalf("named admin clears private: %d %v", code, out)
 	}
 	// A member who is not mentioned does not see it, nor reach it.
@@ -100,7 +100,7 @@ func TestCalendarPublicDefaultOwnerOnlyPrivate(t *testing.T) {
 	if p := calCreate(t, e, tid, mate, calBody("Mine", map[string]any{"audience": "private"})); p["audience"] != "private" {
 		t.Fatalf("owner creates private: %v", p)
 	}
-	if code, out := call(t, e, tid, http.MethodPatch, path, dev, map[string]any{"audience": "public"}); code != http.StatusOK {
+	if code, out := call(t, e, tid, http.MethodPatch, path, dev, map[string]any{"audience": "workspace"}); code != http.StatusOK {
 		t.Fatalf("owner clears private: %d %v", code, out)
 	}
 	if code, out := call(t, e, tid, http.MethodDelete, path, dev, nil); code != http.StatusOK || out["event"].(map[string]any)["title"] != "Ship" {
@@ -212,7 +212,7 @@ func TestCalendarMergesIssueDeadlines(t *testing.T) {
 		t.Fatalf("range with deadlines: %v", out)
 	}
 	if d := list[1].(map[string]any); d["source"] != "issue" || d["kind"] != "deadline" || d["id"] != "SPL-2" ||
-		d["issue_key"] != "SPL-2" || d["starts_at"] != "2026-10-07T15:00:00Z" || d["audience"] != "public" {
+		d["issue_key"] != "SPL-2" || d["starts_at"] != "2026-10-07T15:00:00Z" || d["audience"] != "workspace" {
 		t.Fatalf("deadline item: %v", d)
 	}
 	_, out = call(t, e, tid, http.MethodGet, "/v1/calendar/marks?start_year=2026&end_year=2026", dev, nil)

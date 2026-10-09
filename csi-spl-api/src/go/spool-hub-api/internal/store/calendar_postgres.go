@@ -92,6 +92,7 @@ func scanCalendarEvent(row pgx.Row) (CalendarEvent, error) {
 	}
 	e.StartsAt, e.EndsAt = e.StartsAt.UTC(), e.EndsAt.UTC()
 	e.CreatedAt, e.UpdatedAt = e.CreatedAt.UTC(), e.UpdatedAt.UTC()
+	e.Audience = CalendarAudienceOf(e.Audience)
 	if e.Mentions == nil {
 		e.Mentions = []string{}
 	}

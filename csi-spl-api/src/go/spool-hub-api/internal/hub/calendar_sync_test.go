@@ -84,7 +84,7 @@ func syncEv(key, day string) map[string]any {
 		kind = "release"
 	}
 	return map[string]any{"source_key": key, "title": key, "kind": kind, "starts_at": day + "T00:00:00Z",
-		"ends_at": day + "T00:00:00Z", "all_day": true, "audience": "public", "roadmap_url": "/roadmap?goal=G01"}
+		"ends_at": day + "T00:00:00Z", "all_day": true, "audience": "workspace", "roadmap_url": "/roadmap?goal=G01"}
 }
 
 func syncCall(t *testing.T, e *env, tid string, goals, events []map[string]any) (int, map[string]any) {

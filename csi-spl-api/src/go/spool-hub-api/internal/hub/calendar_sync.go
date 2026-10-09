@@ -137,8 +137,8 @@ func (in calendarSyncEventIn) syncEvent() (store.CalendarSyncEvent, *issueErr) {
 		return store.CalendarSyncEvent{}, ie
 	}
 	switch {
-	case in.Audience != store.CalendarPublic && in.Audience != store.CalendarInternal:
-		return store.CalendarSyncEvent{}, badCalendar("source_key " + k + ": audience must be public or internal")
+	case store.CalendarAudienceOf(in.Audience) != store.CalendarWorkspace && in.Audience != store.CalendarInternal:
+		return store.CalendarSyncEvent{}, badCalendar("source_key " + k + ": audience must be workspace or internal")
 	case in.RoadmapURL != "" && (!strings.HasPrefix(in.RoadmapURL, "/roadmap") || len(in.RoadmapURL) > calendarRoadmapURLMax):
 		return store.CalendarSyncEvent{}, badCalendar("source_key " + k + ": roadmap_url must be a /roadmap path")
 	}

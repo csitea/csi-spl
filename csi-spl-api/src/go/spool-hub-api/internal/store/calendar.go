@@ -41,19 +41,49 @@ import (
 // row and each write keeps its guest rows in step; every guest id is in
 // mentions too, so the private filter above serves guests unchanged.
 
-// Calendar audiences (rdb 0125 check, web added by 0158). An empty audience
-// on create is public (owner decision D2): everyone in the workspace. web is
-// public plus signed-out visitors of the workspace (calendar_web.go); it is
-// set only on purpose, never as a default.
+// Calendar audiences (rdb 0125 check, web added by 0158, workspace by 0159).
+// An empty audience on create is workspace (owner decision D2): everyone in
+// the workspace. web is workspace plus signed-out visitors of the workspace
+// (calendar_web.go); it is set only on purpose, never as a default.
+//
+// The rename of owner t1 a3ce2031 (msg bad3799a, the docs' naming): the
+// workspace audience was called public, and public becomes the signed-out
+// one. Both meanings of "public" never live in one hub, so it rolls in steps
+// (rdb 0159's header): this hub writes workspace and still reads and takes
+// public as its old meaning, workspace (CalendarAudienceOf).
 const (
-	CalendarPublic   = "public"
-	CalendarInternal = "internal"
-	CalendarPrivate  = "private"
-	CalendarWeb      = "web"
+	CalendarWorkspace = "workspace"
+	CalendarInternal  = "internal"
+	CalendarPrivate   = "private"
+	CalendarWeb       = "web"
+
+	calendarLegacyPublic = "public"
 )
 
-// calendarAudiences is rdb 0158's audience check.
-var calendarAudiences = []string{CalendarPublic, CalendarInternal, CalendarPrivate, CalendarWeb}
+// calendarAudiences is the audiences this hub writes (rdb 0159's check also
+// holds the legacy public until the step that maps it).
+var calendarAudiences = []string{CalendarWorkspace, CalendarInternal, CalendarPrivate, CalendarWeb}
+
+// CalendarAudienceOf is an audience under its current name: the legacy
+// public (the workspace audience before the rename) is workspace. Every
+// write normalizes through it and every read row too, so a hub and its
+// callers never see the old name.
+func CalendarAudienceOf(a string) string {
+	if a == calendarLegacyPublic {
+		return CalendarWorkspace
+	}
+	return a
+}
+
+// calendarAudiencesStored is the stored values a search for audiences matches:
+// workspace matches the legacy public rows too.
+func calendarAudiencesStored(as []string) []string {
+	out := slices.Clone(as)
+	if slices.Contains(as, CalendarWorkspace) {
+		out = append(out, calendarLegacyPublic)
+	}
+	return out
+}
 
 // calendarKinds is rdb 0125's kind check, widened by 0156 (specs/112).
 var calendarKinds = []string{"release", "deploy", "maintenance", "freeze", "agent_task", "reminder", "other", "goal", "milestone"}
@@ -243,8 +273,9 @@ const calendarMaxMarkOccurrences = 50000
 // value (numbers as float64) and the caller's map is never shared.
 func normalizeCalendarEvent(e *CalendarEvent) error {
 	if e.Audience == "" {
-		e.Audience = CalendarPublic
+		e.Audience = CalendarWorkspace
 	}
+	e.Audience = CalendarAudienceOf(e.Audience)
 	if e.Mentions == nil {
 		e.Mentions = []string{}
 	}
@@ -333,7 +364,7 @@ func validateCalendarEvent(e *CalendarEvent) error {
 	case !slices.Contains(calendarKinds, e.Kind):
 		return bad("unknown kind")
 	case !slices.Contains(calendarAudiences, e.Audience):
-		return bad("audience must be public, internal, private or web")
+		return bad("audience must be workspace, internal, private or web")
 	case e.CreatorType != "human" && e.CreatorType != "agent" && e.CreatorType != "system":
 		return bad("creator_type must be human, agent or system")
 	case e.CreatorID == "" || utf8.RuneCountInString(e.CreatorID) > 64:

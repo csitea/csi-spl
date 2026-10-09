@@ -434,7 +434,7 @@ journal() {
 # Control: a missing outcome field must fail
 journal "c-999" "simple_coding" "claude" "c-999" "$(date -u +%s)" ""
 # Check the journal row directly
-if [ ! -f "$T/c-999/attempts.tsv" ] || ! awk -F'\t' 'NF == 6 && $6 == ""' "$T/c-999/attempts.tsv" >/dev/null; then
+if [ ! -f "$T/c-999/attempts.tsv" ] || ! awk -F'\t' 'NF == 6 && $6 == ""' "$T/c-999/attempts.tsv" >/dev/null 2>&1; then
   fail "ORC-2 control: journal row not written or outcome field not empty"
 else
   pass "ORC-2 control: missing outcome field -> test fails"

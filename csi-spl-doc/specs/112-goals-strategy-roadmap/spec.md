@@ -1,6 +1,8 @@
 # Spec 112: Goals, strategy and roadmap
 
-Version **v1.1** (2026-10-09): v1.0 plus the per-workspace amendment in section 12.
+Version **v1.2** (2026-10-09): v1.1 plus the owner's answers to OQ1-OQ3 (12.8).
+v1.2: owner answers OQ1-OQ3, msg 730f6f90.
+v1.1 (2026-10-09): v1.0 plus the per-workspace amendment in section 12.
 v1.0 (2026-10-08) drafted by a-597 (v0.1, v0.2 `8c9766cd1`);
 folded to v1.0 by c-604. Seats s112-2 and s112-3 agreed with changes, and every
 change folded or not is listed in 11.1. Seat s112-4 (mistral) comes later as an
@@ -21,6 +23,9 @@ is built.
 | **5a9aab48** | **DECIDED**: "1. public 2. the cloud instance admin - in this case me , for other cloud intances and DNS their owners ..." (to the section 10 questions) |
 | **4fc63469** | **DECIDED**: "mm every workspace should be possible to have its own roadmap" (v1.1, section 12) |
 | **26477898** | **DECIDED**: "both biz_owner and admin can do th eapproaval of he goals , not only the one or the another" (v1.1, section 12) |
+| **730f6f90** | **DECIDED** (OQ1): "Proceed according to your suggestions." A workspace with no git repo keeps its goals as goal documents inside the app (v1.2, 12.8) |
+| **730f6f90** | **DECIDED** (OQ2): "Proceed according to your suggestions." The spool's own roadmap is just another workspace roadmap, no special case (v1.2, 12.8) |
+| **730f6f90** | **DECIDED** (OQ3): "Proceed according to your suggestions." Workspace roadmaps are internal by default, with a per-workspace switch to make one public (v1.2, 12.5, 12.8) |
 
 **D1 (msg 5a9aab48, Q1 = public).** Strategy docs are public by default. This
 overrides v0.2's "internal" recommendation, and it matches a fact: the repo is
@@ -441,7 +446,7 @@ stays. Where one conflicts with v1.1, it carries an "Amended by v1.1, section
 
 ### 12.5. Visibility of a workspace roadmap
 
-- Recommended by m-689, pending open question OQ3 (12.8): a workspace
+- Recommended by m-689, decided by the owner as OQ3 (12.8): a workspace
   roadmap is **internal by default** (members of that workspace only), with a
   per-roadmap override to **public**.
 - Not changed: D1 for the strategy docs in the public repo, and 4.3's rule
@@ -462,19 +467,26 @@ stays. Where one conflicts with v1.1, it carries an "Amended by v1.1, section
 - 8.2's isolation rules are unchanged: read-only, tenant-scoped, never
   `do_spl_db_query`, candidates under `$HOME`, `db:` events `internal`.
 
-### 12.8. Open owner questions (unanswered)
+### 12.8. Owner questions (answered in v1.2)
 
-Asked in m-689's report (msgs be337c39, d56cb583). None is answered yet; the
-recommendation is m-689's.
+Asked in m-689's report (msgs be337c39, d56cb583); the recommendation is
+m-689's. The owner answered all three in HUM-10, t1 4e373f5d, msg 730f6f90:
+"Proceed according to your suggestions."
 
 - **OQ1. Where do a workspace's goals live if the workspace has no repo?**
   Recommended: in-app goal docs (e.g. workspace repodocs or a dedicated goals
   section).
+  **DECIDED** (msg 730f6f90, "Proceed according to your suggestions."): a workspace with no git repo keeps its
+  goals as goal documents inside the app.
 - **OQ2. What happens to the spool roadmap (this instance's own roadmap)?**
   Recommended: it becomes just another workspace roadmap, with no special
   status.
+  **DECIDED** (msg 730f6f90, "Proceed according to your suggestions."): the spool's own roadmap is just another
+  workspace roadmap, with no special case.
 - **OQ3. Are workspace roadmaps public or internal by default?**
   Recommended: internal by default, with an override for public (12.5).
+  **DECIDED** (msg 730f6f90, "Proceed according to your suggestions."): workspace roadmaps are internal by
+  default, with a per-workspace switch to make one public.
 
 ### 12.9. Tasks
 

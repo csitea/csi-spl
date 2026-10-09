@@ -147,3 +147,14 @@ function close() {
   topic.close()
 }
 </script>
+
+<style>
+/* Spec 109 T011 (FR-011, F7): in this pane the desktop title is ONE line
+   cut with an ellipsis, the full title its hover, so the header stays one
+   row <= 48 px (7 + the 32 px X + 7 + 1 border). The /t page (TopicPane.vue)
+   keeps the 078 T004b four-line wrap; the phone header is unchanged. */
+@media (min-width: 821px) {
+  .live-pane > header { padding-block: 7px; }
+  .live-pane .topic-heading__title { display: block; white-space: nowrap; }
+}
+</style>

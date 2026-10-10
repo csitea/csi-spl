@@ -9,6 +9,7 @@
 // id (the Undo toast, the trash list) and the trash lists the caller's own.
 
 import { createCalendarEvent } from './msg-ai-actions.mjs'
+import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 function headers(api, ifMatch = '') {
   const h = { accept: 'application/json', 'content-type': 'application/json' }
@@ -33,6 +34,7 @@ const eventPath = (id) => `/v1/calendar/events/${encodeURIComponent(id)}`
 async function send(api, method, path, body, what, ifMatch = '') {
   const r = await fetch(`${String((api && api.base) || '')}${path}`, {
     method, credentials: api && api.credentials, headers: headers(api, ifMatch), body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
   })
   if (!r.ok) throw await refusal(r, what)
   const out = await r.json()
@@ -86,7 +88,7 @@ export async function calendarTrash(api) {
     const { mockCalendarTrash } = await import('./calendar-mock.mjs')
     return mockCalendarTrash()
   }
-  const r = await fetch(`${String((api && api.base) || '')}/v1/calendar/trash`, { credentials: api && api.credentials, headers: headers(api) })
+  const r = await fetch(`${String((api && api.base) || '')}/v1/calendar/trash`, { credentials: api && api.credentials, headers: headers(api), signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
   if (!r.ok) throw await refusal(r, 'trash')
   const out = await r.json()
   return Array.isArray(out?.events) ? out.events : []

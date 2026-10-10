@@ -1,5 +1,6 @@
 import { isoSeconds } from './iso-seconds.mjs'
 import { typedByAuthor } from './typed-by.mjs'
+import { HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 /**
  * t1 b6c742f0 (HUM-10; csitea 41261a3f HUM-24): an "AI actions" group in the
@@ -287,6 +288,7 @@ export async function createCalendarEvent(api, body) {
   if (api && api.token) headers.authorization = `Bearer ${api.token}`
   const r = await fetch(`${String((api && api.base) || '')}/v1/calendar/events`, {
     method: 'POST', credentials: api && api.credentials, headers, body: JSON.stringify(body),
+    signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
   })
   if (!r.ok) throw Object.assign(new Error(`calendar create ${r.status}`), { status: r.status })
   const out = await r.json()

@@ -13,6 +13,7 @@
  */
 
 import { isoSeconds } from './iso-seconds.mjs'
+import { HUB_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 export const RELEASE_NOTES_LATEST = 30
 const VERSION_RE = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c([2-9]|[1-9][0-9]{1,3}))?$/
@@ -28,7 +29,7 @@ export async function releaseNotesGet(api, path, running) {
   /** @type {Record<string, string>} */
   const headers = { accept: 'application/json' }
   if (api.token) headers.authorization = `Bearer ${api.token}`
-  const r = await fetch(`${api.base}${path}`, { credentials: api.credentials, headers })
+  const r = await fetch(`${api.base}${path}`, { credentials: api.credentials, headers, signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
   if (!r.ok) throw Object.assign(new Error(`release notes ${r.status}`), { status: r.status })
   return r.json()
 }

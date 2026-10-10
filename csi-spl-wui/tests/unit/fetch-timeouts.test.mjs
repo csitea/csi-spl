@@ -55,7 +55,8 @@ describe('fetch timeouts', () => {
     })
   }
 
-  // Refactor round 6, row 1: the hours and own-status calls of src/utils
+  // Refactor round 6, rows 1 and 2: the hours, own-status, calendar,
+  // AI-action and release-notes calls of src/utils
   // (relative import). One assertion per call: its fetch( ... ) init holds
   // `signal:` built from a named budget.
   const utilSites = [
@@ -65,6 +66,11 @@ describe('fetch timeouts', () => {
     ['utils/hours-team-api.mjs', 'GET /v1/hours/export', /hoursExportPath\(day, format, final\)\}`, \{[^}]*\}\), signal: AbortSignal\.timeout\(HUB_WRITE_TIMEOUT_MS\) \}\)/],
     ['utils/human-status.mjs', 'PUT / DELETE /v1/me/status', /\/v1\/me\/status\$\{[^\n]*`, \{[^}]*signal: AbortSignal\.timeout\(HUB_WRITE_TIMEOUT_MS\)/],
     ['utils/human-status.mjs', 'GET /v1/me/status', /\/v1\/me\/status`, \{ credentials: api\.credentials, headers, signal: AbortSignal\.timeout\(HUB_READ_TIMEOUT_MS\) \}/],
+    // Refactor round 6, row 2: the calendar, AI-action and release-notes calls.
+    ['utils/calendar-events-api.mjs', 'PATCH / DELETE / POST restore /v1/calendar/events', /\$\{path\}`, \{\n[^\n]*body: body \? JSON\.stringify\(body\) : undefined,\n {4}signal: AbortSignal\.timeout\(HUB_WRITE_TIMEOUT_MS\),\n {2}\}\)/],
+    ['utils/calendar-events-api.mjs', 'GET /v1/calendar/trash', /\/v1\/calendar\/trash`, \{[^}]*signal: AbortSignal\.timeout\(HUB_READ_TIMEOUT_MS\) \}\)/],
+    ['utils/msg-ai-actions.mjs', 'POST /v1/calendar/events', /\/v1\/calendar\/events`, \{\n[^\n]*body: JSON\.stringify\(body\),\n {4}signal: AbortSignal\.timeout\(HUB_WRITE_TIMEOUT_MS\),\n {2}\}\)/],
+    ['utils/release-notes-api.mjs', 'GET /v1/release-notes', /fetch\(`\$\{api\.base\}\$\{path\}`, \{[^}]*signal: AbortSignal\.timeout\(HUB_READ_TIMEOUT_MS\) \}\)/],
   ]
   for (const [file, call, re] of utilSites) {
     it(`${file} ${call} passes a timeout signal to its fetch`, () => {

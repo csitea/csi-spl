@@ -297,7 +297,10 @@ spl_lease_live_ids() {
 # pane found (no tmux, an agent outside tmux) keeps the process-only rule, so
 # a missing tmux never drops a master.
 LEASE_BLOCK_RE_DEFAULT='select login method|do you trust the files|choose the text style'
-LEASE_STALL_RE_DEFAULT='usage limit reached|limit reached[[:space:]]*·|limit resets|please run /login|invalid api key|oauth token (has )?expired'
+# "You've hit your session limit · resets 8:20pm (Europe/Helsinki)" is claude's
+# wording since 2026-10-10 (every seat of one box at ~15:09Z): the watchdog's
+# WD_STALL_RE alternative, so both read the same banner.
+LEASE_STALL_RE_DEFAULT='usage limit reached|limit reached[[:space:]]*·|limit resets|(you[^[:space:]]* )?hit your ([a-z]+ )?limit|please run /login|invalid api key|oauth token (has )?expired'
 
 # One entry per line from the modal list. Blank lines and '#' lines are
 # skipped. An entry is a title regex, then an optional tab and an option-line

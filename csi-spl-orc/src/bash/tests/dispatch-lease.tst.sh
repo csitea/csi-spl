@@ -368,6 +368,17 @@ tick renew $((N + 120)); tick watch $((N + 181))
 tick renew $((N + 6660)); tick watch $((N + 6670))
 [[ "$(holder)" == M-1 && "$(logc 'handback to M-1')" == 1 ]] &&
   pass "18b. reset passed, banner still shown: the master renews again, the handback follows" || fail "18b. restore: $(cat "$D/lease.log")"
+# 18d. claude's 2026-10-10 wording, "You've hit your session limit · resets ...":
+# the same idle-at-the-limit stall (every seat of one box at 15:09Z, lease stayed put)
+rm -rf "$T/spool" "$T/sent"; mkdir -p "$D"; rm -rf "${P:?}"/* "$T/pane"/*
+agent 1000 M-1; agent 1100 F-1; idle 1000; idle 1100
+tick renew $N
+limited 1000 "You've hit your session limit · resets 10:50am"; tick renew $((N + 60))
+[[ "$(cat "$D/lease")" == "M-1 $N" && "$(cat "$D/able.M-1")" == "stalled pid=1000: You've hit your session limit, resets in 109 min" ]] &&
+  pass "18d. 'hit your session limit', reset ahead: a stall on sight" || fail "18d. session limit: able '$(cat "$D/able.M-1")' log: $(cat "$D/lease.log")"
+tick renew $((N + 120)); tick watch $((N + 181))
+[[ "$(holder)" == F-1 ]] &&
+  pass "18d. the failover takes over" || fail "18d. promote: $(cat "$D/lease.log")"
 # spec 093 FR-000: a banner with no reset time and no spinner is a stall,
 # unless the transcript's last assistant entry is a good reply (a stale banner)
 printf '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}\n' >"$T/good.jsonl"

@@ -73,10 +73,12 @@ out1="$(cron DRY_RUN=0 ENV=)"; rc1=$?
 printf 'env:\n  cost:\n    rollup_utc: "2am"\n' >"$T/cnf.yaml"
 out2="$(cron DRY_RUN=0)"; rc2=$?
 printf 'env:\n  cost:\n    rollup_utc: "02:00"\n' >"$T/cnf.yaml"
-out3="$(cron DRY_RUN=0 COST_ROLLUP_ALLOW_WORKTREE=0)"; rc3=$?
 [ "$rc1" -ne 0 ] && [ "$rc2" -ne 0 ] && grep -q 'rollup_utc must be HH:MM' <<<"$out2" && cmp -s "$CT" "$T/ct.2" \
   && pass "6. no ENV and a bad cnf time are refused, nothing written" || fail "6. ($rc1 $out1 / $rc2 $out2)"
+# Only a linked worktree can be refused: in a main checkout or an exported
+# tree (CI) the same call installs for real, so it runs only where it must fail.
 if [ "$(git -C "$PROJ_ROOT" rev-parse --path-format=absolute --git-dir 2>/dev/null)" != "$(git -C "$PROJ_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ]; then
+  out3="$(cron DRY_RUN=0 COST_ROLLUP_ALLOW_WORKTREE=0)"; rc3=$?
   [ "$rc3" -ne 0 ] && grep -q 'linked worktree' <<<"$out3" && cmp -s "$CT" "$T/ct.2" \
     && pass "6. a linked worktree is refused, nothing written" || fail "6. worktree ($rc3: $out3)"
 else

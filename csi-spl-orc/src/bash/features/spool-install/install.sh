@@ -54,7 +54,8 @@
 #      (skipDangerousModePermissionPrompt among them) and the browser MCP
 #      entrypoints, and the same fleet rules into ~/.vibe/AGENTS.md (vibe
 #      loads AGENTS.md, never CLAUDE.md: spec 110), and the lane rule into
-#      agy's ~/.gemini/config/rules and qwen's ~/.qwen/QWEN.md. Without it your own
+#      agy's ~/.gemini/config/rules (with agy's exit-after-ACCEPTED rule,
+#      steps/y14-agy-exit-rule.sh) and qwen's ~/.qwen/QWEN.md. Without it your own
 #      Claude Code and vibe setup is left as it is
 #   6b. only with --fleet, and only as the agent user (SPOOL_AGENT_USER, else
 #      the box config's): `pkill` and `killall` guards in <prefix>/bin that
@@ -927,6 +928,7 @@ fi
 source "$_here/steps/y4-claude-config.sh" && spool_install_claude_config || die 6 "cannot render the fleet CLAUDE.md / settings.json (spec 069 Y4)"
 source "$_here/steps/y8-vibe-agents.sh" && spool_install_vibe_agents || die 6 "cannot render the fleet ~/.vibe/AGENTS.md (spec 110)"
 source "$_here/steps/y9-vendor-lane-rule.sh" && spool_install_vendor_lane_rule || die 6 "cannot render the lane rule into the agy / qwen rules files"
+. "$_here/steps/y14-agy-exit-rule.sh" && spool_install_agy_exit_rule || die 6 "cannot render the agy exit rule into ~/.gemini/config/rules"
 . "$_here/steps/y11-kill-guard.sh" && spool_install_kill_guard "$BIN" "$DRY" "$FLEET" || die 7 "kill-guard: cannot install pkill / killall into $BIN"
 . "$_here/steps/y12-vibe-push-guard.sh" && spool_install_vibe_push_guard "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe push guard: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
 . "$_here/steps/y13-force-push-guard.sh" && spool_install_force_push_guard "$HOME" "$DATA" "$DRY" "$FLEET" || die 7 "force-push-guard: cannot wire the force-push block into the harness settings"

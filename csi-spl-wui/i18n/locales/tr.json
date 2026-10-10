@@ -110,7 +110,7 @@
       "down": "{name} aşağı taşı",
       "reset": "Varsayılan sıra",
       "moved": "{name} artık {n}. sırada",
-      "labels": "Show labels"
+      "labels": "Etiketleri göster"
     },
     "channel_order": {
       "label": "Kanal sırası",

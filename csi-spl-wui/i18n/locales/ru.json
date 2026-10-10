@@ -110,7 +110,7 @@
       "down": "Переместить {name} вниз",
       "reset": "Порядок по умолчанию",
       "moved": "{name} теперь на месте {n}",
-      "labels": "Show labels"
+      "labels": "Показывать подписи"
     },
     "channel_order": {
       "label": "Порядок каналов",

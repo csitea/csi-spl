@@ -110,7 +110,7 @@
       "down": "Flytta ned {name}",
       "reset": "Standardordning",
       "moved": "{name} är nu nummer {n}",
-      "labels": "Show labels"
+      "labels": "Visa etiketter"
     },
     "channel_order": {
       "label": "Kanalordning",

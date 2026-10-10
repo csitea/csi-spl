@@ -110,7 +110,7 @@
       "down": "Помести {name} надолу",
       "reset": "Стандарден редослед",
       "moved": "{name} сега е број {n}",
-      "labels": "Show labels"
+      "labels": "Прикажи ознаки"
     },
     "channel_order": {
       "label": "Редослед на каналите",

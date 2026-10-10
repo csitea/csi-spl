@@ -110,7 +110,7 @@
       "down": "Posunúť {name} nadol",
       "reset": "Predvolené poradie",
       "moved": "{name} je teraz na mieste {n}",
-      "labels": "Show labels"
+      "labels": "Zobraziť štítky"
     },
     "channel_order": {
       "label": "Poradie kanálov",

@@ -110,7 +110,7 @@
       "down": "Siirrä {name} alas",
       "reset": "Oletusjärjestys",
       "moved": "{name} on nyt numero {n}",
-      "labels": "Show labels"
+      "labels": "Näytä selitteet"
     },
     "channel_order": {
       "label": "Kanavien järjestys",

@@ -110,7 +110,7 @@
       "down": "Mută {name} în jos",
       "reset": "Ordinea implicită",
       "moved": "{name} este acum pe locul {n}",
-      "labels": "Show labels"
+      "labels": "Afișează etichetele"
     },
     "channel_order": {
       "label": "Ordinea canalelor",

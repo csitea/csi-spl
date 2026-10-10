@@ -39,6 +39,34 @@ _pp_t0="$(date +%s 2>/dev/null || echo 0)"
 _pp_secs() { echo "$(( $(date +%s 2>/dev/null || echo 0) - _pp_t0 ))s"; }
 
 _pp_override="${SPL_PREPUSH_OVERRIDE:-0}"
+_pp_refs="$(cat)"  # git's ref lines, read once: the non-ff guard and the wip skip both use them
+
+# Non-fast-forward guard on trunk -- FIRST, before every override branch:
+# SPL_PREPUSH_OVERRIDE=1 never skips it. master has no server-side protection,
+# and m- lanes force-pushed it 4x (latest 2026-10-10 06:26Z, --force-with-lease
+# after a rebase raced a push), each time dropping another lane's commit. A push
+# whose remote sha is not an ancestor of the local sha, or that deletes trunk,
+# is REFUSED. A remote sha this repo lacks is fetched; unresolved -> REFUSED.
+_pp_zero() { case "$1" in *[!0]*) return 1 ;; *) return 0 ;; esac; }
+while read -r _ _pp_lsha _pp_rref _pp_rsha; do
+  case "${_pp_rref:-}" in refs/heads/master|refs/heads/main) ;; *) continue ;; esac
+  _pp_b="${_pp_rref#refs/heads/}" _pp_why=""
+  if _pp_zero "$_pp_lsha"; then
+    _pp_why="a delete of $_pp_b"
+  elif ! _pp_zero "$_pp_rsha"; then
+    git cat-file -e "$_pp_rsha^{commit}" 2>/dev/null || git fetch -q "${1:-origin}" "$_pp_rref" >/dev/null 2>&1 || true
+    if ! git cat-file -e "$_pp_rsha^{commit}" 2>/dev/null; then
+      _pp_why="remote $_pp_b ${_pp_rsha:0:9} cannot be resolved here"
+    elif ! git merge-base --is-ancestor "$_pp_rsha" "$_pp_lsha" 2>/dev/null; then
+      _pp_drop="$(git rev-list --abbrev-commit "$_pp_lsha..$_pp_rsha" 2>/dev/null)"
+      _pp_why="would drop $(grep -c . <<<"$_pp_drop") commit(s): $(head -10 <<<"$_pp_drop" | tr '\n' ' ')"
+    fi
+  fi
+  [ -n "$_pp_why" ] || continue
+  _pp_logline "REFUSE $PWD remote=${1:-?} $_pp_rref ${_pp_rsha:0:9}..${_pp_lsha:0:9} override=$_pp_override -- non-fast-forward ($_pp_why)"
+  echo "pre-push: REFUSED -- non-fast-forward push to $_pp_b (${_pp_why% }). Fetch, rebase onto origin/$_pp_b, push again; never --force. SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
+  exit 1
+done <<<"$_pp_refs"
 # The git env a hook inherits (GIT_DIR, GIT_INDEX_FILE, ...) is scrubbed before
 # the gate runs: its tests create commits and set config in THROWAWAY repos,
 # and an inherited GIT_DIR made those land on the pushing branch and the shared
@@ -83,7 +111,7 @@ _pp_wip=0
 while read -r _ _ _pp_rref _; do
   [ -n "${_pp_rref:-}" ] || continue
   case "$_pp_rref" in refs/heads/wip/?*) _pp_wip=1 ;; *) _pp_wip=2; break ;; esac
-done
+done <<<"$_pp_refs"
 if [ "$_pp_wip" = 1 ]; then
   _pp_logline "SKIP-WIP $PWD HEAD=$head remote=${1:-?} -- every ref is refs/heads/wip/*"
   echo "pre-push: every ref is refs/heads/wip/* -- the deploy-gate is skipped (spec 102 5.4)" >&2

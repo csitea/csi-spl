@@ -9,6 +9,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // TestWorkspaceDocConcurrent (spec 113 3.5, T002 Done (b)): 8 writers on 8
@@ -19,7 +22,8 @@ import (
 // that must equal the final tree, every committed op must be in the log, and
 // every item's last committed text edit must be what the DB holds. It prints
 // committed / 412 / 404 / refused, lock waits and deadlock_detected, and fails
-// on 0 lock waits (no contention proves nothing) and on any deadlock.
+// on 0 lock waits (no contention proves nothing) and on any deadlock. First,
+// editWaitsForLock: a text edit waits for a structural op's doc lock.
 func TestWorkspaceDocConcurrent(t *testing.T) {
 	_, tid := wsDocPG(t)
 	ctx := context.Background()
@@ -28,12 +32,13 @@ func TestWorkspaceDocConcurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pg.Close)
-	var waits atomic.Int64
-	wsDocLockWaits = &waits
-	t.Cleanup(func() { wsDocLockWaits = nil })
 	seed := wsSeeds([]int64{113})[0]
 	c := &wsConc{t: t, pg: pg, tenant: tid, seed: seed, edits: map[string]wsEdit{}}
 	c.seedDoc(60)
+	c.editWaitsForLock()
+	var waits atomic.Int64
+	wsDocLockWaits = &waits
+	t.Cleanup(func() { wsDocLockWaits = nil })
 	writers, ops := wsEnvInt("SPOOL_TEST_WSDOC_WRITERS", 8), wsEnvInt("SPOOL_TEST_WSDOC_CONC_OPS", 500)
 	var wg sync.WaitGroup
 	for w := 0; w < writers; w++ {
@@ -97,6 +102,57 @@ func (c *wsConc) seedDoc(n int) {
 		}
 		ids = append(ids, res.ItemID)
 	}
+}
+
+// wsEditHold is how long a structural op holds the doc lock while a text
+// edit must stay blocked; an edit that skips the lock is done in milliseconds.
+const wsEditHold = 2 * time.Second
+
+// editWaitsForLock is the lock order (spec 3.3) asserted, not hoped for: a
+// structural op holds the doc lock while a text edit on an item runs; the
+// edit must not commit before the lock is released, then must. The deadlock
+// the order prevents is rare (4 in 108 runs), so this is what turns the
+// editlock control red on every run, not only when the writers hit it.
+func (c *wsConc) editWaitsForLock() {
+	ctx := context.Background()
+	items, err := c.pg.DocSubtree(ctx, c.tenant, c.doc, "")
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	it := items[len(items)-1]
+	type edit struct {
+		rev int64
+		err error
+	}
+	done := make(chan edit, 1)
+	early := false
+	err = c.pg.inTenant(ctx, c.tenant, func(tx pgx.Tx) error {
+		d := &wsDocTx{tx: tx, doc: c.doc}
+		if err := d.lock(ctx, 0); err != nil {
+			return err
+		}
+		go func() {
+			rev, err := c.pg.DocItemUpdateField(ctx, c.tenant, c.doc, it.ID, "title", "lock-order", it.Rev)
+			done <- edit{rev, err}
+		}()
+		select {
+		case <-done:
+			early = true
+		case <-time.After(wsEditHold):
+		}
+		return nil
+	})
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	if early {
+		c.t.Fatalf("WSDOC lock order: a text edit committed while a structural op held the doc lock (want it blocked for %s)", wsEditHold)
+	}
+	e := <-done
+	if e.err != nil || e.rev != it.Rev+1 {
+		c.t.Fatalf("WSDOC lock order: the edit after the lock was released: rev %d %v, want rev %d", e.rev, e.err, it.Rev+1)
+	}
+	c.edits[it.ID] = wsEdit{rev: e.rev, title: "lock-order"}
 }
 
 func (c *wsConc) fail(format string, args ...any) {

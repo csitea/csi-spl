@@ -99,6 +99,7 @@ command that reproduces it.
 
 | part | CI | checks | tier |
 |---|---|---|---|
+| `stale-tree` | — | each outgoing non-merge commit: a path modified in place set back to a blob it held before one of its last 40 commits (not the parent's) counts; 3 or more -> REFUSED naming them, unless the subject starts `Revert` or contains `restore` (r6-05, after 8bb97690e set 26 paths back). Every tier and mode, not the override; never cached. Alone: `STALE_TREE_RANGE=<a>..<b> ./run -a do_check_pre_push_stale_tree` | hook |
 | `lint-syntax` | — | `bash -n` (.sh, `#!..sh` scripts), YAML/JSON/TOML parse + duplicate keys (`config-syntax-check.py`), `make -n` (orc Makefile) | hook |
 | `lint-migration` | — | a migration already on trunk is never edited/renamed/deleted (`SPL_MIGRATION_EDIT_OK=<file>` allows one, logged); a new one parses with the PG16 grammar (pglast 6.x) | hook |
 | `lint-compose` | — | `docker compose config -q --no-interpolate` | hook |

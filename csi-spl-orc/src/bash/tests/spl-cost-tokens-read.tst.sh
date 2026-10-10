@@ -8,6 +8,7 @@
 #      reads 307, not 107
 #   3. the exact sums of every kind, per agent, model and service_tier; a
 #      row of another day is not counted
+#      in the day file; stdout carries counts and ratios, never a total
 #   4. a <synthetic> zero-usage row is skipped and counted as skipped
 #   5. an id listed in COST_METERED_IDS is skipped (counted once); without
 #      the list it is counted
@@ -74,8 +75,11 @@ out="$(run_read "$F" COST_METERED_IDS="$T/metered")"
 [[ "$(units c-101 input)" == 7 && "$(units c-101 cache_creation)" == 63 &&
    "$(awk -F'\t' '$2 == "c-101" && $6 == "output" {print $4, $5, $3}' "$OUT")" == "m-x standard claude" ]] &&
   pass "3. exact sums per agent, model, tier and kind; the other day's row is not counted" || fail "3. sums: $(cat "$OUT")"
-[[ "$out" == *"rows=7 ids=3 synthetic_skipped=1 metered_skipped=1"* && "$out" == *"# output per_row=1309 per_id=109"* ]] &&
-  pass "3. stats: rows, distinct ids, per-row vs per-id totals" || fail "3. stats: $out"
+[[ "$out" == *"rows=7 ids=3 synthetic_skipped=1 metered_skipped=1"* && "$out" == *"# output per_row/per_id=12.01"* ]] &&
+  grep -q '^# output per_row=1309 per_id=109$' "$OUT" &&
+  pass "3. stats: rows, distinct ids, per-row vs per-id totals in the file, the ratio on stdout" || fail "3. stats: $out"
+[[ "$out" != *"per_row="* && "$out" != *1309* && "$out" != *107* ]] &&
+  pass "3. stdout carries no token total (cost data is HUM-10 only)" || fail "3. totals leaked: $out"
 ! grep -q '<synthetic>' "$OUT" && pass "4. a <synthetic> zero-usage row is skipped" || fail "4. synthetic: $(cat "$OUT")"
 
 [[ "$out" == *"metered_skipped=1"* && "$(units c-101 output)" == 107 ]] &&

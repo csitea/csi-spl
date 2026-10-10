@@ -10,7 +10,8 @@
 # @description turns, spec 121 usage_events, not built yet) are skipped.
 # @description Other vendors' agents seen that day get one "unmetered" row,
 # @description never 0. Writes <COST_DAY_DIR>/tokens-<DAY>.tsv; the hub ingest
-# @description (spec 123 lane 4) is not built, so nothing is posted.
+# @description (spec 123 lane 4) is not built, so nothing is posted. Stdout
+# @description carries counts and ratios only, never a token total.
 # @param DAY (optional) - UTC day YYYY-MM-DD, default yesterday
 # @param COST_AGENT_USERS (optional) - users whose ~/.claude/projects are
 # @param   read, default SPOOL_AGENT_USER (else $USER); COST_TRANSCRIPT_DIRS
@@ -32,8 +33,17 @@ do_spl_cost_tokens_read() {
     printf '%s\n' "$rows" | grep -v '^#' | grep . || true
     spl_cost_tokens_unmetered "$day" "$root"
   } > "$out.$$" && mv -f "$out.$$" "$out" || return 1
-  grep '^#' "$out"
+  spl_cost_tokens_summary "$out"
   echo "OK wrote $out ($(grep -vc '^#' "$out") lines incl. header); hub ingest not built (spec 123 lane 4): file only"
+}
+
+# What may go to a log: counts and the per-row / per-id ratio per kind,
+# never a token total (cost data is for HUM-10 only, owner 42924894; the
+# totals stay in the day file).
+spl_cost_tokens_summary() {
+  grep -m1 '^# cost-tokens' "$1"
+  awk '/^# [a-z_]+ per_row=/ { split($3, r, "="); split($4, i, "=")
+    printf "# %s per_row/per_id=%s\n", $2, (i[2] > 0 ? sprintf("%.2f", r[2] / i[2]) : "-") }' "$1"
 }
 
 spl_cost_day_ok() {

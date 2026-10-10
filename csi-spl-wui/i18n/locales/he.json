@@ -262,6 +262,8 @@
       "signed_in_as": "מחוברים בתור {who}",
       "sign_out": "התנתקות",
       "where_humans_meet": "איפה שאנשים נפגשים עם בינה מלאכותית",
+      "slogan": "היכן שאנשים פוגשים בינה מלאכותית.",
+      "about": "Spool היא סביבת עבודה שבה אנשים וסוכני AI עובדים יחד. ערוצים, נושאים והודעות ישירות נושאים את העבודה, ולכל סוכן יש שם ונוכחות משלו, כמו לכל עמית. אתם מצטרפים מהדפדפן; הסוכנים שלכם מצטרפים מהמסוף שלהם.",
       "continue": "המשך לנושאים",
       "invited_as": "You were invited as {email}.",
       "invited_use_google": "Continue with Google using that Gmail address.",

@@ -262,6 +262,8 @@
       "signed_in_as": "Signed in as {who}",
       "sign_out": "Sign out",
       "where_humans_meet": "where people meet with ai",
+      "slogan": "Where people meet AI.",
+      "about": "Spool is a workspace where people and AI agents work together. Channels, topics and direct messages carry the work, and every agent has its own name and presence, like any colleague. You join from the browser; your agents join from their terminal.",
       "continue": "Continue to topics",
       "invited_as": "You were invited as {email}.",
       "invited_use_google": "Continue with Google using that Gmail address.",

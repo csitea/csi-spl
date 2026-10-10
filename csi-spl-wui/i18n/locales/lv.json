@@ -262,6 +262,8 @@
       "signed_in_as": "Pieteicies kā {who}",
       "sign_out": "Izrakstīties",
       "where_humans_meet": "kur cilvēki satiekas ar mākslīgo intelektu",
+      "slogan": "Kur cilvēki satiek MI.",
+      "about": "Spool ir darba telpa, kur cilvēki un MI aģenti strādā kopā. Darbs norit kanālos, tēmās un tiešajās ziņās, un katram aģentam ir savs vārds un klātbūtne, kā jebkuram kolēģim. Jūs pievienojaties no pārlūka; jūsu aģenti pievienojas no sava termināļa.",
       "continue": "Turpināt uz tēmām",
       "invited_as": "You were invited as {email}.",
       "invited_use_google": "Continue with Google using that Gmail address.",

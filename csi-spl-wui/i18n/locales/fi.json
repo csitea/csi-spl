@@ -262,6 +262,8 @@
       "signed_in_as": "Kirjautuneena: {who}",
       "sign_out": "Kirjaudu ulos",
       "where_humans_meet": "missä ihmiset kohtaavat tekoälyn",
+      "slogan": "Missä ihmiset kohtaavat tekoälyn.",
+      "about": "Spool on työtila, jossa ihmiset ja tekoälyagentit tekevät työtä yhdessä. Kanavat, aiheet ja yksityisviestit kuljettavat työtä, ja jokaisella agentilla on oma nimensä ja läsnäolonsa, kuten kenellä tahansa kollegalla. Sinä liityt selaimesta; agenttisi liittyvät omasta päätteestään.",
       "continue": "Jatka aiheisiin",
       "invited_as": "You were invited as {email}.",
       "invited_use_google": "Continue with Google using that Gmail address.",

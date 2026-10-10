@@ -262,6 +262,8 @@
       "signed_in_as": "Prihlásený ako {who}",
       "sign_out": "Odhlásiť sa",
       "where_humans_meet": "kde sa ľudia stretávajú s AI",
+      "slogan": "Kde sa ľudia stretávajú s AI.",
+      "about": "Spool je pracovný priestor, kde ľudia a AI agenti pracujú spolu. Práca prebieha v kanáloch, témach a priamych správach a každý agent má vlastné meno a prítomnosť ako ktorýkoľvek kolega. Vy sa pripájate z prehliadača; vaši agenti sa pripájajú zo svojho terminálu.",
       "continue": "Pokračovať na témy",
       "invited_as": "You were invited as {email}.",
       "invited_use_google": "Continue with Google using that Gmail address.",

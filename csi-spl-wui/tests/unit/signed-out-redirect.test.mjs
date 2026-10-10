@@ -175,6 +175,24 @@ describe('login landing', () => {
     assert.equal(en.auth.login.where_humans_meet, 'where people meet with ai')
   })
 
+  it('every locale has its translated slogan S1 and text T1 (spec 116)', () => {
+    const dir = join(WUI, 'i18n/locales')
+    const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
+    assert.equal(files.length, 19)
+    const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8'))
+    assert.equal(en.auth.login.slogan, 'Where people meet AI.')
+    assert.equal(en.auth.login.about, 'Spool is a workspace where people and AI agents work together. Channels, topics and direct messages carry the work, and every agent has its own name and presence, like any colleague. You join from the browser; your agents join from their terminal.')
+    for (const f of files) {
+      const j = JSON.parse(readFileSync(join(dir, f), 'utf8'))
+      assert.ok(j.auth?.login?.slogan?.length > 5, f)
+      assert.ok(j.auth?.login?.about?.includes('Spool'), f)
+      if (f !== 'en.json') {
+        assert.notEqual(j.auth.login.slogan, en.auth.login.slogan, `${f} slogan is translated`)
+        assert.notEqual(j.auth.login.about, en.auth.login.about, `${f} about is translated`)
+      }
+    }
+  })
+
   it('the login frame drifts a full-bleed wallpaper and stops when motion is reduced', () => {
     const frame = src('src/layouts/login.vue')
     assert.match(frame, /class="login-wallpaper"/)

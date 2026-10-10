@@ -1,13 +1,19 @@
 # 121 Sales channel: selling Csitea.net services on spool-hub.ai
 
-Version **v1.0** (2026-10-10), signed by all four seats and the drafter on
-rc1 5385b4665 (section 11). The panel fold by the editor (seat
-s121-claude, c-801) of a-800's draft (6eded1d95, 89 lines). The seat files are
-under [reviews/](reviews/); section 11 records what each one changed. Five
-owner answers arrived during the review and are folded in (section 1.2).
-Section 12 holds the questions still open, grouped, with the panel's
-recommendations first; c-002 posted them to the owner as one blocker
-(csitea e001c851, msg 5c92ad8c).
+Version **v1.1** (2026-10-10): the owner's answers to every section 12
+question, and the price, fixed-cost and scaling rules given in the same
+topic, folded in by the editor lane c-814 (section 1.4). No seat signed
+v1.1: the 121 panel seats and the drafter had retired; the dispatch holder
+decides whether it needs a fresh sign-off panel.
+
+v1.0 (ec8defa54) was signed by all four seats and the drafter on rc1
+5385b4665 (section 11): the panel fold by the editor (seat s121-claude,
+c-801) of a-800's draft (6eded1d95, 89 lines). The seat files are under
+[reviews/](reviews/); section 11 records what each one changed. Five owner
+answers arrived during the review and are folded in (section 1.2). Section
+12 held the questions then open; c-002 posted them to the owner as one
+blocker (csitea e001c851, msg 5c92ad8c), and section 12 now records the
+answers and what is still open.
 
 ## 1. The owner's words
 
@@ -42,8 +48,35 @@ The spoken names read as: "spoolhop.ai" = spool-hub.ai, "SiteNet" and
 | R5 | tokens counted, limited and costed, per workspace too | 1f03918f, 0137a1bd |
 | L1 | **later, not v1**: the paid private channel (one channel inside someone else's workspace) | 1a374b78, deferred by 97b94903 |
 
+| R6 | price = (measured tokens x 1.20 + other own cost + a slice of the fixed hub cost) + 29%, one rate for every workspace | cd2d25e3, acaed9ef, 55309d31, f5c0e3c7, 9e0c0dba |
+| R7 | customers top up a balance by card; work stops at zero; no invoice | e38f9953 |
+| R8 | above 80% capacity, hardware is added (spec 122) | 72b5ed23 |
+
 The csitea.net pop-up (R1) is not a sale: it is customer #1 of the embed (R3),
 with Csitea's own workspace paying for its usage.
+
+### 1.4 Owner answers to section 12 and the price (csitea topic e001c851, HUM-10, verbatim)
+
+Each answer, then the reading c-002 posted for it in the same topic. The
+owner corrected none of these readings (topic read 2026-10-10 after msg
+a798a19b, the owner's last post).
+
+| msg | the owner's words | reading posted by c-002 | folded into |
+|---|---|---|---|
+| d515fcdb/97b94903 | "For now, the whole workspace only will be for sale." | v1 sells whole workspaces; paid channels later | R2, L1 (already in v1.0) |
+| cd2d25e3 | "Yeah, it should be based on the margin and 29% on top of it." | Q-M1 = A, one rate for all: measured cost + 29% | 7, 12.1 |
+| acaed9ef | "V1a, v2a, m1a" | Q-V1 = A, Q-V2 = A, Q-M1 = A (29%) | 4.3, 12.1, 12.2 |
+| 55309d31 | "It is a bit tricky because we need to calculate how much the running of the spool hub costs as well, and how much capacity a single workspace channel would take. A gate to justify some slice for the whole spool hub infra as a fixed cost for the price of a workspace and a private channel" | a slice of the fixed hub cost in every price; no price until capacity is measured (post 4e2e378b) | 7 |
+| b6a56949 | "The production environment and the hosts on which the workspace runs" | the fixed cost = prd + the hosts the workspace runs on; not dev, the satellite only if it hosts (spec 122 Q-5) | 7 |
+| 2d9490e7 | "S4b, s5,s6a, q6yes, q7 yes," | spec 122 Q-6 = A: the slice is the fixed cost divided by the most workspaces the hub can hold (W_max, measured) | 7 |
+| f5c0e3c7 | "Yeah, we need to have some kind of margin error for the tokens as well, because my gut feeling is that there should be some kind of +10%, +20% overall on the token count (because of how the spool hub works and overall, not being able to measure the total amount of tokens)." | a buffer on the token count, A or B asked (post 1099c002) | 7 |
+| 9e0c0dba | "A" | buffer A: +20% at launch, lowered to the measured gap vs the provider's numbers | 7 |
+| e38f9953 | "M2A" | Q-M2 = A: card top-up balance for everyone, work stops at zero, no invoice | 8, 12.1 |
+| 8bb20332 | "M3 a" | Q-M3 = A: pay-per-token API keys for customer-facing agents; our own work stays on subscriptions | 7, 12.1 |
+| e95a0695 | "Yes" | Q-T1 = A: our own bot check, no outside service (with spec 122 Q-2 = C); posted for correction as 51f088b6, none came | 6, 12.3 |
+| 72b5ed23 | "The idea is that the service should be scalable. People are basically plugging in their credit cards, and as soon as we find out that we have more than 80% capacity filled in, we will spawn new hardware resources and we will add them to the spawn hub." | above 80% capacity, add hardware; its own spec | 7.1, [spec 122](../122-capacity-scale-out/spec.md) |
+
+Spoken names: "spawn hub" = the spool hub.
 
 ## 2. Today, measured (trunk at 6eded1d95)
 
@@ -73,12 +106,15 @@ v1, smallest first; each phase ships alone, dev then prd:
 2. **Embed** (R1, R3): the loader script and the hub-served `/embed/<id>` with
    per-customer `frame-ancestors`; csitea.net adds the script tag; the limits
    of section 6.
-3. **Agent answers and metering** (R4, R5): the sales agent (Q-V1, Q-V2) and
-   the `usage_events` ledger, model prices, token budgets.
-4. **Workspace sale on metered pricing** (R2, R4): the existing buy-a-tenant
-   checkout sells a workspace whose bill is usage + margin; prepaid balance.
-5. **Cloud cost allocation and the monthly invoice** (R4); a second embedding
-   customer.
+3. **Agent answers and metering** (R4, R5): the sales agent (Q-V1 = A, Q-V2
+   = A) and the `usage_events` ledger, model prices, token budgets.
+4. **Workspace sale on metered pricing** (R2, R4, R6, R7): the existing
+   buy-a-tenant checkout sells a workspace whose balance is drawn down by the
+   price of 7; card top-up only. It opens only when spec 122's pricing gate
+   holds (7.1).
+5. **Fixed-cost slice** (R6) from spec 122's measurements; a second
+   embedding customer. (v1.0's monthly invoice is dropped: M2 = A,
+   e38f9953.)
 
 Later (L1): the paid private channel. Section 10 keeps it buildable on the
 same parts.
@@ -151,6 +187,12 @@ same parts.
 - The answering agent gets the visitor channel's text plus one owner-written
   "sales facts" doc, nothing else; a test asserts the context built for a
   visitor channel holds no other channel's message ids.
+- Who answers (Q-V1 = A, acaed9ef): the sales agent answers a visitor
+  first and hands over to the owner when it is unsure.
+- Who reads (Q-V2 = A, acaed9ef): one dedicated sales agent per selling
+  workspace reads its visitor channels, and no other agent does.
+- That agent runs on a pay-per-token API key (Q-M3 = A, 8bb20332), so each
+  of its tokens has an exact cost (7).
 
 ### 4.4 Where questions land, and retention
 
@@ -206,7 +248,9 @@ store: there is no Redis in the estate. Every limit is cnf per embed
 | token spend of unpaid traffic per embed | cnf daily ceiling in EUR | 429, owner alerted |
 
 - Bot gate on the FIRST post only (not the page load): a challenge the hub
-  verifies server-side (Q-T1), plus a honeypot field.
+  verifies server-side, plus a honeypot field. The challenge is our own
+  check, a self-hosted proof-of-work: no outside service sees the visitor
+  (Q-T1 = A, e95a0695 as read in 51f088b6).
 - Bans reuse `demo_bans` (rdb 0130), keyed on visitor_id and ip_hash; the
   owner blocks a visitor from the channel header (token revoked, channel kept).
 - Repeat offenders (from mistral): a visitor that hits a limit 3 times in
@@ -239,31 +283,71 @@ store: there is no Redis in the estate. Every limit is cnf per embed
   the work is built) and answers 429 `token_quota`; at 80 % the owner of the
   workspace gets one notice. Default: hard stop; a soft limit (overage billed)
   only for a customer the owner approves.
-- **Cloud cost**: allocated, not measured. The GCP billing export (a one-time
-  owner bootstrap, as a named action) gives the monthly estate cost; a daily
-  named action splits shared cost (hub CPU, DB) across workspaces by their
-  share of `agent_seconds` and requests, written as `cloud_share`. Tokens are
-  exact; shared cost is an allocation, and the invoice says so.
-- **Price** = metered cost x (1 + margin). The margin is a setting:
-  `price_plans.margin_pct`, a platform default with an optional per-plan
-  value (the schema allows per plan from day one; Q-M1 picks the start).
+- **Which model access**: agents that serve paying customers or visitors
+  run on pay-per-token API keys, so the cost per token is exact; our own
+  work stays on subscriptions (Q-M3 = A, 8bb20332).
+- **Fixed cost, a slice in every price** (55309d31): the always-on part of
+  the estate is charged to every workspace as a fixed-cost slice, its own
+  `cloud_share` line.
+  - Which cost counts (b6a56949, spec 122 Q-5): the prd environment (hub,
+    database, hosting, network) plus the hosts the workspace runs on. Not
+    dev; the satellite only if it hosts customer workspaces. With spec 122
+    Q-2 = C (a shared pool of boxes), a box's cost is split among the
+    workspaces on it.
+  - The divisor (2d9490e7, spec 122 Q-6 = A): slice = the month's fixed
+    cost / W_max, the most workspaces the hub can hold, as spec 122
+    measures it. Not the active count, so an early customer's price does
+    not carry an idle hub.
+  - The source of the cost and of W_max, and the measurement steps, live in
+    [spec 122](../122-capacity-scale-out/spec.md) section 9; this spec only
+    uses them. The slice replaces v1.0's `agent_seconds` split for the fixed
+    part, so one cost is never charged twice.
+- **Token buffer** (f5c0e3c7, pick A 9e0c0dba): metered token counts are
+  priced at x 1.20 at launch, for the tokens we cannot measure. The buffer
+  is a setting, lowered to the measured gap between our count and the
+  provider's numbers once spec 122's token-gap measurement (its M4) exists;
+  it is never raised above 20% without the owner.
+- **Price**, one formula for every workspace (posts 4e2e378b, 1099c002;
+  margin cd2d25e3, acaed9ef):
+
+  `price = (measured tokens x 1.20 + other own cost + fixed-cost slice) + 29%`
+
+  - "other own cost": agent seats and storage the workspace uses
+    (`agent_seconds`, `storage_bytes`).
+  - The margin is 29%, one rate for all (Q-M1 = A). It stays a setting,
+    `price_plans.margin_pct` = 29; the schema still allows a per-plan value
+    later without a migration, but v1 sets none.
+- **No price before the measurements** (55309d31, post 4e2e378b): no price
+  is published, on `/services` (9) or at checkout (8), until spec 122's
+  pricing gate holds (its section 9: a closed month of billing data, the
+  capacity measurements, the token gap). Until then the checkout answers
+  409 `pricing_not_ready`.
 - **Unpaid visitors** are metered to the workspace that embeds them; for
   csitea.net that is Csitea's own workspace, so the owner sees what the sales
   channel costs.
+
+### 7.1 Capacity: above 80%, add hardware (R8)
+
+The owner (72b5ed23): above 80% capacity, new hardware is started and joins
+the hub. This spec sets no capacity rule of its own: what "capacity"
+measures, who starts a box, the money guard and when a box is removed are
+[spec 122](../122-capacity-scale-out/spec.md). Selling a workspace (8)
+depends on it only through the pricing gate above.
 
 ## 8. Selling a workspace (R2)
 
 - The buyer uses the existing buy-a-tenant checkout (`internal/payments`,
   specs 006 / 009) with a new plan kind `metered`: no seat price; a prepaid
-  top-up (Q-M2) that `token_budgets` draws down.
+  card top-up that `token_budgets` draws down at the price of 7 (Q-M2 = A,
+  e38f9953: the same for every customer, no invoice).
 - The paid webhook, as today, makes the tenant and its owner; it also writes
   the workspace's `price_plans` row and its first budget.
 - At zero balance agent turns are refused with "credit used up, top up here";
   the workspace itself stays readable.
-- **Monthly invoice** per workspace by a named action
-  (`do_spl_sales_invoice`, dry run by default): lines = `usage_events` summed
-  by kind times unit cost, the margin as its own line, the UTC calendar month
-  (the 006 period). Charged through the rails of Q-M2.
+- **No monthly invoice** (Q-M2 = A, e38f9953): v1.0's
+  `do_spl_sales_invoice` is not built. The draw-down is the bill: every
+  `usage_events` row already carries its unit cost, so what a balance was
+  spent on is a `GROUP BY` of the ledger.
 
 ## 9. What the catalogue shows
 
@@ -271,6 +355,8 @@ store: there is no Redis in the estate. Every limit is cnf per embed
   the sales agent can talk about, and how the price is built (usage + margin),
   not fixed prices. Entry shape: name, short description, what is metered,
   margin plan, delivery note.
+- It shows the formula of section 7 but no number until spec 122's pricing
+  gate holds.
 - Shown to signed-out visitors as spec 116 public pages: the front page
   (`/login`), the blog, and a new `/services` route, prerendered, lazy (out of
   the 160 KB initial chunk), no hub call for a signed-out visitor.
@@ -314,7 +400,7 @@ Where the seats differed, and what the fold took:
 | visitor token storage | claude: partitioned cookie; claude-2: Bearer in iframe storage; agy: HttpOnly cookie; mistral: `SameSite=Lax` cookie | Bearer (4.1): a `Lax` cookie is never sent in a third-party iframe (section 2), and Bearer needs no third-party-cookie rule, Safari included |
 | RLS form | claude: replace tenant_scope; claude-2: restrictive policy; agy: `visitor_id` column + JWT claim GUC | restrictive (4.2): narrows, never widens; no new column on `messages` |
 | rate-limit store | claude, claude-2: `quota_counts`; agy, mistral: Redis | `quota_counts` (6): no Redis in the estate |
-| bot challenge | claude, claude-2: self-hosted proof-of-work; agy, mistral: hosted invisible challenge | owner question Q-T1 (2 to 2) |
+| bot challenge | claude, claude-2: self-hosted proof-of-work; agy, mistral: hosted invisible challenge | owner question Q-T1 (2 to 2); owner: A (e95a0695) |
 | repeat offenders | mistral: challenge on every post after 3 limit hits in 24 h, IP ban 24 h after 5 | taken (6) |
 | new-device recovery | claude, claude-2: optional e-mail; mistral: e-mail or phone | e-mail only (4.1): a phone adds an SMS processor and more personal data |
 | embed CORS | claude, claude-2: none needed; mistral, the draft: allow csitea.net | none (5): the iframe calls from our own origin |
@@ -322,9 +408,9 @@ Where the seats differed, and what the fold took:
 | loader source | claude, claude-2: this repo; mistral: csi-web | this repo (5): every customer gets fixes without a copy; csi-web holds only the tag |
 | order writes | mistral: mark paid in csi-rel's `orders` table; agy: product references mapped from csi-rel | neither: csi-rel is never called or written; the hub's own copied `payments` (8) |
 | each business customer = own workspace | all four | taken (4.2) |
-| who answers first | claude, agy: agent first; claude-2: human approves agent drafts in phase 1 | owner question Q-V1 |
-| margin shape | agy, claude-2: one fixed %; claude: per plan | schema per plan, start value Q-M1 |
-| payment rail | agy: card; claude: card + invoice for business; claude-2: invoice for business, card for single buyers | owner question Q-M2 |
+| who answers first | claude, agy: agent first; claude-2: human approves agent drafts in phase 1 | owner question Q-V1; owner: A (acaed9ef) |
+| margin shape | agy, claude-2: one fixed %; claude: per plan | schema per plan, start value Q-M1; owner: one rate, 29% (cd2d25e3) |
+| payment rail | agy: card; claude: card + invoice for business; claude-2: invoice for business, card for single buyers | owner question Q-M2; owner: A, card only (e38f9953) |
 | retention | claude: 90 days; claude-2: 30 days | 30 days, owner may keep a lead (4.4) |
 
 Signatures on rc1 5385b4665 (dispatch-e001c851, 2026-10-10):
@@ -340,22 +426,38 @@ Signatures on rc1 5385b4665 (dispatch-e001c851, 2026-10-10):
 v1.0 differs from rc1 only in this table, the version line and the Safari
 note in 4.1.
 
+v1.1 (editor lane c-814, unsigned) folds the owner's answers and nothing
+else: the version line, 1.3 (R6 to R8), 1.4, phases 3 to 5, 4.3, 6, 7 and
+7.1, 8, the owner column of the table above, and 12. No seat's position
+was re-weighed.
+
 ## 12. Owner questions
 
-Answer "all recommended" to take every recommendation, or name the ones you
-change. Settled, not asked again: what v1 sells (97b94903: whole workspaces
-only), the paid private channel (1a374b78, now later), price = cost + margin
-(294eb431), metering per workspace (0137a1bd).
+All six v1.0 questions are answered (section 1.4); each is kept below as
+asked, with the owner's pick on its first line. Settled, not asked again:
+what v1 sells (97b94903: whole workspaces only), the paid private channel
+(1a374b78, now later), price = cost + margin (294eb431), metering per
+workspace (0137a1bd), and everything in section 1.4. Section 12.4 holds
+what the fold left open.
+
+| # | owner's pick | msg |
+|---|---|---|
+| Q-M1 | A, at 29% | cd2d25e3, acaed9ef |
+| Q-M2 | A | e38f9953 |
+| Q-M3 | A | 8bb20332 |
+| Q-V1 | A | acaed9ef |
+| Q-V2 | A | acaed9ef |
+| Q-T1 | A (c-002's reading of "Yes", posted for correction as 51f088b6) | e95a0695 |
 
 ### 12.1 Money
 
-- **Q-M1 The margin. Recommended: A.** A: one percentage on metered cost for
+- **Q-M1 The margin. Recommended: A. Owner: A, 29% (cd2d25e3, acaed9ef).** A: one percentage on metered cost for
   every workspace, its value yours. B: a percentage per plan. (The setting is
   per plan from day one, so A -> B later needs no migration.)
-- **Q-M2 How customers pay. Recommended: C.** A: prepaid balance by card,
+- **Q-M2 How customers pay. Recommended: C. Owner: A (e38f9953).** A: prepaid balance by card,
   work stops at zero. B: monthly invoice. C: A for everyone, B only for
   businesses you approve.
-- **Q-M3 Which model access serves paying customers. Recommended: A.**
+- **Q-M3 Which model access serves paying customers. Recommended: A. Owner: A (8bb20332).**
   A: customer-serving agents on pay-per-token API keys (cost per token exact);
   our own work stays on subscriptions. B: everything on subscriptions, priced
   at the model's list API price. (Reselling at cost needs a real cost per
@@ -363,17 +465,38 @@ only), the paid private channel (1a374b78, now later), price = cost + margin
 
 ### 12.2 Visitors
 
-- **Q-V1 Who answers a visitor first. Recommended: A** (claude, agy;
+- **Q-V1 Who answers a visitor first. Recommended: A. Owner: A (acaed9ef).** (claude, agy;
   claude-2 recommends B; mistral did not say). A: the sales agent, handing over to you when unsure.
   B: phase 1 a human approves each agent draft, then A. C: you only.
-- **Q-V2 Which agents read a visitor's channel. Recommended: A** (claude,
+- **Q-V2 Which agents read a visitor's channel. Recommended: A. Owner: A (acaed9ef).** (claude,
   claude-2, agy; mistral did not say).
   A: one dedicated sales agent per selling workspace, nothing else. B: any
   agent you seat in it.
 
 ### 12.3 Tech
 
-- **Q-T1 Bot check on the first question. Recommended: A** (the panel split
+- **Q-T1 Bot check on the first question. Recommended: A. Owner: A (e95a0695, read in 51f088b6).** (the panel split
   2 to 2: claude seats A, agy and mistral B; the editor's tie-break is A
   because B sends every visitor to a third party). A: self-hosted proof-of-work, no third party sees the
   visitor. B: a hosted invisible challenge service.
+
+### 12.4 Still open after the v1.1 fold
+
+Two values the answers leave unset. Neither blocks phases 1 to 3 (section
+3); both are needed before phase 4 sells a workspace. Answer "all
+recommended", or name the ones you change.
+
+- **Q-N1 The daily spend ceiling for unpaid visitors, per embed (section 6).
+  Recommended: A.** The spec has the ceiling but no value.
+  A: a low ceiling set now (e.g. EUR 5 per day for csitea.net), raised by
+  you once the sales channel's real cost is visible in the ledger. B: no
+  ceiling until spec 122 has measured the token gap; the per-IP and
+  per-visitor limits are the only stop. (A keeps the one hard stop on
+  unpaid cost that section 6 relies on.)
+- **Q-N2 Who lowers the token buffer from +20% (section 7). Recommended:
+  A.** The owner's pick A (9e0c0dba) says it is lowered to the measured gap;
+  it does not say who applies the change.
+  A: a named action sets the buffer to the measured gap each month, never
+  above 20%, and posts the new value to you. B: the action proposes the
+  value and it changes only with your go. (A follows the owner rule that
+  if-else steps are code; a price change still reaches you as a post.)

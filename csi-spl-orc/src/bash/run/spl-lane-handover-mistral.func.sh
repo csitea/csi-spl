@@ -19,8 +19,11 @@
 # @description   3. A, resume: BEFORE FROM is closed, the session dir goes over
 # @description      ssh stdin ONLY (never the hub, git or a log) into the target
 # @description      AGENT_USER's ~/.vibe/logs/session/unified (a failed copy = exit
-# @description      1, FROM untouched); after the WIP step restore-mistral.sh runs
-# @description      `vibe --resume <sid>` in a new tmux window, the brief as kick.
+# @description      1, FROM untouched); after the WIP step the brief goes to the
+# @description      target's <id>/lifetime/brief.md (read back as the agent), the
+# @description      worktree is trusted for vibe (trust-workdir.sh --settle; unverified
+# @description      = exit 1), then restore-mistral.sh runs `vibe --resume <sid>` in a
+# @description      new tmux window, the brief as kick.
 # @description   4. B, written handoff: TO_ID != FROM (the session names the old
 # @description      worktree path), no session, bigger than
 # @description      HANDOVER_TRANSCRIPT_MAX_MB, key material in it, or
@@ -199,6 +202,14 @@ case "$op" in
     scripts="$1" id="$2" wt="$3" sid="$4" brief="$5" agent="$6"
     . "$scripts/../lib/spool-env.inc.sh"; spool_env_resolve; spool_tmux_argv
     bash "$scripts/next-agent-id.sh" --claim "$id" >/dev/null || { echo "id $id is taken here" >&2; exit 3; }
+    # the brief where every restore of the lane looks (restore-mistral.sh), read back as the agent
+    lt="$SPOOL_ROOT/$id/lifetime"
+    mkdir -p "$lt" && cp "$brief" "$lt/brief.md" && chmod 644 "$lt/brief.md" && sudo -n -u "$agent" test -r "$lt/brief.md" ||
+      { echo "the brief $lt/brief.md is not readable by $agent" >&2; exit 6; }
+    brief="$lt/brief.md"
+    # vibe asks "Trust this folder?" in a new worktree, in a pane nobody watches: settle it first
+    bash "$scripts/trust-workdir.sh" --settle "$wt" "$agent" mistral >/dev/null ||
+      { echo "trust for $wt did not verify: vibe would stop on its trust prompt" >&2; exit 7; }
     sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_attached} #{session_id}' 2>/dev/null | awk '$1 > 0 {print $2; exit}')"
     [ -n "$sess" ] || sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_id}' 2>/dev/null | sed -n 1p)"
     [ -n "$sess" ] || { echo "no tmux session" >&2; exit 5; }

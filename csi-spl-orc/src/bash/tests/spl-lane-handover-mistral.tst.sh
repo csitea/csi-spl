@@ -24,8 +24,12 @@
 #      (unified/<sid>/CURRENT under its HOME) and replays the session: the old
 #      conversation reaches the resumed CLI. Control: without the copied
 #      session the same window command finds nothing.
+#      5h: the handover brief is the target lane's lifetime/brief.md and the
+#      worktree is trusted for vibe (the stand-in stops on vibe's trust
+#      prompt otherwise). Control: an untrusted worktree stops there.
 #   7. RED CONTROL: a failed session copy -> exit 1, FROM not closed, nothing
 #      pushed
+#   8. RED CONTROL: the trust does not verify -> exit 1, no window, no retire
 #   6. DRY_RUN=0, B: spawn-window.sh mistral <TO_ID> with the handover brief;
 #      no session copied
 #------------------------------------------------------------------------------
@@ -114,6 +118,8 @@ cat >"$T/stub/vibe" <<'EOF'
 {
   echo "vibe cwd=$PWD home=$HOME argv=$*"
   sid=""; while [ $# -gt 0 ]; do [ "$1" = --resume ] && sid="$2"; shift; done
+  # vibe stops on "Trust this folder?" unless ~/.vibe/trusted_folders.toml lists the cwd
+  grep -qF "\"$(pwd -P)\"" "$HOME/.vibe/trusted_folders.toml" 2>/dev/null || { echo "TRUST-PROMPT $(pwd -P)"; exit 1; }
   s="$HOME/.vibe/logs/session/unified/$sid"
   if [ -n "$sid" ] && [ -f "$s/CURRENT" ]; then echo "RESUMED $sid"; cat "$s"/chunks/*.json; else echo "NOT-FOUND ${sid:-none}"; exit 1; fi
 } >>"$FAKE_VIBE_LOG"
@@ -206,6 +212,18 @@ PATH="$T/stub/remote-bin:$PATH" STUB_LOG="$T/calls.log" SPOOL_ROOT="$T/spool" FA
 grep -qx "NOT-FOUND $SID" "$T/vibe.log" && ! grep -q RESUMED "$T/vibe.log" &&
   pass "5e: control: the same window command without the copied session resumes nothing" || fail "5e control: $(cat "$T/vibe.log")"
 mv "$T/sid.moved" "$RU/$SID"
+LB="$T/spool/m-050/lifetime/brief.md" TF="$T/rhome/.vibe/trusted_folders.toml"
+grep -q '^# Handover: m-050@sat continues the lane m-050@pc' "$LB" && grep -qF "'$LB'" "$T/window.cmd" &&
+  grep -qF "\"$(cd "$RW" && pwd -P)\"" "$TF" && grep -q '^sudo-as agentx' "$T/calls.log" &&
+  pass "5h: the handover brief is the target lane's lifetime/brief.md, the kick names it; the worktree is trusted for vibe" ||
+  fail "5h: $(head -n1 "$LB" 2>&1) / $(cat "$TF" 2>&1)"
+# trust-workdir's detached settler re-asserts the entry while it holds the spawn lock: wait it out
+flock "$T/rhome/.spool-spawn-trust.lock" true
+cp "$TF" "$T/tf.ok"; printf 'trusted = []\nuntrusted = []\n' >"$TF"; : >"$T/vibe.log"
+PATH="$T/stub/remote-bin:$PATH" STUB_LOG="$T/calls.log" SPOOL_ROOT="$T/spool" FAKE_REMOTE_HOME="$T/rhome" bash -c "$(cat "$T/window.cmd")" </dev/null >/dev/null 2>&1
+grep -q '^TRUST-PROMPT ' "$T/vibe.log" && ! grep -q RESUMED "$T/vibe.log" &&
+  pass "5h: control: the same window command in an untrusted worktree stops on the trust prompt" || fail "5h control: $(cat "$T/vibe.log")"
+cp "$T/tf.ok" "$TF"
 grep -q "^m-050	mistral	%88	$RW	" "$T/spool/registry.tsv" && grep -qx 'close --agent m-050 pushed=no' "$T/calls.log" && pass "5f: registry row kind mistral; FROM was closed before its wip ref was pushed" || fail "5f: $(tail -n2 "$T/spool/registry.tsv")"
 c="$(grep -n '^close --agent m-050' "$T/calls.log" | cut -d: -f1)"; r="$(grep -n '^retire RETIRE_WORKTREE=0 --apply m-050' "$T/calls.log" | cut -d: -f1)"
 [[ -n "$c" && -n "$r" && "$c" -lt "$r" && -d "$T/repo-wt/m-050" ]] && grep -q '^sudo-as agentx' "$T/calls.log" &&
@@ -232,6 +250,17 @@ run_ho FROM=m-055 TO_BOX=sat DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && -z "$(ref_of m-055)" ]] && ! grep -q '^close' "$T/calls.log" && grep -q 'the session copy to sat failed' "$T/o" &&
   pass "7: a failed session copy: exit $rc, FROM not closed, nothing pushed" || fail "7: rc=$rc $(cat "$T/o") $(calls | grep -E '^(close|retire)')"
 rm -f "$T/rhome"; mv "$T/rhome.ok" "$T/rhome"
+
+# --- 8. RED CONTROL: the worktree's trust does not verify -----------------------------------
+lane m-057
+session 77777777-1111-2222-3333-444444444444 "$T/repo-wt/m-057" 3
+mv "$TF" "$T/tf.ok"; mkdir "$TF"
+: >"$T/calls.log"
+run_ho FROM=m-057 TO_BOX=sat DRY_RUN=0; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'did not verify: vibe would stop on its trust prompt' "$T/o" && ! grep -q '^tmux new-window' "$T/calls.log" &&
+  ! grep -q '^retire' "$T/calls.log" &&
+  pass "8: trust that does not verify: exit $rc, no window started, FROM not retired" || fail "8: rc=$rc $(cat "$T/o") $(calls | grep -E '^(tmux|retire)')"
+rmdir "$TF"; mv "$T/tf.ok" "$TF"
 
 echo "spl-lane-handover-mistral: $fails failure(s)"
 [[ $fails -eq 0 ]]

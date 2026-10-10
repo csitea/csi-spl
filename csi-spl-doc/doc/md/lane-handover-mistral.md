@@ -41,6 +41,16 @@ copies the one session dir over ssh stdin into the target agent user's
 window: `vibe --resume <sid>` under the launch line of `spawn-mistral.sh`
 (cost cap, `env -u MISTRAL_API_KEY`, worktree ACL), the brief as its kick.
 
+Before that window starts, on the target:
+- the handover brief is copied to `<spool root>/<TO_ID>/lifetime/brief.md`,
+  where every later restore of the lane looks, and read back as the agent
+  user;
+- the new worktree is trusted for vibe with `trust-workdir.sh --settle <worktree>
+  <agent user> mistral`, as a spawn does. Without it vibe stops on "Trust this
+  folder?" in a pane nobody watches (live proof m-911, 2026-10-10).
+
+If either fails, the action exits 1 and starts no window.
+
 The test runs that window command for real: the real `restore-mistral.sh`,
 `restore-core.inc.sh` and `spool-env.inc.sh`, as the agent user, down to a
 vibe stand-in that applies vibe's `--resume` rule and replays the session. The

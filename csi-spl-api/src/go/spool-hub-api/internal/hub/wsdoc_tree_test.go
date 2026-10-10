@@ -263,3 +263,32 @@ func TestWorkspaceDocOffOnMemory(t *testing.T) {
 		t.Fatalf("memory store: %v, want workspace_doc_tree_off", out)
 	}
 }
+
+// TestWorkspaceDocDescription: create stores the meta description (rdb 0164,
+// trimmed, "" = none) and the head and the list return it; over 1000
+// characters is a 400.
+func TestWorkspaceDocDescription(t *testing.T) {
+	e, tid, as := docTreeEnv(t)
+	d := mustCall(t, e, tid, http.MethodPost, docTreeAPI, as,
+		map[string]any{"title": "plan", "description": "  the quarter's three outcomes  "}, 200)
+	doc := dtStr(d, "id")
+	if got := dtStr(mustCall(t, e, tid, http.MethodGet, docTreeAPI+"/"+doc, as, nil, 200), "description"); got != "the quarter's three outcomes" {
+		t.Fatalf("head description = %q", got)
+	}
+	bare := dtStr(mustCall(t, e, tid, http.MethodPost, docTreeAPI, as, map[string]any{"title": "bare"}, 200), "id")
+	want := map[string]string{doc: "the quarter's three outcomes", bare: ""}
+	seen := 0
+	for _, h := range dtList(mustCall(t, e, tid, http.MethodGet, docTreeAPI, as, nil, 200), "docs") {
+		if w, ok := want[dtStr(h, "id")]; ok {
+			seen++
+			if got, has := h["description"]; !has || got != w {
+				t.Fatalf("list description of %s = %v (present %v), want %q", dtStr(h, "title"), got, has, w)
+			}
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("list showed %d of the 2 new documents", seen)
+	}
+	mustCall(t, e, tid, http.MethodPost, docTreeAPI, as,
+		map[string]any{"title": "long", "description": strings.Repeat("d", 1001)}, 400)
+}

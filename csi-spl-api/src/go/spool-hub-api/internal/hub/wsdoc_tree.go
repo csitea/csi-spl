@@ -23,7 +23,7 @@ import (
 // every structural write is one of T002's ops, so no route can break the tree.
 //
 //	GET    /v1/workspace/doctree                  the documents (?topic= linked to one topic)
-//	POST   /v1/workspace/doctree                  create {title}
+//	POST   /v1/workspace/doctree                  create {title, description}
 //	GET    /v1/workspace/doctree/search           ?q= [&doc=]: items matching q (spec 100's words)
 //	GET    /v1/workspace/doctree/{doc}            one document's head: rev, items, root, topic
 //	PATCH  /v1/workspace/doctree/{doc}            rename {title, rev} ("" = "Untitled document")
@@ -64,12 +64,13 @@ const (
 	docTreeTitleMax = 1000
 	docTreeBodyMax  = 1000000
 	docTreeDocTitle = 500
+	docTreeDocDesc  = 1000 // the meta description (rdb 0164)
 	docTreeQueryMax = 200
 )
 
 // docTreeStore is the store side: T002's ops plus the reads of wsdoc_hub.go.
 type docTreeStore interface {
-	DocCreate(ctx context.Context, tenant, title, actor string) (string, string, error)
+	DocCreate(ctx context.Context, tenant, title, description, actor string) (string, string, error)
 	DocRename(ctx context.Context, tenant, doc string, rev int64, title, actor string) (store.DocOpResult, error)
 	DocItemAdd(ctx context.Context, tenant string, r store.DocItemAddReq) (store.DocOpResult, error)
 	DocItemMove(ctx context.Context, tenant string, r store.DocItemMoveReq) (store.DocOpResult, error)
@@ -211,6 +212,7 @@ func docTreeItems(in []store.DocItem) []docTreeItem {
 type docTreeHead struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
+	Desc      string `json:"description"` // the meta description, "" = none
 	Rev       int64  `json:"rev"`
 	Items     int    `json:"items"` // the visible items: the hidden root is not counted
 	Root      string `json:"root"`
@@ -219,7 +221,7 @@ type docTreeHead struct {
 }
 
 func docTreeHeadOf(h store.DocHead) docTreeHead {
-	return docTreeHead{ID: h.ID, Title: h.Title, Rev: h.Rev, Items: max(h.Items-1, 0), Root: h.RootID,
+	return docTreeHead{ID: h.ID, Title: h.Title, Desc: h.Desc, Rev: h.Rev, Items: max(h.Items-1, 0), Root: h.RootID,
 		TopicID: h.TopicID, UpdatedAt: h.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z")}
 }
 
@@ -253,17 +255,19 @@ func (s *Server) handleDocTreeCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Title string `json:"title"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
 	}
-	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only title)") {
+	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only title, description)") {
 		return
 	}
 	in.Title = store.DocTitle(in.Title)
-	if utf8.RuneCountInString(in.Title) > docTreeDocTitle {
-		writeErr(w, http.StatusBadRequest, "bad_request", "title is at most 500 characters")
+	in.Description = strings.TrimSpace(in.Description)
+	if utf8.RuneCountInString(in.Title) > docTreeDocTitle || utf8.RuneCountInString(in.Description) > docTreeDocDesc {
+		writeErr(w, http.StatusBadRequest, "bad_request", "title is at most 500 characters, description at most 1000")
 		return
 	}
-	doc, root, err := c.st.DocCreate(r.Context(), c.tenant, in.Title, c.who)
+	doc, root, err := c.st.DocCreate(r.Context(), c.tenant, in.Title, in.Description, c.who)
 	if err != nil {
 		docTreeFail(w, err)
 		return

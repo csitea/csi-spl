@@ -19,6 +19,7 @@ import (
 type DocHead struct {
 	ID        string
 	Title     string
+	Desc      string // the meta description (rdb 0164), "" = none
 	Rev       int64
 	TopicID   string // the linked topic, "" = none
 	UpdatedAt time.Time
@@ -38,7 +39,7 @@ type DocHit struct {
 
 // wsDocHeadSQL reads document heads; $1 = one doc id or NULL, $2 = a topic
 // id or NULL, $3 = the limit.
-const wsDocHeadSQL = `SELECT d.id::text, d.title, d.rev, coalesce(r.attrs->>'topic_id', ''), d.updated_at,
+const wsDocHeadSQL = `SELECT d.id::text, d.title, d.description, d.rev, coalesce(r.attrs->>'topic_id', ''), d.updated_at,
 		(SELECT count(*) FROM workspace_doc_item i WHERE i.doc_id = d.id), r.id::text, r.rev, r.attrs
 	FROM workspace_doc d JOIN workspace_doc_item r ON r.doc_id = d.id AND r.parent_id IS NULL
 	WHERE ($1::uuid IS NULL OR d.id = $1) AND ($2::text IS NULL OR r.attrs->>'topic_id' = $2)
@@ -49,7 +50,7 @@ func (s *Postgres) docHeads(ctx context.Context, tenant string, doc, topic any, 
 	err := s.queryTenantBatch(ctx, tenant, tenantRead{sql: wsDocHeadSQL, args: []any{doc, topic, limit},
 		each: func(r pgx.Rows) error {
 			var h DocHead
-			err := r.Scan(&h.ID, &h.Title, &h.Rev, &h.TopicID, &h.UpdatedAt, &h.Items, &h.RootID, &h.RootRev, &h.RootAttrs)
+			err := r.Scan(&h.ID, &h.Title, &h.Desc, &h.Rev, &h.TopicID, &h.UpdatedAt, &h.Items, &h.RootID, &h.RootRev, &h.RootAttrs)
 			out = append(out, h)
 			return err
 		}})

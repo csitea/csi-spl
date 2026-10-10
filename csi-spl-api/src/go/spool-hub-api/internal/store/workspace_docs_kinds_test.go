@@ -38,7 +38,7 @@ func wsKindsPG(t *testing.T) (*Postgres, string) {
 func TestWorkspaceDocRename(t *testing.T) {
 	pg, tid := wsKindsPG(t)
 	ctx := context.Background()
-	doc, _, err := pg.DocCreate(ctx, tid, "first", "t")
+	doc, _, err := pg.DocCreate(ctx, tid, "first", "", "t")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestWorkspaceDocRename(t *testing.T) {
 func TestWorkspaceDocTypedItems(t *testing.T) {
 	pg, tid := wsKindsPG(t)
 	ctx := context.Background()
-	doc, root, err := pg.DocCreate(ctx, tid, "typed", "t")
+	doc, root, err := pg.DocCreate(ctx, tid, "typed", "", "t")
 	if err != nil {
 		t.Fatal(err)
 	}

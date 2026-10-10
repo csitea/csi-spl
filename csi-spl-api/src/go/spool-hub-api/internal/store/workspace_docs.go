@@ -256,15 +256,16 @@ func (s *Postgres) inDoc(ctx context.Context, tenant, doc string, op func(*wsDoc
 }
 
 // DocCreate makes a document with its hidden root item (I1) at rev 1, and
-// returns the doc id and the root id.
-func (s *Postgres) DocCreate(ctx context.Context, tenant, title, actor string) (string, string, error) {
+// returns the doc id and the root id. description is the meta description
+// (rdb 0164), "" = none.
+func (s *Postgres) DocCreate(ctx context.Context, tenant, title, description, actor string) (string, string, error) {
 	var doc, root string
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `WITH d AS (
-			INSERT INTO workspace_doc (tenant_id, title, rev, created_by) VALUES ($1, $2, 0, $3) RETURNING tenant_id, id),
+			INSERT INTO workspace_doc (tenant_id, title, description, rev, created_by) VALUES ($1, $2, $4, 0, $3) RETURNING tenant_id, id),
 			r AS (INSERT INTO workspace_doc_item (tenant_id, doc_id, parent_id, ord)
 				SELECT tenant_id, id, NULL, 1 FROM d RETURNING id)
-			SELECT d.id::text, r.id::text FROM d, r`, tenant, title, actor).Scan(&doc, &root)
+			SELECT d.id::text, r.id::text FROM d, r`, tenant, title, actor, description).Scan(&doc, &root)
 		if err != nil {
 			return err
 		}

@@ -251,7 +251,7 @@ func wsRevLog(ctx context.Context, pg *Postgres, tenant, doc string) ([]int64, [
 func TestWorkspaceDocOutcomes(t *testing.T) {
 	pg, tid := wsDocPG(t)
 	ctx := context.Background()
-	doc, root, err := pg.DocCreate(ctx, tid, "outcomes", "t")
+	doc, root, err := pg.DocCreate(ctx, tid, "outcomes", "", "t")
 	if err != nil {
 		t.Fatal(err)
 	}

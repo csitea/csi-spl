@@ -83,7 +83,7 @@ type wsConc struct {
 // seedDoc creates the doc and n items through the ops (so the log covers them).
 func (c *wsConc) seedDoc(n int) {
 	ctx := context.Background()
-	doc, root, err := c.pg.DocCreate(ctx, c.tenant, "concurrent", "conc")
+	doc, root, err := c.pg.DocCreate(ctx, c.tenant, "concurrent", "", "conc")
 	if err != nil {
 		c.t.Fatal(err)
 	}

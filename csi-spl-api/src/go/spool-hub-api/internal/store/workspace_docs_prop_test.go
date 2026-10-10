@@ -60,7 +60,7 @@ type wsProp struct {
 }
 
 func (p *wsProp) start() {
-	doc, root, err := p.pg.DocCreate(context.Background(), p.tenant, "property", "prop")
+	doc, root, err := p.pg.DocCreate(context.Background(), p.tenant, "property", "", "prop")
 	if err != nil {
 		p.t.Fatalf("seed %d: create: %v", p.seed, err)
 	}

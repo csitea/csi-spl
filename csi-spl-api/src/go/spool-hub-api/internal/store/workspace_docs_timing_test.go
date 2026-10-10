@@ -162,7 +162,7 @@ func (d wsTimingDoc) ops(pg *Postgres, tid string) []wsTimedOp {
 // (111 items each); the read is a level-1 subtree (1,111 items).
 func wsBuildFanout(t *testing.T, pg *Postgres, tid string) wsTimingDoc {
 	ctx := context.Background()
-	doc, root, err := pg.DocCreate(ctx, tid, "timing fanout", "timing")
+	doc, root, err := pg.DocCreate(ctx, tid, "timing fanout", "", "timing")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func wsBuildFanout(t *testing.T, pg *Postgres, tid string) wsTimingDoc {
 // wsBuildWide seeds one parent (the root) with n children.
 func wsBuildWide(t *testing.T, pg *Postgres, tid string, n int) wsTimingDoc {
 	ctx := context.Background()
-	doc, root, err := pg.DocCreate(ctx, tid, fmt.Sprintf("timing 1x%d", n), "timing")
+	doc, root, err := pg.DocCreate(ctx, tid, fmt.Sprintf("timing 1x%d", n), "", "timing")
 	if err != nil {
 		t.Fatal(err)
 	}

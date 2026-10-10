@@ -715,6 +715,30 @@ s9ctx s9g2 1260 1300 1260; hb idle 1300 '| .harness = "grok"'
 grep -q '^HIT S9 .*rule=2x$' <<<"$(run_s s9)" && pass "8 S9 grok: a poke 21 min ago, progress 21 min old, pane frozen: hit (rule=2x)" || fail "8 S9 grok: $(run_s s9)"
 hb idle 1000 '| .harness = "grok"'
 nohit "8 S9 grok control: progress after the poke" s9
+# agy idle on its own timer after answering a poke (a-849 2026-10-10, n=1):
+# the timer row "● [17:34:10] Wait for c-844 running" below the prompt read as
+# held input (S6) and the frozen pane as stuck (S9, no heartbeat: rule 2x). The
+# input file is what the watchdog parses from that screen (spl_rotate_input).
+# shellcheck source=../features/spawn-agents/lib/start-check.inc.sh
+source "$PROJ_ROOT/src/bash/features/spawn-agents/lib/start-check.inc.sh"
+agyctx() {  # agyctx <name> <pane>: the a-849 context, with its input parsed from <pane>
+  ctx "$1"; cp "$2" "$C/pane"
+  spool_screen_input_box < "$C/pane" > "$C/input" || : > "$C/input"
+  echo 1177 > "$C/input_age"; echo 1144 > "$C/pane_age"
+  echo "$(iso $((T0 - 1200))) msg" > "$C/input_log"
+}
+agyctx s9agy "$FX/agy-task-row.pane"
+[[ "$(cat "$C/input")" == ">" ]] && pass "8 agy: the timer row below the prompt is not input (the box reads '>')" || fail "8 agy input: '$(cat "$C/input")'"
+nohit "8 agy idle on its timer, empty prompt: no S6" s6 a-849
+nohit "8 agy idle on its timer, empty prompt, poke 20 min ago: no S9" s9 a-849
+sed 's/^>$/> please also fix the wui/' "$FX/agy-task-row.pane" > "$T/agy-typed.pane"
+agyctx s9agyt "$T/agy-typed.pane"
+hit "8 agy control: a typed line on the prompt above the timer row is held input (S6)" s6 a-849
+grep -q '^HIT S9 input=1200s prog=unknown pane=1144s rule=2x$' <<<"$(run_s s9 a-849)" &&
+  pass "8 agy control: the same pane with a typed line still trips S9" || fail "8 agy control S9: '$(run_s s9 a-849)'"
+sed 's/^\( *● \)\[17:34:10\] /\1/' "$FX/agy-task-row.pane" > "$T/agy-row.pane"
+agyctx s9agyr "$T/agy-row.pane"
+hit "8 agy control: only the timer row's exact shape is skipped (no clock: still held text)" s6 a-849
 # --norm drops poke lines and the bottom status row; --scrub hides secrets
 a="$(printf 'body\n\nstatus 08:00:01\n\n' | bash "$SIT/s9.sh" --norm)"
 b="$(printf 'body\n%s\n\nstatus 08:00:31\n' ": 'SPOOL c-900: note from c-002'" | bash "$SIT/s9.sh" --norm)"

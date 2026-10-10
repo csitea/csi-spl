@@ -65,10 +65,16 @@ spool_start_dialog() {
 # DIM ghost suggestion cut away. An empty box is "❯<NBSP>ESC[2mTry ...", three
 # typed rows are "❯ a" / "  b" / "  c", and the slash menu draws ABOVE it
 # (measured on a throwaway claude 2026-10-02).
+# agy draws its running timers in a box of their own BELOW the prompt, one
+# "● [17:34:10] Wait for c-844 running" row each (a-849 2026-10-10, n=1):
+# those rows are skipped, and a box they alone filled is no box, so the
+# prompt box above it is read. Every other row still counts.
 spool_screen_input_box() {
   local esc=$'\033' nbsp=$'\302\240'
   sed -E "s/${esc}\[7m.*//; s/${esc}\[([0-9;]*;)?2m.*//; s/${esc}\[[0-9;]*[A-Za-z]//g; s/${nbsp}/ /g" |
-    awk '{ l[NR] = $0 } /^─/ { r[++n] = NR }
+    awk '/^ *● \[[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\] .* running *$/ { t = 1; next }
+      /^─/ && t && n > 0 && r[n] == k { t = 0; next }
+      { t = 0; l[++k] = $0 } /^─/ { r[++n] = k }
       END { if (n < 2) exit 1
         for (i = r[n - 1] + 1; i < r[n]; i++) {
           s = l[i]; sub(/^ */, "", s); sub(/^❯/, "", s); sub(/^ +/, "", s); sub(/ +$/, "", s)

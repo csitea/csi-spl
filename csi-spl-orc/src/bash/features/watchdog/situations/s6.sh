@@ -11,8 +11,8 @@
 max="${WD_INPUT_MAX:-120}"
 [[ -n "$WD_PID" ]] && wd_has input || exit 0
 # an empty agy / grok prompt reads back as its bare prompt glyph: no text
+wd_box_empty && exit 0
 txt="$(wd_f input)"
-[[ "$txt" =~ ^[[:space:]]*(\>|❯|›)?[[:space:]]*$ ]] && exit 0
 age="$(wd_f input_age)"
 [[ "$age" =~ ^[0-9]+$ ]] && (( age > max )) || exit 0
 c="$(wd_f client_age)"

@@ -194,5 +194,14 @@ wd_s1_tool_held() {
   echo "$t $((WD_NOW - since))"
 }
 
+# 0 when the input box is drawn and holds nothing: the `input` file is not
+# empty (a box was parsed) and reads as a bare prompt glyph, as an empty agy /
+# grok prompt does (agy's ">"; its timer rows below the prompt are skipped by
+# spool_screen_input_box). 1 for typed text, and for no box at all (a dialog).
+wd_box_empty() {
+  wd_has input || return 1
+  [[ "$(wd_f input)" =~ ^[[:space:]]*(\>|❯|›)?[[:space:]]*$ ]]
+}
+
 # The text cut to one short line for an evidence field.
 wd_short() { tr '\n\t' '  ' | cut -c1-"${1:-100}"; }

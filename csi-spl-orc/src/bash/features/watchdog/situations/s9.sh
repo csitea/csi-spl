@@ -73,6 +73,11 @@ if [[ -z "$first" ]]; then
   exit 0
 fi
 (( WD_NOW - first >= win )) || exit 0
+# rule 2x has no UserPromptSubmit to prove the model took the keystroke; an
+# input box drawn EMPTY proves it left the box (a-849 2026-10-10, n=1: an
+# agy seat idle on its own timer after answering the poke was taken over).
+# Text still on the prompt, or no box (a dialog), still counts.
+[[ "$rule" == 2x ]] && wd_box_empty && exit 0
 if [[ -n "$prog" ]]; then (( WD_NOW - prog >= win )) || exit 0; fi
 if [[ "$(wd_hb state)" == in-tool ]]; then
   since="$(wd_epoch "$(wd_hb tool_since)")"

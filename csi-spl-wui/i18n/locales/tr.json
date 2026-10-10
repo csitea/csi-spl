@@ -2433,15 +2433,15 @@
       "replace_image": "Görseli değiştir"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Belge işlemleri",
+      "edit": "Düzenle",
+      "rename": "Yeniden adlandır",
+      "copy_link": "Bağlantıyı kopyala",
+      "new_tab": "Yeni sekmede aç",
       "link_copied": "Bağlantı kopyalandı",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Belgeyi sil",
+      "delete_title": "Bu belge silinsin mi?",
+      "delete_body": "\"{title}\" ve içindeki her şey silinecek."
     },
     "edit_doc_title": "Belgeyi yeniden adlandır",
     "edit_code": "Kod bloğunu düzenle",

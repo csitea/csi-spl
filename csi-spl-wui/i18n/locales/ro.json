@@ -2433,15 +2433,15 @@
       "replace_image": "Înlocuiește imaginea"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
-      "link_copied": "Copiază linkul",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "label": "Acțiuni document",
+      "edit": "Editează",
+      "rename": "Redenumește",
+      "copy_link": "Copiază linkul",
+      "new_tab": "Deschide într-o filă nouă",
+      "link_copied": "Link copiat",
+      "delete": "Șterge documentul",
+      "delete_title": "Ștergi acest document?",
+      "delete_body": "\"{title}\" și tot ce conține va fi șters."
     },
     "edit_doc_title": "Redenumește documentul",
     "edit_code": "Editează blocul de cod",

@@ -2433,15 +2433,15 @@
       "replace_image": "Замінити зображення"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Дії з документом",
+      "edit": "Редагувати",
+      "rename": "Перейменувати",
+      "copy_link": "Копіювати посилання",
+      "new_tab": "Відкрити в новій вкладці",
       "link_copied": "Посилання скопійовано",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Видалити документ",
+      "delete_title": "Видалити цей документ?",
+      "delete_body": "\"{title}\" та весь його вміст буде видалено."
     },
     "edit_doc_title": "Перейменувати документ",
     "edit_code": "Змінити блок коду",

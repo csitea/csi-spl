@@ -2433,15 +2433,15 @@
       "replace_image": "Zastąp obraz"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Akcje dokumentu",
+      "edit": "Edytuj",
+      "rename": "Zmień nazwę",
+      "copy_link": "Kopiuj link",
+      "new_tab": "Otwórz w nowej karcie",
       "link_copied": "Link skopiowany",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Usuń dokument",
+      "delete_title": "Usunąć ten dokument?",
+      "delete_body": "Dokument \"{title}\" i cała jego zawartość zostaną usunięte."
     },
     "edit_doc_title": "Zmień nazwę dokumentu",
     "edit_code": "Edytuj blok kodu",

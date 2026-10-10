@@ -2433,15 +2433,15 @@
       "replace_image": "Aizstāt attēlu"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Dokumenta darbības",
+      "edit": "Rediģēt",
+      "rename": "Pārdēvēt",
+      "copy_link": "Kopēt saiti",
+      "new_tab": "Atvērt jaunā cilnē",
       "link_copied": "Saite nokopēta",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Dzēst dokumentu",
+      "delete_title": "Dzēst šo dokumentu?",
+      "delete_body": "\"{title}\" un viss tajā esošais tiks dzēsts."
     },
     "edit_doc_title": "Pārdēvēt dokumentu",
     "edit_code": "Rediģēt koda bloku",

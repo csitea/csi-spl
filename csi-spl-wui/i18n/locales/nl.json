@@ -2433,15 +2433,15 @@
       "replace_image": "Afbeelding vervangen"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Documentacties",
+      "edit": "Bewerken",
+      "rename": "Naam wijzigen",
+      "copy_link": "Link kopiëren",
+      "new_tab": "Openen in een nieuw tabblad",
       "link_copied": "Link gekopieerd",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Document verwijderen",
+      "delete_title": "Dit document verwijderen?",
+      "delete_body": "\"{title}\" en alles erin wordt verwijderd."
     },
     "edit_doc_title": "Document hernoemen",
     "edit_code": "Codeblok bewerken",

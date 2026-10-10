@@ -2433,15 +2433,15 @@
       "replace_image": "Αντικατάσταση εικόνας"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Ενέργειες εγγράφου",
+      "edit": "Επεξεργασία",
+      "rename": "Μετονομασία",
+      "copy_link": "Αντιγραφή συνδέσμου",
+      "new_tab": "Άνοιγμα σε νέα καρτέλα",
       "link_copied": "Ο σύνδεσμος αντιγράφηκε",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Διαγραφή εγγράφου",
+      "delete_title": "Διαγραφή αυτού του εγγράφου;",
+      "delete_body": "Το έγγραφο \"{title}\" και όλα τα περιεχόμενά του θα διαγραφούν."
     },
     "edit_doc_title": "Μετονομασία εγγράφου",
     "edit_code": "Επεξεργασία μπλοκ κώδικα",

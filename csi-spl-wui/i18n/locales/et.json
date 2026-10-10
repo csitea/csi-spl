@@ -2433,15 +2433,15 @@
       "replace_image": "Asenda pilt"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Dokumendi toimingud",
+      "edit": "Muuda",
+      "rename": "Nimeta ümber",
+      "copy_link": "Kopeeri link",
+      "new_tab": "Ava uuel vahelehel",
       "link_copied": "Link kopeeritud",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Kustuta dokument",
+      "delete_title": "Kustuta see dokument?",
+      "delete_body": "\"{title}\" ja kõik selle sisu kustutatakse."
     },
     "edit_doc_title": "Nimeta dokument ümber",
     "edit_code": "Muuda koodiplokki",

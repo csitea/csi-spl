@@ -2433,15 +2433,15 @@
       "replace_image": "Nahradiť obrázok"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Akcie dokumentu",
+      "edit": "Upraviť",
+      "rename": "Premenovať",
+      "copy_link": "Kopírovať odkaz",
+      "new_tab": "Otvoriť na novej karte",
       "link_copied": "Odkaz skopírovaný",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Odstrániť dokument",
+      "delete_title": "Odstrániť tento dokument?",
+      "delete_body": "Dokument \"{title}\" a všetko v ňom sa odstráni."
     },
     "edit_doc_title": "Premenovať dokument",
     "edit_code": "Upraviť blok kódu",

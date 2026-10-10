@@ -2433,15 +2433,15 @@
       "replace_image": "Ersätt bild"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Dokumentåtgärder",
+      "edit": "Redigera",
+      "rename": "Byt namn",
+      "copy_link": "Kopiera länk",
+      "new_tab": "Öppna i en ny flik",
       "link_copied": "Länken kopierad",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Ta bort dokument",
+      "delete_title": "Ta bort det här dokumentet?",
+      "delete_body": "\"{title}\" och allt innehåll kommer att tas bort."
     },
     "edit_doc_title": "Byt namn på dokumentet",
     "edit_code": "Redigera kodblocket",

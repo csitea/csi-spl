@@ -2433,15 +2433,15 @@
       "replace_image": "Замени ја сликата"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Акции на документот",
+      "edit": "Уреди",
+      "rename": "Преименувај",
+      "copy_link": "Копирај врска",
+      "new_tab": "Отвори во ново јазиче",
       "link_copied": "Врската е копирана",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Избриши го документот",
+      "delete_title": "Да се избрише овој документ?",
+      "delete_body": "\"{title}\" и сè што е во него ќе бидат избришани."
     },
     "edit_doc_title": "Преименувај го документот",
     "edit_code": "Уреди го блокот со код",

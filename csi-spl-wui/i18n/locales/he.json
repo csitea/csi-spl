@@ -2433,15 +2433,15 @@
       "replace_image": "החלפת התמונה"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "פעולות מסמך",
+      "edit": "עריכה",
+      "rename": "שינוי שם",
+      "copy_link": "העתק קישור",
+      "new_tab": "פתיחה בכרטיסייה חדשה",
       "link_copied": "הקישור הועתק",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "מחיקת מסמך",
+      "delete_title": "למחוק מסמך זה?",
+      "delete_body": "\"{title}\" וכל מה שבתוכו יימחקו."
     },
     "edit_doc_title": "שינוי שם המסמך",
     "edit_code": "עריכת בלוק הקוד",

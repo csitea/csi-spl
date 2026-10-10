@@ -2433,15 +2433,15 @@
       "replace_image": "Vaihda kuva"
     },
     "doc_menu": {
-      "label": "Document actions",
-      "edit": "Edit",
-      "rename": "Rename",
-      "copy_link": "Copy link",
-      "new_tab": "Open in a new tab",
+      "label": "Asiakirjan toiminnot",
+      "edit": "Muokkaa",
+      "rename": "Nimeä uudelleen",
+      "copy_link": "Kopioi linkki",
+      "new_tab": "Avaa uuteen välilehteen",
       "link_copied": "Linkki kopioitu",
-      "delete": "Delete document",
-      "delete_title": "Delete this document?",
-      "delete_body": "\"{title}\" and everything in it will be deleted."
+      "delete": "Poista asiakirja",
+      "delete_title": "Poistetaanko tämä asiakirja?",
+      "delete_body": "\"{title}\" ja kaikki sen sisältö poistetaan."
     },
     "edit_doc_title": "Nimeä asiakirja uudelleen",
     "edit_code": "Muokkaa koodilohkoa",

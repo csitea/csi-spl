@@ -55,4 +55,34 @@ eq "5. grok finished turn at an empty prompt -> idle" idle "$(classify_screen " 
 ${gbox}
   Shift+Tab:mode  │  Ctrl+x:shortcuts")"
 
+# 6. agy (1.3.3, captured 2026-10-10): mid-turn it may sit at an empty `>`
+# under a `? for shortcuts` footer while its turn waits on a task (a-899 got
+# /exit there). Busy: `esc to cancel`, a live spinner line, its own
+# "Task completion wait" row. Idle: a finished turn, also with a timer left.
+abox=$'────────\n>\n────────'
+eq "6. agy generating -> busy" busy "$(classify_screen "⢿  Generating...
+${abox}
+esc to cancel                    Gemini 3.1 Pro · high")"
+eq "6. agy running a command -> busy" busy "$(classify_screen "⣻  Running command...
+${abox}
+  ● [22:52:52] sleep 25; echo done-sleeping running
+────────
+esc to cancel                    Gemini 3.1 Pro · high · 1 task(s) · /tasks")"
+eq "6. agy waiting on its task under a '? for shortcuts' footer -> busy" busy "$(classify_screen "▸ Thought for 7s, 744 tokens
+${abox}
+  ● [22:52:56] Task completion wait running
+  ● [22:52:52] sleep 25; echo done-sleeping running
+────────
+? for shortcuts                  Gemini 3.1 Pro · high · 2 task(s) · /tasks")"
+eq "6. agy finished turn -> idle" idle "$(classify_screen "▸ Thought for 7s, 744 tokens
+  finished.
+${abox}
+? for shortcuts                  Gemini 3.1 Pro · high")"
+eq "6. agy finished turn with a timer left running -> idle" idle "$(classify_screen "● Scheduling 1 timer (300s: Reminder) (ctrl+o to expand)
+  scheduled.
+${abox}
+  ● [22:59:50] 300s timer running
+────────
+? for shortcuts                  Gemini 3.1 Pro · high · 1 task(s) · /tasks")"
+
 t_done

@@ -117,6 +117,16 @@ classify_screen() {
   if printf '%s' "$scr" | grep -qE 'esc to interrupt|Esc/Ctrl\+C to interrupt|Esc:cancel|Ctrl\+c:cancel|Waiting for response'; then
     printf '%s\n' busy; return
   fi
+  # agy (1.3.3, captured 2026-10-10) mid-turn: `esc to cancel` in the footer,
+  # a live "⣾  Running command..." spinner line, or its own row
+  # "● [22:52:56] Task completion wait running": the turn blocks on a task,
+  # and then the footer reads `? for shortcuts` at an empty `>` (6 of 59
+  # working samples; a-899 got /exit there and did not leave). A task row
+  # alone ("● [17:34:10] 300s timer running", "1 task(s)") is a finished turn
+  # with a timer left: idle, and /exit ends agy there.
+  if printf '%s\n' "$scr" | grep -qE 'esc to cancel|^[[:space:]]*● \[[0-9:]+\] Task completion wait running[[:space:]]*$|^[^[:space:][:alnum:]]+[[:space:]]+(Generating|Working|Scheduling|Thinking|Running command)\.\.\.[[:space:]]*$'; then
+    printf '%s\n' busy; return
+  fi
   # A spinner word counts only in its LIVE form, "Crunching…": a finished
   # turn leaves "✻ Crunched for 4s · done 12.34", whose past tense matched the
   # bare stem and read every finished pane as busy (CLE-77975, 2026-10-02).

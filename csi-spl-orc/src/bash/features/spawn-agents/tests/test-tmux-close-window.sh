@@ -28,6 +28,9 @@
 #      closed; a busy agy (screen still changing) never gets /exit; nor does
 #      one paused mid-turn on a STATIC screen (footer `esc to cancel`) - the
 #      live a-479 got three /exit tries in that state on screen stability alone
+#      nor one whose turn waits on a task (`● [..] Task completion wait running`)
+#      under an idle `? for shortcuts` footer (a-899, 2026-10-10); one idle with
+#      only a timer row left still gets /exit
 #  11. specs/102 4.3 (T005): --defer writes lifetime/done BEFORE it returns, while
 #      the claude / grok / agy process still runs (a-479, a-480: S3 took over an
 #      agent that had exited on purpose); --rebirth writes lifetime/rebirth,
@@ -184,7 +187,13 @@ cat >"$T_TMP/bin/agy" <<'FAKEAGY'
 # fake agy: an input box, reads lines into $1, leaves on /exit; $2=busy keeps the
 # screen moving, $2=paused holds a static mid-turn screen (real agy's footers)
 if [ "${2:-}" = busy ]; then n=0; while :; do n=$((n + 1)); printf 'working %s\n>\nesc to cancel\n' "$n"; sleep 0.2; done; fi
+# $2=taskwait: the turn blocks on a task under an idle-looking footer (agy 1.3.3,
+# a-899 2026-10-10); $2=timer: a finished turn that left a timer running
 if [ "${2:-}" = paused ]; then printf '%s\n' 'Generating...' '-----' '>' '-----' 'esc to cancel'
+elif [ "${2:-}" = taskwait ]; then printf '%s\n' '-----' '>' '-----' '  ● [22:52:56] Task completion wait running' \
+  '  ● [22:52:52] sleep 25; echo done-sleeping running' '-----' '? for shortcuts      Gemini 3.1 Pro · high · 2 task(s) · /tasks'
+elif [ "${2:-}" = timer ]; then printf '%s\n' '  scheduled.' '-----' '>' '-----' '  ● [22:59:50] 300s timer running' '-----' \
+  '? for shortcuts      Gemini 3.1 Pro · high · 1 task(s) · /tasks'
 else printf '%s\n' '-----' '>' '-----' '? for shortcuts'; fi
 while IFS= read -r line; do
   printf '%s\n' "$line" >>"$1"
@@ -222,6 +231,16 @@ sleep 1
 in_agy_session env AGY_TMUX_PANE="$P10C" bash "$SUT" --agent a-304 --defer --timeout 6
 check "10. an agy paused mid-turn is closed only by the timeout" wait_gone "$P10C" 30
 eq "10. control: ... and never got /exit on a static mid-turn screen" "" "$(cat "$T_TMP/got-304" 2>/dev/null)"
+P10D="$(t_window 'a-305@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-305 taskwait")"
+sleep 1
+in_agy_session env AGY_TMUX_PANE="$P10D" bash "$SUT" --agent a-305 --defer --timeout 6
+check "10. an agy waiting on its task (\`? for shortcuts\` footer) is closed only by the timeout" wait_gone "$P10D" 30
+eq "10. ... and never got /exit mid-turn (a-899, 2026-10-10)" "" "$(cat "$T_TMP/got-305" 2>/dev/null)"
+P10E="$(t_window 'a-306@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-306 timer")"
+sleep 1
+in_agy_session env AGY_TMUX_PANE="$P10E" bash "$SUT" --agent a-306 --defer --timeout 60
+check "10. an agy idle with a timer left running closes well before the timeout" wait_gone "$P10E" 30
+has "10. ... it got /exit and left by itself (a timer row alone is not busy)" "AGY-EXITED" "$(cat "$T_TMP/got-306" 2>/dev/null)"
 check "10. the idle agy without a closer is still there" alive "$P10"
 
 # --- 11. the lifetime markers (specs/102 4.3) --------------------------------------------------

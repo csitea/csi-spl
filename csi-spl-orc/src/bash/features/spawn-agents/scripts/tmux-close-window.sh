@@ -884,7 +884,9 @@ done
 
 # agy idle = the footer reads `? for shortcuts`, never `esc to cancel` (a turn
 # in progress, even one paused on a static screen: a-479 got three /exit tries
-# mid-turn on the screen-stability rule alone), the input line is an empty `>`.
+# mid-turn on the screen-stability rule alone), the input line is an empty `>`,
+# and classify_screen reads idle: no task still running (a-899 got /exit while
+# it waited on its tasks under a `? for shortcuts` footer, 2026-10-10).
 # Any other harness: rebirth_screen_idle (no running turn, no dialog, an empty
 # prompt line; text typed into the prompt is left alone). Either way the screen
 # did not change for 3 polls, tries are >= 10 s apart, and never while a human
@@ -918,6 +920,7 @@ type_exit_when_idle() {
     printf '%s\n' "$screen" | grep -E '^>[[:space:]]*$' >/dev/null || return 0
     printf '%s\n' "$screen" | grep -E '^[[:space:]]*\? for shortcuts' >/dev/null || return 0
     printf '%s\n' "$screen" | grep -F 'esc to cancel' >/dev/null && return 0
+    [[ "$(classify_screen "$screen")" == idle ]] || return 0
   else
     rebirth_screen_idle "$screen" || return 0
   fi

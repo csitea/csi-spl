@@ -63,7 +63,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T000 | this file | - | - | done | claude |
 | **T101** | **lane A: DDL `embed_visitors`, `embed_customers`, channel-scope RLS + negative tests** | 1 | - | build | claude |
 | T102 | store: `inChannel`, visitor and embed rows | 1 | T101 applied dev+prd | build | claude |
-| T103 | cnf `env.hub.embed.*` + config reader | 1 | - | build | claude |
+| T103 | cnf `env.hub.embed.*` + config reader | 1 | - | done (7b1e4f47e) | claude |
 | T104 | hub: visitor token, `channel_guest` role, read/post/erase in its channel | 1 | T102, T103 | build | claude |
 | T106 | hub: `#sales` triage line, retention, lead mark, block, export exclusion | 1 | T104 | build | claude |
 | T106b | WUI: "Visitors" rail group, lead / block buttons | 1 | T106 | build | mistral or grok |
@@ -119,7 +119,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   reads. Files: `GO/store/rls.go`; `GO/store/embed_visitors.go` +
   `_test.go` (*new*); `GO/store/embed_customers.go` + `_test.go` (*new*).
   Done: a visitor request path cannot reach `inTenant` (test).
-- [ ] T103 **cnf** (claude; needs nothing). `env.hub.embed.*`: `enabled:
+- [x] T103 **cnf** (claude; needs nothing). `env.hub.embed.*`: `enabled:
   false`, every limit of `spec.md` section 6 except the spend cap (T305),
   token lifetime 30 d sliding / 180 d cap. Files: the `env.hub.embed` block
   of `csi-spl-cnf/csi-spl/all.env.yaml`; the rendered `dev` / `prd` env

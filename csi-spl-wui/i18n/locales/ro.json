@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Numără timpul meu de citire",
       "hint": "Cât timp această filă este deschisă și ești activ în ea, acele minute se adaugă la orele sugerate. Oprit: se numără doar postările și întâlnirile tale. Doar tu vezi aceste minute. Păstrat pentru acest spațiu de lucru."
+    },
+    "apps": {
+      "title": "Aplicații pe acest telefon",
+      "hint": "Instalează un spațiu de lucru ca aplicație pe acest dispozitiv. Fiecare spațiu de lucru este o aplicație separată.",
+      "this_one": "acest spațiu de lucru",
+      "install": "Instalează",
+      "installed": "Instalată",
+      "manual": "Acest browser nu are un buton de instalare: deschide-i meniul (Partajează pe iPhone) și alege Adaugă pe ecranul principal.",
+      "same_app": "Aceeași aplicație ca acest spațiu de lucru"
     }
   },
   "auth": {

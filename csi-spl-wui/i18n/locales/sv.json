@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Räkna min lästid",
       "hint": "Medan den här fliken är öppen och du är aktiv i den räknas de minuterna till dina föreslagna timmar. Av: bara dina inlägg och möten räknas. Bara du ser de här minuterna. Sparas för den här arbetsytan."
+    },
+    "apps": {
+      "title": "Appar på den här telefonen",
+      "hint": "Installera en arbetsyta som app på den här enheten. Varje arbetsyta är en egen app.",
+      "this_one": "den här arbetsytan",
+      "install": "Installera",
+      "installed": "Installerad",
+      "manual": "Den här webbläsaren har ingen installationsknapp: öppna dess meny (Dela på iPhone) och välj Lägg till på hemskärmen.",
+      "same_app": "Samma app som den här arbetsytan"
     }
   },
   "auth": {

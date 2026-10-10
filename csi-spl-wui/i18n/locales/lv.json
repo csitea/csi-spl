@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Skaitīt manu lasīšanas laiku",
       "hint": "Kamēr šī cilne ir atvērta un tajā esat aktīvs, šīs minūtes tiek ieskaitītas ieteiktajās stundās. Izslēgts: tiek skaitīti tikai jūsu ieraksti un sapulces. Šīs minūtes redzat tikai jūs. Saglabāts šai darbvietai."
+    },
+    "apps": {
+      "title": "Lietotnes šajā tālrunī",
+      "hint": "Instalējiet darbvietu kā lietotni šajā ierīcē. Katra darbvieta ir atsevišķa lietotne.",
+      "this_one": "šī darbvieta",
+      "install": "Instalēt",
+      "installed": "Instalēta",
+      "manual": "Šajā pārlūkā nav instalēšanas pogas: atveriet tā izvēlni (iPhone tālrunī Kopīgot) un izvēlieties Pievienot sākuma ekrānam.",
+      "same_app": "Tā pati lietotne, kas šī darbvieta"
     }
   },
   "auth": {

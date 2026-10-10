@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Arvesta minu lugemisaega",
       "hint": "Kui see vahekaart on avatud ja oled selles aktiivne, lähevad need minutid sinu soovitatud tundide hulka. Väljas: arvestatakse ainult sinu postitusi ja koosolekuid. Neid minuteid näed ainult sina. Kehtib selles tööruumis."
+    },
+    "apps": {
+      "title": "Rakendused selles telefonis",
+      "hint": "Paigalda tööruum selle seadme rakendusena. Iga tööruum on eraldi rakendus.",
+      "this_one": "see tööruum",
+      "install": "Paigalda",
+      "installed": "Paigaldatud",
+      "manual": "Selles brauseris pole paigaldusnuppu: ava selle menüü (iPhone'is Jaga) ja vali Lisa avakuvale.",
+      "same_app": "Sama rakendus mis see tööruum"
     }
   },
   "auth": {

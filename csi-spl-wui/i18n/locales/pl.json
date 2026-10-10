@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Licz mój czas czytania",
       "hint": "Gdy ta karta jest otwarta i jesteś w niej aktywny, te minuty wliczają się do proponowanych godzin. Wyłączone: liczą się tylko Twoje wpisy i spotkania. Tylko Ty widzisz te minuty. Zapisywane dla tej przestrzeni roboczej."
+    },
+    "apps": {
+      "title": "Aplikacje na tym telefonie",
+      "hint": "Zainstaluj obszar roboczy jako aplikację na tym urządzeniu. Każdy obszar roboczy to osobna aplikacja.",
+      "this_one": "ten obszar roboczy",
+      "install": "Zainstaluj",
+      "installed": "Zainstalowano",
+      "manual": "Ta przeglądarka nie ma przycisku instalacji: otwórz jej menu (Udostępnij na iPhonie) i wybierz Do ekranu początkowego.",
+      "same_app": "Ta sama aplikacja co ten obszar roboczy"
     }
   },
   "auth": {

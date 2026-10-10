@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Laske lukuaikani",
       "hint": "Kun tämä välilehti on auki ja olet aktiivinen siinä, nämä minuutit lasketaan ehdotettuihin tunteihisi. Pois: vain viestisi ja tapaamisesi lasketaan. Vain sinä näet nämä minuutit. Tallennetaan tähän työtilaan."
+    },
+    "apps": {
+      "title": "Sovellukset tässä puhelimessa",
+      "hint": "Asenna työtila sovellukseksi tähän laitteeseen. Jokainen työtila on oma sovelluksensa.",
+      "this_one": "tämä työtila",
+      "install": "Asenna",
+      "installed": "Asennettu",
+      "manual": "Tässä selaimessa ei ole asennuspainiketta: avaa sen valikko (iPhonessa Jaa) ja valitse Lisää Koti-valikkoon.",
+      "same_app": "Sama sovellus kuin tämä työtila"
     }
   },
   "auth": {

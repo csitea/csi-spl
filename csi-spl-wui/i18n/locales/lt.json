@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Skaičiuoti mano skaitymo laiką",
       "hint": "Kol šis skirtukas atidarytas ir jame esate aktyvūs, tos minutės įskaitomos į siūlomas valandas. Išjungta: skaičiuojami tik jūsų įrašai ir susitikimai. Šias minutes matote tik jūs. Saugoma šiai darbo erdvei."
+    },
+    "apps": {
+      "title": "Programėlės šiame telefone",
+      "hint": "Įdiekite darbo sritį kaip programėlę šiame įrenginyje. Kiekviena darbo sritis yra atskira programėlė.",
+      "this_one": "ši darbo sritis",
+      "install": "Įdiegti",
+      "installed": "Įdiegta",
+      "manual": "Šioje naršyklėje nėra diegimo mygtuko: atidarykite jos meniu (iPhone telefone Bendrinti) ir pasirinkite Pridėti prie pradžios ekrano.",
+      "same_app": "Ta pati programėlė kaip ši darbo sritis"
     }
   },
   "auth": {

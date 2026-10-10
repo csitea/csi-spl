@@ -42,6 +42,7 @@
     </div>
     <DebugPaneSetting />
   </SettingsSection>
+  <AppsInstallSetting />
 </template>
 
 <script setup lang="ts">
@@ -49,6 +50,7 @@ import SettingsSection from '~/components/SettingsSection.vue'
 import FontSizeSetting from '~/components/FontSizeSetting.vue'
 import TimeZoneSetting from '~/components/TimeZoneSetting.vue'
 import DebugPaneSetting from '~/components/DebugPaneSetting.vue'
+import AppsInstallSetting from '~/components/AppsInstallSetting.vue'
 import { useCardClipDefault } from '~/composables/useCardClip'
 import { CARD_CLIP_MODES } from '~/utils/card-clip.mjs'
 

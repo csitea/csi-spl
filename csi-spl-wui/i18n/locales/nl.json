@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Mijn leestijd meetellen",
       "hint": "Zolang dit tabblad open is en je er actief in bent, tellen die minuten mee voor je voorgestelde uren. Uit: alleen je berichten en vergaderingen tellen. Alleen jij ziet deze minuten. Bewaard voor deze werkruimte."
+    },
+    "apps": {
+      "title": "Apps op deze telefoon",
+      "hint": "Installeer een werkruimte als app op dit apparaat. Elke werkruimte is een eigen app.",
+      "this_one": "deze werkruimte",
+      "install": "Installeren",
+      "installed": "Geïnstalleerd",
+      "manual": "Deze browser heeft geen installatieknop: open het menu (Deel op iPhone) en kies Zet op beginscherm.",
+      "same_app": "Dezelfde app als deze werkruimte"
     }
   },
   "auth": {

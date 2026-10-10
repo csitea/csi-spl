@@ -21,6 +21,11 @@
 //       member's card.
 //       CONTROL: the same reader signed in WITHOUT a password (the default
 //       mock session, no claim p) sees neither link.
+//   I   t1 HUM-10 (msg 44200ea2): Appearance's "Apps on this phone" lists one
+//       row per workspace; with no install event the manual step shows, a
+//       (mocked) beforeinstallprompt gives an Install button whose click
+//       calls prompt() once and then says Installed; running standalone it
+//       says Installed.
 // CONTROL: the dialog is asserted present before every close path, so a close
 // that "works" because nothing opened cannot read green.
 //
@@ -72,7 +77,23 @@ try {
     try {
       /* C: spool.test.signin = the session's sign-in method (claim p), none by default */
       const signIn = localStorage.getItem('spool.test.signin')
-      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', ...(signIn ? { p: signIn } : {}) }))
+      /* I: spool.test.tenants = the session's memberships (claim tenants) */
+      const tenants = JSON.parse(localStorage.getItem('spool.test.tenants') || 'null')
+      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', ...(signIn ? { p: signIn } : {}), ...(tenants ? { active_tenant: 't1', tenants } : {}) }))
+      /* I: Chrome itself offers install of this bundle (a real
+         beforeinstallprompt, measured on localhost). Stop it before the app
+         sees it, so I2 is the no-event browser (Safari, Firefox) and only the
+         test's own event (an own `prompt`) reaches the app; note it fired. */
+      window.addEventListener('beforeinstallprompt', (e) => {
+        if (Object.prototype.hasOwnProperty.call(e, 'prompt')) return
+        window.__realInstallEvent = true
+        e.stopImmediatePropagation()
+      })
+      /* I: spool.test.standalone = this page runs as the installed app */
+      if (localStorage.getItem('spool.test.standalone')) {
+        const mm = window.matchMedia.bind(window)
+        window.matchMedia = (q) => (/display-mode:\s*standalone/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : mm(q))
+      }
       const theme = localStorage.getItem('spool.test.theme')
       if (theme) localStorage.setItem('spool-theme', theme)
     } catch { /* opaque origin on the very first document */ }
@@ -218,6 +239,56 @@ try {
   await p.waitForSelector('[data-test=person-card]', { timeout: 10000 }).catch(() => null)
   ok('C5 another member\'s card has no Change password', await p.$('[data-test=person-message]') !== null && await p.$('[data-test=person-change-password]') === null)
   await setSignIn('')
+
+  /* I: "Apps on this phone" (t1 HUM-10 msg 44200ea2): the install step */
+  const apps = () => p.evaluate(() => {
+    const box = document.querySelector('[data-test=settings-apps]')
+    const rows = [...document.querySelectorAll('[data-test^=settings-apps-row-]')]
+    return {
+      box: Boolean(box && box.getBoundingClientRect().width > 0),
+      rows: rows.map((r) => r.getAttribute('data-test').slice('settings-apps-row-'.length) + (r.dataset.current === '1' ? '*' : '')),
+      install: document.querySelector('[data-test=settings-apps-install]') !== null,
+      manual: document.querySelector('[data-test=settings-apps-manual]') !== null,
+      installed: document.querySelector('[data-test=settings-apps-installed]') !== null,
+    }
+  })
+  const openApps = async (vp) => {
+    await load(vp, '/lobby?settings=appearance&install=1')
+    return await waitOpen() && await p.waitForSelector('[data-test=settings-apps]', { visible: true, timeout: 10000 }).then(() => true).catch(() => false)
+  }
+  /* a browser that offers install: Chrome's event, with a counted prompt() */
+  const fireInstallEvent = () => p.evaluate(() => {
+    window.__prompts = 0
+    const e = new Event('beforeinstallprompt', { cancelable: true })
+    e.prompt = () => { window.__prompts += 1; return Promise.resolve() }
+    e.userChoice = Promise.resolve({ outcome: 'accepted', platform: 'web' })
+    window.dispatchEvent(e)
+    return e.defaultPrevented
+  })
+  await p.evaluate(() => localStorage.setItem('spool.test.tenants', JSON.stringify([{ tenant_id: 't1', name: 'northwind' }, { tenant_id: 't2', name: 'globex' }])))
+  ok('I0 CONTROL: Appearance opens with the Apps section', await openApps(PHONE))
+  let a = await apps()
+  ok('I1 one row per workspace, this one first', a.box && a.rows.join(',') === 't1*,t2', { ...a, realInstallEvent: await p.evaluate(() => Boolean(window.__realInstallEvent)) })
+  ok('I2 no install event (Safari, Firefox): the manual step, no dead button', a.manual && !a.install && !a.installed, a)
+  ok('I3 another workspace on this one origin (tenant hosts off): "same app", no link', await p.$('[data-test=settings-apps-same-t2]') !== null && await p.$('[data-test=settings-apps-open-t2]') === null)
+  await shot('390-apps-manual')
+  ok('I4 the install event is kept (preventDefault)', await fireInstallEvent())
+  await p.waitForSelector('[data-test=settings-apps-install]', { visible: true, timeout: 5000 }).catch(() => null)
+  a = await apps()
+  ok('I5 with the event: an Install button, no manual step', a.install && !a.manual, a)
+  await shot('390-apps-install')
+  await p.click('[data-test=settings-apps-install]')
+  await p.waitForSelector('[data-test=settings-apps-installed]', { visible: true, timeout: 5000 }).catch(() => null)
+  a = await apps()
+  ok('I6 Install calls the browser prompt once, then says Installed', (await p.evaluate(() => window.__prompts)) === 1 && a.installed && !a.install, { ...a, prompts: await p.evaluate(() => window.__prompts) })
+  await p.evaluate(() => localStorage.setItem('spool.test.standalone', '1'))
+  ok('I7 CONTROL: reopened as the installed app', await openApps(PHONE))
+  await fireInstallEvent()
+  await sleep(300)
+  a = await apps()
+  ok('I8 running as the app (display-mode standalone): Installed, no button', a.installed && !a.install && !a.manual, a)
+  await shot('390-apps-installed')
+  await p.evaluate(() => { localStorage.removeItem('spool.test.standalone'); localStorage.removeItem('spool.test.tenants') })
 
   /* screenshots in the light theme too */
   if (OUT) {

@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Počítať môj čas čítania",
       "hint": "Kým je táto karta otvorená a ste v nej aktívni, tieto minúty sa započítajú do navrhovaných hodín. Vypnuté: počítajú sa len vaše príspevky a stretnutia. Tieto minúty vidíte len vy. Uložené pre tento pracovný priestor."
+    },
+    "apps": {
+      "title": "Aplikácie v tomto telefóne",
+      "hint": "Nainštalujte pracovný priestor ako aplikáciu do tohto zariadenia. Každý pracovný priestor je samostatná aplikácia.",
+      "this_one": "tento pracovný priestor",
+      "install": "Inštalovať",
+      "installed": "Nainštalované",
+      "manual": "Tento prehliadač nemá tlačidlo inštalácie: otvorte jeho ponuku (Zdieľať na iPhone) a vyberte Pridať na plochu.",
+      "same_app": "Rovnaká aplikácia ako tento pracovný priestor"
     }
   },
   "auth": {

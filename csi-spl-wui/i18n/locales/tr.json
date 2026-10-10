@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Okuma süremi say",
       "hint": "Bu sekme açıkken ve içinde etkinken, o dakikalar önerilen saatlerinize sayılır. Kapalı: yalnızca gönderileriniz ve toplantılarınız sayılır. Bu dakikaları yalnızca siz görürsünüz. Bu çalışma alanı için saklanır."
+    },
+    "apps": {
+      "title": "Bu telefondaki uygulamalar",
+      "hint": "Bir çalışma alanını bu cihaza uygulama olarak yükleyin. Her çalışma alanı ayrı bir uygulamadır.",
+      "this_one": "bu çalışma alanı",
+      "install": "Yükle",
+      "installed": "Yüklendi",
+      "manual": "Bu tarayıcıda yükleme düğmesi yok: menüsünü açın (iPhone'da Paylaş) ve Ana Ekrana Ekle'yi seçin.",
+      "same_app": "Bu çalışma alanıyla aynı uygulama"
     }
   },
   "auth": {

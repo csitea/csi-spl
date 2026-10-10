@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Contar mi tiempo de lectura",
       "hint": "Mientras esta pestaña está abierta y estás activo en ella, esos minutos cuentan para tus horas sugeridas. Desactivado: solo cuentan tus publicaciones y reuniones. Solo tú ves estos minutos. Se guarda para este espacio de trabajo."
+    },
+    "apps": {
+      "title": "Apps en este teléfono",
+      "hint": "Instala un espacio de trabajo como app en este dispositivo. Cada espacio de trabajo es una app aparte.",
+      "this_one": "este espacio de trabajo",
+      "install": "Instalar",
+      "installed": "Instalada",
+      "manual": "Este navegador no tiene botón de instalar: abre su menú (Compartir en iPhone) y elige Añadir a pantalla de inicio.",
+      "same_app": "La misma app que este espacio de trabajo"
     }
   },
   "auth": {

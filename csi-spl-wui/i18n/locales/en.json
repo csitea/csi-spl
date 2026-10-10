@@ -217,6 +217,15 @@
     "hours_reading": {
       "label": "Count my reading time",
       "hint": "While this tab is open and you are active in it, those minutes count towards your suggested hours. Off: only your posts and meetings count. Only you see these minutes. Kept for this workspace."
+    },
+    "apps": {
+      "title": "Apps on this phone",
+      "hint": "Install a workspace as an app on this device. Each workspace is its own app.",
+      "this_one": "this workspace",
+      "install": "Install",
+      "installed": "Installed",
+      "manual": "This browser has no install button: open its menu (Share on iPhone) and choose Add to Home Screen.",
+      "same_app": "Same app as this workspace"
     }
   },
   "auth": {

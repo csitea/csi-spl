@@ -80,7 +80,7 @@
       </button>
     </div>
     <div v-else class="wsdoc__cols">
-      <article class="wsdoc__doc" data-test="ws-doc-doc">
+      <article class="wsdoc__doc" data-test="ws-doc-doc" @focusin="trackEdit" @focusout="editMode.setEditing(false)">
         <h2
           ref="docTitleEl"
           class="wsdoc__doctitle"
@@ -642,6 +642,13 @@ function onSlash(e: KeyboardEvent) {
   editMode.setEditing(false)
 }
 
+/* t1 b4dd79e2: a field of the document in focus is editing (the phone hides
+   the omnibox); the search box, the dots and the links are not */
+function trackEdit(e: FocusEvent) {
+  const el = e.target as HTMLElement
+  editMode.setEditing(el.isContentEditable || /^(INPUT|TEXTAREA)$/.test(el.tagName))
+}
+
 let ro: ResizeObserver | null = null
 let lastWidth = 0
 onMounted(async () => {
@@ -654,10 +661,6 @@ onMounted(async () => {
     await nextTick()
     document.getElementById(h)?.scrollIntoView({ block: 'start' })
   }
-  // Track edit mode on focus/blur
-  const trackEdit = (editing: boolean) => editMode.setEditing(editing);
-  rootEl.value?.addEventListener('focusin', () => trackEdit(true), true);
-  rootEl.value?.addEventListener('focusout', () => trackEdit(false), true);
   if (!fieldSizing && typeof ResizeObserver !== 'undefined' && rootEl.value) {
     ro = new ResizeObserver(() => {
       const w = rootEl.value?.clientWidth ?? 0
@@ -670,6 +673,7 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => {
+  editMode.setEditing(false)
   ro?.disconnect()
   window.removeEventListener('keydown', onSlash, true)
 })

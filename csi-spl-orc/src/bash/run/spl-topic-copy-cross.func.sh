@@ -50,10 +50,12 @@
 # @param DST_DESK_BOX (optional) - default the desk box, the same value do_spl_desk_up used
 # @param SRC_NAMES_FILE (optional) - a JSON object {"HUM-10": "FirstName LastName", ...};
 # @param   default: the display names do_spl_hub_member_list reads for SRC_TENANT
-# @param LINK_TO (optional) - the HUM-* the link-back answers, default the topic's first human
+# @param LINK_TO (optional) - the HUM-* the link-back answers, default the topic's first
+# @param   human sender, else the first human it was addressed to
 # @param LINK_BACK (optional) - 1 (default) or 0: post the link-back in the source
 # @param ARCHIVE (optional) - 1 (default) or 0: archive the source afterwards
-# @param DST_WUI_URL (optional) - the target WUI base, default its tenant host (<tenant>.<fqdn>; t1 = the apex)
+# @param DST_WUI_URL (optional) - the target WUI base, default its tenant host <tenant>.<fqdn>
+# @param   when env.dns.mapped_tenants lists it, else (and for t1) the apex
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd SRC_TENANT=csitea SRC_TOPIC_ID=0f8fad5b-d9cb-469f-a165-70867728950e DST_TENANT=t1 DST_CHANNEL=dev DESK_AGENT=c-001 ./run -a do_spl_topic_copy_cross
 # @example ENV=dev SRC_TENANT=t1 SRC_TOPIC_ID=0f8fad5b-d9cb-469f-a165-70867728950e DST_TENANT=e2e DST_CHANNEL=dev DESK_AGENT=c-001 MSG_IDS='1a2b3c4d 5e6f7a8b' TITLE='Part 1' ARCHIVE=0 DRY_RUN=0 ./run -a do_spl_topic_copy_cross
@@ -199,12 +201,17 @@ _spl_tcc_task_id() {
 }
 
 # _spl_tcc_wui <tenant>: the WUI base the permalink opens in. DST_WUI_URL
-# wins; t1 (and a self-hosted hub) is the apex, every other tenant its host
-# <tenant>.<fqdn> (SPL-959).
+# wins; a tenant the cnf maps (env.dns.mapped_tenants, SPL-959) is its host
+# <tenant>.<fqdn>; t1, a self-hosted hub and an unmapped tenant are the apex
+# (an unmapped host does not resolve: measured on dev w12live1).
 _spl_tcc_wui() {
-  local base="${DST_WUI_URL:-}"
+  local base="${DST_WUI_URL:-}" mapped=1
+  if [[ -z "$base" && -r "${SPL_CNF:-}" ]]; then
+    grep -qx -- "$1" <<<"$(yq -r '.env.dns.mapped_tenants[]?' "$SPL_CNF" 2>/dev/null)" || mapped=0
+  fi
   if [[ -z "$base" ]]; then
-    if [[ "$1" == t1 || "${ENV:-}" == self || -z "${SPL_FQDN:-}" ]]; then base="${SPL_WUI_URL:-}"; else base="https://$1.$SPL_FQDN"; fi
+    if [[ "$1" == t1 || "${ENV:-}" == self || -z "${SPL_FQDN:-}" || $mapped == 0 ]]; then base="${SPL_WUI_URL:-}"; else base="https://$1.$SPL_FQDN"; fi
+    (( mapped )) || do_log "WARN $1 has no tenant host (env.dns.mapped_tenants): the permalink uses the apex; pass DST_WUI_URL to override" >&2
   fi
   printf '%s' "${base%/}"
 }
@@ -416,7 +423,8 @@ for line in open(sys.argv[1]):
     except ValueError:
         pass
 rows.sort(key=lambda m: (str(m.get("ts", "")), str(m.get("msg_id", ""))))
-print(next((str(m["from"]) for m in rows if str(m.get("from", "")).startswith("HUM-")), ""))' "$work/src.ndjson")"
+hums = [str(m.get(k, "")) for k in ("from", "to") for m in rows]
+print(next((h for h in hums if h.startswith("HUM-")), ""))' "$work/src.ndjson")"
   [[ -n "$to" ]] || { do_log "FATAL the copy is complete ($link) but $topic has no human to address the link-back to: pass LINK_TO=HUM-<n>"; return 1; }
   what="$count message(s) of this topic, in order"
   [[ -n "$title" ]] && what="\"$title\", $what"

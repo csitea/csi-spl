@@ -16,6 +16,8 @@
 #   5. a failure part-way: the re-run posts only the rest, no duplicate
 #   6. MSG_IDS + TITLE: a title root, only the selected messages, another
 #      target topic; ARCHIVE=0 leaves the source alone
+#      6b. a topic with no human sender links back to its addressee
+#      6c. the permalink host is the tenant's only when the cnf maps it
 #   7. a MSG_IDS entry that matches nothing is refused, nothing is sent
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -54,7 +56,7 @@ EOF_PY
 # run [VAR=value]... - the action against the stub; calls in $T/calls (args
 # joined by "|", prefixed by the tenant), output in $T/o, rc in $rc.
 run() {
-  SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; SPL_WUI_URL=https://wui.invalid; SPL_FQDN=wui.invalid; }
+  SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; SPL_WUI_URL=https://wui.invalid; SPL_FQDN=wui.invalid; SPL_CNF="${SPL_CNF_T:-}"; }
 spl_host_spool() { :; }
 do_spl_hub_member_list() { return 1; }
 spl_desk_spool() {
@@ -156,6 +158,30 @@ b="$(bodies)"
   ! grep -q "^src|archive" "$T/calls" && grep '^src|send|' "$T/calls" | grep 'Part one' >/dev/null &&
   [[ "$(python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).readline())["task_id"])' "$T/dst.ndjson")" != "$task" ]] &&
   pass "a title root, the 2 selected messages in order, another topic, no archive" || fail "selection (rc=$rc): $b / $(cat "$T/o")"
+
+# --- 6b. no human sender: the link-back answers the human the topic was sent to ---------------
+: >"$T/calls"; seed
+python3 - "$T/src.ndjson" <<'EOF_PY'
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1])]
+for m in rows:
+    m["from"], m["to"] = "c-002", "HUM-12"
+open(sys.argv[1], "w").write("".join(json.dumps(m) + "\n" for m in rows))
+EOF_PY
+run DRY_RUN=0 ARCHIVE=0
+[[ $rc -eq 0 ]] && grep '^src|send|' "$T/calls" | grep -- '--to|HUM-12|' >/dev/null &&
+  pass "a topic with no human sender links back to the human it was addressed to" || fail "link-back addressee (rc=$rc): $(cat "$T/o")"
+
+# --- 6c. the permalink host follows env.dns.mapped_tenants -----------------------------------
+: >"$T/calls"; seed
+printf 'env:\n  dns:\n    mapped_tenants: [other]\n' >"$T/cnf.yaml"
+run SPL_CNF_T="$T/cnf.yaml"
+grep -q '"permalink": "https://wui.invalid/t/' "$T/o" && grep -q 'WARN dst has no tenant host' "$T/o" &&
+  pass "an unmapped target tenant gets the apex permalink and a WARN" || fail "unmapped host: $(cat "$T/o")"
+printf 'env:\n  dns:\n    mapped_tenants: [other, dst]\n' >"$T/cnf.yaml"
+run SPL_CNF_T="$T/cnf.yaml"
+grep -q '"permalink": "https://dst.wui.invalid/t/' "$T/o" && ! grep -q 'WARN dst' "$T/o" &&
+  pass "a mapped target tenant gets its own host" || fail "mapped host: $(cat "$T/o")"
 
 # --- 7. an unknown MSG_IDS entry --------------------------------------------------------------
 : >"$T/calls"; seed

@@ -7,8 +7,10 @@
 //   • more than MAX_PARAMS parameters fails: pass the object they belong to
 //
 // LONG is what was over the limit when the gate landed. It may only shrink:
-// split a function and delete its line; a NEW long function fails. A listed
-// function that is no longer long is reported so its line can go.
+// split a function and delete its line; a NEW long function fails. Each entry
+// carries a ceiling: a listed function that grows past it fails. A listed
+// function that is no longer long, or is under its ceiling, is reported so its
+// line can go or its ceiling come down.
 //
 // Run: node tests/unit/cleancode.test.mjs
 //      CLEANCODE_PRINT=1 node tests/unit/cleancode.test.mjs   # print today's long set
@@ -26,29 +28,30 @@ const MAX_LINES = 80
 const MAX_DEPTH = 4
 const MAX_PARAMS = 6
 
-// `<file> <name>` (an anonymous function takes its variable / property name,
-// or `<anon>`; a repeat in one file gets #2, #3). Lines at landing in the comment.
-const LONG = new Set([
-  'src/composables/useLive.ts ensure', // 85
-  'src/composables/useLive.ts useLive', // 169
-  'src/composables/useMentionPicker.ts useMentionPicker', // 130
-  'src/composables/useMessageEdit.ts useMessageEdit', // 98
-  'src/composables/useMove.ts useMove', // 182
-  'src/composables/usePaneWidths.ts usePaneWidths', // 167
-  'src/composables/useScrollAnchor.ts useScrollAnchor', // 208
-  'src/composables/useTopicRowActions.ts useTopicRowActions', // 89
-  'src/stores/channel.ts <anon>', // 468
-  'src/stores/flow.ts <anon>', // 128
-  'src/stores/live.ts setup', // 262
-  'src/stores/notification.ts <anon>', // 362
-  'src/stores/search.ts <anon>', // 98
-  'src/stores/session.ts <anon>', // 138
-  'src/stores/topic.ts <anon>', // 117
-  'src/stores/viewer.ts <anon>', // 143
-  'src/utils/auth-client.mjs createAuthClient', // 297
-  'src/utils/live-ws.mjs createLiveClient', // 475
-  'src/utils/live-ws.mjs handle', // 105
-  'src/utils/spool-client.mjs createSpoolClient', // 1415
+// `<file> <name>` -> ceiling (an anonymous function takes its variable /
+// property name, or `<anon>`; a repeat in one file gets #2, #3). The ceiling is
+// its length on 2026-10-10 (r5-06): a listed function may not grow past it.
+const LONG = new Map([
+  ['src/composables/useLive.ts ensure', 89],
+  ['src/composables/useLive.ts useLive', 178],
+  ['src/composables/useMentionPicker.ts useMentionPicker', 130],
+  ['src/composables/useMessageEdit.ts useMessageEdit', 110],
+  ['src/composables/useMove.ts useMove', 182],
+  ['src/composables/usePaneWidths.ts usePaneWidths', 201],
+  ['src/composables/useScrollAnchor.ts useScrollAnchor', 208],
+  ['src/composables/useTopicRowActions.ts useTopicRowActions', 105],
+  ['src/stores/channel.ts <anon>', 576],
+  ['src/stores/flow.ts <anon>', 321],
+  ['src/stores/live.ts setup', 304],
+  ['src/stores/notification.ts <anon>', 430],
+  ['src/stores/search.ts <anon>', 97],
+  ['src/stores/session.ts <anon>', 167],
+  ['src/stores/topic.ts <anon>', 117],
+  ['src/stores/viewer.ts <anon>', 173],
+  ['src/utils/auth-client.mjs createAuthClient', 326],
+  ['src/utils/live-ws.mjs createLiveClient', 507],
+  ['src/utils/live-ws.mjs handle', 117],
+  ['src/utils/spool-client.mjs createSpoolClient', 565],
 ])
 
 const NEST = new Set([
@@ -116,7 +119,7 @@ export function scan() {
 const fns = scan()
 if (process.env.CLEANCODE_PRINT) {
   for (const f of fns.filter((x) => x.lines > MAX_LINES).sort((a, b) => a.key.localeCompare(b.key))) {
-    console.log(`  '${f.key}', // ${f.lines}`)
+    console.log(`  ['${f.key}', ${f.lines}],`)
   }
   process.exit(0)
 }
@@ -125,21 +128,46 @@ let failed = 0
 const fail = (m) => { failed++; console.log(`  FAIL ${m}`) }
 if (fns.length < 1000) fail(`scanned only ${fns.length} functions under src: the walk is broken, not the code`)
 
-const long = new Set()
-for (const f of fns) {
-  if (f.lines > MAX_LINES) {
-    long.add(f.key)
-    if (!LONG.has(f.key)) fail(`${f.key} is ${f.lines} lines (> ${MAX_LINES}): split it into named steps (or add it to LONG with a reason in the commit)`)
+// checkLong(fns, ceilings) -> { fails, notes, long }: a function over MAX_LINES
+// fails unless `ceilings` lists it, and fails above its ceiling.
+export function checkLong(fns, ceilings) {
+  const fails = []
+  const notes = []
+  const long = new Map()
+  for (const f of fns) {
+    if (f.lines <= MAX_LINES) continue
+    long.set(f.key, f.lines)
+    const cap = ceilings.get(f.key)
+    if (cap === undefined) fails.push(`${f.key} is ${f.lines} lines (> ${MAX_LINES}): split it into named steps (or add it to LONG with a reason in the commit)`)
+    else if (f.lines > cap) fails.push(`${f.key} is ${f.lines} lines, over its LONG ceiling ${cap}: split it into named steps, never raise the ceiling`)
   }
+  for (const [k, cap] of ceilings) {
+    const lines = long.get(k)
+    if (lines === undefined) notes.push(`NOTE LONG: '${k}' is no longer over ${MAX_LINES} lines - delete its line`)
+    else if (lines < cap) notes.push(`NOTE LONG: '${k}' is ${lines} lines, under its ceiling ${cap} - lower the ceiling to ${lines}`)
+  }
+  return { fails, notes, long }
+}
+
+const { fails: longFails, notes, long } = checkLong(fns, LONG)
+for (const m of longFails) fail(m)
+for (const m of notes) console.log(`  ${m}`)
+for (const f of fns) {
   if (f.depth > MAX_DEPTH) fail(`${f.key} nests ${f.depth} levels (> ${MAX_DEPTH}): extract the inner body`)
   if (f.params > MAX_PARAMS) fail(`${f.key} takes ${f.params} parameters (> ${MAX_PARAMS}): pass the object they belong to`)
 }
-for (const k of LONG) if (!long.has(k)) console.log(`  NOTE LONG: '${k}' is no longer over ${MAX_LINES} lines - delete its line`)
 
 // Controls: the measures must see what they claim to.
 const probe = ts.createSourceFile('p.ts', 'function f(a,b){ if(a){ for(;;){ while(b){ switch(a){ case 1: try{}catch{} } } } } }', ts.ScriptTarget.Latest, true)
 const pf = probe.statements[0]
 if (depthOf(pf.body, 0) !== 5 || pf.parameters.length !== 2) fail(`control: depth/params of a known function read ${depthOf(pf.body, 0)}/${pf.parameters.length}, want 5/2`)
+
+// Red control (r5-06): a listed function one line over its ceiling fails, at the
+// ceiling passes, one line under prints the NOTE to lower it.
+const grown = (lines) => checkLong([{ key: 'g.ts g', lines }], new Map([['g.ts g', 90]]))
+if (grown(91).fails.length !== 1) fail('control: a listed function grown 1 line past its ceiling did not fail')
+if (grown(90).fails.length || grown(90).notes.length) fail('control: a listed function at its ceiling did not pass clean')
+if (grown(89).fails.length || !grown(89).notes.some((n) => n.includes('lower the ceiling to 89'))) fail('control: a listed function under its ceiling printed no NOTE')
 
 console.log(failed
   ? `\ncleancode: ${failed} FAILED`

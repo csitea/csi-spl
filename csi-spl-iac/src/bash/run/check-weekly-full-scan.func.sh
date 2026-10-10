@@ -120,45 +120,37 @@ _wfs_last() {  # <dir> <today> <row-id>
   [[ -n "$prev" ]] && awk -F'\t' -v r="$3" '$1==r {print $3}' "$prev"
 }
 
-do_check_weekly_full_scan() {
-  local root web dir date dry="${DRY_RUN:-1}" to="${WEEKLY_SCAN_ROW_TIMEOUT:-1800}"
-  root="$(_wfs_root)" || return 1
-  # beside the SHARED checkout (the common git dir names it), so the default is
-  # the same from an agent worktree, the desk-cron checkout or the shared one
-  local common shared
-  common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-  shared="$(dirname "${common:-$root/.git}")"
-  web="${WEEKLY_SCAN_WEB:-$(dirname "$shared")/csi-web}"
-  dir="${WEEKLY_SCAN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/weekly-scan}"
-  date="${WEEKLY_SCAN_DATE:-$(date +%F)}"
+# DRY_RUN: the rows that would run, nothing scanned.
+_wfs_plan() {  # <report-dir> <date> <web-root>
+  local dir="$1" date="$2" web="$3" id act rest
+  do_log "INFO DRY_RUN weekly full scan plan (report -> $dir/$date.md):"
+  while read -r id act rest; do
+    [[ -n "$id" ]] && _wfs_want "$id" && echo "  csi-spl  $id  ${rest:+$rest }./run -a $act"
+  done <<<"$_WFS_SPL_ROWS"
+  for id in $_WFS_WEB_ROWS; do
+    _wfs_want "$id" && echo "  csi-web  $id  ($(_wfs_web_tools "$id")) over $web"
+  done
+  do_log "OK DRY_RUN nothing was scanned. Re-run with DRY_RUN=0."
+}
 
-  local id act rest
-  if [[ "$dry" != 0 ]]; then
-    do_log "INFO DRY_RUN weekly full scan plan (report -> $dir/$date.md):"
-    while read -r id act rest; do
-      [[ -n "$id" ]] && _wfs_want "$id" && echo "  csi-spl  $id  ${rest:+$rest }./run -a $act"
-    done <<<"$_WFS_SPL_ROWS"
-    for id in $_WFS_WEB_ROWS; do
-      _wfs_want "$id" && echo "  csi-web  $id  ($(_wfs_web_tools "$id")) over $web"
-    done
-    do_log "OK DRY_RUN nothing was scanned. Re-run with DRY_RUN=0."
-    return 0
-  fi
-
-  mkdir -p "$dir" || return 1
-  local prev_week; prev_week="$(date -d "$date -7 days" +%F 2>/dev/null || true)"
+# MISSED WEEK: an earlier report exists but the one from 7 days before does not.
+_wfs_missed() {  # <report-dir> <date>
+  local dir="$1" date="$2" prev_week
+  prev_week="$(date -d "$date -7 days" +%F 2>/dev/null || true)"
   rm -f "$dir/$date.missed.txt"
   if [[ -n "$prev_week" && ! -f "$dir/$prev_week.md" ]] \
      && find "$dir" -maxdepth 1 -name '????-??-??.md' ! -name "$date.md" 2>/dev/null | grep . >/dev/null; then
     echo "Weekly full scan did NOT run on $prev_week: no report on the box (box down or cron missing?) -- this week's run follows." >"$dir/$date.missed.txt"
     do_log "WARN the weekly full scan of $prev_week did not run (no $dir/$prev_week.md)"
   fi
-  local logs="$dir/$date.logs"; rm -rf "$logs"; mkdir -p "$logs"
-  local tsv="$dir/$date.tsv"; : >"$tsv"
+}
 
-  # csi-spl: a detached worktree of origin/master, so nothing another agent or
-  # the desk-cron checkout does mid-scan changes what is scanned.
-  local wt="" sha="?" any_spl=0
+# csi-spl: a detached worktree of origin/master, so nothing another agent or
+# the desk-cron checkout does mid-scan changes what is scanned. Sets the
+# caller's wt (empty = scan <root> as it is) and sha.
+_wfs_spl_tree() {  # <root>
+  local root="$1" id act rest any_spl=0
+  wt=""; sha="?"
   while read -r id act rest; do [[ -n "$id" ]] && _wfs_want "$id" && any_spl=1; done <<<"$_WFS_SPL_ROWS"
   if [[ "$any_spl" == 0 ]]; then
     sha="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo '?')"
@@ -170,16 +162,20 @@ do_check_weekly_full_scan() {
     [[ -n "$wt" ]] && rmdir "$wt" 2>/dev/null; wt=""
     sha="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo '?')"
   fi
-  local tree="${wt:-$root}"
+}
 
-  local start rc v n last delta secs
-  _wfs_row() {  # <repo> <id> <verdict> <findings> <secs>
-    last="$(_wfs_last "$dir" "$date" "$2")"
-    delta="-"; [[ -n "$last" && "$4" =~ ^[0-9]+$ && "$last" =~ ^[0-9]+$ ]] && delta="$(( $4 - last ))"
-    [[ "$delta" =~ ^[0-9]+$ && "$delta" -gt 0 ]] && delta="+$delta"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$2" "$3" "$4" "$delta" "$5" "$1" >>"$tsv"
-  }
+# One tsv row, with the change vs last week. Reads the caller's dir, date, tsv.
+_wfs_row() {  # <repo> <id> <verdict> <findings> <secs>
+  local last delta
+  last="$(_wfs_last "$dir" "$date" "$2")"
+  delta="-"; [[ -n "$last" && "$4" =~ ^[0-9]+$ && "$last" =~ ^[0-9]+$ ]] && delta="$(( $4 - last ))"
+  [[ "$delta" =~ ^[0-9]+$ && "$delta" -gt 0 ]] && delta="+$delta"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$2" "$3" "$4" "$delta" "$5" "$1" >>"$tsv"
+}
 
+# The csi-spl rows, each its do_sec action in <tree>. Reads the caller's dir, date, tsv.
+_wfs_spl_rows() {  # <tree> <logs-dir> <row-timeout>
+  local tree="$1" logs="$2" to="$3" id act rest start rc v n secs
   while read -r id act rest; do
     [[ -n "$id" ]] && _wfs_want "$id" || continue
     do_log "INFO weekly scan: $id"
@@ -193,8 +189,11 @@ do_check_weekly_full_scan() {
     n="-"; [[ "$v" == PASS ]] && n=0
     _wfs_row csi-spl "$id" "$v" "$n" "$secs"
   done <<<"$_WFS_SPL_ROWS"
+}
 
-  local t miss
+# The csi-web rows, counted. Reads the caller's dir, date, tsv.
+_wfs_web_rows() {  # <web-root> <spl-tree> <logs-dir>
+  local web="$1" tree="$2" logs="$3" id t miss start v n
   for id in $_WFS_WEB_ROWS; do
     _wfs_want "$id" || continue
     start=$SECONDS
@@ -213,10 +212,11 @@ do_check_weekly_full_scan() {
     fi
     _wfs_row csi-web "$id" "$v" "$n" "$((SECONDS - start))"
   done
+}
 
-  [[ -n "$wt" ]] && { git -C "$root" worktree remove --force "$wt" >/dev/null 2>&1 || rm -rf "$wt"; }
-
-  # The report.
+# The report <date>.md and the short <date>.summary.txt the cron posts.
+_wfs_report() {  # <report-dir> <date> <tsv> <logs-dir> <spl-sha> <web-root>
+  local dir="$1" date="$2" tsv="$3" logs="$4" sha="$5" web="$6"
   local md="$dir/$date.md" bad=0 total=0 r_id r_v r_n r_d r_s r_repo
   {
     echo "# Weekly full scan $date"
@@ -246,5 +246,37 @@ do_check_weekly_full_scan() {
     echo "Report on the box: \`$md\`"
   } >"$dir/$date.summary.txt"
   do_log "INFO weekly full scan: $((total - bad))/$total clean -- report $md"
+}
+
+do_check_weekly_full_scan() {
+  local root web dir date dry="${DRY_RUN:-1}" to="${WEEKLY_SCAN_ROW_TIMEOUT:-1800}"
+  root="$(_wfs_root)" || return 1
+  # beside the SHARED checkout (the common git dir names it), so the default is
+  # the same from an agent worktree, the desk-cron checkout or the shared one
+  local common shared
+  common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+  shared="$(dirname "${common:-$root/.git}")"
+  web="${WEEKLY_SCAN_WEB:-$(dirname "$shared")/csi-web}"
+  dir="${WEEKLY_SCAN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/weekly-scan}"
+  date="${WEEKLY_SCAN_DATE:-$(date +%F)}"
+
+  if [[ "$dry" != 0 ]]; then
+    _wfs_plan "$dir" "$date" "$web"
+    return 0
+  fi
+
+  mkdir -p "$dir" || return 1
+  _wfs_missed "$dir" "$date"
+  local logs="$dir/$date.logs"; rm -rf "$logs"; mkdir -p "$logs"
+  local tsv="$dir/$date.tsv"; : >"$tsv"
+
+  local wt sha
+  _wfs_spl_tree "$root"
+  local tree="${wt:-$root}"
+  _wfs_spl_rows "$tree" "$logs" "$to"
+  _wfs_web_rows "$web" "$tree" "$logs"
+  [[ -n "$wt" ]] && { git -C "$root" worktree remove --force "$wt" >/dev/null 2>&1 || rm -rf "$wt"; }
+
+  _wfs_report "$dir" "$date" "$tsv" "$logs" "$sha" "$web"
   return 0
 }

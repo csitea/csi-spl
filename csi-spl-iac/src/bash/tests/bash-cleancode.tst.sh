@@ -18,11 +18,9 @@ MAX_LINES=80
 LONG="
   csi-spl-iac/src/bash/run/check-pre-push.func.sh do_check_pre_push 137
   csi-spl-iac/src/bash/run/check-pre-push-lint.func.sh _ppl_run_one 109
-  csi-spl-iac/src/bash/run/check-weekly-full-scan.func.sh do_check_weekly_full_scan 128
   csi-spl-iac/src/bash/run/gcp-001-create-project.func.sh do_gcp_001_create_project 111
   csi-spl-iac/src/bash/run/gcp-002-create-project-service-account.func.sh do_gcp_002_create_project_service_account 149
   csi-spl-iac/src/bash/run/gcp-002-delete-project-service-account.func.sh do_gcp_002_delete_project_service_account 133
-  csi-spl-iac/src/bash/run/gcp-backup-env.func.sh do_gcp_backup_env 82
   csi-spl-iac/src/bash/run/gcp-fetch-secrets.func.sh do_gcp_fetch_secrets 107
   csi-spl-iac/src/bash/run/gcp-import-to-cloudsql.func.sh do_gcp_import_to_cloudsql 175
   csi-spl-iac/src/bash/run/gcp-project-delete.func.sh do_gcp_project_delete 120

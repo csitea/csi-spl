@@ -58,47 +58,11 @@ do_gcp_backup_env() {
   _bklog "INFO backup $p as $sa -> $out"
   local errs=0
 
-  # terraform state
-  gcloud storage cp -r "gs://$state_bucket/*" "$out/state/" --account="$sa" >/dev/null 2>&1 ||
-    { _bklog "ERROR state copy from gs://$state_bucket"; errs=$((errs + 1)); }
-  _bklog "INFO state: $(find "$out/state" -type f | wc -l) file(s) from gs://$state_bucket"
-
-  # secrets: 0600 files, value never on stdout
-  local s n=0
-  for s in $(gcloud secrets list --project="$p" --account="$sa" --format='value(name)' 2>/dev/null); do
-    if (umask 077 && gcloud secrets versions access latest --secret="$s" --project="$p" --account="$sa" >"$out/secrets/$s" 2>/dev/null); then
-      n=$((n + 1)); _bklog "INFO secret: $s ($(stat -c %s "$out/secrets/$s") bytes, value not shown)"
-    else
-      rm -f "$out/secrets/$s"; _bklog "INFO secret: $s has no readable version (slot only)"
-    fi
-  done
-  _bklog "INFO secrets: $n value(s) saved"
-
-  # DNS
-  local z
-  for z in $(gcloud dns managed-zones list --project="$p" --account="$sa" --format='value(name)' 2>/dev/null); do
-    gcloud dns record-sets export "$out/dns-$z.zone" --zone="$z" --zone-file-format --project="$p" --account="$sa" >/dev/null 2>&1 ||
-      { _bklog "ERROR dns export $z"; errs=$((errs + 1)); }
-    gcloud dns managed-zones describe "$z" --project="$p" --account="$sa" --format='value(nameServers)' >"$out/dns-$z.ns" 2>/dev/null
-    _bklog "INFO dns: zone $z exported, NS $(tr ';' ' ' <"$out/dns-$z.ns" 2>/dev/null)"
-  done
-
-  # buckets
-  local b
-  for b in "$relay" "$files"; do
-    [[ -n "$b" ]] || continue
-    mkdir -p "$out/buckets/$b"
-    gcloud storage rsync -r "gs://$b" "$out/buckets/$b" --account="$sa" >/dev/null 2>&1 ||
-      { _bklog "ERROR rsync gs://$b"; errs=$((errs + 1)); }
-    _bklog "INFO bucket: $b -> $(find "$out/buckets/$b" -type f | wc -l) object(s)"
-  done
-
-  # registry tags (rebuilt, not restored: a record of what ran)
-  if [[ -n "$repo" ]]; then
-    gcloud artifacts docker images list "$region-docker.pkg.dev/$p/$repo" --include-tags --account="$sa" \
-      --format='value(package,tags)' >"$out/artifact-tags.txt" 2>/dev/null
-    _bklog "INFO artifact registry: $(wc -l <"$out/artifact-tags.txt") image row(s)"
-  fi
+  _gcp_backup_state "$out" "$sa" "$state_bucket"; errs=$((errs + $?))
+  _gcp_backup_secrets "$out" "$sa" "$p"
+  _gcp_backup_dns "$out" "$sa" "$p"; errs=$((errs + $?))
+  _gcp_backup_buckets "$out" "$sa" "$relay" "$files"; errs=$((errs + $?))
+  _gcp_backup_registry "$out" "$sa" "$p" "$region" "$repo"
 
   # Cloud SQL: pg_dump through the proxy, with the DSN from its secret file
   _gcp_backup_sql "$out" "$sa" "$dsn_secret" "$proxy_image" || errs=$((errs + 1))
@@ -107,6 +71,69 @@ do_gcp_backup_env() {
   unset -f _bklog
   (( errs == 0 )) || { do_log "ERROR backup of $p finished with $errs error(s): $out/backup.log"; return 1; }
   do_log "OK backup of $p in $out ($(du -sb "$out" | cut -f1) bytes)"
+}
+
+
+# The steps of do_gcp_backup_env, run while its _bklog is defined. A step that
+# can fail returns the number of errors it logged (0 = clean); the caller adds
+# it to its count.
+
+# _gcp_backup_state <out> <sa> <bucket>: terraform state
+_gcp_backup_state() {
+  local out="$1" sa="$2" state_bucket="$3" errs=0
+  gcloud storage cp -r "gs://$state_bucket/*" "$out/state/" --account="$sa" >/dev/null 2>&1 ||
+    { _bklog "ERROR state copy from gs://$state_bucket"; errs=$((errs + 1)); }
+  _bklog "INFO state: $(find "$out/state" -type f | wc -l) file(s) from gs://$state_bucket"
+  return "$errs"
+}
+
+# _gcp_backup_secrets <out> <sa> <project>: 0600 files, value never on stdout
+_gcp_backup_secrets() {
+  local out="$1" sa="$2" p="$3" s n=0
+  for s in $(gcloud secrets list --project="$p" --account="$sa" --format='value(name)' 2>/dev/null); do
+    if (umask 077 && gcloud secrets versions access latest --secret="$s" --project="$p" --account="$sa" >"$out/secrets/$s" 2>/dev/null); then
+      n=$((n + 1)); _bklog "INFO secret: $s ($(stat -c %s "$out/secrets/$s") bytes, value not shown)"
+    else
+      rm -f "$out/secrets/$s"; _bklog "INFO secret: $s has no readable version (slot only)"
+    fi
+  done
+  _bklog "INFO secrets: $n value(s) saved"
+}
+
+# _gcp_backup_dns <out> <sa> <project>: every zone, zone-file format, + its NS
+_gcp_backup_dns() {
+  local out="$1" sa="$2" p="$3" z errs=0
+  for z in $(gcloud dns managed-zones list --project="$p" --account="$sa" --format='value(name)' 2>/dev/null); do
+    gcloud dns record-sets export "$out/dns-$z.zone" --zone="$z" --zone-file-format --project="$p" --account="$sa" >/dev/null 2>&1 ||
+      { _bklog "ERROR dns export $z"; errs=$((errs + 1)); }
+    gcloud dns managed-zones describe "$z" --project="$p" --account="$sa" --format='value(nameServers)' >"$out/dns-$z.ns" 2>/dev/null
+    _bklog "INFO dns: zone $z exported, NS $(tr ';' ' ' <"$out/dns-$z.ns" 2>/dev/null)"
+  done
+  return "$errs"
+}
+
+# _gcp_backup_buckets <out> <sa> <bucket>...: an empty name is skipped
+_gcp_backup_buckets() {
+  local out="$1" sa="$2" b errs=0
+  shift 2
+  for b in "$@"; do
+    [[ -n "$b" ]] || continue
+    mkdir -p "$out/buckets/$b"
+    gcloud storage rsync -r "gs://$b" "$out/buckets/$b" --account="$sa" >/dev/null 2>&1 ||
+      { _bklog "ERROR rsync gs://$b"; errs=$((errs + 1)); }
+    _bklog "INFO bucket: $b -> $(find "$out/buckets/$b" -type f | wc -l) object(s)"
+  done
+  return "$errs"
+}
+
+# _gcp_backup_registry <out> <sa> <project> <region> <repo>: the registry tags
+# (rebuilt, not restored: a record of what ran); no repo, nothing
+_gcp_backup_registry() {
+  local out="$1" sa="$2" p="$3" region="$4" repo="$5"
+  [[ -n "$repo" ]] || return 0
+  gcloud artifacts docker images list "$region-docker.pkg.dev/$p/$repo" --include-tags --account="$sa" \
+    --format='value(package,tags)' >"$out/artifact-tags.txt" 2>/dev/null
+  _bklog "INFO artifact registry: $(wc -l <"$out/artifact-tags.txt") image row(s)"
 }
 
 # _gcp_backup_sql <out> <sa> <dsn secret> <proxy image> -> sql/<db>.sql and

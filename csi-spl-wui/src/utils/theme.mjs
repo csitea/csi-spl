@@ -83,3 +83,38 @@ export async function saveThemeToAccount(theme, io) {
     return false
   }
 }
+
+/** localStorage flag: the visitor picked a theme while signed out (the
+ *  sign-in page's picker). At sign-in that pick wins over the account's
+ *  stored theme and is saved to the account (preferred-theme.client.ts).
+ *  localStorage, not sessionStorage: an emailed sign-in link opens a new tab. */
+export const THEME_PICKED_OUT_KEY = 'spool-theme-picked-out'
+
+/** Remember a signed-out pick. Returns whether the write landed. */
+export function markSignedOutPick(store) {
+  return storageSet(THEME_PICKED_OUT_KEY, '1', store)
+}
+
+/** Read and clear the signed-out pick flag: true once after a pick. */
+export function takeSignedOutPick(store) {
+  if (storageGet(THEME_PICKED_OUT_KEY, null, store) !== '1') return false
+  storageSet(THEME_PICKED_OUT_KEY, '', store)
+  return true
+}
+
+/**
+ * The inline head script that sets html[data-theme] from the stored theme
+ * before the first paint, so a prerendered page (the sign-in page) never
+ * shows dark first to a visitor who picked another theme. Plain ES5 (its
+ * sha256 goes into the Hosting CSP, as rootLocaleRedirect.mjs); dark (the
+ * default), an unknown value or a blocked store leaves the page as it is.
+ */
+export function buildEarlyThemeScript() {
+  return [
+    '(function(){try{',
+    'var t=localStorage.getItem(' + JSON.stringify(THEME_KEY) + ');',
+    'if(' + JSON.stringify(THEME_IDS) + '.indexOf(t)>0)',
+    'document.documentElement.setAttribute("data-theme",t);',
+    '}catch(e){}})();',
+  ].join('')
+}

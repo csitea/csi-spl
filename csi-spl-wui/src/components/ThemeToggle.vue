@@ -58,7 +58,7 @@
 
 <script setup lang="ts">
 import { useTheme } from '~/composables/useTheme'
-import { THEMES, saveThemeToAccount, themeIndex, type SpoolTheme } from '~/utils/theme.mjs'
+import { THEMES, markSignedOutPick, saveThemeToAccount, themeIndex, type SpoolTheme } from '~/utils/theme.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
@@ -123,6 +123,8 @@ function toggleOpen() {
 function choose(id: SpoolTheme) {
   setTheme(id)
   close(true)
+  // signed out (the sign-in page): the pick outlives the sign-in
+  if (session.state !== 'in') markSignedOutPick()
   // the account keeps it too (signed in only; failure is silent)
   void saveThemeToAccount(id, {
     claims: session.claims,

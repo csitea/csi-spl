@@ -1686,6 +1686,10 @@ declare module '~/utils/theme.mjs' {
   export function readStoredTheme(store?: unknown, fallback?: SpoolTheme): SpoolTheme
   export function writeStoredTheme(theme: unknown, store?: unknown): boolean
   export function applyThemeAttr(theme: unknown, el?: { setAttribute?(k: string, v: string): void } | null): SpoolTheme
+  export const THEME_PICKED_OUT_KEY: 'spool-theme-picked-out'
+  export function markSignedOutPick(store?: unknown): boolean
+  export function takeSignedOutPick(store?: unknown): boolean
+  export function buildEarlyThemeScript(): string
 }
 
 declare module '~/utils/display-name.mjs' {

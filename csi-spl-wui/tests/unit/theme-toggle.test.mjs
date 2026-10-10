@@ -17,6 +17,10 @@ import {
   writeStoredTheme,
   applyThemeAttr,
   saveThemeToAccount,
+  THEME_PICKED_OUT_KEY,
+  markSignedOutPick,
+  takeSignedOutPick,
+  buildEarlyThemeScript,
 } from '../../src/utils/theme.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -206,5 +210,53 @@ describe('theme pick saved on the account', () => {
     assert.match(src, /save: \(t\) => auth\.saveTheme\(t\)/)
     const client = read('src/utils/auth-client.mjs')
     assert.match(client, /saveTheme\(theme\) \{\s*return post\('\/preferences', \{ preferred_theme: /)
+  })
+})
+
+// owner (t1 2242b163): the sign-in page has the same picker; a pick made
+// there is on the page before the first paint and outlives the sign-in.
+describe('theme picker on the sign-in page', () => {
+  it('the login layout mounts the same ThemeToggle, async, beside the language', () => {
+    const src = read('src/layouts/login.vue')
+    assert.match(src, /const ThemeToggle = defineAsyncComponent\(\(\) => import\('@\/components\/ThemeToggle\.vue'\)\)/)
+    assert.match(src, /<div class="login-bar__end"[^>]*>\s*<ThemeToggle align="end" \/>\s*<LanguageSwitcher \/>\s*<\/div>/)
+  })
+
+  it('a signed-out pick is flagged once, then cleared', () => {
+    const store = memoryStore()
+    assert.equal(takeSignedOutPick(store), false)
+    assert.equal(markSignedOutPick(store), true)
+    assert.equal(store.getItem(THEME_PICKED_OUT_KEY), '1')
+    assert.equal(takeSignedOutPick(store), true)
+    assert.equal(takeSignedOutPick(store), false)
+  })
+
+  it('the picker flags a signed-out pick; sign-in keeps it and saves it to the account', () => {
+    assert.match(read('src/components/ThemeToggle.vue'), /if \(session\.state !== 'in'\) markSignedOutPick\(\)/)
+    const plugin = read('src/plugins/preferred-theme.client.ts')
+    const take = plugin.indexOf('if (takeSignedOutPick())')
+    assert.ok(take > 0 && take < plugin.indexOf('if (read() === who) return'), 'the pick is checked before the account theme applies')
+    assert.match(plugin.slice(take), /saveThemeToAccount\(theme\.value, \{/)
+  })
+
+  const runEarly = (stored, { throws = false } = {}) => {
+    const attrs = {}
+    const localStorage = { getItem: (k) => { if (throws) throw new Error('denied'); return k === THEME_KEY ? stored : null } }
+    const document = { documentElement: { setAttribute: (k, v) => { attrs[k] = v } } }
+    new Function('localStorage', 'document', buildEarlyThemeScript())(localStorage, document)
+    return attrs['data-theme']
+  }
+
+  it('the early head script sets a stored non-default theme before the first paint', () => {
+    for (const id of THEME_IDS.slice(1)) assert.equal(runEarly(id), id)
+    assert.equal(runEarly('dark'), undefined)
+    assert.equal(runEarly('junk'), undefined)
+    assert.equal(runEarly(null), undefined)
+    assert.equal(runEarly('light', { throws: true }), undefined)
+  })
+
+  it('the early head script is plain ES5 and in every document head', () => {
+    assert.doesNotMatch(buildEarlyThemeScript(), /=>|\blet\b|\bconst\b|`/)
+    assert.match(read('nuxt.config.ts'), /\{ innerHTML: buildEarlyThemeScript\(\), tagPosition: "head", tagPriority: "critical" \}/)
   })
 })

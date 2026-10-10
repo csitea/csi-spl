@@ -26,6 +26,11 @@
 // Spec 116 T4: the features row (1..6 feature-post cards) is in the served
 // /login HTML itself (prerendered, not fetched after hydration) and shows
 // under the sign-in card at every look A size.
+// Theme picker (owner, t1 2242b163): the app's ThemeToggle sits in the
+// sign-in bar beside the language at 390 and 1440, the bar stays one row with
+// no sideways scroll, choosing a theme sets html[data-theme], and a reload
+// keeps it, already on <html> when <body> is parsed (the early head script: no
+// dark flash before the app runs).
 //   SHOT_DIR=/var/tmp/x ... also writes a screenshot per look A case
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
@@ -242,6 +247,72 @@ async function lookA(browser) {
   }
 }
 
+// Theme picker on /login: visible in the bar, one row, choose, reload.
+const PICK = 'light-green'
+async function themePicker(browser) {
+  for (const vp of [LOOK_A[0], LOOK_A[1]]) {
+    const label = `theme picker ${vp.name} /login`
+    let p
+    try {
+      p = await browser.newPage()
+      await p.setViewport({ width: vp.width, height: vp.height, isMobile: Boolean(vp.phone), hasTouch: Boolean(vp.phone) })
+      // the theme on <html> when <body> is created: after the head, before
+      // any deferred / module script (DOMContentLoaded is too late for that)
+      await p.evaluateOnNewDocument(() => {
+        const mo = new MutationObserver(() => {
+          if (!document.body) return
+          window.__themeAtParse = document.documentElement.getAttribute('data-theme') || 'dark'
+          mo.disconnect()
+        })
+        mo.observe(document, { childList: true, subtree: true })
+      })
+      await p.goto(`${SERVER}/login?redirect=%2F`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+      await p.evaluate(() => { try { localStorage.removeItem('spool-theme') } catch { /* private mode */ } })
+      await p.waitForSelector('.login-bar [data-test=theme-picker]', { visible: true, timeout: NAV_TIMEOUT })
+      const bar = await p.evaluate(() => {
+        const r = (el) => el.getBoundingClientRect()
+        const barEl = document.querySelector('[data-test=login-bar]')
+        const pick = r(document.querySelector('.login-bar [data-test=theme-picker]'))
+        const lang = document.querySelector('.login-bar [data-test=lang-switcher]')
+        const logo = r(document.querySelector('[data-test=login-bar-logo]'))
+        const b = r(barEl)
+        return {
+          pick: { l: pick.left, r: pick.right, t: pick.top, b: pick.bottom, w: pick.width },
+          lang: lang ? { l: r(lang).left, t: r(lang).top, b: r(lang).bottom } : null,
+          logo: { t: logo.top, b: logo.bottom },
+          bar: { t: b.top, b: b.bottom, r: b.right },
+          xScroll: document.documentElement.scrollWidth > window.innerWidth + 1 || barEl.scrollWidth > barEl.clientWidth + 1,
+        }
+      })
+      const inBar = bar.pick.w > 0 && bar.pick.t >= bar.bar.t && bar.pick.b <= bar.bar.b && bar.pick.r <= bar.bar.r
+      // one row: the picker, the language and the logo share a line
+      const oneRow = bar.lang && bar.pick.t < bar.lang.b && bar.lang.t < bar.pick.b && bar.pick.t < bar.logo.b && bar.logo.t < bar.pick.b
+      if (inBar && oneRow && bar.lang && bar.pick.r <= bar.lang.l + 1) ok(`${label} in bar`, 'beside the language, one row')
+      else fail(`${label} in bar`, JSON.stringify(bar))
+      if (bar.xScroll) fail(`${label} x-scroll`, 'the page or the bar scrolls sideways')
+      else ok(`${label} x-scroll`)
+      await p.click('.login-bar [data-test=theme-picker]')
+      await p.waitForSelector(`.login-bar [data-test=theme-option-${PICK}]`, { visible: true, timeout: NAV_TIMEOUT })
+      const listOk = await p.evaluate(() => {
+        const l = document.querySelector('.login-bar [data-test=theme-picker-list]').getBoundingClientRect()
+        return l.left >= 0 && l.right <= window.innerWidth + 1
+      })
+      if (listOk) ok(`${label} list on screen`)
+      else fail(`${label} list on screen`, 'the open list runs off the viewport')
+      if (SHOT_DIR) await p.screenshot({ path: join(SHOT_DIR, `login-theme-picker-${vp.name}-open.png`) })
+      await p.click(`.login-bar [data-test=theme-option-${PICK}]`)
+      const chosen = await p.evaluate(() => [document.documentElement.getAttribute('data-theme'), localStorage.getItem('spool-theme')])
+      if (chosen[0] === PICK && chosen[1] === PICK) ok(`${label} choose`, `html[data-theme]=${PICK}`)
+      else fail(`${label} choose`, `data-theme ${chosen[0]}, stored ${chosen[1]}, want ${PICK}`)
+      await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+      const after = await p.evaluate(() => [window.__themeAtParse, document.documentElement.getAttribute('data-theme')])
+      if (after[0] === PICK && after[1] === PICK) ok(`${label} reload`, `${PICK} at parse and after the app ran`)
+      else fail(`${label} reload`, `at parse ${after[0]}, after ${after[1]}, want ${PICK}`)
+    } catch (e) { fail(label, e.message) }
+    finally { await p?.close().catch(() => {}) }
+  }
+}
+
 ;(async () => {
   const puppeteer = await loadPuppeteer()
   const server = await startServer()
@@ -296,6 +367,7 @@ async function lookA(browser) {
       } catch (e) { fail(label, e.message) }
     }
     await lookA(browser)
+    await themePicker(browser)
   } finally {
     await browser.close().catch(() => {})
     await server.stop()

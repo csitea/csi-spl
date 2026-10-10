@@ -13,6 +13,7 @@ import { addTemplate, addTypeTemplate, addVitePlugin } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
 import { buildEarlyConfigScript } from "./src/utils/runtime-config.mjs"
+import { buildEarlyThemeScript } from "./src/utils/theme.mjs"
 import { buildSignedOutRedirectScript } from "./src/utils/signed-out-redirect-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
 import { buildRobotsTxt, buildSitemapXml, injectPublicHead, isPublicSeoPath, publicPageHead, robotsContent, sitemapEntries } from "./src/utils/public-seo.mjs"
@@ -684,6 +685,10 @@ export default defineNuxtConfig({
           tagPosition: "head",
           tagPriority: "critical",
         },
+        // The stored theme (the palette picker's, the sign-in page's too) is
+        // on <html> before the first paint: a prerendered page never shows
+        // dark first to a visitor who picked another theme.
+        { innerHTML: buildEarlyThemeScript(), tagPosition: "head", tagPriority: "critical" },
         // P3-02: a signed-out reader (this browser's hint) goes to /login
         // before any JS loads; P3-03: the session probe leaves at parse time
         // and the app adopts it. Redirect first: the probe stays home when the

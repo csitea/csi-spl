@@ -43,7 +43,12 @@
           <TopBarTenant class="login-bar__tenant-phone" />
         </div>
       </div>
-      <LanguageSwitcher />
+      <!-- owner (t1 2242b163): the app's own theme picker, before the
+           language, so a signed-out visitor picks the look too -->
+      <div class="login-bar__end" data-test="login-bar-end">
+        <ThemeToggle align="end" />
+        <LanguageSwitcher />
+      </div>
     </header>
     <div class="login-body">
       <slot />
@@ -63,6 +68,8 @@
 <script setup lang="ts">
 /* Async: keeps @headlessui/vue out of the first download (TopBar.vue). */
 const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
+/* Async too: the sign-in page's first download stays within ci_home_gzip_kb. */
+const ThemeToggle = defineAsyncComponent(() => import('@/components/ThemeToggle.vue'))
 import { loginBarTitle } from '~/utils/login-title.mjs'
 import { useKeyboardInset } from '~/composables/useTouchUi'
 import { useSessionStore } from '~/stores/session'
@@ -128,6 +135,8 @@ watch(kb, async () => {
   flex-shrink: 0;
 }
 .login-bar__start { display: flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; }
+.login-bar__end { display: flex; align-items: center; justify-content: flex-end; gap: 4px; flex: 0 1 auto; min-width: 0; }
+.login-bar__end :deep(.theme-picker) { flex: 0 0 auto; }
 .login-bar__logo {
   display: inline-flex;
   align-items: center;

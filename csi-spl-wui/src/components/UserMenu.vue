@@ -253,8 +253,9 @@
           </li>
         </ul>
       </div>
-      <!-- specs/054: the "Act as…" picker (teleports; open state from the menu item) -->
-      <ActAsPicker :open="actAsOpen" @update:open="actAsOpen = $event" />
+      <!-- specs/054: the "Act as…" picker (teleports; open state from the menu item).
+           Its chunk loads on the first open and then stays mounted (ci_home_gzip_kb). -->
+      <LazyActAsPicker v-if="actAsUsed" :open="actAsOpen" @update:open="actAsOpen = $event" />
     </template>
     <NuxtLink
       v-else-if="session.state !== 'loading'"
@@ -319,6 +320,7 @@ const actingAs = computed(() => access.me?.actAs ?? null)
 // already acting; it opens the picker dialog.
 const canActAs = computed(() => signedIn.value && !actingAs.value && access.can(MEMBERS_IMPERSONATE))
 const actAsOpen = ref(false)
+const actAsUsed = ref(false)
 const changePasswordShown = computed(() => signedIn.value && changePasswordOffered(session.claims, actingAs.value))
 // specs/025 FR-008: the member's role in the active tenant, under the name.
 watch(signedIn, (v) => { if (v) access.load() }, { immediate: true })
@@ -499,6 +501,7 @@ function openStatus() {
 
 function openActAs() {
   close(false)
+  actAsUsed.value = true
   actAsOpen.value = true
 }
 

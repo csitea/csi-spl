@@ -1,6 +1,6 @@
 # 119 Personal Realm
 
-**Status**: v1.0-rc (panel fold of 4 seats, 2026-10-10; editor s119-claude). Sections 1..5 are the v0.1 draft, kept as written; where section 6 changes a REQ or a Q, section 6 wins.
+**Status**: v1.0 (panel fold of 4 seats, all signed, 2026-10-10; editor s119-claude). Sections 1..5 are the v0.1 draft, kept as written; where section 6 changes a REQ or a Q, section 6 wins.
 
 ## 1. Context and Goals
 Based on the owner's feedback, there is a need for a "personal realm" — a person-level layer that exists above workspaces. When people leave a workspace, they should retain read-only copies of their own past hours (like pay receipts) without keeping the actual content of the work.
@@ -125,7 +125,7 @@ Migration: the next free rdb number. Every table: `person_id text NOT NULL REFER
 |---|---|---|
 | `personal.profile` | `person_id` | `time_zone text NULL` (IANA, <= 64; NULL = the browser's: 118 C4), `locale text NULL`, `comm_prefs jsonb NOT NULL DEFAULT '{}'` (an object, <= 4 KB), `updated_at` |
 | `personal.settings` | `(person_id, valid_from)` | `hours_limit_day_minutes int NULL` (NULL = off, 60..1440), `hours_limit_week_minutes int NULL` (NULL = off, 60..10080), `valid_from date NOT NULL`, `updated_at`. A change adds a row, so a past week is judged by the limit it had (118 C3) |
-| `personal.hours_receipts` | `(person_id, workspace_id, day, label, rev)` | section 8.2 (the 118 C5 table) |
+| `personal.hours_receipts` | `(person_id, workspace_id, day, label, kind, rev)` | section 8.2 (the 118 C5 table) |
 | `personal.receipt_due` | `(person_id, workspace_id)` | `reason` (`removed`, `access_until`, `workspace_deleted`), `due_at`, `last_open_from date NULL` (first day not final at copy time), `done_at NULL` |
 
 ### 7.4 The policy
@@ -179,14 +179,14 @@ Synthetic members (clones, demo stays) get no receipt. A rejoin does not merge r
 
 ### 8.2 What: 118 D4's list, nothing more
 
-`personal.hours_receipts`, one row per (day, label):
+`personal.hours_receipts`, one row per (day, label, kind):
 
 | column | from |
 |---|---|
 | `workspace_id text` | the tenant id as a copied value, no FK |
 | `workspace_name text` | the workspace display name at copy time |
 | `day date`, `minutes int` (0..1440) | `hours_entries` |
-| `label text` (<= 200) | `job:` -> 107 FR-18 job `name` + `site`; `t:`, `ch:`, `dm:`, `cal:` -> `topic`, `channel`, `direct message`, `meeting`; `ws` -> `workspace`. Two entries with one label on one day are summed |
+| `label text` (<= 200) | `job:` -> 107 FR-18 job `name` + `site`; `t:`, `ch:`, `dm:`, `cal:` -> `topic`, `channel`, `direct message`, `meeting`; `ws` -> `workspace`. Two entries with one label and one kind on one day are summed |
 | `kind text` | 107 FR-27 (`work`, `travel`, `wait`, `absence`) |
 | `period_start`, `period_end date` | the 107 period the day belongs to |
 | `approval_state text` | `open`, `approved`, `frozen`, `final`, `returned` |
@@ -201,7 +201,7 @@ Never copied: the entry note, `updated_by`, the target id (`t:<topic>` points in
 - No `UPDATE` or `DELETE` grant: a row once written never changes, and an attempt fails on privilege, not on code.
 - 107 Q8 is open, so the leaver's last period may still be open at leave time (`receipt_due.last_open_from`). When that period freezes or is approved, the sweep appends `rev = 1` rows for those days only and closes `receipt_due`. After that nothing is appended. Under OQ-11 B (= 118 Q6 B) there is no refresh, and `rev` stays 0.
 - A workspace deleted before the refresh leaves `rev = 0`, shown as "last period not final".
-- The view reads `max(rev)` per (workspace, day, label).
+- The view reads `max(rev)` per (workspace, day, label, kind).
 - The person's own delete of a receipt (erasure) is OQ-4; if yes, it goes through one `SECURITY DEFINER` function that checks the person scope itself, never through a `DELETE` grant.
 
 ## 9. The contract with 118 (the realm side of 118 C1..C7)
@@ -252,7 +252,7 @@ On Postgres (`PRE_PUSH_TIER=full`), as the runtime role, never as the owner or a
 - **T-N8** routes: 403 `person_only` under act-as, for an agent, a box token and a time-accountant-only seat; 400 on `X-Spool-Tenant`; another person, and a foreman, an admin and the owner of a shared workspace, get 404 on P's realm.
 
 **Receipts**
-- **T-R1** removal: one row per (day, label) with 8.2's columns; seeded notes and topic titles are found nowhere in `personal.*`; the workspace still holds P's hours.
+- **T-R1** removal: one row per (day, label, kind) with 8.2's columns; a `work` and a `travel` entry on one job and one day stay two rows; seeded notes and topic titles are found nowhere in `personal.*`; the workspace still holds P's hours.
 - **T-R2** a stubbed copy failure: the removal answers 503 `receipt_failed` and the membership stays.
 - **T-R3** `access_until` yesterday: the sweep takes the receipt; before that instant nothing is copied.
 - **T-R4** workspace deleted with members P and Q: both have receipts after the cascade; a stubbed failure refuses the delete.
@@ -305,40 +305,46 @@ Seats, each signed against `7f6da1a7f`; guard (`git show --stat <sha>`: only its
 | Route names | `/v1/me/time` (three seats) vs `/v1/me/realm/hours` (118 v1.0-rc) | `/v1/me/realm/*` (9) | 118 is the consumer and named them first |
 | byo-gcp reading | s119-claude: a customer's dedicated hub; -2, -3, mistral: the person's own DB | the person's own DB (10), not in v1 | the owner's words ("the person's own DB"); 3 of 4 |
 | Approver id in the receipt | -3, mistral: id + name; -2: name + decided-at | name + decided-at, no id | an id of another person is a pointer the receipt does not need |
+| `kind` in the receipt PK | found at signing by -2 and -3, after the rc | added (7.3, 8.2, T-R1) | a work and a travel row under one label would collide; agreed with 118 (`48c0481ce`) |
 | Spans in receipts | mistral: yes; claude x3: owner's call | owner question OQ-2 (118 Q5) | not settled by the panel |
 
 ### 12.4 The 118 alignment
 
-On `dispatch-151d85fc` the 118 editor (c-782) accepted `rev` in the C5 PK (so the Q6-A refresh can land), `workspace_id` instead of `tenant_id`, the FK to `public.humans`, the policy refusing a workspace scope and having no `operator_scope`, and mirroring 118 Q7 as a 119 owner question. All are folded into 118 C5 and 118 T-D4b with 118 v1.0.
+On `dispatch-151d85fc` the 118 editor (c-782) accepted `rev` in the C5 PK (so the Q6-A refresh can land), `workspace_id` instead of `tenant_id`, the FK to `public.humans`, the policy refusing a workspace scope and having no `operator_scope`, and mirroring 118 Q7 as a 119 owner question. All are folded into 118 C5 and 118 T-D4b with 118 v1.0 (`1f7c4b33b`). After the v1.0-rc signatures, s119-claude-2 and -3 found that `kind` (107 FR-27) was missing from the receipt PK: a `work` and a `travel` row under one type-only label on one day would collide. 119 v1.0 and 118 C5 (`48c0481ce`) both use PK `(person_id, workspace_id, day, label, kind, rev)`, summed per (day, label, kind).
 
 ### 12.5 Signatures of this fold
 
-Each seat replies on `dispatch-151d85fc`: "s119-<seat> signs <sha>". v1.0 when all four have signed.
+All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `kind` fix that two seats raised when signing (12.4), and points the shared owner questions at 118 (13).
 
 | seat | agent | signed sha |
 |---|---|---|
-| s119-claude | c-787 | (this fold, by the editor) |
-| s119-claude-2 | c-788 | pending |
-| s119-claude-3 | c-789 | pending |
-| s119-mistral | m-790 | pending |
+| s119-claude | c-787 | `7547a74db` (the fold, by the editor) |
+| s119-claude-2 | c-788 | `7547a74db` (msg 060aad8a) |
+| s119-claude-3 | c-789 | `7547a74db` (msg 185068c1) |
+| s119-mistral | m-790 | `7547a74db` (msg 0ecbba5f) |
 
 ## 13. Questions for the owner (one list, deduplicated; the panel's recommendation first)
 
-A question marked "= 118 Qn" is the same question as in 118 v1.0, in 118's wording: one answer covers both specs.
+**Asked once, in 118** (118 v1.0 `1f7c4b33b`, posted to the owner; its answer covers 119 too, so 119 does not ask them again):
+
+| 119 ref | = 118 | the question | where 119 uses the answer |
+|---|---|---|---|
+| OQ-2 | **Q5** | do receipts keep times of day (spans) | 8.2: no span columns under A |
+| OQ-11 | **Q6** | a receipt whose last period was still open at leave time | 8.3: one `rev = 1` refresh under A; `rev` stays 0 under B |
+| OQ-6 | **Q7** | a deleted workspace: do its members get receipts | 8.1: the delete copies first under A |
+| OQ-3 | **Q8** | how long the approver's name is kept | 8.2 `approver_name`: blanked after `hours.retention_years` under A |
+| OQ-8 | **Q10** | a personal download | 6.2 Q2: none in v1 under A |
+
+**119-only questions:**
 
 | # | question | options | from |
 |---|---|---|---|
 | **OQ-1** | Operator access to a person's realm | **A (recommended)**: none in v1, 0 rows under every operator path. B: a break-glass read, owner-run per call, that writes an access-log row the person sees | claude, -2, -3 |
-| **OQ-2** (= 118 Q5) | Do **receipts keep times of day** (spans), so a past overlap stays exact? | **A (recommended)**: no, minutes per day as D4 lists. B: yes | all four; mistral recommends B |
-| **OQ-3** (= 118 Q8) | How long the realm keeps the **approver's name** (another person's name) in a receipt | **A (recommended)**: the workspace's `hours.retention_years` at copy time (107 FR-34). B: as long as the receipt | all four; mistral recommends B |
 | **OQ-4** | May a person **delete their own receipts** (erasure)? | **A (recommended)**: yes, through one function, never an edit. B: kept for the retention period regardless | claude, -2, -3 |
 | **OQ-5** | Does a **disabled** membership (rdb 0074, reversible) count as leaving? | **A (recommended)**: no, only removal, expiry and workspace delete. B: yes, a receipt on every loss of access | -3 |
-| **OQ-6** (= 118 Q7) | A **deleted workspace** (the tenant delete cascades every `hours_*` row): do its members get receipts? | **A (recommended)**: yes, the delete copies receipts first. B: no, D4 covers leaving only | -2, -3, 118 |
 | **OQ-7** | Workspaces on a **customer's own hub** and a person's own DB (10) | **A (recommended)**: not in v1; the view shows such a workspace as a link. B: a signed receipt export the person imports. C: a cross-hub read as the person | all four |
-| **OQ-8** (= 118 Q10) | A **personal download** (CSV of the person's own rows across workspaces, receipts included) | **A (recommended)**: not in the first version. B: yes, person-only | claude, -2, -3, 118 |
 | **OQ-9** | Receipts for workspaces **left before 119 ships** | **A (recommended)**: none. B: a back-fill from hours still kept for members already removed | -3 |
 | **OQ-10** | Does a realm **display name** override `humans.display_name` in the person's own views? | **A (recommended)**: no realm name in v1 (6.2 Q1). B: an override shown only to the person | -3 |
-| **OQ-11** (= 118 Q6) | A receipt whose last period was **still open at leave time** | **A (recommended)**: refreshed once when that period freezes or is approved, then fixed. B: frozen at leave time | all four (8.3 is built for A; under B `rev` stays 0) |
 
 ## 14. Version log
 
@@ -346,5 +352,6 @@ A question marked "= 118 Qn" is the same question as in 118 v1.0, in 118's wordi
 |---|---|---|---|
 | 0.1 | 2026-10-10 | draft (a-778) | context, scope, REQ-1..6, Q1..Q4, security baseline |
 | 1.0-rc | 2026-10-10 | c-787 (editor) | panel fold of s119-claude, -2, -3 and s119-mistral: REQ-1, 4, 5, 6 reworded (6.1); Q1..Q4 settled (6.2); the 118 contradictions (6.3); schema, policy, grants (7); receipts (8); the 118 contract (9); own-DB isolation (10); tests (11); panel and consensus (12); owner questions OQ-1..11 (13, five of them = 118 Q5, Q6, Q7, Q8, Q10); sections 1..5 kept as written |
+| 1.0 | 2026-10-10 | c-787 (editor) | all four seats signed `7547a74db`; `kind` added to the receipt PK (7.3, 8.2, T-R1; same in 118 C5 `48c0481ce`); the five questions shared with 118 point to 118 v1.0 Q5, Q6, Q7, Q8, Q10 instead of being asked again (13) |
 
-<!-- version: 1.0.0-rc · updated: 2026-10-10 · last-edit: 2026-10-10 -->
+<!-- version: 1.0.0 · updated: 2026-10-10 · last-edit: 2026-10-10 -->

@@ -10,6 +10,8 @@
 # @description the throwaway proof refs refs/heads/ruleset-proof/** (the live
 # @description control runs there, never on master). Found by name;
 # @description do_spl_gh_app_bypass skips it by that name.
+# @description Lifting this ruleset is the owner's, by hand in GitHub settings;
+# @description no action does it (owner, 2026-10-10).
 # @description DRY_RUN=1 (default): prints the JSON and its diff to what is
 # @description live, writes nothing. DRY_RUN=0: POST (none yet) or PUT (it
 # @description differs), then reads it back, checks it and prints its id.

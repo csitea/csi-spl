@@ -57,7 +57,7 @@ build, not a 119 lane.
 
 - [x] T000 **doc** (c-841): this file. `spec.md` status line notes it.
 
-- [ ] T001 **Lane A: the DDL** (claude; waits on nothing; BUILD).
+- [x] T001 **Lane A: the DDL** (c-758, rdb 0168, c6b7f93cd; claude; waits on nothing; BUILD).
   One forward-only migration, `spec.md` 7.3..7.5 and 8.1..8.3:
   - schema `personal`; tables `profile`, `settings`, `hours_receipts`,
     `receipt_due` exactly as 7.3 and 8.2: `person_id` first with the FK to

@@ -33,7 +33,8 @@ do_spl_box_state_restore() {
   declare -F spl_box_state_box >/dev/null || source "$PROJ_PATH/src/bash/run/spl-box-state-backup.func.sh"
   box="$(spl_box_state_box)" || return 1
   [[ -d "$root" ]] || { do_log "FATAL BOX_STATE_RESTORE_ROOT $root is not a dir"; return 1; }
-  do_require_bin tar zstd rsync || return 1
+  do_require_bin tar || return 1
+  spl_box_state_tools zstd rsync || return 1
 
   stage="${BOX_STATE_STAGING:-$(umask 077 && mktemp -d "${TMPDIR:-/var/tmp}/box-state-restore.XXXXXX")}" || return 1
   mkdir -p "$stage" && chmod 700 "$stage" || return 1
@@ -60,7 +61,7 @@ do_spl_box_state_restore() {
   spl_box_state_plan "$stage/root" "$root" >"$plan" || return 1
   nnew="$(grep -c '^NEW ' "$plan")"; nover="$(grep -c '^OVERWRITE ' "$plan")"
   do_log "INFO $box $date from $src: staged in $stage/root; onto $root it would write $nnew new and OVERWRITE $nover existing file(s) (the full list: $plan)"
-  grep '^OVERWRITE ' "$plan" | head -n "${BOX_STATE_SHOW:-50}" | sed 's/^/  /'
+  grep -m "${BOX_STATE_SHOW:-50}" '^OVERWRITE ' "$plan" | sed 's/^/  /'
   (( nover > ${BOX_STATE_SHOW:-50} )) && echo "  ... $((nover - ${BOX_STATE_SHOW:-50})) more in $plan"
 
   if (( dry )); then

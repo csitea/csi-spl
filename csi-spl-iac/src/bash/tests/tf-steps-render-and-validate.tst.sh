@@ -139,7 +139,7 @@ f="$TFD/056-gcs-box-state/03-state-bucket.tf"
 grep -qE '^\s*uniform_bucket_level_access\s*=\s*true' "$f" && pass "box state bucket: uniform bucket-level access on" || fail "box state bucket: uniform access is not true"
 grep -qE '^\s*public_access_prevention\s*=\s*"enforced"' "$f" && pass "box state bucket: public access prevention enforced" || fail "box state bucket: PAP is not enforced"
 grep -qE '^\s*force_destroy\s*=\s*false' "$f" && pass "box state bucket: force_destroy false" || fail "box state bucket: force_destroy is not false"
-grep -A2 -E '^\s*versioning\s*\{' "$f" | grep -qE '^\s*enabled\s*=\s*false' && pass "box state bucket: versioning off" || fail "box state bucket: versioning is not off"
+grep -A2 -E '^\s*versioning\s*\{' "$f" | grep -E '^\s*enabled\s*=\s*false' >/dev/null && pass "box state bucket: versioning off" || fail "box state bucket: versioning is not off"
 grep -qE '^\s*age\s*=\s*var.retention_days' "$f" && grep -qE '^\s*type\s*=\s*"Delete"' "$f" \
   && pass "box state bucket: lifecycle deletes at retention_days" || fail "box state bucket: no retention_days delete rule"
 grep -qE "$public_grant" "$TFD/056-gcs-box-state/"*.tf && fail "a public/ACL/CORS grant appears in 056" || pass "no ACL, allUsers or CORS in 056"

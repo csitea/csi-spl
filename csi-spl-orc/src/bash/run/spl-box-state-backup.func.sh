@@ -36,7 +36,8 @@ do_spl_box_state_backup() {
   spl_require_cloud_env || return 1
   local dry=1 drc
   if spl_dry_run; then :; else drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  do_require_bin tar zstd find || return 1
+  do_require_bin tar find || return 1
+  spl_box_state_tools zstd || return 1
 
   local box stamp day obj work arch size rc=0
   box="$(spl_box_state_box)" || return 1
@@ -163,6 +164,15 @@ spl_box_state_scan() {
   local out rc=0
   out="$(bash "$PROJ_PATH/src/bash/scripts/box-state-pack.sh" scan "$1")" || rc=$?
   (( rc == 0 )) && return 0
-  [[ -n "$out" ]] && printf '%s\n' "$out" | head -n 20 | sed 's/^/  /'
+  [[ -n "$out" ]] && sed -n '1,20s/^/  /p' <<<"$out"
   return 1
+}
+
+# spl_box_state_tools <bin>... -> refuses, naming each missing one. Not
+# do_require_bin: that list is what the satellite's verify must install, and
+# these two join it when the satellite runs the backup (its own lane).
+spl_box_state_tools() {
+  local b miss=""
+  for b in "$@"; do command -v "$b" >/dev/null 2>&1 || miss+=" $b"; done
+  [[ -z "$miss" ]] || { do_log "FATAL missing tool(s):$miss"; return 1; }
 }

@@ -27,9 +27,9 @@
 # @example SEC_SCAN=all ./run -a do_sec_scan
 #------------------------------------------------------------------------------
 
-# Pins. The workflow installs these. v1.8.0 of golang.org/x/vuln needs go 1.26;
-# this module is go 1.25, so the scanner pin is the newest release that builds
-# on 1.25. The vulnerability database is fetched at run time.
+# Pins. The workflow installs these. govulncheck v1.7.0 builds on this module's
+# go 1.26 (v1.8.0 needs go 1.26 and would too); a bump moves it with workflow
+# 15. The vulnerability database is fetched at run time.
 _SEC_SCAN_GOVULNCHECK_MOD=v1.7.0
 _SEC_SCAN_GITLEAKS_VER=8.30.1
 _SEC_SCAN_TRIVY_VER=0.74.0

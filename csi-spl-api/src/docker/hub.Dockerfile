@@ -17,7 +17,7 @@
 # `serve` is plain `spool serve` on Cloud Run and in lde.
 # Base images come through mirror.gcr.io, Google's Docker Hub mirror (same
 # tags): anonymous Docker Hub pulls from the CI runners hit its rate limit.
-FROM mirror.gcr.io/library/golang:1.25-alpine AS build
+FROM mirror.gcr.io/library/golang:1.26-alpine AS build
 ENV CGO_ENABLED=0 GOTOOLCHAIN=auto
 WORKDIR /src
 COPY csi-spl-api/src/go/spool-hub-api/go.mod csi-spl-api/src/go/spool-hub-api/go.sum ./

@@ -4,7 +4,7 @@
 #
 # The api build and its tests set GOTOOLCHAIN=local, so they never download a
 # toolchain. A patch release sits beside the box default
-# (/usr/local/go1.25.14 next to /usr/local/go) and this selector uses it.
+# (/usr/local/go1.26.9 next to /usr/local/go) and this selector uses it.
 #
 # spl_export_go_path [root]
 #   Prints nothing. The winner is the newest of the trees under the root and
@@ -37,8 +37,8 @@ spl_export_go_path() {
       best=$(dirname "$g")
     fi
   done
-  # A go already on PATH counts too. CI's setup-go is 1.25.14 while
-  # /usr/local/go on the runner is 1.25.1; prepending the older tree is how
+  # A go already on PATH counts too. CI's setup-go was 1.25.14 while
+  # /usr/local/go on the runner was 1.25.1; prepending the older tree is how
   # msg-wipe.tst.sh failed (run 36180632878). An equal or newer PATH go wins
   # so we do not downgrade.
   local pathgo=""

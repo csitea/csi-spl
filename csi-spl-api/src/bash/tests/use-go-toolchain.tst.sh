@@ -22,7 +22,7 @@ fake() { # <dir> <version>
 }
 
 fake "$T/go" go1.25.1
-fake "$T/go1.25.14" go1.25.14
+fake "$T/go1.26.9" go1.26.9
 
 old_path=$PATH
 # Isolate PATH: a real go newer than the fakes would win and hide the sibling.
@@ -30,11 +30,11 @@ fake "$T/older" go1.24.0
 PATH="$T/older/bin:/usr/bin:/bin"
 spl_export_go_path "$T" || { echo "FAIL: selector returned non-zero on a root that has go"; exit 1; }
 first=${PATH%%:*}
-[[ "$first" == "$T/go1.25.14/bin" ]] && pass "a newer sibling toolchain wins" \
-  || fail "wanted the 1.25.14 sibling first, got $first"
+[[ "$first" == "$T/go1.26.9/bin" ]] && pass "a newer sibling toolchain wins" \
+  || fail "wanted the 1.26.9 sibling first, got $first"
 # Stay on the older PATH go. Restoring the runner go (newer than 1.25.1)
 # made this case pick /home/runner/go/bin (hub deploy run 36184828848).
-rm -rf "$T/go1.25.14"
+rm -rf "$T/go1.26.9"
 PATH="$T/older/bin:/usr/bin:/bin"
 if spl_export_go_path "$T"; then
   first=${PATH%%:*}
@@ -47,7 +47,7 @@ PATH=$old_path
 
 # CI shape: setup-go on PATH is newer than /usr/local/go. Do not downgrade.
 fake "$T/ci-root/go" go1.25.1
-fake "$T/ci-path" go1.25.14
+fake "$T/ci-path" go1.26.9
 PATH="$T/ci-path/bin:/usr/bin:/bin"
 if spl_export_go_path "$T/ci-root" && [[ "${PATH%%:*}" == "$T/ci-path/bin" ]]; then
   pass "a newer go already on PATH beats an older tree under the root"

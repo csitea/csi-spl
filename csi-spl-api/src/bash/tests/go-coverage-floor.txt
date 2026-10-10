@@ -22,7 +22,7 @@ internal/files 82.9
 internal/github 82.9
 internal/github/githubtest 0.0
 internal/hours 98.0
-internal/hubclient 51.9
+internal/hubclient 83.1
 internal/i18n 97.2
 internal/invitemail 85.3
 internal/logging 0.0

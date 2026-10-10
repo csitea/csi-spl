@@ -2197,8 +2197,8 @@
     "duplicate": "Удвостручи",
     "edit": "Измени",
     "synced_link": "Измени у репозиторијуму",
-    "copy_link": "Копирај везу",
-    "link_copied": "Веза је копирана"
+    "copy_link": "Kopiraj vezu",
+    "link_copied": "Veza je kopirana"
   },
   "calendar_phone_week": {
     "strip": "Дани у недељи",
@@ -2438,7 +2438,7 @@
       "rename": "Rename",
       "copy_link": "Copy link",
       "new_tab": "Open in a new tab",
-      "link_copied": "Link copied",
+      "link_copied": "Veza je kopirana",
       "delete": "Delete document",
       "delete_title": "Delete this document?",
       "delete_body": "\"{title}\" and everything in it will be deleted."

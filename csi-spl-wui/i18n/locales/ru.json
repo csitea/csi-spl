@@ -2438,7 +2438,7 @@
       "rename": "Rename",
       "copy_link": "Copy link",
       "new_tab": "Open in a new tab",
-      "link_copied": "Link copied",
+      "link_copied": "Ссылка скопирована",
       "delete": "Delete document",
       "delete_title": "Delete this document?",
       "delete_body": "\"{title}\" and everything in it will be deleted."

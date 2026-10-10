@@ -6344,6 +6344,87 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/humans/{human_id}/emails": {
+      "get": {
+        "operationId": "getOperatorHumansByHumanIdEmails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {human_id, emails: [{email, state, providers, main}]}, the main address first"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a human's sign-in emails back (operator)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "post": {
+        "operationId": "postOperatorHumansByHumanIdEmails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {human_id, email, state, reason}: pending (pending_until_provider_sign_in) or already active; never activates"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "email_taken (active or pending on another human, never whose) or technical (an agent or a clone)"
+          }
+        },
+        "summary": "Add a PENDING sign-in email to a human, ordered by a human (operator)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/invites": {
       "delete": {
         "operationId": "deleteOperatorInvites",

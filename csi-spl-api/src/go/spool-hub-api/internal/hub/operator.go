@@ -268,9 +268,10 @@ func (s *Server) routeOperator(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/operator/invites", s.handleOperatorInviteRevoke)
 	mux.HandleFunc("POST /v1/operator/replay-unsigned", s.handleOperatorReplayUnsigned)
 	mux.HandleFunc("PATCH /v1/operator/members/{human_id}", s.handleOperatorMemberAccessUntil)
-	s.routeOperatorWorkspaces(mux) // spec 074: workspace CRUD, operator-workspace admins only
-	s.routeFleetLoad(mux)          // rdb 0118: the instance's fleet load target, same rule
-	s.routeOperatorCalendar(mux)   // HUM-10 b13c164c: an agent's event, calendar_operator.go
-	s.routeOperatorChannels(mux)   // HUM-10 5c7a9202: a channel by order, channel_operator.go
-	s.routeCostIngest(mux)         // spec 123 lane 4: the box feed of cost lines, cost_ingest.go
+	s.routeOperatorWorkspaces(mux)  // spec 074: workspace CRUD, operator-workspace admins only
+	s.routeFleetLoad(mux)           // rdb 0118: the instance's fleet load target, same rule
+	s.routeOperatorCalendar(mux)    // HUM-10 b13c164c: an agent's event, calendar_operator.go
+	s.routeOperatorChannels(mux)    // HUM-10 5c7a9202: a channel by order, channel_operator.go
+	s.routeCostIngest(mux)          // spec 123 lane 4: the box feed of cost lines, cost_ingest.go
+	s.routeOperatorHumanEmails(mux) // HUM-10 1ee61a2b: a pending sign-in email, human_email_operator.go
 }

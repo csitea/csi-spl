@@ -361,3 +361,14 @@ Seats are now named: s-claude-2 (this file, c-929) and the mistral seat.
 **Verdict: change. I sign v1.0 once C1, C2 and C3 are folded (or answered
 with a reason); C4..C13 are corrections I expect folded but would not block
 on. Owner answers: Q-1 A, Q-2 A, Q-3 A, Q-4 A (new).**
+
+## 12. Sign: v1.0
+
+Checked v1.0 at 64b24b39636ad374179c861db26acd88a8d2f02e against this review:
+C1 (5.1 key-box approval + unconfirmed operator-made admins, L3, Q-4), C2
+(5.2 step 5 `spool-key-exec`, L6, L15) and C3 (5.3 "What keeps the fleet's
+lanes out") are folded as asked; C4..C13 are in the places section 11.1
+names. New fact checked: `invited_by` provenance lives in rdb 0006 and 0084
+(`grep -ln invited_by .../0006_*.sql .../0084_*.sql` -> both). Nothing blocks.
+
+SIGNED s-claude-2 (c-929, claude) spec 127 v1.0 at 64b24b39636ad374179c861db26acd88a8d2f02e. Owner answers: Q-1 A, Q-2 A, Q-3 A, Q-4 A.

@@ -14,8 +14,9 @@ import (
 
 // Workspace documents (spec 113 T002, sections 3.3 and 3.5): one tree of items
 // per document on rdb 0157, an adjacency list plus a sibling ordinal. Every
-// structural op is ONE transaction under the document lock, the doc row FOR
-// UPDATE, taken before any item row and reused by nested calls (wsDocTx). The
+// structural op is ONE transaction under the document lock (wsDocAdvisory,
+// then the doc row FOR UPDATE), taken before any item row and reused by
+// nested calls (wsDocTx). The
 // DB holds the invariants too (0157's deferred workspace_doc_item_tree); the
 // store's discipline is the first line, the trigger the backstop.
 //
@@ -100,12 +101,41 @@ type wsDocPlants struct {
 	skipGapClose        bool // a delete that leaves its sibling gap
 	positionsBeforeLock bool // a move that reads positions before the lock
 	ignoreLockRows      bool // a lock that goes on with 0 doc rows
-	editNoDocLock       bool // a text edit that skips the doc row (the deadlock)
+	editNoDocLock       bool // a text edit that skips the doc lock (the deadlock)
+	rowLocks            bool // the doc row as the only lock, FOR UPDATE / FOR KEY SHARE (the chain deadlock)
 }
 
-// wsDocLockWaits, when a test sets it, counts the ops that found the doc row
-// already locked (a NOWAIT probe in a savepoint first). nil in the hub.
+// wsDocLockWaits, when a test sets it, counts the ops that found the doc lock
+// already held (a try first). nil in the hub.
 var wsDocLockWaits *atomic.Int64
+
+// wsDocAdvisory takes the doc's transaction advisory lock, the first lock of
+// every write: exclusive for a structural op, shared for a text edit, so text
+// edits never wait for each other and each waits for a structural op. It is
+// the doc lock, not the doc row: with the row FOR UPDATE / FOR KEY SHARE, a
+// text edit and a structural op each followed the row's update chain (the
+// bump makes a new version per op) and held the version the other waited for:
+// "while locking updated version ... of tuple in relation workspace_doc"
+// (CI 38037079816; 4 in 108 runs locally). The lock manager queues them
+// instead. 113 seeds the hash (73 is the join tokens'): a collision only
+// serialises two docs.
+func wsDocAdvisory(ctx context.Context, tx pgx.Tx, doc string, shared bool) error {
+	lock, try := `SELECT pg_advisory_xact_lock(hashtextextended($1, 113))`,
+		`SELECT pg_try_advisory_xact_lock(hashtextextended($1, 113))`
+	if shared {
+		lock, try = `SELECT pg_advisory_xact_lock_shared(hashtextextended($1, 113))`,
+			`SELECT pg_try_advisory_xact_lock_shared(hashtextextended($1, 113))`
+	}
+	if wsDocLockWaits != nil {
+		var got bool
+		if err := tx.QueryRow(ctx, try, doc).Scan(&got); err != nil || got {
+			return err
+		}
+		wsDocLockWaits.Add(1)
+	}
+	_, err := tx.Exec(ctx, lock, doc)
+	return err
+}
 
 var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
@@ -120,14 +150,21 @@ type wsDocTx struct {
 	locked bool
 }
 
-// lock takes the doc row FOR UPDATE, requiring exactly 1 row (0 = another
-// tenant's or gone: 404, never go on unlocked), then checks want (0 = any).
+// lock takes the doc lock exclusive, then the doc row FOR UPDATE, requiring
+// exactly 1 row (0 = another tenant's or gone: 404, never go on unlocked),
+// then checks want (0 = any).
 func (d *wsDocTx) lock(ctx context.Context, want int64) error {
 	if !d.locked {
 		if !isUUID(d.doc) {
 			return ErrDocNotFound
 		}
-		if err := d.probeWait(ctx); err != nil {
+		var err error
+		if wsDocPlant.rowLocks {
+			err = d.probeWait(ctx)
+		} else {
+			err = wsDocAdvisory(ctx, d.tx, d.doc, false)
+		}
+		if err != nil {
 			return err
 		}
 		revs, err := collectInt64(ctx, d.tx, `SELECT rev FROM workspace_doc WHERE id = $1 FOR UPDATE`, d.doc)
@@ -150,8 +187,8 @@ func (d *wsDocTx) lock(ctx context.Context, want int64) error {
 	return nil
 }
 
-// probeWait counts a lock wait for the concurrent test: NOWAIT in a savepoint;
-// a lock held elsewhere is 55P03, then lock blocks as usual.
+// probeWait counts a doc row wait for the rowLocks control: NOWAIT in a
+// savepoint; a lock held elsewhere is 55P03, then lock blocks as usual.
 func (d *wsDocTx) probeWait(ctx context.Context) error {
 	if wsDocLockWaits == nil {
 		return nil

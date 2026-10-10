@@ -8,7 +8,9 @@ t_sandbox
 export SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool
 echo brief > "$T_TMP/brief.md"
 git init -q --bare "$T_TMP/origin.git"
-git init -q "$T_TMP/repo" && git -C "$T_TMP/repo" -c user.name=FirstName\ LastName -c user.email=dev@example.com commit -q --allow-empty -m init
+# The live repo has the developer guide, so the seed carries STEP 0: size that.
+git init -q "$T_TMP/repo" && mkdir -p "$T_TMP/repo/csi-spl-doc/doc/md" && echo guide >"$T_TMP/repo/csi-spl-doc/doc/md/developer-guide.md"
+git -C "$T_TMP/repo" add -A && git -C "$T_TMP/repo" -c user.name=FirstName\ LastName -c user.email=dev@example.com commit -q -m init
 git -C "$T_TMP/repo" branch -M master
 git -C "$T_TMP/repo" remote add origin "$T_TMP/origin.git"
 git -C "$T_TMP/repo" push -q origin master 2>/dev/null
@@ -38,7 +40,9 @@ for k in claude grok agy qwen mistral; do
   # alone added ~240 B (c-603, wf 10 run 37873606666).
   norm="$(seed_norm "$prompt")"
   n="$(printf '%s' "$norm" | wc -c)"
-  check "$k: seed is at most 8000 bytes at the live paths (got $n)" [ "$n" -le 8000 ]
+  # 8200: +200 for STEP 0, the developer-guide ack (owner t1 4e373f5d msg 56d7073e)
+  check "$k: seed is at most 8200 bytes at the live paths (got $n)" [ "$n" -le 8200 ]
+  has "$k: the sized seed carries STEP 0" "STEP 0, before any edit" "$prompt"
   hasnt "$k: the sized seed carries no checkout path" "$T_ROOT/" "$norm"
   for r in 1 2 3 4 5 6 7 8 a b c d e; do
     has "$k: rule ($r) present" "($r) " "$prompt"

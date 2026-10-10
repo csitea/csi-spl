@@ -54,8 +54,10 @@
 # @param PRE_PUSH_SKIP_PASSED (optional) - 1 = return PASS at once when this exact clean tree, parts set,
 # @param        tier, merge-base and gate code already passed whole (the pre-push hook sets it)
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache and the tree-pass record (always run)
-# @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300 (overrides the api full-tier default too)
+# @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300 (overrides the full-tier defaults too)
 # @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier, default 900
+# @param PRE_PUSH_IAC_FULL_TIMEOUT (optional) - seconds for the iac part on the full tier, default 600
+# @param PRE_PUSH_ORC_FULL_TIMEOUT (optional) - seconds for the orc part on the full tier, default 1800
 # @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
 # @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint);
 # @param        override = only the seconds-cheap correctness parts, hygiene + lint-migration
@@ -400,11 +402,16 @@ _pp_part_hygiene() {
 # The FULL-tier api suite cannot fit 300 s: the hub Postgres gate alone is
 # ~384 s. Measured uncapped on sat (n=3, GOFLAGS=-timeout=15m): 514 s at load
 # 1.85 (master 712ff98d), 319 s at load 13.08 (848e20c0), 318 s (d5611241).
-# 900 s is 1.75x the slowest; every full-tier push timed out at 300 s. The fast
-# tier keeps the 300 s default; PRE_PUSH_PART_TIMEOUT overrides both.
-_pp_api_timeout() {
+# 900 s is 1.75x the slowest; every full-tier push timed out at 300 s.
+# The FULL-tier iac suite (IAC_TEST_TIER=full, 119 files) on sat, run alone
+# (n=3, master 672ad2598): 191 s at load 18.7..37.6, 213 s at 37.6..16.8,
+# 148 s at 16.8..15.7. Inside the gate at 00:10Z (2026-10-10) it passed 300 s
+# and TIMED OUT, so every full-tier iac push failed (r5-07). 600 s is 1.75x
+# that censored 300+ s (525 s), rounded up.
+# The fast tier keeps the 300 s default; PRE_PUSH_PART_TIMEOUT overrides both.
+_pp_full_timeout() {  # <full-tier default>
   if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"
-  elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "${PRE_PUSH_API_FULL_TIMEOUT:-900}"
+  elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "$1"
   else echo "$_pp_timeout"; fi
 }
 # The budget a part runs under: the ONE source both the part's `timeout` and
@@ -413,11 +420,11 @@ _pp_api_timeout() {
 # wrong number (c-448, c-464, c-465, 2026-10-07).
 _pp_budget() {  # <part-fn>
   case "$1" in
-    _pp_part_api) _pp_api_timeout ;;
-    _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
+    _pp_part_api) _pp_full_timeout "${PRE_PUSH_API_FULL_TIMEOUT:-900}" ;;
+    _pp_part_iac) _pp_full_timeout "${PRE_PUSH_IAC_FULL_TIMEOUT:-600}" ;;
     # the full tier runs every orc file: 16..17 min per CI shard of two
-    _pp_part_orc) [[ "${_PP_TIER:-fast}" == full && -z "${PRE_PUSH_PART_TIMEOUT:-}" ]] \
-                    && echo "${PRE_PUSH_ORC_FULL_TIMEOUT:-1800}" || echo "$_pp_timeout" ;;
+    _pp_part_orc) _pp_full_timeout "${PRE_PUSH_ORC_FULL_TIMEOUT:-1800}" ;;
+    _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
     *) echo "$_pp_timeout" ;;
   esac
 }

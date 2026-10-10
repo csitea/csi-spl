@@ -1,6 +1,6 @@
 # Spec 122: Capacity Scale-Out
 
-Status: **v1.0-rc1** (2026-10-10). Draft by a-809 (15e4e5479). The panel's
+Status: **v1.0** (2026-10-10; rc1 fbb4f582a signed by all four seats and the drafter). Draft by a-809 (15e4e5479). The panel's
 reviews are in `reviews/`: s122-claude (editor), s122-claude-2, s122-mistral
 and s122-agy. Folded by the editor. Build waits for the owner questions in
 section 14.
@@ -382,7 +382,17 @@ Draft text the panel corrected: the 429 codes, "the hub mints",
 against reasonable bounds in CI". The draft's "29% (per Spec 121)" is kept,
 with the owner's msg cd2d25e3 as its source.
 
-Signatures on v1.0-rc1: (filled in by the editor)
+Signatures on v1.0-rc1 (fbb4f582a), each sent on dispatch-e001c851:
+
+| signer | agent | answer |
+|---|---|---|
+| s122-claude (editor) | c-810 | signed (folded it) |
+| s122-claude-2 | c-811 | signed fbb4f582a, no objection; keeps C on Q-6 and Q-7 |
+| s122-mistral | m-812 | signed fbb4f582a |
+| s122-agy | a-813 | signed fbb4f582a |
+| drafter | a-809 | signed fbb4f582a |
+
+Result: 5 of 5 signed, 0 objections. v1.0 = rc1 plus this table.
 
 ## 13. Owner Decisions Already Made
 

@@ -92,8 +92,10 @@ type JoinTokens interface {
 	// re-seated (the admin minted a new token for it). The key must not be
 	// live on any other box of any workspace (spec 108 3.1): ErrConflict. On
 	// any refusal the token stays unused. The token row is answered when it
-	// was found, so a refusal can name its expiry or its bound box.
-	RedeemJoinToken(ctx context.Context, tenant, hash, box string, pub ed25519.PublicKey, now time.Time) (JoinToken, error)
+	// was found, so a refusal can name its expiry or its bound box. mode is
+	// the box mode the box declared (BoxModeDedicated, BoxModeShared, or ""
+	// = not declared), recorded on the pin (rdb 0170 pins.box_mode).
+	RedeemJoinToken(ctx context.Context, tenant, hash, box string, pub ed25519.PublicKey, mode string, now time.Time) (JoinToken, error)
 	// RevokeSeat revokes box's active pin from a member session
 	// (pins_history.reason wui-revoke). ErrNotFound when absent; an already
 	// revoked pin is a no-op.
@@ -172,7 +174,7 @@ func (s *Memory) RevokeJoinToken(_ context.Context, tenant, id string, now time.
 	return *hit, nil
 }
 
-func (s *Memory) RedeemJoinToken(_ context.Context, tenant, hash, box string, pub ed25519.PublicKey, now time.Time) (JoinToken, error) {
+func (s *Memory) RedeemJoinToken(_ context.Context, tenant, hash, box string, pub ed25519.PublicKey, mode string, now time.Time) (JoinToken, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	t, ok := s.joins[hash]
@@ -199,6 +201,9 @@ func (s *Memory) RedeemJoinToken(_ context.Context, tenant, hash, box string, pu
 		}
 		s.pins[k] = &memPin{pub: cp, lastOp: last}
 		s.history = append(s.history, memHist{tenant: tenant, box: box, reason: "join", pub: cp, at: now})
+	}
+	if mode != "" {
+		s.pins[k].mode = mode
 	}
 	at := now
 	t.ConsumedAt, t.ConsumedBox = &at, box

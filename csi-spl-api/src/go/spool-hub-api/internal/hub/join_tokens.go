@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -48,6 +49,14 @@ const (
 	joinLabelMax       = 80
 	// joinFix ends every redeem refusal: where a new token comes from.
 	joinFix = "ask a tenant admin for a join token in Tenant settings -> Agents"
+	// codeBoxJoinDisabled is the 403 of a workspace whose spec 108 switch
+	// is off (section 3.8, rdb 0170): no join token is minted or redeemed.
+	codeBoxJoinDisabled = "box_join_disabled"
+	// codeBoxModeShared is the 403 of a box that is not dedicated to the
+	// workspace it joins, when that workspace's switch is on (section 3.8).
+	codeBoxModeShared  = "box_mode_shared"
+	boxJoinDisabledMsg = "joining boxes with a join token is not enabled for this workspace; the operator of this hub turns it on"
+	boxModeSharedMsg   = "this workspace accepts only boxes dedicated to it; enrol the box with do_spl_box_workspace_setup first"
 )
 
 var joinIDRe = regexp.MustCompile(`^[0-9a-f]{8}$`)
@@ -105,6 +114,31 @@ func (s *Server) joinStore(w http.ResponseWriter) (store.JoinTokens, bool) {
 	return js, ok
 }
 
+// boxJoinOn reads the workspace's spec 108 switch (section 3.8). A store that
+// keeps no switch answers off: the feature is off unless switched on.
+func (s *Server) boxJoinOn(ctx context.Context, tenant string) (bool, error) {
+	sw, ok := s.o.Store.(store.BoxJoinSwitch)
+	if !ok {
+		return false, nil
+	}
+	return sw.BoxJoinEnabled(ctx, tenant)
+}
+
+// boxJoinAllowed answers 403 box_join_disabled when tenant's switch is off,
+// 503 when it was not read; false = answered.
+func (s *Server) boxJoinAllowed(w http.ResponseWriter, r *http.Request, tenant string) bool {
+	on, err := s.boxJoinOn(r.Context(), tenant)
+	switch {
+	case err != nil:
+		writeErrCause(w, http.StatusServiceUnavailable, "unavailable", "the workspace's join switch was not read", err)
+		return false
+	case !on:
+		writeErr(w, http.StatusForbidden, codeBoxJoinDisabled, boxJoinDisabledMsg)
+		return false
+	}
+	return true
+}
+
 // joinWrite applies the per-human mint / revoke window; false = 429 answered.
 func (s *Server) joinWrite(w http.ResponseWriter, hum string) bool {
 	ok, retry := s.joinLim.Allow(hum, joinWritesPerHour)
@@ -151,7 +185,7 @@ func (s *Server) handleJoinMint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	js, ok := s.joinStore(w)
-	if !ok {
+	if !ok || !s.boxJoinAllowed(w, r, t.ID) {
 		return
 	}
 	if s.o.JoinTokenTTL <= 0 {
@@ -216,13 +250,20 @@ func (s *Server) handleJoinList(w http.ResponseWriter, r *http.Request) {
 		writeErrCause(w, http.StatusInternalServerError, "internal", "join tokens unavailable", err)
 		return
 	}
+	// enabled: the spec 108 switch (3.8), so the WUI offers a new token only
+	// when the hub would mint one. Open tokens stay listed either way, to revoke.
+	enabled, err := s.boxJoinOn(r.Context(), t.ID)
+	if err != nil {
+		writeErrCause(w, http.StatusServiceUnavailable, "unavailable", "the workspace's join switch was not read", err)
+		return
+	}
 	out := make([]joinTokenJSON, 0, len(toks))
 	for _, jt := range toks {
 		out = append(out, joinTokenJSON{ID: jt.ID(), Label: jt.Label, BoxID: jt.BoxID, ForHuman: jt.ForHuman,
 			CreatedBy: jt.CreatedBy, CreatedAt: jt.CreatedAt.UTC(), ExpiresAt: jt.ExpiresAt.UTC(), State: jt.State(),
 			ConsumedBox: jt.ConsumedBox})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tokens": out})
+	writeJSON(w, http.StatusOK, map[string]any{"tokens": out, "enabled": enabled})
 }
 
 // DELETE /v1/tenant/agents/join-tokens/{id}
@@ -322,7 +363,17 @@ func (s *Server) handleJoinRedeem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, ok := s.loadTenant(w, r, tenant)
-	if !ok {
+	if !ok || !s.boxJoinAllowed(w, r, t.ID) {
+		return
+	}
+	if req.BoxMode != store.BoxModeDedicated {
+		// Switch on = a restricted workspace: dedicated boxes only (3.8).
+		// An undeclared mode is an older spool join on a shared box.
+		if req.BoxMode != "" && !store.ValidBoxMode(req.BoxMode) {
+			writeErr(w, http.StatusBadRequest, "bad_json", "box_mode is dedicated or shared")
+			return
+		}
+		writeErr(w, http.StatusForbidden, codeBoxModeShared, boxModeSharedMsg)
 		return
 	}
 	if req.BoxID == WUIBox {
@@ -334,7 +385,7 @@ func (s *Server) handleJoinRedeem(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "box_id or pubkey is malformed")
 		return
 	}
-	payload, _ := wire.JoinPayload(hash, req.BoxID, req.PubKey, req.TS)
+	payload, _ := wire.JoinModePayload(hash, req.BoxID, req.PubKey, req.TS, req.BoxMode)
 	if !s.skewOK(req.TS) || verify(ed25519.PublicKey(pub), payload, req.Sig) != nil {
 		writeErr(w, http.StatusBadRequest, "bad_sig", "the box key signature does not verify")
 		return
@@ -346,11 +397,12 @@ func (s *Server) handleJoinRedeem(w http.ResponseWriter, r *http.Request) {
 	if !s.pinQuotaOK(w, r, t.ID, req.BoxID) {
 		return
 	}
-	jt, err := js.RedeemJoinToken(r.Context(), t.ID, hash, req.BoxID, ed25519.PublicKey(pub), s.o.Now())
+	jt, err := js.RedeemJoinToken(r.Context(), t.ID, hash, req.BoxID, ed25519.PublicKey(pub), req.BoxMode, s.o.Now())
 	if s.joinRefused(w, jt, err) {
 		return
 	}
-	s.o.Log.Info().Str("tenant", t.ID).Str("join_token", jt.ID()).Str("box_id", req.BoxID).Msg("join token redeemed")
+	s.o.Log.Info().Str("tenant", t.ID).Str("join_token", jt.ID()).Str("box_id", req.BoxID).
+		Str("box_mode", req.BoxMode).Msg("join token redeemed")
 	writeJSON(w, http.StatusOK, map[string]string{"tenant": t.ID, "box_id": req.BoxID, "pubkey": req.PubKey})
 }
 

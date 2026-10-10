@@ -320,6 +320,9 @@ func (s *Server) putWorkspace(r *http.Request, a opActor, id string, out map[str
 		return
 	}
 	out["workspace"] = s.workspaceJSON(ws, a.tenant)
+	if on, err := s.boxJoinOn(r.Context(), id); err == nil {
+		out["box_join_enabled"] = on
+	}
 }
 
 // setWorkspaceConfig applies a settings patch. It logs a failure and returns
@@ -366,6 +369,9 @@ type patchWorkspaceReq struct {
 	Suspended          *bool   `json:"suspended"`
 	DefaultLocale      *string `json:"default_locale"`
 	TopicArchivePolicy *string `json:"topic_archive_policy"`
+	// BoxJoinEnabled is spec 108's switch (3.8, rdb 0170): only this route
+	// and do_spl_box_join_switch write it, never the workspace's own admin.
+	BoxJoinEnabled *bool `json:"box_join_enabled"`
 }
 
 func (p patchWorkspaceReq) config() (store.TenantConfigPatch, bool) {
@@ -416,6 +422,9 @@ func (s *Server) patchWorkspace(w http.ResponseWriter, r *http.Request, a opActo
 			return false
 		}
 	}
+	if req.BoxJoinEnabled != nil && !s.setBoxJoin(w, r, ws.ID, *req.BoxJoinEnabled) {
+		return false
+	}
 	s.opAudit(r, a, ws.ID, store.AuditUpdate, patchDetail(req))
 	if req.Suspended == nil {
 		return true
@@ -441,7 +450,24 @@ func patchDetail(req patchWorkspaceReq) map[string]any {
 	if req.TopicArchivePolicy != nil {
 		d["topic_archive_policy"] = *req.TopicArchivePolicy
 	}
+	if req.BoxJoinEnabled != nil {
+		d["box_join_enabled"] = *req.BoxJoinEnabled
+	}
 	return d
+}
+
+// setBoxJoin writes a workspace's spec 108 switch; false = answered.
+func (s *Server) setBoxJoin(w http.ResponseWriter, r *http.Request, id string, on bool) bool {
+	sw, ok := s.o.Store.(store.BoxJoinSwitch)
+	if !ok {
+		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no join switch")
+		return false
+	}
+	if err := sw.SetBoxJoinEnabled(r.Context(), id, on); err != nil {
+		writeErrCause(w, http.StatusInternalServerError, "internal", "join switch not saved", err)
+		return false
+	}
+	return true
 }
 
 // setWorkspaceState suspends, resumes or archives one workspace and audits

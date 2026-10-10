@@ -912,14 +912,29 @@ func JoinPayload(tokenHash, boxID, pubkey, ts string) ([]byte, error) {
 	return Canonical(map[string]string{"box_id": boxID, "op": "join", "pubkey": pubkey, "token_hash": tokenHash, "ts": ts})
 }
 
+// JoinModePayload is JoinPayload with the box mode the box declares (spec
+// 108 3.8): jq -cS '{box_id,box_mode,op:"join",pubkey,token_hash,ts}', so the
+// mode is signed with the key. mode "" is JoinPayload exactly: a box that
+// declares no mode signs the same bytes as before.
+func JoinModePayload(tokenHash, boxID, pubkey, ts, mode string) ([]byte, error) {
+	if mode == "" {
+		return JoinPayload(tokenHash, boxID, pubkey, ts)
+	}
+	return Canonical(map[string]string{"box_id": boxID, "box_mode": mode, "op": "join", "pubkey": pubkey,
+		"token_hash": tokenHash, "ts": ts})
+}
+
 // JoinRequest is the body of POST /v1/pins/join: Token is the whole
-// spj1.<tenant>.<secret>, Sig the box key's signature over JoinPayload.
+// spj1.<tenant>.<secret>, Sig the box key's signature over JoinModePayload.
+// BoxMode is dedicated or shared (spec 108 3.8); "" = not declared, which a
+// workspace with the switch on refuses as shared.
 type JoinRequest struct {
-	Token  string `json:"token"`
-	BoxID  string `json:"box_id"`
-	PubKey string `json:"pubkey"`
-	TS     string `json:"ts"`
-	Sig    string `json:"sig"`
+	Token   string `json:"token"`
+	BoxID   string `json:"box_id"`
+	PubKey  string `json:"pubkey"`
+	TS      string `json:"ts"`
+	Sig     string `json:"sig"`
+	BoxMode string `json:"box_mode,omitempty"`
 }
 
 // PinRequest is the body of POST /v1/pins.

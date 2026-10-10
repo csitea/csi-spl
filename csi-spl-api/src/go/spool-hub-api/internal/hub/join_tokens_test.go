@@ -29,7 +29,10 @@ import (
 )
 
 // Spec 073 T003 (agent join tokens) and spec 108 3.1 / 3.2 hub-side pairs.
-// Every case states its n and carries its control.
+// Every case states its n and carries its control. They run on a workspace
+// whose spec 108 switch is ON (joinTenant) with a dedicated box (redeem), the
+// one setting in which joins happen (spec 108 3.8); the OFF and shared cases
+// are TestBoxJoinSwitch*.
 
 const joinPath = "/v1/tenant/agents/join-tokens"
 
@@ -53,6 +56,21 @@ func joinEnv(t *testing.T, mut ...func(*hub.Options)) *env {
 	return rbacEnv(t, append([]func(*hub.Options){func(o *hub.Options) { o.JoinTokenTTL = ttl }}, mut...)...)
 }
 
+// joinTenant is e.tenant() with the spec 108 switch turned ON (3.8).
+func joinTenant(t *testing.T, e *env) (string, ed25519.PrivateKey) {
+	t.Helper()
+	id, priv := e.tenant()
+	setBoxJoin(t, e, id, true)
+	return id, priv
+}
+
+func setBoxJoin(t *testing.T, e *env, tid string, on bool) {
+	t.Helper()
+	if err := e.st.(store.BoxJoinSwitch).SetBoxJoinEnabled(context.Background(), tid, on); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // mintToken mints as hum and answers the plain token and the mint answer.
 func mintToken(t *testing.T, e *env, tid, hum string, body map[string]any) (string, map[string]any) {
 	t.Helper()
@@ -69,13 +87,20 @@ func tokenHash(tok string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// redeem posts POST /v1/pins/join on the api host, signed by priv at ts.
+// redeem posts POST /v1/pins/join on the api host, signed by priv at ts, from
+// a box dedicated to the token's workspace (spec 108 3.8).
 func redeem(t *testing.T, e *env, hdr http.Header, tok, box string, priv ed25519.PrivateKey, ts time.Time) (int, wire.ErrorBody) {
+	t.Helper()
+	return redeemMode(t, e, hdr, tok, box, store.BoxModeDedicated, priv, ts)
+}
+
+// redeemMode is redeem declaring mode ("" = an older spool join: none).
+func redeemMode(t *testing.T, e *env, hdr http.Header, tok, box, mode string, priv ed25519.PrivateKey, ts time.Time) (int, wire.ErrorBody) {
 	t.Helper()
 	pub := base64.StdEncoding.EncodeToString(priv.Public().(ed25519.PublicKey))
 	at := ts.UTC().Format(time.RFC3339)
-	p, _ := wire.JoinPayload(tokenHash(tok), box, pub, at)
-	raw, _ := json.Marshal(wire.JoinRequest{Token: tok, BoxID: box, PubKey: pub, TS: at, Sig: sign.Sign(priv, p)})
+	p, _ := wire.JoinModePayload(tokenHash(tok), box, pub, at, mode)
+	raw, _ := json.Marshal(wire.JoinRequest{Token: tok, BoxID: box, PubKey: pub, TS: at, Sig: sign.Sign(priv, p), BoxMode: mode})
 	req, _ := http.NewRequest(http.MethodPost, "http://"+apiLabel+domain+"/v1/pins/join", bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range hdr {
@@ -136,7 +161,7 @@ func tokenState(t *testing.T, e *env, tid, admin, id string) string {
 func TestJoinMintRedeemListsPin(t *testing.T) {
 	logs := &lockedBuf{}
 	e := joinEnv(t, func(o *hub.Options) { o.Log = zerolog.New(logs) })
-	tid, _ := e.tenant()
+	tid, _ := joinTenant(t, e)
 	admin := seat(t, e, tid, rbac.Admin)
 	b := e.box(tid, "box-join", "CLE-31")
 	if _, err := e.st.GetPin(context.Background(), tid, b.id); err == nil {
@@ -198,7 +223,7 @@ func TestJoinTokenExpiryAndReuse(t *testing.T) {
 				o.JoinTokenTTL = c.ttl
 			}
 		})
-		tid, _ := e.tenant()
+		tid, _ := joinTenant(t, e)
 		admin := seat(t, e, tid, rbac.Admin)
 		start := clock()
 		tokOK, _ := mintToken(t, e, tid, admin, nil)
@@ -226,7 +251,7 @@ func TestJoinTokenExpiryAndReuse(t *testing.T) {
 // CONTROL: exactly one box is pinned after each race.
 func TestJoinConcurrentRedeemSeatsOne(t *testing.T) {
 	e := joinEnv(t)
-	tid, _ := e.tenant()
+	tid, _ := joinTenant(t, e)
 	admin := seat(t, e, tid, rbac.Admin)
 	for i := 0; i < 5; i++ {
 		tok, _ := mintToken(t, e, tid, admin, nil)
@@ -255,7 +280,7 @@ func TestJoinConcurrentRedeemSeatsOne(t *testing.T) {
 // seats a free box id, and the same key again is idempotent (200). n = 1.
 func TestJoinPinConflictKeepsToken(t *testing.T) {
 	e := joinEnv(t)
-	tid, _ := e.tenant()
+	tid, _ := joinTenant(t, e)
 	admin := seat(t, e, tid, rbac.Admin)
 	held := newKey(t)
 	e.pinKey(tid, "box-held", held.Public().(ed25519.PublicKey))
@@ -283,7 +308,7 @@ func TestJoinPinConflictKeepsToken(t *testing.T) {
 // still answers a hello after the revoke.
 func TestJoinSeatRevokeClosesOneBox(t *testing.T) {
 	e := joinEnv(t)
-	tid, _ := e.tenant()
+	tid, _ := joinTenant(t, e)
 	admin := seat(t, e, tid, rbac.Admin)
 	a, b := e.box(tid, "box-a", "CLE-41"), e.box(tid, "box-b", "CLE-42")
 	for _, x := range []*box{a, b} {
@@ -332,7 +357,7 @@ func TestJoinSeatRevokeClosesOneBox(t *testing.T) {
 // CONTROL: the same token then still redeems.
 func TestJoinTokenGrantsNothingElse(t *testing.T) {
 	e := joinEnv(t)
-	tid, _ := e.tenant()
+	tid, _ := joinTenant(t, e)
 	admin := seat(t, e, tid, rbac.Admin)
 	e.pinKey(tid, "box-x", newKey(t).Public().(ed25519.PublicKey))
 	tok, _ := mintToken(t, e, tid, admin, nil)
@@ -373,7 +398,7 @@ func TestJoinTokenGrantsNothingElse(t *testing.T) {
 // n = 4 routes x 2 roles + 1 root revoke.
 func TestJoinRoutesAdminOnly(t *testing.T) {
 	e := joinEnv(t)
-	tid, root := e.tenant()
+	tid, root := joinTenant(t, e)
 	admin, owner := seat(t, e, tid, rbac.Admin), seat(t, e, tid, rbac.BizOwner)
 	tok, out := mintToken(t, e, tid, admin, nil)
 	id := out["id"].(string)
@@ -423,7 +448,7 @@ func TestJoinRoutesAdminOnly(t *testing.T) {
 // for_human, and the 20 redeems before the flood were answered on their merits.
 func TestJoinRefusalTable(t *testing.T) {
 	e := joinEnv(t)
-	tid, _ := e.tenant()
+	tid, _ := joinTenant(t, e)
 	admin, dev := seat(t, e, tid, rbac.Admin), seat(t, e, tid, rbac.Developer)
 	bogus := "spj1." + tid + "." + base64.RawURLEncoding.EncodeToString(make([]byte, 32))
 	if code, eb := redeem(t, e, nil, bogus, "box-u", newKey(t), time.Now()); code != http.StatusUnauthorized || eb.Error != "join_token_invalid" ||
@@ -465,8 +490,8 @@ func TestJoinRefusalTable(t *testing.T) {
 // same kind of redeem naming A are accepted.
 func TestSpec108HeaderPinMismatch(t *testing.T) {
 	e := joinEnv(t)
-	a, _ := e.tenant()
-	b, _ := e.tenant()
+	a, _ := joinTenant(t, e)
+	b, _ := joinTenant(t, e)
 	admin := seat(t, e, a, rbac.Admin)
 	bx := e.box(a, "box-a", "CLE-51")
 	e.pin(a, bx)
@@ -507,8 +532,8 @@ func TestSpec108HeaderPinMismatch(t *testing.T) {
 // CONTROL: a unique key seats in B with a token of the same kind.
 func TestSpec108SameKeyOneWorkspace(t *testing.T) {
 	e := joinEnv(t)
-	a, _ := e.tenant()
-	b, _ := e.tenant()
+	a, _ := joinTenant(t, e)
+	b, _ := joinTenant(t, e)
 	adminA, adminB := seat(t, e, a, rbac.Admin), seat(t, e, b, rbac.Admin)
 	for i := 0; i < 3; i++ {
 		k := newKey(t)
@@ -533,4 +558,116 @@ func TestSpec108SameKeyOneWorkspace(t *testing.T) {
 		t.Fatalf("B holds %d pins, want 3", len(pins))
 	}
 	var _ store.JoinTokens = e.st.(store.JoinTokens)
+}
+
+// Spec 108 3.8, test (h), owner msg 9bdc5980: the switch is OFF for a new
+// workspace, and OFF the hub refuses to mint (403 box_join_disabled) and to
+// redeem a token minted while it was ON (403, the token stays open and is
+// never echoed), while a box seated while ON keeps working. n = 4 rules.
+// CONTROL: the same workspace switched ON again mints and seats a dedicated
+// box, and the pin records box_mode dedicated.
+func TestBoxJoinSwitchOffRefusesNewJoins(t *testing.T) {
+	e := joinEnv(t)
+	tid, _ := e.tenant()
+	admin := seat(t, e, tid, rbac.Admin)
+	ctx := context.Background()
+	sw := e.st.(store.BoxJoinSwitch)
+	if on, err := sw.BoxJoinEnabled(ctx, tid); err != nil || on {
+		t.Fatalf("a new workspace's switch = %v %v, want off", on, err)
+	}
+	if code, out := call(t, e, tid, http.MethodPost, joinPath, admin, nil); code != http.StatusForbidden || out["error"] != "box_join_disabled" {
+		t.Fatalf("mint with the switch off = %d %v, want 403 box_join_disabled", code, out)
+	}
+	if code, out := call(t, e, tid, http.MethodGet, joinPath, admin, nil); code != http.StatusOK || out["enabled"] != false {
+		t.Fatalf("list with the switch off = %d %v, want 200 enabled false", code, out)
+	}
+
+	// Seat box-a while ON, mint a second token, then switch OFF.
+	setBoxJoin(t, e, tid, true)
+	a := e.box(tid, "box-a", "CLE-51")
+	tokA, _ := mintToken(t, e, tid, admin, nil)
+	if code, eb := redeem(t, e, nil, tokA, a.id, boxKey(t, a), time.Now()); code != http.StatusOK {
+		t.Fatalf("seat box-a with the switch on: %d %+v", code, eb)
+	}
+	tokB, outB := mintToken(t, e, tid, admin, nil)
+	setBoxJoin(t, e, tid, false)
+	code, eb := redeem(t, e, nil, tokB, "box-b", newKey(t), time.Now())
+	if code != http.StatusForbidden || eb.Error != "box_join_disabled" {
+		t.Fatalf("redeem with the switch off = %d %+v, want 403 box_join_disabled", code, eb)
+	}
+	if strings.Contains(eb.Detail, tokB[strings.LastIndex(tokB, ".")+1:]) {
+		t.Fatalf("the refusal echoes the token: %q", eb.Detail)
+	}
+	if st := tokenState(t, e, tid, admin, outB["id"].(string)); st != "open" {
+		t.Fatalf("refused token state = %q, want open (revocable)", st)
+	}
+	// The seated box still says hello and syncs: the switch stops new joins only.
+	if _, err := a.c.Sync(ctx); err != nil {
+		t.Fatalf("a box seated before the switch went off no longer syncs: %v", err)
+	}
+
+	// CONTROL: ON again, the same token seats box-b, recorded dedicated.
+	setBoxJoin(t, e, tid, true)
+	if code, eb := redeem(t, e, nil, tokB, "box-b", newKey(t), time.Now()); code != http.StatusOK {
+		t.Fatalf("CONTROL: redeem with the switch on = %d %+v", code, eb)
+	}
+	if mode, err := sw.PinBoxMode(ctx, tid, "box-b"); err != nil || mode != store.BoxModeDedicated {
+		t.Fatalf("CONTROL: box-b box_mode = %q %v, want dedicated", mode, err)
+	}
+	if code, out := call(t, e, tid, http.MethodGet, joinPath, admin, nil); code != http.StatusOK || out["enabled"] != true {
+		t.Fatalf("CONTROL: list with the switch on = %d %v, want enabled true", code, out)
+	}
+}
+
+// Spec 108 3.8 (owner msg 45f51dbd): a workspace with the switch ON takes
+// dedicated boxes only. A box declaring shared, and an older spool join that
+// declares nothing, get 403 box_mode_shared and the token stays open; a mode
+// outside the two is 400. n = 3. CONTROL: the same token then seats a
+// dedicated box.
+func TestBoxJoinSwitchOnRefusesSharedBox(t *testing.T) {
+	e := joinEnv(t)
+	tid, _ := joinTenant(t, e)
+	admin := seat(t, e, tid, rbac.Admin)
+	tok, out := mintToken(t, e, tid, admin, nil)
+	for _, c := range []struct {
+		mode, want string
+		code       int
+	}{{store.BoxModeShared, "box_mode_shared", http.StatusForbidden}, {"", "box_mode_shared", http.StatusForbidden},
+		{"pooled", "bad_json", http.StatusBadRequest}} {
+		if code, eb := redeemMode(t, e, nil, tok, "box-s", c.mode, newKey(t), time.Now()); code != c.code || eb.Error != c.want {
+			t.Errorf("redeem mode %q = %d %+v, want %d %s", c.mode, code, eb, c.code, c.want)
+		}
+	}
+	if st := tokenState(t, e, tid, admin, out["id"].(string)); st != "open" {
+		t.Fatalf("token state after the refusals = %q, want open", st)
+	}
+	if code, eb := redeem(t, e, nil, tok, "box-s", newKey(t), time.Now()); code != http.StatusOK {
+		t.Fatalf("CONTROL: dedicated redeem = %d %+v", code, eb)
+	}
+}
+
+// Spec 108 3.8: only an admin of the operator workspace flips a workspace's
+// switch (PATCH /v1/operator/workspaces/{id}); that workspace's own admin
+// cannot turn it on for itself (403 operator.workspaces, the switch stays
+// off). n = 1. CONTROL: the operator admin's PATCH turns it on, answers it,
+// and turns it off again.
+func TestBoxJoinSwitchOperatorOnly(t *testing.T) {
+	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
+	sw := e.st.(store.BoxJoinSwitch)
+	ctx := context.Background()
+	on := map[string]any{"box_join_enabled": true}
+	if code, body := call(t, e, other, http.MethodPatch, opPath+"/"+other, whoOther[rbac.Admin], on); code != http.StatusForbidden {
+		t.Fatalf("workspace admin PATCH of its own switch = %d %v, want 403", code, body)
+	}
+	if v, _ := sw.BoxJoinEnabled(ctx, other); v {
+		t.Fatal("a denied PATCH turned the switch on")
+	}
+	code, body := call(t, e, op, http.MethodPatch, opPath+"/"+other, who[rbac.Admin], on)
+	if v, _ := sw.BoxJoinEnabled(ctx, other); code != http.StatusOK || !v || body["box_join_enabled"] != true {
+		t.Fatalf("CONTROL: operator admin PATCH = %d %v, switch %v", code, body, v)
+	}
+	code, _ = call(t, e, op, http.MethodPatch, opPath+"/"+other, who[rbac.Admin], map[string]any{"box_join_enabled": false})
+	if v, _ := sw.BoxJoinEnabled(ctx, other); code != http.StatusOK || v {
+		t.Fatalf("CONTROL: operator admin PATCH off = %d, switch %v", code, v)
+	}
 }

@@ -13,7 +13,9 @@ import (
 // or stdin, so it need not appear in ps or shell history (spec 073 4.4).
 const joinUsage = `usage: SPOOL_JOIN_TOKEN=<token> spool join [--box <box_id>] [<hub-url>]
        spool join [--box <box_id>] <hub-url> -      (the token on stdin)
-<hub-url> defaults to $SPOOL_HUB_URL, --box to $SPOOL_BOX_ID`
+<hub-url> defaults to $SPOOL_HUB_URL, --box to $SPOOL_BOX_ID
+The box joins as dedicated when $SPL_WS_BASE/claim (default /var/spool-ws)
+names the token's workspace, else as shared (spec 108 3.8)`
 
 // cmdJoin seats this box with a join token (spec 073 T004, spec 108 T003):
 // the box makes its own key and the hub pins its public half.

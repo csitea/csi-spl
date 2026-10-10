@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,6 +27,14 @@ import (
 // JoinEnvVar carries the join token, so it need not sit in argv (spec 073 4.4).
 const JoinEnvVar = "SPOOL_JOIN_TOKEN"
 
+// WorkspaceBaseEnvVar names the box's workspace enrolment base, the dir
+// do_spl_box_workspace_setup claims (cnf env.box.workspace_base, spec 108
+// 3.5); DefaultWorkspaceBase is the cnf value.
+const (
+	WorkspaceBaseEnvVar  = "SPL_WS_BASE"
+	DefaultWorkspaceBase = "/var/spool-ws"
+)
+
 // JoinArgs are the inputs of spool join (spec 073 4.4, spec 108 3.1). Token is
 // the whole spj1.<tenant>.<secret>. HTTP and Now are test seams as in PinArgs.
 type JoinArgs struct {
@@ -33,6 +43,9 @@ type JoinArgs struct {
 	Now                func() time.Time
 	// Timeout bounds the hub call; 0 = the hub client's REST default.
 	Timeout time.Duration
+	// WorkspaceBase is where the box's claim lives; "" = $SPL_WS_BASE, else
+	// DefaultWorkspaceBase.
+	WorkspaceBase string
 }
 
 // JoinResult is what a seated box learns: its tenant, box id and public key.
@@ -71,6 +84,35 @@ func parseJoinToken(tok string) (tenant, hash string, ok bool) {
 	return parts[1], hex.EncodeToString(sum[:]), true
 }
 
+// BoxMode is the mode this box declares when it joins tenant (spec 108 3.8):
+// the root-owned <base>/claim of do_spl_box_workspace_setup naming tenant =
+// dedicated; no claim = shared; a claim naming another workspace is refused
+// here, before any key is made or the hub is called.
+func BoxMode(base, tenant string) (string, error) {
+	if base == "" {
+		base = os.Getenv(WorkspaceBaseEnvVar)
+	}
+	if base == "" {
+		base = DefaultWorkspaceBase
+	}
+	raw, err := os.ReadFile(filepath.Join(base, "claim"))
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return "shared", nil
+	case err != nil:
+		return "", fmt.Errorf("the box claim %s is unreadable: %w", filepath.Join(base, "claim"), err)
+	}
+	claim, _, _ := strings.Cut(string(raw), "\n")
+	switch claim = strings.TrimSpace(claim); claim {
+	case "":
+		return "shared", nil
+	case tenant:
+		return "dedicated", nil
+	}
+	return "", fmt.Errorf("this box belongs to workspace %s (%s): one box = one workspace (spec 108 3.5)",
+		claim, filepath.Join(base, "claim"))
+}
+
 // Join seats this box with a join token: it uses the box key under KeysDir,
 // generating one when none exists (as keygen), signs wire.JoinPayload with it
 // and POSTs /v1/pins/join. Only the public half leaves the box; no private key
@@ -84,6 +126,10 @@ func Join(cfg *config.Config, in JoinArgs) (JoinResult, error) {
 	if !ok {
 		return JoinResult{}, fmt.Errorf("the join token is malformed (want spj1.<tenant>.<secret>); ask a tenant admin for one in Tenant settings -> Agents")
 	}
+	mode, err := BoxMode(in.WorkspaceBase, tenant)
+	if err != nil {
+		return JoinResult{}, err
+	}
 	priv, err := boxKey(cfg, in.Box)
 	if err != nil {
 		return JoinResult{}, err
@@ -94,11 +140,12 @@ func Join(cfg *config.Config, in JoinArgs) (JoinResult, error) {
 		now = in.Now
 	}
 	ts := now().UTC().Format(time.RFC3339)
-	p, err := wire.JoinPayload(hash, in.Box, pub, ts)
+	p, err := wire.JoinModePayload(hash, in.Box, pub, ts, mode)
 	if err != nil {
 		return JoinResult{}, fmt.Errorf("join payload: %w", err)
 	}
-	b, err := json.Marshal(wire.JoinRequest{Token: in.Token, BoxID: in.Box, PubKey: pub, TS: ts, Sig: sign.Sign(priv, p)})
+	b, err := json.Marshal(wire.JoinRequest{Token: in.Token, BoxID: in.Box, PubKey: pub, TS: ts, Sig: sign.Sign(priv, p),
+		BoxMode: mode})
 	if err != nil {
 		return JoinResult{}, err
 	}

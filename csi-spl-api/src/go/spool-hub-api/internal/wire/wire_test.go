@@ -126,6 +126,27 @@ func TestJoinPayload(t *testing.T) {
 	}
 }
 
+// spec 108 3.8: the declared box mode is inside the signed bytes, so a
+// relay cannot turn a shared box into a dedicated one. CONTROL: mode "" signs
+// exactly JoinPayload's bytes (an older spool join keeps verifying). n = 2.
+func TestJoinModePayload(t *testing.T) {
+	const ts = "2026-10-10T12:00:00Z"
+	d, err := JoinModePayload("ab12", "box-a", "pubkey", ts, "dedicated")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"box_id":"box-a","box_mode":"dedicated","op":"join","pubkey":"pubkey","token_hash":"ab12","ts":"` + ts + `"}`; string(d) != want {
+		t.Fatalf("join mode payload\n got %s\nwant %s", d, want)
+	}
+	if s, _ := JoinModePayload("ab12", "box-a", "pubkey", ts, "shared"); string(s) == string(d) {
+		t.Fatal("dedicated and shared sign the same bytes")
+	}
+	plain, _ := JoinPayload("ab12", "box-a", "pubkey", ts)
+	if none, _ := JoinModePayload("ab12", "box-a", "pubkey", ts, ""); string(none) != string(plain) {
+		t.Fatalf("CONTROL: mode \"\" changed the signed bytes: %s vs %s", none, plain)
+	}
+}
+
 // legacyEnv is an envelope exactly as a pre-M3 box signs and sends it (no
 // channel, no parent_task_id). It must keep parsing, verifying and
 // re-marshalling to the same bytes (channels-v1 §2: v:1 boxes keep working).

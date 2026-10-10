@@ -58,7 +58,7 @@ func TestClaimKeyRaceSmallPool(t *testing.T) {
 					if i%2 == 0 {
 						errs[i] = s.PutPin(ctx, tenants[i], "box-race", key, false, now, now)
 					} else {
-						_, errs[i] = jt.RedeemJoinToken(ctx, tenants[i], hashes[i], "box-race", key, now)
+						_, errs[i] = jt.RedeemJoinToken(ctx, tenants[i], hashes[i], "box-race", key, "", now)
 					}
 				}()
 			}

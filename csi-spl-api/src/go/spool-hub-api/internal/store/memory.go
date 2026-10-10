@@ -64,6 +64,8 @@ type Memory struct {
 	splitKinds map[string]map[string]SplitKind
 	// marketing_switch.go (rdb 0129): marketing turned on, guarded by mu. Missing = off.
 	marketingOn map[string]bool
+	// box_join_switch.go (rdb 0170): spec 108 joins turned on, guarded by mu. Missing = off.
+	boxJoinOn map[string]bool
 	// roadmap_switch.go (rdb 0162): roadmap turned public, guarded by mu. Missing = internal.
 	roadmapPublic map[string]bool
 	// fleet_load.go (rdb 0118): the fleet load target, guarded by mu. Missing = the default.
@@ -92,6 +94,8 @@ type memPin struct {
 	pub     ed25519.PublicKey
 	revoked bool
 	lastOp  time.Time
+	// mode is the box mode a join recorded (rdb 0170); "" = none.
+	mode string
 }
 
 type memHist struct {

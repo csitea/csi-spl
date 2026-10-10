@@ -93,7 +93,7 @@ func (s *Postgres) RevokeJoinToken(ctx context.Context, tenant, id string, now t
 	return hit, err
 }
 
-func (s *Postgres) RedeemJoinToken(ctx context.Context, tenant, hash, box string, pub ed25519.PublicKey, now time.Time) (JoinToken, error) {
+func (s *Postgres) RedeemJoinToken(ctx context.Context, tenant, hash, box string, pub ed25519.PublicKey, mode string, now time.Time) (JoinToken, error) {
 	defer s.hot.forget()
 	var tok JoinToken
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
@@ -114,6 +114,12 @@ func (s *Postgres) RedeemJoinToken(ctx context.Context, tenant, hash, box string
 		}
 		if err := joinPin(ctx, tx, tenant, box, pub, now); err != nil {
 			return err
+		}
+		if mode != "" {
+			if _, err := tx.Exec(ctx, `UPDATE pins SET box_mode = $3
+				WHERE tenant_id = $1 AND box_id = $2`, tenant, box, mode); err != nil {
+				return err
+			}
 		}
 		tok.ConsumedAt, tok.ConsumedBox = &now, box
 		_, err = tx.Exec(ctx, `UPDATE agent_join_tokens SET consumed_at = $3, consumed_box = $4

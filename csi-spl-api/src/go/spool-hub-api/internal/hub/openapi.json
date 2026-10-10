@@ -6874,12 +6874,20 @@
                   "box_id": {
                     "type": "string"
                   },
+                  "box_mode": {
+                    "description": "dedicated (the box's claim names the token's workspace) or shared; absent = shared. Signed inside the payload when present. Spec 108 section 3.8.",
+                    "enum": [
+                      "dedicated",
+                      "shared"
+                    ],
+                    "type": "string"
+                  },
                   "pubkey": {
                     "description": "base64 raw 32-byte Ed25519 key",
                     "type": "string"
                   },
                   "sig": {
-                    "description": "the box key over jq -cS '{box_id,op:\"join\",pubkey,token_hash,ts}', token_hash = sha256 hex of the secret",
+                    "description": "the box key over jq -cS '{box_id,box_mode,op:\"join\",pubkey,token_hash,ts}' (box_mode only when sent), token_hash = sha256 hex of the secret",
                     "type": "string"
                   },
                   "token": {
@@ -6984,7 +6992,7 @@
                 }
               }
             },
-            "description": "tenant_mismatch"
+            "description": "tenant_mismatch; box_join_disabled (the workspace's spec 108 switch is off); box_mode_shared (the switch is on and the box is not dedicated to the workspace)"
           },
           "409": {
             "content": {
@@ -7380,6 +7388,10 @@
                 "schema": {
                   "description": "Never a token. Contract: csi-spl-doc/specs/073-agent-join-tokens/spec.md §4.3.",
                   "properties": {
+                    "enabled": {
+                      "description": "the workspace's spec 108 switch (section 3.8): false = minting is refused",
+                      "type": "boolean"
+                    },
                     "tokens": {
                       "items": {
                         "properties": {
@@ -7438,7 +7450,8 @@
                     }
                   },
                   "required": [
-                    "tokens"
+                    "tokens",
+                    "enabled"
                   ],
                   "type": "object"
                 }
@@ -7560,7 +7573,25 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "permission": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "forbidden (no agents.join), or box_join_disabled (the workspace's spec 108 switch is off, section 3.8)"
           },
           "429": {
             "content": {

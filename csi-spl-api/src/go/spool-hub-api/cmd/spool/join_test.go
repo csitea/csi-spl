@@ -28,6 +28,8 @@ import (
 
 // Spec 073 T004 = spec 108 T003: `spool join` against an in-process hub
 // (the real join route, memory store). Every case states its n and control.
+// The workspace has its spec 108 switch ON and the box is dedicated to it
+// (a claim under $SPL_WS_BASE), the one setting a join seats in (3.8).
 
 type joinHub struct {
 	st     *store.Memory
@@ -64,7 +66,24 @@ func newJoinHub(t *testing.T) *joinHub {
 	if err := h.st.CreateTenant(context.Background(), store.Tenant{ID: h.tenant, RootPubKey: rootPub}); err != nil {
 		t.Fatal(err)
 	}
+	if err := h.st.SetBoxJoinEnabled(context.Background(), h.tenant, true); err != nil {
+		t.Fatal(err)
+	}
+	claimBox(t, h.tenant)
 	return h
+}
+
+// claimBox points $SPL_WS_BASE at a fresh base whose claim names tenant
+// ("" = no claim: a shared box).
+func claimBox(t *testing.T, tenant string) {
+	t.Helper()
+	base := t.TempDir()
+	if tenant != "" {
+		if err := os.WriteFile(filepath.Join(base, "claim"), []byte(tenant+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("SPL_WS_BASE", base)
 }
 
 // token mints a token straight into the store (the mint route is T002's).
@@ -214,5 +233,68 @@ func TestJoinNeedsToken(t *testing.T) {
 	}
 	if _, err := os.Stat(keys); !os.IsNotExist(err) {
 		t.Fatalf("keys dir made without a token: %v", err)
+	}
+}
+
+// Spec 108 3.8: the box mode comes from the claim, and each refusal is one
+// line that never echoes the token and seats nothing. n = 3: a shared box
+// (no claim) gets box_mode_shared; a box claimed by another workspace is
+// refused on the box with no hub call; a workspace switched OFF gets
+// box_join_disabled. CONTROL: the dedicated box seats and its pin records
+// dedicated.
+func TestJoinBoxModeAndSwitch(t *testing.T) {
+	h := newJoinHub(t)
+	ctx := context.Background()
+	refused := func(name, box, tok, want string) {
+		t.Helper()
+		rc, out, errOut := captureRun(t, []string{"join", h.url})
+		if rc == 0 || out != "" || strings.Count(strings.TrimSpace(errOut), "\n") != 0 || !strings.Contains(errOut, want) {
+			t.Errorf("%s: rc %d out %q err %q, want one line naming %s", name, rc, out, errOut, want)
+		}
+		if strings.Contains(errOut, tok[strings.LastIndex(tok, ".")+1:]) {
+			t.Errorf("%s: the error echoes the token", name)
+		}
+		if _, err := h.st.GetPin(ctx, h.tenant, box); err == nil {
+			t.Errorf("%s: %s seated despite the refusal", name, box)
+		}
+	}
+	tok, _ := h.token(t, time.Now().Add(time.Hour))
+
+	claimBox(t, "")
+	joinBox(t, "box-sh", tok)
+	refused("shared", "box-sh", tok, "box_mode_shared")
+
+	claimBox(t, "tother")
+	keys := joinBox(t, "box-ot", tok)
+	h.mu.Lock()
+	before := len(h.bodies)
+	h.mu.Unlock()
+	refused("claimed by another", "box-ot", tok, "belongs to workspace tother")
+	h.mu.Lock()
+	if len(h.bodies) != before {
+		t.Error("claimed by another: the hub was called")
+	}
+	h.mu.Unlock()
+	if _, err := os.Stat(keys); !os.IsNotExist(err) {
+		t.Errorf("claimed by another: a box key was made: %v", err)
+	}
+
+	claimBox(t, h.tenant)
+	if err := h.st.SetBoxJoinEnabled(ctx, h.tenant, false); err != nil {
+		t.Fatal(err)
+	}
+	joinBox(t, "box-off", tok)
+	refused("switch off", "box-off", tok, "box_join_disabled")
+
+	// CONTROL: switched on, the same token seats the dedicated box.
+	if err := h.st.SetBoxJoinEnabled(ctx, h.tenant, true); err != nil {
+		t.Fatal(err)
+	}
+	joinBox(t, "box-d", tok)
+	if rc, out, errOut := captureRun(t, []string{"join", h.url}); rc != 0 {
+		t.Fatalf("CONTROL: dedicated join rc %d out %q err %q", rc, out, errOut)
+	}
+	if mode, err := h.st.PinBoxMode(ctx, h.tenant, "box-d"); err != nil || mode != store.BoxModeDedicated {
+		t.Fatalf("CONTROL: box-d mode %q %v, want dedicated", mode, err)
 	}
 }

@@ -7,7 +7,8 @@
 // Code-like file tree of the documents, not the channel list: the sidebar
 // keeps its icon rail only; the tree's rows expand, collapse, open a
 // document or a section, and answer the arrow keys. A phone folds the tree
-// behind its Documents button.
+// behind its Documents button. No visible heading above the tree
+// (msg 8471b818); control: the <h3> restored -> that check FAILS.
 //
 // Control: before the entry there is no [data-testid=qto-open], so every
 // signed-in check FAILS on the earlier master. The channel list check has
@@ -75,6 +76,8 @@ async function fileTree(p) {
   ok('the left panel is the file tree', await p.waitForSelector('[data-test=qto-file-tree] [data-test=file-tree-row]', { visible: true, timeout: STEP }).then(Boolean, () => false))
   ok('no channel (or any sidebar list) panel beside it', await p.$$eval(PANELS, (els) => !els.some((el) => el.getBoundingClientRect().width > 0)))
   ok('the sidebar keeps its icon rail only', (await p.$eval('nav.sidebar', (el) => el.getAttribute('data-docs-rail')).catch(() => null)) === '1' && await shown(p, '[data-testid=sidebar-rail]'))
+  /* msg 8471b818: "Remove the documents label, not needed." The tree keeps its name for assistive tech only */
+  ok('no heading above the tree', await p.$eval('[data-test=qto-file-tree]', (el) => !el.querySelector('h1, h2, h3, h4, h5, h6, [role=heading]') && el.getAttribute('aria-label') === 'Documents').catch(() => false))
   ok('the tree sits left of the document', await p.evaluate(() => {
     const t = document.querySelector('[data-test=qto-file-tree]')?.getBoundingClientRect()
     const d = document.querySelector('[data-test=ws-docs-page]')?.getBoundingClientRect()

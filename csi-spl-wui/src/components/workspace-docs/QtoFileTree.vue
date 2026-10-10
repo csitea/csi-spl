@@ -5,10 +5,11 @@
      rows, a section with sections under it expanding and collapsing. The
      open document is highlighted and opens expanded; a click (or Enter)
      on a document opens it, on a section opens its document at that
-     section. The rows are drawn by the shared UiFileTree. -->
+     section. The rows are drawn by the shared UiFileTree. No visible
+     heading above the tree (msg 8471b818: "Remove the documents label,
+     not needed."); its name stays on the aria-labels. -->
 <template>
   <nav class="qto-tree" data-test="qto-file-tree" :aria-label="t('ws_doctree.title')">
-    <h3 class="qto-tree__title">{{ t('ws_doctree.title') }}</h3>
     <UiFileTree :rows="rows" :label="t('ws_doctree.title')" @toggle="toggle" @select="select" />
   </nav>
 </template>
@@ -115,13 +116,4 @@ onBeforeUnmount(() => clearTimeout(timer))
 
 <style scoped>
 .qto-tree { padding: 8px 4px; text-align: start; }
-.qto-tree__title {
-  margin: 0 0 4px;
-  padding-inline-start: 8px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-muted);
-}
 </style>

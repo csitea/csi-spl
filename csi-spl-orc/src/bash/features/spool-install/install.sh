@@ -60,6 +60,9 @@
 #   6c. when ~/.vibe exists: the Mistral Vibe push guard, a strict pre_tool
 #      hook that refuses force pushes to master (steps/y12-vibe-push-guard.sh;
 #      both users of a box: ./run -a do_spl_vibe_push_guard_install)
+#   6d. only with --fleet: the force-push block - a pre-tool hook on the
+#      shared matcher plus deny rules - in claude, grok, agy and qwen
+#      (steps/y13-force-push-guard.sh; both homes: do_install_force_push_guard)
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
@@ -885,6 +888,7 @@ source "$_here/steps/y8-vibe-agents.sh" && spool_install_vibe_agents || die 6 "c
 source "$_here/steps/y9-vendor-lane-rule.sh" && spool_install_vendor_lane_rule || die 6 "cannot render the lane rule into the agy / qwen rules files"
 . "$_here/steps/y11-kill-guard.sh" && spool_install_kill_guard "$BIN" "$DRY" "$FLEET" || die 7 "kill-guard: cannot install pkill / killall into $BIN"
 . "$_here/steps/y12-vibe-push-guard.sh" && spool_install_vibe_push_guard "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe push guard: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
+. "$_here/steps/y13-force-push-guard.sh" && spool_install_force_push_guard "$HOME" "$DATA" "$DRY" "$FLEET" || die 7 "force-push-guard: cannot wire the force-push block into the harness settings"
 [ "$SKILLS" = 1 ] && { . "$_here/steps/y6-graft.sh" && y6_graft_install "$ORC" "$BIN" "$DRY" || die 6 "the graft step (spec 069 Y6) failed"; }
 
 # ── 6. the seat ───────────────────────────────────────────────────────────────

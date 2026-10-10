@@ -7,7 +7,7 @@ summary: "Навигирайте и управлявайте Spool бързо с
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684
-agy_review: a-759
+agy_review: a-881
 tags: [feature, omnibox]
 image: 2026-10-09-feature-omnibox.webp
 image_alt: "Елегантна, светеща лента за въвеждане на команди, плаваща над замъглено цифрово работно пространство"

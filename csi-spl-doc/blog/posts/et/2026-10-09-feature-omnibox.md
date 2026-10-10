@@ -7,7 +7,7 @@ summary: "Liigu ja juhi Spooli kiiresti, kasutades Omniboxi, klahvikombinatsioon
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684
-agy_review: a-759
+agy_review: a-881
 tags: [feature, omnibox]
 image: 2026-10-09-feature-omnibox.webp
 image_alt: "Stiilne helendav käsusisestusriba hõljumas hägusa digitaalse tööruumi kohal"

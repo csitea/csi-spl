@@ -7,7 +7,7 @@ summary: "Navigate and command Spool rapidly using the Omnibox, keyboard shortcu
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684
-agy_review: a-684
+agy_review: a-881
 tags: [feature, omnibox]
 image: 2026-10-09-feature-omnibox.webp
 image_alt: "A sleek, glowing command input bar floating above a blurred digital workspace"

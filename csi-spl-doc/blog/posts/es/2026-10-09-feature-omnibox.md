@@ -7,7 +7,7 @@ summary: "Navega y controla Spool rápidamente utilizando el Omnibox, atajos de 
 date: 2026-10-09
 published: 2026-10-09T14:50:00Z
 author: a-684
-agy_review: a-759
+agy_review: a-881
 tags: [feature, omnibox]
 image: 2026-10-09-feature-omnibox.webp
 image_alt: "Una elegante barra de entrada de comandos iluminada flotando sobre un espacio de trabajo digital desenfocado"

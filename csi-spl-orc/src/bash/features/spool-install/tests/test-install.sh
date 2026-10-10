@@ -499,7 +499,7 @@ ARGS=(--cli none --tenant t1 --box box-ext); inst SPOOL_HUB_URL=$HUB; rc=$?
 [[ $rc -eq 0 ]] && grep -q '^pin ENV=self TENANT_ID=t1 ' "$T/seat.log" && grep -qx SPOOL_ENV=self "$H/.config/spool-agent/env" &&
   pass "13. a hub URL and no --env is env self" || fail "13. self default: rc $rc $(cat "$T/o" "$T/seat.log")"
 [[ -z "$(grep -rhoE '/var/spool-hub|CLE-00' "$H/.claude")" ]] && grep -rqF "SPOOL_ROOT=$H/.local/state/spool-hub" "$H/.claude/skills" &&
-  grep -rqF 'agent-send.sh --from <YOUR-ID> orchestrator ' "$H/.claude/skills" &&
+  grep -rqF -- '--reporter)" --kind result' "$H/.claude/skills" && grep -rqF 'else `orchestrator`' "$H/.claude/skills" &&
   pass "13. the skills default to ~/.local/state/spool-hub and the orchestrator role" || fail "13. defaults: $(grep -rnoE '/var/spool-hub|CLE-00' "$H/.claude" | sed -n 1,3p)"
 H="$T/home-a50b"; mkdir -p "$H"
 ARGS=(--cli none --no-seat --fleet --dry-run); inst; rc=$?

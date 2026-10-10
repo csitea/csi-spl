@@ -2,6 +2,7 @@
 # test-kill-your-self-result.sh — practice 07 (agent-token-focus-plan): the
 #   --result body is <= 800 chars (outcome, numbers, sha, detail path); a long
 #   detail goes to the report file, and text cut to fit is kept whole there.
+#   The report file is never empty (m-897's was 0 bytes, c-894 finding 3).
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -31,4 +32,19 @@ check "the whole outcome is kept in the detail file" grep -q "$long" "$REPORT_DI
 out="$(bash "$R" --result --outcome "doc only" --detail-path doc/md/x.md "$W")"
 has "--detail-path names a doc instead of the report file" "detail: doc/md/x.md" "$out"
 bash "$R" --result "$W" >/dev/null 2>&1; eq "--outcome is required" 2 "$?"
+
+# m-897 passed --detail /dev/null: the report file was 0 bytes.
+rm -f "$REPORT_DIR/c-007.md"
+out="$(bash "$R" --result --outcome "DONE proof: nothing to land" --sha none --numbers "0, 0 -> 0" --detail /dev/null "$W")"
+check "an empty --detail leaves a non-empty report" [ -s "$REPORT_DIR/c-007.md" ]
+eq "it holds the outcome, numbers and sha" "# c-007 report"$'\n\n'"DONE proof: nothing to land"$'\n'"numbers: 0, 0 -> 0"$'\n'"sha: none" "$(cat "$REPORT_DIR/c-007.md")"
+has "the body names that file" "detail: $REPORT_DIR/c-007.md" "$out"
+rm -f "$REPORT_DIR/c-007.md"
+bash "$R" --result --outcome "no detail" --sha c3 "$W" >/dev/null
+has "no --detail at all: the named file still exists with the outcome" "no detail" "$(cat "$REPORT_DIR/c-007.md" 2>/dev/null)"
+echo keep >"$REPORT_DIR/c-007.md"
+err="$(bash "$R" --result --outcome x --detail "$T_TMP/missing.md" "$W" 2>&1 >/dev/null)"; rc=$?
+eq "an unreadable --detail is refused" 2 "$rc"
+has "the refusal says nothing was written" "nothing written" "$err"
+eq "and the old report is not truncated" "keep" "$(cat "$REPORT_DIR/c-007.md")"
 t_done

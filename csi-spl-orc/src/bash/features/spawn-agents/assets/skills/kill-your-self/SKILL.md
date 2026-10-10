@@ -51,13 +51,20 @@ the same id and so the lane.
 
 ## 2. Report
 
-Send the summary to your orchestrator (`{{ORCHESTRATOR_ID}}` unless your brief names
-another): what landed (shas), what is open, and
-anything another lane must act on.
+Send the summary to your named reporter (the one your brief or seed says to
+report to; `{{ORCHESTRATOR_ID}}` only when none is named): what landed (shas),
+what is open, and anything another lane must act on. Write it with
+`kill-your-self-report.sh --result` as in `/exit-clean` section 2.
 
 ```bash
-SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> {{ORCHESTRATOR_ID}} --kind result --file <summary-file>
+SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> "$(bash {{HARNESS_DIR}}/scripts/kill-your-self-report.sh --reporter)" --kind result --file <summary-file>
 ```
+
+`--reporter` prints your named reporter: a `Spawner:` / `Reporter:` /
+`Report to:` line in your brief, else the spawner your seed names, else your
+registry row's requester, else `{{ORCHESTRATOR_ID}}` (stderr says which).
+`REPORT_TO=<id>` overrides it when your brief names a reporter in prose. The
+`--file` is the summary `--result` printed, never the detail file.
 
 ## 3. Schedule the window close, then exit
 

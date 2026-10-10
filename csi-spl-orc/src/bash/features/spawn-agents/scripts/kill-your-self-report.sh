@@ -8,12 +8,22 @@
 # Usage: kill-your-self-report.sh [WORKDIR]      (default: $PWD)
 #        kill-your-self-report.sh --result --outcome "<one line>" [--sha <sha>]...
 #          [--numbers "<text>"] [--detail <file>|-] [--detail-path <doc>] [WORKDIR]
+#        kill-your-self-report.sh --reporter [WORKDIR]
 #
 # --result prints ONLY the final report body, at most RESULT_MAX (800) chars:
 # the one-line outcome, the numbers, the sha(s) (default: HEAD) and the path to
 # the full detail. --detail copies a file (or stdin) to
 # ${REPORT_DIR:-$SPOOL_ROOT/reports}/<id>.md; --detail-path names a doc
-# instead. Text cut to fit the cap is kept whole in that file.
+# instead. Text cut to fit the cap is kept whole in that file. The report
+# file is never left empty (m-897 sent a 0-byte one, 2026-10-10): a --detail
+# that cannot be read is refused, and an empty one, or none, gets the outcome,
+# numbers and sha(s) written into it.
+#
+# --reporter prints the id the exit-clean report goes to, first match wins:
+# $REPORT_TO; the brief's own "Spawner:" / "Reporter:" / "Report to:" line
+# naming an id (<spool root>/<id>/lifetime/brief.md); the seed's "your
+# spawner: ... --to <id>" (lifetime/prompt.txt); the registry row's requester;
+# else "orchestrator". stderr says which source won.
 set -uo pipefail
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
@@ -26,6 +36,7 @@ MODE=discovery OUTCOME="" NUMBERS="" DETAIL="" DETAIL_PATH="" SHAS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --result) MODE=result ;;
+    --reporter) MODE=reporter ;;
     --outcome) OUTCOME="${2:-}"; shift ;;
     --numbers) NUMBERS="${2:-}"; shift ;;
     --sha) SHAS+=("${2:-}"); shift ;;
@@ -48,14 +59,45 @@ if [ -n "${TMUX_PANE:-}" ]; then
   if [ -z "$ID" ]; then ID="$(an_strip "$wname" | grep -oE "^${SPOOL_AGENT_ID_RX}" || true)"; SRC=window; fi
 fi
 
+# The lane's named reporter (c-894 finding 2): the skill's {{ORCHESTRATOR_ID}}
+# rendered as "orchestrator", so m-897's report skipped c-894, the spawner its
+# brief named.
+if [ "$MODE" = reporter ]; then
+  life="$SPOOL_ROOT/${ID:-none}/lifetime" to="" from=""
+  if [ -n "${REPORT_TO:-}" ]; then to="$REPORT_TO" from=env; fi
+  if [ -z "$to" ] && [ -r "$life/brief.md" ]; then
+    to="$(sed -nE "s/^[-*_ ]*(spawner|reporter|report to)[*_ ]*:[*_\` ]*(${SPOOL_AGENT_ID_RX}(@[A-Za-z0-9._-]+)?)([^A-Za-z0-9@._-].*)?\$/\2/Ip" "$life/brief.md" | sed -n 1p)"
+    [ -n "$to" ] && from=brief
+  fi
+  if [ -z "$to" ] && [ -r "$life/prompt.txt" ]; then
+    to="$(grep -oE "your spawner: spool-send\.sh --to ${SPOOL_AGENT_ID_RX}(@[A-Za-z0-9._-]+)?" "$life/prompt.txt" | sed -n 1p | sed 's/.* --to //')"
+    [ -n "$to" ] && from=seed
+  fi
+  if [ -z "$to" ] && [ -n "$ID" ] && [ -r "$SPOOL_ROOT/registry.tsv" ]; then
+    to="$(awk -F '\t' -v id="$ID" '$1 == id && $6 != "" && $6 != "-" { r = $6 } END { print r }' "$SPOOL_ROOT/registry.tsv")"
+    [ -n "$to" ] && { [[ "$to" == *@* ]] || to="$(spool_decorate "$to")"; from=registry; }
+  fi
+  [ -n "$to" ] || { to=orchestrator from=fallback; }
+  echo "reporter: $to (from $from)" >&2
+  printf '%s\n' "$to"
+  exit 0
+fi
+
 # Practice 07 (agent-token-focus-plan): a short result, the detail in a file.
 if [ "$MODE" = result ]; then
   [ -n "$OUTCOME" ] || { echo "kill-your-self-report: --result needs --outcome" >&2; exit 2; }
   max="${RESULT_MAX:-800}"
   [ "${#SHAS[@]}" -gt 0 ] || SHAS=("$(git -C "$WORKDIR" rev-parse --short HEAD 2>/dev/null || echo none)")
   out="${DETAIL_PATH:-${REPORT_DIR:-$SPOOL_ROOT/reports}/${ID:-unknown}.md}"
-  if [ -n "$DETAIL" ] && [ -z "$DETAIL_PATH" ]; then
-    mkdir -p "$(dirname "$out")" && cat -- "$DETAIL" >"$out" || exit 1
+  if [ -z "$DETAIL_PATH" ]; then
+    # Read first, write after: a failed read never truncates the report.
+    body=""
+    if [ -n "$DETAIL" ]; then
+      [ "$DETAIL" = - ] || [ -r "$DETAIL" ] || { echo "kill-your-self-report: cannot read --detail $DETAIL; nothing written" >&2; exit 2; }
+      body="$(cat -- "$DETAIL")" || exit 1
+    fi
+    [ -n "${body//[[:space:]]/}" ] || body="$(printf '# %s report\n\n%s\n%ssha: %s\n' "${ID:-unknown}" "$OUTCOME" "${NUMBERS:+numbers: $NUMBERS$'\n'}" "${SHAS[*]}")"
+    mkdir -p "$(dirname "$out")" && printf '%s\n' "$body" >"$out" || exit 1
   fi
   outcome="${OUTCOME//$'\n'/ }" numbers="${NUMBERS//$'\n'/ }"
   tail_="sha: ${SHAS[*]}"$'\n'"detail: $out"

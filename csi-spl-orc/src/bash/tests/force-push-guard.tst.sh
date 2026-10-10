@@ -158,6 +158,17 @@ allow 'rg -n "SPL_PREPUSH_OVERRIDE" /var/tmp/logs'
 allow 'echo "set SPL_PREPUSH_OVERRIDE=1 only with the owner go"'
 allow 'grep -E "push.*--force\\"|-f " /tmp/vibe.log "unclosed'
 allow 'grep "push --force" log "unclosed'
+# heredocs (c-792, 2026-10-10): a heredoc BODY is data; a commit message whose
+# prose has an apostrophe and names git and push is not a command
+allow $'git commit -q -F - <<\'EOF\'\nfix: the guard didn\'t let git push run\n\nnever git push --force master\nEOF'
+allow $'git commit -m "$(cat <<\'EOF\'\nwhy: it\'s about git push -f\nEOF\n)"'
+allow $'cat > /tmp/note.md <<EOF\nsomeone\'s git push --force, blocked\nEOF\ngit push origin HEAD:master'
+# ... but a body a shell reads is a command, and stays refused
+refuse $'bash <<\'EOF\'\ngit push --force origin master\nEOF'
+refuse $'sudo -u agentusr bash <<EOF\ngit push -f origin master\nEOF'
+refuse $'cat <<EOF | sh\ngit push origin +HEAD:master\nEOF'
+refuse $'bash <<-EOF\n\tSPL_PREPUSH_OVERRIDE=1 git push origin HEAD:master\n\tEOF'
+refuse $'git commit -F - <<EOF\nmsg\nEOF\ngit push --force origin master'
 allow 'git -c user.name=x -c user.email=y commit -m "x"'
 allow 'git -c alias.p=push p origin HEAD:master'
 allow 'git push -n origin HEAD:master'

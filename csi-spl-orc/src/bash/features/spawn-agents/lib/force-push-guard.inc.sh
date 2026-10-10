@@ -30,6 +30,8 @@
 # A plain `git push origin HEAD:master` is allowed. A command that only reaches
 # git through a variable or a script file is not read (the pre-push hook and
 # the GitHub ruleset are the layers behind this one).
+# Heredoc bodies are data and are not read, unless a shell or eval on the
+# same line reads them (bash <<EOF, cat <<EOF | sh): then they are checked.
 # Fails CLOSED: no python3, a guard error, or an untokenizable command that
 # mentions push is refused.
 
@@ -95,6 +97,8 @@ def split(cmd):
 def check(cmd, depth=0):
     if depth > 8:
         raise Refuse("the command nests too deep to read (fail closed)")
+    if "<<" in cmd:
+        cmd = heredocs(cmd, depth)
     try:
         segs = split(cmd)
     except ValueError as e:
@@ -107,6 +111,34 @@ def check(cmd, depth=0):
         return
     for seg in segs:
         segment(seg, depth)
+
+
+HEREDOC = re.compile(r"(?<!<)<<(-?)\s*([\"\x27]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+
+
+def heredocs(cmd, depth):
+    """Cut heredoc bodies out of cmd: a body is data (a commit message whose
+    prose names git and push, with an apostrophe, is not a command). A body
+    that a shell or eval on the same line reads (bash <<EOF, cat <<EOF | sh)
+    is checked as a command."""
+    lines = cmd.split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        i += 1
+        for m in HEREDOC.finditer(line):
+            body = []
+            while i < len(lines):
+                cur = lines[i]
+                i += 1
+                if (cur.lstrip("\t") if m.group(1) else cur) == m.group(3):
+                    break
+                body.append(cur)
+            words = re.split(r"[\s;&|()`]+", line)
+            if any(w.strip("\"\x27").rsplit("/", 1)[-1] in SHELLS | {"eval"} for w in words):
+                check("\n".join(body), depth + 1)
+    return "\n".join(out)
 
 
 def override(tok):

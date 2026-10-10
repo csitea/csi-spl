@@ -211,7 +211,8 @@ r2="$R/02_os_binaries"
 grep -q 'yq_sha256: [0-9a-f]\{64\}$' "$r2/defaults/main.yml" && grep -q 'sha256sum "$t/yq"' "$r2/tasks/main.yml" && grep -q 'install -m 0755 "$t/yq" /usr/local/bin/yq' "$r2/tasks/main.yml" \
   && pass "role 02 installs yq system-wide, sha256-pinned" || fail "role 02 has no pinned system-wide yq"
 grep -q '^      - postgresql-client$' "$r2/tasks/main.yml" && grep -q '^      - pandoc$' "$r2/tasks/main.yml" \
-  && pass "role 02 installs psql (postgresql-client) and pandoc" || fail "role 02 lacks postgresql-client or pandoc"
+  && grep -q '^      - zstd$' "$r2/tasks/main.yml" && grep -q '^      - rsync$' "$r2/tasks/main.yml" \
+  && pass "role 02 installs psql (postgresql-client), pandoc, zstd and rsync" || fail "role 02 lacks postgresql-client, pandoc, zstd or rsync"
 miss=""
 for b in $(grep -rhoE 'do_require_bin [a-z0-9 _.-]+' "$PROJ_PATH/../csi-spl-orc/src/bash/run" | sed 's/do_require_bin //' | tr ' ' '\n' | grep -E '^[a-z0-9_-]+$' | sort -u); do
   case "$b" in yq|python3|psql|curl|gcloud|jq|sha256sum|git|setsid|flock|docker|gh|crontab|setfacl|getfacl|perl|pandoc|openssl|tmux|zstd) ;;

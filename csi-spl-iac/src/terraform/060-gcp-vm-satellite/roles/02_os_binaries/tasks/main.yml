@@ -34,8 +34,11 @@
       # user that runs them (CLE-77911)
       - postgresql-client
       - pandoc
-      # do_require_bin zstd: the lane handover actions pack a session with it
+      # do_require_bin zstd: the lane handover actions pack a session with it,
+      # and the nightly box state backup (owner t1 d80ed72c)
       - zstd
+      # the box state restore plans with rsync -cn
+      - rsync
     state: present
     update_cache: true
     cache_valid_time: 3600

@@ -219,13 +219,13 @@
       "hint": "Док је ова картица отворена и активни сте у њој, ти минути се рачунају у ваше предложене сате. Искључено: рачунају се само ваше објаве и састанци. Само ви видите ове минуте. Чува се за овај радни простор."
     },
     "apps": {
-      "title": "Апликације на овом телефону",
-      "hint": "Инсталирајте радни простор као апликацију на овом уређају. Сваки радни простор је засебна апликација.",
-      "this_one": "овај радни простор",
-      "install": "Инсталирај",
-      "installed": "Инсталирано",
-      "manual": "Овај прегледач нема дугме за инсталирање: отворите његов мени (Дели на iPhone-у) и изаберите Додај на почетни екран.",
-      "same_app": "Иста апликација као овај радни простор"
+      "title": "Aplikacije na ovom telefonu",
+      "hint": "Instalirajte radni prostor kao aplikaciju na ovom uređaju. Svaki radni prostor je zasebna aplikacija.",
+      "this_one": "ovaj radni prostor",
+      "install": "Instaliraj",
+      "installed": "Instalirano",
+      "manual": "Ovaj pregledač nema dugme za instaliranje: otvorite njegov meni (Deli na iPhone-u) i izaberite Dodaj na početni ekran.",
+      "same_app": "Ista aplikacija kao ovaj radni prostor"
     }
   },
   "auth": {

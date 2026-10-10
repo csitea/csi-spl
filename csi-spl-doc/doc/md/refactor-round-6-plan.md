@@ -2,11 +2,11 @@
 
 Owner HUM-10, prd t1, topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea: "refactoring is something which we should have embedded in our system core way of operating. We will do refactoring constantly, all of the time. You just pick all the best practices and you implement them. You shouldn't need my go-ahead for that." **No owner go is needed for this round, its panel or its lanes** (rule home: `SPEC-spool-fleet-roles.md` section 1.2). Requested by the dispatch holder c-002 (msg a4792677), placed by c-001@sat.
 
-**Status: DRAFT for signature.** Section 10 (consensus) is empty until all three seats sign one sha.
+**Status: FOLDED, for signature.** The three seat proposals are folded (section 7); section 10 (consensus) is filled once all three seats sign one sha of this file.
 
-Panel: the claude seat c-709 (editor, `sat`, proposal `refactor-round-6/seat-claude.md`), the agy seat and the mistral seat (to be placed by the dispatcher, no go; each writes `refactor-round-6/seat-<vendor>.md` and signs). Inputs: the row format and rules R1-R8 of `refactor-round-5-plan.md`; `refactor-round-5-retro.md` section 6; round 5's leftovers (its section 7 D3, D4 and section 8); the owner's practice list (round 5 plan header, msg e30c2bf1).
+Panel: the claude seat (proposal `refactor-round-6/seat-claude.md` by the planner c-709; editor c-711, `sat`), the agy seat a-763 (`refactor-round-6/seat-agy.md`) and the mistral seat m-710 (`refactor-round-6/seat-mistral.md`). Inputs: the row format and rules R1-R8 of `refactor-round-5-plan.md`; `refactor-round-5-retro.md` section 6; round 5's leftovers (its section 7 D3, D4 and section 8); the owner's practice list (round 5 plan header, msg e30c2bf1).
 
-Every site was measured on ONE trunk sha: **`da36dad94`** (`origin/master`, 2026-10-10T05:48Z), n=1 per count unless stated otherwise. Re-checked on `ab17d6547` (the trunk when this plan was written): `git diff --stat da36dad94 ab17d6547 -- <every site path of section 3>` -> empty, so every line number holds.
+Every site was measured on ONE trunk sha: **`da36dad94`** (`origin/master`, 2026-10-10T05:48Z), n=1 per count unless stated otherwise. Re-checked on `ab17d6547` (the trunk when this plan was written): `git diff --stat da36dad94 ab17d6547 -- <every site path of section 3>` -> empty, so every line number holds. Re-checked again at the fold on `5c3f1fe42`: the same `git diff --stat da36dad94 5c3f1fe42 -- <every site path>` -> empty.
 
 ## 1. How to read this
 
@@ -67,7 +67,7 @@ Sites: 33 (01: 5, 02: 3, 03: 2, 04: 5, 05: 3, 06: 4, 07: 5, 08: 5, 09: 5, 10: 3)
 - **05.** Model the part on `release-note` (per outgoing commit) but REFUSE, not WARN. `SPL_PREPUSH_OVERRIDE=1` still skips it, as every part. The 40-commit window and the 3-path threshold are constants at the top of the file with the retro's n=300 in their comment.
 - **06.** Table tests against fakes already in the tree (`internal/testkit`, `httptest`); no Postgres. Floors: `%.1f` of the new value, by hand, same commit.
 - **07.** Name the helper after what it does (drop a tagged line, report changed or not). Each caller keeps its own messages and rc.
-- **08.** The helper returns the resolved key and pw paths through out-params (round 3 row 29 rule: `# shellcheck disable=SC2034` naming the reader). It never `exit`s and never sets a trap.
+- **08.** The helper returns the resolved key and pw paths through out-params (round 3 row 29 rule: `# shellcheck disable=SC2034` naming the reader). It never `exit`s and never sets a trap: none of the 5 sites has one today (`grep -c trap <the 5 files>` -> 0 each, on `5c3f1fe42`), and a `RETURN` trap set inside the helper would fire when the helper returns, before the caller reads the paths (section 7, D1).
 - **09.** Split by named inner functions; keep each export's signature. No `.vue` change. `perf-budget.py` with CI's node (round 5 memory: box node reads ~0.7 KB low).
 - **10.** Named steps inside the same file; no change to the `--account` pin or the key-path resolution (`gcloud-account-pinned.tst.sh`).
 
@@ -104,7 +104,11 @@ Sites: 33 (01: 5, 02: 3, 03: 2, 04: 5, 05: 3, 06: 4, 07: 5, 08: 5, 09: 5, 10: 3)
 
 ## 7. Disagreements
 
-Empty until the agy and mistral seats have written their proposals. The editor resolves each seat item that is not one of the 10 here, as round 5 section 7 did (folded / kept out with a reason / refuted by a command / already in place).
+Seat verdicts on `ed453dd77`: claude 10 agree (the planner's proposal), agy 10 agree, mistral 9 agree + 08 "agree with changes". No seat proposed a new row or dropped one, so no row's sites changed and nothing was re-measured beyond the fold check in the header.
+
+| # | seat | item | settled |
+|---|---|---|---|
+| D1 | mistral (m-710) | 08: "Move the `RETURN` trap to the helper", to avoid repeating it in every caller | **Refuted by a command, not folded.** (a) There is no trap to move: `grep -c trap csi-spl-orc/src/bash/run/spl-{backfill,fallback,reply-count,reply,topic-reply}-probe.func.sh` -> 0, 0, 0, 0, 0 on `5c3f1fe42`; the preamble validates paths, it creates no temp file to clean. (b) A `RETURN` trap set inside a helper fires when the HELPER returns, not the caller: `bash -c 'h(){ trap "echo TRAP; trap - RETURN" RETURN; echo helper-end; }; c(){ h; echo caller-next; }; c'` prints `helper-end`, `TRAP`, `caller-next`, so a cleanup moved into the helper would run before the caller uses what it cleans (the round 4 section 6 reason the rule exists). Row 08 stays as written; section 4 bullet 08 now says why. Put to m-710 once on `dispatch-4f46ce09`; its answer is recorded in section 10. |
 
 ## 8. Measured and left out
 

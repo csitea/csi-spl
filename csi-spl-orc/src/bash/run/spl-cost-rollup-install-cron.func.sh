@@ -18,17 +18,22 @@
 # @param ENV - required for install: dev or prd, baked into the line
 # @param COST_ROLLUP_CRON_ACTION (optional) - install (default) | remove | check
 # @param COST_ROLLUP_CRON_SCHEDULE (optional) - five cron fields, replaces the cnf time
+# @param COST_SOURCES (optional) - space-separated source names baked into
+# @param   the line (the rollup's COST_SOURCES, replacing cnf env.cost.sources
+# @param   on this box): a box that does not read the billing export, e.g.
+# @param   'fleet_tokens agent_hours'. Unset: the cnf list
 # @param COST_ROLLUP_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/cost-rollup
 # @param COST_ROLLUP_CRONTAB (optional, tests) - the crontab command, default crontab
 # @param COST_ROLLUP_ALLOW_WORKTREE (optional, tests) - 1 accepts a linked worktree
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd ./run -a do_spl_cost_rollup_install_cron
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_cost_rollup_install_cron
+# @example ENV=prd COST_SOURCES='fleet_tokens agent_hours' DRY_RUN=0 ./run -a do_spl_cost_rollup_install_cron
 # @example ENV=prd COST_ROLLUP_CRON_ACTION=check ./run -a do_spl_cost_rollup_install_cron
 #------------------------------------------------------------------------------
 do_spl_cost_rollup_install_cron() {
   local dry="${DRY_RUN:-1}" act="${COST_ROLLUP_CRON_ACTION:-install}" ct="${COST_ROLLUP_CRONTAB:-crontab}"
-  local sched="${COST_ROLLUP_CRON_SCHEDULE:-}" org_app tag logdir want gd cd
+  local sched="${COST_ROLLUP_CRON_SCHEDULE:-}" srcs="${COST_SOURCES:-}" org_app tag logdir want gd cd
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove|check) ;; *) do_log "FATAL COST_ROLLUP_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   spl_require_cloud_env || return 1
@@ -53,12 +58,13 @@ do_spl_cost_rollup_install_cron() {
     fi
     [[ -n "$sched" ]] || sched="$(spl_cost_rollup_cron_schedule)" || { printf '%s\n' "$sched"; return 1; }
     [[ "$sched" =~ ^[0-9*,/-]+( [0-9*,/-]+){4}$ ]] || { do_log "FATAL COST_ROLLUP_CRON_SCHEDULE must be five cron fields, got: '$sched'"; return 1; }
+    [[ -z "$srcs" || "$srcs" =~ ^[a-z][a-z0-9_]*( [a-z][a-z0-9_]*)*$ ]] || { do_log "FATAL COST_SOURCES must be source names separated by one space, got: '$srcs'"; return 1; }
   fi
   # cron's PATH is /usr/bin:/bin; $HOME is expanded by the job's shell
-  want="$sched cd $PROJ_PATH && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$HOME/.local/bin flock -n $logdir/cost-rollup-$ENV.lock env ENV=$ENV DRY_RUN=0 ./run -a do_spl_cost_rollup_daily >> $logdir/cron-$ENV.out 2>&1 # $tag"
+  want="$sched cd $PROJ_PATH && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$HOME/.local/bin flock -n $logdir/cost-rollup-$ENV.lock env ENV=$ENV${srcs:+ COST_SOURCES='$srcs'} DRY_RUN=0 ./run -a do_spl_cost_rollup_daily >> $logdir/cron-$ENV.out 2>&1 # $tag"
   [[ "$act" == install ]] || want=""
   cron_drop_tagged_line "$ct" "$tag" "$dry" "$logdir" "$want" || return $(( $? == 2 ? 0 : 1 ))
-  do_log "OK the cost rollup cron is $([[ "$act" == install ]] && echo "installed ($sched box local, ENV=$ENV)" || echo removed)"
+  do_log "OK the cost rollup cron is $([[ "$act" == install ]] && echo "installed ($sched box local, ENV=$ENV${srcs:+, COST_SOURCES=$srcs})" || echo removed)"
 }
 
 # spl_cost_rollup_cron_schedule: the five cron fields of cnf env.cost.rollup_utc

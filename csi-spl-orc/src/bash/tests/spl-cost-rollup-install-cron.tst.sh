@@ -10,6 +10,8 @@
 #   4. check: passes when installed, fails when not
 #   5. remove: the tagged line goes, the others stay
 #   6. no ENV, a bad cnf time, and a linked worktree are refused
+#   7. COST_SOURCES lands in the line (a box without the billing export runs
+#      only its box sources); a bad list is refused, nothing written
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -84,6 +86,20 @@ if [ "$(git -C "$PROJ_ROOT" rev-parse --path-format=absolute --git-dir 2>/dev/nu
 else
   pass "6. (the main checkout: the linked-worktree refusal is not reachable here)"
 fi
+
+# 7. COST_SOURCES
+out="$(cron DRY_RUN=0 COST_SOURCES='fleet_tokens agent_hours')"; rc=$?
+line="$(grep ' # csi-spl:cost-rollup-dev$' "$CT")"
+[ "$rc" -eq 0 ] && [ "$(tagged)" = 1 ] && [[ "$line" == *"env ENV=dev COST_SOURCES='fleet_tokens agent_hours' DRY_RUN=0 ./run -a do_spl_cost_rollup_daily >> "* ]] \
+  && pass "7. COST_SOURCES lands in the one tagged line" || fail "7. ($rc: $out; $line)"
+[ "$(sh -c "env ENV=dev COST_SOURCES='fleet_tokens agent_hours' sh -c 'printf %s \"\$COST_SOURCES\"'")" = "fleet_tokens agent_hours" ] \
+  && pass "7. the line's quoting gives the rollup both names in one COST_SOURCES" || fail "7. quoting"
+out="$(cron DRY_RUN=0)"
+! grep -q 'COST_SOURCES' "$CT" && [ "$(tagged)" = 1 ] && pass "7. control: without it the line carries none (the cnf list)" || fail "7. control ($(cat "$CT"))"
+cp "$CT" "$T/ct.3"
+out="$(cron DRY_RUN=0 COST_SOURCES='gcp;rm -rf x')"; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'FATAL COST_SOURCES must be' <<<"$out" && cmp -s "$CT" "$T/ct.3" \
+  && pass "7. a bad COST_SOURCES is refused, nothing written" || fail "7. bad ($rc: $out)"
 
 echo "spl-cost-rollup-install-cron: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

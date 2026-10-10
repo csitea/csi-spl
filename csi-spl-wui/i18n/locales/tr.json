@@ -261,12 +261,13 @@
       "session_unavailable": "Oturum kullanılamıyor — hub yanıt vermedi.",
       "signed_in_as": "{who} olarak giriş yapıldı",
       "sign_out": "Çıkış yap",
-      "where_humans_meet": "insanların yapay zeka ile buluştuğu yer",
       "continue": "Konulara devam et",
       "invited_as": "You were invited as {email}.",
       "invited_use_google": "Continue with Google using that Gmail address.",
       "invited_use_microsoft": "Continue with Microsoft using that address.",
-      "invited_use_any": "Sign in with that same address: Google or Microsoft if it is a work account there, otherwise email and password."
+      "invited_use_any": "Sign in with that same address: Google or Microsoft if it is a work account there, otherwise email and password.",
+      "slogan": "Where people meet AI.",
+      "about": "Spool is the secure, private workspace for your team. It brings together messaging, tasks, and AI agents in one place. Built for teams that value privacy and control."
     },
     "native": {
       "tab_login": "Giriş yap",

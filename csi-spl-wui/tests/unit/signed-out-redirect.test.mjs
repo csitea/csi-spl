@@ -162,17 +162,20 @@ describe('login landing', () => {
     }
   })
 
-  it('every locale has its translated landing tagline', () => {
+  it('every locale has its translated slogan and about text', () => {
     const dir = join(WUI, 'i18n/locales')
     const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
     assert.equal(files.length, 19)
     for (const f of files) {
       const j = JSON.parse(readFileSync(join(dir, f), 'utf8'))
-      assert.ok(j.auth?.login?.where_humans_meet, f)
-      assert.ok(j.auth.login.where_humans_meet.length > 5, f)
+      assert.ok(j.auth?.login?.slogan, f)
+      assert.ok(j.auth.login.slogan.length > 5, f)
+      assert.ok(j.auth?.login?.about, f)
+      assert.ok(j.auth.login.about.length > 5, f)
     }
     const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8'))
-    assert.equal(en.auth.login.where_humans_meet, 'where people meet with ai')
+    assert.equal(en.auth.login.slogan, 'Where people meet AI.')
+    assert.equal(en.auth.login.about, 'Spool is the secure, private workspace for your team. It brings together messaging, tasks, and AI agents in one place. Built for teams that value privacy and control.')
   })
 
   it('the login frame drifts a full-bleed wallpaper and stops when motion is reduced', () => {

@@ -261,12 +261,13 @@
       "session_unavailable": "Relácia nie je k dispozícii — hub neodpovedal.",
       "signed_in_as": "Prihlásený ako {who}",
       "sign_out": "Odhlásiť sa",
-      "where_humans_meet": "kde sa ľudia stretávajú s AI",
       "continue": "Pokračovať na témy",
       "invited_as": "You were invited as {email}.",
       "invited_use_google": "Continue with Google using that Gmail address.",
       "invited_use_microsoft": "Continue with Microsoft using that address.",
-      "invited_use_any": "Sign in with that same address: Google or Microsoft if it is a work account there, otherwise email and password."
+      "invited_use_any": "Sign in with that same address: Google or Microsoft if it is a work account there, otherwise email and password.",
+      "slogan": "Where people meet AI.",
+      "about": "Spool is the secure, private workspace for your team. It brings together messaging, tasks, and AI agents in one place. Built for teams that value privacy and control."
     },
     "native": {
       "tab_login": "Prihlásiť sa",

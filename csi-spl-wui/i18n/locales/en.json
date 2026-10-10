@@ -261,12 +261,13 @@
       "session_unavailable": "Session unavailable — the hub did not answer.",
       "signed_in_as": "Signed in as {who}",
       "sign_out": "Sign out",
-      "where_humans_meet": "where people meet with ai",
       "continue": "Continue to topics",
       "invited_as": "You were invited as {email}.",
       "invited_use_google": "Continue with Google using that Gmail address.",
       "invited_use_microsoft": "Continue with Microsoft using that address.",
-      "invited_use_any": "Sign in with that same address: Google or Microsoft if it is a work account there, otherwise email and password."
+      "invited_use_any": "Sign in with that same address: Google or Microsoft if it is a work account there, otherwise email and password.",
+      "slogan": "Where people meet AI.",
+      "about": "Spool is the secure, private workspace for your team. It brings together messaging, tasks, and AI agents in one place. Built for teams that value privacy and control."
     },
     "native": {
       "tab_login": "Sign in",

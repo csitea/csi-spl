@@ -13,11 +13,13 @@
 //      leaves, "Archived · Undo" shows and is still up 2.5 s later (the touch
 //      window); Undo brings it back, selected; a RIGHT swipe from the left
 //      edge is still Back (level 2 -> 1), no menu, no archive
-//   B  topic view: a RIGHT slide on a reply opens the reply's menu; a short
-//      LEFT slide on a reply shows the HIDE strip, never the archive one
-//      (the hide itself: swipe-hide.test.mjs); a short LEFT slide on the topic's
-//      opening message cancels; a RIGHT swipe from the left edge on it is
-//      still Back (3 -> 2); a long LEFT slide archives the topic, closes the
+//   B  topic view: only the LATEST reply offers the archive (HUM-10, owner
+//      t1 7de82b71; the rest: topic-archive-latest-only.test.mjs). A RIGHT
+//      slide on a reply opens the reply's menu; a short LEFT slide on an older
+//      reply shows the HIDE strip, never the archive one (the hide itself:
+//      swipe-hide.test.mjs); a short LEFT slide on the latest reply cancels; a
+//      RIGHT swipe from the left edge on the opener is still Back (3 -> 2); a
+//      long LEFT slide on the latest reply archives the topic, closes the
 //      topic view and offers Undo, which brings the card back
 //   C  desktop (1280x800, mouse): a mouse drag never reveals or archives
 //
@@ -284,30 +286,32 @@ try {
   ok('B the topic view opens', await openTopic(p, b))
   await sleep(500)
   const opener = `.topic ${card(b.top)}`
-  ok('B the topic view shows its opening message, which offers the swipe', await has(p, `${opener}[data-swipe-archive]`))
-  ok('B a reply does not offer it', !(await has(p, `.topic ${card(b.r2)}[data-swipe-archive]`)))
+  const latest = `.topic ${card(b.r2)}`
+  ok('B the topic view\'s latest reply offers the swipe', await has(p, `${latest}[data-swipe-archive]`))
+  ok('B an older reply and the opening message do not offer it',
+    !(await has(p, `.topic ${card(b.r1)}[data-swipe-archive]`)) && !(await has(p, `${opener}[data-swipe-archive]`)))
   const rreply = await slideRight(p, `.topic ${card(b.r2)}`, 150, { mid: midState(`.topic ${card(b.r2)}`) })
   ok('B a RIGHT slide on a reply arms the menu strip', rreply && rreply.menuStrip && rreply.armed, rreply)
   ok('B ... and opens the reply\'s menu', await until(p, (s) => [...document.querySelectorAll(s)].some((e) => e.getClientRects().length), menu, 3000))
   await shot(p, 'swipe-reply-menu')
   ok('B ... the menu closes', await closeMenu(p))
-  const reply = await slideLeft(p, `.topic ${card(b.r2)}`, 50, {
+  const reply = await slideLeft(p, `.topic ${card(b.r1)}`, 50, {
     mid: (p) => p.evaluate((sel) => {
       const e = document.querySelector(sel)
       return e && { archive: Boolean(e.querySelector('[data-testid=swipe-archive-reveal]')), hide: Boolean(e.querySelector('[data-testid=swipe-hide-reveal]')) }
-    }, `.topic ${card(b.r2)}`),
+    }, `.topic ${card(b.r1)}`),
   })
-  ok('B a short LEFT slide on a reply shows the hide strip, never the archive one', reply && reply.hide && !reply.archive, reply)
+  ok('B a short LEFT slide on an older reply shows the hide strip, never the archive one', reply && reply.hide && !reply.archive, reply)
   await sleep(400)
-  ok('B ... snaps back and archives nothing', (await has(p, opener)) && (await has(p, `.topic ${card(b.r2)}`)) && !(await has(p, toast)))
+  ok('B ... snaps back and archives nothing', (await has(p, opener)) && (await has(p, `.topic ${card(b.r1)}`)) && !(await has(p, toast)))
 
   const lv0 = await level(p)
   const bpops = await pops(p)
-  const bshort = await slideLeft(p, opener, 100, { mid: midState(opener) })
-  ok('B a 100 px LEFT slide on the opening message shows the strip, not armed', bshort && bshort.strip && !bshort.armed, bshort)
+  const bshort = await slideLeft(p, latest, 100, { mid: midState(latest) })
+  ok('B a 100 px LEFT slide on the latest reply shows the strip, not armed', bshort && bshort.strip && !bshort.armed, bshort)
   await sleep(500)
   ok('B ... snaps back, and the phone did NOT change level',
-    (await has(p, opener)) && (await level(p)) === lv0 && !(await has(p, toast)), { before: lv0, after: await level(p) })
+    (await has(p, latest)) && (await level(p)) === lv0 && !(await has(p, toast)), { before: lv0, after: await level(p) })
 
   const bedge = await edgeSwipe(p, opener, { mid: midState(opener) })
   ok('B a RIGHT swipe from the left edge on the opening message does not move it', bedge && !bedge.strip && !bedge.menuStrip && !bedge.shifted, bedge)
@@ -328,7 +332,7 @@ try {
   ok('B the topic view opens again', again, { level: await level(p) })
   await sleep(500)
 
-  await slideLeft(p, opener, 260, {
+  await slideLeft(p, latest, 260, {
     mid: async (p) => { await shot(p, 'swipe-topic-armed') },
   })
   ok('B releasing archives the topic: "Archived · Undo" shows', await until(p, (s) => Boolean(document.querySelector(s)), toast, 4000))

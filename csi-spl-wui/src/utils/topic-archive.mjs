@@ -114,6 +114,38 @@ function isLatestMessage(msg, lastMsgId) {
 }
 
 /**
+ * HUM-10 (owner, t1 7de82b71): the msg_id of a topic pane's LATEST stored
+ * message - the newest reply, or the opening card when it has none. A pending
+ * echo is not stored yet. '' for an empty pane.
+ * @param {Array<{msg_id?: string, pending?: boolean, received_at?: string, ts?: string}>} rows
+ * @returns {string}
+ */
+function latestMessageId(rows) {
+  let best = ''
+  let bestAt = ''
+  for (const m of Array.isArray(rows) ? rows : []) {
+    if (!m || !m.msg_id || m.pending) continue
+    const at = String(m.received_at || m.ts || '')
+    const id = String(m.msg_id)
+    if (!best || at > bestAt || (at === bestAt && id > best)) { best = id; bestAt = at }
+  }
+  return best
+}
+
+/**
+ * HUM-10 (owner, t1 7de82b71 msg 8d5822b2): "Only the latest message of a
+ * topic should have the option to archive the whole topic within it. That is
+ * the latest reply message." In a topic pane, `msg` offers Archive topic (menu
+ * and left swipe) when it is the pane's latest message AND the viewer may
+ * archive the topic - decided on the topic's OPENING card, never on the reply.
+ */
+function paneArchiveOffer(msg, latestId, opener, viewerId, me) {
+  if (!msg || typeof msg !== 'object' || msg.pending) return false
+  if (!latestId || !isLatestMessage(msg, latestId)) return false
+  return mayArchiveTopic(opener, viewerId, me)
+}
+
+/**
  * The tasks a topic_deleted frame ends: an open pane on one of them has
  * nothing left to show. The lobby task is never one (spec §2).
  */
@@ -279,6 +311,8 @@ export {
   TOPIC_ADMIN_ROLES,
   archivedRow,
   isLatestMessage,
+  latestMessageId,
+  paneArchiveOffer,
   isTopicCard,
   mayArchiveTopic,
   mayChangeTopic,

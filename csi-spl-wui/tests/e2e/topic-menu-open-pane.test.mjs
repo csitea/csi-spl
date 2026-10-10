@@ -7,6 +7,8 @@
 // ones they may not use disabled with the reason (CLE-77891), never dropped.
 // A reply in the same pane keeps a message menu. Desktop and phone: on a
 // phone the middle pane is hidden, so the pane is the only menu.
+// HUM-10 (owner, t1 7de82b71): in the pane Archive topic is on the LATEST
+// message only - here the reply, not the opener (topic-archive-latest-only).
 //
 // Run:
 //   node tests/e2e/topic-menu-open-pane.test.mjs
@@ -22,6 +24,8 @@ const R1 = 'cd9b0f47-a5cb-4a5e-bc92-c3723aecba61'
 const OTHER_TASK = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 const OTHER = '66666666-6666-4666-8666-666666666666'
 const TOPIC_IDS = ['msg-menu-move-channel', 'msg-menu-merge-topic', 'msg-menu-archive', 'msg-menu-delete-topic']
+/* the pane's opener of a topic with a reply: the topic options but Archive */
+const OPENER_IDS = TOPIC_IDS.filter((id) => id !== 'msg-menu-archive')
 
 const row = (msg_id, min, body, is_parent) => ({
   v: 1, msg_id, task_id: TASK, ts: `2026-10-04T10:0${min}:00Z`, from: 'HUM-1', from_box: 'box-wui',
@@ -117,12 +121,14 @@ try {
 
   const own = await menuItems(p, `${paneCard(TASK)} [data-testid=msg-menu-btn]`)
   ok('desktop: the opener menu opens', Array.isArray(own) && own.length > 0, own)
-  for (const id of TOPIC_IDS) ok(`desktop: opener offers ${id} enabled`, hasEnabled(own, id), own)
+  for (const id of OPENER_IDS) ok(`desktop: opener offers ${id} enabled`, hasEnabled(own, id), own)
+  ok('desktop: opener (it has a reply) offers no Archive topic', !listed(own, 'msg-menu-archive'), own)
   ok('desktop: opener Delete is the topic, not the one message', hasEnabled(own, 'msg-menu-delete-topic') && !listed(own, 'msg-menu-delete'), own)
 
   const reply = await menuItems(p, `${paneCard(R1)} [data-testid=msg-menu-btn]`)
   ok('desktop: a reply menu opens', Array.isArray(reply) && reply.length > 0, reply)
-  ok('desktop: a reply does not take the topic options', TOPIC_IDS.every((id) => !listed(reply, id)), reply)
+  ok('desktop: a reply does not take the opener\'s topic options', OPENER_IDS.every((id) => !listed(reply, id)), reply)
+  ok('desktop: the reply, the latest message, offers Archive topic', hasEnabled(reply, 'msg-menu-archive'), reply)
   ok('desktop: a reply still offers Hide from flow', hasEnabled(reply, 'msg-menu-hide-flow'), reply)
 
   const mid = await menuItems(p, `${midCard(TASK)} [data-testid=msg-menu-btn]`)
@@ -141,7 +147,8 @@ try {
   ok('phone: the discussion covers the page', phoneLevel === '3', phoneLevel)
   const phone = await menuItems(p, `${paneCard(TASK)} [data-testid=msg-menu-btn]`)
   ok('phone: the opener menu opens', Array.isArray(phone) && phone.length > 0, phone)
-  for (const id of TOPIC_IDS) ok(`phone: opener offers ${id} enabled`, hasEnabled(phone, id), phone)
+  for (const id of OPENER_IDS) ok(`phone: opener offers ${id} enabled`, hasEnabled(phone, id), phone)
+  ok('phone: opener (it has a reply) offers no Archive topic', !listed(phone, 'msg-menu-archive'), phone)
 
   const benign = (e) => /Failed to fetch dynamically imported module/.test(e)
   ok('no unexpected page errors', errors.filter((e) => !benign(e)).length === 0, errors)

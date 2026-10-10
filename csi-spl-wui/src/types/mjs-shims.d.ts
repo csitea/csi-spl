@@ -848,6 +848,9 @@ declare module '~/utils/topic-archive.mjs' {
   export function openingCardId(messages: unknown, fallbackId?: string): string
   export function mayChangeTopic(msg: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
   export function mayArchiveTopic(msg: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
+  export function isLatestMessage(msg: unknown, lastMsgId: string): boolean
+  export function latestMessageId(rows: unknown): string
+  export function paneArchiveOffer(msg: unknown, latestId: string, opener: unknown, viewerId: string, me: { role?: string | null, tenantOwner?: boolean } | null): boolean
   export function topicFrameDrops(frame: unknown): string[]
   export function topicFrameTasks(frame: unknown, lobbyTaskId?: string): string[]
   export function topicErrorKey(e: unknown, scope?: string): string

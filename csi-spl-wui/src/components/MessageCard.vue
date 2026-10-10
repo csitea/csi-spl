@@ -477,7 +477,7 @@ import { useDmRef } from '~/composables/useDmRef'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { holdPanel, stepSelection, useMsgShortcuts } from '~/composables/useMsgShortcuts'
 import { useAccessStore } from '~/stores/access'
-import { mayArchiveTopic, mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
+import { mayArchiveTopic, mayChangeTopic, openingCardId, paneArchiveOffer, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, mayPromoteMessage, movedNote, type MoveDrag } from '~/utils/move.mjs'
 import { createEdgeScroll, createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
@@ -502,7 +502,6 @@ import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isTouchUi } from '~/utils/undo-timer.mjs'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
-import { isLatestMessage } from '~/utils/topic-archive'
 import {
   CARD_GRIP_STEP_ROWS,
   cardClipPx,
@@ -549,8 +548,12 @@ const props = defineProps<{
       pane's channel for a row that names none, `opener` the card the pane
       was opened on (never movable), `topic` the pane's task. */
   moveCtx?: { channel?: string | null, opener?: string, topic?: string } | null,
-  /** The msg_id of the latest message in the topic. */
+  /** HUM-10 (owner, t1 7de82b71): a topic pane's latest message, the one
+      that offers Archive topic. Set only in a topic pane, with paneOpener. */
   lastMsgId?: string
+  /** ... and that pane's opening card: the archive permission is the topic's,
+      read on it, never on the reply. undefined outside a topic pane. */
+  paneOpener?: SpoolMessage | null
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -711,6 +714,8 @@ function onMenuDelete() {
    resolve the task's opening card first and act on THAT - clicking any card of
    a topic then archives / deletes the topic. Falls back to this card. */
 async function topicOpenerId(): Promise<string> {
+  /* HUM-10: a topic pane knows its opener; the latest reply archives it */
+  if (props.paneOpener?.msg_id) return String(props.paneOpener.msg_id)
   const own = String(props.msg.msg_id || '')
   const task = String(props.msg.task_id || '')
   if (!task) return own
@@ -894,8 +899,8 @@ const swipeOn = computed(() => !editing.value && (mobile.value || touchUi.value)
 /** ... and a left swipe archives its topic */
 const swipeArchive = computed(() => {
   if (!swipeOn.value) return false
-  if (props.topicMenu) return showTopicArchive.value
-  return inTopicPane.value && mayArchiveTopic(props.msg, editorId.value, access.me) && isLatestMessage(props.msg, props.lastMsgId || '')
+  if (props.topicMenu || inPane.value) return showTopicArchive.value
+  return inTopicPane.value && mayArchiveTopic(props.msg, editorId.value, access.me)
 })
 /* HUM-10 (owner, t1 topics 6fc56905 / 3e073a95): in the topic view a reply's
    LEFT swipe hides it on this device (useHiddenCards; not archive, not
@@ -905,7 +910,9 @@ const swipeArchive = computed(() => {
 const swipeStarter = computed(() => Boolean(props.topicMenu) || props.msg.is_parent !== 0
   || (Boolean(props.moveCtx?.opener) && props.msg.msg_id === props.moveCtx?.opener))
 const swipeLeft = computed(() => {
-  const a = swipeLeftAction({ swipeOn: swipeOn.value, starter: swipeStarter.value, mayArchive: swipeArchive.value, inTopicPane: inTopicPane.value })
+  /* HUM-10: the pane's latest reply archives the topic instead of hiding */
+  const starter = swipeStarter.value || (inPane.value && swipeArchive.value)
+  const a = swipeLeftAction({ swipeOn: swipeOn.value, starter, mayArchive: swipeArchive.value, inTopicPane: inTopicPane.value })
   return a === 'hide' && (!props.msg.msg_id || props.msg.pending) ? null : a
 })
 /* HUM-10 (owner, t1 7d9faaad): the right-click menu, the … button and the
@@ -1147,7 +1154,12 @@ const { canEdit, commit, removeMessage, mergeInto, viewerId: editorId, dropEvery
    re-checks; this only decides what the menu offers. */
 const access = useAccessStore()
 const showTopicDelete = computed(() => Boolean(props.topicMenu) && mayChangeTopic(props.msg, editorId.value, access.me))
-const showTopicArchive = computed(() => Boolean(props.topicMenu) && mayArchiveTopic(props.msg, editorId.value, access.me))
+/* HUM-10 (owner, t1 7de82b71): in a topic pane only the LATEST message offers
+   Archive topic, on the opener's permission; elsewhere the topic card does */
+const inPane = computed(() => props.paneOpener !== undefined)
+const showTopicArchive = computed(() => (inPane.value
+  ? paneArchiveOffer(props.msg, props.lastMsgId || '', props.paneOpener, editorId.value, access.me)
+  : Boolean(props.topicMenu) && mayArchiveTopic(props.msg, editorId.value, access.me)))
 const topicDeleteOpen = ref(false)
 // The opening card the delete dialog acts on: resolved from the clicked card's
 // task (topicOpenerId) so a non-opener card still deletes the topic.

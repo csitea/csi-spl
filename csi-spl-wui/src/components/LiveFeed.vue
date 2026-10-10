@@ -96,7 +96,8 @@
           :clip-mode="clipModeFor()"
           :topic-menu="topicMenuFor(it.msg)"
           :move-ctx="paneMoveCtx"
-          :last-msg-id="props.lastMsgId"
+          :last-msg-id="paneLatestId || undefined"
+          :pane-opener="paneOpener"
           :class="{ pending: it.msg.pending, 'msg--new': isNew(it.msg) }"
           :data-key="it.msg.msg_id"
           :data-pending="it.msg.pending ? 'true' : undefined"
@@ -168,7 +169,7 @@ import { collapseHiddenRuns } from '~/utils/hidden-cards.mjs'
 import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { isViewersOwn } from '~/utils/typed-by.mjs'
-import { isTopicCard } from '~/utils/topic-archive.mjs'
+import { isTopicCard, latestMessageId } from '~/utils/topic-archive.mjs'
 import { paneOpenerId } from '~/utils/move.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
@@ -232,7 +233,8 @@ const props = defineProps<{
       they carry a fading highlight, and a "N new" button jumps to the divider.
       null / undefined (a never-read feed, or a pane that opts out) shows none. */
   unreadBoundary?: { ts: string, id: string } | null
-  /** The msg_id of the latest message in the topic. */
+  /** HUM-10: a topic pane's latest message (it offers Archive topic). A
+      topic-card-menu feed that names none uses its newest stored row. */
   lastMsgId?: string
   /** Spec 061 3.6 (lane L10): when a DM peer's reused agent id was seated by
       its current holder (view-v1 §4.1 boxes[].seated_at). The "new holder
@@ -591,6 +593,16 @@ function topicMenuFor(m: SpoolMessage) {
   if (!props.topicCardMenu || !isTopicCard(m)) return false
   return !openerId.value || String(m.msg_id) === openerId.value
 }
+/* HUM-10 (owner, t1 7de82b71): in a thread pane only its latest message
+   offers Archive topic, on the opener's permission (MessageCard). An opener
+   past the loaded page is named by id alone (no level = a card). */
+const paneLatestId = computed(() => (props.topicCardMenu ? props.lastMsgId || latestMessageId(props.rows) : ''))
+const paneOpener = computed<SpoolMessage | null | undefined>(() => {
+  if (!props.topicCardMenu) return undefined
+  const id = openerId.value
+  if (!id) return null
+  return props.rows.find((r) => String(r.msg_id) === id) || ({ msg_id: id } as SpoolMessage)
+})
 /* the pane's move context names that opener, so a later level-1 row moves as a reply */
 const paneMoveCtx = computed(() => (props.moveCtx && openerId.value ? { ...props.moveCtx, opener: openerId.value } : props.moveCtx))
 

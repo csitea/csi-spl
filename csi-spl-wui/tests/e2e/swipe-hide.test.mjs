@@ -8,8 +8,8 @@
 // on that thicker line, the hidden message/card should reappear once again."
 //
 // Against the lde mock (no hub), a 390x844 phone with touch, raw CDP touch:
-//   - the starter offers no hide; a short LEFT slide on it shows the ARCHIVE
-//     strip, never the hide one
+//   - the starter offers no hide; a short LEFT slide on it shows no strip
+//     (HUM-10, owner t1 7de82b71: Archive topic is on the latest reply only)
 //   - a long LEFT slide on a reply shows the eye-off (hide) strip, armed; on
 //     release the card is gone and ONE thicker line stands between the cards
 //     before and after it; nothing is archived
@@ -177,7 +177,7 @@ try {
   ok('the starter offers no hide', !(await has(p, `${card(TASK)}[data-swipe-hide]`)))
   ok('a reply offers it', await has(p, `${card(R2)}[data-swipe-hide]`))
   const st = await slideLeft(p, card(TASK), 60, { mid: midState(card(TASK)) })
-  ok('a LEFT slide on the starter shows the ARCHIVE strip, never the hide one', st && st.archive && !st.hide, st)
+  ok('a LEFT slide on the starter (it has replies) shows neither the hide nor the archive strip', st && !st.archive && !st.hide, st)
   await sleep(500)
   ok('... it snaps back: the starter is still there, no line', (await has(p, card(TASK))) && (await count(p, line)) === 0)
 

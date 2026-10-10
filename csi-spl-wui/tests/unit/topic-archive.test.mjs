@@ -10,9 +10,11 @@ import {
   archivedRow,
   isLatestMessage,
   isTopicCard,
+  latestMessageId,
   mayArchiveTopic,
   mayChangeTopic,
   openingCardId,
+  paneArchiveOffer,
   topicErrorKey,
   topicFrameDrops,
   topicFrameTasks,
@@ -75,6 +77,52 @@ describe('isLatestMessage', () => {
     const msg = { msg_id: 'm2' }
     assert.equal(isLatestMessage(msg, null), false)
     assert.equal(isLatestMessage(msg, undefined), false)
+  })
+})
+
+describe('HUM-10: in a topic pane only the LATEST message offers Archive topic (owner, t1 7de82b71)', () => {
+  const opener = { msg_id: 'o1', task_id: 't1', from: 'HUM-1', is_parent: 1, ts: '2026-10-10T10:00:00Z' }
+  const older = { msg_id: 'r1', task_id: 't1', from: 'HUM-2', is_parent: 0, ts: '2026-10-10T10:01:00Z' }
+  const newest = { msg_id: 'r2', task_id: 't1', from: 'HUM-2', is_parent: 0, ts: '2026-10-10T10:02:00Z' }
+  const everyone = { role: 'developer', tenantOwner: false, topicArchivePolicy: 'everyone' }
+  const starter = { role: 'developer', tenantOwner: false, topicArchivePolicy: 'starter' }
+
+  it('the latest message is the newest stored row, whatever order the pane shows', () => {
+    assert.equal(latestMessageId([newest, older, opener]), 'r2')
+    assert.equal(latestMessageId([opener, older, newest]), 'r2')
+    assert.equal(latestMessageId([opener]), 'o1')
+    assert.equal(latestMessageId([opener, { msg_id: 'p', pending: true, ts: '2026-10-10T11:00:00Z' }]), 'o1', 'a pending echo is not stored yet')
+    assert.equal(latestMessageId([]), '')
+  })
+  it('the latest reply: yes', () => {
+    assert.equal(paneArchiveOffer(newest, 'r2', opener, 'HUM-2', everyone), true)
+  })
+  it('an older reply: no', () => {
+    assert.equal(paneArchiveOffer(older, 'r2', opener, 'HUM-2', everyone), false)
+  })
+  it('the opener alone (no replies): yes', () => {
+    assert.equal(paneArchiveOffer(opener, latestMessageId([opener]), opener, 'HUM-1', everyone), true)
+  })
+  it('the opener of a topic with replies: no', () => {
+    assert.equal(paneArchiveOffer(opener, 'r2', opener, 'HUM-1', everyone), false)
+  })
+  it('the permission is read on the opener, never on the reply', () => {
+    // starter policy: HUM-2 wrote the latest reply but did not start the topic
+    assert.equal(paneArchiveOffer(newest, 'r2', opener, 'HUM-2', starter), false)
+    // HUM-1 started it: the latest reply (someone else's) offers it to them
+    assert.equal(paneArchiveOffer(newest, 'r2', opener, 'HUM-1', starter), true)
+    // no opener known: nothing is offered
+    assert.equal(paneArchiveOffer(newest, 'r2', null, 'HUM-1', everyone), false)
+  })
+  it('never on a pending echo or with no latest id', () => {
+    assert.equal(paneArchiveOffer({ ...newest, pending: true }, 'r2', opener, 'HUM-1', everyone), false)
+    assert.equal(paneArchiveOffer(newest, '', opener, 'HUM-1', everyone), false)
+  })
+  it('MessageCard gates the menu item and the left swipe on it; the pane passes the opener', () => {
+    const mc = src('src/components/MessageCard.vue')
+    assert.match(mc, /paneArchiveOffer\(props\.msg, props\.lastMsgId \|\| '', props\.paneOpener/)
+    assert.match(mc, /if \(props\.topicMenu \|\| inPane\.value\) return showTopicArchive\.value/)
+    assert.match(src('src/components/LiveFeed.vue'), /:pane-opener="paneOpener"/)
   })
 })
 

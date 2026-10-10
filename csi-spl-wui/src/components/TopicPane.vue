@@ -41,7 +41,7 @@
         :loading-older="loadingOlder"
         :search="search"
         :last-live="lastLive"
-        :last-msg-id="lastLive?.msg_id"
+        :last-msg-id="latestId"
         :empty-text="t('topic.empty')"
         :since-ms="sinceMs"
         @older="loadOlder"
@@ -70,7 +70,7 @@ import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst, withoutMsg } from '~/utils/feed.mjs'
 import { rowsForRightPane } from '~/utils/channel-feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
-import { archiveStamp } from '~/utils/topic-archive.mjs'
+import { archiveStamp, latestMessageId } from '~/utils/topic-archive.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
@@ -114,11 +114,13 @@ const mockHead = shallowRef<SpoolMessage[]>([])
 const hasOlder = computed(() => Boolean(olderCursor.value))
 /* A reply with is_parent 0 lives in the channel store as well as here.
    Keep it on this pane after the send stops being pending. */
-const messages = computed(() => {
+const paneRows = computed(() => {
   const mockRows = liveRows.value.length ? mergeById(topic.messages, liveRows.value).rows : topic.messages
-  const base = (api.mock ? mockRows : rowsForRightPane(liveRows.value, channel.messages, topic.parentTaskId || '')) as SpoolMessage[]
-  return newestFirst(base.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[]
+  return (api.mock ? mockRows : rowsForRightPane(liveRows.value, channel.messages, topic.parentTaskId || '')) as SpoolMessage[]
 })
+const messages = computed(() => newestFirst(paneRows.value.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[])
+/* HUM-10: the topic's latest message offers Archive topic, a search or not */
+const latestId = computed(() => latestMessageId(paneRows.value))
 /* The open topic's own title, selected at the top of this pane. */
 const titleText = computed(() => {
   const rows = (api.mock ? topic.messages : liveRows.value) as SpoolMessage[]

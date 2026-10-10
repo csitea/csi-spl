@@ -32,8 +32,9 @@ import (
 // (store.EmbedVisitors; TestEmbedVisitorPathNeverInTenant), never inTenant.
 // The routes answer as an unknown path while cnf env.hub.embed.enabled is
 // off (Options.EmbedEnabled), and under a store without the channel scope.
-// Not here: the abuse limits and the challenge (T105). The staff side and
-// the #sales triage line are embed_staff.go (T106).
+// The abuse limits, the challenge and the bans gate the mint and each post
+// before anything is written (embed_abuse.go, embed_pow.go; T105). The
+// staff side and the #sales triage line are embed_staff.go (T106).
 
 // embedIDRe is rdb 0169's embed_id CHECK.
 var embedIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{2,63}$`)
@@ -80,13 +81,17 @@ func (s *Server) handleEmbedMint(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	ip, ok := s.embedAdmit(w, r, es, tenant, r.PathValue("embed_id"))
+	if !ok {
+		return
+	}
 	tok, hash, err := auth.NewEmbedToken()
 	if err != nil {
 		writeErrCause(w, http.StatusInternalServerError, "internal", "token not minted", err)
 		return
 	}
 	v, err := es.MintEmbedVisitor(r.Context(), store.EmbedVisitorMint{TenantID: tenant,
-		EmbedID: r.PathValue("embed_id"), TokenHash: hash, Life: s.embedLife()}, s.o.Now().UTC())
+		EmbedID: r.PathValue("embed_id"), TokenHash: hash, IPHash: ip, Life: s.embedLife()}, s.o.Now().UTC())
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		http.NotFound(w, r)
@@ -182,19 +187,18 @@ func (s *Server) handleEmbedRead(w http.ResponseWriter, r *http.Request) {
 
 // handleEmbedPost stores one text line from the visitor: body only (no
 // file, no channel, no recipient: the channel and sender are the token's),
-// at most EmbedMessageMaxBytes bytes (413 above).
+// at most EmbedMessageMaxBytes bytes (413 above), with the proof of work
+// and the honeypot of embed_pow.go, past the limits (embedPostGate).
 func (s *Server) handleEmbedPost(w http.ResponseWriter, r *http.Request) {
 	es, v, ok := s.embedVisitor(w, r)
 	if !ok {
 		return
 	}
-	var in struct {
-		Body string `json:"body"`
-	}
+	var in embedPostIn
 	max := s.o.EmbedMessageMaxBytes
 	// JSON escapes a byte in at most 6 ("\u00XX"): room for any body that
 	// fits, and a hard cap on what the hub reads.
-	if !readJSONStrict(w, r, &in, int64(max)*6+256, "invalid JSON body (only body)") {
+	if !readJSONStrict(w, r, &in, int64(max)*6+256, "invalid JSON body (only body, pow, website)") {
 		return
 	}
 	switch {
@@ -203,6 +207,9 @@ func (s *Server) handleEmbedPost(w http.ResponseWriter, r *http.Request) {
 		return
 	case strings.TrimSpace(in.Body) == "":
 		writeErr(w, http.StatusBadRequest, "bad_request", "body is empty")
+		return
+	}
+	if !s.embedPostGate(w, r, es, v, in) {
 		return
 	}
 	p, err := s.embedPost(v, in.Body)

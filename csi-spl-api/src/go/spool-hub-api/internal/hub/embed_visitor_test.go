@@ -176,7 +176,7 @@ func TestEmbedVisitorReadPostErase(t *testing.T) {
 	if got := readLines(t, e, tid, embed, a); len(got.Messages) != 0 {
 		t.Fatalf("a new channel holds %+v", got)
 	}
-	if code, raw := embedCall(t, e, tid, http.MethodPost, base+"/messages", a, `{"body":"hello, is this for sale?"}`); code != http.StatusCreated {
+	if code, raw := embedCall(t, e, tid, http.MethodPost, base+"/messages", a, solvedPost(t, e, tid, embed, a, "hello, is this for sale?")); code != http.StatusCreated {
 		t.Fatalf("post: %d %s", code, raw)
 	}
 	if got := readLines(t, e, tid, embed, a); len(got.Messages) != 1 || !got.Messages[0].Mine || got.Messages[0].Body != "hello, is this for sale?" {

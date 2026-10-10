@@ -69,6 +69,9 @@ var operatorCallers = map[string]string{
 	"EmbedRetentionDue":   "visitor channel retention (spec 121 4.4, hub sweeper goroutine): due visitors of every workspace; each is removed under its own channel scope (RetireEmbedVisitor); no route",
 	// spec 121 T206: the relink names no workspace either.
 	"EmbedRelinkVisitor": "POST /v1/embed/<embed-id>/relink[/redeem] (spec 121 4.1): embed id + the address, or + the visitor id of a link whose mac the hub then checks; that one live visitor row and its token hash, never returned to the caller",
+	// spec 121 T105: the embed abuse limits and the token sweep (embed_abuse.go).
+	"embedScope": "/v1/embed/<embed-id>/visitor mint (spec 121 6): before the mint the visitor has no channel to scope by; the workspace is the URL embed's (EmbedCustomer) and every statement names it in its WHERE: the address's counters and bans, the embed's live-visitor count. After the mint it runs inChannel",
+	"SweepEmbed": "embed token sweep (spec 121 4.1, hub sweeper goroutine): expired visitor tokens, stale embed counters and lapsed automatic bans of every workspace, global by design; no route",
 }
 
 // operatorEntries are the only functions that set the operator scope:

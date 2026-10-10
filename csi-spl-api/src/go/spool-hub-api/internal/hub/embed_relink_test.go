@@ -165,7 +165,7 @@ func TestEmbedRelinkEmailAfterFirstAnswer(t *testing.T) {
 	embed := seedEmbed(t, pg, tid, true)
 	tok, ch := mint(t, g.e, tid, embed)
 	path := "/v1/embed/" + embed + "/visitor/email"
-	if code, raw := embedCall(t, g.e, tid, http.MethodPost, "/v1/embed/"+embed+"/messages", tok, `{"body":"a question"}`); code != http.StatusCreated {
+	if code, raw := embedCall(t, g.e, tid, http.MethodPost, "/v1/embed/"+embed+"/messages", tok, solvedPost(t, g.e, tid, embed, tok, "a question")); code != http.StatusCreated {
 		t.Fatalf("post: %d %s", code, raw)
 	}
 	if code, raw := embedCall(t, g.e, tid, http.MethodPut, path, tok, `{"email":"v@example.com"}`); code != http.StatusConflict ||

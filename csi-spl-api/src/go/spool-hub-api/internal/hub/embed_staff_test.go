@@ -133,7 +133,7 @@ func TestEmbedTriageLine(t *testing.T) {
 	tok, ch := mint(t, e, tid, embed)
 	post := func(body string) {
 		t.Helper()
-		if code, raw := embedCall(t, e, tid, http.MethodPost, "/v1/embed/"+embed+"/messages", tok, `{"body":"`+body+`"}`); code != http.StatusCreated {
+		if code, raw := embedCall(t, e, tid, http.MethodPost, "/v1/embed/"+embed+"/messages", tok, solvedPost(t, e, tid, embed, tok, body)); code != http.StatusCreated {
 			t.Fatalf("post: %d %s", code, raw)
 		}
 	}

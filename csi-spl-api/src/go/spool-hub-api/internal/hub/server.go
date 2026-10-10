@@ -222,6 +222,7 @@ type Options struct {
 	// EmbedRelinkMail mails a visitor's relink link (specs/121 T206,
 	// embed_relink.go); nil = no relay, nothing is mailed.
 	EmbedRelinkMail EmbedRelinkMailer
+	EmbedLimits     EmbedLimits // specs/121 T105: the section 6 limits (embed_abuse.go)
 }
 
 // Server is one hub process.
@@ -435,6 +436,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeDocTree(mux)       // spec 113 T004: /v1/workspace/doctree (outline + grid)
 	s.routeBoxStats(mux)      // rdb 0117: GET /v1/tenant/box-stats
 	s.routeEmbedVisitor(mux)  // specs/121 T104: /v1/embed/{embed_id}/*, off unless EmbedEnabled
+	s.routeEmbedPow(mux)      // specs/121 T105: /v1/embed/{embed_id}/challenge, off unless EmbedEnabled
 	s.routeEmbedAdmin(mux)    // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
 	// specs/121 T201: /embed/*, per-embed frame-ancestors; T202 passes its assets.
 	s.routeEmbedServe(mux, s.o.EmbedEnabled, nil)
@@ -559,6 +561,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 				s.o.Log.Info().Int("expired", r.Expired).Int("purged", r.Purged).Int("pruned", r.Pruned).Msg("retention sweep")
 			}
 			s.sweepClones(ctx)
+			s.SweepEmbed(ctx)          // specs/121 T105: expired visitor tokens, stale embed counters
 			s.sweepMemberActivity(ctx) // CLE-77799: Activity-log auth-row retention
 			s.sweepAgentLifecycle(ctx) // spec 063 section 12: 90-day event log
 			s.sweepPerfSamples(ctx)    // spec 066 section 4: 30-day WUI perf samples

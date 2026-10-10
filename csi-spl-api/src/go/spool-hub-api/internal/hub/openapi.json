@@ -2812,6 +2812,64 @@
         ]
       }
     },
+    "/v1/embed/{embed_id}/challenge": {
+      "get": {
+        "description": "A proof-of-work challenge for the visitor's next post, valid 10 minutes, and whether that post needs it (its first post, or a repeat offender's). Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off. Limits, challenge and bans: specs/121 section 6 (T105).",
+        "operationId": "getEmbedChallenge",
+        "parameters": [
+          {
+            "description": "the embed id (the e= of the iframe URL)",
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "bits": {
+                      "description": "leading zero bits the proof's hash needs",
+                      "type": "integer"
+                    },
+                    "challenge": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "description": "the next post must carry a proof",
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "the challenge"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a proof-of-work challenge for the embed visitor",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
     "/v1/embed/{embed_id}/messages": {
       "get": {
         "description": "The newest lines of the visitor's own channel, oldest first; no sender id. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104).",
@@ -2896,7 +2954,7 @@
         ]
       },
       "post": {
-        "description": "One text line into the visitor's own channel: body only, no file, at most env.hub.embed message_max_bytes (413 above). Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104).",
+        "description": "One text line into the visitor's own channel: body only, no file, at most env.hub.embed message_max_bytes (413 above). The visitor's first post, and every post once its address is a repeat offender, carries a proof of work for GET .../challenge (428 without one); website is a honeypot and must stay empty. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104). Limits, challenge and bans: specs/121 section 6 (T105).",
         "operationId": "postEmbedMessage",
         "parameters": [
           {
@@ -2917,6 +2975,28 @@
                 "additionalProperties": false,
                 "properties": {
                   "body": {
+                    "type": "string"
+                  },
+                  "pow": {
+                    "additionalProperties": false,
+                    "description": "the proof of work: a nonce such that sha256(challenge + \".\" + hex(sha256(body)) + \".\" + nonce) starts with bits zero bits",
+                    "properties": {
+                      "challenge": {
+                        "type": "string"
+                      },
+                      "nonce": {
+                        "maxLength": 64,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "challenge",
+                      "nonce"
+                    ],
+                    "type": "object"
+                  },
+                  "website": {
+                    "description": "honeypot: hidden from a person, must be absent or empty (403 otherwise)",
                     "type": "string"
                   }
                 },
@@ -2956,11 +3036,44 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "description": "embed_banned: the visitor or its address is banned; embed_challenge: the honeypot was filled"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
           "413": {
             "description": "body over the byte limit"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "bits": {
+                      "type": "integer"
+                    },
+                    "challenge": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "enum": [
+                        "embed_challenge"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "embed_challenge: this post needs a (new) proof of work; the body carries a fresh challenge"
+          },
+          "429": {
+            "description": "embed_quota: the visitor's posts of this minute or UTC day are used up; nothing was stored"
           }
         },
         "security": [
@@ -3149,7 +3262,7 @@
         ]
       },
       "post": {
-        "description": "No session. Makes an anonymous visitor of an enabled embed: a channel_guest with one new channel. The token is in this response only; send it as Authorization: Bearer on the other embed routes, never as a cookie. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104).",
+        "description": "No session. Makes an anonymous visitor of an enabled embed: a channel_guest with one new channel. The token is in this response only; send it as Authorization: Bearer on the other embed routes, never as a cookie. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104). Refused before anything is written: 403 embed_banned (a banned address), 503 embed_full (the embed's live visitors are at the limit), 429 embed_visitors (the address's new visitors of this hour or UTC day are used up). Limits, challenge and bans: specs/121 section 6 (T105).",
         "operationId": "postEmbedVisitor",
         "parameters": [
           {
@@ -3191,8 +3304,17 @@
             },
             "description": "the visitor"
           },
+          "403": {
+            "description": "embed_banned: this address is banned"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "description": "embed_visitors: this address's new visitors of this hour or UTC day are used up"
+          },
+          "503": {
+            "description": "embed_full: the embed's live visitors are at the limit"
           }
         },
         "security": [],

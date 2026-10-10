@@ -117,6 +117,7 @@ Live on master on 2026-10-10, each checked by the command shown:
 | pre-push hook | a non-fast-forward push or delete of master, `SPL_PREPUSH_OVERRIDE` included | `csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push` (3e082c94c), test `spawn-agents/tests/test-pre-push-non-ff.sh` |
 | shared command matcher | every forbidden push form in a shell command, for the harness guards to call | `csi-spl-orc/src/bash/features/spawn-agents/lib/force-push-guard.inc.sh` (f6a7da70f), test `csi-spl-orc/src/bash/tests/force-push-guard.tst.sh` |
 | agent seed rule | states the rule to every agent type (c-, g-, a-, q-, m-) | `NO_FORCE` in `spawn-core.inc.sh` (6bdd3c436), test `spawn-agents/tests/test-seed-no-force-push.sh` |
+| pre-push hook | a push to master by a coder with no ack of this guide (section 6), `SPL_PREPUSH_OVERRIDE` included | `dga_check` in `csi-spl-orc/src/bash/features/spawn-agents/lib/dev-guide-ack.inc.sh`, test `spawn-agents/tests/test-pre-push-dev-guide.sh` |
 
 Not yet live: the harness hooks that call the shared matcher before a command
 runs (`git grep -l force-push-guard origin/master` -> the matcher and its test
@@ -130,3 +131,26 @@ stop a forbidden push.
 - Repo rules (environments, service accounts, terraform, gates):
   [CLAUDE.md](../../../CLAUDE.md).
 - Outside contributors: [CONTRIBUTING.md](../../../CONTRIBUTING.md).
+
+## 6. Confirm you have read this guide
+
+Owner, 2026-10-10 (msg 56d7073e): every new coding person or agent "must
+agree that they have read" this guide. After reading it, confirm it once, as
+the OS user you push with:
+
+`cd csi-spl-orc && ./run -a do_dev_guide_ack`
+
+On a terminal it shows the guide and asks; an agent passes its id and the
+confirmation: `AGENT_ID=<id> DEV_GUIDE_ACK=yes ./run -a do_dev_guide_ack`
+(STEP 0 of every agent seed). It records one line, who and this guide's git
+blob sha, in your ack store under `$XDG_STATE_HOME` (default
+`$HOME/.local/state`) or `$DEV_GUIDE_ACK_FILE`.
+
+- The pre-push hook refuses a push to master without an ack for the guide
+  the push carries, and prints the command above.
+- **A material change is any change to this file's blob**
+  (`git rev-parse HEAD:csi-spl-doc/doc/md/developer-guide.md`): it asks
+  every coder to read and confirm again. Batch small fixes into one commit.
+- Work trees created before 2026-10-11T00:00Z pass without an ack until
+  the guide first changes after that time, so the rollout stopped no one
+  already working.

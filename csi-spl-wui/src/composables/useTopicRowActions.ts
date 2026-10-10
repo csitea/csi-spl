@@ -20,6 +20,53 @@ import { isRowTopic, rowCardCandidates, rowTopicState, topicErrorKey, type RowTo
 
 type RowState = RowTopicState | { state: 'loading', msgId: '', canArchive: false, canDelete: false, replies: 0 }
 
+type SpoolApi = ReturnType<typeof useSpoolApi>
+
+/** The row's card, as the hub answers for it, or the no-card state. */
+async function findRowTopic(api: SpoolApi, task: string, lobby: string): Promise<RowTopicState> {
+  let found: RowTopicState = rowTopicState(null, '')
+  try {
+    const first = task === lobby
+      ? null
+      : (await withSessionRetry(api, () => api.getTopic(task, { limit: 1 }))).messages[0] || null
+    for (const id of rowCardCandidates(task, first, lobby)) {
+      try {
+        const size = await withSessionRetry(api, () => api.topicSize(id))
+        if (isRowTopic(size, task, id, lobby)) {
+          found = rowTopicState(size, id)
+          break
+        }
+      } catch {
+        /* 404 / 409 not_a_card: not this one, try the next */
+      }
+    }
+  } catch {
+    /* the row stays without the entries; the menu's other items still work */
+  }
+  return found
+}
+
+/** The confirm dialog (TopicDeleteDialog, the card's own). */
+function useRowDelete(stateOf: (taskId: string) => RowState | null, drop: (taskIds: string[], msgIds: string[]) => void) {
+  const deleteOpen = ref(false)
+  const deleteTask = ref('')
+  const deleteMsgId = computed(() => {
+    const row = stateOf(deleteTask.value)
+    return row && row.state === 'ready' ? row.msgId : ''
+  })
+  function askDelete(taskId: string) {
+    const row = stateOf(taskId)
+    if (!row || row.state !== 'ready' || !row.canDelete) return
+    deleteTask.value = String(taskId)
+    deleteOpen.value = true
+  }
+  function onDeleted(out: { msg_ids: string[], task_ids: string[] }) {
+    const task = deleteTask.value
+    drop([task, ...(out.task_ids || [])].filter(Boolean), out.msg_ids || [])
+  }
+  return { deleteOpen, deleteTask, deleteMsgId, askDelete, onDeleted }
+}
+
 export function useTopicRowActions() {
   const api = useSpoolApi()
   const live = useLive()
@@ -51,26 +98,7 @@ export function useTopicRowActions() {
 
   async function read(task: string) {
     rows.value = { ...rows.value, [task]: { state: 'loading', msgId: '', canArchive: false, canDelete: false, replies: 0 } }
-    const lobby = String(live.lobbyTaskId.value || '')
-    let found: RowTopicState = rowTopicState(null, '')
-    try {
-      const first = task === lobby
-        ? null
-        : (await withSessionRetry(api, () => api.getTopic(task, { limit: 1 }))).messages[0] || null
-      for (const id of rowCardCandidates(task, first, lobby)) {
-        try {
-          const size = await withSessionRetry(api, () => api.topicSize(id))
-          if (isRowTopic(size, task, id, lobby)) {
-            found = rowTopicState(size, id)
-            break
-          }
-        } catch {
-          /* 404 / 409 not_a_card: not this one, try the next */
-        }
-      }
-    } catch {
-      /* the row stays without the entries; the menu's other items still work */
-    }
+    const found = await findRowTopic(api, task, String(live.lobbyTaskId.value || ''))
     rows.value = { ...rows.value, [task]: found }
   }
 
@@ -105,23 +133,7 @@ export function useTopicRowActions() {
     }
   }
 
-  /** The confirm dialog (TopicDeleteDialog, the card's own). */
-  const deleteOpen = ref(false)
-  const deleteTask = ref('')
-  const deleteMsgId = computed(() => {
-    const row = stateOf(deleteTask.value)
-    return row && row.state === 'ready' ? row.msgId : ''
-  })
-  function askDelete(taskId: string) {
-    const row = stateOf(taskId)
-    if (!row || row.state !== 'ready' || !row.canDelete) return
-    deleteTask.value = String(taskId)
-    deleteOpen.value = true
-  }
-  function onDeleted(out: { msg_ids: string[], task_ids: string[] }) {
-    const task = deleteTask.value
-    drop([task, ...(out.task_ids || [])].filter(Boolean), out.msg_ids || [])
-  }
+  const { deleteOpen, deleteTask, deleteMsgId, askDelete, onDeleted } = useRowDelete(stateOf, drop)
 
   return { rows, stateOf, resolve, archive, deleteOpen, deleteTask, deleteMsgId, askDelete, onDeleted }
 }

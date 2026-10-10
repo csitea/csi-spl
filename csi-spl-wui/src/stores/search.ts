@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import type { Ref } from 'vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { SEARCH_OPERATORS, ensureSearchOperators, type SearchOperator, type SearchResult } from '~/utils/search.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
@@ -7,6 +8,42 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 export const SEARCH_BUDGET_S = 5
 
 type SearchError = { status: number, token: string, detail: string, pos: number, badToken: string, retryAfter: number, raw: unknown }
+
+function toError(e: unknown): SearchError {
+  const x = (e || {}) as { status?: number, token?: string, detail?: string, pos?: number, badToken?: string, retryAfter?: number }
+  return {
+    status: Number(x.status) || 0,
+    token: String(x.token || ''),
+    detail: String(x.detail || ''),
+    pos: Number.isInteger(x.pos) ? Number(x.pos) : -1,
+    badToken: String(x.badToken || ''),
+    retryAfter: Number(x.retryAfter) || 0,
+    raw: e,
+  }
+}
+
+/* 010 FR-009: a member's first read of a fresh page flips the view door to
+   the sign-in cookie. Without this a signed-in human deep-linking to
+   /search?q=… got the door prompt instead of results (measured on dev
+   2026-09-21: "This tenant's topics need a member sign-in or a view
+   token"), the same 401 view_door 2dfefe7 fixed for /channel, /dm and the
+   roster. */
+function searchFirstPage(query: string) {
+  const api = useSpoolApi()
+  return withSessionRetry(api, () => api.search({ q: query }))
+}
+
+/** `q` is the store's query ref, read when the call (or its retry) goes out. */
+function searchNextPage(q: Ref<string>, cursor: string) {
+  const api = useSpoolApi()
+  return withSessionRetry(api, () => api.search({ q: q.value, cursor }))
+}
+
+/** search-v1 §6: the hub's operator catalogue, completed by ensureSearchOperators. */
+async function readOperators(): Promise<SearchOperator[]> {
+  const api = useSpoolApi()
+  return ensureSearchOperators(await withSessionRetry(api, () => api.searchOperators()))
+}
 
 /**
  * 022 global search (search-v1.md). One query at a time: a newer run drops the
@@ -32,19 +69,6 @@ export const useSearchStore = defineStore('search', () => {
   let seq = 0
   let opsLoaded = false
 
-  function toError(e: unknown): SearchError {
-    const x = (e || {}) as { status?: number, token?: string, detail?: string, pos?: number, badToken?: string, retryAfter?: number }
-    return {
-      status: Number(x.status) || 0,
-      token: String(x.token || ''),
-      detail: String(x.detail || ''),
-      pos: Number.isInteger(x.pos) ? Number(x.pos) : -1,
-      badToken: String(x.badToken || ''),
-      retryAfter: Number(x.retryAfter) || 0,
-      raw: e,
-    }
-  }
-
   async function run(query: string) {
     const mine = ++seq
     q.value = query
@@ -56,14 +80,7 @@ export const useSearchStore = defineStore('search', () => {
     }
     loading.value = true
     try {
-      /* 010 FR-009: a member's first read of a fresh page flips the view door to
-         the sign-in cookie. Without this a signed-in human deep-linking to
-         /search?q=… got the door prompt instead of results (measured on dev
-         2026-09-21: "This tenant's topics need a member sign-in or a view
-         token"), the same 401 view_door 2dfefe7 fixed for /channel, /dm and the
-         roster. */
-      const api = useSpoolApi()
-      const r = await withSessionRetry(api, () => api.search({ q: query }))
+      const r = await searchFirstPage(query)
       if (mine === seq) result.value = r
     } catch (e) {
       if (mine === seq) {
@@ -82,9 +99,7 @@ export const useSearchStore = defineStore('search', () => {
     const mine = seq
     loadingMore.value = type
     try {
-      const api = useSpoolApi()
-      const cursor = String(g.next || '')
-      const page = await withSessionRetry(api, () => api.search({ q: q.value, cursor }))
+      const page = await searchNextPage(q, String(g.next || ''))
       if (mine !== seq || !result.value) return
       const { mergeSearchPage } = await import('~/utils/search-results.mjs') // off the first paint (027 budget)
       result.value = mergeSearchPage(result.value, page)
@@ -100,8 +115,7 @@ export const useSearchStore = defineStore('search', () => {
     if (opsLoaded) return
     opsLoaded = true
     try {
-      const api = useSpoolApi()
-      operators.value = ensureSearchOperators(await withSessionRetry(api, () => api.searchOperators()))
+      operators.value = await readOperators()
     } catch {
       /* route not deployed yet / door closed: keep the built-in catalogue */
     }

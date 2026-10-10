@@ -2624,5 +2624,11 @@
     "error_not_found": "Ova adresa ili član više ne postoji.",
     "error_forbidden": "Nemate dozvolu da menjate adrese za prijavu ovog člana.",
     "error_failed": "Čuvanje nije uspelo. Pokušajte ponovo."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Instalirajte ovaj radni prostor kao aplikaciju na ovom uređaju.",
+      "later": "Ne sada"
+    }
   }
 }

@@ -2624,5 +2624,11 @@
     "error_not_found": "Tätä osoitetta tai jäsentä ei enää ole.",
     "error_forbidden": "Sinulla ei ole oikeutta muuttaa tämän jäsenen kirjautumissähköposteja.",
     "error_failed": "Tallennus epäonnistui. Yritä uudelleen."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Asenna tämä työtila sovellukseksi tähän laitteeseen.",
+      "later": "Ei nyt"
+    }
   }
 }

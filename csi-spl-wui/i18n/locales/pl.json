@@ -2624,5 +2624,11 @@
     "error_not_found": "Ten adres lub członek już nie istnieje.",
     "error_forbidden": "Nie możesz zmieniać adresów e-mail do logowania tego członka.",
     "error_failed": "Nie udało się zapisać. Spróbuj ponownie."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Zainstaluj ten obszar roboczy jako aplikację na tym urządzeniu.",
+      "later": "Nie teraz"
+    }
   }
 }

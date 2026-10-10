@@ -2624,5 +2624,11 @@
     "error_not_found": "Táto adresa alebo člen už neexistuje.",
     "error_forbidden": "Nemáte povolenie meniť prihlasovacie e-maily tohto člena.",
     "error_failed": "Uloženie zlyhalo. Skúste to znova."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Nainštalujte tento pracovný priestor ako aplikáciu do tohto zariadenia.",
+      "later": "Teraz nie"
+    }
   }
 }

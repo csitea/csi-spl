@@ -40,8 +40,9 @@ function actOnShellBuild(
 }
 
 export default defineNuxtPlugin(() => {
-  // HUM-10: keep Chrome's one install event for Settings' Install button; it
-  // fires once the manifest below is linked, before Settings is opened. Only
+  // HUM-10: keep Chrome's one install event for Settings' Install button and
+  // the "Install app" strip (components/PwaInstallOffer.vue, mounted by
+  // app.vue on this event); it fires once the manifest below is linked. Only
   // these lines are in the first download: the rest is utils/pwa-install.mjs,
   // in Settings' lazy chunk, which reads window.__spoolPwa (ci_home_gzip_kb).
   const pwa = ((window as any).__spoolPwa ||= {})

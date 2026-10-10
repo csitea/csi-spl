@@ -2624,5 +2624,11 @@
     "error_not_found": "Den här adressen eller medlemmen finns inte längre.",
     "error_forbidden": "Du får inte ändra den här medlemmens inloggningsadresser.",
     "error_failed": "Det gick inte att spara. Försök igen."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Installera den här arbetsytan som en app på den här enheten.",
+      "later": "Inte nu"
+    }
   }
 }

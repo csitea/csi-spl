@@ -2624,5 +2624,11 @@
     "error_not_found": "Dit adres of lid bestaat niet meer.",
     "error_forbidden": "Je mag de inlog-e-mailadressen van dit lid niet wijzigen.",
     "error_failed": "Opslaan is mislukt. Probeer het opnieuw."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Installeer deze werkruimte als app op dit apparaat.",
+      "later": "Niet nu"
+    }
   }
 }

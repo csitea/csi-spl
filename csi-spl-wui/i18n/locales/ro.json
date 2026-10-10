@@ -2624,5 +2624,11 @@
     "error_not_found": "Această adresă sau acest membru nu mai există.",
     "error_forbidden": "Nu aveți permisiunea de a modifica e-mailurile de autentificare ale acestui membru.",
     "error_failed": "Salvarea a eșuat. Încercați din nou."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Instalează acest spațiu de lucru ca aplicație pe acest dispozitiv.",
+      "later": "Nu acum"
+    }
   }
 }

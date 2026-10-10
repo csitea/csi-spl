@@ -2624,5 +2624,11 @@
     "error_not_found": "Šīs adreses vai dalībnieka vairs nav.",
     "error_forbidden": "Jums nav atļauts mainīt šī dalībnieka pieteikšanās e-pastus.",
     "error_failed": "Neizdevās saglabāt. Mēģiniet vēlreiz."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Instalējiet šo darbvietu kā lietotni šajā ierīcē.",
+      "later": "Ne tagad"
+    }
   }
 }

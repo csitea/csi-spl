@@ -2624,5 +2624,11 @@
     "error_not_found": "This address or member is no longer there.",
     "error_forbidden": "You may not change this member's sign-in emails.",
     "error_failed": "Could not save. Try again."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Install this workspace as an app on this device.",
+      "later": "Not now"
+    }
   }
 }

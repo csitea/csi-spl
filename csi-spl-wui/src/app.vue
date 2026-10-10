@@ -9,6 +9,10 @@
   <ClientOnly><LazySettingsDialog v-if="settingsMounted" /></ClientOnly>
   <!-- SPL-1006: a newer deploy while a draft is open; eager, never Lazy -->
   <BuildUpdateBar />
+  <!-- HUM-10 3e5b850b: "Install app" where the email link lands (/login, the
+       first signed-in screen); its own chunk, fetched only once Chrome fired
+       its install event, never by Safari or Firefox -->
+  <LazyPwaInstallOffer v-if="pwaOffer" />
 </template>
 
 <script setup lang="ts">
@@ -33,6 +37,10 @@ const appVersion = String(useRuntimeConfig().public.appVersion || '')
 const tenantNotMember = useState<{ tenant: string, home: string, pending?: string }>('tenant-host-not-member', () => ({ tenant: '', home: '', pending: '' }))
 
 const { locale } = useI18n({ useScope: 'global' })
+
+/* plugins/pwa.client.ts keeps the event itself (window.__spoolPwa) */
+const pwaOffer = ref(false)
+if (import.meta.client) addEventListener('beforeinstallprompt', () => { pwaOffer.value = true }, { once: true })
 
 const route = useRoute()
 const settingsMounted = ref(false)

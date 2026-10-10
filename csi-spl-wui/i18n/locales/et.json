@@ -2624,5 +2624,11 @@
     "error_not_found": "Seda aadressi või liiget enam pole.",
     "error_forbidden": "Sul pole lubatud selle liikme sisselogimise e-poste muuta.",
     "error_failed": "Salvestamine ebaõnnestus. Proovi uuesti."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Paigalda see tööruum selle seadme rakendusena.",
+      "later": "Mitte praegu"
+    }
   }
 }

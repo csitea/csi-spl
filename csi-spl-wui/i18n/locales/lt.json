@@ -2624,5 +2624,11 @@
     "error_not_found": "Šio adreso ar nario nebėra.",
     "error_forbidden": "Jums neleidžiama keisti šio nario prisijungimo el. pašto adresų.",
     "error_failed": "Nepavyko įrašyti. Bandykite dar kartą."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Įdiekite šią darbo sritį kaip programėlę šiame įrenginyje.",
+      "later": "Ne dabar"
+    }
   }
 }

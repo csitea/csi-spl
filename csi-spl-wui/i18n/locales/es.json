@@ -2624,5 +2624,11 @@
     "error_not_found": "Esta dirección o este miembro ya no existe.",
     "error_forbidden": "No puedes cambiar los correos de inicio de sesión de este miembro.",
     "error_failed": "No se pudo guardar. Inténtalo de nuevo."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Instala este espacio de trabajo como app en este dispositivo.",
+      "later": "Ahora no"
+    }
   }
 }

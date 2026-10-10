@@ -2624,5 +2624,11 @@
     "error_not_found": "Bu adres veya üye artık yok.",
     "error_forbidden": "Bu üyenin giriş e-postalarını değiştirme izniniz yok.",
     "error_failed": "Kaydedilemedi. Tekrar deneyin."
+  },
+  "pwa": {
+    "offer": {
+      "text": "Bu çalışma alanını bu cihaza uygulama olarak yükleyin.",
+      "later": "Şimdi değil"
+    }
   }
 }

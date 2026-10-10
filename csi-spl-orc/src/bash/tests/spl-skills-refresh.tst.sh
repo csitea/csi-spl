@@ -14,6 +14,8 @@
 #   5. control: a renderer that also writes the agent env is caught and named
 #   6. a checkout that is not at trunk is refused before any write
 #   7. a refused user hop fails the run
+#   8. a home with ~/.vibe (mistral) gets the skills in ~/.vibe/skills, one
+#      without it gets none; control: a renderer with no vibe target
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -113,5 +115,22 @@ out="$(refresh DRY_RUN=0 SKILLS_REFRESH_CHECKOUT="$CO" SKILLS_REFRESH_TRUNK=HEAD
 out="$(refresh DRY_RUN=0 SPOOL_REFRESH_AS="$T/as-fail")"; rc=$?
 [ "$rc" -ne 0 ] && grep -qE 'FAIL skills other|other unreadable' <<<"$out" \
   && pass "7. a refused user hop fails the run" || fail "7. hop (rc $rc: $out)"
+
+# 8. mistral: ~/.vibe/skills where ~/.vibe exists (vibe 2.26.0 reads it)
+VEC=.vibe/skills/exit-clean/SKILL.md
+mkdir -p "$H1/.vibe"
+python3 - "$PROJ_ROOT/src/bash/features/spool-install/install.sh" "$T/novibe.sh" <<'EOF'
+import sys
+s = open(sys.argv[1]).read()
+k = 'if vibe == "1":'
+assert k in s
+open(sys.argv[2], "w").write(s.replace(k, "if False:", 1))
+EOF
+out="$(refresh DRY_RUN=0 SKILLS_REFRESH_INSTALLER="$T/novibe.sh")"; rc=$?
+[ "$rc" -eq 0 ] && [ ! -e "$H1/$VEC" ] && pass "8. control: a renderer with no vibe target leaves ~/.vibe/skills absent" || fail "8. control (rc $rc: $out)"
+out="$(refresh)"; grep -q "would write $H1/$VEC" <<<"$out" && pass "8. the dry run names ~/.vibe/skills/exit-clean" || fail "8. dry ($out)"
+out="$(refresh DRY_RUN=0)"; rc=$?
+[ "$rc" -eq 0 ] && grep -q 'whose body starts with `ACCEPTED`' "$H1/$VEC" && [ ! -e "$H2/.vibe" ] \
+  && pass "8. a home with ~/.vibe gets exit-clean in ~/.vibe/skills, one without gets none" || fail "8. vibe (rc $rc: $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

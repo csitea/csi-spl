@@ -189,7 +189,7 @@ mv "$R/dispatch/agent-run-$DAY.log" "$T/day.log.away"
 reset
 out="$(run_rollup DRY_RUN=0)"; rc=$?
 mv "$T/day.log.away" "$R/dispatch/agent-run-$DAY.log"
-[[ "$rc" == 0 && "$(posted agent_hours.box-a '.coverage.state')" == '"missing"' && "$(posted agent_hours.box-a '.coverage.reason')" == *"FATAL no day log"* &&
+[[ "$rc" == 0 && "$(posted agent_hours.box-a '.coverage.state')" == '"missing"' && "$(posted agent_hours.box-a '.coverage.reason')" == *"FATAL agent_hours: no day log"* &&
    "$(posted agent_hours.box-a '.lines | length')" == 0 && "$out" == *"missing=1"*"day_state=partial"* ]] &&
   pass "8. coverage: a failed read is posted missing with its reason, no line; the day is partial" || fail "8. rc=$rc $out"
 

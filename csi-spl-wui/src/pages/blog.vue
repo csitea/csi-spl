@@ -10,7 +10,9 @@
      with lang="en". Chrome strings are English literals until T013.
      The language menu (HUM-10 t1 35aea5bb) is a <details> of plain <a href>
      links: it works signed out and with JS off, a crawler follows it, and it
-     lists exactly the hreflang locales (localeAlternates, public-seo.mjs). -->
+     lists exactly the hreflang locales (localeAlternates, public-seo.mjs).
+     At <= 820 px its button shows the locale code, not the name, so the bar's
+     "SPOOL-HUB" stays on one line at 390 px (t1 ff3953c1). -->
 <template>
   <div class="blog-page" data-test="blog-page">
     <header class="blog-bar" data-test="blog-bar">
@@ -25,6 +27,7 @@
           <summary class="blog-lang__button" :title="t('nav.lang_label')" data-test="blog-lang-button">
             <span class="visually-hidden">{{ t('nav.lang_label') }}: </span>
             <span class="blog-lang__current">{{ localeName(locale) }}</span>
+            <span class="blog-lang__code" aria-hidden="true">{{ locale }}</span>
             <span class="blog-lang__chevron" aria-hidden="true">&#9662;</span>
           </summary>
           <ul class="blog-lang__list" :aria-label="t('nav.lang_label')" data-test="blog-lang-list">
@@ -319,7 +322,7 @@ useHead(() => {
 }
 .blog-bar__home { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--color-fg); font-weight: 700; }
 .blog-bar__home img { display: block; width: 28px; height: 28px; border-radius: var(--radius-sm); }
-.blog-bar__name { color: var(--color-accent); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.9375rem; }
+.blog-bar__name { color: var(--color-accent); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.9375rem; white-space: nowrap; }
 .blog-bar__sep { color: var(--color-muted); }
 .blog-bar__signin { display: inline-flex; align-items: center; min-height: var(--tap, 44px); font-weight: 600; }
 .blog-bar__end { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -337,6 +340,7 @@ useHead(() => {
 }
 .blog-lang__button::-webkit-details-marker { display: none; }
 .blog-lang__chevron { color: var(--color-muted); font-size: 0.8em; }
+.blog-lang__code { display: none; text-transform: uppercase; }
 .blog-lang__list {
   position: absolute;
   inset-inline-end: 0;
@@ -409,6 +413,11 @@ useHead(() => {
 .bpost__body :deep(pre) { white-space: pre-wrap; overflow-wrap: anywhere; }
 .bpost__pager { padding-top: 16px; border-top: 1px solid var(--color-border); }
 .bpost__all { font-weight: 600; }
+@media (max-width: 820px) {
+  /* the name stays for a screen reader (the code is aria-hidden) */
+  .blog-lang__current { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .blog-lang__code { display: inline; }
+}
 @media (max-width: 600px) {
   .blog-main { padding: 16px 12px 32px; }
   .blog__title, .bpost__title { font-size: 1.5rem; }

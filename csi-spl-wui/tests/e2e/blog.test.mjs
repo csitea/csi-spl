@@ -73,6 +73,9 @@ try {
     ok('/blog answers 200', Boolean(res && res.status() === 200), res && res.status())
     const list = await p.waitForSelector('[data-test=blog-list-page]', { visible: true, timeout: 15000 }).catch(() => null)
     ok('/blog shows the list to an anonymous visitor', Boolean(list))
+    /* t1 ff3953c1: the bar's name stays on one line beside the language menu */
+    const name = await p.$eval('.blog-bar__name', (el) => ({ rects: el.getClientRects().length, h: el.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(el).lineHeight) || 1.5 * parseFloat(getComputedStyle(el).fontSize) })).catch(() => null)
+    ok('the bar keeps "SPOOL-HUB" on one line', Boolean(name && name.rects === 1 && name.h <= name.lh * 1.2), name)
     ok('no move to /login', path(p) === '/blog', p.url())
     bgs[theme] = await p.$eval('[data-test=blog-page]', (el) => getComputedStyle(el).backgroundColor).catch(() => '')
     const items = await p.$$eval('[data-test=blog-item]', (els) => els.length)
@@ -248,6 +251,8 @@ async function langMenu() {
     await p.click('[data-test=blog-lang-button]').catch(() => null)
     const link = await p.waitForSelector(`[data-test=blog-lang-item][data-code=${to}]`, { visible: true, timeout: 5000 }).catch(() => null)
     ok(`JS ${js ? 'on' : 'off'}: the menu opens on a tap`, Boolean(link))
+    const listed = await p.$$eval('[data-test=blog-lang-item]', (els) => els.filter((el) => el.getBoundingClientRect().height > 0).length)
+    ok(`JS ${js ? 'on' : 'off'}: the open menu lists its links at 390 px`, listed === has(target.id).length, listed)
     if (link) await Promise.all([p.waitForNavigation({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => null), link.click()])
     const want = to === 'en' ? `/blog/${target.id}` : `/${to}/blog/${target.id}`
     ok(`JS ${js ? 'on' : 'off'}: picking ${to} opens ${want}`, path(p) === want, p.url())

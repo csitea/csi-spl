@@ -273,6 +273,10 @@ cnf_mistral() {
     on && $1 == k ":" { v = $2; gsub(/["\047]/, "", v); print v; exit }
   ' "$ROOT/$app-cnf/$app/all.env.yaml" 2>/dev/null
 }
+# a bare uv / pipx off PATH: the user-local one (their installers' default
+# dir, which a `sudo -u <agent>` PATH lacks)
+command -v "$UV" >/dev/null 2>&1 || [ ! -x "$HOME/.local/bin/$UV" ] || UV="$HOME/.local/bin/$UV"
+command -v "$PIPX" >/dev/null 2>&1 || [ ! -x "$HOME/.local/bin/$PIPX" ] || PIPX="$HOME/.local/bin/$PIPX"
 for c in "${CLI_LIST[@]}"; do
   [ "$c" = mistral ] || continue
   MISTRAL_PIN="${SPOOL_INSTALL_MISTRAL_VERSION-$(cnf_mistral version)}"

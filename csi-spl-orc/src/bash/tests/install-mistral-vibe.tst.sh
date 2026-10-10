@@ -18,6 +18,8 @@
 #      (CONTROL: the same check catches a planted echo)
 #   6. env override: the planned launch line carries env -u MISTRAL_API_KEY
 #      (CONTROL: a line without it fails the same check)
+#   6b. uv off PATH (a `sudo -u <agent>` PATH): the agent's ~/.local/bin/uv
+#      is used (CONTROL: without it the run is refused, exit 3)
 #   7. nothing outside the agent home is touched; DRY_RUN=1 changes nothing
 #   8. ask_user_question in the top-level disabled_tools: added before the
 #      first table, once (a re-run adds no second entry); an existing list,
@@ -145,6 +147,22 @@ launch_ok "$T/o.env" && grep -q 'WARN mistral: MISTRAL_API_KEY is set in this en
   pass "6: with MISTRAL_API_KEY exported, the launch line carries env -u MISTRAL_API_KEY" || fail "6: launch: $(grep launch "$T/o.env")"
 sed 's/env -u MISTRAL_API_KEY //' "$T/o.env" >"$T/o.bad"
 launch_ok "$T/o.bad" && fail "6: CONTROL: a launch line without env -u passed" || pass "6: CONTROL: a launch line without env -u fails"
+
+# --- 6b. a bare uv off PATH: the agent's ~/.local/bin/uv ---------------------------------------------
+if PATH="/usr/local/bin:/usr/bin:/bin" command -v uv >/dev/null; then echo "SKIP 6b: this machine has a uv on PATH"; else
+cp "$B/uv" "$H/.local/bin/uv"
+PATH="/usr/local/bin:/usr/bin:/bin" in_orc SPOOL_ROOT="$T/spool" SPOOL_AGENT_USER="$ME" MISTRAL_VIBE_AGENT_HOME="$H" \
+  MISTRAL_VIBE_CNF="$T/cnf.yaml" SNIPPET=do_install_mistral_vibe SPOOL_INSTALL_PIPX="$T/no-pipx" \
+  SPOOL_INSTALL_PYTHON="$B/py313" FAKE_VIBE_DROP=@none@ >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'needs uv or pipx' "$T/o" &&
+  pass "6b: uv off PATH: the agent's ~/.local/bin/uv is found (no 'needs uv or pipx')" || fail "6b: local uv (rc=$rc): $(tail -n3 "$T/o")"
+rm -f "$H/.local/bin/uv"
+PATH="/usr/local/bin:/usr/bin:/bin" in_orc SPOOL_ROOT="$T/spool" SPOOL_AGENT_USER="$ME" MISTRAL_VIBE_AGENT_HOME="$H" \
+  MISTRAL_VIBE_CNF="$T/cnf.yaml" SNIPPET=do_install_mistral_vibe SPOOL_INSTALL_PIPX="$T/no-pipx" \
+  SPOOL_INSTALL_PYTHON="$B/py313" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 3 ]] && grep -q 'needs uv or pipx' "$T/o" && pass "6b: CONTROL: with no local uv the same run is refused (exit 3)" ||
+  fail "6b: control (rc=$rc): $(tail -n3 "$T/o")"
+fi
 
 # --- 7. nothing outside the home; DRY_RUN ------------------------------------------------------------------
 out="$(find "$T" -newer "$T/marker" -type f ! -path "$H/*" ! -path "$T/o*" ! -name calls.log ! -name cnf.yaml ! -path "$T/bin/*" ! -name vibe.tpl)"

@@ -8,6 +8,10 @@
 //        agent's event (the mock's c-007 maintenance) opens with no switch.
 // AC-05: a click on an event opens the same dialog to edit or delete it; an
 //        issue deadline does not open it.
+// t1 9dec05c3 (owner msg cbfaaefc): Copy link in the pop-over, the edit
+//        dialog and an event's right-click menu copies
+//        <origin>/calendar?d=<day>&event=<id> and says "Link copied"; that
+//        link opens the event.
 // The dialog fits 1440 px with no sideways scroll (a phone adds in
 // CalendarPhoneSheet since spec 106 T011: calendar-phone-sheet); the calendar code
 // stays in its own chunk (calendar.test.mjs AC-02 holds the 155 KB check).
@@ -15,7 +19,8 @@
 // (src/utils/calendar-mock.mjs), in the wire format of spec 6.1.
 //
 // Control: before T008 there is no [data-test=calendar-new] and a click on
-// an event opens nothing, so every check below FAILS.
+// an event opens nothing, so every check below FAILS. Before Copy link there
+// is no [data-test=calendar-popover-copy-link], so its checks FAIL.
 //
 // Run:
 //   pnpm run test:e2e calendar-events
@@ -118,6 +123,13 @@ async function typeTitle(p, text) {
   await p.type('[data-test=calendar-event-title]', text)
 }
 const noSideways = (p) => p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
+/* the clipboard as the page wrote it: writeText is caught, never the OS's */
+const catchClipboard = (p) => p.evaluate(() => {
+  window.__copied = ''
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t) => { window.__copied = t } } })
+})
+const copiedText = (p) => p.evaluate(() => window.__copied || '')
+const keyed = (p, sel) => p.waitForFunction((q) => document.querySelector(q)?.getAttribute('data-key') === 'calendar_event.link_copied', { timeout: 5000 }, sel).then(() => true, () => false)
 
 const server = await startServer()
 const browser = await launch()
@@ -172,8 +184,48 @@ try {
   s = await state(p)
   ok('AC-09: an event another made opens with no Private switch', s.mode === 'edit' && s.title === 'Database maintenance' && s.switch === 'none', s)
   await shot(p, 'dialog-edit-other-1440')
+  /* t1 9dec05c3: Copy link in the edit dialog */
+  const dbm = await item(p, 'Database maintenance')
+  const want = `${new URL(server.base).origin}/calendar?d=${dbm?.day}&event=${encodeURIComponent(dbm?.id || '')}`
+  await catchClipboard(p)
+  await p.click('[data-test=calendar-event-copy-link]')
+  ok('Copy link: the dialog says "Link copied"', await keyed(p, '[data-test=calendar-event-copy-link]'))
+  ok('Copy link: the dialog copies the event link', (await copiedText(p)) === want, { got: await copiedText(p), want })
   await p.keyboard.press('Escape')
   ok('Escape closes it', await closed(p))
+
+  /* t1 9dec05c3: Copy link in the pop-over */
+  await catchClipboard(p)
+  await p.evaluate((t) => {
+    [...document.querySelectorAll('[data-test=calendar-item]')].find((e) => e.querySelector('.cal-week__title')?.textContent === t)?.click()
+  }, 'Database maintenance')
+  const peekCopy = await p.waitForSelector('[data-test=calendar-popover-copy-link]', { visible: true, timeout: 4000 }).catch(() => null)
+  ok('Copy link: the pop-over carries it', Boolean(peekCopy))
+  if (peekCopy) await peekCopy.click()
+  ok('Copy link: the pop-over says "Link copied"', await keyed(p, '[data-test=calendar-popover-copied]'))
+  ok('Copy link: the pop-over copies the event link', (await copiedText(p)) === want, { got: await copiedText(p), want })
+  await shot(p, 'popover-copy-link-1440')
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(() => !document.querySelector('[data-test=calendar-event-popover]'), { timeout: 5000 }).catch(() => {})
+
+  /* t1 9dec05c3: Copy link in an event's right-click menu */
+  await catchClipboard(p)
+  const li = await p.evaluateHandle((t) => [...document.querySelectorAll('[data-test=calendar-item]')].find((e) => e.querySelector('.cal-week__title')?.textContent === t), 'Database maintenance')
+  const libox = await li.asElement()?.boundingBox()
+  if (libox) await p.mouse.click(libox.x + libox.width / 2, libox.y + Math.min(8, libox.height / 2), { button: 'right' })
+  const entry = await p.waitForSelector('[data-testid=calendar-item-menu-copy_link]', { visible: true, timeout: 4000 }).catch(() => null)
+  ok('Copy link: a right-click on an event offers it', Boolean(entry))
+  if (entry) await entry.click()
+  ok('Copy link: the menu answers "Link copied"', await keyed(p, '[data-test=calendar-notice]'))
+  ok('Copy link: the menu copies the event link', (await copiedText(p)) === want, { got: await copiedText(p), want })
+  ok('CONTROL Copy link opened no dialog', !(await p.$(DIALOG)))
+
+  /* the copied link opens the event */
+  const q = await browser.newPage()
+  await setPageViewport(q, { width: 1440, height: 900 })
+  await q.goto(want.replace(new URL(want).origin, server.base), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok('Copy link: the copied link opens that event', await dialog(q) && (await state(q)).title === 'Database maintenance', await state(q))
+  await q.close()
 
   /* AC-05: the creator edits theirs back to workspace */
   await p.click('[data-test=calendar-today]')

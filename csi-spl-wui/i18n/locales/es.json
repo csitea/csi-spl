@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Un evento tiene como máximo 5 recordatorios.",
     "duplicate": "Duplicar",
     "edit": "Editar",
-    "synced_link": "Cambiar en el repositorio"
+    "synced_link": "Cambiar en el repositorio",
+    "copy_link": "Copiar enlace",
+    "link_copied": "Enlace copiado"
   },
   "calendar_phone_week": {
     "strip": "Días de la semana",

@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Un eveniment are cel mult 5 mementouri.",
     "duplicate": "Duplică",
     "edit": "Editează",
-    "synced_link": "Schimbă în depozit"
+    "synced_link": "Schimbă în depozit",
+    "copy_link": "Copiază linkul",
+    "link_copied": "Link copiat"
   },
   "calendar_phone_week": {
     "strip": "Zilele săptămânii",

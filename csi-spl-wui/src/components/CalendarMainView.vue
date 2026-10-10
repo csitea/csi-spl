@@ -82,7 +82,7 @@
               @pointerdown="onItemDown($event, ev, day)"
               @click.stop="onItemClick($event, ev)"
               @keydown.enter.prevent.stop="openPeek(ev)"
-              @contextmenu="onContextMenu"
+              @contextmenu.stop="onItemMenu($event, ev)"
             >
               <span v-if="!ev.all_day" class="cal-week__time" dir="ltr">{{ isoClock(ev.starts_at) }}</span>
               <span class="cal-week__title">{{ ev.title }}</span>
@@ -110,6 +110,7 @@
             @pointerdown="onItemDown($event, b.ev, day)"
             @click.stop="onItemClick($event, b.ev)"
             @keydown.enter.prevent.stop="openPeek(b.ev)"
+            @contextmenu.stop="onItemMenu($event, b.ev)"
           >
             <span class="cal-ev__body">
               <span class="cal-week__time" dir="ltr">{{ isoClock(b.ev.starts_at) }}</span>
@@ -160,6 +161,17 @@
       @choose="onMenu"
       @close="menu = null"
     />
+    <UiPointMenu
+      :open="itemMenu !== null"
+      :x="itemMenu?.x || 0"
+      :y="itemMenu?.y || 0"
+      :items="ITEM_MENU_ITEMS"
+      :label="itemMenu?.ev.title || ''"
+      block="cal-item-menu"
+      testid="calendar-item-menu"
+      @choose="onItemMenuChoose"
+      @close="itemMenu = null"
+    />
     <LazyCalendarTrash v-if="trashMounted" v-model:open="trashOpen" :today="today" @restored="reload" />
     <UndoSnackbar
       v-if="undoEv"
@@ -197,6 +209,7 @@ import {
 import type { CalTimes } from '~/utils/calendar-drag.mjs'
 import { hoursShowsLine } from '~/utils/hours-calendar.mjs'
 import { useCalendarHours } from '~/composables/useCalendarHours'
+import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
 
 const props = defineProps<{ focus: string, today: string }>()
 const emit = defineEmits<{ move: [iso: string] }>()
@@ -427,6 +440,23 @@ function onMenu(id: string) {
   if (id !== 'trash') return
   trashMounted.value = true
   trashOpen.value = true
+}
+/* t1 9dec05c3: a right-click on a stored event offers Copy link; the
+   answer shows as the calendar's notice. A hold that became a drag keeps
+   the browser's menu away as before (onContextMenu). */
+const ITEM_MENU_ITEMS: PointMenuItem[] = [{ id: 'copy_link', icon: 'copy', labelKey: 'calendar_event.copy_link' }]
+const itemMenu = shallowRef<{ x: number, y: number, ev: CalendarItem } | null>(null)
+const { copyLink } = useCalendarEventLink()
+function onItemMenu(e: MouseEvent, ev: CalendarItem) {
+  if (gesture) e.preventDefault()
+  if (gesture || !calStored(ev)) return
+  e.preventDefault()
+  itemMenu.value = { x: e.clientX, y: e.clientY, ev }
+}
+async function onItemMenuChoose(id: string) {
+  const ev = itemMenu.value?.ev || null
+  itemMenu.value = null
+  if (id === 'copy_link' && ev) say(await copyLink(ev))
 }
 let askedEvent = ''
 watch([items, () => route.query.event], () => {

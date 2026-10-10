@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Tapahtumalla on enintään 5 muistutusta.",
     "duplicate": "Monista",
     "edit": "Muokkaa",
-    "synced_link": "Muuta repositoriossa"
+    "synced_link": "Muuta repositoriossa",
+    "copy_link": "Kopioi linkki",
+    "link_copied": "Linkki kopioitu"
   },
   "calendar_phone_week": {
     "strip": "Viikon päivät",

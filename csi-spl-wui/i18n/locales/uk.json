@@ -2196,7 +2196,9 @@
     "error_reminders_many": "У події не більше 5 нагадувань.",
     "duplicate": "Дублювати",
     "edit": "Редагувати",
-    "synced_link": "Змінити в репозиторії"
+    "synced_link": "Змінити в репозиторії",
+    "copy_link": "Копіювати посилання",
+    "link_copied": "Посилання скопійовано"
   },
   "calendar_phone_week": {
     "strip": "Дні тижня",

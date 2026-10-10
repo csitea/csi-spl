@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Догађај има највише 5 подсетника.",
     "duplicate": "Удвостручи",
     "edit": "Измени",
-    "synced_link": "Измени у репозиторијуму"
+    "synced_link": "Измени у репозиторијуму",
+    "copy_link": "Копирај везу",
+    "link_copied": "Веза је копирана"
   },
   "calendar_phone_week": {
     "strip": "Дани у недељи",

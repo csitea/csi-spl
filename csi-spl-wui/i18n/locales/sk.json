@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Udalosť má najviac 5 pripomienok.",
     "duplicate": "Duplikovať",
     "edit": "Upraviť",
-    "synced_link": "Zmeniť v repozitári"
+    "synced_link": "Zmeniť v repozitári",
+    "copy_link": "Kopírovať odkaz",
+    "link_copied": "Odkaz skopírovaný"
   },
   "calendar_phone_week": {
     "strip": "Dni v týždni",

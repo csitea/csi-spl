@@ -110,3 +110,7 @@ declare module '~/utils/calendar-drag.mjs' {
   export function calDragErrorKey(e: { status?: number, token?: string } | null | undefined): string
   export function calDayLayout<T extends Timed>(events: T[]): { ev: T, top: number, len: number, col: number, cols: number }[]
 }
+
+declare module '~/utils/calendar-event-link.mjs' {
+  export function calEventLink(ev: { id?: string, all_day?: boolean, starts_at?: string } | null | undefined, origin: string): string
+}

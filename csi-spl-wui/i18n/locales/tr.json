@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Bir etkinliğin en fazla 5 hatırlatıcısı olur.",
     "duplicate": "Çoğalt",
     "edit": "Düzenle",
-    "synced_link": "Depoda değiştir"
+    "synced_link": "Depoda değiştir",
+    "copy_link": "Bağlantıyı kopyala",
+    "link_copied": "Bağlantı kopyalandı"
   },
   "calendar_phone_week": {
     "strip": "Haftanın günleri",

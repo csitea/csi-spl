@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Een evenement heeft hoogstens 5 herinneringen.",
     "duplicate": "Dupliceren",
     "edit": "Bewerken",
-    "synced_link": "Wijzigen in de repository"
+    "synced_link": "Wijzigen in de repository",
+    "copy_link": "Link kopiëren",
+    "link_copied": "Link gekopieerd"
   },
   "calendar_phone_week": {
     "strip": "Dagen van de week",

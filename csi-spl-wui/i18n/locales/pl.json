@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Wydarzenie ma najwyżej 5 przypomnień.",
     "duplicate": "Duplikuj",
     "edit": "Edytuj",
-    "synced_link": "Zmień w repozytorium"
+    "synced_link": "Zmień w repozytorium",
+    "copy_link": "Kopiuj link",
+    "link_copied": "Link skopiowany"
   },
   "calendar_phone_week": {
     "strip": "Dni tygodnia",

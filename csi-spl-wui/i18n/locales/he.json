@@ -2196,7 +2196,9 @@
     "error_reminders_many": "לאירוע יש לכל היותר 5 תזכורות.",
     "duplicate": "שכפול",
     "edit": "עריכה",
-    "synced_link": "שנה במאגר הקוד"
+    "synced_link": "שנה במאגר הקוד",
+    "copy_link": "העתק קישור",
+    "link_copied": "הקישור הועתק"
   },
   "calendar_phone_week": {
     "strip": "ימי השבוע",

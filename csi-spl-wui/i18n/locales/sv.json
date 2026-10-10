@@ -2196,7 +2196,9 @@
     "error_reminders_many": "En händelse har högst 5 påminnelser.",
     "duplicate": "Duplicera",
     "edit": "Redigera",
-    "synced_link": "Ändra i repot"
+    "synced_link": "Ändra i repot",
+    "copy_link": "Kopiera länk",
+    "link_copied": "Länken kopierad"
   },
   "calendar_phone_week": {
     "strip": "Veckans dagar",

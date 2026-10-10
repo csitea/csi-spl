@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Notikumam ir ne vairāk kā 5 atgādinājumi.",
     "duplicate": "Dublēt",
     "edit": "Rediģēt",
-    "synced_link": "Mainīt repozitorijā"
+    "synced_link": "Mainīt repozitorijā",
+    "copy_link": "Kopēt saiti",
+    "link_copied": "Saite nokopēta"
   },
   "calendar_phone_week": {
     "strip": "Nedēļas dienas",

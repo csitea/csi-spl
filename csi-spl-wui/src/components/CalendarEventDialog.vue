@@ -28,7 +28,10 @@
      the dialog as the entry of type Working hours for one day - the day's
      rows and discussions (CalendarHoursDay, its own chunk) instead of the
      event form, and Close as the only action. Not a calendar event: nothing
-     here writes /v1/calendar for it. -->
+     here writes /v1/calendar for it.
+
+     Copy link (t1 9dec05c3): a stored event's footer copies the link that
+     opens it (useCalendarEventLink). -->
 <template>
   <UiDialog :open="open" :title="hours ? t('hours_cal.dialog_title', { day: hours.day }) : event ? t('calendar_event.edit_title') : t('calendar_event.new_title')" size="md" @update:open="emit('update:open', $event)">
     <div v-if="hours" class="cal-dlg cal-dlg--hours" data-test="calendar-event-form" data-mode="hours" :data-type="HOURS_ENTRY_TYPE" :data-day="hours.day">
@@ -208,6 +211,15 @@
           :disabled="busy"
           @click="remove"
         >{{ confirmDelete ? t('calendar_event.delete_confirm') : t('calendar_event.delete') }}</button>
+        <button
+          v-if="event"
+          type="button"
+          class="btn ghost cal-dlg__copy"
+          data-test="calendar-event-copy-link"
+          :data-key="copied || undefined"
+          aria-live="polite"
+          @click="copyLink(event)"
+        >{{ copied ? t(copied) : t('calendar_event.copy_link') }}</button>
         <span class="cal-dlg__spacer" />
         <button type="button" class="btn ghost" data-test="calendar-event-cancel" :disabled="busy" @click="emit('update:open', false)">{{ t('common.cancel') }}</button>
         <button type="submit" :form="formId" class="btn" data-test="calendar-event-save" :disabled="busy || !form.title.trim()">{{ busy ? t('calendar_event.saving') : t('calendar_event.save') }}</button>
@@ -233,6 +245,7 @@ import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { HOURS_ENTRY_TYPE } from '~/utils/hours-calendar.mjs'
+import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
 import type { CalHoursEntry } from '~/composables/useCalendarHours'
 
 const props = defineProps<{
@@ -250,6 +263,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'update:open': [boolean], saved: [CalendarItem], deleted: [CalendarItem] }>()
 const { t } = useI18n({ useScope: 'global' })
+const { copied, copyLink } = useCalendarEventLink()
 const api = useSpoolApi()
 const live = useLive()
 const access = useAccessStore()

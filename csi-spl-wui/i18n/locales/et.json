@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Sündmusel on kuni 5 meeldetuletust.",
     "duplicate": "Paljunda",
     "edit": "Muuda",
-    "synced_link": "Muuda repositooriumis"
+    "synced_link": "Muuda repositooriumis",
+    "copy_link": "Kopeeri link",
+    "link_copied": "Link kopeeritud"
   },
   "calendar_phone_week": {
     "strip": "Nädala päevad",

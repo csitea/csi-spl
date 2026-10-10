@@ -2196,7 +2196,9 @@
     "error_reminders_many": "An event has at most 5 reminders.",
     "duplicate": "Duplicate",
     "edit": "Edit",
-    "synced_link": "Change it in the repo"
+    "synced_link": "Change it in the repo",
+    "copy_link": "Copy link",
+    "link_copied": "Link copied"
   },
   "calendar_phone_week": {
     "strip": "Days of the week",

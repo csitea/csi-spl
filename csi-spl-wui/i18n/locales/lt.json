@@ -2196,7 +2196,9 @@
     "error_reminders_many": "Įvykis turi ne daugiau kaip 5 priminimus.",
     "duplicate": "Dubliuoti",
     "edit": "Redaguoti",
-    "synced_link": "Keisti saugykloje"
+    "synced_link": "Keisti saugykloje",
+    "copy_link": "Kopijuoti nuorodą",
+    "link_copied": "Nuoroda nukopijuota"
   },
   "calendar_phone_week": {
     "strip": "Savaitės dienos",

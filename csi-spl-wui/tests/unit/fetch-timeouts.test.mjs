@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import {
   DOC_READ_TIMEOUT_MS, DOC_WRITE_TIMEOUT_MS, REVISION_FETCH_MS, docFetchTimeoutMs,
   BOOT_READ_TIMEOUT_MS, ROSTER_READ_TIMEOUT_MS, ACCOUNT_CALL_TIMEOUT_MS,
+  HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS,
 } from '../../src/utils/fetch-timeouts.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
@@ -25,6 +26,11 @@ describe('fetch timeouts', () => {
     assert.ok(BOOT_READ_TIMEOUT_MS > 0)
     assert.ok(ROSTER_READ_TIMEOUT_MS > 0)
     assert.ok(ACCOUNT_CALL_TIMEOUT_MS >= DOC_WRITE_TIMEOUT_MS)
+  })
+
+  it('gives a hub read a budget and a hub write no less than a doc write (refactor r6-01)', () => {
+    assert.ok(HUB_READ_TIMEOUT_MS > 0)
+    assert.ok(HUB_WRITE_TIMEOUT_MS >= DOC_WRITE_TIMEOUT_MS)
   })
 
   it('gives a workspace docs GET the read budget and a PUT / DELETE the write one', () => {
@@ -46,6 +52,25 @@ describe('fetch timeouts', () => {
       const src = readFileSync(join(SRC, file), 'utf8')
       assert.match(src, re)
       assert.match(src, /from '~\/utils\/fetch-timeouts\.mjs'/)
+    })
+  }
+
+  // Refactor round 6, row 1: the hours and own-status calls of src/utils
+  // (relative import). One assertion per call: its fetch( ... ) init holds
+  // `signal:` built from a named budget.
+  const utilSites = [
+    ['utils/hours-timer.mjs', 'POST /v1/me/hours/timer', /\/v1\/me\/hours\/timer`, \{[^}]*signal: AbortSignal\.timeout\(HUB_WRITE_TIMEOUT_MS\)/],
+    ['utils/hours-calendar-api.mjs', 'PUT /v1/me/hours', /\/v1\/me\/hours`, \{[^}]*signal: AbortSignal\.timeout\(HUB_WRITE_TIMEOUT_MS\)/],
+    ['utils/hours-team-api.mjs', 'PUT /v1/hours/periods', /\/v1\/hours\/periods`, \{\n(?: {4}[^\n]*\n)*? {4}signal: AbortSignal\.timeout\(HUB_WRITE_TIMEOUT_MS\),\n {2}\}\)/],
+    ['utils/hours-team-api.mjs', 'GET /v1/hours/export', /hoursExportPath\(day, format, final\)\}`, \{[^}]*\}\), signal: AbortSignal\.timeout\(HUB_WRITE_TIMEOUT_MS\) \}\)/],
+    ['utils/human-status.mjs', 'PUT / DELETE /v1/me/status', /\/v1\/me\/status\$\{[^\n]*`, \{[^}]*signal: AbortSignal\.timeout\(HUB_WRITE_TIMEOUT_MS\)/],
+    ['utils/human-status.mjs', 'GET /v1/me/status', /\/v1\/me\/status`, \{ credentials: api\.credentials, headers, signal: AbortSignal\.timeout\(HUB_READ_TIMEOUT_MS\) \}/],
+  ]
+  for (const [file, call, re] of utilSites) {
+    it(`${file} ${call} passes a timeout signal to its fetch`, () => {
+      const src = readFileSync(join(SRC, file), 'utf8')
+      assert.match(src, re)
+      assert.match(src, /from '\.\/fetch-timeouts\.mjs'/)
     })
   }
 })

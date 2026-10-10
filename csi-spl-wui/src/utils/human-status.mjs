@@ -17,6 +17,7 @@
 /* only helpers the first screen already uses: importing another one from
    date-iso.mjs would keep it in the entry chunk for this lazy module (027) */
 import { isoClock, isoDate, isoDateTime, isoDateTimeSec } from './date-iso.mjs'
+import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 export const STATUS_NOTE_MAX = 80
 
@@ -413,6 +414,7 @@ export async function putMyStatus(api, selfId, body, { allWorkspaces = false } =
     credentials: api.credentials,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
   })
   if (!res.ok) throw Object.assign(new Error(`status ${res.status}`), { status: res.status })
   return res.status === 204 ? null : res.json().catch(() => null)
@@ -429,7 +431,7 @@ export async function getMyStatus(api, selfId) {
   try {
     const headers = { accept: 'application/json' }
     if (api.token) headers.authorization = `Bearer ${api.token}`
-    const res = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/me/status`, { credentials: api.credentials, headers })
+    const res = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/me/status`, { credentials: api.credentials, headers, signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
     const body = res.ok ? await res.json() : null
     return body && typeof body === 'object' ? { ...body, type: 'status', peer: selfId, pause_notify: body.pause_notify === true } : null
   } catch {

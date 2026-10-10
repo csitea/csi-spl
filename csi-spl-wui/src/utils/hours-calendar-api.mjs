@@ -5,6 +5,7 @@
  * hours-calendar-mock.mjs.
  */
 import { hoursCollectPeriods } from './hours-calendar.mjs'
+import { HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 /**
  * @param {{ base: string, token?: string, credentials?: RequestCredentials, mock?: boolean }} api
@@ -52,6 +53,7 @@ export async function putMyHours(api, body, today) {
       credentials: api.credentials,
       headers,
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
     })
   } catch {
     throw Object.assign(new Error('network'), { status: 0 })

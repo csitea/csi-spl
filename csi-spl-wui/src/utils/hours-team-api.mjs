@@ -6,6 +6,7 @@
  * hours-team-mock.mjs.
  */
 import { hoursDownloadName, hoursExportPath } from './hours-team.mjs'
+import { HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 function headersOf(api, extra = {}) {
   const h = { accept: 'application/json', ...extra }
@@ -57,6 +58,7 @@ export async function decideTeamHours(api, body, today) {
     credentials: api.credentials,
     headers: headersOf(api, { 'content-type': 'application/json' }),
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
   })
   if (!r.ok) throw await refusal(r, 'hours decision')
   return r.json()
@@ -77,7 +79,7 @@ export async function downloadTeamHours(api, day, format, final, today) {
     const got = mockExportHours(day, format, final, today)
     return { blob: new Blob([got.bytes], { type: got.type }), name: hoursDownloadName(got.disposition, fallback) }
   }
-  const r = await fetch(`${rootOf(api)}${hoursExportPath(day, format, final)}`, { credentials: api.credentials, headers: headersOf(api, { accept: '*/*' }) })
+  const r = await fetch(`${rootOf(api)}${hoursExportPath(day, format, final)}`, { credentials: api.credentials, headers: headersOf(api, { accept: '*/*' }), signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS) })
   if (!r.ok) throw await refusal(r, 'hours export')
   return { blob: await r.blob(), name: hoursDownloadName(r.headers.get('content-disposition'), fallback) }
 }

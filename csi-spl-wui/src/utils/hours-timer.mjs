@@ -14,6 +14,7 @@
  * at the member's midnight and adds it to that day's row. A refusal keeps the
  * row with its stop time, so Retry sends the same interval and Discard drops it.
  */
+import { HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 /** The localStorage key; the header only asks whether it holds anything. */
 export const HOURS_TIMER_KEY = 'spool.hours-timer'
@@ -120,6 +121,7 @@ export async function postHoursTimer(api, body) {
       credentials: api.credentials,
       headers,
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
     })
   } catch {
     throw Object.assign(new Error('network'), { status: 0 })

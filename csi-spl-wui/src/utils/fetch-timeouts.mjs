@@ -1,6 +1,7 @@
 /**
  * Timeouts for the WUI's raw fetch() calls (refactor round 3, row 6; the
- * utils' boot, roster, checkout and keys calls: round 4, row 3).
+ * utils' boot, roster, checkout and keys calls: round 4, row 3; the hours
+ * and own-status calls: round 6, row 1).
  * A hung TCP connection (a phone changing networks, a stalled proxy) never
  * settles a fetch with no signal, so its page sits on 'loading' for good.
  * Each call site passes `signal: AbortSignal.timeout(<one of these>)`; the
@@ -30,6 +31,16 @@ export const ROSTER_READ_TIMEOUT_MS = 15_000
  * write budget and a slow write is never cut.
  */
 export const ACCOUNT_CALL_TIMEOUT_MS = DOC_WRITE_TIMEOUT_MS
+
+/** A small hub JSON read: GET /v1/me/status. */
+export const HUB_READ_TIMEOUT_MS = DOC_READ_TIMEOUT_MS
+
+/**
+ * A hub write (the hours timer POST, my hours PUT, a team hours decision, my
+ * status PUT / DELETE) or the hours export file the hub builds: the write
+ * budget, so a slow save or a large export is never cut.
+ */
+export const HUB_WRITE_TIMEOUT_MS = DOC_WRITE_TIMEOUT_MS
 
 /** The timeout for a workspace docs call: a GET (or no method) reads, anything else writes. */
 export function docFetchTimeoutMs(method) {

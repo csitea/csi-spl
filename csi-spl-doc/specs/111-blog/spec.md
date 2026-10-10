@@ -200,9 +200,9 @@ published: <ISO-8601 UTC, Z>  # set by do_spl_blog_post, never by hand
 author: <agent-id>            # e.g. m-004; never a person, never a box name
 agy_review: <agent-id>        # the agy seat that gave the final word (3.7)
 tags: [release, fleet]
-image: <id>.webp              # a key in the media store, never a file in git
+image: <id>.webp              # required for non-draft posts (owner msg fede16a9), a key in the media store, never a file in git
 image_alt: "..."              # required when image is set
-image_prompt: "..."           # the prompt that made it (provenance)
+image_prompt: "..."           # required when image is set, the prompt that made it (provenance)
 draft: false
 ---
 <body, <= 450 words>
@@ -359,7 +359,7 @@ changes, and by CI:
 
 | check | refuses |
 |---|---|
-| frontmatter | a missing field, an unknown `type`, an `id` that does not match the file name, a `lang` that does not match the dir, `image` without `image_alt`, a hand-set `published`, a copy without `agy_review` |
+| frontmatter | a missing field, an unknown `type`, an `id` that does not match the file name, a `lang` that does not match the dir, `image` without `image_alt`, a non-draft post without `image` (owner msg fede16a9), a hand-set `published`, a copy without `agy_review` |
 | size | a body over 450 words; a summary over 160 chars |
 | hygiene | anything `do_check_dist_hygiene` refuses, plus the release-note ban list. The list is a secret (Secret Manager slot): read through the per-env SA, **fail closed** when unreadable or empty, and a refusal names the file and line, never the pattern (s111-3 change 8) |
 | public-safe, "matrix" only | a personal name (the hygiene name list), an email address, a phone number, an internal host, a box name, a `/home/` path; an `image_prompt` that asks for a real or named person |

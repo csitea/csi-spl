@@ -208,6 +208,8 @@ spl_blog_file() {
   if [[ -n "$v" ]]; then
     [[ -n "$(_bf image_alt)" ]] || spl_blog_refuse "$rel" "$(spl_blog_line "$tree" "$rel" image)" frontmatter "image without image_alt"
     [[ "$v" =~ ^${id}(-og)?\.webp$ ]] || spl_blog_refuse "$rel" "$(spl_blog_line "$tree" "$rel" image)" frontmatter "image must be $id.webp or $id-og.webp"
+  elif [[ "$(_bf draft)" != "true" ]]; then
+    spl_blog_refuse "$rel" "$(spl_blog_line "$tree" "$rel" image)" frontmatter "image required, owner msg fede16a9"
   fi
   spl_blog_author "$tree" "$rel" "$(_bf author)" "$(_bf agy_review)"
   spl_blog_published "$tree" "$rel" "$ref" "$(_bf published)"

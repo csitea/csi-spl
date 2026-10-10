@@ -182,7 +182,19 @@ git -C "$R" add -A && git -C "$R" commit -qm "one post, two locales"
 out=$(run_check BLOG_CHECK_RANGE=origin/master..HEAD); rc=$?
 [[ $rc -eq 0 ]] && pass "one post id in two locales is one commit shape" || fail "shape ok: rc=$rc $out"
 
-# ---- 6. an edit keeps its published ----------------------------------------
+# ---- 6. image required for non-draft posts ------------------------------------
+post en 2026-10-09-hello news | put "$N"
+refused "a non-draft post without image" frontmatter "$N"
+
+post en 2026-10-09-hello news 'draft: true' | put "$N"
+out=$(run_check BLOG_FILES="$N"); rc=$?
+[[ $rc -eq 0 ]] && pass "a draft post without image passes" || fail "draft no image: rc=$rc $out"
+
+post en 2026-10-09-hello news 'image: 2026-10-09-hello.webp' 'image_alt: "A test image"' | put "$N"
+out=$(run_check BLOG_FILES="$N"); rc=$?
+[[ $rc -eq 0 ]] && pass "a non-draft post with image passes" || fail "non-draft with image: rc=$rc $out"
+
+# ---- 7. an edit keeps its published ----------------------------------------
 git -C "$R" update-ref refs/remotes/origin/master HEAD
 out=$(run_check BLOG_FILES="$N" BLOG_CHECK_NOW="$((NOW + 86400))"); rc=$?
 [[ $rc -eq 0 ]] && pass "a landed post re-checked a day later passes (its stamp is the trunk's)" || fail "landed: rc=$rc $out"

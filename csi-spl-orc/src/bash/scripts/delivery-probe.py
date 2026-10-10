@@ -36,6 +36,7 @@ Env (set by ./run -a do_spl_delivery_probe):
                       revision, re-dials and runs the catch-up read
   PROBE_OUT           results.json path
 """
+
 import importlib.util
 import json
 import os
@@ -44,7 +45,9 @@ import time
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-_spec = importlib.util.spec_from_file_location("m3_e2e", os.path.join(HERE, "m3-e2e.py"))
+_spec = importlib.util.spec_from_file_location(
+    "m3_e2e", os.path.join(HERE, "m3-e2e.py")
+)
 m3 = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(m3)
 
@@ -68,10 +71,20 @@ def pct(xs, p):
 def summary(rows):
     """p50/p90/max per hop, over the sends that HAVE that hop, plus the misses."""
     out = {}
-    for hop, a, b in (("send->ack", "t_send", "t_ack"), ("send->other socket", "t_send", "t_live"),
-                      ("send->other sees it (live or catch-up)", "t_send", "t_seen")):
-        xs = [r[b] - r[a] for r in rows if r.get(a) is not None and r.get(b) is not None]
-        out[hop] = {"n": len(xs), "p50": pct(xs, 50), "p90": pct(xs, 90), "max": max(xs) if xs else None}
+    for hop, a, b in (
+        ("send->ack", "t_send", "t_ack"),
+        ("send->other socket", "t_send", "t_live"),
+        ("send->other sees it (live or catch-up)", "t_send", "t_seen"),
+    ):
+        xs = [
+            r[b] - r[a] for r in rows if r.get(a) is not None and r.get(b) is not None
+        ]
+        out[hop] = {
+            "n": len(xs),
+            "p50": pct(xs, 50),
+            "p90": pct(xs, 90),
+            "max": max(xs) if xs else None,
+        }
     out["missed_live"] = sum(1 for r in rows if r.get("t_live") is None)
     out["n"] = len(rows)
     return out
@@ -91,7 +104,9 @@ def dial(cookie, tries=3):
 def dial_once(cookie):
     w = m3.WS(m3.ws_url("/v1/wui/ws"), cookie)
     put = w.q.put
-    w.q.put = lambda f: put(dict(f, _t=time.time()))  # the ARRIVAL time, stamped by the reader thread
+    w.q.put = lambda f: put(
+        dict(f, _t=time.time())
+    )  # the ARRIVAL time, stamped by the reader thread
     w.send({"type": "hello"})
     welcome = w.wait(lambda f: f.get("type") == "welcome", 15)
     if not welcome:
@@ -101,8 +116,11 @@ def dial_once(cookie):
 
 def catch_up(cookie, task, msg_id):
     """The WUI's reconnect catch-up: one topic read; True when msg_id is in it."""
-    st, _, out = m3.http("GET", "%s/v1/view/topics/%s?order=desc&limit=50" % (m3.HUB, task),
-                         headers={"Cookie": cookie, "Origin": m3.HUB})
+    st, _, out = m3.http(
+        "GET",
+        "%s/v1/view/topics/%s?order=desc&limit=50" % (m3.HUB, task),
+        headers={"Cookie": cookie, "Origin": m3.HUB},
+    )
     rows = (out or {}).get("messages", []) if isinstance(out, dict) else []
     return st == 200 and any(row_msg_id(r) == msg_id for r in rows)
 
@@ -115,18 +133,33 @@ def row_msg_id(r):
 
 def live_revision():
     st, _, out = m3.http("GET", m3.HUB + "/v1/wui/revision")
-    return (out or {}).get("revision", "") if st == 200 and isinstance(out, dict) else ""
+    return (
+        (out or {}).get("revision", "") if st == 200 and isinstance(out, dict) else ""
+    )
 
 
 def is_msg(msg_id):
-    return lambda f: f.get("type") == "message" and (f.get("msg_id") == msg_id or
-                                                     ((f.get("env") or {}).get("msg") or {}).get("msg_id") == msg_id)
+    return lambda f: (
+        f.get("type") == "message"
+        and (
+            f.get("msg_id") == msg_id
+            or ((f.get("env") or {}).get("msg") or {}).get("msg_id") == msg_id
+        )
+    )
 
 
 def save(rows, task):
     if OUT:
-        res = {"hub": m3.HUB, "tenant": m3.TENANT, "task_id": task, "fresh_sender": FRESH, "wait": WAIT,
-               "check_every": CHECK, "summary": summary(rows), "rows": rows}
+        res = {
+            "hub": m3.HUB,
+            "tenant": m3.TENANT,
+            "task_id": task,
+            "fresh_sender": FRESH,
+            "wait": WAIT,
+            "check_every": CHECK,
+            "summary": summary(rows),
+            "rows": rows,
+        }
         with open(OUT, "w") as f:
             json.dump(res, f, indent=1, sort_keys=True)
 
@@ -145,7 +178,10 @@ def main():
     task = str(uuid.uuid4())
     rx, rx_welcome = dial(recv_cookie)
     rx.send({"type": "subscribe", "task_id": task})
-    m3.log("INFO receiver on revision %s, topic %s" % (rx_welcome.get("revision", "?"), task))
+    m3.log(
+        "INFO receiver on revision %s, topic %s"
+        % (rx_welcome.get("revision", "?"), task)
+    )
     tx = None
     rows = []
     for i in range(N):
@@ -153,21 +189,46 @@ def main():
             if tx is not None:
                 tx.close()
             tx, tx_welcome = dial(send_cookie)
-        if rx.closed is not None:  # the hub closed it: re-dial and re-subscribe, as the WUI does
+        if (
+            rx.closed is not None
+        ):  # the hub closed it: re-dial and re-subscribe, as the WUI does
             rx, rx_welcome = dial(recv_cookie)
             rx.send({"type": "subscribe", "task_id": task})
         msg_id = str(uuid.uuid4())
-        row = {"i": i, "msg_id": msg_id, "rx_revision": rx_welcome.get("revision", ""),
-               "tx_revision": tx_welcome.get("revision", ""), "t_send": time.time()}
-        tx.send({"type": "send", "msg_id": msg_id, "task_id": task, "kind": "note",
-                 "body": "delivery probe %d/%d" % (i + 1, N), "files": []})
-        ack = tx.wait(lambda f: f.get("msg_id") == msg_id and f.get("type") in ("ack", "error"), 15)
+        row = {
+            "i": i,
+            "msg_id": msg_id,
+            "rx_revision": rx_welcome.get("revision", ""),
+            "tx_revision": tx_welcome.get("revision", ""),
+            "t_send": time.time(),
+        }
+        tx.send(
+            {
+                "type": "send",
+                "msg_id": msg_id,
+                "task_id": task,
+                "kind": "note",
+                "body": "delivery probe %d/%d" % (i + 1, N),
+                "files": [],
+            }
+        )
+        ack = tx.wait(
+            lambda f: f.get("msg_id") == msg_id and f.get("type") in ("ack", "error"),
+            15,
+        )
         if ack and ack.get("type") == "ack":
             row["t_ack"] = ack["_t"]
         live, end = None, time.time() + WAIT
         while live is None and time.time() < end:
-            live = rx.wait(is_msg(msg_id), min(CHECK or WAIT, max(0.05, end - time.time())))
-            if live is None and CHECK and rx_welcome.get("revision") and live_revision() not in ("", rx_welcome.get("revision")):
+            live = rx.wait(
+                is_msg(msg_id), min(CHECK or WAIT, max(0.05, end - time.time()))
+            )
+            if (
+                live is None
+                and CHECK
+                and rx_welcome.get("revision")
+                and live_revision() not in ("", rx_welcome.get("revision"))
+            ):
                 rx.close()  # the WUI's checkRevision: re-dial onto the live revision, then catch up
                 rx, rx_welcome = dial(recv_cookie)
                 rx.send({"type": "subscribe", "task_id": task})
@@ -180,10 +241,19 @@ def main():
             row["t_live"] = row["t_seen"] = live["_t"]
         elif "t_seen" not in row and catch_up(recv_cookie, task, msg_id):
             row["t_seen"] = row["t_caught"] = time.time()
-        m3.log("%s %d rx=%s tx=%s ack=%s live=%s" % (
-            "OK  " if live else "MISS", i + 1, row["rx_revision"] or "?", row["tx_revision"] or "?",
-            "%.3f" % (row["t_ack"] - row["t_send"]) if "t_ack" in row else "-",
-            "%.3f" % (row["t_live"] - row["t_send"]) if "t_live" in row else "never (waited %ss)" % int(WAIT)))
+        m3.log(
+            "%s %d rx=%s tx=%s ack=%s live=%s"
+            % (
+                "OK  " if live else "MISS",
+                i + 1,
+                row["rx_revision"] or "?",
+                row["tx_revision"] or "?",
+                "%.3f" % (row["t_ack"] - row["t_send"]) if "t_ack" in row else "-",
+                "%.3f" % (row["t_live"] - row["t_send"])
+                if "t_live" in row
+                else "never (waited %ss)" % int(WAIT),
+            )
+        )
         rows.append(row)
         save(rows, task)
         if i + 1 < N:

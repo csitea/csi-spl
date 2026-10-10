@@ -2,7 +2,9 @@
 """y4-claude-config.py - the renderer behind y4-claude-config.sh (spec 069 Y4);
 run it through that wrapper: ASSETS HOME DRY FORCE KEY=value...
 """
+
 import hashlib, json, os, re, subprocess, sys, time
+
 
 def box_apply(bs, dry, pick):
     """Set PICK (the 5 fleet keys + marker) in the box user's settings.json
@@ -14,26 +16,37 @@ def box_apply(bs, dry, pick):
         return "%s: the box user has no settings.json: left alone" % bs
     try:
         cur_b = json.loads(raw) if raw.strip() else {}
-        if not isinstance(cur_b, dict) or any(not isinstance(cur_b.get(k, {}), dict) for k in pick if isinstance(pick[k], dict)):
+        if not isinstance(cur_b, dict) or any(
+            not isinstance(cur_b.get(k, {}), dict)
+            for k in pick
+            if isinstance(pick[k], dict)
+        ):
             raise ValueError("not an object where a fleet key goes")
     except ValueError as x:
         return "%s is not valid settings JSON (%s): left alone" % (bs, x)
     new_b = json.loads(raw) if raw.strip() else {}
     for k, v in pick.items():
-        if isinstance(v, dict): new_b.setdefault(k, {}).update(v)
-        else: new_b[k] = v
+        if isinstance(v, dict):
+            new_b.setdefault(k, {}).update(v)
+        else:
+            new_b[k] = v
     if new_b == cur_b:
         return "%s: box user's fleet keys already current" % bs
     if dry == "1":
-        print("would: write %s" % bs); return "%s: would set the box user's fleet keys" % bs
+        print("would: write %s" % bs)
+        return "%s: would set the box user's fleet keys" % bs
     if not os.access(bs, os.W_OK) or not os.access(os.path.dirname(bs), os.W_OK):
-        return "%s: not writable by this user: left alone (run the install as its owner)" % bs
+        return (
+            "%s: not writable by this user: left alone (run the install as its owner)"
+            % bs
+        )
     text = json.dumps(new_b, indent=2, ensure_ascii=False) + "\n"
     json.loads(text)
     open(bs + ".bak-spool-install-box", "w").write(raw)
     st_b = os.stat(bs)
     if st_b.st_uid != os.getuid():
-        with open(bs, "w") as f: f.write(text)  # in place: the owner's file stays the owner's
+        with open(bs, "w") as f:
+            f.write(text)  # in place: the owner's file stays the owner's
     else:
         tmp = bs + ".tmp.%d" % os.getpid()
         open(tmp, "w").write(text)
@@ -41,45 +54,77 @@ def box_apply(bs, dry, pick):
         os.replace(tmp, bs)
     return "%s: box user's fleet keys set, other keys kept" % bs
 
+
 if sys.argv[1:2] == ["--box-file"]:
-    print("spool-install: claude-config: " + box_apply(sys.argv[2], sys.argv[3], json.loads(sys.argv[4])), file=sys.stderr)
+    print(
+        "spool-install: claude-config: "
+        + box_apply(sys.argv[2], sys.argv[3], json.loads(sys.argv[4])),
+        file=sys.stderr,
+    )
     sys.exit(0)
 assets, home, dry, force = sys.argv[1:5]
 vals = dict(a.split("=", 1) for a in sys.argv[5:])
 FRAG = re.compile(r"^(\d{2})-[a-z0-9][a-z0-9-]*\.(md|json)$")
-BEGIN = ("<!-- spool-install: begin claude-md (csi-spl fleet rules; edit "
-         "spool-install/assets/claude/claude-md, not this block) -->\n")
+BEGIN = (
+    "<!-- spool-install: begin claude-md (csi-spl fleet rules; edit "
+    "spool-install/assets/claude/claude-md, not this block) -->\n"
+)
 END = re.compile(r"<!-- spool-install: end claude-md sha256=([0-9a-f]{64}) -->\n?")
-def say(m): print("spool-install: claude-config: " + m, file=sys.stderr)
+
+
+def say(m):
+    print("spool-install: claude-config: " + m, file=sys.stderr)
+
+
 # a dry run never claims a write it did not make (spec 072 A50)
-def did(done, plan): return plan if dry == "1" else done
-def sha(s): return hashlib.sha256(s.encode()).hexdigest()
+def did(done, plan):
+    return plan if dry == "1" else done
+
+
+def sha(s):
+    return hashlib.sha256(s.encode()).hexdigest()
+
+
 def fragments(sub, ext):
     d = os.path.join(assets, sub)
     out = []
     for fn in sorted(os.listdir(d)):
         m = FRAG.match(fn)
         if not m or m.group(2) != ext:
-            sys.exit("spool-install: claude-config: %s/%s is not NN-<slug>.%s" % (d, fn, ext))
-        out.append((m.group(1), fn[:-len(ext) - 1], os.path.join(d, fn)))
+            sys.exit(
+                "spool-install: claude-config: %s/%s is not NN-<slug>.%s" % (d, fn, ext)
+            )
+        out.append((m.group(1), fn[: -len(ext) - 1], os.path.join(d, fn)))
     return out
+
+
 def subst(text, where):
     def one(m):
         k = m.group(1)
         if not vals.get(k):
-            sys.exit("spool-install: claude-config: %s: {{%s}} has no value" % (where, k))
+            sys.exit(
+                "spool-install: claude-config: %s: {{%s}} has no value" % (where, k)
+            )
         return vals[k]
+
     return re.sub(r"\{\{([A-Z_]+)\}\}", one, text)
+
+
 def write(path, text):
     if dry == "1":
-        print("would: write %s" % path); return
+        print("would: write %s" % path)
+        return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp.%d" % os.getpid()
     open(tmp, "w").write(text)
     os.replace(tmp, path)
+
+
 def backup(path, text):
     if dry != "1" and not os.path.exists(path + ".bak-spool-install"):
         open(path + ".bak-spool-install", "w").write(text)
+
+
 def backup_stamped(path, text):
     """--force-skills over a hand edit: the whole old file goes to
     <path>.bak-spool-install-<UTC stamp>, written (exclusive create) BEFORE
@@ -96,7 +141,11 @@ def backup_stamped(path, text):
         with os.fdopen(fd, "w") as f:
             f.write(text)
         return b
-    sys.exit("spool-install: claude-config: %s: no free backup name for %s: nothing replaced" % (path, stamp))
+    sys.exit(
+        "spool-install: claude-config: %s: no free backup name for %s: nothing replaced"
+        % (path, stamp)
+    )
+
 
 # ── CLAUDE.md ────────────────────────────────────────────────────────────────
 frags = fragments("claude-md", "md")
@@ -104,7 +153,8 @@ nums = {n for n, _, _ in frags}
 parts = ""
 for n, slug, p in frags:
     body = subst(open(p).read(), p)
-    if not body.endswith("\n"): body += "\n"
+    if not body.endswith("\n"):
+        body += "\n"
     parts += "<!-- fragment spool-install/%s -->\n%s<!-- /fragment -->\n" % (slug, body)
 block = BEGIN + parts + "<!-- spool-install: end claude-md sha256=%s -->\n" % sha(parts)
 md = os.path.join(home, ".claude", "CLAUDE.md")
@@ -112,58 +162,96 @@ cur = open(md).read() if os.path.exists(md) else ""
 i = cur.find(BEGIN)
 e = END.search(cur, i) if i >= 0 else None
 if i >= 0 and e:
-    head, old, tail = cur[:i], cur[i:e.end()], cur[e.end():]
-    if sha(old[len(BEGIN):e.start() - i]) != e.group(1) and old != block:
+    head, old, tail = cur[:i], cur[i : e.end()], cur[e.end() :]
+    if sha(old[len(BEGIN) : e.start() - i]) != e.group(1) and old != block:
         if force != "1":
-            say("%s: the spool-install block was edited by hand: left alone (--force-skills replaces it)" % md)
+            say(
+                "%s: the spool-install block was edited by hand: left alone (--force-skills replaces it)"
+                % md
+            )
             block = old
         else:
-            say(did("%s: the hand-edited block replaced (--force-skills), the old file kept as %s",
-                    "%s: would replace the hand-edited block (--force-skills), the old file kept as %s")
-                % (md, backup_stamped(md, cur)))
+            say(
+                did(
+                    "%s: the hand-edited block replaced (--force-skills), the old file kept as %s",
+                    "%s: would replace the hand-edited block (--force-skills), the old file kept as %s",
+                )
+                % (md, backup_stamped(md, cur))
+            )
 else:
     head, tail = "", cur
     gen = re.match(r"<!-- generated by [^\n]*-->\n", tail)
-    if gen: head, tail = gen.group(0), tail[gen.end():]
+    if gen:
+        head, tail = gen.group(0), tail[gen.end() :]
 # A fragment an older renderer wrote under one of our NN is ours now.
-LEGACY = re.compile(r"<!-- fragment (?!spool-install/)[a-z]+/(\d{2})-[a-z0-9-]+ -->\n.*?<!-- /fragment -->\n", re.S)
+LEGACY = re.compile(
+    r"<!-- fragment (?!spool-install/)[a-z]+/(\d{2})-[a-z0-9-]+ -->\n.*?<!-- /fragment -->\n",
+    re.S,
+)
+
+
 def take(m):
     if m.group(1) in nums:
         say("%s: took over %s" % (md, m.group(0).split("\n", 1)[0][5:-4]))
         return ""
     return m.group(0)
+
+
 head, tail = LEGACY.sub(take, head), LEGACY.sub(take, tail)
 new = head + block + tail
 if new == cur:
     say("%s: already current" % md)
 else:
-    if cur and i < 0: backup(md, cur)
+    if cur and i < 0:
+        backup(md, cur)
     write(md, new)
-    say(did("%s: %d fleet fragment(s) rendered", "%s: would render %d fleet fragment(s)") % (md, len(frags)))
+    say(
+        did(
+            "%s: %d fleet fragment(s) rendered", "%s: would render %d fleet fragment(s)"
+        )
+        % (md, len(frags))
+    )
+
 
 # ── settings.json ────────────────────────────────────────────────────────────
 def merge(a, b):
     for k, v in b.items():
-        a[k] = merge(a.get(k) if isinstance(a.get(k), dict) else {}, v) if isinstance(v, dict) else v
+        a[k] = (
+            merge(a.get(k) if isinstance(a.get(k), dict) else {}, v)
+            if isinstance(v, dict)
+            else v
+        )
     return a
+
+
 ours = {}
 for n, slug, p in fragments("settings", "json"):
     try:
         merge(ours, json.loads(subst(open(p).read(), p)))
     except json.JSONDecodeError as x:
         sys.exit("spool-install: claude-config: %s: %s" % (p, x))
-merge(ours, {"env": {"SPOOL_INSTALL_SETTINGS": "sha256=" + sha(json.dumps(ours, sort_keys=True))}})
+merge(
+    ours,
+    {
+        "env": {
+            "SPOOL_INSTALL_SETTINGS": "sha256=" + sha(json.dumps(ours, sort_keys=True))
+        }
+    },
+)
 st = os.path.join(home, ".claude", "settings.json")
 raw = open(st).read() if os.path.exists(st) else ""
 try:
     cur_s = json.loads(raw) if raw.strip() else {}
 except json.JSONDecodeError as x:
-    sys.exit("spool-install: claude-config: %s is not valid JSON (%s): left alone" % (st, x))
+    sys.exit(
+        "spool-install: claude-config: %s is not valid JSON (%s): left alone" % (st, x)
+    )
 new_s = merge(json.loads(json.dumps(cur_s)), ours)
 if new_s == cur_s:
     say("%s: already current" % st)
 else:
-    if raw: backup(st, raw)
+    if raw:
+        backup(st, raw)
     write(st, json.dumps(new_s, indent=2, ensure_ascii=False) + "\n")
     say(did("%s: fleet settings merged", "%s: would merge the fleet settings") % st)
 
@@ -173,38 +261,83 @@ else:
 # `sudo -n -u BOX_USER` (SPOOL_INSTALL_SUDO in tests), so every step of it,
 # the backup too, runs as its owner; no sudo -> named, left alone. A missing,
 # unwritable or non-JSON file is named and left alone. Never fatal.
-BOX_KEYS = (("permissions", "defaultMode"), ("permissions", "disableAutoMode"),
-            ("skipDangerousModePermissionPrompt",), ("skillOverrides", "auto-mode-setup"),
-            ("env", "DISABLE_AUTOUPDATER"))
+BOX_KEYS = (
+    ("permissions", "defaultMode"),
+    ("permissions", "disableAutoMode"),
+    ("skipDangerousModePermissionPrompt",),
+    ("skillOverrides", "auto-mode-setup"),
+    ("env", "DISABLE_AUTOUPDATER"),
+)
+
+
 def box_settings(bs):
     if os.path.realpath(bs) == os.path.realpath(st):
-        say("%s: the box user's file is the agent's: done above" % bs); return
+        say("%s: the box user's file is the agent's: done above" % bs)
+        return
     pick = {}
     for path in BOX_KEYS:
         src, dst = ours, pick
         for k in path[:-1]:
             src, dst = src.get(k, {}), dst.setdefault(k, {})
         if path[-1] not in src:
-            sys.exit("spool-install: claude-config: the fleet settings lack %s" % ".".join(path))
+            sys.exit(
+                "spool-install: claude-config: the fleet settings lack %s"
+                % ".".join(path)
+            )
         dst[path[-1]] = src[path[-1]]
-    merge(pick, {"env": {"SPOOL_INSTALL_BOX_SETTINGS": "sha256=" + sha(json.dumps(pick, sort_keys=True))}})
+    merge(
+        pick,
+        {
+            "env": {
+                "SPOOL_INSTALL_BOX_SETTINGS": "sha256="
+                + sha(json.dumps(pick, sort_keys=True))
+            }
+        },
+    )
     try:
         os.stat(bs)
     except PermissionError:
         sudo = vals.get("SUDO") or "sudo"
-        cmd = [sudo, "-n", "-u", vals.get("BOX_USER", ""), sys.executable, os.path.abspath(__file__),
-               "--box-file", bs, dry, json.dumps(pick)]
+        cmd = [
+            sudo,
+            "-n",
+            "-u",
+            vals.get("BOX_USER", ""),
+            sys.executable,
+            os.path.abspath(__file__),
+            "--box-file",
+            bs,
+            dry,
+            json.dumps(pick),
+        ]
         try:
-            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            r = subprocess.run(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
         except OSError:
             r = None
         if r is None or r.returncode != 0:
-            say("%s: not reachable by this user (a home closed to it) and no sudo -n -u %s: left alone"
-                % (bs, vals.get("BOX_USER", ""))); return
-        sys.stdout.write(r.stdout); sys.stderr.write(r.stderr.replace(
-            "spool-install: claude-config: ", "spool-install: claude-config: (as %s) " % vals.get("BOX_USER", "")))
+            say(
+                "%s: not reachable by this user (a home closed to it) and no sudo -n -u %s: left alone"
+                % (bs, vals.get("BOX_USER", ""))
+            )
+            return
+        sys.stdout.write(r.stdout)
+        sys.stderr.write(
+            r.stderr.replace(
+                "spool-install: claude-config: ",
+                "spool-install: claude-config: (as %s) " % vals.get("BOX_USER", ""),
+            )
+        )
         return
     except FileNotFoundError:
         pass
     say(box_apply(bs, dry, pick))
-if vals.get("BOX_SETTINGS"): box_settings(vals["BOX_SETTINGS"])
+
+
+if vals.get("BOX_SETTINGS"):
+    box_settings(vals["BOX_SETTINGS"])

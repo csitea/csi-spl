@@ -14,6 +14,7 @@ create the channel first; 409 channel_exists is fine).
 Prints one JSON verdict; exit 0 = every agent seated, 1 = one was refused,
 2 = could not sign in. The password and cookie are never printed.
 """
+
 import json
 import os
 import sys
@@ -57,12 +58,19 @@ def err(out):
 
 
 def main():
-    tenant, ch, box = os.environ["SEAT_TENANT"], os.environ["SEAT_CHANNEL"], os.environ["SEAT_BOX"]
+    tenant, ch, box = (
+        os.environ["SEAT_TENANT"],
+        os.environ["SEAT_CHANNEL"],
+        os.environ["SEAT_BOX"],
+    )
     agents = os.environ.get("SEAT_AGENTS", "").split()
     with open(os.environ["SEAT_PW_FILE"]) as f:
         pw = f.read().strip()
-    st, hdrs, out = http("POST", API + "/api/v1/auth/login",
-                         {"email": os.environ["SEAT_EMAIL"], "password": pw, "tenant": tenant})
+    st, hdrs, out = http(
+        "POST",
+        API + "/api/v1/auth/login",
+        {"email": os.environ["SEAT_EMAIL"], "password": pw, "tenant": tenant},
+    )
     cookie = session_cookie(hdrs) if st == 200 else ""
     if not cookie:
         print(json.dumps({"step": "login", "status": st, "error": err(out)}))
@@ -76,7 +84,12 @@ def main():
             print(json.dumps(v, sort_keys=True))
             return 1
     for a in agents:
-        st, _, out = http("POST", f"{API}/v1/channels/{ch}/agents", {"id": a, "box": box}, cookie=cookie)
+        st, _, out = http(
+            "POST",
+            f"{API}/v1/channels/{ch}/agents",
+            {"id": a, "box": box},
+            cookie=cookie,
+        )
         v["agents"][a] = {"status": st, "error": err(out)}
         v["ok"] = v["ok"] and st == 201
     print(json.dumps(v, sort_keys=True))

@@ -18,6 +18,7 @@ Examples:
   splice_locales.py --dir /tmp/i18n --codes es,fi,sv
   splice_locales.py --dir /tmp/i18n --delta --codes es,fi
 """
+
 from __future__ import annotations
 
 import argparse
@@ -76,11 +77,7 @@ def assert_leaves(d: dict, label: str) -> dict:
     flat = flatten(d)
     if not flat:
         die(f"{label}: no leaf keys")
-    bad = [
-        k
-        for k, v in flat.items()
-        if not (isinstance(v, str) and v.strip())
-    ]
+    bad = [k for k, v in flat.items() if not (isinstance(v, str) and v.strip())]
     if bad:
         die(f"empty or non-string value in {label}: {', '.join(bad[:20])}")
     return flat

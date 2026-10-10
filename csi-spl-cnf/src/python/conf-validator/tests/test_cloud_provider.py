@@ -14,21 +14,30 @@ ALL_ENV = Path(__file__).resolve().parents[4] / "csi-spl" / "all.env.yaml"
 
 
 def _all_env(**cloud):
-    return {"env": {
-        "dns": {"BASE_DOMAIN": "example.com"},
-        "cloud": cloud,
-        "hub": {}, "auth": {}, "mail": {}, "box": {},
-        "i18n": {"default_locale": "en", "locales": ["en"]},
-    }}
+    return {
+        "env": {
+            "dns": {"BASE_DOMAIN": "example.com"},
+            "cloud": cloud,
+            "hub": {},
+            "auth": {},
+            "mail": {},
+            "box": {},
+            "i18n": {"default_locale": "en", "locales": ["en"]},
+        }
+    }
 
 
 class CloudProviderTest(unittest.TestCase):
     def test_all_env_yaml_says_gcp(self):
-        self.assertEqual(AllEnv.parse_raw(ALL_ENV.read_text()).env.cloud.provider, "gcp")
+        self.assertEqual(
+            AllEnv.parse_raw(ALL_ENV.read_text()).env.cloud.provider, "gcp"
+        )
 
     def test_each_known_provider_is_accepted(self):
         for p in ("gcp", "none", "aws"):
-            self.assertEqual(AllEnv.parse_obj(_all_env(provider=p)).env.cloud.provider, p)
+            self.assertEqual(
+                AllEnv.parse_obj(_all_env(provider=p)).env.cloud.provider, p
+            )
             self.assertEqual(EnvCloud(provider=p).provider, p)
 
     def test_azure_is_rejected(self):

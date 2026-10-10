@@ -48,6 +48,7 @@ environment still carries the old one.
 A record outlives its process: alive turns false and session_id / worktree
 stay, so a restore can start that session again under its own id.
 """
+
 import argparse
 import hashlib
 import subprocess
@@ -74,9 +75,26 @@ AGENT_ID = r"(?:[acgmq]-[0-9]{3}|(?:CLE|GRK|AGY|QWN)-[0-9]+)"
 ID_RE = re.compile(r"^" + AGENT_ID + r"$")
 NAME_ID_RE = re.compile(r"(?<![A-Za-z0-9])(" + AGENT_ID + r")(?![0-9])")
 BADGES = (">", "?", "!")
-VOLATILE = ("updated_at",)          # never part of the hash, never a reason to rewrite
-FIELDS = ("v", "id", "kind", "session_id", "session_name", "worktree", "title", "model", "permission_mode",
-          "user", "pid", "proc_start", "tmux_session", "window_id", "pane_id", "alive", "updated_at")
+VOLATILE = ("updated_at",)  # never part of the hash, never a reason to rewrite
+FIELDS = (
+    "v",
+    "id",
+    "kind",
+    "session_id",
+    "session_name",
+    "worktree",
+    "title",
+    "model",
+    "permission_mode",
+    "user",
+    "pid",
+    "proc_start",
+    "tmux_session",
+    "window_id",
+    "pane_id",
+    "alive",
+    "updated_at",
+)
 
 
 # specs/061 FR-011: a renamed agent keeps its legacy id in its process
@@ -102,8 +120,12 @@ def load_renamed(agents_dir):
         with open(os.path.join(root, "agent-id-aliases.tsv")) as fh:
             for line in fh:
                 cols = line.rstrip("\n").split("\t")
-                if len(cols) >= 2 and ID_RE.match(cols[0]) and ID_RE.match(cols[1]) \
-                        and os.path.islink(os.path.join(root, cols[0])):
+                if (
+                    len(cols) >= 2
+                    and ID_RE.match(cols[0])
+                    and ID_RE.match(cols[1])
+                    and os.path.islink(os.path.join(root, cols[0]))
+                ):
                     out[cols[0]] = cols[1]
     except OSError:
         pass
@@ -121,7 +143,10 @@ class Proc:
         # to us. Ask that user for that one file (sudo -n -u <owner>, least
         # privilege, never root), only on a permission error, only on the real
         # /proc. AI_OWNER_HOP=0 turns it off.
-        self.hop = os.environ.get("AI_OWNER_HOP", "1") != "0" and os.path.realpath(root) == "/proc"
+        self.hop = (
+            os.environ.get("AI_OWNER_HOP", "1") != "0"
+            and os.path.realpath(root) == "/proc"
+        )
 
     def as_owner(self, pid, argv):
         """stdout of ARGV run as the user PID runs as (b"" on any failure)."""
@@ -131,8 +156,12 @@ class Proc:
         if uid is None or uid == os.getuid():
             return b""
         try:
-            r = subprocess.run(["sudo", "-n", "-u", user_of(uid)] + argv, stdout=subprocess.PIPE,
-                               stderr=subprocess.DEVNULL, timeout=5)
+            r = subprocess.run(
+                ["sudo", "-n", "-u", user_of(uid)] + argv,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            )
             return r.stdout if r.returncode == 0 else b""
         except (OSError, subprocess.SubprocessError):
             return b""
@@ -159,7 +188,11 @@ class Proc:
             return ""
 
     def argv(self, pid):
-        return [a.decode("utf-8", "replace") for a in self.read(pid, "cmdline", True).split(b"\0") if a]
+        return [
+            a.decode("utf-8", "replace")
+            for a in self.read(pid, "cmdline", True).split(b"\0")
+            if a
+        ]
 
     def environ(self, pid):
         env = {}
@@ -173,7 +206,7 @@ class Proc:
         """(ppid, start) from /proc/<pid>/stat, parsed past the comm."""
         s = self.read(pid, "stat")
         try:
-            rest = s[s.rindex(")") + 2:].split()
+            rest = s[s.rindex(")") + 2 :].split()
             return rest[1], rest[19]
         except (ValueError, IndexError):
             return "", ""
@@ -192,7 +225,11 @@ class Proc:
         try:
             return os.readlink(path)
         except PermissionError:
-            return self.as_owner(pid, ["readlink", path]).decode("utf-8", "replace").strip()
+            return (
+                self.as_owner(pid, ["readlink", path])
+                .decode("utf-8", "replace")
+                .strip()
+            )
         except OSError:
             return ""
 
@@ -252,7 +289,12 @@ def claude_session(proc, pid, env, start):
     the session's title (--name, /rename)."""
     for h in homes(proc, pid, env):
         try:
-            d = json.loads(proc.read_file(pid, os.path.join(h, ".claude", "sessions", "%s.json" % pid)) or "null")
+            d = json.loads(
+                proc.read_file(
+                    pid, os.path.join(h, ".claude", "sessions", "%s.json" % pid)
+                )
+                or "null"
+            )
         except ValueError:
             continue
         if not isinstance(d, dict):
@@ -261,23 +303,29 @@ def claude_session(proc, pid, env, start):
         if want and want != start:
             continue
         if d.get("sessionId"):
-            return str(d["sessionId"]), str(d.get("cwd", "") or ""), str(d.get("name", "") or "")
+            return (
+                str(d["sessionId"]),
+                str(d.get("cwd", "") or ""),
+                str(d.get("name", "") or ""),
+            )
     return "", "", ""
 
 
 # "<ID>@<box>" at the head of a name: the box is display (specs/058).
-AT_BOX = re.compile(r"^((?:[acgmq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+))@[a-z0-9][a-z0-9-]{0,31}(?= |$)")
+AT_BOX = re.compile(
+    r"^((?:[acgmq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+))@[a-z0-9][a-z0-9-]{0,31}(?= |$)"
+)
 
 
 def strip_name(name):
     """'tag: CLE-07 > some title' -> ('CLE-07', 'some title'); no id -> ('', name)."""
     n = name
-    m = re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*: (.*)$", n)   # the box tag (display only)
+    m = re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*: (.*)$", n)  # the box tag (display only)
     if m:
         n = m.group(1)
-    if n[:2] in ("> ", "? ", "! "):                          # a badge an older writer put first
+    if n[:2] in ("> ", "? ", "! "):  # a badge an older writer put first
         n = n[2:]
-    n = AT_BOX.sub(r"\1", n)                                 # "CLE-07@sat" (specs/058)
+    n = AT_BOX.sub(r"\1", n)  # "CLE-07@sat" (specs/058)
     m = re.match(r"^(" + AGENT_ID + r")(?: (.*))?$", n)
     if not m:
         return "", name
@@ -294,7 +342,15 @@ def read_panes(stream):
     for line in stream:
         f = line.rstrip("\n").split("\t")
         if len(f) >= 5 and f[3].isdigit():
-            panes.append({"session": f[0], "window_id": f[1], "pane_id": f[2], "pane_pid": f[3], "name": f[4]})
+            panes.append(
+                {
+                    "session": f[0],
+                    "window_id": f[1],
+                    "pane_id": f[2],
+                    "pane_pid": f[3],
+                    "name": f[4],
+                }
+            )
     return panes
 
 
@@ -326,11 +382,23 @@ def facts(proc, panes):
         argv, env = proc.argv(pid), proc.environ(pid)
         aid = renamed(env.get("SPOOL_AGENT_ID", "") or env.get("MCP_BOT_AGENT_ID", ""))
         if not ID_RE.match(aid):
-            skipped.append((pid, kind, "its environment carries no agent id (unreadable, or not a fleet agent)"))
+            skipped.append(
+                (
+                    pid,
+                    kind,
+                    "its environment carries no agent id (unreadable, or not a fleet agent)",
+                )
+            )
             continue
         proot = env.get("SPOOL_ROOT", "")
         if MAP_ROOT and proot and os.path.realpath(proot) != os.path.realpath(MAP_ROOT):
-            skipped.append((pid, kind, "%s belongs to spool root %s, not %s" % (aid, proot, MAP_ROOT)))
+            skipped.append(
+                (
+                    pid,
+                    kind,
+                    "%s belongs to spool root %s, not %s" % (aid, proot, MAP_ROOT),
+                )
+            )
             continue
         if env.get("SPOOL_TEST") == "1" and os.environ.get("SPOOL_TEST") != "1":
             skipped.append((pid, kind, "%s is a test's process (SPOOL_TEST=1)" % aid))
@@ -339,7 +407,11 @@ def facts(proc, panes):
         if kind == "claude":
             sid, cwd, sname = claude_session(proc, pid, env, start)
         if not sid:
-            sid = flag(argv, "--session-id") or flag(argv, "--resume") or flag(argv, "--conversation")
+            sid = (
+                flag(argv, "--session-id")
+                or flag(argv, "--resume")
+                or flag(argv, "--conversation")
+            )
         cwd = cwd or proc.cwd(pid)
         pane, p, seen = None, pid, set()
         while p and p not in seen and p != "0":
@@ -348,17 +420,27 @@ def facts(proc, panes):
                 pane = by_pid[p]
                 break
             p = parents.get(p, "")
-        perm = flag(argv, "--permission-mode") or ("bypassPermissions" if "--dangerously-skip-permissions" in argv else "")
-        out.append({
-            "id": aid, "kind": kind, "session_id": sid or None, "worktree": cwd or None,
-            "model": flag(argv, "--model") or None, "permission_mode": perm or None,
-            "user": user_of(proc.uid(pid)), "pid": int(pid), "proc_start": start,
-            "tmux_session": pane["session"] if pane else None,
-            "window_id": pane["window_id"] if pane else None,
-            "pane_id": pane["pane_id"] if pane else None,
-            "window_name": pane["name"] if pane else None,
-            "session_name": sname or None,
-        })
+        perm = flag(argv, "--permission-mode") or (
+            "bypassPermissions" if "--dangerously-skip-permissions" in argv else ""
+        )
+        out.append(
+            {
+                "id": aid,
+                "kind": kind,
+                "session_id": sid or None,
+                "worktree": cwd or None,
+                "model": flag(argv, "--model") or None,
+                "permission_mode": perm or None,
+                "user": user_of(proc.uid(pid)),
+                "pid": int(pid),
+                "proc_start": start,
+                "tmux_session": pane["session"] if pane else None,
+                "window_id": pane["window_id"] if pane else None,
+                "pane_id": pane["pane_id"] if pane else None,
+                "window_name": pane["name"] if pane else None,
+                "session_name": sname or None,
+            }
+        )
     return out, skipped
 
 
@@ -376,13 +458,21 @@ def load(d):
                 r = json.load(fh)
         except (OSError, ValueError):
             continue
-        if isinstance(r, dict) and ID_RE.match(str(r.get("id", ""))) and n == r["id"] + ".json":
+        if (
+            isinstance(r, dict)
+            and ID_RE.match(str(r.get("id", "")))
+            and n == r["id"] + ".json"
+        ):
             recs[r["id"]] = r
     return recs
 
 
 def canon(r):
-    return json.dumps({k: r.get(k) for k in FIELDS if k not in VOLATILE}, sort_keys=True, separators=(",", ":"))
+    return json.dumps(
+        {k: r.get(k) for k in FIELDS if k not in VOLATILE},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 def map_hash(recs):
@@ -421,7 +511,9 @@ def merge(recs, live):
     per_id = {}
     for f in live:
         per_id.setdefault(f["id"], []).append(f)
-    conflicts = {i: sorted(x["pid"] for x in fs) for i, fs in per_id.items() if len(fs) > 1}
+    conflicts = {
+        i: sorted(x["pid"] for x in fs) for i, fs in per_id.items() if len(fs) > 1
+    }
     new, changes = {}, []
     for i in sorted(set(recs) | set(per_id)):
         old = recs.get(i)
@@ -441,16 +533,42 @@ def merge(recs, live):
             # ... only when that session name CHANGED since the last record:
             # a title set by riname (set-title) is not undone on every pass by
             # a session name nobody touched since.
-            if f.get("session_name") and f["session_name"] != (old or {}).get("session_name"):
+            if f.get("session_name") and f["session_name"] != (old or {}).get(
+                "session_name"
+            ):
                 nid, t = strip_name(f["session_name"])
-                t = t if nid else re.sub(r"^[A-Za-z0-9][A-Za-z0-9._-]*: ", "", f["session_name"]).strip()
+                t = (
+                    t
+                    if nid
+                    else re.sub(
+                        r"^[A-Za-z0-9][A-Za-z0-9._-]*: ", "", f["session_name"]
+                    ).strip()
+                )
                 if t:
                     title = t
             if title is None:
                 nid, t = strip_name(f.get("window_name") or "")
                 title = t if nid == i else ""
-            r.update({k: f[k] for k in ("id", "kind", "session_id", "session_name", "worktree", "model", "permission_mode",
-                                         "user", "pid", "proc_start", "tmux_session", "window_id", "pane_id")})
+            r.update(
+                {
+                    k: f[k]
+                    for k in (
+                        "id",
+                        "kind",
+                        "session_id",
+                        "session_name",
+                        "worktree",
+                        "model",
+                        "permission_mode",
+                        "user",
+                        "pid",
+                        "proc_start",
+                        "tmux_session",
+                        "window_id",
+                        "pane_id",
+                    )
+                }
+            )
             r["title"] = title
             r["alive"] = True
         else:
@@ -458,7 +576,11 @@ def merge(recs, live):
             r["alive"] = False
         r["v"] = 1
         if old is None or canon(old) != canon(r):
-            diff = [k for k in FIELDS if k not in VOLATILE and (old or {}).get(k) != r.get(k)]
+            diff = [
+                k
+                for k in FIELDS
+                if k not in VOLATILE and (old or {}).get(k) != r.get(k)
+            ]
             r["updated_at"] = now_utc()
             changes.append((i, diff))
         new[i] = r
@@ -473,17 +595,38 @@ def cmd_record(args, proc):
     for pid, kind, why in skipped:
         print("SKIP pid %s (%s): %s" % (pid, kind, why))
     for i, pids in sorted(conflicts.items()):
-        print("CONFLICT %s: carried by %d live processes (pids %s) - not recorded" % (i, len(pids), " ".join(map(str, pids))))
+        print(
+            "CONFLICT %s: carried by %d live processes (pids %s) - not recorded"
+            % (i, len(pids), " ".join(map(str, pids)))
+        )
     for i, diff in changes:
         print("%s %s: %s" % (verb, i, ", ".join(diff) if diff else "new"))
     if args.apply:
         os.makedirs(args.dir, exist_ok=True)
         for i, _ in changes:
-            write_json(os.path.join(args.dir, i + ".json"), {k: new[i].get(k) for k in FIELDS})
-        write_json(os.path.join(args.dir, "index.json"),
-                   {"v": 1, "hash": map_hash(load(args.dir)), "records": len(new), "reconciled_at": now_utc()})
-    print("%s: %d live agent(s), %d record(s), %d change(s), %d conflict(s), %d skipped"
-          % ("record" if args.apply else "record (dry run)", len(live), len(new), len(changes), len(conflicts), len(skipped)))
+            write_json(
+                os.path.join(args.dir, i + ".json"), {k: new[i].get(k) for k in FIELDS}
+            )
+        write_json(
+            os.path.join(args.dir, "index.json"),
+            {
+                "v": 1,
+                "hash": map_hash(load(args.dir)),
+                "records": len(new),
+                "reconciled_at": now_utc(),
+            },
+        )
+    print(
+        "%s: %d live agent(s), %d record(s), %d change(s), %d conflict(s), %d skipped"
+        % (
+            "record" if args.apply else "record (dry run)",
+            len(live),
+            len(new),
+            len(changes),
+            len(conflicts),
+            len(skipped),
+        )
+    )
     return 0
 
 
@@ -517,10 +660,20 @@ def cmd_check(args, proc):
         if f and not f.get("pane_id"):
             why.append("in no tmux pane")
         drift += 1 if why else 0
-        rows.append((i, str((f or r or {}).get("pid") or "-"), (f or {}).get("pane_id") or (r or {}).get("pane_id") or "-",
-                     ((f or {}).get("session_id") or (r or {}).get("session_id") or "-")[:8],
-                     "alive" if f else ("gone" if r else "-"), "DRIFT: " + "; ".join(why) if why else "ok"))
-    print("%-10s %-8s %-6s %-9s %-6s %s" % ("ID", "PID", "PANE", "SESSION", "STATE", "VERDICT"))
+        rows.append(
+            (
+                i,
+                str((f or r or {}).get("pid") or "-"),
+                (f or {}).get("pane_id") or (r or {}).get("pane_id") or "-",
+                ((f or {}).get("session_id") or (r or {}).get("session_id") or "-")[:8],
+                "alive" if f else ("gone" if r else "-"),
+                "DRIFT: " + "; ".join(why) if why else "ok",
+            )
+        )
+    print(
+        "%-10s %-8s %-6s %-9s %-6s %s"
+        % ("ID", "PID", "PANE", "SESSION", "STATE", "VERDICT")
+    )
     for row in rows:
         print("%-10s %-8s %-6s %-9s %-6s %s" % row)
     for pid, kind, why in skipped:
@@ -532,9 +685,15 @@ def cmd_check(args, proc):
     except (OSError, ValueError):
         pass
     if recs and idx.get("hash") != map_hash(recs):
-        print("DRIFT: index.json hash %s != records %s (a record changed outside record)" % (idx.get("hash"), map_hash(recs)))
+        print(
+            "DRIFT: index.json hash %s != records %s (a record changed outside record)"
+            % (idx.get("hash"), map_hash(recs))
+        )
         drift += 1
-    print("check: %d agent(s), %d drift(s), map %s, last record %s" % (len(rows), drift, map_hash(recs), idx.get("reconciled_at", "never")))
+    print(
+        "check: %d agent(s), %d drift(s), map %s, last record %s"
+        % (len(rows), drift, map_hash(recs), idx.get("reconciled_at", "never"))
+    )
     return 1 if drift else 0
 
 
@@ -566,10 +725,19 @@ def cmd_reconcile(args, proc):
     if args.apply:
         os.makedirs(args.dir, exist_ok=True)
         for i, _ in changes:
-            write_json(os.path.join(args.dir, i + ".json"), {k: new[i].get(k) for k in FIELDS})
+            write_json(
+                os.path.join(args.dir, i + ".json"), {k: new[i].get(k) for k in FIELDS}
+            )
         if changes or not os.path.exists(os.path.join(args.dir, "index.json")):
-            write_json(os.path.join(args.dir, "index.json"),
-                       {"v": 1, "hash": map_hash(load(args.dir)), "records": len(new), "reconciled_at": now_utc()})
+            write_json(
+                os.path.join(args.dir, "index.json"),
+                {
+                    "v": 1,
+                    "hash": map_hash(load(args.dir)),
+                    "records": len(new),
+                    "reconciled_at": now_utc(),
+                },
+            )
     renames = 0
     for f in sorted(live, key=lambda x: x["id"]):
         if f["id"] in conflicts or not f.get("pane_id") or f.get("window_name") is None:
@@ -577,14 +745,24 @@ def cmd_reconcile(args, proc):
         r = new.get(f["id"]) or {}
         cur = f["window_name"]
         nid, _ = strip_name(cur)
-        want = want_name(args.tag, f["id"], badge_of(cur) if nid == f["id"] else "", r.get("title") or "")
+        want = want_name(
+            args.tag,
+            f["id"],
+            badge_of(cur) if nid == f["id"] else "",
+            r.get("title") or "",
+        )
         if cur != want:
             print("RENAME\t%s\t%s\t%s" % (f["pane_id"], cur, want))
             renames += 1
     for i, pids in sorted(conflicts.items()):
-        print("CONFLICT %s: carried by %d live processes (pids %s) - its windows left alone" % (i, len(pids), " ".join(map(str, pids))))
-    print("reconcile: %d live agent(s), %d record change(s), %d window(s) to rename, %d conflict(s), %d skipped"
-          % (len(live), len(changes), renames, len(conflicts), len(skipped)))
+        print(
+            "CONFLICT %s: carried by %d live processes (pids %s) - its windows left alone"
+            % (i, len(pids), " ".join(map(str, pids)))
+        )
+    print(
+        "reconcile: %d live agent(s), %d record change(s), %d window(s) to rename, %d conflict(s), %d skipped"
+        % (len(live), len(changes), renames, len(conflicts), len(skipped))
+    )
     return 0
 
 
@@ -613,11 +791,13 @@ def transcript_owner(path, read):
 
 
 def user_home(user):
-    for kv in os.environ.get("AI_TRANSCRIPT_HOME_MAP", "").split():   # test seam: "user:dir ..."
+    for kv in os.environ.get(
+        "AI_TRANSCRIPT_HOME_MAP", ""
+    ).split():  # test seam: "user:dir ..."
         u, _, d = kv.partition(":")
         if u == user:
             return d
-    if os.environ.get("AI_TRANSCRIPT_HOME"):          # test seam
+    if os.environ.get("AI_TRANSCRIPT_HOME"):  # test seam
         return os.environ["AI_TRANSCRIPT_HOME"]
     try:
         return pwd.getpwnam(user).pw_dir
@@ -627,6 +807,7 @@ def user_home(user):
 
 def read_as(user):
     """A reader for files in USER's home (0700): directly, else as that user."""
+
     def rd(path):
         try:
             with open(path) as fh:
@@ -635,13 +816,18 @@ def read_as(user):
             if os.environ.get("AI_OWNER_HOP", "1") == "0":
                 return ""
             try:
-                r = subprocess.run(["sudo", "-n", "-u", user, "cat", path], stdout=subprocess.PIPE,
-                                   stderr=subprocess.DEVNULL, timeout=5)
+                r = subprocess.run(
+                    ["sudo", "-n", "-u", user, "cat", path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                )
                 return r.stdout.decode("utf-8", "replace") if r.returncode == 0 else ""
             except (OSError, subprocess.SubprocessError):
                 return ""
         except OSError:
             return ""
+
     return rd
 
 
@@ -651,8 +837,15 @@ def exists_as(user, path):
     if os.environ.get("AI_OWNER_HOP", "1") == "0":
         return False
     try:
-        return subprocess.run(["sudo", "-n", "-u", user, "test", "-e", path], stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, timeout=5).returncode == 0
+        return (
+            subprocess.run(
+                ["sudo", "-n", "-u", user, "test", "-e", path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            ).returncode
+            == 0
+        )
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -669,7 +862,7 @@ def cmd_restore_plan(args, proc):
     names that user and the caller copies it across first; '-' = no copy."""
     live, _ = facts(proc, read_panes(sys.stdin))
     live_ids = {f["id"] for f in live}
-    running = set()                       # every session id a live CLI holds
+    running = set()  # every session id a live CLI holds
     for f in live:
         if f.get("session_id"):
             running.add(f["session_id"])
@@ -695,8 +888,14 @@ def cmd_restore_plan(args, proc):
         # - inside [since, until]. An agent that exited on its own before the
         # restart, or long after it, is not brought back.
         went = r.get("updated_at") or ""
-        if want is None and not (r.get("alive") or (args.since <= went and (not args.until or went <= args.until))):
-            print("SKIP\t%s\tnot killed by the restart (went dead at %s, outside %s .. %s)" % (i, went or "?", args.since, args.until or "now"))
+        if want is None and not (
+            r.get("alive")
+            or (args.since <= went and (not args.until or went <= args.until))
+        ):
+            print(
+                "SKIP\t%s\tnot killed by the restart (went dead at %s, outside %s .. %s)"
+                % (i, went or "?", args.since, args.until or "now")
+            )
             continue
         cands.append(r)
     sid_n = {}
@@ -704,7 +903,13 @@ def cmd_restore_plan(args, proc):
         if r.get("session_id"):
             sid_n[r["session_id"]] = sid_n.get(r["session_id"], 0) + 1
     for r in cands:
-        i, sid, wt, kind, ran = r["id"], r.get("session_id"), r.get("worktree"), r.get("kind") or "claude", r.get("user") or ""
+        i, sid, wt, kind, ran = (
+            r["id"],
+            r.get("session_id"),
+            r.get("worktree"),
+            r.get("kind") or "claude",
+            r.get("user") or "",
+        )
         user = args.agent_user or ran
         why, copy_from = "", ""
         if not sid and kind == "mistral":
@@ -712,7 +917,10 @@ def cmd_restore_plan(args, proc):
             # (restore-mistral.sh plans `vibe --continue` in the worktree).
             sid = "-"
             if not wt or not os.path.isdir(wt):
-                why = "its worktree %s is gone (a resume elsewhere would start a fresh conversation)" % wt
+                why = (
+                    "its worktree %s is gone (a resume elsewhere would start a fresh conversation)"
+                    % wt
+                )
         elif not sid:
             why = "its session is unknown; not guessing one"
         elif sid_n.get(sid, 0) > 1:
@@ -720,17 +928,25 @@ def cmd_restore_plan(args, proc):
         elif sid in running:
             why = "session %s is already running in another process" % sid
         elif not wt or not os.path.isdir(wt):
-            why = "its worktree %s is gone (a resume elsewhere would start a fresh conversation)" % wt
+            why = (
+                "its worktree %s is gone (a resume elsewhere would start a fresh conversation)"
+                % wt
+            )
         elif kind == "claude":
-            rel = os.path.join(".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", wt), sid + ".jsonl")
-            at = ""                       # the user whose home holds the transcript
+            rel = os.path.join(
+                ".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", wt), sid + ".jsonl"
+            )
+            at = ""  # the user whose home holds the transcript
             for u in [user] + ([ran] if ran and ran != user else []):
                 home = user_home(u)
                 if home and exists_as(u, os.path.join(home, rel)):
                     at = u
                     break
             if not at:
-                why = "the transcript of %s is not under the project dir of %s" % (sid, wt)
+                why = "the transcript of %s is not under the project dir of %s" % (
+                    sid,
+                    wt,
+                )
             else:
                 copy_from = at if at != user else ""
                 own = transcript_owner(os.path.join(user_home(at), rel), read_as(at))
@@ -739,9 +955,19 @@ def cmd_restore_plan(args, proc):
         if why:
             print("REFUSE\t%s\t%s" % (i, why))
         else:
-            print("RESTORE\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (i, kind, user or "-", sid, wt,
-                                                           r.get("tmux_session") or "-", r.get("title") or "-",
-                                                           copy_from or "-"))
+            print(
+                "RESTORE\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s"
+                % (
+                    i,
+                    kind,
+                    user or "-",
+                    sid,
+                    wt,
+                    r.get("tmux_session") or "-",
+                    r.get("title") or "-",
+                    copy_from or "-",
+                )
+            )
     return 0
 
 
@@ -756,10 +982,19 @@ def cmd_set_title(args, proc):
     if r.get("title") != title:
         r["title"] = title
         r["updated_at"] = now_utc()
-        write_json(os.path.join(args.dir, args.id + ".json"), {k: r.get(k) for k in FIELDS})
+        write_json(
+            os.path.join(args.dir, args.id + ".json"), {k: r.get(k) for k in FIELDS}
+        )
         recs[args.id] = r
-        write_json(os.path.join(args.dir, "index.json"),
-                   {"v": 1, "hash": map_hash(recs), "records": len(recs), "reconciled_at": now_utc()})
+        write_json(
+            os.path.join(args.dir, "index.json"),
+            {
+                "v": 1,
+                "hash": map_hash(recs),
+                "records": len(recs),
+                "reconciled_at": now_utc(),
+            },
+        )
     print("set-title: %s -> %s" % (args.id, title))
     return 0
 
@@ -777,10 +1012,20 @@ def cmd_adopt(args, proc):
     new, changes, _ = merge({args.id: recs[args.id]} if args.id in recs else {}, mine)
     if changes:
         os.makedirs(args.dir, exist_ok=True)
-        write_json(os.path.join(args.dir, args.id + ".json"), {k: new[args.id].get(k) for k in FIELDS})
+        write_json(
+            os.path.join(args.dir, args.id + ".json"),
+            {k: new[args.id].get(k) for k in FIELDS},
+        )
         recs[args.id] = new[args.id]
-        write_json(os.path.join(args.dir, "index.json"),
-                   {"v": 1, "hash": map_hash(recs), "records": len(recs), "reconciled_at": now_utc()})
+        write_json(
+            os.path.join(args.dir, "index.json"),
+            {
+                "v": 1,
+                "hash": map_hash(recs),
+                "records": len(recs),
+                "reconciled_at": now_utc(),
+            },
+        )
     print("adopt: %s -> pid %s pane %s" % (args.id, args.pid, mine[0].get("pane_id")))
     return 0
 
@@ -798,8 +1043,15 @@ def cmd_retire(args, proc):
         dst = os.path.join(rdir, "%s.%s.%d.json" % (args.id, args.gen, n))
     os.replace(src, dst)
     recs = load(args.dir)
-    write_json(os.path.join(args.dir, "index.json"),
-               {"v": 1, "hash": map_hash(recs), "records": len(recs), "reconciled_at": now_utc()})
+    write_json(
+        os.path.join(args.dir, "index.json"),
+        {
+            "v": 1,
+            "hash": map_hash(recs),
+            "records": len(recs),
+            "reconciled_at": now_utc(),
+        },
+    )
     print("retire: %s -> %s" % (args.id, dst))
     return 0
 
@@ -821,8 +1073,15 @@ def cmd_rename(args, proc):
     write_json(dst, {k: r.get(k) for k in FIELDS})
     os.remove(src)
     recs = load(args.dir)
-    write_json(os.path.join(args.dir, "index.json"),
-               {"v": 1, "hash": map_hash(recs), "records": len(recs), "reconciled_at": now_utc()})
+    write_json(
+        os.path.join(args.dir, "index.json"),
+        {
+            "v": 1,
+            "hash": map_hash(recs),
+            "records": len(recs),
+            "reconciled_at": now_utc(),
+        },
+    )
     print("rename: %s -> %s" % (args.old, args.new))
     return 0
 
@@ -842,7 +1101,10 @@ def cmd_alive(args, proc):
     if kind not in (kind_of(proc.argv(pid)), kind_of([proc.read(pid, "comm").strip()])):
         return 1
     env = proc.environ(pid)
-    if renamed(env.get("SPOOL_AGENT_ID") or env.get("MCP_BOT_AGENT_ID") or "") != args.id:
+    if (
+        renamed(env.get("SPOOL_AGENT_ID") or env.get("MCP_BOT_AGENT_ID") or "")
+        != args.id
+    ):
         return 1
     print(pid)
     return 0
@@ -886,11 +1148,19 @@ def main():
     # The fleet's test guard (CLE-77923, spool_test_guard): under SPOOL_TEST=1
     # nothing writes the live root's map. SPOOL_LIVE_ROOT is for the guard's
     # own test, which cannot aim at the real root to prove the refusal.
-    writes = args.cmd in ("set-title", "adopt", "rename", "retire") or getattr(args, "apply", False)
+    writes = args.cmd in ("set-title", "adopt", "rename", "retire") or getattr(
+        args, "apply", False
+    )
     live = os.environ.get("SPOOL_LIVE_ROOT") or "/var/spool-hub"
-    if writes and os.environ.get("SPOOL_TEST") == "1" and os.path.realpath(MAP_ROOT) == os.path.realpath(live):
-        sys.stderr.write("agent-identity: REFUSED: SPOOL_TEST=1 and %s is the live spool root's map; "
-                         "a test must give its own SPOOL_ROOT\n" % args.dir)
+    if (
+        writes
+        and os.environ.get("SPOOL_TEST") == "1"
+        and os.path.realpath(MAP_ROOT) == os.path.realpath(live)
+    ):
+        sys.stderr.write(
+            "agent-identity: REFUSED: SPOOL_TEST=1 and %s is the live spool root's map; "
+            "a test must give its own SPOOL_ROOT\n" % args.dir
+        )
         return 96
     proc = Proc(args.proc_root)
     RENAMED.update(load_renamed(args.dir))

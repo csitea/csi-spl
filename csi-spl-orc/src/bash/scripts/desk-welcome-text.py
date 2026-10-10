@@ -19,6 +19,7 @@ A word is a whitespace-separated token, the way a reader counts, so an emoji
 run with no space inside is one word. A name that would push a text over the
 cap is shortened to its first word, then to its first 20 characters.
 """
+
 import argparse
 import hashlib
 import re
@@ -165,7 +166,9 @@ def check():
             if words(text) > MAX_WORDS:
                 print(f"FAIL {loc}[{i}]: {words(text)} words > {MAX_WORDS}")
                 bad += 1
-    print(f"{'OK' if bad == 0 else 'FAIL'} {len(TEXTS)} locales x 3 variants, cap {MAX_WORDS} words")
+    print(
+        f"{'OK' if bad == 0 else 'FAIL'} {len(TEXTS)} locales x 3 variants, cap {MAX_WORDS} words"
+    )
     return 1 if bad else 0
 
 

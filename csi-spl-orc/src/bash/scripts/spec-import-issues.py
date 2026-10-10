@@ -40,10 +40,19 @@ DESC_MAX = 20000
 # One doc part: the description cap less the header, the Source line and the
 # room a <REDACTED> replacement may add.
 DOC_PART_MAX = 18500
-DOC_SUFFIXES = {".md": "", ".sh": "bash", ".py": "python", ".yaml": "yaml", ".yml": "yaml", ".sql": "sql"}
+DOC_SUFFIXES = {
+    ".md": "",
+    ".sh": "bash",
+    ".py": "python",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".sql": "sql",
+}
 DOC_FIRST = ("spec.md", "plan.md")
 DOC_SKIP = {"tasks.md", "cases.tsv"}
-EMAIL = re.compile(r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
+EMAIL = re.compile(
+    r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})"
+)
 PERSONAL_LOCAL = re.compile(r"^[A-Za-z]{2,}[._][A-Za-z]{2,}$")
 # --redact words, set once by main(); scrub() reads them.
 REDACT: list = []
@@ -102,7 +111,12 @@ def scrub(text: str) -> str:
 
     text = EMAIL.sub(mail, text)
     for word in REDACT:
-        text = re.sub(rf"(?<![A-Za-z0-9]){re.escape(word)}(?![A-Za-z0-9])", "<REDACTED>", text, flags=re.I)
+        text = re.sub(
+            rf"(?<![A-Za-z0-9]){re.escape(word)}(?![A-Za-z0-9])",
+            "<REDACTED>",
+            text,
+            flags=re.I,
+        )
     return text
 
 
@@ -122,7 +136,17 @@ def cell_status(cell: str) -> str | None:
     s = re.sub(r"[*_`]", "", cell).strip().lower()
     if not s:
         return None
-    if any(w in s for w in ("superseded", "retired", "dropped", "canceled", "cancelled", "not ours")):
+    if any(
+        w in s
+        for w in (
+            "superseded",
+            "retired",
+            "dropped",
+            "canceled",
+            "cancelled",
+            "not ours",
+        )
+    ):
         return "diss"
     if "partial" in s or "in progress" in s or "in_progress" in s:
         return "wip"
@@ -134,7 +158,9 @@ def cell_status(cell: str) -> str | None:
         or s.startswith("finding")
     ):
         return "done"
-    if any(w in s for w in ("planned", "deferred", "pending", "owner decision", "open")):
+    if any(
+        w in s for w in ("planned", "deferred", "pending", "owner decision", "open")
+    ):
         return "eval"
     return None
 
@@ -185,7 +211,9 @@ def is_bug(sentence: str) -> bool:
 
 
 class Item:
-    def __init__(self, spec, tid, kind, status, sentence, body, source, parent_id, directory=""):
+    def __init__(
+        self, spec, tid, kind, status, sentence, body, source, parent_id, directory=""
+    ):
         self.spec = spec
         self.tid = tid
         self.kind = kind
@@ -194,7 +222,11 @@ class Item:
         if kind == "doc":
             self.labels = ["doc"]
         else:
-            self.labels = ["subtask"] if kind == "subtask" else (["bug"] if is_bug(sentence) else ["task"])
+            self.labels = (
+                ["subtask"]
+                if kind == "subtask"
+                else (["bug"] if is_bug(sentence) else ["task"])
+            )
         self.description = clip_desc(scrub(body), source)
         self.parent_id = parent_id
         self.directory = directory
@@ -256,7 +288,11 @@ def parse_tasks(text: str, spec: str, source: str) -> list:
         if m:
             i = _heading(lines, i, m, spec, source, add)
             continue
-        if ROW.match(line) and i + 1 < n and re.match(r"^\|[\s:|-]+\|\s*$", lines[i + 1]):
+        if (
+            ROW.match(line)
+            and i + 1 < n
+            and re.match(r"^\|[\s:|-]+\|\s*$", lines[i + 1])
+        ):
             i = _table(lines, i, spec, source, add, seen, override_status)
             continue
         i += 1
@@ -290,7 +326,18 @@ def _checklist(lines, i, m, spec, source, add) -> int:
     add(Item(spec, tid, "task", status, sentence, text, source, ""))
     for sid, sbox, srest in subs:
         stext = srest.strip() or sid
-        add(Item(spec, sid, "subtask", explicit_status(stext) or BOX.get(sbox, "eval"), first_sentence(stext), stext, source, tid))
+        add(
+            Item(
+                spec,
+                sid,
+                "subtask",
+                explicit_status(stext) or BOX.get(sbox, "eval"),
+                first_sentence(stext),
+                stext,
+                source,
+                tid,
+            )
+        )
     return i
 
 
@@ -305,7 +352,11 @@ def _heading(lines, i, m, spec, source, add) -> int:
         line = lines[i]
         if CHECK.match(line):
             break
-        if line[:1] == "|" and i + 1 < len(lines) and re.match(r"^\|[\s:|-]+\|\s*$", lines[i + 1]):
+        if (
+            line[:1] == "|"
+            and i + 1 < len(lines)
+            and re.match(r"^\|[\s:|-]+\|\s*$", lines[i + 1])
+        ):
             break
         hm = HEAD.match(line)
         if hm and len(hm.group(1)) <= level:
@@ -327,7 +378,18 @@ def _heading(lines, i, m, spec, source, add) -> int:
     add(Item(spec, tid, "task", status, sentence, text, source, ""))
     for sid, sbox, srest in subs:
         stext = srest.strip() or sid
-        add(Item(spec, sid, "subtask", explicit_status(stext) or BOX.get(sbox, "eval"), first_sentence(stext), stext, source, tid))
+        add(
+            Item(
+                spec,
+                sid,
+                "subtask",
+                explicit_status(stext) or BOX.get(sbox, "eval"),
+                first_sentence(stext),
+                stext,
+                source,
+                tid,
+            )
+        )
     return i
 
 
@@ -336,14 +398,22 @@ def _table(lines, i, spec, source, add, seen, override_status) -> int:
     i += 2
     status_at = next((k for k, c in enumerate(header) if c.lower() == "status"), None)
     title_at = next(
-        (k for k, c in enumerate(header) if k > 0 and c.lower() in ("what", "task", "item", "title", "description")),
+        (
+            k
+            for k, c in enumerate(header)
+            if k > 0 and c.lower() in ("what", "task", "item", "title", "description")
+        ),
         1 if len(header) > 1 else 0,
     )
     while i < len(lines) and ROW.match(lines[i]):
         cells = [c.strip() for c in ROW.match(lines[i]).group(1).split("|")]
         raw_id = re.sub(r"[*_`~]", "", cells[0]).strip() if cells else ""
         if re.fullmatch(ID_RE, raw_id):
-            stat_cell = cells[status_at] if status_at is not None and status_at < len(cells) else ""
+            stat_cell = (
+                cells[status_at]
+                if status_at is not None and status_at < len(cells)
+                else ""
+            )
             status = cell_status(stat_cell)
             if raw_id in seen:
                 if status:
@@ -352,7 +422,18 @@ def _table(lines, i, spec, source, add, seen, override_status) -> int:
                 title_cell = cells[title_at] if title_at < len(cells) else ""
                 sentence = first_sentence(re.sub(r"[*_`]", "", title_cell))
                 body = "| " + " | ".join(cells) + " |"
-                add(Item(spec, raw_id, "task", status or "eval", sentence, body, source, ""))
+                add(
+                    Item(
+                        spec,
+                        raw_id,
+                        "task",
+                        status or "eval",
+                        sentence,
+                        body,
+                        source,
+                        "",
+                    )
+                )
         i += 1
     return i
 
@@ -371,7 +452,18 @@ def parse_cases(text: str, spec: str, source: str) -> list:
             continue
         seen.add(tid)
         body = "\t".join(cells[:7])
-        items.append(Item(spec, tid, "task", CASE.get(status, "eval"), first_sentence(title), body, source, ""))
+        items.append(
+            Item(
+                spec,
+                tid,
+                "task",
+                CASE.get(status, "eval"),
+                first_sentence(title),
+                body,
+                source,
+                "",
+            )
+        )
     return items
 
 
@@ -385,7 +477,12 @@ def _heading_of(directory: Path) -> str:
                 head = line.lstrip("#").strip()
                 # Drop the git-spec boilerplate so the epic title reads clean:
                 # 'Feature Specification: GCP Bootstrap' -> 'GCP Bootstrap'.
-                head = re.sub(r"^(?:Feature Specification|Feature Spec|Spec|Tasks)\s*:\s*", "", head, flags=re.I)
+                head = re.sub(
+                    r"^(?:Feature Specification|Feature Spec|Spec|Tasks)\s*:\s*",
+                    "",
+                    head,
+                    flags=re.I,
+                )
                 return head or _dir_title(directory.name)
     return _dir_title(directory.name)
 
@@ -458,7 +555,9 @@ def parse_docs(directory: Path, spec: str, src_root: str) -> list:
             sentence = f"{name} - {heading}" if heading else name
             text = part.strip("\n") if not lang else f"```{lang}\n{part.rstrip()}\n```"
             body = f"Spec {spec} document `{name}`, migrated from git.\n\n{text}"
-            it = Item(spec, tid, "doc", "done", sentence, body, source, "", directory.name)
+            it = Item(
+                spec, tid, "doc", "done", sentence, body, source, "", directory.name
+            )
             items.append(it)
     return items
 
@@ -467,12 +566,16 @@ def epic_index(spec: str, heading: str, rel_dir: str, docs: list, tasks: int) ->
     """The spec epic's description: where it came from and what is under it."""
     lines = [f"# {heading}", "", f"Spec {spec}, migrated from git: `{rel_dir}/`.", ""]
     if docs:
-        lines.append(f"**Documents** - {len(docs)} `doc` issue(s) under this epic; each holds the full text in its description:")
+        lines.append(
+            f"**Documents** - {len(docs)} `doc` issue(s) under this epic; each holds the full text in its description:"
+        )
         lines.append("")
         lines.extend(f"- {scrub(it.title)}" for it in docs)
         lines.append("")
     if tasks:
-        lines.append(f"**Tasks** - {tasks} issue(s) titled `[{spec} <id>]`, one per tasks.md entry; the status mirrors its checkbox.")
+        lines.append(
+            f"**Tasks** - {tasks} issue(s) titled `[{spec} <id>]`, one per tasks.md entry; the status mirrors its checkbox."
+        )
     else:
         lines.append("**Tasks** - none: this spec has no tasks.md.")
     return clip_desc("\n".join(lines), f"{rel_dir}/")
@@ -480,7 +583,6 @@ def epic_index(spec: str, heading: str, rel_dir: str, docs: list, tasks: int) ->
 
 def _words(text: str) -> set:
     return {w.lower() for w in re.findall(r"[A-Za-z]{4,}", text)}
-
 
 
 def _pinned_epic(directory: Path) -> str:
@@ -530,12 +632,16 @@ def parse_tree(specs: Path, docs: bool = False) -> dict:
             "heading": _heading_of(d),
             "pinned": _pinned_epic(d),
             "parsed": len(found),
-            "t_parsed": sum(1 for it in found if it.tid.startswith("T") and it.kind == "task"),
+            "t_parsed": sum(
+                1 for it in found if it.tid.startswith("T") and it.kind == "task"
+            ),
             "subtasks": sum(1 for it in found if it.kind == "subtask"),
             "docs": len(doc_items),
         }
         if docs:
-            row["epic_description"] = epic_index(spec, row["heading"], f"{src_root}/{d.name}", doc_items, len(found))
+            row["epic_description"] = epic_index(
+                spec, row["heading"], f"{src_root}/{d.name}", doc_items, len(found)
+            )
         out_specs.append(row)
     return {"specs": out_specs, "items": [it.as_dict() for it in items]}
 
@@ -596,7 +702,11 @@ def select_epic_refs(plan: dict, list_doc: dict) -> list:
     issues, _ = _issues_from_list(list_doc)
     for i in issues:
         labels = i.get("labels") or []
-        if "epic" in labels or i.get("kind") in ("epic", "feature") or not i.get("parent"):
+        if (
+            "epic" in labels
+            or i.get("kind") in ("epic", "feature")
+            or not i.get("parent")
+        ):
             take(i.get("title") or "", i.get("key") or "")
     return refs
 
@@ -609,7 +719,9 @@ def missing_epics(plan: dict, list_doc: dict) -> list:
     assigned = _assign_epics(plan, issues)
     out = []
     for row in plan.get("specs", []):
-        if row["dir"] not in assigned and (row.get("parsed", 0) > 0 or row.get("docs", 0) > 0):
+        if row["dir"] not in assigned and (
+            row.get("parsed", 0) > 0 or row.get("docs", 0) > 0
+        ):
             out.append((row["spec"], row.get("heading") or row["dir"]))
     return out
 
@@ -694,7 +806,10 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
     desc_dir.mkdir(parents=True, exist_ok=True)
     ops = []
     known = {}
-    rows = {s["dir"]: dict(s, create=0, update=0, unchanged=0, missing_epic=False, epic="") for s in plan["specs"]}
+    rows = {
+        s["dir"]: dict(s, create=0, update=0, unchanged=0, missing_epic=False, epic="")
+        for s in plan["specs"]
+    }
     missing = []
     # Flag a plan spec that has task rows (or docs) but no 'Spec NNN' epic, in
     # spec order, so the report and SPEC_IMPORT_CREATE_EPIC agree. A spec with
@@ -743,7 +858,9 @@ def reconcile(plan: dict, list_doc: dict, desc_dir: Path) -> dict:
                 changes.append("title")
             if (existing.get("status") or "") != item["status"]:
                 changes.append("status")
-            if (existing.get("description") or "").strip() != item["description"].strip():
+            if (existing.get("description") or "").strip() != item[
+                "description"
+            ].strip():
                 changes.append("description")
             have = set(existing.get("labels") or [])
             if not set(want_labels) <= have:
@@ -874,26 +991,46 @@ def report_md(doc: dict) -> str:
     if doc.get("missing_epics"):
         rows_by_dir = {r.get("dir"): r for r in (doc.get("rows") or [])}
         lines.append("")
-        lines.append("No epic titled 'Spec NNN' for: " + ", ".join(doc["missing_epics"]))
-        lines.append("Create it first (then re-run), or re-run with SPEC_IMPORT_CREATE_EPIC=1:")
+        lines.append(
+            "No epic titled 'Spec NNN' for: " + ", ".join(doc["missing_epics"])
+        )
+        lines.append(
+            "Create it first (then re-run), or re-run with SPEC_IMPORT_CREATE_EPIC=1:"
+        )
         for d in doc["missing_epics"]:
             r = rows_by_dir.get(d, {})
             spec = r.get("spec") or d[:3]
             heading = r.get("heading") or d
-            lines.append(f'- ISSUE_KIND=epic ISSUE_TITLE="Spec {spec} - {heading}" ./run -a do_spl_issue_create')
+            lines.append(
+                f'- ISSUE_KIND=epic ISSUE_TITLE="Spec {spec} - {heading}" ./run -a do_spl_issue_create'
+            )
     lines.append("")
     if doc.get("epic_rule"):
-        lines.append("Hub list carries the epic rule: every filed parent is the spec epic. Subtasks are deferred until a task can be a parent.")
+        lines.append(
+            "Hub list carries the epic rule: every filed parent is the spec epic. Subtasks are deferred until a task can be a parent."
+        )
     else:
-        lines.append("Hub list has no epic rule yet: a task's parent is its spec epic; a subtask's parent is the task issue.")
-    lines.append("Check: issues titled '[NNN T' under each epic equal T parsed. A second run creates 0.")
+        lines.append(
+            "Hub list has no epic rule yet: a task's parent is its spec epic; a subtask's parent is the task issue."
+        )
+    lines.append(
+        "Check: issues titled '[NNN T' under each epic equal T parsed. A second run creates 0."
+    )
     return "\n".join(lines) + "\n"
 
 
 def offline_doc(plan: dict) -> dict:
     rows = []
     for s in plan["specs"]:
-        rows.append({**s, "create": s["parsed"] + s.get("docs", 0), "update": 0, "unchanged": 0, "missing_epic": False})
+        rows.append(
+            {
+                **s,
+                "create": s["parsed"] + s.get("docs", 0),
+                "update": 0,
+                "unchanged": 0,
+                "missing_epic": False,
+            }
+        )
     samples = []
     for item in plan["items"]:
         if item["kind"] == "task":
@@ -976,7 +1113,9 @@ def main(argv: list[str]) -> int:
     m.add_argument("--plan", type=Path, required=True)
     m.add_argument("--list", type=Path, required=True)
     args = p.parse_args(argv)
-    REDACT[:] = [w for w in (x.strip() for x in getattr(args, "redact", "").split(",")) if w]
+    REDACT[:] = [
+        w for w in (x.strip() for x in getattr(args, "redact", "").split(",")) if w
+    ]
     if args.cmd == "missingepics":
         plan = json.loads(args.plan.read_text(encoding="utf-8"))
         listed = _json_line(args.list)
@@ -994,7 +1133,10 @@ def main(argv: list[str]) -> int:
         args.out.write_text(json.dumps(merged, ensure_ascii=False), encoding="utf-8")
         return 0
     if args.cmd == "parse":
-        doc = add_labels(filter_specs(parse_tree(args.specs, args.docs), args.only), args.extra_labels)
+        doc = add_labels(
+            filter_specs(parse_tree(args.specs, args.docs), args.only),
+            args.extra_labels,
+        )
         text = json.dumps(doc, ensure_ascii=False)
         if args.out:
             args.out.write_text(text, encoding="utf-8")

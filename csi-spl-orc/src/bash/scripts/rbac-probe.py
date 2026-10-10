@@ -13,6 +13,7 @@ PROBE_EXPECT_ROLE (optional). Prints one JSON verdict; exit 0 = consistent,
 1 = a gate contradicts /v1/view/me or the role is not the expected one,
 2 = could not sign in. The password and the cookie are never printed.
 """
+
 import json
 import os
 import sys
@@ -62,7 +63,11 @@ def err(out):
 def main():
     with open(PW_FILE) as f:
         pw = f.read().strip()
-    st, hdrs, out = http("POST", API + "/api/v1/auth/login", {"email": EMAIL, "password": pw, "tenant": TENANT})
+    st, hdrs, out = http(
+        "POST",
+        API + "/api/v1/auth/login",
+        {"email": EMAIL, "password": pw, "tenant": TENANT},
+    )
     cookie = session_cookie(hdrs) if st == 200 else ""
     if not cookie:
         print(json.dumps({"step": "login", "status": st, "error": err(out)}))
@@ -72,17 +77,45 @@ def main():
         print(json.dumps({"step": "me", "status": st, "error": err(me)}))
         return 1
     perms = set(me.get("permissions") or [])
-    v = {"tenant_id": me.get("tenant_id"), "human_id": me.get("human_id"), "role": me.get("role"),
-         "tenant_owner": me.get("tenant_owner"), "permissions": sorted(perms), "gates": {}, "ok": True}
+    v = {
+        "tenant_id": me.get("tenant_id"),
+        "human_id": me.get("human_id"),
+        "role": me.get("role"),
+        "tenant_owner": me.get("tenant_owner"),
+        "permissions": sorted(perms),
+        "gates": {},
+        "ok": True,
+    }
     for name, method, path, body, allowed_status, perm in (
-        ("channels.manage", "POST", "/v1/channels", {"channel": "BAD!"}, 400, "channels.manage"),
-        ("members.roles", "PUT", "/v1/members/HUM-0/role", {"role": "tester"}, 404, "members.roles"),
+        (
+            "channels.manage",
+            "POST",
+            "/v1/channels",
+            {"channel": "BAD!"},
+            400,
+            "channels.manage",
+        ),
+        (
+            "members.roles",
+            "PUT",
+            "/v1/members/HUM-0/role",
+            {"role": "tester"},
+            404,
+            "members.roles",
+        ),
     ):
         st, _, out = http(method, API + path, body, cookie=cookie)
         granted = perm in perms
         want = allowed_status if granted else 403
-        agrees = st == want and (granted or (err(out) == "forbidden" and out.get("permission") == perm))
-        v["gates"][name] = {"granted": granted, "status": st, "error": err(out), "agrees": agrees}
+        agrees = st == want and (
+            granted or (err(out) == "forbidden" and out.get("permission") == perm)
+        )
+        v["gates"][name] = {
+            "granted": granted,
+            "status": st,
+            "error": err(out),
+            "agrees": agrees,
+        }
         v["ok"] = v["ok"] and agrees
     if EXPECT and v["role"] != EXPECT:
         v["ok"] = False

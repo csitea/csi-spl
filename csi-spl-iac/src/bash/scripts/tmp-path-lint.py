@@ -19,6 +19,7 @@ closed. A baselined hit that is gone does not fail.
 
 Exit 0 clean, 1 findings or a missing baseline, 2 usage.
 """
+
 import re
 import sys
 from collections import Counter
@@ -54,9 +55,10 @@ def _kind(path):
 def _quote_is_write(line, lit):
     if f"={lit}" in line or f"='{lit}'" in line or f'="{lit}"' in line:
         return True
-    return re.search(
-        r">>?\s*['\"]?" + re.escape(lit) + r"['\"]?(?:\s|$|[);|&])", line
-    ) is not None
+    return (
+        re.search(r">>?\s*['\"]?" + re.escape(lit) + r"['\"]?(?:\s|$|[);|&])", line)
+        is not None
+    )
 
 
 def _scan_line(kind, line, in_block):
@@ -95,7 +97,12 @@ def _scan_line(kind, line, in_block):
                 body.append(line[j])
                 j += 1
             text = "".join(body)
-            if "\\" not in text and j < n and PATH_EXACT.match(text) and forbidden(text):
+            if (
+                "\\" not in text
+                and j < n
+                and PATH_EXACT.match(text)
+                and forbidden(text)
+            ):
                 quoted.append(text)
             unquoted.append(" ")
             i = j + 1 if j < n else n
@@ -164,7 +171,9 @@ def main(argv):
     args = argv[1:]
     if args and args[0] == "--baseline":
         if len(args) < 2:
-            print("usage: tmp-path-lint.py [--baseline FILE] <file>...", file=sys.stderr)
+            print(
+                "usage: tmp-path-lint.py [--baseline FILE] <file>...", file=sys.stderr
+            )
             return 2
         baseline_path = args[1]
         args = args[2:]

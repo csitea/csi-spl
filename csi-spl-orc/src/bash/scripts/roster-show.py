@@ -13,6 +13,7 @@ Prints the roster JSON (2-space indent, sorted keys) on stdout; a one-line
 1 = the roster read failed, 2 = could not sign in. The password and the
 session cookie are never printed.
 """
+
 import json
 import os
 import sys
@@ -61,7 +62,11 @@ def err(out):
 def main():
     with open(PW_FILE) as f:
         pw = f.read().strip()
-    st, hdrs, out = http("POST", API + "/api/v1/auth/login", {"email": EMAIL, "password": pw, "tenant": TENANT})
+    st, hdrs, out = http(
+        "POST",
+        API + "/api/v1/auth/login",
+        {"email": EMAIL, "password": pw, "tenant": TENANT},
+    )
     cookie = session_cookie(hdrs) if st == 200 else ""
     if not cookie:
         print(json.dumps({"step": "login", "status": st, "error": err(out)}))

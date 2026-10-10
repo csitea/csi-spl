@@ -12,6 +12,7 @@ argument, no output, no path. A name that is not a plain word is "<other>".
 ROLEMAP is "<rundir basename>=<role>,..." (orch, dispatcher); any other
 csi-spl-wt/<dir> cwd is a lane, any other cwd is "other".
 """
+
 import datetime
 import glob
 import json
@@ -24,15 +25,53 @@ import sys
 NAME_RX = re.compile(r"^[A-Za-z0-9._+-]{1,60}$")
 VERB_RX = re.compile(r"^[a-z][a-z0-9-]{0,30}$")
 RUN_RX = re.compile(r"(?:^|[\s;&|('\"])(?:\S*/)?run\s+-a\s+(do_[A-Za-z0-9_]+)")
-VERB_CLIS = {"git", "gh", "spool", "go", "pnpm", "npm", "docker", "gcloud",
-             "terraform", "tmux", "systemctl", "kubectl", "make"}
+VERB_CLIS = {
+    "git",
+    "gh",
+    "spool",
+    "go",
+    "pnpm",
+    "npm",
+    "docker",
+    "gcloud",
+    "terraform",
+    "tmux",
+    "systemctl",
+    "kubectl",
+    "make",
+}
 SHELLS = {"bash", "sh", "zsh"}
 INTERPRETERS = {"python", "python3", "node", "perl"}
 PREFIXES = {"time", "nice", "nohup", "exec", "command", "stdbuf", "builtin"}
-SOFT = {"cd", "pushd", "popd", "export", "set", "unset", "local", ":", "true",
-        "false", "echo", "printf", "date", "source", ".", "trap", "shopt",
-        "umask", "declare", "readonly", "sleep", "test", "break", "continue",
-        "exit", "return", "wait"}
+SOFT = {
+    "cd",
+    "pushd",
+    "popd",
+    "export",
+    "set",
+    "unset",
+    "local",
+    ":",
+    "true",
+    "false",
+    "echo",
+    "printf",
+    "date",
+    "source",
+    ".",
+    "trap",
+    "shopt",
+    "umask",
+    "declare",
+    "readonly",
+    "sleep",
+    "test",
+    "break",
+    "continue",
+    "exit",
+    "return",
+    "wait",
+}
 PUNCT = set("();<>|&")
 KEYWORDS = {"do", "then", "else", "elif", "if", "!", "time"}
 LOOPS = {"while", "until"}
@@ -96,7 +135,7 @@ def strip_wrappers(seg):
             while i < len(seg) and seg[i].startswith("-"):
                 i += 2 if seg[i] in ("-u", "-g", "-C", "-D", "-h", "-p") else 1
         elif t == "su":
-            rest = seg[i + 1:]
+            rest = seg[i + 1 :]
             if "-c" in rest and rest.index("-c") + 1 < len(rest):
                 return ["bash", "-c", rest[rest.index("-c") + 1]]
             return []
@@ -166,7 +205,11 @@ def verb_action(prog, args):
     """git -C <dir> log -> "git log"; the verb(s) only, never what follows."""
     i = 0
     while i < len(args) and args[i].startswith("-"):
-        i += 2 if args[i] in ("-C", "-c", "-R", "-f", "--repo", "--git-dir", "--work-tree") else 1
+        i += (
+            2
+            if args[i] in ("-C", "-c", "-R", "-f", "--repo", "--git-dir", "--work-tree")
+            else 1
+        )
     verb = args[i] if i < len(args) else ""
     if not VERB_RX.match(verb):
         return prog
@@ -221,7 +264,9 @@ def scan_file(path, since, until, rolemap, out):
     try:
         fh = open(path, encoding="utf-8", errors="replace")
     except OSError:
-        print(f"unreadable transcript skipped: {os.path.basename(path)}", file=sys.stderr)
+        print(
+            f"unreadable transcript skipped: {os.path.basename(path)}", file=sys.stderr
+        )
         return
     with fh:
         for line in fh:
@@ -242,7 +287,11 @@ def scan_file(path, since, until, rolemap, out):
                     inp = b.get("input") or {}
                     if inp.get("run_in_background") or not since <= when < until:
                         continue
-                    calls[b.get("id")] = (when, inp.get("command") or "", rec.get("cwd"))
+                    calls[b.get("id")] = (
+                        when,
+                        inp.get("command") or "",
+                        rec.get("cwd"),
+                    )
                 elif b.get("type") == "tool_result" and b.get("tool_use_id") in calls:
                     start, cmd, cwd = calls.pop(b["tool_use_id"])
                     secs = max(0.0, when - start)
@@ -283,9 +332,13 @@ def report(argv):
         a["r"][role] = a["r"].get(role, 0.0) + secs
     total = sum(sum(a["d"]) for a in acts.values())
     ncalls = sum(len(a["d"]) for a in acts.values())
-    print(f"Bash wait by action, {since} .. {until}"
-          f"{', role ' + want if want else ''}: {ncalls} calls, {total:.0f} s total\n")
-    print("| # | action | calls | total s | share % | median s | p90 s | max s | paid by (share of its wait) |")
+    print(
+        f"Bash wait by action, {since} .. {until}"
+        f"{', role ' + want if want else ''}: {ncalls} calls, {total:.0f} s total\n"
+    )
+    print(
+        "| # | action | calls | total s | share % | median s | p90 s | max s | paid by (share of its wait) |"
+    )
     print("|---|---|---|---|---|---|---|---|---|")
     ranked = sorted(acts.items(), key=lambda kv: (-sum(kv[1]["d"]), kv[0]))
     for n, (act, a) in enumerate(ranked[:top], 1):
@@ -293,17 +346,23 @@ def report(argv):
         roles = sorted(a["r"].items(), key=lambda kv: (-kv[1], kv[0]))
         paid = ", ".join(f"{r} {100 * v / s:.0f}%" if s else r for r, v in roles)
         share = 100 * s / total if total else 0.0
-        print(f"| {n} | `{act}` | {len(a['d'])} | {s:.0f} | {share:.1f}"
-              f" | {statistics.median(a['d']):.1f} | {p90(a['d']):.1f} | {max(a['d']):.1f} | {paid} |")
+        print(
+            f"| {n} | `{act}` | {len(a['d'])} | {s:.0f} | {share:.1f}"
+            f" | {statistics.median(a['d']):.1f} | {p90(a['d']):.1f} | {max(a['d']):.1f} | {paid} |"
+        )
     rest = ranked[top:]
     if rest:
         s = sum(sum(a["d"]) for _, a in rest)
         c = sum(len(a["d"]) for _, a in rest)
         share = 100 * s / total if total else 0.0
-        print(f"| - | ({len(rest)} more actions) | {c} | {s:.0f} | {share:.1f} | | | | |")
+        print(
+            f"| - | ({len(rest)} more actions) | {c} | {s:.0f} | {share:.1f} | | | | |"
+        )
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in ("scan", "report"):
-        sys.exit("usage: spl-cmd-time-report.py scan SINCE UNTIL ROLEMAP DIR... | report SINCE UNTIL TOP ROLE")
+        sys.exit(
+            "usage: spl-cmd-time-report.py scan SINCE UNTIL ROLEMAP DIR... | report SINCE UNTIL TOP ROLE"
+        )
     (scan if sys.argv[1] == "scan" else report)(sys.argv[2:])

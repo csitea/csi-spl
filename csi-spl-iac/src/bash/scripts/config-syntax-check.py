@@ -9,6 +9,7 @@ Usage: config-syntax-check.py <file>...   (exit 0 clean, 1 findings, 2 usage)
 Files with other extensions are ignored, so the caller may pass the whole
 touched-file list.
 """
+
 import json
 import sys
 import tomllib
@@ -32,16 +33,19 @@ def _construct_mapping(loader, node, deep=False):
             continue
         if key in seen:
             raise yaml.constructor.ConstructorError(
-                None, None,
+                None,
+                None,
                 "duplicate key %r (first at line %d)" % (key, seen[key] + 1),
-                key_node.start_mark)
+                key_node.start_mark,
+            )
         seen[key] = key_node.start_mark.line
     loader.flatten_mapping(node)  # resolve `<<:` merges as SafeLoader does
     return yaml.SafeLoader.construct_mapping(loader, node, deep=deep)
 
 
 _DupKeyLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping)
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping
+)
 
 
 def _json_hook(pairs):
@@ -85,8 +89,10 @@ def main(argv):
             checked += 1
             msg = " ".join(str(exc).split())
             print("%s: %s" % (path, msg))
-    print("config-syntax-check: %d file(s) checked, %d finding(s)" % (checked, bad),
-          file=sys.stderr)
+    print(
+        "config-syntax-check: %d file(s) checked, %d finding(s)" % (checked, bad),
+        file=sys.stderr,
+    )
     return 1 if bad else 0
 
 

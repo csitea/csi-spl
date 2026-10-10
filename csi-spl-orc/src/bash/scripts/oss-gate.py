@@ -15,6 +15,7 @@ Exit: scan/deps 0 when they ran (hits or not), 2 when a class could not be
 measured -- a class that proved nothing is never reported as clean.
 summary: 0 when every class counts 0, 1 otherwise.
 """
+
 import argparse
 import fnmatch
 import json
@@ -22,26 +23,63 @@ import os
 import re
 import sys
 
-IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".svg", ".ico", ".webp", ".tiff", ".avif"}
+IMAGE_EXT = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".svg",
+    ".ico",
+    ".webp",
+    ".tiff",
+    ".avif",
+}
 # Never in the public tree, whatever the allow-list says (T004): the AI-tool
 # instruction files, git metadata, cnf values, terraform state/vars, keys.
 FORBIDDEN = [
-    ("CLAUDE.md", "ai-tool instructions"), ("AGENTS.md", "ai-tool instructions"),
-    ("GEMINI.md", "ai-tool instructions"), (".git", "git metadata (history)"),
-    ("*.tfvars", "rendered tfvars"), ("*.tfstate", "terraform state"),
-    ("*.tfstate.backup", "terraform state"), ("*.env.yaml", "cnf env file"),
-    ("*.env.json", "cnf env file"), ("key-*.json", "service-account key file"),
-    ("*.pem", "key material"), ("*.p12", "key material"), ("*.key", "key material"),
+    ("CLAUDE.md", "ai-tool instructions"),
+    ("AGENTS.md", "ai-tool instructions"),
+    ("GEMINI.md", "ai-tool instructions"),
+    (".git", "git metadata (history)"),
+    ("*.tfvars", "rendered tfvars"),
+    ("*.tfstate", "terraform state"),
+    ("*.tfstate.backup", "terraform state"),
+    ("*.env.yaml", "cnf env file"),
+    ("*.env.json", "cnf env file"),
+    ("key-*.json", "service-account key file"),
+    ("*.pem", "key material"),
+    ("*.p12", "key material"),
+    ("*.key", "key material"),
 ]
 SKIP_DIRS = {"node_modules", ".git"}
 # The outbound licence is AGPL-3.0 (SPL-62). A dependency licence must be one
 # an AGPL-3.0 work may include; anything else -- or none -- is a hit.
 ALLOWED_LICENCES = {
-    "MIT", "MIT-0", "ISC", "0BSD", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0",
-    "BlueOak-1.0.0", "CC0-1.0", "CC-BY-4.0", "CC-BY-3.0", "Unlicense", "Zlib",
-    "Python-2.0", "MPL-2.0", "LGPL-2.1-or-later", "LGPL-3.0-only",
-    "LGPL-3.0-or-later", "GPL-3.0-only", "GPL-3.0-or-later", "AGPL-3.0-only",
-    "AGPL-3.0-or-later", "WTFPL", "Artistic-2.0",
+    "MIT",
+    "MIT-0",
+    "ISC",
+    "0BSD",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Apache-2.0",
+    "BlueOak-1.0.0",
+    "CC0-1.0",
+    "CC-BY-4.0",
+    "CC-BY-3.0",
+    "Unlicense",
+    "Zlib",
+    "Python-2.0",
+    "MPL-2.0",
+    "LGPL-2.1-or-later",
+    "LGPL-3.0-only",
+    "LGPL-3.0-or-later",
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+    "AGPL-3.0-only",
+    "AGPL-3.0-or-later",
+    "WTFPL",
+    "Artistic-2.0",
 }
 
 
@@ -143,8 +181,16 @@ def ci_runner(root, out):
         with open(p, encoding="utf-8", errors="replace") as fh:
             for n, text in enumerate(fh, 1):
                 code = text.split("#", 1)[0]
-                if re.search(r"runs-on\s*:.*self-hosted|^\s*-\s*['\"]?self-hosted", code):
-                    row(out, "ci-runner", os.path.relpath(p, root), n, "self-hosted runner in a public workflow")
+                if re.search(
+                    r"runs-on\s*:.*self-hosted|^\s*-\s*['\"]?self-hosted", code
+                ):
+                    row(
+                        out,
+                        "ci-runner",
+                        os.path.relpath(p, root),
+                        n,
+                        "self-hosted runner in a public workflow",
+                    )
 
 
 def licence(root, out):
@@ -152,8 +198,10 @@ def licence(root, out):
     body = read(lic) if os.path.isfile(lic) else ""
     if "GNU AFFERO GENERAL PUBLIC LICENSE" not in body or "Version 3" not in body:
         row(out, "licence", "LICENSE", 0, "root LICENSE missing or not AGPL-3.0")
-    if not any(os.path.isfile(os.path.join(root, f)) for f in
-               ("THIRD-PARTY-NOTICES.md", "THIRD-PARTY-NOTICES", "NOTICE")):
+    if not any(
+        os.path.isfile(os.path.join(root, f))
+        for f in ("THIRD-PARTY-NOTICES.md", "THIRD-PARTY-NOTICES", "NOTICE")
+    ):
         row(out, "licence", "THIRD-PARTY-NOTICES.md", 0, "third-party notices missing")
     for rel, p in walk(root):
         base = os.path.basename(rel)
@@ -166,9 +214,18 @@ def licence(root, out):
         elif base == "go.mod":
             # the id may sit in go.mod itself (a // comment) or in a root .go file
             d = os.path.dirname(p)
-            if not any((f == "go.mod" or f.endswith(".go")) and "SPDX-License-Identifier:" in read(os.path.join(d, f))
-                       for f in os.listdir(d)):
-                row(out, "licence", rel, 1, "Go module root has no SPDX-License-Identifier")
+            if not any(
+                (f == "go.mod" or f.endswith(".go"))
+                and "SPDX-License-Identifier:" in read(os.path.join(d, f))
+                for f in os.listdir(d)
+            ):
+                row(
+                    out,
+                    "licence",
+                    rel,
+                    1,
+                    "Go module root has no SPDX-License-Identifier",
+                )
 
 
 def spdx_ok(expr):
@@ -196,10 +253,17 @@ def classify_text(t):
     if "Permission is hereby granted, free of charge" in t:
         return "MIT"
     if "Redistribution and use in source and binary forms" in t:
-        return "BSD-3-Clause" if re.search(r"Neither the name|names of (its|the|any) contributors", t) else "BSD-2-Clause"
+        return (
+            "BSD-3-Clause"
+            if re.search(r"Neither the name|names of (its|the|any) contributors", t)
+            else "BSD-2-Clause"
+        )
     if re.search(r"Permission to use, copy, modify, and(/or)? distribute", t):
         return "ISC"
-    if "provided 'as-is', without any express or implied" in t and "must not be misrepresented" in t:
+    if (
+        "provided 'as-is', without any express or implied" in t
+        and "must not be misrepresented" in t
+    ):
         return "Zlib"
     return ""
 
@@ -207,8 +271,11 @@ def classify_text(t):
 def go_licence(moddir):
     """The licence of a package dir from its LICENSE/COPYING text (Go modules,
     and npm packages whose package.json declares none)."""
-    names = [f for f in os.listdir(moddir) if re.match(r"(?i)^(licen[cs]e|copying)", f)] \
-        if os.path.isdir(moddir) else []
+    names = (
+        [f for f in os.listdir(moddir) if re.match(r"(?i)^(licen[cs]e|copying)", f)]
+        if os.path.isdir(moddir)
+        else []
+    )
     ids = sorted({classify_text(read(os.path.join(moddir, f))) for f in names} - {""})
     return " AND ".join(ids) if ids else "UNKNOWN"
 
@@ -221,8 +288,11 @@ def npm_packages(nm_root):
         if not os.path.isdir(nm):
             continue
         for cand in os.listdir(nm):
-            subs = [cand] if not cand.startswith("@") else \
-                [f"{cand}/{s}" for s in os.listdir(os.path.join(nm, cand))]
+            subs = (
+                [cand]
+                if not cand.startswith("@")
+                else [f"{cand}/{s}" for s in os.listdir(os.path.join(nm, cand))]
+            )
             for name in subs:
                 # the store entry is <name with / as +>@<version>[_peers]
                 if not entry.startswith(name.replace("/", "+") + "@"):
@@ -247,7 +317,10 @@ def deps(a):
                     row(out, "dep-licence", f"go:{path}@{ver}", 0, lic)
         if a.node_modules:
             if not os.path.isdir(os.path.join(a.node_modules, ".pnpm")):
-                print(f"FATAL no .pnpm store under {a.node_modules}: npm licences not measured", file=sys.stderr)
+                print(
+                    f"FATAL no .pnpm store under {a.node_modules}: npm licences not measured",
+                    file=sys.stderr,
+                )
                 return 2
             for name, pj in npm_packages(a.node_modules):
                 try:
@@ -258,17 +331,28 @@ def deps(a):
                 if isinstance(lic, dict):
                     lic = lic.get("type")
                 if not lic and isinstance(d.get("licenses"), list):
-                    lic = " OR ".join(x.get("type", "") for x in d["licenses"] if isinstance(x, dict))
+                    lic = " OR ".join(
+                        x.get("type", "") for x in d["licenses"] if isinstance(x, dict)
+                    )
                 if not lic:
                     # no field: the shipped LICENSE text decides (e.g. tosource is Zlib)
                     lic = go_licence(os.path.dirname(pj))
                     lic = "" if lic == "UNKNOWN" else lic
                 counted += 1
                 if not spdx_ok(lic):
-                    row(out, "dep-licence", f"npm:{name}@{d.get('version', '?')}", 0, lic or "UNKNOWN")
+                    row(
+                        out,
+                        "dep-licence",
+                        f"npm:{name}@{d.get('version', '?')}",
+                        0,
+                        lic or "UNKNOWN",
+                    )
     print(f"dep-licence: {counted} package(s) measured")
     if counted == 0:
-        print("FATAL 0 dependencies measured -- the dep-licence class proved nothing", file=sys.stderr)
+        print(
+            "FATAL 0 dependencies measured -- the dep-licence class proved nothing",
+            file=sys.stderr,
+        )
         return 2
     return 0
 
@@ -286,10 +370,16 @@ def scrub(a):
                 continue
             parts = line.split("\t")
             if len(parts) != 4:
-                sys.exit(f"FATAL {a.rules}:{n}: want path<TAB>label<TAB>regex<TAB>replacement")
+                sys.exit(
+                    f"FATAL {a.rules}:{n}: want path<TAB>label<TAB>regex<TAB>replacement"
+                )
             path, label, rx, repl = parts
             target = os.path.join(a.dir, path)
-            if os.path.isabs(path) or ".." in path.split("/") or not os.path.isfile(target):
+            if (
+                os.path.isabs(path)
+                or ".." in path.split("/")
+                or not os.path.isfile(target)
+            ):
                 print(f"scrub: SKIPPED {path} ({label}): not in the export")
                 continue
             body = read(target)

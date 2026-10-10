@@ -23,6 +23,7 @@ Env (all set by the action):
                   tag, to ALL-0 - what the WUI reply pane sends); the REPLY is
                   what has to reach the agent. The agent must be a member.
 """
+
 import importlib.util
 import json
 import os
@@ -32,7 +33,9 @@ import time
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-_spec = importlib.util.spec_from_file_location("m3_e2e", os.path.join(HERE, "m3-e2e.py"))
+_spec = importlib.util.spec_from_file_location(
+    "m3_e2e", os.path.join(HERE, "m3-e2e.py")
+)
 m3 = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(m3)
 
@@ -50,8 +53,14 @@ RESULTS = []
 
 
 def record(step, ok, evidence):
-    RESULTS.append({"step": step, "result": "PASS" if ok else "FAIL", "evidence": evidence})
-    print("%-4s %s %s" % ("PASS" if ok else "FAIL", step, json.dumps(evidence, sort_keys=True)[:600]), flush=True)
+    RESULTS.append(
+        {"step": step, "result": "PASS" if ok else "FAIL", "evidence": evidence}
+    )
+    print(
+        "%-4s %s %s"
+        % ("PASS" if ok else "FAIL", step, json.dumps(evidence, sort_keys=True)[:600]),
+        flush=True,
+    )
     return ok
 
 
@@ -84,8 +93,21 @@ def pane_of(agent):
     lib/spool-env.inc.sh spool_id_of_window uses, so the probe looks where the
     notifier looked."""
     try:
-        out = subprocess.run(["tmux", "-u", "-S", TMUX_SOCK, "list-panes", "-a", "-F", "%s\t%s" % ("#{pane_id}", "#{window_name}")],
-                             capture_output=True, text=True, timeout=15).stdout
+        out = subprocess.run(
+            [
+                "tmux",
+                "-u",
+                "-S",
+                TMUX_SOCK,
+                "list-panes",
+                "-a",
+                "-F",
+                "%s\t%s" % ("#{pane_id}", "#{window_name}"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout
     except (OSError, subprocess.SubprocessError):
         return ""
     for line in out.splitlines():
@@ -103,9 +125,21 @@ def notice_pane_of(agent):
     with the pane option @spool_notices. On a pane that paints a TUI this is
     where the body is VISIBLE, since the prompt may legitimately refuse it."""
     try:
-        out = subprocess.run(["tmux", "-u", "-S", TMUX_SOCK, "list-panes", "-a", "-F",
-                              "#{pane_id}\t#{@spool_notices}"],
-                             capture_output=True, text=True, timeout=15).stdout
+        out = subprocess.run(
+            [
+                "tmux",
+                "-u",
+                "-S",
+                TMUX_SOCK,
+                "list-panes",
+                "-a",
+                "-F",
+                "#{pane_id}\t#{@spool_notices}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout
     except (OSError, subprocess.SubprocessError):
         return ""
     for line in out.splitlines():
@@ -122,8 +156,23 @@ def pane_text(pane):
     a poke off the screen in seconds, and a plain capture would then report a
     delivered message as missing."""
     try:
-        return subprocess.run(["tmux", "-u", "-S", TMUX_SOCK, "capture-pane", "-p", "-S", "-500", "-t", pane],
-                              capture_output=True, text=True, timeout=15).stdout
+        return subprocess.run(
+            [
+                "tmux",
+                "-u",
+                "-S",
+                TMUX_SOCK,
+                "capture-pane",
+                "-p",
+                "-S",
+                "-500",
+                "-t",
+                pane,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout
     except (OSError, subprocess.SubprocessError):
         return ""
 
@@ -143,8 +192,12 @@ def wait_pane(panes, needle, timeout=30):
     return None
 
 
-POKE_RC = {0: "typed into the pane", 5: "no live window carries the id",
-           6: "REFUSED: the pane holds unsent text", 7: "the pane runs only shells"}
+POKE_RC = {
+    0: "typed into the pane",
+    5: "no live window carries the id",
+    6: "REFUSED: the pane holds unsent text",
+    7: "the pane runs only shells",
+}
 
 
 def observe(step, evidence):
@@ -159,11 +212,28 @@ def notifier_verdict(frm, msg_id, task, body):
     nothing and writes nothing, the message is already in the inbox."""
     if not NOTIFY_CMD:
         return -1, "no DESK_NOTIFY_CMD"
-    argv = NOTIFY_CMD.split() + ["--to", AGENT, "--from", frm, "--kind", "note",
-                                 "--task", task, "--msg-id", msg_id, "--body-stdin"]
+    argv = NOTIFY_CMD.split() + [
+        "--to",
+        AGENT,
+        "--from",
+        frm,
+        "--kind",
+        "note",
+        "--task",
+        task,
+        "--msg-id",
+        msg_id,
+        "--body-stdin",
+    ]
     try:
-        r = subprocess.run(argv, input=body, capture_output=True, text=True, timeout=60,
-                           env=dict(os.environ, SPOOL_ROOT=ROOT))
+        r = subprocess.run(
+            argv,
+            input=body,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=dict(os.environ, SPOOL_ROOT=ROOT),
+        )
     except (OSError, subprocess.SubprocessError) as e:
         return -1, str(e)[:200]
     return r.returncode, (r.stdout + r.stderr).strip()[:300]
@@ -177,7 +247,7 @@ def main():
     # The probe marker (specs/017 FR-SEC-030): the desk SHOWS this line in the
     # agent's notice strip and never types it into the agent's prompt, so a
     # probe cannot be read as an order. The reply leg below answers for it.
-    ask = "[spool-probe] desk-probe kysymys %s" % stamp   # Finnish in, Finnish out
+    ask = "[spool-probe] desk-probe kysymys %s" % stamp  # Finnish in, Finnish out
     answer = "desk-probe vastaus %s" % stamp
 
     st, body, cookie = m3.native_login(m3.HUMAN, m3.TENANT, "human")
@@ -185,31 +255,56 @@ def main():
         record("p-member-session", False, {"login_status": st, "body": body})
         return finish(1)
     m3.write_secret("cookie-human", cookie)
-    st, _, sess = m3.http("GET", m3.AUTH + "/api/v1/auth/session", headers={"Cookie": cookie})
+    st, _, sess = m3.http(
+        "GET", m3.AUTH + "/api/v1/auth/session", headers={"Cookie": cookie}
+    )
     hum = (sess or {}).get("hum", "") if st == 200 else ""
-    ok = record("p-member-session", st == 200 and hum.startswith("HUM-") and (sess or {}).get("t") == m3.TENANT,
-                {"session_status": st, "hum": hum, "t": (sess or {}).get("t")})
+    ok = record(
+        "p-member-session",
+        st == 200 and hum.startswith("HUM-") and (sess or {}).get("t") == m3.TENANT,
+        {"session_status": st, "hum": hum, "t": (sess or {}).get("t")},
+    )
     if not ok:
         return finish(1)
 
     pane = pane_of(AGENT)
-    record("p-agent-pane", bool(pane), {"pane": pane, "tmux_socket": TMUX_SOCK, "agent": AGENT})
+    record(
+        "p-agent-pane",
+        bool(pane),
+        {"pane": pane, "tmux_socket": TMUX_SOCK, "agent": AGENT},
+    )
 
     ws = m3.WS(m3.ws_url("/v1/wui/ws"), cookie)
     rc = 1
     try:
         ws.send({"type": "hello", "as": "desk-probe"})
         wel = ws.wait(lambda f: f.get("type") in ("welcome", "error"))
-        if not record("p-welcome", bool(wel) and wel.get("as") == hum, {"welcome": wel}):
+        if not record(
+            "p-welcome", bool(wel) and wel.get("as") == hum, {"welcome": wel}
+        ):
             return finish(1)
         peer = "%s@%s" % (AGENT, BOX)
-        online = ws.any_seen(lambda f: f.get("type") == "presence" and f.get("peer") == peer
-                             and f.get("status") == "online")
+        online = ws.any_seen(
+            lambda f: (
+                f.get("type") == "presence"
+                and f.get("peer") == peer
+                and f.get("status") == "online"
+            )
+        )
         roster = m3.view("/v1/view/roster")
-        seat = next((b for b in (roster or {}).get("boxes", [])
-                     if b.get("box_id") == BOX and AGENT in (b.get("agents") or [])), None)
-        record("p-roster-seat", seat is not None and bool(seat.get("online")) and not seat.get("revoked"),
-               {"peer": peer, "roster_row": seat, "presence_frame_seen": bool(online)})
+        seat = next(
+            (
+                b
+                for b in (roster or {}).get("boxes", [])
+                if b.get("box_id") == BOX and AGENT in (b.get("agents") or [])
+            ),
+            None,
+        )
+        record(
+            "p-roster-seat",
+            seat is not None and bool(seat.get("online")) and not seat.get("revoked"),
+            {"peer": peer, "roster_row": seat, "presence_frame_seen": bool(online)},
+        )
 
         task = str(uuid.uuid4())
         ws.send({"type": "subscribe", "task_id": task})
@@ -218,36 +313,92 @@ def main():
         if CHANNEL:
             # SPL-950: the channel topic, then the untagged thread reply.
             top = str(uuid.uuid4())
-            ws.send({"type": "send", "task_id": task, "kind": "note", "channel": CHANNEL, "is_parent": 1,
-                     "body": "SPL-950 delivery probe %s" % stamp, "msg_id": top})
-            ack = ws.wait(lambda f: f.get("msg_id") == top and f.get("type") in ("ack", "error"), 25)
-            if not record("p-channel-topic", bool(ack) and ack.get("type") == "ack",
-                          {"ack": ack, "task_id": task, "channel": CHANNEL}):
+            ws.send(
+                {
+                    "type": "send",
+                    "task_id": task,
+                    "kind": "note",
+                    "channel": CHANNEL,
+                    "is_parent": 1,
+                    "body": "SPL-950 delivery probe %s" % stamp,
+                    "msg_id": top,
+                }
+            )
+            ack = ws.wait(
+                lambda f: f.get("msg_id") == top and f.get("type") in ("ack", "error"),
+                25,
+            )
+            if not record(
+                "p-channel-topic",
+                bool(ack) and ack.get("type") == "ack",
+                {"ack": ack, "task_id": task, "channel": CHANNEL},
+            ):
                 return finish(1)
-            ws.send({"type": "send", "task_id": task, "kind": "note", "is_parent": 0, "body": ask, "msg_id": mid})
-            ack = ws.wait(lambda f: f.get("msg_id") == mid and f.get("type") in ("ack", "error"), 25)
-            if not record("p-thread-reply-accepted", bool(ack) and ack.get("type") == "ack",
-                          {"ack": ack, "task_id": task, "topic_msg_id": top}):
+            ws.send(
+                {
+                    "type": "send",
+                    "task_id": task,
+                    "kind": "note",
+                    "is_parent": 0,
+                    "body": ask,
+                    "msg_id": mid,
+                }
+            )
+            ack = ws.wait(
+                lambda f: f.get("msg_id") == mid and f.get("type") in ("ack", "error"),
+                25,
+            )
+            if not record(
+                "p-thread-reply-accepted",
+                bool(ack) and ack.get("type") == "ack",
+                {"ack": ack, "task_id": task, "topic_msg_id": top},
+            ):
                 return finish(1)
         else:
-            ws.send({"type": "send", "task_id": task, "kind": "note", "to": AGENT, "body": ask, "msg_id": mid})
-            ack = ws.wait(lambda f: f.get("msg_id") == mid and f.get("type") in ("ack", "error"), 25)
-            if not record("p-dm-accepted", bool(ack) and ack.get("type") == "ack" and ack.get("to_box") == BOX,
-                          {"ack": ack, "task_id": task}):
+            ws.send(
+                {
+                    "type": "send",
+                    "task_id": task,
+                    "kind": "note",
+                    "to": AGENT,
+                    "body": ask,
+                    "msg_id": mid,
+                }
+            )
+            ack = ws.wait(
+                lambda f: f.get("msg_id") == mid and f.get("type") in ("ack", "error"),
+                25,
+            )
+            if not record(
+                "p-dm-accepted",
+                bool(ack) and ack.get("type") == "ack" and ack.get("to_box") == BOX,
+                {"ack": ack, "task_id": task},
+            ):
                 return finish(1)
 
         got = wait_inbox(mid)
-        if not record("p-dm-in-inbox", got is not None and got.get("from") == hum and got.get("body") == ask,
-                      {"inbox_msg": got, "inbox": os.path.join(ROOT, AGENT, "inbox")}):
+        if not record(
+            "p-dm-in-inbox",
+            got is not None and got.get("from") == hum and got.get("body") == ask,
+            {"inbox_msg": got, "inbox": os.path.join(ROOT, AGENT, "inbox")},
+        ):
             return finish(1)
 
         if pane:
             notice = notice_pane_of(AGENT)
             shown = wait_pane([pane, notice], ask)
             if shown is not None:
-                record("p-dm-in-pane", True,
-                       {"pane": shown, "agent_pane": pane, "notice_pane": notice, "needle": ask,
-                        "via": "notice pane" if shown == notice else "agent pane"})
+                record(
+                    "p-dm-in-pane",
+                    True,
+                    {
+                        "pane": shown,
+                        "agent_pane": pane,
+                        "notice_pane": notice,
+                        "needle": ask,
+                        "via": "notice pane" if shown == notice else "agent pane",
+                    },
+                )
             else:
                 # Not shown is not the same as not delivered. poke-line.md §3
                 # gives the notifier four outcomes and three of them leave the
@@ -255,36 +406,99 @@ def main():
                 # the contract - instead of re-deciding the rule here.
                 rc, line = notifier_verdict(hum, mid, task, ask)
                 if rc == 0 and "poke: probe line" in line:
-                    observe("p-dm-in-pane", {"pane": pane, "notify": line,
-                                             "note": "delivered; a probe line is shown in the strip and never typed"})
+                    observe(
+                        "p-dm-in-pane",
+                        {
+                            "pane": pane,
+                            "notify": line,
+                            "note": "delivered; a probe line is shown in the strip and never typed",
+                        },
+                    )
                 elif rc == 0:
-                    record("p-dm-in-pane", True, {"pane": pane, "needle": ask,
-                                                  "via": "notifier re-poke", "notify": line})
+                    record(
+                        "p-dm-in-pane",
+                        True,
+                        {
+                            "pane": pane,
+                            "needle": ask,
+                            "via": "notifier re-poke",
+                            "notify": line,
+                        },
+                    )
                 elif rc in (5, 6, 7):
-                    observe("p-dm-in-pane", {"pane": pane, "notify_exit": rc, "notify": line,
-                                             "means": POKE_RC.get(rc, ""),
-                                             "note": "delivered; the pane was left alone on purpose"})
+                    observe(
+                        "p-dm-in-pane",
+                        {
+                            "pane": pane,
+                            "notify_exit": rc,
+                            "notify": line,
+                            "means": POKE_RC.get(rc, ""),
+                            "note": "delivered; the pane was left alone on purpose",
+                        },
+                    )
                 else:
-                    record("p-dm-in-pane", False, {"pane": pane, "notice_pane": notice, "needle": ask,
-                                                   "notify_exit": rc, "notify": line,
-                                                   "tail": pane_text(pane).splitlines()[-3:]})
+                    record(
+                        "p-dm-in-pane",
+                        False,
+                        {
+                            "pane": pane,
+                            "notice_pane": notice,
+                            "needle": ask,
+                            "notify_exit": rc,
+                            "notify": line,
+                            "tail": pane_text(pane).splitlines()[-3:],
+                        },
+                    )
         else:
-            observe("p-dm-in-pane", {"note": "no live window carries %s; the message waits in its inbox" % AGENT})
+            observe(
+                "p-dm-in-pane",
+                {
+                    "note": "no live window carries %s; the message waits in its inbox"
+                    % AGENT
+                },
+            )
 
         if REPLY_CMD:
             env = dict(os.environ, DESK_BODY=answer, DESK_TASK=task, DESK_TO=hum)
-            r = subprocess.run(REPLY_CMD, capture_output=True, text=True, timeout=300, env=env,
-                               cwd=os.environ.get("DESK_REPLY_CWD") or None)
-            if not record("p-reply-sent", r.returncode == 0,
-                          {"cmd": REPLY_CMD, "exit": r.returncode, "tail": (r.stdout or r.stderr)[-400:]}):
+            r = subprocess.run(
+                REPLY_CMD,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                env=env,
+                cwd=os.environ.get("DESK_REPLY_CWD") or None,
+            )
+            if not record(
+                "p-reply-sent",
+                r.returncode == 0,
+                {
+                    "cmd": REPLY_CMD,
+                    "exit": r.returncode,
+                    "tail": (r.stdout or r.stderr)[-400:],
+                },
+            ):
                 return finish(1)
-            back = ws.wait(lambda f: f.get("type") == "message" and f.get("task_id") == task
-                           and ((f.get("env") or {}).get("msg") or {}).get("from") == AGENT, 30)
+            back = ws.wait(
+                lambda f: (
+                    f.get("type") == "message"
+                    and f.get("task_id") == task
+                    and ((f.get("env") or {}).get("msg") or {}).get("from") == AGENT
+                ),
+                30,
+            )
             kinds = [m["env"]["msg"]["kind"] for m in m3.topic(task)]
             bodies = [m["env"]["msg"]["body"] for m in m3.topic(task)]
-            record("p-reply-in-wui-topic", back is not None and answer in bodies,
-                   {"wui_frame_msg_id": (((back or {}).get("env") or {}).get("msg") or {}).get("msg_id"),
-                    "topic_kinds": kinds, "topic_bodies": bodies})
+            record(
+                "p-reply-in-wui-topic",
+                back is not None and answer in bodies,
+                {
+                    "wui_frame_msg_id": (
+                        ((back or {}).get("env") or {}).get("msg") or {}
+                    ).get("msg_id"),
+                    "topic_kinds": kinds,
+                    "topic_bodies": bodies,
+                },
+            )
         rc = 0 if all(r["result"] != "FAIL" for r in RESULTS) else 1
     finally:
         ws.close()
@@ -295,12 +509,26 @@ def finish(rc):
     if OUT:
         try:
             with open(OUT, "w") as f:
-                json.dump({"results": RESULTS, "agent": AGENT, "box": BOX,
-                           "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, f, indent=1, sort_keys=True)
+                json.dump(
+                    {
+                        "results": RESULTS,
+                        "agent": AGENT,
+                        "box": BOX,
+                        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    },
+                    f,
+                    indent=1,
+                    sort_keys=True,
+                )
         except OSError:
             pass
     bad = [r["step"] for r in RESULTS if r["result"] == "FAIL"]
-    print(("FAIL desk probe: " + ", ".join(bad)) if bad else "OK desk probe: every step PASS", flush=True)
+    print(
+        ("FAIL desk probe: " + ", ".join(bad))
+        if bad
+        else "OK desk probe: every step PASS",
+        flush=True,
+    )
     return 1 if bad else rc
 
 

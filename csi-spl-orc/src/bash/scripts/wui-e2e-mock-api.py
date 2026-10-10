@@ -6,6 +6,7 @@ GET /api/v1/auth/session answers 401 (auth-v1 section 4) and
 SPA-fallback those URLs to HTML and the console-errors gate would see a JSON
 parse error. Everything else is a JSON 404. Usage: wui-e2e-mock-api.py <port>
 """
+
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 

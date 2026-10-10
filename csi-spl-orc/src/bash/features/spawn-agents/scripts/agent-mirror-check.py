@@ -25,6 +25,7 @@ Env:   AMC_PROC_ROOT (default /proc), AMC_SEATS (default
 Exit:  0 every live agent is mirrored, 1 one is not, 2 usage.
 A process of another user whose env cannot be read is retried with sudo -n.
 """
+
 import glob
 import json
 import os
@@ -43,7 +44,9 @@ def read_bytes(path):
             return f.read()
     except PermissionError:
         try:
-            r = subprocess.run(["sudo", "-n", "cat", path], capture_output=True, timeout=5)
+            r = subprocess.run(
+                ["sudo", "-n", "cat", path], capture_output=True, timeout=5
+            )
             return r.stdout if r.returncode == 0 else None
         except (OSError, subprocess.TimeoutExpired):
             return None
@@ -91,13 +94,21 @@ def hooks_of(kind, argv, home, env=None):
     if kind == "claude":
         cands = argv_settings(argv) + [os.path.join(home, ".claude", "settings.json")]
     elif kind == "grok":
-        cands = [os.path.join(home, ".grok", "hooks", "spool-mirror.json"), os.path.join(home, ".claude", "settings.json")]
+        cands = [
+            os.path.join(home, ".grok", "hooks", "spool-mirror.json"),
+            os.path.join(home, ".claude", "settings.json"),
+        ]
     elif kind == "agy":
         cands = [os.path.join(home, ".gemini", "config", "hooks.json")]
     elif kind == "qwen":
         cands = [os.path.join(home, ".qwen", "settings.json")]
     elif kind == "mistral":
-        cands = [os.path.join((env or {}).get("VIBE_HOME") or os.path.join(home, ".vibe"), "hooks.toml")]
+        cands = [
+            os.path.join(
+                (env or {}).get("VIBE_HOME") or os.path.join(home, ".vibe"),
+                "hooks.toml",
+            )
+        ]
     for c in cands:
         s = hook_in(c)
         if s:
@@ -125,7 +136,8 @@ def argv_of(pid):
 def seats_of(agent):
     pat = os.environ.get("AMC_SEATS") or os.path.join(
         home_of(os.environ.get("SPOOL_BOX_USER") or pwd.getpwuid(os.getuid()).pw_name),
-        ".local/share/csi-spl/cloud/*/desk/*/*")
+        ".local/share/csi-spl/cloud/*/desk/*/*",
+    )
     out = []
     for d in sorted(glob.glob(pat)):
         a = os.path.join(d, "spool", agent)
@@ -136,7 +148,12 @@ def seats_of(agent):
 
 
 def check(fact, off):
-    aid, kind, pid, user = fact.get("id", ""), fact.get("kind", ""), fact.get("pid"), fact.get("user", "")
+    aid, kind, pid, user = (
+        fact.get("id", ""),
+        fact.get("kind", ""),
+        fact.get("pid"),
+        fact.get("user", ""),
+    )
     home = home_of(user)
     argv = argv_of(pid)
     env = env_of(pid)
@@ -158,9 +175,18 @@ def check(fact, off):
         why.append("no desk seat (the desk reconcile seats a live window within 3 min)")
     if off:
         why.append("box kill switch .mirror-off")
-    return {"agent": aid, "kind": kind, "pid": pid, "user": user, "hooks": where, "env_id": env_id,
-            "seats": seats, "mirrored": "yes" if not why else "no", "why": "; ".join(why),
-            "relaunch": bool(not where or (where and not os.path.isfile(script)))}
+    return {
+        "agent": aid,
+        "kind": kind,
+        "pid": pid,
+        "user": user,
+        "hooks": where,
+        "env_id": env_id,
+        "seats": seats,
+        "mirrored": "yes" if not why else "no",
+        "why": "; ".join(why),
+        "relaunch": bool(not where or (where and not os.path.isfile(script))),
+    }
 
 
 def main(argv):
@@ -168,7 +194,9 @@ def main(argv):
     if [a for a in argv[1:] if a != "--json"]:
         print(__doc__, file=sys.stderr)
         return 2
-    off = os.path.exists(os.path.join(os.environ.get("SPOOL_ROOT") or "/var/spool-hub", ".mirror-off"))
+    off = os.path.exists(
+        os.path.join(os.environ.get("SPOOL_ROOT") or "/var/spool-hub", ".mirror-off")
+    )
     rows = []
     for line in sys.stdin:
         line = line.strip()
@@ -187,12 +215,35 @@ def main(argv):
         for r in rows:
             print(json.dumps(r, sort_keys=True))
     else:
-        print("%-11s %-6s %-8s %-8s %-11s %-9s %s" % ("AGENT", "KIND", "USER", "MIRRORED", "ENV-ID", "SEATS", "WHY / HOOKS"))
+        print(
+            "%-11s %-6s %-8s %-8s %-11s %-9s %s"
+            % ("AGENT", "KIND", "USER", "MIRRORED", "ENV-ID", "SEATS", "WHY / HOOKS")
+        )
         for r in rows:
-            print("%-11s %-6s %-8s %-8s %-11s %-9s %s" % (r["agent"], r["kind"], r["user"], r["mirrored"], r["env_id"],
-                                                         len(r["seats"]), r["why"] or r["hooks"]))
-    print(json.dumps({"agents": len(rows), "mirrored": n_yes, "not_mirrored": len(rows) - n_yes,
-                      "need_relaunch": relaunch, "kill_switch": off}, sort_keys=True))
+            print(
+                "%-11s %-6s %-8s %-8s %-11s %-9s %s"
+                % (
+                    r["agent"],
+                    r["kind"],
+                    r["user"],
+                    r["mirrored"],
+                    r["env_id"],
+                    len(r["seats"]),
+                    r["why"] or r["hooks"],
+                )
+            )
+    print(
+        json.dumps(
+            {
+                "agents": len(rows),
+                "mirrored": n_yes,
+                "not_mirrored": len(rows) - n_yes,
+                "need_relaunch": relaunch,
+                "kill_switch": off,
+            },
+            sort_keys=True,
+        )
+    )
     return 0 if n_yes == len(rows) else 1
 
 

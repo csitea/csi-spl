@@ -33,12 +33,16 @@ ROWS = {
 
 
 def _all_env(rows):
-    return {"env": {
-        "dns": {"BASE_DOMAIN": "example.com"},
-        "hub": {}, "auth": {}, "mail": {},
-        "box": {"agent_split": {"claude": 60}, "agent_split_by_kind": rows},
-        "i18n": {"default_locale": "en", "locales": ["en"]},
-    }}
+    return {
+        "env": {
+            "dns": {"BASE_DOMAIN": "example.com"},
+            "hub": {},
+            "auth": {},
+            "mail": {},
+            "box": {"agent_split": {"claude": 60}, "agent_split_by_kind": rows},
+            "i18n": {"default_locale": "en", "locales": ["en"]},
+        }
+    }
 
 
 class AgentSplitByKindTest(unittest.TestCase):
@@ -51,7 +55,9 @@ class AgentSplitByKindTest(unittest.TestCase):
         rows = AllEnv.parse_raw(ALL_ENV.read_text()).env.box.agent_split_by_kind
         self.assertEqual(set(rows), set(SPEC_MAIN_BACKUP))
         for kind, (main, backup) in SPEC_MAIN_BACKUP.items():
-            self.assertEqual((rows[kind].main(), rows[kind].backup), (main, backup), kind)
+            self.assertEqual(
+                (rows[kind].main(), rows[kind].backup), (main, backup), kind
+            )
 
     def test_other_box_keys_pass_through(self):
         box = AllEnv.parse_obj(_all_env(ROWS)).env.box

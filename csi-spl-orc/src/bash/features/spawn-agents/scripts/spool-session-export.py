@@ -15,13 +15,16 @@ Writes <OUT_DIR>/session-<AGENT_ID>-<utc>.md (mode 0644), prints its path on
 stdout (OUT_DIR "-": the markdown itself goes to stdout) and the redaction counts on stderr. Exit 2 when zero or several
 transcripts match, 64 on usage.
 """
+
 import datetime
 import glob
 import json
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
+)
 from spool_redact import redact  # noqa: E402
 
 
@@ -29,7 +32,8 @@ def find(token, home):
     if os.path.isfile(token):
         return [token]
     cands = glob.glob(f"{home}/.claude/projects/*/*.jsonl") + [
-        p for p in glob.glob(f"{home}/.grok/**/*", recursive=True) if os.path.isfile(p)]
+        p for p in glob.glob(f"{home}/.grok/**/*", recursive=True) if os.path.isfile(p)
+    ]
     hits = []
     for p in cands:
         try:
@@ -47,8 +51,13 @@ def clip(s, n=4000):
 
 
 def render(agent, src, now):
-    lines = [f"# Session transcript — {agent}", "", f"- source: `{os.path.basename(src)}`",
-             f"- exported: {now.strftime('%Y-%m-%dT%H:%M:%SZ')}", ""]
+    lines = [
+        f"# Session transcript — {agent}",
+        "",
+        f"- source: `{os.path.basename(src)}`",
+        f"- exported: {now.strftime('%Y-%m-%dT%H:%M:%SZ')}",
+        "",
+    ]
     if not (src.endswith(".jsonl") and "/.claude/" in src):
         with open(src, errors="replace") as f:
             return lines + ["```", f.read(), "```"]
@@ -64,7 +73,11 @@ def render(agent, src, now):
             role = msg.get("role", e.get("type"))
             content = msg.get("content")
             ts = e.get("timestamp", "")
-            parts = content if isinstance(content, list) else [{"type": "text", "text": content or ""}]
+            parts = (
+                content
+                if isinstance(content, list)
+                else [{"type": "text", "text": content or ""}]
+            )
             for c in parts:
                 if not isinstance(c, dict):
                     continue
@@ -72,11 +85,20 @@ def render(agent, src, now):
                 if t == "text" and str(c.get("text", "")).strip():
                     lines += [f"## {role} · {ts}", "", clip(c["text"], 20000), ""]
                 elif t == "tool_use":
-                    lines += [f"### tool call `{c.get('name')}` · {ts}", "", "```", clip(c.get("input")), "```", ""]
+                    lines += [
+                        f"### tool call `{c.get('name')}` · {ts}",
+                        "",
+                        "```",
+                        clip(c.get("input")),
+                        "```",
+                        "",
+                    ]
                 elif t == "tool_result":
                     body = c.get("content")
                     if isinstance(body, list):
-                        body = "\n".join(x.get("text", "") for x in body if isinstance(x, dict))
+                        body = "\n".join(
+                            x.get("text", "") for x in body if isinstance(x, dict)
+                        )
                     lines += ["### tool result", "", "```", clip(body or ""), "```", ""]
     return lines
 
@@ -90,13 +112,18 @@ def main(argv):
     home = os.environ.get("SPOOL_AGENT_HOME") or os.path.expanduser("~")
     hits = find(token, home)
     if len(hits) != 1:
-        print(f"FATAL {len(hits)} transcripts contain the token: {hits}", file=sys.stderr)
+        print(
+            f"FATAL {len(hits)} transcripts contain the token: {hits}", file=sys.stderr
+        )
         return 2
     now = datetime.datetime.now(datetime.timezone.utc)
     text, counts = redact("\n".join(render(agent, hits[0], now)))
     if out_dir == "-":
         sys.stdout.write(text)
-        print(json.dumps({"source": hits[0], "redactions": counts}, sort_keys=True), file=sys.stderr)
+        print(
+            json.dumps({"source": hits[0], "redactions": counts}, sort_keys=True),
+            file=sys.stderr,
+        )
         return 0
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, f"session-{agent}-{now.strftime('%Y%m%dT%H%M%SZ')}.md")
@@ -104,7 +131,10 @@ def main(argv):
         f.write(text)
     os.chmod(out, 0o644)
     print(out)
-    print(json.dumps({"source": hits[0], "redactions": counts}, sort_keys=True), file=sys.stderr)
+    print(
+        json.dumps({"source": hits[0], "redactions": counts}, sort_keys=True),
+        file=sys.stderr,
+    )
     return 0
 
 

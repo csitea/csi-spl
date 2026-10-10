@@ -18,6 +18,7 @@ ROLL_SLACK (120 s) of a roll is that roll's; any other run is reported as
 disconnect). Exit 0 = summarised, 1 = a read failed, 2 = could not sign in.
 The password and the session cookie are never printed.
 """
+
 import json
 import os
 import statistics
@@ -56,8 +57,15 @@ def http(method, url, body=None, cookie=""):
 def login():
     with open(os.environ["PROBE_PW_FILE"]) as f:
         pw = f.read().strip()
-    st, hdrs, _ = http("POST", API + "/api/v1/auth/login",
-                       {"email": os.environ["PROBE_EMAIL"], "password": pw, "tenant": os.environ["PROBE_TENANT"]})
+    st, hdrs, _ = http(
+        "POST",
+        API + "/api/v1/auth/login",
+        {
+            "email": os.environ["PROBE_EMAIL"],
+            "password": pw,
+            "tenant": os.environ["PROBE_TENANT"],
+        },
+    )
     for v in (hdrs.get_all("Set-Cookie") or []) if (st == 200 and hdrs) else []:
         pair = v.split(";", 1)[0]
         if pair.startswith("spool_session") and "=" in pair and pair.split("=", 1)[1]:
@@ -80,10 +88,18 @@ def watch(out_path, secs, every):
             ms = round((time.time() - t1) * 1000, 1)
             if st == 401:
                 cookie = login()
-            line = {"ts": round(t0, 3), "rev": (rv or {}).get("revision", "") if isinstance(rv, dict) else "",
-                    "status": st, "ms": ms}
+            line = {
+                "ts": round(t0, 3),
+                "rev": (rv or {}).get("revision", "") if isinstance(rv, dict) else "",
+                "status": st,
+                "ms": ms,
+            }
             if st == 200 and isinstance(roster, dict):
-                line["boxes"] = {b["box_id"]: bool(b.get("online")) for b in roster.get("boxes", []) if not b.get("revoked")}
+                line["boxes"] = {
+                    b["box_id"]: bool(b.get("online"))
+                    for b in roster.get("boxes", [])
+                    if not b.get("revoked")
+                }
             out.write(json.dumps(line, sort_keys=True) + "\n")
             out.flush()
             time.sleep(max(0.0, every - (time.time() - t0)))
@@ -113,22 +129,43 @@ def summarise(path):
                 continue
             if on:
                 if start is not None and seen_on:
-                    run = {"box": box, "start": start, "secs": round(float(r["ts"] - start), 1)}
-                    near = sorted((abs(k["ts"] - start), i) for i, k in enumerate(rolls) if abs(k["ts"] - start) <= ROLL_SLACK)
+                    run = {
+                        "box": box,
+                        "start": start,
+                        "secs": round(float(r["ts"] - start), 1),
+                    }
+                    near = sorted(
+                        (abs(k["ts"] - start), i)
+                        for i, k in enumerate(rolls)
+                        if abs(k["ts"] - start) <= ROLL_SLACK
+                    )
                     (rolls[near[0][1]]["runs"] if near else stray).append(run)
                 start, seen_on = None, True
             elif start is None:
                 start = r["ts"]
     ms = sorted(r["ms"] for r in reads)
-    out = {"reads": len(reads), "live_boxes": live,
-           "span_secs": round(reads[-1]["ts"] - reads[0]["ts"], 1) if reads else 0,
-           "roster_ms_median": statistics.median(ms) if ms else None, "rolls": [], "no_roll_runs": stray}
+    out = {
+        "reads": len(reads),
+        "live_boxes": live,
+        "span_secs": round(reads[-1]["ts"] - reads[0]["ts"], 1) if reads else 0,
+        "roster_ms_median": statistics.median(ms) if ms else None,
+        "rolls": [],
+        "no_roll_runs": stray,
+    }
     for k in rolls:
         secs = [x["secs"] for x in k["runs"]]
-        out["rolls"].append({"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(k["ts"])), "from": k["from"],
-                             "to": k["to"], "n": len(secs), "boxes_offline": sorted(x["box"] for x in k["runs"]),
-                             "min": min(secs) if secs else 0, "median": statistics.median(secs) if secs else 0,
-                             "max": max(secs) if secs else 0})
+        out["rolls"].append(
+            {
+                "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(k["ts"])),
+                "from": k["from"],
+                "to": k["to"],
+                "n": len(secs),
+                "boxes_offline": sorted(x["box"] for x in k["runs"]),
+                "min": min(secs) if secs else 0,
+                "median": statistics.median(secs) if secs else 0,
+                "max": max(secs) if secs else 0,
+            }
+        )
     print(json.dumps(out, indent=2, sort_keys=True))
     return 0
 
@@ -137,7 +174,11 @@ def main():
     if os.environ.get("WATCH_SUMMARY"):
         return summarise(os.environ["WATCH_SUMMARY"])
     out_path = os.environ["WATCH_OUT"]
-    rc = watch(out_path, float(os.environ.get("WATCH_SECS", "5400")), float(os.environ.get("WATCH_EVERY", "5")))
+    rc = watch(
+        out_path,
+        float(os.environ.get("WATCH_SECS", "5400")),
+        float(os.environ.get("WATCH_EVERY", "5")),
+    )
     return rc if rc else summarise(out_path)
 
 

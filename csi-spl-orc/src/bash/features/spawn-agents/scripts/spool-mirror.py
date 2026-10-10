@@ -67,6 +67,7 @@ Environment (hook):
                       default: sudo -n -u <owner of this script> <this script>
   SPOOL_MIRROR_SYNC   1 = run post in the foreground (tests)
 """
+
 import glob
 import hashlib
 import json
@@ -91,8 +92,8 @@ UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 # shell-inert `: 'INBOX ...'` form inbox-send.sh types) and the desk's
 # `: 'SPOOL ...'` poke line. A turn it starts is an agent's, never a DM's.
 MACHINE_LINE = re.compile(r"^(?::\s*')?(?:INBOX|SPOOL) " + PID + r"\b")
-BODY_MAX = 60000          # the hub's MaxBodyBytes is 64 KiB
-TYPED_TTL = 3600          # a typed marker / trigger older than this no longer matches
+BODY_MAX = 60000  # the hub's MaxBodyBytes is 64 KiB
+TYPED_TTL = 3600  # a typed marker / trigger older than this no longer matches
 
 
 def norm(s):
@@ -103,7 +104,9 @@ def log(seat_agent_dir, line):
     try:
         os.makedirs(os.path.join(seat_agent_dir, ".mirror"), exist_ok=True)
         with open(os.path.join(seat_agent_dir, ".mirror", "mirror.log"), "a") as f:
-            f.write(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()) + " " + line + "\n")
+            f.write(
+                time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()) + " " + line + "\n"
+            )
     except OSError:
         pass
 
@@ -116,8 +119,12 @@ def log(seat_agent_dir, line):
 # and <task-notification> results as if the owner had typed them.
 INJECTED_BLOCKS = re.compile(
     r"<(system-reminder|task-notification|local-command-[a-z-]+|command-[a-z-]+|"
-    r"user-prompt-submit-hook|bash-(?:input|stdout|stderr))\b[^>]*>.*?(?:</\1>|\Z)", re.S)
-INJECTED_LINES = re.compile(r"^(?:CLI RESTARTED IN PLACE\b|\[SYSTEM NOTIFICATION\b|Caveat: The messages below were generated\b)")
+    r"user-prompt-submit-hook|bash-(?:input|stdout|stderr))\b[^>]*>.*?(?:</\1>|\Z)",
+    re.S,
+)
+INJECTED_LINES = re.compile(
+    r"^(?:CLI RESTARTED IN PLACE\b|\[SYSTEM NOTIFICATION\b|Caveat: The messages below were generated\b)"
+)
 
 
 # An answer that only reports the agent's own machinery is no answer to a
@@ -138,14 +145,20 @@ STATUS_OPENER = re.compile(
     r"|(?:still\s+)?(?:waiting|polling|watching)\b"
     r"|(?:standing\s+by|on\s+standby|idle)\b"
     r"|(?:watcher|lease|poll(?:er)?)\s*(?::|is\b|held\b|renewed\b|armed\b|expired\b)"
-    r")", re.I)
-PROGRESS_LINE = re.compile(r"^\s*(?:[\u2800-\u28ff\u273b\u2722\u2736\u2733\u23bf]|\u25cf\s+\w+\()")
+    r")",
+    re.I,
+)
+PROGRESS_LINE = re.compile(
+    r"^\s*(?:[\u2800-\u28ff\u273b\u2722\u2736\u2733\u23bf]|\u25cf\s+\w+\()"
+)
 
 
 def answer_text(text):
     """The part of an answer a person reads: spinner / tool-progress lines cut;
     '' when what is left is only a status report."""
-    t = "\n".join(ln for ln in str(text or "").split("\n") if not PROGRESS_LINE.match(ln)).strip()
+    t = "\n".join(
+        ln for ln in str(text or "").split("\n") if not PROGRESS_LINE.match(ln)
+    ).strip()
     first = next((ln for ln in t.split("\n") if ln.strip()), "")
     return "" if not t or STATUS_OPENER.match(first) else t
 
@@ -200,7 +213,9 @@ def resolve_agent():
 
 def mirror_off():
     """The box-wide kill switch: $SPOOL_ROOT/.mirror-off."""
-    return os.path.exists(os.path.join(os.environ.get("SPOOL_ROOT") or "/var/spool-hub", ".mirror-off"))
+    return os.path.exists(
+        os.path.join(os.environ.get("SPOOL_ROOT") or "/var/spool-hub", ".mirror-off")
+    )
 
 
 def box_user(script):
@@ -249,8 +264,14 @@ def agy_extract(ev, which):
                     pass
     except OSError:
         return None
-    last_user = max((i for i, st in enumerate(steps) if st.get("type") == "USER_INPUT"
-                     and st.get("source") == "USER_EXPLICIT"), default=-1)
+    last_user = max(
+        (
+            i
+            for i, st in enumerate(steps)
+            if st.get("type") == "USER_INPUT" and st.get("source") == "USER_EXPLICIT"
+        ),
+        default=-1,
+    )
     if last_user < 0:
         return None
     if which == "pre":
@@ -258,8 +279,11 @@ def agy_extract(ev, which):
         m = AGY_REQ.search(c)
         text = (m.group(1) if m else c).strip()
         return ("prompt", text, session) if text else None
-    texts = [str(st.get("content") or "").strip() for st in steps[last_user + 1:]
-             if st.get("type") == "PLANNER_RESPONSE" and st.get("source") == "MODEL"]
+    texts = [
+        str(st.get("content") or "").strip()
+        for st in steps[last_user + 1 :]
+        if st.get("type") == "PLANNER_RESPONSE" and st.get("source") == "MODEL"
+    ]
     text = "\n\n".join(t for t in texts if t)
     return ("answer", text, session) if text else None
 
@@ -269,8 +293,11 @@ def vibe_text(content):
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return "\n".join(str(c.get("text") or "") for c in content
-                         if isinstance(c, dict) and c.get("type", "text") == "text").strip()
+        return "\n".join(
+            str(c.get("text") or "")
+            for c in content
+            if isinstance(c, dict) and c.get("type", "text") == "text"
+        ).strip()
     return ""
 
 
@@ -281,12 +308,16 @@ def vibe_files(path, session):
         return [path]
     d = path if path and os.path.isdir(path) else ""
     if not d and re.match(r"^[0-9A-Za-z-]{8,64}$", session or ""):
-        home = os.environ.get("VIBE_HOME") or os.path.join(os.path.expanduser("~"), ".vibe")
+        home = os.environ.get("VIBE_HOME") or os.path.join(
+            os.path.expanduser("~"), ".vibe"
+        )
         d = os.path.join(home, "logs", "session", "unified", session)
     if not d:
         return []
     legacy = os.path.join(d, "messages.jsonl")
-    return sorted(glob.glob(os.path.join(d, "journal", "*.jsonl"))) or ([legacy] if os.path.isfile(legacy) else [])
+    return sorted(glob.glob(os.path.join(d, "journal", "*.jsonl"))) or (
+        [legacy] if os.path.isfile(legacy) else []
+    )
 
 
 def vibe_messages(path, session):
@@ -323,13 +354,18 @@ def vibe_messages(path, session):
             if not isinstance(d, dict):
                 continue
             n += 1
-            if "role" in d:                                  # legacy LLMMessage
+            if "role" in d:  # legacy LLMMessage
                 add("legacy-%d" % n, d.get("role"), d.get("content"), d.get("injected"))
             elif d.get("type") == "projection_delta":
                 for op in (d.get("payload") or {}).get("delta") or []:
                     e = op.get("entry") if isinstance(op, dict) else None
                     if isinstance(e, dict) and e.get("type") == "message":
-                        add(str(e.get("id") or "anon-%d" % n), e.get("role"), e.get("content"), e.get("injected"))
+                        add(
+                            str(e.get("id") or "anon-%d" % n),
+                            e.get("role"),
+                            e.get("content"),
+                            e.get("injected"),
+                        )
     return [by_id[k] for k in order]
 
 
@@ -345,11 +381,18 @@ def vibe_extract(ev):
         return None
     session = str(ev.get("session_id") or "")
     msgs = vibe_messages(str(ev.get("transcript_path") or ""), session)
-    last_user = max((i for i, m in enumerate(msgs) if m[0] == "user" and not m[2] and m[1].strip()), default=-1)
+    last_user = max(
+        (i for i, m in enumerate(msgs) if m[0] == "user" and not m[2] and m[1].strip()),
+        default=-1,
+    )
     if last_user < 0:
         return None
     out = [("prompt", human_text(msgs[last_user][1]), session)]
-    text = "\n\n".join(m[1].strip() for m in msgs[last_user + 1:] if m[0] == "assistant" and m[1].strip())
+    text = "\n\n".join(
+        m[1].strip()
+        for m in msgs[last_user + 1 :]
+        if m[0] == "assistant" and m[1].strip()
+    )
     if text:
         out.append(("answer", text, session))
     return out
@@ -363,8 +406,14 @@ def post_detached(posts):
     if len(posts) == 1:
         # nothing of ours holds the hook's pipes open
         argv, text = posts[0]
-        p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
+        p = subprocess.Popen(
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+        )
         p.stdin.write(text.encode())
         p.stdin.close()
         return
@@ -376,8 +425,13 @@ def post_detached(posts):
         for fd in (0, 1, 2):
             os.dup2(devnull, fd)
         for argv, text in posts:
-            subprocess.run(argv, input=text.encode(), stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, timeout=60)
+            subprocess.run(
+                argv,
+                input=text.encode(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=60,
+            )
     finally:
         os._exit(0)
 
@@ -406,12 +460,23 @@ def hook_main(agy="", vibe=False):
             base = [sys.executable, os.path.realpath(__file__)]
             if owner != me:
                 base = ["sudo", "-n", "-u", owner] + base
-        posts = [(base + ["post", "--agent", agent, "--event", event, "--session", session], text)
-                 for event, text, session in got]
+        posts = [
+            (
+                base
+                + ["post", "--agent", agent, "--event", event, "--session", session],
+                text,
+            )
+            for event, text, session in got
+        ]
         if os.environ.get("SPOOL_MIRROR_SYNC") == "1":
             for argv, text in posts:
-                subprocess.run(argv, input=text.encode(), stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL, timeout=60)
+                subprocess.run(
+                    argv,
+                    input=text.encode(),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=60,
+                )
             return 0
         post_detached(posts)
     except Exception:  # noqa: BLE001 - a mirror must never break the CLI
@@ -421,7 +486,9 @@ def hook_main(agy="", vibe=False):
 
 # ── post half (box user) ────────────────────────────────────────────────────
 def seats(agent):
-    pat = os.environ.get("SPOOL_MIRROR_SEATS") or os.path.expanduser("~/.local/share/csi-spl/cloud/*/desk/*/*")
+    pat = os.environ.get("SPOOL_MIRROR_SEATS") or os.path.expanduser(
+        "~/.local/share/csi-spl/cloud/*/desk/*/*"
+    )
     out = []
     for d in sorted(glob.glob(pat)):
         a = os.path.join(d, "spool", agent)
@@ -478,12 +545,19 @@ def turn_trigger(agent_dir, text, now):
         if n in trig:
             p, rec = trig.pop(n)
             _unlink(p)
-            if rec.get("kind") == "dm" and HUM_RE.match(str(rec.get("from", ""))) \
-                    and UUID_RE.match(str(rec.get("task", ""))):
+            if (
+                rec.get("kind") == "dm"
+                and HUM_RE.match(str(rec.get("from", "")))
+                and UUID_RE.match(str(rec.get("task", "")))
+            ):
                 dm = dm or {"kind": "dm", "to": rec["from"], "task": rec["task"]}
             else:
                 # a dm record naming no human or no topic is no DM to answer
-                kinds.append("task" if rec.get("kind") == "dm" else str(rec.get("kind") or "task"))
+                kinds.append(
+                    "task"
+                    if rec.get("kind") == "dm"
+                    else str(rec.get("kind") or "task")
+                )
     if dm:
         return dm
     if kinds:
@@ -533,7 +607,15 @@ def pick_topic(agent_dir):
     mine = _read_json(os.path.join(agent_dir, ".mirror", "topic"))
     human = ""
     try:
-        human = open(os.path.join(os.path.dirname(os.path.dirname(agent_dir.rstrip("/"))), "mirror-to")).read().strip()
+        human = (
+            open(
+                os.path.join(
+                    os.path.dirname(os.path.dirname(agent_dir.rstrip("/"))), "mirror-to"
+                )
+            )
+            .read()
+            .strip()
+        )
     except OSError:
         pass
     if not HUM_RE.match(human):
@@ -547,8 +629,11 @@ def pick_topic(agent_dir):
 
 def set_operator(path, human):
     """operator <seat>|<seat>/spool/<agent> HUM-n|--clear"""
-    f = (os.path.join(path, ".mirror", "operator") if os.path.basename(os.path.dirname(path.rstrip("/"))) == "spool"
-         else os.path.join(path, "operator"))
+    f = (
+        os.path.join(path, ".mirror", "operator")
+        if os.path.basename(os.path.dirname(path.rstrip("/"))) == "spool"
+        else os.path.join(path, "operator")
+    )
     if human == "--clear":
         try:
             os.unlink(f)
@@ -592,7 +677,9 @@ def clip_body(s):
     if len(b) <= BODY_MAX:
         return s
     cut = b[:BODY_MAX].decode(errors="ignore")
-    return cut + f"\n… [{len(b) - BODY_MAX} more bytes: the full text is in the terminal]"
+    return (
+        cut + f"\n… [{len(b) - BODY_MAX} more bytes: the full text is in the terminal]"
+    )
 
 
 SEEN_TTL = 60  # seconds a (session, event, text) post is remembered
@@ -611,9 +698,13 @@ def first_sighting(adir, session, event, text, now):
                 os.unlink(p)
         except OSError:
             pass
-    h = hashlib.sha256("\0".join((session, event, norm(text))).encode()).hexdigest()[:32]
+    h = hashlib.sha256("\0".join((session, event, norm(text))).encode()).hexdigest()[
+        :32
+    ]
     try:
-        os.close(os.open(os.path.join(d, h), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+        os.close(
+            os.open(os.path.join(d, h), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        )
         return True
     except FileExistsError:
         return False
@@ -627,36 +718,62 @@ def post_one(seat, agent, event, text, session):
         # started the turn, so the answer knows whether it answers a DM.
         text = human_text(text)
         if session and not first_sighting(adir, session, event, text, now):
-            log(adir, "skip prompt: a second hook fired for the same prompt of this session")
+            log(
+                adir,
+                "skip prompt: a second hook fired for the same prompt of this session",
+            )
             return "skipped"
         turn = turn_trigger(adir, text, now)
         os.makedirs(os.path.join(adir, ".mirror"), exist_ok=True)
         with open(os.path.join(adir, ".mirror", "turn.tmp"), "w") as f:
             json.dump(turn, f)
-        os.replace(os.path.join(adir, ".mirror", "turn.tmp"), os.path.join(adir, ".mirror", "turn"))
-        log(adir, "turn: " + (f"dm from {turn['to']} task {turn['task']}" if turn["kind"] == "dm"
-                              else f"{turn['kind']} - its answer is not posted"))
+        os.replace(
+            os.path.join(adir, ".mirror", "turn.tmp"),
+            os.path.join(adir, ".mirror", "turn"),
+        )
+        log(
+            adir,
+            "turn: "
+            + (
+                f"dm from {turn['to']} task {turn['task']}"
+                if turn["kind"] == "dm"
+                else f"{turn['kind']} - its answer is not posted"
+            ),
+        )
         return "recorded"
     if session and not first_sighting(adir, session, event, text, now):
-        log(adir, "skip answer: a second hook fired for the same answer of this session")
+        log(
+            adir, "skip answer: a second hook fired for the same answer of this session"
+        )
         return "skipped"
     turn = take_turn(adir)
-    if turn.get("kind") != "dm" or not HUM_RE.match(str(turn.get("to", ""))) \
-            or not UUID_RE.match(str(turn.get("task", ""))):
-        log(adir, f"skip answer: the turn was not started by a DM ({turn.get('kind') or 'no prompt recorded'})")
+    if (
+        turn.get("kind") != "dm"
+        or not HUM_RE.match(str(turn.get("to", "")))
+        or not UUID_RE.match(str(turn.get("task", "")))
+    ):
+        log(
+            adir,
+            f"skip answer: the turn was not started by a DM ({turn.get('kind') or 'no prompt recorded'})",
+        )
         return "skipped"
     h = hashlib.sha256((session + "\0" + norm(text)).encode()).hexdigest()
     last = os.path.join(adir, ".mirror", "last-answer")
     try:
         if open(last).read().strip() == h:
-            log(adir, "skip answer: the same answer was already posted for this session")
+            log(
+                adir, "skip answer: the same answer was already posted for this session"
+            )
             return "skipped"
     except OSError:
         pass
     human, task = turn["to"], turn["task"]
     text = answer_text(text)
     if not text:
-        log(adir, "skip answer: status only (watcher, lease, poll, spinner or tool progress), no answer for a person")
+        log(
+            adir,
+            "skip answer: status only (watcher, lease, poll, spinner or tool progress), no answer for a person",
+        )
         return "skipped"
     body, counts = redact(text)
     body = clip_body(body)
@@ -665,14 +782,38 @@ def post_one(seat, agent, event, text, session):
         log(adir, f"FAIL {event}: no live sidecar to read the hub url from")
         return "failed"
     spool = os.environ.get("SPOOL_MIRROR_SPOOL") or os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(seat.rstrip("/")))), "bin", "spool")
-    argv = [spool, "send", "--from", agent, "--to", human, "--to-box", "box-wui",
-            "--kind", "note", "--task", task, "--body", body]
+        os.path.dirname(os.path.dirname(os.path.dirname(seat.rstrip("/")))),
+        "bin",
+        "spool",
+    )
+    argv = [
+        spool,
+        "send",
+        "--from",
+        agent,
+        "--to",
+        human,
+        "--to-box",
+        "box-wui",
+        "--kind",
+        "note",
+        "--task",
+        task,
+        "--body",
+        body,
+    ]
     if os.environ.get("SPOOL_MIRROR_DRY") == "1":
         # A dry run writes no state: no topic, no watermark, no log line.
-        print(json.dumps({"seat": seat, "argv": argv, "env": env, "redactions": counts}, sort_keys=True))
+        print(
+            json.dumps(
+                {"seat": seat, "argv": argv, "env": env, "redactions": counts},
+                sort_keys=True,
+            )
+        )
         return "dry"
-    r = subprocess.run(argv, env={**os.environ, **env}, capture_output=True, text=True, timeout=60)
+    r = subprocess.run(
+        argv, env={**os.environ, **env}, capture_output=True, text=True, timeout=60
+    )
     rc, out = r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
     if rc != 0:
         log(adir, f"FAIL {event} -> {human}: rc {rc}: {out[:300]}")
@@ -684,8 +825,11 @@ def post_one(seat, agent, event, text, session):
     remember_topic(adir, human, task)
     with open(last, "w") as f:
         f.write(h)
-    log(adir, f"OK {event} -> {human} task {task} msg {sent.get('msg_id', '?')} "
-              f"({len(body)} chars, redactions {counts or 'none'})")
+    log(
+        adir,
+        f"OK {event} -> {human} task {task} msg {sent.get('msg_id', '?')} "
+        f"({len(body)} chars, redactions {counts or 'none'})",
+    )
     return "posted"
 
 
@@ -706,7 +850,10 @@ def post_main(args):
             print(f"unknown argument {args[i]}", file=sys.stderr)
             return 64
     if not ID_RE.match(agent) or event not in ("prompt", "answer"):
-        print("usage: post --agent ID --event prompt|answer [--session S] < text", file=sys.stderr)
+        print(
+            "usage: post --agent ID --event prompt|answer [--session S] < text",
+            file=sys.stderr,
+        )
         return 64
     text = sys.stdin.read()
     if not text.strip() and event == "answer":
@@ -714,10 +861,13 @@ def post_main(args):
     # Every seat (dev, prd, ...) in parallel: one spool send is ~80-100 ms and
     # they were serial (measured 2026-09-25: 2 seats 198-257 ms).
     import concurrent.futures
+
     ss = seats(agent)
     rc = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(ss))) as ex:
-        for seat, res in zip(ss, ex.map(lambda st: post_one(st, agent, event, text, session), ss)):
+        for seat, res in zip(
+            ss, ex.map(lambda st: post_one(st, agent, event, text, session), ss)
+        ):
             print(f"{res} {seat}")
             rc = rc or (1 if res == "failed" else 0)
     return rc

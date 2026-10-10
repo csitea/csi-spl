@@ -11,6 +11,7 @@ Examples:
   export_locale.py --out /tmp/i18n --codes en
   export_locale.py --out /tmp/i18n --codes fi,sv --only-keys nav.home,footer.legal_line
 """
+
 from __future__ import annotations
 
 import argparse
@@ -96,7 +97,9 @@ def main(argv: list[str] | None = None) -> int:
     if not codes:
         die("--codes is empty")
 
-    only = [k.strip() for k in a.only_keys.split(",") if k.strip()] if a.only_keys else []
+    only = (
+        [k.strip() for k in a.only_keys.split(",") if k.strip()] if a.only_keys else []
+    )
 
     for c in codes:
         src = locales_dir / f"{c}.json"

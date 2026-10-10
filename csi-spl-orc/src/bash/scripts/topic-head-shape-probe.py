@@ -24,6 +24,7 @@ Prints one row per shape (shape, requests, statuses, request) and one JSON
 summary; exit 0 = every read answered 200, 1 = some did not or a shape had no
 target, 2 = could not sign in. The password and cookie are never printed.
 """
+
 import json
 import os
 import re
@@ -35,7 +36,11 @@ import urllib.request
 SHAPES = ("all", "all_flat", "channel", "dm", "agent", "children")
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 NOT_AGENT = re.compile(r"^(HUM|ALL)-")  # a person, or the broadcast id
-OVERRIDE = {"channel": "PROBE_CHANNEL", "agent": "PROBE_AGENT", "children": "PROBE_PARENT"}
+OVERRIDE = {
+    "channel": "PROBE_CHANNEL",
+    "agent": "PROBE_AGENT",
+    "children": "PROBE_PARENT",
+}
 
 
 def http(method, url, body=None, cookie=""):
@@ -82,12 +87,17 @@ def targets(api, cookie):
         if st == 200:
             rows += topics(body)
     ch = next((t["channel"] for t in rows if t.get("channel")), "")
-    ids = (p.split("@", 1)[0] for t in rows for p in (t.get("participants") or []))  # <id>@<box> -> <id>
+    ids = (
+        p.split("@", 1)[0] for t in rows for p in (t.get("participants") or [])
+    )  # <id>@<box> -> <id>
     agent = next((i for i in ids if i and not NOT_AGENT.match(i)), "")
     parent = next((t["parent_task_id"] for t in rows if t.get("parent_task_id")), "")
     parent = parent or next((t["task_id"] for t in rows if t.get("task_id")), "")
-    return (os.environ.get("PROBE_CHANNEL") or ch, os.environ.get("PROBE_AGENT") or agent,
-            os.environ.get("PROBE_PARENT") or parent)
+    return (
+        os.environ.get("PROBE_CHANNEL") or ch,
+        os.environ.get("PROBE_AGENT") or agent,
+        os.environ.get("PROBE_PARENT") or parent,
+    )
 
 
 def request_for(shape, ch, agent, parent):
@@ -98,28 +108,52 @@ def request_for(shape, ch, agent, parent):
     if shape == "agent":
         return "/v1/view/topics?agent=" + q(agent) if agent else ""
     if shape == "children":
-        return "/v1/view/topics/" + parent + "/children" if UUID.match(parent or "") else ""
-    return {"all": "/v1/view/topics", "all_flat": "/v1/view/topics?roots=false",
-            "dm": "/v1/view/topics?dm=true"}[shape]
+        return (
+            "/v1/view/topics/" + parent + "/children"
+            if UUID.match(parent or "")
+            else ""
+        )
+    return {
+        "all": "/v1/view/topics",
+        "all_flat": "/v1/view/topics?roots=false",
+        "dm": "/v1/view/topics?dm=true",
+    }[shape]
 
 
 def main():
     api = os.environ.get("PROBE_API", "").rstrip("/")
     n = int(os.environ.get("PROBE_N", "10"))
-    want = [s for s in (os.environ.get("PROBE_SHAPES") or ",".join(SHAPES)).split(",") if s]
+    want = [
+        s for s in (os.environ.get("PROBE_SHAPES") or ",".join(SHAPES)).split(",") if s
+    ]
     bad = [s for s in want if s not in SHAPES]
     if bad:
-        print(json.dumps({"step": "args", "error": "unknown shape(s): " + ",".join(bad)}))
+        print(
+            json.dumps({"step": "args", "error": "unknown shape(s): " + ",".join(bad)})
+        )
         return 1
     with open(os.environ.get("PROBE_PW_FILE", "")) as f:
         pw = f.read().strip()
-    st, hdrs, out = http("POST", api + "/api/v1/auth/login",
-                         {"email": os.environ.get("PROBE_EMAIL", ""), "password": pw,
-                          "tenant": os.environ.get("PROBE_TENANT", "")})
+    st, hdrs, out = http(
+        "POST",
+        api + "/api/v1/auth/login",
+        {
+            "email": os.environ.get("PROBE_EMAIL", ""),
+            "password": pw,
+            "tenant": os.environ.get("PROBE_TENANT", ""),
+        },
+    )
     cookie = session_cookie(hdrs) if st == 200 else ""
     if not cookie:
-        print(json.dumps({"step": "login", "status": st,
-                          "error": out.get("error", "") if isinstance(out, dict) else ""}))
+        print(
+            json.dumps(
+                {
+                    "step": "login",
+                    "status": st,
+                    "error": out.get("error", "") if isinstance(out, dict) else "",
+                }
+            )
+        )
         return 2
     ch, agent, parent = targets(api, cookie)
     ok, summary = True, {}
@@ -132,10 +166,21 @@ def main():
             codes[str(st)] = codes.get(str(st), 0) + 1
         good = bool(path) and codes == {"200": n}
         ok = ok and good
-        summary[shape] = {"requests": sum(codes.values()), "statuses": codes, "ok": good}
+        summary[shape] = {
+            "requests": sum(codes.values()),
+            "statuses": codes,
+            "ok": good,
+        }
         stat = ",".join("%s=%d" % kv for kv in sorted(codes.items())) or "-"
-        print("%-9s %8d  %-20s %s" % (shape, sum(codes.values()), stat,
-                                      path or "(no target: set %s)" % OVERRIDE.get(shape, "?")))
+        print(
+            "%-9s %8d  %-20s %s"
+            % (
+                shape,
+                sum(codes.values()),
+                stat,
+                path or "(no target: set %s)" % OVERRIDE.get(shape, "?"),
+            )
+        )
     print(json.dumps({"ok": ok, "n": n, "shapes": summary}, sort_keys=True))
     return 0 if ok else 1
 

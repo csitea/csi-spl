@@ -36,7 +36,9 @@ def validate(file: str, env: str):
         model = ModelType[env].value
     except KeyError:
         known = ", ".join(member.name for member in ModelType)
-        err_console.log(f"Invalid env: '{env}' — NOTHING WAS VALIDATED", style="deep_pink2")
+        err_console.log(
+            f"Invalid env: '{env}' — NOTHING WAS VALIDATED", style="deep_pink2"
+        )
         err_console.log(f"Known envs: {known}", style="deep_pink2")
         err_console.log(
             "An env with no model under EnvModels/ cannot be validated. Either add "
@@ -49,18 +51,23 @@ def validate(file: str, env: str):
     try:
         with open(file, "r") as file_stream:
             model.parse_raw(file_stream.read())
-            console.log(f"VALIDATED ::: {file} :white_heavy_check_mark:", style="green_yellow")
+            console.log(
+                f"VALIDATED ::: {file} :white_heavy_check_mark:", style="green_yellow"
+            )
     except FileNotFoundError as e:
         err_console.log(e, style="deep_pink2")
-        err_console.log(f"NOTHING WAS VALIDATED: {file} does not exist", style="deep_pink2")
+        err_console.log(
+            f"NOTHING WAS VALIDATED: {file} does not exist", style="deep_pink2"
+        )
         sys.exit(EXIT_CANNOT_CHECK)
     except ValidationError as e:
         err_console.log(file, style="deep_pink2")
         err_console.print("A validation error occured :x:", style="deep_pink2")
         for error in e.errors():
             err_console.log(error["loc"], style="deep_pink2")
-            err_console.log(error['msg'], style="deep_pink2")
+            err_console.log(error["msg"], style="deep_pink2")
         sys.exit(EXIT_INVALID)
+
 
 if __name__ == "__main__":
     app()

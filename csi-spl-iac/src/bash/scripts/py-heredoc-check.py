@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Compile every quoted <<'PY' heredoc body found in the given shell/yaml files."""
+
 import re, sys, textwrap
+
 OPEN = re.compile(r"<<(-?)\s*(['\"])(PY|PYEOF|PYTHON|EOF_PY)\2")
 bad = n = 0
 for path in sys.argv[1:]:
@@ -9,11 +11,13 @@ for path in sys.argv[1:]:
     while i < len(lines):
         m = OPEN.search(lines[i])
         if not m or "python" not in lines[i]:
-            i += 1; continue
+            i += 1
+            continue
         tag, start, body = m.group(3), i + 1, []
         i += 1
         while i < len(lines) and lines[i].strip() != tag:
-            body.append(lines[i]); i += 1
+            body.append(lines[i])
+            i += 1
         n += 1
         src = textwrap.dedent("\n".join(body))
         try:

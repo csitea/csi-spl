@@ -24,6 +24,7 @@ Usage:
 
 Exit code is 0 whatever it finds; deletion stays a human decision.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -91,10 +92,16 @@ def reachability(blob: str) -> tuple[set[str], list[re.Pattern], set[str]]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--wui", type=Path, default=default_wui(), help="csi-spl-wui root")
-    ap.add_argument("--locale", default="en", help="locale whose key set is scanned (default: en)")
-    ap.add_argument("--json", action="store_true", help="print the dead keys as a JSON array")
+    ap.add_argument(
+        "--locale", default="en", help="locale whose key set is scanned (default: en)"
+    )
+    ap.add_argument(
+        "--json", action="store_true", help="print the dead keys as a JSON array"
+    )
     args = ap.parse_args()
 
     locale_file = args.wui / "i18n" / "locales" / f"{args.locale}.json"

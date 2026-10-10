@@ -12,6 +12,7 @@ as the reply pane sends it). Prints one JSON list
 [{"msg_id", "task_id"}]; exit 0 = every post acked, 1 = one refused, 2 = could
 not sign in. The password and the cookie are never printed.
 """
+
 import importlib.util
 import json
 import os
@@ -23,7 +24,9 @@ API = os.environ.get("PROBE_API", "").rstrip("/")
 os.environ.setdefault("M3_HUB_URL", API)
 os.environ.setdefault("M3_AUTH_URL", API)
 os.environ.setdefault("M3_TENANT", os.environ.get("PROBE_TENANT", ""))
-_spec = importlib.util.spec_from_file_location("m3_e2e", os.path.join(HERE, "m3-e2e.py"))
+_spec = importlib.util.spec_from_file_location(
+    "m3_e2e", os.path.join(HERE, "m3-e2e.py")
+)
 m3 = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(m3)
 
@@ -34,7 +37,12 @@ def frames(plan, channel, done):
         task = str(step.get("task", "new"))
         if task.startswith("$"):
             task = done[int(task[1:])]["task_id"]
-        f = {"type": "send", "msg_id": str(uuid.uuid4()), "kind": "note", "body": str(step["body"])}
+        f = {
+            "type": "send",
+            "msg_id": str(uuid.uuid4()),
+            "kind": "note",
+            "body": str(step["body"]),
+        }
         if task == "new":
             f.update(task_id=str(uuid.uuid4()), is_parent=1, channel=channel)
         else:
@@ -47,8 +55,11 @@ def main():
     plan = json.loads(os.environ["PROBE_PLAN"])
     with open(os.environ["PROBE_PW_FILE"]) as f:
         pw = f.read().strip()
-    st, hdrs, _ = m3.http("POST", API + "/api/v1/auth/login",
-                          {"email": os.environ["PROBE_EMAIL"], "password": pw, "tenant": tenant})
+    st, hdrs, _ = m3.http(
+        "POST",
+        API + "/api/v1/auth/login",
+        {"email": os.environ["PROBE_EMAIL"], "password": pw, "tenant": tenant},
+    )
     cookie = m3.session_cookie(hdrs) if st == 200 else ""
     if not cookie:
         print(json.dumps({"step": "login", "status": st}))
@@ -64,7 +75,12 @@ def main():
         for frame in frames(plan, ch, done):
             ws.send(frame)
             mid = frame["msg_id"]
-            ack = ws.wait(lambda f: f.get("type") in ("ack", "error") and f.get("msg_id") in (mid, None, ""))
+            ack = ws.wait(
+                lambda f: (
+                    f.get("type") in ("ack", "error")
+                    and f.get("msg_id") in (mid, None, "")
+                )
+            )
             if not ack or ack.get("type") != "ack":
                 print(json.dumps({"step": "send", "n": len(done), "frame": ack}))
                 return 1

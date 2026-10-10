@@ -39,6 +39,7 @@ Env for `live` (the action sets these): PERF_WUI_URL, PERF_API_URL,
 PERF_EMAIL, PERF_PW_FILE, PERF_TENANT, PERF_N (8..40, default 12),
 PERF_WARMUP (0..5, default 1), PERF_TREE, PERF_ENV.
 """
+
 import argparse
 import gzip
 import io
@@ -59,7 +60,7 @@ from concurrent.futures import ThreadPoolExecutor
 # regex, 24 prefetch links on 200.html) made the "initial" gzip 214.1 KB for
 # a real 149.7 KB, and made moving code to a lazy chunk read as worse.
 SCRIPT_SRC_RE = re.compile(r'<script\b[^>]*\bsrc="/_nuxt/([A-Za-z0-9._-]+\.js)"')
-LINK_RE = re.compile(r'<link\b[^>]*>')
+LINK_RE = re.compile(r"<link\b[^>]*>")
 LINK_HREF_RE = re.compile(r'\bhref="/_nuxt/([A-Za-z0-9._-]+\.js)"')
 LINK_MODULEPRELOAD_RE = re.compile(r'\brel="modulepreload"')
 # access.ts load() -> /v1/view/me; shell-bootstrap.mjs start() -> channels, roster.
@@ -127,7 +128,13 @@ def gzip_len(data):
     node = shutil.which("node")
     if node:
         try:
-            out = subprocess.run([node, "-e", NODE_GZIP_JS], input=data, capture_output=True, timeout=60, check=True)
+            out = subprocess.run(
+                [node, "-e", NODE_GZIP_JS],
+                input=data,
+                capture_output=True,
+                timeout=60,
+                check=True,
+            )
             return int(out.stdout)
         except (OSError, ValueError, subprocess.SubprocessError):
             pass
@@ -310,7 +317,11 @@ def sample_loop(n, warmup, measure):
     for _ in range(n):
         ok, ms, extra = measure()
         if not ok:
-            return samples, first_extra, extra if isinstance(extra, str) else f"HTTP {extra}"
+            return (
+                samples,
+                first_extra,
+                extra if isinstance(extra, str) else f"HTTP {extra}",
+            )
         samples.append(ms)
         if first_extra is None:
             first_extra = extra
@@ -326,7 +337,9 @@ def live_report():
     n = int(os.environ.get("PERF_N", "12"))
     warmup = int(os.environ.get("PERF_WARMUP", "1"))
     if not wui or not api or not email or not pw_file or not tenant:
-        raise ValueError("PERF_WUI_URL, PERF_API_URL, PERF_EMAIL, PERF_PW_FILE and PERF_TENANT are required")
+        raise ValueError(
+            "PERF_WUI_URL, PERF_API_URL, PERF_EMAIL, PERF_PW_FILE and PERF_TENANT are required"
+        )
     if not (8 <= n <= 40) or not (0 <= warmup <= 5):
         raise ValueError("PERF_N must be 8..40 and PERF_WARMUP 0..5")
     with open(pw_file, encoding="utf-8") as handle:
@@ -398,12 +411,20 @@ def live_report():
         "metrics": metrics,
         "samples": {
             "first_load_ms": [r1(x) for x in samples],
-            **{key + "_ms": [row["ttfb_ms"] for row in view_rows[key]] for key, _path in ENDPOINTS},
-            **{key + "_namelookup_ms": [row["namelookup_ms"] for row in view_rows[key]] for key, _path in ENDPOINTS},
-            **{key + "_connect_ms": [row["connect_ms"] for row in view_rows[key]] for key, _path in ENDPOINTS},
+            **{
+                key + "_ms": [row["ttfb_ms"] for row in view_rows[key]]
+                for key, _path in ENDPOINTS
+            },
+            **{
+                key + "_namelookup_ms": [row["namelookup_ms"] for row in view_rows[key]]
+                for key, _path in ENDPOINTS
+            },
+            **{
+                key + "_connect_ms": [row["connect_ms"] for row in view_rows[key]]
+                for key, _path in ENDPOINTS
+            },
         },
     }
-
 
 
 def curl_reused(url, cookie, count):
@@ -416,21 +437,32 @@ def curl_reused(url, cookie, count):
         raise ValueError("curl count must be positive")
     fmt = "%{time_namelookup} %{time_connect} %{time_starttransfer} %{time_total} %{http_code}\n"
     cmd = [
-        "curl", "-sS", "-w", fmt,
-        "-H", "Accept: application/json",
-        "-H", "Accept-Encoding: identity",
-        "-H", "Cache-Control: no-cache",
-        "-A", UA,
-        "-H", "Cookie: " + cookie,
+        "curl",
+        "-sS",
+        "-w",
+        fmt,
+        "-H",
+        "Accept: application/json",
+        "-H",
+        "Accept-Encoding: identity",
+        "-H",
+        "Cache-Control: no-cache",
+        "-A",
+        UA,
+        "-H",
+        "Cookie: " + cookie,
         "--http1.1",
-        "--max-time", "30",
+        "--max-time",
+        "30",
     ]
     # -o applies only to the next URL. One -o for the whole command would
     # dump later bodies onto the timing lines.
     for _ in range(count):
         cmd.extend(["-o", os.devnull, url])
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30 * count + 15)
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30 * count + 15
+        )
     except subprocess.TimeoutExpired:
         raise ValueError("curl timed out")
     if proc.returncode != 0:
@@ -444,12 +476,14 @@ def curl_reused(url, cookie, count):
             raise ValueError("curl timing line is short")
         lookup, connect, start, _total, code = parts
         try:
-            rows.append({
-                "namelookup_ms": r1(float(lookup) * 1000.0),
-                "connect_ms": r1(float(connect) * 1000.0),
-                "ttfb_ms": r1(float(start) * 1000.0),
-                "status": int(code),
-            })
+            rows.append(
+                {
+                    "namelookup_ms": r1(float(lookup) * 1000.0),
+                    "connect_ms": r1(float(connect) * 1000.0),
+                    "ttfb_ms": r1(float(start) * 1000.0),
+                    "status": int(code),
+                }
+            )
         except ValueError:
             raise ValueError("curl timing line is not numeric")
     if len(rows) != count:
@@ -502,7 +536,11 @@ def route_chunks(pub):
                 bodies[name] = f.read()
     out = {}
     for key, markers in ROUTE_CHUNKS:
-        names = [n for n, body in bodies.items() if any(mk.encode() in body for mk in markers)]
+        names = [
+            n
+            for n, body in bodies.items()
+            if any(mk.encode() in body for mk in markers)
+        ]
         total = sum(gzip_len(bodies[n]) for n in names)
         out[key] = {"chunks": len(names), "gzip_kb": kb_of(total), "files": names}
     return out
@@ -531,7 +569,13 @@ def bundle_report(pub):
     for key, row in routes.items():
         if row["chunks"]:
             metrics[key] = row["gzip_kb"]
-    report = {"kind": "bundle", "n": 1, "documents": documents, "routes": routes, "metrics": metrics}
+    report = {
+        "kind": "bundle",
+        "n": 1,
+        "documents": documents,
+        "routes": routes,
+        "metrics": metrics,
+    }
     if "200.html" in documents:
         report["chunks"] = documents["200.html"]["chunks"]
     return report

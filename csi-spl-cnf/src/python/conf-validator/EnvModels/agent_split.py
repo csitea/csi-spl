@@ -15,6 +15,7 @@ Weight = conint(ge=0, le=100)
 
 class KindRow(BaseModel, extra=Extra.forbid):
     """One kind's weights out of 100 (a vendor left out is 0) and its backup."""
+
     agy: Weight = 0
     mistral: Weight = 0
     claude: Weight = 0
@@ -42,6 +43,7 @@ class KindRow(BaseModel, extra=Extra.forbid):
 
 class Box(BaseModel, extra=Extra.allow):
     """env.box: only agent_split_by_kind is modelled; the other keys pass through."""
+
     agent_split_by_kind: Optional[Dict[str, KindRow]]
 
     @validator("agent_split_by_kind")
@@ -55,9 +57,15 @@ class Box(BaseModel, extra=Extra.allow):
         for kind in CODING_KINDS:
             row = rows[kind]
             if row.agy != 0 or row.backup == "agy":
-                raise ValueError(f"{kind}: agy writes no code (weight 0, never the backup)")
+                raise ValueError(
+                    f"{kind}: agy writes no code (weight 0, never the backup)"
+                )
         row = rows["secret"]
-        others = [v for v in VENDORS if v not in SECRET_VENDORS and getattr(row, v) != 0]
+        others = [
+            v for v in VENDORS if v not in SECRET_VENDORS and getattr(row, v) != 0
+        ]
         if others or row.backup not in SECRET_VENDORS:
-            raise ValueError("secret: only claude and mistral may be non-zero or the backup")
+            raise ValueError(
+                "secret: only claude and mistral may be non-zero or the backup"
+            )
         return rows

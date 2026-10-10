@@ -28,6 +28,7 @@ says nothing about the other.
 Prints one JSON verdict; exit 0 = the door holds, 1 = it does not, 2 = could
 not sign in. The password and cookie are never printed.
 """
+
 import json
 import os
 import sys
@@ -91,7 +92,11 @@ def senders(messages):
 def main():
     with open(PW_FILE) as f:
         pw = f.read().strip()
-    st, hdrs, out = http("POST", API + "/api/v1/auth/login", {"email": EMAIL, "password": pw, "tenant": TENANT})
+    st, hdrs, out = http(
+        "POST",
+        API + "/api/v1/auth/login",
+        {"email": EMAIL, "password": pw, "tenant": TENANT},
+    )
     cookie = session_cookie(hdrs) if st == 200 else ""
     if not cookie:
         print(json.dumps({"step": "login", "status": st, "error": err(out)}))
@@ -102,8 +107,13 @@ def main():
         # The attachment door (rdb 0030). A raw status is the whole verdict:
         # the body is the file's bytes, which this probe never prints.
         st, _, _ = http("GET", f"{API}/v1/files/{FILE_ID}", cookie=cookie)
-        v = {"human_id": who, "file_id": FILE_ID, "status": st, "want": FILE_WANT,
-             "ok": st == FILE_WANT}
+        v = {
+            "human_id": who,
+            "file_id": FILE_ID,
+            "status": st,
+            "want": FILE_WANT,
+            "ok": st == FILE_WANT,
+        }
         print(json.dumps(v, sort_keys=True))
         return 0 if v["ok"] else 1
     st, _, body = http("GET", f"{API}/v1/view/topics/{TASK}", cookie=cookie)
@@ -121,8 +131,11 @@ def main():
         print(json.dumps(v, sort_keys=True))
         return 1
     rows = senders(body.get("messages") or [])
-    v["checks"]["readable"] = {"got": len(rows), "want_min": ALLOW_MIN,
-                               "ok": len(rows) >= ALLOW_MIN}
+    v["checks"]["readable"] = {
+        "got": len(rows),
+        "want_min": ALLOW_MIN,
+        "ok": len(rows) >= ALLOW_MIN,
+    }
     v["ok"] = v["ok"] and v["checks"]["readable"]["ok"]
     if DENY_FROM:
         leaked = [f"{f}/{c or 'DM'}" for f, c in rows if f == DENY_FROM and not c]

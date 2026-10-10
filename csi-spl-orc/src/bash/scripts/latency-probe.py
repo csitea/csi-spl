@@ -32,6 +32,7 @@ Env (all set by the action):
   LAT_BURST     how many back-to-back sends     default 4 (0 skips the control)
   LAT_OUT       where to write results.json
 """
+
 import importlib.util
 import json
 import os
@@ -40,7 +41,9 @@ import time
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-_spec = importlib.util.spec_from_file_location("m3_e2e", os.path.join(HERE, "m3-e2e.py"))
+_spec = importlib.util.spec_from_file_location(
+    "m3_e2e", os.path.join(HERE, "m3-e2e.py")
+)
 m3 = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(m3)
 
@@ -57,20 +60,48 @@ OUT = os.environ.get("LAT_OUT", "")
 # The name on the left is what the report prints; the pair on the right is the
 # two stamps it subtracts.
 HOPS = [
-    ("send -> hub ack", "t_send", "t_ack",
-     "the hub has stored it: 2 network legs + everything onSend does"),
-    ("send -> frame on this box", "t_send", "ws_recv",
-     "2 network legs + the hub's work + fan-out to the box socket"),
-    ("frame -> inbox file", "ws_recv", "inbox_written",
-     "verify the envelope against the pinned key, then the mailbox write"),
-    ("inbox file -> notifier starts", "inbox_written", "notify_start",
-     "the handoff to the terminal leg"),
-    ("notifier -> line on screen", "notify_start", "notify_visible",
-     "resolve the pane, refuse-checks, type the line"),
-    ("DELIVERED AND VISIBLE", "t_send", "notify_visible",
-     "the owner's budget: send pressed -> the message is on the agent's screen"),
-    ("visible -> notifier returns", "notify_visible", "notify_done",
-     "the TUI paste debounce before Enter; NOT visibility"),
+    (
+        "send -> hub ack",
+        "t_send",
+        "t_ack",
+        "the hub has stored it: 2 network legs + everything onSend does",
+    ),
+    (
+        "send -> frame on this box",
+        "t_send",
+        "ws_recv",
+        "2 network legs + the hub's work + fan-out to the box socket",
+    ),
+    (
+        "frame -> inbox file",
+        "ws_recv",
+        "inbox_written",
+        "verify the envelope against the pinned key, then the mailbox write",
+    ),
+    (
+        "inbox file -> notifier starts",
+        "inbox_written",
+        "notify_start",
+        "the handoff to the terminal leg",
+    ),
+    (
+        "notifier -> line on screen",
+        "notify_start",
+        "notify_visible",
+        "resolve the pane, refuse-checks, type the line",
+    ),
+    (
+        "DELIVERED AND VISIBLE",
+        "t_send",
+        "notify_visible",
+        "the owner's budget: send pressed -> the message is on the agent's screen",
+    ),
+    (
+        "visible -> notifier returns",
+        "notify_visible",
+        "notify_done",
+        "the TUI paste debounce before Enter; NOT visibility",
+    ),
 ]
 
 
@@ -125,61 +156,99 @@ def send_one(ws, task, body):
     """One DM. Returns the per-message stamp dict, in nanoseconds, box clock."""
     mid = str(uuid.uuid4())
     t_send = time.time_ns()
-    ws.send({"type": "send", "task_id": task, "kind": "note", "to": AGENT,
-             "body": body, "msg_id": mid})
-    ack = ws.wait(lambda f: f.get("msg_id") == mid and f.get("type") in ("ack", "error"), 25)
+    ws.send(
+        {
+            "type": "send",
+            "task_id": task,
+            "kind": "note",
+            "to": AGENT,
+            "body": body,
+            "msg_id": mid,
+        }
+    )
+    ack = ws.wait(
+        lambda f: f.get("msg_id") == mid and f.get("type") in ("ack", "error"), 25
+    )
     t_ack = time.time_ns()
-    rec = {"msg_id": mid, "t_send": t_send,
-           "t_ack": t_ack if ack and ack.get("type") == "ack" else 0,
-           "ack": (ack or {}).get("type", "none")}
+    rec = {
+        "msg_id": mid,
+        "t_send": t_send,
+        "t_ack": t_ack if ack and ack.get("type") == "ack" else 0,
+        "ack": (ack or {}).get("type", "none"),
+    }
     return rec
 
 
 def collect(rec):
     """Fill rec with the box-side stamps once the message has finished its trip."""
     got = wait_trace(rec["msg_id"], "notify_done")
-    for stage in ("ws_recv", "inbox_written", "notify_start", "notify_visible", "notify_done"):
+    for stage in (
+        "ws_recv",
+        "inbox_written",
+        "notify_start",
+        "notify_visible",
+        "notify_done",
+    ):
         rec[stage] = got.get(stage, 0)
     return rec
 
 
 def table(rows, title):
     """One markdown table of p50/p95 per hop, in ms."""
-    out = ["", "### %s (n=%d)" % (title, len(rows)), "",
-           "| hop | p50 ms | p95 ms | n | what is in it |",
-           "|---|---:|---:|---:|---|"]
+    out = [
+        "",
+        "### %s (n=%d)" % (title, len(rows)),
+        "",
+        "| hop | p50 ms | p95 ms | n | what is in it |",
+        "|---|---:|---:|---:|---|",
+    ]
     summary = {}
     for name, a, b in [(h[0], h[1], h[2]) for h in HOPS]:
         what = next(h[3] for h in HOPS if h[0] == name)
-        vals = [(r[b] - r[a]) / 1e6 for r in rows
-                if r.get(a) and r.get(b) and r[b] >= r[a]]
+        vals = [
+            (r[b] - r[a]) / 1e6 for r in rows if r.get(a) and r.get(b) and r[b] >= r[a]
+        ]
         p50, p95 = pct(vals, 50), pct(vals, 95)
         summary[name] = {"p50_ms": p50, "p95_ms": p95, "n": len(vals)}
-        out.append("| %s | %s | %s | %d | %s |" % (
-            name,
-            "%.1f" % p50 if p50 is not None else "-",
-            "%.1f" % p95 if p95 is not None else "-",
-            len(vals), what))
+        out.append(
+            "| %s | %s | %s | %d | %s |"
+            % (
+                name,
+                "%.1f" % p50 if p50 is not None else "-",
+                "%.1f" % p95 if p95 is not None else "-",
+                len(vals),
+                what,
+            )
+        )
     out.append("")
     return "\n".join(out), summary
 
 
 def main():
-    for name, v in (("LAT_AGENT", AGENT), ("LAT_BOX", BOX), ("LAT_ROOT", ROOT), ("LAT_TRACE", TRACE)):
+    for name, v in (
+        ("LAT_AGENT", AGENT),
+        ("LAT_BOX", BOX),
+        ("LAT_ROOT", ROOT),
+        ("LAT_TRACE", TRACE),
+    ):
         if not v:
             sys.exit("%s is required" % name)
 
     st, body, cookie = m3.native_login(m3.HUMAN, m3.TENANT, "human")
     if st != 200 or not cookie:
         sys.exit("member login failed: %s %s" % (st, str(body)[:300]))
-    st, _, sess = m3.http("GET", m3.AUTH + "/api/v1/auth/session", headers={"Cookie": cookie})
+    st, _, sess = m3.http(
+        "GET", m3.AUTH + "/api/v1/auth/session", headers={"Cookie": cookie}
+    )
     hum = (sess or {}).get("hum", "") if st == 200 else ""
     if not hum.startswith("HUM-"):
         sys.exit("no member session: %s %s" % (st, sess))
 
     ws = m3.WS(m3.ws_url("/v1/wui/ws"), cookie)
-    report, results = [], {"agent": AGENT, "box": BOX, "human": hum,
-                           "hub": m3.HUB, "tenant": m3.TENANT}
+    report, results = (
+        [],
+        {"agent": AGENT, "box": BOX, "human": hum, "hub": m3.HUB, "tenant": m3.TENANT},
+    )
     try:
         ws.send({"type": "hello", "as": "latency-probe"})
         wel = ws.wait(lambda f: f.get("type") in ("welcome", "error"))
@@ -193,7 +262,9 @@ def main():
         # ---- single sends, spaced: each one is an isolated round trip -------
         singles = []
         for i in range(N):
-            r = send_one(ws, task, "latency-probe single %d %s" % (i, time.strftime("%H:%M:%S")))
+            r = send_one(
+                ws, task, "latency-probe single %d %s" % (i, time.strftime("%H:%M:%S"))
+            )
             singles.append(r)
             time.sleep(GAP)
         singles = [collect(r) for r in singles]
@@ -209,21 +280,30 @@ def main():
         # is still serialised, "DELIVERED AND VISIBLE" climbs with position in
         # the burst; if it is off the loop, it stays flat.
         if BURST > 0:
-            burst = [send_one(ws, task, "latency-probe burst %d" % i) for i in range(BURST)]
+            burst = [
+                send_one(ws, task, "latency-probe burst %d" % i) for i in range(BURST)
+            ]
             burst = [collect(r) for r in burst]
             results["burst"] = burst
             t, s = table(burst, "A burst with no gap - the head-of-line control")
             report.append(t)
             results["burst_summary"] = s
-            per = [(r["notify_visible"] - r["t_send"]) / 1e6 for r in burst
-                   if r.get("notify_visible") and r.get("t_send")]
+            per = [
+                (r["notify_visible"] - r["t_send"]) / 1e6
+                for r in burst
+                if r.get("notify_visible") and r.get("t_send")
+            ]
             if len(per) >= 2:
-                report.append("Per position in the burst, delivered-and-visible: " +
-                              ", ".join("#%d %.0f ms" % (i, v) for i, v in enumerate(per)))
+                report.append(
+                    "Per position in the burst, delivered-and-visible: "
+                    + ", ".join("#%d %.0f ms" % (i, v) for i, v in enumerate(per))
+                )
                 results["burst_by_position_ms"] = per
                 report.append("")
-                report.append("A rising series means the terminal leg is still serialised "
-                              "behind the read loop; a flat one means it is not.")
+                report.append(
+                    "A rising series means the terminal leg is still serialised "
+                    "behind the read loop; a flat one means it is not."
+                )
     finally:
         ws.close()
 
@@ -231,9 +311,16 @@ def main():
     print(text)
     if OUT:
         with open(OUT, "w") as f:
-            json.dump({"results": results, "report_md": text,
-                       "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())},
-                      f, indent=1, sort_keys=True)
+            json.dump(
+                {
+                    "results": results,
+                    "report_md": text,
+                    "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                },
+                f,
+                indent=1,
+                sort_keys=True,
+            )
         print("\nwrote %s" % OUT)
     # A run that measured nothing must not read as a pass.
     ok = results.get("singles_summary", {}).get("DELIVERED AND VISIBLE", {}).get("n", 0)

@@ -55,7 +55,9 @@ mock_do_log_dry() {
 #------------------------------------------------------------------------------
 
 test_spl_desk_cron_checkout_success() {
+  # shellcheck disable=SC2034  # Used in spl_desk_cron_checkout
   SPL_DESK_CRON_REPO="/fake/repo"
+  # shellcheck disable=SC2034  # Used in mock_git
   git() { mock_git "$@"; }
   do_log() { mock_do_log "$@"; }
 
@@ -65,7 +67,9 @@ test_spl_desk_cron_checkout_success() {
 }
 
 test_spl_desk_cron_checkout_failure() {
+  # shellcheck disable=SC2034  # Used in spl_desk_cron_checkout
   SPL_DESK_CRON_REPO="/fake/repo"
+  # shellcheck disable=SC2034  # Used in mock_git_fail
   git() { mock_git_fail "$@"; }
   do_log() { mock_do_log "$@"; }
 

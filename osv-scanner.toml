@@ -4,10 +4,11 @@
 # golang.org/x/crypto 0.51->0.55, x/net 0.55->0.58, grpc 1.83.1->1.84.0 (trunk
 # 3225fde7), which cleared the 7 Critical + 3 High this list used to carry.
 # Remaining entries, each with a reason + review date:
-#  - golang.org/x/crypto 0.55.0 / grpc 1.84.0: the fix is in a release that
-#    requires go 1.26; this module is pinned to go 1.25 (+ golang:1.25-alpine),
-#    so 0.55 / 1.84 are the highest compatible. Not reachable (govulncheck green).
-#    Revisit when the toolchain moves to go 1.26.
+#  - golang.org/x/crypto (GO-2026-5932): the openpgp package is deprecated; the
+#    advisory covers every x/crypto release, so no fixed version exists. We do
+#    not import x/crypto/openpgp; osv-scanner rates it unimportant (shown only
+#    with --all-vulns). GO-2026-6354/6355/6443 (x/crypto, grpc) were dropped
+#    once the toolchain reached go 1.26.9: osv-scanner 2.6.0 named them unused.
 #  - node-forge 1.4.0 (npm, GHSA-86w9-cpqp-85rv): no fixed release exists; it is
 #    pulled only by listhen 1.10.1 (latest, still node-forge ^1.4.0) under
 #    @nuxt/cli + nitropack, for the dev server's self-signed HTTPS cert. It is
@@ -45,22 +46,7 @@ reason = "serialize-javascript: below pnpm audit moderate+ gate (low); Dependabo
 [[IgnoredVulns]]
 id = "GO-2026-5932"
 ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: fix needs go 1.26 (toolchain pinned to go 1.25); highest go-1.25 release in use; not reachable (govulncheck green). Revisit at go 1.26."
-
-[[IgnoredVulns]]
-id = "GO-2026-6354"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: fix needs go 1.26 (toolchain pinned to go 1.25); highest go-1.25 release in use; not reachable (govulncheck green). Revisit at go 1.26."
-
-[[IgnoredVulns]]
-id = "GO-2026-6355"
-ignoreUntil = 2026-11-01
-reason = "golang.org/x/crypto: fix needs go 1.26 (toolchain pinned to go 1.25); highest go-1.25 release in use; not reachable (govulncheck green). Revisit at go 1.26."
-
-[[IgnoredVulns]]
-id = "GO-2026-6443"
-ignoreUntil = 2026-11-01
-reason = "google.golang.org/grpc: fix needs go 1.26 (toolchain pinned to go 1.25); highest go-1.25 release in use; not reachable (govulncheck green). Revisit at go 1.26."
+reason = "golang.org/x/crypto/openpgp is deprecated: the advisory covers every x/crypto release (no fixed version); we do not import openpgp; osv-scanner rates it unimportant; not reachable (govulncheck green)."
 
 [[IgnoredVulns]]
 id = "GHSA-86w9-cpqp-85rv"

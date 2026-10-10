@@ -37,6 +37,9 @@
 #  10b. a home with ~/.vibe (mistral) gets every skill in ~/.vibe/skills,
 #      /exit-clean with its ACCEPTED rule; a re-run writes nothing; control:
 #      the old install (no vibe target) leaves ~/.vibe/skills absent
+#  10c. a home with ~/.grok gets every skill in ~/.grok/skills, /exit-clean
+#      with its ACCEPTED rule and its --defer --retire close; a re-run writes
+#      nothing; control: the old install leaves ~/.grok/skills absent
 #  11. a vendor URL that returns no script: that CLI is named, never run, the
 #      other CLIs and the harness still install, and the run exits 4
 #  12. spec 072 A49: a default install writes no fleet CLAUDE.md, no ~/.vibe/AGENTS.md,
@@ -415,6 +418,25 @@ grep -qF 'whose body starts with `ACCEPTED`' "$VS/exit-clean/SKILL.md" && ! grep
   pass "10b. ~/.vibe/skills/exit-clean carries the ACCEPTED rule, no placeholder left" || fail "10b. exit-clean: $(head -20 "$VS/exit-clean/SKILL.md")"
 ARGS=(--cli none --no-seat); inst; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'skills: 0 written' "$T/o" && pass "10b. a re-run writes nothing" || fail "10b. re-run: rc $rc $(grep skills "$T/o")"
+H="$H0"
+
+# --- 10c. grok: the skills into ~/.grok/skills (Grok Build 1.0.50 reads them first) ----------------
+H0="$H"; H="$T/home-grok"; mkdir -p "$H/.grok"
+sed 's/^  \[ -d "\$HOME\/.grok" \] && GROK_SKILLS=1$/  :/' "$INSTALL" >"$CTL"
+if cmp -s "$INSTALL" "$CTL"; then fail "10c. control: the sed found no ~/.grok line to disable"
+else
+  INSTALL0="$INSTALL"; INSTALL="$CTL"; ARGS=(--cli none --no-seat); inst; rc=$?; INSTALL="$INSTALL0"
+  [[ $rc -eq 0 && ! -e "$H/.grok/skills" ]] && pass "10c. CONTROL: the old install leaves ~/.grok/skills absent" || fail "10c. control: rc $rc $(ls -R "$H/.grok" 2>&1 | sed -n 1,10p)"
+fi
+rm -f "$CTL"
+ARGS=(--cli none --no-seat); inst; rc=$?
+GS="$H/.grok/skills"
+n_gs="$(for k in "$ASSETS"/skills/*/; do k="${k%/}"; [ -f "$GS/${k##*/}/SKILL.md" ] && echo; done | wc -l)"
+[[ $rc -eq 0 && "$n_gs" == "$n_sk" ]] && pass "10c. a home with ~/.grok gets every skill ($n_sk) in ~/.grok/skills" || fail "10c. grok skills: rc $rc $n_gs/$n_sk $(cat "$T/o")"
+grep -qF 'whose body starts with `ACCEPTED`' "$GS/exit-clean/SKILL.md" && grep -qF -- '--defer --retire' "$GS/exit-clean/SKILL.md" && ! grep -rqE '\{\{[A-Z_]+\}\}' "$GS" &&
+  pass "10c. ~/.grok/skills/exit-clean carries the ACCEPTED rule and the --defer --retire close, no placeholder left" || fail "10c. exit-clean: $(head -20 "$GS/exit-clean/SKILL.md")"
+ARGS=(--cli none --no-seat); inst; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'skills: 0 written' "$T/o" && pass "10c. a re-run writes nothing" || fail "10c. re-run: rc $rc $(grep skills "$T/o")"
 H="$H0"
 
 # --- 11. one vendor's bad day ---------------------------------------------------------------------

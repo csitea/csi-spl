@@ -16,6 +16,8 @@
 #   7. a refused user hop fails the run
 #   8. a home with ~/.vibe (mistral) gets the skills in ~/.vibe/skills, one
 #      without it gets none; control: a renderer with no vibe target
+#   9. the same for grok: ~/.grok/skills where ~/.grok exists; control: a
+#      renderer with no grok target
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -132,5 +134,20 @@ out="$(refresh)"; grep -q "would write $H1/$VEC" <<<"$out" && pass "8. the dry r
 out="$(refresh DRY_RUN=0)"; rc=$?
 [ "$rc" -eq 0 ] && grep -q 'whose body starts with `ACCEPTED`' "$H1/$VEC" && [ ! -e "$H2/.vibe" ] \
   && pass "8. a home with ~/.vibe gets exit-clean in ~/.vibe/skills, one without gets none" || fail "8. vibe (rc $rc: $out)"
+
+# 9. grok: ~/.grok/skills where ~/.grok exists (Grok Build 1.0.50 reads it first)
+GEC=.grok/skills/exit-clean/SKILL.md
+mkdir -p "$H1/.grok"
+python3 - "$PROJ_ROOT/src/bash/features/spool-install/install.sh" "$T/nogrok.sh" <<'EOF'
+import sys
+s = open(sys.argv[1]).read()
+open(sys.argv[2], "w").write(s.replace('if grok == "1":', "if False:", 1))
+EOF
+out="$(refresh DRY_RUN=0 SKILLS_REFRESH_INSTALLER="$T/nogrok.sh")"; rc=$?
+[ "$rc" -eq 0 ] && [ ! -e "$H1/$GEC" ] && pass "9. control: a renderer with no grok target leaves ~/.grok/skills absent" || fail "9. control (rc $rc: $out)"
+out="$(refresh)"; grep -q "would write $H1/$GEC" <<<"$out" && pass "9. the dry run names ~/.grok/skills/exit-clean" || fail "9. dry ($out)"
+out="$(refresh DRY_RUN=0)"; rc=$?
+[ "$rc" -eq 0 ] && grep -q 'whose body starts with `ACCEPTED`' "$H1/$GEC" && [ ! -e "$H2/.grok" ] \
+  && pass "9. a home with ~/.grok gets exit-clean in ~/.grok/skills, one without gets none" || fail "9. grok (rc $rc: $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

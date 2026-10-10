@@ -852,16 +852,23 @@ if [ "$SKILLS" = 1 ]; then
   VIBE_SKILLS=0
   for c in "${CLI_LIST[@]}"; do [ "$c" = mistral ] && VIBE_SKILLS=1; done
   [ -d "$HOME/.vibe" ] && VIBE_SKILLS=1
+  # Grok Build reads ~/.grok/skills before ~/.claude/skills (its compat scan,
+  # which [compat.claude] skills = false turns off); one name in both is
+  # listed once (grok 1.0.50, 2026-10-10).
+  GROK_SKILLS=0
+  for c in "${CLI_LIST[@]}"; do [ "$c" = grok ] && GROK_SKILLS=1; done
+  [ -d "$HOME/.grok" ] && GROK_SKILLS=1
   if [ "$DRY" = 1 ]; then
-    plan "render $HARNESS_DIR/assets commands + skills into $HOME/.claude$([ "$QWEN_SKILLS" = 1 ] && echo " and $HOME/.qwen/skills")$([ "$AGY_SKILLS" = 1 ] && echo " and $HOME/.gemini/config/skills")$([ "$VIBE_SKILLS" = 1 ] && echo " and $HOME/.vibe/skills") (hand-edited files kept)"
+    plan "render $HARNESS_DIR/assets commands + skills into $HOME/.claude$([ "$QWEN_SKILLS" = 1 ] && echo " and $HOME/.qwen/skills")$([ "$AGY_SKILLS" = 1 ] && echo " and $HOME/.gemini/config/skills")$([ "$VIBE_SKILLS" = 1 ] && echo " and $HOME/.vibe/skills")$([ "$GROK_SKILLS" = 1 ] && echo " and $HOME/.grok/skills") (hand-edited files kept)"
     plan "copy the tmux snippet to $DATA/tmux-agent-status.conf"
   else
     python3 - "$HARNESS_DIR/assets" "$HOME" "$QWEN_SKILLS" "$FORCE_SKILLS" \
-      "$HARNESS_DIR" "${SPOOL_ROOT:-$ROOT_DEFAULT}" "${SPOOL_AGENT_CEILING:-40}" "${SPOOL_ORCHESTRATOR_ID:-orchestrator}" "$AGY_SKILLS" "$VIBE_SKILLS" <<'EOF_PY' || die 6 "cannot render the harness skills"
+      "$HARNESS_DIR" "${SPOOL_ROOT:-$ROOT_DEFAULT}" "${SPOOL_AGENT_CEILING:-40}" "${SPOOL_ORCHESTRATOR_ID:-orchestrator}" "$AGY_SKILLS" "$VIBE_SKILLS" "$GROK_SKILLS" <<'EOF_PY' || die 6 "cannot render the harness skills"
 import hashlib, os, re, sys
 assets, home, qwen, force, harness, root, ceiling, orc = sys.argv[1:9]
 agy = sys.argv[9] if len(sys.argv) > 9 else "0"
 vibe = sys.argv[10] if len(sys.argv) > 10 else "0"
+grok = sys.argv[11] if len(sys.argv) > 11 else "0"
 MARK = re.compile(r"\n<!-- spool-install: sha256=([0-9a-f]{64}) -->\n?")
 subst = {"HARNESS_DIR": harness, "SPOOL_ROOT": root, "AGENT_CEILING": ceiling, "ORCHESTRATOR_ID": orc}
 def render(src):
@@ -884,6 +891,8 @@ for n in sorted(os.listdir(os.path.join(assets, "skills"))):
         jobs.append((src, os.path.join(home, ".gemini", "config", "skills", n, "SKILL.md")))
     if vibe == "1":
         jobs.append((src, os.path.join(home, ".vibe", "skills", n, "SKILL.md")))
+    if grok == "1":
+        jobs.append((src, os.path.join(home, ".grok", "skills", n, "SKILL.md")))
 wrote = same = 0
 for src, dst in jobs:
     new = render(src)

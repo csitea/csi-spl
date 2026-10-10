@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # @description Refresh ONLY the agent skills and slash commands from the
 # @description checkout's spawn-agents/assets into ~/.claude (and ~/.qwen/skills,
-# @description ~/.gemini/config/skills, ~/.vibe/skills where those dirs exist), for every box
+# @description ~/.gemini/config/skills, ~/.vibe/skills, ~/.grok/skills where those dirs exist), for every box
 # @description user. It runs step 5b's own renderer, read out of
 # @description spool-install/install.sh at run time (one copy of the rule):
 # @description a file is written only when it is absent or carries the
@@ -95,10 +95,11 @@ spl_skills_refresh_renderer() {
 # with dry=1 into a scratch copy of its skill dirs and prints what would change.
 spl_skills_refresh_user() {
   local home="$1" harness="$2" dry="$3" py="$4" root="$5" ceiling="$6" orc="$7"
-  local qwen=0 agy=0 vibe=0 fleet tgt d f rel n=0
+  local qwen=0 agy=0 vibe=0 grok=0 fleet tgt d f rel n=0
   [ -d "$home/.qwen" ] && qwen=1
   [ -d "$home/.gemini" ] && agy=1
   [ -d "$home/.vibe" ] && vibe=1
+  [ -d "$home/.grok" ] && grok=1
   # install.sh's own SPOOL_ROOT default: the fleet's, else the user's state dir
   fleet="$(sed -n 's/^SPOOL_INSTALL_FLEET=//p' "$home/.config/spool-agent/env" 2>/dev/null | tail -1)"
   [ -n "$fleet" ] || { grep -qF '<!-- spool-install: begin claude-md' "$home/.claude/CLAUDE.md" 2>/dev/null && fleet=1; }
@@ -108,12 +109,12 @@ spl_skills_refresh_user() {
   tgt="$home"
   if [ "$dry" = 1 ]; then
     tgt="$(mktemp -d)" || return 1
-    for d in .claude/commands .claude/skills .qwen/skills .gemini/config/skills .vibe/skills; do
+    for d in .claude/commands .claude/skills .qwen/skills .gemini/config/skills .vibe/skills .grok/skills; do
       [ -d "$home/$d" ] || continue
       mkdir -p "$tgt/${d%/*}" && cp -a "$home/$d" "$tgt/$d" 2>/dev/null
     done
   fi
-  python3 - "$harness/assets" "$tgt" "$qwen" 0 "$harness" "$root" "$ceiling" "$orc" "$agy" "$vibe" <<<"$py" 2>&1 |
+  python3 - "$harness/assets" "$tgt" "$qwen" 0 "$harness" "$root" "$ceiling" "$orc" "$agy" "$vibe" "$grok" <<<"$py" 2>&1 |
     sed "s#$tgt/#$home/#g"
   [ "${PIPESTATUS[0]}" = 0 ] || { [ "$dry" = 1 ] && rm -rf "$tgt"; return 1; }
   if [ "$dry" = 1 ]; then

@@ -82,6 +82,25 @@ main box 2026-09-12: two shas were reported PUSHED and published as on trunk,
 and were not there. `git merge-base --is-ancestor HEAD origin/master` reads the
 repository; its exit code is the same check rule (8) needs before teardown.
 
+### 3.2 Never force-push (NO FORCE-PUSH)
+
+Trunk stays: a plain push to master is how a lane lands. A force-push
+(`--force`, `--force-with-lease`, `+ref`) is not: it replaces the commits
+others landed with yours. A refused push means someone landed first: fetch,
+rebase, re-test and push again; `SPL_PREPUSH_OVERRIDE` never gets it through.
+No agent force-pushes master without the owner's explicit approval of that one
+push, and even then the owner decides who does it, often by hand: ask and wait.
+
+The owner, HUM-10 2026-10-10: "yes we are using the trunk strategy to push to
+master , BUT there are RULES. Everyone respects the work of the others. We are
+team and not a bunch of selfish cawboys" (msg 097f9de3); "NOBODY PUSH FORCE'S
+TO THE MASTER. ONLY AFTER EXPLICIT APPROVAL FROM ME" (1ca01c83); "AND EVEN THAN
+I MIGHT PREFER TO MAKE IT MANUALLY" (3e095a04); for every agent type
+(1cdfa5ba). Cases: m-615, m-621, m-734, m-713, m-755.
+
+The rule's one home is `NO_FORCE` in `spawn-core.inc.sh`; every kind's seed
+renders it (`tests/test-seed-no-force-push.sh`).
+
 ## 4. Refresh the main source (rule 5)
 
 ### 4.1 `merge --ff-only`, never `pull --ff-only`

@@ -66,14 +66,14 @@ spawn_rename_how() {
   # agent copy-pastes a command that cannot run $(...) from the title.
   local desc_esc
   spool_dq_escape desc_esc "${SLUG:-}"
-  printf '%s' "retitle your tmux window to the shortest possible description of the work you are about to implement (2-5 words) by running: bash ${_SP_DIR}/riname.sh --agent ${TITLE} \"${desc_esc}\" (vibe cannot name its own session); then read the workdir's CLAUDE.md, if it has one, and csi-spl-doc/doc/help/how-to-post.md: vibe loads only AGENTS.md, so CLAUDE.md's rules reach you only this way; stay in your own lane (Всяка жаба да си знае гьола): your brief only, a finding outside it goes to the orchestrator, never fix it yourself (~/.vibe/AGENTS.md)"
+  printf '%s' "retitle your tmux window to the shortest description of your task (2-5 words): run bash ${_SP_DIR}/riname.sh --agent ${TITLE} \"${desc_esc}\" (vibe cannot name its own session); then read the workdir's CLAUDE.md, if it has one, and csi-spl-doc/doc/help/how-to-post.md; stay in your own lane (Всяка жаба да си знае гьола): your brief only, a finding outside it goes to the orchestrator, never fix it yourself (~/.vibe/AGENTS.md)"
 }
 # vibe runs every hook with its launch dir as cwd (vibe/core/hooks/executor.py,
 # 2.26.0), the post_agent DM mirror too: a lane that removed its worktree
 # answered the owner's DMs in its terminal only ("[spool-mirror] failed to
 # start: [Errno 2]", m-587 2026-10-08). The closer's --retire removes it.
 spawn_teardown_how() {
-  printf '%s' "TEAR DOWN after (7) is green: HEAD on origin/${DEFBRANCH}; KEEP ${WORKTREE_DIR} and its branch (vibe runs its hooks, the DM-reply mirror too, in it); the closer's --retire removes them."
+  printf '%s' "TEAR DOWN after (7) is green: HEAD on origin/${DEFBRANCH}; KEEP ${WORKTREE_DIR} and its branch (vibe's hooks run in it); the closer's --retire removes them."
 }
 _sp_core="$(dirname "$(readlink -f "$SPAWN_ADAPTER")")/spawn-core.inc.sh"
 # shellcheck source=spawn-core.inc.sh

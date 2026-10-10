@@ -11,7 +11,7 @@
 // Run: node tests/unit/box-rows.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { boxRows, boxByID, boxTag, isBrowserBox, filterBoxes } from '../../src/utils/box-rows.mjs'
+import { boxRows, boxByID, boxTag, isBrowserBox, filterBoxes, SEATS_AGENTS, SEATS_PEOPLE, seatsAnchorOf } from '../../src/utils/box-rows.mjs'
 
 /* peopleRows() shape: one {id, box, online} per seat. Four boxes: box-desk (an
    agent AND a human), box-a (two agents), box-b (an offline agent), box-wui
@@ -116,5 +116,18 @@ describe('filterBoxes', () => {
     // "box-" is in every id, so it keeps all
     assert.equal(filterBoxes(rows, 'box-').length, 3)
     assert.equal(filterBoxes(rows, 'zzz').length, 0)
+  })
+})
+
+// HUM-10 (t1 58857a17): "N people · M agents", each count a link to its own
+// list on /boxes/<id>; the hash names which list opens.
+describe('seatsAnchorOf', () => {
+  it('opens the people or the agents list, nothing else', () => {
+    assert.equal(seatsAnchorOf('#box-people'), SEATS_PEOPLE)
+    assert.equal(seatsAnchorOf('#box-agents'), SEATS_AGENTS)
+    assert.equal(seatsAnchorOf('box-agents'), SEATS_AGENTS)
+    assert.equal(seatsAnchorOf('#box-users'), '')
+    assert.equal(seatsAnchorOf(''), '')
+    assert.equal(seatsAnchorOf(undefined), '')
   })
 })

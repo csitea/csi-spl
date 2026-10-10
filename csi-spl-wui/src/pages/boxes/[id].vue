@@ -40,8 +40,26 @@
           <dd data-test="box-id"><code>{{ boxId }}</code></dd>
           <dt>{{ t('people.last_seen') }}</dt>
           <dd data-test="box-last-hello">{{ lastHello }}</dd>
-          <dt>{{ t('boxes.users') }}</dt>
-          <dd data-test="box-user-total">{{ box.userCount }}</dd>
+          <!-- HUM-10 (t1 58857a17): people and agents are counted apart,
+               each count a link to its own list below -->
+          <dt>{{ t('boxes.seated') }}</dt>
+          <dd class="box-card__seated" data-test="box-seated">
+            <NuxtLink
+              class="box-card__count"
+              data-test="box-people-count"
+              :data-count="box.people.length"
+              :to="{ path: route.path, hash: '#' + SEATS_PEOPLE }"
+              @click="showSeats(SEATS_PEOPLE)"
+            >{{ t('boxes.people_n', box.people.length) }}</NuxtLink>
+            <span class="muted" aria-hidden="true">·</span>
+            <NuxtLink
+              class="box-card__count"
+              data-test="box-agents-count"
+              :data-count="box.agents.length"
+              :to="{ path: route.path, hash: '#' + SEATS_AGENTS }"
+              @click="showSeats(SEATS_AGENTS)"
+            >{{ t('boxes.agents_n', box.agents.length) }}</NuxtLink>
+          </dd>
         </dl>
 
         <!-- NOW (owner ba10751d): the latest box-stats sample, a 5-minute
@@ -93,8 +111,8 @@
         </nav>
 
         <!-- the agents seated on this box -->
-        <section class="box-card__seats">
-          <h3>{{ t('sidebar.agents') }} <span class="muted box-card__n">{{ box.agents.length }}</span></h3>
+        <section :id="SEATS_AGENTS" class="box-card__seats" :class="{ 'is-target': seatsTarget === SEATS_AGENTS }" data-test="box-agents-list">
+          <h3 tabindex="-1">{{ t('sidebar.agents') }} <span class="muted box-card__n">{{ box.agents.length }}</span></h3>
           <p v-if="box.agents.length === 0" class="muted" data-test="box-no-agents">{{ t('boxes.no_agents') }}</p>
           <NuxtLink
             v-for="a in box.agents"
@@ -112,8 +130,8 @@
         </section>
 
         <!-- the people seated on this box (their WUI / app sessions) -->
-        <section class="box-card__seats">
-          <h3>{{ t('sidebar.people') }} <span class="muted box-card__n">{{ box.people.length }}</span></h3>
+        <section :id="SEATS_PEOPLE" class="box-card__seats" :class="{ 'is-target': seatsTarget === SEATS_PEOPLE }" data-test="box-people-list">
+          <h3 tabindex="-1">{{ t('sidebar.people') }} <span class="muted box-card__n">{{ box.people.length }}</span></h3>
           <p v-if="box.people.length === 0" class="muted" data-test="box-no-people">{{ t('boxes.no_people') }}</p>
           <NuxtLink
             v-for="p in box.people"
@@ -147,7 +165,7 @@
 <script setup lang="ts">
 import { useRosterStore } from '~/stores/roster'
 import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
-import { boxByID, isBrowserBox } from '~/utils/box-rows.mjs'
+import { SEATS_AGENTS, SEATS_PEOPLE, boxByID, isBrowserBox, seatsAnchorOf } from '~/utils/box-rows.mjs'
 import {
   ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf, boxStatsOf, boxSystemOf,
   currentOf, diskLine, diskTitle, factsReportedAt, formatKB, formatLoad, formatMB, isBoxStatsForbidden, isNoBoxStats,
@@ -238,6 +256,25 @@ const heading = computed(() => {
   return r ? `${box.value.tag} · ${t(r.label)}` : box.value.tag
 })
 
+/* a people / agents count (here or on the rail row) opens its list: the
+   `#box-people` / `#box-agents` hash scrolls it into view and marks it. The
+   feed body is the scroller, not the window, so the page does it itself;
+   a click on the count already in the hash scrolls back to its list too. */
+const seatsTarget = computed(() => seatsAnchorOf(route.hash))
+function showSeats(id = seatsTarget.value) {
+  if (!id) return
+  void nextTick(() => {
+    const el = document.getElementById(id)
+    if (!el) return
+    el.scrollIntoView({ block: 'start' })
+    el.querySelector<HTMLElement>('h3')?.focus({ preventScroll: true })
+  })
+}
+onMounted(() => showSeats())
+watch(() => route.hash, () => { if (import.meta.client) showSeats() })
+/* the first stats read grows "Now" above the lists: scroll to it again */
+watch(() => stats.value.state, (state, was) => { if (was === 'loading' && state !== 'loading') showSeats() })
+
 /* machines only: the browser box has no card, its old link lands on the list */
 if (isBrowserBox(boxId.value)) void navigateTo(localePath('/boxes'), { replace: true })
 
@@ -326,6 +363,13 @@ stack.rightPanel(
 .box-now p { margin: 0; }
 .box-res__sum { margin-inline-start: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; }
 .box-card__n { font-weight: 400; font-size: 0.8rem; }
+.box-card__seated { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.box-card__count { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+.box-card__seats { scroll-margin-top: 8px; border-radius: var(--radius-sm); }
+.box-card__seats.is-target { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
+/* an opened list can scroll to the top even when it is the last one */
+.box-res:has(.box-card__seats.is-target) { padding-bottom: 60vh; }
+.box-card__seats h3:focus { outline: none; }
 .box-seat {
   display: flex; align-items: center; gap: 8px; min-width: 0;
   padding: 5px 6px; border-radius: var(--radius-sm); color: inherit; text-decoration: none;

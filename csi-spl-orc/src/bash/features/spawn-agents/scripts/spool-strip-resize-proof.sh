@@ -98,6 +98,46 @@ chmod +x "$T/inkish.sh"
 fails=0
 say() { printf '%s\n' "$*"; }
 
+# A test waits for a state, never for a time: a fixed sleep before a capture
+# measured a pane the subject had not painted yet on a busy CI runner, and the
+# width case then reported TX-001 as moved (7 of 20 failed feature jobs,
+# refactor round 7 row 03). Every wait below polls every POLL s for at most
+# WAIT_S s of wall clock, and a state that never comes ends the proof with a
+# timeout line on stderr and exit 1, never a hang.
+POLL=0.1 WAIT_S=10
+capture() { tmux -S "$SOCK" capture-pane -p -t w.0 2>/dev/null; }
+now_us() { local t="${EPOCHREALTIME/,/.}"; t="${t/./}"; printf '%s' "$((10#$t))"; }
+deadline_us() { printf '%s' "$(( $(now_us) + WAIT_S * 1000000 ))"; }
+timeout_out() {  # WHAT
+  echo "spool-strip-resize-proof: timeout: $1 after ${WAIT_S} s" >&2
+  exit 1
+}
+# wait_painted ROW1 LAST: the subject's first paint is done - row 1 starts
+# with ROW1 and the last thing it draws (LAST) is on screen.
+wait_painted() {
+  local cap end; end="$(deadline_us)"
+  while :; do
+    cap="$(capture)"
+    [[ "$(printf '%s\n' "$cap" | sed -n '1p')" == "$1"* ]] && [[ "$cap" == *"$2"* ]] && return 0
+    [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never painted ${1} on row 1 and ${2}"
+    sleep "$POLL"
+  done
+}
+# wait_settled: the split has reached the pane (it is no longer ${W}x${H})
+# and two captures in a row are equal, so whatever the subject repaints on
+# SIGWINCH is on screen.
+wait_settled() {
+  local cap prev="" geom end; end="$(deadline_us)"
+  while :; do
+    geom="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}' 2>/dev/null)"
+    cap="$(capture)"
+    [ -n "$geom" ] && [ "$geom" != "${W}x${H}" ] && [ -n "$prev" ] && [ "$cap" = "$prev" ] && return 0
+    [ "$(now_us)" -lt "$end" ] || timeout_out "the pane never settled after the split"
+    prev="$cap"
+    sleep "$POLL"
+  done
+}
+
 # case DIRECTION SIZE LABEL: prints the measurement and puts "no" or
 # "YES (...)" in MOVED. Not a command substitution: the report goes to stdout
 # for the reader, so a caller that captured it would swallow the whole thing
@@ -107,10 +147,10 @@ case_split() {  # -v|-h SIZE LABEL
   local dir="$1" size="$2" label="$3" before after geom first last moved
   tmux -S "$SOCK" kill-server 2>/dev/null; sleep 0.2
   tmux -S "$SOCK" -f /dev/null new-session -d -s p -x "$W" -y "$H" -n w "$T/painter.sh" || return 1
-  sleep 1
+  wait_painted ROW-001 ROW-END
   before="$(tmux -S "$SOCK" capture-pane -p -t w.0 | sed -n '1p')"
   tmux -S "$SOCK" split-window -d "$dir" -l "$size" -t w.0 'sleep 600' 2>/dev/null
-  sleep 1
+  wait_settled
   geom="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}')"
   after="$(tmux -S "$SOCK" capture-pane -p -t w.0)"
   first="$(printf '%s\n' "$after" | sed -n '1p')"
@@ -156,9 +196,9 @@ ink_case() {  # -v|-h SIZE LABEL
   local dir="$1" size="$2" label="$3" cap rows frame_row tx_first tx_intact
   tmux -S "$SOCK" kill-server 2>/dev/null; sleep 0.2
   tmux -S "$SOCK" -f /dev/null new-session -d -s p -x "$W" -y "$H" -n w "$T/inkish.sh" || return 1
-  sleep 1
+  wait_painted TX-001 FRAME-2
   tmux -S "$SOCK" split-window -d "$dir" -l "$size" -t w.0 'sleep 600' 2>/dev/null
-  sleep 1.5
+  wait_settled
   cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)"
   rows="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_height}')"
   frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | sed -n 1p | cut -d: -f1)"

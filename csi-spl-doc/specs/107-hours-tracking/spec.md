@@ -1,8 +1,8 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.0-draft** (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-37, for the v2 review panel) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
-**Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
+**Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). v2 input: [business-needs.md](business-needs.md) (consensus `2c6c36732`) and its seats [bn-agy](reviews/bn-agy.md) · [bn-mistral](reviews/bn-mistral.md) · [bn-claude](reviews/bn-claude.md) · [bn-claude-2](reviews/bn-claude-2.md). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
 Reviews, unchanged beside this file: [s107-2](reviews/s107-2.md) (`a231ea1e`) · [s107-3](reviews/s107-3.md) (`ec87f9b4`) · [s107-4](reviews/s107-4.md) (`efdbd856`).
 
@@ -13,6 +13,7 @@ Builds on:
 - [098 tenant settings jsonb](../098-tenant-settings-jsonb/spec.md): four registered scalar keys for the workspace's hours settings.
 - [043 mobile WUI](../043-spool-wui-mobile/spec.md): the phone stack (level 1/2/3, Back).
 - [027 performance](../027-spool-performance/spec.md): the 155 KB initial chunk; the hours UI rides the calendar's lazy chunks and no always-on client plugin is added.
+- v2 also: [095 Web Push](../095-web-push/spec.md) (the nudge, FR-36), [072 guest rule R1](../072-rapid-deployability/spec.md) (`access_until`, FR-21), [025 section 9](../025-spool-tenant-rbac/spec.md) (several roles per member, FR-20).
 
 Prose says **workspace** (a tenant), **member** (a HUM-* in it) and **biz owner** (a member whose role is `biz_owner`, `internal/rbac/rbac.go`). Agents (roster ids) do not log hours in v1.
 
@@ -434,6 +435,7 @@ An issue's discussion is a topic on `issues.task_id` (`internal/store/issues.go`
 | FR-11 | v1.2: a Working hours line on every working day in the calendar (desktop week, phone Day / Week / Month) with the day's total; a click opens the event dialog of type Working hours, its description the day's discussions as links with a note each; the calendar's right-side hours tabs Mine / Team / Download (a sheet on the phone); no rail entry, no page, no always-on client code; banner (5.1) | Planned |
 | FR-12 | Phone: 2 taps from the calendar view for the common case, no sideways scroll, 44..48 px controls (5.2) | Planned |
 | FR-13 | Meetings suggested (7 v1); issues via their topics (8 v1) | Planned |
+| FR-14..FR-37 | v2.0-draft: the business-needs gaps, each citing its BN / U id (section 14; map in section 17) | Planned |
 
 **Acceptance** (the live proof task): a seeded member with posts, tab minutes and a meeting on Monday opens the calendar at 390 px and at 1440 px, sees a Working hours line with Monday's total, opens it and sees Monday prefilled with the fixture's rows; approves the closed days in 2 taps from the calendar view; today stays open until **Approve so far**; after the freeze (with and without the sweep having run) the week is read-only and its open suggestions are gone; the biz owner returns it with a note, the member resubmits, the biz owner approves; the biz owner's CSV and XLSX hold exactly the approved lines with `period_state = approved`; a second workspace's biz owner reads none of them; a `hours.read` holder never receives a raw minute; `perf-budget.py` stays under 155 KB.
 
@@ -446,6 +448,8 @@ v1.2: the calendar's own two layouts at 820 px. Desktop: the line in the week's 
 ---
 
 ## 11. Not in v1
+
+v2.0-draft takes in, from this list: overtime and the other rate categories as labels (FR-28), leave as absence types without balances (FR-30), holidays (FR-29), the foreman entering a crew member's minutes before the freeze (FR-23), and a push nudge (FR-36). **Money stays out of hours tracking** (FR-19): rates live in a separate accounting view, seen only by the time-accountant role (FR-20).
 
 - **Money**: rates, invoices, overtime, leave and holidays.
 - **Agents' hours** (roster ids), box or agent runtime as cost.
@@ -556,7 +560,179 @@ The panel's v1.0 consensus ("rail item + one page is the smallest UI", 12.1) is 
 
 ---
 
-## 14. Version log
+## 14. v2: the business-needs gaps (v2.0-draft)
+
+Source: [business-needs.md](business-needs.md) section 6 (consensus at `2c6c36732`, four seats in `reviews/bn-*.md`, owner answers Q1 = A, Q2 = A, Q3 = A). Section 6.6 lists what v1.2 lacks; every requirement below fills one of those gaps and cites its BN or U id. The section 6.6 to requirement map is section 17.
+
+**What stays.** Sections 1..13 still hold, unless a v2 requirement names the v1 rule it changes. v1's activity engine (sections 1, 2) remains the prefill for a member with in-app activity. v2 adds a second prefill source for the site worker (Persona 1), who has almost no in-app activity: the shift plan and the standard day (business-needs 6.2).
+
+**Two rules, scored per requirement.** Rule 1 (site worker): the normal week approved on a phone in <= 3 taps, prefilled, big targets, offline. Rule 2 (IT person): a standing standard day, split automatically, zero typing. Both from business-needs section 1.
+
+### 14.0 Owner input carried into v2 (verbatim)
+
+| # | msg | text | requirement |
+|---|---|---|---|
+| O1 | `e5ed523c` | "No I meant that in some countries the standard working day is 7.5h in some other 8h" | FR-14 |
+| O2 | `28636f76` | "and this might vary both by organisation and even for different people" | FR-14 |
+| O3 | `d2c8d7e9` | "some people are hired to work only half day" | FR-14 |
+| O4 | `5105fdf7` | "the hourly rate will be configured elsewhere ... in sone accounting view" | FR-19 |
+| O5 | `b42c0301` | "and only a separate role is concerned with the calculation of the hourly rates times the worked hours ..." | FR-20 |
+| O6 | `4f8e6c54` | "let's call it time-accountant , but this role MIGHT be assigned to the let's say the foreman human , aka he could have the same 2 roles at the same time" | FR-20 |
+| O7 | `21187c98` | "or it might be a role which is assignd to some accounant in the organisation or even to an accountant outside of the organisation" | FR-21 |
+| O8 | `3a121342` | hours are per workspace (owner confirmation) | FR-37 |
+
+O5 is corrected by O6: visibility is per **role**, not per person. Roles combine.
+
+### 14.1 Per workspace (owner `3a121342`)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-37** | Hours are **per workspace**. Every v2 object (standard day, plan, jobs, crews, holidays, terminals, the change log) belongs to one workspace, under the same FORCE RLS as section 3.2. Tracking time for one person across several workspaces of the same hub (double counting, a limit across workspaces, different standard days per workspace, a person-only view of all of them) is **out of scope here**: it is its own new spec (t1 `cee5a73e`, owner msgs `de2cdf88`, `690c4ad1`, `0c3b1bf7`), written separately. | owner `3a121342` |
+
+### 14.2 The standard day and the prefill chain (BN-14, Q3 = A, BN-8, BN-1)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-14** | **Standard day, per organisation and per person.** A workspace (= the organisation) has a standard day in minutes: a new registered 098 key `hours.standard_day_minutes` (int, default `480` = 8 h, range `0..1440`; e.g. `450` = 7.5 h), set by a holder of `tenant.settings`. A person may have an **override** (e.g. `240` for a half-day contract), set by their foreman from the list of their crew (FR-22) or by a holder of workspace-wide `hours.approve`. **Resolution: the person's value wins, else the organisation's.** Each value has the date it takes effect; a change never rewrites an approved or frozen day. The prefill (FR-17), an absence day (FR-30), the Standard Day (FR-15) and every full-day check (FR-26 break rule, FR-28 overtime base, the "full day" mark) use **the person's resolved standard day**. It is hours per day, never an hourly rate (business-needs 6.1). | BN-14, O1, O2, O3 |
+| **FR-15** | **The Standard Day (Q3 = A).** A per-member switch "Standard Day", on by default (the workspace may turn the default off with `hours.standard_day_default`, bool, default `true`); the member, their foreman or the office can turn it off for that person. On, a closed working day that has no absence and no plan row is suggested at the person's standard day: the day's tracked activity (sections 1, 2) is **scaled proportionally** across its targets to reach the standard day (largest remainder to whole minutes); with no activity, one row of the standard day goes to the member's default target (the last planned job, else `ws`). A day whose activity already exceeds the standard day keeps its real minutes (the excess is visible, it feeds FR-28 overtime), it is never cut. Rule 2 pass: zero typing, and under owner Q2 = B (13.1) an open suggestion is approved by the sweep at the freeze. | Q3 = A, BN-1, BN-2 |
+| **FR-16** | **The shift plan.** Per (member, day) the plan holds the job (FR-18) and the shift's start and end time; a day may hold up to two rows (two jobs, U3, section 15). Editable by the member's foreman (FR-22) and the office (workspace-wide `hours.approve`). **Repeated from last week by default**: a day with no plan row reads the member's most recent plan row for the same weekday within the last 28 days, at read time (no copy job); the foreman's "Copy last week" writes the rows when the week must be fixed. It is the planned work, not a calendar event: no `calendar_events` row (as 5.1). | BN-8 |
+| **FR-17** | **The prefill chain**, per (member, day), first match wins: (1) an absence or holiday row (FR-29, FR-30) for its minutes; (2) a foreman-entered row (FR-23); (3) the plan (FR-16): the shift's net minutes (start..end minus the break, FR-26) to the planned job; (4) the Standard Day (FR-15); (5) v1 activity suggestions only (sections 1, 2), when the Standard Day is off. Clock exceptions (FR-24) change the start or end of whatever (2)..(4) produced. Like v1 (2.1), plan and Standard Day suggestions are computed on read; nothing is stored until approved. Rule 1 pass: the week opens prefilled, the worker confirms. | BN-1, BN-8, BN-14, Q3 = A |
+
+### 14.3 Jobs and the quote (BN-2, BN-15)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-18** | **Job, a new target.** A job (`job:<job_id>`) has a name, a site (free text, e.g. an address), an optional linked topic, a **quote in hours** (`quote_minutes`) and a state (`open`, `closed`). Created and closed by the office (workspace-wide `hours.approve`). The target CHECKs of `hours_entries` (3.2) widen to `job:`. A site worker's day defaults to their planned job (FR-17); an office member's to tracked activity; the worker changes it only on a day that differed. A post in the job's linked topic is suggested against the job, not the topic. A closed job is no longer offered in pickers; its rows stay. | BN-2, BN-15 |
+| **FR-19** | **No money in hours tracking (owner `5105fdf7`).** Hours tracking has **no rate editor and no rate field**. A person's rate lives in a future **accounting view**, a separate spec (not written; a dependency of 107 v2, out of its scope). Hours tracking only **reads** a rate from it to compare a job's labour cost (approved hours x the person's rate on that day) with the job's quote; a quote in money, if any, lives there too. Until the accounting view exists, a job compares approved hours with `quote_minutes` only. | BN-15, BN-10, O4 |
+
+### 14.4 Roles: the time-accountant, the external accountant (owner O5..O7)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-20** | **The time-accountant role.** A new system role `time_accountant` holds `hours.read` and a new permission **`hours.rates`** ("see rates and labour cost; compute approved hours x rate"). **Only holders of the time-accountant role see rates, whatever other roles they hold**: every rate, money amount, labour cost and the BN-15 cost-against-quote comparison is served only to `hours.rates`, by route (as 1.7). Workers, foremen and approvers without that role see hours, never money. `hours.rates` is in no other default role, the biz owner's included; a biz owner who needs it assigns the role to themself. **Roles combine**: one person may hold, e.g., a foreman's crew leadership (FR-22) and the time-accountant role at once. This needs **several roles per member** (025 section 9, phase 2: `tenant_member_roles`, the authorizer takes the union): a dependency of 107 v2. | BN-15, O5, O6 |
+| **FR-21** | **The external accountant seat.** A time-accountant may be a foreman (combined roles), an internal accountant, or an **accountant outside the organisation**. The external seat: **invite**: a holder of `members.invite` invites an e-mail with the role `time_accountant` as the membership's **only** role, with an optional end date (`access_until`, the 072 guest rule R1: scoped, revocable, expiring); **visibility**: hours and rates only (`hours.read`, `hours.rates`): the Team and Download tabs and the job cost view, member names as they appear on hours rows; **no** `topics.read` (no WUI socket, no topics, channels, docs, files, roster or calendar beyond the hours panel), none of the four permissions every member role holds today (`rbac.go` `withMember`); the WUI opens an hours-only shell. The seat gets no period row (the sweep, 4.2, skips a membership whose only role is `time_accountant`, as it skips agents). **Removal**: a holder of `members.invite` removes the seat, or `access_until` passes; access ends at once; the downloads it made stay in the change log (FR-33). Whether the seat is billed is the billing spec's call, not 107's. | O7, BN-15 |
+
+### 14.5 Crews and the foreman (BN-6, BN-14, BN-5)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-22** | **`hours.approve` scoped to a crew.** A crew is a named set of members with one or more foremen. A worker is a member of at most one crew at a time; a foreman may lead several crews. Crews and their foremen are set by the office (workspace-wide `hours.approve`). **Leading a crew is the scope**: a foreman has, **for the members of the crews they lead only**, the hours rights of v1 `hours.read` and `hours.approve` (see approved hours, Approve, Return) plus the v2 crew rights: plan (FR-16), enter and fix (FR-23), set the person's standard day (FR-14), set worker type (FR-31). A role grant of `hours.approve` (the office, the biz owner) stays **workspace-wide** and sees every crew. **Approve crew**: one tap approves every frozen period of the foreman's crews (as 4.4 Approve all, crew-scoped), on a phone. A correction after approval needs a reason and is logged with its author (FR-33). | BN-6, BN-14 |
+| **FR-23** | **Foreman entry with Dispute (Q1 = A).** Before the freeze, a foreman enters or fixes a day for any member of their crew, including members without a login (FR-25). Each such row records its author (`entered_by`) and lands in the worker's week as **proposed** (prefilled, step (2) of FR-17). The worker's Approve week covers it (0 extra taps). **Dispute** (one tap, plus an optional note) marks it **disputed** and puts it in the foreman's list; the foreman fixes it (proposed again) or keeps it with a note. At the freeze a still-disputed row freezes as disputed and is shown to the approver, who approves (the foreman's value) or returns (4.3). A foreman's fix of a row the worker had approved returns it to proposed. After the freeze nobody edits minutes; Return (4.3) is the way back. This changes 4.4's "the biz owner never edits a worker's minutes" for the foreman, before the freeze, for their crew. | BN-5, Q1 = A |
+
+### 14.6 Clock exceptions and the shared terminal (BN-1, U2)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-24** | **Clock in and out is an exception.** The normal day is confirmed, not clocked (FR-17). **Clock in** / **Clock out** (one tap each, on the phone in the day's Working hours dialog, or on a terminal, FR-25) records a time that replaces the day's start or end: a late start, an early leave, extra hours, or a day with no plan. The clock time is the server's time, or the device's time marked `offline` (FR-35). A foreman may set a crew member's clock time (FR-23 rules). | BN-1 |
+| **FR-25** | **Shared terminal identity.** An admin (`tenant.settings`) registers a device as a **terminal** of the workspace: a terminal token, revocable, holding no member's rights. A worker identifies on it with a **badge** (a scanned code) or a **PIN** (4..6 digits, stored hashed, 5 wrong tries lock that PIN for 15 min). The terminal shows the worker's name, Clock in / Clock out and today's hours, and nothing else; the worker's session ends after the action or after 30 s. **A worker without an e-mail or a smartphone** (U2): the foreman or the office creates the member with a name and no e-mail login, and sets the PIN or badge; that member clocks on a terminal or is logged by the foreman (FR-23). Creating a member with no e-mail login is a dependency on the membership code (today a member signs in by e-mail). | BN-1, U2, BN-11 |
+
+### 14.7 Breaks, travel, waiting (BN-3)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-26** | **The break rule.** Registered 098 keys `hours.break_after_minutes` (default `360`) and `hours.break_minutes` (default `30`): a day whose start..end span exceeds the threshold has the break deducted, unless the worker or foreman marks **No break** on that day (one tap). It applies to days with start and end times (plan, clock); the standard day (FR-14) is already net. A person whose standard day is under the threshold (a half day) never gets the deduction from the prefill. | BN-3 |
+| **FR-27** | **Travel and waiting rows.** An entry gets a **kind**: `work` (default), `travel`, `wait`, `absence`. **+ Travel** and **+ Waiting** in the day's dialog add one row each (one tap), with a default length (`hours.travel_default_minutes`, `hours.wait_default_minutes`, default `30`) and an optional reason (e.g. a weather delay, bn-agy). Travel between two planned jobs on one day (U3) is prefilled from the plan. Only on days it happened; the normal day has none. | BN-3, U3 |
+
+### 14.8 Rate categories and the holiday calendar (BN-4, U5)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-28** | **Derived rate categories.** Every approved minute with a time of day gets its categories **derived, never chosen by the worker**: `evening` and `night` from workspace windows (`hours.evening_window` default `18:00-22:00`, `hours.night_window` default `22:00-06:00`), `weekend` (Saturday, Sunday), `holiday` (FR-29), else `normal`; one of these per minute, precedence holiday > night > weekend > evening > normal. **Overtime** is a separate flag: minutes past the weekly threshold (`hours.overtime_weekly_minutes`, default 5 x the person's standard day). Minutes without times (v1 activity rows) take the day's start from `hours.day_start` (default `08:00`). A category is a label on hours: it carries **no money** (FR-19, FR-20). | BN-4, BN-12 |
+| **FR-29** | **The public-holiday calendar.** Per workspace, with an optional **region** per member (membership setting): a list of (region, date, name), kept by the office, entered by hand or imported from a CSV or iCal file. A holiday on a working day prefills an absence row of kind `holiday` at the person's standard day (FR-17 step 1); work done on it is category `holiday` (FR-28). It is drawn in the calendar like the Working hours line (5.1), not as a calendar event. | U5, BN-4 |
+
+### 14.9 Absences and the worker type (BN-7, BN-11)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-30** | **Absence types (Q2 = A).** A row of kind `absence` with a type from a fixed list: `sick`, `vacation`, `unpaid`, `training`, `holiday`. Whole day = the person's standard day (FR-14; 4 h for a half-day contract), or part day in minutes. Picked from the day in 2 taps (**Absent** -> type), or entered once as a **date range** by the worker, their foreman or the office. An absence beats the plan and the Standard Day (FR-17 step 1). **No balances in v2**; the worker sees the days taken this year per type (U6, section 15). | BN-7, Q2 = A |
+| **FR-31** | **Worker type.** A member is typed `employee` (default), `agency` (with the agency's name) or `subcontractor` (with the company's name), in the membership settings jsonb (no DDL), set by the office or the member's foreman. Members without a login are logged by their foreman (FR-23, FR-25). Reports and the download split by type; subcontractor hours roll up per company for invoice checking and stay **out of the payroll export** (BN-9, section 15). | BN-11 |
+
+### 14.10 Start and end times, the change log, retention (BN-12)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-32** | **The day record.** Per (member, day) the hub keeps **start, end, break minutes**, the standard day in force and the source (`plan`, `standard`, `clock`, `foreman`, `self`). Start and end are prefilled from the plan, else from `hours.day_start` + the standard day + the break; **never typed** in the normal case (clock exceptions, FR-24, change them). | BN-12 |
+| **FR-33** | **Every change is logged.** Each write to an entry, a day record or a period row (and each rate-bearing download, FR-21) writes one change-log row: who, when, before, after, and why. A reason is **required** for a change after approval (BN-6). The log is append-only for every route. | BN-12, BN-6 |
+| **FR-34** | **Retention.** A registered 098 key `hours.retention_years` (int, default `5`, range `1..30`), set by `tenant.settings`: the law varies by country, so the workspace sets it. Day records, entries, period rows and the change log are kept that long after their period ends, then deleted by the sweep. (v1's 1.7 pruning of raw minutes at the freeze is unchanged.) **The inspector's export**: read-only, per worker and period, CSV and XLSX (6.2's writer), holding start, end, breaks, minutes per day and every change; served to `hours.read` (workspace-wide). | BN-12 |
+
+### 14.11 Offline, and the nudge (BN-13, U1)
+
+| id | requirement | cites |
+|---|---|---|
+| **FR-35** | **Offline approval, minimum scope.** Without a network: the week view, **Approve week**, an absence pick (FR-30) and a clock exception (FR-24). The hours lazy chunk and the open period's data are cached on the device; writes are queued with an operation id (idempotent on replay) and the device time, and sync on reconnect. **On sync a frozen period wins**: the write is refused (409 `period_frozen`) and the worker sees why. A foreman edit made meanwhile shows both values and asks the worker once. Nothing of this enters the initial chunk (027). | BN-13 |
+| **FR-36** | **The approve nudge.** One phone notification through Web Push (095): "Your week: 40:00 at Site A · [Approve]". Sent on the period's last working day at 14:00 local, and again the day before the freeze if days are still open; never for a fully approved period; quiet hours as 095 section 6.6; a per-member off switch. Tapping it opens the Working hours dialog on its banner (tap 1); **Approve week** (tap 2). A foreman gets "Crew week ready · [Approve crew]" after the freeze. Rule 1 pass: 2 taps from the lock screen. This replaces 11's "no pop-up in v1" for v2. | U1, BN-6 |
+
+### 14.12 What v2 adds to the data and routes (sketch, for the tasks round)
+
+Not the tasks: the tasks round sizes them. New tables, each in the 3.2 shape (tenant first, FORCE RLS, `tenant_scope`, `operator_scope`): `hours_standard_days` (member overrides with their effective date, FR-14), `hours_plan` (FR-16), `hours_jobs` (FR-18), `hours_crews` and `hours_crew_members` (FR-22), `hours_days` (FR-32), `hours_changes` (FR-33), `hours_holidays` (FR-29), `hours_terminals` (FR-25). `hours_entries` gains `kind`, `absence_type`, `entered_by`, `reason`, and states `proposed`, `disputed`; its target CHECK widens to `job:`. New registered keys: `hours.standard_day_minutes`, `hours.standard_day_default`, `hours.day_start`, `hours.break_after_minutes`, `hours.break_minutes`, `hours.travel_default_minutes`, `hours.wait_default_minutes`, `hours.evening_window`, `hours.night_window`, `hours.overtime_weekly_minutes`, `hours.retention_years`. New permission `hours.rates`, new role `time_accountant`. Routes grow under `/v1/hours/*` (plan, jobs, crews, standard days, holidays, inspector export) and `/v1/me/hours*` (dispute, clock, absence range); a terminal route takes a terminal token, never a member session.
+
+**Dependencies outside 107**: the accounting view (FR-19, a separate spec, not written); several roles per member (025 section 9, FR-20); a member with no e-mail login (FR-25); cross-workspace tracking (FR-37, its own new spec).
+
+---
+
+## 15. v2 candidates, ranked
+
+Business-needs 6.6 leaves these for the round to rank. Ranked by Rule 1 value against cost; the panel may reorder.
+
+| rank | item | recommendation | why |
+|---|---|---|---|
+| 1 | **U3** two sites in one day | **in v2**: up to two plan rows per day (FR-16), **Split** in one tap, travel between them prefilled (FR-27) | Rule 1; common on sites; cheap once the plan exists |
+| 2 | **BN-9** payroll column map | **in v2**: the download carries FR-28 categories, FR-30 absence types and FR-31 worker type as columns; a per-workspace column map (rename, order, drop) sets the payroll file's layout; subcontractor hours left out; no payroll API | the export is useless to payroll without the categories |
+| 3 | **U6** the worker sees their own numbers | **in v2**: hours this week and month, overtime, absence days per type this year, in the Mine tab (5.4) | Rule 1 trust in prefilled hours; read only |
+| 4 | **U7** the worker's language | **in v2**: the phone hours UI uses the member's language, icons with short labels; every translation gets the agy language review before it ships (fleet language rule) | Rule 1 for mixed-language crews |
+| 5 | **U9** working-time limit warnings | **v2.1**: warn the foreman and the office before a day or week passes the maximum or the minimum rest, from FR-32 start and end | legal risk; cheap after FR-32 |
+| 6 | **U8** a correction after the payroll export | **v2.1**: an adjustment row with a reason in the next open period; a paid period is never rewritten | needed once exports feed payroll |
+| 7 | **U10** who is on site now | **later**: a read view over the plan plus clock exceptions | useful, not Rule 1 |
+| 8 | **U4** allowances and expenses | **out**: its own spec (money, receipts); it belongs next to the accounting view | a separate data domain |
+| 9 | **U12** equipment and machine hours | **out**: job costing, not people's hours | one seat; not hours tracking |
+| - | **U11** a leaver's final pay | **open owner question** (section 16) | the owner decides |
+
+---
+
+## 16. v2 open owner question
+
+The build of FR-14..FR-37 does not wait on it; it changes one later task.
+
+**Q8: a leaver's final pay (U11).** A member leaving mid-period needs their hours closed early for the final payslip. v1 has no "freeze now" (owner Q4 = B, 4.3).
+
+- **A. Close now, per member.** A holder of `hours.approve` (or the member's foreman) closes one member's open period at a chosen last day; the period row ends that day, audited (FR-33). A manual early freeze for one member only.
+- **B. No early close.** The leaver's last period freezes on the normal schedule (period end + grace); the final payslip waits up to one period.
+- **C. Close on the leave date.** The office sets the member's leave date (the membership's `access_until`, 072 A27); the sweep freezes that member's period at the leave date + grace, by itself. No new button.
+- **Recommendation: C.** It reuses the existing expiry date, keeps Q4 = B's "no manual freeze", and the leave-date change is itself the audit line.
+
+**Status: OPEN. The owner decides; this draft does not.**
+
+---
+
+## 17. v2 map: business-needs section 6.6 to requirements
+
+| 6.6 item | requirement |
+|---|---|
+| the shift plan as the prefill source (BN-8) | FR-16, FR-17 |
+| default hours per day (BN-14) | FR-14 |
+| the Standard Day (Q3 = A) | FR-15 |
+| exception clock in and out (BN-1) | FR-24 |
+| a shared terminal identity (U2) | FR-25 |
+| a job target with a quote (BN-2, BN-15) | FR-18, FR-19; roles FR-20, FR-21 |
+| the break rule (BN-3) | FR-26 |
+| travel and waiting rows (BN-3) | FR-27 |
+| derived rate categories (BN-4) | FR-28 |
+| a holiday calendar (U5) | FR-29 |
+| foreman entry with Dispute (BN-5) | FR-23 |
+| `hours.approve` scoped to a crew (BN-6, BN-14) | FR-22 |
+| absence types (BN-7) | FR-30 |
+| worker type (BN-11) | FR-31 |
+| start and end times (BN-12) | FR-32, FR-33 |
+| retention (BN-12) | FR-34 |
+| offline approval (BN-13) | FR-35 |
+| the approve nudge (U1) | FR-36 |
+| hours per workspace (owner `3a121342`) | FR-37 |
+| candidates: BN-9, U3, U4, U6..U10, U12 | section 15 (ranked) |
+| U11 | section 16, Q8 (open) |
+
+---
+
+## 18. Version log
 
 | version | date | by | what |
 |---|---|---|---|
@@ -564,5 +740,6 @@ The panel's v1.0 consensus ("rail item + one page is the smallest UI", 12.1) is 
 | 1.0 | 2026-10-07 | c-522 (s107-1) | fold of reviews s107-2, s107-3, s107-4 (section 12.2); unanimous consensus recorded; owner Q1..Q7; `tasks.md` |
 | 1.1 | 2026-10-08 | c-566 | owner Q7 = B recorded (13.1): the header timer, 1.5, 5.3, 11; task T019 |
 | 1.2 | 2026-10-08 | c-713 | owner R8..R11 (t1 `a28dc5c9`, 13.2): discussion links with a note per line (5.2); the calendar's right-side hours tabs Mine / Team / Download, a sheet on the phone (5.4); no rail entry, no page; a Working hours line on every working day in the calendar opens the event dialog of type Working hours (5, 7, 9, 10, 11); T010 dropped, T011 rewritten, T013..T015 inside the dialog |
+| 2.0-draft | 2026-10-10 | c-734 | the business-needs gaps (business-needs.md 6.6, consensus `2c6c36732`): FR-14..FR-37 in section 14 (standard day per organisation and person, the prefill chain from the shift plan, jobs and quotes, no money in hours tracking, the time-accountant role and the external accountant seat, crew scope, foreman entry with Dispute, clock exceptions and the shared terminal, breaks, travel and waiting, derived rate categories, holidays, absences, worker type, start and end times, the change log, retention, offline approval, the nudge, hours per workspace); candidates ranked (15); U11 as open owner Q8 (16); the 6.6 map (17); for the v2 review panel |
 
-<!-- version: 1.2.0 · updated: 2026-10-08 · last-edit: 2026-10-08T20:00:00Z -->
+<!-- version: 2.0.0-draft · updated: 2026-10-10 · last-edit: 2026-10-10T09:00:00Z -->

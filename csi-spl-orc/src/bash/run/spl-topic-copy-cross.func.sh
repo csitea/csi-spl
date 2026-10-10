@@ -27,7 +27,7 @@
 # @description      do_spl_desk_reply; ARCHIVE=1: do_spl_topic_archive on it.
 # @description      For a split, run every part but the last with ARCHIVE=0.
 # @description IDEMPOTENT: the target topic id is derived from (source tenant,
-# @description topic, target tenant, channel, TITLE, MSG_IDS), so a re-run finds
+# @description topic, target tenant, channel, TITLE, MSG_IDS, COPY_TAG), so a re-run finds
 # @description the copy, checks its marker and the header of every post it
 # @description already holds, and posts only the rest; a link-back already
 # @description there is not repeated.
@@ -56,6 +56,8 @@
 # @param ARCHIVE (optional) - 1 (default) or 0: archive the source afterwards
 # @param DST_WUI_URL (optional) - the target WUI base, default its tenant host <tenant>.<fqdn>
 # @param   when env.dns.mapped_tenants lists it, else (and for t1) the apex
+# @param COPY_TAG (optional) - a-z 0-9 -: a NEW target topic for the same inputs (a repair
+# @param   re-copy); every run of that copy must pass the same tag
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd SRC_TENANT=csitea SRC_TOPIC_ID=0f8fad5b-d9cb-469f-a165-70867728950e DST_TENANT=t1 DST_CHANNEL=dev DESK_AGENT=c-001 ./run -a do_spl_topic_copy_cross
 # @example ENV=dev SRC_TENANT=t1 SRC_TOPIC_ID=0f8fad5b-d9cb-469f-a165-70867728950e DST_TENANT=e2e DST_CHANNEL=dev DESK_AGENT=c-001 MSG_IDS='1a2b3c4d 5e6f7a8b' TITLE='Part 1' ARCHIVE=0 DRY_RUN=0 ./run -a do_spl_topic_copy_cross
@@ -73,7 +75,7 @@ do_spl_topic_copy_cross() {
   local src_t="$SRC_TENANT" dst_t="$DST_TENANT" topic="$SRC_TOPIC_ID" channel="${DST_CHANNEL#\#}"
   local src_a="${SRC_DESK_AGENT:-${DESK_AGENT:-}}" dst_a="${DST_DESK_AGENT:-${DESK_AGENT:-}}"
   local dst_box="${DST_DESK_BOX:-$box_default}" title="${TITLE:-}" sel="${MSG_IDS:-}" src_boxes=()
-  local link_back="${LINK_BACK:-1}" archive="${ARCHIVE:-1}"
+  local link_back="${LINK_BACK:-1}" archive="${ARCHIVE:-1}" tag="${COPY_TAG:-}"
   read -r -a src_boxes <<<"${SRC_DESK_BOXES:-$box_default}"
   sel="$(tr ',' ' ' <<<"$sel" | xargs)"
   _spl_tcc_check_args || return 1
@@ -97,7 +99,7 @@ _spl_tcc_run() {
   _spl_tcc_read_source || return 1
   _spl_tcc_names >"$work/names.json" || return 1
   local dst_task wui link
-  dst_task="$(_spl_tcc_task_id "$src_t" "$topic" "$dst_t" "$channel" "$title" "$sel")"
+  dst_task="$(_spl_tcc_task_id "$src_t" "$topic" "$dst_t" "$channel" "$title" "$sel" ${tag:+"$tag"})"
   wui="$(_spl_tcc_wui "$dst_t")"
   link="$wui/t/$dst_task"
   _spl_tcc_plan "$work/src.ndjson" "$work/names.json" "$src_t" "$topic" "$sel" "$title" >"$work/plan.json" 2>"$work/plan.err" ||
@@ -143,6 +145,7 @@ _spl_tcc_check_args() {
     [[ "$id" =~ ^[0-9a-f]{8}([0-9a-f-]{0,28})$ ]] || { do_log "FATAL MSG_IDS entry must be a msg id or a prefix of 8+ hex, got: '$id'"; return 1; }
   done
   [[ ${#title} -le 200 && "$title" != *$'\n'* ]] || { do_log "FATAL TITLE must be one line of at most 200 characters"; return 1; }
+  [[ -z "$tag" || "$tag" =~ ^[a-z0-9-]{1,32}$ ]] || { do_log "FATAL COPY_TAG must be 1..32 of a-z 0-9 -, got: '$tag'"; return 1; }
   [[ "$link_back" =~ ^[01]$ && "$archive" =~ ^[01]$ ]] || { do_log "FATAL LINK_BACK and ARCHIVE must be 0 or 1"; return 1; }
   [[ -z "${LINK_TO:-}" || "$LINK_TO" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL LINK_TO must be a HUM-* id, got: '$LINK_TO'"; return 1; }
   [[ -z "${SRC_NAMES_FILE:-}" || -r "$SRC_NAMES_FILE" ]] || { do_log "FATAL SRC_NAMES_FILE is not a readable file: '$SRC_NAMES_FILE'"; return 1; }
@@ -193,9 +196,10 @@ print(json.dumps({k: " ".join(v.split()) for k, v in names.items() if v.strip() 
 ' "$raw"
 }
 
-# _spl_tcc_task_id <src tenant> <topic> <dst tenant> <channel> <title> <sel>:
-# the target topic's task id, a uuid5 of the six, so every run of one copy
-# lands in the same topic (the resume key) and two parts of a split never do.
+# _spl_tcc_task_id <src tenant> <topic> <dst tenant> <channel> <title> <sel> [tag]:
+# the target topic's task id, a uuid5 of them, so every run of one copy lands
+# in the same topic (the resume key) and two parts of a split never do; a
+# COPY_TAG makes a fresh copy of the same selection (a repair).
 _spl_tcc_task_id() {
   python3 -c 'import sys, uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, "spl-topic-copy-cross:" + "/".join(sys.argv[1:])))' "$@"
 }
@@ -355,20 +359,32 @@ EOF_PY
 
 # _spl_tcc_post_rest <dst desk dir> <dst task> <already>: post the plan from
 # index <already> on, into the caller's posted counter. Stops at the first
-# failure: a re-run continues there.
+# failure: a re-run continues there. Each post waits for a later second than
+# the one before: the hub orders a topic by (ts, msg_id) and ts has 1 s
+# resolution, so posts sent within one second were shuffled by their random
+# msg_id (measured on prd sienna, 2026-10-10: the title landed 3rd of 18).
 _spl_tcc_post_rest() {
-  local dd="$1" task="$2" i="$3" body sent delivery ids=()
+  local dd="$1" task="$2" i="$3" body sent delivery ids=() last
+  last="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   while (( i < n )); do
     body="$(_spl_tcc_jq "$work/plan.json" "d[$i]['body']")"
     _spl_tcc_reput "$dd" "$i" || return 1
+    _spl_tcc_after "$last"
     sent="$(spl_desk_spool "$dd" "$dst_box" "$dst_t" "$hub" -- send --from "$dst_a" --channel "$channel" \
       --task "$task" --kind note --body "$body" "${ids[@]}" 2>&1)" ||
       { do_log "FATAL post $((i + 1))/$n into #$channel of $dst_t: $sent (re-run: it continues here)"; return 1; }
     delivery="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("delivery",""))' "$sent" 2>/dev/null)"
     [[ "$delivery" == sent ]] ||
       { do_log "FATAL post $((i + 1))/$n was not delivered to the hub ($sent): re-run once the desk sidecar has flushed it"; return 1; }
+    last="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("ts",""))' "$sent" 2>/dev/null)"
+    [[ -n "$last" ]] || last="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     posted=$((posted + 1)); i=$((i + 1))
   done
+}
+
+# _spl_tcc_after <RFC3339 UTC ts>: return once the clock reads a later second.
+_spl_tcc_after() {
+  while [[ ! "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${1:0:19}Z" ]]; do sleep 0.2; done
 }
 
 # _spl_tcc_reput <dst desk dir> <plan index>: fetch each blob attachment of

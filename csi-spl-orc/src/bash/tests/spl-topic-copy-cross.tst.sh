@@ -11,13 +11,15 @@
 #      headers carry the display name and UTC time and never an e-mail, the
 #      root carries the marker, every post is in the same target topic, an
 #      attachment is fetched and put again by name, the link-back names the
-#      permalink, the source is archived
+#      permalink, the source is archived; every post is a later second
+#      than the one before, so the hub's (ts, msg_id) order is the send order
 #   4. a re-run posts nothing and repeats no link-back
 #   5. a failure part-way: the re-run posts only the rest, no duplicate
 #   6. MSG_IDS + TITLE: a title root, only the selected messages, another
 #      target topic; ARCHIVE=0 leaves the source alone
 #      6b. a topic with no human sender links back to its addressee
 #      6c. the permalink host is the tenant's only when the cnf maps it
+#      6d. COPY_TAG copies the same selection into a new topic
 #   7. a MSG_IDS entry that matches nothing is refused, nothing is sent
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -64,7 +66,7 @@ spl_desk_spool() {
   { local IFS="|" line; line="$tenant|$*"; echo "${line//$'"'"'\n'"'"'/ }" >>"$CALLS"; }
   local f="$T_DIR/$tenant.ndjson"; [[ "$tenant" == src ]] && f="$T_DIR/src.ndjson"
   case "$1" in
-    hub-tail) cat "$f" 2>/dev/null; return 0 ;;
+    hub-tail) [[ -f "$f" ]] && grep -F "\"task_id\": \"$3\"" "$f"; return 0 ;;
     hub-get-file) mkdir -p "$d/spool/files"; echo blob >"$d/spool/files/$3"; echo "{\"fetched\":true}" ;;
     put-file) echo "{\"file_id\":\"bbbb\"}" ;;
     archive) echo "{\"archived\":true}" ;;
@@ -77,9 +79,10 @@ path, args = sys.argv[1], sys.argv[3:]
 a = {args[i]: args[i + 1] for i in range(0, len(args) - 1, 2) if args[i].startswith("--")}
 mid = str(uuid.uuid4())
 n = sum(1 for _ in open(path)) if __import__("os").path.exists(path) else 0
-open(path, "a").write(json.dumps({"msg_id": mid, "task_id": a.get("--task", ""), "ts": "2026-10-10T14:%02d:00Z" % n,
+ts = __import__("time").strftime("%Y-%m-%dT%H:%M:%SZ", __import__("time").gmtime())  # 1 s, as the client stamps it
+open(path, "a").write(json.dumps({"msg_id": mid, "task_id": a.get("--task", ""), "ts": ts,
                                   "from": a.get("--from", ""), "to": "ALL-0", "body": a.get("--body", ""), "files": []}) + "\n")
-print(json.dumps({"delivery": "sent", "msg_id": mid, "task_id": a.get("--task", "")}))
+print(json.dumps({"delivery": "sent", "msg_id": mid, "task_id": a.get("--task", ""), "ts": ts}))
 EOF_PY
       ;;
   esac
@@ -130,6 +133,10 @@ grep -q "^src|hub-get-file|--file-id|$FID" "$T/calls" && grep '^dst|send|' "$T/c
 grep '^src|send|' "$T/calls" | grep -- "--task|$TOPIC|.*--body|Moved to https://dst.wui.invalid/t/$task" >/dev/null &&
   grep -q "^src|archive|--task|$TOPIC" "$T/calls" &&
   pass "the link-back names the target permalink and the source is archived" || fail "link-back/archive: $(grep '^src|' "$T/calls")"
+
+[[ "$(python3 -c 'import json,sys; ts=[json.loads(l)["ts"] for l in open(sys.argv[1])]; print(int(ts == sorted(set(ts))))' "$T/dst.ndjson")" == 1 ]] &&
+  pass "every post has a later second than the one before (the hub orders by ts, then a random msg_id)" ||
+  fail "same-second posts: $(cut -c1-120 "$T/dst.ndjson")"
 
 # --- 4. a re-run is a no-op ---------------------------------------------------------------
 : >"$T/calls"
@@ -182,6 +189,16 @@ printf 'env:\n  dns:\n    mapped_tenants: [other, dst]\n' >"$T/cnf.yaml"
 run SPL_CNF_T="$T/cnf.yaml"
 grep -q '"permalink": "https://dst.wui.invalid/t/' "$T/o" && ! grep -q 'WARN dst' "$T/o" &&
   pass "a mapped target tenant gets its own host" || fail "mapped host: $(cat "$T/o")"
+
+# --- 6d. COPY_TAG: the same inputs into a NEW topic -----------------------------------------
+: >"$T/calls"; seed
+run DRY_RUN=0 ARCHIVE=0 LINK_BACK=0
+t1="$(python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).readline())["task_id"])' "$T/dst.ndjson")"
+: >"$T/calls"
+run DRY_RUN=0 ARCHIVE=0 LINK_BACK=0 COPY_TAG=r2
+t2="$(python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).readlines()[-1])["task_id"])' "$T/dst.ndjson")"
+[[ $rc -eq 0 && "$(dst_sends)" == 4 && -n "$t1" && "$t2" != "$t1" ]] && grep -q '"already": 0' "$T/o" &&
+  pass "COPY_TAG copies the same selection into a new topic" || fail "copy tag (rc=$rc t1=$t1 t2=$t2): $(cat "$T/o")"
 
 # --- 7. an unknown MSG_IDS entry --------------------------------------------------------------
 : >"$T/calls"; seed

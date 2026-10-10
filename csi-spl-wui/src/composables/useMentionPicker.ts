@@ -23,14 +23,7 @@ import { activeMentionQuery, decodeMentions, encodeMentions, insertMention, ment
 
 export interface MentionRow { id: string, box?: string, label?: string, online?: boolean, idle?: boolean, owner?: boolean, sameName?: boolean }
 
-export function useMentionPicker(opts: {
-  text: Ref<string>
-  el: Ref<HTMLTextAreaElement | HTMLInputElement | null | undefined>
-  /** true = no list here (inside a ``` block, on a /search line) */
-  blocked?: () => boolean
-  /** after a pick changed the text (a field that reports its draft by @input) */
-  onPick?: (text: string) => void
-}) {
+function setupState() {
   const roster = useRosterStore()
   const people = useHumanNames()
   const route = useRoute()
@@ -38,10 +31,10 @@ export function useMentionPicker(opts: {
   const activeIdx = ref(0)
   const listEl = ref<HTMLUListElement | null>(null)
   const listId = useId()
-  /** name -> tag of every person this field shows by name (encode() puts the tag back) */
   const picks = ref<Record<string, string>>({})
 
   const inFeedback = computed(() => isFeedbackChannel(feedbackChannelFromPath(route.path)))
+
   const candidates = computed<MentionRow[]>(() => {
     if (query.value === null) return []
     return mentionCandidates({
@@ -52,18 +45,27 @@ export function useMentionPicker(opts: {
       query: query.value,
       ownersFirst: inFeedback.value,
       isOnline: (id: string) => roster.isOnline(id, 'box-wui'),
-    }).map((row: MentionRow) => (
-      /* two members with one name: the row shows the id as a muted suffix */
+    }).map((row: MentionRow) =>
       /^HUM-\d+$/.test(row.id) && people.names.value[row.id] && !mentionFieldName(row.id, people.names.value) ? { ...row, sameName: true } : row
-    ))
+    )
   })
+
   const open = computed(() => query.value !== null && candidates.value.length > 0)
+
+  return { query, activeIdx, listEl, listId, picks, candidates, open }
+}
+
+function setupCaretAndSync(opts: {
+  text: Ref<string>
+  el: Ref<HTMLTextAreaElement | HTMLInputElement | null | undefined>
+  blocked?: () => boolean
+}, state: ReturnType<typeof setupState>) {
+  const { query, activeIdx, listEl } = state
 
   function caret(): number {
     return opts.el.value?.selectionStart ?? opts.text.value.length
   }
 
-  /** input / click / keyup: re-read the @token at the caret. */
   function sync() {
     const q = opts.blocked && opts.blocked() ? null : activeMentionQuery(opts.text.value, caret())
     if (q !== query.value) {
@@ -77,7 +79,16 @@ export function useMentionPicker(opts: {
     query.value = null
   }
 
-  /** Arrow keys move this list only: scrollIntoView would also move the page. */
+  return { caret, sync, close }
+}
+
+function setupScrollAndPick(opts: {
+  text: Ref<string>
+  el: Ref<HTMLTextAreaElement | HTMLInputElement | null | undefined>
+  onPick?: (text: string) => void
+}, state: ReturnType<typeof setupState>) {
+  const { activeIdx, listEl, picks, candidates } = state
+
   function scrollActive() {
     nextTick(() => {
       const list = listEl.value
@@ -93,11 +104,12 @@ export function useMentionPicker(opts: {
 
   function pick(row: MentionRow) {
     const tag = row.label || row.id
-    const name = mentionFieldName(row.id, people.names.value)
+    const name = mentionFieldName(row.id, useHumanNames().names.value)
     if (name) picks.value = { ...picks.value, [name]: tag }
+    const { caret } = setupCaretAndSync(opts, state)
     const next = insertMention(opts.text.value, caret(), name || tag)
     opts.text.value = next.text
-    query.value = null
+    state.query.value = null
     opts.onPick?.(next.text)
     nextTick(() => {
       const el = opts.el.value
@@ -107,31 +119,41 @@ export function useMentionPicker(opts: {
     })
   }
 
-  /** keydown: true when the picker used the key (the field must not act on it). */
+  return { scrollActive, pick }
+}
+
+function setupInteractions(opts: {
+  text: Ref<string>
+  el: Ref<HTMLTextAreaElement | HTMLInputElement | null | undefined>
+  blocked?: () => boolean
+  onPick?: (text: string) => void
+}, state: ReturnType<typeof setupState>) {
+  const { caret, sync, close } = setupCaretAndSync(opts, state)
+  const { scrollActive, pick } = setupScrollAndPick(opts, state)
+
   function onKeydown(ev: KeyboardEvent): boolean {
-    if (ev.isComposing || !open.value) return false
-    const n = candidates.value.length
+    if (ev.isComposing || !state.open.value) return false
+    const n = state.candidates.value.length
     if (ev.key === 'ArrowDown') {
       ev.preventDefault()
-      activeIdx.value = (activeIdx.value + 1) % n
+      state.activeIdx.value = (state.activeIdx.value + 1) % n
       scrollActive()
       return true
     }
     if (ev.key === 'ArrowUp') {
       ev.preventDefault()
-      activeIdx.value = (activeIdx.value - 1 + n) % n
+      state.activeIdx.value = (state.activeIdx.value - 1 + n) % n
       scrollActive()
       return true
     }
     if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {
       ev.preventDefault()
-      const row = candidates.value[activeIdx.value]
+      const row = state.candidates.value[state.activeIdx.value]
       if (row) pick(row)
       return true
     }
     if (ev.key === 'Escape') {
       ev.preventDefault()
-      /* the Escape is the list's: a dialog or the omnibox must not also act on it */
       ev.stopPropagation()
       close()
       return true
@@ -139,19 +161,41 @@ export function useMentionPicker(opts: {
     return false
   }
 
-  /** The field text as it is stored: every picked name is its tag again. */
+  return { sync, close, pick, onKeydown }
+}
+
+function setupEncoding(state: ReturnType<typeof setupState>) {
+  const { picks } = state
+
   function encode(text: string): string {
     return encodeMentions(text, picks.value)
   }
 
-  /** A stored text as the field shows it: members by name (the tags are kept for encode). */
   function decode(text: string): string {
+    const people = useHumanNames()
     const d = decodeMentions(text, people.names.value)
     picks.value = { ...picks.value, ...d.picks }
     return d.text
   }
 
-  return reactive({ query, open, candidates, activeIdx, listEl, listId, sync, close, pick, onKeydown, encode, decode })
+  return { encode, decode }
+}
+
+export function useMentionPicker(opts: {
+  text: Ref<string>
+  el: Ref<HTMLTextAreaElement | HTMLInputElement | null | undefined>
+  blocked?: () => boolean
+  onPick?: (text: string) => void
+}) {
+  const state = setupState()
+  const interactions = setupInteractions(opts, state)
+  const encoding = setupEncoding(state)
+
+  return reactive({
+    ...state,
+    ...interactions,
+    ...encoding,
+  })
 }
 
 export type MentionPicker = ReturnType<typeof useMentionPicker>

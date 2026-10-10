@@ -194,6 +194,286 @@ export function messageFromFrame(f) {
   return out
 }
 
+function createMessageHandlers({
+  onMessage,
+  onEdited,
+  onDeleted,
+  onTopic,
+  onReaction,
+  onIssue,
+  onIssueLabel,
+  onFlow,
+  cursors,
+} = {}) {
+  function handleMessage(f) {
+    const m = messageFromFrame(f)
+    const tid = f.task_id || m.task_id
+    if (tid && m.cursor) cursors.set(String(tid), m.cursor)
+    onMessage(m, f)
+  }
+
+
+
+  function handleDeleted(f) {
+    onDeleted({ msg_id: f.msg_id, task_id: f.task_id }, f)
+  }
+
+  function handleMerged(f) {
+    const m = messageFromFrame(f)
+    if (f.msg_id && !m.msg_id) m.msg_id = f.msg_id
+    onEdited(m, f)
+    if (f.merged_from) onDeleted({ msg_id: f.merged_from, task_id: f.task_id }, f)
+  }
+
+  function handleTopic(f) {
+    onTopic(f)
+  }
+
+  function handleReaction(f) {
+    onReaction({
+      msg_id: f.msg_id,
+      task_id: f.task_id,
+      reactions: Array.isArray(f.reactions) ? f.reactions : [],
+    }, f)
+  }
+
+  function handleIssue(f) {
+    onIssue(f)
+  }
+
+  function handleIssueLabel(f) {
+    onIssueLabel(f)
+  }
+
+  function handleFlow(f) {
+    onFlow(f)
+  }
+
+  return {
+    handleMessage,
+    handleEdited,
+    handleDeleted,
+    handleMerged,
+    handleTopic,
+    handleReaction,
+    handleIssue,
+    handleIssueLabel,
+    handleFlow,
+  }
+}
+
+function createWelcomeHandler({
+  onWelcome,
+  onReconnected,
+  subs,
+  chanSubs,
+  peerSubs,
+  allSub,
+  queue,
+  pending,
+  tokenWaiters,
+  setState,
+  resolveTokens,
+  raw,
+  flush,
+  now,
+  perfMark,
+  RECONNECT_TIMED_MS,
+  awayBucket,
+  woke,
+  dropped,
+} = {}) {
+  function handleWelcome(f) {
+    welcome = f
+    attempt = 0
+    setState('open')
+    for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
+    for (const ch of chanSubs) raw({ type: FRAMES.subscribe, channel: ch })
+    for (const p of peerSubs) raw({ type: FRAMES.subscribe, peer: p })
+    if (allSub > 0) raw({ type: FRAMES.subscribe, all: true })
+    flush()
+    onWelcome(f)
+    resolveTokens(f)
+    if (dropped) {
+      dropped = false
+      const caught = onReconnected(f, { cursors: Object.fromEntries(cursors) })
+      if (woke) Promise.resolve(caught).then(timedReconnect, timedReconnect)
+    }
+  }
+
+  /** M8 end: the socket is live again and the catch-up was handed its cursors. */
+  function timedReconnect() {
+    const w = woke
+    woke = null
+    const ms = w ? now() - w.t0 : -1
+    if (w && ms <= RECONNECT_TIMED_MS) perfMark('reconnect_live', ms, { hiddenS: w.hiddenS })
+  }
+
+  return { handleWelcome, timedReconnect }
+}
+
+function createControlHandlers({
+  onPresence,
+  onChannel,
+  onToken,
+  pending,
+  tokenWaiters,
+  resolveTokens,
+  rejectTokens,
+} = {}) {
+  function handlePresence(f) {
+    onPresence(f)
+  }
+
+  function handleChannel(f) {
+    onChannel(f)
+  }
+
+  function handleToken(f) {
+    onToken(f)
+    resolveTokens(f)
+  }
+
+  function handleAck(f) {
+    const p = pending.get(f.msg_id)
+    if (p) {
+      clearTimer(p.timer)
+      pending.delete(f.msg_id)
+      p.resolve(f)
+    }
+  }
+
+  function handleError(f) {
+    const p = f.msg_id ? pending.get(f.msg_id) : null
+    const err = Object.assign(new Error(f.detail || f.error || 'error'), { token: f.error, status: f.status })
+    if (p) {
+      clearTimer(p.timer)
+      pending.delete(f.msg_id)
+      p.reject(err)
+    }
+  }
+
+  return {
+    handlePresence,
+    handleChannel,
+    handleToken,
+    handleAck,
+    handleError,
+  }
+}
+
+function createFrameRouter({
+  handleWelcome,
+  handlePresence,
+  handleChannel,
+  handleToken,
+  handleMessage,
+  handleEdited,
+  handleDeleted,
+  handleMerged,
+  handleTopic,
+  handleReaction,
+  handleIssue,
+  handleIssueLabel,
+  handleFlow,
+  handleAck,
+  handleError,
+} = {}) {
+  
+
+  return { handle }
+}
+
+  function timedReconnect() {
+    const w = woke
+    woke = null
+    const ms = w ? now() - w.t0 : -1
+    if (w && ms <= RECONNECT_TIMED_MS) perfMark('reconnect_live', ms, { hiddenS: w.hiddenS })
+      p.reject(err)
+    }
+  }
+
+  return {
+    handleMessage,
+    handleEdited,
+    handleDeleted,
+    handleMerged,
+    handleTopic,
+    handleReaction,
+    handleIssue,
+    handleIssueLabel,
+    handleFlow,
+    handleWelcome,
+    handlePresence,
+    handleChannel,
+    handleToken,
+    handleAck,
+    handleError,
+    timedReconnect,
+  }
+}
+
+// Frame router
+function handle(f, handlers) {
+  if (!f || typeof f !== 'object') return
+  if (f.type !== FRAMES.error) noteLastData()
+  switch (f.type) {
+    case FRAMES.welcome:
+      handlers.handleWelcome(f)
+      return
+    case FRAMES.presence:
+    case 'status':
+      handlers.handlePresence(f)
+      return
+    case FRAMES.channel:
+    case FRAMES.channelDeleted:
+      handlers.handleChannel(f)
+      return
+    case FRAMES.token:
+      handlers.handleToken(f)
+      return
+    case FRAMES.message:
+      handlers.handleMessage(f)
+      return
+    case FRAMES.edited:
+      handlers.handleEdited(f)
+      return
+    case FRAMES.deleted:
+      handlers.handleDeleted(f)
+      return
+    case FRAMES.merged:
+      handlers.handleMerged(f)
+      return
+    case FRAMES.topicArchived:
+    case FRAMES.topicDeleted:
+    case FRAMES.topicMoved:
+    case FRAMES.messageMoved:
+    case FRAMES.topicMerged:
+    case FRAMES.topicUnmerged:
+      handlers.handleTopic(f)
+      return
+    case FRAMES.reaction:
+      handlers.handleReaction(f)
+      return
+    case FRAMES.issue:
+      handlers.handleIssue(f)
+      return
+    case FRAMES.issue_label:
+      handlers.handleIssueLabel(f)
+      return
+    case FRAMES.flow:
+      handlers.handleFlow(f)
+      return
+    case FRAMES.ack:
+      handlers.handleAck(f)
+      return
+    case FRAMES.error:
+      handlers.handleError(f)
+      return
+    default:
+  }
+}
+
 export function createLiveClient({
   url,
   token = '',
@@ -251,37 +531,38 @@ export function createLiveClient({
   let retryTimer = null
   let welcome = null
   let dropped = false
-  /* bumped by every frame the hub sends: wake() reads it to tell a live
-     socket from a half-open one */
   let frames = 0
-  /* M8: armed by a wake after a long away, timed by the reconnect that follows */
   let woke = null
   const cursors = new Map()
   const subs = new Set()
   const chanSubs = new Set()
   const peerSubs = new Set()
-  /* `all` is ref-counted. The topic list holds it while `/` is open
-     and the app shell holds it for the whole tab, so the page leaving `/` must
-     not take the shell's follow down with it. */
   let allSub = 0
   const queue = []
   const pending = new Map()
-  /* Each waiter is { resolve, reject, timer }: a fresh upload token is asked
-     for over the socket (requestToken) or by redialling onto the live revision
-     (redialForToken, CLE-77795); both time out rather than hang a stuck tab. */
   const tokenWaiters = []
+
+  const handlers = {
+    handleMessage: (f) => handleMessage(f, { onMessage, cursors }),
+    handleEdited: (f) => handleEdited(f, { onEdited }),
+    handleDeleted: (f) => handleDeleted(f, { onDeleted }),
+    handleMerged: (f) => handleMerged(f, { onEdited, onDeleted }),
+    handleTopic: (f) => handleTopic(f, { onTopic }),
+    handleReaction: (f) => handleReaction(f, { onReaction }),
+    handleIssue: (f) => handleIssue(f, { onIssue }),
+    handleIssueLabel: (f) => handleIssueLabel(f, { onIssueLabel }),
+    handleFlow: (f) => handleFlow(f, { onFlow }),
+    handleWelcome: (f) => handleWelcome(f, { onWelcome, onReconnected, subs, chanSubs, peerSubs, allSub, queue, pending, tokenWaiters, setState, resolveTokens, raw, flush, now, perfMark, RECONNECT_TIMED_MS, awayBucket, woke, dropped }),
+    handlePresence: (f) => handlePresence(f, { onPresence }),
+    handleChannel: (f) => handleChannel(f, { onChannel }),
+    handleToken: (f) => handleToken(f, { onToken, resolveTokens }),
+    handleAck: (f) => handleAck(f, { pending }),
+    handleError: (f) => handleError(f, { pending, rejectTokens }),
+  }
 
   function setState(s) {
     state = s
     onState(s)
-  }
-
-  /** M8 end: the socket is live again and the catch-up was handed its cursors. */
-  function timedReconnect() {
-    const w = woke
-    woke = null
-    const ms = w ? now() - w.t0 : -1
-    if (w && ms <= RECONNECT_TIMED_MS) perfMark('reconnect_live', ms, { hiddenS: w.hiddenS })
   }
 
   /** A welcome or a token frame carries a fresh upload token: hand it to every waiter. */
@@ -324,6 +605,24 @@ export function createLiveClient({
     while (queue.length && state === 'open') raw(queue.shift())
   }
 
+  const handlers = {
+    handleMessage: (f) => handleMessage(f, { onMessage, cursors }),
+    handleEdited: (f) => handleEdited(f, { onEdited }),
+    handleDeleted: (f) => handleDeleted(f, { onDeleted }),
+    handleMerged: (f) => handleMerged(f, { onEdited, onDeleted }),
+    handleTopic: (f) => handleTopic(f, { onTopic }),
+    handleReaction: (f) => handleReaction(f, { onReaction }),
+    handleIssue: (f) => handleIssue(f, { onIssue }),
+    handleIssueLabel: (f) => handleIssueLabel(f, { onIssueLabel }),
+    handleFlow: (f) => handleFlow(f, { onFlow }),
+    handleWelcome: (f) => handleWelcome(f, { onWelcome, onReconnected, subs, chanSubs, peerSubs, allSub, queue, pending, tokenWaiters, setState, resolveTokens, raw, flush, now, perfMark, RECONNECT_TIMED_MS, awayBucket, woke, dropped }),
+    handlePresence: (f) => handlePresence(f, { onPresence }),
+    handleChannel: (f) => handleChannel(f, { onChannel }),
+    handleToken: (f) => handleToken(f, { onToken, resolveTokens }),
+    handleAck: (f) => handleAck(f, { pending }),
+    handleError: (f) => handleError(f, { pending, rejectTokens }),
+  }
+
   function connect() {
     if (typeof WebSocketImpl !== 'function') throw new Error('no WebSocket')
     closedByUs = false
@@ -350,7 +649,7 @@ export function createLiveClient({
       } catch {
         return
       }
-      handle(f)
+      handle(f, handlers)
     }
     ws.onclose = () => {
       ws = null
@@ -420,124 +719,6 @@ export function createLiveClient({
         }
         retry()
       })
-  }
-
-  function handle(f) {
-    // A frame the hub delivered. An error frame is a refusal, not data.
-    // typeof null === 'object', so a null frame must return before f.type.
-    if (!f || typeof f !== 'object') return
-    if (f.type !== FRAMES.error) noteLastData()
-    switch (f.type) {
-      case FRAMES.welcome:
-        welcome = f
-        attempt = 0
-        setState('open')
-        for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
-        for (const ch of chanSubs) raw({ type: FRAMES.subscribe, channel: ch })
-        for (const p of peerSubs) raw({ type: FRAMES.subscribe, peer: p })
-        if (allSub > 0) raw({ type: FRAMES.subscribe, all: true })
-        flush()
-        onWelcome(f)
-        /* the welcome carries a fresh upload token minted on THIS (live)
-           revision — resolve any redial/token waiter with it (CLE-77795). */
-        resolveTokens(f)
-        if (dropped) {
-          dropped = false
-          /* M8 ends when the catch-up is done: awaited when the caller returns its promise */
-          const caught = onReconnected(f, { cursors: Object.fromEntries(cursors) })
-          if (woke) Promise.resolve(caught).then(timedReconnect, timedReconnect)
-        }
-        return
-      /* spec 096 §7.4: a member's manual status, its own frame type (a tab that
-         predates it ignores it); it rides the presence listener (the roster's) */
-      case FRAMES.presence:
-      case 'status':
-        onPresence(f)
-        return
-      case FRAMES.channel:
-      case FRAMES.channelDeleted:
-        onChannel(f)
-        return
-      case FRAMES.token:
-        onToken(f)
-        resolveTokens(f)
-        return
-      case FRAMES.message: {
-        const m = messageFromFrame(f)
-        const tid = f.task_id || m.task_id
-        if (tid && m.cursor) cursors.set(String(tid), m.cursor)
-        onMessage(m, f)
-        return
-      }
-      case FRAMES.edited: {
-        /* The same payload shape as `message` plus msg_id and the three edit
-           fields. It is NOT fed to onMessage: an edit is a replacement, and
-           the merge every onMessage listener runs appends or ignores.
-           message-edit-v1 §FR-ED-009 also guarantees ts / received_at /
-           cursor are UNCHANGED by an edit, so the cursor map is deliberately
-           left alone here — a typo fix must not move the read position. */
-        const m = messageFromFrame(f)
-        if (f.msg_id && !m.msg_id) m.msg_id = f.msg_id
-        onEdited(m, f)
-        return
-      }
-      case FRAMES.deleted: {
-        onDeleted({ msg_id: f.msg_id, task_id: f.task_id }, f)
-        return
-      }
-      case FRAMES.merged: {
-        const m = messageFromFrame(f)
-        if (f.msg_id && !m.msg_id) m.msg_id = f.msg_id
-        onEdited(m, f)
-        if (f.merged_from) onDeleted({ msg_id: f.merged_from, task_id: f.task_id }, f)
-        return
-      }
-      case FRAMES.topicArchived:
-      case FRAMES.topicDeleted:
-      case FRAMES.topicMoved:
-      case FRAMES.messageMoved:
-      case FRAMES.topicMerged:
-      case FRAMES.topicUnmerged:
-        onTopic(f)
-        return
-      case FRAMES.reaction: {
-        onReaction({
-          msg_id: f.msg_id,
-          task_id: f.task_id,
-          reactions: Array.isArray(f.reactions) ? f.reactions : [],
-        }, f)
-        return
-      }
-      case FRAMES.issue:
-        onIssue(f)
-        return
-      case FRAMES.issue_label:
-        onIssueLabel(f)
-        return
-      case FRAMES.flow:
-        onFlow(f)
-        return
-      case FRAMES.ack: {
-        const p = pending.get(f.msg_id)
-        if (p) {
-          clearTimer(p.timer)
-          pending.delete(f.msg_id)
-          p.resolve(f)
-        }
-        return
-      }
-      case FRAMES.error: {
-        const p = f.msg_id ? pending.get(f.msg_id) : null
-        const err = Object.assign(new Error(f.detail || f.error || 'error'), { token: f.error, status: f.status })
-        if (p) {
-          clearTimer(p.timer)
-          pending.delete(f.msg_id)
-          p.reject(err)
-        }
-        return
-      }
-      default:
-    }
   }
 
   return {

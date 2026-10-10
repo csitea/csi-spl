@@ -3,7 +3,7 @@
 **Seat**: bn-claude-2 (claude, c-716) · **Reviewed**: `csi-spl-doc/specs/107-hours-tracking/business-needs.md` at `5c3f1fe42`, `spec.md` (v1.2) for context
 **Date**: 2026-10-10 · **Lane**: `dispatch-a28dc5c9` · **Proceeds on**: Q1 = A, Q2 = A, Q3 = A (the doc's recommendations)
 
-**Verdict: 5 agree, 8 change, 0 missing; +6 use cases.**
+**Verdict: 5 agree, 9 change (BN-14 included), 0 missing; +6 use cases.**
 
 The two rules, as business-needs.md section 1 defines them, are the yardstick:
 
@@ -82,6 +82,13 @@ One observation on the doc itself: section 4 marks **7** rows `Gap` (BN-3, 4, 5,
 - **agree**: a direct Rule 1 mandate.
 - Rule 1: pass (required) · Rule 2: n/a
 - No change to the need. For the spec: the week view and **Approve** must work offline (cached app, queued write); on sync a frozen period wins and the worker sees why.
+
+### BN-14 Default hours per day, for the workspace and per person (owner input, not in sha 5c3f1fe42)
+Source: the owner's answer relayed to the panel in spool msg `d837bda4` ("1a,2a,3a", plus a standard amount configurable for the whole organization and per person, set by the foreman from the list of their people).
+- **change**: agree it is the base of both rules (Q3's standard day and the prefilled site week start from it), but one number per person is too coarse for a 100-person firm.
+- Rule 1: pass (it is the prefilled number the worker confirms) · Rule 2: pass (it is the standing day, zero typing)
+- Exact change: "The default is a **weekly pattern** (hours per weekday, e.g. Mon-Thu 8:00, Fri 6:00, Sat 0), set for the workspace by the office and overridden per person by the foreman from the list of their crew; a part-timer is a pattern, not a daily edit. A change applies from a chosen date and never rewrites an approved or frozen day." The foreman's list is the BN-6 crew scope, not the whole workspace.
+- Open for the owner: "standard amount per hour" may also mean an **hourly cost or pay rate**; BN-10 (cost per job) needs one per person or grade either way, kept by the office, never shown to the crew.
 
 ---
 

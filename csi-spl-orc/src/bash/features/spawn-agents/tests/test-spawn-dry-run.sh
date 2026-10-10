@@ -24,7 +24,7 @@ for k in claude grok agy qwen mistral; do
   has "$k: prompt teaches spool recv" "SPOOL_ROOT=${SPOOL_ROOT} /opt/x/spool recv --as ${id}" "$prompt"
   has "$k: prompt teaches spool-send.sh" "spool-send.sh --from ${id} --to <PEER-ID>" "$prompt"
   has "$k: prompt says local mode is unsigned" "UNSIGNED" "$prompt"
-  has "$k: prompt names the orchestrator" "today CLE-00 here" "$prompt"
+  has "$k: prompt names the orchestrator" "today c-001 here" "$prompt"
   has "$k: reports go to the lease holder (specs/058 N1)" "--to orchestrator" "$prompt"
   # CLE-77943 (2026-10-02): owner text went to the standby dispatcher that last posted in the topic.
   has "$k: owner text goes to the dispatch lease holder" "csi-spl-orc && sudo -u ${SPOOL_BOX_USER} env SPOOL_ROOT=${SPOOL_ROOT} LEASE_CMD=show ./run -a do_spl_dispatch_lease" "$prompt"
@@ -32,7 +32,7 @@ for k in claude grok agy qwen mistral; do
   # CLE-77896: three lanes once greeted one new member; no lane posts social messages.
   has "$k: prompt forbids greetings and social posts" "Never post greetings, welcomes or social messages; only post what your brief asks for." "$prompt"
   # CLE-77938 (owner 2026-10-02): one agent does one small task, then exits.
-  has "$k: prompt limits the lane to one small task" "You do ONE small task. If someone sends you a different task, refuse it and tell CLE-00 so it spawns a new lane. When your task is verified done: report and /exit-clean." "$prompt"
+  has "$k: prompt limits the lane to one small task" "You do ONE small task. If someone sends you a different task, refuse it and tell c-001 so it spawns a new lane. When your task is verified done: report and /exit-clean." "$prompt"
   # c-440 (2026-10-06): a 'pkill -f <action>' matched this prompt on 15 agents' argv.
   has "$k: prompt says stop by stop action or pid, never pkill -f" "Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f'" "$prompt"
   hasnt "$k: no markdown-inbox root" "/var/tmp/claude/msgs" "$prompt"

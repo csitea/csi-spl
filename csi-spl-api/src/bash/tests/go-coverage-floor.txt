@@ -6,7 +6,7 @@
 # Measured on eb7c8b962, go1.25.14: go test ./... (no DSN) for the plain
 # packages, hub-pg.tst.sh's docker postgres:16-alpine suites for pg ones.
 cmd/spool 26.8
-internal/action 30.3
+internal/action 59.2
 internal/agentid 97.0
 internal/auth/cmd/auth-demo 0.0
 internal/auth/fakeidp 0.0
@@ -17,8 +17,8 @@ internal/calrecur 98.8
 internal/cicdlogs 81.6
 internal/cloud 95.8
 internal/config 76.8
-internal/edge 38.2
-internal/files 32.9
+internal/edge 98.9
+internal/files 82.9
 internal/github 82.9
 internal/github/githubtest 0.0
 internal/hours 98.0

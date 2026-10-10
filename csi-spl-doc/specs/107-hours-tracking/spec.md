@@ -57,7 +57,7 @@ The owner's input of 2026-10-10 (HUM-10, t1 `6571d5ed`, with P0):
 | # | msg | text | answered in |
 |---|---|---|---|
 | R12 | `4842ca88` | keywords typed while filling in the time pick issues and topics; the timer's placement (full text below) | **20**, Q23, Q24 (open) |
-| R13 | `82efd47b` | "Propose some kind of new UI directions for the implementation of this use case." | **20**, Q25 (open) |
+| R13 | `82efd47b` | "Propose some kind of new UI directions for the implementation of this use case." | **20**, Q25 (**decided**: 1 + 3, msg `e91fe1b5`) |
 
 R12, verbatim (msg `4842ca88`):
 
@@ -891,6 +891,7 @@ Each seat signs the v2.0 sha below on the same lane.
 | 2.0-draft | 2026-10-10 | c-734 | the business-needs gaps (business-needs.md 6.6, consensus `2c6c36732`): FR-14..FR-37 in section 14 (standard day per organisation and person, the prefill chain from the shift plan, jobs and quotes, no money in hours tracking, the time-accountant role and the external accountant seat, crew scope, foreman entry with Dispute, clock exceptions and the shared terminal, breaks, travel and waiting, derived rate categories, holidays, absences, worker type, start and end times, the change log, retention, offline approval, the nudge, hours per workspace); candidates ranked (15); U11 as open owner Q8 (16); the 6.6 map (17); for the v2 review panel |
 | 2.0 | 2026-10-10 | c-737 (v2-claude, editor) | fold of the v2 panel, four seats (section 18): 22 FRs changed (V2C2-1..4: evidence-only auto-approval, `kind` in the entry key, categories stored before the prune, terminal identity), FR-38 Crew and Setup tabs, FR-39 payroll export, FR-40 adjustment rows, v2 acceptance (14.14); section 15 re-ranked (U8 into v2); owner Q8 = C recorded (16) |
 | 2.1 | 2026-10-10 | c-837 | owner principle **P0** (msgs `4d6d200c`, `4fd07875`, t1 `6571d5ed`) at the top of section 0; owner rows R12 (`4842ca88`) and R13 (`82efd47b`); FR-01..FR-40 and sections 1..6, 14..17 read against P0, the points that push toward exact tracing listed as owner questions Q9..Q22, and Q23..Q25 (timer placement, keyword-only rows, UI direction) in section 20; no FR text changed |
+| 2.1 (fold) | 2026-10-10 | c-837 | owner answer to Q25 (msg `e91fe1b5`): UI directions 1 (Day sketch) and 3 (From what you did); Q9..Q24 still open |
 
 ---
 
@@ -928,5 +929,7 @@ These mirror the questions the dispatcher c-002 already put to the owner on `dis
 | Q23 | R12, 1.5, 5.3, T019 | Where does the start/stop timer live? | **move it into the calendar**: the Hours tab (5.4) and the day's Working hours dialog (5.2) | both: the calendar and the app header | the app header only (as built, owner v1-Q7 = B) | **A** |
 | Q24 | R12, 5.3 (`HoursTargetPicker.vue`), 1.3 targets | A keyword typed while filling the day that matches no issue or topic | **a keyword-only row**: the keyword is kept as the row's label on "other" (`ws`), countable in reports by keyword | no keyword-only rows: the member must pick an issue, topic, channel or job, else the time goes to "other" unlabelled | | **A** (P0: a direction by keyword is enough) |
 | Q25 | R13, 5.1, 5.2 | Which UI direction: (1) **Day sketch**: keyword chips in the Working hours line, split by the day's trail, a slider per chip, one Approve; (2) **Paint the calendar**; (3) **From what you did**: prefilled from posts, issues and meetings; (4) **`/hours` in chat** (dispatcher's answer, msg `602daf86`) | 1 + 3, with 4 as a cheap extra | one of 1..4 alone | | **1 + 3, 4 extra** |
+
+**Q25 decided by the owner** (HUM-10, t1 `6571d5ed`, msg `e91fe1b5`, verbatim: "Yeah, 1 and 3 seem okay."; relayed by the dispatcher c-002): directions **1 (Day sketch)** and **3 (From what you did)** are chosen; 2 (Paint the calendar) and 4 (`/hours` in chat) are not. No FR is changed by this fold; the tasks round turns 1 + 3 into the Working hours line and dialog (5.1, 5.2). **Q23 (timer placement) and Q24 (keyword-only rows) stay open.**
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

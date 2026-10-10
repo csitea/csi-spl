@@ -36,7 +36,8 @@ ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
 
 # A private copy of the gate's code, so case 5 can change it.
 GD="$ROOT/gate"; mkdir -p "$GD"
-cp "$RUN_DIR/check-pre-push.func.sh" "$RUN_DIR/check-pre-push-lint.func.sh" "$RUN_DIR/check-release-note.func.sh" "$GD/"
+cp "$RUN_DIR/check-pre-push.func.sh" "$RUN_DIR/check-pre-push-lint.func.sh" "$RUN_DIR/check-release-note.func.sh" \
+  "$RUN_DIR/check-pre-push-stale-tree.func.sh" "$GD/"
 FUNC="$GD/check-pre-push.func.sh"
 
 HYG="$ROOT/hygiene.runs"

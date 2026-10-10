@@ -6,6 +6,10 @@
 # @description it, not after it has stalled every deploy.
 # @description PARTS (selected by the paths the push changes vs PRE_PUSH_BASE):
 # @description   hygiene     always (~1 s)
+# @description   stale-tree  always, every tier (well under 1 s a commit): an
+# @description               outgoing commit that sets 3 or more paths back to
+# @description               an older blob is REFUSED unless its subject names
+# @description               a restore -- check-pre-push-stale-tree.func.sh
 # @description   iac         csi-spl-iac/ csi-spl-cnf/ .github/ .zap/ root scanner configs
 # @description   wui-vendor  csi-spl-wui/ (the api's payment-vendor grep over WUI)
 # @description   wui         csi-spl-wui/ minus edits to e2e/bench files, plus the
@@ -76,6 +80,8 @@
 # that sources only this one gets them too.
 declare -F _ppl_plan >/dev/null 2>&1 \
   || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-lint.func.sh"
+declare -F _pp_part_stale_tree >/dev/null 2>&1 \
+  || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-stale-tree.func.sh"
 
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
@@ -188,6 +194,7 @@ _pp_paths() {  # <part>
 _pp_label() {  # <part>
   case "$1" in
     hygiene)    echo "distribution-hygiene" ;;
+    stale-tree) echo "stale-tree (outgoing commits that set paths back)" ;;
     iac)        echo "csi-spl-iac suite" ;;
     wui-vendor) echo "csi-spl-wui payment-vendor gate" ;;
     wui)        echo "csi-spl-wui unit + typecheck" ;;
@@ -300,7 +307,7 @@ _pp_cache_add() {  # <key>
 # than the hook would run), and only when the key still holds at the end.
 _pp_gate_id() {
   cat "$_PP_SELF_DIR/check-pre-push.func.sh" "$_PP_SELF_DIR/check-pre-push-lint.func.sh" \
-    "$_PP_SELF_DIR/check-release-note.func.sh" 2>/dev/null | sha1sum | cut -c1-40
+    "$_PP_SELF_DIR/check-release-note.func.sh" "$_PP_SELF_DIR/check-pre-push-stale-tree.func.sh" 2>/dev/null | sha1sum | cut -c1-40
 }
 _pp_tree_key() {  # <tree> <tier> <parts> <base>
   local tree="$1" tier="$2" parts="$3" base="$4" st t mb ids=""
@@ -563,10 +570,12 @@ _pp_part_cnf() {  # <tree>
   done
   return "$rc"
 }
+# stale-tree has no _pp_paths: it reads the outgoing commits, not paths, so it
+# is selected on every tier and mode, right after hygiene, and never cached.
 _pp_fn() {  # <part>
   case "$1" in
     hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;; cnf) echo _pp_part_cnf ;;
-    orc) echo _pp_part_orc ;;
+    orc) echo _pp_part_orc ;; stale-tree) echo _pp_part_stale_tree ;;
     wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;; blog) echo _pp_part_blog ;;
     lint-*) echo "_pp_part_${1//-/_}" ;;
   esac
@@ -856,8 +865,8 @@ do_check_pre_push() {
   else
     _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
     local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
-    all="hygiene $lint_all blog cnf iac orc wui-vendor wui api"
-    parts="${parts/hygiene/hygiene${lint:+ $lint}}"
+    all="hygiene stale-tree $lint_all blog cnf iac orc wui-vendor wui api"
+    parts="${parts/hygiene/hygiene stale-tree${lint:+ $lint}}"
     [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
   fi
 

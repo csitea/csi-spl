@@ -157,7 +157,7 @@ gate "$R"; eq "5. ... and a dirty api file re-runs it too (uncacheable)" 3 "$(ru
 R="$ROOT/r6"; mkrepo "$R" >/dev/null 2>&1; : >"$COUNT"
 echo y >"$R/csi-spl-iac/a.sh"; git -C "$R" add -A; git -C "$R" commit -qm iac
 NB="$ROOT/noyq"; mkdir -p "$NB"
-for t in bash env git sha1sum cut grep date mkdir wc tail mv paste sort head cat id dirname basename mktemp timeout sed rm awk tr jq python3 ls; do
+for t in bash env git sha1sum cut grep date mkdir wc tail mv paste sort head cat id dirname basename mktemp timeout sed rm awk tr jq python3 ls tee; do
   p="$(command -v "$t" 2>/dev/null)" && ln -sf "$p" "$NB/$t"
 done
 TOOLS=real gate "$R" PATH="$NB" PRE_PUSH_EXTRA_PATH=; eq "6. yq missing -> REFUSED" 1 "$?"

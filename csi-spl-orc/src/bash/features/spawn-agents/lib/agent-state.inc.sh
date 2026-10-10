@@ -112,7 +112,8 @@ classify_screen() {
   if printf '%s' "$scr" | grep -qE "session '.+' ended\. Pane kept open"; then
     printf '%s\n' ended; return
   fi
-  if printf '%s' "$scr" | grep -qE 'esc to interrupt|Esc:cancel|Waiting for response'; then
+  # grok's mid-turn footer is `Ctrl+c:cancel` (thinking, a tool running).
+  if printf '%s' "$scr" | grep -qE 'esc to interrupt|Esc:cancel|Ctrl\+c:cancel|Waiting for response'; then
     printf '%s\n' busy; return
   fi
   # A spinner word counts only in its LIVE form, "Crunching…": a finished

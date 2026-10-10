@@ -38,4 +38,21 @@ eq "4. dialog -> dialog" dialog \
 ❯ 1. Yes
   2. No")"
 
+# 5. grok (Grok Build 1.0.50, captured 2026-10-10): mid-turn its footer reads
+# `Ctrl+c:cancel`, also while it thinks or runs a tool with no other busy
+# marker (5 of 6 samples read idle before). The /exit-clean closer types
+# /exit only into an idle pane. Idle: the footer has no Ctrl+c:cancel.
+gbox=$'  ╭──────\n  │ ❯\n  ╰────── Grok 4.7 (xhigh) · always-approve ─╯'
+eq "5. grok thinking -> busy" busy "$(classify_screen "   ⠴ Thinking… 1.1s
+${gbox}
+  Shift+Tab:mode  │  Ctrl+c:cancel  │  Ctrl+x:shortcuts")"
+eq "5. grok running a tool -> busy" busy "$(classify_screen "     ◆ Running sleep for 15 seconds as requested
+   ⠋ Sleep for 15 seconds as requested… 6.2s      12s ⇣28.0k [↓]
+${gbox}
+  Shift+Tab:mode  │  Ctrl+c:cancel  │  Ctrl+b:send to bg  │  Ctrl+x:shortcuts")"
+eq "5. grok finished turn at an empty prompt -> idle" idle "$(classify_screen "     ◆ Ran sleep 20 seconds then print done
+     Worked for 34s
+${gbox}
+  Shift+Tab:mode  │  Ctrl+x:shortcuts")"
+
 t_done

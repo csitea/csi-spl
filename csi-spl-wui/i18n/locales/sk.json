@@ -2312,7 +2312,8 @@
     "revoke_seat": "Odvolať miesto",
     "revoke_seat_confirm": "Odvolať miesto stroja {box}? Jeho agenti sa odpoja.",
     "forbidden": "Nemáte oprávnenie agents.join.",
-    "failed": "Nepodarilo sa. Skúste to znova."
+    "failed": "Nepodarilo sa. Skúste to znova.",
+    "disabled": "Tokeny pripojenia nie sú v tomto pracovnom priestore zapnuté. Operátor hubu ich môže zapnúť."
   },
   "hours_timer": {
     "start": "Spustiť časovač pre prácu mimo aplikácie",

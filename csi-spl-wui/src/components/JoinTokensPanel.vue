@@ -3,7 +3,9 @@
      list with Revoke, and per seated box Revoke seat with a confirm naming
      the box. agents.vue renders it only when the session holds agents.join,
      and loads it on demand. The token is shown once, from the mint answer,
-     and Close drops it from memory. -->
+     and Close drops it from memory. With spec 108's switch off for the
+     workspace (section 3.8, the list's `enabled`) the new-token part is
+     replaced by one line; open tokens and seats stay, to revoke. -->
 <template>
   <div class="jt" data-test="join-tokens">
     <h3 class="jt__title">{{ t('join_tokens.title') }}</h3>
@@ -21,7 +23,7 @@
       </div>
     </div>
 
-    <form v-else-if="formOpen" class="jt__form" data-test="join-token-form" @submit.prevent="mint">
+    <form v-else-if="formOpen && enabled" class="jt__form" data-test="join-token-form" @submit.prevent="mint">
       <label class="jt__field">
         <span>{{ t('join_tokens.label') }}</span>
         <input v-model="label" type="text" maxlength="80" autocomplete="off" data-test="join-token-label">
@@ -43,7 +45,9 @@
       </div>
     </form>
 
-    <button v-else type="button" class="btn ghost" data-test="join-token-new" @click="openForm">{{ t('join_tokens.new') }}</button>
+    <button v-else-if="enabled" type="button" class="btn ghost" data-test="join-token-new" @click="openForm">{{ t('join_tokens.new') }}</button>
+
+    <p v-else class="muted" data-test="join-tokens-disabled">{{ t('join_tokens.disabled') }}</p>
 
     <p v-if="error" class="jt__error" role="alert" data-test="join-token-error">{{ error }}</p>
 
@@ -80,7 +84,7 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { writeClipboard } from '~/utils/clipboard.mjs'
-import { joinCountdown, joinMemberOptions, joinMintBody, joinTokenRows, seatedBoxes } from '~/utils/join-tokens.mjs'
+import { joinCountdown, joinEnabled, joinMemberOptions, joinMintBody, joinTokenRows, seatedBoxes } from '~/utils/join-tokens.mjs'
 
 const props = defineProps<{ seats: Array<{ box: string }> }>()
 const emit = defineEmits<{ revoked: [box: string] }>()
@@ -99,6 +103,8 @@ const busy = ref(false)
 const error = ref('')
 const copied = ref<'' | 'ok' | 'fail'>('')
 const confirming = ref('')
+/* spec 108's switch for this workspace, from the list answer */
+const enabled = ref(true)
 /* the one mint answer: held only while its panel is open */
 const minted = ref<{ line: string, expiresAt: string } | null>(null)
 const now = ref(Date.now())
@@ -107,14 +113,20 @@ let tick: ReturnType<typeof setInterval> | null = null
 const left = (at: string) => joinCountdown(at, now.value)
 
 function fail(e: unknown) {
-  const err = e as { detail?: string, status?: number }
-  if (err?.status === 403) error.value = t('join_tokens.forbidden')
+  const err = e as { detail?: string, status?: number, token?: string }
+  if (err?.token === 'box_join_disabled') {
+    enabled.value = false
+    formOpen.value = false
+    error.value = ''
+  } else if (err?.status === 403) error.value = t('join_tokens.forbidden')
   else error.value = err?.detail || t('join_tokens.failed')
 }
 
 async function loadTokens() {
   try {
-    tokens.value = joinTokenRows(await api.listJoinTokens())
+    const body = await api.listJoinTokens()
+    tokens.value = joinTokenRows(body)
+    enabled.value = joinEnabled(body)
   } catch (e) {
     fail(e)
   }

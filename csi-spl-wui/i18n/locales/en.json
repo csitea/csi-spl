@@ -2312,7 +2312,8 @@
     "revoke_seat": "Revoke seat",
     "revoke_seat_confirm": "Revoke the seat of {box}? Its agents go offline.",
     "forbidden": "You lack the agents.join permission.",
-    "failed": "That did not work. Try again."
+    "failed": "That did not work. Try again.",
+    "disabled": "Join tokens are not enabled for this workspace. The hub operator can turn them on."
   },
   "hours_timer": {
     "start": "Start a timer for time worked outside the app",

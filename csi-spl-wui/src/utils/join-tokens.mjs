@@ -35,6 +35,16 @@ export function normalizeJoinToken(r) {
   }
 }
 
+/**
+ * Whether the hub mints join tokens for this workspace: spec 108's switch
+ * (section 3.8), off by default and turned on only by the hub operator. The
+ * list answers it as `enabled`; a hub that predates the switch answers none,
+ * which keeps the old behaviour (its mint is the control).
+ */
+export function joinEnabled(body) {
+  return !(body && body.enabled === false)
+}
+
 /** The list answer -> rows, open ones first, then by expiry. */
 export function joinTokenRows(body) {
   const list = body && Array.isArray(body.tokens) ? body.tokens : []

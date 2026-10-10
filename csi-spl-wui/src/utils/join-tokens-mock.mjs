@@ -14,13 +14,18 @@ function mockErr(status, token, detail = '') {
 
 const BOX_ID = /^[a-z0-9][a-z0-9-]{0,31}$/
 
-/** A fresh mock store of join tokens; `now` and `ttlMs` are seams for the unit test. */
-export function createMockJoinTokens({ now = () => Date.now(), ttlMs = 60 * 60 * 1000 } = {}) {
+/**
+ * A fresh mock store of join tokens; `now`, `ttlMs` and `enabled` (spec 108's
+ * per-workspace switch, section 3.8) are seams for the unit test. The mock
+ * workspace has the switch on, so the e2e flow can mint.
+ */
+export function createMockJoinTokens({ now = () => Date.now(), ttlMs = 60 * 60 * 1000, enabled = true } = {}) {
   const rows = []
   let n = 0
   const hex8 = () => (0x1a2b3c00 + (++n)).toString(16).slice(-8)
   return {
     mint({ label = '', box_id: boxId = '', for_human: forHuman = '' } = {}) {
+      if (!enabled) throw mockErr(403, 'box_join_disabled', 'joining boxes with a join token is not enabled for this workspace; the operator of this hub turns it on')
       if (String(label).length > 80) throw mockErr(400, 'bad_request', 'label is longer than 80 characters')
       if (boxId === 'box-wui') throw mockErr(400, 'reserved_box', 'box-wui is the reserved browser box')
       if (boxId && !BOX_ID.test(boxId)) throw mockErr(400, 'bad_request', 'box_id is not a box id ([a-z0-9-], up to 32)')
@@ -34,7 +39,7 @@ export function createMockJoinTokens({ now = () => Date.now(), ttlMs = 60 * 60 *
       return { id, token, expires_at: expiresAt, box_id: boxId, for_human: forHuman, join_line: `SPOOL_JOIN_TOKEN=${token} spool join http://mock.invalid` }
     },
     list() {
-      return { tokens: rows.filter((r) => Date.parse(r.expires_at) > now()).map((r) => ({ ...r })) }
+      return { tokens: rows.filter((r) => Date.parse(r.expires_at) > now()).map((r) => ({ ...r })), enabled }
     },
     revoke(id) {
       const r = rows.find((x) => x.id === id)

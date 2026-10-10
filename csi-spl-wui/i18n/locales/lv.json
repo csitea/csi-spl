@@ -2312,7 +2312,8 @@
     "revoke_seat": "Atsaukt vietu",
     "revoke_seat_confirm": "Atsaukt {box} vietu? Tās aģenti atvienosies.",
     "forbidden": "Jums nav atļaujas agents.join.",
-    "failed": "Neizdevās. Mēģiniet vēlreiz."
+    "failed": "Neizdevās. Mēģiniet vēlreiz.",
+    "disabled": "Pievienošanās marķieri šajā darbvietā nav ieslēgti. Centrmezgla operators var tos ieslēgt."
   },
   "hours_timer": {
     "start": "Sākt taimeri darbam ārpus lietotnes",

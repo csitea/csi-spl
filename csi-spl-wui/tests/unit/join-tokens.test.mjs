@@ -5,11 +5,11 @@
 // Run: node tests/unit/join-tokens.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  AGENTS_JOIN, canJoinAgents, joinCountdown, joinMemberOptions, joinMintBody, joinTokenRows, seatedBoxes,
+  AGENTS_JOIN, canJoinAgents, joinCountdown, joinEnabled, joinMemberOptions, joinMintBody, joinTokenRows, seatedBoxes,
 } from '../../src/utils/join-tokens.mjs'
 import { createMockJoinTokens } from '../../src/utils/join-tokens-mock.mjs'
 
@@ -114,5 +114,47 @@ describe('Agents page wiring', () => {
     const panel = src('src/components/JoinTokensPanel.vue')
     assert.match(panel, /joinCountdown\(at, now\.value\)/)
     assert.doesNotMatch(panel, /3600|60 \* 60/)
+  })
+})
+
+// Spec 108 3.8 (owner msg 9bdc5980): the hub's per-workspace switch, off by
+// default. The panel reads it from the list answer and hides the new-token
+// part; open tokens and seats stay, so they can still be revoked.
+describe('spec 108 switch (join_tokens.disabled)', () => {
+  it('joinEnabled reads the list answer; only an explicit false turns it off', () => {
+    assert.equal(joinEnabled({ tokens: [], enabled: false }), false)
+    assert.equal(joinEnabled({ tokens: [], enabled: true }), true)
+    // CONTROL: a hub that predates the switch answers no field: old behaviour
+    assert.equal(joinEnabled({ tokens: [] }), true)
+    assert.equal(joinEnabled(null), true)
+  })
+  it('the mock hub refuses to mint with the switch off, like the hub (403 box_join_disabled)', () => {
+    const off = createMockJoinTokens({ enabled: false })
+    assert.throws(() => off.mint({}), (e) => e.status === 403 && e.token === 'box_join_disabled')
+    assert.equal(off.list().enabled, false)
+    // CONTROL: the default mock workspace has it on and mints
+    const on = createMockJoinTokens()
+    assert.match(on.mint({}).token, /^spj1\./)
+    assert.equal(on.list().enabled, true)
+  })
+  it('the panel gates the new-token button and form on enabled, and shows the line when off', () => {
+    const panel = src('src/components/JoinTokensPanel.vue')
+    assert.match(panel, /<form v-else-if="formOpen && enabled"/)
+    assert.match(panel, /<button v-else-if="enabled"[^>]*data-test="join-token-new"/)
+    assert.match(panel, /data-test="join-tokens-disabled">\{\{ t\('join_tokens\.disabled'\) \}\}/)
+    assert.match(panel, /enabled\.value = joinEnabled\(body\)/)
+    assert.match(panel, /err\?\.token === 'box_join_disabled'/)
+    // CONTROL: the open-token list and the seats are not gated on the switch
+    assert.doesNotMatch(panel, /v-if="[^"]*enabled[^"]*"[^>]*data-test="join-tokens-list"/)
+    assert.doesNotMatch(panel, /v-if="[^"]*enabled[^"]*"[^>]*data-test="join-seats-list"/)
+  })
+  it('every locale carries join_tokens.disabled; sr is Latin', () => {
+    const dir = join(WUI, 'i18n/locales')
+    for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+      const v = JSON.parse(readFileSync(join(dir, f), 'utf8')).join_tokens?.disabled
+      assert.ok(typeof v === 'string' && v.length > 10, `${f} lacks join_tokens.disabled`)
+    }
+    const sr = JSON.parse(readFileSync(join(dir, 'sr.json'), 'utf8')).join_tokens.disabled
+    assert.doesNotMatch(sr, /[\u0400-\u04FF]/)
   })
 })

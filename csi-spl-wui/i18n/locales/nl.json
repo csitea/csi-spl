@@ -2312,7 +2312,8 @@
     "revoke_seat": "Plaats intrekken",
     "revoke_seat_confirm": "De plaats van {box} intrekken? De agents ervan gaan offline.",
     "forbidden": "U mist de machtiging agents.join.",
-    "failed": "Dat lukte niet. Probeer het opnieuw."
+    "failed": "Dat lukte niet. Probeer het opnieuw.",
+    "disabled": "Koppeltokens zijn niet ingeschakeld voor deze werkruimte. De beheerder van de hub kan ze inschakelen."
   },
   "hours_timer": {
     "start": "Start een timer voor werk buiten de app",

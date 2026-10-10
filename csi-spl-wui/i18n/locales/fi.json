@@ -2312,7 +2312,8 @@
     "revoke_seat": "Peru paikka",
     "revoke_seat_confirm": "Perutaanko koneen {box} paikka? Sen agentit menevät offline-tilaan.",
     "forbidden": "Sinulla ei ole oikeutta agents.join.",
-    "failed": "Se ei onnistunut. Yritä uudelleen."
+    "failed": "Se ei onnistunut. Yritä uudelleen.",
+    "disabled": "Liittymistunnukset eivät ole käytössä tässä työtilassa. Keskittimen ylläpitäjä voi ottaa ne käyttöön."
   },
   "hours_timer": {
     "start": "Käynnistä ajastin sovelluksen ulkopuoliselle työlle",

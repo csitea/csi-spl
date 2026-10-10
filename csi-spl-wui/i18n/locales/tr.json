@@ -2312,7 +2312,8 @@
     "revoke_seat": "Yeri iptal et",
     "revoke_seat_confirm": "{box} yerinin iptal edilsin mi? Ajanları çevrimdışı olur.",
     "forbidden": "agents.join izniniz yok.",
-    "failed": "Olmadı. Tekrar deneyin."
+    "failed": "Olmadı. Tekrar deneyin.",
+    "disabled": "Katılım belirteçleri bu çalışma alanında etkin değil. Merkez operatörü bunları açabilir."
   },
   "hours_timer": {
     "start": "Uygulama dışındaki çalışma için zamanlayıcı başlat",

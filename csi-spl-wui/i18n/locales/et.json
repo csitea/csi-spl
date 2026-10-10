@@ -2312,7 +2312,8 @@
     "revoke_seat": "Tühista koht",
     "revoke_seat_confirm": "Kas tühistada {box} koht? Selle agendid lähevad võrguühenduseta.",
     "forbidden": "Teil puudub õigus agents.join.",
-    "failed": "See ei õnnestunud. Proovige uuesti."
+    "failed": "See ei õnnestunud. Proovige uuesti.",
+    "disabled": "Liitumisload pole selles tööruumis lubatud. Jaoturi haldaja saab need sisse lülitada."
   },
   "hours_timer": {
     "start": "Käivita taimer rakendusest väljaspool tehtud tööle",

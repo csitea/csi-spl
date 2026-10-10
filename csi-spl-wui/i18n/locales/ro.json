@@ -2312,7 +2312,8 @@
     "revoke_seat": "Revocă locul",
     "revoke_seat_confirm": "Revocați locul lui {box}? Agenții ei trec offline.",
     "forbidden": "Nu aveți permisiunea agents.join.",
-    "failed": "Nu a mers. Încercați din nou."
+    "failed": "Nu a mers. Încercați din nou.",
+    "disabled": "Tokenurile de alăturare nu sunt activate pentru acest spațiu de lucru. Operatorul hubului le poate activa."
   },
   "hours_timer": {
     "start": "Pornește un cronometru pentru munca din afara aplicației",

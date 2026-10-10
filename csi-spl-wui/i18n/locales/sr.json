@@ -2312,7 +2312,8 @@
     "revoke_seat": "Опозови место",
     "revoke_seat_confirm": "Опозвати место машине {box}? Њени агенти ће се искључити.",
     "forbidden": "Немате дозволу agents.join.",
-    "failed": "Није успело. Покушајте поново."
+    "failed": "Није успело. Покушајте поново.",
+    "disabled": "Tokeni za pridruživanje nisu uključeni za ovaj radni prostor. Operator čvorišta može da ih uključi."
   },
   "hours_timer": {
     "start": "Покрени тајмер за рад ван апликације",

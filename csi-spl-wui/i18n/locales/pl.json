@@ -2312,7 +2312,8 @@
     "revoke_seat": "Unieważnij miejsce",
     "revoke_seat_confirm": "Unieważnić miejsce {box}? Jej agenci przejdą w tryb offline.",
     "forbidden": "Brak uprawnienia agents.join.",
-    "failed": "Nie udało się. Spróbuj ponownie."
+    "failed": "Nie udało się. Spróbuj ponownie.",
+    "disabled": "Tokeny dołączania nie są włączone w tym obszarze roboczym. Operator huba może je włączyć."
   },
   "hours_timer": {
     "start": "Uruchom licznik czasu pracy poza aplikacją",

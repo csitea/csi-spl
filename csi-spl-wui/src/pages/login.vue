@@ -436,6 +436,9 @@ if (earlyLogin) {
   .login-landing-card :deep(.native-auth__tab),
   .login-landing-card :deep(.native-auth__field input),
   .login-landing-card :deep(.native-auth__submit) { min-height: 38px; }
+  /* SPL-993: the compact card's 0.8125rem fields outweigh the layout's
+     phone rule; under 16 px iOS zooms the page into the field on focus */
+  .login-landing-card :deep(.native-auth__field input) { font-size: max(16px, 1rem); }
   .hc__post--early { display: none; }
   /* the three that show arrive straight away, one after the other */
   .hc__post { animation-delay: calc((var(--i) - 2) * 1.2s + 0.3s); }

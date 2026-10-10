@@ -446,16 +446,22 @@ async function checkKeyboard(browser, base, vp) {
         const r = el.getBoundingClientRect()
         const bar = document.querySelector('[data-test=login-bar]').getBoundingClientRect()
         const body = document.querySelector('.login-body')
-        body.scrollTop = body.scrollHeight
-        const b = document.querySelector(sb).getBoundingClientRect()
+        /* scroll the body until the submit's bottom meets the body's own
+           bottom, as a thumb does: not to the very end, since /login has the
+           features row (spec 116 T4) under the card. Only a scroll container
+           (overflow-y auto | scroll) counts as one the visitor can scroll. */
+        const btn = document.querySelector(sb)
+        body.scrollTop += btn.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom
+        const b = btn.getBoundingClientRect()
         return {
+          scrolls: /^(auto|scroll)$/.test(getComputedStyle(body).overflowY),
           focused: document.activeElement === el,
           fieldTop: Math.round(r.top), fieldBottom: Math.round(r.bottom), barBottom: Math.round(bar.bottom), vh: window.innerHeight,
           submitBottom: Math.round(b.bottom), px: parseFloat(getComputedStyle(el).fontSize),
         }
       }, field, submit)
       ok(`${tag} ${path.split('?')[0]}: the focused field is in view under the bar`, m.focused && m.fieldTop >= m.barBottom - 1 && m.fieldBottom <= m.vh, m)
-      ok(`${tag} ${path.split('?')[0]}: the submit button scrolls into view`, m.submitBottom <= m.vh && m.submitBottom > m.barBottom, m)
+      ok(`${tag} ${path.split('?')[0]}: the submit button scrolls into view`, m.scrolls && m.submitBottom <= m.vh && m.submitBottom > m.barBottom, m)
       ok(`${tag} ${path.split('?')[0]}: inputs >= 16 px (no iOS zoom)`, m.px >= 16, { px: m.px })
       x = await noXScroll(p)
       ok(`${tag} ${path.split('?')[0]}: keyboard open, no horizontal page scroll`, x.ok, x)

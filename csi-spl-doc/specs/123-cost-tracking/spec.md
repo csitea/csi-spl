@@ -18,7 +18,7 @@ To see how much the entire AI cloud instance costs, we track every cost source a
 2. **LLM Tokens**: Token consumption across all AI agents, sliced per agent, per workspace, per vendor and per model. Two kinds, read differently (section 3):
    - **fleet tokens**: the fleet's own lanes (c-, g-, a-, q-, m-) on subscriptions. Today this is almost all of the token volume (121 section 7: "our own work stays on subscriptions"). They never pass through the hub ledger: they are in each box's transcript files.
    - **metered tokens**: hub-dispatched turns on pay-per-token API keys (121 section 7), once 121 phase 3 ships.
-3. **Agent Subscriptions vs API Keys**: Fixed-cost subscriptions (e.g., $20/month per seat) and pay-per-token API keys. A subscription's cost is its invoice; its token volume has a list-price equivalent, shown beside it, never added to it (Q-4).
+3. **Agent Subscriptions vs API Keys**: Fixed-cost subscriptions (the vendor invoice amount) and pay-per-token API keys. A subscription's cost is its invoice; its token volume has a list-price equivalent, shown beside it, never added to it (Q-4).
 4. **Agent-hours**: The time agents run, used to split a vendor's subscription per agent on the page, never as a price.
 5. **Machines outside GCP** (boxes that are not GCP VMs): a hand-entered monthly row per box (Q-7).
 
@@ -193,6 +193,7 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
   - A: the operator workspace (you, and whom you grant) sees the whole estate; in any other workspace, `biz_owner` and `admin` see only that workspace's costs.
   - B: every `biz_owner` and `admin` sees the whole estate.
   - **Panel: A (4 of 4).** One workspace's costs never show another's; the estate's costs are Csitea's.
+  - **Owner (HUM-10): A.** ("Only the Spool Hub admin and business owner see all of the costs.")
 - **Q-2 Who reads the GCP billing export.** The per-env SAs cannot read billing today.
   - A: a dedicated reader SA in csi-spl-all with `roles/bigquery.dataViewer` on the export dataset only, its key on disk like the per-env keys.
   - B: grant billing read to an existing SA (the per-env SAs, or the csi-spl-all SA that already runs the satellite budget).

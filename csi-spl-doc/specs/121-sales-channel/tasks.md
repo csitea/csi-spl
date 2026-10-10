@@ -65,7 +65,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T102 | store: `inChannel`, visitor and embed rows | 1 | T101 applied dev+prd | done | claude |
 | T103 | cnf `env.hub.embed.*` + config reader | 1 | - | done (7b1e4f47e) | claude |
 | T104 | hub: visitor token, `channel_guest` role, read/post/erase in its channel | 1 | T102, T103 | done | claude |
-| T106 | hub: `#sales` triage line, retention, lead mark, block, export exclusion | 1 | T104 | build | claude |
+| T106 | hub: `#sales` triage line, retention, lead mark, block, export exclusion | 1 | T104 | done (86aee14e5) | claude |
 | T106b | WUI: "Visitors" rail group, lead / block buttons | 1 | T106 | build | mistral or grok |
 | T105 | hub: abuse limits, proof-of-work gate, bans, token sweep | 2 | T104 | build | claude |
 | T201 | hub serves `/embed/*` with per-customer `frame-ancestors` | 2 | T102, T103 | done (2c5f2fa3b, 6532abba2) | claude |
@@ -159,7 +159,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `GO/hub/embed_visitor_test.go`, `GO/store/embed_visitor_messages_test.go`,
   `GO/auth/embed_bearer_test.go`. Left for T105: the visitor's `ip_hash`
   (minted NULL), the limits and the challenge.
-- [ ] T106 **hub staff side** (claude; needs T104). One `#sales` triage
+- [x] T106 **hub staff side** (claude; needs T104). One `#sales` triage
   line (a link, never the text) on a new visitor channel and on a first
   post after 24 h quiet; retention sweep (30 days after the last message,
   unless marked a lead); lead mark; owner block (token revoked, channel
@@ -169,6 +169,20 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   (look under `RUN/spl-public-*`; the lane names the file it changed in its
   report). Done: tests green; the export test plants a visitor message and
   finds it absent.
+  Built (c-779, 86aee14e5): `GET /v1/tenant/embed-visitors` (no token, e-mail
+  or ip_hash), `PUT .../{channel}/lead`, `POST .../{channel}/block` (token
+  ends now, channel kept); biz_owner or admin, 404 as an unknown path while
+  the flag is off. The triage line is an unsigned box-wui note of the
+  visitor's HUM in `#sales` (made on first use, private, staff seated); a new
+  visitor channel seats the staff too, so the link opens. Retention runs in
+  `RunSweeper`, flag on or off. rdb `0172_embed_staff.sql`: `lead_at`,
+  `blocked_at`, and the export filter: three RESTRICTIVE policies TO
+  `spool_public_export` (channels, messages, tenant_memberships). The 091
+  export action (T006) is not built yet, so the filter is fence 2's (rdb),
+  not a `RUN/spl-public-*` file. Files: `GO/hub/embed_staff.go`,
+  `GO/hub/embed_retention.go`, `GO/store/embed_staff.go` + tests;
+  `TestPublicExportExcludesVisitorChannels` in `GO/store/embed_staff_test.go`.
+  For T106b: the list's `lead`, `blocked`, `live`, `last_at` fields.
 - [ ] T106b **WUI staff side** (mistral or grok; needs T106 on dev). The
   "Visitors" rail group for biz_owner and admin, the lead and block buttons
   in the channel header. Files: `WUI/components/ChannelSidebar.vue`; one new

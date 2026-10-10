@@ -9,8 +9,8 @@
   <ClientOnly><LazySettingsDialog v-if="settingsMounted" /></ClientOnly>
   <!-- SPL-1006: a newer deploy while a draft is open; eager, never Lazy -->
   <BuildUpdateBar />
-  <!-- HUM-10 3e5b850b: "Install app" where the email link lands (/login, the
-       first signed-in screen); its own chunk, fetched only once Chrome fired
+  <!-- HUM-10 3e5b850b: "Install app" where the email link lands (/login only:
+       the strip checks the route); its own chunk, fetched only once Chrome fired
        its install event, never by Safari or Firefox -->
   <LazyPwaInstallOffer v-if="pwaOffer" />
 </template>

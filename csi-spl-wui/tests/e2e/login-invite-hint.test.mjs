@@ -139,6 +139,13 @@ try {
   await new Promise((r) => setTimeout(r, 1000))
   ok('5h Not now is remembered on this device', !(await offer()) && (await p.evaluate(() => localStorage.getItem('spool:pwa-offer-off'))) === '1')
   await p.evaluate(() => localStorage.removeItem('spool:pwa-offer-off'))
+  // Off the sign-in page the strip covered the phone back button, the docs
+  // tree and the avatars (headless Chrome fires a real event; wf 10 run
+  // 38060764458): it is offered on /login only.
+  await p.goto(server.base + '/blog', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await fireInstallEvent()
+  await new Promise((r) => setTimeout(r, 1000))
+  ok('5i CONTROL: off /login the event shows no offer', !(await offer()) && (await p.evaluate(() => localStorage.getItem('spool:pwa-offer-off'))) === null)
 
   ok('6 no page errors', errors.length === 0, errors)
 } finally {

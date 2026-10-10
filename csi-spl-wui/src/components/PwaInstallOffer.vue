@@ -9,7 +9,12 @@
      and Firefox never fetch this chunk (ci_home_gzip_kb). It shows while the
      event can prompt and the page is not the installed app (utils/pwa-install.mjs,
      the state Settings' "Apps on this phone" row reads); Install calls the
-     kept event's prompt(). "Not now" is remembered on this device. -->
+     kept event's prompt(). "Not now" is remembered on this device.
+
+     Only on the sign-in page (/login, /<locale>/login), where the email link
+     lands: headless Chrome fires a real install event too, and a fixed strip
+     under the top bar on every page covered the phone back button, the docs
+     tree and the avatars in ~30 e2e files (wf 10 run 38060764458). -->
 <template>
   <div
     v-if="shown"
@@ -36,9 +41,11 @@ import { onPwaInstallChange, promptPwaInstall, pwaInstallState } from '~/utils/p
 const DISMISS_KEY = 'spool:pwa-offer-off'
 
 const { t } = useI18n({ useScope: 'global' })
+const route = useRoute()
 const state = ref({ canPrompt: false, installed: false })
 const dismissed = ref(true)
-const shown = computed(() => !dismissed.value && state.value.canPrompt && !state.value.installed)
+const onLogin = computed(() => /(^|\/)login\/?$/.test(route.path))
+const shown = computed(() => onLogin.value && !dismissed.value && state.value.canPrompt && !state.value.installed)
 
 function remembered() {
   try { return localStorage.getItem(DISMISS_KEY) === '1' } catch { return false }

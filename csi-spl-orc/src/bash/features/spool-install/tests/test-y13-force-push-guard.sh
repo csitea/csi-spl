@@ -11,7 +11,8 @@
 #        grok    toolInput.command (camelCase); exit 2 or decision deny
 #        qwen    tool_input.command; any exit but 0/1, or decision deny
 #        agy     toolCall.args.CommandLine; ONLY the stdout JSON decides, and
-#                agy unmarshals strictly (decision / reason only); pass = {}
+#                agy unmarshals strictly (decision / reason only); decision is
+#                required: {} is a deny, a pass must say "allow"
 #   2. fail closed: the hook file gone, every harness still refuses
 #   3. deny globs in claude and qwen settings; other keys and hooks kept
 #   4. idempotent: a re-run changes nothing; dry run writes nothing
@@ -124,7 +125,9 @@ def blocked(tool, cmd):
         if harness == "agy":
             if d is None or not isinstance(d, dict) or set(d) - {"decision", "reason", "permissionOverrides", "overwrite"}:
                 return "BADJSON"   # agy: a hook error, not a decision
-            if d.get("decision") == "deny":
+            # decision is REQUIRED (agy hooks.md:191): {} or no decision is a
+            # deny (measured 1.3.3), only "allow" lets the call run.
+            if d.get("decision") != "allow":
                 return True
     return False
 

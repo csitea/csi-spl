@@ -13,7 +13,10 @@
 #   grok    toolInput.command (camelCase); exit 2 + {"decision":"deny"}
 #   qwen    tool_input.command;   exit 2 (any rc but 0/1 blocks), reason stderr
 #   agy     toolCall.args.CommandLine; exit 0 + {"decision":"deny"} on
-#           stdout; a pass prints {}, never "allow" (that auto-approves)
+#           stdout. A pass prints {"decision":"allow"}: decision is REQUIRED
+#           (agy hooks.md:191) and {} is read as a deny (measured 1.3.3, every
+#           agy shell call refused). Seats run --dangerously-skip-permissions,
+#           which approves every call already, so "allow" adds nothing there.
 # On a refusal stdout carries the deny JSON as well (grok, qwen and agy read
 # it; claude ignores stdout on exit 2).
 # Fails CLOSED: no matcher next to this file, no python3, or a payload that
@@ -82,7 +85,7 @@ if cmd is None:
 else:
     print("CMD:" + cmd, end="")
 ' 2>/dev/null)" || refuse "cannot read the $harness hook payload (fail closed)"
-allow() { [ "$harness" = agy ] && printf '{}\n'; exit 0; }
+allow() { [ "$harness" = agy ] && printf '{"decision":"allow"}\n'; exit 0; }
 [ "$cmd" = NONE ] && allow
 cmd="${cmd#CMD:}"
 # shellcheck source=../lib/force-push-guard.inc.sh

@@ -7,6 +7,7 @@ import { ref, type Ref } from 'vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import { docFetchTimeoutMs } from '~/utils/fetch-timeouts.mjs'
+import { readDataUrl } from '~/utils/file-preview.mjs'
 
 export type DocHead = { id: string, title: string, description?: string, rev: number, items: number, root: string, topic_id: string, updated_at: string }
 export type DocItem = { id: string, parent: string, ord: number, outline: string, depth: number, title: string, body: string, attrs: Record<string, unknown>, rev: number }
@@ -40,8 +41,10 @@ type SpoolApi = ReturnType<typeof useSpoolApi>
 /** the image half of the client: an image's src for an <img>, and the upload */
 function docImages(api: SpoolApi, mock: () => Promise<Mock>) {
   /* an image's src: an https URL as is; a hub path (the upload's
-     img_http_path) read with the session's credentials into an object URL,
-     since an <img> cannot send the Authorization header. Cached per path. */
+     img_http_path) read with the session's credentials into a data: URL,
+     since an <img> cannot send the Authorization header and every deployed
+     CSP is img-src 'self' data: (a blob: object URL is blocked there).
+     Cached per path. */
   const images = new Map<string, Promise<string>>()
   function imageSrc(path: string): Promise<string> {
     if (!path.startsWith(HUB_IMAGE_PREFIX)) return Promise.resolve(path.startsWith('https://') ? path : '')
@@ -53,7 +56,7 @@ function docImages(api: SpoolApi, mock: () => Promise<Mock>) {
           headers: api.token ? { authorization: `Bearer ${api.token}` } : {},
           credentials: api.credentials,
           signal: AbortSignal.timeout(docFetchTimeoutMs('GET')),
-        }).then(async (r) => (r.ok ? URL.createObjectURL(await r.blob()) : ''))
+        }).then(async (r) => (r.ok ? readDataUrl(await r.blob()) : ''))
       p = p.catch(() => '')
       images.set(path, p)
     }

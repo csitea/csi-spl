@@ -534,6 +534,7 @@ try {
   const img = await p.evaluate((sel) => ({
     shown: document.querySelector(`${sel} [data-test=ws-doc-img]`)?.naturalWidth ?? 0,
     caption: document.querySelector(`${sel} [data-test=ws-doc-img-name]`)?.value,
+    data: (document.querySelector(`${sel} [data-test=ws-doc-img]`)?.src || '').startsWith('data:image/png;base64,'),
   }), titleSel('2'))
   const withImg = await attrsOf(delta)
   ok('Add image uploads the file and shows it on the section; an svg is refused and writes nothing',
@@ -559,6 +560,9 @@ try {
     mkdirSync(process.env.SHOT_DIR, { recursive: true })
     await q.screenshot({ path: `${process.env.SHOT_DIR}/ws-doctree-${name}.png` })
   }
+
+  /* every deployed CSP is img-src 'self' data:, so a doc image's src is a data: URL, never blob: (blocked on prd) */
+  ok('the section image is shown from a data: URL (the deployed CSP blocks blob:)', img.data, img)
 
   /* pictures inside a paragraph (owner HUM-10, t1 46d9c236): two pasted at
      the cursor and one from the Insert picture control, each uploaded through
@@ -616,7 +620,7 @@ try {
     return {
       para: Boolean(para),
       textarea: Boolean(document.querySelector(`${sel} [data-test=ws-doc-text]`)),
-      imgs: [...(para?.querySelectorAll('[data-test=ws-doc-pic-img]') ?? [])].map((i) => ({ w: i.naturalWidth, alt: i.alt, lazy: i.loading, max: getComputedStyle(i).maxWidth })),
+      imgs: [...(para?.querySelectorAll('[data-test=ws-doc-pic-img]') ?? [])].map((i) => ({ w: i.naturalWidth, alt: i.alt, lazy: i.loading, max: getComputedStyle(i).maxWidth, data: i.src.startsWith('data:image/png;base64,') })),
       nums: [...document.querySelectorAll(`${sel} [data-test=ws-doc-fig-num]`)].map((e) => e.textContent.trim()),
       caps: [...(para?.querySelectorAll('[data-test=ws-doc-pic-caption]') ?? [])].map((e) => e.value),
       text: [...(para?.querySelectorAll('.wsdoc__run') ?? [])].map((e) => e.textContent).join('|'),
@@ -626,7 +630,7 @@ try {
   ok('paste puts two pictures at the cursor: uploaded, kept as ![caption](<images route>) tokens in the text, shown inline as Figure 1 and 2',
     JSON.stringify(tokens(pasted)) === JSON.stringify(['Deploy step one', 'Deploy step two'])
     && pasted.startsWith('Before the pictures\n![Deploy step one](/v1/workspace/doctree/') && pasted.includes('\nBetween them\n![Deploy step two](')
-    && read.para && !read.textarea && read.imgs.length === 2 && read.imgs.every((i) => i.w === 1 && i.lazy === 'lazy' && i.max === '100%')
+    && read.para && !read.textarea && read.imgs.length === 2 && read.imgs.every((i) => i.w === 1 && i.lazy === 'lazy' && i.max === '100%' && i.data)
     && read.imgs[0].alt === 'Deploy step one' && JSON.stringify(read.nums) === JSON.stringify(['Figure 1:', 'Figure 2:'])
     && JSON.stringify(read.caps) === JSON.stringify(['Deploy step one', 'Deploy step two']), { pasted, read })
   ok('a picture token whose path is not this doc\'s images route stays text', read.text.includes('![x](https://example.com/a.png)')

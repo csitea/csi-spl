@@ -4,6 +4,7 @@
    produced), 412 stale_rev, 404 not_found, 422 refused. CI's e2e runs on the
    mock bundle, so this is what the doc and grid views are driven against.
    The `-` prefix keeps Nuxt from registering this file as a component. */
+import { readDataUrl } from '~/utils/file-preview.mjs'
 
 export type MockReply = { status: number, body: unknown }
 
@@ -204,8 +205,8 @@ function removeDoc(d: Doc, rev: number): MockReply {
 
 const UNTITLED = 'Untitled document'
 
-/* the uploaded images: hub path -> an object URL of the bytes */
-const images = new Map<string, string>()
+/* the uploaded images: hub path -> the bytes (read as a data: URL, as the hub client does) */
+const images = new Map<string, Blob>()
 const IMAGE_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' }
 
 /** test hook and the upload's mock twin: the hub's types and 5 MiB cap; the
@@ -219,13 +220,14 @@ export function mockDocTreeImage(doc: string, file: Blob): MockReply {
   if (!file.size) return fail(400, 'bad_body', 'the image bytes did not arrive')
   const name = uuid().replace(/-/g, '').padEnd(64, '0') + '.' + ext
   const path = `/v1/workspace/doctree/${doc}/images/${name}`
-  images.set(path, URL.createObjectURL(file))
+  images.set(path, file)
   return { status: 200, body: { name, bytes: file.size, img_http_path: path } }
 }
 
-/** an uploaded image's object URL ('' = none) */
-export function mockDocTreeImageUrl(path: string): string {
-  return images.get(path) || ''
+/** an uploaded image as a data: URL ('' = none) */
+export function mockDocTreeImageUrl(path: string): Promise<string> {
+  const b = images.get(path)
+  return b ? readDataUrl(b) : Promise.resolve('')
 }
 
 const SORTS: Record<string, (a: Wire, b: Wire) => number> = {

@@ -69,6 +69,9 @@ grep -qE "'body'|m\.env\b|env_sig|'env'" <<<"$sql" && fail "SQL selects body/env
   || pass "SQL selects no body, env or env_sig"
 grep -q "body_sha256_16" <<<"$sql" && grep -q "FROM deliveries d" <<<"$sql" && pass "SQL: body hash + deliveries" \
   || fail "SQL lacks the hash or deliveries"
+# owner msg 9ef7aac9: body_len 0 read as "no file"; the row held an image
+grep -q "'files_n'" <<<"$sql" && grep -q "jsonb_array_elements(m.files)" <<<"$sql" && pass "SQL: files_n + each file's name, bytes, file_id" \
+  || fail "SQL does not show the files"
 
 # --- 3. psql: env-only login, read-only --------------------------------------------
 : >"$T/psql.log"

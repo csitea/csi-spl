@@ -30,6 +30,7 @@ mention is a one-line pointer.
 | spool posts are markdown | 1.7 | repo `CLAUDE.md` (one line) |
 | stay in your own lane („Всяка жаба да си знае гьола“): your brief only, a finding outside it to the orchestrator | 1.1 `25-stay-in-your-lane.md` | rendered, not copied, into every vendor's file: claude `~/.claude/CLAUDE.md` (y4; grok reads it through its default `compat.claude` scan), mistral `~/.vibe/AGENTS.md` (y8), agy `~/.gemini/config/rules/25-stay-in-your-lane.md` and qwen `~/.qwen/QWEN.md`, which is also qwen's memory file (y9); the mistral seed (`spawn-mistral.sh`, `spawn_rename_how`, one line), because vibe 2.26.0 keeps no memory file across sessions |
 | lane integration (commit, rebase, push, teardown) | the seed, `spawn-core.inc.sh` | 1.4 (the why) |
+| refactoring rounds need no owner go: round N served -> the dispatcher requests round N+1's planner; panel and row lanes follow (owner, HUM-10 msg 3d22fcea) | 1.3 section 1.2 | the round plans `refactor-round-<N>-plan.md` (one line in their header) |
 
 ## 3. The drift check
 

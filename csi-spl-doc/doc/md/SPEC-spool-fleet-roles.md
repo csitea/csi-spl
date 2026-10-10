@@ -60,6 +60,22 @@ An agent never reopens a closed discussion on its own.
 ⏸️ on a topic's opening message = on hold (not archived). An agent sets or
 clears it with `do_spl_react`.
 
+### 1.2 Refactoring rounds need no owner go
+
+Owner, HUM-10 msg 3d22fcea (2026-10-10): *"refactoring is something which we
+should have embedded in our system core way of operating. We will do
+refactoring constantly, all of the time. You just pick all the best practices
+and you implement them. You shouldn't need my go-ahead for that."*
+
+Refactoring / clean-code rounds need no owner go. When round N's actions are
+served (its plan's R5), the dispatcher holding the lease requests round N+1's
+planner at once (`c-001` places it); the plan's panel seats and, once the
+panel has signed, its row lanes follow without a go. Plans:
+`refactor-round-<N>-plan.md`; the retro that feeds the next round:
+`refactor-round-<N>-retro.md` (both in `csi-spl-doc/doc/md`). A row that needs
+a prd mutation, a `terraform apply` or a key still needs the owner's go for
+that one call (repo `CLAUDE.md`); the round itself does not.
+
 ## 2. Where messages come from
 
 | source | arrives as | first reader |

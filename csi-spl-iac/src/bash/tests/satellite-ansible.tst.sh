@@ -150,8 +150,11 @@ grep -q '"SPOOL_FLEET_ENV={{ fleet_env }}" "SPOOL_FLEET_TENANT={{ fleet_tenant }
   && pass "08 names the fleet desk (SPOOL_FLEET_ENV/TENANT) for cross-machine sends" || fail "08 does not name the fleet desk"
 gv=$(sed -n 's/^go_version: //p' "$R/02_os_binaries/defaults/main.yml")
 mv=$(sed -n 's/^go \([0-9.]*\)$/\1/p' "$PROJ_PATH/../csi-spl-api/src/go/spool-hub-api/go.mod")
-[[ -n "$gv" && "$gv" == "$mv" ]] && grep -q 'FAIL go$VER sha256 mismatch' "$R/02_os_binaries/tasks/main.yml" \
-  && pass "02 installs Go $gv, sha256-pinned, = go.mod (CI's go-version-file)" || fail "02 Go pin ($gv) != go.mod ($mv), or no sha check"
+# >=, not ==: the boxes take a new Go before go.mod requires it (go 1.26.9,
+# dispatch-wf70-go126), else every box's GOTOOLCHAIN=local api build breaks.
+[[ -n "$gv" && -n "$mv" && "$(printf '%s\n%s\n' "$mv" "$gv" | sort -V | sed -n 1p)" == "$mv" ]] &&
+  grep -q 'FAIL go$VER sha256 mismatch' "$R/02_os_binaries/tasks/main.yml" \
+  && pass "02 installs Go $gv, sha256-pinned, >= go.mod $mv (CI's go-version-file)" || fail "02 Go pin ($gv) < go.mod ($mv), or no sha check"
 grep -q '/usr/local/go/bin' "$R/09_agent_tools/tasks/main.yml" && pass "09 runs the lint tools with Go on PATH (loop run 3)" || fail "09 has no Go on PATH"
 grep -q '^  hostname     = var.vm_hostname$' "$STEP/03-vm.tf" && pass "060 sets the OS hostname from cnf vm_hostname" || fail "060 does not set the hostname"
 

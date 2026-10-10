@@ -17,7 +17,7 @@ To calculate Q-2 option A (fixed cost divided by theoretical max workspaces), we
 2. Run `do_measure_workspace_capacity` to record the exact capacity consumed by one workspace.
 3. Calculate theoretical max workspaces = (Hub absolute maximum capacity) / (Measured per-workspace capacity).
 
-## 4. Owner Add (55309d31)
+## 4. Owner Add (55309d31 & f5c0e3c7)
 **Proposals to add**:
 - **Fixed Hub Cost Slice**: Calculated as (Actual Hub Fixed Cost) / (Theoretical Max Workspaces).
 - **Capacity per Private Channel**: Run `do_measure_workspace_capacity` with 1 channel, then with 2 channels, and subtract the baseline to find the capacity footprint per private channel.

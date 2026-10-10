@@ -45,6 +45,9 @@
 #   leg 8 uses the real binary that do_install_lint_tools puts on the box.
 #------------------------------------------------------------------------------
 set -uo pipefail
+# Every leg sets its own PRE_PUSH_* knobs. One inherited from the gate that runs
+# this file (PRE_PUSH_TIER=full adds the slow lint parts) turned 21c red: drop them.
+for v in $(compgen -e); do [[ "$v" == PRE_PUSH_* ]] && unset "$v"; done
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 RUN_DIR=$(cd "$TEST_DIR/../run" && pwd)

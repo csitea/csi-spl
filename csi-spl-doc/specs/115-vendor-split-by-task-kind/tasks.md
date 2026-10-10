@@ -48,11 +48,12 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
   - Done: `tenant_agent_split_kind(tenant_id, kind, vendor, weight, is_backup)` under RLS, with the table rules of section 2; forward-only and additive; the migration catalogue gate is green. Control: a row with `agy > 0` in a coding kind turns the test red.
   - Vendor: claude (main: `complex_coding`). Box: one with docker Postgres.
 
-- [ ] **HUB-1**: Hub route and WUI settings screen.
+- [x] **HUB-1**: Hub route and WUI settings screen.
   - Depends: RDB-1.
   - Owns: `csi-spl-api/src/go/spool-hub-api/internal/hub/agent_split.go`, `agent_split_test.go`, and the WUI settings screen in `csi-spl-wui/`.
   - Done: `PATCH /v1/agent-split` updates the per-kind rows; `do_spl_agent_split_show --kind <k>` prints `LANE_MIX_SPLIT` per kind; the WUI screen shows the per-kind table. Test: a fixture PATCH updates the row; the WUI screen shows the new weights. Control: a PATCH that sets `agy > 0` in a coding kind is refused.
   - Vendor: claude (main: `complex_coding`). Box: one with docker Postgres.
+  - Live (2026-10-10): hub 7bf417a77 (`GET`/`PATCH /v1/agent-split`), orc 66b08cebe (`--kind`), WUI 3b6f41393 (the per-kind table), on dev and prd. The dev proof ran on t1: GET 200, PATCH 200, agy in a coding kind 400 `bad_split`, reset 200. The 0109 header comment is not changed: the migrator hashes applied files (`internal/store/migrate.go`), so editing it would refuse the next migrate. The cnf comment is fixed in a28b2094a.
 
 ## 5. Fleet rules
 

@@ -31,9 +31,7 @@ LONG="
   csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh do_provision_firebase_dns 169
   csi-spl-iac/src/bash/run/run.sh do_log 143
   csi-spl-iac/src/bash/run/run.sh execute_step 99
-  csi-spl-iac/src/bash/run/sec-eslint.func.sh do_sec_eslint 87
-  csi-spl-iac/src/bash/run/sec-gosec.func.sh do_sec_gosec 86
-  csi-spl-iac/src/bash/run/sec-semgrep.func.sh do_sec_semgrep 91
+
   csi-spl-iac/src/bash/run/tf-init.func.sh do_tf_init 95
   csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh do_spl_cloud_cnf 96
   csi-spl-orc/src/bash/features/spawn-agents/lib/spool-notify.inc.sh spool_notify_poke 110

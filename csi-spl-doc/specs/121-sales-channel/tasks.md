@@ -78,7 +78,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T208 | csi-web: script tag + CSP, deploy dev then prd | 2 (last) | T207 on each env | build | claude |
 | T2B1 | live feed on csitea.net | 2b | owner F1/F2 | HOLD | - |
 | T301 | DDL: `usage_events`, `model_prices`, `token_budgets` | 3 | T101 landed | build | claude |
-| T302 | metering: `turn_id`, usage report, `unmetered` alert | 3 | T301 applied dev+prd | build | claude |
+| T302 | metering: `turn_id`, usage report, `unmetered` alert | 3 | T301 applied dev+prd | done (e3d3ec2a5) | claude |
 | T303 | `model_prices` fill action from cnf | 3 | T301 applied dev+prd | build | claude |
 | T304 | token budgets: refuse before dispatch, 429, 80 % notice | 3 | T302, T303 | build | claude |
 | T305 | unpaid spend cap: EUR 5 per visitor session + embed-wide daily ceiling | 3 | owner N1b; T304, T105 | HOLD | claude |
@@ -296,7 +296,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `0166_cost_lines.sql` (spec 123) is read, never edited: spec 123's
   rollup reads `usage_events` later. Done: green on postgres, applied dev
   and prd.
-- [ ] T302 **metering** (claude; needs T301 applied). A `turn_id` on every
+- [x] T302 **metering** (claude; needs T301 applied). A `turn_id` on every
   hub-dispatched turn; the seat reports `{turn_id, provider, model,
   tokens_in, tokens_out, cache_read, cache_write}` from the model's own
   usage record on the result envelope; the hub writes the rows with
@@ -306,6 +306,25 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `GO/store/usage_events.go` + `_test.go` (*new*); the box side, one new
   `GO/spool/usage_report.go` + `_test.go`. Done: a turn without a report is
   never read as zero (test).
+  Built (c-925, e3d3ec2a5, v5.9.6 dev + prd): every recv frame carries
+  `turn_id` = the delivered msg_id (`hub/ws.go` push, `commit.go`,
+  `fallback.go`). A send frame that names the turn with `usage`
+  (`wire.UsageReport`, `Check`) writes one row per token kind (in and out
+  always, the cache kinds when > 0), each priced from the `model_prices` row
+  in force at write time. A send that names the turn with no report, a
+  report of another turn or a model with no price is written as one
+  `unmetered` row and logs `alert=usage_unmetered`. A send that names no turn
+  (every older box) meters nothing, and metering never fails a send. The
+  ledger key is `<msg_id>:<agent>`, written once under a per-turn advisory
+  lock, so a re-sent report is never a second charge.
+  `store.TurnLedger.Metered()` is false for a pending or unmetered turn.
+  Box side: `spool.UsageReportFrom` (Anthropic and OpenAI-compatible
+  records, JSONL, a repeated record id counted once) and
+  `hubclient.Claims{TurnID, Usage}`. The `spool send` flags and the offline
+  flush sidecar are not built: the first metered seat (T306) sends through
+  `Claims`. Tests: `TestUsageLedgerTurns`, `TestMeteringTurns` (memory +
+  Postgres), `TestUsageReportFrom`, `TestUsageReportFrame`. Red control:
+  `Metered() = Rows > 0` turns 3 tests red.
 - [x] T303 **model prices** (469c56522, deployed dev+prd; the data run waits for the go) (claude; needs T301 applied). Named action
   `do_spl_model_prices_sync`: fills `model_prices` from cnf; a price change
   is a new row. Files: `RUN/spl-model-prices-sync.func.sh` +

@@ -38,4 +38,4 @@ Omnibox делује као универзални телепортер и ко�
 
 Naročito na desktop računaru, Omnibox na vrhu je najergonomskije mesto za kucanje i rad sa sistemom: nalazi se tamo gde već gledate, pa je napor manji.
 
-Omnibox na vrhu je podrazumevan. Ako vam više odgovara polje na dnu, promenite to u Podešavanja → Ponašanje → Položaj Omnibox-a → Na dnu, ispod poruka (na tabletima i računarima; telefoni ga uvek drže na dnu).
+Omnibox na vrhu je podrazumevan. Ako vam više odgovara polje na dnu, promenite to u Podešavanja → Понашање → Положај Omnibox-а → На дну, испод порука (na tabletima i računarima; telefoni ga uvek drže na dnu).

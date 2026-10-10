@@ -179,9 +179,16 @@ chmod +x "$S5/"*
 reset5() { rm -rf "$BR5" "$L5" "$T/reboot5.log" "${G5:?}"/*; touch "$A5/$V1" "$A5/$V2"; boot 1000; cp "$T/ps.base" "$T/ps"; }
 cp "$T/ps" "$T/ps.base"
 printf '100 1 claude claude --dangerously-skip-permissions\n201 1 claude claude\n' >"$T/ps.base"; proc 201 c-902
+# The waits read a counted clock, one tick per spl_brx_clock call, never the
+# wall clock: BOX_RESTART_WAIT=10 is 10 polls of the drain, so runner 12 (idle
+# on the 3rd read) always drains and the control always defers, however slow
+# the runner. A 3 s wall-clock wait DEFERRED the busy-trunk case on a loaded CI
+# runner (wf 10 run 38048096847, sat-spl-03, 2026-10-10).
+CLK5="$T/clock5"
 run5() {
-  run "$1" PATH="$S5:$PATH" BOX_RESTART_REPO=o/r BOX_RESTART_SYSTEMCTL="$S5/reboot" \
-    BOX_RESTART_WAIT=3 BOX_RESTART_POLL=0 BOX_RESTART_GRACE=0 BOX_RESTART_CGROUP_ROOT="$T/nocg" \
+  run "spl_brx_clock() { local n; n=\$(( \$(cat '$CLK5' 2>/dev/null || echo 0) + 1 )); echo \$n >'$CLK5'; echo \$n; }; $1" \
+    PATH="$S5:$PATH" BOX_RESTART_REPO=o/r BOX_RESTART_SYSTEMCTL="$S5/reboot" \
+    BOX_RESTART_WAIT=10 BOX_RESTART_POLL=0 BOX_RESTART_GRACE=0 BOX_RESTART_CGROUP_ROOT="$T/nocg" \
     BOX_RESTART_INHIBITORS_CMD="cat $T/locks.json" "${@:2}"
 }
 # no inhibitor but the delay locks every box has

@@ -2593,5 +2593,36 @@
       "no_boxes": "Geen vakjes",
       "no_tasks": "Geen tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "Inlog-e-mailadressen",
+    "intro": "De adressen waarmee je kunt inloggen. Een nieuw adres werkt zodra je het bevestigt door ermee in te loggen bij een identiteitsprovider.",
+    "intro_admin": "De adressen waarmee dit lid kan inloggen. Een adres dat je toevoegt, blijft in afwachting totdat het lid er zelf mee inlogt.",
+    "loading": "Laden…",
+    "empty": "Nog geen adressen.",
+    "state_active": "Actief",
+    "state_pending": "In afwachting",
+    "main": "Hoofdadres",
+    "signs_in_with": "Logt in met {providers}",
+    "pending_hint": "In afwachting: werkt zodra je ermee inlogt bij {providers} terwijl je hier bent ingelogd.",
+    "pending_hint_admin": "In afwachting: werkt zodra het lid ermee inlogt bij {providers} terwijl het in de werkruimte is ingelogd.",
+    "confirm_with": "Bevestigen met {provider}",
+    "add_label": "Adres toevoegen",
+    "add": "Toevoegen",
+    "added_pending": "{email} is toegevoegd. Het werkt zodra je ermee inlogt bij {providers} terwijl je hier bent ingelogd.",
+    "added_pending_admin": "{email} is toegevoegd. Het werkt zodra het lid ermee inlogt bij {providers} terwijl het in de werkruimte is ingelogd.",
+    "added_active": "{email} is al actief.",
+    "remove": "Verwijderen",
+    "remove_confirm": "{email} verwijderen?",
+    "cancel": "Annuleren",
+    "removed": "{email} is verwijderd.",
+    "error_taken": "Dit adres hoort bij een ander account.",
+    "error_last_sign_in": "Dit is de laatste manier om in te loggen, dus het kan niet worden verwijderd.",
+    "error_main_email": "Het hoofdadres kan hier niet worden verwijderd.",
+    "error_bad_email": "Voer een geldig e-mailadres in.",
+    "error_act_as": "Inlog-e-mailadressen kunnen niet worden gewijzigd terwijl je als een ander lid optreedt.",
+    "error_not_found": "Dit adres of lid bestaat niet meer.",
+    "error_forbidden": "Je mag de inlog-e-mailadressen van dit lid niet wijzigen.",
+    "error_failed": "Opslaan is mislukt. Probeer het opnieuw."
   }
 }

@@ -2593,5 +2593,36 @@
       "no_boxes": "Без поља за потврду",
       "no_tasks": "Без tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "Adrese za prijavu",
+    "intro": "Adrese kojima možete da se prijavite. Nova adresa radi kada je potvrdite prijavom njome kod dobavljača identiteta.",
+    "intro_admin": "Adrese kojima ovaj član može da se prijavi. Adresa koju dodate ostaje na čekanju dok se član sam ne prijavi njome.",
+    "loading": "Učitavanje…",
+    "empty": "Još nema adresa.",
+    "state_active": "Aktivna",
+    "state_pending": "Na čekanju",
+    "main": "Glavna",
+    "signs_in_with": "Prijavljuje se preko {providers}",
+    "pending_hint": "Na čekanju: radiće kada se njome prijavite na {providers} dok ste prijavljeni ovde.",
+    "pending_hint_admin": "Na čekanju: radiće kada se član njome prijavi na {providers} dok je prijavljen u radnom prostoru.",
+    "confirm_with": "Potvrdi preko {provider}",
+    "add_label": "Dodaj adresu",
+    "add": "Dodaj",
+    "added_pending": "Adresa {email} je dodata. Radiće kada se njome prijavite na {providers} dok ste prijavljeni ovde.",
+    "added_pending_admin": "Adresa {email} je dodata. Radiće kada se član njome prijavi na {providers} dok je prijavljen u radnom prostoru.",
+    "added_active": "Adresa {email} je već aktivna.",
+    "remove": "Ukloni",
+    "remove_confirm": "Ukloniti {email}?",
+    "cancel": "Otkaži",
+    "removed": "Adresa {email} je uklonjena.",
+    "error_taken": "Ova adresa pripada drugom nalogu.",
+    "error_last_sign_in": "Ovo je poslednji način prijave, pa ne može da se ukloni.",
+    "error_main_email": "Glavna adresa ne može da se ukloni ovde.",
+    "error_bad_email": "Unesite važeću adresu e-pošte.",
+    "error_act_as": "Adrese za prijavu ne mogu da se menjaju dok delujete kao drugi član.",
+    "error_not_found": "Ova adresa ili član više ne postoji.",
+    "error_forbidden": "Nemate dozvolu da menjate adrese za prijavu ovog člana.",
+    "error_failed": "Čuvanje nije uspelo. Pokušajte ponovo."
   }
 }

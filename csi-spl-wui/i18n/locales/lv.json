@@ -2593,5 +2593,36 @@
       "no_boxes": "Bez rūtiņām",
       "no_tasks": "Bez tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "Pieteikšanās e-pasti",
+    "intro": "Adreses, ar kurām varat pieteikties. Jauna adrese darbojas, kad to apstiprināt, piesakoties ar to pie identitātes nodrošinātāja.",
+    "intro_admin": "Adreses, ar kurām šis dalībnieks var pieteikties. Jūsu pievienotā adrese gaida, līdz dalībnieks pats ar to piesakās.",
+    "loading": "Ielādē…",
+    "empty": "Adrešu vēl nav.",
+    "state_active": "Aktīva",
+    "state_pending": "Gaida",
+    "main": "Galvenā",
+    "signs_in_with": "Piesakās ar {providers}",
+    "pending_hint": "Gaida: darbosies, kad ar to pieteiksieties pakalpojumā {providers}, būdami pieteikušies šeit.",
+    "pending_hint_admin": "Gaida: darbosies, kad dalībnieks ar to pieteiksies pakalpojumā {providers}, būdams pieteicies darbvietā.",
+    "confirm_with": "Apstiprināt ar {provider}",
+    "add_label": "Pievienot adresi",
+    "add": "Pievienot",
+    "added_pending": "{email} pievienota. Tā darbosies, kad ar to pieteiksieties pakalpojumā {providers}, būdami pieteikušies šeit.",
+    "added_pending_admin": "{email} pievienota. Tā darbosies, kad dalībnieks ar to pieteiksies pakalpojumā {providers}, būdams pieteicies darbvietā.",
+    "added_active": "{email} jau ir aktīva.",
+    "remove": "Noņemt",
+    "remove_confirm": "Vai noņemt {email}?",
+    "cancel": "Atcelt",
+    "removed": "{email} noņemta.",
+    "error_taken": "Šī adrese pieder citam kontam.",
+    "error_last_sign_in": "Šis ir pēdējais pieteikšanās veids, tāpēc to nevar noņemt.",
+    "error_main_email": "Galveno adresi šeit nevar noņemt.",
+    "error_bad_email": "Ievadiet derīgu e-pasta adresi.",
+    "error_act_as": "Pieteikšanās e-pastus nevar mainīt, darbojoties cita dalībnieka vārdā.",
+    "error_not_found": "Šīs adreses vai dalībnieka vairs nav.",
+    "error_forbidden": "Jums nav atļauts mainīt šī dalībnieka pieteikšanās e-pastus.",
+    "error_failed": "Neizdevās saglabāt. Mēģiniet vēlreiz."
   }
 }

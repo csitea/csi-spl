@@ -2593,5 +2593,36 @@
       "no_boxes": "No checkboxes",
       "no_tasks": "No tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "Sign-in emails",
+    "intro": "The addresses you can sign in with. A new address works once you confirm it by signing in with it at an identity provider.",
+    "intro_admin": "The addresses this member can sign in with. An address you add stays pending until the member signs in with it themselves.",
+    "loading": "Loading…",
+    "empty": "No addresses yet.",
+    "state_active": "Active",
+    "state_pending": "Pending",
+    "main": "Main",
+    "signs_in_with": "Signs in with {providers}",
+    "pending_hint": "Pending: it works once you sign in with it at {providers} while signed in here.",
+    "pending_hint_admin": "Pending: it works once the member signs in with it at {providers} while signed in to the workspace.",
+    "confirm_with": "Confirm with {provider}",
+    "add_label": "Add an address",
+    "add": "Add",
+    "added_pending": "{email} was added. It works once you sign in with it at {providers} while signed in here.",
+    "added_pending_admin": "{email} was added. It works once the member signs in with it at {providers} while signed in to the workspace.",
+    "added_active": "{email} is already active.",
+    "remove": "Remove",
+    "remove_confirm": "Remove {email}?",
+    "cancel": "Cancel",
+    "removed": "{email} was removed.",
+    "error_taken": "This address belongs to another account.",
+    "error_last_sign_in": "This is the last way to sign in, so it cannot be removed.",
+    "error_main_email": "The main address cannot be removed here.",
+    "error_bad_email": "Enter a valid email address.",
+    "error_act_as": "Sign-in emails cannot be changed while acting as another member.",
+    "error_not_found": "This address or member is no longer there.",
+    "error_forbidden": "You may not change this member's sign-in emails.",
+    "error_failed": "Could not save. Try again."
   }
 }

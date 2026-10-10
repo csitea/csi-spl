@@ -2593,5 +2593,36 @@
       "no_boxes": "Ei valintaruutuja",
       "no_tasks": "Ei tasks.md-tiedostoa"
     }
+  },
+  "signin_emails": {
+    "title": "Kirjautumissähköpostit",
+    "intro": "Osoitteet, joilla voit kirjautua. Uusi osoite toimii, kun vahvistat sen kirjautumalla sillä identiteetintarjoajan kautta.",
+    "intro_admin": "Osoitteet, joilla tämä jäsen voi kirjautua. Lisäämäsi osoite odottaa, kunnes jäsen itse kirjautuu sillä.",
+    "loading": "Ladataan…",
+    "empty": "Ei vielä osoitteita.",
+    "state_active": "Aktiivinen",
+    "state_pending": "Odottaa",
+    "main": "Pääosoite",
+    "signs_in_with": "Kirjautuu palvelulla {providers}",
+    "pending_hint": "Odottaa: toimii, kun kirjaudut sillä palveluun {providers} ollessasi kirjautuneena täällä.",
+    "pending_hint_admin": "Odottaa: toimii, kun jäsen kirjautuu sillä palveluun {providers} ollessaan kirjautuneena työtilaan.",
+    "confirm_with": "Vahvista palvelulla {provider}",
+    "add_label": "Lisää osoite",
+    "add": "Lisää",
+    "added_pending": "{email} lisättiin. Se toimii, kun kirjaudut sillä palveluun {providers} ollessasi kirjautuneena täällä.",
+    "added_pending_admin": "{email} lisättiin. Se toimii, kun jäsen kirjautuu sillä palveluun {providers} ollessaan kirjautuneena työtilaan.",
+    "added_active": "{email} on jo aktiivinen.",
+    "remove": "Poista",
+    "remove_confirm": "Poistetaanko {email}?",
+    "cancel": "Peruuta",
+    "removed": "{email} poistettiin.",
+    "error_taken": "Tämä osoite kuuluu toiselle tilille.",
+    "error_last_sign_in": "Tämä on viimeinen tapa kirjautua, joten sitä ei voi poistaa.",
+    "error_main_email": "Pääosoitetta ei voi poistaa täällä.",
+    "error_bad_email": "Anna kelvollinen sähköpostiosoite.",
+    "error_act_as": "Kirjautumissähköposteja ei voi muuttaa, kun toimit toisena jäsenenä.",
+    "error_not_found": "Tätä osoitetta tai jäsentä ei enää ole.",
+    "error_forbidden": "Sinulla ei ole oikeutta muuttaa tämän jäsenen kirjautumissähköposteja.",
+    "error_failed": "Tallennus epäonnistui. Yritä uudelleen."
   }
 }

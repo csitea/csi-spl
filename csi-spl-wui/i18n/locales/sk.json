@@ -2593,5 +2593,36 @@
       "no_boxes": "Bez políčok",
       "no_tasks": "Bez tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "Prihlasovacie e-maily",
+    "intro": "Adresy, ktorými sa môžete prihlásiť. Nová adresa funguje, keď ju potvrdíte prihlásením sa ňou u poskytovateľa identity.",
+    "intro_admin": "Adresy, ktorými sa tento člen môže prihlásiť. Adresa, ktorú pridáte, čaká, kým sa ňou člen sám neprihlási.",
+    "loading": "Načítava sa…",
+    "empty": "Zatiaľ žiadne adresy.",
+    "state_active": "Aktívna",
+    "state_pending": "Čaká",
+    "main": "Hlavná",
+    "signs_in_with": "Prihlasuje sa cez {providers}",
+    "pending_hint": "Čaká: bude fungovať, keď sa ňou prihlásite v {providers}, kým ste prihlásení tu.",
+    "pending_hint_admin": "Čaká: bude fungovať, keď sa ňou člen prihlási v {providers}, kým je prihlásený v pracovnom priestore.",
+    "confirm_with": "Potvrdiť cez {provider}",
+    "add_label": "Pridať adresu",
+    "add": "Pridať",
+    "added_pending": "Adresa {email} bola pridaná. Bude fungovať, keď sa ňou prihlásite v {providers}, kým ste prihlásení tu.",
+    "added_pending_admin": "Adresa {email} bola pridaná. Bude fungovať, keď sa ňou člen prihlási v {providers}, kým je prihlásený v pracovnom priestore.",
+    "added_active": "Adresa {email} je už aktívna.",
+    "remove": "Odstrániť",
+    "remove_confirm": "Odstrániť {email}?",
+    "cancel": "Zrušiť",
+    "removed": "Adresa {email} bola odstránená.",
+    "error_taken": "Táto adresa patrí inému účtu.",
+    "error_last_sign_in": "Je to posledný spôsob prihlásenia, preto ho nemožno odstrániť.",
+    "error_main_email": "Hlavnú adresu tu nemožno odstrániť.",
+    "error_bad_email": "Zadajte platnú e-mailovú adresu.",
+    "error_act_as": "Prihlasovacie e-maily nemožno meniť, kým konáte ako iný člen.",
+    "error_not_found": "Táto adresa alebo člen už neexistuje.",
+    "error_forbidden": "Nemáte povolenie meniť prihlasovacie e-maily tohto člena.",
+    "error_failed": "Uloženie zlyhalo. Skúste to znova."
   }
 }

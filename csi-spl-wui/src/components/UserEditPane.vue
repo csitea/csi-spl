@@ -133,6 +133,12 @@
           </button>
           <small class="muted">{{ t('users.access_hint') }}</small>
         </form>
+        <!-- t1 f265541a: the member's sign-in emails; the admin adds and
+             removes as the hub allows, only the member confirms one -->
+        <section class="users-emails" data-test="users-pane-emails">
+          <h3 class="users-emails__title">{{ t('signin_emails.title') }}</h3>
+          <SignInEmailsPanel :human-id="member.humanId" :self="member.you" :can-edit="member.manageable || member.you" />
+        </section>
         <!-- specs/054: act as this member (a read-and-verify clone session) -->
         <button
           v-if="canActAs"
@@ -284,6 +290,8 @@
 <script setup lang="ts">
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import UiDialog from '~/components/UiDialog.vue'
+/* t1 f265541a: its own chunk, fetched when a member's pane opens */
+const SignInEmailsPanel = defineAsyncComponent(() => import('~/components/SignInEmailsPanel.vue'))
 import LocaleCombobox from '~/components/LocaleCombobox.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAuthClient } from '~/composables/useAuthClient'
@@ -607,6 +615,8 @@ function destroy() {
   margin: 0;
 }
 .users-facts dt { color: var(--color-muted); }
+.users-emails { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.users-emails__title { margin: 8px 0 0; font-size: 0.95rem; }
 .users-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .users-form {
   display: flex;

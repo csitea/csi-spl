@@ -1,6 +1,6 @@
 <!-- Settings → Sign-in and security (CLE-3402's card, specs/023 §3.4):
      sign-in method, password change (native-auth-v1 §2, password sessions
-     only) and sign out. -->
+     only) and sign out; then the sign-in emails (t1 f265541a). -->
 <template>
   <SettingsSection id="settings-signin" :title="t('settings.signin_security')" data-test="settings-signin">
     <div class="settings__row">
@@ -22,11 +22,17 @@
       <NuxtLink :to="localePath('/tenant-settings/members')" class="btn ghost settings__members-link" data-test="settings-members-link">{{ t('settings.members_link') }}</NuxtLink>
     </div>
   </SettingsSection>
+  <!-- t1 f265541a (owner HUM-10): the addresses this person signs in with;
+       an added one is pending until they sign in with it at a provider -->
+  <SettingsSection v-if="me.hum" id="settings-signin-emails" :title="t('signin_emails.title')" data-test="settings-signin-emails">
+    <SignInEmailsPanel :human-id="me.hum" self />
+  </SettingsSection>
 </template>
 
 <script setup lang="ts">
 import ChangePasswordForm from '~/components/ChangePasswordForm.vue'
 import SettingsSection from '~/components/SettingsSection.vue'
+import SignInEmailsPanel from '~/components/SignInEmailsPanel.vue'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { methodLabelKey, userIdentity } from '~/utils/user-menu.mjs'

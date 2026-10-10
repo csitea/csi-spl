@@ -2593,5 +2593,36 @@
       "no_boxes": "Onay kutusu yok",
       "no_tasks": "tasks.md yok"
     }
+  },
+  "signin_emails": {
+    "title": "Giriş e-postaları",
+    "intro": "Giriş yapabildiğiniz adresler. Yeni bir adres, onunla bir kimlik sağlayıcısında giriş yaparak onayladığınızda çalışır.",
+    "intro_admin": "Bu üyenin giriş yapabildiği adresler. Eklediğiniz bir adres, üye onunla kendisi giriş yapana kadar beklemede kalır.",
+    "loading": "Yükleniyor…",
+    "empty": "Henüz adres yok.",
+    "state_active": "Etkin",
+    "state_pending": "Beklemede",
+    "main": "Ana",
+    "signs_in_with": "{providers} ile giriş yapıyor",
+    "pending_hint": "Beklemede: burada oturumunuz açıkken onunla {providers} üzerinden giriş yaptığınızda çalışır.",
+    "pending_hint_admin": "Beklemede: üye çalışma alanında oturumu açıkken onunla {providers} üzerinden giriş yaptığında çalışır.",
+    "confirm_with": "{provider} ile onayla",
+    "add_label": "Adres ekle",
+    "add": "Ekle",
+    "added_pending": "{email} eklendi. Burada oturumunuz açıkken onunla {providers} üzerinden giriş yaptığınızda çalışır.",
+    "added_pending_admin": "{email} eklendi. Üye çalışma alanında oturumu açıkken onunla {providers} üzerinden giriş yaptığında çalışır.",
+    "added_active": "{email} zaten etkin.",
+    "remove": "Kaldır",
+    "remove_confirm": "{email} kaldırılsın mı?",
+    "cancel": "İptal",
+    "removed": "{email} kaldırıldı.",
+    "error_taken": "Bu adres başka bir hesaba ait.",
+    "error_last_sign_in": "Bu son giriş yolu olduğu için kaldırılamaz.",
+    "error_main_email": "Ana adres buradan kaldırılamaz.",
+    "error_bad_email": "Geçerli bir e-posta adresi girin.",
+    "error_act_as": "Başka bir üye olarak işlem yaparken giriş e-postaları değiştirilemez.",
+    "error_not_found": "Bu adres veya üye artık yok.",
+    "error_forbidden": "Bu üyenin giriş e-postalarını değiştirme izniniz yok.",
+    "error_failed": "Kaydedilemedi. Tekrar deneyin."
   }
 }

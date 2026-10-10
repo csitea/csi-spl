@@ -2593,5 +2593,36 @@
       "no_boxes": "Märkeruute pole",
       "no_tasks": "tasks.md puudub"
     }
+  },
+  "signin_emails": {
+    "title": "Sisselogimise e-postid",
+    "intro": "Aadressid, millega saad sisse logida. Uus aadress hakkab tööle, kui kinnitad selle, logides sellega sisse identiteedipakkuja juures.",
+    "intro_admin": "Aadressid, millega see liige saab sisse logida. Sinu lisatud aadress jääb ootele, kuni liige ise sellega sisse logib.",
+    "loading": "Laadimine…",
+    "empty": "Aadresse veel pole.",
+    "state_active": "Aktiivne",
+    "state_pending": "Ootel",
+    "main": "Peamine",
+    "signs_in_with": "Logib sisse teenusega {providers}",
+    "pending_hint": "Ootel: hakkab tööle, kui logid sellega sisse teenuses {providers}, olles samal ajal siin sisse logitud.",
+    "pending_hint_admin": "Ootel: hakkab tööle, kui liige logib sellega sisse teenuses {providers}, olles samal ajal tööruumi sisse logitud.",
+    "confirm_with": "Kinnita teenusega {provider}",
+    "add_label": "Lisa aadress",
+    "add": "Lisa",
+    "added_pending": "{email} on lisatud. See hakkab tööle, kui logid sellega sisse teenuses {providers}, olles samal ajal siin sisse logitud.",
+    "added_pending_admin": "{email} on lisatud. See hakkab tööle, kui liige logib sellega sisse teenuses {providers}, olles samal ajal tööruumi sisse logitud.",
+    "added_active": "{email} on juba aktiivne.",
+    "remove": "Eemalda",
+    "remove_confirm": "Kas eemaldada {email}?",
+    "cancel": "Loobu",
+    "removed": "{email} on eemaldatud.",
+    "error_taken": "See aadress kuulub teisele kontole.",
+    "error_last_sign_in": "See on viimane sisselogimisviis, seega seda ei saa eemaldada.",
+    "error_main_email": "Peamist aadressi ei saa siin eemaldada.",
+    "error_bad_email": "Sisesta kehtiv e-posti aadress.",
+    "error_act_as": "Sisselogimise e-poste ei saa muuta, kui tegutsed teise liikmena.",
+    "error_not_found": "Seda aadressi või liiget enam pole.",
+    "error_forbidden": "Sul pole lubatud selle liikme sisselogimise e-poste muuta.",
+    "error_failed": "Salvestamine ebaõnnestus. Proovi uuesti."
   }
 }

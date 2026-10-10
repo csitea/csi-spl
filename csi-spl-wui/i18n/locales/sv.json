@@ -2593,5 +2593,36 @@
       "no_boxes": "Inga kryssrutor",
       "no_tasks": "Ingen tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "Inloggningsadresser",
+    "intro": "Adresserna du kan logga in med. En ny adress fungerar när du bekräftar den genom att logga in med den hos en identitetsleverantör.",
+    "intro_admin": "Adresserna som den här medlemmen kan logga in med. En adress du lägger till väntar tills medlemmen själv loggar in med den.",
+    "loading": "Läser in…",
+    "empty": "Inga adresser än.",
+    "state_active": "Aktiv",
+    "state_pending": "Väntar",
+    "main": "Huvudadress",
+    "signs_in_with": "Loggar in med {providers}",
+    "pending_hint": "Väntar: fungerar när du loggar in med den hos {providers} medan du är inloggad här.",
+    "pending_hint_admin": "Väntar: fungerar när medlemmen loggar in med den hos {providers} medan den är inloggad i arbetsytan.",
+    "confirm_with": "Bekräfta med {provider}",
+    "add_label": "Lägg till en adress",
+    "add": "Lägg till",
+    "added_pending": "{email} har lagts till. Den fungerar när du loggar in med den hos {providers} medan du är inloggad här.",
+    "added_pending_admin": "{email} har lagts till. Den fungerar när medlemmen loggar in med den hos {providers} medan den är inloggad i arbetsytan.",
+    "added_active": "{email} är redan aktiv.",
+    "remove": "Ta bort",
+    "remove_confirm": "Ta bort {email}?",
+    "cancel": "Avbryt",
+    "removed": "{email} har tagits bort.",
+    "error_taken": "Den här adressen tillhör ett annat konto.",
+    "error_last_sign_in": "Det här är det sista sättet att logga in, så den kan inte tas bort.",
+    "error_main_email": "Huvudadressen kan inte tas bort här.",
+    "error_bad_email": "Ange en giltig e-postadress.",
+    "error_act_as": "Inloggningsadresser kan inte ändras medan du agerar som en annan medlem.",
+    "error_not_found": "Den här adressen eller medlemmen finns inte längre.",
+    "error_forbidden": "Du får inte ändra den här medlemmens inloggningsadresser.",
+    "error_failed": "Det gick inte att spara. Försök igen."
   }
 }

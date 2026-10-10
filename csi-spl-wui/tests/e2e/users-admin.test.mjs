@@ -10,7 +10,8 @@
 // and an old /users link lands there; a click on a row opens the
 // edit pane with THAT user's data on USER_PANE_SIDE; change role, remove
 // (confirmed), invite, revoke (confirmed) each land in the list; your own
-// row cannot be removed. The non-admin half (no entry, hub 403) is the
+// row cannot be removed; the admin adds a member's sign-in email, pending
+// until the member signs in with it (t1 f265541a). The non-admin half (no entry, hub 403) is the
 // unit test tenant-users.test.mjs plus hub TestMembersAdminAPI.
 //
 // Plant the defect and watch it go red (the proof cancels the remove
@@ -114,6 +115,20 @@ try {
   })
   const wantRight = side.cls.includes('users-page--pane-right')
   ok('6 the pane opens on USER_PANE_SIDE', wantRight ? side.paneRight : side.paneLeft, side)
+
+  // 2b. t1 f265541a: the member's sign-in emails, as the admin sees them -
+  // add and remove, but no "Confirm with" (only the member confirms)
+  await p.waitForSelector('[data-test=users-pane-emails] [data-test=signin-emails-row-active]', { visible: true, timeout: 10000 }).catch(() => null)
+  await p.type('[data-test=users-pane-emails] [data-test=signin-emails-input]', 'dev1.extra@example.com')
+  await p.click('[data-test=users-pane-emails] [data-test=signin-emails-add]')
+  await p.waitForSelector('[data-test=users-pane-emails] [data-test=signin-emails-row-pending]', { visible: true, timeout: 5000 }).catch(() => null)
+  const adminEmails = await p.evaluate(() => ({
+    pending: document.querySelectorAll('[data-test=users-pane-emails] [data-test=signin-emails-row-pending]').length,
+    confirm: document.querySelectorAll('[data-test=users-pane-emails] [data-test^=signin-emails-confirm-]').length,
+    notice: document.querySelector('[data-test=users-pane-emails] [data-test=signin-emails-notice]')?.textContent.trim() || '',
+  }))
+  ok('6b the admin adds a sign-in email: pending until the member signs in with it, no Confirm button',
+    adminEmails.pending === 1 && adminEmails.confirm === 0 && /works once the member signs in with it/.test(adminEmails.notice), adminEmails)
 
   // 3. change role
   await p.select('[data-test=users-pane-role]', 'tester')

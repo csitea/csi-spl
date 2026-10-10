@@ -2593,5 +2593,36 @@
       "no_boxes": "Fără casete",
       "no_tasks": "Fără tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "E-mailuri de autentificare",
+    "intro": "Adresele cu care vă puteți autentifica. O adresă nouă funcționează după ce o confirmați autentificându-vă cu ea la un furnizor de identitate.",
+    "intro_admin": "Adresele cu care acest membru se poate autentifica. O adresă pe care o adăugați rămâne în așteptare până când membrul se autentifică singur cu ea.",
+    "loading": "Se încarcă…",
+    "empty": "Încă nu există adrese.",
+    "state_active": "Activă",
+    "state_pending": "În așteptare",
+    "main": "Principală",
+    "signs_in_with": "Se autentifică prin {providers}",
+    "pending_hint": "În așteptare: funcționează după ce vă autentificați cu ea la {providers} în timp ce sunteți autentificat aici.",
+    "pending_hint_admin": "În așteptare: funcționează după ce membrul se autentifică cu ea la {providers} în timp ce este autentificat în spațiul de lucru.",
+    "confirm_with": "Confirmă prin {provider}",
+    "add_label": "Adăugați o adresă",
+    "add": "Adaugă",
+    "added_pending": "{email} a fost adăugată. Funcționează după ce vă autentificați cu ea la {providers} în timp ce sunteți autentificat aici.",
+    "added_pending_admin": "{email} a fost adăugată. Funcționează după ce membrul se autentifică cu ea la {providers} în timp ce este autentificat în spațiul de lucru.",
+    "added_active": "{email} este deja activă.",
+    "remove": "Elimină",
+    "remove_confirm": "Eliminați {email}?",
+    "cancel": "Anulează",
+    "removed": "{email} a fost eliminată.",
+    "error_taken": "Această adresă aparține altui cont.",
+    "error_last_sign_in": "Este ultima modalitate de autentificare, deci nu poate fi eliminată.",
+    "error_main_email": "Adresa principală nu poate fi eliminată de aici.",
+    "error_bad_email": "Introduceți o adresă de e-mail validă.",
+    "error_act_as": "E-mailurile de autentificare nu pot fi modificate în timp ce acționați ca alt membru.",
+    "error_not_found": "Această adresă sau acest membru nu mai există.",
+    "error_forbidden": "Nu aveți permisiunea de a modifica e-mailurile de autentificare ale acestui membru.",
+    "error_failed": "Salvarea a eșuat. Încercați din nou."
   }
 }

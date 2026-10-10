@@ -26,6 +26,13 @@
 //       (mocked) beforeinstallprompt gives an Install button whose click
 //       calls prompt() once and then says Installed; running standalone it
 //       says Installed.
+//   S   t1 f265541a (owner HUM-10): Sign-in and security lists the sign-in
+//       emails - the main address active, a pending one with "Confirm with"
+//       links for the enabled providers only (a link sign-in, link=1); adding
+//       an address says it works once signed in with it at the provider while
+//       signed in here; a taken address is a plain message; a pending one is
+//       removed after a confirm. CONTROL: the active row has no confirm link,
+//       the main address no remove.
 // CONTROL: the dialog is asserted present before every close path, so a close
 // that "works" because nothing opened cannot read green.
 //
@@ -289,6 +296,50 @@ try {
   ok('I8 running as the app (display-mode standalone): Installed, no button', a.installed && !a.install && !a.manual, a)
   await shot('390-apps-installed')
   await p.evaluate(() => { localStorage.removeItem('spool.test.standalone'); localStorage.removeItem('spool.test.tenants') })
+
+  /* S: sign-in emails (t1 f265541a) */
+  const emails = () => p.evaluate(() => [...document.querySelectorAll('[data-test=signin-emails] [data-test^=signin-emails-row-]')].map((r) => ({
+    email: r.querySelector('[data-test=signin-emails-address]')?.textContent.trim(),
+    state: r.dataset.state,
+    main: r.querySelector('[data-test=signin-emails-main]') !== null,
+    confirm: [...r.querySelectorAll('[data-test^=signin-emails-confirm-]')].map((a) => a.getAttribute('data-test').slice('signin-emails-confirm-'.length)),
+    link: [...r.querySelectorAll('[data-test^=signin-emails-confirm-]')].every((a) => new URL(a.href).searchParams.get('link') === '1'),
+    remove: r.querySelector('[data-test=signin-emails-remove]') !== null,
+  })))
+  const text = (sel) => p.$eval(sel, (e) => e.textContent.trim()).catch(() => '')
+  await load(DESKTOP, '/lobby?settings=security')
+  const listed = await waitOpen() && await p.waitForSelector('[data-test=signin-emails-row-pending] [data-test=signin-emails-confirm-google]', { visible: true, timeout: 10000 }).then(() => true).catch(() => false)
+  let em = await emails()
+  ok('S0 CONTROL: Sign-in and security shows the sign-in emails', listed && em.length === 2, em)
+  ok('S1 the main address is active, marked main, no confirm link, no remove', em[0]?.state === 'active' && em[0].main && em[0].confirm.length === 0 && !em[0].remove, em[0])
+  ok('S2 the pending address: Confirm with the enabled providers only, each a link sign-in', em[1]?.state === 'pending' && em[1].confirm.join(',') === 'google,microsoft' && em[1].link && em[1].remove, em[1])
+  await p.$eval('[data-test=settings-signin-emails]', (e) => e.scrollIntoView({ block: 'start' }))
+  await shot('1440-signin-emails')
+  await p.type('[data-test=signin-emails-input]', 'new@example.com')
+  await p.click('[data-test=signin-emails-add]')
+  await p.waitForFunction(() => document.querySelectorAll('[data-test=signin-emails-row-pending]').length === 2, { timeout: 5000 }).catch(() => null)
+  const added = await text('[data-test=signin-emails-notice]')
+  ok('S3 an added address is pending and the owner\'s explanation shows', (await emails()).length === 3 && /works once you sign in with it at Google or Microsoft while signed in here/.test(added), { added })
+  await p.type('[data-test=signin-emails-input]', 'taken@example.com')
+  await p.click('[data-test=signin-emails-add]')
+  await p.waitForSelector('[data-test=signin-emails-error]', { visible: true, timeout: 5000 }).catch(() => null)
+  const taken = await text('[data-test=signin-emails-error]')
+  ok('S4 a taken address is a plain message that names no one', taken === 'This address belongs to another account.' && (await emails()).length === 3, { taken })
+  await p.click('[data-test=signin-emails-row-pending] [data-test=signin-emails-remove]')
+  await p.waitForSelector('[data-test=signin-emails-remove-yes]', { visible: true, timeout: 5000 }).catch(() => null)
+  ok('S5 CONTROL: remove asks first, nothing gone yet', (await emails()).length === 3)
+  await p.click('[data-test=signin-emails-remove-yes]')
+  await p.waitForFunction(() => document.querySelectorAll('[data-test=signin-emails-row-pending]').length === 1, { timeout: 5000 }).catch(() => null)
+  em = await emails()
+  ok('S6 the pending address is removed', em.length === 2 && /was removed/.test(await text('[data-test=signin-emails-notice]')), em)
+  n = await noScroll()
+  ok('S7 1440: no sideways scroll with the list open', n.over <= 0, n)
+  await load(PHONE, '/lobby?settings=security')
+  await p.waitForSelector('[data-test=signin-emails-row-pending]', { visible: true, timeout: 10000 }).catch(() => null)
+  const tap = await p.evaluate(() => [...document.querySelectorAll('[data-test=signin-emails] a, [data-test=signin-emails] button')].filter((b) => b.getBoundingClientRect().width > 0).every((b) => b.getBoundingClientRect().height >= 44))
+  n = await noScroll()
+  ok('S8 390: no sideways scroll, every button >= 44 px', n.over <= 0 && tap, { ...n, tap })
+  await shot('390-signin-emails')
 
   /* screenshots in the light theme too */
   if (OUT) {

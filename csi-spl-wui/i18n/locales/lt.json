@@ -2593,5 +2593,36 @@
       "no_boxes": "Be žymimųjų langelių",
       "no_tasks": "Be tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "Prisijungimo el. pašto adresai",
+    "intro": "Adresai, kuriais galite prisijungti. Naujas adresas veikia, kai jį patvirtinate prisijungdami juo per tapatybės teikėją.",
+    "intro_admin": "Adresai, kuriais šis narys gali prisijungti. Jūsų pridėtas adresas lieka laukiantis, kol narys pats juo prisijungs.",
+    "loading": "Įkeliama…",
+    "empty": "Adresų dar nėra.",
+    "state_active": "Aktyvus",
+    "state_pending": "Laukiama",
+    "main": "Pagrindinis",
+    "signs_in_with": "Prisijungia per {providers}",
+    "pending_hint": "Laukiama: veiks, kai juo prisijungsite per {providers}, būdami prisijungę čia.",
+    "pending_hint_admin": "Laukiama: veiks, kai narys juo prisijungs per {providers}, būdamas prisijungęs prie darbo srities.",
+    "confirm_with": "Patvirtinti per {provider}",
+    "add_label": "Pridėti adresą",
+    "add": "Pridėti",
+    "added_pending": "{email} pridėtas. Jis veiks, kai juo prisijungsite per {providers}, būdami prisijungę čia.",
+    "added_pending_admin": "{email} pridėtas. Jis veiks, kai narys juo prisijungs per {providers}, būdamas prisijungęs prie darbo srities.",
+    "added_active": "{email} jau aktyvus.",
+    "remove": "Pašalinti",
+    "remove_confirm": "Pašalinti {email}?",
+    "cancel": "Atšaukti",
+    "removed": "{email} pašalintas.",
+    "error_taken": "Šis adresas priklauso kitai paskyrai.",
+    "error_last_sign_in": "Tai paskutinis prisijungimo būdas, todėl jo pašalinti negalima.",
+    "error_main_email": "Pagrindinio adreso čia pašalinti negalima.",
+    "error_bad_email": "Įveskite galiojantį el. pašto adresą.",
+    "error_act_as": "Prisijungimo el. pašto adresų negalima keisti veikiant kito nario vardu.",
+    "error_not_found": "Šio adreso ar nario nebėra.",
+    "error_forbidden": "Jums neleidžiama keisti šio nario prisijungimo el. pašto adresų.",
+    "error_failed": "Nepavyko įrašyti. Bandykite dar kartą."
   }
 }

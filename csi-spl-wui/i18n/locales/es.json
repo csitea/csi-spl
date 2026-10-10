@@ -2593,5 +2593,36 @@
       "no_boxes": "Sin casillas",
       "no_tasks": "Sin tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "Correos de inicio de sesión",
+    "intro": "Las direcciones con las que puedes iniciar sesión. Una dirección nueva funciona cuando la confirmas iniciando sesión con ella en un proveedor de identidad.",
+    "intro_admin": "Las direcciones con las que este miembro puede iniciar sesión. Una dirección que añadas queda pendiente hasta que el propio miembro inicie sesión con ella.",
+    "loading": "Cargando…",
+    "empty": "Aún no hay direcciones.",
+    "state_active": "Activa",
+    "state_pending": "Pendiente",
+    "main": "Principal",
+    "signs_in_with": "Inicia sesión con {providers}",
+    "pending_hint": "Pendiente: funciona cuando inicies sesión con ella en {providers} mientras tienes la sesión iniciada aquí.",
+    "pending_hint_admin": "Pendiente: funciona cuando el miembro inicie sesión con ella en {providers} mientras tiene la sesión iniciada en el espacio de trabajo.",
+    "confirm_with": "Confirmar con {provider}",
+    "add_label": "Añadir una dirección",
+    "add": "Añadir",
+    "added_pending": "Se añadió {email}. Funciona cuando inicies sesión con ella en {providers} mientras tienes la sesión iniciada aquí.",
+    "added_pending_admin": "Se añadió {email}. Funciona cuando el miembro inicie sesión con ella en {providers} mientras tiene la sesión iniciada en el espacio de trabajo.",
+    "added_active": "{email} ya está activa.",
+    "remove": "Quitar",
+    "remove_confirm": "¿Quitar {email}?",
+    "cancel": "Cancelar",
+    "removed": "Se quitó {email}.",
+    "error_taken": "Esta dirección pertenece a otra cuenta.",
+    "error_last_sign_in": "Es la última forma de iniciar sesión, así que no se puede quitar.",
+    "error_main_email": "La dirección principal no se puede quitar aquí.",
+    "error_bad_email": "Introduce una dirección de correo válida.",
+    "error_act_as": "Los correos de inicio de sesión no se pueden cambiar mientras actúas como otro miembro.",
+    "error_not_found": "Esta dirección o este miembro ya no existe.",
+    "error_forbidden": "No puedes cambiar los correos de inicio de sesión de este miembro.",
+    "error_failed": "No se pudo guardar. Inténtalo de nuevo."
   }
 }

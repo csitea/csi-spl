@@ -2593,5 +2593,36 @@
       "no_boxes": "Brak pól wyboru",
       "no_tasks": "Brak tasks.md"
     }
+  },
+  "signin_emails": {
+    "title": "Adresy e-mail do logowania",
+    "intro": "Adresy, którymi możesz się logować. Nowy adres działa, gdy go potwierdzisz, logując się nim u dostawcy tożsamości.",
+    "intro_admin": "Adresy, którymi ten członek może się logować. Dodany przez Ciebie adres czeka, aż członek sam się nim zaloguje.",
+    "loading": "Wczytywanie…",
+    "empty": "Brak adresów.",
+    "state_active": "Aktywny",
+    "state_pending": "Oczekuje",
+    "main": "Główny",
+    "signs_in_with": "Loguje się przez {providers}",
+    "pending_hint": "Oczekuje: zadziała, gdy zalogujesz się nim w {providers}, będąc zalogowanym tutaj.",
+    "pending_hint_admin": "Oczekuje: zadziała, gdy członek zaloguje się nim w {providers}, będąc zalogowanym w obszarze roboczym.",
+    "confirm_with": "Potwierdź przez {provider}",
+    "add_label": "Dodaj adres",
+    "add": "Dodaj",
+    "added_pending": "Dodano {email}. Zadziała, gdy zalogujesz się nim w {providers}, będąc zalogowanym tutaj.",
+    "added_pending_admin": "Dodano {email}. Zadziała, gdy członek zaloguje się nim w {providers}, będąc zalogowanym w obszarze roboczym.",
+    "added_active": "{email} jest już aktywny.",
+    "remove": "Usuń",
+    "remove_confirm": "Usunąć {email}?",
+    "cancel": "Anuluj",
+    "removed": "Usunięto {email}.",
+    "error_taken": "Ten adres należy do innego konta.",
+    "error_last_sign_in": "To ostatni sposób logowania, więc nie można go usunąć.",
+    "error_main_email": "Głównego adresu nie można tu usunąć.",
+    "error_bad_email": "Wpisz prawidłowy adres e-mail.",
+    "error_act_as": "Adresów e-mail do logowania nie można zmieniać, działając jako inny członek.",
+    "error_not_found": "Ten adres lub członek już nie istnieje.",
+    "error_forbidden": "Nie możesz zmieniać adresów e-mail do logowania tego członka.",
+    "error_failed": "Nie udało się zapisać. Spróbuj ponownie."
   }
 }

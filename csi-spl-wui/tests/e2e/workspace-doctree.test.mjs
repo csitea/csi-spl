@@ -452,6 +452,10 @@ try {
   ok('rename the document in place; clearing the title brings "Untitled document" back (read from the hub)',
     named.h === 'Renamed doc' && named.sel === 'Renamed doc' && named.hub === 'Renamed doc'
     && cleared.h === 'Untitled document' && cleared.sel === 'Untitled document' && cleared.hub === 'Untitled document', { named, cleared })
+  /* back to a title of its own: the Create check below waits for "Untitled document"
+     on the NEW document, which this one must not already show */
+  await renameTo('E2E outline')
+  await p.waitForFunction(() => document.querySelector('[data-test=ws-docs-select]').selectedOptions[0]?.textContent?.trim() === 'E2E outline', { timeout: STEP }).catch(() => null)
 
   /* a code block: the menu adds it to the section, edited in place, kept on the item */
   const attrsOf = async (id) => (await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}/subtree`), docOf)).items.find((x) => x.id === id).attrs

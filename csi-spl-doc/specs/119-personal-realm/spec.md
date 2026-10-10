@@ -1,6 +1,6 @@
 # 119 Personal Realm
 
-**Status**: v1.1 (v1.0 = panel fold of 4 seats, all signed, 2026-10-10; editor s119-claude. v1.1 folds the owner's answer "All A" to the 119-only questions OQ-1, 4, 5, 7, 9, 10, msg ddc23158, 2026-10-10). Sections 1..5 are the v0.1 draft, kept as written; where section 6 changes a REQ or a Q, section 6 wins.
+**Status**: v1.1 (v1.0 = panel fold of 4 seats, all signed, 2026-10-10; editor s119-claude. v1.1 folds the owner's answer "All A" to the 119-only questions OQ-1, 4, 5, 7, 9, 10, msg ddc23158, 2026-10-10). tasks.md added (build lanes T001..T011). Sections 1..5 are the v0.1 draft, kept as written; where section 6 changes a REQ or a Q, section 6 wins.
 
 ## 1. Context and Goals
 Based on the owner's feedback, there is a need for a "personal realm" — a person-level layer that exists above workspaces. When people leave a workspace, they should retain read-only copies of their own past hours (like pay receipts) without keeping the actual content of the work.

@@ -5866,6 +5866,86 @@
         ]
       }
     },
+    "/v1/operator/calendar/events": {
+      "post": {
+        "operationId": "postOperatorCalendarEvents",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created: {event}, the creator the agent the body names"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Create an agent's calendar event in one workspace",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/calendar/events/{id}": {
+      "get": {
+        "operationId": "getOperatorCalendarEventsById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {event}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read one calendar event back",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/fleet-load": {
       "get": {
         "operationId": "getOperatorFleetLoad",

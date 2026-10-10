@@ -271,4 +271,5 @@ func (s *Server) routeOperator(mux *http.ServeMux) {
 	s.routeOperatorWorkspaces(mux) // spec 074: workspace CRUD, operator-workspace admins only
 	s.routeFleetLoad(mux)          // rdb 0118: the instance's fleet load target, same rule
 	s.routeOperatorCalendar(mux)   // HUM-10 b13c164c: an agent's event, calendar_operator.go
+	s.routeOperatorChannels(mux)   // HUM-10 5c7a9202: a channel by order, channel_operator.go
 }

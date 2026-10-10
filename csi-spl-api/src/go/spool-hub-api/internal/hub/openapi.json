@@ -6179,6 +6179,89 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/channels": {
+      "post": {
+        "operationId": "postOperatorChannels",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created: {channel, name, description, privacy, created_by, created_at, default}, created_by the ordering human"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "channel_exists (an existing or reserved slug) or channel_archived"
+          }
+        },
+        "summary": "Create a members-only channel in one workspace, ordered by a human",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/channels/{channel}": {
+      "get": {
+        "operationId": "getOperatorChannelsByChannel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {channel, name, description, created_by, created_at, default, members}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read one channel back with its human members",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/fleet-load": {
       "get": {
         "operationId": "getOperatorFleetLoad",

@@ -29,7 +29,7 @@ mkdir -p "$T/state/dev/desk/t1/box-rsp/spool"
 
 # The forward to the orchestrator (b) is a stub that logs its argv. Before
 # CLE-77923 it was the real spool-send.sh against the real spool root: every
-# run filed the t-aaa/t-bbb/t-ddd fixtures into CLE-001's live inbox and rang
+# run filed the t-aaa/t-bbb/t-ddd fixtures into c-001's live inbox and rang
 # its pane. SPOOL_TEST=1 + a sandbox SPOOL_ROOT are the second fence, so a
 # send that escapes the stub is refused rather than delivered.
 cat >"$T/send.sh" <<'SH'
@@ -99,7 +99,7 @@ if [ "$(grep -c '^reply ' "$T/reply.log")" = "2" ] && grep -q "DESK_TO=HUM-10 DE
 else
   fail "DRY_RUN=0 reply set wrong: $(cat "$T/reply.log")"
 fi
-if [ "$(grep -c -- '--to CLE-001 --kind note --task t-' "$T/send.log" 2>/dev/null)" = "2" ]; then
+if [ "$(grep -c -- '--to c-001 --kind note --task t-' "$T/send.log" 2>/dev/null)" = "2" ]; then
   pass "DRY_RUN=0 files each escalation to the orchestrator through the stubbed send"
 else
   fail "forward set wrong (want 2 stub sends): $(cat "$T/send.log" 2>/dev/null)"
@@ -155,7 +155,7 @@ rm -f "$D/seen-topics"; : >"$T/reply.log"; : >"$T/send.log"
 SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 in_resp >"$T/o" 2>&1
 [ ! -s "$T/reply.log" ] && pass "default: no Seen (or any) reply is posted in the topic" ||
   fail "default posted a reply: $(cat "$T/reply.log")"
-if [ "$(grep -c -- '--to CLE-001 --kind note --task t-' "$T/send.log" 2>/dev/null)" = "2" ] && grep -q "2 filed without a reply" "$T/o"; then
+if [ "$(grep -c -- '--to c-001 --kind note --task t-' "$T/send.log" 2>/dev/null)" = "2" ] && grep -q "2 filed without a reply" "$T/o"; then
   pass "default: each escalation is still filed to the orchestrator"
 else
   fail "default forward set wrong: $(cat "$T/send.log" 2>/dev/null) / $(cat "$T/o")"

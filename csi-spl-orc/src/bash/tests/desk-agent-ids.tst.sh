@@ -7,7 +7,8 @@
 #   1. SPL_RSP_AGENT and SPL_OPS_AGENT (lib/bash/funcs/spl-desk-agents.func.sh)
 #      are agent ids on a clock PAST the cutoff
 #   2. every desk default reads them: the responder run and sweep, the ops
-#      alarm cron, the weekly full scan. RED CONTROL: a default that is a
+#      alarm cron, the weekly full scan; and the responder's forward target
+#      (RESP_FORWARD_TO, CLE-001 before) is c-001. RED CONTROL: a default that is a
 #      legacy id (RSP-01 before this change) is refused on that clock, and a
 #      literal legacy default anywhere in the desk code fails the sweep
 #   3. do_spl_desk_agent_rename: the dry run touches nothing; DRY_RUN=0 moves
@@ -60,7 +61,8 @@ for site in \
   "$ORC/src/bash/run/spl-responder-run.func.sh|agent=\"\\\$\\{DESK_AGENT:-([^}]+)\\}\"|$SPL_RSP_AGENT" \
   "$ORC/src/bash/run/spl-responder-sweep.func.sh|agent=\"\\\$\\{DESK_AGENT:-([^}]+)\\}\"|$SPL_RSP_AGENT" \
   "$ORC/src/bash/scripts/spl-ops-alarm-cron.sh| AGENT=\"([^\"]+)\"|$SPL_OPS_AGENT" \
-  "$IAC/src/bash/scripts/weekly-full-scan-cron.sh| AGENT=\"([^\"]+)\"|$SPL_OPS_AGENT"; do
+  "$IAC/src/bash/scripts/weekly-full-scan-cron.sh| AGENT=\"([^\"]+)\"|$SPL_OPS_AGENT" \
+  "$ORC/src/bash/run/spl-responder-run.func.sh|fwd=\"\\\$\\{RESP_FORWARD_TO:-([^}]+)\\}\"|c-001"; do
   f="${site%%|*}"; rest="${site#*|}"; rx="${rest%|*}"; want="${rest##*|}"
   got="$(default "$f" "$rx")"
   if id_ok "$got" && [[ "$got" == "$want" ]]; then
@@ -69,7 +71,7 @@ for site in \
     fail "2. ${f##*/} defaults to '$got' (want $want, an agent id past the cutoff)"
   fi
 done
-hits="$(grep -rnE '(DESK_AGENT:-|AGENT=")[A-Z]{2,4}-[0-9]+' "$ORC/src/bash/run" "$ORC/src/bash/scripts" "$IAC/src/bash/scripts" 2>/dev/null)"
+hits="$(grep -rnE '(DESK_AGENT:-|AGENT="|RESP_FORWARD_TO:-)[A-Z]{2,4}-[0-9]+' "$ORC/src/bash/run" "$ORC/src/bash/scripts" "$IAC/src/bash/scripts" 2>/dev/null)"
 [[ -z "$hits" ]] && pass "2. no desk default is a literal legacy id" || fail "2. legacy defaults: $hits"
 out="$(bash "$ORC/src/bash/scripts/spl-ops-alarm-cron.sh" --print-crontab 2>&1)"
 [[ "$out" == *"--agent $SPL_OPS_AGENT "* ]] && pass "2. the ops alarm crontab line names $SPL_OPS_AGENT" || fail "2. ops crontab: $out"

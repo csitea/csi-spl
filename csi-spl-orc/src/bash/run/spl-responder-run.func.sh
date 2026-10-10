@@ -14,7 +14,7 @@
 # @description       and must not occur in a channel or a DM. With it off,
 # @description       (b) and (c) still run for every escalation;
 # @description   (b) forwards the escalation as a FILE into RESP_FORWARD_TO's
-# @description       inbox (default CLE-001) - a file cannot be refused the way
+# @description       inbox (default c-001) - a file cannot be refused the way
 # @description       a busy pane refuses a poke (the SPL-1225 miss, 4b0ba40a);
 # @description   (c) acks it so it is handled once.
 # @description AT MOST ONE "Seen" per topic, EVER (CLE-77847, t1 35582e7b): a
@@ -53,7 +53,8 @@
 # @param DESK_AGENT (optional) - the responder agent, default SPL_RSP_AGENT
 # @param   (lib/bash/funcs/spl-desk-agents.func.sh)
 # @param DESK_BOX (optional) - the responder box, default box-rsp
-# @param RESP_FORWARD_TO (optional) - who the escalation is filed to, default CLE-001
+# @param RESP_FORWARD_TO (optional) - who the escalation is filed to, default c-001
+# @param   (the orchestrator role id; CLE-001 is refused past the specs/061 cutoff)
 # @param RESP_SEND (optional) - the send script, default spawn-agents spool-send.sh (tests stub it)
 # @param RESP_HUB_WAIT (optional) - seconds a Seen waits for the hub to answer hub-rsp, default 900
 # @param RESP_SEEN_REPLY (optional) - 1 posts the visible "Seen" reply (a); default 0: file + ack only
@@ -64,7 +65,7 @@ do_spl_responder_run() {
   do_require_bin python3 yq || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-rsp}" agent="${DESK_AGENT:-$SPL_RSP_AGENT}"
-  local fwd="${RESP_FORWARD_TO:-CLE-001}" wait="${RESP_HUB_WAIT:-900}" reply="${RESP_SEEN_REPLY:-0}"
+  local fwd="${RESP_FORWARD_TO:-c-001}" wait="${RESP_HUB_WAIT:-900}" reply="${RESP_SEEN_REPLY:-0}"
   [[ "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL RESP_HUB_WAIT must be whole seconds, got: '$wait'"; return 1; }
   [[ "$reply" =~ ^[01]$ ]] || { do_log "FATAL RESP_SEEN_REPLY must be 0 or 1, got: '$reply'"; return 1; }
   spl_desk_validate "$tenant" "$box" "$agent" || return 1

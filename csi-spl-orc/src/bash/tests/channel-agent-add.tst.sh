@@ -41,7 +41,7 @@ class H(BaseHTTPRequestHandler):
         if self.headers.get("Cookie") != "spool_session=tok": return self.reply(401, {"error": "view_door"})
         if self.path == "/v1/channels": return self.reply(409, {"error": "channel_exists"})
         if self.path.endswith("/agents"):
-            if b.get("id") == "CLE-404": return self.reply(404, {"error": "not_a_member"})
+            if b.get("id") == "c-044": return self.reply(404, {"error": "not_a_member"})
             return self.reply(201, {"id": b.get("id"), "box": b.get("box")})
         self.reply(404, {"error": "not_found"})
 HTTPServer(("127.0.0.1", int(sys.argv[2])), H).serve_forever()
@@ -70,15 +70,15 @@ run() { # run <pw file> <create> <agents>
 
 # --- 1. seated ------------------------------------------------------------------
 : >"$T/reqs.log"
-out=$(run "$T/pw" 1 "CLE-555 CLE-666"); rc=$?
+out=$(run "$T/pw" 1 "c-055 c-066"); rc=$?
 [[ $rc -eq 0 ]] && pass "two agents seated, an existing channel is fine (exit 0)" || fail "seat (exit $rc): $out"
-want=$'/v1/channels {"channel": "agent-post-proof"}\n/v1/channels/agent-post-proof/agents {"box": "box-desk", "id": "CLE-555"}\n/v1/channels/agent-post-proof/agents {"box": "box-desk", "id": "CLE-666"}'
+want=$'/v1/channels {"channel": "agent-post-proof"}\n/v1/channels/agent-post-proof/agents {"box": "box-desk", "id": "c-055"}\n/v1/channels/agent-post-proof/agents {"box": "box-desk", "id": "c-066"}'
 [[ "$(cat "$T/reqs.log")" == "$want" ]] && pass "…create once, then one {id, box} per agent" ||
   fail "requests: $(cat "$T/reqs.log")"
 
 # --- 2. CONTROLS ----------------------------------------------------------------
-out=$(run "$T/pw" 0 "CLE-555 CLE-404"); rc=$?
-[[ $rc -eq 1 && "$out" == *'"CLE-404": {"error": "not_a_member", "status": 404}'* ]] &&
+out=$(run "$T/pw" 0 "c-055 c-044"); rc=$?
+[[ $rc -eq 1 && "$out" == *'"c-044": {"error": "not_a_member", "status": 404}'* ]] &&
   pass "CONTROL a refused agent fails the run and is named (exit 1)" || fail "refused agent (exit $rc): $out"
 : >"$T/reqs.log"
 out=$(run "$T/pwbad" 1 "CLE-555"); rc=$?
@@ -106,7 +106,7 @@ for bad in "TENANT_ID=T1" "CHANNEL=Bad Name" "AGENTS=" "AGENTS=HUM-4" "AGENTS=cl
   fi
 done
 : >"$T/calls.log"
-in_orc TENANT_ID=t1 CHANNEL=agent-post-proof AGENTS=CLE-555 CHANNEL_CREATE=1 >"$T/o" 2>&1
+in_orc TENANT_ID=t1 CHANNEL=agent-post-proof AGENTS=c-055 CHANNEL_CREATE=1 >"$T/o" 2>&1
 grep -q 'DRY_RUN would:.*create #agent-post-proof' "$T/o" && [[ ! -s "$T/calls.log" ]] &&
   pass "the dry run says what it would do and calls out nowhere" || fail "dry run: $(cat "$T/o") calls: $(cat "$T/calls.log")"
 

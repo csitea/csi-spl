@@ -57,13 +57,15 @@ func (s *Server) tokenMayWriteFiles(w http.ResponseWriter, r *http.Request, tena
 	return s.permit(w, r, tenant, member, rbac.FilesWrite)
 }
 
-// memberRoles is roles without demo_user: no member route offers or grants
-// it (only the open demo admission will, T007). A copy: roles may be the
-// authorizer's cached map.
+// memberRoles is roles without demo_user and channel_guest: no member route
+// offers or grants either (only the open demo admission grants demo_user,
+// T007; only the visitor mint channel_guest, specs/121 T102). channel_guest
+// holds no permission, so every role would otherwise cover it. A copy: roles
+// may be the authorizer's cached map.
 func memberRoles(roles map[string]rbac.Role) map[string]rbac.Role {
 	out := make(map[string]rbac.Role, len(roles))
 	for id, r := range roles {
-		if id != rbac.DemoUser {
+		if id != rbac.DemoUser && id != rbac.ChannelGuest {
 			out[id] = r
 		}
 	}

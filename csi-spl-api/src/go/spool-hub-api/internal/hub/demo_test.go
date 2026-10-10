@@ -111,23 +111,26 @@ func TestDemoOnlyInDemoWorkspace(t *testing.T) {
 }
 
 // 3.2: no member route grants demo_user (only the open admission of T007
-// will), and the Users page does not offer it.
+// will), and the Users page does not offer it. The same for channel_guest
+// (specs/121 4.2): it holds no permission, so every role would cover it.
 func TestDemoUserNotGrantable(t *testing.T) {
 	e, demo := demoEnv(t)
 	admin := seat(t, e, demo, rbac.Admin)
 	victim := seat(t, e, demo, rbac.Tester)
-	if code, body := call(t, e, demo, http.MethodPost, "/v1/members/invites", admin,
-		map[string]string{"email": "v@example.com", "role": rbac.DemoUser}); code != http.StatusBadRequest || body["error"] != "bad_role" {
-		t.Fatalf("invite as demo_user: %d %v", code, body)
-	}
-	if code, body := call(t, e, demo, http.MethodPut, "/v1/members/"+victim+"/role", admin,
-		map[string]string{"role": rbac.DemoUser}); code != http.StatusBadRequest || body["error"] != "bad_role" {
-		t.Fatalf("re-role to demo_user: %d %v", code, body)
-	}
-	_, body := call(t, e, demo, http.MethodGet, "/v1/members", admin, nil)
-	for _, r := range body["roles"].([]any) {
-		if r.(map[string]any)["id"] == rbac.DemoUser {
-			t.Fatalf("the Users page offers demo_user: %v", body["roles"])
+	for _, role := range []string{rbac.DemoUser, rbac.ChannelGuest} {
+		if code, body := call(t, e, demo, http.MethodPost, "/v1/members/invites", admin,
+			map[string]string{"email": "v@example.com", "role": role}); code != http.StatusBadRequest || body["error"] != "bad_role" {
+			t.Fatalf("invite as %s: %d %v", role, code, body)
+		}
+		if code, body := call(t, e, demo, http.MethodPut, "/v1/members/"+victim+"/role", admin,
+			map[string]string{"role": role}); code != http.StatusBadRequest || body["error"] != "bad_role" {
+			t.Fatalf("re-role to %s: %d %v", role, code, body)
+		}
+		_, body := call(t, e, demo, http.MethodGet, "/v1/members", admin, nil)
+		for _, r := range body["roles"].([]any) {
+			if r.(map[string]any)["id"] == role {
+				t.Fatalf("the Users page offers %s: %v", role, body["roles"])
+			}
 		}
 	}
 	// CONTROL: the same admin still grants tester.

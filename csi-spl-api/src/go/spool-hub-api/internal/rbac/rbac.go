@@ -72,6 +72,11 @@ const (
 	// the demo agents. Not in RoleIDs: no member route grants it, and the hub
 	// grants it nothing outside the open demo workspace (hub/demo.go).
 	DemoUser = "demo_user"
+	// ChannelGuest is a website visitor in its one channel (specs/121 4.2,
+	// rdb 0169). It holds NO permission, so no member route admits it; the
+	// visitor path authorizes by its bearer token under the channel scope.
+	// Not in RoleIDs.
+	ChannelGuest = "channel_guest"
 )
 
 // RoleIDs is every system role id, in the spec's order.
@@ -124,6 +129,7 @@ var Permissions = []PermissionDoc{
 // demo_user without them (specs/077). rdb 0151 gives hours.read and
 // hours.approve to biz_owner alone (specs/107 §6.1, owner Q5 = A). rdb 0166
 // gives costs.read to biz_owner and admin (specs/123 §5.1, owner Q-1 = A).
+// rdb 0169 adds channel_guest with no permission (specs/121).
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite,
@@ -138,6 +144,7 @@ var Defaults = []Role{
 	{ID: BizCustomer, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
 	{ID: RegularUser, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
 	{ID: DemoUser, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, DocsRead)},
+	{ID: ChannelGuest, Perms: []string{}}, // empty, not nil: the store reads '{}'
 }
 
 // withMember is p plus the four permissions every member role holds and

@@ -40,8 +40,9 @@ func TestDefaultsMatrix(t *testing.T) {
 		}
 		return false
 	}
-	// demo_user (specs/077) is a role no member route grants: not in RoleIDs.
-	if len(roles) != 9 || len(RoleIDs) != len(roles)-1 {
+	// demo_user (specs/077) and channel_guest (specs/121) are roles no member
+	// route grants: not in RoleIDs.
+	if len(roles) != 10 || len(RoleIDs) != len(roles)-2 {
 		t.Fatalf("roles: %d", len(roles))
 	}
 	all := map[string]bool{}
@@ -97,9 +98,14 @@ func TestDefaultsMatrix(t *testing.T) {
 		}
 	}
 	for _, r := range roles {
-		if !has(r.ID, TopicsRead) {
+		if r.ID != ChannelGuest && !has(r.ID, TopicsRead) {
 			t.Errorf("%s cannot read", r.ID)
 		}
+	}
+	// specs/121 4.2: channel_guest holds nothing; its channel is reached by
+	// its token under the channel scope, never through a permission.
+	if g, ok := roles[ChannelGuest]; !ok || len(g.Perms) != 0 || g.TenantOwner {
+		t.Errorf("channel_guest %+v (present %v), want no permission", g, ok)
 	}
 	// specs/077 §3.2: every member role holds files.write, topics.manage,
 	// self.keys and channels.edit; demo_user holds exactly read, post,
@@ -115,8 +121,8 @@ func TestDefaultsMatrix(t *testing.T) {
 		t.Errorf("demo_user %+v, want topics.read, notes.send, agents.command, docs.read only", roles[DemoUser])
 	}
 	for _, id := range RoleIDs {
-		if id == DemoUser {
-			t.Error("CONTROL: RoleIDs names demo_user: the Users page would offer it")
+		if id == DemoUser || id == ChannelGuest {
+			t.Errorf("CONTROL: RoleIDs names %s: the Users page would offer it", id)
 		}
 	}
 }

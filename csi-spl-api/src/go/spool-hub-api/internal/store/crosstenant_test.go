@@ -361,6 +361,12 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedCostLine(ctx, pg, s.tenant, "2026-10-01", "hand"); err != nil {
 		t.Fatal(err)
 	}
+	// embed_customers, embed_visitors (rdb 0169, spec 121 T101): one embed
+	// and one visitor in the seeded channel. No store API yet (T102), so raw
+	// rows under inTenant (channel_scope_rls_test.go).
+	if err := seedEmbedVisitor(ctx, pg, s.tenant, s.channelID); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

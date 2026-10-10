@@ -111,8 +111,11 @@ func TestTopicHeadMigrate0144(t *testing.T) {
 		t.Fatalf("%s was not re-applied: %+v", topicHeadFile, applied)
 	}
 	pins := []struct{ what, q, want string }{
+		// Permissive only: rdb 0169 adds the restrictive channel_scope on
+		// topic_head_parts (specs/121), pinned by TestRLSChannelScopeCatalogue.
 		{"FORCE RLS, 2 policies each", `SELECT string_agg(c.relname || ':' || (c.relrowsecurity AND c.relforcerowsecurity)
-				|| ':' || (SELECT count(*) FROM pg_policies p WHERE p.tablename = c.relname AND p.schemaname = current_schema()), ' ' ORDER BY c.relname)
+				|| ':' || (SELECT count(*) FROM pg_policies p WHERE p.tablename = c.relname AND p.schemaname = current_schema()
+					AND p.permissive = 'PERMISSIVE'), ' ' ORDER BY c.relname)
 			FROM pg_class c WHERE c.oid IN ('topic_heads'::regclass, 'topic_head_parts'::regclass, 'topic_head_tenants'::regclass)`,
 			"topic_head_parts:true:2 topic_head_tenants:true:2 topic_heads:true:2"},
 		{"triggers", `SELECT string_agg(tgname || ':' || tgenabled::text || ':' || (tgconstraint <> 0) || ':' || tgdeferrable || ':' || tginitdeferred, ' ' ORDER BY tgname)

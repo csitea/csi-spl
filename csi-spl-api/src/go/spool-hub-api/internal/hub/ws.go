@@ -427,7 +427,7 @@ func (s *Server) push(ctx context.Context, x *session, msgID string, env []byte)
 	if err != nil || !ok {
 		return false
 	}
-	if err := x.write(ctx, wire.Frame{Type: wire.TRecv, Env: env, Agents: agents}); err != nil {
+	if err := x.write(ctx, wire.Frame{Type: wire.TRecv, Env: env, Agents: agents, TurnID: msgID}); err != nil {
 		s.o.Store.Unclaim(ctx, x.tenant, msgID, x.box) //nolint:errcheck
 		return false
 	}
@@ -567,6 +567,8 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, "internal", http.StatusInternalServerError, "message not stored")
 		return
 	}
+	// specs/121 T302 (usage_events.go): meter the turn this post closes; never fails the send.
+	s.meterTurn(ctx, x.tenant, env.Channel, m.From, id, f)
 	x.write(ctx, wire.Frame{Type: wire.TSent, MsgID: id, TaskID: m.TaskID, TS: m.TS, ToBox: env.ToBox, Delivery: r.delivery}) //nolint:errcheck
 }
 

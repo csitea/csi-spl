@@ -71,7 +71,7 @@ func (s *Server) pushUnacked(ctx context.Context, x *session, sentBefore time.Ti
 		if got, err := a.ReclaimUnacked(ctx, x.tenant, d.MsgID, x.box, now, sentBefore); err != nil || !got {
 			continue
 		}
-		if x.write(ctx, wire.Frame{Type: wire.TRecv, Env: d.Env, Agents: agents}) == nil {
+		if x.write(ctx, wire.Frame{Type: wire.TRecv, Env: d.Env, Agents: agents, TurnID: d.MsgID}) == nil {
 			n++
 		}
 	}

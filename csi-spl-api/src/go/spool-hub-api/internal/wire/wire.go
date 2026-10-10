@@ -12,7 +12,9 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
+	"strings"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -209,6 +211,19 @@ type Frame struct {
 	// topic, and never puts it on a frame to a box.
 	RefTaskID string `json:"ref_task_id,omitempty"`
 
+	// recv / send (specs/121 section 7, T302): the hub-dispatched turn. On a
+	// recv frame the hub names the turn the delivery starts, the delivered
+	// message's msg_id; on a send frame the replying seat names the turn its
+	// post closes. Outside the signed envelope like TypedBy, and decoded
+	// leniently: an older box ignores it on recv and sends none, and the hub
+	// then meters nothing for that post.
+	TurnID string `json:"turn_id,omitempty"`
+
+	// send (specs/121 section 7, T302): the model's own usage record of the
+	// turn TurnID names. A send that names a turn without it is written
+	// "unmetered" and alerts, so a gap is never read as zero tokens.
+	Usage *UsageReport `json:"usage,omitempty"`
+
 	// sent
 	MsgID    string `json:"msg_id,omitempty"`
 	TaskID   string `json:"task_id,omitempty"`
@@ -317,6 +332,47 @@ type Frame struct {
 	Error  string `json:"error,omitempty"`
 	Status int    `json:"status,omitempty"`
 	Detail string `json:"detail,omitempty"`
+}
+
+// UsageReport is what a seat reports of one turn (specs/121 section 7), from
+// the model's own usage record: the provider and model that ran it and its
+// token counts. CacheRead and CacheWrite are the prompt-cache reads and
+// writes the provider bills apart from TokensIn.
+type UsageReport struct {
+	TurnID     string `json:"turn_id"`
+	Provider   string `json:"provider"`
+	Model      string `json:"model"`
+	TokensIn   int64  `json:"tokens_in"`
+	TokensOut  int64  `json:"tokens_out"`
+	CacheRead  int64  `json:"cache_read"`
+	CacheWrite int64  `json:"cache_write"`
+}
+
+// UsageTokensMax caps one count of a report: far above any model's context,
+// far below what numeric arithmetic on the ledger could overflow.
+const UsageTokensMax = int64(1) << 40
+
+// usageProviderRe is rdb 0171's usage_events.provider CHECK.
+var usageProviderRe = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,63}$`)
+
+// Check is the shape rdb 0171 stores, so a bad report is named before the
+// hub writes it: a turn id of 1..100 bytes, a provider id, a model of
+// 1..200 printable bytes and every count in 0..UsageTokensMax.
+func (u *UsageReport) Check() error {
+	switch {
+	case u.TurnID == "" || len(u.TurnID) > 100:
+		return fmt.Errorf("usage: turn_id must be 1..100 bytes")
+	case !usageProviderRe.MatchString(u.Provider):
+		return fmt.Errorf("usage: provider %q is not a provider id", u.Provider)
+	case u.Model == "" || len(u.Model) > 200 || strings.IndexFunc(u.Model, unicode.IsControl) >= 0:
+		return fmt.Errorf("usage: model must be 1..200 printable bytes")
+	}
+	for _, n := range []int64{u.TokensIn, u.TokensOut, u.CacheRead, u.CacheWrite} {
+		if n < 0 || n > UsageTokensMax {
+			return fmt.Errorf("usage: a token count %d is outside 0..%d", n, UsageTokensMax)
+		}
+	}
+	return nil
 }
 
 // Envelope is the box-signed hub envelope (trust-modes §5). Msg is kept as the

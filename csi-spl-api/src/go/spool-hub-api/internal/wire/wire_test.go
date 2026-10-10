@@ -3,7 +3,9 @@ package wire
 import (
 	"bytes"
 	"crypto/ed25519"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -235,5 +237,56 @@ func TestEnvelopeEscapedInnerStillVerifies(t *testing.T) {
 	fresh, _ := NewEnvelope(fixedKey(), "box-a", "box-b", fixedMsg())
 	if bytes.Contains(fresh.Msg, []byte(`\u00`)) || fresh.Sig != old.Sig {
 		t.Fatalf("fresh inner %s sig %s, want unescaped inner and sig %s", fresh.Msg, fresh.Sig, old.Sig)
+	}
+}
+
+// TestUsageReportFrame (specs/121 T302): a send frame carries turn_id and
+// the usage report under the spec's keys; a frame from an older box has
+// neither and decodes to a nil report (unmetered, never zero tokens); Check
+// refuses what rdb 0171 would.
+func TestUsageReportFrame(t *testing.T) {
+	u := &UsageReport{TurnID: "11111111-1111-4111-8111-111111111111", Provider: "anthropic", Model: "claude-x",
+		TokensIn: 1200, TokensOut: 340, CacheRead: 9000, CacheWrite: 50}
+	raw, err := json.Marshal(Frame{Type: TSend, TurnID: u.TurnID, Usage: u})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{`"turn_id":"11111111-`, `"provider":"anthropic"`, `"model":"claude-x"`, `"tokens_in":1200`,
+		`"tokens_out":340`, `"cache_read":9000`, `"cache_write":50`} {
+		if !strings.Contains(string(raw), k) {
+			t.Errorf("send frame %s lacks %s", raw, k)
+		}
+	}
+	var f Frame
+	if err := json.Unmarshal(raw, &f); err != nil || f.Usage == nil || *f.Usage != *u {
+		t.Fatalf("round trip: %+v (%v)", f.Usage, err)
+	}
+	var old Frame
+	if err := json.Unmarshal([]byte(`{"type":"send","env":{}}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if old.Usage != nil || old.TurnID != "" {
+		t.Errorf("an older box's frame decodes to usage %+v turn %q, want none", old.Usage, old.TurnID)
+	}
+	if b, _ := json.Marshal(Frame{Type: TSend}); strings.Contains(string(b), "usage") || strings.Contains(string(b), "turn_id") {
+		t.Errorf("a frame without a report writes %s: an older hub must see no new key", b)
+	}
+	if err := u.Check(); err != nil {
+		t.Errorf("a good report: %v", err)
+	}
+	for name, bad := range map[string]func(*UsageReport){
+		"no turn":       func(r *UsageReport) { r.TurnID = "" },
+		"long turn":     func(r *UsageReport) { r.TurnID = strings.Repeat("t", 101) },
+		"provider":      func(r *UsageReport) { r.Provider = "Anthropic" },
+		"no model":      func(r *UsageReport) { r.Model = "" },
+		"control model": func(r *UsageReport) { r.Model = "a\nb" },
+		"negative":      func(r *UsageReport) { r.TokensOut = -1 },
+		"too many":      func(r *UsageReport) { r.CacheRead = UsageTokensMax + 1 },
+	} {
+		r := *u
+		bad(&r)
+		if r.Check() == nil {
+			t.Errorf("%s: Check passed %+v", name, r)
+		}
 	}
 }

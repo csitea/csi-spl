@@ -671,11 +671,17 @@ type Claims struct {
 	// `spool send --ref`). The hub keeps it only when the sender may read
 	// the topic, and never sets it on msg.Message (internal/hub/dm_ref.go).
 	RefTaskID string
+	// TurnID is the turn this post closes, the msg_id of the delivered
+	// message it answers, and Usage the model's own usage record of that
+	// turn (specs/121 section 7, internal/spool/usage_report.go). A turn
+	// without Usage is metered as "unmetered" by the hub.
+	TurnID string
+	Usage  *wire.UsageReport
 }
 
 // SendClaims is Send with cl on the frame.
 func (s *Session) SendClaims(ctx context.Context, env *wire.Envelope, cl Claims) (wire.Frame, error) {
-	return s.sendFrame(ctx, env, wire.Frame{TypedBy: cl.TypedBy, RefTaskID: cl.RefTaskID})
+	return s.sendFrame(ctx, env, wire.Frame{TypedBy: cl.TypedBy, RefTaskID: cl.RefTaskID, TurnID: cl.TurnID, Usage: cl.Usage})
 }
 
 // SendAnswer is Send for a post that answers msg answers (spec 068 4.2),
@@ -685,7 +691,7 @@ func (s *Session) SendAnswer(ctx context.Context, env *wire.Envelope, answers st
 }
 
 // sendFrame sends env on a send frame carrying extra's typed_by /
-// ref_task_id / answers.
+// ref_task_id / answers / turn_id / usage.
 func (s *Session) sendFrame(ctx context.Context, env *wire.Envelope, extra wire.Frame) (wire.Frame, error) {
 	raw, err := env.Marshal()
 	if err != nil {
@@ -697,7 +703,8 @@ func (s *Session) sendFrame(ctx context.Context, env *wire.Envelope, extra wire.
 	}
 	id := m.MsgID
 	send := func() (wire.Frame, error) {
-		return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: extra.TypedBy, RefTaskID: extra.RefTaskID, Answers: extra.Answers, IfGen: extra.IfGen}, wire.TSent,
+		return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: extra.TypedBy, RefTaskID: extra.RefTaskID, Answers: extra.Answers, IfGen: extra.IfGen,
+			TurnID: extra.TurnID, Usage: extra.Usage}, wire.TSent,
 			func(r wire.Frame) bool { return r.MsgID == id || (r.Type == wire.TError && r.MsgID == "") })
 	}
 	f, err := send()

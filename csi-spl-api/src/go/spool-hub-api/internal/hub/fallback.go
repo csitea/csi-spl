@@ -258,7 +258,7 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	if !s.fallbackTake(ctx, rec, esc, log) {
 		return
 	}
-	f := wire.Frame{Type: wire.TRecv, Env: canon, Agents: []string{agent}, Fallback: where}
+	f := wire.Frame{Type: wire.TRecv, Env: canon, Agents: []string{agent}, Fallback: where, TurnID: m.MsgID}
 	if err := b.x.write(ctx, f); err != nil {
 		log.Warn().Err(err).Str("box", b.box).Str("agent", agent).Msg("fallback write failed")
 		return

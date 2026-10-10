@@ -85,6 +85,7 @@ _gcp_s3_download_all_auth() {
   fi
 
   ${GCLOUD} config set project "${GCP_PROJECT}" 2>/dev/null
+  return 0
 }
 
 # _gcp_s3_download_all_bucket <bucket_url>: syncs one bucket into TARGET_DIR,

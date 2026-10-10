@@ -1,0 +1,6 @@
+Lay-What: On a computer the sign-in page now looks like the phone page: one centred column, a little wider.
+Lay-How: The headline, the text, the sample channel and the sign-in box now stand one under the other in the middle.
+Lay-Why: The owner liked the phone layout and asked for the same on a computer.
+Tech-What: WUI login.vue: the desktop grid is the phone's single column, 760 px wide, the sign-in card 520 px centred.
+Tech-How: .login-front__main is one grid column (intro, hero, card) at every width; the 820 px media rule keeps only phone sizes.
+Tech-Why: The two-column grid (intro + hero left, 360 px card right) is replaced by the owner's request, HUM-10 3e952daf.

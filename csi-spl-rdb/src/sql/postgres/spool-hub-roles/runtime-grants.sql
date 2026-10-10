@@ -31,6 +31,21 @@ REVOKE INSERT, UPDATE, DELETE ON spool_schema_migrations FROM :"runtime_role";
 -- delete still removes its entries through the FK cascade (run as the owner).
 REVOKE UPDATE, DELETE ON workspace_doc_rev_log FROM :"runtime_role";
 
+-- spec 119 7.5 (rdb 0168): the personal realm, named grants only and no
+-- default privileges in `personal`, so a later realm table is invisible to
+-- the hub until it is granted here by name. hours_receipts is append-only:
+-- a receipt is removed only through personal.delete_my_receipts (OQ-4 A),
+-- which runs as NOLOGIN spool_realm_eraser; personal.due_receipts (the
+-- sweep's read, 8.1) runs as NOLOGIN spool_realm_sweeper. The runtime login
+-- is a member of neither, and spool_search_reader gets no USAGE here.
+GRANT USAGE ON SCHEMA personal TO :"runtime_role";
+GRANT SELECT, INSERT, UPDATE, DELETE ON personal.profile, personal.settings TO :"runtime_role";
+GRANT SELECT, INSERT ON personal.hours_receipts TO :"runtime_role";
+GRANT SELECT, INSERT, UPDATE ON personal.receipt_due TO :"runtime_role";
+REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON personal.hours_receipts FROM :"runtime_role";
+REVOKE DELETE, TRUNCATE, REFERENCES, TRIGGER ON personal.receipt_due FROM :"runtime_role";
+GRANT EXECUTE ON FUNCTION personal.delete_my_receipts(text), personal.due_receipts(timestamptz) TO :"runtime_role";
+
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO :"runtime_role";

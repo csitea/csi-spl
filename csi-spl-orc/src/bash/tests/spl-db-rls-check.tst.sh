@@ -18,6 +18,12 @@
 #      second definer it can EXECUTE is `liftable` (exit 5, names it), so is
 #      a spool_search_candidates in another schema. CONTROL: a definer
 #      revoked from PUBLIC and a plain (INVOKER) function add no path.
+#   8. (spec 119 T-C1, rdb 0168) the personal tables count as forced tables:
+#      one without FORCE is exit 4 and named personal.<t>; owning one is a
+#      lift path. On real Postgres personal.due_receipts and
+#      personal.delete_my_receipts are allow-listed by exact name (exit 0).
+#      CONTROL: a third definer in personal, and a due_receipts in another
+#      schema, are each exit 5 and named.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -59,6 +65,17 @@ o=$(verdict "$LIFT" 1 0)
 [[ "$o" == "rc=0 OK"*"0021 fail-closed applied=True"*"liftable=1"* ]] && pass "without EXPECT_NOT_LIFTABLE: exit 0, reports 0021 and liftable=1" || fail "liftable report: $o"
 o=$(verdict '{"role":"hub","superuser":false,"bypassrls":false,"migration_0014":true,"liftable":[],"tables":'"$ALL"'}' 1 1)
 [[ "$o" == "rc=0 OK"*"liftable=0"* ]] && pass "CONTROL: a non-owner login passes EXPECT_NOT_LIFTABLE=1" || fail "not liftable: $o"
+# --- 8. personal tables (spec 119 T-C1) -------------------------------------------------
+o=$(verdict '{"role":"hub","superuser":false,"bypassrls":false,"migration_0014":true,"tables":'"$ALL"',"personal_tables":{"personal.profile":[true,true],"personal.settings":[true,false]}}' 1)
+[[ "$o" == "rc=4 FAIL"*"3/4"*"personal.settings"* ]] && pass "8. EXPECT_RLS=1 with a personal table lacking FORCE is exit 4 and names it" || fail "8. personal unforced: $o"
+o=$(verdict '{"role":"hub","superuser":false,"bypassrls":false,"migration_0014":true,"liftable":[],"tables":'"$ALL"',"personal_tables":{"personal.profile":[true,true]}}' 1 1)
+[[ "$o" == "rc=0 OK"*"3/3"* ]] && pass "8. CONTROL: every tenant and personal table forced: exit 0, counts both" || fail "8. personal forced: $o"
+o=$(verdict '{"role":"hub","superuser":false,"bypassrls":false,"migration_0014":true,"tables":{},"personal_tables":{"personal.profile":[true,true]}}' 1)
+[[ "$o" == "rc=4 FAIL"* ]] && pass "8. personal tables alone do not stand in for the tenant tables (exit 4)" || fail "8. no tenant tables: $o"
+sql8=$(SNIPPET=spl_db_rls_sql in_orc 2>&1)
+grep -q "'personal_tables'" <<<"$sql8" && grep -q "owner of personal." <<<"$sql8" && pass "8. SQL reads the personal tables and their owners" || fail "8. SQL lacks personal"
+grep -q "p.proname IN ('due_receipts', 'delete_my_receipts')" <<<"$sql8" && pass "8. SQL allow-lists the two realm definers by exact name" || fail "8. SQL lacks the realm allow-list"
+
 # --- 4. SQL -------------------------------------------------------------------------
 sql=$(SNIPPET=spl_db_rls_sql in_orc 2>&1)
 grep -qE '\b(messages|deliveries|pins|tenants|roster)\b' <<<"$sql" && fail "SQL reads a data table" || pass "SQL reads no data table"
@@ -121,6 +138,40 @@ EOF
   su_sql <<<"SET ROLE own; DROP FUNCTION public.second_definer(); CREATE SCHEMA other; CREATE FUNCTION other.spool_search_candidates() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 1'; GRANT USAGE ON SCHEMA other TO rt;"
   o=$(live)
   [[ "$o" == "rc=5 "*"other.spool_search_candidates"* ]] && pass "7. the allow-list is schema-exact: other.spool_search_candidates is liftable" || fail "7. other schema: $o"
+  # 8. spec 119 (rdb 0168): the two realm definers, each owned by a NOLOGIN role, EXECUTE granted to the runtime
+  su_sql <<'EOF'
+DROP FUNCTION other.spool_search_candidates();
+CREATE ROLE spool_realm_sweeper NOLOGIN NOBYPASSRLS;
+CREATE ROLE spool_realm_eraser NOLOGIN NOBYPASSRLS;
+CREATE SCHEMA personal AUTHORIZATION own;
+GRANT USAGE, CREATE ON SCHEMA personal TO spool_realm_sweeper, spool_realm_eraser;
+GRANT USAGE ON SCHEMA personal TO rt;
+SET ROLE own;
+CREATE TABLE personal.receipt_due (person_id text NOT NULL, workspace_id text NOT NULL);
+ALTER TABLE personal.receipt_due ENABLE ROW LEVEL SECURITY;
+ALTER TABLE personal.receipt_due FORCE ROW LEVEL SECURITY;
+SET ROLE spool_realm_sweeper;
+CREATE FUNCTION personal.due_receipts(now timestamptz) RETURNS TABLE (person_id text, workspace_id text)
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 'SELECT NULL::text, NULL::text WHERE false';
+REVOKE ALL ON FUNCTION personal.due_receipts(timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION personal.due_receipts(timestamptz) TO rt;
+SET ROLE spool_realm_eraser;
+CREATE FUNCTION personal.delete_my_receipts(workspace_id text) RETURNS int
+  LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 'SELECT 0';
+REVOKE ALL ON FUNCTION personal.delete_my_receipts(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION personal.delete_my_receipts(text) TO rt;
+EOF
+  o=$(live)
+  [[ "$o" == "rc=0 "*'"personal.receipt_due" : [true, true]'*"liftable=0"* ]] && pass "8. the two realm definers are allow-listed and personal.receipt_due counts as forced: exit 0" || fail "8. realm allow-list: $o"
+  su_sql <<<"SET ROLE spool_realm_eraser; CREATE FUNCTION personal.delete_all_receipts() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 0';"
+  o=$(live)
+  [[ "$o" == "rc=5 "*"FAIL"*"SECURITY DEFINER personal.delete_all_receipts (runs as spool_realm_eraser)"* ]] && pass "8. CONTROL: an unlisted definer in personal is liftable, exit 5, named" || fail "8. unlisted personal definer: $o"
+  su_sql <<<"DROP FUNCTION personal.delete_all_receipts(); SET ROLE own; CREATE FUNCTION other.due_receipts() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';"
+  o=$(live)
+  [[ "$o" == "rc=5 "*"other.due_receipts"* ]] && pass "8. CONTROL: the realm allow-list is schema-exact: other.due_receipts is liftable" || fail "8. other.due_receipts: $o"
+  su_sql <<<"DROP FUNCTION other.due_receipts(); ALTER TABLE personal.receipt_due OWNER TO rt;"
+  o=$(live)
+  [[ "$o" == "rc=5 "*"owner of personal.receipt_due"* ]] && pass "8. owning a personal table is a lift path, exit 5, named" || fail "8. personal owner: $o"
 else
   echo "SKIP: 7. no cached $IMG image or no psql: real-Postgres leg not run"
 fi

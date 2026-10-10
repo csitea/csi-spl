@@ -34,6 +34,9 @@
 #      rewrites nothing; a hand edit is kept and named, --force-skills
 #      replaces it with a backup; a foreign same-named file is never touched;
 #      the tmux snippet lands in <data>; --no-skills renders nothing
+#  10b. a home with ~/.vibe (mistral) gets every skill in ~/.vibe/skills,
+#      /exit-clean with its ACCEPTED rule; a re-run writes nothing; control:
+#      the old install (no vibe target) leaves ~/.vibe/skills absent
 #  11. a vendor URL that returns no script: that CLI is named, never run, the
 #      other CLIs and the harness still install, and the run exits 4
 #  12. spec 072 A49: a default install writes no fleet CLAUDE.md, no ~/.vibe/AGENTS.md,
@@ -394,6 +397,25 @@ ARGS=(--cli none --no-seat --force-skills); inst; rc=$?
 rm -rf "$H/.claude/commands"
 ARGS=(--cli none --no-seat --no-skills); inst
 [[ ! -e "$H/.claude/commands" ]] && pass "10. --no-skills renders nothing" || fail "10. --no-skills rendered"
+
+# --- 10b. mistral: the skills into ~/.vibe/skills (vibe 2.26.0 reads them) -------------------------
+H0="$H"; H="$T/home-vibe"; mkdir -p "$H/.vibe"
+sed 's/^  \[ -d "\$HOME\/.vibe" \] && VIBE_SKILLS=1$/  :/' "$INSTALL" >"$CTL"
+if cmp -s "$INSTALL" "$CTL"; then fail "10b. control: the sed found no ~/.vibe line to disable"
+else
+  INSTALL0="$INSTALL"; INSTALL="$CTL"; ARGS=(--cli none --no-seat); inst; rc=$?; INSTALL="$INSTALL0"
+  [[ $rc -eq 0 && ! -e "$H/.vibe/skills" ]] && pass "10b. CONTROL: the old install leaves ~/.vibe/skills absent" || fail "10b. control: rc $rc $(ls -R "$H/.vibe" 2>&1 | sed -n 1,10p)"
+fi
+rm -f "$CTL"
+ARGS=(--cli none --no-seat); inst; rc=$?
+VS="$H/.vibe/skills"
+n_vs="$(for k in "$ASSETS"/skills/*/; do k="${k%/}"; [ -f "$VS/${k##*/}/SKILL.md" ] && echo; done | wc -l)"
+[[ $rc -eq 0 && "$n_vs" == "$n_sk" ]] && pass "10b. a home with ~/.vibe gets every skill ($n_sk) in ~/.vibe/skills" || fail "10b. vibe skills: rc $rc $n_vs/$n_sk $(cat "$T/o")"
+grep -qF 'whose body starts with `ACCEPTED`' "$VS/exit-clean/SKILL.md" && ! grep -rqE '\{\{[A-Z_]+\}\}' "$VS" &&
+  pass "10b. ~/.vibe/skills/exit-clean carries the ACCEPTED rule, no placeholder left" || fail "10b. exit-clean: $(head -20 "$VS/exit-clean/SKILL.md")"
+ARGS=(--cli none --no-seat); inst; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'skills: 0 written' "$T/o" && pass "10b. a re-run writes nothing" || fail "10b. re-run: rc $rc $(grep skills "$T/o")"
+H="$H0"
 
 # --- 11. one vendor's bad day ---------------------------------------------------------------------
 printf '\x7fELF-not-a-script' >"$T/www/agy-binary"

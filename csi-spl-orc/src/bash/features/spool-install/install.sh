@@ -846,15 +846,21 @@ if [ "$SKILLS" = 1 ]; then
   for c in "${CLI_LIST[@]}"; do [ "$c" = agy ] && AGY_SKILLS=1; done
   [ -d "$HOME/.gemini" ] && AGY_SKILLS=1
   [ "$AGY_SKILLS" = 1 ] && { y5_adopt_agy_skills "$HOME" "$HARNESS_DIR/assets" || die 7 "cannot hand the engine's agy skills over"; }
+  # mistral's vibe reads ~/.vibe/skills (2.26.0): without them an m- lane had
+  # no /exit-clean at all and every one was closed by an orchestrator.
+  VIBE_SKILLS=0
+  for c in "${CLI_LIST[@]}"; do [ "$c" = mistral ] && VIBE_SKILLS=1; done
+  [ -d "$HOME/.vibe" ] && VIBE_SKILLS=1
   if [ "$DRY" = 1 ]; then
-    plan "render $HARNESS_DIR/assets commands + skills into $HOME/.claude$([ "$QWEN_SKILLS" = 1 ] && echo " and $HOME/.qwen/skills")$([ "$AGY_SKILLS" = 1 ] && echo " and $HOME/.gemini/config/skills") (hand-edited files kept)"
+    plan "render $HARNESS_DIR/assets commands + skills into $HOME/.claude$([ "$QWEN_SKILLS" = 1 ] && echo " and $HOME/.qwen/skills")$([ "$AGY_SKILLS" = 1 ] && echo " and $HOME/.gemini/config/skills")$([ "$VIBE_SKILLS" = 1 ] && echo " and $HOME/.vibe/skills") (hand-edited files kept)"
     plan "copy the tmux snippet to $DATA/tmux-agent-status.conf"
   else
     python3 - "$HARNESS_DIR/assets" "$HOME" "$QWEN_SKILLS" "$FORCE_SKILLS" \
-      "$HARNESS_DIR" "${SPOOL_ROOT:-$ROOT_DEFAULT}" "${SPOOL_AGENT_CEILING:-40}" "${SPOOL_ORCHESTRATOR_ID:-orchestrator}" "$AGY_SKILLS" <<'EOF_PY' || die 6 "cannot render the harness skills"
+      "$HARNESS_DIR" "${SPOOL_ROOT:-$ROOT_DEFAULT}" "${SPOOL_AGENT_CEILING:-40}" "${SPOOL_ORCHESTRATOR_ID:-orchestrator}" "$AGY_SKILLS" "$VIBE_SKILLS" <<'EOF_PY' || die 6 "cannot render the harness skills"
 import hashlib, os, re, sys
 assets, home, qwen, force, harness, root, ceiling, orc = sys.argv[1:9]
 agy = sys.argv[9] if len(sys.argv) > 9 else "0"
+vibe = sys.argv[10] if len(sys.argv) > 10 else "0"
 MARK = re.compile(r"\n<!-- spool-install: sha256=([0-9a-f]{64}) -->\n?")
 subst = {"HARNESS_DIR": harness, "SPOOL_ROOT": root, "AGENT_CEILING": ceiling, "ORCHESTRATOR_ID": orc}
 def render(src):
@@ -875,6 +881,8 @@ for n in sorted(os.listdir(os.path.join(assets, "skills"))):
         jobs.append((src, os.path.join(home, ".qwen", "skills", n, "SKILL.md")))
     if agy == "1":
         jobs.append((src, os.path.join(home, ".gemini", "config", "skills", n, "SKILL.md")))
+    if vibe == "1":
+        jobs.append((src, os.path.join(home, ".vibe", "skills", n, "SKILL.md")))
 wrote = same = 0
 for src, dst in jobs:
     new = render(src)

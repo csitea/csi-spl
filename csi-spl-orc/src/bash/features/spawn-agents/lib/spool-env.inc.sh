@@ -19,7 +19,8 @@
 #   SPOOL_BOX_TAG       display tag on window names ("<tag>: CLE-07") default none
 #   SPOOL_ORCHESTRATOR_ID  who spawned agents report to   default c-001
 #   SPOOL_BIN           the spool binary            default: this repo's build
-#                       output, else `spool` on PATH
+#                       output, else `spool` on PATH. The seed names the
+#                       agent user's one instead: spool_agent_spool_bin
 #   SPOOL_NOTIFY_CMD    the terminal leg (specs/028): the command the spool
 #                       binary runs after a message lands in a local agent's
 #                       inbox, so the agent's pane SHOWS it. Default: this
@@ -340,6 +341,24 @@ spool_tmux_default_size() {
     if [ "$w" -gt "$bw" ]; then bw="$w"; best="${w}x${h}"; fi
   done < <("${SPOOL_TM[@]}" list-clients -F '#{client_width}x#{client_height}' 2>/dev/null)
   printf '%s' "${best:-$dflt}"
+}
+
+# The spool binary the AGENT USER can run, for the seed it reads (c-908 msg
+# 22a471ef). SPOOL_BIN is the spawner's: under its home (.local 0700) it is
+# rc 126 for an agent user that differs. Resolved AS the agent user, because
+# its PATH is what runs the seed's recv line; no answer (no sudo, no such
+# user) keeps SPOOL_BIN unless it sits in the spawner's home, then bare
+# `spool`. Guard: tests/test-seed-spool-bin.sh.
+spool_agent_spool_bin() {
+  local me b h
+  me="$(id -un)"
+  if [ "${SPOOL_AGENT_USER:-$me}" = "$me" ]; then printf '%s' "$SPOOL_BIN"; return 0; fi
+  b="$(sudo -n -u "$SPOOL_AGENT_USER" bash -lc 'command -v spool' </dev/null 2>/dev/null | tail -n 1)"
+  case "$b" in /*) printf '%s' "$b"; return 0 ;; esac
+  for h in "$HOME" "$(_spool_home_of "$me")"; do
+    case "$SPOOL_BIN" in "${h:-/nonexistent}"/*) printf 'spool'; return 0 ;; esac
+  done
+  printf '%s' "$SPOOL_BIN"
 }
 
 # ── Running a command as the agent user ─────────────────────────────────────

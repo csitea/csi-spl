@@ -221,6 +221,8 @@ The path, buildable:
      Q-2 = C answers that question with yes. Spec 108 is not changed here; its follow-up
      belongs to the dispatch holder (reported on dispatch-e001c851). Until
      108 is updated, the pool box role set and the mint path wait for it.
+     Resolved 2026-10-10 by 5ced76397: 108 section 3.5 now allows several
+     workspaces per box; nothing here waits for 108 any more.
 6. The box says hello, its key is pinned, and its state goes `ready`
    (section 10).
 
@@ -579,7 +581,7 @@ decision where section 13 differs.
 ### 14.2 Still open after the v1.1 fold
 
 None blocks build lanes 1 to 4 (section 11). Lane 5 needs RQ-3, RQ-4 and
-spec 108's update; lane 6 needs RQ-1. RQ-2 is needed before the first scale-in.
+spec 108's update (met 2026-10-10 by 5ced76397); lane 6 needs RQ-1. RQ-2 is needed before the first scale-in.
 
 - **RQ-1 Who switches to automatic when the paying count passes 5?**
   (0cbf4386 says automation starts then, not who turns it on.)

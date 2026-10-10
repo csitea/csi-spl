@@ -59,7 +59,7 @@ Every test is a pair with its control.
 - **agy-3** (extra agy seat, owner HUM-10 msg 8a50e06e): YES (agreed at spec `e83aa15b`, opinion 3a13a50e)
 - **agy-4** (extra agy seat, owner HUM-10 msg 8a50e06e): YES (agreed at spec `e83aa15b`, opinion b10abdf8)
 
-Overall: YES at e83aa15b (agy author a-552, agy-2, agy-3, agy-4, claude-a, claude-b). Owner questions 1-3 (section 7) still open; build waits for their answers.
+Overall: YES at e83aa15b (agy author a-552, agy-2, agy-3, agy-4, claude-a, claude-b). Owner question 1 (section 7) answered 2026-10-10: yes, a shared pool (spec 122 Q-2 = C, msgs b7ff5f4a / e95a0695, folded in 5ced76397). Questions 2-3 still open; build waits for their answers.
 
 ## 7. Owner Questions
 1. Is a second workspace on one machine allowed, as a second OS user + spool root? **ANSWERED: yes** (2026-10-10, spec 122 Q-2 = C "a shared pool, one OS user and spool root per workspace on a box", msg b7ff5f4a "c", confirmed msg e95a0695 "Yes"; folded into section 3.5).

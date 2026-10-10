@@ -337,6 +337,3 @@ function setup(key: 'main' | 'pane') {
 export function useLiveFeed(key: 'main' | 'pane' = 'main') {
   return defineStore(`live-${key}`, () => setup(key))()
 }
-
-/** 005 name kept for callers of the main feed. */
-export const useLiveStore = () => useLiveFeed('main')

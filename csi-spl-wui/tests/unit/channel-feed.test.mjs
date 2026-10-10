@@ -32,7 +32,6 @@ import {
   recipientOf,
   headerRecipientOf,
 } from '../../src/utils/channel-feed.mjs'
-import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
 import { mentionDisplay, namedLine, peopleLabels, personTitle, shownPerson } from '../../src/utils/channel-feed.mjs'
 
@@ -52,20 +51,6 @@ describe('channel-feed', () => {
     const topic = topicOf(MOCK_MESSAGES, task.task_id)
     assert.ok(topic.length >= 3)
     assert.equal(replyCount(MOCK_MESSAGES, task.task_id), topic.length - 1)
-  })
-
-  it('verbosity shows task/result/reject at minimal and notes at normal', () => {
-    const taskId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-    const topic = topicOf(MOCK_MESSAGES, taskId)
-    const min = applyVerbosity(topic, 'minimal')
-    const norm = applyVerbosity(topic, 'normal')
-    const verb = applyVerbosity(topic, 'verbose')
-    assert.equal(min.some((m) => m.kind === 'result'), true)
-    assert.equal(min.some((m) => m.kind === 'task'), true)
-    assert.equal(min.some((m) => m.kind === 'note'), false)
-    assert.equal(norm.some((m) => m.body === 'Applying patch'), true)
-    assert.equal(norm.some((m) => String(m.body).startsWith('[verbose]')), true)
-    assert.equal(verb.length, topic.length)
   })
 
   it('parses @mention into a task', () => {

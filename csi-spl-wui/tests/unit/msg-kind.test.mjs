@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url'
 import { MSG_KINDS, KIND_SETTER_ROLES, canSetKind, kindIcon } from '../../src/utils/msg-kind.mjs'
 import { normalizeViewMessage } from '../../src/utils/view-api.mjs'
 import { messageFromFrame } from '../../src/utils/live-ws.mjs'
-import { V1_KINDS, verbosityOf } from '../../src/utils/verbosity.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const API_MSG = join(WUI, '../csi-spl-api/src/go/spool-hub-api/internal/msg/msg.go')
@@ -22,7 +21,6 @@ describe('msg kinds (SPL-952)', () => {
     assert.ok(block, 'validKinds block found in msg.go')
     const hub = [...block[1].matchAll(/"([a-z]+)": true/g)].map((m) => m[1]).sort()
     assert.deepEqual([...MSG_KINDS].sort(), hub)
-    assert.deepEqual([...V1_KINDS].sort(), hub)
   })
 
   it('every kind has a glyph in uiIcons', () => {
@@ -45,11 +43,6 @@ describe('msg kinds (SPL-952)', () => {
       for (const k of ['change', 'menu', 'failed']) assert.ok(d.feed.kind_set[k], `${f} feed.kind_set.${k}`)
       assert.ok(d.feed.kind_set.change.includes('{kind}'), `${f} feed.kind_set.change names the kind`)
     }
-  })
-
-  it('a blocker shows even at minimal verbosity; msg is normal', () => {
-    assert.equal(verbosityOf('blocker'), 'minimal')
-    assert.equal(verbosityOf('msg'), 'normal')
   })
 
   it('who may set a kind: the author, a biz_owner or an admin (the hub rule)', () => {

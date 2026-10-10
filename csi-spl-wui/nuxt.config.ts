@@ -270,7 +270,8 @@ const I18N_SPLIT_CORE = join(dirname(fileURLToPath(import.meta.url)), "i18n/.spl
  * Never hint the second catalogues as prefetch: a page needs one of the 19,
  * which the plugin fetches itself when the browser is idle. And ship the core
  * ones' static messages as plain strings, as the second ones are (P3-20,
- * plainStatics; i18n/i18n.config.ts compiles them back).
+ * plainStatics; src/plugins/0.i18n-plain-messages.ts registers
+ * src/utils/i18n-plain-messages.mjs, which compiles them back).
  */
 function i18nSplitModule(_options: unknown, nuxt: { hook: (name: "build:manifest", fn: (m: Record<string, { prefetch?: boolean }>) => void) => void }) {
   if (!I18N_SPLIT) return

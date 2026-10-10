@@ -71,11 +71,6 @@ let active = null
 /** Stops the passive observers startPerfRum installed. */
 let unobserve = null
 
-/** The running collector (tests, the L6 observers), or null. */
-export function perfCollector() {
-  return active
-}
-
 /** A random lowercase uuid, or '' when the browser has no crypto. */
 export function perfSessionId(c = globalThis.crypto) {
   try {

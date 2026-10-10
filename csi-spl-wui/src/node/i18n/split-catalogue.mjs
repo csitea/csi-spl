@@ -178,8 +178,8 @@ export function splitCatalogue(catalogue, keep, prefix = "") {
 // Perf round 3, P3-20: the compiled form of a message without a placeholder,
 // link, plural or escape is a fixed AST around its text. 1 123 of 1 271 `en`
 // messages are that; as the plain string they are about a third the bytes,
-// and nothing for vue-i18n to deep-copy or proxy. i18n/i18n.config.ts gives
-// vue-i18n a message compiler that turns such a string back into exactly
+// and nothing for vue-i18n to deep-copy or proxy. src/plugins/0.i18n-plain-messages.ts
+// registers src/utils/i18n-plain-messages.mjs, the message compiler that turns such a string back into exactly
 // what the AST would have produced.
 const STATIC_AST = /\{"t":0,"b":\{"t":2,"i":\[\{"t":3\}\],"s":("(?:[^"\\]|\\.)*")\}\}/g
 

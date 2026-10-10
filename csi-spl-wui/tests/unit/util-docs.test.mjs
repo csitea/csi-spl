@@ -1,8 +1,10 @@
 // Ratchet for prose docs on exported utils (refactor round 3, row 22).
 // An `export function` / `export async function` with no /** */ above it
-// counts. The count per src/utils/*.mjs may not rise. The five row-22
-// modules are pinned at 0. Ceilings are the other modules' counts on the
-// tree where those five were still bare (pane-widths 14/24, verbosity 6/6,
+// counts. The count per src/utils/*.mjs may not rise. The row-22 modules
+// left are pinned at 0 (four; r5-01 deleted the fifth, verbosity.mjs,
+// as dead code).
+// Ceilings are the other modules' counts on the tree where those five
+// were still bare (pane-widths 14/24, verbosity 6/6,
 // slash-focus 5/6, font-size 5/7, theme 4/7). Types stay in mjs-shims.d.ts;
 // this file does not require @param tags.
 //
@@ -49,7 +51,6 @@ const PIN_ZERO = [
   'pane-widths.mjs',
   'slash-focus.mjs',
   'theme.mjs',
-  'verbosity.mjs',
 ]
 
 // Floor on how many exports the scanner must see, so a blind walk cannot pass.
@@ -58,7 +59,6 @@ const PIN_TOTAL_AT_LEAST = {
   'pane-widths.mjs': 24,
   'slash-focus.mjs': 6,
   'theme.mjs': 7,
-  'verbosity.mjs': 6,
 }
 
 // bare count at landing for every other module that was already above 0.
@@ -115,7 +115,7 @@ describe('util doc ratchet', () => {
     assert.equal(bareExportNames('export const A = 1\n').total, 0)
   })
 
-  it('the five row-22 modules export nothing without a doc', () => {
+  it('the row-22 modules export nothing without a doc', () => {
     for (const name of PIN_ZERO) {
       const r = bareExportNames(readUtil(name))
       assert.equal(r.bare, 0, `${name} undocumented: ${r.names.join(', ')}`)
@@ -143,10 +143,6 @@ describe('util doc ratchet', () => {
   })
 
   it('pins the row-22 notes that are not just a missing doc', () => {
-    const verbosity = readUtil('verbosity.mjs')
-    assert.match(verbosity, /export const STORAGE_KEY = 'spool\.verbosity'/)
-    assert.match(verbosity, /<FEATURE>_KEY/)
-    assert.match(verbosity, /Returns a copy/)
     const font = readUtil('font-size.mjs')
     const theme = readUtil('theme.mjs')
     for (const src of [font, theme]) {

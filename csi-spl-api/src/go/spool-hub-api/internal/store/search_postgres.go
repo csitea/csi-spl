@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/search"
 )
 
@@ -628,7 +629,7 @@ func (s *Postgres) TenantHumans(ctx context.Context, tenant string) ([]HumanEntr
 	}
 	err := s.queryTenant(ctx, tenant, `SELECT h.human_id, coalesce(h.display_name, ''), coalesce(h.avatar_file_id, '')`+cols+`
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id`+join+`
-		WHERE m.tenant_id = $1 AND h.disabled_at IS NULL AND NOT h.technical`, args, func(rows pgx.Rows) error {
+		WHERE m.tenant_id = $1 AND h.disabled_at IS NULL AND NOT h.technical AND m.role <> '`+rbac.ChannelGuest+`'`, args, func(rows pgx.Rows) error {
 		var e HumanEntry
 		if cols == "" {
 			if err := rows.Scan(&e.HumanID, &e.DisplayName, &e.AvatarFileID); err != nil {

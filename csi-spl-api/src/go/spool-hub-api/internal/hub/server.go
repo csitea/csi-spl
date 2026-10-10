@@ -212,6 +212,13 @@ type Options struct {
 	// (specs/077 T012, demo_post_quota.go); <= 0 = the Default*.
 	DemoPostsPerMinute int
 	DemoPostsPerDay    int
+	// EmbedEnabled is cnf env.hub.embed.enabled (specs/121, off until T207):
+	// off, every /v1/embed/* route answers as an unknown path.
+	// EmbedTokenLife is the visitor token's sliding life and hard cap;
+	// EmbedMessageMaxBytes the bytes of one visitor post (embed_visitor.go).
+	EmbedEnabled         bool
+	EmbedTokenLife       store.EmbedTokenLife
+	EmbedMessageMaxBytes int
 }
 
 // Server is one hub process.
@@ -391,14 +398,7 @@ func (s *Server) Handler() http.Handler {
 	s.routeOperator(mux)       // CLE-77780: backend invite create/mail/revoke
 	s.routeTenantSettings(mux) // specs/046
 	s.routeWorkItems(mux)      // specs/039 issues, specs/089 calendar
-	s.routePerfIngest(mux)     // spec 066 L2: POST /v1/perf/samples, fire-and-forget
-	s.routePerfSummary(mux)    // spec 066 L3: GET /v1/admin/perf/summary
-	s.routeReleaseNotes(mux)   // spec 065 L4: /v1/release-notes + the operator ingest
-	s.routeDocs(mux)           // the Docs section: GET /v1/docs/{path...}
-	s.routeOpenAPI(mux)        // spec 104 §4.2: GET /v1/openapi.json
-	s.routeWorkspaceDocs(mux)  // specs/075 Phase 2: /v1/workspace/docs/{path...}
-	s.routeDocTree(mux)        // spec 113 T004: /v1/workspace/doctree (outline + grid)
-	s.routeBoxStats(mux)       // rdb 0117: GET /v1/tenant/box-stats
+	s.routeSections(mux)       // perf, release notes, docs, box stats, the embed
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)
@@ -416,6 +416,20 @@ func (s *Server) Handler() http.Handler {
 		return s.middleware(compressJSON(s.authCORS(inner)))
 	}
 	return s.middleware(compressJSON(inner))
+}
+
+// routeSections mounts the self-contained sections, one routeX each, so
+// Handler stays within the clean-code gate's 80 lines (SPL-1036).
+func (s *Server) routeSections(mux *http.ServeMux) {
+	s.routePerfIngest(mux)    // spec 066 L2: POST /v1/perf/samples, fire-and-forget
+	s.routePerfSummary(mux)   // spec 066 L3: GET /v1/admin/perf/summary
+	s.routeReleaseNotes(mux)  // spec 065 L4: /v1/release-notes + the operator ingest
+	s.routeDocs(mux)          // the Docs section: GET /v1/docs/{path...}
+	s.routeOpenAPI(mux)       // spec 104 §4.2: GET /v1/openapi.json
+	s.routeWorkspaceDocs(mux) // specs/075 Phase 2: /v1/workspace/docs/{path...}
+	s.routeDocTree(mux)       // spec 113 T004: /v1/workspace/doctree (outline + grid)
+	s.routeBoxStats(mux)      // rdb 0117: GET /v1/tenant/box-stats
+	s.routeEmbedVisitor(mux)  // specs/121 T104: /v1/embed/{embed_id}/*, off unless EmbedEnabled
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

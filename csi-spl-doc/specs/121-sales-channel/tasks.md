@@ -64,7 +64,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | **T101** | **lane A: DDL `embed_visitors`, `embed_customers`, channel-scope RLS + negative tests** | 1 | - | build | claude |
 | T102 | store: `inChannel`, visitor and embed rows | 1 | T101 applied dev+prd | done | claude |
 | T103 | cnf `env.hub.embed.*` + config reader | 1 | - | done (7b1e4f47e) | claude |
-| T104 | hub: visitor token, `channel_guest` role, read/post/erase in its channel | 1 | T102, T103 | build | claude |
+| T104 | hub: visitor token, `channel_guest` role, read/post/erase in its channel | 1 | T102, T103 | done | claude |
 | T106 | hub: `#sales` triage line, retention, lead mark, block, export exclusion | 1 | T104 | build | claude |
 | T106b | WUI: "Visitors" rail group, lead / block buttons | 1 | T106 | build | mistral or grok |
 | T105 | hub: abuse limits, proof-of-work gate, bans, token sweep | 2 | T104 | build | claude |
@@ -134,7 +134,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   of `csi-spl-cnf/csi-spl/all.env.yaml`; the rendered `dev` / `prd` env
   files; `GO/config/config.go` + `config_test.go`. Done: `ENV=<env> ./run
   -a do_tpl_gen` + `git diff --exit-code` on both envs.
-- [ ] T104 **hub visitor API** (claude; needs T102, T103). `POST
+- [x] T104 **hub visitor API** (claude; needs T102, T103). `POST
   /v1/embed/<embed-id>/visitor`; the bearer token path for a
   `channel_guest` (never a cookie); the `ChannelGuest` system role, kept
   out of `rbac.RoleIDs`; read, post (4 KB text, no file) and delete-own-
@@ -144,6 +144,21 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `_test.go` (*new*; the existing auth files are not edited). Done: a
   visitor sees no channel list, people list, docs or search outside its
   channel (one test each); a staff session is unchanged.
+  Built (c-914): `POST|DELETE /v1/embed/{embed_id}/visitor` (mint 201,
+  erasure 204), `GET|POST /v1/embed/{embed_id}/messages` (newest lines, no
+  sender id; one text line, 413 over `message_max_bytes`, no file or channel
+  field). `auth.NewEmbedToken` / `auth.EmbedBearer` read the token from
+  `Authorization` only. `hub.Options.EmbedEnabled` (+ `EmbedTokenLife`,
+  `EmbedMessageMaxBytes`) from cnf; off, every route answers as an unknown
+  path. Store: `GO/store/embed_visitor_messages.go` (`EmbedVisitors`:
+  read, post, erase, all under `inChannel`, in `embedVisitorPath`). The
+  `rbac` role was T102's, unchanged here. Member lists leave out
+  `channel_guest`: `ListMembers`, `Memberships`, `TenantAvatars`, the seat
+  cap count (`humans_postgres.go`), `TenantHumans` (`search_postgres.go`)
+  and `CountMembers` (`seats_postgres.go`). Tests:
+  `GO/hub/embed_visitor_test.go`, `GO/store/embed_visitor_messages_test.go`,
+  `GO/auth/embed_bearer_test.go`. Left for T105: the visitor's `ip_hash`
+  (minted NULL), the limits and the challenge.
 - [ ] T106 **hub staff side** (claude; needs T104). One `#sales` triage
   line (a link, never the text) on a new visitor channel and on a first
   post after 24 h quiet; retention sweep (30 days after the last message,
@@ -250,7 +265,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 
 ### Phase 3: agent answers and metering (spec 3.3, 4.3, 7)
 
-- [ ] T301 **rdb, metering DDL** (claude; needs T101 landed, so the two
+- [x] T301 **rdb, metering DDL** (68af8662e, rdb 0171, live dev+prd) (claude; needs T101 landed, so the two
   migrations do not race for one number). `usage_events` (append-only,
   tenant RLS, the kinds of `spec.md` 7 plus `unmetered`), `model_prices`
   (provider, model, kind, micros per million, valid_from), `token_budgets`

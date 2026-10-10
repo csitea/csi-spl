@@ -292,7 +292,9 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		TopicHeads: hc.TopicHeads, TopicHeadsSample: hc.TopicHeadsSample, // spec 099 5.1
 		OriginTenant: originTenant, OperatorTenant: hc.OperatorWorkspace(), DemoWorkspace: hc.DemoTenant(), DemoAgentTurns: hc.DemoAgentTurns,
 		DemoMaxStay: hc.DemoMaxStay, DemoPostsPerMinute: hc.DemoPostsPerMinute, DemoPostsPerDay: hc.DemoPostsPerDay,
-		HelloTimeout: hc.HelloTimeout, PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout,
+		EmbedEnabled: hc.EmbedEnabled, EmbedMessageMaxBytes: hc.EmbedMessageMaxBytes, // specs/121 T104, and:
+		EmbedTokenLife: store.EmbedTokenLife{Sliding: hc.EmbedTokenIdleTTL, Cap: hc.EmbedTokenMaxAge}, HelloTimeout: hc.HelloTimeout,
+		PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout,
 		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion, MarketingWorkspaces: hc.MarketingWorkspaces,
 		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,
 			WSConnsPerIP: hc.EdgeWSConnsPerIP, WSConnsTotal: hc.EdgeWSConnsTotal,

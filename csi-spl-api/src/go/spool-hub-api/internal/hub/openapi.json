@@ -2812,6 +2812,259 @@
         ]
       }
     },
+    "/v1/embed/{embed_id}/messages": {
+      "get": {
+        "description": "The newest lines of the visitor's own channel, oldest first; no sender id. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104).",
+        "operationId": "getEmbedMessages",
+        "parameters": [
+          {
+            "description": "the embed id (the e= of the iframe URL)",
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "lines, 1..200 (default 100)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "messages": {
+                      "items": {
+                        "properties": {
+                          "body": {
+                            "type": "string"
+                          },
+                          "mine": {
+                            "description": "the visitor wrote it",
+                            "type": "boolean"
+                          },
+                          "msg_id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "received_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "the lines"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Read the embed visitor's channel",
+        "tags": [
+          "embed"
+        ]
+      },
+      "post": {
+        "description": "One text line into the visitor's own channel: body only, no file, at most env.hub.embed message_max_bytes (413 above). Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104).",
+        "operationId": "postEmbedMessage",
+        "parameters": [
+          {
+            "description": "the embed id (the e= of the iframe URL)",
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "body": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "body"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "msg_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "received_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "stored"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "body over the byte limit"
+          }
+        },
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Post in the embed visitor's channel",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
+    "/v1/embed/{embed_id}/visitor": {
+      "delete": {
+        "description": "Erasure on request (spec 121 4.4): the visitor's channel, its lines, its token and its HUM. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104).",
+        "operationId": "deleteEmbedVisitor",
+        "parameters": [
+          {
+            "description": "the embed id (the e= of the iframe URL)",
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "erased"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Erase the embed visitor",
+        "tags": [
+          "embed"
+        ]
+      },
+      "post": {
+        "description": "No session. Makes an anonymous visitor of an enabled embed: a channel_guest with one new channel. The token is in this response only; send it as Authorization: Bearer on the other embed routes, never as a cookie. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104).",
+        "operationId": "postEmbedVisitor",
+        "parameters": [
+          {
+            "description": "the embed id (the e= of the iframe URL)",
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "channel": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "token": {
+                      "description": "256-bit visitor token, unpadded base64url; the hub keeps only its sha256",
+                      "type": "string"
+                    },
+                    "visitor_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "the visitor"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [],
+        "summary": "Mint an embed visitor",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
     "/v1/files": {
       "post": {
         "operationId": "postFiles",

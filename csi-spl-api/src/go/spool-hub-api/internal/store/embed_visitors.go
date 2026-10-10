@@ -60,7 +60,8 @@ type EmbedVisitorMint struct {
 
 // embedVisitorPath is every store method a visitor request reaches (spec
 // 4.2: never inTenant). TestEmbedVisitorPathNeverInTenant walks their calls.
-var embedVisitorPath = []string{"EmbedCustomer", "EmbedVisitorByToken", "MintEmbedVisitor", "SlideEmbedVisitor", "ExpireEmbedVisitor"}
+var embedVisitorPath = []string{"EmbedCustomer", "EmbedVisitorByToken", "MintEmbedVisitor", "SlideEmbedVisitor", "ExpireEmbedVisitor",
+	"EmbedVisitorMessages", "PostEmbedVisitorMessage", "EraseEmbedVisitor"} // the last three: T104, embed_visitor_messages.go
 
 // newVisitorChannelID is a fresh visitor channel id: "v-" and 16 random hex
 // digits, a valid channel slug that no default or reserved id can match.

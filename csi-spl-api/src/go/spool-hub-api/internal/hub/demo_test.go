@@ -180,6 +180,11 @@ var demoOutOfReach = map[string]bool{
 	"POST /v1/pins":            true,
 	"DELETE /v1/pins/{box_id}": true,
 	"POST /v1/cicd-logs":       true,
+	// specs/121 T104: the embed visitor's bearer token, never a session; a
+	// session there is no visitor (embed_visitor_test.go)
+	"POST /v1/embed/{embed_id}/visitor":   true,
+	"DELETE /v1/embed/{embed_id}/visitor": true,
+	"POST /v1/embed/{embed_id}/messages":  true,
 }
 
 // marketingRoute(mux, "...") registers a spec 090 route behind its gate.

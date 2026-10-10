@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
 // Postgres side of seats.go (rdb 0012).
@@ -55,7 +57,7 @@ func (s *Postgres) CountMembers(ctx context.Context, tenant string) (int, error)
 	var n int
 	err := s.queryRowTenant(ctx, tenant, `SELECT count(*) FROM tenant_memberships m
 		JOIN humans h ON h.human_id = m.human_id
-		WHERE m.tenant_id = $1 AND NOT h.technical`, []any{tenant}, &n)
+		WHERE m.tenant_id = $1 AND NOT h.technical AND m.role <> $2`, []any{tenant, rbac.ChannelGuest}, &n)
 	return n, err
 }
 

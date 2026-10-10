@@ -271,7 +271,7 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 		var n int
 		if err := tx.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships m
 			JOIN humans h ON h.human_id = m.human_id
-			WHERE m.tenant_id = $1 AND NOT h.technical`, tenant).Scan(&n); err != nil {
+			WHERE m.tenant_id = $1 AND NOT h.technical AND m.role <> $2`, tenant, rbac.ChannelGuest).Scan(&n); err != nil {
 			return err
 		}
 		if n >= capUsers {
@@ -785,8 +785,8 @@ func (s *Postgres) TenantAvatars(ctx context.Context, tenant string) (map[string
 // tenantAvatarsRead is TenantAvatars' statement, shared with ViewRoster's batch.
 func tenantAvatarsRead(tenant string, out map[string]string) tenantRead {
 	return tenantRead{sql: `SELECT h.human_id, coalesce(h.avatar_file_id, '') FROM tenant_memberships m
-		JOIN humans h ON h.human_id = m.human_id WHERE m.tenant_id = $1 AND h.disabled_at IS NULL`,
-		args: []any{tenant}, each: func(rows pgx.Rows) error {
+		JOIN humans h ON h.human_id = m.human_id WHERE m.tenant_id = $1 AND h.disabled_at IS NULL AND m.role <> $2`,
+		args: []any{tenant, rbac.ChannelGuest}, each: func(rows pgx.Rows) error {
 			var id, fid string
 			if err := rows.Scan(&id, &fid); err != nil {
 				return err

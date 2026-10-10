@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
 // The tenant's member directory (specs/025 FR-012): what the
@@ -79,7 +81,7 @@ func (s *Memory) ListMembers(_ context.Context, tenant string) ([]Member, error)
 	s.hum.init()
 	out := []Member{}
 	for k, m := range s.hum.members {
-		if k[0] != tenant {
+		if k[0] != tenant || m.role == rbac.ChannelGuest {
 			continue
 		}
 		row := Member{HumanID: k[1], Role: m.role, Since: m.since, Suspended: m.disabled, LastSeen: m.lastActive,
@@ -163,7 +165,7 @@ func listMembersRead(tenant string, out *[]Member, withAccess bool) tenantRead {
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
 		LEFT JOIN tenant_invites ti ON ti.tenant_id = m.tenant_id AND ti.accepted_by = m.human_id
 		LEFT JOIN humans ho ON ho.human_id = ti.ordered_by
-		WHERE m.tenant_id = $1 AND NOT h.technical ORDER BY m.created_at, m.human_id`, args: []any{tenant}, each: func(rows pgx.Rows) error {
+		WHERE m.tenant_id = $1 AND NOT h.technical AND m.role <> $2 ORDER BY m.created_at, m.human_id`, args: []any{tenant, rbac.ChannelGuest}, each: func(rows pgx.Rows) error {
 		var m Member
 		var seen, invitedOn, until *time.Time
 		var orderedBy, orderedVia *string

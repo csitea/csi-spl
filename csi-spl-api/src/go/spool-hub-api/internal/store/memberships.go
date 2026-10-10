@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
 // Membership is one tenant a human belongs to (rdb 0006 tenant_memberships).
@@ -59,7 +61,7 @@ func (s *Memory) Memberships(_ context.Context, humanID string) ([]Membership, e
 	}
 	var out []Membership
 	for k, m := range s.hum.members {
-		if k[1] == humanID && !m.disabled && !lapsed(m.accessUntil, s.now()) {
+		if k[1] == humanID && !m.disabled && m.role != rbac.ChannelGuest && !lapsed(m.accessUntil, s.now()) {
 			ms := Membership{TenantID: k[0], Role: m.role}
 			if t, ok := s.tenants[k[0]]; ok {
 				ms.DisplayName, ms.SortOrder = t.DisplayName, t.SortOrder
@@ -142,7 +144,8 @@ func membershipsSQL(withSettings, withAccess bool) string {
 		FROM tenant_memberships m
 		JOIN humans h ON h.human_id = m.human_id
 		JOIN tenants tn ON tn.tenant_id = m.tenant_id
-		WHERE m.human_id = $1 AND h.disabled_at IS NULL AND m.disabled_at IS NULL` + accessLive(withAccess) + `
+		WHERE m.human_id = $1 AND h.disabled_at IS NULL AND m.disabled_at IS NULL
+		  AND m.role <> '` + rbac.ChannelGuest + `'` + accessLive(withAccess) + `
 		ORDER BY tn.sort_order NULLS LAST, m.tenant_id`
 }
 

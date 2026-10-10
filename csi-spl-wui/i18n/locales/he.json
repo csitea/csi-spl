@@ -2431,6 +2431,14 @@
       "add_image": "הוספת תמונה",
       "replace_image": "החלפת התמונה"
     },
+    "doc_menu": {
+      "label": "Document actions",
+      "edit": "Edit",
+      "rename": "Rename",
+      "copy_link": "Copy link",
+      "new_tab": "Open in a new tab",
+      "link_copied": "Link copied"
+    },
     "edit_doc_title": "שינוי שם המסמך",
     "edit_code": "עריכת בלוק הקוד",
     "code_placeholder": "קוד",

@@ -2431,6 +2431,14 @@
       "add_image": "Lisa pilt",
       "replace_image": "Asenda pilt"
     },
+    "doc_menu": {
+      "label": "Document actions",
+      "edit": "Edit",
+      "rename": "Rename",
+      "copy_link": "Copy link",
+      "new_tab": "Open in a new tab",
+      "link_copied": "Link copied"
+    },
     "edit_doc_title": "Nimeta dokument ümber",
     "edit_code": "Muuda koodiplokki",
     "code_placeholder": "Kood",

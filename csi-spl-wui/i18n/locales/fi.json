@@ -2431,6 +2431,14 @@
       "add_image": "Lisää kuva",
       "replace_image": "Vaihda kuva"
     },
+    "doc_menu": {
+      "label": "Document actions",
+      "edit": "Edit",
+      "rename": "Rename",
+      "copy_link": "Copy link",
+      "new_tab": "Open in a new tab",
+      "link_copied": "Link copied"
+    },
     "edit_doc_title": "Nimeä asiakirja uudelleen",
     "edit_code": "Muokkaa koodilohkoa",
     "code_placeholder": "Koodi",

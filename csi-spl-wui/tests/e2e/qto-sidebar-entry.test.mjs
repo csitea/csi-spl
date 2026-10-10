@@ -10,6 +10,12 @@
 // behind its Documents button. No visible heading above the tree
 // (msg 8471b818); control: the <h3> restored -> that check FAILS.
 //
+// Owner HUM-10 (t1 91289b0a, msgs 635c2125, 500ca8f5): each DOCUMENT row
+// has a right-click menu (a long press on a phone, Shift+F10 / the
+// context-menu key): Edit, Rename, Copy link, Open in a new tab. A
+// section row has none. Control: before the menu a right-click draws no
+// [data-testid=qto-doc-menu], so every menu check FAILS.
+//
 // Control: before the entry there is no [data-testid=qto-open], so every
 // signed-in check FAILS on the earlier master. The channel list check has
 // its control on / (the same selector finds the list there); before the
@@ -116,6 +122,87 @@ async function fileTree(p) {
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/qto-file-tree-desktop.png` })
 }
 
+const MENU = '[data-testid=qto-doc-menu]'
+const menuShown = (p) => p.waitForSelector(MENU, { visible: true, timeout: STEP }).then(Boolean, () => false)
+const menuGone = (p) => p.waitForFunction((sel) => !document.querySelector(sel), { timeout: STEP }, MENU).then(() => true, () => false)
+/** the tree row named name (a document's title, a section's heading) */
+const treeRow = (p, name) => p.evaluateHandle((name) => [...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].find((el) => el.textContent.trim() === name) || null, name)
+async function rightClick(p, name) {
+  const row = await treeRow(p, name)
+  if (!(await row.evaluate((el) => Boolean(el)))) return false
+  const b = await row.evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.left + 40, y: r.top + r.height / 2 } })
+  await p.mouse.click(b.x, b.y, { button: 'right' })
+  return true
+}
+async function chooseOn(p, name, id) {
+  await rightClick(p, name)
+  if (!(await menuShown(p))) return false
+  await p.click(`[data-testid=qto-doc-menu-${id}]`)
+  return true
+}
+
+/** t1 91289b0a: the document row's menu */
+async function docMenu(p, browser) {
+  ok('CONTROL: a section row opens no menu', await rightClick(p, 'Introduction') && !(await p.waitForSelector(MENU, { visible: true, timeout: 1500 }).then(Boolean, () => false)))
+  ok('a right-click on a document row opens its menu', await rightClick(p, 'Handbook') && await menuShown(p))
+  const ids = await p.$$eval(`${MENU} [role=menuitem]`, (els) => els.map((el) => el.getAttribute('data-testid').replace('qto-doc-menu-', '')))
+  ok('the menu: Edit, Rename, Copy link, Open in a new tab', ids.join(',') === 'edit,rename,copy_link,new_tab', ids)
+  ok('the menu is named', await p.$eval(`${MENU} [role=menu]`, (el) => el.getAttribute('aria-label')).catch(() => '') === 'Document actions')
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/qto-doc-menu-desktop.png` })
+  await p.keyboard.press('Escape')
+  ok('Escape closes it', await menuGone(p))
+  /* the keyboard: Shift+F10 and the context-menu key on the focused row */
+  const hb = await treeRow(p, 'Handbook')
+  await hb.evaluate((el) => el.focus())
+  await p.keyboard.down('Shift')
+  await p.keyboard.press('F10')
+  await p.keyboard.up('Shift')
+  ok('Shift+F10 on the focused row opens it', await menuShown(p))
+  await p.keyboard.press('Escape')
+  await menuGone(p)
+  await hb.evaluate((el) => el.focus())
+  await p.keyboard.press('ContextMenu')
+  ok('the context-menu key opens it', await menuShown(p))
+  await p.keyboard.press('Escape')
+  await menuGone(p)
+  const docId = await hb.evaluate((el) => el.getAttribute('data-key').slice(2))
+  const link = `${server.base}/workspace/docs?doc=${docId}&view=doc`
+
+  await browser.defaultBrowserContext().overridePermissions(server.base, ['clipboard-read', 'clipboard-write', 'clipboard-sanitized-write'])
+  await chooseOn(p, 'Handbook', 'copy_link')
+  ok('Copy link says so', await p.waitForFunction(() => document.querySelector('[data-test=qto-tree-status]')?.textContent.trim() === 'Link copied', { timeout: STEP }).then(() => true, () => false))
+  const clip = await p.evaluate(() => navigator.clipboard.readText().catch(() => ''))
+  ok('Copy link copies the document\'s address', clip === link, clip)
+
+  const tab = new Promise((resolve) => browser.once('targetcreated', (t) => resolve(t)))
+  await chooseOn(p, 'Handbook', 'new_tab')
+  const target = await Promise.race([tab, new Promise((r) => setTimeout(() => r(null), STEP))])
+  ok('Open in a new tab opens the document\'s address', target?.url() === link, target?.url())
+  await (await target?.page().catch(() => null))?.close()
+
+  await chooseOn(p, 'Handbook', 'rename')
+  const input = await p.waitForSelector('[data-test=qto-rename-title]', { visible: true, timeout: STEP }).catch(() => null)
+  ok('Rename asks for the title, the current one filled in', (await input?.evaluate((el) => el.value)) === 'Handbook')
+  if (!input) return
+  await input.click({ count: 3 })
+  await p.keyboard.type('Handbook Guide')
+  await p.click('[data-test=qto-rename-save]')
+  ok('Rename: the row shows the new title', await p.waitForFunction(() => [...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].some((el) => el.textContent.trim() === 'Handbook Guide'), { timeout: STEP }).then(() => true, () => false))
+  const head = await p.evaluate((id) => window.__wsDocTreeCall?.('GET', '/' + id), docId)
+  ok('Rename: the hub has it', head?.title === 'Handbook Guide', head?.title)
+  ok('Rename: the open document shows it', await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Handbook Guide', { timeout: STEP }).then(() => true, () => false))
+
+  /* Edit: from another open document, it opens this one */
+  await p.click('[data-test=ws-docs-new]')
+  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  await p.type('[data-test=ws-docs-new-title]', 'Notes')
+  await p.click('[data-test=ws-docs-create]')
+  await p.waitForFunction(() => document.querySelector('[data-test=qto-file-tree] [aria-selected=true]')?.textContent.trim() === 'Notes', { timeout: STEP }).catch(() => {})
+  await chooseOn(p, 'Handbook Guide', 'edit')
+  await p.waitForFunction((id) => new URL(location.href).searchParams.get('doc') === id, { timeout: STEP }, docId).catch(() => {})
+  ok('Edit opens the document', new URL(p.url()).searchParams.get('doc') === docId && await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Handbook Guide', { timeout: STEP }).then(() => true, () => false), p.url())
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -134,6 +221,7 @@ try {
     ok('the workspace documents render', await onPage(p))
     ok('the entry is marked active there', await p.$eval('[data-testid=qto-open]', (el) => el.classList.contains('router-link-active')).catch(() => false))
     await fileTree(p)
+    await docMenu(p, browser)
   }
   await p.close()
 
@@ -172,6 +260,15 @@ try {
     return Boolean(el && el.getBoundingClientRect().height > 0)
   }, { timeout: STEP }).then(() => true, () => false))
   ok('phone: a tree row is a 44 px target', await m.$eval('[data-test=file-tree-row]', (el) => el.getBoundingClientRect().height >= 44).catch(() => false))
+  const held = await m.$eval('[data-test=qto-file-tree] [data-kind=doc]', (el) => { const r = el.getBoundingClientRect(); return { x: r.left + 60, y: r.top + r.height / 2 } }).catch(() => null)
+  if (held) {
+    await m.touchscreen.touchStart(held.x, held.y)
+    await new Promise((r) => setTimeout(r, 800))
+    await m.touchscreen.touchEnd()
+  }
+  ok('phone: a long press on a document opens its menu as a sheet', await menuShown(m) && await m.$eval(MENU, (el) => el.classList.contains('touch-sheet')).catch(() => false))
+  if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-doc-menu-phone.png` })
+  await m.keyboard.press('Escape')
   if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-file-tree-phone.png` })
   await m.close()
 

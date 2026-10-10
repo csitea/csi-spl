@@ -2431,6 +2431,14 @@
       "add_image": "Pridať obrázok",
       "replace_image": "Nahradiť obrázok"
     },
+    "doc_menu": {
+      "label": "Document actions",
+      "edit": "Edit",
+      "rename": "Rename",
+      "copy_link": "Copy link",
+      "new_tab": "Open in a new tab",
+      "link_copied": "Link copied"
+    },
     "edit_doc_title": "Premenovať dokument",
     "edit_code": "Upraviť blok kódu",
     "code_placeholder": "Kód",

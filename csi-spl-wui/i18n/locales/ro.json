@@ -2431,6 +2431,14 @@
       "add_image": "Adaugă imagine",
       "replace_image": "Înlocuiește imaginea"
     },
+    "doc_menu": {
+      "label": "Document actions",
+      "edit": "Edit",
+      "rename": "Rename",
+      "copy_link": "Copy link",
+      "new_tab": "Open in a new tab",
+      "link_copied": "Link copied"
+    },
     "edit_doc_title": "Redenumește documentul",
     "edit_code": "Editează blocul de cod",
     "code_placeholder": "Cod",

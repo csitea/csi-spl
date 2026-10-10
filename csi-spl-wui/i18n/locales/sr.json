@@ -2431,6 +2431,14 @@
       "add_image": "Додај слику",
       "replace_image": "Замени слику"
     },
+    "doc_menu": {
+      "label": "Document actions",
+      "edit": "Edit",
+      "rename": "Rename",
+      "copy_link": "Copy link",
+      "new_tab": "Open in a new tab",
+      "link_copied": "Link copied"
+    },
     "edit_doc_title": "Преименуј документ",
     "edit_code": "Измени блок кода",
     "code_placeholder": "Код",

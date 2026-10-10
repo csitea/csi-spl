@@ -26,6 +26,7 @@
         :rev="page.session?.rev.value ?? 0"
         :client="client"
         @open="openFromTree"
+        @renamed="renamedFromTree"
       />
     </div>
     <WorkspaceDocsPage ref="page" class="wsdocs-layout__page" />
@@ -43,6 +44,14 @@ const route = useRoute()
 const client = useDocTree()
 const page = ref<InstanceType<typeof WorkspaceDocsPage> | null>(null)
 const treeOpen = ref(false)
+
+/** the tree's Rename: the list (and the open document's title and rev) take the hub's answer */
+function renamedFromTree(doc: string, title: string, rev: number) {
+  const p = page.value
+  if (!p) return
+  p.docs = p.docs.map((d) => (d.id === doc ? { ...d, title, rev } : d))
+  if (doc === p.docId && p.session) p.session.rev.value = rev
+}
 
 /** a tree row: the open document's section scrolls into view; anything else opens through the page */
 function openFromTree(doc: string, item: string) {

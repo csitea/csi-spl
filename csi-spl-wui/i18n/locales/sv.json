@@ -2431,6 +2431,14 @@
       "add_image": "Lägg till bild",
       "replace_image": "Ersätt bild"
     },
+    "doc_menu": {
+      "label": "Document actions",
+      "edit": "Edit",
+      "rename": "Rename",
+      "copy_link": "Copy link",
+      "new_tab": "Open in a new tab",
+      "link_copied": "Link copied"
+    },
     "edit_doc_title": "Byt namn på dokumentet",
     "edit_code": "Redigera kodblocket",
     "code_placeholder": "Kod",

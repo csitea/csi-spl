@@ -5,6 +5,10 @@
      Up / Down move, Right opens a closed node or steps into it, Left closes
      an open node or steps to its parent, Home / End jump, Enter and Space
      select. A click on the chevron toggles, a click on the row selects.
+     A row with `menu` set asks for its menu (`menu` event, at a point):
+     right-click, a touch long press, or Shift+F10 / the context-menu key
+     on the focused row; the caller draws the menu. Other rows keep the
+     browser's own.
      Built so the Docs explorer (DocsWorkspaceTree) can share it when the
      two doc sources merge (owner: "later on"). -->
 <template>
@@ -26,7 +30,12 @@
       :data-key="row.key"
       :data-kind="row.kind"
       @focus="focusKey = row.key"
-      @click="select(i)"
+      @click="onRowClick(i)"
+      @contextmenu="onContext(i, $event)"
+      @pointerdown="row.menu && press(i, $event)"
+      @pointermove="longPress.move($event)"
+      @pointerup="longPress.up()"
+      @pointercancel="longPress.cancel()"
     >
       <span
         class="ftree__chev"
@@ -43,8 +52,9 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch, type ComponentPublicInstance } from 'vue'
 import type { UiIconName } from '~/utils/uiIcons'
+import { createLongPress } from '~/utils/touch-ui.mjs'
 
 export type FileTreeRow = {
   key: string
@@ -56,10 +66,12 @@ export type FileTreeRow = {
   open?: boolean
   active?: boolean
   title?: string
+  /** the row has a menu: right-click, long press and Shift+F10 emit `menu` */
+  menu?: boolean
 }
 
 const props = defineProps<{ rows: FileTreeRow[], label: string }>()
-const emit = defineEmits<{ toggle: [key: string], select: [key: string] }>()
+const emit = defineEmits<{ toggle: [key: string], select: [key: string], menu: [key: string, x: number, y: number] }>()
 
 /* the one row in the tab order: the active row, else the first */
 const focusKey = ref('')
@@ -86,6 +98,41 @@ function select(i: number) {
   if (!row) return
   focusKey.value = row.key
   emit('select', row.key)
+}
+
+function openMenu(i: number, x: number, y: number) {
+  const row = props.rows[i]
+  if (!row?.menu) return
+  focusKey.value = row.key
+  els.get(row.key)?.focus({ preventScroll: true })
+  emit('menu', row.key, x, y)
+}
+
+function onContext(i: number, e: MouseEvent) {
+  if (!props.rows[i]?.menu) return
+  e.preventDefault()
+  openMenu(i, e.clientX, e.clientY)
+}
+
+/* a phone has no right-click: a held touch opens the row's menu (touch-ui's timing) */
+let pressAt = -1
+const longPress = createLongPress({ onPress: (x, y) => openMenu(pressAt, x, y) })
+function press(i: number, e: PointerEvent) {
+  pressAt = i
+  longPress.down(e)
+}
+onBeforeUnmount(() => longPress.cancel())
+
+/* the click a finger sends as it lifts from a long press does not also select */
+function onRowClick(i: number) {
+  if (longPress.takeClick()) return
+  select(i)
+}
+
+/** the keyboard's menu: just under the focused row */
+function menuFromKey(i: number) {
+  const r = els.get(props.rows[i]?.key ?? '')?.getBoundingClientRect()
+  if (r) openMenu(i, r.left + 16, r.bottom)
 }
 
 function toggleAt(i: number) {
@@ -123,6 +170,14 @@ function onKey(e: KeyboardEvent) {
     case 'Enter':
     case ' ':
       select(i)
+      break
+    case 'ContextMenu':
+      done = Boolean(row.menu)
+      menuFromKey(i)
+      break
+    case 'F10':
+      done = e.shiftKey && Boolean(row.menu)
+      if (done) menuFromKey(i)
       break
     default: done = false
   }

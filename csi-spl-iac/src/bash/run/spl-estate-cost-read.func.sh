@@ -191,7 +191,7 @@ _spl_cost_sql_awk() {
   cat <<'AWK'
 function q(s) { gsub(/'/, "''", s); return "'" s "'" }
 function slug(s) { s = tolower(s); gsub(/[^a-z0-9]+/, "-", s); gsub(/^-+|-+$/, "", s); if (s !~ /^[a-z]/) s = "x-" s; return substr(s, 1, 60) }
-BEGIN { nd = split(days, D, " "); for (i = 1; i <= nd; i++) inwin[D[i]] = 1 }
+BEGIN { ndays = split(days, D, " "); for (i = 1; i <= ndays; i++) inwin[D[i]] = 1 }
 fail == "" && ($1 in inwin) && $6 ~ /^-?[0-9]+$/ {
   day = $1; pov = $2; if ($3 != "") pov = pov "/box=" slug($3)
   # EUR is the one currency both report figures come from the export itself
@@ -218,7 +218,7 @@ END {
     print "    origin = EXCLUDED.origin, run_id = EXCLUDED.run_id, read_at = now();"
   }
   read_days = ""; nc = 0
-  for (i = 1; i <= nd; i++) {
+  for (i = 1; i <= ndays; i++) {
     d = D[i]
     if (fail != "") { st = "missing"; why = fail }
     else if (rows[d] > 0 && held[d] > 0) { st = "partial"; why = held[d] " export line(s) held back: billed in a currency with no EUR rate source yet (spec 123 Q-6)" }

@@ -101,7 +101,7 @@ jobs:
       # persists, so GOCACHE is already warm and actions/cache would only add a
       # 490 MB upload.
       - name: Set up Go (version from go.mod)
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
           cache: true
@@ -229,7 +229,7 @@ jobs:
           echo "predicted release version ${vs%% *}; candidates: $vs"
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
           cache: true
@@ -576,7 +576,7 @@ jobs:
       # step then failed "go.mod requires go >= 1.25.14 (running go 1.24.13)").
       - name: Set up Go (the image build and the migrate step's spool build)
         if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
           cache: true

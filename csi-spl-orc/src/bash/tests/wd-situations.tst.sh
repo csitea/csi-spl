@@ -68,8 +68,17 @@
 #      idle past "resets 1:50am (Europe/Helsinki)"): the reset read once per
 #      episode (1:50am Helsinki on a summer date = 22:50Z), no wake before
 #      reset + WD_LIMIT_GRACE, ONE wake after it and none on the next tick,
-#      a box holding text cleared first (S6's shape), an unreadable reset no
-#      wake + one wd.log line, the stored reset gone with the episode
+#      a box holding text cleared first (S6's shape), an unreadable reset a
+#      bounded back-off (3600 s) then the one wake + one wd.log line, the
+#      stored reset gone with the episode, ONE blocker naming the reset
+#  12. a claude usage limit with no Stop (c-817 / c-001, 2026-10-10, n=2,
+#      both taken over as S1 at the 12:20Z reset): (a) the fixture transcript
+#      -> the hook's UserPromptSubmit sets api_error -> the verdict is S2
+#      kind=limit with the reset 12:20Z, no restart, ONE blocker, also with no
+#      banner on the pane; control: a good reply after it is OK; (b) a limit
+#      read from the pane only, whose banner goes at the reset: S1 holds (no
+#      ring before reset + 120 s, a ring after, no takeover before
+#      2 x WD_JOB_WAIT past it); control: past that the takeover comes back
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -902,8 +911,10 @@ at() { mkdir -p "$D/wd"; echo $(( $1 - 30 )) > "$D/wd/last.tick"; NOW=$1 wd; }
 wakes() { cat "$T/sent" 2>/dev/null | grep -c -- "--poke-only --from .* --to $1\$" || true; }
 reset_box; limit_pane 'resets 1:50am (Europe/Helsinki)'; agent c-980 %1 4080 claude 3600 "$T/limit.pane"
 at $L0 >/dev/null; out="$(at $((L0 + 30)))"
-grep -q 'c-980 HIT S2 kind=limit .*-> not able until the reset 2026-10-08T22:50:00Z + 120s; no restart$' <<<"$out" &&
+grep -q 'c-980 HIT S2 kind=limit .*-> not able until the reset 2026-10-08T22:50:00Z + 120s; no restart; blocker$' <<<"$out" &&
   [[ "$(cat "$D/wd/c-980.ep.S2.reset")" == "$LR" ]] && pass "11 1:50am (Europe/Helsinki) on 2026-10-08 is 22:50Z, stored once" || fail "11 tz: $out / $(cat "$D/wd/c-980.ep.S2.reset" 2>/dev/null)"
+[[ "$(grep -c -- '--to orchestrator --kind blocker --task wd-c-980 --body WATCHDOG (093 S2 kind=limit): c-980 is on its usage limit until 2026-10-08T22:50:00Z' "$T/sent")" == 1 ]] &&
+  pass "11 ONE blocker to the orchestrator names the seat and the reset" || fail "11 blocker: $(cat "$T/sent" 2>/dev/null)"
 out="$(at $((LR + 60)))"
 [[ "$(wakes c-980)" == 0 ]] && grep -q 'c-980 HIT S2 .*not able until the reset' <<<"$out" && pass "11 (a) reset + 60 s (under the 120 s grace): no wake" || fail "11 (a): $out / $(cat "$T/sent" 2>/dev/null)"
 out="$(DRY=1 at $((LR + 130)))"
@@ -920,12 +931,60 @@ at $((LR + 190)) >/dev/null
 reset_box; limit_pane 'resets 1:50am (Europe/Helsinki)'; agent c-981 %1 4081 claude 3600 "$T/limit.pane"; echo 'half a line' > "$T/tmux/input.%1"
 for n in $L0 $((L0 + 30)) $((LR + 130)); do out="$(at "$n")"; done
 [[ "$(wakes c-981)" == 1 ]] && grep -qx 'keys %1 C-c' "$T/tmux/log" && pass "11 a box holding text: C-c, then the wake" || fail "11 repoke: $out / $(cat "$T/tmux/log" 2>/dev/null)"
-# (c) an unreadable reset: today's behaviour, no wake, one wd.log line
+# (c) an unreadable reset: a bounded back-off (WD_LIMIT_BACKOFF, 3600 s from
+# the episode's first tick), then the ONE wake; one wd.log line names the text
 reset_box; limit_pane 'resets 1:50am (Mars/Base)'; agent c-982 %1 4082 claude 3600 "$T/limit.pane"
-for n in $L0 $((L0 + 30)) $((LR + 130)) $((L0 + 86400)); do out="$(at "$n")"; done
-[[ "$(wakes c-982)" == 0 ]] && grep -q 'c-982 HIT S2 kind=limit .*-> not able until the reset; no restart$' <<<"$out" &&
-  [[ "$(cat "$D/wd.log"* | grep -c "LIMIT-RESET-UNREAD c-982: .*resets 1:50am (Mars/Base)")" == 1 ]] &&
-  pass "11 (c) an unreadable reset (an unknown zone): no wake in a day, ONE wd.log line naming the text (rotated or not)" || fail "11 (c): $out / $(cat "$D/wd.log"* | grep LIMIT)"
+for n in $L0 $((L0 + 30)) $((L0 + 3600)); do out="$(at "$n")"; done
+B0="$(date -u -d "@$((L0 + 30 + 3600))" +%FT%TZ)"
+[[ "$(wakes c-982)" == 0 ]] && grep -q "c-982 HIT S2 kind=limit .*-> not able until the reset $B0 (back-off: no reset time read) + 120s; no restart; blocker done " <<<"$out" &&
+  pass "11 (c) an unreadable reset (an unknown zone): no wake inside the back-off" || fail "11 (c) back-off: $out"
+for n in $((L0 + 3800)) $((L0 + 86400)); do out="$(at "$n")"; done
+[[ "$(wakes c-982)" == 1 ]] && [[ ! -s "$T/takeovers" ]] &&
+  [[ "$(cat "$D/wd.log"* | grep -c "LIMIT-RESET-UNREAD c-982: .*resets 1:50am (Mars/Base).*back-off 3600s")" == 1 ]] &&
+  pass "11 (c) ... ONE wake past the back-off + grace, none later in the day, no takeover, ONE wd.log line naming the text" || fail "11 (c): $out / $(cat "$D/wd.log"* | grep LIMIT)"
+
+# 12. a claude usage limit (no Stop): wait for the reset, never restart
+LIMTR="$FX/limit-session.jsonl"
+U0="$(date -u -d 2026-10-10T12:20:00Z +%s)"; UJ="$(date -u -d 2026-10-10T11:24:18Z +%s)"
+ujob() {  # ujob <id>: m-819's result, unread since 11:24:18Z (the c-817 inbox file)
+  echo '{"v":1,"kind":"result","from":"m-819","to":"'"$1"'","body":"done"}' > "$S/$1/inbox/r.json"; touch -d "@$UJ" "$S/$1/inbox/r.json"
+}
+uhook() {  # uhook <id> <pid> <event> <epoch> <payload>: the real hook writes <id>'s heartbeat
+  env SPOOL_ROOT="$S" SPOOL_AGENT_ID="$1" SPOOL_HARNESS=claude HOOK_PID="$2" HOOK_NOW="$4" SPOOL_TEST=1 \
+    bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spool-agent-hook.sh" "$3" <<<"$5" >/dev/null
+}
+reset_box; rm -f "$T/tmux/input."*; agent c-983 %1 4083 claude 7200 "$FX/idle.pane"; cp "$LIMTR" "$T/tr.4083"; ujob c-983
+uhook c-983 4083 PostToolUse "$(date -u -d 2026-10-10T11:23:40Z +%s)" '{"tool_name":"Bash"}'
+uhook c-983 4083 UserPromptSubmit "$(date -u -d 2026-10-10T11:54:20Z +%s)" "{\"transcript_path\":\"$LIMTR\"}"
+[[ "$(jq -r .api_error "$S/c-983/heartbeat.json")" == "You've hit your session limit · resets 3:20pm (Europe/Helsinki)" ]] &&
+  pass "12 (a) the fixture transcript: the poke's UserPromptSubmit sets api_error (no Stop)" || fail "12 (a) hook: $(cat "$S/c-983/heartbeat.json")"
+for n in $((UJ + 30)) $((UJ + 60)); do out="$(at "$n")"; done; settle
+grep -q "c-983 HIT S2 kind=limit transcript: You've hit your session limit · resets 3:20pm (Europe/Helsinki) -> not able until the reset 2026-10-10T12:20:00Z + 120s; no restart; blocker$" <<<"$out" &&
+  [[ "$(cat "$D/wd/c-983.ep.S2.reset")" == "$U0" ]] && pass "12 (a) verdict S2 kind=limit from the transcript, no banner on the pane: waits for the reset 12:20Z" || fail "12 (a) verdict: $out"
+for n in $((UJ + 1800)) $((U0 + 60)); do out="$(at "$n")"; done; settle
+[[ ! -s "$T/takeovers" ]] && [[ "$(wakes c-983)" == 0 ]] && grep -q 'c-983 HIT S2 kind=limit .*no restart; blocker done ' <<<"$out" &&
+  [[ "$(grep -c -- '--kind blocker --task wd-c-983 --body WATCHDOG (093 S2 kind=limit): c-983 is on its usage limit until 2026-10-10T12:20:00Z' "$T/sent")" == 1 ]] &&
+  pass "12 (a) 56 min on the limit with its job unread: no restart, no wake, ONE blocker naming the reset" || fail "12 (a) no restart: $out / $(cat "$T/takeovers" "$T/sent" 2>/dev/null)"
+printf '{"type":"assistant","timestamp":"%s","message":{"content":[{"type":"text","text":"back"}]}}\n' "$(iso $((U0 + 70)))" >> "$T/tr.4083"
+uhook c-983 4083 Stop $((U0 + 71)) "{\"transcript_path\":\"$T/tr.4083\"}"
+out="$(at $((U0 + 80)))"; settle
+grep -q '^c-983 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && pass "12 (a) control: a good reply (and its Stop) after the reset: OK" || fail "12 (a) control: $out"
+# (b) a limit read from the pane only (no transcript, no api_error): the banner goes at the reset
+reset_box; limit_pane 'resets 3:20pm (Europe/Helsinki)'; agent c-984 %1 4084 claude 7200 "$T/limit.pane"; ujob c-984
+uhook c-984 4084 PostToolUse "$(date -u -d 2026-10-10T11:23:40Z +%s)" '{"tool_name":"Bash"}'
+for n in $((UJ + 30)) $((UJ + 60)) $((U0 - 30)); do out="$(at "$n")"; done
+grep -q 'c-984 HIT S2 kind=limit pane: .*not able until the reset 2026-10-10T12:20:00Z' <<<"$out" || fail "12 (b) setup: $out"
+cp "$FX/idle.pane" "$T/tmux/screen.%1"
+out="$(at $((U0 + 60)))"; settle
+[[ ! -s "$T/takeovers" ]] && [[ "$(wakes c-984)" == 0 ]] && grep -q 'c-984 HIT S1 age=.* -> on its usage limit until 2026-10-10T12:20:00Z + 120s: no ring, no restart$' <<<"$out" &&
+  pass "12 (b) the banner gone at reset + 60 s, job aged across the limit: S1 holds (the 12:21Z takeovers)" || fail "12 (b) hold: $out / $(cat "$T/takeovers" 2>/dev/null)"
+out="$(at $((U0 + 130)))"; settle
+[[ ! -s "$T/takeovers" ]] && [[ "$(wakes c-984)" == 1 ]] && grep -q 'c-984 HIT S1 .*-> usage limit ended 10s ago, waits from then: ring, no takeover before 240s$' <<<"$out" &&
+  pass "12 (b) reset + 130 s: one ring, no takeover" || fail "12 (b) ring: $out"
+out="$(at $((U0 + 300)))"; settle
+[[ ! -s "$T/takeovers" ]] && grep -q 'c-984 HIT S1 .*ring done ' <<<"$out" && pass "12 (b) reset + 300 s: still no takeover" || fail "12 (b) 300: $out"
+out="$(at $((U0 + 361)))"; settle
+grep -qx 'takeover c-984 S1' "$T/takeovers" && pass "12 (b) control: 2 x WD_JOB_WAIT past reset + grace, no progress: the takeover comes back" || fail "12 (b) control: $out / $(cat "$T/takeovers" 2>/dev/null)"
 
 grep -q ERR-TRAP "$T/all.out" && fail "no tick may fire ./run's ERR trap: $(grep -m3 ERR-TRAP "$T/all.out")" || pass "no tick fired ./run's ERR trap"
 

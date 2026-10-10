@@ -6,6 +6,10 @@
 #   1. no SPOOL_AGENT_ID -> nothing written (control: with it, written)
 #   2. heartbeat per event; UserPromptSubmit and an API-error Stop leave
 #      progress_ts unchanged (control: PreToolUse / a good Stop move it)
+#  2b. a usage limit with no Stop (c-817 2026-10-10, the real transcript
+#      shape): the next UserPromptSubmit sets api_error from the transcript
+#      (control: a good last reply leaves it null); StopFailure sets it from
+#      its payload (last_assistant_message, else the error code)
 #   3. no tool input or output in the files (control: the planted text is in
 #      the payload the hook read)
 #   4. inject: 3 messages / 12 KB per injection, oldest first, body cut at
@@ -119,6 +123,26 @@ eq "a new session keeps progress_ts (no progress)" "$(iso $((T0 + 70)))" "$(hb p
 eq "a new session clears calls" "[]" "$(hb calls)"
 SPOOL_HARNESS=grok hook Stop $((T0 + 90)) "{\"transcript_path\":\"$TR\"}" >/dev/null
 eq "a non-claude Stop never moves progress (7.3: S8 path)" "$(iso $((T0 + 70)))" "$(hb progress_ts)"
+
+echo "# 2b. a usage limit ends the turn with no Stop"
+LIM="$(dirname "$0")/../../../tests/fixtures/wd-situations/limit-session.jsonl"
+hook PreToolUse $((T0 + 95)) '{"tool_name":"Read"}' >/dev/null
+eq "2b. before: api_error null" null "$(hb api_error)"
+hook UserPromptSubmit $((T0 + 96)) "{\"prompt\":\": SPOOL poke\",\"transcript_path\":\"$LIM\"}" >/dev/null
+eq "2b. a poke after the limit error (no Stop): api_error from the transcript" "You've hit your session limit · resets 3:20pm (Europe/Helsinki)" "$(hb api_error)"
+eq "2b. ... and progress_ts unchanged" "$(iso $((T0 + 95)))" "$(hb progress_ts)"
+hook PreToolUse $((T0 + 97)) '{"tool_name":"Read"}' >/dev/null
+eq "2b. a tool call clears it" null "$(hb api_error)"
+TRG="$T_TMP/good.jsonl"; transcript "$TRG" 0 "done, all green"
+hook UserPromptSubmit $((T0 + 98)) "{\"prompt\":\"x\",\"transcript_path\":\"$TRG\"}" >/dev/null
+eq "2b. CONTROL: a poke after a good reply leaves api_error null" null "$(hb api_error)"
+hook StopFailure $((T0 + 99)) '{"error":"rate_limit","last_assistant_message":"You'"'"'ve hit your session limit · resets 3:20pm (Europe/Helsinki)"}' >/dev/null
+eq "2b. StopFailure: idle, api_error = last_assistant_message" "idle You've hit your session limit · resets 3:20pm (Europe/Helsinki)" "$(hb state) $(hb api_error)"
+eq "2b. StopFailure: progress_ts unchanged" "$(iso $((T0 + 97)))" "$(hb progress_ts)"
+hook StopFailure $((T0 + 99)) '{"error":"rate_limit"}' >/dev/null
+eq "2b. StopFailure with no message: the error code" "api error: rate_limit" "$(hb api_error)"
+eq "2b. heartbeat.log names the event" "StopFailure idle" "$(tail -n 1 "$D/heartbeat.log" | cut -d' ' -f2-)"
+hook PreToolUse $((T0 + 100)) '{"tool_name":"Read"}' >/dev/null
 
 echo "# 3. no input, output or body in the files"
 hook PostToolUse $((T0 + 100)) '{"tool_name":"Bash","tool_input":{"command":"echo PLANTED-IN-91"},"tool_response":"PLANTED-OUT-92"}' >"$T_TMP/o3"
@@ -345,14 +369,14 @@ eq "dry run: the plan only adds lines (non-ASCII text kept as it is)" 0 "$(grep 
 eq "CONTROL: the fixture holds a non-ASCII character" 1 "$(grep -c '—' "$SET")"
 out="$(act DRY_RUN=0 HOOKS_ALLOW_WORKTREE=1)"
 has "install: DONE" "DONE hooks" "$out"
-eq "install: one entry per event (5)" 5 "$(n_ours)"
+eq "install: one entry per event (6)" 6 "$(n_ours)"
 eq "install: the mirror entries are kept" 2 "$(grep -c 'spool-mirror.py hook' "$SET")"
 eq "install: other keys kept" opus "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["model"])' "$SET")"
-eq "install: events" "PostToolUse PreToolUse SessionStart Stop UserPromptSubmit" "$(python3 -c 'import json,sys; print(" ".join(sorted(json.load(open(sys.argv[1]))["hooks"])))' "$SET")"
+eq "install: events" "PostToolUse PreToolUse SessionStart Stop StopFailure UserPromptSubmit" "$(python3 -c 'import json,sys; print(" ".join(sorted(json.load(open(sys.argv[1]))["hooks"])))' "$SET")"
 check "install: a backup was kept" compgen -G "$SET.bak.*" >/dev/null
 out="$(act DRY_RUN=0 HOOKS_ALLOW_WORKTREE=1)"
 has "second run: nothing to change (idempotent)" "OK hooks: nothing to change" "$out"
-eq "second run: still 5 entries" 5 "$(n_ours)"
+eq "second run: still 6 entries" 6 "$(n_ours)"
 cmd="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["hooks"]["PreToolUse"][0]["hooks"][0]["command"])' "$SET")"
 printf '{"tool_name":"Edit"}' | env SPOOL_AGENT_ID="$ID" HOOK_NOW=$((T0 + 700)) sh -c "$cmd"
 eq "the installed command runs the hook" "PreToolUse Edit" "$(hb event) $(hb tool)"
@@ -367,13 +391,13 @@ has "a settings file that is not JSON is refused" "not a JSON object" "$out"
 eq "  and left as it was" "not json" "$(cat "$T_TMP/bad.json")"
 rm -rf "${SET%/*}"
 act DRY_RUN=0 HOOKS_ALLOW_WORKTREE=1 >/dev/null
-eq "no settings file yet: created with the 5 entries" 5 "$(n_ours)"
+eq "no settings file yet: created with the 6 entries" 6 "$(n_ours)"
 gd="$(git -C "$T_REPO" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
 cd_="$(git -C "$T_REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
 if [ -n "$gd" ] && [ "$gd" != "$cd_" ]; then
   out="$(act DRY_RUN=0 HOOKS_UNINSTALL=0 2>&1)"
   has "from a linked worktree DRY_RUN=0 is refused" "linked worktree" "$out"
-  eq "  and nothing changed" 5 "$(n_ours)"
+  eq "  and nothing changed" 6 "$(n_ours)"
 else
   echo "SKIP the linked-worktree refusal: this checkout is not a linked worktree"
 fi

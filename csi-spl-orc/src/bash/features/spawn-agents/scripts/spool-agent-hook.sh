@@ -2,7 +2,7 @@
 # spool-agent-hook.sh <event> — the agent's harness hook (specs/093 5, 7).
 #
 # One script for every hook event: SessionStart, UserPromptSubmit, PreToolUse,
-# PostToolUse, Stop. The harness passes its JSON payload on stdin.
+# PostToolUse, Stop, StopFailure. The harness passes its JSON payload on stdin.
 #
 #   heartbeat   <spool root>/<id>/heartbeat.json (v 1, rewritten atomically)
 #               and heartbeat.log (the last 200 "ts event state" lines).
@@ -10,7 +10,13 @@
 #               whose transcript's last assistant entry is not an API error:
 #               a prompt arriving or an error printed is activity, not
 #               progress (spec 1). A Stop on an API error sets api_error; a
-#               tool call (the model provably answered) clears it.
+#               tool call (the model provably answered) clears it. A usage
+#               limit ends the turn with NO Stop (c-817/c-001, 2026-10-10:
+#               "You've hit your session limit · resets 3:20pm", 15 pokes,
+#               only UserPromptSubmit in heartbeat.log): claude fires
+#               StopFailure instead (2.1.292, once registered), and every
+#               UserPromptSubmit reads the transcript's last assistant entry,
+#               so the next poke sets api_error from an isApiErrorMessage one.
 #   inject      (claude) inbox files newer than <id>/.hook-seen, oldest first,
 #               at most 3 messages and 12 KB per injection, a body cut at 4 KB,
 #               returned as additionalContext on SessionStart (every unread
@@ -61,7 +67,7 @@ fi
 read -r -d '' HOOK_PY <<'EOF_PY'
 import _json, os, sys, time, zlib
 
-EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop")
+EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "StopFailure")
 MAX_MSGS, MAX_BYTES, BODY_CUT = 3, 12 * 1024, 4 * 1024
 CALLS_KEEP, LOG_KEEP, UNTOUCHED = 8, 200, 600
 LOOP_N = int(os.environ.get("WD_LOOP_N") or 5)
@@ -167,6 +173,11 @@ def last_assistant(path):
         if isinstance(e, dict) and e.get("type") == "assistant":
             return e
     return None
+
+def api_err(hb, e):
+    """api_error from an isApiErrorMessage entry; anything else leaves it."""
+    if e is not None and e.get("isApiErrorMessage"):
+        hb["api_error"] = entry_text(e)[:120]
 
 def entry_text(e):
     c = (e.get("message") or {}).get("content")
@@ -353,6 +364,7 @@ def main():
     elif event == "UserPromptSubmit":
         hb.update(state="working", turn_since=iso(now))
         if claude:
+            api_err(hb, last_assistant(payload.get("transcript_path")))
             ctx.append(inject(False))
     elif event == "PreToolUse":
         hb.update(state="in-tool", progress_ts=iso(now), api_error=None,
@@ -374,11 +386,18 @@ def main():
             ctx.append(inject(False))
             if sum(1 for c in calls if c.get("sig") == sig and c.get("res") == res) == LOOP_N:
                 ctx.append("watchdog: you repeated %s %d times with the same result" % (tool, LOOP_N))
+    elif event == "StopFailure":
+        # claude: "fires instead of Stop when an API error ended the turn";
+        # its output is ignored, so no block and no injection here
+        hb.update(state="idle", tool=None, tool_since=None)
+        msg = payload.get("last_assistant_message")
+        hb["api_error"] = (msg if isinstance(msg, str) and msg else
+                           "api error: %s" % (payload.get("error") or "unknown"))[:120]
     elif event == "Stop":
         hb.update(state="idle", tool=None, tool_since=None)
         e = last_assistant(payload.get("transcript_path")) if claude else None
         if e is not None and e.get("isApiErrorMessage"):
-            hb["api_error"] = entry_text(e)[:120]
+            api_err(hb, e)
         elif e is not None or kind == "vibe":
             # vibe's post_agent fires only after a turn that completed (an
             # LLM error raises before it: vibe/core/agent_loop/_loop.py)

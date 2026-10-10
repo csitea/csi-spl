@@ -2,7 +2,8 @@
 #------------------------------------------------------------------------------
 # @description Register the agent hook (specs/093 7.2) in the agent user's
 # @description claude settings: one entry per event (SessionStart,
-# @description UserPromptSubmit, PreToolUse, PostToolUse, Stop), each running
+# @description UserPromptSubmit, PreToolUse, PostToolUse, Stop, StopFailure: the
+# @description turn an API error such as a usage limit ended), each running
 # @description `spool-agent-hook.sh <event>` of THIS checkout. The entries sit
 # @description beside the existing spool-mirror.py ones, which are never
 # @description touched; every other key of the file is kept.
@@ -69,7 +70,7 @@ spl_agent_hooks_merge() {
   python3 - "$1" "$2" "$3" <<'EOF_PY'
 import json, shlex, sys
 path, script, uninstall = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
-EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop")
+EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "StopFailure")
 try:
     d = json.load(open(path))
 except FileNotFoundError:

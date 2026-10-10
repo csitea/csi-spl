@@ -36,8 +36,11 @@ WD_HB_FRESH="${WD_HB_FRESH:-120}"
 # org lock-out of spec 6.1 S2, plus grok's weekly-limit panel of spec 102
 # T029: "You hit your weekly limit." Not a bare "weekly limit": grok's normal
 # footer reads "Weekly limit left: 1%"), plus vibe's 429 "Rate limits
-# exceeded. Please wait a moment before trying again." (spec 110 T013b).
-WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|you hit your weekly limit|rate limits exceeded|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled}"
+# exceeded. Please wait a moment before trying again." (spec 110 T013b),
+# plus claude's transcript entry on a usage limit, "You've hit your session
+# limit · resets 3:20pm (Europe/Helsinki)" (c-817 2026-10-10; any "hit your
+# <word> limit", grok's weekly one included).
+WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|(you[^[:space:]]* )?hit your ([a-z]+ )?limit|rate limits exceeded|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled}"
 # A dead API key (spec 110 2.5, S2 kind=auth): vibe's 401 "Error: Invalid API
 # key (from env var MISTRAL_API_KEY). Please check your API key and try
 # again." No /login fixes it: the owner re-keys, so no restart either.

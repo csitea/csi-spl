@@ -13,7 +13,9 @@
 # @description acts: S1 rings at 120 s and takes over at 240 s, S2 never
 # @description restarts (a login: ONE blocker to the orchestrator; a dead
 # @description API key, kind=auth: ONE blocker to the dispatcher; a usage
-# @description limit: ONE wake once its reset + WD_LIMIT_GRACE passed), S3 takes
+# @description limit: ONE blocker to the orchestrator naming the reset, ONE
+# @description wake once its reset + WD_LIMIT_GRACE passed, and S1 does not
+# @description take the seat over until 2 x WD_JOB_WAIT after that), S3 takes
 # @description over, S4 Escape then takeover, S5 Escape + note then takeover,
 # @description S6 clears a poke-shaped box and re-pokes, S7 Escape once (the
 # @description default-mode offer: bypass settings re-asserted + takeover,
@@ -55,6 +57,7 @@
 # @param WD_BOOT_S3_WAIT (optional) - seconds after a boot a takeover (S3 and the rest, not the boot pass's own) waits for the boot pass, default 3600
 # @param WD_TAKEOVER_RETRY (optional) - seconds after an S3 takeover whose session is dead again before it is retried, default WD_START_WAIT + WD_START_GRACE (300)
 # @param WD_LIMIT_GRACE (optional) - seconds past a usage limit's reset before the ONE wake of a seat still on its limit, default 120
+# @param WD_LIMIT_BACKOFF (optional) - seconds a usage limit with no readable reset time is waited out before that wake, default 3600
 # @param WD_JOBS (optional) - agents checked at once, default 8
 # @param WD_S1_TOOL_CAP (optional) - seconds a running tool call (heartbeat tool + tool_since) holds S1, default 900
 # @param WD_SITUATIONS (optional) - the situation scripts dir (tests)
@@ -1052,12 +1055,13 @@ spl_wd_gate() {
 
 # Act on one confirmed code; prints what was done (or would be).
 spl_wd_act() {
-  local id="$1" code="$2" ev="$3" pane="$4" now="$5" ctx="$6" age
+  local id="$1" code="$2" ev="$3" pane="$4" now="$5" ctx="$6" age out
   case "$code" in
     S1) age="${ev#age=}"; age="${age%% *}"
         # no progress signal at all (no heartbeat, no readable transcript):
         # "no progress" is unproven, so a ring, never a takeover
-        if (( age >= 2 * WD_JOB_WAIT )) && [[ " $ev " != *" prog=unknown "* ]]; then spl_wd_once "$id" S1 takeover "$now" "$ctx" spl_wd_takeover "$id" S1 "$ev"
+        if out="$(spl_wd_s1_limit "$id" "$age" "$now" "$ctx")"; then echo "$out"
+        elif (( age >= 2 * WD_JOB_WAIT )) && [[ " $ev " != *" prog=unknown "* ]]; then spl_wd_once "$id" S1 takeover "$now" "$ctx" spl_wd_takeover "$id" S1 "$ev"
         else spl_wd_once "$id" S1 ring "$now" "$ctx" spl_wd_ring "$id"; fi ;;
     S2) if [[ "$ev" == kind=auth* ]]; then
           spl_wd_once "$id" S2 auth "$now" "$ctx" spl_wd_send "$(spl_wd_dispatcher)" blocker "$id" \
@@ -1085,26 +1089,55 @@ spl_wd_act() {
 # itself"): a parked seat comes back only when something types into it
 # (one box, 2026-10-08: 2.5 h idle after the 22:50Z reset). The banner's reset
 # time is read ONCE per episode into <WD_DIR>/<id>.ep.S2.reset (the episode's
-# end clears it); from reset + WD_LIMIT_GRACE on, a seat still on its limit
-# gets ONE wake, S6's shape: C-c a box holding text, then ring. A dialog on
-# the screen (an S7 hit) is never typed into. No reset time readable: as
-# before (no wake), and one wd.log line naming the text.
+# end clears it) and kept in <WD_DIR>/<id>.limit past it, for S1
+# (spl_wd_s1_limit); ONE blocker to the orchestrator names the seat and the
+# reset. From reset + WD_LIMIT_GRACE on, a seat still on its limit gets ONE
+# wake, S6's shape: C-c a box holding text, then ring. A dialog on the screen
+# (an S7 hit) is never typed into. No reset time readable: the reset is the
+# episode start + WD_LIMIT_BACKOFF (3600), and one wd.log line names the text.
 spl_wd_s2_limit() {
-  local id="$1" ev="$2" pane="$3" now="$4" ctx="$5" f="$WD_DIR/$1.ep.S2.reset" r txt
+  local id="$1" ev="$2" pane="$3" now="$4" ctx="$5" f="$WD_DIR/$1.ep.S2.reset" r txt b=""
   if [[ ! -e "$f" ]]; then
     r="$(spl_wd_limit_reset "$ev" "$now")"
     txt="$(grep -oiE '(resets|automatically)[^·]*' "$ctx/pane" 2>/dev/null | tail -n 1 || true)"
     [[ -n "$r" ]] || r="$(spl_wd_limit_reset "$txt" "$now")"
-    echo "${r:-none}" > "$f"
-    [[ -n "$r" ]] || spl_wd_log "LIMIT-RESET-UNREAD $id: no reset time in '$ev'${txt:+ / pane '$txt'}; no wake"
+    if [[ -z "$r" ]]; then
+      r="$(( now + ${WD_LIMIT_BACKOFF:-3600} ))b"
+      spl_wd_log "LIMIT-RESET-UNREAD $id: no reset time in '$ev'${txt:+ / pane '$txt'}; back-off ${WD_LIMIT_BACKOFF:-3600}s"
+    fi
+    echo "$r" > "$f"; echo "${r%b}" > "$WD_DIR/$id.limit"
   fi
   r="$(cat "$f" 2>/dev/null || true)"
-  if ! [[ "$r" =~ ^[0-9]+$ ]]; then echo "not able until the reset; no restart"; return 0; fi
+  [[ "$r" == *b ]] && { r="${r%b}"; b=" (back-off: no reset time read)"; }
+  [[ "$r" =~ ^[0-9]+$ ]] || return 0
+  txt="$(spl_wd_once "$id" S2 blocker "$now" "$ctx" spl_wd_send orchestrator blocker "$id" \
+    "WATCHDOG (093 S2 kind=limit): $id is on its usage limit until $(date -u -d "@$r" +%FT%TZ)$b: ${ev#kind=limit }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. No restart: a restart hits the same limit. The watchdog waits, wakes it once ${WD_LIMIT_GRACE:-120}s past the reset, and holds S1 until then.")"
   if (( now < r + ${WD_LIMIT_GRACE:-120} )); then
-    echo "not able until the reset $(date -u -d "@$r" +%FT%TZ) + ${WD_LIMIT_GRACE:-120}s; no restart"; return 0
+    echo "not able until the reset $(date -u -d "@$r" +%FT%TZ)$b + ${WD_LIMIT_GRACE:-120}s; no restart; $txt"; return 0
   fi
   if grep -q '^HIT S7' "$ctx/hits" 2>/dev/null; then echo "past the reset, a dialog is up: no wake (S7)"; return 0; fi
   spl_wd_once "$id" S2 wake "$now" "$ctx" spl_wd_limit_wake "$id" "$pane" "$ctx"
+}
+
+# spl_wd_s1_limit ID AGE NOW CTX: 0 when a usage limit excuses an S1 wait
+# (c-001 / c-817 2026-10-10: S2 held them all through the limit, then the
+# banner went at the reset and S1 took both over within 30 s, its job aged
+# 3374 s across the limit window). The job's wait counts from the reset +
+# WD_LIMIT_GRACE (<WD_DIR>/<id>.limit), so the takeover waits 2 x
+# WD_JOB_WAIT past it; a job that arrived after that counts as usual. It
+# acts and prints the verdict: before that point no action, after it a ring
+# (once). 1: no limit excuses the wait, nothing done.
+spl_wd_s1_limit() {
+  local id="$1" age="$2" now="$3" r end
+  r="$(cat "$WD_DIR/$id.limit" 2>/dev/null || true)"
+  [[ "$r" =~ ^[0-9]+$ && "$age" =~ ^[0-9]+$ ]] || return 1
+  end=$(( r + ${WD_LIMIT_GRACE:-120} ))
+  (( now - end < 2 * WD_JOB_WAIT && age > now - end )) || return 1
+  if (( now < end )); then
+    echo "on its usage limit until $(date -u -d "@$r" +%FT%TZ) + ${WD_LIMIT_GRACE:-120}s: no ring, no restart"
+  else
+    echo "usage limit ended $(( now - end ))s ago, waits from then: $(spl_wd_once "$id" S1 ring "$now" "$4" spl_wd_ring "$id"), no takeover before $(( 2 * WD_JOB_WAIT ))s"
+  fi
 }
 
 spl_wd_limit_wake() { if [[ -s "$3/input" ]]; then spl_wd_repoke "$1" "$2"; else spl_wd_ring "$1"; fi; }

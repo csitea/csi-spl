@@ -18,3 +18,4 @@ screen and its transcripts are T001's, read from `../fleet-lease/`.
 | `vibe-idle-plan.pane` | vibe 2.26.0 idle at its `>` prompt after a Stop, todo summary `▶ 1/7 · ...` (m-617, 2026-10-09, path and text trimmed) | S1 plan hit |
 | `vibe-idle-done.pane` | the same with the list complete, `☑ 7/7 · All todos complete` | S1 plan control |
 | `s9-unknown-dialog.pane` | `modal-default-mode.pane` (the 2026-10-06 frozen pane) with its dialog words replaced by words no list contains | S9 hit (spec 102 8.3); S7 control 1: no hit |
+| `limit-session.jsonl` | a claude transcript tail on its session limit (c-817, 2026-10-10, ids trimmed): a good reply, then two pokes, each answered by the synthetic `isApiErrorMessage` entry "You've hit your session limit · resets 3:20pm (Europe/Helsinki)", and no Stop | the hook (UserPromptSubmit sets api_error), S2 kind=limit from the transcript, section 12 |

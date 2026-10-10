@@ -33,6 +33,9 @@
 # @description env.hub.env.SPOOL_HUB_DEMO_{ENABLED,WORKSPACE,PROVIDERS,MAX_LIVE}
 # @description are env.demo.{enabled,workspace,providers,max_live} (spec 077
 # @description T023): the demo is one cnf block, never a hub.env literal.
+# @description env.hub.env.SPOOL_HUB_EMBED_<KEY> is env.hub.embed.<key>, upper-cased,
+# @description for every key of that block (spec 121 section 6, T103): the embed
+# @description limits are one cnf block, never a hub.env literal.
 # @description env.hub.env.SPOOL_HUB_DOCS_EDIT_* are env.docs.repo_edit (spec 075
 # @description repo-edit T01): enabled, github_app_id, installation_id, github_api,
 # @description deny and blocked_workspaces (joined with commas), coalesce_after,
@@ -78,6 +81,8 @@ do_spl_merged_cnf() {
       .hub.env.SPOOL_HUB_DEMO_WORKSPACE = (.demo.workspace | tostring) |
       .hub.env.SPOOL_HUB_DEMO_PROVIDERS = (.demo.providers | join(",")) |
       .hub.env.SPOOL_HUB_DEMO_MAX_LIVE = (.demo.max_live | tostring))' |
+    yq '(.env | select(.hub.embed != null)) |= (
+      .hub.env += (.hub.embed | with_entries(.key = "SPOOL_HUB_EMBED_" + (.key | upcase) | .value = (.value | tostring))))' |
     yq '(.env | select(.hub != null and .docs.repo_edit != null)) |= (
       .docs.repo_edit as $r |
       .hub.env.SPOOL_HUB_DOCS_EDIT_ENABLED = ($r.enabled | tostring) |

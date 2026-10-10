@@ -501,3 +501,55 @@ func TestLoadHubDemoMaxLive(t *testing.T) {
 		t.Fatalf("3: %v", err)
 	}
 }
+
+// specs/121 T103: the embed is off by default with section 6's limits and
+// a 30-day sliding / 180-day token; a bad value refuses to start.
+func TestLoadHubEmbed(t *testing.T) {
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.EmbedEnabled || h.EmbedVisitorsPerIPHour != 5 || h.EmbedVisitorsPerIPDay != 20 ||
+		h.EmbedPostsPerMinute != 6 || h.EmbedPostsPerDay != 100 || h.EmbedMessageMaxBytes != 4096 ||
+		h.EmbedTurnsPerDay != 10 || h.EmbedLiveVisitorsMax != 200 ||
+		h.EmbedChallengeAfterHits != 3 || h.EmbedBanAfterHits != 5 ||
+		h.EmbedHitsWindow != 24*time.Hour || h.EmbedBanFor != 24*time.Hour ||
+		h.EmbedTokenIdleTTL != 30*24*time.Hour || h.EmbedTokenMaxAge != 180*24*time.Hour {
+		t.Fatalf("embed defaults: %+v", h)
+	}
+	// each key is put back to its default before the next, so one bad value
+	// is tested at a time
+	for _, c := range []struct {
+		k, good string
+		bads    []string
+	}{
+		{"SPOOL_HUB_EMBED_ENABLED", "false", []string{"maybe"}},
+		{"SPOOL_HUB_EMBED_VISITORS_PER_IP_HOUR", "5", []string{"0", "-1", "five"}},
+		{"SPOOL_HUB_EMBED_VISITORS_PER_IP_DAY", "20", []string{"0"}},
+		{"SPOOL_HUB_EMBED_POSTS_PER_MINUTE", "6", []string{"0"}},
+		{"SPOOL_HUB_EMBED_POSTS_PER_DAY", "100", []string{"0"}},
+		{"SPOOL_HUB_EMBED_MESSAGE_MAX_BYTES", "4096", []string{"0", "4KB"}},
+		{"SPOOL_HUB_EMBED_TURNS_PER_DAY", "10", []string{"0"}},
+		{"SPOOL_HUB_EMBED_LIVE_VISITORS_MAX", "200", []string{"0"}},
+		{"SPOOL_HUB_EMBED_CHALLENGE_AFTER_HITS", "3", []string{"0", "6"}},
+		{"SPOOL_HUB_EMBED_BAN_AFTER_HITS", "5", []string{"0", "2"}},
+		{"SPOOL_HUB_EMBED_HITS_WINDOW", "24h", []string{"59s", "one day"}},
+		{"SPOOL_HUB_EMBED_BAN_FOR", "24h", []string{"0"}},
+		{"SPOOL_HUB_EMBED_TOKEN_IDLE_TTL", "720h", []string{"0", "4321h"}},
+		{"SPOOL_HUB_EMBED_TOKEN_MAX_AGE", "4320h", []string{"30s", "719h"}},
+	} {
+		for _, bad := range c.bads {
+			t.Setenv(c.k, bad)
+			if _, err := LoadHub(); err == nil {
+				t.Fatalf("%s=%s was accepted", c.k, bad)
+			}
+		}
+		t.Setenv(c.k, c.good)
+	}
+	t.Setenv("SPOOL_HUB_EMBED_ENABLED", "true")
+	t.Setenv("SPOOL_HUB_EMBED_TOKEN_IDLE_TTL", "1h")
+	if h, err := LoadHub(); err != nil || !h.EmbedEnabled || h.EmbedTokenIdleTTL != time.Hour {
+		t.Fatalf("on, 1h: %v", err)
+	}
+}

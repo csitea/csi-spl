@@ -430,6 +430,31 @@ type Hub struct {
 	// demo_signups.
 	DemoVisitsPerDay int `env:"SPOOL_HUB_DEMO_VISITS_PER_DAY" envDefault:"2"`
 	DemoSignupsPerIP int `env:"SPOOL_HUB_DEMO_SIGNUPS_PER_IP" envDefault:"3"`
+	// Embed* are the embeddable sales channel's switch and limits (specs/121
+	// section 6, cnf env.hub.embed): OFF by default; on only by T207 with the
+	// owner's go. Visitors per client IP an hour and a UTC day (429
+	// embed_visitors); posts per visitor a minute and a day, agent turns per
+	// unpaid visitor a day (429 embed_quota); the bytes of one visitor post
+	// (413); live unpaid visitors per embed (503 embed_full). A visitor that
+	// hits a limit EmbedChallengeAfterHits times within EmbedHitsWindow
+	// solves the challenge on every post; EmbedBanAfterHits times bans its
+	// ip_hash for EmbedBanFor. The visitor token lives EmbedTokenIdleTTL
+	// from its last use, EmbedTokenMaxAge at most (section 4.1). Below 1 (or
+	// 1m) the hub refuses to start: 0 must never read as unlimited.
+	EmbedEnabled            bool          `env:"SPOOL_HUB_EMBED_ENABLED" envDefault:"false"`
+	EmbedVisitorsPerIPHour  int           `env:"SPOOL_HUB_EMBED_VISITORS_PER_IP_HOUR" envDefault:"5"`
+	EmbedVisitorsPerIPDay   int           `env:"SPOOL_HUB_EMBED_VISITORS_PER_IP_DAY" envDefault:"20"`
+	EmbedPostsPerMinute     int           `env:"SPOOL_HUB_EMBED_POSTS_PER_MINUTE" envDefault:"6"`
+	EmbedPostsPerDay        int           `env:"SPOOL_HUB_EMBED_POSTS_PER_DAY" envDefault:"100"`
+	EmbedMessageMaxBytes    int           `env:"SPOOL_HUB_EMBED_MESSAGE_MAX_BYTES" envDefault:"4096"`
+	EmbedTurnsPerDay        int           `env:"SPOOL_HUB_EMBED_TURNS_PER_DAY" envDefault:"10"`
+	EmbedLiveVisitorsMax    int           `env:"SPOOL_HUB_EMBED_LIVE_VISITORS_MAX" envDefault:"200"`
+	EmbedChallengeAfterHits int           `env:"SPOOL_HUB_EMBED_CHALLENGE_AFTER_HITS" envDefault:"3"`
+	EmbedBanAfterHits       int           `env:"SPOOL_HUB_EMBED_BAN_AFTER_HITS" envDefault:"5"`
+	EmbedHitsWindow         time.Duration `env:"SPOOL_HUB_EMBED_HITS_WINDOW" envDefault:"24h"`
+	EmbedBanFor             time.Duration `env:"SPOOL_HUB_EMBED_BAN_FOR" envDefault:"24h"`
+	EmbedTokenIdleTTL       time.Duration `env:"SPOOL_HUB_EMBED_TOKEN_IDLE_TTL" envDefault:"720h"`
+	EmbedTokenMaxAge        time.Duration `env:"SPOOL_HUB_EMBED_TOKEN_MAX_AGE" envDefault:"4320h"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -688,10 +713,53 @@ func (h *Hub) checkViews() error {
 			return fmt.Errorf("SPOOL_HUB_DEMO_PROVIDERS %q: only %s may open the demo", p, strings.Join(demoProviderAllow, ", "))
 		}
 	}
+	if err := h.checkEmbed(); err != nil {
+		return err
+	}
 	for _, o := range h.ViewCORSOrigins {
 		if err := checkOrigin(o); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// checkEmbed refuses an embed limit below 1 (a duration below 1m), a ban
+// threshold below the challenge threshold and a token idle lifetime above its
+// hard cap (specs/121 sections 4.1, 6).
+func (h *Hub) checkEmbed() error {
+	for _, l := range []struct {
+		name string
+		v    int
+	}{
+		{"VISITORS_PER_IP_HOUR", h.EmbedVisitorsPerIPHour}, {"VISITORS_PER_IP_DAY", h.EmbedVisitorsPerIPDay},
+		{"POSTS_PER_MINUTE", h.EmbedPostsPerMinute}, {"POSTS_PER_DAY", h.EmbedPostsPerDay},
+		{"MESSAGE_MAX_BYTES", h.EmbedMessageMaxBytes}, {"TURNS_PER_DAY", h.EmbedTurnsPerDay},
+		{"LIVE_VISITORS_MAX", h.EmbedLiveVisitorsMax},
+		{"CHALLENGE_AFTER_HITS", h.EmbedChallengeAfterHits}, {"BAN_AFTER_HITS", h.EmbedBanAfterHits},
+	} {
+		if l.v < 1 {
+			return fmt.Errorf("SPOOL_HUB_EMBED_%s %d must be at least 1", l.name, l.v)
+		}
+	}
+	for _, d := range []struct {
+		name string
+		v    time.Duration
+	}{
+		{"HITS_WINDOW", h.EmbedHitsWindow}, {"BAN_FOR", h.EmbedBanFor},
+		{"TOKEN_IDLE_TTL", h.EmbedTokenIdleTTL}, {"TOKEN_MAX_AGE", h.EmbedTokenMaxAge},
+	} {
+		if d.v < time.Minute {
+			return fmt.Errorf("SPOOL_HUB_EMBED_%s %v must be at least 1m", d.name, d.v)
+		}
+	}
+	if h.EmbedBanAfterHits < h.EmbedChallengeAfterHits {
+		return fmt.Errorf("SPOOL_HUB_EMBED_BAN_AFTER_HITS %d must not be below SPOOL_HUB_EMBED_CHALLENGE_AFTER_HITS %d",
+			h.EmbedBanAfterHits, h.EmbedChallengeAfterHits)
+	}
+	if h.EmbedTokenIdleTTL > h.EmbedTokenMaxAge {
+		return fmt.Errorf("SPOOL_HUB_EMBED_TOKEN_IDLE_TTL %v must not exceed SPOOL_HUB_EMBED_TOKEN_MAX_AGE %v",
+			h.EmbedTokenIdleTTL, h.EmbedTokenMaxAge)
 	}
 	return nil
 }

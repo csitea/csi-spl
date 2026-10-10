@@ -14,11 +14,12 @@
      typing filters the list by a case-insensitive "contains" on the name,
      Up/Down move the highlight, Enter switches to the highlighted row (or
      the only one left), Esc closes the list and puts the current name back.
-     On a phone TopBarTenant is the switcher and this one is not shown. -->
+     On a phone TopBarTenant is the switcher and this one is not shown.
+     HUM-10 (topic dff51150): no glyph before the box on the desktop - the
+     logo is followed straight by the box; the caption and hover still name it. -->
 <template>
   <div class="tenant-drop">
     <div ref="tenantSwitcherEl" class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText">
-      <span class="tenant-switcher__icon"><UiIcon name="building" :size="16" /></span>
       <span
         class="tenant-switcher__field"
         data-testid="tenant-switcher-box"
@@ -272,8 +273,8 @@ async function pickTenant(id: string) {
   flex: 0 1 auto;
   min-width: 0;
 }
-/* Compact drop box: one slim row, a glyph and the box, no
-   caption. The select's width is the widest option in its own font, plus
+/* Compact drop box: one slim row, the box only (no glyph, no
+   caption). The select's width is the widest option in its own font, plus
    3px, plus the arrow (set from script, not a fixed px width). max-width
    keeps the row inside the bar. SPL-71: the name and the arrow sit in one
    bordered box (__field), a drop box rather than a dropdown menu. */
@@ -294,7 +295,6 @@ async function pickTenant(id: string) {
   font-size: 0.875rem;
 }
 .tenant-switcher:hover { background: var(--color-surface); color: var(--color-fg); }
-.tenant-switcher__icon { flex: 0 0 auto; display: inline-flex; }
 /* owner 2026-09-27: the box 4 px wider than before - 2px more on each side */
 .tenant-switcher__field {
   position: relative;

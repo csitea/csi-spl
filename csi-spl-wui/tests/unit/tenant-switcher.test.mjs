@@ -206,7 +206,9 @@ describe('the drop box sits in the top bar where the brand text was', () => {
     const box = vue.slice(vue.indexOf('data-testid="tenant-switcher"') - 60, vue.indexOf('</template>'))
     assert.doesNotMatch(box, /tenant-switcher__label/)
     assert.doesNotMatch(box, /<label/)
-    assert.match(box, /<UiIcon name="building"/)
+    /* HUM-10 (topic dff51150): no workspace glyph next to the logo on the desktop */
+    assert.doesNotMatch(box, /<UiIcon/)
+    assert.doesNotMatch(vue, /tenant-switcher__icon/)
     assert.match(box, /:aria-label="t\('sidebar\.tenant'\)"/)
     assert.match(box, /class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText"/)
     assert.match(box, /aria-describedby="tenant-switcher-hint"/)

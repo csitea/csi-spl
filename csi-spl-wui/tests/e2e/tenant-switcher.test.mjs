@@ -12,6 +12,7 @@
 // a native select. The geometry pins below are unchanged; only how they read
 // the box moved: the name is the input's value, the rows are the listbox's
 // options (rendered, hidden while closed), "open" is aria-expanded.
+// HUM-10 (topic dff51150): no workspace glyph between the logo and the box.
 //
 // Run:
 //   pnpm run test:e2e tenant-switcher
@@ -117,6 +118,19 @@ async function readBox(p) {
         const r = img.getBoundingClientRect()
         return img.complete && img.naturalWidth > 0 && r.width >= 24 && r.right <= er.left
       })(),
+      /* HUM-10 (topic dff51150): nothing drawn between the logo and the box -
+         the small workspace glyph is gone on the desktop */
+      glyphsBetween: (() => {
+        const logo = document.querySelector('[data-test=top-bar-logo]')
+        const field = document.querySelector('[data-testid=tenant-switcher-box]')
+        if (!(logo instanceof HTMLElement) || !(field instanceof HTMLElement)) return -1
+        const from = logo.getBoundingClientRect().right
+        const to = field.getBoundingClientRect().left
+        return [...document.querySelectorAll('[data-test=top-bar-start] svg, [data-test=top-bar-start] img')].filter((g) => {
+          const r = g.getBoundingClientRect()
+          return r.width > 0 && r.height > 0 && r.left >= from - 0.5 && r.right <= to + 0.5
+        }).length
+      })(),
       notInSidebar: !sel.closest('.sidebar'),
       selectWidth: er.width,
       selectHeight: er.height,
@@ -164,6 +178,7 @@ try {
     ok(tag + ' one option, in the top bar just before the theme icon', box.inTopBar === true && box.beforeTheme === true && box.options?.length === 1 && box.options[0].text.length > 0, box)
     ok(tag + ' the brand text is gone and the sidebar carries no second switcher', box.brandGone === true && box.notInSidebar === true, box)
     ok(tag + ' the logo loads and sits just before the drop box', box.logoBefore === true, box)
+    ok(tag + ' no workspace glyph between the logo and the drop box', box.glyphsBetween === 0, { glyphsBetween: box.glyphsBetween })
     ok(tag + ' keyboard reachable and not disabled', box.focused === true && box.disabled === false && box.tabIndex >= 0 && box.role === 'combobox', box)
     ok(tag + ' fits the bar without page scroll', box.selectWidth > 8 && box.docOverflow <= 1, box)
     ok(tag + ' the drop box is compact', box.selectHeight >= 18 && box.selectHeight <= 36 && box.selectWidth <= 160, box)

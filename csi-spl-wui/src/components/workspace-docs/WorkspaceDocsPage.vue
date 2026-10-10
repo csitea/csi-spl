@@ -41,8 +41,8 @@
           :placeholder="t('ws_doctree.new_doc_placeholder')"
           :aria-label="t('ws_doctree.new_doc')"
         >
-        <button type="submit" class="btn" data-test="ws-docs-create" :disabled="creating">
-          <UiIcon name="plus" :size="16" /><span>{{ t('ws_doctree.create') }}</span>
+        <button type="submit" class="issues-iconbtn" data-test="ws-docs-create" :disabled="creating" :aria-label="t('ws_doctree.create')" :title="t('ws_doctree.create')">
+          <UiIcon name="plus" :size="22" :stroke-width="2.5" />
         </button>
       </form>
 

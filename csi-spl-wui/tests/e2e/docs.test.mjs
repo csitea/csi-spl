@@ -467,6 +467,49 @@ try {
     ok(`signed-out: ${doc} opens from the list`, Boolean(a) && await page(o, doc) && (await h1(o)) === title, await h1(o).catch(() => ''))
   }
   await o.close()
+
+  /* Verify the button changes (m-756-docs-create-btn-print) */
+  console.log('-- button changes (m-756)')
+  const b = await browser.newPage()
+  await b.setViewport({ width: 1280, height: 800 })
+  await b.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  
+  // Verify the create button matches the issues button's style
+  const createBtn = await b.waitForSelector('[data-test=ws-docs-create]', { timeout: 15000 }).catch(() => null)
+  ok('the create button is present', Boolean(createBtn))
+  if (createBtn) {
+    const createBox = await createBtn.boundingBox()
+    ok('the create button is a small, round icon button', Boolean(createBox && createBox.width > 20 && createBox.height > 20 && createBox.width < 50 && createBox.height < 50))
+    
+    // Compare with the issues button
+    await b.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    const issuesBtn = await b.waitForSelector('[data-test=issues-new]', { timeout: 15000 }).catch(() => null)
+    ok('the issues create button is present for comparison', Boolean(issuesBtn))
+    if (issuesBtn) {
+      const issuesBox = await issuesBtn.boundingBox()
+      ok('the issues button is a small, round icon button', Boolean(issuesBox && issuesBox.width > 20 && issuesBox.height > 20 && issuesBox.width < 50 && issuesBox.height < 50))
+      
+      if (createBox && issuesBox) {
+        const sizeMatch = Math.abs(createBox.width - issuesBox.width) <= 1 && Math.abs(createBox.height - issuesBox.height) <= 1
+        ok('the create button matches the issues button size within 1px', sizeMatch)
+      }
+    }
+  }
+  
+  // Verify the print and TOC buttons are in a tight row at the top
+  await b.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const printBtn = await b.waitForSelector('[data-test=ws-doc-print-doc]', { timeout: 15000 }).catch(() => null)
+  const tocBtn = await b.waitForSelector('[data-test=ws-doc-toc-toggle]', { timeout: 15000 }).catch(() => null)
+  ok('the print button is present', Boolean(printBtn))
+  ok('the TOC button is present', Boolean(tocBtn))
+  
+  if (printBtn && tocBtn) {
+    const printBox = await printBtn.boundingBox()
+    const tocBox = await tocBtn.boundingBox()
+    ok('the print and TOC buttons are in a tight row at the top', Boolean(printBox && tocBox && Math.abs(printBox.top - tocBox.top) < 5 && printBox.right <= tocBox.left + 10))
+  }
+  
+  await b.close()
 } finally {
   await browser.close()
   await server.stop()

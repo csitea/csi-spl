@@ -33,18 +33,20 @@
           :aria-label="t('ws_doctree.search')"
         >
       </label>
-      <button type="button" class="btn ghost wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)">
-        <UiIcon name="file-text" :size="16" /><span>{{ t('ws_doctree.print_doc') }}</span>
+      <button type="button" class="issues-iconbtn wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)" :aria-label="t('ws_doctree.print_doc')" :title="t('ws_doctree.print_doc')">
+        <UiIcon name="file-text" :size="16" />
       </button>
       <button
         type="button"
-        class="btn ghost wsdoc__tool"
+        class="issues-iconbtn wsdoc__tool"
         data-test="ws-doc-toc-toggle"
         aria-controls="ws-doc-toc"
         :aria-expanded="tocOpen ? 'true' : 'false'"
         @click="toggleToc"
+        :aria-label="t('ws_doctree.toc')"
+        :title="t('ws_doctree.toc')"
       >
-        <UiIcon name="menu" :size="16" /><span>{{ t('ws_doctree.toc') }}</span>
+        <UiIcon name="menu" :size="16" />
       </button>
     </div>
 
@@ -708,7 +710,7 @@ onBeforeUnmount(() => {
   font: inherit;
   padding: 4px 0;
 }
-.wsdoc__tool { display: inline-flex; align-items: center; gap: 4px; }
+.wsdoc__tool { display: inline-flex; align-items: center; gap: 2px; padding: 4px; }
 .wsdoc__hits, .wsdoc__branch {
   margin: 8px 12px 0;
   padding: 8px 12px;

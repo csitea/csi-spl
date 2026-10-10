@@ -284,7 +284,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `GO/store/usage_events.go` + `_test.go` (*new*); the box side, one new
   `GO/spool/usage_report.go` + `_test.go`. Done: a turn without a report is
   never read as zero (test).
-- [ ] T303 **model prices** (claude; needs T301 applied). Named action
+- [x] T303 **model prices** (469c56522, deployed dev+prd; the data run waits for the go) (claude; needs T301 applied). Named action
   `do_spl_model_prices_sync`: fills `model_prices` from cnf; a price change
   is a new row. Files: `RUN/spl-model-prices-sync.func.sh` +
   `OT/spl-model-prices-sync.tst.sh` (*new*); the `model_prices` block of

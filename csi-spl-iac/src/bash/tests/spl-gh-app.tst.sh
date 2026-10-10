@@ -17,6 +17,8 @@
 #     6. no ruleset -> "nothing to bypass", no write
 #     7. a ruleset on master -> DRY_RUN would add; DRY_RUN=0 PUTs the App as an
 #        Integration bypass actor and reads it back; a second run is a no-op
+#     8. CONTROL: the master-no-force ruleset (do_spl_gh_master_ruleset, no
+#        bypass by design) is skipped by name, never PUT
 # The key material in the stubs is a fixed non-key string.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -67,6 +69,7 @@ case "$*" in
   "api repos/o/r/rules/branches/master") cat "$GH/rules" ;;
   "api repos/o/r/branches/master --jq .protected") echo false ;;
   "api repos/o/r/rulesets/9") cat "$GH/rs9" ;;
+  "api repos/o/r/rulesets/10") cat "$GH/rs10" ;;
   "api -X PUT repos/o/r/rulesets/9 --input -")
     jq --slurpfile b /dev/stdin '.bypass_actors = $b[0].bypass_actors' "$GH/rs9" >"$GH/rs9.new" && mv "$GH/rs9.new" "$GH/rs9" ;;
   *) echo "gh stub: unexpected $*" >&2; exit 3 ;;
@@ -155,6 +158,13 @@ act do_spl_gh_app_bypass GH_APP_SLUG=o-docs DRY_RUN=0; rc=$?
   && pass "7. DRY_RUN=0 adds the App (Integration, always), keeps the others, reads it back" || fail "7. put: rc=$rc $(cat "$T/out") $(cat "$T/gh/rs9")"
 act do_spl_gh_app_bypass GH_APP_SLUG=o-docs DRY_RUN=0; rc=$?
 [[ $rc == 0 && "$(writes)" == 0 ]] && grep -q 'already bypasses' "$T/out" && pass "7. a second run is a no-op" || fail "7. rerun: rc=$rc $(cat "$T/out")"
+
+echo '[{"type":"pull_request","ruleset_source_type":"Repository","ruleset_source":"o/r","ruleset_id":9},{"type":"deletion","ruleset_source_type":"Repository","ruleset_source":"o/r","ruleset_id":10}]' >"$T/gh/rules"
+echo '{"id":10,"name":"master-no-force","bypass_actors":[]}' >"$T/gh/rs10"
+act do_spl_gh_app_bypass GH_APP_SLUG=o-docs DRY_RUN=0; rc=$?
+[[ $rc == 0 ]] && ! grep -q 'rulesets/10 --input' "$T/calls.log" && grep -q 'rulesets/10 (master-no-force): the no-bypass master ruleset' "$T/out" \
+  && jq -e '.bypass_actors == []' "$T/gh/rs10" >/dev/null \
+  && pass "8. CONTROL: the master-no-force ruleset is skipped by name, no bypass added" || fail "8. rc=$rc $(cat "$T/out") $(cat "$T/calls.log")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

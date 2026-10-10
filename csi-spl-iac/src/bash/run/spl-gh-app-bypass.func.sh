@@ -9,6 +9,9 @@
 # @description No ruleset on the branch: nothing to bypass (§9.1 step 5), the
 # @description read-back says so. A classic branch protection is reported and
 # @description refused (not handled here). DRY_RUN=1 (default): change nothing.
+# @description The master ruleset of do_spl_gh_master_ruleset (no force push, no
+# @description deletion, NO bypass by design: owner go 2026-10-10) is skipped
+# @description by its name, never given a bypass actor.
 # @param GH_APP_SLUG - required: the App's slug (do_spl_gh_app_manifest prints it)
 # @param GH_APP_REPO (optional) - <owner>/<repo>, default: the origin remote
 # @param GH_APP_WAIT (optional) - seconds to wait for the install (default 0)
@@ -63,6 +66,10 @@ _sgb_one() {
     *) do_log "ERROR ruleset $3: unknown source type '$1'"; return 1 ;;
   esac
   rs="$(gh api "$ep")" || { do_log "ERROR cannot read $ep"; return 1; }
+  if [[ "$(jq -r .name <<<"$rs")" == "${GH_MASTER_RULESET_NAME:-master-no-force}" ]]; then
+    do_log "OK $ep ($(jq -r .name <<<"$rs")): the no-bypass master ruleset (do_spl_gh_master_ruleset), skipped"
+    return 0
+  fi
   has="$(jq --argjson a "$4" '[.bypass_actors[]? | select(.actor_type == "Integration" and .actor_id == $a)] | length' <<<"$rs")"
   if [[ "$has" != 0 ]]; then
     do_log "OK $ep ($(jq -r .name <<<"$rs")): App $4 already bypasses"

@@ -1364,12 +1364,14 @@ declare module '~/utils/link-target.mjs' {
 }
 
 declare module '~/utils/app-link-label.mjs' {
-  export type AppLinkSegment = { kind: 'instance' | 'workspace' | 'type', value: string, id?: string }
+  export type AppLinkSegment = { kind: 'instance' | 'workspace' | 'type', value: string, id?: string, ref?: string }
   export type AppLinkLabel = { segments: AppLinkSegment[], text: string, title: string }
   export function linkTextIsAddress(text: string): boolean
   export function formatAppLinkSegments(segments: AppLinkSegment[]): string
   export function appLinkLabelContext(pageHref: string, pub?: { tenantHosts?: unknown, siteUrl?: unknown, tenant?: unknown }): { pageHref: string, siteUrl: string, apexTenant: string }
   export function appLinkLabel(href: string, ctx: { pageHref: string, siteUrl?: string, apexTenant?: string }): AppLinkLabel | null
+  export function labelEvent(label: AppLinkLabel | null | undefined): { id: string, day: string } | null
+  export function eventChipText(label: AppLinkLabel, title?: string): string
   export function withShortTimes(runs: { text: string, iso?: string }[], at: unknown): { text: string, iso?: string, dt?: string }[]
 }
 

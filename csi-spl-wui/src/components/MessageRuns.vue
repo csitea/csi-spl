@@ -7,9 +7,11 @@
     <a
       v-else-if="p.type === 'link'"
       class="msg-link"
+      :class="{ 'msg-link--event': linkKind(p) === 'event' }"
       :href="hrefOf(p.href)"
       :title="linkTitle(p)"
       :data-test="linkTitle(p) ? 'app-link' : undefined"
+      :data-kind="linkKind(p) || undefined"
       :target="openOf(p.href).target"
       :rel="openOf(p.href).rel"
       draggable="false"
@@ -34,7 +36,7 @@ import { mentionDisplay, namedRuns } from '~/utils/channel-feed.mjs'
 import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp } from '~/utils/link-target.mjs'
 import { docsLinkHref } from '~/utils/docs.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
-import { useAppLinkLabel } from '~/composables/useAppLinkLabel'
+import { appLinkText, useAppLinkLabel } from '~/composables/useAppLinkLabel'
 import { BODY_TIME_AT, bodyTimeRuns } from '~/utils/body-times.mjs'
 
 /* One run of a message body. Text interpolation only: a wiki region never
@@ -96,7 +98,14 @@ function labelOf(href?: string, text?: string) {
 }
 
 function linkText(p: { text: string, href?: string }) {
-  return labelOf(p.href, p.text)?.text || p.text
+  const l = labelOf(p.href, p.text)
+  return l && labelMod.value ? appLinkText(labelMod.value, l) : p.text
+}
+
+/* 'event' for a calendar event link (t1 9dec05c3): it reads as a chip */
+function linkKind(p: { text: string, href?: string }) {
+  const l = labelOf(p.href, p.text)
+  return l && labelMod.value?.labelEvent(l) ? 'event' : ''
 }
 
 function linkTitle(p: { text: string, href?: string }) {
@@ -137,6 +146,15 @@ function onLink(e: MouseEvent, href?: string) {
   -webkit-user-drag: none;
 }
 .msg-link:hover { color: var(--color-accent-pressed); }
+/* t1 9dec05c3: a calendar event link reads as a chip */
+.msg-link--event {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-2);
+  text-decoration: none;
+}
 /* .code-inline is global (main.css): the same look in every body */
 em { font-style: italic; }
 </style>

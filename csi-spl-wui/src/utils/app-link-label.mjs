@@ -21,7 +21,8 @@ import { isTenantHostOf, pageTenant } from './tenant-host-core.mjs'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /* a locale prefix only when the next segment is a real route, so /m/<id> stays a message */
-const TOP = new Set(['channel', 'dm', 't', 'm', 'agents', 'boxes', 'people', 'releases', 'help', 'docs', 'issues'])
+const TOP = new Set(['channel', 'dm', 't', 'm', 'agents', 'boxes', 'people', 'releases', 'help', 'docs', 'issues', 'calendar'])
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 const ONE = {
   agents: 'agent',
   boxes: 'box',
@@ -32,7 +33,7 @@ const ONE = {
 
 /**
  * @typedef {'instance' | 'workspace' | 'type'} AppLinkSegmentKind
- * @typedef {{ kind: AppLinkSegmentKind, value: string, id?: string }} AppLinkSegment
+ * @typedef {{ kind: AppLinkSegmentKind, value: string, id?: string, ref?: string }} AppLinkSegment
  * @typedef {{ segments: AppLinkSegment[], text: string, title: string }} AppLinkLabel
  */
 
@@ -142,6 +143,15 @@ function objectOf(u) {
     const shown = type === 'release' && /^[0-9a-f]{9,40}$/i.test(id) ? id.slice(0, 8).toLowerCase() : id
     return id && type ? { type, id: shown } : null
   }
+  /* t1 9dec05c3: a calendar event's link (Copy link) reads by its day; the
+     event id rides as `ref`, so a reader who may see the event gets its
+     title (eventChipText), and one who may not never does */
+  if (/^\/calendar$/i.test(rest)) {
+    const ev = cleanId(u.searchParams.get('event') || '', false)
+    const day = (u.searchParams.get('d') || '').trim()
+    if (!ev) return null
+    return { type: 'event', id: DAY_RE.test(day) ? day : shortUuid(ev), ref: ev }
+  }
   const docs = /^\/docs\/(.+)$/i.exec(rest)
   if (docs) {
     const id = cleanId(docs[1], true).replace(/\/+$/, '')
@@ -191,10 +201,38 @@ export function appLinkLabel(href, ctx) {
   const segments = []
   const ws = workspaceName(u, page, site, apex)
   if (ws) segments.push({ kind: 'workspace', value: ws })
-  segments.push({ kind: 'type', value: obj.type, id: obj.id })
+  segments.push(obj.ref ? { kind: 'type', value: obj.type, id: obj.id, ref: obj.ref } : { kind: 'type', value: obj.type, id: obj.id })
   const text = formatAppLinkSegments(segments)
   if (!text) return null
   return { segments, text, title: u.href }
+}
+
+/**
+ * The event a label names (a calendar Copy link, t1 9dec05c3), or null.
+ * @param {AppLinkLabel | null | undefined} label
+ * @returns {{ id: string, day: string } | null}
+ */
+export function labelEvent(label) {
+  const s = (label && label.segments || []).find((x) => x && x.kind === 'type' && x.value === 'event' && x.ref)
+  return s ? { id: String(s.ref), day: DAY_RE.test(String(s.id)) ? String(s.id) : '' } : null
+}
+
+/**
+ * The event chip's text: `event: <title> · <day>` once the reader's own
+ * calendar answered with that event; else the label as it is (no title for
+ * an event the reader may not see). A long title is cut at 80.
+ * @param {AppLinkLabel} label
+ * @param {string} [title]
+ */
+export function eventChipText(label, title) {
+  const ev = labelEvent(label)
+  const t = String(title || '').replace(/\s+/g, ' ').trim()
+  if (!ev || !t) return label.text
+  const short = t.length > 80 ? t.slice(0, 79) + '\u2026' : t
+  const segs = label.segments.filter((x) => x.kind === 'workspace')
+  const ws = formatAppLinkSegments(segs)
+  const own = 'event: ' + short + (ev.day ? ' \u00b7 ' + ev.day : '')
+  return ws ? ws + ' \u00b7 ' + own : own
 }
 
 /* t1 179ef3f9: the short UTC times of a message body ride this lazy chunk.

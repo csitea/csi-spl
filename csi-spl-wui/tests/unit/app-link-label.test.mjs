@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { appLinkLabel, appLinkLabelContext, formatAppLinkSegments, linkTextIsAddress } from '../../src/utils/app-link-label.mjs'
+import { appLinkLabel, appLinkLabelContext, eventChipText, formatAppLinkSegments, labelEvent, linkTextIsAddress } from '../../src/utils/app-link-label.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -128,5 +128,40 @@ describe('app link labels', () => {
     const mailDomain = ['csitea', 'net'].join('.')
     const forbid = [productHost, mailDomain].join('|').replace(/\./g, '\\.')
     assert.doesNotMatch(read('src/utils/app-link-label.mjs'), new RegExp(forbid))
+  })
+})
+
+/* t1 9dec05c3: a calendar Copy link reads as an event chip */
+describe('calendar event links', () => {
+  const EV = '00000000-0000-4000-8000-000000000102'
+  it('reads as event: <day>, the id kept as ref', () => {
+    const lab = appLinkLabel(`https://csitea.app.example/calendar?d=2026-10-12&event=${EV}`, ctx(PAGE))
+    assert.ok(lab)
+    assert.equal(lab.text, 'event: 2026-10-12')
+    assert.deepEqual(lab.segments, [{ kind: 'type', value: 'event', id: '2026-10-12', ref: EV }])
+    assert.deepEqual(labelEvent(lab), { id: EV, day: '2026-10-12' })
+  })
+  it('a locale prefix and a missing day still read', () => {
+    const lab = appLinkLabel(`https://csitea.app.example/fi/calendar?event=${EV}`, ctx(PAGE))
+    assert.equal(lab?.text, 'event: 00000000')
+    assert.deepEqual(labelEvent(lab), { id: EV, day: '' })
+  })
+  it('the calendar with no event stays the address', () => {
+    assert.equal(appLinkLabel('https://csitea.app.example/calendar?d=2026-10-12', ctx(PAGE)), null)
+  })
+  it('the chip shows the title only when given, cut at 80', () => {
+    const lab = appLinkLabel(`https://csitea.app.example/calendar?d=2026-10-12&event=${EV}`, ctx(PAGE))
+    assert.equal(eventChipText(lab, ''), 'event: 2026-10-12')
+    assert.equal(eventChipText(lab, ' Database  maintenance '), 'event: Database maintenance' + DOT + '2026-10-12')
+    assert.equal(eventChipText(lab, 'x'.repeat(100)), 'event: ' + 'x'.repeat(79) + '\u2026' + DOT + '2026-10-12')
+  })
+  it('another workspace keeps its segment in front of the chip', () => {
+    const lab = appLinkLabel(`https://csitea.app.example/calendar?d=2026-10-12&event=${EV}`, ctx(APEX_PAGE))
+    assert.equal(eventChipText(lab, 'Standup'), 'workspace: csitea' + DOT + 'event: Standup' + DOT + '2026-10-12')
+  })
+  it('a non-event label is untouched', () => {
+    const lab = appLinkLabel(`https://csitea.app.example/channel/spool-hub?topic=${TOPIC}`, ctx(PAGE))
+    assert.equal(labelEvent(lab), null)
+    assert.equal(eventChipText(lab, 'Standup'), 'topic: 41261a3f')
   })
 })

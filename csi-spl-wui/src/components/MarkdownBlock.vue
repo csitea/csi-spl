@@ -36,7 +36,7 @@ import { mentionParts } from '~/utils/code-blocks.mjs'
 import { hasBodyTime } from '~/utils/body-times.mjs'
 import CodeBlock from '~/components/CodeBlock.vue'
 import MessageRuns from '~/components/MessageRuns.vue'
-import { useAppLinkLabel } from '~/composables/useAppLinkLabel'
+import { appLinkText, useAppLinkLabel } from '~/composables/useAppLinkLabel'
 
 const props = defineProps<{ text: string, bare?: boolean }>()
 const emit = defineEmits<{ rendered: [on: boolean] }>()
@@ -161,7 +161,12 @@ function node(n: MdNode, inCode = false): VNodeChild {
       anchor.rel = open.rel
     }
     if (lab) anchor['data-test'] = 'app-link'
-    return h('a', anchor, lab ? [lab.text] : kids)
+    /* t1 9dec05c3: a calendar event link is a chip */
+    if (lab && labelMod.value?.labelEvent(lab)) {
+      anchor.class = 'msg-link msg-link--event'
+      anchor['data-kind'] = 'event'
+    }
+    return h('a', anchor, lab && labelMod.value ? [appLinkText(labelMod.value, lab)] : kids)
   }
   if (n.tag === 'table') return h('div', { class: 'md-table' }, [h('table', null, kids)])
   const attrs: Record<string, string> = {}
@@ -295,4 +300,13 @@ MdNodes.props = ['nodes', 'stamp']
   -webkit-user-drag: none;
 }
 .md-block :deep(.msg-link:hover) { color: var(--color-accent-pressed); }
+/* t1 9dec05c3: a calendar event link reads as a chip */
+.md-block :deep(.msg-link--event) {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-2);
+  text-decoration: none;
+}
 </style>

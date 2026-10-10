@@ -10,7 +10,6 @@
 // load (do_spl_wui_perf_first_load_net). Install needs neither earlier.
 import { IDLE_POLL_MS, normCommit } from '~/utils/build-watch.mjs'
 import { readReloadGuard, reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
-import { capturePwaInstall } from '~/utils/pwa-install.mjs'
 
 const MANIFEST_HREF = '/manifest.webmanifest'
 // W9: public/sw.js answered this tab from its app shell while the network
@@ -42,8 +41,13 @@ function actOnShellBuild(
 
 export default defineNuxtPlugin(() => {
   // HUM-10: keep Chrome's one install event for Settings' Install button; it
-  // fires once the manifest below is linked, before Settings is opened.
-  capturePwaInstall(window)
+  // fires once the manifest below is linked, before Settings is opened. Only
+  // these lines are in the first download: the rest is utils/pwa-install.mjs,
+  // in Settings' lazy chunk, which reads window.__spoolPwa (ci_home_gzip_kb).
+  const pwa = ((window as any).__spoolPwa ||= { ev: null, done: false })
+  const pwaChanged = () => dispatchEvent(new Event('spool-pwa'))
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pwa.ev = e; pwaChanged() })
+  addEventListener('appinstalled', () => { pwa.ev = null; pwa.done = true; pwaChanged() })
   onNuxtReady(() => {
     if (!document.querySelector('link[rel="manifest"]')) {
       const link = document.createElement('link')

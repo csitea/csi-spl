@@ -4,21 +4,23 @@
  *
  * Chrome fires `beforeinstallprompt` once, soon after the manifest is linked
  * (plugins/pwa.client.ts, after onNuxtReady), usually before anyone opens
- * Settings. So the plugin calls capturePwaInstall(window) at boot and the
- * event waits here until the Install button calls promptPwaInstall().
+ * Settings. So the plugin keeps the event at boot in `window.__spoolPwa`
+ * ({ ev, done }) and fires `spool-pwa` on window on every change; this module
+ * reads that state and is loaded only with Settings' Appearance chunk, never
+ * in the first download (ci_home_gzip_kb).
  * Safari and Firefox never fire it: `canPrompt` stays false and the row shows
  * the manual "Add to Home Screen" step instead of a dead button.
- *
- * Framework-free and small: it is in the initial chunk with the plugin.
  */
 
 /** @typedef {{ canPrompt: boolean, installed: boolean }} PwaInstallState */
 
-/** @type {{ prompt: () => Promise<void>, userChoice?: Promise<{ outcome?: string }> } | null} */
-let held = null
-let installed = false
-/** @type {Set<(s: PwaInstallState) => void>} */
-const subs = new Set()
+const CHANGED = 'spool-pwa'
+
+/** @returns {{ ev: { prompt: () => Promise<void>, userChoice?: Promise<{ outcome?: string }> } | null, done: boolean }} */
+function kept() {
+  const w = /** @type {any} */ (window)
+  return (w.__spoolPwa ||= { ev: null, done: false })
+}
 
 /** True when this page runs as the installed app (a home-screen launch). */
 export function isStandalone(win) {
@@ -32,35 +34,16 @@ export function isStandalone(win) {
 
 /** @returns {PwaInstallState} */
 export function pwaInstallState() {
-  return { canPrompt: Boolean(held) && !installed, installed }
-}
-
-function emit() {
-  const s = pwaInstallState()
-  for (const fn of subs) fn(s)
+  const k = kept()
+  const installed = k.done || isStandalone(window)
+  return { canPrompt: Boolean(k.ev) && !installed, installed }
 }
 
 /** Calls fn on every change; returns the unsubscribe. */
 export function onPwaInstallChange(fn) {
-  subs.add(fn)
-  return () => { subs.delete(fn) }
-}
-
-/** Keeps the browser's install event for the Install button (once per window). */
-export function capturePwaInstall(win) {
-  if (!win || win.__spoolPwaInstall) return
-  win.__spoolPwaInstall = true
-  installed = isStandalone(win)
-  win.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault()
-    held = e
-    emit()
-  })
-  win.addEventListener('appinstalled', () => {
-    held = null
-    installed = true
-    emit()
-  })
+  const on = () => fn(pwaInstallState())
+  window.addEventListener(CHANGED, on)
+  return () => { window.removeEventListener(CHANGED, on) }
 }
 
 /**
@@ -69,16 +52,17 @@ export function capturePwaInstall(win) {
  * @returns {Promise<string>} 'accepted' | 'dismissed' | '' (nothing to prompt)
  */
 export async function promptPwaInstall() {
-  const e = held
-  if (!e || installed) return ''
-  held = null
+  const k = kept()
+  const e = k.ev
+  if (!e || pwaInstallState().installed) return ''
+  k.ev = null
   let outcome = ''
   try {
     await e.prompt()
     const choice = e.userChoice ? await e.userChoice : null
     outcome = String((choice && choice.outcome) || '')
   } catch { /* the browser refused: the manual step shows */ }
-  if (outcome === 'accepted') installed = true
-  emit()
+  if (outcome === 'accepted') k.done = true
+  window.dispatchEvent(new Event(CHANGED))
   return outcome
 }

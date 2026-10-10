@@ -7,6 +7,8 @@
 //   - /fi/blog/<id> without a fi copy shows the en text, lang="en";
 //   - the sign-in page's footer links the blog.
 //   - spec 116 T7: the public pages' SEO (publicSeo below).
+//   - HUM-10 t1 35aea5bb: the language menu (langMenu below), with JS off
+//     and on, its links the page's hreflang set.
 // The posts are the build's own (public/blog-md/index.json): with none, the
 // empty list is checked and the post steps say they did not run.
 //
@@ -120,6 +122,7 @@ try {
   await ctx.close()
 
   await publicSeo()
+  await langMenu()
 } finally {
   await browser.close()
   await server.stop()
@@ -196,6 +199,64 @@ async function publicSeo() {
   }))
   ok('/help/<page> after hydration: one robots (index), one apex canonical, one og:title', help.robots.join() === 'index, follow' && help.canonical.join() === apex + '/help/getting-started' && help.og === 1, help)
   await ctx.close()
+}
+
+/* HUM-10 t1 35aea5bb: the blog's language menu, signed out. The raw
+   document (JS off, what a crawler reads) holds one <a href> per locale the
+   page has - all of them on the list, the hreflang set on a post - and the
+   current one is aria-current. A click works with JS off (a plain link) and
+   with JS on also leaves the locale cookie. */
+async function langMenu() {
+  console.log('-- language menu (HUM-10 t1 35aea5bb)')
+  const raw = (u) => fetch(server.base + u).then((r) => (r.ok ? r.text() : ''), () => '')
+  const attr = (a, n) => new RegExp(`\\b${n}="([^"]*)"`).exec(a)?.[1]
+  const items = (html) => [...html.matchAll(/<a\b([^>]*\bdata-test="blog-lang-item"[^>]*)>/g)].map((m) => ({ href: attr(m[1], 'href'), code: attr(m[1], 'hreflang'), current: attr(m[1], 'aria-current') === 'page' }))
+  const alternates = (html) => [...html.matchAll(/<link rel="alternate" hreflang="([^"]+)"/g)].map((m) => m[1]).filter((c) => c !== 'x-default')
+  const index = await raw('/blog-md/index.json').then((t) => JSON.parse(t || '{}'), () => ({}))
+  const locs = Object.keys(index.locales || {})
+  const posts = index.locales?.en || []
+  const codes = items(await raw('/blog')).map((i) => i.code)
+  ok('JS off: /blog lists all 19 locales as links', codes.length === 19 && new Set(codes).size === 19, codes)
+  const fi = items(await raw('/fi/blog'))
+  ok('JS off: /fi/blog links fi to /fi/blog and en to /blog, fi current', fi.find((i) => i.code === 'fi')?.href === '/fi/blog' && fi.find((i) => i.code === 'en')?.href === '/blog' && fi.filter((i) => i.current).map((i) => i.code).join() === 'fi', fi.filter((i) => i.code === 'fi' || i.code === 'en'))
+  /* control: the parser sees no menu in a page that has none */
+  ok('control: /login has no blog language menu', items(await raw('/login')).length === 0)
+  const fiDoc = await raw('/fi/blog')
+  ok('the /fi/blog document is public-clean (no auth path, no config.json)', fiDoc.length > 0 && !/\/api\/v1\/auth\//.test(fiDoc) && !/config\.json/.test(fiDoc))
+  ok('the /fi/blog document says lang="fi…"', /<html[^>]* lang="fi(?:-[A-Z]{2})?"/.test(fiDoc), /<html[^>]*>/.exec(fiDoc)?.[0])
+  if (!posts.length) { console.log('  (no posts in this build: the post steps did not run)'); return }
+  const has = (id) => ['en', ...locs.filter((l) => l !== 'en' && (index.locales[l] || []).some((e) => e.id === id))]
+  const many = posts.find((e) => has(e.id).length > 1)
+  const one = posts.find((e) => has(e.id).length === 1)
+  for (const e of [many, one].filter(Boolean)) {
+    const html = await raw(`/blog/${e.id}`)
+    const menu = items(html)
+    const want = has(e.id)
+    const alt = alternates(html)
+    ok(`${e.id}: the menu lists exactly the locales with this post (${want.length})`, menu.map((i) => i.code).sort().join() === [...want].sort().join(), menu.map((i) => i.code))
+    ok(`${e.id}: the menu equals the hreflang set`, want.length === 1 ? alt.length === 0 && menu.length === 1 && menu[0].code === 'en' : menu.map((i) => i.code).join() === alt.join(), { alt })
+    ok(`${e.id}: each link is /<lang>/blog/<id> (en unprefixed)`, menu.every((i) => i.href === (i.code === 'en' ? `/blog/${e.id}` : `/${i.code}/blog/${e.id}`)))
+  }
+  if (!one) console.log('  (every post has a translation: the one-locale case did not run)')
+  if (!many) console.log('  (no post has a translation: the many-locale case did not run)')
+  const target = many || posts[0]
+  const to = has(target.id).find((c) => c !== 'en') || 'en'
+  for (const js of [false, true]) {
+    const { ctx, p } = await anonymousPage(browser, { width: 390, height: 844 })
+    await p.setJavaScriptEnabled(js)
+    await p.goto(server.base + `/blog/${target.id}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.click('[data-test=blog-lang-button]').catch(() => null)
+    const link = await p.waitForSelector(`[data-test=blog-lang-item][data-code=${to}]`, { visible: true, timeout: 5000 }).catch(() => null)
+    ok(`JS ${js ? 'on' : 'off'}: the menu opens on a tap`, Boolean(link))
+    if (link) await Promise.all([p.waitForNavigation({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => null), link.click()])
+    const want = to === 'en' ? `/blog/${target.id}` : `/${to}/blog/${target.id}`
+    ok(`JS ${js ? 'on' : 'off'}: picking ${to} opens ${want}`, path(p) === want, p.url())
+    if (js) {
+      const cookie = (await p.cookies()).find((c) => c.name === 'i18n_redirected')
+      ok('JS on: the pick leaves the locale cookie', cookie?.value === to, cookie)
+    }
+    await ctx.close()
+  }
 }
 
 const failed = results.filter((r) => !r.ok).length

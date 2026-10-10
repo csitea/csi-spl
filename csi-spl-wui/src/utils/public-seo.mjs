@@ -89,18 +89,29 @@ export function socialMeta(p) {
 }
 
 /**
+ * One copy per locale in `langs` (the locales the page really has): its code
+ * and href (`siteUrl` + the localized path; siteUrl '' = a relative href).
+ * The ONE list behind both the hreflang alternates (localeLinks) and the
+ * blog's language menu (pages/blog.vue), so the two cannot drift apart.
+ * @param {{ siteUrl: string, base: string, langs: string[], defaultLocale: string }} o
+ * @returns {Array<{ code: string, href: string }>}
+ */
+export function localeAlternates(o) {
+  return o.langs.map((code) => ({ code, href: `${o.siteUrl}${localizedPath(code, o.base, o.defaultLocale)}` }))
+}
+
+/**
  * canonical + hreflang links: canonical on `canonicalCode`'s copy, one
  * alternate per locale in `langs` (the locales the page really has) and
  * x-default on the default-locale copy. One language = no alternates.
  * @param {{ siteUrl: string, base: string, canonicalCode: string, langs: string[], defaultLocale: string }} o
  */
 export function localeLinks(o) {
-  /** @param {string} code */
-  const abs = (code) => `${o.siteUrl}${localizedPath(code, o.base, o.defaultLocale)}`
-  const out = [{ rel: 'canonical', href: abs(o.canonicalCode) }]
+  const [canonical, xDefault] = localeAlternates({ ...o, langs: [o.canonicalCode, o.defaultLocale] })
+  const out = [{ rel: 'canonical', href: canonical.href }]
   if (o.langs.length > 1) {
-    for (const c of o.langs) out.push({ rel: 'alternate', hreflang: c, href: abs(c) })
-    out.push({ rel: 'alternate', hreflang: 'x-default', href: abs(o.defaultLocale) })
+    for (const a of localeAlternates(o)) out.push({ rel: 'alternate', hreflang: a.code, href: a.href })
+    out.push({ rel: 'alternate', hreflang: 'x-default', href: xDefault.href })
   }
   return out
 }

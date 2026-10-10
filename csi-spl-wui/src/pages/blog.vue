@@ -7,7 +7,10 @@
      no markdown. Public: no layout (the login layout probes the session), no
      API call, and nuxt.config strips the session probe and the config.json
      script from these documents. A locale without its copy shows the en text
-     with lang="en". Chrome strings are English literals until T013. -->
+     with lang="en". Chrome strings are English literals until T013.
+     The language menu (HUM-10 t1 35aea5bb) is a <details> of plain <a href>
+     links: it works signed out and with JS off, a crawler follows it, and it
+     lists exactly the hreflang locales (localeAlternates, public-seo.mjs). -->
 <template>
   <div class="blog-page" data-test="blog-page">
     <header class="blog-bar" data-test="blog-bar">
@@ -17,7 +20,30 @@
         <span class="blog-bar__sep" aria-hidden="true">/</span>
         <span class="blog-bar__blog">Blog</span>
       </NuxtLink>
-      <NuxtLink :to="localePath('/login')" class="blog-bar__signin" data-test="blog-bar-signin">Sign in</NuxtLink>
+      <div class="blog-bar__end">
+        <details ref="langMenuEl" class="blog-lang" data-test="blog-lang">
+          <summary class="blog-lang__button" :title="t('nav.lang_label')" data-test="blog-lang-button">
+            <span class="visually-hidden">{{ t('nav.lang_label') }}: </span>
+            <span class="blog-lang__current">{{ localeName(locale) }}</span>
+            <span class="blog-lang__chevron" aria-hidden="true">&#9662;</span>
+          </summary>
+          <ul class="blog-lang__list" :aria-label="t('nav.lang_label')" data-test="blog-lang-list">
+            <li v-for="l in langMenu" :key="l.code">
+              <a
+                :href="l.href"
+                :hreflang="l.code"
+                :lang="l.code"
+                class="blog-lang__item"
+                :aria-current="l.code === locale ? 'page' : undefined"
+                :data-code="l.code"
+                data-test="blog-lang-item"
+                @click="persist(l.code)"
+              >{{ localeName(l.code) }}</a>
+            </li>
+          </ul>
+        </details>
+        <NuxtLink :to="localePath('/login')" class="blog-bar__signin" data-test="blog-bar-signin">Sign in</NuxtLink>
+      </div>
     </header>
 
     <main class="blog-main">
@@ -99,9 +125,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { LOCALE_LS_KEY } from '~/composables/useLocaleSwitch'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
-import { SITE_IMAGE, SITE_NAME, jsonLd, localeLinks, seoIndexOn, socialMeta } from '~/utils/public-seo.mjs'
+import { SITE_IMAGE, SITE_NAME, jsonLd, localeAlternates, localeLinks, seoIndexOn, socialMeta } from '~/utils/public-seo.mjs'
 
 /* one record for all three paths (spec 111 3.1): nuxt.config sets its path
    to /blog/:slug(.*)* (blogDocumentsModule); a "..." file name would put
@@ -128,7 +155,7 @@ const ID_RE = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 const route = useRoute()
 const localePath = useLocalePath()
-const { locale, locales } = useI18n({ useScope: 'global' })
+const { locale, locales, t } = useI18n({ useScope: 'global' })
 const pub = useRuntimeConfig().public
 const siteUrl = String(pub.siteUrl || '').replace(/\/+$/, '')
 const defaultLocale = String(pub.defaultLocale || 'en')
@@ -205,15 +232,38 @@ function unprefixed(path: string): string {
 const absolute = (path: string) => `${siteUrl}${path}`
 const indexOn = seoIndexOn(pub.seoIndex)
 
+/* the page's path in no locale, and the locales it really has: a post only
+   those with its copy (spec 116 T7), a list page all of them. ONE pair for
+   the hreflang alternates and the language menu. */
+const seoBase = computed(() => unprefixed(route.path).replace(/\/+$/, '') || '/blog')
+const pageLangs = computed(() => post.value ? post.value.langs : (locales.value as Array<{ code: string }>).map((l) => l.code))
+const langMenu = computed(() => localeAlternates({ siteUrl: '', base: seoBase.value, langs: pageLangs.value, defaultLocale }))
+const localeName = (code: string) => (locales.value as Array<{ code: string, name?: string }>).find((l) => l.code === code)?.name || code
+
+/* A pick is a full page load of the link (it works with JS off too); with JS
+   the localStorage mirror is written here and the i18n_redirected cookie by
+   plugins/locale-cookie.client.ts once the new locale's page runs. */
+function persist(code: string) {
+  try { localStorage.setItem(LOCALE_LS_KEY, code) } catch { /* private mode: the cookie still works */ }
+}
+/* with JS, a click outside or Escape closes the menu */
+const langMenuEl = ref<HTMLDetailsElement | null>(null)
+function closeLangMenu(e: Event) {
+  const el = langMenuEl.value
+  if (!el?.open) return
+  if (e instanceof KeyboardEvent ? e.key === 'Escape' : !el.contains(e.target as Node)) el.open = false
+}
+onMounted(() => { document.addEventListener('click', closeLangMenu); document.addEventListener('keydown', closeLangMenu) })
+onBeforeUnmount(() => { document.removeEventListener('click', closeLangMenu); document.removeEventListener('keydown', closeLangMenu) })
+
 useHead(() => {
-  const base = unprefixed(route.path).replace(/\/+$/, '') || '/blog'
+  const base = seoBase.value
   const p = post.value
   const title = p ? p.entry.title : view.value.kind === 'list' ? 'Blog' : 'Not found'
   const description = p ? p.entry.summary : 'News and events from the spool.'
-  const codes = (locales.value as Array<{ code: string }>).map((l) => l.code)
   if (view.value.kind === 'none') return { title, meta: [{ name: 'robots', content: 'noindex, nofollow' }, { name: 'description', content: description }] }
   /* spec 116 T7: a copy the locale lacks (the en text) canonicalises to the default one */
-  const link = localeLinks({ siteUrl, base, canonicalCode: p?.fallback ? defaultLocale : locale.value, langs: p ? p.langs : codes, defaultLocale })
+  const link = localeLinks({ siteUrl, base, canonicalCode: p?.fallback ? defaultLocale : locale.value, langs: pageLangs.value, defaultLocale })
   const url = link[0].href
   const image = p?.entry.image ? absolute(`/blog/img/${p.entry.image.replace(/\.webp$/, '-og.webp')}`) : absolute(SITE_IMAGE)
   const meta: Array<Record<string, string>> = [
@@ -272,6 +322,51 @@ useHead(() => {
 .blog-bar__name { color: var(--color-accent); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.9375rem; }
 .blog-bar__sep { color: var(--color-muted); }
 .blog-bar__signin { display: inline-flex; align-items: center; min-height: var(--tap, 44px); font-weight: 600; }
+.blog-bar__end { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.blog-lang { position: relative; }
+.blog-lang__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap, 44px);
+  padding: 0 4px;
+  color: var(--color-fg);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.blog-lang__button::-webkit-details-marker { display: none; }
+.blog-lang__chevron { color: var(--color-muted); font-size: 0.8em; }
+.blog-lang__list {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 100%;
+  z-index: 3;
+  min-width: 180px;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.blog-lang__item { display: block; padding: 8px 14px; color: var(--color-fg); white-space: nowrap; }
+.blog-lang__item:hover { background: var(--color-surface-hover); }
+.blog-lang__item[aria-current="page"] { font-weight: 700; color: var(--color-accent); }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .blog-main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
 .blog, .bpost { display: grid; gap: 16px; min-width: 0; }
 .blog__title, .bpost__title { margin: 0; font-size: 1.85rem; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }

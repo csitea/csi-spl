@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  buildRobotsTxt, buildSitemapXml, injectPublicHead, isPublicSeoPath, jsonLd, localeLinks, publicPageHead, robotsContent, seoBasePath, sitemapEntries,
+  buildRobotsTxt, buildSitemapXml, injectPublicHead, isPublicSeoPath, jsonLd, localeAlternates, localeLinks, publicPageHead, robotsContent, seoBasePath, sitemapEntries,
 } from '../../src/utils/public-seo.mjs'
 
 const codes = ['bg', 'en', 'fi', 'dm']
@@ -93,6 +93,16 @@ describe('public SEO: head', () => {
   it('hreflang only for the locales given', () => {
     const l = localeLinks({ siteUrl: site, base: '/blog/x', canonicalCode: 'en', langs: ['en', 'fi'], defaultLocale: 'en' })
     assert.deepEqual(l.map((x) => x.hreflang || x.rel), ['canonical', 'en', 'fi', 'x-default'])
+  })
+  it('the language menu and the hreflang alternates are one list', () => {
+    const o = { siteUrl: site, base: '/blog/x', canonicalCode: 'en', langs: ['en', 'fi', 'sv'], defaultLocale: 'en' }
+    const alt = localeLinks(o).filter((x) => x.hreflang && x.hreflang !== 'x-default').map((x) => [x.hreflang, x.href])
+    assert.deepEqual(localeAlternates(o).map((a) => [a.code, a.href]), alt)
+    assert.deepEqual(localeAlternates({ ...o, siteUrl: '' }).map((a) => a.href), ['/blog/x', '/fi/blog/x', '/sv/blog/x'])
+    /* control: one locale = no hreflang at all, yet the menu still has en */
+    const one = { ...o, langs: ['en'] }
+    assert.equal(localeLinks(one).length, 1)
+    assert.deepEqual(localeAlternates({ ...one, siteUrl: '' }), [{ code: 'en', href: '/blog/x' }])
   })
   it('JSON-LD cannot close its script element', () => {
     assert.ok(!jsonLd({ t: '</script><script>x' }).includes('</'))

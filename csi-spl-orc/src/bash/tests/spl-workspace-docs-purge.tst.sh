@@ -44,7 +44,10 @@ for bad in "TENANT_ID=" "TENANT_ID=all" "TENANT_ID=ALL" "TENANT_ID=t1,t2" "TENAN
     pass "A.1 '$bad' refused before any cloud call" || fail "A.1 '$bad' rc=$rc calls=$(cat "$T/calls.log") $out"
 done
 : >"$T/calls.log"
-out=$(SNIPPET=do_spl_workspace_docs_purge in_orc TENANT_ID=t1 SPL_DSN_SECRET=x 2>&1); rc=$?
+# Hermetic: its own HOME (no box SA key) and a named ACCOUNT, so the pin
+# reaches the gcloud stub on a CI runner with no key too.
+out=$(SNIPPET=do_spl_workspace_docs_purge in_orc TENANT_ID=t1 SPL_DSN_SECRET=x HOME="$T/home" \
+  ACCOUNT=purge-test@example.iam.gserviceaccount.com 2>&1); rc=$?
 [[ $rc -ne 0 && -s "$T/calls.log" ]] && ! grep -q 'TENANT_ID' <<<"$out" &&
   pass "A.1 CONTROL TENANT_ID=t1 passes the guards and reaches the cloud stub" || fail "A.1 CONTROL rc=$rc calls=$(cat "$T/calls.log") $out"
 

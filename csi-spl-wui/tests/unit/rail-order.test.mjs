@@ -55,7 +55,7 @@ describe('rail ids', () => {
     assert.deepEqual(parseRailOrder(['topics', 'dm', 'channels', 'issues', 'flow', 'events']), ['topics', 'dm', 'channels', 'issues', 'flow', 'events', 'people', 'agents', 'boxes', 'calendar', 'archive'])
     assert.deepEqual(parseRailOrder(['dm', 'dm', 'users', 'flow']), ['dm', 'flow', 'channels', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'calendar', 'archive'])
     /* a legacy nine-tab order (before Boxes) keeps its place, Boxes and Calendar appended */
-    assert.deepEqual(parseRailOrder(['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events', 'people', 'agents']), [...DEFAULT_RAIL_ORDER])
+    assert.deepEqual(parseRailOrder(['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events', 'people', 'agents']), ['channels', 'dm', 'issues', 'topics', 'flow', 'events', 'people', 'agents', 'boxes', 'calendar', 'archive'])
     /* a legacy ten-tab order (before Calendar) keeps its place, Calendar appended before Archive */
     assert.deepEqual(parseRailOrder(['boxes', 'agents', 'people', 'events', 'flow', 'topics', 'issues', 'channels', 'dm', 'archive']),
       ['boxes', 'agents', 'people', 'events', 'flow', 'topics', 'issues', 'channels', 'dm', 'calendar', 'archive'])
@@ -71,7 +71,8 @@ describe('Archive is always last and never moves', () => {
   it('the default order ends with Archive; every other tab keeps its default place', () => {
     assert.equal(RAIL_PINNED_LAST, 'archive')
     assert.equal(DEFAULT_RAIL_ORDER.at(-1), 'archive')
-    assert.deepEqual([...DEFAULT_RAIL_ORDER], ['channels', 'dm', 'issues', 'topics', 'flow', 'events', 'people', 'agents', 'boxes', 'calendar', 'archive'])
+    /* owner HUM-10 (t1 2b61230c, "A"): Calendar sits with the talk tabs */
+    assert.deepEqual([...DEFAULT_RAIL_ORDER], ['channels', 'dm', 'issues', 'topics', 'flow', 'calendar', 'events', 'people', 'agents', 'boxes', 'archive'])
     assert.ok(isRailOrder([...DEFAULT_RAIL_ORDER]), 'the hub still admits the default (a permutation)')
     assert.equal(isRailMovable('archive'), false)
     for (const id of RAIL_IDS.filter((x) => x !== 'archive')) assert.equal(isRailMovable(id), true, id)

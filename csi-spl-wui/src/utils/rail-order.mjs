@@ -71,8 +71,14 @@ export function pinRailOrder(order) {
   return out
 }
 
-/** The order a never-reordered person sees: RAIL_IDS with Archive last. */
-export const DEFAULT_RAIL_ORDER = Object.freeze(pinRailOrder([...RAIL_IDS]))
+/**
+ * The order a never-reordered person sees: RAIL_IDS with Calendar moved up
+ * after Flow, with the other talk tabs, and Archive last. Owner HUM-10 (t1
+ * 2b61230c, msg a351c864, "A"): in RAIL_IDS order Calendar sat between Boxes
+ * and Archive, so the desktop rail drew 3 talk/workspace lines (spec 109
+ * T015); grouped, it draws 1. A stored order is drawn as stored.
+ */
+export const DEFAULT_RAIL_ORDER = Object.freeze(pinRailOrder(moveTo([...RAIL_IDS], 'calendar', RAIL_IDS.indexOf('flow') + 1)))
 
 /** Can this rail tab be dragged / stepped? Archive cannot. */
 export function isRailMovable(id) {

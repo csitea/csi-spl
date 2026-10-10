@@ -259,6 +259,9 @@ async function railDividerLabels(browser, base) {
     const offBoxes = await railBoxes(p)
     if (!touch) {
       check(`${tag}: a divider wherever talk meets workspace, and only there`, changes > 0 && dividers === changes && between, { seq })
+      /* owner HUM-10 (t1 2b61230c, msg a351c864, "A"): the default order keeps
+         Calendar with the talk tabs, so the default rail draws ONE line. */
+      check(`${tag}: the default rail draws exactly 1 divider`, dividers === 1, { seq })
       check(`${tag}: no labels while the setting is off (the default)`, offLabels === 0, { offLabels })
     }
     await setLabels(p, true)
@@ -276,6 +279,22 @@ async function railDividerLabels(browser, base) {
     await p.evaluate(() => { try { localStorage.removeItem('spool.rail-labels') } catch {} })
     await p.close()
   }
+  /* a saved mixed order is drawn as saved (no reordering to group the tabs),
+     so it keeps every line its own order makes: STORED is drawn
+     channels topics issues dm | events | flow | people agents boxes | calendar | archive */
+  const p = await browser.newPage()
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+  await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+  if (!(await signIn(p, STORED))) throw new Error('no session store')
+  await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
+  await sleep(400)
+  const seq = await railSeq(p)
+  const tabs = seq.filter((x) => x !== '|')
+  const changes = tabs.filter((id, i) => i > 0 && WORKSPACE.has(id) !== WORKSPACE.has(tabs[i - 1])).length
+  const dividers = seq.filter((x) => x === '|').length
+  check('1440px T015: a saved mixed order keeps its own order and its own lines', same(tabs, parseRailOrder(STORED)) && changes > 1 && dividers === changes, { seq })
+  await p.close()
 }
 
 const server = await startServer()

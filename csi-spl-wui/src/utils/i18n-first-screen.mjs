@@ -26,6 +26,10 @@ export const ON_DEMAND_COMPONENTS = {
   // spec 096: both render once the second catalogue is merged (te() of their keys)
   "components/StatusPicker.vue": "idle",
   "components/ComposerStatusLine.vue": "idle",
+  // spec 116 T3: the sign-in page shows it once GET /v1/demo answered AND the
+  // second catalogue is merged (te('demo.intro.title')); its ~0.5 KB of text
+  // stays off the first download of every first-screen page (ci_home_gzip_kb).
+  "components/DemoIntro.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

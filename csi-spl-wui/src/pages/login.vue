@@ -56,8 +56,9 @@
           <NativeAuthForm v-if="session.state !== 'in'" :redirect="redirect" :tenant="tenant" :email="invited" />
           <!-- specs/077 T020: the demo intro, only while GET /v1/demo answers 200;
                Lazy: its own chunk, fetched only then. BELOW the sign-in buttons
-               (owner HUM-10, 2026-10-05, msg 39c26092). -->
-          <LazyDemoIntro v-if="demo && session.state !== 'in'" class="login-demo" :workspace="demo.workspace" :max-live="demo.maxLive" :redirect="redirect" />
+               (owner HUM-10, 2026-10-05, msg 39c26092). Its strings wait in
+               the second catalogue (i18n-first-screen.mjs): shown once merged. -->
+          <LazyDemoIntro v-if="demo && session.state !== 'in' && te('demo.intro.title')" class="login-demo" :workspace="demo.workspace" :max-live="demo.maxLive" :redirect="redirect" />
           <p v-if="changed" class="muted" role="status" data-test="password-changed">{{ t('auth.login.password_changed') }}</p>
           <p v-if="session.state === 'unknown'" class="muted">{{ t('auth.login.session_unavailable') }}</p>
           <p v-if="session.state === 'in'" class="muted">
@@ -104,7 +105,7 @@ const route = useRoute()
 const router = useRouter()
 const localePath = useLocalePath()
 const session = useSessionStore()
-const { t } = useI18n({ useScope: 'global' })
+const { t, te } = useI18n({ useScope: 'global' })
 const copy = useAuthCopy()
 /* the site's own host (cnf BASE_DOMAIN via NUXT_PUBLIC_SITE_URL), never a
    literal; a build without a site URL (lde, mock) shows the app name */

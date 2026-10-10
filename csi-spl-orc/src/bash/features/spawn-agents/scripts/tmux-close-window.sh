@@ -618,7 +618,9 @@ fi
 # the name anywhere in the args also counted the pane's own launcher shell
 # (`sh -c "env ... AGY_BIN=.../agy ... spawn-agy.sh"`), which outlives the
 # agent: a-480's closer waited on it for 2 min after agy had left. mistral's
-# vibe is a python entry point (pipx venv shebang), so it is argv[1] there.
+# vibe is a python entry point (pipx venv shebang), so it is argv[1] there,
+# until it renames itself "Vibe CLI" (setproctitle): unmatched, the closer
+# read no PID and killed m-897's window without typing /exit (2026-10-10).
 is_agent_args() {
   local a0 a1
   read -r a0 a1 _ <<<"${1:-}"
@@ -626,6 +628,7 @@ is_agent_args() {
     claude|grok|agy|qwen|vibe) return 0 ;;
     node|nodejs|bun) case "${a1##*/}" in claude|grok|agy|qwen) return 0 ;; esac ;;
     python|python3|python3.[0-9]*) [[ "${a1##*/}" == vibe ]] && return 0 ;;
+    Vibe) [[ "$a1" == CLI ]] && return 0 ;;  # the "Vibe CLI" match
   esac
   return 1
 }

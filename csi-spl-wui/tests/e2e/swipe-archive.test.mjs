@@ -33,8 +33,6 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
 const A = 'cle-77906-a'
 
-if (OUT) mkdirSync(OUT, { recursive: true })
-
 const results = []
 const ok = (name, pass, ev) => {
   results.push({ name, ok: Boolean(pass) })
@@ -197,7 +195,6 @@ async function closeMenu(p) {
 const level = (p) => p.evaluate(() => document.querySelector('[data-mobile-level]')?.getAttribute('data-mobile-level') || '')
 const toast = '[data-testid=archive-toast]'
 
-const srv = await startServer()
 const browser = await launch()
 try {
   const p = await browser.newPage()
@@ -215,6 +212,7 @@ try {
   /* CPU_THROTTLE=4 reproduces a slow CI runner locally */
   if (Number(process.env.CPU_THROTTLE) > 1) await (await p.target().createCDPSession()).send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.CPU_THROTTLE) })
   /* warm a throwaway load: a cold nuxi dev drops the first dynamic import */
+  const srv = await startServer()
   await p.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
   await sleep(600)
@@ -385,93 +383,3 @@ try {
 const failed = results.filter((r) => !r.ok)
 console.log(`\nswipe-archive: ${results.length - failed.length}/${results.length} passed`)
 process.exit(failed.length ? 1 : 0)
-// Test that Archive topic is only shown on the LATEST message in the topic pane.
-// Runs against the lde mock (no hub). A 390x844 phone with touch; the test
-// verifies that:
-//   1. The latest message in the topic pane shows the Archive topic action.
-//   2. A non-latest message in the topic pane does NOT show the Archive topic action.
-//   3. CONTROL: The old code shows Archive on a non-latest message (before the fix).
-//
-// Run:
-//   node tests/e2e/topic-archive-latest-only.test.mjs
-//   BASE_URL=<generated bundle> node tests/e2e/topic-archive-latest-only.test.mjs
-//   OUT=<dir> ... also writes phone screenshots (mid-swipe, armed, snackbar)
-import { startServer } from './lib/server.mjs'
-import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
-
-const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
-const OUT = process.env.OUT || ''
-const TOPIC_ID = 'cle-77906-a' // A topic with multiple messages
-
-if (OUT) mkdirSync(OUT, { recursive: true })
-
-const results = []
-const ok = (name, pass, ev) => {
-  results.push({ name, ok: Boolean(pass) })
-  console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
-}
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-
-
-
-async function test() {
-  const server = await startServer()
-  const browser = await launch()
-  const baseUrl = process.env.BASE_URL || `http://localhost:${server.port}`
-  
-  try {
-    const page = await browser.newPage()
-    await page.setViewport({ width: 390, height: 844, hasTouch: true, isMobile: true })
-    await page.goto(`${baseUrl}/t/${TOPIC_ID}`, { waitUntil: 'networkidle0', timeout: NAV_TIMEOUT })
-    
-    // Wait for the topic pane to load
-    await page.waitForSelector('[data-pane="topic"]', { timeout: NAV_TIMEOUT })
-    
-    // Get all messages in the topic pane
-    const messages = await page.$$('[data-testid^="msg-"]')
-    if (messages.length < 2) {
-      throw new Error('Not enough messages in the topic pane')
-    }
-    
-    // The latest message is the first one in the topic pane (newest-first order)
-    const latestMessage = messages[0]
-    const nonLatestMessage = messages[1]
-    
-    // Test 1: Latest message shows Archive topic action
-    await latestMessage.hover()
-    const latestSwipeArchive = await latestMessage.evaluate(el => el.getAttribute('data-swipe-archive'))
-    ok('Latest message shows Archive topic action', latestSwipeArchive === 'true')
-    
-    // Test 2: Non-latest message does NOT show Archive topic action
-    await nonLatestMessage.hover()
-    const nonLatestSwipeArchive = await nonLatestMessage.evaluate(el => el.getAttribute('data-swipe-archive'))
-    ok('Non-latest message does NOT show Archive topic action', nonLatestSwipeArchive !== 'true')
-    
-    // Test 3: CONTROL - Old code shows Archive on a non-latest message (before the fix)
-    // This is a control to ensure the test fails if the old behavior is still present.
-    const controlSwipeArchive = await nonLatestMessage.evaluate(el => el.getAttribute('data-swipe-archive'))
-    ok('CONTROL: Non-latest message does NOT show Archive topic action (old code did)', controlSwipeArchive !== 'true')
-    
-    if (OUT) {
-      await page.screenshot({ path: `${OUT}/topic-pane.png` })
-    }
-    
-    await page.close()
-  } finally {
-    await browser.close()
-    server.close()
-  }
-  
-  const failed = results.filter((r) => !r.ok)
-  if (failed.length) {
-    console.log(`\n${failed.length} test(s) failed:`)
-    for (const f of failed) console.log(`  ${f.name}`)
-    process.exit(1)
-  }
-  console.log(`\nAll ${results.length} tests passed`)
-}
-
-test().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})

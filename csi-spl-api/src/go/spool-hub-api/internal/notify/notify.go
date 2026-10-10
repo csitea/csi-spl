@@ -64,8 +64,9 @@ func Run(cfg *config.Config, m *msg.Message, to string) {
 }
 
 // RunCtx is Run under a caller ctx: cancelling ctx kills the notifier at once
-// (then the same WaitDelay applies), so an owner such as Queue can stop work
-// in flight. cfg.NotifyTimeout still bounds a ctx that is never cancelled.
+// (then the same WaitDelay applies). cfg.NotifyTimeout still bounds a ctx that is never cancelled.
+// Queue.Stop() closes the lanes and waits for queued pokes to drain, but does not
+// interrupt a running notifier.
 func RunCtx(ctx context.Context, cfg *config.Config, m *msg.Message, to string) {
 	if !Enabled(cfg) || m == nil || to == "" {
 		return

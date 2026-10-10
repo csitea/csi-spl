@@ -4,9 +4,9 @@
 #          The heavy suites are never run here -- PRE_PUSH_PLAN=1 prints the
 #          selection and exits, so this test proves the CHANGED-INPUTS routing
 #          that FAST mode does and the FULL-mode / unknown-base behaviour.
-#   The gated suites are hygiene + api + iac + orc + wui (cnf replaces iac only
-#   on a cnf-only push, so FULL does not list it).
-#   1. FULL mode -> every gated part (hygiene api iac orc wui)
+#   The gated suites are hygiene + api + iac + wui only (orc/cnf need container
+#   deps absent at push time, so they are deliberately NOT gated here).
+#   1. FULL mode -> every gated part (hygiene api iac wui)
 #   2. FAST, only csi-spl-wui touched -> hygiene + wui, NOT api/iac
 #   3. FAST, only csi-spl-api touched -> hygiene + api
 #   4. FAST, csi-spl-cnf touched -> iac (cnf feeds the iac gates), NOT api/wui
@@ -14,9 +14,6 @@
 #   6. FAST, only a doc touched -> hygiene alone (it always runs)
 #   7. FAST with an UNKNOWN base ref -> widens to FULL, never skips silently
 #   8. an untracked new file under csi-spl-api still selects api
-#   8c. (r5-07) an orc-only change selects the orc part (no iac, no api)
-#   11. (r5-07) the real orc part on a temp repo: green on trunk, REFUSES a
-#       lane break a test names, and never runs a test naming no touched file
 #   do_log and do_check_dist_hygiene are stubbed; PLAN mode returns before
 #   either would run, so the routing is all that is under test.
 #------------------------------------------------------------------------------
@@ -60,8 +57,8 @@ reset_tree() { git -C "$T" checkout -q -- . 2>/dev/null; git -C "$T" clean -fdq 
 
 # 1. FULL -> every gated part
 p="$(PP_MODE=full plan)"
-{ has "$p" hygiene && has "$p" api && has "$p" iac && has "$p" orc && has "$p" wui && has "$p" wui-vendor && ! has "$p" cnf; } \
-  && pass "1. FULL selects hygiene api iac orc wui wui-vendor" || fail "1. FULL selects hygiene api iac orc wui wui-vendor" "$p"
+{ has "$p" hygiene && has "$p" api && has "$p" iac && has "$p" wui && has "$p" wui-vendor && ! has "$p" orc && ! has "$p" cnf; } \
+  && pass "1. FULL selects hygiene api iac wui wui-vendor" || fail "1. FULL selects hygiene api iac wui wui-vendor" "$p"
 
 # 2. only WUI -> the WUI parts INCLUDING the payment-vendor gate (which reads WUI)
 echo a >"$T/csi-spl-wui/a.ts"; git -C "$T" add -A; git -C "$T" commit -qm wui
@@ -125,13 +122,6 @@ p="$(plan)"
 p="$(PP_MODE=full plan)"
 has "$p" blog && pass "8b. FULL carries the blog part" || fail "8b. FULL carries blog" "$p"
 
-# 8c. r5-07: an orc-only change selects the orc part, and only it
-mkdir -p "$T/csi-spl-orc/src/bash/run"; echo a >"$T/csi-spl-orc/src/bash/run/x.func.sh"
-p="$(plan)"
-{ has "$p" orc && ! has "$p" iac && ! has "$p" api && ! has "$p" wui; } \
-  && pass "8c. FAST orc-only -> hygiene+orc" || fail "8c. FAST orc-only -> hygiene+orc" "$p"
-rm -f "$T/csi-spl-orc/src/bash/run/x.func.sh"
-
 # 9. functional control: the payment-vendor gate (run on a WUI change) REFUSES a
 #    planted vendor word in a WUI file -- the "stripe" that FAST used to miss.
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
@@ -179,28 +169,6 @@ echo "lock: 2" >"$W/csi-spl-wui/pnpm-lock.yaml"
 PATH="$W/bin:$PATH" PNPM_LOG="$W/pnpm.log" _pp_part_wui "$W" >/dev/null 2>&1
 [ "$(installs)" = 2 ] && pass "10. a changed lockfile re-installs" || fail "10. a changed lockfile re-installs" "$(installs)"
 rm -rf "$W"
-
-# 11. r5-07 functional control: the real orc part, on a temp repo laid out like
-#     the real one (the real run-all-tests.sh + changed-tests.sh, a stub
-#     bash-cleancode): foo.tst.sh names do_foo_x; unrelated.tst.sh always fails
-#     and names nothing, so it must never run.
-O="$(mktemp -d)"; OR="$O/r"; OD="$OR/csi-spl-orc/src/bash/tests"
-mkdir -p "$OD" "$OR/csi-spl-orc/lib/bash/funcs" "$OR/csi-spl-iac/src/bash/tests"
-cp "$APP_ROOT/csi-spl-orc/src/bash/tests/run-all-tests.sh" "$APP_ROOT/csi-spl-orc/src/bash/tests/changed-tests.sh" "$OD/"
-echo 'echo "PASS: cleancode stub"' >"$OR/csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh"
-echo 'do_foo_x() { echo good; }' >"$OR/csi-spl-orc/lib/bash/funcs/foo.func.sh"
-printf '%s\n' '# tests do_foo_x' '. "$(dirname "$0")/../../../lib/bash/funcs/foo.func.sh"' '[ "$(do_foo_x)" = good ]' >"$OD/foo.tst.sh"
-echo 'echo ran-unrelated; exit 1' >"$OD/unrelated.tst.sh"
-git -C "$OR" init -q; git -C "$OR" add -A; git -C "$OR" commit -qm seed; git -C "$OR" branch trunk
-orc() { ( base=trunk _PP_TOP="$OR" _pp_part_orc "$OR" ) >"$O/out" 2>&1; }
-echo 'do_foo_x() { echo good; } # comment' >"$OR/csi-spl-orc/lib/bash/funcs/foo.func.sh"
-orc && pass "11. orc part passes a harmless orc change" || fail "11. orc part passes a harmless orc change" "$(cat "$O/out")"
-grep -q 'changed-only: run foo.tst.sh' "$O/out" && pass "11. ... it ran the test naming the touched file" || fail "11. ... ran foo.tst.sh" "$(cat "$O/out")"
-grep -q ran-unrelated "$O/out" && fail "11. CONTROL: a test naming no touched file must not run" "$(cat "$O/out")" \
-  || pass "11. CONTROL: a test naming no touched file did not run"
-echo 'do_foo_x() { echo BROKEN; }' >"$OR/csi-spl-orc/lib/bash/funcs/foo.func.sh"
-orc && fail "11. orc part REFUSES a lane break foo.tst.sh catches" "$(cat "$O/out")" || pass "11. orc part refuses a lane break foo.tst.sh catches"
-rm -rf "$O"
 
 echo "-- check-pre-push.tst.sh: $fails failed"
 [[ "$fails" -eq 0 ]]

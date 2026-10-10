@@ -587,10 +587,6 @@ func (s *Session) Close() {
 	s.conn.Close(websocket.StatusNormalClosure, "") //nolint:errcheck
 }
 
-// Lost is closed once the session is over for any reason: the read loop
-// ended, keepalive found the socket dead, or Close.
-func (s *Session) Lost() <-chan struct{} { return s.ctx.Done() }
-
 // Done is closed when the socket ends; CloseCode then reports why.
 func (s *Session) Done() <-chan struct{} { return s.done }
 

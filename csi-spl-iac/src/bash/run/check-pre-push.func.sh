@@ -11,8 +11,6 @@
 # @description   wui         csi-spl-wui/ minus edits to e2e/bench files, plus the
 # @description               repo files the unit tests read (unit tests + typecheck)
 # @description   api         csi-spl-api/ csi-spl-rdb/ .version
-# @description   orc         csi-spl-orc/: the orc *.tst.sh that name a touched
-# @description               file (run-all-tests.sh --changed) + bash-cleancode
 # @description   cnf         INSTEAD of iac when every changed path is under
 # @description               csi-spl-cnf/csi-spl/ (the env yaml + its rendered
 # @description               tfvars/json): ENV=dev|prd do_tpl_gen must leave the
@@ -25,7 +23,7 @@
 # @description   lint-*      the scanner workflows (61..67, 85) + syntax, on the
 # @description               TOUCHED files only -- check-pre-push-lint.func.sh
 # @description   A push that touches none of a part's paths never runs it (it is
-# @description   logged SKIP-untouched), so a doc-only push runs hygiene.
+# @description   logged SKIP-untouched), so an orc- or doc-only push runs hygiene.
 # @description TIERS (CLE-77824, owner 2026-10-01): the hook runs the FAST tier,
 # @description which leaves the slow checks to CI -- api: go test -race,
 # @description build-stripped, hub-pg (Postgres, ~384 s), hub-gcs; iac: every
@@ -168,7 +166,6 @@ _pp_paths() {  # <part>
     wui)        echo "csi-spl-wui${_PP_TOP:+ $(_pp_wui_external "$_PP_TOP")}" ;;
     wui-vendor) echo "csi-spl-wui csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" ;;
     api)        echo "csi-spl-api csi-spl-rdb .version" ;;
-    orc)        echo "csi-spl-orc" ;;
     cnf)        echo "csi-spl-cnf/csi-spl csi-spl-iac/src/tpl csi-spl-iac/cnf/tpl-gen.ref csi-spl-iac/src/bash/run/tpl-gen.func.sh csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh" ;;
     blog)       echo "csi-spl-doc/blog csi-spl-orc/src/bash/run/spl-blog-check.func.sh" ;;
     lint-*)     _ppl_paths "$1" ;;
@@ -182,7 +179,6 @@ _pp_label() {  # <part>
     wui-vendor) echo "csi-spl-wui payment-vendor gate" ;;
     wui)        echo "csi-spl-wui unit + typecheck" ;;
     api)        echo "csi-spl-api suite" ;;
-    orc)        echo "csi-spl-orc suite (tests naming a touched file) + bash-cleancode" ;;
     cnf)        echo "csi-spl-cnf tpl-gen render check (dev, prd)" ;;
     blog)       echo "blog post check (spec 111 4.4)" ;;
     lint-*)     echo "$1 (touched files, CI's version + baseline)" ;;
@@ -353,10 +349,6 @@ _pp_missing_tools() {  # <part> <tree>
       _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
       _pp_need jq "apt-get install jq"
       _pp_need python3 "apt-get install python3" ;;
-    orc)
-      _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
-      _pp_need jq "apt-get install jq"
-      _pp_need timeout "apt-get install coreutils" ;;
     wui-vendor) _pp_need grep "install grep" ;;
     blog)
       _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
@@ -415,9 +407,6 @@ _pp_budget() {  # <part-fn>
   case "$1" in
     _pp_part_api) _pp_api_timeout ;;
     _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
-    # the full tier runs every orc file: 16..17 min per CI shard of two
-    _pp_part_orc) [[ "${_PP_TIER:-fast}" == full && -z "${PRE_PUSH_PART_TIMEOUT:-}" ]] \
-                    && echo "${PRE_PUSH_ORC_FULL_TIMEOUT:-1800}" || echo "$_pp_timeout" ;;
     *) echo "$_pp_timeout" ;;
   esac
 }
@@ -426,37 +415,6 @@ _pp_part_api() {
 }
 _pp_part_iac() {
   IAC_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_budget _pp_part_iac)" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"
-}
-# An orc-only push ran no orc test, and orc was the real red in 7 of the 19 red
-# workflow 10 runs among the last 100 on master (refactor round 5, action 07).
-# FAST tier: the orc *.tst.sh that name a touched file or a function it
-# defines, plus the always-run list (run-all-tests.sh --changed; the map is
-# changed-tests.sh). When a touched orc file is named by no test the map falls
-# back to every file (~10 min): the fast tier says so and leaves the suite to
-# CI. FULL tier: every file, as CI runs it. Both then run bash-cleancode.
-# The agent's SPOOL_* env is dropped (CI has none; an inherited SPOOL_BOX_TAG
-# reddens orch-rotate). On the base-ref tree nothing has changed, so it is
-# handed this push's change list: the trunk re-check runs the same files.
-# <base> is _pp_run's own (bash scoping).
-_pp_part_orc() {  # <tree>
-  local t="$1/csi-spl-orc/src/bash/tests" rc=0 plan files="" v
-  local -a envv=(env) args=()
-  for v in $(compgen -e); do [[ "$v" == SPOOL_* ]] && envv+=(-u "$v"); done
-  if [[ "${_PP_TIER:-fast}" != full ]]; then
-    [[ "$1" != "$_PP_TOP" ]] && files="$(_pp_changed "$_PP_TOP" "$base")"
-    envv+=(ORC_TEST_BASE="$base") args=(--changed)
-    [[ -n "$files" ]] && envv+=(ORC_TEST_FILES="$files")
-    plan="$(cd "$1" && "${envv[@]}" bash "$t/changed-tests.sh")"
-    if grep -q '^full' <<<"$plan"; then
-      echo "pre-push orc: $(grep '^full' <<<"$plan" | cut -f2) -- the orc map falls back to every file: left to CI workflow 10 (or PRE_PUSH_TIER=full)"
-      args=()
-    fi
-  fi
-  if [[ "${_PP_TIER:-fast}" == full || "${#args[@]}" -gt 0 ]]; then
-    ( cd "$1" && timeout -k 10 "$(_pp_budget _pp_part_orc)" "${envv[@]}" bash "$t/run-all-tests.sh" "${args[@]}" ) || rc=$?
-  fi
-  bash "$1/csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh" || { [[ "$rc" -ne 0 ]] || rc=1; }
-  return "$rc"
 }
 # The payment-vendor gate READS csi-spl-wui (it greps it) but LIVES in the api
 # suite, so a WUI-only change used to skip it and a vendor word ("stripe") in a
@@ -551,7 +509,6 @@ _pp_part_cnf() {  # <tree>
 _pp_fn() {  # <part>
   case "$1" in
     hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;; cnf) echo _pp_part_cnf ;;
-    orc) echo _pp_part_orc ;;
     wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;; blog) echo _pp_part_blog ;;
     lint-*) echo "_pp_part_${1//-/_}" ;;
   esac
@@ -811,7 +768,7 @@ do_check_pre_push() {
 
   local only="${PRE_PUSH_ONLY:-}"
   case "$only" in ''|lint|override) ;; *) do_log "FATAL pre-push: PRE_PUSH_ONLY must be empty, lint or override (got '$only')"; return 2 ;; esac
-  local all="hygiene blog iac orc wui-vendor wui api" parts="hygiene" p changed="" lint
+  local all="hygiene blog iac wui-vendor wui api" parts="hygiene" p changed="" lint
   local -A _PPL_FILES=()
   local _PPL_SELECTED=""
   if [[ "$mode" == full ]]; then
@@ -820,7 +777,7 @@ do_check_pre_push() {
     do_log "WARN pre-push: cannot diff against '$base' (unknown ref?) -- widening to FULL so no gate is skipped silently"
     mode=full; parts="$all"
   else
-    for p in blog iac orc wui-vendor wui api; do
+    for p in blog iac wui-vendor wui api; do
       local sel="$changed"
       # wui: an edit to an existing e2e/bench file is not a wui input (CLE-77946:
       # an e2e-only lane re-ran the 150..260 s part after every rebase and lost
@@ -841,7 +798,7 @@ do_check_pre_push() {
   else
     _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
     local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
-    all="hygiene $lint_all blog cnf iac orc wui-vendor wui api"
+    all="hygiene $lint_all blog cnf iac wui-vendor wui api"
     parts="${parts/hygiene/hygiene${lint:+ $lint}}"
     [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
   fi

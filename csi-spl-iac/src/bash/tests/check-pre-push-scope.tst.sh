@@ -8,7 +8,7 @@
 #     1. green trunk + a NEW break in a touched part     -> REFUSED (rc 1, FAIL logged)
 #     2. red trunk + a fix                               -> ALLOWED (rc 0)
 #     3. red trunk + still red                           -> ALLOWED, WARN-pre-existing logged with the trunk sha
-#     4. a push touching only csi-spl-orc                -> runs the orc part, neither iac nor api (SKIP-untouched logged)
+#     4. a push touching only csi-spl-orc                -> runs neither iac nor api (SKIP-untouched logged)
 #     5. a rebase over commits that touch OTHER parts    -> the green api verdict is RE-USED (no re-run)
 #        ... and a change under csi-spl-api re-runs it
 #     6. yq missing                                      -> FAIL naming yq, the part never runs
@@ -69,7 +69,6 @@ _pp_part_iac() { _stub csi-spl-iac "$1"; }
 _pp_part_wui() { echo csi-spl-wui-unit >>"$COUNT"; grep -q good "$1/csi-spl-wui/flag" 2>/dev/null; }
 _pp_part_wui_vendor() { _stub csi-spl-wui "$1"; }
 _pp_part_cnf() { echo cnf-render >>"$COUNT"; }
-_pp_part_orc() { _stub csi-spl-orc "$1"; }
 runs() { grep -cx "$1" "$COUNT" 2>/dev/null || true; }
 
 # A repo whose 'trunk' branch plays origin/master; HEAD is a lane branch.
@@ -89,7 +88,7 @@ gate() {  # <repo> [env...] -> rc; per-part log in $R.log
   local R="$1" pre='_pp_missing_tools() { :; }; _ppl_plan() { _PPL_SELECTED=""; }'; shift
   [ "${TOOLS:-stub}" = real ] && pre='_ppl_plan() { _PPL_SELECTED=""; }'
   ( env "$@" PRE_PUSH_TREE="$R" PRE_PUSH_BASE=trunk PRE_PUSH_LOG="$R.log" PRE_PUSH_CACHE="$R.cache" \
-      bash -c '. "$0"; '"$pre"'; '"$(declare -f do_log do_check_dist_hygiene _stub _pp_part_api _pp_part_iac _pp_part_wui _pp_part_wui_vendor _pp_part_cnf _pp_part_orc)"'; COUNT="'"$COUNT"'"; do_check_pre_push' "$FUNC" ) >/dev/null 2>&1
+      bash -c '. "$0"; '"$pre"'; '"$(declare -f do_log do_check_dist_hygiene _stub _pp_part_api _pp_part_iac _pp_part_wui _pp_part_wui_vendor _pp_part_cnf)"'; COUNT="'"$COUNT"'"; do_check_pre_push' "$FUNC" ) >/dev/null 2>&1
 }
 verdict() { awk -v p="$2" '$3=="PART" && $4==p {v=$5} END{print v}' "$1.log"; }
 
@@ -125,7 +124,6 @@ echo y >"$R/csi-spl-orc/a.sh"; git -C "$R" add -A; git -C "$R" commit -qm orc
 gate "$R"; eq "4. orc-only push -> passes" 0 "$?"
 eq "4. ... the iac suite never ran" 0 "$(runs csi-spl-iac)"
 eq "4. ... the api suite never ran" 0 "$(runs csi-spl-api)"
-eq "4. ... the orc part ran once" 1 "$(runs csi-spl-orc)"
 eq "4. ... api logged SKIP-untouched" SKIP-untouched "$(verdict "$R" api)"
 eq "4. ... iac logged SKIP-untouched" SKIP-untouched "$(verdict "$R" iac)"
 

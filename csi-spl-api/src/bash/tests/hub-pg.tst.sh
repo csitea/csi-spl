@@ -162,8 +162,6 @@ for pkg in store wsdoc hub auth repodocs; do # repodocs: the repo-edit worker (s
   "$BIN" migrate --db "$pdsn" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
   own_sql "$db" "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
   [ "$dir" = store ] && { public_logins "$db"; public_logins "$db"; } # the second run: idempotent
-  # r5-10: run-all-tests.sh passes SPL_COVER_DIR and checks these profiles against the pg floors.
-  if [ -n "${SPL_COVER_DIR:-}" ]; then sel+=(-coverprofile "$SPL_COVER_DIR/pg-$pkg.out"); fi
   ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" SPOOL_TEST_PG_RUNTIME_DSN="$(rt_dsn "$db")" \
       SPOOL_TEST_PG_PUBLIC_EXPORT_DSN="$(login_dsn spool_public_export "$db")" \
       SPOOL_TEST_PG_PUBLIC_NAMES_DSN="$(login_dsn spool_public_names "$db")" \

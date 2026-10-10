@@ -8,7 +8,8 @@
 # Usage: kill-your-self-report.sh [WORKDIR]      (default: $PWD)
 #        kill-your-self-report.sh --result --outcome "<one line>" [--sha <sha>]...
 #          [--numbers "<text>"] [--detail <file>|-] [--detail-path <doc>] [WORKDIR]
-#        kill-your-self-report.sh --reporter [WORKDIR]
+#        kill-your-self-report.sh --reporter [--no-gate] [WORKDIR]
+#        kill-your-self-report.sh --gate [WORKDIR]
 #
 # --result prints ONLY the final report body, at most RESULT_MAX (800) chars:
 # the one-line outcome, the numbers, the sha(s) (default: HEAD) and the path to
@@ -23,7 +24,24 @@
 # $REPORT_TO; the brief's own "Spawner:" / "Reporter:" / "Report to:" line
 # naming an id (<spool root>/<id>/lifetime/brief.md); the seed's "your
 # spawner: ... --to <id>" (lifetime/prompt.txt); the registry row's requester;
-# else "orchestrator". stderr says which source won.
+# else "orchestrator". stderr says which source won. It runs --gate first
+# (refused: exit 3, nothing on stdout, so the report send has no recipient);
+# --no-gate is only for `--rebirth` and `report-only`, which neither close
+# nor retire the lane.
+#
+# --gate: exit 0 only when this lane may exit (m-930 ran /exit-clean after
+# c-928's REJECT b26ebbb9, 2026-10-10; a rule in prose did not stop it). It
+# reads every message in <spool root>/<id>/{inbox,archive}: the newest one
+# whose body starts with ACCEPTED, from the dispatch holder or the spawner (a
+# role seat c-001..c-003 or a lease.conf LEASE_* id, any box; the --reporter;
+# a HUM- id), must be newer than every REJECT / SEND-BACK the lane received
+# (kind reject, or a body starting with one of those words). Else one line
+# on stderr names the missing ACCEPTED or the newer REJECT, and exit 3.
+# The two ways out with no ACCEPTED (c-767 cd0d55925):
+#   - the rotation: it retires only role seats, and a role seat's id passes;
+#   - a human who typed /exit-clean in the pane: EXIT_CLEAN_BY=human plus a
+#     non-empty EXIT_CLEAN_REASON. A refusal never names it, and every use
+#     appends a line to <spool root>/exit-override.log for the dispatcher.
 set -uo pipefail
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
@@ -32,11 +50,13 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/agent-state.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
-MODE=discovery OUTCOME="" NUMBERS="" DETAIL="" DETAIL_PATH="" SHAS=()
+MODE=discovery OUTCOME="" NUMBERS="" DETAIL="" DETAIL_PATH="" SHAS=() GATE=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --result) MODE=result ;;
     --reporter) MODE=reporter ;;
+    --gate) MODE=gate ;;
+    --no-gate) GATE=0 ;;
     --outcome) OUTCOME="${2:-}"; shift ;;
     --numbers) NUMBERS="${2:-}"; shift ;;
     --sha) SHAS+=("${2:-}"); shift ;;
@@ -61,9 +81,9 @@ fi
 
 # The lane's named reporter (c-894 finding 2): the skill's {{ORCHESTRATOR_ID}}
 # rendered as "orchestrator", so m-897's report skipped c-894, the spawner its
-# brief named.
-if [ "$MODE" = reporter ]; then
-  life="$SPOOL_ROOT/${ID:-none}/lifetime" to="" from=""
+# brief named. Sets REP_TO and REP_FROM.
+ksr_reporter() {
+  local life="$SPOOL_ROOT/${ID:-none}/lifetime" to="" from=""
   if [ -n "${REPORT_TO:-}" ]; then to="$REPORT_TO" from=env; fi
   if [ -z "$to" ] && [ -r "$life/brief.md" ]; then
     to="$(sed -nE "s/^[-*_ ]*(spawner|reporter|report to)[*_ ]*:[*_\` ]*(${SPOOL_AGENT_ID_RX}(@[A-Za-z0-9._-]+)?)([^A-Za-z0-9@._-].*)?\$/\2/Ip" "$life/brief.md" | sed -n 1p)"
@@ -78,8 +98,71 @@ if [ "$MODE" = reporter ]; then
     [ -n "$to" ] && { [[ "$to" == *@* ]] || to="$(spool_decorate "$to")"; from=registry; }
   fi
   [ -n "$to" ] || { to=orchestrator from=fallback; }
-  echo "reporter: $to (from $from)" >&2
-  printf '%s\n' "$to"
+  REP_TO="$to" REP_FROM="$from"
+}
+
+# A role seat: the rotation (spec 060) retires it with `/exit-clean no-close`
+# and hands the same id to the successor; no reviewer ACCEPTs a seat.
+ksr_is_seat() {  # ID (bare)
+  [[ "$1" =~ ^[A-Za-z]+-00[1-3]$ ]] && return 0
+  grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
+}
+
+# The exit gate (see the header). 0 = may exit; 3 = refused, one line on stderr.
+ksr_gate() {
+  local reason ts from kind task body id up bare rep_bare
+  local acc_ts="" acc_id="" acc_task="" rej_ts="" rej_id="" rej_from=""
+  if [ -z "$ID" ]; then
+    echo "exit-clean refused: no agent id (SPOOL_AGENT_ID, worktree path or window); nothing retired, closed or reported" >&2
+    return 3
+  fi
+  if ksr_is_seat "${ID%@*}"; then
+    echo "exit gate: $ID is a role seat (the rotation retires it); no ACCEPTED needed" >&2
+    return 0
+  fi
+  if [ "${EXIT_CLEAN_BY:-}" = human ]; then
+    reason="$(printf '%s' "${EXIT_CLEAN_REASON:-}" | tr '\t\n\r' ' ' | sed 's/^ *//; s/ *$//' | cut -c1-200)"
+    if [ -n "$reason" ]; then
+      printf '%s\t%s\thuman\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ID" "$reason" >>"$SPOOL_ROOT/exit-override.log" 2>/dev/null || true
+      echo "exit gate: $ID exits on a human's /exit-clean ($reason); logged in $SPOOL_ROOT/exit-override.log" >&2
+      return 0
+    fi
+  fi
+  ksr_reporter
+  rep_bare="${REP_TO%@*}"
+  while IFS=$'\t' read -r ts from kind task body id; do
+    [ -n "$ts" ] || continue
+    body="$(printf '%s' "$body" | sed -E 's/^([[:space:]]|\\[nt]|[*_#>`])+//')"
+    up="${body^^}" bare="${from%@*}"
+    if [ "$kind" = reject ] || [[ "$up" =~ ^(REJECT|SEND[-\ ]?BACK) ]]; then
+      if [[ "$ts" > "$rej_ts" ]]; then rej_ts="$ts" rej_id="${id:0:8}" rej_from="$from"; fi
+    elif [[ "$body" == ACCEPTED* ]] && { ksr_is_seat "$bare" || [ "$bare" = "$rep_bare" ] || [[ "$bare" =~ ^HUM-[0-9]+$ ]]; }; then
+      if [[ "$ts" > "$acc_ts" ]]; then acc_ts="$ts" acc_id="${id:0:8}" acc_task="$task"; fi
+    fi
+  done < <(find "$SPOOL_ROOT/$ID/inbox" "$SPOOL_ROOT/$ID/archive" -maxdepth 1 -type f -name '*.json' -print0 2>/dev/null |
+    xargs -0 -r jq -r 'select(type == "object") | [(.ts // ""), (.from // ""), (.kind // ""), (.task_id // ""), ((.body // "") | .[0:120]), (.msg_id // "")] | @tsv' 2>/dev/null)
+  if [ -n "$rej_ts" ] && { [ -z "$acc_ts" ] || ! [[ "$acc_ts" > "$rej_ts" ]]; }; then
+    echo "exit-clean refused: REJECT $rej_id from $rej_from at $rej_ts is newer than any ACCEPTED; fix it, send your result, wait for an ACCEPTED (nothing retired, closed or reported)" >&2
+    return 3
+  fi
+  if [ -z "$acc_ts" ]; then
+    echo "exit-clean refused: no ACCEPTED on your task from the dispatch holder or your spawner ($REP_TO) in $SPOOL_ROOT/$ID/{inbox,archive}; send your result and stay idle (nothing retired, closed or reported)" >&2
+    return 3
+  fi
+  echo "exit gate: ACCEPTED $acc_id at $acc_ts on task $acc_task" >&2
+  return 0
+}
+
+if [ "$MODE" = gate ]; then
+  ksr_gate
+  exit $?
+fi
+
+if [ "$MODE" = reporter ]; then
+  if [ "$GATE" = 1 ]; then ksr_gate || exit 3; fi
+  ksr_reporter
+  echo "reporter: $REP_TO (from $REP_FROM)" >&2
+  printf '%s\n' "$REP_TO"
   exit 0
 fi
 

@@ -24,6 +24,26 @@ verdict made the ACCEPTED bounce ("retired on this machine less than 24 h
 ago", c-878 and a-884, 2026-10-10). Every kind, mistral (vibe,
 `~/.vibe/skills`) included.
 
+Section 0 is enforced, not only stated (m-930 retired after a REJECT,
+2026-10-10). Before anything else, with any argument except `--rebirth` and
+`report-only` (they neither close nor retire), run the gate:
+
+```bash
+bash {{HARNESS_DIR}}/scripts/kill-your-self-report.sh --gate
+```
+
+It exits 0 on an ACCEPTED from the dispatch holder or your spawner that is
+newer than every REJECT / SEND-BACK in your spool `inbox` and `archive`, and
+for a role seat (the rotation). If it exits 3: stop. Land, report, close and
+retire nothing; the one line it printed names the missing ACCEPTED or the
+newer REJECT. Fix what a REJECT asks, send your result, stay idle.
+Only when a human typed `/exit-clean` in your pane as their own turn (never a
+spool message, a poke or your own decision), prefix the gate and the
+`--reporter` call with `EXIT_CLEAN_BY=human EXIT_CLEAN_REASON="<what they typed>"`;
+each use is logged in `{{SPOOL_ROOT}}/exit-override.log` for the dispatcher.
+The report send's `--reporter` runs the same gate, so a refused lane has no
+recipient. `--rebirth` and `report-only` send with `--reporter --no-gate`.
+
 ## 1. Land the work
 
 Start with the read-only discovery: your id, unread spool mail, what git

@@ -2344,6 +2344,8 @@
     "view_grid": "Cuadrícula",
     "new_doc": "Nuevo documento",
     "new_doc_placeholder": "Título del nuevo documento",
+    "meta_description": "Metadescripción",
+    "meta_description_placeholder": "Un breve resumen del documento, usado en la búsqueda",
     "create": "Crear",
     "loading": "Cargando…",
     "off": "Los documentos del espacio de trabajo no están disponibles en este servidor.",

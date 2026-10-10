@@ -8,7 +8,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import { docFetchTimeoutMs } from '~/utils/fetch-timeouts.mjs'
 
-export type DocHead = { id: string, title: string, rev: number, items: number, root: string, topic_id: string, updated_at: string }
+export type DocHead = { id: string, title: string, description?: string, rev: number, items: number, root: string, topic_id: string, updated_at: string }
 export type DocItem = { id: string, parent: string, ord: number, outline: string, depth: number, title: string, body: string, attrs: Record<string, unknown>, rev: number }
 export type DocChildren = { doc: string, rev: number, parent: string, path: number[], outline: string, items: DocItem[] }
 export type DocGrid = { doc: string, rev: number, total: number, items: DocItem[] }
@@ -122,7 +122,8 @@ export function useDocTree() {
     /** rename the document under the doc rev read; '' gives the default title */
     rename: (doc: string, rev: number, title: string) => call<{ rev: number, title: string }>('PATCH', `/${enc(doc)}`, { title, rev }),
     list: () => call<{ docs: DocHead[] }>('GET', '').then((r) => r.docs),
-    create: (title: string) => call<{ id: string, root: string, rev: number }>('POST', '', { title }),
+    /** description is the meta description (rdb 0164), '' = none */
+    create: (title: string, description = '') => call<{ id: string, root: string, rev: number }>('POST', '', { title, description }),
     head: (doc: string) => call<DocHead>('GET', `/${enc(doc)}`),
     /** the lazy unit: one node's children ('' = the top level) */
     children: (doc: string, parent = '') => call<DocChildren>('GET', `/${enc(doc)}/children${parent ? '?parent=' + enc(parent) : ''}`),

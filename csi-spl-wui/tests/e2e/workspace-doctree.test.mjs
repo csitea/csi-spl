@@ -11,6 +11,9 @@
 // The hub follow-up (owner go 33ced864): the document renamed in place (a
 // cleared title is the default), a code block and an uploaded image added
 // to a section and edited there, each read back from the hub.
+// A new document (owner, t1 889e15d9): the page's + opens a modal with the
+// title (required) and the meta description; Esc creates nothing; the
+// description is read back from the hub's head. Desktop and phone.
 //
 //   node tests/e2e/workspace-doctree.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/workspace-doctree.test.mjs
@@ -55,6 +58,19 @@ function outline(p, v) {
     return `${num} ${title}`.trim()
   }), v)
 }
+
+/** the + opens the new-document modal; title and meta description typed, Create */
+async function newDoc(p, title, desc) {
+  await p.click('[data-test=ws-docs-new]')
+  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  await p.type('[data-test=ws-docs-new-title]', title)
+  if (desc) await p.type('[data-test=ws-docs-new-desc]', desc)
+  await p.click('[data-test=ws-docs-create]')
+  await p.waitForFunction(() => !document.querySelector('[data-test=ws-docs-new-form]'), { timeout: STEP }).catch(() => null)
+}
+
+/** the hub's documents (the mock's raw call, not the page's copy) */
+const hubDocs = (p) => p.evaluate(async () => (await window.__wsDocTreeCall('GET', '')).docs)
 
 /** wait until the view's outline equals want; returns what it last read */
 async function outlineIs(p, v, want) {
@@ -137,19 +153,53 @@ try {
   const p = await browser.newPage()
   await p.setViewport({ width: 1280, height: 800 })
   await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=ws-docs-new]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.waitForFunction(() => typeof window.__wsDocTreeCall === 'function', { timeout: STEP })
+
+  /* the + is the issues page's round + (owner t1 889e15d9): 2.5rem, round, accent; no inline title box */
+  const plus = await p.evaluate(() => {
+    const el = document.querySelector('[data-test=ws-docs-new]')
+    const b = el.getBoundingClientRect()
+    const cs = getComputedStyle(el)
+    return { w: Math.round(b.width), h: Math.round(b.height), want: Math.round(2.5 * parseFloat(getComputedStyle(document.documentElement).fontSize)),
+      round: cs.borderRadius === '50%', accent: cs.backgroundColor !== 'rgba(0, 0, 0, 0)', inline: Boolean(document.querySelector('.wsdocs-body [data-test=ws-docs-new-title]')) }
+  })
+  ok('the + is the issues page\'s round 2.5rem accent button and the page has no inline title box',
+    plus.w === plus.want && plus.h === plus.want && plus.round && plus.accent && !plus.inline, plus)
+
+  /* the modal: title required, Esc closes with nothing created */
+  const before = (await hubDocs(p)).length
+  await p.click('[data-test=ws-docs-new]')
+  await p.waitForSelector('[data-testid=ui-dialog] [data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  await p.type('[data-test=ws-docs-new-desc]', 'no title yet')
+  const noTitle = await p.$eval('[data-test=ws-docs-create]', (b) => b.disabled)
+  await p.type('[data-test=ws-docs-new-title]', 'x')
+  const withTitle = await p.$eval('[data-test=ws-docs-create]', (b) => b.disabled)
+  ok('the + opens the modal; Create is disabled until a title is typed', noTitle === true && withTitle === false, { noTitle, withTitle })
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(() => !document.querySelector('[data-test=ws-docs-new-form]'), { timeout: STEP }).catch(() => null)
+  const afterEsc = { open: Boolean(await p.$('[data-test=ws-docs-new-form]')), n: (await hubDocs(p)).length }
+  ok('Esc closes the modal and creates nothing', !afterEsc.open && afterEsc.n === before, { before, afterEsc })
 
   /* a new document never starts from nothing (t1 519a4ee9): its title, then
      the starter headings 1 / 1.1 / 1.1.1 as placeholders, a paragraph
      placeholder under levels 2 and 3 only */
-  await p.type('[data-test=ws-docs-new-title]', 'E2E outline')
-  await p.click('[data-test=ws-docs-create]')
+  await newDoc(p, 'E2E outline', 'What the e2e outline is for')
   let got = await outlineIs(p, 'doc', ['1', '1.1', '1.1.1'])
   const starter = await p.evaluate(() => ({
     title: document.querySelector('[data-test=ws-doc-doctitle]')?.textContent?.trim(),
     rows: [...document.querySelectorAll('[data-test=ws-doc-row]')].map((r) => [
       r.querySelector('[data-test=ws-doc-title]').placeholder, r.querySelector('[data-test=ws-doc-text]').placeholder]),
   }))
+  /* the meta description is stored: read back from the hub's head, not the page.
+     The CONTROL: a document made with none (the mock's raw call) reads '' */
+  const descOf = (id) => p.evaluate(async (id) => (await window.__wsDocTreeCall('GET', '/' + id)).description, id)
+  const opened = new URL(p.url()).searchParams.get('doc')
+  const desc = await descOf(opened)
+  const bare = await p.evaluate(async () => (await window.__wsDocTreeCall('POST', '', { title: 'bare' })).id)
+  const bareDesc = await descOf(bare)
+  ok('the new document opens and its meta description is saved with it', desc === 'What the e2e outline is for', { opened, desc })
+  ok('CONTROL: a document made without one has an empty description', bareDesc === '', { bareDesc })
   ok('a new document opens with its title and the starter outline', JSON.stringify(got) === JSON.stringify(['1', '1.1', '1.1.1'])
     && starter.title === 'E2E outline' && JSON.stringify(starter.rows) === JSON.stringify([['Heading 1', ''], ['Heading 1.1', 'Paragraph text'], ['Heading 1.1.1', 'Paragraph text']]), { got, starter })
 
@@ -500,16 +550,6 @@ try {
   ok('the caption is edited in place and the image is removed, the code block kept',
     captioned.img_name === 'Deploy diagram' && !removed.img_http_path && !removed.img_name && removed.src === 'make deploy ENV=dev', { captioned, removed })
 
-  /* a document always has a title: Create with none typed uses the default */
-  await p.click('[data-test=ws-docs-create]')
-  await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent?.trim() === 'Untitled document', { timeout: STEP }).catch(() => null)
-  const dflt = await p.evaluate(() => ({
-    h: document.querySelector('[data-test=ws-doc-doctitle]')?.textContent?.trim(),
-    sel: document.querySelector('[data-test=ws-docs-select]').selectedOptions[0]?.textContent?.trim(),
-    rows: document.querySelectorAll('[data-test=ws-doc-row]').length,
-  }))
-  ok('Create with no title makes "Untitled document" with the starter outline', dflt.h === 'Untitled document' && dflt.sel === 'Untitled document' && dflt.rows === 3, dflt)
-
   /* t1 b4dd79e2 ("on mobile, the showing of the omnibox while editing in QTO
      doc is obsolete"): on a phone the omnibox hides while a field of the
      document is in focus and comes back when it leaves; a desktop keeps it. Control: before e1f5f536a it never hides. */
@@ -537,9 +577,8 @@ try {
   const m = await browser.newPage()
   await m.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
   await m.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await m.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: NAV_TIMEOUT })
-  await m.type('[data-test=ws-docs-new-title]', 'Phone doc')
-  await m.click('[data-test=ws-docs-create]')
+  await m.waitForSelector('[data-test=ws-docs-new]', { visible: true, timeout: NAV_TIMEOUT })
+  await newDoc(m, 'Phone doc')
   await outlineIs(m, 'doc', ['1', '1.1', '1.1.1'])
   await settle()
   const reading = await omnibox(m)
@@ -564,6 +603,20 @@ try {
   ok('phone: it hides while the document title is edited', editingTitle === 'hidden', editingTitle)
   ok('phone: it comes back after Enter (save)', afterSave === 'shown', afterSave)
   await m.close()
+
+  /* phone: the + floats bottom right (the issues page's), the modal creates */
+  await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
+  await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=ws-docs-new]', { visible: true, timeout: NAV_TIMEOUT })
+  const fab = await p.$eval('[data-test=ws-docs-new]', (b) => {
+    const r = b.getBoundingClientRect()
+    return { pos: getComputedStyle(b).position, right: Math.round(innerWidth - r.right), w: Math.round(r.width) }
+  })
+  ok('phone: the + floats bottom right, 56 px', fab.pos === 'fixed' && fab.right === 16 && fab.w === 56, fab)
+  await newDoc(p, 'E2E phone doc', 'made on a phone')
+  await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent?.trim() === 'E2E phone doc', { timeout: STEP }).catch(() => null)
+  const phoneDoc = (await hubDocs(p)).find((d) => d.title === 'E2E phone doc')
+  ok('phone: the modal creates the document with its meta description', phoneDoc?.description === 'made on a phone', phoneDoc)
 } finally {
   await browser.close()
   await server.stop()

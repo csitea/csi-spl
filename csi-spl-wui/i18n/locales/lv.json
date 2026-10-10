@@ -2344,6 +2344,8 @@
     "view_grid": "Tabula",
     "new_doc": "Jauns dokuments",
     "new_doc_placeholder": "Jaunā dokumenta nosaukums",
+    "meta_description": "Meta apraksts",
+    "meta_description_placeholder": "Īss dokumenta kopsavilkums, ko izmanto meklēšanā",
     "create": "Izveidot",
     "loading": "Ielādē…",
     "off": "Darbvietas dokumenti šajā serverī nav pieejami.",

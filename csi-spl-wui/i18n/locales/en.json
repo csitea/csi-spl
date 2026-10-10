@@ -2344,6 +2344,8 @@
     "view_grid": "Grid",
     "new_doc": "New document",
     "new_doc_placeholder": "Title of the new document",
+    "meta_description": "Meta description",
+    "meta_description_placeholder": "A short summary of the document, used by search",
     "create": "Create",
     "loading": "Loading…",
     "off": "Workspace documents are not available on this server.",

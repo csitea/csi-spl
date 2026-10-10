@@ -9,6 +9,12 @@
     <header class="feed-header wsdocs-head">
       <MobileBack />
       <h2>{{ t('ws_doctree.title') }}</h2>
+      <!-- owner t1 889e15d9: a new document is made through the + and its
+           modal, the issues page's pattern (SPL-978 round +; SPL-992 on a
+           phone it floats bottom right) -->
+      <button v-if="state === 'ready' || state === 'loading'" type="button" class="wsdocs-fab" data-test="ws-docs-new" aria-haspopup="dialog" :aria-label="t('ws_doctree.new_doc')" :title="t('ws_doctree.new_doc')" @click="newOpen = true">
+        <UiIcon name="plus" :size="22" :stroke-width="2.5" />
+      </button>
       <label v-if="docs.length" class="wsdocs-pick">
         <span class="sr-only">{{ t('ws_doctree.doc_label') }}</span>
         <select :value="docId" data-test="ws-docs-select" :aria-label="t('ws_doctree.doc_label')" @change="pick(($event.target as HTMLSelectElement).value)">
@@ -32,20 +38,6 @@
       </div>
     </header>
     <div class="feed-body wsdocs-body">
-      <form v-if="state !== 'off'" class="wsdocs-new" data-test="ws-docs-new" @submit.prevent="createDoc">
-        <input
-          v-model="newTitle"
-          type="text"
-          maxlength="500"
-          data-test="ws-docs-new-title"
-          :placeholder="t('ws_doctree.new_doc_placeholder')"
-          :aria-label="t('ws_doctree.new_doc')"
-        >
-        <button type="submit" class="issues-iconbtn" data-test="ws-docs-create" :disabled="creating" :aria-label="t('ws_doctree.create')" :title="t('ws_doctree.create')">
-          <UiIcon name="plus" :size="22" :stroke-width="2.5" />
-        </button>
-      </form>
-
       <p v-if="state === 'loading'" class="muted wsdocs-note">{{ t('ws_doctree.loading') }}</p>
       <p v-else-if="state === 'off'" class="muted wsdocs-note" data-test="ws-docs-off">{{ t('ws_doctree.off') }}</p>
       <div v-else-if="state === 'failed'" class="wsdocs-note" role="alert">
@@ -67,6 +59,7 @@
       </template>
     </div>
     <WorkspaceDocPrint :title="docTitle" :items="printItems" />
+    <WorkspaceDocNewDialog v-model:open="newOpen" :create="createDoc" />
   </div>
 </template>
 
@@ -75,6 +68,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 
 import WorkspaceDocView from './WorkspaceDocView.vue'
 import WorkspaceGridView from './WorkspaceGridView.vue'
 import WorkspaceDocPrint from './WorkspaceDocPrint.vue'
+import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
 import { createDocSession, DocTreeError, seedStarterDoc, useDocTree, type DocHead, type DocItem, type DocSession } from './-doctree-api'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 
@@ -91,8 +85,7 @@ const state = ref<'loading' | 'ready' | 'off' | 'failed'>('loading')
 const session = shallowRef<DocSession | null>(null)
 const root = ref('')
 const mount = ref(0)
-const newTitle = ref('')
-const creating = ref(false)
+const newOpen = ref(false)
 const printItems = ref<DocItem[]>([])
 
 const docId = computed(() => String(route.query.doc || '') || docs.value[0]?.id || '')
@@ -162,21 +155,13 @@ async function loadDocs() {
   }
 }
 
-/** a new document always has a title (the default when none is typed) and starts with the starter outline */
-async function createDoc() {
-  const title = newTitle.value.trim() || t('ws_doctree.default_doc_title')
-  creating.value = true
-  try {
-    const r = await client.create(title)
-    await seedStarterDoc(client, r.id, r.rev)
-    newTitle.value = ''
-    docs.value = await client.list()
-    await pick(r.id)
-  } catch {
-    state.value = 'failed'
-  } finally {
-    creating.value = false
-  }
+/** the modal's create: the typed title (required there) and meta description; the new document starts with the starter outline and opens */
+async function createDoc(title: string, description: string) {
+  const r = await client.create(title, description)
+  await seedStarterDoc(client, r.id, r.rev)
+  docs.value = await client.list()
+  state.value = 'ready'
+  await pick(r.id)
 }
 
 function afterPrint() {
@@ -241,16 +226,44 @@ defineExpose({ docs, docId, session, pick, openAt })
 }
 .wsdocs-views__opt[aria-checked='true'] { background: var(--color-selected); border-color: var(--color-accent); }
 .wsdocs-body { display: grid; align-content: start; gap: 8px; }
-.wsdocs-new { display: flex; gap: 8px; padding: 8px 12px 0; flex-wrap: wrap; }
-.wsdocs-new input {
-  flex: 1 1 14rem;
-  max-width: 24rem;
-  font: inherit;
-  padding: 4px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg);
-  color: var(--color-fg);
+/* the issues page's + (issues.vue .issues-fab, SPL-978 / SPL-992), same size and look */
+.wsdocs-fab {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.wsdocs-fab:hover {
+  background: var(--color-accent-pressed);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.22);
+}
+.wsdocs-fab:active { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .wsdocs-fab { transition: none; }
+  .wsdocs-fab:active { transform: none; }
+}
+@media (max-width: 820px) {
+  .wsdocs-fab {
+    position: fixed;
+    inset-inline-end: 16px;
+    bottom: calc(16px + max(var(--composer-dock-h, 0px), env(safe-area-inset-bottom, 0px)));
+    z-index: 15;
+    width: 56px;
+    height: 56px;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14), 0 1px 18px rgba(0, 0, 0, 0.12);
+  }
 }
 .wsdocs-note { padding: 12px 16px; }
 .wsdocs-stale {

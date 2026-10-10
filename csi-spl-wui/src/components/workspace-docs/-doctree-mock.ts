@@ -8,7 +8,7 @@
 export type MockReply = { status: number, body: unknown }
 
 type Item = { id: string, parent: string, ord: number, title: string, body: string, attrs: Record<string, unknown>, rev: number }
-type Doc = { id: string, title: string, rev: number, root: string, items: Map<string, Item>, updated: string }
+type Doc = { id: string, title: string, description: string, rev: number, root: string, items: Map<string, Item>, updated: string }
 type Wire = { id: string, parent: string, ord: number, outline: string, depth: number, title: string, body: string, attrs: Record<string, unknown>, rev: number }
 type Body = Record<string, unknown>
 
@@ -53,7 +53,7 @@ function subtree(d: Doc, id: string): Item[] {
 
 function head(d: Doc) {
   const root = d.items.get(d.root)
-  return { id: d.id, title: d.title, rev: d.rev, items: d.items.size - 1, root: d.root, topic_id: String(root?.attrs.topic_id ?? ''), updated_at: d.updated }
+  return { id: d.id, title: d.title, description: d.description, rev: d.rev, items: d.items.size - 1, root: d.root, topic_id: String(root?.attrs.topic_id ?? ''), updated_at: d.updated }
 }
 
 function bump(d: Doc): number {
@@ -67,8 +67,8 @@ function renumber(d: Doc, parent: string) {
   kids(d, parent).forEach((k, i) => { k.ord = i + 1 })
 }
 
-function create(title: string): Doc {
-  const d: Doc = { id: uuid(), title, rev: 1, root: uuid(), items: new Map(), updated: new Date().toISOString() }
+function create(title: string, description = ''): Doc {
+  const d: Doc = { id: uuid(), title, description, rev: 1, root: uuid(), items: new Map(), updated: new Date().toISOString() }
   d.items.set(d.root, { id: d.root, parent: '', ord: 1, title: '', body: '', attrs: {}, rev: 1 })
   docs.set(d.id, d)
   return d
@@ -285,8 +285,9 @@ export function mockDocTree(method: string, path: string, body: Body = {}): Mock
   }
   if (!docId && method === 'POST') {
     const title = str(body.title).trim() || UNTITLED
-    if (title.length > 500) return fail(400, 'bad_request', 'title is at most 500 characters')
-    const d = create(title)
+    const description = str(body.description).trim()
+    if (title.length > 500 || description.length > 1000) return fail(400, 'bad_request', 'title is at most 500 characters, description at most 1000')
+    const d = create(title, description)
     return { status: 200, body: { id: d.id, root: d.root, rev: 1 } }
   }
   const d = docs.get(docId || '')

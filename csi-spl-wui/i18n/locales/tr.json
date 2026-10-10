@@ -2344,6 +2344,8 @@
     "view_grid": "Tablo",
     "new_doc": "Yeni belge",
     "new_doc_placeholder": "Yeni belgenin başlığı",
+    "meta_description": "Meta açıklama",
+    "meta_description_placeholder": "Belgenin kısa bir özeti, aramada kullanılır",
     "create": "Oluştur",
     "loading": "Yükleniyor…",
     "off": "Çalışma alanı belgeleri bu sunucuda kullanılamıyor.",

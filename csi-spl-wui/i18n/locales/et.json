@@ -2344,6 +2344,8 @@
     "view_grid": "Tabel",
     "new_doc": "Uus dokument",
     "new_doc_placeholder": "Uue dokumendi pealkiri",
+    "meta_description": "Metakirjeldus",
+    "meta_description_placeholder": "Dokumendi lühikokkuvõte, mida kasutab otsing",
     "create": "Loo",
     "loading": "Laadimine…",
     "off": "Tööruumi dokumendid pole selles serveris saadaval.",

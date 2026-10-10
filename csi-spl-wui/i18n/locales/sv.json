@@ -2344,6 +2344,8 @@
     "view_grid": "Rutnät",
     "new_doc": "Nytt dokument",
     "new_doc_placeholder": "Titel på det nya dokumentet",
+    "meta_description": "Metabeskrivning",
+    "meta_description_placeholder": "En kort sammanfattning av dokumentet, används vid sökning",
     "create": "Skapa",
     "loading": "Laddar…",
     "off": "Arbetsytans dokument är inte tillgängliga på den här servern.",

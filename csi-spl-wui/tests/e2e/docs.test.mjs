@@ -508,7 +508,7 @@ try {
   await b.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   
   // Verify the create button matches the issues button's style
-  const createBtn = await b.waitForSelector('[data-test=ws-docs-create]', { timeout: 15000 }).catch(() => null)
+  const createBtn = await b.waitForSelector('[data-test=ws-docs-new]', { timeout: 15000 }).catch(() => null)
   ok('the create button is present', Boolean(createBtn))
   if (createBtn) {
     const createBox = await createBtn.boundingBox()
@@ -539,7 +539,8 @@ try {
   if (printBtn && tocBtn) {
     const printBox = await printBtn.boundingBox()
     const tocBox = await tocBtn.boundingBox()
-    ok('the print and TOC buttons are in a tight row at the top', Boolean(printBox && tocBox && Math.abs(printBox.top - tocBox.top) < 5 && printBox.right <= tocBox.left + 10))
+    /* boundingBox() is {x, y, width, height}: top = y, left = x, right = x + width */
+    ok('the print and TOC buttons are in a tight row at the top', Boolean(printBox && tocBox && Math.abs(printBox.y - tocBox.y) < 5 && printBox.x + printBox.width <= tocBox.x + 10), { printBox, tocBox })
   }
   
   await b.close()

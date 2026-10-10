@@ -2344,6 +2344,8 @@
     "view_grid": "Mriežka",
     "new_doc": "Nový dokument",
     "new_doc_placeholder": "Názov nového dokumentu",
+    "meta_description": "Metapopis",
+    "meta_description_placeholder": "Krátke zhrnutie dokumentu, používané pri vyhľadávaní",
     "create": "Vytvoriť",
     "loading": "Načítava sa…",
     "off": "Dokumenty pracovného priestoru nie sú na tomto serveri dostupné.",

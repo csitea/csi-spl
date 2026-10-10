@@ -2344,6 +2344,8 @@
     "view_grid": "Taulukko",
     "new_doc": "Uusi dokumentti",
     "new_doc_placeholder": "Uuden dokumentin otsikko",
+    "meta_description": "Metakuvaus",
+    "meta_description_placeholder": "Lyhyt tiivistelmä asiakirjasta, käytetään haussa",
     "create": "Luo",
     "loading": "Ladataan…",
     "off": "Työtilan dokumentit eivät ole käytettävissä tällä palvelimella.",

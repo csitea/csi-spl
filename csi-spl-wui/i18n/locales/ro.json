@@ -2344,6 +2344,8 @@
     "view_grid": "Grilă",
     "new_doc": "Document nou",
     "new_doc_placeholder": "Titlul noului document",
+    "meta_description": "Metadescriere",
+    "meta_description_placeholder": "Un scurt rezumat al documentului, folosit la căutare",
     "create": "Creează",
     "loading": "Se încarcă…",
     "off": "Documentele spațiului de lucru nu sunt disponibile pe acest server.",

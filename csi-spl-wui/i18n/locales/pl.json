@@ -2344,6 +2344,8 @@
     "view_grid": "Siatka",
     "new_doc": "Nowy dokument",
     "new_doc_placeholder": "Tytuł nowego dokumentu",
+    "meta_description": "Metaopis",
+    "meta_description_placeholder": "Krótkie podsumowanie dokumentu, używane podczas wyszukiwania",
     "create": "Utwórz",
     "loading": "Ładowanie…",
     "off": "Dokumenty obszaru roboczego nie są dostępne na tym serwerze.",

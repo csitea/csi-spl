@@ -2344,6 +2344,8 @@
     "view_grid": "Lentelė",
     "new_doc": "Naujas dokumentas",
     "new_doc_placeholder": "Naujo dokumento pavadinimas",
+    "meta_description": "Meta aprašymas",
+    "meta_description_placeholder": "Trumpa dokumento santrauka, naudojama paieškai",
     "create": "Sukurti",
     "loading": "Įkeliama…",
     "off": "Darbo srities dokumentai šiame serveryje neprieinami.",

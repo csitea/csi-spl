@@ -2344,6 +2344,8 @@
     "view_grid": "Raster",
     "new_doc": "Nieuw document",
     "new_doc_placeholder": "Titel van het nieuwe document",
+    "meta_description": "Metabeschrijving",
+    "meta_description_placeholder": "Een korte samenvatting van het document, gebruikt bij het zoeken",
     "create": "Aanmaken",
     "loading": "Laden…",
     "off": "Werkruimtedocumenten zijn niet beschikbaar op deze server.",

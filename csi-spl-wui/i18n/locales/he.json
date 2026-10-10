@@ -2344,6 +2344,8 @@
     "view_grid": "טבלה",
     "new_doc": "מסמך חדש",
     "new_doc_placeholder": "כותרת המסמך החדש",
+    "meta_description": "תיאור מטא",
+    "meta_description_placeholder": "סיכום קצר של המסמך, משמש לחיפוש",
     "create": "יצירה",
     "loading": "טוען…",
     "off": "מסמכי סביבת העבודה אינם זמינים בשרת זה.",

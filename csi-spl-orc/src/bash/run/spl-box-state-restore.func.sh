@@ -48,12 +48,18 @@ do_spl_box_state_restore() {
   else
     src="$(spl_box_state_fetch "$box" "$date" "$arch")" || return 1
   fi
+  BOX_STATE_HOMES="${BOX_STATE_HOMES:-$(spl_box_state_homes)}"
+  export BOX_STATE_HOMES
   if ! spl_box_state_scan "$arch"; then
     do_log "FATAL $src holds an excluded path or key material (HIT lines above): restore REFUSED; the archive is left in $stage for a look"
     return 3
   fi
   mkdir -p "$stage/root" || return 1
-  zstd -dcq "$arch" | tar -xf - -C "$stage/root" --no-same-owner 2>/dev/null ||
+  # tar -i, here and in the apply: read to the end of the stream. A plain -x
+  # stops at the first end-of-archive marker (tar -A leaves a record after
+  # it), zstd then writes into a closed pipe and pipefail fails a good
+  # restore (c-770, wf 10 run 38089507119: "zstd: error 70 ... Broken pipe").
+  zstd -dcq "$arch" | tar -xif - -C "$stage/root" --no-same-owner 2>/dev/null ||
     { do_log "FATAL cannot extract $src into $stage/root"; return 1; }
 
   local plan nnew nover
@@ -70,7 +76,7 @@ do_spl_box_state_restore() {
   fi
   local -a asroot=()
   [[ "$root" == / && "$(id -u)" != 0 ]] && asroot=(sudo -n)
-  zstd -dcq "$arch" | "${asroot[@]}" tar -xf - -C "$root" --keep-directory-symlink ${asroot:+--same-owner -p} ||
+  zstd -dcq "$arch" | "${asroot[@]}" tar -xif - -C "$root" --keep-directory-symlink ${asroot:+--same-owner -p} ||
     { do_log "FATAL the apply onto $root failed part way: $plan lists what it was writing"; return 1; }
   do_log "OK $ENV: $box $date restored onto $root ($nnew new, $nover overwritten)"
 }

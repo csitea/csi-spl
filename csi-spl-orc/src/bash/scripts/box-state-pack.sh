@@ -39,10 +39,11 @@ BOX_STATE_KEY_RE='-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----|root_private_key[\\"]
 BOX_STATE_NAME_RE='(^|/)(\.gcp|\.ssh)(/|$)|(^|/)\.nano-banana[^/]*(/|$)|(^|/)\.github/token$|(^|/)\.spool-hub/tenants(/|$)|(^|/)\.env$|\.(pem|key|p12)$|(^|/)key-[^/]*\.json$'
 # A NetVisor or bank credential file, matched on the lower-cased name.
 BOX_STATE_CRED_RE='(^|/)[^/]*(netvisor|bank[-_.]?(cred|creds|credentials|auth|api|key|keys|token|tokens|secret|secrets|cert|login))[^/]*$'
-# Homes whose dot-dirs may hold no 0600 file (globs, absolute), and the 0600
+# Homes whose dot-dirs may hold no 0600 file (dirs, globs allowed; the action
+# passes the passwd homes of the box and agent users and root), and the 0600
 # files that may go anyway: the agents' transcripts (0600 by Claude Code; their
 # key material is caught by the key filter and the scan).
-BOX_STATE_HOMES="${BOX_STATE_HOMES:-/home/* /root}"
+BOX_STATE_HOMES="${BOX_STATE_HOMES:-$(getent passwd "$(id -un)" | cut -d: -f6) /root}"
 BOX_STATE_ALLOW_0600="${BOX_STATE_ALLOW_0600:-*/.claude/projects/*}"
 # shellcheck disable=SC2090
 export BOX_STATE_KEY_RE BOX_STATE_NAME_RE BOX_STATE_CRED_RE BOX_STATE_HOMES BOX_STATE_ALLOW_0600

@@ -9,11 +9,16 @@
 #      only MENTIONS "private_key" goes in (no false drop)
 #   3. the dry run uploads nothing and changes no source file
 #   4. object naming: <box>/<YYYY-MM-DD>/<box>-<stamp>.tar.zst in the cnf
-#      bucket, uploaded as the project SA impersonating the writer SA
+#      bucket, one create-only JSON API upload with the writer SA's token
+#      (impersonated by the project SA); the reported size is the verdict
 #   6. owner rule (csitea fc0119cd msg 072a9990, "keys and secrets stay on
 #      the box"): a 0600 file under a home's dot-dirs and a NetVisor / bank
 #      credential file stay out and refuse an upload in the scan, naming the
 #      path only; the allow-listed 0600 transcripts go in
+#   7. a satellite (c-001 cf51ea4d): homes come from getent passwd, not a
+#      /home/* guess (a home under /mnt/data/home); an agent home this user
+#      cannot read FAILS loudly (exit != 0, 'unreadable', no upload), while a
+#      source that is really absent is skipped
 #   5. the key scan: a planted archive (key material, or an excluded name)
 #      refuses the upload with exit 3, names the member, never prints the key;
 #      bytes after tar's end marker never make a good archive "unreadable"
@@ -56,7 +61,19 @@ env:
       state_bucket_name: csi-spl-dev-box-state
       writer_sa_account_id: csi-spl-dev-box-state
 EOF
-orc_stub 0 gcloud
+# gcloud: logs; prints a token for print-access-token. curl: logs its args
+# (the header is a FILE, so no token here), answers with the -T file's size
+# (CURL_SIZE overrides it) in the -o file.
+mkdir -p "$T/stub"
+printf '#!/bin/sh\necho "gcloud $*" >>"$STUB_LOG"\ncase "$*" in *print-access-token*) echo tok-FAKE-0123 ;; esac\nexit 0\n' >"$T/stub/gcloud"
+cat >"$T/stub/curl" <<'STUBEOF'
+#!/bin/bash
+echo "curl $*" >>"$STUB_LOG"
+while [ $# -gt 0 ]; do case "$1" in -T) f="$2"; shift ;; -o) o="$2"; shift ;; -H) [[ "$2" == @* ]] && h="${2#@}"; shift ;; esac; shift; done
+[ -n "${h:-}" ] && grep -q '^Authorization: Bearer tok-FAKE-0123$' "$h" && [ "$(stat -c %a "$h")" = 600 ] && echo "curl-header-ok" >>"$STUB_LOG"
+printf '{"size":"%s"}' "${CURL_SIZE:-$(stat -c %s "$f")}" >"$o"
+STUBEOF
+chmod +x "$T/stub/gcloud" "$T/stub/curl"
 STUBS='do_spl_cloud_cnf() { SPL_CNF="$CNF"; SPL_PROJECT=csi-spl-dev; }
 do_gcp_pin_account() { GCP_ACCOUNT=sa@example.com; }
 do_gcp_require_live_account() { return 0; }'
@@ -73,7 +90,7 @@ done
 # 2 + 3 ---------------------------------------------------------------------
 run_bk BOX_STATE_KEEP="$T/a.tar.zst" BOX_STATE_STAMP=20261010T024100Z; rc=$?
 [[ $rc -eq 0 && -s "$T/a.tar.zst" ]] && pass "2. the dry run packs and scans clean" || fail "2. rc=$rc $(cat "$T/out")"
-names="$(zstd -dcq "$T/a.tar.zst" | tar -tf -)"
+names="$(zstd -dcq "$T/a.tar.zst" | tar -tif -)"
 for keep in proj/-opt-x/s1.jsonl proj/-opt-x/memory/MEMORY.md spool/c-1/inbox/m1.json state/logs/run.log; do
   grep -q "${S#/}/$keep\$" <<<"$names" && pass "2. kept: $keep" || fail "2. missing $keep: $names"
 done
@@ -94,9 +111,17 @@ want='box1/2026-10-10/box1-20261010T024100Z.tar.zst'
 grep -q "would upload gs://csi-spl-dev-box-state/$want as csi-spl-dev-box-state@csi-spl-dev.iam.gserviceaccount.com" "$T/out" \
   && pass "4. the dry run names gs://<cnf bucket>/$want and the writer SA" || fail "4. dry-run name: $(cat "$T/out")"
 run_bk DRY_RUN=0 BOX=BOX1 BOX_STATE_STAMP=20261010T024100Z; rc=$?
-[[ $rc -eq 0 ]] && grep -qE "^gcloud storage cp $T/tmp/[^ ]+/box1-20261010T024100Z.tar.zst gs://csi-spl-dev-box-state/$want --account=sa@example.com --impersonate-service-account=csi-spl-dev-box-state@csi-spl-dev.iam.gserviceaccount.com" "$T/calls.log" \
-  && pass "4. DRY_RUN=0: one cp to the object, as the project SA impersonating the writer (BOX lower-cased)" || fail "4. upload: rc=$rc $(cat "$T/calls.log" "$T/out")"
-[[ "$(wc -l <"$T/calls.log")" == 1 ]] && pass "4. ...and no other gcloud call (no ls, no read: the writer cannot)" || fail "4. calls: $(cat "$T/calls.log")"
+enc="${want//\//%2F}"
+[[ $rc -eq 0 ]] && grep -qx "gcloud auth print-access-token --account=sa@example.com --impersonate-service-account=csi-spl-dev-box-state@csi-spl-dev.iam.gserviceaccount.com" "$T/calls.log" \
+  && grep -qE "^curl .* -T $T/tmp/[^ ]+/box1-20261010T024100Z.tar.zst .*https://storage.googleapis.com/upload/storage/v1/b/csi-spl-dev-box-state/o\?uploadType=media&ifGenerationMatch=0&name=$enc\$" "$T/calls.log" \
+  && grep -q "OK dev: box1 state -> gs://csi-spl-dev-box-state/$want" "$T/out" \
+  && pass "4. DRY_RUN=0: one create-only upload of the object, with the writer's impersonated token (BOX lower-cased)" || fail "4. upload: rc=$rc $(cat "$T/calls.log" "$T/out")"
+[[ "$(wc -l <"$T/calls.log")" == 3 ]] && grep -qx curl-header-ok "$T/calls.log" \
+  && pass "4. ...the token rides in a 0600 header file; no other call (no ls, no read: the writer cannot)" || fail "4. calls: $(cat "$T/calls.log")"
+grep -q tok-FAKE "$T/out" "$T/calls.log" && fail "4. the token reached a log or a command line" || pass "4. ...and the token is in no log and on no command line"
+run_bk DRY_RUN=0 BOX_STATE_STAMP=20261010T024100Z CURL_SIZE=7; rc=$?
+[[ $rc -ne 0 ]] && grep -q "reports size '7', the archive is" "$T/out" && ! grep -q '^OK dev: box1 state' "$T/out" \
+  && pass "4. CONTROL: a size GCS reports that differs from the archive is a FATAL" || fail "4. size mismatch: rc=$rc $(cat "$T/out")"
 SNIPPET='spl_box_state_object box9 20260102T030405Z' in_orc >"$T/o2"
 [[ "$(cat "$T/o2")" == 'box9/2026-01-02/box9-20260102T030405Z.tar.zst' ]] && pass "4. spl_box_state_object" || fail "4. object: $(cat "$T/o2")"
 
@@ -154,7 +179,7 @@ echo 'BK-BYTES' >"$H/notes/bank_credentials.txt"
 echo 'plain 0600 note' >"$H/notes/todo.txt"; chmod 600 "$H/notes/todo.txt"
 HOMES="$T/homes/*"
 run_bk BOX_STATE_SOURCES="$H" BOX_STATE_HOMES="$HOMES" BOX_STATE_KEEP="$T/h.tar.zst"; rc=$?
-hn="$(zstd -dcq "$T/h.tar.zst" | tar -tf -)"
+hn="$(zstd -dcq "$T/h.tar.zst" | tar -tif -)"
 [[ $rc -eq 0 ]] && grep -q 'dropped: 0600=2 cred=2$' "$T/out" && pass "6. two 0600 dot-dir files and two credential files dropped" || fail "6. rc=$rc $(cat "$T/out")"
 for out in .config/app/secret.conf .local/share/fin/session.dat NetVisor-api.json bank_credentials.txt; do
   grep -qF "$out" <<<"$hn" && fail "6. a secret went in: $out" || pass "6. left out: $out"
@@ -163,7 +188,7 @@ for keep in .claude/projects/-x/t1.jsonl .config/app/ok.conf notes/todo.txt; do
   grep -qF "$keep" <<<"$hn" && pass "6. kept: $keep (allow-listed, not 0600, or not in a dot-dir)" || fail "6. missing $keep: $hn"
 done
 run_bk BOX_STATE_SOURCES="$H" BOX_STATE_KEEP="$T/h2.tar.zst"; rc=$?
-grep -qF '.config/app/secret.conf' <<<"$(zstd -dcq "$T/h2.tar.zst" | tar -tf -)" && pass "6. CONTROL: outside BOX_STATE_HOMES the 0600 rule does not fire" \
+grep -qF '.config/app/secret.conf' <<<"$(zstd -dcq "$T/h2.tar.zst" | tar -tif -)" && pass "6. CONTROL: outside BOX_STATE_HOMES the 0600 rule does not fire" \
   || fail "6. control: $(cat "$T/out")"
 tar -cf - -C / "${H#/}/notes" 2>/dev/null | zstd -q -o "$T/h3.tar.zst"
 out="$( (BOX_STATE_HOMES="$HOMES" bash "$PACK" scan "$T/h2.tar.zst"; BOX_STATE_HOMES="$HOMES" bash "$PACK" scan "$T/h3.tar.zst") )"; rc=$?
@@ -175,7 +200,35 @@ PRE='spl_box_state_pack() { cp "$PLANT" "$1"; };' run_bk DRY_RUN=0 PLANT="$T/h2.
   && pass "6. such an archive refuses the upload (exit 3), naming the path" || fail "6. refusal: rc=$rc $(cat "$T/calls.log" "$T/out")"
 grep -qE 'SECRET-BYTES|NV-BYTES|BK-BYTES' "$T/out" && fail "6. the refusal printed file content" || pass "6. ...never the content"
 
-
+# 7 -------------------------------------------------------------------------
+M="$T/mnt/data/home"
+mkdir -p "$M/boxu/.config/app" "$M/agentx/.claude/projects/-x" "$T/spool7/c-1"
+echo 'S7-SECRET' >"$M/boxu/.config/app/secret.conf"; chmod 600 "$M/boxu/.config/app/secret.conf"
+echo 'cfg' >"$M/boxu/.config/app/ok.conf"
+echo 'msg' >"$T/spool7/c-1/m.json"
+echo 't' >"$M/agentx/.claude/projects/-x/t.jsonl"
+printf '#!/bin/sh\n[ "$1" = passwd ] && [ -n "$2" ] && echo "$2:x:1:1::%s/$2:/bin/bash"\n' "$M" >"$T/stub/getent"
+chmod +x "$T/stub/getent"
+SNIPPET='spl_box_state_homes' in_orc SPOOL_AGENT_USER=agentx >"$T/o7"
+grep -q "$M/agentx" "$T/o7" && grep -q "$M/$(id -un)" "$T/o7" && ! grep -q '/home/\*' "$T/o7" \
+  && pass "7. the 0600 homes are the getent passwd homes (here under mnt/data/home), no /home/* glob" || fail "7. homes: $(cat "$T/o7")"
+run_bk BOX_STATE_SOURCES="$M/boxu" SPOOL_AGENT_USER=boxu BOX_STATE_KEEP="$T/h7.tar.zst"; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'dropped: 0600=1$' "$T/out" && ! grep -qF 'secret.conf' <<<"$(zstd -dcq "$T/h7.tar.zst" | tar -tif -)" \
+  && pass "7. with BOX_STATE_HOMES unset, a 0600 dot-dir file under a getent home outside /home stays out" || fail "7. outside /home: rc=$rc $(cat "$T/out")"
+chmod 000 "$M/agentx"
+printf '#!/bin/sh\necho "sudo $*" >>"$STUB_LOG"\nexit 1\n' >"$T/stub/sudo"; chmod +x "$T/stub/sudo"
+bk7() { : >"$T/calls.log"; SNIPPET="$STUBS; do_spl_box_state_backup" in_orc CNF="$T/cnf.yaml" TMPDIR="$T/tmp" BOX=box1 SPOOL_AGENT_USER=agentx \
+  SPOOL_ROOT="$T/spool7" BOX_CRONS_STATE_DIR="$T/nope-state" HOME="$M/boxu" "$@" >"$T/out" 2>&1; }
+bk7 DRY_RUN=0; rc=$?
+[[ $rc -ne 0 ]] && grep -q "FATAL $M/agentx/.claude/projects is unreadable as $(id -un) and as agentx" "$T/out" \
+  && ! grep -q "agentx.*not on this box" "$T/out" && ! grep -qE '^(gcloud|curl)' "$T/calls.log" \
+  && pass "7. an agent home the runner cannot read fails loudly (exit $rc, 'unreadable'), nothing uploaded" || fail "7. unreadable: rc=$rc $(cat "$T/out" "$T/calls.log")"
+grep -q "sudo -n -u agentx test -d $M/agentx/.claude/projects" "$T/calls.log" && pass "7. ...after trying to read it as its owner (sudo -n -u agentx)" || fail "7. no owner try: $(cat "$T/calls.log")"
+chmod 755 "$M/agentx"; rm -rf "$M/agentx"
+bk7; rc=$?
+[[ $rc -eq 0 ]] && grep -q "INFO $M/agentx/.claude/projects is not on this box: skipped" "$T/out" && grep -q "packed $T/spool7 as" "$T/out" \
+  && pass "7. CONTROL: a home that is really absent is skipped, the rest packs (exit 0)" || fail "7. absent: rc=$rc $(cat "$T/out")"
+rm -f "$T/stub/getent" "$T/stub/sudo"
 
 echo "spl-box-state-backup: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

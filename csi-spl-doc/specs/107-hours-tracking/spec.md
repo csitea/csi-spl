@@ -1,6 +1,6 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.0** (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.1** (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). v2 input: [business-needs.md](business-needs.md) (consensus `2c6c36732`) and its seats [bn-agy](reviews/bn-agy.md) · [bn-mistral](reviews/bn-mistral.md) · [bn-claude](reviews/bn-claude.md) · [bn-claude-2](reviews/bn-claude-2.md). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
@@ -20,6 +20,14 @@ Prose says **workspace** (a tenant), **member** (a HUM-* in it) and **biz owner*
 ---
 
 ## 0. The owner's requirements (verbatim, t1 `ef217164`)
+
+### P0 The principle above every requirement (owner, HUM-10, t1 `6571d5ed`, 2026-10-10, verbatim)
+
+> "I guess I'm getting once again philosophical here, but the aim of the time tracking is not to trace exactly what the people have been doing, but to have some kind of directional guidelines on where the time is spent." (msg `4d6d200c`)
+>
+> "Because the essence of this system is the collaboration and not the time tracking. The time tracking is just a beneficial side effect we can do on that." (msg `4fd07875`)
+
+**P0 ranks above R1..R13 and every FR.** Where a requirement or a design point below could be read toward exact tracing (minute precision, per-person detail, raw-signal retention, a per-action audit), P0 decides: the aim is a directional picture of where the time goes, a side effect of the collaboration, not a trace of what a person did. v2.1 adds P0 and changes no FR: the points that pull against it are listed, each with a recommendation, as owner questions in section 20.
 
 | # | msg | text | answered in |
 |---|---|---|---|
@@ -43,6 +51,22 @@ The owner's design change of 2026-10-08 (HUM-10, t1 `a28dc5c9`, after asking "bu
 | R11 | `5134bd6b` | "than the right side of the calendar will have tabs for hours" | **5.4** (v1.2) |
 
 R8 and R9 replace the v1.0 rail item and page: there is **no Hours rail entry and no `/hours` page**.
+
+The owner's input of 2026-10-10 (HUM-10, t1 `6571d5ed`, with P0):
+
+| # | msg | text | answered in |
+|---|---|---|---|
+| R12 | `4842ca88` | keywords typed while filling in the time pick issues and topics; the timer's placement (full text below) | **20**, Q23, Q24 (open) |
+| R13 | `82efd47b` | "Propose some kind of new UI directions for the implementation of this use case." | **20**, Q25 (open) |
+
+R12, verbatim (msg `4842ca88`):
+
+> "Now, this could be done also in several ways. Whenever the people are inserting their time, they type keywords. Those keywords present them with some issues and things they can select to allocate to their time slots.
+>
+> For example, I don't know what exactly I did the last 4 hours, but I worked on the box of the Spool Hub. I worked on IAM things on the Spool Hub. I worked on the workspace definitions, and so on and so forth. Whenever I'm filling in the time spent for today, I could just type these keywords, and the system will present me with the suggestions, the same way it's presenting now in the start-stop timer as well.
+>
+> In this sense, I'm not sure if this time-stopped timer placement is the most correct one. Would it be better if it were in the calendar, for example?"
+
 
 R4 and R7 are requirements, not options: hours are **prefilled** from suggestions, the **worker approves** them, a **freeze** locks a period (**weekly by default, configurable**), the **biz owner approves** them a second time and **downloads** them as CSV and XLSX.
 
@@ -866,5 +890,43 @@ Each seat signs the v2.0 sha below on the same lane.
 | 1.2 | 2026-10-08 | c-713 | owner R8..R11 (t1 `a28dc5c9`, 13.2): discussion links with a note per line (5.2); the calendar's right-side hours tabs Mine / Team / Download, a sheet on the phone (5.4); no rail entry, no page; a Working hours line on every working day in the calendar opens the event dialog of type Working hours (5, 7, 9, 10, 11); T010 dropped, T011 rewritten, T013..T015 inside the dialog |
 | 2.0-draft | 2026-10-10 | c-734 | the business-needs gaps (business-needs.md 6.6, consensus `2c6c36732`): FR-14..FR-37 in section 14 (standard day per organisation and person, the prefill chain from the shift plan, jobs and quotes, no money in hours tracking, the time-accountant role and the external accountant seat, crew scope, foreman entry with Dispute, clock exceptions and the shared terminal, breaks, travel and waiting, derived rate categories, holidays, absences, worker type, start and end times, the change log, retention, offline approval, the nudge, hours per workspace); candidates ranked (15); U11 as open owner Q8 (16); the 6.6 map (17); for the v2 review panel |
 | 2.0 | 2026-10-10 | c-737 (v2-claude, editor) | fold of the v2 panel, four seats (section 18): 22 FRs changed (V2C2-1..4: evidence-only auto-approval, `kind` in the entry key, categories stored before the prune, terminal identity), FR-38 Crew and Setup tabs, FR-39 payroll export, FR-40 adjustment rows, v2 acceptance (14.14); section 15 re-ranked (U8 into v2); owner Q8 = C recorded (16) |
+| 2.1 | 2026-10-10 | c-837 | owner principle **P0** (msgs `4d6d200c`, `4fd07875`, t1 `6571d5ed`) at the top of section 0; owner rows R12 (`4842ca88`) and R13 (`82efd47b`); FR-01..FR-40 and sections 1..6, 14..17 read against P0, the points that push toward exact tracing listed as owner questions Q9..Q22, and Q23..Q25 (timer placement, keyword-only rows, UI direction) in section 20; no FR text changed |
+
+---
+
+## 20. P0 review and the 2026-10-10 owner questions (Q9..Q25)
+
+FR-01..FR-40 and the design sections (1 signals and rounding, 1.7 privacy, 2 suggestions, 3 data, 4 approvals and the freeze, 5 and 6 screens and reports, 14..17) read against P0 (section 0, msgs `4d6d200c`, `4fd07875`). **Nothing here changes an FR yet**: each line names the point, why it reaches past "directional guidelines on where the time is spent", and the recommendation that fits P0. The numbering continues the spec's owner questions (v1 Q1..Q7 in section 13, Q8 in section 16). **A** = the recommendation, **B** = keep the text as written. Answers are folded only when the dispatcher forwards them (`dispatch-6571d5ed`).
+
+### 20.1 What pushes toward exact tracing (Q9..Q22)
+
+| # | cites | pushes toward exact tracing | recommendation that fits P0 (A) |
+|---|---|---|---|
+| Q9 | 1.6, FR-01, 3.2 `hours_entries.minutes` | **Minute precision**: "Minutes are stored exactly ... No rounding in v1"; suggestions, entries and the Working hours line all show `h:mm` to the minute. | Suggest and show in **quarter hours** (a 098 key `hours.round_minutes`, default `15`); the member may still type any value. A direction needs 0:15 steps, not 0:01. |
+| Q10 | 1.1, FR-01, 1.3 | **The minute as the unit of truth**: each wall-clock minute gets one target, deduplicated across tabs and devices, the 3-minute floor, a worked example to the minute. | Keep the minute only as the internal tick; define "time worked" for the member as **a rough split of the day across a few targets**, without the per-minute rules. |
+| Q11 | 1.2, FR-02, v1-Q1 | **Reading surveillance**: the WUI records, minute by minute, which topic, channel or DM was open in a focused tab with recent input. | Keep tab minutes but **aggregate on the device** to (day, target) totals before sending; the hub never receives a per-minute sequence of what was open. (Or v1-Q1 = B: no tab minutes at all.) |
+| Q12 | 3.2 `hours_minutes`, FR-02, FR-10 | **A per-minute row per person**: PK `(tenant_id, member_id, minute)`, ~500 rows per member per busy day, each with target, source and zone: a timeline of the person's day. | Replace it with a **per (member, day, target) counter** that the post upsert and the tab batch add to; precedence (1.3) is applied per batch. The table stops being a timeline. |
+| Q13 | 1.3, FR-03 | **Per-person detail of whom**: a DM target `dm:<peer>` names the person talked to; every channel and topic is its own target. | Fold DMs into **"other"** (`ws`), never `dm:<peer>`; keep topics, issues, jobs and meetings: they are "where the time is spent". |
+| Q14 | 1.7, FR-08 | **Raw-signal retention**: raw minutes kept until the period freezes, up to 45 days. | Prune a day's raw signals **when the day is approved, at the latest 2 days after it closes**; the entries carry the direction. |
+| Q15 | 5.2 ("why" sheet, description blocks `09:12-10:40`), FR-11 | **Exact time-of-day intervals** per target and per discussion. | Show each line's **total only** (and the discussion links, R10); no block start and end times. |
+| Q16 | 2.3, FR-04, 4.1 | **Minute deltas**: "+0:20 since you approved" for any change after an approval. | Show a delta only when it reaches the rounding step (Q9, 15 min). |
+| Q17 | 3.2 `suggested_minutes`, 6.2 columns, FR-09 | **The worker measured against the machine**: every exported line carries `suggested_minutes`; reports flag "edited". | Keep `suggested_minutes` in the worker's own view only; **drop it from the Team view and the download**, no "edited" flag. |
+| Q18 | 5.4 Team, 6.2 ("one line per approved entry", group by day), FR-09 | **A per-person per-day grid** as the default report. | Default report = **per period, per target (job, issue, topic), summed over people**; the per-member and per-day views stay one click away for approval; day lines in the download on request. |
+| Q19 | FR-28, FR-32 (an activity day's start and end "from its first and last active minute, captured before the prune") | **Activity timestamps kept for years** in the day record and the categories. | For an activity day take start and end from the plan, else `hours.day_start` + the standard day (FR-32's estimate), **never from activity**; first and last active minute are not stored. |
+| Q20 | FR-24, FR-25, FR-32, section 15 U9 | **Clocked times to the minute**: server time, device-time bounds, a skew flag, terminal actions with ids, U9 warnings from recorded times. | Keep the clock as the exception FR-24 makes it, and record clocked times only in a workspace whose law requires recorded working time (a 098 switch, off by default); U9 follows that switch. |
+| Q21 | FR-33, FR-25 | **A per-action audit**: every write to an entry, day record, plan row, standard day and every terminal action writes a before/after row, the sweep included. | Log what payroll and trust need: **changes after the worker's approval, returns, role and rate events, downloads**; a worker's own edits before approval and the sweep's routine writes are not logged. |
+| Q22 | FR-34 | **Five-year retention of the full trail**: day records, entries, period rows and the change log for `hours.retention_years` (default `5`). | Keep the **approved period totals per target** for the retention years; day records and the change log only as long as the workspace's law requires (a companion key, default the period plus one year). |
+
+Read and found to fit P0 (no question): the prefill chain and the Standard Day (FR-14..FR-17: directional suggestions), meetings as accepted spans (1.4, FR-13), jobs and quotes (FR-18), no money in hours (FR-19, FR-20), the external seat (FR-21), crew approval and Dispute (FR-22, FR-23), breaks, travel, holidays and absences as day-level rows (FR-26, FR-27, FR-29, FR-30), worker type (FR-31), offline approval and the nudge (FR-35, FR-36), per-workspace hours (FR-37), the Crew and Setup tabs (FR-38), the payroll export and adjustments (FR-39, FR-40: payroll needs day lines), and the header timer's privacy (1.5: on the device until stopped; its placement is Q23).
+
+### 20.2 Keywords, the timer and the UI direction (R12, R13; Q23..Q25)
+
+These mirror the questions the dispatcher c-002 already put to the owner on `dispatch-6571d5ed`; the dispatcher forwards the answers.
+
+| # | cites | question | A | B | C | recommendation |
+|---|---|---|---|---|---|---|
+| Q23 | R12, 1.5, 5.3, T019 | Where does the start/stop timer live? | **move it into the calendar**: the Hours tab (5.4) and the day's Working hours dialog (5.2) | both: the calendar and the app header | the app header only (as built, owner v1-Q7 = B) | **A** |
+| Q24 | R12, 5.3 (`HoursTargetPicker.vue`), 1.3 targets | A keyword typed while filling the day that matches no issue or topic | **a keyword-only row**: the keyword is kept as the row's label on "other" (`ws`), countable in reports by keyword | no keyword-only rows: the member must pick an issue, topic, channel or job, else the time goes to "other" unlabelled | | **A** (P0: a direction by keyword is enough) |
+| Q25 | R13, 5.1, 5.2 | Which UI direction: (1) **Day sketch**: keyword chips in the Working hours line, split by the day's trail, a slider per chip, one Approve; (2) **Paint the calendar**; (3) **From what you did**: prefilled from posts, issues and meetings; (4) **`/hours` in chat** (dispatcher's answer, msg `602daf86`) | 1 + 3, with 4 as a cheap extra | one of 1..4 alone | | **1 + 3, 4 extra** |
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

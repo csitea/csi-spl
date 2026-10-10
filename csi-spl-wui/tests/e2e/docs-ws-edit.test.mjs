@@ -266,7 +266,8 @@ try {
     await sleep(500);
     visible = await omniboxVisible(m);
     ok(`phone ${theme}: omnibox visible after editing`, visible);
-    await m.close()
+    await shot(m, `phone-edit-mode`)
+  await m.close()
   }
 } finally {
   await browser.close()

@@ -2,7 +2,9 @@
 #------------------------------------------------------------------------------
 # Purpose: do_spl_cost_agent_hours_read (spec 123 section 4.3) on synthetic
 # lease-tick day logs in a mktemp dir.
-#   1. a bad DAY and a missing day log are refused, nothing written
+#   1. a bad DAY and a missing day log are refused, nothing written; the
+#      FATAL line says why (this box's earliest day log: every box's lease
+#      watch tick writes its own, since 2026-10-10)
 #   2. agent-seconds = each run sample x the MEASURED gap from the tick
 #      before it (uneven gaps, the previous day's last tick for the first);
 #      control: an assumed 60 s interval would read 240, not 750
@@ -20,6 +22,7 @@ mkdir -p "$R/dispatch"
 F="$PROJ_ROOT/src/bash/run"
 run_read() {
   env SPOOL_ROOT="$R" COST_DAY_DIR="$T/cost" DAY="$DAY" "$@" bash -c '
+    set -Eu -o pipefail
     source "$0/../../../lib/bash/funcs/spl-cost-source.func.sh"
     source "$0/spl-cost-tokens-read.func.sh"; source "$0/spl-cost-agent-hours-read.func.sh"
     do_spl_cost_agent_hours_read' "$F" 2>&1
@@ -29,8 +32,13 @@ secs() { awk -F'\t' -v a="$1" '$2 == a {print $3, $4}' "$OUT"; }
 
 out="$(run_read DAY=2026-10-9)"; rc=$?
 out2="$(run_read)"; rc2=$?
-[[ "$rc" == 2 && "$rc2" == 1 && "$out2" == *"FATAL no day log"* && ! -e "$T/cost" ]] &&
+[[ "$rc" == 2 && "$rc2" == 1 && "$out2" == *"FATAL agent_hours: no day log"*"this box has no day log at all"* && ! -e "$T/cost" ]] &&
   pass "1. a bad DAY (exit 2) and a missing day log (exit 1) are refused" || fail "1. $rc $out / $rc2 $out2"
+: > "$R/dispatch/agent-run-2026-10-10.log"
+out3="$(run_read)"; rc3=$?
+rm -f "$R/dispatch/agent-run-2026-10-10.log"
+[[ "$rc3" == 1 && "$(grep -c '^FATAL agent_hours: no day log .*earliest day log is 2026-10-10' <<<"$out3")" == 1 && -z "$(compgen -G "$T/cost/*.tsv.*")" ]] &&
+  pass "1. a day before this box's first day log: one FATAL line naming the earliest log" || fail "1. first log: $rc3 $out3"
 
 printf '900 c-1 run\n940 c-1 run\n' > "$R/dispatch/agent-run-2026-10-08.log"
 cat > "$R/dispatch/agent-run-$DAY.log" <<'EOF'

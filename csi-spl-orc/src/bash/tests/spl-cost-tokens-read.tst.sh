@@ -16,6 +16,13 @@
 #      too), else the -wt-<id> project dir
 #   7. another vendor's agent seen that day gets one "unmetered" row, never
 #      0; a claude agent in the day log gets none
+#   8. under ./run's shell options (set -Eu -o pipefail, as every read here
+#      runs) a day with no day log, no agent record updated that day and no
+#      transcript still writes the day file (rc 0, no unmetered row);
+#      control: without the empty-source guard the read fails with one
+#      FATAL line naming the step and leaves no stray tokens-<day>.tsv.<pid>
+#   9. the default transcript user is SPOOL_AGENT_USER, else the box's agent
+#      user from box.env (the cron sets neither), else the current user
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -50,6 +57,7 @@ echo msg_M > "$T/metered"
 run_read() {
   local f="$1"; shift
   env SPOOL_ROOT="$R" COST_TRANSCRIPT_DIRS="$P" COST_DAY_DIR="$T/cost" DAY="$DAY" "$@" bash -c '
+    set -Eu -o pipefail
     source "$1/lib/bash/funcs/spl-cost-source.func.sh"; source "$0"; do_spl_cost_tokens_read' "$f" "$PROJ_ROOT" 2>&1
 }
 F="$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh"
@@ -93,6 +101,37 @@ run_read "$F" >/dev/null
 [[ "$(units g-201 tokens)" == unmetered && "$(units a-301 tokens)" == unmetered &&
    "$(grep -c unmetered "$OUT")" == 2 && "$(grep -cP '\tclaude\t-\t' "$OUT")" == 0 ]] &&
   pass "7. other vendors (record updated that day, or in the day log) read unmetered, never 0; claude none" || fail "7. unmetered: $(cat "$OUT")"
+
+# 8. no day log, no record updated that day, no transcript (a non-lease box
+# on the day before its first day log)
+E="$T/empty" DAY8=2026-10-07
+mkdir -p "$E/agents" "$E/dispatch" "$E/projects"
+cp "$R/agents/g-201.json" "$E/agents/"
+run8() { run_read "$1" SPOOL_ROOT="$E" COST_TRANSCRIPT_DIRS="$E/projects" COST_DAY_DIR="$E/cost" DAY="$DAY8"; }
+out="$(run8 "$F")"; rc=$?
+[[ "$rc" == 0 && -s "$E/cost/tokens-$DAY8.tsv" && "$(grep -c unmetered "$E/cost/tokens-$DAY8.tsv")" == 0 && "$out" == *"files=0 rows=0"* ]] &&
+  pass "8. pipefail, no day log, no record of the day, no transcript: the day file is written (rc 0)" || fail "8. rc=$rc $out"
+sed -e '/agent-run-$day\.log/s#2>/dev/null || true$#2>/dev/null#' -e "s#sed 's/\\\\.json\$//' || true\$#sed 's/\\\\.json\$//'#" "$F" > "$T/unguarded.func.sh"
+[[ "$(diff "$F" "$T/unguarded.func.sh" | grep -c '^>')" == 2 ]] || fail "8. control: the guard was not removed"
+rm -rf "$E/cost"
+out="$(run8 "$T/unguarded.func.sh")"; rc=$?
+[[ "$rc" == 1 && "$(grep -c '^FATAL fleet_tokens: listing the unmetered agents of 2026-10-07 failed$' <<<"$out")" == 1 &&
+   ! -e "$E/cost/tokens-$DAY8.tsv" && -z "$(compgen -G "$E/cost/tokens-$DAY8.tsv.*")" ]] &&
+  pass "8. control: without the guard it fails rc 1 with one FATAL line naming the step, no stray .tsv.<pid>" ||
+  fail "8. control: rc=$rc $out $(ls "$E/cost" 2>&1)"
+sed 's#| { grep \. || true; } | while#| grep . | while#' "$F" > "$T/unguarded2.func.sh"
+[[ "$(diff "$F" "$T/unguarded2.func.sh" | grep -c '^>')" == 1 ]] || fail "8. control 2: the guard was not removed"
+out="$(run8 "$T/unguarded2.func.sh")"; rc=$?
+[[ "$rc" == 1 && "$(grep -c '^FATAL fleet_tokens: reading the 2026-10-07 transcripts failed$' <<<"$out")" == 1 ]] &&
+  pass "8. control: no transcript of the day without its guard fails rc 1 with one FATAL line" || fail "8. control 2: rc=$rc $out"
+
+# 9. who the transcripts are read as
+users9() { env -u SPOOL_AGENT_USER -u COST_AGENT_USERS -u SPOOL_BOX_ENV "$@" bash -c 'source "$0"; spl_cost_agent_users "$1"' "$F" "$E"; }
+printf 'SPOOL_BOX_TAG=x\nSPOOL_AGENT_USER=agentx\n' > "$E/box.env"
+[[ "$(users9)" == agentx && "$(users9 SPOOL_AGENT_USER=other)" == other ]] &&
+  pass "9. the box's agent user from box.env is read; SPOOL_AGENT_USER wins over it" || fail "9. $(users9) / $(users9 SPOOL_AGENT_USER=other)"
+rm -f "$E/box.env"
+[[ "$(users9)" == "$(id -un)" ]] && pass "9. control: no box.env, no env: the current user" || fail "9. control: $(users9)"
 
 echo "spl-cost-tokens-read: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

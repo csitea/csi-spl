@@ -16,8 +16,10 @@
 # @description counts and ratios only, never a token total.
 # @param DAY (optional) - UTC day YYYY-MM-DD, default yesterday
 # @param COST_AGENT_USERS (optional) - users whose ~/.claude/projects are
-# @param   read, default SPOOL_AGENT_USER (else $USER); COST_TRANSCRIPT_DIRS
-# @param   (space-separated dirs) replaces them, read as the current user
+# @param   read, default SPOOL_AGENT_USER, else the box's agent user
+# @param   ($SPOOL_ROOT/box.env, what the nightly cron runs with), else the
+# @param   current user; COST_TRANSCRIPT_DIRS (space-separated dirs) replaces
+# @param   them, read as the current user
 # @param COST_DAY_DIR (optional) - default $SPOOL_ROOT/cost
 # @param COST_METERED_IDS (optional) - file, one metered message id per line
 # @param ENV (optional) - dev or prd: the hub posted to (with DRY_RUN=0)
@@ -26,18 +28,21 @@
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_cost_tokens_read
 #------------------------------------------------------------------------------
 do_spl_cost_tokens_read() {
-  local day="${DAY:-$(date -u -d yesterday +%F)}" root="${SPOOL_ROOT:-/var/spool-hub}" dir out rows
+  local day="${DAY:-$(date -u -d yesterday +%F)}" root="${SPOOL_ROOT:-/var/spool-hub}" dir out rows um
   spl_cost_day_ok "$day" || return 2
   dir="${COST_DAY_DIR:-$root/cost}"
   mkdir -p "$dir" || { echo "FATAL cannot create $dir" >&2; return 1; }
   out="$dir/tokens-$day.tsv"
-  rows="$(spl_cost_tokens_rows "$day" "$root")" || return 1
-  {
+  rows="$(spl_cost_tokens_rows "$day" "$root")" || { echo "FATAL fleet_tokens: reading the $day transcripts failed" >&2; return 1; }
+  um="$(spl_cost_tokens_unmetered "$day" "$root")" || { echo "FATAL fleet_tokens: listing the unmetered agents of $day failed" >&2; return 1; }
+  if ! {
     printf '%s\n' "$rows" | grep '^#'
     printf 'day\tagent_id\tvendor\tmodel\tservice_tier\tkind\tunits\torigin\n'
     printf '%s\n' "$rows" | grep -v '^#' | grep . || true
-    spl_cost_tokens_unmetered "$day" "$root"
-  } > "$out.$$" && mv -f "$out.$$" "$out" || return 1
+    [[ -z "$um" ]] || printf '%s\n' "$um"
+  } > "$out.$$" || ! mv -f "$out.$$" "$out"; then
+    rm -f "$out.$$"; echo "FATAL fleet_tokens: cannot write $out" >&2; return 1
+  fi
   spl_cost_tokens_summary "$out"
   echo "OK wrote $out ($(grep -vc '^#' "$out") lines incl. header)"
   spl_cost_reader_post fleet_tokens "$day" "$out" spl_cost_tokens_lines
@@ -86,8 +91,8 @@ spl_cost_day_ok() {
 spl_cost_tokens_rows() {
   local day="$1" root="$2" metered="${COST_METERED_IDS:-/dev/null}" list
   [[ -r "$metered" ]] || { echo "FATAL COST_METERED_IDS $metered is unreadable" >&2; return 1; }
-  list="$(spl_cost_tokens_files "$day")"
-  printf '%s\n' "$list" | grep . | while IFS=$'\t' read -r u f; do
+  list="$(spl_cost_tokens_files "$day" "$root")"
+  printf '%s\n' "$list" | { grep . || true; } | while IFS=$'\t' read -r u f; do
     spl_cost_tokens_extract "$day" "$u" "$f" "$(spl_cost_tokens_agent "$root" "$f")"
   done | spl_cost_tokens_sum "$day" "$(printf '%s\n' "$list" | grep -c . || true)" "$metered"
 }
@@ -122,10 +127,21 @@ spl_cost_tokens_files() {
     done
     return 0
   fi
-  for u in ${COST_AGENT_USERS:-${SPOOL_AGENT_USER:-$USER}}; do
+  for u in $(spl_cost_agent_users "$2"); do
     d="$(getent passwd "$u" | cut -d: -f6)/.claude/projects"
     spl_cost_as "$u" find "$d" -name '*.jsonl' -newermt "$1 00:00:00 UTC" -printf "$u\t%p\n" 2>/dev/null
   done
+  return 0
+}
+
+# spl_cost_agent_users ROOT: the users whose transcripts are read.
+# COST_AGENT_USERS, else SPOOL_AGENT_USER, else the box's agent user from
+# ROOT/box.env (the nightly cron sets neither, and runs as the box user while
+# the lanes' transcripts belong to the agent user), else the current user.
+spl_cost_agent_users() {
+  local u="${COST_AGENT_USERS:-${SPOOL_AGENT_USER:-}}"
+  [[ -n "$u" ]] || u="$(sed -n 's/^SPOOL_AGENT_USER=//p' "${SPOOL_BOX_ENV:-$1/box.env}" 2>/dev/null | sed -n 1p | tr -d "\"'")"
+  printf '%s\n' "${u:-$(id -un)}"
 }
 
 # Run a read as <user>: transcripts are mode 600, owned by the agent user.
@@ -160,11 +176,13 @@ spl_cost_tokens_extract() {
 # One row per agent of another vendor (agy, grok, mistral, qwen) seen on
 # DAY: in the lease tick's day log, or its spool record updated that day.
 # Their CLIs' usage records are not measured yet: "unmetered", never 0.
+# Either source may be empty (no day log, no record updated that day): under
+# ./run's pipefail that is no agents, not a failure.
 spl_cost_tokens_unmetered() {
   local day="$1" root="$2" id kind
   {
-    awk '{print $2}' "$root/dispatch/agent-run-$day.log" 2>/dev/null
-    grep -lsF "\"updated_at\": \"$day" "$root"/agents/*.json 2>/dev/null | xargs -r -n1 basename | sed 's/\.json$//'
+    awk '{print $2}' "$root/dispatch/agent-run-$day.log" 2>/dev/null || true
+    grep -lsF "\"updated_at\": \"$day" "$root"/agents/*.json 2>/dev/null | xargs -r -n1 basename | sed 's/\.json$//' || true
   } | sort -u | while IFS= read -r id; do
     kind="$(jq -r '.kind // empty' "$root/agents/$id.json" 2>/dev/null || true)"
     [[ -n "$kind" ]] || case "$id" in

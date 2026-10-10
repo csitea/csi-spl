@@ -1,8 +1,11 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description Agent-hours of one UTC day (spec 123 section 4.3), read-only:
-# @description from the lease tick's day log dispatch/agent-run-<DAY>.log
-# @description ("<epoch> <id> run|stop" per agent per tick). Each run sample
+# @description from this box's day log dispatch/agent-run-<DAY>.log
+# @description ("<epoch> <id> run|stop" per agent per tick), written by the
+# @description lease watch / fleet tick that runs on EVERY box, lease holder
+# @description or not (spl_lease_agent_run_report, first written
+# @description 2026-10-10: an earlier day has no log on any box). Each run sample
 # @description is worth the MEASURED gap from the tick before it (the previous
 # @description day's last tick for the first one), never an assumed interval;
 # @description a gap over COST_TICK_GAP_MAX s (default 600: the ticker was
@@ -23,19 +26,30 @@ do_spl_cost_agent_hours_read() {
   local day="${DAY:-$(date -u -d yesterday +%F)}" root="${SPOOL_ROOT:-/var/spool-hub}" log prev dir out
   spl_cost_day_ok "$day" || return 2
   log="$root/dispatch/agent-run-$day.log"
-  [[ -r "$log" ]] || { echo "FATAL no day log $log (the lease tick writes it)" >&2; return 1; }
+  [[ -r "$log" ]] || { echo "FATAL agent_hours: no day log $log ($(spl_cost_agent_hours_first_log "$root"))" >&2; return 1; }
   prev="$(tail -n 1 "$root/dispatch/agent-run-$(date -u -d "$day -1 day" +%F).log" 2>/dev/null | awk '{print $1}')"
   dir="${COST_DAY_DIR:-$root/cost}"
   mkdir -p "$dir" || { echo "FATAL cannot create $dir" >&2; return 1; }
   out="$dir/agent-hours-$day.tsv"
-  spl_cost_agent_hours_sum "$day" "${prev:-}" < "$log" > "$out.$$" && mv -f "$out.$$" "$out" || return 1
+  if ! spl_cost_agent_hours_sum "$day" "${prev:-}" < "$log" > "$out.$$" || ! mv -f "$out.$$" "$out"; then
+    rm -f "$out.$$"; echo "FATAL agent_hours: cannot write $out from $log" >&2; return 1
+  fi
   grep '^#' "$out"
   echo "OK wrote $out"
   spl_cost_reader_post agent_hours "$day" "$out" spl_cost_agent_hours_lines
 }
 
-# Cost source agent_hours (spec 123 4.6, spl-cost-source.func.sh): the lease
-# tick's day log of DAY, read by the action above and mapped to the
+# Why a day has no log: this box's lease watch tick (every box runs one)
+# appends to it, so the earliest log names when this box started writing.
+spl_cost_agent_hours_first_log() {
+  local f
+  f="$(compgen -G "$1/dispatch/agent-run-*.log" | sort | sed -n 1p)"
+  if [[ -z "$f" ]]; then echo "this box has no day log at all: its lease watch tick wrote none"
+  else f="${f##*/agent-run-}"; echo "this box's earliest day log is ${f%.log}: its lease watch tick wrote none that day"; fi
+}
+
+# Cost source agent_hours (spec 123 4.6, spl-cost-source.func.sh): this box's
+# day log of DAY, read by the action above and mapped to the
 # contract's rows. Nothing posted here: the rollup posts.
 spl_cost_source_agent_hours() {
   local root="${SPOOL_ROOT:-/var/spool-hub}"

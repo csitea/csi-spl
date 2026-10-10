@@ -16,7 +16,14 @@
 #   5. concurrency (c-551): one idle runner over quota / 150% is parked, a busy
 #      one never; a parked runner comes back once the quota feeds it + 50%,
 #      not inside that band; a runner a person stopped is never started
-#   4. the cron script runs the action with DRY_RUN=0 and refuses a worktree;
+#   6. gate floor (c-731): off by default (no gh call at all); with
+#      CPU_BUDGET_GATE_FLOOR_PCT=500 a gate-10 master verdict >= 40 min old (or
+#      none) while a run waits raises the floor to 500% (never above the
+#      ceiling, never below the load quota); a fresh verdict, nothing waiting
+#      or a failing gh: the plain floor; red control: a copy that drops the
+#      raise is caught
+#   4. the cron script runs the action with DRY_RUN=0 and refuses a worktree,
+#      passes CPU_BUDGET_GATE_* through;
 #      the installer writes ONE tagged line, keeps the others, removes its own
 #   No real cgroup, systemd, crontab or sudo: a fixture cgroup tree and stubs.
 #------------------------------------------------------------------------------
@@ -53,6 +60,7 @@ EOF
 printf '#!/usr/bin/env bash\n[[ "$*" == "-u ghrunner" ]] && echo 1500 || exit 1\n' >"$T/bin/id"
 printf '#!/usr/bin/env bash\necho 16\n' >"$T/bin/nproc"
 printf '#!/usr/bin/env bash\n[[ "$*" == "fleet-load get" && "${HUB_FAIL:-0}" == 0 ]] || exit 1\ncat "$T/hub.json"\n' >"$T/bin/hubstub"
+printf '#!/usr/bin/env bash\necho "gh $*" >>"$T/gh.calls"\n[[ "${GH_FAIL:-0}" == 0 ]] || exit 1\ncat "$T/gh.json"\n' >"$T/bin/gh"
 chmod +x "$T/bin/"*
 
 # counters: the root and the slice; each "sleep" adds OTHER + CI cores of use
@@ -60,7 +68,7 @@ set_usage() { printf 'usage_usec %s\n' "$1" >"$T/cg/cpu.stat"; printf 'usage_use
 run_budget() {
   env PATH="$T/bin:$PATH" CPU_BUDGET_CGROUP_ROOT="$T/cg" CPU_BUDGET_UNIT_DIR="$T/units" \
     CPU_BUDGET_SYSTEMCTL=systemctl CPU_BUDGET_SUDO=env CPU_BUDGET_SAMPLE_S=10 SPOOL_ROOT="$T/spool" \
-    CPU_BUDGET_PER_RUNNER_PCT=0 CPU_BUDGET_STATE_DIR="$T/state" "$@" bash -c '
+    CPU_BUDGET_PER_RUNNER_PCT=0 CPU_BUDGET_STATE_DIR="$T/state" CPU_BUDGET_GH="$T/bin/gh" "$@" bash -c '
     set -uo pipefail
     do_log() { printf "%s\n" "$*"; }
     spl_desk_box_default() { echo sat; }
@@ -79,7 +87,7 @@ set_usage 1000 500
 out="$(run_budget DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'nothing to budget'* && ! -s "$SYSD_LOG" ]] &&
   pass "no runner unit: exit 0, nothing touched" || fail "no runner (rc=$rc): $out"
-for bad in "CPU_BUDGET_PER_RUNNER_PCT=x" "CPU_BUDGET_HYST_PCT=-1" "CPU_BUDGET_BOX_PCT=101" "CPU_BUDGET_BOX_PCT=0" "CPU_BUDGET_MIN_PCT=x" "CPU_BUDGET_SAMPLE_S=0" "DRY_RUN=2"; do
+for bad in "CPU_BUDGET_GATE_FLOOR_PCT=x" "CPU_BUDGET_GATE_STALE_MIN=0" "CPU_BUDGET_PER_RUNNER_PCT=x" "CPU_BUDGET_HYST_PCT=-1" "CPU_BUDGET_BOX_PCT=101" "CPU_BUDGET_BOX_PCT=0" "CPU_BUDGET_MIN_PCT=x" "CPU_BUDGET_SAMPLE_S=0" "DRY_RUN=2"; do
   out="$(run_budget "$bad")"; rc=$?
   [[ $rc -ne 0 && "$out" == *FATAL* ]] && pass "$bad is refused" || fail "$bad (rc=$rc): $out"
 done
@@ -198,6 +206,56 @@ out="$(cap DRY_RUN=0 OTHER=0)"; rc=$?
 [[ $rc -eq 0 && "$(grep -c ' start' "$SYSD_LOG")" == 0 && "$out" == *'CAP online=5 of 6'* ]] &&
   pass "a runner a person stopped (not parked by us) is never started" || fail "cap foreign (rc=$rc): $out / $(cat "$SYSD_LOG")"
 
+# 6. gate floor -----------------------------------------------------------------------
+# gh_runs <verdict age in min | none> <runs waiting>: a runs page of gate 10,
+# with cancelled (superseded) runs around the verdict
+gh_runs() {
+  local now v="" i w=""
+  now=$(date +%s)
+  [[ "$1" != none ]] && v="$(printf '{"status":"completed","conclusion":"failure","updated_at":"%s"},' "$(date -u -d "@$((now - $1 * 60))" +%Y-%m-%dT%H:%M:%SZ)")"
+  for ((i = 0; i < $2; i++)); do w+='{"status":"in_progress","conclusion":null,"updated_at":"2026-01-01T00:00:00Z"},'; done
+  printf '{"workflow_runs":[%s%s{"status":"completed","conclusion":"cancelled","updated_at":"%s"}]}\n' "$w" "$v" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$T/gh.json"
+}
+gate() { : >"$SYSD_LOG"; rm -f "$T/gh.calls"; run_budget DRY_RUN=0 OTHER=15 "$@"; }
+calls() { [[ -s "$T/gh.calls" ]] && wc -l <"$T/gh.calls" || echo 0; }
+gh_runs 60 1
+out="$(gate)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' && "$(calls)" == 0 ]] &&
+  pass "gate floor off by default: starved gate, still 100%, 0 gh calls" || fail "gate default (rc=$rc, calls=$(calls)): $out"
+out="$(gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=500%' && "$out" == *'GATE STARVED 10_ci-quality.yml on master: last verdict 60 min ago (>= 40), 1 run(s) waiting -> floor 500%'* \
+  && "$(calls)" == 1 && "$(cat "$T/gh.calls")" == *'actions/workflows/10_ci-quality.yml/runs?branch=master&event=push'* ]] &&
+  pass "FLOOR=500: verdict 60 min old + a run waiting -> 500%, ONE gh call" || fail "gate starved (rc=$rc, calls=$(calls)): $out"
+gh_runs none 1
+out="$(gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=500%' && "$out" == *'last verdict never min ago'* ]] &&
+  pass "FLOOR=500: no verdict among the last 100 runs + a run waiting -> 500%" || fail "gate never (rc=$rc): $out"
+gh_runs 10 1
+out="$(gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' && "$out" == *'GATE 10_ci-quality.yml on master: last verdict 10 min ago, 1 run(s) waiting -> floor 100%'* ]] &&
+  pass "FLOOR=500: a verdict 10 min old -> the plain floor 100%" || fail "gate fresh (rc=$rc): $out"
+gh_runs 60 0
+out="$(gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' ]] &&
+  pass "FLOOR=500: verdict 60 min old but no run waiting -> 100%" || fail "gate idle (rc=$rc): $out"
+gh_runs 60 1
+out="$(gate CPU_BUDGET_GATE_FLOOR_PCT=500 GH_FAIL=1)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' && "$out" == *'WARN gate 10_ci-quality.yml on master: the runs query failed, no gate floor'* ]] &&
+  pass "FLOOR=500: gh fails -> WARN, no boost, the quota still set" || fail "gate gh fail (rc=$rc): $out"
+out="$(gate CPU_BUDGET_GATE_FLOOR_PCT=500 CPU_BUDGET_BOX_PCT=25)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=400%' ]] &&
+  pass "FLOOR=500 over a 400% ceiling (16 cores * 25%): clamped to 400%" || fail "gate clamp (rc=$rc): $out"
+out="$(: >"$SYSD_LOG"; run_budget DRY_RUN=0 OTHER=4 CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=880%' ]] &&
+  pass "FLOOR=500 under a load quota of 880%: 880% (a floor never lowers)" || fail "gate above (rc=$rc): $out"
+mkdir -p "$T/red"; cp "$(dirname "$FUNC")/spl-lane-map.func.sh" "$T/red/"
+sed 's/((floor > GHRB_MIN)) \&\& GHRB_MIN="$floor"/:/' "$FUNC" >"$T/red/apply-gh-runner-cpu-budget.func.sh"
+grep -q 'GHRB_MIN="$floor"' "$T/red/apply-gh-runner-cpu-budget.func.sh" && fail "red control: the sed did not drop the raise"
+out="$(FUNC="$T/red/apply-gh-runner-cpu-budget.func.sh" gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'GATE STARVED'* && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' ]] &&
+  pass "red control: a copy without the raise does not reach 500% (the check above catches it)" || fail "red control: the broken copy still reached 500%"
+rm -f "$T/gh.json"
+
 # 4. cron script + installer -------------------------------------------------------
 SH="$T/shared"
 mkdir -p "$SH/csi-spl-orc/src/bash/scripts"
@@ -210,6 +268,10 @@ out="$(bash "$SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh" 2>&1
 out="$(RUN_RC=1 bash "$SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh" 2>&1)"; rc=$?
 [[ $rc -eq 1 && "$out" == *'FAIL runner CPU budget rc=1'* ]] &&
   pass "a failed apply: exit 1, one FAIL line" || fail "cron fail (rc=$rc): $out"
+printf '#!/usr/bin/env bash\necho "floor=${CPU_BUDGET_GATE_FLOOR_PCT:-unset}" >"%s/env"\n' "$T" >"$SH/csi-spl-orc/run"
+out="$(CPU_BUDGET_GATE_FLOOR_PCT=500 bash "$SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/env")" == floor=500 ]] &&
+  pass "the cron script passes CPU_BUDGET_GATE_FLOOR_PCT to the action (the switch-on path)" || fail "cron env (rc=$rc): $out / $(cat "$T/env" 2>&1)"
 WT="$T/csi-spl-wt/c-9"; mkdir -p "$WT"
 cp -a "$SH/csi-spl-orc" "$WT/"
 out="$(bash "$WT/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh" 2>&1)"; rc=$?

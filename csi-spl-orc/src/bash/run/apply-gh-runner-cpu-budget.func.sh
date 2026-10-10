@@ -27,6 +27,18 @@
 # @description quota feeds it plus CPU_BUDGET_HYST_PCT. One step per tick, a
 # @description busy runner is never touched, and only a runner this action
 # @description parked (CPU_BUDGET_STATE_DIR/parked) is ever started again.
+# @description Gate floor (c-731, 2026-10-10): the quota follows the agents, so
+# @description on a busy box CI got 1..4 cores and 2 runners, and gate 10 on
+# @description master went 57..100 min without a verdict (its e2e shards were cut
+# @description at their 45 min timeout). While the newest gate-10 verdict on
+# @description master (success or failure) is CPU_BUDGET_GATE_STALE_MIN old or
+# @description older AND a gate run waits or runs, the floor is
+# @description CPU_BUDGET_GATE_FLOOR_PCT (up to the ceiling); otherwise MIN_PCT.
+# @description One `gh api` call a tick (the newest 100 push runs: ~30 superseded
+# @description runs can sit between two verdicts; none in 100 counts as starved).
+# @description A failing call is a WARN, never a boost.
+# @description OFF by default (0): it takes cores from the agents, which reverses
+# @description HUM-10 (agents first), so switching it on is the owner's call.
 # @description A box with no runner unit: nothing to do, exit 0.
 # @description Dry run unless DRY_RUN=0 (prints the plan). Needs sudo.
 # @param GH_RUNNER_USER (optional) - the runners' OS user, default ghrunner
@@ -40,6 +52,13 @@
 # @param   needs, default 150; 0 turns the concurrency cap off
 # @param CPU_BUDGET_HYST_PCT (optional) - headroom before a parked runner comes
 # @param   back, default 50 (no park/start flapping on a noisy minute)
+# @param CPU_BUDGET_GATE_FLOOR_PCT (optional) - the floor while the gate is
+# @param   starved, default 0 (off); 500 = 3 runners at 150% + the 50% hysteresis
+# @param CPU_BUDGET_GATE_STALE_MIN (optional) - minutes without a verdict that
+# @param   make the gate starved, default 40 (a fed gate takes ~36)
+# @param CPU_BUDGET_GATE_WORKFLOW (optional) - default 10_ci-quality.yml
+# @param CPU_BUDGET_GATE_BRANCH (optional) - default master
+# @param CPU_BUDGET_GH (optional, tests) - default gh
 # @param CPU_BUDGET_STATE_DIR (optional) - default /var/tmp/gh-runner-cpu-budget
 # @param CPU_BUDGET_CGROUP_ROOT (optional, tests) - default /sys/fs/cgroup
 # @param CPU_BUDGET_UNIT_DIR (optional, tests) - drop-ins, default /etc/systemd/system
@@ -59,6 +78,9 @@ ghrb_init() {
   GHRB_SYSTEMCTL="${CPU_BUDGET_SYSTEMCTL:-sudo systemctl}" GHRB_SUDO="${CPU_BUDGET_SUDO:-sudo}"
   GHRB_PER="${CPU_BUDGET_PER_RUNNER_PCT:-150}" GHRB_HYST="${CPU_BUDGET_HYST_PCT:-50}"
   GHRB_STATE="${CPU_BUDGET_STATE_DIR:-/var/tmp/gh-runner-cpu-budget}"
+  GHRB_GATE_FLOOR="${CPU_BUDGET_GATE_FLOOR_PCT:-0}" GHRB_GATE_STALE="${CPU_BUDGET_GATE_STALE_MIN:-40}"
+  [[ "$GHRB_GATE_FLOOR" =~ ^(0|[1-9][0-9]{0,4})$ ]] || { do_log "FATAL CPU_BUDGET_GATE_FLOOR_PCT must be 0..99999, got: '$GHRB_GATE_FLOOR'"; return 1; }
+  [[ "$GHRB_GATE_STALE" =~ ^[1-9][0-9]{0,3}$ ]] || { do_log "FATAL CPU_BUDGET_GATE_STALE_MIN must be 1..9999, got: '$GHRB_GATE_STALE'"; return 1; }
   [[ "$GHRB_DRY" == 0 || "$GHRB_DRY" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   [[ "$GHRB_PER" =~ ^(0|[1-9][0-9]{0,3})$ ]] || { do_log "FATAL CPU_BUDGET_PER_RUNNER_PCT must be 0..9999, got: '$GHRB_PER'"; return 1; }
   [[ "$GHRB_HYST" =~ ^(0|[1-9][0-9]{0,3})$ ]] || { do_log "FATAL CPU_BUDGET_HYST_PCT must be 0..9999, got: '$GHRB_HYST'"; return 1; }
@@ -87,6 +109,29 @@ ghrb_box_pct() {
   [[ -z "$v" ]] && { GHRB_SRC="default, no runner_cpu_pct on the hub"; return 0; }
   [[ "$v" =~ ^([1-9][0-9]?|100)$ ]] || { echo "WARN the hub's runner_cpu_pct is not 1..100 ('$v'): the default ceiling 80%"; return 0; }
   GHRB_BOX="$v" GHRB_SRC="hub, box $LANE_BOX"
+}
+
+# ghrb_gate <cores> - raise GHRB_MIN to the gate floor (clamped to the
+# ceiling) while gate 10 on master is starved (see the header). The repo is the
+# one this checkout's origin names (gh resolves {owner}/{repo} from the cwd)
+ghrb_gate() {
+  local wf="${CPU_BUDGET_GATE_WORKFLOW:-10_ci-quality.yml}" br="${CPU_BUDGET_GATE_BRANCH:-master}"
+  local got last wait age floor
+  [[ "$GHRB_GATE_FLOOR" == 0 ]] && return 0
+  got="$(cd "$(dirname "${BASH_SOURCE[0]}")" && timeout 20 ${CPU_BUDGET_GH:-gh} api \
+    "repos/{owner}/{repo}/actions/workflows/$wf/runs?branch=$br&event=push&per_page=100" 2>/dev/null |
+    jq -r '[.workflow_runs[]] | "\([.[] | select(.conclusion == "success" or .conclusion == "failure")
+      | .updated_at | fromdate] | max // 0) \([.[] | select(.status != "completed")] | length)"' 2>/dev/null)"
+  [[ "$got" =~ ^([0-9]+)\ ([0-9]+)$ ]] || { echo "WARN gate $wf on $br: the runs query failed, no gate floor"; return 0; }
+  last="${BASH_REMATCH[1]}" wait="${BASH_REMATCH[2]}"
+  age=never
+  ((last > 0)) && age=$((($(date +%s) - last) / 60))
+  if ((wait == 0)) || { [[ "$age" != never ]] && ((age < GHRB_GATE_STALE)); }; then
+    echo "GATE $wf on $br: last verdict $age min ago, $wait run(s) waiting -> floor ${GHRB_MIN}%"; return 0
+  fi
+  floor=$(($1 * GHRB_BOX)); ((GHRB_GATE_FLOOR < floor)) && floor="$GHRB_GATE_FLOOR"
+  ((floor > GHRB_MIN)) && GHRB_MIN="$floor"
+  echo "GATE STARVED $wf on $br: last verdict $age min ago (>= $GHRB_GATE_STALE), $wait run(s) waiting -> floor ${GHRB_MIN}%"
 }
 
 # ghrb_units - the runner units of this box, one per line
@@ -191,6 +236,7 @@ do_apply_gh_runner_cpu_budget() {
   slice="user-$uid.slice"
   ghrb_place "$slice" "${units[@]}" || return 1
   cores="$(nproc)"
+  ghrb_gate "$cores"
   r0="$(ghrb_usage "$GHRB_CG")" s0="$(ghrb_usage "$GHRB_CG/user.slice/$slice")"
   sleep "$GHRB_WAIT"
   r1="$(ghrb_usage "$GHRB_CG")" s1="$(ghrb_usage "$GHRB_CG/user.slice/$slice")"

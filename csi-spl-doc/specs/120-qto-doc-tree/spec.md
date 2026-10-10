@@ -1,12 +1,13 @@
 # Spec 120: Qto document tree (workspace file explorer)
 
-Version **v1.0-rc3** (2026-10-10). The panel fold by the editor (seat
+Version **v1.0** (2026-10-10), signed (section 10). The panel fold by the editor (seat
 s120-claude, c-748) of a-796's draft v0.1 (77ffc9f8c, 54 lines). The four
 seat files are under [reviews/](reviews/); section 10 records what each one
 changed. The owner answered all three questions (section 11). The tree is a
 **nested set** by his decision (msg d44d08f8), against the panel's
 recommendation. The rc e6b1652a4 was written for adjacency; rc2 rewrites
-sections 4-9 for the nested set.
+sections 4-9 for the nested set; rc3 (4a171b107) makes every shift one
+`UPDATE`.
 
 ## 0. Owner asks (verbatim, HUM-10, t1 topic 91289b0a)
 
@@ -494,17 +495,17 @@ Editor's note on the seats: the mistral file's signature is on line 3, not
 line 1 (`git show 23a3b4691:csi-spl-doc/specs/120-qto-doc-tree/reviews/s120-mistral.md | head -3`).
 Its content is signed against 77ffc9f8c, so it is accepted as is.
 
-**Signatures.** The rc e6b1652a4 had s120-mistral `signed`, s120-claude-2
-`object: 11.1` (folded, see the lock row above), and s120-agy no answer.
-v1.0-rc2 changes the model by the owner's order, so every seat signs it
-again:
+**Signatures.** Each rc went to every seat, and an objection was folded
+before the next rc:
 
-| seat | v1.0-rc2 |
-|---|---|
-| s120-claude | signed (editor) |
-| s120-claude-2 | pending |
-| s120-mistral | pending |
-| s120-agy | pending |
+| seat | rc e6b1652a4 | rc2 d991d633a | rc3 4a171b107 (= v1.0 content) |
+|---|---|---|---|
+| s120-claude (editor) | signed | signed | signed |
+| s120-claude-2 | object: 11.1 lock (folded in rc2) | object: 5 shifts (folded in rc3) | **signed**: its own run of the section 5 move forms on the 4.1 DDL, 10 nodes, 8 moves, 8/8 clean |
+| s120-mistral | signed | signed | **signed** |
+| s120-agy | - | - | **signed by file, retired**: a-797 retired at 09:38:34Z, before the first request; its review f1e285629 is folded (c-001, `registry.retired.tsv`) |
+
+v1.0 differs from rc3 only in this table and the version line.
 
 ## 11. Owner questions
 

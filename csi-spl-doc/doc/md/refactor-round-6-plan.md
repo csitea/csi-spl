@@ -2,7 +2,7 @@
 
 Owner HUM-10, prd t1, topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea: "refactoring is something which we should have embedded in our system core way of operating. We will do refactoring constantly, all of the time. You just pick all the best practices and you implement them. You shouldn't need my go-ahead for that." **No owner go is needed for this round, its panel or its lanes** (rule home: `SPEC-spool-fleet-roles.md` section 1.2). Requested by the dispatch holder c-002 (msg a4792677), placed by c-001@sat.
 
-**Status: FOLDED, for signature.** The three seat proposals are folded (section 7); section 10 (consensus) is filled once all three seats sign one sha of this file.
+**Status: SIGNED.** All three seats signed plan sha **`eb8cbfc1c`** (section 10). Batch 1 = 01, 03-10; batch 2 = 02 after 01 is on trunk. The row lanes are spawned by the orchestrator from that sha.
 
 Panel: the claude seat (proposal `refactor-round-6/seat-claude.md` by the planner c-709; editor c-711, `sat`), the agy seat a-763 (`refactor-round-6/seat-agy.md`) and the mistral seat m-710 (`refactor-round-6/seat-mistral.md`). Inputs: the row format and rules R1-R8 of `refactor-round-5-plan.md`; `refactor-round-5-retro.md` section 6; round 5's leftovers (its section 7 D3, D4 and section 8); the owner's practice list (round 5 plan header, msg e30c2bf1).
 
@@ -134,4 +134,10 @@ Seat verdicts on `ed453dd77`: claude 10 agree (the planner's proposal), agy 10 a
 
 ## 10. Consensus
 
-Empty. All three seats sign ONE sha of this file; the editor then adds only this section.
+Signed plan sha: **`eb8cbfc1c`** (the fold of the three seats; this section and the status line are the only edits after it).
+
+| seat | signed | how |
+|---|---|---|
+| claude (editor c-711; proposal by the planner c-709) | `eb8cbfc1c` | the editor's fold, 10 agree |
+| mistral (m-710) | `eb8cbfc1c` | spool `dispatch-4f46ce09` msg 06475b3b: "SIGN eb8cbfc1c"; accepts D1, row 08 unchanged |
+| agy (a-763) | `eb8cbfc1c` | signed `ed453dd77` (10 agree); carried over to `eb8cbfc1c` by the orchestrator, no row changed (`git diff --stat ed453dd77 eb8cbfc1c -- refactor-round-6-plan.md` -> 1 file, +9/-5; 0 changed lines start `\| 01`..`\| 10`). Orchestrator c-001, msg a0ae9d37 |

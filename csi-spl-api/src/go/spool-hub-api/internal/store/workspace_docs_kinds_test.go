@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Spec 113 T006 follow-up: DocRename and the typed items (code, image) on
@@ -16,6 +18,8 @@ import (
 //   renamenobump  a rename that moves no doc rev   (TestWorkspaceDocRename)
 //   attrsnocheck  attrs written unchecked          (TestWorkspaceDocTypedItems)
 //   deletenorev   a doc delete without its rev check (TestWorkspaceDocDelete)
+//   deletenogap   a doc delete that leaves its 0165 nested-set gap
+//                 (TestWorkspaceDocDeleteNodeGap)
 
 func wsKindsPG(t *testing.T) (*Postgres, string) {
 	t.Helper()
@@ -29,12 +33,15 @@ func wsKindsPG(t *testing.T) (*Postgres, string) {
 		wsDocKindsPlant.attrsNoCheck = true
 	case "deletenorev":
 		wsDocKindsPlant.deleteNoRev = true
+	case "deletenogap":
+		wsDocKindsPlant.deleteNoGapClose = true
 	default:
-		t.Fatalf("SPOOL_TEST_WSDOC_KINDS_PLANT=%q: want renamenobump, attrsnocheck or deletenorev", p)
+		t.Fatalf("SPOOL_TEST_WSDOC_KINDS_PLANT=%q: want renamenobump, attrsnocheck, deletenorev or deletenogap", p)
 	}
 	t.Logf("CONTROL plant=%s is on: this run must go red", os.Getenv("SPOOL_TEST_WSDOC_KINDS_PLANT"))
 	t.Cleanup(func() {
-		wsDocKindsPlant.renameNoBump, wsDocKindsPlant.attrsNoCheck, wsDocKindsPlant.deleteNoRev = false, false, false
+		wsDocKindsPlant.renameNoBump, wsDocKindsPlant.attrsNoCheck = false, false
+		wsDocKindsPlant.deleteNoRev, wsDocKindsPlant.deleteNoGapClose = false, false
 	})
 	return pg, tid
 }
@@ -150,6 +157,73 @@ func TestWorkspaceDocDelete(t *testing.T) {
 		t.Fatalf("delete again: %v, want 404", err)
 	}
 	t.Logf("delete: refused foreign / stale / unknown with the doc whole (%s), deleted at rev %d -> 0 0 0, other doc %s", whole, rev, rows(keep))
+}
+
+// TestWorkspaceDocDeleteNodeGap: a migrated document (one with an rdb 0165
+// node) is deleted and its gap closed. The workspace: root (1,10), A (2,3),
+// folder F (4,7) holding C (5,6), B (8,9), laid out as the 0165 migration
+// does. Delete C (inside F), then A (first): every commit passes
+// workspace_doc_node_ns and the set ends root (1,6), F (2,3), B (4,5) with
+// doc_count 1. CONTROL: SPOOL_TEST_WSDOC_KINDS_PLANT=deletenogap must turn
+// it red (the commit check refuses the gap). Skips without 0165.
+func TestWorkspaceDocDeleteNodeGap(t *testing.T) {
+	pg, tid := wsKindsPG(t)
+	ctx := context.Background()
+	var has bool
+	if err := pg.queryRowTenant(ctx, tid, `SELECT to_regclass('workspace_doc_node') IS NOT NULL`, nil, &has); err != nil || !has {
+		t.Skipf("no workspace_doc_node (rdb 0165) in this database: %v", err)
+	}
+	docs := map[string]string{}
+	for _, n := range []string{"A", "B", "C"} {
+		d, _, err := pg.DocCreate(ctx, tid, n, "", "t")
+		if err != nil {
+			t.Fatal(err)
+		}
+		docs[n] = d
+	}
+	err := pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
+		var root, folder string
+		if err := tx.QueryRow(ctx, `INSERT INTO workspace_doc_node (tenant_id, lft, rgt, kind)
+			VALUES ($1, 1, 10, 'root') RETURNING id::text`, tid).Scan(&root); err != nil {
+			return err
+		}
+		if err := tx.QueryRow(ctx, `INSERT INTO workspace_doc_node (tenant_id, lft, rgt, parent_id, parent_kind, kind, name)
+			VALUES ($1, 4, 7, $2, 'root', 'folder', 'F') RETURNING id::text`, tid, root).Scan(&folder); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO workspace_doc_node (tenant_id, lft, rgt, parent_id, parent_kind, kind, doc_id)
+			VALUES ($1, 2, 3, $2, 'root', 'doc', $4), ($1, 5, 6, $3, 'folder', 'doc', $6), ($1, 8, 9, $2, 'root', 'doc', $5)`,
+			tid, root, folder, docs["A"], docs["B"], docs["C"])
+		return err
+	})
+	if err != nil {
+		t.Fatalf("seed the nested set: %v", err)
+	}
+	set := func() string {
+		t.Helper()
+		var s string
+		if err := pg.queryRowTenant(ctx, tid, `SELECT string_agg(
+				CASE kind WHEN 'root' THEN 'root' WHEN 'folder' THEN name
+				ELSE (SELECT title FROM workspace_doc w WHERE w.id = n.doc_id) END
+				|| ' ' || lft || ' ' || rgt, ', ' ORDER BY lft)
+			|| ' docs=' || (SELECT doc_count FROM workspace_doc_node WHERE kind = 'root')
+			FROM workspace_doc_node n`, nil, &s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	if got := set(); got != "root 1 10, A 2 3, F 4 7, C 5 6, B 8 9 docs=3" {
+		t.Fatalf("seeded set = %q", got)
+	}
+	for _, n := range []string{"C", "A"} {
+		if _, err := pg.DocDelete(ctx, tid, docs[n], 0); err != nil {
+			t.Fatalf("delete %s: %v (set now %q)", n, err, set())
+		}
+	}
+	if got := set(); got != "root 1 6, F 2 3, B 4 5 docs=1" {
+		t.Fatalf("after deleting C and A the set = %q, want root 1 6, F 2 3, B 4 5 docs=1", got)
+	}
+	t.Logf("node gap: C (in F) then A deleted, every commit passed workspace_doc_node_ns: %s", set())
 }
 
 // TestWorkspaceDocTypedItems: a code block and an image are added and edited

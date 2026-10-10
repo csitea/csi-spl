@@ -48,11 +48,13 @@ const (
 // must catch (only tests set them, SPOOL_TEST_WSDOC_KINDS_PLANT): the old
 // code's two gaps, a rename that moves no doc rev (so a stale rename is not
 // refused) and attrs written unchecked; and a document delete that skips its
-// rev precondition (so a stale delete is not refused).
+// rev precondition (so a stale delete is not refused), and one that leaves
+// the document's gap in the rdb 0165 nested set (the commit check refuses it).
 var wsDocKindsPlant struct {
-	renameNoBump bool
-	attrsNoCheck bool
-	deleteNoRev  bool
+	renameNoBump     bool
+	attrsNoCheck     bool
+	deleteNoRev      bool
+	deleteNoGapClose bool
 }
 
 // DocTitle is title trimmed, DocUntitled when that leaves nothing.
@@ -122,12 +124,21 @@ func (s *Postgres) DocRename(ctx context.Context, tenant, doc string, rev int64,
 // as the table owner, so the runtime login's missing DELETE on the rev log
 // does not stop it); the 0157 I1/I3 triggers skip a doc deleted in the
 // transaction. Nothing records the delete: the log is the doc's own and goes
-// with it. It returns the rev the doc had.
+// with it. Its rdb 0165 node goes by the cascade too, and the gap it leaves
+// in the workspace's nested set is closed in the same transaction
+// (docNodeGap). It returns the rev the doc had.
 func (s *Postgres) DocDelete(ctx context.Context, tenant, doc string, rev int64) (DocOpResult, error) {
+	if !isUUID(doc) {
+		return DocOpResult{}, ErrDocNotFound
+	}
 	var res DocOpResult
 	err := s.inDoc(ctx, tenant, doc, func(d *wsDocTx) error {
 		if wsDocKindsPlant.deleteNoRev {
 			rev = 0
+		}
+		gap, err := docNodeGapOpen(ctx, d.tx, tenant, d.doc)
+		if err != nil {
+			return err
 		}
 		if err := d.lock(ctx, rev); err != nil {
 			return err
@@ -140,9 +151,52 @@ func (s *Postgres) DocDelete(ctx context.Context, tenant, doc string, rev int64)
 			return ErrDocNotFound
 		}
 		res = DocOpResult{Rev: d.rev}
-		return nil
+		return gap.close(ctx, d.tx)
 	})
 	return res, err
+}
+
+// docNodeGap is a document's place in its workspace's nested set (rdb 0165,
+// spec 120 section 5 "delete document"): the doc node's rgt, read under the
+// workspace lock. on is false when the doc has no node (0165 not applied, or
+// a document created after it by a hub that writes no node yet): nothing to
+// close.
+type docNodeGap struct {
+	tenant string
+	rgt0   int64
+	on     bool
+}
+
+// docNodeGapOpen takes the workspace lock (the root node FOR UPDATE, spec 120
+// section 5, before the doc lock) and reads the doc node's rgt. The table
+// check keeps it a no-op on a database without 0165, so this lands before it.
+func docNodeGapOpen(ctx context.Context, tx pgx.Tx, tenant, doc string) (docNodeGap, error) {
+	var has bool
+	if err := tx.QueryRow(ctx, `SELECT to_regclass('workspace_doc_node') IS NOT NULL`).Scan(&has); err != nil || !has {
+		return docNodeGap{}, err
+	}
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM workspace_doc_node WHERE tenant_id = $1 AND kind = 'root' FOR UPDATE`, tenant); err != nil {
+		return docNodeGap{}, err
+	}
+	rgts, err := collectInt64(ctx, tx, `SELECT rgt FROM workspace_doc_node WHERE tenant_id = $1 AND doc_id = $2`, tenant, doc)
+	if err != nil || len(rgts) != 1 {
+		return docNodeGap{}, err
+	}
+	return docNodeGap{tenant: tenant, rgt0: rgts[0], on: true}, nil
+}
+
+// close shifts every bound right of the deleted leaf (lft, rgt) = (rgt0 - 1,
+// rgt0) left by 2, in ONE UPDATE (0165's immediate CHECKs refuse the
+// two-step forms): an ancestor keeps its lft and shrinks, a node after it
+// moves. The deferred workspace_doc_node_ns check verifies it at commit.
+func (g docNodeGap) close(ctx context.Context, tx pgx.Tx) error {
+	if !g.on || wsDocKindsPlant.deleteNoGapClose {
+		return nil
+	}
+	_, err := tx.Exec(ctx, `UPDATE workspace_doc_node
+		SET lft = lft - CASE WHEN lft > $2 THEN 2 ELSE 0 END, rgt = rgt - 2
+		WHERE tenant_id = $1 AND rgt > $2`, g.tenant, g.rgt0)
+	return err
 }
 
 // rename: the refusal first (too long), then the lock, the write with the

@@ -19,6 +19,12 @@
 #      2. a doc added after the export: DRY_RUN=0 refused, nothing deleted
 #      3. DRY_RUN=0: t1 has 0 docs/items/rev_log left (the cascade ran under
 #         the runtime login), t2 untouched
+#      With rdb 0165 (workspace_doc_node) in the migrations, t1's first two
+#      docs also get nodes (root (1,6), (2,3), (4,5)), as its data step lays
+#      them out: 3 must also leave t1's root at (1,2) through the commit
+#      check, and 4. CONTROL the gap close neutered: the same purge is
+#      refused by workspace_doc_node_ns, nothing deleted. SPOOL_TEST_SQL_DIR
+#      overrides the migrations dir (to run against a tree with 0165).
 #   SKIP part B when no docker / psql / cached postgres image.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -139,7 +145,8 @@ PGPORT="$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')"
 for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
 OWNER_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 RT_DSN="postgres://spool_rt:rt@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
-"$BIN" migrate --db "$OWNER_DSN" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null || { fail "migrate"; exit 1; }
+SQL_DIR="${SPOOL_TEST_SQL_DIR:-$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub}"
+"$BIN" migrate --db "$OWNER_DSN" --sql-dir "$SQL_DIR" >/dev/null || { fail "migrate"; exit 1; }
 q() { PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 -At "$OWNER_DSN" -c "$1"; }
 q "CREATE ROLE spool_rt LOGIN NOCREATEDB NOCREATEROLE PASSWORD 'rt'" >/dev/null
 PGPASSWORD=spool psql -X -q -v ON_ERROR_STOP=1 "$OWNER_DSN" -v runtime_role=spool_rt \
@@ -161,7 +168,24 @@ INSERT INTO workspace_doc_rev_log (tenant_id, doc_id, rev, op, actor) VALUES
  ('$1','$D',1,'{\"kind\":\"add\"}','test'),('$1','$D',2,'{\"kind\":\"add\"}','test'); COMMIT;" >/dev/null || { fail "mkdoc"; exit 1; }
 }
 cnt() { q "SELECT (SELECT count(*) FROM workspace_doc WHERE tenant_id='$1')||' '||(SELECT count(*) FROM workspace_doc_item WHERE tenant_id='$1')||' '||(SELECT count(*) FROM workspace_doc_rev_log WHERE tenant_id='$1')"; }
+# nodes <tenant>: when 0165 is migrated, a root and a node per doc of the
+# tenant, in (created_at, id) order as its data step lays them out; prints
+# the node count (0 without 0165).
+nodes() {
+  [[ "$(q "SELECT to_regclass('workspace_doc_node') IS NOT NULL")" == t ]] || { echo 0; return; }
+  q "BEGIN; SET LOCAL app.rls_scope = 'operator';
+INSERT INTO workspace_doc_node (tenant_id, lft, rgt, kind)
+SELECT '$1', 1, 2 * count(*)::int + 2, 'root' FROM workspace_doc WHERE tenant_id = '$1';
+INSERT INTO workspace_doc_node (tenant_id, lft, rgt, parent_id, parent_kind, kind, doc_id)
+SELECT '$1', 2 * d.i, 2 * d.i + 1, (SELECT id FROM workspace_doc_node WHERE tenant_id = '$1' AND kind = 'root'), 'root', 'doc', d.id
+FROM (SELECT id, row_number() OVER (ORDER BY created_at, id)::int AS i FROM workspace_doc WHERE tenant_id = '$1') d;
+COMMIT;" >/dev/null || { fail "nodes $1"; exit 1; }
+  q "SET app.rls_scope = 'operator'; SELECT count(*) FROM workspace_doc_node WHERE tenant_id = '$1'" | tail -1
+}
+root_bounds() { q "SET app.rls_scope = 'operator'; SELECT lft || ' ' || rgt FROM workspace_doc_node WHERE tenant_id = '$1' AND kind = 'root'" | tail -1; }
 mkdoc t1; mkdoc t1; mkdoc t2
+NODES=$(nodes t1)
+[[ "$NODES" == 0 ]] && echo "INFO: no workspace_doc_node (rdb 0165) in $SQL_DIR: the gap-close cases run as plain deletes"
 
 # --- B.1 dry run --------------------------------------------------------------------
 out=$(spl_wsdoc_purge_exec "$RT_DSN" t1 "$T/b1" 1 2>&1); rc=$?
@@ -178,11 +202,27 @@ out=$(spl_wsdoc_purge_exec "$RT_DSN" t1 "$T/b2" 0 2>&1); rc=$?
   pass "B.2 a doc added after the export: DRY_RUN=0 refused, nothing deleted" || fail "B.2 rc=$rc cnt=$(cnt t1) $out"
 spl_wsdoc_purge_export() { _exp_real "$@"; }
 
+# --- B.4 CONTROL the gap close neutered (0165 only) -------------------------------------
+if [[ "$NODES" != 0 ]]; then
+  eval "$(declare -f spl_wsdoc_purge_delete_sql | sed '1s/spl_wsdoc_purge_delete_sql/_delete_sql_real/')"
+  # shellcheck disable=SC2329 # called by spl_wsdoc_purge_delete
+  spl_wsdoc_purge_delete_sql() { _delete_sql_real "$@" | sed 's/AND :rgt0 > 0;$/AND false;/'; }
+  [[ "$(spl_wsdoc_purge_delete_sql "$T/b1")" != "$(_delete_sql_real "$T/b1")" ]] || fail "B.4 CONTROL: the neuter matched nothing"
+  out=$(spl_wsdoc_purge_exec "$RT_DSN" t1 "$T/b4" 0 2>&1); rc=$?
+  [[ $rc -ne 0 && "$(cnt t1)" == "3 12 6" ]] && grep -q 'workspace_doc_node_ns' <<<"$out" &&
+    pass "B.4 CONTROL gap close neutered: refused by workspace_doc_node_ns, nothing deleted" || fail "B.4 CONTROL rc=$rc cnt=$(cnt t1) $out"
+  eval "$(declare -f _delete_sql_real | sed '1s/_delete_sql_real/spl_wsdoc_purge_delete_sql/')"
+fi
+
 # --- B.3 DRY_RUN=0 ----------------------------------------------------------------------
 out=$(spl_wsdoc_purge_exec "$RT_DSN" t1 "$T/b3" 0 2>&1); rc=$?
 [[ $rc -eq 0 && "$(cnt t1)" == "0 0 0" && "$(cnt t2)" == "1 4 2" ]] && grep -q 'deleted 3 documents of t1' <<<"$out" &&
   grep -q 'before: docs=3 items=12 rev_log=6 after: docs=0 items=0 rev_log=0' <<<"$out" &&
   pass "B.3 DRY_RUN=0 as the runtime login: t1 0 0 0 left, t2 untouched (1 4 2)" || fail "B.3 rc=$rc t1=$(cnt t1) t2=$(cnt t2) $out"
+if [[ "$NODES" != 0 ]]; then
+  [[ "$(root_bounds t1)" == "1 2" ]] && pass "B.3 0165: $((NODES - 1)) doc nodes deleted, the gaps closed, t1's root back at (1,2)" ||
+    fail "B.3 0165: t1 root = $(root_bounds t1), want 1 2"
+fi
 
 (( fails == 0 )) && { echo "ALL PASS"; exit 0; }
 echo "$fails FAILED"; exit 1

@@ -15,8 +15,12 @@
 # @description      UPDATE (the doc lock the store's ops take), the live counts
 # @description      must equal the manifest's, then one DELETE per exported doc
 # @description      (exactly 1 row each); items and rev log go by the FK
-# @description      cascade (the owner runs it, rdb runtime-grants.sql). Then
-# @description      the deferred triggers, 0 left for the tenant, COMMIT.
+# @description      cascade (the owner runs it, rdb runtime-grants.sql). A doc
+# @description      with an rdb 0165 node (workspace_doc_node, cascaded too)
+# @description      has its nested-set gap closed after its delete, under the
+# @description      workspace lock (the root node FOR UPDATE, taken first), as
+# @description      store.DocDelete does. Then the deferred triggers, 0 left
+# @description      for the tenant, COMMIT.
 # @description      Before/after counts are printed.
 # @description Why SQL and not the hub: the hub has no document delete route
 # @description (wsdoc_tree.go deletes item subtrees and refuses the root, so
@@ -176,6 +180,10 @@ if any(not uuid.match(i) for i in m["doc_ids"]):
     sys.exit("malformed doc id in manifest.json")
 print(r"""BEGIN;
 SET LOCAL app.rls_scope = 'operator';
+SELECT to_regclass('workspace_doc_node') IS NOT NULL AS nodes \gset
+\if :nodes
+SELECT count(*) AS root_locked FROM (SELECT 1 FROM workspace_doc_node WHERE tenant_id = :'tenant' AND kind = 'root' FOR UPDATE) r \gset
+\endif
 SELECT count(*) AS live_docs FROM (SELECT 1 FROM workspace_doc WHERE tenant_id = :'tenant' FOR UPDATE) l \gset
 SELECT count(*) AS live_items FROM workspace_doc_item WHERE tenant_id = :'tenant' \gset
 SELECT count(*) AS live_revs FROM workspace_doc_rev_log WHERE tenant_id = :'tenant' \gset
@@ -188,10 +196,18 @@ ROLLBACK;
 \q
 \endif""" % (m["docs"], m["items"], m["rev_log"]))
 for i in m["doc_ids"]:
-    print(f"""WITH d AS (DELETE FROM workspace_doc WHERE tenant_id = :'tenant' AND id = '{i}' RETURNING id)
+    print(f"""\\set rgt0 0
+\\if :nodes
+SELECT coalesce((SELECT rgt FROM workspace_doc_node WHERE tenant_id = :'tenant' AND doc_id = '{i}'), 0) AS rgt0 \\gset
+\\endif
+WITH d AS (DELETE FROM workspace_doc WHERE tenant_id = :'tenant' AND id = '{i}' RETURNING id)
 SELECT count(*) = 1 AS one FROM d \\gset
 \\if :one
 SELECT 'DEL {i}';
+\\if :nodes
+UPDATE workspace_doc_node SET lft = lft - CASE WHEN lft > :rgt0 THEN 2 ELSE 0 END, rgt = rgt - 2
+WHERE tenant_id = :'tenant' AND rgt > :rgt0 AND :rgt0 > 0;
+\\endif
 \\else
 SELECT 'BAD {i}';
 ROLLBACK;

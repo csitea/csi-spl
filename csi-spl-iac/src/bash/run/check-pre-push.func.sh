@@ -93,17 +93,24 @@ _PP_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #     the glob 'csi-spl-cnf/csi-spl/*.env.json', not the whole directory (the
 #     dir form keyed the part on every <env>/tf tfvars);
 #   - it names a FILE in the tree;
-#   - it names a DIRECTORY on a line that reads it (join, readFileSync,
-#     readdirSync, existsSync, statSync, cpSync): join(REPO, '.github/workflows', wf).
+#   - it names a DIRECTORY as the literal argument of a read (join,
+#     readFileSync, readdirSync, existsSync, statSync, cpSync), bare or
+#     anchored at a checkout CONSTANT (an upper-case name: REPO, WUI):
+#     join(REPO, '.github/workflows', wf), join(WUI, '../csi-spl-doc/doc/help').
 # A directory named only as fixture data or in a message is NOT an input
 # (2026-10-04: the 'csi-spl-doc/specs' fixture in docs.test.mjs made every
 # spec tasks.md edit select the 5-min part and miss its cache; 4 lanes lost
-# the trunk race to it within an hour). Before CLE-77946 none of them selected
+# the trunk race to it within an hour), and neither is one read under a
+# PARAMETER or a scratch dir (2026-10-10, c-786: sync-roadmap.mjs's
+# existsSync(join(repo, 'csi-spl-doc/specs')) reads the real tree only in
+# `pnpm run generate`, its unit test passes a throwaway repo; matched as "a
+# line holding a read call" it re-selected the part for every spec-only
+# change, 361 s each, 5 lost ref locks in a row). Before CLE-77946 none of them selected
 # the wui part or keyed its cache, so a msg.go change re-used a green verdict
 # the unit suite no longer gave.
 _PP_WUI_EXT_RE='(csi-spl-(api|cnf|dat|doc|iac|orc|rdb|utl)|\.github)/[A-Za-z0-9_./-]*(\$\{[^}]*\}[A-Za-z0-9_./-]*)*'
 _pp_wui_external() {  # <tree>
-  local top="$1" wui="$1/csi-spl-wui" line m reads
+  local top="$1" wui="$1/csi-spl-wui" line m re q=$'[\'"`]'
   [[ -d "$wui/tests/unit" ]] || return 0
   local -a srcs=("$wui"/tests/unit/*.mjs)
   if [[ -d "$wui/src/node" ]]; then
@@ -111,8 +118,6 @@ _pp_wui_external() {  # <tree>
   fi
   grep -hvE '^[[:space:]]*(//|\*)|mkdirSync|writeFileSync' "${srcs[@]}" 2>/dev/null \
     | grep -E "$_PP_WUI_EXT_RE" | while IFS= read -r line; do
-      reads=0
-      [[ "$line" =~ (join|readFileSync|readdirSync|existsSync|statSync|cpSync)\( ]] && reads=1
       while IFS= read -r m; do
         [[ -n "$m" && "$m" != *...* ]] || continue
         if [[ "$m" == *'${'* ]]; then
@@ -120,7 +125,10 @@ _pp_wui_external() {  # <tree>
           continue
         fi
         while [[ "$m" == */ ]]; do m="${m%/}"; done
-        if [[ -f "$top/$m" ]] || [[ "$reads" == 1 && -d "$top/$m" ]]; then echo "$m"; fi
+        if [[ -f "$top/$m" ]]; then echo "$m"; continue; fi
+        [[ -d "$top/$m" ]] || continue
+        re="(join|readFileSync|readdirSync|existsSync|statSync|cpSync)[(]([A-Z][A-Z0-9_]*,[[:space:]]*)?${q}([.][.]/)*${m//./[.]}/?${q}"
+        [[ "$line" =~ $re ]] && echo "$m"
       done < <(grep -oE "$_PP_WUI_EXT_RE" <<<"$line")
     done | sort -u | paste -sd' ' -
 }

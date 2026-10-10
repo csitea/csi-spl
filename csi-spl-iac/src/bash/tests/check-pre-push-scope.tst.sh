@@ -31,6 +31,12 @@
 #        code (csi-spl-cnf/src), still run the iac suite and not the cnf part
 #    15. the real cnf part (do_tpl_gen stubbed): an unchanged render PASSES, a
 #        stale one FAILS naming the env; CONTROL: no tpl-gen venv is a FAIL
+#    16. (2026-10-10, c-786) a push changing ONE spec .md selects no wui part,
+#        though a build module reads that dir under a PARAMETER
+#        (sync-roadmap.mjs: existsSync(join(repo, 'csi-spl-doc/specs')));
+#        CONTROL: a dir read under a checkout constant (join(WUI,
+#        '../csi-spl-doc/doc/help'), join(REPO, '.github/workflows', wf))
+#        still selects it
 #------------------------------------------------------------------------------
 set -uo pipefail
 # Defensive git-env scrub: this test creates commits in throwaway repos; a leaked
@@ -199,6 +205,11 @@ mkwui() {  # <dir>
   mkdir -p "$R/csi-spl-doc/specs/073-x" "$R/csi-spl-cnf/csi-spl/dev/tf"
   echo t >"$R/csi-spl-doc/specs/073-x/tasks.md"; echo '{}' >"$R/csi-spl-cnf/csi-spl/dev.env.json"; echo v >"$R/csi-spl-cnf/csi-spl/dev/tf/a.tfvars"
   printf "assert.deepEqual(dirs, ['csi-spl-doc', 'csi-spl-doc/specs'])\nconst env = JSON.parse(readFileSync(join(REPO, \`csi-spl-cnf/csi-spl/\${e}.env.json\`)))\n" >"$R/csi-spl-wui/tests/unit/v.test.mjs"
+  # build modules (src/node): a dir read under a parameter, a message naming
+  # it, and two dirs read under checkout constants (sync-roadmap/-help shapes)
+  mkdir -p "$R/csi-spl-wui/src/node/roadmap" "$R/csi-spl-doc/doc/help" "$R/.github/workflows"
+  echo h >"$R/csi-spl-doc/doc/help/how-to-post.md"; echo w >"$R/.github/workflows/10_ci.yml"
+  printf "  if (!existsSync(action) || !existsSync(join(repo, 'csi-spl-doc/specs'))) {\n    console.log(\`(\${existsSync(action) ? 'no csi-spl-doc/specs' : 'no'})\`)\nexport const HELP_SRC = join(WUI, '../csi-spl-doc/doc/help')\n  const src = readFileSync(join(REPO, '.github/workflows', wf), 'utf8')\n" >"$R/csi-spl-wui/src/node/roadmap/m.mjs"
   git -C "$R" add -A; git -C "$R" commit -qm wui-seed
   git -C "$R" branch -f trunk HEAD
 }
@@ -343,6 +354,23 @@ grep -qx 'a = 7' "$R/csi-spl-cnf/csi-spl/prd/tf/s.vars.tfvars" && pass "15. ... 
 git -C "$R" commit -qam "prd render"
 TPL_GEN_PATH="$ROOT/none" real_cnf; eq "15. CONTROL: no tpl-gen venv -> FAIL" 1 "$?"
 eq "15. ... and the preflight names it" tpl-gen "$(_pp_missing_tools cnf "$R" | grep -o '^tpl-gen')"
+
+# 16. c-786: a spec-only push; the dirs a build module reads for real still count
+R="$ROOT/r16"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+ext=" $(_pp_wui_external "$R") "
+[[ "$ext" != *" csi-spl-doc/specs "* ]] && pass "16. a dir read under a parameter is no wui input" || fail "16. a dir read under a parameter is no wui input" "$ext"
+[[ "$ext" == *" csi-spl-doc/doc/help "* && "$ext" == *" .github/workflows "* ]] \
+  && pass "16. CONTROL: dirs read under REPO / WUI are wui inputs" || fail "16. CONTROL: dirs read under REPO / WUI are wui inputs" "$ext"
+echo ticked >>"$R/csi-spl-doc/specs/073-x/tasks.md"; git -C "$R" commit -qam "one spec file"
+gate "$R"; eq "16. a spec-only push -> passes" 0 "$?"
+eq "16. ... the wui part never ran" 0 "$(runs csi-spl-wui-unit)"
+eq "16. ... wui logged SKIP-untouched" SKIP-untouched "$(verdict "$R" wui)"
+R="$ROOT/r16b"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo x >>"$R/csi-spl-doc/doc/help/how-to-post.md"; git -C "$R" commit -qam "a help doc the wui reads"
+gate "$R"; eq "16. CONTROL: a push changing a help doc (join(WUI, ...)) runs the wui part" 1 "$(runs csi-spl-wui-unit)"
+R="$ROOT/r16c"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo x >>"$R/.github/workflows/10_ci.yml"; git -C "$R" commit -qam "a workflow the wui reads"
+gate "$R"; eq "16. CONTROL: a push changing a workflow (join(REPO, ...)) runs the wui part" 1 "$(runs csi-spl-wui-unit)"
 
 echo "-- check-pre-push-scope.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

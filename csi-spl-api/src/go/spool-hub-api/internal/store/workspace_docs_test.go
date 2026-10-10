@@ -35,8 +35,10 @@ func wsDocPG(t *testing.T) (*Postgres, string) {
 		wsDocPlant.positionsBeforeLock = true
 	case "lockrows":
 		wsDocPlant.ignoreLockRows = true
+	case "editlock":
+		wsDocPlant.editNoDocLock = true
 	default:
-		t.Fatalf("SPOOL_TEST_WSDOC_PLANT=%q: want gap, prelock or lockrows", plant)
+		t.Fatalf("SPOOL_TEST_WSDOC_PLANT=%q: want gap, prelock, lockrows or editlock", plant)
 	}
 	if plant != "" {
 		t.Logf("CONTROL plant=%s is on: this run must go red", plant)

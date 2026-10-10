@@ -248,9 +248,13 @@ var docFieldSQL = map[string]string{
 }
 
 // DocItemUpdateField is a text edit: one allow-listed column, WHERE id AND
-// rev, the item's rev bumped, no doc lock (it changes no structure). 0 rows is
-// 404 when the item is gone and 412 when only its rev differs. It returns the
-// item's new rev.
+// rev, the item's rev bumped. It changes no structure, so it takes the doc row
+// FOR KEY SHARE, not FOR UPDATE: text edits never wait for each other, but each
+// waits for a structural op and the lock order is the doc row, then the item
+// (spec 3.3). Without it an edit's new index entry in sibling_ord waited for a
+// move's uncommitted row with the same key while the move waited for the
+// edited row: a deadlock (CI 38013321963). 0 rows is 404 when the item is gone
+// and 412 when only its rev differs. It returns the item's new rev.
 func (s *Postgres) DocItemUpdateField(ctx context.Context, tenant, doc, item, field, value string, rev int64) (int64, error) {
 	sql, ok := docFieldSQL[field]
 	if !ok {
@@ -269,6 +273,11 @@ func (s *Postgres) DocItemUpdateField(ctx context.Context, tenant, doc, item, fi
 	}
 	var next int64
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		if !wsDocPlant.editNoDocLock {
+			if _, err := tx.Exec(ctx, `SELECT 1 FROM workspace_doc WHERE id = $1 FOR KEY SHARE`, doc); err != nil {
+				return err
+			}
+		}
 		err := tx.QueryRow(ctx, sql, doc, item, value, rev).Scan(&next)
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err

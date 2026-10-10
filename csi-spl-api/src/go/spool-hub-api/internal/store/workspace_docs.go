@@ -100,6 +100,7 @@ type wsDocPlants struct {
 	skipGapClose        bool // a delete that leaves its sibling gap
 	positionsBeforeLock bool // a move that reads positions before the lock
 	ignoreLockRows      bool // a lock that goes on with 0 doc rows
+	editNoDocLock       bool // a text edit that skips the doc row (the deadlock)
 }
 
 // wsDocLockWaits, when a test sets it, counts the ops that found the doc row

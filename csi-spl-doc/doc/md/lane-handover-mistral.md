@@ -35,10 +35,17 @@ Measured on vibe 2.26.0 (`vibe --version`), 2026-10-10.
 save dir; it is not tied to the box or the cwd
 (`vibe/app_server/_runtime.py`, `_resolve_unified_session_id`). So mode A
 copies the one session dir over ssh stdin into the target agent user's
-`~/.vibe/logs/session/unified/`, then starts
+`~/.vibe/logs/session/unified/` BEFORE FROM is closed or anything is pushed
+(a failed copy exits 1 with FROM untouched), then, after the WIP step, starts
 `restore-mistral.sh <TO_ID> <worktree> <sid> <handover brief>` in a new tmux
-window: the launch line of `spawn-mistral.sh` (cost cap, `env -u
-MISTRAL_API_KEY`, worktree ACL) and the brief as its kick.
+window: `vibe --resume <sid>` under the launch line of `spawn-mistral.sh`
+(cost cap, `env -u MISTRAL_API_KEY`, worktree ACL), the brief as its kick.
+
+The test runs that window command for real: the real `restore-mistral.sh`,
+`restore-core.inc.sh` and `spool-env.inc.sh`, as the agent user, down to a
+vibe stand-in that applies vibe's `--resume` rule and replays the session. The
+old conversation reaches the resumed CLI; without the copied session the same
+command resumes nothing (the control).
 
 A needs `TO_ID` = `FROM`: the session's memory names its worktree path, and
 only the same id gives the same path on the other box.
@@ -54,6 +61,8 @@ Mode B uses that: `spawn-window.sh mistral <TO_ID> <repo> <handover brief>`.
 B (a fresh agent with the written handover brief: FROM's brief, task id, last
 outbox report, spec 102 handoff) when `HANDOVER_MODE=B`, `TO_ID` differs, no
 session names the worktree, the session is bigger than
-`HANDOVER_TRANSCRIPT_MAX_MB` (100), the `box-state-pack.sh scan` finds key
-material in it, or the copy fails. A session can hold secrets: it travels box
+`HANDOVER_TRANSCRIPT_MAX_MB` (100), or the `box-state-pack.sh scan` finds key
+material in it. FROM is closed before its WIP is pushed and retired after the
+new agent started, so it never runs on both boxes; any failure after the push
+exits 1. A session can hold secrets: it travels box
 to box over ssh stdin only, never in argv, the hub, git or a log.

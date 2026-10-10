@@ -16,9 +16,16 @@
 #   4. RED CONTROL: key material in FROM's WIP -> exit 3, no ssh, no close,
 #      NOTHING pushed
 #   5. DRY_RUN=0, A: the wip ref, the target worktree AT it, the session dir
-#      over ssh stdin (never argv) into the agent user's unified/,
-#      restore-mistral.sh resumes that session id, FROM closed then retired
-#      with RETIRE_WORKTREE=0
+#      over ssh stdin (never argv) into the agent user's unified/, FROM closed
+#      BEFORE the wip push and retired with RETIRE_WORKTREE=0 after the start.
+#      The resume RUNS: the tmux stub executes the window command, i.e. the
+#      REAL restore-mistral.sh / restore-core / spool-env, as the agent user,
+#      down to a vibe stand-in that applies vibe 2.26.0's own --resume rule
+#      (unified/<sid>/CURRENT under its HOME) and replays the session: the old
+#      conversation reaches the resumed CLI. Control: without the copied
+#      session the same window command finds nothing.
+#   7. RED CONTROL: a failed session copy -> exit 1, FROM not closed, nothing
+#      pushed
 #   6. DRY_RUN=0, B: spawn-window.sh mistral <TO_ID> with the handover brief;
 #      no session copied
 #------------------------------------------------------------------------------
@@ -90,20 +97,39 @@ echo "sudo-as $u" >>"$STUB_LOG"
 [[ "$u" == agentx ]] && export HOME="$FAKE_REMOTE_HOME"
 exec "$@"
 EOF
-cat >"$T/stub/remote-bin/faketmux" <<'EOF'
+# the target's tmux server: new-window RUNS its command (the last argument)
+cat >"$T/stub/remote-bin/tmux" <<'EOF'
 #!/usr/bin/env bash
+while [[ "$1" == -u || "$1" == -S ]]; do [[ "$1" == -S ]] && shift; shift; done
 echo "tmux $*" >>"$STUB_LOG"
-case "$1" in list-sessions) echo '1 $0' ;; new-window) echo '%88' ;; esac
+case "$1" in
+  list-sessions) echo '1 $0' ;;
+  new-window) printf '%s' "${!#}" >"$FAKE_WINDOW_CMD"; bash -c "${!#}" </dev/null >>"$FAKE_WINDOW_LOG" 2>&1; echo '%88' ;;
+esac
 EOF
-printf '#!/bin/sh\necho "close $*" >>"$STUB_LOG"\nexit 3\n' >"$T/stub/close"
+# vibe 2.26.0's --resume rule (app_server/_runtime.py, _resolve_unified_session_id):
+# <save dir>/unified/<sid>/CURRENT under the user's HOME; a hit replays the session
+cat >"$T/stub/vibe" <<'EOF'
+#!/usr/bin/env bash
+{
+  echo "vibe cwd=$PWD home=$HOME argv=$*"
+  sid=""; while [ $# -gt 0 ]; do [ "$1" = --resume ] && sid="$2"; shift; done
+  s="$HOME/.vibe/logs/session/unified/$sid"
+  if [ -n "$sid" ] && [ -f "$s/CURRENT" ]; then echo "RESUMED $sid"; cat "$s"/chunks/*.json; else echo "NOT-FOUND ${sid:-none}"; exit 1; fi
+} >>"$FAKE_VIBE_LOG"
+EOF
+# close records whether FROM's wip ref was already pushed: it must not be
+printf '#!/bin/sh\nr=no; git -C "$FAKE_ORIGIN" rev-parse -q --verify "refs/heads/wip/handover/$2" >/dev/null && r=yes\necho "close $* pushed=$r" >>"$STUB_LOG"\nexit 3\n' >"$T/stub/close"
 printf '#!/bin/sh\necho "retire RETIRE_WORKTREE=$RETIRE_WORKTREE $*" >>"$STUB_LOG"\n' >"$T/stub/retire"
 chmod +x "$T/stub/"* "$T/stub/remote-bin/"*
-cat >"$T/fs/lib/spool-env.inc.sh" <<'EOF'
-spool_env_resolve() { SPOOL_ROOT="${SPOOL_ROOT:-/nonexistent}"; }
-spool_tmux_argv() { SPOOL_TM=(faketmux); }
-spool_decorate() { printf '%s@sat' "$1"; }
-EOF
-mkdir -p "$T/fs/scripts"
+# the target's spawn-agents dir: the real scripts and lib, with the id claim,
+# the hook install, spawn-window and the harness wrapper stubbed
+SA="$(cd "$TEST_DIR/../features/spawn-agents" && pwd)"
+rm -rf "$T/fs"; mkdir -p "$T/fs"; cp -r "$SA/scripts" "$SA/lib" "$T/fs/"
+printf '#!/bin/sh\nwhile [ $# -gt 0 ] && [ "$1" != -- ]; do shift; done; shift; exec "$@"\n' >"$T/fs/scripts/spool-harness.sh"
+export FAKE_ORIGIN="$T/origin.git" FAKE_WINDOW_CMD="$T/window.cmd" FAKE_WINDOW_LOG="$T/window.log" FAKE_VIBE_LOG="$T/vibe.log"
+export MISTRAL_BIN="$T/stub/vibe" SPOOL_MISTRAL_MAX_PRICE=1 SPOOL_RUN_AS_AGENT=sudo-i SPOOL_AGENT_PTY=0 SPOOL_TMUX_SOCKET="$T/tmux.sock"
+unset SPOOL_BOX_USER SPOOL_AGENT_USER SPOOL_BOX_TAG BOX_TAG TMUX TMUX_PANE SPOOL_AGENT_ID
 printf '#!/bin/sh\necho "next-agent-id $*" >>"$STUB_LOG"\n' >"$T/fs/scripts/next-agent-id.sh"
 printf '#!/bin/sh\n' >"$T/fs/scripts/install-pre-push-hook.sh"
 printf '#!/bin/sh\necho "spawn-window $*" >>"$STUB_LOG"\necho "$2 %%77"\n' >"$T/fs/scripts/spawn-window.sh"
@@ -171,9 +197,16 @@ RU="$T/rhome/.vibe/logs/session/unified"
 cmp -s "$RU/$SID/chunks/c1.json" "$U/$SID/chunks/c1.json" && [[ -f "$RU/$SID/CURRENT" && ! -e "$RU/$OLD" && ! -e "$RU/$OTHER" ]] &&
   pass "5c: only session $SID lands in the agent user's unified/" || fail "5c: $(ls -R "$T/rhome" 2>&1 | sed -n 1,10p)"
 ! grep -qF "$SECRET_T" "$T/calls.log" "$T/o" && pass "5d: the session never rides argv or the output" || fail "5d: session in argv/output"
-grep -q "^tmux new-window .*restore-mistral.sh' 'm-050' '$RW' '$SID' '$T/spool/handover/m-050-from-m-050.md'" "$T/calls.log" &&
-  grep -q '^next-agent-id --claim m-050' "$T/calls.log" && pass "5e: restore-mistral.sh resumes session $SID in the new worktree" || fail "5e: $(calls | grep -E 'tmux|next')"
-grep -q "^m-050	mistral	%88	$RW	" "$T/spool/registry.tsv" && pass "5f: registry row kind mistral" || fail "5f: $(tail -n2 "$T/spool/registry.tsv")"
+grep -q '^next-agent-id --claim m-050' "$T/calls.log" && grep -qx "RESUMED $SID" "$T/vibe.log" && grep -qF "$SECRET_T" "$T/vibe.log" &&
+  grep -q "^vibe cwd=$RW home=$T/rhome argv=.*--resume $SID " "$T/vibe.log" &&
+  pass "5e: the window ran vibe --resume $SID as the agent user in the new worktree; the old conversation came back" ||
+  fail "5e: $(cat "$T/vibe.log" 2>&1 | cut -c1-200) / $(tail -n5 "$T/window.log" 2>&1)"
+mv "$RU/$SID" "$T/sid.moved"; : >"$T/vibe.log"
+PATH="$T/stub/remote-bin:$PATH" STUB_LOG="$T/calls.log" SPOOL_ROOT="$T/spool" FAKE_REMOTE_HOME="$T/rhome" bash -c "$(cat "$T/window.cmd")" </dev/null >/dev/null 2>&1
+grep -qx "NOT-FOUND $SID" "$T/vibe.log" && ! grep -q RESUMED "$T/vibe.log" &&
+  pass "5e: control: the same window command without the copied session resumes nothing" || fail "5e control: $(cat "$T/vibe.log")"
+mv "$T/sid.moved" "$RU/$SID"
+grep -q "^m-050	mistral	%88	$RW	" "$T/spool/registry.tsv" && grep -qx 'close --agent m-050 pushed=no' "$T/calls.log" && pass "5f: registry row kind mistral; FROM was closed before its wip ref was pushed" || fail "5f: $(tail -n2 "$T/spool/registry.tsv")"
 c="$(grep -n '^close --agent m-050' "$T/calls.log" | cut -d: -f1)"; r="$(grep -n '^retire RETIRE_WORKTREE=0 --apply m-050' "$T/calls.log" | cut -d: -f1)"
 [[ -n "$c" && -n "$r" && "$c" -lt "$r" && -d "$T/repo-wt/m-050" ]] && grep -q '^sudo-as agentx' "$T/calls.log" &&
   pass "5g: FROM closed first, retired last, worktree kept; the session lands as the agent user" || fail "5g: $(calls | grep -E '^(close|retire|sudo-as)')"
@@ -189,6 +222,16 @@ B="$T/spool/handover/m-060-from-m-060.md"
 grep -q "^## m-060's handoff (spec 102)" "$B" && grep -q 'dispatch-abcd1234' "$B" && grep -q '# Brief: the task of m-060' "$B" &&
   ! grep -q '^tmux new-window' "$T/calls.log" && [[ ! -e "$RU/eeeeeeee-1111-2222-3333-444444444444" ]] &&
   pass "6b: the B brief carries brief, task and handoff; no resume, no session copied" || fail "6b: $(sed -n 1,30p "$B")"
+
+# --- 7. RED CONTROL: a failed session copy --------------------------------------------------
+lane m-055
+session ffffffff-1111-2222-3333-444444444444 "$T/repo-wt/m-055" 3
+mv "$T/rhome" "$T/rhome.ok"; printf 'not a dir\n' >"$T/rhome"
+: >"$T/calls.log"
+run_ho FROM=m-055 TO_BOX=sat DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && -z "$(ref_of m-055)" ]] && ! grep -q '^close' "$T/calls.log" && grep -q 'the session copy to sat failed' "$T/o" &&
+  pass "7: a failed session copy: exit $rc, FROM not closed, nothing pushed" || fail "7: rc=$rc $(cat "$T/o") $(calls | grep -E '^(close|retire)')"
+rm -f "$T/rhome"; mv "$T/rhome.ok" "$T/rhome"
 
 echo "spl-lane-handover-mistral: $fails failure(s)"
 [[ $fails -eq 0 ]]

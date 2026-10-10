@@ -16,17 +16,19 @@
 # @description   1. WIP: do_spl_lane_handover_wip, scan first (a hit = exit 3,
 # @description      nothing pushed, FROM untouched, no ssh call).
 # @description   2. the new worktree <repo>-wt/<TO_ID> on TO_BOX at the wip ref.
-# @description   3. A, resume: the session dir goes over ssh stdin ONLY (never the
-# @description      hub, git or a log) into the target AGENT_USER's
-# @description      ~/.vibe/logs/session/unified, then restore-mistral.sh resumes
-# @description      it in a new tmux window with the handover brief as its kick.
+# @description   3. A, resume: BEFORE FROM is closed, the session dir goes over
+# @description      ssh stdin ONLY (never the hub, git or a log) into the target
+# @description      AGENT_USER's ~/.vibe/logs/session/unified (a failed copy = exit
+# @description      1, FROM untouched); after the WIP step restore-mistral.sh runs
+# @description      `vibe --resume <sid>` in a new tmux window, the brief as kick.
 # @description   4. B, written handoff: TO_ID != FROM (the session names the old
 # @description      worktree path), no session, bigger than
-# @description      HANDOVER_TRANSCRIPT_MAX_MB, key material in it,
-# @description      HANDOVER_MODE=B, or the copy failed: spawn-window.sh mistral
+# @description      HANDOVER_TRANSCRIPT_MAX_MB, key material in it, or
+# @description      HANDOVER_MODE=B: spawn-window.sh mistral
 # @description      starts a fresh agent with the handover brief.
 # @description   5. FROM closed before its WIP is pushed, retired after the start
-# @description      (RETIRE_WORKTREE=0); the new agent deletes the wip ref after
+# @description      (RETIRE_WORKTREE=0), so it never runs on both boxes; any failure
+# @description      after the push exits 1. The new agent deletes the wip ref after
 # @description      its first landed push.
 # @description Dry run unless DRY_RUN=0: the WIP scan, the mode and the plan, no ssh.
 # @param FROM (required) - the lane to hand over, a mistral id on this box (m-NNN)
@@ -96,6 +98,12 @@ spl_handover_mistral_live() {
   dest="$(spl_handover_dest "$box")"
   spl_handover_probe "$dest" "$box" "$repo" "$newwt" || return 1
   agent="$HO_AGENT"
+  # the session first: a failed copy stops before FROM is closed or anything is pushed
+  if [[ "$m" == A ]]; then
+    spl_handover_mistral_on "$dest" agent session "$sid" <"$tr" >"$work/tr" 2>&1 ||
+      { do_log "FATAL HANDOVER $from: the session copy to $box failed ($(tail -n1 "$work/tr")): $from untouched, nothing pushed; HANDOVER_MODE=B hands over without it"; return 1; }
+    echo "COPIED  vibe session $sid to $box (ssh)"
+  fi
 
   ID="$from" HANDOFF_WORKDIR="$wt" do_spl_agent_handoff >/dev/null 2>&1 || echo "WARN $from: handoff.md not composed; the brief carries the rest"
   out="$(${HANDOVER_CLOSE_CMD:-bash "$scripts/tmux-close-window.sh"} --agent "$from" 2>&1)" || rc=$?
@@ -114,14 +122,6 @@ spl_handover_mistral_live() {
 
   brief="$work/brief.md" rbrief="$root/handover/$to-from-$from.md"
   spl_handover_brief "$from" "$to" "$box" "$here" "$m" "$wt" "$newwt" "$ref" "$sha" >"$brief"
-  if [[ "$m" == A ]]; then
-    if spl_handover_mistral_on "$dest" agent session "$sid" <"$tr" >"$work/tr" 2>&1; then
-      echo "COPIED  vibe session $sid to $box (ssh)"
-    else
-      echo "WARN session copy failed ($(tail -n1 "$work/tr")): falling back to B"; m=B
-      spl_handover_brief "$from" "$to" "$box" "$here" B "$wt" "$newwt" "$ref" "$sha" >"$brief"
-    fi
-  fi
   spl_handover_on "$dest" owner brief "$rbrief" <"$brief" >/dev/null 2>&1 || { do_log "FATAL HANDOVER $from: cannot write $rbrief on $box"; return 1; }
   rc=0
   if [[ "$m" == A ]]; then
@@ -189,10 +189,12 @@ spl_handover_mistral_remote_script() {
 op="$1"; shift
 case "$op" in
   session)
+    # staged in a dir vibe ignores (no CURRENT), then swapped in: a rerun replaces it
     umask 077
-    d="$HOME/.vibe/logs/session/unified"
-    [ ! -e "$d/$1" ] || { echo "vibe session $1 is already there" >&2; exit 3; }
-    mkdir -p "$d" && tar -x -C "$d" -f - && [ -f "$d/$1/CURRENT" ] && echo ok ;;
+    d="$HOME/.vibe/logs/session/unified" in="$HOME/.vibe/logs/session/unified/.handover-$1"
+    rm -rf "$in" && mkdir -p "$in" && tar -x -C "$in" -f - && [ -f "$in/$1/CURRENT" ] ||
+      { rm -rf "$in"; echo "the session tar did not unpack to $1/CURRENT" >&2; exit 1; }
+    rm -rf "${d:?}/$1" && mv "$in/$1" "$d/$1" && rmdir "$in" && echo ok ;;
   resume)
     scripts="$1" id="$2" wt="$3" sid="$4" brief="$5" agent="$6"
     . "$scripts/../lib/spool-env.inc.sh"; spool_env_resolve; spool_tmux_argv

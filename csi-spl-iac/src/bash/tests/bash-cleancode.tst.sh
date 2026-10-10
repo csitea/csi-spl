@@ -16,7 +16,6 @@ MAX_LINES=80
 
 # <file> <function> <ceiling>: the ceiling is its length on 2026-10-10 (r5-06).
 LONG="
-  csi-spl-orc/src/bash/run/spl-lane-handover-agy.func.sh do_spl_lane_handover_agy 94
   csi-spl-iac/src/bash/run/check-pre-push.func.sh do_check_pre_push 137
   csi-spl-iac/src/bash/run/check-pre-push-lint.func.sh _ppl_run_one 109
   csi-spl-iac/src/bash/run/check-weekly-full-scan.func.sh do_check_weekly_full_scan 128

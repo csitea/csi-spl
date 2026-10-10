@@ -30,6 +30,12 @@ Uygulamanın herhangi bir yerinden Omnibox'ı açmak için klavye kısayoluna ba
 
 Karmaşık bir çalışma alanında gezinmek genellikle çok sayıda tıklama, sonsuz kenar çubuklarında gezinme ve doğru kanalı veya ayarı görsel olarak arama gerektiriyordu; bu da odaklanmayı bozuyordu.
 
+Yazmak da daha iyi değildi: ekranın altındaki bir sohbet kutusuna yazıyordunuz. Masaüstünde bu, gözlerinizi ve boynunuzu gün boyu alt kenara doğru eğik tutar; bu ergonomik değildir ve yorar.
+
 ## Yeni yöntem
 
 Omnibox evrensel bir ışınlayıcı ve komut merkezi gibi davranır. Uygulamanın herhangi bir bölümüne anında atlayabilir veya birkaç tuş vuruşuyla eylemleri tetikleyebilirsiniz, böylece platformla etkileşiminiz akıcı ve verimli hale gelir.
+
+Özellikle masaüstünde, üstteki Omnibox yazmak ve sistemle etkileşmek için en ergonomik yerdir: zaten baktığınız yerde durur, bu yüzden daha az yorar.
+
+Üstteki Omnibox varsayılandır. Kutuyu altta tercih ederseniz Ayarlar → Davranış → Omnibox konumu → Altta, mesajların altında yolundan değiştirin (tabletlerde ve bilgisayarlarda; telefonlarda her zaman alttadır).

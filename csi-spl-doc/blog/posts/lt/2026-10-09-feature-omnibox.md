@@ -30,6 +30,12 @@ Paspauskite spartųjį klavišą (paprastai `Ctrl+K` arba `Cmd+K`), kad atidaryt
 
 Naršymas sudėtingoje darbo erdvėje anksčiau reikalavo daugybės paspaudimų, slinkimo per begalines šonines juostas ir vizualaus tinkamo kanalo ar nustatymo ieškojimo, o tai trikdė susikaupimą.
 
+Ir rašyti nebuvo patogiau: rašėte pokalbio laukelyje ekrano apačioje. Staliniame kompiuteryje tai visą dieną laiko akis ir kaklą palenktus į apatinį kraštą – tai nėra ergonomiška ir vargina.
+
 ## Naujasis būdas
 
 „Omnibox“ veikia kaip universalus teleporteris ir valdymo centras. Galite akimirksniu persikelti į bet kurią programos vietą arba atlikti veiksmus keliais klavišų paspaudimais, todėl sąveika su platforma tampa sklandi ir efektyvi.
+
+Ypač staliniame kompiuteryje Omnibox viršuje yra ergonomiškiausia vieta rašyti ir dirbti su sistema: jis yra ten, kur jau žiūrite, todėl mažiau vargina.
+
+Omnibox viršuje yra numatytasis. Jei norite laukelio apačioje, pakeiskite tai: Nustatymai → Elgsena → Omnibox vieta → Apačioje, po žinutėmis (planšetėse ir kompiuteriuose; telefonuose jis visada apačioje).

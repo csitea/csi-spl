@@ -30,6 +30,12 @@ Stlačením klávesovej skratky (zvyčajne `Ctrl+K` alebo `Cmd+K`) otvorte Omnib
 
 Pohyb v zložitom pracovnom priestore si predtým vyžadoval veľa klikania, posúvania sa nekonečnými bočnými panelmi a vizuálneho hľadania správneho kanála či nastavenia, čo narúšalo sústredenie.
 
+Ani písanie nebolo lepšie: písali ste do poľa chatu v dolnej časti obrazovky. Na stolnom počítači to celý deň drží oči a krk sklonené k dolnému okraju, čo nie je ergonomické a zaťažuje.
+
 ## Nový spôsob
 
 Omnibox funguje ako univerzálny teleporter a riadiace centrum. Okamžite môžete skočiť do ktorejkoľvek časti aplikácie alebo spustiť akcie niekoľkými stlačeniami klávesov, vďaka čomu je vaša interakcia s platformou plynulá a efektívna.
+
+Najmä na stolnom počítači je Omnibox hore najergonomickejšie miesto na písanie a prácu so systémom: je tam, kam sa už pozeráte, takže zaťaženie je menšie.
+
+Omnibox hore je predvolený. Ak uprednostňujete pole dole, prepnite ho v Nastavenia → Správanie → Poloha Omniboxu → Dole, pod správami (na tabletoch a počítačoch; telefóny ho majú vždy dole).

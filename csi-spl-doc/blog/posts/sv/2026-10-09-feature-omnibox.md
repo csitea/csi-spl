@@ -30,6 +30,12 @@ Tryck på kortkommandot (vanligtvis `Ctrl+K` eller `Cmd+K`) för att öppna Omni
 
 Att navigera i en komplex arbetsyta innebar tidigare mycket klickande, skrollande i oändliga sidofält och visuellt letande efter rätt kanal eller inställning, vilket störde fokus.
 
+Att skriva var inte bättre: du skrev i en chattruta längst ned på skärmen. På en dator håller det ögon och nacke böjda mot nederkanten hela dagen, vilket inte är ergonomiskt och belastar.
+
 ## Det nya sättet
 
 Omnibox fungerar som en universell teleporter och ett kommandocenter. Du kan hoppa direkt till vilken del av applikationen som helst eller aktivera åtgärder med ett fåtal tangenttryckningar, vilket gör interaktionen med plattformen smidig och effektiv.
+
+Särskilt på en dator är Omnibox överst den mest ergonomiska platsen att skriva och arbeta med systemet: den sitter där blicken redan är, så belastningen blir mindre.
+
+Omnibox överst är standard. Föredrar du rutan längst ned byter du i Inställningar → Beteende → Omniboxens placering → Längst ned, under meddelandena (på surfplattor och datorer; telefoner har den alltid längst ned).

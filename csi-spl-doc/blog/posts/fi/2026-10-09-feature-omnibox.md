@@ -30,6 +30,12 @@ Paina pikanäppäintä (yleensä `Ctrl+K` tai `Cmd+K`) avataksesi Omniboxin mist
 
 Monimutkaisessa työtilassa navigointi vaati aiemmin runsaasti napsauttelua, loputtomien sivupalkkien selaamista ja oikean kanavan tai asetuksen etsimistä katseella, mikä katkaisi keskittymisen.
 
+Kirjoittaminenkaan ei ollut parempaa: kirjoitit chat-ruutuun näytön alareunassa. Pöytäkoneella se pitää silmät ja niskan koko päivän taipuneina kohti alareunaa, mikä ei ole ergonomista ja rasittaa.
+
 ## Uusi tapa
 
 Omnibox toimii universaalina teleporttina ja komentokeskuksena. Voit siirtyä silmänräpäyksessä mihin tahansa sovelluksen osaan tai käynnistää toimintoja muutamalla näppäinpainalluksella, tehden vuorovaikutuksesta alustan kanssa sujuvaa ja tehokasta.
+
+Etenkin pöytäkoneella Omnibox ylhäällä on ergonomisin paikka kirjoittaa ja käyttää järjestelmää: se on siellä, minne katseesi jo osuu, joten rasitusta on vähemmän.
+
+Omnibox ylhäällä on oletus. Jos haluat ruudun alas, vaihda se kohdassa Asetukset → Toiminta → Omniboxin paikka → Alhaalla, viestien alla (tableteilla ja tietokoneilla; puhelimissa se on aina alhaalla).

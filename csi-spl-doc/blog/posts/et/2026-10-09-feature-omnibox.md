@@ -30,6 +30,12 @@ Vajuta klahvikombinatsiooni (tavaliselt `Ctrl+K` või `Cmd+K`), et avada Omnibox
 
 Keerulises tööruumis navigeerimine nõudis tavaliselt palju klikkimist, kerimist lõpututel külgribadel ja visuaalset otsimist õige kanali või sätte järele, mis katkestas keskendumise.
 
+Ka kirjutamine polnud parem: kirjutasite vestluskasti ekraani allservas. Lauaarvutis hoiab see silmi ja kaela terve päeva alumise serva poole kallutatuna, mis pole ergonoomiline ja tekitab pinget.
+
 ## Uus viis
 
 Omnibox toimib universaalse teleporteri ja juhtimiskeskusena. Saad koheselt hüpata rakenduse mis tahes ossa või käivitada toiminguid paari klahvivajutusega, muutes platvormiga suhtlemise sujuvaks ja tõhusaks.
+
+Eriti lauaarvutis on Omnibox üleval kõige ergonoomilisem koht süsteemiga kirjutamiseks ja suhtlemiseks: see on seal, kuhu te niikuinii vaatate, nii et pinget on vähem.
+
+Omnibox üleval on vaikimisi valik. Kui eelistate kasti all, muutke see: Seaded → Käitumine → Omniboxi asukoht → All, sõnumite all (tahvelarvutites ja arvutites; telefonides on see alati all).

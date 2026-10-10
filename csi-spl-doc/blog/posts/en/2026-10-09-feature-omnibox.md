@@ -30,6 +30,12 @@ Press the keyboard shortcut (typically `Ctrl+K` or `Cmd+K`) to open the Omnibox 
 
 Navigating a complex workspace usually involved a lot of clicking, scrolling through endless sidebars, and visually scanning for the right channel or setting, which interrupted focus.
 
+Typing was no better: you wrote in a chat box at the bottom of the screen. On a desktop that keeps your eyes and neck bent towards the lower edge all day, which is not ergonomic and adds strain.
+
 ## The new way
 
 The Omnibox acts as a universal teleporter and command center. You can leap instantly to any part of the application or trigger actions with a few keystrokes, making your interaction with the platform fluid and efficient.
+
+Especially on a desktop, the Omnibox at the top is the most ergonomic place to type and interact with the system: it sits where your eyes already are, so there is less strain.
+
+The Omnibox at the top is the default. If you prefer the box at the bottom, switch it in Settings → Behaviour → Omnibox position → At the bottom, under the messages (on tablets and computers; phones always keep it at the bottom).

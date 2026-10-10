@@ -30,6 +30,12 @@ Druk op de sneltoets (meestal `Ctrl+K` of `Cmd+K`) om de Omnibox overal in de ap
 
 Navigeren in een complexe werkruimte betekende vroeger veel klikken, scrollen door eindeloze zijbalken en visueel zoeken naar het juiste kanaal of de juiste instelling, wat je concentratie onderbrak.
 
+Typen ging ook niet beter: je schreef in een chatvak onderaan het scherm. Op een desktop houdt dat je ogen en nek de hele dag naar de onderrand gebogen, wat niet ergonomisch is en belasting geeft.
+
 ## De nieuwe manier
 
 De Omnibox fungeert als een universele teleporter en commandocentrum. Je springt direct naar elk onderdeel van de applicatie of activeert acties met enkele toetsaanslagen, waardoor je interactie met het platform soepel en efficiënt verloopt.
+
+Vooral op een desktop is de Omnibox bovenaan de meest ergonomische plek om te typen en met het systeem te werken: hij staat waar je ogen al zijn, dus er is minder belasting.
+
+De Omnibox bovenaan is de standaard. Heb je liever het vak onderaan, zet het dan om via Instellingen → Gedrag → Positie van de Omnibox → Onderaan, onder de berichten (op tablets en computers; telefoons houden het altijd onderaan).

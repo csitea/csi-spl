@@ -30,6 +30,12 @@ Naciśnij skrót klawiszowy (zwykle `Ctrl+K` lub `Cmd+K`), aby otworzyć Omnibox
 
 Nawigacja w złożonej przestrzeni roboczej zwykle wiązała się z częstym klikaniem, przewijaniem niekończących się pasków bocznych i wzrokowym poszukiwaniem właściwego kanału lub ustawienia, co wybijało ze skupienia.
 
+Pisanie też nie było lepsze: pisałeś w polu czatu na dole ekranu. Na komputerze stacjonarnym to przez cały dzień trzyma oczy i szyję pochylone ku dolnej krawędzi, co nie jest ergonomiczne i męczy.
+
 ## Nowy sposób
 
 Omnibox działa jak uniwersalny teleporter i centrum dowodzenia. Możesz natychmiast przeskoczyć do dowolnej części aplikacji lub wywołać akcje kilkoma naciśnięciami klawiszy, sprawiając, że interakcja z platformą staje się płynna i wydajna.
+
+Szczególnie na komputerze stacjonarnym Omnibox na górze to najbardziej ergonomiczne miejsce do pisania i pracy z systemem: jest tam, gdzie już patrzysz, więc mniej męczy.
+
+Omnibox na górze to ustawienie domyślne. Jeśli wolisz pole na dole, zmień to w Ustawienia → Zachowanie → Położenie Omniboxa → Na dole, pod wiadomościami (na tabletach i komputerach; telefony zawsze trzymają je na dole).

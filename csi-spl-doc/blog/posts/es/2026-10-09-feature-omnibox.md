@@ -30,6 +30,12 @@ Pulsa el atajo de teclado (normalmente `Ctrl+K` o `Cmd+K`) para abrir el Omnibox
 
 Navegar por un espacio de trabajo complejo solía requerir muchos clics, desplazarse por barras laterales interminables y buscar visualmente el canal o ajuste correcto, lo que interrumpía la concentración.
 
+Escribir tampoco era mejor: lo hacías en un cuadro de chat en la parte inferior de la pantalla. En un ordenador de escritorio eso mantiene los ojos y el cuello inclinados hacia el borde inferior todo el día, lo que no es ergonómico y genera tensión.
+
 ## La nueva forma
 
 El Omnibox actúa como un teletransportador universal y un centro de control. Puedes saltar al instante a cualquier parte de la aplicación o activar acciones con solo unas pocas pulsaciones de teclas, haciendo que tu interacción con la plataforma sea fluida y eficiente.
+
+Sobre todo en un ordenador de escritorio, el Omnibox en la parte superior es el lugar más ergonómico para escribir e interactuar con el sistema: está donde ya miras, así que hay menos tensión.
+
+El Omnibox arriba es la opción predeterminada. Si prefieres el cuadro abajo, cámbialo en Ajustes → Comportamiento → Posición del Omnibox → Abajo, debajo de los mensajes (en tabletas y ordenadores; los teléfonos siempre lo mantienen abajo).

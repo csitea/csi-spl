@@ -30,6 +30,12 @@ Omnibox је централна палета команди која вам ом
 
 Навигација кроз сложен радни простор обично је подразумевала много кликања, скроловања кроз бескрајне бочне траке и визуелно тражење правог канала или подешавања, што је прекидало фокус.
 
+Ni kucanje nije bilo bolje: pisali ste u polje za ćaskanje na dnu ekrana. Na desktop računaru to ceo dan drži oči i vrat nagnute ka donjoj ivici, što nije ergonomski i stvara napor.
+
 ## Нови начин
 
 Omnibox делује као универзални телепортер и командни центар. Можете тренутно да скочите на било који део апликације или да покренете радње помоћу само неколико притисака на тастере, чинећи вашу интеракцију са платформом флуидном и ефикасном.
+
+Naročito na desktop računaru, Omnibox na vrhu je najergonomskije mesto za kucanje i rad sa sistemom: nalazi se tamo gde već gledate, pa je napor manji.
+
+Omnibox na vrhu je podrazumevan. Ako vam više odgovara polje na dnu, promenite to u Podešavanja → Ponašanje → Položaj Omnibox-a → Na dnu, ispod poruka (na tabletima i računarima; telefoni ga uvek drže na dnu).

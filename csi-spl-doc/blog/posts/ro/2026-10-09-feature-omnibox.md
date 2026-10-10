@@ -30,6 +30,12 @@ Apăsați comanda rapidă de la tastatură (de obicei `Ctrl+K` sau `Cmd+K`) pent
 
 Navigarea într-un spațiu de lucru complex implica de obicei multe clicuri, derularea prin bare laterale nesfârșite și căutarea vizuală a canalului sau setării potrivite, ceea ce întrerupea concentrarea.
 
+Nici scrisul nu era mai bun: scriai într-o casetă de chat din partea de jos a ecranului. Pe un desktop, asta îți ține ochii și gâtul aplecați spre marginea de jos toată ziua, ceea ce nu este ergonomic și obosește.
+
 ## Noul mod
 
 Omnibox acționează ca un teleporter universal și centru de comandă. Puteți sări instantaneu în orice parte a aplicației sau declanșa acțiuni cu câteva apăsări de taste, făcând interacțiunea cu platforma fluidă și eficientă.
+
+Mai ales pe desktop, Omnibox-ul de sus este locul cel mai ergonomic pentru a scrie și a interacționa cu sistemul: se află acolo unde privești deja, deci efortul este mai mic.
+
+Omnibox-ul sus este opțiunea implicită. Dacă preferi caseta jos, schimb-o din Setări → Comportament → Poziția Omnibox → Jos, sub mesaje (pe tablete și calculatoare; telefoanele o țin mereu jos).

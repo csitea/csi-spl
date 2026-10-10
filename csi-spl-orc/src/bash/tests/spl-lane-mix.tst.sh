@@ -447,7 +447,9 @@ journal "c-998" "simple_coding" "claude" "task-123" "$(date -u +%s)" "run"
 if [ ! -f "$T/c-998/attempts.tsv" ] || ! awk -F'\t' 'NF == 6 && $6 == "run"' "$T/c-998/attempts.tsv" >/dev/null; then
   fail "ORC-2: journal row not written or missing fields"
 else
-  mix LANE_MIX_REGISTRY="$T/registry.tsv" LANE_MIX_AGENT_HOME="$H" LANE_MIX_CNF="$CNF" LANE_MIX_WD_DIR="$T/c-998"
+  # the row says vendor=claude: ask for a kind that routes to claude (secret);
+  # the default kind goes to grok (test 11 control)
+  mix LANE_MIX_KIND=secret LANE_MIX_REGISTRY="$T/registry.tsv" LANE_MIX_AGENT_HOME="$H" LANE_MIX_CNF="$CNF" LANE_MIX_WD_DIR="$T/c-998"
   rc=$?
   [[ $rc -eq 0 ]] && [[ "$(pick)" == "claude" ]] \
     && pass "ORC-2: journal row written with all fields" || fail "ORC-2: rc=$rc $(cat "$T/out")"

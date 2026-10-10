@@ -11,7 +11,12 @@
 # shell function it defines now or defined at the base (so a renamed or
 # deleted action still selects its old test). Only function names with a _
 # or - count: a one-word name such as start or flush reads as prose in every
-# test. A changed *.tst.sh selects itself. Prints tab-separated lines:
+# test. A changed *.tst.sh selects itself. The functions a TEST file
+# defines (*.tst.sh, test-*.sh, *.proof.sh, anything under fixtures/) are
+# stubs, not the real thing: they never key a selection (an iac test that
+# stubs do_log once selected all 198 orc tests). Its basename and stem
+# still do. A shared test library (test-lib.inc.sh, lib.inc.sh) defines
+# real helpers, so its functions still count. Prints tab-separated lines:
 #   run<TAB><test file name><TAB><why>
 #   ignore<TAB><repo path><TAB><why>
 #   full<TAB><why>          (then nothing else: run the whole suite)
@@ -57,6 +62,8 @@ keys() {
   stem="${b%.func.sh}"; stem="${stem%.inc.sh}"; stem="${stem%.sh}"
   [[ "$stem" != "$b" ]] && (( ${#stem} >= 5 )) && echo "$stem"
   case "$b" in *.sh|*.bash|run) ;; *) return 0 ;; esac
+  case "$b" in *.tst.sh|test-*.sh|*.proof.sh) return 0 ;; esac
+  [[ "/$f" == */fixtures/* ]] && return 0
   { [[ -f "$top/$f" ]] && cat "$top/$f"; git -C "$top" show "$base:$f" 2>/dev/null; } \
     | sed -nE 's/^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_:.-]*)[[:space:]]*\(\).*$/\2/p' \
     | while read -r fn; do

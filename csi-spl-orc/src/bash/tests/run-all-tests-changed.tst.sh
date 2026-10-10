@@ -17,6 +17,10 @@
 #   7. no merge-base -> every file; 9. a ./run dispatcher change -> every file
 #   8. --background returns at once; the result file appears when done and
 #      carries rc + count; the log holds the run
+#  10. a function a TEST file defines is a stub: a test outside the orc
+#      tree that stubs do_foo selects nothing (it is ignored, not foo.tst.sh);
+#      CONTROL: a real source file outside the tree defining do_foo still
+#      selects foo.tst.sh
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -91,6 +95,15 @@ printf 'y\n' >>"$O/run"
 rc=$(run --changed)
 [ "$(count)" = "4/4 test files passed" ] && grep -q 'running every file (csi-spl-orc/run is shared by every action)' "$T/out" \
   && pass "9 a ./run dispatcher change runs every file" || fail "9 dispatcher" "$(cat "$T/out")"
+reset_tree
+# 10
+plan() { (cd "$R" && ORC_TEST_BASE=master ORC_TEST_ALWAYS='' bash "$D/changed-tests.sh"); }
+printf 'do_foo() { :; }\n' >"$R/other/stub.tst.sh"
+[ "$(plan)" = "$(printf 'ignore\tother/stub.tst.sh\toutside csi-spl-orc, no orc test names it')" ] \
+  && pass "10 a stub in a test file selects no test" || fail "10 stub" "$(plan)"
+rm -f "$R/other/stub.tst.sh"; printf 'do_foo() { :; }\n' >"$R/other/real.func.sh"
+[ "$(plan)" = "$(printf 'run\tfoo.tst.sh\tnames other/real.func.sh')" ] \
+  && pass "10 CONTROL the same function in a real file selects foo.tst.sh" || fail "10 control" "$(plan)"
 reset_tree
 # 8
 printf 'do_foo() { echo foo4; }\n' >"$O/lib/bash/funcs/foo.func.sh"

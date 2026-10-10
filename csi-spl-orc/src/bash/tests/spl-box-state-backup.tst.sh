@@ -15,7 +15,8 @@
 #      credential file stay out and refuse an upload in the scan, naming the
 #      path only; the allow-listed 0600 transcripts go in
 #   5. the key scan: a planted archive (key material, or an excluded name)
-#      refuses the upload with exit 3, names the member, never prints the key
+#      refuses the upload with exit 3, names the member, never prints the key;
+#      bytes after tar's end marker never make a good archive "unreadable"
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -114,6 +115,27 @@ out="$(bash "$PACK" scan "$T/plant2.tar.zst")"; rc=$?
 [[ $rc -eq 3 ]] && grep -q 'HIT .ssh/id_x name' <<<"$out" && pass "5. scan: an excluded name is a HIT" || fail "5. scan name: rc=$rc $out"
 out="$(bash "$PACK" scan "$T/a.tar.zst")"; rc=$?
 [[ $rc -eq 0 && -z "$out" ]] && pass "5. CONTROL: the clean archive scans clean" || fail "5. control: rc=$rc $out"
+# wf 10 run 38064273382: the scan read a good archive as "not readable" when
+# tar -t stopped at the end-of-archive marker before zstd had written the rest
+# (tar -A leaves a record after it). These make that race certain: more than a
+# pipe buffer (64 KiB) follows the marker, or the key hit.
+mkdir -p "$T/plant3/a" "$T/plant3/b"
+echo 'fine' >"$T/plant3/a/ok.txt"
+(cd "$T/plant3" && tar -b 2048 -cf - a) | zstd -q -o "$T/plant3.tar.zst"
+out="$(bash "$PACK" scan "$T/plant3.tar.zst" 2>&1)"; rc=$?
+[[ $rc -eq 0 && -z "$out" ]] && pass "5. a clean archive with 1 MiB after its end marker scans clean" || fail "5. end marker: rc=$rc $out"
+cp "$T/plant/a/notes.txt" "$T/plant3/a/notes.txt"
+head -c 2097152 /dev/zero >"$T/plant3/b/big.bin"
+(cd "$T/plant3" && tar -cf - a/notes.txt b) | zstd -q -o "$T/plant4.tar.zst"
+out="$(bash "$PACK" scan "$T/plant4.tar.zst" 2>&1)"; rc=$?
+[[ $rc -eq 3 ]] && grep -qx 'HIT a/notes.txt key' <<<"$out" \
+  && pass "5. key material before 2 MiB of other bytes is a HIT naming the member" || fail "5. early key: rc=$rc $out"
+(cd "$T/plant3" && tar -cf - a/ok.txt) >"$T/stray.tar"
+(cd "$T/plant2" && tar -cf - .ssh) >>"$T/stray.tar"
+zstd -q -o "$T/stray.tar.zst" "$T/stray.tar"
+out="$(bash "$PACK" scan "$T/stray.tar.zst" 2>&1)"; rc=$?
+[[ $rc -eq 3 ]] && grep -q 'HIT .ssh/id_x name' <<<"$out" \
+  && pass "5. a member after a stray end marker is still named" || fail "5. stray marker: rc=$rc $out"
 PRE='spl_box_state_pack() { cp "$PLANT" "$1"; };' run_bk DRY_RUN=0 PLANT="$T/plant.tar.zst"; rc=$?
 [[ $rc -eq 3 && ! -s "$T/calls.log" ]] && grep -q 'upload REFUSED' "$T/out" && grep -q 'HIT a/notes.txt key' "$T/out" \
   && pass "5. a planted archive refuses the upload: exit 3, no gcloud call" || fail "5. refusal: rc=$rc $(cat "$T/calls.log" "$T/out")"

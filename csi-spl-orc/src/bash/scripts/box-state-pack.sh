@@ -113,7 +113,12 @@ case "${1:-}" in
     ;;
   scan)
     [[ $# -eq 2 && -f "$2" ]] || usage
-    names="$(zstd -dcq -- "$2" | tar -tvf - --numeric-owner 2>/dev/null)" || { echo "FATAL $2 is not a readable tar.zst" >&2; exit 2; }
+    # tar -i: read past every end-of-archive marker to the end of the
+    # stream. Without it tar stops at the first marker, zstd still writes the
+    # rest (tar -A leaves a whole record after it), meets a closed pipe, and
+    # pipefail calls a good archive unreadable whenever tar wins that race
+    # (wf 10 run 38064273382); and a member after a stray marker is never named.
+    names="$(zstd -dcq -- "$2" | tar -tvif - --numeric-owner 2>/dev/null)" || { echo "FATAL $2 is not a readable tar.zst" >&2; exit 2; }
     rc=0
     while read -r perm _ _ _ _ n; do
       [[ -n "$n" ]] || continue
@@ -126,20 +131,20 @@ case "${1:-}" in
     # the whole stream through the key pattern (a tar holds member bytes
     # raw); only on a hit, member by member to NAME it (a fork per member is
     # slow on ~90k files). Only the name is printed, never the bytes.
-    # grep -aE, not -q or -c: -q quits at the first hit, -c counts, and both cause
-    # zstd to die of SIGPIPE. Keep pipefail on: if zstd fails (corrupt/truncated
-    # archive), grep sees an empty stream and exits 1, but the archive must be
-    # reported broken (rc=2), not clean. Read PIPESTATUS: zstd != 0 -> rc=2,
-    # grep 0 -> rc=3 (hit), grep 1 -> clean, grep 2 -> rc=2.
-    zstd -dcq -- "$2" 2>/dev/null | grep -E -e "$BOX_STATE_KEY_RE" >/dev/null
+    # grep -a: the stream is binary. A match may end grep before zstd has
+    # written everything (grep stops at the first match when its output is
+    # /dev/null), so zstd dying of a closed pipe after a match is still a HIT.
+    # With no match grep read the whole stream: then zstd must have exited 0,
+    # else the archive is broken (rc=2) and never reported clean.
+    zstd -dcq -- "$2" 2>/dev/null | grep -aE -e "$BOX_STATE_KEY_RE" >/dev/null
     zstat=${PIPESTATUS[0]} gstat=${PIPESTATUS[1]}
-    if [[ $zstat -ne 0 ]]; then
-      rc=2
-    elif [[ $gstat -eq 0 ]]; then
+    if [[ $gstat -eq 0 ]]; then
       rc=3
-      rc=3
-      keyhits="$(zstd -dcq -- "$2" | tar -xf - --to-command='grep -qaE -e "$BOX_STATE_KEY_RE" && printf "HIT %s key\n" "$TAR_FILENAME"; exit 0' 2>/dev/null)"
+      keyhits="$(zstd -dcq -- "$2" | tar -xif - --to-command='grep -qaE -e "$BOX_STATE_KEY_RE" && printf "HIT %s key\n" "$TAR_FILENAME"; exit 0' 2>/dev/null)"
       printf '%s\n' "${keyhits:-HIT <stream> key}"
+    elif [[ $gstat -ne 1 || $zstat -ne 0 ]]; then
+      echo "FATAL $2 is not a readable tar.zst" >&2
+      rc=2
     fi
     exit "$rc"
     ;;

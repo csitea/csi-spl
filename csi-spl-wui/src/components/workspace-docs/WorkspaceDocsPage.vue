@@ -210,6 +210,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('afterprint', afterPrint)
   document.documentElement.classList.remove('ws-doc-printing')
 })
+
+/* the Qto file tree (WorkspaceDocsLayout, t1 efde25bb) reads the list and drives the page */
+defineExpose({ docs, docId, session, pick, openAt })
 </script>
 
 <style scoped>

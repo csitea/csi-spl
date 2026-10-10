@@ -31,7 +31,8 @@ export function isSectionPage(path) {
 export function railLinkSection(path) {
   const p = productPath(path)
   if (p === '/help' || p.startsWith('/help/')) return 'help'
-  if (p === '/docs' || p.startsWith('/docs/')) return 'docs'
+  /* t1 efde25bb: Docs (Qto) is a docs section too: its left panel is its file tree */
+  if (p === '/docs' || p.startsWith('/docs/') || p === '/workspace/docs') return 'docs'
   if (p === '/tenant-settings' || p.startsWith('/tenant-settings/')) return 'settings'
   return ''
 }

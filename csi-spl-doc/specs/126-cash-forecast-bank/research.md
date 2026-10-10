@@ -178,7 +178,7 @@ month end - outgoing invoices due by month end (spec 125) = forecast.
 | | A. Aggregator AIS | B. Bank Premium API | C. Accounting system only |
 |---|---|---|---|
 | How | hub job calls the aggregator daily, stores balance + 90 d transactions | hub job calls Instant Reporting with the agreement certificate | balance from the bank statements the accounting system already imports (spec 125) |
-| Secrets | aggregator API key in Secret Manager (per-env SA reads it) | certificate private key + client id/secret in Secret Manager | only the spec 125 credentials |
+| Secrets | aggregator API key on the main box only (owner msg 072a9990), never Secret Manager | certificate private key + client id/secret on the main box only (owner msg 072a9990), never Secret Manager | only the spec 125 credentials, on the main box only |
 | Human step | a person renews consent every 180 days (link from the view, reminder 14 days before) | sign the Corporate Netbank agreement once; rotate the certificate before expiry | none extra |
 | Freshness | up to 4 polls/day, available balance | real time | as fresh as the statement import (typically D-1) |
 | Blocker | aggregator contract + KYB, price unknown | needs Corporate Netbank (not the SME netbank); price unknown | depends on spec 125 findings |
@@ -190,15 +190,16 @@ add A only if a same-day balance matters; B only if the company is already
 on Corporate Netbank.
 
 Rules for any option: no key, certificate, token, account number or IBAN in
-git, terraform state or a log; secrets only in Secret Manager, read by the
-per-env service account; the hub stores amounts and dates, never more
-counterparty detail than the view shows; access limited to the workspace
-members the owner names.
+git, terraform state or a log; secrets only in a 0600 file on the main box,
+read by a main-box action, not on the satellite and not in Secret Manager
+(owner msg 072a9990; spec 125 section 6); the hub stores amounts and dates,
+never more counterparty detail than the view shows; access for HUM-10 only,
+checked by HUM-10's id, never by UI hiding (owner msg 42924894).
 
 ## 5. Owner questions
 
 1. Which accounts belong in the forecast (all company accounts, or named ones), and in which currencies?
-2. Who in the workspace may see the balances: only you, or named members?
+2. Who in the workspace may see the balances: only you, or named members? *Answered by owner msg 42924894: HUM-10 only, no other member or role (spec 125 section 8.1, C7).*
 3. Does the company use the bank's Corporate Netbank or its SME netbank (Business)? Option B needs Corporate Netbank.
 4. Who signs a bank or aggregator agreement for the company, and do you accept a third-party aggregator seeing the account data?
 5. Is a balance as of yesterday (option C) enough, or do you need today's available balance?

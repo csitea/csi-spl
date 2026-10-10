@@ -18,7 +18,9 @@
 #      (vibe --help names --auto-approve, --resume, --continue and -p, else
 #      the pin is refused), the dependency list, active_model in
 #      ~/.vibe/config.toml (written when absent; one set by hand is kept and
-#      named), and the login file's mode and owner (never its content)
+#      named), ask_user_question in its top-level disabled_tools (a TUI
+#      dialog no seat answers; other entries kept, never duplicated), and the
+#      login file's mode and owner (never its content)
 #   2. the toolchain the harness runs on: yq (v4) into <data>/tools, and the
 #      `spool` binary, linked as <prefix>/bin/spool (a real file there is left
 #      alone). spool is DOWNLOADED (spec 072 A4b): spool-<os>-<arch> of the
@@ -343,6 +345,30 @@ qwen_install() {
 # Every vibe call runs with MISTRAL_API_KEY unset: an exported one beats
 # ~/.vibe/.env, and nothing here needs a key.
 vibe_version() { env -u MISTRAL_API_KEY "$1" --version 2>/dev/null | sed -n '1s/^vibe[[:space:]]*//p'; }
+# vibe_disable_tool <cfg> <tool>: <tool> in the top-level disabled_tools of
+# vibe's config.toml, idempotently. An existing list (one line or several)
+# keeps its entries and gets <tool> first; with none, a one-entry list goes
+# before the first table, where a top-level key must live in TOML.
+vibe_disable_tool() {
+  local cfg="$1" tool="$2" tmp act
+  tmp="$(mktemp "$(dirname "$cfg")/.config.toml.XXXXXX")" || { cli_fail mistral "no temp file for $cfg"; return 1; }
+  act="$(awk -v t="$tool" -v q="'" '
+    function add() { print "disabled_tools = [\"" t "\"]"; done = 1; act = "added" }
+    BEGIN { top = 1 }
+    top && /^[[:space:]]*\[/ { if (!done) add(); top = 0 }
+    top && !done && !arr && /^[[:space:]]*disabled_tools[[:space:]]*=/ { arr = 1; buf = "" }
+    arr { buf = buf $0 "\n"; if (index($0, "]") == 0) next
+          arr = 0; done = 1
+          if (index(buf, "\"" t "\"") || index(buf, q t q)) { act = "kept"; printf "%s", buf; next }
+          if (!sub(/=[[:space:]]*\[[[:space:]]*\]/, "= [\"" t "\"]", buf)) sub(/=[[:space:]]*\[/, "= [\"" t "\", ", buf)
+          act = "added"; printf "%s", buf; next }
+    { print }
+    END { if (!done) add(); print act > "/dev/stderr" }' "$cfg" 2>&1 >"$tmp")" && [ -s "$tmp" ] ||
+    { rm -f "$tmp"; cli_fail mistral "cannot read $cfg"; return 1; }
+  if [ "$act" = kept ]; then rm -f "$tmp"; say "mistral: disabled_tools has $tool in $cfg"; return 0; fi
+  chmod 600 "$tmp" && mv -f "$tmp" "$cfg" || { rm -f "$tmp"; cli_fail mistral "cannot write $cfg"; return 1; }
+  say "mistral: $tool added to disabled_tools in $cfg (a TUI dialog no seat answers)"
+}
 mistral_install() {
   local have="$1" cur="" cmd miss="" f help d cfg tmp m n
   [ -n "$have" ] && cur="$(vibe_version "$have")"
@@ -357,7 +383,7 @@ mistral_install() {
   say "mistral: launch line: env -u MISTRAL_API_KEY vibe --auto-approve (the launcher never inherits a key from the env)"
   [ -n "${MISTRAL_API_KEY+x}" ] && say "WARN mistral: MISTRAL_API_KEY is set in this environment; it would beat ~/.vibe/.env, so every vibe call here runs without it"
   if [ "$DRY" = 1 ]; then
-    plan "check vibe --version = $MISTRAL_PIN and the flag contract (--auto-approve --resume --continue -p), list the dependencies, set active_model = \"$MISTRAL_MODEL\" in $HOME/.vibe/config.toml when it has none"
+    plan "check vibe --version = $MISTRAL_PIN and the flag contract (--auto-approve --resume --continue -p), list the dependencies, set active_model = \"$MISTRAL_MODEL\" in $HOME/.vibe/config.toml when it has none, add ask_user_question to its disabled_tools"
     return 0
   fi
   have="$(cli_path vibe)"; [ -n "$have" ] || { cli_fail mistral "no vibe binary on PATH or in $BIN after the install"; return 0; }
@@ -386,6 +412,9 @@ mistral_install() {
   elif [ "$m" = "$MISTRAL_MODEL" ]; then say "mistral: active_model = \"$m\" in $cfg (the cnf model)"
   else say "WARN mistral: $cfg keeps active_model = \"$m\", set by hand; the cnf model is $MISTRAL_MODEL"
   fi
+  # ask_user_question opens a TUI dialog nobody answers: the seat waits for
+  # the watchdog's 15-min cap (m-682, m-740). vibe -p disables it itself.
+  vibe_disable_tool "$cfg" ask_user_question || return 0
   say "mistral: telemetry off switch: none written yet (spec 110 T005 measures the egress first)"
   # the login: its mode and owner only, never its content
   if [ -f "$d/.env" ]; then

@@ -19,6 +19,10 @@
 #   6. env override: the planned launch line carries env -u MISTRAL_API_KEY
 #      (CONTROL: a line without it fails the same check)
 #   7. nothing outside the agent home is touched; DRY_RUN=1 changes nothing
+#   8. ask_user_question in the top-level disabled_tools: added before the
+#      first table, once (a re-run adds no second entry); an existing list,
+#      one line or several, keeps its entries; a table's own disabled_tools
+#      is not the top-level one (CONTROL: a config without it fails the check)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -150,5 +154,30 @@ H="$T/home-dry"; mkdir -p "$H"; n0="$(installs)"
 mi DRY_RUN=1; rc=$?
 [[ $rc -eq 0 && "$(installs)" == "$n0" && -z "$(ls -A "$H")" ]] && grep -q "would: $B/pipx install --force mistral-vibe==2.26.0" "$T/o" &&
   pass "7: DRY_RUN=1 plans the install, runs none, writes nothing" || fail "7: dry (rc=$rc): $(cat "$T/o")"
+
+# --- 8. ask_user_question disabled ------------------------------------------------------------------------
+# top_disabled <cfg>: the top-level disabled_tools as one JSON line, read by a
+# TOML parser (python tomllib), so a key placed under a table does not count
+top_disabled() { python3 -c 'import json,sys,tomllib; print(json.dumps(tomllib.load(open(sys.argv[1],"rb")).get("disabled_tools")))' "$1"; }
+uq_checks() {
+H="$T/home-uq"; mkdir -p "$H/.vibe"; cfg="$H/.vibe/config.toml"
+printf '[[models]]\nname = "m"\n\n[[mcp_servers]]\nname = "s"\ndisabled_tools = ["x"]\n' >"$cfg"
+mi; rc=$?
+[[ $rc -eq 0 && "$(top_disabled "$cfg")" == '["ask_user_question"]' ]] && grep -q 'ask_user_question added to disabled_tools' "$T/o" &&
+  pass "8: ask_user_question added to the top-level disabled_tools (the table's own list is not it)" || fail "8: add (rc=$rc): $(cat "$cfg")"
+sum="$(sha256sum <"$cfg")"; mi; rc=$?
+[[ $rc -eq 0 && "$(sha256sum <"$cfg")" == "$sum" && "$(grep -c ask_user_question "$cfg")" == 1 ]] && grep -q 'disabled_tools has ask_user_question' "$T/o" &&
+  pass "8: a second run does not duplicate it (config unchanged, one entry)" || fail "8: re-run (rc=$rc): $(cat "$cfg")"
+printf 'disabled_tools = ["bash"]\n[[models]]\nname = "m"\n' >"$cfg"; mi
+[[ "$(top_disabled "$cfg")" == '["ask_user_question", "bash"]' ]] && pass "8: a one-line list keeps its entry (bash)" || fail "8: one-line: $(cat "$cfg")"
+printf 'disabled_tools = [\n  "bash",\n  "grep",\n]\n[[models]]\nname = "m"\n' >"$cfg"; mi
+[[ "$(top_disabled "$cfg")" == '["ask_user_question", "bash", "grep"]' ]] && pass "8: a multi-line list keeps its entries" || fail "8: multi-line: $(cat "$cfg")"
+printf 'disabled_tools = []\n' >"$cfg"; mi; mi
+[[ "$(top_disabled "$cfg")" == '["ask_user_question"]' ]] && pass "8: an empty list gets the one entry, twice run" || fail "8: empty: $(cat "$cfg")"
+printf '[[models]]\nname = "m"\n' >"$T/no-uq.toml"
+[[ "$(top_disabled "$T/no-uq.toml")" == *ask_user_question* ]] && fail "8: CONTROL: a config without it passed" ||
+  pass "8: CONTROL: a config without ask_user_question fails the check"
+}
+if python3 -c 'import tomllib' 2>/dev/null; then uq_checks; else echo "SKIP 8: no python3 tomllib"; fi
 
 echo "---"; [[ $fails -eq 0 ]] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAILED"; exit 1; }

@@ -2,9 +2,9 @@
 
 Owner HUM-10, prd t1, topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea: rounds run continuously, **no owner go is needed for this round, its panel or its lanes** (rule home: `SPEC-spool-fleet-roles.md` section 1.2). Requested by the dispatch holder c-002 per round 6 plan R8, once `refactor-round-6-retro.md` was on trunk (`b161a015b`).
 
-**Status: DRAFT.** Waiting for the agy and mistral seats (section 10).
+**Status: SIGNED.** All three seats signed plan sha **`6cf5d67cd`** (section 10). Batch 1 = 01, 02, 03, 04, 05, 07, 09; batch 2 = 06 after 05, 08 after 07, 10 after 04. The row lanes are spawned by the orchestrator from that sha. The reviewer seats a-943 (on the other box; `sat` has no agy) (agy) and m-781@sat (mistral) stay up until all 10 rows are on trunk (R7.1).
 
-Panel: the claude seat (planner and editor c-776, `sat`; proposal `refactor-round-7/seat-claude.md`), the agy seat (`refactor-round-7/seat-agy.md`) and the mistral seat (`refactor-round-7/seat-mistral.md`), placed by the orchestrator c-001. Inputs: the shape and rules R1-R9 of `refactor-round-6-plan.md`; **`refactor-round-6-retro.md` section 6** (items 1-8); round 6's section 8 (left out).
+Panel: the claude seat (planner and editor c-776, `sat`; proposal `refactor-round-7/seat-claude.md`), the agy seat a-943 (the other box, `sat` has no agy; `refactor-round-7/seat-agy.md`, `30453a19a`) and the mistral seat m-781@sat (`refactor-round-7/seat-mistral.md`, `0b7eb4b69`), placed by the orchestrator c-001. Inputs: the shape and rules R1-R9 of `refactor-round-6-plan.md`; **`refactor-round-6-retro.md` section 6** (items 1-8); round 6's section 8 (left out).
 
 Every site was measured on ONE trunk sha: **`b161a015b`** (`origin/master`, 2026-10-10T22:40Z), n=1 per count unless stated otherwise. Re-checked on `40af1ecdb` (trunk when this plan was written): `git diff --stat b161a015b 40af1ecdb -- <the 36 paths of section 3>` -> empty, so every line number holds.
 
@@ -117,10 +117,17 @@ Paths: 36 in all (the `lane-map` set, this plan and the seat file included). Lin
 
 ## 7. Disagreements
 
-Filled at the fold: one row per seat item that changes a row or a rule, settled by a command where one exists.
+Seat verdicts on `6cf5d67cd`: claude 10 agree (the planner's proposal); agy 10 agree, rules and left-out agree; mistral 5 agree + 5 "agree with changes" (01, 05, 07, 08, 09). No seat proposed a new row or dropped one. Each mistral change, read against the row, asks for what the row already says, so no row changed and nothing was re-measured.
 
 | # | seat | item | settled |
 |---|---|---|---|
+| D1 | mistral (m-781) | 01: "the scan must parse the fetch call's balanced parentheses to avoid false negatives" | **Already in the row.** Section 3 row 01: "requires `signal` in its init (the call's balanced parentheses, not a fixed line window)"; section 4 bullet 01 gives the reason. No change |
+| D2 | mistral | 05: its `git grep` first returned 0 copies (repository ownership), then 9 | **A seat-side tooling note, not a row change.** The plan's 9 stands, and the seat reproduced it. A worktree owned by another user needs `sudo -u <owner> git` (dubious ownership); the planner hit the same |
+| D3 | mistral | 07: the files are 250 and 161 lines, more than 128 and 82 | **Already in the row.** 128 and 82 are the FUNCTIONS (`do_check_weekly_full_scan`, `do_gcp_backup_env`), measured by `bash-cleancode.tst.sh`'s `measure` awk, which is what the LONG list gates; the row splits the functions, not the files. No change |
+| D4 | mistral | 08: the files are 428 and 304 lines, more than 86 and 105 | **As D3.** `spl_dispatch_setup_steps` 86, `do_spl_responder_run` 105, the same awk. No change |
+| D5 | mistral | 09: the files are 253, 752 and 157 lines, more than 113, 117 and 130 | **As D3.** The ceilings are `cleancode.test.mjs:35,36,49`, per function (`useLive`, `handle`, `useMentionPicker`). No change |
+
+Two notes on the seats' evidence, for the retro, not the rows: the agy seat gives verdicts with no command (round 6's agy seat re-ran 3 counts); the mistral seat's row-10 command measures `internal/hubclient` (51.9 %, row 04's package), not `cmd/spool` (26.8 %). Neither changes a row: the plan's own command and n stand in section 2.
 
 ## 8. Measured and left out
 
@@ -147,10 +154,10 @@ Filled at the fold: one row per seat item that changes a row or a rule, settled 
 
 ## 10. Consensus
 
-Draft sha: the commit `doc(refactor-r7-plan): round 7 plan draft, 10 actions, claude seat`. Signed plan sha: recorded here when all three seats sign.
+Signed plan sha: **`6cf5d67cd`** (the draft; no row changed at the fold, so the seats signed the rows as written). This fold commit edits only the status line, the panel line, section 7 and this section.
 
 | seat | signed | how |
 |---|---|---|
-| claude (planner and editor c-776@sat) | draft | the planner's proposal, 10 rows |
-| agy | | |
-| mistral | | |
+| claude (planner and editor c-776@sat) | `6cf5d67cd` | the planner's proposal, 10 agree; this fold |
+| agy (a-943) | `6cf5d67cd` | `refactor-round-7/seat-agy.md` (`30453a19a`): 10 agree, "Signed: plan sha 6cf5d67cd"; spool msg b21c3d86 |
+| mistral (m-781@sat) | `6cf5d67cd` | `refactor-round-7/seat-mistral.md` (`0b7eb4b69`): 5 agree + 5 agree with changes (D1-D5, no row change), "Signed: plan sha `6cf5d67cd`"; spool `dispatch-4f46ce09` msg c17b76d5 |

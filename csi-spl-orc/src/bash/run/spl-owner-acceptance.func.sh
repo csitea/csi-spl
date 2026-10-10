@@ -34,7 +34,7 @@
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param OA_TOPIC - required: the task UUID of the topic to run in (the
 # @param   `?topic=` of the URL the owner is watching)
-# @param OA_AGENT (optional) - the desk agent to talk to, default CLE-00
+# @param OA_AGENT (optional) - the desk agent to talk to, default c-001 (the orchestrator seat)
 # @param OA_BOX (optional) - the desk box, default box-desk
 # @param OA_EMAIL (optional) - the bot's member; default the m3-e2e member of
 # @param   this state dir (dev: m3-e2e-human@example.com). Its password is read
@@ -60,7 +60,7 @@ do_spl_owner_acceptance() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
 
-  local tenant="${TENANT_ID:-}" agent="${OA_AGENT:-CLE-00}" box="${OA_BOX:-$(spl_desk_box_default)}"
+  local tenant="${TENANT_ID:-}" agent="${OA_AGENT:-c-001}" box="${OA_BOX:-$(spl_desk_box_default)}"
   local topic="${OA_TOPIC:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   spl_oa_validate "$topic" || return 1

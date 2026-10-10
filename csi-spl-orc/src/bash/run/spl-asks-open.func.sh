@@ -121,7 +121,7 @@ spl_asks_sync_pending() {
       by="$(jq -r 'if .state == "acked" then .acked_by else .closed_by end' <<<"$rec")"
       local op="$state"
       case "$state" in acked) op=ack ;; declined) op=decline ;; esac
-      if ! out="$(spl_asks_hub "$op" --fleet "$LANE_FLEET" --id "$id" --by "${by:-${ASKS_BY:-CLE-0}}" --reason "$(jq -r '.reason' <<<"$rec")" 2>&1)" &&
+      if ! out="$(spl_asks_hub "$op" --fleet "$LANE_FLEET" --id "$id" --by "${by:-${ASKS_BY:-c-001}}" --reason "$(jq -r '.reason' <<<"$rec")" 2>&1)" &&
          ! grep -q 'ask_closed' <<<"$out"; then
         bad=$((bad + 1)); continue
       fi

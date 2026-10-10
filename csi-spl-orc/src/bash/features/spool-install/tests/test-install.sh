@@ -9,6 +9,10 @@
 #   3. a full install: the three vendor installers, grok into <prefix>/bin,
 #      yq + Go into tools, spool built and linked as <prefix>/bin/spool
 #      (a real file there is kept), the shim, the config
+#   3c. a kept SPOOL_ORCHESTRATOR_ID that spool-env refuses as retired
+#      (CLE-001) is dropped on a re-run, and the dry run names the drop;
+#      c-001 and the role orchestrator are kept; control: the old code
+#      (no drop) keeps CLE-001
 #   4. the shim runs spool-agent.sh with the configured env/tenant/box, and
 #      an option given on its command line wins
 #   5. the hooks: merged into ~/.claude/settings.json, other keys kept, an
@@ -57,7 +61,8 @@ fails=0 n=0
 pass() { n=$((n + 1)); echo "PASS: $1"; }
 fail() { n=$((n + 1)); echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d)
-trap 'rm -rf "$T"' EXIT
+CTL="$TEST_DIR/../.install-ctl-$$.sh"
+trap 'rm -rf "$T" "$CTL"' EXIT
 H="$T/home"; mkdir -p "$H" "$T/stub" "$T/www"
 
 # ── fixtures served by the curl stub ──────────────────────────────────────────
@@ -193,6 +198,36 @@ echo 'SPOOL_BOX_TAG=keep' >>"$CFG"
 ARGS=(--cli none --no-seat --env prd --tenant t9 --box box-ext); inst
 grep -qx 'SPOOL_BOX_TAG=keep' "$CFG" && [[ "$(grep -c '^SPOOL_ENV=' "$CFG")" == 1 ]] &&
   pass "3. a re-run keeps a config line it does not own, and writes its own once" || fail "3. config re-run: $(cat "$CFG")"
+
+# --- 3c. a retired SPOOL_ORCHESTRATOR_ID is dropped on a re-run (a fleet box, 2026-10-10) ----------------
+NOW=SPOOL_NOW=2026-10-10T00:00:00Z
+printf 'SPOOL_ORCHESTRATOR_ID=CLE-001\n' >>"$CFG"
+ARGS=(--cli none --no-seat --no-skills --env prd --tenant t9 --box box-ext --dry-run); inst "$NOW"; rc=$?
+[[ $rc -eq 0 ]] && grep -q "would: drop SPOOL_ORCHESTRATOR_ID=CLE-001 from $CFG" "$T/o" && grep -qx 'SPOOL_ORCHESTRATOR_ID=CLE-001' "$CFG" &&
+  pass "3c. the dry run names the drop of a retired SPOOL_ORCHESTRATOR_ID and writes nothing" || fail "3c. dry: rc $rc $(cat "$T/o")"
+ARGS=(--cli none --no-seat --no-skills --env prd --tenant t9 --box box-ext); inst "$NOW"; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'ORCHESTRATOR_ID' "$CFG" && grep -qx 'SPOOL_BOX_TAG=keep' "$CFG" &&
+  grep -q "dropped SPOOL_ORCHESTRATOR_ID=CLE-001 from $CFG" "$T/o" &&
+  pass "3c. a re-run drops SPOOL_ORCHESTRATOR_ID=CLE-001 (retired), keeps the other lines, says so" || fail "3c. drop: rc $rc $(cat "$CFG") $(cat "$T/o")"
+for keep in c-001 orchestrator; do
+  printf 'SPOOL_ORCHESTRATOR_ID=%s\n' "$keep" >>"$CFG"
+  inst "$NOW"; rc=$?
+  [[ $rc -eq 0 ]] && grep -qx "SPOOL_ORCHESTRATOR_ID=$keep" "$CFG" && ! grep -q 'dropped SPOOL_ORCHESTRATOR_ID' "$T/o" &&
+    pass "3c. a re-run keeps SPOOL_ORCHESTRATOR_ID=$keep" || fail "3c. keep $keep: rc $rc $(cat "$CFG")"
+  sed -i '/ORCHESTRATOR_ID/d' "$CFG"
+done
+# control: the old code (no drop) keeps CLE-001, so the drop case above can go red
+sed 's/^    ORCH_RETIRED="\$orch"$/    :/' "$INSTALL" >"$CTL"
+printf 'SPOOL_ORCHESTRATOR_ID=CLE-001\n' >>"$CFG"
+if cmp -s "$INSTALL" "$CTL"; then fail "3c. control: the sed found no ORCH_RETIRED line to disable"
+else
+  env -i HOME="$H" USER="$(id -un)" PATH="$T/stub:$T/sys" TERM=dumb "$NOW" SPOOL_INSTALL_BOX_SETTINGS_FILE="$T/box-settings.json" \
+    SPOOL_INSTALL_REPO=example/spool SPOOL_INSTALL_URL_RELEASES=https://rel.test/releases SPOOL_INSTALL_URL_CLI=https://dl.test \
+    SPOOL_INSTALL_BUILD="$T/stub/build.sh" SPOOL_INSTALL_RUN="$T/stub/run" bash "$CTL" "${ARGS[@]}" >"$T/o" 2>&1; rc=$?
+  [[ $rc -eq 0 ]] && grep -qx 'SPOOL_ORCHESTRATOR_ID=CLE-001' "$CFG" &&
+    pass "3c. control: the old code keeps SPOOL_ORCHESTRATOR_ID=CLE-001" || fail "3c. control: rc $rc $(cat "$CFG") $(cat "$T/o")"
+fi
+rm -f "$CTL"; sed -i '/ORCHESTRATOR_ID/d' "$CFG"
 [[ -x "$H/.local/bin/spool-agent" ]] && grep -q 'written by spool-install' "$H/.local/bin/spool-agent" &&
   pass "3. spool-agent is on <prefix>/bin" || fail "3. no shim"
 grep -q "not on your PATH" "$T/o" && pass "3. a <prefix>/bin off PATH is named" || fail "3. no PATH hint"

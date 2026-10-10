@@ -68,7 +68,7 @@ rc=$?
   fail "the dry run called out: $(cat "$T/calls.log")"
 grep -q "$GOOD" <<<"$out" && pass "the dry run NAMES the topic it would post into" ||
   fail "the dry run does not name the topic: $out"
-grep -q 'CLE-00@box-desk' <<<"$out" && pass "the dry run names the peer it would talk to" ||
+grep -q 'c-001@box-desk' <<<"$out" && pass "the dry run names the peer it would talk to" ||
   fail "the dry run does not name the peer: $out"
 grep -q 'DRY_RUN=0' <<<"$out" && pass "the dry run says how to really run it" ||
   fail "the dry run does not say how to run it for real: $out"

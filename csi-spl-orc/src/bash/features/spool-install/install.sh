@@ -717,7 +717,18 @@ SHIM="$BIN/spool-agent" CFG="$CFG_FILE"
 if [ -e "$SHIM" ] && ! grep -qF "$MARK" "$SHIM" 2>/dev/null; then
   die 7 "$SHIM exists and is not a spool-install shim: move it away and re-run"
 fi
+# A kept SPOOL_ORCHESTRATOR_ID that spool-env refuses as retired (CLE-001
+# after the specs/061 cutoff) fails every responder run on the box: dropped,
+# with one line. The retired check is spool-env's own, run in a subshell.
+ORCH_RETIRED=""
+if [ -r "$CFG" ]; then
+  orch="$(sed -nE 's/^(export +)?SPOOL_ORCHESTRATOR_ID=//p' "$CFG" | tail -1 | tr -d "\"'")"
+  if [ -n "$orch" ] && ! ( . "$ORC/src/bash/features/spawn-agents/lib/spool-env.inc.sh" && _spl_id_write_ok "$orch" ) 2>/dev/null; then
+    ORCH_RETIRED="$orch"
+  fi
+fi
 if [ "$DRY" = 1 ]; then plan "write $SHIM -> $AGENT_SH, and $CFG (SPOOL_ENV=$ENVN SPOOL_TENANT=$TENANT SPOOL_BOX=$BOX SPOOL_INSTALL_FLEET=$FLEET)"
+  [ -z "$ORCH_RETIRED" ] || plan "drop SPOOL_ORCHESTRATOR_ID=$ORCH_RETIRED from $CFG (a retired id)"
 else
   mkdir -p "$BIN" "$CFG_DIR" && chmod 700 "$CFG_DIR" || die 7 "cannot create $BIN / $CFG_DIR"
   ( umask 077
@@ -726,8 +737,10 @@ else
       if [ -n "${SPOOL_HUB_URL:-}" ]; then printf 'SPOOL_HUB_URL=%q\n' "$SPOOL_HUB_URL"; fi
       # Lines this installer does not own (agent-top's SPOOL_BOX_TAG,
       # SPOOL_ORCHESTRATOR_ID, ...) survive a re-run.
-      if [ -r "$CFG" ]; then grep -vE '^(# spool-agent defaults|SPOOL_ENV=|SPOOL_TENANT=|SPOOL_BOX=|SPOOL_INSTALL_FLEET=|SPOOL_HUB_URL=)' "$CFG" || true; fi
+      if [ -r "$CFG" ]; then grep -vE '^(# spool-agent defaults|SPOOL_ENV=|SPOOL_TENANT=|SPOOL_BOX=|SPOOL_INSTALL_FLEET=|SPOOL_HUB_URL=)' "$CFG" |
+        if [ -n "$ORCH_RETIRED" ]; then grep -vE '^(export +)?SPOOL_ORCHESTRATOR_ID='; else cat; fi || true; fi
     } >"$CFG.tmp" && mv -f "$CFG.tmp" "$CFG" ) || die 7 "cannot write $CFG"
+  [ -z "$ORCH_RETIRED" ] || say "dropped SPOOL_ORCHESTRATOR_ID=$ORCH_RETIRED from $CFG: a retired id (specs/061); the default applies"
   cat >"$SHIM.tmp" <<EOF
 #!/usr/bin/env bash
 $MARK

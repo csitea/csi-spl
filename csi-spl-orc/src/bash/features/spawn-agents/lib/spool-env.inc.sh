@@ -17,7 +17,7 @@
 #   SPOOL_TMUX_SOCKET   the box user's tmux socket  default /tmp/tmux-<uid>/default
 #   SPOOL_TMUX_SIZE     WxH for a window nobody is looking at   default 200x50
 #   SPOOL_BOX_TAG       display tag on window names ("<tag>: CLE-07") default none
-#   SPOOL_ORCHESTRATOR_ID  who spawned agents report to   default CLE-00
+#   SPOOL_ORCHESTRATOR_ID  who spawned agents report to   default c-001
 #   SPOOL_BIN           the spool binary            default: this repo's build
 #                       output, else `spool` on PATH
 #   SPOOL_NOTIFY_CMD    the terminal leg (specs/028): the command the spool
@@ -277,7 +277,7 @@ spool_env_resolve() {
   fi
   SPOOL_TMUX_SIZE="${SPOOL_TMUX_SIZE:-200x50}"
   SPOOL_BOX_TAG="${SPOOL_BOX_TAG:-}"
-  SPOOL_ORCHESTRATOR_ID="${SPOOL_ORCHESTRATOR_ID:-CLE-00}"
+  SPOOL_ORCHESTRATOR_ID="${SPOOL_ORCHESTRATOR_ID:-c-001}"
   SPOOL_FEATURE_DIR="$(_spool_feature_dir)"
   if [ -z "${SPOOL_BIN:-}" ]; then
     # <repo>/csi-spl-orc/src/bash/features/spawn-agents -> <repo>

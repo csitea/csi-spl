@@ -23,7 +23,7 @@
 # when that file sets it - tmux run-shell starts this with a bare environment):
 #   SPOOL_TMUX_SOCKET        the server (default: $TMUX, else /tmp/tmux-<uid>/default)
 #   SPOOL_ROOT               spool root (default /var/spool-hub)
-#   SPOOL_ORCHESTRATOR_ID    whose inbox holds the agents' reports (default CLE-00)
+#   SPOOL_ORCHESTRATOR_ID    whose inbox holds the agents' reports (default c-001)
 #   SPOOL_LEGACY_INBOX_ROOT  during a switch-over: the older markdown message
 #                            root (its registry and <ID>/outbox are read too)
 #   SPOOL_BOX_TAG            the box tag; unset = the tag most agent windows carry

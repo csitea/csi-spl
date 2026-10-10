@@ -204,7 +204,7 @@ kind_from_launch() {
 #   legacy - files in <SPOOL_LEGACY_INBOX_ROOT>/<ID>/outbox (that protocol's
 #            orchestrator moves them away when read)
 pending_files() {  # ID -> one path per line
-  local id="$1" orc="${SPOOL_ORCHESTRATOR_ID:-CLE-00}" dir mark
+  local id="$1" orc="${SPOOL_ORCHESTRATOR_ID:-c-001}" dir mark
   dir="${SPOOL_ROOT:-/var/spool-hub}/$orc/inbox"
   mark="${SPOOL_ROOT:-/var/spool-hub}/$orc/.agent-inbox-seen"
   if [ -d "$dir" ]; then

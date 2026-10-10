@@ -10,6 +10,13 @@
       :archived-at="openArchive.at"
       :topic-title="openArchive.title"
     />
+    <!-- t1 3eb98913 (owner: "it dos not even have a msg button"): an empty DM
+         offered nothing to click - its composer is the Omnibox. -->
+    <div v-if="dmEmpty" class="dm-start">
+      <button type="button" class="btn" data-test="dm-start-message" :title="peer" @click="focusComposer">
+        <UiIcon name="messages" :size="16" /><span>{{ t('people.message') }}</span>
+      </button>
+    </div>
     <MessageFeed :label="t('pages.feed_label', { target: peer })" :boundary="feedBoundary" :seated-at="seatedAt" />
   </div>
 </template>
@@ -138,6 +145,14 @@ watch(openTopicId, async (id) => {
   }
 }, { immediate: true })
 
+/* t1 3eb98913: no line yet in this DM, whatever the peer's kind (a-, c-, g-,
+   m-, q- or a person) - Message puts the caret in the Omnibox, which already
+   sends to this peer */
+const dmEmpty = computed(() => topicFeedReady.value && !channel.loading && channel.messages.length === 0)
+function focusComposer() {
+  document.querySelector<HTMLTextAreaElement>('form.omnibox--global textarea')?.focus()
+}
+
 /* read cursors follow channel.peer in plugins/notify.client.ts */
 onMounted(() => {
   events.start()
@@ -195,3 +210,8 @@ useOmniboxTarget({
   send: onSend,
 })
 </script>
+
+<style scoped>
+.dm-start { padding: 16px 16px 0; }
+.dm-start .btn { display: inline-flex; align-items: center; gap: 6px; }
+</style>

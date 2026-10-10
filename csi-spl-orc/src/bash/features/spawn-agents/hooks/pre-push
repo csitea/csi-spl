@@ -128,6 +128,23 @@ if [ ! -x "$run" ]; then
   exit 0
 fi
 
+# Developer-guide ack (owner t1 4e373f5d msg 56d7073e): a push to trunk by a
+# coder with no ack for the guide blob HEAD carries is REFUSED, override
+# included; the refusal prints the one command that fixes it. Acked coders,
+# grandfathered trees (born before the cutoff, guide unchanged since) and a
+# HEAD without the guide pass. The decision is dga_check in the pushing tree's
+# spawn-agents/lib/dev-guide-ack.inc.sh; a tree without that lib is not asked.
+_pp_dga="$top/csi-spl-orc/src/bash/features/spawn-agents/lib/dev-guide-ack.inc.sh"
+if [ -r "$_pp_dga" ] && grep -qE '^[^ ]+ [^ ]+ refs/heads/(master|main) ' <<<"$_pp_refs"; then
+  # shellcheck source=/dev/null
+  . "$_pp_dga"
+  if ! dga_check "$top"; then
+    _pp_logline "REFUSE $top HEAD=$head -- $DGA_WHY"
+    exit 1
+  fi
+  _pp_logline "DEV-GUIDE $top HEAD=$head -- $DGA_WHY"
+fi
+
 # Emergency override: the slow parts are skipped, the cheap correctness parts
 # are not (seconds; their verdicts are cached like the full gate's).
 if [ "$_pp_override" = 1 ]; then

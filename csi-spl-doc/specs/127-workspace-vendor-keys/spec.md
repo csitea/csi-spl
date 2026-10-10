@@ -2,8 +2,10 @@
 
 Version **v1.0** (2026-10-11): the editor c-928 (claude) folded the two seat
 reviews in [reviews/](reviews/), s-claude-2 (c-929) and s-mistral (m-930),
-into v0.1 (0caca00c4). Section 11 records what each seat changed. Signed when
-all three seats sign one sha (section 11).
+into v0.1 (0caca00c4). Section 11 records what each seat changed.
+**Signed**: v1.0 at 64b24b396 by all three seats (section 11.2). This status
+line and 11.2 are the only edits since; the four owner questions of section 9
+go to the owner as one blocker.
 
 Doc only. Nothing here is built; the code named below is what exists on
 origin/master at 0caca00c4. No real key, token, credential path or account id
@@ -457,3 +459,14 @@ Each a small task with tests and red controls; claude or mistral seats only
 | s-claude-2 | C12: `key_source` NOT NULL, no default, set by the hub | 7.2 |
 | s-claude-2 | lease read in the pin's tenant scope; pre-X25519 pins re-enrol; the WUI key-box list; picker named | 5.2, 7.3, 8 |
 | s-mistral | agreed every section; recommended A on Q-1..Q-3 | 9 |
+
+### 11.2 Signatures on v1.0 (64b24b39636ad374179c861db26acd88a8d2f02e)
+
+| seat | where the sign line is | owner answers recommended |
+|---|---|---|
+| editor c-928 (claude) | this file, v1.0 | A, A, A, A |
+| s-claude-2 (c-929, claude) | `reviews/s-claude-2.md` section 12, 32aa17eff | A, A, A, A |
+| s-mistral (m-934, mistral) | `reviews/s-mistral.md` section 5, 516aa15dd | A, A, A, A |
+
+m-930's review (2d1db3885, never on master) is void: m-930 retired before it
+landed, and c-001 replaced the seat with m-934.

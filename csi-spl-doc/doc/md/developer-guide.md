@@ -34,7 +34,8 @@ when their inputs changed, the deploys: the hub
 (`20_hub-build-deploy.yml`) and the web UI (`30_wui-build-deploy.yml`), both
 to `dev` and `prd` (`grep -n "wanted=(dev prd)"` on each file -> one line).
 Nobody deploys by hand on the normal path. A change is done when it is
-deployed in both environments: `cd csi-spl-iac && ./run -a do_check_deploy_lag`.
+deployed in both environments:
+`cd csi-spl-orc && ENV=<dev|prd> ./run -a do_check_deploy_lag`.
 
 ### 1.3 The version is minted, never edited
 

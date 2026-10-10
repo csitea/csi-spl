@@ -320,7 +320,8 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		t.Fatal(err)
 	}
 	// workspace_doc, workspace_doc_item, workspace_doc_rev_log (rdb 0157,
-	// spec 113 T001): a doc with its root and one rev-log entry. No store API
+	// spec 113 T001): a doc with its root and one rev-log entry, then its
+	// workspace_doc_node pair. No store API
 	// yet (T002), so raw rows under inTenant.
 	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
 		var doc string
@@ -332,8 +333,15 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 			s.tenant, doc); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO workspace_doc_rev_log (tenant_id, doc_id, rev, op, actor) VALUES ($1, $2, 1, '{"kind":"create"}', $3)`,
-			s.tenant, doc, hum)
+		if _, err := tx.Exec(ctx, `INSERT INTO workspace_doc_rev_log (tenant_id, doc_id, rev, op, actor) VALUES ($1, $2, 1, '{"kind":"create"}', $3)`,
+			s.tenant, doc, hum); err != nil {
+			return err
+		}
+		// workspace_doc_node (rdb 0165, spec 120): the hidden root (1, 4) and
+		// the doc's node (2, 3). No store API yet, so raw rows.
+		_, err := tx.Exec(ctx, `WITH r AS (INSERT INTO workspace_doc_node (tenant_id, lft, rgt, kind) VALUES ($1, 1, 4, 'root') RETURNING id)
+			INSERT INTO workspace_doc_node (tenant_id, lft, rgt, parent_id, parent_kind, kind, doc_id) SELECT $1, 2, 3, r.id, 'root', 'doc', $2::uuid FROM r`,
+			s.tenant, doc)
 		return err
 	}); err != nil {
 		t.Fatal(err)

@@ -88,11 +88,15 @@ func lockIdentity(ctx context.Context, tx pgx.Tx, id Identity) error {
 }
 
 // foundHuman is who an identity signs in as: known (the identity exists),
-// linked (a new identity joining the human of its verified address), or
-// neither (a new human is minted).
+// linked (a new identity joining the human of its verified address, or of
+// the address an admin added as pending), or neither (a new human is
+// minted). pending: the link came from human_pending_emails, which the
+// sign-in then turns active. oldEmail is a known identity's stored address,
+// so a sign-in refreshes humans.email only when that identity carried it.
 type foundHuman struct {
-	hum                     string
-	disabled, known, linked bool
+	hum                              string
+	disabled, known, linked, pending bool
+	oldEmail                         string
 }
 
 // findHuman looks the identity up, then (CLE-3451 defect 2) links a NEW
@@ -102,12 +106,19 @@ type foundHuman struct {
 // verified, or this is an account takeover: id.Email is non-empty only when
 // the provider asserted email_verified (auth FR-004 - idp.go / oidc.go
 // refuse the sign-in otherwise), and the stored side must carry
-// email_verified = true.
+// email_verified = true. Failing that, a PENDING address (rdb 0167, t1
+// f265541a: added by the person or a workspace admin) links it too, but only
+// a cloud-provider sign-in that the holder's own signed-in session started
+// (id.LinkTo, auth start?link=1): the account proven by the session, the
+// mailbox by the provider. A cold sign-in never activates one, or anyone
+// could park an address on their account and catch its owner's first
+// sign-in and every invite to it. A native password or an operator identity
+// never activates a pending row.
 func findHuman(ctx context.Context, tx pgx.Tx, id Identity) (foundHuman, error) {
 	var f foundHuman
-	err := tx.QueryRow(ctx, `SELECT h.human_id, h.disabled_at IS NOT NULL FROM human_identities i
-		JOIN humans h ON h.human_id = i.human_id WHERE i.provider = $1 AND i.subject = $2`,
-		id.Provider, id.Subject).Scan(&f.hum, &f.disabled)
+	err := tx.QueryRow(ctx, `SELECT h.human_id, h.disabled_at IS NOT NULL, coalesce(i.email, '')
+		FROM human_identities i JOIN humans h ON h.human_id = i.human_id WHERE i.provider = $1 AND i.subject = $2`,
+		id.Provider, id.Subject).Scan(&f.hum, &f.disabled, &f.oldEmail)
 	f.known = err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return f, err
@@ -126,6 +137,19 @@ func findHuman(ctx context.Context, tx pgx.Tx, id Identity) (foundHuman, error) 
 	}
 	if err == nil {
 		f.hum, f.disabled, f.linked = lhum, ldisabled, true
+		return f, nil
+	}
+	if !activatesPending(id.Provider) || id.LinkTo == "" {
+		return f, nil
+	}
+	err = tx.QueryRow(ctx, `SELECT p.human_id, h.disabled_at IS NOT NULL
+		FROM human_pending_emails p JOIN humans h ON h.human_id = p.human_id
+		WHERE p.email = $1 AND p.human_id = $2`, id.Email, id.LinkTo).Scan(&lhum, &ldisabled)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return f, err
+	}
+	if err == nil {
+		f.hum, f.disabled, f.linked, f.pending = lhum, ldisabled, true, true
 	}
 	return f, nil
 }
@@ -134,7 +158,10 @@ func findHuman(ctx context.Context, tx pgx.Tx, id Identity) (foundHuman, error) 
 // new identity or stamps a known one's login, and for an existing human
 // refreshes the address. The IdP name only seeds an empty display_name:
 // once the human has one (their own, set in Settings) a sign-in keeps it.
-// It answers the human id.
+// humans.email is the main address (t1 f265541a): a sign-in with a second
+// address never replaces it; only the identity that carried it (an IdP
+// whose address changed) or a human with none sets it. It answers the
+// human id.
 func recordIdentity(ctx context.Context, tx pgx.Tx, id Identity, f foundHuman, now time.Time) (string, error) {
 	hum := f.hum
 	switch {
@@ -159,10 +186,18 @@ func recordIdentity(ctx context.Context, tx pgx.Tx, id Identity, f foundHuman, n
 			return "", err
 		}
 	}
+	if f.pending {
+		// The provider proved the mailbox: the address is active now, a
+		// verified identity of hum, and no longer pending.
+		if _, err := tx.Exec(ctx, `DELETE FROM human_pending_emails WHERE email = $1`, id.Email); err != nil {
+			return "", err
+		}
+	}
 	if f.known || f.linked {
-		if _, err := tx.Exec(ctx, `UPDATE humans SET email = COALESCE(NULLIF($2, ''), email),
+		if _, err := tx.Exec(ctx, `UPDATE humans SET
+			email = CASE WHEN email IS NULL OR email = NULLIF($4, '') THEN COALESCE(NULLIF($2, ''), email) ELSE email END,
 			display_name = COALESCE(display_name, NULLIF($3, '')) WHERE human_id = $1`,
-			hum, id.Email, id.Name); err != nil {
+			hum, id.Email, id.Name, f.oldEmail); err != nil {
 			return "", err
 		}
 	}
@@ -245,19 +280,8 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 			return ErrSeatQuota
 		}
 	}
-	if email != "" {
-		var role, by string
-		err := tx.QueryRow(ctx, `UPDATE tenant_invites SET accepted_at = $3, accepted_by = $4
-			WHERE tenant_id = $1 AND email = $2 AND accepted_at IS NULL AND expires_at > $3
-			RETURNING role, invited_by`, tenant, email, now, hum).Scan(&role, &by)
-		if err == nil {
-			_, err = tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
-				VALUES ($1, $2, $3, $4, $5)`, tenant, hum, role, now, by)
-			return err
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
+	if done, err := acceptInviteTx(ctx, tx, hum, email, tenant, now); done || err != nil {
+		return err
 	}
 	if r.open {
 		return seatDemoTx(ctx, tx, hum, tenant, r, now)
@@ -280,6 +304,32 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 	// expires_at > now, so an unaccepted row with expires_at <= now is exactly
 	// the expired case (CLE-77781).
 	return refusal(ctx, tx, email, tenant, now)
+}
+
+// acceptInviteTx admits hum through an open invite of tenant to ANY active
+// address of the human (t1 f265541a): the verified identities, the one
+// signing in included (recordIdentity wrote it in this transaction). A
+// pending address lives in human_pending_emails and matches nothing. One
+// invite is taken, the signed-in address's first, then the oldest. done =
+// the membership was written.
+func acceptInviteTx(ctx context.Context, tx pgx.Tx, hum, email, tenant string, now time.Time) (bool, error) {
+	var role, by string
+	err := tx.QueryRow(ctx, `UPDATE tenant_invites SET accepted_at = $3, accepted_by = $4
+		WHERE tenant_id = $1 AND email = (SELECT v.email FROM tenant_invites v
+			WHERE v.tenant_id = $1 AND v.accepted_at IS NULL AND v.expires_at > $3
+			AND v.email IN (SELECT i.email FROM human_identities i
+				WHERE i.human_id = $4 AND i.email_verified AND i.email IS NOT NULL)
+			ORDER BY v.email = $2 DESC, v.created_at, v.email LIMIT 1)
+		RETURNING role, invited_by`, tenant, email, now, hum).Scan(&role, &by)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
+		VALUES ($1, $2, $3, $4, $5)`, tenant, hum, role, now, by)
+	return true, err
 }
 
 // seatDemoTx seats hum as a demo_user (specs/077 T007) unless the demo holds

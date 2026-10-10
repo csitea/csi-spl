@@ -30,6 +30,11 @@ type Identity struct {
 	// ClientIP is the caller's address (edge.ClientIP), set by the callback,
 	// never by an IdP: the demo's per-IP sign-up limit (specs/077 T010).
 	ClientIP string
+	// LinkTo is the HUM-* of the signed-in session that started this sign-in
+	// as a link (GET start?link=1), set by the callback from the signed
+	// state, never by an IdP. Only such a sign-in turns a pending address of
+	// that same human active (t1 f265541a): a cold one never does.
+	LinkTo string
 }
 
 // IdP is one provider's authorization-code client: Google, Facebook,

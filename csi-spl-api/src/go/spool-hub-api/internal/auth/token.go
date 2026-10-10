@@ -71,6 +71,7 @@ type statePayload struct {
 	Nonce    string `json:"n"`
 	Redirect string `json:"r,omitempty"` // same-site WUI path to land on
 	Tenant   string `json:"t,omitempty"` // tenant the sign-in started from
+	Link     string `json:"l,omitempty"` // HUM-* of the signed-in session that started a link
 	Exp      int64  `json:"e"`
 }
 

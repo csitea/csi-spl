@@ -128,6 +128,10 @@ type Identity struct {
 	// passes along, never a key. Only the open demo rule reads it (T010);
 	// "" (a caller that knows no address) skips the per-IP limit.
 	ClientIP string
+	// LinkTo is the HUM-* whose signed-in session started this sign-in as a
+	// link (auth.Identity.LinkTo). A pending address (rdb 0167) links only a
+	// cloud-provider identity whose LinkTo is the human holding it.
+	LinkTo string
 }
 
 // AdmitPolicy is the admission switchboard (FR-012).

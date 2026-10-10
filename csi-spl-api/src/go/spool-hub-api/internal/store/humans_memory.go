@@ -68,6 +68,13 @@ type memHumans struct {
 	identities map[[2]string]*memIdent // (provider, subject) -> the row
 	members    map[[2]string]memMember // (tenant, HUM-*) -> role
 	invites    map[[2]string]*memInvite
+	pending    map[string]memPending // rdb 0167: address -> who an admin added it to
+}
+
+// memPending is one human_pending_emails row (rdb 0167).
+type memPending struct {
+	human, addedIn, addedBy string
+	at                      time.Time
 }
 
 func (h *memHumans) init() {
@@ -76,6 +83,7 @@ func (h *memHumans) init() {
 		h.identities = map[[2]string]*memIdent{}
 		h.members = map[[2]string]memMember{}
 		h.invites = map[[2]string]*memInvite{}
+		h.pending = map[string]memPending{}
 	}
 }
 
@@ -147,10 +155,15 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 	// (auth FR-004: oidc.go / idp.go refuse the sign-in otherwise), and the row
 	// side must carry verified - merging on an unverified address on either
 	// side would be an account takeover.
-	linked := false
+	// Failing that, a pending address links a cloud-provider identity that
+	// proved it, in a sign-in its holder's own session started (LinkTo; t1
+	// f265541a, rdb 0167, Postgres findHuman).
+	linked, pending := false, false
 	if !known {
 		if h2 := h.verifiedHuman(id.Email); h2 != "" {
 			hum, linked = h2, true
+		} else if p, ok := h.pending[id.Email]; ok && id.Email != "" && activatesPending(id.Provider) && p.human == id.LinkTo {
+			hum, linked, pending = p.human, true, true
 		}
 	}
 	if (known || linked) && h.humans[hum].disabled {
@@ -173,12 +186,11 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 		}
 		h.identities[[2]string{id.Provider, id.Subject}] = &memIdent{human: hum}
 	}
-	if ident := h.identities[[2]string{id.Provider, id.Subject}]; id.Email != "" {
-		ident.email, ident.verified = id.Email, true
+	oldEmail := ""
+	if known {
+		oldEmail = row.email
 	}
-	if id.Email != "" {
-		h.humans[hum].email = id.Email
-	}
+	h.recordEmail(hum, id, oldEmail, pending)
 	// The IdP name only seeds an empty name: once the human has one (their
 	// own, set in Settings) a sign-in never replaces it.
 	if id.Name != "" && h.humans[hum].name == "" {
@@ -223,7 +235,7 @@ func (s *Memory) admitToTenant(tenant, hum string, id Identity, resolved bool, p
 	}
 	var grant *memMember
 	var inv *memInvite
-	if i, ok := h.invites[[2]string{tenant, email}]; ok && email != "" && !i.accepted && now.Before(i.ExpiresAt) {
+	if i := h.liveInvite(tenant, hum, email, resolved, now); i != nil {
 		inv = i
 		grant = &memMember{role: i.Role, admittedBy: i.InvitedBy, since: now,
 			orderedBy: i.OrderedBy, orderedVia: i.OrderedVia, invitedOn: i.createdAt}
@@ -665,4 +677,51 @@ func (s *Memory) humanText(humanID string, get func(*memHuman) string) (string, 
 	var v string
 	err := s.withHuman(humanID, func(hm *memHuman) { v = get(hm) })
 	return v, err
+}
+
+// recordEmail stores the provider-verified address on the identity, turns a
+// pending address active, and sets humans.email, the main address, only from
+// the identity that carried it or on a human with none (Postgres
+// recordIdentity). oldEmail is a known identity's address before this login.
+func (h *memHumans) recordEmail(hum string, id Identity, oldEmail string, pending bool) {
+	if id.Email == "" {
+		return
+	}
+	ident := h.identities[[2]string{id.Provider, id.Subject}]
+	ident.email, ident.verified = id.Email, true
+	if pending {
+		delete(h.pending, id.Email)
+	}
+	if cur := h.humans[hum].email; cur == "" || (oldEmail != "" && cur == oldEmail) {
+		h.humans[hum].email = id.Email
+	}
+}
+
+// liveInvite is the open invite of tenant to an ACTIVE address of the human
+// (t1 f265541a, Postgres admitTx): the signed-in address first, then the
+// oldest. resolved = hum exists, so its verified identities count too.
+func (h *memHumans) liveInvite(tenant, hum, email string, resolved bool, now time.Time) *memInvite {
+	open := func(e string) *memInvite {
+		if i, ok := h.invites[[2]string{tenant, e}]; ok && e != "" && !i.accepted && now.Before(i.ExpiresAt) {
+			return i
+		}
+		return nil
+	}
+	if i := open(email); i != nil {
+		return i
+	}
+	if !resolved {
+		return nil
+	}
+	var best *memInvite
+	for _, id := range h.identities {
+		if id.human != hum || !id.verified {
+			continue
+		}
+		if i := open(id.email); i != nil && (best == nil || i.createdAt.Before(best.createdAt) ||
+			(i.createdAt.Equal(best.createdAt) && i.Email < best.Email)) {
+			best = i
+		}
+	}
+	return best
 }

@@ -350,6 +350,12 @@ func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 	if t := r.URL.Query().Get("tenant"); validTenant(t) {
 		st.Tenant = t
 	}
+	if r.URL.Query().Get("link") == "1" {
+		if st.Link = h.linkingHuman(r); st.Link == "" {
+			writeErr(w, http.StatusUnauthorized, "unauthenticated", "a link sign-in starts from a signed-in session")
+			return
+		}
+	}
 	state, err := signToken(h.stateKey, st)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "state")
@@ -363,6 +369,21 @@ func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	// nosemgrep: go.lang.security.injection.open-redirect.open-redirect -- target is the configured provider's authorize endpoint (idp.AuthCodeURL built from cnf), not a request value; state+nonce are server-minted. Any redirect that lands a user-supplied path goes through safeRedirect (token.go). SPL-1288.
 	http.Redirect(w, r, withLoginHint(idp.AuthCodeURL(state, nonce), p, r.URL.Query().Get("login_hint")), http.StatusFound)
+}
+
+// linkingHuman is the human a link sign-in (start?link=1, t1 f265541a) is for:
+// the session's own HUM-*, "" without a registered human or for an act-as
+// clone, which nobody signs in as. The state carries it signed, and the
+// callback hands it to the Registrar: a pending address of that human turns
+// active only through such a sign-in, so nobody can park an address on their
+// own account and catch its owner's first cold sign-in (and every invite to
+// it) there.
+func (h *Handler) linkingHuman(r *http.Request) string {
+	s, ok := h.SessionFromRequest(r)
+	if !ok || s.HumanID == "" || s.Provider == ProviderActAs {
+		return ""
+	}
+	return s.HumanID
 }
 
 // withLoginHint pre-selects the invited address at the providers that honour
@@ -473,6 +494,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	id.Name = CleanDisplayName(id.Name) // it seeds display_name (Admit)
 	id.ClientIP = clientIP(r, h.hops)   // the demo's per-IP sign-up limit (specs/077 T010)
+	id.LinkTo = st.Link                 // signed in the state at start: who asked to link
 	sess := Session{V: 1, Provider: p, Subject: id.Subject, Email: id.Email, Name: id.Name,
 		Tenant: st.Tenant, IssuedAt: h.now().Unix(), Exp: h.now().Add(h.cfg.SessionTTL).Unix()}
 	if h.reg != nil {

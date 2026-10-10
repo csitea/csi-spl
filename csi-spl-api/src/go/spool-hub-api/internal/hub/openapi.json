@@ -4699,6 +4699,239 @@
         ]
       }
     },
+    "/v1/members/{human_id}/emails": {
+      "delete": {
+        "operationId": "deleteMembersByHumanIdEmails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "email",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "last_sign_in (the member's last way in) or main_email (humans.email)"
+          }
+        },
+        "summary": "The member, or an admin, removes a pending or extra sign-in email",
+        "tags": [
+          "members"
+        ]
+      },
+      "get": {
+        "operationId": "getMembersByHumanIdEmails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Active and pending addresses, the main one first. Contract: owner HUM-10 t1 f265541a msg cca0746d (sign-in emails; internal/hub/sign_in_emails.go).",
+                  "properties": {
+                    "emails": {
+                      "items": {
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "main": {
+                            "description": "the main address (humans.email)",
+                            "type": "boolean"
+                          },
+                          "providers": {
+                            "description": "providers whose verified identity carries an active address; [] when pending",
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "state": {
+                            "enum": [
+                              "active",
+                              "pending"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "email",
+                          "state",
+                          "providers",
+                          "main"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "human_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "human_id",
+                    "emails"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "List a member's sign-in emails (the member, or an admin of this workspace)",
+        "tags": [
+          "members"
+        ]
+      },
+      "post": {
+        "operationId": "postMembersByHumanIdEmails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Content-Type application/json. Contract: owner HUM-10 t1 f265541a msg cca0746d (sign-in emails; internal/hub/sign_in_emails.go).",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "pending when added or already pending, active when the member already proved it. Contract: owner HUM-10 t1 f265541a msg cca0746d (sign-in emails; internal/hub/sign_in_emails.go).",
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "human_id": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "description": "why the address is in this state, for the WUI's explanation: a pending address signs nobody in until one sign-in at a public provider (Google, Facebook, LinkedIn) proves it",
+                      "enum": [
+                        "pending_until_provider_sign_in",
+                        "already_active"
+                      ],
+                      "type": "string"
+                    },
+                    "state": {
+                      "enum": [
+                        "active",
+                        "pending"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "human_id",
+                    "reason",
+                    "state"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the address's state on the member"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "email_taken: the address is active or pending on another account (whose is never said); technical: an agent or a clone"
+          }
+        },
+        "summary": "The member, or an admin, adds a PENDING sign-in email; one provider sign-in makes it active",
+        "tags": [
+          "members"
+        ]
+      }
+    },
     "/v1/members/{human_id}/password-reset": {
       "post": {
         "operationId": "postMembersByHumanIdPasswordReset",

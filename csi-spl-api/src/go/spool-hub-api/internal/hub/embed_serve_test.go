@@ -266,3 +266,29 @@ func TestEmbedServePostgres(t *testing.T) {
 	wantNone(t, "disabled embed", embedGet(t, h, "/embed/v1/chat?e="+off))
 	wantNone(t, "unknown embed", embedGet(t, h, "/embed/v1/chat?e=e-none-"+hex.EncodeToString(b)))
 }
+
+// TestEmbedHandlerWired: the hub's real Handler() refuses framing on every
+// path and mounts /embed/* only when Options.EmbedEnabled is on.
+func TestEmbedHandlerWired(t *testing.T) {
+	for _, on := range []bool{true, false} {
+		s, err := New(Options{Store: embedRows(), Blob: blob.Dir{Root: t.TempDir()}, TenantHostPattern: "{tenant}.example.test",
+			EmbedEnabled: on})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h := s.Handler()
+		wantNone(t, "Handler /v1/health", embedGet(t, h, "/v1/health"))
+		wantNone(t, "Handler /version", embedGet(t, h, "/version"))
+		w := embedGet(t, h, "/embed/v1/chat?e=shop")
+		// Until T202 passes its assets the page is a 404, but an enabled
+		// embed's policy is already on it.
+		want := frameNone
+		if on {
+			want = "frame-ancestors https://shop.example.com https://*.example.org:8443"
+		}
+		if w.Code != http.StatusNotFound || w.Header().Get("Content-Security-Policy") != want {
+			t.Errorf("Handler on=%v chat: %d %q, want 404 %q", on, w.Code, w.Header().Get("Content-Security-Policy"), want)
+		}
+		wantNoCORS(t, "Handler chat", w)
+	}
+}

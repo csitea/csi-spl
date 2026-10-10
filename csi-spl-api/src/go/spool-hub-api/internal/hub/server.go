@@ -411,7 +411,9 @@ func (s *Server) Handler() http.Handler {
 	s.routeClientIPProbe(mux)
 	// The edge limits sit inside authCORS so a 429 on /api/v1/auth/* still
 	// carries the CORS headers the WUI needs to read it.
-	inner := etagViews(s.edge.Wrap(mux))
+	// frameGuard: no hub response may be framed, bar an embed's chat page
+	// (specs/121 T201, embed_serve.go).
+	inner := frameGuard(etagViews(s.edge.Wrap(mux)))
 	if s.o.Auth != nil {
 		return s.middleware(compressJSON(s.authCORS(inner)))
 	}
@@ -431,6 +433,8 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeBoxStats(mux)      // rdb 0117: GET /v1/tenant/box-stats
 	s.routeEmbedVisitor(mux)  // specs/121 T104: /v1/embed/{embed_id}/*, off unless EmbedEnabled
 	s.routeEmbedAdmin(mux)    // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
+	// specs/121 T201: /embed/*, per-embed frame-ancestors; T202 passes its assets.
+	s.routeEmbedServe(mux, s.o.EmbedEnabled, nil)
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

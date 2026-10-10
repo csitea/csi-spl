@@ -62,7 +62,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 |---|---|---|---|---|---|
 | T000 | this file | - | - | done | claude |
 | **T101** | **lane A: DDL `embed_visitors`, `embed_customers`, channel-scope RLS + negative tests** | 1 | - | build | claude |
-| T102 | store: `inChannel`, visitor and embed rows | 1 | T101 applied dev+prd | build | claude |
+| T102 | store: `inChannel`, visitor and embed rows | 1 | T101 applied dev+prd | done | claude |
 | T103 | cnf `env.hub.embed.*` + config reader | 1 | - | done (7b1e4f47e) | claude |
 | T104 | hub: visitor token, `channel_guest` role, read/post/erase in its channel | 1 | T102, T103 | build | claude |
 | T106 | hub: `#sales` triage line, retention, lead mark, block, export exclusion | 1 | T104 | build | claude |
@@ -112,13 +112,22 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   or alerts; an unscoped staff session is unchanged; the catalogue gate
   (`rls_failclosed_test.go`) sees both new tables. Done: green on postgres
   (`PRE_PUSH_TIER=full`), applied on dev and prd.
-- [ ] T102 **store** (claude; needs T101 applied dev+prd).
+- [x] T102 **store** (claude; needs T101 applied dev+prd).
   `store.inChannel(tenant, channel)` beside `inTenant` and `asOperator`;
   visitor mint (HUM + membership + channel + `channel_humans` in one
   transaction), lookup by token hash, slide / expire; `embed_customers`
   reads. Files: `GO/store/rls.go`; `GO/store/embed_visitors.go` +
   `_test.go` (*new*); `GO/store/embed_customers.go` + `_test.go` (*new*).
   Done: a visitor request path cannot reach `inTenant` (test).
+  Built: `inChannel` refuses "", a default or reserved channel
+  (`ErrNoChannel`); `MintEmbedVisitor`, `SlideEmbedVisitor`,
+  `ExpireEmbedVisitor` run under it; `EmbedCustomer` and
+  `EmbedVisitorByToken` are reviewed operator reads (the URL's embed id,
+  the token's hash), `EmbedCustomers` the staff list. Gate:
+  `TestEmbedVisitorPathNeverInTenant` walks the store's call graph from
+  `embedVisitorPath`. Open for T104: the visitor's `tenant_memberships` row
+  is a member row like any other, so member lists must leave out
+  `channel_guest`.
 - [x] T103 **cnf** (claude; needs nothing). `env.hub.embed.*`: `enabled:
   false`, every limit of `spec.md` section 6 except the spend cap (T305),
   token lifetime 30 d sliding / 180 d cap. Files: the `env.hub.embed` block

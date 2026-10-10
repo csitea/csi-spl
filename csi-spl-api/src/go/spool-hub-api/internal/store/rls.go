@@ -17,6 +17,9 @@ import (
 const (
 	pgScopeTenant   = `SELECT set_config('app.tenant_id', $1, true)`
 	pgScopeOperator = `SELECT set_config('app.rls_scope', 'operator', true)`
+	// pgScopeChannel is the tenant scope plus rdb 0169's channel scope, in one
+	// statement, so no moment of the transaction holds one without the other.
+	pgScopeChannel = `SELECT set_config('app.tenant_id', $1, true), set_config('app.channel_scope', $2, true)`
 )
 
 // ErrNoTenant: a tenant-scoped statement was asked for without a tenant. The
@@ -40,6 +43,43 @@ func (s *Postgres) inTenant(ctx context.Context, tenant string, fn func(pgx.Tx) 
 	}
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, pgScopeTenant, tenant); err != nil {
+			return err
+		}
+		return fn(tx)
+	})
+}
+
+// ErrNoChannel: a channel-scoped statement was asked for without a channel a
+// visitor can hold (specs/121 4.2). An empty scope reads as "no channel scope"
+// to rdb 0169's policy, and a default channel (lobby, tasks, alerts) would
+// open that channel to the visitor, so the store refuses both before
+// Postgres sees them.
+var ErrNoChannel = errors.New("store: channel-scoped statement without a visitor channel")
+
+// checkChannel is the store half of the channel scope's fail-closed.
+func checkChannel(channel string) error {
+	if !ValidChannelID(channel) || ChannelReserved(channel) {
+		return ErrNoChannel
+	}
+	return nil
+}
+
+// inChannel runs fn in one transaction scoped to tenant AND its one channel
+// (specs/121 4.2, rdb 0169's restrictive channel_scope): every table a
+// channel reader reaches shows and accepts only that channel's rows, so a
+// visitor statement that forgets WHERE channel still cannot read or write
+// another channel, a DM or lobby. A visitor request runs only here, never in
+// inTenant (TestEmbedVisitorPathNeverInTenant). Transaction-local, like
+// inTenant's scope.
+func (s *Postgres) inChannel(ctx context.Context, tenant, channel string, fn func(pgx.Tx) error) error {
+	if err := checkTenant(tenant); err != nil {
+		return err
+	}
+	if err := checkChannel(channel); err != nil {
+		return err
+	}
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, pgScopeChannel, tenant, channel); err != nil {
 			return err
 		}
 		return fn(tx)

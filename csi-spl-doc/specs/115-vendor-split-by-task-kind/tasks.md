@@ -22,7 +22,7 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
 
 ## 3. Journal writers
 
-- [ ] **ORC-2**: Spawn-window writes the journal row (F1 and `run`).
+- [x] **ORC-2**: Spawn-window writes the journal row (F1 and `run`).
   - Depends: none.
   - Owns: `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh`.
   - Done: the spawn writes `attempts.tsv` with `task_id kind vendor id start_epoch outcome=run`; the watchdog (F2), lane restart (F2) and `/exit-clean` (F3) close it. Test: a fixture spawn writes the row; a held-out lane or a split refusal closes it as `fail:F2`. Control: a missing `outcome` field turns the test red.

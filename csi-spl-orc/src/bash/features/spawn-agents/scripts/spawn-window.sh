@@ -102,6 +102,27 @@ case "$KIND" in claude|grok|agy|qwen|mistral) ;; *) usage ;; esac
 [ -n "$TITLE" ] && [ -n "${3:-}" ] || usage
 LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
+# The tries journal (spec 115 section 6): ONE row per spawn, appended under a
+# flock to $SPOOL_ROOT/dispatch/attempts.tsv on exit, read by
+# do_spl_lane_mix_journal. `task_id kind vendor id start_epoch outcome source`:
+# outcome `run` on a started lane, `fail:F1` on any other non-zero exit; exit
+# 10 (HOLD) and a dry run write nothing. task_id is LANE_MIX_TASK, else
+# SPAWN_LANE_TOPIC, else "-"; kind is LANE_MIX_KIND. A journal that cannot be
+# written is one WARN, never a changed exit code.
+SW_START="$(date -u +%s)"; SW_JOURNAL_ID=""
+sw_journal() {
+  local rc="$1" outcome f id
+  case "$rc" in 0) outcome=run ;; 10) return 0 ;; *) outcome=fail:F1 ;; esac
+  [ "${SPAWN_DRY_RUN:-0}" != 1 ] || return 0
+  id="${SW_JOURNAL_ID:-$TITLE}"; [ "$id" != auto ] || id="auto-$$"
+  f="${SPOOL_ROOT}/dispatch/attempts.tsv"
+  { mkdir -p "${f%/*}" && (
+      flock -w 10 9 || exit 1
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${LANE_MIX_TASK:-${SPAWN_LANE_TOPIC:--}}" \
+        "${LANE_MIX_KIND:--}" "$KIND" "$id" "$SW_START" "$outcome" spawn-window >&9
+    ) 9>>"$f"; } 2>/dev/null || echo "spawn-window: WARN no journal row in $f" >&2
+}
+trap 'sw_journal $?' EXIT
 # Before a claim, a window, or a remote placement: a lane must not start one.
 SPAWN_REQUESTER="$(spool_spawn_gate)" || exit $?
 export SPAWN_REQUESTER
@@ -180,7 +201,7 @@ if [ -n "$TARGET" ]; then
     out="$(bash "$HERE/spawn-remote.sh" --box "$TARGET" "$KIND" "$TITLE" "${@:3}")"; rc=$?
   fi
   line="$(printf '%s\n' "$out" | grep -E '^[A-Za-z][A-Za-z0-9-]*@[a-z0-9-]+ (%[0-9]+|-)$' | tail -1)"
-  if [ "$rc" -eq 0 ] && [ -n "$line" ]; then printf '%s\n' "$line"; exit 0; fi
+  if [ "$rc" -eq 0 ] && [ -n "$line" ]; then printf '%s\n' "$line"; SW_JOURNAL_ID="${line%% *}"; exit 0; fi
   [ -z "${SPAWN_BOX:-}" ] || { echo "spawn-window: the spawn on SPAWN_BOX=${TARGET} did not start (spawn-remote exit ${rc})" >&2; exit 8; }
   echo "spawn-window: WARN the spawn on ${TARGET} did not start (spawn-remote exit ${rc}: 3 not sent, 4 refused, 5 no answer within ${SPAWN_REMOTE_WAIT:-300}s, so it may still start there): starting here instead" >&2
 fi
@@ -248,33 +269,6 @@ printf -v cmd '%q ' env "${envs[@]}" bash "$LAUNCHER" "$TITLE" "$@"
 out="$("${SPOOL_TM[@]}" new-window -d -t "${sess}:" -n "$(spool_decorate "$TITLE")" -P -F '#{pane_id}' "$cmd")"; rc=$?
 pane="$(printf '%s\n' "$out" | grep -m1 -xE '%[0-9]+')"
 [ -n "$pane" ] || { echo "spawn-window: new-window (rc=$rc) printed no pane id: ${out:-<nothing>}" >&2; exit 4; }
-
-# --- ORC-2: Write the journal row after the pane is created ---
-# Fields: task_id, kind, vendor, id, start_epoch, outcome=run
-# Location: $SPOOL_ROOT/<agent-id>/attempts.tsv
-ATTEMPTS_DIR="${SPOOL_ROOT}/${TITLE}"
-ATTEMPTS_FILE="${ATTEMPTS_DIR}/attempts.tsv"
-if [ ! -d "$ATTEMPTS_DIR" ]; then
-  mkdir -p "$ATTEMPTS_DIR" || { echo "spawn-window: failed to create attempts dir ${ATTEMPTS_DIR}" >&2; exit 4; }
-fi
-
-# Extract task_id from the brief file or use the agent id as fallback
-TASK_ID="${TITLE}"
-if [ -n "${3:-}" ] && [ -r "${3:-}" ]; then
-  TASK_ID="$(grep -m1 '^task_id:' "${3:-}" | cut -d: -f2 | tr -d '[:space:]')"
-  [ -z "$TASK_ID" ] && TASK_ID="${TITLE}"
-fi
-
-# Write the journal row
-printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-  "${TASK_ID}" \
-  "${LANE_MIX_KIND:-simple_coding}" \
-  "${KIND}" \
-  "${TITLE}" \
-  "$(date -u +%s)" \
-  "run" \
-  >> "${ATTEMPTS_FILE}"
-# --- End ORC-2 ---
 
 # The notice strip is split NOW, before the CLI has painted anything, so the
 # TUI starts at the size it will keep and never takes a mid-session resize.

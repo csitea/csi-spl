@@ -26,7 +26,6 @@
 //   BASE_URL=<generated bundle> node tests/e2e/swipe-archive.test.mjs   # what CI does
 //   OUT=<dir> ... also writes phone screenshots (mid-swipe, armed, snackbar, menu)
 //   CPU_THROTTLE=4 ... a slow CI runner (Chrome CPU throttling)
-import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { mkdirSync } from 'node:fs'
 import { startServer } from './lib/server.mjs'
@@ -46,6 +45,7 @@ const ok = (name, pass, ev) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function launch() {
+  const { createRequire } = await import('node:module');
   const require = createRequire(import.meta.url)
   for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
     try {
@@ -396,7 +396,6 @@ process.exit(failed.length ? 1 : 0)
 //   node tests/e2e/topic-archive-latest-only.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/topic-archive-latest-only.test.mjs
 //   OUT=<dir> ... also writes phone screenshots (mid-swipe, armed, snackbar)
-import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { mkdirSync } from 'node:fs'
 import { startServer } from './lib/server.mjs'

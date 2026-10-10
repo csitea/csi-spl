@@ -124,4 +124,4 @@ SC2034|csi-spl-orc/src/bash/tests/responder-run.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/responder-run.tst.sh|1
 SC1010|csi-spl-orc/src/bash/tests/spec-import-issues.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/spec-import-issues.tst.sh|3
-SC2034|csi-spl-orc/src/bash/tests/spl-desk-cron-checkout.tst.sh|1 # Used in spl_desk_cron_checkout (false positive)
+SC2034|csi-spl-orc/src/bash/tests/spl-desk-cron-checkout.tst.sh|1

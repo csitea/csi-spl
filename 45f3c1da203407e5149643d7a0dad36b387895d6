@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: A test-suite check only: the hub tests now fail when a package loses test coverage; nothing a user sees changes.

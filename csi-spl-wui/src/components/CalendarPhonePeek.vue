@@ -212,7 +212,7 @@ async function deleteScoped(id: string, scope: Scope): Promise<CalendarItem> {
   if (api.mock) return calendarDelete(api, id, props.today)
   const q = new URLSearchParams({ scope })
   const r = await fetch(`${api.base}/v1/calendar/events/${encodeURIComponent(id)}?${q}`, {
-    method: 'DELETE', credentials: api.credentials, headers: hubJsonHeaders(api.token),
+    method: 'DELETE', credentials: api.credentials, headers: hubJsonHeaders(api.token), signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
   })
   if (!r.ok) throw Object.assign(new Error(`calendar delete ${r.status}`), { status: r.status })
   const out = await r.json()

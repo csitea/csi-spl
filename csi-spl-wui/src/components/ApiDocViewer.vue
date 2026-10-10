@@ -215,7 +215,7 @@ async function fetchSpec() {
   const headers: Record<string, string> = { accept: 'application/json' }
   if (api.token) headers.authorization = `Bearer ${api.token}`
   try {
-    const r = await fetch(`${api.base}/v1/openapi.json`, { credentials: api.credentials, cache: 'no-cache', headers })
+    const r = await fetch(`${api.base}/v1/openapi.json`, { credentials: api.credentials, cache: 'no-cache', headers, signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
     if (!r.ok) throw new Error('openapi ' + r.status)
     load(await r.text())
   } catch {

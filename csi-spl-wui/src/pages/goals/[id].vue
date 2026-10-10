@@ -126,7 +126,7 @@ const calHref = (at: string, eventId: string) => {
 /* fetched, never imported (spec 112 9); a failure leaves the pct cells empty */
 onMounted(async () => {
   try {
-    const res = await fetch('/roadmap.json', { cache: 'no-cache' })
+    const res = await fetch('/roadmap.json', { cache: 'no-cache', signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
     if (res.ok) specs.value = roadmapSpecs(await res.json()) as SpecRow[]
   } catch { /* the goal still shows */ }
 })

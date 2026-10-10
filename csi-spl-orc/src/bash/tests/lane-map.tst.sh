@@ -42,6 +42,9 @@
 #      unknown line; the empty lane itself, a seat, a lane with no pane and
 #      a lane with files never count. CONTROL: the same rows with that pane
 #      dead are `free`, exit 0, as before the check
+#  13. a row's `dir/*` or `dir/**` is that directory: a file under it is
+#      owned (exit 3), as under a plain `dir/` entry; a sibling dir is free.
+#      CONTROL: the plain entry matched before this fix
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -347,6 +350,24 @@ out="$(chk csi-web/specs/005/spec.md c-703)"; rc=$?
 out="$(on pc 'LANE_FORMAT=json do_spl_lane_map' "${U[@]}" | tail -1)"
 [[ "$(jq -c '.load[] | select(.box == "sat") | .busy_ids' <<<"$out")" == '["c-701","c-702","c-703"]' ]] &&
   pass "json: the load carries busy_ids per box (sat's BOX-0 row, seats left out)" || fail "busy_ids: $out"
+
+# 13. a glob row is its directory
+G=(LANE_FLEET=glob LANE_PANES_CMD=false)
+on sat do_spl_lane_put "${G[@]}" LANE_AGENT=c-711 LANE_BRANCH=c-711-star LANE_FILES='csi-spl-api/src/go/internal/store/*' >/dev/null
+on sat do_spl_lane_put "${G[@]}" LANE_AGENT=c-712 LANE_BRANCH=c-712-dstar LANE_FILES='csi-spl-orc/tests/test-108.ux-gates/**' >/dev/null
+on sat do_spl_lane_put "${G[@]}" LANE_AGENT=c-713 LANE_BRANCH=c-713-plain LANE_FILES=csi-spl-wui/src/pages/ >/dev/null
+gchk() { on sat "LANE_CHECK=$1 LANE_AGENT=c-714 do_spl_lane_map" "${G[@]}" 2>&1; }
+out="$(gchk csi-spl-wui/src/pages/login.vue)"; rc=$?
+[[ $rc -eq 3 && "$out" == *"owned by c-713@sat"* ]] && pass "control: a file under a plain dir/ entry is owned, exit 3" || fail "plain dir (rc=$rc): $out"
+out="$(gchk csi-spl-api/src/go/internal/store/messages.go)"; rc=$?
+[[ $rc -eq 3 && "$(head -1 <<<"$out")" == "csi-spl-api/src/go/internal/store/messages.go owned by c-711@sat c-711-star" ]] &&
+  pass "a file under a 'dir/*' row is owned, exit 3" || fail "dir/* (rc=$rc): $out"
+out="$(gchk csi-spl-orc/tests/test-108.ux-gates/a/b.spec.ts)"; rc=$?
+[[ $rc -eq 3 && "$out" == *"owned by c-712@sat"* ]] && pass "a file deep under a 'dir/**' row is owned, exit 3" || fail "dir/** (rc=$rc): $out"
+out="$(gchk csi-spl-api/src/go/internal/store)"; rc=$?
+[[ $rc -eq 3 && "$out" == *"owned by c-711@sat"* ]] && pass "the glob's directory itself is owned" || fail "glob dir itself (rc=$rc): $out"
+out="$(gchk csi-spl-api/src/go/internal/storex/a.go,csi-spl-api/src/go/internal/hub/a.go)"; rc=$?
+[[ $rc -ne 3 && "$out" != *"owned by"* ]] && pass "a sibling dir and a name prefix of the glob's dir are not owned" || fail "glob sibling (rc=$rc): $out"
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

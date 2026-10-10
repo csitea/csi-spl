@@ -373,7 +373,9 @@ spl_lane_load_header() {
 }
 
 # Exit 3 when a live lane of another agent lists a path that overlaps one in
-# LANE_CHECK (one is the other, or contains it at a / boundary).
+# LANE_CHECK (one is the other, or contains it at a / boundary). A trailing
+# `/*` or `/**` (a row written as `internal/store/*`) is that directory: as a
+# literal it matched nothing, so a file under it read free.
 # Exit 4 when none does but a build lane of another agent, live on its box
 # NOW (busy_ids of the load: its pane here, its box's BOX-0 row there, else
 # its row younger than 2 h), has `files: []`: an empty row cannot say
@@ -384,7 +386,7 @@ spl_lane_load_header() {
 spl_lane_check() {  # ROWS LOAD (spl_lane_load)
   local hits unknown
   hits="$(jq -r --arg me "${LANE_AGENT:-}" --arg want "$LANE_CHECK" '
-    def norm: sub("^\\./"; "") | sub("/+$"; "");
+    def norm: sub("^\\./"; "") | sub("(/+\\*{1,2})+/*$"; "") | sub("/+$"; "");
     def over($a; $b): $a == $b or ($a | startswith($b + "/")) or ($b | startswith($a + "/"));
     ($want | split(",") | map(norm) | map(select(length > 0))) as $w
     | .[] | select(.state == "live" and .agent_id != $me) as $l

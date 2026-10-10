@@ -39,19 +39,14 @@
 # @example ENV=prd TENANT_ID=e2e DRY_RUN=0 ./run -a do_spl_fallback_probe
 #------------------------------------------------------------------------------
 do_spl_fallback_probe() {
-  do_require_bin yq python3 || return 1
-  do_spl_cloud_cnf || return 1
-  local dry=1
-  if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local stamp
   stamp="$(date -u +%Y%m%d%H%M%S)"
   local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-fbp-$stamp}" wait="${PROBE_WAIT_SECS:-30}"
   local resp="${PROBE_RESPONDER:-PRB-9973}" member="${PROBE_MEMBER:-PRB-9974}"
-  spl_require_tenant_slug "$tenant" || return 1
-  [[ "$tenant" != t1 ]] || { do_log "FATAL TENANT_ID=t1 is a real tenant: its responder list is not the probe's to change (use e2e)"; return 1; }
+  local dry
+  spl_probe_preamble dry "$tenant" "its responder list is not the probe's to change (use e2e)" || return 1
   [[ "$wait" =~ ^[0-9]+$ ]] && (( wait >= 1 && wait <= 600 )) || { do_log "FATAL PROBE_WAIT_SECS must be 1..600, got: '$wait'"; return 1; }
-  [[ "$box" =~ ^box-[a-z0-9][a-z0-9-]{0,26}$ && "$box" != box-wui && "$box" != box-desk ]] ||
-    { do_log "FATAL PROBE_BOX must be a throwaway box-* id (not box-wui / box-desk), got: '$box'"; return 1; }
+  spl_probe_box_ok "$box" || return 1
   local a
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for a in "$resp" "$member"; do
@@ -61,17 +56,13 @@ do_spl_fallback_probe() {
   local api
   spl_cnf_api_fqdn api || return 1
   if (( dry )); then
-    do_log "INFO DRY_RUN would: pin $box under $tenant at https://$api announcing $resp and $member, with a logger notifier"
-    do_log "INFO DRY_RUN would: set $tenant's responders to $resp, post into #fb-probe-$stamp (no agent), then #fb-ctrl-$stamp ($member seated)"
-    do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0."
+    spl_probe_dry_report \
+      "pin $box under $tenant at https://$api announcing $resp and $member, with a logger notifier" \
+      "set $tenant's responders to $resp, post into #fb-probe-$stamp (no agent), then #fb-ctrl-$stamp ($member seated)"
     return 0
   fi
-  local key="${ROOT_KEY:-$SPL_STATE_DIR/m3-e2e/$tenant/root.key}"
-  local pw="${MEMBER_PW_FILE:-$SPL_STATE_DIR/m3-e2e/$tenant/pw-human}"
-  [[ -s "$key" && "$(stat -c %a "$key")" == 600 ]] || { do_log "FATAL ROOT_KEY $key must be a non-empty 0600 file"; return 1; }
-  [[ -r "$pw" ]] || { do_log "FATAL no readable password file $pw (set MEMBER_PW_FILE)"; return 1; }
-  do_require_bin curl setsid || return 1
-  spl_host_spool || return 1
+  local key pw
+  spl_probe_secrets "$tenant" key pw curl setsid || return 1
 
   local d="$SPL_STATE_DIR/fallback-probe/$tenant/$stamp" hub="https://$api"
   mkdir -p "$d/spool/$resp/inbox" "$d/spool/$member/inbox" "$d/spool/.hub" "$d/keys" || return 1

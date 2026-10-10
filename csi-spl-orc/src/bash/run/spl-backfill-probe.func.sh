@@ -34,17 +34,13 @@
 # @example ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_backfill_probe
 #------------------------------------------------------------------------------
 do_spl_backfill_probe() {
-  do_require_bin yq python3 || return 1
-  do_spl_cloud_cnf || return 1
-  local dry=1
-  if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" n="${PROBE_POSTS:-3}" box="${PROBE_BOX:-box-bfprobe}"
   local poster="${PROBE_POSTER:-PRB-9871}" target="${PROBE_AGENT:-PRB-9872}" wait="${PROBE_WAIT_SECS:-60}"
-  spl_require_tenant_slug "$tenant" || return 1
+  local dry
+  spl_probe_preamble dry "$tenant" || return 1
   [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 1 && n <= 20 )) || { do_log "FATAL PROBE_POSTS must be 1..20, got: '$n'"; return 1; }
   [[ "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL PROBE_WAIT_SECS must be a whole number, got: '$wait'"; return 1; }
-  [[ "$box" =~ ^box-[a-z0-9][a-z0-9-]{0,26}$ && "$box" != box-wui && "$box" != box-desk ]] ||
-    { do_log "FATAL PROBE_BOX must be a throwaway box-* id (not box-wui / box-desk), got: '$box'"; return 1; }
+  spl_probe_box_ok "$box" || return 1
   local a
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for a in "$poster" "$target"; do
@@ -55,17 +51,13 @@ do_spl_backfill_probe() {
   spl_cnf_api_fqdn api || return 1
   ch="bf-probe-$(date -u +%Y%m%d%H%M%S)"
   if (( dry )); then
-    do_log "INFO DRY_RUN would: pin $box under $tenant at https://$api with a logger notifier, create #$ch,"
-    do_log "INFO DRY_RUN would: seat $poster, post $n times, invite $target, and read its inbox + pokes"
-    do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0."
+    spl_probe_dry_report \
+      "pin $box under $tenant at https://$api with a logger notifier, create #$ch," \
+      "seat $poster, post $n times, invite $target, and read its inbox + pokes"
     return 0
   fi
-  local key="${ROOT_KEY:-$SPL_STATE_DIR/m3-e2e/$tenant/root.key}"
-  local pw="${MEMBER_PW_FILE:-$SPL_STATE_DIR/m3-e2e/$tenant/pw-human}"
-  [[ -s "$key" && "$(stat -c %a "$key")" == 600 ]] || { do_log "FATAL ROOT_KEY $key must be a non-empty 0600 file"; return 1; }
-  [[ -r "$pw" ]] || { do_log "FATAL no readable password file $pw (set MEMBER_PW_FILE)"; return 1; }
-  do_require_bin curl setsid || return 1
-  spl_host_spool || return 1
+  local key pw
+  spl_probe_secrets "$tenant" key pw curl setsid || return 1
 
   local d="$SPL_STATE_DIR/backfill-probe/$tenant/$ch" hub="https://$api"
   mkdir -p "$d/spool/$poster/inbox" "$d/spool/$target/inbox" "$d/spool/.hub" "$d/keys" || return 1

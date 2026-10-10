@@ -44,10 +44,9 @@ export default defineNuxtPlugin(() => {
   // fires once the manifest below is linked, before Settings is opened. Only
   // these lines are in the first download: the rest is utils/pwa-install.mjs,
   // in Settings' lazy chunk, which reads window.__spoolPwa (ci_home_gzip_kb).
-  const pwa = ((window as any).__spoolPwa ||= { ev: null, done: false })
-  const pwaChanged = () => dispatchEvent(new Event('spool-pwa'))
-  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pwa.ev = e; pwaChanged() })
-  addEventListener('appinstalled', () => { pwa.ev = null; pwa.done = true; pwaChanged() })
+  const pwa = ((window as any).__spoolPwa ||= {})
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pwa.ev = e })
+  addEventListener('appinstalled', () => { pwa.done = 1 })
   onNuxtReady(() => {
     if (!document.querySelector('link[rel="manifest"]')) {
       const link = document.createElement('link')

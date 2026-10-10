@@ -559,6 +559,120 @@ try {
     mkdirSync(process.env.SHOT_DIR, { recursive: true })
     await q.screenshot({ path: `${process.env.SHOT_DIR}/ws-doctree-${name}.png` })
   }
+
+  /* pictures inside a paragraph (owner HUM-10, t1 46d9c236): two pasted at
+     the cursor and one from the Insert picture control, each uploaded through
+     the images route and kept in the text as ![caption](<img_http_path>);
+     read, the paragraph shows them inline with "Figure N: <caption>", N
+     counted through the document with the section image after them; a token
+     whose path is not this doc's images route stays text. CONTROL: before
+     this change the paragraph is a plain textarea, no ws-doc-pic (FAIL). */
+  const PNG1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
+  const textSel = `${titleSel('2')} [data-test=ws-doc-text]`
+  const bodyOf = async (id) => (await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}/subtree`), docOf)).items.find((x) => x.id === id).body
+  const tokens = (b) => [...(b || '').matchAll(/!\[([^\]\n]*)\]\((\/v1\/workspace\/doctree\/([^/\s()]+)\/images\/[0-9a-f]{64}\.png)\)/g)].filter((m) => m[3] === docOf).map((m) => m[1])
+  const tokensAre = (n, last) => p.waitForFunction(async (d, id, n, last) => {
+    const r = await window.__wsDocTreeCall('GET', `/${d}/subtree`)
+    const b = r.items.find((x) => x.id === id)?.body || ''
+    const caps = [...b.matchAll(/!\[([^\]\n]*)\]\(\/v1\/workspace\/doctree\/[^/\s()]+\/images\/[0-9a-f]{64}\.png\)/g)].map((m) => m[1])
+    return caps.length === n && (!last || caps[n - 1] === last)
+  }, { timeout: STEP, polling: 200 }, docOf, delta, n, last).catch(() => null)
+  const pastePng = () => p.evaluate((sel, b64) => {
+    const el = document.querySelector(sel)
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+    const dt = new DataTransfer()
+    dt.items.add(new File([bytes], 'image.png', { type: 'image/png' }))
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  }, textSel, PNG1)
+  /* the insert leaves the caption selected: typing replaces it, then the cursor goes to the end */
+  const captionThenEnd = async (caption) => {
+    await p.waitForFunction((sel) => {
+      const el = document.querySelector(sel)
+      return el === document.activeElement && el.selectionEnd > el.selectionStart
+    }, { timeout: STEP }, textSel).catch(() => null)
+    await p.keyboard.type(caption)
+    await p.keyboard.down('Control')
+    await p.keyboard.press('End')
+    await p.keyboard.up('Control')
+  }
+  await p.click(textSel)
+  await p.keyboard.type('Before the pictures')
+  await pastePng()
+  await tokensAre(1)
+  await captionThenEnd('Deploy step one')
+  await p.keyboard.type('\nBetween them')
+  await pastePng()
+  await tokensAre(2)
+  await captionThenEnd('Deploy step two')
+  const bogus = '![x](https://example.com/a.png) ![y](/v1/workspace/doctree/other-doc/images/' + 'a'.repeat(64) + '.png)'
+  await p.keyboard.type('\nAfter ' + bogus)
+  await shoot(p, 'pics-edit')
+  await p.evaluate(() => document.activeElement?.blur())
+  await tokensAre(2, 'Deploy step two')
+  const pasted = await bodyOf(delta)
+  await p.waitForFunction((sel) => [...document.querySelectorAll(`${sel} [data-test=ws-doc-pic-img]`)].filter((i) => i.naturalWidth === 1).length === 2, { timeout: STEP }, titleSel('2')).catch(() => null)
+  const readPics = () => p.evaluate((sel) => {
+    const para = document.querySelector(`${sel} [data-test=ws-doc-para]`)
+    return {
+      para: Boolean(para),
+      textarea: Boolean(document.querySelector(`${sel} [data-test=ws-doc-text]`)),
+      imgs: [...(para?.querySelectorAll('[data-test=ws-doc-pic-img]') ?? [])].map((i) => ({ w: i.naturalWidth, alt: i.alt, lazy: i.loading, max: getComputedStyle(i).maxWidth })),
+      nums: [...document.querySelectorAll(`${sel} [data-test=ws-doc-fig-num]`)].map((e) => e.textContent.trim()),
+      caps: [...(para?.querySelectorAll('[data-test=ws-doc-pic-caption]') ?? [])].map((e) => e.value),
+      text: [...(para?.querySelectorAll('.wsdoc__run') ?? [])].map((e) => e.textContent).join('|'),
+    }
+  }, titleSel('2'))
+  const read = await readPics()
+  ok('paste puts two pictures at the cursor: uploaded, kept as ![caption](<images route>) tokens in the text, shown inline as Figure 1 and 2',
+    JSON.stringify(tokens(pasted)) === JSON.stringify(['Deploy step one', 'Deploy step two'])
+    && pasted.startsWith('Before the pictures\n![Deploy step one](/v1/workspace/doctree/') && pasted.includes('\nBetween them\n![Deploy step two](')
+    && read.para && !read.textarea && read.imgs.length === 2 && read.imgs.every((i) => i.w === 1 && i.lazy === 'lazy' && i.max === '100%')
+    && read.imgs[0].alt === 'Deploy step one' && JSON.stringify(read.nums) === JSON.stringify(['Figure 1:', 'Figure 2:'])
+    && JSON.stringify(read.caps) === JSON.stringify(['Deploy step one', 'Deploy step two']), { pasted, read })
+  ok('a picture token whose path is not this doc\'s images route stays text', read.text.includes('![x](https://example.com/a.png)')
+    && read.text.includes('/v1/workspace/doctree/other-doc/images/') && read.imgs.length === 2, read.text)
+  await shoot(p, 'pics-read')
+
+  /* the caption edited in place under the picture rewrites its token */
+  const caps = await p.$$(`${titleSel('2')} [data-test=ws-doc-pic-caption]`)
+  await caps[1].click()
+  await p.keyboard.down('Control')
+  await p.keyboard.press('KeyA')
+  await p.keyboard.up('Control')
+  await p.keyboard.type('Rollback')
+  await p.keyboard.press('Enter')
+  await tokensAre(2, 'Rollback')
+  const recap = tokens(await bodyOf(delta))
+  ok('a figure caption is edited in place, its token rewritten', JSON.stringify(recap) === JSON.stringify(['Deploy step one', 'Rollback']), recap)
+
+  /* a click on the text edits it again (the tokens as text); the Insert picture control adds a third at the cursor */
+  await p.click(`${titleSel('2')} .wsdoc__run`)
+  await p.waitForFunction((sel) => document.activeElement === document.querySelector(sel), { timeout: STEP }, textSel).catch(() => null)
+  const editVal = await p.$eval(textSel, (e) => e.value).catch(() => '')
+  const [fc3] = await Promise.all([p.waitForFileChooser({ timeout: STEP }), p.click(`${titleSel('2')} [data-test=ws-doc-insert-pic]`)])
+  await fc3.accept([png])
+  await tokensAre(3)
+  await captionThenEnd('Picked')
+  await p.evaluate(() => document.activeElement?.blur())
+  await tokensAre(3, 'Picked')
+  /* the section image after them is Figure 4: one sequence */
+  await pick(png)
+  await attrIs('img_name', `wsdoc-e2e-${process.pid}`)
+  await p.waitForFunction((sel) => document.querySelectorAll(`${sel} [data-test=ws-doc-fig-num]`).length === 4, { timeout: STEP }, titleSel('2')).catch(() => null)
+  const three = await readPics()
+  ok('the Insert picture control adds a picture at the cursor; the section image continues the numbering',
+    editVal === await bodyOf(delta).then((b) => b.replace(/\n?!\[Picked\]\([^)]*\)/, '')) && three.imgs.length === 3
+    && JSON.stringify(three.nums) === JSON.stringify(['Figure 1:', 'Figure 2:', 'Figure 3:', 'Figure 4:']), { editVal, three })
+  /* the export hook also sees the uploaded images' blobs: the Markdown is the one that starts with its heading */
+  await p.evaluate(() => { window.__exports = [] })
+  await menu(p, 'doc', 'Delta', 'export_md')
+  await p.waitForFunction(() => window.__exports.some((x) => x.startsWith('# ')), { timeout: STEP }).catch(() => null)
+  const md = await p.evaluate(() => window.__exports.find((x) => x.startsWith('# ')) || '')
+  ok('the Markdown export keeps each picture token with its "Figure N:" caption',
+    /!\[Deploy step one\]\(\/v1\/workspace\/doctree\/[^)]+\)\n\n\*Figure 1: Deploy step one\*/.test(md) && md.includes('*Figure 2: Rollback*')
+    && md.includes('*Figure 3: Picked*') && md.includes(`*Figure 4: wsdoc-e2e-${process.pid}*`), md)
+  await p.click(`${titleSel('2')} [data-test=ws-doc-img-remove]`)
+  await attrIs('img_http_path', '')
   /* the grid's level and meta columns: every row's level is its outline's
      depth, Delta's meta is its code block; a click on Level sorts by depth.
      CONTROL: with the columns removed there is no level or meta cell (FAIL) */

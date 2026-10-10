@@ -2449,6 +2449,9 @@
     "code_placeholder": "Код",
     "image_caption": "Подпись к изображению",
     "image_remove": "Удалить изображение",
+    "figure": "Рисунок {n}:",
+    "picture_caption": "Что показывает это изображение",
+    "insert_picture": "Вставить изображение",
     "err_image": "Изображение отклонено: используйте файл PNG, JPEG, GIF или WebP размером не более 5 МБ."
   },
   "hours_cal": {

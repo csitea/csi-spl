@@ -2449,6 +2449,9 @@
     "code_placeholder": "Código",
     "image_caption": "Pie de imagen",
     "image_remove": "Quitar la imagen",
+    "figure": "Figura {n}:",
+    "picture_caption": "Qué muestra esta imagen",
+    "insert_picture": "Insertar imagen",
     "err_image": "Se rechazó la imagen: usa un archivo PNG, JPEG, GIF o WebP de 5 MB como máximo."
   },
   "hours_cal": {

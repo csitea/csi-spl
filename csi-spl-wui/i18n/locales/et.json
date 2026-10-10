@@ -2449,6 +2449,9 @@
     "code_placeholder": "Kood",
     "image_caption": "Pildi allkiri",
     "image_remove": "Eemalda pilt",
+    "figure": "Joonis {n}:",
+    "picture_caption": "Mida see pilt näitab",
+    "insert_picture": "Lisa pilt",
     "err_image": "Pilt lükati tagasi: kasuta PNG-, JPEG-, GIF- või WebP-faili, mis on kuni 5 MB."
   },
   "hours_cal": {

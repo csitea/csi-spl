@@ -108,20 +108,68 @@
               @blur="commit(it, 'title', ($event.target as HTMLTextAreaElement).value.replace(/\s+/g, ' ').trim())"
             />
           </h3>
+          <!-- a paragraph with pictures, read: its text runs and figures; a click on the text edits it -->
+          <div
+            v-if="paras.get(it.id) && !paraEditing.has(it.id)"
+            class="wsdoc__para"
+            data-test="ws-doc-para"
+            tabindex="0"
+            role="group"
+            :aria-label="t('ws_doctree.edit_body') + ' ' + it.outline"
+            @click="editPara(it.id)"
+            @keydown.enter.self.prevent="editPara(it.id)"
+          >
+            <template v-for="(r, i) in paras.get(it.id)" :key="i">
+              <span v-if="r.kind === 'text'" class="wsdoc__run">{{ r.text }}</span>
+              <figure v-else class="wsdoc__pic" data-test="ws-doc-pic">
+                <img v-if="imgUrl[r.path]" loading="lazy" data-test="ws-doc-pic-img" :src="imgUrl[r.path]" :alt="r.caption">
+                <figcaption class="wsdoc__figcap" @click.stop>
+                  <span class="wsdoc__fignum" data-test="ws-doc-fig-num">{{ t('ws_doctree.figure', { n: r.n }) }}</span>
+                  <input
+                    class="wsdoc__caption"
+                    data-test="ws-doc-pic-caption"
+                    maxlength="500"
+                    :value="r.caption"
+                    :placeholder="t('ws_doctree.picture_caption')"
+                    :aria-label="t('ws_doctree.figure', { n: r.n })"
+                    @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
+                    @blur="commitCaption(it, r.k, ($event.target as HTMLInputElement).value)"
+                  >
+                </figcaption>
+              </figure>
+            </template>
+          </div>
           <textarea
+            v-else
             class="wsdoc__body"
             :class="{ 'wsdoc__body--closed': !paraShown(it) }"
             data-test="ws-doc-text"
             rows="1"
             :value="it.body"
             :placeholder="paraShown(it) ? t('ws_doctree.body_placeholder') : ''"
-            @focus="paraOpen.add(it.id)"
+            @focus="paraOpen.add(it.id); paraFocus = it.id"
             :aria-label="t('ws_doctree.edit_body') + ' ' + it.outline"
             @input="grow($event.target as HTMLTextAreaElement)"
             @keyup.tab="($event.target as HTMLTextAreaElement).select()"
             @keydown.esc.prevent="revert($event.target as HTMLTextAreaElement, it.body)"
-            @blur="commit(it, 'body', ($event.target as HTMLTextAreaElement).value)"
+            @paste="pastePic(it, $event)"
+            @dragover="dragPic"
+            @drop="dropPic(it, $event)"
+            @blur="leavePara(it, $event.target as HTMLTextAreaElement)"
           />
+          <div v-if="paraFocus === it.id" class="wsdoc__paratools">
+            <button
+              type="button"
+              class="wsdoc__tool wsdoc__tool--label"
+              data-test="ws-doc-insert-pic"
+              :disabled="busy"
+              @pointerdown.prevent
+              @mousedown.prevent
+              @click="pickPic(it)"
+            >
+              <UiIcon name="file-image" :size="16" /><span>{{ t('ws_doctree.insert_picture') }}</span>
+            </button>
+          </div>
           <p v-if="links(it.body).length" class="wsdoc__links" data-test="ws-doc-links">
             <a v-for="(u, i) in links(it.body)" :key="i" :href="u" target="_blank" rel="noopener noreferrer">{{ u }}</a>
           </p>
@@ -141,6 +189,7 @@
           <figure v-if="attr(it, 'img_http_path')" class="wsdoc__fig" data-test="ws-doc-fig">
             <img v-if="imgUrl[attr(it, 'img_http_path')]" loading="lazy" data-test="ws-doc-img" :src="imgUrl[attr(it, 'img_http_path')]" :alt="attr(it, 'img_name') || it.title">
             <figcaption class="wsdoc__figcap">
+              <span class="wsdoc__fignum" data-test="ws-doc-fig-num">{{ t('ws_doctree.figure', { n: figs.get(it.id)?.image ?? 0 }) }}</span>
               <input
                 class="wsdoc__caption"
                 data-test="ws-doc-img-name"
@@ -195,6 +244,7 @@
       data-test="ws-doc-img-file"
       :accept="DOC_IMAGE_TYPES.join(',')"
       @change="onImageFile"
+      @cancel="imageFor = null; picFor = null"
     >
     <UiPointMenu
       :open="Boolean(menu)"
@@ -235,6 +285,7 @@ import {
   DOC_IMAGE_MAX, DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget,
   type DocHead, type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
+import { figureNumbers, picPaths, picRuns, picToken, setPicCaption } from './-doc-pics'
 
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[] }>()
 const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string], renamed: [title: string] }>()
@@ -268,6 +319,13 @@ const imageFor = ref<DocItem | null>(null)
 const editMode = useEditModeStore()
 const tocOpen = ref(true)
 const menu = ref<{ x: number, y: number, item: DocItem } | null>(null)
+/* the paragraph in focus (its Insert picture control shows) and the read paragraphs opened for editing */
+const paraFocus = ref('')
+const paraEditing = reactive(new Set<string>())
+/* the picture the file picker inserts: the paragraph and its text and cursor when the picker opened */
+const picFor = ref<{ it: DocItem, value: string, start: number, end: number } | null>(null)
+/* the last paragraph save, awaited before a picture is inserted on top of it */
+let saving: Promise<unknown> = Promise.resolve()
 const doomed = ref<DocItem | null>(null)
 
 const byId = computed(() => new Map(items.value.map((it) => [it.id, it])))
@@ -280,6 +338,30 @@ const byParent = computed(() => {
     else m.set(it.parent, [it])
   }
   for (const sib of m.values()) sib.sort((a, b) => a.ord - b.ord)
+  return m
+})
+
+/** every picture's figure number, counted through the whole document (owner msg 3c874763) */
+const figs = computed(() => figureNumbers(items.value, props.session.doc))
+
+type ParaRun = { kind: 'text', text: string } | { kind: 'pic', caption: string, path: string, k: number, n: number }
+/** per item with pictures in its paragraph: its text runs and figures (k = the picture's index, n = its figure number) */
+const paras = computed(() => {
+  const m = new Map<string, ParaRun[]>()
+  for (const it of items.value) {
+    const runs = picRuns(it.body, props.session.doc)
+    if (!runs.some((r) => r.kind === 'pic')) continue
+    const first = figs.value.get(it.id)?.first ?? 1
+    let k = 0
+    m.set(it.id, runs.flatMap((r, i): ParaRun[] => {
+      if (r.kind === 'pic') return [{ ...r, k, n: first + k++ }]
+      /* a figure is its own block: the line breaks around it are not text */
+      let text = r.text
+      if (i > 0) text = text.replace(/^\n/, '')
+      if (i < runs.length - 1) text = text.replace(/\n$/, '')
+      return text ? [{ kind: 'text', text }] : []
+    }))
+  }
   return m
 })
 
@@ -305,10 +387,11 @@ const attr = (it: DocItem, k: string) => {
 /** resolve each image's src once (the hub path is read with the session's credentials) */
 function resolveImages() {
   for (const it of items.value) {
-    const p = attr(it, 'img_http_path')
-    if (p && !(p in imgUrl)) {
-      imgUrl[p] = ''
-      void props.session.client.imageSrc(p).then((u) => { imgUrl[p] = u })
+    for (const p of [attr(it, 'img_http_path'), ...picPaths(it.body, props.session.doc)]) {
+      if (p && !(p in imgUrl)) {
+        imgUrl[p] = ''
+        void props.session.client.imageSrc(p).then((u) => { imgUrl[p] = u })
+      }
     }
   }
 }
@@ -386,30 +469,123 @@ async function renameDoc() {
   emit('renamed', r.title)
 }
 
-/** the file picker's image: checked here as the hub checks it, uploaded, then set on the section */
-async function onImageFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  const it = imageFor.value
-  input.value = ''
-  imageFor.value = null
-  if (!file || !it) return
+/** one image checked here as the hub checks it, then uploaded: its hub path ('' = refused) */
+async function upload(file: File): Promise<string> {
   const s = props.session
   if (!DOC_IMAGE_TYPES.includes(file.type) || file.size > DOC_IMAGE_MAX) {
     s.error.value = 'ws_doctree.err_image'
-    return
+    return ''
   }
   busy.value = true
   try {
     const up = await s.run(() => s.client.uploadImage(s.doc, file))
     if (!up) {
       if (s.error.value === 'ws_doctree.err_failed') s.error.value = 'ws_doctree.err_image'
-      return
+      return ''
     }
-    await commitAttrs(it, { img_http_path: up.img_http_path, img_name: attr(it, 'img_name') || file.name.replace(/\.[^.]+$/, '') })
+    return up.img_http_path
   } finally {
     busy.value = false
   }
+}
+
+/** the file picker's image: a picture into a paragraph, else the section's image */
+async function onImageFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  const it = imageFor.value
+  const pic = picFor.value
+  input.value = ''
+  imageFor.value = null
+  picFor.value = null
+  if (!file) return
+  if (pic) return insertPic(pic.it, file, pic.value, pic.start, pic.end)
+  if (!it) return
+  const path = await upload(file)
+  if (path) await commitAttrs(it, { img_http_path: path, img_name: attr(it, 'img_name') || file.name.replace(/\.[^.]+$/, '') })
+}
+
+/** a paragraph left: its text saved; a read paragraph closes again unless the picker is about to insert into it */
+function leavePara(it: DocItem, el: HTMLTextAreaElement) {
+  saving = commit(it, 'body', el.value)
+  if (picFor.value?.it.id === it.id) return
+  paraFocus.value = ''
+  paraEditing.delete(it.id)
+}
+
+/** a read paragraph opened for editing, its cursor at the end */
+async function editPara(id: string) {
+  paraEditing.add(id)
+  await nextTick()
+  const el = rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${id}"] [data-test=ws-doc-text]`)
+  if (!el) return
+  grow(el)
+  el.focus()
+  el.setSelectionRange(el.value.length, el.value.length)
+}
+
+/** a picture's file: an image file of the transfer, else none */
+function imageOf(list: DataTransferItemList | undefined): File | null {
+  for (const x of list ?? []) {
+    if (x.kind === 'file' && x.type.startsWith('image/')) return x.getAsFile()
+  }
+  return null
+}
+
+function pastePic(it: DocItem, e: ClipboardEvent) {
+  const file = imageOf(e.clipboardData?.items)
+  if (!file) return
+  e.preventDefault()
+  const el = e.target as HTMLTextAreaElement
+  void insertPic(it, file, el.value, el.selectionStart, el.selectionEnd)
+}
+
+function dragPic(e: DragEvent) {
+  if (e.dataTransfer?.types.includes('Files')) e.preventDefault()
+}
+
+function dropPic(it: DocItem, e: DragEvent) {
+  const file = imageOf(e.dataTransfer?.items)
+  if (!file) return
+  e.preventDefault()
+  const el = e.target as HTMLTextAreaElement
+  void insertPic(it, file, el.value, el.selectionStart, el.selectionEnd)
+}
+
+/** the Insert picture control: the picker opens, the paragraph's text and cursor kept for the insert */
+function pickPic(it: DocItem) {
+  const el = rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-text]`)
+  if (!el) return
+  picFor.value = { it, value: el.value, start: el.selectionStart, end: el.selectionEnd }
+  fileEl.value?.click()
+}
+
+/** upload a picture and put its token at the cursor, on its own line; the caption is then selected to type over */
+async function insertPic(it: DocItem, file: File, value: string, start: number, end: number) {
+  const path = await upload(file)
+  if (!path) return
+  await saving
+  const stem = file.name.replace(/\.[^.]+$/, '').trim()
+  const token = picToken(stem && stem !== 'image' ? stem : t('ws_doctree.picture_caption'), path)
+  const pre = value.slice(0, start)
+  const post = value.slice(end)
+  const before = pre && !pre.endsWith('\n') ? pre + '\n' : pre
+  const next = before + token + (post && !post.startsWith('\n') ? '\n' : '') + post
+  paraEditing.add(it.id)
+  await commit(it, 'body', next)
+  resolveImages()
+  await nextTick()
+  const el = rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-text]`)
+  if (!el) return
+  el.value = it.body
+  grow(el)
+  el.focus()
+  el.setSelectionRange(before.length + 2, before.length + token.indexOf(']('))
+}
+
+/** a figure's caption edited in place: the k-th picture's token rewritten */
+async function commitCaption(it: DocItem, k: number, caption: string) {
+  await commit(it, 'body', setPicCaption(it.body, props.session.doc, k, caption))
 }
 
 function shapeOf(it: DocItem): DocShape {
@@ -474,7 +650,10 @@ async function viewOp(id: string, it: DocItem): Promise<boolean> {
   const x = await import('./-doctree-export')
   const part = branchOf(it)
   const doc = props.title || t('ws_doctree.default_doc_title')
-  if (id === 'export_md') x.saveText(x.exportName(doc, it.outline, 'md'), x.branchToMarkdown(part, t('ws_doctree.untitled')), 'text/markdown;charset=utf-8')
+  if (id === 'export_md') {
+    const figure = (n: number) => t('ws_doctree.figure', { n })
+    x.saveText(x.exportName(doc, it.outline, 'md'), x.branchToMarkdown(part, t('ws_doctree.untitled'), { doc: props.session.doc, figs: figs.value, figure }), 'text/markdown;charset=utf-8')
+  }
   else x.saveText(x.exportName(doc, it.outline, 'csv'), x.branchToCsv(part, [t('ws_doctree.col_outline'), t('ws_doctree.col_level'), t('ws_doctree.col_title'), t('ws_doctree.col_body')]), 'text/csv;charset=utf-8')
   return true
 }
@@ -777,6 +956,23 @@ onBeforeUnmount(() => {
   font: inherit;
 }
 .wsdoc__caption:hover, .wsdoc__caption:focus { border-color: var(--color-border-strong); }
+.wsdoc__fignum { flex: none; padding-inline-start: 6px; }
+/* a paragraph with pictures, read: its text and figures, one column wide; a click edits the text */
+.wsdoc__para {
+  margin-top: 2px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg);
+  line-height: 1.6;
+  cursor: text;
+}
+.wsdoc__para:hover { border-color: var(--color-border-strong); }
+.wsdoc__run { white-space: pre-wrap; overflow-wrap: anywhere; }
+.wsdoc__pic { margin: 8px 0 12px; color: var(--color-muted); font-size: 0.8rem; font-weight: 700; line-height: 1.4; }
+.wsdoc__pic img { display: block; max-width: 100%; height: auto; margin-bottom: 4px; }
+.wsdoc__paratools { display: flex; gap: 4px; padding: 2px 8px 0; }
+.wsdoc__tool--label { width: auto; gap: 4px; padding-inline: 8px; color: var(--color-muted); font-size: 0.8rem; }
 .wsdoc__doctitle[contenteditable]:focus { outline: 1px solid var(--color-border-strong); outline-offset: 2px; border-radius: var(--radius-sm); }
 
 /* the contents: Qto's rgt_side_nav, sticky beside the document */

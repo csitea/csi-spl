@@ -2449,6 +2449,9 @@
     "code_placeholder": "Код",
     "image_caption": "Підпис до зображення",
     "image_remove": "Видалити зображення",
+    "figure": "Рисунок {n}:",
+    "picture_caption": "Що показує це зображення",
+    "insert_picture": "Вставити зображення",
     "err_image": "Зображення відхилено: використайте файл PNG, JPEG, GIF або WebP розміром до 5 МБ."
   },
   "hours_cal": {

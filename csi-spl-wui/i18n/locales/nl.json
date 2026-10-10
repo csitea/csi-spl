@@ -2449,6 +2449,9 @@
     "code_placeholder": "Code",
     "image_caption": "Bijschrift",
     "image_remove": "Afbeelding verwijderen",
+    "figure": "Figuur {n}:",
+    "picture_caption": "Wat deze afbeelding toont",
+    "insert_picture": "Afbeelding invoegen",
     "err_image": "De afbeelding is geweigerd: gebruik een PNG-, JPEG-, GIF- of WebP-bestand van maximaal 5 MB."
   },
   "hours_cal": {

@@ -4,17 +4,34 @@
    spreadsheet is CSV (Excel and every sheet app open it); the `-` prefix
    keeps Nuxt from registering this file as a component. */
 import type { DocItem } from './-doctree-api'
+import { picRuns, picToken } from './-doc-pics'
 
-/** the branch as Markdown: one heading per item (# by level), its text, its code */
-export function branchToMarkdown(items: DocItem[], untitled: string): string {
+/** the figures to keep: the doc whose picture tokens count, the figure numbers and their label */
+export type MdFigures = { doc: string, figs: Map<string, { first: number, image: number }>, figure: (n: number) => string }
+
+/** the paragraph with each picture's token followed by its "Figure N: caption" line */
+function bodyWithFigures(it: DocItem, f: MdFigures): string {
+  let n = f.figs.get(it.id)?.first ?? 1
+  return picRuns(it.body, f.doc).map((r) => (r.kind === 'text' ? r.text : `${picToken(r.caption, r.path)}\n\n*${f.figure(n++)} ${r.caption}*\n`)).join('')
+}
+
+/** the branch as Markdown: one heading per item (# by level), its text, its code, its image */
+export function branchToMarkdown(items: DocItem[], untitled: string, f?: MdFigures): string {
   const base = Math.min(...items.map((it) => it.depth))
   const out: string[] = []
   for (const it of items) {
     const level = Math.min(6, it.depth - base + 1)
     out.push(`${'#'.repeat(level)} ${it.outline} ${it.title || untitled}`, '')
-    if (it.body.trim()) out.push(it.body.trim(), '')
+    const body = f ? bodyWithFigures(it, f) : it.body
+    if (body.trim()) out.push(body.trim(), '')
     const src = typeof it.attrs?.src === 'string' ? it.attrs.src : ''
     if (src) out.push('```', src, '```', '')
+    const img = typeof it.attrs?.img_http_path === 'string' ? it.attrs.img_http_path : ''
+    const n = f?.figs.get(it.id)?.image
+    if (img && f && n) {
+      const name = typeof it.attrs?.img_name === 'string' ? it.attrs.img_name : ''
+      out.push(picToken(name, img), '', `*${f.figure(n)} ${name}*`, '')
+    }
   }
   return out.join('\n')
 }

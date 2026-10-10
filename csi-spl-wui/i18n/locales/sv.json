@@ -2449,6 +2449,9 @@
     "code_placeholder": "Kod",
     "image_caption": "Bildtext",
     "image_remove": "Ta bort bilden",
+    "figure": "Figur {n}:",
+    "picture_caption": "Vad bilden visar",
+    "insert_picture": "Infoga bild",
     "err_image": "Bilden avvisades: använd en PNG-, JPEG-, GIF- eller WebP-fil på högst 5 MB."
   },
   "hours_cal": {

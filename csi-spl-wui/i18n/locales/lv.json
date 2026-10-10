@@ -2449,6 +2449,9 @@
     "code_placeholder": "Kods",
     "image_caption": "Attēla paraksts",
     "image_remove": "Noņemt attēlu",
+    "figure": "{n}. attēls:",
+    "picture_caption": "Ko rāda šis attēls",
+    "insert_picture": "Ievietot attēlu",
     "err_image": "Attēls tika noraidīts: izmantojiet PNG, JPEG, GIF vai WebP failu līdz 5 MB."
   },
   "hours_cal": {

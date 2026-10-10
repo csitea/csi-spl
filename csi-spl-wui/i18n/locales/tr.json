@@ -2449,6 +2449,9 @@
     "code_placeholder": "Kod",
     "image_caption": "Görsel açıklaması",
     "image_remove": "Görseli kaldır",
+    "figure": "Şekil {n}:",
+    "picture_caption": "Bu görsel neyi gösteriyor",
+    "insert_picture": "Görsel ekle",
     "err_image": "Görsel reddedildi: en fazla 5 MB boyutunda bir PNG, JPEG, GIF veya WebP dosyası kullanın."
   },
   "hours_cal": {

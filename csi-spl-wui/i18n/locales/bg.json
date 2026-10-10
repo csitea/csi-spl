@@ -2449,6 +2449,9 @@
     "code_placeholder": "Код",
     "image_caption": "Надпис под изображението",
     "image_remove": "Премахни изображението",
+    "figure": "Фигура {n}:",
+    "picture_caption": "Какво показва тази снимка",
+    "insert_picture": "Вмъкни снимка",
     "err_image": "Изображението беше отказано: използвайте PNG, JPEG, GIF или WebP файл до 5 MB."
   },
   "hours_cal": {

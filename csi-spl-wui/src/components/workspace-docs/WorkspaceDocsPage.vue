@@ -58,7 +58,7 @@
         <WorkspaceGridView v-else :key="'grid' + mount" :session="session" :filter="String(route.query.q || '')" @print="printBranch" />
       </template>
     </div>
-    <WorkspaceDocPrint :title="docTitle" :items="printItems" />
+    <WorkspaceDocPrint :title="docTitle" :items="printItems" :doc="session?.doc ?? ''" :srcs="printSrcs" />
     <WorkspaceDocNewDialog v-model:open="newOpen" :create="createDoc" />
   </div>
 </template>
@@ -70,6 +70,7 @@ import WorkspaceGridView from './WorkspaceGridView.vue'
 import WorkspaceDocPrint from './WorkspaceDocPrint.vue'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
 import { createDocSession, DocTreeError, seedStarterDoc, useDocTree, type DocHead, type DocItem, type DocSession } from './-doctree-api'
+import { picPaths } from './-doc-pics'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 
 const VIEWS = ['doc', 'grid'] as const
@@ -87,6 +88,8 @@ const root = ref('')
 const mount = ref(0)
 const newOpen = ref(false)
 const printItems = ref<DocItem[]>([])
+/* the printed images' sources, resolved before the browser prints */
+const printSrcs = ref<Record<string, string>>({})
 
 const docId = computed(() => String(route.query.doc || '') || docs.value[0]?.id || '')
 const view = computed<View>(() => (route.query.view === 'grid' ? 'grid' : 'doc'))
@@ -167,6 +170,7 @@ async function createDoc(title: string, description: string) {
 function afterPrint() {
   document.documentElement.classList.remove('ws-doc-printing')
   printItems.value = []
+  printSrcs.value = {}
 }
 
 /** print (D-Q2): one subtree read (no item = the whole document), the browser's print */
@@ -175,6 +179,9 @@ async function printBranch(item: DocItem | null) {
   if (!s) return
   const r = await s.run(() => client.subtree(s.doc, item?.id))
   if (!r) return
+  const paths = [...new Set(r.items.flatMap((it) => [
+    typeof it.attrs?.img_http_path === 'string' ? it.attrs.img_http_path : '', ...picPaths(it.body, s.doc)]).filter(Boolean))]
+  printSrcs.value = Object.fromEntries(await Promise.all(paths.map(async (p) => [p, await client.imageSrc(p)])))
   printItems.value = r.items
   await nextTick()
   document.documentElement.classList.add('ws-doc-printing')

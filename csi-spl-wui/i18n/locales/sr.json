@@ -2449,6 +2449,9 @@
     "code_placeholder": "Код",
     "image_caption": "Опис слике",
     "image_remove": "Уклони слику",
+    "figure": "Slika {n}:",
+    "picture_caption": "Šta prikazuje ova slika",
+    "insert_picture": "Umetni sliku",
     "err_image": "Слика је одбијена: користите PNG, JPEG, GIF или WebP датотеку до 5 MB."
   },
   "hours_cal": {

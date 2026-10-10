@@ -2449,6 +2449,9 @@
     "code_placeholder": "קוד",
     "image_caption": "כיתוב לתמונה",
     "image_remove": "הסרת התמונה",
+    "figure": "איור {n}:",
+    "picture_caption": "מה התמונה הזו מציגה",
+    "insert_picture": "הוספת תמונה",
     "err_image": "התמונה נדחתה: יש להשתמש בקובץ PNG,‏ JPEG,‏ GIF או WebP בגודל של עד 5 MB."
   },
   "hours_cal": {

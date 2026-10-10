@@ -2449,6 +2449,9 @@
     "code_placeholder": "Kodas",
     "image_caption": "Paveikslėlio antraštė",
     "image_remove": "Pašalinti paveikslėlį",
+    "figure": "{n} pav.:",
+    "picture_caption": "Ką rodo šis paveikslėlis",
+    "insert_picture": "Įterpti paveikslėlį",
     "err_image": "Paveikslėlis atmestas: naudokite PNG, JPEG, GIF arba WebP failą, ne didesnį nei 5 MB."
   },
   "hours_cal": {

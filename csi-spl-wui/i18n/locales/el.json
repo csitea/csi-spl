@@ -2449,6 +2449,9 @@
     "code_placeholder": "Κώδικας",
     "image_caption": "Λεζάντα εικόνας",
     "image_remove": "Αφαίρεση εικόνας",
+    "figure": "Εικόνα {n}:",
+    "picture_caption": "Τι δείχνει αυτή η εικόνα",
+    "insert_picture": "Εισαγωγή εικόνας",
     "err_image": "Η εικόνα απορρίφθηκε: χρησιμοποιήστε αρχείο PNG, JPEG, GIF ή WebP έως 5 MB."
   },
   "hours_cal": {

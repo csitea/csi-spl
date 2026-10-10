@@ -2449,6 +2449,9 @@
     "code_placeholder": "Code",
     "image_caption": "Image caption",
     "image_remove": "Remove the image",
+    "figure": "Figure {n}:",
+    "picture_caption": "What this picture shows",
+    "insert_picture": "Insert picture",
     "err_image": "That image was refused: use a PNG, JPEG, GIF or WebP file of at most 5 MB."
   },
   "hours_cal": {

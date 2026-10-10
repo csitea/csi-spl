@@ -2449,6 +2449,9 @@
     "code_placeholder": "Kód",
     "image_caption": "Popis obrázka",
     "image_remove": "Odstrániť obrázok",
+    "figure": "Obrázok {n}:",
+    "picture_caption": "Čo zobrazuje tento obrázok",
+    "insert_picture": "Vložiť obrázok",
     "err_image": "Obrázok bol odmietnutý: použite súbor PNG, JPEG, GIF alebo WebP s veľkosťou najviac 5 MB."
   },
   "hours_cal": {

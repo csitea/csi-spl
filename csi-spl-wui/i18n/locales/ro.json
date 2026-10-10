@@ -2449,6 +2449,9 @@
     "code_placeholder": "Cod",
     "image_caption": "Legenda imaginii",
     "image_remove": "Elimină imaginea",
+    "figure": "Figura {n}:",
+    "picture_caption": "Ce arată această imagine",
+    "insert_picture": "Inserează imagine",
     "err_image": "Imaginea a fost refuzată: folosește un fișier PNG, JPEG, GIF sau WebP de cel mult 5 MB."
   },
   "hours_cal": {

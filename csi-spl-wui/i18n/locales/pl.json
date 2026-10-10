@@ -2449,6 +2449,9 @@
     "code_placeholder": "Kod",
     "image_caption": "Podpis obrazu",
     "image_remove": "Usuń obraz",
+    "figure": "Rysunek {n}:",
+    "picture_caption": "Co przedstawia ten obraz",
+    "insert_picture": "Wstaw obraz",
     "err_image": "Obraz odrzucono: użyj pliku PNG, JPEG, GIF lub WebP o rozmiarze do 5 MB."
   },
   "hours_cal": {

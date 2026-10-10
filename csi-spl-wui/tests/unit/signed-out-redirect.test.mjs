@@ -163,19 +163,6 @@ describe('login landing', () => {
     }
   })
 
-  it('every locale has its translated landing tagline', () => {
-    const dir = join(WUI, 'i18n/locales')
-    const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
-    assert.equal(files.length, 19)
-    for (const f of files) {
-      const j = JSON.parse(readFileSync(join(dir, f), 'utf8'))
-      assert.ok(j.auth?.login?.where_humans_meet, f)
-      assert.ok(j.auth.login.where_humans_meet.length > 5, f)
-    }
-    const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8'))
-    assert.equal(en.auth.login.where_humans_meet, 'where people meet with ai')
-  })
-
   it('every locale has its translated slogan S1 and text T1 (spec 116)', () => {
     const dir = join(WUI, 'i18n/locales')
     const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
@@ -187,6 +174,7 @@ describe('login landing', () => {
       const j = JSON.parse(readFileSync(join(dir, f), 'utf8'))
       assert.ok(j.auth?.login?.slogan?.length > 5, f)
       assert.ok(j.auth?.login?.about?.includes('Spool'), f)
+      assert.equal(j.auth.login.where_humans_meet, undefined, `${f}: the old tagline key is gone`)
       if (f !== 'en.json') {
         assert.notEqual(j.auth.login.slogan, en.auth.login.slogan, `${f} slogan is translated`)
         assert.notEqual(j.auth.login.about, en.auth.login.about, `${f} about is translated`)

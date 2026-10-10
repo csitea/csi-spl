@@ -6262,6 +6262,35 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/cost/day": {
+      "post": {
+        "operationId": "postOperatorCostDay",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {day, source, state, lines, written, removed}, counts only, never a cost row (spec 123 lane 4)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Write one source's cost lines and coverage of one UTC day (the box feed)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/fleet-load": {
       "get": {
         "operationId": "getOperatorFleetLoad",

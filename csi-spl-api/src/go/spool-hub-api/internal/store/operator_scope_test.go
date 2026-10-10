@@ -59,6 +59,9 @@ var operatorCallers = map[string]string{
 	// spec 107 T007: the hours freeze sweep.
 	"hoursSweepTenants":     "hours freeze sweep (hub sweeper goroutine): the workspace ids to sweep, each then swept in its own scope; no route",
 	"pruneAgedHoursMinutes": "hours_minutes 45-day retention (spec 107 1.7, hub sweeper goroutine), global by design; no route",
+
+	// spec 123 lane 4: the box feed of cost tracking.
+	"PutCostDay": "POST /v1/operator/cost/day (spec 123 4.3, 4.6): estate cost rows (tenant_id NULL) of one day and source; only the operator service account (operatorAuth) reaches it; answers counts, never a row",
 }
 
 // operatorEntries are the only functions that set the operator scope:

@@ -9,8 +9,11 @@
 #   lane-map.sh [list] [--check <path,...>] [--agent <ID>] [--json] [--all]
 #       print the live lanes younger than 2 h (<ID>@<box>, state, age, repo,
 #       branch, topic, files, scope, src); --all: every row, done ones too;
-#       --check prints ONLY `free` (exit 0) or `<path> owned by <ID>@<box>
-#       <branch>` per overlap (exit 3) (--agent: the caller, never its own)
+#       --check prints ONLY `free` (exit 0), or `<path> owned by <ID>@<box>
+#       <branch>` per overlap (exit 3), or, with no overlap while a live build
+#       lane records no files, `unknown: <ID>@<box> <branch> has no files
+#       recorded; ask it or read its brief` per such lane (exit 4: NOT free)
+#       (--agent: the caller, never its own)
 #   lane-map.sh put --agent <ID> [--repo R] [--branch B] [--scope S] [--files P,...] [--topic T]
 #       write that agent's row, state live (the spawn path)
 #   lane-map.sh done --agent <ID>
@@ -20,7 +23,7 @@
 #
 # The action runs as $SPOOL_BOX_USER (the desk keys that sign the hub call are
 # theirs). Exit codes: the action's own (0 ok, 1 refused, 2 hub did not take a
-# write, 3 collision); 64 usage, or a box setting that is not ONE box id.
+# write, 3 collision, 4 a live lane with no files: scope unknown); 64 usage, or a box setting that is not ONE box id.
 #
 # LANE_MAP_ORC (tests): the csi-spl-orc dir whose ./run is called.
 set -uo pipefail
@@ -29,7 +32,7 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
-usage() { sed -n '9,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
+usage() { sed -n '9,23p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
 
 verb=list
 case "${1:-}" in list|put|done) verb="$1"; shift ;; -h|--help) usage ;; esac

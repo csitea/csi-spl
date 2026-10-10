@@ -36,6 +36,12 @@
 #      --argjson are "Argument list too long", and spl_lane_merge still
 #      returns the row. Both the hub answer and the local rows are planted
 #      that large, because either argument used to be one argv string
+#  12. unknown scope: a free path while another build lane with a live pane
+#      has `files: []` is exit 4, one `unknown: <ID>@<box> <branch> ...` line
+#      per such lane and no `free`; an owned path stays exit 3 with no
+#      unknown line; the empty lane itself, a seat, a lane with no pane and
+#      a lane with files never count. CONTROL: the same rows with that pane
+#      dead are `free`, exit 0, as before the check
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -110,7 +116,7 @@ if [[ $rc -eq 0 && "$out" == *"CLE-77920@box-desk"* && "$out" != *CLE-100001* ]]
 else fail "control: local-only map (rc=$rc): $out"; fi
 out="$(on pc do_spl_lane_put LANE_AGENT=CLE-77920)"; rc=$?
 [[ $rc -eq 0 && "$out" == *"nothing to write"* && ! -e "$T/hub/main.json" ]] && pass "no fleet: a put writes nothing, exit 0" || fail "no-fleet put (rc=$rc): $out"
-out="$(on pc 'LANE_CHECK=csi-spl-orc/src/bash/run do_spl_lane_map')"; rc=$?
+out="$(on pc 'LANE_CHECK=csi-spl-orc/src/bash/run do_spl_lane_map' LANE_AGENT=CLE-77920)"; rc=$?
 [[ $rc -eq 0 ]] && pass "control: the local-only collision check cannot see sat's files (exit 0)" || fail "control check rc=$rc"
 
 # 2. both machines write
@@ -310,6 +316,37 @@ if [[ "$out" == *LOCMERGE:0* ]] && jq -e '
   ' "$T/merged-loc.json" >/dev/null; then
   pass "local rows above 128 KiB merge the same way"
 else fail "big local merge: $out / $(jq -c 'map({agent_id, src, n: (.scope | length)})' "$T/merged-loc.json" 2>/dev/null || echo 'no merged json')"; fi
+
+# 12. unknown scope: the rows a spawn writes with no --files
+U=(LANE_FLEET=unk LANE_MEMINFO="$T/meminfo")
+on sat do_spl_lane_put "${U[@]}" LANE_AGENT=c-701 LANE_BRANCH=c-701-has-files LANE_FILES=csi-web/pages/login.vue >/dev/null
+on sat do_spl_lane_put "${U[@]}" LANE_AGENT=c-702 LANE_BRANCH=c-702-no-files >/dev/null
+on sat do_spl_lane_put "${U[@]}" LANE_AGENT=c-704 LANE_BRANCH=c-704-no-pane >/dev/null
+on sat do_spl_lane_put "${U[@]}" LANE_AGENT=c-001 LANE_BRANCH=c-001-seat >/dev/null
+printf '0 c-701@sat\n0 c-702@sat\n0 c-703@sat\n0 c-001@sat\n' >"$T/panes-u"
+sed 's/^0 c-702@sat$/1 c-702@sat/' "$T/panes-u" >"$T/panes-u-dead"
+chk() { on sat "LANE_CHECK=$1 LANE_AGENT=$2 do_spl_lane_map" "${U[@]}" LANE_PANES_CMD="cat $T/panes-u${3:-}" 2>&1; }
+unk='unknown: c-702@sat c-702-no-files has no files recorded; ask it or read its brief'
+out="$(chk csi-web/specs/005/spec.md c-703)"; rc=$?
+[[ $rc -eq 4 && "$(grep -c '^unknown: ' <<<"$out")" == 1 && "$(head -1 <<<"$out")" == "$unk" && "$(grep -cx free <<<"$out")" == 0 ]] &&
+  pass "a free path while c-702 (live pane, files: []) runs: exit 4, one '$unk' line, no 'free'" || fail "unknown (rc=$rc): $out"
+[[ "$out" != *c-704@* && "$out" != *c-001@* && "$out" != *c-701@* ]] &&
+  pass "...a lane with no pane, a seat (c-001) and a lane with files are never unknown" || fail "unknown lists too much: $out"
+[[ "$out" == *"WARN"*"scope is unknown, not free"* ]] && pass "...and a WARN says it is not free" || fail "unknown WARN: $out"
+out="$(chk csi-web/pages/login.vue c-703)"; rc=$?
+[[ $rc -eq 3 && "$(head -1 <<<"$out")" == "csi-web/pages/login.vue owned by c-701@sat c-701-has-files" && "$out" != *unknown:* ]] &&
+  pass "an owned path is still exit 3, '<path> owned by c-701@sat', no unknown line" || fail "owned with unknown (rc=$rc): $out"
+out="$(chk csi-web/specs/005/spec.md c-702)"; rc=$?
+[[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] && pass "the empty lane checking for itself: free, exit 0" || fail "self unknown (rc=$rc): $out"
+out="$(chk csi-web/specs/005/spec.md c-703 -dead)"; rc=$?
+[[ $rc -eq 0 && "$(head -1 <<<"$out")" == free && "$out" != *unknown:* ]] &&
+  pass "control: the same rows with c-702's pane dead read free, exit 0 (the verdict before this check)" || fail "control dead pane (rc=$rc): $out"
+on sat do_spl_lane_put "${U[@]}" LANE_AGENT=c-702 LANE_BRANCH=c-702-no-files LANE_FILES=csi-web/specs/006/ >/dev/null
+out="$(chk csi-web/specs/005/spec.md c-703)"; rc=$?
+[[ $rc -eq 0 && "$(head -1 <<<"$out")" == free ]] && pass "once c-702 records its files, the same path is free, exit 0" || fail "after files (rc=$rc): $out"
+out="$(on pc 'LANE_FORMAT=json do_spl_lane_map' "${U[@]}" | tail -1)"
+[[ "$(jq -c '.load[] | select(.box == "sat") | .busy_ids' <<<"$out")" == '["c-701","c-702","c-703"]' ]] &&
+  pass "json: the load carries busy_ids per box (sat's BOX-0 row, seats left out)" || fail "busy_ids: $out"
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

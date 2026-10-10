@@ -14,6 +14,10 @@
 # @description when a LIVE lane of another agent owns an overlapping path. The
 # @description table form then prints ONLY the verdict: `free`, or one line per
 # @description overlap `<path> owned by <ID>@<box> <branch>` (token practice 01).
+# @description A free path is exit 4 instead of 0 when another build lane with
+# @description a live pane has `files: []`: its scope is unknown, so one line per
+# @description such lane `unknown: <ID>@<box> <branch> has no files recorded; ask
+# @description it or read its brief` replaces `free`.
 # @description The default table hides the rows 2 h old or older, and those with
 # @description no age while the hub answered, behind a footer
 # @description `N older rows hidden (--all)`; LANE_ALL=1 shows every row.
@@ -22,7 +26,7 @@
 # @param LANE_DESK_BOX (optional) - the pinned desk box whose key signs the calls; default LEASE_DESK_BOX, then spl_desk_box_default
 # @param LANE_FORMAT (optional) - table (default) or json
 # @param LANE_ALL (optional) - 1 also lists done rows (the hub keeps them a week) and the older rows the table hides
-# @param LANE_CHECK (optional) - comma-separated paths the caller is about to own; exit 3 on an overlap with another live lane
+# @param LANE_CHECK (optional) - comma-separated paths the caller is about to own; exit 3 on an overlap with another live lane, exit 4 when none overlaps but a live build lane has no files recorded
 # @param LANE_AGENT (optional) - the caller's own id, skipped by LANE_CHECK
 # @param LANE_REPO_DIRS (optional) - space-separated repos whose local worktrees join the map; default the repo holding this tree
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `lane <args>`, prints the hub's answer
@@ -64,7 +68,7 @@ do_spl_lane_map() {
     spl_lane_table_recent "$rows"
   fi
   if [[ -n "${LANE_CHECK:-}" ]]; then
-    spl_lane_check "$rows" || rc=$?
+    spl_lane_check "$rows" "$load" || rc=$?
   fi
   return "$rc"
 }
@@ -230,8 +234,8 @@ spl_lane_live_here() {
 }
 
 # The load per box, as a JSON array of
-# {box, here, live, busy, seats, mem, mem_kb, src}: the agents live on the box
-# NOW, split into busy (build lanes) and seats (001-003 and the ids lease.conf
+# {box, here, live, busy, busy_ids, seats, mem, mem_kb, src}: the agents live on
+# the box NOW, split into busy (build lanes, their ids in busy_ids) and seats (001-003 and the ids lease.conf
 # names: they run the fleet, they are not build load). src says where the
 # live agents come from:
 #   panes  this box: its tmux panes (spl_lane_live_here)
@@ -279,7 +283,7 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
            end) as $x
         | ($x.ids | unique) as $u
         | {box: $b, here: ($b == $here), live: ($x.src != "rows" or ($u | length) > 0),
-           busy: ([$u[] | select(seat | not)] | length), seats: ([$u[] | select(seat)] | length),
+           busy: ([$u[] | select(seat | not)] | length), busy_ids: [$u[] | select(seat | not)], seats: ([$u[] | select(seat)] | length),
            mem: ($x.kb | gb), mem_kb: $x.kb, src: $x.src})' <<<"$1"
 }
 
@@ -370,8 +374,15 @@ spl_lane_load_header() {
 
 # Exit 3 when a live lane of another agent lists a path that overlaps one in
 # LANE_CHECK (one is the other, or contains it at a / boundary).
-spl_lane_check() {
-  local hits
+# Exit 4 when none does but a build lane of another agent, live on its box
+# NOW (busy_ids of the load: its pane here, its box's BOX-0 row there, else
+# its row younger than 2 h), has `files: []`: an empty row cannot say
+# `owned`, so `free` would be a guess (two near-collisions, 2026-10-10). One
+# `unknown:` line per such lane replaces `free`; a caller that reads any
+# non-zero as taken stays safe. Seats (001-003, lease.conf ids) run the fleet,
+# own no files and never count; nor do old `live` rows with no pane.
+spl_lane_check() {  # ROWS LOAD (spl_lane_load)
+  local hits unknown
   hits="$(jq -r --arg me "${LANE_AGENT:-}" --arg want "$LANE_CHECK" '
     def norm: sub("^\\./"; "") | sub("/+$"; "");
     def over($a; $b): $a == $b or ($a | startswith($b + "/")) or ($b | startswith($a + "/"));
@@ -387,6 +398,15 @@ spl_lane_check() {
     printf '%s\n' "$hits"
     do_log "WARN $(wc -l <<<"$hits") path(s) overlap another live lane: keep the new scope disjoint, or talk to that agent first"
     return 3
+  fi
+  unknown="$(jq -r --arg me "${LANE_AGENT:-}" --argjson load "${2:-[]}" '
+    .[] | select(.state == "live" and .agent_id != $me and (.files | length) == 0) as $l
+    | select(any($load[]; .box == $l.agent_box and ((.busy_ids // []) | index($l.agent_id)) != null))
+    | "unknown: \(.agent_id)@\(.agent_box) \(.branch) has no files recorded; ask it or read its brief"' <<<"$1" | sort -u)"
+  if [[ -n "$unknown" ]]; then
+    printf '%s\n' "$unknown"
+    do_log "WARN no live lane lists $LANE_CHECK, but $(wc -l <<<"$unknown") live lane(s) record no files: their scope is unknown, not free"
+    return 4
   fi
   echo free
   do_log "INFO no live lane of another agent owns $LANE_CHECK"

@@ -46,8 +46,8 @@ printf '(?i)\\b%s\\b\n' "$BAN_WORD" >"$T/store/csi-spl-hub-release-note-bans"
 
 post() {  # <lang> <id> <type> [<extra frontmatter line>...] -> a valid post on stdout
   local lang="$1" id="$2" type="$3"; shift 3
-  printf -- '---\nid: %s\nlang: %s\ntype: %s\ntitle: "A title"\nsummary: "One sentence."\ndate: %s\npublished: %s\nauthor: m-004\nagy_review: a-004\ntags: [fleet]\n' \
-    "$id" "$lang" "$type" "${id:0:10}" "$NOW_ISO"
+  printf -- '---\nid: %s\nlang: %s\ntype: %s\ntitle: "A title"\nsummary: "One sentence."\ndate: %s\npublished: %s\nauthor: m-004\nagy_review: a-004\ntags: [fleet]\nimage: %s.webp\nimage_alt: "A test image"\n' \
+    "$id" "$lang" "$type" "${id:0:10}" "$NOW_ISO" "$id"
   local l; for l in "$@"; do printf '%s\n' "$l"; done
   printf -- 'draft: false\n---\nThe fleet shipped %s, tagged v1.2.3.\n' "$SHA"
 }
@@ -136,7 +136,7 @@ post en 2026-10-09-hello news | sed 's/^author: .*/author: m-004@x/' | put "$N";
 post en 2026-10-09-hello news | sed 's/^type: .*/type: rumour/' | put "$N";            refused "an unknown type" frontmatter "$N"
 post en 2026-10-09-hello news | sed 's/^id: .*/id: 2026-10-09-other/' | put "$N";     refused "an id that is not the file name" frontmatter "$N"
 post en 2026-10-09-hello news | sed 's/^lang: .*/lang: fi/' | put "$N";                refused "a lang that is not the dir" frontmatter "$N"
-post en 2026-10-09-hello news 'image: 2026-10-09-hello.webp' | put "$N";               refused "image without image_alt" frontmatter "$N"
+post en 2026-10-09-hello news 'image: 2026-10-09-hello.webp' | sed '/^image_alt:/d' | put "$N"; refused "image without image_alt" frontmatter "$N"
 post en 2026-10-09-hello news 'image: ../x.webp' 'image_alt: "x"' | put "$N";          refused "a bad image key" frontmatter "$N"
 post en 2026-10-09-hello news 'image_prompt: "a portrait of a smiling woman at a desk"' | put "$N"; refused "a person in image_prompt" public-safe "$N"
 post en 2026-10-09-hello news 'image_prompt: "a server rack at dusk, in the style of Ansel Adams"' | put "$N"; refused "a named person in image_prompt" public-safe "$N"
@@ -183,7 +183,7 @@ out=$(run_check BLOG_CHECK_RANGE=origin/master..HEAD); rc=$?
 [[ $rc -eq 0 ]] && pass "one post id in two locales is one commit shape" || fail "shape ok: rc=$rc $out"
 
 # ---- 6. image required for non-draft posts ------------------------------------
-post en 2026-10-09-hello news | put "$N"
+post en 2026-10-09-hello news | sed '/^image:/d' | put "$N"
 refused "a non-draft post without image" frontmatter "$N"
 
 post en 2026-10-09-hello news 'draft: true' | put "$N"

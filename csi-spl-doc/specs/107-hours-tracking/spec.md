@@ -761,13 +761,13 @@ Folded by the editor (seat v2-claude, c-737) from four seats, each signed agains
 | v2-claude | c-737 | claude | [reviews/v2-claude.md](reviews/v2-claude.md) `6713c5858` | agree with changes: 8 agree, 16 change, 6 missing |
 | v2-claude-2 | c-738 | claude | [reviews/v2-claude-2.md](reviews/v2-claude-2.md) `13cb156f3` | agree with changes: 3 agree, 21 change (V2C2-1..4), 5 missing |
 | v2-agy | a-779 | agy | [reviews/v2-agy.md](reviews/v2-agy.md) `2cd70a4b4` | agree, all 24 FRs; nothing missing |
-| v2-mistral | m-740 | mistral | [reviews/v2-mistral.md](reviews/v2-mistral.md) `c6a275921` | agree, all 24 FRs; U4, U6..U10 asked as new FRs |
+| v2-mistral | m-740 | mistral | [reviews/v2-mistral.md](reviews/v2-mistral.md) `c6a275921`, rewritten after the fold as `3a44d1d97` | agree, all 24 FRs; nothing missing (`3a44d1d97`) |
 
-Guard (m- seats have clobbered whole files): `git show --stat` of each of the four commits lists only that seat's own review file (`c6a275921`: 1 file, +78, 0 deletions), and `git log 9260921ef..c6a275921 -- spec.md` is empty, so the fold sits on the reviewed text.
+Guard (m- seats have clobbered whole files): `git show --stat` of each of the four commits lists only that seat's own review file (`c6a275921`: 1 file, +78, 0 deletions; the later rewrite `3a44d1d97`: the same file only), and `git log 9260921ef..c6a275921 -- spec.md` is empty, so the fold sits on the reviewed text.
 
 ### 18.1 Per FR
 
-The seats in the order v2-claude / v2-claude-2 / v2-agy / v2-mistral. A seat that agreed with the draft did not address the edge a change fixes, so its agreement is not read as opposing that change (the business-needs 6.4 precedent). v2-mistral's notes from FR-17 on describe other FRs (its FR-22 note is the break rule, FR-26; its FR-37 note is the payroll column map); its verdict, agree with every FR, is counted as written.
+The seats in the order v2-claude / v2-claude-2 / v2-agy / v2-mistral. A seat that agreed with the draft did not address the edge a change fixes, so its agreement is not read as opposing that change (the business-needs 6.4 precedent). v2-mistral's first file (`c6a275921`) described other FRs from FR-17 on; its rewrite after the fold (`3a44d1d97`) matches the numbering, with the same verdict: agree with every FR, counted as written.
 
 | FR | claude | claude-2 | agy | mistral | result |
 |---|---|---|---|---|---|
@@ -835,9 +835,9 @@ Result: **2 agree as drafted (FR-19, FR-37 with one wording change), 22 changed*
 2. **FR-28, the overtime default: the person's weekly pattern (v2-claude) vs 5 x the organisation's day with `extra` (v2-claude-2).** Contract top-up hours of a part-timer are not overtime in most payroll rules. Settled: **v2-claude-2's**; v2-claude conceded, its period-boundary rule kept.
 3. **FR-20: not grantable (v2-claude) vs "by default only" (v2-claude-2).** Compatible: pinned to the role, and the biz owner may assign themself the role, logged. Folded both.
 4. **FR-25, an offline terminal**: raised as a question by v2-claude only. Settled by the editor: a terminal needs a network in v2 (the phone carries offline, FR-35).
-5. **Section 15 ranking.** BN-9 first: 3 seats (v2-mistral ranked FRs, not the candidates). **U8 into v2**: v2-claude, v2-claude-2, v2-mistral (as FR-41) vs v2-agy (v2.1): 3 to 1. **U9**: v2 (v2-claude, v2-mistral) vs v2.1 (v2-claude-2, v2-agy): 2 to 2, settled **v2.1**, the draft's position, since the warnings need recorded times; v2-claude conceded. **U10 later, U4 out**: v2-mistral asked both as new FRs (FR-43, FR-38), three seats kept the draft: 3 to 1. U3, U6, U7 in v2 and U12 out: no seat against.
-6. **v2-mistral's "missing" U4, U6..U10**: they are not missing; they are section 15's candidates, now ranked. U8 became FR-40; the others are ranked rows.
-7. **Q8 (U11)**: v2-claude, v2-claude-2 and v2-agy recommended C; v2-mistral's landed file agrees with the owner's C but describes a manual close with an audit log, which is option A's mechanism. The owner decided **C** (msg `8afdd796`); section 16 states the decision in the owner's terms, and the manual-close reading is not folded.
+5. **Section 15 ranking.** BN-9 first: 3 seats (v2-mistral's first file ranked FRs; its rewrite puts U9 first and BN-9 second, and names U3, U4, U6, U7, U8, U10 and U12 as other items, e.g. "U6 (absence balances)", so its order is counted only for BN-9 and U9). **U8 into v2**: v2-claude, v2-claude-2 vs v2-agy (v2.1): 2 to 1. **U9**: v2 (v2-claude, v2-mistral) vs v2.1 (v2-claude-2, v2-agy): 2 to 2, settled **v2.1**, the draft's position, since the warnings need recorded times; v2-claude conceded. U3, U6, U7 in v2, U10 later, U4 and U12 out: no seat against.
+6. **v2-mistral's first file listed U4, U6..U10 as missing**: they are section 15's candidates, now ranked, and its rewrite says nothing is missing. U8 became FR-40.
+7. **Q8 (U11)**: all four seats recommend C (v2-mistral's first file described a manual close with an audit log, option A's mechanism; its rewrite states C plainly). The owner decided **C** (msg `8afdd796`); section 16 states the decision in the owner's terms.
 
 ### 18.4 Open owner questions
 
@@ -849,10 +849,10 @@ Each seat signs the v2.0 sha below on the same lane.
 
 | seat | signed v2.0 | message |
 |---|---|---|
-| v2-claude (editor) | (the fold commit) | |
-| v2-claude-2 | pending | |
-| v2-agy | pending | |
-| v2-mistral | pending | |
+| v2-claude (editor) | `964931bdb` | the fold commit |
+| v2-claude-2 | not signed: c-738 retired at 08:44Z, before the fold; its review is signed against `9260921ef`, and all four of its findings (V2C2-1..4) are folded | |
+| v2-agy | pending: asked on `dispatch-a28dc5c9` at 08:50Z, no reply by 09:25Z | |
+| v2-mistral | `964931bdb` | m-740, msg `9a839d50` |
 
 ---
 

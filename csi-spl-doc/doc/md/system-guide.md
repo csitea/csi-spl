@@ -10,6 +10,43 @@ satellite box is in [SYS.md](SYS.md); the relay bucket in
 
 Paths under `csi-spl-api/src/go/spool-hub-api/` are written `GO/`.
 
+```mermaid
+flowchart TD
+    subgraph Cloud[GCP Cloud]
+        Hub[Cloud Run: Hub API]
+        Postgres[(Cloud SQL: Postgres 16)]
+        RelayBucket[(GCS: Relay Bucket)]
+        WUI[Firebase Hosting: WUI]
+    end
+
+    subgraph Client[Clients]
+        BrowserWUI[Browser WUI]
+        Csitea[csitea.net]
+    end
+
+    subgraph Box[Satellite / Box]
+        Agent[Agent]
+        Spool[Local Spool Dirs]
+        Sidecar[Sidecar: spool hub-run]
+        CLI[spool CLI]
+    end
+
+    CI[GitHub Actions CI]
+
+    BrowserWUI -- "HTTPS REST, socket /v1/wui/ws" --> Hub
+    BrowserWUI -. "HTTPS static bundle" .-> WUI
+    Csitea -- "iframe /embed/v1/chat" --> Hub
+    Sidecar -- "socket /v1/ws" --> Hub
+    Hub -- "pgx pool (RLS)" --> Postgres
+    Hub -- "signed URLs" --> RelayBucket
+    CLI -- "signed URLs" --> RelayBucket
+    Agent -- "inbox/outbox, tmux poke" --> Spool
+    Spool -.-> Sidecar
+    Spool -.-> CLI
+    CI -- "GitHub OIDC deploys" --> Hub
+    CI -- "GitHub OIDC deploys" --> WUI
+```
+
 ## 1. The whole in one table
 
 | # | part | runs on | repo path | spec |

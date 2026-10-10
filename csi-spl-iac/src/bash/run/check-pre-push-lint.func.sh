@@ -30,7 +30,7 @@
 # @description                    2026-09-30); seconds, before the wui part's minutes
 # @description   lint-wui-lock    pnpm install --frozen-lockfile --lockfile-only: a
 # @description                    package.json edit without its lock fails every CI install
-# @description   lint-shellcheck  67 do_sec_shellcheck  (.sh in the iac/orc/cnf bash trees)
+# @description   lint-shellcheck  67 do_sec_shellcheck  (.sh in the iac/orc/cnf/api/wui trees)
 # @description   lint-actionlint  85 do_sec_actionlint  (.github/workflows/*)
 # @description   lint-hadolint    66 do_sec_hadolint    (Dockerfiles)
 # @description   lint-eslint      63 do_sec_eslint      (csi-spl-wui/src .mjs/.js, vs baseline)
@@ -81,8 +81,8 @@ _PPL_MIG_DIR="csi-spl-rdb/src/sql/postgres/spool-hub"
 # every database's sha check, so the pair stays, by name, and nothing else.
 _PPL_MIG_PREFIX_OK="0021_rls_fail_closed.sql 0021_tenant_rbac.sql"
 
-# The bash trees workflow 67 scans; a .sh elsewhere (the hub's) is not CI's.
-_PPL_SC_DIRS="csi-spl-iac/src/bash csi-spl-iac/lib/bash csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-cnf/src/bash"
+# The bash trees workflow 67 scans (_SEC_SHELLCHECK_TREES in sec-shellcheck.func.sh).
+_PPL_SC_DIRS="csi-spl-iac/src/bash csi-spl-iac/lib/bash csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-cnf/src/bash csi-spl-api/src csi-spl-wui/src"
 
 _ppl_under() {  # <file> <dirs...>
   local f="$1" d; shift

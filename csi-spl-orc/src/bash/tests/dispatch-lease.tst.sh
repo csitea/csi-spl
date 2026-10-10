@@ -545,6 +545,10 @@ grep -qP '^c-005\tstop\tstalled pid=2500: ' "$R20" && [[ ! -s "$T/keys" ]] &&
 kill_agent 2100; report20 >/dev/null
 ! grep -q '^c-002' "$R20" && [[ "$(grep -vc '^#' "$R20")" == 3 ]] &&
   pass "20. a killed agent drops out of the next report" || fail "20. killed: $(cat "$R20" 2>&1)"
+D20="$T/r20/dispatch/agent-run-$(date -u -d @1791007260 +%F).log"
+[[ "$(grep -c '^1791007260 ' "$D20")" == 7 && "$(grep -c '^1791007260 c-002 stop$' "$D20")" == 1 &&
+   "$(tail -n 3 "$D20" | grep -c '^1791007260 c-002 ')" == 0 ]] &&
+  pass "20. each report appends '<epoch> <id> run|stop' to the UTC day log, the killed one gone (spec 123 4.3)" || fail "20. day log: $(cat "$D20" 2>&1)"
 [[ "$(env PROJ_PATH="$PROJ_ROOT" SPOOL_TEST=1 SPOOL_ROOT="$T/r20b" bash -c '
     do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init >/dev/null
     spl_lease_agent_run_tick; sleep 0.2; ls "$LEASE_DIR"/agent-run.tsv 2>/dev/null | wc -l')" == 0 ]] &&

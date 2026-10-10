@@ -618,10 +618,14 @@ spl_lease_agent_why() {
 # whole (tmp + mv) to $LEASE_DIR/agent-run.tsv; every desk sidecar reads it
 # through SPOOL_FLEET_ROOT (hubclient/agent_run.go) and sends it on its hello
 # and announce; a report older than 5 min is ignored there.
+#
+# Each report also appends "<epoch> <id> run|stop" per line to the UTC day
+# log agent-run-<day>.log beside it (spec 123 4.3, do_spl_cost_agent_hours_read).
 spl_lease_agent_run_report() {
-  local out="$LEASE_DIR/agent-run.tsv" id pid why
+  local out="$LEASE_DIR/agent-run.tsv" id pid why now
+  now="$(spl_lease_now)"
   {
-    echo "# agent-run v1 $(spl_lease_now)"
+    echo "# agent-run v1 $now"
     while IFS= read -r id; do
       [[ "$id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || continue
       pid="$(spl_lease_agent_pid "$id")"
@@ -629,7 +633,8 @@ spl_lease_agent_run_report() {
       [[ -n "$pid" ]] && why="$(spl_lease_agent_why "$id" "$pid")"
       if [[ -z "$why" ]]; then printf '%s\trun\n' "$id"; else printf '%s\tstop\t%s\n' "$id" "${why//$'\t'/ }"; fi
     done < <(spl_lease_live_ids)
-  } > "$out.$$" && mv -f "$out.$$" "$out"
+  } > "$out.$$" && mv -f "$out.$$" "$out" &&
+    awk -v ts="$now" '!/^#/ {print ts, $1, $2}' "$out" >> "$LEASE_DIR/agent-run-$(date -u -d "@$now" +%F).log"
 }
 
 # The report on every watch / fleet tick, in its own process (one at a time,

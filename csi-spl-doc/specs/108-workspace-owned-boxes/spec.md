@@ -16,7 +16,7 @@ A second workspace's admin, agent, or box could try to:
 A workspace admin generates a "Box Join Token" from the WUI (Workspace Settings -> Fleet). This token embeds the workspace ID (`tenant_id`). The admin runs the box start script, passing this token. The box generates its own private key and the hub pins the public half. The hub NEVER mints a box private key. Enrolment uses the spec 073 join token mechanism.
 
 ### 3.2. Box and Agent Identity
-Agents on a box follow the grammar `<ID>@<box>` (e.g., `c-004@box-alpha`, defined in Spec 061). The box identifier (`box-alpha`) is unique per workspace (`PRIMARY KEY (tenant_id, box_id)`), not global. All spool messages from/to `<ID>@<box>` carry the box's workspace ID. The public key is globally unique across all workspaces (exempting `box-wui`, since the hub pins its own key in every workspace). Uniqueness is enforced by a unique index on live `pins(pubkey)`, with a conflict answering `pin_conflict` that never names the other workspace.
+Agents on a box follow the grammar `<ID>@<box>` (e.g., `c-004@box-alpha`, defined in Spec 061). The box identifier (`box-alpha`) is unique per workspace (`PRIMARY KEY (tenant_id, box_id)`), not global. All spool messages from/to `<ID>@<box>` carry the box's workspace ID. A machine that hosts several workspaces (section 3.5) enrols once per workspace: each workspace's OS user generates its own key and joins with its own workspace's token, so each pin, and each `box_id` row, belongs to one workspace only. The public key is globally unique across all workspaces (exempting `box-wui`, since the hub pins its own key in every workspace). Uniqueness is enforced by a unique index on live `pins(pubkey)`, with a conflict answering `pin_conflict` that never names the other workspace.
 
 ### 3.3. Hub Enforcement on Read and Write
 The hub DB enforces isolation using Postgres Row-Level Security (RLS) with `FORCE`, which is already built (Spec 017). The column used is `tenant_id` and the session setting is `app.tenant_id`. The workspace is the one the VERIFIED PIN belongs to. `X-Spool-Tenant` only names it, and a header/pin mismatch is refused. There is no `agents` table; agents are `roster` rows. There is ONE runtime DB role for all tenants. The anonymous view door is refused outside lde.
@@ -25,7 +25,7 @@ The hub DB enforces isolation using Postgres Row-Level Security (RLS) with `FORC
 The relay uses one bucket per env with one Service Account (SA). The relay SA key NEVER reaches a workspace box. Instead, the hub mints per-object signed URLs under a hub-chosen `<tenant_id>/` prefix for the box to use.
 
 ### 3.5. Box-Side Isolation
-One box = one workspace. Enforced in `do_spl_desk_up` and at pin. Each box runs its own OS user, spool root, and state dir. Root on a box sees all: an operator-run box never hosts another workspace's agents. (Note: Owner answer to Question 2 will override this behavior if conflicting).
+A box may host several workspaces (owner, spec 122 Q-2 = C: a shared pool). Each workspace on a box runs as its own OS user, with its own spool root and its own state dir; an OS user never serves two workspaces. Enforced in `do_spl_desk_up` (it refuses to start a workspace's desk under an OS user, spool root or state dir already bound to another workspace) and at pin (a pin belongs to exactly one workspace, section 3.2). Isolation between workspaces on one box is OS-user isolation (test 4(d)), not isolation from that box's root: root, and the operator who runs the box, sees every workspace on it. A workspace that needs isolation from the box operator runs its own box.
 
 ### 3.6. Operator Workspace Visibility
 Operator scope grants every row when `app.rls_scope='operator'`. Only named `asOperator` callers set the scope (`TestOperatorScopeCallers`); `replay-unsigned` is the one route that takes the workspace from the body (SA allow-list). Isolation is between workspaces, not from the instance operator. `HubRoleCanLiftRLS` answering empty is the prd start gate.
@@ -62,6 +62,6 @@ Every test is a pair with its control.
 Overall: YES at e83aa15b (agy author a-552, agy-2, agy-3, agy-4, claude-a, claude-b). Owner questions 1-3 (section 7) still open; build waits for their answers.
 
 ## 7. Owner Questions
-1. Is a second workspace on one machine allowed, as a second OS user + spool root?
+1. Is a second workspace on one machine allowed, as a second OS user + spool root? **ANSWERED: yes** (2026-10-10, spec 122 Q-2 = C "a shared pool, one OS user and spool root per workspace on a box", msg b7ff5f4a "c", confirmed msg e95a0695 "Yes"; folded into section 3.5).
 2. Does the existing multi-workspace desk (`spl-desk-up-tenants.func.sh`) stay operator-only, with the workspaces it hosts not isolated from the operator on that box?
 3. At revoke, are queued deliveries held for the admin or purged?

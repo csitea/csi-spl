@@ -48,7 +48,13 @@
       @click="openSearch"
     ><UiIcon name="search" :size="18" /></button>
     <Teleport :to="dockSelector" :disabled="!atBottom" defer>
-    <div class="top-bar__omnibox" :class="{ 'top-bar__omnibox--bottom': atBottom }" data-test="top-bar-omnibox" :data-position="atBottom ? 'bottom' : undefined">
+    <div
+      v-show="!(editMode.isEditing && stack.isMobile.value)"
+      class="top-bar__omnibox"
+      :class="{ 'top-bar__omnibox--bottom': atBottom }"
+      data-test="top-bar-omnibox"
+      :data-position="atBottom ? 'bottom' : undefined"
+    >
       <MessageComposer
         ref="composer"
         omnibox
@@ -109,6 +115,7 @@ import MessageComposer from '@/components/MessageComposer.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
+import { useEditModeStore } from '~/stores/editMode'
 import { searchPath, shouldLoadOperators } from '~/utils/search.mjs'
 import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
 import { sendFailureKey } from '~/utils/send-failure.mjs'
@@ -123,6 +130,7 @@ import TenantDropBox from '~/components/TenantDropBox.vue'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { usePhone } from '~/composables/useTouchUi'
+import { useMobileStack } from '~/composables/useMobileStack'
 
 const { t } = useI18n({ useScope: 'global' })
 const clockHost = useClockHost()
@@ -139,8 +147,10 @@ const composer = ref<InstanceType<typeof MessageComposer> | null>(null)
 const slashHintId = useId()
 const restoreEl = ref<HTMLElement | null>(null)
 /* topic c6994436: the Omnibox's place (Settings -> Behaviour), never on a phone */
+const editMode = useEditModeStore()
 const atBottom = useOmniboxDock()
 const phone = usePhone()
+const stack = useMobileStack()
 const dockSelector = `#${DOCK_ID}`
 /* the bar's search button: the box is at the bottom now, `/search ` goes in it */
 function openSearch() {

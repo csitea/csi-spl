@@ -257,6 +257,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
+import { useEditModeStore } from '~/stores/editMode'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import {
   DOC_IMAGE_MAX, DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget,
@@ -296,6 +297,7 @@ const docTitleEl = ref<HTMLElement | null>(null)
 const fileEl = ref<HTMLInputElement | null>(null)
 /* the section the file picker adds an image to */
 const imageFor = ref<DocItem | null>(null)
+const editMode = useEditModeStore()
 const tocOpen = ref(true)
 const menu = ref<{ x: number, y: number, item: DocItem } | null>(null)
 const doomed = ref<DocItem | null>(null)
@@ -377,11 +379,13 @@ function revert(el: HTMLTextAreaElement, was: string) {
   el.value = was
   grow(el)
   el.blur()
+  editMode.setEditing(false)
 }
 
 async function commit(it: DocItem, field: 'title' | 'body', value: string) {
   if (it[field] === value) return
   if (await editDocItem(props.session, it, field, value)) items.value = [...items.value]
+  editMode.setEditing(false)
 }
 
 /** a code block or image edit: one attrs edit under the item's rev */
@@ -390,6 +394,7 @@ async function commitAttrs(it: DocItem, set: Record<string, string>) {
     if ('src' in set && !set.src) codeOpen.delete(it.id)
     items.value = [...items.value]
     resolveImages()
+    editMode.setEditing(false)
   }
 }
 
@@ -398,6 +403,7 @@ function revertDocTitle() {
   if (!el) return
   el.textContent = props.title || t('ws_doctree.default_doc_title')
   el.blur()
+  editMode.setEditing(false)
 }
 
 /** the document's title, renamed in place under the doc rev; cleared, the hub gives the default */
@@ -591,6 +597,7 @@ function narrow() {
 function toggleToc() {
   tocTop.value = Math.max(0, Math.round(barEl.value?.getBoundingClientRect().bottom ?? 0))
   tocOpen.value = !tocOpen.value
+  editMode.setEditing(false)
 }
 
 /** a contents link or a permalink: scroll the heading in, the URL carries its anchor */
@@ -630,6 +637,7 @@ function onSlash(e: KeyboardEvent) {
   if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return
   e.preventDefault()
   searchEl.value?.focus()
+  editMode.setEditing(false)
 }
 
 let ro: ResizeObserver | null = null
@@ -644,6 +652,10 @@ onMounted(async () => {
     await nextTick()
     document.getElementById(h)?.scrollIntoView({ block: 'start' })
   }
+  // Track edit mode on focus/blur
+  const trackEdit = (editing: boolean) => editMode.setEditing(editing);
+  rootEl.value?.addEventListener('focusin', () => trackEdit(true), true);
+  rootEl.value?.addEventListener('focusout', () => trackEdit(false), true);
   if (!fieldSizing && typeof ResizeObserver !== 'undefined' && rootEl.value) {
     ro = new ResizeObserver(() => {
       const w = rootEl.value?.clientWidth ?? 0

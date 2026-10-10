@@ -17,6 +17,9 @@
 # @example SEC_ESLINT_DIR=/tmp/es ./run -a do_sec_eslint
 #------------------------------------------------------------------------------
 
+# shellcheck source=../../../lib/bash/funcs/sec-baseline.func.sh
+declare -F _sec_baseline_gate >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/sec-baseline.func.sh"
+
 _sec_eslint_root() {
   if [[ -n "${SEC_ESLINT_ROOT:-}" ]]; then printf '%s\n' "$SEC_ESLINT_ROOT"; return 0; fi
   local base="${APP_PATH:-}"
@@ -83,33 +86,26 @@ except Exception: print(-1)')
     rm -f "$out"; return 1
   fi
 
-  local newf; newf=$(python3 - "$out" "$baseline" "$root" <<'PY'
+  local counts rc=0; counts=$(mktemp)
+  python3 - "$out" "$root" >"$counts" <<'PY'
 import json,sys,collections
-data=json.load(open(sys.argv[1])); bl=sys.argv[2]; root=sys.argv[3].rstrip("/")+"/"
-base=collections.Counter()
-for line in open(bl):
-    line=line.strip()
-    if not line or line.startswith("#"): continue
-    p=line.split("|")
-    if len(p)>=3: base[(p[0],p[1])]=int(p[2])
+root=sys.argv[2].rstrip("/")+"/"
 cur=collections.Counter()
-for f in data:
+for f in json.load(open(sys.argv[1])):
     fp=f.get("filePath","")
     rel=fp[len(root):] if fp.startswith(root) else fp
     for m in f.get("messages",[]):
         if m.get("ruleId"): cur[(m["ruleId"],rel)]+=1
-new=[]
-for k,n in sorted(cur.items()):
-    if n>base.get(k,0): new.append(f"{k[0]} {k[1]}: {n} found, {base.get(k,0)} baselined")
-print("\n".join(new))
+for (rule,rel),n in sorted(cur.items()): print(f"{rule}|{rel}|{n}")
 PY
-)
-  if [[ -n "$newf" ]]; then
-    do_log "FATAL eslint-plugin-security: NEW finding(s) beyond the baseline:"
-    printf '%s\n' "$newf" | sed 's/^/  /'
-    rm -f "$out"; return 1
-  fi
-  do_log "INFO eslint-plugin-security: no new findings (baseline holds)"
   rm -f "$out"
-  return 0
+  # The baseline is held below only over what was scanned: the files, or the dirs.
+  if [[ -n "${SEC_ESLINT_FILES:-}" ]]; then
+    _sec_baseline_gate eslint-plugin-security "$counts" "$baseline" "${files[@]}" || rc=1
+  else
+    # shellcheck disable=SC2086
+    _sec_baseline_gate eslint-plugin-security "$counts" "$baseline" $dirs || rc=1
+  fi
+  rm -f "$counts"
+  return "$rc"
 }

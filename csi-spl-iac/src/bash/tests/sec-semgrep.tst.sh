@@ -63,6 +63,19 @@ set -e
 [[ "$rc" -ne 0 ]] && grep -q 'NEW finding' <<<"$out" \
   && pass "a new semgrep finding fails the gate" || fail "new finding did not fail (rc=$rc)"
 
+# --- a count below its baseline line fails (r5-05) ---------------------------
+printf '# h\nrule.a|csi-spl-api/x.go|2\n' >"$ROOT/.semgrep-baseline.txt"
+stub semgrep 'if [[ "${SEC_SEMGREP_PHASE:-}" == control ]]; then echo "{\"results\":[{\"check_id\":\"control-eval\",\"path\":\"bad.js\"}]}"; else echo "{\"results\":[{\"check_id\":\"rule.a\",\"path\":\"csi-spl-api/x.go\"}]}"; fi'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_SEMGREP_ROOT="$ROOT" SEC_SEMGREP_DIRS=csi-spl-api do_sec_semgrep 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'lower this line' <<<"$out" \
+  && pass "a count below its baseline line fails" || fail "a baseline above the count passed (rc=$rc)"
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_SEMGREP_ROOT="$ROOT" SEC_SEMGREP_DIRS=csi-spl-wui do_sec_semgrep 2>&1); rc=$?
+set -e
+[[ "$rc" -eq 0 ]] && pass "a line outside the scanned dirs is not held below" || fail "a line outside the scan failed (rc=$rc)"
+
 # --- the workflow actually invokes the action -------------------------------
 if [[ -f "$WF" ]]; then
   miss=0

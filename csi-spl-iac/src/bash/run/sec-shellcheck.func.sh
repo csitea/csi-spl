@@ -18,6 +18,11 @@
 #------------------------------------------------------------------------------
 
 _SEC_SHELLCHECK_VER=0.10.0
+# The trees a whole-tree scan reads, relative to the repo root.
+_SEC_SHELLCHECK_TREES="csi-spl-iac/src/bash csi-spl-iac/lib/bash csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-cnf/src/bash"
+
+# shellcheck source=../../../lib/bash/funcs/sec-baseline.func.sh
+declare -F _sec_baseline_gate >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/sec-baseline.func.sh"
 
 _sec_shellcheck_root() {
   if [[ -n "${SEC_SHELLCHECK_ROOT:-}" ]]; then printf '%s\n' "$SEC_SHELLCHECK_ROOT"; return 0; fi
@@ -71,11 +76,8 @@ do_sec_shellcheck() {
   # tests under iac + orc + cnf. The hub (csi-spl-api) bash is the hub lane's;
   # extending shellcheck there is a follow-up (coordination + one SC2144 there).
   local scan_dirs=() d
-  for d in \
-    "$root/csi-spl-iac/src/bash" "$root/csi-spl-iac/lib/bash" \
-    "$root/csi-spl-orc/src/bash" "$root/csi-spl-orc/lib/bash" \
-    "$root/csi-spl-cnf/src/bash"; do
-    [[ -d "$d" ]] && scan_dirs+=("$d")
+  for d in $_SEC_SHELLCHECK_TREES; do
+    [[ -d "$root/$d" ]] && scan_dirs+=("$root/$d")
   done
   if [[ "${#scan_dirs[@]}" -eq 0 ]]; then
     do_log "FATAL no bash tree found under $root -- refusing a scan that checks nothing"
@@ -170,46 +172,37 @@ _sec_shellcheck_par() {
 # Warning level is a RATCHET, not a wall (CLE-77915, refactor item 4): 328
 # warnings sat below the error gate on 2026-10-01, most of them deliberate
 # (a tilde in a message, `yes | cp`, a constant-word `case` membership test).
-# Counts per (code, file) may not grow past .shellcheck-warning-baseline.txt;
-# a NEW warning fails, a fixed one is reported so the baseline can shrink.
+# Counts per (code, file) must equal .shellcheck-warning-baseline.txt: a NEW
+# warning fails, and so does a fixed one until its line is lowered (r5-05).
 # Counts, not line numbers, so ordinary edits do not churn.
 # <log> is the -S warning output of the files (from _sec_shellcheck_par).
 _sec_shellcheck_warn_ratchet() {
-  local root="$1" log="$2"; shift 2
+  local root="$1" log="$2" counts rc=0 f; shift 2
   local wbase="${SEC_SHELLCHECK_WARN_BASELINE:-$root/.shellcheck-warning-baseline.txt}"
   [[ -f "$wbase" ]] || { do_log "FATAL no $wbase -- the warning ratchet has nothing to hold"; return 1; }
-  local verdict rc=0
-  verdict=$(python3 - "$log" "$wbase" "$root" "$@" <<'PY'
+  counts=$(mktemp)
+  python3 - "$log" "$root" >"$counts" <<'PY' || rc=$?
 import collections, re, sys
-log, bl, root, files = sys.argv[1], sys.argv[2], sys.argv[3].rstrip("/") + "/", sys.argv[4:]
-rel = lambda f: f[len(root):] if f.startswith(root) else f
-scanned = {rel(f) for f in files}
-base = collections.Counter()
-for line in open(bl):
-    line = line.strip()
-    if line and not line.startswith("#"):
-        code, path, n = line.split("|")
-        base[(code, path)] = int(n)
+root = sys.argv[2].rstrip("/") + "/"
 cur = collections.Counter()
-for line in open(log):
+for line in open(sys.argv[1]):
     m = re.match(r"^(.+?):\d+:\d+: (?:warning|error): .*\[(SC\d+)\]$", line.rstrip())
     if m:
-        cur[(m.group(2), rel(m.group(1)))] += 1
-new = [f"NEW {c} {f}: {n} found, {base.get((c, f), 0)} baselined" for (c, f), n in sorted(cur.items()) if n > base.get((c, f), 0)]
-fixed = [f"FIXED {c} {f}: {n} baselined, {cur.get((c, f), 0)} found" for (c, f), n in sorted(base.items()) if f in scanned and cur.get((c, f), 0) < n]
-print("\n".join(new + fixed))
+        f = m.group(1)
+        cur[(m.group(2), f[len(root):] if f.startswith(root) else f)] += 1
+for (c, f), n in sorted(cur.items()):
+    print(f"{c}|{f}|{n}")
 PY
-) || rc=$?
-  [[ "$rc" -eq 0 ]] || { do_log "FATAL shellcheck warning ratchet could not read $wbase (exit $rc)"; return 1; }
-  if grep -q '^NEW ' <<<"$verdict"; then
-    do_log "FATAL shellcheck: NEW warning-level finding(s) beyond $wbase (fix it, or add a line with the reason):"
-    grep '^NEW ' <<<"$verdict" | sed 's/^/  /'
-    return 1
+  [[ "$rc" -eq 0 ]] || { do_log "FATAL shellcheck warning ratchet could not read $log (exit $rc)"; rm -f "$counts"; return 1; }
+  # A touched-files scan holds only those files' lines; a whole-tree scan holds
+  # every line under the trees, a deleted file's included.
+  local scope=()
+  if [[ -n "${SEC_SHELLCHECK_FILES:-}" ]]; then
+    for f in "$@"; do scope+=("${f#"$root"/}"); done
+  else
+    read -r -a scope <<<"$_SEC_SHELLCHECK_TREES"
   fi
-  if grep -q '^FIXED ' <<<"$verdict"; then
-    do_log "INFO shellcheck: fewer warnings than baselined -- lower these lines in $wbase:"
-    grep '^FIXED ' <<<"$verdict" | sed 's/^/  /'
-  fi
-  do_log "INFO shellcheck: no new warning-level findings (baseline holds)"
-  return 0
+  _sec_baseline_gate shellcheck "$counts" "$wbase" "${scope[@]}" || rc=1
+  rm -f "$counts"
+  return "$rc"
 }

@@ -75,8 +75,15 @@ ratchet "$W1"
 ratchet "$W1$W1"
 [[ "$rc" -ne 0 ]] && grep -q '2 found, 1 baselined' <<<"$out" && pass "a count above its baseline fails" || fail "count growth not caught (rc=$rc): $out"
 ratchet ""
-[[ "$rc" -eq 0 ]] && grep -q 'FIXED SC2034 csi-spl-iac/src/bash/run/ok.func.sh: 1 baselined, 0 found' <<<"$out" \
-  && pass "a fixed warning passes and asks for the baseline line to be lowered" || fail "fixed warning: rc=$rc $out"
+[[ "$rc" -ne 0 ]] && grep -q 'lower this line' <<<"$out" && grep -q 'LOWER SC2034 csi-spl-iac/src/bash/run/ok.func.sh: 1 baselined, 0 found' <<<"$out" \
+  && pass "RED CONTROL: a fixed warning fails until its baseline line is lowered (r5-05)" || fail "fixed warning: rc=$rc $out"
+echo 'SC2154|csi-spl-iac/src/bash/run/gone.func.sh|1' >>"$ROOT/.shellcheck-warning-baseline.txt"
+ratchet "$W1"
+[[ "$rc" -ne 0 ]] && grep -q 'LOWER SC2154 csi-spl-iac/src/bash/run/gone.func.sh: 1 baselined, 0 found' <<<"$out" \
+  && pass "a line for a deleted file fails a whole-tree scan" || fail "deleted file's line held: rc=$rc $out"
+set +e; out=$(PATH="$T/bin:$PATH" SEC_SHELLCHECK_ROOT="$ROOT" SEC_SHELLCHECK_FILES=csi-spl-iac/src/bash/run/ok.func.sh WARN_OUT="$W1" do_sec_shellcheck 2>&1); rc=$?; set -e
+[[ "$rc" -eq 0 ]] && pass "a touched-files scan holds only the touched files' lines" || fail "touched-files scan held other lines: rc=$rc $out"
+printf '# empty\nSC2034|csi-spl-iac/src/bash/run/ok.func.sh|1\n' >"$ROOT/.shellcheck-warning-baseline.txt"
 mv "$ROOT/.shellcheck-warning-baseline.txt" "$T/bl.saved"
 ratchet ""
 [[ "$rc" -ne 0 ]] && grep -q 'nothing to hold' <<<"$out" && pass "CONTROL: no baseline file fails closed" || fail "missing baseline accepted (rc=$rc)"

@@ -50,11 +50,11 @@ verdict() {  # <base-flag> <head-flag> <part-fn>
   R="$ROOT/r$RANDOM$RANDOM"
   {
     git init -q "$R"
-    cd "$R"
+    cd "$R" || return 1
     echo "$bflag" >flag; git add flag; git commit -qm base
     git branch trunkbase
     echo "$hflag" >flag; git add flag; git commit --allow-empty -qm head
-    cd - >/dev/null
+    cd - >/dev/null || return 1
   } >/dev/null 2>&1
   local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=(); local _PP_FAILED=0 _PP_BASE_WT=""
   _pp_run "stub" "$fn" "$R" trunkbase >/dev/null 2>&1
@@ -118,7 +118,7 @@ wl="$(git -C "$R5" worktree list)"
 grep -qF "$live" <<<"$wl" && pass "5b. a live run's baseline worktree is kept" || fail "5b. keep live" "$wl"
 git -C "$R5" worktree remove --force "$live" >/dev/null 2>&1
 ( _PP_BASE_WT=""; _pp_baseline_tree "$R5" HEAD; echo "$_PP_BASE_WT" >"$ROOT/r5.wt"
-  trap "_pp_baseline_cleanup '$R5'; exit 143" TERM; kill -TERM $BASHPID; sleep 5 ) 2>/dev/null
+  trap '_pp_baseline_cleanup "$R5"; exit 143' TERM; kill -TERM $BASHPID; sleep 5 ) 2>/dev/null
 wt5="$(cat "$ROOT/r5.wt")"
 { [[ -n "$wt5" ]] && ! git -C "$R5" worktree list | grep -F "$wt5" >/dev/null && [[ ! -d "$wt5" ]]; } \
   && pass "5c. TERM mid-run removes the run's own baseline worktree" || fail "5c. term cleanup" "$(git -C "$R5" worktree list)"

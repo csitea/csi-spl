@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: do_sec_eslint fails closed, its negative control can fail, and a NEW
-#          finding beyond the baseline reddens the gate. eslint here is a stub
+#          finding beyond the baseline reddens the gate; a count below its
+#          baseline line fails too (r5-05). eslint here is a stub
 #          emitting JSON. The real tool runs from 63_eslint-security.yml.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -63,6 +64,15 @@ out=$(PATH="$T/bin:$PATH" SEC_ESLINT_ROOT="$ROOT" SEC_ESLINT_BIN="$T/bin/eslint"
 set -e
 [[ "$rc" -ne 0 ]] && grep -q 'NEW finding' <<<"$out" \
   && pass "a new eslint finding fails the gate" || fail "new finding did not fail (rc=$rc)"
+
+# --- a count below its baseline line fails (r5-05) ---------------------------
+printf '# h\nsecurity/detect-bidi-characters|csi-spl-wui/src/utils/a.mjs|2\n' >"$ROOT/.eslint-security-baseline.txt"
+stub eslint 'if [[ "${SEC_ESLINT_PHASE:-}" == control ]]; then echo "[{\"filePath\":\"/x/bad.mjs\",\"messages\":[{\"ruleId\":\"security/detect-eval-with-expression\"}]}]"; else echo "[{\"filePath\":\"'"$ROOT"'/csi-spl-wui/src/utils/a.mjs\",\"messages\":[{\"ruleId\":\"security/detect-bidi-characters\"}]}]"; fi'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_ESLINT_ROOT="$ROOT" SEC_ESLINT_BIN="$T/bin/eslint" do_sec_eslint 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'lower this line' <<<"$out" \
+  && pass "a count below its baseline line fails" || fail "a baseline above the count passed (rc=$rc)"
 
 # --- the workflow actually invokes the action -------------------------------
 if [[ -f "$WF" ]]; then

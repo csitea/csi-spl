@@ -5,6 +5,7 @@
 # The gate runs the curated .eslint-security.config.mjs over csi-spl-wui/src, counts
 # messages per (rule, file), and FAILS if any exceeds its baseline count or is not
 # listed -- a NEW finding reddens the gate while the triaged one below stays green.
+# A count BELOW its line fails too (r5-05): the commit that fixes it lowers it.
 # Counts, not line numbers, so ordinary edits do not churn.
 #
 # Triage: the only remaining finding under the curated ruleset is

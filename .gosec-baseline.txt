@@ -5,7 +5,8 @@
 # The gate runs gosec at HIGH severity, counts findings per (rule, file), and
 # FAILS if any (rule, file) exceeds its baseline count or is not listed — i.e. a
 # NEW high-severity finding (new rule, new file, or an extra occurrence) reddens
-# the gate, while the triaged legacy findings below keep it green today. Counts,
+# the gate, while the triaged legacy findings below keep it green today. A count
+# BELOW its line fails too (r5-05): the commit that fixes a finding lowers it. Counts,
 # not line numbers, so ordinary edits do not churn the baseline. Every gosec rule
 # stays ACTIVE (nothing is globally excluded); regenerate with
 # `SEC_GOSEC_WRITE_BASELINE=1 ./run -a do_sec_gosec` after a triaged change.
@@ -16,7 +17,7 @@
 #         string constants ("token"/"secret"/URL paths), not real credentials.
 #   G115 x5 (hub/password/pubkey): int->uintNN conversions on bounded values
 #         (key sizes, lengths); gosec's integer-overflow rule is FP-prone.
-#   G404 x1 (hubclient/flush): math/rand for non-cryptographic jitter/backoff.
+#   G404 (hubclient/flush): gone on 2026-10-10 (r5-05), its line deleted.
 # A NEW occurrence of ANY of these rules (or any other gosec rule) anywhere not
 # already counted here fails the gate.
 G101|internal/auth/idp.go|1
@@ -26,4 +27,3 @@ G101|internal/wire/wire.go|1
 G115|cmd/spool/hub.go|2
 G115|internal/auth/password.go|1
 G115|internal/sign/pubkey.go|2
-G404|internal/hubclient/flush.go|1

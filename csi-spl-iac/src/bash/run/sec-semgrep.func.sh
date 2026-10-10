@@ -17,6 +17,9 @@
 
 _SEC_SEMGREP_VER=1.178.0
 
+# shellcheck source=../../../lib/bash/funcs/sec-baseline.func.sh
+declare -F _sec_baseline_gate >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/sec-baseline.func.sh"
+
 _sec_semgrep_root() {
   if [[ -n "${SEC_SEMGREP_ROOT:-}" ]]; then printf '%s\n' "$SEC_SEMGREP_ROOT"; return 0; fi
   local base="${APP_PATH:-}"
@@ -77,49 +80,23 @@ except Exception: print(-1)')
     return 1
   fi
 
-  if [[ "${SEC_SEMGREP_WRITE_BASELINE:-0}" == 1 ]]; then
-    python3 - "$out" "$baseline" "$root" <<'PY'
+  local counts rc=0; counts=$(mktemp)
+  python3 - "$out" "$root" >"$counts" <<'PY'
 import json,sys,collections
-data=json.load(open(sys.argv[1])); bl=sys.argv[2]; root=sys.argv[3].rstrip("/")+"/"
+root=sys.argv[2].rstrip("/")+"/"
 cur=collections.Counter()
-for i in data.get("results",[]):
+for i in json.load(open(sys.argv[1])).get("results",[]):
     p=i["path"]; p=p[len(root):] if p.startswith(root) else p.lstrip("./")
     cur[(i["check_id"],p)]+=1
-head=[l for l in open(bl) if l.startswith("#")]
-with open(bl,"w") as f:
-    f.writelines(head)
-    for (rule,p),n in sorted(cur.items()): f.write(f"{rule}|{p}|{n}\n")
-print("wrote baseline:",sum(cur.values()),"findings")
+for (rule,p),n in sorted(cur.items()): print(f"{rule}|{p}|{n}")
 PY
-    do_log "INFO semgrep baseline rewritten"; rm -f "$out"; return 0
-  fi
-
-  local newf; newf=$(python3 - "$out" "$baseline" "$root" <<'PY'
-import json,sys,collections
-data=json.load(open(sys.argv[1])); bl=sys.argv[2]; root=sys.argv[3].rstrip("/")+"/"
-base=collections.Counter()
-for line in open(bl):
-    line=line.strip()
-    if not line or line.startswith("#"): continue
-    p=line.split("|")
-    if len(p)>=3: base[(p[0],p[1])]=int(p[2])
-cur=collections.Counter()
-for i in data.get("results",[]):
-    pth=i["path"]; pth=pth[len(root):] if pth.startswith(root) else pth.lstrip("./")
-    cur[(i["check_id"],pth)]+=1
-new=[]
-for k,n in sorted(cur.items()):
-    if n>base.get(k,0): new.append(f"{k[0].split('.')[-1]} {k[1]}: {n} found, {base.get(k,0)} baselined")
-print("\n".join(new))
-PY
-)
-  if [[ -n "$newf" ]]; then
-    do_log "FATAL semgrep: NEW finding(s) beyond the baseline:"
-    printf '%s\n' "$newf" | sed 's/^/  /'
-    rm -f "$out"
-    return 1
-  fi
-  do_log "INFO semgrep: no new findings (baseline holds)"
   rm -f "$out"
-  return 0
+  if [[ "${SEC_SEMGREP_WRITE_BASELINE:-0}" == 1 ]]; then
+    _sec_baseline_write "$counts" "$baseline" || rc=1
+  else
+    # shellcheck disable=SC2086
+    _sec_baseline_gate semgrep "$counts" "$baseline" $dirs || rc=1
+  fi
+  rm -f "$counts"
+  return "$rc"
 }

@@ -19,6 +19,9 @@
 
 _SEC_GOSEC_VER=2.22.4
 
+# shellcheck source=../../../lib/bash/funcs/sec-baseline.func.sh
+declare -F _sec_baseline_gate >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/sec-baseline.func.sh"
+
 _sec_gosec_root() {
   if [[ -n "${SEC_GOSEC_ROOT:-}" ]]; then printf '%s\n' "$SEC_GOSEC_ROOT"; return 0; fi
   local base="${APP_PATH:-}"
@@ -118,52 +121,21 @@ except Exception: print(-1)' "$ctl/out.json" 2>/dev/null)
     return 1
   fi
 
-  if [[ "${SEC_GOSEC_WRITE_BASELINE:-0}" == 1 ]]; then
-    python3 - "$out" "$baseline" <<'PY'
+  local counts; counts=$(mktemp)
+  python3 - "$out" >"$counts" <<'PY'
 import json,sys,collections
-data=json.load(open(sys.argv[1])); bl=sys.argv[2]
 cur=collections.Counter()
-for i in data.get("Issues",[]):
-    rel=i["file"].split("spool-hub-api/")[-1]
-    cur[(i["rule_id"],rel)]+=1
-head=[l for l in open(bl) if l.startswith("#")]
-with open(bl,"w") as f:
-    f.writelines(head)
-    for (rule,rel),n in sorted(cur.items()):
-        f.write(f"{rule}|{rel}|{n}\n")
-print("wrote baseline:",sum(cur.values()),"findings")
+for i in json.load(open(sys.argv[1])).get("Issues",[]):
+    cur[(i["rule_id"],i["file"].split("spool-hub-api/")[-1])]+=1
+for (rule,rel),n in sorted(cur.items()): print(f"{rule}|{rel}|{n}")
 PY
-    do_log "INFO gosec baseline rewritten"
-    rm -f "$out"
-    return 0
-  fi
-
-  local newf; newf=$(python3 - "$out" "$baseline" <<'PY'
-import json,sys,collections
-data=json.load(open(sys.argv[1])); bl=sys.argv[2]
-base=collections.Counter()
-for line in open(bl):
-    line=line.strip()
-    if not line or line.startswith("#"): continue
-    p=line.split("|")
-    if len(p)>=3: base[(p[0],p[1])]=int(p[2])
-cur=collections.Counter()
-for i in data.get("Issues",[]):
-    rel=i["file"].split("spool-hub-api/")[-1]
-    cur[(i["rule_id"],rel)]+=1
-new=[]
-for k,n in sorted(cur.items()):
-    if n>base.get(k,0): new.append(f"{k[0]} {k[1]}: {n} found, {base.get(k,0)} baselined")
-print("\n".join(new))
-PY
-)
-  if [[ -n "$newf" ]]; then
-    do_log "FATAL gosec: NEW high-severity finding(s) beyond the baseline:"
-    printf '%s\n' "$newf" | sed 's/^/  /'
-    rm -f "$out"
-    return 1
-  fi
-  do_log "INFO gosec: no new high-severity findings (baseline holds)"
   rm -f "$out"
-  return 0
+  rc=0
+  if [[ "${SEC_GOSEC_WRITE_BASELINE:-0}" == 1 ]]; then
+    _sec_baseline_write "$counts" "$baseline" || rc=1
+  else
+    _sec_baseline_gate "gosec high-severity" "$counts" "$baseline" || rc=1
+  fi
+  rm -f "$counts"
+  return "$rc"
 }

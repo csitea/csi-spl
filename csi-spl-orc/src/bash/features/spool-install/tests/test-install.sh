@@ -156,7 +156,7 @@ HUB=https://api.example.com
 TOOLS="$H/.local/share/spool-agent/tools"
 
 # --- 1. refusals ------------------------------------------------------------------------
-ARGS=(--cli claude,vim --no-seat); inst; rc=$?
+ARGS=(--cli 'claude,vim' --no-seat); inst; rc=$?
 [[ $rc -eq 2 ]] && grep -q "got 'vim'" "$T/o" && pass "1. an unknown --cli is refused (2)" || fail "1. --cli vim: rc $rc $(cat "$T/o")"
 ARGS=(--tenant t1); inst; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'SPOOL_HUB_URL must be set (no default)' "$T/o" && pass "1. a seat without SPOOL_HUB_URL fails fast" || fail "1. no hub: rc $rc $(cat "$T/o")"
@@ -165,7 +165,7 @@ ARGS=(); inst SPOOL_HUB_URL=$HUB; rc=$?
 [[ ! -e "$T/net.log" && -z "$(ls -A "$H")" ]] && pass "1. no refusal touched the network or HOME" || fail "1. refusal side effects: $(cat "$T/net.log" 2>/dev/null; ls -A "$H")"
 
 # --- 2. dry run ----------------------------------------------------------------------------
-ARGS=(--cli claude,grok,agy --tenant t1 --box box-ext --dry-run); inst SPOOL_HUB_URL=$HUB; rc=$?
+ARGS=(--cli 'claude,grok,agy' --tenant t1 --box box-ext --dry-run); inst SPOOL_HUB_URL=$HUB; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'DRY RUN - nothing changed' "$T/o" && grep -q 'would: install the latest grok' "$T/o" &&
   grep -q 'would: download the latest Go' "$T/o" && grep -q "would: key + pin box-ext in t1 at $HUB" "$T/o" &&
   pass "2. the dry run prints every step" || fail "2. dry: rc $rc $(cat "$T/o")"
@@ -173,7 +173,7 @@ ARGS=(--cli claude,grok,agy --tenant t1 --box box-ext --dry-run); inst SPOOL_HUB
   pass "2. the dry run downloads, builds and writes nothing" || fail "2. dry side effects: $(ls -AR "$H" | sed -n 1,10p)"
 
 # --- 3. full install, no seat ----------------------------------------------------------------
-ARGS=(--cli claude,grok,agy --no-seat --env prd --tenant t9 --box box-ext); inst; rc=$?
+ARGS=(--cli 'claude,grok,agy' --no-seat --env prd --tenant t9 --box box-ext); inst; rc=$?
 [[ $rc -eq 0 ]] && pass "3. install exits 0" || fail "3. rc $rc: $(cat "$T/o")"
 for c in claude agy; do grep -qx "vendor-$c ran" "$T/vendor.log" && [[ -x "$H/.local/bin/$c" ]] &&
   pass "3. the $c vendor installer ran and left $c" || fail "3. $c: $(cat "$T/vendor.log")"; done
@@ -364,7 +364,7 @@ ARGS=(--cli none --no-seat --no-skills); inst
 printf '\x7fELF-not-a-script' >"$T/www/agy-binary"
 sed -i 's#  https://vendor.test/agy)    f=agy-install.sh ;;#  https://vendor.test/agy)    f=agy-install.sh ;;\n  https://vendor.test/agybin) f=agy-binary ;;#' "$T/stub/curl"
 rm -f "$H/.local/bin/agy"; rm -rf "$H/.claude/commands"; : >"$T/vendor.log"; : >"$T/npm.log"
-ARGS=(--cli agy,qwen --no-seat); inst SPOOL_INSTALL_URL_AGY=https://vendor.test/agybin; rc=$?
+ARGS=(--cli 'agy,qwen' --no-seat); inst SPOOL_INSTALL_URL_AGY=https://vendor.test/agybin; rc=$?
 [[ $rc -eq 4 ]] && grep -q 'agybin did not return a script' "$T/o" && grep -q 'not installed: agy' "$T/o" &&
   pass "11. a non-script installer is refused, named, and the run exits 4" || fail "11. rc $rc $(cat "$T/o")"
 ! grep -q 'vendor-agy ran' "$T/vendor.log" && [[ ! -e "$H/.local/bin/agy" ]] && pass "11. ... and never run" || fail "11. it ran"

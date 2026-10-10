@@ -242,6 +242,7 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 		return opts, err
 	}
 	opts.InviteMail = inviteMailer(hc, log, st, pmc, ac.AppURL)
+	opts.EmbedRelinkMail = embedRelinkMailer(log, pmc) // specs/121 T206
 	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
 	// CLE-77780: the operator invite routes let the box create/mail invites
 	// FROM the hub (no box SMTP). Off unless SPOOL_HUB_OPERATOR_EMAILS is set.
@@ -481,6 +482,18 @@ func inviteMailer(hc *config.Hub, log zerolog.Logger, st store.Store, pmc *mail.
 	return func(ctx context.Context, tenant, email, locale string) (string, error) {
 		res, err := om(ctx, tenant, email, locale)
 		return res.Outcome, err
+	}
+}
+
+// embedRelinkMailer sends the embed visitor's relink mail (specs/121 T206)
+// through the invite mail's relay; nil when the relay sends nothing.
+func embedRelinkMailer(log zerolog.Logger, pmc *mail.Config) hub.EmbedRelinkMailer {
+	if pmc.Transport == mail.TransportNone {
+		return nil
+	}
+	sender := pmc.Sender(log)
+	return func(ctx context.Context, to, link string, ttl time.Duration) error {
+		return invitemail.SendEmbedRelink(ctx, sender, to, link, ttl)
 	}
 }
 

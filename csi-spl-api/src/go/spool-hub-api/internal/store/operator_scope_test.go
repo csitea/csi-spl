@@ -67,6 +67,8 @@ var operatorCallers = map[string]string{
 	"EmbedCustomer":       "/v1/embed/<embed-id>/*, /embed/v1/chat?e= (spec 121 4.1, 5): the embed id in the URL, unique hub-wide, names its workspace; that one embed row",
 	"EmbedVisitorByToken": "visitor bearer (spec 121 4.1): embed id + the 256-bit token's sha256; that one live visitor row, whose channel scopes the rest of the request",
 	"EmbedRetentionDue":   "visitor channel retention (spec 121 4.4, hub sweeper goroutine): due visitors of every workspace; each is removed under its own channel scope (RetireEmbedVisitor); no route",
+	// spec 121 T206: the relink names no workspace either.
+	"EmbedRelinkVisitor": "POST /v1/embed/<embed-id>/relink[/redeem] (spec 121 4.1): embed id + the address, or + the visitor id of a link whose mac the hub then checks; that one live visitor row and its token hash, never returned to the caller",
 }
 
 // operatorEntries are the only functions that set the operator scope:

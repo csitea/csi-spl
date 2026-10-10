@@ -185,6 +185,10 @@ var demoOutOfReach = map[string]bool{
 	"POST /v1/embed/{embed_id}/visitor":   true,
 	"DELETE /v1/embed/{embed_id}/visitor": true,
 	"POST /v1/embed/{embed_id}/messages":  true,
+	// specs/121 T206: the relink, the visitor's bearer or no token at all
+	"PUT /v1/embed/{embed_id}/visitor/email":  true,
+	"POST /v1/embed/{embed_id}/relink":        true,
+	"POST /v1/embed/{embed_id}/relink/redeem": true,
 }
 
 // marketingRoute(mux, "...") registers a spec 090 route behind its gate.

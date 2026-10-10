@@ -219,6 +219,9 @@ type Options struct {
 	EmbedEnabled         bool
 	EmbedTokenLife       store.EmbedTokenLife
 	EmbedMessageMaxBytes int
+	// EmbedRelinkMail mails a visitor's relink link (specs/121 T206,
+	// embed_relink.go); nil = no relay, nothing is mailed.
+	EmbedRelinkMail EmbedRelinkMailer
 }
 
 // Server is one hub process.
@@ -435,7 +438,8 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeEmbedAdmin(mux)    // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
 	// specs/121 T201: /embed/*, per-embed frame-ancestors; T202 passes its assets.
 	s.routeEmbedServe(mux, s.o.EmbedEnabled, nil)
-	s.routeEmbedStaff(mux) // specs/121 T106: /v1/tenant/embed-visitors*, staff, off unless EmbedEnabled
+	s.routeEmbedStaff(mux)  // specs/121 T106: /v1/tenant/embed-visitors*, staff, off unless EmbedEnabled
+	s.routeEmbedRelink(mux) // specs/121 T206: the e-mail relink, off unless EmbedEnabled
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

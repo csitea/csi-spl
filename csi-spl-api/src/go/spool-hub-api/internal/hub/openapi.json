@@ -2974,6 +2974,143 @@
         ]
       }
     },
+    "/v1/embed/{embed_id}/relink": {
+      "post": {
+        "description": "No token. Mails a single-use link, valid 15 minutes, to the address when it is a live visitor's of this embed; the same 202 either way, so the answer names no address. The link is return_url (a page of one of the embed's allowed origins) or the embed's first allowed origin, with the code in the fragment #spool-relink=<code>. At most 3 mails per visitor per hour. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T206).",
+        "operationId": "postEmbedRelink",
+        "parameters": [
+          {
+            "description": "the embed id (the e= of the iframe URL)",
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "email": {
+                    "maxLength": 320,
+                    "type": "string"
+                  },
+                  "return_url": {
+                    "description": "the page the link opens; its origin must be one of the embed's allowed origins",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "accepted, whether or not a mail was sent"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [],
+        "summary": "Ask for an embed relink e-mail",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
+    "/v1/embed/{embed_id}/relink/redeem": {
+      "post": {
+        "description": "No token. Binds a new visitor token to the visitor of a relink code, in place of its old one (the old device is signed out); the same channel. A used, expired, forged or unknown code: 410. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T206).",
+        "operationId": "postEmbedRelinkRedeem",
+        "parameters": [
+          {
+            "description": "the embed id (the e= of the iframe URL)",
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "code": {
+                    "description": "the #spool-relink= fragment of the mailed link",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "channel": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "token": {
+                      "description": "the new 256-bit visitor token, unpadded base64url; the hub keeps only its sha256",
+                      "type": "string"
+                    },
+                    "visitor_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "the visitor, with its new token"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "description": "embed_relink: the link is used, expired or unknown"
+          }
+        },
+        "security": [],
+        "summary": "Redeem an embed relink code",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
     "/v1/embed/{embed_id}/visitor": {
       "delete": {
         "description": "Erasure on request (spec 121 4.4): the visitor's channel, its lines, its token and its HUM. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104).",
@@ -3060,6 +3197,70 @@
         },
         "security": [],
         "summary": "Mint an embed visitor",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
+    "/v1/embed/{embed_id}/visitor/email": {
+      "put": {
+        "description": "Sets the visitor's relink address, offered after the first answer in its channel, for one purpose: a link back to this chat from another device. An empty email clears it. The address is shown to the workspace owner only. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T206).",
+        "operationId": "putEmbedVisitorEmail",
+        "parameters": [
+          {
+            "description": "the embed id (the e= of the iframe URL)",
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "email": {
+                    "description": "one address, or \"\" to clear it",
+                    "maxLength": 320,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "stored"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "embed_no_answer: the channel holds no answer yet"
+          }
+        },
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Set the embed visitor's relink e-mail",
         "tags": [
           "embed"
         ]
@@ -8526,6 +8727,42 @@
           }
         },
         "summary": "Make the embed's ES256 JWT key; the private half is in this response only (owner only)",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
+    "/v1/tenant/embeds/{embed_id}/visitor-emails": {
+      "get": {
+        "operationId": "listEmbedVisitorEmails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the embed's visitors that left a relink address, newest seen first"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "the embed is off on this hub (cnf env.hub.embed.enabled), or no such embed"
+          }
+        },
+        "summary": "List the relink addresses of an embed's visitors (owner only, spec 121 T206)",
         "tags": [
           "embed"
         ]

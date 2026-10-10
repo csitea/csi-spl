@@ -1,6 +1,16 @@
 # 121 Sales channel: selling Csitea.net services on spool-hub.ai
 
-Version **v1.2** (2026-10-10): the owner's answers to the two questions v1.1
+Version **v1.3** (2026-10-10): the live credits counter (section 8.1,
+R9), from the owner's posts in csitea topic ebfb10dc (msgs 057db9f5 and
+259e8711), written by c-876. 057db9f5 restates the price of section 7 and
+the top-up of section 8 (R6, R7) and confirms them; nothing there changes.
+New: where a member sees the balance, how often it refreshes, what it is
+computed from, its warning threshold, its cost in the first-paint bundle,
+its tests, and the owner's rule that the counter informs and never nudges
+spend. Two owner questions are open (section 12.5): Q-C1, what "resets"
+means, and Q-C2, where the counter sits.
+
+v1.2 (2026-10-10): the owner's answers to the two questions v1.1
 left open (Q-N1 41925444, Q-N2 c2a30422) and the sales agent's model scope
 (41925444), folded in by c-814 (section 1.4, 12.4). No owner question is
 open.
@@ -57,6 +67,7 @@ The spoken names read as: "spoolhop.ai" = spool-hub.ai, "SiteNet" and
 | R6 | price = (measured tokens x 1.20 + other own cost + a slice of the fixed hub cost) + 29%, one rate for every workspace | cd2d25e3, acaed9ef, 55309d31, f5c0e3c7, 9e0c0dba |
 | R7 | customers top up a balance by card; work stops at zero; no invoice | e38f9953 |
 | R8 | above 80% capacity, hardware is added (spec 122) | 72b5ed23 |
+| R9 | a live credits counter: tokens and money, near real time, refreshed once a minute; it informs and never nudges spend (section 8.1) | 057db9f5, 259e8711 |
 
 The csitea.net pop-up (R1) is not a sale: it is customer #1 of the embed (R3),
 with Csitea's own workspace paying for its usage.
@@ -94,6 +105,15 @@ were not re-read from the hub here.
 |---|---|---|---|
 | 41925444 | "Yeah, there should be some kind of cap. €5 seems okay. Plus, the scope of the tokens should be pretty constrained, aka we should teach the most cheap Mistral or a white AI agent on the stuff we are selling to be able to answer, and that's it." | Q-N1 = A: EUR 5 per day per embed for unpaid visitors. New: the sales agent runs on the cheapest model (the smallest Mistral or a similar small model; "white" read as dictation for "light"), knows only what we sell and declines anything else | 4.3, 6, 12.4 |
 | c2a30422 | "Only the admin of the spool" | Q-N2 = B, narrowed: only the Spool Hub admin changes the +20% token buffer; the monthly action measures the gap and proposes, never applies | 7, 12.4 |
+
+The credits counter (csitea topic ebfb10dc, HUM-10). 057db9f5 is quoted
+from this lane's brief; 259e8711 as relayed verbatim by c-002@sat (spool
+msg b5dd540b); neither was re-read from the hub here.
+
+| msg | the owner's words | reading | folded into |
+|---|---|---|---|
+| 057db9f5 | "Ideally, we would be charging customers for the amount of money spent, based on the mixture of agents and everything else they have been using. That would be the ideal scenario, and they will have a once-a-minute counter which resets and shows their credits." | the first sentence confirms R6 and R7 as written; new: a counter of the credits, once a minute ("resets" read as "refreshes", Q-C1) | R9, 8.1, 12.5 |
+| 259e8711 | "Yeah, the counter would be nice to be probably after one clicks the avatar, or why not even on the front page? I'm not sure what the best practice is for that. I don't want to trick the customers into consuming too many tokens. I want them to have a near-real-time understanding of what they are using and how many tokens they are consuming." | placement open (Q-C2); the rule of 8.1: transparency, never nudging spend | R9, 8.1, 12.5 |
 
 ## 2. Today, measured (trunk at 6eded1d95)
 
@@ -371,6 +391,63 @@ depends on it only through the pricing gate above.
   `usage_events` row already carries its unit cost, so what a balance was
   spent on is a `GROUP BY` of the ledger.
 
+### 8.1 The credits counter (R9)
+
+**The rule** (259e8711): the counter informs and never nudges spend. It
+shows tokens as well as money, near real time. No dark patterns: the balance
+is never hidden or rounded up; no auto top-up by default (an opt-in with its
+cap shown, off for every new workspace); the top-up form preselects the
+smallest amount; the counter shows EUR, never an invented credit unit; and
+no warning colour appears before the threshold below.
+
+- **Where** (Q-C2, recommended A): on every workspace page, in the top bar
+  just before the avatar (`TopBar.vue`, beside the hours timer), only in a
+  workspace on the `metered` plan. The chip shows the balance in EUR; a
+  click opens the detail: tokens in and out and their cost since the last
+  top-up and today, the turns still pending, and the price line of 7. The
+  avatar menu links the same detail. On a phone (<= 820 px) the chip shows
+  the balance only.
+- **Who** (`sed -n 133,148p csi-spl-api/src/go/spool-hub-api/internal/rbac/rbac.go`,
+  `sed -n 58p csi-spl-rdb/src/sql/postgres/spool-hub/0021_tenant_rbac.sql`):
+  every member role of the workspace sees the balance and its own spend;
+  `demo_user` and `channel_guest` never see it. The spend per member needs
+  `costs.read` (`biz_owner`, `admin`, rdb 0166). Top-up needs
+  `billing.manage`, which only `biz_owner` holds (0021: the admin runs the
+  tenant "not billing"). Other members see "ask your workspace owner".
+- **Refresh**: by push on the hub socket the WUI already holds, not a new
+  poll. The WUI has no per-minute poll today (`grep -rn setInterval
+  csi-spl-wui/src` shows none on a 60 s data timer; the one 60 s gate,
+  `src/plugins/pwa.client.ts:111`, checks the service worker). The model is the
+  `flow` frame (`internal/hub/flow.go:172`, `{"type": "flow", ...}`): a new
+  `{"type": "credits"}` frame goes to the workspace's open sockets at most
+  once a minute and only when the ledger moved. The chip reads
+  `GET /v1/view/credits` once at load and again on `live.onReconnected`, so a
+  dropped socket never leaves a stale number. "Resets" is read as "refreshes
+  every minute" (Q-C1).
+- **Source**: the `token_budgets` balance, i.e. the last top-up minus the sum
+  of the `usage_events` since it, priced by the formula of 7. A turn
+  dispatched and not yet written to the ledger shows as "n pending", never
+  as an estimated amount; an `unmetered` turn (7) shows as such. The counter
+  never runs ahead of the ledger: what the chip shows is what the 429
+  `token_quota` check reads.
+- **Thresholds**: one cnf setting, `env.hub.sales.credits_low_pct` (default
+  20: the balance is below 20% of the last top-up). It is the same point as
+  7's 80% notice, not a second one. Below it the chip turns to the warning
+  colour and the `billing.manage` holder gets 7's one notice. At zero the
+  chip reads "credit used up, top up here" (8, R7).
+- **Cost** (027: the 155 KB initial chunk,
+  `grep -n ci_initial_gzip_kb csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json`):
+  the chip is in the first paint, so it stays a few hundred bytes: a number
+  formatted with `Intl.NumberFormat` and no library. Like `LazyHoursTimer`
+  (`csi-spl-wui/src/components/TopBar.vue:105`, spec 107), the detail panel is a
+  lazy chunk loaded on the first click. A workspace that is not metered
+  mounts nothing. `perf-budget.py` stays under 155 KB.
+
+| test | asserts | planted control (must turn it red) |
+|---|---|---|
+| T-C1 counter = ledger | a metered workspace with seeded `usage_events` shows the top-up minus the priced sum, in EUR and tokens; a pending turn shows as "1 pending", the balance unchanged; a row in another workspace changes nothing (RLS) | a frame that subtracts the pending turn's estimate, i.e. runs ahead of the ledger |
+| T-C2 roles and defaults | `biz_owner` sees "top up here" at zero, `developer` sees "ask your workspace owner", `demo_user` gets no `credits` frame; a new workspace has auto top-up off; the warning starts at `credits_low_pct` | auto top-up defaulted on, or the top-up link shown to `developer` |
+
 ## 9. What the catalogue shows
 
 - The catalogue lists what Csitea sells: the workspace plan(s), the services
@@ -530,3 +607,25 @@ owner's pick on its first line.
   above 20%, and posts the new value to you. B: the action proposes the
   value and it changes only with your go. (A follows the owner rule that
   if-else steps are code; a price change still reaches you as a post.)
+
+### 12.5 The credits counter (v1.3, open)
+
+| # | owner's pick | msg |
+|---|---|---|
+| Q-C1 | open | 057db9f5 |
+| Q-C2 | open | 259e8711 |
+
+- **Q-C1 What "resets" means in "a once-a-minute counter which resets and
+  shows their credits" (057db9f5). Recommended: A.** A: the counter
+  refreshes every minute and shows the balance. B: a per-minute spend
+  window: the amount spent in the last minute, back to 0 each minute,
+  beside the balance. (A answers "how much is left". B shows the burn rate,
+  which the detail panel can still show under A.)
+- **Q-C2 Where the counter sits (259e8711). Recommended: A.** A: the top
+  bar on every workspace page (the "front page"), with the detail one click
+  away and linked from the avatar menu. B: inside the avatar menu only.
+  (The owner's rule is near-real-time understanding and no tricks. A
+  balance behind a click is a balance most people stop checking. Prepaid
+  services such as phone and cloud credit show it where the spending
+  happens, so A keeps the balance visible while agents run. A costs one
+  small chip in the first paint, measured against the 155 KB budget.)

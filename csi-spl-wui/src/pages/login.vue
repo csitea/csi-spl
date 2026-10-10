@@ -2,8 +2,8 @@
   <!-- spec 116 T3: the front page, look A "Live channel" (section 4.1; the
        owner's pick, t1 2242b163 msg 696412ec). The logo on top (msg
        0c104c07), then the slogan and the text, the mock channel and the
-       compact sign-in card beside it; on a phone one column: text, the
-       channel's last 3 posts, the card. -->
+       sign-in card under it: one centred column at every width, the phone's
+       layout made wider on a desktop (owner HUM-10 3e952daf, 099d8794). -->
   <div class="login-front" data-test="login-front">
     <header class="login-front__brand" data-test="login-front-logo">
       <img class="login-front__logo" src="/logo.webp" alt="" width="64" height="64" decoding="async">
@@ -194,9 +194,12 @@ if (earlyLogin) {
 
 
 <style scoped>
+/* One centred column, desktop as the phone (owner HUM-10 3e952daf, 099d8794:
+   "just a bit wider"): 760 px reads well at 1280..1440, the card 520 px. */
 .login-front {
-  --lf-card-w: 360px;
-  width: min(1180px, 100%);
+  --lf-col-w: 760px;
+  --lf-card-w: 520px;
+  width: min(var(--lf-col-w), 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -225,19 +228,20 @@ if (earlyLogin) {
 }
 .login-front__main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--lf-card-w);
-  grid-template-areas: "intro card" "hero card";
-  /* the tall card's spare height goes under the channel, not between the
-     slogan and the channel */
-  grid-template-rows: auto 1fr;
-  align-items: start;
-  gap: 24px 40px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "intro" "hero" "card";
+  gap: 24px;
   width: 100%;
   min-width: 0;
 }
-.login-front__intro { grid-area: intro; min-width: 0; text-align: start; }
+.login-front__intro { grid-area: intro; min-width: 0; text-align: center; }
 .login-front__hero { grid-area: hero; }
-.login-front__card { grid-area: card; min-width: 0; align-self: center; }
+.login-front__card {
+  grid-area: card;
+  min-width: 0;
+  width: min(var(--lf-card-w), 100%);
+  justify-self: center;
+}
 .login-front__intro h1 {
   margin: 0 0 12px;
   font-size: clamp(2rem, 4.2vw, 3.25rem);
@@ -246,7 +250,7 @@ if (earlyLogin) {
   color: var(--color-heading);
 }
 .login-front__about {
-  margin: 0;
+  margin: 0 auto;
   max-width: 40rem;
   font-size: 1.0625rem;
   line-height: 1.55;
@@ -418,20 +422,14 @@ if (earlyLogin) {
   50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-ok) 30%, transparent); }
 }
 
-/* Phone (spec 116 4.1, quote 12): one column, slogan and text first, the
-   channel's last 3 posts full width, the card under it; touch targets stay
-   usable but compact. */
+/* Phone (spec 116 4.1, quote 12): the same column, tighter, the channel's
+   last 3 posts full width, the card under it; touch targets stay usable but
+   compact. */
 @media (max-width: 820px) {
   .login-front { gap: 18px; }
   .login-front__logo { width: 52px; height: 52px; }
-  .login-front__main {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "intro" "hero" "card";
-    grid-template-rows: none;
-    gap: 18px;
-  }
-  .login-front__intro { text-align: center; }
-  .login-front__about { margin-inline: auto; font-size: 1rem; }
+  .login-front__main { gap: 18px; }
+  .login-front__about { font-size: 1rem; }
   .login-landing-card :deep(.social-auth__btn),
   .login-landing-card :deep(.native-auth__tab),
   .login-landing-card :deep(.native-auth__field input),

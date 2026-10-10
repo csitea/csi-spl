@@ -15,8 +15,10 @@
 // Uses puppeteer-core (a committed devDependency); a missing driver is a
 // failure, never a silent skip.
 //
-// Look A (/login): the logo shows, the channel hero sits beside the compact
-// card on desktop and above it on a phone (390), and no link of the page
+// Look A (/login): the logo shows, and at every size the page is the phone's
+// one centred column (owner HUM-10 3e952daf): the sign-in card sits under the
+// channel hero, its centre on the headline's (TOL px). The control puts the
+// old two-column grid back at 1440 and the check must FAIL on it. No link of the page
 // (the frame's Blog footer, the card's help row) ever lies over a "Try the
 // demo" button, at 390x844, 1440x900, 2560x1600 and two short desktops
 // (1280x800, 1440x640: where the card outgrows the room). The overlap check
@@ -155,14 +157,34 @@ const LOOK_A_MEASURE = `(() => {
     logo: shown(logo) ? box(logo) : null,
     logoLoaded: Boolean(logo && logo.complete && logo.naturalWidth > 0),
     hero: box(document.querySelector('[data-test=login-front-hero]')),
+    slogan: box(document.querySelector('[data-test=login-front-slogan]')),
     card: box(document.querySelector('[data-test=login-front-card]')),
     links: links.map((a) => ({ test: a.dataset.test || a.getAttribute('href'), ...box(a) })),
     features: [...document.querySelectorAll('[data-test=login-feature]')].filter(shown).map(box),
-    demo: [...document.querySelectorAll('[data-test^=demo-try-]')].filter(shown).map((b) => ({ test: b.dataset.test, ...box(b) })),
+    // the part of each demo button the scrolling body shows: one column is
+    // taller than a desktop, and the body clips what lies below its edge
+    demo: [...document.querySelectorAll('[data-test^=demo-try-]')].filter(shown).map((b) => {
+      const d = box(b)
+      const v = box(document.querySelector('.login-body')) || d
+      return { test: b.dataset.test, l: Math.max(d.l, v.l), t: Math.max(d.t, v.t), r: Math.min(d.r, v.r), b: Math.min(d.b, v.b) }
+    }).filter((d) => d.r > d.l && d.b > d.t),
     xScroll: document.documentElement.scrollWidth > window.innerWidth + 1,
   }
 })()`
 const hits = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b
+// One column: the card under the channel, centred with the headline. '' = ok.
+const oneColumn = (m) => {
+  if (!m.hero || !m.card || !m.slogan) return 'no hero, card or headline'
+  if (m.card.t < m.hero.b - 1) return `card top ${m.card.t} above the hero bottom ${m.hero.b}`
+  const dx = (m.card.l + m.card.r) / 2 - (m.slogan.l + m.slogan.r) / 2
+  if (Math.abs(dx) > TOL) return `card centre ${dx.toFixed(1)} px off the headline centre`
+  return ''
+}
+// The layout before HUM-10 3e952daf: text and channel left, the card right.
+const OLD_TWO_COLUMN = `.login-front { width: min(1180px, 100%) !important }
+.login-front__main { grid-template-columns: minmax(0, 1fr) 360px !important; grid-template-areas: "intro card" "hero card" !important; grid-template-rows: auto 1fr !important; gap: 24px 40px !important }
+.login-front__intro { text-align: start !important }
+.login-front__card { width: auto !important; justify-self: stretch !important; align-self: center !important }`
 
 async function lookAPage(browser, vp, theme, reduce) {
   const p = await browser.newPage()
@@ -201,16 +223,16 @@ async function lookA(browser) {
       let p
       try {
         p = await lookAPage(browser, vp, theme, false)
+        // the worst case for the overlap: the last demo button at the body's
+        // bottom edge, right above the footer row
+        await p.evaluate(() => [...document.querySelectorAll('[data-test^=demo-try-]')].pop()?.scrollIntoView({ block: 'end' }))
         await sleep(300)
         const m = await p.evaluate(new Function('return ' + LOOK_A_MEASURE))
         if (m.logo && m.logoLoaded) ok(`${label} logo`)
         else fail(`${label} logo`, `logo not shown (${JSON.stringify(m.logo)}, loaded ${m.logoLoaded})`)
-        if (!m.hero || !m.card) fail(`${label} layout`, 'no hero or no card')
-        else if (vp.phone) {
-          if (m.card.t >= m.hero.b - 1) ok(`${label} layout`, 'card under the channel')
-          else fail(`${label} layout`, `card top ${m.card.t} above the hero bottom ${m.hero.b}`)
-        } else if (m.card.l >= m.hero.r - 1 && m.card.w <= 400) ok(`${label} layout`, `card ${Math.round(m.card.w)} px beside the channel`)
-        else fail(`${label} layout`, `card ${JSON.stringify(m.card)} not beside hero ${JSON.stringify(m.hero)}`)
+        const col = oneColumn(m)
+        if (col) fail(`${label} layout`, col)
+        else ok(`${label} layout`, `card ${Math.round(m.card.w)} px under the channel, column ${Math.round(m.hero.w)} px`)
         if (m.xScroll) fail(`${label} x-scroll`, 'the page scrolls sideways')
         if (!m.features.length || m.features.length > 6) fail(`${label} features`, `${m.features.length} feature cards, want 1..6`)
         else if (m.card && m.features.some((f) => f.t < m.card.b - 1)) fail(`${label} features`, 'a feature card lies above the sign-in card bottom')
@@ -227,6 +249,21 @@ async function lookA(browser) {
       } catch (e) { fail(label, e.message) }
       finally { await p?.close().catch(() => {}) }
     }
+  }
+  // control: the old two-column layout at 1440 must fail the one-column check
+  {
+    const label = 'look A control two-column 1440x900'
+    let p
+    try {
+      p = await lookAPage(browser, LOOK_A[1], 'dark', true)
+      await p.addStyleTag({ content: OLD_TWO_COLUMN })
+      await sleep(200)
+      const m = await p.evaluate(new Function('return ' + LOOK_A_MEASURE))
+      const col = oneColumn(m)
+      if (col) ok(label, `the check fails it: ${col}`)
+      else fail(label, 'the one-column check passed the old two-column layout')
+    } catch (e) { fail(label, e.message) }
+    finally { await p?.close().catch(() => {}) }
   }
   // C5: reduced motion, nothing animates and the finished channel shows
   for (const vp of [LOOK_A[0], LOOK_A[1]]) {

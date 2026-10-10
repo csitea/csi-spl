@@ -16,7 +16,7 @@
 <template>
   <div class="blog-page" data-test="blog-page">
     <header class="blog-bar" data-test="blog-bar">
-      <NuxtLink :to="localePath('/blog')" class="blog-bar__home" data-test="blog-bar-home">
+      <NuxtLink :to="localePath('/login')" class="blog-bar__home" data-test="blog-bar-home">
         <img src="/logo.webp" alt="" width="28" height="28" decoding="async">
         <span class="blog-bar__name">spool-hub</span>
         <span class="blog-bar__sep" aria-hidden="true">/</span>

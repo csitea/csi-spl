@@ -76,7 +76,7 @@ try {
     /* t1 ff3953c1: the bar's name stays on one line beside the language menu */
     const name = await p.$eval('.blog-bar__name', (el) => ({ rects: el.getClientRects().length, h: el.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(el).lineHeight) || 1.5 * parseFloat(getComputedStyle(el).fontSize) })).catch(() => null)
     ok('the bar keeps "SPOOL-HUB" on one line', Boolean(name && name.rects === 1 && name.h <= name.lh * 1.2), name)
-    ok('no move to /login', path(p) === '/blog', p.url())
+    ok('the blog-bar-home link goes to /login', await p.$eval('[data-test=blog-bar-home]', (el) => el.getAttribute('href')) === '/login', await p.$eval('[data-test=blog-bar-home]', (el) => el.getAttribute('href')))
     bgs[theme] = await p.$eval('[data-test=blog-page]', (el) => getComputedStyle(el).backgroundColor).catch(() => '')
     const items = await p.$$eval('[data-test=blog-item]', (els) => els.length)
     ok('the list holds the copy\'s posts', items === Math.min(posts.length, 20), { items, posts: posts.length })

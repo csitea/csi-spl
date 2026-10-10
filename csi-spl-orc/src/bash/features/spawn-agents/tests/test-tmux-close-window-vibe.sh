@@ -4,11 +4,15 @@
 # found no agent PID ("agent_pids=none") and killed the window ~2 s after
 # /exit-clean without typing /exit, busy or not. Now:
 #   1. an idle vibe gets /exit typed and leaves by itself, well before the
-#      timeout; the log names its PID and the /exit
+#      timeout; the log names its PID and the /exit. Its prompt blinks the way
+#      vibe's own cursor does (`>` / `> ` + a reverse-video space): m-900 sat
+#      idle to the timeout on that blink (2026-10-10 19:25Z)
 #   2. a vibe mid-turn (its footer `Esc/Ctrl+C to interrupt`, a static screen
 #      with an empty `>` prompt) never gets /exit: the timeout closes it
 #   3. control: the closer without the "Vibe CLI" match reads no PID and
 #      kills the idle vibe's window without any /exit
+#   4. control: the closer that keeps trailing blanks never reads the
+#      blinking prompt as stable: no /exit, only the timeout
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -22,14 +26,18 @@ wait_gone() { for _ in $(seq 1 "$2"); do gone "$1" && return 0; sleep 0.5; done;
 
 mkdir -p "$T_TMP/bin"
 # fake vibe: vibe 2.26.0's input box (rules around an empty `>`), reads lines
-# into $1, leaves on /exit; $2=busy holds its mid-turn footer
+# into $1, leaves on /exit; $2=busy holds its mid-turn footer. Idle, its
+# cursor blinks on the prompt line as vibe's does.
 cat >"$T_TMP/bin/vibe" <<'FAKEVIBE'
 #!/usr/bin/env bash
 if [ "${2:-}" = busy ]; then printf '%s\n' '⠋⠁ Generating… (29s Esc/Ctrl+C to interrupt)' '──────' '>' '──────'
-else printf '%s\n' '  Now staying idle.' '──────' '>' '──────'; fi
+else
+  printf '%s\n' '  Now staying idle.' '──────'
+  ( while :; do printf '\r>\033[K'; sleep 0.5; printf '\r> \033[7m \033[0m'; sleep 0.5; done ) &
+fi
 while IFS= read -r line; do
   printf '%s\n' "$line" >>"$1"
-  [ "$line" = /exit ] && { echo VIBE-EXITED >>"$1"; exit 0; }
+  [ "$line" = /exit ] && { echo VIBE-EXITED >>"$1"; kill %1 2>/dev/null; exit 0; }
 done
 sleep 600
 FAKEVIBE
@@ -72,4 +80,13 @@ MISTRAL_TMUX_PANE="$P3" bash "$T_TMP/pre/scripts/tmux-close-window.sh" --agent m
 has "3. control: the old closer reads no agent PID" "agent_pids=none" "$(cat "$T_TMP/o3")"
 check "3. control: ... kills the window at once" wait_gone "$P3" 20
 eq "3. control: ... without any /exit" "" "$(cat "$T_TMP/got-503" 2>/dev/null)"
+
+# 4. control: trailing blanks kept = the blink never reads stable = no /exit
+sed 's/ s\/\[\[:space:\]\]\*\$\/\/\x27 |$/\x27 |/' "$SUT" >"$T_TMP/pre/scripts/tmux-close-window.sh"
+hasnt "4. control: the trailing-blank strip is spliced out" 's/[[:space:]]*$//' "$(grep -A4 '^rebirth_idle_screen()' "$T_TMP/pre/scripts/tmux-close-window.sh")"
+P4="$(vibe_lane m-504)"
+MISTRAL_TMUX_PANE="$P4" bash "$T_TMP/pre/scripts/tmux-close-window.sh" --agent m-504 --defer --timeout 12 >"$T_TMP/o4" 2>&1
+hasnt "4. control: the old closer finds the PID" "agent_pids=none" "$(cat "$T_TMP/o4")"
+check "4. control: ... the blinking vibe is closed only by the 12 s timeout" wait_gone "$P4" 40
+eq "4. control: ... and never got /exit" "" "$(cat "$T_TMP/got-504" 2>/dev/null)"
 t_done

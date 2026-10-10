@@ -749,7 +749,10 @@ screen_drop_faint() {
 }
 rebirth_idle_screen() {
   # The finished-turn line ("✻ Crunched for 4s · done 12.34") dropped, NBSP read as space.
-  "${TM[@]}" capture-pane -p -e -t "$1" 2>/dev/null | screen_drop_faint | sed 's/\xc2\xa0/ /g' |
+  # Trailing blanks dropped: vibe draws its own blinking cursor, a reverse-video
+  # space after its `>`, so the screen never read the same 3 polls running and
+  # m-900 got no /exit, only the timeout (2026-10-10 19:25Z).
+  "${TM[@]}" capture-pane -p -e -t "$1" 2>/dev/null | screen_drop_faint | sed 's/\xc2\xa0/ /g; s/[[:space:]]*$//' |
     grep -vE '^[^[:alnum:][:space:]]+ [[:upper:]][^ ]* for [0-9]+(m|s)' || true
 }
 # After OUR /exit, what still holds the CLI and takes Enter: the /exit itself

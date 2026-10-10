@@ -88,7 +88,7 @@ func TestPublicExportScopeOneWorkspace(t *testing.T) {
 				if others != 0 {
 					t.Errorf("tenant=%q scope=%q: spool_public_export sees %d %s row(s) of another workspace", sc.tenant, sc.scope, others, tb)
 				}
-				if want := countOf(t, pg, tb, a); (sc.tenant == a || sc.scope == "operator") && all != want {
+				if want := countOf(t, pg, tb, a) - exportHidden(t, pg, tb, a); (sc.tenant == a || sc.scope == "operator") && all != want {
 					t.Errorf("tenant=%q scope=%q: spool_public_export sees %d %s row(s) of its workspace, want %d", sc.tenant, sc.scope, all, tb, want)
 				}
 			}

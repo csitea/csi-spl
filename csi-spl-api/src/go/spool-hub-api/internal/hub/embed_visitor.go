@@ -32,7 +32,8 @@ import (
 // (store.EmbedVisitors; TestEmbedVisitorPathNeverInTenant), never inTenant.
 // The routes answer as an unknown path while cnf env.hub.embed.enabled is
 // off (Options.EmbedEnabled), and under a store without the channel scope.
-// Not here: the abuse limits and the challenge (T105), the staff side (T106).
+// Not here: the abuse limits and the challenge (T105). The staff side and
+// the #sales triage line are embed_staff.go (T106).
 
 // embedIDRe is rdb 0169's embed_id CHECK.
 var embedIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{2,63}$`)
@@ -96,6 +97,7 @@ func (s *Server) handleEmbedMint(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"token": tok, "visitor_id": v.VisitorID,
 		"channel": v.ChannelID, "expires_at": rfc(v.ExpiresAt)})
+	s.embedTriage(r.Context(), v, "") // T106: the #sales line, after the answer
 }
 
 // embedTenant is the workspace of the URL's enabled embed; "" when there is
@@ -213,6 +215,7 @@ func (s *Server) handleEmbedPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"msg_id": p.MsgID, "received_at": rfc(p.At)})
+	s.embedTriage(r.Context(), v, p.MsgID) // T106: a first post after a quiet day
 }
 
 // embedPost is the stored form of a visitor's line: a v:1 note from its HUM

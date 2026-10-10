@@ -110,22 +110,27 @@ func (s *Postgres) PostEmbedVisitorMessage(ctx context.Context, v EmbedVisitor, 
 // The door cache needs no forget: it holds members' rows, and no member is
 // in a visitor channel.
 func (s *Postgres) EraseEmbedVisitor(ctx context.Context, v EmbedVisitor) error {
-	return s.inChannel(ctx, v.TenantID, v.ChannelID, func(tx pgx.Tx) error {
-		for _, q := range []struct {
-			sql  string
-			args []any
-		}{
-			{`DELETE FROM messages WHERE tenant_id = $1 AND channel = $2`, []any{v.TenantID, v.ChannelID}},
-			{`DELETE FROM channels WHERE tenant_id = $1 AND channel_id = $2`, []any{v.TenantID, v.ChannelID}},
-			{`DELETE FROM tenant_memberships WHERE tenant_id = $1 AND human_id = $2 AND role = $3`,
-				[]any{v.TenantID, v.HumanID, rbac.ChannelGuest}},
-			{`DELETE FROM humans h WHERE h.human_id = $1 AND h.kind = 'channel_guest'
-				AND NOT EXISTS (SELECT 1 FROM tenant_memberships m WHERE m.human_id = h.human_id)`, []any{v.HumanID}},
-		} {
-			if _, err := tx.Exec(ctx, q.sql, q.args...); err != nil {
-				return err
-			}
+	return s.inChannel(ctx, v.TenantID, v.ChannelID, func(tx pgx.Tx) error { return eraseEmbedVisitorTx(ctx, tx, v) })
+}
+
+// eraseEmbedVisitorTx is the erasure's statements in tx, which runs under
+// v's channel scope (the erasure, and the retention sweep's
+// RetireEmbedVisitor).
+func eraseEmbedVisitorTx(ctx context.Context, tx pgx.Tx, v EmbedVisitor) error {
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{`DELETE FROM messages WHERE tenant_id = $1 AND channel = $2`, []any{v.TenantID, v.ChannelID}},
+		{`DELETE FROM channels WHERE tenant_id = $1 AND channel_id = $2`, []any{v.TenantID, v.ChannelID}},
+		{`DELETE FROM tenant_memberships WHERE tenant_id = $1 AND human_id = $2 AND role = $3`,
+			[]any{v.TenantID, v.HumanID, rbac.ChannelGuest}},
+		{`DELETE FROM humans h WHERE h.human_id = $1 AND h.kind = 'channel_guest'
+			AND NOT EXISTS (SELECT 1 FROM tenant_memberships m WHERE m.human_id = h.human_id)`, []any{v.HumanID}},
+	} {
+		if _, err := tx.Exec(ctx, q.sql, q.args...); err != nil {
+			return err
 		}
-		return nil
-	})
+	}
+	return nil
 }

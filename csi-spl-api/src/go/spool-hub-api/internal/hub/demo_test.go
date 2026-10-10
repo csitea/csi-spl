@@ -235,7 +235,9 @@ func mutatingRoutes(t *testing.T) []string {
 // absence, a ban list cannot). Path values are placeholders: the refusal
 // must come before any lookup of them.
 func TestDemoRouteWalk(t *testing.T) {
-	e, demo := demoEnv(t)
+	// The embed flag on: its staff routes (T106) answer as an unknown path
+	// while it is off, so only on does the walk reach their staff gate.
+	e, demo := demoEnv(t, func(o *hub.Options) { o.EmbedEnabled = true })
 	visitor := seat(t, e, demo, rbac.DemoUser)
 	fill := strings.NewReplacer("{msg_id}", "7a1c0d2e-3f4b-4c5d-8e6f-7a8b9c0d1e01", "{channel}", "general",
 		"{human_id}", "HUM-1", "{box}", "box-1", "{id}", "x1", "{ref}", "ISS-1", "{file_id}",

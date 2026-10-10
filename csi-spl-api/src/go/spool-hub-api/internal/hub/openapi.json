@@ -8269,6 +8269,133 @@
         ]
       }
     },
+    "/v1/tenant/embed-visitors": {
+      "get": {
+        "description": "The workspace's visitor channels, newest activity first: channel, embed, created, last message, lead and block marks, whether the token is live. No token, e-mail or ip_hash. Staff only (biz_owner, admin). Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T106).",
+        "operationId": "listEmbedVisitors",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the visitor channels"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "the embed is off on this hub (cnf env.hub.embed.enabled)"
+          }
+        },
+        "summary": "List the visitor channels (staff, spec 121 T106)",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
+    "/v1/tenant/embed-visitors/{channel}/block": {
+      "post": {
+        "description": "Block the visitor (spec 121 section 6): its token ends now, the channel and its messages stay. Staff only (biz_owner, admin). Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T106).",
+        "operationId": "blockEmbedVisitor",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the visitor channel id (v- and 16 hex digits)",
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "blocked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "404 as an unknown path while cnf env.hub.embed.enabled is off; while on, no such visitor channel"
+          }
+        },
+        "summary": "Block a visitor: token revoked, channel kept (staff)",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
+    "/v1/tenant/embed-visitors/{channel}/lead": {
+      "put": {
+        "description": "Mark a visitor channel a lead ({\"lead\": true}: kept past the 30-day retention) or clear the mark. Staff only (biz_owner, admin). Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T106).",
+        "operationId": "putEmbedVisitorLead",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the visitor channel id (v- and 16 hex digits)",
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "lead": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "lead"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "stored"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "404 as an unknown path while cnf env.hub.embed.enabled is off; while on, no such visitor channel"
+          }
+        },
+        "summary": "Mark or clear a visitor channel's lead (staff)",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
     "/v1/tenant/embeds": {
       "get": {
         "operationId": "listEmbeds",

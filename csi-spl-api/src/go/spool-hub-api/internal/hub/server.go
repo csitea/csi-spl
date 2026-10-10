@@ -435,6 +435,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeEmbedAdmin(mux)    // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
 	// specs/121 T201: /embed/*, per-embed frame-ancestors; T202 passes its assets.
 	s.routeEmbedServe(mux, s.o.EmbedEnabled, nil)
+	s.routeEmbedStaff(mux) // specs/121 T106: /v1/tenant/embed-visitors*, staff, off unless EmbedEnabled
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),
@@ -560,6 +561,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepBoxStats(ctx)       // rdb 0117: 30-day box load + memory history
 			s.sweepBoxBeats(ctx)       // rdb 0147: 2-day box beats (spec 102 10.2)
 			s.sweepHours(ctx)          // spec 107 4.2: hours freeze + 45-day minutes
+			s.sweepEmbedRetention(ctx) // specs/121 4.4: visitor channels, 30 days after the last message
 		}
 	}
 }

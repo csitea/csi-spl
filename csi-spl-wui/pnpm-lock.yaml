@@ -24,8 +24,8 @@ importers:
         specifier: ^0.11.3
         version: 0.11.3(magic-string@0.30.21)(magicast@0.5.5)(oxc-parser@0.143.0)(pinia@3.0.4(typescript@5.9.3)(vue@3.5.43(typescript@5.9.3)))(unplugin@3.4.0(esbuild@0.28.2)(rollup@4.63.3)(vite@7.3.6(@types/node@22.20.3)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)))
       highlight.js:
-        specifier: ~11.11.0
-        version: 11.11.2
+        specifier: ~11.12.0
+        version: 11.12.0
       markdown-it:
         specifier: ^14
         version: 14.3.2
@@ -2550,8 +2550,8 @@ packages:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
 
-  highlight.js@11.11.2:
-    resolution: {integrity: sha512-oaXMACAU0kzOMXBjWpNcX+vlwSBCIAiZ9BHa7gA15NOTtT2L/l8OSZDuqS2XppOhZBPJ7hm4o8ep2kyuip2uEQ==}
+  highlight.js@11.12.0:
+    resolution: {integrity: sha512-nbfWpyRMcMrPMmDwJB+dhX/eiaPKtc2RB+0QZskqJ3WjRA/FDS0e9hZrx8EC/lbEv8gXy98FcDbNa/dspAaJMg==}
     engines: {node: '>=12.0.0'}
 
   hookable@5.5.3:
@@ -6761,7 +6761,7 @@ snapshots:
 
   he@1.2.0: {}
 
-  highlight.js@11.11.2: {}
+  highlight.js@11.12.0: {}
 
   hookable@5.5.3: {}
 

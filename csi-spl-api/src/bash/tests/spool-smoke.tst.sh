@@ -54,7 +54,7 @@ N="$("$B" recv --as c-007 --ack | python3 -c 'import json,sys;print(len(json.loa
 [ "$N" = "1" ] && pass "recv --ack returned 1 message" || fail "recv returned $N"
 N2="$("$B" recv --as c-007 | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))')"
 [ "$N2" = "0" ] && pass "second recv is empty (at-most-once ack)" || fail "double-recv returned $N2"
-[ -f "$SPOOL_ROOT/c-007/archive/"*.json ] && pass "message archived on ack" || fail "not archived"
+compgen -G "$SPOOL_ROOT/c-007/archive/*.json" >/dev/null && pass "message archived on ack" || fail "not archived"
 
 # 3. get-file back and verify bytes
 "$B" get-file "$FID" "$WORK/out.txt" >/dev/null

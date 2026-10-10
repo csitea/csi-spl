@@ -1,6 +1,6 @@
 # Spec 120: Qto document tree (workspace file explorer)
 
-Version **v1.0-rc2** (2026-10-10). The panel fold by the editor (seat
+Version **v1.0-rc3** (2026-10-10). The panel fold by the editor (seat
 s120-claude, c-748) of a-796's draft v0.1 (77ffc9f8c, 54 lines). The four
 seat files are under [reviews/](reviews/); section 10 records what each one
 changed. The owner answered all three questions (section 11). The tree is a
@@ -298,20 +298,31 @@ Every structural op is ONE transaction in the store. It locks the
 workspace's root row `FOR UPDATE` first, then does the arithmetic below
 with pgx bind parameters (never SQL text built from ids, D7). Every op ends
 in one of four outcomes: done, a 4xx refusal, 412 stale, or a 500 with the
-check's constraint name logged. Nothing is swallowed (D6). The shifts
-are the textbook ones and the bench's (`ns_ins`, `ns_mv` in
-[reviews/s120-claude-2.md](reviews/s120-claude-2.md) section 4).
+check's constraint name logged. Nothing is swallowed (D6).
+
+**Every shift is ONE `UPDATE` that sets `lft` and `rgt` together with
+`CASE`. There is no negation and no two-step shift.** The 4.1 CHECKs are
+immediate, so a row must be valid after every statement. Seat
+s120-claude-2 measured the textbook forms in `postgres:16-alpine` against
+the 4.1 DDL (objection on rc2, n = 1 each):
+- `rgt + 2` then `lft + 2` fails `_leaf` on a document to the right;
+- the move's negate step fails `_bounds`.
+
+Spec 113 seat 5 #13 found the same trap for `ord`. Only the deferred
+UNIQUEs and the `_ns` commit check may see an intermediate state. In the
+table, `r` = P.rgt and `w` = X's width = `X.rgt - X.lft + 1`. Every `WHERE`
+also carries `tenant_id = $tenant`.
 
 | op | the nested-set write (`w` = subtree width = `rgt - lft + 1`) | refusals |
 |---|---|---|
-| create document / folder under P (a folder: `{name, title, description}`) | append as P's last child: `r := P.rgt`; `UPDATE .. SET rgt = rgt + 2 WHERE rgt >= r`; `UPDATE .. SET lft = lft + 2 WHERE lft > r`; insert `(r, r + 1)`. A document create also inserts `workspace_doc` and its 0157 root item, same transaction | 409 `doc_cap_reached`, `folder_cap_reached`, `name_taken`, depth |
+| create document / folder under P (a folder: `{name, title, description}`) | append as P's last child: `UPDATE .. SET lft = lft + CASE WHEN lft > r THEN 2 ELSE 0 END, rgt = rgt + 2 WHERE rgt >= r`; then insert `(r, r + 1)` (P is now `(.., r + 2)`). Seat s120-claude-2 measured this form passing the CHECKs. A document create also inserts `workspace_doc` and its 0157 root item, same transaction | 409 `doc_cap_reached`, `folder_cap_reached`, `name_taken`, depth |
 | edit folder | `UPDATE name, title, description`; no bounds change | 409 `name_taken`; 400 over a length limit |
 | rename document | the existing `PATCH /v1/workspace/doctree/{doc}` (title, rev-checked); no bounds change | 412 stale rev |
-| move X under P (as last child) | refuse if `X.lft <= P.lft <= X.rgt` (into its own subtree); negate X's subtree, close its gap (`- w` above `X.rgt`), open a gap at P's (re-read) `rgt` (`+ w`), un-negate with the offset, set X's `parent_id`; counters unchanged | 409 `move_into_own_subtree`; 400 parent is a document; 409 depth |
-| delete document X | `DELETE FROM workspace_doc` (0157 cascades items and rev log, the node cascades by `doc_id`), then close the gap: `- 2` on bounds above `X.rgt` | 404 |
-| delete folder, empty | delete the node, close the gap (`- 2`) | - |
+| move X under P (as last child) | refuse if `X.lft <= P.lft <= X.rgt` (into its own subtree) and a no-op if P is already X's parent. Then ONE statement for both columns (shown for `lft`; `rgt` is the same with `rgt`), which also sets `parent_id` and `parent_kind` when `id = X`. **Right** (`r > X.rgt`): `lft = CASE WHEN lft BETWEEN X.lft AND X.rgt THEN lft + (r - X.rgt - 1) WHEN lft > X.rgt AND lft < r THEN lft - w ELSE lft END`, over rows with a bound in `[X.lft, r - 1]`. **Left** (`r < X.lft`): `lft = CASE WHEN lft BETWEEN X.lft AND X.rgt THEN lft - (X.lft - r) WHEN lft >= r AND lft < X.lft THEN lft + w ELSE lft END`, over rows with a bound in `[r, X.rgt]`. Worked by the editor on two 4-node trees (right: A(2,3) under B(4,7) gives B(2,7), C(3,4), A(5,6); left: A(6,7) under B(2,5) gives B(2,7), C(3,4), A(5,6)), to be proven by T2b. Counters unchanged | 409 `move_into_own_subtree`; 400 parent is a document; 409 depth |
+| delete document X | `DELETE FROM workspace_doc` (0157 cascades items and rev log, the node cascades by `doc_id`), then close the gap in one statement: `lft = lft - CASE WHEN lft > X.rgt THEN 2 ELSE 0 END, rgt = rgt - 2 WHERE rgt > X.rgt` | 404 |
+| delete folder, empty | delete the node, close the gap as for a document | - |
 | delete folder, not empty | **409 `folder_not_empty` `{folders, documents}`** unless `?recursive=1` | - |
-| delete folder, `?recursive=1` | (1) the subtree is `lft BETWEEN X.lft AND X.rgt`, no recursion; (2) delete those documents' `workspace_doc` rows (cascade); (3) delete the subtree's folders in ONE statement (NO ACTION FK passes at statement end); (4) close the gap: `- w` above `X.rgt`; one hub log line with actor and counts | - |
+| delete folder, `?recursive=1` | (1) the subtree is `lft BETWEEN X.lft AND X.rgt`, no recursion; (2) delete those documents' `workspace_doc` rows (cascade); (3) delete the subtree's folders in ONE statement (NO ACTION FK passes at statement end); (4) close the gap in one statement: `lft = lft - CASE WHEN lft > X.rgt THEN w ELSE 0 END, rgt = rgt - w WHERE rgt > X.rgt`; one hub log line with actor and counts | - |
 | delete root | never: refused by the store; the one-root index and the commit check hold it | 400 |
 
 **Order shown in the explorer.** The tree's own order is `lft`: a new node
@@ -418,6 +429,7 @@ Store and migration tests run on Postgres (`PRE_PUSH_TIER=full`).
 |---|---|---|
 | T1 store | create, rename, move and delete for folders and documents; after each, the bounds are 1..2n and agree with `parent_id`; a recursive delete removes the documents, their items and rev logs (counts before and after) | a row survives, a count is off, or a bound is wrong |
 | T2 nested-set controls | each planted break must make the commit check raise `workspace_doc_node_ns`: a gap (one `rgt - 1`), an overlap (two siblings crossing), a `lft/rgt` off by one, a node whose `parent_id` disagrees with its enclosing interval, depth 33 (the spec 113 bench's control pattern) | any planted break commits |
+| T2b every op against the real DDL | each section 5 op (create, edit, move left, move right, move a folder with children, delete a document, delete an empty folder, recursive delete), with nodes on both sides of the target, run against the full 4.1 DDL (immediate CHECKs, deferred UNIQUEs, `_ns`), never against the bench tables. Expected bounds are asserted after each op. **Control:** the two-statement create and the negate-step move must fail on `_leaf` / `_bounds` | any op returns an error on a valid tree, or the controls pass |
 | T3 leaf / width | raw SQL inserting a document with `rgt = lft + 3` (the sibling's D2) is refused by `_leaf`; a node under a `doc` is refused by the parent FK | it commits |
 | T4 cap | bulk-insert 10,000 documents in one workspace, then the 10,001st: the DB raises `workspace_doc_node_cap` and the hub answers 409 `doc_cap_reached`; delete one and the next create succeeds; the same for 1,000 folders | 201 or 500 |
 | T5 cap race | at 9,999, two concurrent creates: exactly one 201 and one 409, and counter = `count(*)` = 10,000 | both commit |
@@ -467,6 +479,7 @@ holds):
 | parent FK action | CASCADE (mistral) | NO ACTION, subtree delete in one statement | claude-2 | a cascade bypasses the confirm |
 | document is a leaf | not held (all) | parent FK on `(tenant, id, kind)` + `_leaf` CHECK | claude-2, editor (A) | no trigger needed |
 | nested-set guards (A) | none (the draft rejected A) | `parent_id` kept, root lock, deferred unique bounds, the ordered commit check, repair from `parent_id` | editor, from seat s120-claude section 2 and spec 113 D1-D9 | the owner's own build broke without them |
+| nested-set shifts | two statements and a negate step (rc2, textbook) | one `UPDATE` per shift with `CASE`, no negation; T2b runs every op on the real DDL | claude-2 (objection on rc2, measured) | the immediate CHECKs refuse the intermediate rows: every op with nodes to its right was a 500 |
 | lock as an argument | "every write locks the whole workspace" was put as a cost of A only (rc) | both models lock per workspace; A holds the lock ~0.4 s, B ~0.2 ms | claude-2 (objection on the rc) | section 5 locks the root under B too; corrected in the owner post as well |
 | folder cap, depth | none | 1,000 folders, depth 32 | claude, claude-2 | bounds `rgt`, the lazy reads and the walk; stated to the owner (11.4) |
 | list route | the flat list | per-folder `GET .../nodes` | claude, claude-2 | F2: a 200-row list vs a 10,000 cap |

@@ -192,11 +192,17 @@ func TestWorkspaceDocsPathsAndSize(t *testing.T) {
 	e := rbacEnv(t, func(o *hub.Options) { o.WorkspaceDocs = d })
 	tid, _ := e.tenant()
 	hum := seat(t, e, tid, rbac.Tester)
+	// The hub's own answer, not a redirect's: since go 1.26 ServeMux sends a
+	// PUT on an unclean path ("a/../b.md") a 307 to the clean one, and a
+	// following client re-PUTs "b.md", a valid path.
+	follow := e.client.CheckRedirect
+	e.client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	for _, p := range []string{"tree.json", ".history/a.md/x.md", "a/../b.md", "notes.txt", "a//b.md"} {
 		if code, _ := wsDoc(t, e, tid, http.MethodPut, p, hum, "", "x"); code == http.StatusOK {
 			t.Fatalf("PUT %s: %d", p, code)
 		}
 	}
+	e.client.CheckRedirect = follow
 	big := string(bytes.Repeat([]byte("a"), hub.MaxWorkspaceDoc+1))
 	if code, _ := wsDoc(t, e, tid, http.MethodPut, "big.md", hum, "", big); code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversize: %d, want 413", code)

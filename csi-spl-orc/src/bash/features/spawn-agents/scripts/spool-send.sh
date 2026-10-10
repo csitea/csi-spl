@@ -75,6 +75,10 @@
 #       spawn a new lane. SPOOL_SECOND_TOPIC_OK=1 overrides, logged to
 #       $SPOOL_ROOT/second-topic.log. Role seats (001-003, lease.conf) take
 #       any topic. A body over 1200 chars only WARNs on stderr: send a path.
+#       Also refused: --task <uuid> of an OWNER topic (scripts/spool-topic-
+#       kind.sh: a HUM-* or channel post on the hub) to a non-human --to;
+#       agents talk about it on --task dispatch-<first 8 hex>. No answer
+#       from the hub: WARN and send (fail open).
 #   10+ `spool send` failed: 10 + its exit code (nothing delivered); 13 = <to>
 #       is on neither this machine nor any box the hub knows (or no fleet desk)
 set -uo pipefail
@@ -120,6 +124,24 @@ send_lane_topic() {  # ID
   find "$SPOOL_ROOT/$id/inbox" "$SPOOL_ROOT/$id/archive" -maxdepth 1 -name '*.json' -print0 2>/dev/null |
     xargs -0r jq -r --arg s "$since" 'select(.kind == "task" and .ts >= $s and (.task_id // "") != "") | "\(.ts)\t\(.task_id)"' 2>/dev/null |
     sort | sed -n 1p | cut -f2
+}
+
+# "owner" or "agent" for a topic uuid (scripts/spool-topic-kind.sh, run as the
+# box user: the desk tree is its own); non-zero when the hub cannot tell.
+# SPOOL_OWNER_TOPIC_CMD replaces the lookup; under SPOOL_TEST=1 without it
+# there is no lookup (no hub): 100, silently.
+send_topic_kind() {  # TASK
+  if [ -n "${SPOOL_OWNER_TOPIC_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    $SPOOL_OWNER_TOPIC_CMD "$1"; return
+  fi
+  [ "${SPOOL_TEST:-}" = 1 ] && return 100
+  local probe="$_here/spool-topic-kind.sh"
+  if [ "$(id -un)" = "$SPOOL_BOX_USER" ]; then
+    bash "$probe" --spool-root "$SPOOL_ROOT" "$1"
+  else
+    sudo -n -u "$SPOOL_BOX_USER" -- bash "$probe" --spool-root "$SPOOL_ROOT" "$1"
+  fi
 }
 
 # 0 when reports go to the peers (spec 068 L4): SPOOL_TO_PEERS=1|0, else a
@@ -217,6 +239,21 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   [ -n "$FROM" ] || { echo "ERROR: --from is required" >&2; usage; }
   case "$KIND" in task|result|note|reject|blocker|msg) ;; *) echo "ERROR: --kind must be task|result|note|reject|blocker|msg, got: '${KIND}'" >&2; exit 2 ;; esac
   [ "$BODY_SET" -eq 1 ] || { echo "ERROR: --body or --body-file is required" >&2; exit 2; }
+
+  # ---- an owner topic is the owner's (owner rule 2026-10-08) ----------------
+  # Agent-to-agent rows sent on an owner topic uuid land INSIDE the owner's
+  # topic in the WUI: measured 2026-10-10 05:42Z..06:2xZ, n=69 rows in 6 owner
+  # topics. The rule "use --task dispatch-<topic8>" lived in prose only.
+  if [[ "$TASK" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] &&
+     [[ ! "$TO" =~ ^HUM- ]] && [[ ! "$FROM" =~ ^HUM- ]]; then
+    _tk="$(send_topic_kind "$TASK" 2>/dev/null)"; _tkrc=$?
+    if [ "$_tkrc" -eq 0 ] && [ "$_tk" = owner ]; then
+      echo "ERROR: ${TASK} is an owner topic (the owner reads it in the WUI); agents talk about it on --task dispatch-${TASK:0:8}. Nothing was sent." >&2
+      exit 3
+    elif [ "$_tkrc" -ne 0 ] && [ "$_tkrc" -ne 100 ]; then
+      echo "topic: WARN cannot tell whether ${TASK} is an owner topic (no hub answer); sent anyway" >&2
+    fi
+  fi
 
   # ---- one topic per lane (token/focus practice 08) -------------------------
   # A task on a second topic makes one lane carry two contexts: it re-reads

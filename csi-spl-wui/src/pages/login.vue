@@ -80,7 +80,10 @@
     <!-- 116-T4 puts the features row here and 116-T5 the links row under it:
          in flow below the card and the channel, so neither ever lies over
          the card or its demo buttons. -->
-    <div class="login-front__more" data-test="login-front-more"></div>
+    <div class="login-front__more" data-test="login-front-more">
+      <!-- spec 116 T4: the feature posts (its own chunk, still in the prerendered HTML) -->
+      <LazyLoginFeatures />
+    </div>
   </div>
 </template>
 

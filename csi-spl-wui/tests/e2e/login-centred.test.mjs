@@ -23,6 +23,9 @@
 // is the control: the absolute footer drew Blog on the demo buttons
 // (c-002 msg 673dbb44) and FAILS it. Under prefers-reduced-motion: reduce
 // nothing is animating and every channel post shows.
+// Spec 116 T4: the features row (1..6 feature-post cards) is in the served
+// /login HTML itself (prerendered, not fetched after hydration) and shows
+// under the sign-in card at every look A size.
 //   SHOT_DIR=/var/tmp/x ... also writes a screenshot per look A case
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
@@ -149,6 +152,7 @@ const LOOK_A_MEASURE = `(() => {
     hero: box(document.querySelector('[data-test=login-front-hero]')),
     card: box(document.querySelector('[data-test=login-front-card]')),
     links: links.map((a) => ({ test: a.dataset.test || a.getAttribute('href'), ...box(a) })),
+    features: [...document.querySelectorAll('[data-test=login-feature]')].filter(shown).map(box),
     demo: [...document.querySelectorAll('[data-test^=demo-try-]')].filter(shown).map((b) => ({ test: b.dataset.test, ...box(b) })),
     xScroll: document.documentElement.scrollWidth > window.innerWidth + 1,
   }
@@ -179,6 +183,13 @@ async function lookAPage(browser, vp, theme, reduce) {
 }
 
 async function lookA(browser) {
+  // 116-T4: the cards come with the page's HTML, before any script runs
+  try {
+    const html = await (await fetch(`${SERVER}/login`)).text()
+    const n = (html.match(/data-test="login-feature"/g) || []).length
+    if (n >= 1 && n <= 6) ok('/login HTML features', `${n} cards in the served HTML`)
+    else fail('/login HTML features', `${n} cards in the served HTML, want 1..6`)
+  } catch (e) { fail('/login HTML features', e.message) }
   for (const theme of THEMES) {
     for (const vp of LOOK_A) {
       const label = `look A ${theme} ${vp.name} /login`
@@ -196,6 +207,9 @@ async function lookA(browser) {
         } else if (m.card.l >= m.hero.r - 1 && m.card.w <= 400) ok(`${label} layout`, `card ${Math.round(m.card.w)} px beside the channel`)
         else fail(`${label} layout`, `card ${JSON.stringify(m.card)} not beside hero ${JSON.stringify(m.hero)}`)
         if (m.xScroll) fail(`${label} x-scroll`, 'the page scrolls sideways')
+        if (!m.features.length || m.features.length > 6) fail(`${label} features`, `${m.features.length} feature cards, want 1..6`)
+        else if (m.card && m.features.some((f) => f.t < m.card.b - 1)) fail(`${label} features`, 'a feature card lies above the sign-in card bottom')
+        else ok(`${label} features`, `${m.features.length} cards under the card`)
         if (!m.demo.length) fail(`${label} overlap`, 'no demo button shown')
         else {
           const over = []

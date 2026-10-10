@@ -49,7 +49,10 @@ dc up -d web >/dev/null 2>&1 && fail "1. up with the default passwords on a publ
     fail "1. W9: $(init_log)"; }
 
 # --- 2. W18, no owner email ---------------------------------------------------------------
-export SPOOL_DB_OWNER_PASSWORD="o-$(openssl rand -hex 12)" SPOOL_DB_RUNTIME_PASSWORD="r-$(openssl rand -hex 12)" SPOOL_DB_SUPERUSER_PASSWORD="s-$(openssl rand -hex 12)"
+SPOOL_DB_OWNER_PASSWORD="o-$(openssl rand -hex 12)"
+SPOOL_DB_RUNTIME_PASSWORD="r-$(openssl rand -hex 12)"
+SPOOL_DB_SUPERUSER_PASSWORD="s-$(openssl rand -hex 12)"
+export SPOOL_DB_OWNER_PASSWORD SPOOL_DB_RUNTIME_PASSWORD SPOOL_DB_SUPERUSER_PASSWORD
 fresh
 dc up -d web >/dev/null 2>&1 && fail "2. up with no SPOOL_OWNER_EMAIL on a public URL succeeded" ||
   { init_log | grep 'set SPOOL_OWNER_EMAIL' >/dev/null && pass "2. W18: public URL + no SPOOL_OWNER_EMAIL -> hub-init refuses" || fail "2. W18: $(init_log)"; }

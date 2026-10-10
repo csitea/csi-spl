@@ -78,7 +78,7 @@ stop_hub() { kill "$HUB_PID"; wait "$HUB_PID" 2>/dev/null || true; HUB_PID=""; }
 box() {
   echo "SPOOL_ROOT=$WORK/$1/spool SPOOL_KEYS_DIR=$WORK/$1/keys SPOOL_BOX_ID=$1 SPOOL_HUB_URL=http://$TENANT.localhost:$PORT"
 }
-on() { local b="$1"; shift; env $(box "$b") "$BIN" "$@"; }
+on() { local b="$1" e; shift; read -r -a e <<<"$(box "$b")"; env "${e[@]}" "$BIN" "$@"; }
 
 # Door-off viewer reads (003 T036 door-off; Host = tenant, no Authorization).
 view_get() {
@@ -245,7 +245,8 @@ on box-b recv --as c-007 --ack | grep '"body":"build it"' >/dev/null || fail "bo
 ok "offline receiver: delivery=queued, drained on hello, recv returns the task"
 
 # 5. live daemon -> sent
-env $(box box-b) "$BIN" hub-run >>"$WORK/run-b.log" 2>&1 &
+read -r -a env_b <<<"$(box box-b)"
+env "${env_b[@]}" "$BIN" hub-run >>"$WORK/run-b.log" 2>&1 &
 RUN_PID=$!
 sleep 1
 out="$(on box-a send --from g-003 --to c-007 --task "$task" --kind note --body "live")"

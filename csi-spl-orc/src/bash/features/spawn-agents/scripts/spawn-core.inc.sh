@@ -71,6 +71,12 @@
 # closing steps in the prompt).
 
 _sp_live() { [ "${SPAWN_DRY_RUN:-0}" != 1 ]; }
+# The seed's closing line, every kind: a lane closes itself only on the
+# reviewer's ACCEPTED, so a send-back still finds it running (owner HUM-10 msg
+# 3b4d2cb9, "implement it in the loop"). Closing on its own done, every m- lane
+# of 2026-10-10 was closed by an orchestrator (c-001 msg 0df92cb9), and c-878 /
+# a-884 retired before the verdict, which then bounced (c-002 msg f711ec97).
+SPAWN_EXIT_RULE="When your task is verified done: send your result, then stay idle and answer send-backs. Run /exit-clean (the exit-clean skill) ONLY on a spool message on your task whose body starts with ACCEPTED (dispatch holder or spawner), never on your own done."
 _sp_plan() { _sp_live || printf 'PLAN %-10s %s\n' "$1" "$2"; }
 
 # A live window stays open on its error so a human can read it; a dry run
@@ -372,7 +378,7 @@ spawn_main() {
     # c-440 (2026-10-06): one 'pkill -f do_check_pre_push' matched the action
     # name in every agent's argv (this prompt) and killed 15 sessions in 0.7 s.
     STOP_RULE="Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f', 'killall' or 'pgrep -f | xargs kill' on a pattern: it matches other agents' processes."
-    PROMPT="As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. When your task is verified done: report and /exit-clean. ${DEV_GUIDE:+${DEV_GUIDE} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
+    PROMPT="As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
 

@@ -32,7 +32,7 @@ for k in claude grok agy qwen mistral; do
   # CLE-77896: three lanes once greeted one new member; no lane posts social messages.
   has "$k: prompt forbids greetings and social posts" "Never post greetings, welcomes or social messages; only post what your brief asks for." "$prompt"
   # CLE-77938 (owner 2026-10-02): one agent does one small task, then exits.
-  has "$k: prompt limits the lane to one small task" "You do ONE small task. If someone sends you a different task, refuse it and tell c-001 so it spawns a new lane. When your task is verified done: report and /exit-clean." "$prompt"
+  has "$k: prompt limits the lane to one small task" "You do ONE small task. If someone sends you a different task, refuse it and tell c-001 so it spawns a new lane. When your task is verified done: send your result, then stay idle and answer send-backs. Run /exit-clean" "$prompt"
   # c-440 (2026-10-06): a 'pkill -f <action>' matched this prompt on 15 agents' argv.
   has "$k: prompt says stop by stop action or pid, never pkill -f" "Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f'" "$prompt"
   hasnt "$k: no markdown-inbox root" "/var/tmp/claude/msgs" "$prompt"

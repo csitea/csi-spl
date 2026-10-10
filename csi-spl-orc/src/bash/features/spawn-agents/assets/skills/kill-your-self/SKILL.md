@@ -14,6 +14,16 @@ close the window before `/exit`.
 
 This is an alias of `/exit-clean`; the two follow the same steps.
 
+## 0. When
+
+A lane runs this only after the reviewer's verdict: a spool message on its
+task whose body starts with `ACCEPTED`, from the dispatch holder or its
+spawner, or a human typing `/exit-clean`. Its own "done" is not that: send the
+result, then stay idle and answer send-backs. A lane that retired before the
+verdict made the ACCEPTED bounce ("retired on this machine less than 24 h
+ago", c-878 and a-884, 2026-10-10). Every kind, mistral (vibe,
+`~/.vibe/skills`) included.
+
 ## 1. Land the work
 
 Start with the read-only discovery: your id, unread spool mail, what git

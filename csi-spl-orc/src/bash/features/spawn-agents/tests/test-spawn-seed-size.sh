@@ -41,7 +41,8 @@ for k in claude grok agy qwen mistral; do
   norm="$(seed_norm "$prompt")"
   n="$(printf '%s' "$norm" | wc -c)"
   # 8200: +200 for STEP 0, the developer-guide ack (owner t1 4e373f5d msg 56d7073e)
-  check "$k: seed is at most 8200 bytes at the live paths (got $n)" [ "$n" -le 8200 ]
+  # 8400: +200 for the ACCEPTED-gated exit line (SPAWN_EXIT_RULE, owner msg 3b4d2cb9)
+  check "$k: seed is at most 8400 bytes at the live paths (got $n)" [ "$n" -le 8400 ]
   has "$k: the sized seed carries STEP 0" "STEP 0, before any edit" "$prompt"
   hasnt "$k: the sized seed carries no checkout path" "$T_ROOT/" "$norm"
   for r in 1 2 3 4 5 6 7 8 a b c d e; do

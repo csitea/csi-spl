@@ -1,6 +1,6 @@
 # 119 Personal Realm
 
-**Status**: v1.0 (panel fold of 4 seats, all signed, 2026-10-10; editor s119-claude). Sections 1..5 are the v0.1 draft, kept as written; where section 6 changes a REQ or a Q, section 6 wins.
+**Status**: v1.1 (v1.0 = panel fold of 4 seats, all signed, 2026-10-10; editor s119-claude. v1.1 folds the owner's answer "All A" to the 119-only questions OQ-1, 4, 5, 7, 9, 10, msg ddc23158, 2026-10-10). Sections 1..5 are the v0.1 draft, kept as written; where section 6 changes a REQ or a Q, section 6 wins.
 
 ## 1. Context and Goals
 Based on the owner's feedback, there is a need for a "personal realm" — a person-level layer that exists above workspaces. When people leave a workspace, they should retain read-only copies of their own past hours (like pay receipts) without keeping the actual content of the work.
@@ -64,6 +64,8 @@ The personal realm introduces a new data layer requiring strict isolation. The b
 - **Cross-Workspace Reads**: The cross-workspace view reads each workspace under its own RLS context as that person.
 - **Receipt Isolation**: Receipts are strict COPIES taken at leave time. There are no Foreign Keys (FK) into workspace data to prevent data leakage.
 - **Access Restrictions**: No foreman, admin, or owner can read another person's realm. Operator access is strictly logged.
+
+> **v1.1**: no operator access at all in v1 (OQ-1 A, section 7.6).
 - **Testing**: Per-table isolation tests + red control.
 - **Future phases**: Phase 2 option for per-person encryption.
 
@@ -74,7 +76,7 @@ Folded from the four seat files in [reviews/](reviews/) (section 12). It is the 
 ### 6.1 Requirements, reworded
 
 - **REQ-1 (Identity and Profile)**: The person's identity is the hub-wide `public.humans` row (`HUM-*`, rdb 0006); its name, email and avatar stay there, one source. The realm adds `personal.profile` only for fields no workspace reads: time zone, locale, communication preferences. No workspace reads the profile.
-- **REQ-4 (Read-Only Receipts)**: A person keeps a read-only receipt of their own past hours in a workspace when their live access to it ends: the membership is **removed** (or banned), its **`access_until` passes** (rdb 0113), or the **workspace is deleted** (owner question OQ-6). Whether a **disabled** membership (rdb 0074, reversible) also counts is OQ-5. The copy is taken first and the change made second (section 8.1).
+- **REQ-4 (Read-Only Receipts)**: A person keeps a read-only receipt of their own past hours in a workspace when their live access to it ends: the membership is **removed** (or banned), its **`access_until` passes** (rdb 0113), or the **workspace is deleted** (owner question OQ-6). A **disabled** membership (rdb 0074, reversible) is **not** leaving: it takes no receipt, and only removal, expiry and workspace delete do (OQ-5 A, owner, 2026-10-10, msg ddc23158, "A"). Workspaces left **before 119 ships** get no receipt and no back-fill (OQ-9 A, section 8.1). The copy is taken first and the change made second (section 8.1).
 - **REQ-5 (Hours Only)**: A receipt holds exactly 118 D4's fields (section 8.2), a closed list checked by a catalogue test: no note, no topic, channel or meeting title, no message, no target id.
 - **REQ-6 (Data Isolation)**: No realm row is copied, joined or pushed into a workspace, and no workspace scope reads the realm. When the person enters hours from a realm screen, each entry is written by the hub through 107's existing entry write, in that workspace's scope and under that workspace's rules (freeze, day cap, membership, target), exactly as if made inside the workspace. A workspace sees the entry, never that it came from the realm screen. The realm stores nothing about the write.
 
@@ -82,7 +84,7 @@ Folded from the four seat files in [reviews/](reviews/) (section 12). It is the 
 
 | Q | settled as | why |
 |---|---|---|
-| Q1 | **B, without copies**: name, email and avatar are already on `humans` (rdb 0006, 0010); the realm stores none of them again. `personal.profile` holds time zone, locale and communication preferences. | 3 of 4 seats; a second copy of the name is a second source |
+| Q1 | **B, without copies**: name, email and avatar are already on `humans` (rdb 0006, 0010); the realm stores none of them again. `personal.profile` holds time zone, locale and communication preferences. No realm display name: the person's own views show `humans.display_name` too (OQ-10 A, owner, 2026-10-10, msg ddc23158, "A"). | 3 of 4 seats; a second copy of the name is a second source |
 | Q2 | **B**: an interactive read-only view. A person-only download of one's own receipts is owner question OQ-8. | all 4 seats |
 | Q3 | **Replaced by 118 D4's list** (section 8.2), the label per 107 FR-18. | 118 D4 is an owner decision; all 4 seats |
 | Q4 | **`personal`** (owner, already settled). Tables are always schema-qualified; `personal` is never on the runtime `search_path`. | all 4 seats |
@@ -148,6 +150,7 @@ A `personal` block in `runtime-grants.sql`, run as the schema owner after `spool
 - `GRANT USAGE ON SCHEMA personal` to the runtime login.
 - `SELECT, INSERT, UPDATE, DELETE` on `profile` and `settings`.
 - `SELECT, INSERT` only on `hours_receipts`: no `UPDATE`, no `DELETE` (append-only, the rdb 0157 rev-log shape).
+- `EXECUTE` on `personal.delete_my_receipts` (8.3, OQ-4 A): the one way a receipt row is removed, by its own person.
 - `SELECT, INSERT, UPDATE` on `receipt_due`.
 - **No default privileges** in `personal`: a new realm table is invisible to the hub until it is granted by name.
 - `spool_search_reader` (rdb 0143) and any later reader role get no `USAGE` on `personal`.
@@ -156,7 +159,7 @@ The runtime login is NOSUPERUSER, NOBYPASSRLS and owns nothing, so it cannot dro
 
 ### 7.6 Operator access
 
-v1 has **no operator read** of a realm: 0 rows under every operator path. A logged break-glass read (a `SECURITY DEFINER` function that first writes an access-log row the person can see, run only by a named owner action) is owner question OQ-1. This replaces section 5's "operator access is strictly logged", which had no mechanism behind it.
+v1 has **no operator read** of a realm: 0 rows under every operator path (OQ-1 A, owner, 2026-10-10, msg ddc23158, "A"). v1 builds no break-glass read, no access log and no operator path into `personal`; T-N4 pins it. A logged break-glass read (OQ-1 B: a `SECURITY DEFINER` function that first writes an access-log row the person can see, run only by a named owner action) would be a new spec. This replaces section 5's "operator access is strictly logged", which had no mechanism behind it.
 
 ## 8. Receipts
 
@@ -175,7 +178,11 @@ Each step is its own transaction; the scopes are never set together.
 | workspace deleted | the delete action runs steps 1..2 for every member before `DELETE FROM tenants`; a delete that cannot copy is refused (OQ-6) |
 | the last period becomes final (8.3) | the sweep reads open `receipt_due` rows through `personal.due_receipts(now)`: a `SECURITY DEFINER` function owned by a NOLOGIN NOBYPASSRLS role `spool_realm_sweeper` (the `spool_search_reader` precedent) that returns only `(person_id, workspace_id)` and can read no other realm table |
 
-Synthetic members (clones, demo stays) get no receipt. A rejoin does not merge receipts back; a later leave copies again and the PK keeps the first copy of a day.
+Synthetic members (clones, demo stays) get no receipt. A **disabled** membership (rdb 0074) triggers nothing: no copy, no `receipt_due` row; a later removal or expiry of it does (OQ-5 A).
+
+**Rollout** (OQ-9 A): no back-fill. The migration creates the `personal` tables empty, and the triggers above run only for leaves after the deploy that ships them. Members removed, expired or in a workspace deleted before that get no receipt, even where the workspace still keeps their hours.
+
+A rejoin does not merge receipts back; a later leave copies again and the PK keeps the first copy of a day.
 
 ### 8.2 What: 118 D4's list, nothing more
 
@@ -202,14 +209,14 @@ Never copied: the entry note, `updated_by`, the target id (`t:<topic>` points in
 - 107 Q8 is open, so the leaver's last period may still be open at leave time (`receipt_due.last_open_from`). When that period freezes or is approved, the sweep appends `rev = 1` rows for those days only and closes `receipt_due`. After that nothing is appended. Under OQ-11 B (= 118 Q6 B) there is no refresh, and `rev` stays 0.
 - A workspace deleted before the refresh leaves `rev = 0`, shown as "last period not final".
 - The view reads `max(rev)` per (workspace, day, label, kind).
-- The person's own delete of a receipt (erasure) is OQ-4; if yes, it goes through one `SECURITY DEFINER` function that checks the person scope itself, never through a `DELETE` grant.
+- **Erasure, never edit** (OQ-4 A, owner, 2026-10-10, msg ddc23158, "A"): the person may delete their own receipts, never change them. The delete goes through one `SECURITY DEFINER` function `personal.delete_my_receipts(workspace_id)`, owned by a NOLOGIN NOBYPASSRLS role, that reads `app.person_id` itself (refusing an empty or unset one and a set `app.tenant_id` or operator scope), deletes every `rev` of that person's rows for that workspace, and closes that `receipt_due` row so no `rev = 1` refresh re-adds them. The runtime role gets `EXECUTE` on it and still no `UPDATE` or `DELETE` on `hours_receipts`. Route: `DELETE /v1/me/realm/receipts/{workspace_id}`, human session only, as 9 C2. A later leave of the same workspace (after a rejoin) copies again.
 
 ## 9. The contract with 118 (the realm side of 118 C1..C7)
 
 | 118 | 119 provides |
 |---|---|
 | **C1 identity** | 6.3 point 4 |
-| **C2 route home** | The realm route group: `GET /v1/me/realm/hours`, `PUT /v1/me/realm/hours`, `GET /v1/me/realm/targets` (118 5.2, 7), plus `GET`/`PUT /v1/me/realm/settings`, `GET`/`PUT /v1/me/realm/profile`, `GET /v1/me/realm/receipts`. Human session only; 403 `person_only` under act-as (spec 054), for agents, box tokens and a time-accountant-only seat; 400 on an `X-Spool-Tenant` header or a `member=` parameter. The page `/me/hours` is a realm page, one lazy chunk; 119 owns the frame and navigation |
+| **C2 route home** | The realm route group: `GET /v1/me/realm/hours`, `PUT /v1/me/realm/hours`, `GET /v1/me/realm/targets` (118 5.2, 7), plus `GET`/`PUT /v1/me/realm/settings`, `GET`/`PUT /v1/me/realm/profile`, `GET /v1/me/realm/receipts`, `DELETE /v1/me/realm/receipts/{workspace_id}` (8.3, OQ-4 A). Human session only; 403 `person_only` under act-as (spec 054), for agents, box tokens and a time-accountant-only seat; 400 on an `X-Spool-Tenant` header or a `member=` parameter. The page `/me/hours` is a realm page, one lazy chunk; 119 owns the frame and navigation |
 | **C3 settings** | `personal.settings` (7.3), `inPerson` only. The warning is computed on read, never stored, sent, pushed or logged |
 | **C4 zone** | `personal.profile.time_zone` |
 | **C5 receipts** | `personal.hours_receipts` (8.2), taken as in 8.1 |
@@ -229,7 +236,7 @@ byo-gcp today ([SPEC-spool-byo-gcp.md](../../doc/md/SPEC-spool-byo-gcp.md)) is a
 
 - **v1 builds only the shared `personal` schema.** Because it has no FK into workspaces, a move later is a copy of rows, not a redesign.
 - A move is a named action (`do_spl_realm_move`): copy as the person, verify the counts, delete the source as the person. The realm DSN is a Secret Manager reference in one hub-wide row, never a DSN in a table or a log. In the own DB the FK to `humans` becomes a CHECK on the id shape.
-- A workspace on a **customer's own hub** is read across hubs only as the person, through that hub's own routes with the person's credential there: no DB link, no service account reading hours. Not in v1 (OQ-7). Until then the personal view shows such a workspace as a link, not as numbers.
+- A workspace on a **customer's own hub** is read across hubs only as the person, through that hub's own routes with the person's credential there: no DB link, no service account reading hours. Not in v1 (OQ-7 A, owner, 2026-10-10, msg ddc23158, "A"): the personal view shows such a workspace as a **link only**, never as numbers, and v1 builds neither a signed receipt export (OQ-7 B) nor a cross-hub read (OQ-7 C). Likewise `do_spl_realm_move` and the realm DSN row above are not in v1.
 
 ## 11. Tests
 
@@ -240,6 +247,8 @@ On Postgres (`PRE_PUSH_TIER=full`), as the runtime role, never as the owner or a
 - **T-C2** no FK from `personal.*` to a table outside `personal` except `public.humans`; no column named `tenant_id` (118 T-D4b asserts the same).
 - **T-C3** grants: the runtime role has no `UPDATE`/`DELETE` on `hours_receipts`; no default privileges in `personal`; `spool_search_reader` has no `USAGE` on `personal`.
 - **T-C4** the receipt columns are exactly 8.2's list: a new column fails until REQ-5 names it.
+- **T-C5** (OQ-10 A) `personal.profile` has exactly 7.3's columns: no name or display-name column.
+- **T-C6** (OQ-4 A) the only `DELETE` on `hours_receipts` is inside `personal.delete_my_receipts`; the runtime role has `EXECUTE` on it and no `UPDATE` anywhere in `personal` except `profile`, `settings`, `receipt_due`.
 
 **RLS negatives**
 - **T-N1** another person: P and Q seeded in every table; under `inPerson(P)` 0 rows of Q in each, P's own rows > 0 (control); an insert stamped Q fails `WITH CHECK`.
@@ -259,6 +268,9 @@ On Postgres (`PRE_PUSH_TIER=full`), as the runtime role, never as the owner or a
 - **T-R5** last period open at leave, approved later: `rev = 1` rows for those days, `receipt_due` closed; a second approval appends nothing.
 - **T-R6** `UPDATE` and `DELETE` on `hours_receipts` as the runtime role fail with `42501`, also inside `inPerson(P)`.
 - **T-R7** `personal.due_receipts` returns only `(person_id, workspace_id)`; `spool_realm_sweeper` reads 0 rows of `profile`, `settings`, `hours_receipts`.
+- **T-R8** (OQ-4 A) under `inPerson(P)`, `delete_my_receipts(W)` removes P's rows of W (every `rev`) and closes P's `receipt_due` for W; Q's rows and P's rows of another workspace stay; a later approval appends no `rev = 1`. Under `inTenant(W)`, the operator scope or no setting it deletes 0 rows. Red control: drop the person check in the function.
+- **T-R9** (OQ-5 A) disabling P's membership copies nothing and writes no `receipt_due`; removing it afterwards does.
+- **T-R10** (OQ-9 A) a member removed before the migration has no receipt after it, and the first sweep after the deploy copies nothing for them.
 
 **The 118 contract**
 - **T-K1** the 118 read for P in A and B and a left C: A and B ran in separate transactions with one tenant each and the realm read with none (a store spy); C comes only from receipts.
@@ -335,16 +347,18 @@ All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `
 | OQ-3 | **Q8** | how long the approver's name is kept | 8.2 `approver_name`: blanked after `hours.retention_years` under A |
 | OQ-8 | **Q10** | a personal download | 6.2 Q2: none in v1 under A |
 
-**119-only questions:**
+**119-only questions** (answered, v1.1):
 
-| # | question | options | from |
-|---|---|---|---|
-| **OQ-1** | Operator access to a person's realm | **A (recommended)**: none in v1, 0 rows under every operator path. B: a break-glass read, owner-run per call, that writes an access-log row the person sees | claude, -2, -3 |
-| **OQ-4** | May a person **delete their own receipts** (erasure)? | **A (recommended)**: yes, through one function, never an edit. B: kept for the retention period regardless | claude, -2, -3 |
-| **OQ-5** | Does a **disabled** membership (rdb 0074, reversible) count as leaving? | **A (recommended)**: no, only removal, expiry and workspace delete. B: yes, a receipt on every loss of access | -3 |
-| **OQ-7** | Workspaces on a **customer's own hub** and a person's own DB (10) | **A (recommended)**: not in v1; the view shows such a workspace as a link. B: a signed receipt export the person imports. C: a cross-hub read as the person | all four |
-| **OQ-9** | Receipts for workspaces **left before 119 ships** | **A (recommended)**: none. B: a back-fill from hours still kept for members already removed | -3 |
-| **OQ-10** | Does a realm **display name** override `humans.display_name` in the person's own views? | **A (recommended)**: no realm name in v1 (6.2 Q1). B: an override shown only to the person | -3 |
+**Answered** by the owner, 2026-10-10, msg ddc23158 (t1 151d85fc, HUM-10): "All A". Each answer is folded where the last column says.
+
+| # | question | options | from | answer |
+|---|---|---|---|---|
+| **OQ-1** | Operator access to a person's realm | **A (recommended)**: none in v1, 0 rows under every operator path. B: a break-glass read, owner-run per call, that writes an access-log row the person sees | claude, -2, -3 | **A**, 2026-10-10, msg ddc23158: no operator access in v1 (7.6, T-N4) |
+| **OQ-4** | May a person **delete their own receipts** (erasure)? | **A (recommended)**: yes, through one function, never an edit. B: kept for the retention period regardless | claude, -2, -3 | **A**, 2026-10-10, msg ddc23158: may delete own receipts, never edit (8.3, 9 C2, T-C6, T-R8) |
+| **OQ-5** | Does a **disabled** membership (rdb 0074, reversible) count as leaving? | **A (recommended)**: no, only removal, expiry and workspace delete. B: yes, a receipt on every loss of access | -3 | **A**, 2026-10-10, msg ddc23158: disabled is not leaving (6.1 REQ-4, 8.1, T-R9) |
+| **OQ-7** | Workspaces on a **customer's own hub** and a person's own DB (10) | **A (recommended)**: not in v1; the view shows such a workspace as a link. B: a signed receipt export the person imports. C: a cross-hub read as the person | all four | **A**, 2026-10-10, msg ddc23158: link only in v1 (10) |
+| **OQ-9** | Receipts for workspaces **left before 119 ships** | **A (recommended)**: none. B: a back-fill from hours still kept for members already removed | -3 | **A**, 2026-10-10, msg ddc23158: no back-fill (6.1 REQ-4, 8.1 rollout, T-R10) |
+| **OQ-10** | Does a realm **display name** override `humans.display_name` in the person's own views? | **A (recommended)**: no realm name in v1 (6.2 Q1). B: an override shown only to the person | -3 | **A**, 2026-10-10, msg ddc23158: no realm display name (6.2 Q1, T-C5) |
 
 ## 14. Version log
 
@@ -353,5 +367,6 @@ All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `
 | 0.1 | 2026-10-10 | draft (a-778) | context, scope, REQ-1..6, Q1..Q4, security baseline |
 | 1.0-rc | 2026-10-10 | c-787 (editor) | panel fold of s119-claude, -2, -3 and s119-mistral: REQ-1, 4, 5, 6 reworded (6.1); Q1..Q4 settled (6.2); the 118 contradictions (6.3); schema, policy, grants (7); receipts (8); the 118 contract (9); own-DB isolation (10); tests (11); panel and consensus (12); owner questions OQ-1..11 (13, five of them = 118 Q5, Q6, Q7, Q8, Q10); sections 1..5 kept as written |
 | 1.0 | 2026-10-10 | c-787 (editor) | all four seats signed `7547a74db`; `kind` added to the receipt PK (7.3, 8.2, T-R1; same in 118 C5 `48c0481ce`); the five questions shared with 118 point to 118 v1.0 Q5, Q6, Q7, Q8, Q10 instead of being asked again (13) |
+| 1.1 | 2026-10-10 | c-835 | owner fold, msg ddc23158 "All A" on OQ-1, 4, 5, 7, 9, 10: no operator access (7.6); erasure of own receipts through `personal.delete_my_receipts`, never an edit (8.3, 9 C2); disabled membership is not leaving (6.1, 8.1); own-hub / own-DB = link only in v1 (10); no back-fill before ship (8.1 rollout); no realm display name (6.2 Q1); tests T-C5, T-C6, T-R8..T-R10 (11); the 118-shared OQ-2, 3, 6, 8, 11 unchanged; no seat sign-off (panel retired, the dispatch holder decides) |
 
-<!-- version: 1.0.0 · updated: 2026-10-10 · last-edit: 2026-10-10 -->
+<!-- version: 1.1.0 · updated: 2026-10-10 · last-edit: 2026-10-10 -->

@@ -11,11 +11,19 @@ signed against 15e4e5479
 - **Required**: A new named action `do_measure_workspace_capacity` must be created in `csi-spl-iac/src/bash/run/measure-workspace-capacity.func.sh`. It must:
   - Create ONE workspace and ONE private channel in isolation.
   - Generate baseline traffic (10 agent turns).
-  - Measure exact CPU, memory, DB connections, and token usage on the box and the hub.
+  - Measure exact CPU, memory, DB connections, and **token usage** on the box and the hub.
+  - **Compare the measured token count with the provider's reported usage** (GCP/Azure billing export or API) to quantify the gap.
   - Output the measurements in a structured format (JSON) for CI verification.
-- **Test**: A CI test must assert that the output is within reasonable bounds (e.g., CPU < 10%, memory < 512MB, DB connections < 5).
+- **Test**: A CI test must assert that the output is within reasonable bounds (e.g., CPU < 10%, memory < 512MB, DB connections < 5, token gap < 20%).
 
-### 1.2. Fixed hub cost measurement (section 9)
+### 1.2. Token measurement gap and buffer (owner add, msg f5c0e3c7)
+- **Missing**: The owner requested a **margin error for tokens** (+10% to +20%) to account for unmeasurable token usage in the spool hub.
+- **Required**:
+  - The `do_measure_workspace_capacity` action must measure the **gap** between the hub's token count and the provider's reported usage.
+  - The gap must be used to set a **buffer value** (e.g., +20%) in the pricing calculation (spec 121).
+  - The buffer must be configurable and stored in the `pricing` table (column: `token_buffer_pct`).
+
+### 1.3. Fixed hub cost measurement (section 9)
 - **Missing**: The draft states the fixed hub cost as "USD 60/month" but does not specify how this is measured. This is a **list-price estimate**, not a billing measurement.
 - **Required**: Add a named action `do_measure_hub_fixed_cost` that:
   - Queries the GCP billing export for the last 30 days (or a named action like `do_gcp_billing_export`).
@@ -23,21 +31,21 @@ signed against 15e4e5479
   - Outputs the exact monthly cost in USD.
 - **Gate**: The pricing page and checkout must refuse to publish a price if this action has not run and populated the cost in the database.
 
-### 1.3. Scale-out and scale-in controls (section 3, 5, 7)
+### 1.4. Scale-out and scale-in controls (section 3, 5, 7)
 - **Missing**: The draft describes the 80% trigger, hysteresis, and scale-in drain, but **no control tests exist** to verify these guards.
 - **Required**: Add the following tests in `csi-spl-iac/src/bash/tests/`:
   - `test-scale-out-trigger.func.sh`: Forces mocked telemetry above 80% and asserts that the scale-out action is queued.
   - `test-scale-in-drain.func.sh`: Asserts that a box marked `draining` refuses new agent assignments.
   - `test-ceiling-guard.func.sh`: Asserts that scale-out is not triggered if the active fleet size equals the configured budget ceiling.
 
-### 1.4. Failure modes (section 6)
+### 1.5. Failure modes (section 6)
 - **Missing**: The draft describes failure modes but does not specify how they are handled or tested.
 - **Required**:
   - **Provisioning Timeout**: Add a timeout to `do_tf_apply_target` and `do_satellite_playbook`. If either fails, the hub must alert the operator (via `do_spool_send_alert`) and halt scale-out.
   - **Join Token Failure**: If the new box cannot authenticate, it must be immediately destroyed (via `do_tf_destroy_target`) and a new attempt queued with exponential backoff.
   - **Ceiling Reached**: The hub must return `429 Too Many Requests` with `token_quota` or `embed_full` errors for new incoming channels.
 
-### 1.5. Owner add: Fixed cost slice and gate (msg 55309d31)
+### 1.6. Owner add: Fixed cost slice and gate (msg 55309d31)
 - **Missing**: The draft does not specify how the fixed hub cost slice is calculated or gated.
 - **Required**:
   - The fixed cost slice must be calculated as `(fixed_hub_cost / max_theoretical_workspaces)` (option A in Q-2).
@@ -72,8 +80,10 @@ signed against 15e4e5479
   1. Create a throwaway workspace and private channel.
   2. Generate baseline traffic (10 agent turns).
   3. Measure CPU, memory, DB connections, and token usage.
-  4. Output measurements in JSON format.
-  5. Clean up the workspace and channel.
+  4. Compare the token count with the provider's reported usage (GCP/Azure API).
+  5. Calculate the gap and set a buffer value (e.g., +20%).
+  6. Output measurements in JSON format.
+  7. Clean up the workspace and channel.
 - **Test**: `csi-spl-iac/src/bash/tests/test-measure-workspace-capacity.func.sh`
 
 ### 3.2. Add `do_measure_hub_fixed_cost`
@@ -91,7 +101,7 @@ signed against 15e4e5479
 
 ### 3.4. Update the pricing gate
 - **Gate**: The pricing page and checkout must refuse to publish a price if `do_measure_workspace_capacity` and `do_measure_hub_fixed_cost` have not run.
-- **Database**: Store the measured values in the `pricing` table (columns: `workspace_cost`, `hub_fixed_cost`, `max_theoretical_workspaces`).
+- **Database**: Store the measured values in the `pricing` table (columns: `workspace_cost`, `hub_fixed_cost`, `max_theoretical_workspaces`, `token_buffer_pct`).
 
 ---
 

@@ -228,6 +228,7 @@ printf 'SPOOL_ORCHESTRATOR_ID=CLE-001\n' >>"$CFG"
 if cmp -s "$INSTALL" "$CTL"; then fail "3c. control: the sed found no ORCH_RETIRED line to disable"
 else
   env -i HOME="$H" USER="$(id -un)" PATH="$T/stub:$T/sys" TERM=dumb "$NOW" SPOOL_INSTALL_BOX_SETTINGS_FILE="$T/box-settings.json" \
+    SPOOL_INSTALL_URL_GO=https://go.test SPOOL_INSTALL_GO_ROOTS="" \
     SPOOL_INSTALL_REPO=example/spool SPOOL_INSTALL_URL_RELEASES=https://rel.test/releases SPOOL_INSTALL_URL_CLI=https://dl.test \
     SPOOL_INSTALL_BUILD="$T/stub/build.sh" SPOOL_INSTALL_RUN="$T/stub/run" bash "$CTL" "${ARGS[@]}" >"$T/o" 2>&1; rc=$?
   [[ $rc -eq 0 ]] && grep -qx 'SPOOL_ORCHESTRATOR_ID=CLE-001' "$CFG" &&

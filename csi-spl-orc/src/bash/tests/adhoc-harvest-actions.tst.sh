@@ -95,7 +95,7 @@ in_orc() {
   local snip="$1"; shift
   : >"$T/calls.log"; : >"$T/stdin"
   env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u ORDERED_BY -u ORDERED_VIA HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" T_STDIN="$T/stdin" \
-    MK="$T/mk" PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" TF_SWEEP_MAKE="$T/stub/make" \
+    MK="$T/mk" PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" SPOOL_ROOT="$T/spool" TF_SWEEP_MAKE="$T/stub/make" \
     TF_SWEEP_LOG_DIR="$T/sweep" ENV=dev SNIPPET="$snip" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -247,19 +247,22 @@ got="$(in_orc 'spl_box_join_report_lines dev </dev/null'; cat "$T/out")"
 [[ "$got" == 'BOXJOIN dev total seated=0 switch_on=0' ]] && pass "2c2. CONTROL: no rows = a zero total, not silence" || fail "2c2. empty: $got"
 
 # --- 2d. tenant fallback responders (rdb 0067, SPL-997) -----------------------
-in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS="CLE-001 GRK-3"; rc=$?
-[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set the fallback responders of t1 to CLE-001 GRK-3' "$T/out" \
+# The valid ids are the spec 061 form (c-001, g-003), valid whatever the clock;
+# a legacy CLE-/GRK- id passes only before the cutoff (SPOOL_NOW, specs/061).
+# SPOOL_ROOT is $T/spool, so the live box alias table never reaches the test.
+in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS="c-001 g-003"; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set the fallback responders of t1 to c-001 g-003' "$T/out" \
   && pass "2d. responders DRY_RUN: no cloud call" || fail "2d. dry: rc=$rc $(cat "$T/out")"
-for bad in '' 'cle-001' 'CLE-001;drop' 'HUM-4' 'CLE-001 CLE-001' "$(printf 'AB-%s ' {1..21})" 'AB-1 $(id)'; do
+for bad in '' 'cle-001' 'CLE-001;drop' 'HUM-4' 'CLE-001 CLE-001' 'c-001 c-001' "$(printf 'AB-%s ' {1..21})" 'AB-1 $(id)'; do
   in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS="$bad" DRY_RUN=0; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2d. AGENTS='${bad:0:24}' is refused before any call" || fail "2d. bad agents '$bad': rc=$rc"
 done
-in_orc 'do_spl_tenant_responders' TENANT_ID=T_1 AGENTS=CLE-001 DRY_RUN=0; rc=$?
+in_orc 'do_spl_tenant_responders' TENANT_ID=T_1 AGENTS=c-001 DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2d. a bad tenant slug is refused before any call" || fail "2d. bad slug: rc=$rc"
-in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS="CLE-001 GRK-3" DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -q "string_to_array(NULLIF(:'agents', ''), ' ')" "$T/stdin" && ! grep -q 'CLE-001' "$T/stdin" \
+in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS="c-001 g-003" DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q "string_to_array(NULLIF(:'agents', ''), ' ')" "$T/stdin" && ! grep -q 'c-001' "$T/stdin" \
   && grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" \
-  && grep -q '\[agents=CLE-001 GRK-3\]' "$T/calls.log" \
+  && grep -q '\[agents=c-001 g-003\]' "$T/calls.log" \
   && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
   && pass "2d. responders DRY_RUN=0: the list is a psql variable, tenant RLS, as $DEV_SA" \
   || fail "2d. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin") $(cat "$T/calls.log")"

@@ -415,25 +415,7 @@ const ok = (name, pass, ev) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function launch() {
-  const require = createRequire(import.meta.url)
-  for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
-    try {
-      const href = spec.startsWith('/') ? pathToFileURL(spec).href : pathToFileURL(require.resolve(spec)).href
-      const mod = await import(href)
-      const puppeteer = mod.default ?? mod
-      return puppeteer.launch({
-        executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
-        headless: true,
-        defaultViewport: null,
-        args: CHROME_LAUNCH_ARGS,
-      })
-    } catch {
-      // Try next spec
-    }
-  }
-  throw new Error('puppeteer-core not found')
-}
+
 
 async function test() {
   const server = await startServer()

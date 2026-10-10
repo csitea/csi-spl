@@ -741,6 +741,24 @@ jobs:
           echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud-empty" >>"$GITHUB_ENV"
           [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" && ! -e "$HOME/.gcp" ]] || { echo "::error::a GCP credential is present on the runner"; exit 1; }
 
+      # spool-install-y12-vibe-push-guard.tst.sh drives the installed
+      # hooks.toml through vibe's own HooksManager and SKIPs without a vibe
+      # python, and a skip fails this job (below). The box keeps vibe in a pipx
+      # venv the test finds; a runner without one (ubuntu-latest, throwaway
+      # run 38037782389) gets the box's pinned version here, so the real-path
+      # proof still runs instead of being allow-listed away.
+      - name: Mistral Vibe for the y12 real-path test (only where none is found)
+        run: |
+          set -euo pipefail
+          for c in "$HOME"/.local/share/pipx/venvs/mistral-vibe/bin/python /home/*/.local/share/pipx/venvs/mistral-vibe/bin/python; do
+            if [[ -x "$c" ]] && "$c" -c 'import vibe.core.hooks.manager' 2>/dev/null; then echo "ok - vibe python on the runner: $c"; exit 0; fi
+          done
+          venv="$RUNNER_TEMP/vibe-venv"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install --disable-pip-version-check --quiet mistral-vibe==2.26.0
+          "$venv/bin/python" -c 'import vibe.core.hooks.manager'
+          echo "VIBE_PYTHON=$venv/bin/python" >>"$GITHUB_ENV"
+
       - name: run-all-tests.sh
         env:
           GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}

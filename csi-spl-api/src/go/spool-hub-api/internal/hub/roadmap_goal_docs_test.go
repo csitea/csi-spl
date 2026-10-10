@@ -179,7 +179,7 @@ func TestGoalDocCarriesOtherGoals(t *testing.T) {
 	// a goal id a goal.yaml holds (HUB-2's deploy sync) is 409 in-app
 	repo := syncWorkspace(t, e)
 	ra := seat(t, e, repo, rbac.Admin)
-	code, _ := syncCall(t, e, repo, []map[string]any{syncGoal(repo, "G05-from-yaml", approvalMsg(t, e, repo, ra, ""))},
+	code, out := syncCall(t, e, repo, []map[string]any{syncGoal(repo, "G05-from-yaml", approvalMsg(t, e, repo, ra, ""))},
 		[]map[string]any{goalEv(repo, "goal:G05:deadline", "goal", "2026-12-31")})
 	if code != 200 {
 		t.Fatalf("goal.yaml sync: %d", code)
@@ -187,6 +187,30 @@ func TestGoalDocCarriesOtherGoals(t *testing.T) {
 	goalSave(t, e, repo, ra, goalDocNew(t, e, repo, ra), goalOf("G05-in-app", approvalMsg(t, e, repo, ra, "")), 409)
 	if k := liveKeys(t, e, repo); k != "goal:G05:deadline" {
 		t.Fatalf("a refused in-app goal touched the goal.yaml one: %q", k)
+	}
+	// the SAME workspace holds an in-app goal and a goal.yaml: the deploy
+	// sync prunes only its own goals (G05 dropped), never a goal doc's (G02)
+	goalSave(t, e, repo, ra, goalDocNew(t, e, repo, ra), goalOf("G02-in-app", approvalMsg(t, e, repo, ra, ""), "a"), 200)
+	code, out = syncCall(t, e, repo, []map[string]any{syncGoal(repo, "G01-from-yaml", approvalMsg(t, e, repo, ra, ""))},
+		[]map[string]any{goalEv(repo, "goal:G01:deadline", "goal", "2026-12-31")})
+	if k := liveKeys(t, e, repo); code != 200 || k != "goal:G01:deadline,goal:G02:deadline,goal:G02:m:a" || num(out, "deleted") != 1 {
+		t.Fatalf("the deploy sync pruned an in-app goal (or kept a dropped goal.yaml one): %d %q %v", code, k, out)
+	}
+	// a goal.yaml goal whose id a goal doc holds is refused, the doc's kept
+	code, out = syncCall(t, e, repo, []map[string]any{syncGoal(repo, "G01-from-yaml", approvalMsg(t, e, repo, ra, "")),
+		syncGoal(repo, "G02-from-yaml", approvalMsg(t, e, repo, ra, ""))},
+		[]map[string]any{goalEv(repo, "goal:G01:deadline", "goal", "2026-12-31"), goalEv(repo, "goal:G02:deadline", "goal", "2027-01-31")})
+	un, _ := out["unapproved"].([]any)
+	if k := liveKeys(t, e, repo); code != 200 || k != "goal:G01:deadline,goal:G02:deadline,goal:G02:m:a" || len(un) != 1 || num(out, "deleted") != 0 {
+		t.Fatalf("a goal.yaml goal took a goal doc's id: %d %q %v", code, k, out)
+	}
+	if day := syncedOf(t, e, repo, func(ev store.CalendarEvent) string {
+		if ev.SourceKey != "goal:G02:deadline" {
+			return ""
+		}
+		return ev.StartsAt.Format("2006-01-02")
+	}); day != ",,2026-12-31" {
+		t.Fatalf("the goal.yaml overwrote the goal doc's deadline: %q", day)
 	}
 }
 

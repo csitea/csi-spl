@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -51,6 +52,11 @@ import (
 //     leaves out is soft-deleted, and so are the events of a goal that came
 //     back unapproved. "carried" counts the rows kept that way (they are not
 //     in "unchanged"). A workspace the request does not name is not touched.
+//   - Two sources (the c-694 finding): the sync owns only the goal.yaml
+//     goals. The goal: rows a goal doc wrote (props.goal_doc, HUB-3) are
+//     always carried, never pruned, and a goal.yaml goal whose id a goal doc
+//     holds is answered in "unapproved" with none of its events written
+//     (syncDeployWorkspace).
 //
 // The deploy runs one sync at a time (wf 20), so the carried read and the
 // upsert need no lock between them. Each workspace is written in its own
@@ -374,7 +380,8 @@ func (s *Server) handleCalendarSync(w http.ResponseWriter, r *http.Request) {
 	var total calendarSyncCounts
 	counts := map[string]calendarSyncCounts{}
 	for _, ws := range slices.Sorted(maps.Keys(parts)) {
-		c, err := s.syncWorkspace(ctx, cs, src, rs, ws, parts[ws])
+		c, refused, err := s.syncDeployWorkspace(ctx, cs, src, rs, ws, parts[ws])
+		unapproved = append(unapproved, refused...)
 		if err != nil {
 			s.writeCalendarErr(w, ws, "sync", err)
 			return
@@ -390,6 +397,49 @@ func (s *Server) handleCalendarSync(w http.ResponseWriter, r *http.Request) {
 		Int("deleted", total.Deleted).Int("carried", total.Carried).Int("unapproved", len(unapproved)).Msg("calendar sync")
 	writeJSON(w, http.StatusOK, map[string]any{"workspaces": counts, "created": total.Created, "updated": total.Updated,
 		"unchanged": total.Unchanged, "deleted": total.Deleted, "carried": total.Carried, "unapproved": unapproved})
+}
+
+// syncDeployWorkspace writes one workspace's part of a deploy sync. The
+// deploy sync owns only the goal.yaml goals: a part that carries the goal:
+// family carries the workspace's goal-doc rows (props.goal_doc, HUB-3)
+// unchanged, so it never prunes an in-app goal, and a goal.yaml goal whose
+// id a goal doc holds is refused into unapproved with none of its events
+// written. The goal-doc saves of the workspace wait (goalDocMu).
+func (s *Server) syncDeployWorkspace(ctx context.Context, cs store.CalendarSync, src store.CalendarSourced, rs store.RoadmapSwitch,
+	ws string, p *syncPart) (calendarSyncCounts, []calendarSyncUnapproved, error) {
+	if !p.carries["goal:"] {
+		c, err := s.syncWorkspace(ctx, cs, src, rs, ws, p)
+		return c, nil, err
+	}
+	mu, _ := goalDocMu.LoadOrStore(ws, &sync.Mutex{})
+	mu.(*sync.Mutex).Lock()
+	defer mu.(*sync.Mutex).Unlock()
+	rows, err := src.CalendarBySourceKey(ctx, ws, calendarSyncCreatorID, "goal:")
+	if err != nil {
+		return calendarSyncCounts{}, nil, err
+	}
+	held := map[string]bool{}
+	for _, e := range rows {
+		if doc, _ := e.Props[calPropGoalDoc].(string); doc != "" {
+			held[goalOfKey(e.SourceKey)] = true
+			p.batch = append(p.batch, store.CalendarSyncEvent{SourceKey: e.SourceKey, Event: e})
+		}
+	}
+	var refused []calendarSyncUnapproved
+	for _, gid := range slices.Sorted(maps.Keys(p.goals)) {
+		wire := func(x store.CalendarSyncEvent) bool {
+			return x.Event.ID == "" && strings.HasPrefix(x.SourceKey, "goal:") && goalOfKey(x.SourceKey) == gid
+		}
+		if !held[gid] || !slices.ContainsFunc(p.batch, wire) { // an unapproved goal is answered once
+			continue
+		}
+		g := p.goals[gid]
+		refused = append(refused, calendarSyncUnapproved{ID: g.ID, Workspace: ws, MsgID: g.Approval.MsgID,
+			Reason: "goal " + gid + " of this workspace comes from a goal doc: a goal.yaml goal never replaces it"})
+		p.batch = slices.DeleteFunc(p.batch, wire)
+	}
+	c, err := s.syncWorkspace(ctx, cs, src, rs, ws, p)
+	return c, refused, err
 }
 
 // syncWorkspace writes one workspace's part. A roadmap switch flipped while

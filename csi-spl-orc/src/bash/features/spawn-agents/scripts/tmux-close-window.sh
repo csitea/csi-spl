@@ -541,8 +541,75 @@ if [[ "$REBIRTH" -eq 1 ]]; then
     rm -f "${SPOOL_ROOT}/${AGENT_ID}/lifetime/done"
   fi
 fi
+
+# --- F3 at done: the tries journal row (spec 115 section 6, ORC-4) ----------
+# /exit-clean closes the lane's journal row: `fail:F3` when nothing landed
+# (git-fetch-fresh.sh --landed non-zero in the lane's worktree, or no commit
+# of the lane on origin/master) or when its last landed sha has a red CI job
+# (job level, as do_report_ci_gate) that was not already red on the parent;
+# else `ok`. The row copies task, kind, vendor and start of the lane's last
+# row (the spawn's `run`), source `exit-clean`, appended under the flock of
+# spawn-window.sh's sw_journal. Coded, never judged; a row that cannot be
+# written is one WARN, never a changed exit code.
+tcw_lane_worktree() {
+  local rec="${SPOOL_ROOT}/agents/${AGENT_ID}.json" wt=""
+  [[ -r "$rec" ]] && wt="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree") or "")' "$rec" 2>/dev/null)"
+  [[ -n "$wt" ]] || wt="$(awk -F'\t' -v id="$AGENT_ID" '$1 == id && $4 != "" { w = $4 } END { print w }' "${SPOOL_ROOT}/registry.tsv" 2>/dev/null)"
+  printf '%s' "$wt"
+}
+# The newest commit this worktree made (commit, amend, rebase pick, cherry-pick)
+# that is on origin/master: the lane's last landed sha; empty when none.
+tcw_last_landed_sha() {
+  local wt="$1" sha
+  while read -r sha; do
+    git -C "$wt" merge-base --is-ancestor "$sha" origin/master 2>/dev/null && { printf '%s' "$sha"; return 0; }
+  done < <(git -C "$wt" reflog show --format='%H %gs' HEAD 2>/dev/null |
+             awk '$2 ~ /^(commit|cherry-pick)/ || $0 ~ /^[0-9a-f]+ rebase[^:]*\((pick|reword|edit|squash|fixup)\)/ { print $1 }')
+}
+# The names of the failed jobs of every run on a sha, one per line, sorted.
+tcw_red_jobs() {
+  local wt="$1" sha="$2" rid
+  [[ -n "$sha" ]] || return 0
+  (cd "$wt" 2>/dev/null || exit 0
+   timeout 30 gh run list --commit "$sha" --json databaseId --jq '.[].databaseId' 2>/dev/null |
+     while read -r rid; do
+       [[ "$rid" =~ ^[0-9]+$ ]] || continue
+       timeout 30 gh api "repos/{owner}/{repo}/actions/runs/$rid/jobs" --paginate \
+         --jq '.jobs[] | select(.conclusion=="failure") | .name' 2>/dev/null
+     done) | sort -u
+}
+tcw_f3_outcome() {
+  local wt sha red
+  wt="$(tcw_lane_worktree)"
+  if [[ -z "$wt" || ! -d "$wt" ]]; then echo "fail:F3 no worktree of $AGENT_ID: nothing landed"; return 0; fi
+  if ! GIT_TERMINAL_PROMPT=0 timeout 90 bash "$(dirname "$TCW_SELF")/git-fetch-fresh.sh" -C "$wt" --landed >/dev/null 2>&1; then
+    echo "fail:F3 git-fetch-fresh.sh --landed non-zero in $wt"; return 0
+  fi
+  sha="$(tcw_last_landed_sha "$wt")"
+  [[ -n "$sha" ]] || { echo "fail:F3 no commit of $AGENT_ID on origin/master: nothing landed"; return 0; }
+  red="$(comm -23 <(tcw_red_jobs "$wt" "$sha") <(tcw_red_jobs "$wt" "$(git -C "$wt" rev-parse -q --verify "$sha^" 2>/dev/null)"))"
+  if [[ -n "$red" ]]; then echo "fail:F3 red on ${sha:0:9}, not on its parent: $(paste -sd, <<<"$red")"
+  else echo "ok ${sha:0:9} landed, no red job it caused"; fi
+}
+tcw_journal_f3() {
+  local verdict outcome f row jt jk jv js
+  verdict="$(tcw_f3_outcome)"; outcome="${verdict%% *}"
+  f="${SPOOL_ROOT}/dispatch/attempts.tsv"
+  row="$(cat "$f" "${SPOOL_ROOT}/${AGENT_ID}/attempts.tsv" 2>/dev/null |
+         awk -F'\t' -v id="$AGENT_ID" '$4 == id && NF >= 6 { r = $1 "\t" $2 "\t" $3 "\t" $5 } END { print r }')"
+  if [[ -z "$row" ]]; then
+    case "${AGENT_ID%%-*}" in c|C|CLE) jv=claude ;; g|G|GRK) jv=grok ;; a|A|AGY) jv=agy ;; q|Q|QWN) jv=qwen ;; m|M) jv=mistral ;; *) jv=- ;; esac
+    row="$(printf -- '-\t-\t%s\t-' "$jv")"
+  fi
+  IFS=$'\t' read -r jt jk jv js <<<"$row"
+  { mkdir -p "${f%/*}" && (
+      flock -w 10 9 || exit 1
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$jt" "$jk" "$jv" "$AGENT_ID" "$js" "$outcome" exit-clean >&9
+    ) 9>>"$f"; } 2>/dev/null || { echo "tmux-close-window: WARN no journal row in $f" >&2; return 0; }
+  echo "tmux-close-window: journal $AGENT_ID $verdict"
+}
 if [[ "$DEFER" -eq 1 && -n "$AGENT_ID" && -z "${TCW_DETACHED:-}" ]]; then
-  case "${AGENT_ID#*-}" in 1|01|001|2|02|002|3|03|003) ;; *) mark_lifetime "done" ;; esac
+  case "${AGENT_ID#*-}" in 1|01|001|2|02|002|3|03|003) ;; *) mark_lifetime "done"; tcw_journal_f3 ;; esac
 fi
 
 # --- agent PID discovery (claude|grok|agy|qwen|vibe under pane tree) ------------

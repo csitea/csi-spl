@@ -60,6 +60,13 @@
 #      running" dialog after /exit, and one whose /exit stays unsubmitted
 #      keeps `❯ /exit`: both get Enter and leave; control: the verify step
 #      spliced out leaves both to the timeout
+#  15. spec 115 ORC-4: /exit-clean (--defer --agent) closes the lane's tries
+#      journal row with source exit-clean: a red CI job the lane caused on its
+#      last landed sha writes fail:F3, a green lane ok, a lane with nothing
+#      landed (no commit of its own, or an unpushed one) fail:F3, a job
+#      already red on the parent ok. The row keeps the spawn row's task, kind,
+#      vendor and start. gh is a stub, origin a local bare repo: no network.
+#      Control: the writer with the `source` field spliced out turns it red
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -436,4 +443,61 @@ eq "14. control: plain capture-pane types nothing into the ghost screen (c-638)"
 eq "14. control: no verify = the dialog holds the claude to the timeout" 0 "$(grep -c CLAUDE-EXITED "$T_TMP/got-429" 2>/dev/null)"
 eq "14. control: no verify = the unsubmitted /exit holds the claude to the timeout" 0 "$(grep -c CLAUDE-EXITED "$T_TMP/got-430" 2>/dev/null)"
 eq "14. controls: ... each named by its timeout line" 3 "$(log14 | grep -cE 'timeout 15s: c-4(28|29|30) never left pane')"
+
+# --- 15. /exit-clean writes F3 or ok into the tries journal (spec 115 ORC-4) ----------------
+G15=(git -c user.name=t -c user.email=t@example.com -c init.defaultBranch=master)
+J15="$SPOOL_ROOT/dispatch/attempts.tsv"; mkdir -p "$T_TMP/gh15" "$SPOOL_ROOT/agents" "${J15%/*}"
+"${G15[@]}" init -q --bare "$T_TMP/o15.git"
+"${G15[@]}" clone -q "$T_TMP/o15.git" "$T_TMP/seed15" 2>/dev/null
+"${G15[@]}" -C "$T_TMP/seed15" commit -q --allow-empty -m base && "${G15[@]}" -C "$T_TMP/seed15" push -q origin HEAD:master
+cat >"$T_TMP/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+# gh stub: `run list --commit <sha>` -> runs.<sha>, `api .../runs/<id>/jobs` -> jobs.<id>
+echo "gh $*" >>"$GH15/calls"
+case "$1 $2" in
+  "run list") while [ $# -gt 0 ]; do [ "$1" = --commit ] && { cat "$GH15/runs.$2" 2>/dev/null; exit 0; }; shift; done ;;
+  api\ *) r="${2#*/runs/}"; cat "$GH15/jobs.${r%%/*}" 2>/dev/null ;;
+esac
+exit 0
+EOF
+chmod +x "$T_TMP/bin/gh"
+lane15() {  # ID LANDED(1|0|unpushed) -> pane; the lane's worktree is $T_TMP/w15-<ID>
+  local w="$T_TMP/w15-$1" p
+  "${G15[@]}" clone -q "$T_TMP/o15.git" "$w" 2>/dev/null
+  if [ "$2" != 0 ]; then
+    "${G15[@]}" -C "$w" commit -q --allow-empty -m "work of $1"
+    [ "$2" = unpushed ] || "${G15[@]}" -C "$w" push -q origin HEAD:master
+  fi
+  printf '{"id":"%s","worktree":"%s"}\n' "$1" "$w" >"$SPOOL_ROOT/agents/$1.json"
+  printf 'T15-%s\tcomplex_coding\tclaude\t%s\t1791600000\trun\tspawn-window\n' "$1" "$1" >>"$J15"
+  p="$(t_window "$1@tbox" 'sleep 600')"
+  printf '%s\tclaude\t%s\t%s\t20261010T170000Z\n' "$1" "$p" "$w" >>"$SPOOL_ROOT/registry.tsv"
+  printf '%s\n' "$p"
+}
+sha15() { git -C "$T_TMP/w15-$1" rev-parse "HEAD${2:-}"; }
+# row15 ID OUTCOME: the id's LAST row closes the spawn row, all 7 fields, source exit-clean
+row15() { awk -F'\t' -v id="$1" '$4 == id { r = $0 } END { print r }' "$J15" |
+          awk -F'\t' -v id="$1" -v o="$2" 'NF == 7 && $1 == "T15-" id && $2 == "complex_coding" && $3 == "claude" && $5 == 1791600000 && $6 == o && $7 == "exit-clean" { ok = 1 } END { exit !ok }'; }
+close15() { CLE_TMUX_PANE="$2" PATH="$T_TMP/bin:$PATH" GH15="$T_TMP/gh15" bash "${3:-$SUT}" --agent "$1" --defer --timeout 5 >"$T_TMP/o15-$1" 2>&1; }
+P15R="$(lane15 c-441 1)"; echo 9001 >"$T_TMP/gh15/runs.$(sha15 c-441)"; echo 9000 >"$T_TMP/gh15/runs.$(sha15 c-441 '^')"
+echo csi-spl-orc >"$T_TMP/gh15/jobs.9001"
+close15 c-441 "$P15R"; eq "15. --defer of a lane whose red job it caused returns 0" 0 "$?"
+check "15. a red CI job the lane caused writes fail:F3, source exit-clean" row15 c-441 fail:F3
+has "15. ... the output names the red job" "csi-spl-orc" "$(cat "$T_TMP/o15-c-441")"
+P15G="$(lane15 c-442 1)"; echo 9002 >"$T_TMP/gh15/runs.$(sha15 c-442)"
+close15 c-442 "$P15G"; check "15. a green lane writes ok" row15 c-442 ok
+has "15. ... gh was asked for the jobs of its run" "runs/9002/jobs" "$(cat "$T_TMP/gh15/calls")"
+P15N="$(lane15 c-443 0)"; close15 c-443 "$P15N"; check "15. a lane with no commit of its own writes fail:F3" row15 c-443 fail:F3
+P15U="$(lane15 c-444 unpushed)"; close15 c-444 "$P15U"; check "15. a lane whose work is unpushed (--landed non-zero) writes fail:F3" row15 c-444 fail:F3
+P15P="$(lane15 c-445 1)"; echo 9005 >"$T_TMP/gh15/runs.$(sha15 c-445)"; echo 9004 >"$T_TMP/gh15/runs.$(sha15 c-445 '^')"
+echo csi-spl-wui >"$T_TMP/gh15/jobs.9005"; echo csi-spl-wui >"$T_TMP/gh15/jobs.9004"
+close15 c-445 "$P15P"; check "15. a job already red on the parent (another lane's red) writes ok" row15 c-445 ok
+mkdir -p "$T_TMP/pre15/scripts"; ln -s "$(cd "$(dirname "$SUT")/../lib" && pwd)" "$T_TMP/pre15/lib"
+ln -s "$(dirname "$SUT")/git-fetch-fresh.sh" "$T_TMP/pre15/scripts/git-fetch-fresh.sh"
+sed 's/"\$js" "\$outcome" exit-clean >&9/"$js" "$outcome" >\&9/' "$SUT" >"$T_TMP/pre15/scripts/tmux-close-window.sh"
+hasnt "15. control: the source field is spliced out" '"$outcome" exit-clean >&9' "$(cat "$T_TMP/pre15/scripts/tmux-close-window.sh")"
+P15C="$(lane15 c-446 1)"; echo 9006 >"$T_TMP/gh15/runs.$(sha15 c-446)"
+close15 c-446 "$P15C" "$T_TMP/pre15/scripts/tmux-close-window.sh"
+eq "15. control: a row with no source field turns the check red" red "$(row15 c-446 ok && echo green || echo red)"
+eq "15. control: ... red for the empty source alone (outcome ok)" "ok []" "$(awk -F'\t' '$4 == "c-446" { r = $6 " [" $7 "]" } END { print r }' "$J15")"
 t_done

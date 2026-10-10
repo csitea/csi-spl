@@ -10,9 +10,9 @@
 #       print the live lanes younger than 2 h (<ID>@<box>, state, age, repo,
 #       branch, topic, files, scope, src); --all: every row, done ones too;
 #       --check prints ONLY `free` (exit 0), or `<path> owned by <ID>@<box>
-#       <branch>` per overlap (exit 3), or, with no overlap while a live build
-#       lane records no files, `unknown: <ID>@<box> <branch> has no files
-#       recorded; ask it or read its brief` per such lane (exit 4: NOT free)
+#       <branch>` per overlap (exit 3; an empty row's worktree edits count),
+#       or `unknown: <ID>@<box> <branch> has no files recorded; ask it or read
+#       its brief` per live lane, no files, no clean worktree (exit 4, NOT free)
 #       (--agent: the caller, never its own)
 #   lane-map.sh put --agent <ID> [--repo R] [--branch B] [--scope S] [--files P,...] [--topic T]
 #       write that agent's row, state live (the spawn path)

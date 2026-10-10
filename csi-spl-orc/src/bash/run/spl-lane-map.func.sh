@@ -121,17 +121,25 @@ spl_lane_spool() {
     SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LANE_TENANT" timeout "${LANE_TIMEOUT:-30}" "$SPL_SPOOL" "$@"
 }
 
-# This machine's lanes as rows: every worktree at <repo>-wt/<ID> of the repos
-# in LANE_REPO_DIRS. A JSON array.
-spl_lane_local_rows() {
-  local dirs="${LANE_REPO_DIRS:-}" d top wt br id
+# The main checkouts of the repos in LANE_REPO_DIRS (default the repo holding
+# this tree), one per line.
+spl_lane_repo_tops() {
+  local dirs="${LANE_REPO_DIRS:-}" d top
   if [[ -z "$dirs" ]]; then
     dirs="$(git -C "${PROJ_PATH:-.}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
     dirs="${dirs%/.git}"
   fi
   for d in $dirs; do
     top="$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || continue
-    top="${top%/.git}"
+    printf '%s\n' "${top%/.git}"
+  done
+}
+
+# This machine's lanes as rows: every worktree at <repo>-wt/<ID> of the repos
+# in LANE_REPO_DIRS. A JSON array.
+spl_lane_local_rows() {
+  local top wt br
+  for top in $(spl_lane_repo_tops); do
     wt="" br=""
     while IFS= read -r line; do
       case "$line" in
@@ -234,8 +242,10 @@ spl_lane_live_here() {
 }
 
 # The load per box, as a JSON array of
-# {box, here, live, busy, busy_ids, seats, mem, mem_kb, src}: the agents live on
-# the box NOW, split into busy (build lanes, their ids in busy_ids) and seats (001-003 and the ids lease.conf
+# {box, here, live, busy, busy_ids, seats, clean_ids, mem, mem_kb, src}: the
+# agents live on the box NOW, split into busy (build lanes, their ids in
+# busy_ids) and seats; clean_ids, from another box's BOX-0 row, are its lanes
+# with `files: []` and a clean worktree (spl_lane_clean_here) (001-003 and the ids lease.conf
 # names: they run the fleet, they are not build load). src says where the
 # live agents come from:
 #   panes  this box: its tmux panes (spl_lane_live_here)
@@ -278,13 +288,15 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
                 ids: (($rep.scope | field("live") | split(",") | map(select(length > 0)))
                       + [$since[] | select(.state == "live") | .agent_id]
                       - [$since[] | select(.state == "done") | .agent_id]),
+                clean: (($rep.scope | field("clean") | split(",") | map(select(length > 0)))
+                        - [$since[] | .agent_id]),
                 kb: ($rep.scope | field("mem_kb") | if test("^[0-9]+$") then tonumber else null end)}
            else {src: "rows", ids: [$recent[] | select(.agent_box == $b) | .agent_id], kb: (if $b == $here then $herekb else null end)}
            end) as $x
         | ($x.ids | unique) as $u
         | {box: $b, here: ($b == $here), live: ($x.src != "rows" or ($u | length) > 0),
            busy: ([$u[] | select(seat | not)] | length), busy_ids: [$u[] | select(seat | not)], seats: ([$u[] | select(seat)] | length),
-           mem: ($x.kb | gb), mem_kb: $x.kb, src: $x.src})' <<<"$1"
+           clean_ids: ($x.clean // []), mem: ($x.kb | gb), mem_kb: $x.kb, src: $x.src})' <<<"$1"
 }
 
 # Publish THIS box's load as its BOX-0 row, so the other boxes read real
@@ -293,13 +305,18 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
 # refusal is one line on stderr, never the map's exit code.
 spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
   [[ "$LANE_MODE" == hub && "$LANE_HUB_STATE" == ok && "${2:-null}" != null ]] || return 0
-  local age scope out
+  local age scope out id
   age="$(jq -r --arg id "$LANE_BOX_ROW_ID" --arg b "$LANE_BOX" \
     '[.[] | select(.agent_id == $id and .agent_box == $b and .state == "live") | .age_s] | min // -1' <<<"$1")"
   [[ "$age" =~ ^[0-9]+$ ]] && (( age < ${LANE_BOX_ROW_S:-300} )) && return 0
   scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" \
     '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?") live=\($ids | join(","))"' <<<"$3")"
   scope="${scope:0:500}"
+  # whole ids only: a cut one could name a shorter id that is not clean
+  for id in $(spl_lane_clean_here "$1" "$2"); do
+    (( ${#scope} + ${#id} + 8 <= 500 )) || break
+    if [[ "$scope" == *" clean="* ]]; then scope+=",$id"; else scope+=" clean=$id"; fi
+  done
   out="$(spl_lane_hub --fleet "$LANE_FLEET" --agent "$LANE_BOX_ROW_ID" --box "$LANE_BOX" --scope "$scope" --state live 2>&1)" ||
     do_log "INFO the load of $LANE_BOX was not published ($LANE_BOX_ROW_ID@$LANE_BOX): $(tail -1 <<<"$out")" >&2
   return 0
@@ -366,6 +383,55 @@ spl_lane_box_disks() {
         + (if (.[3] // "") == "" then {} else {used_kb: (.[3] | tonumber)} end))'
 }
 
+# The lanes live on THIS box (LIVE_HERE) whose row has `files: []` and whose
+# worktree here is clean (spl_lane_wt_changes prints nothing): they edit
+# nothing, so --check on the other boxes need not call them unknown. One id
+# per line. A lane whose worktree is not found here is not clean.
+spl_lane_clean_here() {  # ROWS LIVE_HERE (JSON array)
+  local scan
+  scan="$(spl_lane_wt_scan "$(jq -c --arg b "$LANE_BOX" --argjson ids "${2:-[]}" \
+    '[.[] | select(.state == "live" and .agent_box == $b and (.files | length) == 0 and (.agent_id as $a | $ids | index($a)) != null)]' <<<"$1")")"
+  jq -r 'to_entries[] | select(.value | length == 0) | .key' <<<"$scan"
+}
+
+# The worktree of lane ID here: <top>-wt/<ID> of a LANE_REPO_DIRS repo, or
+# <repo>-wt/<ID> beside it for the row's REPO. Fails when there is none.
+spl_lane_wt_dir() {  # ID REPO
+  local top d
+  for top in $(spl_lane_repo_tops); do
+    for d in "${top}-wt/$1" ${2:+"$(dirname "$top")/$2-wt/$1"}; do
+      [[ -e "$d/.git" ]] && { printf '%s\n' "$d"; return 0; }
+    done
+  done
+  return 1
+}
+
+# The paths a worktree changes, one per line: its commits not on the
+# default branch (origin/HEAD, else origin/master or origin/main), its
+# uncommitted edits and its untracked files. Fails when git cannot tell.
+spl_lane_wt_changes() {  # WT
+  local base b out
+  base="$(git -C "$1" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null)"
+  for b in origin/master origin/main; do
+    [[ -z "$base" ]] && git -C "$1" rev-parse -q --verify "$b^{commit}" >/dev/null 2>&1 && base="$b"
+  done
+  [[ -n "$base" ]] || return 1
+  out="$(timeout 20 git -C "$1" diff --name-only "$base...HEAD" && timeout 20 git -C "$1" diff --name-only HEAD &&
+    timeout 20 git -C "$1" ls-files --others --exclude-standard)" || return 1
+  sort -u <<<"$out" | sed '/^$/d'
+}
+
+# {"<id>": [changed paths, at most 200]} for the rows of this box in ROWS
+# (a JSON array) whose worktree is here; a lane git cannot read is left out.
+spl_lane_wt_scan() {  # ROWS
+  local id repo wt paths
+  while IFS=$'\t' read -r id repo; do
+    wt="$(spl_lane_wt_dir "$id" "$repo")" || continue
+    paths="$(spl_lane_wt_changes "$wt")" || continue
+    jq -R -s -c --arg id "$id" '{($id): (split("\n") | map(select(length > 0)) | .[0:200])}' <<<"$paths"
+  done < <(jq -r --arg b "$LANE_BOX" '.[] | select(.agent_box == $b) | [.agent_id, .repo] | @tsv' <<<"$1") | jq -s -c 'add // {}'
+}
+
 # One line per box above the table, e.g. `BOX box-a (here)  busy 8  seats 1  mem 12.3G`;
 # a box read from its rows (no BOX-0 row) says so.
 spl_lane_load_header() {
@@ -376,15 +442,28 @@ spl_lane_load_header() {
 # LANE_CHECK (one is the other, or contains it at a / boundary). A trailing
 # `/*` or `/**` (a row written as `internal/store/*`) is that directory: as a
 # literal it matched nothing, so a file under it read free.
-# Exit 4 when none does but a build lane of another agent, live on its box
-# NOW (busy_ids of the load: its pane here, its box's BOX-0 row there, else
-# its row younger than 2 h), has `files: []`: an empty row cannot say
-# `owned`, so `free` would be a guess (two near-collisions, 2026-10-10). One
-# `unknown:` line per such lane replaces `free`; a caller that reads any
-# non-zero as taken stays safe. Seats (001-003, lease.conf ids) run the fleet,
-# own no files and never count; nor do old `live` rows with no pane.
+# A build lane of another agent, live on its box NOW (busy_ids of the load:
+# its pane here, its box's BOX-0 row there, else its row younger than 2 h),
+# with `files: []` cannot say `owned`, so `free` would be a guess (two
+# near-collisions, 2026-10-10). Such a lane:
+#   - worktree on this box: its changed paths (spl_lane_wt_changes) stand in
+#     for its files, an overlap is exit 3 `... (changed in its worktree; no
+#     files recorded)`; a clean worktree edits nothing and does not count
+#   - on another box: not counted when that box's BOX-0 row lists it clean
+#   - else exit 4, one `unknown: <ID>@<box> <branch> ...` line per lane
+#     instead of `free`; a caller that reads any non-zero as taken stays safe
+# Seats (001-003, lease.conf ids) run the fleet and never count; nor do old
+# `live` rows with no pane.
 spl_lane_check() {  # ROWS LOAD (spl_lane_load)
-  local hits unknown
+  local rows="$1" load="${2:-[]}" cand hits unknown chf
+  cand="$(jq -c --arg me "${LANE_AGENT:-}" --argjson load "$load" '
+    [.[] | select(.state == "live" and .agent_id != $me and (.files | length) == 0) as $l
+     | select(any($load[]; .box == $l.agent_box and ((.busy_ids // []) | index($l.agent_id)) != null))]' <<<"$rows")"
+  chf="$(mktemp)" || return 1
+  spl_lane_wt_scan "$cand" >"$chf" || echo '{}' >"$chf"
+  rows="$(jq -c --slurpfile ch "$chf" --arg here "$LANE_BOX" '
+    map(if .state == "live" and (.files | length) == 0 and .agent_box == $here and $ch[0][.agent_id] != null
+        then .files = $ch[0][.agent_id] | .from_wt = true else . end)' <<<"$rows")"
   hits="$(jq -r --arg me "${LANE_AGENT:-}" --arg want "$LANE_CHECK" '
     def norm: sub("^\\./"; "") | sub("(/+\\*{1,2})+/*$"; "") | sub("/+$"; "");
     def over($a; $b): $a == $b or ($a | startswith($b + "/")) or ($b | startswith($a + "/"));
@@ -392,7 +471,12 @@ spl_lane_check() {  # ROWS LOAD (spl_lane_load)
     | .[] | select(.state == "live" and .agent_id != $me) as $l
     | $l.files[] | norm as $f
     | $w[] | select(over(.; $f))
-    | "\(.) owned by \($l.agent_id)@\($l.agent_box) \($l.branch)"' <<<"$1")"
+    | "\(.) owned by \($l.agent_id)@\($l.agent_box) \($l.branch)\(if $l.from_wt then " (changed in its worktree; no files recorded)" else "" end)"' <<<"$rows" | sort -u)"
+  unknown="$(jq -r --slurpfile ch "$chf" --arg here "$LANE_BOX" --argjson load "$load" '
+    .[] | select((.agent_box == $here and $ch[0][.agent_id] != null) | not) as $l
+    | select(any($load[]; .box == $l.agent_box and ((.clean_ids // []) | index($l.agent_id)) != null) | not)
+    | "unknown: \(.agent_id)@\(.agent_box) \(.branch) has no files recorded; ask it or read its brief"' <<<"$cand" | sort -u)"
+  rm -f "$chf"
   if [[ "$LANE_HUB_STATE" == unreachable ]]; then
     do_log "WARN the collision check saw this machine only (the hub did not answer)"
   fi
@@ -401,10 +485,6 @@ spl_lane_check() {  # ROWS LOAD (spl_lane_load)
     do_log "WARN $(wc -l <<<"$hits") path(s) overlap another live lane: keep the new scope disjoint, or talk to that agent first"
     return 3
   fi
-  unknown="$(jq -r --arg me "${LANE_AGENT:-}" --argjson load "${2:-[]}" '
-    .[] | select(.state == "live" and .agent_id != $me and (.files | length) == 0) as $l
-    | select(any($load[]; .box == $l.agent_box and ((.busy_ids // []) | index($l.agent_id)) != null))
-    | "unknown: \(.agent_id)@\(.agent_box) \(.branch) has no files recorded; ask it or read its brief"' <<<"$1" | sort -u)"
   if [[ -n "$unknown" ]]; then
     printf '%s\n' "$unknown"
     do_log "WARN no live lane lists $LANE_CHECK, but $(wc -l <<<"$unknown") live lane(s) record no files: their scope is unknown, not free"

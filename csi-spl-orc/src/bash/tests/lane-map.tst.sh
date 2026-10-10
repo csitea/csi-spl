@@ -45,6 +45,12 @@
 #  13. a row's `dir/*` or `dir/**` is that directory: a file under it is
 #      owned (exit 3), as under a plain `dir/` entry; a sibling dir is free.
 #      CONTROL: the plain entry matched before this fix
+#  14. an empty row whose worktree is on this box: its changed paths (a
+#      commit not on origin/master, an uncommitted edit) are owned, exit 3
+#      `(changed in its worktree; no files recorded)`; a clean worktree is
+#      not unknown, a lane with no worktree here still is. That box's BOX-0
+#      row says `clean=<ids>`, so the other box skips the clean lane and
+#      still calls the dirty one unknown
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -368,6 +374,33 @@ out="$(gchk csi-spl-api/src/go/internal/store)"; rc=$?
 [[ $rc -eq 3 && "$out" == *"owned by c-711@sat"* ]] && pass "the glob's directory itself is owned" || fail "glob dir itself (rc=$rc): $out"
 out="$(gchk csi-spl-api/src/go/internal/storex/a.go,csi-spl-api/src/go/internal/hub/a.go)"; rc=$?
 [[ $rc -ne 3 && "$out" != *"owned by"* ]] && pass "a sibling dir and a name prefix of the glob's dir are not owned" || fail "glob sibling (rc=$rc): $out"
+
+# 14. empty rows read from their worktrees
+W=(LANE_FLEET=wt)
+git -C "$T/pc/csi-spl" update-ref refs/remotes/origin/master HEAD
+lane pc c-721 clean; lane pc c-722 dirty
+mkdir -p "$T/pc/csi-spl-wt/c-722/b" "$T/pc/csi-spl-wt/c-722/a"
+echo y >"$T/pc/csi-spl-wt/c-722/b/y.txt"
+git -C "$T/pc/csi-spl-wt/c-722" add b/y.txt && git -C "$T/pc/csi-spl-wt/c-722" -c user.email=t@example.com -c user.name=t commit -q -m y
+echo x >"$T/pc/csi-spl-wt/c-722/a/x.txt"
+for id in c-721 c-722 c-723; do on pc do_spl_lane_put "${W[@]}" LANE_AGENT=$id LANE_REPO=csi-spl LANE_BRANCH=$id-b >/dev/null; done
+printf '0 c-721@box-desk\n0 c-722@box-desk\n0 c-723@box-desk\n' >"$T/panes-w"
+wchk() { on "$1" "LANE_CHECK=$2 LANE_AGENT=c-724 do_spl_lane_map" "${W[@]}" LANE_MEMINFO="$T/meminfo" ${3:+LANE_PANES_CMD="cat $3"} 2>&1; }
+out="$(wchk pc b/y.txt "$T/panes-w")"; rc=$?
+[[ $rc -eq 3 && "$(head -1 <<<"$out")" == "b/y.txt owned by c-722@box-desk c-722-b (changed in its worktree; no files recorded)" ]] &&
+  pass "a path an empty lane committed in its worktree here is owned, exit 3" || fail "wt commit (rc=$rc): $out"
+out="$(wchk pc a "$T/panes-w")"; rc=$?
+[[ $rc -eq 3 && "$(head -1 <<<"$out")" == "a owned by c-722@box-desk c-722-b (changed in its worktree; no files recorded)" ]] &&
+  pass "...and a dir holding its uncommitted (untracked) edit is owned too" || fail "wt edit (rc=$rc): $out"
+out="$(wchk pc z/free.md "$T/panes-w")"; rc=$?
+[[ $rc -eq 4 && "$(grep -c '^unknown: ' <<<"$out")" == 1 && "$out" == *"unknown: c-723@box-desk c-723-b"* ]] &&
+  pass "a free path: the clean worktree (c-721) and the dirty one with no overlap (c-722) do not count; c-723, no worktree here, is unknown" ||
+  fail "wt free (rc=$rc): $out"
+row="$(jq -r '.lanes[] | select(.agent_id == "BOX-0" and .agent_box == "box-desk") | .scope' "$T/hub/wt.json")"
+[[ "$row" == *" clean=c-721" ]] && pass "pc's BOX-0 row names its clean lane: '$row'" || fail "BOX-0 clean: $row"
+out="$(wchk sat z/free.md)"; rc=$?
+[[ $rc -eq 4 && "$out" == *"unknown: c-722@box-desk"* && "$out" == *"unknown: c-723@box-desk"* && "$out" != *c-721* ]] &&
+  pass "sat skips c-721 (clean per pc's BOX-0 row) and still calls c-722 and c-723 unknown" || fail "sat reads clean (rc=$rc): $out"
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

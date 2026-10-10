@@ -109,7 +109,8 @@
       "up": "Liiguta {name} üles",
       "down": "Liiguta {name} alla",
       "reset": "Vaikimisi järjestus",
-      "moved": "{name} on nüüd number {n}"
+      "moved": "{name} on nüüd number {n}",
+      "labels": "Show labels"
     },
     "channel_order": {
       "label": "Kanalite järjestus",

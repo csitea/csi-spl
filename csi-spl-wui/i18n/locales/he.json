@@ -109,7 +109,8 @@
       "up": "הזזת {name} למעלה",
       "down": "הזזת {name} למטה",
       "reset": "סדר ברירת מחדל",
-      "moved": "{name} נמצא עכשיו במקום {n}"
+      "moved": "{name} נמצא עכשיו במקום {n}",
+      "labels": "Show labels"
     },
     "channel_order": {
       "label": "סדר הערוצים",

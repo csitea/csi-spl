@@ -109,7 +109,8 @@
       "up": "Премести {name} нагоре",
       "down": "Премести {name} надолу",
       "reset": "Ред по подразбиране",
-      "moved": "{name} вече е номер {n}"
+      "moved": "{name} вече е номер {n}",
+      "labels": "Show labels"
     },
     "channel_order": {
       "label": "Ред на каналите",

@@ -61,6 +61,17 @@
         {{ t('settings.rail_order.reset') }}
       </button>
     </div>
+    <!-- spec 109 FR-012: names under the rail icons on desktop, default off;
+         kept in this browser (the phone strip always shows them) -->
+    <label class="rail-order__labels">
+      <input
+        type="checkbox"
+        data-testid="settings-rail-labels"
+        :checked="railLabels"
+        @change="setRailLabels(($event.target as HTMLInputElement).checked)"
+      />
+      <span>{{ t('settings.rail_order.labels') }}</span>
+    </label>
     <p class="sr-only" role="status" aria-live="polite">{{ announce }}</p>
     <p v-if="status" class="rail-order__status" role="alert" data-test="rail-order-status">{{ status }}</p>
   </div>
@@ -130,7 +141,18 @@ async function step(id: RailId, delta: number) {
   ;(btn && !btn.disabled ? btn : other)?.focus()
 }
 
-onMounted(() => { if (session.state === 'loading') void session.probe() })
+/* spec 109 FR-012: the class ChannelSidebar sets from the same key on load */
+const railLabels = ref(false)
+function setRailLabels(on: boolean) {
+  railLabels.value = on
+  document.documentElement.classList.toggle('rail-labels', on)
+  try { localStorage.setItem('spool.rail-labels', on ? '1' : '0') } catch { /* storage blocked: this page only */ }
+}
+
+onMounted(() => {
+  if (session.state === 'loading') void session.probe()
+  railLabels.value = document.documentElement.classList.contains('rail-labels')
+})
 </script>
 
 <style scoped>
@@ -184,6 +206,13 @@ onMounted(() => { if (session.state === 'loading') void session.probe() })
   overflow-wrap: anywhere;
 }
 .rail-order__actions { display: flex; }
+.rail-order__labels {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap, 44px);
+  margin-block-start: 6px;
+}
 /* SPL-993: on a touch screen the grip and the up / down buttons are 44 px
    targets (the rail itself does not drag on a phone - spec 043 D6 - so this
    list is where a phone reorders). */

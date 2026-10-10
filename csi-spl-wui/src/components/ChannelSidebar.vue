@@ -1071,6 +1071,12 @@ const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id 
 // specs/054: the DM tab is hidden while acting; never leave it selected.
 watch(acting, (a) => { if (a && tab.value === 'dm') tab.value = 'channels' }, { immediate: true })
 const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join(', '))
+/* spec 109 FR-012: Settings -> Behaviour -> "Show labels" (RailOrderSetting),
+   default off, kept in this browser: <html class="rail-labels"> names the
+   desktop rail's icons (main.css); the phone strip always names them */
+onMounted(() => {
+  try { document.documentElement.classList.toggle('rail-labels', localStorage.getItem('spool.rail-labels') === '1') } catch { /* storage blocked: off */ }
+})
 /* CLE-77886 (owner, t1 topic ac0fa400): on a phone a section's own page
    keeps this strip on top (layouts/default.vue data-mobile-section); the
    sidebar then shows the strip only. On Help / Workspace settings - rail

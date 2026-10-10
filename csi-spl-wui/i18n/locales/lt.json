@@ -109,7 +109,8 @@
       "up": "Perkelti {name} aukštyn",
       "down": "Perkelti {name} žemyn",
       "reset": "Numatytoji tvarka",
-      "moved": "{name} dabar yra {n}-as"
+      "moved": "{name} dabar yra {n}-as",
+      "labels": "Show labels"
     },
     "channel_order": {
       "label": "Kanalų tvarka",

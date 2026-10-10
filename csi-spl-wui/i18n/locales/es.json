@@ -109,7 +109,8 @@
       "up": "Subir {name}",
       "down": "Bajar {name}",
       "reset": "Orden predeterminado",
-      "moved": "{name} ahora es el número {n}"
+      "moved": "{name} ahora es el número {n}",
+      "labels": "Show labels"
     },
     "channel_order": {
       "label": "Orden de los canales",

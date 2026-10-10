@@ -213,6 +213,71 @@ async function homeOneList(browser, base) {
   await p.close()
 }
 
+/* spec 109 T015 (FR-012): the desktop rail draws a divider wherever the talk
+   group (Channels, DMs, Topics, Flow, Issues, Calendar) meets the workspace
+   group (Event log, People, Agents, Boxes, Archive), and names its icons only
+   when Settings -> Behaviour -> "Show labels" is on (default off). The phone
+   strip is unchanged: no divider, its names always shown, the same boxes
+   whether the setting is on or off. CONTROL: with the feature reverted the
+   divider and labels-on asserts fail. */
+const WORKSPACE = new Set(['events', 'people', 'agents', 'boxes', 'archive'])
+/* the divider is a ::before line on the tab below the boundary (main.css):
+   a drawn one has content and a top border */
+const railSeq = (p) => p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (els) => els.flatMap((e) => {
+  const b = getComputedStyle(e, '::before')
+  const line = b.content !== 'none' && b.display !== 'none' && parseFloat(b.borderTopWidth) > 0
+  return line ? ['|', e.getAttribute('data-reorder-id')] : [e.getAttribute('data-reorder-id')]
+}))
+const labelsShown = (p) => p.$$eval('[data-testid=sidebar-rail] .sidebar-rail__tabs .sidebar-tab__label', (els) => els.filter((e) => e.checkVisibility({ visibilityProperty: true }) && e.getBoundingClientRect().width > 0).length)
+const railBoxes = (p) => p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] }))
+async function setLabels(p, on) {
+  await go(p, '/settings/behaviour')
+  await p.waitForSelector('[data-testid=settings-rail-labels]', { timeout: NAV })
+  const now = await p.$eval('[data-testid=settings-rail-labels]', (e) => e.checked)
+  if (now !== on) await p.click('[data-testid=settings-rail-labels]')
+  await go(p, '/')
+  await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
+  await sleep(400)
+}
+async function railDividerLabels(browser, base) {
+  for (const [width, touch] of [[1440, false], [360, true]]) {
+    const tag = `${width}px T015`
+    const p = await browser.newPage()
+    await p.setViewport({ width, height: 900, isMobile: touch, hasTouch: touch })
+    await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+    await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+    await p.evaluate(() => { try { localStorage.removeItem('spool.rail-labels') } catch {} })
+    if (!(await signIn(p, undefined))) throw new Error('no session store')
+    await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
+    await sleep(400)
+    const seq = await railSeq(p)
+    const tabs = seq.filter((x) => x !== '|')
+    const changes = tabs.filter((id, i) => i > 0 && WORKSPACE.has(id) !== WORKSPACE.has(tabs[i - 1])).length
+    const between = seq.every((x, i) => x !== '|' || (i > 0 && i < seq.length - 1 && WORKSPACE.has(seq[i - 1]) !== WORKSPACE.has(seq[i + 1])))
+    const dividers = seq.filter((x) => x === '|').length
+    const offLabels = await labelsShown(p)
+    const offBoxes = await railBoxes(p)
+    if (!touch) {
+      check(`${tag}: a divider wherever talk meets workspace, and only there`, changes > 0 && dividers === changes && between, { seq })
+      check(`${tag}: no labels while the setting is off (the default)`, offLabels === 0, { offLabels })
+    }
+    await setLabels(p, true)
+    const onLabels = await labelsShown(p)
+    const onBoxes = await railBoxes(p)
+    const flag = await p.evaluate(() => document.documentElement.classList.contains('rail-labels'))
+    if (!touch) {
+      check(`${tag}: "Show labels" on names every rail icon`, onLabels === tabs.length && flag, { onLabels, n: tabs.length, flag })
+      await setLabels(p, false)
+      check(`${tag}: "Show labels" off again hides them`, (await labelsShown(p)) === 0)
+    } else {
+      check(`${tag}: the phone strip has no divider`, dividers === 0, { seq })
+      check(`${tag}: the phone strip is unchanged by "Show labels" (names, boxes)`, offLabels === tabs.length && onLabels === tabs.length && flag && same(offBoxes, onBoxes), { offLabels, onLabels, flag })
+    }
+    await p.evaluate(() => { try { localStorage.removeItem('spool.rail-labels') } catch {} })
+    await p.close()
+  }
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -220,6 +285,7 @@ try {
   for (const [w, touch] of [[1440, false], [820, true], [360, true]]) await run(browser, server.base, w, touch)
   await sameRouteTabs(browser, server.base)
   await homeOneList(browser, server.base)
+  await railDividerLabels(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

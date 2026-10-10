@@ -109,7 +109,8 @@
       "up": "Przesuń {name} w górę",
       "down": "Przesuń {name} w dół",
       "reset": "Domyślna kolejność",
-      "moved": "{name} jest teraz na miejscu {n}"
+      "moved": "{name} jest teraz na miejscu {n}",
+      "labels": "Show labels"
     },
     "channel_order": {
       "label": "Kolejność kanałów",

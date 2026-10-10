@@ -109,7 +109,8 @@
       "up": "{name} omhoog",
       "down": "{name} omlaag",
       "reset": "Standaardvolgorde",
-      "moved": "{name} staat nu op plaats {n}"
+      "moved": "{name} staat nu op plaats {n}",
+      "labels": "Show labels"
     },
     "channel_order": {
       "label": "Volgorde van kanalen",

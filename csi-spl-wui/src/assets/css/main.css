@@ -176,6 +176,49 @@ html.pane-dragging * {
   box-sizing: border-box;
   overflow: hidden;
 }
+/* spec 109 FR-012: a line in the gap above a rail tab whose group differs
+   from the tab above it - talk (Channels, DMs, Topics, Flow, Issues,
+   Calendar) and workspace (Event log, People, Agents, Boxes, Archive). The
+   person's order is drawn as it is (SPL-979), so CSS alone finds each
+   boundary; no markup, no script. The phone strip has none. */
+@media (min-width: 821px) {
+  /* "Show labels" on (Settings -> Behaviour, <html class="rail-labels">):
+     room for a short name under each icon; a longer one ends in an ellipsis.
+     html.* outranks ChannelSidebar's scoped rules for the same parts. */
+  html.rail-labels .sidebar-rail {
+    width: 72px;
+    max-width: 72px;
+  }
+  html.rail-labels .sidebar-tab {
+    aspect-ratio: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 2px;
+    line-height: 1.15;
+    container-type: normal;
+  }
+  html.rail-labels .sidebar-tab svg { width: 20px; height: 20px; }
+  html.rail-labels .sidebar-tab__label {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.625rem;
+  }
+  .sidebar-rail :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar]) + :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=archive])::before,
+  .sidebar-rail :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=archive]) + :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar])::before {
+    content: "";
+    position: absolute;
+    inset-inline: 20%;
+    top: -3px;
+    border-top: 1px solid var(--color-border-strong);
+    pointer-events: none;
+  }
+}
 .sidebar-body {
   flex: 1 1 auto;
   min-width: 0;

@@ -109,7 +109,8 @@
       "up": "Flytta upp {name}",
       "down": "Flytta ned {name}",
       "reset": "Standardordning",
-      "moved": "{name} är nu nummer {n}"
+      "moved": "{name} är nu nummer {n}",
+      "labels": "Show labels"
     },
     "channel_order": {
       "label": "Kanalordning",

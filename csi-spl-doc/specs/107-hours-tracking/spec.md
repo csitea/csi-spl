@@ -1,6 +1,6 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.1** (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.2** (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). v2 input: [business-needs.md](business-needs.md) (consensus `2c6c36732`) and its seats [bn-agy](reviews/bn-agy.md) · [bn-mistral](reviews/bn-mistral.md) · [bn-claude](reviews/bn-claude.md) · [bn-claude-2](reviews/bn-claude-2.md). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
@@ -50,7 +50,7 @@ The owner's design change of 2026-10-08 (HUM-10, t1 `a28dc5c9`, after asking "bu
 | R10 | `8ab9bf08` | "than each time a user participates in a discussion those discussion links will be shown in the description of the hours ... and he / she would be able to modify additionally for those automatic entries more notes" | **5.2** (v1.2) |
 | R11 | `5134bd6b` | "than the right side of the calendar will have tabs for hours" | **5.4** (v1.2) |
 
-R8 and R9 replace the v1.0 rail item and page: there is **no Hours rail entry and no `/hours` page**.
+R8 and R9 replace the v1.0 rail item and page: there is **no Hours rail entry and no `/hours` page, but `/hours` in chat is added as a cheap extra**.
 
 The owner's input of 2026-10-10 (HUM-10, t1 `6571d5ed`, with P0):
 
@@ -76,7 +76,7 @@ R4 and R7 are requirements, not options: hours are **prefilled** from suggestion
 
 ### 1.1 The definition
 
-> **Time worked on a day = the member's active minutes in the workspace, joined into blocks, plus the meetings they accepted or created. It is a suggestion until the member approves it.**
+> **Time worked on a day = a rough split of the day across a few targets, without the per-minute rules. It is a suggestion until the member approves it.** The minute is only the internal tick.
 
 1. **An active minute** is a wall-clock minute in which the member did at least one *counted action* (1.2) in this workspace.
 2. **A block** joins active minutes whose gap is **at most N minutes** (N = the idle cutoff, `hours.idle_minutes`, default **10**). The bridged gap counts as worked: it is the reading and thinking between two actions.
@@ -108,7 +108,7 @@ Measured on trunk `aa7523ea` (2026-10-07), checked again by s107-3 and s107-4 on
 So today the hub can prove *what you wrote*, for 30 days, and nothing of *what you read*. v1 therefore keeps its **own** activity record, `hours_minutes` (3.2), with **two writers**:
 
 - **The hub (post minutes).** When it stores a post, an edit or a reaction from `box-wui` by a member, it upserts that minute into `hours_minutes` (`src = 'post'`, target `t:<task_id>`) in the same transaction: one indexed upsert per write. Suggestions no longer read `messages`, so message retention does not affect hours.
-- **The WUI (active-tab minutes).** A minute is recorded when the tab is **visible and focused** (`document.visibilityState === 'visible' && document.hasFocus()`) **and** the member gave input (key, pointer, touch, wheel, scroll) in the last 60 s. A background tab, a tab visible on a second monitor but not focused, a locked phone, a tab left open overnight: **no minute**. The WUI keeps the minutes in a small in-memory buffer and sends them (`src = 'tab'`) every 5 min, on `visibilitychange` to hidden, and on `pagehide` with `fetch(..., {keepalive: true})`; a crash loses at most 5 minutes of a suggestion. (Read-sync pushes every 5 s, `utils/read-sync.mjs:19`; this is its own timer, not a piggyback.)
+- **The WUI (active-tab minutes).** A minute is recorded when the tab is **visible and focused** (`document.visibilityState === 'visible' && document.hasFocus()`) **and** the member gave input (key, pointer, touch, wheel, scroll) in the last 60 s. A background tab, a tab visible on a second monitor but not focused, a locked phone, a tab left open overnight: **no minute**. The WUI keeps the minutes in a small in-memory buffer, **aggregates them on the device** to (day, target) totals, and sends those every 5 min. The hub never receives a per-minute sequence of what was open. (Read-sync pushes every 5 s, `utils/read-sync.mjs:19`; this is its own timer, not a piggyback.)
 - **The recorder is a lazy chunk**, started from the feed pages the way read-sync is (`utils/read-sync.mjs` header: "A lazy chunk started from the feed pages"), never in the initial chunk (027).
 - **A member can turn tab minutes off**: "Count my reading time" in their settings (a key in the membership settings jsonb, rdb 0078, no DDL), on by default when owner Q1 = A. Off: the WUI sends no tab minutes and that member's suggestions come from posts and meetings only.
 
@@ -122,7 +122,7 @@ Owner question Q1 (section 13) is whether tab minutes exist at all.
 |---|---|
 | inside an accepted meeting (1.4) | the meeting `cal:<event_id>` (or its `topic_id`, 1.4) |
 | a post, edit or reaction | that message's topic `t:<task_id>` |
-| an active-tab minute | what was open: a topic `t:<task_id>`, an issue (= its topic, section 8), a channel `ch:<name>`, a DM `dm:<peer>`; anything else (settings, lists, the calendar page) is `ws` (the workspace) |
+| an active-tab minute | what was open: a topic `t:<task_id>`, an issue (= its topic, section 8), a channel `ch:<name>`, anything else (settings, lists, the calendar page) is `ws` (the workspace) |
 | a bridged gap minute | the target of the minute before the gap |
 
 The post-over-tab rule is enforced **at write time**: the hub's upsert overwrites a `tab` row's target (`ON CONFLICT ... DO UPDATE ... WHERE hours_minutes.src = 'tab'`), and a tab write never overwrites a `post` row.
@@ -143,19 +143,19 @@ A timed (not all-day), `confirmed` calendar event of **kind `other`** in this wo
 Calls, an editor, a whiteboard: the hub cannot see them and v1 **does not guess**. The member adds them, without a form:
 - **Extend** a suggested row by one tap: `+15`.
 - **Add** a row (5.3): pick a target, set minutes.
-- **Time it** (owner Q7 = B, section 13; T019): a start/stop timer in the app header. Start picks the target (the 5.3 picker); the running time shows in the header and survives a reload. Stop writes the interval once (`POST /v1/me/hours/timer`): the hub splits it at the member's local midnight (1.6) and adds each day's piece to that day's row for the target (an approved entry, else the open suggestion, else 0), approved, all days or none; a frozen day is 409 `period_frozen`, a day above 1440 minutes is refused, a run over 24 hours is refused. The running timer is kept on the device (localStorage, per workspace and member), never on the hub: nobody, the hub included, sees it until it is stopped (1.7).
+- **Time it** (owner Q7 = B, section 13; T019): a start/stop timer **in the calendar** (the Hours tab and the day's Working hours dialog), out of the app header. Start picks the target (the 5.3 picker); the running time shows in the header and survives a reload. Stop writes the interval once (`POST /v1/me/hours/timer`): the hub splits it at the member's local midnight (1.6) and adds each day's piece to that day's row for the target (an approved entry, else the open suggestion, else 0), approved, all days or none; a frozen day is 409 `period_frozen`, a day above 1440 minutes is refused, a run over 24 hours is refused. The running timer is kept on the device (localStorage, per workspace and member), never on the hub: nobody, the hub included, sees it until it is stopped (1.7).
 
 ### 1.6 Day, time zone, rounding
 
 - A **day** is the member's local day. The zone is the member's chosen zone in this workspace (membership settings `time_zone`, rdb 0078) if set, else the zone the WUI sent with its last tab batch, else the workspace's `hours.tz`. Hub-written post minutes use the same order. A block over midnight splits at midnight.
-- **Minutes are stored exactly**; the UI shows `h:mm`. No rounding in v1 (a spreadsheet can round the download).
+- **Minutes are stored exactly**; the UI shows `h:mm`. Suggest and show in **quarter hours** (a 098 key `hours.round_minutes`, default `15`); the member may still type any value. A direction needs 0:15 steps, not 0:01.
 
 ### 1.7 Privacy of raw signals
 
 - **Only `/v1/me/hours*` serves raw minutes and unapproved suggestions, always filtered `member_id = caller`.** No other route reads `hours_minutes`; a test asserts it (the table name appears only in the hours store file and the hub's post-write upsert).
 - Nobody else sees them: not a biz owner, not an admin, not `hours.read`. Others see only **approved** entries and period states (section 6).
 - `hours_minutes` is tenant-scoped by RLS (FORCE). RLS separates workspaces, not members: the per-member line is the routes above. `operator_scope` exists for the prune sweep only, and no operator route reads the table. Direct database access by an operator is outside the WUI and outside this spec.
-- Raw minutes are deleted **when their period freezes** (after any auto-approval, if owner Q2 = B), and in any case after 45 days. Entries and period rows stay.
+- Raw minutes are deleted **when the day is approved, at the latest 2 days after it closes**; the entries carry the direction. Entries and period rows stay.
 
 ---
 
@@ -163,7 +163,7 @@ Calls, an editor, a whiteboard: the hub cannot see them and v1 **does not guess*
 
 1. The hub computes a (member, day)'s suggestions **on read**, from **one** table plus the calendar: `hours_minutes` by its primary key and the member's meetings by the calendar range index. No job, no cache table.
 2. **No suggestion is computed for a frozen day, nor for a day in a returned period** (4.3). In a returned period the worker edits, rejects and adds entries only; the period's raw minutes are already pruned.
-3. Once the member approves, edits or rejects a row, it is **an entry** (3.2) and replaces the suggestion for that (day, target). Activity later that day shows as a **delta** on the row ("+0:20 since you approved") with its own one-tap accept **✓ +0:20**; an approved number never changes silently.
+3. Once the member approves, edits or rejects a row, it is **an entry** (3.2) and replaces the suggestion for that (day, target). Activity later that day shows as a **delta** on the row only when it reaches the rounding step ("+0:15 since you approved") with its own one-tap accept **✓ +0:20**; an approved number never changes silently.
 4. **Prefilled** means a day's "Working hours" dialog (5.2) opens with that day filled; the member never starts from an empty grid.
 
 ---
@@ -193,12 +193,13 @@ All three in the 0098 shape: `tenant_id` first, `ENABLE` + `FORCE ROW LEVEL SECU
 |---|---|---|
 | `tenant_id` | text | FK tenants, cascade |
 | `member_id` | text | HUM-* |
-| `minute` | timestamptz | `CHECK (minute = date_trunc('minute', minute))` |
-| `target` | text | `CHECK (target ~ '^(t\|ch\|dm):.{1,200}$' OR target = 'ws')` |
-| `src` | text | `post` or `tab`, CHECK; a post overrides a tab (1.3) |
-| `tz` | text | the IANA zone used for this minute's day (1.6) |
+| `day` | date | the day |
+| `target` | text | `CHECK (target ~ '^(t\|ch):.{1,200}$' OR target = 'ws')` |
+| `minutes` | integer | the counter |
+| `src` | text | `post` or `tab` |
+| `tz` | text | the IANA zone |
 
-PK `(tenant_id, member_id, minute)`: two tabs or devices write the same row. A busy day is ~500 rows per member; pruned at freeze and at 45 days.
+PK `(tenant_id, member_id, day, target)`: a per (member, day, target) counter that the post upsert and the tab batch add to. Precedence is applied per batch. Pruned at freeze and at 45 days.
 
 **`hours_entries`**: what the worker decided, per row. Justified: approval needs state.
 
@@ -209,7 +210,7 @@ PK `(tenant_id, member_id, minute)`: two tabs or devices write the same row. A b
 | `day` | date | the member's local day |
 | `target` | text | 1.3 targets plus `cal:<event_id>`: `CHECK (target ~ '^(t\|ch\|dm\|cal):.{1,200}$' OR target = 'ws')` |
 | `minutes` | integer | 0..1440 |
-| `suggested_minutes` | integer | what the system proposed (0 for an added row); reports show "edited" |
+| `suggested_minutes` | integer | what the system proposed (0 for an added row); kept in the worker's own view only |
 | `state` | text | `approved` or `rejected` |
 | `note` | text | optional, <= 500 |
 | `updated_at`, `updated_by` | | |
@@ -263,7 +264,7 @@ The life of a member's period:
 
 - **Approve day** and **Approve week** (the period) approve **closed days only**: days before the member's today. Approving Friday morning must not lock Friday at a partial number.
 - **Today** has its own **Approve so far**, a separate tap.
-- A **delta** (2.3) has its own **✓ +h:mm**, one tap.
+- A **delta** (2.3) has its own **✓ +h:mm**, one tap (shown only if it reaches 15 minutes).
 - **Approve week** stays enabled while any closed day of the period has open suggestions or deltas, and shows the count ("Approve week · 2 open").
 - **Edit**: change minutes (stepper ±15, or type), change the target, add a note: the row is `approved` with the new number.
 - **Reject**: the row becomes `rejected` (counts 0); Undo for 10 s, and changeable until the freeze.
@@ -303,7 +304,7 @@ Set by a holder of `tenant.settings` (biz owner, admin) through the existing ten
 
 ## 5. Screens: inside the calendar, phone and desktop (R2, R8, R9)
 
-v1.2 (owner R8, R9): the member's hours live **in the existing calendar**. There is no Hours rail entry and no `/hours` page (the v1.0 design, kept below only where the dialog reuses it).
+v1.2 (owner R8, R9): the member's hours live **in the existing calendar**. There is no Hours rail entry and no `/hours` page, but `/hours` in chat is added as a cheap extra (the v1.0 design, kept below only where the dialog reuses it).
 
 ### 5.1 Where: one "Working hours" line per working day
 
@@ -319,7 +320,7 @@ v1.2 (owner R8, R9): the member's hours live **in the existing calendar**. There
 
 The dialog of type Working hours opens on the clicked day and shows that day's per-target rows; its banner and **Approve week** cover the period (the layout below is the period at a glance; the dialog scrolls to the clicked day).
 
-**Description: the day's discussions, with notes (owner R10).** The dialog's description lists, for the day, **one line per discussion the member took part in** (every row whose target is a topic `t:<task_id>`, recorded by the hub on a post, an edit or a reaction, T005, plus the tab minutes when counted): the topic's subject as a **link** to the topic, its time `h:mm` and its blocks (`09:12-10:40`). Meetings (`cal:`), channels and "other" follow as plain rows. Each line takes a **free-text note** (<= 500 characters):
+**Description: the day's discussions, with notes (owner R10).** The dialog's description lists, for the day, **one line per discussion the member took part in** (every row whose target is a topic `t:<task_id>`, recorded by the hub on a post, an edit or a reaction, T005, plus the tab minutes when counted): the topic's subject as a **link** to the topic, and its total time `h:mm` (no block start and end times). Meetings (`cal:`), channels and "other" follow as plain rows. Each line takes a **free-text note** (<= 500 characters):
 - **One note per line**, i.e. per (day, target) entry; **no separate per-day note** in v1 (a note for the day as a whole goes on its "other" row).
 - **No hub change**: `hours_entries.note` (rdb 0151) and `PUT /v1/me/hours` `entries[].note` (T006) already hold it, and `GET /v1/me/hours` returns it per row. A note typed on an open suggestion is saved with that line's approval (the entry is written `approved` with the suggested minutes and the note); a note on an approved line is an edit of that entry. A frozen day's notes are read-only (409 `period_frozen`).
 - The note reaches the biz owner's Team view and the download's `note` column (6.2) once the line is approved, as any entry note does.
@@ -343,13 +344,13 @@ The dialog of type Working hours opens on the clicked day and shows that day's p
 
 - **Common case, desktop**: in the calendar, click a day's **Working hours** line -> **Approve 2 days** in the banner (or **Approve day** / **Approve week**): 2 clicks.
 - **Common case, phone**: in the calendar, tap a day's **Working hours** line -> **Approve 2 days**: 2 taps from the calendar view. **Approve week** is the sticky bottom button of the sheet.
-- A row's number opens the stepper in place; the row's name opens the "why" sheet (its blocks, `09:12-10:40`, 1.7).
+- A row's number opens the stepper in place; the row's name opens the "why" sheet.
 - Frozen days carry a lock and no buttons; an approved period says "Final"; a returned one shows the biz owner's note and **Resubmit**.
 - No horizontal scroll on the phone (the 106 rule); controls 44..48 px.
 
 ### 5.3 Add a row
 
-`+ Add` in the day's Working hours dialog: a target picker (recent topics, issues, channels first; search) and a minutes stepper (default 0:30). Two taps plus the pick. In-app time is measured; off-app time is added, extended or timed with the header timer (1.5, owner Q7 = B). The picker is one component (`HoursTargetPicker.vue`), shared by `+ Add` and the timer.
+`+ Add` in the day's Working hours dialog: a target picker (recent topics, issues, channels first; search; an unmatched keyword stays as the row's label under "other") and a minutes stepper (default 0:30). Two taps plus the pick. In-app time is measured; off-app time is added, extended or timed with the header timer (1.5, owner Q7 = B). The picker is one component (`HoursTargetPicker.vue`), shared by `+ Add` and the timer.
 
 ### 5.4 The calendar's right side: hours tabs (owner R11)
 
@@ -365,7 +366,7 @@ A member without `hours.read` sees Mine only (no tab strip). The panel loads wit
 
 **Phone (<= 820 px, 390 px):** no third column; the phone calendar's header menu (`calphone-menu`) gains **Hours**, which opens the same tabs as a full-height sheet (the 106 sheet pattern, Back / swipe down closes it): Mine, and Team and Download for `hours.read`. No sideways scroll, controls 44..48 px.
 
-**Team (holders of `hours.read`):** members x days of the period, approved minutes per cell, totals per row and column, a per-target breakdown on tap. Each member row shows its period state (open / frozen / returned / final) and, for a holder of `hours.approve`, **Approve** and **Return**; the header has **Approve all** and **Return all**. Filters: member, target type, issue. **Download** (its own tab): CSV or XLSX (6.2). On the phone, one card per member with total and Approve / Return.
+**Team (holders of `hours.read`):** default report = **per period, per target (job, issue, topic), summed over people**; the per-member and per-day views stay one click away for approval. Each member row shows its period state (open / frozen / returned / final) and, for a holder of `hours.approve`, **Approve** and **Return**; the header has **Approve all** and **Return all**. Filters: member, target type, issue. **Download** (its own tab): CSV or XLSX (6.2). On the phone, one card per member with total and Approve / Return.
 
 ---
 
@@ -387,7 +388,7 @@ Admins and product owners get neither new permission by default (owner Q5); a bi
 
 - **Periods only** in v1 (the workspace period, or a past one): every report lines up with a freeze and its approvals.
 - Grouped by member, target (topic / issue / channel / meeting / other) or day.
-- **CSV** and **XLSX**, the same columns, one line per approved entry: `date, member_id, member_name, target_type, target_id, target_name, issue_key, minutes, hours_decimal, suggested_minutes, note, period_state, approved_by, approved_at`.
+- **CSV** and **XLSX**, the same columns, one line per approved entry: `date, member_id, member_name, target_type, target_id, target_name, issue_key, minutes, hours_decimal, note, period_state, approved_by, approved_at`.
 - **Final only** (biz-owner-approved periods) is the default; it can be switched off to include frozen and open periods.
 - XLSX is **one sheet** with the CSV's columns, written by a small `internal/xlsx` package with Go's standard `archive/zip` and `encoding/xml` (`[Content_Types].xml`, `_rels/.rels`, `xl/workbook.xml`, `xl/_rels/workbook.xml.rels`, `xl/worksheets/sheet1.xml`): no new dependency. Minutes and decimal hours are **numeric cells** (`t="n"`), so the spreadsheet sums them.
 - Response headers: `Content-Type: text/csv; charset=utf-8` or `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`; `Content-Disposition: attachment; filename="hours-<tenant>-<period_start>-<period_end>.<ext>"`.
@@ -446,7 +447,7 @@ An issue's discussion is a topic on `issues.task_id` (`internal/store/issues.go`
 
 | id | requirement | status |
 |---|---|---|
-| FR-01 | Active minutes and blocks (1.1): N from settings; 3-min floor for tab-only blocks; rule order | Planned |
+| FR-01 | Active minutes and blocks (1.1): N from settings; 3-min floor for tab-only blocks; rule order; suggest and show in quarter hours (1.6) | Planned |
 | FR-02 | `hours_minutes` with two writers: hub post/edit/reaction upsert, WUI tab minutes with visible + focus + 60 s input; per-member off switch (1.2) | Planned |
 | FR-03 | Precedence meeting > post > tab; meeting union; small targets fold to "other" (1.3, 1.4) | Planned |
 | FR-04 | Suggestions on read from one table + calendar; none for frozen or returned days; deltas with one-tap accept (2) | Planned |
@@ -636,7 +637,7 @@ O5 is corrected by O6: visibility is per **role**, not per person. Roles combine
 | id | requirement | cites |
 |---|---|---|
 | **FR-20** | **The time-accountant role.** A new system role `time_accountant` holds `hours.read` and a new permission **`hours.rates`** ("see rates and labour cost; compute approved hours x rate"). Every rate, money amount, labour cost and the BN-15 cost-against-quote comparison is served only to **holders of `hours.rates`**, by route (as 1.7). `hours.rates` is pinned to `time_accountant`: it is in no other default role, the biz owner's included, and the role editor cannot add it to another role. A biz owner who needs rates assigns themself the role, which is logged (FR-33): this is a separation of duties, not a boundary against the biz owner. Workers, foremen and approvers without that role see hours, never money. **Roles combine**: one person may hold, e.g., a foreman's crew leadership (FR-22) and the time-accountant role at once. This needs **several roles per member** (025 section 9, phase 2: `tenant_member_roles`, the authorizer takes the union), not built yet: a dependency of 107 v2. Until the accounting view (FR-19) exists, `hours.rates` has nothing to show; build the hours-only half of FR-20 and FR-21 first. | BN-15, O5, O6 |
-| **FR-21** | **The external accountant seat.** A time-accountant may be a foreman (combined roles), an internal accountant, or an **accountant outside the organisation**. The external seat: **invite**: a holder of `members.invite` invites an e-mail with the role `time_accountant` as the membership's **only** role and a **required** end date (`access_until`, rdb 0113, the 072 guest rule R1, A27: scoped, revocable, expiring); **visibility**: read only (`hours.read`, `hours.rates`; no Approve, no Return): the Team and Download tabs and the job cost view, member names as they appear on hours rows; **no** `topics.read` (no WUI socket, no topics, channels, docs, files, roster or calendar events), none of the four permissions every member role holds today (`rbac.go` `withMember`); the WUI opens the calendar's hours panel (5.4) full width with no events: no `/hours` page, so R8 and R9 stand. Absence types show as "absent" (FR-30). The seat gets no period row (the sweep, 4.2, skips a membership whose only role is `time_accountant`, as it skips agents). **Removal**: a holder of `members.invite` removes the seat, or `access_until` passes; access ends at once; the downloads it made stay in the change log (FR-33). An accountant serving several firms holds one seat per workspace (FR-37). Whether the seat is billed is the billing spec's call, not 107's. | O7, BN-15 |
+| **FR-21** | **The external accountant seat.** A time-accountant may be a foreman (combined roles), an internal accountant, or an **accountant outside the organisation**. The external seat: **invite**: a holder of `members.invite` invites an e-mail with the role `time_accountant` as the membership's **only** role and a **required** end date (`access_until`, rdb 0113, the 072 guest rule R1, A27: scoped, revocable, expiring); **visibility**: read only (`hours.read`, `hours.rates`; no Approve, no Return): the Team and Download tabs and the job cost view, member names as they appear on hours rows; **no** `topics.read` (no WUI socket, no topics, channels, docs, files, roster or calendar events), none of the four permissions every member role holds today (`rbac.go` `withMember`); the WUI opens the calendar's hours panel (5.4) full width with no events: no `/hours` page, but `/hours` in chat is added as a cheap extra, so R8 and R9 stand. Absence types show as "absent" (FR-30). The seat gets no period row (the sweep, 4.2, skips a membership whose only role is `time_accountant`, as it skips agents). **Removal**: a holder of `members.invite` removes the seat, or `access_until` passes; access ends at once; the downloads it made stay in the change log (FR-33). An accountant serving several firms holds one seat per workspace (FR-37). Whether the seat is billed is the billing spec's call, not 107's. | O7, BN-15 |
 
 ### 14.5 Crews and the foreman (BN-6, BN-14, BN-5)
 
@@ -663,7 +664,7 @@ O5 is corrected by O6: visibility is per **role**, not per person. Roles combine
 
 | id | requirement | cites |
 |---|---|---|
-| **FR-28** | **Derived rate categories.** Every approved minute gets its categories **derived, never chosen by the worker**: `evening` and `night` from workspace windows (`hours.evening_window` default `18:00-22:00`, `hours.night_window` default `22:00-06:00`), `weekend` (Saturday, Sunday), `holiday` (FR-29), else `normal`; one of these per minute, precedence holiday > night > weekend > evening > normal. **Times come from the day, stored before they are lost**: at approval (and by the sweep **before** it prunes `hours_minutes`, 1.7) each entry stores its split as `category_minutes`; the day's start and end (FR-32) come from the plan or the clock, or for an activity day from its first and last active minute, captured before the prune. **Overtime** is a separate flag: minutes past the weekly threshold `hours.overtime_weekly_minutes` (default 5 x the **organisation's** standard day; a person may have an override). Minutes above the person's own weekly standard (FR-14) but under that threshold are flagged **`extra`** (contract top-up, not overtime). A week that spans two periods gets its overtime and `extra` flags when its last day freezes; a frozen period's categories never change. How 107 keeps the times of day is also spec 118's owner question Q1 (msg `5b14c79c`, a `hours_entry_spans` change to 107): `category_minutes` stands until that answer, which may replace it. A category is a label on hours: it carries **no money** (FR-19, FR-20). | BN-4, BN-12 |
+| **FR-28** | **Derived rate categories.** Every approved minute gets its categories **derived, never chosen by the worker**: `evening` and `night` from workspace windows (`hours.evening_window` default `18:00-22:00`, `hours.night_window` default `22:00-06:00`), `weekend` (Saturday, Sunday), `holiday` (FR-29), else `normal`; one of these per minute, precedence holiday > night > weekend > evening > normal. **Times come from the day, stored before they are lost**: at approval (and by the sweep **before** it prunes `hours_minutes`, 1.7) each entry stores its split as `category_minutes`; the day's start and end (FR-32) come from the plan or the clock, or for an activity day from its first and last active minute, take start and end from the plan, else the standard day estimate, never from activity. **Overtime** is a separate flag: minutes past the weekly threshold `hours.overtime_weekly_minutes` (default 5 x the **organisation's** standard day; a person may have an override). Minutes above the person's own weekly standard (FR-14) but under that threshold are flagged **`extra`** (contract top-up, not overtime). A week that spans two periods gets its overtime and `extra` flags when its last day freezes; a frozen period's categories never change. How 107 keeps the times of day is also spec 118's owner question Q1 (msg `5b14c79c`, a `hours_entry_spans` change to 107): `category_minutes` stands until that answer, which may replace it. A category is a label on hours: it carries **no money** (FR-19, FR-20). | BN-4, BN-12 |
 | **FR-29** | **The public-holiday calendar.** Per workspace, with an optional **region** per member (membership setting): a list of (region, date, name, optional minutes for a part-day holiday such as 24 Dec), kept by the office in the setup screen (FR-38), entered by hand or imported from a CSV or iCal file. A holiday on a person's working day (FR-14) prefills an absence row of type `holiday` at the person's standard day, or its minutes for a part day (FR-17 step 1); an **explicit** plan row on that day beats it, an inherited one does not (FR-16). Work done on it is category `holiday` (FR-28). It is drawn in the calendar like the Working hours line (5.1), not as a calendar event. | U5, BN-4 |
 
 ### 14.9 Absences and the worker type (BN-7, BN-11)
@@ -700,7 +701,7 @@ Added by the v2 panel (section 18): the draft gave the foreman and the office ri
 
 ### 14.13 What v2 adds to the data and routes (sketch, for the tasks round)
 
-Not the tasks: the tasks round sizes them. New tables, each in the 3.2 shape (tenant first, FORCE RLS, `tenant_scope`, `operator_scope`): `hours_standard_days` (member overrides with their effective date, FR-14), `hours_plan` (FR-16), `hours_jobs` (FR-18), `hours_crews` and `hours_crew_members` (FR-22), `hours_days` (FR-32), `hours_changes` (FR-33), `hours_holidays` (FR-29), `hours_terminals` (FR-25). `hours_entries` gains `kind` (in its PK, FR-27), `absence_type`, `entered_by`, `reason`, `category_minutes` (FR-28), and states `proposed`, `disputed`; its target CHECK widens to `job:`. Adjustment rows (FR-40) and the payroll column map (FR-39) are sized by the tasks round. `hours_changes` is append-only in the database (FR-33). New registered keys: `hours.standard_day_minutes`, `hours.standard_day_default`, `hours.day_start`, `hours.break_after_minutes`, `hours.break_minutes`, `hours.travel_default_minutes`, `hours.wait_default_minutes`, `hours.evening_window`, `hours.night_window`, `hours.overtime_weekly_minutes`, `hours.clock_skew_minutes`, `hours.retention_years`. New permission `hours.rates`, pinned to the new role `time_accountant` (FR-20). Routes grow under `/v1/hours/*` (plan, jobs, crews, standard days, holidays, inspector export, payroll export, adjustments) and `/v1/me/hours*` (dispute, clock, absence range); a terminal route takes a terminal token, never a member session.
+Not the tasks: the tasks round sizes them. New tables, each in the 3.2 shape (tenant first, FORCE RLS, `tenant_scope`, `operator_scope`): `hours_standard_days` (member overrides with their effective date, FR-14), `hours_plan` (FR-16), `hours_jobs` (FR-18), `hours_crews` and `hours_crew_members` (FR-22), `hours_days` (FR-32), `hours_changes` (FR-33), `hours_holidays` (FR-29), `hours_terminals` (FR-25). `hours_entries` gains `kind` (in its PK, FR-27), `absence_type`, `entered_by`, `reason`, `category_minutes` (FR-28), and states `proposed`, `disputed`; its target CHECK widens to `job:`. Adjustment rows (FR-40) and the payroll column map (FR-39) are sized by the tasks round. `hours_changes` is append-only in the database (FR-33), logging what payroll and trust need: changes after the worker's approval, returns, role and rate events, downloads. New registered keys: `hours.record_clocked_times` (off by default), `hours.standard_day_minutes`, `hours.standard_day_default`, `hours.day_start`, `hours.break_after_minutes`, `hours.break_minutes`, `hours.travel_default_minutes`, `hours.wait_default_minutes`, `hours.evening_window`, `hours.night_window`, `hours.overtime_weekly_minutes`, `hours.clock_skew_minutes`, `hours.retention_years` (for approved period totals per target). Day records and the change log are kept only as long as the law requires (`hours.retention_raw_years`, default period + 1 year). New permission `hours.rates`, pinned to the new role `time_accountant` (FR-20). Routes grow under `/v1/hours/*` (plan, jobs, crews, standard days, holidays, inspector export, payroll export, adjustments) and `/v1/me/hours*` (dispute, clock, absence range); a terminal route takes a terminal token, never a member session.
 
 **Dependencies outside 107**: the accounting view (FR-19, a separate spec, not written); several roles per member (025 section 9, FR-20); a member with no e-mail login (FR-25); cross-workspace tracking (FR-37, its own new spec).
 
@@ -892,6 +893,7 @@ Each seat signs the v2.0 sha below on the same lane.
 | 2.0 | 2026-10-10 | c-737 (v2-claude, editor) | fold of the v2 panel, four seats (section 18): 22 FRs changed (V2C2-1..4: evidence-only auto-approval, `kind` in the entry key, categories stored before the prune, terminal identity), FR-38 Crew and Setup tabs, FR-39 payroll export, FR-40 adjustment rows, v2 acceptance (14.14); section 15 re-ranked (U8 into v2); owner Q8 = C recorded (16) |
 | 2.1 | 2026-10-10 | c-837 | owner principle **P0** (msgs `4d6d200c`, `4fd07875`, t1 `6571d5ed`) at the top of section 0; owner rows R12 (`4842ca88`) and R13 (`82efd47b`); FR-01..FR-40 and sections 1..6, 14..17 read against P0, the points that push toward exact tracing listed as owner questions Q9..Q22, and Q23..Q25 (timer placement, keyword-only rows, UI direction) in section 20; no FR text changed |
 | 2.1 (fold) | 2026-10-10 | c-837 | owner answer to Q25 (msg `e91fe1b5`): UI directions 1 (Day sketch) and 3 (From what you did); Q9..Q24 still open |
+| 2.2 | 2026-10-10 | a-899 | owner answers Q9..Q25 (msgs 8c9b7b56..b04b30bf) folded into sections 1..6, 14..17 and FRs; Q25 includes 4 as extra |
 
 ---
 
@@ -913,7 +915,7 @@ FR-01..FR-40 and the design sections (1 signals and rounding, 1.7 privacy, 2 sug
 | Q16 | 2.3, FR-04, 4.1 | **Minute deltas**: "+0:20 since you approved" for any change after an approval. | Show a delta only when it reaches the rounding step (Q9, 15 min). |
 | Q17 | 3.2 `suggested_minutes`, 6.2 columns, FR-09 | **The worker measured against the machine**: every exported line carries `suggested_minutes`; reports flag "edited". | Keep `suggested_minutes` in the worker's own view only; **drop it from the Team view and the download**, no "edited" flag. |
 | Q18 | 5.4 Team, 6.2 ("one line per approved entry", group by day), FR-09 | **A per-person per-day grid** as the default report. | Default report = **per period, per target (job, issue, topic), summed over people**; the per-member and per-day views stay one click away for approval; day lines in the download on request. |
-| Q19 | FR-28, FR-32 (an activity day's start and end "from its first and last active minute, captured before the prune") | **Activity timestamps kept for years** in the day record and the categories. | For an activity day take start and end from the plan, else `hours.day_start` + the standard day (FR-32's estimate), **never from activity**; first and last active minute are not stored. |
+| Q19 | FR-28, FR-32 (an activity day's start and end "from its first and last active minute, take start and end from the plan, else the standard day estimate, never from activity") | **Activity timestamps kept for years** in the day record and the categories. | For an activity day take start and end from the plan, else `hours.day_start` + the standard day (FR-32's estimate), **never from activity**; first and last active minute are not stored. |
 | Q20 | FR-24, FR-25, FR-32, section 15 U9 | **Clocked times to the minute**: server time, device-time bounds, a skew flag, terminal actions with ids, U9 warnings from recorded times. | Keep the clock as the exception FR-24 makes it, and record clocked times only in a workspace whose law requires recorded working time (a 098 switch, off by default); U9 follows that switch. |
 | Q21 | FR-33, FR-25 | **A per-action audit**: every write to an entry, day record, plan row, standard day and every terminal action writes a before/after row, the sweep included. | Log what payroll and trust need: **changes after the worker's approval, returns, role and rate events, downloads**; a worker's own edits before approval and the sweep's routine writes are not logged. |
 | Q22 | FR-34 | **Five-year retention of the full trail**: day records, entries, period rows and the change log for `hours.retention_years` (default `5`). | Keep the **approved period totals per target** for the retention years; day records and the change log only as long as the workspace's law requires (a companion key, default the period plus one year). |
@@ -930,6 +932,21 @@ These mirror the questions the dispatcher c-002 already put to the owner on `dis
 | Q24 | R12, 5.3 (`HoursTargetPicker.vue`), 1.3 targets | A keyword typed while filling the day that matches no issue or topic | **a keyword-only row**: the keyword is kept as the row's label on "other" (`ws`), countable in reports by keyword | no keyword-only rows: the member must pick an issue, topic, channel or job, else the time goes to "other" unlabelled | | **A** (P0: a direction by keyword is enough) |
 | Q25 | R13, 5.1, 5.2 | Which UI direction: (1) **Day sketch**: keyword chips in the Working hours line, split by the day's trail, a slider per chip, one Approve; (2) **Paint the calendar**; (3) **From what you did**: prefilled from posts, issues and meetings; (4) **`/hours` in chat** (dispatcher's answer, msg `602daf86`) | 1 + 3, with 4 as a cheap extra | one of 1..4 alone | | **1 + 3, 4 extra** |
 
-**Q25 decided by the owner** (HUM-10, t1 `6571d5ed`, msg `e91fe1b5`, verbatim: "Yeah, 1 and 3 seem okay."; relayed by the dispatcher c-002): directions **1 (Day sketch)** and **3 (From what you did)** are chosen; 2 (Paint the calendar) and 4 (`/hours` in chat) are not. No FR is changed by this fold; the tasks round turns 1 + 3 into the Working hours line and dialog (5.1, 5.2). **Q23 (timer placement) and Q24 (keyword-only rows) stay open.**
+**Q9..Q25 decided by the owner** (HUM-10, t1 `6571d5ed`):
+- **Q9**: **A** (msg `8c9b7b56`)
+- **Q10**: **A** (owner typed "Q. Then, yes", msg `164b1b4a`)
+- **Q11**: **A**, only if no performance problem (msg `543cf537`)
+- **Q12**: **A**, only if no performance problem (msg `d7f2bbdb`)
+- **Q13, Q14**: **A** (msgs `21a5ed18`, `f14c1cac`)
+- **Q15**: **A**: each line shows the duration only, no clock times (msg `b04b30bf`)
+- **Q16**: **A** (msg `6b245e1c`)
+- **Q17, Q18**: **A** (msgs `d99485c4`, `73a7728e`)
+- **Q19**: **A** (msg `058d9d38`)
+- **Q20, Q21**: **A** (msgs `667ddccf`, `c09896ec`)
+- **Q22**: **A** (owner typed "Good 22"; retention = approved period totals per target only, day records + change log only as long as the law requires: a second setting, default period + 1 year, msg `9041739b`)
+- **Q23**: **A**: move the timer into the calendar (Hours tab + the day's Working hours dialog), out of the app header (msg `b04b30bf`)
+- **Q24**: **A**: an unmatched keyword stays the row's label under "other", countable by keyword in reports (msg `b04b30bf`)
+- **Q25**: **A**: UI directions 1 (Day sketch) + 3 (From what you did), with 4 (`/hours` in chat) as a cheap extra (msg `b04b30bf`; v2.1 had folded 1+3 from msg `e91fe1b5`).
+****
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

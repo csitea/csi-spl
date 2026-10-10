@@ -24,7 +24,7 @@
 do_box_disk_sweep_install_cron() {
   local dry="${DRY_RUN:-1}" act="${BOX_SWEEP_CRON_ACTION:-install}" min="${BOX_SWEEP_CRON_MINUTE:-41}"
   local live="${BOX_SWEEP_CRON_DRY_RUN:-0}" ct="${BOX_SWEEP_CRONTAB:-crontab}"
-  local app org logdir tag="csi-spl:box-disk-sweep" script before after want gd cd
+  local app org logdir tag="csi-spl:box-disk-sweep" script want gd cd
   app="$(basename "$PROJ_PATH")"; app="${app%-orc}"; org="${app%%-*}"
   logdir="${BOX_SWEEP_CRON_LOG_DIR:-/var/${org}/${app}/box-disk-sweep}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
@@ -39,22 +39,7 @@ do_box_disk_sweep_install_cron() {
     echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
   fi
   want="$((min % 15))-59/15 * * * * DRY_RUN=$live BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK=$logdir/box-disk-sweep.lock bash $script >> $logdir/box-disk-sweep.log 2>&1 # $tag"
-  before="$(mktemp)"; after="$(mktemp)"
-  $ct -l 2>/dev/null >"$before"
-  awk -v suf=" # $tag" '{ l = length($0); s = length(suf); if (l >= s && substr($0, l - s + 1) == suf) next; print }' "$before" >"$after"
-  [[ "$act" == install ]] && printf '%s\n' "$want" >>"$after"
-  if cmp -s "$before" "$after"; then
-    echo "OK cron: nothing to change"; rm -f "$before" "$after"; return 0
-  fi
-  echo "$([[ "$dry" == 1 ]] && echo PLAN || echo DO) cron: the crontab before -> after"
-  diff -u --label before --label after "$before" "$after" | sed 's/^/  /'
-  if [[ "$dry" == 1 ]]; then
-    rm -f "$before" "$after"; do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."; return 0
-  fi
-  if [[ "$act" == install ]] && ! mkdir -p "$logdir"; then
-    rm -f "$before" "$after"; do_log "FATAL cannot create $logdir (the log dir)"; return 1
-  fi
-  $ct "$after" || { rm -f "$before" "$after"; do_log "FATAL crontab refused the new file"; return 1; }
-  rm -f "$before" "$after"
+  [[ "$act" == install ]] || want=""
+  cron_drop_tagged_line "$ct" "$tag" "$dry" "$logdir" "$want" || return $(( $? == 2 ? 0 : 1 ))
   do_log "OK the box disk sweep cron is $([[ "$act" == install ]] && echo "installed (DRY_RUN=$live, every 15 min from :$((min % 15)), gated)" || echo removed)"
 }

@@ -430,6 +430,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeDocTree(mux)       // spec 113 T004: /v1/workspace/doctree (outline + grid)
 	s.routeBoxStats(mux)      // rdb 0117: GET /v1/tenant/box-stats
 	s.routeEmbedVisitor(mux)  // specs/121 T104: /v1/embed/{embed_id}/*, off unless EmbedEnabled
+	s.routeEmbedAdmin(mux)    // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

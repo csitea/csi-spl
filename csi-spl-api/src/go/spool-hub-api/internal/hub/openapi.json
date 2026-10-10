@@ -8269,6 +8269,141 @@
         ]
       }
     },
+    "/v1/tenant/embeds": {
+      "get": {
+        "operationId": "listEmbeds",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the embeds, public key only"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "the embed is off on this hub (cnf env.hub.embed.enabled), or no such embed"
+          }
+        },
+        "summary": "List the workspace's embeds (owner only, spec 121 T203)",
+        "tags": [
+          "embed"
+        ]
+      },
+      "post": {
+        "operationId": "createEmbed",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the new embed"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "the embed is off on this hub (cnf env.hub.embed.enabled), or no such embed"
+          },
+          "409": {
+            "description": "the embed id is taken"
+          }
+        },
+        "summary": "Create an embed, disabled and keyless (owner only)",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
+    "/v1/tenant/embeds/{embed_id}": {
+      "patch": {
+        "operationId": "patchEmbed",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the embed"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "the embed is off on this hub (cnf env.hub.embed.enabled), or no such embed"
+          }
+        },
+        "summary": "Set an embed's allowed_origins or switch (owner only)",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
+    "/v1/tenant/embeds/{embed_id}/key": {
+      "post": {
+        "operationId": "newEmbedKey",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the embed and, this once, private_key"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "the embed is off on this hub (cnf env.hub.embed.enabled), or no such embed"
+          }
+        },
+        "summary": "Make the embed's ES256 JWT key; the private half is in this response only (owner only)",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
     "/v1/tenant/settings": {
       "get": {
         "operationId": "getTenantSettings",

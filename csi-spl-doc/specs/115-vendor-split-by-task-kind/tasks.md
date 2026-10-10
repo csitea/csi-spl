@@ -28,7 +28,7 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
   - Done: the spawn writes `attempts.tsv` with `task_id kind vendor id start_epoch outcome=run`; the watchdog (F2), lane restart (F2) and `/exit-clean` (F3) close it. Test: a fixture spawn writes the row; a held-out lane or a split refusal closes it as `fail:F2`. Control: a missing `outcome` field turns the test red.
   - Vendor: mistral (main: `simple_coding`). Box: any.
 
-- [ ] **ORC-3**: Watchdog and lane restart write F2.
+- [x] **ORC-3**: Watchdog and lane restart write F2 (b6df37b3f).
   - Depends: ORC-2.
   - Owns: `csi-spl-orc/src/bash/run/spl-lane-restart.func.sh` and `csi-spl-orc/src/bash/run/spl-watchdog.func.sh`.
   - Done: the watchdog writes `fail:F2` when the lane is held out; `do_spl_lane_restart` writes `fail:F2` when it refuses at the split count. Test: a fixture lane held out at 3 restarts writes `fail:F2`; a split refusal does the same. Control: a missing `source` field turns the test red.

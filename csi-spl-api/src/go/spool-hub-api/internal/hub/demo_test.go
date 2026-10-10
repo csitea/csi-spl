@@ -189,6 +189,8 @@ var demoOutOfReach = map[string]bool{
 	"PUT /v1/embed/{embed_id}/visitor/email":  true,
 	"POST /v1/embed/{embed_id}/relink":        true,
 	"POST /v1/embed/{embed_id}/relink/redeem": true,
+	// specs/121 T205: the customer's signed JWT, never a session
+	"POST /v1/embed/{embed_id}/signin": true,
 }
 
 // marketingRoute(mux, "...") registers a spec 090 route behind its gate.

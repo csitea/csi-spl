@@ -3224,6 +3224,88 @@
         ]
       }
     },
+    "/v1/embed/{embed_id}/signin": {
+      "post": {
+        "description": "No session. The customer's server signs a JWT for its signed-in user with the per-embed ES256 key (T203): alg ES256, sub = the user id, aud = the embed id, iat and exp at most 5 minutes apart. The hub verifies it with the embed's public key and maps (embed, sub) to ONE channel_guest: the same user on any device gets the same visitor and channel, with a new token in this response only (the previous token stops working). A JWT is good once. Send it in the body, never in a URL. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off and for an embed that is disabled or has no key (specs/121 T205).",
+        "operationId": "postEmbedSignIn",
+        "parameters": [
+          {
+            "description": "the embed id (the e= of the iframe URL)",
+            "in": "path",
+            "name": "embed_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "jwt": {
+                    "description": "compact JWS, ES256",
+                    "maxLength": 4096,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "jwt"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "channel": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "token": {
+                      "description": "256-bit visitor token, unpadded base64url; the hub keeps only its sha256",
+                      "type": "string"
+                    },
+                    "visitor_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "the signed-in visitor"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "embed_jwt: the JWT is refused (not ES256, wrong key, expired, not yet valid, over 5 minutes, wrong aud, no sub, or already used); the detail says which"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [],
+        "summary": "Sign in an embed customer's user",
+        "tags": [
+          "embed"
+        ]
+      }
+    },
     "/v1/embed/{embed_id}/visitor": {
       "delete": {
         "description": "Erasure on request (spec 121 4.4): the visitor's channel, its lines, its token and its HUM. Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T104).",

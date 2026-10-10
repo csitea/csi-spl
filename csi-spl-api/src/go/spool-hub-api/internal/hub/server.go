@@ -438,6 +438,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeEmbedVisitor(mux)  // specs/121 T104: /v1/embed/{embed_id}/*, off unless EmbedEnabled
 	s.routeEmbedPow(mux)      // specs/121 T105: /v1/embed/{embed_id}/challenge, off unless EmbedEnabled
 	s.routeEmbedAdmin(mux)    // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
+	s.routeEmbedSignIn(mux)   // specs/121 T205: POST /v1/embed/{embed_id}/signin, off unless EmbedEnabled
 	// specs/121 T201: /embed/*, per-embed frame-ancestors; T202 passes its assets.
 	s.routeEmbedServe(mux, s.o.EmbedEnabled, nil)
 	s.routeEmbedStaff(mux)  // specs/121 T106: /v1/tenant/embed-visitors*, staff, off unless EmbedEnabled

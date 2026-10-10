@@ -13,7 +13,9 @@
 #   3. do_spl_desk_agent_rename: the dry run touches nothing; DRY_RUN=0 moves
 #      spool/<old> to spool/<new> with an <old> link, keeps the inbox and the
 #      mute, and writes ONE alias row per (old, box); a re-run is a no-op;
-#      a held <new> is a FAIL and moves nothing
+#      a held <new> is a FAIL and moves nothing; a <new> that is only an
+#      empty SKELETON (what a seat of <new> lays down, n=6 on one prd box,
+#      2026-10-09) is removed and the move goes on, the mute of <old> carrying
 #   4. after the move, do_spl_desk_up_boxes seats the new id, never the link
 #   5. the hub's copy, Go agentid.Responder (the rsp_count of the cross-box
 #      Seen guard, c-082), equals SPL_RSP_AGENT
@@ -103,9 +105,26 @@ out="$(ren DRY_RUN=0)"; rc=$?
 n1="$(wc -l <"$R/agent-id-aliases.tsv")"; ren DRY_RUN=0 >/dev/null
 [[ "$(wc -l <"$R/agent-id-aliases.tsv")" == "$n1" ]] && pass "3. ...and adds no alias row" || fail "3. a re-run added alias rows"
 mkdir -p "$S/desk/t2/box-rsp/spool/RSP-01/inbox" "$S/desk/t2/box-rsp/spool/$SPL_RSP_AGENT/inbox"
+echo m2 >"$S/desk/t2/box-rsp/spool/$SPL_RSP_AGENT/inbox/m2.json"
 out="$(ren DRY_RUN=0 TENANT_ID=t2)"; rc=$?
-[[ $rc -ne 0 && "$out" == *"FAIL box-rsp of t2: "*"is held; RSP-01 was not moved"* && ! -L "$S/desk/t2/box-rsp/spool/RSP-01" ]] &&
-  pass "3. a held new id is a FAIL and moves nothing" || fail "3. held (rc=$rc): $out"
+[[ $rc -ne 0 && "$out" == *"FAIL box-rsp of t2: "*"is held; RSP-01 was not moved"* && ! -L "$S/desk/t2/box-rsp/spool/RSP-01" &&
+   -s "$S/desk/t2/box-rsp/spool/$SPL_RSP_AGENT/inbox/m2.json" ]] &&
+  pass "3. a new id holding a message is a FAIL and moves nothing" || fail "3. held (rc=$rc): $out"
+mkdir -p "$S/desk/t4/box-rsp/spool/RSP-01/inbox" "$T/elsewhere"; ln -s "$T/elsewhere" "$S/desk/t4/box-rsp/spool/$SPL_RSP_AGENT"
+out="$(ren DRY_RUN=0 TENANT_ID=t4)"; rc=$?
+[[ $rc -ne 0 && "$out" == *"is held; RSP-01 was not moved"* && -d "$T/elsewhere" && -L "$S/desk/t4/box-rsp/spool/$SPL_RSP_AGENT" ]] &&
+  pass "3. ...and so is a new id that is a link" || fail "3. held link (rc=$rc): $out"
+k="$S/desk/t3/box-rsp/spool"
+mkdir -p "$k/RSP-01/inbox" "$k/RSP-01/outbox" "$k/$SPL_RSP_AGENT/inbox" "$k/$SPL_RSP_AGENT/outbox" "$k/$SPL_RSP_AGENT/archive"
+echo h1 >"$k/RSP-01/outbox/h1.json"; touch "$k/$SPL_RSP_AGENT/.no-poke"
+out="$(ren TENANT_ID=t3)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"would: box-rsp of t3: remove the empty skeleton spool/$SPL_RSP_AGENT"* && "$out" == *"1 desk seat(s) of 1 desk(s) would move"* &&
+   -e "$k/$SPL_RSP_AGENT/.no-poke" && ! -L "$k/RSP-01" ]] &&
+  pass "3. the dry run plans a move over an empty skeleton and touches nothing" || fail "3. skeleton dry run (rc=$rc): $out"
+out="$(ren DRY_RUN=0 TENANT_ID=t3)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$k/$SPL_RSP_AGENT/outbox/h1.json" 2>/dev/null)" == h1 && "$(readlink "$k/RSP-01")" == "$SPL_RSP_AGENT" ]] &&
+  pass "3. an empty skeleton at the new id is removed and RSP-01 moves in with its history" || fail "3. skeleton apply (rc=$rc): $out"
+[[ ! -e "$k/$SPL_RSP_AGENT/.no-poke" ]] && pass "3. ...the mute state of RSP-01 (none) carries, not the skeleton's" || fail "3. the skeleton's .no-poke survived"
 out="$(ren DESK_RENAME=RSP-01:CLE-9)"; rc=$?
 [[ $rc -ne 0 && "$out" == *"FATAL DESK_RENAME takes"* ]] && pass "3. a pair whose new id is not c-NNN is refused" || fail "3. bad pair (rc=$rc): $out"
 out="$(ren DESK_RENAME=RSP-01:c-002)"; rc=$?

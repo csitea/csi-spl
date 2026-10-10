@@ -21,8 +21,13 @@
 # @description          responder, by do_spl_responder_sweep on the lease holder
 # @description The inbox, mute marker (.no-poke) and desk key move with the dir
 # @description or stay per box; no key is read or printed. A desk already moved
-# @description is skipped, so a re-run is safe. <new> held by anything else:
-# @description FAIL, nothing moved. Dry run unless DRY_RUN=0.
+# @description is skipped, so a re-run is safe. A <new> that is only a
+# @description SKELETON (empty dirs, at most a .no-poke file: what a seat of
+# @description <new> lays down before the move, e.g. the lease holder's
+# @description responder sweep) is removed under the lock first, its
+# @description .no-poke with it: the mute state of <old> is the one that
+# @description carries. <new> held by anything else: FAIL, nothing moved.
+# @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd (prd needs the owner's go)
 # @param DESK_RENAME (optional) - "<old>:<new> ...", default
 # @param   "RSP-01:$SPL_RSP_AGENT OPS-01:$SPL_OPS_AGENT"
@@ -73,16 +78,25 @@ spl_desk_agent_rename_one() {
     spl_desk_agent_alias "$old" "$new" "$b" "$dry"; return
   fi
   [[ -d "$s/$old" && ! -L "$s/$old" ]] || return 0
-  if [[ -e "$s/$new" || -L "$s/$new" ]]; then
+  if [[ -e "$s/$new" || -L "$s/$new" ]] && ! spl_desk_agent_skeleton "$s/$new"; then
     do_log "FAIL $b of $t: $s/$new is held; $old was not moved"; return 1
   fi
   SPL_DESK_RENAMED=$((SPL_DESK_RENAMED + 1))
   if (( dry )); then
+    [[ -e "$s/$new" ]] && do_log "INFO DRY_RUN would: $b of $t: remove the empty skeleton spool/$new (the mute of $old carries)"
     do_log "INFO DRY_RUN would: $b of $t: spool/$old -> spool/$new (+ link $old -> $new)"
     spl_desk_agent_alias "$old" "$new" "$b" 1; return
   fi
   exec 7>"$d/up-all.lock" || { do_log "FATAL cannot open $d/up-all.lock"; return 1; }
   flock -w 30 7 || { exec 7>&-; do_log "FAIL $b of $t: $d/up-all.lock stayed locked; $old was not moved"; return 1; }
+  if [[ -e "$s/$new" || -L "$s/$new" ]]; then
+    spl_desk_agent_skeleton "$s/$new" && rm -f -- "$s/$new/.no-poke" && find "$s/$new" -depth -type d -empty -delete
+    if [[ -e "$s/$new" || -L "$s/$new" ]]; then
+      flock -u 7; exec 7>&-
+      do_log "FAIL $b of $t: $s/$new is held; $old was not moved"; return 1
+    fi
+    do_log "INFO $b of $t: the empty skeleton spool/$new was removed"
+  fi
   if mv -T "$s/$old" "$s/$new" && ln -s "$new" "$s/$old"; then
     flock -u 7; exec 7>&-
     do_log "INFO $b of $t: spool/$old -> spool/$new (+ link)"
@@ -91,6 +105,16 @@ spl_desk_agent_rename_one() {
     flock -u 7; exec 7>&-
     do_log "FAIL $b of $t: moving spool/$old to spool/$new failed"; return 1
   fi
+}
+
+# spl_desk_agent_skeleton <dir>: 0 when <dir> is a real dir holding nothing
+# but dirs and at most a regular .no-poke at its top, else 1. Only such a
+# dir is removed, and only by deleting empty dirs, so no message can go.
+spl_desk_agent_skeleton() {
+  local x="$1"
+  [[ -d "$x" && ! -L "$x" ]] || return 1
+  [[ ! -L "$x/.no-poke" ]] && [[ ! -e "$x/.no-poke" || -f "$x/.no-poke" ]] || return 1
+  [[ -z "$(find "$x" -mindepth 1 ! -type d ! -path "$x/.no-poke" -print -quit 2>/dev/null)" ]]
 }
 
 # spl_desk_agent_alias <old> <new> <box> <dry>: the (old, box) row of the

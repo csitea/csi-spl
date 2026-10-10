@@ -1,9 +1,13 @@
 # Spec 122: Capacity Scale-Out
 
-Status: **v1.0** (2026-10-10; rc1 fbb4f582a signed by all four seats and the drafter). Draft by a-809 (15e4e5479). The panel's
-reviews are in `reviews/`: s122-claude (editor), s122-claude-2, s122-mistral
-and s122-agy. Folded by the editor. Build waits for the owner questions in
-section 14.
+Status: **v1.1** (2026-10-10; the owner's answers to Q-1..Q-7 and S1..S6
+folded into v1.0 569aac7a8 by the c-815 editor lane). v1.0 = rc1 fbb4f582a
+signed by all four seats and the drafter. Draft by a-809 (15e4e5479). The
+panel's reviews are in `reviews/`: s122-claude (editor), s122-claude-2,
+s122-mistral and s122-agy. The seats and the drafter have retired, so v1.1
+carries no seat signatures; the dispatch holder decides whether it needs a
+fresh sign-off panel. Every owner question of v1.0 is answered (section 13);
+what is still open is in section 14.2.
 
 Owner words (csitea topic e001c851, HUM-10), verbatim:
 
@@ -21,6 +25,23 @@ Owner words (csitea topic e001c851, HUM-10), verbatim:
   of +10%, +20% overall on the token count (because of how the spool hub
   works and overall, not being able to measure the total amount of tokens)."
 
+Owner answers to the v1.0 questions (same topic), verbatim, each with the
+question list it answered (c-002's posts on dispatch-e001c851):
+
+- msg b7ff5f4a, against the Q-1..Q-7 list (post 0cb1a488): "Q1a, c, q4 let's
+  discuss that."
+- msg b6a56949, against Q-5: "The production environment and the hosts on
+  which the workspace runs"
+- msg 72ce6ccc, against Q-3: "In the beginning, we will add the boxes
+  manually."
+- msg 0cbf4386: "Ask me more questions to iterate that. By scaling, I meant
+  that as soon as we get more than 5 paying workspaces and channels, we will
+  start the automation of the actual automatic scaling of hosts as well."
+- msg 7b047d69, against S1..S6 (post 229c0612): "S1A, s2a, s3a"
+- msg 2d9490e7, against S4..S6, Q-6, Q-7 (post 362657fe): "S4b, s5,s6a,
+  q6yes, q7 yes,"
+- msg e95a0695, against "was your 'c' Q-2 C?" (post 66ff86aa): "Yes"
+
 ## 1. Introduction
 
 This spec defines how the spool estate grows when it fills up. When the
@@ -28,6 +49,12 @@ agent boxes reach 80% capacity, a new box is provisioned and joined to the
 hub. Two limits bound it: a box count ceiling and a money ceiling. The price
 of a workspace carries a measured slice of the fixed hub cost, and no price
 is published until the numbers behind it are measured (section 9).
+
+**Manual first, automatic after more than 5 paying customers** (owner
+Q-3, msgs 72ce6ccc, 0cbf4386; section 3.1). At launch the hub only files
+the request and a person with the owner's go adds the box. Once paying
+workspaces and paying private channels together number more than 5, a
+box-side worker adds and removes boxes within the guards.
 
 **Capacity is two numbers, and only one of them scales out** (panel R1,
 all four seats). The hub is ONE Cloud Run instance by design. Adding a box
@@ -104,8 +131,40 @@ All thresholds live in cnf (`env.capacity.*`), none in code.
   - `scale.max_month_eur`: (running boxes x the monthly cost of their
     machine type) + the new box must stay within it.
   - Both are checked before a row is written.
-- **Money guard** (owner question Q-4): option B also requires the sum of
-  prepaid balances to be at least 2 months of the new box's cost.
+- **Money guard** (owner Q-4 / S5, msg 2d9490e7 "s5", the recommended row
+  of post 229c0612):
+  - **now (manual phase): A**, the monthly budget `scale.max_month_eur`
+    and the box limit `scale.max_boxes` in cnf, as hard caps. While a
+    person adds every box, that person is the money guard too (c-002's
+    reading, post 7ad35e2f).
+  - **from the start of automation: A plus B**, the sum of prepaid
+    balances must also be at least 2 months of the new box's cost. The
+    check runs only when `scale.mode = auto` (3.1).
+- **Notification** (owner S2 = A, msg 7b047d69): every `scale_requests`
+  row with `kind=out` reaches the owner as a post in a spool channel plus
+  an email. In the manual phase that post is the request to add a box.
+- **Box size** (owner S3 = A, msg 7b047d69): one standard machine type for
+  every new box, `scale.box_machine_type` in cnf. Other sizes are decided
+  once the measurements of section 8 exist. Which type is the standard is
+  still open (14.2, RQ-3).
+- **Region** (owner S6 = A, msg 2d9490e7): one region, the hub's,
+  `europe-north1`. A box is never placed by the customer's location.
+
+### 3.1 Manual, then automatic (owner Q-3, S1, S4)
+
+| phase | when | who applies | source |
+|---|---|---|---|
+| manual (`scale.mode = manual`) | at launch, while paying workspaces + paying private channels <= 5 | the owner, or someone with the owner's go, per box (Q-3 A); the hub only files the request | msgs 72ce6ccc, 0cbf4386 |
+| automatic (`scale.mode = auto`) | once that count is more than 5 | a box-side worker within the guards of section 3, using our own scripts (S4 = B), never a managed instance group | msgs 0cbf4386, 2d9490e7 |
+
+- **The count** (S1 = A, msg 7b047d69): paying workspaces and paying
+  private channels counted together. The hub computes it from the paid
+  plans of spec 121 and shows it beside every scale request, so the owner
+  sees when it passes 5.
+- **The switch** from manual to automatic is a cnf value, not code. Who
+  flips it when the count passes 5 is still open (14.2, RQ-1).
+- In both phases the hub decides and records only; the terraform apply
+  runs through the operator path of section 4, never in the hub.
 - **The GCP budget is a backstop, not the guard.** 059 only alerts:
   `csi-spl-iac/src/terraform/059-gcp-satellite-budget/03-budget.tf:1-4`,
   "nothing is ever stopped". Every new box carries a `box=<name>` label and
@@ -143,14 +202,25 @@ The path, buildable:
    `box=pool`, `pool_box=<id>`, one state key per box.
 3. `do_spl_pool_scale_out` (dry run by default) adds one cnf entry, renders
    the tfvars, runs `make do-tf-plan` and prints the plan. The apply runs as
-   owner question Q-3 decides: v1 = the owner's go per scale-out.
+   owner Q-3 decided (3.1): in the manual phase, the owner's go per
+   scale-out; in the automatic phase, the box-side worker within the
+   guards (S4 = B).
 4. A customer box role set (`do_spl_pool_box_playbook`): no estate keys,
    model access by a pay-per-token API key (121 Q-M3), joined with a 073
    token.
 5. The token comes from a new operator-only mint path: an `asOperator`
    caller, named in `TestOperatorScopeCallers` (108 section 3.6), audited,
-   with the token bound to the box's VM name. Whose workspace the box joins
-   is Q-2.
+   with the token bound to the box's VM name.
+   - **Whose box** (owner Q-2 = C, msgs b7ff5f4a "c" and e95a0695 "Yes"):
+     a pool box is shared. Each workspace placed on it gets its own OS user
+     and its own spool root on that box, so one box serves several
+     workspaces.
+   - **Conflict with spec 108**: 108 section 3 says "One box = one
+     workspace", and its open section 7 question 1 asks "Is a second
+     workspace on one machine allowed, as a second OS user + spool root?".
+     Q-2 = C answers that question with yes. Spec 108 is not changed here; its follow-up
+     belongs to the dispatch holder (reported on dispatch-e001c851). Until
+     108 is updated, the pool box role set and the mint path wait for it.
 6. The box says hello, its key is pinned, and its state goes `ready`
    (section 10).
 
@@ -163,13 +233,18 @@ The path, buildable:
   on it with exit 6 (`spawn-agents/scripts/spawn-window.sh:129`). The hub
   state mirrors it. `git grep -n draining origin/master -- csi-spl-rdb`
   returns 0 hits.
-- **Trigger**: the fleet is below 40%. How long is Q-7.
+- **Trigger** (owner Q-7 = C, msg 2d9490e7 "q7 yes"): the fleet below 40%
+  for 60 min starts the drain of one box. It stops new work fast and
+  destroys slowly.
 - **Drain**: the least-used spare pool box goes `draining`, and gets no new
   seat or workspace.
   - Never a candidate: the box of a paid workspace while that workspace is
-    paid, and the operator's own box `sat`.
-- **Remove**: only when the box has 0 running lanes (`roster.running`,
-  rdb 0153), no queued deliveries, and the delay of Q-7 has passed. Then
+    paid, and the operator's own box `sat`. With a shared pool (Q-2 = C) a
+    box can carry several workspaces, paid and unpaid; how this rule reads
+    then is still open (14.2, RQ-2).
+- **Remove**: only when the box has been `draining` for 24 h, is empty
+  (0 running lanes, `roster.running`, rdb 0153; no workspace left on it)
+  and has no queued deliveries. Then
   the pin is revoked (108 section 3.7) and the removal runs through the
   same operator path as section 4. The hub never destroys anything.
 
@@ -201,7 +276,11 @@ Every rule has a test and a control that fails when the guard is removed.
 | cool-down | out, then in within 10 min -> the second is refused `cooldown` | with no cool-down, both rows are written |
 | one in flight | two triggers while one is pending -> one row | without the check, two rows |
 | ceilings | at `max_boxes` or `max_month_eur` -> refused, reason `budget` | with the check removed, a row is written |
-| money guard (Q-4 B) | zero balances -> refused | with the balance check removed, a row is written |
+| money guard (S5, `auto`) | `scale.mode = auto`, zero balances -> refused | with the balance check removed, a row is written |
+| money guard (S5, `manual`) | `scale.mode = manual`, zero balances, within the caps -> a row is written | with the mode check removed, it is refused |
+| manual phase (Q-3 A) | `scale.mode = manual` -> the row stays `pending` until an operator applies it; nothing calls the apply | with the mode check removed, the worker applies it |
+| notification (S2) | an `out` row -> one channel post and one email | with the email hook removed, only the post goes |
+| scale-in delay (Q-7 C) | 59 min below 40% -> no drain; 60 min -> drain; removal at 23 h 59 drained -> refused | with the 24 h check removed, the removal is allowed |
 | hub headroom | hub at 80% -> box refused and hub alert raised | with the check removed, the box is requested |
 | runaway | 10 triggers in a day with N=3 -> 3 rows | with no cap, 10 rows |
 | drain | a draining box gets no new lane | with the state ignored, it gets one |
@@ -219,7 +298,8 @@ never its values.
 
 ## 8. Measurements, in Order
 
-Q-6 option A (fixed cost / max workspaces) needs the max measured first.
+Q-6 = A (owner, msg 2d9490e7 "q6yes": fixed cost / max workspaces) needs
+the max measured first.
 Each step writes `capacity_measurements` rows (run_id, sha, version, n,
 resource, value, bottleneck, measured_at), so the gate in section 9 can
 check that they exist and how old they are.
@@ -281,9 +361,19 @@ check that they exist and how old they are.
     `estate_cost_months (month, project, label, usd_micros, source)` per
     project and per label (`box=satellite`, `box=pool`), with
     `source = estimate | billing_export`.
-- **Which projects count**: Q-5 (prd only, or dev + prd + csi-spl-all).
-- **Slice** = `estate_fixed_month / W_basis`. `W_basis` is set by Q-6. It
-  is its own invoice line, beside the per-workspace cost from M2 and the
+- **Which costs count** (owner Q-5, msg b6a56949: "The production
+  environment and the hosts on which the workspace runs"; neither panel
+  option):
+  - counted: the prd project (hub, database, hosting), plus the hosts
+    (boxes) the workspace runs on;
+  - not counted: dev, and the satellite, unless it hosts customer
+    workspaces.
+  - With the shared pool (Q-2 = C), a host's cost is split among the
+    workspaces on it, and the prd cost over all workspaces (c-002's
+    reading, post 1af7fc7d). `estate_cost_months` keeps per-project and
+    per-`box` label rows, so both parts are readable apart.
+- **Slice** = `estate_fixed_month / W_max` (owner Q-6 = A, msg 2d9490e7;
+  `W_max` measured in M3). It is its own invoice line, beside the per-workspace cost from M2 and the
   tokens. It REPLACES 121's `agent_seconds` split of the shared cost for the
   fixed part, so one cost is never charged twice. A private channel gets
   its own unit cost when M2's slope is above the noise (121 section 10
@@ -291,8 +381,7 @@ check that they exist and how old they are.
 - **Formula** = (measured own cost + fixed-cost slice + tokens x (1 + token
   buffer)) x 1.29. The 29% margin is the owner's (msg cd2d25e3, "based on
   the margin and 29% on top"), and it is the value of 121's
-  `price_plans.margin_pct`. 121 v1.0 does not carry it yet; its fold is
-  pending.
+  `price_plans.margin_pct`. Spec 121 v1.1 (4772552ba) carries it.
 - **The gate**: `pricingReady(month)` holds only when all of these exist:
   - an `estate_cost_months` row with `source=billing_export` for a closed
     month;
@@ -328,8 +417,13 @@ All rows are operator scope (RLS: the operator workspace), except
    `do_gcp_billing_export_setup`, `do_spl_estate_cost_read`,
    `do_spl_token_gap_measure`, each with its `.tst.sh`.
 4. Gate: `pricingReady` in the checkout and on `/services`.
-5. IaC (after Q-2 and Q-3): step `061-gcp-vm-pool`, the customer box role
-   set, `do_spl_pool_scale_out` (dry run), the operator-only mint path.
+5. IaC (Q-2 = C and Q-3 = A answered): step `061-gcp-vm-pool` in the
+   hub's region with the one standard machine type (S3, S6), the customer
+   box role set with one OS user and spool root per workspace (after spec
+   108 takes Q1 = yes), `do_spl_pool_scale_out` (dry run), the
+   operator-only mint path, the S2 channel post + email.
+6. Automation (only when the paying count passes 5, 3.1): the box-side
+   worker (S4 = B) and the prepaid-balance guard (S5).
 
 ## 12. Panel and Consensus
 
@@ -401,7 +495,37 @@ Result: 5 of 5 signed, 0 objections. v1.0 = rc1 plus this table.
 - Token buffer: A, +20% at launch, lowered to the measured gap
   (msg 9e0c0dba).
 
+Answers to the v1.0 questions of section 14.1 (verbatim words at the top of
+this spec):
+
+| # | owner answer | panel had | msg | folded in |
+|---|---|---|---|---|
+| Q-1 | A: box hardware (CPU, RAM, seats); the hub is a separate alert | A | b7ff5f4a "Q1a" | 2 |
+| Q-2 | C: a shared pool, one OS user and spool root per workspace on a box; answers 108 Q1 with yes | A | b7ff5f4a "c", confirmed e95a0695 "Yes" | 4 |
+| Q-3 | A at launch (manual: the owner or someone with the owner's go applies; the hub only files the request), until paying workspaces + paying private channels are more than 5; then automatic | A for 4 weeks, then B | 72ce6ccc, 0cbf4386 | 3.1, 4 |
+| Q-4 / S5 | A now (monthly budget + box limit in cnf); add B (prepaid balances >= 2 months of the new box) when automation starts | B | b7ff5f4a "q4 let's discuss that", then 2d9490e7 "s5" (the recommended row of post 229c0612) | 3 |
+| Q-5 | prd + the hosts the workspace runs on; not dev; the satellite only if it hosts | B | b6a56949 | 9 |
+| Q-6 | A: fixed cost / `W_max` | A | 2d9490e7 "q6yes" | 8, 9 |
+| Q-7 | C: 60 min below 40% stops new work; removal after 24 h drained and empty | split A / C | 2d9490e7 "q7 yes" | 5 |
+| S1 | A: paying workspaces and paying private channels count together toward "more than 5" | (new) | 7b047d69 "S1A" | 3.1 |
+| S2 | A: "above 80%, add a box" reaches the owner as a spool channel post plus an email | (new) | 7b047d69 "s2a" | 3 |
+| S3 | A: one standard box size for now | (new) | 7b047d69 "s3a" | 3 |
+| S4 | B: once automation starts, a box-side worker within the guards, our own scripts | (new) | 2d9490e7 "S4b" | 3.1 |
+| S6 | A: one region, the hub's (`europe-north1`) | (new) | 2d9490e7 "s6a" | 3 |
+
+Readings to know: "c" in b7ff5f4a had no question number; c-002 read it as
+Q-2 C and asked, and "Yes" (e95a0695) is taken as that confirmation (post
+51f088b6 also read it as spec 121 T1 = A). "s5" in 2d9490e7 has no letter;
+it is taken as the recommended S5 row. Each reading was posted to the owner
+for correction; none was corrected (last owner post in the topic at this
+fold: a798a19b, a new cost-tracking request, not a correction).
+
 ## 14. Owner Questions
+
+### 14.1 The v1.0 questions (all answered, section 13)
+
+Kept as asked, for the record; the panel's recommendation is not the
+decision where section 13 differs.
 
 - **Q-1 What does "80% capacity" measure?**
   - A: box hardware (CPU, RAM, seats; the load band the fleet already
@@ -451,3 +575,43 @@ Result: 5 of 5 signed, 0 objections. v1.0 = rc1 plus this table.
   - **Panel: split, A 2 and C 2. The editor recommends C.** It stops new
     work quickly and destroys slowly: a box rebuild runs a playbook allowed
     up to 60 min (060 `07-ansible.tf`).
+
+### 14.2 Still open after the v1.1 fold
+
+None blocks build lanes 1 to 4 (section 11). Lane 5 needs RQ-3, RQ-4 and
+spec 108's update; lane 6 needs RQ-1. RQ-2 is needed before the first scale-in.
+
+- **RQ-1 Who switches to automatic when the paying count passes 5?**
+  (0cbf4386 says automation starts then, not who turns it on.)
+  - A: the hub posts "count is now 6" to the owner (S2 path); the owner, or
+    someone with the owner's go, sets `scale.mode = auto`.
+  - B: the hub switches by itself when the count passes 5.
+  - **Recommended: A.** It keeps "nothing mutates GCP without the owner"
+    for the one step that hands the apply to a worker, and costs one reply.
+- **RQ-2 Scale-in with a shared pool: which box may drain?** v1.0 never
+  drains the box of a paid workspace; with Q-2 = C most pool boxes will
+  carry at least one paid workspace.
+  - A: a box carrying any paid workspace is never drained; only boxes with
+    no paid workspace are candidates.
+  - B: any pool box may drain; draining only stops new work there, and the
+    box is removed only once empty (Q-7 C): a paid workspace's running
+    lanes finish on that box and its new work starts on another one.
+  - **Recommended: B.** Under A a shared pool rarely shrinks, and Q-7 C
+    already protects running work: nothing is removed before 24 h drained
+    and empty.
+- **RQ-3 Which machine type is the one standard box (S3)?**
+  - A: the satellite's type (`e2-standard-16`, `prd.env.yaml:197`) until
+    M2 measures one workspace.
+  - B: a smaller type, chosen from M2 (one workspace) before the first
+    pool box.
+  - **Recommended: B.** M2 runs before any customer box exists (section 8),
+    and a box sized for the operator's whole fleet over-prices a
+    shared pool's first customers.
+- **RQ-4 The two cnf caps of the money guard (Q-4 A): what values?**
+  `scale.max_boxes` (the draft's 20) and `scale.max_month_eur` (no value
+  yet).
+  - A: the owner names both numbers before lane 5 ships.
+  - B: start with `scale.max_boxes = 20` and a budget of 20 x the standard
+    box's monthly list price.
+  - **Recommended: A.** The money cap is the owner's guard in the manual
+    phase, and no value for it exists in any answer so far.

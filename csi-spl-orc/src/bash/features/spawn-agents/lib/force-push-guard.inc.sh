@@ -19,6 +19,11 @@
 #     with master as the refspec
 #   - git -c remote.<r>.push=+..., remote.<r>.mirror=..., or an alias.<a>=
 #     that expands to one of the above
+#   - git push --no-verify, and git -c / --config-env core.hooksPath=... or
+#     GIT_CONFIG_KEY_<n>=core.hooksPath / GIT_CONFIG_PARAMETERS on a push:
+#     each skips the pre-push hook (the gate this guard backs up). A long
+#     option is matched by any prefix git accepts (--no-veri, --mirr, --forc).
+#     git push -n is --dry-run (git push -h), not a skip, and stays allowed.
 #   - SPL_PREPUSH_OVERRIDE assigned anything but empty or 0 (a prefix
 #     assignment, env, export / declare / typeset / readonly / local); a
 #     command that only NAMES it (a grep pattern, an echo) is not refused
@@ -46,6 +51,8 @@ OVERRIDE = "SPL_PREPUSH_OVERRIDE"
 OVERRIDE_RAW = re.compile(r"(?:^|[\s;&|(`])(?:export\s+|declare\s+-\w+\s+|env\s+)?SPL_PREPUSH_OVERRIDE=(?![\"\x27]{2}|\s|;|&|\||$|0(?![^\s;&|]))")
 DECLARE = {"export", "declare", "typeset", "readonly", "local"}
 FORCE_LONG = ("--force", "--force-with-lease", "--force-if-includes", "--mirror")
+NO_VERIFY = "--no-verify"
+HOOKS = "core.hookspath"
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "fish", "busybox"}
 WRAP = {"env", "command", "exec", "nohup", "time", "nice", "ionice", "setsid",
         "stdbuf", "timeout", "xargs", "builtin", "chronic", "unbuffer", "flock",
@@ -123,12 +130,13 @@ def skip_wrapper(b, toks, i, depth):
 
 
 def segment(toks, depth):
-    i = 0
+    i, hooks = 0, False
     while i < len(toks):
         t = toks[i]
         b = t.rsplit("/", 1)[-1]
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t):
             override(t)
+            hooks = hooks or hooks_env(t)
             i += 1
         elif b in DECLARE:
             for a in toks[i + 1:]:
@@ -156,17 +164,30 @@ def segment(toks, depth):
             return
         else:
             if b == "git":
-                git(toks[i + 1:], depth)
+                git(toks[i + 1:], depth, hooks)
             return
 
 
-def git(args, depth):
+def hooks_env(tok):
+    """GIT_CONFIG_KEY_<n>=core.hooksPath or GIT_CONFIG_PARAMETERS naming it."""
+    name, _, val = tok.partition("=")
+    if re.match(r"^GIT_CONFIG_KEY_[0-9]+$", name):
+        return val.strip().lower() == HOOKS
+    return name == "GIT_CONFIG_PARAMETERS" and HOOKS in val.lower()
+
+
+def git(args, depth, hooks=False):
     i = 0
     while i < len(args):
         a = args[i]
         if a == "-c" and i + 1 < len(args):
             gitcfg(args[i + 1], depth)
+            hooks = hooks or args[i + 1].lower().startswith(HOOKS + "=")
             i += 2
+        elif a.startswith("--config-env"):
+            kv = a.split("=", 1)[1] if "=" in a else (args[i + 1] if i + 1 < len(args) else "")
+            hooks = hooks or kv.lower().startswith(HOOKS + "=")
+            i += 1 if "=" in a else 2
         elif a in GIT_ARG_OPTS:
             i += 2
         elif a.startswith("-"):
@@ -174,6 +195,8 @@ def git(args, depth):
         else:
             break
     if i < len(args) and args[i] == "push":
+        if hooks:
+            raise Refuse("git core.hooksPath on a push skips the pre-push hook; " + APPROVAL)
         push(args[i + 1:])
 
 
@@ -198,7 +221,9 @@ def push(args):
             break
         if a.startswith("--"):
             name = a.split("=", 1)[0]
-            if name in FORCE_LONG:
+            if len(name) >= 5 and NO_VERIFY.startswith(name):
+                raise Refuse("git push %s skips the pre-push hook; %s" % (name, APPROVAL))
+            if name in FORCE_LONG or (len(name) >= 5 and any(f.startswith(name) for f in FORCE_LONG)):
                 raise Refuse("git push %s rewrites remote history; %s" % (name, APPROVAL))
             if name == "--delete":
                 delete = True

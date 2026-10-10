@@ -6,6 +6,8 @@
 #      refused:" line on stderr - bare, combined flags, +refspecs, deletes of
 #      master, git -c smuggling, SPL_PREPUSH_OVERRIDE, and every wrapper
 #      (bash -c, sh -c, env, sudo, eval, git -C / -c, $( ), backticks, &&, ;)
+#      and the skip-hooks forms: git push --no-verify (and its prefixes), git
+#      -c / --config-env core.hooksPath, GIT_CONFIG_KEY_<n>=core.hooksPath
 #   2. the allowed forms pass: rc 0, nothing on stderr - a plain push to
 #      master, a feature-branch delete, read-only git, commit messages that
 #      only mention push, SPL_PREPUSH_OVERRIDE=0
@@ -96,6 +98,40 @@ refuse "ssh box 'cd /opt/x && git push --force origin master'"
 refuse 'env -S "git push --force origin master"'
 refuse 'git push --force'
 refuse 'git push "unterminated --force'
+# skip-hooks: each one skips the pre-push hook, whatever the refspec
+refuse 'git push --no-verify origin HEAD:master'
+refuse 'git push origin HEAD:master --no-verify'
+refuse 'git push --no-veri origin HEAD:master'
+refuse 'git push -u --no-verify origin c-792-branch'
+refuse 'git -C /opt/x push --no-verify origin HEAD:master'
+refuse 'sudo -u agentusr git -C /opt/x push --no-verify origin HEAD:master'
+refuse 'sudo -u agentusr bash -c "cd /opt/x && git push --no-verify origin HEAD:master"'
+refuse "bash -lc 'git push --no-verify'"
+refuse 'env GIT_TRACE=1 git push --no-verify'
+refuse 'eval "git push --no-verify origin HEAD:master"'
+refuse 'timeout 60 git push --no-verify origin HEAD:master'
+refuse 'nohup git push --no-verify origin HEAD:master &'
+refuse "ssh box 'cd /opt/x && git push --no-verify origin HEAD:master'"
+refuse "su agentusr -c 'git push --no-verify origin HEAD:master'"
+refuse 'echo $(git push --no-verify origin HEAD:master)'
+refuse 'echo `git push --no-verify origin HEAD:master`'
+refuse 'git fetch && git rebase origin/master && git push --no-verify origin HEAD:master'
+refuse 'git status; git push --no-verify'
+refuse 'false || git push --no-verify'
+refuse 'git status
+git push --no-verify origin HEAD:master'
+refuse "git -c alias.p='push --no-verify' p origin HEAD:master"
+refuse 'git -c core.hooksPath=/dev/null push origin HEAD:master'
+refuse 'git -c core.hookspath= push'
+refuse 'git -c CORE.HOOKSPATH=/tmp/none -C /opt/x push origin HEAD:master'
+refuse 'sudo -u agentusr git -c core.hooksPath=/dev/null push origin HEAD:master'
+refuse 'bash -c "git -c core.hooksPath=/dev/null push origin HEAD:master"'
+refuse 'git --config-env=core.hooksPath=NOHOOKS push origin HEAD:master'
+refuse 'git --config-env core.hooksPath=NOHOOKS push origin HEAD:master'
+refuse 'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git push origin HEAD:master'
+refuse 'env GIT_CONFIG_PARAMETERS="'"'core.hooksPath=/dev/null'"'" git push'
+refuse 'git push --mirr origin'
+refuse 'git push --forc origin HEAD:master'
 
 # 2. allowed
 allow 'git push origin HEAD:master'
@@ -124,6 +160,13 @@ allow 'grep -E "push.*--force\\"|-f " /tmp/vibe.log "unclosed'
 allow 'grep "push --force" log "unclosed'
 allow 'git -c user.name=x -c user.email=y commit -m "x"'
 allow 'git -c alias.p=push p origin HEAD:master'
+allow 'git push -n origin HEAD:master'
+allow 'git push --dry-run origin HEAD:master'
+allow 'git push --verify origin HEAD:master'
+allow 'git -c core.hooksPath=/dev/null commit -m "x"'
+allow 'git -c core.pager=cat push origin HEAD:master'
+allow 'git commit -m "never git push --no-verify"'
+allow 'grep -rn "no-verify" csi-spl-doc/'
 
 # 3. the CLI form
 bash "$G" --check 'git push -f origin master' 2>/dev/null; rc=$?

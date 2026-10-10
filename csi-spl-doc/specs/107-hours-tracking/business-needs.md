@@ -1,6 +1,6 @@
 # 107 Hours tracking: Business Needs
 
-**Status**: consensus in section 6 (four seats, owner answers 1A 2A 3A, new BN-14 and BN-15).
+**Status**: consensus at `2c6c36732`, section 6 (four seats, owner answers 1A 2A 3A, new BN-14 and BN-15).
 
 ## 1. Personas and the User Experience
 

@@ -11,7 +11,8 @@
 // Run: node tests/unit/box-rows.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { boxRows, boxByID, boxTag, isBrowserBox, filterBoxes, SEATS_AGENTS, SEATS_PEOPLE, seatsAnchorOf } from '../../src/utils/box-rows.mjs'
+import { boxRows, boxByID, boxTag, isBrowserBox, filterBoxes } from '../../src/utils/box-rows.mjs'
+import { SEATS_AGENTS, SEATS_PEOPLE, seatsAnchorOf } from '../../src/utils/box-seats.mjs'
 
 /* peopleRows() shape: one {id, box, online} per seat. Four boxes: box-desk (an
    agent AND a human), box-a (two agents), box-b (an offline agent), box-wui

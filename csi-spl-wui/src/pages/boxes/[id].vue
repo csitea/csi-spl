@@ -165,7 +165,8 @@
 <script setup lang="ts">
 import { useRosterStore } from '~/stores/roster'
 import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
-import { SEATS_AGENTS, SEATS_PEOPLE, boxByID, isBrowserBox, seatsAnchorOf } from '~/utils/box-rows.mjs'
+import { boxByID, isBrowserBox } from '~/utils/box-rows.mjs'
+import { SEATS_AGENTS, SEATS_PEOPLE, seatsAnchorOf } from '~/utils/box-seats.mjs'
 import {
   ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf, boxStatsOf, boxSystemOf,
   currentOf, diskLine, diskTitle, factsReportedAt, formatKB, formatLoad, formatMB, isBoxStatsForbidden, isNoBoxStats,

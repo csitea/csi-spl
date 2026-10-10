@@ -684,23 +684,8 @@
                     <span class="label">{{ b.tag }}</span>
                     <span v-if="b.browser" class="muted box-row__badge">{{ t('boxes.browser') }}</span>
                   </NuxtLink>
-                  <!-- HUM-10 (t1 58857a17): people and agents apart, each count
-                       a link to its own list on the box's card -->
-                  <span class="muted box-row__counts" data-testid="box-seat-counts" :data-box="b.id">
-                    <NuxtLink
-                      class="box-row__count"
-                      data-testid="box-people-count"
-                      :data-count="b.people.length"
-                      :to="localePath('/boxes/' + encodeURIComponent(b.id)) + '#box-people'"
-                    >{{ t('boxes.people_n', b.people.length) }}</NuxtLink>
-                    <span aria-hidden="true">·</span>
-                    <NuxtLink
-                      class="box-row__count"
-                      data-testid="box-agents-count"
-                      :data-count="b.agents.length"
-                      :to="localePath('/boxes/' + encodeURIComponent(b.id)) + '#box-agents'"
-                    >{{ t('boxes.agents_n', b.agents.length) }}</NuxtLink>
-                  </span>
+                  <!-- HUM-10 (t1 58857a17): "N people · M agents", each a link -->
+                  <LazyBoxSeatCounts :box="b" />
                 </div>
               </div>
             </template>
@@ -1963,17 +1948,8 @@ async function onCreate() {
 .people-row__tag,
 .agent-row__kind { margin-inline-start: auto; font-size: 11px; flex-shrink: 0; }
 /* CLE-77799: the Boxes section - a filter, a count, and rows grouped by status.
-   The user count trails the row like the agent kind; the browser badge sits
-   before it. */
-/* the counts sit on a second line under the box's name, outside its link (a
-   link holds no link); the row makes room for them below the name */
-.box-row__counts {
-  position: absolute; inset-inline-start: 58px; inset-inline-end: 8px; bottom: 4px;
-  display: flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.3;
-  white-space: nowrap; overflow: hidden;
-}
-.box-row__count { color: inherit; text-decoration: none; }
-.box-row__count:hover, .box-row__count:focus-visible { color: var(--color-accent); text-decoration: underline; }
+   The browser badge trails the box's name. */
+/* a box row makes room under its name for BoxSeatCounts */
 .nav-row > .nav-item:has(+ .box-row__counts) { padding-bottom: 20px; display: flex; justify-content: flex-start; }
 .box-row__badge { font-size: 11px; flex-shrink: 0; opacity: 0.85; }
 .boxes-filter {

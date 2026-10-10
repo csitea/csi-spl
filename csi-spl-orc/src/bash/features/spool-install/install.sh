@@ -57,6 +57,9 @@
 #   6b. only with --fleet, and only as the agent user (SPOOL_AGENT_USER, else
 #      the box config's): `pkill` and `killall` guards in <prefix>/bin that
 #      refuse `pkill -f` and every `killall` (steps/y11-kill-guard.sh)
+#   6c. when ~/.vibe exists: the Mistral Vibe push guard, a strict pre_tool
+#      hook that refuses force pushes to master (steps/y12-vibe-push-guard.sh;
+#      both users of a box: ./run -a do_spl_vibe_push_guard_install)
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
@@ -881,6 +884,7 @@ source "$_here/steps/y4-claude-config.sh" && spool_install_claude_config || die 
 source "$_here/steps/y8-vibe-agents.sh" && spool_install_vibe_agents || die 6 "cannot render the fleet ~/.vibe/AGENTS.md (spec 110)"
 source "$_here/steps/y9-vendor-lane-rule.sh" && spool_install_vendor_lane_rule || die 6 "cannot render the lane rule into the agy / qwen rules files"
 . "$_here/steps/y11-kill-guard.sh" && spool_install_kill_guard "$BIN" "$DRY" "$FLEET" || die 7 "kill-guard: cannot install pkill / killall into $BIN"
+. "$_here/steps/y12-vibe-push-guard.sh" && spool_install_vibe_push_guard "${VIBE_HOME:-$HOME/.vibe}" "$DRY" || die 7 "vibe push guard: cannot install into ${VIBE_HOME:-$HOME/.vibe}"
 [ "$SKILLS" = 1 ] && { . "$_here/steps/y6-graft.sh" && y6_graft_install "$ORC" "$BIN" "$DRY" || die 6 "the graft step (spec 069 Y6) failed"; }
 
 # ── 6. the seat ───────────────────────────────────────────────────────────────

@@ -186,3 +186,37 @@ func TestNotifyTimeoutOrDefaults(t *testing.T) {
 		t.Fatalf("want 1s, got %v", got)
 	}
 }
+
+// Owner topic 3eb98913 (msg 9ef7aac9): a pasted image with no text reached the
+// panes as an empty post. The pane is told what is attached, before the text.
+func TestRunNamesTheAttachments(t *testing.T) {
+	cmd, log := fakeNotifier(t, 0, "")
+	cfg := &config.Config{SpoolRoot: t.TempDir(), NotifyCmd: cmd}
+	m := testMsg()
+	m.Body = ""
+	m.Files = []msg.Attachment{{Mode: "blob", Kind: "file", Name: "image.png", Bytes: 336983, FileID: "fae928d6"}}
+	Run(cfg, m, "CLE-91")
+	if got := readLog(t, log); !strings.Contains(got, "STDIN: [image attached: image.png, 337 KB, file_id fae928d6]") {
+		t.Fatalf("an image-only post must name its image:\n%s", got)
+	}
+}
+
+func TestAttachmentNote(t *testing.T) {
+	for _, c := range []struct {
+		a    msg.Attachment
+		want string
+	}{
+		{msg.Attachment{Kind: "file", Name: "notes.md", Bytes: 2048, FileID: "ab"}, "[file attached: notes.md, 2 KB, file_id ab]"},
+		{msg.Attachment{Kind: "file", Name: "Shot.JPG", Bytes: 12, FileID: "cd"}, "[image attached: Shot.JPG, 12 B, file_id cd]"},
+		{msg.Attachment{Kind: "dir", Mode: "path", Name: "out", Path: "/srv/out"}, "[dir attached: out, path /srv/out]"},
+		{msg.Attachment{Kind: "file", Name: "big.bin", Bytes: 2_500_000, FileID: "ef"}, "[file attached: big.bin, 2.5 MB, file_id ef]"},
+	} {
+		if got := AttachmentNote(c.a); got != c.want {
+			t.Errorf("AttachmentNote(%+v) = %q, want %q", c.a, got, c.want)
+		}
+	}
+	m := testMsg()
+	if got := withAttachments(m); got != m.Body {
+		t.Fatalf("no files must leave the body alone: %q", got)
+	}
+}

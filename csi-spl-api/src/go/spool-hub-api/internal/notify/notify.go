@@ -18,6 +18,8 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -90,7 +92,7 @@ func RunCtx(ctx context.Context, cfg *config.Config, m *msg.Message, to string) 
 	// block on that pipe until the grandchild exits. WaitDelay gives up on the
 	// pipe shortly after the kill, which is what actually bounds Run.
 	cmd.WaitDelay = time.Second
-	cmd.Stdin = strings.NewReader(m.Body)
+	cmd.Stdin = strings.NewReader(withAttachments(m))
 	// The notifier resolves the recipient's pane from $SPOOL_ROOT/registry.tsv,
 	// so it must see the same root this store wrote into, whatever the parent
 	// process inherited.
@@ -123,5 +125,65 @@ func RunCtx(ctx context.Context, cfg *config.Config, m *msg.Message, to string) 
 	default:
 		log.Warn().Err(err).Str("cmd", argv[0]).Str("notify", line).
 			Msg("terminal delivery failed; the message is still in the inbox")
+	}
+}
+
+// withAttachments is the body the pane is shown: one "[image attached: ...]"
+// line per file, in front of the text. Owner topic 3eb98913 (msg 9ef7aac9,
+// 2026-10-10): a pasted screenshot sent with no text reached every agent pane
+// as an EMPTY post while the hub row held the image, so the agents read "the
+// owner sent nothing". In front, not after: the poke line cuts a long body.
+func withAttachments(m *msg.Message) string {
+	var b strings.Builder
+	for _, a := range m.Files {
+		b.WriteString(AttachmentNote(a))
+		b.WriteByte('\n')
+	}
+	if b.Len() == 0 {
+		return m.Body
+	}
+	return b.String() + m.Body
+}
+
+// AttachmentNote is one attachment as a line an agent can act on:
+// "[image attached: image.png, 337 KB, file_id <sha256>]".
+func AttachmentNote(a msg.Attachment) string {
+	what := "file"
+	switch {
+	case a.Kind == "dir":
+		what = "dir"
+	case isImageName(a.Name):
+		what = "image"
+	}
+	parts := []string{what + " attached: " + a.Name}
+	if a.Bytes > 0 {
+		parts = append(parts, humanBytes(a.Bytes))
+	}
+	switch {
+	case a.FileID != "":
+		parts = append(parts, "file_id "+a.FileID)
+	case a.Path != "":
+		parts = append(parts, "path "+a.Path)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func isImageName(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".heic", ".avif", ".tif", ".tiff":
+		return true
+	}
+	return false
+}
+
+// humanBytes: decimal units, as a file manager shows them (336983 -> "337 KB").
+func humanBytes(n int64) string {
+	switch {
+	case n < 1000:
+		return strconv.FormatInt(n, 10) + " B"
+	case n < 1000*1000:
+		return strconv.FormatInt((n+500)/1000, 10) + " KB"
+	default:
+		return strconv.FormatFloat(float64(n)/1e6, 'f', 1, 64) + " MB"
 	}
 }

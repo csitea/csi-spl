@@ -50,6 +50,10 @@ const (
 	// own hours need neither.
 	HoursRead    = "hours.read"    // every member's approved hours and period states; download
 	HoursApprove = "hours.approve" // approve or return a member's frozen period
+	// CostsRead gates the cost lines and their coverage (specs/123 §5.1, rdb
+	// 0166): biz_owner and admin (owner Q-1 = A), not billing.manage. In the
+	// operator workspace it opens the estate view, elsewhere that workspace's rows.
+	CostsRead = "costs.read"
 )
 
 // System role ids (025 §3.2). BizOwner is the tenant owner (owner decision
@@ -108,23 +112,26 @@ var Permissions = []PermissionDoc{
 	{ChannelsEdit, "add or remove channel members and agents; archive or delete a channel"},
 	{HoursRead, "see every member's approved hours and period states; download them"},
 	{HoursApprove, "approve or return a member's frozen hours period"},
+	{CostsRead, "see the cost lines and coverage of the workspace (the estate in the operator workspace)"},
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
-// 0029, 0039, 0074, 0119, 0123, 0124, 0151). biz_owner holds every permission but agents.join:
+// 0029, 0039, 0074, 0119, 0123, 0124, 0151, 0166). biz_owner holds every permission but agents.join:
 // rdb 0039 had made members.invite the admin's only, and 0074 returns it
 // (owner 2026-09-28, specs/046: "the admins and the biz_owners of the tenant
 // can CRUD users"); agents.join is admin only (specs/073 §4.7, Q1). rdb 0124
 // gives every role files.write, topics.manage, self.keys and channels.edit, and adds
 // demo_user without them (specs/077). rdb 0151 gives hours.read and
-// hours.approve to biz_owner alone (specs/107 §6.1, owner Q5 = A).
+// hours.approve to biz_owner alone (specs/107 §6.1, owner Q5 = A). rdb 0166
+// gives costs.read to biz_owner and admin (specs/123 §5.1, owner Q-1 = A).
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite,
-		HoursRead, HoursApprove)},
+		HoursRead, HoursApprove, CostsRead)},
 	{ID: ProductOwner, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite)},
 	{ID: Admin, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
-		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin, DocsRead, DocsWrite)},
+		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin, DocsRead, DocsWrite,
+		CostsRead)},
 	{ID: Developer, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
 	{ID: Tester, Perms: withMember(TopicsRead, NotesSend, DocsRead, DocsWrite)},
 	{ID: PureAgent, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, DocsRead, DocsWrite)},

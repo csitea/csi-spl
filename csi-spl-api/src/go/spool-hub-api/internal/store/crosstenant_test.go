@@ -356,6 +356,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// cost_lines (rdb 0166, spec 123 lane 1): one workspace row. No store
+	// API yet (lane 2), so a raw row under inTenant (cost_lines_rls_test.go).
+	if err := seedCostLine(ctx, pg, s.tenant, "2026-10-01", "hand"); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

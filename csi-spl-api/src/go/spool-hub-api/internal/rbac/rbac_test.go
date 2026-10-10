@@ -181,6 +181,39 @@ func TestHoursPermissionsBizOwnerOnly(t *testing.T) {
 	}
 }
 
+// specs/123 §5.1 (owner Q-1 = A): costs.read is biz_owner's and admin's;
+// every other role, demo_user included, lacks it. It is its own permission,
+// not billing.manage: the admin holds costs.read without billing.manage.
+// CONTROL: the Fixed seam answers the same, so a developer is denied.
+func TestCostsReadBizOwnerAndAdmin(t *testing.T) {
+	for _, r := range DefaultRoles() {
+		held := false
+		for _, q := range r.Perms {
+			held = held || q == CostsRead
+		}
+		if want := r.ID == BizOwner || r.ID == Admin; held != want {
+			t.Errorf("%s costs.read = %v, want %v", r.ID, held, want)
+		}
+	}
+	ctx := context.Background()
+	for _, c := range []struct {
+		role string
+		want bool
+	}{{BizOwner, true}, {Admin, true}, {ProductOwner, false}, {Developer, false}, {Tester, false},
+		{PureAgent, false}, {BizCustomer, false}, {RegularUser, false}, {DemoUser, false}} {
+		a, err := Fixed(c.role).Access(ctx, "HUM-1", "t1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Can(CostsRead) != c.want {
+			t.Errorf("%s via Fixed: costs.read=%v, want %v", c.role, a.Can(CostsRead), c.want)
+		}
+	}
+	if a, _ := Fixed(Admin).Access(ctx, "HUM-2", "t1"); a.Can(BillingManage) {
+		t.Error("admin holds billing.manage: costs.read must not ride on it")
+	}
+}
+
 // FR-004: role table cached for TTL, membership never; errors deny.
 func TestAuthorizerCacheAndFailClosed(t *testing.T) {
 	now := time.Unix(1000, 0)

@@ -367,6 +367,12 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedEmbedVisitor(ctx, pg, s.tenant, s.channelID); err != nil {
 		t.Fatal(err)
 	}
+	// usage_events, token_budgets (rdb 0171, spec 121 T301): one ledger row
+	// and the workspace budget. No store API yet (T302, T304), so raw rows
+	// under inTenant (usage_rls_test.go).
+	if err := seedUsage(ctx, pg, s.tenant); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 
@@ -407,8 +413,8 @@ func countOf(t *testing.T, pg *Postgres, tb, tenant string) int {
 }
 
 // appendOnlyTables refuse every UPDATE and DELETE outside their purge
-// (rdb 0131 demo_post_audit).
-var appendOnlyTables = map[string]bool{"demo_post_audit": true}
+// (rdb 0131 demo_post_audit) or a tenant delete (rdb 0171 usage_events).
+var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": true}
 
 // TestCrossTenantEveryTable: with A and B seeded in every tenant table, A's
 // scope sees none of B's rows in any of them, and A's unscoped UPDATE /

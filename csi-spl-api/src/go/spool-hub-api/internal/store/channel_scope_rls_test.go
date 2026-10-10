@@ -37,6 +37,8 @@ var channelScopeExempt = map[string]string{
 	"fallback_deliveries": "the fallback fan-out record: hub-internal, no reader route",
 	"flow_events":         "a member's own mention / poke feed, written by a trigger on every post",
 	"demo_post_audit":     "the demo's operator audit (specs/077), read by the operator only",
+	"usage_events":        "the metering ledger (rdb 0171): a member's credits counter reads it, no visitor route",
+	"token_budgets":       "the token limits (rdb 0171): the hub's quota check and a member's counter, no visitor route",
 }
 
 // seedEmbedVisitor writes one embed and one visitor (a channel_guest HUM)

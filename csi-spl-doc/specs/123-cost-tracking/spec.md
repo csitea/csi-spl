@@ -1,7 +1,8 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.0-rc1 (draft ff04d3ca3 by a-816, folded by the editor
-s123-claude from the four seat reviews in `reviews/`; section 11)
+**Status:** v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
+all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
 ## 1. Owner's Words
 
@@ -10,17 +11,18 @@ Topic `t1 #spool-hub-devel`, task `af4bbf51-62f5-4f04-adcd-79d3b8b044ec` (HUM-10
 - msg `45f8cb69`: "Yes, both the admin and the business owner must have access to a page which also has a pie chart, but a simple table split down on what everything costs."
 - msg `f99ea7d8`: "And this table should be updated on a monthly basis."
 - msg `b046544e`: "Some of the costs might be insertable by hand, but, for example, the costs of paying the tokens, and so on and so forth."
+- The answers to Q-1..Q-7 (msgs `9bb60e73`, `cef45738`, `4671d819`, `6078c151`, `c48f7aa2`, `6fc78646`) are quoted in section 12.
 
 ## 2. Cost Sources (What is tracked)
 
 To see how much the entire AI cloud instance costs, we track every cost source across all environments:
-1. **GCP Estate**: All resources across `csi-spl-dev`, `csi-spl-prd`, and `csi-spl-all`, one row per project and per label (`box=satellite`, `box=pool`). This includes Cloud Run (hub), Cloud SQL, Firebase Hosting, network egress, and the satellite VM (060). Cost tracking counts all three projects; the owner's b6a56949 ("the production environment and the hosts on which the workspace runs") sets what the PRICE slice of 121/122 counts, not what is tracked here.
+1. **GCP Estate**: All resources in every `csi-spl-*` GCP project (Q-2: today `csi-spl-dev`, `csi-spl-prd` and `csi-spl-all`; a new `csi-spl-*` project is counted without a code change), one row per project and per label (`box=satellite`, `box=pool`). This includes Cloud Run (hub), Cloud SQL, Firebase Hosting, network egress, and the satellite VM (060). Cost tracking counts all three projects; the owner's b6a56949 ("the production environment and the hosts on which the workspace runs") sets what the PRICE slice of 121/122 counts, not what is tracked here.
 2. **LLM Tokens**: Token consumption across all AI agents, sliced per agent, per workspace, per vendor and per model. Two kinds, read differently (section 3):
    - **fleet tokens**: the fleet's own lanes (c-, g-, a-, q-, m-) on subscriptions. Today this is almost all of the token volume (121 section 7: "our own work stays on subscriptions"). They never pass through the hub ledger: they are in each box's transcript files.
    - **metered tokens**: hub-dispatched turns on pay-per-token API keys (121 section 7), once 121 phase 3 ships.
 3. **Agent Subscriptions vs API Keys**: Fixed-cost subscriptions (the vendor invoice amount) and pay-per-token API keys. A subscription's cost is its invoice; its token volume has a list-price equivalent, shown beside it, never added to it (Q-4).
 4. **Agent-hours**: The time agents run, used to split a vendor's subscription per agent on the page, never as a price.
-5. **Machines outside GCP** (boxes that are not GCP VMs): a hand-entered monthly row per box (Q-7).
+5. **Machines outside GCP** (boxes that are not GCP VMs): not tracked for now, listed on the page as "not tracked" (Q-7). The readers sit behind one cost-source interface (section 4.6), so a box source plugs in later.
 
 ## 3. How Each is Read
 
@@ -28,14 +30,14 @@ Measured on origin/master at ff04d3ca3, 2026-10-10 (reviews s123-claude section 
 
 | Cost Source | Read From | Read By | Evidence |
 |---|---|---|---|
-| **GCP Estate** | GCP billing export to BigQuery, per usage day | a dedicated reader SA with `roles/bigquery.dataViewer` on the export dataset only (Q-2), never the owner account | `sed -n 245,252p csi-spl-doc/specs/047-spool-deployability/deployability-analysis.md` -> "Cloud Billing API has not been used in project ... or it is disabled": the per-env SAs cannot read billing (n = 1, 2026-09-28) |
+| **GCP Estate** | GCP billing export to BigQuery, per usage day | a separate background reader with its own SA, `roles/bigquery.dataViewer` on the export dataset only, rows filtered to `project.id LIKE 'csi-spl-%'` (Q-2), never the owner account | `sed -n 245,252p csi-spl-doc/specs/047-spool-deployability/deployability-analysis.md` -> "Cloud Billing API has not been used in project ... or it is disabled": the per-env SAs cannot read billing (n = 1, 2026-09-28) |
 | **Fleet tokens** | each lane's Claude Code transcript, `.message.usage` per assistant message | `do_spl_cost_tokens_read`, on each box (section 4.3) | `git grep -n cache_read_input_tokens origin/master -- csi-spl-orc` -> `spl-lane-restart.func.sh:279` already reads it |
 | **Fleet tokens, other vendors** | not measured yet (agy, mistral, grok, qwen) | the same action, once each CLI's usage record is measured | until then one `unmetered` row per agent-day, never 0 |
 | **Metered API tokens** | 121 `usage_events` (not built) | the hub rollup | `git grep -l usage_events origin/master -- . ':!csi-spl-doc'` -> 0 files |
 | **Provider usage (token gap)** | provider usage report | 122 M4 `do_spl_token_gap_measure` (not built) | same grep -> 0 files |
 | **Agent Subscriptions** | the vendor invoice, hand-entered | the operator form (section 4.4) | flat monthly fees |
 | **Agent-hours** | the lease tick's run report `dispatch/agent-run.tsv` | `do_spl_cost_agent_hours_read` (section 4.3) | `git grep -n agent-run.tsv origin/master -- csi-spl-orc/src/bash/run` -> `spl-dispatch-lease.func.sh:618,622` |
-| **Non-GCP machines** | hand-entered | the operator form | Q-7 |
+| **Non-GCP machines** | not tracked (Q-7) | a future source behind the 4.6 interface | listed as "not tracked" |
 
 What exists on the billing side: `csi-spl-iac/src/terraform/059-gcp-satellite-budget/` sets a `google_billing_budget` on csi-spl-all through the csi-spl-all SA (`01-providers.tf` comment: "the budget API is called with the csi-spl-all SA key"). It only alerts by mail; it is not a read source.
 
@@ -43,10 +45,10 @@ What exists on the billing side: `csi-spl-iac/src/terraform/059-gcp-satellite-bu
 
 ### 4.1 One table for every cost line
 
-- **`cost_lines`** (replaces the draft's `cost_rollup_daily`, same role): `(day, source, project_or_vendor, workspace_id NULL, agent_id NULL, model NULL, kind, units, amount_micros, currency, usd_micros, list_value_micros NULL, origin, run_id, read_at, superseded_by NULL)`.
+- **`cost_lines`** (replaces the draft's `cost_rollup_daily`, same role): `(day, source, project_or_vendor, workspace_id NULL, agent_id NULL, model NULL, kind, units, amount_micros, currency, usd_micros, eur_micros, fx_rate_day, list_value_micros NULL, origin, run_id, read_at, superseded_by NULL)`.
   - `origin` in `billing_export | metered | transcript | agent_run | invoice | hand | estimate`.
   - UNIQUE on `(day, source, project_or_vendor, workspace_id, agent_id, model, kind)`, written with UPSERT (`ON CONFLICT`).
-  - `amount_micros` + `currency` is what was paid; `usd_micros` is the report figure (Q-6); `list_value_micros` is the API list-price equivalent of subscription tokens (Q-4).
+  - `amount_micros` + `currency` is what was paid; `usd_micros` and `eur_micros` are the two report figures (Q-6), converted at the rate of `fx_rate_day` (the invoice or usage day); `list_value_micros` is the API list-price equivalent of subscription tokens (Q-4).
   - The month table and the pie are one `GROUP BY` over it. 122's `estate_cost_months` becomes a view over the GCP rows, not a second copy.
 - **`cost_coverage`**: one row per `(day, source)`, `ok | missing | partial` with the reason. A source that failed a day is visible, never summed as 0 (the 121 `unmetered` rule).
 - RLS: estate rows in operator scope (the operator workspace); workspace-keyed rows readable by that workspace (section 5.1). The NULLIF policy pattern and its isolation test.
@@ -75,7 +77,13 @@ What exists on the billing side: `csi-spl-iac/src/terraform/059-gcp-satellite-bu
 
 - **`do_spl_cost_rollup_daily`**: a named action, nightly by cron at a cnf time (`cost.rollup_utc`, start 02:00), for the previous UTC day: reads GCP (4.2), takes the box day files (4.3), aggregates `usage_events` (`units x unit_cost_micros`) once 121 ships it, pro-rates monthly subscription invoices to days, writes `cost_coverage`.
 - **`do_spl_cost_month_close`**: a month closes on cnf `cost.close_day` of the next month (start 6), after the GCP re-read window. A closed month is never rewritten; a late correction is a new hand row in the open month (owner f99ea7d8, "updated on a monthly basis").
-- **`do_spl_cost_report MONTH=<yyyy-mm>`**: the month table as text, for the owner's monthly post and for a test with no browser.
+- **`do_spl_cost_report MONTH=<yyyy-mm>`**: the month table as text, in USD and EUR, for the owner's monthly post and for a test with no browser.
+
+### 4.6 Cost sources behind one interface (Q-7)
+
+- Every reader (GCP export, fleet transcripts, agent-hours, metered `usage_events`, hand entry) implements one cost-source contract: `name`, `read(day) -> cost_lines rows + one cost_coverage row`. The nightly run asks a factory for the registered sources from cnf (`cost.sources`) and runs each; it names no source in its own code.
+- A new source (a box outside GCP, another vendor's usage record) is a new implementation plus a cnf entry, with no change to the rollup, the table or the page.
+- Control: a test registers a stub source and sees its rows in the month table; with the factory bypassed (a hard-coded list) the stub's rows are missing.
 
 ## 5. Report / View (WUI Page)
 
@@ -83,31 +91,33 @@ A new WUI page `/costs`, reachable from the sidebar as "Costs".
 - **Visuals**: a simple table + a pie chart (owner 45f8cb69).
   - The pie is inline SVG in a component imported only by the `/costs` route: no chart library (`grep -ciE 'chart|echarts|d3' csi-spl-wui/package.json` -> 0 today, and one pie is not worth one).
   - **The initial chunk ceiling is 155 KB gzip**, not 160: `grep -n ci_initial_gzip_kb csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json` -> line 4 `155.0` (owner 2026-10-02, topic 87eaa57b). It stays 155.0; a new route ceiling `ci_costs_route_gzip_kb` goes beside the roadmap one.
-- **Table Rows**: cloud parts per project (hub, database, hosting, network, boxes), tokens per vendor, subscriptions/API keys, hand rows.
-- **Table Columns**: amount (USD), % of the month, list-price equivalent for subscription tokens, a marker if it was 'entered by hand', and "n of N days complete" per source from `cost_coverage`.
+- **Table Rows**: cloud parts per project (hub, database, hosting, network, boxes), tokens per vendor, subscriptions/API keys, hand rows, and one "not tracked" row for machines outside GCP (Q-7).
+- **Table Columns**: amount (USD and EUR, Q-6), % of the month, list-price equivalent for subscription tokens, a marker if it was 'entered by hand', and "n of N days complete" per source from `cost_coverage`.
 - **Monthly Basis**: one table + pie per calendar month, closed per 4.5. Earlier months are selectable.
 - **Current Month**: a running 'current month so far' figure based on the daily rows, marked "so far" until the month closes.
 - **Token Gap**: for metered tokens, the page shows both the paid invoice (hand-entered) and our own metered count. The difference is the token gap (122 M4 / 121 +20% buffer). 123 reports cost only: it never applies the buffer or the 29% margin.
 
-### 5.1 Who sees what (pending Q-1)
+### 5.1 Who sees what (Q-1 = A, owner)
 
 - `admin` and `biz_owner` are per-workspace roles: `sed -n 58,61p csi-spl-api/src/go/spool-hub-api/internal/rbac/rbac.go`. The tenant `admin` has no billing right today: `csi-spl-rdb/src/sql/postgres/spool-hub/0021_tenant_rbac.sql:58` -> "runs the tenant: members, roles, settings, keys, audit; not billing".
 - So the owner's "both the admin and the business owner" needs a new permission **`costs.read`** (the 0021 pattern), granted to `biz_owner` and `admin` by a migration, not `billing.manage`.
-- The estate view (GCP, fleet, boxes) needs `costs.read` **in the operator workspace** (`internal/hub/operator.go` `operatorAuth`); in any other workspace a member with `costs.read` sees that workspace's rows only (Q-1, A).
+- The estate view (GCP, fleet, boxes) needs `costs.read` **in the operator workspace** (`internal/hub/operator.go` `operatorAuth`); in any other workspace a member with `costs.read` (its `biz_owner` and `admin`) sees that workspace's rows only (Q-1 = A, owner msgs `9bb60e73` and `6fc78646`).
 
 ## 6. The 1-Month Collection Plan
 
-- **Start Date**: 2026-11-01 (Q-5), always the first of a calendar month, never mid-month.
-- **n**: 30 days (November). The report states per source how many of the 30 days were complete (`cost_coverage`).
+- **First month**: 2026-10 (Q-5), with what is live; each source is marked missing for every day before it runs. October is the iteration month (Q-3: "we will iterate during October and start for real in Nov").
+- **First real month**: 2026-11, always from the first of a calendar month, never mid-month.
+- **n**: 31 days of October (partial, coverage stated), then 30 days of November. The report states per source how many days were complete (`cost_coverage`).
 - **Execution**: The cron automatically runs `do_spl_cost_rollup_daily` every night. The WUI page provides real-time visibility into "how much all of this pleasure costs".
 
 | date (2026) | gate |
 |---|---|
-| by 10-24 | DDL `cost_lines` + `cost_coverage` on dev and prd; the hand form; the 4.3 readers with tests |
-| by 10-25 | the owner runs the export setup (Q-3); the reader SA exists (Q-2) |
-| 10-26..10-31 | dry run: every reader runs nightly; coverage `ok` on 5 of 6 days per source, else that source is named late |
-| 11-01 | collection starts |
-| 12-06 | November closes (4.5); `do_spl_cost_report MONTH=2026-11`; the owner post |
+| October, as each lands | DDL `cost_lines` + `cost_coverage` on dev and prd; the hand form; the 4.3 readers with tests; each source writes October rows from the day it runs |
+| by 10-25 | the export turned on through `do_gcp_billing_export_setup` (Q-3, the owner's go; c-001 runs it); the reader SA exists (Q-2) |
+| 10-26..10-31 | every reader runs nightly; coverage `ok` on 5 of 6 days per source, else that source is named late |
+| 11-01 | the first real month starts |
+| 11-06 | October closes (4.5, partial); `do_spl_cost_report MONTH=2026-10` |
+| 12-06 | November closes; `do_spl_cost_report MONTH=2026-11`; the owner post |
 
 ## 7. Reuse with Specs 121 and 122 (No Duplicates)
 
@@ -144,13 +154,16 @@ One cost is never counted twice: a customer turn's tokens come from `usage_event
 | **Estate scope** | a non-operator `biz_owner` or `admin` reads estate rows | 403; without the operator check, 200 |
 | **Chunk budget** | `ci_initial_gzip_kb` <= 155 and the new route ceiling | a static import of the pie into the shell fails the initial-size check |
 | **No owner account** | the reader runs as the reader SA, `--account` on every call | the `gcloud-account-pinned.tst.sh` pattern refuses the owner email |
+| **Every csi-spl-* project** | an export fixture with `csi-spl-dev`, `csi-spl-x` and a non-spool project | `csi-spl-x` is counted, the other is not; with a fixed project list `csi-spl-x` is missing |
+| **Two currencies** | a EUR invoice and a USD export row | both totals match the fixture rate; without the conversion one column reads 0 |
+| **Source factory** | section 4.6 | section 4.6 |
 
 ## 9. Build Lanes (ordered, disjoint files)
 
 1. **DDL**: `cost_lines`, `cost_coverage`, the `costs.read` permission; dev and prd before any code.
 2. **GCP**: `do_gcp_billing_export_setup` (dry run by default; `DRY_RUN=0` is the owner's) and `do_spl_estate_cost_read`, each with its `.tst.sh` (122 lane 3's first two items, built here; 122 section 11 then reuses them).
 3. **Box readers**: `do_spl_cost_tokens_read`, `do_spl_cost_agent_hours_read` and the lease-tick day log, with tests.
-4. **Hub**: the operator ingest endpoint, `do_spl_cost_rollup_daily`, `do_spl_cost_month_close`, `do_spl_cost_report`, the hand-entry API, `costs.read` checks.
+4. **Hub**: the cost-source factory (4.6), the operator ingest endpoint, `do_spl_cost_rollup_daily`, `do_spl_cost_month_close`, `do_spl_cost_report`, the hand-entry API, `costs.read` checks.
 5. **WUI**: `/costs`, the table, the lazy inline-SVG pie, the hand form, the route ceiling.
 
 ## 10. Owner Decisions Already Made
@@ -183,40 +196,48 @@ Corrected in the fold:
 Split, editor's call:
 - **The start date** (Q-5): claude asked to wait until every source writes complete rows; claude-2 starts 11-01 with partial sources marked; mistral 11-01 or later. The editor recommends 11-01 with coverage marked: waiting moves the month, and `cost_coverage` keeps a partial month honest.
 
-Signatures (rc1): pending.
+Signatures (rc1 cc831a665): s123-claude-2 c-818 signed (msg 5f8ff8e8; nit on the "$20/month" example, already gone in rc1: section 2 item 3 reads "the vendor invoice amount"); s123-mistral m-819 signed (0be19ee4); s123-agy a-820 signed (21a428e0); drafter a-816 signed (af26e9bb); s123-claude (editor) signed. 5 of 5.
+
+v1.0 changes only what the owner's answers decide (section 12): every `csi-spl-*` project, October as the first month, USD and EUR, machines outside GCP not tracked plus the source factory (4.6).
 
 ## 12. Owner Questions
 
-One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plus the draft's Q-C1 and the seats' SA question. Answer "all recommended", or name the ones you change.
+One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plus the draft's Q-C1 and the seats' SA question. **All seven answered** by the owner (HUM-10, t1 af4bbf51, relayed verbatim by the dispatcher c-002 on e35387eb).
 
 - **Q-1 Who sees which costs.**
   - A: the operator workspace (you, and whom you grant) sees the whole estate; in any other workspace, `biz_owner` and `admin` see only that workspace's costs.
   - B: every `biz_owner` and `admin` sees the whole estate.
   - **Panel: A (4 of 4).** One workspace's costs never show another's; the estate's costs are Csitea's.
-  - **Owner (HUM-10): A.** ("Only the Spool Hub admin and business owner see all of the costs.")
+  - **Owner: A.** msg `9bb60e73`: "Only the Spool Hub admin and business owner see all of the costs." Follow-up (may another workspace's owner/admin see that workspace's own costs?), msg `6fc78646`: "q1 - yes this is the plan".
 - **Q-2 Who reads the GCP billing export.** The per-env SAs cannot read billing today.
   - A: a dedicated reader SA in csi-spl-all with `roles/bigquery.dataViewer` on the export dataset only, its key on disk like the per-env keys.
   - B: grant billing read to an existing SA (the per-env SAs, or the csi-spl-all SA that already runs the satellite budget).
   - C: no automated read; you type the GCP total each month, and the daily figures stay estimates.
   - **Panel: A (4 of 4).** The smallest grant that works; B sees every project on the billing account, C loses the daily view.
+  - **Owner: A, widened to every spool project.** msg `cef45738`: "we will create a separate service in the background to read those , it must include the costs from the other projects as well ... the other spoo projects"; msg `c48f7aa2`: "all of the csi-spl-* projects".
 - **Q-3 Turning the billing export on.**
   - A: you run `do_gcp_billing_export_setup` with `DRY_RUN=0` by 2026-10-25.
   - B: later; the start date moves to the first of the month after it.
   - **Panel: A** (claude-2; no seat objected). November becomes the first measured month.
+  - **Owner: A.** msg `4671d819`: "we will iterate during October and start for real in Nov"; msg `6078c151`: "3A".
 - **Q-4 What the fleet's agents cost on the page.**
   - A: the subscription invoices are the cost; the token counts and their API list-price equivalent are shown beside them.
   - B: invoices only.
   - C: the API list-price equivalent only.
   - **Panel: A** (claude, claude-2). The invoice is what is paid; the equivalent shows what the same work would cost on API keys.
+  - **Owner: A.** msg `c48f7aa2`: "4 A".
 - **Q-5 When the month starts.**
   - A: 2026-11-01 with what is live; a late source is marked missing per day until it runs.
   - B: only when every automatic source writes complete rows, from the first of the next month.
   - **Panel: split (claude-2 A, claude B, mistral A or later). Editor recommends A.** You asked for at least a month of data; the coverage rows keep a partial month honest.
+  - **Owner: 2026-10.** msg `6078c151`: "5. 2026-10". October is the first month, with what is live and missing days marked; November is the first real month (Q-3). Section 6.
 - **Q-6 Report currency.**
   - A: USD; every row keeps its own amount and currency, converted at the invoice day's rate.
   - B: the billing account's currency, as GCP bills it.
   - **Panel: A** (claude, claude-2). One currency across 121, 122 and 123, and the original amount stays auditable.
+  - **Owner: both USD and EUR.** msg `6078c151`: "6, both USD and EUR". Every row keeps its original amount and currency (4.1).
 - **Q-7 Machines outside GCP.**
   - A: a hand-entered monthly row per box (hardware share, power, line).
   - B: out of scope, listed as "not tracked".
   - **Panel: A** (claude-2; no seat objected). You asked for "the whole" instance; a marked hand row is honest about its source.
+  - **Owner: B, plus a factory.** msg `6078c151`: "7. no supported for now - factory design patterns in the code to support for the future". Section 4.6.

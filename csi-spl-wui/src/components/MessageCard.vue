@@ -25,6 +25,7 @@
     :data-move-id="topicMenu ? (msg.task_id || undefined) : undefined"
     :data-move-ok="topicMenu && move.drag.value ? String(dropTarget) : undefined"
     :data-move-title="dropTarget ? title : undefined"
+    :data-last-msg-id="lastMsgId || undefined"
     @click="onClick"
     @dblclick="onDblClick"
     @keydown="onKey"
@@ -501,6 +502,7 @@ import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isTouchUi } from '~/utils/undo-timer.mjs'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
+import { isLatestMessage } from '~/utils/topic-archive'
 import {
   CARD_GRIP_STEP_ROWS,
   cardClipPx,
@@ -546,7 +548,9 @@ const props = defineProps<{
       topic (dragged onto a middle card, or Move to topic…). `channel` is the
       pane's channel for a row that names none, `opener` the card the pane
       was opened on (never movable), `topic` the pane's task. */
-  moveCtx?: { channel?: string | null, opener?: string, topic?: string } | null
+  moveCtx?: { channel?: string | null, opener?: string, topic?: string } | null,
+  /** The msg_id of the latest message in the topic. */
+  lastMsgId?: string
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -891,7 +895,7 @@ const swipeOn = computed(() => !editing.value && (mobile.value || touchUi.value)
 const swipeArchive = computed(() => {
   if (!swipeOn.value) return false
   if (props.topicMenu) return showTopicArchive.value
-  return inTopicPane.value && mayArchiveTopic(props.msg, editorId.value, access.me)
+  return inTopicPane.value && mayArchiveTopic(props.msg, editorId.value, access.me) && isLatestMessage(props.msg, props.lastMsgId || '')
 })
 /* HUM-10 (owner, t1 topics 6fc56905 / 3e073a95): in the topic view a reply's
    LEFT swipe hides it on this device (useHiddenCards; not archive, not

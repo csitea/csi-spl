@@ -8,6 +8,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   archivedRow,
+  isLatestMessage,
   isTopicCard,
   mayArchiveTopic,
   mayChangeTopic,
@@ -46,6 +47,34 @@ describe('who is offered Archive / Delete (owner rule, 2026-09-26)', () => {
     assert.equal(isTopicCard({ ...card, is_parent: 0 }), false)
     assert.equal(isTopicCard({ ...card, pending: true }), false)
     assert.equal(mayChangeTopic({ ...card, is_parent: 0 }, 'HUM-1', { role: 'admin' }), false)
+  })
+})
+
+describe('isLatestMessage', () => {
+  it('returns true if the message is the latest in the topic', () => {
+    const msg = { msg_id: 'm2' }
+    assert.equal(isLatestMessage(msg, 'm2'), true)
+  })
+  
+  it('returns false if the message is not the latest in the topic', () => {
+    const msg = { msg_id: 'm1' }
+    assert.equal(isLatestMessage(msg, 'm2'), false)
+  })
+  
+  it('returns false if the message has no msg_id', () => {
+    const msg = {}
+    assert.equal(isLatestMessage(msg, 'm2'), false)
+  })
+  
+  it('returns false if the message is null or undefined', () => {
+    assert.equal(isLatestMessage(null, 'm2'), false)
+    assert.equal(isLatestMessage(undefined, 'm2'), false)
+  })
+  
+  it('returns false if lastMsgId is null or undefined', () => {
+    const msg = { msg_id: 'm2' }
+    assert.equal(isLatestMessage(msg, null), false)
+    assert.equal(isLatestMessage(msg, undefined), false)
   })
 })
 

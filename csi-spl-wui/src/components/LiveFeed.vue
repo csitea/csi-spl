@@ -96,6 +96,7 @@
           :clip-mode="clipModeFor()"
           :topic-menu="topicMenuFor(it.msg)"
           :move-ctx="paneMoveCtx"
+          :last-msg-id="props.lastMsgId"
           :class="{ pending: it.msg.pending, 'msg--new': isNew(it.msg) }"
           :data-key="it.msg.msg_id"
           :data-pending="it.msg.pending ? 'true' : undefined"
@@ -231,6 +232,8 @@ const props = defineProps<{
       they carry a fading highlight, and a "N new" button jumps to the divider.
       null / undefined (a never-read feed, or a pane that opts out) shows none. */
   unreadBoundary?: { ts: string, id: string } | null
+  /** The msg_id of the latest message in the topic. */
+  lastMsgId?: string
   /** Spec 061 3.6 (lane L10): when a DM peer's reused agent id was seated by
       its current holder (view-v1 §4.1 boxes[].seated_at). The "new holder
       since" divider goes before that holder's first message. '' = none. */

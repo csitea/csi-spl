@@ -17,14 +17,14 @@
 // unaffected by the setting.
 
 /** Roles, besides the author, that may archive or delete any topic. */
-export const TOPIC_ADMIN_ROLES = Object.freeze(['biz_owner', 'admin'])
+const TOPIC_ADMIN_ROLES = Object.freeze(['biz_owner', 'admin'])
 
 /**
  * A card the menu may offer Archive / Delete on: a level-1 message that is
  * stored (not a pending echo). An absent is_parent is level 1 (spec 033:
  * the hub's default), so an old row still counts.
  */
-export function isTopicCard(msg) {
+function isTopicCard(msg) {
   if (!msg || typeof msg !== 'object') return false
   if (msg.pending || !msg.msg_id) return false
   return msg.is_parent !== 0
@@ -42,7 +42,7 @@ export function isTopicCard(msg) {
  * @param {string} [fallbackId]
  * @returns {string}
  */
-export function openingCardId(messages, fallbackId = '') {
+function openingCardId(messages, fallbackId = '') {
   const rows = Array.isArray(messages) ? messages : []
   for (const m of rows) {
     if (m && m.msg_id && m.is_parent !== 0) return String(m.msg_id)
@@ -55,7 +55,7 @@ export function openingCardId(messages, fallbackId = '') {
  * an admin. `me` is utils/access.mjs normalizeMe (null = not loaded yet: then
  * only the author test answers, so a menu never offers what the hub refuses).
  */
-export function mayChangeTopic(msg, viewerId, me) {
+function mayChangeTopic(msg, viewerId, me) {
   if (!isTopicCard(msg)) return false
   const id = String(viewerId || '')
   if (id && String(msg.from || '') === id) return true
@@ -71,7 +71,7 @@ export function mayChangeTopic(msg, viewerId, me) {
  * the author only (mayChangeTopic's author test). The hub re-checks every
  * write (topic-archive-v1 §1). Delete stays mayChangeTopic.
  */
-export function mayArchiveTopic(msg, viewerId, me) {
+function mayArchiveTopic(msg, viewerId, me) {
   if (!isTopicCard(msg)) return false
   if (!me || typeof me !== 'object') return mayChangeTopic(msg, viewerId, null)
   switch (me.topicArchivePolicy) {
@@ -91,7 +91,7 @@ export function mayArchiveTopic(msg, viewerId, me) {
  *   middle pane never draws a level-2 row, so the topic is gone from view.
  * - unarchive: nothing (the card comes back on the next read).
  */
-export function topicFrameDrops(frame) {
+function topicFrameDrops(frame) {
   const f = frame && typeof frame === 'object' ? frame : {}
   if (f.type === 'topic_deleted') {
     const ids = Array.isArray(f.msg_ids) ? f.msg_ids.map(String).filter(Boolean) : []
@@ -103,10 +103,21 @@ export function topicFrameDrops(frame) {
 }
 
 /**
+ * Is `msg` the latest message in the topic?
+ * @param {Object} msg - The message to check.
+ * @param {string} lastMsgId - The msg_id of the latest message in the topic.
+ * @returns {boolean}
+ */
+function isLatestMessage(msg, lastMsgId) {
+  if (!msg || typeof msg !== 'object' || !msg.msg_id) return false
+  return String(msg.msg_id) === String(lastMsgId)
+}
+
+/**
  * The tasks a topic_deleted frame ends: an open pane on one of them has
  * nothing left to show. The lobby task is never one (spec §2).
  */
-export function topicFrameTasks(frame, lobbyTaskId = '') {
+function topicFrameTasks(frame, lobbyTaskId = '') {
   const f = frame && typeof frame === 'object' ? frame : {}
   const lobby = String(lobbyTaskId || '')
   // 714c7028: a merge empties the source topic (from_task) - a pane open on it
@@ -121,7 +132,7 @@ export function topicFrameTasks(frame, lobbyTaskId = '') {
 }
 
 /** The catalogue key for a refused or failed archive / delete. */
-export function topicErrorKey(e, scope = 'feed.topic_delete') {
+function topicErrorKey(e, scope = 'feed.topic_delete') {
   const tok = e && typeof e === 'object' && 'token' in e ? String(e.token || '') : ''
   if (tok === 'not_allowed' || tok === 'forbidden') return `${scope}.error_forbidden`
   // 409 not_a_card: the caller acted on a level-1 line that is not the topic's
@@ -135,7 +146,7 @@ export function topicErrorKey(e, scope = 'feed.topic_delete') {
  * An archived card of GET /v1/view/archived as the Archive page draws it:
  * newest archived first (the hub's order), one line of body.
  */
-export function archivedRow(card) {
+function archivedRow(card) {
   const c = card && typeof card === 'object' ? card : {}
   const m = c.message && typeof c.message === 'object' ? c.message : {}
   const body = String(m.body || '')
@@ -155,7 +166,7 @@ export function archivedRow(card) {
 }
 
 /** `rows` without the cards a frame or an action removed. */
-export function withoutCards(rows, ids) {
+function withoutCards(rows, ids) {
   const gone = new Set((ids || []).map(String))
   return (Array.isArray(rows) ? rows : []).filter((r) => !gone.has(String(r && r.msg_id)))
 }
@@ -178,7 +189,7 @@ export function withoutCards(rows, ids) {
  * @param {string} [lobbyTaskId]
  * @returns {string[]}
  */
-export function rowCardCandidates(taskId, first, lobbyTaskId = '') {
+function rowCardCandidates(taskId, first, lobbyTaskId = '') {
   const task = String(taskId || '')
   if (!task || task === String(lobbyTaskId || '')) return []
   const out = []
@@ -198,7 +209,7 @@ export function rowCardCandidates(taskId, first, lobbyTaskId = '') {
  * @param {string} msgId the candidate asked
  * @param {string} [lobbyTaskId]
  */
-export function isRowTopic(size, taskId, msgId, lobbyTaskId = '') {
+function isRowTopic(size, taskId, msgId, lobbyTaskId = '') {
   const s = size && typeof size === 'object' ? size : {}
   const task = String(taskId || '')
   const cardTask = String(s.task_id || '')
@@ -214,7 +225,7 @@ export function isRowTopic(size, taskId, msgId, lobbyTaskId = '') {
  * @param {{ msg_id?: string, replies?: number, can_archive?: boolean, can_delete?: boolean } | null} size
  * @param {string} msgId
  */
-export function rowTopicState(size, msgId) {
+function rowTopicState(size, msgId) {
   if (!size || typeof size !== 'object') return { state: 'none', msgId: '', canArchive: false, canDelete: false, replies: 0 }
   return {
     state: 'ready',
@@ -230,7 +241,7 @@ export function rowTopicState(size, msgId) {
  * task and its message-rooted thread, every task a delete named. The lobby
  * task is never removed (a lobby card is one row of it).
  */
-export function topicFrameRows(frame, lobbyTaskId = '') {
+function topicFrameRows(frame, lobbyTaskId = '') {
   const f = frame && typeof frame === 'object' ? frame : {}
   const lobby = String(lobbyTaskId || '')
   let ids = []
@@ -248,7 +259,7 @@ export function topicFrameRows(frame, lobbyTaskId = '') {
 }
 
 /** `rows` (topic-list rows) without the tasks named. */
-export function withoutTopics(rows, taskIds) {
+function withoutTopics(rows, taskIds) {
   const gone = new Set((taskIds || []).map(String))
   return (Array.isArray(rows) ? rows : []).filter((r) => !gone.has(String(r && r.task_id)))
 }
@@ -259,7 +270,27 @@ export function withoutTopics(rows, taskIds) {
  * @param {unknown} data
  * @returns {string}
  */
-export function archiveStamp(data) {
+function archiveStamp(data) {
   const at = data && typeof data === 'object' ? /** @type {{ archived_at?: unknown }} */ (data).archived_at : ''
   return typeof at === 'string' ? at : ''
+}
+
+export {
+  TOPIC_ADMIN_ROLES,
+  archivedRow,
+  isLatestMessage,
+  isTopicCard,
+  mayArchiveTopic,
+  mayChangeTopic,
+  openingCardId,
+  topicErrorKey,
+  topicFrameDrops,
+  topicFrameTasks,
+  withoutCards,
+  archiveStamp,
+  isRowTopic,
+  rowCardCandidates,
+  rowTopicState,
+  topicFrameRows,
+  withoutTopics,
 }

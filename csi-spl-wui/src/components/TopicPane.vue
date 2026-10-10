@@ -41,6 +41,7 @@
         :loading-older="loadingOlder"
         :search="search"
         :last-live="lastLive"
+        :last-msg-id="lastLive?.msg_id"
         :empty-text="t('topic.empty')"
         :since-ms="sinceMs"
         @older="loadOlder"

@@ -8,10 +8,16 @@
 # @description a gap over COST_TICK_GAP_MAX s (default 600: the ticker was
 # @description down) is counted as that cap and reported. Used to split a
 # @description vendor subscription per agent, never as a price. Writes
-# @description <COST_DAY_DIR>/agent-hours-<DAY>.tsv.
+# @description <COST_DAY_DIR>/agent-hours-<DAY>.tsv; with ENV and DRY_RUN=0 it
+# @description posts the day as cost source agent_hours.<box> to the hub's
+# @description operator ingest (spl-cost-source.func.sh; the nightly
+# @description do_spl_cost_rollup_daily posts it itself).
 # @param DAY (optional) - UTC day YYYY-MM-DD, default yesterday
 # @param COST_DAY_DIR (optional) - default $SPOOL_ROOT/cost
+# @param ENV (optional) - dev or prd: the hub posted to (with DRY_RUN=0)
+# @param DRY_RUN (optional) - 1 (default): file only. 0: also post it
 # @example DAY=2026-10-09 ./run -a do_spl_cost_agent_hours_read
+# @example ENV=prd DRY_RUN=0 ./run -a do_spl_cost_agent_hours_read
 #------------------------------------------------------------------------------
 do_spl_cost_agent_hours_read() {
   local day="${DAY:-$(date -u -d yesterday +%F)}" root="${SPOOL_ROOT:-/var/spool-hub}" log prev dir out
@@ -25,6 +31,34 @@ do_spl_cost_agent_hours_read() {
   spl_cost_agent_hours_sum "$day" "${prev:-}" < "$log" > "$out.$$" && mv -f "$out.$$" "$out" || return 1
   grep '^#' "$out"
   echo "OK wrote $out"
+  spl_cost_reader_post agent_hours "$day" "$out" spl_cost_agent_hours_lines
+}
+
+# Cost source agent_hours (spec 123 4.6, spl-cost-source.func.sh): the lease
+# tick's day log of DAY, read by the action above and mapped to the
+# contract's rows. Nothing posted here: the rollup posts.
+spl_cost_source_agent_hours() {
+  local root="${SPOOL_ROOT:-/var/spool-hub}"
+  COST_POST=0 DAY="$1" do_spl_cost_agent_hours_read >"$2.log" || return 1
+  spl_cost_agent_hours_lines "${COST_DAY_DIR:-$root/cost}/agent-hours-$1.tsv" "$2"
+}
+
+# spl_cost_agent_hours_lines FILE OUT: an agent-hours day file as the source
+# contract's OUT.lines (vendor, agent, -, agent_seconds, seconds, agent_run)
+# and OUT.cov: partial when a tick gap was capped (the ticker was down).
+spl_cost_agent_hours_lines() {
+  local root="${SPOOL_ROOT:-/var/spool-hub}" day id secs capped
+  [[ -r "$1" ]] || { echo "no agent-hours day file $1" >&2; return 1; }
+  while IFS=$'\t' read -r day id _ secs; do
+    [[ "$day" == day || "$day" == \#* || -z "$id" ]] && continue
+    printf '%s\t%s\t-\tagent_seconds\t%s\tagent_run\n' "$(spl_cost_agent_vendor "$root" "$id")" "$id" "$secs"
+  done <"$1" >"$2.lines"
+  capped="$(sed -n 's/^# agent-hours .* gaps_capped=\([0-9]*\) .*/\1/p' "$1")"
+  if [[ "${capped:-0}" != 0 ]]; then
+    printf 'partial\t%s tick gap(s) over the cap: the lease ticker was down, those gaps count as the cap\n' "$capped" >"$2.cov"
+  else
+    printf 'ok\n' >"$2.cov"
+  fi
 }
 
 # stdin: the day log. The ticks are its distinct epochs, in order; a run

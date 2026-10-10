@@ -20,6 +20,7 @@ mkdir -p "$R/dispatch"
 F="$PROJ_ROOT/src/bash/run"
 run_read() {
   env SPOOL_ROOT="$R" COST_DAY_DIR="$T/cost" DAY="$DAY" "$@" bash -c '
+    source "$0/../../../lib/bash/funcs/spl-cost-source.func.sh"
     source "$0/spl-cost-tokens-read.func.sh"; source "$0/spl-cost-agent-hours-read.func.sh"
     do_spl_cost_agent_hours_read' "$F" 2>&1
 }

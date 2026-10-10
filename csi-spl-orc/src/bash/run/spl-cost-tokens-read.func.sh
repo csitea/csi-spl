@@ -9,16 +9,21 @@
 # @description skipped; ids listed in COST_METERED_IDS (the hub's metered
 # @description turns, spec 121 usage_events, not built yet) are skipped.
 # @description Other vendors' agents seen that day get one "unmetered" row,
-# @description never 0. Writes <COST_DAY_DIR>/tokens-<DAY>.tsv; the hub ingest
-# @description (spec 123 lane 4) is not built, so nothing is posted. Stdout
-# @description carries counts and ratios only, never a token total.
+# @description never 0. Writes <COST_DAY_DIR>/tokens-<DAY>.tsv; with ENV and
+# @description DRY_RUN=0 it posts the day as cost source fleet_tokens.<box> to
+# @description the hub's operator ingest (spl-cost-source.func.sh; the nightly
+# @description do_spl_cost_rollup_daily posts it itself). Stdout carries
+# @description counts and ratios only, never a token total.
 # @param DAY (optional) - UTC day YYYY-MM-DD, default yesterday
 # @param COST_AGENT_USERS (optional) - users whose ~/.claude/projects are
 # @param   read, default SPOOL_AGENT_USER (else $USER); COST_TRANSCRIPT_DIRS
 # @param   (space-separated dirs) replaces them, read as the current user
 # @param COST_DAY_DIR (optional) - default $SPOOL_ROOT/cost
 # @param COST_METERED_IDS (optional) - file, one metered message id per line
+# @param ENV (optional) - dev or prd: the hub posted to (with DRY_RUN=0)
+# @param DRY_RUN (optional) - 1 (default): file only. 0: also post it
 # @example DAY=2026-10-09 ./run -a do_spl_cost_tokens_read
+# @example ENV=prd DRY_RUN=0 ./run -a do_spl_cost_tokens_read
 #------------------------------------------------------------------------------
 do_spl_cost_tokens_read() {
   local day="${DAY:-$(date -u -d yesterday +%F)}" root="${SPOOL_ROOT:-/var/spool-hub}" dir out rows
@@ -34,7 +39,31 @@ do_spl_cost_tokens_read() {
     spl_cost_tokens_unmetered "$day" "$root"
   } > "$out.$$" && mv -f "$out.$$" "$out" || return 1
   spl_cost_tokens_summary "$out"
-  echo "OK wrote $out ($(grep -vc '^#' "$out") lines incl. header); hub ingest not built (spec 123 lane 4): file only"
+  echo "OK wrote $out ($(grep -vc '^#' "$out") lines incl. header)"
+  spl_cost_reader_post fleet_tokens "$day" "$out" spl_cost_tokens_lines
+}
+
+# Cost source fleet_tokens (spec 123 4.6, spl-cost-source.func.sh): this
+# box's transcripts of DAY, read by the action above and mapped to the
+# contract's rows. Nothing posted here: the rollup posts.
+spl_cost_source_fleet_tokens() {
+  local root="${SPOOL_ROOT:-/var/spool-hub}"
+  COST_POST=0 DAY="$1" do_spl_cost_tokens_read >"$2.log" || return 1
+  spl_cost_tokens_lines "${COST_DAY_DIR:-$root/cost}/tokens-$1.tsv" "$2"
+}
+
+# spl_cost_tokens_lines FILE OUT: a tokens day file as the source contract's
+# OUT.lines (vendor, agent, model, <kind>.<service_tier>, units, transcript)
+# and OUT.cov: partial while another vendor's agent is unmetered, never 0.
+spl_cost_tokens_lines() {
+  [[ -r "$1" ]] || { echo "no tokens day file $1" >&2; return 1; }
+  awk -F'\t' -v OFS='\t' -v cov="$2.cov" '
+    /^#/ || $1 == "day" || NF < 8 { next }
+    $7 == "unmetered" { print $3, $2, "-", "unmetered", 0, "transcript"; unm++; next }
+    { tier = tolower($5); gsub(/[^a-z0-9_]+/, "_", tier); if (tier == "" || tier == "_") tier = "unknown"
+      print $3, $2, $4, $6 "." tier, $7, "transcript" }
+    END { if (unm > 0) printf "partial\t%d agent(s) of another vendor unmetered: no usage record measured yet (spec 123 4.3)\n", unm > cov
+          else print "ok" > cov }' "$1" >"$2.lines"
 }
 
 # What may go to a log: counts and the per-row / per-id ratio per kind,

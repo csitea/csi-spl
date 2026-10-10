@@ -50,7 +50,7 @@ echo msg_M > "$T/metered"
 run_read() {
   local f="$1"; shift
   env SPOOL_ROOT="$R" COST_TRANSCRIPT_DIRS="$P" COST_DAY_DIR="$T/cost" DAY="$DAY" "$@" bash -c '
-    source "$0"; do_spl_cost_tokens_read' "$f" 2>&1
+    source "$1/lib/bash/funcs/spl-cost-source.func.sh"; source "$0"; do_spl_cost_tokens_read' "$f" "$PROJ_ROOT" 2>&1
 }
 F="$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh"
 OUT="$T/cost/tokens-$DAY.tsv"

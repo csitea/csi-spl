@@ -8,6 +8,28 @@ if [ -f "$base_dir/spl-lane-handover.func.sh" ]; then
   . "$base_dir/spl-lane-handover.func.sh"
 fi
 
+_spl_lane_handover_agy_conv_id() {
+  local id="$1" conv_id="${CONVERSATION_ID:-}"
+  if [ -z "$conv_id" ]; then
+    local harness_pids agy_pid=""
+    harness_pids="$(pgrep -f "spool-harness.sh.*--as '$id'" || true)"
+    if [ -n "$harness_pids" ]; then
+      for hp in $harness_pids; do
+        agy_pid="$(pgrep -P "$hp" -f "agy " | head -n1 || true)"
+        [ -n "$agy_pid" ] && break
+      done
+    fi
+
+    if [ -n "$agy_pid" ]; then
+      conv_id="$(ps -p "$agy_pid" -o args= | grep -oP -- '--conversation \K[a-f0-9-]+' || true)"
+      if [ -z "$conv_id" ]; then
+        conv_id="$(sudo -n -u "${SPOOL_AGENT_USER}" lsof -p "$agy_pid" -Fn 2>/dev/null | grep -oP '\.gemini/antigravity-cli/conversations/\K[a-f0-9-]+' | head -n1 || true)"
+      fi
+    fi
+  fi
+  printf "%s" "$conv_id"
+}
+
 do_spl_lane_handover_agy() {
   local id="${ID:-}" box="${BOX:-}" dry="${DRY_RUN:-1}" wip_dir="${WIP_WORKTREE:-}"
   if [ -z "$id" ] || [ -z "$box" ]; then
@@ -44,24 +66,8 @@ do_spl_lane_handover_agy() {
   local agent_home
   agent_home="$(getent passwd "${SPOOL_AGENT_USER}" | cut -d: -f6)"
   
-  local conv_id="${CONVERSATION_ID:-}"
-  if [ -z "$conv_id" ]; then
-    local harness_pids agy_pid=""
-    harness_pids="$(pgrep -f "spool-harness.sh.*--as '$id'" || true)"
-    if [ -n "$harness_pids" ]; then
-      for hp in $harness_pids; do
-        agy_pid="$(pgrep -P "$hp" -f "agy " | head -n1 || true)"
-        [ -n "$agy_pid" ] && break
-      done
-    fi
-
-    if [ -n "$agy_pid" ]; then
-      conv_id="$(ps -p "$agy_pid" -o args= | grep -oP -- '--conversation \K[a-f0-9-]+' || true)"
-      if [ -z "$conv_id" ]; then
-        conv_id="$(sudo -n -u "${SPOOL_AGENT_USER}" lsof -p "$agy_pid" -Fn 2>/dev/null | grep -oP '\.gemini/antigravity-cli/conversations/\K[a-f0-9-]+' | head -n1 || true)"
-      fi
-    fi
-  fi
+  local conv_id
+  conv_id="$(_spl_lane_handover_agy_conv_id "$id")"
   
   if [ -z "$conv_id" ]; then
     echo "ERROR: could not resolve conversation id for agent $id" >&2
@@ -110,7 +116,7 @@ do_spl_lane_handover_agy() {
     sudo -n -u "${SPOOL_BOX_USER}" ssh -q "$dest" "sudo -n -u root chown -R ${SPOOL_AGENT_USER}:${SPOOL_AGENT_USER} ${session_dir} ${agent_home}/.gemini/antigravity-cli/conversations/${conv_id}.db*"
     
     # 4. Resume step
-    # Start the new agy agent on the target box via the spawn path (spawn-agy.sh, SPAWN_RESUME_FLAG=--conversation <conv-id>), worktree on wip/handover/<id>; as ai-usr, inside tmux, like every launcher.
+    # Start the new agy agent on the target box via the spawn path (spawn-agy.sh, SPAWN_RESUME_FLAG=--conversation <conv-id>), worktree on wip/handover/<id>; as SPOOL_AGENT_USER, inside tmux, like every launcher.
     echo "INFO: Spawning agy agent on $box..."
     # We must run it as the OWNER or BOX user, not agent user, because spawn-window drops privileges
     sudo -n -u "${HO_OWNER:-$SPOOL_BOX_USER}" ssh -q "$dest" "bash $scripts/spawn-window.sh agy $id $newwt $rbrief handover --conversation $conv_id" >/dev/null 2>&1 || { echo "FATAL spawn failed" >&2; return 1; }

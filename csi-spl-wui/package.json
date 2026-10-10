@@ -33,7 +33,7 @@
     "@types/markdown-it": "^14",
     "@types/node": "^22.13.0",
     "puppeteer-core": "^25.0.4",
-    "typescript": "^5.7.0",
+    "typescript": "^7.0.2",
     "vue-tsc": "^2.2.0"
   },
   "engines": {

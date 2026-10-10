@@ -19,7 +19,8 @@
 # @description   lint-compose     docker compose config -q --no-interpolate (schema)
 # @description   lint-gitleaks    15's gitleaks + .gitleaks.toml over the PUSHED commits only
 # @description   lint-py          touched .py: compile + ruff E9,F + a security subset
-# @description                    (S102 S113 S301 S307 S506 S602 S604 S605); python
+# @description                    (S102 S113 S301 S307 S506 S602 S604 S605) + ruff format
+# @description                    --check (the formatter's shape, ruff defaults); python
 # @description                    heredocs in touched .sh/.yml compile (py-heredoc-check.py)
 # @description   lint-tf          touched .tf: terraform fmt -check (parses the HCL too);
 # @description                    touched .tfvars: HCL parse (tpl-gen renders them unformatted)
@@ -269,7 +270,7 @@ _ppl_repro() {  # <scanner>
     lint-gitleaks) echo "cd csi-spl-iac && SEC_SCAN=secrets SEC_SCAN_GITLEAKS_LOG_OPTS='$(git -C "${_PP_TOP:-.}" merge-base "${PRE_PUSH_BASE:-origin/master}" HEAD 2>/dev/null)..HEAD' ./run -a do_sec_scan"; return 0 ;;
     lint-wui-syntax) echo "cd csi-spl-wui && node ../csi-spl-iac/src/bash/scripts/wui-syntax-check.mjs $(printf '%s\n' "$sel" | sed 's|^csi-spl-wui/||' | paste -sd' ' -)"; return 0 ;;
     lint-tf) echo "terraform fmt -check -diff $(printf '%s\n' "$sel" | grep '\.tf$' | paste -sd' ' -)"; return 0 ;;
-    lint-py) echo "ruff check --isolated --select $_PPL_RUFF_RULES $(printf '%s\n' "$sel" | grep '\.py$' | paste -sd' ' -); python3 csi-spl-iac/src/bash/scripts/py-heredoc-check.py $(printf '%s\n' "$sel" | grep -v '\.py$' | paste -sd' ' -)"; return 0 ;;
+    lint-py) echo "ruff check --isolated --select $_PPL_RUFF_RULES $(printf '%s\n' "$sel" | grep '\.py$' | paste -sd' ' -); ruff format --isolated --diff $(printf '%s\n' "$sel" | grep '\.py$' | paste -sd' ' -); python3 csi-spl-iac/src/bash/scripts/py-heredoc-check.py $(printf '%s\n' "$sel" | grep -v '\.py$' | paste -sd' ' -)"; return 0 ;;
     lint-wui-lock) echo "cd csi-spl-wui && pnpm install --frozen-lockfile --lockfile-only --ignore-scripts"; return 0 ;;
     lint-migration|lint-compose|lint-syntax) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
     lint-mdlinks) echo "python3 csi-spl-iac/src/bash/scripts/md-rel-links.py $(printf '%s\n' "$sel" | paste -sd' ' -)"; return 0 ;;
@@ -303,6 +304,16 @@ _ppl_tmp_files() {  # <tree>
     if [[ "$f" == *.tst.sh || "$f" == *_test.go ]]; then echo "$f"; continue; fi
     [[ "$f" == csi-spl-wui/tests/e2e/*.mjs && "$f" != csi-spl-wui/tests/e2e/*/* ]] && echo "$f"
   done <<<"$src"
+}
+
+# lint-py's ruff legs on the touched .py: the rule set, then the formatter's
+# shape (ruff format --check, ruff defaults). Both run; either one fails it.
+_ppl_ruff() {  # <tree> <file.py>...
+  local tree="$1" rc=0; shift
+  ( cd "$tree" && ruff check --no-cache --isolated --target-version py310 --output-format concise \
+      --select "$_PPL_RUFF_RULES" "$@" ) || rc=1
+  ( cd "$tree" && ruff format --no-cache --isolated --target-version py310 --check "$@" ) || rc=1
+  return "$rc"
 }
 
 # A lint part on <tree>: rc 0 clean, non-zero findings. On the base tree it
@@ -349,8 +360,7 @@ for f in sys.argv[1:]:
         bad += 1
         print("%s:%s: %s" % (f, e.lineno, e.msg))
 sys.exit(1 if bad else 0)' "${pys[@]}" ) || rc=1
-        ( cd "$tree" && ruff check --no-cache --isolated --target-version py310 --output-format concise \
-            --select "$_PPL_RUFF_RULES" "${pys[@]}" ) || rc=1
+        _ppl_ruff "$tree" "${pys[@]}" || rc=1
       fi
       if [[ "${#hds[@]}" -gt 0 ]]; then
         ( cd "$tree" && python3 "$(_ppl_scripts)/py-heredoc-check.py" "${hds[@]}" ) || rc=1

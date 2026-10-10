@@ -33,7 +33,8 @@
 #  17. a docker-compose file with an unknown service key -> lint-compose FAIL
 #      (when docker compose is installed)
 #  20. lint-py (real ruff, when installed): an undefined name in a new .py,
-#      and a python heredoc that does not compile in a .sh, are REFUSED
+#      a python heredoc that does not compile in a .sh, and a .py that is not
+#      in ruff format's shape are REFUSED; the formatted .py passes
 #  21. lint-tf (real terraform, when installed): an unformatted .tf and a
 #      .tfvars that does not parse are REFUSED; a formatted .tf passes
 #  22. lint-sigpipe: a pushed .sh with `| grep -q` under pipefail is REFUSED
@@ -353,6 +354,16 @@ if [[ -n "$REAL_RUFF" ]]; then
   rc="$(PP_PATH="$RF:/usr/local/bin:/usr/bin:/bin" lint)"
   [[ "$rc" == 1 && "$(verdict lint-py)" == FAIL ]] \
     && pass "20b. a python heredoc that does not compile in a .sh is REFUSED" || fail "20b. heredoc" "rc=$rc verdict=$(verdict lint-py)"
+  new_repo
+  printf "x = {'a':1}\n" >"$R/csi-spl-orc/src/bash/run/f.py"; commit unformatted
+  rc="$(PP_PATH="$RF:/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$rc" == 1 && "$(verdict lint-py)" == FAIL ]] && grep -q 'would be reformatted' "$T/out" \
+    && pass "20c. a pushed .py not in ruff format's shape is REFUSED" || fail "20c. ruff format" "rc=$rc verdict=$(verdict lint-py)"
+  new_repo
+  printf 'x = {"a": 1}\n' >"$R/csi-spl-orc/src/bash/run/f.py"; commit formatted
+  rc="$(PP_PATH="$RF:/usr/local/bin:/usr/bin:/bin" lint)"
+  [[ "$(verdict lint-py)" == PASS ]] \
+    && pass "20d. the same .py in ruff format's shape passes lint-py" || fail "20d. ruff format control" "rc=$rc verdict=$(verdict lint-py)"
 else
   echo "INFO: no ruff on this host -- leg 20 not run (./run -a do_install_lint_tools)"
 fi

@@ -13,9 +13,11 @@
 # @description entry. A source that fails, or is listed but not registered,
 # @description is posted `missing` with the reason, never 0, and the others
 # @description still run. Stdout and the log carry counts and states, never a
-# @description cost or a token total (HUM-10 only, msg 02803231).
-# @description DRY_RUN=1 (default): read every source, post nothing, and the
-# @description gcp source reads without writing.
+# @description cost or a token total (HUM-10 only, msg 02803231). Last, it
+# @description prunes the lease tick's day logs (dispatch/agent-run-<day>.log,
+# @description ~0.5 MB a day) older than cnf env.cost.day_log_keep_days.
+# @description DRY_RUN=1 (default): read every source, post nothing, prune
+# @description nothing, and the gcp source reads without writing.
 # @param ENV - required: dev or prd, the hub written
 # @param DAY (optional) - UTC day YYYY-MM-DD, default yesterday (UTC)
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -57,10 +59,37 @@ do_spl_cost_rollup_daily() {
     spl_cost_post "$name.$box" "$day" "$run" "$tmp/$name" || n_failed=$((n_failed + 1))
   done
   rm -rf "$tmp"
+  spl_cost_prune_day_logs "$day" "$(yq -r '.env.cost.day_log_keep_days // ""' "$SPL_CNF")" "$dry"
   st=ok
   (( n_partial + n_missing > 0 )) && st=partial
   do_log "INFO SUMMARY day=$day box=$box sources=${#names[@]} ok=$n_ok partial=$n_partial missing=$n_missing self=$n_self post_failed=$n_failed day_state=$st"
   if (( n_failed > 0 )); then do_log "FATAL $n_failed source day(s) were not posted to the $ENV hub"; return 1; fi
   if [[ "$dry" == 1 ]]; then do_log "OK DRY_RUN read ${#names[@]} source(s), posted nothing. DRY_RUN=0 posts them."; return 0; fi
   do_log "OK the $day cost rollup of $box is in the $ENV hub (run $run)"
+}
+
+# spl_cost_prune_day_logs DAY KEEP DRY: remove the lease tick's day logs
+# ($SPOOL_ROOT/dispatch/agent-run-<day>.log) of the days before the KEEP days
+# ending DAY (DRY 1: count them only). The day is read from the file name,
+# never the mtime; a newer day (today's log) always stays. KEEP is at least 2:
+# the agent-hours read of DAY needs the day before. Never fails the rollup.
+spl_cost_prune_day_logs() {
+  local day="$1" keep="$2" dry="$3" root="${SPOOL_ROOT:-/var/spool-hub}" cut f d n=0 kept=0
+  if [[ ! "$keep" =~ ^[0-9]+$ ]] || (( keep < 2 )); then
+    do_log "WARNING env.cost.day_log_keep_days must be 2 or more, got '$keep': no day log pruned"
+    return 0
+  fi
+  cut="$(date -u -d "$day -$((keep - 1)) day" +%F)"
+  for f in "$root"/dispatch/agent-run-*.log; do
+    [[ -e "$f" ]] || continue
+    d="${f##*/agent-run-}"; d="${d%.log}"
+    [[ "$d" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || continue
+    if [[ "$d" < "$cut" ]]; then
+      n=$((n + 1))
+      [[ "$dry" == 0 ]] && { rm -f -- "$f" || do_log "WARNING cannot remove $f"; }
+    else
+      kept=$((kept + 1))
+    fi
+  done
+  do_log "INFO day logs: $([[ "$dry" == 0 ]] && echo removed || echo 'DRY_RUN would remove') $n before $cut (keep $keep days), kept $kept"
 }

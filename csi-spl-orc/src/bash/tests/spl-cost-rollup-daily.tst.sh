@@ -30,6 +30,9 @@
 #  11. the output carries counts and states, never a token total
 #  12. the box readers post their own day file with ENV and DRY_RUN=0 (as
 #      <name>.<box>), and say "file only" without
+#  13. the lease tick's day logs older than env.cost.day_log_keep_days are
+#      pruned (by the day in the name, never the mtime); DRY_RUN prunes
+#      nothing; control: the rollup without the prune keeps them all
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -56,7 +59,7 @@ echo msg_M > "$T/metered"
 
 # The cnf the rollup reads (env.cost), and a fake csi-spl-iac whose estate
 # reader windows env.cost.reread_days days ending DAY over $T/export into $T/gcp.db.
-cnf() { printf 'env:\n  cost:\n    reread_days: %s\n    sources: [%s]\n' "$1" "$2" > "$T/cnf.yaml"; }
+cnf() { printf 'env:\n  cost:\n    reread_days: %s\n    sources: [%s]\n    day_log_keep_days: %s\n' "$1" "$2" "${3:-}" > "$T/cnf.yaml"; }
 cat > "$T/iac/run" <<'EOF'
 #!/bin/bash
 [[ "$2" == do_spl_estate_cost_read ]] || exit 9
@@ -238,6 +241,38 @@ o1="$(reader do_spl_cost_tokens_read ENV=prd DRY_RUN=0)"; o2="$(reader do_spl_co
 [[ "$o1" == *"OK posted fleet_tokens.box-a $DAY"* && "$o2" == *"OK posted agent_hours.box-a $DAY"* &&
    "$(posted fleet_tokens.box-a '.run_id')" == *'"fleet_tokens-read-box-a-'* && "$(unit agent_hours.box-a c-101 agent_seconds)" == 160 ]] &&
   pass "12. with ENV and DRY_RUN=0 each reader posts its day as <name>.<box>" || fail "12. $o1 / $o2"
+
+# 13. the day-log prune ---------------------------------------------------------------
+D="$R/dispatch"
+for d in 2026-08-01 2026-08-08 2026-08-09 2026-10-06 2026-10-07 2026-10-10; do echo "1000 c-101 run" > "$D/agent-run-$d.log"; done
+touch "$D/agent-run-2026-08-01.log"; echo keep > "$D/agent-run.tsv"; echo keep > "$D/agent-run-notaday.log"
+logs() { (cd "$D" && ls agent-run* | tr '\n' ' '); }
+before="$(logs)"
+cnf 5 "agent_hours" 3
+out="$(run_rollup)"
+[[ "$(logs)" == "$before" && "$out" == *"DRY_RUN would remove 4 before 2026-10-07 (keep 3 days), kept 4"* ]] &&
+  pass "13. DRY_RUN: the 4 logs before the 3-day window are counted, none removed" || fail "13. dry: $out"
+cp "$PROJ_ROOT/src/bash/run/spl-cost-rollup-daily.func.sh" "$T/noprune.func.sh"
+python3 - "$T/noprune.func.sh" <<'PY'
+import sys; p = sys.argv[1]; s = open(p).read()
+old = '  spl_cost_prune_day_logs "$day"'
+assert old in s; open(p, 'w').write(s.replace(old, '  : spl_cost_prune_day_logs "$day"'))
+PY
+ROLLUP_FILE="$T/noprune.func.sh" run_rollup DRY_RUN=0 >/dev/null
+[[ "$(logs)" == "$before" ]] && pass "13. control: without the prune every day log stays" || fail "13. control: $(logs)"
+cnf 5 "agent_hours" 62
+out="$(run_rollup DRY_RUN=0)"
+[[ ! -e "$D/agent-run-2026-08-01.log" && ! -e "$D/agent-run-2026-08-08.log" && -e "$D/agent-run-2026-08-09.log" && "$out" == *"removed 2 before 2026-08-09 (keep 62 days)"* ]] &&
+  pass "13. keep 62 (cnf): the logs before 2026-08-09 go (a fresh mtime does not save one), 08-09 stays" || fail "13. 62: $out $(logs)"
+cnf 5 "agent_hours" 3
+out="$(run_rollup DRY_RUN=0)"
+[[ "$(logs)" == "agent-run-2026-10-07.log agent-run-2026-10-08.log agent-run-2026-10-09.log agent-run-2026-10-10.log agent-run-notaday.log agent-run.tsv " &&
+   "$(posted agent_hours.box-a '.coverage.state')" == '"ok"' ]] &&
+  pass "13. keep 3: the window ending DAY, the newer day and the other files stay; the read of DAY still works" || fail "13. 3: $out $(logs)"
+cnf 5 "agent_hours" 1
+out="$(run_rollup DRY_RUN=0)"
+[[ "$(logs)" == *"agent-run-2026-10-08.log"* && "$out" == *"must be 2 or more"* ]] &&
+  pass "13. keep 1 is refused (the read of DAY needs the day before), nothing pruned" || fail "13. 1: $out"
 
 echo "spl-cost-rollup-daily: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

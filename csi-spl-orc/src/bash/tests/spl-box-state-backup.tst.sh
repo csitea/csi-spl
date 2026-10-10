@@ -10,6 +10,10 @@
 #   3. the dry run uploads nothing and changes no source file
 #   4. object naming: <box>/<YYYY-MM-DD>/<box>-<stamp>.tar.zst in the cnf
 #      bucket, uploaded as the project SA impersonating the writer SA
+#   6. owner rule (csitea fc0119cd msg 072a9990, "keys and secrets stay on
+#      the box"): a 0600 file under a home's dot-dirs and a NetVisor / bank
+#      credential file stay out and refuse an upload in the scan, naming the
+#      path only; the allow-listed 0600 transcripts go in
 #   5. the key scan: a planted archive (key material, or an excluded name)
 #      refuses the upload with exit 3, names the member, never prints the key
 #------------------------------------------------------------------------------
@@ -115,6 +119,39 @@ PRE='spl_box_state_pack() { cp "$PLANT" "$1"; };' run_bk DRY_RUN=0 PLANT="$T/pla
   && pass "5. a planted archive refuses the upload: exit 3, no gcloud call" || fail "5. refusal: rc=$rc $(cat "$T/calls.log" "$T/out")"
 grep -q MIIsecretbytes "$T/out" && fail "5. the refusal printed key bytes" || pass "5. ...and the log holds no key bytes"
 [[ -z "$(ls -A "$T/tmp")" ]] && pass "5. ...and the refused archive is removed" || fail "5. left: $(ls -A "$T/tmp")"
+
+# 6 -------------------------------------------------------------------------
+H="$T/homes/u1"
+mkdir -p "$H/.config/app" "$H/.claude/projects/-x" "$H/.local/share/fin" "$H/notes"
+echo 'cfg' >"$H/.config/app/ok.conf"
+echo 'SECRET-BYTES-0600' >"$H/.config/app/secret.conf"; chmod 600 "$H/.config/app/secret.conf"
+echo 'creds' >"$H/.local/share/fin/session.dat"; chmod 600 "$H/.local/share/fin/session.dat"
+echo 'transcript' >"$H/.claude/projects/-x/t1.jsonl"; chmod 600 "$H/.claude/projects/-x/t1.jsonl"
+echo 'NV-BYTES' >"$H/notes/NetVisor-api.json"
+echo 'BK-BYTES' >"$H/notes/bank_credentials.txt"
+echo 'plain 0600 note' >"$H/notes/todo.txt"; chmod 600 "$H/notes/todo.txt"
+HOMES="$T/homes/*"
+run_bk BOX_STATE_SOURCES="$H" BOX_STATE_HOMES="$HOMES" BOX_STATE_KEEP="$T/h.tar.zst"; rc=$?
+hn="$(zstd -dcq "$T/h.tar.zst" | tar -tf -)"
+[[ $rc -eq 0 ]] && grep -q 'dropped: 0600=2 cred=2$' "$T/out" && pass "6. two 0600 dot-dir files and two credential files dropped" || fail "6. rc=$rc $(cat "$T/out")"
+for out in .config/app/secret.conf .local/share/fin/session.dat NetVisor-api.json bank_credentials.txt; do
+  grep -qF "$out" <<<"$hn" && fail "6. a secret went in: $out" || pass "6. left out: $out"
+done
+for keep in .claude/projects/-x/t1.jsonl .config/app/ok.conf notes/todo.txt; do
+  grep -qF "$keep" <<<"$hn" && pass "6. kept: $keep (allow-listed, not 0600, or not in a dot-dir)" || fail "6. missing $keep: $hn"
+done
+run_bk BOX_STATE_SOURCES="$H" BOX_STATE_KEEP="$T/h2.tar.zst"; rc=$?
+grep -qF '.config/app/secret.conf' <<<"$(zstd -dcq "$T/h2.tar.zst" | tar -tf -)" && pass "6. CONTROL: outside BOX_STATE_HOMES the 0600 rule does not fire" \
+  || fail "6. control: $(cat "$T/out")"
+tar -cf - -C / "${H#/}/notes" 2>/dev/null | zstd -q -o "$T/h3.tar.zst"
+out="$( (BOX_STATE_HOMES="$HOMES" bash "$PACK" scan "$T/h2.tar.zst"; BOX_STATE_HOMES="$HOMES" bash "$PACK" scan "$T/h3.tar.zst") )"; rc=$?
+[[ $rc -eq 3 ]] && grep -q "^HIT ${H#/}/.config/app/secret.conf 0600$" <<<"$out" && grep -q "^HIT ${H#/}/notes/NetVisor-api.json cred$" <<<"$out" \
+  && grep -q "^HIT ${H#/}/notes/bank_credentials.txt cred$" <<<"$out" && ! grep -q 't1.jsonl' <<<"$out" \
+  && pass "6. scan: a 0600 dot-dir file and credential names are HITs; the allow-listed transcript is not" || fail "6. scan: rc=$rc $out"
+PRE='spl_box_state_pack() { cp "$PLANT" "$1"; };' run_bk DRY_RUN=0 PLANT="$T/h2.tar.zst" BOX_STATE_HOMES="$HOMES"; rc=$?
+[[ $rc -eq 3 && ! -s "$T/calls.log" ]] && grep -q 'upload REFUSED' "$T/out" && grep -q "HIT ${H#/}/.config/app/secret.conf 0600" "$T/out" \
+  && pass "6. such an archive refuses the upload (exit 3), naming the path" || fail "6. refusal: rc=$rc $(cat "$T/calls.log" "$T/out")"
+grep -qE 'SECRET-BYTES|NV-BYTES|BK-BYTES' "$T/out" && fail "6. the refusal printed file content" || pass "6. ...never the content"
 
 echo "spl-box-state-backup: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

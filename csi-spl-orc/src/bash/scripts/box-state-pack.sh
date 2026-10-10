@@ -10,6 +10,10 @@
 #         path   any .gcp / .ssh / .nano-banana* component, .github/token,
 #                .spool-hub/tenants, a file named .env, *.pem *.key *.p12,
 #                key-*.json, and every <skip path> (absolute)
+#         cred   a NetVisor or bank credential file, by name, anywhere
+#         0600   a file of mode 0600 under a home's dot-dirs (owner rule
+#                csitea fc0119cd msg 072a9990: keys and secrets stay on the
+#                box), unless it matches BOX_STATE_ALLOW_0600
 #         key    a file holding key or token MATERIAL ($BOX_STATE_KEY_RE):
 #                a PEM private key, a root_private_key / private_key_id value,
 #                a GitHub, Slack, Anthropic or Google API token. A word such
@@ -17,7 +21,7 @@
 #       A file this user cannot read is a `DROP <path> unreadable`.
 #   box-state-pack.sh scan <archive.tar.zst>
 #       exit 0: no member name is excluded and no member holds key material;
-#       exit 3: `HIT <member> name|key` per offending member (the member's
+#       exit 3: `HIT <member> name|cred|0600|key` per offending member (the member's
 #       NAME only: the content is never printed); exit 2: usage or a broken
 #       archive.
 #   box-state-pack.sh key-re
@@ -33,8 +37,33 @@ export LC_ALL=C
 BOX_STATE_KEY_RE='-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----|root_private_key[\\"]*[[:space:]]*[:=][[:space:]]*[\\"]*[A-Za-z0-9+/_=-]{32,}|private_key_id[\\"]*[[:space:]]*:[[:space:]]*[\\"]*[0-9a-f]{40}|gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{60,}|xox[abprs]-[0-9]+-[0-9A-Za-z-]{20,}|sk-ant-[A-Za-z0-9_-]{32,}|AIza[0-9A-Za-z_-]{35}'
 # A member name (no leading /) that must never be in the archive.
 BOX_STATE_NAME_RE='(^|/)(\.gcp|\.ssh)(/|$)|(^|/)\.nano-banana[^/]*(/|$)|(^|/)\.github/token$|(^|/)\.spool-hub/tenants(/|$)|(^|/)\.env$|\.(pem|key|p12)$|(^|/)key-[^/]*\.json$'
+# A NetVisor or bank credential file, matched on the lower-cased name.
+BOX_STATE_CRED_RE='(^|/)[^/]*(netvisor|bank[-_.]?(cred|creds|credentials|auth|api|key|keys|token|tokens|secret|secrets|cert|login))[^/]*$'
+# Homes whose dot-dirs may hold no 0600 file (globs, absolute), and the 0600
+# files that may go anyway: the agents' transcripts (0600 by Claude Code; their
+# key material is caught by the key filter and the scan).
+BOX_STATE_HOMES="${BOX_STATE_HOMES:-/home/* /root}"
+BOX_STATE_ALLOW_0600="${BOX_STATE_ALLOW_0600:-*/.claude/projects/*}"
 # shellcheck disable=SC2090
-export BOX_STATE_KEY_RE BOX_STATE_NAME_RE
+export BOX_STATE_KEY_RE BOX_STATE_NAME_RE BOX_STATE_CRED_RE BOX_STATE_HOMES BOX_STATE_ALLOW_0600
+
+# secret_0600 <abs path> <mode 3-4 octal digits> -> 0 when the file is a
+# 0600 file under a home's dot-dirs and not allow-listed
+secret_0600() {
+  local f="$1" m="$2" h a
+  [[ "${m: -3}" == 600 ]] || return 1
+  for h in $BOX_STATE_HOMES; do
+    # shellcheck disable=SC2053 # $h is a glob on purpose
+    if [[ "$f" == $h/.*/* ]]; then
+      for a in $BOX_STATE_ALLOW_0600; do
+        # shellcheck disable=SC2053
+        [[ "$f" == $a ]] && return 1
+      done
+      return 0
+    fi
+  done
+  return 1
+}
 
 usage() { echo "usage: box-state-pack.sh tar <src dir> [<skip path>...] | scan <archive.tar.zst> | key-re" >&2; exit 2; }
 
@@ -49,6 +78,8 @@ pack_list() {
       [[ -n "$s" && ( "$f" == "$s" || "$f" == "$s"/* ) ]] && continue 2
     done
     if [[ "$rel" =~ $BOX_STATE_NAME_RE ]]; then echo "DROP $f path" >&2; continue; fi
+    if [[ "${rel,,}" =~ $BOX_STATE_CRED_RE ]]; then echo "DROP $f cred" >&2; continue; fi
+    if [[ ! -L "$f" ]] && secret_0600 "$f" "$(stat -c %a "$f")"; then echo "DROP $f 0600" >&2; continue; fi
     [[ -r "$f" ]] || { echo "DROP $f unreadable" >&2; continue; }
     printf '%s\0' "$f"
   done < <(find "$src" \( -type f -o -type l \) -print0 2>/dev/null)
@@ -82,10 +113,15 @@ case "${1:-}" in
     ;;
   scan)
     [[ $# -eq 2 && -f "$2" ]] || usage
-    names="$(zstd -dcq -- "$2" | tar -tf - 2>/dev/null)" || { echo "FATAL $2 is not a readable tar.zst" >&2; exit 2; }
+    names="$(zstd -dcq -- "$2" | tar -tvf - --numeric-owner 2>/dev/null)" || { echo "FATAL $2 is not a readable tar.zst" >&2; exit 2; }
     rc=0
-    while IFS= read -r n; do
-      [[ -n "$n" && "$n" =~ $BOX_STATE_NAME_RE ]] && { echo "HIT $n name"; rc=3; }
+    while read -r perm _ _ _ _ n; do
+      [[ -n "$n" ]] || continue
+      [[ "$perm" == l* ]] && n="${n% -> *}"
+      if [[ "$n" =~ $BOX_STATE_NAME_RE ]]; then echo "HIT $n name"; rc=3
+      elif [[ "${n,,}" =~ $BOX_STATE_CRED_RE ]]; then echo "HIT $n cred"; rc=3
+      elif [[ "$perm" == -rw------- ]] && secret_0600 "/$n" 600; then echo "HIT $n 0600"; rc=3
+      fi
     done <<<"$names"
     # the whole stream through the key pattern (a tar holds member bytes
     # raw); only on a hit, member by member to NAME it (a fork per member is

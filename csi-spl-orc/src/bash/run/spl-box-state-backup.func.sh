@@ -12,8 +12,10 @@
 # @description     rebuilt index, and backups/, the DB dumps that have their
 # @description     own buckets 045/046) and $HOME/.local/state/csi-spl
 # @description What never goes in: ~/.gcp, ~/.ssh, key files, tokens, .env
-# @description files and the tenants store; box-state-pack.sh holds the one
-# @description list. After the pack a scan of the archive REFUSES the upload
+# @description files, the tenants store, NetVisor / bank credential files and
+# @description any 0600 file under a home's dot-dirs not on the allow-list
+# @description (owner rule csitea fc0119cd msg 072a9990: keys and secrets stay
+# @description on the box); box-state-pack.sh holds the one list. After the pack a scan of the archive REFUSES the upload
 # @description (exit 3) if any member name is excluded or any member holds key
 # @description material: the scan, not the pack's filter, is the verdict.
 # @description
@@ -28,6 +30,9 @@
 # @param   SPOOL_BOX_TAG in $SPOOL_ROOT/box.env, else hostname -s
 # @param BOX_STATE_SOURCES (optional) - space-separated dirs to pack
 # @param BOX_STATE_SKIP (optional) - space-separated absolute paths left out
+# @param BOX_STATE_HOMES (optional) - home globs for the 0600 rule, default "/home/* /root"
+# @param BOX_STATE_ALLOW_0600 (optional) - path globs of 0600 files that may go,
+# @param   default "*/.claude/projects/*" (the transcripts, key-filtered)
 # @param BOX_STATE_KEEP (optional) - a path: keep the archive there (tests, drills)
 # @example ENV=prd ./run -a do_spl_box_state_backup
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_box_state_backup
@@ -138,7 +143,8 @@ spl_box_state_pack() {
       bash "$pack" tar "$src" "${skips[@]}" >"$work/part$i.tar" 2>"$work/drop$i"
     elif sudo -n -u "$owner" true 2>/dev/null; then
       # shellcheck disable=SC2024 # the redirect is OURS on purpose: the owner reads, this user writes the part
-      sudo -n -u "$owner" bash "$pack" tar "$src" "${skips[@]}" >"$work/part$i.tar" 2>"$work/drop$i"
+      sudo -n -u "$owner" env BOX_STATE_HOMES="${BOX_STATE_HOMES:-/home/* /root}" \
+        BOX_STATE_ALLOW_0600="${BOX_STATE_ALLOW_0600:-*/.claude/projects/*}" bash "$pack" tar "$src" "${skips[@]}" >"$work/part$i.tar" 2>"$work/drop$i"
     else
       do_log "WARN $src belongs to $owner and sudo -n -u $owner is refused: packed as $me (its unreadable files are dropped)"
       bash "$pack" tar "$src" "${skips[@]}" >"$work/part$i.tar" 2>"$work/drop$i"

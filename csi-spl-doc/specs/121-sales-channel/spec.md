@@ -1,10 +1,16 @@
 # 121 Sales channel: selling Csitea.net services on spool-hub.ai
 
-Version **v1.1** (2026-10-10): the owner's answers to every section 12
+Version **v1.2** (2026-10-10): the owner's answers to the two questions v1.1
+left open (Q-N1 41925444, Q-N2 c2a30422) and the sales agent's model scope
+(41925444), folded in by c-814 (section 1.4, 12.4). No owner question is
+open.
+
+v1.1 (4772552ba, 2026-10-10): the owner's answers to every section 12
 question, and the price, fixed-cost and scaling rules given in the same
 topic, folded in by the editor lane c-814 (section 1.4). No seat signed
-v1.1: the 121 panel seats and the drafter had retired; the dispatch holder
-decides whether it needs a fresh sign-off panel.
+v1.1 or v1.2: the 121 panel seats and the drafter had retired; the dispatch
+holder accepted v1.1 without a fresh panel (c-002, msg 925bcc60: it folds
+owner answers verbatim, no new design).
 
 v1.0 (ec8defa54) was signed by all four seats and the drafter on rc1
 5385b4665 (section 11): the panel fold by the editor (seat s121-claude,
@@ -77,6 +83,17 @@ a798a19b, the owner's last post).
 | 72b5ed23 | "The idea is that the service should be scalable. People are basically plugging in their credit cards, and as soon as we find out that we have more than 80% capacity filled in, we will spawn new hardware resources and we will add them to the spawn hub." | above 80% capacity, add hardware; its own spec | 7.1, [spec 122](../122-capacity-scale-out/spec.md) |
 
 Spoken names: "spawn hub" = the spool hub.
+
+Two later answers, to the questions v1.1 left open (12.4). Quoted as
+relayed verbatim by the dispatch holder c-002@sat (spool msgs dfb256af and
+707f501b, task a21617ab), who posted each reading back to the owner for
+correction; this lane's box does not hold these two messages, so they
+were not re-read from the hub here.
+
+| msg | the owner's words | reading posted by c-002 | folded into |
+|---|---|---|---|
+| 41925444 | "Yeah, there should be some kind of cap. €5 seems okay. Plus, the scope of the tokens should be pretty constrained, aka we should teach the most cheap Mistral or a white AI agent on the stuff we are selling to be able to answer, and that's it." | Q-N1 = A: EUR 5 per day per embed for unpaid visitors. New: the sales agent runs on the cheapest model (the smallest Mistral or a similar small model; "white" read as dictation for "light"), knows only what we sell and declines anything else | 4.3, 6, 12.4 |
+| c2a30422 | "Only the admin of the spool" | Q-N2 = B, narrowed: only the Spool Hub admin changes the +20% token buffer; the monthly action measures the gap and proposes, never applies | 7, 12.4 |
 
 ## 2. Today, measured (trunk at 6eded1d95)
 
@@ -193,6 +210,10 @@ same parts.
   workspace reads its visitor channels, and no other agent does.
 - That agent runs on a pay-per-token API key (Q-M3 = A, 8bb20332), so each
   of its tokens has an exact cost (7).
+- Its model and scope (41925444): the cheapest model that can do the job,
+  the smallest Mistral or a similar small model, taught only what Csitea
+  sells (the "sales facts" doc above). It answers questions about those
+  services and declines anything else, handing over as Q-V1 says.
 
 ### 4.4 Where questions land, and retention
 
@@ -245,7 +266,7 @@ store: there is no Redis in the estate. Every limit is cnf per embed
 | message size | 4 KB text, no file upload for a visitor | 413 |
 | agent turns per visitor (unpaid) | 10 per day | 429 `embed_quota` |
 | live unpaid visitors per embed | 200 | 503 `embed_full` |
-| token spend of unpaid traffic per embed | cnf daily ceiling in EUR | 429, owner alerted |
+| token spend of unpaid traffic per embed | EUR 5 per day (Q-N1 = A, 41925444), cnf | 429, owner alerted |
 
 - Bot gate on the FIRST post only (not the page load): a challenge the hub
   verifies server-side, plus a honeypot field. The challenge is our own
@@ -305,8 +326,9 @@ store: there is no Redis in the estate. Every limit is cnf per embed
 - **Token buffer** (f5c0e3c7, pick A 9e0c0dba): metered token counts are
   priced at x 1.20 at launch, for the tokens we cannot measure. The buffer
   is a setting, lowered to the measured gap between our count and the
-  provider's numbers once spec 122's token-gap measurement (its M4) exists;
-  it is never raised above 20% without the owner.
+  provider's numbers once spec 122's token-gap measurement (its M4) exists.
+  Only the Spool Hub admin changes it (Q-N2, c2a30422): the monthly named
+  action measures the gap and proposes the new value; it never applies it.
 - **Price**, one formula for every workspace (posts 4e2e378b, 1099c002;
   margin cd2d25e3, acaed9ef):
 
@@ -431,6 +453,9 @@ else: the version line, 1.3 (R6 to R8), 1.4, phases 3 to 5, 4.3, 6, 7 and
 7.1, 8, the owner column of the table above, and 12. No seat's position
 was re-weighed.
 
+v1.2 (c-814, unsigned) folds Q-N1, Q-N2 and the sales agent's model scope
+(1.4, 4.3, 6, 7, 12.4) and nothing else.
+
 ## 12. Owner questions
 
 All six v1.0 questions are answered (section 1.4); each is kept below as
@@ -480,21 +505,26 @@ what the fold left open.
   because B sends every visitor to a third party). A: self-hosted proof-of-work, no third party sees the
   visitor. B: a hosted invisible challenge service.
 
-### 12.4 Still open after the v1.1 fold
+### 12.4 Left open by the v1.1 fold, answered for v1.2
 
-Two values the answers leave unset. Neither blocks phases 1 to 3 (section
-3); both are needed before phase 4 sells a workspace. Answer "all
-recommended", or name the ones you change.
+Both are answered; no owner question is open. Kept as asked, with the
+owner's pick on its first line.
+
+| # | owner's pick | msg |
+|---|---|---|
+| Q-N1 | A, EUR 5 per day | 41925444 |
+| Q-N2 | B, narrowed: only the Spool Hub admin changes the buffer; the action proposes | c2a30422 |
 
 - **Q-N1 The daily spend ceiling for unpaid visitors, per embed (section 6).
-  Recommended: A.** The spec has the ceiling but no value.
+  Recommended: A. Owner: A, EUR 5 (41925444).** The spec had the ceiling
+  but no value.
   A: a low ceiling set now (e.g. EUR 5 per day for csitea.net), raised by
   you once the sales channel's real cost is visible in the ledger. B: no
   ceiling until spec 122 has measured the token gap; the per-IP and
   per-visitor limits are the only stop. (A keeps the one hard stop on
   unpaid cost that section 6 relies on.)
 - **Q-N2 Who lowers the token buffer from +20% (section 7). Recommended:
-  A.** The owner's pick A (9e0c0dba) says it is lowered to the measured gap;
+  A. Owner: only the Spool Hub admin (c2a30422), i.e. B.** The owner's pick A (9e0c0dba) says it is lowered to the measured gap;
   it does not say who applies the change.
   A: a named action sets the buffer to the measured gap each month, never
   above 20%, and posts the new value to you. B: the action proposes the

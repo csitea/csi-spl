@@ -142,6 +142,10 @@ try {
     ok(`phone ${w}: every row in the sheet is >= 44 px tall`, sheet.short === 0, sheet.short)
     ok(`phone ${w}: no sideways scroll with the sheet open`, await sideways(p))
     await shot(p, `${run.vp.width}-${run.theme}-L${run.level}-sheet`)
+    /* the sheet slides up (calsheet-up): a tap on Cancel mid-slide lands below
+       the moving button on a loaded runner, the sheet stays open over the
+       header and the menu tap below misses (wf 10 run 38021028676) */
+    await p.waitForFunction(() => { const s = document.querySelector('[data-test=calphone-sheet]'); return s && s.getAnimations({ subtree: true }).every((a) => a.playState !== 'running') }, { timeout: 5000 }).catch(() => {})
     await p.click('[data-test=calphone-sheet-cancel]')
     await p.waitForFunction(() => !document.querySelector('[data-test=calphone-sheet]'), { timeout: 5000 }).catch(() => {})
 

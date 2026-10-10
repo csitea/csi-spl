@@ -11,6 +11,56 @@ import { canEditMessage } from '~/utils/msg-edit.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 /**
+ * One edited row, applied to EVERY store that can be holding it.
+ *
+ * The same message is on screen in more than one place at once, and which
+ * places depends on the route: the lobby feed and the pinned root of the
+ * 3rd panel are the same message when that row's topic is open, and a
+ * /channel row is the channel store's while the pane's root is the topic
+ * store's. Measured on the mock harness before this existed: editing in the
+ * 3rd panel updated the panel and left the feed behind it showing the OLD
+ * body, because the pane told only the two stores it knew about.
+ *
+ * So the hosts stopped each picking their own subset. Every applyEdited
+ * ignores a msg_id it does not hold (utils/msg-edit.mjs applyEdit), which
+ * is what makes telling all of them both correct and cheap, and makes a
+ * second application — the local emit and then the hub's `message_edited`
+ * frame — idempotent rather than a double update.
+ */
+function applyEverywhere(row: SpoolMessage) {
+  useChannelStore().applyEdited(row)
+  useLiveFeed('main').applyEdited(row)
+  useLiveFeed('pane').applyEdited(row)
+  useTopicStore().applyEditedRoot(row)
+}
+
+/**
+ * A kind the hub accepted (PATCH /v1/messages/{id}/kind): the row goes to
+ * every store as an edit does, and the topics list moves that topic's kind
+ * counts from `from` (the kind before the call) to the new one. `msg` is
+ * the row as the caller held it, for a hub answer that omits the task.
+ */
+function applyKind(from: string, row: SpoolMessage, msg?: Partial<SpoolMessage> | null) {
+  applyEverywhere(row)
+  const task = String(row.task_id || msg?.task_id || '')
+  useViewerStore().setKind(task, String(row.msg_id || msg?.msg_id || ''), messageKind({ kind: from }), messageKind(row))
+}
+
+/**
+ * Drop one message from every store that can be showing it. A delete in the
+ * thread pane is also the middle-list card when that row is the opening
+ * message, and the pinned root when the topic is message-rooted.
+ */
+function dropEverywhere(msgId: string) {
+  const id = String(msgId || '')
+  if (!id) return
+  useChannelStore().drop(id)
+  useLiveFeed('main').drop(id)
+  useLiveFeed('pane').drop(id)
+  useTopicStore().dropRoot(id)
+}
+
+/**
  * CLE-3445 row E1 — who the viewer is, and the one call that saves an edit.
  *
  * WHY THE IDENTITY IS A CHAIN AND NOT A NEW PATH. Three places already know
@@ -69,56 +119,6 @@ export function useMessageEdit() {
    */
   async function commit(msgId: string, body: string): Promise<SpoolMessage> {
     return api.editMessage(msgId, body)
-  }
-
-  /**
-   * One edited row, applied to EVERY store that can be holding it.
-   *
-   * The same message is on screen in more than one place at once, and which
-   * places depends on the route: the lobby feed and the pinned root of the
-   * 3rd panel are the same message when that row's topic is open, and a
-   * /channel row is the channel store's while the pane's root is the topic
-   * store's. Measured on the mock harness before this existed: editing in the
-   * 3rd panel updated the panel and left the feed behind it showing the OLD
-   * body, because the pane told only the two stores it knew about.
-   *
-   * So the hosts stopped each picking their own subset. Every applyEdited
-   * ignores a msg_id it does not hold (utils/msg-edit.mjs applyEdit), which
-   * is what makes telling all of them both correct and cheap, and makes a
-   * second application — the local emit and then the hub's `message_edited`
-   * frame — idempotent rather than a double update.
-   */
-  function applyEverywhere(row: SpoolMessage) {
-    useChannelStore().applyEdited(row)
-    useLiveFeed('main').applyEdited(row)
-    useLiveFeed('pane').applyEdited(row)
-    useTopicStore().applyEditedRoot(row)
-  }
-
-  /**
-   * A kind the hub accepted (PATCH /v1/messages/{id}/kind): the row goes to
-   * every store as an edit does, and the topics list moves that topic's kind
-   * counts from `from` (the kind before the call) to the new one. `msg` is
-   * the row as the caller held it, for a hub answer that omits the task.
-   */
-  function applyKind(from: string, row: SpoolMessage, msg?: Partial<SpoolMessage> | null) {
-    applyEverywhere(row)
-    const task = String(row.task_id || msg?.task_id || '')
-    useViewerStore().setKind(task, String(row.msg_id || msg?.msg_id || ''), messageKind({ kind: from }), messageKind(row))
-  }
-
-  /**
-   * Drop one message from every store that can be showing it. A delete in the
-   * thread pane is also the middle-list card when that row is the opening
-   * message, and the pinned root when the topic is message-rooted.
-   */
-  function dropEverywhere(msgId: string) {
-    const id = String(msgId || '')
-    if (!id) return
-    useChannelStore().drop(id)
-    useLiveFeed('main').drop(id)
-    useLiveFeed('pane').drop(id)
-    useTopicStore().dropRoot(id)
   }
 
   /** DELETE /v1/messages/{msg_id}, then drop the row. Rejects with the hub token. */

@@ -62,6 +62,79 @@ const lobbyFromHub = ref('')
 const welcomed = ref(false)
 
 /**
+ * The tab's one hub socket, with its frames fanned out to the listener sets.
+ * The auth client is bound here, not via useAuthClient: ensure() also runs
+ * outside setup.
+ */
+function dial(api: ReturnType<typeof useSpoolApi>, authBase: string) {
+  const auth = createAuthClient({ base: authOrigin(authBase) })
+  return createLiveClient({
+    url: wsUrl(api.base),
+    token: api.token || '',
+    as: identity.value,
+    onState: (s: string) => { state.value = s },
+    isSignedOut: async () => (await auth.session()).state === 'out',
+    // bug B (4ecb4b0d): the revision serving NEW requests; the socket's own is in its welcome.
+    // May reject (a timeout included); live-ws checkRevision maps a rejection to ''.
+    fetchRevision: async () => {
+      const r = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/wui/revision`, { cache: 'no-store', signal: AbortSignal.timeout(REVISION_FETCH_MS) })
+      if (!r.ok) return ''
+      const j = await r.json() as { revision?: unknown }
+      return typeof j.revision === 'string' ? j.revision : ''
+    },
+    // live-ws fires this after the re-subscribes (subscribe first, then read)
+    onReconnected: () => {
+      for (const fn of reconnectListeners) fn()
+    },
+    onPresence: (f) => {
+      for (const fn of presenceListeners) fn(f as unknown as Record<string, unknown>)
+    },
+    onChannel: (f) => {
+      for (const fn of channelListeners) fn(f as unknown as Record<string, unknown>)
+    },
+    onToken: (f: Record<string, unknown>) => {
+      if (typeof f.upload_token === 'string') uploadToken.value = f.upload_token
+      if (typeof f.upload_token_expires_at === 'string') uploadTokenExpiresAt.value = f.upload_token_expires_at
+    },
+    onWelcome: (w: Record<string, unknown>) => {
+      if (typeof w.as === 'string' && w.as) {
+        identity.value = w.as
+        try { sessionStorage.setItem(AS_KEY, w.as) } catch { /* memory only */ }
+      }
+      if (typeof w.upload_token === 'string') uploadToken.value = w.upload_token
+      if (typeof w.upload_token_expires_at === 'string') uploadTokenExpiresAt.value = w.upload_token_expires_at
+      if (typeof w.lobby_task_id === 'string') lobbyFromHub.value = w.lobby_task_id
+      welcomed.value = true
+      if (typeof w.as === 'string' && w.as) identity.value = w.as
+    },
+    onMessage: (m: Record<string, unknown>) => {
+      for (const fn of listeners) fn(m)
+    },
+    onEdited: (m: Record<string, unknown>) => {
+      for (const fn of editedListeners) fn(m)
+    },
+    onDeleted: (m: Record<string, unknown>) => {
+      for (const fn of deletedListeners) fn(m)
+    },
+    onTopic: (f: Record<string, unknown>) => {
+      for (const fn of topicListeners) fn(f)
+    },
+    onReaction: (m: Record<string, unknown>) => {
+      for (const fn of reactionListeners) fn(m)
+    },
+    onIssue: (f: Record<string, unknown>) => {
+      for (const fn of issueListeners) fn(f)
+    },
+    onIssueLabel: (f: Record<string, unknown>) => {
+      for (const fn of issueLabelListeners) fn(f)
+    },
+    onFlow: (f: Record<string, unknown>) => {
+      for (const fn of flowListeners) fn(f)
+    },
+  })
+}
+
+/**
  * One hub WUI socket per tab (003 wui-live-ws.md) on the TENANT host.
  * Mock mode has no socket: sends are applied locally by the live store.
  */
@@ -89,72 +162,7 @@ export function useLive() {
       state.value = api.configError || 'no_base'
       return null
     }
-    // bound here, not via useAuthClient: ensure() also runs outside setup
-    const auth = createAuthClient({ base: authOrigin(String(config.public.authBase || '')) })
-    live = createLiveClient({
-      url: wsUrl(api.base),
-      token: api.token || '',
-      as: identity.value,
-      onState: (s: string) => { state.value = s },
-      isSignedOut: async () => (await auth.session()).state === 'out',
-      // bug B (4ecb4b0d): the revision serving NEW requests; the socket's own is in its welcome.
-      // May reject (a timeout included); live-ws checkRevision maps a rejection to ''.
-      fetchRevision: async () => {
-        const r = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/wui/revision`, { cache: 'no-store', signal: AbortSignal.timeout(REVISION_FETCH_MS) })
-        if (!r.ok) return ''
-        const j = await r.json() as { revision?: unknown }
-        return typeof j.revision === 'string' ? j.revision : ''
-      },
-      // live-ws fires this after the re-subscribes (subscribe first, then read)
-      onReconnected: () => {
-        for (const fn of reconnectListeners) fn()
-      },
-      onPresence: (f) => {
-        for (const fn of presenceListeners) fn(f as unknown as Record<string, unknown>)
-      },
-      onChannel: (f) => {
-        for (const fn of channelListeners) fn(f as unknown as Record<string, unknown>)
-      },
-      onToken: (f: Record<string, unknown>) => {
-        if (typeof f.upload_token === 'string') uploadToken.value = f.upload_token
-        if (typeof f.upload_token_expires_at === 'string') uploadTokenExpiresAt.value = f.upload_token_expires_at
-      },
-      onWelcome: (w: Record<string, unknown>) => {
-        if (typeof w.as === 'string' && w.as) {
-          identity.value = w.as
-          try { sessionStorage.setItem(AS_KEY, w.as) } catch { /* memory only */ }
-        }
-        if (typeof w.upload_token === 'string') uploadToken.value = w.upload_token
-        if (typeof w.upload_token_expires_at === 'string') uploadTokenExpiresAt.value = w.upload_token_expires_at
-        if (typeof w.lobby_task_id === 'string') lobbyFromHub.value = w.lobby_task_id
-        welcomed.value = true
-        if (typeof w.as === 'string' && w.as) identity.value = w.as
-      },
-      onMessage: (m: Record<string, unknown>) => {
-        for (const fn of listeners) fn(m)
-      },
-      onEdited: (m: Record<string, unknown>) => {
-        for (const fn of editedListeners) fn(m)
-      },
-      onDeleted: (m: Record<string, unknown>) => {
-        for (const fn of deletedListeners) fn(m)
-      },
-      onTopic: (f: Record<string, unknown>) => {
-        for (const fn of topicListeners) fn(f)
-      },
-      onReaction: (m: Record<string, unknown>) => {
-        for (const fn of reactionListeners) fn(m)
-      },
-      onIssue: (f: Record<string, unknown>) => {
-        for (const fn of issueListeners) fn(f)
-      },
-      onIssueLabel: (f: Record<string, unknown>) => {
-        for (const fn of issueLabelListeners) fn(f)
-      },
-      onFlow: (f: Record<string, unknown>) => {
-        for (const fn of flowListeners) fn(f)
-      },
-    })
+    live = dial(api, String(config.public.authBase || ''))
     live.connect()
     // bug B: off a retired hub revision, and awake after the tab sleeps
     watchLive(live)

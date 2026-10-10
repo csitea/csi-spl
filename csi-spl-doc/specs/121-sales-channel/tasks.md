@@ -73,7 +73,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T203 | hub: embed admin API (origins, per-embed JWT key) | 2 | T102 | done (4d81f4b88, 40af1ecdb) | claude |
 | T204 | WUI: embed admin page | 2 | T203 | build | mistral or grok |
 | T205 | hub: signed-in customer JWT -> one `channel_guest` | 2 | T104, T203 | build | claude |
-| T206 | hub: e-mail one-time relink to a new device | 2 | T104 | build | claude |
+| T206 | hub: e-mail one-time relink to a new device | 2 | T104 | done | claude |
 | T207 | cnf flip `env.hub.embed.enabled` dev, then prd | 2 | T104..T206 | build | claude |
 | T208 | csi-web: script tag + CSP, deploy dev then prd | 2 (last) | T207 on each env | build | claude |
 | T2B1 | live feed on csitea.net | 2b | owner F1/F2 | HOLD | - |
@@ -257,12 +257,23 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   per-embed key; (embed, sub) -> one `channel_guest`. Files:
   `GO/hub/embed_jwt.go` + `_test.go` (*new*). Done: expired, wrong `aud`,
   wrong key, replayed: each refused (one test each).
-- [ ] T206 **e-mail relink** (claude; needs T104). Optional e-mail after
+- [x] T206 **e-mail relink** (claude; needs T104). Optional e-mail after
   the first answer, its purpose shown; a 15-minute single-use link binds a
   new token to the same visitor. Files: `GO/hub/embed_relink.go` +
   `_test.go` (*new*); one new mail template under `GO/invitemail/`. Done:
   a reused or expired link is refused; the e-mail is visible to the
   workspace owner only.
+  Built (c-780, 59512cba3): `PUT /v1/embed/{embed_id}/visitor/email`
+  (409 `embed_no_answer` before the first answer), `POST .../relink` (one
+  202 known or not, 3 mails per visitor per hour), `POST .../relink/redeem`
+  (201 new token, 410 used / expired / forged), owner-only `GET
+  /v1/tenant/embeds/{embed_id}/visitor-emails`. The code is stateless: an
+  HMAC keyed by the visitor's current token_hash, which the redeem swaps;
+  one token per visitor, so the old device is signed out. The link is
+  `return_url` or the first allowed origin + `#spool-relink=<code>`: for
+  T202, the loader hands that fragment to the iframe, which redeems it, and
+  the chat page shows the e-mail's purpose. Also: `GO/store/embed_relink.go`
+  + `_test.go`; the mail is English only (a translation: agy review last).
 - [ ] T207 **flag on** (claude; needs T104..T206 on trunk and deployed).
   `env.hub.embed.enabled: true` for dev, then prd with the owner's go; the
   `csitea` workspace's `embed_customers` row (origin csitea.net) through

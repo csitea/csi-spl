@@ -1,6 +1,6 @@
 # 118 Multi-Workspace Hours Tracking
 
-**Status**: v1.0-rc (panel fold of four seats on `cdf9136c9`; waiting for the seats' signatures, section 11)
+**Status**: v1.0 (panel consensus of four seats; signed, section 11.4; owner questions open, section 12)
 
 Read beside it: [107 hours tracking](../107-hours-tracking/spec.md) (v2.0-draft: the per-workspace model this spec reuses), [119 personal realm](../119-personal-realm/spec.md) (v0.1: where the personal view lives). The panel's seat files: [reviews/](reviews/).
 
@@ -189,8 +189,8 @@ The 118 side of the 118/119 interface; the 119 panel (orch ask `e7b7320c`) answe
 | **C1 identity** | The realm's person is `humans.human_id` (`HUM-*`); `app.person_id` = that id. No second person id, no mapping table. | 119 does not yet say what `person_id` is. |
 | **C2 route home** | `GET /v1/me/realm/hours`, `PUT /v1/me/realm/hours`, `GET /v1/me/realm/targets` (5.2, 7) live in the realm's route group: human session only, no `X-Spool-Tenant`, refused under act-as (054), for agents and box tokens. The page `/me/hours` is a realm page; 119 owns its frame and navigation. | |
 | **C3 settings** | In 119's one `personal` schema (FORCE RLS on `app.person_id`): `hours_limit_day_minutes` (NULL = off, 60..1440) and `hours_limit_week_minutes` (NULL = off, 60..10080), each optional; read and written only by the person. No `tenants.settings` key, no 098 registered key, no workspace column. | D3, REQ-2 |
-| **C4 zone** | The personal view's zone in the realm profile (IANA, NULL = the browser's). | 6.2, 6.3 |
-| **C5 receipts** | `personal.hours_receipts`: `person_id`, `tenant_id` (text, **no FK**), `workspace_name`, `day`, `minutes`, `label`, `kind` (107 FR-27), `period_start`, `period_end`, `approval_state`, `approver_name`, `copied_at`; PK `(person_id, tenant_id, day, label)`. **Label**: a `job:` target's job name and site (107 FR-18); for `t:`, `ch:`, `dm:`, `cal:` only the type (`topic`, `channel`, `direct message`, `meeting`), never a title; `ws` = `workspace`. The entry note is never copied (content). **When**: on membership removal, copy first, then remove; two transactions (read under `inTenant(W)` for that member, write in the realm scope); idempotent (`ON CONFLICT DO NOTHING`); a failed copy blocks the removal and is retried, never a leaver without a receipt; `access_until` passing is copied by the sweep that notices it. A rejoin does not merge receipts back. | D4, 119 REQ-4/5, Q5..Q8 |
+| **C4 zone** | The personal view's zone in the realm profile, `personal.profile.time_zone` (IANA, NULL = the browser's; name aligned with the 119 editor, c-787). | 6.2, 6.3 |
+| **C5 receipts** | `personal.hours_receipts`: `person_id` (`REFERENCES public.humans (human_id) ON DELETE CASCADE`: hub-wide identity, not a workspace), `workspace_id` (text, the copied workspace id, **no FK to any workspace table**; never named `tenant_id`, so the RLS gates and `do_spl_db_rls_check` never take a realm table for a workspace table: 119 bans `tenant_id` in `personal.*`), `workspace_name`, `day`, `minutes`, `label`, `kind` (107 FR-27), `period_start`, `period_end`, `approval_state`, `approver_name`, `copied_at`, `rev` (`smallint NOT NULL DEFAULT 0 CHECK (rev IN (0,1))`); PK `(person_id, workspace_id, day, label, rev)`. Append-only: the runtime role has INSERT only, no UPDATE or DELETE (the 0157 rev-log shape); the view reads `max(rev)` per key. The leave copy is rev 0; under Q6-A the one refresh of the last open period is rev 1, for that period's days only; under Q6-B rev stays 0 (shape agreed with the 119 editor, c-787). **Label**: a `job:` target's job name and site (107 FR-18); for `t:`, `ch:`, `dm:`, `cal:` only the type (`topic`, `channel`, `direct message`, `meeting`), never a title; `ws` = `workspace`. The entry note is never copied (content). **When**: on membership removal, copy first, then remove; two transactions (read under `inTenant(W)` for that member, write in the realm scope); idempotent (`ON CONFLICT DO NOTHING` per rev); a failed copy blocks the removal and is retried, never a leaver without a receipt; `access_until` passing is copied by the sweep that notices it. A rejoin does not merge receipts back. | D4, 119 REQ-4/5, Q5..Q8 |
 | **C6 receipts in the view** | The realm route reads the person's receipts in the realm transaction and merges them as "left" workspaces (6.3). | |
 | **C7 nothing flows down** | No realm data (limit, actual, overlap, other workspaces' hours, receipts, zone) is ever written into a workspace. A person's own entry made on the realm screen is an ordinary member write into that workspace, through 107's write, under that workspace's rules: proposed wording for 119 REQ-6. | see 9.1 |
 
@@ -236,7 +236,7 @@ Store tests on Postgres (`PRE_PUSH_TIER=full`) as the runtime RLS role, never a 
 | T-RLS6 | access | under act-as, with a box token, as an agent, as a time-accountant-only seat: 403 `person_only` / 404; `X-Spool-Tenant` or `member=` -> 400 |
 | T-S3 | privacy | `GET /v1/hours` and the export as `hours.read` carry no span field (a planted-span control); 107's 1.7 `hours_minutes` grep test unchanged |
 | T-D4a | D4 | P leaves B: one receipt row per (day, label) with workspace name, minutes, approval state, approver name; no topic title, channel name or note (label set = the type names for non-job targets, with a content control) |
-| T-D4b | D4 | after leaving, B's routes -> 403; the receipt is readable only by P (Q, a foreman, an admin -> 404); a failed copy blocks the removal; no FK from `personal.hours_receipts` into a workspace table (catalogue query) |
+| T-D4b | D4 | after leaving, B's routes -> 403; the receipt is readable only by P (Q, a foreman, an admin -> 404); a failed copy blocks the removal; no FK from `personal.hours_receipts` into a workspace table and no `tenant_id` column in `personal.*` (catalogue query; the FK to `public.humans` is the one allowed) |
 | T-PERF | bound | 20 workspaces x 31 days timed on dev with n recorded, at most 2 transactions in flight (pool spy); 21 workspaces -> 400. The latency budget is set from the measurement, not guessed |
 | T-E2E | UI | phone 390 px and desktop: a week with one overlap shows both numbers, the hatched mark naming both workspaces and the limit bar; the limit appears on no workspace screen (text and testid absence, positive control); adding rows for two workspaces, one frozen, shows one saved and one refused row; the new row shows in that workspace's own calendar Working hours line; the realm chunk is lazy (`perf-budget.py` initial chunk unchanged) |
 
@@ -276,14 +276,14 @@ Seats, each signed against `cdf9136c9`: **s118-claude** (c-782, editor, `42bb5c7
 
 ### 11.4 Signatures of this fold
 
-Each seat replies on `dispatch-cee5a73e`: "s118-<seat> signs <sha>". v1.0 when all four have signed.
+Each seat replied on `dispatch-cee5a73e` with "s118-<seat> signs <sha>" against the v1.0-rc fold `43f4fbd84`. v1.0 adds only the C4/C5 realm alignment agreed with the 119 editor (c-787), in section 13.
 
 | seat | agent | signed sha |
 |---|---|---|
-| s118-claude | c-782 | (this fold, by the editor) |
-| s118-claude-2 | c-783 | pending |
-| s118-claude-3 | c-784 | pending |
-| s118-mistral | m-785 | pending |
+| s118-claude | c-782 | `43f4fbd84` (the editor, who folded it) |
+| s118-claude-2 | c-783 | `43f4fbd84` (msg `a15696a5`; withdrew its per-workspace PUT for 11.3's realm route) |
+| s118-claude-3 | c-784 | signed by file (`reviews/s118-claude-3.md`, `8b09843ec`); the seat retired per its brief, and its position is folded in full (11.3). Recorded on c-001@sat's call (msg `5cbb13c0`) |
+| s118-mistral | m-785 | `43f4fbd84` (msg `64663848`) |
 
 ## 12. Questions for the owner (one list, deduplicated from the four seats; the panel's recommendation first)
 
@@ -307,4 +307,6 @@ Each seat replies on `dispatch-cee5a73e`: "s118-<seat> signs <sha>". v1.0 when a
 | 0.1 | 2026-10-10 | draft | REQ-1..4, owner decisions D1..D4, the realm pointer (footer read 0.5.0) |
 | 1.0-rc | 2026-10-10 | c-782 (editor) | panel fold of s118-claude, -2, -3 and s118-mistral: REQ-1 and REQ-4 reworded; data model and RLS read (5), spans (5.3), overlap computation (6), multi-workspace entry (7), personal view (8), the 119 contract C1..C7 (9), tests (10), panel and consensus (11), owner questions Q1..Q10 (12); D1..D4 unchanged |
 
-<!-- version: 1.0.0-rc · updated: 2026-10-10 · last-edit: 2026-10-10T13:00:00Z -->
+| 1.0 | 2026-10-10 | c-782 (editor) | signed by s118-claude, -2 and mistral on `43f4fbd84`, and -3 by file (11.4); the realm contract aligned with the 119 editor c-787 (msgs `1965e1cf`, `db70a9d1`): C4 `personal.profile.time_zone`; C5 `personal.hours_receipts` gets `workspace_id` (not `tenant_id`), `person_id` FK to `public.humans`, and an append-only `rev` (0 = leave copy, 1 = the one Q6-A refresh) in the PK; one endpoint name `/v1/me/realm/*`; 118 Q5..Q8 offered to 119 verbatim |
+
+<!-- version: 1.0.0 · updated: 2026-10-10 · last-edit: 2026-10-10T08:50:00Z -->

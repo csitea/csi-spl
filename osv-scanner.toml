@@ -29,14 +29,10 @@
 #    csi-spl-wui/package.json pnpm.auditConfig.ignoreGhsas; remove both
 #    together once a fixed braces or a micromatch without it ships.
 #    Re-check by 2026-11-02.
-#  - otel/sdk, serialize-javascript (npm): low, below the govulncheck/pnpm-audit
-#    gates; Dependabot-tracked.
+#  - serialize-javascript (npm): low, below the pnpm-audit gate; Dependabot-
+#    tracked. GHSA-8wmf-6v46-5gfg (otel/sdk) was dropped once otel/sdk reached
+#    v1.45.0: osv-scanner 2.6.0 named it unused.
 # Review / re-check by 2026-11-01.
-
-[[IgnoredVulns]]
-id = "GHSA-8wmf-6v46-5gfg"
-ignoreUntil = 2026-11-01
-reason = "go.opentelemetry.io/otel/sdk: low / not reachable (govulncheck green, authoritative Go gate); Dependabot-tracked."
 
 [[IgnoredVulns]]
 id = "GHSA-gfhx-hw2g-v5hg"

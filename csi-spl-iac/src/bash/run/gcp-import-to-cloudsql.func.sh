@@ -165,7 +165,7 @@ EOF
     quit_on "Applying the SQL file $LOCAL_SQL_FILE with psql"
   else
     echo "Unsupported file format: $GS_UTIL_URI"
-    exit 1
+    return 1
   fi
 
 

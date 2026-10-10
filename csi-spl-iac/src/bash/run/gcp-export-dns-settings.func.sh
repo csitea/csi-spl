@@ -36,7 +36,7 @@ do_gcp_export_dns_settings() {
   # Authenticate with Google Cloud using the admin credential file
   if [[ ! -f "${ADMIN_KEY_PATH}" ]]; then
     do_log "FATAL Error: Admin key file not found at ${ADMIN_KEY_PATH}"
-    exit 1
+    return 1
   fi
 
   do_log "INFO Authenticating with GCP using admin key..."

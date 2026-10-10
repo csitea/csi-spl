@@ -196,6 +196,12 @@ INSERT INTO tenants VALUES ('t1'), ('t2');
 CREATE FUNCTION spool_search_candidates(q tsquery, cap int) RETURNS SETOF text LANGUAGE sql STABLE AS 'SELECT NULL::text LIMIT 0';
 -- rdb 0157's doc revision log: runtime-grants.sql revokes UPDATE, DELETE on it by name
 CREATE TABLE workspace_doc_rev_log (tenant_id text NOT NULL REFERENCES tenants);
+-- rdb 0168's personal realm (spec 119 7.5): runtime-grants.sql grants on its tables and functions by name
+CREATE SCHEMA personal;
+CREATE TABLE personal.profile (person_id text); CREATE TABLE personal.settings (person_id text);
+CREATE TABLE personal.hours_receipts (person_id text); CREATE TABLE personal.receipt_due (person_id text);
+CREATE FUNCTION personal.delete_my_receipts(workspace_id text) RETURNS int LANGUAGE sql AS 'SELECT 0';
+CREATE FUNCTION personal.due_receipts(now timestamptz) RETURNS SETOF text LANGUAGE sql STABLE AS 'SELECT NULL::text LIMIT 0';
 EOF
   RPW="rt$RANDOM$RANDOM"
   real() { env PATH="$PATH" SPL_DB_USER=rt SPL_DB_OWNER_USER=own SPL_DB_ROLES_SQL="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles" \

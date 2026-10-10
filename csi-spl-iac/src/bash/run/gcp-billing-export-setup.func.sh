@@ -23,17 +23,19 @@
 # @description      on, only the console can. The action checks for the
 # @description      gcp_billing_export_v1_* table and, while it is absent, prints
 # @description      the console step for the owner (billing account admin).
-# @description GCP_BILLING_ACCOUNT_ID is required and never committed; it is
-# @description logged masked.
-# @param GCP_BILLING_ACCOUNT_ID - required: the billing account (XXXXXX-XXXXXX-XXXXXX)
+# @description GCP_BILLING_ACCOUNT_ID is never committed and is logged masked.
+# @description Unset, it is read as the pinned SA from the billing link of the
+# @description export project; an unreadable link stops the run before any step.
+# @param GCP_BILLING_ACCOUNT_ID (optional) - the billing account (XXXXXX-XXXXXX-XXXXXX);
+# @param   unset: the account that bills env.cost.gcp.export_project
 # @param DRY_RUN (optional) - 1 (default): read and report. 0: mutate (the owner's).
+# @example ./run -a do_gcp_billing_export_setup
 # @example GCP_BILLING_ACCOUNT_ID=<id> ./run -a do_gcp_billing_export_setup
 # @example GCP_BILLING_ACCOUNT_ID=<id> DRY_RUN=0 ./run -a do_gcp_billing_export_setup
 #------------------------------------------------------------------------------
 do_gcp_billing_export_setup() {
   local bill="${GCP_BILLING_ACCOUNT_ID:-}"
-  [[ -n "${bill}" ]] || { do_log "FATAL GCP_BILLING_ACCOUNT_ID must be set (no default, never committed) - e.g. 0X0X0X-0X0X0X-0X0X0X"; return 1; }
-  [[ "${bill}" =~ ^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$ ]] || { do_log "FATAL GCP_BILLING_ACCOUNT_ID is no billing account id (XXXXXX-XXXXXX-XXXXXX)"; return 1; }
+  [[ -z "${bill}" || "${bill}" =~ ^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$ ]] || { do_log "FATAL GCP_BILLING_ACCOUNT_ID is no billing account id (XXXXXX-XXXXXX-XXXXXX)"; return 1; }
   local dry_run="${DRY_RUN:-1}"
   [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; return 1; }
   local b
@@ -46,6 +48,8 @@ do_gcp_billing_export_setup() {
   do_gcp_pin_account || return 1
   do_gcp_require_live_account "${GCP_ACCOUNT}" || { do_log "FATAL ${GCP_ACCOUNT} cannot mint a token"; return 1; }
   [[ "${GCP_ACCOUNT}" == *.gserviceaccount.com ]] || { do_log "FATAL ${GCP_ACCOUNT} is no service account: the owner account is the gcp-000..004 bootstrap's only"; return 1; }
+  local resolved=""
+  [[ -n "${bill}" ]] || { bill=$(_bes_billing_resolve) || return 1; resolved=1; }
 
   _BES_DRY="${dry_run}" _BES_FAILED=""
   _BES_TMP=$(umask 077 && mktemp -d) || return 1
@@ -55,7 +59,11 @@ do_gcp_billing_export_setup() {
   GCP_BQ_TOKEN=$(gcloud auth print-access-token --account="${GCP_ACCOUNT}" 2>/dev/null)
   [[ -n "${GCP_BQ_TOKEN}" ]] || { rm -rf "${_BES_TMP}"; do_log "FATAL no access token for ${GCP_ACCOUNT}"; return 1; }
 
-  _bes_billing_link "${bill}"
+  if [[ -n "${resolved}" ]]; then
+    do_log "OK ${COST_EXPORT_PROJECT} is billed by XXXXXX-XXXXXX-${bill: -6} (GCP_BILLING_ACCOUNT_ID unset: read from its billing link)"
+  else
+    _bes_billing_link "${bill}"
+  fi
   _bes_apis && _bes_dataset && _bes_reader_sa && _bes_dataset_viewer && _bes_job_user && _bes_token_creators \
     || _BES_FAILED="${_BES_FAILED:-finish the setup: a step stopped without a reason}"
   _bes_export_table
@@ -77,6 +85,18 @@ _bes_run() {
   do_log "INFO run: ${what}"
   "$@" >/dev/null 2>"${_BES_TMP}/err" && return 0
   _BES_FAILED="${what} ($(tail -n 2 "${_BES_TMP}/err" | tr '\n' ' '))"
+  return 1
+}
+
+# _bes_billing_resolve - read only: print the id of the account that bills the
+# export project, read as the pinned SA. Unreadable or malformed -> FATAL, rc 1:
+# the id is never guessed, and never read as another identity.
+_bes_billing_resolve() {
+  local got
+  got=$(gcloud billing projects describe "${COST_EXPORT_PROJECT}" --account="${GCP_ACCOUNT}" --format='value(billingAccountName)' 2>/dev/null)
+  got="${got#billingAccounts/}"
+  [[ "${got}" =~ ^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$ ]] && { printf '%s' "${got}"; return 0; }
+  do_log "FATAL GCP_BILLING_ACCOUNT_ID is unset and the billing link of ${COST_EXPORT_PROJECT} cannot be read as ${GCP_ACCOUNT} (permission billing.resourceAssociations.list? REPORT it): set GCP_BILLING_ACCOUNT_ID. Nothing was changed" >&2
   return 1
 }
 

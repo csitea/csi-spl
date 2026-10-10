@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: do_gcp_billing_export_setup (spec 123 section 4.2, lane 2), offline:
-#   1. GCP_BILLING_ACCOUNT_ID absent or malformed, DRY_RUN not 0/1 -> refused
-#      before any gcloud or BigQuery call.
+#   1. GCP_BILLING_ACCOUNT_ID malformed, DRY_RUN not 0/1 -> refused before any
+#      gcloud or BigQuery call. GCP_BILLING_ACCOUNT_ID unset -> read as the
+#      pinned SA from the export project's billing link and the run proceeds;
+#      unreadable -> FATAL after that one read, nothing else called.
 #   2. DRY_RUN=1 (the default) on an empty estate: every step is printed as
 #      "would run", and NO mutating call reaches gcloud or BigQuery.
 #      CONTROL: the same stubs under DRY_RUN=0 record the mutations, so the
 #      stubs can see one.
 #   3. Everything present -> nothing to do (idempotent), still no mutation.
 #   4. The identity is a service account: an owner (user) account is refused.
-#   5. The billing account id is never logged whole; the token never reaches
-#      curl's argv.
+#   5. The billing account id is never logged whole, in any case of this file;
+#      the token never reaches curl's argv.
 # Stubs: gcloud and curl on PATH (they log their argv), the project / account
 # resolvers as functions. Nothing reaches GCP.
 #------------------------------------------------------------------------------
@@ -32,7 +34,7 @@ stub gcloud '
 echo "gcloud $*" >>"$LOG"
 case "$*" in
   "auth print-access-token"*) echo tok-SECRET-1 ;;
-  "billing projects describe"*) echo "billingAccounts/$STUB_BILL" ;;
+  "billing projects describe"*) [[ -n "${STUB_BILL_FAIL:-}" ]] && { echo "ERROR: PERMISSION_DENIED" >&2; exit 1; }; echo "billingAccounts/$STUB_BILL" ;;
   "services list"*) echo bigquery.googleapis.com; [[ "$STATE" == present ]] && printf "%s\n" bigquerydatatransfer.googleapis.com iamcredentials.googleapis.com ;;
   "iam service-accounts describe"*) [[ "$STATE" == present ]] && { echo "$READER"; exit 0; }; echo "ERROR: NOT_FOUND: Unknown service account" >&2; exit 1 ;;
   "projects get-iam-policy"*) [[ "$STATE" == present ]] && echo "{\"bindings\":[{\"role\":\"roles/bigquery.jobUser\",\"members\":[\"serviceAccount:$READER\"]}]}" || echo "{}" ;;
@@ -67,13 +69,33 @@ run_case() {
     do_gcp_require_live_account(){ :; }
     source "$LIB"; source "$F"
     do_gcp_billing_export_setup; echo "rc=$?"' >"$out" 2>&1
+  cat "$out" "$T/log" >>"$T/all"
 }
 mutations() { grep -E '^gcloud (services enable|iam service-accounts create|.*add-iam-policy-binding)|^curl (POST|PATCH|PUT|DELETE)' "$T/log"; }
 
-# --- 1. refusals before any call ------------------------------------------------
+# --- 1. the id: unset is resolved, malformed is refused ------------------------------
+# A = the pinned SA of the stubs; the resolve reads as it, nobody else.
+A=csi-spl-all@csi-spl-all.iam.gserviceaccount.com
 run_case "$T/o"
-grep -q 'GCP_BILLING_ACCOUNT_ID must be set' "$T/o" && grep -q '^rc=1$' "$T/o" && [[ ! -s "$T/log" ]] \
-  && pass "GCP_BILLING_ACCOUNT_ID unset -> fails fast, no gcloud/BigQuery call" || fail "unset id: $(cat "$T/o") / $(cat "$T/log")"
+grep -q '^rc=0$' "$T/o" && grep -q '^OK csi-spl-all is billed by XXXXXX-XXXXXX-6A7B8C (GCP_BILLING_ACCOUNT_ID unset' "$T/o" \
+  && [[ "$(grep -c 'DRY_RUN would run' "$T/o")" -eq 7 ]] && [[ -z "$(mutations)" ]] \
+  && pass "GCP_BILLING_ACCOUNT_ID unset -> resolved from the billing link, masked 'billed by' line, the dry run proceeds (7 would-run)" \
+  || fail "unset id: $(cat "$T/o") / $(cat "$T/log")"
+[[ "$(grep -c '^gcloud billing projects describe' "$T/log")" -eq 1 ]] \
+  && grep -qx "gcloud billing projects describe csi-spl-all --account=$A --format=value(billingAccountName)" "$T/log" \
+  && pass "the resolve is ONE read of csi-spl-all's billing link, --account the pinned SA" \
+  || fail "resolve call: $(grep billing "$T/log")"
+run_case "$T/o" STUB_BILL_FAIL=1
+grep -q 'GCP_BILLING_ACCOUNT_ID is unset and the billing link of csi-spl-all cannot be read' "$T/o" && grep -q '^rc=1$' "$T/o" \
+  && [[ "$(cat "$T/log")" == "gcloud billing projects describe"* && "$(wc -l <"$T/log")" -eq 1 ]] \
+  && pass "unset + the billing link unreadable -> FATAL rc 1 after that one read, nothing else called" \
+  || fail "unset unreadable: $(cat "$T/o") / $(cat "$T/log")"
+run_case "$T/o" STUB_BILL=not-an-id
+grep -q 'cannot be read' "$T/o" && grep -q '^rc=1$' "$T/o" && [[ "$(wc -l <"$T/log")" -eq 1 ]] \
+  && pass "unset + the link names no billing account id -> FATAL rc 1, nothing else called" || fail "unset malformed link: $(cat "$T/o")"
+run_case "$T/o" STUB_ACCT=owner@example.com
+grep -q 'is no service account' "$T/o" && grep -q '^rc=1$' "$T/o" && [[ ! -s "$T/log" ]] \
+  && pass "unset + a user (owner) identity -> refused before the billing link is read" || fail "unset owner: $(cat "$T/o") / $(cat "$T/log")"
 run_case "$T/o" GCP_BILLING_ACCOUNT_ID=not-an-id
 grep -q 'no billing account id' "$T/o" && grep -q '^rc=1$' "$T/o" && [[ ! -s "$T/log" ]] \
   && pass "a malformed GCP_BILLING_ACCOUNT_ID -> refused, no call" || fail "malformed id: $(cat "$T/o")"
@@ -127,6 +149,11 @@ run_case "$T/o" GCP_BILLING_ACCOUNT_ID="$BILL" STATE=present
   && pass "the billing account id is logged masked only" || fail "id leaked: $(grep -F "${BILL:0:6}" "$T/o")"
 ! grep -q 'tok-SECRET' "$T/log" "$T/o" && grep -q 'Bearer tok-SECRET-1' "$T/log.stdin" \
   && pass "the access token reaches curl on stdin only, never argv or the log" || fail "token in argv/log"
+
+# every case above, every output and every stub call: the id only masked
+! grep -qF "$BILL" "$T/all" && ! grep -qF "${BILL//-/_}" "$T/all" \
+  && pass "the billing account id appears in no output of any case ($(grep -c '^rc=' "$T/all") runs)" \
+  || fail "id leaked: $(grep -F "${BILL:0:6}" "$T/all")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

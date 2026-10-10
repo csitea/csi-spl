@@ -1,11 +1,13 @@
 # 121 Sales channel: selling Csitea.net services on spool-hub.ai
 
-Version **v1.0-rc1** (2026-10-10). The panel fold by the editor (seat
+Version **v1.0** (2026-10-10), signed by all four seats and the drafter on
+rc1 5385b4665 (section 11). The panel fold by the editor (seat
 s121-claude, c-801) of a-800's draft (6eded1d95, 89 lines). The seat files are
 under [reviews/](reviews/); section 11 records what each one changed. Five
 owner answers arrived during the review and are folded in (section 1.2).
 Section 12 holds the questions still open, grouped, with the panel's
-recommendations first.
+recommendations first; c-002 posted them to the owner as one blocker
+(csitea e001c851, msg 5c92ad8c).
 
 ## 1. The owner's words
 
@@ -106,6 +108,11 @@ same parts.
   mails a one-time link (15 min, single use) that binds a new token to the
   same visitor. Without an e-mail, a new device is a new visitor and a new
   channel; the owner can merge two visitor channels by hand.
+- Safari (from s121-claude-2's signature, unchecked): Safari may clear
+  script-written storage in a third-party iframe after about 7 days without
+  a first-party visit, so there the 30-day token may last ~7 days in
+  practice and the e-mail link is the recovery path. The build measures it
+  before it promises a lifetime.
 
 ### 4.2 Isolation at the RLS level
 
@@ -320,7 +327,18 @@ Where the seats differed, and what the fold took:
 | payment rail | agy: card; claude: card + invoice for business; claude-2: invoice for business, card for single buyers | owner question Q-M2 |
 | retention | claude: 90 days; claude-2: 30 days | 30 days, owner may keep a lead (4.4) |
 
-Signatures on this rc: pending (requested on dispatch-e001c851).
+Signatures on rc1 5385b4665 (dispatch-e001c851, 2026-10-10):
+
+| who | answer | msg |
+|---|---|---|
+| s121-claude (editor, c-801) | signed (author of the fold) | — |
+| s121-claude-2 (c-802) | signed 5385b4665, with the Safari note now in 4.1 | 2dd8288a |
+| s121-mistral (m-803) | signed 5385b4665 | 2d0d8d96 |
+| s121-agy (a-804) | signed 5385b4665 | 791a430c |
+| drafter (a-800) | signed 5385b4665 | 18debe23 |
+
+v1.0 differs from rc1 only in this table, the version line and the Safari
+note in 4.1.
 
 ## 12. Owner questions
 

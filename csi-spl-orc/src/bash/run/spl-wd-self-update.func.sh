@@ -28,12 +28,18 @@
 # @description only TIMED OUT (rc 124/137, no script error: a loaded box) is no
 # @description failure: RETRY, the sha stays un-quarantined and is pre-flighted
 # @description again on a later tick, quarantined only after
-# @description WD_UPD_TIMEOUT_TRIES timeouts in a row. Every step is an UPDATE
+# @description WD_UPD_TIMEOUT_TRIES timeouts in a row. The proof tick's limit
+# @description fits the box: WD_UPD_CHECK_MAX x the load per cpu (loadavg 1 min
+# @description / nproc, when over 1), at most WD_UPD_CHECK_CAP s, never under
+# @description WD_UPD_CHECK_MAX (spl_wd_upd_check_limit). Every step is an UPDATE
 # @description line in wd.log. The action prints the state, read-only.
 # @param WD_SELF_UPDATE (optional) - 1 rolls out new desk-cron code; default 1, and 0 under SPOOL_TEST=1
 # @param WD_UPD_SRC (optional) - the desk-cron checkout; default DESK_CRON_SRC, then <wd dir>/starter.src
 # @param WD_UPD_SLICE (optional) - seconds per sleep slice of a waiting instance, default 5
-# @param WD_UPD_CHECK_MAX (optional) - seconds for the pre-flight proof tick, default 20
+# @param WD_UPD_CHECK_MAX (optional) - seconds for the pre-flight proof tick on an idle box (the base, scaled by the load per cpu), default 20
+# @param WD_UPD_CHECK_CAP (optional) - seconds the load-scaled pre-flight limit never exceeds, default 60 (under the peers' 180 s hang bound)
+# @param WD_UPD_LOAD1 (optional) - tests only: the 1-min load average instead of /proc/loadavg
+# @param WD_UPD_NPROC (optional) - tests only: the cpu count instead of nproc
 # @param WD_UPD_TIMEOUT_TRIES (optional) - pre-flight proof ticks that time out in a row before the sha is quarantined, default 5
 # @param WD_UPD_STEP_MAX (optional) - seconds one step (exec + check, or a baton wait) may take, default 45; the self-check tick's hang bound
 # @param WD_UPD_KEEP (optional) - snapshots kept besides the ones in use, default 3
@@ -72,8 +78,8 @@ spl_wd_upd_conf() {
     WD_SELF_UPDATE=1
     [[ "${SPOOL_TEST:-}" == 1 ]] && WD_SELF_UPDATE=0
   fi
-  : "${WD_UPD_SLICE:=5}" "${WD_UPD_CHECK_MAX:=20}" "${WD_UPD_STEP_MAX:=45}" "${WD_UPD_KEEP:=3}" "${WD_UPD_PREFLIGHT:=1}" "${WD_UPD_TIMEOUT_TRIES:=5}"
-  for k in WD_SELF_UPDATE WD_UPD_SLICE WD_UPD_CHECK_MAX WD_UPD_STEP_MAX WD_UPD_KEEP WD_UPD_PREFLIGHT WD_UPD_TIMEOUT_TRIES; do
+  : "${WD_UPD_SLICE:=5}" "${WD_UPD_CHECK_MAX:=20}" "${WD_UPD_CHECK_CAP:=60}" "${WD_UPD_STEP_MAX:=45}" "${WD_UPD_KEEP:=3}" "${WD_UPD_PREFLIGHT:=1}" "${WD_UPD_TIMEOUT_TRIES:=5}"
+  for k in WD_SELF_UPDATE WD_UPD_SLICE WD_UPD_CHECK_MAX WD_UPD_CHECK_CAP WD_UPD_STEP_MAX WD_UPD_KEEP WD_UPD_PREFLIGHT WD_UPD_TIMEOUT_TRIES; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   (( WD_UPD_SLICE > 0 )) || { do_log "FATAL WD_UPD_SLICE must be at least 1"; return 1; }
@@ -317,8 +323,9 @@ spl_wd_upd_preflight() {
     fi
   done < <(find "$orc/src/bash/run" "$orc/src/bash/features/watchdog" -name '*.sh' -print0 2>/dev/null)
   rm -rf "$pf"; mkdir -p "$pf"
+  spl_wd_upd_check_limit
   t0="$SECONDS"
-  out="$(timeout -k 2 "$WD_UPD_CHECK_MAX" env WD_INST= INSTANCE= WD_UPD_EXEC= WD_STATE_DIR="$pf" \
+  out="$(timeout -k 2 "$WD_UPD_LIM" env WD_INST= INSTANCE= WD_UPD_EXEC= WD_STATE_DIR="$pf" \
     WD_ONLY=wd-preflight WD_TICKS=1 DRY_RUN=1 WD_SELF_UPDATE=0 WD_PEERS=0 \
     "$orc/run" -a do_spl_watchdog 2>&1 5>&- 7>&- 9>&-)" || rc=$?
   took=$(( SECONDS - t0 ))
@@ -335,6 +342,28 @@ spl_wd_upd_preflight() {
   return 0
 }
 
+# spl_wd_upd_check_limit: WD_UPD_LIM, the proof tick's limit for this box
+# now, and WD_UPD_LIM_WHY, how it was reached. A fixed 20 s never fits a
+# loaded box (a desk box 2026-10-10, load 77-100 on 16 cpus: 10 of 10 pre-flights
+# hit 20 s, two correct commits quarantined, the watchdogs left on old code).
+# WD_UPD_CHECK_MAX x (load1 / nproc when over 1), rounded up, at most
+# WD_UPD_CHECK_CAP s, never under WD_UPD_CHECK_MAX. A commit that hangs still
+# times out at that limit, every try, and is quarantined after
+# WD_UPD_TIMEOUT_TRIES of them.
+spl_wd_upd_check_limit() {
+  local base="$WD_UPD_CHECK_MAX" cap="${WD_UPD_CHECK_CAP:-60}" l1 np
+  l1="${WD_UPD_LOAD1:-$(cut -d' ' -f1 /proc/loadavg 2>/dev/null || true)}"
+  np="${WD_UPD_NPROC:-$(nproc 2>/dev/null || true)}"
+  [[ "$l1" =~ ^[0-9]+(\.[0-9]+)?$ ]] || l1=0
+  [[ "$np" =~ ^[1-9][0-9]*$ ]] || np=1
+  WD_UPD_LIM="$(awk -v b="$base" -v c="$cap" -v l="$l1" -v n="$np" 'BEGIN {
+    f = l / n; if (f < 1) f = 1
+    x = b * f; if (x > int(x)) x = int(x) + 1
+    if (x > c) x = c; if (x < b) x = b
+    print x }')"
+  WD_UPD_LIM_WHY="base ${base}s x load ${l1}/${np} cpus, cap ${cap}s"
+}
+
 # spl_wd_upd_slow SHA NOW RC TOOK: the proof tick only timed out (rc 124/137,
 # no script error): a loaded box, not a bad sha (2026-10-09, load ~10: three
 # commits quarantined at rc 124, the next one green in 5 s). code/<sha>.slow
@@ -349,11 +378,11 @@ spl_wd_upd_slow() {
   n=$(( n + 1 ))
   if (( n >= ${WD_UPD_TIMEOUT_TRIES:-5} )); then
     rm -f "$f"
-    spl_wd_upd_fail "$sha" "$now" "pre-flight: the proof tick from the snapshot timed out $n times in a row (rc $rc, last took ${took}s, limit ${WD_UPD_CHECK_MAX}s)"
+    spl_wd_upd_fail "$sha" "$now" "pre-flight: the proof tick from the snapshot timed out $n times in a row (rc $rc, last took ${took}s, limit ${WD_UPD_LIM:-$WD_UPD_CHECK_MAX}s: ${WD_UPD_LIM_WHY:-fixed})"
     return 0
   fi
   echo "$n" > "$f" 2>/dev/null || true
-  spl_wd_upd_log "RETRY ${sha:0:9}: pre-flight: the proof tick from the snapshot timed out (rc $rc, took ${took}s, limit ${WD_UPD_CHECK_MAX}s), $n of ${WD_UPD_TIMEOUT_TRIES:-5}; not quarantined, pre-flighted again on a later tick"
+  spl_wd_upd_log "RETRY ${sha:0:9}: pre-flight: the proof tick from the snapshot timed out (rc $rc, took ${took}s, limit ${WD_UPD_LIM:-$WD_UPD_CHECK_MAX}s: ${WD_UPD_LIM_WHY:-fixed}), $n of ${WD_UPD_TIMEOUT_TRIES:-5}; not quarantined, pre-flighted again on a later tick"
   return 0
 }
 

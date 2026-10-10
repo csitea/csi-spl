@@ -382,6 +382,7 @@
       :parent="showParent"
       :parent-kind="parentKind"
       :topic-archive="showTopicArchive"
+      :pane-archive="paneArchiveReply"
       :topic-delete="showTopicDelete"
       :kind="kindSettable"
       :move-channel="canMoveTopic"
@@ -1160,6 +1161,8 @@ const inPane = computed(() => props.paneOpener !== undefined)
 const showTopicArchive = computed(() => (inPane.value
   ? paneArchiveOffer(props.msg, props.lastMsgId || '', props.paneOpener, editorId.value, access.me)
   : Boolean(props.topicMenu) && mayArchiveTopic(props.msg, editorId.value, access.me)))
+/* ... on a reply (not the topic card) it keeps the message's own Delete */
+const paneArchiveReply = computed(() => inPane.value && !props.topicMenu && showTopicArchive.value)
 const topicDeleteOpen = ref(false)
 // The opening card the delete dialog acts on: resolved from the clicked card's
 // task (topicOpenerId) so a non-opener card still deletes the topic.
@@ -1483,7 +1486,7 @@ useMsgShortcuts({
   openMenu: openMenuFromShortcut,
   flags: () => ({
     editable: !!props.editable && !editing.value, parent: showParent.value, parentKind: parentKind.value,
-    topicArchive: showTopicArchive.value, topicDelete: showTopicDelete.value, kind: kindSettable.value,
+    topicArchive: showTopicArchive.value, paneArchive: paneArchiveReply.value, topicDelete: showTopicDelete.value, kind: kindSettable.value,
     moveChannel: canMoveTopic.value, mergeTopic: canMoveTopic.value, moveTopic: canMoveMsg.value,
     promoteTopic: canPromoteMsg.value, hide: menuHide.value, locks: menuLocks.value,
   }),

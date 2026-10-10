@@ -52,7 +52,7 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * reason as `hintKey`, instead of vanishing. Without `locks` (a reply, a
  * thread line) nothing changes.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, hide?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, paneArchive?: boolean, hide?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
  * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'hide-flow' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off', labelKey: string, disabled?: boolean, hintKey?: string }[]}
  */
 /** HUM-10 (topic c15b557e): the parent item's words per place */
@@ -99,7 +99,9 @@ export function msgMenuItems(opts = {}) {
   if (o.promoteTopic) items.push({ id: 'promote-topic', icon: 'move', labelKey: 'feed.msg_menu.promote_topic' })
   if (!touch) archive()
   if (wantDelete || locks.delete) gated(wantDelete, { id: 'delete-topic', icon: 'delete', labelKey: 'feed.msg_menu.delete' }, locks.delete)
-  else if (editable && !wantArchive) items.push({ id: 'delete', icon: 'trash', labelKey: 'feed.msg_menu.delete' })
+  // HUM-10 (t1 7de82b71): a topic pane's latest REPLY offers Archive topic
+  // (`paneArchive`) and keeps its own message Delete, as before that rule.
+  else if (editable && (!wantArchive || o.paneArchive)) items.push({ id: 'delete', icon: 'trash', labelKey: 'feed.msg_menu.delete' })
   return items
 }
 

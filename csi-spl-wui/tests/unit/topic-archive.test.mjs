@@ -180,6 +180,17 @@ describe('the card menu', () => {
     // Both flags = the author / owner / admin card, as `topic` shorthand does.
     assert.deepEqual(msgMenuItems({ topicArchive: true, topicDelete: true }).map((i) => i.id), ['open', 'copy', 'archive', 'delete-topic'])
   })
+  it('HUM-10 (t1 7de82b71): a topic pane\'s latest reply offers Archive AND keeps its message Delete', () => {
+    assert.deepEqual(msgMenuItems({ editable: true, topicArchive: true, paneArchive: true }).map((i) => i.id), ['open', 'copy', 'edit', 'archive', 'delete'])
+    // not the viewer's to delete: Archive alone
+    assert.deepEqual(msgMenuItems({ editable: false, topicArchive: true, paneArchive: true }).map((i) => i.id), ['open', 'copy', 'archive'])
+    // MessageCard passes paneArchive on a pane reply, to the menu AND the shortcuts
+    const card = src('src/components/MessageCard.vue')
+    assert.match(card, /:pane-archive="paneArchiveReply"/)
+    assert.match(card, /paneArchive: paneArchiveReply\.value/)
+    assert.match(card, /const paneArchiveReply = computed\(\(\) => inPane\.value && !props\.topicMenu && showTopicArchive\.value\)/)
+    assert.match(src('src/components/MessageMenu.vue'), /paneArchive: props\.paneArchive/)
+  })
   it('draws the Gmail-style archive glyph (tray + arrow in), unarchive (arrow out) and a Material delete can', () => {
     const icons = src('src/utils/uiIcons.ts')
     const glyph = (name) => (icons.match(new RegExp(`\\n  ${name}: \\[([\\s\\S]*?)\\n  \\]`)) || [])[1] || ''

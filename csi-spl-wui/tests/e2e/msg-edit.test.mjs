@@ -427,9 +427,11 @@ try {
     ? await page.$$eval('[data-testid=msg-menu] [role=menuitem]', (els) => els.map((el) => el.getAttribute('data-testid')))
     : []
   /* a thread line also goes back to its parent section */
-  ok('right-click opens a menu with open, open parent section, copy link, hide from flow, edit, and delete',
-    /* t1 b6c742f0: a person's reply then lists the AI actions group, last */
-    replyReady && menuIds.filter((id) => !String(id).startsWith('msg-menu-ai-')).join(',') === 'msg-menu-open,msg-menu-parent,msg-menu-copy,msg-menu-hide-flow,msg-menu-edit,msg-menu-delete'
+  ok('right-click opens a menu with open, open parent section, copy link, hide from flow, edit, archive and delete',
+    /* t1 b6c742f0: a person's reply then lists the AI actions group, last.
+       HUM-10 (t1 7de82b71): this reply is the pane's latest, so it also offers
+       Archive topic - and keeps its own Delete. */
+    replyReady && menuIds.filter((id) => !String(id).startsWith('msg-menu-ai-')).join(',') === 'msg-menu-open,msg-menu-parent,msg-menu-copy,msg-menu-hide-flow,msg-menu-edit,msg-menu-archive,msg-menu-delete'
       && menuIds.slice(-7).every((id) => String(id).startsWith('msg-menu-ai-')),
     { menuIds, replyReady })
   await page.click('[data-testid=msg-menu-edit]')

@@ -43,6 +43,8 @@ const props = defineProps<{
   topic?: boolean
   /** SPL-983 / CLE-77819: offer Archive (author, addressee, owner or admin) */
   topicArchive?: boolean
+  /** HUM-10 (t1 7de82b71): Archive is the topic pane's latest reply's; its message Delete stays */
+  paneArchive?: boolean
   /** SPL-983: offer Delete the topic (author, owner or admin) */
   topicDelete?: boolean
   /** SPL-991: the viewer may re-type this message (the sheet's Kind item) */
@@ -120,6 +122,7 @@ const topicItems = computed(() => msgMenuItems({
   topic: props.topic,
   topicArchive: props.topicArchive,
   topicDelete: props.topicDelete,
+  paneArchive: props.paneArchive,
   moveChannel: props.moveChannel,
   moveTopic: props.moveTopic,
   mergeTopic: props.mergeTopic,

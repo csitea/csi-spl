@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+#------------------------------------------------------------------------------
+# Purpose: the harness-agnostic force-push matcher
+# (features/spawn-agents/lib/force-push-guard.inc.sh), every form:
+#   1. each forbidden push form is refused: rc 2, one "force-push-guard:
+#      refused:" line on stderr - bare, combined flags, +refspecs, deletes of
+#      master, git -c smuggling, SPL_PREPUSH_OVERRIDE, and every wrapper
+#      (bash -c, sh -c, env, sudo, eval, git -C / -c, $( ), backticks, &&, ;)
+#   2. the allowed forms pass: rc 0, nothing on stderr - a plain push to
+#      master, a feature-branch delete, read-only git, commit messages that
+#      only mention push, SPL_PREPUSH_OVERRIDE=0
+#   3. the direct CLI form (--check) answers the same, and a bad call is 64
+#   4. fail closed: with no python3 on PATH even a plain push is refused
+# Control: a matcher that allows everything fails every case in 1.
+#------------------------------------------------------------------------------
+# shellcheck disable=SC2016,SC1091  # the cases are literal commands, never expanded
+set -uo pipefail
+G="$(cd "$(dirname "$0")/../features/spawn-agents/lib" && pwd)/force-push-guard.inc.sh"
+# shellcheck source=../features/spawn-agents/lib/force-push-guard.inc.sh
+. "$G"
+fails=0 n=0
+pass() { n=$((n + 1)); echo "PASS: $1"; }
+fail() { n=$((n + 1)); echo "FAIL: $1"; fails=$((fails + 1)); }
+
+refuse() {  # <command>
+  local err rc
+  err="$(force_push_guard_check "$1" 2>&1 >/dev/null)"; rc=$?
+  if [ "$rc" = 2 ] && [ "$(printf '%s\n' "$err" | wc -l)" = 1 ] && [[ "$err" == "force-push-guard: refused: "* ]]
+  then pass "refused: $1"; else fail "should refuse (rc=$rc err=$err): $1"; fi
+}
+allow() {  # <command>
+  local err rc
+  err="$(force_push_guard_check "$1" 2>&1 >/dev/null)"; rc=$?
+  if [ "$rc" = 0 ] && [ -z "$err" ]; then pass "allowed: $1"; else fail "should allow (rc=$rc err=$err): $1"; fi
+}
+
+# 1. forbidden
+refuse 'git push --force origin HEAD:master'
+refuse 'git push origin HEAD:master --force'
+refuse 'git push -f origin master'
+refuse 'git push -uf origin master'
+refuse 'git push -fu origin HEAD:master'
+refuse 'git push --force-with-lease origin HEAD:master'
+refuse 'git push --force-with-lease=master:abc123 origin HEAD:master'
+refuse 'git push --force-if-includes origin HEAD:master'
+refuse 'git push --mirror origin'
+refuse 'git push origin +HEAD:master'
+refuse 'git push origin +master'
+refuse 'git push origin main +HEAD:master'
+refuse 'git push origin :master'
+refuse 'git push origin :refs/heads/master'
+refuse 'git push --delete origin master'
+refuse 'git push -d origin master'
+refuse 'git push origin --delete refs/heads/master'
+refuse 'SPL_PREPUSH_OVERRIDE=1 git push origin HEAD:master'
+refuse 'export SPL_PREPUSH_OVERRIDE=1; git push origin HEAD:master'
+refuse 'env SPL_PREPUSH_OVERRIDE=1 git push origin HEAD:master'
+refuse 'SPL_PREPUSH_OVERRIDE="1" git push'
+refuse 'SPL_PREPUSH_OVERRIDE=yes git push'
+refuse 'sudo -u agentusr bash -c "SPL_PREPUSH_OVERRIDE=1 git push origin HEAD:master"'
+refuse 'bash -c "git push --force origin HEAD:master"'
+refuse "sh -c 'git push -f origin master'"
+refuse "bash -lc 'cd /x && git push --force-with-lease origin HEAD:master'"
+refuse 'sudo -u agentusr bash -c "cd /opt/x && git push origin HEAD:master --force"'
+refuse 'sudo -u agentusr git push -f origin master'
+refuse 'sudo -u agentusr git -C /opt/csi/x push --force origin HEAD:master'
+refuse 'env GIT_TRACE=1 git push --force origin master'
+refuse 'env -i PATH=/usr/bin /usr/bin/git push --force origin master'
+refuse 'command git push -f'
+refuse 'nohup git push -f origin master &'
+refuse 'timeout 60 git push --force origin master'
+refuse 'eval "git push --force origin master"'
+refuse 'git -c user.name=x -c user.email=y push --force origin HEAD:master'
+refuse 'git -C /opt/x -c core.pager=cat push -f'
+refuse 'git -c remote.origin.push=+HEAD:master push origin'
+refuse 'git -c remote.origin.mirror=true push origin'
+refuse "git -c alias.p='push --force' p origin master"
+refuse "git -c 'alias.p=!git push -f' p"
+refuse 'cd /opt/x && git fetch && git push -f origin master'
+refuse 'git status; git push --force origin master'
+refuse 'true || git push --force origin master'
+refuse 'echo $(git push --force origin master)'
+refuse 'echo `git push --force origin master`'
+refuse 'git status
+git push --force origin master'
+refuse "su agentusr -c 'git push --force origin master'"
+refuse "ssh box 'cd /opt/x && git push --force origin master'"
+refuse 'env -S "git push --force origin master"'
+refuse 'git push --force'
+refuse 'git push "unterminated --force'
+
+# 2. allowed
+allow 'git push origin HEAD:master'
+allow 'git push'
+allow 'git push origin c-766-branch'
+allow 'git push origin --delete c-766-branch'
+allow 'git push origin :c-766-branch'
+allow 'git push -u origin c-766-branch'
+allow 'git push origin v1.2.3'
+allow 'git push --no-force-with-lease origin HEAD:master'
+allow 'sudo -u agentusr git -C /opt/csi/x push origin HEAD:master'
+allow "sudo -u agentusr bash -c 'cd /opt/x && git push origin HEAD:master'"
+allow 'git log --oneline -5'
+allow 'git fetch --force origin'
+allow 'git commit -m "doc: never git push --force to master"'
+allow 'echo "git push -f is forbidden"'
+allow 'grep -rn force-with-lease docs/'
+allow 'SPL_PREPUSH_OVERRIDE=0 git push origin HEAD:master'
+allow 'git -c user.name=x -c user.email=y commit -m "x"'
+allow 'git -c alias.p=push p origin HEAD:master'
+
+# 3. the CLI form
+bash "$G" --check 'git push -f origin master' 2>/dev/null; rc=$?
+if [ "$rc" = 2 ]; then pass "--check refuses with rc 2"; else fail "--check refuse rc=$rc"; fi
+bash "$G" --check 'git push origin HEAD:master' 2>/dev/null; rc=$?
+if [ "$rc" = 0 ]; then pass "--check allows with rc 0"; else fail "--check allow rc=$rc"; fi
+bash "$G" 2>/dev/null; rc=$?
+if [ "$rc" = 64 ]; then pass "a bad call is rc 64"; else fail "bad call rc=$rc"; fi
+
+# 4. fail closed without python3
+T=$(mktemp -d)
+trap 'rm -rf "$T"' EXIT
+ln -s "$(command -v bash)" "$T/bash"
+err="$(PATH="$T" "$T/bash" -c '. "$1"; force_push_guard_check "git push origin HEAD:master"' _ "$G" 2>&1)"; rc=$?
+if [ "$rc" = 2 ] && [[ "$err" == *"fail closed"* ]]; then pass "no python3: refused (fail closed)"
+else fail "no python3: rc=$rc err=$err"; fi
+
+echo "force-push-guard: $((n - fails))/$n passed"
+[ "$fails" = 0 ]

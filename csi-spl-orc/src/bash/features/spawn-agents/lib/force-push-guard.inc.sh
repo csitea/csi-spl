@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# force-push-guard.inc.sh — the ONE decision "is this shell command a forbidden
+# push form?", shared by every harness guard (the vibe pre_tool hook, and the
+# claude / grok / agy / qwen hooks). Owner order, t1 4e373f5d: nobody
+# force-pushes master without the owner's explicit approval.
+#
+#   force_push_guard_check "<command>"
+#       rc 0  allow (prints nothing)
+#       rc 2  refuse; one line "force-push-guard: refused: <reason>" on stderr
+#   bash force-push-guard.inc.sh --check "<command>"   the same, run directly
+#
+# Refused anywhere in the command: after ; && || | & newlines, backticks and
+# $( ), and inside bash/sh/zsh -c, eval, su -c, ssh, env -S and the wrappers
+# env, sudo, command, exec, nohup, timeout, xargs, ... :
+#   - git push -f / --force / --force-with-lease / --force-if-includes /
+#     --mirror (also inside combined short flags such as -fu)
+#   - git push with a +refspec (+HEAD:master, +master)
+#   - git push deleting master: :master, :refs/heads/master, or --delete / -d
+#     with master as the refspec
+#   - git -c remote.<r>.push=+..., remote.<r>.mirror=..., or an alias.<a>=
+#     that expands to one of the above
+#   - SPL_PREPUSH_OVERRIDE set to anything but empty or 0, in any form
+# A plain `git push origin HEAD:master` is allowed. A command that only reaches
+# git through a variable or a script file is not read (the pre-push hook and
+# the GitHub ruleset are the layers behind this one).
+# Fails CLOSED: no python3, a guard error, or an untokenizable command that
+# mentions push is refused.
+
+force_push_guard_check() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "force-push-guard: refused: python3 is missing, the guard cannot read the command (fail closed)" >&2
+    return 2
+  fi
+  python3 -c "$_FORCE_PUSH_GUARD_PY" "${1-}"
+}
+
+# shellcheck disable=SC2016  # python source, never expanded by bash
+_FORCE_PUSH_GUARD_PY='
+import re, shlex, sys
+
+OVERRIDE = re.compile(r"SPL_PREPUSH_OVERRIDE\s*=\s*(?![\"\x27]{2}|\s|;|&|\||$|0(?![^\s;&|]))")
+FORCE_LONG = ("--force", "--force-with-lease", "--force-if-includes", "--mirror")
+SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "fish", "busybox"}
+WRAP = {"env", "command", "exec", "nohup", "time", "nice", "ionice", "setsid",
+        "stdbuf", "timeout", "xargs", "builtin", "chronic", "unbuffer", "flock",
+        "doas", "sudo", "then", "do", "else", "!", "watch", "parallel", "strace"}
+ARG_OPTS = {"sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T"},
+            "env": {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"},
+            "nice": {"-n", "--adjustment"}, "ionice": {"-c", "-n", "-t"},
+            "timeout": {"-s", "--signal", "-k", "--kill-after"},
+            "xargs": {"-I", "-L", "-n", "-P", "-d", "-E", "-a", "-s"},
+            "flock": {"-w", "-E", "-c"}, "watch": {"-n", "-d"},
+            "stdbuf": {"-i", "-o", "-e"}}
+GIT_ARG_OPTS = {"-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
+PUSH_ARG_OPTS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
+MASTER = {"master", "refs/heads/master"}
+APPROVAL = "forbidden without the owner\x27s explicit approval"
+
+
+class Refuse(Exception):
+    pass
+
+
+def split(cmd):
+    s = cmd.replace("`", " ; ").replace("\n", " ; ").replace("$(", " ; ( ")
+    lx = shlex.shlex(s, posix=True, punctuation_chars=";&|()<>")
+    lx.whitespace_split = True
+    lx.commenters = ""
+    segs, cur = [], []
+    for t in lx:
+        if t and all(c in ";&|()<>" for c in t):
+            if cur:
+                segs.append(cur)
+            cur = []
+            continue
+        cur.append(t)
+    if cur:
+        segs.append(cur)
+    return segs
+
+
+def check(cmd, depth=0):
+    if depth > 8:
+        raise Refuse("the command nests too deep to read (fail closed)")
+    if OVERRIDE.search(cmd):
+        raise Refuse("SPL_PREPUSH_OVERRIDE bypasses the pre-push gate; " + APPROVAL)
+    try:
+        segs = split(cmd)
+    except ValueError as e:
+        if re.search(r"\bpush\b", cmd):
+            raise Refuse("cannot tokenize a command that mentions push (%s); fail closed" % e)
+        return
+    for seg in segs:
+        segment(seg, depth)
+
+
+def skip_wrapper(b, toks, i, depth):
+    opts = ARG_OPTS.get(b, set())
+    while i < len(toks) and toks[i].startswith("-") and toks[i] != "-":
+        if toks[i] in ("-S", "--split-string") and b == "env" and i + 1 < len(toks):
+            check(toks[i + 1], depth + 1)
+        if toks[i] == "-c" and b == "flock" and i + 1 < len(toks):
+            check(toks[i + 1], depth + 1)
+        i += 2 if toks[i] in opts else 1
+    if b in ("timeout", "flock") and i < len(toks):
+        i += 1  # the duration / the lock file
+    return i
+
+
+def segment(toks, depth):
+    i = 0
+    while i < len(toks):
+        t = toks[i]
+        b = t.rsplit("/", 1)[-1]
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t):
+            i += 1
+        elif b in WRAP:
+            i = skip_wrapper(b, toks, i + 1, depth)
+        elif b in SHELLS:
+            rest = toks[i + 1:]
+            for j, a in enumerate(rest):
+                if re.match(r"^-[A-Za-z]*c[A-Za-z]*$", a) and j + 1 < len(rest):
+                    check(rest[j + 1], depth + 1)
+                    break
+            return
+        elif b == "eval" or b in ("ssh", "tmux", "screen"):
+            check(" ".join(toks[i + 1:]), depth + 1)
+            return
+        elif b in ("su", "runuser"):
+            rest = toks[i + 1:]
+            for j, a in enumerate(rest):
+                if a in ("-c", "--command") and j + 1 < len(rest):
+                    check(rest[j + 1], depth + 1)
+                elif a.startswith("--command="):
+                    check(a.split("=", 1)[1], depth + 1)
+            return
+        else:
+            if b == "git":
+                git(toks[i + 1:], depth)
+            return
+
+
+def git(args, depth):
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "-c" and i + 1 < len(args):
+            gitcfg(args[i + 1], depth)
+            i += 2
+        elif a in GIT_ARG_OPTS:
+            i += 2
+        elif a.startswith("-"):
+            i += 1
+        else:
+            break
+    if i < len(args) and args[i] == "push":
+        push(args[i + 1:])
+
+
+def gitcfg(kv, depth):
+    k, _, v = kv.partition("=")
+    k = k.lower()
+    if re.match(r"^remote\..+\.push$", k) and v.startswith("+"):
+        raise Refuse("git -c %s=+... is a forced push refspec; %s" % (k, APPROVAL))
+    if re.match(r"^remote\..+\.mirror$", k):
+        raise Refuse("git -c %s turns push into --mirror; %s" % (k, APPROVAL))
+    if k.startswith("alias."):
+        check(v[1:] if v.startswith("!") else "git " + v, depth + 1)
+
+
+def push(args):
+    pos, delete = [], False
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            pos.extend(args[i + 1:])
+            break
+        if a.startswith("--"):
+            name = a.split("=", 1)[0]
+            if name in FORCE_LONG:
+                raise Refuse("git push %s rewrites remote history; %s" % (name, APPROVAL))
+            if name == "--delete":
+                delete = True
+            i += 2 if name in PUSH_ARG_OPTS and "=" not in a else 1
+            continue
+        if a.startswith("-") and len(a) > 1:
+            flags = a[1:]
+            for n, c in enumerate(flags):
+                if c == "f":
+                    raise Refuse("git push -f is a force push; " + APPROVAL)
+                if c == "d":
+                    delete = True
+                if c == "o":
+                    if n == len(flags) - 1:
+                        i += 1  # -o takes the next word
+                    break
+            i += 1
+            continue
+        pos.append(a)
+        i += 1
+    for r in pos:
+        if r.startswith("+"):
+            raise Refuse("git push %s is a forced refspec (+); %s" % (r, APPROVAL))
+        if r.startswith(":") and r[1:] in MASTER:
+            raise Refuse("git push %s deletes master; %s" % (r, APPROVAL))
+        if delete and r.split(":")[-1] in MASTER:
+            raise Refuse("git push --delete %s deletes master; %s" % (r, APPROVAL))
+
+
+try:
+    check(sys.argv[1])
+except Refuse as e:
+    print("force-push-guard: refused: %s" % e, file=sys.stderr)
+    sys.exit(2)
+except Exception as e:
+    print("force-push-guard: refused: guard error %s (fail closed)" % type(e).__name__, file=sys.stderr)
+    sys.exit(2)
+'
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  if [ "${1-}" = --check ] && [ $# -eq 2 ]; then
+    force_push_guard_check "$2"
+    exit $?
+  fi
+  echo "usage: bash force-push-guard.inc.sh --check \"<command>\"  (rc 0 allow, 2 refuse)" >&2
+  exit 64
+fi

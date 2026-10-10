@@ -1,0 +1,48 @@
+# Go coverage floor per package (r5-10), read by run-all-tests.sh.
+# <package> <floor %.1f> [pg]. A package fails when it is more than 1.0 point
+# under its floor. `pg` = measured WITH Postgres (hub-pg.tst.sh), checked
+# after that gate. The gate never raises a floor: a lane that adds tests
+# raises its package's line by hand in the same commit.
+# Measured on eb7c8b962, go1.25.14: go test ./... (no DSN) for the plain
+# packages, hub-pg.tst.sh's docker postgres:16-alpine suites for pg ones.
+cmd/spool 26.8
+internal/action 30.3
+internal/agentid 97.0
+internal/auth/cmd/auth-demo 0.0
+internal/auth/fakeidp 0.0
+internal/billing 80.8
+internal/blob 66.2
+internal/calquick 97.6
+internal/calrecur 98.8
+internal/cicdlogs 81.6
+internal/cloud 95.8
+internal/config 76.8
+internal/edge 38.2
+internal/files 32.9
+internal/github 82.9
+internal/github/githubtest 0.0
+internal/hours 98.0
+internal/hubclient 51.9
+internal/i18n 97.2
+internal/invitemail 85.3
+internal/logging 0.0
+internal/mail 85.0
+internal/marketing 63.6
+internal/mcp 88.7
+internal/msg 84.9
+internal/notify 94.8
+internal/payments 72.3
+internal/rbac 89.3
+internal/search 95.6
+internal/sign 82.9
+internal/spool 86.4
+internal/testkit 0.0
+internal/testkit/fakehub 0.0
+internal/trace 95.0
+internal/uid 100.0
+internal/wire 81.7
+internal/xlsx 91.2
+internal/auth 82.9 pg
+internal/hub 82.2 pg
+internal/repodocs 90.7 pg
+internal/store 80.4 pg

@@ -8,8 +8,11 @@
 # @description pushes that landed before its lane fixed it. Counting runs says
 # @description "CI is broken"; counting jobs says which four things broke, and
 # @description a job that shows up in window after window is the flake.
-# @description Reads only the runs API (no logs) unless CI_GATE_SIGNATURES=1,
-# @description which also prints the first FAIL / ::error line per failed job.
+# @description Then the FIRST red per job (fail-fast stops left out) and, per
+# @description failed job, its last green run in the window (r7-02).
+# @description Reads the runs, jobs and check-run annotations APIs (no logs)
+# @description unless CI_GATE_SIGNATURES=1, which also prints the first FAIL /
+# @description ::error line per failed job.
 # @description The repo comes from the checkout's own remote -- no default URL.
 # @param CI_GATE_RUNS (optional) - default 40: how many recent runs to read
 # @param CI_GATE_WORKFLOW (optional) - default 10_ci-quality.yml
@@ -55,18 +58,19 @@ do_report_ci_gate() { (
     rm -rf "$tmp"; return 0
   fi
 
-  local rid concl created sha jid jname
+  local rid concl created sha jid jname jconcl
   : >"$tmp/jobs.tsv"
   while IFS=$'\t' read -r rid concl created sha; do
-    gh api "repos/{owner}/{repo}/actions/runs/$rid/jobs" --paginate \
-      --jq '.jobs[] | select(.conclusion=="failure") | [.id, .name] | @tsv' 2>/dev/null |
-      while IFS=$'\t' read -r jid jname; do
-        printf '%s\t%s\t%s\t%s\t%s\n' "$rid" "$created" "$sha" "$jid" "$jname" >>"$tmp/jobs.tsv"
-      done
+    _rcg_run_jobs "$tmp" "$rid" | while IFS=$'\t' read -r jid jconcl jname; do
+      [[ "$jconcl" == failure ]] || continue
+      printf '%s\t%s\t%s\t%s\t%s\n' "$rid" "$created" "$sha" "$jid" "$jname" >>"$tmp/jobs.tsv"
+    done
   done <"$tmp/failed.tsv"
 
   echo "== $nf failed run(s); failures per JOB (a job over ~3 is a defect that sat on trunk, or a flake)"
   cut -f5 "$tmp/jobs.tsv" | sort | uniq -c | sort -rn | sed 's/^/   /'
+  _rcg_first_red "$tmp" "$nf"
+  _rcg_last_green "$tmp" "$total"
 
   echo "== failed runs, newest first"
   local sig
@@ -84,3 +88,74 @@ do_report_ci_gate() { (
   rm -rf "$tmp"
   return 0
 ) }
+
+# _rcg_run_jobs <tmp> <run id> - "<job id>\t<conclusion>\t<name>" for every job
+# of the run, fetched once and cached in <tmp>: the per-job, first-red and
+# last-green sections all read the same jobs.
+_rcg_run_jobs() {
+  local f="$1/jobs-$2.tsv"
+  [[ -f "$f" ]] || gh api "repos/{owner}/{repo}/actions/runs/$2/jobs" --paginate \
+    --jq '.jobs[] | [.id, (.conclusion // "running"), .name] | @tsv' >"$f" 2>/dev/null || : >"$f"
+  cat "$f"
+}
+
+# _rcg_first_red <tmp> <failed runs> - the job(s) that broke each failed run,
+# counted per job. gate-fail-fast.sh stops every other job of a red run and a
+# stopped job concludes failure too, so the per-job counts say 20 jobs broke
+# when 1 did (24 failed runs to 2026-10-10: 133 job failures, 47 first reds).
+# A stopped job carries the check-run annotation
+#   gate fail-fast: stopped, so the next gate run starts; red in this run: <names>
+# A run's first reds are the jobs named there plus the jobs that failed with
+# no such annotation, minus the stopped jobs: a job stopped early is named by
+# the jobs stopped after it. Job names hold commas and the annotation joins
+# them with commas, so a name is matched whole against the run's own failed
+# jobs, never split.
+_rcg_first_red() {
+  local tmp="$1" nf="$2" rid jid jconcl jname msg
+  : >"$tmp/stops.tsv"
+  while IFS=$'\t' read -r rid _; do
+    _rcg_run_jobs "$tmp" "$rid" | while IFS=$'\t' read -r jid jconcl jname; do
+      [[ "$jconcl" == failure || "$jconcl" == timed_out ]] || continue
+      msg=$(gh api "repos/{owner}/{repo}/check-runs/$jid/annotations" --jq '.[].message' 2>/dev/null |
+            grep -a 'gate fail-fast: stopped' | sed -n 1p)
+      printf '%s\t%s\t%s\n' "$rid" "$jname" "${msg:+${msg#*red in this run: }}" >>"$tmp/stops.tsv"
+    done
+  done <"$tmp/failed.tsv"
+  echo "== first red per JOB, over the $nf failed run(s): the job(s) that broke each run, fail-fast stops left out"
+  awk -F'\t' '
+    { k = $1 SUBSEP $2; red[k] = 1; if ($3 == "") own[k] = 1; else { stop[k] = 1; list[$1] = list[$1] "," $3 } }
+    END {
+      for (k in red) {
+        split(k, p, SUBSEP)
+        if (k in stop) continue
+        if ((k in own) || index(list[p[1]] ",", "," p[2] ",")) { n[p[2]]++; runs[p[1]] = 1 }
+      }
+      for (j in n) printf "%7d %s\n", n[j], j
+    }' "$tmp/stops.tsv" | sort -rn
+}
+
+# _rcg_last_green <tmp> <runs> - per job that failed in the window, the newest
+# completed run in which it passed: since when that job is red. Reads the jobs
+# of success and failure runs only (a cancelled wf 10 run on master is a
+# superseded pending one, with no job), newest first, until each has one.
+_rcg_last_green() {
+  local tmp="$1" total="$2" rid rconcl created sha jid jconcl jname
+  cut -f5 "$tmp/jobs.tsv" | sort -u >"$tmp/want.txt"
+  : >"$tmp/green.tsv"
+  while IFS=$'\t' read -r rid rconcl created sha; do
+    (( $(wc -l <"$tmp/green.tsv") < $(wc -l <"$tmp/want.txt") )) || break
+    [[ "$rconcl" == success || "$rconcl" == failure ]] || continue
+    _rcg_run_jobs "$tmp" "$rid" | while IFS=$'\t' read -r jid jconcl jname; do
+      [[ "$jconcl" == success ]] || continue
+      grep -qxF -- "$jname" "$tmp/want.txt" || continue
+      cut -f1 "$tmp/green.tsv" | grep -xF -- "$jname" >/dev/null ||
+        printf '%s\t%s %s %s\n' "$jname" "$rid" "$sha" "$created" >>"$tmp/green.tsv"
+    done
+  done <"$tmp/runs.tsv"
+  echo "== last green per failed JOB: run, sha, time (newest in the last $total run(s))"
+  local seen
+  while IFS= read -r jname; do
+    seen=$(awk -F'\t' -v j="$jname" '$1 == j { print $2; exit }' "$tmp/green.tsv")
+    printf '   last green: %s  %s\n' "${seen:-none in the last $total run(s)}" "$jname"
+  done <"$tmp/want.txt"
+}

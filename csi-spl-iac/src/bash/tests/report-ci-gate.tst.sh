@@ -9,12 +9,19 @@
 #   2. every failed run is listed with its id, sha and job name
 #   3. CI_GATE_SIGNATURES=1 adds the first FAIL/::error line of that job's log
 #   4. a window with no failure says so and exits 0
+#   5. the first-red section (r7-02): a run with 1 red job and 8 jobs that
+#      gate-fail-fast.sh stopped counts 1 job, not 9; the job names hold
+#      commas, as the real ones do, and one stopped job names an earlier
+#      stopped one, as a late poll does
+#   6. one `last green: <run> <sha8> <time>` line per failed job
 #   CONTROLS -- the report cannot be silently empty:
 #     a. no runs at all               -> refused (non-zero), not "healthy"
 #     b. gh itself fails              -> refused (non-zero)
 #     c. a non-numeric CI_GATE_RUNS   -> refused before any call
 #     d. CI_GATE_REPO reaches gh as GH_REPO -- `gh api` has no --repo flag, so
 #        a wrong wiring here would silently report the WRONG repo in CI
+#     e. RED CONTROL for 5: the same run with the annotations hidden counts
+#        9 first reds, so the assertion of 5 fails without the parse
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -43,6 +50,9 @@ case "${args[0]}" in
     case "${args[1]}" in
       */runs/*/jobs) src="$GH_STUB_DIR/jobs-$(sed 's|.*/runs/\([0-9]*\)/jobs|\1|' <<<"${args[1]}").json" ;;
       */jobs/*/logs) cat "$GH_STUB_DIR/log-$(sed 's|.*/jobs/\([0-9]*\)/logs|\1|' <<<"${args[1]}").txt" 2>/dev/null; exit 0 ;;
+      */check-runs/*/annotations)
+        src="$GH_STUB_DIR/ann-$(sed 's|.*/check-runs/\([0-9]*\)/annotations|\1|' <<<"${args[1]}").json"
+        [[ -f "$src" && "${GH_STUB_NO_ANNOTATIONS:-0}" != 1 ]] || src="$GH_STUB_DIR/ann-none.json" ;;
     esac ;;
 esac
 [[ -f "$src" ]] || { echo "gh: stub has no canned $src" >&2; exit 1; }
@@ -58,7 +68,8 @@ cat >"$T/api/runs.json" <<'JSON'
  {"databaseId":903,"conclusion":"failure","createdAt":"2026-01-02T09:55:00Z","headSha":"cccccccc3333"},
  {"databaseId":904,"conclusion":"success","createdAt":"2026-01-02T09:50:00Z","headSha":"dddddddd4444"},
  {"databaseId":905,"conclusion":"success","createdAt":"2026-01-02T09:45:00Z","headSha":"eeeeeeee5555"},
- {"databaseId":906,"conclusion":"success","createdAt":"2026-01-02T09:40:00Z","headSha":"ffffffff6666"}
+ {"databaseId":906,"conclusion":"success","createdAt":"2026-01-02T09:40:00Z","headSha":"ffffffff6666"},
+ {"databaseId":907,"conclusion":"failure","createdAt":"2026-01-02T09:35:00Z","headSha":"99999999aaaa"}
 ]
 JSON
 # 902 fails two jobs, 903 fails one of the same two -> counts 2 and 1
@@ -71,6 +82,26 @@ cat >"$T/api/jobs-903.json" <<'JSON'
 {"jobs":[{"id":7004,"name":"iac: step contracts","conclusion":"failure"},
          {"id":7005,"name":"hub: go test","conclusion":"success"}]}
 JSON
+# 904 (success): the newest green of both jobs that failed in 902
+cat >"$T/api/jobs-904.json" <<'JSON'
+{"jobs":[{"id":7006,"name":"iac: step contracts","conclusion":"success"},
+         {"id":7007,"name":"wui: unit tests","conclusion":"success"}]}
+JSON
+# 907: ONE job broke the run, gate-fail-fast.sh stopped the 8 others, and every
+# stopped job concluded failure too. Names hold commas like the real ones; the
+# last stopped job polled after s1 had ended, so it names s1 as well.
+red='e2e: generate (mock, tenant)'
+{
+  printf '{"jobs":[{"id":7100,"name":"%s","conclusion":"failure"}' "$red"
+  for i in 1 2 3 4 5 6 7 8; do printf ',\n {"id":71%02d,"name":"stop: s%s (a, b)","conclusion":"failure"}' "$i" "$i"; done
+  printf ']}\n'
+} >"$T/api/jobs-907.json"
+echo '[]' >"$T/api/ann-none.json"
+echo '[{"message":"Process completed with exit code 1."}]' >"$T/api/ann-7100.json"
+for i in 1 2 3 4 5 6 7; do
+  printf '[{"message":"Process completed with exit code 1."},{"message":"gate fail-fast: stopped, so the next gate run starts; red in this run: %s"}]\n' "$red" >"$T/api/ann-71$(printf %02d "$i").json"
+done
+printf '[{"message":"gate fail-fast: stopped, so the next gate run starts; red in this run: %s,stop: s1 (a, b)"}]\n' "$red" >"$T/api/ann-7108.json"
 printf '2026-01-02T10:00:01Z ok   - something\n2026-01-02T10:00:02Z FAIL: the tfvars differ from a fresh render\n2026-01-02T10:00:03Z more\n' >"$T/api/log-7001.txt"
 printf '2026-01-02T10:00:01Z FAIL key present auth.x: missing in en.json\n' >"$T/api/log-7002.txt"
 printf '2026-01-02T09:55:02Z FAIL: the tfvars differ from a fresh render\n' >"$T/api/log-7004.txt"
@@ -95,6 +126,49 @@ grep -q 'hub: go test' "$T/out" && { fail "a job that SUCCEEDED was counted as a
 grep -qE '3 success' "$T/out" && grep -qE '1 running' "$T/out" \
   && pass "the run-level tally names success and the still-running run" \
   || { fail "run-level tally missing success/running"; sed 's/^/    | /' "$T/out"; }
+
+# --- 5. first red per job ----------------------------------------------------
+# first_red_section <file> - the lines of the first-red section only
+first_red_section() { sed -n '/^== first red per JOB/,/^== /{/^== /d;p}' "$1"; }
+# first_red_is_one <file> - the 907 run counts its one red job and nothing else
+first_red_is_one() {
+  local sec; sec=$(first_red_section "$1")
+  sed 's/^ *//' <<<"$sec" | grep -xF "1 $red" >/dev/null && ! grep -q 'stop: s' <<<"$sec"
+}
+report; rc=$?
+if [[ $rc -eq 0 ]] && first_red_is_one "$T/out"; then
+  pass "first red: the run with 1 red job and 8 stopped counts 1 job ($red), no stopped job"
+else
+  fail "first red: the stopped jobs were counted, or the red job was not (rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+sec=$(first_red_section "$T/out")
+if grep -qE '^ +2 iac: step contracts$' <<<"$sec" && grep -qE '^ +1 wui: unit tests$' <<<"$sec"; then
+  pass "first red: a failed job with no fail-fast annotation is a first red (iac 2, wui 1)"
+else
+  fail "first red: the runs with no stop lost their red jobs"; sed 's/^/    | /' <<<"$sec"
+fi
+grep -qE '^ +8 stop: s|^ +1 stop: s' "$T/out" \
+  && pass "the old per-job section still counts the stopped jobs (other readers rely on it)" \
+  || { fail "the old per-job section changed"; sed 's/^/    | /' "$T/out"; }
+
+# --- CONTROL e. red control: without the annotation parse it counts 9 --------
+report GH_STUB_NO_ANNOTATIONS=1
+if ! first_red_is_one "$T/out" && [[ $(first_red_section "$T/out" | grep -cE '^ +1 (e2e: generate|stop: s[1-8] )') -eq 9 ]]; then
+  pass "CONTROL e. with the annotations hidden the first-red section counts 9 jobs, so check 5 FAILS without the parse"
+else
+  fail "CONTROL e. check 5 passes without the annotation parse: it proves nothing"; sed 's/^/    | /' "$T/out"
+fi
+
+# --- 6. last green per failed job -----------------------------------------------
+report
+if grep -qx '   last green: 904 dddddddd 2026-01-02T09:50:00Z  iac: step contracts' "$T/out" \
+   && grep -qx '   last green: 904 dddddddd 2026-01-02T09:50:00Z  wui: unit tests' "$T/out" \
+   && grep -qx '   last green: none in the last 7 run(s)  stop: s1 (a, b)' "$T/out" \
+   && [[ $(grep -c '^   last green: ' "$T/out") -eq 11 ]]; then
+  pass "one last-green line per failed job: run, sha8, time; 'none' when it never passed in the window"
+else
+  fail "last-green lines wrong"; sed 's/^/    | /' "$T/out"
+fi
 
 # --- 2. the failed runs are named ---------------------------------------------
 if grep -q '902 .*bbbbbbbb .*iac: step contracts' "$T/out" && grep -q '903 .*cccccccc' "$T/out"; then

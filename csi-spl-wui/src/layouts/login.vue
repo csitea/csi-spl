@@ -2,6 +2,11 @@
   <div class="login">
     <!-- Full-bleed wallpaper. The drift layer is larger than the viewport and
          clipped here, so the slow pan cannot widen the page. -->
+    <!-- spec 116 T3: the front page (/login, look A "Live channel") draws its
+         own calm field, in the visitor's theme; the other pages keep the
+         drifting wallpaper. CSS picks one (.login:has(.login-front)), so no
+         flag reaches the route table in the entry chunk. -->
+    <div class="login-wallpaper login-wallpaper--front" aria-hidden="true" data-test="login-front-field"></div>
     <div class="login-wallpaper" aria-hidden="true">
       <div class="login-wallpaper__drift" data-test="login-wallpaper">
         <!-- Short beads of light. Each path stays dark for most of its cycle. -->
@@ -45,7 +50,9 @@
     </div>
     <!-- spec 111 3.1: the public blog, linked from the signed-out frame only.
          A plain link (the blog is a prerendered document): NuxtLink would add
-         its 2.3 KB gzip chunk to the sign-in page's first download. -->
+         its 2.3 KB gzip chunk to the sign-in page's first download.
+         spec 116 T3: in flow under the scrolling body, never over it (it was
+         absolute and sat on the demo buttons once the card outgrew the room). -->
     <footer class="login-foot" data-test="login-foot">
       <a :href="localePath('/blog')" data-test="login-foot-blog">Blog</a>
     </footer>
@@ -100,7 +107,6 @@ watch(kb, async () => {
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
-  /* the containing block of the out-of-flow blog footer */
   position: relative;
   --login-foot-h: calc(2.25rem + env(safe-area-inset-bottom, 0px));
 }
@@ -185,8 +191,9 @@ watch(kb, async () => {
      the viewport middle (not the middle of the strip under the bar). `safe`
      falls back to the start, so once the card is taller than the room it
      top-aligns clear of the bar rather than being clipped. Phones drop this
-     in the media queries below (keyboard-aware, top-aligned). */
-  padding: 24px 24px calc(24px + var(--top-bar-h));
+     in the media queries below (keyboard-aware, top-aligned). The blog
+     footer under the body already takes --login-foot-h of that. */
+  padding: 24px 24px calc(24px + var(--top-bar-h) - var(--login-foot-h));
   min-width: 0;
   min-height: 0;
   max-width: 100%;
@@ -198,29 +205,30 @@ watch(kb, async () => {
 /* SPL-993: phones. A narrower frame around the card, the keyboard's height
    added below it, and 16 px fields so iOS does not zoom on focus. */
 @media (max-width: 820px) {
-  .login-body { padding-bottom: calc(24px + var(--login-foot-h) + var(--kb-inset, 0px)); }
+  .login-body { padding-bottom: calc(24px + var(--kb-inset, 0px)); }
   .login-body :deep(input),
   .login-body :deep(textarea),
   .login-body :deep(select) { font-size: max(16px, 1rem); }
 }
 @media (max-width: 600px) {
-  .login-body { padding: 12px 12px calc(12px + var(--login-foot-h) + var(--kb-inset, 0px)); }
+  .login-body { padding: 12px 12px calc(12px + var(--kb-inset, 0px)); }
   .login-body :deep(.login-card) { padding: 20px 16px; }
 }
 .login-foot {
-  /* Out of flow, pinned to the frame's bottom edge: in flow it took its
-     height from the centring box and pulled the card up by half of it. The
-     body's bottom padding (--top-bar-h on desktop, --login-foot-h on phones)
-     keeps the card clear of it. */
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  /* spec 116 T3: in flow, the frame's last row under the scrolling body, so
+     the body scrolls ABOVE it and no card content ever passes under a link.
+     A fixed height (--login-foot-h): the body's desktop padding subtracts it
+     to keep the card on the viewport centre. */
+  position: relative;
   z-index: 1;
+  flex: 0 0 auto;
+  height: var(--login-foot-h);
+  box-sizing: border-box;
   display: flex;
+  align-items: center;
   justify-content: center;
   gap: 16px;
-  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+  padding: 0 12px env(safe-area-inset-bottom, 0px);
   font-size: 0.85rem;
 }
 .login-foot a { color: var(--color-muted); }
@@ -232,6 +240,18 @@ watch(kb, async () => {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
+}
+/* look A: two soft accent glows over the theme's own background. Shown
+   only around the front page; the drifting wallpaper steps aside there
+   (display:none also stops its animations). */
+.login-wallpaper--front { display: none; }
+.login:has(.login-front) .login-wallpaper--front { display: block; }
+.login:has(.login-front) .login-wallpaper:not(.login-wallpaper--front) { display: none; }
+.login-wallpaper--front {
+  background:
+    radial-gradient(60rem 30rem at 15% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%),
+    radial-gradient(50rem 30rem at 95% 100%, color-mix(in srgb, var(--color-accent-2) 14%, transparent), transparent 70%),
+    var(--color-bg);
 }
 .login-wallpaper__drift {
   position: absolute;

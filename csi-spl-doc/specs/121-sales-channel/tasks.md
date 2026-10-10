@@ -68,7 +68,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T106 | hub: `#sales` triage line, retention, lead mark, block, export exclusion | 1 | T104 | build | claude |
 | T106b | WUI: "Visitors" rail group, lead / block buttons | 1 | T106 | build | mistral or grok |
 | T105 | hub: abuse limits, proof-of-work gate, bans, token sweep | 2 | T104 | build | claude |
-| T201 | hub serves `/embed/*` with per-customer `frame-ancestors` | 2 | T102, T103 | build | claude |
+| T201 | hub serves `/embed/*` with per-customer `frame-ancestors` | 2 | T102, T103 | done (2c5f2fa3b, 6532abba2) | claude |
 | T202 | loader.js + iframe chat page | 2 | T201, T104 | build | claude |
 | T203 | hub: embed admin API (origins, per-embed JWT key) | 2 | T102 | build | claude |
 | T204 | WUI: embed admin page | 2 | T203 | build | mistral or grok |
@@ -189,7 +189,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `GO/hub/embed_pow.go` + `_test.go` (*new*); `GO/hub/embed_sweep.go` +
   `_test.go` (*new*). Done: each 429 / 413 / 503 has a test that also
   proves nothing was written.
-- [ ] T201 **hub `/embed/*` route** (claude; needs T102, T103).
+- [x] T201 **hub `/embed/*` route** (claude; needs T102, T103).
   `frame-ancestors <embed_customers.allowed_origins>` on `/embed/*` only;
   every other path keeps `'none'` and `X-Frame-Options: DENY`; the loader
   with `Cross-Origin-Resource-Policy: cross-origin`; no
@@ -198,6 +198,19 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   an unknown or disabled embed id gets `'none'`;
   `csi-spl-wui/tests/unit/csp-policy.test.mjs` still green (the WUI CSP is
   not touched).
+  Built: `frameGuard` wraps the hub's `Handler()`: every response carries
+  `frame-ancestors 'none'` and `X-Frame-Options: DENY` (a handler with its
+  own CSP keeps DENY). `routeEmbedServe` (in `routeSections`, mounted only
+  when `EmbedEnabled`) serves `/embed/v1/loader.js` (CORP `cross-origin`)
+  and `/embed/v1/chat?e=<embed-id>`, whose CSP lists the embed's
+  `allowed_origins` and drops DENY. Only a plain `https://host[:port]` origin
+  (or `http://localhost`) is kept. An unknown, disabled or unreadable embed
+  stays `'none'`. No `/embed/*` response sets `Access-Control-Allow-Origin`.
+  Assets are `nil` (404 with the headers) until T202 passes its own.
+  Route patterns must be string literals, because the demo route-scan tests
+  read them. Tests: `GO/hub/embed_serve_test.go` (Postgres row included),
+  11 red controls. Live 5.9.7 dev + prd: `/v1/health` and `/embed/*` answer
+  `'none'` + DENY (flag off).
 - [ ] T202 **loader + iframe chat page** (claude; needs T201, T104).
   `/embed/v1/loader.js` (launcher button, iframe to
   `/embed/v1/chat?e=<embed-id>`) and the chat page; token in the iframe's

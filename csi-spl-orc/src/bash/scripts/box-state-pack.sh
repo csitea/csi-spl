@@ -126,13 +126,17 @@ case "${1:-}" in
     # the whole stream through the key pattern (a tar holds member bytes
     # raw); only on a hit, member by member to NAME it (a fork per member is
     # slow on ~90k files). Only the name is printed, never the bytes.
-    # grep -a, not -q or -c: -q quits at the first hit, -c counts, and zstd dies of SIGPIPE
-    # in both cases. pipefail then turns the hit into a miss. Suppress pipefail for this line.
-    set +o pipefail
-    zstd -dcq -- "$2" | grep -aE -e "$BOX_STATE_KEY_RE" >/dev/null
-    n=$?
-    set -o pipefail
-    if [[ $n -eq 0 ]]; then
+    # grep -aE, not -q or -c: -q quits at the first hit, -c counts, and both cause
+    # zstd to die of SIGPIPE. Keep pipefail on: if zstd fails (corrupt/truncated
+    # archive), grep sees an empty stream and exits 1, but the archive must be
+    # reported broken (rc=2), not clean. Read PIPESTATUS: zstd != 0 -> rc=2,
+    # grep 0 -> rc=3 (hit), grep 1 -> clean, grep 2 -> rc=2.
+    zstd -dcq -- "$2" 2>/dev/null | grep -E -e "$BOX_STATE_KEY_RE" >/dev/null
+    zstat=${PIPESTATUS[0]} gstat=${PIPESTATUS[1]}
+    if [[ $zstat -ne 0 ]]; then
+      rc=2
+    elif [[ $gstat -eq 0 ]]; then
+      rc=3
       rc=3
       keyhits="$(zstd -dcq -- "$2" | tar -xf - --to-command='grep -qaE -e "$BOX_STATE_KEY_RE" && printf "HIT %s key\n" "$TAR_FILENAME"; exit 0' 2>/dev/null)"
       printf '%s\n' "${keyhits:-HIT <stream> key}"

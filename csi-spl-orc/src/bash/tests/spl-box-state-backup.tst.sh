@@ -153,5 +153,7 @@ PRE='spl_box_state_pack() { cp "$PLANT" "$1"; };' run_bk DRY_RUN=0 PLANT="$T/h2.
   && pass "6. such an archive refuses the upload (exit 3), naming the path" || fail "6. refusal: rc=$rc $(cat "$T/calls.log" "$T/out")"
 grep -qE 'SECRET-BYTES|NV-BYTES|BK-BYTES' "$T/out" && fail "6. the refusal printed file content" || pass "6. ...never the content"
 
+
+
 echo "spl-box-state-backup: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

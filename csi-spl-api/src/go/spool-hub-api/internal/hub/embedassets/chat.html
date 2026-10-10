@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Chat</title>
+<style>
+  :root { --bg: #fff; --fg: #111827; --muted: #6b7280; --line: #e5e7eb; --mine: #2563eb; --mine-fg: #fff; --theirs: #f3f4f6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111827; --fg: #f9fafb; --muted: #9ca3af; --line: #374151; --mine: #3b82f6; --mine-fg: #fff; --theirs: #1f2937; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 1rem; }
+  header button { border: 0; background: none; color: var(--fg); font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 4px 8px; }
+  ol { flex: 1; overflow-y: auto; list-style: none; margin: 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  li { max-width: 85%; padding: 8px 12px; border-radius: 12px; background: var(--theirs); white-space: pre-wrap; overflow-wrap: anywhere; }
+  li.mine { align-self: flex-end; background: var(--mine); color: var(--mine-fg); }
+  #status { min-height: 1.2em; padding: 0 16px; color: var(--muted); font-size: .85rem; }
+  form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+  textarea { flex: 1; resize: none; height: 3em; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+  form button { border: 0; border-radius: 8px; padding: 0 16px; background: var(--mine); color: var(--mine-fg); font: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ask us</h1>
+  <button type="button" id="close" aria-label="Close chat">&times;</button>
+</header>
+<ol id="lines" aria-live="polite"></ol>
+<p id="status" role="status"></p>
+<form id="form">
+  <textarea id="text" aria-label="Your question" placeholder="Type your question" maxlength="4000" required></textarea>
+  <button type="submit" id="send">Send</button>
+</form>
+<script>
+(function () {
+  "use strict";
+  // specs/121 T202. The visitor token lives in THIS frame's localStorage and
+  // travels as Authorization: Bearer, never as a cookie (spec 4.1). The
+  // parent page gets UI events only, through toParent: open, close and the
+  // unread count, never message text (spec 5).
+  var q = new URLSearchParams(window.location.search);
+  var embed = q.get("e") || "";
+  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(embed)) embed = "";
+  var api = "/v1/embed/" + encodeURIComponent(embed);
+  var parentOrigin = framingOrigin(q.get("o"));
+
+  // framingOrigin is the exact origin postMessage may target: the loader's
+  // page origin, kept only when it is a plain origin, this frame has a
+  // parent, and (where the browser tells) that parent has this origin.
+  function framingOrigin(o) {
+    if (!o || window.parent === window) return "";
+    var u;
+    try { u = new URL(o); } catch (err) { return ""; }
+    if (u.origin !== o) return "";
+    if (u.protocol !== "https:" && !(u.protocol === "http:" && u.hostname === "localhost")) return "";
+    var ao = window.location.ancestorOrigins;
+    if (ao && ao.length > 0 && ao[0] !== o) return "";
+    return o;
+  }
+
+  var EVENTS = { open: 1, close: 1, unread: 1 };
+
+  // uiEvent is the one shape a message to the parent may have: an event
+  // name and, for unread, a count. It takes no text and makes none.
+  function uiEvent(ev, n) {
+    if (!EVENTS[ev]) throw new Error("embed: not a UI event");
+    var m = { spl: 1, ev: ev };
+    if (ev === "unread") m.n = Math.max(0, Math.min(999, Math.floor(Number(n) || 0)));
+    return m;
+  }
+  function toParent(ev, n) {
+    if (parentOrigin) window.parent.postMessage(uiEvent(ev, n), parentOrigin);
+  }
+
+  // Storage: the frame's own localStorage (partitioned by the top-level
+  // site); in memory when the browser refuses it, so the chat still works
+  // for this page view.
+  var mem = {};
+  var store = {
+    get: function (k) { try { return window.localStorage.getItem(k); } catch (err) { return mem[k] || null; } },
+    set: function (k, v) { try { window.localStorage.setItem(k, v); } catch (err) { mem[k] = v; } },
+    del: function (k) { try { window.localStorage.removeItem(k); } catch (err) { /* memory only */ } delete mem[k]; }
+  };
+  var TOKEN = "spl.embed." + embed + ".token";
+  var SEEN = "spl.embed." + embed + ".seen";
+
+  var lines = document.getElementById("lines");
+  var status = document.getElementById("status");
+  var form = document.getElementById("form");
+  var text = document.getElementById("text");
+  var isOpen = parentOrigin === "";
+  var lastUnread = -1;
+  var latest = [];
+
+  function say(s) { status.textContent = s; }
+
+  function call(method, path, body) {
+    var h = { "Accept": "application/json" };
+    var tok = store.get(TOKEN);
+    if (tok) h["Authorization"] = "Bearer " + tok;
+    if (body !== undefined) h["Content-Type"] = "application/json";
+    return fetch(api + path, { method: method, headers: h, credentials: "omit", cache: "no-store",
+      body: body === undefined ? undefined : JSON.stringify(body) });
+  }
+
+  function mint() {
+    return call("POST", "/visitor").then(function (r) {
+      if (r.status !== 201) throw new Error("mint " + r.status);
+      return r.json();
+    }).then(function (v) { store.set(TOKEN, v.token); });
+  }
+
+  // render draws the lines oldest first, as GET .../messages returns them.
+  function render(msgs) {
+    latest = msgs;
+    lines.textContent = "";
+    for (var i = 0; i < msgs.length; i++) {
+      var li = document.createElement("li");
+      if (msgs[i].mine) li.className = "mine";
+      li.textContent = msgs[i].body;
+      lines.appendChild(li);
+    }
+    lines.scrollTop = lines.scrollHeight;
+    unread();
+  }
+
+  // unread counts the lines from staff newer than the last one the visitor
+  // saw, and tells the parent the number only.
+  function unread() {
+    var seen = store.get(SEEN) || "";
+    var n = 0;
+    var newest = seen;
+    for (var i = 0; i < latest.length; i++) {
+      var m = latest[i];
+      if (m.mine) continue;
+      if (m.received_at > newest) newest = m.received_at;
+      if (m.received_at > seen) n++;
+    }
+    if (isOpen) {
+      if (newest !== seen) store.set(SEEN, newest);
+      n = 0;
+    }
+    if (n !== lastUnread) {
+      lastUnread = n;
+      toParent("unread", n);
+    }
+  }
+
+  function load() {
+    if (!store.get(TOKEN)) return Promise.resolve();
+    return call("GET", "/messages").then(function (r) {
+      if (r.status === 401) { store.del(TOKEN); render([]); return; }
+      if (!r.ok) return;
+      return r.json().then(function (d) { render(d.messages || []); });
+    }).catch(function () { /* offline: the next poll retries */ });
+  }
+
+  function post(body, retry) {
+    var first = store.get(TOKEN) ? Promise.resolve() : mint();
+    return first.then(function () { return call("POST", "/messages", { body: body }); }).then(function (r) {
+      if (r.status === 401 && retry) { store.del(TOKEN); return post(body, false); }
+      if (r.status !== 201) throw new Error("post " + r.status);
+    });
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var body = text.value;
+    if (!body.trim() || !embed) return;
+    say("Sending…");
+    post(body, true).then(function () {
+      text.value = "";
+      say("");
+      return load();
+    }).catch(function () { say("Not sent. Please try again."); });
+  });
+  text.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+
+  document.getElementById("close").addEventListener("click", function () {
+    isOpen = false;
+    toParent("close");
+  });
+
+  window.addEventListener("message", function (e) {
+    if (!parentOrigin || e.origin !== parentOrigin || e.source !== window.parent) return;
+    var d = e.data;
+    if (!d || d.spl !== 1 || !EVENTS[d.ev]) return;
+    if (d.ev === "open") { isOpen = true; unread(); text.focus(); }
+    else if (d.ev === "close") { isOpen = false; }
+  });
+
+  if (!embed) { say("This chat is not set up."); form.hidden = true; return; }
+  load();
+  var tick = 0;
+  setInterval(function () {
+    tick++;
+    if (isOpen || tick % 6 === 0) load();
+  }, 10000);
+})();
+</script>
+</body>
+</html>

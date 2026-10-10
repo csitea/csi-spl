@@ -100,6 +100,8 @@ I MIGHT PREFER TO MAKE IT MANUALLY" (3e095a04); for every agent type
 
 The rule's one home is `NO_FORCE` in `spawn-core.inc.sh`; every kind's seed
 renders it (`tests/test-seed-no-force-push.sh`).
+What enforces it (ruleset, pre-push hook, matcher, seed), for humans too:
+[developer guide](developer-guide.md) section 4.
 
 ## 4. Refresh the main source (rule 5)
 

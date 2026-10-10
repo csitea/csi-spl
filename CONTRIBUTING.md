@@ -18,7 +18,10 @@ instead — never an issue.
 - **Trunk development once trusted.** A contributor the maintainer trusts may
   later be given direct push to `master`, like the maintainers. That is the
   maintainer's decision, made per person; there is no automatic route to it.
-- Nobody force-pushes or deletes `master`: the trunk ruleset forbids both.
+- Nobody force-pushes or deletes `master`: the GitHub ruleset `master-no-force`
+  refuses both, with no bypass, and the pre-push hook refuses them locally.
+  How a change lands, the rules and what enforces them:
+  [developer guide](csi-spl-doc/doc/md/developer-guide.md).
 - History on `master` stays linear: a merged change is rebased, never merged
   with a merge commit.
 - There is no automatic action on outside issues or pull requests.

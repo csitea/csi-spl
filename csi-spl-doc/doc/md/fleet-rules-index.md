@@ -17,6 +17,7 @@ mention is a one-line pointer.
 | 1.5 | `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/spawn-an-agent.md` + cnf `env.box.agent_split` (`csi-spl-cnf/csi-spl/all.env.yaml`) + `do_spl_lane_mix` | a seat that spawns | which vendor takes a task: the split (approximate, +/- tolerance over the last spawns), the kinds `spec`, `i18n`, `secret`, `hard` |
 | 1.6 | `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/{claude,grok,agy,qwen,mistral}-spawn.md` | a seat that runs that launcher | how to spawn or message one vendor's lane: count, brief, window, seed |
 | 1.7 | `csi-spl-doc/doc/help/how-to-post.md` | everyone who posts in the spool | the one rule for a post: markdown, no fence |
+| 1.8 | `csi-spl-doc/doc/md/developer-guide.md` | every coder, human or agent | explains the trunk strategy (rebase, push to master, CI deploys dev and prd, minted versions) and the never-force-push rule with what enforces it; homes no rule, points to each home |
 
 ## 2. One home per rule
 

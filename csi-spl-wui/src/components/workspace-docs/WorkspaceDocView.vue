@@ -12,27 +12,15 @@
      alone, open it as a list (the grid), export it to Markdown or a
      spreadsheet, print it, add a sibling / child / parent, indent, outdent,
      up, down, delete. A '#' permalink per heading, the numbered contents on
-     the right (indented by level, collapsible, a click scrolls), a search box
-     filtering the items ('/' focuses it, Enter searches every document), and
+     the right (indented by level, collapsible, a click scrolls), and
      print (contents first, then a page break). One read of the whole document (/subtree with no item); every
      edit is one of the hub's ops with the doc rev it read, and a 412 sets
-     the session stale (the page shows its reload prompt). -->
+     the session stale (the page shows its reload prompt). No search box of
+     its own: the omnibox is the only search, on a phone too (the owner, t1
+     3cf88d1c). -->
 <template>
   <div ref="rootEl" class="wsdoc" :class="{ 'wsdoc--toc': tocOpen }" data-test="ws-doc-view">
     <div ref="barEl" class="wsdoc__bar">
-      <label class="wsdoc__search">
-        <UiIcon name="search" :size="16" />
-        <span class="sr-only">{{ t('ws_doctree.search') }}</span>
-        <input
-          ref="searchEl"
-          v-model="search"
-          type="search"
-          @keydown.enter.prevent="searchAll"
-          data-test="ws-doc-search"
-          :placeholder="t('ws_doctree.search_placeholder')"
-          :aria-label="t('ws_doctree.search')"
-        >
-      </label>
       <button type="button" class="issues-iconbtn wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)" :aria-label="t('ws_doctree.print_doc')" :title="t('ws_doctree.print_doc')">
         <UiIcon name="file-text" :size="16" />
       </button>
@@ -50,23 +38,6 @@
       </button>
     </div>
 
-    <div v-if="hits" class="wsdoc__hits" data-test="ws-doc-hits">
-      <div class="wsdoc__hits-head">
-        <span>{{ t('ws_doctree.search_all') }}</span>
-        <button type="button" class="icon-btn" data-test="ws-doc-hits-close" :aria-label="t('ws_doctree.search_all_close')" @click="hits = null">
-          <UiIcon name="x" :size="16" />
-        </button>
-      </div>
-      <p v-if="!hits.length" class="muted">{{ t('ws_doctree.search_all_none') }}</p>
-      <ul v-else>
-        <li v-for="h in hits" :key="h.doc + h.item">
-          <button type="button" class="wsdoc__hit" data-test="ws-doc-hit" @click="openHit(h)">
-            <span class="wsdoc__hit-doc">{{ docs.find((d) => d.id === h.doc)?.title || '' }}</span>
-            <span>{{ h.title || t('ws_doctree.untitled') }}</span>
-          </button>
-        </li>
-      </ul>
-    </div>
     <div v-if="branchItem" class="wsdoc__branch" data-test="ws-doc-branch">
       <span>{{ t('ws_doctree.branch_showing', { n: branchItem.outline, title: branchItem.title || t('ws_doctree.untitled') }) }}</span>
       <button type="button" class="btn ghost" data-test="ws-doc-branch-clear" @click="branch = ''">{{ t('ws_doctree.branch_all') }}</button>
@@ -94,7 +65,6 @@
           @blur="renameDoc"
           v-text="title || t('ws_doctree.default_doc_title')"
         />
-        <p v-if="!shown.length" class="wsdoc__note muted" data-test="ws-doc-search-none">{{ t('ws_doctree.search_none') }}</p>
         <section
           v-for="it in shown"
           :key="it.id"
@@ -263,7 +233,7 @@ import { useEditModeStore } from '~/stores/editMode'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import {
   DOC_IMAGE_MAX, DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget,
-  type DocHead, type DocHit, type DocItem, type DocMenuId, type DocSession, type DocShape,
+  type DocHead, type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
 
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[] }>()
@@ -281,12 +251,8 @@ const tocTop = ref(0)
 const items = shallowRef<DocItem[]>([])
 const state = ref<'loading' | 'ready' | 'failed'>('loading')
 const busy = ref(false)
-const search = ref('')
-const searchEl = ref<HTMLInputElement | null>(null)
 /* Qto's "open as doc": one branch shown alone ('' = the whole document) */
 const branch = ref('')
-/* Enter in the search box: the hits in every document (null = closed) */
-const hits = ref<DocHit[] | null>(null)
 /* the level-1 sections whose (empty) paragraph the user opened */
 const paraOpen = reactive(new Set<string>())
 /** paragraph text is optional at every level; level 1 shows none until asked (owner msgs 9debc0df, ab5b890e) */
@@ -324,13 +290,8 @@ function branchOf(it: DocItem): DocItem[] {
   return items.value.filter((x) => x.id === it.id || x.outline.startsWith(it.outline + '.'))
 }
 
-/** Qto's search: the items whose title or text holds the words, or whose number starts with them */
-const shown = computed(() => {
-  const q = search.value.trim().toLowerCase()
-  const all = branchItem.value ? branchOf(branchItem.value) : items.value
-  if (!q) return all
-  return all.filter((it) => it.title.toLowerCase().includes(q) || it.body.toLowerCase().includes(q) || it.outline.startsWith(q))
-})
+/** the items shown: the open branch, else the whole document */
+const shown = computed(() => (branchItem.value ? branchOf(branchItem.value) : items.value))
 
 const anchor = (id: string) => ANCHOR + id
 /* Qto's lnkMayBe: the web links in a text, clickable under it */
@@ -501,7 +462,6 @@ async function viewOp(id: string, it: DocItem): Promise<boolean> {
   }
   if (id === 'open_branch') {
     branch.value = it.id
-    search.value = ''
     await nextTick()
     rootEl.value?.scrollIntoView({ block: 'start' })
     return true
@@ -552,7 +512,6 @@ async function choose(id: string) {
   try {
     const r = await runDocOp(props.session, op, it, shapeOf(it), t('ws_doctree.untitled'))
     if (!r) return
-    search.value = ''
     await load()
     if (r.item) await editTitle(r.item)
   } finally {
@@ -611,39 +570,8 @@ function goTo(id: string) {
   if (narrow()) tocOpen.value = false
 }
 
-/** Enter in the search box: Qto's search over every document */
-async function searchAll() {
-  const q = search.value.trim()
-  if (!q) {
-    hits.value = null
-    return
-  }
-  const s = props.session
-  const r = await s.run(() => s.client.search(q))
-  if (r) hits.value = r
-}
-
-function openHit(h: DocHit) {
-  hits.value = null
-  if (h.doc !== props.session.doc) return emit('open', h.doc, h.item)
-  search.value = ''
-  branch.value = ''
-  void nextTick(() => goTo(h.item))
-}
-
-/* Qto: '/' focuses the search box, unless the caret is in a field; captured first and
-   defaultPrevented, so the top bar's own '/' (slash-focus.mjs) leaves it alone on this page */
-function onSlash(e: KeyboardEvent) {
-  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
-  const a = document.activeElement as HTMLElement | null
-  if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return
-  e.preventDefault()
-  searchEl.value?.focus()
-  editMode.setEditing(false)
-}
-
 /* t1 b4dd79e2: a field of the document in focus is editing (the phone hides
-   the omnibox); the search box, the dots and the links are not */
+   the omnibox); the dots and the links are not */
 function trackEdit(e: FocusEvent) {
   const el = e.target as HTMLElement
   editMode.setEditing(el.isContentEditable || /^(INPUT|TEXTAREA)$/.test(el.tagName))
@@ -652,7 +580,6 @@ function trackEdit(e: FocusEvent) {
 let ro: ResizeObserver | null = null
 let lastWidth = 0
 onMounted(async () => {
-  window.addEventListener('keydown', onSlash, true)
   tocOpen.value = !narrow()
   state.value = (await load()) ? 'ready' : 'failed'
   /* Qto's scrollToHash: a permalink opened from elsewhere lands on its heading */
@@ -675,7 +602,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   editMode.setEditing(false)
   ro?.disconnect()
-  window.removeEventListener('keydown', onSlash, true)
 })
 </script>
 
@@ -693,52 +619,14 @@ onBeforeUnmount(() => {
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
 }
-.wsdoc__search {
-  flex: 1 1 14rem;
-  max-width: 28rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-2);
-  color: var(--color-muted);
-}
-.wsdoc__search input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: none;
-  color: var(--color-fg);
-  font: inherit;
-  padding: 4px 0;
-}
 .wsdoc__tool { display: inline-flex; align-items: center; gap: 2px; padding: 4px; }
-.wsdoc__hits, .wsdoc__branch {
+.wsdoc__branch {
   margin: 8px 12px 0;
   padding: 8px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-2);
 }
-.wsdoc__hits-head { display: flex; align-items: center; justify-content: space-between; color: var(--color-muted); font-weight: 700; }
-.wsdoc__hits ul { list-style: none; margin: 4px 0 0; padding: 0; max-height: 40vh; overflow-y: auto; }
-.wsdoc__hit {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  padding: 4px 6px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-fg);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-.wsdoc__hit:hover { background: var(--color-surface-hover); }
-.wsdoc__hit-doc { color: var(--color-muted); }
 .wsdoc__branch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .wsdoc__links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 2px 0 0; padding: 0 8px; font-size: 0.875rem; }
 .wsdoc__links a { color: var(--color-accent); overflow-wrap: anywhere; }

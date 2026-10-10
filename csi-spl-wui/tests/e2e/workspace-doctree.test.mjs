@@ -6,7 +6,8 @@
 // commits nothing. Then print branch renders one subtree for print CSS.
 // The doc view is Qto's view-doc (t1 519a4ee9): one continuous document,
 // titles and texts edited in place, a contents panel whose links scroll,
-// a search box, and print (contents first, a page break, the document).
+// no search box of its own (the omnibox is the only search, t1 3cf88d1c),
+// and print (contents first, a page break, the document).
 // The hub follow-up (owner go 33ced864): the document renamed in place (a
 // cleared title is the default), a code block and an uploaded image added
 // to a section and edited there, each read back from the hub.
@@ -246,7 +247,7 @@ try {
   await p.keyboard.press('Enter')
   await p.click(`${titleOf('2')} [data-test=ws-doc-text]`)
   await p.keyboard.type('A paragraph under Beta.')
-  await p.click('[data-test=ws-doc-search]')
+  await p.evaluate(() => document.activeElement?.blur())
   await view(p, 'grid')
   await view(p, 'doc')
   await outlineIs(p, 'doc', ['1 Alpha', '1.1 Delta', '2 Beta edited', '3 Beta child'])
@@ -270,18 +271,18 @@ try {
   ok('a contents click scrolls to the heading', scrolled.hash === '#' + scrolled.id && scrolled.scroller > 0 && scrolled.top >= 0 && scrolled.bottom <= scrolled.vh, scrolled)
   await p.setViewport({ width: 1280, height: 800 })
 
-  /* the search box keeps the matching items, in the document and the contents */
-  await p.type('[data-test=ws-doc-search]', 'beta')
-  got = await outlineIs(p, 'doc', ['2 Beta edited', '3 Beta child'])
-  const tocHits = await p.$$eval('[data-test=ws-doc-toc-item]', (l) => l.length)
-  ok('search filters the items', JSON.stringify(got) === JSON.stringify(['2 Beta edited', '3 Beta child']) && tocHits === 2, { got, tocHits })
-  await p.focus('[data-test=ws-doc-search]')
-  await p.keyboard.down('Control')
-  await p.keyboard.press('KeyA')
-  await p.keyboard.up('Control')
-  await p.keyboard.press('Backspace')
-  got = await outlineIs(p, 'doc', ['1 Alpha', '1.1 Delta', '2 Beta edited', '3 Beta child'])
-  ok('an empty search shows the whole document again', got.length === 4, got)
+  /* no search box of its own: the omnibox is the only search, desktop and phone (the owner, t1 3cf88d1c) */
+  const noSearch = {}
+  for (const [w, h] of [[1440, 900], [390, 740]]) {
+    await p.setViewport({ width: w, height: h })
+    await p.waitForSelector('[data-test=ws-doc-doc]', { visible: true, timeout: STEP }).catch(() => null)
+    noSearch[w] = await p.evaluate(() => ({
+      doc: Boolean(document.querySelector('[data-test=ws-doc-doc]')),
+      search: document.querySelectorAll('[data-test=ws-doc-search], [data-test=ws-doc-hits], [data-test=ws-doc-search-none]').length,
+    }))
+  }
+  ok('the doc view has no search box at 1440 and 390', noSearch[1440].doc && noSearch[390].doc && noSearch[1440].search === 0 && noSearch[390].search === 0, noSearch)
+  await p.setViewport({ width: 1280, height: 800 })
 
   /* a 412: another writer moved the doc rev on; the op shows the reload prompt */
   await p.evaluate(() => window.__wsDocTreeBump())
@@ -359,23 +360,6 @@ try {
   ok('export to Markdown and CSV carry the branch', JSON.stringify(ex.files) === JSON.stringify(['E2E-outline-1.md', 'E2E-outline-1.csv'])
     && /^# 1 Alpha\n/.test(ex.md || '') && (ex.md || '').includes('## 1.1 Delta') && !(ex.md || '').includes('Beta')
     && (ex.csv || '').split('\r\n').filter(Boolean).length === 3, ex)
-
-  const wasOn = await p.evaluate(() => { document.activeElement?.blur(); return document.activeElement?.tagName })
-  await p.keyboard.press('/')
-  const slash = await p.evaluate(() => document.activeElement?.dataset?.test || document.activeElement?.tagName)
-  ok("'/' focuses the search box", slash === 'ws-doc-search', { wasOn, slash })
-  await p.keyboard.type('introduction')
-  await p.keyboard.press('Enter')
-  await p.waitForSelector('[data-test=ws-doc-hit]', { visible: true, timeout: STEP }).catch(() => null)
-  const hit = await p.$$eval('[data-test=ws-doc-hit]', (l) => l.map((e) => e.textContent.replace(/\s+/g, ' ').trim()))
-  ok('Enter searches every document', hit.length === 1 && hit[0].includes('Handbook') && hit[0].includes('Introduction'), hit)
-  await p.click('[data-test=ws-doc-hits-close]')
-  await p.focus('[data-test=ws-doc-search]')
-  await p.keyboard.down('Control')
-  await p.keyboard.press('KeyA')
-  await p.keyboard.up('Control')
-  await p.keyboard.press('Backspace')
-  await outlineIs(p, 'doc', afterReload)
 
   /* create, update, delete, then a reload re-reads the document from the hub
      (the part Qto got wrong, t1 519a4ee9 msg 1ecb465b) */
@@ -468,7 +452,7 @@ try {
   await menu(p, 'doc', 'Delta', 'add_code')
   await p.waitForFunction(() => document.activeElement?.dataset?.test === 'ws-doc-src', { timeout: STEP }).catch(() => null)
   await p.keyboard.type('make deploy ENV=dev')
-  await p.click('[data-test=ws-doc-search]')
+  await p.evaluate(() => document.activeElement?.blur())
   await attrIs('src', 'make deploy ENV=dev')
   const code = await attrsOf(delta)
   await p.click(`${titleSel('2')} [data-test=ws-doc-title]`, { button: 'right' })
@@ -528,8 +512,7 @@ try {
 
   /* t1 b4dd79e2 ("on mobile, the showing of the omnibox while editing in QTO
      doc is obsolete"): on a phone the omnibox hides while a field of the
-     document is in focus and comes back when it leaves; the search box is
-     not editing; a desktop keeps it. Control: before e1f5f536a it never hides. */
+     document is in focus and comes back when it leaves; a desktop keeps it. Control: before e1f5f536a it never hides. */
   const omnibox = (q) => q.evaluate(() => {
     /* on a phone the wrapper is display: contents (no box): measure its form */
     const el = document.querySelector('[data-test=top-bar-omnibox] form')
@@ -575,15 +558,11 @@ try {
   await settle()
   const afterSave = await omnibox(m)
   await shoot(m, 'phone-after')
-  await m.tap('[data-test=ws-doc-search]')
-  await settle()
-  const searching = await omnibox(m)
   ok('phone: the omnibox shows while the document is read', reading === 'shown', reading)
   ok('phone: it hides while a section text is edited', editingText === 'hidden', editingText)
   ok('phone: it comes back after Esc (cancel)', afterCancel === 'shown', afterCancel)
   ok('phone: it hides while the document title is edited', editingTitle === 'hidden', editingTitle)
   ok('phone: it comes back after Enter (save)', afterSave === 'shown', afterSave)
-  ok('phone: CONTROL the search box is not editing, the omnibox stays', searching === 'shown', searching)
   await m.close()
 } finally {
   await browser.close()

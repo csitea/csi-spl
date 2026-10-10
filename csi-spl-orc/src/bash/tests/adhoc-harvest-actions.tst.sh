@@ -220,6 +220,32 @@ in_orc 'do_spl_tenant_sort_order' TENANT_ID=t1 SORT_ORDER=5 DRY_RUN=0; rc=$?
   && pass "2c. sort-order DRY_RUN=0: value is a psql variable, tenant RLS, as $DEV_SA" \
   || fail "2c. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin")"
 
+# --- 2c2. spec 108 box join switch + report (rdb 0170, section 3.8) ----------
+in_orc 'do_spl_box_join_switch' TENANT_ID=t1 BOX_JOIN=on; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would turn box joining on for t1' "$T/out" \
+  && pass "2c2. box-join switch DRY_RUN: no cloud call" || fail "2c2. dry: rc=$rc $(cat "$T/out")"
+for bad in '' yes ON 'on;drop' true; do
+  in_orc 'do_spl_box_join_switch' TENANT_ID=t1 BOX_JOIN="$bad" DRY_RUN=0; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2c2. BOX_JOIN='$bad' is refused before any call" || fail "2c2. bad switch '$bad': rc=$rc"
+done
+in_orc 'do_spl_box_join_switch' TENANT_ID=T_1 BOX_JOIN=on DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2c2. a bad workspace slug is refused before any call" || fail "2c2. bad slug: rc=$rc"
+in_orc 'do_spl_box_join_switch' TENANT_ID=t1 BOX_JOIN=off DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q "box_join_enabled = :'on'::boolean" "$T/stdin" && ! grep -qw 'false' "$T/stdin" \
+  && grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" && grep -q '\[on=false\]' "$T/calls.log" \
+  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
+  && pass "2c2. box-join switch DRY_RUN=0: value is a psql variable, tenant RLS, as $DEV_SA" \
+  || fail "2c2. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin")"
+in_orc 'do_spl_box_join_report'; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'BEGIN TRANSACTION READ ONLY;' "$T/stdin" && grep -qx 'ROLLBACK;' "$T/stdin" \
+  && ! grep -qiE '^(update|insert|delete|commit)' "$T/stdin" && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
+  && pass "2c2. box-join report: read only, rolled back, as $DEV_SA" || fail "2c2. report: rc=$rc $(cat "$T/out")"
+got="$(in_orc 'spl_box_join_report_lines prd <<<"$(printf "acme 2 on\nbeta 0 on\ngamma 3 off\n")"'; cat "$T/out")"
+want="$(printf 'BOXJOIN prd acme seated=2 switch=on\nBOXJOIN prd beta seated=0 switch=on\nBOXJOIN prd gamma seated=3 switch=off\nBOXJOIN prd total seated=5 switch_on=2')"
+[[ "$got" == "$want" ]] && pass "2c2. report lines: one per workspace, then the total" || fail "2c2. report lines: $got"
+got="$(in_orc 'spl_box_join_report_lines dev </dev/null'; cat "$T/out")"
+[[ "$got" == 'BOXJOIN dev total seated=0 switch_on=0' ]] && pass "2c2. CONTROL: no rows = a zero total, not silence" || fail "2c2. empty: $got"
+
 # --- 2d. tenant fallback responders (rdb 0067, SPL-997) -----------------------
 in_orc 'do_spl_tenant_responders' TENANT_ID=t1 AGENTS="CLE-001 GRK-3"; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set the fallback responders of t1 to CLE-001 GRK-3' "$T/out" \

@@ -188,12 +188,17 @@ _spawn_worktree() {
 # <TITLE>@<box>, repo, branch, scope, files, topic, state live. Best effort and
 # in the background: a spawn never waits on, or fails for, the hub. Without a
 # fleet configured it is a logged no-op. SPAWN_LANE_SCOPE (default the
-# brief's first heading, else SLUG), SPAWN_LANE_FILES (comma-separated paths)
-# and SPAWN_LANE_TOPIC fill the row.
+# brief's first heading, else SLUG), SPAWN_LANE_FILES (comma-separated paths,
+# default the brief's first `Files:` line, so `--check` sees the lane's files
+# from spawn on) and SPAWN_LANE_TOPIC fill the row.
 _spawn_lane_put() {
   local scope="${SPAWN_LANE_SCOPE:-}" repo="" log
   if [ -z "$scope" ] && [ -n "$BRIEF" ] && [ -r "$BRIEF" ]; then
     scope="$(grep -m1 -E '^#+ ' "$BRIEF" 2>/dev/null | sed -E 's/^#+ +//; s/^Brief: *//')"
+  fi
+  if [ -z "${SPAWN_LANE_FILES:-}" ] && [ -n "$BRIEF" ] && [ -r "$BRIEF" ]; then
+    SPAWN_LANE_FILES="$(grep -m1 -E '^Files: *' "$BRIEF" 2>/dev/null | sed -E 's/^Files: *//' |
+      tr ',' '\n' | sed -E 's/^[ `]+//; s/[ `.]+$//' | grep -v '^$' | paste -sd, -)"
   fi
   scope="${scope:-$SLUG}"
   [ -n "$REPO" ] && repo="$(basename "$REPO")"

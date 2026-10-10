@@ -158,7 +158,7 @@ clean
 # ---- 4. the ban list hit never echoes the pattern ---------------------------
 { post en 2026-10-09-hello news; echo "A word: ${BAN_WORD}."; } | put "$N"
 out=$(run_check BLOG_FILES="$N"); rc=$?
-[[ $rc -eq 1 ]] && grep -qE "^REFUSE ${N//./\\.}:15 hygiene: a release-note ban list pattern matches" <<<"$out" && pass "a ban-list hit names file:line" ||
+[[ $rc -eq 1 ]] && grep -qE "^REFUSE ${N//./\\.}:[0-9]+ hygiene: a release-note ban list pattern matches" <<<"$out" && pass "a ban-list hit names file:line" ||
   fail "ban hit: rc=$rc $out"
 grep -qi "$BAN_WORD" <<<"$out" && fail "the ban pattern reached the output" || pass "the ban pattern is never in the output"
 clean

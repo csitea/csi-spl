@@ -1,7 +1,7 @@
 # Bash static analysis (shellcheck). Same runner rule as 15_sec-deps-secrets.yml:
 # GitHub-hosted (ubuntu-latest). The tool is installed in the job and verified against a
 # pinned sha256; a missing tool fails the action -- nothing here skips. The gate
-# is error-level over the iac + orc + cnf bash trees.
+# is error-level over the iac + orc + cnf bash trees and every api + wui .sh.
 #
 # Path-scoped push: on master it runs only when a shell script, the action or
 # this file changes (the fleet pushes ~10x/hour and a ref-scoped concurrency

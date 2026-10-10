@@ -4,7 +4,7 @@
 # @description ERROR level. Runs a negative control first: a planted broken
 # @description script shellcheck MUST flag. A tool that reports nothing on it
 # @description proves nothing and the action fails closed. Then it scans every
-# @description *.sh under the iac + orc + cnf bash trees at severity error.
+# @description *.sh under the iac + orc + cnf + api + wui trees at severity error.
 # @description A missing tool fails closed; it is never a skip. Then the
 # @description warning level is held to .shellcheck-warning-baseline.txt.
 # @param SEC_SHELLCHECK_ROOT (optional) - repo root; default the parent of APP_PATH
@@ -19,7 +19,7 @@
 
 _SEC_SHELLCHECK_VER=0.10.0
 # The trees a whole-tree scan reads, relative to the repo root.
-_SEC_SHELLCHECK_TREES="csi-spl-iac/src/bash csi-spl-iac/lib/bash csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-cnf/src/bash"
+_SEC_SHELLCHECK_TREES="csi-spl-iac/src/bash csi-spl-iac/lib/bash csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-cnf/src/bash csi-spl-api/src csi-spl-wui/src"
 
 # shellcheck source=../../../lib/bash/funcs/sec-baseline.func.sh
 declare -F _sec_baseline_gate >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/sec-baseline.func.sh"
@@ -73,8 +73,8 @@ do_sec_shellcheck() {
   rm -rf "$ctl"
 
   # Scope: the bash the owner named -- "every bash action" -- plus its libs and
-  # tests under iac + orc + cnf. The hub (csi-spl-api) bash is the hub lane's;
-  # extending shellcheck there is a follow-up (coordination + one SC2144 there).
+  # tests under iac + orc + cnf, and every .sh of the hub (csi-spl-api/src:
+  # build, tests, docker entrypoints) and the WUI (csi-spl-wui/src/docker), r6-04.
   local scan_dirs=() d
   for d in $_SEC_SHELLCHECK_TREES; do
     [[ -d "$root/$d" ]] && scan_dirs+=("$root/$d")
@@ -109,7 +109,7 @@ _sec_shellcheck_scan() {
   local files=("$@")
   local log; log=$(mktemp)
   if [[ "$sev" == error ]]; then
-    do_log "INFO shellcheck -S warning on ${#files[@]} script(s) (iac + orc + cnf), error gate + warning ratchet"
+    do_log "INFO shellcheck -S warning on ${#files[@]} script(s) (iac + orc + cnf + api + wui), error gate + warning ratchet"
     rc=0
     _sec_shellcheck_par "$bin" warning warn "$log" "${files[@]}" || rc=$?
     if [[ "$rc" -ne 0 ]] || grep -q ': error: ' "$log"; then
@@ -124,7 +124,7 @@ _sec_shellcheck_scan() {
     rm -f "$log"
     return "$rc"
   fi
-  do_log "INFO shellcheck -S $sev on ${#files[@]} script(s) (iac + orc + cnf)"
+  do_log "INFO shellcheck -S $sev on ${#files[@]} script(s) (iac + orc + cnf + api + wui)"
   rc=0
   _sec_shellcheck_par "$bin" "$sev" scan "$log" "${files[@]}" || rc=$?
   if [[ "$rc" -ne 0 ]] || [[ -s "$log" ]]; then

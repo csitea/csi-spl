@@ -423,7 +423,7 @@ p="$(plan_of .github/workflows/a.yml)";              [[ " $p " == *" lint-action
 p="$(plan_of csi-spl-orc/src/docker/x/Dockerfile)";  [[ " $p " == *" lint-hadolint "* ]]   && pass "6b. Dockerfile -> hadolint" || fail "6b" "$p"
 p="$(plan_of csi-spl-wui/src/lib/a.mjs)";            [[ " $p " == *" lint-eslint "* ]]     && pass "6c. wui .mjs -> eslint" || fail "6c" "$p"
 p="$(plan_of csi-spl-api/src/bash/h.sh)"
-[[ " $p " == *" lint-syntax "* && " $p " != *" lint-shellcheck "* ]] && pass "6d. hub .sh -> syntax, not shellcheck (not CI 67 scope)" || fail "6d" "$p"
+[[ " $p " == *" lint-syntax "* && " $p " == *" lint-shellcheck "* ]] && pass "6d. hub .sh -> syntax + shellcheck (CI 67 scope since r6-04)" || fail "6d" "$p"
 declare -A _PPL_FILES=()
 _ppl_plan "csi-spl-iac/src/bash/run/sec-shellcheck.func.sh" fast fast "$R" >/dev/null
 [[ "${_PPL_FILES[lint-shellcheck]:-}" == ALL ]] && pass "6e. the shellcheck action changed -> its whole scope" || fail "6e" "${_PPL_FILES[lint-shellcheck]:-none}"

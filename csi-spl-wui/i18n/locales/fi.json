@@ -2436,7 +2436,10 @@
       "rename": "Rename",
       "copy_link": "Copy link",
       "new_tab": "Open in a new tab",
-      "link_copied": "Link copied"
+      "link_copied": "Link copied",
+      "delete": "Delete document",
+      "delete_title": "Delete this document?",
+      "delete_body": "\"{title}\" and everything in it will be deleted."
     },
     "edit_doc_title": "Nimeä asiakirja uudelleen",
     "edit_code": "Muokkaa koodilohkoa",

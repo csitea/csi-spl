@@ -13,7 +13,8 @@
      else"): right-click, a long press on a phone, or Shift+F10 / the
      context-menu key. Edit opens it; Rename is the hub's PATCH
      /v1/workspace/doctree/{doc}; Copy link and Open in a new tab use the
-     page's own URL. -->
+     page's own URL. Delete confirms first, then the hub's DELETE
+     /v1/workspace/doctree/{doc} under a fresh head rev. -->
 <template>
   <nav class="qto-tree" data-test="qto-file-tree" :aria-label="t('ws_doctree.title')">
     <UiFileTree :rows="rows" :label="t('ws_doctree.title')" @toggle="toggle" @select="select" @menu="openMenu" />
@@ -47,6 +48,19 @@
         </div>
       </form>
     </UiDialog>
+    <UiConfirm
+      :open="Boolean(deleting)"
+      :title="t('ws_doctree.doc_menu.delete_title')"
+      testid="qto-delete"
+      :confirm-label="t('ws_doctree.delete_confirm')"
+      :busy-label="t('ws_doctree.deleting')"
+      :busy="busy"
+      :error="deleteError ? t(deleteError) : ''"
+      @update:open="(v) => { if (!v) deleting = null }"
+      @confirm="removeDoc"
+    >
+      <p>{{ t('ws_doctree.doc_menu.delete_body', { title: deletingTitle }) }}</p>
+    </UiConfirm>
     <p class="qto-tree__status" role="status" data-test="qto-tree-status">{{ status }}</p>
   </nav>
 </template>
@@ -56,11 +70,12 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiFileTree, { type FileTreeRow } from '~/components/UiFileTree.vue'
 import UiPointMenu, { type PointMenuItem } from '~/components/UiPointMenu.vue'
 import UiDialog from '~/components/UiDialog.vue'
+import UiConfirm from '~/components/UiConfirm.vue'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import type { DocHead, DocItem, DocTreeClient } from './-doctree-api'
 
 const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient }>()
-const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number] }>()
+const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
 /* row keys: d:<doc> for a document, i:<doc>:<item> for a section */
@@ -143,6 +158,7 @@ const MENU: PointMenuItem[] = [
   { id: 'rename', icon: 'pencil', labelKey: 'ws_doctree.doc_menu.rename' },
   { id: 'copy_link', icon: 'copy', labelKey: 'ws_doctree.doc_menu.copy_link' },
   { id: 'new_tab', icon: 'open', labelKey: 'ws_doctree.doc_menu.new_tab' },
+  { id: 'delete', icon: 'delete', labelKey: 'ws_doctree.doc_menu.delete', danger: true },
 ]
 const menu = ref<{ doc: string, x: number, y: number } | null>(null)
 const status = ref('')
@@ -172,6 +188,31 @@ async function choose(id: string) {
     clearTimeout(statusTimer)
     statusTimer = setTimeout(() => { status.value = '' }, 3000)
   } else if (id === 'new_tab') window.open(docHref(doc), '_blank', 'noopener')
+  else if (id === 'delete') {
+    deleteError.value = ''
+    deleting.value = doc
+  }
+}
+
+/* Delete: confirmed, then the hub's DELETE under the doc rev read just now */
+const deleting = ref<string | null>(null)
+const deleteError = ref('')
+const deletingTitle = computed(() => props.docs.find((d) => d.id === deleting.value)?.title || t('ws_doctree.default_doc_title'))
+async function removeDoc() {
+  const doc = deleting.value
+  if (!doc || busy.value) return
+  busy.value = true
+  deleteError.value = ''
+  try {
+    const h = await props.client.head(doc)
+    await props.client.removeDoc(doc, h.rev)
+    deleting.value = null
+    emit('deleted', doc)
+  } catch {
+    deleteError.value = 'ws_doctree.err_failed'
+  } finally {
+    busy.value = false
+  }
 }
 
 /* Rename: the hub's PATCH under the doc rev read just now; cleared, the hub gives the default title */

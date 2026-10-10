@@ -12,8 +12,9 @@
 //
 // Owner HUM-10 (t1 91289b0a, msgs 635c2125, 500ca8f5): each DOCUMENT row
 // has a right-click menu (a long press on a phone, Shift+F10 / the
-// context-menu key): Edit, Rename, Copy link, Open in a new tab. A
-// section row has none. Control: before the menu a right-click draws no
+// context-menu key): Edit, Rename, Copy link, Open in a new tab, Delete
+// (confirmed; the hub's DELETE /v1/workspace/doctree/{doc}). A section row
+// has none. Control: before the menu a right-click draws no
 // [data-testid=qto-doc-menu], so every menu check FAILS.
 //
 // Control: before the entry there is no [data-testid=qto-open], so every
@@ -146,7 +147,8 @@ async function docMenu(p, browser) {
   ok('CONTROL: a section row opens no menu', await rightClick(p, 'Introduction') && !(await p.waitForSelector(MENU, { visible: true, timeout: 1500 }).then(Boolean, () => false)))
   ok('a right-click on a document row opens its menu', await rightClick(p, 'Handbook') && await menuShown(p))
   const ids = await p.$$eval(`${MENU} [role=menuitem]`, (els) => els.map((el) => el.getAttribute('data-testid').replace('qto-doc-menu-', '')))
-  ok('the menu: Edit, Rename, Copy link, Open in a new tab', ids.join(',') === 'edit,rename,copy_link,new_tab', ids)
+  ok('the menu: Edit, Rename, Copy link, Open in a new tab, Delete', ids.join(',') === 'edit,rename,copy_link,new_tab,delete', ids)
+  ok('Delete is drawn as a danger entry', await p.$eval(`${MENU} [data-testid=qto-doc-menu-delete]`, (el) => el.classList.contains('point-menu__item--danger')).catch(() => false))
   ok('the menu is named', await p.$eval(`${MENU} [role=menu]`, (el) => el.getAttribute('aria-label')).catch(() => '') === 'Document actions')
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/qto-doc-menu-desktop.png` })
   await p.keyboard.press('Escape')
@@ -201,6 +203,22 @@ async function docMenu(p, browser) {
   await chooseOn(p, 'Handbook Guide', 'edit')
   await p.waitForFunction((id) => new URL(location.href).searchParams.get('doc') === id, { timeout: STEP }, docId).catch(() => {})
   ok('Edit opens the document', new URL(p.url()).searchParams.get('doc') === docId && await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Handbook Guide', { timeout: STEP }).then(() => true, () => false), p.url())
+
+  /* Delete: it asks first; Cancel keeps the document */
+  const names = () => p.$$eval('[data-test=qto-file-tree] [data-kind=doc]', (els) => els.map((el) => el.textContent.trim()))
+  await chooseOn(p, 'Handbook Guide', 'delete')
+  ok('Delete asks first, naming the document', await p.waitForSelector('[data-testid=qto-delete-body]', { visible: true, timeout: STEP }).then((el) => el.evaluate((e) => e.textContent.includes('Handbook Guide')), () => false))
+  await p.click('[data-testid=qto-delete-cancel]').catch(() => {})
+  await p.waitForFunction(() => !document.querySelector('[data-testid=qto-delete-body]'), { timeout: STEP }).catch(() => {})
+  ok('Cancel keeps it', (await names()).includes('Handbook Guide'), await names())
+  /* confirmed, the open document goes; the one left opens */
+  await chooseOn(p, 'Handbook Guide', 'delete')
+  await p.waitForSelector('[data-testid=qto-delete-confirm]', { visible: true, timeout: STEP }).catch(() => null)
+  await p.click('[data-testid=qto-delete-confirm]').catch(() => {})
+  ok('Delete: the row is gone', await p.waitForFunction(() => ![...document.querySelectorAll('[data-test=qto-file-tree] [data-kind=doc]')].some((el) => el.textContent.trim() === 'Handbook Guide'), { timeout: STEP }).then(() => true, () => false), await names())
+  const listed = await p.evaluate(() => window.__wsDocTreeCall?.('GET', '').then((r) => r.docs.map((d) => d.title)))
+  ok('Delete: the hub no longer lists it', Array.isArray(listed) && !listed.includes('Handbook Guide') && listed.includes('Notes'), listed)
+  ok('Delete: the document left opens', await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Notes', { timeout: STEP }).then(() => true, () => false))
 }
 
 const server = await startServer()

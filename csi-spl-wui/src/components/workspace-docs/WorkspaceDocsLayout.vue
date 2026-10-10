@@ -27,6 +27,7 @@
         :client="client"
         @open="openFromTree"
         @renamed="renamedFromTree"
+        @deleted="deletedFromTree"
       />
     </div>
     <WorkspaceDocsPage ref="page" class="wsdocs-layout__page" />
@@ -51,6 +52,14 @@ function renamedFromTree(doc: string, title: string, rev: number) {
   if (!p) return
   p.docs = p.docs.map((d) => (d.id === doc ? { ...d, title, rev } : d))
   if (doc === p.docId && p.session) p.session.rev.value = rev
+}
+
+/** the tree's Delete: the list drops it; the open document gone, the first one left opens */
+function deletedFromTree(doc: string) {
+  const p = page.value
+  if (!p) return
+  p.docs = p.docs.filter((d) => d.id !== doc)
+  if (doc === p.docId) void p.pick(p.docs[0]?.id ?? '')
 }
 
 /** a tree row: the open document's section scrolls into view; anything else opens through the page */

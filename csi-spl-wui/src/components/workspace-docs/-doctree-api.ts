@@ -121,6 +121,8 @@ export function useDocTree() {
     uploadImage,
     /** rename the document under the doc rev read; '' gives the default title */
     rename: (doc: string, rev: number, title: string) => call<{ rev: number, title: string }>('PATCH', `/${enc(doc)}`, { title, rev }),
+    /** delete the whole document under the doc rev read: its items and rev log go with it */
+    removeDoc: (doc: string, rev: number) => call<{ rev: number, doc: string, deleted: boolean }>('DELETE', `/${enc(doc)}?rev=${rev}`),
     list: () => call<{ docs: DocHead[] }>('GET', '').then((r) => r.docs),
     /** description is the meta description (rdb 0164), '' = none */
     create: (title: string, description = '') => call<{ id: string, root: string, rev: number }>('POST', '', { title, description }),

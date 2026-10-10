@@ -127,6 +127,9 @@ if any(not uuid.match(i) for i in ids) or any(r["tenant_id"] != tenant for r in 
 json.dump({"tenant": tenant, "env": env, "docs": got[0], "items": got[1], "rev_log": got[2], "doc_ids": ids},
           open(os.path.join(d, "manifest.json"), "w"), indent=1)
 PY
+  # The export is the documents' content: owner-only, whatever the umask or
+  # the default ACL of the parent (/var/csi carries one) would give.
+  chmod 700 "$dir" && chmod 600 "$dir"/*
 }
 
 # spl_wsdoc_purge_manifest_counts <dir> -> "docs=<n> items=<n> rev_log=<n>"

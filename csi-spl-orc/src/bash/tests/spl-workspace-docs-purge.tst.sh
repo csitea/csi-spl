@@ -14,7 +14,8 @@
 #   B. against a REAL throwaway Postgres with every rdb migration, run by the
 #      RUNTIME login (FORCE RLS binds, its grants suffice): tenants t1 (2 docs)
 #      and t2 (1 doc)
-#      1. dry run: exported counts match, nothing deleted
+#      1. dry run: exported counts match, nothing deleted; the export is
+#         owner-only (dir 700, files 600)
 #      2. a doc added after the export: DRY_RUN=0 refused, nothing deleted
 #      3. DRY_RUN=0: t1 has 0 docs/items/rev_log left (the cascade ran under
 #         the runtime login), t2 untouched
@@ -167,6 +168,8 @@ out=$(spl_wsdoc_purge_exec "$RT_DSN" t1 "$T/b1" 1 2>&1); rc=$?
 [[ $rc -eq 0 && "$(cnt t1)" == "2 8 4" ]] && grep -q 'exported t1: docs=2 items=8 rev_log=4' <<<"$out" &&
   [[ "$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$T/b1/items.json")" == 8 ]] &&
   pass "B.1 dry run: export docs=2 items=8 rev_log=4, nothing deleted" || fail "B.1 rc=$rc cnt=$(cnt t1) $out"
+modes=$(stat -c '%a' "$T/b1" "$T/b1"/* | sort -u | tr '\n' ' ')
+[[ "$modes" == "600 700 " ]] && pass "B.1 the export is owner-only (dir 700, files 600)" || fail "B.1 export modes: $modes"
 
 # --- B.2 a doc added after the export: refused ----------------------------------------
 spl_wsdoc_purge_export() { _exp_real "$@" && mkdoc t1; }

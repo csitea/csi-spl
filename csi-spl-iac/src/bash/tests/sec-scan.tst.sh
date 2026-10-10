@@ -279,13 +279,19 @@ set -e
 if [[ -f "$WF" ]]; then
   miss=0
   for needle in 'SEC_SCAN=go' 'SEC_SCAN=wui' 'SEC_SCAN=secrets' 'SEC_SCAN=images' \
-                'govulncheck@v1.7.0' 'gitleaks_8.30.1' 'trivy_0.74.0' 'fetch-depth: 0'; do
+                'govulncheck@v1.8.0' 'gitleaks_8.30.1' 'trivy_0.74.0' 'fetch-depth: 0'; do
     if ! grep -qF "$needle" "$WF"; then
       fail "workflow is missing $needle"
       miss=1
     fi
   done
   (( miss )) || pass "15_sec-deps-secrets.yml runs all four scans at the pinned tools, with full git history"
+  # the workflow and sec-scan.func.sh carry one govulncheck pin; a bump moves both
+  if [[ "$(grep -oE 'govulncheck@v[0-9.]+' "$WF" | sort -u)" == "govulncheck@$_SEC_SCAN_GOVULNCHECK_MOD" ]]; then
+    pass "workflow 15 and sec-scan.func.sh pin the same govulncheck ($_SEC_SCAN_GOVULNCHECK_MOD)"
+  else
+    fail "govulncheck pins differ: sec-scan.func.sh $_SEC_SCAN_GOVULNCHECK_MOD, workflow $(grep -oE 'govulncheck@v[0-9.]+' "$WF" | sort -u | tr '\n' ' ')"
+  fi
 else
   fail "no workflow at $WF"
 fi

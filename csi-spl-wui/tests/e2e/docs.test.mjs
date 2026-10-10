@@ -468,6 +468,39 @@ try {
   }
   await o.close()
 
+  /* t1 28155201: the Qto doc's print and TOC buttons are one tight row at
+     the top, at 1440 and at 390, with no browser button chrome (no outset
+     border, no grey face). Control: on 77b835091 both carried
+     .issues-iconbtn, scoped to pages/issues.vue, so they rendered as default
+     buttons: the chrome checks FAIL. */
+  console.log('-- print + TOC row (t1 28155201)')
+  for (const [w, h, mobile] of [[1440, 900, false], [390, 844, true]]) {
+    const r = await browser.newPage()
+    await r.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile })
+    await r.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await r.waitForSelector('[data-test=ws-doc-toc-toggle]', { visible: true, timeout: 15000 }).catch(() => null)
+    const row = await r.evaluate(() => {
+      const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } }
+      const face = (el) => { const s = getComputedStyle(el); return { border: s.borderTopStyle, borderW: s.borderTopWidth, borderC: s.borderTopColor, bg: s.backgroundColor } }
+      const view = document.querySelector('[data-test=ws-doc-view]')
+      const pr = document.querySelector('[data-test=ws-doc-print-doc]')
+      const toc = document.querySelector('[data-test=ws-doc-toc-toggle]')
+      if (!view || !pr || !toc) return null
+      return { view: box(view), pr: box(pr), toc: box(toc), prFace: face(pr), tocFace: face(toc) }
+    })
+    const at = `${w}px`
+    ok(`${at}: the print and TOC buttons are shown`, Boolean(row), row)
+    if (row) {
+      const gap = row.toc.x - (row.pr.x + row.pr.w)
+      ok(`${at}: print and TOC sit on one line, side by side, <= 4px apart`, Math.abs(row.pr.y - row.toc.y) < 2 && gap >= 0 && gap <= 4, { gap, pr: row.pr, toc: row.toc })
+      ok(`${at}: the row is the top of the doc view`, row.pr.y - row.view.y < 12 && row.toc.y - row.view.y < 12, { view: row.view })
+      const plain = (f) => (f.border === 'none' || f.borderW === '0px' || f.borderC === 'rgba(0, 0, 0, 0)') && f.bg === 'rgba(0, 0, 0, 0)'
+      ok(`${at}: neither button has browser chrome (border, grey face)`, plain(row.prFace) && plain(row.tocFace), { pr: row.prFace, toc: row.tocFace })
+    }
+    await shot(r, `print-toc-row-${w}`)
+    await r.close()
+  }
+
   /* Verify the button changes (m-756-docs-create-btn-print) */
   console.log('-- button changes (m-756)')
   const b = await browser.newPage()

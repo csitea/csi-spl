@@ -21,12 +21,12 @@
 <template>
   <div ref="rootEl" class="wsdoc" :class="{ 'wsdoc--toc': tocOpen }" data-test="ws-doc-view">
     <div ref="barEl" class="wsdoc__bar">
-      <button type="button" class="issues-iconbtn wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)" :aria-label="t('ws_doctree.print_doc')" :title="t('ws_doctree.print_doc')">
+      <button type="button" class="wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)" :aria-label="t('ws_doctree.print_doc')" :title="t('ws_doctree.print_doc')">
         <UiIcon name="file-text" :size="16" />
       </button>
       <button
         type="button"
-        class="issues-iconbtn wsdoc__tool"
+        class="wsdoc__tool"
         data-test="ws-doc-toc-toggle"
         aria-controls="ws-doc-toc"
         :aria-expanded="tocOpen ? 'true' : 'false'"
@@ -612,14 +612,34 @@ onBeforeUnmount(() => {
   top: 0;
   z-index: 3;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   padding: 8px 12px;
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
 }
-.wsdoc__tool { display: inline-flex; align-items: center; gap: 2px; padding: 4px; }
+/* the page's own icon buttons: no browser chrome (t1 28155201) */
+.wsdoc__tool {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-fg);
+  cursor: pointer;
+  line-height: 0;
+}
+.wsdoc__tool:hover:not(:disabled) { background: var(--color-surface-hover); border-color: var(--color-border); }
+.wsdoc__tool:disabled { opacity: 0.5; cursor: default; }
 .wsdoc__branch {
   margin: 8px 12px 0;
   padding: 8px 12px;

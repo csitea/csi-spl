@@ -25,7 +25,7 @@ do_prune_docker_images_install_cron() {
   local dry="${DRY_RUN:-1}" act="${PRUNE_CRON_ACTION:-install}" live="${PRUNE_CRON_DRY_RUN:-0}"
   local dow="${PRUNE_CRON_DOW:-0}" hour="${PRUNE_CRON_HOUR:-4}" min="${PRUNE_CRON_MINUTE:-23}"
   local ct="${PRUNE_CRONTAB:-crontab}" logdir="${PRUNE_CRON_LOG_DIR:-/var/csi/csi-spl/docker-prune}"
-  local tag="csi-spl:docker-prune" script before after want gd cd
+  local tag="csi-spl:docker-prune" script want gd cd
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$live" == 0 || "$live" == 1 ]] || { do_log "FATAL PRUNE_CRON_DRY_RUN must be 0 or 1, got: '$live'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL PRUNE_CRON_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
@@ -40,22 +40,7 @@ do_prune_docker_images_install_cron() {
     echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
   fi
   want="$min $hour * * $dow PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin SPOOL_ROOT=/var/spool-hub DRY_RUN=$live bash $script >> $logdir/cron.out 2>&1 # $tag"
-  before="$(mktemp)"; after="$(mktemp)"
-  $ct -l 2>/dev/null >"$before" || true
-  awk -v suf=" # $tag" '{ l = length($0); s = length(suf); if (l >= s && substr($0, l - s + 1) == suf) next; print }' "$before" >"$after"
-  [[ "$act" == install ]] && printf '%s\n' "$want" >>"$after"
-  if cmp -s "$before" "$after"; then
-    echo "OK cron: nothing to change"; rm -f "$before" "$after"; return 0
-  fi
-  echo "$([[ "$dry" == 1 ]] && echo PLAN || echo DO) cron: the crontab before -> after"
-  diff -u --label before --label after "$before" "$after" | sed 's/^/  /' || true
-  if [[ "$dry" == 1 ]]; then
-    rm -f "$before" "$after"; do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."; return 0
-  fi
-  if [[ "$act" == install ]] && ! mkdir -p "$logdir"; then
-    rm -f "$before" "$after"; do_log "FATAL cannot create $logdir (the log dir)"; return 1
-  fi
-  $ct "$after" || { rm -f "$before" "$after"; do_log "FATAL crontab refused the new file"; return 1; }
-  rm -f "$before" "$after"
+  [[ "$act" == install ]] || want=""
+  cron_drop_tagged_line "$ct" "$tag" "$dry" "$logdir" "$want" || return $(( $? == 2 ? 0 : 1 ))
   do_log "OK the docker prune cron is $([[ "$act" == install ]] && echo "installed (DRY_RUN=$live, weekday $dow at $hour:$(printf %02d "$min"))" || echo removed)"
 }

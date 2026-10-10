@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # serial
+# test-timeout: 300 -- 8..34 s on green CI (wf 10, n=11), 25..36 s solo at load1 12..25, 50..85 s with 8 burners at load1 9..46 on 16 cores (c-704, n=3 each); the 120 s default killed it twice in CI (runs 38006758784, 38010676622)
 # The lint() calls in this file take about a minute on their own. Run beside
 # three other tests, that crosses the suite's 120s kill, so it runs alone.
 #------------------------------------------------------------------------------
@@ -53,8 +54,10 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 RUN_DIR=$(cd "$TEST_DIR/../run" && pwd)
 
 fails=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
+# Each verdict carries the file's elapsed seconds, so a run killed at its cap
+# shows which leg was running.
+pass() { echo "PASS: $1 (${SECONDS}s)"; }
+fail() { echo "FAIL: $1 -- ${2:-} (${SECONDS}s)"; fails=$((fails + 1)); }
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t

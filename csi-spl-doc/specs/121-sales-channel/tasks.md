@@ -70,7 +70,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T105 | hub: abuse limits, proof-of-work gate, bans, token sweep | 2 | T104 | build | claude |
 | T201 | hub serves `/embed/*` with per-customer `frame-ancestors` | 2 | T102, T103 | done (2c5f2fa3b, 6532abba2) | claude |
 | T202 | loader.js + iframe chat page | 2 | T201, T104 | build | claude |
-| T203 | hub: embed admin API (origins, per-embed JWT key) | 2 | T102 | build | claude |
+| T203 | hub: embed admin API (origins, per-embed JWT key) | 2 | T102 | done (4d81f4b88, 40af1ecdb) | claude |
 | T204 | WUI: embed admin page | 2 | T203 | build | mistral or grok |
 | T205 | hub: signed-in customer JWT -> one `channel_guest` | 2 | T104, T203 | build | claude |
 | T206 | hub: e-mail one-time relink to a new device | 2 | T104 | build | claude |
@@ -221,11 +221,20 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `postMessage`; the Safari third-party storage lifetime measured (n
   stated) and reported before any token lifetime is promised (`spec.md`
   4.1).
-- [ ] T203 **hub embed admin API** (claude; needs T102). The workspace
+- [x] T203 **hub embed admin API** (claude; needs T102). The workspace
   owner sets `allowed_origins` and makes the per-embed JWT key; the private
   part is shown once and never stored, logged or committed. Files:
   `GO/hub/embed_admin.go` + `_test.go` (*new*). Done: owner-only (a member
   gets 403); the private key is in no response after the first.
+  Built: `/v1/tenant/embeds` (list, create disabled and keyless), PATCH
+  `/v1/tenant/embeds/<id>` (`allowed_origins`, `enabled`), POST
+  `.../<id>/key`: an ES256 pair, the public half stored, the private half in
+  that one response (a new key revokes the old). Origins are exact https
+  origins (http for localhost only), at most 32, no wildcard. Owner only:
+  an admin or member gets 403 before anything is read; 404 to the owner
+  while the flag is off. Store writes: `GO/store/embed_admin.go` + `_test.go`
+  (*new*: T102 had no write path). Tests on Postgres, a red control per
+  Done item. Live 5.9.7 dev + prd.
 - [ ] T204 **WUI embed admin page** (mistral or grok; needs T203 on dev).
   Files: `WUI/pages/embed/` (*new*), its unit test, i18n keys (agy review
   last). Done: as T106b.

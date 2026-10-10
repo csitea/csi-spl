@@ -86,7 +86,7 @@ func TestFleetSendAcrossMachinesAndReportsFollowTheLease(t *testing.T) {
 
 	// O3: the satellite's LOCAL send to the box machine's orchestrator is
 	// refused and writes nothing; before N1 it reported "local" and was lost.
-	_, err := action.Send(satH, action.SendArgs{From: "CLE-100004", To: "CLE-77913", Kind: "result", Body: "lost"})
+	_, err := action.SendCtx(context.Background(), satH, action.SendArgs{From: "CLE-100004", To: "CLE-77913", Kind: "result", Body: "lost"})
 	if !errors.Is(err, spool.ErrUnknownRecipient) || action.ExitCode(err) != 3 {
 		t.Fatalf("local send to another machine's agent: %v (exit %d), want unknown_local_agent exit 3", err, action.ExitCode(err))
 	}

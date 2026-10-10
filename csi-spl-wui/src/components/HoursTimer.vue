@@ -166,7 +166,11 @@ onUnmounted(() => {
 <style scoped>
 .hours-timer { display: inline-flex; align-items: center; min-width: 0; }
 .hours-timer__btn { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
-.hours-timer__btn--running { color: var(--color-accent); }
+/* owner, t1 d8e5c8b7: .icon-btn is a fixed 32 px box, so the running time
+   overflowed it and its seconds went under the avatar. Running, the button
+   grows to hold the time; tabular-nums keeps every digit one width, so
+   the time does not jump as it counts */
+.hours-timer__btn--running { color: var(--color-accent); width: auto; padding-inline: 4px; }
 .hours-timer__btn--refused { color: var(--color-danger, var(--color-accent)); }
 .hours-timer__clock { font-variant-numeric: tabular-nums; font-size: 0.8125rem; white-space: nowrap; }
 .hours-timer__body { display: flex; flex-direction: column; gap: 0.75rem; padding: 0.5rem 1rem 1rem; min-width: 0; }

@@ -12,6 +12,9 @@
 //   5  a stop the hub refuses (409 period_frozen) is shown in words, keeps
 //      the interval (Retry / Discard), and writes nothing; Discard clears it
 //   6  (phone) no sideways scroll with the timer running
+//   7  (desktop, 1440 / 1280 / 1024 wide) the running time, seconds
+//      included, ends left of the avatar (owner, t1 d8e5c8b7: the seconds
+//      went under the avatar icon)
 //
 // Plant the defect and watch step 3 go red (the stored timer is wiped
 // before the reload, as if it lived in memory only):
@@ -88,6 +91,22 @@ async function openDialog(p) {
   return visible(p, '[data-test=hours-timer-dialog]')
 }
 
+/* the running time's last digit and the timer button vs the avatar trigger */
+const timerEdges = (p) => p.evaluate(() => {
+  const clock = document.querySelector('[data-test=hours-timer-clock]')
+  const btn = document.querySelector('[data-test=hours-timer-button]')
+  const avatar = document.querySelector('[data-test=user-menu-trigger]')
+  const node = clock?.firstChild
+  if (!node || !btn || !avatar) return null
+  const r = document.createRange()
+  r.setStart(node, node.length - 1)
+  r.setEnd(node, node.length)
+  const digit = r.getBoundingClientRect().right
+  const right = Math.max(digit, btn.getBoundingClientRect().right)
+  const left = avatar.getBoundingClientRect().left
+  return { digit: Math.round(digit), right: Math.round(right), avatar: Math.round(left), overlap: Math.round(right - left) }
+})
+
 const sideways = (p) => p.evaluate(() => {
   const d = document.documentElement
   const bar = document.querySelector('[data-test=top-bar]')
@@ -123,6 +142,16 @@ async function run(browser, vp, tag) {
     const clock = await text(p, '[data-test=hours-timer-clock]')
     ok(`3 ${tag}: a reload keeps it running from the stored start`, back && /^1:3[01]:\d\d$/.test(clock), { back, clock })
 
+    if (vp.width > 820) {
+      for (const width of [1440, 1280, 1024]) {
+        await applyViewport(p, { ...vp, width })
+        await sleep(300)
+        const edge = await timerEdges(p)
+        if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/hours-timer-${width}.png` })
+        ok(`7 ${tag}: at ${width} the running time, seconds included, ends left of the avatar`, !!edge && edge.overlap < 0, edge)
+      }
+      await applyViewport(p, vp)
+    }
     if (vp.width < 820) {
       const sx = await sideways(p)
       ok(`6 ${tag}: no sideways scroll with the timer running`, sx.doc <= 1 && sx.docLeft === 0 && sx.bar <= 1, sx)

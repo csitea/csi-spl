@@ -28,7 +28,7 @@ keys like `[S1]` resolve in section 9. A figure with no source is written
 | What is the API like? | XML over HTTPS, GET to read and POST to write, at `https://isvapi.netvisor.fi/<resource>.nv` [S6]. Each request is signed with an HMAC-SHA256 MAC [S2]. One call at a time per customer environment [S6]. No webhooks were found: polling only [S6]. |
 | Cash forecast (chosen route C) | Bank balance = `accountbalance.nv` on the bookkeeping account behind the one bank account [S14][S17]; + open sales invoices (`salesinvoicelist.nv`: `OpenSum`, `InvoiceDueDate`) [S9]; - open purchase invoices (`purchaseinvoicelist.nv` + `getpurchaseinvoice.nv`: `PurchaseInvoiceDueDate`, `InvoiceStatus`, `ApprovalStatus`) [S10][S11]; - payslips (`getpayrollpaycheckbatchlist.nv`) [S12]; - VAT and employer contributions from ledger balances [S14]. No API resource reads Netvisor's own cash-flow forecast screen [S16]. |
 | Card payments | Arrive as card-provider e-invoices with receipts [S27], as bank statement lines booked with posting rules [S28], or as travel expense reports; once booked they are ledger lines with account and cost centre, readable with `accountingledger.nv` [S15]. |
-| Recommendation | Option A (section 6): a read-only connector in the hub, keys in Secret Manager, one poll per night plus one on demand, results stored for the csitea workspace only. Effort M. |
+| Recommendation | Option B (section 6): a read-only action on the main box (`<DEV_BOX>`), keys in a 0600 file there only (owner msg 072a9990), one run per night plus one on demand, results delivered to HUM-10 only (owner msg 42924894). Effort M. |
 
 ## 1. Access options
 
@@ -38,7 +38,7 @@ keys like `[S1]` resolve in section 9. A figure with no source is written
 |---|---|---|---|---|
 | **Own-use integration** (we build it) | the company writes its own client against the API | CustomerId/CustomerKey (made by the company's admin) + PartnerId/PartnerKey (from Netvisor partner support) | **yes**: the owner asked for exactly this | [S1][S2][S3] |
 | **Software partnership** (we sell it) | the same build, then listed on the vendor marketplace for other Netvisor customers | the same four keys | not now; the same technical path, so it stays open | [S3] |
-| **Third-party connector / unified API** | a vendor's hosted API in front of Netvisor (example found: a "unified accounting API" listing nine Netvisor resources: customers, invoices, vendors, credit notes, purchase orders, products, purchase invoices, journal entries, payments) | the connector holds the keys | **no**: no account balances or payroll in its list, a monthly fee, and our finance data goes through a third party, which the owner's privacy rule (section 8.1) rules out | [S19][S20] |
+| **Third-party connector / unified API** | a vendor's hosted API in front of Netvisor (example found: a "unified accounting API" listing nine Netvisor resources: customers, invoices, vendors, credit notes, purchase orders, products, purchase invoices, journal entries, payments) | the connector holds the keys | **no**: no account balances or payroll in its list, a monthly fee, and the keys and finance data would sit with a third party, which the owner's rules C2, C6 and C7 (section 8.1) rule out | [S19][S20] |
 
 Netvisor's vendor does not build integrations for customers: per a search
 snippet of the integrations FAQ, "a developer is needed as Visma Solutions Oy
@@ -127,9 +127,9 @@ own data it costs more than all the other lines in this section combined.
 
 ### 2.3 Our side
 
-The hub's run cost should barely move: one nightly poll of a few XML lists on
-the existing Cloud Run hub, plus four secret values per environment in Secret
-Manager. Not measured; the spec measures it.
+No new GCP cost: under the owner's key rule the run happens on the main box
+(section 6), a nightly poll of a few XML lists, and the hub only carries one
+DM. Not measured; the spec measures it.
 
 ## 3. Technical means
 
@@ -213,11 +213,11 @@ one value, the **bookkeeping account number** behind the one bank account
 number itself is never sent, stored or read by option C.
 
 That bookkeeping account number is company configuration and finance data
-under the owner's privacy rule (section 8.1). It lives in the csitea
-workspace's own settings in the hub DB (tenant RLS) or in Secret Manager
-next to the keys, never in git, cnf, specs, logs or chat. The owner's offer
-to send "the account ID" (msg aa3a837e) is therefore not needed for route C.
-If it is sent anyway, it goes into that store, not into a topic.
+under the owner's rules (section 8.1). It lives next to the keys, in the
+0600 file on the main box (C6), never in git, cnf, specs, the hub DB, logs or
+chat. The owner's offer to send "the account ID" (msg aa3a837e) is therefore
+not needed for route C. If it is sent anyway, it goes into that file, not
+into a topic.
 
 ### 4.3 Netvisor's own cash-flow forecast
 
@@ -301,33 +301,51 @@ Spec 123 (`csi-spl-doc/specs/123-cost-tracking/spec.md`, read, not edited):
   and booked in Netvisor. The Netvisor reader must skip vendors another
   source already covers, or 123 sums them twice. To be agreed with spec 123's
   owner before any build.
-- Privacy: 123's `cost_lines` has `workspace_id` and tenant RLS (123 test
-  "Tenant isolation"). Netvisor rows must carry the csitea `workspace_id`;
-  a cross-workspace roll-up would break the owner's rule (section 8.1).
+- Privacy: 123's `cost_lines` is per workspace with tenant RLS (123 test
+  "Tenant isolation"), and 123 shows costs to holders of `costs.read`. The
+  owner's rule C7 is narrower: Netvisor figures are for HUM-10 only. So
+  Netvisor rows cannot go into the shared `cost_lines` page as it is
+  specified; either 123 adds an owner-only class of rows checked by
+  HUM-10's id, or the Netvisor costs stay in the main-box report. 123's
+  owner decides; spec 125 must not widen access.
 
 ## 6. Fit for Spool Hub: architecture options
 
-Data rule for every option: the four Netvisor values are **secrets**; all
-finance data is **private to the csitea workspace** (section 8.1). None of it
-goes in git, terraform state, cnf, specs, logs, spool posts or CI output.
+Rules for every option, from the owner (section 8.1):
 
-| | **A. Hub connector** (recommended) | **B. Box-side action** | **C. MCP tool over A** |
+- **Keys on the main box only** (C6, msg 072a9990: "Keys and secrets should stay only
+  on the [main] box, not on [the satellite]."): the four Netvisor values live in one 0600
+  file under the harness user's `$HOME` on the main box, read only by a
+  main-box action. Not on the satellite, **not in GCP Secret Manager** (any
+  box holding the project SA could read it), not in git, cnf, terraform
+  state, logs, spool posts or CI output. Every lane that handles them is
+  placed on the main box.
+- **HUM-10 only** (C7, msg 42924894): the keys and ALL finance data and
+  reports are for HUM-10 alone: no other csitea member, no admin role, no
+  other workspace, no agent outside the one action. Delivery goes only to
+  HUM-10 (a DM, or a members-only channel whose only human member is
+  HUM-10). The check is enforced by HUM-10's id in the action and at the
+  hub, never by hiding UI.
+
+| | **A. Hub connector** | **B. Main-box action** (recommended) | **C. MCP tool** |
 |---|---|---|---|
-| What | the hub (Cloud Run) signs and sends the calls, a nightly job + an on-demand refresh; stores a daily snapshot for the csitea workspace | a `./run -a do_spl_netvisor_read` on one box, keys on that box, posts results to the hub through an operator endpoint (the spec 123 transcript-reader pattern) | an MCP tool (`netvisor_cash_forecast`, `netvisor_costs`) that agents call; it reads A's stored snapshot, never Netvisor directly |
-| Keys live | Secret Manager in `csi-spl-<env>`, read by the hub SA only | a file under `$HOME` on one box | none: it reads A's data |
-| Effort | **M**: signer + XML client + ~10 read resources + store + one WUI panel | **S/M**: the same client on a box, no WUI work at first | **S** once A exists |
-| Risk | the hub holds finance credentials; the connector is bound to one workspace and gated by a permission | box down = no data; keys on a box shared by many agents, against the data rule | an agent can paste figures into a post; needs a permission scoped to csitea members and a "no amounts in topics" rule |
-| Stays out of git/logs | keys (Secret Manager), raw XML (never logged; only counts and status), amounts (DB only, RLS) | the same, plus the box file is mode 600 | amounts never in tool logs |
-| Polling | one call at a time per company [S6]; nightly + on demand | the same | n/a |
+| What | the hub (Cloud Run) signs and sends the calls | `./run -a do_spl_netvisor_report` on the main box: reads Netvisor, computes the forecast and card-cost breakdown, posts the result as a DM to HUM-10 only | an MCP tool agents call for the figures |
+| Keys live | would need Secret Manager or the hub's environment | the 0600 file on the main box (C6) | the same file, if it called Netvisor |
+| Allowed by C6/C7? | **no**: the keys would leave the main box | **yes** | **no** as an open tool: any agent could read the figures (C7). Only a tool whose every call checks the requester is HUM-10 could be considered later |
+| Effort | n/a | **M**: signer + XML client + ~10 read resources + the sum + one DM post; no WUI panel, no hub table | n/a now |
+| Risk | n/a | the main box down or asleep = no report that night (the next run catches up); the file sits on a box shared with agents, so the action reads it as a fixed user and no lane brief names its path | n/a |
+| Stays out of git/logs | n/a | keys and the account number (file only), raw XML (never logged; only counts and status), amounts (only in the DM to HUM-10, never in a log or topic) | n/a |
+| Polling | n/a | one call at a time per company [S6]; nightly cron on the main box + on demand by HUM-10 | n/a |
 
-Why A: it is the only option where the keys never sit on a box shared by
-agents, it is reachable from the WUI the owner already uses, and B's "post to
-the hub" step ends up building most of A anyway. C is a cheap second step on
-top of A, and only if the owner wants agents to read the figures (question 3).
+Why B: it is the only option the owner's two rules allow. The hub carries
+only the delivered DM, which its existing per-member DM access already
+restricts to HUM-10; the new code adds a check that refuses any recipient
+other than HUM-10's id, with a test whose control posts to another member
+and must fail.
 
-Per-env note: `dev` talks to the Netvisor **training environment**, `prd` to
-production. That matches our dev/prd split and keeps test traffic out of the
-real books.
+Per-env note: the dev run talks to the Netvisor **training environment**,
+the prd run to production, each with its own key file on the main box. That keeps
+test traffic out of the real books.
 
 ## 7. Later scope: balance sheet, cost items
 
@@ -347,10 +365,12 @@ The spec 123 link is the same as in section 5.3.
 | # | owner's words | rule for spec 125 |
 |---|---|---|
 | C1 | "C" (fc0119cd, msg 70b69575) | the cash balance comes from Netvisor's imported bank data (section 4); no bank API |
-| C2 | "Anything related to the finances of [Csitea] should be private to this workspace." (fc0119cd, msg 873f6f84) | all Netvisor data (balances, invoices, payroll, card costs) is visible only to members of the csitea workspace, never to another workspace or its agents (tenant RLS on every table, with the cross-tenant test); no figures, account numbers, ids or keys in git, specs, logs, CI output or other repos |
+| C2 | "Anything related to the finances of [Csitea] should be private to this workspace." (fc0119cd, msg 873f6f84) | all Netvisor data (balances, invoices, payroll, card costs) stays inside the csitea workspace, never another workspace or its agents; no figures, account numbers, ids or keys in git, specs, logs, CI output or other repos. Tightened by C7. |
 | C3 | "The company has only one account." (fc0119cd, msg aa3a837e) | one bank bookkeeping account in the forecast; no bank account number needed (section 4.2) |
 | C4 | "Almost everything is paid via" Netvisor (fc0119cd, msg c45c7cb0) | outgoing payments = Netvisor purchase invoices (section 4.4) |
 | C5 | card payments and "the cost of their structures" (fc0119cd, msg 2a339876) | use case 2 (section 5) |
+| C6 | "Keys and secrets should stay only on the [main] box, not on [the satellite]." (fc0119cd, msg 072a9990) | the Netvisor keys live only in a 0600 file on the main box, read by a main-box action; not on the satellite and not in GCP Secret Manager (dispatcher's reading, open to the owner's correction); option B (section 6) |
+| C7 | no access to the keys or the information for "any other member other than me" (fc0119cd, msg 42924894) | keys and all finance data and reports for HUM-10 only: no other csitea member, no admin role, no other workspace; delivery only to HUM-10; enforced by HUM-10's id in the action and the hub, never by UI hiding (dispatcher's reading, posted to the owner for correction) |
 
 ### 8.2 Open (before a spec)
 
@@ -360,17 +380,18 @@ The spec 123 link is the same as in section 5.3.
 2. **Read-only, or also write?** Read-only needs no write access rights and no
    transaction fees. Writing (e.g. sending sales invoices from the workspace)
    adds fees and risk.
-3. **Which csitea members see it, and may csitea's own agents read the
-   figures** (option C)? Other workspaces never do (C2).
+3. *(answered by C7: HUM-10 only.)* **Delivery form**: a DM to you, or a
+   members-only channel with you as its only human member?
 4. **Who obtains the keys?** Partner registration and the test environment
    (section 1.2 steps 2 to 4) need a contact person; the CustomerId/CustomerKey
    need a Netvisor admin, ideally under a dedicated integration user so they do
-   not expire with a person's account.
+   not expire with a person's account. Whoever obtains them puts them into the
+   the main box file directly (C6), never through a chat post.
 5. **Which Netvisor package does the company run?** Professional or Premium:
    no extra fee. Core or lower: the API needs an upgrade (section 2.1).
 6. **Which bookkeeping accounts** hold the bank balance, VAT payable and the
-   tax-account liabilities? Your accountant knows. These go into the
-   workspace settings, never into a topic (section 4.2).
+   tax-account liabilities? Your accountant knows. These go into the the main box
+   file with the keys, never into a topic (section 4.2).
 7. **How fresh?** Nightly is the vendor's advice; is a "refresh now" button
    enough, or do you need intraday? The balance itself only moves when a
    statement is processed (section 4.1).

@@ -59,10 +59,15 @@ func TestFetchAvatarPolicy(t *testing.T) {
 		w.Write(big[1024:]) //nolint:errcheck
 	})
 	mux.HandleFunc("/404.png", http.NotFound)
-	// A valid png after a 2 s wait: only the timeout can refuse it.
+	// A valid png after a 2 s wait: only the timeout can refuse it. Once the
+	// client gives up the handler aborts and writes nothing: the client's
+	// cancel reaches this handler first, and a png written then raced the
+	// client's own deadline and won (wf 10 run 38041284106: nil error, 75
+	// bytes, at 1.0017 s). A real slow server does not answer the hang-up.
 	mux.HandleFunc("/slow.png", func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
+			panic(http.ErrAbortHandler)
 		case <-time.After(2 * time.Second):
 		}
 		w.Header().Set("Content-Type", "image/png")

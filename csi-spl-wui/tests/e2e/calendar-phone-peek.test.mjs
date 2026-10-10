@@ -35,7 +35,10 @@
 // Controls: before T009 there is no [data-test=calpeek], so every check
 // FAILs; in-run, a planted 2000 px scroller in the peek must trip H3, and
 // the copy check must FAIL on a plain new event's sheet (the + button) -
-// what Duplicate opened before the sheet had a copy mode.
+// what Duplicate opened before the sheet had a copy mode. Escape waits for
+// the heading's focus (it lands a frame after the peek renders; the hosted
+// runner pressed Escape on the tapped row, c-736): a peek without its Escape
+// handler still FAILs "Escape closes the peek" (mutant, 94/96).
 //
 // Run:
 //   BASE_URL=<generated mock bundle> SHOT_DIR=/var/tmp/shots pnpm run test:e2e calendar-phone-peek
@@ -149,6 +152,9 @@ async function tap(p, sel) {
 }
 const peekShown = (p, id) => p.waitForFunction((s, i) => document.querySelector(s)?.getAttribute('data-id') === i, { timeout: 8000 }, PEEK, id).then(() => true, () => false)
 const peekGone = (p) => p.waitForFunction((s) => !document.querySelector(s), { timeout: 5000 }, PEEK).then(() => true, () => false)
+/* the heading takes focus one frame after the peek renders (nextTick, then
+   requestAnimationFrame): a key sent before that lands on the tapped row */
+const headFocused = (p) => p.waitForFunction((s) => document.activeElement === document.querySelector(`${s} [data-test=calpeek-title]`), { timeout: 5000 }, PEEK).then(() => true, () => false)
 const rowThere = (p, id, want) => p.waitForFunction((s, w) => Boolean(document.querySelector(s)) === w, { timeout: 8000 }, row(id), want).then(() => true, () => false)
 
 /* the peek as the checks read it */
@@ -302,13 +308,17 @@ try {
     await peekShown(p, ZONE_ID)
     const zone = await p.$eval(`${PEEK} [data-test=calpeek-when]`, (el) => el.textContent.trim()).catch(() => '')
     ok('S4-6: the own zone beside the viewer clock', zone.includes('09:00') && zone.includes('(Asia/Tokyo 18:00)'), zone)
+    /* the hosted runner sent Escape before the focus landed (c-736): wait
+       for it - a peek that never focuses its heading still FAILs here */
+    ok('the peek focuses its heading before Escape', await headFocused(p))
     await p.keyboard.press('Escape')
     ok('Escape closes the peek', await peekGone(p))
 
     await tap(p, row(PLAIN_ID))
-    await peekShown(p, PLAIN_ID)
+    /* the Lunch peek itself, not a Tokyo peek left open */
+    const plainShown = await peekShown(p, PLAIN_ID)
     const plain = await p.$eval(`${PEEK} [data-test=calpeek-when]`, (el) => el.textContent.trim()).catch(() => '')
-    ok('S4-6: a UTC event shows no second zone', !plain.includes('('), plain)
+    ok('S4-6: a UTC event shows no second zone', plainShown && /\d{2}:\d{2}/.test(plain) && !plain.includes('('), plain)
     await tap(p, `${PEEK} [data-test=calpeek-close]`)
     await peekGone(p)
     await tap(p, row(SAME_ID))

@@ -211,7 +211,7 @@ grep -q '^      - postgresql-client$' "$r2/tasks/main.yml" && grep -q '^      - 
   && pass "role 02 installs psql (postgresql-client) and pandoc" || fail "role 02 lacks postgresql-client or pandoc"
 miss=""
 for b in $(grep -rhoE 'do_require_bin [a-z0-9 _.-]+' "$PROJ_PATH/../csi-spl-orc/src/bash/run" | sed 's/do_require_bin //' | tr ' ' '\n' | grep -E '^[a-z0-9_-]+$' | sort -u); do
-  case "$b" in yq|python3|psql|curl|gcloud|jq|sha256sum|git|setsid|flock|docker|gh|crontab|setfacl|getfacl|perl|pandoc|openssl|tmux) ;;
+  case "$b" in yq|python3|psql|curl|gcloud|jq|sha256sum|git|setsid|flock|docker|gh|crontab|setfacl|getfacl|perl|pandoc|openssl|tmux|zstd) ;;
     # coreutils / base system, or not a box-user tool: pnpm + node (WUI lanes, the agent), sudo, systemctl, install, getent, tee ...
     sudo|pnpm|node|install|getent|tee|sed|mkdir|hostname|find|date|awk|tar|systemctl|df|du|readlink) ;;
     *) miss="$miss $b" ;; esac

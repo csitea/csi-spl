@@ -34,6 +34,8 @@
       # user that runs them (CLE-77911)
       - postgresql-client
       - pandoc
+      # do_require_bin zstd: the lane handover actions pack a session with it
+      - zstd
     state: present
     update_cache: true
     cache_valid_time: 3600

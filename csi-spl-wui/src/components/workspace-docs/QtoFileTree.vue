@@ -60,8 +60,9 @@ const rows = computed<FileTreeRow[]>(() => {
       const key = itemKey(doc, it.id)
       const sub = (m.get(it.id) || []).length > 0
       const open = sub && opened.value.has(key)
-      const name = it.title.trim() || t('ws_doctree.untitled')
-      out.push({ key, depth, name, title: `${it.outline} ${name}`, icon: sub ? 'folder' : 'list', kind: 'section', expandable: sub, open, active: doc === props.active && it.id === activeItem.value })
+      /* an empty title reads as the document view's placeholder (Heading 1.1) */
+      const name = it.title.trim() || t('ws_doctree.heading_placeholder', { n: it.outline })
+      out.push({ key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'folder' : 'list', kind: 'section', expandable: sub, open, active: doc === props.active && it.id === activeItem.value })
       if (open) walk(doc, m, it.id, depth + 1)
     }
   }

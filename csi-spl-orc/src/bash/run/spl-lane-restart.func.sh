@@ -86,6 +86,9 @@ do_spl_lane_restart() {
       spl_rotate_note "${LEASE_ORCH:-orchestrator}" "$task" \
         "split this task: lane $id@$ROTATE_BOX hit $n restarts of $task (lane_restarts_before_split=$split, spec 063 R-L2); not restarted again. Hold: $ROTATE_HOLD_DIR/$task/" note
       spl_lane_restart_event "$rid" split fail "restarts $n >= $split"
+      # the try fails as F2 stuck (spec 115 section 6), the watchdog's writer
+      declare -F spl_wd_journal_f2 >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-watchdog.func.sh"
+      spl_wd_journal_f2 "$id" lane-restart "$task"
     fi
     return 3
   fi

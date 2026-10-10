@@ -29,6 +29,10 @@
 #      a seed, no resume) as the agent user of the box config, not the
 #      caller's; controls: a lane with no window -> exit 3; a box config that
 #      names no agent user -> refused; a dry run plans it
+#  10. spec 115 F2: the watchdog holding a lane out at RESTART_MAX_PER_HOUR (3)
+#      closes its try in the tries journal with ONE `fail:F2` row, source
+#      watchdog; one takeover alone and an S2 kind=limit verdict write none;
+#      control: a writer with the source field dropped is red
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -328,6 +332,53 @@ rc="$(take ID=c-001 REASON=S3)"
 [[ "$rc" == 0 && ! -e "$T/spawn.log" ]] && grep -q 'WD-SPAWN PLAN windowless seat: a fresh session, no --resume; SPAWN_BOX=local' "$T/o" &&
   pass "9. a dry run plans the windowless seat's start" || fail "9. dry rc=$rc: $(cat "$T/o")"
 [[ -e "$D/wd/c-001.takeovers" && -s "$D/wd/c-001.takeovers" ]] && fail "9. the refused and dry runs counted a takeover" || pass "9. the refusal and the dry run count no takeover"
+
+# --- 10. spec 115 F2: a hold-out closes the try as fail:F2 --------------------------------------
+J="$D/attempts.tsv"
+# wdf FN ARGS: one watchdog call in a fresh shell; WDF_RUN = the run/ dir
+wdf() {
+  ( set +u
+    do_log() { echo "$*"; }
+    source "${WDF_RUN:-$PROJ_ROOT/src/bash/run}/spl-watchdog.func.sh"
+    export WD_DIR="$D/wd" WD_LOG="$T/wd.log" WD_SEND="$T/bin/send" WD_FROM=c-001 WD_BOX=box1 ROTATE_BOX=box1
+    export WD_TAKEOVER_CMD=true RESTART_MAX_PER_HOUR=3 WD_BOOT=0
+    mkdir -p "$WD_DIR"; "$@" ) > "$T/o" 2>&1
+}
+# lane10 <id> <restarts>: a lane with a `run` row and <restarts> in the last hour
+lane10() {
+  local i; mkdir -p "$S/$1/lifetime" "$D"; : > "$S/$1/lifetime/restarts"
+  for (( i = 1; i <= $2; i++ )); do echo "$(( T0 - 600 * i )) S3" >> "$S/$1/lifetime/restarts"; done
+  printf 'task-y\tcomplex_coding\tclaude\t%s\t1700000000\trun\tspawn-window\n' "$1" >> "$J"
+}
+# f2_ok <id>: the journal's last row closes <id> as fail:F2 from the watchdog, 7 columns
+f2_ok() {
+  tail -n 1 "$J" 2>/dev/null | awk -F'\t' -v i="$1" '
+    NF == 7 && $1 == "task-y" && $2 == "complex_coding" && $3 == "claude" && $4 == i && $5 == "1700000000" && $6 == "fail:F2" && $7 == "watchdog" { ok = 1 }
+    END { exit !ok }'
+}
+f2_rows() { awk -F'\t' -v i="$1" '$4 == i && $6 == "fail:F2"' "$J" 2>/dev/null | grep -c . || true; }
+world; rm -f "$J"; lane10 c-930 3
+wdf spl_wd_takeover c-930 S3 dead
+grep -q 'held out: 3 restarts' "$T/o" && [[ -s "$S/c-930/lifetime/heldout" ]] && f2_ok c-930 && [[ "$(f2_rows c-930)" == 1 ]] &&
+  pass "10. held out at 3 restarts: task-y complex_coding claude c-930 fail:F2 watchdog" || fail "10. held out: $(cat "$T/o") | $(tr '\t' ' ' < "$J")"
+lane10 c-931 1
+wdf spl_wd_takeover c-931 S3 dead
+[[ "$(f2_rows c-931)" == 0 && ! -e "$S/c-931/lifetime/heldout" ]] && grep -q 'TAKEOVER c-931' "$T/wd.log" &&
+  pass "10. one takeover alone: no fail row" || fail "10. one takeover: $(cat "$T/o") | $(tr '\t' ' ' < "$J")"
+lane10 c-932 3; mkdir -p "$T/ctx932"; echo 'You have hit your limit · resets 9pm (UTC)' > "$T/ctx932/pane"; : > "$T/ctx932/hits"
+wdf spl_wd_s2_limit c-932 "kind=limit resets 9pm (UTC)" %32 "$T0" "$T/ctx932"
+[[ "$(f2_rows c-932)" == 0 && ! -e "$S/c-932/lifetime/heldout" && -s "$D/wd/c-932.limit" ]] &&
+  pass "10. an S2 kind=limit verdict at 3 restarts: no fail row" || fail "10. S2: $(cat "$T/o") | $(tr '\t' ' ' < "$J")"
+# control: the same hold-out over a copy of run/ whose writer drops the source field
+mkdir -p "$T/fp/src/bash"; cp -r "$PROJ_ROOT/src/bash/run" "$T/fp/src/bash/"
+for e in "$PROJ_ROOT"/* "$PROJ_ROOT"/src/* "$PROJ_ROOT"/src/bash/*; do [[ -e "$T/fp/${e#"$PROJ_ROOT"/}" ]] || ln -s "$e" "$T/fp/${e#"$PROJ_ROOT"/}"; done
+sed -i 's/ fail:F2 "\$src" >&9/ fail:F2 >\&9/; s/%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n/%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n/' "$T/fp/src/bash/run/spl-watchdog.func.sh"
+world; rm -f "$J"; lane10 c-933 3
+WDF_RUN="$T/fp/src/bash/run" wdf spl_wd_takeover c-933 S3 dead
+if ! tail -n 1 "$J" | awk -F'\t' 'NF == 6 && $6 == "fail:F2" { ok = 1 } END { exit !ok }'; then
+  fail "10. control: the copy wrote no 6-column fail:F2 row: $(cat "$T/o") | $(tr '\t' ' ' < "$J")"
+elif f2_ok c-933; then fail "10. control: the row check passed with no source field"
+else pass "10. control: no source field -> the row check is red ($(tail -n 1 "$J" | tr '\t' ' '))"; fi
 
 echo "wd-takeover: $fails failure(s)"
 exit $(( fails > 0 ))

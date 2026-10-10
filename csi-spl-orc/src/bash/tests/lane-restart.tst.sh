@@ -18,6 +18,10 @@
 #      only in <ID>.pane.txt
 #   4. R-L2: at lane_restarts_before_split it refuses (exit 3), notes the
 #      orchestrator "split this task", no respawn
+#   4b. spec 115 F2: the refusal closes the lane's try in the tries journal
+#      with ONE `fail:F2` row, source lane-restart (task, kind, vendor, start
+#      copied from its `run` row; none: the task, "-", claude); a dry run
+#      writes none; control: a writer with the source field dropped is red
 #   5. 7.3, seat_fail_action: compact (default) -> /compact typed into the old
 #      pane + a note; no claude and no old process -> "respawn from the hold
 #      dir" + a note; respawn -> the old process killed, respawned once more
@@ -214,6 +218,46 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 world; mkdir -p "$H/ctx-063-05-lane-restart"; printf 'a\tc-900\tr1\t400\n' >"$H/ctx-063-05-lane-restart/restarts.tsv"
 act DRY_RUN=0 LANE_RESTARTS_BEFORE_SPLIT=1 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 3 ]] && pass "4. LANE_RESTARTS_BEFORE_SPLIT=1 refuses the second restart" || fail "4. env: rc=$rc"
+
+# --- 4b. spec 115 F2: the refusal closes the try as fail:F2 ------------------------
+J="$D/attempts.tsv"
+# f2_ok <task> <kind> <start>: the journal's last row closes c-900 as fail:F2
+# from lane-restart, 7 columns, after the rows it had
+f2_ok() {
+  tail -n 1 "$J" 2>/dev/null | awk -F'\t' -v t="$1" -v k="$2" -v s="$3" '
+    NF == 7 && $1 == t && $2 == k && $3 == "claude" && $4 == "c-900" && $5 ~ s && $6 == "fail:F2" && $7 == "lane-restart" { ok = 1 }
+    END { exit !ok }'
+}
+split4b() {  # split4b [env]: c-900 at its split count, a run row in the journal
+  world; mkdir -p "$H/ctx-063-05-lane-restart" "$D"; printf 'a\tc-900\tr1\t400\nb\tc-900\tr2\t410\n' >"$H/ctx-063-05-lane-restart/restarts.tsv"
+  printf 'task-x\tsimple_coding\tclaude\tc-900\t1700000000\trun\tspawn-window\n' >"$J"
+  act "$@" >"$T/o" 2>&1
+}
+split4b DRY_RUN=0; rc=$?
+[[ $rc -eq 3 && "$(grep -c . "$J")" == 2 ]] && f2_ok task-x simple_coding '^1700000000$' &&
+  pass "4b. the split refusal closes the try: task-x simple_coding claude c-900 fail:F2 lane-restart" || fail "4b. rc=$rc $(tr '\t' ' ' <"$J")"
+act DRY_RUN=0 >"$T/o" 2>&1
+[[ "$(grep -c . "$J")" == 2 ]] && pass "4b. refused again: no second fail:F2 row" || fail "4b. again: $(tr '\t' ' ' <"$J")"
+split4b DRY_RUN=1; rc=$?
+[[ $rc -eq 3 && "$(grep -c . "$J")" == 1 ]] && pass "4b. a dry run refusal writes no row" || fail "4b. dry: rc=$rc $(tr '\t' ' ' <"$J")"
+rm -f "$J"; world; mkdir -p "$H/ctx-063-05-lane-restart"; printf 'a\tc-900\tr1\t400\n' >"$H/ctx-063-05-lane-restart/restarts.tsv"
+act DRY_RUN=0 LANE_RESTARTS_BEFORE_SPLIT=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 3 && "$(grep -c . "$J")" == 1 ]] && f2_ok ctx-063-05-lane-restart - '^[0-9]+$' &&
+  pass "4b. no run row: the task, kind -, claude, now" || fail "4b. no row: rc=$rc $(tr '\t' ' ' <"$J" 2>/dev/null)"
+! grep -q ERRTRAP "$T/o" && pass "4b. no stray failing command under the ERR trap" || fail "4b. ERRTRAP: $(grep ERRTRAP "$T/o")"
+# control: the same run over a copy of run/ whose writer drops the source field
+mkdir -p "$T/fp/src/bash"; cp -r "$PROJ_ROOT/src/bash/run" "$T/fp/src/bash/"
+for e in "$PROJ_ROOT"/* "$PROJ_ROOT"/src/* "$PROJ_ROOT"/src/bash/*; do [[ -e "$T/fp/${e#"$PROJ_ROOT"/}" ]] || ln -s "$e" "$T/fp/${e#"$PROJ_ROOT"/}"; done
+sed -i 's/ fail:F2 "\$src" >&9/ fail:F2 >\&9/; s/%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n/%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n/' "$T/fp/src/bash/run/spl-watchdog.func.sh"
+if grep -q 'fail:F2 "\$src"' "$T/fp/src/bash/run/spl-watchdog.func.sh"; then
+  fail "4b. control: the source field was not dropped from the copy"
+else
+  split4b DRY_RUN=0 PROJ_PATH="$T/fp"; rc=$?
+  if [[ $rc -ne 3 ]] || ! tail -n 1 "$J" | awk -F'\t' 'NF == 6 && $6 == "fail:F2" { ok = 1 } END { exit !ok }'; then
+    fail "4b. control: the copy wrote no 6-column fail:F2 row (rc=$rc): $(tail -n 3 "$T/o")"
+  elif f2_ok task-x simple_coding '^1700000000$'; then fail "4b. control: the row check passed with no source field"
+  else pass "4b. control: no source field -> the row check is red ($(tail -n 1 "$J" | tr '\t' ' '))"; fi
+fi
 
 # --- 5. 7.3 fallbacks -------------------------------------------------------------
 world; echo refuse >"$T/respawn.mode"

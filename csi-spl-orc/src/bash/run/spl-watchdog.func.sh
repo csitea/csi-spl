@@ -1480,6 +1480,34 @@ spl_wd_hold_out() {
   printf '%s %s\n' "$(date -u -d "@$2" +%FT%TZ)" "$3" > "$d/heldout" 2>/dev/null || true
   echo "$2" > "$WD_DIR/$1.heldout" 2>/dev/null || true
   spl_wd_log "HELDOUT $1: $3"
+  spl_wd_journal_f2 "$1" watchdog
+  return 0
+}
+
+# spl_wd_journal_f2 ID SOURCE [TASK]: closes the id's try in the tries
+# journal (spec 115 section 6, F2 stuck) with one `fail:F2` row, the format
+# spawn-window.sh writes (`task_id kind vendor id start_epoch outcome
+# source`), under the same flock on $SPOOL_ROOT/dispatch/attempts.tsv.
+# task_id, kind, vendor and start are copied from the id's last row there or
+# in <id>/attempts.tsv (do_spl_lane_mix_journal reads both); no row: TASK
+# (else "-"), kind "-", the vendor of the id's letter, now. A last row that
+# already failed is left alone. Callers: the hold of 6.1 (source watchdog)
+# and do_spl_lane_restart's split refusal (source lane-restart); one takeover
+# and an S2 verdict never get here. A journal that cannot be written is one
+# wd.log line, never a changed result.
+spl_wd_journal_f2() {
+  local id="$1" src="$2" f="$SPOOL_ROOT/dispatch/attempts.tsv" row t k v s o
+  row="$(cat "$f" "$SPOOL_ROOT/$id/attempts.tsv" 2>/dev/null | awk -F'\t' -v i="$id" 'NF >= 6 && $4 == i {r = $1 "\t" $2 "\t" $3 "\t" $5 "\t" $6} END {print r}' || true)"
+  IFS=$'\t' read -r t k v s o <<<"$row" || true
+  [[ "$o" != fail:* ]] || return 0
+  if [[ -z "$row" ]]; then
+    t="${3:--}" k=- s="$(spl_lease_now)"
+    case "${id:0:2}" in c-) v=claude ;; g-) v=grok ;; a-) v=agy ;; q-) v=qwen ;; m-) v=mistral ;; *) v=- ;; esac
+  fi
+  { mkdir -p "${f%/*}" && (
+      flock -w 10 9 || exit 1
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$t" "$k" "$v" "$id" "$s" fail:F2 "$src" >&9
+    ) 9>>"$f"; } 2>/dev/null || { spl_wd_log "WARN $id: no fail:F2 row in $f"; } 2>/dev/null || true
   return 0
 }
 

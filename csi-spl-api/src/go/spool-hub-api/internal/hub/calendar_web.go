@@ -19,6 +19,9 @@ import (
 // public rows only (web, their name before rdb 0159, until 0161), in the
 // workspace's RLS scope. Per client
 // address it is rate-limited like the other anonymous routes (join redeem).
+// specs/112 HUB-4: a synced event of a public roadmap adds four fields,
+// source_key, roadmap_url, specs and done_lines (webGoalOut); every other
+// event has the five fields only.
 
 // calendarWebPerMin is the per-address read window.
 const calendarWebPerMin = 60
@@ -30,6 +33,23 @@ type webCalendarEventOut struct {
 	StartsAt    string `json:"starts_at"`
 	EndsAt      string `json:"ends_at"`
 	AllDay      bool   `json:"all_day"`
+	*webGoalOut
+}
+
+// webGoalOut is a public synced event's roadmap link; nil leaves its four
+// keys out of the event.
+type webGoalOut struct {
+	SourceKey  string   `json:"source_key"`
+	RoadmapURL string   `json:"roadmap_url"`
+	Specs      []string `json:"specs"`
+	DoneLines  []string `json:"done_lines"`
+}
+
+func webGoalOf(g *store.WebCalendarGoal) *webGoalOut {
+	if g == nil {
+		return nil
+	}
+	return &webGoalOut{SourceKey: g.SourceKey, RoadmapURL: g.RoadmapURL, Specs: g.Specs, DoneLines: g.DoneLines}
 }
 
 func (s *Server) routeCalendarWeb(mux *http.ServeMux) {
@@ -82,7 +102,7 @@ func (s *Server) handleCalendarWeb(w http.ResponseWriter, r *http.Request) {
 	out := make([]webCalendarEventOut, 0, len(evs))
 	for _, e := range evs {
 		out = append(out, webCalendarEventOut{Title: e.Title, Description: e.Description,
-			StartsAt: rfc(e.StartsAt), EndsAt: rfc(e.EndsAt), AllDay: e.AllDay})
+			StartsAt: rfc(e.StartsAt), EndsAt: rfc(e.EndsAt), AllDay: e.AllDay, webGoalOut: webGoalOf(e.Goal)})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": out})
 }

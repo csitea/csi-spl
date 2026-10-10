@@ -87,13 +87,13 @@ func TestCalendarOldBodyNewDefaults(t *testing.T) {
 			t.Errorf("new field %s = %v, want its default %v", k, ev[k], v)
 		}
 	}
-	for _, k := range []string{"reminders", "guests", "mentions"} {
+	for _, k := range []string{"reminders", "guests", "mentions", "specs", "done_lines"} {
 		if l, ok := ev[k].([]any); !ok || len(l) != 0 {
 			t.Errorf("%s = %#v, want []", k, ev[k])
 		}
 	}
 	keys := slices.Sorted(maps.Keys(ev))
-	if len(keys) != 18+10+2 { // 089 6.1.1's 18 fields + 097 4.1's 10 + 112 HUB-1's source_key, roadmap_url
+	if len(keys) != 18+10+2+2 { // 089 6.1.1's 18 fields + 097 4.1's 10 + 112 HUB-1's source_key, roadmap_url + HUB-4's specs, done_lines
 		t.Fatalf("event keys %v", keys)
 	}
 }

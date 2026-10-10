@@ -97,9 +97,12 @@ type calendarEventJSON struct {
 	MyResponse       string              `json:"my_response"`
 	DeletedAt        string              `json:"deleted_at"`
 	// specs/112 HUB-1: a synced event's key ("" = a member's event, which
-	// alone may be changed here) and its roadmap link.
-	SourceKey  string `json:"source_key"`
-	RoadmapURL string `json:"roadmap_url"`
+	// alone may be changed here) and its roadmap link; HUB-4: its goal's
+	// specs and done lines ([] on any other event).
+	SourceKey  string   `json:"source_key"`
+	RoadmapURL string   `json:"roadmap_url"`
+	Specs      []string `json:"specs"`
+	DoneLines  []string `json:"done_lines"`
 }
 
 // calendarGuestJSON is one guest and their answer (spec 4.1).
@@ -147,7 +150,8 @@ func toCalendarJSON(e store.CalendarEvent, now time.Time, viewer string) calenda
 		TimeZone: tz, RRule: e.RRule, RecurringEventID: e.RecurringEventID, OriginalStart: optCalTime(e.OriginalStart),
 		Location: propsString(e, calPropLocation), Color: propsString(e, calPropColor),
 		Reminders: eventReminders(e), Guests: guests, MyResponse: mine, DeletedAt: optCalTime(e.DeletedAt),
-		SourceKey: e.SourceKey, RoadmapURL: propsString(e, calPropRoadmapURL)}
+		SourceKey: e.SourceKey, RoadmapURL: propsString(e, calPropRoadmapURL),
+		Specs: store.CalendarPropStrings(e.Props, calSyncPropSpecs), DoneLines: store.CalendarPropStrings(e.Props, calSyncPropDoneLines)}
 }
 
 // calendarGuestsJSON is e's guests on the wire, the owner never listed (spec
@@ -172,7 +176,7 @@ func deadlineJSON(i store.Issue) calendarEventJSON {
 	return calendarEventJSON{ID: i.Key(), Source: calendarSourceIssue, Title: i.Title, Description: i.Description,
 		Kind: calendarKindDeadline, StartsAt: at, EndsAt: at, Audience: store.CalendarWorkspace, Mentions: []string{},
 		CreatorType: "human", CreatorID: i.CreatedBy, IssueKey: i.Key(), CreatedAt: rfc(i.CreatedAt), UpdatedAt: rfc(i.UpdatedAt),
-		TimeZone: store.CalendarUTC, Reminders: []calendarReminder{}, Guests: []calendarGuestJSON{}}
+		TimeZone: store.CalendarUTC, Reminders: []calendarReminder{}, Guests: []calendarGuestJSON{}, Specs: []string{}, DoneLines: []string{}}
 }
 
 // ---- requests --------------------------------------------------------------------

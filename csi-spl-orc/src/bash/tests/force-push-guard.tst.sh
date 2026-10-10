@@ -58,6 +58,14 @@ refuse 'env SPL_PREPUSH_OVERRIDE=1 git push origin HEAD:master'
 refuse 'SPL_PREPUSH_OVERRIDE="1" git push'
 refuse 'SPL_PREPUSH_OVERRIDE=yes git push'
 refuse 'sudo -u agentusr bash -c "SPL_PREPUSH_OVERRIDE=1 git push origin HEAD:master"'
+refuse 'declare -x SPL_PREPUSH_OVERRIDE=1; git push origin HEAD:master'
+refuse 'typeset -x SPL_PREPUSH_OVERRIDE=yes'
+refuse 'export FOO=1 SPL_PREPUSH_OVERRIDE=1'
+refuse 'bash -c "env SPL_PREPUSH_OVERRIDE=1 git push origin HEAD:master"'
+# untokenizable (an unclosed quote): refused only where a push can hide
+refuse 'git push --force origin master "unclosed'
+refuse 'git -C repo push origin "unclosed'
+refuse 'SPL_PREPUSH_OVERRIDE=1 git commit -m "unclosed'
 refuse 'bash -c "git push --force origin HEAD:master"'
 refuse "sh -c 'git push -f origin master'"
 refuse "bash -lc 'cd /x && git push --force-with-lease origin HEAD:master'"
@@ -106,6 +114,14 @@ allow 'git commit -m "doc: never git push --force to master"'
 allow 'echo "git push -f is forbidden"'
 allow 'grep -rn force-with-lease docs/'
 allow 'SPL_PREPUSH_OVERRIDE=0 git push origin HEAD:master'
+# false positives, the orchestrator 2026-10-10 08:4xZ: a command that only NAMES the
+# override, or only mentions push, inside a read-only search
+allow 'grep -n "SPL_PREPUSH_OVERRIDE=1" /tmp/vibe-session.log'
+allow "grep -c 'SPL_PREPUSH_OVERRIDE=yes' /tmp/a.log /tmp/b.log"
+allow 'rg -n "SPL_PREPUSH_OVERRIDE" /var/tmp/logs'
+allow 'echo "set SPL_PREPUSH_OVERRIDE=1 only with the owner go"'
+allow 'grep -E "push.*--force\\"|-f " /tmp/vibe.log "unclosed'
+allow 'grep "push --force" log "unclosed'
 allow 'git -c user.name=x -c user.email=y commit -m "x"'
 allow 'git -c alias.p=push p origin HEAD:master'
 

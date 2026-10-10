@@ -19,7 +19,9 @@
 #     with master as the refspec
 #   - git -c remote.<r>.push=+..., remote.<r>.mirror=..., or an alias.<a>=
 #     that expands to one of the above
-#   - SPL_PREPUSH_OVERRIDE set to anything but empty or 0, in any form
+#   - SPL_PREPUSH_OVERRIDE assigned anything but empty or 0 (a prefix
+#     assignment, env, export / declare / typeset / readonly / local); a
+#     command that only NAMES it (a grep pattern, an echo) is not refused
 # A plain `git push origin HEAD:master` is allowed. A command that only reaches
 # git through a variable or a script file is not read (the pre-push hook and
 # the GitHub ruleset are the layers behind this one).
@@ -38,7 +40,11 @@ force_push_guard_check() {
 _FORCE_PUSH_GUARD_PY='
 import re, shlex, sys
 
-OVERRIDE = re.compile(r"SPL_PREPUSH_OVERRIDE\s*=\s*(?![\"\x27]{2}|\s|;|&|\||$|0(?![^\s;&|]))")
+OVERRIDE = "SPL_PREPUSH_OVERRIDE"
+# The override as an ASSIGNMENT in raw text: only used when the command cannot
+# be tokenized. A grep pattern or an echo that names the variable is not one.
+OVERRIDE_RAW = re.compile(r"(?:^|[\s;&|(`])(?:export\s+|declare\s+-\w+\s+|env\s+)?SPL_PREPUSH_OVERRIDE=(?![\"\x27]{2}|\s|;|&|\||$|0(?![^\s;&|]))")
+DECLARE = {"export", "declare", "typeset", "readonly", "local"}
 FORCE_LONG = ("--force", "--force-with-lease", "--force-if-includes", "--mirror")
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "fish", "busybox"}
 WRAP = {"env", "command", "exec", "nohup", "time", "nice", "ionice", "setsid",
@@ -82,16 +88,25 @@ def split(cmd):
 def check(cmd, depth=0):
     if depth > 8:
         raise Refuse("the command nests too deep to read (fail closed)")
-    if OVERRIDE.search(cmd):
-        raise Refuse("SPL_PREPUSH_OVERRIDE bypasses the pre-push gate; " + APPROVAL)
     try:
         segs = split(cmd)
     except ValueError as e:
-        if re.search(r"\bpush\b", cmd):
-            raise Refuse("cannot tokenize a command that mentions push (%s); fail closed" % e)
+        # Fail closed only where a push can hide: the override assigned, or
+        # git followed by push. A grep pattern that only names push passes.
+        if OVERRIDE_RAW.search(cmd):
+            raise Refuse("SPL_PREPUSH_OVERRIDE bypasses the pre-push gate; " + APPROVAL)
+        if re.search(r"\bgit\b.*\bpush\b", cmd, re.S):
+            raise Refuse("cannot tokenize a command with git ... push (%s); fail closed" % e)
         return
     for seg in segs:
         segment(seg, depth)
+
+
+def override(tok):
+    """Refuse the override assigned anything but empty or 0."""
+    name, eq, val = tok.partition("=")
+    if eq and name == OVERRIDE and val not in ("", "0"):
+        raise Refuse("SPL_PREPUSH_OVERRIDE bypasses the pre-push gate; " + APPROVAL)
 
 
 def skip_wrapper(b, toks, i, depth):
@@ -113,7 +128,12 @@ def segment(toks, depth):
         t = toks[i]
         b = t.rsplit("/", 1)[-1]
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t):
+            override(t)
             i += 1
+        elif b in DECLARE:
+            for a in toks[i + 1:]:
+                override(a)
+            return
         elif b in WRAP:
             i = skip_wrapper(b, toks, i + 1, depth)
         elif b in SHELLS:

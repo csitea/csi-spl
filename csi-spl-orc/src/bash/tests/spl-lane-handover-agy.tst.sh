@@ -11,7 +11,8 @@
 #   1. refusals before any call: a bad FROM, the same id on this box, a
 #      non-agy lane
 #   2. DRY_RUN is the default: mode A on the NEWEST history.jsonl conversation
-#      of FROM's worktree, the plan, no ssh call, nothing pushed; the
+#      of FROM's worktree, the plan, only the read-only target check over
+#      ssh, nothing closed or pushed; the
 #      conversation FROM's live agy holds open wins over history
 #   3. mode B when TO_ID differs, when no conversation names the worktree, and
 #      when the conversation holds key material
@@ -26,6 +27,10 @@
 #      --conversation <c>, launches through spawn-agy.sh with no
 #      --conversation: the same launch check fails on it
 #   7. DRY_RUN=0, B: spawn-window.sh agy <TO_ID> with the handover brief
+#   9. the target cannot run agy (no binary, or not signed in): FATAL exit 5
+#      in a dry run and a live run, FROM not closed, nothing pushed, nothing
+#      copied; CONTROL: with the check stubbed out (c530f4c94) the live run
+#      closes FROM and pushes its WIP first
 #   8. a failed conversation copy exits 4 BEFORE FROM is touched (no close,
 #      nothing pushed) and a rerun replaces the staged copy; a failed prep
 #      after the WIP push exits 4 and names the step, nothing started
@@ -83,6 +88,9 @@ lane() {
 }
 
 printf 'OWNER_USER=ownerx\nAGENT_USER=agentx\nBOX_TAG=sat\n' >"$T/box.env"
+mkdir -p "$T/rhome/.local/bin" "$T/rhome/.gemini/antigravity-cli"
+printf '#!/bin/sh\n' >"$T/rhome/.local/bin/agy"; chmod +x "$T/rhome/.local/bin/agy"
+echo token >"$T/rhome/.gemini/antigravity-cli/antigravity-oauth-token"
 cat >"$T/stub/ssh" <<'EOF'
 #!/usr/bin/env bash
 while [[ "$1" == -o ]]; do shift 2; done
@@ -98,7 +106,7 @@ cat >"$T/stub/remote-bin/sudo" <<'EOF'
 u=""
 while [[ "$1" == -* ]]; do case "$1" in -u) u="$2"; shift 2 ;; *) shift ;; esac; done
 echo "sudo-as $u" >>"$STUB_LOG"
-[[ "$u" == agentx ]] && export HOME="$FAKE_REMOTE_HOME"
+[[ "$u" == agentx ]] && export HOME="$FAKE_REMOTE_HOME" PATH="$FAKE_STUB_DIR/remote-bin:/usr/bin:/bin"
 exec "$@"
 EOF
 cat >"$T/stub/remote-bin/faketmux" <<'EOF'
@@ -160,7 +168,9 @@ done
 run_ho FROM=a-950 TO_BOX=sat; rc=$?
 [[ $rc -eq 0 ]] && grep -q '^HANDOVER a-950@pc -> a-950@sat mode=A$' "$T/o" && grep -q "^PLAN session .*agy conversation $CONV .*--conversation $CONV" "$T/o" &&
   pass "2a: DRY_RUN default: mode A on the newest history.jsonl conversation of the worktree" || fail "2a: rc=$rc $(cat "$T/o")"
-[[ ! -s "$T/calls.log" && -z "$(ref_of a-950)" ]] && pass "2b: dry run: no ssh, no close, nothing pushed" || fail "2b: $(calls)"
+grep -q '^READY   sat: agy .*/rhome/.local/bin/agy, signed in' "$T/o" && grep -q 'agy-ready' "$T/calls.log" &&
+  ! grep -qE '^(close|retire|tmux new-window)| lane-handover(-agy)? (prep|session|brief|resume|spawn) ' "$T/calls.log" && [[ -z "$(ref_of a-950)" ]] &&
+  pass "2b: dry run: the target checked read-only over ssh; no close, no copy, nothing pushed" || fail "2b: $(cat "$T/o") $(calls)"
 conv "$LIVE" "$T/repo-wt/a-953-elsewhere"
 (exec env SPOOL_AGENT_ID=a-950 sleep 60 3<"$G/conversations/$LIVE.db") & lp=$!
 sleep 0.3
@@ -232,6 +242,31 @@ B="$T/spool/handover/a-960-from-a-960.md"
 grep -q "^## a-960's handoff (spec 102)" "$B" && grep -q 'dispatch-abcd1234' "$B" && grep -q '# Brief: the task of a-960' "$B" &&
   ! grep -q '^tmux new-window' "$T/calls.log" && [[ ! -e "$RG/conversations/eeeeeeee-1111-2222-3333-444444444444.db" ]] &&
   pass "7b: the B brief carries brief, task and handoff; no resume, no conversation copied" || fail "7b: $(sed -n 1,30p "$B")"
+
+# --- 9. the target cannot run agy ------------------------------------------------------------
+lane a-963
+conv 99999999-1111-2222-3333-444444444444 "$T/repo-wt/a-963"
+mv "$T/rhome/.local/bin/agy" "$T/agy.off"
+for d in 1 0; do
+  : >"$T/calls.log"
+  run_ho FROM=a-963 TO_BOX=sat DRY_RUN=$d; rc=$?
+  [[ $rc -eq 5 ]] && grep -q '^FATAL HANDOVER: box sat cannot run agy as agentx: no agy binary (PATH, ~/.local/bin); nothing closed, nothing pushed' "$T/o" &&
+    [[ -z "$(ref_of a-963)" && ! -e "$T/rhome/.gemini/antigravity-cli/conversations/99999999-1111-2222-3333-444444444444.db" ]] &&
+    ! grep -qE '^(close|retire|tmux new-window)| lane-handover(-agy)? (prep|session|brief|resume|spawn) ' "$T/calls.log" && ! grep -q '^HANDOVER ' "$T/o" &&
+    pass "9a: DRY_RUN=$d, no agy on the target: exit 5, FATAL, FROM not closed, nothing pushed or copied" || fail "9a: DRY_RUN=$d rc=$rc $(cat "$T/o")"
+done
+mv "$T/agy.off" "$T/rhome/.local/bin/agy"; mv "$T/rhome/.gemini/antigravity-cli/antigravity-oauth-token" "$T/tok.off"
+run_ho FROM=a-963 TO_BOX=sat; rc=$?
+[[ $rc -eq 5 ]] && grep -q 'cannot run agy as agentx: agy is not signed in' "$T/o" && pass "9b: agy present but not signed in: exit 5" || fail "9b: rc=$rc $(cat "$T/o")"
+mv "$T/tok.off" "$T/rhome/.gemini/antigravity-cli/antigravity-oauth-token"; mv "$T/rhome/.local/bin/agy" "$T/agy.off"
+: >"$T/calls.log"
+SNIPPET='spl_handover_agy_ready() { spl_handover_probe "$(spl_handover_dest "$1")" "$1" "$2" "$3"; }; do_spl_lane_handover_agy' \
+  in_orc SPOOL_ROOT="$T/spool" BOX=pc HANDOVER_AGENT_HOME="$T/ahome" HANDOVER_SCRIPTS_DIR="$T/fs/scripts" HANDOVER_CLOSE_CMD="$T/stub/close" \
+  HANDOVER_RETIRE_CMD="$T/stub/retire" HANDOFF_CAPTURE_CMD="echo terminal-line" FAKE_BOX_ENV="$T/box.env" FAKE_STUB_DIR="$T/stub" \
+  FAKE_REMOTE_HOME="$T/rhome" FAKE_LOCAL_REPO="$T/repo" FAKE_REMOTE_REPO="$T/r/repo" FROM=a-963 TO_BOX=sat DRY_RUN=0 >"$T/o" 2>&1
+grep -q '^close --agent a-963' "$T/calls.log" && [[ -n "$(ref_of a-963)" ]] &&
+  pass "9c: CONTROL: without the agy check (c530f4c94) the same target gets FROM closed and its WIP pushed" || fail "9c: control did not close: $(cat "$T/o")"
+mv "$T/agy.off" "$T/rhome/.local/bin/agy"
 
 # --- 8. failures after the WIP push ------------------------------------------------------------
 lane a-961

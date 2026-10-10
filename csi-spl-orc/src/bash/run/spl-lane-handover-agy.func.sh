@@ -12,7 +12,11 @@
 # @description   live agy holds open, else the newest history.jsonl line whose
 # @description   workspace is FROM's worktree.
 # @description   1. WIP: do_spl_lane_handover_wip, scan first (a hit = exit 3,
-# @description      nothing pushed, FROM untouched, no ssh call).
+# @description      nothing pushed, FROM untouched, no ssh call). Then, dry run
+# @description      too, the target over ssh (read only): it answers as TO_BOX,
+# @description      has the checkout, no worktree there yet, and its AGENT_USER has
+# @description      an agy binary and a signed-in agy home; else FATAL, exit 5,
+# @description      nothing closed or pushed (c-001 49dca30d: sat had no agy).
 # @description   2. A: BEFORE FROM is closed, the conversation goes over ssh
 # @description      stdin ONLY (never the hub, git or a log) into the target
 # @description      AGENT_USER's ~/.gemini/antigravity-cli; a failed copy = exit 4,
@@ -28,7 +32,8 @@
 # @description      runs on both boxes; a failure after the WIP push returns 4 and
 # @description      names the step. The new agent deletes the wip ref after its
 # @description      first landed push.
-# @description Dry run unless DRY_RUN=0: the WIP scan, the mode and the plan, no ssh.
+# @description Dry run unless DRY_RUN=0: the WIP scan, the target check, the mode
+# @description and the plan; nothing closed, copied or pushed.
 # @param FROM (required) - the lane to hand over, an agy id on this box (a-NNN)
 # @param TO_BOX (required) - the target box id (its BOX_TAG, e.g. sat)
 # @param TO_ID (optional) - the new id, default FROM (same worktree path: A)
@@ -65,6 +70,8 @@ do_spl_lane_handover_agy() {
   printf '%s\n' "$out"
   (( rc == 0 )) || { do_log "FATAL HANDOVER $from: the WIP step refused (exit $rc): nothing handed over, $from untouched"; return "$rc"; }
 
+  spl_handover_agy_ready "$box" "$repo" "$repo-wt/$to" || return 5
+
   local work why conv
   work="$(umask 077 && mktemp -d)" || return 1
   why="$(spl_handover_agy_pick_mode "$mode" "$from" "$to" "$user" "$wt" "$work")"
@@ -100,7 +107,6 @@ spl_handover_agy_live() {
   local out rc=0 sha dest brief rbrief
   scripts="$(spl_handover_scripts_dir "$repo")"
   dest="$(spl_handover_dest "$box")"
-  spl_handover_probe "$dest" "$box" "$repo" "$newwt" || return 1
   # the conversation first: a failed copy stops before FROM is closed or anything is pushed
   if [[ "$m" == A ]]; then
     spl_handover_agy_on "$dest" agent session "$conv" <"$work/session.tar" >"$work/tr" 2>&1 ||
@@ -131,6 +137,18 @@ spl_handover_agy_live() {
   out="$(RETIRE_WORKTREE=0 ${HANDOVER_RETIRE_CMD:-bash "$scripts/agent-id-retire.sh"} --apply "$from" 2>&1)" ||
     echo "WARN retire $from: $(tail -n1 <<<"$out")"
   echo "OK HANDOVER $from@$here -> $to@$box mode=$m wip=${sha:0:12}; $wt stays until $to lands, then git -C $repo worktree remove $wt"
+}
+
+# spl_handover_agy_ready BOX REPO NEWWT: the target answers as BOX, has REPO
+# and no NEWWT (spl_handover_probe, sets HO_AGENT / HO_OWNER), and its agent
+# user can run agy signed in; read only, else FATAL and 1
+spl_handover_agy_ready() {
+  local box="$1" dest out
+  dest="$(spl_handover_dest "$box")"
+  spl_handover_probe "$dest" "$box" "$2" "$3" || return 1
+  out="$(spl_handover_agy_on "$dest" agent agy-ready </dev/null 2>&1)" ||
+    { do_log "FATAL HANDOVER: box $box cannot run agy as ${HO_AGENT:-?}: ${out:-ssh failed}; nothing closed, nothing pushed"; return 1; }
+  echo "READY   $box: $(tail -n1 <<<"$out")"
 }
 
 # spl_handover_agy_start FROM TO BOX MODE DEST SCRIPTS REPO "CONV RBRIEF": A
@@ -218,6 +236,11 @@ spl_handover_agy_remote_script() {
   cat <<'SCRIPT'
 op="$1"; shift
 case "$op" in
+  agy-ready)
+    b="$(command -v agy || true)"; [ -n "$b" ] || { [ -x "$HOME/.local/bin/agy" ] && b="$HOME/.local/bin/agy"; }
+    [ -n "$b" ] || { echo "no agy binary (PATH, ~/.local/bin)"; exit 1; }
+    [ -s "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ] || { echo "agy is not signed in (no ~/.gemini/antigravity-cli/antigravity-oauth-token)"; exit 1; }
+    echo "agy $b, signed in as $(id -un)" ;;
   session)
     # staged beside the store, then swapped in member by member: a rerun replaces it
     umask 077

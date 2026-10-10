@@ -41,13 +41,15 @@ hb() {  # FIELD — from heartbeat.json
 ctx() {  # stdin = hook stdout -> its additionalContext
   python3 -c 'import json,sys; t=sys.stdin.read().strip(); print(json.loads(t)["hookSpecificOutput"]["additionalContext"] if t else "")'
 }
-msg() {  # NAME MTIME MSG_ID BODY [ROUND]
-  python3 - "$D/inbox/$1.json" "$3" "$4" "${5:-}" <<'EOF'
+msg() {  # NAME MTIME MSG_ID BODY [ROUND] [FILES_JSON]
+  python3 - "$D/inbox/$1.json" "$3" "$4" "${5:-}" "${6:-}" <<'EOF'
 import json, sys
-p, mid, body, rnd = sys.argv[1:5]
+p, mid, body, rnd, files = sys.argv[1:6]
 m = {"v": 1, "msg_id": mid, "task_id": "t-1", "from": "c-902", "to": "c-901", "kind": "note", "body": body}
 if rnd:
     m["round"] = int(rnd); m["title"] = "a job"
+if files:
+    m["files"] = json.loads(files)
 json.dump(m, open(p, "w"))
 EOF
   touch -d "@$2" "$D/inbox/$1.json"
@@ -164,6 +166,13 @@ msg st $((T0 + 1)) job-77 "" 4
 outst="$(hook PostToolUse $((T0 + 302)) '{"tool_name":"Read","tool_input":{"f":6}}' | ctx)"
 has "a stub shows its accept command" 'spool claim --accept job-77 --round 4' "$outst"
 check "never accepts: the stub is still in the inbox" test -e "$D/inbox/st.json"
+rm -f "$D/inbox"/*.json "$D/.hook-seen"
+msg img $((T0 + 1)) img-1 "" "" '[{"mode":"blob","kind":"file","name":"image.png","bytes":336983,"file_id":"fae928d6"}]'
+outi="$(hook UserPromptSubmit $((T0 + 303)) '{}' | ctx)"
+has "an image-only post names its image (owner msg 9ef7aac9)" "[image attached: image.png, 337 KB, file_id fae928d6]" "$outi"
+msg txt $((T0 + 2)) txt-1 "see the log" "" '[{"mode":"blob","kind":"file","name":"run.log","bytes":2048,"file_id":"ab12"}]'
+outt="$(hook UserPromptSubmit $((T0 + 304)) '{}' | ctx)"
+has "a file with text: the note, then the text" "[file attached: run.log, 2 KB, file_id ab12]"$'\n'"  see the log" "$outt"
 
 echo "# 5. S5 loop warning"
 rm -f "$D/inbox"/*.json

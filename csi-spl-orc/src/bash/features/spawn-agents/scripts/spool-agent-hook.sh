@@ -209,6 +209,36 @@ def inbox(all_unread):
 def stub_of(m):
     return isinstance(m, dict) and m.get("round") is not None
 
+IMAGE_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".heic", ".avif", ".tif", ".tiff")
+
+def size_of(n):
+    if n < 1000:
+        return "%d B" % n
+    if n < 1000 * 1000:
+        return "%d KB" % ((n + 500) // 1000)
+    return "%.1f MB" % (n / 1e6)
+
+# Owner topic 3eb98913 (msg 9ef7aac9): a pasted image with no text read as an
+# EMPTY post here while the hub row held the image. Same line as the hub's
+# notify.AttachmentNote: "[image attached: image.png, 337 KB, file_id ...]".
+def attachment_notes(m):
+    out = []
+    for a in m.get("files") or []:
+        if not isinstance(a, dict):
+            continue
+        name = str(a.get("name") or "")
+        what = "dir" if a.get("kind") == "dir" else "image" if name.lower().endswith(IMAGE_EXT) else "file"
+        parts = ["%s attached: %s" % (what, name)]
+        n = a.get("bytes")
+        if isinstance(n, int) and n > 0:
+            parts.append(size_of(n))
+        if a.get("file_id"):
+            parts.append("file_id %s" % a.get("file_id"))
+        elif a.get("path"):
+            parts.append("path %s" % a.get("path"))
+        out.append("[" + ", ".join(parts) + "]")
+    return out
+
 def render(path, m):
     if not isinstance(m, dict):
         return "- unreadable inbox file: %s" % path
@@ -222,6 +252,9 @@ def render(path, m):
     raw = body.encode()
     if len(raw) > BODY_CUT:
         body = raw[:BODY_CUT].decode("utf-8", "ignore") + "\n[cut at 4 KB; the rest: %s]" % path
+    notes = attachment_notes(m)
+    if notes:
+        body = "\n".join(notes) + ("\n" + body if body else "")
     return "%s\n  %s" % (head, body.replace("\n", "\n  "))
 
 def inject(all_unread):

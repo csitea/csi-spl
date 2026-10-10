@@ -161,7 +161,7 @@ runb demo 0; rc=$?
   [[ "$(counts demo)" == "0 0 0 0" ]] &&
   pass "B2. the wipe deleted the demo messages, topics, deliveries, read marks and watches" ||
   fail "B2. rc=$rc $(cat "$T/o") counts=$(counts demo)"
-[[ "$(q "SELECT string_agg(channel_id, ',' ORDER BY channel_id) FROM channels WHERE tenant_id = 'demo'")" == "alerts,feedback,lobby,try-an-agent" ]] &&
+[[ "$(q "SELECT string_agg(channel_id, ',' ORDER BY channel_id) FROM channels WHERE tenant_id = 'demo'")" == "alerts,feedback,lobby,public,try-an-agent" ]] &&
   pass "B2. the default channels are re-seeded, the admin's channel is kept" ||
   fail "B2. channels: $(q "SELECT string_agg(channel_id, ',' ORDER BY channel_id) FROM channels WHERE tenant_id = 'demo'")"
 

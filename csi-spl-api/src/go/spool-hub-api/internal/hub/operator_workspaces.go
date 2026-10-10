@@ -288,6 +288,9 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 		writeErr(w, code, tk, "workspace not created")
 		return
 	}
+	if _, err := s.postPublicNotice(r.Context(), req.ID); err != nil { // rdb 0173; the sweep retries
+		s.o.Log.Error().Err(err).Str("tenant", req.ID).Msg("public notice")
+	}
 	out := map[string]any{}
 	if req.DisplayName != "" {
 		// The workspace exists and its root key is answered only here, so the

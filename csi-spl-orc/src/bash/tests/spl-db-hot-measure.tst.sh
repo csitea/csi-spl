@@ -118,7 +118,7 @@ pass "each PREPARE is the copy's text"
 grep -q "^PREPARE [a-z_]* (" <<<"$sql" && fail "a PREPARE declares parameter types (pgx does not)" || pass "untyped PREPAREs, as pgx's Parse"
 grep -q 'archived_at' <<<"$(SNIPPET='spl_db_hot_measure_body walk_dm' in_orc 2>&1)" &&
   pass "walk_dm carries the archived-topic probe (the SPL-984 copy had none)" || fail "walk_dm lacks the archived probe"
-grep -q "^\\\\set pub '{lobby,alerts,feedback,issues,tasks}'$" <<<"$sql" && pass "the public channels come from the copy" || fail "pub: $(grep set\ pub <<<"$sql")"
+grep -q "^\\\\set pub '{lobby,alerts,feedback,public,issues,tasks}'$" <<<"$sql" && pass "the public channels come from the copy" || fail "pub: $(grep set\ pub <<<"$sql")"
 python3 - "$F" "$T/edited.sql" <<'PY'
 import sys
 s = open(sys.argv[1]).read()

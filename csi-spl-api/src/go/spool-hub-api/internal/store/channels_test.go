@@ -207,7 +207,7 @@ func TestStoreChannels(t *testing.T) {
 			}
 
 			stats, err := s.ViewChannelStats(ctx, tid, now, map[string]ReadMark{"feedback": {At: a1.ReceivedAt, MsgID: a1.MsgID}}, "", "")
-			if err != nil || len(stats) != 4 { // 3 defaults (no #tasks since rdb 0050) + releases
+			if err != nil || len(stats) != 5 { // 4 defaults (no #tasks since rdb 0050, #public since 0173) + releases
 				t.Fatalf("stats: %v %+v", err, stats)
 			}
 			byID := map[string]ChannelStat{}

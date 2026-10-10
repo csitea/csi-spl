@@ -535,6 +535,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	defer dt.Stop()
 	bt := time.NewTicker(backfillEvery)
 	defer bt.Stop()
+	s.PostPublicNotices(ctx) // rdb 0173: the #public notice of every existing tenant
 	for {
 		select {
 		case <-ctx.Done():
@@ -570,6 +571,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepBoxBeats(ctx)       // rdb 0147: 2-day box beats (spec 102 10.2)
 			s.sweepHours(ctx)          // spec 107 4.2: hours freeze + 45-day minutes
 			s.sweepEmbedRetention(ctx) // specs/121 4.4: visitor channels, 30 days after the last message
+			s.PostPublicNotices(ctx)   // rdb 0173: a tenant made outside the hub gets its notice
 		}
 	}
 }

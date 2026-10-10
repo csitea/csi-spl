@@ -86,7 +86,7 @@ spl_demo_wipe_welcome() {
 
 # the hub's default channels (store.DefaultChannels), as a postgres array;
 # demo-wipe.tst.sh fails when the two drift apart
-SPL_DEMO_WIPE_CHANNELS='{lobby,alerts,feedback}'
+SPL_DEMO_WIPE_CHANNELS='{lobby,alerts,feedback,public}'
 
 # _spl_demo_wipe_run <out> - the wipe (DEMO_DRY=0) or its counts (DEMO_DRY=1),
 # one transaction through $SPL_PROXY_DSN; the last line of <out> is the counts

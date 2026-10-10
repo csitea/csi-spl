@@ -537,7 +537,7 @@ func TestChannelsCreateAndList(t *testing.T) {
 		return out
 	}
 	all := list("")
-	if len(all) != 5 || all["tasks"] != nil || all["feedback"]["default"] != true || all["alerts"]["retention_days"] != float64(7) || all["feedback"]["retention_days"] != float64(30) ||
+	if len(all) != 6 || all["tasks"] != nil || all["feedback"]["default"] != true || all["alerts"]["retention_days"] != float64(7) || all["feedback"]["retention_days"] != float64(30) ||
 		all["releases"]["name"] != "Releases" || all["feedback"]["last_ts"] != nil {
 		t.Fatalf("channels: %+v", all)
 	}

@@ -66,7 +66,8 @@ func TestSearchEntityRows(t *testing.T) {
 		{"type:user", "users", `[{"avatar_file_id":null,"display_name":"Ada Person","id":"<HUM>","name":{"text":"Ada Person (<HUM>)","highlights":[]},"online":false}]`},
 		{"type:channel", "channels", `[{"channel":"alerts","count":1,"default":true,"last_ts":"` + at.Add(2*time.Minute).Format(time.RFC3339) + `","name":{"text":"alerts","highlights":[]}},` +
 			`{"channel":"feedback","count":0,"default":true,"last_ts":null,"name":{"text":"feedback","highlights":[]}},` +
-			`{"channel":"lobby","count":0,"default":true,"last_ts":null,"name":{"text":"lobby","highlights":[]}}]`},
+			`{"channel":"lobby","count":0,"default":true,"last_ts":null,"name":{"text":"lobby","highlights":[]}},` +
+			`{"channel":"public","count":0,"default":true,"last_ts":null,"name":{"text":"public","highlights":[]}}]`},
 		// t1 2b15a748: "#lobby", as the WUI writes a channel, finds it too
 		{"type:channel #lobby", "channels", `[{"channel":"lobby","count":0,"default":true,"last_ts":null,"name":{"text":"lobby","highlights":[]}}]`},
 		{"type:box box-a", "boxes", `[{"agents":["CLE-07","GRK-03"],"box_id":"box-a","last_hello_at":<H>,"name":{"text":"box-a","highlights":[[0,5]]},"online":false,"revoked":false}]`},

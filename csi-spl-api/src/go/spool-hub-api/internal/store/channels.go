@@ -18,6 +18,11 @@ const (
 	// ChannelFeedback is where any member tags the business owner(s) with
 	// feedback (owner, 2026-09-25; channels-v1 §1).
 	ChannelFeedback = "feedback"
+	// ChannelPublicID is #public: announcements and releases, everything in
+	// it public and visible to the whole internet (owner, 2026-10-10, msgs
+	// 6fb3b289 + 69e2d25f; rdb 0173). The hub posts its one notice
+	// (PublicNoticeID). Not ChannelPublic: that name is the read-door test.
+	ChannelPublicID = "public"
 	// ChannelGeneralAlias is the pre-M3 lobby name: an input alias only (C3).
 	ChannelGeneralAlias = "general"
 	// ChannelIssues is where every issue's discussion is stored (specs/039
@@ -36,7 +41,7 @@ const (
 )
 
 // DefaultChannels in display order.
-var DefaultChannels = []string{ChannelLobby, ChannelAlerts, ChannelFeedback}
+var DefaultChannels = []string{ChannelLobby, ChannelAlerts, ChannelFeedback, ChannelPublicID}
 
 // PublicChannels are the channel ids every member of a tenant reads without
 // a membership row: the defaults and the issue discussions. The read doors

@@ -285,7 +285,7 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC
--- args "t12026-09-28 12:00:00 +0000 UTCHUM-1[lobby alerts feedback issues tasks] [ops]30"
+-- args "t12026-09-28 12:00:00 +0000 UTCHUM-1[lobby alerts feedback public issues tasks] [ops]30"
 ## roots
 WITH RECURSIVE w (task_id, received_at, n) AS (
 			(SELECT l.task_id, l.received_at, 1 FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.task_id = l.task_id
@@ -495,4 +495,4 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC
--- args "t12026-09-28 12:00:00 +0000 UTCopsops2026-09-28 11:00:00 +0000 UTC11111111-2222-4333-8444-555555555555CLE-07box-aopsHUM-2opsHUM-1[lobby alerts feedback issues tasks] [ops dev]opsops33333333-2222-4333-8444-555555555555ops22222222-2222-4333-8444-55555555555530opsops"
+-- args "t12026-09-28 12:00:00 +0000 UTCopsops2026-09-28 11:00:00 +0000 UTC11111111-2222-4333-8444-555555555555CLE-07box-aopsHUM-2opsHUM-1[lobby alerts feedback public issues tasks] [ops dev]opsops33333333-2222-4333-8444-555555555555ops22222222-2222-4333-8444-55555555555530opsops"

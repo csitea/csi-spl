@@ -161,7 +161,7 @@ async function pool(items, n, job) {
  * every issue's discussion is stored under (spec 039 §3.4), which no channel
  * list shows. `general` is the lobby alias. #tasks is gone (SPL-68).
  */
-const PUBLIC_CHANNELS = new Set(['lobby', 'alerts', 'feedback', 'issues'])
+const PUBLIC_CHANNELS = new Set(['lobby', 'alerts', 'feedback', 'public', 'issues'])
 
 export function normalizeChannelId(channel) {
   const id = String(channel || '').replace(/^#/, '').trim().toLowerCase()

@@ -27,6 +27,7 @@ import (
 //	GET    /v1/workspace/doctree/search           ?q= [&doc=]: items matching q (spec 100's words)
 //	GET    /v1/workspace/doctree/{doc}            one document's head: rev, items, root, topic
 //	PATCH  /v1/workspace/doctree/{doc}            rename {title, rev} ("" = "Untitled document")
+//	DELETE /v1/workspace/doctree/{doc}            ?rev= : delete the document, its items and rev log
 //	GET    /v1/workspace/doctree/{doc}/children   ?parent= (none = top level): the lazy unit
 //	GET    /v1/workspace/doctree/{doc}/subtree    ?item= (none = whole doc): print branch
 //	GET    /v1/workspace/doctree/{doc}/grid       ?q= &sort= &desc=1: the whole doc, filtered and sorted
@@ -72,6 +73,7 @@ const (
 type docTreeStore interface {
 	DocCreate(ctx context.Context, tenant, title, description, actor string) (string, string, error)
 	DocRename(ctx context.Context, tenant, doc string, rev int64, title, actor string) (store.DocOpResult, error)
+	DocDelete(ctx context.Context, tenant, doc string, rev int64) (store.DocOpResult, error)
 	DocItemAdd(ctx context.Context, tenant string, r store.DocItemAddReq) (store.DocOpResult, error)
 	DocItemMove(ctx context.Context, tenant string, r store.DocItemMoveReq) (store.DocOpResult, error)
 	DocItemDeleteSubtree(ctx context.Context, tenant, doc string, rev int64, item, actor string) (store.DocOpResult, error)
@@ -91,6 +93,7 @@ func (s *Server) routeDocTree(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/workspace/doctree/search", s.handleDocTreeSearch)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}", s.handleDocTreeHead)
 	mux.HandleFunc("PATCH /v1/workspace/doctree/{doc}", s.handleDocTreeRename)
+	mux.HandleFunc("DELETE /v1/workspace/doctree/{doc}", s.handleDocTreeDeleteDoc)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/children", s.handleDocTreeChildren)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/subtree", s.handleDocTreeSubtree)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/grid", s.handleDocTreeGrid)
@@ -300,6 +303,41 @@ func (s *Server) handleDocTreeRename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"rev": res.Rev, "title": title})
+}
+
+// handleDocTreeDeleteDoc deletes the whole document under the doc lock, its
+// items and rev log with it: ?rev= is the doc rev read (0 = none).
+func (s *Server) handleDocTreeDeleteDoc(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.docTreeCaller(w, r, rbac.DocsWrite)
+	if !ok {
+		return
+	}
+	rev, ok := docTreeRevQuery(w, r)
+	if !ok {
+		return
+	}
+	doc := r.PathValue("doc")
+	res, err := c.st.DocDelete(r.Context(), c.tenant, doc, rev)
+	if err != nil {
+		docTreeFail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rev": res.Rev, "doc": doc, "deleted": true})
+}
+
+// docTreeRevQuery is the ?rev= of a delete (absent = 0, no precondition), or
+// writes the 400.
+func docTreeRevQuery(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	v := r.URL.Query().Get("rev")
+	if v == "" {
+		return 0, true
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || n < 0 {
+		writeErr(w, http.StatusBadRequest, "bad_query", "rev is the doc rev you read")
+		return 0, false
+	}
+	return n, true
 }
 
 func (s *Server) handleDocTreeHead(w http.ResponseWriter, r *http.Request) {
@@ -613,14 +651,9 @@ func (s *Server) handleDocTreeDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var rev int64
-	if v := r.URL.Query().Get("rev"); v != "" {
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || n < 0 {
-			writeErr(w, http.StatusBadRequest, "bad_query", "rev is the doc rev you read")
-			return
-		}
-		rev = n
+	rev, ok := docTreeRevQuery(w, r)
+	if !ok {
+		return
 	}
 	res, err := c.st.DocItemDeleteSubtree(r.Context(), c.tenant, r.PathValue("doc"), rev, r.PathValue("item"), c.who)
 	if err != nil {

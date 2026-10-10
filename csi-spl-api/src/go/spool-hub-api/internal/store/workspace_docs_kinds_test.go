@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 // code's gap back; the run must then go red.
 //   renamenobump  a rename that moves no doc rev   (TestWorkspaceDocRename)
 //   attrsnocheck  attrs written unchecked          (TestWorkspaceDocTypedItems)
+//   deletenorev   a doc delete without its rev check (TestWorkspaceDocDelete)
 
 func wsKindsPG(t *testing.T) (*Postgres, string) {
 	t.Helper()
@@ -25,11 +27,15 @@ func wsKindsPG(t *testing.T) (*Postgres, string) {
 		wsDocKindsPlant.renameNoBump = true
 	case "attrsnocheck":
 		wsDocKindsPlant.attrsNoCheck = true
+	case "deletenorev":
+		wsDocKindsPlant.deleteNoRev = true
 	default:
-		t.Fatalf("SPOOL_TEST_WSDOC_KINDS_PLANT=%q: want renamenobump or attrsnocheck", p)
+		t.Fatalf("SPOOL_TEST_WSDOC_KINDS_PLANT=%q: want renamenobump, attrsnocheck or deletenorev", p)
 	}
 	t.Logf("CONTROL plant=%s is on: this run must go red", os.Getenv("SPOOL_TEST_WSDOC_KINDS_PLANT"))
-	t.Cleanup(func() { wsDocKindsPlant.renameNoBump, wsDocKindsPlant.attrsNoCheck = false, false })
+	t.Cleanup(func() {
+		wsDocKindsPlant.renameNoBump, wsDocKindsPlant.attrsNoCheck, wsDocKindsPlant.deleteNoRev = false, false, false
+	})
 	return pg, tid
 }
 
@@ -78,6 +84,72 @@ func TestWorkspaceDocRename(t *testing.T) {
 		t.Fatalf("after the refusals: %s title %q", msg, title())
 	}
 	t.Logf("rename: revs %v, title %q, refused stale / too long / unknown / foreign", revs, title())
+}
+
+// TestWorkspaceDocDelete: a whole-document delete's outcomes. Another
+// tenant's delete, a stale rev and an unknown doc are refused and leave the
+// doc whole; the delete at its rev removes the doc, every item and the rev
+// log, and leaves a second doc of the tenant untouched; again is a 404.
+// CONTROL: SPOOL_TEST_WSDOC_KINDS_PLANT=deletenorev must turn it red.
+func TestWorkspaceDocDelete(t *testing.T) {
+	pg, tid := wsKindsPG(t)
+	ctx := context.Background()
+	mk := func(title string) (string, int64) {
+		t.Helper()
+		doc, root, err := pg.DocCreate(ctx, tid, title, "", "t")
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := pg.DocItemAdd(ctx, tid, DocItemAddReq{DocID: doc, Rev: 1, Anchor: root, Where: DocChild, Title: "A", Actor: "t"})
+		if err == nil {
+			r, err = pg.DocItemAdd(ctx, tid, DocItemAddReq{DocID: doc, Rev: r.Rev, Anchor: r.ItemID, Where: DocChild, Title: "A.1", Actor: "t"})
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		return doc, r.Rev
+	}
+	rows := func(doc string) string {
+		t.Helper()
+		var docs, items, revs int
+		if err := pg.queryRowTenant(ctx, tid, `SELECT (SELECT count(*) FROM workspace_doc WHERE id = $1),
+			(SELECT count(*) FROM workspace_doc_item WHERE doc_id = $1),
+			(SELECT count(*) FROM workspace_doc_rev_log WHERE doc_id = $1)`, []any{doc}, &docs, &items, &revs); err != nil {
+			t.Fatal(err)
+		}
+		return fmt.Sprintf("%d %d %d", docs, items, revs)
+	}
+	doc, rev := mk("gone")
+	keep, _ := mk("kept")
+	whole := rows(doc)
+	if whole != "1 3 3" {
+		t.Fatalf("fixture doc rows (doc items revlog) = %s, want 1 3 3", whole)
+	}
+	if _, err := pg.DocDelete(ctx, newTenant(t, pg), doc, 0); !errors.Is(err, ErrDocNotFound) || rows(doc) != whole {
+		t.Fatalf("another tenant's delete: %v, rows %s, want 404 and the doc whole", err, rows(doc))
+	}
+	if _, err := pg.DocDelete(ctx, tid, doc, rev-1); !errors.Is(err, ErrDocStale) || rows(doc) != whole {
+		t.Fatalf("a delete at a stale rev: %v, rows %s, want 412 and the doc whole", err, rows(doc))
+	}
+	for _, bad := range []string{uuid4(), "not-a-uuid"} {
+		if _, err := pg.DocDelete(ctx, tid, bad, 0); !errors.Is(err, ErrDocNotFound) {
+			t.Fatalf("delete %q: %v, want 404", bad, err)
+		}
+	}
+	r, err := pg.DocDelete(ctx, tid, doc, rev)
+	if err != nil || r.Rev != rev || rows(doc) != "0 0 0" {
+		t.Fatalf("delete at rev %d: rev %d %v, rows %s, want 0 0 0", rev, r.Rev, err, rows(doc))
+	}
+	if _, err := pg.DocHeadOf(ctx, tid, doc); !errors.Is(err, ErrDocNotFound) {
+		t.Fatalf("head after the delete: %v, want 404", err)
+	}
+	if msg := wsCheck(ctx, pg, tid, keep); msg != "" || rows(keep) != "1 3 3" {
+		t.Fatalf("the other doc: %s rows %s, want clean and 1 3 3", msg, rows(keep))
+	}
+	if _, err := pg.DocDelete(ctx, tid, doc, 0); !errors.Is(err, ErrDocNotFound) {
+		t.Fatalf("delete again: %v, want 404", err)
+	}
+	t.Logf("delete: refused foreign / stale / unknown with the doc whole (%s), deleted at rev %d -> 0 0 0, other doc %s", whole, rev, rows(keep))
 }
 
 // TestWorkspaceDocTypedItems: a code block and an image are added and edited

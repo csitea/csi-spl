@@ -9357,6 +9357,56 @@
       }
     },
     "/v1/workspace/doctree/{doc}": {
+      "delete": {
+        "operationId": "deleteWorkspaceDoctreeByDoc",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the doc rev read",
+            "in": "query",
+            "name": "rev",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "stale rev: the document changed since it was read"
+          }
+        },
+        "summary": "Delete a workspace document with its items and revision log",
+        "tags": [
+          "workspace"
+        ]
+      },
       "get": {
         "operationId": "getWorkspaceDoctreeByDoc",
         "parameters": [

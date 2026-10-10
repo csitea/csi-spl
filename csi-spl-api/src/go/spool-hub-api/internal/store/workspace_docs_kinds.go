@@ -47,10 +47,12 @@ const (
 // wsDocKindsPlant holds this file's controls, planted bugs the kinds test
 // must catch (only tests set them, SPOOL_TEST_WSDOC_KINDS_PLANT): the old
 // code's two gaps, a rename that moves no doc rev (so a stale rename is not
-// refused) and attrs written unchecked.
+// refused) and attrs written unchecked; and a document delete that skips its
+// rev precondition (so a stale delete is not refused).
 var wsDocKindsPlant struct {
 	renameNoBump bool
 	attrsNoCheck bool
+	deleteNoRev  bool
 }
 
 // DocTitle is title trimmed, DocUntitled when that leaves nothing.
@@ -109,6 +111,36 @@ func (s *Postgres) DocRename(ctx context.Context, tenant, doc string, rev int64,
 	err := s.inDoc(ctx, tenant, doc, func(d *wsDocTx) (err error) {
 		res, err = d.rename(ctx, rev, title, actor)
 		return err
+	})
+	return res, err
+}
+
+// DocDelete deletes the whole document under the doc lock: rev is the doc rev
+// the caller read (0 = no precondition); 412 when it moved, 404 when the doc
+// is gone or another tenant's (RLS reads it as 0 rows). Its items and its rev
+// log go with the doc row by the FK cascade (rdb 0157 ON DELETE CASCADE, run
+// as the table owner, so the runtime login's missing DELETE on the rev log
+// does not stop it); the 0157 I1/I3 triggers skip a doc deleted in the
+// transaction. Nothing records the delete: the log is the doc's own and goes
+// with it. It returns the rev the doc had.
+func (s *Postgres) DocDelete(ctx context.Context, tenant, doc string, rev int64) (DocOpResult, error) {
+	var res DocOpResult
+	err := s.inDoc(ctx, tenant, doc, func(d *wsDocTx) error {
+		if wsDocKindsPlant.deleteNoRev {
+			rev = 0
+		}
+		if err := d.lock(ctx, rev); err != nil {
+			return err
+		}
+		tag, err := d.tx.Exec(ctx, `DELETE FROM workspace_doc WHERE id = $1`, d.doc)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() != 1 {
+			return ErrDocNotFound
+		}
+		res = DocOpResult{Rev: d.rev}
+		return nil
 	})
 	return res, err
 }

@@ -140,6 +140,41 @@ func TestWorkspaceDocOutcomes(t *testing.T) {
 		counts[200], counts[412], counts[404], counts[422], outlines(sub), sub["rev"])
 }
 
+// TestWorkspaceDocDeleteDoc: DELETE /v1/workspace/doctree/{doc}. A bad rev
+// is 400, a stale one 412, another tenant's member 404 (CONTROL: each leaves
+// the doc readable); the delete at its rev is 200, then the doc, its items
+// and its listing are gone (404) and a second delete is 404.
+func TestWorkspaceDocDeleteDoc(t *testing.T) {
+	e, tid, as := docTreeEnv(t)
+	doc, _ := docTree(t, e, tid, as)
+	keep, _ := docTree(t, e, tid, as)
+	path := docTreeAPI + "/" + doc
+	other, _ := e.tenant()
+	bs := seat(t, e, other, "developer")
+	mustCall(t, e, tid, http.MethodDelete, path+"?rev=x", as, nil, 400)
+	mustCall(t, e, tid, http.MethodDelete, path+"?rev=5", as, nil, 412)
+	mustCall(t, e, other, http.MethodDelete, path+"?rev=6", bs, nil, 404)
+	if got := outlines(mustCall(t, e, tid, http.MethodGet, path+"/subtree", as, nil, 200)); got == "" {
+		t.Fatalf("after the refusals the doc reads empty, want it whole")
+	}
+	out := mustCall(t, e, tid, http.MethodDelete, path+"?rev=6", as, nil, 200)
+	if dtNum(out, "rev") != 6 || dtStr(out, "doc") != doc || out["deleted"] != true {
+		t.Fatalf("delete answer = %v, want rev 6, the doc, deleted", out)
+	}
+	for _, p := range []string{"", "/children", "/subtree", "/grid"} {
+		mustCall(t, e, tid, http.MethodGet, path+p, as, nil, 404)
+	}
+	var ids []string
+	for _, d := range dtList(mustCall(t, e, tid, http.MethodGet, docTreeAPI, as, nil, 200), "docs") {
+		ids = append(ids, dtStr(d, "id"))
+	}
+	if strings.Contains(strings.Join(ids, ","), doc) || !strings.Contains(strings.Join(ids, ","), keep) {
+		t.Fatalf("list after the delete = %v, want %s gone and %s kept", ids, doc, keep)
+	}
+	mustCall(t, e, tid, http.MethodDelete, path, as, nil, 404)
+	t.Logf("delete doc: 400 bad rev, 412 stale, 404 foreign (doc whole), 200 at rev 6, then 404 and listed docs %v", ids)
+}
+
 // TestWorkspaceDocGrid: the whole document in document order, a filter, a
 // sort, and 413 above hub.DocTreeMaxItems (the boundary itself is served).
 func TestWorkspaceDocGrid(t *testing.T) {

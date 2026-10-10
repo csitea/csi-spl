@@ -195,6 +195,13 @@ function rename(d: Doc, b: Body): MockReply {
   return { status: 200, body: { rev: bump(d), title } }
 }
 
+/** the whole document: its items go with it, as the hub's FK cascade does */
+function removeDoc(d: Doc, rev: number): MockReply {
+  if (stale(d, rev)) return STALE()
+  docs.delete(d.id)
+  return { status: 200, body: { rev: d.rev, doc: d.id, deleted: true } }
+}
+
 const UNTITLED = 'Untitled document'
 
 /* the uploaded images: hub path -> an object URL of the bytes */
@@ -294,6 +301,7 @@ export function mockDocTree(method: string, path: string, body: Body = {}): Mock
   if (!d) return GONE()
   if (method === 'GET') return reads(d, sub, url.searchParams)
   if (!sub && method === 'PATCH') return rename(d, body)
+  if (!sub && method === 'DELETE') return removeDoc(d, Number(url.searchParams.get('rev') || 0))
   if (sub === 'items' && method === 'POST' && !id) return add(d, body)
   if (sub === 'items' && method === 'POST' && verb === 'move') return move(d, id, body)
   if (sub === 'items' && method === 'DELETE' && id) return remove(d, id, Number(url.searchParams.get('rev') || 0))

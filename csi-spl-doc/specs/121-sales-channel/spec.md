@@ -1,14 +1,7 @@
 # 121 Sales channel: selling Csitea.net services on spool-hub.ai
 
-Version **v1.3** (2026-10-10): the live credits counter (section 8.1,
-R9), from the owner's posts in csitea topic ebfb10dc (msgs 057db9f5 and
-259e8711), written by c-876. 057db9f5 restates the price of section 7 and
-the top-up of section 8 (R6, R7) and confirms them; nothing there changes.
-New: where a member sees the balance, how often it refreshes, what it is
-computed from, its warning threshold, its cost in the first-paint bundle,
-its tests, and the owner's rule that the counter informs and never nudges
-spend. Two owner questions are open (section 12.5): Q-C1, what "resets"
-means, and Q-C2, where the counter sits.
+Version **v1.4** (2026-10-10): folded the owner's answers to Q-C1 and Q-C2 (msg 31913cc1, csitea ebfb10dc).
+v1.3 (2026-10-10): the live credits counter (section 8.1, R9), from the owner's posts in csitea topic ebfb10dc (msgs 057db9f5 and 259e8711), written by c-876. 057db9f5 restates the price of section 7 and the top-up of section 8 (R6, R7) and confirms them; nothing there changes. New: where a member sees the balance, how often it refreshes, what it is computed from, its warning threshold, its cost in the first-paint bundle, its tests, and the owner's rule that the counter informs and never nudges spend. No owner question is open.
 
 v1.2 (2026-10-10): the owner's answers to the two questions v1.1
 left open (Q-N1 41925444, Q-N2 c2a30422) and the sales agent's model scope
@@ -112,8 +105,8 @@ msg b5dd540b); neither was re-read from the hub here.
 
 | msg | the owner's words | reading | folded into |
 |---|---|---|---|
-| 057db9f5 | "Ideally, we would be charging customers for the amount of money spent, based on the mixture of agents and everything else they have been using. That would be the ideal scenario, and they will have a once-a-minute counter which resets and shows their credits." | the first sentence confirms R6 and R7 as written; new: a counter of the credits, once a minute ("resets" read as "refreshes", Q-C1) | R9, 8.1, 12.5 |
-| 259e8711 | "Yeah, the counter would be nice to be probably after one clicks the avatar, or why not even on the front page? I'm not sure what the best practice is for that. I don't want to trick the customers into consuming too many tokens. I want them to have a near-real-time understanding of what they are using and how many tokens they are consuming." | placement open (Q-C2); the rule of 8.1: transparency, never nudging spend | R9, 8.1, 12.5 |
+| 057db9f5 | "Ideally, we would be charging customers for the amount of money spent, based on the mixture of agents and everything else they have been using. That would be the ideal scenario, and they will have a once-a-minute counter which resets and shows their credits." | the first sentence confirms R6 and R7 as written; new: a counter of the credits, once a minute ("resets" read as "refreshes", Q-C1 = A, msg 31913cc1) | R9, 8.1, 12.5 |
+| 259e8711 | "Yeah, the counter would be nice to be probably after one clicks the avatar, or why not even on the front page? I'm not sure what the best practice is for that. I don't want to trick the customers into consuming too many tokens. I want them to have a near-real-time understanding of what they are using and how many tokens they are consuming." | placement: top bar on every workspace page, the detail one click away, linked from the avatar menu (Q-C2 = A, msg 31913cc1); the rule of 8.1: transparency, never nudging spend | R9, 8.1, 12.5 |
 
 ## 2. Today, measured (trunk at 6eded1d95)
 
@@ -400,13 +393,7 @@ cap shown, off for every new workspace); the top-up form preselects the
 smallest amount; the counter shows EUR, never an invented credit unit; and
 no warning colour appears before the threshold below.
 
-- **Where** (Q-C2, recommended A): on every workspace page, in the top bar
-  just before the avatar (`TopBar.vue`, beside the hours timer), only in a
-  workspace on the `metered` plan. The chip shows the balance in EUR; a
-  click opens the detail: tokens in and out and their cost since the last
-  top-up and today, the turns still pending, and the price line of 7. The
-  avatar menu links the same detail. On a phone (<= 820 px) the chip shows
-  the balance only.
+- **Where**: on every workspace page, in the top bar just before the avatar (`TopBar.vue`, beside the hours timer), only in a workspace on the `metered` plan. The chip shows the balance in EUR; a click opens the detail: tokens in and out and their cost since the last top-up and today, the turns still pending, and the price line of 7. The avatar menu links the same detail. On a phone (<= 820 px) the chip shows the balance only (Q-C2 = A, msg 31913cc1).
 - **Who** (`sed -n 133,148p csi-spl-api/src/go/spool-hub-api/internal/rbac/rbac.go`,
   `sed -n 58p csi-spl-rdb/src/sql/postgres/spool-hub/0021_tenant_rbac.sql`):
   every member role of the workspace sees the balance and its own spend;
@@ -422,8 +409,7 @@ no warning colour appears before the threshold below.
   `{"type": "credits"}` frame goes to the workspace's open sockets at most
   once a minute and only when the ledger moved. The chip reads
   `GET /v1/view/credits` once at load and again on `live.onReconnected`, so a
-  dropped socket never leaves a stale number. "Resets" is read as "refreshes
-  every minute" (Q-C1).
+  dropped socket never leaves a stale number. The counter refreshes every minute (Q-C1 = A, msg 31913cc1).
 - **Source**: the `token_budgets` balance, i.e. the last top-up minus the sum
   of the `usage_events` since it, priced by the formula of 7. A turn
   dispatched and not yet written to the ledger shows as "n pending", never
@@ -612,8 +598,8 @@ owner's pick on its first line.
 
 | # | owner's pick | msg |
 |---|---|---|
-| Q-C1 | open | 057db9f5 |
-| Q-C2 | open | 259e8711 |
+| Q-C1 | A | 31913cc1 |
+| Q-C2 | A | 31913cc1 |
 
 - **Q-C1 What "resets" means in "a once-a-minute counter which resets and
   shows their credits" (057db9f5). Recommended: A.** A: the counter

@@ -30,21 +30,7 @@ do_gcp_s3_download_all() {
   do_log "INFO GCP_PROJECT: ${GCP_PROJECT}"
   do_log "INFO TARGET_DIR: ${TARGET_DIR}"
 
-  # --- validate key file ---
-  if [[ ! -f "${KEY_FILE}" ]]; then
-    do_log "FATAL service account key not found: ${KEY_FILE}"
-    return 1
-  fi
-
-  # --- authenticate ---
-  do_log "INFO activating service account from ${KEY_FILE}"
-  ${GCLOUD} auth activate-service-account --key-file="${KEY_FILE}" 2>&1
-  if [[ $? -ne 0 ]]; then
-    do_log "FATAL failed to activate service account"
-    return 1
-  fi
-
-  ${GCLOUD} config set project "${GCP_PROJECT}" 2>/dev/null
+  _gcp_s3_download_all_auth || return 1
 
   # --- list buckets ---
   do_log "INFO listing buckets in project ${GCP_PROJECT}"
@@ -70,58 +56,93 @@ do_gcp_s3_download_all() {
   while IFS= read -r BUCKET_URL; do
     [[ -z "${BUCKET_URL}" ]] && continue
     TOTAL=$((TOTAL + 1))
-
-    local BUCKET_NAME="${BUCKET_URL#gs://}"
-    BUCKET_NAME="${BUCKET_NAME%/}"
-
-    # skip internal GCF buckets
-    if [[ "${BUCKET_NAME}" == gcf-sources-* ]]; then
-      do_log "INFO skipping internal bucket: ${BUCKET_NAME}"
-      SKIPPED=$((SKIPPED + 1))
-      SUMMARY="${SUMMARY}\n  SKIP  ${BUCKET_NAME} (gcf-sources)"
-      continue
-    fi
-
-    # check if bucket is empty when SKIP_EMPTY is true
-    if [[ "${SKIP_EMPTY}" == "true" ]]; then
-      local COUNT
-      COUNT=$(${GSUTIL} ls "${BUCKET_URL}" 2>/dev/null | head -1)
-      if [[ -z "${COUNT}" ]]; then
-        do_log "INFO skipping empty bucket: ${BUCKET_NAME}"
-        SKIPPED=$((SKIPPED + 1))
-        SUMMARY="${SUMMARY}\n  SKIP  ${BUCKET_NAME} (empty)"
-        continue
-      fi
-    fi
-
-    local BUCKET_TARGET="${TARGET_DIR}/${BUCKET_NAME}"
-    do_log "INFO syncing ${BUCKET_URL} -> ${BUCKET_TARGET}"
-
-    mkdir -p "${BUCKET_TARGET}"
-    if [[ $? -ne 0 ]]; then
-      do_log "ERROR failed to create directory: ${BUCKET_TARGET}"
-      FAILED=$((FAILED + 1))
-      SUMMARY="${SUMMARY}\n  FAIL  ${BUCKET_NAME} (mkdir failed)"
-      continue
-    fi
-
-    ${GSUTIL} -m rsync -r "${BUCKET_URL}" "${BUCKET_TARGET}" 2>&1
-    if [[ $? -ne 0 ]]; then
-      do_log "ERROR failed to sync bucket: ${BUCKET_NAME}"
-      FAILED=$((FAILED + 1))
-      SUMMARY="${SUMMARY}\n  FAIL  ${BUCKET_NAME} (rsync failed)"
-      continue
-    fi
-
-    local SIZE
-    SIZE=$(du -sh "${BUCKET_TARGET}" 2>/dev/null | cut -f1)
-    DOWNLOADED=$((DOWNLOADED + 1))
-    SUMMARY="${SUMMARY}\n  OK    ${BUCKET_NAME} (${SIZE})"
-    do_log "INFO completed: ${BUCKET_NAME} (${SIZE})"
-
+    _gcp_s3_download_all_bucket "${BUCKET_URL}"
   done <<< "${BUCKETS}"
 
-  # --- summary ---
+  _gcp_s3_download_all_summary
+
+  if [[ ${FAILED} -gt 0 ]]; then
+    return 1
+  fi
+  return 0
+}
+
+# _gcp_s3_download_all_auth: validates KEY_FILE and activates it in the
+# caller's isolated gcloud config, then sets GCP_PROJECT there
+_gcp_s3_download_all_auth() {
+  # --- validate key file ---
+  if [[ ! -f "${KEY_FILE}" ]]; then
+    do_log "FATAL service account key not found: ${KEY_FILE}"
+    return 1
+  fi
+
+  # --- authenticate ---
+  do_log "INFO activating service account from ${KEY_FILE}"
+  ${GCLOUD} auth activate-service-account --key-file="${KEY_FILE}" 2>&1
+  if [[ $? -ne 0 ]]; then
+    do_log "FATAL failed to activate service account"
+    return 1
+  fi
+
+  ${GCLOUD} config set project "${GCP_PROJECT}" 2>/dev/null
+}
+
+# _gcp_s3_download_all_bucket <bucket_url>: syncs one bucket into TARGET_DIR,
+# or skips it; counts it in the caller's SKIPPED / FAILED / DOWNLOADED and
+# appends its line to SUMMARY
+_gcp_s3_download_all_bucket() {
+  local BUCKET_URL="$1"
+  local BUCKET_NAME="${BUCKET_URL#gs://}"
+  BUCKET_NAME="${BUCKET_NAME%/}"
+
+  # skip internal GCF buckets
+  if [[ "${BUCKET_NAME}" == gcf-sources-* ]]; then
+    do_log "INFO skipping internal bucket: ${BUCKET_NAME}"
+    SKIPPED=$((SKIPPED + 1))
+    SUMMARY="${SUMMARY}\n  SKIP  ${BUCKET_NAME} (gcf-sources)"
+    return 0
+  fi
+
+  # check if bucket is empty when SKIP_EMPTY is true
+  if [[ "${SKIP_EMPTY}" == "true" ]]; then
+    local COUNT
+    COUNT=$(${GSUTIL} ls "${BUCKET_URL}" 2>/dev/null | head -1)
+    if [[ -z "${COUNT}" ]]; then
+      do_log "INFO skipping empty bucket: ${BUCKET_NAME}"
+      SKIPPED=$((SKIPPED + 1))
+      SUMMARY="${SUMMARY}\n  SKIP  ${BUCKET_NAME} (empty)"
+      return 0
+    fi
+  fi
+
+  local BUCKET_TARGET="${TARGET_DIR}/${BUCKET_NAME}"
+  do_log "INFO syncing ${BUCKET_URL} -> ${BUCKET_TARGET}"
+
+  mkdir -p "${BUCKET_TARGET}"
+  if [[ $? -ne 0 ]]; then
+    do_log "ERROR failed to create directory: ${BUCKET_TARGET}"
+    FAILED=$((FAILED + 1))
+    SUMMARY="${SUMMARY}\n  FAIL  ${BUCKET_NAME} (mkdir failed)"
+    return 0
+  fi
+
+  ${GSUTIL} -m rsync -r "${BUCKET_URL}" "${BUCKET_TARGET}" 2>&1
+  if [[ $? -ne 0 ]]; then
+    do_log "ERROR failed to sync bucket: ${BUCKET_NAME}"
+    FAILED=$((FAILED + 1))
+    SUMMARY="${SUMMARY}\n  FAIL  ${BUCKET_NAME} (rsync failed)"
+    return 0
+  fi
+
+  local SIZE
+  SIZE=$(du -sh "${BUCKET_TARGET}" 2>/dev/null | cut -f1)
+  DOWNLOADED=$((DOWNLOADED + 1))
+  SUMMARY="${SUMMARY}\n  OK    ${BUCKET_NAME} (${SIZE})"
+  do_log "INFO completed: ${BUCKET_NAME} (${SIZE})"
+}
+
+# _gcp_s3_download_all_summary: logs the caller's counters and SUMMARY
+_gcp_s3_download_all_summary() {
   do_log "INFO ============================================="
   do_log "INFO Download Summary for ${GCP_PROJECT}"
   do_log "INFO ============================================="
@@ -133,9 +154,4 @@ do_gcp_s3_download_all() {
   do_log "INFO ---------------------------------------------"
   echo -e "${SUMMARY}"
   do_log "INFO ============================================="
-
-  if [[ ${FAILED} -gt 0 ]]; then
-    return 1
-  fi
-  return 0
 }

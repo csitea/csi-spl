@@ -1,68 +1,59 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description The agent vendor split of THIS box, target vs actual,
-# @description and the vendor the next lane spawn should go to. The target is
-# @description cnf env.box.agent_split (all.env.yaml); the actual is the last
-# @description `window` spawns in $SPOOL_ROOT/registry.tsv (role seats
-# @description 001..003 left out, one row per id). APPROXIMATE, never a quota:
-# @description - spec writing, review or docs (LANE_MIX_KIND=spec) -> mistral,
-# @description   then agy, then claude (owner D5, spec 110); agy when mistral
-# @description   holds no share
-# @description - translations and the language review of user-facing text in
-# @description   several languages (LANE_MIX_KIND=i18n) -> agy, whatever the
-# @description   shares (owner HUM-10 t1 296582df, 2026-10-08: agy has the final
-# @description   word on multilingual text); no agy -> claude drafts, and the
-# @description   text waits for an agy review before it ships
-# @description - secrets or personal data (LANE_MIX_SENSITIVE=1, or
-# @description   LANE_MIX_KIND=secret) -> claude
-# @description - the most complex coding (LANE_MIX_KIND=hard, or
-# @description   LANE_MIX_DIFFICULTY >= 60) -> claude
-# @description - kind unset/default and difficulty unset (low-level coding) ->
-# @description   mistral first (owner D5), then agy, then claude; grok when
-# @description   mistral holds no share, so a share of 0 takes mistral out of
-# @description   every kind-first pick and restores grok with no code change
-# @description How share and kind combine: the kind picks the FIRST vendor (a
-# @description vendor with a share of 0 is never first); the share only drives
-# @description the easy nudge below and where a skipped vendor's points go.
-# @description - easy (difficulty < 60) -> the vendor furthest below target by
-# @description   MORE than the tolerance; inside the band, the largest
-# @description   non-claude share
-# @description A vendor whose CLI is not installed, or whose cnf auth_marker is
-# @description absent from the agent user's home, is skipped. So is one out of
-# @description quota: the watchdog saw one of its lanes on this box on an S2
-# @description kind=limit screen within LANE_MIX_LIMIT_FRESH s (spec 102 T029;
-# @description grok's weekly limit). So is one with a dead key: an S2 kind=auth
-# @description verdict on one of its lanes within LANE_MIX_AUTH_FRESH s that is
-# @description newer than its auth marker (a re-key touches the marker and ends
-# @description the skip; spec 110 2.5). A skipped vendor falls down the fixed chain
-# @description grok -> agy -> claude, or mistral -> agy -> claude (owner HUM-10
-# @description t1 65f75266: claude is the default ai vendor, the last fallback;
-# @description spec 110 D4): a skipped grok's or mistral's pick and share go to
-# @description agy when agy is there, else to claude; a skipped agy's and qwen's
-# @description go to claude.
+# @description The vendor the next lane spawn should go to, by task kind (spec
+# @description 115). Each kind has its own row of vendor weights out of 100
+# @description and a backup, cnf env.box.agent_split_by_kind (all.env.yaml) or
+# @description LANE_MIX_SPLIT_KIND (do_spl_agent_split_show --kind); the main
+# @description is the vendor with the highest weight. APPROXIMATE, never a quota.
+# @description Kinds: specs_and_docs, tests, simple_coding, complex_coding,
+# @description i18n, secret. The old names stay as aliases: spec is
+# @description specs_and_docs, hard is complex_coding, default is
+# @description simple_coding. No kind: difficulty >= 60 is complex_coding,
+# @description else simple_coding. LANE_MIX_SENSITIVE=1 makes any kind secret.
+# @description The one rule (spec 115 section 5): the candidates are the main,
+# @description then the backup, then claude, the default and last fallback.
+# @description The pick is the first one that is available and has failed
+# @description fewer than LANE_MIX_TRIES_MAX (2) tries on this task
+# @description (LANE_MIX_TASK, read from the tries journal,
+# @description spl-lane-mix-journal.func.sh). With no try on the task yet, the
+# @description per-kind nudge comes first: the vendor of the row furthest below
+# @description its weight by MORE than the tolerance, over the last `window`
+# @description spawns of that kind in $SPOOL_ROOT/registry.tsv (the kind is the
+# @description row's last column; a row with none counts as simple_coding).
+# @description A vendor that is out is skipped at once, with no 2-try wait, and
+# @description its weight goes to the row's backup, else to claude: its CLI is
+# @description not installed, the cnf auth_marker is absent from the agent
+# @description user's home, the watchdog saw one of its lanes on an S2
+# @description kind=limit screen within LANE_MIX_LIMIT_FRESH s (spec 102 T029),
+# @description or an S2 kind=auth verdict within LANE_MIX_AUTH_FRESH s newer
+# @description than its auth marker (spec 110 2.5). An S2 verdict is never a
+# @description failed try.
 # @description The instance setting (rdb 0149, owner HUM-10 t1 41fa1f2d) beats
-# @description all of it, on every box: a kind the operator admin switched off
-# @description on the Fleet load page, or one paused there, is never picked,
-# @description and its share goes down the chain (to the other kinds when
-# @description claude is the one off). It is read from the hub like do_spl_box_pick's
-# @description target (`spool fleet-load get`); a hub that does not answer, or
-# @description no fleet, -> the local checks only, said in every reason. The one
+# @description all of it, on every box: a vendor switched off or paused on the
+# @description Fleet load page is out in every kind. It is read from the hub
+# @description (`spool fleet-load get`); a hub that does not answer, or no
+# @description fleet, -> the local checks only, said in every reason. The one
 # @description write: a fresh local limit verdict is reported to the hub as a
-# @description pause of that kind until the verdict runs out
+# @description pause of that vendor until the verdict runs out
 # @description (`spool fleet-load pause`), so every box skips it.
-# @description Prints a table, then `pick=<vendor> launcher=...`, or `pick=hold`
-# @description when no kind may take the work (secrets with claude off).
-# @param LANE_MIX_KIND (optional) - spec, i18n, secret, hard or default; unset is
-# @param   default (mistral or grok, unless a harder signal below says otherwise)
-# @param LANE_MIX_DIFFICULTY (optional) - 0..100, the task against your own
-# @param   capacity; unset is the default (mistral or grok) and prints the easy
-# @param   pick as `next`. It is not claude.
+# @description Data rule: kind secret goes to claude or mistral only, never
+# @description agy, grok or qwen; both out or exhausted -> pick=hold. Language
+# @description rule: i18n goes to agy; served by anyone else the pick carries
+# @description flag=needs_agy_review and the text waits for an agy review.
+# @description Prints the kind's table, then `pick=<vendor> launcher=/<vendor>-spawn
+# @description kind=<k> reason=...`, or `pick=hold`.
+# @param LANE_MIX_KIND (optional) - a kind or an alias above; unset reads the difficulty
+# @param LANE_MIX_DIFFICULTY (optional) - 0..100, the task against your own capacity
 # @param LANE_MIX_SENSITIVE (optional) - 1: the work carries secrets/personal data
-# @param LANE_MIX_SPLIT (optional) - "claude=N grok=N agy=N qwen=N mistral=N",
-# @param   overrides the cnf numbers (do_spl_agent_split_show prints this line);
-# @param   the old 4-number form without mistral is still read, as mistral=0
+# @param LANE_MIX_TASK (optional) - the task_id: its failed tries pick the backup
+# @param LANE_MIX_SPLIT_KIND (optional) - "claude=N grok=N agy=N qwen=N mistral=N
+# @param   backup=<vendor>", the kind's row (do_spl_agent_split_show --kind);
+# @param   overrides the cnf row. LANE_MIX_SPLIT is read the same way when it is
+# @param   unset; a line without backup keeps the cnf backup, one without
+# @param   mistral reads mistral=0
 # @param LANE_MIX_CNF (optional) - default <checkout>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param LANE_MIX_REGISTRY (optional) - default $SPOOL_ROOT/registry.tsv
+# @param LANE_MIX_JOURNAL (optional) - the tries journal files (spl-lane-mix-journal.func.sh)
 # @param LANE_MIX_AGENT_HOME (optional) - default the home of SPOOL_AGENT_USER
 # @param   (environment, else $SPOOL_ROOT/box.env), else $HOME
 # @param LANE_MIX_WD_DIR (optional) - default $SPOOL_ROOT/dispatch/wd, the
@@ -74,13 +65,16 @@
 # @param LANE_MIX_REPORT (optional) - 0: do not report a limit verdict to the hub
 # @param ENV (optional) - dev or prd: the hub to read, default LANE_ENV / lease.conf LEASE_ENV
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `fleet-load get|pause ...`
-# @example ./run -a do_spl_lane_mix
-# @example LANE_MIX_KIND=spec ./run -a do_spl_lane_mix
+# @example LANE_MIX_KIND=simple_coding LANE_MIX_TASK=<task_id> ./run -a do_spl_lane_mix
+# @example LANE_MIX_KIND=specs_and_docs ./run -a do_spl_lane_mix
 # @example LANE_MIX_KIND=i18n ./run -a do_spl_lane_mix
-# @example LANE_MIX_DIFFICULTY=30 ./run -a do_spl_lane_mix
+# @example LANE_MIX_DIFFICULTY=70 ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=30 LANE_MIX_SENSITIVE=1 ./run -a do_spl_lane_mix
 #------------------------------------------------------------------------------
 LANE_MIX_VENDORS=(claude grok agy qwen mistral)
+# spec 115 section 5 (owner t1 b1ab562b msg fb9e228c): the backup takes over
+# after two failed tries of the main on the same task
+LANE_MIX_TRIES_MAX=2
 
 do_spl_lane_mix() {
   do_require_bin yq || return 1
@@ -91,7 +85,6 @@ do_spl_lane_mix() {
   local cnf="${LANE_MIX_CNF:-$APP_PATH/$org_app-cnf/$org_app/all.env.yaml}"
   local reg="${LANE_MIX_REGISTRY:-$root/registry.tsv}"
   local diff="${LANE_MIX_DIFFICULTY:-}" sens="${LANE_MIX_SENSITIVE:-0}"
-  local kind="${LANE_MIX_KIND:-}"
   [[ -r "$cnf" ]] || { do_log "FATAL no cnf $cnf"; return 1; }
   [[ -z "$diff" || ( "$diff" =~ ^[0-9]{1,3}$ && "$diff" -le 100 ) ]] || {
     do_log "FATAL LANE_MIX_DIFFICULTY must be 0..100, got '$diff'"; return 1; }
@@ -100,84 +93,96 @@ do_spl_lane_mix() {
     do_log "FATAL LANE_MIX_LIMIT_FRESH must be whole seconds, got '$LANE_MIX_LIMIT_FRESH'"; return 1; }
   [[ "${LANE_MIX_AUTH_FRESH:-0}" =~ ^[0-9]+$ ]] || {
     do_log "FATAL LANE_MIX_AUTH_FRESH must be whole seconds, got '$LANE_MIX_AUTH_FRESH'"; return 1; }
-  case "$kind" in
-    ""|default|spec|i18n|secret|hard) ;;
-    *) do_log "FATAL LANE_MIX_KIND must be spec, i18n, secret, hard or default, got '$kind'"; return 1 ;;
-  esac
+  _spl_lane_mix_kind "${LANE_MIX_KIND:-}" "$diff" "$sens" || return 1
 
-  declare -gA _LM_TGT=() _LM_EFF=() _LM_CNT=() _LM_PCT=() _LM_AVAIL=()
+  declare -gA _LM_TGT=() _LM_EFF=() _LM_CNT=() _LM_PCT=() _LM_AVAIL=() _LM_TRIED=() _LM_FAILS=()
   _spl_lane_mix_target "$cnf" || return 1
   _spl_lane_mix_instance
   _spl_lane_mix_avail "$root" "$cnf" "$reg"
   _spl_lane_mix_actual "$reg"
+  _spl_lane_mix_journal "$root" "${LANE_MIX_TASK:-}"
   _spl_lane_mix_table "$cnf" "$reg"
-  _spl_lane_mix_easy
-  local -A first=([spec]=agy [default]=grok)
-  # owner D5 (spec 110, t1 msg c7970593): docs and low-level coding go to
-  # mistral first, while it holds a share
-  (( _LM_TGT[mistral] > 0 )) && first=([spec]=mistral [default]=mistral)
-
-  if [[ "$sens" == 1 || "$kind" == secret ]]; then
-    if [[ "${_LM_AVAIL[claude]}" == yes ]]; then
-      _spl_lane_mix_pick claude "data rule: secrets or personal data always go to claude"
-    else
-      _spl_lane_mix_pick hold "data rule: secrets or personal data go to claude only, and claude is skipped (${_LM_AVAIL[claude]}): queue the work"
-    fi
-  elif [[ "$kind" == spec ]]; then
-    _spl_lane_mix_want "${first[spec]}" "kind spec: specifications go to ${first[spec]}" "kind spec but ${first[spec]} is skipped (${_LM_AVAIL[${first[spec]}]})"
-  elif [[ "$kind" == i18n ]]; then
+  case "$_LM_KIND" in
+    secret) _spl_lane_mix_secret ;;
     # owner HUM-10 t1 296582df (2026-10-08): agy has the final word on any
-    # user-facing text in several languages, whatever the shares
-    _spl_lane_mix_want agy "kind i18n: agy has the final word on multilingual text" \
-      "kind i18n but agy is skipped (${_LM_AVAIL[agy]}): the text waits for an agy review before it ships"
-  elif [[ "$kind" == hard ]]; then
-    _spl_lane_mix_want claude "kind hard: the most complex coding goes to claude"
-  elif [[ -z "$diff" ]]; then
-    printf 'next easy=%s (%s) default=%s\n' "${_LM_EASY:-hold}" "$_LM_EASY_WHY" "${first[default]}"
-    _spl_lane_mix_want "${first[default]}" "difficulty unset: default is ${first[default]}" \
-      "difficulty unset: default ${first[default]} is skipped (${_LM_AVAIL[${first[default]}]})"
-  elif (( diff >= 60 )); then
-    _spl_lane_mix_want claude "difficulty $diff >= 60: hard work goes to claude"
-  else
-    _spl_lane_mix_pick "${_LM_EASY:-hold}" "difficulty $diff < 60: $_LM_EASY_WHY"
-  fi
+    # user-facing text in several languages
+    i18n) _spl_lane_mix_want agy "kind i18n: agy has the final word on multilingual text" ;;
+    *) _spl_lane_mix_want "$_LM_MAIN" "kind $_LM_KIND: main $_LM_MAIN, backup $_LM_BACKUP" ;;
+  esac
 }
 
-# _spl_lane_mix_want <vendor> <reason> [<reason when skipped>] -> the pick
-# line: that vendor when it is there, else the next one there down the chain
-# grok|mistral -> agy -> claude, else the easy pick, else hold
-_spl_lane_mix_want() {
-  local why="${3:-$2, but $1 is skipped (${_LM_AVAIL[$1]})}" next chain=grok
-  next="$(_spl_lane_mix_next "$1")"
-  [[ "$1" == mistral ]] && chain=mistral
-  if [[ "${_LM_AVAIL[$1]}" == yes ]]; then _spl_lane_mix_pick "$1" "$2"
-  elif [[ -n "$next" ]]; then _spl_lane_mix_pick "$next" "$why; falls to $next (chain $chain -> agy -> claude)"
-  elif [[ -n "$_LM_EASY" ]]; then _spl_lane_mix_pick "$_LM_EASY" "$why; $_LM_EASY_WHY"
-  else _spl_lane_mix_pick hold "$why; no other kind is there: queue the work"; fi
+# _spl_lane_mix_kind <kind> <difficulty> <sensitive> -> _LM_KIND, _LM_KIND_WHY:
+# the spec 115 name (aliases resolved), or a FATAL for an unknown kind
+_spl_lane_mix_kind() {
+  _LM_KIND_WHY="LANE_MIX_KIND=$1"
+  case "$1" in
+    specs_and_docs|tests|simple_coding|complex_coding|i18n|secret) _LM_KIND="$1" ;;
+    spec) _LM_KIND=specs_and_docs ;;
+    hard) _LM_KIND=complex_coding ;;
+    default) _LM_KIND=simple_coding ;;
+    "") if [[ -n "$2" ]] && (( $2 >= 60 )); then _LM_KIND=complex_coding _LM_KIND_WHY="difficulty $2 >= 60"
+        else _LM_KIND=simple_coding _LM_KIND_WHY="difficulty ${2:-unset} < 60"; fi ;;
+    *) do_log "FATAL LANE_MIX_KIND must be specs_and_docs, tests, simple_coding, complex_coding, i18n or secret (or spec, hard, default), got '$1'"
+       return 1 ;;
+  esac
+  [[ "$3" == 1 ]] || return 0
+  _LM_KIND_WHY="LANE_MIX_SENSITIVE=1"
+  _LM_KIND=secret
 }
 
-# _spl_lane_mix_target <cnf> -> _LM_TGT, _LM_TOL, _LM_WIN from cnf, or from
-# LANE_MIX_SPLIT; refuses a split that is not five (or the old four, mistral
-# 0) whole numbers summing to 100
+# _spl_lane_mix_target <cnf> -> _LM_TGT, _LM_MAIN, _LM_BACKUP, _LM_ROW (where
+# the row came from), _LM_TOL, _LM_WIN: the kind's row from cnf, or from
+# LANE_MIX_SPLIT_KIND (else LANE_MIX_SPLIT), checked by _spl_lane_mix_row_check
 _spl_lane_mix_target() {
-  local cnf="$1" v sum=0
+  local cnf="$1" v line="${LANE_MIX_SPLIT_KIND:-${LANE_MIX_SPLIT:-}}"
+  local re='^claude=([0-9]+) grok=([0-9]+) agy=([0-9]+) qwen=([0-9]+)( mistral=([0-9]+))?( backup=([a-z]+))?$'
   _LM_TOL="$(yq -r '.env.box.agent_split.tolerance // 5' "$cnf")"
   _LM_WIN="$(yq -r '.env.box.agent_split.window // 20' "$cnf")"
-  for v in "${LANE_MIX_VENDORS[@]}"; do _LM_TGT[$v]="$(yq -r ".env.box.agent_split.$v // 0" "$cnf")"; done
-  if [[ -n "${LANE_MIX_SPLIT:-}" ]]; then
-    [[ "$LANE_MIX_SPLIT" =~ ^claude=([0-9]+)\ grok=([0-9]+)\ agy=([0-9]+)\ qwen=([0-9]+)(\ mistral=([0-9]+))?$ ]] || {
-      do_log "FATAL LANE_MIX_SPLIT must read 'claude=N grok=N agy=N qwen=N mistral=N', got '$LANE_MIX_SPLIT'"; return 1; }
+  for v in "${LANE_MIX_VENDORS[@]}"; do
+    _LM_TGT[$v]="$(yq -r ".env.box.agent_split_by_kind.$_LM_KIND.$v // 0" "$cnf")"
+  done
+  _LM_BACKUP="$(yq -r ".env.box.agent_split_by_kind.$_LM_KIND.backup // \"\"" "$cnf")"
+  _LM_ROW="cnf env.box.agent_split_by_kind.$_LM_KIND"
+  if [[ -n "$line" ]]; then
+    [[ "$line" =~ $re ]] || {
+      do_log "FATAL LANE_MIX_SPLIT_KIND must read 'claude=N grok=N agy=N qwen=N mistral=N backup=<vendor>', got '$line'"; return 1; }
     _LM_TGT[claude]="${BASH_REMATCH[1]}" _LM_TGT[grok]="${BASH_REMATCH[2]}"
     _LM_TGT[agy]="${BASH_REMATCH[3]}" _LM_TGT[qwen]="${BASH_REMATCH[4]}"
     _LM_TGT[mistral]="${BASH_REMATCH[6]:-0}"
+    _LM_BACKUP="${BASH_REMATCH[8]:-$_LM_BACKUP}"
+    _LM_ROW="$([[ -n "${LANE_MIX_SPLIT_KIND:-}" ]] && echo LANE_MIX_SPLIT_KIND || echo LANE_MIX_SPLIT)"
   fi
-  for v in "${LANE_MIX_VENDORS[@]}"; do
-    [[ "${_LM_TGT[$v]}" =~ ^[0-9]{1,3}$ ]] || { do_log "FATAL agent_split.$v must be a whole number, got '${_LM_TGT[$v]}'"; return 1; }
-    sum=$(( sum + _LM_TGT[$v] ))
-  done
-  (( sum == 100 )) || { do_log "FATAL agent_split sums to $sum, not 100"; return 1; }
   [[ "$_LM_TOL" =~ ^[0-9]{1,2}$ && "$_LM_WIN" =~ ^[0-9]{1,3}$ && "$_LM_WIN" -gt 0 ]] || {
     do_log "FATAL agent_split tolerance/window must be whole numbers, got '$_LM_TOL'/'$_LM_WIN'"; return 1; }
+  _spl_lane_mix_row_check
+}
+
+# _spl_lane_mix_row_check -> _LM_MAIN, or a FATAL for a row that breaks the
+# spec 115 section 2 rules: whole numbers summing to 100, one strict maximum
+# (the main), a known backup other than the main, agy 0 and never the backup
+# in a coding kind, only claude or mistral in secret
+_spl_lane_mix_row_check() {
+  local v sum=0 top=-1 ties=0 at="agent_split_by_kind.$_LM_KIND ($_LM_ROW)"
+  _LM_MAIN=""
+  for v in "${LANE_MIX_VENDORS[@]}"; do
+    [[ "${_LM_TGT[$v]}" =~ ^[0-9]{1,3}$ ]] || { do_log "FATAL $at.$v must be a whole number, got '${_LM_TGT[$v]}'"; return 1; }
+    sum=$(( sum + _LM_TGT[$v] ))
+    if (( _LM_TGT[$v] > top )); then top="${_LM_TGT[$v]}" _LM_MAIN="$v" ties=0
+    elif (( _LM_TGT[$v] == top )); then ties=1; fi
+  done
+  (( sum == 100 )) || { do_log "FATAL $at sums to $sum, not 100"; return 1; }
+  (( ties == 0 )) || { do_log "FATAL $at has a tied main at $top: one vendor must hold the strict maximum"; return 1; }
+  [[ " ${LANE_MIX_VENDORS[*]} " == *" $_LM_BACKUP "* && "$_LM_BACKUP" != "$_LM_MAIN" ]] || {
+    do_log "FATAL $at backup must be a vendor other than the main $_LM_MAIN, got '$_LM_BACKUP'"; return 1; }
+  case "$_LM_KIND" in
+    tests|simple_coding|complex_coding)
+      (( _LM_TGT[agy] == 0 )) && [[ "$_LM_BACKUP" != agy ]] || {
+        do_log "FATAL $at: agy writes no code (spec 115 G2), agy=${_LM_TGT[agy]} backup=$_LM_BACKUP"; return 1; } ;;
+    secret)
+      (( _LM_TGT[grok] + _LM_TGT[agy] + _LM_TGT[qwen] == 0 )) && [[ "$_LM_BACKUP" =~ ^(claude|mistral)$ ]] || {
+        do_log "FATAL $at: the data rule allows claude or mistral only, backup=$_LM_BACKUP"; return 1; } ;;
+  esac
+  return 0
 }
 
 # _spl_lane_mix_avail <spool-root> <cnf> <registry> -> _LM_AVAIL, _LM_EFF.
@@ -205,39 +210,95 @@ _spl_lane_mix_avail() {
   _spl_lane_mix_share
 }
 
-# _spl_lane_mix_next <vendor> -> the first vendor there after it down the
-# chain grok|mistral -> agy -> claude (qwen -> claude), else nothing
-_spl_lane_mix_next() {
+# _spl_lane_mix_heir <vendor> -> where an out vendor's weight goes: the row's
+# backup when it is there, else claude when it is there, else nothing
+_spl_lane_mix_heir() {
   local v
-  case "$1" in grok|mistral) set -- agy claude ;; agy|qwen) set -- claude ;; *) return 0 ;; esac
-  for v in "$@"; do [[ "${_LM_AVAIL[$v]}" == yes ]] && { echo "$v"; return 0; }; done
+  for v in "$_LM_BACKUP" claude; do
+    [[ "$v" != "$1" && "${_LM_AVAIL[$v]}" == yes ]] && { echo "$v"; return 0; }
+  done
   return 0
 }
 
-# _spl_lane_mix_share -> _LM_EFF, _LM_SHARE_TO[<vendor>]: a skipped vendor's
-# share goes down the chain (_spl_lane_mix_next); with nothing there down it,
-# to the vendors that are there, in proportion to their own shares (the
-# rounding to the largest)
+# _spl_lane_mix_share -> _LM_EFF, _LM_SHARE_TO[<vendor>]: the row's weights,
+# with an out vendor's weight given to its heir (spec 115 section 3.3)
 _spl_lane_mix_share() {
-  local v to skipped=0 on=0 given=0 top=""
+  local v to
   declare -gA _LM_SHARE_TO=()
   for v in "${LANE_MIX_VENDORS[@]}"; do
-    [[ "${_LM_AVAIL[$v]}" == yes ]] || { _LM_EFF[$v]=0; continue; }
-    _LM_EFF[$v]="${_LM_TGT[$v]}"; on=$(( on + _LM_TGT[$v] ))
-    [[ -z "$top" ]] || (( _LM_TGT[$v] > _LM_TGT[$top] )) && top="$v"
+    [[ "${_LM_AVAIL[$v]}" == yes ]] && _LM_EFF[$v]="${_LM_TGT[$v]}" || _LM_EFF[$v]=0
   done
   for v in "${LANE_MIX_VENDORS[@]}"; do
     [[ "${_LM_AVAIL[$v]}" == yes ]] && continue
-    to="$(_spl_lane_mix_next "$v")"
-    if [[ -n "$to" ]]; then _LM_SHARE_TO[$v]="$to"; _LM_EFF[$to]=$(( _LM_EFF[$to] + _LM_TGT[$v] ))
-    else _LM_SHARE_TO[$v]="the others"; skipped=$(( skipped + _LM_TGT[$v] )); fi
+    to="$(_spl_lane_mix_heir "$v")"
+    _LM_SHARE_TO[$v]="${to:-nobody}"
+    [[ -n "$to" ]] && _LM_EFF[$to]=$(( _LM_EFF[$to] + _LM_TGT[$v] ))
   done
-  (( skipped > 0 )) && [[ -n "$top" ]] || return 0
-  for v in "${LANE_MIX_VENDORS[@]}"; do
-    [[ "${_LM_AVAIL[$v]}" == yes && "$on" -gt 0 ]] || continue
-    _LM_EFF[$v]=$(( _LM_EFF[$v] + skipped * _LM_TGT[$v] / on )); given=$(( given + skipped * _LM_TGT[$v] / on ))
+  return 0
+}
+
+# _spl_lane_mix_choose <main> [<allowed vendors>] -> _LM_CHOICE (a vendor or
+# hold), _LM_CHOICE_WHY. The one rule of spec 115 section 5: with no try on
+# the task, the per-kind nudge first; then main, backup, claude, the first
+# that is available and has failed fewer than LANE_MIX_TRIES_MAX tries on
+# this task. <allowed> narrows every path (the data rule).
+_spl_lane_mix_choose() {
+  local main="$1" allow="${2:-}" v role seen=" " why order=()
+  for v in "$main" "$_LM_BACKUP" claude; do
+    [[ "$seen" == *" $v "* ]] && continue
+    seen+="$v "
+    [[ -z "$allow" || " $allow " == *" $v "* ]] && order+=("$v")
   done
-  _LM_EFF[$top]=$(( _LM_EFF[$top] + skipped - given ))
+  if (( _LM_TRIES == 0 )); then
+    _spl_lane_mix_easy
+    if [[ -n "$_LM_EASY" && ( -z "$allow" || " $allow " == *" $_LM_EASY "* ) ]]; then
+      _LM_CHOICE="$_LM_EASY" _LM_CHOICE_WHY="no try on this task yet: $_LM_EASY_WHY"; return 0
+    fi
+    why="no try on this task yet, $_LM_EASY_WHY"
+  else
+    why="$_LM_TRIES tries on task $LANE_MIX_TASK"
+  fi
+  for v in "${order[@]}"; do
+    if [[ "${_LM_AVAIL[$v]}" != yes ]]; then why+="; $v is out (${_LM_AVAIL[$v]})"; continue; fi
+    if (( ${_LM_FAILS[$v]:-0} >= LANE_MIX_TRIES_MAX )); then
+      why+="; $v failed ${_LM_FAILS[$v]} tries on this task"; continue
+    fi
+    role="the main"
+    [[ "$v" == "$main" ]] || role="the backup"
+    [[ "$v" == "$main" || "$v" == "$_LM_BACKUP" ]] || role="the last fallback"
+    _LM_CHOICE="$v" _LM_CHOICE_WHY="$why; $v is $role"
+    return 0
+  done
+  _LM_CHOICE=hold _LM_CHOICE_WHY="$why; no candidate is left"
+}
+
+# _spl_lane_mix_want <main> <reason> -> the pick line of the one rule; an
+# i18n pick other than agy carries flag=needs_agy_review (language rule)
+_spl_lane_mix_want() {
+  local flag=""
+  _spl_lane_mix_choose "$1"
+  if [[ "$_LM_CHOICE" == hold ]]; then
+    _spl_lane_mix_pick hold "$2; $_LM_CHOICE_WHY: queue the work and send a blocker to the orchestrator"
+    return 0
+  fi
+  if [[ "$_LM_KIND" == i18n && "$_LM_CHOICE" != agy ]]; then
+    flag=needs_agy_review
+    _LM_CHOICE_WHY+="; the text waits for an agy review before it ships"
+  fi
+  _spl_lane_mix_pick "$_LM_CHOICE" "$2; $_LM_CHOICE_WHY" "$flag"
+}
+
+# _spl_lane_mix_secret -> the pick line under the data rule (global CLAUDE.md
+# "Spawn an agent", spec 110 D2, spec 115 section 5): secrets and personal
+# data go to claude or mistral only, in every path; both out or exhausted ->
+# hold, never agy, grok or qwen
+_spl_lane_mix_secret() {
+  _spl_lane_mix_choose "$_LM_MAIN" "claude mistral"
+  case "$_LM_CHOICE" in
+    claude) _spl_lane_mix_pick claude "data rule: secrets or personal data go to claude or mistral only; $_LM_CHOICE_WHY" ;;
+    mistral) _spl_lane_mix_pick mistral "data rule: secrets or personal data go to claude or mistral only; $_LM_CHOICE_WHY" ;;
+    *) _spl_lane_mix_pick hold "data rule: secrets or personal data go to claude or mistral only, and neither may take it; $_LM_CHOICE_WHY: queue the work and send a blocker to the orchestrator" ;;
+  esac
 }
 
 # _spl_lane_mix_instance -> _LM_INST (the hub's `fleet-load get` JSON) or
@@ -291,16 +352,22 @@ _spl_lane_mix_report() {
 }
 
 # _spl_lane_mix_actual <registry> -> _LM_CNT, _LM_PCT, _LM_N: the last window
-# spawns, one row per id (its latest), role seats 001..003 out
+# spawns of this kind, one row per id (its latest), role seats 001..003 out.
+# The kind is the row's last column; a row with none is simple_coding.
 _spl_lane_mix_actual() {
-  local v kind
+  local v vendor
   _LM_N=0
   for v in "${LANE_MIX_VENDORS[@]}"; do _LM_CNT[$v]=0; done
   if [[ -r "$1" ]]; then
-    while read -r kind; do
-      [[ -n "${_LM_CNT[$kind]+x}" ]] || continue
-      _LM_CNT[$kind]=$(( _LM_CNT[$kind] + 1 )); _LM_N=$(( _LM_N + 1 ))
-    done < <(awk -F'\t' '$1 !~ /-00[1-3]$/ && NF >= 5 { k[$1]=$2; t[$1]=$5 } END { for (i in k) print t[i] "\t" k[i] }' "$1" |
+    while read -r vendor; do
+      [[ -n "${_LM_CNT[$vendor]+x}" ]] || continue
+      _LM_CNT[$vendor]=$(( _LM_CNT[$vendor] + 1 )); _LM_N=$(( _LM_N + 1 ))
+    done < <(awk -F'\t' -v want="$_LM_KIND" '
+               $1 !~ /-00[1-3]$/ && NF >= 5 {
+                 k[$1] = $2; t[$1] = $5
+                 kd[$1] = ($NF ~ /^(specs_and_docs|tests|simple_coding|complex_coding|i18n|secret)$/) ? $NF : "simple_coding"
+               }
+               END { for (i in k) if (kd[i] == want) print t[i] "\t" k[i] }' "$1" |
              sort | tail -n "$_LM_WIN" | cut -f2)
   fi
   for v in "${LANE_MIX_VENDORS[@]}"; do
@@ -308,9 +375,11 @@ _spl_lane_mix_actual() {
   done
 }
 
-# _spl_lane_mix_table <cnf> <registry> -> the target vs actual table
+# _spl_lane_mix_table <cnf> <registry> -> the kind, its row vs its actual mix,
+# and the task's tries
 _spl_lane_mix_table() {
-  local v st
+  local v st tries=""
+  printf 'kind=%s (%s) main=%s backup=%s row=%s\n' "$_LM_KIND" "$_LM_KIND_WHY" "$_LM_MAIN" "$_LM_BACKUP" "$_LM_ROW"
   printf 'window=%s n=%s tolerance=%s cnf=%s registry=%s\n' "$_LM_WIN" "$_LM_N" "$_LM_TOL" "${1#"$APP_PATH"/}" "$2"
   printf '%-7s %6s %9s %6s %5s %-4s %s\n' vendor target effective actual count cli status
   for v in "${LANE_MIX_VENDORS[@]}"; do
@@ -321,39 +390,41 @@ _spl_lane_mix_table() {
     printf '%-7s %5s%% %8s%% %5s%% %5s %-4s %s\n' "$v" "${_LM_TGT[$v]}" "${_LM_EFF[$v]}" "${_LM_PCT[$v]}" \
       "${_LM_CNT[$v]}" "$([[ ${_LM_AVAIL[$v]} == yes ]] && echo yes || echo no)" "$st"
   done
+  if [[ -z "${LANE_MIX_TASK:-}" ]]; then echo "journal: no LANE_MIX_TASK, no try counted"; return 0; fi
+  for v in "${LANE_MIX_VENDORS[@]}"; do
+    [[ -n "${_LM_TRIED[$v]:-}" ]] && tries+=" $v=${_LM_TRIED[$v]}/${_LM_FAILS[$v]:-0}"
+  done
+  printf 'journal: task=%s tries=%s (vendor=tries/failed:%s) backup after %s failed\n' \
+    "$LANE_MIX_TASK" "$_LM_TRIES" "${tries:- none}" "$LANE_MIX_TRIES_MAX"
 }
 
-# _spl_lane_mix_easy -> _LM_EASY, _LM_EASY_WHY: the vendor furthest below its
-# share beyond the band, else the largest non-claude share there, else claude
+# _spl_lane_mix_easy -> _LM_EASY, _LM_EASY_WHY: the per-kind nudge (spec 115
+# section 2.1), the vendor furthest below its effective weight by more than
+# the tolerance, else nothing (the main takes it)
 _spl_lane_mix_easy() {
   local v d best=-1
   _LM_EASY=""
-  for v in grok mistral agy qwen claude; do
+  for v in "${LANE_MIX_VENDORS[@]}"; do
     (( _LM_EFF[$v] > 0 )) || continue
     d=$(( _LM_EFF[$v] - _LM_PCT[$v] ))
     if (( d > _LM_TOL && d > best )); then _LM_EASY="$v" best="$d"; fi
   done
   if [[ -n "$_LM_EASY" ]]; then
-    _LM_EASY_WHY="$_LM_EASY is ${best} points under its ${_LM_EFF[$_LM_EASY]}% (band $_LM_TOL)"
-    return 0
-  fi
-  best=0
-  for v in grok mistral agy qwen; do (( _LM_EFF[$v] > best )) && { _LM_EASY="$v"; best="${_LM_EFF[$v]}"; }; done
-  _LM_EASY_WHY="mix inside the band; easy work goes to the largest non-claude share"
-  if [[ -z "$_LM_EASY" ]]; then
-    _LM_EASY_WHY="no other vendor is there on this box"
-    [[ "${_LM_AVAIL[claude]}" == yes ]] && _LM_EASY=claude
+    _LM_EASY_WHY="$_LM_EASY is ${best} points under its ${_LM_EFF[$_LM_EASY]}% of $_LM_KIND (band $_LM_TOL)"
+  else
+    _LM_EASY_WHY="the $_LM_KIND mix is inside the band"
   fi
   return 0
 }
 
-# _spl_lane_mix_pick <vendor|hold> <reason> -> the pick line; a reason says
-# when the instance setting was not read
+# _spl_lane_mix_pick <vendor|hold> <reason> [<flag>] -> the pick line; a
+# reason says when the instance setting was not read
 _spl_lane_mix_pick() {
-  local l="/$1-spawn" why="$2"
+  local l="/$1-spawn" why="$2" flag=""
   [[ "$1" == hold ]] && l=-
+  [[ -n "${3:-}" ]] && flag=" flag=$3"
   [[ -z "$_LM_INST_WHY" ]] || why="$why; instance setting not read ($_LM_INST_WHY), local checks only"
-  printf 'pick=%s launcher=%s reason=%s\n' "$1" "$l" "$why"
+  printf 'pick=%s launcher=%s kind=%s%s reason=%s\n' "$1" "$l" "$_LM_KIND" "$flag" "$why"
 }
 
 # _spl_lane_mix_user <spool-root> -> the agent user (SPOOL_AGENT_USER, else

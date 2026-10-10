@@ -14,7 +14,7 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
 
 ## 2. Picker (`do_spl_lane_mix`)
 
-- [ ] **ORC-1**: Per-kind rows, aliases, the one rule of section 5, and the journal reader.
+- [x] **ORC-1**: Per-kind rows, aliases, the one rule of section 5, and the journal reader.
   - Depends: none.
   - Owns: `csi-spl-orc/src/bash/run/spl-lane-mix.func.sh` (`do_spl_lane_mix`), its `.tst.sh`, and the journal reader in `spl-lane-mix-journal.func.sh`.
   - Done: `LANE_MIX_KIND` resolves to the new names or aliases; the picker reads the per-kind row, applies availability, counts failed tries, and picks main, backup or claude (section 5); `_spl_lane_mix_next` and the D5 `first=` map are removed. Test: a fixture with 2 failed tries for mistral on task X gives claude; with 1 try it gives mistral. Control: a threshold at 3 turns the test red.

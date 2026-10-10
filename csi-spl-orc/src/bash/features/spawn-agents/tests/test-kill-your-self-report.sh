@@ -4,7 +4,8 @@
 #   dirty + unpushed counts; tasks.md candidates with open/done counts; and it
 #   changes nothing it looks at. --reporter: the lane's named reporter (brief
 #   line > seed spawner > registry requester > orchestrator), and both exit
-#   skills send their report there (c-894 finding 2, 2026-10-10).
+#   skills send their report there (c-894 finding 2, 2026-10-10), on the
+#   ACCEPTED's task (c-895 msg 8dcc064b point 2).
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -46,10 +47,15 @@ rm -f "$L/prompt.txt"
 eq "no seed line: the registry requester, decorated" "reporter: c-005@box2 (from registry)"$'\n'"c-005@box2" "$(rep)"
 eq "nothing named: the orchestrator" "reporter: orchestrator (from fallback)"$'\n'"orchestrator" "$(SPOOL_AGENT_ID=m-098 bash "$R" --reporter "$W" 2>&1)"
 
-# Every vendor renders these two templates; the send must use --reporter.
+# Every vendor renders these two templates; the send must use --reporter, and
+# go on the ACCEPTED's task (c-895 msg 8dcc064b point 2): agent-send.sh has no
+# --task, so the send is spool-send.sh.
 for s in exit-clean kill-your-self; do
   f="$T_FEAT/assets/skills/$s/SKILL.md"
-  has "$s: the report goes to the named reporter" 'agent-send.sh --from <YOUR-ID> "$(bash {{HARNESS_DIR}}/scripts/kill-your-self-report.sh --reporter)" --kind result' "$(cat "$f")"
+  send="$(grep -F -- '--kind result' "$f" | grep -F -- '--reporter)')"
+  has "$s: the report goes to the named reporter" 'spool-send.sh --from <YOUR-ID> --to "$(bash {{HARNESS_DIR}}/scripts/kill-your-self-report.sh --reporter)" --kind result' "$send"
+  has "$s: the report goes on the ACCEPTED's task" ' --task <ACCEPTED-TASK-ID> ' "$send"
+  hasnt "$s: no report send without --task (agent-send.sh takes none)" 'agent-send.sh' "$send"
   hasnt "$s: no send straight to {{ORCHESTRATOR_ID}}" 'agent-send.sh --from <YOUR-ID> {{ORCHESTRATOR_ID}}' "$(cat "$f")"
 done
 t_done

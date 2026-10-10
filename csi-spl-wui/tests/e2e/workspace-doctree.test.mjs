@@ -525,6 +525,66 @@ try {
     rows: document.querySelectorAll('[data-test=ws-doc-row]').length,
   }))
   ok('Create with no title makes "Untitled document" with the starter outline', dflt.h === 'Untitled document' && dflt.sel === 'Untitled document' && dflt.rows === 3, dflt)
+
+  /* t1 b4dd79e2 ("on mobile, the showing of the omnibox while editing in QTO
+     doc is obsolete"): on a phone the omnibox hides while a field of the
+     document is in focus and comes back when it leaves; the search box is
+     not editing; a desktop keeps it. Control: before e1f5f536a it never hides. */
+  const omnibox = (q) => q.evaluate(() => {
+    /* on a phone the wrapper is display: contents (no box): measure its form */
+    const el = document.querySelector('[data-test=top-bar-omnibox] form')
+    if (!el) return 'none'
+    const r = el.getBoundingClientRect()
+    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden' ? 'shown' : 'hidden'
+  })
+  const settle = () => new Promise((r) => setTimeout(r, 300))
+  const shoot = async (q, name) => {
+    if (!process.env.SHOT_DIR) return
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(process.env.SHOT_DIR, { recursive: true })
+    await q.screenshot({ path: `${process.env.SHOT_DIR}/ws-doctree-${name}.png` })
+  }
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.click('[data-test=ws-doc-row] [data-test=ws-doc-text]')
+  await settle()
+  ok('desktop 1440: the omnibox stays while a section text is edited', await omnibox(p) === 'shown')
+  await shoot(p, 'desktop-edit')
+  await p.keyboard.press('Escape')
+
+  const m = await browser.newPage()
+  await m.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
+  await m.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await m.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: NAV_TIMEOUT })
+  await m.type('[data-test=ws-docs-new-title]', 'Phone doc')
+  await m.click('[data-test=ws-docs-create]')
+  await outlineIs(m, 'doc', ['1', '1.1', '1.1.1'])
+  await settle()
+  const reading = await omnibox(m)
+  await shoot(m, 'phone-view')
+  await m.tap('[data-test=ws-doc-row] [data-test=ws-doc-text]')
+  await settle()
+  const editingText = await omnibox(m)
+  await shoot(m, 'phone-edit')
+  await m.keyboard.press('Escape')
+  await settle()
+  const afterCancel = await omnibox(m)
+  await m.tap('[data-test=ws-doc-doctitle]')
+  await settle()
+  const editingTitle = await omnibox(m)
+  await m.keyboard.press('Enter')
+  await settle()
+  const afterSave = await omnibox(m)
+  await shoot(m, 'phone-after')
+  await m.tap('[data-test=ws-doc-search]')
+  await settle()
+  const searching = await omnibox(m)
+  ok('phone: the omnibox shows while the document is read', reading === 'shown', reading)
+  ok('phone: it hides while a section text is edited', editingText === 'hidden', editingText)
+  ok('phone: it comes back after Esc (cancel)', afterCancel === 'shown', afterCancel)
+  ok('phone: it hides while the document title is edited', editingTitle === 'hidden', editingTitle)
+  ok('phone: it comes back after Enter (save)', afterSave === 'shown', afterSave)
+  ok('phone: CONTROL the search box is not editing, the omnibox stays', searching === 'shown', searching)
+  await m.close()
 } finally {
   await browser.close()
   await server.stop()

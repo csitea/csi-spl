@@ -240,34 +240,7 @@ try {
     await shot(m, `phone-${theme}-edit`)
     await m.tap('[data-test=ws-doc-save]')
     ok(`phone ${theme}: Save works`, await wsDoc(m, WELCOME) && (await h1(m)) === 'Phone edit')
-
-    // Verify omnibox visibility on phone during edit mode
-    const omniboxVisible = async (p) => {
-      return p.evaluate(() => {
-        const omnibox = document.querySelector('[data-test=top-bar-omnibox]');
-        if (!omnibox) return false;
-        const style = window.getComputedStyle(omnibox);
-        return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
-      });
-    };
-
-    // Control: omnibox visible when NOT editing
-    let visible = await omniboxVisible(m);
-    ok(`phone ${theme}: omnibox visible when NOT editing`, visible);
-
-    // Focus the title (edit mode)
-    await m.tap('[data-test=ws-doc-doctitle]');
-    await sleep(500); // Wait for focus to settle
-    visible = await omniboxVisible(m);
-    ok(`phone ${theme}: omnibox hidden when editing`, !visible);
-
-    // Blur (exit edit mode)
-    await m.tap('[data-test=ws-doc-search]');
-    await sleep(500);
-    visible = await omniboxVisible(m);
-    ok(`phone ${theme}: omnibox visible after editing`, visible);
-    await shot(m, `phone-edit-mode`)
-  await m.close()
+    await m.close()
   }
 } finally {
   await browser.close()

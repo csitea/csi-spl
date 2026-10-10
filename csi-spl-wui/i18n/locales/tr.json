@@ -2391,6 +2391,7 @@
     "default_doc_title": "Başlıksız belge",
     "heading_placeholder": "Başlık {n}",
     "col_level": "Seviye",
+    "col_meta": "Meta",
     "search_all": "Tüm belgelerdeki sonuçlar",
     "search_all_none": "Hiçbir belgede hiçbir şey bulunamadı.",
     "search_all_close": "Sonuçları kapat",

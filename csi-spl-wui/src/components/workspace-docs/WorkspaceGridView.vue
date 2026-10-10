@@ -1,8 +1,11 @@
 <!-- Spec 113 T006: the grid view, spreadsheet-like rows over the same items
-     as the doc view (number, title, text). The hub filters and sorts the
+     as the doc view (number, level, title, text, meta). The hub filters and sorts the
      whole document (its grid read, 413 above 20,000 items); a cell is edited
      in place as one text edit under the item's rev; the row menu runs the
-     same structural ops as the doc view. A 412 sets the session stale. -->
+     same structural ops as the doc view. A 412 sets the session stale.
+     Level is the item's depth ("1.1" = 2, the hub's depth sort) and meta its
+     own attrs as key: value lines, both read-only (t1 504fe47d); on a phone
+     the meta column is hidden, level stays narrow. -->
 <template>
   <div class="wsgrid" data-test="ws-grid-view">
     <div class="wsgrid__tools">
@@ -31,6 +34,7 @@
                 <UiIcon v-if="sort === c" :name="desc ? 'chevron-down' : 'chevron-up'" :size="14" />
               </button>
             </th>
+            <th scope="col" class="wsgrid__metacol" data-test="ws-grid-col-meta"><span class="wsgrid__head">{{ t('ws_doctree.col_meta') }}</span></th>
             <th scope="col"><span class="sr-only">{{ t('ws_doctree.actions') }}</span></th>
           </tr>
         </thead>
@@ -44,6 +48,7 @@
             @contextmenu.prevent="openMenu(it, $event.clientX, $event.clientY)"
           >
             <td class="wsgrid__num" data-test="ws-grid-num">{{ it.outline }}</td>
+            <td class="wsgrid__num" data-test="ws-grid-level">{{ it.depth }}</td>
             <td v-for="f in FIELDS" :key="f" class="wsgrid__cell" :class="'wsgrid__cell--' + f">
               <textarea
                 v-if="cell && cell.id === it.id && cell.field === f"
@@ -65,6 +70,9 @@
                 :title="t('ws_doctree.edit_cell')"
                 @click="startEdit(it, f)"
               >{{ it[f] || (f === 'title' ? t('ws_doctree.untitled') : '') }}</button>
+            </td>
+            <td class="wsgrid__metacol">
+              <div class="wsgrid__meta" data-test="ws-grid-meta" :title="metaOf(it)">{{ metaOf(it) }}</div>
             </td>
             <td class="wsgrid__act">
               <button
@@ -126,7 +134,7 @@ import {
   type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
 
-const COLS = ['outline', 'title', 'body'] as const
+const COLS = ['outline', 'level', 'title', 'body'] as const
 const FIELDS = ['title', 'body'] as const
 type Col = typeof COLS[number]
 type Field = typeof FIELDS[number]
@@ -158,13 +166,21 @@ const plain = () => !filter.value.trim() && sort.value === 'outline' && !desc.va
 async function load(): Promise<boolean> {
   const s = props.session
   const mine = ++seq
-  const r = await s.run(() => s.client.grid(s.doc, filter.value, sort.value, desc.value))
+  const r = await s.run(() => s.client.grid(s.doc, filter.value, sort.value === 'level' ? 'depth' : sort.value, desc.value))
   if (mine !== seq) return true
   if (!r) return false
   rows.value = r.items
   if (plain()) whole.value = r.items
   s.rev.value = r.rev
   return true
+}
+
+/** the item's own attrs, one "key: value" line each; an empty value is left out */
+function metaOf(it: DocItem): string {
+  return Object.entries(it.attrs ?? {})
+    .filter(([, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => `${k}: ${(typeof v === 'string' ? v : JSON.stringify(v)).replace(/\s+/g, ' ').trim()}`)
+    .join('\n')
 }
 
 async function shapeOf(it: DocItem): Promise<DocShape | null> {
@@ -301,8 +317,28 @@ onBeforeUnmount(() => clearTimeout(filterTimer))
 .wsgrid__table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .wsgrid__table th, .wsgrid__table td { border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; padding: 2px 4px; }
 .wsgrid__table th:nth-child(1) { width: 5.5rem; }
-.wsgrid__table th:nth-child(2) { width: 32%; }
-.wsgrid__table th:nth-child(4) { width: 2.75rem; }
+.wsgrid__table th:nth-child(2) { width: 4.5rem; }
+.wsgrid__table th:nth-child(3) { width: 26%; }
+.wsgrid__table th:nth-child(5) { width: 18%; }
+.wsgrid__table th:nth-child(6) { width: 2.75rem; }
+@media (max-width: 640px) {
+  .wsgrid__metacol { display: none; }
+  .wsgrid__table th:nth-child(1) { width: 4rem; }
+  .wsgrid__table th:nth-child(2) { width: 3.25rem; }
+}
+.wsgrid__head { display: inline-block; padding: 6px 4px; font-weight: 600; }
+.wsgrid__meta {
+  padding: 6px 4px;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
 .wsgrid__sort { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 6px 4px; font: inherit; font-weight: 600; color: var(--color-fg); cursor: pointer; }
 .wsgrid__num { color: var(--color-muted); font-variant-numeric: tabular-nums; padding-top: 8px !important; }
 .wsgrid__text {

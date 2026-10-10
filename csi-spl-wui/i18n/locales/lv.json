@@ -2391,6 +2391,7 @@
     "default_doc_title": "Dokuments bez virsraksta",
     "heading_placeholder": "Virsraksts {n}",
     "col_level": "Līmenis",
+    "col_meta": "Meta",
     "search_all": "Rezultāti visos dokumentos",
     "search_all_none": "Nevienā dokumentā nekas netika atrasts.",
     "search_all_close": "Aizvērt rezultātus",

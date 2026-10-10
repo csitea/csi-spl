@@ -2391,6 +2391,7 @@
     "default_doc_title": "Dokument bez tytułu",
     "heading_placeholder": "Nagłówek {n}",
     "col_level": "Poziom",
+    "col_meta": "Meta",
     "search_all": "Wyniki we wszystkich dokumentach",
     "search_all_none": "Nic nie znaleziono w żadnym dokumencie.",
     "search_all_close": "Zamknij wyniki",

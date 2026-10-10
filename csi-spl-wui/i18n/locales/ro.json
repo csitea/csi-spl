@@ -2391,6 +2391,7 @@
     "default_doc_title": "Document fără titlu",
     "heading_placeholder": "Titlu {n}",
     "col_level": "Nivel",
+    "col_meta": "Meta",
     "search_all": "Rezultate în toate documentele",
     "search_all_none": "Nu s-a găsit nimic în niciun document.",
     "search_all_close": "Închide rezultatele",

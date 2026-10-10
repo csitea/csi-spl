@@ -2391,6 +2391,7 @@
     "default_doc_title": "Документ без заглавие",
     "heading_placeholder": "Заглавие {n}",
     "col_level": "Ниво",
+    "col_meta": "Meta",
     "search_all": "Резултати във всички документи",
     "search_all_none": "Не е намерено нищо в нито един документ.",
     "search_all_close": "Затваряне на резултатите",

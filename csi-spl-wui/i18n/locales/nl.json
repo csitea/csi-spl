@@ -2391,6 +2391,7 @@
     "default_doc_title": "Naamloos document",
     "heading_placeholder": "Kop {n}",
     "col_level": "Niveau",
+    "col_meta": "Meta",
     "search_all": "Resultaten in alle documenten",
     "search_all_none": "Niets gevonden in enig document.",
     "search_all_close": "Sluit de resultaten",

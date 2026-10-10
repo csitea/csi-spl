@@ -2391,6 +2391,7 @@
     "default_doc_title": "Untitled document",
     "heading_placeholder": "Heading {n}",
     "col_level": "Level",
+    "col_meta": "Meta",
     "search_all": "Results in all documents",
     "search_all_none": "Nothing found in any document.",
     "search_all_close": "Close the results",

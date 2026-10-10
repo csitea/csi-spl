@@ -2391,6 +2391,7 @@
     "default_doc_title": "Dokument bez názvu",
     "heading_placeholder": "Nadpis {n}",
     "col_level": "Úroveň",
+    "col_meta": "Meta",
     "search_all": "Výsledky vo všetkých dokumentoch",
     "search_all_none": "V žiadnom dokumente sa nič nenašlo.",
     "search_all_close": "Zavrieť výsledky",

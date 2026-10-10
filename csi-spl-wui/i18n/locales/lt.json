@@ -2391,6 +2391,7 @@
     "default_doc_title": "Dokumentas be pavadinimo",
     "heading_placeholder": "Antraštė {n}",
     "col_level": "Lygis",
+    "col_meta": "Meta",
     "search_all": "Rezultatai visuose dokumentuose",
     "search_all_none": "Nieko nerasta jokiame dokumente.",
     "search_all_close": "Uždaryti rezultatus",

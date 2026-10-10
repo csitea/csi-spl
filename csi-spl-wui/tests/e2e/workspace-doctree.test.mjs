@@ -14,6 +14,9 @@
 // A new document (owner, t1 889e15d9): the page's + opens a modal with the
 // title (required) and the meta description; Esc creates nothing; the
 // description is read back from the hub's head. Desktop and phone.
+// The grid's level and meta columns (t1 504fe47d): level = the item's depth
+// ("1.1" = 2), sortable through the hub's depth sort; meta = its own attrs
+// as key: value, read after the code block; on a phone meta is hidden.
 //
 //   node tests/e2e/workspace-doctree.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/workspace-doctree.test.mjs
@@ -550,6 +553,39 @@ try {
   ok('the caption is edited in place and the image is removed, the code block kept',
     captioned.img_name === 'Deploy diagram' && !removed.img_http_path && !removed.img_name && removed.src === 'make deploy ENV=dev', { captioned, removed })
 
+  const shoot = async (q, name) => {
+    if (!process.env.SHOT_DIR) return
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(process.env.SHOT_DIR, { recursive: true })
+    await q.screenshot({ path: `${process.env.SHOT_DIR}/ws-doctree-${name}.png` })
+  }
+  /* the grid's level and meta columns: every row's level is its outline's
+     depth, Delta's meta is its code block; a click on Level sorts by depth.
+     CONTROL: with the columns removed there is no level or meta cell (FAIL) */
+  await view(p, 'grid')
+  await p.waitForSelector('[data-test=ws-grid-row]', { visible: true, timeout: STEP }).catch(() => null)
+  const gridCols = () => p.evaluate(() => [...document.querySelectorAll('[data-test=ws-grid-row]')].map((r) => ({
+    id: r.dataset.id,
+    outline: r.dataset.outline,
+    level: r.querySelector('[data-test=ws-grid-level]')?.textContent?.trim() ?? null,
+    meta: r.querySelector('[data-test=ws-grid-meta]')?.textContent?.trim() ?? null,
+  })))
+  const lv = await gridCols()
+  const heads = await p.evaluate(() => [...document.querySelectorAll('.wsgrid__table thead th')].map((h) => h.textContent.trim()))
+  const deltaRow = lv.find((r) => r.id === delta)
+  ok('grid shows a Level column (the outline depth) and a Meta column (the item\'s attrs as key: value)',
+    lv.length > 1 && lv.every((r) => r.level === String(r.outline.split('.').length)) && lv.some((r) => r.level === '2')
+    && deltaRow?.meta === 'src: make deploy ENV=dev' && lv.filter((r) => r.id !== delta).every((r) => r.meta === '')
+    && heads.includes('Level') && heads.includes('Meta'), { lv, heads })
+  await p.click('[data-test=ws-grid-sort-level]')
+  await p.click('[data-test=ws-grid-sort-level]')
+  await p.waitForFunction(() => document.querySelector('[data-test=ws-grid-row] [data-test=ws-grid-level]')?.textContent?.trim() !== '1', { timeout: STEP }).catch(() => null)
+  const byLevel = (await gridCols()).map((r) => Number(r.level))
+  ok('grid sorts by level, descending on a second click', byLevel.length === lv.length && byLevel[0] > byLevel[byLevel.length - 1]
+    && byLevel.every((n, i) => i === 0 || byLevel[i - 1] >= n), byLevel)
+  await shoot(p, 'grid-level-meta')
+  await view(p, 'doc')
+
   /* t1 b4dd79e2 ("on mobile, the showing of the omnibox while editing in QTO
      doc is obsolete"): on a phone the omnibox hides while a field of the
      document is in focus and comes back when it leaves; a desktop keeps it. Control: before e1f5f536a it never hides. */
@@ -561,12 +597,6 @@ try {
     return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden' ? 'shown' : 'hidden'
   })
   const settle = () => new Promise((r) => setTimeout(r, 300))
-  const shoot = async (q, name) => {
-    if (!process.env.SHOT_DIR) return
-    const { mkdirSync } = await import('node:fs')
-    mkdirSync(process.env.SHOT_DIR, { recursive: true })
-    await q.screenshot({ path: `${process.env.SHOT_DIR}/ws-doctree-${name}.png` })
-  }
   await p.setViewport({ width: 1440, height: 900 })
   await p.click('[data-test=ws-doc-row] [data-test=ws-doc-text]')
   await settle()
@@ -602,6 +632,19 @@ try {
   ok('phone: it comes back after Esc (cancel)', afterCancel === 'shown', afterCancel)
   ok('phone: it hides while the document title is edited', editingTitle === 'hidden', editingTitle)
   ok('phone: it comes back after Enter (save)', afterSave === 'shown', afterSave)
+  await view(m, 'grid')
+  await m.waitForSelector('[data-test=ws-grid-row]', { visible: true, timeout: STEP }).catch(() => null)
+  const phoneGrid = await m.evaluate(() => {
+    const shown = (el) => Boolean(el) && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0
+    const sc = document.querySelector('.wsgrid__scroll')
+    return {
+      level: shown(document.querySelector('[data-test=ws-grid-row] [data-test=ws-grid-level]')),
+      meta: shown(document.querySelector('[data-test=ws-grid-col-meta]')),
+      fits: sc ? sc.scrollWidth <= sc.clientWidth + 1 : false,
+    }
+  })
+  await shoot(m, 'phone-grid')
+  ok('phone: the grid keeps Level, hides Meta and fits the width', phoneGrid.level && !phoneGrid.meta && phoneGrid.fits, phoneGrid)
   await m.close()
 
   /* phone: the + floats bottom right (the issues page's), the modal creates */

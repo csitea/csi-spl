@@ -2391,6 +2391,7 @@
     "default_doc_title": "Nimeta dokument",
     "heading_placeholder": "Pealkiri {n}",
     "col_level": "Tase",
+    "col_meta": "Meta",
     "search_all": "Tulemused kõigis dokumentides",
     "search_all_none": "Ühestki dokumendist ei leitud midagi.",
     "search_all_close": "Sulge tulemused",

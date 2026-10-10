@@ -2391,6 +2391,7 @@
     "default_doc_title": "Nimetön dokumentti",
     "heading_placeholder": "Otsikko {n}",
     "col_level": "Taso",
+    "col_meta": "Meta",
     "search_all": "Tulokset kaikista dokumenteista",
     "search_all_none": "Mitään ei löytynyt yhdestäkään dokumentista.",
     "search_all_close": "Sulje tulokset",

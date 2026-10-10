@@ -2391,6 +2391,7 @@
     "default_doc_title": "Namnlöst dokument",
     "heading_placeholder": "Rubrik {n}",
     "col_level": "Nivå",
+    "col_meta": "Meta",
     "search_all": "Resultat i alla dokument",
     "search_all_none": "Inget hittades i något dokument.",
     "search_all_close": "Stäng resultaten",

@@ -31,7 +31,7 @@ env:
       writer_sa_account_id: csi-spl-dev-box-state
 EOF
 STUBS='do_spl_cloud_cnf() { SPL_CNF="$CNF"; SPL_PROJECT=csi-spl-dev; }
-do_gcp_pin_account() { GCP_ACCOUNT=sa@example.com; }
+do_gcp_pin_account() { echo "INFO pin log line"; GCP_ACCOUNT=sa@example.com; }
 do_gcp_require_live_account() { return 0; }'
 SNIPPET="$STUBS; do_spl_box_state_backup" in_orc CNF="$T/cnf.yaml" BOX=box1 BOX_STATE_SOURCES="$S/proj $S/spool" \
   BOX_STATE_KEEP="$T/night.tar.zst" >"$T/out" 2>&1 || { fail "setup: the backup could not pack: $(cat "$T/out")"; exit 1; }
@@ -75,7 +75,8 @@ rm -rf "$T/stg"; run_rs; rc=$?
   && grep -q '^gcloud storage cp gs://csi-spl-dev-box-state/box1/2026-10-10/box1-20261010T234100Z.tar.zst ' "$T/calls.log" \
   && pass "2. BOX + DATE list the night's prefix as the project SA and read the newest object" || fail "2. pick: rc=$rc $(cat "$T/calls.log" "$T/out")"
 grep -q 'impersonate' "$T/calls.log" && fail "2. the restore impersonated the writer (it cannot read)" || pass "2. ...as the project SA, not the writer"
-grep -q "would write 1 new and OVERWRITE 1 existing" "$T/out" && grep -qx "  OVERWRITE $R$S/proj/-opt-x/s1.jsonl" "$T/out" \
+grep -q "from gs://csi-spl-dev-box-state/box1/2026-10-10/box1-20261010T234100Z.tar.zst: staged" "$T/out" \
+  && grep -q "would write 1 new and OVERWRITE 1 existing" "$T/out" && grep -qx "  OVERWRITE $R$S/proj/-opt-x/s1.jsonl" "$T/out" \
   && grep -qx "NEW $R$S/spool/c-1/inbox/m2.json" "$T/stg/plan.txt" && ! grep -q 'm1.json' "$T/stg/plan.txt" \
   && pass "3. the dry run prints NEW / OVERWRITE (content compared; an equal file is not listed)" || fail "3. plan: $(cat "$T/out" "$T/stg/plan.txt")"
 [[ "$(cat "$T/stg/root$S/proj/-opt-x/s1.jsonl")" == 'transcript v2' ]] && pass "3. ...the archive is staged in the staging dir" || fail "3. staging"

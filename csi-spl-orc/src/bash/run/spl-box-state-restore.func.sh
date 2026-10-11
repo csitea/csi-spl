@@ -85,11 +85,12 @@ do_spl_box_state_restore() {
 # of <box>/<date>/ as the project SA; prints its gs:// uri
 spl_box_state_fetch() {
   local box="$1" date="$2" out="$3" bucket uri
-  do_require_bin gcloud yq || return 1
-  do_spl_cloud_cnf || return 1
+  # stdout is the uri the caller captures: the setup's own log lines go to stderr
+  do_require_bin gcloud yq >&2 || return 1
+  do_spl_cloud_cnf >&2 || return 1
   bucket="$(spl_box_state_cnf state_bucket_name)" || return 1
-  do_gcp_pin_account "$SPL_CNF" || return 1
-  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  do_gcp_pin_account "$SPL_CNF" >&2 || return 1
+  do_gcp_require_live_account "$GCP_ACCOUNT" >&2 || return 1
   uri="$(gcloud storage ls "gs://$bucket/$box/$date/" --account="$GCP_ACCOUNT" 2>/dev/null | grep -E '\.tar\.zst$' | sort | tail -n 1)"
   [[ -n "$uri" ]] || { do_log "FATAL no object under gs://$bucket/$box/$date/ (the bucket keeps 30 days)" >&2; return 1; }
   gcloud storage cp "$uri" "$out" --account="$GCP_ACCOUNT" >/dev/null 2>&1 || { do_log "FATAL cannot read $uri" >&2; return 1; }

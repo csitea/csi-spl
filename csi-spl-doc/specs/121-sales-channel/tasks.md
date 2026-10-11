@@ -72,7 +72,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T202 | loader.js + iframe chat page | 2 | T201, T104 | build | claude |
 | T203 | hub: embed admin API (origins, per-embed JWT key) | 2 | T102 | done (4d81f4b88, 40af1ecdb) | claude |
 | T204 | WUI: embed admin page | 2 | T203 | done (3cafe1a95, 9ccfe5178) | mistral or grok |
-| T205 | hub: signed-in customer JWT -> one `channel_guest` | 2 | T104, T203 | build | claude |
+| T205 | hub: signed-in customer JWT -> one `channel_guest` | 2 | T104, T203 | done (4e97071bb, cbd4f4a35) | claude |
 | T206 | hub: e-mail one-time relink to a new device | 2 | T104 | done | claude |
 | T207 | cnf flip `env.hub.embed.enabled` dev, then prd | 2 | T104..T206 | build | claude |
 | T208 | csi-web: script tag + CSP, deploy dev then prd | 2 (last) | T207 on each env | build | claude |
@@ -271,11 +271,23 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `createEmbed`, `patchEmbed`, `newEmbedKey`; the private key is shown once
   and dropped on Close; a second key asks first. 27 `embed.*` keys in 19
   locales, agy-reviewed (a-959). e2e: tenant-settings step 18.
-- [ ] T205 **signed-in customer** (claude; needs T104, T203). The
+- [x] T205 **signed-in customer** (claude; needs T104, T203). The
   customer's 5-minute JWT (`sub`, `aud` = embed id), verified with the
   per-embed key; (embed, sub) -> one `channel_guest`. Files:
   `GO/hub/embed_jwt.go` + `_test.go` (*new*). Done: expired, wrong `aud`,
   wrong key, replayed: each refused (one test each).
+  Built (c-953, 4e97071bb + cbd4f4a35): `POST /v1/embed/{embed_id}/signin`
+  `{"jwt"}` (in the body, never a URL), 200 with the visitor token. ES256
+  only (`none`/HS256 refused), `kid` must be the embed's, exp/iat/nbf with
+  30 s skew, exp - iat <= 5 min, `aud` string or array. Refused 401
+  `embed_jwt`, the detail naming why. Replay: one `quota_counts` mark per
+  JWT (rdb 0127, window = exp), keyed by the signed part, so ECDSA's second
+  signature form is a replay too. (embed, sub) -> one visitor with no table:
+  visitor uuid v5 and channel id derived from (embed, sub), the sub stored
+  nowhere; a later sign-in replaces the token (store
+  `SignInEmbedVisitor`, under inChannel). 404 while the flag is off and
+  for a disabled or keyless embed. Tests on Postgres, one per Done item,
+  each with an accepted control. Open: `quota_counts` has no sweep yet.
 - [x] T206 **e-mail relink** (claude; needs T104). Optional e-mail after
   the first answer, its purpose shown; a 15-minute single-use link binds a
   new token to the same visitor. Files: `GO/hub/embed_relink.go` +

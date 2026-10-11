@@ -2,9 +2,9 @@
 
 Owner HUM-10, prd t1, topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea: rounds run continuously, **no owner go is needed for this round, its panel or its lanes** (rule home: `SPEC-spool-fleet-roles.md` section 1.2). Requested by the dispatch holder c-002@PC (msg 14132589) per round 7 plan R8, once `refactor-round-7-retro.md` was on trunk (`896385ff1`).
 
-**Status: DRAFT.** Waiting for the agy and mistral seats (section 10).
+**Status: SIGNED.** All three seats signed plan sha **`7508d04c3`** (section 10). Batch 1 = 01, 02, 03, 04, 06, 07, 09, 10; batch 2 = 05 after 04, 08 after 07. The row lanes are spawned by the orchestrator from that sha. The reviewer seats a-999@PC (agy) and m-033@PC (mistral) stay up until all 10 rows are on trunk (R7.1).
 
-Panel: the claude seat (planner and editor c-996, `PC`; proposal `refactor-round-8/seat-claude.md`), the agy seat and the mistral seat, placed by the orchestrator c-001@sat. Inputs: the shape and rules R1-R13 of `refactor-round-7-plan.md`; **`refactor-round-7-retro.md` section 6** (items 1-9); round 7's section 8 (left out).
+Panel: the claude seat (planner and editor c-996, `PC`; proposal `refactor-round-8/seat-claude.md`), the agy seat a-999@PC (`refactor-round-8/seat-agy.md`, `b30fe1708`) and the mistral seat m-033@PC (`refactor-round-8/seat-mistral.md`, `c029651ca`), placed by the orchestrator c-001@sat. Inputs: the shape and rules R1-R13 of `refactor-round-7-plan.md`; **`refactor-round-7-retro.md` section 6** (items 1-9); round 7's section 8 (left out).
 
 Every site was measured on ONE trunk sha: **`d4f9553f4`** (`origin/master`, 2026-10-11T08:02Z), n=1 per count unless stated otherwise. CI was read over the 16 newest completed (not cancelled) wf 10 master runs, 38072152801 (10-10 17:32Z) .. 38120064586 (10-11 07:03Z). Re-checked on `bd46c5956` (trunk when this plan was written): `git diff --stat d4f9553f4 bd46c5956 -- <the paths of section 3>` -> empty.
 
@@ -113,7 +113,17 @@ R1-R6, R9, R12, R13 are carried from `refactor-round-7-plan.md` section 5 with `
 
 ## 7. Disagreements
 
-None yet: the seats have not answered. The editor folds each seat's verdict here, one line per changed item, with the command behind it.
+Seat verdicts on `7508d04c3`: claude 10 agree (the planner's proposal); agy 10 agree; mistral 9 agree + 1 "agree with changes" (01). No seat proposed a new row or dropped one, and no row changed at the fold.
+
+| # | seat | item | settled |
+|---|---|---|---|
+| D1 | mistral (m-033) | 01: "Fail-fast stops orc/hub suites **only if no other job is running**" | **Already in the row.** Section 3 row 01: "`orc-suite` and `hub-suite` stop only once **no job outside them is still running**". The seat restates it; no change |
+
+Notes on the seats' evidence, for the retro, not the rows:
+
+- The agy seat gives 10 verdicts with no command: the `command / note` column of `seat-agy.md` is empty in all 10 rows (`b30fe1708`), as in round 7 (round 7 plan section 7).
+- The mistral seat measured on the mapped sha `6165cfc71` and gives a command per row, but 4 of them measure something else than the row's number: 05 greps `function spool_notify_poke` (the file defines `spool_notify_poke() {`; that grep finds 0 lines); 07 and 08 use `wc -l` on the file, not the function length the `cleancode.test.mjs` LONG list gates (as round 7's D3-D5); 06 counts `sleep` lines with no word boundary. The plan's own commands and n stand in section 2.
+- The mistral seat's commit subject is `refactor(r8-seat-mistral): ...`. R6's `git log --grep='r8-'` lists it with the rows; the row count reads the `r8-NN-` slug (R4), so a seat commit is not a row.
 
 ## 8. Measured and left out
 
@@ -141,8 +151,10 @@ None yet: the seats have not answered. The editor folds each seat's verdict here
 
 ## 10. Consensus
 
+Signed plan sha: **`7508d04c3`** (the draft; no row changed at the fold, so the seats signed the rows as written). This fold commit edits only the status line, the panel line, section 7 and this section.
+
 | seat | signed | how |
 |---|---|---|
-| claude (planner and editor c-996@PC) | this draft | the planner's proposal, `refactor-round-8/seat-claude.md` |
-| agy | pending | `refactor-round-8/seat-agy.md` |
-| mistral | pending | `refactor-round-8/seat-mistral.md` |
+| claude (planner and editor c-996@PC) | `7508d04c3` | the planner's proposal, 10 agree (`refactor-round-8/seat-claude.md`); this fold |
+| agy (a-999@PC) | `7508d04c3` | `refactor-round-8/seat-agy.md` (`b30fe1708`): 10 agree, "Signed: plan sha 7508d04c3"; spool `dispatch-4f46ce09` msg fbc3dd61 |
+| mistral (m-033@PC) | `7508d04c3` | `refactor-round-8/seat-mistral.md` (`c029651ca`): 9 agree + 1 agree with changes (D1, no row change), "Signed: plan sha 7508d04c3"; spool `dispatch-4f46ce09` msg f7c9bd70 |

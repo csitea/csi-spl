@@ -472,12 +472,22 @@ try {
      the top, at 1440 and at 390, with no browser button chrome (no outset
      border, no grey face). Control: on 77b835091 both carried
      .issues-iconbtn, scoped to pages/issues.vue, so they rendered as default
-     buttons: the chrome checks FAIL. */
+     buttons: the chrome checks FAIL.
+     On a phone /workspace/docs with no ?doc= is the drill list (owner t1
+     8bf89f96, 83849bda4), which has no doc view: the phone opens the first
+     document by its link, as a shared link does. Control: the bare
+     /workspace/docs at 390 reads null here, as on master 1f83fdd12. */
   console.log('-- print + TOC row (t1 28155201)')
   for (const [w, h, mobile] of [[1440, 900, false], [390, 844, true]]) {
     const r = await browser.newPage()
     await r.setViewport({ width: w, height: h, isMobile: mobile, hasTouch: mobile })
     await r.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    if (mobile) {
+      const listed = await r.waitForSelector('[data-test=ws-docs-page] [data-test=qto-file-tree] [data-kind=doc]', { visible: true, timeout: 15000 }).catch(() => null)
+      const id = listed ? (await listed.evaluate((el) => el.getAttribute('data-key') || '')).replace(/^d:/, '') : ''
+      ok(`${w}px: the phone lists a document to open`, Boolean(id), id)
+      await r.goto(`${server.base}/workspace/docs?doc=${id}&view=doc`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    }
     await r.waitForSelector('[data-test=ws-doc-toc-toggle]', { visible: true, timeout: 15000 }).catch(() => null)
     const row = await r.evaluate(() => {
       const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height } }

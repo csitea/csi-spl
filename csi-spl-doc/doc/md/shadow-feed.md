@@ -32,8 +32,9 @@ The data rule allows a Grok seat to see that traffic (owner msg 26117740).
   seat that finds it older than 15 minutes says so in its notes.
 - Each `<box>=<ssh host>[:<spool root>]` in `SHADOW_FEED_REMOTES` is pulled
   first with one `rsync` over ssh into a private stage (0700), then mirrored
-  into `$SHADOW_FEED_DIR/<box>/` the same way. An unreachable box is a WARN
-  and keeps its last mirror.
+  into `$SHADOW_FEED_DIR/<box>/` the same way. A failed pull is a WARN that
+  names rsync's own error (a timed-out ssh, a `Permission denied` on the far
+  spool) and keeps that box's last mirror.
 
 Measured on the satellite box, 2026-10-11 (11 535 messages of three agents):
 the first pass 3.6 s, a pass with nothing new 1.1 s; 12 attachment refs
@@ -67,6 +68,17 @@ cd csi-spl-orc && DRY_RUN=0 SHADOW_FEED_REMOTES="<box>=<ssh host>" ./run -a do_s
 ```
 
 Leave `SHADOW_FEED_REMOTES` out on a box that cannot reach the other one.
+
+### 2.4 When the ssh login cannot read the far spool
+
+The spool root is readable by its owner and the spool group only. An ssh login
+that is in neither (a cloud image's default user) gets `Permission denied` on
+the far side. If that login has sudo there, read the far spool as the spool
+owner (`<DEV_USER>`) by adding this to the commands in 2.2 and 2.3:
+
+```bash
+cd csi-spl-orc && DRY_RUN=0 SHADOW_FEED_REMOTES="<box>=<ssh host>" SHADOW_FEED_REMOTE_RSYNC="sudo -n -u <DEV_USER> rsync" ./run -a do_spl_shadow_feed_install_cron
+```
 `SHADOW_FEED_CRON_ACTION=remove` takes the line out again.
 
 ## 3. The shadow seat

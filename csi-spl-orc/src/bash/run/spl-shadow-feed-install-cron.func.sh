@@ -12,7 +12,7 @@
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param SHADOW_FEED_CRON_ACTION (optional) - install (default) | remove
 # @param SHADOW_FEED_EVERY (optional) - 1..59 minutes, default 5
-# @param SHADOW_FEED_DIR, SHADOW_FEED_AGENTS, SHADOW_FEED_REMOTES (optional) - written into the line when set
+# @param SHADOW_FEED_DIR, SHADOW_FEED_AGENTS, SHADOW_FEED_REMOTES, SHADOW_FEED_REMOTE_RSYNC (optional) - written into the line when set
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_shadow_feed_install_cron
 # @example DRY_RUN=0 SHADOW_FEED_REMOTES="box-b=box-b.example.net" ./run -a do_spl_shadow_feed_install_cron
@@ -25,7 +25,7 @@ do_spl_shadow_feed_install_cron() {
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL SHADOW_FEED_CRON_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
   [[ "$every" =~ ^[0-9]+$ ]] && (( every >= 1 && every <= 59 )) || { do_log "FATAL SHADOW_FEED_EVERY must be 1..59 minutes, got: '$every'"; return 1; }
-  for v in SHADOW_FEED_DIR SHADOW_FEED_AGENTS SHADOW_FEED_REMOTES; do
+  for v in SHADOW_FEED_DIR SHADOW_FEED_AGENTS SHADOW_FEED_REMOTES SHADOW_FEED_REMOTE_RSYNC; do
     [[ -z "${!v:-}" ]] && continue
     [[ "${!v}" =~ ^[A-Za-z0-9_./:=@\ -]+$ ]] || { do_log "FATAL $v carries a character a cron line cannot hold: '${!v}'"; return 1; }
     envs+=" $v='${!v}'"

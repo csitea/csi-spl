@@ -9,8 +9,10 @@
 #      message files are copied; an acked message moves in the mirror too;
 #      the spool root is not changed by a byte
 #   2. refusals: a feed dir inside the spool root, a bad agent id
-#   3. a remote box: pulled through rsync into its own <box> dir; an
-#      unreachable one is a WARN, exit 0, and keeps its last mirror
+#   3. a remote box: pulled through rsync into its own <box> dir, with the
+#      far rsync command SHADOW_FEED_REMOTE_RSYNC; a failed pull is a WARN
+#      that names rsync's own cause (a permission denied on the far spool is
+#      not called "unreachable"), exit 0, and keeps its last mirror
 #   4. the install: the dry run prints the line and changes nothing; DRY_RUN=0
 #      adds ONE tagged line carrying the remotes; a second install is a no-op;
 #      remove restores the crontab byte for byte
@@ -75,21 +77,37 @@ out="$(feed SHADOW_FEED_DIR="$R/feed")"; rc=$?
 out="$(feed SHADOW_FEED_AGENTS='c-001 ../x')"; rc=$?
 [ "$rc" = 2 ] && grep -q "'../x' is not an agent id" <<<"$out" && pass "2. a bad agent id is refused" || fail "2. bad id (rc $rc: $out)"
 
-# 3. a remote box: rsync is stubbed to read <host>:<path> as a local path.
+# 3. a remote box: rsync is stubbed to read up:<path> as a local path; down:
+# fails as ssh does, denied: as the far rsync does on a spool it cannot read.
 RR="$T/remote-spool"
 mkdir -p "$RR"/c-002/{inbox,outbox,archive}
 msg "$RR/c-002/outbox/20261011T110000Z--c-002--remote.json" c-002 c-001 "from the other box" "$ATT"
 mkdir -p "$T/stub"
-printf '#!/bin/bash\na=(); for x in "$@"; do case "$x" in up:*) a+=("${x#up:}");; down:*) exit 255;; *) a+=("$x");; esac; done\nexec %q "${a[@]}"\n' \
-  "$(command -v rsync)" >"$T/stub/rsync"; chmod +x "$T/stub/rsync"
-out="$(feed SHADOW_FEED_REMOTES="box-b=up:$RR" SHADOW_FEED_STAGE="$T/stage")"; rc=$?
+cat >"$T/stub/rsync" <<STUB
+#!/bin/bash
+a=(); for x in "\$@"; do case "\$x" in
+  --rsync-path=*) echo "\$x" >>"$T/rsync-path.log";;
+  up:*) a+=("\${x#up:}");;
+  down:*) echo "ssh: connect to host down port 22: Connection timed out" >&2; echo "rsync error: unexplained error (code 255)" >&2; exit 255;;
+  denied:*) echo 'rsync: [sender] change_dir "/spool" failed: Permission denied (13)' >&2; echo "rsync error: some files/attrs were not transferred (code 23)" >&2; exit 23;;
+  *) a+=("\$x");; esac; done
+exec $(command -v rsync) "\${a[@]}"
+STUB
+chmod +x "$T/stub/rsync"
+out="$(feed SHADOW_FEED_REMOTES="box-b=up:$RR" SHADOW_FEED_STAGE="$T/stage" SHADOW_FEED_REMOTE_RSYNC="sudo -n -u spool-owner rsync")"; rc=$?
 rem="$F/box-b/c-002/outbox/20261011T110000Z--c-002--remote.json"
 [ "$rc" = 0 ] && grep -q '^box-b OK shadow feed .*copied=1 .*files_dropped=1' <<<"$out" && grep -q '"files": \[\]' "$rem" \
   && pass "3. a reachable remote is mirrored under its own box, refs dropped" || fail "3. remote (rc $rc: $out)"
+grep -qx -- '--rsync-path=sudo -n -u spool-owner rsync' "$T/rsync-path.log" \
+  && pass "3. SHADOW_FEED_REMOTE_RSYNC is the far rsync command" || fail "3. rsync-path: $(cat "$T/rsync-path.log" 2>&1)"
 [ "$(stat -c %a "$T/stage")" = 700 ] && pass "3. ...through a stage only this user reads" || fail "3. stage mode $(stat -c %a "$T/stage")"
 out="$(feed SHADOW_FEED_REMOTES="box-b=down:$RR" SHADOW_FEED_STAGE="$T/stage")"; rc=$?
-[ "$rc" = 0 ] && grep -q 'WARN box-b (down) is unreachable' <<<"$out" && [ -f "$rem" ] \
-  && pass "3. an unreachable remote is a WARN and keeps its last mirror" || fail "3. unreachable (rc $rc: $out)"
+[ "$rc" = 0 ] && grep -q 'WARN box-b (down) pull failed: rsync rc 255: ssh: connect to host down port 22: Connection timed out; its mirror keeps the last pass' <<<"$out" && [ -f "$rem" ] \
+  && pass "3. an unreachable remote is a WARN naming the ssh error, the last mirror kept" || fail "3. unreachable (rc $rc: $out)"
+out="$(feed SHADOW_FEED_REMOTES="box-b=denied:$RR" SHADOW_FEED_STAGE="$T/stage")"; rc=$?
+[ "$rc" = 0 ] && grep -q 'WARN box-b (denied) pull failed: rsync rc 23: .*Permission denied (13);' <<<"$out" \
+  && ! grep -q unreachable <<<"$out" && [ -f "$rem" ] \
+  && pass "3. a far spool it cannot read is named as a permission denied, not unreachable" || fail "3. denied (rc $rc: $out)"
 out="$(feed SHADOW_FEED_REMOTES="box-b")"; rc=$?
 [ "$rc" = 2 ] && grep -q "is not <box>=<ssh host>" <<<"$out" && pass "3. a malformed remote is refused" || fail "3. bad remote (rc $rc: $out)"
 

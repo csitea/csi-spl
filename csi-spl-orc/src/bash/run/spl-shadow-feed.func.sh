@@ -12,15 +12,20 @@
 # @description mode 0444, its `files` refs emptied (`files_dropped` = how many);
 # @description a message gone from the spool is gone from the mirror. Each box
 # @description in SHADOW_FEED_REMOTES is pulled first with rsync over ssh into a
-# @description private stage (0700), then mirrored the same way; an unreachable
-# @description box is a WARN and keeps its last mirror. Writes nothing under
+# @description private stage (0700), then mirrored the same way; a failed pull
+# @description is a WARN naming rsync's own error (a refused login, a permission
+# @description denied on the far spool) and keeps that box's last mirror.
+# @description SHADOW_FEED_REMOTE_RSYNC is the rsync run on the far box: when
+# @description the ssh login is not in the spool group there, read it as the
+# @description spool owner, e.g. "sudo -n -u <spool owner> rsync". Writes nothing under
 # @description SPOOL_ROOT, refuses a feed dir inside it. SHADOW_FEED_DIR/LAST_RUN
 # @description holds the time and counts of the last pass. Run it every few
 # @description minutes with do_spl_shadow_feed_install_cron.
-# @description Exit 0 (a WARN for an unreachable remote included), 1 a failed pass, 2 usage.
+# @description Exit 0 (a WARN for a failed pull included), 1 a failed pass, 2 usage.
 # @param SHADOW_FEED_DIR (optional) - default /var/spool-shadow, outside SPOOL_ROOT
 # @param SHADOW_FEED_AGENTS (optional) - default "c-001 c-002 c-003"
 # @param SHADOW_FEED_REMOTES (optional) - "<box>=<ssh host>[:<spool root>] ...", default none
+# @param SHADOW_FEED_REMOTE_RSYNC (optional) - the far box's rsync command, default rsync
 # @param SHADOW_FEED_STAGE (optional) - the remote stage, default $HOME/.cache/csi-spl/shadow-feed-stage
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param BOX (optional) - this box's name; default SPOOL_BOX_TAG, box.env, hostname -s
@@ -30,7 +35,7 @@
 do_spl_shadow_feed() {
   local root="${SPOOL_ROOT:-/var/spool-hub}" feed="${SHADOW_FEED_DIR:-/var/spool-shadow}"
   local agents="${SHADOW_FEED_AGENTS:-c-001 c-002 c-003}" stage="${SHADOW_FEED_STAGE:-$HOME/.cache/csi-spl/shadow-feed-stage}"
-  local py="$PROJ_PATH/src/bash/scripts/spl-shadow-feed.py" box a r rbox rhost rroot out rc=0 sum=""
+  local py="$PROJ_PATH/src/bash/scripts/spl-shadow-feed.py" box a r rbox rhost rroot out err rc=0 sum=""
   local -a ids=()
   read -ra ids <<<"$agents"
   (( ${#ids[@]} )) || { do_log "FATAL SHADOW_FEED_AGENTS is empty"; return 2; }
@@ -50,8 +55,8 @@ do_spl_shadow_feed() {
     [[ "$rhost" == *:* ]] && { rroot="${rhost#*:}"; rhost="${rhost%%:*}"; }
     [[ "$r" == *=* && "$rbox" =~ ^[a-z0-9][a-z0-9-]{0,39}$ && -n "$rhost" ]] || {
       do_log "FATAL SHADOW_FEED_REMOTES: '$r' is not <box>=<ssh host>[:<spool root>]"; return 2; }
-    if ! spl_shadow_feed_pull "$rhost" "$rroot" "$stage/$rbox" "${ids[@]}"; then
-      echo "WARN $rbox ($rhost) is unreachable: its mirror keeps the last pass"; continue
+    if ! err="$(spl_shadow_feed_pull "$rhost" "$rroot" "$stage/$rbox" "${ids[@]}" 2>&1)"; then
+      echo "WARN $rbox ($rhost) pull failed: ${err:-no error text}; its mirror keeps the last pass"; continue
     fi
     out="$(python3 "$py" "$stage/$rbox" "$feed/$rbox" "${ids[@]}")" || { do_log "FATAL the mirror of $rbox failed: $out"; rc=1; continue; }
     echo "$rbox $out"; sum="$sum; $rbox ${out#OK shadow feed }"
@@ -65,15 +70,21 @@ do_spl_shadow_feed() {
 # the stage, which only this user can read (it holds the attachment refs
 # until the mirror drops them). -k follows an <id> -> <id>@<box> dir symlink;
 # an agent the far box does not have is simply absent. A failed pull leaves
-# the stage as it was.
+# the stage as it was and prints its cause on stdout: rsync's last error line
+# ("Permission denied" on the far spool, a refused or timed-out ssh) and its
+# exit code.
 spl_shadow_feed_pull() {
-  local host="$1" rroot="$2" stage="$3" a; shift 3
+  local host="$1" rroot="$2" stage="$3" a out rc; shift 3
   local -a filt=()
   for a in "$@"; do
     filt+=("--include=/$a/" "--include=/$a/inbox/" "--include=/$a/outbox/" "--include=/$a/archive/"
       "--include=/$a/*/*.json" "--include=/$a/*/*.md")
   done
-  mkdir -p "$stage" && chmod 0700 "${stage%/*}" "$stage" || return 1
-  timeout 300 rsync -a -k --delete "${filt[@]}" --exclude='*' \
-    -e "ssh -o BatchMode=yes -o ConnectTimeout=10" "$host:$rroot/" "$stage/" 2>/dev/null
+  mkdir -p "$stage" && chmod 0700 "${stage%/*}" "$stage" || { echo "cannot create the stage $stage"; return 1; }
+  out="$(timeout 300 rsync -a -k --delete "${filt[@]}" --exclude='*' --rsync-path="${SHADOW_FEED_REMOTE_RSYNC:-rsync}" \
+    -e "ssh -o BatchMode=yes -o ConnectTimeout=10" "$host:$rroot/" "$stage/" 2>&1)" && return 0
+  rc=$?
+  out="$(grep -v '^rsync error:' <<<"$out" | grep -v '^[[:space:]]*$' | tail -1)"
+  echo "rsync rc $rc: ${out:-no error text}"
+  return 1
 }

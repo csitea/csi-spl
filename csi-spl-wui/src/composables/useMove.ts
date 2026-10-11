@@ -40,6 +40,148 @@ let toastSeq = 0
 /** The move logic itself loads on the first move or move frame (specs/027 initial-JS budget). */
 const loadApply = () => import('~/utils/move-apply.mjs')
 
+type SpoolApi = ReturnType<typeof useSpoolApi>
+type I18n = ReturnType<typeof useNuxtApp>['$i18n']
+
+/** Apply a move / merge / promote frame (this tab's answer or another tab's) to every store. */
+async function dispatchFrame(api: SpoolApi, frame: unknown) {
+  const type = (frame as { type?: string } | null)?.type
+  const move = type === 'topic_moved' || type === 'message_moved'
+  const merge = type === 'topic_merged' || type === 'topic_unmerged'
+  const promote = type === 'topic_promoted' || type === 'topic_demoted'
+  if (!move && !merge && !promote) return
+  const m = await loadApply()
+  const getTopic = (id: string) => withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: 30 }))
+  const f = move
+    ? m.applyMoveToStores(frame, {
+      channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
+      viewer: useViewerStore(), topic: useTopicStore(), getTopic,
+    })
+    : merge
+      ? m.applyMergeToStores(frame, {
+        channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
+        viewer: useViewerStore(), getTopic,
+      })
+      : m.applyPromoteToStores(frame, {
+        channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
+        viewer: useViewerStore(), getTopic,
+      })
+  if (f) for (const fn of movedListeners) fn(f as unknown as MoveFrame, m)
+}
+
+/** The frame type a move / merge answer stands for (applied before the socket copy). */
+function answerFrameType(kind: unknown): string {
+  if (kind === 'message') return 'message_moved'
+  if (kind === 'merge') return 'topic_merged'
+  if (kind === 'unmerge') return 'topic_unmerged'
+  if (kind === 'promote') return 'topic_promoted'
+  if (kind === 'demote') return 'topic_demoted'
+  return 'topic_moved'
+}
+
+/** A pane that holds rows of its own (TopicPane) hears every move here. */
+function onMoved(fn: MovedListener) {
+  movedListeners.add(fn)
+  return () => movedListeners.delete(fn)
+}
+
+function dismiss() {
+  toast.value = null
+}
+
+function show(text: string, undo: MoveRequest | null) {
+  /* CLE-77871: the window (MOVE_UNDO_MS, 3 s without Undo) is the
+     snackbar's own clock now (MoveUndoToast), so it holds while touched */
+  toast.value = { id: ++toastSeq, text, undo, busy: false }
+}
+
+function callMove(api: SpoolApi, req: MoveRequest): Promise<MoveAnswer> {
+  if (req.kind === 'topic') return api.moveTopic(req.msgId, req.toChannel)
+  if (req.kind === 'message') return api.moveMessage(req.msgId, req.toTask)
+  if (req.kind === 'merge') return api.mergeTopic(req.msgId, req.toTask)
+  if (req.kind === 'promote') return api.promoteTopic(req.msgId)
+  if (req.kind === 'promote-undo') return api.promoteUndo(req.msgId, req.fromTask, req.msgIds)
+  return api.mergeUndo(req.msgId, req.fromTask, req.msgIds)
+}
+
+/** The Undo target of a fresh answer, or null: a merge undoes with its whole set. */
+function backOf(req: MoveRequest, answer: MoveAnswer): MoveRequest | null {
+  const undo = (answer && answer.undo) as { to_channel?: string, to_task?: string, from_task?: string, msg_ids?: string[] } | undefined
+  if (req.kind === 'merge') {
+    return undo && undo.from_task ? { kind: 'merge-undo', msgId: req.msgId, fromTask: undo.from_task, msgIds: undo.msg_ids || [] } : null
+  }
+  if (req.kind === 'promote') {
+    return undo && undo.from_task ? { kind: 'promote-undo', msgId: req.msgId, fromTask: undo.from_task, msgIds: undo.msg_ids || [] } : null
+  }
+  if (undo && undo.to_channel) return { kind: 'topic', msgId: req.msgId, toChannel: undo.to_channel }
+  if (undo && undo.to_task) return { kind: 'message', msgId: req.msgId, toTask: undo.to_task }
+  return null
+}
+
+/** The toast line for a fresh move / merge; `title` names the target topic. */
+function doneText(i18n: I18n, req: MoveRequest, answer: MoveAnswer, title: string): string {
+  if (req.kind === 'merge') return title ? i18n.t('feed.merge.done', { title }) : i18n.t('feed.merge.done_plain')
+  if (req.kind === 'promote') return i18n.t('feed.promote.done')
+  if (req.kind === 'topic') return i18n.t('feed.move.done_channel', { channel: String(answer?.channel || req.toChannel) })
+  return title ? i18n.t('feed.move.done_topic', { title }) : i18n.t('feed.move.done_topic_plain')
+}
+
+/** The toast line once an Undo went through. */
+function undoneText(i18n: I18n, kind: MoveRequest['kind']): string {
+  return i18n.t(kind === 'merge-undo' ? 'feed.merge.undone' : kind === 'promote-undo' ? 'feed.promote.undone' : 'feed.move.undone')
+}
+
+/** A refusal goes to the error snackbar with the hub's token. */
+async function failMove(i18n: I18n, e: unknown, kind: string = '') {
+  const token = (e as { token?: string } | null)?.token
+  const m = await loadApply()
+  const merge = kind === 'merge' || kind === 'merge-undo'
+  const promote = kind === 'promote' || kind === 'promote-undo'
+  const key = promote ? m.promoteErrorKey(e) : merge ? m.mergeErrorKey(e) : m.moveErrorKey(e)
+  noteError({ source: 'move', name: merge ? 'Merge' : promote ? 'Promote' : 'Move', message: i18n.t(key), code: token, error: e })
+}
+
+/* 714c7028: a topic card dropped on another topic opens a confirm (the merge
+   folds the whole source topic in); MergeConfirmDialog reads mergeAsk. */
+function askMerge(a: MergeAsk) { mergeAsk.value = a }
+function cancelMerge() { mergeAsk.value = null }
+
+/*
+ * SPL-1134 (specs/045 §3.9) - the pointer drag from a card's handle. The
+ * card feeds the gesture (utils/move-drag.mjs createHandleDrag); this holds
+ * the one drag of the tab: the row under the pointer (`over`, read from the
+ * element there, so EXACTLY one row can be lit), a small ghost with the
+ * title, and the drop. A drop on nothing, or on a row that may not take it,
+ * moves nothing.
+ */
+function lift(d: MoveDrag, label: string) {
+  drag.value = d
+  over.value = null
+  ghost?.remove()
+  ghost = document.createElement('div')
+  ghost.className = 'move-ghost'
+  ghost.setAttribute('data-testid', 'move-ghost')
+  ghost.setAttribute('aria-hidden', 'true')
+  ghost.textContent = label.length > 60 ? label.slice(0, 59) + '…' : label
+  document.body.appendChild(ghost)
+}
+
+function track(x: number, y: number) {
+  if (!drag.value) return
+  if (ghost) ghost.style.transform = `translate(${Math.round(x + 14)}px, ${Math.round(y + 10)}px)`
+  const hit = moveHit(document.elementFromPoint(x, y), drag.value)
+  if (!sameHit(hit, over.value)) over.value = hit
+  if (ghost) ghost.dataset.state = hit ? (hit.ok ? 'ok' : 'denied') : ''
+}
+
+/** What a drop of `d` on `hit` does: a move, a promote, or the merge confirm. */
+function dropOn(d: MoveDrag, hit: MoveHit, run: (req: MoveRequest, title?: string) => Promise<boolean>) {
+  if (d.kind === 'topic' && hit.kind === 'channel') void run({ kind: 'topic', msgId: d.msgId, toChannel: hit.id })
+  else if (d.kind === 'topic' && hit.kind === 'card') askMerge({ msgId: d.msgId, toTask: hit.id, sourceTitle: d.title || '', targetTitle: hit.title })
+  else if (d.kind === 'message' && hit.kind === 'card') void run({ kind: 'message', msgId: d.msgId, toTask: hit.id }, hit.title)
+  else if (d.kind === 'message' && hit.kind === 'topics') void run({ kind: 'promote', msgId: d.msgId })
+}
+
 /**
  * SPL-1024 (specs/045) - move a topic to a channel, a reply to a topic.
  *
@@ -54,106 +196,19 @@ export function useMove() {
   const i18n = useNuxtApp().$i18n
 
   async function dispatch(frame: unknown) {
-    const type = (frame as { type?: string } | null)?.type
-    const move = type === 'topic_moved' || type === 'message_moved'
-    const merge = type === 'topic_merged' || type === 'topic_unmerged'
-    const promote = type === 'topic_promoted' || type === 'topic_demoted'
-    if (!move && !merge && !promote) return
-    const m = await loadApply()
-    const getTopic = (id: string) => withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: 30 }))
-    const f = move
-      ? m.applyMoveToStores(frame, {
-        channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
-        viewer: useViewerStore(), topic: useTopicStore(), getTopic,
-      })
-      : merge
-        ? m.applyMergeToStores(frame, {
-          channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
-          viewer: useViewerStore(), getTopic,
-        })
-        : m.applyPromoteToStores(frame, {
-          channel: useChannelStore(), main: useLiveFeed('main'), pane: useLiveFeed('pane'),
-          viewer: useViewerStore(), getTopic,
-        })
-    if (f) for (const fn of movedListeners) fn(f as unknown as MoveFrame, m)
-  }
-
-  /** The frame type a move / merge answer stands for (applied before the socket copy). */
-  function answerFrameType(kind: unknown): string {
-    if (kind === 'message') return 'message_moved'
-    if (kind === 'merge') return 'topic_merged'
-    if (kind === 'unmerge') return 'topic_unmerged'
-    if (kind === 'promote') return 'topic_promoted'
-    if (kind === 'demote') return 'topic_demoted'
-    return 'topic_moved'
-  }
-
-  /** A pane that holds rows of its own (TopicPane) hears every move here. */
-  function onMoved(fn: MovedListener) {
-    movedListeners.add(fn)
-    return () => movedListeners.delete(fn)
-  }
-
-  function dismiss() {
-    toast.value = null
-  }
-
-  function show(text: string, undo: MoveRequest | null) {
-    /* CLE-77871: the window (MOVE_UNDO_MS, 3 s without Undo) is the
-       snackbar's own clock now (MoveUndoToast), so it holds while touched */
-    toast.value = { id: ++toastSeq, text, undo, busy: false }
-  }
-
-  function call(req: MoveRequest): Promise<MoveAnswer> {
-    if (req.kind === 'topic') return api.moveTopic(req.msgId, req.toChannel)
-    if (req.kind === 'message') return api.moveMessage(req.msgId, req.toTask)
-    if (req.kind === 'merge') return api.mergeTopic(req.msgId, req.toTask)
-    if (req.kind === 'promote') return api.promoteTopic(req.msgId)
-    if (req.kind === 'promote-undo') return api.promoteUndo(req.msgId, req.fromTask, req.msgIds)
-    return api.mergeUndo(req.msgId, req.fromTask, req.msgIds)
-  }
-
-  /** The Undo target of a fresh answer, or null: a merge undoes with its whole set. */
-  function backOf(req: MoveRequest, answer: MoveAnswer): MoveRequest | null {
-    const undo = (answer && answer.undo) as { to_channel?: string, to_task?: string, from_task?: string, msg_ids?: string[] } | undefined
-    if (req.kind === 'merge') {
-      return undo && undo.from_task ? { kind: 'merge-undo', msgId: req.msgId, fromTask: undo.from_task, msgIds: undo.msg_ids || [] } : null
-    }
-    if (req.kind === 'promote') {
-      return undo && undo.from_task ? { kind: 'promote-undo', msgId: req.msgId, fromTask: undo.from_task, msgIds: undo.msg_ids || [] } : null
-    }
-    if (undo && undo.to_channel) return { kind: 'topic', msgId: req.msgId, toChannel: undo.to_channel }
-    if (undo && undo.to_task) return { kind: 'message', msgId: req.msgId, toTask: undo.to_task }
-    return null
-  }
-
-  /** The toast line for a fresh move / merge; `title` names the target topic. */
-  function doneText(req: MoveRequest, answer: MoveAnswer, title: string): string {
-    if (req.kind === 'merge') return title ? i18n.t('feed.merge.done', { title }) : i18n.t('feed.merge.done_plain')
-    if (req.kind === 'promote') return i18n.t('feed.promote.done')
-    if (req.kind === 'topic') return i18n.t('feed.move.done_channel', { channel: String(answer?.channel || req.toChannel) })
-    return title ? i18n.t('feed.move.done_topic', { title }) : i18n.t('feed.move.done_topic_plain')
-  }
-
-  async function fail(e: unknown, kind: string = '') {
-    const token = (e as { token?: string } | null)?.token
-    const m = await loadApply()
-    const merge = kind === 'merge' || kind === 'merge-undo'
-    const promote = kind === 'promote' || kind === 'promote-undo'
-    const key = promote ? m.promoteErrorKey(e) : merge ? m.mergeErrorKey(e) : m.moveErrorKey(e)
-    noteError({ source: 'move', name: merge ? 'Merge' : promote ? 'Promote' : 'Move', message: i18n.t(key), code: token, error: e })
+    await dispatchFrame(api, frame)
   }
 
   /** Move / merge; `title` names the target topic in the toast (a channel names itself). */
   async function run(req: MoveRequest, title = ''): Promise<boolean> {
     drag.value = null
     try {
-      const answer = await call(req)
+      const answer = await callMove(api, req)
       await dispatch({ ...answer, type: answerFrameType(answer.kind) })
-      show(doneText(req, answer, title), backOf(req, answer))
+      show(doneText(i18n, req, answer, title), backOf(req, answer))
       return true
     } catch (e) {
-      await fail(e, req.kind)
+      await failMove(i18n, e, req.kind)
       return false
     }
   }
@@ -164,54 +219,22 @@ export function useMove() {
     if (!t || !t.undo || t.busy) return
     toast.value = { ...t, busy: true }
     try {
-      const answer = await call(t.undo)
+      const answer = await callMove(api, t.undo)
       await dispatch({ ...answer, type: answerFrameType(answer.kind) })
-      show(i18n.t(t.undo.kind === 'merge-undo' ? 'feed.merge.undone' : t.undo.kind === 'promote-undo' ? 'feed.promote.undone' : 'feed.move.undone'), null)
+      show(undoneText(i18n, t.undo.kind), null)
       /* CLE-77871: the card that went back is selected again, as before */
       void reselectRow(t.undo.msgId)
     } catch (e) {
       dismiss()
-      await fail(e, t.undo.kind)
+      await failMove(i18n, e, t.undo.kind)
     }
   }
 
-  /* 714c7028: a topic card dropped on another topic opens a confirm (the merge
-     folds the whole source topic in); MergeConfirmDialog reads mergeAsk. */
-  function askMerge(a: MergeAsk) { mergeAsk.value = a }
-  function cancelMerge() { mergeAsk.value = null }
   async function confirmMerge(): Promise<boolean> {
     const a = mergeAsk.value
     mergeAsk.value = null
     if (!a) return false
     return run({ kind: 'merge', msgId: a.msgId, toTask: a.toTask }, a.targetTitle)
-  }
-
-  /*
-   * SPL-1134 (specs/045 §3.9) - the pointer drag from a card's handle. The
-   * card feeds the gesture (utils/move-drag.mjs createHandleDrag); this holds
-   * the one drag of the tab: the row under the pointer (`over`, read from the
-   * element there, so EXACTLY one row can be lit), a small ghost with the
-   * title, and the drop. A drop on nothing, or on a row that may not take it,
-   * moves nothing.
-   */
-  function lift(d: MoveDrag, label: string) {
-    drag.value = d
-    over.value = null
-    ghost?.remove()
-    ghost = document.createElement('div')
-    ghost.className = 'move-ghost'
-    ghost.setAttribute('data-testid', 'move-ghost')
-    ghost.setAttribute('aria-hidden', 'true')
-    ghost.textContent = label.length > 60 ? label.slice(0, 59) + '…' : label
-    document.body.appendChild(ghost)
-  }
-
-  function track(x: number, y: number) {
-    if (!drag.value) return
-    if (ghost) ghost.style.transform = `translate(${Math.round(x + 14)}px, ${Math.round(y + 10)}px)`
-    const hit = moveHit(document.elementFromPoint(x, y), drag.value)
-    if (!sameHit(hit, over.value)) over.value = hit
-    if (ghost) ghost.dataset.state = hit ? (hit.ok ? 'ok' : 'denied') : ''
   }
 
   /** End the drag; `drop` false (Escape, cancel) moves nothing. */
@@ -223,10 +246,7 @@ export function useMove() {
     ghost?.remove()
     ghost = null
     if (!drop || !d || !hit || !hit.ok) return
-    if (d.kind === 'topic' && hit.kind === 'channel') void run({ kind: 'topic', msgId: d.msgId, toChannel: hit.id })
-    else if (d.kind === 'topic' && hit.kind === 'card') askMerge({ msgId: d.msgId, toTask: hit.id, sourceTitle: d.title || '', targetTitle: hit.title })
-    else if (d.kind === 'message' && hit.kind === 'card') void run({ kind: 'message', msgId: d.msgId, toTask: hit.id }, hit.title)
-    else if (d.kind === 'message' && hit.kind === 'topics') void run({ kind: 'promote', msgId: d.msgId })
+    dropOn(d, hit, run)
   }
 
   return { drag, over, toast, mergeAsk, dispatch, onMoved, run, undo, dismiss, lift, track, land, askMerge, cancelMerge, confirmMerge }

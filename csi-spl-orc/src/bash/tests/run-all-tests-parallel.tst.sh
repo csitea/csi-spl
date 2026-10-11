@@ -12,6 +12,8 @@
 #   Timing guard: the run ends with the slowest files, their wall and CPU;
 #   ORC_TEST_SHARD=<k>/<m> splits the files with no file lost or run twice,
 #   and no test file inherits it (a test that runs the suite sees all of it).
+#   A suite stopped by TERM prints every finished file with its verdict and
+#   '=== stopped: N of M files finished, K not run', and exits non-zero.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -82,6 +84,44 @@ done
 grep -qx 'out-d shard=unset' "$T/outs2" && pass "a test file does not inherit ORC_TEST_SHARD" || fail "ORC_TEST_SHARD leaks into a test" "$(cat "$T/outs2")"
 ORC_TEST_SHARD=3/2 bash "$T/run-all-tests.sh" >"$T/outb" 2>&1; rcb=$?
 [ "$rcb" -eq 2 ] && pass "a bad ORC_TEST_SHARD is refused (rc 2)" || fail "a bad ORC_TEST_SHARD" "rc=$rcb $(cat "$T/outb")"
+
+# Round 8 row 02, red control: a stopped suite prints what it proved. File 1
+# blocks (until released, at most 30 s), files 2-4 pass at once; TERM once
+# 2-4 are finished (their <i>.rc in the runner's work dir, under TMPDIR) ->
+# their 3 verdicts and 'stopped: 3 of 4'. The old runner printed none.
+# stop_suite <dir> <expected line>: run <dir>'s suite, TERM it, check it
+stop_suite() {
+  local d=$1 want=$2 pid rc _
+  mkdir -p "$d/tmp"
+  TMPDIR="$d/tmp" env "$JOBS_VAR=4" bash "$d/run-all-tests.sh" >"$d/out" 2>&1 & pid=$!
+  for _ in $(seq 300); do
+    compgen -G "$d/tmp/*/3.rc" >/dev/null && compgen -G "$d/tmp/*/2.rc" >/dev/null \
+      && compgen -G "$d/tmp/*/1.rc" >/dev/null && break
+    sleep 0.1
+  done
+  kill -TERM "$pid"; wait "$pid"; rc=$?
+  : >"$d/release"
+  [ "$rc" -ne 0 ] && pass "a stopped suite exits non-zero ($d)" || fail "a stopped suite exits non-zero" "rc=$rc"
+  [ "$(grep -E '^=== [a-z]+-[a-z]+\.tst\.sh$' "$d/out" | tr '\n' ' ')" = "=== b-pass.tst.sh === c-pass.tst.sh === d-pass.tst.sh " ] \
+    && [ "$(grep -c '^PASS: [bcd]$' "$d/out")" -eq 3 ] \
+    && pass "a stopped suite prints the 3 finished files in suite order, each with its verdict" \
+    || fail "a stopped suite prints the finished files" "$(cat "$d/out")"
+  grep -qx "$want" "$d/out" && pass "the stop line reads '$want'" || fail "the stop line" "$(cat "$d/out")"
+  [ -z "$(find "$d/tmp" -mindepth 1 -type d)" ] && pass "the stopped suite still removes its work dir" \
+    || fail "the work dir is left" "$(find "$d/tmp" -mindepth 1 -type d)"
+}
+S=$T/stop; mkdir -p "$S"
+cp "$RUNNER" "$S/run-all-tests.sh"
+printf '#!/usr/bin/env bash\nfor _ in $(seq 300); do [ -e "%s/release" ] && break; sleep 0.1; done\necho "PASS: a"\n' "$S" >"$S/a-block.tst.sh"
+for f in b c d; do printf '#!/usr/bin/env bash\necho "PASS: %s"\n' "$f" >"$S/$f-pass.tst.sh"; done
+stop_suite "$S" '=== stopped: 3 of 4 files finished, 0 not run'
+# a '# serial' file starts only after the pool: it is counted as not run
+S2=$T/stop2; mkdir -p "$S2"
+cp "$S/run-all-tests.sh" "$S2/"
+sed "s#$S/release#$S2/release#" "$S/a-block.tst.sh" >"$S2/a-block.tst.sh"
+cp "$S"/[bcd]-pass.tst.sh "$S2/"
+printf '#!/usr/bin/env bash\n# serial\necho "PASS: e"\n' >"$S2/e-serial.tst.sh"
+stop_suite "$S2" '=== stopped: 3 of 5 files finished, 1 not run'
 
 echo "-- run-all-tests-parallel.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

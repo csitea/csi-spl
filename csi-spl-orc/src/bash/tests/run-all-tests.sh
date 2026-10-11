@@ -134,23 +134,39 @@ else
     echo "$rc" >"$work/$1.rc.tmp"
     echo "$t0 $EPOCHREALTIME $(awk '{ print $1 + $2 }' "$work/$1.cpu") $(basename "${files[$1]}")" >"$work/$1.sec"
     mv "$work/$1.rc.tmp" "$work/$1.rc" ) & }
-  next=0
-  flush() {
-    while (( next < n )) && [[ -f "$work/$next.rc" ]]; do
-      echo "=== $(basename "${files[$next]}")"
-      cat "$work/$next.out"
-      [[ "$(cat "$work/$next.rc")" == 0 ]] || { echo "FAILED: $(basename "${files[$next]}")"; fails=$((fails + 1)); }
-      cat "$work/$next.sec" >>"$times"
-      next=$((next + 1))
-    done
+  next=0 started=0
+  # show <i>: print finished file i: its header, output and verdict
+  show() {
+    echo "=== $(basename "${files[$1]}")"
+    cat "$work/$1.out"
+    [[ "$(cat "$work/$1.rc")" == 0 ]] || { echo "FAILED: $(basename "${files[$1]}")"; fails=$((fails + 1)); }
+    cat "$work/$1.sec" >>"$times"
   }
+  flush() {
+    while (( next < n )) && [[ -f "$work/$next.rc" ]]; do show "$next"; next=$((next + 1)); done
+  }
+  # Round 8 row 02: a stopped or timed-out shard printed 1236 of 5288
+  # verdicts (23 %): flush waits in suite order for the slowest file, and the
+  # EXIT trap removed $work with the finished files unprinted. On INT/TERM
+  # print every finished file not yet printed, in suite order, then the count;
+  # the EXIT trap removes $work after that.
+  stopped() {
+    local i done_n=$next
+    for ((i = next; i < n; i++)); do
+      [[ -f "$work/$i.rc" ]] || continue
+      show "$i"; done_n=$((done_n + 1))
+    done
+    echo "=== stopped: $done_n of $n files finished, $((n - started)) not run"
+    exit 130
+  }
+  trap stopped INT TERM
   running=0
   for ((i = 0; i < ${#pool[@]}; i++)); do
     if (( running >= njobs )); then wait -n; running=$((running - 1)); flush; fi
-    start "$i"; running=$((running + 1))
+    start "$i"; started=$((i + 1)) running=$((running + 1))
   done
   wait; flush
-  for ((i = ${#pool[@]}; i < n; i++)); do start "$i"; wait; flush; done
+  for ((i = ${#pool[@]}; i < n; i++)); do start "$i"; started=$((i + 1)); wait; flush; done
 fi
 echo "=== $((n - fails))/$n test files passed"
 slowest="${ORC_TEST_SLOWEST:-10}"

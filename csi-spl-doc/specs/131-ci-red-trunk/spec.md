@@ -128,19 +128,33 @@ dispatch sweep cron runs the action every 10 min.
   CONTROL: with the state file disabled -> 3 sends for 3 ticks, so the key is
   what removes the duplicates.
 
-### C3. orc hermetic: 2 shards -> 4
+### C3. orc hermetic: timeout 20 -> 30 min (decided after measuring)
 
-orc hermetic timed out 8 times in 11 started runs. Its median of 918 s
-against a 1,200 s limit is 1.3x headroom, and a loaded runner doubles the
-time. Split the job into 4 shards by the file timings the suite already
-logs, so that each shard's median is <= 50 % of its timeout.
+orc hermetic timed out 8 times in 11 started runs (section 1.3).
 
-- Files: `.github/workflows/10_ci-quality.yml` (the `orc-suite` matrix only),
-  plus the orc runner's shard selector if it needs a 4-way split.
-- Test (orc, reads the workflow): the `orc-suite` matrix has 4 shards, and the
-  shard selector puts every `*.tst.sh` in exactly one shard (files over all
-  shards == count of `*.tst.sh`, no duplicates). CONTROL: the 2-shard matrix
-  fails the shard-count assert.
+Drafted as 2 -> 4 shards, then as 2 time-balanced shards. Both were
+measured first and dropped:
+
+- **The shards are not unbalanced.** The first draft's "918 s vs 520 s"
+  medians included jobs that gate-fail-fast stopped early (32 s, 126 s).
+  Per step, over the 18 orc hermetic jobs in the window, the test step ran
+  **850..1,180 s on both shards** whenever it ran to the end. A full local
+  run (342 files, tree `7c025fb4d`, `ORC_TEST_JOBS=6`) sums 4,874 s wall:
+  the every-2nd-file split is 3 % apart, so a balanced split is no faster.
+- **The runner box is CPU-starved.** C4 shows 8 of 15 jobs at or over 75 %
+  of their timeout. The box the six runners share with the agent fleet
+  (16 vCPU) read load 25..36 and `/proc/pressure/cpu` some avg300 = 67 %.
+  Four shards would add 2 runner jobs per run (15 -> 17) to that box.
+
+Decided (dispatch holder, orchestrator, 2026-10-11): raise `orc-suite`
+`timeout-minutes` from 20 to 30. A timed-out job reads "cancelled" and
+gives no verdict; at 30 min the measured worst case (1,180 s step + ~100 s
+setup) is 71 % of the cap. No extra CPU. The runner box itself is the
+owner's call (taken there by the dispatch holder).
+
+- Files: `.github/workflows/10_ci-quality.yml` (`orc-suite` only).
+- Test (`gate10-orc-timeout.tst.sh`): `orc-suite` declares 30; the worst
+  case is <= 75 % of it. CONTROL: the old 20 min cap fails that check.
 
 ### C4. Print the timeout headroom, so the next timeout is seen coming
 
@@ -180,6 +194,8 @@ The fix: the test unsets `GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE` first.
 ## 4. Done when
 
 - C1..C5 have landed with their tests and controls green in wf 10.
+- orc hermetic: no timeout in the next 20 started runs, and C4 shows it
+  under 75 %.
 - Re-measured over the next 100 master runs: every timeout shows in the
   report, every red job has exactly one note, and the note goes out <= 15 min
   after the first finished red run.

@@ -675,6 +675,12 @@ jobs:
   # Two shards (ORC_TEST_SHARD=<k>/2, every 2nd file): one job reached the
   # 20-min cap with 266 of 280 files done (runs 37851965128, 37857115383;
   # green runs before took 16-17 min). Each shard prints its 10 slowest files.
+  # 30 min, not 20 (spec 131 C3): on the shared runner box (CPU pressure
+  # 67 %) the test step ran 850..1,180 s on BOTH shards whenever it ran to the
+  # end, and timed out 8 times in 11 started master runs (2026-10-11); a
+  # timeout reads "cancelled" and gives no verdict. Time-balancing the shards
+  # was measured first and dropped: 3 % apart already. More shards add CPU to
+  # the same starved box. Gate: gate10-orc-timeout.tst.sh.
   # ===========================================================================
   orc-suite:
     name: "orc: hermetic action tests (stubbed gcloud/curl/docker) ${{ matrix.shard }}/2"
@@ -685,7 +691,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2]
-    timeout-minutes: 20
+    timeout-minutes: 30
     # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
     # in the run ends this one, so a red gate frees its slot.
     permissions:

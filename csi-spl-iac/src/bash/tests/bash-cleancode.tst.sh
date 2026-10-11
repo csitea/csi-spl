@@ -17,7 +17,6 @@ MAX_LINES=80
 # <file> <function> <ceiling>: the ceiling is its length on 2026-10-10 (r5-06).
 LONG="
   csi-spl-iac/src/bash/run/check-pre-push.func.sh do_check_pre_push 137
-  csi-spl-iac/src/bash/run/check-pre-push-lint.func.sh _ppl_run_one 109
   csi-spl-iac/src/bash/run/gcp-001-create-project.func.sh do_gcp_001_create_project 111
   csi-spl-iac/src/bash/run/gcp-002-create-project-service-account.func.sh do_gcp_002_create_project_service_account 149
   csi-spl-iac/src/bash/run/gcp-002-delete-project-service-account.func.sh do_gcp_002_delete_project_service_account 133
@@ -30,7 +29,6 @@ LONG="
 
   csi-spl-iac/src/bash/run/tf-init.func.sh do_tf_init 95
   csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh do_spl_cloud_cnf 96
-  csi-spl-orc/src/bash/features/spawn-agents/lib/spool-notify.inc.sh spool_notify_poke 110
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh spawn_main 185
   csi-spl-orc/src/bash/run/run.sh do_log 143
   csi-spl-orc/src/bash/run/run.sh execute_step 99

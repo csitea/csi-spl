@@ -316,41 +316,34 @@ _ppl_ruff() {  # <tree> <file.py>...
   return "$rc"
 }
 
-# A lint part on <tree>: rc 0 clean, non-zero findings. On the base tree it
-# scans only the selected files that exist there; none -> clean (so a finding
-# in a NEW file is never mistaken for a pre-existing one).
-_ppl_run_one() {  # <scanner> <tree>
-  local sc="$1" tree="$2" files rc=0 f
-  files="$(_ppl_files_env "$tree" "$sc")"
-  if [[ "${_PPL_FILES[$sc]:-}" != ALL && -z "$files" && "$sc" != lint-migration ]]; then return 0; fi
-  case "$sc" in
-    lint-syntax)
-      local -a cfgs=()
-      while IFS= read -r f; do
-        case "$f" in
-          csi-spl-orc/Makefile|csi-spl-orc/*.mk)
-            make -C "$tree/csi-spl-orc" -n help >/dev/null || { echo "SYNTAX make -n: $f"; rc=1; } ;;
-          *.sh)          bash -n "$tree/$f" || { echo "SYNTAX bash -n: $f"; rc=1; } ;;
-          *.yml|*.yaml|*.json|*.toml) cfgs+=("$f") ;;
-          *)             bash -n "$tree/$f" || { echo "SYNTAX bash -n: $f"; rc=1; } ;;
-        esac
-      done <<<"$files"
-      if [[ "${#cfgs[@]}" -gt 0 ]]; then
-        ( cd "$tree" && python3 "$(_ppl_scripts)/config-syntax-check.py" "${cfgs[@]}" ) || rc=1
-      fi ;;
-    lint-migration)  _ppl_migration "$tree" || rc=$? ;;
-    lint-compose)
-      while IFS= read -r f; do
-        ( cd "$tree/$(dirname "$f")" && docker compose -f "${f##*/}" config -q --no-interpolate ) \
-          || { echo "COMPOSE schema: $f"; rc=1; }
-      done <<<"$files" ;;
-    lint-py)
-      local -a pys=() hds=()
-      while IFS= read -r f; do
-        if [[ "$f" == *.py ]]; then pys+=("$f"); else hds+=("$f"); fi
-      done <<<"$files"
-      if [[ "${#pys[@]}" -gt 0 ]]; then
-        ( cd "$tree" && python3 -c '
+# lint-syntax on <tree>: make -n, bash -n, then the config parsers. rc 1 on a finding.
+_ppl_syntax() {  # <tree> <files>
+  local tree="$1" files="$2" rc=0 f
+  local -a cfgs=()
+  while IFS= read -r f; do
+    case "$f" in
+      csi-spl-orc/Makefile|csi-spl-orc/*.mk)
+        make -C "$tree/csi-spl-orc" -n help >/dev/null || { echo "SYNTAX make -n: $f"; rc=1; } ;;
+      *.sh)          bash -n "$tree/$f" || { echo "SYNTAX bash -n: $f"; rc=1; } ;;
+      *.yml|*.yaml|*.json|*.toml) cfgs+=("$f") ;;
+      *)             bash -n "$tree/$f" || { echo "SYNTAX bash -n: $f"; rc=1; } ;;
+    esac
+  done <<<"$files"
+  if [[ "${#cfgs[@]}" -gt 0 ]]; then
+    ( cd "$tree" && python3 "$(_ppl_scripts)/config-syntax-check.py" "${cfgs[@]}" ) || rc=1
+  fi
+  return "$rc"
+}
+
+# lint-py on <tree>: compile, ruff on the .py, the heredoc check on the rest. rc 1 on a finding.
+_ppl_py() {  # <tree> <files>
+  local tree="$1" files="$2" rc=0 f
+  local -a pys=() hds=()
+  while IFS= read -r f; do
+    if [[ "$f" == *.py ]]; then pys+=("$f"); else hds+=("$f"); fi
+  done <<<"$files"
+  if [[ "${#pys[@]}" -gt 0 ]]; then
+    ( cd "$tree" && python3 -c '
 import sys
 bad = 0
 for f in sys.argv[1:]:
@@ -360,25 +353,50 @@ for f in sys.argv[1:]:
         bad += 1
         print("%s:%s: %s" % (f, e.lineno, e.msg))
 sys.exit(1 if bad else 0)' "${pys[@]}" ) || rc=1
-        _ppl_ruff "$tree" "${pys[@]}" || rc=1
-      fi
-      if [[ "${#hds[@]}" -gt 0 ]]; then
-        ( cd "$tree" && python3 "$(_ppl_scripts)/py-heredoc-check.py" "${hds[@]}" ) || rc=1
-      fi ;;
-    lint-tf)
-      local -a tfs=(); local terr; terr="$(mktemp)"
+    _ppl_ruff "$tree" "${pys[@]}" || rc=1
+  fi
+  if [[ "${#hds[@]}" -gt 0 ]]; then
+    ( cd "$tree" && python3 "$(_ppl_scripts)/py-heredoc-check.py" "${hds[@]}" ) || rc=1
+  fi
+  return "$rc"
+}
+
+# lint-tf on <tree>: the tfvars parse, then terraform fmt on the .tf. rc 1 on a finding.
+_ppl_tf() {  # <tree> <files>
+  local tree="$1" files="$2" rc=0 f
+  local -a tfs=(); local terr; terr="$(mktemp)"
+  while IFS= read -r f; do
+    if [[ "$f" == *.tfvars ]]; then
+      terraform fmt - <"$tree/$f" >/dev/null 2>"$terr" \
+        || { echo "HCL parse: $f"; sed 's/^/  /' "$terr"; rc=1; }
+    else
+      tfs+=("$f")
+    fi
+  done <<<"$files"
+  rm -f "$terr"
+  if [[ "${#tfs[@]}" -gt 0 ]]; then
+    ( cd "$tree" && terraform fmt -check -diff "${tfs[@]}" ) || { echo "terraform fmt: run 'terraform fmt' on the files above"; rc=1; }
+  fi
+  return "$rc"
+}
+
+# A lint part on <tree>: rc 0 clean, non-zero findings. On the base tree it
+# scans only the selected files that exist there; none -> clean (so a finding
+# in a NEW file is never mistaken for a pre-existing one).
+_ppl_run_one() {  # <scanner> <tree>
+  local sc="$1" tree="$2" files rc=0 f
+  files="$(_ppl_files_env "$tree" "$sc")"
+  if [[ "${_PPL_FILES[$sc]:-}" != ALL && -z "$files" && "$sc" != lint-migration ]]; then return 0; fi
+  case "$sc" in
+    lint-syntax)     _ppl_syntax "$tree" "$files" || rc=1 ;;
+    lint-migration)  _ppl_migration "$tree" || rc=$? ;;
+    lint-compose)
       while IFS= read -r f; do
-        if [[ "$f" == *.tfvars ]]; then
-          terraform fmt - <"$tree/$f" >/dev/null 2>"$terr" \
-            || { echo "HCL parse: $f"; sed 's/^/  /' "$terr"; rc=1; }
-        else
-          tfs+=("$f")
-        fi
-      done <<<"$files"
-      rm -f "$terr"
-      if [[ "${#tfs[@]}" -gt 0 ]]; then
-        ( cd "$tree" && terraform fmt -check -diff "${tfs[@]}" ) || { echo "terraform fmt: run 'terraform fmt' on the files above"; rc=1; }
-      fi ;;
+        ( cd "$tree/$(dirname "$f")" && docker compose -f "${f##*/}" config -q --no-interpolate ) \
+          || { echo "COMPOSE schema: $f"; rc=1; }
+      done <<<"$files" ;;
+    lint-py)         _ppl_py "$tree" "$files" || rc=1 ;;
+    lint-tf)         _ppl_tf "$tree" "$files" || rc=1 ;;
     lint-wui-syntax)
       local -a wf=(); while IFS= read -r f; do wf+=("$tree/$f"); done <<<"$files"
       _ppl_wui_modules || return 1

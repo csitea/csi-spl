@@ -365,23 +365,10 @@ spool_notify_strip_ghost() {  # RAW_E_LINE
     | sed -E "s/${esc}\[7m.*//; s/${esc}\[([0-9;]*;)?2m.*//; s/${esc}\[[0-9;]*[A-Za-z]//g"
 }
 
-spool_notify_poke() {  # TO LINE [BODY] [FROM]
-  local to="$1" line="$2" body="${3:-}" from="${4:-}"
-  local pane pane_tty tty_cmds last alt prompt esc=$'\033'
-  SPOOL_POKE_LINE="$line"
-
-  # _var, not $( ): the subshell would fork and would lose SPOOL_PANE_TTY.
-  spool_pane_of_var pane "$to"
-  if [ -z "$pane" ]; then
-    # Nothing was typed, so nothing is left in SPOOL_POKE_LINE: the mirror's
-    # trigger record (spec 067 L2) is for a line a live pane really got, never
-    # for a test or CLI subprocess that inherited SPOOL_NOTIFY_CMD.
-    SPOOL_POKE_LINE=""
-    echo "poke: none - no live window carries ${to}; the message waits in ${SPOOL_ROOT}/${to}/inbox/"
-    return 5
-  fi
-  spool_tmux_argv
-
+# The poke's step 1: rc 0 (and the skip line printed) when TO's PANE runs
+# only shells, so the agent has exited; rc 1 when it may be live.
+spool_notify_pane_dead() {  # TO PANE
+  local to="$1" pane="$2" pane_tty tty_cmds
   # A pane whose tty runs nothing but shells has lost its agent: the poke would
   # land in a bare shell (harmless, it is inert) and reach nobody. `sudo` and
   # `su` are NOT shells here: the launcher hops to the agent user through them,
@@ -405,10 +392,16 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
     if [ -n "$tty_cmds" ] && ! printf '%s\n' $tty_cmds | grep -qvxE 'bash|sh|zsh|dash|login'; then
       SPOOL_POKE_LINE=""
       echo "poke: skipped - ${to} pane ${pane} runs only shells (${tty_cmds% }); the agent has exited"
-      return 7
+      return 0
     fi
   fi
+  return 1
+}
 
+# The poke's step 2: set VAR (and SPOOL_POKE_LINE) to the rendered prompt when
+# the body goes in verbatim; VAR keeps the doorbell line otherwise.
+spool_notify_pick_line() {  # VAR PANE BODY FROM
+  local __var="$1" pane="$2" body="$3" from="$4" alt prompt
   # WHAT the prompt is given. The owner's rule, 2026-09-22: "the communication
   # would be as a human would be typing into this chat textbox" - so a message
   # from a human is the human's words, nothing wrapped round them.
@@ -427,9 +420,15 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   esac
   if [ -n "${prompt:-}" ]; then
     alt="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{alternate_on}' 2>/dev/null)"
-    [ "$alt" = 1 ] && line="$prompt" && SPOOL_POKE_LINE="$line"
+    [ "$alt" = 1 ] && printf -v "$__var" '%s' "$prompt" && SPOOL_POKE_LINE="$prompt"
   fi
+  return 0
+}
 
+# The poke's step 3: rc 0 (and the refusal printed) when TO's PANE holds
+# unsent text, rc 1 when the composer is free.
+spool_notify_refuse_unsent() {  # TO PANE
+  local to="$1" pane="$2" last last_raw
   # Never type over a human's (or the agent's) unsent input: send-keys appends
   # to the input line and submits it, so the poke would carry that text with
   # it. But the TUI's own greyed-out AUTOSUGGEST is not input -- it is drawn dim
@@ -438,14 +437,38 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   # doorbell we type simply replaces the suggestion; Enter submits the doorbell,
   # never the suggestion. (Old ESC[2m-only strip missed ESC[0;2m and refused
   # every poke to an idle Claude pane -- SPL-1253 harness fix.)
-  local last_raw
   last_raw="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$pane" 2>/dev/null \
     | grep -E '❯|^> ' | tail -1 || true)"
   last="$(spool_notify_strip_ghost "$last_raw")"
   if spool_notify_has_unsent "$last"; then
     echo "poke: REFUSED - ${to} pane ${pane} holds unsent text; the message waits in its inbox"
-    return 6
+    return 0
   fi
+  return 1
+}
+
+spool_notify_poke() {  # TO LINE [BODY] [FROM]
+  local to="$1" line="$2" body="${3:-}" from="${4:-}"
+  local pane esc=$'\033'
+  SPOOL_POKE_LINE="$line"
+
+  # _var, not $( ): the subshell would fork and would lose SPOOL_PANE_TTY.
+  spool_pane_of_var pane "$to"
+  if [ -z "$pane" ]; then
+    # Nothing was typed, so nothing is left in SPOOL_POKE_LINE: the mirror's
+    # trigger record (spec 067 L2) is for a line a live pane really got, never
+    # for a test or CLI subprocess that inherited SPOOL_NOTIFY_CMD.
+    SPOOL_POKE_LINE=""
+    echo "poke: none - no live window carries ${to}; the message waits in ${SPOOL_ROOT}/${to}/inbox/"
+    return 5
+  fi
+  spool_tmux_argv
+
+  spool_notify_pane_dead "$to" "$pane" && return 7
+
+  spool_notify_pick_line line "$pane" "$body" "$from"
+
+  spool_notify_refuse_unsent "$to" "$pane" && return 6
 
   # The message is already on the box websocket. A human body is pasted as
   # one bracketed paste and Enter is sent immediately: there is no notice-file

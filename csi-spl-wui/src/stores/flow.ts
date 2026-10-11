@@ -7,7 +7,7 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
 import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow, mergeMine } from '~/utils/flow-entries.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
-import { FLOW_SCOPE_KEY, FLOW_SEEN_KEY, parseFlowCounts, parseFlowKeys, parseFlowScope, railFromUnread, syncAppBadge } from '~/utils/flow-badge.mjs'
+import { FLOW_SEEN_KEY, parseFlowCounts, parseFlowKeys, railFromUnread, syncAppBadge } from '~/utils/flow-badge.mjs'
 import type { FlowCounts, FlowKind, FlowScope } from '~/utils/flow-badge.mjs'
 import { storageGet, storageSet } from '~/utils/prefs.mjs'
 import type { SpoolMessage } from '~/types/spool'
@@ -52,9 +52,7 @@ export const useFlowStore = defineStore('flow', () => {
 
   /* spec 062: Mine - only the viewer's flow events, read from the hub
      (GET /v1/view/flow, contract flow-v1), and the Facebook-like number */
-  /** Mine (default, Q1) or All (today's stream); kept per browser. */
-  const scope = ref<FlowScope>(parseFlowScope(import.meta.client ? storageGet(FLOW_SCOPE_KEY) : ''))
-  /** null = not asked yet; false = this hub has no Flow route (Mine hidden, the pip stays). */
+  /** null = not asked yet; false = this hub has no Flow route (the pip stays). */
   const available = ref<boolean | null>(null)
   const mine = shallowRef<FlowEntry[]>([])
   const mineNext = ref('')
@@ -72,11 +70,10 @@ export const useFlowStore = defineStore('flow', () => {
   const rail = useFlowRail()
   /** The hub's unread per sidebar row (owner, t1 77540e6f). */
   const rowKeys = useFlowKeys()
-  const mineOn = computed(() => scope.value === 'mine' && available.value !== false)
 
-  /** What the panel lists: Mine's held events, or the newest `shown` entries the read pages vouch for. */
-  const visible = computed(() => (mineOn.value ? mine.value : view.value.entries as FlowEntry[]))
-  const hasMore = computed(() => (mineOn.value ? Boolean(mineNext.value) : view.value.more))
+  /** What the panel lists: the held events. */
+  const visible = computed(() => mine.value)
+  const hasMore = computed(() => Boolean(mineNext.value))
 
   function self() {
     const session = useSessionStore()
@@ -276,12 +273,7 @@ export const useFlowStore = defineStore('flow', () => {
     if (on) void seen()
   }
 
-  /** Mine / All (FR-012): the choice is kept in this browser. */
-  function setScope(next: FlowScope) {
-    scope.value = parseFlowScope(next)
-    storageSet(FLOW_SCOPE_KEY, scope.value)
-    ensure()
-  }
+
 
   /** A chip: that kind only; the same chip again shows every kind. */
   function setKind(next: FlowKind | '') {
@@ -289,6 +281,13 @@ export const useFlowStore = defineStore('flow', () => {
     mine.value = []
     mineNext.value = ''
     void readMine('')
+  }
+
+  /** Open the Flow: the first time reads it, later only the mock re-reads (it has no socket). */
+  function ensure() {
+    follow()
+    startBadge()
+    if (!mineLoaded.value || api.mock) void readMine('')
   }
 
   let following = false
@@ -317,15 +316,7 @@ export const useFlowStore = defineStore('flow', () => {
   }
 
   /** Open the Flow: the first time reads it, later only the mock re-reads (it has no socket). */
-  function ensure() {
-    follow()
-    startBadge()
-    if (mineOn.value) {
-      if (!mineLoaded.value || api.mock) void readMine('')
-      return
-    }
-    if (!loaded.value || api.mock) void load()
-  }
+
 
   function select(key: string) {
     activeKey.value = key

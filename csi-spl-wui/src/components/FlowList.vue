@@ -6,19 +6,7 @@
   <!-- spec 062: Mine (only what concerns me, the default) or All; the chips
        split Mine's unread by kind and filter on a click (a 0 chip is dimmed) -->
   <div v-if="flow.available !== false" class="flow-head" data-testid="flow-head">
-    <div class="flow-scope" role="radiogroup" :aria-label="t('flow.scope_label')">
-      <button
-        v-for="s in FLOW_SCOPES"
-        :key="s"
-        type="button"
-        role="radio"
-        class="flow-scope__btn"
-        :aria-checked="flow.scope === s ? 'true' : 'false'"
-        :data-testid="'flow-scope-' + s"
-        @click="flow.setScope(s)"
-      >{{ t('flow.scope_' + s) }}</button>
-    </div>
-    <div v-if="flow.mineOn" class="flow-chips" role="group" :aria-label="t('flow.chips_label')">
+    <div class="flow-chips" role="group" :aria-label="t('flow.chips_label')">
       <button
         v-for="c in chips"
         :key="c.kind"
@@ -88,7 +76,6 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { useNowTick } from '~/composables/useNowTick'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { flowUnread } from '~/utils/flow-entries.mjs'
-import { FLOW_SCOPES } from '~/utils/flow-badge.mjs'
 import type { FlowKind } from '~/utils/flow-badge.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
 import type { SideHitItem } from '~/utils/side-hit-list.mjs'

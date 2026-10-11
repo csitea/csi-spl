@@ -5,10 +5,10 @@
 # blocks, two commented engine lines, other projects' and csi-spl's own lines).
 #   1. the real manifest parses and plans C1..C4, the daily msg-unreadable
 #      run (spec 117 incident report) and the nightly box state backup
-#      (owner t1 d80ed72c) and the 10-min CI red note (spec 131 C2) from
-#      this checkout
+#      (owner t1 d80ed72c) and the 10-min CI red note (spec 131 C2) and the
+#      every-minute agent login self-heal from this checkout
 #   2. the dry run prints the diff and changes nothing
-#   3. DRY_RUN=0: seven tagged lines, no engine path left, every other line kept
+#   3. DRY_RUN=0: eight tagged lines, no engine path left, every other line kept
 #      byte for byte and in order; a second install is a no-op
 #   4. a row whose script is not landed is refused; BOX_CRONS_ONLY installs the
 #      rest and leaves the refused row's engine lines alone
@@ -48,11 +48,12 @@ mkdir -p "$O/cnf/box-crons" "$O/src/bash/features/box-sessions/scripts" "$O/src/
 cp "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" "$O/cnf/box-crons/"
 touch "$O/src/bash/features/box-sessions/scripts/save-sessions.sh" "$O/src/bash/features/box-sessions/scripts/sessions-boot.sh" \
   "$O/src/bash/features/graft/scripts/graft-cron.sh" "$O/src/bash/scripts/msg-unreadable-cron.sh" \
-  "$O/src/bash/scripts/box-state-backup-cron.sh" "$O/src/bash/scripts/ci-red-note-cron.sh"
+  "$O/src/bash/scripts/box-state-backup-cron.sh" "$O/src/bash/scripts/ci-red-note-cron.sh" \
+  "$O/src/bash/scripts/agent-login-check-cron.sh"
 inst() { SNIPPET="PROJ_PATH=$O; do_install_box_crons" in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_STATE_DIR="$T/state" "$@" 2>&1; }
 
 out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_ALLOW_WORKTREE=1 2>&1)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z-]*$' <<<"$out")" = 7 ] \
+[ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z-]*$' <<<"$out")" = 8 ] \
   && grep -q "^  +@reboot i=0; until .* BOOT start csi-spl:box-cron:box-sessions-boot .*/bin/bash '$PROJ_ROOT/src/bash/features/box-sessions/scripts/sessions-boot.sh' >> '/var/csi/csi-spl/box-sessions/boot.log' 2>&1 # csi-spl:box-cron:box-sessions-boot$" <<<"$out" \
   && grep -q "^  +17 7 \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh' >> '/var/csi/csi-spl/msg-unreadable/cron.log' 2>&1 # csi-spl:box-cron:msg-unreadable$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh" ] \
@@ -60,15 +61,17 @@ out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab"
   && [ -x "$PROJ_ROOT/src/bash/scripts/box-state-backup-cron.sh" ] \
   && grep -q "^  +\*/10 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/ci-red-note-cron.sh' >> '/var/csi/csi-spl/ci-red-note/cron.log' 2>&1 # csi-spl:box-cron:ci-red-note$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/ci-red-note-cron.sh" ] \
-  && pass "1. the real manifest plans C1..C4, the daily msg-unreadable run, the nightly box state backup and the CI red note from this checkout" || fail "1. real manifest (rc $rc: $out)"
+  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/agent-login-check-cron.sh' >> '/var/csi/csi-spl/agent-login-check/cron.log' 2>&1 # csi-spl:box-cron:agent-login-check$" <<<"$out" \
+  && [ -x "$PROJ_ROOT/src/bash/scripts/agent-login-check-cron.sh" ] \
+  && pass "1. the real manifest plans C1..C4, the daily msg-unreadable run, the nightly box state backup, the CI red note and the login self-heal from this checkout" || fail "1. real manifest (rc $rc: $out)"
 
 out="$(inst)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c '^  +' <<<"$out")" = 8 ] && [ "$(grep -c "^  -.*$E" <<<"$out")" = 6 ] \
+[ "$rc" -eq 0 ] && [ "$(grep -c '^  +' <<<"$out")" = 9 ] && [ "$(grep -c "^  -.*$E" <<<"$out")" = 6 ] \
   && pass "2. the dry run prints the diff: +6 tagged, -6 engine lines" || fail "2. dry-run diff (rc $rc: $out)"
 cmp -s "$CT" "$T/crontab.orig" && pass "2. ...and changes nothing" || fail "2. the dry run wrote the crontab"
 
 out="$(inst DRY_RUN=0)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c ' # csi-spl:box-cron:[a-z-]*$' "$CT")" = 7 ] && pass "3. DRY_RUN=0 adds seven tagged lines" || fail "3. tagged ($out; $(cat "$CT"))"
+[ "$rc" -eq 0 ] && [ "$(grep -c ' # csi-spl:box-cron:[a-z-]*$' "$CT")" = 8 ] && pass "3. DRY_RUN=0 adds eight tagged lines" || fail "3. tagged ($out; $(cat "$CT"))"
 [ "$(grep -v ' # csi-spl:box-cron:[a-z-]*$' "$CT" | grep -c "$E/" )" = 1 ] && grep -q 'dotfiles/scripts/wifi-up.sh' "$CT" \
   && pass "3. ...no engine job left but the unlisted one" || fail "3. engine lines left: $(grep "$E/" "$CT")"
 cmp -s <(grep -v ' # csi-spl:box-cron:[a-z-]*$' "$CT") "$T/crontab.kept" && pass "3. ...every other line kept, in order" || fail "3. other lines changed"

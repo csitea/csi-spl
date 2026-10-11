@@ -20,3 +20,4 @@ graft-index-final   | 0 20 * * *      | src/bash/features/graft/scripts/graft-cr
 msg-unreadable      | 17 7 * * *      | src/bash/scripts/msg-unreadable-cron.sh                 | msg-unreadable/cron.log |
 box-state-backup    | 41 2 * * *      | src/bash/scripts/box-state-backup-cron.sh               | box-state/backup.log  |
 ci-red-note       | */10 * * * *    | src/bash/scripts/ci-red-note-cron.sh                    | ci-red-note/cron.log  |
+agent-login-check | * * * * *       | src/bash/scripts/agent-login-check-cron.sh               | agent-login-check/cron.log |

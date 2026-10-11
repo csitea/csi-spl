@@ -459,15 +459,31 @@ async function onItemMenuChoose(id: string) {
   if (id === 'copy_link' && ev) say(await copyLink(ev))
 }
 let askedEvent = ''
-watch([items, () => route.query.event], () => {
+watch([items, state, () => route.query.event], () => {
   const id = String(route.query.event || '')
   if (!id || id === askedEvent) return
   const ev = items.value.find((x) => x.id === id)
-  if (!ev) return
+  if (!ev) {
+    if (state.value === 'ready') void linkMissing(id, String(route.query.d || ''))
+    return
+  }
   askedEvent = id
   if (calSynced(ev)) openPeek(ev)
   else openEdit(ev)
 })
+
+/* t1 9dec05c3 part 3: a linked event the shown week lacks. The reader's own
+   calendar around ?d= decides (event-link-titles, lazy): not there is
+   "not available to you" - never the title. A link with no day (a reminder's
+   Open) stays silent, as before. */
+async function linkMissing(id: string, day: string) {
+  if (!day) return
+  askedEvent = id
+  try {
+    const { eventSeen } = await import('~/utils/event-link-titles')
+    if (await eventSeen(id, day) === false && String(route.query.event || '') === id) say('calendar_event.not_available')
+  } catch { /* nothing to say */ }
+}
 
 /* ---- 097 T013: drag ---------------------------------------------------- */
 

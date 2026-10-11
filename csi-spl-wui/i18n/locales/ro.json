@@ -2198,7 +2198,8 @@
     "edit": "Editează",
     "synced_link": "Schimbă în depozit",
     "copy_link": "Copiază linkul",
-    "link_copied": "Link copiat"
+    "link_copied": "Link copiat",
+    "not_available": "Acest eveniment nu îți este disponibil."
   },
   "calendar_phone_week": {
     "strip": "Zilele săptămânii",

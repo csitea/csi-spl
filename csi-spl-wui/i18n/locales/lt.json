@@ -2198,7 +2198,8 @@
     "edit": "Redaguoti",
     "synced_link": "Keisti saugykloje",
     "copy_link": "Kopijuoti nuorodą",
-    "link_copied": "Nuoroda nukopijuota"
+    "link_copied": "Nuoroda nukopijuota",
+    "not_available": "Šis įvykis jums nepasiekiamas."
   },
   "calendar_phone_week": {
     "strip": "Savaitės dienos",

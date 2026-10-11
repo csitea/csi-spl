@@ -2198,7 +2198,8 @@
     "edit": "Rediģēt",
     "synced_link": "Mainīt repozitorijā",
     "copy_link": "Kopēt saiti",
-    "link_copied": "Saite nokopēta"
+    "link_copied": "Saite nokopēta",
+    "not_available": "Šis notikums jums nav pieejams."
   },
   "calendar_phone_week": {
     "strip": "Nedēļas dienas",

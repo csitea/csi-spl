@@ -255,20 +255,19 @@ func (f *dtFlags) parse(args []string, lo, hi int) ([]string, error) {
 
 func cmdDocTree(cfg *config.Config, args []string) int {
 	if len(args) == 0 {
-		return fail(errors.New(docTreeUsage))
+		return dtHelp(false)
 	}
-	verbs := map[string]func(context.Context, *config.Config, []string) error{
-		"list": dtList, "nodes": dtNodes, "folder": dtFolder, "create": dtCreate, "head": dtHead,
-		"read": dtRead, "add": dtAdd, "edit": dtEdit, "move": dtMove, "delete": dtDelete,
-		"rename": dtRename, "export": dtExport,
+	switch args[0] {
+	case "--help", "-h", "-help", "help":
+		return dtHelp(true)
 	}
-	f, ok := verbs[args[0]]
+	v, ok := dtVerbByName(args[0])
 	if !ok {
-		return fail(fmt.Errorf("unknown doctree verb %q; %s", args[0], docTreeUsage))
+		return fail(fmt.Errorf("unknown doctree verb %q; %s (spool doctree --help)", args[0], docTreeUsage))
 	}
 	ctx, stop := interruptible()
 	defer stop()
-	if err := f(ctx, cfg, args[1:]); err != nil {
+	if err := v.run(ctx, cfg, args[1:]); err != nil {
 		if errors.Is(err, errDocFlags) {
 			return 1
 		}

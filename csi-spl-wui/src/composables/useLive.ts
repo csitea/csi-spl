@@ -134,6 +134,14 @@ function dial(api: ReturnType<typeof useSpoolApi>, authBase: string) {
   })
 }
 
+/** A listener set's `onX(fn)`: adds fn, and returns the call that removes it again. */
+function subscriber<T>(set: Set<T>) {
+  return (fn: T) => {
+    set.add(fn)
+    return () => set.delete(fn)
+  }
+}
+
 /**
  * One hub WUI socket per tab (003 wui-live-ws.md) on the TENANT host.
  * Mock mode has no socket: sends are applied locally by the live store.
@@ -189,65 +197,23 @@ export function useLive() {
     }
   }
 
-  function onMessage(fn: Listener) {
-    listeners.add(fn)
-    return () => listeners.delete(fn)
-  }
-
-  function onReconnected(fn: () => void) {
-    reconnectListeners.add(fn)
-    return () => reconnectListeners.delete(fn)
-  }
-
-  function onPresence(fn: Listener) {
-    presenceListeners.add(fn)
-    return () => presenceListeners.delete(fn)
-  }
-
+  const onMessage = subscriber(listeners)
+  const onReconnected = subscriber(reconnectListeners)
+  const onPresence = subscriber(presenceListeners)
   /** a channel created anywhere in the tenant, for the sidebar. */
-  function onChannel(fn: Listener) {
-    channelListeners.add(fn)
-    return () => channelListeners.delete(fn)
-  }
-
+  const onChannel = subscriber(channelListeners)
   /**
    * another session edited a message this one is showing. Kept
    * apart from onMessage because an edit is a replacement and every
    * onMessage listener merges by appending — see applyEdit in msg-edit.mjs.
    */
-  function onEdited(fn: Listener) {
-    editedListeners.add(fn)
-    return () => editedListeners.delete(fn)
-  }
-
-  function onDeleted(fn: Listener) {
-    deletedListeners.add(fn)
-    return () => deletedListeners.delete(fn)
-  }
-  function onTopic(fn: Listener) {
-    topicListeners.add(fn)
-    return () => topicListeners.delete(fn)
-  }
-
-  function onReaction(fn: Listener) {
-    reactionListeners.add(fn)
-    return () => reactionListeners.delete(fn)
-  }
-
-  function onIssue(fn: Listener) {
-    issueListeners.add(fn)
-    return () => issueListeners.delete(fn)
-  }
-
-  function onIssueLabel(fn: Listener) {
-    issueLabelListeners.add(fn)
-    return () => issueLabelListeners.delete(fn)
-  }
-
-  function onFlow(fn: Listener) {
-    flowListeners.add(fn)
-    return () => flowListeners.delete(fn)
-  }
+  const onEdited = subscriber(editedListeners)
+  const onDeleted = subscriber(deletedListeners)
+  const onTopic = subscriber(topicListeners)
+  const onReaction = subscriber(reactionListeners)
+  const onIssue = subscriber(issueListeners)
+  const onIssueLabel = subscriber(issueLabelListeners)
+  const onFlow = subscriber(flowListeners)
 
   return { ensure, onMessage, onEdited, onDeleted, onTopic, onReaction, onIssue, onIssueLabel, onFlow, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId, welcomed }
 }

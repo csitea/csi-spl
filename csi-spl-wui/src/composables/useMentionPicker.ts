@@ -23,58 +23,40 @@ import { activeMentionQuery, decodeMentions, encodeMentions, insertMention, ment
 
 export interface MentionRow { id: string, box?: string, label?: string, online?: boolean, idle?: boolean, owner?: boolean, sameName?: boolean }
 
-export function useMentionPicker(opts: {
+interface MentionPickerOpts {
   text: Ref<string>
   el: Ref<HTMLTextAreaElement | HTMLInputElement | null | undefined>
   /** true = no list here (inside a ``` block, on a /search line) */
   blocked?: () => boolean
   /** after a pick changed the text (a field that reports its draft by @input) */
   onPick?: (text: string) => void
-}) {
-  const roster = useRosterStore()
-  const people = useHumanNames()
-  const route = useRoute()
-  const query = ref<string | null>(null)
+}
+
+/** The rows the list shows for `query`; in the feedback channel the owners come first. */
+function candidateRows(query: string | null, roster: ReturnType<typeof useRosterStore>, people: ReturnType<typeof useHumanNames>, inFeedback: Ref<boolean>): MentionRow[] {
+  if (query === null) return []
+  return mentionCandidates({
+    peers: roster.peers,
+    names: people.names.value,
+    owners: roster.owners,
+    selfId: roster.self ? roster.self.id : '',
+    query,
+    ownersFirst: inFeedback.value,
+    isOnline: (id: string) => roster.isOnline(id, 'box-wui'),
+  }).map((row: MentionRow) => (
+    /* two members with one name: the row shows the id as a muted suffix */
+    /^HUM-\d+$/.test(row.id) && people.names.value[row.id] && !mentionFieldName(row.id, people.names.value) ? { ...row, sameName: true } : row
+  ))
+}
+
+/** The list's highlighted row: reset to the top on a new query, moved by the arrow keys. */
+function useActiveRow() {
   const activeIdx = ref(0)
   const listEl = ref<HTMLUListElement | null>(null)
-  const listId = useId()
-  /** name -> tag of every person this field shows by name (encode() puts the tag back) */
-  const picks = ref<Record<string, string>>({})
 
-  const inFeedback = computed(() => isFeedbackChannel(feedbackChannelFromPath(route.path)))
-  const candidates = computed<MentionRow[]>(() => {
-    if (query.value === null) return []
-    return mentionCandidates({
-      peers: roster.peers,
-      names: people.names.value,
-      owners: roster.owners,
-      selfId: roster.self ? roster.self.id : '',
-      query: query.value,
-      ownersFirst: inFeedback.value,
-      isOnline: (id: string) => roster.isOnline(id, 'box-wui'),
-    }).map((row: MentionRow) => (
-      /* two members with one name: the row shows the id as a muted suffix */
-      /^HUM-\d+$/.test(row.id) && people.names.value[row.id] && !mentionFieldName(row.id, people.names.value) ? { ...row, sameName: true } : row
-    ))
-  })
-  const open = computed(() => query.value !== null && candidates.value.length > 0)
-
-  function caret(): number {
-    return opts.el.value?.selectionStart ?? opts.text.value.length
-  }
-
-  /** input / click / keyup: re-read the @token at the caret. */
-  function sync() {
-    const q = opts.blocked && opts.blocked() ? null : activeMentionQuery(opts.text.value, caret())
-    if (q !== query.value) {
-      activeIdx.value = 0
-      nextTick(() => { if (listEl.value) listEl.value.scrollTop = 0 })
-    }
-    query.value = q
-  }
-
-  function close() {
-    query.value = null
+  function reset() {
+    activeIdx.value = 0
+    nextTick(() => { if (listEl.value) listEl.value.scrollTop = 0 })
   }
 
   /** Arrow keys move this list only: scrollIntoView would also move the page. */
@@ -91,6 +73,60 @@ export function useMentionPicker(opts: {
     })
   }
 
+  /** one row down (step 1) or up (step -1) in a list of n rows, wrapping round */
+  function move(step: number, n: number) {
+    activeIdx.value = (activeIdx.value + step + n) % n
+    scrollActive()
+  }
+
+  return { activeIdx, listEl, reset, move }
+}
+
+/** What a key does to an open list: move, pick, close, or nothing (null). */
+function listKey(ev: KeyboardEvent): 'down' | 'up' | 'pick' | 'close' | null {
+  if (ev.key === 'ArrowDown') return 'down'
+  if (ev.key === 'ArrowUp') return 'up'
+  if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) return 'pick'
+  if (ev.key === 'Escape') return 'close'
+  return null
+}
+
+/** After a pick: the caret goes back into the field, just past the inserted name. */
+function focusAt(el: HTMLTextAreaElement | HTMLInputElement | null | undefined, cursor: number) {
+  if (!el) return
+  el.focus()
+  el.setSelectionRange(cursor, cursor)
+}
+
+export function useMentionPicker(opts: MentionPickerOpts) {
+  const roster = useRosterStore()
+  const people = useHumanNames()
+  const route = useRoute()
+  const query = ref<string | null>(null)
+  const { activeIdx, listEl, reset, move } = useActiveRow()
+  const listId = useId()
+  /** name -> tag of every person this field shows by name (encode() puts the tag back) */
+  const picks = ref<Record<string, string>>({})
+
+  const inFeedback = computed(() => isFeedbackChannel(feedbackChannelFromPath(route.path)))
+  const candidates = computed<MentionRow[]>(() => candidateRows(query.value, roster, people, inFeedback))
+  const open = computed(() => query.value !== null && candidates.value.length > 0)
+
+  function caret(): number {
+    return opts.el.value?.selectionStart ?? opts.text.value.length
+  }
+
+  /** input / click / keyup: re-read the @token at the caret. */
+  function sync() {
+    const q = opts.blocked && opts.blocked() ? null : activeMentionQuery(opts.text.value, caret())
+    if (q !== query.value) reset()
+    query.value = q
+  }
+
+  function close() {
+    query.value = null
+  }
+
   function pick(row: MentionRow) {
     const tag = row.label || row.id
     const name = mentionFieldName(row.id, people.names.value)
@@ -99,44 +135,25 @@ export function useMentionPicker(opts: {
     opts.text.value = next.text
     query.value = null
     opts.onPick?.(next.text)
-    nextTick(() => {
-      const el = opts.el.value
-      if (!el) return
-      el.focus()
-      el.setSelectionRange(next.cursor, next.cursor)
-    })
+    nextTick(() => focusAt(opts.el.value, next.cursor))
   }
 
   /** keydown: true when the picker used the key (the field must not act on it). */
   function onKeydown(ev: KeyboardEvent): boolean {
     if (ev.isComposing || !open.value) return false
-    const n = candidates.value.length
-    if (ev.key === 'ArrowDown') {
-      ev.preventDefault()
-      activeIdx.value = (activeIdx.value + 1) % n
-      scrollActive()
-      return true
-    }
-    if (ev.key === 'ArrowUp') {
-      ev.preventDefault()
-      activeIdx.value = (activeIdx.value - 1 + n) % n
-      scrollActive()
-      return true
-    }
-    if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {
-      ev.preventDefault()
+    const key = listKey(ev)
+    if (!key) return false
+    ev.preventDefault()
+    if (key === 'down' || key === 'up') move(key === 'down' ? 1 : -1, candidates.value.length)
+    else if (key === 'pick') {
       const row = candidates.value[activeIdx.value]
       if (row) pick(row)
-      return true
-    }
-    if (ev.key === 'Escape') {
-      ev.preventDefault()
+    } else {
       /* the Escape is the list's: a dialog or the omnibox must not also act on it */
       ev.stopPropagation()
       close()
-      return true
     }
-    return false
+    return true
   }
 
   /** The field text as it is stored: every picked name is its tag again. */

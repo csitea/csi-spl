@@ -194,6 +194,18 @@ export function messageFromFrame(f) {
   return out
 }
 
+/** A `message_edited` / `message_merged` frame's row: the message, keyed by the frame's msg_id. */
+function editFromFrame(f) {
+  const m = messageFromFrame(f)
+  if (f.msg_id && !m.msg_id) m.msg_id = f.msg_id
+  return m
+}
+
+/** A `message_reaction` frame's row: the emoji list that replaces the held one. */
+function reactionFromFrame(f) {
+  return { msg_id: f.msg_id, task_id: f.task_id, reactions: Array.isArray(f.reactions) ? f.reactions : [] }
+}
+
 export function createLiveClient({
   url,
   token = '',
@@ -422,6 +434,37 @@ export function createLiveClient({
       })
   }
 
+  /** The hub's welcome: the socket is open, so re-subscribe, flush the queue and, after a drop, catch up. */
+  function welcomed(f) {
+    welcome = f
+    attempt = 0
+    setState('open')
+    for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
+    for (const ch of chanSubs) raw({ type: FRAMES.subscribe, channel: ch })
+    for (const p of peerSubs) raw({ type: FRAMES.subscribe, peer: p })
+    if (allSub > 0) raw({ type: FRAMES.subscribe, all: true })
+    flush()
+    onWelcome(f)
+    /* the welcome carries a fresh upload token minted on THIS (live)
+       revision — resolve any redial/token waiter with it (CLE-77795). */
+    resolveTokens(f)
+    if (dropped) {
+      dropped = false
+      /* M8 ends when the catch-up is done: awaited when the caller returns its promise */
+      const caught = onReconnected(f, { cursors: Object.fromEntries(cursors) })
+      if (woke) Promise.resolve(caught).then(timedReconnect, timedReconnect)
+    }
+  }
+
+  /** An ack or an error frame answers the send waiting on its msg_id: `done` settles it. */
+  function settle(msgId, done) {
+    const p = pending.get(msgId)
+    if (!p) return
+    clearTimer(p.timer)
+    pending.delete(msgId)
+    done(p)
+  }
+
   function handle(f) {
     // A frame the hub delivered. An error frame is a refusal, not data.
     // typeof null === 'object', so a null frame must return before f.type.
@@ -429,24 +472,7 @@ export function createLiveClient({
     if (f.type !== FRAMES.error) noteLastData()
     switch (f.type) {
       case FRAMES.welcome:
-        welcome = f
-        attempt = 0
-        setState('open')
-        for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
-        for (const ch of chanSubs) raw({ type: FRAMES.subscribe, channel: ch })
-        for (const p of peerSubs) raw({ type: FRAMES.subscribe, peer: p })
-        if (allSub > 0) raw({ type: FRAMES.subscribe, all: true })
-        flush()
-        onWelcome(f)
-        /* the welcome carries a fresh upload token minted on THIS (live)
-           revision — resolve any redial/token waiter with it (CLE-77795). */
-        resolveTokens(f)
-        if (dropped) {
-          dropped = false
-          /* M8 ends when the catch-up is done: awaited when the caller returns its promise */
-          const caught = onReconnected(f, { cursors: Object.fromEntries(cursors) })
-          if (woke) Promise.resolve(caught).then(timedReconnect, timedReconnect)
-        }
+        welcomed(f)
         return
       /* spec 096 §7.4: a member's manual status, its own frame type (a tab that
          predates it ignores it); it rides the presence listener (the roster's) */
@@ -476,22 +502,16 @@ export function createLiveClient({
            message-edit-v1 §FR-ED-009 also guarantees ts / received_at /
            cursor are UNCHANGED by an edit, so the cursor map is deliberately
            left alone here — a typo fix must not move the read position. */
-        const m = messageFromFrame(f)
-        if (f.msg_id && !m.msg_id) m.msg_id = f.msg_id
-        onEdited(m, f)
+        onEdited(editFromFrame(f), f)
         return
       }
-      case FRAMES.deleted: {
+      case FRAMES.deleted:
         onDeleted({ msg_id: f.msg_id, task_id: f.task_id }, f)
         return
-      }
-      case FRAMES.merged: {
-        const m = messageFromFrame(f)
-        if (f.msg_id && !m.msg_id) m.msg_id = f.msg_id
-        onEdited(m, f)
+      case FRAMES.merged:
+        onEdited(editFromFrame(f), f)
         if (f.merged_from) onDeleted({ msg_id: f.merged_from, task_id: f.task_id }, f)
         return
-      }
       case FRAMES.topicArchived:
       case FRAMES.topicDeleted:
       case FRAMES.topicMoved:
@@ -500,14 +520,9 @@ export function createLiveClient({
       case FRAMES.topicUnmerged:
         onTopic(f)
         return
-      case FRAMES.reaction: {
-        onReaction({
-          msg_id: f.msg_id,
-          task_id: f.task_id,
-          reactions: Array.isArray(f.reactions) ? f.reactions : [],
-        }, f)
+      case FRAMES.reaction:
+        onReaction(reactionFromFrame(f), f)
         return
-      }
       case FRAMES.issue:
         onIssue(f)
         return
@@ -517,23 +532,12 @@ export function createLiveClient({
       case FRAMES.flow:
         onFlow(f)
         return
-      case FRAMES.ack: {
-        const p = pending.get(f.msg_id)
-        if (p) {
-          clearTimer(p.timer)
-          pending.delete(f.msg_id)
-          p.resolve(f)
-        }
+      case FRAMES.ack:
+        settle(f.msg_id, (p) => p.resolve(f))
         return
-      }
       case FRAMES.error: {
-        const p = f.msg_id ? pending.get(f.msg_id) : null
         const err = Object.assign(new Error(f.detail || f.error || 'error'), { token: f.error, status: f.status })
-        if (p) {
-          clearTimer(p.timer)
-          pending.delete(f.msg_id)
-          p.reject(err)
-        }
+        if (f.msg_id) settle(f.msg_id, (p) => p.reject(err))
         return
       }
       default:

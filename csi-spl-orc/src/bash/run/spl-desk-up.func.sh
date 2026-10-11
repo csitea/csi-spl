@@ -44,7 +44,8 @@
 # @param   pane and the prompt is theirs: an agent with 0 is told nothing it can
 # @param   act on. PER AGENT since 2026-09-22 - it writes the marker file
 # @param   <spool root>/<agent>/.no-poke, because one sidecar serves the whole
-# @param   box and muting it muted every seat
+# @param   box and muting it muted every seat. REFUSED for an orchestrator or
+# @param   dispatcher seat (spl_desk_od_ids): those are never muted
 # @param DESK_BOX_POKE (optional) - 1 (default) or 0 for the WHOLE box: the
 # @param   sidecar's SPOOL_POKE. 0 silences every agent on this box, which is
 # @param   almost never what you want - mute the one seat with DESK_POKE=0.
@@ -75,6 +76,10 @@ do_spl_desk_up() {
   local poke="${DESK_POKE:-1}" boxpoke="${DESK_BOX_POKE:-1}"
   [[ "$poke" == 0 || "$poke" == 1 ]] || { do_log "FATAL DESK_POKE must be 0 or 1, got: '$poke'"; return 1; }
   [[ "$boxpoke" == 0 || "$boxpoke" == 1 ]] || { do_log "FATAL DESK_BOX_POKE must be 0 or 1, got: '$boxpoke'"; return 1; }
+  if [[ "$poke" == 0 ]] && spl_desk_is_od "$agent"; then
+    do_log "FATAL $agent is an orchestrator or dispatcher seat in lease.conf: such a seat is never muted, so DESK_POKE=0 is refused (prd 2026-10-11: a hand mute kept six sienna posts from every dispatcher prompt)"
+    return 1
+  fi
 
   local wui="${DESK_WUI_URL:-$SPL_WUI_URL}"
   if (( dry )); then
@@ -186,6 +191,40 @@ spl_desk_pin() {
   printf '%s\n' "$pub" >"$d/pinned"
   do_log "INFO pinned $box ($pub) under $tenant at $hub"
   cat "$d/pinned"
+}
+
+# spl_desk_od_ids: the orchestrator and dispatcher seat ids, LEASE_ORCH /
+# LEASE_MASTER / LEASE_FAILOVER of <spool root>/dispatch/lease.conf, space
+# separated; none on a box with no lease.conf. Read from the file each time, so
+# a role change needs no edit here.
+spl_desk_od_ids() {
+  local f="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
+  [[ -f "$f" ]] || return 0
+  sed -n 's/^LEASE_\(ORCH\|MASTER\|FAILOVER\)=\([A-Za-z0-9_-]\{1,\}\)$/\2/p' "$f" | tr '\n' ' '
+}
+
+# spl_desk_is_od <agent>: 0 when <agent> is an orchestrator or dispatcher seat.
+spl_desk_is_od() {
+  [[ -n "$1" && " $(spl_desk_od_ids) " == *" $1 "* ]]
+}
+
+# spl_desk_od_unmute <state dir> <agent>: 0 when <agent> is an orchestrator or
+# dispatcher seat, whose .no-poke marker it removes and logs; 1 for any other
+# seat, whose marker it leaves alone. Those seats are never muted: on prd
+# 2026-10-10 a hand DESK_POKE=0 muted c-001..003 in sienna and aleko-gik, the
+# seated-only reconcile kept that mute on every tick, and six human posts of
+# 2026-10-11 reached no dispatcher prompt.
+spl_desk_od_unmute() {
+  local d="$1" agent="$2" m="$1/spool/$2/.no-poke"
+  spl_desk_is_od "$agent" || return 1
+  if [[ -e "$m" ]]; then
+    if rm -f "$m" 2>/dev/null; then
+      do_log "WARN removed the mute of $agent in $d: an orchestrator or dispatcher seat is never muted"
+    else
+      do_log "FAIL cannot remove $m: $agent stays muted"
+    fi
+  fi
+  return 0
 }
 
 # spl_desk_mute <state dir> <agent> <poke>: the PER-AGENT prompt leg, as the

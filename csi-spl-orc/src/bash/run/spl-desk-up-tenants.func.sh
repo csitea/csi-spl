@@ -14,7 +14,8 @@
 # @description one), DESK_RETIRE=0 (a customer desk keeps its dirs) and
 # @description DESK_HUB_CHECK=0 (the roster probe account is a t1 member; a
 # @description stranded socket is the sidecar's own session probe's job). A seat
-# @description muted by hand (.no-poke) stays muted.
+# @description muted by hand (.no-poke) stays muted, except an orchestrator or
+# @description dispatcher seat (lease.conf), which is un-muted on every pass.
 # @description Prints one line per tenant. Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
 # @param DESK_BOX (optional) - default box-desk

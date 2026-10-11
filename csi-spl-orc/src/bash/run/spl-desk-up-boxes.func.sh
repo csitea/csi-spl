@@ -96,6 +96,7 @@ spl_desk_box_state() {
 spl_desk_box_restart() {
   local d="$1" t="$2" b="$3" a="$4" pid poke=1 boxpoke=1 notify="" v rc=0
   [[ -e "$d/spool/$a/.no-poke" ]] && poke=0
+  spl_desk_od_unmute "$d" "$a" && poke=1
   pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"
   if spl_desk_alive "$d/spool/.hub/hub-run.pid"; then
     v="$(spl_desk_sidecar_poke "$pid")"; [[ -n "$v" ]] && boxpoke="$v"

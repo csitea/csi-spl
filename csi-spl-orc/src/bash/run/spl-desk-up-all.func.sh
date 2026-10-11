@@ -118,10 +118,7 @@ do_spl_desk_up_all() {
 
   local apoke
   for a in "${seat[@]}"; do
-    apoke="$poke"
-    [[ "$mute" == *" $a "* ]] && apoke=0
-    # A seated-only pass never un-mutes: the seat was chosen by hand.
-    [[ "$only" == 1 && -e "$d/spool/$a/.no-poke" ]] && apoke=0
+    _spl_desk_up_all_poke "$d" "$a" "$poke" "$mute" "$only"
     if TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$a" DESK_POKE="$apoke" \
        DESK_WAIT_SECS="${DESK_WAIT_SECS:-30}" DRY_RUN=0 do_spl_desk_up; then
       seated+=("$a")
@@ -144,6 +141,19 @@ do_spl_desk_up_all() {
 
   flock -u 8; exec 8>&-
   _spl_desk_up_all_report "$tenant" "$box" "$d" "${#live[@]}" "${#seat[@]}" "$hub" "$hrc"
+}
+
+# _spl_desk_up_all_poke <state dir> <agent> <poke> <mute list> <seated-only>:
+# sets the caller's apoke, the prompt leg <agent> is seated with.
+_spl_desk_up_all_poke() {
+  local d="$1" a="$2" mute="$4" only="$5"
+  apoke="$3"
+  [[ "$mute" == *" $a "* ]] && apoke=0
+  # A seated-only pass never un-mutes: the seat was chosen by hand.
+  [[ "$only" == 1 && -e "$d/spool/$a/.no-poke" ]] && apoke=0
+  # ...except an orchestrator or dispatcher seat, which is never muted.
+  spl_desk_od_unmute "$d" "$a" && apoke=1
+  return 0
 }
 
 # _spl_desk_up_all_no_window <state dir> <tenant> <box> <dry>: with NO live
@@ -203,6 +213,7 @@ _spl_desk_up_all_hub() {
   for a2 in "${seated[@]}"; do [[ "$mute" == *" $a2 "* ]] || { ha="$a2"; break; }; done
   local hpoke="$poke"
   [[ -z "$ha" ]] && { ha="${seated[0]}"; hpoke=0; }
+  spl_desk_is_od "$ha" && hpoke=1
   SPL_DESK_HUB="skipped"
   spl_desk_heal_stranded "$d" "$tenant" "$box" "$ha" "$hpoke" || hrc=$?
   hub="$SPL_DESK_HUB"

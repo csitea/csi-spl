@@ -74,6 +74,9 @@ type SendArgs struct {
 	// ExitNotResponsible otherwise).
 	Answers string
 	IfGen   int64
+	// Accepts is the msg_id of the accepted result (spec 130, `spool send --accept`).
+	// Only allowed with --kind result: the hub emits a `ready` event for it.
+	Accepts string
 	// Channel makes the send a POST INTO that channel (specs/038): a new
 	// topic every member of the channel reads, exactly like a human's post -
 	// to ALL-0, to_box box-wui, the channel signed into the envelope. Hub mode
@@ -123,8 +126,18 @@ func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, 
 		return SendResult{}, err
 	}
 	if cfg.HubURL == "" {
-		m, err := spool.New(cfg).SendKnown(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
+		m, err := spool.New(cfg).Compose(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
 		if err != nil {
+			return SendResult{}, err
+		}
+		m.Accepts = in.Accepts
+		if err := m.Validate(); err != nil {
+			return SendResult{}, err
+		}
+		if err := spool.New(cfg).WriteOutbox(m); err != nil {
+			return SendResult{}, err
+		}
+		if _, err := spool.New(cfg).Deliver(m); err != nil {
 			return SendResult{}, err
 		}
 		return SendResult{Delivery: "local", MsgID: m.MsgID, TaskID: m.TaskID, TS: m.TS}, nil
@@ -147,6 +160,14 @@ func checkSend(cfg *config.Config, in *SendArgs) error {
 	}
 	if err := checkAnswers(cfg, *in); err != nil {
 		return err
+	}
+	if in.Accepts != "" {
+		if in.Kind != "result" {
+			return fmt.Errorf("--accept is only allowed with --kind result")
+		}
+		if !refRe.MatchString(in.Accepts) {
+			return fmt.Errorf("--accept must be a uuid (msg_id), got %q", in.Accepts)
+		}
 	}
 	if in.Channel != "" {
 		in.Channel = ChannelID(in.Channel)
@@ -294,6 +315,7 @@ func sendHub(ctx context.Context, cfg *config.Config, in SendArgs, atts []msg.At
 	if err != nil {
 		return SendResult{}, err
 	}
+	m.Accepts = in.Accepts
 	hc := in.Hub
 	if hc == nil {
 		hc = hubclient.New(cfg)

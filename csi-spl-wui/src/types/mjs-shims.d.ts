@@ -101,6 +101,10 @@ declare module '~/utils/spool-client.mjs' {
     listJoinTokens(): Promise<unknown>
     revokeJoinToken(id: string): Promise<unknown>
     revokeSeat(boxId: string): Promise<unknown>
+    listEmbeds(): Promise<unknown>
+    createEmbed(body: { embed_id: string, allowed_origins: string[] }): Promise<unknown>
+    patchEmbed(embedId: string, patch: { allowed_origins?: string[], enabled?: boolean }): Promise<unknown>
+    newEmbedKey(embedId: string): Promise<{ embed_id: string, key_id: string, key_alg: string, private_key: string }>
     patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean, access_until?: string | null }): Promise<null>
     getTenantSettings(): Promise<unknown>
     patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number, mistral: number }, settings?: Record<string, string | number | null> }): Promise<unknown>

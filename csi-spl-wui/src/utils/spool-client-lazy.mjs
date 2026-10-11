@@ -489,6 +489,47 @@ async function revokeSeat(ctx, boxId) {
   return live(`/v1/tenant/agents/pins/${encodeURIComponent(b)}`, { method: 'DELETE' })
 }
 
+let embedMock = null
+const embedsMock = async () => (embedMock ||= (await import('./embed-admin-mock.mjs')).createMockEmbeds())
+
+/** GET /v1/tenant/embeds (spec 121 T203, the workspace owner): { embeds: [...] }, never a private key. */
+async function listEmbeds(ctx) {
+  const { live, mock } = ctx
+  if (mock) return (await embedsMock()).list()
+  return live('/v1/tenant/embeds')
+}
+
+/** POST /v1/tenant/embeds { embed_id, allowed_origins }: a new embed, disabled and keyless. */
+async function createEmbed(ctx, body = {}) {
+  const { live, mock } = ctx
+  if (mock) return (await embedsMock()).create(body)
+  return live('/v1/tenant/embeds', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/** PATCH /v1/tenant/embeds/{embed_id} { allowed_origins?, enabled? } -> the embed. */
+async function patchEmbed(ctx, embedId, patch = {}) {
+  const { live, mock } = ctx
+  const id = String(embedId || '')
+  if (mock) return (await embedsMock()).patch(id, patch)
+  return live(`/v1/tenant/embeds/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+/** POST /v1/tenant/embeds/{embed_id}/key: a new ES256 key; the ONE answer carrying private_key. */
+async function newEmbedKey(ctx, embedId) {
+  const { live, mock } = ctx
+  const id = String(embedId || '')
+  if (mock) return (await embedsMock()).newKey(id)
+  return live(`/v1/tenant/embeds/${encodeURIComponent(id)}/key`, { method: 'POST' })
+}
+
 /**
  * GET /v1/marketing/settings (spec 090 §15, tenant.settings): the workspace
  * admin's marketing switch, { tenant_id, enabled }. 404 outside the cnf
@@ -1407,6 +1448,10 @@ export const lazySpoolMethods = {
   listJoinTokens,
   revokeJoinToken,
   revokeSeat,
+  listEmbeds,
+  createEmbed,
+  patchEmbed,
+  newEmbedKey,
   listTenantChannels,
   setTenantChannelNoFallback,
   archiveTenantChannel,

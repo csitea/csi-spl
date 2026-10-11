@@ -25,6 +25,9 @@
 //     the multi-line check at 360); the desktop chip stays (chipDesktop).
 //   T003 (FR-004, FR-005), the phone Search button: see searchCase below
 //     (AC5 at 390 and 360; the placeholder backstop at 360).
+//   t1 e142d4a0 (owner HUM-10), a tap in the box never enters search mode:
+//     only a press inside the Search button's square does - see tapCase
+//     below (a point grid, the ghost click; 390 touch and 1440 mouse).
 //
 // Run:
 //   pnpm run test:e2e phone-composer-target
@@ -223,6 +226,9 @@ function dockChip(p) {
       glyph: vis(form.querySelector('[data-test=composer-mode-glyph]')),
       taW: Math.round(r.width),
       fieldInner: Math.round(fr.width - parseFloat(fs.borderLeftWidth) - parseFloat(fs.borderRightWidth) - parseFloat(fs.paddingLeft) - parseFloat(fs.paddingRight)),
+      /* where the text can run to, and where the Search square starts */
+      textEnd: Math.round(r.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight)),
+      slot: (() => { const b = [...form.querySelectorAll('[data-test=search-syntax-help]')].find(vis); return b ? Math.round(b.getBoundingClientRect().left) : null })(),
       above,
       level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') || '',
     }
@@ -306,10 +312,10 @@ async function chipCase(browser, width, height) {
     await sleep(900)
   }
   /* no chip, nothing above the field, line 1 at the field's start (a mode
-     glyph keeps its own 24 px), the textarea the field's width less the
-     44 px Search slot it pads at its end */
+     glyph keeps its own 24 px), the text runs to the 44 px Search square
+     (t1 e142d4a0: the textarea ends where the square starts, no overlap) */
   const free = (s) => Boolean(s && s.docked && s.chip === null && !s.hasChipClass && s.indent === 0 && s.above.length === 0
-    && s.textStart - s.fieldStart <= (s.glyph ? 25 : 1) && s.taW >= s.fieldInner - 1)
+    && s.textStart - s.fieldStart <= (s.glyph ? 25 : 1) && s.slot !== null && s.textEnd >= s.slot - 1)
 
   const s0 = await dockChip(p)
   ok(`${tag} unfocused empty box: no chip, the text field full width`, free(s0), s0)
@@ -527,6 +533,139 @@ async function searchDesktop(browser) {
 }
 /* ---- end 085 T003 ---- */
 
+/* ---- t1 e142d4a0 (owner HUM-10, msgs e39fedcf, 671a4e9b, 924557b7): a tap
+ *   in the box never enters search mode ----
+ *   "only when I click on a square (which is as big as the size of the
+ *   search button ...), and only if I click on top of it, only then it
+ *   should trigger the search syntax". /channel/alerts, the box holds
+ *   "hello world":
+ *     no overlap: the text area ends where the button starts
+ *     point grid over the whole field, plus every point 1 px outside the
+ *       button's square: a press inside the square (getBoundingClientRect)
+ *       enters search mode and opens the list; any other press leaves the
+ *       text as it was and the list closed. Before the fix Chrome's touch
+ *       adjustment moved taps at x 189..196 (the button from 197) onto the
+ *       button at 390 px, and 1 px under it too (n = 1 grid, 2 runs).
+ *     ghost click: a touch starts on the text area, the dock moves (the
+ *       keyboard opening) so the button is under the finger, the touch
+ *       ends - and a bare synthetic click on the button with no press on it
+ *   phone 390x844 (touch) and desktop 1440x900 (mouse). */
+const HELLO = 'hello world'
+function tapState(p) {
+  return p.evaluate((sel) => {
+    const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+    const form = ta && ta.closest('form')
+    if (!form) return null
+    const rr = (el) => { const r = el.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom } }
+    return {
+      value: ta.value,
+      search: form.classList.contains('omnibox--search'),
+      panel: Boolean(form.querySelector('[data-test=search-syntax-panel]')),
+      ta: rr(ta),
+      btn: rr(form.querySelector('[data-test=search-syntax-help]')),
+      field: rr(form.querySelector('.omnibox-field') || ta.parentElement),
+    }
+  }, TA)
+}
+/* two edits a frame apart: the text watcher then closes an open list even
+   when the value was already "hello world" (the desktop "?" opens it with
+   no edit); one tick holding both edits looks unchanged to the watcher */
+async function resetBox(p) {
+  for (const v of ['', HELLO]) {
+    await p.evaluate((sel, x) => {
+      const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, x)
+      ta.dispatchEvent(new Event('input', { bubbles: true }))
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      return new Promise((r) => requestAnimationFrame(() => r()))
+    }, TA, v)
+  }
+}
+const entered = (s) => Boolean(s && (s.search || s.panel || s.value !== HELLO))
+
+async function tapCase(browser, vp, tag) {
+  const touch = Boolean(vp.hasTouch)
+  const { p, errors } = await open(browser, vp, '/channel/alerts', '.spool-main article.msg[data-msg-id]')
+  await resetBox(p)
+  await sleep(200)
+  const s0 = await tapState(p)
+  const b = s0.btn
+  if (touch) ok(`${tag} no overlap: the text area ends where the Search button starts`, s0.ta.r <= b.l + 0.5, { ta: s0.ta, btn: b })
+  const pts = []
+  for (let x = Math.ceil(s0.field.l) + 1; x < s0.field.r - 1; x += 4) {
+    for (const y of [s0.field.t + 3, (s0.field.t + s0.field.b) / 2, s0.field.b - 3]) pts.push([x, Math.round(y)])
+  }
+  const cy = Math.round((b.t + b.b) / 2), cx = Math.round((b.l + b.r) / 2)
+  for (const y of [Math.ceil(b.t) + 1, cy, Math.floor(b.b) - 1]) pts.push([Math.floor(b.l) - 1, y], [Math.ceil(b.r) + 1, y])
+  for (const x of [Math.ceil(b.l) + 1, cx, Math.floor(b.r) - 1]) pts.push([x, Math.floor(b.t) - 1], [x, Math.ceil(b.b) + 1])
+  const wrong = []
+  let inside = 0
+  for (const [x, y] of pts) {
+    /* the square where it is drawn right now, before this press */
+    const now = (await tapState(p)).btn
+    const isIn = x >= now.l && x <= now.r && y >= now.t && y <= now.b
+    if (isIn) inside++
+    if (touch) await p.touchscreen.tap(x, y)
+    else await p.mouse.click(x, y)
+    await sleep(120)
+    const s = await tapState(p)
+    if (entered(s) !== isIn) wrong.push({ x, y, inside: isIn, value: s && s.value, panel: s && s.panel })
+    await resetBox(p)
+    await sleep(80)
+  }
+  ok(`${tag} point grid: only a press inside the Search square enters search (${pts.length} points, ${inside} inside)`, wrong.length === 0 && inside > 0, wrong.slice(0, 12))
+
+  if (touch) {
+    /* ghost click: the finger lands on the text area; the dock then moves
+       so the button is under it; the browser's tap after touchend hits it */
+    const fx = Math.round(b.l - 20)
+    await p.touchscreen.touchStart(fx, cy)
+    await p.evaluate((sel, dx) => {
+      const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+      ta.closest('form').style.translate = `${dx}px 0`
+    }, TA, fx - cx)
+    await sleep(50)
+    const under = await p.evaluate((x, y) => document.elementFromPoint(x, y)?.closest('[data-test=search-syntax-help]') != null, fx, cy)
+    await p.touchscreen.touchEnd()
+    await sleep(300)
+    const g = await tapState(p)
+    await p.evaluate((sel) => {
+      const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+      ta.closest('form').style.translate = ''
+    }, TA)
+    ok(`${tag} ghost click: a touch from the text area that ends on the moved button never enters search`, under && !entered(g), { under, g })
+    await resetBox(p)
+    await sleep(100)
+  }
+  await p.evaluate(() => {
+    const btn = [...document.querySelectorAll('form.composer.omnibox--global [data-test=search-syntax-help]')].find((el) => el.getClientRects().length > 0)
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }))
+  })
+  await sleep(200)
+  const c = await tapState(p)
+  ok(`${tag} a click on the button with no press on it never enters search`, !entered(c), c)
+  /* the square itself still works (CONTROL for the guard), where it is now */
+  const n = (await tapState(p)).btn
+  const [nx, ny] = [Math.round((n.l + n.r) / 2), Math.round((n.t + n.b) / 2)]
+  if (touch) await p.touchscreen.tap(nx, ny)
+  else await p.mouse.click(nx, ny)
+  await sleep(300)
+  const t = await tapState(p)
+  ok(`${tag} CONTROL a press in the middle of the square enters search`, entered(t) && t.panel, t)
+  if (!touch) {
+    /* the keyboard still reaches it: focus the button, Enter */
+    await resetBox(p)
+    await p.evaluate(() => [...document.querySelectorAll('form.composer.omnibox--global [data-test=search-syntax-help]')].find((el) => el.getClientRects().length > 0).focus())
+    await p.keyboard.press('Enter')
+    await sleep(300)
+    const k = await tapState(p)
+    ok(`${tag} keyboard: Enter on the focused button opens the syntax list`, Boolean(k && k.panel), k)
+  }
+  ok(`${tag} tap grid: no page error`, errors.length === 0, errors)
+  await p.close()
+}
+/* ---- end t1 e142d4a0 ---- */
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -538,6 +677,8 @@ try {
   await chipCase(browser, 360, 780)
   await searchCase(browser, 390, 844)
   await searchCase(browser, 360, 780)
+  await tapCase(browser, { width: 390, height: 844, isMobile: true, hasTouch: true }, '390px tap')
+  await tapCase(browser, { width: 1440, height: 900 }, '1440px tap')
   await searchDesktop(browser)
   await chipDesktop(browser)
   await desktopCase(browser)

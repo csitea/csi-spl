@@ -127,8 +127,9 @@
           :aria-pressed="docked ? (searchMode ? 'true' : 'false') : undefined"
           :aria-label="docked ? t('search.title') : t('search.help_button')"
           :title="docked ? t('search.title') : t('search.help_button')"
+          ref="syntaxBtn"
           @mousedown.prevent
-          @click="onSyntaxButton"
+          @click="onSyntaxClick"
         ><UiIcon v-if="docked" name="search" :size="18" /><template v-else>?</template></button>
         <div
           v-if="global && syntaxOpen"
@@ -1161,7 +1162,40 @@ function onSyntaxButton() {
   void nextTick(() => { syntaxOpen.value = true })
 }
 
+/* t1 e142d4a0 (owner HUM-10): search starts only on a press that lands
+   inside the drawn button's square and is let go there, judged by the
+   pointer's own points, never by which element Chrome sends the click to.
+   Its touch adjustment moves a tap next to the button onto it (390 px: taps
+   at x 189..196 hit the button, which starts at 197) and a tap on the
+   square's edge off it; and the click the browser fires after the keyboard
+   moved the dock has no press on the button at all. So the pointer path
+   runs on pointerup, the click that follows is dropped, and any other click
+   on the button only focuses the box. A keyboard click (detail 0 on the
+   focused button) still works. */
+const syntaxBtn = ref<HTMLButtonElement | null>(null)
+let syntaxPress = 0
+let syntaxRan = 0
+function pressInSyntaxSquare(ev: PointerEvent): boolean {
+  const r = syntaxBtn.value?.getBoundingClientRect()
+  return Boolean(ev.button === 0 && r && r.width && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom)
+}
+function forgetSyntaxPress() { syntaxPress = 0 }
+function onSyntaxPointerUp(ev: PointerEvent) {
+  const pressed = syntaxPress > 0 && pressInSyntaxSquare(ev)
+  forgetSyntaxPress()
+  if (!pressed) return
+  syntaxRan = ev.timeStamp
+  onSyntaxButton()
+}
+function onSyntaxClick(ev: MouseEvent) {
+  if (ev.detail === 0 && document.activeElement === ev.currentTarget) return onSyntaxButton()
+  const ran = syntaxRan > 0 && ev.timeStamp - syntaxRan < 1500
+  syntaxRan = 0
+  if (!ran) focusInput()
+}
+
 function onSyntaxPointerDown(ev: PointerEvent) {
+  syntaxPress = pressInSyntaxSquare(ev) ? ev.timeStamp : 0
   if (!syntaxOpen.value) return
   const root = fieldEl.value
   if (root && ev.target instanceof Node && root.contains(ev.target)) return
@@ -1461,11 +1495,15 @@ onMounted(() => {
   window.addEventListener('dragover', onWindowDragOver)
   window.addEventListener('drop', onWindowDrop)
   window.addEventListener('pointerdown', onSyntaxPointerDown)
+  window.addEventListener('pointerup', onSyntaxPointerUp)
+  window.addEventListener('pointercancel', forgetSyntaxPress)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('dragover', onWindowDragOver)
   window.removeEventListener('drop', onWindowDrop)
   window.removeEventListener('pointerdown', onSyntaxPointerDown)
+  window.removeEventListener('pointerup', onSyntaxPointerUp)
+  window.removeEventListener('pointercancel', forgetSyntaxPress)
 })
 </script>
 
@@ -1839,10 +1877,14 @@ textarea.in-code {
     font-size: max(16px, 1rem);
     min-height: var(--tap);
     padding: 10px 0;
-    padding-inline-end: var(--tap);
+    /* t1 e142d4a0: the text area ends where the Search button starts (the
+       field's 8 px end padding is under the button too), so no tap on the
+       text area is ever under the button */
+    width: calc(100% - var(--tap) + 8px);
   }
   /* 085 FR-004: the Search button (magnifier), a 44 px target in the
-     field's end corner; lit while the box is in search mode */
+     field's end corner; lit while the box is in search mode. t1 e142d4a0:
+     its square is drawn, so the target is exactly what the eye sees */
   .composer--dock.composer--dock .search-syntax-btn {
     top: 0;
     inset-inline-end: 0;
@@ -1851,7 +1893,7 @@ textarea.in-code {
     width: var(--tap);
     height: var(--tap);
     border: 0;
-    background: transparent;
+    background: var(--color-surface-hover);
   }
   .composer--dock.composer--dock .search-syntax-btn[aria-pressed=true] { color: var(--color-accent); }
   /* one line of hint: the long key wording must not wrap under the box */
@@ -2011,5 +2053,7 @@ textarea.in-code {
     max-width: calc(100% - var(--tap));
     padding-top: 10px;
   }
+  /* t1 e142d4a0: a multi-line draft keeps clear of the Search button too */
+  .composer.composer--dock.composer--dock .omnibox-field.is-multiline textarea { width: calc(100% - var(--tap) + 8px); }
 }
 </style>

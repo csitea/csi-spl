@@ -52,18 +52,11 @@ cd /opt/csi/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_spl_unanswered_sweep
 ```
 
 ## 2. Weekly Routine
-Clean temporary files and restart agents:
+Clean temporary files:
 
 ### 2.1 Clean /tmp
 ```bash
 find /tmp -type f -mtime +7 -delete
-```
-
-### 2.2 Agent Restarts
-Restore an agent identity after a restart or crash:
-
-```bash
-cd /opt/csi/csi-spl-orc && sudo -u <OWNER_USER> env IDENTITY_RESTORE_IDS=<agent-id> DRY_RUN=0 ./run -a do_spl_agent_identity_restore
 ```
 
 ## 3. Role Rotation
@@ -77,6 +70,13 @@ cd /opt/csi/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_spl_dispatch_rotate
 ### 3.2 Orchestrator Lease Rotation
 ```bash
 cd /opt/csi/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_spl_orch_rotate
+```
+
+## 4. Agent Restarts and Identity Restore
+Restore an agent identity after a restart or crash:
+
+```bash
+cd /opt/csi/csi-spl-orc && sudo -u <OWNER_USER> env IDENTITY_RESTORE_IDS=<agent-id> DRY_RUN=0 ./run -a do_spl_agent_identity_restore
 ```
 
 ## 5. Quota and Weekly Limit Handling

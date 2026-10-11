@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  MSG_SHORTCUTS, NAV_SHORTCUTS, TOPIC_LIST_SHORTCUTS, backJump, inTypingOrOverlay, listRowFor, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
+  MSG_SHORTCUTS, NAV_SHORTCUTS, backJump, inTypingOrOverlay, listRowFor, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
 } from '../../src/utils/msg-shortcuts.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -180,7 +180,7 @@ describe('help page: the Message shortcuts section is this map', () => {
 
   it('a section that drops a key no longer matches, and every Shift + letter is one map key', () => {
     const keys = [...want.matchAll(/Shift \+ ([A-Z])/g)].map((m) => m[1])
-    assert.deepEqual(keys, [...MSG_SHORTCUTS, ...TOPIC_LIST_SHORTCUTS].map((s) => s.key))
+    assert.deepEqual(keys, MSG_SHORTCUTS.map((s) => s.key))
     const dropped = want.replace(/\| \*\*`Shift \+ H`\*\*[^\n]*\n/, '')
     assert.notEqual(dropped, want)
     assert.equal(helpSection('## 6. Earlier\n\n' + dropped + '\n\n<!-- version: x -->'), dropped)
@@ -188,19 +188,16 @@ describe('help page: the Message shortcuts section is this map', () => {
 })
 
 
-describe('Topics view: Shift + A on a focused topic row (t1 topic 2627084c)', () => {
-  it('the list takes A and runs Archive, the same item the channel card runs', () => {
-    assert.deepEqual(TOPIC_LIST_SHORTCUTS.map((s) => s.key), ['A'])
-    assert.deepEqual([...TOPIC_LIST_SHORTCUTS[0].items], ['archive'])
+describe('Topics view gone (t1 e4bfddb1): no topic-row keys', () => {
+  it('Shift + A is the selected message\'s Archive only', () => {
     assert.equal(shortcutItem('A', offeredItems({ topicArchive: true })), 'archive')
+    const md = messageShortcutsSection(() => 'x')
+    assert.doesNotMatch(md, /Topics view|Focused topic/)
+    assert.equal([...md.matchAll(/Shift \+ A`/g)].length, 1, 'CONTROL: the message row stays')
   })
-  it('a role the row menu locks Archive for gets nothing', () => {
+  it('a role the menu locks Archive for gets nothing', () => {
     const locked = offeredItems({ topicArchive: false, locks: { archive: 'feed.msg_menu.why.archive_admins' } })
     assert.equal(shortcutItem('A', locked), '')
-  })
-  it('the help section names the Topics view row', () => {
-    const md = messageShortcutsSection(() => 'Archive the focused topic (Topics view)')
-    assert.match(md, /\| \*\*`Shift \+ A`\*\* \| Focused topic, Topics view, desktop \| Archive the focused topic \(Topics view\) \|/)
   })
 })
 

@@ -36,7 +36,7 @@ const VIEWPORTS = [
      its dot / bell / note / version are the bottom status strip
      (mobile-status-strip.test.mjs) */
 ]
-const TABS = ['channels', 'dm', 'issues', 'topics', 'flow']
+const TABS = ['channels', 'dm', 'issues', 'flow']
 
 const SHA = '0123456789abcdef0123456789abcdef01234567'
 const signIn = (p) => p.evaluate(() => {
@@ -162,16 +162,14 @@ try {
         await padEpics(p)
         await sleep(300)
       }
-      /* CLE-77886: on a phone a section with a page of its own (Topics) shows
+      /* CLE-77886: on a phone a section with a page of its own shows
          it under the section strip; a tap on its selected control shows the
          section's list at level 1 */
       if (vp.mobile && tab !== 'issues' && await p.$('.spool-shell[data-mobile-section="1"]')) {
         await p.click(`[data-testid=sidebar-tab-${tab}]`).catch(() => null)
         await sleep(400)
       }
-      /* spec 109 T008: on a desktop Topics opens `/`, whose centre is the
-         topic list; panel 1 shows the Channels list there */
-      const shown = !vp.mobile && tab === 'topics' ? 'channels' : tab
+      const shown = tab
       await p.waitForFunction((t) => document.getElementById('sidebar-panel-' + t)?.offsetParent, { timeout: 10000 }, shown).catch(() => null)
       await sleep(150)
       const m = await measure(p, shown)

@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Keyboard shortcuts",
       "archive": "Archive / Unarchive",
-      "archive_topic_row": "Archive the focused topic (Topics view)",
       "move": "Move or merge…",
       "open_menu": "Open menu",
       "to_parent": "Go to the topic's first message in the list",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, newest first",
-    "index": {
-      "subtitle": "Workspace topics",
-      "empty": "No topics yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
-    },
     "lobby": {
       "status": "live · {state} · you are {who}",
       "no_lobby": "No lobby configured ({env}, or the hub welcome)."

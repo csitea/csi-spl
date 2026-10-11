@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Klávesové skratky",
       "archive": "Archivovať / Obnoviť z archívu",
-      "archive_topic_row": "Archivovať vybranú tému (zobrazenie Témy)",
       "move": "Presunúť alebo zlúčiť…",
       "open_menu": "Otvoriť menu",
       "to_parent": "Prejsť na prvú správu témy v zozname",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, najnovšie prvé",
-    "index": {
-      "subtitle": "len na čítanie · v rámci pracovného priestoru",
-      "empty": "Zatiaľ žiadne témy.",
-      "messages": "{n} správa | Počet správ: {n}",
-      "older": "Staršie"
-    },
     "lobby": {
       "status": "naživo · {state} · ste {who}",
       "no_lobby": "Nie je nastavené žiadne lobby ({env} alebo uvítanie hubu)."

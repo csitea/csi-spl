@@ -23,7 +23,8 @@ export const RAIL_TABS = Object.freeze([
   Object.freeze({ id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages', phoneLabelKey: 'sidebar.messages' }),
   /* Owner 2026-09-26: Issues is the third tab. */
   Object.freeze({ id: 'issues', icon: 'issues', labelKey: 'sidebar.issues' }),
-  Object.freeze({ id: 'topics', icon: 'list', labelKey: 'nav.topics' }),
+  /* owner HUM-10 (t1 e4bfddb1, msg a78e06c8): no Topics tab any more; the
+     hub still stores its id (RAIL_RETIRED) */
   Object.freeze({ id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' }),
   /* SPL-983: Archive (owner, topic 8f58f802); the page is CLE-35018's. */
   Object.freeze({ id: 'archive', icon: 'archive', labelKey: 'sidebar.archive' }),
@@ -54,8 +55,22 @@ export const RAIL_TABS = Object.freeze([
   Object.freeze({ id: 'calendar', icon: 'calendar', labelKey: 'sidebar.calendar' }),
 ])
 
-/** Every rail id, in the hub's list (auth.RailTabs) - a set, not the drawn order. */
+/** Every drawn rail id - a set, not the drawn order. */
 export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))
+
+/**
+ * Owner HUM-10 (t1 e4bfddb1, msg a78e06c8: "Remove the whole topics view"):
+ * ids the hub's list (auth.RailTabs, the humans.rail_order CHECK) still
+ * holds but the rail no longer draws. A stored order loses them when it is
+ * read (parseRailOrder) and gets them back when it is saved (wireRailOrder),
+ * so the hub keeps admitting it.
+ */
+export const RAIL_RETIRED = Object.freeze(['topics'])
+
+/** A drawn order as the hub stores it: the retired ids added, Archive last. */
+export function wireRailOrder(order) {
+  return pinRailOrder([...order.filter((id) => !RAIL_RETIRED.includes(id)), ...RAIL_RETIRED])
+}
 
 /**
  * CLE-77916 (owner, t1 topic 5463df22, 2026-10-01: "its place should be
@@ -192,8 +207,9 @@ export async function applyRailOrder(want, { current, apply, save }) {
   /* a legacy (shorter) stored order is kept as it was on a revert */
   const prev = Array.isArray(current) && current.length > 0 ? [...current] : null
   if (want !== null && !isRailOrder(want)) return { ok: false, value: prev }
-  /* CLE-77916: whatever the caller built, Archive is saved last */
-  if (want !== null) want = pinRailOrder(want)
+  /* CLE-77916: whatever the caller built, Archive is saved last; the hub
+     still wants the retired ids (RAIL_RETIRED) */
+  if (want !== null) want = wireRailOrder(want)
   if (want === null ? prev === null : (prev !== null && sameOrder(want, prev))) return { ok: true, value: prev }
   const next = want === null ? null : [...want]
   apply(next)

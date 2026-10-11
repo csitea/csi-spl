@@ -282,8 +282,14 @@ declare module '~/utils/live-ws.mjs' {
   }): () => void
 }
 
+declare module '~/utils/home-target.mjs' {
+  export function lobbyHomeTarget(s?: { phone: boolean, query?: Record<string, unknown> }): { path: string, query: Record<string, unknown> } | null
+  export function noteLoadedUrl(path: string, search: string): void
+  export function takeLoadedQuery(isFrontDoor: (path: string) => boolean): Record<string, string> | null
+}
+
 declare module '~/utils/sidebar-tabs.mjs' {
-  export const SIDE_TABS: readonly ['dm', 'channels', 'topics', 'flow']
+  export const SIDE_TABS: readonly ['dm', 'channels', 'flow']
   export const USERS_TAB: 'users'
   export const EVENTS_TAB: 'events'
   export const ISSUES_TAB: 'issues'
@@ -292,9 +298,9 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const AGENTS_TAB: 'agents'
   export const BOXES_TAB: 'boxes'
   export const CALENDAR_TAB: 'calendar'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | null
+  export function tabForPath(path: string): 'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | null
   export function isSearchPage(path: string): boolean
-  export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
+  export function switchPaneOf(text: string): 'dm' | 'channels' | 'flow' | '' | null
 }
 
 declare module '~/utils/flow-entries.mjs' {
@@ -1788,9 +1794,11 @@ declare module '~/utils/palette.mjs' {
 }
 
 declare module '~/utils/rail-order.mjs' {
-  export type RailId = 'dm' | 'channels' | 'issues' | 'topics' | 'flow' | 'events' | 'archive'
+  export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'events' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar'
   export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }[]
   export const RAIL_IDS: readonly RailId[]
+  export const RAIL_RETIRED: readonly string[]
+  export function wireRailOrder(order: readonly string[]): string[]
   export const RAIL_PINNED_LAST: 'archive'
   export const DEFAULT_RAIL_ORDER: readonly RailId[]
   export function pinRailOrder<T extends string>(order: readonly T[]): T[]
@@ -2417,7 +2425,7 @@ declare module '~/utils/unread-model.mjs' {
 
 // 081 T003: the forward of tabForPath (merges with its first declare block).
 declare module '~/utils/sidebar-tabs.mjs' {
-  export function routeForTab(id: string): '/' | '/issues' | '/users' | '/events' | '/archive' | '/people' | '/agents' | '/boxes' | null
+  export function routeForTab(id: string): '/issues' | '/users' | '/events' | '/archive' | '/people' | '/agents' | '/boxes' | null
 }
 
 // 078 T004: the proportional topic default (merges with its first declare block).

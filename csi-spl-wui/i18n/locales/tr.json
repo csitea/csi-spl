@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Klavye kısayolları",
       "archive": "Arşivle / Arşivden çıkar",
-      "archive_topic_row": "Seçili konuyu arşivle (Konular görünümü)",
       "move": "Taşı veya birleştir…",
       "open_menu": "Menüyü aç",
       "to_parent": "Listede konunun ilk mesajına git",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, en yeniler önce",
-    "index": {
-      "subtitle": "salt okunur · çalışma alanına özel",
-      "empty": "Henüz konu yok.",
-      "messages": "{n} mesaj | {n} mesaj",
-      "older": "Daha eski"
-    },
     "lobby": {
       "status": "canlı · {state} · siz {who}",
       "no_lobby": "Lobi yapılandırılmamış ({env} veya hub karşılaması)."

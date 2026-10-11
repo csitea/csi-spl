@@ -111,39 +111,27 @@ describe('ArchivedBadge', () => {
   })
 })
 
-describe('the Topics rows mark an archived topic, never a live one', () => {
-  const sidebarRow = cut(templateOf('src/components/ChannelSidebar.vue').slice(templateOf('src/components/ChannelSidebar.vue').indexOf('id="sidebar-panel-topics"')), '<a\n          class="nav-item"')
-  const homeRow = cut(templateOf('src/pages/index.vue'), '<a\n        class="topic-row"')
-  const helpers = { localePath: (p) => p, tr: (k) => k, t: (k) => k, namedLine: () => ({}), people: { names: { value: {} } },
-    rowTitle: (s) => s, peopleLabels: () => '', topicPeople: () => ({ text: 'people' }), topicStarter: () => null, rowTime: () => '', pane: {} }
-
-  for (const [name, row, key] of [['sidebar', sidebarRow, 'row'], ['home list', homeRow, 't']]) {
-    it(`${name}: archived -> badge + muted; live -> neither (control)`, async () => {
-      const a = await html(row, { ...helpers, [key]: archived })
-      assert.match(a, /data-test="archived-badge"/, `${name} archived row has the badge`)
-      assert.match(a, /class="[^"]*\bis-archived\b/, `${name} archived row is muted`)
-      const l = await html(row, { ...helpers, [key]: live })
-      assert.doesNotMatch(l, /archived-badge/, `${name} live row has no badge`)
-      assert.doesNotMatch(l, /is-archived/, `${name} live row is not muted`)
-    })
-  }
+/* owner HUM-10 (t1 e4bfddb1): the Topics view (sidebar list, home list,
+   the list on /t/<id>) is gone, so no topic row is left to mark */
+describe('no Topics list rows are left to mark', () => {
+  it('the sidebar, `/` and /t/<id> hold no topic row; the channel feed still has its cards (control)', () => {
+    assert.ok(!templateOf('src/components/ChannelSidebar.vue').includes('sidebar-panel-topics'))
+    assert.ok(!templateOf('src/pages/index.vue').includes('topic-row'))
+    assert.ok(!templateOf('src/pages/t/[task_id].vue').includes('topic-row'))
+    assert.ok(templateOf('src/pages/t/[task_id].vue').includes('<TopicPane'), 'the thread stays (control)')
+  })
 })
 
 describe('the open topic header marks an archived topic', () => {
   const panes = [
     ['TopicPane', cut(templateOf('src/components/TopicPane.vue'), '<header>'), (at) => ({ archivedAt: at, heading: 'h', topic: {} })],
     ['LiveTopicPane', cut(templateOf('src/components/LiveTopicPane.vue'), '<header>'), (at) => ({ pane: { archivedAt: at }, heading: 'h', topic: {} })],
-    ['/t/<id>', cut(templateOf('src/pages/t/[task_id].vue'), '<a\n          class="topic-row"'), (at) => ({ row: at ? { ...archived, archived_at: at } : live, taskId: 'other', t: (k) => k, localePath: (p) => p, rowTitle: (s) => s })],
   ]
   for (const [name, tpl, ctx] of panes) {
     it(`${name}: archived -> badge; live -> none (control)`, async () => {
       const a = await html(tpl, ctx(STAMP))
       assert.match(a, /data-test="archived-badge"/)
-      if (name === 'TopicPane' || name === 'LiveTopicPane') {
-        assert.match(a, /archived-badge__when[^>]*>2026-10-02</, `${name} header prints the day`)
-      } else {
-        assert.doesNotMatch(a, /archived-badge__when/, `${name} keeps the day on the title`)
-      }
+      assert.match(a, /archived-badge__when[^>]*>2026-10-02</, `${name} header prints the day`)
       assert.doesNotMatch(await html(tpl, ctx('')), /archived-badge/)
     })
   }

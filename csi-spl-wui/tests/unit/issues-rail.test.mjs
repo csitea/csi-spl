@@ -19,16 +19,18 @@ describe('Issues rail tab', () => {
     assert.equal(tabForPath('/channel/lobby'), 'channels')
   })
 
-  it('is the third tab, after channels and direct messages, before topics', () => {
+  it('is the third tab, after channels and direct messages, before flow', () => {
     /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS;
-       owner 2026-09-27: channels, direct messages, issues, topics, ... */
+       owner 2026-09-27: channels, direct messages, issues, ...; the Topics
+       tab that followed Issues is gone (t1 e4bfddb1), Flow follows now */
     const tabs = read('src/utils/rail-order.mjs')
     const src = read('src/components/ChannelSidebar.vue')
     const channels = tabs.indexOf("{ id: 'channels', icon: 'hash'")
     const dm = tabs.indexOf("{ id: 'dm', icon: 'messages'")
     const issues = tabs.indexOf("{ id: 'issues', icon: 'issues', labelKey: 'sidebar.issues' }")
-    const topics = tabs.indexOf("{ id: 'topics', icon: 'list'")
-    assert.ok(channels > 0 && dm > channels && issues > dm && topics > issues)
+    const flowAt = tabs.indexOf("{ id: 'flow', icon: 'waves'")
+    assert.ok(channels > 0 && dm > channels && issues > dm && flowAt > issues)
+    assert.equal(tabs.includes("{ id: 'topics'"), false, 'no Topics tab (t1 e4bfddb1)')
     const between = tabs.slice(dm, issues)
     assert.equal(/\{ id:/.test(between.slice(between.indexOf('\n'))), false)
     assert.match(src, /navigateTo\(localePath\('\/issues'\)\)/)

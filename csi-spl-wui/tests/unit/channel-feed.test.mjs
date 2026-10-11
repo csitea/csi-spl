@@ -500,8 +500,8 @@ describe('Topics list avatar (owner, prd t1 432769d8)', async () => {
     assert.equal(topicStarter({}), null)
     assert.equal(topicStarter(null), null)
   })
-  it('the Topics page renders it in every row', () => {
+  it('`/` lists no topic rows any more (Topics view removed, t1 e4bfddb1)', () => {
     const vue = readFileSync(new URL('../../src/pages/index.vue', import.meta.url), 'utf8')
-    assert.match(vue, /<SpoolAvatar[\s\S]*?data-test="topic-row-avatar"[\s\S]*?:id="topicStarter\(t\)!\.id"/)
+    assert.doesNotMatch(vue, /topic-row-avatar|topicStarter/)
   })
 })

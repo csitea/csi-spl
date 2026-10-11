@@ -223,8 +223,8 @@ describe('WS follows: DM peer and topic list (wui-live-ws v0.5)', () => {
 })
 
 describe('wiring (no view polls in live mode)', () => {
-  it('LiveFeed and the topic list anchor the scroll and show the pill', () => {
-    for (const f of ['components/LiveFeed.vue', 'pages/index.vue']) {
+  it('LiveFeed anchors the scroll and shows the pill (the home topic list went, t1 e4bfddb1)', () => {
+    for (const f of ['components/LiveFeed.vue']) {
       assert.match(read(f), /useScrollAnchor\(/, f)
       assert.match(read(f), /new-pill/, f)
     }

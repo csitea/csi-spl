@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Atajos de teclado",
       "archive": "Archivar / Desarchivar",
-      "archive_topic_row": "Archivar el tema enfocado (vista Temas)",
       "move": "Mover o fusionar…",
       "open_menu": "Abrir el menú",
       "to_parent": "Ir al primer mensaje del tema en la lista",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, los más recientes primero",
-    "index": {
-      "subtitle": "solo lectura · limitado al espacio de trabajo",
-      "empty": "Aún no hay temas.",
-      "messages": "{n} mensaje | {n} mensajes",
-      "older": "Anteriores"
-    },
     "lobby": {
       "status": "en directo · {state} · eres {who}",
       "no_lobby": "No hay vestíbulo configurado ({env}, o la bienvenida del hub)."

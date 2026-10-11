@@ -1,8 +1,9 @@
-// The topic view (/t/:id) is two panels. On a phone one shows at a time:
-// the thread, then Back to the list, then the row back to the thread.
-// Desktop shows both. The sidebar is not a painted column, and it keeps a
-// box so a row menu can open at 821px and up. A channel still shows it.
-// The thread title is the topic text inside a four-side 1px border.
+// A topic's own page (/t/:id) is its thread alone: the Topics list column
+// went with the Topics view (owner HUM-10, t1 e4bfddb1, msg a78e06c8). On a
+// phone the thread fills the screen; on a desktop the shell sidebar
+// (Channels) is painted beside it and its row menus open. A channel still
+// shows the sidebar. The thread title is the topic text inside a four-side
+// 1px border, in a channel, on the home link (/?topic=) and on /t/:id.
 //
 // Run: node tests/e2e/phone-topic-header-width.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
@@ -95,7 +96,7 @@ function readBrowse(page) {
 const SHOT_DIR = mkdtempSync(join(tmpdir(), 'topic-border-'))
 const THREADS = [
   ['channel', `/channel/lobby?topic=${TOPIC}`],
-  ['topics', `/?topic=${TOPIC}`],
+  ['home', `/?topic=${TOPIC}`],
   ['topic-view', `/t/${TOPIC}`],
 ]
 
@@ -150,35 +151,24 @@ try {
     await openTopic(page)
     await sleep(300)
     const m = await readBrowse(page)
-    console.log(`MEASURE ${width} phone=${m.phone} title=${JSON.stringify(m.title)} list=${m.list && m.list.visible} thread=${m.thread && m.thread.visible}`)
+    console.log(`MEASURE ${width} phone=${m.phone} title=${JSON.stringify(m.title)} list=${Boolean(m.list)} thread=${m.thread && m.thread.visible}`)
     ok(`${width}px viewport applied`, m.inner === width, m.inner)
-    ok(`${width}px the thread is the panel on screen`, m.phone === 'thread' && m.thread && m.thread.visible && m.list && !m.list.visible, m)
+    ok(`${width}px the thread is the panel on screen, no topic list`, m.phone === 'thread' && m.thread && m.thread.visible && !m.list, m)
     ok(`${width}px the title is the topic text`, m.title === TITLE, m.title)
     ok(`${width}px one topic section`, m.sections === 1, m.sections)
     ok(`${width}px no sideways scroll`, m.docScroll <= m.docClient + 1, m)
-
-    await page.click('[data-test=topic-browse-thread] [data-testid=mobile-back]')
-    await sleep(400)
-    const back = await readBrowse(page)
-    ok(`${width}px Back returns to the topic list`, back.phone === 'list' && back.list && back.list.visible && back.thread && !back.thread.visible, back)
-
-    await page.click(`[data-test=topic-browse-list] [data-key="${TOPIC}"]`)
-    await sleep(400)
-    const again = await readBrowse(page)
-    ok(`${width}px the row opens the thread again`, again.phone === 'thread' && again.title === TITLE, again)
   }
 
   await page.setViewport({ width: 1280, height: 800, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
   await openTopic(page)
   await sleep(300)
   const desk = await readBrowse(page)
-  console.log(`MEASURE 1280 list=${desk.list && desk.list.w} thread=${desk.thread && desk.thread.w} sections=${desk.sections}`)
+  console.log(`MEASURE 1280 sidebar=${desk.sidebar && desk.sidebar.w} thread=${desk.thread && desk.thread.w} sections=${desk.sections}`)
   ok('1280px viewport applied', desk.inner === 1280, desk.inner)
-  ok('1280px both panels are on screen', desk.list && desk.list.visible && desk.thread && desk.thread.visible, desk)
-  ok('1280px the thread is wider than the list', desk.thread.w > desk.list.w, { thread: desk.thread.w, list: desk.list.w })
-  ok('1280px the sidebar is not a third panel', desk.sidebar && !desk.sidebar.visible, desk.sidebar)
-  ok('1280px the sidebar keeps a box so a row menu can open', desk.sidebar && desk.sidebar.w > 40 && desk.menuW > 0, { sidebar: desk.sidebar, menuW: desk.menuW })
-  ok('1280px the two panels fill the row', desk.list && desk.thread && desk.shellW > 0 && desk.list.w + desk.thread.w > desk.shellW - 24, { list: desk.list.w, thread: desk.thread.w, shell: desk.shellW })
+  ok('1280px the thread is on screen, no topic list', !desk.list && desk.thread && desk.thread.visible, desk)
+  ok('1280px the sidebar (Channels) is painted beside the thread', desk.sidebar && desk.sidebar.visible && desk.sidebar.w > 40, desk.sidebar)
+  ok('1280px the thread is wider than the sidebar', desk.thread.w > desk.sidebar.w, { thread: desk.thread.w, sidebar: desk.sidebar.w })
+  ok('1280px no data-topic-browse list layout hides the sidebar', desk.menuW > 0, { menuW: desk.menuW })
   const opened = await page.evaluate(() => {
     const btn = [...document.querySelectorAll('.spool-shell > .sidebar [data-testid=sidebar-row-menu]')].find((x) => x.getBoundingClientRect().width > 0)
     if (!btn) return { clicked: false }

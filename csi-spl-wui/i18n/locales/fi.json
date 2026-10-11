@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Pikanäppäimet",
       "archive": "Arkistoi / Palauta arkistosta",
-      "archive_topic_row": "Arkistoi valittu aihe (Aiheet-näkymä)",
       "move": "Siirrä tai yhdistä…",
       "open_menu": "Avaa valikko",
       "to_parent": "Siirry ketjun ensimmäiseen viestiin listassa",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, uusimmat ensin",
-    "index": {
-      "subtitle": "vain luku · työtilaan rajattu",
-      "empty": "Ei vielä aiheita.",
-      "messages": "{n} viesti | {n} viestiä",
-      "older": "Vanhemmat"
-    },
     "lobby": {
       "status": "live · {state} · olet {who}",
       "no_lobby": "Aulaa ei ole määritetty ({env} tai hubin tervetuloviesti)."

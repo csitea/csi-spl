@@ -3,7 +3,9 @@
 // Owner, 2026-09-27 (topic 116646c8): "the default order for new members
 // should be channels, direct messages, issues, topics, flow and archive". The
 // Event log, which he did not name, goes last. A person with a stored order
-// (humans.rail_order) keeps it exactly.
+// (humans.rail_order) keeps it exactly. Owner HUM-10 (t1 e4bfddb1, msg
+// a78e06c8): "Remove the whole topics view" - no Topics tab; a stored order
+// that holds `topics` is drawn without it (noTopicsView below).
 //
 // In the mock tenant the session is adopted through the pinia store, once
 // with no rail_order and once with the owner's stored order. Each time the
@@ -121,6 +123,9 @@ async function run(browser, base, width, touch) {
     const rail = await railOf(p)
     check(`${tag}: the rail draws ${order ? 'the stored order, unchanged' : 'the new default'}`, same(rail, want), { rail })
     check(`${tag}: Archive is the last section`, rail.at(-1) === 'archive', { last: rail.at(-1) })
+    /* CONTROL (red on master, where the tab exists): no Topics tab, also for
+       a stored order that names it (STORED, ARCHIVE_FIRST hold 'topics') */
+    check(`${tag}: no Topics tab${order ? ' (the stored order names topics)' : ''}`, !rail.includes('topics') && !(await p.$('#sidebar-tab-topics')) && (!order || order.includes('topics')), { rail })
     const pinned = await p.$$eval('[data-testid=sidebar-rail] [data-pinned=last]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
     check(`${tag}: Archive, and only Archive, is not draggable`, same(pinned, ['archive']), { pinned })
     await dragProbe(p, tag, rail)
@@ -128,7 +133,7 @@ async function run(browser, base, width, touch) {
     await p.waitForSelector('[data-test=rail-order-list] [data-reorder-id]', { timeout: NAV })
     await sleep(300)
     const list = await p.$$eval('[data-test=rail-order-list] [data-reorder-id]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
-    check(`${tag}: Settings -> Behaviour lists the same order`, same(list, want), { list })
+    check(`${tag}: Settings -> Behaviour lists the same order, no Topics`, same(list, want) && !list.includes('topics'), { list })
     const archiveCtl = await p.$$('[data-test=rail-order-up-archive], [data-test=rail-order-down-archive]')
     check(`${tag}: Settings offers no Move up / down for Archive`, archiveCtl.length === 0, { n: archiveCtl.length })
   }
@@ -137,84 +142,107 @@ async function run(browser, base, width, touch) {
 
 /* spec 109 T007 (FR-005): a rail tab that keeps the route keeps panel 2 (the
    centre, .spool-main) as it is - no DOM mutation there in the 600 ms after the
-   click. On `/` (the topic index, Topics selected) Channels / Direct messages /
-   Flow only swap panel 1, and Topics again is the tab already open. `/` and not
-   a channel: the mock channel feed refreshes on its own timer. CONTROL: Topics
-   from #lobby changes the route, so the same observer must count mutations. */
+   click. On a topic's page (/t/<id>, the thread alone since the Topics view
+   went) Channels / Direct messages / Flow only swap panel 1. CONTROL: Issues
+   changes the route, so the same observer must count mutations. */
+const TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 async function panel2Mutations(p, id) {
   return p.evaluate(async (id) => {
     const main = document.querySelector('.spool-main')
     let n = 0
-    const o = new MutationObserver((list) => { n += list.length })
+    const what = []
+    /* the mock thread appends live rows on its own timer (.live-rows): those
+       are not panel 2 redrawn by the tab, which would replace the section */
+    const own = (m) => !(m.target.nodeType === 1 ? m.target : m.target.parentElement)?.closest('.live-rows')
+    const o = new MutationObserver((all) => {
+      const list = all.filter(own)
+      n += list.length
+      for (const m of list.slice(0, 4)) what.push(`${m.type}:${m.target.nodeType === 1 ? m.target.className || m.target.tagName : '#text'}:${m.attributeName || ''}`)
+    })
     o.observe(main, { subtree: true, childList: true, attributes: true, characterData: true })
     document.getElementById('sidebar-tab-' + id).click()
     await new Promise((r) => setTimeout(r, 600))
     o.disconnect()
-    return { n, path: location.pathname }
+    return { n, path: location.pathname, what: what.slice(0, 6) }
   }, id)
 }
 
 async function sameRouteTabs(browser, base) {
   const p = await browser.newPage()
   await p.setViewport({ width: 1440, height: 900 })
-  await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
-  await p.waitForSelector('.spool-main .topic-row', { timeout: NAV })
+  await p.goto(`${base}/t/${TOPIC}`, { waitUntil: 'networkidle2', timeout: NAV })
+  await p.waitForSelector('[data-test=topic-browse-thread] article.msg', { timeout: NAV })
   await sleep(800)
-  for (const id of ['channels', 'dm', 'flow', 'topics', 'channels', 'topics']) {
+  for (const id of ['channels', 'dm', 'flow', 'channels']) {
     const r = await panel2Mutations(p, id)
-    check(`1440px T007: ${id} tab on / keeps the route and panel 2 (0 mutations)`, r.path === '/' && r.n === 0, r)
+    check(`1440px T007: ${id} tab on /t/<id> keeps the route and panel 2 (0 mutations)`, r.path === `/t/${TOPIC}` && r.n === 0, r)
   }
-  await go(p, '/channel/lobby')
-  await p.waitForSelector('.spool-main [data-pane=msgs]', { timeout: NAV })
-  await sleep(800)
-  const ctl = await panel2Mutations(p, 'topics')
-  check('1440px T007 CONTROL: Topics from #lobby changes the route and panel 2 mutates', ctl.path === '/' && ctl.n > 0, ctl)
-}
-
-/* spec 109 T008 (FR-006, owner Q2 = a): on `/` the centre (panel 2) is the
-   topic list, so panel 1 shows Channels, not the same list again. A fresh load
-   of `/`, read once the centre has its rows: the VISIBLE panel 1 list must be
-   Channels. The old check (`#sidebar-panel-topics` absent) passed on the old
-   code too; this one reads what is painted. A topic page (/t/<id>) paints
-   one topic list too, its own: the shell sidebar is not painted there. */
-const shownPanels = (p) => p.$$eval('.sidebar-panel', (els) => els.filter((e) => e.checkVisibility({ visibilityProperty: true })).map((e) => e.id))
-async function homeOneList(browser, base) {
-  const p = await browser.newPage()
-  await p.setViewport({ width: 1440, height: 900 })
-  await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
-  await p.waitForSelector('.spool-main .topic-row', { timeout: NAV })
-  await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
-  await sleep(800)
-  const shown = await shownPanels(p)
-  const centre = await p.$$eval('.spool-main .topic-row', (els) => els.length)
-  check('1440px T008: / shows the topic list once - panel 2 has it, panel 1 shows Channels', centre > 0 && same(shown, ['sidebar-panel-channels']), { shown, centre })
-  /* the rail still marks Topics, and a click on Topics (the tab already
-     open) keeps the one list: panel 1 stays on Channels */
-  const railOn = () => p.$$eval('[data-testid=sidebar-rail] [aria-selected=true]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
-  const marked = await railOn(p)
-  await p.click('#sidebar-tab-topics')
-  await sleep(600)
-  const again = await shownPanels(p)
-  check('1440px T008: on / the rail marks Topics; Topics again keeps panel 1 on Channels', same(marked, ['topics']) && same(again, ['sidebar-panel-channels']), { marked, again })
-  /* Topics from a channel page lands on / with the same one list */
-  await go(p, '/channel/lobby')
-  await p.waitForSelector('.spool-main [data-pane=msgs]', { timeout: NAV })
-  await p.click('#sidebar-tab-topics')
-  await p.waitForSelector('.spool-main .topic-row', { timeout: NAV })
-  await sleep(600)
-  const fromLobby = { path: await p.evaluate(() => location.pathname), shown: await shownPanels(p), marked: await railOn(p) }
-  check('1440px T008: Topics from #lobby opens / with Topics marked and Channels in panel 1', fromLobby.path === '/' && same(fromLobby.shown, ['sidebar-panel-channels']) && same(fromLobby.marked, ['topics']), fromLobby)
-  const key = await p.$eval('.spool-main .topic-row', (e) => e.getAttribute('data-key'))
-  await go(p, '/t/' + key)
-  await sleep(800)
-  await p.waitForSelector('[data-test=topic-browse-list] a.topic-row', { visible: true, timeout: NAV })
-  const onTopic = { panels: await shownPanels(p), own: await p.$$eval('[data-test=topic-browse-list] a.topic-row', (as) => as.filter((a) => a.checkVisibility({ visibilityProperty: true })).length) }
-  check('1440px T008: a topic page paints one topic list, its own', onTopic.own > 0 && onTopic.panels.length === 0, onTopic)
+  const ctl = await panel2Mutations(p, 'issues')
+  check('1440px T007 CONTROL: Issues from /t/<id> changes the route and panel 2 mutates', ctl.path === '/issues' && ctl.n > 0, ctl)
   await p.close()
 }
 
+/* Owner HUM-10 (t1 e4bfddb1, msg a78e06c8): "Remove the whole topics view
+   ... and also remove all of the context menu links and buttons which point
+   to it". `/` (the Topics list) lands on Channels: #lobby on a desktop, the
+   Channels list (level 1) on a phone; `/?topic=<id>` still opens that topic.
+   A topic's page (/t/<id>) is its thread with the Channels list beside it.
+   No rail tab, strip entry or row-menu item names Topics. The asserts on the
+   tab are red on master (CONTROL): there the tab exists. */
+const shownPanels = (p) => p.$$eval('.sidebar-panel', (els) => els.filter((e) => e.checkVisibility({ visibilityProperty: true })).map((e) => e.id))
+const railOn = (p) => p.$$eval('[data-testid=sidebar-rail] [aria-selected=true]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
+const menuItems = (p) => p.$$eval('[data-testid=sidebar-row-menu-panel] [role=menuitem]', (els) => els.map((e) => `${e.getAttribute('data-testid')}:${e.textContent.trim()}`))
+async function noTopicsView(browser, base) {
+  for (const [width, touch] of [[1440, false], [390, true]]) {
+    const tag = `${width}px no Topics view`
+    const p = await browser.newPage()
+    await p.setViewport({ width, height: 900, isMobile: touch, hasTouch: touch })
+    await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+    await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
+    await sleep(800)
+    const home = {
+      path: await p.evaluate(() => location.pathname),
+      shown: await shownPanels(p),
+      marked: await railOn(p),
+      tab: Boolean(await p.$('#sidebar-tab-topics')),
+      panel: Boolean(await p.$('[data-testid=sidebar-panel-topics]')),
+      rows: await p.$$eval('.spool-main .topic-row', (els) => els.length),
+    }
+    if (!touch) {
+      check(`${tag}: / opens #lobby with Channels marked and listed`, home.path === '/lobby' && same(home.shown, ['sidebar-panel-channels']) && same(home.marked, ['channels']), home)
+    } else {
+      check(`${tag}: / is the Channels list (level 1)`, home.path === '/' && same(home.shown, ['sidebar-panel-channels']) && same(home.marked, ['channels']), home)
+    }
+    check(`${tag}: CONTROL no Topics tab, no Topics panel, no topic list`, !home.tab && !home.panel && home.rows === 0, home)
+    /* every row menu of the Channels list: no item names Topics */
+    const btns = await p.$$('#sidebar-panel-channels [data-testid=sidebar-row-menu]')
+    let topicItems = []
+    let menus = 0
+    for (const b of btns.slice(0, 3)) {
+      await b.click()
+      await p.waitForSelector('[data-testid=sidebar-row-menu-panel]', { visible: true, timeout: 5000 }).catch(() => null)
+      const items = await menuItems(p)
+      if (items.length) menus++
+      topicItems = topicItems.concat(items.filter((x) => /topics/i.test(x)))
+      await p.keyboard.press('Escape')
+      await sleep(200)
+    }
+    check(`${tag}: no row-menu item points to Topics`, menus > 0 && topicItems.length === 0, { menus, topicItems })
+    /* a /?topic=<id> deep link still opens that topic */
+    await p.goto(`${base}/?topic=${TOPIC}`, { waitUntil: 'networkidle2', timeout: NAV })
+    const deep = await p.waitForSelector(`[data-test=topic-section] article.msg, .topic article.msg`, { timeout: 15000 }).then(() => true).catch(() => false)
+    check(`${tag}: /?topic=<id> opens #lobby with that topic open`, deep && (await p.evaluate(() => location.pathname)) === '/lobby', { deep, path: await p.evaluate(() => location.href) })
+    /* a topic's own page: the thread alone, the Channels list beside it on a desktop */
+    await p.goto(`${base}/t/${TOPIC}`, { waitUntil: 'networkidle2', timeout: NAV })
+    const thread = await p.waitForSelector('[data-test=topic-browse-thread] article.msg', { timeout: 15000 }).then(() => true).catch(() => false)
+    const t = { thread, list: Boolean(await p.$('[data-test=topic-browse-list]')), shown: await shownPanels(p) }
+    check(`${tag}: /t/<id> is the thread alone${touch ? '' : ', Channels beside it'}`, thread && !t.list && (touch || same(t.shown, ['sidebar-panel-channels'])), t)
+    await p.close()
+  }
+}
+
 /* spec 109 T015 (FR-012): the desktop rail draws a divider wherever the talk
-   group (Channels, DMs, Topics, Flow, Issues, Calendar) meets the workspace
+   group (Channels, DMs, Flow, Issues, Calendar) meets the workspace
    group (Event log, People, Agents, Boxes, Archive), and names its icons only
    when Settings -> Behaviour -> "Show labels" is on (default off). The phone
    strip is unchanged: no divider, its names always shown, the same boxes
@@ -281,7 +309,8 @@ async function railDividerLabels(browser, base) {
   }
   /* a saved mixed order is drawn as saved (no reordering to group the tabs),
      so it keeps every line its own order makes: STORED is drawn
-     channels topics issues dm | events | flow | people agents boxes | calendar | archive */
+     channels issues dm | events | flow | people agents boxes | calendar | archive
+     (topics, which STORED still names, is not drawn: t1 e4bfddb1) */
   const p = await browser.newPage()
   await p.setViewport({ width: 1440, height: 900 })
   await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
@@ -303,7 +332,7 @@ let code = 0
 try {
   for (const [w, touch] of [[1440, false], [820, true], [360, true]]) await run(browser, server.base, w, touch)
   await sameRouteTabs(browser, server.base)
-  await homeOneList(browser, server.base)
+  await noTopicsView(browser, server.base)
   await railDividerLabels(browser, server.base)
 } catch (e) {
   console.error(e)

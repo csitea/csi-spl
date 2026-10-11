@@ -28,7 +28,7 @@ const OMNIBOX_PAGES = [
   'src/pages/dm/[peer].vue',
   'src/pages/channel/[name].vue',
   'src/pages/lobby.vue',
-  'src/pages/index.vue',
+  /* `/` is a redirect since the Topics view went (t1 e4bfddb1): no send target */
   'src/pages/t/[task_id].vue',
 ]
 /* topic panes no longer have their own composer; the top bar sends the reply */

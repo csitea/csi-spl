@@ -235,7 +235,7 @@ describe('the last selected pane decides the level', () => {
     assert.match(read('stores/topic.ts'), /function openTarget[\s\S]*?usePaneFocus\(\)\.openedTopic\(\)/)
     assert.match(read('stores/live.ts'), /async function open\([\s\S]*?if \(key === 'pane'\) usePaneFocus\(\)\.openedTopic\(\)/)
   })
-  for (const [page, fn] of [['pages/channel/[name].vue', 'paneOpen'], ['pages/dm/[peer].vue', 'paneOpen'], ['pages/index.vue', 'paneOpen'], ['pages/lobby.vue', 'lobbyPaneOpen']]) {
+  for (const [page, fn] of [['pages/channel/[name].vue', 'paneOpen'], ['pages/dm/[peer].vue', 'paneOpen'], ['pages/lobby.vue', 'lobbyPaneOpen']]) {
     it(`${page} gates the pane on the last selected pane`, () => {
       const s = read(page)
       assert.match(s, new RegExp(`function ${fn}\\(\\) \\{\\s*return paneTakesLine\\(\\{ paneOpen: [^,]+, lastPane: paneFocus\\.last \\}\\)`))
@@ -313,7 +313,7 @@ describe('SPL-996: a post made while a topic is open goes into it', () => {
   it('every page passes the reply target to isParentFlag', () => {
     assert.match(read('pages/channel/[name].vue'), /replyTaskId: topicId \|\| ''/)
     assert.match(read('pages/dm/[peer].vue'), /replyTaskId: topicId \|\| ''/)
-    assert.match(read('pages/index.vue'), /replyTaskId: target \}\)\)/)
+    assert.match(read('pages/t/[task_id].vue'), /replyTaskId: target \|\| '' \}\)/)
     assert.match(read('pages/lobby.vue'), /parentBit\(topicId\)/)
     assert.match(read('pages/lobby.vue'), /parentBit\('', fresh\)/)
     assert.match(read('pages/lobby.vue'), /parentBit\(replyHere\)/)

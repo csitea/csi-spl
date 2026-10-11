@@ -104,7 +104,8 @@ describe('every page that sends through the live store lets a failure reach TopB
     assert.match(on, /sendError\.value = \{ key: sendFailureKey\(err\)/)
   })
 
-  for (const page of ['src/pages/index.vue', 'src/pages/lobby.vue']) {
+  /* `/` sends nothing since it redirects (t1 e4bfddb1) */
+  for (const page of ['src/pages/lobby.vue']) {
     it(`${page} awaits the store send and does not catch it`, () => {
       const p = src(page)
       assert.match(p, /await (pane|store)\.send\(/)

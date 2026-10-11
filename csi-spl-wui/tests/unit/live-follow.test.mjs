@@ -249,8 +249,9 @@ describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
     assert.equal(signInHref('/fi/login', ''), '/login?redirect=%2F')
   })
 
-  it('/t, /lobby, / and the topic pane render the door prompt', () => {
-    for (const f of ['src/pages/t/[task_id].vue', 'src/pages/lobby.vue', 'src/pages/index.vue', 'src/components/LiveTopicPane.vue']) {
+  it('/lobby and the topic pane render the door prompt (/t shows the pane; / redirects, t1 e4bfddb1)', () => {
+    assert.match(src('src/pages/t/[task_id].vue'), /<TopicPane/)
+    for (const f of ['src/pages/lobby.vue', 'src/components/LiveTopicPane.vue']) {
       assert.match(src(f), /<ViewTokenForm/, f)
     }
     assert.match(src('src/components/ViewTokenForm.vue'), /signInHref\(/)

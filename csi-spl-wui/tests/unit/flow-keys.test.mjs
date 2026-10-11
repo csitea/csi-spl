@@ -82,12 +82,13 @@ describe('the sidebar reads one map', () => {
   it('row badges and section numbers both go through the keys', () => {
     assert.match(side, /unreadOf\('dm:' \+ p\.label\)/)
     assert.match(side, /unreadOf\('ch:' \+ c\.channel_id\)/)
-    assert.match(side, /unreadOf\('t:' \+ row\.task_id\)/)
+    /* no Topics rows or Topics section number since that tab went (t1 e4bfddb1) */
+    assert.doesNotMatch(side, /unreadOf\('t:' \+ row\.task_id\)/)
     /* spec 079 FR-007: the section number sums the model's listed rows */
     assert.match(side, /return unread\.rowOf\(key\)/)
     assert.match(side, /listedSum\('ch:', channelRows\.value/)
     assert.match(side, /listedSum\('dm:', peers\.value/)
-    assert.match(side, /listedSum\('t:', topicRows\.value/)
+    assert.doesNotMatch(side, /listedSum\('t:'/)
     assert.match(side, /flowDmPeers\(flowKeys\.value\)/)
   })
 })

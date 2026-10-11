@@ -211,54 +211,24 @@ try {
   }, midCard(T2), 6000)
   ok('Enter runs the move', moved === true, moved)
 
-  /* ---- topic-list row on /t, and the home topics list ---- */
+  /* ---- a topic's own page, /t/<id>: the thread alone. The topic-list
+     rows (the /t list column and the home list on `/`) went with the Topics
+     view (owner HUM-10, t1 e4bfddb1); Shift + R on the thread's card ---- */
   const LIST = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-  const listRow = `[data-test=topic-browse-list] a.topic-row[data-key="${LIST}"]`
+  const threadCard = '[data-test=topic-browse-thread] article.msg'
   await p.goto(`${srv.base}/t/${LIST}`, { waitUntil: 'domcontentloaded' })
-  ok('the topic-list row is there', await until(p, visible, listRow, 8000))
-  ok('the topic thread has a card, so the shortcut listener is up', await until(p, visible, '.topic-browse__thread article.msg', 8000))
+  ok('the topic thread has a card, so the shortcut listener is up', await until(p, visible, threadCard, 8000))
+  ok('the topic page has no topic-list column', !(await p.$('[data-test=topic-browse-list]')))
   await sleep(200)
-  const listMenu = await openByShiftR(p, listRow)
-  ok('topic row: Shift + R opens the menu on its first item', Boolean(listMenu && listMenu.shown && listMenu.role === 'menuitem' && listMenu.item), listMenu)
+  const cardMenu = await openByShiftR(p, threadCard)
+  ok('topic page card: Shift + R opens the menu on its first item', Boolean(cardMenu && cardMenu.shown && cardMenu.role === 'menuitem' && cardMenu.item), cardMenu)
   await p.keyboard.press('Escape')
-  const backList = await until(p, (sel) => {
+  const backCard = await until(p, (sel) => {
     const menu = document.querySelector('[data-testid=msg-menu]')
     const on = document.activeElement
-    return (!menu || !menu.getClientRects().length) && on && on.matches && on.matches(sel) ? 'row' : ''
-  }, listRow, 4000)
-  ok('topic row: Esc closes the menu and returns focus to the row', backList === 'row', backList)
-
-  const homeRow = `.spool-main a.topic-row[data-key="${LIST}"]`
-  await p.goto(`${srv.base}/?topic=${LIST}`, { waitUntil: 'domcontentloaded' })
-  ok('the home topic row is there', await until(p, visible, homeRow, 8000))
-  ok('an open topic mounts a card, so the shortcut listener is up', await until(p, visible, 'article.msg', 8000))
-  await sleep(200)
-  const homeFocused = await select(p, homeRow)
-  ok('home: the topic row takes the focus', homeFocused)
-  let homeMenu = null
-  if (homeFocused) {
-    await shiftR(p)
-    homeMenu = await until(p, () => {
-      const panel = document.querySelector('[data-testid=sidebar-row-menu-panel]')
-      const a = document.activeElement
-      const shown = Boolean(panel && panel.getClientRects().length)
-      const item = Boolean(shown && panel.contains(a) && a && a.getAttribute('role') === 'menuitem')
-      return item ? (a.getAttribute('data-testid') || 'item') : null
-    }, null, 5000)
-  }
-  ok('home topic row: Shift + R opens the menu on its first item', Boolean(homeMenu), homeMenu)
-  if (homeMenu) {
-    await p.keyboard.press('Escape')
-    const backHome = await until(p, (key) => {
-      const panel = document.querySelector('[data-testid=sidebar-row-menu-panel]')
-      const wrap = document.activeElement && document.activeElement.closest && document.activeElement.closest('.topic-row-wrap')
-      const on = wrap ? (wrap.querySelector('a.topic-row') && wrap.querySelector('a.topic-row').getAttribute('data-key') || '') : ''
-      return (!panel || !panel.getClientRects().length) && on === key ? on : ''
-    }, LIST, 4000)
-    ok('home topic row: Esc closes the menu and leaves focus on that row', backHome === LIST, backHome)
-  } else {
-    ok('home topic row: Esc closes the menu and leaves focus on that row', false, 'menu did not open')
-  }
+    return (!menu || !menu.getClientRects().length) && on && on.closest && on.closest(sel) ? 'card' : ''
+  }, threadCard, 4000)
+  ok('topic page card: Esc closes the menu and returns focus to the card', backCard === 'card', backCard)
 
   const benign = (e) => /Failed to fetch dynamically imported module/.test(e)
   ok('no unexpected page errors', errors.filter((e) => !benign(e)).length === 0, errors)

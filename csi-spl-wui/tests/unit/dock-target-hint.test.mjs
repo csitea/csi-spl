@@ -13,7 +13,7 @@ import { composerModeLabel, composerSendKey, dockTargetHint } from '../../src/ut
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
-const PAGES = ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/index.vue', 'src/pages/lobby.vue', 'src/pages/t/[task_id].vue']
+const PAGES = ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/lobby.vue', 'src/pages/t/[task_id].vue']
 
 describe('the phone dock names its target (SPL-1003)', () => {
   it('an open thread: the post is a reply there', () => {
@@ -141,7 +141,7 @@ describe('the composer looks different per mode (HUM-24)', () => {
     assert.match(src('src/pages/dm/[peer].vue'), /dm: true \}\)/)
     /* 4.8.7 regression: "New topic in #x — Enter for a new line · Ctrl+Ent…"
        was cut off next to a long chip; the placeholder is the one before HUM-24 */
-    for (const page of ['src/pages/channel/[name].vue', 'src/pages/lobby.vue', 'src/pages/index.vue', 'src/pages/t/[task_id].vue']) {
+    for (const page of ['src/pages/channel/[name].vue', 'src/pages/lobby.vue', 'src/pages/t/[task_id].vue']) {
       assert.match(src(page), /sk\('search\.placeholder_target'\)/, page)
     }
     assert.doesNotMatch(c, /\[data-mode\]:not\(\.omnibox--bottom\) textarea::placeholder/)

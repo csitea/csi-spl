@@ -11,6 +11,9 @@
       <p v-if="!lobbyId && (api.mock || live.welcomed.value)" class="muted" data-testid="lobby-none">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
       <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
+      <!-- W15 (spec 047): the next 3 steps for whoever may set the tenant up;
+           here since `/` (the Topics list) went (t1 e4bfddb1) -->
+      <FirstRunChecklist v-if="firstRunCandidate" :tenant="firstRunTenant" :topics="store.lobbyRows.length" />
       <!-- Pane 2 is the topic starter only. Later messages of the lobby task are replies and stay in pane 3. -->
       <LiveFeed
         :label="t('pages.feed_label', { target: '#lobby' })"
@@ -57,6 +60,8 @@ import type { SpoolMessage } from '~/types/spool'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { lobbyFrames, takeLobbyWarm } from '~/utils/lobby-warm.mjs'
 import { whenPainted } from '~/utils/feed-first.mjs'
+import { useAccessStore } from '~/stores/access'
+import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 
 const store = useLiveFeed('main')
 const channel = useChannelStore()
@@ -68,6 +73,14 @@ const live = useLive()
 const people = useHumanNames()
 const api = useSpoolApi()
 const session = useSessionStore()
+/* W15 (spec 047): the first-run checklist, a lazy chunk loaded only for a
+   viewer who may open Tenant settings (an admin or the business owner) */
+const FirstRunChecklist = defineAsyncComponent(() => import('~/components/FirstRunChecklist.vue'))
+const access = useAccessStore()
+watch(() => api.mock || String(session.state) === 'in', (on) => { if (on) void access.load() }, { immediate: true })
+const firstRunTenant = computed(() => String(session.claims?.t || api.tenant || ''))
+const firstRunCandidate = computed(() => (api.mock || String(session.state) === 'in') && !store.loading &&
+  !store.error && tenantSettingsVisible(access.me, { mock: api.mock }))
 const notes = useNotificationStore()
 /* CLE-77804: the lobby read cursor at open, frozen in the store by the
    markRead('ch:lobby') in onMounted, so LiveFeed draws the New-messages divider. */

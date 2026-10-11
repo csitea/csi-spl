@@ -4,7 +4,7 @@
      #lobby. Each step reads done from what the hub already answers
      (utils/first-run.mjs); the card hides once all three are done, or when
      the viewer presses Hide (this browser, per tenant). Loaded lazily by
-     pages/index.vue, only for a viewer who may open Tenant settings. -->
+     pages/lobby.vue (`/` lands there since t1 e4bfddb1), only for a viewer who may open Tenant settings. -->
 <template>
   <section v-if="shown" class="first-run" :class="{ 'first-run--chip': isChip }" aria-labelledby="first-run-h" data-test="first-run">
     <template v-if="isChip">

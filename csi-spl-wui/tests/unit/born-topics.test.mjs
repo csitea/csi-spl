@@ -47,12 +47,14 @@ describe('a new topic pops up at the top of the open right pane', () => {
   })
 
   /* SPL-996: a page whose list already shows the new topic must not also
-     draw a born card in the thread. /t/<id> now has that list, so it bumps
-     the row and does not call noteBorn. */
-  it('channel, DM, the Topics list and the topic page draw a new topic once', () => {
-    for (const rel of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/index.vue', 'src/pages/t/[task_id].vue']) {
+     draw a born card in the thread. The Topics list (`/` and beside
+     /t/<id>) is gone (owner t1 e4bfddb1): /t/<id> is the thread alone and
+     bumps no list. */
+  it('channel, DM and the topic page draw a new topic once', () => {
+    for (const rel of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/t/[task_id].vue']) {
       assert.doesNotMatch(src(rel), /noteBorn\(/, rel)
     }
-    assert.match(src('src/pages/t/[task_id].vue'), /bumpTopic\(/)
+    assert.doesNotMatch(src('src/pages/t/[task_id].vue'), /bumpTopic\(/, 'no list beside the thread to bump')
+    assert.doesNotMatch(src('src/pages/index.vue'), /viewer\.topics/, '`/` lists no topics')
   })
 })

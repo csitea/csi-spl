@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 
-export type SidePaneId = 'dm' | 'channels' | 'topics' | 'flow'
+export type SidePaneId = 'dm' | 'channels' | 'flow'
 
 /** One shared request so the omnibox and the sidebar talk about the same pane. */
 const requested = ref<{ id: SidePaneId, n: number, stay: boolean } | null>(null)

@@ -1,5 +1,6 @@
-// The left strip is four icon tabs, top to bottom: direct messages,
-// channels, topics, flow. The strip is at most 5% of the viewport.
+// The left strip's list tabs, top to bottom: direct messages, channels,
+// flow. The Topics tab is gone (owner HUM-10, t1 e4bfddb1, msg a78e06c8).
+// The strip is at most 5% of the viewport.
 //
 // Run: node tests/unit/sidebar-tabs.test.mjs
 import { describe, it } from 'node:test'
@@ -9,13 +10,16 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SIDE_TABS, routeForTab, switchPaneOf, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 import { RAIL_IDS } from '../../src/utils/rail-order.mjs'
+import { lobbyHomeTarget, noteLoadedUrl, takeLoadedQuery } from '../../src/utils/home-target.mjs'
+import { isMobileFrontDoor } from '../../src/utils/mobile-stack.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('tabForPath', () => {
-  it('the strip order is direct messages, channels, topics, flow', () => {
-    assert.deepEqual([...SIDE_TABS], ['dm', 'channels', 'topics', 'flow'])
+  it('the strip order is direct messages, channels, flow: no Topics tab', () => {
+    assert.deepEqual([...SIDE_TABS], ['dm', 'channels', 'flow'])
+    assert.equal(SIDE_TABS.includes('topics'), false)
   })
 
   it('a route opens its own tab', () => {
@@ -23,10 +27,13 @@ describe('tabForPath', () => {
     assert.equal(tabForPath('/fi/dm/CLE-07@box-a'), 'dm')
     assert.equal(tabForPath('/channel/tasks'), 'channels')
     assert.equal(tabForPath('/en/channel/lobby'), 'channels')
-    assert.equal(tabForPath('/'), 'topics')
-    assert.equal(tabForPath('/fi'), 'topics')
-    assert.equal(tabForPath('/t/abc'), 'topics')
-    assert.equal(tabForPath('/fi/t/abc'), 'topics')
+    /* t1 e4bfddb1: the front door and a topic's own page sit under Channels */
+    assert.equal(tabForPath('/'), 'channels')
+    assert.equal(tabForPath('/fi'), 'channels')
+    assert.equal(tabForPath('/t/abc'), 'channels')
+    assert.equal(tabForPath('/fi/t/abc'), 'channels')
+    /* CONTROL: no path answers the gone tab */
+    for (const p of ['/', '/t', '/t/abc', '/fi', '/topics']) assert.notEqual(tabForPath(p), 'topics', p)
     /* CLE-77799: Boxes is a list-then-card tab like People / Agents */
     assert.equal(tabForPath('/boxes'), 'boxes')
     assert.equal(tabForPath('/boxes/box-a'), 'boxes')
@@ -60,7 +67,7 @@ describe('routeForTab (081 T003)', () => {
   })
 
   it('back then forward: the tab of a page routes to a path of the same tab', () => {
-    for (const path of ['/', '/t/abc', '/issues', '/users', '/events', '/archive', '/people', '/people/HUM-1', '/agents/c-001@box-a', '/boxes/box-a', '/fi/boxes']) {
+    for (const path of ['/issues', '/users', '/events', '/archive', '/people', '/people/HUM-1', '/agents/c-001@box-a', '/boxes/box-a', '/fi/boxes']) {
       const tab = tabForPath(path)
       assert.ok(tab, path)
       assert.equal(tabForPath(routeForTab(tab)), tab, path)
@@ -69,6 +76,10 @@ describe('routeForTab (081 T003)', () => {
 
   it('the sidebar lists have no page: null, the caller shows the list', () => {
     for (const id of LISTS) assert.equal(routeForTab(id), null, id)
+    /* the Topics tab's page (`/`) is no tab's route any more */
+    assert.equal(routeForTab('topics'), null)
+    assert.equal(routeForTab(tabForPath('/')), null)
+    assert.equal(routeForTab(tabForPath('/t/abc')), null)
     assert.equal(routeForTab(tabForPath('/dm/HUM-1@box-wui')), null)
     assert.equal(routeForTab(tabForPath('/channel/feedback')), null)
   })
@@ -83,11 +94,12 @@ describe('routeForTab (081 T003)', () => {
 })
 
 describe('/switch-pane:', () => {
-  it('messages, channels and topics open those panes', () => {
+  it('messages and channels open those panes; topics (also topic) still parses and opens Channels', () => {
     assert.equal(switchPaneOf('/switch-pane: messages'), 'dm')
     assert.equal(switchPaneOf('/switch-pane: channels'), 'channels')
-    assert.equal(switchPaneOf('/switch-pane: topics'), 'topics')
-    assert.equal(switchPaneOf('/switch-pane: topic'), 'topics')
+    assert.equal(switchPaneOf('/switch-pane: topics'), 'channels')
+    assert.equal(switchPaneOf('/switch-pane: topic'), 'channels')
+    assert.equal(switchPaneOf('/Switch-Pane: Topics'), 'channels')
     assert.equal(switchPaneOf('/switch-pane: flow'), 'flow')
     assert.equal(switchPaneOf('  /Switch-Pane: Messages  '), 'dm')
     assert.equal(switchPaneOf('/switch-pane:channels'), 'channels')
@@ -115,10 +127,10 @@ describe('the strip is icons, in that order', () => {
   const vue = src('src/components/ChannelSidebar.vue')
   const css = src('src/assets/css/main.css')
 
-  it('the rail lists the four tabs in order, icons only', () => {
+  it('the rail lists the list tabs in order, icons only', () => {
     /* SPL-979: the default order and icons live in utils/rail-order.mjs */
     const tabs = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/utils/rail-order.mjs'), 'utf8')
-    const ids = ["'channels'", "'dm'", "'topics'", "'flow'"]
+    const ids = ["'channels'", "'dm'", "'flow'"]
     let at = 0
     for (const id of ids) {
       const i = tabs.indexOf(`id: ${id}`, at)
@@ -127,7 +139,7 @@ describe('the strip is icons, in that order', () => {
     }
     assert.match(tabs, /icon: 'messages'/)
     assert.match(tabs, /icon: 'hash'/)
-    assert.match(tabs, /icon: 'list'/)
+    assert.doesNotMatch(tabs, /id: 'topics'/)
     assert.match(tabs, /icon: 'waves'/)
     // owner 2026-09-28 (topic bea3a4e6): the rendered rail is RAIL - no Users
     // icon (the users CRUD is Settings -> Members) - and the settings gear
@@ -153,12 +165,13 @@ describe('the strip is icons, in that order', () => {
     assert.match(outside, /\.sidebar-tab__label \{ display: none; \}/)
   })
 
-  it('topics and flow are their own panels; topics is not a row inside channels', () => {
+  it('flow is its own panel; there is no Topics panel (t1 e4bfddb1)', () => {
     const ch = vue.indexOf('data-testid="sidebar-panel-channels"')
-    const topics = vue.indexOf('data-testid="sidebar-panel-topics"')
     const flow = vue.indexOf('data-testid="sidebar-panel-flow"')
-    assert.ok(ch > 0 && topics > ch && flow > topics)
-    assert.match(vue, /v-for="\(row, topicIndex\) in topicRows"/)
+    assert.ok(ch > 0 && flow > ch)
+    assert.doesNotMatch(vue, /sidebar-panel-topics/)
+    assert.doesNotMatch(vue, /topicRows|topicOrder/)
+    assert.doesNotMatch(vue, /=== 'topics'/)
     assert.match(vue, /<LazyFlowList/)
     assert.match(vue, /t\('sidebar\.flow'\)/)
     assert.doesNotMatch(vue, /navigateTo\(localePath\('\/lobby'\)\)/)
@@ -189,9 +202,56 @@ describe('the strip is icons, in that order', () => {
     assert.equal(en.nav.topics, 'Topics')
     assert.equal(en.topic.title, 'Topic')
     assert.equal(en.topic.list_title, 'Topic: {text}')
-    /* spec 082 FR-002: the Topics rows drop the `Topic:` prefix (rowTitle) */
-    assert.match(vue, /rowTitle\(row\.subject\)/)
     assert.doesNotMatch(vue, /topic\.list_title/)
+    /* the Topics list's own keys went with it, from every locale */
+    assert.equal(en.pages.index, undefined)
+    assert.equal(en.feed.shortcuts.archive_topic_row, undefined)
     assert.equal(en.search.group.topics, 'Topics')
+  })
+})
+
+/* t1 e4bfddb1: `/` was the Topics list; it now lands on Channels */
+describe('lobbyHomeTarget: where `/` sends the reader', () => {
+  it('a desktop opens #lobby, a topic deep link rides along', () => {
+    assert.deepEqual(lobbyHomeTarget({ phone: false, query: {} }), { path: '/lobby', query: {} })
+    assert.deepEqual(lobbyHomeTarget({ phone: false, query: { topic: 'abc' } }), { path: '/lobby', query: { topic: 'abc' } })
+    assert.deepEqual(lobbyHomeTarget({ phone: false }), { path: '/lobby', query: {} })
+  })
+  it('a phone stays on `/` (its left panel, the Channels list) unless the link names a topic', () => {
+    assert.equal(lobbyHomeTarget({ phone: true, query: {} }), null)
+    assert.equal(lobbyHomeTarget({ phone: true }), null)
+    assert.deepEqual(lobbyHomeTarget({ phone: true, query: { topic: 'abc' } }), { path: '/lobby', query: { topic: 'abc' } })
+    assert.deepEqual(lobbyHomeTarget({ phone: true, query: { in: 'abc' } }), { path: '/lobby', query: { in: 'abc' } })
+  })
+  it('the query is a copy: the route\'s own object is never changed', () => {
+    const q = { topic: 'abc' }
+    lobbyHomeTarget({ phone: false, query: q }).query.x = 1
+    assert.deepEqual(q, { topic: 'abc' })
+  })
+  it('pages/index.vue is the redirect, no topic list', () => {
+    const page = src('src/pages/index.vue')
+    assert.match(page, /lobbyHomeTarget\(/)
+    assert.match(page, /replace: true/)
+    assert.doesNotMatch(page, /viewer\.topics|topic-row|nav\.topics/)
+  })
+})
+
+/* the hydration of a prerendered `/` drops the query from the address and
+   restores it later, so `/` reads the address as loaded, once (t1 e4bfddb1) */
+describe('takeLoadedQuery: the address `/` was loaded with', () => {
+  it('gives a front-door load\'s query once, then null (a later visit reads the router)', () => {
+    noteLoadedUrl('/fi', '?topic=abc&x=1')
+    noteLoadedUrl('/lobby', '?topic=zzz')
+    assert.deepEqual(takeLoadedQuery(isMobileFrontDoor), { topic: 'abc', x: '1' }, 'the first note wins')
+    assert.equal(takeLoadedQuery(isMobileFrontDoor), null, 'taken once')
+    noteLoadedUrl('/', '?topic=again')
+    assert.equal(takeLoadedQuery(isMobileFrontDoor), null, 'one note per document')
+    assert.equal(isMobileFrontDoor('/lobby'), false, 'CONTROL a load of another page is not the front door')
+  })
+  it('the plugin notes it before the page mounts', () => {
+    const plugin = readFileSync(join(WUI, 'src/plugins/0.loaded-url.client.ts'), 'utf8')
+    assert.match(plugin, /enforce: 'pre'/)
+    assert.match(plugin, /noteLoadedUrl\(window\.location\.pathname, window\.location\.search\)/)
+    assert.match(readFileSync(join(WUI, 'src/pages/index.vue'), 'utf8'), /takeLoadedQuery\(isMobileFrontDoor\)/)
   })
 })

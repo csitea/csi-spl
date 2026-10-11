@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Kortkommandon",
       "archive": "Arkivera / Ångra arkivering",
-      "archive_topic_row": "Arkivera det markerade ämnet (vyn Ämnen)",
       "move": "Flytta eller slå ihop…",
       "open_menu": "Öppna menyn",
       "to_parent": "Gå till ämnets första meddelande i listan",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, nyaste först",
-    "index": {
-      "subtitle": "skrivskyddad · per arbetsyta",
-      "empty": "Inga ämnen ännu.",
-      "messages": "{n} meddelande | {n} meddelanden",
-      "older": "Äldre"
-    },
     "lobby": {
       "status": "live · {state} · du är {who}",
       "no_lobby": "Ingen lobby konfigurerad ({env} eller hubbens välkomstmeddelande)."

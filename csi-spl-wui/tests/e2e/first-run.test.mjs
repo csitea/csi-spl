@@ -38,13 +38,13 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-/* a tenant with no topic yet: the viewer store's list, emptied */
+/* a tenant with no topic yet: #lobby's rows, emptied. The checklist lives in
+   #lobby since `/` (the Topics list) went (t1 e4bfddb1); `/` lands there. */
 const emptyTopics = (p) => p.evaluate(() => {
   const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
-  const viewer = pinia?._s.get('viewer')
-  if (!viewer) return false
-  viewer.unfollow?.()
-  viewer.topics = []
+  const main = pinia?._s.get('live-main')
+  if (!main) return false
+  main.messages = []
   return true
 })
 const steps = (p) => p.$$eval('[data-test^=first-run-step-]', (els) => els.map((e) => `${e.getAttribute('data-test').slice(15)}:${e.getAttribute('data-done')}`))
@@ -58,16 +58,14 @@ try {
   await p.evaluate(() => { try { for (const k of Object.keys(localStorage)) if (k.startsWith('spl-first-run-hidden:')) localStorage.removeItem(k) } catch {} })
   await sleep(1500)
   ok('CONTROL a tenant that is set up shows no checklist', !(await p.$('[data-test=first-run]')))
-  ok('an empty home list (no topic yet)', await emptyTopics(p))
+  ok('an empty #lobby (no topic yet)', await emptyTopics(p))
   const card = await p.waitForSelector('[data-test=first-run]', { visible: true, timeout: 10000 }).catch(() => null)
   ok('the checklist appears', Boolean(card))
   if (card) {
     const isChip = await p.evaluate(() => document.querySelector('[data-test=first-run]').classList.contains('first-run--chip'))
     ok('it is a one-line chip because invite and agent are done', isChip)
     
-    // T012: The plain header words
-    const headerWords = await p.evaluate(() => document.querySelector('.feed-header .muted')?.textContent)
-    ok('it shows the plain header words', headerWords === 'Workspace topics', { words: headerWords })
+    ok('it sits in #lobby, where / lands', await p.evaluate(() => location.pathname) === '/lobby')
 
     const chipText = await p.evaluate(() => document.querySelector('.first-run__chip-title')?.textContent)
     ok('it shows the chip title', chipText === 'Workspace setup in progress')
@@ -88,7 +86,7 @@ try {
     ok('it is a one-line chip (height <= 48 px)', maxH <= 48, { maxH })
 
     const r = await card.boundingBox()
-    ok('it sits in view at the top of the home list', Boolean(r && r.y >= 0 && r.y < 400), r)
+    ok('it sits in view at the top of #lobby', Boolean(r && r.y >= 0 && r.y < 400), r)
     
     // T012: click() opens the list
     const listboxHidden = await p.evaluate(() => {

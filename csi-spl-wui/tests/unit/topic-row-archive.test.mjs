@@ -81,16 +81,13 @@ describe('which rows a frame removes', () => {
 })
 
 describe('wiring', () => {
-  it('the rail Topics rows and the Topics home open the menu by right-click and by the button', () => {
+  /* t1 e4bfddb1: the rail Topics rows and the Topics home are gone; a topic
+     is archived or deleted from its card (the card menu) */
+  it('no topic row menu is left on the rail or the home page', () => {
     const side = src('src/components/ChannelSidebar.vue')
-    assert.match(side, /@contextmenu\.prevent="openTopicMenu\('th:' \+ row\.task_id, row\.task_id\)"/)
-    /* topic 635f8072: Flow lists messages now, with no topic rows */
-    assert.equal((side.match(/@delete-topic="askDeleteTopic\(/g) || []).length, 1)
-    assert.match(side, /<LazyTopicDeleteDialog/)
+    assert.doesNotMatch(side, /openTopicMenu|askDeleteTopic|archiveTopicRow|<LazyTopicDeleteDialog/)
     const home = src('src/pages/index.vue')
-    assert.match(home, /@contextmenu\.prevent="openTopicMenu\(t\.task_id\)"/)
-    assert.match(home, /@archive="archiveTopicRow\(t\.task_id\)"/)
-    assert.match(home, /<LazyTopicDeleteDialog/)
+    assert.doesNotMatch(home, /openTopicMenu|archiveTopicRow|<LazyTopicDeleteDialog/)
   })
   it('the hub decides: the row asks GET …/topic before it offers anything', () => {
     const c = src('src/composables/useTopicRowActions.ts')

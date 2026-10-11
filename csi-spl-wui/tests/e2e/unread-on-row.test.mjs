@@ -2,15 +2,15 @@
 // against the mock bundle at 1440 px. One line naming the reader in an
 // #alerts topic gives that topic one unread:
 //
-//   AC4  the middle Topics list row shows 1, the Topics rail counts it, and
-//        the tab title carries a number
-//   AC5  opening the topic from the middle list drops the row to nothing,
-//        the Topics rail and the title by that 1 - checked one
+//   AC4  the #alerts row in Channels shows 1, the Channels rail counts it,
+//        and the tab title carries a number
+//   AC5  opening the topic from the Flow list drops the row to nothing, the
+//        Channels rail and the title by that 1 - checked one
 //        requestAnimationFrame after the row clears (FR-009)
 //
-// Spec 109 T008 (FR-006): a desktop `/` paints the topic list once, in the
-// middle; the sidebar Topics row is the phone's, and its number and its drop
-// are unread-drops-on-read's 390 px checks.
+// The Topics list (its row and rail number) was AC4/AC5's place until the
+// Topics view went (owner HUM-10, t1 e4bfddb1): the row is now the topic's
+// channel's.
 //
 // The card's "<new>/<total>" reads the model with T006; its e2e are
 // topic-unread-count and channel-thread-unread.
@@ -29,8 +29,8 @@ const TASK = '79797979-7979-4979-8979-797979797979'
 const EXTRA = [
   { v: 1, msg_id: TASK, task_id: TASK, ts: '2026-09-18T11:00:00Z', from: 'GRK-03', from_box: 'box-a', to: '@channel', to_box: 'box-wui', kind: 'note', body: '@HUM-1 one line for the row', channel: 'alerts', parent_task_id: null, files: [] },
 ]
-const SIDE = `#sidebar-panel-topics .nav-item[data-key="${TASK}"]`
-const MID = `.topic-row[data-key="${TASK}"]`
+const ROW = '#sidebar-panel-channels a.nav-item[data-key="alerts"]'
+const FLOW = `[data-testid=left-list][data-mode=flow] [data-msg-id="${TASK}"]`
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -56,17 +56,16 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-/* Both rows' badges, the Topics rail and the title's number (0 when none). */
-const READ = (side, mid) => {
+/* The #alerts row's badge, the Channels rail, the title's number (0 when none), and no Topics surface. */
+const READ = (row) => {
   const n = (el) => parseInt(el?.textContent.trim() || '0', 10) || 0
   const m = /^\((\d+)\+?\) /.exec(document.title)
   return {
-    side: n(document.querySelector(`${side} [data-testid=topic-unread]`)),
-    mid: n(document.querySelector(`${mid} [data-testid=topic-row-unread]`)),
-    rail: n(document.querySelector('[data-testid=sidebar-tab-topics-count]')),
+    row: n(document.querySelector(`${row} [data-testid=channel-unread]`)),
+    rail: n(document.querySelector('[data-testid=sidebar-tab-channels-count]')),
     title: m ? Number(m[1]) : 0,
-    listed: Boolean(document.querySelector(mid)),
-    sideShown: Boolean(document.querySelector(side)?.checkVisibility({ visibilityProperty: true })),
+    listed: Boolean(document.querySelector(row)),
+    topics: Boolean(document.querySelector('#sidebar-tab-topics, #sidebar-panel-topics, .spool-main .topic-row')),
   }
 }
 
@@ -86,25 +85,27 @@ try {
   await setPageViewport(p, SIZE)
   await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, SIZE)
-  await p.waitForSelector(`${MID} [data-testid=topic-row-unread]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+  await p.waitForSelector(`${ROW} [data-testid=channel-unread]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
 
-  const before = await p.evaluate(READ, SIDE, MID)
-  ok('AC4: the topic is listed in the middle Topics list', before.listed, before)
-  ok('AC4: the desktop paints no sidebar Topics row beside it (spec 109 T008)', !before.sideShown, before)
-  ok('AC4: the middle Topics row shows 1', before.mid === 1, before)
-  ok('AC4: the Topics rail counts it', before.rail >= 1, before)
+  const before = await p.evaluate(READ, ROW)
+  ok('AC4: the topic\'s channel is listed in Channels', before.listed, before)
+  ok('AC4: no Topics tab, panel or list (t1 e4bfddb1)', !before.topics, before)
+  ok('AC4: the #alerts row shows 1', before.row === 1, before)
+  ok('AC4: the Channels rail counts it', before.rail >= 1, before)
   ok('AC4: the tab title carries the unread', before.title >= 1, before)
 
   /* a CDP evaluate, not an in-page eval: the bundle's CSP stays untouched */
   await p.evaluate(`window.__unreadRead = ${READ}`)
-  await p.click(MID)
+  await p.click('[data-testid=sidebar-tab-flow]')
+  await p.waitForSelector(FLOW, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+  await p.click(FLOW).catch(() => {})
   /* the row clears, then ONE frame: every other surface must already agree */
-  await p.waitForFunction((mid) => !document.querySelector(`${mid} [data-testid=topic-row-unread]`), { timeout: 8000 }, MID).catch(() => {})
-  const after = await p.evaluate((side, mid) => new Promise((resolve) => {
-    requestAnimationFrame(() => resolve(window.__unreadRead(side, mid)))
-  }), SIDE, MID)
-  ok('AC5: the middle row drops to nothing', after.mid === 0, after)
-  ok('AC5: the Topics rail drops by that 1', after.rail === before.rail - 1, { before, after })
+  await p.waitForFunction((row) => !document.querySelector(`${row} [data-testid=channel-unread]`), { timeout: 8000 }, ROW).catch(() => {})
+  const after = await p.evaluate((row) => new Promise((resolve) => {
+    requestAnimationFrame(() => resolve(window.__unreadRead(row)))
+  }), ROW)
+  ok('AC5: the #alerts row drops to nothing', after.row === 0, after)
+  ok('AC5: the Channels rail drops by that 1', after.rail === before.rail - 1, { before, after })
   ok('AC5: the title drops by that 1', after.title === before.title - 1, { before, after })
   ok('no page error', errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
   await ctx.close()

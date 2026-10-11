@@ -12,9 +12,10 @@
 //   - Shift + E in the composer types a capital E and edits nothing
 //   - Shift + B on a reply in the topic pane (3rd panel) selects its topic's
 //     first message in the centre list (2nd panel), in view; Shift + U goes
-//     back to that same reply - in the channel view, the topic view (/t, the
-//     topic row) and a direct message (t1 29c3b055, owner "yes , do it that
-//     way"). Shift + B on the first message or on a middle card (no topic of
+//     back to that same reply - in the channel view and a direct message
+//     (t1 29c3b055, owner "yes , do it that way"). The topic view's round
+//     trip (/t, the topic row) went with the Topics list (t1 e4bfddb1): /t
+//     is the thread alone, with no centre list to jump into. Shift + B on the first message or on a middle card (no topic of
 //     its own) does nothing. SHOT_DIR set: 1440 light screenshots of each step
 //   - the setting (settings-keyboard-shortcuts) off: Shift + H, Shift + ?
 //     and the menu hints do nothing / are gone, Shift + B moves nothing
@@ -256,9 +257,8 @@ try {
   await sleep(300)
   ok('channel: Shift + B on a middle card (no reply of a topic) does nothing', (await activeId(p)) === T2, await activeId(p))
   await p.goto(`${srv.base}/t/${TASK}`, { waitUntil: 'networkidle2' })
-  ok('topic view: the reply is there', await p.waitForSelector(card(R1), { visible: true, timeout: 15000 }).then(() => true, () => false))
-  await sleep(400)
-  await jumpRoundTrip(p, 'topic view', TASK, R1, `.topic-browse__list a.topic-row[data-key="${TASK}"]`)
+  ok('topic page: the reply is there', await p.waitForSelector(card(R1), { visible: true, timeout: 15000 }).then(() => true, () => false))
+  ok('topic page: no topic list column (t1 e4bfddb1)', !(await p.$('[data-test=topic-browse-list], .topic-browse__list')))
   await p.goto(`${srv.base}/dm/${DM_PEER}?topic=${DMT}`, { waitUntil: 'networkidle2' })
   ok('direct message: the reply is there', await p.waitForSelector(card(DR1), { visible: true, timeout: 15000 }).then(() => true, () => false))
   await sleep(400)

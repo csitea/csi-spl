@@ -266,8 +266,9 @@ describe('wiring', () => {
 
   it('viewer, topic, lobby, channel and live pane errors go through ErrorNotice', () => {
     for (const rel of [
-      'src/pages/index.vue',
-      'src/pages/t/[task_id].vue',
+      /* `/` and the list beside /t/<id> went with the Topics view (t1
+         e4bfddb1); /t/<id> is TopicPane alone, which says its own error */
+      'src/components/TopicPane.vue',
       'src/pages/lobby.vue',
       'src/components/MessageFeed.vue',
       'src/components/LiveTopicPane.vue',

@@ -1,7 +1,8 @@
 // Owner, t1 77540e6f (HUM-10): "7 new messages" over Direct messages while
 // no DM row showed anything new. Proved in a REAL browser against the mock
 // bundle: each section's red number is the sum of the unread badges on the
-// rows it lists - Direct messages, Channels and Topics - because both read
+// rows it lists - Direct messages and Channels (the Topics view went, t1
+// e4bfddb1) - because both read
 // one map, the hub's Flow `keys` (the mock derives them from its feed).
 // Spec 079 FR-006 (Q1): the tab title's "(n)" is the sum of the Channels and
 // Direct messages rows (a fresh profile mutes nothing; a topic row repeats
@@ -19,8 +20,6 @@ const SIZE = { width: 1440, height: 900 }
 const SECTIONS = [
   { tab: 'dm', badge: '[data-test=dm-badge]' },
   { tab: 'channels', badge: '[data-testid=channel-unread]' },
-  /* spec 109 T008: a desktop `/` paints the Topics rows once, in the middle */
-  { tab: 'topics', badge: '[data-testid=topic-row-unread]', list: '.spool-main' },
 ]
 
 const results = []
@@ -77,7 +76,7 @@ try {
     await new Promise((r) => setTimeout(r, 300))
     const f = await section(p, s.tab, s.badge, s.list)
     any += f.rail
-    if (s.tab !== 'topics') places += f.sum
+    places += f.sum
     ok(`${s.tab}: the section number is the sum of its rows' unread`, f.panel && f.rail === f.sum, f)
   }
   ok('the mock reader has something unread (the check is not vacuous)', any > 0, { any })

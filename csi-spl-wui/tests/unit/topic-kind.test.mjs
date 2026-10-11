@@ -105,20 +105,12 @@ describe('row menu', () => {
 })
 
 describe('wiring', () => {
-  it('the topics home offers Kind from the badge and from the row menu', () => {
+  /* t1 e4bfddb1: the Topics home (its rows, their badges and the row-menu
+     Kind) is gone; Kind stays on the card's own badge and menu */
+  it('the home page no longer lists topic rows with a Kind picker', () => {
     const home = src('src/pages/index.vue')
-    assert.match(home, /:topic-kind="maySetTopicKind\(t\)"/)
-    assert.match(home, /@kind="openTopicKind\(t\.task_id\)"/)
-    assert.match(home, /data-topic-kind/)
-    assert.match(home, /withSetKind\(held, viewer\.kindSet\)/)
-  })
-  it('a row badge click reads the opener first, then opens the picker', () => {
-    const home = src('src/pages/index.vue')
-    const body = home.slice(home.indexOf('async function onKindClick'))
-    const read = body.indexOf('await ensureOpener(t.task_id)')
-    const tick = body.indexOf('await nextTick()')
-    const click = body.indexOf('btn.click()')
-    assert.ok(read >= 0 && read < tick && tick < click, 'read, render, then click the badge button')
+    assert.doesNotMatch(home, /topic-kind|maySetTopicKind|onKindClick|withSetKind/)
+    assert.match(src('src/components/KindBadge.vue'), /async function setKind/)
   })
   it('every kind setter moves the row counts through one store call', () => {
     const badge = src('src/components/KindBadge.vue')

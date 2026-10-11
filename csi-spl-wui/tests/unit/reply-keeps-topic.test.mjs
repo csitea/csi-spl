@@ -16,7 +16,7 @@ import { dockTargetHint, isParentFlag, omniboxReplyTaskId, startsNewTopic } from
 
 const T = 'ac43e7c8-c0e1-433e-9c0c-4d217c1ce3e7'
 
-/** what pages/channel, dm, index and t/[task_id] do in onSend */
+/** what pages/channel, dm and t/[task_id] do in onSend */
 function pageSend({ tab, selectedTaskId, paneVisible, text }) {
   const fresh = startsNewTopic(text)
   const target = omniboxReplyTaskId({ tab, selectedTaskId, namedTopicId: '', paneVisible, newTopic: fresh })
@@ -25,8 +25,8 @@ function pageSend({ tab, selectedTaskId, paneVisible, text }) {
 
 const VIEWS = [
   { name: 'the thread view (channel, pane open)', tab: 'channels', selectedTaskId: T, paneVisible: true },
-  { name: 'the topics view (row selected)', tab: 'topics', selectedTaskId: T, paneVisible: false },
-  { name: 'the topics view (thread open)', tab: 'topics', selectedTaskId: T, paneVisible: true },
+  /* a topic's own page (/t/<id>): the thread alone, open (t1 e4bfddb1) */
+  { name: 'the topic page (thread open)', tab: 'channels', selectedTaskId: T, paneVisible: true },
 ]
 const LINES = ['@a-004 please look at this', '@AGY-3499 still here?', '@c-001@sat check the run', 'plain reply', '@a-004']
 
@@ -51,6 +51,15 @@ describe('a reply typed in a topic keeps its task_id, mention or not (dc6d5e3f)'
 
   it('the dock hint says "thread" for a tagged line too', () => {
     assert.equal(dockTargetHint({ reply: true, target: '#rel-csi-fina' }, '@a-004 look').mode, 'thread')
+  })
+
+  /* t1 e4bfddb1: the Topics view, where a selected row with no thread open
+     took the line, is gone; a stale 'topics' tab id no longer does it */
+  it('a closed thread never takes the line, whatever the tab id', () => {
+    for (const tab of ['topics', 'channels', 'dm', 'flow']) {
+      const { target, isParent } = pageSend({ tab, selectedTaskId: T, paneVisible: false, text: 'plain line' })
+      assert.deepEqual([target, isParent], ['', 1], tab)
+    }
   })
 
   it('no topic open: a tagged line is still a new topic of its own', () => {

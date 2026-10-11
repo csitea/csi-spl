@@ -1,0 +1,53 @@
+---
+# Second disk, off unless data_disk_enabled. Format only when blkid finds
+# nothing. ansible.builtin only: no community or posix collections.
+- name: Data disk is off
+  ansible.builtin.debug:
+    msg: "data_disk_enabled is false; the boot disk is the only disk"
+  when: not (data_disk_enabled | bool)
+
+- name: Data disk
+  when: data_disk_enabled | bool
+  block:
+    - name: The data device is attached
+      ansible.builtin.stat:
+        path: "{{ data_device }}"
+      register: data_dev
+
+    - name: Refuse a missing data device
+      ansible.builtin.assert:
+        that: data_dev.stat.exists
+        fail_msg: "no block device {{ data_device }}"
+
+    - name: The filesystem type, if any
+      ansible.builtin.command: blkid -o value -s TYPE {{ data_device }}
+      register: data_fs
+      changed_when: false
+      failed_when: false
+
+    - name: Format a blank data disk
+      ansible.builtin.command: mkfs.ext4 -m 0 -L {{ data_disk_label }} {{ data_device }}
+      when: data_fs.stdout | length == 0
+
+    - name: The mount point
+      ansible.builtin.file:
+        path: "{{ data_disk_mount }}"
+        state: directory
+        mode: "0755"
+
+    - name: The fstab line
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: "^{{ data_device | regex_escape }}\\s"
+        line: "{{ data_device }} {{ data_disk_mount }} ext4 defaults,nofail,discard 0 2"
+        state: present
+
+    - name: Whether the data disk is mounted
+      ansible.builtin.command: findmnt -n {{ data_disk_mount }}
+      register: data_mounted
+      changed_when: false
+      failed_when: false
+
+    - name: Mount the data disk
+      ansible.builtin.command: mount {{ data_disk_mount }}
+      when: data_mounted.rc != 0

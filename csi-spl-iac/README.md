@@ -16,6 +16,8 @@
 | `src/terraform/050-gcs-files` | the hub's `file_id` bucket (private, uniform, PAP enforced) |
 | `src/terraform/059-gcp-satellite-budget` | prd only: the satellite's monthly budget alert, filtered to its `box` label (spec 057; applied before 060) |
 | `src/terraform/060-gcp-vm-satellite` | prd only: the satellite agent box (spec 057): VM + data disk + logs-only SA + ONE ingress rule, tcp/22 from IAP |
+| `src/terraform/058-gcp-wine-box-budget` | dev only: the wine-box monthly budget alert, filtered to its `box` label (applied before 061) |
+| `src/terraform/061-gcp-vm-wine-box` | dev only: the wine-box test VM (Wine + a localhost-only VNC desktop). SSH from `ssh_source_ranges`, an ephemeral public address, no Cloud NAT |
 | `src/bash/tests/` | `bash src/bash/tests/run-all-tests.sh` |
 | `cnf/tpl-gen.ref` | the tpl-gen commit the renders are made with |
 

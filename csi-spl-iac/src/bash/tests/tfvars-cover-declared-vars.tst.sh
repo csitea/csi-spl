@@ -9,7 +9,9 @@
 #          Two declared exceptions, each a marker line IN the rendered tfvars
 #          (so it is reviewed with the template, never a list in this test):
 #          '# prd-only-step' (spec 057: the dev render of a prd-only step,
-#          whose env validation refuses dev) skips that env x step, and
+#          whose env validation refuses dev) skips that env x step,
+#          '# dev-only-step' (the prd render of a dev-only step, whose env
+#          validation refuses prd) skips that env x step, and
 #          '# runtime-vars: a,b' names variables set at run time by TF_VAR_*
 #          (e.g. billing_account_id from GCP_BILLING_ACCOUNT_ID: never cnf).
 #          Control: a copy of 032's dev tfvars with one key dropped MUST fail;
@@ -38,6 +40,9 @@ for env in dev prd; do
     [[ -f "$v" ]] || { fail "$env $step: no $v"; continue; }
     if [[ "$env" != prd ]] && grep -qx '# prd-only-step' "$v"; then
       pass "$env $step: a prd-only step (its env validation refuses $env)"; continue
+    fi
+    if [[ "$env" != dev ]] && grep -qx '# dev-only-step' "$v"; then
+      pass "$env $step: a dev-only step (its env validation refuses $env)"; continue
     fi
     n=$((n + 1))
     m=$(missing "$d" "$v" | paste -sd, -)

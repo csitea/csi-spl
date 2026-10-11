@@ -1,0 +1,17 @@
+---
+# Drop-in, then sshd -t against the installed config. sshd -t -f on the
+# drop-in alone fails: a drop-in is not a complete sshd_config.
+- name: The sshd drop-in
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/60-wine-box.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      PubkeyAuthentication yes
+    mode: "0644"
+  notify: Reload ssh
+
+- name: sshd accepts the installed config
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false

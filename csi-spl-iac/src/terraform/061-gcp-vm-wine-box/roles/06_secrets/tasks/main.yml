@@ -1,0 +1,26 @@
+---
+# secrets_src empty: copy nothing. A non-empty value is a directory on the
+# controller. The task is no_log so a file name in the diff is not printed.
+- name: No secrets source
+  ansible.builtin.debug:
+    msg: "secrets_src is empty; nothing copied"
+  when: (secrets_src | default('')) | length == 0
+
+- name: The secrets directory
+  ansible.builtin.file:
+    path: "/home/{{ desktop_user }}/.wine-box-secrets"
+    state: directory
+    owner: "{{ desktop_user }}"
+    group: "{{ desktop_user }}"
+    mode: "0700"
+  when: (secrets_src | default('')) | length > 0
+
+- name: Copy the secrets directory
+  ansible.builtin.copy:
+    src: "{{ secrets_src }}/"
+    dest: "/home/{{ desktop_user }}/.wine-box-secrets/"
+    owner: "{{ desktop_user }}"
+    group: "{{ desktop_user }}"
+    mode: "0600"
+  when: (secrets_src | default('')) | length > 0
+  no_log: true

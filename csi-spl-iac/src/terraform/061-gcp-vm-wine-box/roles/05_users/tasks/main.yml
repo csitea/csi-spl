@@ -1,0 +1,22 @@
+---
+# The desktop user has a home and no sudo. The image's admin user stays the
+# ansible login; this role does not change that account.
+- name: The desktop user
+  ansible.builtin.user:
+    name: "{{ desktop_user }}"
+    shell: /bin/bash
+    create_home: true
+    password_lock: true
+
+- name: The desktop user is not in sudo
+  ansible.builtin.command: gpasswd -d {{ desktop_user }} sudo
+  register: gpasswd_out
+  changed_when: gpasswd_out.rc == 0
+  failed_when: gpasswd_out.rc != 0 and 'is not a member' not in gpasswd_out.stderr
+
+- name: The desktop user's public keys
+  ansible.builtin.authorized_key:
+    user: "{{ desktop_user }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ desktop_user_ssh_public_keys }}"

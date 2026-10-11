@@ -1,0 +1,137 @@
+---
+# TigerVNC on 127.0.0.1 only. The password file is created once, mode 0600,
+# and no task prints it. A later run leaves both files alone.
+- name: The desktop packages
+  ansible.builtin.apt:
+    name: "{{ desktop_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Whether the VNC password file exists
+  ansible.builtin.stat:
+    path: /root/wine-box-vnc.pass
+  register: vnc_pass_file
+
+- name: Store a supplied VNC password once
+  ansible.builtin.copy:
+    dest: /root/wine-box-vnc.pass
+    content: "{{ vnc_password }}\n"
+    mode: "0600"
+  when:
+    - not vnc_pass_file.stat.exists
+    - (vnc_password | default('')) | length > 0
+  no_log: true
+
+- name: Generate the VNC password once
+  ansible.builtin.shell: umask 077; openssl rand -base64 18 > /root/wine-box-vnc.pass
+  when:
+    - not vnc_pass_file.stat.exists
+    - (vnc_password | default('')) | length == 0
+  no_log: true
+
+- name: The desktop user's VNC directory
+  ansible.builtin.file:
+    path: "/home/{{ desktop_user }}/.vnc"
+    state: directory
+    owner: "{{ desktop_user }}"
+    group: "{{ desktop_user }}"
+    mode: "0700"
+
+- name: The desktop user's openbox directory
+  ansible.builtin.file:
+    path: "/home/{{ desktop_user }}/.config/openbox"
+    state: directory
+    owner: "{{ desktop_user }}"
+    group: "{{ desktop_user }}"
+    mode: "0755"
+
+- name: Install the VNC password when the passwd file is absent
+  ansible.builtin.shell: |
+    set -euo pipefail
+    "{{ vnc_passwd_bin }}" -f < /root/wine-box-vnc.pass > "/home/{{ desktop_user }}/.vnc/passwd"
+    chown "{{ desktop_user }}:{{ desktop_user }}" "/home/{{ desktop_user }}/.vnc/passwd"
+    chmod 600 "/home/{{ desktop_user }}/.vnc/passwd"
+  args:
+    creates: "/home/{{ desktop_user }}/.vnc/passwd"
+  no_log: true
+
+- name: The session startup
+  ansible.builtin.copy:
+    dest: "/home/{{ desktop_user }}/.vnc/xstartup"
+    owner: "{{ desktop_user }}"
+    group: "{{ desktop_user }}"
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      unset SESSION_MANAGER
+      unset DBUS_SESSION_BUS_ADDRESS
+      export WINEPREFIX="$HOME/.wine"
+      export WINEDEBUG=-all
+      exec openbox-session
+
+- name: The desktop starts a Wine file window
+  ansible.builtin.copy:
+    dest: "/home/{{ desktop_user }}/.config/openbox/autostart"
+    owner: "{{ desktop_user }}"
+    group: "{{ desktop_user }}"
+    mode: "0755"
+    content: |
+      wine explorer &
+
+- name: The VNC unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/wine-box-vnc.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=wine-box TigerVNC desktop
+      After=network-online.target
+
+      [Service]
+      Type=simple
+      User={{ desktop_user }}
+      Group={{ desktop_user }}
+      PAMName=login
+      WorkingDirectory=/home/{{ desktop_user }}
+      Environment=HOME=/home/{{ desktop_user }}
+      Environment=USER={{ desktop_user }}
+      Environment=WINEPREFIX=/home/{{ desktop_user }}/.wine
+      Environment=WINEDEBUG=-all
+      ExecStart={{ vnc_bin }} -fg -localhost yes -rfbport {{ vnc_port }} -geometry {{ vnc_geometry }} -depth {{ vnc_depth }} -SecurityTypes {{ vnc_security_types }} -rfbauth /home/{{ desktop_user }}/.vnc/passwd :{{ vnc_port | int - 5900 }}
+      Restart=on-failure
+      RestartSec=3
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: Restart wine-box vnc
+
+- name: Apply a unit change before the port check
+  ansible.builtin.meta: flush_handlers
+
+- name: The VNC service is enabled
+  ansible.builtin.systemd:
+    name: wine-box-vnc
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: The desktop port answers on localhost
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ vnc_port }}"
+    delay: 2
+    timeout: 90
+
+- name: The listen addresses
+  ansible.builtin.command: ss -H -ltn
+  register: vnc_listen
+  changed_when: false
+
+- name: The desktop port is localhost only
+  ansible.builtin.assert:
+    that:
+      - vnc_listen.stdout is search('127\.0\.0\.1:' ~ (vnc_port | string))
+      - vnc_listen.stdout is not search('0\.0\.0\.0:' ~ (vnc_port | string))
+      - vnc_listen.stdout is not search('\[::\]:' ~ (vnc_port | string))
+    fail_msg: "the desktop port is not bound to 127.0.0.1 only"

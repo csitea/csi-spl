@@ -1,0 +1,48 @@
+---
+# wine-box: one play, numbered roles, idempotent. Standalone:
+#   ansible-playbook -i inventory.example.ini box-playbook.yaml -e @vars.example.yml
+# Extra vars override vars.example.yml. No checkout, no ./run, no fleet path.
+# The VNC password is generated on the box (/root/wine-box-vnc.pass, mode 0600)
+# and is never printed. The desktop port is bound to 127.0.0.1.
+- name: wine-box
+  hosts: wine_box
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ wine_vars | default(playbook_dir ~ '/vars.example.yml') }}"
+
+  pre_tasks:
+    - name: Wait for sshd on a fresh VM
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        sleep: 15
+        timeout: 900
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Python apt bindings for the apt module
+      ansible.builtin.raw: dpkg -s python3-apt >/dev/null 2>&1 || (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-apt)
+      changed_when: false
+
+  roles:
+    - { role: 01_data_disk, tags: [01_data_disk] }
+    - { role: 02_os_binaries, tags: [02_os_binaries] }
+    - { role: 03_timezone, tags: [03_timezone] }
+    - { role: 04_ssh_hardening, tags: [04_ssh_hardening] }
+    - { role: 05_users, tags: [05_users] }
+    - { role: 06_secrets, tags: [06_secrets] }
+    - { role: 07_wine, tags: [07_wine] }
+    - { role: 08_vnc, tags: [08_vnc] }
+
+  handlers:
+    - name: Reload ssh
+      ansible.builtin.systemd:
+        name: ssh
+        state: reloaded
+
+    - name: Restart wine-box vnc
+      ansible.builtin.systemd:
+        name: wine-box-vnc
+        state: restarted
+        daemon_reload: true

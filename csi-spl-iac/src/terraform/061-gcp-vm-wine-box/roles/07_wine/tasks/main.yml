@@ -1,0 +1,37 @@
+---
+# wine64 only, recommends off, so an i386 package is not pulled unless
+# wine_enable_i386 is true. The prefix is initialised once (system.reg).
+- name: The foreign architectures
+  ansible.builtin.command: dpkg --print-foreign-architectures
+  register: foreign_arch
+  changed_when: false
+  when: wine_enable_i386 | bool
+
+- name: Enable i386 when asked
+  ansible.builtin.command: dpkg --add-architecture i386
+  when:
+    - wine_enable_i386 | bool
+    - "'i386' not in foreign_arch.stdout"
+
+- name: The Wine packages
+  ansible.builtin.apt:
+    name: "{{ wine_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    install_recommends: false
+
+- name: wine is on PATH
+  ansible.builtin.command: command -v wine
+  changed_when: false
+
+- name: Initialise the Wine prefix once
+  ansible.builtin.command: timeout 300 xvfb-run -a wineboot --init
+  args:
+    creates: "/home/{{ desktop_user }}/.wine/system.reg"
+  become_user: "{{ desktop_user }}"
+  environment:
+    HOME: "/home/{{ desktop_user }}"
+    USER: "{{ desktop_user }}"
+    WINEPREFIX: "/home/{{ desktop_user }}/.wine"
+    WINEDEBUG: "-all"

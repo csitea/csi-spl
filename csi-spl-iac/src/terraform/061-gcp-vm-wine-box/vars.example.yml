@@ -1,0 +1,42 @@
+# Standalone vars for box-playbook.yaml. Same keys as the dev cnf step's
+# ansible half. The VNC password is not a key here: the playbook writes
+# /root/wine-box-vnc.pass on the box, once, mode 0600.
+os_user: debian
+desktop_user: wine
+desktop_user_ssh_public_keys: []
+data_disk_enabled: false
+data_device: /dev/disk/by-id/google-wine-box-data
+data_disk_label: wine-box-data
+data_disk_mount: /var/lib/wine-box
+timezone: Europe/London
+os_packages:
+  - ca-certificates
+  - curl
+  - python3
+  - sudo
+  - xz-utils
+  - unzip
+  - procps
+  - iproute2
+  - e2fsprogs
+  - openssl
+wine_packages:
+  - wine64
+  - xvfb
+wine_enable_i386: false
+desktop_packages:
+  - openbox
+  - tigervnc-standalone-server
+  - tigervnc-common
+  - tigervnc-tools
+  - xfonts-base
+  - xauth
+  - dbus-x11
+  - imagemagick
+vnc_geometry: 1280x800
+vnc_port: 5901
+vnc_depth: 24
+vnc_bin: /usr/bin/tigervncserver
+vnc_passwd_bin: /usr/bin/vncpasswd
+vnc_security_types: VncAuth
+secrets_src: ""

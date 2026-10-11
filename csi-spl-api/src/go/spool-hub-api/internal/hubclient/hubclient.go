@@ -330,6 +330,11 @@ type Session struct {
 // role=box it then syncs pins BEFORE reading further frames, so the queued
 // recv frames the hub pushes right after welcome verify against fresh pins.
 func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
+	return c.dial(ctx, role, dialRetries)
+}
+
+// dial is Dial with the single-shot retry budget for a busy upgrade answer.
+func (c *Client) dial(ctx context.Context, role string, retries int) (*Session, error) {
 	box, priv, err := c.box()
 	if err != nil {
 		return nil, err
@@ -345,7 +350,7 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	}
 	dctx, cancel := context.WithTimeout(ctx, c.timeout())
 	defer cancel()
-	conn, err := c.dialWS(dctx, wsURL)
+	conn, err := c.dialWS(dctx, wsURL, retries)
 	if err != nil {
 		return nil, err
 	}

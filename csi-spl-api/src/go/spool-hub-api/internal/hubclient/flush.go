@@ -457,18 +457,20 @@ func (c *Client) pendingCount() int {
 }
 
 // Run is the box daemon (`spool hub-run`): it holds the role=box session,
-// reconnecting with capped exponential backoff and full jitter (1 s ceiling
-// doubling to a 30 s cap; a Retry-After on the refused upgrade is honoured,
-// see backoff.go) on any close, re-helloing, flushing, refreshing pins on an
+// reconnecting with capped exponential backoff and equal jitter (1 s ceiling
+// doubling to a 60 s cap, each wait in [ceiling/2, ceiling], one upgrade per
+// attempt; a Retry-After on the refused upgrade is honoured, see backoff.go)
+// on any close, re-helloing, flushing, refreshing pins on an
 // interval and re-announcing the roster when the $SPOOL_ROOT/*/ scan changes
 // (OQ-05). The backoff resets only after a session stayed up for stableAfter,
 // so a hub that accepts and drops at once is not hammered every second. It
 // returns when ctx ends, or ErrSuperseded when a newer hello took the box.
 func (c *Client) Run(ctx context.Context) error {
 	b := newBackoff(runBackoffBase, runBackoffMax, runBackoffMax)
+	b.half = true
 	for {
 		var retryAfter time.Duration
-		sess, err := c.Dial(ctx, wire.RoleBox)
+		sess, err := c.dial(ctx, wire.RoleBox, 0)
 		if err == nil {
 			c.Log.Info().Str("box", c.Cfg.BoxID).Msg("hub session up")
 			up := time.Now()

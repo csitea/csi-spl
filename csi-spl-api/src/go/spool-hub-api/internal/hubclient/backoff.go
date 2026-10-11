@@ -19,9 +19,17 @@ import (
 // logged HUB-UNREACHABLE after ONE 429. Two layers fix that:
 //   - dialWS: a single-shot Dial retries a 429/502/503/504 upgrade answer a
 //     couple of times, briefly, so one rejected dial is not "unreachable";
-//   - Run: the daemon's reconnect loop waits a capped, fully jittered,
+//   - Run: the daemon's reconnect loop waits a capped, jittered,
 //     exponentially growing delay, honours Retry-After, and resets only after
 //     a session that stayed up for stableAfter.
+//
+// 2026-10-11 16:12-16:28Z (prd, 16 min of 429 "no available instance"): 23
+// hub-run desks on one box redialled ~3 times a minute each, and every redial
+// was itself up to 3 upgrades (the single-shot retry stacked inside Run's own
+// backoff): 290-367 429s a minute against a hub that could not recover. So
+// the daemon dials once per attempt (Run owns the backoff), its cap is 60 s,
+// and its waits never draw below half the ceiling: a fleet that lost its hub
+// together does not return together, and none returns at once.
 
 // Single-shot dial retry budget. Package vars so tests can shorten them.
 var (
@@ -34,17 +42,19 @@ var (
 // Daemon reconnect loop (Run).
 var (
 	runBackoffBase = time.Second
-	runBackoffMax  = 30 * time.Second
+	runBackoffMax  = time.Minute
 	stableAfter    = time.Minute // a session up this long resets the backoff
 )
 
 // backoff is capped exponential backoff with full jitter: wait n is uniform in
-// [0, min(max, base*2^n)]. A Retry-After hint is a floor the jitter is added
-// on top of (so a fleet told "1" does not return in the same millisecond),
-// clamped to hintMax.
+// [0, min(max, base*2^n)]. With half set ("equal jitter") it is uniform in
+// [ceiling/2, ceiling] instead, so no wait is near zero. A Retry-After hint is
+// a floor the jitter is added on top of (so a fleet told "1" does not return
+// in the same millisecond), clamped to hintMax.
 type backoff struct {
 	base, max, hintMax time.Duration
 	n                  int
+	half               bool
 	rnd                func(n int64) int64
 }
 
@@ -68,7 +78,11 @@ func (b *backoff) ceiling() time.Duration {
 func (b *backoff) next(retryAfter time.Duration) time.Duration {
 	ceil := b.ceiling()
 	b.n++
-	d := time.Duration(b.rnd(int64(ceil) + 1))
+	var floor time.Duration
+	if b.half {
+		floor = ceil / 2
+	}
+	d := floor + time.Duration(b.rnd(int64(ceil-floor)+1))
 	if retryAfter > 0 {
 		d = min(retryAfter, b.hintMax) + d/2
 	}
@@ -123,9 +137,9 @@ func retryAfterOf(err error) time.Duration {
 }
 
 // dialWS is the WS upgrade with the single-shot retry: a retryable status is
-// retried up to dialRetries times; anything else (a transport error, 401, 403,
-// a hub close) returns at once.
-func (c *Client) dialWS(ctx context.Context, wsURL string) (*websocket.Conn, error) {
+// retried up to retries times; anything else (a transport error, 401, 403,
+// a hub close) returns at once. Run passes 0: its own backoff is the retry.
+func (c *Client) dialWS(ctx context.Context, wsURL string, retries int) (*websocket.Conn, error) {
 	b := newBackoff(dialRetryBase, dialRetryMax, dialRetryAfterMax)
 	for attempt := 0; ; attempt++ {
 		conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPClient: c.http(), HTTPHeader: c.TenantHeader()})
@@ -136,7 +150,7 @@ func (c *Client) dialWS(ctx context.Context, wsURL string) (*websocket.Conn, err
 			return nil, fmt.Errorf("%w: %w", ErrUnreachable, err)
 		}
 		se := &DialStatusError{Status: resp.StatusCode, RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()), Err: err}
-		if !se.retryable() || attempt >= dialRetries {
+		if !se.retryable() || attempt >= retries {
 			return nil, fmt.Errorf("%w: %w", ErrUnreachable, se)
 		}
 		wait := b.next(se.RetryAfter)

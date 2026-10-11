@@ -28,13 +28,13 @@ Conventions on this page:
 | take every NEW post (a new topic, or a topic no seat owns) while you hold the dispatch lease | dispatch while on standby (section 5) |
 | answer it yourself and own that topic until a human closes it | hand the conversation to another agent |
 | do the work yourself when it fits one session: an answer, a status, a lookup, a check | forward a NEW ask to a running lane (one agent, one small task) |
-| spawn a NEW lane for real lane work (build, test, land, deploy), say so in the topic, post its result | run prd operations your harness refuses, terraform, member or role changes, close agents |
+| spawn a NEW lane for real lane work (build, test, land, deploy), say so in the topic, post its result | run prd operations your harness refuses, terraform, member or role changes, or close agents |
 | check every "done / live" claim before you post it (section 4) | decide for the owner |
 | escalate decisions and refused prd operations to the orchestrator | guess which lane owns something: ask the orchestrator |
 
-**Every human post is answered within 3 minutes.** A post still unanswered
-after 2 minutes is taken by the orchestrator as the backstop, and it then owns
-that topic.
+**Answer every human post within 3 minutes.** If a post is unanswered after
+2 minutes, the orchestrator takes it as the backstop. The orchestrator then
+owns that topic.
 
 ## 2. The commands
 
@@ -43,25 +43,25 @@ that topic.
 | what | command |
 |---|---|
 | your inbox (JSON) | `$SPOOL recv --as <your id>` |
-| archive what you handled | run `$SPOOL recv --as <your id>` again right before, then add `--ack`: it archives EVERY message in the inbox, one that arrived after your read included |
+| archive what you handled | Run `$SPOOL recv --as <your id>` again right before. Then add `--ack`. This archives EVERY message in the inbox, including any that arrived after your read |
 | a topic, oldest first, every agent | `$SPOOL tail --task <topic or task id>` |
 | a topic's full bodies from the hub (when the spool copy is missing) | `./run -a do_spl_db_query` (read-only) |
 | who holds the dispatch lease, and its age | `LEASE_CMD=show ./run -a do_spl_dispatch_lease` |
 | who holds the orch lease | `cat /var/spool-hub/dispatch/lease.orch` |
 | every live lane on every box (id, branch, scope, files, topic) | `bash $SA/lane-map.sh` |
-| which live lane owns a path | `bash $SA/lane-map.sh --check <path,...> --agent <your id>`: exit 3 names the owner; exit 4 = lanes with no recorded files (ask them, never read it as free). Never pipe it into `tail`: the pipe hides the exit code |
+| which live lane owns a path | `bash $SA/lane-map.sh --check <path,...> --agent <your id>`. Exit 3 names the owner. Exit 4 means lanes have no recorded files (ask them, never assume the path is free). Never pipe it into `tail`, because the pipe hides the exit code |
 | unanswered human posts across every workspace | `./run -a do_spl_unanswered_sweep` (reports only, without `DELIVER=1`) |
 | seats, gaps, sweep and rotation health, a workspace's channels | `./run -a do_spl_dispatch_check` |
-| an owner post with `[image attached … file_id …]` | the desk inbox JSON is under `~<box user>/.local/share/csi-spl/cloud/<env>/desk/<workspace>/<box>/spool/<your id>/inbox/`; fetch the file with that env's `spool get-file <file_id> <dest>`, with `SPOOL_ROOT`, `SPOOL_KEYS_DIR`, `SPOOL_BOX_ID`, `SPOOL_HUB_URL` and `SPOOL_TENANT` of that desk. Look at it before you answer |
+| an owner post with `[image attached … file_id …]` | The desk inbox JSON is under `~<box user>/.local/share/csi-spl/cloud/<env>/desk/<workspace>/<box>/spool/<your id>/inbox/`. Fetch the file with that env's `spool get-file <file_id> <dest>`. Use the `SPOOL_ROOT`, `SPOOL_KEYS_DIR`, `SPOOL_BOX_ID`, `SPOOL_HUB_URL` and `SPOOL_TENANT` of that desk. Look at the file before you answer |
 
 ### 2.2 Write
 
 | what | command |
 |---|---|
 | take a post (the human sees it) | `ENV=prd TENANT_ID=<workspace> DESK_AGENT=<your id> DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> TAKE_PLAN='<one line>' DRY_RUN=0 ./run -a do_spl_take`, before any other work, once per topic |
-| post in a topic | write the body to a file under `/var/spool-hub/dispatch/` (the box user must be able to read it), then `ENV=prd TENANT_ID=<workspace> DESK_AGENT=<your id> DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> DESK_BODY_FILE=<file> DRY_RUN=0 ./run -a do_spl_desk_reply`. Output is often empty on success: read the topic before re-sending |
+| post in a topic | Write the body to a file under `/var/spool-hub/dispatch/` (the box user must be able to read it). Then run `ENV=prd TENANT_ID=<workspace> DESK_AGENT=<your id> DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> DESK_BODY_FILE=<file> DRY_RUN=0 ./run -a do_spl_desk_reply`. Output is often empty on success. Read the topic before re-sending |
 | a question only the owner can answer | the same with `DESK_KIND=blocker`; keep the `permalink` it prints and cite it whenever you refer to the question again |
-| a message to an agent | write the body to a file, then `bash $SA/spool-send.sh --from <your id> --to <id>@<box> --kind <task\|note\|result\|blocker\|reject> --task dispatch-<topic8> --body-file <file>`; read its last two lines unfiltered and look for `"delivery":"local\|sent"`: a refusal ("Nothing was sent") is easy to filter away |
+| a message to an agent | Write the body to a file. Then run `bash $SA/spool-send.sh --from <your id> --to <id>@<box> --kind <task\|note\|result\|blocker\|reject> --task dispatch-<topic8> --body-file <file>`. Read its last two lines unfiltered and look for `"delivery":"local\|sent"`. A refusal ("Nothing was sent") is easy to filter away |
 | why `--body-file` | a backtick inside a double-quoted `--body "…"` RUNS as a command in your shell, and the message arrives garbled (it happened on 2026-10-11) |
 | why `dispatch-<topic8>` | an owner topic uuid as `--task` makes the agent message show in the owner's topic |
 | a NEW topic in a channel | `ENV=prd TENANT_ID=<workspace> DESK_AGENT=<your id> DESK_CHANNEL=<channel id> DESK_BODY='<text>' DRY_RUN=0 ./run -a do_spl_desk_post`; a wrong channel answers `unknown_channel` |
@@ -106,7 +106,7 @@ line, never on the lane's word.
 | the commit is on trunk | `git fetch origin master && git merge-base --is-ancestor <sha> origin/master` exits 0 | the push printed `HEAD -> master` (a rejected push prints it too) |
 | the commit holds what was reviewed | `git show --stat <sha>`; grep the changed symbol; compare the landed file list with the reviewed one | the lane's "+N/-0" summary |
 | CI passed | `gh run list --commit <sha>`: every run for it `completed success`; a red one: `gh run view <id> --log-failed` | a run still in progress, or "my module is not named" |
-| deployed, dev and prd | from a checkout: `cd csi-spl-orc && ENV=dev ./run -a do_check_deploy_lag`, then `ENV=prd` | a green run: a run can read cancelled while the commit ships on someone else's deploy |
+| deployed, dev and prd | from a checkout: `cd csi-spl-orc && ENV=dev ./run -a do_check_deploy_lag`. Then run the same command with `ENV=prd` | a green run: a run can read cancelled while the commit ships on someone else's deploy |
 | a web UI change is live | the served `https://<workspace host>/build.json` commit contains the sha: `git merge-base --is-ancestor <sha> <served commit>` | a screenshot from the lane |
 | a hub change is live | the same against the hub's `/version` | the image tag in cnf |
 | the release note | `SHA=<sha> ENV=<env> ./run -a do_release_note_link` | |
@@ -120,7 +120,7 @@ claim is never posted to a human.
 Before you post:
 
 - a promise of a feature ("you can download it") is checked against the code first; if the code lacks it, promise a fallback instead;
-- a time estimate comes from the lane, not your guess; if you guessed, ask and correct it in one line;
+- use the lane's time estimate, not your guess. If you guessed, ask the lane and correct your guess in one line;
 - a new `./run` action: run `csi-spl-orc/src/bash/tests/run-loader-convention.tst.sh` and call the action once through `./run -a <action>` (dry); a cron change: run the cron line once by hand on each box;
 - no CI verdict on master (runs cancelled while queued: `gh run view <id> --json jobs` is empty): write "wf 10: no verdict exists" in the `ACCEPTED` line, use the lane's branch-dispatch run (its jobs must NAME the lane's tests), and run the repo's convention tests yourself;
 - a new or changed test: do not trust only the lane's control. Plant the fault yourself in a scratch copy (`git archive origin/master` into your scratch dir, never a worktree) and see the assert go red.
@@ -132,10 +132,10 @@ Before you post:
 | `/var/spool-hub/dispatch/lease` | `<id>@<box> <epoch>` | it names YOUR id AND YOUR box AND is at most 180 s old |
 | `/var/spool-hub/dispatch/lease.orch` | the orchestrator holder | you read it to know where escalations go |
 
-- Check the lease at every natural breakpoint, and always before a post, a
-  spawn or a route. Not the holder, or the file is stale: **standby**. Read,
-  stay ready; route, spawn and post nothing. If you acted while not the
-  holder, stop and tell the orchestrator.
+- Check the lease at every natural breakpoint. Always check before a post, a
+  spawn or a route. If you are not the holder, or the file is stale, you are
+  on **standby**. Read and stay ready. Do not route, spawn or post anything.
+  If you acted while not the holder, stop and tell the orchestrator.
 - Failover is automatic: the fleet loop promotes the failover after 180 s
   without renewal, across machines by the ranking in `lease.conf`. On
   promotion, work the master's unread inbox, skipping what its outbox shows
@@ -143,11 +143,11 @@ Before you post:
 - The lease follows a live, ABLE process. A seat stuck on a usage-limit
   banner, a modal dialog or a login screen is not able, and the lease moves.
   Do not fight it.
-- Hourly rotation: a fresh session takes the same id at `:15`
-  (`do_spl_dispatch_rotate`). The new session reads its handoff file
-  (`/var/spool-hub/dispatch/handoff/<ts>-master-c-002.md`), then its inbox,
-  then runs the ACK-COMMAND its seed gives within 600 s, and posts nothing
-  about the rotation.
+- Hourly rotation happens at `:15` with `do_spl_dispatch_rotate`: a fresh
+  session takes the same id. The new session reads its handoff file
+  (`/var/spool-hub/dispatch/handoff/<ts>-master-c-002.md`). Then it reads its
+  inbox. Then it runs the ACK-COMMAND from its seed within 600 s. It posts
+  nothing about the rotation.
 - On a session restore, read the lease FILE before acting and ignore older
   `ACTIVE` / `STANDBY` notes in the inbox. The file wins over any note; on a
   note that contradicts it, tell the orchestrator with the `lease.log` lines.
@@ -169,15 +169,16 @@ The dispatcher that takes real lane work spawns it itself.
 3. Read `bash $SA/lane-map.sh` and keep the new scope disjoint from every
    live lane on every box. Read it again right before the spawn: two seats
    have placed the same ask twice.
-4. Write the brief to a file under `/var/spool-hub/dispatch/` and `test -s`
-   it: the spawn starts even when the brief write failed. The brief states the
-   scope, the files it must NOT touch, how Done is proven, the topic it
+4. Write the brief to a file under `/var/spool-hub/dispatch/` and verify it
+   with `test -s`. The spawn starts even if the brief write failed. The brief
+   must state the scope, the files it must NOT touch, how Done is proven, the topic it
    reports on, and "report to the dispatch lease holder".
-5. Start it, vendor-neutral (it prints `<id>@<box> <pane>`):
+5. Start the lane, vendor-neutral (it prints `<id>@<box> <pane>`):
    `SPOOL_ROOT=/var/spool-hub SPAWN_LANE_FILES=<path,...> SPAWN_LANE_TOPIC=<topic> bash $SA/spawn-window.sh <claude|grok|mistral|agy|qwen> auto <repo dir> <brief file> <short-slug>`.
-   Placement is the fleet's (`do_spl_box_pick`); never pin `SPAWN_BOX` by
-   habit. `pick=hold` (exit 10) means every box is full: queue it and say so.
-   `SPAWN_DRY_RUN=1` in front shows the plan and changes nothing.
+   The fleet handles placement (`do_spl_box_pick`). Never pin `SPAWN_BOX` by
+   habit. If it returns `pick=hold` (exit 10), every box is full: queue the
+   task and say so. `SPAWN_DRY_RUN=1` in front shows the plan and changes
+   nothing.
 6. Say in the topic that a lane has it: one line, with what it will deliver.
 
 A lane waiting more than about an hour for an owner answer is parked and
@@ -230,11 +231,11 @@ any crossing with ONE final message.
 
 | trap | what happened | what to do |
 |---|---|---|
-| the split lease | 2026-10-11: (a) 07:59:55Z one box's fleet loop saw the other box's holder silent for 19 s and took dispatch, while the other box's lease file still named its own seat until 08:00:49Z: 54 s with two holders, plus two crossing orchestrator notes (ACTIVE, then STANDBY). (b) 09:16Z-09:55Z the lease stayed with a seat whose login had hit its weekly usage limit; it answered nothing, and two owner posts in a customer workspace waited 26-28 min. (c) 08:12:55Z a DNS failure on one box set the holder to `none@unreachable` for 17 s | the lease FILE wins over any note: your id AND your box AND at most 180 s old, or standby. A note that contradicts the file: tell the orchestrator with the `lease.log` lines. An owner post older than 5 min while another seat holds the lease: hand it over AND escalate at once (section 5). Escalations go to the box named in `lease.orch`, never to a bare `c-001` |
+| the split lease | 2026-10-11: (a) 07:59:55Z one box's fleet loop saw the other box's holder silent for 19 s and took dispatch. The other box's lease file still named its own seat until 08:00:49Z. This caused 54 s with two holders, plus two crossing orchestrator notes (ACTIVE, then STANDBY). (b) 09:16Z-09:55Z the lease stayed with a seat whose login had hit its weekly usage limit. It answered nothing, and two owner posts in a customer workspace waited 26-28 min. (c) 08:12:55Z a DNS failure on one box set the holder to `none@unreachable` for 17 s. | The lease FILE wins over any note. It must name your id AND your box AND be at most 180 s old; otherwise, go to standby. If a note contradicts the file, tell the orchestrator with the `lease.log` lines. If an owner post is older than 5 min while another seat holds the lease, hand it over AND escalate at once (section 5). Escalations go to the box named in `lease.orch`, never to a bare `c-001`. |
 | the spec 128 leak | a request asked for a spec in `csi-spl` about a customer's private code; the brief copied it, and 18 commits describing the customer's private kit and live host landed in the public repo (2026-10-11) | a request that names private customer code AND a `csi-spl` path contradicts itself: the brief says "push nothing to csi-spl" and the work goes under `/var/spool-hub/dispatch/<topic>/work/`. Check before spawning |
-| accepting without a CI verdict | 2026-10-11: every master wf 10 run since about 07:00Z was cancelled while QUEUED (`gh run view <id> --json jobs` empty), so "CI green" did not exist; three results (M2, M3, M4) were accepted on local proof plus scanners, and M2 was wrong | say "wf 10: no verdict exists" in the `ACCEPTED` line, use the lane's branch-dispatch run (its jobs must name the lane's tests), run the repo's convention tests yourself (section 4) |
+| accepting without a CI verdict | 2026-10-11: every master wf 10 run since about 07:00Z was cancelled while QUEUED (`gh run view <id> --json jobs` empty), so "CI green" did not exist; three results (M2, M3, M4) were accepted on local proof plus scanners, and M2 was wrong | Say "wf 10: no verdict exists" in the `ACCEPTED` line. Use the lane's branch-dispatch run (its jobs must name the lane's tests). Run the repo's convention tests yourself (section 4). |
 | the M2 loader red | M2 (bfbc7c638) added a SECOND action (`do_spl_desk_check_mutes`) to an existing file (`spl-desk-check.func.sh`). `./run` resolves one action per file, so the cron that called it every minute only logged a WARN: the 24 h mute alarm never ran in production. It was accepted on the lane's own tests while master CI had no verdict; a later lane's branch run caught it (`run-loader-convention.tst.sh`), and the action moved to its own file | a new `./run` action: run `run-loader-convention.tst.sh` and call the action once through `./run -a <action>` (dry) before accepting; a cron change: run the cron line once by hand on each box |
-| the vacuous test assert | a restarted lane added a second commit (1626729e0) to a test (`spl-desk-cron-checkout.tst.sh` 5.1) that compared two grep results: both empty when nothing changed, both the same line when something did, so it passed either way. The lane's own control (5.2) tested something else and stayed green. Caught by planting the fault by hand (new assert PASS, old assert FAIL); reverted | do not trust only the lane's control: plant the fault yourself in a scratch copy (`git archive origin/master` into your scratch dir, never a worktree) and watch the assert go red |
+| the vacuous test assert | a restarted lane added a second commit (1626729e0) to a test (`spl-desk-cron-checkout.tst.sh` 5.1) that compared two grep results: both empty when nothing changed, both the same line when something did, so it passed either way. The lane's own control (5.2) tested something else and stayed green. Caught by planting the fault by hand (new assert PASS, old assert FAIL); reverted | Do not trust only the lane's control. Plant the fault yourself in a scratch copy (`git archive origin/master` into your scratch dir, never a worktree) and watch the assert go red. |
 | "landed" is not Done | a lane was about to be closed on "landed" while the dispatcher had already sent it back (its numbers 500x off, raw output missing) | relay a lane result as "for your Done verdict"; close only after `ACCEPTED` |
 | an empty or clobbered commit | one lane landed an empty commit; another reported "+47/-0" over a file it had cut down | `git show --stat <sha>` and `wc -l` before accepting |
 | `--ack` swallowed a result | a lane result arrived between `recv` and `recv --ack` and was archived unread | list right before acking; when a lane says it reported, look in your `archive/` first |

@@ -28,7 +28,7 @@ Conventions on this page:
 |---|---|
 | decide what is not the owner's: placement, priority, which lane, close or keep | take a post the dispatch lease holder has taken |
 | spawn, re-seat, restart and close agents | route routine traffic (that is the dispatcher's) |
-| run the production operations the other seats' harnesses refuse: prd reads, prd desk and issue writes, deploys and applies the owner approved for that call | mutate GCP (project, billing, IAM, `terraform apply`) without the owner's go for that one call |
+| run the production operations the other seats' harnesses refuse: prd reads, prd desk and issue writes, and the deploys and applies the owner approved for that call | mutate GCP (project, billing, IAM, `terraform apply`) without the owner's go for that one call |
 | answer the asks raised to you, and close them | leave an ask unacked: it is re-raised, then sent to the owner |
 | take a post that names you, and any post still unanswered after 2 minutes (the backstop), then own that topic | force-push, delete or rewrite master |
 | verify "live" claims before they reach a human (dispatcher runbook section 4) | relay a result as Done before the dispatcher's `ACCEPTED` |
@@ -52,7 +52,7 @@ Conventions on this page:
 | deployed or lagging | `ENV=dev ./run -a do_check_deploy_lag`, then `ENV=prd` |
 | prd hub logs (read-only) | `cd csi-spl-iac && ENV=prd FRESHNESS=<1h> ./run -a do_gcp_tail_logs` |
 | an owner message, read yourself | `ENV=prd SQL="select from_id, kind, ts, left(body,300) from messages where msg_id::text like '<8 hex>%'" ./run -a do_spl_db_query` |
-| your own breadcrumbs, after every step | `ID=c-001 SECTION=next\|lesson TEXT='...' ./run -a do_spl_agent_handoff_note`; a fresh or restored session continues from `next`. A restore kick (`/var/spool-hub/c-001/lifetime/kick.txt`): a 3-line status, then continue only what was in flight |
+| your own breadcrumbs, after every step | Run `ID=c-001 SECTION=next\|lesson TEXT='...' ./run -a do_spl_agent_handoff_note`. A fresh or restored session continues from `next`. On a restore kick (`/var/spool-hub/c-001/lifetime/kick.txt`): post a 3-line status, then continue only what was in flight |
 
 ### 2.2 Asks (section 4.3 of the role spec)
 
@@ -71,8 +71,8 @@ get there: ack it the moment you start.
 | what | command |
 |---|---|
 | spawn on any box (fleet placement) | `SPOOL_ROOT=/var/spool-hub SPAWN_LANE_FILES=<path,...> SPAWN_LANE_TOPIC=<topic> bash $SA/spawn-window.sh <claude\|grok\|mistral\|agy\|qwen> auto <repo dir> <brief file> <short-slug>` (prints `<id>@<box> <pane>`) |
-| spawn on a box you cannot reach by ssh | `bash $SA/spawn-remote.sh --box <box> <vendor> auto <workdir on that box> <brief file> <slug>`: the brief travels as text, the target runs its own `spawn-window.sh`; it accepts only the orch lease holder |
-| message a lane | `bash $SA/spool-send.sh --from c-001 --to <id>@<box> --kind <task\|note> --task <its task> --body-file <file>`; read the last two lines unfiltered. Never `--body "…"` with a backtick in it (the shell runs it), never an owner topic uuid as `--task` (use `dispatch-<topic8>`) |
+| spawn on a box you cannot reach by ssh | `bash $SA/spawn-remote.sh --box <box> <vendor> auto <workdir on that box> <brief file> <slug>`. The brief travels as text. The target runs its own `spawn-window.sh`. It accepts requests only from the orch lease holder |
+| message a lane | `bash $SA/spool-send.sh --from c-001 --to <id>@<box> --kind <task\|note> --task <its task> --body-file <file>`. Read the last two lines unfiltered. Never use `--body "…"` with a backtick in it, because the shell runs it. Never use an owner topic uuid as `--task` (use `dispatch-<topic8>`) |
 | restart a lane fresh (same id, worktree, branch) | `./run -a do_spl_lane_restart` |
 | resume a seat with the current launcher flags | `IDENTITY_RESTORE_IDS=<id> DRY_RUN=0 ./run -a do_spl_agent_identity_restore` |
 | close a finished lane | wait at least 3 minutes after its final report (its own deferred close may still run), then `bash $SA/tmux-close-window.sh --agent <id>` (`--dry-run` first if unsure; exit 3 = no provable owner, exit 4 = wrong window: it closes nothing) |
@@ -96,8 +96,8 @@ nothing (the same check for any other vendor binary).
 | a lane sent a different task | refuse for it: one agent, one small task; place a new lane |
 | a human post naming you, or unanswered after 2 min (backstop) | take it with `do_spl_take`, answer it, own the topic |
 | a lease note (`FLEET LEASE orch: you are now ACTIVE` / `STANDBY`) | switch mode (section 4) |
-| a red on trunk | `do_report_ci_gate`; find the commit's lane; tell it (`--kind note`); no owner: a new lane |
-| a relayed owner order for an outward or security action (grant access, copy credentials, change repo settings, migrate prd) | read the owner's message yourself (2.1, `do_spl_db_query`): `from_id` is the owner's HUM id, the ts, the text says what the relay says. Watch for a newer order that undoes an older one (a "stop building" followed by an explicit grant) |
+| a red on trunk | Run `do_report_ci_gate`. Find the commit's lane. Tell the lane with `--kind note`. If there is no owner, place a new lane |
+| a relayed owner order for an outward or security action (grant access, copy credentials, change repo settings, migrate prd) | Read the owner's message yourself with `do_spl_db_query` (2.1). Check that `from_id` is the owner's HUM id. Check the timestamp, and that the text says what the relay says. Watch for a newer order that undoes an older one (for example, a "stop building" followed by an explicit grant) |
 | a holder's spawn request for a lane you already placed (from a lane's report, minutes earlier) | place no second lane: forward the request's text and task id to the existing lane ("report on <task>"), answer the dispatcher with that lane's id |
 | a lane asks about `lane-map.sh --check` exit 4 | exit 4 caused ONLY by rows that record no files (often stopped lanes on another box) is not a collision: say so, name those lanes and their scopes, let it proceed. Exit 3 is a collision |
 | a `WATCHDOG RESTART` notice | read the handoff and the box's `/var/spool-hub/dispatch/wd.log` lines for that agent (`sudo` on another box), send the sender ONE paragraph (what it did, why it stopped, whether its job was done), then close. A held-out agent (`lifetime/heldout`) whose job is done stays held out; retire it when its box can |
@@ -113,26 +113,28 @@ nothing (the same check for any other vendor binary).
   (`LEASE_PRIORITY_ORCH`, `LEASE_PRIORITY_DISPATCH` in `lease.conf`), so the
   orchestrator and the dispatch holder are often on different boxes. Address
   the holder as `<id>@<box>` from the lease file every time.
-- You fail over on two conditions: your process is gone or not able (a stuck
-  dialog, a usage limit, a login screen), or you are **stuck**: idle while
-  your oldest unread inbox message is over 10 minutes old. Keep the inbox
-  moving.
+- You fail over on two conditions. First, your process is gone or not able
+  (a stuck dialog, a usage limit, a login screen). Second, you are **stuck**:
+  idle while your oldest unread inbox message is over 10 minutes old. Keep
+  the inbox moving.
 - A take-over sends the owner one DM; a handback sends none.
 - On becoming the holder, the hub hands you ONE blocker listing every open
   ask of the role: work it first.
-- Hourly rotation at `:05` (`do_spl_orch_rotate`): the new session reads its
-  handoff (`/var/spool-hub/dispatch/handoff/<ts>-orch-c-001.md`: the old
-  screen, open asks, outbox, unread inbox, lanes, hold notes), runs
-  `do_spl_orch_inbox`, then the ACK-COMMAND in its seed within 600 s. It
-  posts nothing about the rotation and picks up what the old one left.
+- Hourly rotation happens at `:05` with `do_spl_orch_rotate`. The new
+  session reads its handoff file
+  (`/var/spool-hub/dispatch/handoff/<ts>-orch-c-001.md`), which holds the old
+  screen, open asks, outbox, unread inbox, lanes and hold notes. Then it runs
+  `do_spl_orch_inbox`. Finally it runs the ACK-COMMAND from its seed within
+  600 s. It posts nothing about the rotation and picks up what the old
+  session left.
 
 ## 5. Spawning and placement
 
-0. Extract the brief BEFORE you archive the inbox: read the request body from
-   `inbox/` or `archive/`, check it is non-empty (`test -s` and a length
-   check on the extracted body), and refuse to spawn otherwise. On
-   2026-10-11 a lane started with an empty task section: the inbox had been
-   archived first and the brief generator read nothing.
+0. Extract the brief BEFORE you archive the inbox. Read the request body
+   from `inbox/` or `archive/`. Check it is non-empty with `test -s` and a
+   length check on the extracted body. Refuse to spawn if it is empty. On
+   2026-10-11 a lane started with an empty task section, because the inbox
+   was archived first and the brief generator read nothing.
 1. Re-read the ask book and the lane map right before you place: two seats
    on two boxes have placed the same ask (two lanes for one task).
 2. If the dispatch holder says "I run it", place no lane. Never STOP then
@@ -141,12 +143,13 @@ nothing (the same check for any other vendor binary).
 3. The vendor: `do_spl_lane_mix` (dispatcher runbook section 6, step 1);
    the data rule (dispatcher runbook section 7) overrides the split.
 4. The count: at 40 live agent windows, close a finished lane first.
-5. The brief, in a file you `test -s`: scope; the files it must NOT touch;
-   how Done is proven (with a control for a test); who it reports to (the
-   dispatch lease holder, on the topic's `dispatch-<topic8>` task); "commits
-   as the repo's `Commits:` identity, no AI trailers, never force-push".
-   For private customer data: "push nothing to csi-spl", work under
-   `/var/spool-hub/dispatch/<topic>/work/`.
+5. Write the brief in a file and verify it with `test -s`. The brief must
+   state the scope, the files it must NOT touch, and how Done is proven (with
+   a control for a test). It must state who the lane reports to (the dispatch
+   lease holder, on the topic's `dispatch-<topic8>` task). It must include
+   "commits as the repo's `Commits:` identity, no AI trailers, never
+   force-push". For private customer data, it also says "push nothing to
+   csi-spl" and "work under `/var/spool-hub/dispatch/<topic>/work/`".
 6. Placement: let the fleet pick (`auto`, `do_spl_box_pick`). Never pin
    `SPAWN_BOX` by habit: a pin on one box once starved CI of its runners.
    `pick=hold` (exit 10): every box is full, queue it and say so. A box out
@@ -158,14 +161,14 @@ nothing (the same check for any other vendor binary).
    dead on arrival: if it is, do the job yourself or pick another vendor the
    data rule allows.
 
-**Load before placement.** Before each spawn, measure the target box:
-`uptime`, `nproc`, `cat /proc/pressure/cpu` (over ssh for another box). Hold
-new lanes on a box over about 3x its cores in load or about 80% CPU
-pressure, and tell the dispatcher which lanes wait. A starved box makes
-every local timeout meaningless as evidence: on 2026-10-11 one box ran at
-load 125 on 16 cores, 91% pressure, and a lane saw a fake navigation
-timeout. Pin `SPAWN_BOX=<box>`, with the reason in the report, only when
-the picker would choose the starved box or the owner orders a box.
+**Check load before placement.** Before each spawn, measure the target box
+with `uptime`, `nproc` and `cat /proc/pressure/cpu` (over ssh for another
+box). Hold new lanes on a box over about 3x its cores in load or about 80%
+CPU pressure. Tell the dispatcher which lanes are waiting. A starved box
+makes local timeouts meaningless as evidence: on 2026-10-11 one box ran at
+load 125 on 16 cores with 91% pressure, and a lane saw a fake navigation
+timeout. Pin `SPAWN_BOX=<box>`, with the reason in the report, only when the
+picker would choose the starved box, or when the owner orders a box.
 
 ## 6. Production operations
 

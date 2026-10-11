@@ -68,7 +68,10 @@
 # LEASE_FLEET in lease.conf) and only while THIS box holds the orch lease (the
 # remote serve accepts nobody else). A remote spawn that fails, is refused or
 # does not answer within SPAWN_REMOTE_WAIT falls back to this box, with a
-# WARN on stderr. SPAWN_BOX=<box> always wins (local, or this box's id, =
+# WARN on stderr, after withdrawing that request (spawn-remote.sh --cancel)
+# so the target's serve does not start it later. pick=hold (exit 10) files
+# no request; a request already filed is withdrawn the same way.
+# SPAWN_BOX=<box> always wins (local, or this box's id, =
 # here), and never falls back (exit 8): lanes that need one box's checkout
 # or browser set it. The remote serve's spawn-window never re-places: that
 # box does not hold the orch lease. An explicit
@@ -129,6 +132,23 @@ export SPAWN_REQUESTER
 [ ! -e "${SPOOL_ROOT}/dispatch/box.leave" ] || { echo "spawn-window: this machine is draining ($(head -c 200 "${SPOOL_ROOT}/dispatch/box.leave")): spawn on another box, or run ./run -a do_spl_box_join here" >&2; exit 6; }
 # shellcheck source=../lib/spool-fleet.inc.sh
 . "$HERE/../lib/spool-fleet.inc.sh"
+# Withdraw a remote request this process filed and will not use. OUT is
+# spawn-remote's stdout (`task <id>` once the request is filed and no agent
+# line came back). A SPAWN_REMOTE_CMD stub filed nothing here. HOLD calls
+# this before rc 10; the local fallback calls it before starting here.
+sw_withdraw_remote() {  # BOX OUT
+  local task
+  [ -z "${SPAWN_REMOTE_CMD:-}" ] || return 0
+  [ -n "${1:-}" ] || return 0
+  task="$(printf '%s\n' "${2:-}" | sed -n 's/^task //p' | tail -1)"
+  [ -n "$task" ] || return 0
+  if bash "$HERE/spawn-remote.sh" --cancel --box "$1" --task "$task" >/dev/null 2>&1; then
+    echo "spawn-window: withdrew remote request $task on $1" >&2
+    return 0
+  fi
+  echo "spawn-window: WARN could not withdraw remote request $task on $1: it may still spawn there" >&2
+  return 1
+}
 # The box this lane starts on; "" = here.
 place_box() {
   local want="${SPAWN_BOX:-}" here json holder="" fleet floor
@@ -163,6 +183,7 @@ place_box() {
     pick="$(sed -n 's/^pick=\([a-z0-9][a-z0-9-]*\)\( .*\)\{0,1\}$/\1/p' <<<"$out" | tail -1)"
     case "$pick" in
       hold)
+        sw_withdraw_remote "${SW_REMOTE_BOX:-}" "${SW_REMOTE_OUT:-}"
         echo "spawn-window: HOLD ${TITLE}: $(sed -n 's/^pick=hold reason=//p' <<<"$out" | sed -n 1p). Queue it; nothing was spawned." >&2
         return 10 ;;
       "") echo "spawn-window: WARN no load target pick ($(tail -1 <<<"$out" | cut -c1-200)): placing by the busy count" >&2 ;;
@@ -203,7 +224,9 @@ if [ -n "$TARGET" ]; then
   line="$(printf '%s\n' "$out" | grep -E '^[A-Za-z][A-Za-z0-9-]*@[a-z0-9-]+ (%[0-9]+|-)$' | tail -1)"
   if [ "$rc" -eq 0 ] && [ -n "$line" ]; then printf '%s\n' "$line"; SW_JOURNAL_ID="${line%% *}"; exit 0; fi
   [ -z "${SPAWN_BOX:-}" ] || { echo "spawn-window: the spawn on SPAWN_BOX=${TARGET} did not start (spawn-remote exit ${rc})" >&2; exit 8; }
-  echo "spawn-window: WARN the spawn on ${TARGET} did not start (spawn-remote exit ${rc}: 3 not sent, 4 refused, 5 no answer within ${SPAWN_REMOTE_WAIT:-300}s, so it may still start there): starting here instead" >&2
+  SW_REMOTE_BOX="$TARGET" SW_REMOTE_OUT="$out"
+  sw_withdraw_remote "$TARGET" "$out"
+  echo "spawn-window: WARN the spawn on ${TARGET} did not start (spawn-remote exit ${rc}: 3 not sent, 4 refused, 5 no answer within ${SPAWN_REMOTE_WAIT:-300}s): starting here instead" >&2
 fi
 if [ -f "${SPOOL_ROOT}/peer/seats" ]; then
   gate_dry=0; [ "${SPAWN_DRY_RUN:-0}" = 1 ] && gate_dry=1

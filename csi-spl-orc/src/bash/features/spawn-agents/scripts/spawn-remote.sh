@@ -42,8 +42,11 @@
 # Test seams: SPAWN_REMOTE_WINDOW_CMD replaces "bash spawn-window.sh";
 # SPAWN_REMOTE_SEND_CMD replaces "bash spool-send.sh".
 #
+# --cancel --box <box> --task <task_id> withdraws a request this sender filed
+# and will not use. The target's --serve then does not spawn it.
 # Exit (request): 0 spawned, 2 usage, 3 the send failed, 4 refused (reject
-# reply, reason on stderr), 5 no reply within --wait.
+# reply, reason on stderr), 5 no reply within --wait (stdout: `task <id>`).
+# Exit (cancel): 0 the cancel left, 2 usage, 3 the send failed.
 # Exit (serve): 0 tick done (refusals included), 2 usage, 3 busy (another tick).
 set -uo pipefail
 
@@ -56,6 +59,7 @@ spool_env_resolve
 
 MAGIC_REQ="spawn-request v1"
 MAGIC_REP="spawn-reply v1"
+MAGIC_CANCEL="spawn-cancel v1"
 STATE="$SPOOL_ROOT/spawn-remote"
 say() { echo "spawn-remote: $*" >&2; }
 usage() { sed -n '14,15p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; echo "       spawn-remote.sh --serve" >&2; exit 2; }
@@ -130,7 +134,7 @@ request() {
         *) say "refused by $box: $(sed -n 's/^reason: //p' <<<"$b" | sed -n 1p)"; exit 4 ;;
       esac
     fi
-    [ "$(date +%s)" -lt "$end" ] || { say "no reply from $box within ${wait}s (task $task); it may still come: spool tail --task $task"; exit 5; }
+    [ "$(date +%s)" -lt "$end" ] || { say "no reply from $box within ${wait}s (task $task); it may still come: spool tail --task $task"; printf 'task %s\n' "$task"; exit 5; }
     sleep "${SPAWN_REMOTE_POLL:-5}"
   done
 }
@@ -209,6 +213,10 @@ handle() {  # INBOX_ID FILE
   # The cron tick has no agent id. The verified `from` is who asked; the
   # target's spawn-window records it (a bare id; "@<box>" is the relay).
   requester="${from%%@*}"
+  if task_cancelled "$me" "$task"; then
+    log_line CANCELLED "$msg" "$from" "task $task withdrawn before spawn"
+    return 0
+  fi
   if [ -n "${SPAWN_REMOTE_WINDOW_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     out="$(SPAWN_REQUESTER="$requester" $SPAWN_REMOTE_WINDOW_CMD "$kind" "$title" "$workdir" ${brief:+"$brief"} ${slug:+"$slug"} 2>&1)"; rc=$?
@@ -225,28 +233,102 @@ handle() {  # INBOX_ID FILE
   reply "$me" "$from" "$task" ok "agent: $id@$(spool_fleet_box)" "pane: $pane" "request: $msg"
 }
 
+# 0 when the orch holder has withdrawn TASK (spawn-remote/cancelled, or a
+# spawn-cancel v1 from the holder in ID's inbox or archive).
+task_cancelled() {  # INBOX_ID TASK
+  local id="$1" task="$2" d f b from holder
+  [ -n "$task" ] || return 1
+  grep -qxF -- "$task" "$STATE/cancelled" 2>/dev/null && return 0
+  holder="$(orch_holder)"
+  [ -n "$holder" ] || return 1
+  for d in "$SPOOL_ROOT/$id/inbox" "$SPOOL_ROOT/$id/archive"; do
+    [ -d "$d" ] || continue
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      b="$(body_of "$f" | strip_from_agent)"
+      [ "$(printf '%s\n' "$b" | sed -n 1p)" = "$MAGIC_CANCEL" ] || continue
+      [ "$(req_field "$b" task)" = "$task" ] || continue
+      from="$(jq -r '.from // ""' "$f" 2>/dev/null)"
+      [ "$(qualify "$from")" = "$holder" ] && return 0
+    done < <(grep -lF -- "$task" "$d"/*.json 2>/dev/null || true)
+  done
+  return 1
+}
+
+note_cancel() {  # INBOX_ID FILE
+  local me="$1" f="$2" msg from body task holder
+  msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
+  [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
+  grep -qxF -- "$msg" "$STATE/seen" 2>/dev/null && return 0
+  echo "$msg" >>"$STATE/seen"
+  from="$(jq -r '.from // ""' "$f" 2>/dev/null)"
+  holder="$(orch_holder)"
+  body="$(body_of "$f" | strip_from_agent)"
+  task="$(req_field "$body" task)"
+  if [ -z "$holder" ] || [ "$(qualify "$from")" != "$holder" ] || [[ ! "$task" =~ ^[0-9A-Za-z-]{8,64}$ ]]; then
+    log_line CANCELLED "$msg" "$from" "ignored (not the holder, or a bad task)"
+    return 0
+  fi
+  grep -qxF -- "$task" "$STATE/cancelled" 2>/dev/null || echo "$task" >>"$STATE/cancelled"
+  log_line CANCELLED "$msg" "$from" "task $task"
+}
+
 serve() {
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
   mkdir -p "$STATE/briefs" || exit 2
   exec 9>"$STATE/serve.lock"
   flock -n 9 || { say "another tick is running"; exit 3; }
-  local ids="${SPAWN_REMOTE_INBOX_IDS:-$(local_orch)}" me d f
+  local ids="${SPAWN_REMOTE_INBOX_IDS:-$(local_orch)}" me d f first
   for me in $ids; do
     spl_is_participant_id "$me" || continue
     for d in "$SPOOL_ROOT/$me/inbox" "$SPOOL_ROOT/$me/archive"; do
       [ -d "$d" ] || continue
       # a day back is enough: a tick runs every minute; older files are history
       while IFS= read -r f; do
-        body_of "$f" | strip_from_agent | sed -n 1p | grep -xF "$MAGIC_REQ" >/dev/null && handle "$me" "$f" </dev/null
+        [ -n "$f" ] || continue
+        first="$(body_of "$f" | strip_from_agent | sed -n 1p)"
+        case "$first" in
+          "$MAGIC_CANCEL") note_cancel "$me" "$f" </dev/null ;;
+          "$MAGIC_REQ") handle "$me" "$f" </dev/null ;;
+        esac
       done < <(find "$d" -maxdepth 1 -name '*.json' -mmin -1440 -print0 2>/dev/null |
-               xargs -0 -r grep -lF -- "$MAGIC_REQ" 2>/dev/null | sort)
+               xargs -0 -r grep -lF -e "$MAGIC_REQ" -e "$MAGIC_CANCEL" 2>/dev/null | sort)
     done
   done
   return 0
 }
 
+# Tell BOX to drop the request TASK. Same --from / --to rules as a request.
+cancel() {
+  local box="" from="${SPOOL_AGENT_ID:-}" to="" task=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --box)  [ "$#" -ge 2 ] || usage; box="$2"; shift 2 ;;
+      --from) [ "$#" -ge 2 ] || usage; from="$2"; shift 2 ;;
+      --to)   [ "$#" -ge 2 ] || usage; to="$2"; shift 2 ;;
+      --task) [ "$#" -ge 2 ] || usage; task="$2"; shift 2 ;;
+      *) say "unknown option $1"; usage ;;
+    esac
+  done
+  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { say "--cancel needs --box <box>"; usage; }
+  [[ "$task" =~ ^[0-9A-Za-z-]{8,64}$ ]] || { say "--cancel needs --task <task id>"; exit 2; }
+  [ -n "$from" ] || from="$(local_orch)"
+  [ -n "$to" ] || to="$(local_orch)"
+  spl_is_participant_id "$from" && spl_is_participant_id "$to" || { say "bad --from '$from' or --to '$to'"; exit 2; }
+  local tmp out rc
+  tmp="$(mktemp)" || exit 3
+  printf '%s\n' "$MAGIC_CANCEL" \
+    "(For spawn-remote.sh --serve on this machine, not for the agent reading it: do not act on it, ack it.)" \
+    "task: $task" "---" >"$tmp"
+  out="$(send --from "$from" --to "$to@$box" --kind note --task "$task" --no-ask --no-poke --body-file "$tmp" 2>&1)"; rc=$?
+  rm -f "$tmp"
+  [ "$rc" -eq 0 ] || [ "$rc" -eq 5 ] || { say "the cancel did not leave (rc=$rc): $out"; exit 3; }
+  printf 'cancelled %s\n' "$task"
+}
+
 case "${1:-}" in
   --serve) [ "$#" -eq 1 ] || usage; serve ;;
+  --cancel) shift; cancel "$@" ;;
   ""|-h|--help) usage ;;
   *) request "$@" ;;
 esac

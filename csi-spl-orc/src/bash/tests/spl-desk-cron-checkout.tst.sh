@@ -69,6 +69,36 @@ out="$(env PATH="$T/bin:$PATH" PROJ_ROOT="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK
 rc_part="$(echo "$out" | grep -o 'after rc=[0-9]*' | cut -d= -f2)"
 traps_part="$(echo "$out" | grep -o 'traps [a-z]*')"
 [ "$rc_part" = "1" ] && [ "$traps_part" = "traps unchanged" ] && pass "5. a failure returns to the caller and leaves traps unchanged" || fail "5. exit/trap ($out)"
+
+# 5.1. Red control: trap set before the call (e.g., SIGPIPE ignored by CI)
+out="$(env PATH="$T/bin:$PATH" PROJ_ROOT="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK_CRON_REPO=/r/repo SPL_DESK_CRON_CREATE=1 \
+  bash -c 'do_log() { :; }; source "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-checkout.func.sh";
+    trap "" SIGPIPE;  # Mimic CI runner
+    traps_before="$(trap -p)";
+    spl_desk_cron_checkout /r/x master; rc=$?; echo "after rc=$rc";
+    traps_after="$(trap -p)";
+    [ "$traps_before" = "$traps_after" ] && echo "traps unchanged" || echo "traps changed: $traps_after"' 2>&1)"
+rc_part="$(echo "$out" | grep -o 'after rc=[0-9]*' | cut -d= -f2)"
+traps_part="$(echo "$out" | grep -o 'traps [a-z]*')"
+[ "$rc_part" = "1" ] && [ "$traps_part" = "traps unchanged" ] && pass "5.1. inherited trap (SIGPIPE): traps unchanged after failure" || fail "5.1. inherited trap ($out)"
+
+# 5.2. Red control: helper sets a trap (should fail)
+# Override the helper to set a trap and force a failure
+out="$(env PATH="$T/bin:$PATH" PROJ_ROOT="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK_CRON_REPO=/r/repo SPL_DESK_CRON_CREATE=1 \
+  bash -c 'do_log() { :; };
+    source "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-checkout.func.sh";
+    # Override the helper to set a trap and force a failure
+    spl_desk_cron_checkout() {
+      trap "echo trap set by helper" EXIT  # Simulate a helper setting a trap
+      return 1  # Force a failure
+    }
+    traps_before="$(trap -p)";
+    spl_desk_cron_checkout /r/x master; rc=$?; echo "after rc=$rc";
+    traps_after="$(trap -p)";
+    [ "$traps_before" = "$traps_after" ] && echo "traps unchanged" || echo "traps changed: $traps_after"' 2>&1)"
+rc_part="$(echo "$out" | grep -o 'after rc=[0-9]*' | cut -d= -f2)"
+traps_part="$(echo "$out" | grep -o 'traps [a-z]*')"
+[ "$rc_part" = "1" ] && [ "$traps_part" = "traps changed" ] && pass "5.2. helper sets a trap: test fails as expected" || fail "5.2. helper sets a trap ($out)"
 grep -nE '^[^#]*\b(exit|trap)\b' "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-checkout.func.sh" &&
   fail "5. the helper source holds exit or trap" || pass "5. the helper source holds no exit and no trap"
 

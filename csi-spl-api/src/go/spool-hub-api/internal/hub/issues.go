@@ -302,6 +302,13 @@ func (s *Server) issueStore() (store.Issues, *issueErr) {
 // createIssue is the one create path (browser and agent). actor is the HUM-*
 // or agent id recorded as created_by.
 func (s *Server) createIssue(ctx context.Context, tenant, actor string, q issueRequest) (store.Issue, *issueErr) {
+	return s.createIssueOn(ctx, tenant, actor, uid.New(), q)
+}
+
+// createIssueOn is createIssue with the discussion topic id given: the
+// blocker sweep derives it, so a second create of one blocker's issue is a
+// conflict (blocker_issue.go).
+func (s *Server) createIssueOn(ctx context.Context, tenant, actor, task string, q issueRequest) (store.Issue, *issueErr) {
 	is, ie := s.issueStore()
 	if ie != nil {
 		return store.Issue{}, ie
@@ -313,7 +320,7 @@ func (s *Server) createIssue(ctx context.Context, tenant, actor string, q issueR
 	if ie != nil {
 		return store.Issue{}, ie
 	}
-	in := store.Issue{TenantID: tenant, TaskID: uid.New(), CreatedBy: actor, Status: store.IssueBacklog}
+	in := store.Issue{TenantID: tenant, TaskID: task, CreatedBy: actor, Status: store.IssueBacklog}
 	if q.Status != nil {
 		in.Status = *q.Status
 	}
@@ -373,6 +380,9 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 		return store.Issue{}, ie
 	}
 	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "update", "issue": toIssueJSON(out, s.storeGetter(ctx, tenant))})
+	if p.Status != nil && issueResolved(out.Status) {
+		s.clearBlockerMark(ctx, tenant, actor, out) // blocker_issue.go: resolving the issue clears the mark
+	}
 	return out, nil
 }
 

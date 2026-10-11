@@ -59,6 +59,7 @@ var operatorCallers = map[string]string{
 
 	// spec 107 T007: the hours freeze sweep.
 	"hoursSweepTenants":     "hours freeze sweep (hub sweeper goroutine): the workspace ids to sweep, each then swept in its own scope; no route",
+	"BlockerTenants":        "blocker -> issue sweep (hub goroutine): the live workspace ids, each then swept in its own scope; no route",
 	"pruneAgedHoursMinutes": "hours_minutes 45-day retention (spec 107 1.7, hub sweeper goroutine), global by design; no route",
 
 	// spec 123 lane 4: the box feed of cost tracking.

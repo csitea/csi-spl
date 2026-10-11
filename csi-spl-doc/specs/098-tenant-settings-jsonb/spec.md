@@ -170,6 +170,9 @@ column in a later migration once no deployed image reads it.
 
 ## 10. Registered keys
 
-None yet. The first feature that needs a workspace setting registers it here
-and in code. The tests register `test.*` / `hubtest.*` keys in their own
-binaries only.
+| key | kind, default, range | registered in |
+|---|---|---|
+| `hours.period`, `hours.freeze_grace_days`, `hours.idle_minutes`, `hours.tz` | spec 107 section 4.2 | `internal/store/hours.go` |
+| `blocker.issue_after_minutes` | int, 3, 0..1440 (0 = off): an unanswered blocker becomes an issue for whoever it tags after N minutes | `internal/store/blocker_issue.go` |
+
+The tests register `test.*` / `hubtest.*` keys in their own binaries only.

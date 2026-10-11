@@ -52,6 +52,7 @@ const (
 	blobCacheItemBytes = 4 << 20
 	blobCacheTTL       = 10 * time.Minute
 	sweepEvery         = 10 * time.Minute
+	blockerEvery       = time.Minute // an unanswered blocker -> issue, to the minute of N
 	readHeaderTimeout  = 10 * time.Second
 	idleTimeout        = 120 * time.Second
 	maxHeaderBytes     = 64 << 10
@@ -142,6 +143,7 @@ func cmdServe() int {
 	go srv.RunSweeper(ctx, sweepEvery)
 	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
 	go srv.RunWake(ctx)                 // spec 059 S1 + S3
+	go srv.RunBlockerIssues(ctx, blockerEvery)
 	return serveUntilDone(ctx, hc, log, srv)
 }
 

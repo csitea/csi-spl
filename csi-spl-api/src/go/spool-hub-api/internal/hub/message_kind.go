@@ -112,6 +112,9 @@ func (s *Server) handleSetMessageKind(w http.ResponseWriter, r *http.Request) {
 		s.o.Log.Info().Str("tenant", t.ID).Str("msg_id", id).Str("by", from).
 			Str("from_kind", c.From).Str("to_kind", c.To).Msg("message kind set")
 		s.fanoutEdited(r.Context(), t.ID, m, m.Env, m.EditedAt, m.EditedBy, m.Revision)
+		if c.From == blockerKind && c.To != blockerKind { // blocker_issue.go: clearing the mark resolves its issues
+			s.resolveBlockerIssues(r.Context(), t.ID, m, from)
+		}
 	}
 	writeJSON(w, http.StatusOK, editedPayload(m, m.Env, m.EditedAt, m.EditedBy, m.Revision))
 }

@@ -17,6 +17,10 @@
 #   7. master only by default (r8-03): the header names the branch read, and
 #      a failed run on a review branch is never counted; CI_GATE_BRANCH=
 #      (set, empty) reads every branch, CI_GATE_BRANCH=<b> reads <b>
+#   8. spec 131 C1: a job that hit timeout-minutes (GitHub: "cancelled" +
+#      "exceeded the maximum execution time") is a red job, its run reads
+#      `timeout`; a short superseded cancelled run is never re-read
+#   9. spec 131 C1: a signature is never a PASS line that quotes FAIL
 #   CONTROLS -- the report cannot be silently empty:
 #     a. no runs at all               -> refused (non-zero), not "healthy"
 #     b. gh itself fails              -> refused (non-zero)
@@ -28,6 +32,9 @@
 #     f. RED CONTROL for 7: the stub returns the branch run to a `gh run list`
 #        without --branch, which is the call the report made before r8-03;
 #        that call counts it, so check 7 fails without the --branch
+#     g. RED CONTROL for 8: with the annotations hidden the window reads
+#        "no failed run", the report before C1
+#     h. RED CONTROL for 9: the pre-C1 signature grep picks the PASS line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -285,6 +292,63 @@ report CI_GATE_RUNS=all; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'CI_GATE_RUNS' "$T/out" \
   && pass "CONTROL c. a non-numeric CI_GATE_RUNS is REFUSED (rc=$rc)" \
   || { fail "CONTROL c. a non-numeric CI_GATE_RUNS was accepted (rc=$rc)"; sed 's/^/    | /' "$T/out"; }
+
+# --- 8. a timeout is a red job (spec 131 C1) ----------------------------------
+# 920: started 30 min, one job timed out (cancelled + the timeout annotation)
+# and one passed; 921: a superseded pending run (cancelled after 40 s) whose
+# canned jobs would read as a timeout if the report fetched them; 922 green.
+cp "$T/api/runs.json" "$T/api/runs-before-8.json"
+cat >"$T/api/runs.json" <<'JSON'
+[
+ {"databaseId":921,"conclusion":"cancelled","createdAt":"2026-01-03T10:10:00Z","headSha":"21212121aaaa","headBranch":"master","startedAt":"2026-01-03T10:10:00Z","updatedAt":"2026-01-03T10:10:40Z"},
+ {"databaseId":920,"conclusion":"cancelled","createdAt":"2026-01-03T10:00:00Z","headSha":"20202020aaaa","headBranch":"master","startedAt":"2026-01-03T10:00:00Z","updatedAt":"2026-01-03T10:30:00Z"},
+ {"databaseId":922,"conclusion":"success","createdAt":"2026-01-03T09:00:00Z","headSha":"22222222aaaa","headBranch":"master","startedAt":"2026-01-03T09:00:00Z","updatedAt":"2026-01-03T09:40:00Z"}
+]
+JSON
+echo '{"jobs":[{"id":7300,"name":"orc: hermetic 1/2","conclusion":"cancelled"},{"id":7301,"name":"cnf: validator","conclusion":"success"}]}' >"$T/api/jobs-920.json"
+echo '{"jobs":[{"id":7310,"name":"orc: superseded","conclusion":"cancelled"}]}' >"$T/api/jobs-921.json"
+echo '{"jobs":[{"id":7320,"name":"orc: hermetic 1/2","conclusion":"success"}]}' >"$T/api/jobs-922.json"
+for j in 7300 7310; do
+  echo '[{"message":"The job has exceeded the maximum execution time of 20m0s"},{"message":"The operation was canceled."}]' >"$T/api/ann-$j.json"
+done
+report; rc=$?
+if [[ $rc -eq 0 ]] && grep -qE '^ +1 timeout$' "$T/out" && grep -qE '^ +1 cancelled$' "$T/out" \
+   && grep -qE '^ +1 orc: hermetic 1/2$' "$T/out" \
+   && grep -q '920 .*20202020 .*orc: hermetic 1/2  || timeout: The job has exceeded the maximum execution time of 20m0s' "$T/out" \
+   && grep -qx '   last green: 922 22222222 2026-01-03T09:00:00Z  orc: hermetic 1/2' "$T/out" \
+   && ! grep -q 'orc: superseded' "$T/out"; then
+  pass "8. the timed-out job is a red job (run 920 reads timeout, last green 922); the 40 s superseded run 921 stays cancelled"
+else
+  fail "8. a timeout is not counted as red, or the superseded run was re-read (rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+# --- CONTROL g. without the annotation the report sees no red at all ----------
+report GH_STUB_NO_ANNOTATIONS=1
+if grep -q 'no failed run in the window' "$T/out" && grep -qE '^ +2 cancelled$' "$T/out"; then
+  pass "CONTROL g. with the annotations hidden the timeout reads as 2 cancelled + no failed run, so check 8 FAILS without the parse"
+else
+  fail "CONTROL g. check 8 passes without the timeout annotation: it proves nothing"; sed 's/^/    | /' "$T/out"
+fi
+cp "$T/api/runs-before-8.json" "$T/api/runs.json"
+
+# --- 9. a PASS line that quotes FAIL is never the signature (spec 131 C1) ------
+# 6 PASS lines quote FAIL before the real failure, as on 822df3050 (c-830)
+{
+  for i in 1 2 3 4 5 6; do printf '2026-01-02T10:00:0%sZ PASS: %s. a handoff that cannot be written: RS-HANDOFF FAIL (never OK)\n' "$i" "$i"; done
+  printf '2026-01-02T10:00:07Z FAIL: the tfvars differ from a fresh render\n'
+} >"$T/api/log-7001.txt"
+report CI_GATE_SIGNATURES=1; rc=$?
+if [[ $rc -eq 0 ]] && grep -q '902 .*iac: step contracts  || FAIL: the tfvars differ from a fresh render' "$T/out" \
+   && ! grep -q 'RS-HANDOFF' "$T/out"; then
+  pass "9. after 6 PASS lines that quote FAIL, the signature is the real FAIL line"
+else
+  fail "9. a PASS line was taken as the signature (rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+# --- CONTROL h. the pre-C1 grep takes the first PASS line ----------------------
+old=$(grep -aE '(^|[[:space:]])(FAIL[:[:space:]]|FAILED:|--- FAIL|::error::)' "$T/api/log-7001.txt" |
+      grep -avE '36;1m|echo "::error' | sed -E 's/^[^ ]*Z //' | sed -n 1p)
+[[ "$old" == "PASS: 1."* ]] \
+  && pass "CONTROL h. the pre-C1 signature grep returns '${old:0:40}...', so check 9 FAILS without the PASS filter" \
+  || fail "CONTROL h. the old grep did not pick the PASS line ($old): check 9 proves nothing"
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all report-ci-gate.tst.sh assertions"

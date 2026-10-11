@@ -10,6 +10,12 @@
 # @description a job that shows up in window after window is the flake.
 # @description Then the FIRST red per job (fail-fast stops left out) and, per
 # @description failed job, its last green run in the window (r7-02).
+# @description A job that hit its timeout-minutes concludes "cancelled" on
+# @description GitHub, with the annotation "exceeded the maximum execution
+# @description time": it is counted as a red job, and its run as `timeout`, not
+# @description `cancelled` (spec 131 C1: 18 of 22 started-then-cancelled jobs
+# @description on 2026-10-11 were timeouts the report never showed). A
+# @description superseded pending run starts no job and stays `cancelled`.
 # @description Reads the runs, jobs and check-run annotations APIs (no logs)
 # @description unless CI_GATE_SIGNATURES=1, which also prints the first FAIL /
 # @description ::error line per failed job.
@@ -42,8 +48,9 @@ do_report_ci_gate() { (
 
   local tmp; tmp=$(mktemp -d) || return 1
   if ! gh run list --workflow "$wf" "${on_branch[@]}" --limit "$n" \
-        --json databaseId,conclusion,createdAt,headSha \
-        --jq '.[] | [.databaseId, (if (.conclusion // "") == "" then "running" else .conclusion end), .createdAt, .headSha[0:8]] | @tsv' >"$tmp/runs.tsv" 2>"$tmp/err"; then
+        --json databaseId,conclusion,createdAt,headSha,startedAt,updatedAt \
+        --jq '.[] | [.databaseId, (if (.conclusion // "") == "" then "running" else .conclusion end), .createdAt, .headSha[0:8],
+                     (if .startedAt and .updatedAt then ((.updatedAt | fromdate) - (.startedAt | fromdate)) else 0 end)] | @tsv' >"$tmp/runs.tsv" 2>"$tmp/err"; then
     do_log "FATAL gh run list failed: $(head -2 "$tmp/err")"
     rm -rf "$tmp"; return 1
   fi
@@ -52,6 +59,7 @@ do_report_ci_gate() { (
     rm -rf "$tmp"; return 1
   fi
 
+  _rcg_mark_timeout_runs "$tmp"
   local total newest oldest
   total=$(wc -l <"$tmp/runs.tsv")
   newest=$(head -1 "$tmp/runs.tsv" | cut -f3)
@@ -59,7 +67,7 @@ do_report_ci_gate() { (
   echo "== $wf on ${branch:-every branch} -- last $total run(s), $oldest .. $newest"
   cut -f2 "$tmp/runs.tsv" | sort | uniq -c | sort -rn | sed 's/^/   /'
 
-  awk -F'\t' '$2 == "failure"' "$tmp/runs.tsv" >"$tmp/failed.tsv"
+  awk -F'\t' '$2 == "failure" || $2 == "timeout"' "$tmp/runs.tsv" >"$tmp/failed.tsv"
   local nf; nf=$(wc -l <"$tmp/failed.tsv")
   if (( nf == 0 )); then
     echo "== no failed run in the window"
@@ -68,10 +76,10 @@ do_report_ci_gate() { (
 
   local rid concl created sha jid jname jconcl
   : >"$tmp/jobs.tsv"
-  while IFS=$'\t' read -r rid concl created sha; do
+  while IFS=$'\t' read -r rid concl created sha _; do
     _rcg_run_jobs "$tmp" "$rid" | while IFS=$'\t' read -r jid jconcl jname; do
-      [[ "$jconcl" == failure ]] || continue
-      printf '%s\t%s\t%s\t%s\t%s\n' "$rid" "$created" "$sha" "$jid" "$jname" >>"$tmp/jobs.tsv"
+      [[ "$jconcl" == failure || "$jconcl" == timeout ]] || continue
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$rid" "$created" "$sha" "$jid" "$jname" "$jconcl" >>"$tmp/jobs.tsv"
     done
   done <"$tmp/failed.tsv"
 
@@ -82,12 +90,12 @@ do_report_ci_gate() { (
 
   echo "== failed runs, newest first"
   local sig
-  while IFS=$'\t' read -r rid created sha jid jname; do
+  while IFS=$'\t' read -r rid created sha jid jname jconcl; do
     sig=""
-    if [[ "${CI_GATE_SIGNATURES:-0}" == 1 ]]; then
-      sig=$(gh api "repos/{owner}/{repo}/actions/jobs/$jid/logs" 2>/dev/null |
-            grep -aE '(^|[[:space:]])(FAIL[:[:space:]]|FAILED:|--- FAIL|::error::)' |
-            grep -avE '36;1m|echo "::error' | sed -E 's/^[^ ]*Z //' | sed -n 1p)
+    if [[ "$jconcl" == timeout ]]; then
+      sig="timeout: $(cat "$tmp/timeout-$jid.txt" 2>/dev/null)"
+    elif [[ "${CI_GATE_SIGNATURES:-0}" == 1 ]]; then
+      sig=$(gh api "repos/{owner}/{repo}/actions/jobs/$jid/logs" 2>/dev/null | _rcg_signature)
       sig="${sig:0:160}"
     fi
     printf '   %s  %s  %s  %s%s\n' "$rid" "$created" "$sha" "$jname" "${sig:+  || $sig}"
@@ -97,14 +105,51 @@ do_report_ci_gate() { (
   return 0
 ) }
 
+# _rcg_signature - stdin a job log, stdout its first FAIL / ::error line. A
+# test's own PASS line that quotes the word ("PASS: 9. ... RS-HANDOFF FAIL
+# (never OK)") is not a failure: 6 of 17 signature lines on 822df3050 were
+# such PASS lines (c-830, spec 131 C1).
+_rcg_signature() {
+  grep -aE '(^|[[:space:]])(FAIL[:[:space:]]|FAILED:|--- FAIL|::error::)' |
+    grep -avE '36;1m|echo "::error' | sed -E 's/^[^ ]*Z //' |
+    grep -avE '^[[:space:]]*(PASS|ok)([:[:space:]]|$)' | sed -n 1p
+}
+
 # _rcg_run_jobs <tmp> <run id> - "<job id>\t<conclusion>\t<name>" for every job
 # of the run, fetched once and cached in <tmp>: the per-job, first-red and
-# last-green sections all read the same jobs.
+# last-green sections all read the same jobs. A cancelled job whose annotation
+# says it "exceeded the maximum execution time" reads `timeout`; the message
+# is kept in <tmp>/timeout-<job id>.txt.
 _rcg_run_jobs() {
-  local f="$1/jobs-$2.tsv"
-  [[ -f "$f" ]] || gh api "repos/{owner}/{repo}/actions/runs/$2/jobs" --paginate \
-    --jq '.jobs[] | [.id, (.conclusion // "running"), .name] | @tsv' >"$f" 2>/dev/null || : >"$f"
+  local f="$1/jobs-$2.tsv" jid jconcl jname msg
+  if [[ ! -f "$f" ]]; then
+    gh api "repos/{owner}/{repo}/actions/runs/$2/jobs" --paginate \
+      --jq '.jobs[] | [.id, (.conclusion // "running"), .name] | @tsv' >"$f.raw" 2>/dev/null || : >"$f.raw"
+    while IFS=$'\t' read -r jid jconcl jname; do
+      if [[ "$jconcl" == cancelled ]]; then
+        msg=$(gh api "repos/{owner}/{repo}/check-runs/$jid/annotations" --jq '.[].message' 2>/dev/null |
+              grep -a 'exceeded the maximum execution time' | sed -n 1p)
+        [[ -n "$msg" ]] && { jconcl=timeout; printf '%s\n' "$msg" >"$1/timeout-$jid.txt"; }
+      fi
+      printf '%s\t%s\t%s\n' "$jid" "$jconcl" "$jname"
+    done <"$f.raw" >"$f"
+  fi
   cat "$f"
+}
+
+# _rcg_mark_timeout_runs <tmp> - a cancelled run that ran long enough for a
+# job to time out (5 min, the shortest timeout-minutes in wf 10) and has a
+# timed-out job is re-read as `timeout`. A superseded run never ran that long,
+# so this reads the jobs of a few runs, not of all 90 superseded ones.
+_rcg_mark_timeout_runs() {
+  local tmp="$1" rid concl created sha dur
+  while IFS=$'\t' read -r rid concl created sha dur; do
+    if [[ "$concl" == cancelled && "${dur:-0}" -ge 300 ]] &&
+       _rcg_run_jobs "$tmp" "$rid" | cut -f2 | grep -x timeout >/dev/null; then
+      concl=timeout
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\n' "$rid" "$concl" "$created" "$sha" "${dur:-0}"
+  done <"$tmp/runs.tsv" >"$tmp/runs.marked" && mv "$tmp/runs.marked" "$tmp/runs.tsv"
 }
 
 # _rcg_first_red <tmp> <failed runs> - the job(s) that broke each failed run,
@@ -123,7 +168,7 @@ _rcg_first_red() {
   : >"$tmp/stops.tsv"
   while IFS=$'\t' read -r rid _; do
     _rcg_run_jobs "$tmp" "$rid" | while IFS=$'\t' read -r jid jconcl jname; do
-      [[ "$jconcl" == failure || "$jconcl" == timed_out ]] || continue
+      [[ "$jconcl" == failure || "$jconcl" == timed_out || "$jconcl" == timeout ]] || continue
       msg=$(gh api "repos/{owner}/{repo}/check-runs/$jid/annotations" --jq '.[].message' 2>/dev/null |
             grep -a 'gate fail-fast: stopped' | sed -n 1p)
       printf '%s\t%s\t%s\n' "$rid" "$jname" "${msg:+${msg#*red in this run: }}" >>"$tmp/stops.tsv"
@@ -144,15 +189,16 @@ _rcg_first_red() {
 
 # _rcg_last_green <tmp> <runs> - per job that failed in the window, the newest
 # completed run in which it passed: since when that job is red. Reads the jobs
-# of success and failure runs only (a cancelled wf 10 run on master is a
-# superseded pending one, with no job), newest first, until each has one.
+# of success, failure and timeout runs only (any other cancelled wf 10 run on
+# master is a superseded pending one, with no job), newest first, until each
+# has one.
 _rcg_last_green() {
   local tmp="$1" total="$2" rid rconcl created sha jid jconcl jname
   cut -f5 "$tmp/jobs.tsv" | sort -u >"$tmp/want.txt"
   : >"$tmp/green.tsv"
-  while IFS=$'\t' read -r rid rconcl created sha; do
+  while IFS=$'\t' read -r rid rconcl created sha _; do
     (( $(wc -l <"$tmp/green.tsv") < $(wc -l <"$tmp/want.txt") )) || break
-    [[ "$rconcl" == success || "$rconcl" == failure ]] || continue
+    [[ "$rconcl" == success || "$rconcl" == failure || "$rconcl" == timeout ]] || continue
     _rcg_run_jobs "$tmp" "$rid" | while IFS=$'\t' read -r jid jconcl jname; do
       [[ "$jconcl" == success ]] || continue
       grep -qxF -- "$jname" "$tmp/want.txt" || continue

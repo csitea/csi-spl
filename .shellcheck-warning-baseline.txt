@@ -18,7 +18,6 @@ SC2034|csi-spl-iac/src/bash/run/gcp-backup-env.func.sh|1
 SC2046|csi-spl-iac/src/bash/run/gcp-sync-src-s3-to-tgt-s3-silent.func.sh|1
 SC1007|csi-spl-iac/src/bash/run/install-lint-tools.func.sh|1
 SC1090|csi-spl-iac/src/bash/run/provision.func.sh|1
-SC2034|csi-spl-iac/src/bash/run/report-ci-gate.func.sh|1
 SC1090|csi-spl-iac/src/bash/run/run.sh|1
 SC2046|csi-spl-iac/src/bash/run/run.sh|1
 SC2155|csi-spl-iac/src/bash/run/run.sh|6

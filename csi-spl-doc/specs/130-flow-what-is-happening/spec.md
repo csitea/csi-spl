@@ -1,6 +1,6 @@
 # 130: Flow: what is happening
 
-Status: **v1.0** (panel merge by s130-c1; seat signatures in section 11).
+Status: **v1.0, signed** (panel merge by s130-c1, f8107fc25; accepted by the dispatch holder; signatures in section 11).
 Q1 and Q2 decided by the owner (section 10).
 
 Amends and supersedes parts of 062.
@@ -313,8 +313,8 @@ with SIGN or the exact change):
 
 | seat | signed |
 |---|---|
-| s130-a1 | (pending) |
+| s130-a1 | SIGN (a-187, msg 04eaf68a) |
 | s130-c1 | SIGN (merger) |
-| s130-c2 | (pending) |
-| s130-g1 | (pending) |
-| s130-m1 | (pending) |
+| s130-c2 | not signed: c-208 retired 17:27Z before v1.0 landed (review folded) |
+| s130-g1 | not signed: g-207 retired 17:29Z before v1.0 landed (review folded) |
+| s130-m1 | SIGN (m-212, msg ddd7d9bf) |

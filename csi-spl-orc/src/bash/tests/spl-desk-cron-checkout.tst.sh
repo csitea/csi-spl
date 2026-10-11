@@ -60,10 +60,15 @@ out="$(run spl_desk_cron_checkout_dry SPL_DESK_CRON_CREATE=0)"; rc=$?
 [ "$rc" = 0 ] && [ -z "$out" ] && pass "4. dry, CREATE=0: silent, rc 0" || fail "4. dry CREATE=0 ($rc: $out)"
 
 # 5. never exits, sets no trap
-out="$(env PATH="$T/bin:$PATH" PROJ_PATH="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK_CRON_REPO=/r/repo SPL_DESK_CRON_CREATE=1 \
-  bash -c 'do_log() { :; }; source "$PROJ_PATH/lib/bash/funcs/spl-desk-cron-checkout.func.sh"
-    spl_desk_cron_checkout /r/x master; echo "after rc=$?"; trap -p' 2>&1)"
-[ "$out" = "after rc=1" ] && pass "5. a failure returns to the caller and leaves no trap" || fail "5. exit/trap ($out)"
+out="$(env PATH="$T/bin:$PATH" PROJ_ROOT="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK_CRON_REPO=/r/repo SPL_DESK_CRON_CREATE=1 \
+  bash -c 'do_log() { :; }; source "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-checkout.func.sh";
+    traps_before="$(trap -p)";
+    spl_desk_cron_checkout /r/x master; echo "after rc=$?";
+    traps_after="$(trap -p)";
+    [ "$traps_before" = "$traps_after" ] && echo "traps unchanged" || echo "traps changed: $traps_after"' 2>&1)"
+rc_part="$(echo "$out" | grep -o 'after rc=[0-9]*' | cut -d= -f2)"
+traps_part="$(echo "$out" | grep -o 'traps [a-z]*')"
+[ "$rc_part" = "1" ] && [ "$traps_part" = "traps unchanged" ] && pass "5. a failure returns to the caller and leaves traps unchanged" || fail "5. exit/trap ($out)"
 grep -nE '^[^#]*\b(exit|trap)\b' "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-checkout.func.sh" &&
   fail "5. the helper source holds exit or trap" || pass "5. the helper source holds no exit and no trap"
 

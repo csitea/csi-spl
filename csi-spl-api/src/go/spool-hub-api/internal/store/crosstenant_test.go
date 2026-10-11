@@ -373,6 +373,12 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedUsage(ctx, pg, s.tenant); err != nil {
 		t.Fatal(err)
 	}
+	// workspace_vendor_keys, _boxes, _audit (rdb 0174, spec 127 D1): one fake
+	// key, one approved box, one audit row. No store API yet (H1, H2), so raw
+	// rows under inTenant (vendor_keys_rls_test.go).
+	if err := seedVendorKeys(ctx, pg, s.tenant); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 
@@ -400,11 +406,20 @@ func tenantTables(t *testing.T, pg *Postgres) []string {
 	return out
 }
 
-// countOf counts tenant's rows in tb as the operator (the ground truth).
+// operatorBlindTables carry no operator_scope policy, so the operator reads
+// 0 of their rows (rdb 0174 workspace_vendor_keys, spec 127 4.2).
+var operatorBlindTables = map[string]bool{"workspace_vendor_keys": true}
+
+// countOf counts tenant's rows in tb as the operator (the ground truth), or
+// in the tenant's own scope for a table the operator cannot read.
 func countOf(t *testing.T, pg *Postgres, tb, tenant string) int {
 	t.Helper()
 	var n int
-	if err := pg.asOperator(context.Background(), func(tx pgx.Tx) error {
+	run := pg.asOperator
+	if operatorBlindTables[tb] {
+		run = func(ctx context.Context, fn func(pgx.Tx) error) error { return pg.inTenant(ctx, tenant, fn) }
+	}
+	if err := run(context.Background(), func(tx pgx.Tx) error {
 		return tx.QueryRow(context.Background(), `SELECT count(*) FROM `+pgx.Identifier{tb}.Sanitize()+` WHERE tenant_id = $1`, tenant).Scan(&n)
 	}); err != nil {
 		t.Fatal(err)
@@ -413,8 +428,9 @@ func countOf(t *testing.T, pg *Postgres, tb, tenant string) int {
 }
 
 // appendOnlyTables refuse every UPDATE and DELETE outside their purge
-// (rdb 0131 demo_post_audit) or a tenant delete (rdb 0171 usage_events).
-var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": true}
+// (rdb 0131 demo_post_audit) or a tenant delete (rdb 0171 usage_events,
+// rdb 0174 workspace_vendor_key_audit).
+var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": true, "workspace_vendor_key_audit": true}
 
 // TestCrossTenantEveryTable: with A and B seeded in every tenant table, A's
 // scope sees none of B's rows in any of them, and A's unscoped UPDATE /

@@ -10,7 +10,11 @@
 //   - the hub's 413 is shown as "too big" and the avatar is unchanged;
 //   - a reload after the upload still fetches it (dev, 2026-10-07: the
 //     pre-upload 404 was remembered in localStorage, so after a reload the
-//     menu had no picture and no "Remove picture").
+//     menu had no picture and no "Remove picture");
+//   - the items stay put while the menu's late chunk (the language control)
+//     lands: it pushed them 44 px down ~40 ms after the open on the desktop,
+//     and a quick click on "Remove picture" hit "Change picture" (hosted
+//     runner, 2026-10-11). The chunks are held 300 ms so it always lands late.
 //
 // SHOT_DIR=<dir> also writes the menu and the changed picture as PNGs.
 //
@@ -80,10 +84,13 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-/** The hub's avatar routes: GET serves `hub.pic` (404 when null), PUT stores, DELETE clears. */
+/** The hub's avatar routes: GET serves `hub.pic` (404 when null), PUT stores, DELETE clears.
+    `hub.holdJs` ms delays every script chunk (a late lazy part). */
 function fakeHub(p, hub) {
   p.on('request', async (req) => {
-    if (!new URL(req.url()).pathname.endsWith('/api/v1/auth/avatar')) return req.continue()
+    const path = new URL(req.url()).pathname
+    if (hub.holdJs && /\/_nuxt\/.*\.js$/.test(path)) await sleep(hub.holdJs)
+    if (!path.endsWith('/api/v1/auth/avatar')) return req.continue()
     const m = req.method()
     if (m === 'OPTIONS') return req.respond({ status: 204 })
     if (m === 'GET') {
@@ -119,6 +126,10 @@ const shown = (p, sel) => p.evaluate((sel) => {
   const cs = getComputedStyle(el)
   return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0
 }, sel)
+const itemTop = (p, sel) => p.evaluate((sel) => {
+  const r = document.querySelector(sel)?.getBoundingClientRect()
+  return r ? Math.round(r.top) : null
+}, sel)
 const triggerPic = (p) => p.evaluate(() => document.querySelector('[data-test=user-menu-trigger] img[data-test=user-menu-picture]')?.getAttribute('src')?.slice(0, 22) || '')
 
 async function waitFor(fn, ms = 5000) {
@@ -138,7 +149,7 @@ async function openMenu(p) {
 async function run(p, base, width, height, files) {
   const tag = `${width}px`
   const touch = width < 821
-  const hub = { pic: null, upload: files.bytes, puts: [], deletes: 0, putStatus: 204 }
+  const hub = { pic: null, upload: files.bytes, puts: [], deletes: 0, putStatus: 204, holdJs: 0 }
   const page = await p.browser().newPage()
   await page.setViewport({ width, height, isMobile: touch, hasTouch: touch })
   await page.setRequestInterception(true)
@@ -184,8 +195,14 @@ async function run(p, base, width, height, files) {
   await signIn(page)
   const kept = await waitFor(async () => (await triggerPic(page)).startsWith('data:image/png'))
   check(`${tag}: after a reload the menu still fetches the upload`, kept)
+  hub.holdJs = 300
   await openMenu(page)
   check(`${tag}: after a reload "Remove picture" is still offered`, await shown(page, '[data-test=user-menu-remove-picture]'))
+  const at = await itemTop(page, '[data-test=user-menu-remove-picture]')
+  const landed = await waitFor(() => shown(page, '[data-test=user-menu-language] [data-test=lang-switcher]'))
+  const later = await itemTop(page, '[data-test=user-menu-remove-picture]')
+  hub.holdJs = 0
+  check(`${tag}: "Remove picture" stays put while the language control loads`, landed && at !== null && at === later, { at, later, landed })
 
   await page.click('[data-test=user-menu-remove-picture]')
   const gone = await waitFor(async () => !(await triggerPic(page)))

@@ -727,8 +727,19 @@ watch(signedIn, (v) => { if (!v) close(false) })
    CLE-77892 (owner, t1 9417ccf3: "this still looks quite narrow on my
    phone"): the language control takes its own full-width line under the
    label (it was capped at 14rem, and the corner's 5.5rem rule in main.css
-   shrank it to "🇬🇧 En" beside a separate ▾); one tap target, no cut name. */
-.user-menu__pref[data-test=user-menu-language] { flex-wrap: wrap; row-gap: 6px; padding-block: 6px; }
+   shrank it to "🇬🇧 En" beside a separate ▾); one tap target, no cut name.
+   The control's line is reserved before its chunk lands (a grid row of its
+   height: the tap-high field in a 1 px border): it used to appear ~40 ms
+   after the open and push every item 44 px down under the pointer, so a
+   quick click on "Remove picture" hit "Change picture" (own-picture e2e,
+   hosted runner, 2026-10-11). */
+.user-menu__pref[data-test=user-menu-language] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(calc(var(--tap, 44px) + 2px), auto);
+  row-gap: 6px;
+  padding-block: 6px;
+}
 .user-menu__pref :deep(.lang-switcher) { flex: 1 1 auto; min-width: 0; max-width: none; }
 .user-menu__pref-label { flex: 0 0 auto; }
 /* SPL-990: the bottom sheet. A popover style left from a desktop open is

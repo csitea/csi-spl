@@ -59,7 +59,9 @@
 # @param        tier, merge-base and gate code already passed whole (the pre-push hook sets it)
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache and the tree-pass record (always run)
 # @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300 (overrides the full-tier defaults too)
-# @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier, default 900
+# @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier; default 900 x the load per cpu
+# @param        (loadavg 1 min / nproc, when over 1), at most PRE_PUSH_API_FULL_CAP
+# @param PRE_PUSH_API_FULL_CAP (optional) - seconds the load-scaled api full-tier default never exceeds, default 2700
 # @param PRE_PUSH_IAC_FULL_TIMEOUT (optional) - seconds for the iac part on the full tier, default 600
 # @param PRE_PUSH_ORC_FULL_TIMEOUT (optional) - seconds for the orc part on the full tier, default 1800
 # @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
@@ -435,7 +437,7 @@ _pp_full_timeout() {  # <full-tier default>
 # wrong number (c-448, c-464, c-465, 2026-10-07).
 _pp_budget() {  # <part-fn>
   case "$1" in
-    _pp_part_api) _pp_full_timeout "${PRE_PUSH_API_FULL_TIMEOUT:-900}" ;;
+    _pp_part_api) _pp_full_timeout "${PRE_PUSH_API_FULL_TIMEOUT:-$(_pp_api_full_default)}" ;;
     _pp_part_iac) _pp_full_timeout "${PRE_PUSH_IAC_FULL_TIMEOUT:-600}" ;;
     # the full tier runs every orc file: 16..17 min per CI shard of two
     _pp_part_orc) _pp_full_timeout "${PRE_PUSH_ORC_FULL_TIMEOUT:-1800}" ;;
@@ -443,7 +445,52 @@ _pp_budget() {  # <part-fn>
     *) echo "$_pp_timeout" ;;
   esac
 }
+# The api full-tier default fits the box load, as the watchdog pre-flight
+# limit does (8012d2419): 900 s on an idle box is not enough on a loaded one.
+# Measured (api suite alone, SPL_API_TEST_TIER=full, wall s at mean load1/cpu):
+# sat 16 cpus, e872c5b9d, n=3: 858 s at 1.82, 796 s at 2.74, 682 s at 1.90;
+# sat pre-push log + sar, n=3: 820 s at ~2.1, 746 s at ~1.9, 862 s at ~1.5
+# (two of them c-778's, which TIMED OUT at 900 s); the second desk box, 16
+# cpus, n=2 full tier: 450 s, 472 s at ~1.5; c-873 there TIMED OUT at 900 s
+# (load up to ~90, 5.6/cpu).
+# The slowest point, 862 s, sits at 96% of 900 s: no headroom once loaded.
+# The cap 2700 s (3x): 862 s scaled linearly to 5.6/cpu is ~2640 s (the wall
+# grows far slower than the load: 514 s at 0.12/cpu, 858 s at 1.82); sat's
+# 10-min load was over 3/cpu in 33 of 915 sar samples (10-04..10-11). A hung
+# suite still stops, after at most 45 min.
+# 900 s x (load1 / nproc when over 1), rounded up, at most PRE_PUSH_API_FULL_CAP
+# (default 2700 s), never under 900 s. The load is read ONCE per gate run
+# (_PP_LOAD), so the part's `timeout` and its TIMED OUT note show the same
+# number; _pp_budget_why names the budget and the load it came from.
+_pp_load_read() {  # sets _PP_LOAD="<load1> <nproc>", once
+  [[ -n "${_PP_LOAD:-}" ]] && return 0
+  local l1 np
+  l1="$(cut -d' ' -f1 /proc/loadavg 2>/dev/null || true)"
+  np="$(nproc 2>/dev/null || true)"
+  [[ "$l1" =~ ^[0-9]+(\.[0-9]+)?$ ]] || l1=0
+  [[ "$np" =~ ^[1-9][0-9]*$ ]] || np=1
+  _PP_LOAD="$l1 $np"
+}
+_pp_api_full_default() {
+  local l1 np; _pp_load_read; read -r l1 np <<<"$_PP_LOAD"
+  awk -v b=900 -v c="${PRE_PUSH_API_FULL_CAP:-2700}" -v l="$l1" -v n="$np" 'BEGIN {
+    f = l / n; if (f < 1) f = 1
+    x = b * f; if (x > int(x)) x = int(x) + 1
+    if (x > c) x = c; if (x < b) x = b
+    print x }'
+}
+_pp_budget_why() {  # <part-fn> -> where its budget came from (api only)
+  [[ "$1" == _pp_part_api ]] || return 0
+  if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "PRE_PUSH_PART_TIMEOUT"
+  elif [[ "${_PP_TIER:-fast}" != full ]]; then echo "fast-tier part default"
+  elif [[ -n "${PRE_PUSH_API_FULL_TIMEOUT:-}" ]]; then echo "PRE_PUSH_API_FULL_TIMEOUT"
+  else
+    _pp_load_read
+    echo "api full default 900s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${PRE_PUSH_API_FULL_CAP:-2700}s"
+  fi
+}
 _pp_part_api() {
+  _pp_load_read
   SPL_API_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_budget _pp_part_api)" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"
 }
 _pp_part_iac() {
@@ -680,7 +727,10 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     do_log "INFO pre-push: PASS $label (${el}s)"
     return 0
   fi
-  local note="rc=$rc"; [[ "$rc" -eq 124 || "$rc" -eq 137 ]] && note="TIMED OUT after $(_pp_budget "$fn")s"
+  local note="rc=$rc" why
+  if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
+    why="$(_pp_budget_why "$fn")"; note="TIMED OUT after $(_pp_budget "$fn")s${why:+ ($why)}"
+  fi
   if [[ "$rc" -eq 127 ]]; then
     # command not found: an environment gap, never "pre-existing on trunk"
     _pp_record "$label (rc=127: a command was not found)" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))

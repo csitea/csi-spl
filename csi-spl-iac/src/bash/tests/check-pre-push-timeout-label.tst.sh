@@ -7,7 +7,12 @@
 #   1. api part, full tier, PRE_PUSH_API_FULL_TIMEOUT=2 -> "TIMED OUT after 2s"
 #   2. wui part, PRE_PUSH_WUI_TIMEOUT=3                 -> "TIMED OUT after 3s"
 #   3. iac part, shared part budget 1                   -> "TIMED OUT after 1s"
-#   Each part's suite is a stub that sleeps past its budget, so the real
+#   4. api part, full tier, no env budget, load 32 on 16 cpus (stubbed reader)
+#      -> "TIMED OUT after 1800s (api full default 900s x load 32/16 cpus,
+#      cap 2700s)": the note names the load-scaled budget and the load it read
+#      (`timeout` is stubbed to return 124 at once: no 30-min wait)
+#   5. the env budget of case 1 is named in the note
+#   Each part's suite in 1..3 is a stub that sleeps past its budget, so the real
 #   `timeout` kills it; no real suite runs.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -20,7 +25,7 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
 
-unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_WUI_TIMEOUT
+unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_API_FULL_CAP PRE_PUSH_WUI_TIMEOUT
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 LOG="$T/log"
 do_log() { echo "$*" >>"$LOG"; }
@@ -41,6 +46,12 @@ note_of() {  # <part-fn> -> the "TIMED OUT after Ns" the run logged
   _pp_run "$1" "$1" "$R" nobase >/dev/null 2>&1
   grep -o 'TIMED OUT after [0-9]*s' "$LOG" | sed -n 1p
 }
+full_note_of() {  # <part-fn> -> the whole "TIMED OUT after Ns (<why>)" note
+  : >"$LOG"
+  local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=(); local _PP_FAILED=0 _PP_BASE_WT=""
+  _pp_run "$1" "$1" "$R" nobase >/dev/null 2>&1
+  grep -o 'TIMED OUT after [0-9]*s[^)]*)' "$LOG" | sed -n 1p
+}
 check() {  # <label> <want> <got>
   [[ "$3" == "$2" ]] && pass "$1" || fail "$1" "want '$2', got '$3'"
 }
@@ -52,5 +63,11 @@ check "2. wui reports its 3 s budget" "TIMED OUT after 3s" \
 check "3. iac reports the shared part budget" "TIMED OUT after 1s" \
   "$(_pp_timeout=1; note_of _pp_part_iac)"
 
-echo "--- $((3 - fails))/3 passed ---"
+check "4. api full tier names its load-scaled budget and the load" \
+  "TIMED OUT after 1800s (api full default 900s x load 32/16 cpus, cap 2700s)" \
+  "$(_pp_load_read() { _PP_LOAD="32 16"; }; timeout() { return 124; }; _PP_TIER=full full_note_of _pp_part_api)"
+check "5. an env budget is named in the note" "TIMED OUT after 2s (PRE_PUSH_API_FULL_TIMEOUT)" \
+  "$(PRE_PUSH_API_FULL_TIMEOUT=2 _PP_TIER=full full_note_of _pp_part_api)"
+
+echo "--- $((5 - fails))/5 passed ---"
 [[ "$fails" -eq 0 ]]

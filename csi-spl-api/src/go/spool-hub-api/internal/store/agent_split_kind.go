@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// The vendor split per task kind (spec 115 sections 2 and 3.2, rdb 0163):
-// for each of six task kinds, how new agent work of that kind is shared
+// The vendor split per task kind (spec 115 sections 2 and 3.2, rdb 0163,
+// 0178): for each of seven task kinds, how new agent work of that kind is shared
 // across the five vendors (AgentKinds), out of 100, and the backup vendor
 // that takes over after two failed tries of the main. The main is the one
 // vendor with the highest weight.
@@ -25,17 +25,22 @@ import (
 // and deferred trigger first, so a bad PATCH is a 400 that names the rule;
 // the database stays the last word.
 
-// SplitTaskKinds are the six task kinds, in the order the WUI shows them.
+// SplitTaskKinds are the seven task kinds, in the order the WUI shows them.
 // The picker's aliases (spec, hard, default) are never stored.
-var SplitTaskKinds = []string{"specs_and_docs", "tests", "simple_coding", "complex_coding", "i18n", "secret"}
+var SplitTaskKinds = []string{"specs_and_docs", "tests", "simple_coding", "complex_coding", "i18n", "secret", "orchestration"}
 
 // splitCodingKinds are the kinds agy never serves (spec 115 G2): weight 0
 // and never the backup.
 var splitCodingKinds = []string{"tests", "simple_coding", "complex_coding"}
 
-// splitSecretVendors are the only vendors the secret kind may weigh or name
-// as its backup (the data rule).
-var splitSecretVendors = []string{"claude", "mistral"}
+// splitSecretKinds are the secret-class kinds: secret, and orchestration
+// (dispatching and orchestrating sees every lane's data). They may weigh or
+// name as the backup only splitSecretVendors (the data rule, owner msgs
+// 803c3b38, 26117740, 474f32a0; orchestration a1e5c678, ff1baf01).
+var (
+	splitSecretKinds   = []string{"secret", "orchestration"}
+	splitSecretVendors = []string{"claude", "grok", "mistral"}
+)
 
 // SplitKind is one task kind's row.
 type SplitKind struct {
@@ -73,12 +78,13 @@ func DefaultSplitKinds() []SplitKind {
 		return SplitKind{Kind: kind, Weights: fullWeights(w), Backup: backup}
 	}
 	return []SplitKind{
-		row("specs_and_docs", "claude", map[string]int{"agy": 70, "mistral": 20, "claude": 10}),
-		row("tests", "mistral", map[string]int{"claude": 70, "mistral": 30}),
-		row("simple_coding", "claude", map[string]int{"mistral": 80, "claude": 20}),
-		row("complex_coding", "mistral", map[string]int{"claude": 80, "mistral": 20}),
+		row("specs_and_docs", "claude", map[string]int{"agy": 60, "mistral": 30, "claude": 10}),
+		row("tests", "mistral", map[string]int{"claude": 70, "grok": 15, "mistral": 15}),
+		row("simple_coding", "claude", map[string]int{"grok": 41, "mistral": 39, "claude": 20}),
+		row("complex_coding", "mistral", map[string]int{"claude": 80, "grok": 10, "mistral": 10}),
 		row("i18n", "claude", map[string]int{"agy": 100}),
 		row("secret", "mistral", map[string]int{"claude": 100}),
+		row("orchestration", "grok", map[string]int{"claude": 65, "grok": 35}),
 	}
 }
 
@@ -93,7 +99,7 @@ func badSplitKind(format string, a ...any) error {
 // CheckSplitKind applies the rdb 0163 rules to one row: a known kind and
 // known vendors, every weight 0..100 summing to 100, one strict main, a
 // backup that is a vendor other than the main, agy 0 and never the backup
-// in a coding kind, and only claude or mistral in secret.
+// in a coding kind, and only claude, grok or mistral in a secret-class kind.
 func CheckSplitKind(k SplitKind) error {
 	if !slices.Contains(SplitTaskKinds, k.Kind) {
 		return badSplitKind("kind %q is not one of %s", k.Kind, strings.Join(SplitTaskKinds, ", "))
@@ -124,14 +130,14 @@ func CheckSplitKind(k SplitKind) error {
 	if slices.Contains(splitCodingKinds, k.Kind) && (k.Weights["agy"] > 0 || k.Backup == "agy") {
 		return badSplitKind("%s: agy writes no code, so it is 0 and never the backup in a coding kind", k.Kind)
 	}
-	if k.Kind == "secret" {
+	if slices.Contains(splitSecretKinds, k.Kind) {
 		for v, w := range k.Weights {
 			if w > 0 && !slices.Contains(splitSecretVendors, v) {
-				return badSplitKind("secret: only claude and mistral take secret work, %s is %d", v, w)
+				return badSplitKind("%s: only claude, grok and mistral take secret-class work, %s is %d", k.Kind, v, w)
 			}
 		}
 		if !slices.Contains(splitSecretVendors, k.Backup) {
-			return badSplitKind("secret: the backup must be claude or mistral, not %s", k.Backup)
+			return badSplitKind("%s: the backup must be claude, grok or mistral, not %s", k.Kind, k.Backup)
 		}
 	}
 	return nil

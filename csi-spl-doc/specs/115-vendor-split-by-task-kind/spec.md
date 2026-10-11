@@ -56,7 +56,7 @@ mistral 39 because the main must be a strict maximum. The same day the owner
 moved 10 points of `specs_and_docs` from agy to mistral (msg 2f705011, now
 60 / 30 / 10) and added a seventh kind, `orchestration` (msgs a1e5c678,
 ff1baf01: "Claude will do 65% and Grok will do 35%"), secret-class like
-`secret` (rdb 0177).
+`secret` (rdb 0178).
 
 | kind | covers | agy | mistral | claude | grok | qwen | main | backup |
 |---|---|---|---|---|---|---|---|---|

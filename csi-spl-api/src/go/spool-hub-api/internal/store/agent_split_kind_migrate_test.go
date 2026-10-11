@@ -9,19 +9,20 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// rdb 0163 (specs/115 RDB-1, spec sections 2 and 3.2): the vendor split per
-// task kind, tenant_agent_split_kind. Postgres only; the database is migrated
-// through 0163 and the catalogue gate (TestRLS) covers its RLS shape.
+// rdb 0163 + 0178 (specs/115 RDB-1, spec sections 2 and 3.2): the vendor split
+// per task kind, tenant_agent_split_kind. Postgres only; the database is
+// migrated through 0178 and the catalogue gate (TestRLS) covers its RLS shape.
 //
 // Each case writes one kind's rows in its own transaction, under the
 // workspace's tenant scope, and reads the CHECK it broke at the statement or
 // at commit (the per-kind rules are a deferred constraint trigger).
-//   - stored (n=6 kinds, 13 rows, + 1): the spec section 2 table; a kind's rows
-//     deleted again (not set).
-//   - refused (n=12): agy > 0 or agy the backup in each coding kind (the
+//   - stored (n=7 kinds, 18 rows, + 2): the spec section 2 table; grok in
+//     secret (0178); a kind's rows deleted again (not set).
+//   - refused (n=14): agy > 0 or agy the backup in each coding kind (the
 //     CONTROL: drop tenant_agent_split_kind_no_agy_coding and this goes red),
-//     a secret vendor outside {claude, mistral}, a sum of 99, a tied main, no
-//     backup, two backups, the backup = the main, an alias kind.
+//     a secret or orchestration vendor or backup outside {claude, grok,
+//     mistral}, a sum of 99, a tied main, no backup, two backups, the backup
+//     = the main, an alias kind.
 //   - RLS (n=2): another workspace reads none of the rows and cannot write one.
 
 // splitRow is one kind: vendor -> weight, and the backup.
@@ -33,12 +34,13 @@ type splitRow struct {
 
 // spec115Rows is the spec 115 section 2 table.
 var spec115Rows = []splitRow{
-	{"specs_and_docs", map[string]int{"agy": 70, "mistral": 20, "claude": 10}, "claude"},
-	{"tests", map[string]int{"claude": 70, "mistral": 30}, "mistral"},
-	{"simple_coding", map[string]int{"mistral": 80, "claude": 20}, "claude"},
-	{"complex_coding", map[string]int{"claude": 80, "mistral": 20}, "mistral"},
+	{"specs_and_docs", map[string]int{"agy": 60, "mistral": 30, "claude": 10}, "claude"},
+	{"tests", map[string]int{"claude": 70, "grok": 15, "mistral": 15}, "mistral"},
+	{"simple_coding", map[string]int{"grok": 41, "mistral": 39, "claude": 20}, "claude"},
+	{"complex_coding", map[string]int{"claude": 80, "grok": 10, "mistral": 10}, "mistral"},
 	{"i18n", map[string]int{"agy": 100}, "claude"},
 	{"secret", map[string]int{"claude": 100}, "mistral"},
+	{"orchestration", map[string]int{"claude": 65, "grok": 35}, "grok"},
 }
 
 func TestTenantAgentSplitKind0163(t *testing.T) {
@@ -113,8 +115,13 @@ func TestTenantAgentSplitKind0163(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if n != 13 {
-		t.Errorf("spec 115 table: %d rows stored, want 13", n)
+	if n != 18 {
+		t.Errorf("spec 115 table: %d rows stored, want 18", n)
+	}
+	// 0178: grok takes secret work, as a weight and as the backup.
+	tg := newTenant(t, pg)
+	if got := write(tg, tg, "secret", rowsOf(splitRow{"secret", map[string]int{"claude": 60, "grok": 40}, "grok"})); got != "" {
+		t.Errorf("secret on grok refused by %s", got)
 	}
 
 	const noAgy, secret, rules = "tenant_agent_split_kind_no_agy_coding", "tenant_agent_split_kind_secret_vendors", "tenant_agent_split_kind_rules"
@@ -126,8 +133,10 @@ func TestTenantAgentSplitKind0163(t *testing.T) {
 		{"complex_coding agy 10", noAgy, splitRow{"complex_coding", map[string]int{"claude": 80, "mistral": 10, "agy": 10}, "mistral"}},
 		{"tests agy 5", noAgy, splitRow{"tests", map[string]int{"claude": 70, "mistral": 25, "agy": 5}, "mistral"}},
 		{"tests agy backup", noAgy, splitRow{"tests", map[string]int{"claude": 70, "mistral": 30}, "agy"}},
-		{"secret grok 10", secret, splitRow{"secret", map[string]int{"claude": 90, "grok": 10}, "mistral"}},
+		{"secret qwen 10", secret, splitRow{"secret", map[string]int{"claude": 90, "qwen": 10}, "mistral"}},
 		{"secret agy backup", secret, splitRow{"secret", map[string]int{"claude": 100}, "agy"}},
+		{"orchestration agy 10", secret, splitRow{"orchestration", map[string]int{"claude": 90, "agy": 10}, "grok"}},
+		{"orchestration qwen backup", secret, splitRow{"orchestration", map[string]int{"claude": 100}, "qwen"}},
 		{"sum 99", rules, splitRow{"tests", map[string]int{"claude": 70, "mistral": 29}, "mistral"}},
 		{"tied main", rules, splitRow{"complex_coding", map[string]int{"claude": 50, "mistral": 50}, "mistral"}},
 		{"backup is main", rules, splitRow{"simple_coding", map[string]int{"mistral": 80, "claude": 20}, "mistral"}},

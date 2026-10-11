@@ -15,7 +15,7 @@ import (
 // Per item, in document order: a heading (# by level, from the branch's top
 // level, at most ######) with the outline number and the title; the body
 // with each picture token followed by its "*Figure N: caption*" line; the
-// code block (attrs.src) fenced with ``` (the WUI writes no language); the
+// code block (attrs.src) fenced with ```<attrs.lang> (bare when no lang); the
 // section image (attrs.img_http_path) as a token and its figure line. Figure
 // numbers run through the whole document, inline pictures first, then the
 // item's image.
@@ -159,7 +159,7 @@ func docTreeMarkdown(items []dtItem, doc, item string) (string, error) {
 			out = append(out, body, "")
 		}
 		if src := it.attr("src"); src != "" {
-			out = append(out, "```", src, "```", "")
+			out = append(out, "```"+strings.TrimSpace(it.attr("lang")), src, "```", "")
 		}
 		if img, n := it.attr("img_http_path"), figs[it.ID].image; img != "" && n > 0 {
 			name := it.attr("img_name")

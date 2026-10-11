@@ -312,7 +312,7 @@ func TestDocTreeGuideFlow(t *testing.T) {
 		t.Fatalf("export: %s", errOut)
 	}
 	want := "# 1 Install\n\nRun the installer.\n\n" + tbl + "\n\n" +
-		"## 1.1 Commands\n\n![The box layout](" + pic + ")\n\n*Figure 1: The box layout*\n\n```\n./run -a do_install\n```\n\n" +
+		"## 1.1 Commands\n\n![The box layout](" + pic + ")\n\n*Figure 1: The box layout*\n\n```bash\n./run -a do_install\n```\n\n" +
 		"# 2 Next\n"
 	if md != want {
 		t.Fatalf("export:\n got %q\nwant %q", md, want)
@@ -389,7 +389,8 @@ func TestDocTreeRefusals(t *testing.T) {
 // TestDocTreeMarkdownWUIParity pins branchToMarkdown's output (the WUI's
 // -doctree-export.ts, run under node on this fixture): figure numbers run
 // through the whole doc, inline pictures first then the item's image, another
-// doc's token stays text, a branch export keeps the whole doc's numbers.
+// doc's token stays text, a branch export keeps the whole doc's numbers, a
+// code item with a lang is fenced ```<lang> (mermaid stays a diagram on GitHub).
 func TestDocTreeMarkdownWUIParity(t *testing.T) {
 	const doc = "d1"
 	pic := func(d, c string) string {
@@ -401,6 +402,7 @@ func TestDocTreeMarkdownWUIParity(t *testing.T) {
 		{ID: "b", Outline: "1.1", Depth: 2, Title: "", Body: "", Attrs: map[string]any{"src": "echo hi", "lang": "bash"}},
 		{ID: "c", Outline: "1.1.1", Depth: 3, Title: "Deep", Body: pic(doc, "two")},
 		{ID: "d", Outline: "2", Depth: 1, Title: "End", Body: "\n"},
+		{ID: "e", Outline: "3", Depth: 1, Title: "Flow", Attrs: map[string]any{"src": "graph TD\n  A --> B", "lang": "mermaid"}},
 	}
 	whole, _ := docTreeMarkdown(items, doc, "")
 	if want := dtWUIWhole; whole != want {
@@ -419,6 +421,6 @@ func TestDocTreeMarkdownWUIParity(t *testing.T) {
 // fixture of TestDocTreeMarkdownWUIParity, verbatim.
 var (
 	dtZ64       = strings.Repeat("0", 64)
-	dtWUIWhole  = "# 1 Intro\n\nHello ![one](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 1: one*\n tail\n![x](/v1/workspace/doctree/other/images/" + dtZ64 + ".png)\n\n![Sec img](https://example.com/i.png)\n\n*Figure 2: Sec [img]*\n\n## 1.1 Untitled\n\n```\necho hi\n```\n\n### 1.1.1 Deep\n\n![two](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 3: two*\n\n# 2 End\n"
-	dtWUIBranch = "# 1.1 Untitled\n\n```\necho hi\n```\n\n## 1.1.1 Deep\n\n![two](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 3: two*\n"
+	dtWUIWhole  = "# 1 Intro\n\nHello ![one](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 1: one*\n tail\n![x](/v1/workspace/doctree/other/images/" + dtZ64 + ".png)\n\n![Sec img](https://example.com/i.png)\n\n*Figure 2: Sec [img]*\n\n## 1.1 Untitled\n\n```bash\necho hi\n```\n\n### 1.1.1 Deep\n\n![two](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 3: two*\n\n# 2 End\n\n# 3 Flow\n\n```mermaid\ngraph TD\n  A --> B\n```\n"
+	dtWUIBranch = "# 1.1 Untitled\n\n```bash\necho hi\n```\n\n## 1.1.1 Deep\n\n![two](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 3: two*\n"
 )

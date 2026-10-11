@@ -98,8 +98,20 @@ spl_box_state_fetch() {
 
 # spl_box_state_plan <staged root> <target root> -> NEW <path> / OVERWRITE
 # <path> per file the apply would write, content compared (rsync -c, dry)
+# Onto / it compares as root (sudo -n), as the apply writes: the agent
+# user's 0600 transcripts are unreadable to the box user (2026-10-11, the
+# first prd restore: rsync exit 23 and no plan). rsync 23/24 (some target file
+# unreadable or vanished) is a WARN and the plan stands; any other error fails.
 spl_box_state_plan() {
-  local from="$1" to="$2"
-  rsync -rlcn --out-format='%i %n' "$from/" "$to/" 2>/dev/null |
-    awk -v r="${to%/}" '$1 ~ /^[>c][fL]/ { p = substr($0, index($0, " ") + 1); print (($1 ~ /\+\+\+/) ? "NEW " : "OVERWRITE ") r "/" p }'
+  local from="$1" to="$2" rc=0
+  local -a asroot=()
+  [[ "$to" == / && "$(id -u)" != 0 ]] && sudo -n true 2>/dev/null && asroot=(sudo -n)
+  "${asroot[@]}" rsync -rlcn --out-format='%i %n' "$from/" "$to/" >"$from.rsync" 2>/dev/null || rc=$?
+  case "$rc" in
+    0) ;;
+    23|24) do_log "WARN rsync exit $rc: some target files could not be read to compare; the plan lists what rsync could see" >&2 ;;
+    *) do_log "FATAL rsync exit $rc comparing $from with $to" >&2; rm -f "$from.rsync"; return 1 ;;
+  esac
+  awk -v r="${to%/}" '$1 ~ /^[>c][fL]/ { p = substr($0, index($0, " ") + 1); print (($1 ~ /\+\+\+/) ? "NEW " : "OVERWRITE ") r "/" p }' "$from.rsync"
+  rm -f "$from.rsync"
 }

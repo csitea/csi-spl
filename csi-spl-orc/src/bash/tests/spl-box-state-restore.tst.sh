@@ -100,5 +100,17 @@ rm -rf "$T/stg"; run_rs BOX_STATE_ARCHIVE="$T/night.tar.zst"; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q "from $T/night.tar.zst" "$T/out" \
   && pass "5. CONTROL: a local BOX_STATE_ARCHIVE restores with no gcloud call" || fail "5. local archive: rc=$rc $(cat "$T/out")"
 
+# 6 -------------------------------------------------------------------------
+# a target dir the runner cannot enter (the agent's 0700 transcript dirs, seen
+# as the box user on the first prd restore: 995 "failed to stat ... Permission
+# denied", rsync exit 23): a WARN, the plan stands
+if [[ "$(id -u)" != 0 ]]; then
+  chmod 000 "$R$S/proj/-opt-x"
+  rm -rf "$T/stg"; run_rs BOX_STATE_ARCHIVE="$T/night.tar.zst"; rc=$?
+  [[ $rc -eq 0 ]] && grep -q 'WARN rsync exit 23' "$T/out" && grep -q 'would write' "$T/out" \
+    && pass "6. a target dir the runner cannot enter is a WARN, the plan still prints" || fail "6. unreadable target: rc=$rc $(cat "$T/out")"
+  chmod 755 "$R$S/proj/-opt-x"
+fi
+
 echo "spl-box-state-restore: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

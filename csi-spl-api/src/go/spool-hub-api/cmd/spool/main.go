@@ -52,6 +52,7 @@
 //	doc-read <path>            print one workspace doc
 //	doc-write <path> [--file f]  save one (stdin when --file is absent); last write wins
 //	doc-delete <path>          delete one workspace doc
+//	doctree <verb> ...         the Qto outline documents (doctree.go): create, add, edit, export
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
@@ -146,6 +147,7 @@ on a box (an agent's machine):
   doc-read            print one workspace document to stdout
   doc-write           save one workspace document (last write wins)
   doc-delete          delete one workspace document
+  doctree             the outline documents: list, nodes, folder, create, head, read, add, edit, move, delete, rename, export
   layout              list the agent ids with a mailbox under $SPOOL_ROOT (<ID> or <ID>@<box>)
 
 a box and its hub ($SPOOL_HUB_URL):
@@ -291,6 +293,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdDocWrite(cfg, rest)
 	case "doc-delete":
 		return cmdDocDelete(cfg, rest)
+	case "doctree": // spec 113, the Qto doc API for agents
+		return cmdDocTree(cfg, rest)
 	case "layout": // specs/058 6
 		return cmdLayout(cfg)
 	default:

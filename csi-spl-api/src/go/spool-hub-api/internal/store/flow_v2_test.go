@@ -324,3 +324,69 @@ func TestFlowReleaseBadgeAndAssigneeWatch(t *testing.T) {
 		})
 	}
 }
+
+// Spec 130 lane L4, "one deploy -> one new release line, not 500": a deploy's
+// do_release_note_ingest re-sends a 500-commit window (RELEASE_NOTE_DEPTH);
+// prd measured 500 rows re-stamped by one deploy (section 1). Only the one
+// commit that newly got a version is a release: the deploy day carries ONE
+// version, and the 500 already-versioned rows stay on their own day.
+func TestFlowReleaseOneDeployOneLine(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			rn, ok := s.(ReleaseNotes)
+			if !ok {
+				t.Skip("no release notes")
+			}
+			ctx := context.Background()
+			tid := newTenant(t, s)
+			// 2093+: apart from TestFlowReleaseLines' 2091 days on a shared database.
+			hist := time.Date(2093, 1, 1, 9, 0, 0, 0, time.UTC).Add(time.Duration(time.Now().UnixNano()%1000) * 24 * time.Hour)
+			deploy := hist.Add(3 * 24 * time.Hour)
+			major := 900000 + int(time.Now().UnixNano()%99999)
+			const depth = 500
+			window := make([]ReleaseNote, 0, depth+1)
+			shas := make([]string, 0, depth+1)
+			for i := 0; i < depth; i++ {
+				sha := fmt.Sprintf("%08x", i) + strings.Repeat(uuid4()[:8], 4)
+				shas = append(shas, sha)
+				window = append(window, ReleaseNote{SHA: sha, Version: fmt.Sprintf("v%d.0.%d", major, i+1),
+					CommittedAt: hist.Add(-time.Hour), Subject: "x", State: "ok"})
+			}
+			if pg, ok := s.(*Postgres); ok {
+				t.Cleanup(func() {
+					pg.pool.Exec(context.Background(), `DELETE FROM release_notes WHERE sha = ANY($1)`, shas) //nolint:errcheck
+				})
+			}
+			if err := rn.PutReleaseNotes(ctx, window, hist); err != nil {
+				t.Fatal(err)
+			}
+			// The deploy: the newest 500, so 499 of them re-sent plus the one new
+			// versioned commit.
+			fresh := strings.Repeat(uuid4()[:8], 5)
+			shas = append(shas, fresh)
+			window = append(window, ReleaseNote{SHA: fresh, Version: fmt.Sprintf("v%d.0.%d", major, depth+1),
+				CommittedAt: deploy.Add(-time.Minute), Subject: "x", State: "ok"})
+			if err := rn.PutReleaseNotes(ctx, window[1:], deploy); err != nil {
+				t.Fatal(err)
+			}
+			f, err := s.(FlowFolder).FlowFoldRead(ctx, FlowQuery{Tenant: tid, Member: "HUM-1", Limit: 30, Now: deploy.Add(time.Hour), Kind: FlowRelease})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]string{}
+			for _, l := range f.Lines {
+				if l.Day == flowDay(deploy) || l.Day == flowDay(hist) {
+					got[l.Day] = fmt.Sprintf("%s..%s n=%d sha=%v", l.VersionFrom, l.VersionTo, l.Versions, l.SHA == fresh)
+				}
+			}
+			v := func(z int) string { return fmt.Sprintf("v%d.0.%d", major, z) }
+			want := map[string]string{
+				flowDay(deploy): fmt.Sprintf("%s..%s n=1 sha=true", v(depth+1), v(depth+1)),
+				flowDay(hist):   fmt.Sprintf("%s..%s n=%d sha=false", v(1), v(depth), depth),
+			}
+			if fmt.Sprint(got) != fmt.Sprint(want) {
+				t.Fatalf("one deploy must add one release line of one version, not %d\n got %v\nwant %v", depth, got, want)
+			}
+		})
+	}
+}

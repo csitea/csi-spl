@@ -121,16 +121,19 @@ var flowMemberRe = regexp.MustCompile(`^(HUM|GST)-[0-9]+$`)
 // IsFlowMember: id is a HUM-/GST- seat. Seats get every flow kind.
 func IsFlowMember(id string) bool { return flowMemberRe.MatchString(id) }
 
-// flowAgentSQL is IsFlowAgent in SQL, for a member_id column.
-const flowAgentSQL = `~ '^([acgmq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}$' AND %[1]s !~ '^(HUM|GST)-'`
+// flowAgentSQL is IsFlowAgent in SQL, for a member_id column: an agent id
+// in either grammar (agentid.IsAgent) with its box.
+const flowAgentSQL = `~ '^([acgmq]-(00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})|(CLE|AGY|GRK|QWN)-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}$'`
 
 // IsFlowAgent: key is an agent's flow member key <id>@<box> (spec 130
 // section 5): one id runs on several boxes, so a bare id would mix two
 // agents' flows. Agents get mention, blocked and ready, never dm or reply:
-// their spool inbox already delivers those.
+// their spool inbox already delivers those. Only an agent id: the
+// everyone-alias ALL-0 (to_box box-wui on a channel line) and the other
+// participants (CI-0, HUB-0, LGC-0, BOX-) are no agent and get no event.
 func IsFlowAgent(key string) bool {
 	id, _ := agentid.SplitAtBox(key)
-	return agentid.IsAtBox(key) && !IsFlowMember(id)
+	return agentid.IsAtBox(key) && agentid.IsAgent(id)
 }
 
 // flowMemberKey is the flow member_id of a line end: a seat by its id, an

@@ -35,7 +35,7 @@ func flowInsertCTE(n int) string {
 	p := func(i int, typ string) string { return fmt.Sprintf("$%d::%s", n+i, typ) }
 	a, ms, pk, pub := p(0, "text"), p(1, "text[]"), p(2, "uuid"), p(3, "bool")
 	to, snd, lbl := p(4, "text"), p(5, "text"), p(6, "text")
-	agent := `c.member_id ` + fmt.Sprintf(flowAgentSQL, "c.member_id")
+	agent := `c.member_id ` + flowAgentSQL
 	return `,
 	flow_cand AS (
 		SELECT c.member_id, min(c.rnk) AS rnk FROM (

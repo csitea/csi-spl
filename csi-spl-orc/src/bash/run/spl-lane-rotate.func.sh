@@ -477,7 +477,7 @@ spl_lane_rotate_run() {
   # replaced the task brief (P0, 2026-10-11). The brief is put back
   # byte for byte right after the spawn; the new session reads the seed file.
   cp -p "$SPOOL_ROOT/$id/lifetime/brief.md" "$ROTATE_STATE_DIR/brief.keep.md" 2>/dev/null || true
-  spl_rotate_spawn "$id" "$seed" || rc=1
+  SPAWN_PROMPT_HEAD="$(spl_lane_rotate_prompt_head "$id" "$seed")" spl_rotate_spawn "$id" "$seed" || rc=1
   spl_lane_rotate_brief_back "$id"
   (( rc == 0 )) || { spl_lane_rotate_fail "$id" SPAWN "$ROTATE_ERR"; return 1; }
   spl_lane_rotate_step SPAWN OK "new $ROTATE_KIND pid $ROTATE_NEW_PID pane $ROTATE_NEW_PANE; old window $(spl_rotate_retiring_name "$id")"
@@ -651,6 +651,20 @@ spl_lane_rotate_brief_is_seed() {
   [[ "$l" =~ ^\#\ Brief:\ you\ are\ .*\ again\ \(hourly\ rotation\  ]]
 }
 
+# The ack the new session runs, as its seed and its first prompt state it.
+spl_lane_rotate_ack_cmd() {
+  echo "cd $PROJ_PATH && sudo -u ${SPOOL_BOX_USER:-$USER} env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ID=$1 ./run -a do_spl_lane_rotate"
+}
+
+# spl_lane_rotate_prompt_head ID SEED: the head of the new session's FIRST
+# prompt (spawn-core SPAWN_PROMPT_HEAD), the ack line itself. A pointer to
+# the seed was not enough: n=4 new sessions on 2026-10-11 never opened the
+# seed and never acked (msg 1764e609).
+spl_lane_rotate_prompt_head() {
+  printf 'ROTATION %s: you are the new %s session. Run the ack, exactly; run it before anything else (even the rename):\nACK-COMMAND: %s\nThen read your rotation seed %s (your task brief and the handoff) and continue.' \
+    "$ROTATE_RID" "$1" "$(spl_lane_rotate_ack_cmd "$1")" "$2"
+}
+
 # spl_lane_rotate_seed ID OUT: the new session's brief: its task brief
 # unchanged (lifetime/brief.md; the old seed when no brief was recorded), the
 # handoff, the ACK command. The brief's Files: line keeps the lane map row.
@@ -661,7 +675,7 @@ spl_lane_rotate_seed() {
     else echo "# Brief: $id (no brief was recorded at spawn: ask your spawner)" > "$brief" 2>/dev/null || true; fi
   fi
   files="$(grep -m1 -E '^Files: *' "$brief" 2>/dev/null || true)"
-  ack="cd $PROJ_PATH && sudo -u ${SPOOL_BOX_USER:-$USER} env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ID=$id ./run -a do_spl_lane_rotate"
+  ack="$(spl_lane_rotate_ack_cmd "$id")"
   cat > "$out" <<EOF
 # Brief: you are $id@$ROTATE_BOX again (hourly rotation $ROTATE_RID)
 ${files}

@@ -29,6 +29,9 @@
 #  12. the manifest row and its executable cron script
 #  14. a lane whose /exit opens the background-work picker: Enter on "Exit and
 #      stop tasks", gone without SIGTERM
+#  15. the new session's FIRST prompt carries the ACK-COMMAND (n=4 rotations
+#      on 2026-10-11 never opened the seed it pointed to): the fake agent acks
+#      from its first prompt only; spawn-core renders SPAWN_PROMPT_HEAD on top
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -132,17 +135,19 @@ case "$cmd" in
 esac
 EOF
 # spawn-window.sh: <kind> <ID> <workdir> <seed> <slug> -> "<ID> <pane>"; the
-# fake agent runs ONLY the seed's ACK-COMMAND line
+# fake agent runs ONLY the ACK-COMMAND line of its first prompt
+# (SPAWN_PROMPT_HEAD, which spawn-core puts on top of the seed it points to)
 cat >"$T/bin/spawn" <<'EOF'
 #!/usr/bin/env bash
 n="$(cat "$T/next")"; echo $((n + 1)) >"$T/next"
 echo "spawn $1 $2 $3 SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} scope=${SPAWN_LANE_SCOPE:-}" >>"$T/spawn.log"
 cp "$4" "$T/seed.$2"
+printf '%s' "${SPAWN_PROMPT_HEAD:-}" >"$T/prompt.$2"
 cp -f "$4" "$SPOOL_ROOT/$2/lifetime/brief.md"
 printf '%%%s\t%s\t$0\t%s@box\n' "$n" "$n" "$2" >>"$T/tmux/panes"
 comm=claude; [ "$1" = mistral ] && comm="Vibe CLI"
 "$T/bin/proc" "$n" 0 "$2" "$comm" 1 "$1 --seed"
-rid="$(grep '^ACK-COMMAND:' "$4" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
+rid="$(grep '^ACK-COMMAND:' "$T/prompt.$2" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
 ( sleep 1; ROTATE_CMD=ack ROTATE_ID="$rid" ID="$2" ROTATE_CALLER_PID="$n" "$T/bin/act" >>"$T/ack.out" 2>&1 ) >/dev/null 2>&1 &
 echo "$2 %$n"
 EOF
@@ -326,6 +331,18 @@ touch "$T/tmux/bgtasks.%941"
 ROTATE_LANE_EXIT_WAIT=20 tick
 check "14. background-work picker: 'Exit and stop tasks' confirmed" 'grep -q "lane-c-941 RETIRE WAIT pid 2941: ./exit. asked about running background work" "$D/rotate.log" && grep -q "picker %941" "$T/tmux/log"'
 check "14. old session gone without a signal" 'grep -q "lane-c-941 DONE OK" "$D/rotate.log" && ! grep -q "TERM 2941" "$T/kill.log" 2>/dev/null'
+
+# --- 15. the ACK-COMMAND is in the first prompt, on top -----------------------
+reset; lane c-951 50
+tick
+check "15. first prompt: ACK-COMMAND line, run it before anything else" 'grep -q "^ACK-COMMAND: .*ROTATE_ID=[0-9]*T[0-9]*Z-lane-c-951 ID=c-951 ./run -a do_spl_lane_rotate$" "$T/prompt.c-951" && head -c 400 "$T/prompt.c-951" | grep -q "run it before anything else"'
+check "15. first prompt: the same ack as the seed, which keeps it" '[ "$(grep "^ACK-COMMAND:" "$T/prompt.c-951")" = "$(grep "^ACK-COMMAND:" "$T/seed.c-951")" ] && grep -q "$D/handoff/.*-lane-c-951.seed.md" "$T/prompt.c-951"'
+check "15. acked from the first prompt alone: DONE" 'grep -q "lane-c-951 DONE OK" "$D/rotate.log"'
+P15="$T/plan15"; mkdir -p "$P15" "$T/plain15"; echo "brief" >"$T/brief15.md"
+( unset SPOOL_BOX_ENV; SPOOL_ROOT="$T/spool15" SPAWN_TEST_SANDBOX=1 SPAWN_DRY_RUN=1 SPAWN_PLAN_DIR="$P15" SPOOL_BIN=/opt/x/spool \
+  SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' SPAWN_PROMPT_HEAD=$'HEAD15 run it before anything else\nACK-COMMAND: x' \
+  bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-claude.sh" c-952 "$T/plain15" "$T/brief15.md" rotate >"$P15/out" 2>&1 )
+check "15. spawn-core: SPAWN_PROMPT_HEAD is the first line of prompt.txt, the seed follows" '[ "$(head -n1 "$P15/prompt.txt" 2>/dev/null)" = "HEAD15 run it before anything else" ] && grep -q "^ACK-COMMAND: x$" "$P15/prompt.txt" && grep -q "read your full task brief at $T/brief15.md" "$P15/prompt.txt"'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

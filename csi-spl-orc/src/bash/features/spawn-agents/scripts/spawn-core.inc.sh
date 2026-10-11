@@ -280,10 +280,13 @@ spawn_record_brief() {  # MSGDIR BRIEF
 # seats' argv and killed them all; vibe, whose seed was not in argv, lived).
 # Live: <spool root>/<id>/lifetime/prompt.txt. A dry run writes nothing here;
 # with SPAWN_PLAN_DIR the pointer names <plan dir>/prompt.txt, written below.
+# SPAWN_PROMPT_HEAD: lines the session must act on first, put ahead of the
+# seed (a rotation's ACK-COMMAND: a pointer to it went unread, n=4 on 10-11).
 # Sets SEED_FILE, PROMPT_ESC (the escaped pointer) and _sp_prompt_args.
 _spawn_seed_file() {
   PROMPT_ESC=""; SEED_FILE="${MSGDIR}/lifetime/prompt.txt"
   [ -n "$PROMPT" ] || return 0
+  [ -z "${SPAWN_PROMPT_HEAD:-}" ] || PROMPT="${SPAWN_PROMPT_HEAD}"$'\n\n'"${PROMPT}"
   if ! _sp_live; then
     [ -n "${SPAWN_PLAN_DIR:-}" ] && SEED_FILE="${SPAWN_PLAN_DIR}/prompt.txt"
   else

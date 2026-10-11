@@ -2198,7 +2198,8 @@
     "edit": "עריכה",
     "synced_link": "שנה במאגר הקוד",
     "copy_link": "העתק קישור",
-    "link_copied": "הקישור הועתק"
+    "link_copied": "הקישור הועתק",
+    "not_available": "האירוע הזה אינו זמין עבורך."
   },
   "calendar_phone_week": {
     "strip": "ימי השבוע",

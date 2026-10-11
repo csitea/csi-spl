@@ -2198,7 +2198,8 @@
     "edit": "Измени",
     "synced_link": "Измени у репозиторијуму",
     "copy_link": "Kopiraj vezu",
-    "link_copied": "Veza je kopirana"
+    "link_copied": "Veza je kopirana",
+    "not_available": "Ovaj događaj vam nije dostupan."
   },
   "calendar_phone_week": {
     "strip": "Дани у недељи",

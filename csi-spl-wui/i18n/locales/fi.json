@@ -2198,7 +2198,8 @@
     "edit": "Muokkaa",
     "synced_link": "Muuta repositoriossa",
     "copy_link": "Kopioi linkki",
-    "link_copied": "Linkki kopioitu"
+    "link_copied": "Linkki kopioitu",
+    "not_available": "Tämä tapahtuma ei ole saatavilla sinulle."
   },
   "calendar_phone_week": {
     "strip": "Viikon päivät",

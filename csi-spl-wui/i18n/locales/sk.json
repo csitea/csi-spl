@@ -2198,7 +2198,8 @@
     "edit": "Upraviť",
     "synced_link": "Zmeniť v repozitári",
     "copy_link": "Kopírovať odkaz",
-    "link_copied": "Odkaz skopírovaný"
+    "link_copied": "Odkaz skopírovaný",
+    "not_available": "Táto udalosť vám nie je dostupná."
   },
   "calendar_phone_week": {
     "strip": "Dni v týždni",

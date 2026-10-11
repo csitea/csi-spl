@@ -2198,7 +2198,8 @@
     "edit": "Düzenle",
     "synced_link": "Depoda değiştir",
     "copy_link": "Bağlantıyı kopyala",
-    "link_copied": "Bağlantı kopyalandı"
+    "link_copied": "Bağlantı kopyalandı",
+    "not_available": "Bu etkinlik size açık değil."
   },
   "calendar_phone_week": {
     "strip": "Haftanın günleri",

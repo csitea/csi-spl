@@ -2198,7 +2198,8 @@
     "edit": "Bewerken",
     "synced_link": "Wijzigen in de repository",
     "copy_link": "Link kopiëren",
-    "link_copied": "Link gekopieerd"
+    "link_copied": "Link gekopieerd",
+    "not_available": "Dit evenement is niet beschikbaar voor jou."
   },
   "calendar_phone_week": {
     "strip": "Dagen van de week",

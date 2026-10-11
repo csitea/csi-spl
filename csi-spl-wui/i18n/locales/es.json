@@ -2198,7 +2198,8 @@
     "edit": "Editar",
     "synced_link": "Cambiar en el repositorio",
     "copy_link": "Copiar enlace",
-    "link_copied": "Enlace copiado"
+    "link_copied": "Enlace copiado",
+    "not_available": "Este evento no está disponible para ti."
   },
   "calendar_phone_week": {
     "strip": "Días de la semana",

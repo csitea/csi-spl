@@ -57,6 +57,7 @@
       <!-- the one period announcement (S4-2), outside the turning pages -->
       <span class="sr-only" aria-live="polite" data-test="calphone-live">{{ announced }}</span>
     </header>
+    <p v-if="notice" class="calphone__notice" role="status" data-test="calendar-notice" :data-key="notice">{{ t(notice) }}</p>
 
     <div
       ref="viewEl"
@@ -448,14 +449,32 @@ watch([view, shownDay], () => { void settle() })
    the shown range holds it (spec 106 T011, as the desktop's main view) */
 const route = useRoute()
 let askedEvent = ''
-watch([items, () => route.query.event], () => {
+watch([items, state, () => route.query.event], () => {
   const id = String(route.query.event || '')
   if (!id || id === askedEvent) return
   const ev = items.value.find((x) => x.id === id)
-  if (!ev) return
+  if (!ev) {
+    if (state.value === 'ready') void linkMissing(id, String(route.query.d || ''))
+    return
+  }
   askedEvent = id
   openPeek(ev)
 })
+/* t1 9dec05c3 part 3, as the desktop's main view: a linked event the reader
+   may not see says "not available to you" on its day, never its title */
+const notice = ref('')
+let noticeTimer: ReturnType<typeof setTimeout> | undefined
+async function linkMissing(id: string, day: string) {
+  if (!day) return
+  askedEvent = id
+  try {
+    const { eventSeen } = await import('~/utils/event-link-titles')
+    if (await eventSeen(id, day) !== false || String(route.query.event || '') !== id) return
+    notice.value = 'calendar_event.not_available'
+    clearTimeout(noticeTimer)
+    noticeTimer = setTimeout(() => { notice.value = '' }, 6000)
+  } catch { /* nothing to say */ }
+}
 function onChanged() {
   cache.clear()
   void settle()
@@ -468,6 +487,7 @@ onBeforeUnmount(() => {
   ctl?.abort()
   window.removeEventListener(CALENDAR_CHANGED_EVENT, onChanged)
   cancelAnimationFrame(raf)
+  clearTimeout(noticeTimer)
 })
 
 /* ---- the page turn (spec 4.3, H2, H6) ---- */
@@ -606,6 +626,15 @@ async function turn(dir: 1 | -1, from = 0) {
 }
 
 /* ---- header: one row, <= 48 px at level 3 ---- */
+.calphone__notice {
+  margin: 4px 16px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-warn);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
 .calphone__head {
   display: flex;
   align-items: center;

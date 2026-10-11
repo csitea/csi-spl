@@ -2198,7 +2198,8 @@
     "edit": "Redigera",
     "synced_link": "Ändra i repot",
     "copy_link": "Kopiera länk",
-    "link_copied": "Länken kopierad"
+    "link_copied": "Länken kopierad",
+    "not_available": "Den här händelsen är inte tillgänglig för dig."
   },
   "calendar_phone_week": {
     "strip": "Veckans dagar",

@@ -2198,7 +2198,8 @@
     "edit": "Muuda",
     "synced_link": "Muuda repositooriumis",
     "copy_link": "Kopeeri link",
-    "link_copied": "Link kopeeritud"
+    "link_copied": "Link kopeeritud",
+    "not_available": "See sündmus pole sulle saadaval."
   },
   "calendar_phone_week": {
     "strip": "Nädala päevad",

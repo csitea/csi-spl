@@ -11,7 +11,9 @@
 // t1 9dec05c3 (owner msg cbfaaefc): Copy link in the pop-over, the edit
 //        dialog and an event's right-click menu copies
 //        <origin>/calendar?d=<day>&event=<id> and says "Link copied"; that
-//        link opens the event.
+//        link opens the event. A link to an event the reader may not see
+//        opens the calendar on its day saying "not available to you", with
+//        no dialog, no pop-over and never the title (desktop and phone).
 // The dialog fits 1440 px with no sideways scroll (a phone adds in
 // CalendarPhoneSheet since spec 106 T011: calendar-phone-sheet); the calendar code
 // stays in its own chunk (calendar.test.mjs AC-02 holds the 155 KB check).
@@ -226,6 +228,33 @@ try {
   await q.goto(want.replace(new URL(want).origin, server.base), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   ok('Copy link: the copied link opens that event', await dialog(q) && (await state(q)).title === 'Database maintenance', await state(q))
   await q.close()
+
+  /* t1 9dec05c3 part 3: an event the reader may not see */
+  const UNSEEN = '0badbeef-0000-4000-8000-000000000999'
+  for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844, hasTouch: true }]) {
+    const u = await browser.newPage()
+    await setPageViewport(u, vp)
+    await u.goto(`${server.base}/calendar?d=${dbm?.day}&event=${UNSEEN}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await applyViewport(u, vp)
+    const said = await u.waitForFunction(() => document.querySelector('[data-test=calendar-notice]')?.getAttribute('data-key') === 'calendar_event.not_available', { timeout: 10000 }).then(() => true, () => false)
+    const seen = await u.evaluate(() => ({
+      day: document.querySelector('[data-test=calendar-phone]')?.getAttribute('data-day') || [...document.querySelectorAll('[data-test=calendar-week-day]')].map((e) => e.getAttribute('data-day')).join(','),
+      dialog: Boolean(document.querySelector('[data-test=calendar-event-form], [data-test=calendar-event-popover], [data-test=calpeek]')),
+      notice: document.querySelector('[data-test=calendar-notice]')?.textContent?.trim() || '',
+    }))
+    ok(`${vp.width}px: an unseen event's link says "not available to you"`, said && seen.notice === 'This event is not available to you.', seen)
+    ok(`${vp.width}px: it opens the calendar on the link's day, nothing opened`, seen.day.includes(dbm?.day || '-') && !seen.dialog, seen)
+    await shot(u, `unseen-${vp.width}`)
+    await u.close()
+  }
+  /* CONTROL a seen event's link says nothing */
+  const v = await browser.newPage()
+  await setPageViewport(v, { width: 1440, height: 900 })
+  await v.goto(want.replace(new URL(want).origin, server.base), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await dialog(v)
+  await new Promise((r) => setTimeout(r, 600))
+  ok('CONTROL a link to an event the reader sees says nothing', !(await v.$('[data-test=calendar-notice]')))
+  await v.close()
 
   /* AC-05: the creator edits theirs back to workspace */
   await p.click('[data-test=calendar-today]')

@@ -216,7 +216,10 @@ out="$(run_rollup)"; rc=$?
 
 # 11. the data rule ---------------------------------------------------------------------
 out="$(run_rollup DRY_RUN=0 COST_METERED_IDS="$T/metered")"
-[[ "$out" != *107* && "$out" != *1011* && "$out" != *" 160"* && "$out" == *"lines="* ]] &&
+# the run id carries the clock (cost-rollup-<box>-<UTC stamp>-<pid>): on
+# 2026-10-11 it held "1011", so the totals are looked for without it
+nums="$(sed -E 's/cost-rollup-[^ )]*//g' <<<"$out")"
+[[ "$nums" != *107* && "$nums" != *1011* && "$nums" != *" 160"* && "$out" == *"lines="* ]] &&
   pass "11. the output carries counts and states, never a token or seconds total" || fail "11. $out"
 
 # 12. the readers post their own file ---------------------------------------------------

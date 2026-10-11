@@ -7,7 +7,10 @@
 #   <runner>/_work/_temp   every regular file under it
 #   <runner>/_diag/*.log   regular files in that directory only
 # Never _work/<repo>, .runner, .credentials*, a symlink, or a symlink target.
-# Dry run unless DRY_RUN=0. Refuses a root of /.
+# A live run removes as the directory owner: sudo -n -u <owner> rm -f.
+# If that sudo fails, the runner is skipped with a WARN and nothing is claimed.
+# Only a file that is gone afterwards counts. One that remains is a WARN, and
+# the step exits non-zero. Dry run unless DRY_RUN=0. Refuses a root of /.
 
 set -uo pipefail
 
@@ -46,6 +49,29 @@ older() {
   ts="$(stat -c %Y "$1" 2>/dev/null)" || return 1
   now="$(date +%s)"
   (( ts < now - age * 86400 ))
+}
+
+# sudo_ok <user> - 0 when sudo -n can run a command as that user
+sudo_ok() {
+  sudo -n -u "$1" true
+}
+
+# rm_as <user> <file>... - best effort, in batches. The caller counts survivors.
+rm_as() {
+  local user="$1" f
+  local -a batch=()
+  shift
+  for f in "$@"; do
+    batch+=("$f")
+    if (( ${#batch[@]} < 100 )); then
+      continue
+    fi
+    sudo -n -u "$user" rm -f -- "${batch[@]}" || true
+    batch=()
+  done
+  if (( ${#batch[@]} > 0 )); then
+    sudo -n -u "$user" rm -f -- "${batch[@]}" || true
+  fi
 }
 
 # list_old <dir> - NUL paths this sweep may remove
@@ -92,6 +118,8 @@ fi
 
 freed=0
 cleaned=0
+not_removed=0
+sweep_fail=0
 while IFS= read -r -d '' runner; do
   if ! is_idle "$runner"; then
     say "INFO runner $runner: busy, skipped"
@@ -107,21 +135,54 @@ while IFS= read -r -d '' runner; do
     continue
   fi
   bytes=0
+  sizes=()
   for file in "${files[@]}"; do
-    sz="$(stat -c %s "$file")"
+    sz="$(stat -c %s "$file" 2>/dev/null || printf '0')"
+    sizes+=("$sz")
     bytes=$(( bytes + sz ))
   done
   if [[ "$dry" == 1 ]]; then
     say "PLAN runner $runner: rm ${count} file(s) (${bytes}B)"
-  else
-    for file in "${files[@]}"; do
-      rm -f -- "$file"
-    done
-    say "DONE runner $runner: rm ${count} file(s) (${bytes}B)"
+    freed=$(( freed + bytes ))
+    cleaned=$(( cleaned + 1 ))
+    continue
   fi
-  freed=$(( freed + bytes ))
-  cleaned=$(( cleaned + 1 ))
+  owner="$(stat -c %U "$runner" 2>/dev/null || true)"
+  if [[ -z "$owner" ]] || ! sudo_ok "$owner"; then
+    say "WARN runner $runner: sudo -n -u ${owner:-unknown} failed, skipped"
+    not_removed=$(( not_removed + count ))
+    sweep_fail=1
+    continue
+  fi
+  rm_as "$owner" "${files[@]}"
+  gone=0
+  gone_bytes=0
+  missed=0
+  i=0
+  for file in "${files[@]}"; do
+    if [[ -e "$file" || -L "$file" ]]; then
+      missed=$(( missed + 1 ))
+    else
+      gone=$(( gone + 1 ))
+      gone_bytes=$(( gone_bytes + sizes[i] ))
+    fi
+    i=$(( i + 1 ))
+  done
+  if (( gone > 0 )); then
+    say "DONE runner $runner: rm ${gone} file(s) (${gone_bytes}B)"
+    freed=$(( freed + gone_bytes ))
+    cleaned=$(( cleaned + 1 ))
+  fi
+  if (( missed > 0 )); then
+    say "WARN runner $runner: ${missed} file(s) not removed"
+    not_removed=$(( not_removed + missed ))
+    sweep_fail=1
+  fi
 done < <(find "$root" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
 
+if (( sweep_fail != 0 )); then
+  say "FAIL runner sweep: $cleaned runner(s) cleaned, ${freed}B freed, ${not_removed} file(s) not removed"
+  exit 1
+fi
 say "DONE runner sweep: $cleaned runner(s) cleaned, ${freed}B freed"
 exit 0

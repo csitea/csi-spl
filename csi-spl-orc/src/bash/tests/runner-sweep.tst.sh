@@ -6,6 +6,8 @@
 #   2. DRY_RUN=0 removes only that scratch; busy, young, repo, .runner,
 #      .credentials* and a symlink target stay
 #   3. a missing runner root skips
+#   4. a file rm cannot remove is not counted as freed
+#   5. a failed sudo -n skips the runner and claims nothing
 
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -53,17 +55,38 @@ esac
 EOF
 chmod +x "$F/bin/pgrep"
 
+# sudo -n -u USER cmd: drop -n and -u, then run cmd. The log proves a dry run
+# never called sudo, and a live run asked to run as the directory owner.
+export SUDO_LOG="$T/sudo.log"
+: >"$SUDO_LOG"
+cat >"$F/bin/sudo" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >>"$SUDO_LOG"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n) shift ;;
+    -u) shift; [[ $# -gt 0 ]] && shift ;;
+    *) break ;;
+  esac
+done
+exec "$@"
+EOF
+chmod +x "$F/bin/sudo"
+
 out="$(PATH="$F/bin:$PATH" DRY_RUN=1 BOX_SWEEP_RUNNER_ROOT="$R" BOX_SWEEP_RUNNER_AGE=2 bash "$RS" 2>&1)"
 rc=$?
 [ "$rc" = 0 ] && grep -q "PLAN runner $R/idle: rm 3 file(s) (6B)" <<<"$out" \
   && grep -q "INFO runner $R/busy: busy, skipped" <<<"$out" \
-  && [ -e "$R/idle/_work/_temp/old1" ] \
+  && [ -e "$R/idle/_work/_temp/old1" ] && [ ! -s "$SUDO_LOG" ] \
   && pass "1. dry run plans 3 old idle files and removes nothing" \
   || fail "1. dry run (rc $rc: $out)"
 
+: >"$SUDO_LOG"
 out="$(PATH="$F/bin:$PATH" DRY_RUN=0 BOX_SWEEP_RUNNER_ROOT="$R" BOX_SWEEP_RUNNER_AGE=2 bash "$RS" 2>&1)"
 rc=$?
-[ "$rc" = 0 ] && [ ! -e "$R/idle/_work/_temp/old1" ] && [ ! -e "$R/idle/_work/_temp/old2" ] && [ ! -e "$R/idle/_diag/old.log" ] \
+[ "$rc" = 0 ] && grep -q "DONE runner $R/idle: rm 3 file(s) (6B)" <<<"$out" \
+  && grep -q -- '-n -u ' "$SUDO_LOG" \
+  && [ ! -e "$R/idle/_work/_temp/old1" ] && [ ! -e "$R/idle/_work/_temp/old2" ] && [ ! -e "$R/idle/_diag/old.log" ] \
   && [ -e "$R/idle/_work/_temp/new" ] && [ -e "$R/idle/_diag/new.log" ] \
   && [ -e "$R/idle/_work/_temp/.credentials" ] && [ -e "$R/idle/_diag/notes.txt" ] \
   && [ -e "$R/idle/_work/repo/f" ] && [ -e "$R/idle/.credentials" ] && [ -e "$R/idle/.runner" ] \
@@ -76,6 +99,43 @@ out="$(PATH="$F/bin:$PATH" DRY_RUN=0 BOX_SWEEP_RUNNER_ROOT="$T/nonexistent" BOX_
 rc=$?
 [ "$rc" = 0 ] && grep -q "SKIP runner root $T/nonexistent not found" <<<"$out" \
   && pass "3. runner root not found" || fail "3. runner root not found (rc $rc: $out)"
+
+# A mode bit on the file does not stop its owner from unlinking it. The
+# directory has to be non-writable, or rm succeeds and the count would lie.
+RO="$T/ro"
+mkdir -p "$RO/idle/_work/_temp" "$RO/idle/_diag"
+printf 'x\n' >"$RO/idle/_work/_temp/old1"
+printf 'x\n' >"$RO/idle/_diag/stuck.log"
+old "$RO/idle/_work/_temp/old1" "$RO/idle/_diag/stuck.log"
+chmod a-w "$RO/idle/_diag/stuck.log" "$RO/idle/_diag"
+out="$(PATH="$F/bin:$PATH" DRY_RUN=0 BOX_SWEEP_RUNNER_ROOT="$RO" BOX_SWEEP_RUNNER_AGE=2 bash "$RS" 2>&1)"
+rc=$?
+chmod u+w "$RO/idle/_diag" "$RO/idle/_diag/stuck.log" 2>/dev/null || true
+[ "$rc" != 0 ] && grep -q "DONE runner $RO/idle: rm 1 file(s) (2B)" <<<"$out" \
+  && grep -q "WARN runner $RO/idle: 1 file(s) not removed" <<<"$out" \
+  && grep -q "FAIL runner sweep:" <<<"$out" \
+  && ! grep -q '(4B)' <<<"$out" \
+  && [ ! -e "$RO/idle/_work/_temp/old1" ] && [ -e "$RO/idle/_diag/stuck.log" ] \
+  && pass "4. a file rm cannot remove is not counted as freed" \
+  || fail "4. read-only file (rc $rc: $out)"
+
+cat >"$F/bin/sudo" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$F/bin/sudo"
+SF="$T/sf"
+mkdir -p "$SF/idle/_diag"
+printf 'x\n' >"$SF/idle/_diag/old.log"
+old "$SF/idle/_diag/old.log"
+out="$(PATH="$F/bin:$PATH" DRY_RUN=0 BOX_SWEEP_RUNNER_ROOT="$SF" BOX_SWEEP_RUNNER_AGE=2 bash "$RS" 2>&1)"
+rc=$?
+[ "$rc" != 0 ] && grep -q "WARN runner $SF/idle: sudo -n -u " <<<"$out" \
+  && grep -q "failed, skipped" <<<"$out" \
+  && ! grep -q "DONE runner $SF/idle: rm" <<<"$out" \
+  && [ -e "$SF/idle/_diag/old.log" ] \
+  && pass "5. a failed sudo skips the runner and claims nothing" \
+  || fail "5. sudo failure (rc $rc: $out)"
 
 echo "runner-sweep: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

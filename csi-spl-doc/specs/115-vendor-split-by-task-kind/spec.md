@@ -48,15 +48,18 @@ below is what exists on master at 5b49a31a9.
 
 ## 2. Kinds, weights, main and backup
 
-Grok and qwen hold 0 in every kind (today's cnf: `grok: 0`, `qwen: 0`). They
-stay in the table so that an admin can give them points again.
+Qwen holds 0 in every kind; it stays in the table so that an admin can give
+it points again. Grok took half of mistral's share in the three coding kinds
+on 2026-10-11 (owner HUM-10, msg a2d222f9: "if Mistral misbehaves in coding
+again, halve its coding share, Grok gets it"); `simple_coding` is grok 41 /
+mistral 39 because the main must be a strict maximum.
 
 | kind | covers | agy | mistral | claude | grok | qwen | main | backup |
 |---|---|---|---|---|---|---|---|---|
 | `specs_and_docs` | specs, docs, plans, reviews of those | 70 | 20 | 10 | 0 | 0 | agy | claude |
-| `tests` | writing tests | 0 | 30 | 70 | 0 | 0 | claude | mistral |
-| `simple_coding` | running tests, simple and routine coding | 0 | 80 | 20 | 0 | 0 | mistral | claude |
-| `complex_coding` | hard coding, architecture, hi-fi work | 0 | 20 | 80 | 0 | 0 | claude | mistral |
+| `tests` | writing tests | 0 | 15 | 70 | 15 | 0 | claude | mistral |
+| `simple_coding` | running tests, simple and routine coding | 0 | 39 | 20 | 41 | 0 | grok | claude |
+| `complex_coding` | hard coding, architecture, hi-fi work | 0 | 10 | 80 | 10 | 0 | claude | mistral |
 | `i18n` | translations, the language review of multilingual text | 100 | 0 | 0 | 0 | 0 | agy | claude, then an agy review |
 | `secret` | secrets, personal data (`LANE_MIX_SENSITIVE=1` with any kind) | 0 | 0 | 100 | 0 | 0 | claude | mistral |
 
@@ -107,9 +110,9 @@ env:
   box:
     agent_split_by_kind:
       specs_and_docs: { agy: 70, mistral: 20, claude: 10, backup: claude }
-      tests:          { claude: 70, mistral: 30, backup: mistral }
-      simple_coding:  { mistral: 80, claude: 20, backup: claude }
-      complex_coding: { claude: 80, mistral: 20, backup: mistral }
+      tests:          { claude: 70, grok: 15, mistral: 15, backup: mistral }
+      simple_coding:  { grok: 41, mistral: 39, claude: 20, backup: claude }
+      complex_coding: { claude: 80, grok: 10, mistral: 10, backup: mistral }
       i18n:           { agy: 100, backup: claude }
       secret:         { claude: 100, backup: mistral }
 ```

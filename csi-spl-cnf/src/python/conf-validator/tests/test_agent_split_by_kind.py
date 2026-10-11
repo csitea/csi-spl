@@ -16,7 +16,7 @@ ALL_ENV = Path(__file__).resolve().parents[4] / "csi-spl" / "all.env.yaml"
 SPEC_MAIN_BACKUP = {
     "specs_and_docs": ("agy", "claude"),
     "tests": ("claude", "mistral"),
-    "simple_coding": ("mistral", "claude"),
+    "simple_coding": ("grok", "claude"),
     "complex_coding": ("claude", "mistral"),
     "i18n": ("agy", "claude"),
     "secret": ("claude", "mistral"),

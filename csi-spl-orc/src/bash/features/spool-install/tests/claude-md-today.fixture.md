@@ -94,7 +94,7 @@ kind and let the per-kind main and backup vendors decide:
 |-------------------------|---------|---------|
 | specs, docs, plans, reviews (`specs_and_docs`) | agy     | claude  |
 | writing tests (`tests`) | claude  | mistral |
-| simple and routine coding (`simple_coding`) | mistral | claude  |
+| simple and routine coding (`simple_coding`) | grok    | claude  |
 | hard coding, architecture, hi-fi work (`complex_coding`) | claude  | mistral |
 | translations, language reviews (`i18n`) | agy     | claude  |
 | secrets, personal data (`secret`) | claude  | mistral |

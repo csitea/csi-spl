@@ -5,6 +5,7 @@ import { topicOf } from '~/utils/channel-feed.mjs'
 import { useChannelStore } from '~/stores/channel'
 import { useNotificationStore } from '~/stores/notification'
 import { usePaneFocus } from '~/stores/pane-focus'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 import type { SpoolMessage } from '~/types/spool'
 
 /** Which topic the pane shows (utils/topic-open.mjs topicTargetFor). */
@@ -16,6 +17,19 @@ export interface TopicTarget {
   rootMsgId: string
   /** message mode: the task the pinned root was posted in (the reply's parent) */
   parentTaskId: string
+}
+
+/*
+ * The thread just opened is read. t1 e4bfddb1: a channel card's open kept the
+ * Channels number, the row and the title until a reload, while the Flow's
+ * open (live.ts readOpen) dropped them at once: it also pushes the read to
+ * the hub, whose flow frame carries the counts. The card's open does too.
+ */
+async function readOpened(taskId: string, count: number) {
+  useNotificationStore().markTopicRead(taskId, count)
+  if (!import.meta.client) return
+  const sync = await import('~/utils/read-sync-boot')
+  sync.pushReads(useSpoolApi())
 }
 
 export const useTopicStore = defineStore('topic', () => {
@@ -71,7 +85,7 @@ export const useTopicStore = defineStore('topic', () => {
     usePaneFocus().openedTopic()
     /* CLE-77804 (topic 35053f95): opening the thread reads it — snapshot the
        current reply total so the card's "<unread>/<total>" clears to plain. */
-    if (next.taskId) useNotificationStore().markTopicRead(next.taskId, channel.repliesFor(next.taskId))
+    if (next.taskId) void readOpened(next.taskId, channel.repliesFor(next.taskId))
   }
 
   /** The channel / DM pane by task id (the pre-CLE-3427 entry point). */

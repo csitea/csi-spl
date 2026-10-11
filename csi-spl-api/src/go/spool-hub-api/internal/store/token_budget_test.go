@@ -85,7 +85,7 @@ func TestTokenBudgetUses(t *testing.T) {
 
 	// Levels: day 600/1000 = 60 %, month 2500/5000 = 50 %, top-up 2500/10000 = 25 %; channel 1000/750.
 	lv := w.Levels()
-	if len(lv) != 3 || lv[0].Limit != BudgetTokensPerDay || lv[0].Pct() != 60 || lv[1].Pct() != 50 || lv[2].Pct() != 25 ||
+	if len(lv) != 3 || lv[0].Limit != BudgetLimitDay || lv[0].Pct() != 60 || lv[1].Pct() != 50 || lv[2].Pct() != 25 ||
 		lv[2].Since != topup || lv[0].Reached(80) {
 		t.Errorf("workspace levels = %+v", lv)
 	}

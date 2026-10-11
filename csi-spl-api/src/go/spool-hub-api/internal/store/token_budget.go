@@ -27,9 +27,9 @@ import (
 
 // The limits of one budget, by their rdb 0171 column.
 const (
-	BudgetTokensPerDay   = "tokens_per_day"
-	BudgetTokensPerMonth = "tokens_per_month"
-	BudgetTopup          = "topup_micros"
+	BudgetLimitDay   = "tokens_per_day"
+	BudgetLimitMonth = "tokens_per_month"
+	BudgetLimitTopup = "topup_micros"
 )
 
 // TokenBudget is one token_budgets row. ChannelID "" = the workspace's
@@ -91,10 +91,10 @@ func (u BudgetUse) Levels() []BudgetLevel {
 	var out []BudgetLevel
 	day, month := BudgetWindows(u.At)
 	if u.TokensPerDay != nil {
-		out = append(out, BudgetLevel{BudgetTokensPerDay, big.NewRat(u.DayTokens, 1), *u.TokensPerDay, day})
+		out = append(out, BudgetLevel{BudgetLimitDay, big.NewRat(u.DayTokens, 1), *u.TokensPerDay, day})
 	}
 	if u.TokensPerMonth != nil {
-		out = append(out, BudgetLevel{BudgetTokensPerMonth, big.NewRat(u.MonthTokens, 1), *u.TokensPerMonth, month})
+		out = append(out, BudgetLevel{BudgetLimitMonth, big.NewRat(u.MonthTokens, 1), *u.TokensPerMonth, month})
 	}
 	if u.TopupMicros != nil {
 		spent, ok := new(big.Rat).SetString(u.SpentMicros)
@@ -103,7 +103,7 @@ func (u BudgetUse) Levels() []BudgetLevel {
 			// fail closed, never uncapped.
 			spent = big.NewRat(*u.TopupMicros, 1)
 		}
-		out = append(out, BudgetLevel{BudgetTopup, spent, *u.TopupMicros, u.ToppedUpAt})
+		out = append(out, BudgetLevel{BudgetLimitTopup, spent, *u.TopupMicros, u.ToppedUpAt})
 	}
 	return out
 }

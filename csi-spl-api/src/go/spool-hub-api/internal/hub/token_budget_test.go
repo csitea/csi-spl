@@ -97,7 +97,7 @@ func TestTokenBudgetTurns(t *testing.T) {
 	used(150) // 85 %: dispatched, the one notice
 	id, f = turn()
 	dispatched(id, f)
-	if nf := readType(t, owner, "token_budget"); nf["level"] != "low" || nf["limit"] != store.BudgetTokensPerDay ||
+	if nf := readType(t, owner, "token_budget"); nf["level"] != "low" || nf["limit"] != store.BudgetLimitDay ||
 		nf["pct"] != float64(85) || nf["hard_stop"] != true {
 		t.Fatalf("owner notice at 85 %%: %v", nf)
 	}

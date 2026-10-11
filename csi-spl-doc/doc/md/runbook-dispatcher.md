@@ -173,6 +173,8 @@ The dispatcher that takes real lane work spawns it itself.
    with `test -s`. The spawn starts even if the brief write failed. The brief
    must state the scope, the files it must NOT touch, how Done is proven, the topic it
    reports on, and "report to the dispatch lease holder".
+   A lane that works for a workspace also gets that workspace's section of
+   [workspace-rules.md](workspace-rules.md), copied in.
 5. Start the lane, vendor-neutral (it prints `<id>@<box> <pane>`):
    `SPOOL_ROOT=/var/spool-hub SPAWN_LANE_FILES=<path,...> SPAWN_LANE_TOPIC=<topic> bash $SA/spawn-window.sh <claude|grok|mistral|agy|qwen> auto <repo dir> <brief file> <short-slug>`.
    The fleet handles placement (`do_spl_box_pick`). Never pin `SPAWN_BOX` by

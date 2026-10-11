@@ -18,6 +18,7 @@ mention is a one-line pointer.
 | 1.6 | `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/{claude,grok,agy,qwen,mistral}-spawn.md` | a seat that runs that launcher | how to spawn or message one vendor's lane: count, brief, window, seed |
 | 1.7 | `csi-spl-doc/doc/help/how-to-post.md` | everyone who posts in the spool | the one rule for a post: markdown, no fence |
 | 1.8 | `csi-spl-doc/doc/md/developer-guide.md` | every coder, human or agent | explains the trunk strategy (rebase, push to master, CI deploys dev and prd, minted versions) and the never-force-push rule with what enforces it; homes no rule, points to each home |
+| 1.9 | `csi-spl-doc/doc/md/workspace-rules.md` | a dispatcher writing a brief for a workspace's lane, and that lane | rules the owner set for one workspace, one section per workspace id (`sienna`: every doc in English and Bulgarian) |
 
 ## 2. One home per rule
 
@@ -32,6 +33,7 @@ mention is a one-line pointer.
 | stay in your own lane („Всяка жаба да си знае гьола“): your brief only, a finding outside it to the orchestrator | 1.1 `25-stay-in-your-lane.md` | rendered, not copied, into every vendor's file: claude `~/.claude/CLAUDE.md` (y4; grok reads it through its default `compat.claude` scan), mistral `~/.vibe/AGENTS.md` (y8), agy `~/.gemini/config/rules/25-stay-in-your-lane.md` and qwen `~/.qwen/QWEN.md`, which is also qwen's memory file (y9); the mistral seed (`spawn-mistral.sh`, `spawn_rename_how`, one line), because vibe 2.26.0 keeps no memory file across sessions |
 | lane integration (commit, rebase, push, teardown) | the seed, `spawn-core.inc.sh` | 1.4 (the why) |
 | never force-push master (`--force`, `--force-with-lease`, `+ref`, nor `SPL_PREPUSH_OVERRIDE`) without the owner's explicit approval of that one push, which the owner may do by hand; a refused push is fetch, rebase, re-test, push again (owner, HUM-10 2026-10-10 msgs 853a4084, 1cdfa5ba, 097f9de3, 1ca01c83, 3e095a04: every agent type) | the seed, `NO_FORCE` in `spawn-core.inc.sh` (`_spawn_seed_blocks`), rendered into every kind's seed: c-, g-, a-, q-, m- (guard: `spawn-agents/tests/test-seed-no-force-push.sh`, with a control per kind) | 1.4 section 3.2 (the why); the seed's INTEGRATION (4) points to it |
+| sienna: every doc is `<name>.en.md` (default) AND `<name>.bg.md`, agy writes the Bulgarian (owner, HUM-10 sienna eb7f4883, msg c3ae5158) | 1.9 section 1.1 | `runbook-dispatcher.md` section 6 step 4 (one line: copy the workspace's section into the brief) |
 | refactoring rounds need no owner go: round N served -> the dispatcher requests round N+1's planner; panel and row lanes follow (owner, HUM-10 msg 3d22fcea) | 1.3 section 1.2 | the round plans `refactor-round-<N>-plan.md` (one line in their header) |
 
 ## 3. The drift check

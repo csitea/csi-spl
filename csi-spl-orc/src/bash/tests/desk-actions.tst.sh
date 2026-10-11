@@ -882,6 +882,17 @@ rm -rf "$T/state/dev/desk"; : >"$T/mute-sends.log"; mute t1 box-desk c-003 '23 h
 out="$(mutes)"
 [[ "$(sends)" == 0 && "$out" == *"MUTED seat c-003"* ]] && pass "CONTROL a mute under 24 h is listed and raises nothing" ||
   fail "young mute: $(sends) sends: $out"
+# The desk reconcile cron calls it as `ENV=<env> ./run -a do_spl_desk_check_mutes`:
+# it must resolve there, not only when every file is sourced (bfbc7c638 put it
+# in spl-desk-check.func.sh, so ./run answered NOT found on every tick), and
+# find the state dir with no SPL_STATE_DIR set, as the cron runs it.
+mkdir -p "$T/home/.local/share/csi-spl/cloud/dev/desk/t1/box-desk/spool/c-005"
+touch "$T/home/.local/share/csi-spl/cloud/dev/desk/t1/box-desk/spool/c-005/.no-poke"
+out="$(cd "$PROJ_ROOT" && env -u SPL_STATE_DIR PATH="$T/stub:$PATH" HOME="$T/home" ENV=dev SPOOL_ROOT="$T/spool" \
+  DESK_MUTE_ALARM_RAISE=0 ./run -a do_spl_desk_check_mutes 2>&1)"
+[[ "$out" != *"NOT found"* && "$out" == *"MUTED seat c-005 tenant t1 box box-desk"* && "$(sends)" == 0 ]] &&
+  pass "./run -a do_spl_desk_check_mutes resolves and lists the mute, as the cron calls it" ||
+  fail "./run -a do_spl_desk_check_mutes: $out"
 rm -rf "$T/state/dev/desk"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-actions.tst.sh assertions' || echo "$fails FAILED")"

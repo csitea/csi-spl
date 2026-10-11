@@ -90,7 +90,7 @@ kill "$busy_pid" 2>/dev/null; wait "$busy_pid" 2>/dev/null
 # ---- 3. the sweep runs the steps --------------------------------------------
 F="$T/fake" O="$T/fake-orc" L="$T/steps.log"
 mkdir -p "$F" "$O"
-for s in spl-session-prune tmp-stale-sweep wt-dead-sweep prune-docker-images; do
+for s in spl-session-prune tmp-stale-sweep wt-dead-sweep prune-docker-images journal-sweep runner-sweep; do
   printf '#!/bin/sh\necho "%s DRY_RUN=$DRY_RUN UNTIL=${PRUNE_UNTIL:-}" >>%q\n[ %s != tmp-stale-sweep ]\n' "$s" "$L" "$s" >"$F/$s.sh"
 done
 printf '#!/bin/sh\necho "go $* DRY_RUN=$DRY_RUN AGE=${GO_CACHE_MAX_AGE_MIN:-}" >>%q\n' "$L" >"$O/run"; chmod +x "$O/run"
@@ -102,7 +102,9 @@ want="spl-session-prune DRY_RUN=0 UNTIL=
 tmp-stale-sweep DRY_RUN=0 UNTIL=
 wt-dead-sweep DRY_RUN=0 UNTIL=
 go -a do_prune_go_build_cache DRY_RUN=0 AGE=1440
-prune-docker-images DRY_RUN=0 UNTIL=72h"
+prune-docker-images DRY_RUN=0 UNTIL=72h
+journal-sweep DRY_RUN=0 UNTIL=
+runner-sweep DRY_RUN=0 UNTIL="
 [ "$(cat "$L")" = "$want" ] && pass "3. the steps run in order, DRY_RUN and the docker age passed on" || fail "3. steps: $(cat "$L")"
 [ "$rc" = 1 ] && grep -q 'FAIL step tmp rc=1' <<<"$out" && grep -q 'DONE rc=1' <<<"$out" && pass "3. a failing step is reported and the next still runs" || fail "3. rc $rc ($out)"
 out="$(bsw BOX_SWEEP_STEPS='tmp rm-rf')"; rc=$?

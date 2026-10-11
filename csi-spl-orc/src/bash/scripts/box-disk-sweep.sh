@@ -10,6 +10,10 @@
 #   go         do_prune_go_build_cache  Go build-cache entries older than a day
 #   docker     prune-docker-images.sh   unused images + build cache older than BOX_SWEEP_DOCKER_UNTIL,
 #                                       then the build cache down to its cap
+#   journal    journal-sweep.sh         systemd journal down to BOX_SWEEP_JOURNAL_MAX (default 500M)
+#   runners    runner-sweep.sh          idle runners only: _work/_temp files and _diag/*.log older
+#                                       than BOX_SWEEP_RUNNER_AGE days (default 2); never
+#                                       _work/<repo>, .runner or .credentials*
 # A failing step is a FAIL line and the next step still runs. One sweep at a
 # time (flock); a second one started meanwhile skips.
 #
@@ -34,7 +38,10 @@
 # normal run is BOX_SWEEP_EVERY_MIN (240) old; a low / crit tick always runs.
 #
 #   DRY_RUN=1 (default) | 0           passed to every step
-#   BOX_SWEEP_STEPS        default "sessions tmp worktrees go docker"
+#   BOX_SWEEP_STEPS        default "sessions tmp worktrees go docker journal runners"
+#   BOX_SWEEP_JOURNAL_MAX  default 500M (journalctl --vacuum-size)
+#   BOX_SWEEP_RUNNER_ROOT  default /srv/gh-runner
+#   BOX_SWEEP_RUNNER_AGE   default 2 (days); idle runners only
 #   BOX_SWEEP_DOCKER_UNTIL default 72h (the session age, AGE_DAYS=3)
 #   BOX_SWEEP_GO_AGE_MIN   default 1440
 #   BOX_SWEEP_LOW_FREE_PCT / _CRIT_FREE_PCT              default 15 / 7
@@ -59,7 +66,7 @@ export PATH
 
 self_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 dry="${DRY_RUN:-1}"
-steps="${BOX_SWEEP_STEPS:-sessions tmp worktrees go docker}"
+steps="${BOX_SWEEP_STEPS:-sessions tmp worktrees go docker journal runners}"
 until="${BOX_SWEEP_DOCKER_UNTIL:-72h}"
 scripts="${BOX_SWEEP_SCRIPTS:-$self_dir}"
 orc="${BOX_SWEEP_ORC:-$(cd "$self_dir/../../.." && pwd)}"
@@ -69,6 +76,9 @@ cap_pct="${BOX_SWEEP_BUILDER_CAP_PCT:-10}"
 low_pct="${BOX_SWEEP_LOW_FREE_PCT:-15}" crit_pct="${BOX_SWEEP_CRIT_FREE_PCT:-7}"
 gate="${BOX_SWEEP_GATE:-0}" every="${BOX_SWEEP_EVERY_MIN:-240}"
 send="${BOX_SWEEP_SEND:-$orc/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+journal_max="${BOX_SWEEP_JOURNAL_MAX:-500M}"
+runner_root="${BOX_SWEEP_RUNNER_ROOT:-/srv/gh-runner}"
+runner_age="${BOX_SWEEP_RUNNER_AGE:-2}"
 export SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
@@ -100,12 +110,13 @@ note() {
 }
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || { say "FAIL DRY_RUN must be 0 or 1, got '$dry'"; exit 2; }
-for v in "$cap_pct" "$low_pct" "$crit_pct" "$every" "$go_age" "${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" "${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}"; do
+for v in "$cap_pct" "$low_pct" "$crit_pct" "$every" "$go_age" "${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" "${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}" "$runner_age"; do
   [[ "$v" =~ ^[0-9]+$ ]] || { say "FAIL the free %, age and interval limits must be whole numbers, got '$v'"; exit 2; }
 done
+[[ "$journal_max" =~ ^[0-9]+[KMGT]?$ ]] || { say "FAIL BOX_SWEEP_JOURNAL_MAX must be a size like 500M, got '$journal_max'"; exit 2; }
 [[ "$gate" == 0 || "$gate" == 1 ]] || { say "FAIL BOX_SWEEP_GATE must be 0 or 1, got '$gate'"; exit 2; }
 for s in $steps; do
-  case "$s" in sessions|tmp|worktrees|go|docker) ;; *) say "FAIL unknown step '$s'"; exit 2 ;; esac
+  case "$s" in sessions|tmp|worktrees|go|docker|journal|runners) ;; *) say "FAIL unknown step '$s'"; exit 2 ;; esac
 done
 exec 9>>"$lock" || { say "FAIL cannot open the lock $lock"; exit 2; }
 flock -n 9 || { say "SKIP another box disk sweep holds $lock"; exit 0; }
@@ -137,6 +148,8 @@ for s in $steps; do
     worktrees) DRY_RUN="$dry" bash "$scripts/wt-dead-sweep.sh" ;;
     go)        ( cd "$orc" && DRY_RUN="$dry" GO_CACHE_MAX_AGE_MIN="$go_age" ./run -a do_prune_go_build_cache ) ;;
     docker)    DRY_RUN="$dry" PRUNE_UNTIL="$until" PRUNE_BUILDER_CAP_PCT="$cap_pct" bash "$scripts/prune-docker-images.sh" ;;
+    journal)   DRY_RUN="$dry" BOX_SWEEP_JOURNAL_MAX="$journal_max" bash "$scripts/journal-sweep.sh" ;;
+    runners)   DRY_RUN="$dry" BOX_SWEEP_RUNNER_ROOT="$runner_root" BOX_SWEEP_RUNNER_AGE="$runner_age" bash "$scripts/runner-sweep.sh" ;;
   esac
   r=$?
   if [[ "$r" == 0 ]]; then say "STEP-OK $s $(df_line)"; else say "FAIL step $s rc=$r"; rc=1; fi

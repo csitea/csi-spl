@@ -150,3 +150,38 @@ func TestFlowMarkFrameThroughWake(t *testing.T) {
 		t.Fatalf("frame through the wake worker = %v", f)
 	}
 }
+
+// Spec 130 section 2: ?fold=day answers one line per topic per UTC day, with
+// its link and the mark opening it writes; kind=release needs the fold, and
+// a release line's mark f:rel:<version> is a valid read mark.
+func TestFlowFoldRoute(t *testing.T) {
+	e := followEnv(t)
+	tid, _ := e.tenant()
+	two := dialFlowMember(t, e, tid, "HUM-2")
+	for _, body := range []string{"hey @HUM-1 look", "and again @HUM-1"} {
+		wsjson.Write(context.Background(), two, map[string]any{"type": "send", "task_id": "lobby", "kind": "chat", "body": body}) //nolint:errcheck
+		readFrame(t, two, "ack")
+	}
+	// kind=mention: release lines are estate-wide, other tests' on a shared database.
+	code, out := call(t, e, tid, http.MethodGet, "/v1/view/flow?fold=day&kind=mention", "HUM-1", nil)
+	lines, _ := out["lines"].([]any)
+	if code != http.StatusOK || len(lines) != 1 || out["next"] != "" || out["events"] != nil {
+		t.Fatalf("GET ?fold=day: %d %v", code, out)
+	}
+	l := lines[0].(map[string]any)
+	ids, _ := l["ids"].([]any)
+	if l["kind"] != "mention" || l["count"] != float64(2) || len(ids) != 1 || ids[0] != "HUM-2" || l["mark"] != "t:"+lobby ||
+		l["link"] != "/t/"+lobby+"#"+l["msg_id"].(string) || l["text"] != "and again @HUM-1" || l["unread"] != true {
+		t.Fatalf("folded line = %v", l)
+	}
+	if code, _ := call(t, e, tid, http.MethodGet, "/v1/view/flow?kind=release", "HUM-1", nil); code != http.StatusBadRequest {
+		t.Errorf("kind=release without fold: %d, want 400", code)
+	}
+	if code, _ := call(t, e, tid, http.MethodGet, "/v1/view/flow?fold=day&kind=release", "HUM-1", nil); code != http.StatusOK {
+		t.Errorf("kind=release with fold: %d, want 200", code)
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if code, out := call(t, e, tid, http.MethodPut, "/v1/me/reads", "HUM-1", map[string]any{"marks": map[string]any{"f:rel:v1.3.400": map[string]any{"ts": now}}}); code != http.StatusOK {
+		t.Fatalf("PUT f:rel:<version>: %d %v", code, out)
+	}
+}

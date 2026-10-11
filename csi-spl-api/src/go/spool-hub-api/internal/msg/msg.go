@@ -106,7 +106,13 @@ type Message struct {
 	// disallows unknown keys), so nothing may set it before every reader
 	// knows it (spec 067 L4).
 	RefTaskID string `json:"ref_task_id,omitempty"`
-	Sig       string `json:"sig,omitempty"`
+	// Accepts is the msg_id of the result this line accepts (spec 130
+	// section 4): the hub labels the line's flow events `ready`. Optional and
+	// omitted while empty, like ref_task_id: the bytes and signature of a
+	// message without it are unchanged, and a reader that predates it
+	// refuses an object that carries it.
+	Accepts string `json:"accepts,omitempty"`
+	Sig     string `json:"sig,omitempty"`
 }
 
 // Canonical returns the signing payload: the object with sig removed, keys
@@ -190,6 +196,9 @@ func (m *Message) Validate() error {
 	}
 	if m.RefTaskID != "" && !uuidRe.MatchString(m.RefTaskID) {
 		return fmt.Errorf("ref_task_id %q is not a uuid", m.RefTaskID)
+	}
+	if m.Accepts != "" && !uuidRe.MatchString(m.Accepts) {
+		return fmt.Errorf("accepts %q is not a uuid", m.Accepts)
 	}
 	if len(m.Body) > MaxBodyBytes {
 		return fmt.Errorf("body %d bytes exceeds limit %d", len(m.Body), MaxBodyBytes)

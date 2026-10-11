@@ -240,3 +240,34 @@ func TestRefTaskID(t *testing.T) {
 		}
 	}
 }
+
+// Spec 130 section 4: accepts is optional, like ref_task_id. Unset, the
+// canonical bytes are unchanged; set, it round-trips and must be a uuid.
+func TestAccepts(t *testing.T) {
+	m := sample()
+	plain, err := Canonical(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plain), "accepts") {
+		t.Fatalf("unset accepts is in the canonical bytes: %s", plain)
+	}
+	m.Accepts = "0b6e8f2a-1c3d-4e5f-8a9b-0c1d2e3f4a5b"
+	if err := m.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := Parse(raw)
+	if err != nil || back.Accepts != m.Accepts {
+		t.Fatalf("round trip: %v %q", err, back.Accepts)
+	}
+	for _, bad := range []string{"t1", "0B6E8F2A-1C3D-4E5F-8A9B-0C1D2E3F4A5B", "0b6e8f2a1c3d4e5f8a9b0c1d2e3f4a5b"} {
+		m.Accepts = bad
+		if err := m.Validate(); err == nil {
+			t.Fatalf("accepts %q accepted", bad)
+		}
+	}
+}

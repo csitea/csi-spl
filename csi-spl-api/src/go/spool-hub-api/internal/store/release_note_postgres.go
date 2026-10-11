@@ -62,7 +62,10 @@ func (s *Postgres) queryReleaseNotes(ctx context.Context, withSeq bool, sql stri
 	return out, rows.Err()
 }
 
-// PutReleaseNotes is ONE multi-row upsert per batch.
+// PutReleaseNotes is ONE multi-row upsert per batch. released_at (rdb 0177,
+// spec 130 section 4) is set once: on the insert of a row that has a
+// version, or when a stored row without one gets it; a re-sent row never
+// restamps it.
 func (s *Postgres) PutReleaseNotes(ctx context.Context, batch []ReleaseNote, now time.Time) error {
 	if len(batch) == 0 {
 		return nil
@@ -70,7 +73,7 @@ func (s *Postgres) PutReleaseNotes(ctx context.Context, batch []ReleaseNote, now
 	if len(batch) > ReleaseBatchMax {
 		return fmt.Errorf("release note batch of %d rows, max %d", len(batch), ReleaseBatchMax)
 	}
-	const cols = 16
+	const cols = 17
 	nullable := func(v string) any {
 		if v == "" {
 			return nil
@@ -101,19 +104,30 @@ func (s *Postgres) PutReleaseNotes(ctx context.Context, batch []ReleaseNote, now
 		}
 		sb.WriteString(")")
 		args = append(args, n.SHA, nullable(n.Version), n.CommittedAt.UTC(), n.Kind, n.Area, n.Subject,
-			n.LayWhat, n.LayHow, n.LayWhy, n.TechWhat, n.TechHow, n.TechWhy, n.State, nullable(n.Reverts), n.Link, now.UTC())
+			n.LayWhat, n.LayHow, n.LayWhy, n.TechWhat, n.TechHow, n.TechWhy, n.State, nullable(n.Reverts), n.Link, now.UTC(),
+			releasedAt(n.Version, now))
 	}
 	_, err := s.pool.Exec(ctx, `INSERT INTO release_notes (sha, version, committed_at, kind, area, subject,
-		lay_what, lay_how, lay_why, tech_what, tech_how, tech_why, state, reverts, link, ingested_at)
+		lay_what, lay_how, lay_why, tech_what, tech_how, tech_why, state, reverts, link, ingested_at, released_at)
 		VALUES `+sb.String()+`
 		ON CONFLICT (sha) DO UPDATE SET
 			version = coalesce(release_notes.version, EXCLUDED.version),
+			released_at = CASE WHEN release_notes.version IS NULL THEN EXCLUDED.released_at ELSE release_notes.released_at END,
 			committed_at = EXCLUDED.committed_at, kind = EXCLUDED.kind, area = EXCLUDED.area,
 			subject = EXCLUDED.subject, lay_what = EXCLUDED.lay_what, lay_how = EXCLUDED.lay_how,
 			lay_why = EXCLUDED.lay_why, tech_what = EXCLUDED.tech_what, tech_how = EXCLUDED.tech_how,
 			tech_why = EXCLUDED.tech_why, state = EXCLUDED.state, reverts = EXCLUDED.reverts,
 			link = EXCLUDED.link, ingested_at = EXCLUDED.ingested_at`, args...)
 	return err
+}
+
+// releasedAt is the released_at of a row upserted at now: now when it
+// carries a version, else NULL.
+func releasedAt(version string, now time.Time) any {
+	if version == "" {
+		return nil
+	}
+	return now.UTC()
 }
 
 func (s *Postgres) ReleaseNote(ctx context.Context, ref string) (ReleaseNote, error) {

@@ -77,7 +77,11 @@ func flowQuery(r *http.Request) (store.FlowQuery, bool) {
 	v := r.URL.Query()
 	q := store.FlowQuery{Limit: flowLimitDefault, Kind: v.Get("kind")}
 	switch q.Kind {
-	case "", store.FlowMention, store.FlowReply, store.FlowDM:
+	case "", store.FlowMention, store.FlowReply, store.FlowDM, store.FlowBlocked, store.FlowReady:
+	case store.FlowRelease:
+		if v.Get("fold") != "day" {
+			return q, false
+		}
 	default:
 		return q, false
 	}
@@ -121,10 +125,14 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 	}
 	q, valid := flowQuery(r)
 	if !valid {
-		writeErr(w, http.StatusBadRequest, "bad_query", "limit 1..50; kind mention|reply|dm; before a cursor")
+		writeErr(w, http.StatusBadRequest, "bad_query", "limit 1..50; kind mention|reply|dm|blocked|ready (release with fold=day); before a cursor")
 		return
 	}
 	q.Tenant, q.Member, q.Now, q.Lobby = t.ID, hum, s.o.Now(), s.o.LobbyTaskID
+	if r.URL.Query().Get("fold") == "day" && q.Limit > 0 {
+		s.writeFlowFold(w, r, q, hum)
+		return
+	}
 	p, err := fe.FlowRead(r.Context(), q)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("flow read")

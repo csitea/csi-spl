@@ -21,6 +21,18 @@ to disk. Any change is a `v` bump, never an in-place edit.
 | `files` | array | 0..N file refs (below); MAY be empty |
 | `sig` | string | **omitted in local mode**. Hub mode: not on this inner object — see box envelope in `trust-modes.md` |
 
+### Optional keys
+
+Omitted while empty, so the canonical bytes, and every signature, of an
+object without them are unchanged. A reader that predates a key refuses an
+object that carries it (unknown keys are rejected), so no sender sets one
+before every reader on its path knows it.
+
+| field | type | rule |
+|---|---|---|
+| `ref_task_id` | string | lower-case UUID: the channel topic a DM is about (spec 067 3.3) |
+| `accepts` | string | lower-case UUID: the `msg_id` of the result this line accepts. The hub labels the line's Flow events `ready` (spec 130 section 4); no body is parsed |
+
 ### File ref
 
 | field | type | rule |

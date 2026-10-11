@@ -86,7 +86,7 @@ SELECT msg_id::text, received_at, env, edited_at, edited_by,
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))
 			ORDER BY received_at DESC, msg_id::text DESC
 			LIMIT $6
--- @@stmt flow_counts sha256=62d1cf0828d344e4826910dd8859ed006afadb8d90fada2070bb3a5d51314c6f scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
+-- @@stmt flow_counts sha256=9234dfff9c0c23360ce376e35bd512ec13c44296441f76a6737e75f35631b6cc scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2
 			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2 AND x.place_key > fp.k)
@@ -110,7 +110,9 @@ WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tena
 			FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm
 			WHERE fe.expires_at > $3 AND fm.expires_at > $3 AND CASE WHEN fm.channel IS NULL THEN fe.member_id IN (fm.to_id, fm.from_id)
 		WHEN fm.channel = ANY($4::text[]) THEN true
-		ELSE EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = fe.tenant_id AND h.channel_id = fm.channel AND h.human_id = fe.member_id)
+		ELSE (EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = fe.tenant_id AND h.channel_id = fm.channel AND h.human_id = fe.member_id)
+				OR EXISTS (SELECT 1 FROM channel_subscriptions cs WHERE cs.tenant_id = fe.tenant_id AND cs.channel_id = fm.channel
+					AND cs.agent_id = split_part(fe.member_id, '@', 1) AND cs.box_id = split_part(fe.member_id, '@', 2) AND cs.origin <> 'removed'))
 			AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = fe.tenant_id AND dc.channel_id = fm.channel AND dc.archived_at IS NOT NULL) END AND NOT (NOT (true AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = fe.tenant_id AND z.archived_at IS NOT NULL
 		AND (z.msg_id = fm.msg_id OR z.msg_id = fm.task_id
 			OR (z.task_id = fm.task_id AND fm.task_id::text <> $5::text)
@@ -120,12 +122,12 @@ WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tena
 				CASE WHEN fm.channel IS NULL THEN 'dm:' || fm.from_id ELSE 'ch:' || fm.channel END,
 				CASE WHEN fm.channel IS NULL THEN 'dm:' || fm.from_id || '@' || fm.from_box END)
 			AND (fm.received_at, fm.msg_id::text) <= (r.at, r.msg_id))))
-		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke')),
+		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),
 			count(*) FILTER (WHERE fc.unseen AND fc.in_ch),
 			count(*) FILTER (WHERE fc.unseen AND NOT fc.in_ch),
-			count(*) FILTER (WHERE fc.kind IN ('mention', 'poke')),
+			count(*) FILTER (WHERE fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.kind = 'dm'),
 			count(*) FILTER (WHERE fc.in_ch),

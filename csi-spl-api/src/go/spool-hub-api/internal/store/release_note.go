@@ -214,6 +214,8 @@ func numberReleaseNotes(all map[string]ReleaseNote, out []ReleaseNote) {
 var (
 	memReleaseMu sync.Mutex
 	memReleases  = map[*Memory]map[string]ReleaseNote{}
+	// memReleased is released_at per sha (rdb 0177), set once.
+	memReleased = map[*Memory]map[string]time.Time{}
 )
 
 func (s *Memory) releases() map[string]ReleaseNote {
@@ -242,6 +244,13 @@ func (s *Memory) PutReleaseNotes(_ context.Context, batch []ReleaseNote, now tim
 		}
 		if old, ok := r[n.SHA]; ok && old.Version != "" {
 			n.Version = old.Version
+		}
+		if rel := memReleased[s]; n.Version != "" && rel[n.SHA].IsZero() {
+			if rel == nil {
+				rel = map[string]time.Time{}
+				memReleased[s] = rel
+			}
+			rel[n.SHA] = now.UTC()
 		}
 		n.CommittedAt, n.IngestedAt = n.CommittedAt.UTC(), now.UTC()
 		r[n.SHA] = n

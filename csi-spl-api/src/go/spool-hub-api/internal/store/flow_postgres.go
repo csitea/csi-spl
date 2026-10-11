@@ -16,60 +16,78 @@ import (
 // cov_at (rdb 0137: spool_flow_place_key, the line's received_at), which the
 // messages trigger keeps current on a move or merge. Parameters: the
 // insert's ($1 tenant, $2 msg_id, $3 task_id, $4 channel, $6 from_box, $7
-// from_id, $9 to_id, $16 received_at, $17 expires_at) and four of its own
-// from $n: the author seat ("" = an agent),
-// the human seats mentioned, the task a poke DM links to (NULL = not a
-// poke) and whether the channel is public.
+// from_id, $16 received_at, $17 expires_at) and seven of its own from $n
+// (flowInsertArgs): the author seat ("" = an agent), the members mentioned,
+// the task a poke DM links to (NULL = not a poke), whether the channel is
+// public, the `to` as a member key, the agent author as <id>@<box> and the
+// line kind (NULL = each member's rank).
 //
 // Ranks are flowKinds: 1 mention, 2 poke, 3 dm, 4 reply. A channel line
-// goes to the mentioned seats and its `to` (1) and the thread's watchers
+// goes to the mentioned members and its `to` (1) and the thread's watchers
 // (4), behind the channel's read door; a DM goes to its `to` only (1 when
 // it mentions them, 2 when it is a poke, else 3). A poke whose `to` has a
-// mention in the linked task folds into it: no row.
+// mention in the linked task folds into it: no row. A blocker line and a
+// line that carries `accepts` label every event blocked / ready (spec 130
+// section 4). An agent (<id>@<box>, spec 130 section 5) takes rank 1 of a
+// channel line only, behind its channel_subscriptions door, and never
+// watches: its inbox already delivers DMs and replies.
 func flowInsertCTE(n int) string {
-	a, ms, pk, pub := fmt.Sprintf("$%d::text", n), fmt.Sprintf("$%d::text[]", n+1), fmt.Sprintf("$%d::uuid", n+2), fmt.Sprintf("$%d::bool", n+3)
+	p := func(i int, typ string) string { return fmt.Sprintf("$%d::%s", n+i, typ) }
+	a, ms, pk, pub := p(0, "text"), p(1, "text[]"), p(2, "uuid"), p(3, "bool")
+	to, snd, lbl := p(4, "text"), p(5, "text"), p(6, "text")
+	agent := `c.member_id ` + fmt.Sprintf(flowAgentSQL, "c.member_id")
 	return `,
 	flow_cand AS (
 		SELECT c.member_id, min(c.rnk) AS rnk FROM (
 			SELECT unnest(` + ms + `) AS member_id, 1 AS rnk WHERE $4::text IS NOT NULL
-			UNION ALL SELECT $9::text, 1 WHERE $4::text IS NOT NULL
-			UNION ALL SELECT $9::text, CASE WHEN $9::text = ANY(` + ms + `) THEN 1 WHEN ` + pk + ` IS NOT NULL THEN 2 ELSE 3 END WHERE $4::text IS NULL
+			UNION ALL SELECT ` + to + `, 1 WHERE $4::text IS NOT NULL
+			UNION ALL SELECT ` + to + `, CASE WHEN ` + to + ` = ANY(` + ms + `) THEN 1 WHEN ` + pk + ` IS NOT NULL THEN 2 ELSE 3 END WHERE $4::text IS NULL
 			UNION ALL SELECT w.member_id, 4 FROM flow_watches w WHERE w.tenant_id = $1 AND w.task_id = $3 AND $4::text IS NOT NULL
 		) c
-		WHERE c.member_id ~ '^(HUM|GST)-[0-9]+$' AND c.member_id <> ` + a + `
+		WHERE c.member_id <> ` + a + ` AND c.member_id <> ` + snd + ` AND (c.member_id ~ '^(HUM|GST)-[0-9]+$'
+			OR c.rnk = 1 AND $4::text IS NOT NULL AND ` + agent + `)
 		  AND ($4::text IS NULL OR ` + pub + ` OR (
-			EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = $1 AND h.channel_id = $4 AND h.human_id = c.member_id)
+			(EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = $1 AND h.channel_id = $4 AND h.human_id = c.member_id)
+				OR EXISTS (SELECT 1 FROM channel_subscriptions cs WHERE cs.tenant_id = $1 AND cs.channel_id = $4
+					AND cs.agent_id = split_part(c.member_id, '@', 1) AND cs.box_id = split_part(c.member_id, '@', 2) AND cs.origin <> 'removed'))
 			AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = $1 AND dc.channel_id = $4 AND dc.archived_at IS NOT NULL)))
 		GROUP BY c.member_id),
 	flow_w AS (INSERT INTO flow_watches (tenant_id, task_id, member_id, since)
-		SELECT $1, $3, x.member_id, $16 FROM (SELECT ` + a + ` AS member_id WHERE ` + a + ` <> '' UNION SELECT member_id FROM flow_cand WHERE rnk < 4) x
+		SELECT $1, $3, x.member_id, $16 FROM (SELECT ` + a + ` AS member_id WHERE ` + a + ` <> ''
+			UNION SELECT member_id FROM flow_cand WHERE rnk < 4 AND member_id ~ '^(HUM|GST)-[0-9]+$') x
 		WHERE EXISTS (SELECT 1 FROM ins)
 		ON CONFLICT DO NOTHING),
 	flow_e AS (INSERT INTO flow_events (tenant_id, member_id, msg_id, task_id, kind, at, expires_at, place_key, cov_at)
-		SELECT $1, f.member_id, $2, $3, (ARRAY['mention', 'poke', 'dm', 'reply'])[f.rnk], $16, $17,
+		SELECT $1, f.member_id, $2, $3, coalesce(` + lbl + `, (ARRAY['mention', 'poke', 'dm', 'reply'])[f.rnk]), $16, $17,
 			spool_flow_place_key($4::text, $7::text, $6::text), $16 FROM flow_cand f
 		WHERE EXISTS (SELECT 1 FROM ins) AND NOT (f.rnk = 2 AND EXISTS (SELECT 1 FROM flow_events x
 			WHERE x.tenant_id = $1 AND x.member_id = f.member_id AND x.task_id = ` + pk + ` AND x.kind = 'mention'))
 		ON CONFLICT DO NOTHING)`
 }
 
-// flowInsertArgs are flowInsertCTE's four parameters for m.
+// flowInsertArgs are flowInsertCTE's seven parameters for m.
 func flowInsertArgs(m Message) []any {
 	t := flowTargetsOf(m)
-	var poke any
+	var poke, label any
 	if t.poke != "" {
 		poke = t.poke
 	}
-	return []any{t.author, t.mentions, poke, t.public}
+	if t.label != "" {
+		label = t.label
+	}
+	return []any{t.author, t.mentions, poke, t.public, t.to, t.sender, label}
 }
 
 // flowDoorSQL is the read door on event e of message m for e's member:
-// a DM by its two ends, a created channel by its (unarchived) member list,
-// a public channel ($pub text[]) for every member.
+// a DM by its two ends, a created channel by its (unarchived) member list
+// (an agent <id>@<box> by its channel_subscriptions row), a public channel
+// ($pub text[]) for every member.
 func flowDoorSQL(e, m, pub string) string {
 	return ` AND CASE WHEN ` + m + `.channel IS NULL THEN ` + e + `.member_id IN (` + m + `.to_id, ` + m + `.from_id)
 		WHEN ` + m + `.channel = ANY(` + pub + `) THEN true
-		ELSE EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = ` + e + `.tenant_id AND h.channel_id = ` + m + `.channel AND h.human_id = ` + e + `.member_id)
+		ELSE (EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = ` + e + `.tenant_id AND h.channel_id = ` + m + `.channel AND h.human_id = ` + e + `.member_id)
+				OR EXISTS (SELECT 1 FROM channel_subscriptions cs WHERE cs.tenant_id = ` + e + `.tenant_id AND cs.channel_id = ` + m + `.channel
+					AND cs.agent_id = split_part(` + e + `.member_id, '@', 1) AND cs.box_id = split_part(` + e + `.member_id, '@', 2) AND cs.origin <> 'removed'))
 			AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = ` + e + `.tenant_id AND dc.channel_id = ` + m + `.channel AND dc.archived_at IS NOT NULL) END`
 }
 
@@ -132,12 +150,12 @@ func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 			FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm
 			WHERE fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
 		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm", lobby) + `)
-		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke')),
+		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),
 			count(*) FILTER (WHERE fc.unseen AND fc.in_ch),
 			count(*) FILTER (WHERE fc.unseen AND NOT fc.in_ch),
-			count(*) FILTER (WHERE fc.kind IN ('mention', 'poke')),
+			count(*) FILTER (WHERE fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.kind = 'dm'),
 			count(*) FILTER (WHERE fc.in_ch),
@@ -180,7 +198,7 @@ func flowKindsFilter(kind string) []string {
 	case "":
 		return nil
 	case FlowMention:
-		return []string{FlowMention, FlowPoke}
+		return []string{FlowMention, FlowPoke, FlowBlocked, FlowReady}
 	}
 	return []string{kind}
 }
@@ -254,13 +272,14 @@ func (s *Postgres) FlowFanout(ctx context.Context, tenant, msgID string, members
 // EXISTS is not leakproof, so it could not be an index condition and every
 // mark filtered the tenant's whole messages table; r.msg_id is a plain column,
 // one messages_pkey probe per mark. A non-uuid key stays NULL, matches nothing
-// and is deleted as before. gone is materialized once, so the DELETE does not
+// and is deleted as before; a release mark f:rel:<version> (spec 130) has no
+// message and is kept. gone is materialized once, so the DELETE does not
 // re-run the anti-join per read_marks row.
 const flowMarkSweepSQL = `WITH r AS MATERIALIZED (
 		SELECT tenant_id, member_id, mark_key,
 			CASE WHEN substr(mark_key, 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 				THEN substr(mark_key, 3)::uuid END AS msg_id
-		FROM read_marks WHERE mark_key LIKE 'f:%' AND mark_key <> 'f:seen' AND updated_at <= $1),
+		FROM read_marks WHERE mark_key LIKE 'f:%' AND mark_key <> 'f:seen' AND mark_key NOT LIKE 'f:rel:%' AND updated_at <= $1),
 	gone AS MATERIALIZED (SELECT r.tenant_id, r.member_id, r.mark_key FROM r
 		WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = r.tenant_id AND m.msg_id = r.msg_id)
 		LIMIT $2)

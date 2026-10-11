@@ -3,6 +3,8 @@ package store
 import (
 	"regexp"
 	"strings"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 )
 
 // The Go port of the WUI's mention grammar (spec 062 FR-014): MENTION_RE in
@@ -116,8 +118,32 @@ func isWordByte(b byte) bool {
 // flowMemberRe: a member with a human seat (spec 062 Q5: only they get events).
 var flowMemberRe = regexp.MustCompile(`^(HUM|GST)-[0-9]+$`)
 
-// IsFlowMember: id is a HUM-/GST- seat, the only ids that get flow events.
+// IsFlowMember: id is a HUM-/GST- seat. Seats get every flow kind.
 func IsFlowMember(id string) bool { return flowMemberRe.MatchString(id) }
+
+// flowAgentSQL is IsFlowAgent in SQL, for a member_id column.
+const flowAgentSQL = `~ '^([acgmq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}$' AND %[1]s !~ '^(HUM|GST)-'`
+
+// IsFlowAgent: key is an agent's flow member key <id>@<box> (spec 130
+// section 5): one id runs on several boxes, so a bare id would mix two
+// agents' flows. Agents get mention, blocked and ready, never dm or reply:
+// their spool inbox already delivers those.
+func IsFlowAgent(key string) bool {
+	id, _ := agentid.SplitAtBox(key)
+	return agentid.IsAtBox(key) && !IsFlowMember(id)
+}
+
+// flowMemberKey is the flow member_id of a line end: a seat by its id, an
+// agent by <id>@<box>, "" when it is neither.
+func flowMemberKey(id, box string) string {
+	switch {
+	case IsFlowMember(id):
+		return id
+	case IsFlowAgent(id + "@" + box):
+		return id + "@" + box
+	}
+	return ""
+}
 
 // pokeRe is the WUI poke DM (spec 042 K1, utils/mention-poke.mjs pokeBody +
 // cardLink): `<ID> needs you in <origin>/t/<task_id>: "<excerpt>"`.
@@ -131,15 +157,29 @@ func PokeTask(body string) string {
 	return ""
 }
 
-// flowMentions is the human seats body mentions, each once, never author.
+// flowMentions is the members body mentions, each once, never author: the
+// human seats, and the agents named with their box (@c-002@box-a). A bare
+// agent id names no one box, so it gives no event.
 func flowMentions(body, author string) []string {
 	out := []string{}
 	seen := map[string]bool{author: true}
-	for _, id := range MentionedIDs(body) {
-		if !seen[id] && IsFlowMember(id) {
-			seen[id] = true
-			out = append(out, id)
+	for i := 0; i < len(body); i++ {
+		if body[i] != '@' {
+			continue
 		}
+		id, end, ok := mentionAt(body, i)
+		if !ok {
+			continue
+		}
+		key := id
+		if !IsFlowMember(id) {
+			key = body[i+1 : end]
+		}
+		if !seen[key] && (IsFlowMember(key) || IsFlowAgent(key)) {
+			seen[key] = true
+			out = append(out, key)
+		}
+		i = end - 1
 	}
 	return out
 }

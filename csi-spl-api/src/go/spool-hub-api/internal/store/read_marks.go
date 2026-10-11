@@ -33,11 +33,14 @@ const MaxReadMarks = 200
 
 var (
 	readMarkKeyRe = regexp.MustCompile(`^(ch|t|dm):[^\s]{1,200}$`)
-	flowMarkKeyRe = regexp.MustCompile(`^f:(seen|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$`)
+	// f:rel:<version> takes releaseVersionRe's grammar (a store test pins it).
+	flowMarkKeyRe = regexp.MustCompile(`^f:(seen|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}` +
+		`|rel:v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(?:-c(?:[2-9]|[1-9][0-9]{1,3}))?)$`)
 )
 
 // ValidReadMarkKey: ch:/t:/dm: and 1..200 non-space characters (rdb 0098
-// CHECK), or a Flow mark, f:seen or f:<msg_id> (rdb 0104, spec 062).
+// CHECK), or a Flow mark, f:seen or f:<msg_id> (rdb 0104, spec 062), or
+// f:rel:<version>, an opened release line (spec 130 section 2.5).
 func ValidReadMarkKey(k string) bool {
 	return readMarkKeyRe.MatchString(k) || flowMarkKeyRe.MatchString(k)
 }

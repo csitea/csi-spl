@@ -23,12 +23,12 @@ func flowCountsOracleSQL(tenant, member, now, pub, lobby string) string {
 			FROM flow_events fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id
 			WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
 		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm", lobby) + `)
-		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke')),
+		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),
 			count(*) FILTER (WHERE fc.unseen AND fc.in_ch),
 			count(*) FILTER (WHERE fc.unseen AND NOT fc.in_ch),
-			count(*) FILTER (WHERE fc.kind IN ('mention', 'poke')),
+			count(*) FILTER (WHERE fc.kind IN ('mention', 'poke', 'blocked', 'ready')),
 			count(*) FILTER (WHERE fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.kind = 'dm'),
 			count(*) FILTER (WHERE fc.in_ch),

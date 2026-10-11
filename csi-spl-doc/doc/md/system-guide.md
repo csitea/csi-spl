@@ -359,3 +359,9 @@ This System guide is one of four guides designed to rebuild the fleet from scrat
 4. **System guide** (G4): This guide, detailing the architecture, components, and integrations.
 
 Together, they allow a new operator to fully reconstruct the Spool Hub without prior knowledge.
+
+## 12. Gaps
+
+- The spool CLI currently has no doctree verbs (API for Qto docs). Complex Qto docs with headings, code blocks, tables, and mermaid diagrams cannot be created or updated via the terminal, requiring a fallback to markdown in the repo.
+- The relay key and sales agent key are minted out of band, not via terraform.
+- Pushing to master with a force-push requires owner approval by hand.

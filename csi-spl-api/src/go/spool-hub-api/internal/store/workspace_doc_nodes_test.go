@@ -32,8 +32,12 @@ func wsNodesPG(t *testing.T) (*Postgres, string) {
 		docNodePlant.noShift = true
 		t.Logf("CONTROL plant=%s is on: this run must go red", p)
 		t.Cleanup(func() { docNodePlant.noShift = false })
+	case "movekeepparent":
+		docNodeMovePlant.keepParent = true
+		t.Logf("CONTROL plant=%s is on: this run must go red", p)
+		t.Cleanup(func() { docNodeMovePlant.keepParent = false })
 	default:
-		t.Fatalf("SPOOL_TEST_WSDOC_NODE_PLANT=%q: want noshift", p)
+		t.Fatalf("SPOOL_TEST_WSDOC_NODE_PLANT=%q: want noshift or movekeepparent", p)
 	}
 	return pg, tid
 }

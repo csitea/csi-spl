@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// The twelve doctree verbs on 2026-10-11; TestDocTreeHelpListsTheDispatchTable
-// catches a thirteenth that the help page would miss.
-var dtHelpVerbs = []string{"list", "nodes", "folder", "create", "head", "read",
+// The thirteen doctree verbs on 2026-10-12; TestDocTreeHelpListsTheDispatchTable
+// catches a fourteenth that the help page would miss.
+var dtHelpVerbs = []string{"list", "nodes", "folder", "move-node", "create", "head", "read",
 	"add", "edit", "move", "delete", "rename", "export"}
 
 // dtHelpPageOK checks one help page: every verb with its usage line, and the

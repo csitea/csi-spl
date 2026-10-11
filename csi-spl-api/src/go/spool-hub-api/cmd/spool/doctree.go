@@ -337,6 +337,21 @@ func dtFolder(ctx context.Context, cfg *config.Config, args []string) error {
 	})
 }
 
+// dtMoveNode moves a folder (with its subtree) or a document in the
+// explorer tree (spec 120 section 7; gap topic t1 b67d5dc7). The node id is
+// the one doctree nodes lists, not the document id.
+func dtMoveNode(ctx context.Context, cfg *config.Config, args []string) error {
+	fs := newDTFlags("move-node", "usage: spool doctree move-node <node> [--parent folder-id]")
+	parent := fs.String("parent", "", "the new parent folder (none = the top level)")
+	pos, err := fs.parse(args, 1, 1)
+	if err != nil {
+		return err
+	}
+	return dtRun(ctx, cfg, func(c *dtClient) ([]byte, error) {
+		return c.json(ctx, http.MethodPost, docTreeAPI+"/nodes/"+url.PathEscape(pos[0])+"/move", map[string]any{"parent": *parent}, nil)
+	})
+}
+
 func dtCreate(ctx context.Context, cfg *config.Config, args []string) error {
 	fs := newDTFlags("create", "usage: spool doctree create --title t [--folder id] [--description d]")
 	title := fs.String("title", "", "the document title")

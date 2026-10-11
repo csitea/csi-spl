@@ -8,8 +8,8 @@ import (
 )
 
 // The Qto explorer's folders (spec 120 section 7, the subset the + New
-// folder button needs; owner t1 3b8891e0): one folder's children, and a
-// folder create. The store ops are workspace_doc_nodes.go's; the caller rule
+// folder button needs; owner t1 3b8891e0): one folder's children, a
+// folder create, and a node move (gap topic t1 b67d5dc7). The store ops are workspace_doc_nodes.go's; the caller rule
 // and the outcomes are wsdoc_tree.go's (docTreeCaller, docTreeFail).
 
 // docTreeNode is one listed node on the wire. id is "" for a document an
@@ -73,4 +73,26 @@ func (s *Server) handleDocTreeFolderCreate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "kind": "folder", "name": f.Name, "parent": in.Parent})
+}
+
+// handleDocTreeNodeMove makes a folder (with its subtree) or a document the
+// last child of parent ("" = the root): 200, or 409 move_into_own_subtree /
+// name_taken / depth, 400 parent_is_document, 404 for no such node.
+func (s *Server) handleDocTreeNodeMove(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.docTreeCaller(w, r, rbac.DocsWrite)
+	if !ok {
+		return
+	}
+	var in struct {
+		Parent string `json:"parent"`
+	}
+	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only parent)") {
+		return
+	}
+	node := r.PathValue("node")
+	if err := c.st.DocNodeMove(r.Context(), c.tenant, node, in.Parent); err != nil {
+		docTreeFail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": node, "parent": in.Parent})
 }

@@ -10878,6 +10878,52 @@
         ]
       }
     },
+    "/v1/workspace/doctree/nodes/{node}/move": {
+      "post": {
+        "operationId": "postWorkspaceDoctreeNodeMove",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the node id of the folder or document to move (from /v1/workspace/doctree/nodes)",
+            "in": "path",
+            "name": "node",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "moved: {id, parent}; a move under the current parent is a no-op"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "move_into_own_subtree, name_taken or depth"
+          },
+          "422": {
+            "description": "refused: the root does not move"
+          }
+        },
+        "summary": "Move a folder (with its subtree) or a document under another folder or the root (spec 120 section 7)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
     "/v1/workspace/doctree/search": {
       "get": {
         "operationId": "getWorkspaceDoctreeSearch",

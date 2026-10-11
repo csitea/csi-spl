@@ -26,6 +26,8 @@ var docTreeVerbs = []dtVerb{
 		"usage: spool doctree nodes [--parent folder-id]"},
 	{"folder", dtFolder, "create a folder",
 		"usage: spool doctree folder --name n [--parent folder-id] [--title t] [--description d]"},
+	{"move-node", dtMoveNode, "move a folder or a document (its node id from nodes) under another folder",
+		"usage: spool doctree move-node <node> [--parent folder-id]"},
 	{"create", dtCreate, "create a document; prints it with its id",
 		"usage: spool doctree create --title t [--folder id] [--description d]"},
 	{"head", dtHead, "show a document's rev, item count, root and topic",

@@ -81,6 +81,7 @@ type docTreeStore interface {
 	DocCreateIn(ctx context.Context, tenant, folder, title, description, actor string) (string, string, error)
 	DocFolderCreate(ctx context.Context, tenant string, f store.DocFolder) (string, error)
 	DocNodes(ctx context.Context, tenant, parent string) (string, []store.DocNode, error)
+	DocNodeMove(ctx context.Context, tenant, node, parent string) error
 	DocRename(ctx context.Context, tenant, doc string, rev int64, title, actor string) (store.DocOpResult, error)
 	DocDelete(ctx context.Context, tenant, doc string, rev int64) (store.DocOpResult, error)
 	DocItemAdd(ctx context.Context, tenant string, r store.DocItemAddReq) (store.DocOpResult, error)
@@ -102,6 +103,7 @@ func (s *Server) routeDocTree(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/workspace/doctree/search", s.handleDocTreeSearch)
 	mux.HandleFunc("GET /v1/workspace/doctree/nodes", s.handleDocTreeNodes)
 	mux.HandleFunc("POST /v1/workspace/doctree/folders", s.handleDocTreeFolderCreate)
+	mux.HandleFunc("POST /v1/workspace/doctree/nodes/{node}/move", s.handleDocTreeNodeMove)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}", s.handleDocTreeHead)
 	mux.HandleFunc("PATCH /v1/workspace/doctree/{doc}", s.handleDocTreeRename)
 	mux.HandleFunc("DELETE /v1/workspace/doctree/{doc}", s.handleDocTreeDeleteDoc)

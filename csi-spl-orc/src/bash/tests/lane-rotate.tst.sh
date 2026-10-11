@@ -27,6 +27,8 @@
 #  11. do_spl_agent_age_check: a 70-min session = exit 1 and its line; none =
 #      exit 0; the tick reports it to the dispatch holder once
 #  12. the manifest row and its executable cron script
+#  14. a lane whose /exit opens the background-work picker: Enter on "Exit and
+#      stop tasks", gone without SIGTERM
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -90,7 +92,9 @@ printf '%s\0' $6 >"$d/cmdline"
 echo "$1 ($4) S $5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $(( (UP - $2) * TCK ))" >"$d/stat"
 printf 'Uid:\t%s\t%s\n' "$(id -u)" "$(id -u)" >"$d/status"
 EOF
-# tmux: panes "<pane>\t<pid>\t<session>\t<name>"; Enter on /exit ends the pid
+# tmux: panes "<pane>\t<pid>\t<session>\t<name>"; Enter on /exit ends the pid;
+# bgtasks.<pane>: /exit opens the "Background work is running" picker and only
+# an Enter on it (1. Exit and stop tasks) ends the pid
 cat >"$T/bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 P="$T/tmux/panes"; L="$T/tmux/log"
@@ -117,7 +121,10 @@ case "$cmd" in
     elif [ "$k" = C-c ]; then : >"$T/tmux/typed.$tgt"
     elif [ "$k" = Enter ]; then
       b="$(cat "$T/tmux/typed.$tgt" 2>/dev/null)"; echo "submit $tgt $b" >>"$L"
-      [ "$b" = /exit ] && rm -rf "$T/proc/$(field 2)"
+      if [ -f "$T/tmux/picker.$tgt" ]; then echo "picker $tgt" >>"$L"; rm -rf "$T/proc/$(field 2)"
+      elif [ "$b" = /exit ] && [ -f "$T/tmux/bgtasks.$tgt" ]; then touch "$T/tmux/picker.$tgt"
+        printf 'Background work is running\n❯ 1. Exit and stop tasks\n  2. Move to background and exit\n  3. Stay\n' >"$T/tmux/screen.$tgt"
+      elif [ "$b" = /exit ]; then rm -rf "$T/proc/$(field 2)"; fi
       : >"$T/tmux/typed.$tgt"
     fi ;;
   kill-window) awk -F'\t' -v p="$tgt" '$1 != p' "$P" >"$P.new" && mv "$P.new" "$P"; echo "kill $tgt" >>"$L" ;;
@@ -312,6 +319,13 @@ check "13. second rotation: brief still byte for byte" '[ "$(n "$T/spawn.log")" 
 cp "$T/seed.c-931" "$S/c-931/lifetime/brief.md"; "$T/bin/proc" 3001 3000 c-931 claude 1 "claude --seed"; rm -f "$S/c-931/lifetime/rotate.lane.last"
 tick
 check "13. red control: a brief that is a rotation seed is refused" '[ "$(n "$T/spawn.log")" = 2 ] && grep -q "is a rotation seed, not a task brief" "$D/rotate.log"'
+
+# --- 14. /exit asks about background work: the picker is confirmed, no SIGTERM --
+reset; lane c-941 62
+touch "$T/tmux/bgtasks.%941"
+ROTATE_LANE_EXIT_WAIT=20 tick
+check "14. background-work picker: 'Exit and stop tasks' confirmed" 'grep -q "lane-c-941 RETIRE WAIT pid 2941: ./exit. asked about running background work" "$D/rotate.log" && grep -q "picker %941" "$T/tmux/log"'
+check "14. old session gone without a signal" 'grep -q "lane-c-941 DONE OK" "$D/rotate.log" && ! grep -q "TERM 2941" "$T/kill.log" 2>/dev/null'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

@@ -122,4 +122,20 @@ In the **Release notes** dialog (the version at the bottom of the left pane, the
 
 **Load older versions** at the end of the list reads the next older versions, until the list ends with **This is the first entry**.
 
+## 10. Issue row shortcuts
+
+On the **Issues** list these keys act on the **selected issue row**, the same keys the messages use for the same actions. Each runs the row's right-click menu item, and only when that menu offers it. They work on a desktop and follow **Settings → Behaviour → Keyboard shortcuts**. On a phone, swipe an issue card **left** to archive it (after a confirm) and **right** to open its menu, the same as a message card; a long press opens the menu too.
+
+| Shortcut | Context | Action |
+|---|---|---|
+| **`Shift + R`** | Selected issue row, desktop | Open menu |
+| **`Shift + E`** | Selected issue row, desktop | Edit |
+| **`Shift + A`** | Selected issue row, desktop | Archive |
+| **`Shift + O`** | Selected issue row, desktop | Open |
+| **`Shift + P`** | Selected issue row, desktop | Open parent |
+| **`Shift + L`** | Selected issue row, desktop | Copy link |
+| **`Shift + K`** | Selected issue row, desktop | Change kind |
+| **`Shift + M`** | Selected issue row, desktop | Move to… |
+| **`Shift + D`** | Selected issue row, desktop | Delete |
+
 <!-- version: 1.2.4 · updated: 2026-10-07 -->

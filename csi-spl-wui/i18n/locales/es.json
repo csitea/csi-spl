@@ -879,7 +879,8 @@
       "help": "Mostrar esta lista",
       "search": "Buscar",
       "close": "Cerrar un menú o panel",
-      "menu_hint": "Atajo: {key}"
+      "menu_hint": "Atajo: {key}",
+      "issue_rows": "Filas de incidencias"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "Esto elimina {count} incidencias y sus subtareas.",
     "err_unavailable": "Esto requiere el servidor actualizado. Inténtalo de nuevo en un momento.",
     "copy_link": "Copiar enlace",
+    "open_parent": "Abrir el padre",
+    "move": "Mover a…",
     "epic_actions": "Acciones para {key}",
     "select_epic": "Abre un épico o una función para actuar sobre él"
   },

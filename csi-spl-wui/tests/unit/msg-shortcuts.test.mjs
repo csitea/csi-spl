@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  MSG_SHORTCUTS, NAV_SHORTCUTS, backJump, inTypingOrOverlay, listRowFor, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
+  ISSUE_SHORTCUTS, MSG_SHORTCUTS, NAV_SHORTCUTS, backJump, issueShortcutFor, issueShortcutHint, issueShortcutItem, issueShortcutsSection, inTypingOrOverlay, listRowFor, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
 } from '../../src/utils/msg-shortcuts.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -297,5 +297,52 @@ describe('Shift + B / Shift + U: the 2nd panel, the centre list (t1 29c3b055, ow
     assert.equal(replyBack([P], 't'), '')
     assert.equal(replyBack(pane, 'x'), '')
     assert.equal(replyBack(pane, ''), '')
+  })
+})
+
+describe('issue rows take the message keys (HUM-10 t1 aedca86a, d8f61702)', () => {
+  const en = JSON.parse(readFileSync(join(WUI, 'i18n/locales/en.json'), 'utf8'))
+  const label = (k) => k.split('.').reduce((o, p) => (o && typeof o === 'object' ? o[p] : undefined), en)
+
+  it('Shift + A is Archive, and every issue key is the message key of the same action', () => {
+    assert.equal(issueShortcutItem('A', ['archive', 'delete']), 'archive')
+    const msg = new Map(MSG_SHORTCUTS.map((s) => [s.key, s.items]))
+    const same = { edit: 'edit', archive: 'archive', open: 'open', copy: 'copy', kind: 'kind', parent: 'parent', delete: 'delete', move: 'move-channel' }
+    for (const s of ISSUE_SHORTCUTS) {
+      assert.ok(msg.has(s.key), `Shift + ${s.key} is a message key too`)
+      if (s.item) assert.ok(msg.get(s.key).includes(same[s.item]), `Shift + ${s.key}: ${s.item}`)
+    }
+  })
+
+  it('a key runs only an item the row\'s menu offers (an epic offers no Move)', () => {
+    assert.equal(issueShortcutItem('M', ['open', 'archive', 'delete']), '')
+    assert.equal(issueShortcutItem('R', ['open']), '', 'Shift + R opens the menu, it runs no item')
+    assert.equal(issueShortcutItem('Z', ['open']), '')
+  })
+
+  it('the matcher keeps the message guards; Shift + K stays KindKeyHost\'s; Shift + H has no issue action', () => {
+    assert.deepEqual(issueShortcutFor(shift('A')), { type: 'action', key: 'A' })
+    assert.deepEqual(issueShortcutFor(key('?')), { type: 'help' })
+    assert.equal(issueShortcutFor(key('a')), null, 'plain a is the sheet\'s assignee picker')
+    assert.equal(issueShortcutFor(shift('K')), null)
+    assert.equal(issueShortcutFor(shift('H')), null)
+    assert.equal(issueShortcutFor(shift('A', { ctrlKey: true })), null)
+    assert.equal(issueShortcutFor(shift('A'), { phone: true }), null)
+    assert.equal(issueShortcutFor(shift('A'), { enabled: false }), null)
+    assert.equal(issueShortcutFor(shift('A', { target: el('input') })), null)
+  })
+
+  it('the menu hints are the keys', () => {
+    assert.equal(issueShortcutHint('archive'), '⇧A')
+    assert.equal(issueShortcutHint('status'), '')
+    for (const s of ISSUE_SHORTCUTS) assert.equal(typeof label(s.labelKey), 'string', s.labelKey)
+  })
+
+  it('doc/help and the served copy both carry issueShortcutsSection', () => {
+    const want = issueShortcutsSection(label)
+    for (const rel of ['../csi-spl-doc/doc/help/keyboard-shortcuts.md', 'src/public/help-md/keyboard-shortcuts.md']) {
+      assert.ok(readFileSync(join(WUI, rel), 'utf8').includes(want + '\n'), rel)
+    }
+    assert.notEqual(issueShortcutsSection(() => 'x'), want, 'CONTROL: other labels do not match')
   })
 })

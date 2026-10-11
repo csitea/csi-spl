@@ -879,7 +879,8 @@
       "help": "Näita seda loendit",
       "search": "Otsi",
       "close": "Sulge menüü või paneel",
-      "menu_hint": "Kiirklahv: {key}"
+      "menu_hint": "Kiirklahv: {key}",
+      "issue_rows": "Ülesannete read"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "See kustutab {count} ülesannet ja nende alamülesanded.",
     "err_unavailable": "See vajab uuendatud serverit. Palun proovi hetke pärast uuesti.",
     "copy_link": "Kopeeri link",
+    "open_parent": "Ava ülemülesanne",
+    "move": "Teisalda…",
     "epic_actions": "Toimingud: {key}",
     "select_epic": "Ava epic või funktsioon, et sellega tegutseda"
   },

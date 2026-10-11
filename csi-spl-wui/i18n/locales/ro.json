@@ -879,7 +879,8 @@
       "help": "Arată această listă",
       "search": "Caută",
       "close": "Închide un meniu sau un panou",
-      "menu_hint": "Comandă rapidă: {key}"
+      "menu_hint": "Comandă rapidă: {key}",
+      "issue_rows": "Rânduri de sarcini"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "Aceasta șterge {count} sarcini și subsarcinile lor.",
     "err_unavailable": "Aceasta necesită serverul actualizat. Încearcă din nou într-o clipă.",
     "copy_link": "Copiază linkul",
+    "open_parent": "Deschide părintele",
+    "move": "Mută în…",
     "epic_actions": "Acțiuni pentru {key}",
     "select_epic": "Deschide un epic sau o funcționalitate pentru a acționa asupra ei"
   },

@@ -879,7 +879,8 @@
       "help": "Näytä tämä luettelo",
       "search": "Haku",
       "close": "Sulje valikko tai paneeli",
-      "menu_hint": "Pikanäppäin: {key}"
+      "menu_hint": "Pikanäppäin: {key}",
+      "issue_rows": "Tehtävärivit"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "Tämä poistaa {count} tehtävää ja niiden alitehtävät.",
     "err_unavailable": "Tämä vaatii päivitetyn palvelimen. Yritä hetken kuluttua uudelleen.",
     "copy_link": "Kopioi linkki",
+    "open_parent": "Avaa yläasia",
+    "move": "Siirrä…",
     "epic_actions": "Toiminnot: {key}",
     "select_epic": "Avaa eepos tai ominaisuus, jotta voit toimia sen suhteen"
   },

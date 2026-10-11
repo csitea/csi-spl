@@ -13,12 +13,20 @@
         <dd>{{ t(n.labelKey) }}</dd>
       </template>
     </dl>
+    <!-- HUM-10 (t1 aedca86a): the selected issue row takes the same keys -->
+    <h3 class="kbd-help__h">{{ t('feed.shortcuts.issue_rows') }}</h3>
+    <dl class="kbd-help" data-testid="issue-shortcuts-help">
+      <template v-for="s in ISSUE_SHORTCUTS" :key="s.key">
+        <dt><kbd>⇧</kbd> <kbd>{{ s.key }}</kbd></dt>
+        <dd :data-testid="'issue-shortcuts-help-' + s.key">{{ t(s.labelKey) }}</dd>
+      </template>
+    </dl>
   </UiDialog>
 </template>
 
 <script setup lang="ts">
 import UiDialog from '~/components/UiDialog.vue'
-import { MSG_SHORTCUTS, NAV_SHORTCUTS } from '~/utils/msg-shortcuts.mjs'
+import { ISSUE_SHORTCUTS, MSG_SHORTCUTS, NAV_SHORTCUTS } from '~/utils/msg-shortcuts.mjs'
 import { useMsgShortcutsHelp } from '~/composables/useMsgShortcuts'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -34,6 +42,7 @@ const open = useMsgShortcutsHelp()
   align-items: baseline;
 }
 .kbd-help dt { white-space: nowrap; }
+.kbd-help__h { margin: 16px 0 8px; font-size: 0.8125rem; font-weight: 600; color: var(--color-muted); }
 .kbd-help dd { margin: 0; overflow-wrap: anywhere; }
 .kbd-help kbd {
   display: inline-block;

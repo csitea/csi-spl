@@ -879,7 +879,8 @@
       "help": "Visa den här listan",
       "search": "Sök",
       "close": "Stäng en meny eller panel",
-      "menu_hint": "Kortkommando: {key}"
+      "menu_hint": "Kortkommando: {key}",
+      "issue_rows": "Ärenderader"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "Detta tar bort {count} ärenden och deras deluppgifter.",
     "err_unavailable": "Detta kräver den uppdaterade servern. Försök igen om en stund.",
     "copy_link": "Kopiera länk",
+    "open_parent": "Öppna överordnad",
+    "move": "Flytta till…",
     "epic_actions": "Åtgärder för {key}",
     "select_epic": "Öppna ett epos eller en funktion för att agera på det"
   },

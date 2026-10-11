@@ -283,3 +283,83 @@ export function messageShortcutsSection(label) {
     ...rows,
   ].join('\n')
 }
+
+/**
+ * HUM-10 (owner, t1 aedca86a, d8f61702): "the same shortcuts should work as
+ * well. Shift+A should do archive". The selected issue row takes the message
+ * keys for the same actions; each runs the issue menu's item (IssueRowMenu),
+ * and only when that menu offers it for the row. Shift + K is KindKeyHost's
+ * (the issue's opening message), listed here for the help only. Shift + H
+ * (Hide from flow) has no issue counterpart: no hide action exists for an
+ * issue, so the key does nothing on a row.
+ */
+export const ISSUE_SHORTCUTS = Object.freeze([
+  { key: 'R', item: '', labelKey: 'feed.shortcuts.open_menu' },
+  { key: 'E', item: 'edit', labelKey: 'issues_menu.edit' },
+  { key: 'A', item: 'archive', labelKey: 'issues_menu.archive' },
+  { key: 'O', item: 'open', labelKey: 'issues_menu.open' },
+  { key: 'P', item: 'parent', labelKey: 'issues_menu.open_parent' },
+  { key: 'L', item: 'copy', labelKey: 'issues_menu.copy_link' },
+  { key: 'K', item: 'kind', labelKey: 'feed.msg_menu.kind' },
+  { key: 'M', item: 'move', labelKey: 'issues_menu.move' },
+  { key: 'D', item: 'delete', labelKey: 'issues_menu.delete' },
+].map((s) => Object.freeze(s)))
+
+/** The issue menu item's hint ("⇧A"), '' when it has no key. */
+export function issueShortcutHint(itemId) {
+  const id = String(itemId || '')
+  const s = id ? ISSUE_SHORTCUTS.find((x) => x.item === id) : null
+  return s ? `⇧${s.key}` : ''
+}
+
+/**
+ * What one keydown means on the Issues list: Shift + a mapped letter, or
+ * Shift + ? for the help. The same guards as shortcutFor (no modifier chord,
+ * not while typing or over a menu / dialog, desktop only). Shift + K is left
+ * to KindKeyHost.
+ *
+ * @returns {{ type: 'action', key: string } | { type: 'help' } | null}
+ */
+export function issueShortcutFor(ev, { enabled = true, phone = false } = {}) {
+  if (!ev || !enabled || phone) return null
+  if (ev.isComposing || ev.defaultPrevented || ev.repeat) return null
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return null
+  if (inTypingOrOverlay(ev.target)) return null
+  if (String(ev.key || '') === '?') return { type: 'help' }
+  if (!ev.shiftKey) return null
+  const letter = letterOf(ev)
+  if (!letter || letter === 'K') return null
+  return ISSUE_SHORTCUTS.some((s) => s.key === letter) ? { type: 'action', key: letter } : null
+}
+
+/** The issue menu item Shift + `key` runs, '' when the row's menu does not offer it (R opens the menu: '' too). */
+export function issueShortcutItem(key, offered) {
+  const s = ISSUE_SHORTCUTS.find((x) => x.key === String(key || '').toUpperCase())
+  if (!s || !s.item) return ''
+  const has = offered instanceof Set ? offered.has(s.item) : Array.from(offered || []).includes(s.item)
+  return has ? s.item : ''
+}
+
+/**
+ * The "Issue row shortcuts" section of doc/help/keyboard-shortcuts.md, from
+ * ISSUE_SHORTCUTS (the same contract as messageShortcutsSection).
+ *
+ * @param {(labelKey: string) => string} label
+ * @returns {string}
+ */
+export function issueShortcutsSection(label) {
+  const name = typeof label === 'function' ? label : () => ''
+  const rows = ISSUE_SHORTCUTS.map((s) => {
+    const action = String(name(s.labelKey) ?? '').replace(/\|/g, '\\|')
+    return `| **\`Shift + ${s.key}\`** | Selected issue row, desktop | ${action} |`
+  })
+  return [
+    '## 10. Issue row shortcuts',
+    '',
+    'On the **Issues** list these keys act on the **selected issue row**, the same keys the messages use for the same actions. Each runs the row\'s right-click menu item, and only when that menu offers it. They work on a desktop and follow **Settings → Behaviour → Keyboard shortcuts**. On a phone, swipe an issue card **left** to archive it (after a confirm) and **right** to open its menu, the same as a message card; a long press opens the menu too.',
+    '',
+    '| Shortcut | Context | Action |',
+    '|---|---|---|',
+    ...rows,
+  ].join('\n')
+}

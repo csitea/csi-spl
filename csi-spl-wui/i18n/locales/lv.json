@@ -879,7 +879,8 @@
       "help": "Rādīt šo sarakstu",
       "search": "Meklēt",
       "close": "Aizvērt izvēlni vai paneli",
-      "menu_hint": "Īsinājumtaustiņš: {key}"
+      "menu_hint": "Īsinājumtaustiņš: {key}",
+      "issue_rows": "Uzdevumu rindas"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "Tiks dzēsti {count} uzdevumi un to apakšuzdevumi.",
     "err_unavailable": "Tam nepieciešams atjaunināts serveris. Lūdzu, mēģiniet vēlreiz pēc brīža.",
     "copy_link": "Kopēt saiti",
+    "open_parent": "Atvērt vecākuzdevumu",
+    "move": "Pārvietot uz…",
     "epic_actions": "Darbības ar {key}",
     "select_epic": "Atveriet eposu vai funkciju, lai ar to darbotos"
   },

@@ -2399,6 +2399,11 @@ declare module '~/utils/msg-shortcuts.mjs' {
   export function backJump(rows: readonly FeedRow[], fromId: string, memo?: { parent: string, reply: string } | null): string
   export function listRowFor(rows: readonly { key: string, task: string }[], topic: string): string
   export function replyBack(paneRows: readonly FeedRow[], topic: string, memo?: { topic: string, reply: string } | null): string
+  export const ISSUE_SHORTCUTS: readonly { key: string, item: string, labelKey: string }[]
+  export function issueShortcutHint(itemId: unknown): string
+  export function issueShortcutFor(ev: unknown, ctx?: { enabled?: boolean, phone?: boolean }): { type: 'action', key: string } | { type: 'help' } | null
+  export function issueShortcutItem(key: string, offered: Set<string> | string[]): string
+  export function issueShortcutsSection(label: (labelKey: string) => string): string
 }
 
 declare module '~/utils/unread-model.mjs' {

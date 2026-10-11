@@ -879,7 +879,8 @@
       "help": "Deze lijst tonen",
       "search": "Zoeken",
       "close": "Een menu of paneel sluiten",
-      "menu_hint": "Sneltoets: {key}"
+      "menu_hint": "Sneltoets: {key}",
+      "issue_rows": "Issuerijen"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "Hiermee worden {count} taken en hun subtaken verwijderd.",
     "err_unavailable": "Dit vereist de bijgewerkte server. Probeer het zo meteen opnieuw.",
     "copy_link": "Link kopiëren",
+    "open_parent": "Bovenliggende openen",
+    "move": "Verplaatsen naar…",
     "epic_actions": "Acties voor {key}",
     "select_epic": "Open een epic of functie om er actie op te ondernemen"
   },

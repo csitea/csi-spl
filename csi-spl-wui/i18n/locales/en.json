@@ -879,7 +879,8 @@
       "help": "Show this list",
       "search": "Search",
       "close": "Close a menu or panel",
-      "menu_hint": "Shortcut: {key}"
+      "menu_hint": "Shortcut: {key}",
+      "issue_rows": "Issue rows"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "This deletes {count} issues and their subtasks.",
     "err_unavailable": "This needs the updated server. Please try again in a moment.",
     "copy_link": "Copy link",
+    "open_parent": "Open parent",
+    "move": "Move to…",
     "epic_actions": "Actions for {key}",
     "select_epic": "Open an epic or feature to act on it"
   },

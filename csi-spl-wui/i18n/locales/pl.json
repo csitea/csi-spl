@@ -879,7 +879,8 @@
       "help": "Pokaż tę listę",
       "search": "Szukaj",
       "close": "Zamknij menu lub panel",
-      "menu_hint": "Skrót: {key}"
+      "menu_hint": "Skrót: {key}",
+      "issue_rows": "Wiersze zgłoszeń"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "Spowoduje to usunięcie {count} zadań i ich podzadań.",
     "err_unavailable": "To wymaga zaktualizowanego serwera. Spróbuj ponownie za chwilę.",
     "copy_link": "Kopiuj link",
+    "open_parent": "Otwórz nadrzędne",
+    "move": "Przenieś do…",
     "epic_actions": "Akcje dla {key}",
     "select_epic": "Otwórz epik lub funkcję, aby wykonać na niej działanie"
   },

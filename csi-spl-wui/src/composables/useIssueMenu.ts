@@ -13,6 +13,8 @@ export type IssueMenuTarget = {
   title: string
   /** true for a level-1 row (epic or feature) */
   top: boolean
+  /** the parent issue's key, '' or absent for none (the menu's Open parent) */
+  parent?: string
 }
 
 const target = ref<IssueMenuTarget | null>(null)

@@ -879,7 +879,8 @@
       "help": "Rodyti šį sąrašą",
       "search": "Ieškoti",
       "close": "Uždaryti meniu ar skydelį",
-      "menu_hint": "Spartusis klavišas: {key}"
+      "menu_hint": "Spartusis klavišas: {key}",
+      "issue_rows": "Užduočių eilutės"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "Bus ištrinta {count} užduočių ir jų papildomos užduotys.",
     "err_unavailable": "Tam reikia atnaujinto serverio. Pabandykite dar kartą po akimirkos.",
     "copy_link": "Kopijuoti nuorodą",
+    "open_parent": "Atidaryti tėvinę",
+    "move": "Perkelti į…",
     "epic_actions": "Veiksmai: {key}",
     "select_epic": "Atverkite epiką ar funkciją, kad galėtumėte su ja dirbti"
   },

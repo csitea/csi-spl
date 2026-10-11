@@ -450,20 +450,37 @@
             <p v-else-if="loadError" class="issues-error" role="alert" data-test="issues-error">{{ t(loadError) }}</p>
             <p v-else class="muted" data-test="issues-empty">{{ t('issues.empty') }}</p>
           </li>
-          <li v-for="issue in (rowCount ? flat : [])" :key="issue.key">
+          <li v-for="issue in (rowCount ? flat : [])" :key="issue.key" class="issues-card-li">
+            <!-- HUM-10 (t1 aedca86a, f83f73b9): a card swipes the way a message
+                 card does - LEFT archives (the menu's Archive and its confirm),
+                 RIGHT opens the card's menu; the strip shows what a lift does -->
+            <span
+              v-if="swipe.key === issue.key && swipe.dx !== 0"
+              class="issues-swipe-reveal"
+              :class="swipe.dir === 'menu' ? 'issues-swipe-reveal--start' : 'issues-swipe-reveal--end'"
+              :data-testid="`issues-swipe-${swipe.dir}-reveal`"
+              :data-armed="swipe.armed ? 'true' : undefined"
+              :style="{ '--swipe-w': `${Math.abs(swipe.dx)}px` }"
+              aria-hidden="true"
+            >
+              <UiIcon :name="swipe.dir === 'menu' ? 'menu' : 'archive'" :size="20" />
+              <span v-if="swipe.armed && swipe.dir !== 'menu'">{{ t('feed.swipe_archive') }}</span>
+            </span>
             <button
               type="button"
               class="issues-card"
+              :class="{ 'issues-card--swiping': swipe.key === issue.key && swipe.dx !== 0, 'issues-card--settle': swipe.key === issue.key && swipe.settle }"
+              :style="swipe.key === issue.key && swipe.dx !== 0 ? { '--swipe-dx': `${swipe.dx}px` } : undefined"
               data-test="issues-card"
               :data-key="issue.key"
               :data-priority="issue.priority"
               :data-selected="cursorKey === issue.key ? 'true' : 'false'"
               @click="onRowActivate(issue)"
               @contextmenu="onRowContext(issue, $event)"
-              @pointerdown="onRowPointerDown(issue, $event)"
-              @pointermove="rowPress.move($event)"
-              @pointerup="rowPress.up()"
-              @pointercancel="rowPress.cancel()"
+              @pointerdown="onCardPointerDown(issue, $event)"
+              @pointermove="onCardPointerMove($event)"
+              @pointerup="onCardPointerUp()"
+              @pointercancel="onCardPointerCancel()"
             >
               <span class="issues-card__top">
                 <span class="issues-key" data-test="issues-card-key">{{ issue.key }}</span>
@@ -930,6 +947,9 @@ import { useIssueGroupDrag } from '~/composables/useIssueGroupDrag'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
+import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
+import { issueShortcutFor, issueShortcutHint, issueShortcutItem } from '~/utils/msg-shortcuts.mjs'
+import { useMsgShortcutsHelp, useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
 import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
 import { useAiMenuGroup } from '~/composables/useAiMenuGroup'
 import { aiSubject } from '~/utils/msg-ai-actions.mjs'
@@ -1120,7 +1140,9 @@ function onSubtaskCreated(sub: Issue) {
   void loadSubtasks(parent)
 }
 async function openParent() {
-  const key = detail.value?.parent || ''
+  await openIssueKey(detail.value?.parent || '')
+}
+async function openIssueKey(key: string) {
   if (!key) return
   const held = issues.value.find((i) => i.key === key)
   if (held) { choose(held); return }
@@ -1844,7 +1866,7 @@ async function confirmDelete() {
 
 /* ---- SPL-1226: the right-click / long-press context menu ------------------ */
 function issueTarget(i: Issue): IssueMenuTarget {
-  return { key: i.key, kind: i.kind, level: i.level, title: i.title, top: isTopKind(i.kind) }
+  return { key: i.key, kind: i.kind, level: i.level, title: i.title, top: isTopKind(i.kind), parent: i.parent || '' }
 }
 /* one long-press machine for every row; the row it fired on is remembered on
    pointerdown (createLongPress only reports the point) */
@@ -1857,26 +1879,104 @@ function onRowContext(issue: Issue, ev: MouseEvent) {
 }
 function onRowPointerDown(issue: Issue, ev: PointerEvent) { pressTarget = issueTarget(issue); rowPress.down(ev) }
 /* the click the finger sends when a long-press lifts must not also open the row */
-function onRowActivate(issue: Issue) { if (rowPress.takeClick()) return; choose(issue) }
+function onRowActivate(issue: Issue) {
+  const swiped = cardSwipe.takeClick()
+  if (rowPress.takeClick() || swiped) return
+  choose(issue)
+}
 
+/* HUM-10 (owner, t1 aedca86a, f83f73b9): "the same swipes which work for the
+   other listings of message cards should work". The phone's issue card takes
+   MessageCard's swipe machine (utils/swipe-archive.mjs): LEFT is the menu's
+   Archive (its confirm: an issue has no undo), RIGHT opens the card's menu at
+   the finger. A right swipe from the Back zone stays the shell's Back. One
+   machine for the list; the card it runs on is remembered on pointerdown. */
+const swipe = reactive({ key: '', dx: 0, dir: 'archive' as 'archive' | 'hide' | 'menu', armed: false, settle: false })
+let swipeEl: HTMLElement | null = null
+let swipeIssue: Issue | null = null
+let swipeTimer: ReturnType<typeof setTimeout> | null = null
+function swipeTo(dx: number, settle: boolean) {
+  if (swipeTimer) clearTimeout(swipeTimer)
+  swipeTimer = null
+  swipe.settle = settle
+  swipe.dx = dx
+  if (settle && dx === 0) swipeTimer = setTimeout(() => { swipe.settle = false; swipe.key = ''; swipeTimer = null }, SWIPE_SETTLE_MS)
+}
+const swipeRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl'
+const cardSwipe = createSwipe({
+  width: () => swipeEl?.getBoundingClientRect().width || 0,
+  rtl: swipeRtl,
+  canLeft: () => Boolean(swipeIssue),
+  canRight: (x) => !(stack.level.value > 1 && swipeInBackZone(x, typeof window !== 'undefined' ? window.innerWidth : 0, swipeRtl())),
+  onLock: (dir) => {
+    rowPress.cancel()
+    swipe.key = swipeIssue?.key || ''
+    swipe.dir = dir
+  },
+  onMove: (dx, armed, dir) => {
+    if (armed && !swipe.armed && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
+    swipe.armed = armed
+    swipeTo(dir === 'menu' ? dx : -dx, false)
+  },
+  onCommit: (dir, x, y) => {
+    const issue = swipeIssue
+    swipe.armed = false
+    swipeTo(0, true)
+    if (!issue) return
+    stack.swipe.claim()
+    cursorKey.value = issue.key
+    if (dir === 'menu') openCtxMenu(issueTarget(issue), x, y)
+    else askAction('archive', issueTarget(issue))
+  },
+  onCancel: () => {
+    swipe.armed = false
+    swipeTo(0, true)
+  },
+})
+function onCardPointerDown(issue: Issue, ev: PointerEvent) {
+  swipeIssue = issue
+  swipeEl = ev.currentTarget as HTMLElement
+  cardSwipe.down(ev)
+  onRowPointerDown(issue, ev)
+}
+function onCardPointerMove(ev: PointerEvent) {
+  cardSwipe.move(ev)
+  if (!cardSwipe.swiping) rowPress.move(ev)
+}
+function onCardPointerUp() { cardSwipe.up(); rowPress.up() }
+function onCardPointerCancel() { cardSwipe.cancel(); rowPress.cancel() }
+
+/* the shortcut switch (Settings -> Behaviour), desktop only - the messages' one */
+const keysOn = useMsgShortcutsOn()
 const ctxItems = computed<IssueMenuItem[]>(() => {
   const tg = ctxTarget.value
   if (!tg) return []
+  const items = menuItemsFor(tg, ctxFromButton.value)
+  const hinted = keysOn.value ? items.map((it) => ({ ...it, keyHint: issueShortcutHint(it.id) || undefined })) : items
+  return aiGroup.items(hinted) as IssueMenuItem[]
+})
+/* HUM-10 (owner, t1 aedca86a, bbc53649): "the same right-click menu as all
+   of the others ... Archive, Delete, and Copy Link", plus what the others
+   offer that fits an issue: Move (the message menu's) and Open parent.
+   Priority and labels stay on the row's cells and the plain P / L keys. */
+function menuItemsFor(tg: IssueMenuTarget, fromButton: boolean): IssueMenuItem[] {
   const items: IssueMenuItem[] = []
   /* CLE-77816 (owner, topic 4365c545): Edit is the first item everywhere the
      menu opens - it opens the same issue dialog (epic / feature included). */
   items.push({ id: 'edit', icon: 'edit', labelKey: 'issues_menu.edit' })
   /* from the title-row button the epic is already the open view - no "Open" */
-  if (!ctxFromButton.value) items.push({ id: 'open', icon: 'open', labelKey: 'issues_menu.open' })
+  if (!fromButton) items.push({ id: 'open', icon: 'open', labelKey: 'issues_menu.open' })
+  if (!tg.top && tg.parent) items.push({ id: 'parent', icon: 'parent', labelKey: 'issues_menu.open_parent' })
   items.push({ id: 'copy', icon: 'copy', labelKey: 'issues_menu.copy_link' })
   if (!tg.top) {
     items.push({ id: 'status', icon: 'pencil', labelKey: 'issues_menu.status' })
     items.push({ id: 'assign', icon: 'user', labelKey: 'issues_menu.assign' })
+    items.push({ id: 'move', icon: 'move', labelKey: 'issues_menu.move' })
   }
   items.push({ id: 'archive', icon: 'archive', labelKey: 'issues_menu.archive' })
   items.push({ id: 'delete', icon: 'delete', labelKey: 'issues_menu.delete', danger: true })
-  return aiGroup.items(items) as IssueMenuItem[]
-})
+  return items
+}
 /* t1 b6c742f0 (HUM-10 643c30a8: "add them to every card which has right click
    menu"): the issue / epic menu - rows and the epics sidebar - ends with the
    AI actions group, the card's title and description as the subject
@@ -1961,7 +2061,11 @@ function onCtxChoose(id: string) {
   const pt = { ...ctxPoint.value }
   if (aiGroup.more(id)) return
   if (id.startsWith('ai-')) { void runIssueAi(id, tg); return }
+  runIssueItem(id, tg, pt)
+}
+function runIssueItem(id: string, tg: IssueMenuTarget, pt: { x: number, y: number }) {
   if (id === 'edit') { void editTarget(tg); return }
+  if (id === 'parent') { closeCtxMenu(); void openIssueKey(tg.parent || ''); return }
   if (id === 'copy') { void copyText(issueLinkFor(tg), tg.key); return }
   if (id === 'open') {
     if (tg.top) { void router.push({ query: { ...route.query, epic: tg.key } }); return }
@@ -1969,10 +2073,13 @@ function onCtxChoose(id: string) {
     if (issue) choose(issue)
     return
   }
-  if (id === 'status' || id === 'assign') {
+  if (id === 'status' || id === 'assign' || id === 'move') {
     const issue = issues.value.find((i) => i.key === tg.key)
     if (!issue) return
-    openMenu(id === 'status' ? 'status' : 'assign', issue)
+    /* Move: an issue picks its epic, a subtask its parent (the level cell's pickers) */
+    const kind = id === 'move' ? (issue.level === 3 ? 'move-parent' : 'move-epic') : id
+    closeCtxMenu()
+    openMenu(kind, issue)
     menuPos.value = { top: pt.y, left: Math.max(8, Math.min(pt.x, window.innerWidth - 240)) }
     return
   }
@@ -2270,6 +2377,14 @@ function onDocKey(ev: KeyboardEvent) {
   /* in the issue modal only its own keys: E and the S / P / A / L pickers */
   if (inModal && !['e', 's', 'p', 'a', 'l'].includes(k)) return
   if (document.querySelector('.kind-picker, .point-menu')) return
+  /* HUM-10 (owner, t1 aedca86a, d8f61702): on the list, Shift + a letter is
+     the message key for the same action on the selected row (Shift + A
+     archives); the plain letters stay the sheet's own pickers */
+  if (!inModal && !creating.value) {
+    const sc = issueShortcutFor(ev, { enabled: keysOn.value, phone: phone.value })
+    if (sc?.type === 'help') { useMsgShortcutsHelp().value = true; ev.preventDefault(); return }
+    if (sc?.type === 'action') { runIssueShortcut(sc.key); ev.preventDefault(); return }
+  }
   if (k === 'j' || key === 'ArrowDown') { move(1); focusCell(); ev.preventDefault(); return }
   /* Shift + K is the message kind menu (HUM-10 t1 ffc3b83c), not move-up. */
   if ((k === 'k' && !ev.shiftKey) || key === 'ArrowUp') { move(-1); focusCell(); ev.preventDefault(); return }
@@ -2287,6 +2402,20 @@ function onDocKey(ev: KeyboardEvent) {
   const kind = { s: 'status', p: 'priority', a: 'assign', l: 'label' }[k]
   const issue = creating.value ? detailOrDraft() : (detail.value || flat.value.find((i) => i.key === cursorKey.value) || flat.value[0])
   if (kind && issue) { openMenu(kind, issue, keyAnchor(kind, issue)); ev.preventDefault() }
+}
+
+/* Shift + `letter` on the selected row: the row's menu item for that key, only
+   when its menu offers it (Shift + R opens the menu on the row) */
+function runIssueShortcut(letter: string) {
+  const issue = flat.value.find((i) => i.key === cursorKey.value)
+  if (!issue) return
+  const tg = issueTarget(issue)
+  const row = document.querySelector<HTMLElement>(`[data-test=issues-row][data-key="${CSS.escape(issue.key)}"]`)
+  const r = row?.getBoundingClientRect()
+  const pt = { x: r ? r.left + 40 : 80, y: r ? r.bottom : 120 }
+  if (letter === 'R') { ctxFromButton.value = false; openCtxMenu(tg, pt.x, pt.y); return }
+  const id = issueShortcutItem(letter, menuItemsFor(tg, false).map((it) => it.id))
+  if (id) runIssueItem(id, tg, pt)
 }
 
 watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, serverSort, epicF], () => { void load() })
@@ -3071,6 +3200,34 @@ select.issues-pctl { appearance: auto; }
     cursor: pointer;
   }
   .issues-card[data-selected="true"] { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
+  /* HUM-10 (t1 aedca86a): the swipe, MessageCard's look (.msg--swipe) */
+  .issues-card-li { position: relative; overflow: hidden; }
+  .issues-card { touch-action: pan-y; }
+  .issues-card--swiping, .issues-card--settle { transform: translateX(var(--swipe-dx, 0px)); }
+  .issues-card--settle { transition: transform 0.18s ease-out; }
+  :global(html[dir="rtl"]) .issues-card--swiping, :global(html[dir="rtl"]) .issues-card--settle { transform: translateX(calc(-1 * var(--swipe-dx, 0px))); }
+  .issues-swipe-reveal {
+    position: absolute;
+    inset-block: 0;
+    width: var(--swipe-w, 0px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-inline: 12px;
+    overflow: hidden;
+    white-space: nowrap;
+    background: var(--color-selected);
+    color: var(--color-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    pointer-events: none;
+  }
+  .issues-swipe-reveal--start { inset-inline-start: 0; }
+  .issues-swipe-reveal--end { inset-inline-end: 0; justify-content: flex-end; }
+  .issues-swipe-reveal[data-armed] { background: var(--color-accent); color: var(--color-on-accent); }
+  @media (prefers-reduced-motion: reduce) {
+    .issues-card--settle { transition: none; }
+  }
   .issues-card__top, .issues-card__meta { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; font-size: 0.8125rem; }
   .issues-card__status { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; }
   .issues-card__due { margin-inline-start: auto; }

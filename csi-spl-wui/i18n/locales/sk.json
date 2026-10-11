@@ -879,7 +879,8 @@
       "help": "Zobraziť tento zoznam",
       "search": "Hľadať",
       "close": "Zavrieť ponuku alebo panel",
-      "menu_hint": "Skratka: {key}"
+      "menu_hint": "Skratka: {key}",
+      "issue_rows": "Riadky úloh"
     }
   },
   "topic": {
@@ -1441,6 +1442,8 @@
     "delete_cascade_body": "Týmto sa odstráni {count} úloh a ich podúlohy.",
     "err_unavailable": "Vyžaduje to aktualizovaný server. Skúste to o chvíľu znova.",
     "copy_link": "Kopírovať odkaz",
+    "open_parent": "Otvoriť nadradenú",
+    "move": "Presunúť do…",
     "epic_actions": "Akcie pre {key}",
     "select_epic": "Otvorte epik alebo funkciu, aby ste s ňou mohli pracovať"
   },

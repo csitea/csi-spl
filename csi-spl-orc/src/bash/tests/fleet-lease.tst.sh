@@ -87,6 +87,9 @@
 #      names the old holder for one LEASE_PERIOD; the old box stands down on
 #      its next tick, then the claimant is ACTIVE once. A stale take-over waits
 #      for nobody. (4 and 7 tick once more for the same wait.)
+#  25. t1 3cfc236e, the bench alert: the same night with both loops gives ONE
+#      post when the PC box is benched and ONE when it is back, both from the
+#      satellite; the ticks in between post nothing; LEASE_ALERT=0 is the control.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -758,7 +761,8 @@ B0=1791678600  # 2026-10-11T00:30:00Z
 NIGHT=60,60,60,61,60,61,60,62,23,16,10,15,11,16,3,4,9,2,5,5,8,8,2,1,2,2,0,1,0,16,60,60,60,60,60,60,60,60,60
 jq -s add <(beats hp $B0 "$NIGHT") <(beats hs $B0 "$(printf '60,%.0s' {1..38})60") >"$T/beats23.json"
 trio hp 50; trio hs 51
-t23() { tick "$1" "$2" LEASE_PRIORITY=hp,hs LEASE_BEATS_CMD="$T/bin/beats" BEATS="$T/beats23.json" LEASE_HEALTH_TTL=0 "${@:3}"; }
+# LEASE_ALERT=0: the bench alert (section 25) is not what 23 measures, and its beats read on every tick doubles 23's cost
+t23() { tick "$1" "$2" LEASE_PRIORITY=hp,hs LEASE_BEATS_CMD="$T/bin/beats" BEATS="$T/beats23.json" LEASE_HEALTH_TTL=0 LEASE_ALERT=0 "${@:3}"; }
 hm23() { local o d; o="$(hubh orch)" d="$(hubh dispatch)"; [[ "${o##*@}" == "${d##*@}" ]] && echo "${o##*@}" || echo "split:$o/$d"; }
 rm -f "$T"/hub/main.*
 # one tick per box every 170 s (inside LEASE_STALE: nobody goes stale), 01:36..06:59Z (n = 115 steps)
@@ -835,6 +839,59 @@ kill_agent tk 600; kill_agent tk 601; kill_agent tk 602
 t24 st 2320
 [[ "$(mirror st)" == CLE-002@st && "$(sentc st 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 2 && "$(logc st HANDBACK)" == 0 ]] &&
   pass "24. a stale holder (181 s silent) is taken over at once, no wait" || fail "24. stale: st=$(mirror st) $(cat "$T/st/sent" 2>&1)"
+
+# --- 25. the bench alert (t1 3cfc236e, HUM-10 "yes" 0c2817c5) --------------------
+# The 2026-10-11 night of section 23, both loops running: ONE line in #alerts
+# when the PC box is benched and ONE when it is back, both from the
+# satellite (the first healthy box of the orch order that is not the PC box);
+# the PC box posts nothing about itself. The post is the LEASE_ALERT_CMD stub.
+cat >"$T/bin/alert" <<'STUB'
+#!/usr/bin/env bash
+echo "$LEASE_MACHINE $HUB_NOW :: $(cat)" >>"$ALERTS"
+STUB
+chmod +x "$T/bin/alert"
+t25() { t23 "$1" "$2" LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert" ALERTS="$T/alerts25" "${@:3}"; }
+# b25 <machine> <from>: 100 bench ticks in ONE process (sourced once), the clock +60 s each,
+# the beats read every 10 ticks (LEASE_HEALTH_TTL 600, the loop's cache)
+b25() {
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$1/spool" LEASE_FLEET=main LEASE_MACHINE="$1" LEASE_PRIORITY=hp,hs \
+    LEASE_HUB_CMD="$T/bin/hub" LEASE_BEATS_CMD="$T/bin/beats" BEATS="$T/beats23.json" LEASE_HEALTH_TTL=600 \
+    LEASE_ALERT_CMD="$T/bin/alert" ALERTS="$T/alerts25" FROM="$2" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_lease_init || exit 1
+    for i in $(seq 1 100); do export HUB_NOW=$((FROM + i * 60)) LEASE_NOW=$((FROM + i * 60)); spl_fleet_bench_tick; done' >>"$T/out" 2>&1
+}
+rm -f "$T"/hub/main.* "$T"/h[ps]/spool/dispatch/fleet.* "$T/alerts25"
+for now in $(seq $((B0 + 3000)) 340 $((B0 + 3600))); do t25 hp $now; t25 hs $((now + 1)); done
+[[ ! -s "$T/alerts25" ]] && pass "25. healthy beats, both loops: no post (a box seen first is recorded, not posted)" ||
+  fail "25. healthy: $(cat "$T/alerts25")"
+nt=0
+# 01:36..06:20Z
+for now in $(seq $((B0 + 3960)) 680 $((B0 + 21000))); do t25 hp $now; t25 hs $((now + 1)); nt=$((nt + 2)); done
+a25() { sed -n "${1}p" "$T/alerts25" 2>/dev/null; }
+[[ "$(wc -l <"$T/alerts25" 2>/dev/null)" == 2 ]] &&
+  pass "25. a bench, then a recovery: exactly 2 posts over the night ($nt ticks, 2 loops)" ||
+  fail "25. posts: $(cat "$T/alerts25" 2>&1)"
+[[ "$(a25 1)" =~ ^hs\ [0-9]+\ ::\ Box\ hp\ benched:\ [0-9]+\ of\ 60\ heartbeats\ in\ 10\ min,\ last\ .*\(no\ new\ lanes,\ last\ for\ the\ roles\)$ &&
+   "$(a25 2)" =~ ^hs\ [0-9]+\ ::\ Box\ hp\ back\ after\ 30\ healthy\ min$ ]] &&
+  pass "25. both posts come from the satellite, none from the PC box: '$(a25 1 | cut -d: -f3-)'" || fail "25. lines: $(cat "$T/alerts25" 2>&1)"
+t1="$(a25 1 | cut -d' ' -f2)" t2="$(a25 2 | cut -d' ' -f2)"
+(( t1 >= B0 + 4800 && t1 <= B0 + 5580 && t2 >= B0 + 19800 && t2 <= B0 + 20400 )) &&
+  pass "25. benched at $(utc "$t1"), back at $(utc "$t2"), with the role demotion of section 23" || fail "25. times: $t1 $t2"
+[[ "$(logc hs 'ALERT #alerts: Box hp')" == 2 && "$(logc hp 'ALERT #alerts')" == 0 ]] &&
+  pass "25. lease.log: the satellite logs both posts, the PC box none" || fail "25. log: $(grep -h ALERT "$T"/h[ps]/spool/dispatch/lease.log)"
+# 100 ticks on each box while benched (02:10..03:50Z, every 10-min window under 30 beats): no more posts
+rm -f "$T"/h[ps]/spool/dispatch/fleet.* "$T/alerts25"
+t25 hp $((B0 + 5940)); t25 hs $((B0 + 5941))
+b25 hp $((B0 + 5940)); b25 hs $((B0 + 5941))
+[[ "$(jq -r .hp "$T/hs/spool/dispatch/fleet.bench" 2>/dev/null)" == benched && ! -s "$T/alerts25" ]] &&
+  pass "25. 200 ticks (100 per box) while benched: 0 more posts" || fail "25. benched ticks: $(jq -c . "$T/hs/spool/dispatch/fleet.bench" 2>&1) $(cat "$T/alerts25" 2>&1)"
+# CONTROL: LEASE_ALERT=0 across the bench edge (01:41..02:13Z) posts nothing
+rm -f "$T"/hub/main.* "$T"/h[ps]/spool/dispatch/fleet.* "$T/alerts25"
+for now in $(seq $((B0 + 4260)) 680 $((B0 + 6300))); do t25 hp $now LEASE_ALERT=0; t25 hs $((now + 1)) LEASE_ALERT=0; done
+[[ ! -s "$T/alerts25" ]] && pass "25. CONTROL: LEASE_ALERT=0 across the bench edge: no post" || fail "25. control: $(cat "$T/alerts25")"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

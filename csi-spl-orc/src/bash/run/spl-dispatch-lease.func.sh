@@ -64,6 +64,7 @@
 # @param LEASE_INTERMITTENT (optional) - fleet mode: boxes, comma-separated, that lose power routinely (a laptop): a listed box never hands back by rank, it takes a role only when empty or stale (env or lease.conf)
 # @param LEASE_DESK_GATE / LEASE_DESK_DIR (optional) - fleet mode: 0 turns off the desk gate of the dispatch role (spec 092 FR-002); LEASE_DESK_DIR replaces the desk dir it reads (default <state>/desk/LEASE_TENANT/LEASE_DESK_BOX)
 # @param LEASE_HEALTH (optional) - fleet mode: 0 turns off the beat-health demotion (t1 3cfc236e): a box whose hub beats are degraded, or were within the hold-down (cnf env.box.health, lib/bash/funcs/spl-box-health.func.sh), ranks last for both roles; LEASE_HEALTH_TTL (default 60 s) is how often the beats are read; LEASE_BEATS_CMD (tests) replaces the read (with the LEASE_HUB_CMD stub and no LEASE_BEATS_CMD there is none)
+# @param LEASE_ALERT (optional) - fleet mode: 0 turns off the bench alert (t1 3cfc236e): one line in LEASE_TENANT's #alerts when a box is benched (beats degraded) or back (healthy for the hold-down), posted by one box only (the first healthy box of the orch order that is not the box itself); LEASE_ALERT_CMD (tests) replaces the post, the text on stdin
 # @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default spl_desk_box_default: SPOOL_DESK_BOX, else box-desk)
 # @example LEASE_CMD=show ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
@@ -1067,7 +1068,8 @@ spl_fleet_health_get() {
   now="$(spl_lease_now)"
   [[ -s "$f" ]] && read -r at v < "$f"
   [[ "$at" =~ ^[0-9]+$ ]] || at=0
-  (( now - at < ttl )) && [[ -n "${v:-}" ]] && { echo "$v"; return 0; }
+  # a read in this same second is reused (TTL 0 included): one tick reads the beats once
+  (( now - at < ttl || now == at )) && [[ -n "${v:-}" ]] && { echo "$v"; return 0; }
   spl_box_health_cnf
   if out="$(spl_box_health_verdicts "$(spl_fleet_beats --since "$(spl_box_health_since)" 2>&1)")"; then
     printf '%s %s\n' "$now" "$out" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
@@ -1111,6 +1113,70 @@ spl_fleet_outranks() {
     rm -f "$LEASE_DIR/fleet.$role.demoted.$hm"
   fi
   (( rm < rh ))
+}
+
+# ---- the bench alert (t1 3cfc236e, HUM-10 "yes", msg 0c2817c5) ----------------
+# One line in the lease tenant's #alerts per CHANGE of a box's bench state:
+# benched = degraded or recovering (no new lanes, last for the roles), back =
+# healthy again after the hold-down. Every box records every box's state in
+# <dir>/fleet.bench on every tick, from the same hub beats on the hub's clock,
+# so every box sees the same change; only ONE box posts it, the first box of
+# the orch order (LEASE_PRIORITY_ORCH, else LEASE_PRIORITY) that is healthy
+# and is not the box itself (the box alone in the fleet only for itself). Not
+# the orch holder: the demotion moves the orch role in the very tick of the
+# change, and the old and the new holder would both post it. A box seen for
+# the first time (a new state file, a box not judged before) is recorded, not
+# posted. LEASE_ALERT=0 turns it off; LEASE_ALERT_CMD (tests) replaces the
+# post (the text on stdin); with the LEASE_HUB_CMD stub and no LEASE_ALERT_CMD
+# it is only logged. The real post is do_spl_desk_post from LEASE_ORCH's desk,
+# in the background like the owner DM.
+
+# spl_fleet_bench_tick: record every judged box's bench state, post the
+# changes this machine owns. One jq: line 1 the new state, then one line per
+# post. The poster of <box>'s change: the first box of the orch order, then
+# the other judged boxes, that is healthy and is not <box>; else <box> itself
+# when healthy (alone in the fleet); else nobody.
+spl_fleet_bench_tick() {
+  [[ "${LEASE_ALERT:-1}" == 0 ]] && return 0
+  local v f="$LEASE_DIR/fleet.bench" old='{}' out new line k="LEASE_PRIORITY_ORCH"
+  v="$(spl_fleet_health_get)"
+  [[ "$v" == '{}' || -z "$v" ]] && return 0
+  # the same verdicts as the last tick judged (the cached read): nothing can have changed
+  [[ -s "$f.v" && "$(<"$f.v")" == "$v" ]] && return 0
+  [[ -n "${BH_BEAT_S:-}" ]] || spl_box_health_cnf
+  [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
+  [[ -s "$f" ]] && old="$(<"$f")"
+  out="$(jq -rn --argjson v "$v" --arg old "$old" --arg prio "${!k}" --arg me "$LEASE_MACHINE" \
+    --argjson e "$(( BH_WINDOW_S / BH_BEAT_S ))" --argjson w "$(( BH_WINDOW_S / 60 ))" --argjson h "$(( BH_HOLD_S / 60 ))" '
+    ($old | try fromjson catch {} | if type == "object" then . else {} end) as $old
+    | ($old + ($v | map_values(if .state == "healthy" then "ok" else "benched" end))) as $new
+    | (($prio | split(",") | map(select(. != ""))) + ($v | keys)) as $order
+    | def poster($b): [$order[] | select(. != $b and $v[.].state == "healthy")][0]
+        // (if $v[$b].state == "healthy" then $b else null end);
+    ($new | tojson),
+    ($v | keys[] as $b | select($old[$b] != null and $old[$b] != $new[$b] and poster($b) == $me)
+      | if $new[$b] == "benched" then
+          $v[$b] | "Box \($b) benched: \(.n) of \($e) heartbeats in \($w) min, last \(if .age == null then "none" else "\(.age) s ago" end) (no new lanes, last for the roles)"
+        else "Box \($b) back after \($h) healthy min" end)')" || return 0
+  printf '%s\n' "$v" > "$f.v"
+  { read -r new; printf '%s\n' "$new" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+    while IFS= read -r line; do [[ -n "$line" ]] && spl_fleet_alert_post "$line"; done; } <<<"$out"
+  return 0
+}
+
+# spl_fleet_alert_post <text>: one post in LEASE_TENANT's #alerts, logged.
+spl_fleet_alert_post() {
+  if [[ -n "${LEASE_ALERT_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    $LEASE_ALERT_CMD <<<"$1" >/dev/null 2>&1 || spl_lease_log "WARN #alerts post failed (LEASE_ALERT_CMD)"
+  elif [[ -n "${LEASE_HUB_CMD:-}" ]]; then
+    spl_lease_log "ALERT #alerts (not posted, stub hub): $1"; return 0
+  else
+    ( ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="$LEASE_DESK_BOX" DESK_AGENT="$LEASE_ORCH" DESK_CHANNEL=alerts \
+        DESK_KIND=note DESK_BODY="$1" DRY_RUN=0 timeout "${LEASE_OWNER_TIMEOUT:-120}" "${LEASE_ASKS_RUN:-$PROJ_PATH/run}" \
+        -a do_spl_desk_post </dev/null >>"$LEASE_DIR/alert-post.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
+  fi
+  spl_lease_log "ALERT #alerts: $1"
 }
 
 # This machine's live candidate for a role (empty = none): the local order.
@@ -1439,6 +1505,7 @@ spl_fleet_apply() {
 spl_lease_fleet_tick() {
   spl_fleet_role_tick orch
   spl_fleet_role_tick dispatch
+  spl_fleet_bench_tick
   spl_lease_asks_tick
   spl_lease_agent_run_tick
   return 0

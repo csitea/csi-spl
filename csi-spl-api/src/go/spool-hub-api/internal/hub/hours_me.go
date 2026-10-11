@@ -82,6 +82,8 @@ func (s *Server) hoursFail(w http.ResponseWriter, tenant, op string, err error) 
 		writeErr(w, http.StatusConflict, "period_frozen", "the day's hours period is frozen")
 	case errors.Is(err, store.ErrHoursDayCap):
 		writeErr(w, http.StatusBadRequest, "day_cap", "a day holds at most 1440 minutes")
+	case errors.Is(err, store.ErrHoursOverlap):
+		writeErr(w, http.StatusConflict, "overlap_in_workspace", "these times overlap other hours of yours in this workspace")
 	case errors.Is(err, store.ErrHoursPeriodState):
 		writeErr(w, http.StatusConflict, "period_state", "the period cannot be resubmitted in its state")
 	case errors.Is(err, store.ErrHoursBad):
@@ -497,6 +499,9 @@ type hoursEntryBody struct {
 	Minutes int    `json:"minutes"`
 	State   string `json:"state"`
 	Note    string `json:"note"`
+	// spans are the hub's own times for the row (the timer's interval), never
+	// the caller's: the body carries no times.
+	spans []store.HoursSpan
 }
 
 type hoursKeyBody struct {
@@ -552,7 +557,9 @@ func (b *hoursBatch) period(ctx context.Context, day string) (*hoursPeriod, stri
 // entries turns the body's rows into store entries. SuggestedMinutes is the
 // hub's own number, never the caller's: the current suggestion, else what the
 // entry already held (a returned period has no suggestions), else 0 (an
-// added row).
+// added row). An approved row keeps its times (spec 107 3.4): the open
+// suggestion's blocks as activity spans, plus the row's own spans (the
+// timer's interval).
 func (b *hoursBatch) entries(ctx context.Context, in []hoursEntryBody) ([]store.HoursEntry, string, error) {
 	out := make([]store.HoursEntry, 0, len(in))
 	for _, e := range in {
@@ -563,6 +570,9 @@ func (b *hoursBatch) entries(ctx context.Context, in []hoursEntryBody) ([]store.
 		se := store.HoursEntry{Day: e.Day, Target: e.Target, Minutes: e.Minutes, State: e.State, Note: e.Note}
 		if s, ok := p.suggest[e.Day][e.Target]; ok {
 			se.SuggestedMinutes = s.Minutes
+			if e.State == store.HoursApproved {
+				se.Spans = hoursActivitySpans(s.Blocks)
+			}
 		} else {
 			for _, old := range p.entries {
 				if old.Day == e.Day && old.Target == e.Target {
@@ -570,9 +580,30 @@ func (b *hoursBatch) entries(ctx context.Context, in []hoursEntryBody) ([]store.
 				}
 			}
 		}
+		if e.State == store.HoursApproved {
+			se.Spans = append(se.Spans, e.spans...)
+		}
 		out = append(out, se)
 	}
 	return out, "", nil
+}
+
+// hoursActivitySpans is a suggestion's blocks as activity spans, on whole
+// minutes; a block that rounds to nothing is dropped.
+func hoursActivitySpans(bs []hours.Span) []store.HoursSpan {
+	var out []store.HoursSpan
+	for _, b := range bs {
+		if sp, ok := hoursSpanOf(b.Start, b.End, store.HoursSpanActivity); ok {
+			out = append(out, sp)
+		}
+	}
+	return out
+}
+
+// hoursSpanOf is [start, end) rounded to whole minutes; false when empty.
+func hoursSpanOf(start, end time.Time, src string) (store.HoursSpan, bool) {
+	sp := store.HoursSpan{Start: start.UTC().Round(time.Minute), End: end.UTC().Round(time.Minute), Src: src}
+	return sp, sp.End.After(sp.Start)
 }
 
 // PUT /v1/me/hours {entries?, remove?, resubmit?}: answers the period of the

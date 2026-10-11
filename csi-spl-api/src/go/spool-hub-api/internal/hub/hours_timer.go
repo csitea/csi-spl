@@ -23,6 +23,9 @@ import (
 //     an entry's minutes (a rejected one counts 0), else the open suggestion's
 //     (stopping a timer on a target says "this is my time on it", so the
 //     row is approved), else 0;
+//   - each day's piece is kept as a timer span of that entry (spec 107 3.4),
+//     so the stop keeps its start and end; a piece overlapping other times of
+//     the member in the workspace is 409 overlap_in_workspace;
 //   - the whole interval is written or nothing: a frozen day is 409
 //     period_frozen, a day above 1440 minutes is 400 day_cap.
 //
@@ -38,8 +41,9 @@ type hoursTimerBody struct {
 
 // hoursTimerPiece is the part of the interval on one local day.
 type hoursTimerPiece struct {
-	Day     string `json:"day"`
-	Minutes int    `json:"minutes"`
+	Day        string `json:"day"`
+	Minutes    int    `json:"minutes"`
+	start, end time.Time
 }
 
 // splitHoursTimer cuts [start, end) at local midnights in loc; a piece is
@@ -53,7 +57,7 @@ func splitHoursTimer(start, end time.Time, loc *time.Location) []hoursTimerPiece
 			next = end
 		}
 		if m := int(next.Sub(at).Round(time.Minute) / time.Minute); m > 0 {
-			out = append(out, hoursTimerPiece{Day: l.Format(hoursDayLayout), Minutes: m})
+			out = append(out, hoursTimerPiece{Day: l.Format(hoursDayLayout), Minutes: m, start: at, end: next})
 		}
 		at = next
 	}
@@ -99,8 +103,12 @@ func (b *hoursBatch) timerEntries(target string, pieces []hoursTimerPiece) []hou
 		if s, ok := p.suggest[pc.Day][target]; ok && !found {
 			base = s.Minutes
 		}
-		out = append(out, hoursEntryBody{Day: pc.Day, Target: target, Minutes: base + pc.Minutes,
-			State: store.HoursApproved, Note: note})
+		e := hoursEntryBody{Day: pc.Day, Target: target, Minutes: base + pc.Minutes,
+			State: store.HoursApproved, Note: note}
+		if sp, ok := hoursSpanOf(pc.start, pc.end, store.HoursSpanTimer); ok {
+			e.spans = []store.HoursSpan{sp}
+		}
+		out = append(out, e)
 	}
 	return out
 }

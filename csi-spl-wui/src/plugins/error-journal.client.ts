@@ -42,9 +42,16 @@ export default defineNuxtPlugin((nuxtApp) => {
   if (!import.meta.client) return
 
   // Vue render / lifecycle errors. The hook is additive — Nuxt still runs its
-  // own handler and the app still behaves exactly as before.
-  nuxtApp.hook('vue:error', (err) => {
-    record('vue', err)
+  // own handler and the app still behaves exactly as before. The record names
+  // the component (path) and Vue's phase (code): a bare DOM message such as
+  // ERR-CLIENT-20261011-071556-99F1's insertBefore says nothing about where.
+  // The trail helper is its own chunk (the initial JS is at its ceiling): the
+  // record waits for it, and is written without the trail if it cannot load.
+  nuxtApp.hook('vue:error', (err, instance, info) => {
+    void import('~/utils/vue-error-trail.mjs').then(
+      (m) => record('vue', err, { trail: m.vueComponentTrail(instance), code: m.vueErrorInfo(info) || undefined }),
+      () => record('vue', err),
+    )
   })
 
   // Nuxt app-level errors (navigation, plugin failures, showError()).

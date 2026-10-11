@@ -380,6 +380,9 @@ function stampErrorId(err, id) {
   }
 }
 
+/** Longest component trail a Vue error's record keeps in `path` (the hub's cap). */
+const MAX_TRAIL_CHARS = 200
+
 /**
  * Build one redacted record. Exported so the redaction table can be tested
  * directly, on any platform, without the client-only gate in the way.
@@ -387,8 +390,9 @@ function stampErrorId(err, id) {
  * @param {{
  *   source?: unknown, method?: unknown, url?: unknown, status?: unknown,
  *   code?: unknown, message?: unknown, name?: unknown, route?: unknown,
- *   error?: unknown
- * }} [input]
+ *   error?: unknown, trail?: unknown
+ * }} [input]  `trail`: a Vue error's component trail, kept in `path` when
+ *   the record has no URL (utils/vue-error-trail.mjs)
  * @returns {object | null}
  */
 export function buildErrorRecord(input) {
@@ -402,7 +406,9 @@ export function buildErrorRecord(input) {
     return Number.isFinite(derived) && derived > 0 ? derived : 0
   })()
 
-  const { origin, path } = redactUrl(input.url)
+  const url = redactUrl(input.url)
+  const { origin } = url
+  const path = url.path || (input.trail ? redactPath(input.trail, MAX_TRAIL_CHARS) : '')
 
   // The API's stable error envelope: { error: { code, message } }. `code` is a
   // enumerated identifier (error.email_taken, …) — that is the useful half.

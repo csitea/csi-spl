@@ -30,6 +30,7 @@ import {
   debugPanelVisibleFor,
   diagnosticsGranted,
 } from '../../src/composables/debugAudience.mjs'
+import { MAX_TRAIL_CHARS, vueComponentTrail, vueErrorInfo } from '../../src/utils/vue-error-trail.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -149,6 +150,59 @@ describe('errorJournal: the buffer', () => {
   })
 })
 
+/* ERR-CLIENT-20261011-071556-99F1: an insertBefore render error that named no
+   component. A Vue error's record carries the component trail and Vue's phase. */
+describe('errorJournal: a Vue error names its component', () => {
+  /* the internal instance chain Vue builds: type (__name from <script setup>, or name), parent */
+  const chain = (...names) => names.reduce((parent, n) => ({ type: n ? { __name: n } : {}, parent }), null)
+
+  it('the trail runs outermost first, innermost last, from the public instance too', () => {
+    const inner = chain('App', 'TopicPane', 'LiveFeed', 'MessageCard')
+    assert.equal(vueComponentTrail(inner), 'App/TopicPane/LiveFeed/MessageCard')
+    assert.equal(vueComponentTrail({ $: inner }), 'App/TopicPane/LiveFeed/MessageCard')
+  })
+
+  it('an options name wins over nothing, an unnamed one is Anonymous, no instance is empty', () => {
+    const inner = { type: { name: 'AsyncComponentWrapper' }, parent: { type: {}, parent: null } }
+    assert.equal(vueComponentTrail(inner), 'Anonymous/AsyncComponentWrapper')
+    assert.equal(vueComponentTrail(null), '')
+    assert.equal(vueComponentTrail(undefined), '')
+  })
+
+  it('a deep trail keeps the innermost names under the cap', () => {
+    const names = Array.from({ length: 12 }, (_, i) => `Component${String(i).padStart(2, '0')}WithALongName`)
+    const t = vueComponentTrail(chain(...names))
+    assert.ok(t.length <= MAX_TRAIL_CHARS, String(t.length))
+    assert.ok(t.startsWith('…/'), t)
+    assert.ok(t.endsWith('/Component11WithALongName'), t)
+  })
+
+  it('never throws on a hostile instance', () => {
+    const bad = { get type() { throw new Error('boom') } }
+    assert.equal(vueComponentTrail(bad), '')
+  })
+
+  it("Vue's info: a production error-reference link reads vue:runtime-N, a dev phase stays", () => {
+    assert.equal(vueErrorInfo('https://vuejs.org/error-reference/#runtime-1'), 'vue:runtime-1')
+    assert.equal(vueErrorInfo('render function'), 'render function')
+    assert.equal(vueErrorInfo(undefined), '')
+  })
+
+  it('the record keeps the trail in path and the phase in code, an API record keeps its URL path', () => {
+    const rec = buildErrorRecord({
+      source: 'vue',
+      error: { name: 'NotFoundError', message: "Failed to execute 'insertBefore' on 'Node'" },
+      trail: vueComponentTrail(chain('TopicPane', 'LiveFeed', 'MessageCard')),
+      code: vueErrorInfo('https://vuejs.org/error-reference/#runtime-1'),
+    })
+    assert.equal(rec.path, 'TopicPane/LiveFeed/MessageCard')
+    assert.equal(rec.code, 'vue:runtime-1')
+    assert.equal(rec.origin, '')
+    const api = buildErrorRecord({ source: 'api', url: 'https://h.example.test/v1/view/me', trail: 'X/Y' })
+    assert.equal(api.path, '/v1/view/me')
+  })
+})
+
 describe('debugAudience: the gate fails shut', () => {
   it('only the literal boolean true grants', () => {
     assert.equal(diagnosticsGranted({ diagnostics_enabled: true }), true)
@@ -182,6 +236,17 @@ describe('wiring', () => {
        The invariants this guard protects — client-only, last in the layout —
        are unchanged; the added gate only strengthens them. */
     assert.ok(/<ClientOnly>\s*<DebugPanel v-if="[^"]+" \/>\s*<\/ClientOnly>\s*<\/div>\s*<\/template>/.test(layout))
+  })
+
+  it('the journal plugin hands a Vue error its component trail and phase', () => {
+    const src = read('src/plugins/error-journal.client.ts')
+    assert.ok(src.includes("nuxtApp.hook('vue:error', (err, instance, info) => {"))
+    assert.ok(src.includes('trail: m.vueComponentTrail(instance), code: m.vueErrorInfo(info)'))
+    /* its own chunk, never in the initial JS (ci_initial_gzip_kb at its ceiling) */
+    assert.ok(src.includes("import('~/utils/vue-error-trail.mjs')"))
+    assert.equal(/^import .*vue-error-trail/m.test(src), false)
+    /* a chunk that cannot load still records the error */
+    assert.ok(src.includes("() => record('vue', err),"))
   })
 
   it('the journal plugin is client-only and only observes', () => {

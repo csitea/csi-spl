@@ -79,9 +79,8 @@ out="$(env PATH="$T/bin:$PATH" PROJ_ROOT="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK
     traps_after="$(trap -p)";
     [ "$traps_before" = "$traps_after" ] && echo "traps unchanged" || echo "traps changed: $traps_after"' 2>&1)"
 rc_part="$(echo "$out" | grep -o 'after rc=[0-9]*' | cut -d= -f2)"
-traps_before_part="$(echo "$out" | grep -o 'trap -- .* SIGPIPE')"
-traps_after_part="$(echo "$out" | grep -A1 'after rc' | tail -n1 | grep -o 'trap -- .* SIGPIPE')"
-[ "$rc_part" = "1" ] && [ "$traps_before_part" = "$traps_after_part" ] && pass "5.1. inherited trap (SIGPIPE): traps unchanged after failure" || fail "5.1. inherited trap ($out)"
+traps_part="$(echo "$out" | grep -o 'traps [a-z]*')"
+[ "$rc_part" = "1" ] && [ "$traps_part" = "traps unchanged" ] && pass "5.1. inherited trap (SIGPIPE): traps unchanged after failure" || fail "5.1. inherited trap ($out)"
 
 # 5.2. Red control: helper sets a trap (should fail)
 # Override the helper to set a trap and force a failure

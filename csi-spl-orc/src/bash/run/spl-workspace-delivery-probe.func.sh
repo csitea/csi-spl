@@ -26,7 +26,8 @@
 # @description The workspace set is the live desk dirs (<state>/desk/<ws>),
 # @description never a list; a test workspace (spl_test_workspace, the sweep's
 # @description rule) is left out. The probe login of a workspace is
-# @description <state>/m3-e2e/<ws>/{human-email,pw-human} (PROBE_LOGIN_DIR);
+# @description <state>/m3-e2e/<ws>/probe/{human-email,pw-human} (PROBE_LOGIN_DIR;
+# @description do_spl_probe_member_seat writes it), else <ws>/ itself;
 # @description the alert workspace (t1) also takes the PROBE_EMAIL /
 # @description PROBE_PW_FILE pair the desk cron already uses, then the e2e
 # @description member's files.
@@ -50,7 +51,7 @@
 # @param PROBE_REALERT (optional) - seconds before an unchanged alert repeats, default 3600
 # @param PROBE_ALERT_TENANT (optional) - default LEASE_TENANT, else t1
 # @param PROBE_ALERT_CHANNEL (optional) - default alerts
-# @param PROBE_BOX (optional) - this machine's tag in the topic and the alert, default the short host name
+# @param PROBE_BOX (optional) - this machine's tag in the topic and the alert, default its desk box id (spl_desk_box_default)
 # @param PROBE_DESK_DIR / PROBE_LOGIN_DIR (optional) - default <state>/desk and <state>/m3-e2e
 # @param PROBE_POST_CMD / PROBE_SEND (optional) - the poster and the spool sender (the tests' seams)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
@@ -58,6 +59,8 @@
 # @example ENV=dev ./run -a do_spl_workspace_delivery_probe
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_workspace_delivery_probe
 #------------------------------------------------------------------------------
+declare -F spl_desk_box_default >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
 declare -F spl_desk_alive >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-up.func.sh"
 
@@ -77,7 +80,7 @@ do_spl_workspace_delivery_probe() {
   WDP_ALERT_T="${PROBE_ALERT_TENANT:-${LEASE_TENANT:-t1}}"
   WDP_DESK="${PROBE_DESK_DIR:-$SPL_STATE_DIR/desk}"
   WDP_LOGIN="${PROBE_LOGIN_DIR:-$SPL_STATE_DIR/m3-e2e}"
-  WDP_BOX="${PROBE_BOX:-$(hostname -s)}"
+  WDP_BOX="${PROBE_BOX:-$(spl_desk_box_default)}"
   for v in "$WDP_TO" "$WDP_ASK_TO" "$WDP_FROM"; do
     [[ "$v" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { do_log "FATAL '$v' is not an agent id"; return 1; }
   done
@@ -149,7 +152,7 @@ spl_wdp_login() {
   if [[ "$w" == "$WDP_ALERT_T" && -n "${PROBE_EMAIL:-}" && -r "${PROBE_PW_FILE:-}" ]]; then
     printf '%s\t%s\n' "$PROBE_EMAIL" "$PROBE_PW_FILE"; return 0
   fi
-  for dir in "$WDP_LOGIN/$w" $([[ "$w" == "$WDP_ALERT_T" ]] && echo "$WDP_LOGIN/e2e"); do
+  for dir in "$WDP_LOGIN/$w/probe" "$WDP_LOGIN/$w" $([[ "$w" == "$WDP_ALERT_T" ]] && echo "$WDP_LOGIN/e2e"); do
     [[ -r "$dir/human-email" && -r "$dir/pw-human" ]] || continue
     e="$(tr -d '[:space:]' <"$dir/human-email")"
     [[ -n "$e" ]] && { printf '%s\t%s\n' "$e" "$dir/pw-human"; return 0; }

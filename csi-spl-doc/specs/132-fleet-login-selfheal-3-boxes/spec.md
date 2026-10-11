@@ -6,7 +6,7 @@ This spec solves the problem of keeping every agent kind (`claude`, `grok`, `mis
 The system distinguishes between a dead login (expired session) and a usage-limit ceiling.
 - **Login outage**: The terminal footer reads "Login expired" or "Please run /login". The agent cannot proceed without a valid token.
 - **Quota outage**: The terminal footer reads "hit your ... limit". The agent must wait.
-- **Detection logic**: The self-heal cron job separates these states and only applies the repair sequence (stop + restore) to login outages. Quota outages are reported (e.g., `limit` count in the alert). They are left alone while the box probe says `limited` or `expired`, but if the box probe says `ok` (the limit has lifted but the pane is stale), they are stopped and restored.
+- **Detection logic**: The self-heal cron job separates these states and applies the repair sequence (stop + restore) to login outages. Quota outages are reported (e.g., `limit` count in the alert). They are left alone while the box probe says `limited` or `expired`, but if the box probe says `ok` (the limit has lifted but the pane is stale), they are stopped and restored.
 
 ## 2. End Copying a Login Between Boxes
 Currently, boxes share one Claude login by copying the token. This practice will end:
@@ -16,7 +16,7 @@ Currently, boxes share one Claude login by copying the token. This practice will
 
 ## 3. PROOF Step
 Before fully dropping the single-refresher fallback, we must prove that multiple boxes can renew independently on the same account without invalidating one another.
-- **Outages**: The design must beat the outage 17:45Z to 18:16-18:22Z (31 to 37 min, all claude seats on the box) and the 8 needless restarts at 18:31Z. Detection must occur within 1 tick (cron `* * * * *`), repair within the 10 min cool-down, with 0 restarts of a seat that is no longer stuck.
+- **Outages**: The design must beat the outage 17:45Z to 18:16-18:22Z (31 to 37 min, all claude seats on the box) and the 8 needless restarts at 18:31Z. Detection must occur within 1 tick (cron `* * * * *`), with 0 restarts of a seat that is no longer stuck.
 - **Renewal interval**: The access token lives ~8 h (479 min, n=1). The proof will measure it (delta between successive `expiresAt` with a sha prefix change, via `agent-login-cred.sh stat`).
 - **Test**: Two boxes are signed in separately to the same Claude account. The `/login` on box-2 and removing `SPOOL_LOGIN_PEERS` on box-1 must be ONE step before the 48h start, to prevent box-1 from pushing over box-2.
 - **Criteria**: 
@@ -33,7 +33,7 @@ Before fully dropping the single-refresher fallback, we must prove that multiple
 
 ## 4. Transition from Today
 Today, box-2 runs on a COPY of box-1's login. 
-- The single-refresher push mechanism must stay **on** until a person has manually run `/login` on box-2 to establish its own independent session. After a proof pass, the peer lists are emptied.
+- The single-refresher push mechanism must stay **on** until a person has manually run `/login` on box-2 to establish its own independent session. The peer list is emptied in that same step.
 - **3rd Cloud Box**: The new box joins via `do_spl_box_deploy install`, which installs the crons (including `agent-login-check`). Its `SPOOL_LOGIN_PEERS` stays empty (it is not a refresher) and it is not added to box-1's peers. First login per vendor is done by a person (claude `/login`, grok/agy browser or device login, mistral/qwen keys). It has joined when its first tick logs `probe=ok`.
 
 ## 5. What a Person Must Do
@@ -57,12 +57,12 @@ The login check currently scans `claude` seats only. The dead-login patterns for
 | Agent Kind | Sign-In Method | Renewal | "Dead Login" / "Quota Hit" Pane Text | Cross-Box Copying | Self-Heal Action |
 |---|---|---|---|---|---|
 | **Claude** (`c-`) | Browser login (`/login`) | Auto (token lives ~8h); `/login` only on revoke/fail | **Dead:** `please run /login` or `oauth (session\|token) (has )?expired` <br>**Quota:** `(you[^[:space:]]* )?hit your ([a-z]+ )?limit\|usage limit reached` | Unproven (proof decides). A hypothesis is that they invalidate each other. | Scan + Restore (`do_spl_agent_identity_restore`) |
-| **Grok** (`g-`) | Browser or device login (API key is fallback) | Same as Claude (probe, early warning, repair) | **Dead:** `invalid api key` (unmeasured) <br>**Quota:** watchdog stall regex | Unmeasured | Watchdog `S2 kind=auth` alerts dispatch holder -> person logs in -> restore |
+| **Grok** (`g-`) | Browser or device login (API key is fallback) | Target, not built: same as Claude (probe, early warning, repair) | **Dead:** `invalid api key` (unmeasured) <br>**Quota:** watchdog stall regex | Unmeasured | Watchdog `S2 kind=auth` alerts dispatch holder -> person logs in -> restore |
 | **Mistral** (`m-`, vibe) | API key (env) | No refresh step in tree | **Dead:** `invalid api key (from env var MISTRAL_API_KEY)`<br>**Quota:** `rate limits exceeded` | Works (static key) | Watchdog `S2 kind=auth` alerts dispatch holder -> person re-keys -> restore |
-| **Agy** (`a-`) | Google login only (keys ignored) | Same as Claude (probe, early warning, repair) | **Dead:** login-required line (unmeasured) <br>**Quota:** watchdog stall regex | Unmeasured | Same as Grok |
+| **Agy** (`a-`) | Google login only (keys ignored) | Target, not built: same as Claude (probe, early warning, repair) | **Dead:** login-required line (unmeasured) <br>**Quota:** watchdog stall regex | Unmeasured | Watchdog `S2 kind=auth` needs to recognize Agy's login-required banner. Once detected -> alerts dispatch holder -> person logs in -> restore |
 | **Qwen** (`q-`) | API key (env) with auth-type pin | No refresh step in tree | **Dead:** `invalid api key` (unmeasured) <br>**Quota:** watchdog stall regex | Works (static key) | Same as Mistral |
 
 ## 8. Hourly Rotation
 `do_spl_lane_rotate` probes the login status before rotating. 
 - **Claude:** The gate defers a claude seat while the probe is not ok. The tick skips the seat and sends one note (it does not block until repair finishes).
-- **Gap:** The gate is claude-only. Grok, agy, and qwen take the same branch and rotate into a dead login (the per-vendor probe should feed rotation too).
+- **Gap:** The gate is claude-only. Mistral, grok, agy, and qwen take the same branch and rotate into a dead login (the per-vendor probe should feed rotation too).

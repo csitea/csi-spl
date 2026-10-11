@@ -185,7 +185,8 @@ describe('every message menu, one rule (t1 b6c742f0, HUM-10 14dc0232)', () => {
     assert.match(src('src/composables/useAiMenuGroup.ts'), /withAiItems\(/)
     assert.match(src('src/components/MessageMenu.vue'), /useAiMenuGroup\(/)
     assert.match(src('src/components/SearchRowMenu.vue'), /useAiMenuGroup\(/)
-    assert.match(src('src/components/FlowList.vue'), /:ai-msg="menu\.row"/)
+    /* spec 130: a folded Flow line's menu acts on its topic (menuAi), an old entry on its row */
+    assert.match(src('src/components/FlowList.vue'), /:ai-msg="menuAi"/)
     assert.match(src('src/components/SearchSidePanel.vue'), /:ai-msg=/)
     assert.match(src('src/components/MessageCard.vue'), /:ai-msg="msg"/)
   })

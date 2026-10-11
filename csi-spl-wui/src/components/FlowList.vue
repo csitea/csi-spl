@@ -49,17 +49,20 @@
     >{{ flow.loadingMore ? t('feed.loading_older') : t('feed.load_more') }}</button>
   </div>
   <p v-if="aiError" class="msg-edit-error flow-ai-error" role="alert" data-testid="msg-ai-error">{{ t(aiError) }}</p>
-  <!-- t1 b6c742f0: an entry's menu (right-click, a long press, the menu key):
-       Open original, and on a person's message the AI actions group.
+  <!-- t1 b6c742f0: an entry's menu (right-click, a long press, the menu key).
+       Spec 130 (owner t1 1cde1dd4, f4b6977e): a folded line's menu is what
+       it points to - Open discussion, Open issue, Open release log, Copy
+       link, Copy text, Mark read (FLOW_LINE_ACTIONS, the table its Shift keys
+       share) - and on a topic line the AI actions group.
        Mounted on open only: not in the initial JS (027). -->
   <LazySearchRowMenu
     v-if="menu.row"
     :open="!!menu.row"
     :x="menu.x"
     :y="menu.y"
-    :items="MENU_ITEMS"
-    :ai-msg="menu.row"
-    :label="t('feed.msg_menu.label')"
+    :items="menuItems"
+    :ai-msg="menuAi"
+    :label="t(menuLine ? 'flow.menu.label' : 'feed.msg_menu.label')"
     testid="flow-menu"
     @close="menu.row = null"
     @escape="listEl?.focus()"
@@ -78,6 +81,11 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { flowUnread } from '~/utils/flow-entries.mjs'
 import type { FlowKind } from '~/utils/flow-badge.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
+import { FLOW_LINE_GLYPH, flowLineOffered, flowLineTarget } from '~/utils/flow-fold.mjs'
+import type { FlowLine } from '~/utils/flow-fold.mjs'
+import { FLOW_LINE_ACTIONS, flowShortcutFor, flowShortcutHint, flowShortcutItem } from '~/utils/msg-shortcuts.mjs'
+import { useMsgShortcutsHelp, useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
+import { writeClipboard } from '~/utils/clipboard.mjs'
 import type { SideHitItem } from '~/utils/side-hit-list.mjs'
 import { loadCursors } from '~/utils/read-cursor.mjs'
 import { formatMsgListTs, phoneCardTime, shownPerson } from '~/utils/channel-feed.mjs'
@@ -135,7 +143,57 @@ function placeTitle(e: FlowEntry, place: string) {
   return e.reply ? t('flow.reply_in', { place }) : place
 }
 
-const items = computed<SideHitItem[]>(() => flow.visible.map((e: FlowEntry) => {
+/** Mine shows the hub's folded lines (spec 130); the mock's whole-feed fixture still shows entries. */
+function isLine(r: FlowLine | FlowEntry | null | undefined): r is FlowLine {
+  return Boolean(r && flow.mineOn)
+}
+
+/** The place a topic line is in: its channel, else the DM's first other id. */
+function linePlace(l: FlowLine) {
+  if (l.channel) return '#' + channelName(String(l.channel))
+  const peer = personOf(String(l.where || (l.ids && l.ids[0]) || ''))
+  return peer.id ? shownPerson(peer.id, peer.box, people.names.value) : ''
+}
+
+/**
+ * The line's one-line summary (spec 130 section 2.1): the count when > 1,
+ * the topic title, up to two ids then "+N"; a release line its version span.
+ * The kind leads as the badge, the time sits on the right.
+ */
+function lineSummary(l: FlowLine) {
+  if (l.kind === 'release') {
+    return l.version_from && l.version_from !== l.version_to
+      ? t('flow.line_release', { from: l.version_from, to: l.version_to, n: l.versions })
+      : String(l.version_to || '')
+  }
+  const ids = (l.ids || []).map((id) => {
+    const p = personOf(id)
+    return shownPerson(p.id, p.box, people.names.value)
+  })
+  const who = ids.length ? ' · ' + ids.join(', ') + (l.ids_more ? ` +${l.ids_more}` : '') : ''
+  const title = l.title || l.text || '📎'
+  return (l.count > 1 ? l.count + ' ' : '') + t('flow.line_in', { title }) + who
+}
+
+function lineItem(l: FlowLine): SideHitItem {
+  const summary = lineSummary(l)
+  return {
+    key: l.key,
+    msgId: l.msg_id || '',
+    type: l.kind,
+    badge: FLOW_LINE_GLYPH[l.kind] || '',
+    where: l.kind === 'release' ? t('flow.kind.release') : linePlace(l),
+    when: phoneCardTime(formatMsgListTs(l.at), l.at, now.value),
+    text: summary,
+    title: t('flow.kind.' + l.kind) + ' · ' + summary + (l.title && l.text ? '\n' + l.text : ''),
+    unread: l.unread && !flow.opened.has(l.key),
+    fold: true,
+  }
+}
+
+const items = computed<SideHitItem[]>(() => flow.visible.map((r: FlowLine | FlowEntry) => {
+  if (isLine(r)) return lineItem(r)
+  const e = r as FlowEntry
   let where: string
   if (e.kind === 'channel') {
     where = channelName(String(e.channel))
@@ -167,8 +225,10 @@ const items = computed<SideHitItem[]>(() => flow.visible.map((e: FlowEntry) => {
 async function openKey(key: string) {
   /* the long press that opened the menu lifts with a click: that click is the menu's */
   if (longPress.takeClick()) return
-  const row = flow.visible.find((r: FlowEntry) => r.key === key)
+  const row = entryOf(key)
   if (!row) return
+  /* spec 130 section 2.4: a blocked line opens its issue, a release line its log */
+  if (isLine(row)) return openLine(row, flowLineTarget(row).to)
   flow.select(key)
   flow.markOpened(key)
   /* the keyboard stays on the list, so the next ArrowDown keeps cycling */
@@ -177,18 +237,52 @@ async function openKey(key: string) {
   if (keyboard && !stack.isMobile.value) listEl.value?.focus()
 }
 
+/**
+ * Open a folded line where `to` says (spec 130 section 2.4): its newest
+ * message in its original place, the topic's issue, or the release log.
+ * Opening it marks all of it read (FR-009: t:<task_id> / f:rel:<version>).
+ */
+async function openLine(line: FlowLine, to: 'message' | 'issue' | 'release') {
+  flow.select(line.key)
+  flow.markOpened(line.key)
+  const keyboard = Boolean(scrollEl.value && scrollEl.value.contains(document.activeElement))
+  if (to === 'message') await openMessage({ msg_id: line.msg_id, task_id: line.task_id, parent_task_id: line.parent_task_id || null })
+  else if (to === 'issue') await router.push(localePath('/issues?issue=' + line.issue))
+  else await router.push(localePath('/releases/' + encodeURIComponent(String(line.sha || ''))))
+  if (keyboard && !stack.isMobile.value) listEl.value?.focus()
+}
+
 /* t1 b6c742f0 (HUM-10 14dc0232: "add those same actions to every msg card
    in every view"): an entry's menu - right-click, a long press on a phone
    (the bottom sheet), or the menu key. An AI pick opens the message where it
    lives, then runs there (composables/useAiListRun.ts). */
 const MENU_ITEMS: PointMenuItem[] = [{ id: 'original', icon: 'open', labelKey: 'search.menu.original' }]
-const menu = reactive<{ row: FlowEntry | null, x: number, y: number }>({ row: null, x: 0, y: 0 })
+const menu = reactive<{ row: FlowLine | FlowEntry | null, x: number, y: number }>({ row: null, x: 0, y: 0 })
+const menuLine = computed(() => (isLine(menu.row) ? menu.row : null))
+/* a folded line: the entries it offers (flowLineOffered), each with its Shift key */
+const menuItems = computed<PointMenuItem[]>(() => {
+  const line = menuLine.value
+  if (!line) return MENU_ITEMS
+  const offered = flowLineOffered(line)
+  return FLOW_LINE_ACTIONS.filter((a) => offered.includes(a.id))
+    .map((a) => ({ id: a.id, icon: a.icon, labelKey: a.labelKey, keyHint: flowShortcutHint(a.id) }))
+})
+/* the AI actions act on a topic line's topic (aiSubject 'topic'); a release line has none */
+const menuAi = computed(() => {
+  const line = menuLine.value
+  if (!line) return menu.row
+  return line.kind === 'release' ? null : { ai_kind: 'topic', task_id: line.task_id, title: line.title || line.text || '' }
+})
 const aiList = useAiListRun()
 const aiError = ref('')
-function entryOf(key: string) {
-  return flow.visible.find((r: FlowEntry) => r.key === key) || null
+const router = useRouter()
+const localePath = useLocalePath()
+const shortcutsOn = useMsgShortcutsOn()
+const shortcutsHelp = useMsgShortcutsHelp()
+function entryOf(key: string): FlowLine | FlowEntry | null {
+  return flow.visible.find((r: FlowLine | FlowEntry) => r.key === key) || null
 }
-function openMenuAt(row: FlowEntry, x: number, y: number) {
+function openMenuAt(row: FlowLine | FlowEntry, x: number, y: number) {
   flow.select(row.key)
   aiError.value = ''
   menu.row = row
@@ -201,7 +295,7 @@ function onMenu(key: string, ev: MouseEvent) {
   ev.preventDefault()
   openMenuAt(row, ev.clientX, ev.clientY)
 }
-let pressRow: FlowEntry | null = null
+let pressRow: FlowLine | FlowEntry | null = null
 const longPress = createLongPress({
   onPress: (x, y) => {
     if (!pressRow) return
@@ -222,19 +316,55 @@ function onPress(key: string, ev: PointerEvent) {
   el.addEventListener('pointerup', up)
   el.addEventListener('pointercancel', cancel)
 }
-function onKey(ev: KeyboardEvent, key: string) {
-  if (!(ev.key === 'ContextMenu' || (ev.key === 'F10' && ev.shiftKey))) return
-  const row = entryOf(key)
-  const el = listEl.value?.rowEl(key)
-  if (!row) return
-  ev.preventDefault()
-  const r = el?.getBoundingClientRect()
+function menuAtRow(row: FlowLine | FlowEntry) {
+  const r = listEl.value?.rowEl(row.key)?.getBoundingClientRect()
   openMenuAt(row, r ? r.left + 16 : 16, r ? r.top + 24 : 16)
 }
+function onKey(ev: KeyboardEvent, key: string) {
+  const row = entryOf(key)
+  if (!row) return
+  if (ev.key === 'ContextMenu' || (ev.key === 'F10' && ev.shiftKey)) {
+    ev.preventDefault()
+    return menuAtRow(row)
+  }
+  /* spec 130, owner t1 1cde1dd4 (f9300a98): the message keys on the selected
+     line, each the menu entry of the same meaning (FLOW_LINE_ACTIONS) */
+  if (!isLine(row)) return
+  const sc = flowShortcutFor(ev, { enabled: shortcutsOn.value, phone: stack.isMobile.value })
+  if (!sc) return
+  ev.preventDefault()
+  if (sc.type === 'help') {
+    shortcutsHelp.value = true
+    return
+  }
+  if (sc.key === 'R') return menuAtRow(row)
+  const id = flowShortcutItem(sc.key, flowLineOffered(row))
+  if (id) void runLine(row, id)
+}
+
+/** Run one action of a folded line (its menu entry or its Shift key). */
+async function runLine(line: FlowLine, id: string) {
+  if (id === 'open') return openLine(line, 'message')
+  if (id === 'issue') return openLine(line, 'issue')
+  if (id === 'release') return openLine(line, 'release')
+  if (id === 'read') return flow.markOpened(line.key)
+  if (id === 'copy') {
+    const target = flowLineTarget(line)
+    const path = target.to === 'release' ? target.path : line.link
+    return void writeClipboard(window.location.origin + localePath(path))
+  }
+  if (id === 'copy-text') return void writeClipboard(lineSummary(line) + (line.title && line.text ? '\n' + line.text : ''))
+  if (id.startsWith('ai-') && line.task_id) {
+    flow.markOpened(line.key)
+    aiError.value = await aiList.runTopic(id, line.task_id)
+  }
+}
+
 async function onMenuChoose(id: string) {
   const row = menu.row
   menu.row = null
   if (!row) return
+  if (isLine(row)) return runLine(row, id)
   if (id === 'original') return void openKey(row.key)
   if (id.startsWith('ai-')) {
     flow.markOpened(row.key)

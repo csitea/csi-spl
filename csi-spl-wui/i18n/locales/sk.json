@@ -880,7 +880,8 @@
       "search": "Hľadať",
       "close": "Zavrieť ponuku alebo panel",
       "menu_hint": "Skratka: {key}",
-      "issue_rows": "Riadky úloh"
+      "issue_rows": "Riadky úloh",
+      "flow_lines": "Riadky toku"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Priame správy: {n}",
     "empty_mine": "Zatiaľ pre vás nič. Tu sa zobrazujú zmienky, odpovede vo vašich vláknach a priame správy.",
     "mention_in": "Spomenul(a) vás v {place}",
-    "badge": "Tok: {n} nových pre vás"
+    "badge": "Tok: {n} nových pre vás",
+    "line_in": "v „{title}“",
+    "line_release": "{from} .. {to} (verzie: {n})",
+    "kind": {
+      "blocked": "Zablokované",
+      "ready": "Hotové",
+      "mention": "Zmienka",
+      "poke": "Štuchnutie",
+      "dm": "Priama správa",
+      "reply": "Odpoveď",
+      "release": "Vydanie"
+    },
+    "menu": {
+      "label": "Riadok toku",
+      "open_discussion": "Otvoriť diskusiu",
+      "open_issue": "Otvoriť úlohu",
+      "open_release": "Otvoriť denník vydaní",
+      "mark_read": "Označiť ako prečítané"
+    }
   },
   "release_notes": {
     "open": "Release notes",

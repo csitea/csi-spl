@@ -880,7 +880,8 @@
       "search": "Caută",
       "close": "Închide un meniu sau un panou",
       "menu_hint": "Comandă rapidă: {key}",
-      "issue_rows": "Rânduri de sarcini"
+      "issue_rows": "Rânduri de sarcini",
+      "flow_lines": "Rânduri din flux"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Mesaje directe: {n}",
     "empty_mine": "Încă nimic pentru tine. Aici apar mențiunile, răspunsurile în firele tale și mesajele directe.",
     "mention_in": "Te-a menționat în {place}",
-    "badge": "Flux: {n} noi pentru tine"
+    "badge": "Flux: {n} noi pentru tine",
+    "line_in": "în „{title}”",
+    "line_release": "{from} .. {to} ({n} versiuni)",
+    "kind": {
+      "blocked": "Blocat",
+      "ready": "Gata",
+      "mention": "Mențiune",
+      "poke": "Atenționare",
+      "dm": "Mesaj direct",
+      "reply": "Răspuns",
+      "release": "Versiune"
+    },
+    "menu": {
+      "label": "Rând din flux",
+      "open_discussion": "Deschide discuția",
+      "open_issue": "Deschide sarcina",
+      "open_release": "Deschide jurnalul de versiuni",
+      "mark_read": "Marchează ca citit"
+    }
   },
   "release_notes": {
     "open": "Release notes",

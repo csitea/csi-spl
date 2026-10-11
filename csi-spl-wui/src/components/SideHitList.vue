@@ -49,7 +49,7 @@
           <span v-if="item.when" class="side-hit__when muted">{{ item.when }}</span>
           <span v-if="item.unread" class="side-hit__dot" data-testid="left-entry-unread" aria-hidden="true" />
         </div>
-        <p v-if="segsOf(item).length" class="side-hit__text">
+        <p v-if="segsOf(item).length" class="side-hit__text" :class="{ 'side-hit__text--fold': item.fold }">
           <template v-for="(s, i) in segsOf(item)" :key="i"><mark v-if="s.mark">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>
         </p>
       </div>
@@ -224,9 +224,13 @@ defineExpose({ focus, rowEl: (key: string) => {
   line-clamp: 2;
   overflow: hidden;
 }
+/* spec 130 (owner, t1 da98036e a34aa111): a folded Flow line's summary is
+   ONE line on a desktop and at most three on a phone, an ellipsis beyond */
+.side-hit__text--fold { -webkit-line-clamp: 1; line-clamp: 1; }
 .side-hit mark { background: var(--color-glow); color: inherit; border-radius: var(--radius-sm); padding: 0 1px; }
 /* phones: every entry is a 44 px touch target */
 @media (max-width: 820px) {
   .side-hit { min-height: var(--tap, 44px); padding-block: 8px; -webkit-touch-callout: none; }
+  .side-hit__text--fold { -webkit-line-clamp: 3; line-clamp: 3; }
 }
 </style>

@@ -363,3 +363,96 @@ export function issueShortcutsSection(label) {
     ...rows,
   ].join('\n')
 }
+
+/**
+ * Spec 130 L2a, HUM-10 (owner, t1 1cde1dd4, f9300a98): "to the flow items,
+ * the same shortcuts should apply as for the channels' communications", and
+ * (f4b6977e) every Flow line has its right-click menu: "Open discussion,
+ * Open issue, Open release lo[g], whatever there might be". ONE table for
+ * both: each row is a menu entry of a folded Flow line (FlowList.vue), and
+ * `key` is the message key of the same meaning, '' for an entry the message
+ * keys have no letter for. A line offers a row by flow-fold.mjs
+ * flowLineOffered; Shift + a key runs the first offered row with that key
+ * (Shift + O: Open discussion on a topic line, Open release log on a release
+ * line). Shift + R opens the menu, Shift + K stays KindKeyHost's (the line's
+ * newest message). The message keys with no meaning on a folded line (it
+ * folds a topic's day, not one message): H (hide one message), E (edit),
+ * A (archive: a topic card's author or an admin only), P / B / U (thread
+ * jumps), T (promote), M (move), D (delete).
+ */
+export const FLOW_LINE_ACTIONS = Object.freeze([
+  { id: 'open', key: 'O', icon: 'messages', labelKey: 'flow.menu.open_discussion' },
+  { id: 'issue', key: '', icon: 'issues', labelKey: 'flow.menu.open_issue' },
+  { id: 'release', key: 'O', icon: 'tag', labelKey: 'flow.menu.open_release' },
+  { id: 'copy', key: 'L', icon: 'copy', labelKey: 'feed.msg_menu.copy_link' },
+  { id: 'copy-text', key: 'C', icon: 'copy', labelKey: 'feed.msg_menu.copy_text' },
+  { id: 'read', key: '', icon: 'check', labelKey: 'flow.menu.mark_read' },
+].map((s) => Object.freeze(s)))
+
+/** The keys the Flow line help lists: Shift + R (the menu), every keyed action, Shift + K. */
+export const FLOW_SHORTCUTS = Object.freeze([
+  Object.freeze({ key: 'R', labelKey: 'feed.shortcuts.open_menu' }),
+  ...FLOW_LINE_ACTIONS.filter((a) => a.key).map((a) => Object.freeze({ key: a.key, labelKey: a.labelKey })),
+  Object.freeze({ key: 'K', labelKey: 'feed.msg_menu.kind' }),
+])
+
+/** The Flow line menu entry's hint ("⇧L"), '' when it has no key. */
+export function flowShortcutHint(itemId) {
+  const a = FLOW_LINE_ACTIONS.find((x) => x.id === String(itemId || ''))
+  return a && a.key ? `⇧${a.key}` : ''
+}
+
+/**
+ * What one keydown on the Flow list means: Shift + a Flow key (R included),
+ * or Shift + ? for the help. The message guards (shortcutFor): no modifier
+ * chord, not while typing or over a menu / dialog, desktop only, no repeat.
+ * Shift + K is left to KindKeyHost; the arrows are the list's own walk.
+ *
+ * @returns {{ type: 'action', key: string } | { type: 'help' } | null}
+ */
+export function flowShortcutFor(ev, { enabled = true, phone = false } = {}) {
+  if (!ev || !enabled || phone) return null
+  if (ev.isComposing || ev.defaultPrevented || ev.repeat) return null
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return null
+  /* the Flow list is itself a listbox (SideHitList): the guard reads from its parent */
+  const t = ev.target
+  const from = t && typeof t.closest === 'function' && t.getAttribute?.('role') === 'listbox' ? t.parentElement : t
+  if (inTypingOrOverlay(from)) return null
+  if (String(ev.key || '') === '?') return { type: 'help' }
+  if (!ev.shiftKey) return null
+  const letter = letterOf(ev)
+  if (!letter || letter === 'K') return null
+  return FLOW_SHORTCUTS.some((s) => s.key === letter) ? { type: 'action', key: letter } : null
+}
+
+/** The action Shift + `key` runs on a line offering `offered`, '' when none (R opens the menu: '' too). */
+export function flowShortcutItem(key, offered) {
+  const k = String(key || '').toUpperCase()
+  const has = offered instanceof Set ? (id) => offered.has(id) : (id) => Array.from(offered || []).includes(id)
+  const a = k ? FLOW_LINE_ACTIONS.find((x) => x.key === k && has(x.id)) : null
+  return a ? a.id : ''
+}
+
+/**
+ * The "Flow line shortcuts" section of doc/help/keyboard-shortcuts.md, from
+ * FLOW_SHORTCUTS (the same contract as messageShortcutsSection).
+ *
+ * @param {(labelKey: string) => string} label
+ * @returns {string}
+ */
+export function flowShortcutsSection(label) {
+  const name = typeof label === 'function' ? label : () => ''
+  const rows = FLOW_SHORTCUTS.map((s) => {
+    const action = String(name(s.labelKey) ?? '').replace(/\|/g, '\\|')
+    return `| **\`Shift + ${s.key}\`** | Selected Flow line, desktop | ${action} |`
+  })
+  return [
+    '## 11. Flow line shortcuts',
+    '',
+    'In the **Flow** list these keys act on the **selected line**, the same keys the messages use for the same actions. A line folds one topic\'s day (or one day of releases), so the keys that change one message (edit, archive, move, delete, the thread jumps) do nothing there. **Shift + O** opens the discussion, or the release log on a release line. Right-click a line (a long press on a phone) for its menu: Open discussion, Open issue when the topic has one, Open release log, Copy link, Copy text and Mark read. They follow **Settings → Behaviour → Keyboard shortcuts**.',
+    '',
+    '| Shortcut | Context | Action |',
+    '|---|---|---|',
+    ...rows,
+  ].join('\n')
+}

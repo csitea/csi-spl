@@ -880,7 +880,8 @@
       "search": "Meklēt",
       "close": "Aizvērt izvēlni vai paneli",
       "menu_hint": "Īsinājumtaustiņš: {key}",
-      "issue_rows": "Uzdevumu rindas"
+      "issue_rows": "Uzdevumu rindas",
+      "flow_lines": "Plūsmas rindas"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Tiešās ziņas: {n}",
     "empty_mine": "Jums vēl nekā nav. Šeit redzami pieminējumi, atbildes jūsu pavedienos un tiešās ziņas.",
     "mention_in": "Pieminēja jūs {place}",
-    "badge": "Plūsma: {n} jaunas jums"
+    "badge": "Plūsma: {n} jaunas jums",
+    "line_in": "tēmā “{title}”",
+    "line_release": "{from} .. {to} (versijas: {n})",
+    "kind": {
+      "blocked": "Bloķēts",
+      "ready": "Gatavs",
+      "mention": "Pieminējums",
+      "poke": "Pabikstījums",
+      "dm": "Tiešā ziņa",
+      "reply": "Atbilde",
+      "release": "Laidiens"
+    },
+    "menu": {
+      "label": "Plūsmas rinda",
+      "open_discussion": "Atvērt diskusiju",
+      "open_issue": "Atvērt uzdevumu",
+      "open_release": "Atvērt laidienu žurnālu",
+      "mark_read": "Atzīmēt kā lasītu"
+    }
   },
   "release_notes": {
     "open": "Release notes",

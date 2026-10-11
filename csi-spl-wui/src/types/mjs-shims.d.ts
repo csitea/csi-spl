@@ -196,8 +196,10 @@ declare module '~/utils/spool-client.mjs' {
     archiveIssue(ref: string, opts?: { cascade?: boolean }): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
     createIssueLabel(opts: { name: string, color?: string }): Promise<{ label: import('~/utils/issues.mjs').IssueLabel }>
     /** spec 062 §4.2: the viewer's flow events (a page, or the counts alone). */
-    listFlow(opts?: { limit?: number, before?: string, kind?: string, countsOnly?: boolean, self?: string }): Promise<{
+    listFlow(opts?: { limit?: number, before?: string, kind?: string, countsOnly?: boolean, self?: string, fold?: boolean }): Promise<{
       events: Array<Record<string, unknown>>
+      /** spec 130: the folded lines (fold: true), [] otherwise */
+      lines: import('~/utils/flow-fold.mjs').FlowLine[]
       next: string
       counts: import('~/utils/flow-badge.mjs').FlowCounts | null
       unread: import('~/utils/flow-badge.mjs').FlowCounts | null
@@ -340,6 +342,51 @@ declare module '~/utils/flow-entries.mjs' {
   export function mergeMine(held: FlowEntry[], events: unknown[], self?: string): FlowEntry[]
   export function dropFlow(held: FlowEntry[], msgId: string): FlowEntry[]
   export function flowUnread(entry: FlowEntry, cursors?: Record<string, { ts?: string, id?: string } | undefined>, opened?: Set<string> | null): boolean
+}
+
+declare module '~/utils/flow-fold.mjs' {
+  /** spec 130 contract flow-fold-v1: one folded line (a topic's UTC day, or a UTC day of releases) */
+  export interface FlowLine {
+    key: string
+    kind: 'blocked' | 'ready' | 'mention' | 'poke' | 'dm' | 'reply' | 'release'
+    day: string
+    count: number
+    at: string
+    unread: boolean
+    link: string
+    mark: string
+    task_id?: string
+    msg_id?: string
+    channel?: string | null
+    parent_task_id?: string
+    title?: string
+    text?: string
+    ids?: string[]
+    ids_more?: number
+    issue?: number
+    hidden?: boolean
+    where?: string
+    version_from?: string
+    version_to?: string
+    versions?: number
+    sha?: string
+  }
+  export const FLOW_LINE_RANK: readonly string[]
+  export const FLOW_LINE_GLYPH: Readonly<Record<string, string>>
+  export const FLOW_LINE_IDS: number
+  export const MOCK_RELEASES: readonly { version: string, sha: string, at: string }[]
+  export function utcDay(at: unknown): string
+  export function flowLineKey(line: FlowLine | null | undefined): string
+  export function parseFlowLine(raw: unknown): FlowLine | null
+  export function parseFlowLines(raw: unknown): FlowLine[]
+  export function mergeFlowLines(held: readonly FlowLine[] | null | undefined, more: readonly FlowLine[] | null | undefined): FlowLine[]
+  export function refreshFlowLines(fresh: readonly FlowLine[] | null | undefined, held: readonly FlowLine[] | null | undefined): FlowLine[]
+  export function foldFlowEvents(events: unknown[], opts?: { titleOf?: (task: string) => string, unreadOf?: (e: Record<string, unknown>) => boolean }): FlowLine[]
+  export function foldReleases(rows: readonly { version: string, sha: string, at: string }[], opts?: { seen?: string, marked?: (version: string) => boolean }): FlowLine[]
+  export function flowByNewest(lines: readonly FlowLine[]): FlowLine[]
+  export function flowLineTarget(line: FlowLine | null | undefined): { to: 'release' | 'issue' | 'message', path: string }
+  export function flowLineMark(line: FlowLine | null | undefined): Record<string, { ts: string, id?: string }>
+  export function flowLineOffered(line: FlowLine | null | undefined): string[]
 }
 
 declare module '~/utils/flow-badge.mjs' {
@@ -2356,6 +2403,8 @@ declare module '~/utils/side-hit-list.mjs' {
     unread?: boolean
     /** the clock the list is ordered by, stamped as data-ts */
     ts?: string
+    /** spec 130: a folded Flow line - its text is clamped to 1 line (3 on a phone) */
+    fold?: boolean
   }
   export function cycleIndex(i: number, n: number, key: string): number
   export function groupRuns<T extends { key: string, group?: string }>(items: readonly T[] | null | undefined): Array<{ group: string, items: Array<{ item: T, index: number }> }>
@@ -2410,6 +2459,12 @@ declare module '~/utils/msg-shortcuts.mjs' {
   export function issueShortcutFor(ev: unknown, ctx?: { enabled?: boolean, phone?: boolean }): { type: 'action', key: string } | { type: 'help' } | null
   export function issueShortcutItem(key: string, offered: Set<string> | string[]): string
   export function issueShortcutsSection(label: (labelKey: string) => string): string
+  export const FLOW_LINE_ACTIONS: readonly { id: string, key: string, icon: import('~/utils/uiIcons').UiIconName, labelKey: string }[]
+  export const FLOW_SHORTCUTS: readonly { key: string, labelKey: string }[]
+  export function flowShortcutHint(itemId: unknown): string
+  export function flowShortcutFor(ev: unknown, ctx?: { enabled?: boolean, phone?: boolean }): { type: 'action', key: string } | { type: 'help' } | null
+  export function flowShortcutItem(key: string, offered: Set<string> | string[]): string
+  export function flowShortcutsSection(label: (labelKey: string) => string): string
 }
 
 declare module '~/utils/unread-model.mjs' {

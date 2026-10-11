@@ -880,7 +880,8 @@
       "search": "Szukaj",
       "close": "Zamknij menu lub panel",
       "menu_hint": "Skrót: {key}",
-      "issue_rows": "Wiersze zgłoszeń"
+      "issue_rows": "Wiersze zgłoszeń",
+      "flow_lines": "Wiersze przepływu"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Wiadomości prywatne: {n}",
     "empty_mine": "Na razie nic dla Ciebie. Tu pojawiają się wzmianki, odpowiedzi w Twoich wątkach i wiadomości prywatne.",
     "mention_in": "Wspomniał(a) o Tobie w {place}",
-    "badge": "Strumień: {n} nowych dla Ciebie"
+    "badge": "Strumień: {n} nowych dla Ciebie",
+    "line_in": "w „{title}”",
+    "line_release": "{from} .. {to} (wersje: {n})",
+    "kind": {
+      "blocked": "Zablokowane",
+      "ready": "Gotowe",
+      "mention": "Wzmianka",
+      "poke": "Szturchnięcie",
+      "dm": "Wiadomość bezpośrednia",
+      "reply": "Odpowiedź",
+      "release": "Wydanie"
+    },
+    "menu": {
+      "label": "Wiersz przepływu",
+      "open_discussion": "Otwórz dyskusję",
+      "open_issue": "Otwórz zgłoszenie",
+      "open_release": "Otwórz dziennik wydań",
+      "mark_read": "Oznacz jako przeczytane"
+    }
   },
   "release_notes": {
     "open": "Release notes",

@@ -880,7 +880,8 @@
       "search": "Haku",
       "close": "Sulje valikko tai paneeli",
       "menu_hint": "Pikanäppäin: {key}",
-      "issue_rows": "Tehtävärivit"
+      "issue_rows": "Tehtävärivit",
+      "flow_lines": "Virran rivit"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Yksityisviestit: {n}",
     "empty_mine": "Sinulle ei ole vielä mitään. Täällä näkyvät maininnat, vastaukset ketjuissasi ja yksityisviestit.",
     "mention_in": "Mainitsi sinut kohteessa {place}",
-    "badge": "Virta: {n} uutta sinulle"
+    "badge": "Virta: {n} uutta sinulle",
+    "line_in": "aiheessa ”{title}”",
+    "line_release": "{from} .. {to} ({n} versiota)",
+    "kind": {
+      "blocked": "Estetty",
+      "ready": "Valmis",
+      "mention": "Maininta",
+      "poke": "Tökkäys",
+      "dm": "Yksityisviesti",
+      "reply": "Vastaus",
+      "release": "Julkaisu"
+    },
+    "menu": {
+      "label": "Virran rivi",
+      "open_discussion": "Avaa keskustelu",
+      "open_issue": "Avaa tehtävä",
+      "open_release": "Avaa julkaisuloki",
+      "mark_read": "Merkitse luetuksi"
+    }
   },
   "release_notes": {
     "open": "Release notes",

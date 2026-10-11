@@ -880,7 +880,8 @@
       "search": "Otsi",
       "close": "Sulge menüü või paneel",
       "menu_hint": "Kiirklahv: {key}",
-      "issue_rows": "Ülesannete read"
+      "issue_rows": "Ülesannete read",
+      "flow_lines": "Voo read"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Otsesõnumid: {n}",
     "empty_mine": "Sinule pole veel midagi. Siin näed mainimisi, vastuseid oma lõimedes ja otsesõnumeid.",
     "mention_in": "Mainis sind kohas {place}",
-    "badge": "Voog: {n} uut sinule"
+    "badge": "Voog: {n} uut sinule",
+    "line_in": "teemas „{title}“",
+    "line_release": "{from} .. {to} ({n} versiooni)",
+    "kind": {
+      "blocked": "Blokeeritud",
+      "ready": "Valmis",
+      "mention": "Mainimine",
+      "poke": "Müks",
+      "dm": "Otsesõnum",
+      "reply": "Vastus",
+      "release": "Väljalase"
+    },
+    "menu": {
+      "label": "Voo rida",
+      "open_discussion": "Ava arutelu",
+      "open_issue": "Ava ülesanne",
+      "open_release": "Ava väljalasete logi",
+      "mark_read": "Märgi loetuks"
+    }
   },
   "release_notes": {
     "open": "Release notes",

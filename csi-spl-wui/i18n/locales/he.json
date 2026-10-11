@@ -880,7 +880,8 @@
       "search": "חיפוש",
       "close": "סגור תפריט או חלונית",
       "menu_hint": "קיצור: {key}",
-      "issue_rows": "שורות משימות"
+      "issue_rows": "שורות משימות",
+      "flow_lines": "שורות זרם"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "הודעות ישירות: {n}",
     "empty_mine": "עדיין אין כאן משהו עבורך. כאן יופיעו אזכורים, תגובות בשרשורים שלך והודעות ישירות.",
     "mention_in": "הזכיר/ה אותך ב-{place}",
-    "badge": "זרם: {n} חדשים עבורך"
+    "badge": "זרם: {n} חדשים עבורך",
+    "line_in": "ב„{title}”",
+    "line_release": "{from} .. {to} ({n} גרסאות)",
+    "kind": {
+      "blocked": "חסום",
+      "ready": "מוכן",
+      "mention": "אזכור",
+      "poke": "נדנוד",
+      "dm": "הודעה ישירה",
+      "reply": "תגובה",
+      "release": "גרסה"
+    },
+    "menu": {
+      "label": "שורת זרם",
+      "open_discussion": "פתח את הדיון",
+      "open_issue": "פתח את המשימה",
+      "open_release": "פתח את יומן הגרסאות",
+      "mark_read": "סמן כנקרא"
+    }
   },
   "release_notes": {
     "open": "Release notes",

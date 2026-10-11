@@ -52,7 +52,6 @@ export function installIdCatalog(opts: {
     const pane = read(() => useLiveFeed('pane').messages, [] as unknown[])
     const flow = read(() => useFlowStore(), null)
     const flowEntries = flow ? flow.entries : []
-    const flowMine = flow ? flow.mine : []
     const found = read(() => useSearchStore().result, null)
     const access = read(() => useAccessStore().me, null)
     const who = read(() => useLive().identity.value, '')
@@ -68,7 +67,7 @@ export function installIdCatalog(opts: {
       }
     }, null)
     const refs: unknown[] = [
-      channel, topics, viewed, main, pane, flowEntries, flowMine, found, self,
+      channel, topics, viewed, main, pane, flowEntries, found, self,
       labels && labels.topic, labels && labels['channel-message'],
       labels && labels['direct-message'], labels && labels.archived, lookup.version,
     ]
@@ -78,7 +77,7 @@ export function installIdCatalog(opts: {
     const asked = lookup.rows(self)
     const index = indexCatalog({
       topics: [...topics, ...asked.topics],
-      messages: [...channel, ...viewed, ...main, ...pane, ...flowEntries, ...flowMine, ...hits, ...asked.messages],
+      messages: [...channel, ...viewed, ...main, ...pane, ...flowEntries, ...hits, ...asked.messages],
       self,
       pathFor,
       labels: labels || undefined,

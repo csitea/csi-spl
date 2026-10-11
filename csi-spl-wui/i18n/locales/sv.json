@@ -880,7 +880,8 @@
       "search": "Sök",
       "close": "Stäng en meny eller panel",
       "menu_hint": "Kortkommando: {key}",
-      "issue_rows": "Ärenderader"
+      "issue_rows": "Ärenderader",
+      "flow_lines": "Flödesrader"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Direktmeddelanden: {n}",
     "empty_mine": "Inget för dig än. Omnämnanden, svar i dina trådar och direktmeddelanden visas här.",
     "mention_in": "Nämnde dig i {place}",
-    "badge": "Flöde: {n} nya för dig"
+    "badge": "Flöde: {n} nya för dig",
+    "line_in": "i ”{title}”",
+    "line_release": "{from} .. {to} ({n} versioner)",
+    "kind": {
+      "blocked": "Blockerad",
+      "ready": "Klar",
+      "mention": "Omnämnande",
+      "poke": "Puff",
+      "dm": "Direktmeddelande",
+      "reply": "Svar",
+      "release": "Version"
+    },
+    "menu": {
+      "label": "Flödesrad",
+      "open_discussion": "Öppna diskussionen",
+      "open_issue": "Öppna ärendet",
+      "open_release": "Öppna versionsloggen",
+      "mark_read": "Markera som läst"
+    }
   },
   "release_notes": {
     "open": "Release notes",

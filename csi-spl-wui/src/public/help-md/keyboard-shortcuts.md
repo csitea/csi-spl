@@ -138,4 +138,17 @@ On the **Issues** list these keys act on the **selected issue row**, the same ke
 | **`Shift + M`** | Selected issue row, desktop | Move to… |
 | **`Shift + D`** | Selected issue row, desktop | Delete |
 
-<!-- version: 1.2.4 · updated: 2026-10-07 -->
+## 11. Flow line shortcuts
+
+In the **Flow** list these keys act on the **selected line**, the same keys the messages use for the same actions. A line folds one topic's day (or one day of releases), so the keys that change one message (edit, archive, move, delete, the thread jumps) do nothing there. **Shift + O** opens the discussion, or the release log on a release line. Right-click a line (a long press on a phone) for its menu: Open discussion, Open issue when the topic has one, Open release log, Copy link, Copy text and Mark read. They follow **Settings → Behaviour → Keyboard shortcuts**.
+
+| Shortcut | Context | Action |
+|---|---|---|
+| **`Shift + R`** | Selected Flow line, desktop | Open menu |
+| **`Shift + O`** | Selected Flow line, desktop | Open discussion |
+| **`Shift + O`** | Selected Flow line, desktop | Open release log |
+| **`Shift + L`** | Selected Flow line, desktop | Copy link |
+| **`Shift + C`** | Selected Flow line, desktop | Copy text |
+| **`Shift + K`** | Selected Flow line, desktop | Change kind |
+
+<!-- version: 1.2.5 · updated: 2026-10-11 -->

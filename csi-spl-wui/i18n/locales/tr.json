@@ -880,7 +880,8 @@
       "search": "Ara",
       "close": "Bir menüyü veya paneli kapat",
       "menu_hint": "Kısayol: {key}",
-      "issue_rows": "İş satırları"
+      "issue_rows": "İş satırları",
+      "flow_lines": "Akış satırları"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Doğrudan mesajlar: {n}",
     "empty_mine": "Henüz senin için bir şey yok. Bahsetmeler, konularındaki yanıtlar ve doğrudan mesajlar burada görünür.",
     "mention_in": "{place} içinde senden bahsetti",
-    "badge": "Akış: senin için {n} yeni"
+    "badge": "Akış: senin için {n} yeni",
+    "line_in": "“{title}” içinde",
+    "line_release": "{from} .. {to} ({n} sürüm)",
+    "kind": {
+      "blocked": "Engellendi",
+      "ready": "Hazır",
+      "mention": "Bahsetme",
+      "poke": "Dürtme",
+      "dm": "Doğrudan mesaj",
+      "reply": "Yanıt",
+      "release": "Sürüm"
+    },
+    "menu": {
+      "label": "Akış satırı",
+      "open_discussion": "Tartışmayı aç",
+      "open_issue": "Görevi aç",
+      "open_release": "Sürüm günlüğünü aç",
+      "mark_read": "Okundu olarak işaretle"
+    }
   },
   "release_notes": {
     "open": "Release notes",

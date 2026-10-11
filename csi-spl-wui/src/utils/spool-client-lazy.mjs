@@ -15,6 +15,7 @@ import { storageGet, storageSetJson } from './prefs.mjs'
 import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
 import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
+import { MOCK_RELEASES, flowByNewest, foldFlowEvents, foldReleases, parseFlowLines } from './flow-fold.mjs'
 import { loadCursors } from './read-cursor.mjs'
 import { mockArchivePolicy } from './act-as-mock.mjs'
 import { mockLookupIds } from './id-lookup.mjs'
@@ -1258,8 +1259,18 @@ async function createIssueLabel(ctx, { name = '', color = '' } = {}) {
 /** The client's lazy half by method name (spool-client.mjs LAZY_METHODS names the same set). */
 /* spec 062 (Flow per user): the mock's marks - f:seen and the entries opened */
 function mockFlowMarks(state) {
-  if (!state.flowMarks) state.flowMarks = { seen: '', opened: new Set() }
+  /* spec 130: topics = t:<task_id> marks (task -> ts), rel = the f:rel:<version> marks */
+  if (!state.flowMarks) state.flowMarks = { seen: '', opened: new Set(), topics: new Map(), rel: new Set() }
   return state.flowMarks
+}
+
+/** MOCK ONLY: a topic's title, its first message (the card itself, else its oldest row). */
+function mockTopicTitle(messages, task) {
+  const rows = (messages || []).filter((m) => String(m.msg_id) === task || String(m.task_id) === task)
+  const card = rows.find((m) => String(m.msg_id) === task)
+  if (card) return String(card.body || '')
+  rows.sort((a, b) => String(a.ts || '').localeCompare(String(b.ts || '')))
+  return rows.length ? String(rows[0].body || '') : ''
 }
 
 /**
@@ -1272,11 +1283,16 @@ function mockFlowMarks(state) {
 /** MOCK ONLY: 'off' makes the mock Flow answer without `keys`, as an older hub. */
 const MOCK_FLOW_KEYS_OFF = 'spool.mock.flow-keys'
 
-async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = false, self = '' } = {}) {
+async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = false, self = '', fold = false } = {}) {
   const { live, mock, state } = ctx
   if (mock) {
     const marks = mockFlowMarks(state)
-    const all = mockFlowEvents(state.messages, self)
+    /* a t:<task_id> mark covers the topic's events at or before it */
+    const all = mockFlowEvents(state.messages, self).map((e) => {
+      const t = marks.topics.get(String(e.task_id || ''))
+      if (t && String(e.at) <= t) marks.opened.add(String(e.msg_id))
+      return e
+    })
     /* the reader's read cursors stand in for the hub's read marks */
     const cursors = loadCursors()
     /* an archived topic's lines are read, as the hub's cover rule has them (t1 56b8cc17) */
@@ -1290,6 +1306,17 @@ async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = 
     if (countsOnly) return { events: [], next: '', counts, unread, keys }
     const pick = kind ? all.filter((e) => flowEventKind(e.kind) === kind) : all
     const from = Number(before) || 0
+    if (fold) {
+      /* spec 130: the mock folds as the hub does (contract flow-fold-v1), releases merged by time */
+      const pickFold = kind === 'release' ? [] : pick
+      const topics = foldFlowEvents(pickFold.map((e) => ({ ...e, where: e.channel ? '' : String(e.from || '') })), {
+        titleOf: (task) => mockTopicTitle(state.messages, task),
+        unreadOf: (e) => !opened.has(String(e.msg_id)),
+      })
+      const rel = kind && kind !== 'release' ? [] : foldReleases(MOCK_RELEASES, { seen: marks.seen, marked: (v) => marks.rel.has(v) })
+      const lines = flowByNewest([...topics, ...rel])
+      return { events: [], lines: lines.slice(from, from + limit), next: from + limit < lines.length ? String(from + limit) : '', counts, unread, keys }
+    }
     const page = pick.slice(from, from + limit).map((e, i) => ({ ...e, cursor: String(from + i + 1), unread: !opened.has(String(e.msg_id)) }))
     return { events: page, next: from + limit < pick.length ? String(from + limit) : '', counts, unread, keys }
   }
@@ -1299,10 +1326,14 @@ async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = 
     q.set('limit', String(limit))
     if (before) q.set('before', String(before))
     if (kind) q.set('kind', String(kind))
+    if (fold) q.set('fold', 'day')
   }
   const data = (await live(`/v1/view/flow?${q}`)) || {}
+  const events = Array.isArray(data.events) ? data.events : []
   return {
-    events: Array.isArray(data.events) ? data.events : [],
+    events,
+    /* spec 130: the hub's folded lines; a hub that answers events only is folded here */
+    lines: Array.isArray(data.lines) ? parseFlowLines(data.lines) : fold ? foldFlowEvents(events) : [],
     next: String(data.next || ''),
     counts: parseFlowCounts(data.counts),
     unread: parseFlowCounts(data.unread),
@@ -1321,7 +1352,9 @@ async function markFlow(ctx, marks) {
     const m = mockFlowMarks(state)
     for (const [k, v] of Object.entries(marks || {})) {
       if (k === FLOW_SEEN_KEY) m.seen = String((v && v.ts) || '')
+      else if (k.startsWith('f:rel:')) m.rel.add(k.slice(6))
       else if (k.startsWith('f:')) m.opened.add(k.slice(2))
+      else if (k.startsWith('t:')) m.topics.set(k.slice(2), String((v && v.ts) || ''))
     }
     return null
   }

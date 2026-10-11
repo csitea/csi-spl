@@ -34,7 +34,7 @@ const MAX_PARAMS = 6
 const LONG = new Map([
   ['src/composables/useScrollAnchor.ts useScrollAnchor', 208],
   ['src/stores/channel.ts <anon>', 576],
-  ['src/stores/flow.ts <anon>', 321],
+  ['src/stores/flow.ts <anon>', 317],
   ['src/stores/live.ts setup', 304],
   ['src/stores/notification.ts <anon>', 430],
   ['src/stores/session.ts <anon>', 167],

@@ -880,7 +880,8 @@
       "search": "Ieškoti",
       "close": "Uždaryti meniu ar skydelį",
       "menu_hint": "Spartusis klavišas: {key}",
-      "issue_rows": "Užduočių eilutės"
+      "issue_rows": "Užduočių eilutės",
+      "flow_lines": "Srauto eilutės"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Asmeninės žinutės: {n}",
     "empty_mine": "Jums kol kas nieko nėra. Čia rodomi paminėjimai, atsakymai jūsų gijose ir asmeninės žinutės.",
     "mention_in": "Paminėjo jus {place}",
-    "badge": "Srautas: {n} naujų jums"
+    "badge": "Srautas: {n} naujų jums",
+    "line_in": "temoje „{title}“",
+    "line_release": "{from} .. {to} (versijų: {n})",
+    "kind": {
+      "blocked": "Užblokuota",
+      "ready": "Paruošta",
+      "mention": "Paminėjimas",
+      "poke": "Bakstelėjimas",
+      "dm": "Asmeninė žinutė",
+      "reply": "Atsakymas",
+      "release": "Leidimas"
+    },
+    "menu": {
+      "label": "Srauto eilutė",
+      "open_discussion": "Atverti diskusiją",
+      "open_issue": "Atverti užduotį",
+      "open_release": "Atverti leidimų žurnalą",
+      "mark_read": "Pažymėti kaip skaitytą"
+    }
   },
   "release_notes": {
     "open": "Release notes",

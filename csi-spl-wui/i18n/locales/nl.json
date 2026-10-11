@@ -880,7 +880,8 @@
       "search": "Zoeken",
       "close": "Een menu of paneel sluiten",
       "menu_hint": "Sneltoets: {key}",
-      "issue_rows": "Issuerijen"
+      "issue_rows": "Issuerijen",
+      "flow_lines": "Flowregels"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Directe berichten: {n}",
     "empty_mine": "Nog niets voor jou. Vermeldingen, antwoorden in jouw threads en directe berichten verschijnen hier.",
     "mention_in": "Noemde je in {place}",
-    "badge": "Flow: {n} nieuw voor jou"
+    "badge": "Flow: {n} nieuw voor jou",
+    "line_in": "in ‘{title}’",
+    "line_release": "{from} .. {to} ({n} versies)",
+    "kind": {
+      "blocked": "Geblokkeerd",
+      "ready": "Klaar",
+      "mention": "Vermelding",
+      "poke": "Por",
+      "dm": "Direct bericht",
+      "reply": "Antwoord",
+      "release": "Release"
+    },
+    "menu": {
+      "label": "Flowregel",
+      "open_discussion": "Discussie openen",
+      "open_issue": "Issue openen",
+      "open_release": "Releaselog openen",
+      "mark_read": "Markeren als gelezen"
+    }
   },
   "release_notes": {
     "open": "Release notes",

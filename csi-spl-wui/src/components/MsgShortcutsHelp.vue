@@ -21,12 +21,20 @@
         <dd :data-testid="'issue-shortcuts-help-' + s.key">{{ t(s.labelKey) }}</dd>
       </template>
     </dl>
+    <!-- spec 130 (owner t1 1cde1dd4, f9300a98): the selected Flow line takes them too -->
+    <h3 class="kbd-help__h">{{ t('feed.shortcuts.flow_lines') }}</h3>
+    <dl class="kbd-help" data-testid="flow-shortcuts-help">
+      <template v-for="s in FLOW_SHORTCUTS" :key="s.key + s.labelKey">
+        <dt><kbd>⇧</kbd> <kbd>{{ s.key }}</kbd></dt>
+        <dd :data-testid="'flow-shortcuts-help-' + s.key">{{ t(s.labelKey) }}</dd>
+      </template>
+    </dl>
   </UiDialog>
 </template>
 
 <script setup lang="ts">
 import UiDialog from '~/components/UiDialog.vue'
-import { ISSUE_SHORTCUTS, MSG_SHORTCUTS, NAV_SHORTCUTS } from '~/utils/msg-shortcuts.mjs'
+import { FLOW_SHORTCUTS, ISSUE_SHORTCUTS, MSG_SHORTCUTS, NAV_SHORTCUTS } from '~/utils/msg-shortcuts.mjs'
 import { useMsgShortcutsHelp } from '~/composables/useMsgShortcuts'
 
 const { t } = useI18n({ useScope: 'global' })

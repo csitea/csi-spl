@@ -5,8 +5,10 @@ import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
-import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow, mergeMine } from '~/utils/flow-entries.mjs'
+import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow } from '~/utils/flow-entries.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
+import { flowLineMark, mergeFlowLines, refreshFlowLines } from '~/utils/flow-fold.mjs'
+import type { FlowLine } from '~/utils/flow-fold.mjs'
 import { FLOW_SCOPE_KEY, FLOW_SEEN_KEY, parseFlowCounts, parseFlowKeys, parseFlowScope, railFromUnread, syncAppBadge } from '~/utils/flow-badge.mjs'
 import type { FlowCounts, FlowKind, FlowScope } from '~/utils/flow-badge.mjs'
 import { storageGet } from '~/utils/prefs.mjs'
@@ -23,6 +25,20 @@ const FLOW_PER_TOPIC = 3
 const FLOW_FILL_PAGES = 4
 /** While the pane is open, a new event re-marks it seen after this pause (one write per burst). */
 const SEEN_DEBOUNCE_MS = 400
+/** A live event re-reads the newest folded page after this pause (one read per burst). */
+const REFOLD_DEBOUNCE_MS = 400
+
+/** `fn` once, `ms` after the first of a burst of calls (one write or read per burst). */
+function burst(ms: number, fn: () => void) {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  function fire() {
+    timer = null
+    fn()
+  }
+  return function soon() {
+    if (!timer) timer = setTimeout(fire, ms)
+  }
+}
 
 /**
  * Flow (topic 635f8072): the stream of short message entries in the left
@@ -58,7 +74,8 @@ export const useFlowStore = defineStore('flow', () => {
   const scope: FlowScope = api.mock && import.meta.client ? parseFlowScope(storageGet(FLOW_SCOPE_KEY)) : 'mine'
   /** null = not asked yet; false = this hub has no Flow route (Mine hidden, the pip stays). */
   const available = ref<boolean | null>(null)
-  const mine = shallowRef<FlowEntry[]>([])
+  /** spec 130: Mine is the hub's folded lines (fold=day), one per topic per UTC day and per UTC day of releases. */
+  const mine = shallowRef<FlowLine[]>([])
   const mineNext = ref('')
   const mineLoaded = ref(false)
   const mineLoading = ref(false)
@@ -76,8 +93,8 @@ export const useFlowStore = defineStore('flow', () => {
   const rowKeys = useFlowKeys()
   const mineOn = computed(() => scope === 'mine' && available.value !== false)
 
-  /** What the panel lists: Mine's held events, or the newest `shown` entries the read pages vouch for. */
-  const visible = computed(() => (mineOn.value ? mine.value : view.value.entries as FlowEntry[]))
+  /** What the panel lists: Mine's folded lines, or (mock fixtures only) the newest `shown` entries the read pages vouch for. */
+  const visible = computed<Array<FlowLine | FlowEntry>>(() => (mineOn.value ? mine.value : view.value.entries as FlowEntry[]))
   const hasMore = computed(() => (mineOn.value ? Boolean(mineNext.value) : view.value.more))
 
   function self() {
@@ -190,16 +207,24 @@ export const useFlowStore = defineStore('flow', () => {
     return false
   }
 
-  /** One Mine page (before = the last event's cursor; '' = the newest page, which replaces the held ones). */
-  async function readMine(before: string) {
+  /**
+   * One Mine page: before = the hub's `next` (an older page, added below);
+   * '' = the newest page, which replaces the held ones, or with `refresh`
+   * goes over them and keeps the older pages and their cursor.
+   */
+  async function readMine(before: string, refresh = false) {
     mineLoading.value = true
     error.value = ''
     try {
-      const r = await withSessionRetry(api, () => api.listFlow({ limit: FLOW_PAGE, before, kind: kind.value, self: self() }))
-      const held = before ? mine.value : []
-      mine.value = mergeMine(held, r.events, self()) as FlowEntry[]
-      const last = r.events[r.events.length - 1] as { cursor?: unknown } | undefined
-      mineNext.value = r.next ? String((last && last.cursor) || r.next) : ''
+      const r = await withSessionRetry(api, () => api.listFlow({ limit: FLOW_PAGE, before, kind: kind.value, self: self(), fold: true }))
+      /* the cursor is the raw event the hub stopped at (contract flow-fold-v1 section 3) */
+      if (before) mine.value = mergeFlowLines(mine.value, r.lines)
+      else if (refresh && mineLoaded.value) {
+        /* a live event or a reconnect: the newest page over the older pages read so far */
+        mine.value = refreshFlowLines(r.lines, mine.value)
+        return void setCounts(r.counts, r.unread, r.keys)
+      } else mine.value = r.lines
+      mineNext.value = String(r.next || '')
       mineLoaded.value = true
       setCounts(r.counts, r.unread, r.keys)
     } catch (e) {
@@ -219,15 +244,14 @@ export const useFlowStore = defineStore('flow', () => {
     }
   }
 
-  /** A `flow` frame: the hub's counts, and the new event when there is one. */
+  /** A `flow` frame: the hub's counts, and with a new event the newest folded page again. */
   function onFlowFrame(f: Record<string, unknown>) {
     setCounts(f.counts, f.unread, f.keys)
-    const ev = f.event as { kind?: string } | null | undefined
-    if (!ev || !mineLoaded.value) return
-    const k = ev.kind === 'poke' ? 'mention' : ev.kind
-    if (kind.value && k !== kind.value) return
-    mine.value = mergeMine(mine.value, [ev], self()) as FlowEntry[]
+    if (f.event && mineLoaded.value) refoldSoon()
   }
+
+  /** The hub folds (spec 130 section 2.6): a change re-reads the newest page, once per burst. */
+  const refoldSoon = burst(REFOLD_DEBOUNCE_MS, () => { if (mineLoaded.value) void readMine('', true) })
 
   let badgeOn = false
   /** Start the number (the sidebar calls this once, lazily): counts now, then the hub's frames. */
@@ -238,21 +262,14 @@ export const useFlowStore = defineStore('flow', () => {
     live.onFlow(onFlowFrame)
     live.onReconnected(() => {
       void readCounts()
-      if (mineLoaded.value) void readMine('')
+      if (mineLoaded.value) void readMine('', true)
     })
     /* owner (t1 56b8cc17): an archived topic leaves every unread number at once */
     window.addEventListener('spool:topic-archived', () => { void readCounts() }) /* spool-client-lazy archiveTopic */
     void readCounts()
   }
 
-  let seenTimer: ReturnType<typeof setTimeout> | null = null
-  function seenSoon() {
-    if (seenTimer) return
-    seenTimer = setTimeout(() => {
-      seenTimer = null
-      void seen()
-    }, SEEN_DEBOUNCE_MS)
-  }
+  const seenSoon = burst(SEEN_DEBOUNCE_MS, () => { void seen() })
 
   /**
    * The pane opened (Q4): the number goes to 0 here at once and the f:seen
@@ -295,20 +312,18 @@ export const useFlowStore = defineStore('flow', () => {
     live.onMessage((m) => add([m]))
     live.onEdited((m) => {
       add([m])
-      if (mine.value.some((e) => e.key === String(m.msg_id || ''))) refreshMine(m)
+      if (holdsMsg(String(m.msg_id || ''))) refoldSoon()
     })
     live.onDeleted((m) => {
       entries.value = dropFlow(entries.value, String(m.msg_id || '')) as FlowEntry[]
-      mine.value = dropFlow(mine.value, String(m.msg_id || '')) as FlowEntry[]
+      if (holdsMsg(String(m.msg_id || ''))) refoldSoon()
     })
     live.onReconnected(() => { void load() })
   }
 
-  /** An edit of a Mine entry: its text changes, its kind and unread verdict stay. */
-  function refreshMine(m: Record<string, unknown>) {
-    const held = mine.value.find((e) => e.key === String(m.msg_id || ''))
-    if (!held) return
-    mine.value = mergeMine(mine.value, [{ ...m, kind: held.event, unread: held.fresh ?? undefined }], self()) as FlowEntry[]
+  /** A line shows this message (its newest event): an edit or a delete re-folds. */
+  function holdsMsg(msgId: string) {
+    return Boolean(msgId) && mine.value.some((l) => l.msg_id === msgId)
   }
 
   /** Open the Flow: the first time reads it, later only the mock re-reads (it has no socket). */
@@ -329,10 +344,12 @@ export const useFlowStore = defineStore('flow', () => {
   function markOpened(key: string) {
     if (!key || opened.value.has(key)) return
     opened.value = new Set([...opened.value, key])
-    /* FR-006: a Mine entry opened from the Flow is read on every device (f:<msg_id>) */
-    const e = mine.value.find((r) => r.key === key)
-    if (!e || e.fresh === false) return
-    void api.markFlow({ ['f:' + e.msg_id]: { ts: new Date().toISOString(), id: e.msg_id } })
+    /* spec 130 FR-009: opening a folded line marks all of it read on every
+       device: t:<task_id> at its newest event, a release line f:rel:<version> */
+    const line = mine.value.find((r) => r.key === key)
+    if (!line || !line.unread) return
+    mine.value = mine.value.map((r) => (r.key === key ? { ...r, unread: false } : r))
+    void api.markFlow(flowLineMark(line))
       .then(() => (api.mock ? readCounts() : undefined))
       .catch(() => { /* the place's own read mark still covers it later */ })
   }
@@ -340,7 +357,7 @@ export const useFlowStore = defineStore('flow', () => {
   /** A message deleted here (not a live frame) leaves the stream too. */
   function drop(msgId: string) {
     entries.value = dropFlow(entries.value, msgId) as FlowEntry[]
-    mine.value = dropFlow(mine.value, msgId) as FlowEntry[]
+    if (holdsMsg(msgId)) refoldSoon()
   }
 
   return {

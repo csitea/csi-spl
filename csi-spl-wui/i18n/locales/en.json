@@ -880,7 +880,8 @@
       "search": "Search",
       "close": "Close a menu or panel",
       "menu_hint": "Shortcut: {key}",
-      "issue_rows": "Issue rows"
+      "issue_rows": "Issue rows",
+      "flow_lines": "Flow lines"
     }
   },
   "topic": {
@@ -1969,7 +1970,25 @@
     "chip_dm": "Direct messages: {n}",
     "empty_mine": "Nothing for you yet. Mentions, replies in your threads and direct messages show here.",
     "mention_in": "Mentioned you in {place}",
-    "badge": "Flow: {n} new for you"
+    "badge": "Flow: {n} new for you",
+    "line_in": "in “{title}”",
+    "line_release": "{from} .. {to} ({n} versions)",
+    "kind": {
+      "blocked": "Blocked",
+      "ready": "Ready",
+      "mention": "Mention",
+      "poke": "Poke",
+      "dm": "Direct message",
+      "reply": "Reply",
+      "release": "Release"
+    },
+    "menu": {
+      "label": "Flow line",
+      "open_discussion": "Open discussion",
+      "open_issue": "Open issue",
+      "open_release": "Open release log",
+      "mark_read": "Mark read"
+    }
   },
   "release_notes": {
     "open": "Release notes",

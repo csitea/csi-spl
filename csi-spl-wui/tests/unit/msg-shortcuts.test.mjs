@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  ISSUE_SHORTCUTS, MSG_SHORTCUTS, NAV_SHORTCUTS, backJump, issueShortcutFor, issueShortcutHint, issueShortcutItem, issueShortcutsSection, inTypingOrOverlay, listRowFor, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
+  FLOW_LINE_ACTIONS, FLOW_SHORTCUTS, ISSUE_SHORTCUTS, MSG_SHORTCUTS, NAV_SHORTCUTS, backJump, issueShortcutFor, issueShortcutHint, issueShortcutItem, issueShortcutsSection, flowShortcutFor, flowShortcutHint, flowShortcutItem, flowShortcutsSection, inTypingOrOverlay, listRowFor, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
 } from '../../src/utils/msg-shortcuts.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -344,5 +344,60 @@ describe('issue rows take the message keys (HUM-10 t1 aedca86a, d8f61702)', () =
       assert.ok(readFileSync(join(WUI, rel), 'utf8').includes(want + '\n'), rel)
     }
     assert.notEqual(issueShortcutsSection(() => 'x'), want, 'CONTROL: other labels do not match')
+  })
+})
+
+describe('Flow lines take the message keys (spec 130, owner t1 1cde1dd4 f9300a98)', () => {
+  const en = JSON.parse(readFileSync(join(WUI, 'i18n/locales/en.json'), 'utf8'))
+  const label = (k) => k.split('.').reduce((o, p) => (o && typeof o === 'object' ? o[p] : undefined), en)
+
+  it('every Flow key is a message key of the same meaning', () => {
+    const msg = new Map(MSG_SHORTCUTS.map((s) => [s.key, s.items]))
+    const same = { open: 'open', release: 'open', copy: 'copy', 'copy-text': 'copy-text' }
+    for (const a of FLOW_LINE_ACTIONS.filter((x) => x.key)) {
+      assert.ok(msg.has(a.key), `Shift + ${a.key} is a message key too`)
+      assert.ok(msg.get(a.key).includes(same[a.id]), `Shift + ${a.key}: ${a.id}`)
+    }
+    for (const s of FLOW_SHORTCUTS) assert.ok(msg.has(s.key), s.key)
+  })
+
+  it('Shift + O opens what the line points to; a key runs only an offered action', () => {
+    assert.equal(flowShortcutItem('O', ['open', 'issue', 'copy']), 'open')
+    assert.equal(flowShortcutItem('O', ['release', 'copy']), 'release')
+    assert.equal(flowShortcutItem('L', ['open', 'copy']), 'copy')
+    assert.equal(flowShortcutItem('C', ['open']), '')
+    assert.equal(flowShortcutItem('R', ['open']), '', 'Shift + R opens the menu, it runs no action')
+    assert.equal(flowShortcutItem('A', ['open']), '', 'no archive on a folded line')
+  })
+
+  it('the matcher keeps the message guards; Shift + K stays KindKeyHost\'s; A / D / E do nothing', () => {
+    assert.deepEqual(flowShortcutFor(shift('O')), { type: 'action', key: 'O' })
+    assert.deepEqual(flowShortcutFor(shift('R')), { type: 'action', key: 'R' })
+    assert.deepEqual(flowShortcutFor(key('?')), { type: 'help' })
+    for (const k of ['K', 'A', 'D', 'E', 'H', 'M']) assert.equal(flowShortcutFor(shift(k)), null, k)
+    assert.equal(flowShortcutFor(key('o')), null)
+    assert.equal(flowShortcutFor(shift('O', { ctrlKey: true })), null)
+    assert.equal(flowShortcutFor(shift('O'), { phone: true }), null)
+    assert.equal(flowShortcutFor(shift('O'), { enabled: false }), null)
+    assert.equal(flowShortcutFor(shift('O', { target: el('input') })), null)
+    /* the Flow list is a listbox itself: its own keydown is not an open dropdown's */
+    const list = { getAttribute: (a) => (a === 'role' ? 'listbox' : null), closest: (sel) => (sel.includes('[role="listbox"]') ? list : null), parentElement: row }
+    assert.deepEqual(flowShortcutFor(shift('O', { target: list })), { type: 'action', key: 'O' })
+    assert.equal(shortcutFor(shift('O', { target: list })), null, 'CONTROL: the message matcher reads it as an overlay')
+  })
+
+  it('the menu hints are the keys; every label exists', () => {
+    assert.equal(flowShortcutHint('copy'), '⇧L')
+    assert.equal(flowShortcutHint('issue'), '')
+    for (const a of FLOW_LINE_ACTIONS) assert.equal(typeof label(a.labelKey), 'string', a.labelKey)
+    for (const s of FLOW_SHORTCUTS) assert.equal(typeof label(s.labelKey), 'string', s.labelKey)
+  })
+
+  it('doc/help and the served copy both carry flowShortcutsSection', () => {
+    const want = flowShortcutsSection(label)
+    for (const rel of ['../csi-spl-doc/doc/help/keyboard-shortcuts.md', 'src/public/help-md/keyboard-shortcuts.md']) {
+      assert.ok(readFileSync(join(WUI, rel), 'utf8').includes(want + '\n'), rel)
+    }
+    assert.notEqual(flowShortcutsSection(() => 'x'), want, 'CONTROL: other labels do not match')
   })
 })

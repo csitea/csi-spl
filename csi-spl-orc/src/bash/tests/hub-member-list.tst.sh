@@ -22,8 +22,8 @@ orc_stub 1 gcloud curl docker cloud-sql-proxy psql
 sql=$(SNIPPET=spl_hub_member_list_sql in_orc TENANT_ID=t1 2>&1)
 [[ $(grep -c "tenant_id = 't1'" <<<"$sql") == 2 ]] && pass "TENANT_ID filters members and invites" || fail "tenant filter: $sql"
 grep -q "LIKE" <<<"$sql" && fail "no MATCH yet a LIKE filter" || pass "no MATCH = no LIKE filter"
-sql=$(SNIPPET=spl_hub_member_list_sql in_orc TENANT_ID=t1 MATCH=Veliko 2>&1)
-[[ $(grep -o "LIKE '%veliko%'" <<<"$sql" | wc -l) == 3 ]] && pass "MATCH lowercased on email, name and invite email" \
+sql=$(SNIPPET=spl_hub_member_list_sql in_orc TENANT_ID=t1 MATCH=firstname 2>&1)
+[[ $(grep -o "LIKE '%firstname%'" <<<"$sql" | wc -l) == 3 ]] && pass "MATCH lowercased on email, name and invite email" \
   || fail "MATCH filter: $(grep LIKE <<<"$sql")"
 for bad in "TENANT_ID=t1'--" "TENANT_ID=" "MATCH=a'b" "MATCH=a b" "MATCH=%" "MATCH=$(printf 'x%.0s' {1..65})"; do
   if SNIPPET=spl_hub_member_list_sql in_orc TENANT_ID=t1 "$bad" >"$T/o" 2>&1; then

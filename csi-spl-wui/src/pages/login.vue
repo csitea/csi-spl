@@ -59,7 +59,6 @@
                (owner HUM-10, 2026-10-05, msg 39c26092). Its strings wait in
                the second catalogue (i18n-first-screen.mjs): shown once merged. -->
           <LazyDemoIntro v-if="demo && session.state !== 'in' && te('demo.intro.title')" class="login-demo" :workspace="demo.workspace" :max-live="demo.maxLive" :redirect="redirect" />
-      <LazyLoginLinks />
           <p v-if="changed" class="muted" role="status" data-test="password-changed">{{ t('auth.login.password_changed') }}</p>
           <p v-if="session.state === 'unknown'" class="muted">{{ t('auth.login.session_unavailable') }}</p>
           <p v-if="session.state === 'in'" class="muted">

@@ -169,6 +169,7 @@ const LOOK_A_MEASURE = `(() => {
       return { test: b.dataset.test, l: Math.max(d.l, v.l), t: Math.max(d.t, v.t), r: Math.min(d.r, v.r), b: Math.min(d.b, v.b) }
     }).filter((d) => d.r > d.l && d.b > d.t),
     linksRow: box(document.querySelector('[data-test=login-links]')),
+    linksRows: document.querySelectorAll('[data-test=login-links]').length,
     links: [...document.querySelectorAll('[data-test^=login-link-]')].filter(shown).map((a) => ({ test: a.dataset.test, href: a.getAttribute('href'), target: a.getAttribute('target'), ...box(a) })),
     xScroll: document.documentElement.scrollWidth > window.innerWidth + 1,
   }
@@ -205,6 +206,18 @@ async function lookAPage(browser, vp, theme, reduce) {
     return req.continue()
   })
   await p.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
+  // dispatch-login-insertbefore: a DOM insert Vue makes against a node that
+  // left its parent (prd ERR-CLIENT-20261010-181927-2E17 and two more) is
+  // recorded here; Nuxt swallows the Vue error, so no pageerror would show it
+  await p.evaluateOnNewDocument(() => {
+    window.__loginDomErrors = []
+    const insertBefore = Node.prototype.insertBefore
+    Node.prototype.insertBefore = function (node, ref) {
+      try { return insertBefore.call(this, node, ref) } catch (e) { window.__loginDomErrors.push(`${e.name}: ${e.message}`.slice(0, 160)); throw e }
+    }
+  })
+  p.pageErrors = []
+  p.on('pageerror', (e) => p.pageErrors.push(String(e).slice(0, 160)))
   await p.goto(`${SERVER}/login?redirect=%2F`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
   await p.waitForSelector('[data-test^=demo-try-]', { visible: true, timeout: NAV_TIMEOUT })
@@ -246,7 +259,12 @@ async function lookA(browser) {
           if (over.length) fail(`${label} overlap`, over.join(', '))
           else ok(`${label} overlap`, `${m.links.length} links clear of ${m.demo.length} demo buttons`)
         }
-        // 116-T5: the links row under the features row
+        const errs = [...p.pageErrors, ...await p.evaluate(() => window.__loginDomErrors || [])]
+        if (errs.length) fail(`${label} errors`, errs.join(' | '))
+        else ok(`${label} errors`, 'no page or DOM insert error')
+        // 116-T5: the links row under the features row, once (it was in the card too)
+        if (m.linksRows !== 1) fail(`${label} links row count`, `${m.linksRows} links rows, want 1`)
+        else ok(`${label} links row count`, 'one links row')
         if (!m.linksRow) fail(`${label} links row`, 'not shown')
         else if (m.linksRow.w <= 0 || m.linksRow.h <= 0) fail(`${label} links row`, 'zero size')
         else if (m.features.length && m.linksRow.t < m.features[0].b - 1) fail(`${label} links row`, `top ${m.linksRow.t} above the features bottom ${m.features[0].b}`)

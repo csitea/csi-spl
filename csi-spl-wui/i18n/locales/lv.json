@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Uzdevuma atslēgas prefikss",
     "issue_prefix_hint": "Katra uzdevuma atslēga izskatās kā {prefix}-12. Maiņa pārdēvē visas šīs darbvietas atslēgas; numuri paliek. No 1 līdz 10 burtiem vai cipariem, sākas ar burtu.",
+    "blocker_issue_title": "Neatbildēti šķēršļi kļūst par uzdevumiem",
+    "blocker_issue_minutes": "Minūtes, pēc kurām neatbildēts šķērslis kļūst par uzdevumu",
+    "blocker_issue_hint": "Ja šķērslis atzīmē cilvēku vai aģentu un tas neatbild tēmā šajā minūšu skaitā, šķērslis kļūst par viņam piešķirtu uzdevumu. Viņa atbilde atrisina uzdevumu, un uzdevuma atrisināšana noņem šķēršļa atzīmi. 0 to izslēdz; ne vairāk kā {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

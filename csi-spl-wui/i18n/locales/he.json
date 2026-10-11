@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "קידומת מפתח משימה",
     "issue_prefix_hint": "כל מפתח משימה נראה כך: {prefix}-12. שינוי משנה את שם כל המפתחות בסביבת עבודה זו; המספרים נשארים. 1 עד 10 אותיות או ספרות, מתחיל באות.",
+    "blocker_issue_title": "חוסמים שלא נענו הופכים למשימות",
+    "blocker_issue_minutes": "דקות עד שחוסם שלא נענה הופך למשימה",
+    "blocker_issue_hint": "כאשר חוסם מתייג אדם או סוכן והוא לא עונה בנושא בתוך מספר הדקות הזה, החוסם הופך למשימה שמוקצית לו. התשובה שלו פותרת את המשימה, ופתרון המשימה מסיר את סימון החוסם. 0 מכבה את האפשרות; לכל היותר {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

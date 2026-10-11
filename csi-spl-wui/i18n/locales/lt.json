@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Užduoties rakto priešdėlis",
     "issue_prefix_hint": "Kiekvienas užduoties raktas atrodo taip: {prefix}-12. Pakeitimas pervadina visus šios darbo srities raktus; numeriai lieka. Nuo 1 iki 10 raidžių ar skaitmenų, prasideda raide.",
+    "blocker_issue_title": "Neatsakytos kliūtys tampa užduotimis",
+    "blocker_issue_minutes": "Minutės, po kurių neatsakyta kliūtis tampa užduotimi",
+    "blocker_issue_hint": "Kai kliūtis pažymi asmenį ar agentą ir šis neatsako temoje per tiek minučių, kliūtis tampa jam priskirta užduotimi. Jo atsakymas išsprendžia užduotį, o išsprendus užduotį kliūties žyma pašalinama. 0 išjungia; daugiausia {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

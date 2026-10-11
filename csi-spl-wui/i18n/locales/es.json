@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Prefijo de la clave de incidencia",
     "issue_prefix_hint": "Cada clave de incidencia se lee {prefix}-12. Cambiarlo renombra todas las claves de este espacio de trabajo; los números se mantienen. De 1 a 10 letras o cifras, empezando por una letra.",
+    "blocker_issue_title": "Los bloqueos sin respuesta se convierten en incidencias",
+    "blocker_issue_minutes": "Minutos antes de que un bloqueo sin respuesta se convierta en incidencia",
+    "blocker_issue_hint": "Cuando un bloqueo menciona a una persona o a un agente y no responde en su tema en este número de minutos, se convierte en una incidencia asignada a esa persona o agente. Su respuesta resuelve la incidencia, y resolver la incidencia quita la marca de bloqueo. 0 lo desactiva; como máximo {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

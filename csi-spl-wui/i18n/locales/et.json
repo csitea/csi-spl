@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Ülesande võtme eesliide",
     "issue_prefix_hint": "Iga ülesande võti on kujul {prefix}-12. Muutmine nimetab ümber kõik selle tööruumi võtmed; numbrid jäävad. 1 kuni 10 tähte või numbrit, algab tähega.",
+    "blocker_issue_title": "Vastamata takistustest saavad ülesanded",
+    "blocker_issue_minutes": "Minutid, mille järel vastamata takistusest saab ülesanne",
+    "blocker_issue_hint": "Kui takistus märgib inimest või agenti ja too ei vasta teemas nii mitme minuti jooksul, saab sellest talle määratud ülesanne. Tema vastus lahendab ülesande ja ülesande lahendamine eemaldab takistuse märgi. 0 lülitab selle välja; kõige rohkem {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

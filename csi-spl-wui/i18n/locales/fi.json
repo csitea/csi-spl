@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Tiketin avaimen etuliite",
     "issue_prefix_hint": "Jokainen tiketin avain on muotoa {prefix}-12. Muutos nimeää uudelleen kaikki tämän työtilan avaimet; numerot pysyvät. 1–10 kirjainta tai numeroa, alkaa kirjaimella.",
+    "blocker_issue_title": "Vastaamattomista esteistä tulee tikettejä",
+    "blocker_issue_minutes": "Minuutit, joiden jälkeen vastaamattomasta esteestä tulee tiketti",
+    "blocker_issue_hint": "Kun este merkitsee henkilön tai agentin eikä tämä vastaa aiheessa näin monen minuutin kuluessa, esteestä tulee hänelle osoitettu tiketti. Hänen vastauksensa ratkaisee tiketin, ja tiketin ratkaiseminen poistaa estemerkinnän. 0 poistaa toiminnon käytöstä; enintään {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

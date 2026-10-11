@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Prefixul cheii problemei",
     "issue_prefix_hint": "Fiecare cheie de problemă arată ca {prefix}-12. Schimbarea redenumește toate cheile din acest spațiu de lucru; numerele rămân. Între 1 și 10 litere sau cifre, începând cu o literă.",
+    "blocker_issue_title": "Blocajele fără răspuns devin probleme",
+    "blocker_issue_minutes": "Minute până când un blocaj fără răspuns devine problemă",
+    "blocker_issue_hint": "Când un blocaj menționează o persoană sau un agent și acesta nu răspunde în subiect în acest număr de minute, blocajul devine o problemă atribuită lui. Răspunsul lui rezolvă problema, iar rezolvarea problemei elimină marcajul de blocaj. 0 o dezactivează; cel mult {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

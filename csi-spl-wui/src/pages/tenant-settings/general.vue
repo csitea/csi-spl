@@ -3,7 +3,8 @@
      (the invite mail's language when the admin's own is not sent) and the
      issue key prefix (W16, spec 047), and who can archive topics (CLE-77819,
      owner 2026-09-30: a per-workspace setting, default everyone), and the
-     marketing switch (spec 090 §15, MarketingSwitch.vue). The hours keys
+     marketing switch (spec 090 §15, MarketingSwitch.vue), and "blocker to
+     issue after N minutes" (BlockerIssueSetting.vue). The hours keys
      (spec 107) are their own section, hours.vue.
      tenant.settings. -->
 <template>
@@ -60,6 +61,7 @@
       </div>
     </form>
     <MarketingSwitch v-if="!loading && !loadError" />
+    <BlockerIssueSetting v-if="!loading && !loadError" />
   </SettingsSection>
 </template>
 
@@ -67,6 +69,7 @@
 import SettingsSection from '~/components/SettingsSection.vue'
 import LocaleCombobox from '~/components/LocaleCombobox.vue'
 import MarketingSwitch from '~/components/MarketingSwitch.vue'
+import BlockerIssueSetting from '~/components/BlockerIssueSetting.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { issuePrefixOf, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS } from '~/utils/tenant-settings.mjs'

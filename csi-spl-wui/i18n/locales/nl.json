@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Voorvoegsel van de issuesleutel",
     "issue_prefix_hint": "Elke issuesleutel luidt {prefix}-12. Wijzigen hernoemt elke sleutel in deze werkruimte; de nummers blijven. 1 tot 10 letters of cijfers, beginnend met een letter.",
+    "blocker_issue_title": "Onbeantwoorde blokkades worden issues",
+    "blocker_issue_minutes": "Minuten voordat een onbeantwoorde blokkade een issue wordt",
+    "blocker_issue_hint": "Als een blokkade een persoon of agent tagt en die binnen dit aantal minuten niet in het onderwerp antwoordt, wordt het een issue dat aan hen is toegewezen. Hun antwoord lost het issue op, en het oplossen van het issue haalt de blokkademarkering weg. 0 zet het uit; hoogstens {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

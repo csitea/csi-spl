@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Prefiks klucza zadania",
     "issue_prefix_hint": "Każdy klucz zadania ma postać {prefix}-12. Zmiana przemianowuje wszystkie klucze w tym obszarze roboczym; numery zostają. Od 1 do 10 liter lub cyfr, zaczyna się literą.",
+    "blocker_issue_title": "Blokery bez odpowiedzi stają się zadaniami",
+    "blocker_issue_minutes": "Minuty, po których bloker bez odpowiedzi staje się zadaniem",
+    "blocker_issue_hint": "Gdy bloker oznacza osobę lub agenta, a ta nie odpowie w wątku w ciągu tylu minut, bloker staje się przypisanym do niej zadaniem. Jej odpowiedź rozwiązuje zadanie, a rozwiązanie zadania usuwa oznaczenie blokera. 0 wyłącza tę funkcję; najwyżej {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

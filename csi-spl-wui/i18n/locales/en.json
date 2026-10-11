@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Issue key prefix",
     "issue_prefix_hint": "Every issue key reads {prefix}-12. Changing it renames every key in this workspace; the numbers stay. 1 to 10 letters or digits, starting with a letter.",
+    "blocker_issue_title": "Unanswered blockers become issues",
+    "blocker_issue_minutes": "Minutes before an unanswered blocker becomes an issue",
+    "blocker_issue_hint": "When a blocker tags a person or an agent and they do not answer in its topic within this many minutes, it becomes an issue assigned to them. Their answer resolves the issue, and resolving the issue clears the blocker mark. 0 turns it off; at most {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

@@ -15,14 +15,21 @@ function mockErr(status, token) {
 }
 
 // spec 098: the registered generic keys the mock keeps, at the hub defaults:
-// the four hours keys (spec 107 section 4.2).
-const KV_DEFAULTS = Object.freeze({ [HOURS_KEY_PERIOD]: HOURS_DEFAULTS.period, [HOURS_KEY_GRACE]: HOURS_DEFAULTS.graceDays, [HOURS_KEY_IDLE]: HOURS_DEFAULTS.idleMinutes, [HOURS_KEY_TZ]: HOURS_DEFAULTS.tz })
+// the four hours keys (spec 107 section 4.2) and blocker -> issue minutes.
+// The blocker key, default and range are written out here, not imported from
+// blocker-settings.mjs: that import put a chunk of its own in the home
+// preload of the mock bundle (+0.1 KB on ci_home_gzip_kb);
+// tests/unit/blocker-issue.test.mjs pins them to blocker-settings.mjs.
+const BLOCKER_KEY_MINUTES = 'blocker.issue_after_minutes'
+const BLOCKER_MINUTES_DEFAULT = 3
+const KV_DEFAULTS = Object.freeze({ [HOURS_KEY_PERIOD]: HOURS_DEFAULTS.period, [HOURS_KEY_GRACE]: HOURS_DEFAULTS.graceDays, [HOURS_KEY_IDLE]: HOURS_DEFAULTS.idleMinutes, [HOURS_KEY_TZ]: HOURS_DEFAULTS.tz, [BLOCKER_KEY_MINUTES]: BLOCKER_MINUTES_DEFAULT })
+const kvValid = (k, v) => (k === BLOCKER_KEY_MINUTES ? Number.isInteger(v) && v >= 0 && v <= 1440 : hoursSettingValid(k, v))
 
 /** PATCH {settings}: every key and value checked before any is written (098 section 4); null resets. */
 function patchKv(kv, raw) {
   const s = raw && typeof raw === 'object' ? raw : {}
   for (const [k, v] of Object.entries(s)) {
-    if (!(k in KV_DEFAULTS) || (v !== null && !hoursSettingValid(k, v))) throw mockErr(400, 'bad_setting')
+    if (!(k in KV_DEFAULTS) || (v !== null && !kvValid(k, v))) throw mockErr(400, 'bad_setting')
   }
   for (const [k, v] of Object.entries(s)) {
     if (v === null) delete kv[k]

@@ -1108,12 +1108,16 @@ const flowBadge = useFlowBadge()
    lazy chunk, so it is loaded here and never rides the initial JS */
 const nuxtApp = useNuxtApp()
 let flowStarted = false
+/* owner (t1 de3c2cf5 msg 26c89f60): the Issues tab counts the viewer's open
+   assigned issues, an unanswered blocker's among them; its own lazy chunk */
+const myIssues = ref(0)
 watch(() => api.mock || session.state === 'in', (on) => {
   if (!on || flowStarted || !import.meta.client) return
   flowStarted = true
   void import('~/stores/flow')
     .then((m) => nuxtApp.runWithContext(() => m.useFlowStore().startBadge()))
     .catch(() => { flowStarted = false })
+  void import('~/utils/my-issues-count.mjs').then((m) => m.startMyIssuesCount({ api, live, count: myIssues }), () => {})
 }, { immediate: true })
 function countLabel(n: number) {
   return n > 0 ? (n > 99 ? '99+' : String(n)) : ''
@@ -1154,6 +1158,7 @@ function dmTotalLabel(label: string) {
   return dmTotalText(notes.dmTotal['dm:' + label] || 0)
 }
 function railCount(id: SideTab) {
+  if (id === 'issues') return countLabel(myIssues.value)
   if (flowKeys.value) {
     if (id === 'channels') return countLabel(listedSum('ch:', channelRows.value.map((c) => String(c.channel_id || ''))))
     if (id === 'dm') return countLabel(listedSum('dm:', peers.value.map((p) => p.label)))

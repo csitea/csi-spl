@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Prefix för ärendenyckel",
     "issue_prefix_hint": "Varje ärendenyckel lyder {prefix}-12. En ändring byter namn på alla nycklar i den här arbetsytan; numren står kvar. 1 till 10 bokstäver eller siffror, börjar med en bokstav.",
+    "blocker_issue_title": "Obesvarade blockerare blir ärenden",
+    "blocker_issue_minutes": "Minuter innan en obesvarad blockerare blir ett ärende",
+    "blocker_issue_hint": "När en blockerare taggar en person eller en agent som inte svarar i ämnet inom så många minuter blir den ett ärende som tilldelas dem. Deras svar löser ärendet, och när ärendet löses tas blockerarmarkeringen bort. 0 stänger av det; högst {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "İş anahtarı öneki",
     "issue_prefix_hint": "Her iş anahtarı {prefix}-12 biçimindedir. Değiştirmek bu çalışma alanındaki tüm anahtarları yeniden adlandırır; numaralar kalır. Harfle başlayan 1 ile 10 arası harf veya rakam.",
+    "blocker_issue_title": "Yanıtlanmayan engeller işe dönüşür",
+    "blocker_issue_minutes": "Yanıtlanmayan bir engelin işe dönüşmesinden önceki dakika",
+    "blocker_issue_hint": "Bir engel bir kişiyi ya da ajanı etiketlediğinde ve o kişi bu kadar dakika içinde konuda yanıt vermediğinde, engel ona atanmış bir işe dönüşür. Yanıtı işi çözer; işin çözülmesi de engel işaretini kaldırır. 0 kapatır; en fazla {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

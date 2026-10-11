@@ -1554,6 +1554,9 @@
     "default_locale_unset": "Not set: the site default is used.",
     "issue_prefix": "Predpona kľúča úlohy",
     "issue_prefix_hint": "Každý kľúč úlohy má tvar {prefix}-12. Zmena premenuje všetky kľúče v tomto pracovnom priestore; čísla zostanú. 1 až 10 písmen alebo číslic, začína písmenom.",
+    "blocker_issue_title": "Nezodpovedané prekážky sa stanú úlohami",
+    "blocker_issue_minutes": "Minúty, po ktorých sa nezodpovedaná prekážka stane úlohou",
+    "blocker_issue_hint": "Keď prekážka označí osobu alebo agenta a ten v téme neodpovie do tohto počtu minút, prekážka sa stane úlohou priradenou jemu. Jeho odpoveď úlohu vyrieši a vyriešenie úlohy odstráni označenie prekážky. 0 funkciu vypne; najviac {max}.",
     "locale_clear": "Clear",
     "error": {
       "forbidden": "Your role does not allow this.",

@@ -128,19 +128,32 @@ dispatch sweep cron runs the action every 10 min.
   CONTROL: with the state file disabled -> 3 sends for 3 ticks, so the key is
   what removes the duplicates.
 
-### C3. orc hermetic: 2 shards -> 4
+### C3. orc hermetic: 2 shards, balanced by recorded file time
 
-orc hermetic timed out 8 times in 11 started runs. Its median of 918 s
-against a 1,200 s limit is 1.3x headroom, and a loaded runner doubles the
-time. Split the job into 4 shards by the file timings the suite already
-logs, so that each shard's median is <= 50 % of its timeout.
+orc hermetic timed out 8 times in 11 started runs. Shard 1 ran a median of
+918 s and shard 2 520 s against a 1,200 s limit: the every-2nd-file split
+puts the slow files unevenly.
 
-- Files: `.github/workflows/10_ci-quality.yml` (the `orc-suite` matrix only),
-  plus the orc runner's shard selector if it needs a 4-way split.
-- Test (orc, reads the workflow): the `orc-suite` matrix has 4 shards, and the
-  shard selector puts every `*.tst.sh` in exactly one shard (files over all
-  shards == count of `*.tst.sh`, no duplicates). CONTROL: the 2-shard matrix
-  fails the shard-count assert.
+First drafted as 2 -> 4 shards. Changed, with the dispatch holder's
+agreement (2026-10-11), after C4 and a load reading of the runner box: 8
+of 15 jobs run at or over 75 % of their timeout, and the box the six
+runners share with the agent fleet (16 vCPU) read load 25..36 and
+`/proc/pressure/cpu` some avg300 = 67 %. Two more shards would take 2 more
+runner jobs per run (15 -> 17) on a CPU-starved box. Balancing the 2
+shards costs no slot: ~720 s each, 60 % of the limit. The runner box itself
+is the owner's call, not this spec's.
+
+`run-all-tests.sh` picks a shard from `shard-times.tsv` (file, wall s),
+heaviest first onto the lighter shard; a file not in the table weighs the
+table's mean. `ORC_TEST_TIMES_OUT=<file>` writes the table from a full
+run. Round-robin stays behind `ORC_TEST_SHARD_BALANCE=0`.
+
+- Files: `csi-spl-orc/src/bash/tests/run-all-tests.sh`,
+  `csi-spl-orc/src/bash/tests/shard-times.tsv`; wf 10 unchanged.
+- Test (`run-all-tests-shard-balance.tst.sh`): shards 1/2 + 2/2 name every
+  `*.tst.sh` exactly once; their table sums are within 10 %; a file the table
+  does not know lands in exactly one shard. CONTROL: the round-robin split
+  on the same table is more than 10 % apart.
 
 ### C4. Print the timeout headroom, so the next timeout is seen coming
 
@@ -180,6 +193,7 @@ The fix: the test unsets `GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE` first.
 ## 4. Done when
 
 - C1..C5 have landed with their tests and controls green in wf 10.
+- orc hermetic: no timeout in the next 20 started runs.
 - Re-measured over the next 100 master runs: every timeout shows in the
   report, every red job has exactly one note, and the note goes out <= 15 min
   after the first finished red run.

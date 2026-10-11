@@ -27,17 +27,25 @@
 # files (wall s, cpu s)" (ORC_TEST_SLOWEST=<n>, 0 = off), so a creep toward
 # CI's timeout-minutes shows in the log before the cap cancels the job. On a
 # CPU-quota'd runner the cpu column is what the quota divides.
-# ORC_TEST_SHARD=<k>/<m> runs only every m-th file starting at the k-th, so
-# CI can split the suite across m parallel jobs; it is unset before any file
-# runs, so a test that runs this script itself sees the whole suite.
+# ORC_TEST_SHARD=<k>/<m> runs the k-th of m shards, so CI can split the suite
+# across m parallel jobs; it is unset before any file runs, so a test that
+# runs this script itself sees the whole suite. The shards are balanced by
+# the wall time each file took (shard-times.tsv, spec 131 C3): heaviest file
+# first onto the lightest shard; a file not in the table weighs the table's
+# mean. Refresh the table with a full run:
+#   ORC_TEST_TIMES_OUT=<this dir>/shard-times.tsv run-all-tests.sh
+# Round-robin (every m-th file, the pre-131 split: 918 s vs 520 s median on
+# 2026-10-11) when the table is missing or ORC_TEST_SHARD_BALANCE=0.
+#   run-all-tests.sh --list   prints the files this run would run, runs none
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
-changed=0 bg=""
+changed=0 bg="" listonly=0
 while (( $# )); do
   case "$1" in
     --changed) changed=1 ;;
+    --list) listonly=1 ;;
     --background) bg="${2:-}"; [[ -n "$bg" ]] || { echo "--background needs a result file" >&2; exit 2; }; shift ;;
-    *) echo "usage: run-all-tests.sh [--changed] [--background <result-file>]" >&2; exit 2 ;;
+    *) echo "usage: run-all-tests.sh [--changed] [--list] [--background <result-file>]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -72,6 +80,17 @@ if [[ -z "$njobs" ]]; then
   if [[ "${GITHUB_ACTIONS:-}" == true ]]; then njobs=6; else njobs=4; fi
 fi
 [[ "$njobs" =~ ^[1-9][0-9]*$ ]] || { echo "ORC_TEST_JOBS must be a positive integer (got '$njobs')" >&2; exit 2; }
+# shard_pick <times tsv> <k> <m> - stdin the file names in suite order, stdout
+# the k-th of m shards in suite order: heaviest first (ties by suite order)
+# onto the shard with the smallest sum so far (ties to the lowest shard).
+shard_pick() {
+  awk -F'\t' 'NR == FNR { if ($2 + 0 > 0) { w[$1] = $2; s += $2; c++ }; next }
+    { printf "%s\t%d\t%s\n", (($0 in w) ? w[$0] : (c ? s / c : 1)), FNR, $0 }' "$1" - |
+    sort -t$'\t' -k1,1gr -k2,2n |
+    awk -F'\t' -v k="$2" -v m="$3" '{ b = 1; for (i = 2; i <= m; i++) if (sum[i] < sum[b]) b = i
+      sum[b] += $1; if (b == k) print $2 "\t" $3 }' |
+    sort -t$'\t' -k1,1n | cut -f2
+}
 all=()
 for t in "$dir"/*.tst.sh; do [[ -f "$t" ]] && all+=("$t"); done
 shard="${ORC_TEST_SHARD:-}"
@@ -80,8 +99,15 @@ if [[ -n "$shard" ]]; then
   [[ "$shard" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] && (( BASH_REMATCH[1] <= BASH_REMATCH[2] )) \
     || { echo "ORC_TEST_SHARD must be <k>/<m> with 1 <= k <= m (got '$shard')" >&2; exit 2; }
   sk=${BASH_REMATCH[1]} sm=${BASH_REMATCH[2]} mine=()
-  for ((i = sk - 1; i < ${#all[@]}; i += sm)); do mine+=("${all[$i]}"); done
-  echo "--- shard $shard: ${#mine[@]} of ${#all[@]} files"
+  shard_times="${ORC_TEST_SHARD_TIMES:-$dir/shard-times.tsv}"
+  if [[ "${ORC_TEST_SHARD_BALANCE:-1}" == 1 && -s "$shard_times" ]]; then
+    while IFS= read -r t; do mine+=("$dir/$t"); done < <(printf '%s\n' "${all[@]##*/}" | shard_pick "$shard_times" "$sk" "$sm")
+    how="balanced by $(basename "$shard_times")"
+  else
+    for ((i = sk - 1; i < ${#all[@]}; i += sm)); do mine+=("${all[$i]}"); done
+    how="every ${sm}th file"
+  fi
+  (( listonly )) || echo "--- shard $shard: ${#mine[@]} of ${#all[@]} files ($how)"
   all=("${mine[@]}")
 fi
 list=("${all[@]}")
@@ -104,6 +130,7 @@ if (( changed )); then
     echo "=== changed-only: skipped ${#skipped[@]} of ${#all[@]} files, no changed file or function is named in them: ${skipped[*]}"
   fi
 fi
+if (( listonly )); then (( guard_own )) && rm -f "$SPOOL_TEST_GUARD_LOG"; printf '%s\n' "${list[@]##*/}"; exit 0; fi
 fails=0 n=0
 # <start> <end> <cpu s> <file> per test file, for the slowest-N report below.
 times=$(mktemp)
@@ -174,6 +201,9 @@ if [[ -s "$times" && "$slowest" =~ ^[1-9][0-9]*$ ]]; then
   echo "--- slowest $slowest test files (wall s, cpu s)"
   awk '{ printf "%8.1f %8.1f  %s\n", $2 - $1, $3, $4 }' "$times" | sort -rn | sed -n "1,${slowest}p"
   awk '{ w += $2 - $1; c += $3 } END { printf "--- sum over %d files: wall %.0f s, cpu %.0f s\n", NR, w, c }' "$times"
+fi
+if [[ -n "${ORC_TEST_TIMES_OUT:-}" && -s "$times" ]]; then
+  awk '{ printf "%s\t%.0f\n", $4, $2 - $1 }' "$times" | sort >"$ORC_TEST_TIMES_OUT"
 fi
 rm -f "$times" "$times.cpu"
 if [[ -s "$SPOOL_TEST_GUARD_LOG" ]]; then

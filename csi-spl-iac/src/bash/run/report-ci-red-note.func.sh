@@ -87,7 +87,7 @@ _crn_verdicts() {
     while IFS=$'\t' read -r jid c name; do
       case "$c" in
         success) v=green ;;
-        timeout) v=red ;;
+        timeout|runner-lost) v=red ;;
         failure)
           v=red
           gh api "repos/{owner}/{repo}/check-runs/$jid/annotations" --jq '.[].message' 2>/dev/null |
@@ -135,6 +135,7 @@ _crn_body() {
   dir=$(_crn_dir "$job")
   sig=$(cat "$tmp/timeout-$fr_jid.txt" 2>/dev/null)
   [[ -n "$sig" ]] || sig=$(gh api "repos/{owner}/{repo}/actions/jobs/$fr_jid/logs" 2>/dev/null | _rcg_signature)
+  [[ -n "$sig" ]] || sig=$(_rcg_annotation_sig "$fr_jid")
   if [[ -n "$lg_sha" ]]; then
     range="$lg_sha..$fr_sha" green="run $lg_rid (sha $lg_sha)" scope="in $lg_sha..$fr_sha"
   else
@@ -143,7 +144,7 @@ _crn_body() {
   commits=$(git -C "$top" log --format='- %h %s' -n 15 "$range" -- "$dir" .github 2>/dev/null)
   printf '## CI red on master: %s\n\n' "$job"
   printf 'Red since run %s (sha %s, %s). Last green: %s.\n' "$fr_rid" "$fr_sha" "$fr_t" "$green"
-  [[ -n "$sig" ]] || sig="(no FAIL line found in the job log)"
+  [[ -n "$sig" ]] || sig="(no FAIL line in the job log, no failure annotation)"
   printf 'Signature: %s\n\n' "${sig:0:200}"
   printf 'Suspect commits touching %s or .github %s (the first red run ends the range; superseded runs hide where it starts):\n%s\n\n' \
     "$dir" "$scope" "${commits:-- (none found in this clone: git fetch, or the range is outside $dir)}"

@@ -135,32 +135,32 @@ func TestPublicExportExcludesVisitorChannels(t *testing.T) {
 				t.Errorf("CONTROL scope=%q: the export role sees %d of the staff line, want 1", scope, n)
 			}
 		}
-		exportNoVisitorsDropControl(ctx, t, tx, a, hidden)
 	})
+	exportNoVisitorsDropControl(t, pg, a, hidden)
 }
 
 // exportNoVisitorsDropControl: without rdb 0172's policies the export role
-// reads every hidden row.
-func exportNoVisitorsDropControl(ctx context.Context, t *testing.T, tx pgx.Tx, a string, hidden []struct{ tb, col, val string }) {
+// reads every hidden row. Its own rolled-back transaction locks the three
+// tables FIRST, as exportScopeDropControl does and for its reason (an ANALYZE
+// waiting on the GRANT's pg_class rows deadlocks a later DROP POLICY).
+func exportNoVisitorsDropControl(t *testing.T, pg *Postgres, a string, hidden []struct{ tb, col, val string }) {
 	t.Helper()
-	sp, err := tx.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sp.Rollback(ctx) //nolint:errcheck
-	for _, q := range []string{`RESET ROLE`, `DROP POLICY public_export_no_visitors ON messages`,
-		`DROP POLICY public_export_no_visitors ON channels`, `DROP POLICY public_export_no_visitors ON tenant_memberships`,
-		`SET LOCAL ROLE spool_public_export`} {
-		if _, err := sp.Exec(ctx, q); err != nil {
-			t.Fatalf("%s: %v", q, err)
+	lock := []string{`LOCK TABLE messages, channels, tenant_memberships IN ACCESS EXCLUSIVE MODE`}
+	asExportRoleAfter(t, pg, a, lock, func(ctx context.Context, tx pgx.Tx) {
+		for _, q := range []string{`RESET ROLE`, `DROP POLICY public_export_no_visitors ON messages`,
+			`DROP POLICY public_export_no_visitors ON channels`, `DROP POLICY public_export_no_visitors ON tenant_memberships`,
+			`SET LOCAL ROLE spool_public_export`} {
+			if _, err := tx.Exec(ctx, q); err != nil {
+				t.Fatalf("%s: %v", q, err)
+			}
 		}
-	}
-	setScope(ctx, t, sp, a, "")
-	for _, h := range hidden {
-		if n := exportSees(ctx, t, sp, h.tb, h.col, h.val); n != 1 {
-			t.Errorf("control is void: without public_export_no_visitors the export role sees %d %s row(s), want 1", n, h.tb)
+		setScope(ctx, t, tx, a, "")
+		for _, h := range hidden {
+			if n := exportSees(ctx, t, tx, h.tb, h.col, h.val); n != 1 {
+				t.Errorf("control is void: without public_export_no_visitors the export role sees %d %s row(s), want 1", n, h.tb)
+			}
 		}
-	}
+	})
 }
 
 // TestEmbedStaffLeadBlockList: staff mark visitor A a lead and block

@@ -1,4 +1,4 @@
-Exported from the Qto doc [DevOps guide](https://spool-hub.ai/workspace/docs?doc=78e51717-7bcb-4b12-9da8-80af726f8882&view=doc) (`78e51717-7bcb-4b12-9da8-80af726f8882`) on 2026-10-11T20:19:57Z; edit in Qto, not here.
+Exported from the Qto doc [DevOps guide](https://spool-hub.ai/workspace/docs?doc=78e51717-7bcb-4b12-9da8-80af726f8882&view=doc) (`78e51717-7bcb-4b12-9da8-80af726f8882`) on 2026-10-11T20:25:48Z; edit in Qto, not here.
 
 # 1 About this guide
 
@@ -207,7 +207,7 @@ One env and one step at a time, from the checkout the tf-runner mounts. State li
 | 055-gcp-kms-marketing | dev, then prd | the marketing KMS key |
 | 056-gcs-box-state | dev, then prd | nightly box-state backups; the restore is the installation guide |
 | 057-gcp-kms-vendor-keys | dev, then prd | vendor-key KMS |
-| 058-gcp-wine-box-budget | dev only | the wine-box budget; prd validation refuses |
+| 058-gcp-wine-box-budget | dev only | the wine-box budget, via `do_spl_wine_box_budget_tf`; prd validation refuses |
 | 059-gcp-satellite-budget | prd only | the satellite budget, in the `all` project; before 060 |
 | 060-gcp-vm-satellite | prd only | the satellite VM; the playbook detail is `SYS.md` |
 | 061-gcp-vm-wine-box | dev only | the wine-box VM |
@@ -338,15 +338,31 @@ cd <CHECKOUT>/csi-spl-orc && ENV=dev ./run -a do_check_deploy_lag
 
 # 10 The other env-gated steps
 
-## 10.1 Wine box, dev only
+## 10.1 Wine box budget, plan
 
-Budget, then the VM. The prd render carries a marker and is not applied.
+Step 058 is the dev wine-box budget. `do_spl_wine_box_budget_tf` reads the billing account from the dev project's billing link, as the dev project service account, and passes it only into that one make run, so the account stays out of the log. Leave `TF_VERB` unset: this is the plan. `grep -c '^do_spl_wine_box_budget_tf()' csi-spl-iac/src/bash/run/spl-wine-box-budget-tf.func.sh` -> 1, on commit `bfede0918`. The prd render of 058 is a marker and is not applied.
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS=dev STEPS="058-gcp-wine-box-budget 061-gcp-vm-wine-box" ./run -a do_tf_sweep_steps
+cd <CHECKOUT>/csi-spl-iac && ./run -a do_spl_wine_box_budget_tf
 ```
 
-## 10.2 Satellite, prd only
+## 10.2 Wine box budget, apply
+
+The owner's go for this call. The same action, with `TF_VERB=provision`.
+
+```bash
+cd <CHECKOUT>/csi-spl-iac && TF_VERB=provision ./run -a do_spl_wine_box_budget_tf
+```
+
+## 10.3 Wine box VM
+
+After the budget apply. Dev only. The prd render carries a marker and is not applied.
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS=dev STEPS=061-gcp-vm-wine-box ./run -a do_tf_sweep_steps
+```
+
+## 10.4 Satellite, prd only
 
 Budget, then the VM. Both render from prd and create resources in the satellite project (bootstrap `ENV=all` first). The Ansible playbook that the 060 apply runs is the installation guide and `SYS.md`, not this guide.
 
@@ -354,7 +370,7 @@ Budget, then the VM. Both render from prd and create resources in the satellite 
 cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS=prd STEPS="059-gcp-satellite-budget 060-gcp-vm-satellite" ./run -a do_tf_sweep_steps
 ```
 
-## 10.3 Demo workspace
+## 10.5 Demo workspace
 
 After `do_deploy_hub` for that env. `make do-provision` of step 036 builds the spool CLI on the host first. The private key the action writes is not a terraform output. Do not print it.
 
@@ -538,7 +554,7 @@ A step with no action, or an action that refuses the from-scratch case. Each one
 
 # 18 How a count was taken
 
-The `grep -c` figures in this guide are the count of the function line `^<action>()` in the file named next to it. They were taken on commit `b51567f09`. Those function files are unchanged through `3c375a86d`. The form is one action, one file.
+The `grep -c` figures in this guide are the count of the function line `^<action>()` in the file named next to it. They were taken on commit `b51567f09`. Those function files are unchanged through `396613b00`. The count for `do_spl_wine_box_budget_tf` is on commit `bfede0918`, in the wine-box section. The form is one action, one file.
 
 ```bash
 grep -c '^do_gcp_000_bootstrap_gcp_env()' csi-spl-iac/src/bash/run/gcp-000-bootstrap-gcp-env.func.sh

@@ -32,7 +32,6 @@ LONG="
   csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh do_spl_cloud_cnf 96
   csi-spl-orc/src/bash/features/spawn-agents/lib/spool-notify.inc.sh spool_notify_poke 110
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh spawn_main 185
-  csi-spl-orc/src/bash/features/spool-install/install.sh cfg_get 119
   csi-spl-orc/src/bash/run/run.sh do_log 143
   csi-spl-orc/src/bash/run/run.sh execute_step 99
   csi-spl-orc/src/bash/run/spl-checkout-fake-buy.func.sh do_spl_checkout_fake_buy 114
@@ -44,12 +43,15 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
-# measure <file>... -> "<lines> <file> <function>" per top-level function
+# measure <file>... -> "<lines> <file> <function>" per top-level function. A
+# one-line function (`f() { ...; }`) closes on its own line, length 1 (r8-04):
+# left open, it swallowed every function up to the next `^}`.
 measure() {
   local f
   for f in "$@"; do
     awk -v f="${f#$APP_ROOT/}" '
-      /^[A-Za-z_][A-Za-z0-9_:.-]*\(\)[[:space:]]*\{/ { if (!n) { n = $1; sub(/\(\).*/, "", n); s = NR } }
+      /^[A-Za-z_][A-Za-z0-9_:.-]*\(\)[[:space:]]*\{/ { if (!n) { n = $1; sub(/\(\).*/, "", n); s = NR
+        if ($0 ~ /\}[[:space:]]*(#.*)?$/) { print 1, f, n; n = "" } } }
       /^\}/ { if (n) { print NR - s + 1, f, n; n = "" } }' "$f"
   done
 }
@@ -97,6 +99,12 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 printf 'a() {\n  echo 1\n  echo 2\n}\nb() { :; }\n' >"$T/x.sh"
 got=$(APP_ROOT="$T" measure "$T/x.sh" | sed -n 1p)
 [[ "$got" == "4 $T/x.sh a" || "$got" == "4 x.sh a" ]] && pass "CONTROL: a 4-line function measures 4" || fail "CONTROL: measured '$got'"
+
+# Red control (r8-04): a one-liner followed by a 100-line function. The old awk
+# left the one-liner open, so the 100-line function was never listed.
+{ echo 'one() { :; }'; echo 'big() {'; for ((i = 0; i < 98; i++)); do echo '  :'; done; echo '}'; } >"$T/o.sh"
+got=$(APP_ROOT="$T" measure "$T/o.sh")
+[[ "$got" == $'1 o.sh one\n100 o.sh big' ]] && pass "CONTROL: a one-liner measures 1 and the 100-line function after it measures 100" || fail "CONTROL: one-liner then 100 lines measured '$got'"
 
 # Red control (r5-06): a listed function one line over its ceiling fails, at the
 # ceiling passes, one line under prints the NOTE to lower it.

@@ -279,10 +279,10 @@
       "invited_use_any": "Sign in with that same address: Google or Microsoft if it is a work account there, otherwise email and password.",
       "links": {
         "blog": "Blog",
-        "docs": "Docs",
-        "calendar": "Calendar",
-        "help": "Help",
-        "source": "Source"
+        "docs": "Documentatie",
+        "calendar": "Kalender",
+        "help": "Hulp",
+        "source": "Broncode"
       }
     },
     "native": {

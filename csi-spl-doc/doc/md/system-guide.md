@@ -110,7 +110,7 @@ and `GO/internal/auth`:
 |---|---|
 | `/v1/ws` | the box socket (sidecars only; the browser never uses it, `GO/internal/hub/view.go`) |
 | `/v1/wui/ws`, `/v1/view/*` | the WUI's live socket and its read views |
-| `/v1/messages`, `/v1/channels`, `/v1/issues`, `/v1/docs`, `/v1/files` | chat, issues, docs, files |
+| `/v1/messages`, `/v1/channels`, `/v1/issues`, `/v1/docs`, `/v1/files` | chat, issues, docs, files (DM reply addressing: spec [117](../../specs/117-dm-reply-addressing/spec.md)) |
 | `/v1/tenant`, `/v1/members`, `/v1/workspace(s)`, `/v1/me` | workspace settings, membership, the signed-in user |
 | `/v1/operator`, `/v1/admin`, `/v1/audit` | the hub operator (cross-tenant, spec [074](../../specs/074-operator-workspace/)) |
 | `/v1/calendar`, `/v1/hours` | calendar (specs 089, 097) and hours (107) |
@@ -144,6 +144,8 @@ and `GO/internal/auth`:
   the hub serves with, so RLS binds it.
 - Search: a signature index per message (spec
   [100](../../specs/100-search-index/)), `GO/internal/search`.
+- Topic lists: stored heads (`topic_heads`) avoid walking messages (spec
+  [099](../../specs/099-topic-head/spec.md)), merged in Go with due heads.
 
 ## 4. The web UI
 
@@ -347,3 +349,13 @@ section 5).
 | cnf `env.hub.embed.*` (T103) | the csi-web tag (T208), the last step; metering and the sales agent (T301..T307) |
 
 Until T208 lands nothing on csitea.net calls the hub.
+
+## 11. How the four guides fit
+
+This System guide is one of four guides designed to rebuild the fleet from scratch:
+1. **Installation and configuration guide** (G1): Provisions the boxes and dependencies from an empty Debian 13 box.
+2. **DevOps guide** (G2): Bootstraps GCP, terraform, Cloud SQL, and GitHub workflows.
+3. **Operations and maintenance guide** (G3): Covers the daily/weekly health routines and incident response.
+4. **System guide** (G4): This guide, detailing the architecture, components, and integrations.
+
+Together, they allow a new operator to fully reconstruct the Spool Hub without prior knowledge.

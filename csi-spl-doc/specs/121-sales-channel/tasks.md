@@ -67,7 +67,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T104 | hub: visitor token, `channel_guest` role, read/post/erase in its channel | 1 | T102, T103 | done | claude |
 | T106 | hub: `#sales` triage line, retention, lead mark, block, export exclusion | 1 | T104 | done (86aee14e5) | claude |
 | T106b | WUI: "Visitors" rail group, lead / block buttons | 1 | T106 | build | mistral or grok |
-| T105 | hub: abuse limits, proof-of-work gate, bans, token sweep | 2 | T104 | build | claude |
+| T105 | hub: abuse limits, proof-of-work gate, bans, token sweep | 2 | T104 | done (8cf8e62da) | claude |
 | T201 | hub serves `/embed/*` with per-customer `frame-ancestors` | 2 | T102, T103 | done (2c5f2fa3b, 6532abba2) | claude |
 | T202 | loader.js + iframe chat page | 2 | T201, T104 | build | claude |
 | T203 | hub: embed admin API (origins, per-embed JWT key) | 2 | T102 | done (4d81f4b88, 40af1ecdb) | claude |
@@ -193,7 +193,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 
 ### Phase 2: embed (spec 3.2, 5, 6)
 
-- [ ] T105 **hub abuse** (claude; needs T104). The `spec.md` section 6
+- [x] T105 **hub abuse** (claude; needs T104). The `spec.md` section 6
   limits as `quota_counts` kinds `embed_visitor`, `embed_post`,
   `embed_turn` (refuse before writing); client IP as 017 FR-SEC-006; the
   self-hosted proof-of-work + honeypot on the FIRST post; repeat offenders
@@ -203,6 +203,19 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `GO/hub/embed_pow.go` + `_test.go` (*new*); `GO/hub/embed_sweep.go` +
   `_test.go` (*new*). Done: each 429 / 413 / 503 has a test that also
   proves nothing was written.
+  Built (c-778, 8cf8e62da): `embedAdmit` (mint: ban 403 `embed_banned`, 503
+  `embed_full`, per-IP hour + day 429 `embed_visitors`, all or none) and
+  `embedPostGate` (ban, honeypot `website` 403, proof of work 428
+  `embed_challenge`, minute + day 429 `embed_quota`) run before any write;
+  `Server.EmbedTurn` is the per-day turn take for T306's dispatch.
+  `GET /v1/embed/{embed_id}/challenge`: `sha256(challenge.hex(sha256(body)).nonce)`
+  with `bits` leading zero bits (16). `ip_hash`: sha256 salted by workspace
+  and week, set on mint. Store: `GO/store/embed_abuse.go` + `_test.go`
+  (*new*; visitor statements under `inChannel`, pre-mint ones in the
+  reviewed operator scope `embedScope`). The retention tick runs
+  `SweepEmbed`. Kinds: `embed_visitor` / `embed_post` / `embed_turn` (day),
+  `embed_visitor_hour`, `embed_post_min`, `embed_hit`: a day and an hour
+  window both start at 00:00, so one kind per window.
 - [x] T201 **hub `/embed/*` route** (claude; needs T102, T103).
   `frame-ancestors <embed_customers.allowed_origins>` on `/embed/*` only;
   every other path keeps `'none'` and `X-Frame-Options: DENY`; the loader

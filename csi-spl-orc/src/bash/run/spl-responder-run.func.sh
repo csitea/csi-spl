@@ -107,53 +107,10 @@ do_spl_responder_run() {
   fi
 
   local send="${RESP_SEND:-$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-send.sh}"
-  local n=0 skipped=0 filed=0 fails=0 task frm mids seen since hubn hrc
+  local n=0 skipped=0 filed=0 fails=0 task frm mids seen since
   while IFS=$'\t' read -r task frm mids seen since; do
     [[ -n "$task" ]] || continue
-    [[ "$mids" == - ]] && mids=""
-    [[ "$since" == - ]] && since=""
-    if (( ! reply )); then
-      # No visible Seen (owner rule 2026-10-03): file the escalation, ack it.
-      if (( dry )); then
-        do_log "INFO DRY_RUN would: file msg(s) ${mids:-none} of $frm in topic $task to $fwd and ack; no reply in the topic (RESP_SEEN_REPLY=0)"
-      else
-        _spl_responder_pending_drop "$d" "$task"
-        [[ -n "$mids" ]] && _spl_responder_forward "$send" "$agent" "$fwd" "$tenant" "$frm" "$task" "$mids"
-        filed=$((filed + 1))
-      fi
-      n=$((n + 1)); continue
-    fi
-    if (( dry )); then
-      if [[ "$seen" == 1 ]]; then
-        do_log "INFO DRY_RUN topic $task already has its Seen reply: would file msg(s) $mids to $fwd and ack, no second reply"
-      else
-        do_log "INFO DRY_RUN would: ask the hub for an RSP row in topic $task, then (none) reply 'Seen: routed to the team' to $frm there, file msg(s) $mids to $fwd, and ack"
-      fi
-      n=$((n + 1)); continue
-    fi
-    hrc=0
-    [[ "$seen" == 1 ]] || { hubn="$(spl_responder_hub_rsp "$d" "$box" "$tenant" "$hub" "$task")" || hrc=$?; }
-    if [[ "$seen" == 1 ]]; then
-      skipped=$((skipped + 1))
-    elif (( hrc == 2 )); then
-      do_log "WARN the hub-rsp check is not deployed on this box or hub: topic $task is answered on this machine's ledger only (the pre-c-082 behaviour)"
-      _spl_responder_seen_reply "$d" "$tenant" "$box" "$agent" "$frm" "$task" "$mids" || { fails=$((fails + 1)); continue; }
-      _spl_responder_pending_drop "$d" "$task"
-    elif (( hrc == 0 )); then
-      if (( hubn > 0 )); then
-        _spl_responder_settle "$d" "$task"
-        do_log "INFO topic $task already holds $hubn RSP row(s) on the hub (another machine answered): no second Seen"
-        skipped=$((skipped + 1))
-      else
-        _spl_responder_seen_reply "$d" "$tenant" "$box" "$agent" "$frm" "$task" "$mids" || { fails=$((fails + 1)); continue; }
-        _spl_responder_pending_drop "$d" "$task"
-      fi
-    else
-      _spl_responder_defer "$d" "$agent" "$task" "$frm" "$since" "$wait"
-      skipped=$((skipped + 1))
-    fi
-    [[ -n "$mids" ]] && _spl_responder_forward "$send" "$agent" "$fwd" "$tenant" "$frm" "$task" "$mids"
-    n=$((n + 1))
+    _spl_responder_topic "$task" "$frm" "$mids" "$seen" "$since"
   done <<<"$rows"
   # A seen-only or file-only pass sent no reply, so nothing acked its inbox:
   # ack it here.
@@ -165,6 +122,58 @@ do_spl_responder_run() {
 
   do_log "OK $agent ($tenant): handled $n topic(s), $filed filed without a reply, $skipped already seen (no second reply), $fails failed"
   (( fails == 0 ))
+}
+
+# _spl_responder_topic <task> <from> <msg ids> <seen> <pending-since>: one
+# inbox topic of do_spl_responder_run. It reads that run's locals (d, box,
+# tenant, hub, agent, fwd, send, wait, reply, dry) and bumps its counters n,
+# filed, skipped and fails.
+_spl_responder_topic() {
+  local task="$1" frm="$2" mids="$3" seen="$4" since="$5" hubn hrc
+  [[ "$mids" == - ]] && mids=""
+  [[ "$since" == - ]] && since=""
+  if (( ! reply )); then
+    # No visible Seen (owner rule 2026-10-03): file the escalation, ack it.
+    if (( dry )); then
+      do_log "INFO DRY_RUN would: file msg(s) ${mids:-none} of $frm in topic $task to $fwd and ack; no reply in the topic (RESP_SEEN_REPLY=0)"
+    else
+      _spl_responder_pending_drop "$d" "$task"
+      [[ -n "$mids" ]] && _spl_responder_forward "$send" "$agent" "$fwd" "$tenant" "$frm" "$task" "$mids"
+      filed=$((filed + 1))
+    fi
+    n=$((n + 1)); return 0
+  fi
+  if (( dry )); then
+    if [[ "$seen" == 1 ]]; then
+      do_log "INFO DRY_RUN topic $task already has its Seen reply: would file msg(s) $mids to $fwd and ack, no second reply"
+    else
+      do_log "INFO DRY_RUN would: ask the hub for an RSP row in topic $task, then (none) reply 'Seen: routed to the team' to $frm there, file msg(s) $mids to $fwd, and ack"
+    fi
+    n=$((n + 1)); return 0
+  fi
+  hrc=0
+  [[ "$seen" == 1 ]] || { hubn="$(spl_responder_hub_rsp "$d" "$box" "$tenant" "$hub" "$task")" || hrc=$?; }
+  if [[ "$seen" == 1 ]]; then
+    skipped=$((skipped + 1))
+  elif (( hrc == 2 )); then
+    do_log "WARN the hub-rsp check is not deployed on this box or hub: topic $task is answered on this machine's ledger only (the pre-c-082 behaviour)"
+    _spl_responder_seen_reply "$d" "$tenant" "$box" "$agent" "$frm" "$task" "$mids" || { fails=$((fails + 1)); return 0; }
+    _spl_responder_pending_drop "$d" "$task"
+  elif (( hrc == 0 )); then
+    if (( hubn > 0 )); then
+      _spl_responder_settle "$d" "$task"
+      do_log "INFO topic $task already holds $hubn RSP row(s) on the hub (another machine answered): no second Seen"
+      skipped=$((skipped + 1))
+    else
+      _spl_responder_seen_reply "$d" "$tenant" "$box" "$agent" "$frm" "$task" "$mids" || { fails=$((fails + 1)); return 0; }
+      _spl_responder_pending_drop "$d" "$task"
+    fi
+  else
+    _spl_responder_defer "$d" "$agent" "$task" "$frm" "$since" "$wait"
+    skipped=$((skipped + 1))
+  fi
+  [[ -n "$mids" ]] && _spl_responder_forward "$send" "$agent" "$fwd" "$tenant" "$frm" "$task" "$mids"
+  n=$((n + 1))
 }
 
 # _spl_responder_seen_reply <desk dir> <tenant> <box> <agent> <from> <task>

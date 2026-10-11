@@ -37,9 +37,7 @@ LONG="
   csi-spl-orc/src/bash/run/run.sh execute_step 99
   csi-spl-orc/src/bash/run/spl-checkout-fake-buy.func.sh do_spl_checkout_fake_buy 114
   csi-spl-orc/src/bash/run/spl-checkout-stripe-test-buy.func.sh do_spl_checkout_stripe_test_buy 108
-  csi-spl-orc/src/bash/run/spl-dispatch-setup.func.sh spl_dispatch_setup_steps 86
   csi-spl-orc/src/bash/run/spl-provision-stripe-endpoints.func.sh _spl_stripe_json_get 130
-  csi-spl-orc/src/bash/run/spl-responder-run.func.sh do_spl_responder_run 105
 "
 
 fails=0

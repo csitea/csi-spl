@@ -75,12 +75,24 @@ do_spl_dispatch_setup() {
 }
 
 spl_dispatch_setup_steps() {
-  local dry=1 id role peer rule first brief wt
+  local dry=1 id
   [[ "${DRY_RUN:-1}" == 0 ]] && dry=0
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SPL_DISPATCH_DRY=$dry
   [[ "${DISPATCH_STEPS:-}" =~ ^[0-9,\ ]*$ ]] || { do_log "FATAL DISPATCH_STEPS must be step numbers, got '$DISPATCH_STEPS'"; return 1; }
 
+  spl_dispatch_setup_shared || return 1
+  for id in "$DISPATCH_MASTER" "$DISPATCH_FAILOVER"; do
+    spl_dispatch_setup_dispatcher "$id" || return 1
+  done
+  spl_dispatch_setup_services "$dry" || return 1
+  ((dry)) && do_log "OK DRY_RUN nothing was touched - re-run with DRY_RUN=0 to apply"
+  return 0
+}
+
+# spl_dispatch_setup_shared: steps 1 (the post-drop dir) and 2 (lease.conf),
+# the box-wide ones.
+spl_dispatch_setup_shared() {
   # 1. post-drop dir
   if ! spl_dispatch_step 1 posts-dir; then :
   elif [[ -d "$DISPATCH_POSTS_DIR" && "$(stat -c %a "$DISPATCH_POSTS_DIR")" == 2777 ]]; then
@@ -100,47 +112,55 @@ spl_dispatch_setup_steps() {
     spl_dispatch_do lease-conf "write $LEASE_CONF ($DISPATCH_MASTER / $DISPATCH_FAILOVER / $DISPATCH_ORCH)" \
       bash -c 'printf "%s\n" "$2" > "$1"' _ "$LEASE_CONF" "$conf" || return 1
   fi
+}
 
-  for id in "$DISPATCH_MASTER" "$DISPATCH_FAILOVER"; do
-    if [[ "$id" == "$DISPATCH_MASTER" ]]; then
-      role=master peer="$DISPATCH_FAILOVER"
-      rule="You are the master: you normally hold it. If a lease message says otherwise, obey it."
-      first="Start dispatching: read your inbox, then run steadily; check it at every natural breakpoint."
-    else
-      role=failover peer="$DISPATCH_MASTER"
-      rule="You are the failover: stay STANDBY (read nothing, post nothing) until a 'DISPATCH LEASE: you are now ACTIVE' message. Then dispatch your own inbox AND $DISPATCH_MASTER's unread inbox (\`spool recv --as $DISPATCH_MASTER\`; skip what $DISPATCH_MASTER's outbox shows it already handled) until 'STANDBY'."
-      first="Go STANDBY: confirm the lease shows $DISPATCH_MASTER, then wait for a lease message."
-    fi
-    # 3. brief
-    brief="$DISPATCH_BRIEF_DIR/brief-dispatcher-$id.md"
-    spl_dispatch_render "$id" "$role" "$peer" "$rule" "$first" > "$SPL_DISPATCH_TMP/brief" || return 1
-    if ! spl_dispatch_step 3 brief; then :
-    elif cmp -s "$SPL_DISPATCH_TMP/brief" "$brief"; then
-      spl_dispatch_ok brief "$brief"
-    else
-      spl_dispatch_do brief "render $brief" bash -c 'mkdir -p "$(dirname "$2")" && cp "$1" "$2"' _ "$SPL_DISPATCH_TMP/brief" "$brief" || return 1
-    fi
-    # 4. worktree, before the spawn so the session starts with its settings;
-    # the one do_spl_dispatch_check reads (the identity map's, else
-    # <main checkout>-wt/<id>), so setup and check never name two dirs
-    wt="$(spl_dispatch_worktree "$id")"
-    if ! spl_dispatch_step 4 worktree; then :
-    elif [[ -d "$wt" ]]; then
-      spl_dispatch_ok worktree "$wt"
-    else
-      spl_dispatch_do worktree "git worktree add $wt -b $id-dispatcher-$role origin/master" \
-        git -C "$DISPATCH_REPO" worktree add -b "$id-dispatcher-$role" "$wt" origin/master || return 1
-    fi
-    # 5. settings
-    if spl_dispatch_step 5 settings; then spl_dispatch_settings "$id" "$wt" || return 1; fi
-    # 6. spawn
-    if spl_dispatch_step 6 spawn; then spl_dispatch_spawn "$id" "$role" "$brief" "$wt" || return 1; fi
-    # 7. desks
-    if spl_dispatch_step 7 desk; then spl_dispatch_desks "$id" || return 1; fi
-    # 8. legacy registry
-    if spl_dispatch_step 8 legacy-registry; then spl_dispatch_legacy_row "$id" || return 1; fi
-  done
+# spl_dispatch_setup_dispatcher <id>: steps 3-8 for one dispatcher, the master
+# or the failover.
+spl_dispatch_setup_dispatcher() {
+  local id="$1" role peer rule first brief wt
+  if [[ "$id" == "$DISPATCH_MASTER" ]]; then
+    role=master peer="$DISPATCH_FAILOVER"
+    rule="You are the master: you normally hold it. If a lease message says otherwise, obey it."
+    first="Start dispatching: read your inbox, then run steadily; check it at every natural breakpoint."
+  else
+    role=failover peer="$DISPATCH_MASTER"
+    rule="You are the failover: stay STANDBY (read nothing, post nothing) until a 'DISPATCH LEASE: you are now ACTIVE' message. Then dispatch your own inbox AND $DISPATCH_MASTER's unread inbox (\`spool recv --as $DISPATCH_MASTER\`; skip what $DISPATCH_MASTER's outbox shows it already handled) until 'STANDBY'."
+    first="Go STANDBY: confirm the lease shows $DISPATCH_MASTER, then wait for a lease message."
+  fi
+  # 3. brief
+  brief="$DISPATCH_BRIEF_DIR/brief-dispatcher-$id.md"
+  spl_dispatch_render "$id" "$role" "$peer" "$rule" "$first" > "$SPL_DISPATCH_TMP/brief" || return 1
+  if ! spl_dispatch_step 3 brief; then :
+  elif cmp -s "$SPL_DISPATCH_TMP/brief" "$brief"; then
+    spl_dispatch_ok brief "$brief"
+  else
+    spl_dispatch_do brief "render $brief" bash -c 'mkdir -p "$(dirname "$2")" && cp "$1" "$2"' _ "$SPL_DISPATCH_TMP/brief" "$brief" || return 1
+  fi
+  # 4. worktree, before the spawn so the session starts with its settings;
+  # the one do_spl_dispatch_check reads (the identity map's, else
+  # <main checkout>-wt/<id>), so setup and check never name two dirs
+  wt="$(spl_dispatch_worktree "$id")"
+  if ! spl_dispatch_step 4 worktree; then :
+  elif [[ -d "$wt" ]]; then
+    spl_dispatch_ok worktree "$wt"
+  else
+    spl_dispatch_do worktree "git worktree add $wt -b $id-dispatcher-$role origin/master" \
+      git -C "$DISPATCH_REPO" worktree add -b "$id-dispatcher-$role" "$wt" origin/master || return 1
+  fi
+  # 5. settings
+  if spl_dispatch_step 5 settings; then spl_dispatch_settings "$id" "$wt" || return 1; fi
+  # 6. spawn
+  if spl_dispatch_step 6 spawn; then spl_dispatch_spawn "$id" "$role" "$brief" "$wt" || return 1; fi
+  # 7. desks
+  if spl_dispatch_step 7 desk; then spl_dispatch_desks "$id" || return 1; fi
+  # 8. legacy registry
+  if spl_dispatch_step 8 legacy-registry; then spl_dispatch_legacy_row "$id" || return 1; fi
+}
 
+# spl_dispatch_setup_services <dry>: steps 9 (lease loops), 10 (channel
+# subscriptions) and 11 (the unanswered-post sweep cron).
+spl_dispatch_setup_services() {
+  local dry="$1"
   # 9. lease loops
   if spl_dispatch_step 9 lease-loops; then
     spl_dispatch_do lease-loops "LEASE_CMD=ensure do_spl_dispatch_lease" \
@@ -157,8 +177,6 @@ spl_dispatch_setup_steps() {
   if [[ "${DISPATCH_SWEEP:-1}" != 0 ]] && spl_dispatch_step 11 sweep; then
     ( DRY_RUN=$dry do_spl_unanswered_sweep_install_cron ) || return 1
   fi
-  ((dry)) && do_log "OK DRY_RUN nothing was touched - re-run with DRY_RUN=0 to apply"
-  return 0
 }
 
 # spl_dispatch_lease_conf_text: sets the caller's conf to the lease.conf this

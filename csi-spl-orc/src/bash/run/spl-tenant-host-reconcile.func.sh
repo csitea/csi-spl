@@ -10,9 +10,10 @@
 # @description                      / failed, no terraform (dispatch c7b6e8db:
 # @description                      niba-consult sat pending for a week)
 # @description   pending / failed, not mapped -> add to env.dns.mapped_tenants
-# @description   removing         -> drop from env.dns.mapped_tenants
+# @description                      + steps.052 workspaces (its Docs bucket)
+# @description   removing         -> drop from both
 # @description   (a tenant whose billing_status is unpaid is left pending)
-# @description render 019 + 025, push that cnf change to the trunk from a
+# @description render 052 + 019 + 025, push that cnf change to the trunk from a
 # @description throwaway worktree BEFORE the apply (a run that dies mid-apply
 # @description leaves trunk declaring the host, and the next run completes it),
 # @description plan with the destroy gate (only the removing tenants'
@@ -92,8 +93,8 @@ do_spl_tenant_host_reconcile() {
 spl_th_reconcile_apply() {
   local cnf="$1" t
   spl_th_lock || return 1
-  for t in "${add[@]}"; do spl_th_cnf_set "$cnf" add "$t" || return 1; done
-  for t in "${del[@]}"; do spl_th_cnf_set "$cnf" del "$t" || return 1; done
+  for t in "${add[@]}"; do spl_th_tenant_set "$cnf" add "$t" || return 1; done
+  for t in "${del[@]}"; do spl_th_tenant_set "$cnf" del "$t" || return 1; done
   spl_th_render || return 1
   spl_th_cnf_publish "cnf(024): $ENV tenant hosts${add[*]:+ +${add[*]}}${del[*]:+ -${del[*]}} (do_spl_tenant_host_reconcile)" || {
     for t in "${add[@]}" "${del[@]}"; do spl_th_mark_one "$t" failed "cnf push to the trunk failed"; done
@@ -160,7 +161,8 @@ spl_th_cnf_publish() {
 spl_th_cnf_paths() {
   printf '%s\n' "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV.env.yaml" "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV.env.json" \
     "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/019-firebase-static-site.vars.tfvars" \
-    "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/025-gcp-dns-zone.vars.tfvars"
+    "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/025-gcp-dns-zone.vars.tfvars" \
+    "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/052-gcs-workspace-docs.vars.tfvars"
 }
 
 # (th_msg, never msg: do_log assigns a global msg, which bash's dynamic scope
@@ -234,20 +236,18 @@ _spl_th_push_in() {
 }
 
 # _spl_th_wt_apply <tmp> <root>: in <tmp>/wt, at origin/<br>: the env yaml
-# gets the same mapped_tenants adds / dels the root tree has against its HEAD
-# (spl_th_cnf_set, so a tenant the trunk gained meanwhile is kept and nobody
-# else's uncommitted line rides along); the rendered files are root's when the
-# two yamls are now byte-equal (same render input), else root's render diff
-# applied 3-way. A conflict FAILS: render again from an up-to-date checkout.
+# gets the same mapped_tenants and 052 workspaces adds / dels the root tree has
+# against its HEAD (spl_th_cnf_set, so a tenant the trunk gained meanwhile is
+# kept and nobody else's uncommitted line rides along); the rendered files are
+# root's when the two yamls are now byte-equal (same render input), else root's
+# render diff applied 3-way. A conflict FAILS: render again from an up-to-date
+# checkout.
 _spl_th_wt_apply() {
-  local tmp="$1" root="$2" wt="$1/wt" y t
+  local tmp="$1" root="$2" wt="$1/wt" y
   local -a paths; mapfile -t paths < <(spl_th_cnf_paths)
   y="${paths[0]}"
-  local head work
-  head=" $(git -C "$root" show "HEAD:$y" 2>/dev/null | yq -r '(.env.dns.mapped_tenants // [])[]' | tr '\n' ' ') "
-  work=" $(yq -r '(.env.dns.mapped_tenants // [])[]' "$root/$y" | tr '\n' ' ') "
-  for t in $work; do [[ "$head" == *" $t "* ]] || spl_th_cnf_set "$wt/$y" add "$t" >/dev/null || return 1; done
-  for t in $head; do [[ "$work" == *" $t "* ]] || spl_th_cnf_set "$wt/$y" del "$t" >/dev/null || return 1; done
+  _spl_th_wt_replay "$root" "$wt" "$y" mapped '.env.dns.mapped_tenants' || return 1
+  _spl_th_wt_replay "$root" "$wt" "$y" docs '.env.steps."052-gcs-workspace-docs".workspaces' || return 1
   if cmp -s "$wt/$y" "$root/$y"; then
     for t in "${paths[@]:1}"; do [[ -f "$root/$t" ]] && cp "$root/$t" "$wt/$t"; done
   elif [[ -s "$tmp/render.patch" ]]; then
@@ -255,6 +255,16 @@ _spl_th_wt_apply() {
       { do_log "FATAL CNF push: the $ENV render does not apply onto origin/$br (render again from an up-to-date checkout): $(tr '\n' ' ' <"$tmp/err")"; return 1; }
   fi
   git -C "$wt" add -- "${paths[@]}"
+}
+
+# _spl_th_wt_replay <root> <wt> <yaml> <mapped|docs> <yq path>: one list's
+# adds / dels of root's tree against its HEAD, applied onto <wt>'s yaml
+_spl_th_wt_replay() {
+  local root="$1" wt="$2" y="$3" which="$4" q="$5" head work t
+  head=" $(git -C "$root" show "HEAD:$y" 2>/dev/null | yq -r "($q // [])[]" | tr '\n' ' ') "
+  work=" $(yq -r "($q // [])[]" "$root/$y" | tr '\n' ' ') "
+  for t in $work; do [[ "$head" == *" $t "* ]] || spl_th_cnf_set "$wt/$y" add "$t" "$which" >/dev/null || return 1; done
+  for t in $head; do [[ "$work" == *" $t "* ]] || spl_th_cnf_set "$wt/$y" del "$t" "$which" >/dev/null || return 1; done
 }
 
 # spl_th_root_sync <root> <br> <path...>: the tree that kept the edit is

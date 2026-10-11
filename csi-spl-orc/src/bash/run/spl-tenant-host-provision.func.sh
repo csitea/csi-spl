@@ -9,7 +9,9 @@
 # @description api host (spec-024's 032 hub mappings are gone). So:
 # @description   1. add the tenant to env.dns.mapped_tenants in <env>.env.yaml
 # @description      (the list terraform reads: a re-apply keeps every tenant)
-# @description   2. render 019 + 025 (make do-generate-config-for-step)
+# @description      AND to steps.052-gcs-workspace-docs.workspaces, its Docs
+# @description      bucket (without it the workspace's Docs answer 503)
+# @description   2. render 052 + 019 + 025 (make do-generate-config-for-step)
 # @description   3. make do-tf-plan per step, GATE: stop on an error, a
 # @description      replace, an in-place update or ANY destroy (the apex,
 # @description      api. and dev. records are never touched); then provision
@@ -64,9 +66,14 @@ do_spl_tenant_host_provision() {
 
   if (( dry )); then
     if spl_th_cnf_has "$cnf" "$tenant"; then
-      do_log "INFO DRY_RUN $tenant is already in env.dns.mapped_tenants ($cnf): the apply would be a no-op"
+      do_log "INFO DRY_RUN $tenant is already in env.dns.mapped_tenants ($cnf)"
     else
       do_log "INFO DRY_RUN would add $tenant to env.dns.mapped_tenants in $cnf"
+    fi
+    if spl_th_docs_has "$cnf" "$tenant"; then
+      do_log "INFO DRY_RUN $tenant already has its docs bucket in steps.052-gcs-workspace-docs.workspaces ($cnf)"
+    else
+      do_log "INFO DRY_RUN would add $tenant to steps.052-gcs-workspace-docs.workspaces in $cnf (its Docs bucket)"
     fi
     if [[ "${CNF_PUSH:-1}" == 1 ]]; then
       do_log "INFO DRY_RUN would render $SPL_TH_STEPS, then PUSH that cnf to origin/${CNF_GIT_BRANCH:-master} from a throwaway worktree before any apply (a push that does not land fails the run)"
@@ -86,7 +93,7 @@ do_spl_tenant_host_provision() {
     return
   fi
   spl_th_lock || return 1
-  spl_th_cnf_set "$cnf" add "$tenant" || return 1
+  spl_th_tenant_set "$cnf" add "$tenant" || return 1
   spl_th_render || { spl_th_mark_one "$tenant" failed "render failed"; return 1; }
   spl_th_cnf_publish "cnf(orc): $ENV tenant host +$tenant (do_spl_tenant_host_provision)" ||
     { spl_th_mark_one "$tenant" failed "cnf push to the trunk failed"; return 1; }
@@ -94,9 +101,11 @@ do_spl_tenant_host_provision() {
   spl_th_finish "$tenant"
 }
 
-# The steps a tenant host lives in, in apply order: the Firebase custom domain,
-# then its records (a deprovision removes them in the same order).
-SPL_TH_STEPS="019-firebase-static-site 025-gcp-dns-zone"
+# The steps a tenant lives in, in apply order: its workspace docs bucket, the
+# Firebase custom domain, then its records (a deprovision removes them in the
+# same order: a docs bucket that still holds objects fails the destroy, as
+# force_destroy is off, before the host is touched).
+SPL_TH_STEPS="052-gcs-workspace-docs 019-firebase-static-site 025-gcp-dns-zone"
 
 # spl_th_valid_slug <tenant>: the hub's tenant alphabet and reserved labels
 # (csi-spl-api internal/msg ValidTenantID;
@@ -125,18 +134,45 @@ spl_th_cnf_has() {
   yq -e "(.env.dns.mapped_tenants // []) | any_c(. == \"$2\")" "$1" >/dev/null 2>&1
 }
 
-# spl_th_cnf_set <file> <add|del> <tenant>: edits the ONE flow-style line
-# `mapped_tenants: [a, b]` in place (yq -i would drop every blank line of the
+# spl_th_docs_has <file> <tenant>: the tenant has a 052 docs bucket in cnf
+spl_th_docs_has() {
+  yq -e "(.env.steps.\"052-gcs-workspace-docs\".workspaces // []) | any_c(. == \"$2\")" "$1" >/dev/null 2>&1
+}
+
+# spl_th_tenant_set <file> <add|del> <tenant>: a tenant's host AND its
+# workspace docs bucket, together: env.dns.mapped_tenants and
+# steps.052-gcs-workspace-docs.workspaces. sienna's Docs answered 503 because
+# provision mapped its host but never listed it for 052: no bucket (c9af31f4f).
+spl_th_tenant_set() {
+  spl_th_cnf_set "$1" "$2" "$3" mapped && spl_th_cnf_set "$1" "$2" "$3" docs
+}
+
+# spl_th_cnf_set <file> <add|del> <tenant> [mapped|docs]: edits the ONE
+# flow-style list line in place (yq -i would drop every blank line of the
 # file), then re-reads it with yq to prove the edit. No-op when already so.
+#   mapped (default) `    mapped_tenants: [a, b]`
+#   docs             `      workspaces: [a, b]` of `    052-gcs-workspace-docs:`
 spl_th_cnf_set() {
-  local f="$1" op="$2" t="$3" out
-  out="$(python3 - "$f" "$op" "$t" <<'PY'
+  local f="$1" op="$2" t="$3" which="${4:-mapped}" out
+  out="$(python3 - "$f" "$op" "$t" "$which" <<'PY'
 import re, sys
-path, op, t = sys.argv[1:]
+path, op, t, which = sys.argv[1:]
 lines = open(path).read().split("\n")
-hits = [i for i, l in enumerate(lines) if re.match(r"^    mapped_tenants: \[[a-z0-9, -]*\]\s*$", l)]
+if which == "docs":
+    key, what = "      workspaces: [", "`      workspaces: [..]` line in `    052-gcs-workspace-docs:`"
+    top = [i for i, l in enumerate(lines) if re.match(r"^    052-gcs-workspace-docs:\s*$", l)]
+    rows = []
+    if len(top) == 1:
+        for i in range(top[0] + 1, len(lines)):
+            if re.match(r"^ {0,4}\S", lines[i]):
+                break
+            rows.append(i)
+else:
+    key, what = "    mapped_tenants: [", "`    mapped_tenants: [..]` line"
+    rows = range(len(lines))
+hits = [i for i in rows if re.match("^" + re.escape(key) + r"[a-z0-9, -]*\]\s*$", lines[i])]
 if len(hits) != 1:
-    print("ERR expected exactly one `    mapped_tenants: [..]` line, found %d" % len(hits)); sys.exit(1)
+    print("ERR expected exactly one %s, found %d" % (what, len(hits))); sys.exit(1)
 i = hits[0]
 cur = [x.strip() for x in lines[i].split("[", 1)[1].rsplit("]", 1)[0].split(",") if x.strip()]
 new = [x for x in cur if x != t] + ([t] if op == "add" else [])
@@ -144,14 +180,16 @@ if op == "add" and t in cur:
     new = cur
 if new == cur:
     print("same"); sys.exit(0)
-lines[i] = "    mapped_tenants: [" + ", ".join(new) + "]"
+lines[i] = key + ", ".join(new) + "]"
 open(path, "w").write("\n".join(lines))
 print("changed")
 PY
 )" || { do_log "FATAL cannot edit $f: $out"; return 1; }
-  if [[ "$op" == add ]]; then spl_th_cnf_has "$f" "$t"; else ! spl_th_cnf_has "$f" "$t"; fi ||
-    { do_log "FATAL $f: $op $t did not take (yq disagrees)"; return 1; }
-  do_log "INFO env.dns.mapped_tenants $op $t: $out ($f)"
+  local has=spl_th_cnf_has lst=env.dns.mapped_tenants
+  [[ "$which" == docs ]] && { has=spl_th_docs_has; lst=steps.052-gcs-workspace-docs.workspaces; }
+  if [[ "$op" == add ]]; then "$has" "$f" "$t"; else ! "$has" "$f" "$t"; fi ||
+    { do_log "FATAL $f: $lst $op $t did not take (yq disagrees)"; return 1; }
+  do_log "INFO $lst $op $t: $out ($f)"
 }
 
 # spl_th_make <target> [VAR=value ...] -> the make target's output, ANSI
@@ -163,9 +201,10 @@ spl_th_make() {
 }
 
 # spl_th_render -> renders the tfvars of every SPL_TH_STEPS step (conf-validator
-# + tpl-gen containers) and proves the 019 tfvars now lists exactly the cnf
-# tenants: a render that silently kept the old list would plan a no-op.
-# (019's additional_fqdns is the list of tenant hosts.)
+# + tpl-gen containers) and proves the 019 and 052 tfvars now list every cnf
+# tenant: a render that silently kept the old list would plan a no-op.
+# (019's additional_fqdns is the list of tenant hosts, 052's workspaces the
+# list of docs buckets.)
 spl_th_render() {
   local s out
   for s in $SPL_TH_STEPS; do
@@ -175,6 +214,11 @@ spl_th_render() {
   local tfv="$APP_PATH/$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/019-firebase-static-site.vars.tfvars" t
   for t in $(yq -r '(.env.dns.mapped_tenants // [])[]' "$(spl_th_cnf_file)"); do
     grep -qF "\"$t.$SPL_FQDN\"" "$tfv" || { do_log "FATAL $tfv does not list $t.$SPL_FQDN after the render"; return 1; }
+  done
+  # the same proof for 052: a tenant whose bucket the render dropped has no Docs
+  tfv="$APP_PATH/$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/052-gcs-workspace-docs.vars.tfvars"
+  for t in $(yq -r '(.env.steps."052-gcs-workspace-docs".workspaces // [])[]' "$(spl_th_cnf_file)"); do
+    grep -E '^workspaces = ' "$tfv" | grep -F "\"$t\"" >/dev/null || { do_log "FATAL $tfv does not list workspace $t after the render"; return 1; }
   done
   do_log "INFO rendered $SPL_TH_STEPS for $ENV"
 }

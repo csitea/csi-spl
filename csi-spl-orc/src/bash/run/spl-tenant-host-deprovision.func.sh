@@ -2,9 +2,12 @@
 #------------------------------------------------------------------------------
 # @description Take ONE deleted tenant's host <tenant>.<fqdn> down (specs/024),
 # @description the twin of do_spl_tenant_host_provision: remove the tenant from
-# @description env.dns.mapped_tenants, render 019 + 025, plan with a GATE that
-# @description admits ONLY the destroy of this tenant's Firebase custom domain
-# @description (019 additional["<host>"]) and records (025
+# @description env.dns.mapped_tenants and steps.052 workspaces, render 052 +
+# @description 019 + 025, plan with a GATE that admits ONLY the destroy of this
+# @description tenant's docs bucket (052 workspace_docs["<tenant>"] + its IAM
+# @description member; force_destroy is off, so a bucket that still holds docs
+# @description fails the apply before the host is touched), Firebase custom
+# @description domain (019 additional["<host>"]) and records (025
 # @description cloud_run_mapping["<tenant>/A"|"<tenant>/TXT"]), provision, then
 # @description tenant_hosts.status = removed. Refuses while the tenant row
 # @description still exists in the hub DB (FORCE=1 overrides, e.g. a host that
@@ -46,7 +49,7 @@ do_spl_tenant_host_deprovision() {
   fi
 
   spl_th_lock || return 1
-  spl_th_cnf_set "$cnf" del "$tenant" || return 1
+  spl_th_tenant_set "$cnf" del "$tenant" || return 1
   spl_th_render || return 1
   spl_th_apply "$(spl_th_destroy_allow "$tenant")" || { spl_th_mark_one "$tenant" failed "deprovision plan / apply refused or failed"; return 1; }
   spl_th_mark_one "$tenant" removed ""
@@ -58,6 +61,8 @@ do_spl_tenant_host_deprovision() {
 spl_th_destroy_allow() {
   local t
   for t in "$@"; do
+    printf 'google_storage_bucket.workspace_docs["%s"]\n' "$t"
+    printf 'google_storage_bucket_iam_member.hub_workspace_docs_object_admin["%s"]\n' "$t"
     printf 'google_firebase_hosting_custom_domain.additional["%s.%s"]\n' "$t" "$SPL_FQDN"
     printf 'google_dns_record_set.cloud_run_mapping["%s/A"]\n' "$t"
     printf 'google_dns_record_set.cloud_run_mapping["%s/TXT"]\n' "$t"

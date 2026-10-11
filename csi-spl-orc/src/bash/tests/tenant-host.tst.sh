@@ -4,11 +4,13 @@
 #          wait and the probe are stubbed; no GCP, no terraform):
 #   1. slug rules = the hub's (reserved labels read from csi-spl-api msg.go)
 #   2. cnf edit touches ONLY the mapped_tenants line, keeps every other byte,
-#      is idempotent, and add + del round-trip to the original file
+#      is idempotent, and add + del round-trip to the original file; the same
+#      for the 052 workspaces line (docs buckets)
 #   3. the plan gate: no-op / add pass; an Error, a replace, no summary and
 #      an in-place update and ANY destroy outside the allow list are refused (CONTROL: the same
 #      destroy passes once it is on the allow list)
-#   4. provision: render 019 + 025, plan + provision each through make, then
+#   4. provision: render 052 + 019 + 025, plan + provision each through make,
+#      the tenant gets its 052 docs bucket (sienna's Docs 503), then
 #      custom domain -> WUI probe -> ready; a plan that destroys another tenant's host
 #      is refused BEFORE any do-provision and marks the tenant failed
 #   5. reconcile: pending/failed -> add, removing -> del, unpaid held; nothing
@@ -53,7 +55,7 @@ cp "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" "$FAKE/csi-spl-cnf/csi-spl/all.e
 # a lease.conf for the ready notice (5c)
 mkdir -p "$T/spool/dispatch"
 printf 'LEASE_MASTER=c-902\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$T/spool/dispatch/lease.conf"
-cp "$APP_ROOT"/csi-spl-cnf/csi-spl/dev/tf/0{19,25}-*.vars.tfvars "$FAKE/csi-spl-cnf/csi-spl/dev/tf/"
+cp "$APP_ROOT"/csi-spl-cnf/csi-spl/dev/tf/0{19,25,52}-*.vars.tfvars "$FAKE/csi-spl-cnf/csi-spl/dev/tf/"
 ORIG="$T/dev.env.yaml.orig"; cp "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" "$ORIG"
 CNF="$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
 
@@ -71,6 +73,10 @@ case "$tgt" in
     if [[ "$step" == 019-* ]]; then
       hosts=$(yq -r '(.env.dns.mapped_tenants // [])[] | . + ".dev.example.test"' "$STUB_CNF" | jq -R . | jq -cs .)
       echo "additional_fqdns = $hosts" >"$STUB_TFV"
+    fi
+    if [[ "$step" == 052-* ]]; then
+      ws=$(yq -r '(.env.steps."052-gcs-workspace-docs".workspaces // [])[]' "$STUB_CNF" | jq -R . | jq -cs .)
+      echo "workspaces = $ws" >"${STUB_TFV%/*}/052-gcs-workspace-docs.vars.tfvars"
     fi ;;
   do-tf-plan) v="STUB_PLAN_${step%%-*}"; printf '%s\n' "${!v:-No changes. Your infrastructure matches the configuration.}" ;;
   do-provision) echo "Apply complete! Resources: 1 added, 0 changed, 0 destroyed." ;;
@@ -123,6 +129,18 @@ SNIPPET='spl_th_cnf_set "$C" del newt' in_orc C="$CNF" >/dev/null 2>&1
 cmp -s "$ORIG" "$CNF" && pass "add + del round-trips to the original bytes" || fail "round-trip differs: $(diff "$ORIG" "$CNF")"
 printf 'env:\n  dns:\n    mapped_tenants:\n      - t1\n' >"$T/block.yaml"
 SNIPPET='spl_th_cnf_set "$C" add x' in_orc C="$T/block.yaml" >/dev/null 2>&1 && fail "block-style list edited blindly" || pass "a non flow-style list is refused, not guessed"
+# the 052 docs list: only its own line, never another step's `workspaces:`
+reset
+SNIPPET='spl_th_cnf_set "$C" add newt docs && spl_th_cnf_set "$C" add newt docs' in_orc C="$CNF" >"$T/o" 2>&1 || fail "docs add: $(cat "$T/o")"
+d=$(diff "$ORIG" "$CNF" | grep -c '^[<>]')
+[[ "$d" == 2 && $(yq -r '.env.steps."052-gcs-workspace-docs".workspaces | join(",")' "$CNF") == "t1,newt" ]] &&
+  [[ $(yq -r '.env.dns.mapped_tenants | join(",")' "$CNF") == t1 ]] &&
+  pass "docs add changes exactly the 052 workspaces line (mapped_tenants untouched); a second add is a no-op" || fail "docs add diff: $(diff "$ORIG" "$CNF")"
+SNIPPET='spl_th_cnf_set "$C" del newt docs' in_orc C="$CNF" >/dev/null 2>&1
+cmp -s "$ORIG" "$CNF" && pass "docs add + del round-trips to the original bytes" || fail "docs round-trip differs: $(diff "$ORIG" "$CNF")"
+printf 'env:\n  steps:\n    053-x:\n      workspaces: [t1]\n' >"$T/no052.yaml"
+SNIPPET='spl_th_cnf_set "$C" add x docs' in_orc C="$T/no052.yaml" >/dev/null 2>&1 && fail "a workspaces line outside 052 was edited" ||
+  pass "CONTROL: a \`workspaces:\` line outside 052-gcs-workspace-docs is never edited"
 
 # --- 3. plan gate -------------------------------------------------------------
 gate() { SNIPPET='spl_th_plan_gate "$P" "$A"' in_orc P="$1" A="$2" >/dev/null 2>&1; echo $?; }
@@ -149,13 +167,29 @@ out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt 2>&1); rc=$?
   fail "provision DRY_RUN rc=$rc make=[$(cat "$STUB_LOG")] $out"
 reset
 out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
-want=$'do-generate-config-for-step 019\ndo-generate-config-for-step 025\ndo-tf-plan 019\ndo-provision 019\ndo-tf-plan 025\ndo-provision 025'
-[[ $rc == 0 && "$(cat "$STUB_LOG")" == "$want" ]] && pass "provision: render 019+025, then plan+provision each, in order" ||
+want=$'do-generate-config-for-step 052\ndo-generate-config-for-step 019\ndo-generate-config-for-step 025\ndo-tf-plan 052\ndo-tf-plan 019\ndo-provision 019\ndo-tf-plan 025\ndo-provision 025'
+[[ $rc == 0 && "$(cat "$STUB_LOG")" == "$want" ]] && pass "provision: render 052+019+025, then plan (+provision on a change) each, in order" ||
   fail "provision rc=$rc make calls: $(cat "$STUB_LOG") :: $out"
 [[ "$(cat "$T/mark.log")" == $'PUSH cnf(orc): dev tenant host +newt (do_spl_tenant_host_provision)\nCERT newt.dev.example.test\nPROBE newt.dev.example.test\nMARK newt ready\nNOTIFY prd t1 c-902 #spool-hub-devel dev: workspace **newt** is live at https://newt.dev.example.test (certificate + WUI probe ok). Owner: HUM-3, cc HUM-10' ]] &&
   pass "provision: cnf pushed BEFORE the apply, then cert wait -> probe -> ready -> one notice" || fail "provision tail: $(cat "$T/mark.log")"
 grep -q '"t1.dev.example.test"' "$STUB_TFV" && grep -q '"newt.dev.example.test"' "$STUB_TFV" &&
   pass "rendered 019 keeps t1 next to the new tenant" || fail "rendered tfvars: $(cat "$STUB_TFV")"
+TFV52="$FAKE/csi-spl-cnf/csi-spl/dev/tf/052-gcs-workspace-docs.vars.tfvars"
+[[ $(yq -r '.env.steps."052-gcs-workspace-docs".workspaces | join(",")' "$CNF") == "t1,newt" ]] && grep -qx 'workspaces = \["t1","newt"\]' "$TFV52" &&
+  pass "provision gives the new tenant its 052 docs bucket: cnf workspaces + rendered 052 (sienna's Docs 503)" ||
+  fail "no docs bucket for newt: cnf=$(yq -r '.env.steps."052-gcs-workspace-docs".workspaces' "$CNF") tfvars=$(cat "$TFV52")"
+# a tenant already mapped but without a docs bucket (aleko-gik, demo): the re-run adds the bucket
+reset; sed -i 's/^    mapped_tenants: \[t1\]$/    mapped_tenants: [t1, oldt]/' "$CNF"
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=oldt DRY_RUN=0 STUB_PLAN_052="$P_ADD" 2>&1); rc=$?
+[[ $rc == 0 ]] && yq -e '.env.steps."052-gcs-workspace-docs".workspaces | any_c(. == "oldt")' "$CNF" >/dev/null &&
+  grep -qx 'do-provision 052' "$STUB_LOG" && ! grep -q 'do-provision 019' "$STUB_LOG" &&
+  pass "provision of a mapped tenant that lacks its docs bucket adds it and applies 052 only" ||
+  fail "mapped tenant w/o bucket rc=$rc make=[$(cat "$STUB_LOG")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STUB_PLAN_052="$P_DEL" 2>&1); rc=$?
+[[ $rc != 0 ]] && ! grep -q do-provision "$STUB_LOG" && grep -q 'MARK newt failed' "$T/mark.log" &&
+  pass "provision CONTROL: a 052 plan destroying another tenant's resource is refused before any apply" ||
+  fail "provision applied over a 052 destroy rc=$rc: $(cat "$STUB_LOG")"
 reset
 out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STUB_PLAN_019="$P_DEL" 2>&1); rc=$?
 [[ $rc != 0 ]] && ! grep -q do-provision "$STUB_LOG" && grep -q 'MARK newt failed' "$T/mark.log" &&
@@ -185,6 +219,8 @@ lst=$(yq -r '.env.dns.mapped_tenants | join(",")' "$CNF")
   [[ "$(sort "$T/mark.log" | grep MARK)" == $'MARK m2proof1 ready\nMARK p1gone ready\nMARK t1 removed' ]] &&
   pass "reconcile: cnf = [m2proof1,p1gone], t1's destroy admitted (removing), both ready, t1 removed" ||
   fail "reconcile rc=$rc list=$lst marks=$(cat "$T/mark.log") :: $out"
+lst=$(yq -r '.env.steps."052-gcs-workspace-docs".workspaces | join(",")' "$CNF")
+[[ "$lst" == "m2proof1,p1gone" ]] && pass "reconcile: the 052 docs buckets follow (+m2proof1 +p1gone -t1)" || fail "reconcile docs list: $lst"
 
 # --- 5a. reconcile: a mapped pending row is only checked (niba-consult) -------
 reset
@@ -258,7 +294,7 @@ git clone -q "$G/origin.git" "$G/peer" 2>/dev/null
 echo peer >"$G/peer/peer.txt"; git -C "$G/peer" add peer.txt
 git -C "$G/peer" -c user.name=Peer -c user.email=peer@example.test commit -qm peer && git -C "$G/peer" push -q origin master
 echo dirty >>"$G/wc/other.txt"
-sed 's/mapped_tenants: \[t1\]/mapped_tenants: [t1, newt]/' "$ORIG" >"$G/wc/csi-spl-cnf/csi-spl/dev.env.yaml"
+sed -e 's/mapped_tenants: \[t1\]/mapped_tenants: [t1, newt]/' -e 's/^      workspaces: \[t1\]$/      workspaces: [t1, newt]/' "$ORIG" >"$G/wc/csi-spl-cnf/csi-spl/dev.env.yaml"
 cp "$G/wc/csi-spl-cnf/csi-spl/dev.env.yaml" "$T/edited.yaml"
 push() { SNIPPET='do_spl_cloud_cnf; spl_th_cnf_push "cnf(024): dev tenant hosts +newt"' in_orc REAL_PUSH=1 SPL_TH_PUSH_BACKOFF=0 APP_PATH="$G/wc" 2>&1; }
 wc_head=$(git -C "$G/wc" rev-parse HEAD)
@@ -269,6 +305,8 @@ body=$(git -C "$G/origin.git" log -1 --format=%B master)
 [[ $rc == 0 && "$head_ae" == "FirstName LastName|owner@example.test|owner@example.test" ]] &&
   git -C "$G/origin.git" cat-file -e master:peer.txt &&
   pass "cnf push landed on the moved trunk as the history's cnf author, the peer's commit kept" || fail "cnf push rc=$rc id=$head_ae :: $out"
+[[ $(git -C "$G/origin.git" show master:csi-spl-cnf/csi-spl/dev.env.yaml | yq -r '.env.steps."052-gcs-workspace-docs".workspaces | join(",")') == "t1,newt" ]] &&
+  pass "cnf push replays the 052 docs workspaces edit onto the trunk" || fail "pushed docs list: $(git -C "$G/origin.git" show master:csi-spl-cnf/csi-spl/dev.env.yaml | grep -n 'workspaces:')"
 [[ "$files" == "csi-spl-cnf/csi-spl/dev.env.yaml" ]] && pass "cnf push commits only the env's cnf paths (the dirty other.txt is not in it)" || fail "pushed files: $files"
 grep -qiE '^(Co-Authored-By|Claude-Session|Generated with)' <<<"$body" && fail "AI trailer in the cnf commit" || pass "no AI trailer in the cnf commit"
 [[ "$body" == "cnf(024): dev tenant hosts +newt" ]] && pass "the cnf commit carries the caller's message (do_log's global msg does not leak in)" || fail "commit message: $body"
@@ -316,6 +354,15 @@ reset
 out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=0 STUB_PLAN_019="$P_DEL" 2>&1); rc=$?
 [[ $rc == 0 ]] && ! yq -e '.env.dns.mapped_tenants | any_c(. == "t1")' "$CNF" >/dev/null 2>&1 && grep -q 'MARK t1 removed' "$T/mark.log" &&
   pass "deprovision: t1 out of cnf, only its own destroy admitted, marked removed" || fail "deprovision rc=$rc: $out"
+! yq -e '.env.steps."052-gcs-workspace-docs".workspaces | any_c(. == "t1")' "$CNF" >/dev/null 2>&1 &&
+  pass "deprovision: t1 out of the 052 docs workspaces too (no orphan entry for the entry-point check)" || fail "deprovision kept t1's docs entry"
+reset
+P_DEL52=$'  # google_storage_bucket.workspace_docs["t1"] will be destroyed\n  # google_storage_bucket_iam_member.hub_workspace_docs_object_admin["t1"] will be destroyed\nPlan: 0 to add, 0 to change, 2 to destroy.'
+out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=0 STUB_PLAN_052="$P_DEL52" 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -qx 'do-provision 052' "$STUB_LOG" && pass "deprovision: t1's own docs bucket + IAM member destroy is admitted" || fail "deprovision 052 rc=$rc: $(cat "$STUB_LOG") :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=0 STUB_PLAN_052="${P_DEL52//\"t1\"/\"other\"}" 2>&1); rc=$?
+[[ $rc != 0 ]] && ! grep -q do-provision "$STUB_LOG" && pass "deprovision CONTROL: another workspace's docs bucket destroy is refused, nothing applied" || fail "foreign bucket destroy rc=$rc: $(cat "$STUB_LOG")"
 
 # --- 7a. MARK_ONLY runs no make at all (SPL-959 infra freeze) ----------------------
 reset

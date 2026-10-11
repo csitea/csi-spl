@@ -10804,6 +10804,80 @@
         ]
       }
     },
+    "/v1/workspace/doctree/folders": {
+      "post": {
+        "operationId": "postWorkspaceDoctreeFolders",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "the folder: {id, kind, name, parent}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "name_taken, folder_cap_reached or depth"
+          }
+        },
+        "summary": "Create a folder in the Qto document tree (spec 120 section 7)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/v1/workspace/doctree/nodes": {
+      "get": {
+        "operationId": "getWorkspaceDoctreeNodes",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the folder node id (none = the workspace's root)",
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "one folder's children, folders first then documents, each by name, at most 200: {parent, nodes: [{id, kind, name, title, description, doc, child_count}]}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "List one folder of the Qto document tree (spec 120 section 7)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
     "/v1/workspace/doctree/search": {
       "get": {
         "operationId": "getWorkspaceDoctreeSearch",

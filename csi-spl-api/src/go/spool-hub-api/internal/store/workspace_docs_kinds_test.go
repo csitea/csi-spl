@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // Spec 113 T006 follow-up: DocRename and the typed items (code, image) on
@@ -173,31 +171,17 @@ func TestWorkspaceDocDeleteNodeGap(t *testing.T) {
 	if err := pg.queryRowTenant(ctx, tid, `SELECT to_regclass('workspace_doc_node') IS NOT NULL`, nil, &has); err != nil || !has {
 		t.Skipf("no workspace_doc_node (rdb 0165) in this database: %v", err)
 	}
-	docs := map[string]string{}
-	for _, n := range []string{"A", "B", "C"} {
-		d, _, err := pg.DocCreate(ctx, tid, n, "", "t")
-		if err != nil {
-			t.Fatal(err)
-		}
-		docs[n] = d
-	}
-	err := pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
-		var root, folder string
-		if err := tx.QueryRow(ctx, `INSERT INTO workspace_doc_node (tenant_id, lft, rgt, kind)
-			VALUES ($1, 1, 10, 'root') RETURNING id::text`, tid).Scan(&root); err != nil {
-			return err
-		}
-		if err := tx.QueryRow(ctx, `INSERT INTO workspace_doc_node (tenant_id, lft, rgt, parent_id, parent_kind, kind, name)
-			VALUES ($1, 4, 7, $2, 'root', 'folder', 'F') RETURNING id::text`, tid, root).Scan(&folder); err != nil {
-			return err
-		}
-		_, err := tx.Exec(ctx, `INSERT INTO workspace_doc_node (tenant_id, lft, rgt, parent_id, parent_kind, kind, doc_id)
-			VALUES ($1, 2, 3, $2, 'root', 'doc', $4), ($1, 5, 6, $3, 'folder', 'doc', $6), ($1, 8, 9, $2, 'root', 'doc', $5)`,
-			tid, root, folder, docs["A"], docs["B"], docs["C"])
-		return err
-	})
+	f, err := pg.DocFolderCreate(ctx, tid, DocFolder{Name: "F", Actor: "t"})
 	if err != nil {
-		t.Fatalf("seed the nested set: %v", err)
+		t.Fatalf("folder F: %v", err)
+	}
+	docs := map[string]string{}
+	for _, d := range []struct{ name, in string }{{"A", ""}, {"C", f}, {"B", ""}} {
+		id, _, err := pg.DocCreateIn(ctx, tid, d.in, d.name, "", "t")
+		if err != nil {
+			t.Fatalf("create %s: %v", d.name, err)
+		}
+		docs[d.name] = id
 	}
 	set := func() string {
 		t.Helper()
@@ -212,7 +196,7 @@ func TestWorkspaceDocDeleteNodeGap(t *testing.T) {
 		}
 		return s
 	}
-	if got := set(); got != "root 1 10, A 2 3, F 4 7, C 5 6, B 8 9 docs=3" {
+	if got := set(); got != "root 1 10, F 2 5, C 3 4, A 6 7, B 8 9 docs=3" {
 		t.Fatalf("seeded set = %q", got)
 	}
 	for _, n := range []string{"C", "A"} {

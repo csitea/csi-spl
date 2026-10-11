@@ -294,11 +294,24 @@ func (s *Postgres) inDoc(ctx context.Context, tenant, doc string, op func(*wsDoc
 
 // DocCreate makes a document with its hidden root item (I1) at rev 1, and
 // returns the doc id and the root id. description is the meta description
-// (rdb 0164), "" = none.
+// (rdb 0164), "" = none. Its rdb 0165 node goes under the workspace's root
+// (DocCreateIn).
 func (s *Postgres) DocCreate(ctx context.Context, tenant, title, description, actor string) (string, string, error) {
+	return s.DocCreateIn(ctx, tenant, "", title, description, actor)
+}
+
+// DocCreateIn is DocCreate with the document's node appended under folder
+// ("" = the workspace's root, spec 120 section 7 "POST gains parent") in the
+// same transaction, the workspace lock taken first (workspace_doc_nodes.go).
+// On a database without rdb 0165 a root create writes no node, as before.
+func (s *Postgres) DocCreateIn(ctx context.Context, tenant, folder, title, description, actor string) (string, string, error) {
 	var doc, root string
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		err := tx.QueryRow(ctx, `WITH d AS (
+		place, err := docCreatePlace(ctx, tx, tenant, folder)
+		if err != nil {
+			return err
+		}
+		err = tx.QueryRow(ctx, `WITH d AS (
 			INSERT INTO workspace_doc (tenant_id, title, description, rev, created_by) VALUES ($1, $2, $4, 0, $3) RETURNING tenant_id, id),
 			r AS (INSERT INTO workspace_doc_item (tenant_id, doc_id, parent_id, ord)
 				SELECT tenant_id, id, NULL, 1 FROM d RETURNING id)
@@ -306,9 +319,35 @@ func (s *Postgres) DocCreate(ctx context.Context, tenant, title, description, ac
 		if err != nil {
 			return err
 		}
+		if place != nil {
+			if _, err := docNodeAppend(ctx, tx, tenant, *place, docNodeNew{kind: "doc", doc: doc, actor: actor}); err != nil {
+				return err
+			}
+		}
 		d := &wsDocTx{tx: tx, doc: doc, locked: true}
 		_, err = d.bump(ctx, actor, map[string]any{"kind": "create", "item": root})
 		return err
 	})
-	return doc, root, err
+	return doc, root, docNodeErr(err)
+}
+
+// docCreatePlace takes the workspace lock and resolves the new document's
+// parent node; nil when rdb 0165 is not applied and folder is "".
+func docCreatePlace(ctx context.Context, tx pgx.Tx, tenant, folder string) (*docNodeParent, error) {
+	has, err := docNodeTable(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		if folder != "" {
+			return nil, ErrDocNodeNotFound
+		}
+		return nil, nil
+	}
+	top, err := docNodeLockRoot(ctx, tx, tenant)
+	if err != nil {
+		return nil, err
+	}
+	p, err := docNodeParentOf(ctx, tx, tenant, top, folder)
+	return &p, err
 }

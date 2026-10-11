@@ -327,3 +327,78 @@ func TestWorkspaceDocDescription(t *testing.T) {
 	mustCall(t, e, tid, http.MethodPost, docTreeAPI, as,
 		map[string]any{"title": "long", "description": strings.Repeat("d", 1001)}, 400)
 }
+
+// nodeRows is "kind:name-or-title(child_count)" of a /nodes answer.
+func nodeRows(m map[string]any) string {
+	var out []string
+	for _, n := range dtList(m, "nodes") {
+		label := dtStr(n, "name")
+		if dtStr(n, "kind") == "doc" {
+			label = dtStr(n, "title")
+		}
+		out = append(out, fmt.Sprintf("%s:%s(%d)", dtStr(n, "kind"), label, dtNum(n, "child_count")))
+	}
+	return strings.Join(out, ", ")
+}
+
+// TestWorkspaceDocFolders (spec 120 section 7, owner t1 3b8891e0 + New
+// folder): a folder is created at the top, a document inside it, and the
+// explorer's /nodes lists both where they were made; the refusals answer
+// their own codes. Who may call is docTreeCaller's, tested above.
+func TestWorkspaceDocFolders(t *testing.T) {
+	e, tid, as := docTreeEnv(t)
+	f := mustCall(t, e, tid, http.MethodPost, docTreeAPI+"/folders", as, map[string]any{"name": "plans"}, 201)
+	folder := dtStr(f, "id")
+	d := mustCall(t, e, tid, http.MethodPost, docTreeAPI, as, map[string]any{"title": "roadmap", "parent": folder}, 200)
+	mustCall(t, e, tid, http.MethodPost, docTreeAPI, as, map[string]any{"title": "readme"}, 200)
+	top := mustCall(t, e, tid, http.MethodGet, docTreeAPI+"/nodes", as, nil, 200)
+	if got := nodeRows(top); got != "folder:plans(1), doc:readme(0)" {
+		t.Fatalf("top = %q", got)
+	}
+	in := mustCall(t, e, tid, http.MethodGet, docTreeAPI+"/nodes?parent="+folder, as, nil, 200)
+	rows := dtList(in, "nodes")
+	if got := nodeRows(in); got != "doc:roadmap(0)" || dtStr(rows[0], "doc") != dtStr(d, "id") {
+		t.Fatalf("in plans = %q (doc %q, want %q)", got, dtStr(rows[0], "doc"), dtStr(d, "id"))
+	}
+	for _, c := range []struct {
+		what, method, path string
+		body               map[string]any
+		code               int
+		err                string
+	}{
+		{"name taken", http.MethodPost, "/folders", map[string]any{"name": "PLANS"}, 409, "name_taken"},
+		{"under a document", http.MethodPost, "/folders", map[string]any{"name": "x", "parent": dtStr(rows[0], "id")}, 400, "parent_is_document"},
+		{"blank name", http.MethodPost, "/folders", map[string]any{"name": " "}, 400, "bad_request"},
+		{"unknown field", http.MethodPost, "/folders", map[string]any{"name": "x", "kind": "doc"}, 400, ""},
+		{"no such parent", http.MethodPost, "", map[string]any{"title": "x", "parent": "00000000-0000-0000-0000-000000000000"}, 404, "not_found"},
+		{"list a document", http.MethodGet, "/nodes?parent=" + dtStr(rows[0], "id"), nil, 400, "parent_is_document"},
+	} {
+		out := mustCall(t, e, tid, c.method, docTreeAPI+c.path, as, c.body, c.code)
+		if c.err != "" && dtStr(out, "error") != c.err {
+			t.Fatalf("%s: error = %v, want %s", c.what, out, c.err)
+		}
+	}
+	t.Logf("folders: top %q, in plans %q, 6 refusals with their codes", nodeRows(top), nodeRows(in))
+}
+
+// TestWorkspaceDocFoldersCrossTenant: another workspace's /nodes shows 0 of
+// this one's rows, and its list, folder and document creates into this
+// workspace's folder answer 404 (RLS reads 0 rows); the own side is the
+// control.
+func TestWorkspaceDocFoldersCrossTenant(t *testing.T) {
+	e, tid, as := docTreeEnv(t)
+	folder := dtStr(mustCall(t, e, tid, http.MethodPost, docTreeAPI+"/folders", as, map[string]any{"name": "mine"}, 201), "id")
+	mustCall(t, e, tid, http.MethodPost, docTreeAPI, as, map[string]any{"title": "inside", "parent": folder}, 200)
+	other, _ := e.tenant()
+	bs := seat(t, e, other, "developer")
+	own := len(dtList(mustCall(t, e, tid, http.MethodGet, docTreeAPI+"/nodes", as, nil, 200), "nodes")) +
+		len(dtList(mustCall(t, e, tid, http.MethodGet, docTreeAPI+"/nodes?parent="+folder, as, nil, 200), "nodes"))
+	seen := len(dtList(mustCall(t, e, other, http.MethodGet, docTreeAPI+"/nodes", bs, nil, 200), "nodes"))
+	mustCall(t, e, other, http.MethodGet, docTreeAPI+"/nodes?parent="+folder, bs, nil, 404)
+	mustCall(t, e, other, http.MethodPost, docTreeAPI+"/folders", bs, map[string]any{"name": "x", "parent": folder}, 404)
+	mustCall(t, e, other, http.MethodPost, docTreeAPI, bs, map[string]any{"title": "x", "parent": folder}, 404)
+	if own != 2 || seen != 0 {
+		t.Fatalf("rows: own workspace %d (want 2), other workspace %d (want 0)", own, seen)
+	}
+	t.Logf("cross-workspace /nodes: own %d rows, other %d; its 3 writes/reads into ours 404", own, seen)
+}

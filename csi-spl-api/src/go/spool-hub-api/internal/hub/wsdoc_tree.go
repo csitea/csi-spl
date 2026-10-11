@@ -23,7 +23,9 @@ import (
 // every structural write is one of T002's ops, so no route can break the tree.
 //
 //	GET    /v1/workspace/doctree                  the documents (?topic= linked to one topic)
-//	POST   /v1/workspace/doctree                  create {title, description}
+//	POST   /v1/workspace/doctree                  create {title, description, parent}
+//	GET    /v1/workspace/doctree/nodes            ?parent= (none = root): one folder's children
+//	POST   /v1/workspace/doctree/folders          create {parent, name, title, description}
 //	GET    /v1/workspace/doctree/search           ?q= [&doc=]: items matching q (spec 100's words)
 //	GET    /v1/workspace/doctree/{doc}            one document's head: rev, items, root, topic
 //	PATCH  /v1/workspace/doctree/{doc}            rename {title, rev} ("" = "Untitled document")
@@ -42,6 +44,11 @@ import (
 // A code block or an image is an item whose attrs carry kind "code" (src,
 // lang) or "image" (img_http_path, img_name); the store checks them on every
 // write (store.docAttrsCheck).
+//
+// The folders (spec 120 section 7, workspace_doc_nodes.go): a create
+// answers 409 name_taken, doc_cap_reached, folder_cap_reached or depth, 400
+// when the parent is a document, 404 when the parent is gone or another
+// workspace's. A document create with a parent lands in that folder.
 //
 // The four outcomes (spec 3.3): committed (200 with the rev it produced), 412
 // stale_rev (the doc rev on a structural op, the item rev on a text edit),
@@ -71,7 +78,9 @@ const (
 
 // docTreeStore is the store side: T002's ops plus the reads of wsdoc_hub.go.
 type docTreeStore interface {
-	DocCreate(ctx context.Context, tenant, title, description, actor string) (string, string, error)
+	DocCreateIn(ctx context.Context, tenant, folder, title, description, actor string) (string, string, error)
+	DocFolderCreate(ctx context.Context, tenant string, f store.DocFolder) (string, error)
+	DocNodes(ctx context.Context, tenant, parent string) (string, []store.DocNode, error)
 	DocRename(ctx context.Context, tenant, doc string, rev int64, title, actor string) (store.DocOpResult, error)
 	DocDelete(ctx context.Context, tenant, doc string, rev int64) (store.DocOpResult, error)
 	DocItemAdd(ctx context.Context, tenant string, r store.DocItemAddReq) (store.DocOpResult, error)
@@ -91,6 +100,8 @@ func (s *Server) routeDocTree(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/workspace/doctree", s.handleDocTreeList)
 	mux.HandleFunc("POST /v1/workspace/doctree", s.handleDocTreeCreate)
 	mux.HandleFunc("GET /v1/workspace/doctree/search", s.handleDocTreeSearch)
+	mux.HandleFunc("GET /v1/workspace/doctree/nodes", s.handleDocTreeNodes)
+	mux.HandleFunc("POST /v1/workspace/doctree/folders", s.handleDocTreeFolderCreate)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}", s.handleDocTreeHead)
 	mux.HandleFunc("PATCH /v1/workspace/doctree/{doc}", s.handleDocTreeRename)
 	mux.HandleFunc("DELETE /v1/workspace/doctree/{doc}", s.handleDocTreeDeleteDoc)
@@ -170,9 +181,13 @@ func (s *Server) docTreeWho(w http.ResponseWriter, r *http.Request, perm string)
 	return t.ID, hum, true
 }
 
-// docTreeFail answers err as its outcome: 412, 404, 422, else 500.
+// docTreeFail answers err as its outcome: 412, 404, 409, 400, 422, else 500.
 func docTreeFail(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, store.ErrDocNodeConflict):
+		writeErr(w, http.StatusConflict, strings.TrimPrefix(err.Error(), store.ErrDocNodeConflict.Error()+": "), err.Error())
+	case errors.Is(err, store.ErrDocNodeParentDoc):
+		writeErr(w, http.StatusBadRequest, "parent_is_document", "the parent is a document, not a folder")
 	case errors.Is(err, store.ErrDocStale):
 		writeErr(w, http.StatusPreconditionFailed, "stale_rev", "the document changed since you read it: reload")
 	case errors.Is(err, store.ErrNotFound):
@@ -260,8 +275,9 @@ func (s *Server) handleDocTreeCreate(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Title       string `json:"title"`
 		Description string `json:"description"`
+		Parent      string `json:"parent"`
 	}
-	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only title, description)") {
+	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only title, description, parent)") {
 		return
 	}
 	in.Title = store.DocTitle(in.Title)
@@ -270,7 +286,7 @@ func (s *Server) handleDocTreeCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "title is at most 500 characters, description at most 1000")
 		return
 	}
-	doc, root, err := c.st.DocCreate(r.Context(), c.tenant, in.Title, in.Description, c.who)
+	doc, root, err := c.st.DocCreateIn(r.Context(), c.tenant, in.Parent, in.Title, in.Description, c.who)
 	if err != nil {
 		docTreeFail(w, err)
 		return

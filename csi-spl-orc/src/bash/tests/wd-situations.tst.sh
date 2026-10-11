@@ -64,6 +64,9 @@
 #      sat 2026-10-09, n=2), inbox empty: S1 wakes it at 130 s and takes it
 #      over at 250 s when the wake starts no turn; controls: progress after
 #      the wake, the list complete, a working heartbeat, a moving spinner
+#  S2 agy (spec 132 section 7): agy 1.3.3's "You are currently not signed in"
+#      screen and agy -p's "authentication required" are kind=auth; controls:
+#      the pre-132 patterns, the login picker alone, a moving spinner
 #  11. S2 kind=limit wakes after its reset (2026-10-08, a seat 2.5 h
 #      idle past "resets 1:50am (Europe/Helsinki)"): the reset read once per
 #      episode (1:50am Helsinki on a summer date = 22:50Z), no wake before
@@ -221,6 +224,22 @@ grep -q '^HIT S2 kind=login ' <<<"$(run_s s2)" && pass "S2 control: claude's Inv
 ctx s2ml; cp "$MF/pane-mistral-limit.txt" "$C/pane"
 grep -q '^HIT S2 kind=limit pane: Rate limits exceeded' <<<"$(run_s s2 m-900)" && pass "S2 vibe's 'Rate limits exceeded' (source text, not a real pane) is kind=limit" || fail "S2 vibe limit: $(run_s s2 m-900)"
 WD_STALL_RE='usage limit reached' nohit "S2 control: without the vibe pattern the same pane is no hit" s2 m-900
+# spec 132 section 7: agy with no login, its first screen (agy 1.3.3, n=2):
+# kind=auth, as the dispatcher's one blocker, no restart
+ctx s2aa; cp "$FX/s2-agy-login.pane" "$C/pane"
+[[ "$(run_s s2 a-900)" == "HIT S2 kind=auth pane: You are currently not signed in" ]] && pass "S2 agy's not-signed-in screen is kind=auth" || fail "S2 agy auth: $(run_s s2 a-900)"
+# red control: the patterns before spec 132 read the same screen as no S2 (S7 modal=0 only)
+WD_STALL_RE='usage limit reached|limit reached[[:space:]]*·|limit resets|(you[^[:space:]]* )?hit your ([a-z]+ )?limit|rate limits exceeded|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled' \
+  WD_AUTH_RE='invalid api key \(from env var|please check your api key' nohit "S2 red control: the pre-132 patterns miss agy's screen" s2 a-900
+# control: the login picker alone (claude's onboarding has one too) is S7's, not S2
+grep -v 'not signed in' "$FX/s2-agy-login.pane" > "$C/pane"
+nohit "S2 control: 'Select login method' without agy's not-signed-in line is no S2" s2 a-900
+# agy -p with no login (spec 127 B0, b0-cli-measure.md 4.2, n=4)
+ctx s2ap; printf "authentication required. Run 'agy' to log in.\n" > "$C/pane"
+grep -q "^HIT S2 kind=auth pane: authentication required. Run 'agy' to log in" <<<"$(run_s s2 a-900)" && pass "S2 agy -p's 'authentication required' is kind=auth" || fail "S2 agy -p: $(run_s s2 a-900)"
+# the same screen under a moving spinner is still a working agent
+ctx s2as; cp "$FX/s2-agy-login.pane" "$C/pane"; echo 3 > "$C/spin_age"
+nohit "S2 control: agy's screen under a moving spinner is no hit" s2 a-900
 
 # S1 on vibe's unfinished plan (c-001@sat 2026-10-09, m-617 / m-618 idle
 # mid-plan after a Stop, inbox empty, n=2): a job of its own

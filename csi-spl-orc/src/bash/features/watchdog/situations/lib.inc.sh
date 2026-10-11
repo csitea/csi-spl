@@ -32,6 +32,12 @@ WD_ID="${1:-}" WD_PID="${2:-}" WD_PANE="${3:-}"
 [[ "$WD_PID" == - ]] && WD_PID=""
 [[ "$WD_PANE" == - ]] && WD_PANE=""
 WD_HB_FRESH="${WD_HB_FRESH:-120}"
+# agy with no login (spec 132 section 7), agy 1.3.3: its first screen
+# "Welcome to the Antigravity CLI. You are currently not signed in." over
+# "Select login method:" (n=2, the screen a-971 opened at, 2026-10-11), and
+# `agy -p`'s "authentication required. Run 'agy' to log in." (spec 127 B0,
+# b0-cli-measure.md 2.6 and 4.2). A stall banner and kind=auth.
+WD_AGY_AUTH_RE="you are currently not signed in|authentication required\. run 'agy' to log in"
 # The banners of a seat that cannot act (the lease's LEASE_STALL_RE, plus the
 # org lock-out of spec 6.1 S2, plus grok's weekly-limit panel of spec 102
 # T029: "You hit your weekly limit." Not a bare "weekly limit": grok's normal
@@ -40,11 +46,12 @@ WD_HB_FRESH="${WD_HB_FRESH:-120}"
 # plus claude's transcript entry on a usage limit, "You've hit your session
 # limit · resets 3:20pm (Europe/Helsinki)" (c-817 2026-10-10; any "hit your
 # <word> limit", grok's weekly one included).
-WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|(you[^[:space:]]* )?hit your ([a-z]+ )?limit|rate limits exceeded|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled}"
+WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|(you[^[:space:]]* )?hit your ([a-z]+ )?limit|rate limits exceeded|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled|$WD_AGY_AUTH_RE}"
 # A dead API key (spec 110 2.5, S2 kind=auth): vibe's 401 "Error: Invalid API
 # key (from env var MISTRAL_API_KEY). Please check your API key and try
-# again." No /login fixes it: the owner re-keys, so no restart either.
-WD_AUTH_RE="${WD_AUTH_RE:-invalid api key \(from env var|please check your api key}"
+# again." No /login fixes it: the owner re-keys, so no restart either. agy's
+# missing login too: only the owner signs it in, a restart shows the same.
+WD_AUTH_RE="${WD_AUTH_RE:-invalid api key \(from env var|please check your api key|$WD_AGY_AUTH_RE}"
 # The comm of a harness process: mistral's vibe renames itself "Vibe CLI"
 # (spec 110 T013b, m-595 on the main box: `pgrep -x vibe` finds nothing on a live lane).
 WD_HARNESS_COMM_RE='claude|grok|agy|qwen|vibe|Vibe CLI|node|bun'

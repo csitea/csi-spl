@@ -5,8 +5,9 @@
 # moving spinner (with or without a reset time) and the transcript's last
 # turn is not a good one (a stale banner after /login, 6.2). kind=login|limit
 # tells the watchdog whether to DM the owner (login, access) or wait (limit);
-# kind=auth (spec 110 2.5) is a dead API key (WD_AUTH_RE): no restart, one
-# blocker to the dispatcher, and lane-mix skips the kind until a re-key.
+# kind=auth (spec 110 2.5) is a dead API key (WD_AUTH_RE), or agy with no
+# login (spec 132 section 7): no restart, one blocker to the dispatcher, and
+# lane-mix skips the kind until a re-key.
 # Usage: s2.sh ID PID PANE (WD_CTX set; see lib.inc.sh)
 # shellcheck source=lib.inc.sh
 . "$(dirname "$0")/lib.inc.sh"

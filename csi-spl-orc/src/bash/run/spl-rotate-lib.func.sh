@@ -91,8 +91,12 @@ spl_rotate_role_id() {
   case "$1" in orch) echo "${LEASE_ORCH:-}" ;; master) echo "${LEASE_MASTER:-}" ;; failover) echo "${LEASE_FAILOVER:-}" ;; esac
 }
 
-# The .state / .lock / task family of a role: orch -> orch, master|failover -> dispatch.
-spl_rotate_family() { [[ "$1" == orch ]] && echo orch || echo dispatch; }
+# The .state / .lock / task family of a role: orch -> orch, master|failover -> dispatch;
+# ROTATE_FAMILY overrides it (the lane rotation: lane, its files in ROTATE_STATE_DIR).
+spl_rotate_family() {
+  [[ -n "${ROTATE_FAMILY:-}" ]] && { echo "$ROTATE_FAMILY"; return 0; }
+  [[ "$1" == orch ]] && echo orch || echo dispatch
+}
 
 # A new run id: <UTC yyyymmddThhmmZ>-<role> (spec section 2).
 spl_rotate_new_rid() { echo "$(date -u +%Y%m%dT%H%MZ)-$1"; }
@@ -112,8 +116,8 @@ spl_rotate_log() {
   [[ "${DRY_RUN:-1}" == 1 && "${ROTATE_CMD:-auto}" == auto ]] && return 0
   echo "$line" >> "$ROTATE_LOG"
   [[ "$res" == SKIP ]] && return 0
-  printf '%s %s %s\n' "$rid" "$phase" "$(date +%s)" > "$LEASE_DIR/rotate.$(spl_rotate_family "${rid##*-}").state.tmp.$$" &&
-    mv -f "$LEASE_DIR/rotate.$(spl_rotate_family "${rid##*-}").state.tmp.$$" "$LEASE_DIR/rotate.$(spl_rotate_family "${rid##*-}").state"
+  local sf; sf="${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$(spl_rotate_family "${rid##*-}").state"
+  printf '%s %s %s\n' "$rid" "$phase" "$(date +%s)" > "$sf.tmp.$$" && mv -f "$sf.tmp.$$" "$sf"
   return 0
 }
 
@@ -198,11 +202,11 @@ spl_agent_id_unlock() {
 # The resume context: rotate.<family>.ctx, KEY=value, read, never sourced.
 ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF ROTATE_SWITCH_FROM)
 spl_rotate_ctx_save() {  # FAMILY
-  local k f="$LEASE_DIR/rotate.$1.ctx"
+  local k f="${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$1.ctx"
   { for k in "${ROTATE_CTX_KEYS[@]}"; do printf '%s=%s\n' "$k" "${!k:-}"; done; } > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
 }
 spl_rotate_ctx_load() {  # FAMILY -> non-zero when there is none
-  local k v f="$LEASE_DIR/rotate.$1.ctx"
+  local k v f="${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$1.ctx"
   for k in "${ROTATE_CTX_KEYS[@]}"; do printf -v "$k" '%s' ""; done
   [[ -f "$f" ]] || return 1
   while IFS='=' read -r k v; do
@@ -219,7 +223,22 @@ spl_rotate_tmux() {
   "${SPOOL_TM[@]}" "$@"
 }
 
-# spl_rotate_pids ID: every live claude pid whose environment carries
+# spl_rotate_cli DIR COMM: 0 when the process in DIR (<proc>/<pid>) is the
+# CLI of ROTATE_KIND (default claude: its comm). Another kind is read as
+# agent-identity's kind_of does: argv[0], or argv[1] behind a node/python
+# loader; vibe ("Vibe CLI") is mistral. A tool child (bash, git) never is.
+spl_rotate_cli() {
+  local k="${ROTATE_KIND:-claude}" a0="" a1=""
+  [[ "$k" == claude ]] && { [[ "$2" == claude ]]; return; }
+  case "$2" in "Vibe CLI"|vibe) [[ "$k" == mistral ]]; return ;; "$k") return 0 ;;
+    node|nodejs|bun|deno|python|python[0-9]*) ;; *) return 1 ;; esac
+  { IFS= read -r -d '' a0; IFS= read -r -d '' a1; } < "$1/cmdline" 2>/dev/null || true
+  a0="${a0##*/}"; a1="${a1##*/}"
+  case "$a0" in node|nodejs|bun|deno|python|python[0-9]*) a0="$a1" ;; esac
+  [[ "$a0" == "$k" || ( "$k" == mistral && "$a0" == vibe ) ]]
+}
+
+# spl_rotate_pids ID: every live claude (ROTATE_KIND) pid whose environment carries
 # SPOOL_AGENT_ID=<ID>, ascending (spl_lease_agent_pid gives only the lowest).
 spl_rotate_pids() {
   local id="$1" d pid comm root="${LEASE_PROC_ROOT:-/proc}"
@@ -228,7 +247,7 @@ spl_rotate_pids() {
     for d in "$root"/[0-9]*; do
       pid="${d##*/}"
       comm=""; { read -r comm < "$d/comm"; } 2>/dev/null || true
-      [[ "$comm" == claude ]] || continue
+      spl_rotate_cli "$d" "$comm" || continue
       if [[ -r "$d/environ" ]]; then
         if grep -zx "SPOOL_AGENT_ID=$id" "$d/environ" >/dev/null 2>&1; then echo "$pid"; fi
       else
@@ -241,13 +260,13 @@ spl_rotate_pids() {
   } | sort -n
 }
 
-# spl_rotate_alive PID: 0 while it is a live claude process. Not `kill -0`:
+# spl_rotate_alive PID: 0 while it is a live claude (ROTATE_KIND) process. Not `kill -0`:
 # the box user may not signal the agent user's process (EPERM reads as dead).
 spl_rotate_alive() {
   local comm=""
   [[ "$1" =~ ^[0-9]+$ ]] || return 1
   { read -r comm < "${LEASE_PROC_ROOT:-/proc}/$1/comm"; } 2>/dev/null || true
-  [[ "$comm" == claude ]]
+  spl_rotate_cli "${LEASE_PROC_ROOT:-/proc}/$1" "$comm"
 }
 
 # spl_rotate_age PID: its age in seconds; empty when it is gone.
@@ -298,12 +317,13 @@ spl_rotate_pane_of_pid() {
 }
 
 # spl_rotate_claude_ancestor: the nearest claude process above this shell
-# (the session that ran the ack command); empty when there is none.
+# (the session that ran the ack command), or ROTATE_NEW_PID when that is
+# above it (a grok / vibe / agy / qwen session); empty when there is none.
 spl_rotate_claude_ancestor() {
   local p="$$" comm
   for _ in $(seq 1 32); do
     comm=""; { read -r comm < "/proc/$p/comm"; } 2>/dev/null || true
-    [[ "$comm" == claude ]] && { echo "$p"; return 0; }
+    [[ "$comm" == claude || ( -n "${ROTATE_NEW_PID:-}" && "$p" == "$ROTATE_NEW_PID" ) ]] && { echo "$p"; return 0; }
     p="$(awk '{sub(/^.*\) /, ""); print $2}' "/proc/$p/stat" 2>/dev/null || true)"
     [[ "$p" =~ ^[0-9]+$ ]] && (( p > 1 )) || return 0
   done
@@ -565,10 +585,11 @@ spl_rotate_spawn() {
   # the agent user's own claude, not whatever `claude` a login PATH finds
   bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-}}"
   [[ -z "$bin" && -x "$ROTATE_AGENT_HOME/.local/bin/claude" ]] && bin="$ROTATE_AGENT_HOME/.local/bin/claude"
+  [[ "${ROTATE_KIND:-claude}" == claude ]] || bin=""
   # SPAWN_START_CHECK=0: the dialog check runs here, once the pid is known
   out="$(env SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} \
-    SPAWN_LANE_SCOPE="role $id (rotation $ROTATE_RID)" \
-    bash "$ROTATE_SPAWN" claude "$id" "$(spl_rotate_workdir "$id")" "$seed" rotate 2>&1 7>&- 8>&- 9>&-)" || true
+    SPAWN_LANE_SCOPE="${ROTATE_LANE_SCOPE:-role $id (rotation $ROTATE_RID)}" \
+    bash "$ROTATE_SPAWN" "${ROTATE_KIND:-claude}" "$id" "$(spl_rotate_workdir "$id")" "$seed" rotate 2>&1 7>&- 8>&- 9>&-)" || true
   ROTATE_NEW_PANE="$(grep -m1 -oE "^$id %[0-9]+" <<<"$out" | cut -d' ' -f2)"
   [[ -n "$ROTATE_NEW_PANE" ]] || { ROTATE_ERR="spawn printed no pane: $(tr '\n' ' ' <<<"$out" | cut -c1-200)"; return 1; }
   t0=$SECONDS
@@ -730,6 +751,9 @@ spl_rotate_end() {
   else
     spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid: '$cmd' never read back, no Enter: SIGTERM"
   fi
+  # ROTATE_PRE_TERM PANE PID: the caller's last step before the signal (the
+  # lane rotation stops a restore wrapper that would relaunch the session)
+  [[ -n "${ROTATE_PRE_TERM:-}" ]] && { "$ROTATE_PRE_TERM" "$pane" "$pid" || true; }
   ${ROTATE_KILL:-sudo -n kill} -TERM "$pid" 2>/dev/null || true
   t0=$SECONDS; while (( SECONDS - t0 < twait )); do spl_rotate_alive "$pid" || return 0; sleep 1; done
   spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid alive ${twait}s after SIGTERM: SIGKILL"
@@ -790,7 +814,7 @@ spl_rotate_ack_seen() {  # ID TASK
 spl_rotate_ack_send() {
   local role="$1" id="$2" fam caller rc=0
   fam="$(spl_rotate_family "$role")"
-  [[ "${ROTATE_ID:-}" =~ ^[0-9]{8}T[0-9]{4}Z-[a-z]+$ ]] || { do_log "FATAL ROTATE_ID must be the rotation id from your seed"; return 3; }
+  [[ "${ROTATE_ID:-}" =~ ^[0-9]{8}T[0-9]{4}Z-[a-z]+(-[a-z]-[0-9]{3})?$ ]] || { do_log "FATAL ROTATE_ID must be the rotation id from your seed"; return 3; }
   if ! spl_rotate_ctx_load "$fam" || [[ "$ROTATE_RID" != "$ROTATE_ID" ]]; then
     spl_rotate_log "$ROTATE_ID" ACK FAIL "refused: not the rotation in flight (${ROTATE_RID:-none})"; return 3
   fi

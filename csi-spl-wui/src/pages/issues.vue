@@ -2458,11 +2458,15 @@ function onDocKey(ev: KeyboardEvent) {
   if (kind && issue) { openMenu(kind, issue, keyAnchor(kind, issue)); ev.preventDefault() }
 }
 
-/* Shift + `letter` on the selected row: the row's menu item for that key, only
-   when its menu offers it (Shift + R opens the menu on the row) */
+/* Shift + `letter` on the row holding the focus, else the selected one (the
+   messages' rule): the row's menu item for that key, only when its menu
+   offers it (Shift + R opens the menu on the row) */
 function runIssueShortcut(letter: string) {
-  const issue = flat.value.find((i) => i.key === cursorKey.value)
+  const focused = (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>('[data-test=issues-row], [data-test=issues-card]')
+  const key = focused?.getAttribute('data-key') || cursorKey.value
+  const issue = flat.value.find((i) => i.key === key)
   if (!issue) return
+  cursorKey.value = issue.key
   const tg = issueTarget(issue)
   const row = document.querySelector<HTMLElement>(`[data-test=issues-row][data-key="${CSS.escape(issue.key)}"]`)
   const r = row?.getBoundingClientRect()

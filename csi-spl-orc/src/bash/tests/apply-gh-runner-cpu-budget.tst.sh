@@ -226,6 +226,8 @@ out="$(gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=500%' && "$out" == *'GATE STARVED 10_ci-quality.yml on master: last verdict 60 min ago (>= 40), 1 run(s) waiting -> floor 500%'* \
   && "$(calls)" == 1 && "$(cat "$T/gh.calls")" == *'actions/workflows/10_ci-quality.yml/runs?branch=master&event=push'* ]] &&
   pass "FLOOR=500: verdict 60 min old + a run waiting -> 500%, ONE gh call" || fail "gate starved (rc=$rc, calls=$(calls)): $out"
+[[ "$(cat "$T/state/gate" 2>/dev/null)" =~ ^[0-9]+\ 1$ ]] &&
+  pass "...and the tick's waiting runs go to the state dir's gate file for the box pick (\"<epoch> 1\")" || fail "gate file: $(cat "$T/state/gate" 2>&1)"
 gh_runs none 1
 out="$(gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=500%' && "$out" == *'last verdict never min ago'* ]] &&

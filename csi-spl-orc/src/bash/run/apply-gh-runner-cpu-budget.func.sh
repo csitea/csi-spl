@@ -36,7 +36,11 @@
 # @description CPU_BUDGET_GATE_FLOOR_PCT (up to the ceiling); otherwise MIN_PCT.
 # @description One `gh api` call a tick (the newest 100 push runs: ~30 superseded
 # @description runs can sit between two verdicts; none in 100 counts as starved).
-# @description A failing call is a WARN, never a boost.
+# @description A failing call is a WARN, never a boost. The tick's count of
+# @description waiting runs goes to CPU_BUDGET_STATE_DIR/gate ("<epoch> <n>"):
+# @description with runners parked, do_spl_box_pick counts them as CI busy and
+# @description sends new lanes elsewhere (lib/bash/funcs/spl-box-ci.func.sh), so
+# @description the agents yield back the cores this action gave them.
 # @description OFF by default (0): it takes cores from the agents, which reverses
 # @description HUM-10 (agents first), so switching it on is the owner's call.
 # @description A box with no runner unit: nothing to do, exit 0.
@@ -126,6 +130,9 @@ ghrb_gate() {
   last="${BASH_REMATCH[1]}" wait="${BASH_REMATCH[2]}"
   age=never
   ((last > 0)) && age=$((($(date +%s) - last) / 60))
+  # for the box pick (lib/bash/funcs/spl-box-ci.func.sh): runs waiting while
+  # runners are parked are CI waiting for this box's cores, so new agents yield
+  { mkdir -p "$GHRB_STATE" && echo "$(date +%s) $wait" >"$GHRB_STATE/gate"; } 2>/dev/null
   if ((wait == 0)) || { [[ "$age" != never ]] && ((age < GHRB_GATE_STALE)); }; then
     echo "GATE $wf on $br: last verdict $age min ago, $wait run(s) waiting -> floor ${GHRB_MIN}%"; return 0
   fi

@@ -6,7 +6,15 @@
 # 10 runs, and the e2e shards took 23..36 min against their limits. So a box
 # with a runner job active takes FEWER new lanes:
 #   - the box knows: spl_box_ci_jobs counts its active runner jobs (one
-#     Runner.Worker process per job; the idle Runner.Listener is not one);
+#     Runner.Worker process per job; the idle Runner.Listener is not one)
+#     plus the jobs WAITING for its cores: the runner CPU budget
+#     (do_apply_gh_runner_cpu_budget) gives CI only what the agents leave and
+#     parks the runners it cannot feed; while it has parked runners here and
+#     its last tick (CPU_BUDGET_STATE_DIR/gate, under gate_max_age_s old) saw
+#     gate runs waiting, min(parked, waiting) count too. Who yields when: a
+#     running agent never (the budget squeezes the runners instead); a NEW
+#     agent yields while CI runs or waits here; a parked runner comes back as
+#     the agents' load falls (the budget's own hysteresis);
 #   - it tells the fleet: spl_lane_box_report puts ci=<N> into its BOX-0 row
 #     scope (rewritten at once when N changes, else every LANE_BOX_ROW_S);
 #   - do_spl_box_pick reads it (spl_box_ci_from_rows; its own box live) and
@@ -17,16 +25,26 @@
 # rotation, a restore) never asks the pick: only new lanes are steered.
 # Settings (cnf env.box.ci_busy, env BOX_CI_<KEY> overrides, these defaults
 # when neither reads): max_agents 12, low_pct 25, high_pct 50, max_age_s 900
-# (a BOX-0 row older than that tells nothing about CI: its cron stopped).
+# (a BOX-0 row older than that tells nothing about CI: its cron stopped);
+# env BOX_CI_GATE_MAX_AGE_S, default 600: an older budget gate file is stale.
 #------------------------------------------------------------------------------
 
-# spl_box_ci_jobs: the runner jobs active on THIS box, one number. Seam
-# LANE_CI_CMD (tests) prints it instead.
+# spl_box_ci_jobs: the runner jobs running or waiting on THIS box, one
+# number. Seams (tests): LANE_CI_CMD prints the whole number instead;
+# LANE_CI_PS_CMD replaces `ps -eo comm=`.
 spl_box_ci_jobs() {
-  local n
-  if [[ -n "${LANE_CI_CMD:-}" ]]; then n="$($LANE_CI_CMD 2>/dev/null)"
-  else n="$(ps -eo comm= 2>/dev/null | grep -cx 'Runner.Worker')"; fi
+  local n st="${CPU_BUDGET_STATE_DIR:-/var/tmp/gh-runner-cpu-budget}" at="" wait="" parked
+  if [[ -n "${LANE_CI_CMD:-}" ]]; then
+    n="$($LANE_CI_CMD 2>/dev/null)"; [[ "$n" =~ ^[0-9]+$ ]] || n=0; echo "$n"; return 0
+  fi
+  n="$(${LANE_CI_PS_CMD:-ps -eo comm=} 2>/dev/null | grep -cx 'Runner.Worker')"
   [[ "$n" =~ ^[0-9]+$ ]] || n=0
+  read -r at wait _ 2>/dev/null <"$st/gate"
+  parked="$(grep -c . "$st/parked" 2>/dev/null)"
+  if [[ "$at" =~ ^[0-9]+$ && "$wait" =~ ^[0-9]+$ && "$parked" =~ ^[0-9]+$ ]] &&
+    (( $(date +%s) - at < ${BOX_CI_GATE_MAX_AGE_S:-600} )); then
+    n=$(( n + (wait < parked ? wait : parked) ))
+  fi
   echo "$n"
 }
 

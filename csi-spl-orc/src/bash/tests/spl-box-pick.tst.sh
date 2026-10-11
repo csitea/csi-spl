@@ -294,5 +294,27 @@ out="$(run LANES="$T/lanes.json")"
 out="$(run 2>&1)"
 [[ -n "$(pick "$out")" ]] && pass "13. no lane answer: the pick as before" || fail "13. no lanes: $out"
 
+# 14. who yields when (the runner CPU budget, do_apply_gh_runner_cpu_budget):
+#     jobs waiting while the budget parked runners here count as CI busy.
+ci_jobs() {  # PS_OUTPUT [GATE_LINE] [PARKED_LINES]
+  rm -rf "$T/ghrb"; mkdir -p "$T/ghrb"
+  printf '%b' "$1" >"$T/ps.out"
+  [ -n "${2:-}" ] && echo "$2" >"$T/ghrb/gate"
+  [ -n "${3:-}" ] && printf '%b' "$3" >"$T/ghrb/parked"
+  env -u LANE_CI_CMD LANE_CI_PS_CMD="cat $T/ps.out" CPU_BUDGET_STATE_DIR="$T/ghrb" bash -c '
+    source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-ci.func.sh"; spl_box_ci_jobs'
+}
+NOW=$(date +%s)
+[[ "$(ci_jobs 'bash\nRunner.Listener\nRunner.Worker\nRunner.Worker\n')" == 2 ]] &&
+  pass "14. 2 Runner.Worker processes = 2 jobs; the idle Runner.Listener is none" || fail "14. ps count"
+[[ "$(ci_jobs 'Runner.Listener\n' "$NOW 2" 'actions.runner.a.service\nactions.runner.b.service\nactions.runner.c.service\n')" == 2 ]] &&
+  pass "14. no job running, 2 gate runs waiting, 3 runners parked by the budget -> 2 (CI waits for these cores)" || fail "14. waiting"
+[[ "$(ci_jobs 'Runner.Worker\n' "$NOW 5" 'actions.runner.a.service\n')" == 2 ]] &&
+  pass "14. 1 running + 5 waiting on 1 parked runner -> 2 (waiting counts at most the parked runners)" || fail "14. min parked"
+[[ "$(ci_jobs 'Runner.Listener\n' "$NOW 2")" == 0 ]] &&
+  pass "14. CONTROL runs waiting but no runner parked: their wait is not for this box's cores -> 0" || fail "14. no parked"
+[[ "$(ci_jobs 'Runner.Listener\n' "$((NOW - 3600)) 2" 'actions.runner.a.service\n')" == 0 ]] &&
+  pass "14. CONTROL a gate file an hour old (the budget cron stopped) -> 0" || fail "14. stale gate"
+
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

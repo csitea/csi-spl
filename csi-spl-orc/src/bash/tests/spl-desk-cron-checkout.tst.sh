@@ -59,7 +59,7 @@ out="$(run spl_desk_cron_checkout_dry SPL_DESK_CRON_CREATE=1)"; rc=$?
 out="$(run spl_desk_cron_checkout_dry SPL_DESK_CRON_CREATE=0)"; rc=$?
 [ "$rc" = 0 ] && [ -z "$out" ] && pass "4. dry, CREATE=0: silent, rc 0" || fail "4. dry CREATE=0 ($rc: $out)"
 
-# 5. never exits, sets no trap
+# 5. never exits, sets no trap: capture traps before the call and assert they are unchanged after
 out="$(env PATH="$T/bin:$PATH" PROJ_ROOT="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK_CRON_REPO=/r/repo SPL_DESK_CRON_CREATE=1 \
   bash -c 'do_log() { :; }; source "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-checkout.func.sh";
     traps_before="$(trap -p)";

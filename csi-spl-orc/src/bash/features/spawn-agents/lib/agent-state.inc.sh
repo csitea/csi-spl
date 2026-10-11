@@ -36,7 +36,7 @@ an_is_tag() {  # HEAD
     case " $BOX_TAGS " in *" ${1-} "*) return 0 ;; esac
     return 1
   fi
-  printf '%s' "${1-}" | LC_ALL=C grep -qE "$AN_TAG_SHAPE_RE"
+  LC_ALL=C grep -qE "$AN_TAG_SHAPE_RE" <<<"${1-}"
 }
 
 # Strip a leading "<tag>: " (this box's or another's). Idempotent. A badge
@@ -46,7 +46,7 @@ an_strip() {
   case "$n" in
     '> '*|'? '*|'! '*)
       rest="$(an_strip "${n:2}")"
-      if printf '%s' "$rest" | grep -qE "$AN_ID_HEAD_RE"; then
+      if grep -qE "$AN_ID_HEAD_RE" <<<"$rest"; then
         id="${rest%% *}"
         tail="${rest#"$id"}"; tail="${tail# }"
         case "$tail" in '>'|'?'|'!') tail="" ;; '> '*|'? '*|'! '*) tail="${tail:2}" ;; esac
@@ -57,7 +57,7 @@ an_strip() {
   if [[ "$n" =~ $AN_ID_AT_RE ]]; then printf '%s%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"; return 0; fi
   case "$n" in *": "*) ;; *) printf '%s' "$n"; return 0 ;; esac
   head="${n%%": "*}"; rest="${n#*": "}"
-  printf '%s' "$head" | grep -qE "$AN_TAG_TOKEN_RE" || { printf '%s' "$n"; return 0; }
+  grep -qE "$AN_TAG_TOKEN_RE" <<<"$head" || { printf '%s' "$n"; return 0; }
   tag="$(an_tag)"
   if [ -n "$tag" ] && [ "$head" = "$tag" ]; then an_strip "$rest"; return 0; fi
   if an_is_tag "$head"; then an_strip "$rest"; return 0; fi
@@ -101,20 +101,26 @@ an_with_badge() {
 AN_AUTH_RE='^[[:space:]]*(⎣[[:space:]]+)?Error: Invalid API key'
 AN_AUTH_TAIL="${AN_AUTH_TAIL:-8}"
 
+# Every match test reads a here-string, never `printf | grep -q`: grep -q
+# exits on its first match, printf then dies of SIGPIPE on a screen bigger
+# than one write, and under a caller's `set -o pipefail` (tmux-close-window.sh)
+# that MATCH read as no match, busy as idle (c-783: 10 of 3000 under load).
+
 classify_screen() {
-  local scr="$1"
-  if printf '%s\n' "$scr" | grep -v '^[[:space:]]*$' | tail -n "$AN_AUTH_TAIL" | grep -qE "$AN_AUTH_RE"; then
+  local scr="$1" tail_lines
+  tail_lines="$(printf '%s\n' "$scr" | grep -v '^[[:space:]]*$' | tail -n "$AN_AUTH_TAIL" || true)"
+  if grep -qE "$AN_AUTH_RE" <<<"$tail_lines"; then
     printf '%s\n' auth; return
   fi
-  if printf '%s' "$scr" | grep -qE '❯ 1\.|Do you want to|\(y/n\)|Yes, and|No, and tell'; then
+  if grep -qE '❯ 1\.|Do you want to|\(y/n\)|Yes, and|No, and tell' <<<"$scr"; then
     printf '%s\n' dialog; return
   fi
-  if printf '%s' "$scr" | grep -qE "session '.+' ended\. Pane kept open"; then
+  if grep -qE "session '.+' ended\. Pane kept open" <<<"$scr"; then
     printf '%s\n' ended; return
   fi
   # grok's mid-turn footer is `Ctrl+c:cancel` (thinking, a tool running);
   # vibe's (mistral) is "Generating… (29s Esc/Ctrl+C to interrupt)".
-  if printf '%s' "$scr" | grep -qE 'esc to interrupt|Esc/Ctrl\+C to interrupt|Esc:cancel|Ctrl\+c:cancel|Waiting for response'; then
+  if grep -qE 'esc to interrupt|Esc/Ctrl\+C to interrupt|Esc:cancel|Ctrl\+c:cancel|Waiting for response' <<<"$scr"; then
     printf '%s\n' busy; return
   fi
   # agy (1.3.3, captured 2026-10-10) mid-turn: `esc to cancel` in the footer,
@@ -124,13 +130,13 @@ classify_screen() {
   # working samples; a-899 got /exit there and did not leave). A task row
   # alone ("● [17:34:10] 300s timer running", "1 task(s)") is a finished turn
   # with a timer left: idle, and /exit ends agy there.
-  if printf '%s\n' "$scr" | grep -qE 'esc to cancel|^[[:space:]]*● \[[0-9:]+\] Task completion wait running[[:space:]]*$|^[^[:space:][:alnum:]]+[[:space:]]+(Generating|Working|Scheduling|Thinking|Running command)\.\.\.[[:space:]]*$'; then
+  if grep -qE 'esc to cancel|^[[:space:]]*● \[[0-9:]+\] Task completion wait running[[:space:]]*$|^[^[:space:][:alnum:]]+[[:space:]]+(Generating|Working|Scheduling|Thinking|Running command)\.\.\.[[:space:]]*$' <<<"$scr"; then
     printf '%s\n' busy; return
   fi
   # A spinner word counts only in its LIVE form, "Crunching…": a finished
   # turn leaves "✻ Crunched for 4s · done 12.34", whose past tense matched the
   # bare stem and read every finished pane as busy (CLE-77975, 2026-10-02).
-  if printf '%s' "$scr" | grep -qE '\([0-9]+m? ?[0-9]*s · |↓ [0-9.]+k tokens|(Cogitat|Spinn|Crunch|Skedaddl|Razzle|Brew|Churn|Ebb|Cook)[[:alpha:]-]*(…|\.\.\.)'; then
+  if grep -qE '\([0-9]+m? ?[0-9]*s · |↓ [0-9.]+k tokens|(Cogitat|Spinn|Crunch|Skedaddl|Razzle|Brew|Churn|Ebb|Cook)[[:alpha:]-]*(…|\.\.\.)' <<<"$scr"; then
     printf '%s\n' busy; return
   fi
   printf '%s\n' idle
@@ -152,7 +158,7 @@ agent_is_orc() {  # BARE-NAME [ROLE]
   local id="${1%% *}"
   [ "${2:-}" = orc ] && return 0
   case "$id" in ORC-*) return 0 ;; esac
-  printf '%s' "$id" | grep -qE '^(CLE|GRK|AGY|QWN)-0+$'
+  grep -qE '^(CLE|GRK|AGY|QWN)-0+$' <<<"$id"
 }
 
 badge_for_state() {

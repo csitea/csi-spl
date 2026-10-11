@@ -63,7 +63,7 @@ out="$(run spl_desk_cron_checkout_dry SPL_DESK_CRON_CREATE=0)"; rc=$?
 out="$(env PATH="$T/bin:$PATH" PROJ_ROOT="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK_CRON_REPO=/r/repo SPL_DESK_CRON_CREATE=1 \
   bash -c 'do_log() { :; }; source "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-checkout.func.sh";
     traps_before="$(trap -p)";
-    spl_desk_cron_checkout /r/x master; echo "after rc=$?";
+    spl_desk_cron_checkout /r/x master; rc=$?; echo "after rc=$rc";
     traps_after="$(trap -p)";
     [ "$traps_before" = "$traps_after" ] && echo "traps unchanged" || echo "traps changed: $traps_after"' 2>&1)"
 rc_part="$(echo "$out" | grep -o 'after rc=[0-9]*' | cut -d= -f2)"

@@ -41,7 +41,7 @@ below says whether it BUILDS on the recommended A or HOLDS:
 | OQ-2 | Q5 | no span columns in receipts | T001 (no span columns), T004 |
 | OQ-11 | Q6 | one `rev = 1` refresh when the last open period becomes final | T001 (`rev`, `last_open_from`), T004, T006 |
 | OQ-6 | Q7 | a workspace delete copies receipts first | T007 |
-| OQ-3 | Q8 | `approver_name` blanked after `hours.retention_years` | T008 |
+| OQ-3 | Q8 | approver name kept as long as the receipt | none |
 | OQ-8 | Q10 | no personal download in v1 | none (no lane under A) |
 
 ## Order
@@ -50,7 +50,7 @@ T001 lands and is applied on **dev AND prd** before any code lane pushes
 (the DDL-first rule: code that reads a table the live DB does not have yet
 reds the gate and the deploy). Then T002. After T002, T003 and T004 run in
 parallel (disjoint files); T005 follows T004; T009 follows T003; T010
-follows T009. T006, T007 and T008 HOLD on the owner. T011 is spec 118's
+follows T009. T006 and T007 HOLD on the owner. T011 is spec 118's
 build, not a 119 lane.
 
 ## Tasks
@@ -205,13 +205,7 @@ build, not a 119 lane.
   (*new*), and the copy call in whichever workspace delete lands first.
   Tests: T-R4. Done: green on Postgres; deployed dev and prd.
 
-- [ ] T008 **Lane H: approver name retention** (claude, store; waits on
-  T004 and **owner 118 Q8 / OQ-3**; HOLD). Under A, `approver_name` is
-  blanked after the workspace's `hours.retention_years` at copy time.
-  Why HOLD: receipts are insert-only (no `UPDATE` grant, T-C3, T-C6), so
-  blanking needs its own `SECURITY DEFINER` path or a new `rev` row; under B
-  nothing is built. Design it after the answer, as a `spec.md` 8.3 fold.
-  Files (owns, under A): to be named in that fold. Tests: a new T-R row.
+- [x] T008 **Lane H: approver name retention** - removed: decided B (approver name is kept as long as the receipt).
 
 - [ ] T009 **Lane I: the realm frame in the WUI** (grok or mistral, low-risk
   UI; waits on T003 deployed; BUILD). `spec.md` 9 C2: 119 owns the frame
@@ -254,7 +248,7 @@ build, not a 119 lane.
 | T005 | E: `access_until` sweep | claude | T004 | none | BUILD |
 | T006 | F: `rev = 1` refresh | claude | T005 + 118 Q6 | Q6 | HOLD |
 | T007 | G: workspace delete copies | claude | T004 + 118 Q7 | Q7 | HOLD |
-| T008 | H: approver name retention | claude | T004 + 118 Q8 | Q8 | HOLD |
+| T008 | H: approver name retention | none | none | Q8 B | removed |
 | T009 | I: WUI realm frame, settings | grok / mistral | T003 deployed | none | BUILD |
 | T010 | J: WUI receipts + erasure | grok / mistral | T009 | none | BUILD |
 | T011 | 118 routes + `/me/hours` | (118's lanes) | spec 118 | all | HOLD |

@@ -197,7 +197,7 @@ A rejoin does not merge receipts back; a later leave copies again and the PK kee
 | `kind text` | 107 FR-27 (`work`, `travel`, `wait`, `absence`) |
 | `period_start`, `period_end date` | the 107 period the day belongs to |
 | `approval_state text` | `open`, `approved`, `frozen`, `final`, `returned` |
-| `approver_name text NULL`, `decided_at timestamptz NULL` | the period's decider, resolved to a display name at copy time; kept for the workspace's `hours.retention_years` at copy time (107 FR-34), then blanked (OQ-3 A = 118 Q8, owner, 2026-10-11, msg 23d782e1) |
+| `approver_name text NULL`, `decided_at timestamptz NULL` | the period's decider, resolved to a display name at copy time; kept as long as the receipt (OQ-3 B = 118 Q8, owner msg 9d7436e5) |
 | `rev smallint NOT NULL DEFAULT 0 CHECK (rev IN (0, 1))` | 0 = at leave, 1 = the one refresh |
 | `copied_at timestamptz` | |
 
@@ -346,7 +346,7 @@ All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `
 | OQ-2 | **Q5** | do receipts keep times of day (spans) | 8.2: no span columns under A | **A**, owner, 2026-10-11, msg 23d782e1: no spans (8.2) |
 | OQ-11 | **Q6** | a receipt whose last period was still open at leave time | 8.3: one `rev = 1` refresh under A; `rev` stays 0 under B | **A**, owner, 2026-10-11, msg 23d782e1: one `rev = 1` refresh (8.3) |
 | OQ-6 | **Q7** | a deleted workspace: do its members get receipts | 8.1: the delete copies first under A | **A**, owner, 2026-10-11, msg 23d782e1: the delete copies first (6.1 REQ-4, 8.1) |
-| OQ-3 | **Q8** | how long the approver's name is kept | 8.2 `approver_name`: blanked after `hours.retention_years` under A | **A**, owner, 2026-10-11, msg 23d782e1: kept for `hours.retention_years`, then blanked (8.2) |
+| OQ-3 | **Q8** | how long the approver's name is kept | 8.2 `approver_name`: cleared after `hours.retention_years` under A | **B**, owner, 2026-10-11, msg 9d7436e5: kept as long as the receipt (8.2) |
 | OQ-8 | **Q10** | a personal download | 6.2 Q2: none in v1 under A | **A**, owner, 2026-10-11, msg 23d782e1: no download in v1 (6.2 Q2) |
 
 **119-only questions** (answered, v1.1):
@@ -372,5 +372,6 @@ All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `
 | 1.1 | 2026-10-10 | c-835 | owner fold, msg ddc23158 "All A" on OQ-1, 4, 5, 7, 9, 10: no operator access (7.6); erasure of own receipts through `personal.delete_my_receipts`, never an edit (8.3, 9 C2); disabled membership is not leaving (6.1, 8.1); own-hub / own-DB = link only in v1 (10); no back-fill before ship (8.1 rollout); no realm display name (6.2 Q1); tests T-C5, T-C6, T-R8..T-R10 (11); the 118-shared OQ-2, 3, 6, 8, 11 unchanged; no seat sign-off (panel retired, the dispatch holder decides) |
 
 | 1.2 | 2026-10-11 | c-153 | owner fold, msg 23d782e1 "Yes all a" on the 118-shared questions: OQ-2 A no spans (8.2); OQ-3 A approver name kept for `hours.retention_years` (8.2); OQ-6 A receipts on workspace delete (6.1 REQ-4, 8.1); OQ-8 A no download in v1 (6.2 Q2); OQ-11 A one `rev = 1` refresh (8.3); answers in 13 |
+| 1.3 | 2026-10-11 | a-202 | owner fold, msg 9d7436e5: OQ-3 decided B in place (13); 8.2 approver name kept |
 
 <!-- version: 1.2.0 · updated: 2026-10-11 · last-edit: 2026-10-11T09:20:00Z -->

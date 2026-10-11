@@ -33,7 +33,9 @@
 # @param DESK_AGENT - required: the agent id of the pane (spl_is_agent_id)
 # @param ROOT_KEY_JSON - required on the FIRST run of a desk (the 0600 JSON
 # @param   do_spl_tenant_create wrote, field root_private_key); later runs reuse
-# @param   the pin and need no key
+# @param   the pin and need no key. Or, instead of it, SPOOL_JOIN_TOKEN: a
+# @param   workspace admin's join token (spec 073 / 108, do_spl_desk_pin join
+# @param   mode); it is used once and unset before the sidecar starts
 # @param DESK_BOX (optional) - default box-desk. The box this machine's panes answer from
 # @param DESK_NOTIFY_CMD (optional) - the terminal-leg renderer (specs/028),
 # @param   default <org>-<app>-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh.
@@ -83,7 +85,7 @@ do_spl_desk_up() {
 
   local wui="${DESK_WUI_URL:-$SPL_WUI_URL}"
   if (( dry )); then
-    do_log "INFO DRY_RUN would: keygen + hub-pin $box under $tenant at $hub (first run only; state $d)"
+    do_log "INFO DRY_RUN would: keygen + $([[ -n "${SPOOL_JOIN_TOKEN:-}" ]] && echo 'spool join (join token)' || echo hub-pin) $box under $tenant at $hub (first run only; state $d)"
     do_log "INFO DRY_RUN would: seat $agent on $box and start a spool hub-run sidecar with SPOOL_NOTIFY_CMD=$notify"
     do_log "INFO DRY_RUN would: print the DM URL $wui/dm/$agent@$box and the reply line"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to seat $agent."
@@ -97,6 +99,7 @@ do_spl_desk_up() {
 
   local pub
   pub="$(spl_desk_pin "$d" "$box" "$tenant" "$hub" "$rkj")" || return 1
+  unset SPOOL_JOIN_TOKEN
   spl_desk_mute "$d" "$agent" "$poke"
   spl_desk_purge_pokes "$d" "$agent" "$poke"
   spl_desk_sidecar "$d" "$box" "$tenant" "$hub" "$notify" "$boxpoke" || return 1
@@ -179,7 +182,13 @@ spl_desk_spool() {
 spl_desk_pin() {
   local d="$1" box="$2" tenant="$3" hub="$4" rkj="$5" pub key out rc=0
   if [[ -s "$d/pinned" ]]; then cat "$d/pinned"; return 0; fi
-  [[ -s "$rkj" ]] || { do_log "FATAL the first run of desk $box needs ROOT_KEY_JSON (the tenant's saved create JSON)"; return 1; }
+  if [[ -z "$rkj" && -n "${SPOOL_JOIN_TOKEN:-}" ]]; then
+    pub="$(spl_desk_box_pub "$d" "$box" "$tenant" "$hub")" || return 1
+    spl_desk_join_hub "$d" "$box" "$tenant" "$hub" >&2 || return 1
+    printf '%s\n' "$pub" >"$d/pinned"
+    cat "$d/pinned"; return 0
+  fi
+  [[ -s "$rkj" ]] || { do_log "FATAL the first run of desk $box needs ROOT_KEY_JSON (the tenant's saved create JSON) or SPOOL_JOIN_TOKEN (a workspace admin's join token)"; return 1; }
   [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600"; return 1; }
   pub="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- keygen 2>&1)" || { do_log "FATAL keygen for $box: $pub"; return 1; }
   key="$(umask 077 && mktemp)" || return 1

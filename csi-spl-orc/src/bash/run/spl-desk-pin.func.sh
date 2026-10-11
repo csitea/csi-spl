@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # @description Give a desk box its key and its hub pin WITHOUT seating an
 # @description agent: the step the installer (specs/037) runs for a user who
-# @description is not on this box. Three modes, one action:
+# @description is not on this box. Four modes, one action:
 # @description   self   - ROOT_KEY_JSON set: the user is the tenant admin; the
 # @description            box key is minted (or reused) and pinned with the
 # @description            tenant root key (`spool hub-pin`, POST /v1/pins,
@@ -11,7 +11,12 @@
 # @description            box key, the line a pending user hands their admin;
 # @description            nothing is written locally. With PIN_REVOKE=1 (and
 # @description            no BOX_PUBKEY) the box's pin is REVOKED instead
-# @description   check  - neither: mint (or reuse) the box key, then ask the
+# @description   join   - SPOOL_JOIN_TOKEN set (spec 073 / 108): a workspace
+# @description            admin's join token (Settings -> Agents); the box key
+# @description            is minted (or reused) and `spool join` has the hub
+# @description            pin it. No root key; the token stays in the
+# @description            environment, never in argv or output
+# @description   check  - none of these: mint (or reuse) the box key, then ask the
 # @description            hub (`spool hub-sync`) whether it is pinned yet. Not
 # @description            pinned -> exit 3 and print the admin line
 # @description A box that is pinned gets <state>/desk/<tenant>/<box>/pinned,
@@ -27,6 +32,8 @@
 # @param DESK_BOX (optional) - default box-desk
 # @param ROOT_KEY_JSON (optional) - the tenant's 0600 create JSON (root_private_key),
 # @param   or a 0600 bare base64 key file (the compose stack's tenant-root.key)
+# @param SPOOL_JOIN_TOKEN (optional) - join mode: the one-use join token
+# @param   spj1.<tenant>.<secret> of TENANT_ID; not with ROOT_KEY_JSON
 # @param BOX_PUBKEY (optional) - admin mode: the base64 box public key to pin
 # @param PIN_REVOKE (optional) - 1: admin mode revokes DESK_BOX's pin (needs
 # @param   ROOT_KEY_JSON; the box's owner re-runs the installer to be pinned again)
@@ -62,21 +69,17 @@ do_spl_desk_pin() {
     [[ -n "$rkj" ]] || { do_log "FATAL PIN_REVOKE=1 needs ROOT_KEY_JSON"; return 1; }
   fi
   [[ -z "$rkj" || -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON $rkj is missing or empty"; return 1; }
+  if [[ -n "${SPOOL_JOIN_TOKEN:-}" ]]; then
+    [[ -z "$rkj" && -z "$other" ]] || { do_log "FATAL SPOOL_JOIN_TOKEN (join mode) takes no ROOT_KEY_JSON or BOX_PUBKEY"; return 1; }
+    spl_desk_join_token_ok "$tenant" || return 1
+  fi
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   local mode=check
   [[ -n "$rkj" ]] && mode=self
+  [[ -n "${SPOOL_JOIN_TOKEN:-}" ]] && mode='join'
   [[ -n "$other" ]] && mode='admin'
   (( revoke )) && mode=revoke
-  if (( dry )); then
-    case "$mode" in
-      revoke) do_log "INFO DRY_RUN would: REVOKE the pin of $box under $tenant at $hub (tenant root key)" ;;
-      admin) do_log "INFO DRY_RUN would: hub-pin $box to the given key under $tenant at $hub (tenant root key)" ;;
-      self)  do_log "INFO DRY_RUN would: mint or reuse the key of $box in $d/keys, then hub-pin it under $tenant at $hub" ;;
-      check) do_log "INFO DRY_RUN would: mint or reuse the key of $box in $d/keys, then ask $hub whether it is pinned" ;;
-    esac
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
-    return 0
-  fi
+  if (( dry )); then spl_desk_pin_dry "$mode" "$box" "$tenant" "$hub" "$d"; return 0; fi
   spl_host_spool || return 1
   if [[ "$mode" == admin || "$mode" == revoke ]]; then
     local ad; ad="$(umask 077 && mktemp -d)" || return 1
@@ -103,6 +106,8 @@ do_spl_desk_pin() {
   pub="$(spl_desk_box_pub "$d" "$box" "$tenant" "$hub")" || return 1
   if [[ "$mode" == self ]]; then
     spl_desk_pin_hub "$d" "$box" "$tenant" "$hub" "$pub" "$rkj" || return 1
+  elif [[ "$mode" == join ]]; then
+    spl_desk_join_hub "$d" "$box" "$tenant" "$hub" || return 1
   else
     local out
     if ! out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-sync 2>&1)"; then
@@ -118,6 +123,19 @@ do_spl_desk_pin() {
   printf '%s\n' "$pub" >"$d/pinned"
   spl_desk_pin_json "$ENV" "$tenant" "$hub" "$box" "$pub" "$d" 1 ""
   do_log "OK $box ($pub) is pinned under $tenant at $hub: spool-agent can seat agents on it"
+}
+
+# spl_desk_pin_dry <mode> <box> <tenant> <hub> <state dir>: what a run would do.
+spl_desk_pin_dry() {
+  local box="$2" tenant="$3" hub="$4" d="$5"
+  case "$1" in
+    revoke) do_log "INFO DRY_RUN would: REVOKE the pin of $box under $tenant at $hub (tenant root key)" ;;
+    admin) do_log "INFO DRY_RUN would: hub-pin $box to the given key under $tenant at $hub (tenant root key)" ;;
+    self)  do_log "INFO DRY_RUN would: mint or reuse the key of $box in $d/keys, then hub-pin it under $tenant at $hub" ;;
+    join)  do_log "INFO DRY_RUN would: mint or reuse the key of $box in $d/keys, then seat it under $tenant at $hub with spool join (the join token)" ;;
+    check) do_log "INFO DRY_RUN would: mint or reuse the key of $box in $d/keys, then ask $hub whether it is pinned" ;;
+  esac
+  do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
 }
 
 # spl_desk_box_pub <state dir> <box> <tenant> <hub>: the box's public key,
@@ -150,6 +168,26 @@ spl_desk_pin_hub() {
   rm -f "$key"
   (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out"; return 1; }
   [[ -z "$pub" ]] || do_log "INFO pinned $box ($pub) under $tenant at $hub"
+}
+
+# spl_desk_join_token_ok <tenant>: SPOOL_JOIN_TOKEN is a join token of
+# <tenant> (spj1.<tenant>.<secret>). A refusal never prints the token.
+spl_desk_join_token_ok() {
+  local tok="${SPOOL_JOIN_TOKEN:-}" rest
+  [[ "$tok" == spj1.*.* ]] || { do_log "FATAL SPOOL_JOIN_TOKEN is not a join token (spj1.<workspace>.<secret>): ask a workspace admin for one in Settings -> Agents"; return 1; }
+  rest="${tok#spj1.}"
+  [[ "${rest%%.*}" == "$1" ]] || { do_log "FATAL SPOOL_JOIN_TOKEN belongs to another workspace than TENANT_ID=$1"; return 1; }
+}
+
+# spl_desk_join_hub <spool dir> <box> <tenant> <hub>: seat the box's own key
+# with the join token (`spool join`, POST /v1/pins/join). The token reaches
+# spool through its environment only (SPOOL_JOIN_TOKEN), never argv.
+spl_desk_join_hub() {
+  local d="$1" box="$2" tenant="$3" hub="$4" out
+  spl_desk_join_token_ok "$tenant" || return 1
+  out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- join --box "$box" "$hub" 2>&1)" ||
+    { do_log "FATAL spool join $box under $tenant: $(printf '%s' "$out" | tail -n 3)"; return 1; }
+  do_log "INFO seated $box under $tenant at $hub with a join token"
 }
 
 spl_desk_pin_json() {

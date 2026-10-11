@@ -15,6 +15,14 @@
 #   8. ENV=self (specs/047 W4): any hub URL, no cnf; saved and reused; a
 #      different URL, a URL with a path, or none at all is refused; a bare
 #      base64 root key file (the compose stack's tenant-root.key) pins
+#   9. join mode (spec 108 / 073, SPOOL_JOIN_TOKEN): the box key is minted,
+#      `spool join` seats it, `pinned` is written; the token is in neither
+#      argv nor output; a token of another workspace, or a token next to
+#      ROOT_KEY_JSON, is refused before any call. CONTROL: a hub refusal
+#      writes no `pinned`
+#   9b. do_spl_desk_up's first run (spl_desk_pin) takes the join token in
+#      place of ROOT_KEY_JSON and prints only the pubkey. CONTROL: with
+#      neither it is refused and names both
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -38,6 +46,9 @@ case "$1" in
   keygen) python3 -c 'import base64,os,sys; k=os.urandom(64); open(sys.argv[1],"w").write(base64.b64encode(k).decode()+"\n"); print(base64.b64encode(k[32:]).decode())' \
             "$SPOOL_KEYS_DIR/box-$SPOOL_BOX_ID.key" ;;
   hub-sync) [ -e "$STUB_PINNED" ] && { echo '{"sent":0}'; exit 0; }; echo 'error: box is not pinned (401)' >&2; exit 1 ;;
+  join) [ "${STUB_JOIN_FAIL:-0}" = 1 ] && { echo 'join: box_join_disabled (403)' >&2; exit 1; }
+        [ -s "$SPOOL_KEYS_DIR/box-$SPOOL_BOX_ID.key" ] || exit 9
+        printf '%s\n' "${SPOOL_JOIN_TOKEN:-}" >"$T_TOKSEEN"; echo "seated $SPOOL_BOX_ID on $SPOOL_TENANT" ;;
   hub-pin) prev=""; for a in "$@"; do [ "$prev" = --root-key ] && { stat -c %a "$a" >>"$STUB_LOG"; cat "$a" >>"$T_ROOTSEEN"; }; prev="$a"; done
            touch "$STUB_PINNED"; echo '{"pinned":true}' ;;
 esac
@@ -46,7 +57,7 @@ chmod +x "$T/stub/"*
 
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" STUB_LOG="$T/calls.log" \
-    STUB_PINNED="$T/pinned-at-hub" T_ROOTSEEN="$T/rootseen" PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
+    STUB_PINNED="$T/pinned-at-hub" T_ROOTSEEN="$T/rootseen" T_TOKSEEN="$T/tokseen" PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
@@ -170,5 +181,47 @@ in_orc ENV=self SPL_STATE_DIR="$SELF" TENANT_ID=main DESK_BOX=box-own DRY_RUN=0 
 grep -qF "$BARE" "$T/o" "$T/calls.log" && fail "8. the bare root key leaked into output / argv" || pass "8. the bare root key is in neither output nor argv"
 in_orc ENV=self SPL_STATE_DIR="$SELF" TENANT_ID=main DESK_BOX=box-own3 DRY_RUN=0 ROOT_KEY_JSON="$T/junk.key" >"$T/o" 2>&1 &&
   fail "8. CONTROL: a file that is neither JSON nor a key was accepted" || pass "8. CONTROL: a file that is neither JSON nor a key is refused"
+
+# --- 9. join mode ------------------------------------------------------------------------------
+rm -f "$T/pinned-at-hub"
+TOK="spj1.t1.sec$RANDOM$RANDOM$RANDOM"; JS="$T/state/dev/desk/t1/box-join"
+for bad in "SPOOL_JOIN_TOKEN=spj1.t2.sec$RANDOM" "SPOOL_JOIN_TOKEN=nope" "SPOOL_JOIN_TOKEN=$TOK ROOT_KEY_JSON=$T/root.json"; do
+  : >"$T/calls.log"
+  # shellcheck disable=SC2086
+  in_orc TENANT_ID=t1 DESK_BOX=box-join DRY_RUN=0 $bad >"$T/o" 2>&1 && fail "9. '${bad:0:24}...' was accepted" ||
+    { [[ ! -s "$T/calls.log" ]] && ! grep -q 'sec[0-9]' "$T/o" && pass "9. '${bad:0:24}...' is refused before any call, token not echoed" || fail "9. '$bad': $(cat "$T/o" "$T/calls.log")"; }
+done
+in_orc TENANT_ID=t1 DESK_BOX=box-join SPOOL_JOIN_TOKEN="$TOK" >"$T/o" 2>&1
+grep -q 'DRY_RUN would: mint or reuse the key of box-join .* spool join' "$T/o" && ! grep -qF "$TOK" "$T/o" &&
+  pass "9. the dry run names the join and not the token" || fail "9. dry: $(cat "$T/o")"
+: >"$T/calls.log"; : >"$T/tokseen"
+in_orc TENANT_ID=t1 DESK_BOX=box-join DRY_RUN=0 SPOOL_JOIN_TOKEN="$TOK" STUB_JOIN_FAIL=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && ! -e "$JS/pinned" ]] && grep -q 'box_join_disabled' "$T/o" &&
+  pass "9. CONTROL: a hub refusal fails the run and writes no pinned" || fail "9. refused join: rc $rc $(cat "$T/o")"
+: >"$T/calls.log"
+in_orc TENANT_ID=t1 DESK_BOX=box-join DRY_RUN=0 SPOOL_JOIN_TOKEN="$TOK" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && -s "$JS/pinned" ]] && grep -q "^spool join --box box-join $HUB root=$JS/spool box=box-join hub=$HUB tenant=t1" "$T/calls.log" &&
+  grep -q '"pinned": true' "$T/o" && pass "9. join mode: spool join seats box-join at the cnf hub, pinned written" || fail "9. join: rc $rc $(cat "$T/o" "$T/calls.log")"
+[[ "$(cat "$JS/pinned")" == "$(python3 -c 'import base64,sys; print(base64.b64encode(base64.b64decode(open(sys.argv[1]).read().strip())[32:]).decode())' "$JS/keys/box-box-join.key")" ]] &&
+  pass "9. pinned holds the public half of the box's own key" || fail "9. pinned: $(cat "$JS/pinned" 2>&1)"
+grep -qx "$TOK" "$T/tokseen" && pass "9. spool join got the token from its environment" || fail "9. token not handed over"
+grep -qF "$TOK" "$T/o" "$T/calls.log" && fail "9. the join token leaked into output / argv" || pass "9. the join token is in neither output nor argv"
+
+# --- 9b. do_spl_desk_up's first run ------------------------------------------------------------
+up_pin() {
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" STUB_LOG="$T/calls.log" T_TOKSEEN="$T/tokseen" \
+    PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
+    do_log() { echo "$*"; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    SPL_SPOOL="$(command -v spool)"; d="$1"; mkdir -p "$d/keys" "$d/spool"
+    spl_desk_pin "$d" box-up t1 https://hub.test ""' _ "$T/up"
+}
+: >"$T/tokseen"
+up_pin SPOOL_JOIN_TOKEN="$TOK" >"$T/o" 2>"$T/e"; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/o")" == "$(cat "$T/up/pinned" 2>/dev/null)" && "$(wc -l <"$T/o")" == 1 ]] && grep -qx "$TOK" "$T/tokseen" &&
+  ! grep -qF "$TOK" "$T/o" "$T/e" && pass "9b. desk up's first run seats with the join token, stdout = the pubkey only" ||
+  fail "9b. desk up join: rc $rc $(cat "$T/o" "$T/e")"
+rm -rf "$T/up"; up_pin >"$T/o" 2>&1 && fail "9b. CONTROL: a first run with no key and no token was accepted" ||
+  { grep -q 'ROOT_KEY_JSON .* or SPOOL_JOIN_TOKEN' "$T/o" && pass "9b. CONTROL: no key and no token is refused, both named" || fail "9b. control: $(cat "$T/o")"; }
 
 [[ $fails -eq 0 ]] && echo "OK desk-pin: all passed" || { echo "FAILED desk-pin: $fails"; exit 1; }

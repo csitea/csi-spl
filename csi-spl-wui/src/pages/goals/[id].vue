@@ -91,6 +91,7 @@
 
 <script setup lang="ts">
 import { isoDate } from '~/utils/date-iso.mjs'
+import { HUB_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { roadmapSpecs } from '~/utils/roadmap-rows.mjs'
 import { goalCalendarHref, goalDaysLeft, goalProgress, roadmapGoalId } from '~/utils/roadmap-goals.mjs'
 

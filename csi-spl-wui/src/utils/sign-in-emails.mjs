@@ -15,7 +15,7 @@
  * one), so only the holder can confirm, never an admin.
  */
 import { startHref } from './auth-client.mjs'
-import { HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
+import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 /** The identity providers a pending address can be confirmed with, in button order. */
 export const SIGN_IN_EMAIL_PROVIDERS = ['google', 'facebook', 'linkedin', 'microsoft']

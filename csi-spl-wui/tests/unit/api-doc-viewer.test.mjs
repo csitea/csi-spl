@@ -71,6 +71,7 @@ const dataUrl = (code) => 'data:text/javascript;base64,' + Buffer.from(code).toS
 /* Nuxt auto-imports useI18n; the stub reads the test's catalogue from globalThis */
 const I18N_PRELUDE = 'const useI18n = (...a) => globalThis.__apiDocI18n(...a);\n'
 const API_STUB = dataUrl('export const useSpoolApi = () => globalThis.__apiDocApi')
+const TIMEOUTS_URL = import.meta.resolve('../../src/utils/fetch-timeouts.mjs')
 
 function compileSfc(file, source, imports) {
   const { descriptor, errors } = parse(source, { filename: file })
@@ -84,7 +85,7 @@ function compileSfc(file, source, imports) {
 
 async function loadViewer(mutate = (s) => s) {
   const card = dataUrl(compileSfc(CARD, read(CARD), {}))
-  const code = compileSfc(VIEWER, mutate(read(VIEWER)), { './ApiRouteCard.vue': card, '~/composables/useSpoolApi': API_STUB })
+  const code = compileSfc(VIEWER, mutate(read(VIEWER)), { './ApiRouteCard.vue': card, '~/composables/useSpoolApi': API_STUB, '~/utils/fetch-timeouts.mjs': TIMEOUTS_URL })
   return import(dataUrl(code))
 }
 

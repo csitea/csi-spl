@@ -189,6 +189,7 @@ export function groupByTag(ops: ApiOperation[]): { tag: string, ops: ApiOperatio
 import { computed, onMounted, ref } from 'vue'
 import ApiRouteCard from './ApiRouteCard.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { HUB_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 
 /* `source`: the document as JSON text, rendered without a fetch (the mock
    bundle and the tests); otherwise the hub's GET /v1/openapi.json */

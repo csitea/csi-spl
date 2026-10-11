@@ -1,4 +1,4 @@
-Exported from the Qto doc [Installation and configuration guide](https://spool-hub.ai/workspace/docs?doc=1a3900ac-774d-4a47-9ecd-4fc716542aa3&view=doc) (`1a3900ac-774d-4a47-9ecd-4fc716542aa3`) on 2026-10-11T19:49:02Z; edit in Qto, not here.
+Exported from the Qto doc [Installation and configuration guide](https://spool-hub.ai/workspace/docs?doc=1a3900ac-774d-4a47-9ecd-4fc716542aa3&view=doc) (`1a3900ac-774d-4a47-9ecd-4fc716542aa3`) on 2026-10-11T20:31:37Z; edit in Qto, not here.
 
 # 1 About this guide
 
@@ -139,6 +139,14 @@ As `<OWNER_USER>`, into `/opt/csi/csi-spl`, with the GitHub token of section 5 (
 git clone https://github.com/csitea/csi-spl.git /opt/csi/csi-spl
 ```
 
+### 4.1.1 Check the gh login
+
+Both users, once the token is in place. It prints the account gh is logged in as; "not logged in" means the token step did not run for that user.
+
+```bash
+gh auth status
+```
+
 ## 4.2 Identity for commits
 
 Never `git config` in a shared tree: pass the identity on each commit and rebase with `-c user.name=... -c user.email=...`. The address is the one on the repo CLAUDE.md "Commits:" line; no AI trailers ([developer guide](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/md/developer-guide.md) 2.4). A commit, with the name and address from that line:
@@ -275,6 +283,14 @@ Each AI CLI logs in once, interactively, as `<AGENT_USER>`: open the printed URL
 
 ```bash
 sudo su --pty - <AGENT_USER> -c 'claude auth login'
+```
+
+### 7.5.1 Check the claude login
+
+After each login, as `<AGENT_USER>`. `"loggedIn": true` is the pass; any other answer means the login did not complete. The other vendor CLIs have no status verb of their own. After this, the box cron row `agent-login-check` (`csi-spl-orc/cnf/box-crons/box-crons.manifest`, installed by `do_install_box_crons`) probes the claude login every minute and heals a dead one.
+
+```bash
+sudo su --pty - <AGENT_USER> -c 'claude auth status'
 ```
 
 ## 7.6 The agent hooks and MCP tools
@@ -549,7 +565,7 @@ Interactive by design, one per vendor per agent user, after every box loss.
 
 ## 14.6 The self-hosted CI runners
 
-They die with the boxes, and hub and WUI deploys wait for them. Their registration is the DevOps guide's; a rebuild drill must time it.
+They die with the boxes, and hub and WUI deploys wait for them. Re-register them with `do_gh_runner_add`, then check with `do_check_gh_runner` (DevOps guide, section 14). The gap is that no box step runs it for you, and a rebuild drill must time it.
 
 ## 14.7 Crons outside the box deploy
 

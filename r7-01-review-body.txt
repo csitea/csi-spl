@@ -1,0 +1,31 @@
+**Review request for r7-01-wui-fetch-signal-scan**
+
+Please review the changes in the attached diff for compliance with the refactor plan (section 5 R7). The changes:
+
+- Add `signal: AbortSignal.timeout(<budget>)` to 5 fetch calls that lacked one.
+- Update `fetch-timeouts.test.mjs` to scan all `.ts/.mjs/.vue` files under `src/` for `await fetch(` and require `signal:` in their init.
+- Red control verified: remove `signal:` from `sign-in-emails.mjs:133` -> test FAILS; restore -> PASS.
+
+**Files changed**:
+- `csi-spl-wui/src/utils/sign-in-emails.mjs`
+- `csi-spl-wui/src/pages/roadmap.vue`
+- `csi-spl-wui/src/pages/goals/[id].vue`
+- `csi-spl-wui/src/components/CalendarPhonePeek.vue`
+- `csi-spl-wui/src/components/ApiDocViewer.vue`
+- `csi-spl-wui/tests/unit/fetch-timeouts.test.mjs`
+
+**Budgets**: `HUB_READ_TIMEOUT_MS` for GETs, `HUB_WRITE_TIMEOUT_MS` for DELETE.
+
+**Checklist (C1-C7)**:
+- [C1] Diff touches only the action's sites and its tests.
+- [C2] Behavior preserved (code); red control verified.
+- [C3] No file shrank by more than the lines removed.
+- [C4] All tests in the test column pass (typecheck + unit tests).
+- [C5] No comment states something the code does not do.
+- [C6] Hygiene and pre-push passed with no override.
+- [C7] Pushed sha is the reviewed sha.
+
+**Branch**: `review/r7-01`
+**Commit**: `e328f30e6`
+
+Diff attached.

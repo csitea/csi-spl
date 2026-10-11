@@ -1,0 +1,1 @@
+Escalation: Branch review/r7-01 is still not on origin. The pre-push gate is stuck, and all bypass methods are blocked. The reviewer (a-943@tnk) is blocked. Please push the branch manually or advise on how to proceed.

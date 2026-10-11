@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-timeout: 300 -- 114 s on the last green CI (wf 10 run 38094820012), killed at 120 s in runs 38099075488 and 38102838177 (sat-spl-06, sat-spl-01); 5..8.5 s locally at load1 5..14 on 16 cores (c-967, n=9), no case over 1.6 s: ~21 gate runs x ~150 forks, so a loaded runner multiplies all of it (stale-tree, 1.8 s locally, took 20..48 s in the same runs: up to ~190 s here)
 #------------------------------------------------------------------------------
 # Purpose: the tree-pass record (fleet-hot-commands 3.2): the pre-push hook
 #          (PRE_PUSH_SKIP_PASSED=1) skips a whole gate run when this exact

@@ -112,6 +112,11 @@ chmod 600 "$HOME/.spool/keys/box-box-a.key"
 mkdir -p "$T_TMP/bin"
 cat >"$T_TMP/bin/spool" <<'EOF'
 #!/usr/bin/env bash
+# FAKE_SLOW_EXEC: run one second under a cmdline without ' hub-run', like the
+# forked shell before it execs the binary, then come back as hub-run.
+if [ -n "${FAKE_SLOW_EXEC:-}" ] && [ -z "${FAKE_REEXEC:-}" ]; then
+  FAKE_REEXEC=1 exec bash -c 'sleep 1; exec "$0" hub-"run"' "$0"
+fi
 [ "$1" = hub-run ] || exit 1
 [ -n "${FAKE_SIDECAR_DIE:-}" ] && { echo "dial: connection refused"; exit 1; }
 echo "NOTIFY=${SPOOL_NOTIFY_CMD:-unset}" >"$SPOOL_ROOT/.hub/sidecar-env"
@@ -147,6 +152,15 @@ eq "hub: unannounced agent still starts by default" 0 "$?"
 has "hub: ...with a warning" "not yet announced" "$err"
 SPOOL_HARNESS_STRICT=1 SPOOL_HARNESS_WAIT_SECS=1 bash "$H" --as CLE-5 --to-box box-a true >/dev/null 2>&1
 eq "hub: strict + unannounced -> 69" 69 "$?"
+kill_sidecar
+
+# A sidecar this run just started that has not exec'd hub-run yet is alive:
+# the harness waits for its roster instead of calling it dead (wf 10 run
+# 38166671980, missing "announced" under CI load).
+err="$(FAKE_SLOW_EXEC=1 SPOOL_HARNESS_STRICT=1 bash "$H" --as CLE-7 --to-box box-a true 2>&1)"
+eq "hub: not yet exec'd sidecar + strict -> 0" 0 "$?"
+has "hub: ...announced once it is up" "CLE-7 announced on box-a" "$err"
+hasnt "hub: ...not called dead" "is not running" "$err"
 kill_sidecar
 
 # A sidecar that dies at once: the log tail is shown; strict makes it fatal.

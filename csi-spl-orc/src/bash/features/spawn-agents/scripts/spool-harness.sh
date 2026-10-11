@@ -137,16 +137,23 @@ roster_has() {  # FILE BOX AGENT
   [ -r "$1" ] || return 1
   grep -oE "\"$2\":\[[^]]*\]" "$1" 2>/dev/null | grep "\"$3\"" >/dev/null
 }
-sidecar_alive() {  # PIDFILE
+# STARTED_PID is the pid this run just started: it may still be the forked
+# shell that has not exec'd hub-run yet (seen under CI load), so for it any
+# live, non-zombie process counts.
+sidecar_alive() {  # PIDFILE [STARTED_PID]
   local pid
   pid="$(cat "$1" 2>/dev/null)" || return 1
-  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null \
-    && tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 1
+  if [ "$pid" = "${2:-}" ]; then
+    [ "$(sed 's/.*) //' "/proc/$pid/stat" 2>/dev/null | cut -d' ' -f1)" != Z ]
+    return
+  fi
+  tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null
 }
 sidecar() {
   local mode="${SPOOL_HARNESS_SIDECAR:-auto}" hub="$SPOOL_ROOT/.hub"
   local pidf="$hub/hub-run.pid" logf="$hub/hub-run.log" roster="$hub/roster.json"
-  local wait="${SPOOL_HARNESS_WAIT_SECS:-25}" started=0 t0 i
+  local wait="${SPOOL_HARNESS_WAIT_SECS:-25}" started=0 spid="" t0 i
   case "$mode" in
     off) say "sidecar: SPOOL_HARNESS_SIDECAR=off, not checked"; return 0 ;;
     auto|external) ;;
@@ -166,7 +173,8 @@ sidecar() {
       SPOOL_ROOT="$SPOOL_ROOT" SPOOL_BOX_ID="$SPOOL_BOX_ID" \
       SPOOL_NOTIFY_CMD="$SPOOL_NOTIFY_CMD" \
         setsid "$SPOOL_BIN" hub-run >>"$logf" 2>&1 </dev/null 9>&- &
-      echo "$!" >"$pidf"
+      spid="$!"
+      echo "$spid" >"$pidf"
       started=1
       say "sidecar: started spool hub-run (pid $!, log $logf)"
     fi
@@ -179,7 +187,7 @@ sidecar() {
       say "sidecar: $agent announced on $SPOOL_BOX_ID"
       return 0
     fi
-    if [ "$mode" = auto ] && ! sidecar_alive "$pidf"; then
+    if [ "$mode" = auto ] && ! sidecar_alive "$pidf" "$spid"; then
       say "sidecar: spool hub-run is not running; last log lines:"
       tail -n 5 "$logf" >&2 2>/dev/null || true
       break

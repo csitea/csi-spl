@@ -36,12 +36,42 @@ hasnt "an inbound head never begins with the arrow" "SPOOL -> " \
 
 # ── the renderer tells them apart, with colour and without ──────────────────
 t_tmux
+
+# A test waits for a state, never for a time (refactor round 8 row 06, round 7
+# row 03's practice): a fixed sleep before a capture-pane read a strip that had
+# not repainted yet on a busy runner (CI run 38119329018). Each wait polls
+# every 0.1 s for at most WAIT_S s of wall clock; a state that never comes ends
+# the test with a FAIL naming the timeout, never a hang.
+WAIT_S=10
+now_us() { local t="${EPOCHREALTIME/[.,]/}"; printf '%s' "$((10#$t))"; }
+wait_until() {  # DESC CMD...: poll until CMD holds
+  local what="$1" end; shift
+  end=$(( $(now_us) + WAIT_S * 1000000 ))
+  until "$@"; do
+    if [ "$(now_us)" -ge "$end" ]; then
+      nok "timeout: $what after ${WAIT_S} s"; t_done; exit 1
+    fi
+    sleep 0.1
+  done
+}
+# painted PANE NEEDLE...: every NEEDLE is on PANE's screen and the screen is
+# the same 0.1 s later - a repaint is home + erase, then one row at a time.
+painted() {
+  local p="$1" a b n; shift
+  a="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$p" 2>/dev/null)" || return 1
+  for n in "$@"; do [[ "$a" == *"$n"* ]] || return 1; done
+  sleep 0.1
+  b="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$p" 2>/dev/null)"
+  [ "$a" = "$b" ]
+}
+
 log="$T_TMP/two-way.log"
 printf 'SPOOL CLE-90: note from CLE-91\tthey said this\n'  >"$log"
 printf 'SPOOL -> CLE-91: note\twe said that\n'            >>"$log"
 
 PC="$(t_window two-way-colour "exec $T_SCRIPTS/spool-notice-pane.sh --log $log")"
-sleep 1
+wait_until "the colour strip painted both records" \
+  painted "$PC" "SPOOL CLE-90: note from CLE-91" "they said this" "SPOOL -> CLE-91: note" "we said that"
 screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -e -t "$PC")"
 has "an INBOUND head is still blue"    "$(printf '\033[38;5;39m')"  "$screen"
 has "an OUTBOUND head is a THIRD colour" "$(printf '\033[38;5;114m')" "$screen"
@@ -52,7 +82,8 @@ has "both texts are on screen"         "we said that"               "$screen"
 # distinction that always works. A test that only asserted the escape would
 # pass while the strip was unreadable for anyone who sets NO_COLOR.
 PN="$(t_window two-way-nc "NO_COLOR=1 exec $T_SCRIPTS/spool-notice-pane.sh --log $log")"
-sleep 1
+wait_until "the NO_COLOR strip painted both records" \
+  painted "$PN" "SPOOL CLE-90: note from CLE-91" "they said this" "SPOOL -> CLE-91: note" "we said that"
 plain="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -e -t "$PN")"
 hasnt "NO_COLOR drops every escape"        "$(printf '\033[')"   "$plain"
 has   "…and the outbound record is STILL marked" "SPOOL -> CLE-91" "$plain"

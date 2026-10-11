@@ -17,6 +17,34 @@ t_sandbox
 spool_env_resolve
 t_tmux
 
+# A test waits for a state, never for a time (refactor round 8 row 06, round 7
+# row 03's practice): a fixed sleep before a capture-pane read a strip that had
+# not repainted yet on a busy runner (CI run 38119329018). Each wait polls
+# every 0.1 s for at most WAIT_S s of wall clock; a state that never comes ends
+# the test with a FAIL naming the timeout, never a hang.
+WAIT_S=10
+now_us() { local t="${EPOCHREALTIME/[.,]/}"; printf '%s' "$((10#$t))"; }
+wait_until() {  # DESC CMD...: poll until CMD holds
+  local what="$1" end; shift
+  end=$(( $(now_us) + WAIT_S * 1000000 ))
+  until "$@"; do
+    if [ "$(now_us)" -ge "$end" ]; then
+      nok "timeout: $what after ${WAIT_S} s"; t_done; exit 1
+    fi
+    sleep 0.1
+  done
+}
+# painted PANE NEEDLE...: every NEEDLE is on PANE's screen and the screen is
+# the same 0.1 s later - a repaint is home + erase, then one row at a time.
+painted() {
+  local p="$1" a b n; shift
+  a="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$p" 2>/dev/null)" || return 1
+  for n in "$@"; do [[ "$a" == *"$n"* ]] || return 1; done
+  sleep 0.1
+  b="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$p" 2>/dev/null)"
+  [ "$a" = "$b" ]
+}
+
 # ── the renderer merges two logs on the record time and tags each ───────────
 dlog="$T_TMP/cloud/dev/spool/CLE-80/.pokes/notices.log"
 plog="$T_TMP/cloud/prd/spool/CLE-80/.pokes/notices.log"
@@ -28,7 +56,9 @@ printf 'SPOOL CLE-80: note from HUM-1\tdev first\t%s.5\n' $(( T0 + 10 ))        
 printf 'SPOOL CLE-80: note from HUM-2\tprd second\t%s.25\n' $(( T0 + 20 ))      >"$plog"
 printf 'SPOOL CLE-80: note from HUM-1\tdev third newest\t%s\n' $(( T0 + 30 ))   >>"$dlog"
 PR="$(t_window merge "NO_COLOR=1 exec $T_SCRIPTS/spool-notice-pane.sh --log $dlog --log $plog")"
-sleep 1
+wait_until "the two-log strip painted its four records" \
+  painted "$PR" "[dev] SPOOL CLE-80: note from HUM-1" "[prd] SPOOL CLE-80: note from HUM-2" \
+    "dev third newest" "prd second" "dev first" "ancient dev line"
 scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PR")"
 has "a dev record is tagged [dev]" "[dev] SPOOL CLE-80: note from HUM-1" "$scr"
 has "a prd record is tagged [prd]" "[prd] SPOOL CLE-80: note from HUM-2" "$scr"
@@ -39,7 +69,7 @@ eq "newest first ACROSS logs; an untimed line never jumps a timed one in its log
 
 # A new prd record repaints: the tail wakes on EITHER log.
 printf 'SPOOL CLE-80: note from HUM-2\tprd live one\t%s\n' $(( T0 + 50 )) >>"$plog"
-sleep 1
+wait_until "the strip repainted the record appended to the second log" painted "$PR" "prd live one"
 scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PR")"
 eq "a record appended to the SECOND log is painted on top" "prd live one" \
   "$(printf '%s\n' "$scr" | grep -oE 'prd live one|dev third newest' | sed -n 1p)"
@@ -52,20 +82,23 @@ mkdir -p "$(dirname "$olog")"
 printf 'SPOOL CLE-81: note from HUM-2\tuntimed older\nSPOOL CLE-81: note from HUM-2\tuntimed newest\n' >"$olog"
 touch -d "@$(( T0 + 60 ))" "$olog"
 PO="$(t_window untimed "NO_COLOR=1 exec $T_SCRIPTS/spool-notice-pane.sh --log $dlog --log $olog")"
-sleep 1
+wait_until "the untimed-log strip painted its records" \
+  painted "$PO" "untimed newest" "untimed older" "dev third newest"
 scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PO")"
 eq "an untimed log's newest record sorts by the log's mtime" "untimed newest,untimed older,dev third newest," \
   "$(printf '%s\n' "$scr" | grep -oE 'untimed newest|untimed older|dev third newest' | tr '\n' ',')"
 touch -d "@$(( T0 + 5 ))" "$olog"
 # (an OLD timed dev record is the wake-up: it repaints and cannot top the list)
-printf 'SPOOL CLE-80: note from HUM-1\tdev wake-up\t%s\n' $(( T0 + 1 )) >>"$dlog"; sleep 1
+printf 'SPOOL CLE-80: note from HUM-1\tdev wake-up\t%s\n' $(( T0 + 1 )) >>"$dlog"
+wait_until "the strip repainted on the dev wake-up" painted "$PO" "dev wake-up"
 scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PO")"
 eq "CONTROL …and below the timed records when its mtime is older" "dev third newest," \
   "$(printf '%s\n' "$scr" | grep -oE 'untimed newest|untimed older|dev third newest' | sed -n 1p | tr '\n' ',')"
 
 # CONTROL: one log paints exactly as before - no tag.
 P1="$(t_window single "NO_COLOR=1 exec $T_SCRIPTS/spool-notice-pane.sh --log $dlog")"
-sleep 1
+wait_until "the single-log strip painted its records" \
+  painted "$P1" "dev third newest" "dev wake-up" "ancient dev line"
 one="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$P1")"
 hasnt "CONTROL a single-log strip carries no tag" "[dev]" "$one"
 has   "CONTROL …and still paints the records"     "dev third newest" "$one"
@@ -74,14 +107,15 @@ has   "CONTROL …and still paints the records"     "dev third newest" "$one"
 P91="$(t_window CLE-91 'sleep 600')"
 export SPOOL_ROOT="$T_TMP/cloud/dev/spool"
 SPOOL_SHOW_PANE=1 SPOOL_POKE=0 spool_poke_show CLE-91 note HUM-1 T-1 M-1 'hello from dev' >/dev/null
-sleep 0.5
+strip_up() { tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{@spool_notices}' | grep -x "$1" >/dev/null; }
+wait_until "the dev delivery split a strip for CLE-91" strip_up CLE-91
 strip="$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}' | awk '$2 == "CLE-91" {print $1}')"
 eq "one strip after the dev delivery" 1 "$(printf '%s\n' "$strip" | grep -c .)"
 d91="$SPOOL_ROOT/CLE-91/.pokes/notices.log"
 
 export SPOOL_ROOT="$T_TMP/cloud/prd/spool"
 SPOOL_SHOW_PANE=1 SPOOL_POKE=0 spool_poke_show CLE-91 note HUM-2 T-2 M-2 'hello from prd' >/dev/null
-sleep 1
+wait_until "the CLE-91 strip painted the prd delivery" painted "$strip" "hello from dev" "hello from prd" "[prd]"
 p91="$SPOOL_ROOT/CLE-91/.pokes/notices.log"
 strips="$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}' | awk '$2 == "CLE-91" {print $1}')"
 eq "STILL one strip after the prd delivery (no second split)" 1 "$(printf '%s\n' "$strips" | grep -c .)"
@@ -96,7 +130,7 @@ has "…tagged by env"                   "[prd]"          "$both"
 # A third delivery on an env already in the set does not respawn the strip.
 pid1="$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$strip" '#{pane_pid}')"
 SPOOL_SHOW_PANE=1 SPOOL_POKE=0 spool_poke_show CLE-91 note HUM-2 T-3 M-3 'again from prd' >/dev/null
-sleep 0.5
+wait_until "the CLE-91 strip painted the third delivery" painted "$strip" "again from prd"
 eq "a delivery on a known env keeps the running renderer" "$pid1" \
   "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$strip" '#{pane_pid}')"
 
@@ -113,7 +147,7 @@ tmux -S "$SPOOL_TMUX_SOCKET" set-option -p -t "$old" @spool_notices CLE-92
 tmux -S "$SPOOL_TMUX_SOCKET" set-option -p -t "$old" @spool_notices_v 7
 tmux -S "$SPOOL_TMUX_SOCKET" set-option -p -t "$old" @spool_notices_rv 1
 SPOOL_SHOW_PANE=1 SPOOL_POKE=0 spool_poke_show CLE-92 note HUM-2 T-4 M-4 'first prd for 92' >/dev/null
-sleep 1
+wait_until "the CLE-92 strip painted the prd delivery" painted "$old" "old dev record" "first prd for 92"
 eq "a v7 strip is adopted in place" "$old" \
   "$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}' | awk '$2 == "CLE-92" {print $1}')"
 eq "…its set keeps the dev log from its start command, plus prd" \

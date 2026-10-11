@@ -1212,9 +1212,13 @@ async function selectTab(next: SideTab) {
   /* CLE-77886 (HUM-24, csitea 7930dfbf: no exit from Issues): on a desktop
      Channels / Direct messages / Flow picked over a section page (Issues,
      Event log, ...) also bring back the conversation the reader left - the
-     list on the left alone kept the page and read as a dead end */
-  if (!mobileStack.isMobile.value && (next === 'channels' || next === 'dm' || next === 'flow') && isSectionPage(route.path) && tabForPath(route.path) !== 'topics') {
-    const back = sectionExit.target(next)
+     list on the left alone kept the page and read as a dead end. Owner
+     (t1 777d6c9a): on a rail-only page (Docs (Qto) /workspace/docs, a Help
+     or Docs document) the sidebar hides its list, so the tab alone changed
+     nothing and the rail read as frozen: leave it, to the lobby at least. */
+  const railOnlyPage = helpRailOnly.value || docsRailOnly.value
+  if (!mobileStack.isMobile.value && (next === 'channels' || next === 'dm' || next === 'flow') && (railOnlyPage || (isSectionPage(route.path) && tabForPath(route.path) !== 'topics'))) {
+    const back = sectionExit.target(next) || (railOnlyPage ? '/lobby' : '')
     if (back) await navigateTo(back.startsWith('/lobby') ? localePath(back) : back)
   }
   if (next === 'topics') {

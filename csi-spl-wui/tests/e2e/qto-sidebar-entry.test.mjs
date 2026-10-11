@@ -271,6 +271,40 @@ async function drillDown(m) {
   ok('phone: Back again, the top level', await listIs(m, ['Handbook']) && await heading(m) === 'Documents', await listRows(m))
 }
 
+/** a list panel of the sidebar that takes up room, by test id */
+const panelShown = (p, id) => p.waitForFunction((sel) => {
+  const el = document.querySelector(sel)
+  return Boolean(el && el.getBoundingClientRect().width > 0)
+}, { timeout: STEP }, `[data-testid=sidebar-panel-${id}]`).then(() => true, () => false)
+
+/** open Docs (Qto) from a conversation, then one rail tab */
+async function fromQto(p, tab) {
+  await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-testid=qto-open]', { visible: true, timeout: STEP })
+  await p.click('[data-testid=qto-open]')
+  await p.waitForFunction(() => location.pathname === '/workspace/docs', { timeout: STEP }).catch(() => {})
+  await onPage(p)
+  if (tab === 'channels' && process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/qto-rail-1440-docs.png` })
+  await p.click(`[data-testid=sidebar-tab-${tab}]`)
+  return p.waitForFunction(() => location.pathname !== '/workspace/docs', { timeout: STEP }).then(() => true, () => false)
+}
+
+/* Owner (t1 777d6c9a): once in Docs (Qto) on a desktop one cannot get
+   back to the channels nor the topics; the left-most sections strip
+   freezes. On a desktop /workspace/docs keeps the rail only, so a tab that
+   only switched the hidden list changed nothing. Control: before the fix
+   Channels, Direct messages and Flow stay on /workspace/docs with no list
+   panel, so those checks FAIL. */
+async function railLeavesQto(p) {
+  ok('1440: Channels leaves Docs (Qto)', await fromQto(p, 'channels'), p.url())
+  ok('1440: ... back to the conversation, the Channels list shown', new URL(p.url()).pathname === '/lobby' && await panelShown(p, 'channels'), p.url())
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/qto-rail-1440-channels.png` })
+  ok('1440: Topics leaves Docs (Qto)', await fromQto(p, 'topics'), p.url())
+  ok('1440: ... to the topics, the Topics tab selected', new URL(p.url()).pathname === '/' && await p.$eval('[data-testid=sidebar-tab-topics]', (el) => el.getAttribute('aria-selected')).catch(() => '') === 'true', p.url())
+  ok('1440: Direct messages leaves Docs (Qto), its list shown', await fromQto(p, 'dm') && await panelShown(p, 'dm'), p.url())
+  ok('1440: Flow leaves Docs (Qto), its list shown', await fromQto(p, 'flow') && await panelShown(p, 'flow'), p.url())
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -292,6 +326,12 @@ try {
     await docMenu(p, browser)
   }
   await p.close()
+
+  console.log('-- 1440x900 the rail leaves Docs (Qto)')
+  const d = await browser.newPage()
+  await d.setViewport({ width: 1440, height: 900 })
+  await railLeavesQto(d)
+  await d.close()
 
   console.log('-- 390x740 phone')
   const m = await browser.newPage()

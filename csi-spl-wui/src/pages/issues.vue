@@ -3355,12 +3355,15 @@ select.issues-pctl { appearance: auto; }
   .issues-card__title { font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .issues-card__who { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 60%; overflow: hidden; white-space: nowrap; }
   .issues-card .issues-prio { padding: 0 4px; }
-  /* level 3: the issue, full screen under the top bar */
+  /* level 3: the issue, full screen under the top bar. It ends where the
+     docked composer starts (its height, collapsed or grown, and the keyboard
+     under it): a + at the bottom edge was under the dock and a tap opened no
+     subtask dialog (t1 40c135cb) */
   .issues-detail {
     position: fixed;
     inset-inline: 0;
     top: var(--top-bar-h, 0px);
-    bottom: 0;
+    bottom: calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px));
     width: 100%;
     max-width: 100%;
     z-index: 20;

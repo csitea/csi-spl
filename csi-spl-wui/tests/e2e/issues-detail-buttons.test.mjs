@@ -115,6 +115,53 @@ async function addSub(p, title) {
   await p.keyboard.press('Enter')
   return p.waitForFunction((want) => [...document.querySelectorAll('[data-test=issues-subtask]')].some((s) => s.textContent.includes(want)), { timeout: 5000 }, title).then(() => true, () => false)
 }
+/* the open issue scrolled to its top, as just opened: is the subtask + covered
+   where it lies (in sight, another element at its centre), and does a
+   tap on it open the subtask dialog. puppeteer's click scrolls only what is
+   out of view, as a finger does; the dialog is closed again with Escape. */
+async function subtaskTap(p) {
+  await p.evaluate(() => new Promise((res) => {
+    const d = document.querySelector('aside.issues-detail')
+    if (d) d.scrollTop = 0
+    requestAnimationFrame(() => requestAnimationFrame(res))
+  }))
+  const at = await p.$eval('[data-test=issues-subtask-open]', (el) => {
+    const r = el.getBoundingClientRect()
+    const x = r.left + r.width / 2, y = r.top + r.height / 2
+    /* in view: inside the viewport and inside the phone's scrolling frame (a
+       + below the frame's fold is out of sight, not covered) */
+    const frame = el.closest('aside.issues-detail')
+    const f = frame ? frame.getBoundingClientRect() : { top: 0, bottom: window.innerHeight }
+    const inView = y > Math.max(0, f.top) && y < Math.min(window.innerHeight, f.bottom)
+    const hit = inView ? document.elementFromPoint(x, y) : null
+    const dock = document.querySelector('form.composer--dock')?.getBoundingClientRect()
+    return { y: Math.round(r.top), bottom: Math.round(r.bottom), inView, scrollTop: frame ? Math.round(frame.scrollTop) : null,
+      frameBottom: Math.round(f.bottom), dockTop: dock ? Math.round(dock.top) : null,
+      on: !hit ? '' : el.contains(hit) ? 'plus' : hit.closest('form') ? 'composer' : hit.tagName.toLowerCase() }
+  })
+  const clear = !at.inView || at.on === 'plus'
+  await p.click('[data-test=issues-subtask-open]')
+  const opened = await p.waitForSelector('[data-test=issues-subtask-input]', { visible: true, timeout: 3000 }).then(() => true, () => false)
+  if (opened) {
+    await p.keyboard.press('Escape')
+    await p.waitForFunction(() => !document.querySelector('[data-test=issues-subtask-input]'), { timeout: 3000 }).catch(() => {})
+  }
+  return { ...at, clear, opened }
+}
+/* a phone: grow the docked composer with a multi-line draft (lines > 0) or
+   empty it (0); returns the dock's height once it settled */
+async function growDock(p, lines = 6) {
+  const before = await p.evaluate(() => document.querySelector('form.composer--dock')?.getBoundingClientRect().height || 0)
+  await p.evaluate((n) => {
+    const ta = document.querySelector('form.composer--dock textarea')
+    if (!ta) return
+    ta.value = n ? Array.from({ length: n }, (_, i) => `line ${i + 1}`).join('\n') : ''
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+  }, lines)
+  if (lines) await p.waitForFunction((h) => (document.querySelector('form.composer--dock')?.getBoundingClientRect().height || 0) > h, { timeout: 3000 }, before).catch(() => {})
+  await new Promise((r) => setTimeout(r, 200))
+  return p.evaluate(() => Math.round(document.querySelector('form.composer--dock')?.getBoundingClientRect().height || 0))
+}
 /* the cascade confirm as shown: its key, count, body text, button and error */
 const cascadeAsk = (p) => p.waitForSelector('[data-testid=issues-cascade-confirm]', { visible: true, timeout: 5000 })
   .then(() => p.waitForFunction(() => document.querySelector('[data-testid=issues-cascade-body]')?.getAttribute('data-count') !== '0', { timeout: 3000 }).catch(() => {}))
@@ -249,6 +296,20 @@ try {
     const fRes = await confirmCascade(p, f)
     ok(`10 ${W}: the row menu's Archive of a closed issue with a sub-issue offers the cascade; confirming archives it`,
       fSub && offers(fAsk, f, 'Archive') && fRes.gone && fRes.closed && !fRes.error, { fSub, fAsk, fRes })
+
+    // 11) the subtask + of an issue just opened, NOT scrolled: the docked
+    //     composer (collapsed, then expanded) never lies over it, and a tap
+    //     where it lies opens the subtask dialog
+    const g = await newIssue(p, W, `buttons G ${W}`)
+    await openIssue(p, W, g)
+    const gCollapsed = await subtaskTap(p)
+    const gGrown = W > 820 ? null : await growDock(p)
+    const gExpanded = W > 820 ? null : await subtaskTap(p)
+    await growDock(p, 0)
+    await p.screenshot({ path: `${shot}/phone-subtask-plus-${W}.png` })
+    ok(`11 ${W}: the subtask + is clear of the docked composer (collapsed${W > 820 ? '' : ', expanded'}) and a tap opens its dialog`,
+      gCollapsed.clear && gCollapsed.opened && (W > 820 || (gExpanded.dockTop < gCollapsed.dockTop && gExpanded.clear && gExpanded.opened)), { gCollapsed, gGrown, gExpanded })
+    if (await p.$('[data-test=issues-detail]')) await closeIssue(p, W)
 
     const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
     ok(`7 ${W}: no page errors`, mine.length === 0, mine)

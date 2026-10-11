@@ -1,8 +1,8 @@
 # 129: Private git specs (a customer's spec repo, the crossing rule, the leak gate)
 
-**Feature ID**: `129-private-git-specs` · **Milestone**: M3 · **Status**: Draft (v0.1), waits for the owner's yes on section 9
+**Feature ID**: `129-private-git-specs` · **Milestone**: M3 · **Status**: Decided (v1.0): the owner answered section 9 "all a" (msg `155b79fa`)
 **Created**: 2026-10-11 · **Lane**: c-998 (claude) · **Topic**: `dispatch-6556594d`
-**Authority**: this file. Docs only: this spec builds nothing (`../README.md` §2.4); nothing is built from it before the owner's yes.
+**Authority**: this file. Docs only: this spec builds nothing (`../README.md` §2.4); the build is the phases of section 7, A0 first.
 
 Builds on, and does not repeat:
 - [044 open source](../044-spool-open-source/spec.md): this repository is PUBLIC; everything pushed here is published.
@@ -101,8 +101,8 @@ on WHERE content came from (provenance), not on WHAT it says.
 
 | writer | how | identity |
 |---|---|---|
-| a fleet agent (private lane) | `git` in a checkout of `<PRIVATE_REPO>` on its box, push to its trunk | a deploy key with write access to `<PRIVATE_REPO>` ONLY, added by the customer's business owner (R2: they control the repo's keys). It is a separate key from the one that pushes `<PUBLIC_REPO>`, so a private lane's seat holds no credential that can push public (G1). Commit author: the owner's real identity, as in every fleet repo (Q6). |
-| a member, from the WUI | 075 repo-edit, extended to a second target (section 7, phase B) | the GitHub App, installed by the customer's business owner on `<PRIVATE_REPO>` only; installation id per workspace (where it is stored: Q2, Q3). |
+| a fleet agent (private lane) | `git` in a checkout of `<PRIVATE_REPO>` on its box, push to its trunk | a deploy key with write access to `<PRIVATE_REPO>` ONLY, added by the customer's business owner (R2: they control the repo's keys). It is a separate key from the one that pushes `<PUBLIC_REPO>`, so a private lane's seat holds no credential that can push public (G1). Commit author: the owner's real identity, as in every fleet repo (Q6 decided a). |
+| a member, from the WUI | 075 repo-edit, extended to a second target (section 7, phase B) | the GitHub App, installed by the customer's business owner on `<PRIVATE_REPO>` only; Not built now: WUI editing is phase B, deferred (Q3 decided a). |
 | the private repo's CI | GitHub Actions in `<PRIVATE_REPO>` | GitHub secrets of `<PRIVATE_REPO>` set by the business owner (R2), e.g. the workspace upload token of section 6. |
 
 A private lane works in a checkout of `<PRIVATE_REPO>`, never in a worktree of
@@ -139,8 +139,8 @@ taken". The two directions are not symmetric, because one side is public.
      decision in at most ~10 lines, already in neutral words, and the public spec it
      targets.
   2. The owner says yes to that request, in the customer topic, by message id. One yes
-     per crossing; a yes is never a standing approval (Q4: whether the customer's
-     business owner approves too).
+     per crossing; a yes is never a standing approval. The owner alone approves; the
+     customer's business owner is not asked (Q4 decided a).
   3. A **public lane** (a different lane, spawned for it, with a `<PUBLIC_REPO>` worktree
      and no `<PRIVATE_REPO>` checkout) receives ONLY the approved request text, writes the
      public spec change, and pushes it through every public gate (section 5).
@@ -179,8 +179,9 @@ must turn trunk red runs on a throwaway branch, never on master.
 
 **G1, lane realm.**
 - At spawn, a brief whose source topic belongs to a workspace on the box-local private
-  list (Q2) makes a private lane: its lane map row gets `realm=private:<workspace_id>`.
-  The list names customers, so it never lives in a tracked file.
+  list makes a private lane: its lane map row gets `realm=private:<workspace_id>`.
+  The list names customers, so it never lives in a tracked file, nor in the hub database:
+  it is a box-local file on each fleet box, synced like the dispatch store (Q2 decided a).
 - The spawn harness refuses a `<PUBLIC_REPO>` worktree for a private lane, whatever path
   the brief names, and refuses a `<PRIVATE_REPO>` checkout to a lane that already holds a
   `<PUBLIC_REPO>` worktree.
@@ -203,7 +204,7 @@ must turn trunk red runs on a throwaway branch, never on master.
   pre-push hygiene part red locally.
 
 **G3, fingerprint.**
-- The box keeps a list of private checkouts (box-local, Q2). The pre-push hook builds the
+- The box keeps a list of private checkouts (the same box-local file, Q2 decided a). The pre-push hook builds the
   normalised 8-word shingles (lower case, punctuation stripped) of the added lines of the
   outgoing diff and of every text file of each listed private checkout, and refuses on a
   common shingle that is not also present in `<PUBLIC_REPO>` master (so shared
@@ -226,7 +227,26 @@ must turn trunk red runs on a throwaway branch, never on master.
   not stopped by G1-G3. G5 bounds it: the only input a public lane gets for a crossing is
   a request text the owner approved.
 - A paste by a human outside the fleet (their own git client) is caught only by G2 (when
-  the marker came along) and by the nightly G3 detection. Q5 asks for a GitHub-side rule.
+  the marker came along) and by the nightly G3 detection. A GitHub-side refusal was
+  decided "yes, if GitHub offers it" (Q5 decided a); section 5.3 records what GitHub offers.
+
+### 5.3 GitHub-side refusal (Q5), checked 2026-10-11
+
+What GitHub offers, and what it means for `<PUBLIC_REPO>`:
+
+| GitHub feature | refuses on file content? | usable on `<PUBLIC_REPO>` |
+|---|---|---|
+| push rulesets (restrict file paths, file extensions, file path length, file size) | No: paths, names and sizes only, never a string inside a file | No: push rulesets apply to private and internal repositories; `<PUBLIC_REPO>` is public (`gh api repos/<PUBLIC_REPO> --jq .visibility` -> `public`) |
+| branch rulesets (deletion, non-fast-forward, signed commits, status checks, ...) | No | Yes, already used (`master-no-force`); a required status check would make every direct push to master wait for CI, which the trunk flow does not do |
+| secret scanning push protection, built-in patterns | Only provider credential formats | Yes, enabled (`security_and_analysis.secret_scanning_push_protection` -> `enabled`); it cannot match the marker |
+| secret scanning **custom pattern** with push protection | Yes: a regex, e.g. `spool-private: [0-9a-f]{16}`, refused at push time for every pusher | Only with GitHub Secret Protection, a paid per-committer product on a Team or Enterprise Cloud organization; not enabled on `<PUBLIC_REPO>`. Even then a pusher may bypass a block by giving a reason, unless delegated bypass (also Secret Protection) is on |
+
+So GitHub has exactly one content rule that fits, the custom pattern, and it is not free.
+Buying Secret Protection is the owner's decision, outside this spec. Until then the
+server-side layer is not built, and the gate is G2 (workflow 10 and pre-push) plus the
+nightly G3 detection. If it is bought: one custom pattern for the marker regex, push
+protection on, delegated bypass on with the owner as the only reviewer; its control is a
+push of a planted marker from a throwaway branch, refused.
 
 ---
 
@@ -241,10 +261,10 @@ must turn trunk red runs on a throwaway branch, never on master.
   `DELETE` for removed files), using an agent upload token of `<CUSTOMER_WORKSPACE>` held
   as a GitHub secret of `<PRIVATE_REPO>`, set by the business owner (R2). No new hub
   route, no hub-side credential for the private repo.
-- R1: the text lands in the workspace's GCS Docs bucket, not in Postgres. Whether that
-  bucket is acceptable under R1 is Q1.
-- `git-specs/` is read-only in the WUI in phase A (an edit there would split the source of
-  truth); editing from the WUI is phase B (section 7).
+- R1: the text lands in the workspace's GCS Docs bucket, not in Postgres. That bucket is
+  within R1's "nothing in the Spool Hub database" (Q1 decided a).
+- `git-specs/` is read-only in the WUI (an edit there would split the source of truth).
+  Editing from the WUI is phase B (section 7), deferred: not now (Q3 decided a).
 - Messages: `p<NNN>` in a topic of `<CUSTOMER_WORKSPACE>` links to `git-specs/p<NNN>-*` in
   that workspace's Docs; in any other workspace it links to nothing.
 
@@ -259,7 +279,7 @@ must turn trunk red runs on a throwaway branch, never on master.
 | A2 | Docs mirror workflow (section 6), `p<NNN>` auto-link | private repo CI; WUI id-links |
 | A3 | G3 fingerprint in pre-push, after its measurement; the nightly reverse check | `<PUBLIC_REPO>` orc; private repo CI |
 | A4 | crossing actions (request, approve by msg id, hand to a public lane, log) | `<PUBLIC_REPO>` orc |
-| B | WUI editing of `git-specs/` through 075 repo-edit with a per-workspace target | hub, WUI; only after Q3 |
+| B | WUI editing of `git-specs/` through 075 repo-edit with a per-workspace target | hub, WUI; deferred, not now (Q3 decided a) |
 
 A0 comes first: it closes the incident's path before any private repo exists.
 
@@ -283,26 +303,36 @@ A0 comes first: it closes the incident's path before any private repo exists.
 
 ---
 
-## 9. Open questions for HUM-10
+## 9. Questions for HUM-10, decided
+
+All six decided by the owner on 2026-10-11, msg `155b79fa`: "All a". Each answer is
+folded into the section named.
 
 - **Q1. Docs bucket and R1.** The private spec text is stored in the workspace's Docs
   bucket (GCS, not Postgres). Does R1 allow that?
+  **Decided (owner, msg 155b79fa, a)**: the bucket is fine (section 6).
   (a) yes, the bucket is fine (recommended); (b) no, the WUI reads it live from GitHub
   through the customer's App installation, and Spool Hub stores nothing.
 - **Q2. Where the list of private workspaces and their repos lives.** It names customers,
   so never in this public repo.
+  **Decided (owner, msg 155b79fa, a)**: a box-local file on each fleet box (section 5.1).
   (a) a box-local file on each fleet box, synced like the dispatch store (recommended);
   (b) a workspace setting in the hub database (a repo name only, no business content).
 - **Q3. WUI editing (phase B).** Should members edit private specs from the WUI? That
   needs the customer's business owner to install the GitHub App on `<PRIVATE_REPO>`.
+  **Decided (owner, msg 155b79fa, a)**: not now, read-only; phase B deferred (sections 3.2, 6, 7).
   (a) not now, read-only (recommended); (b) yes.
-- **Q4. Who approves a crossing.** (a) the owner, per crossing, by msg id (as written);
+- **Q4. Who approves a crossing.** **Decided (owner, msg 155b79fa, a)**: the owner, per
+  crossing, by msg id (section 4.2). (a) the owner, per crossing, by msg id (as written);
   (b) the customer's business owner too, since the request derives from their spec.
 - **Q5. Server-side refusal.** Add a GitHub-side rule on `<PUBLIC_REPO>` that refuses the
   private marker at push time, also for pushes made outside the fleet?
+  **Decided (owner, msg 155b79fa, a)**: yes, if GitHub offers it. Checked: only a secret
+  scanning custom pattern can, and it needs the paid GitHub Secret Protection (section 5.3).
   (a) yes, if GitHub offers it for this repo (unchecked; to be checked first);
   (b) no, the fleet gates plus the nightly check are enough.
-- **Q6. The agents' key for `<PRIVATE_REPO>`.** (a) a deploy key for that repo only,
+- **Q6. The agents' key for `<PRIVATE_REPO>`.** **Decided (owner, msg 155b79fa, a)**: a
+  deploy key for that repo only, added by the business owner (section 3.2). (a) a deploy key for that repo only,
   added by the business owner (recommended, as written); (b) the fleet's existing git
   identity added as a collaborator: simpler, but then one seat can push both repos,
   which weakens G1.
@@ -319,3 +349,5 @@ A0 comes first: it closes the incident's path before any private repo exists.
 ## 11. Version log
 
 - v0.1 (2026-10-11, c-998): first draft.
+- v1.0 (2026-10-11, c-165): section 9 decided, all a (owner msg `155b79fa`), folded in
+  place; section 5.3 added with the Q5 check of what GitHub offers.

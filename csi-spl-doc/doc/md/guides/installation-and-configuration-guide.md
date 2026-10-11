@@ -1,4 +1,4 @@
-Exported from the Qto doc [Installation and configuration guide](https://spool-hub.ai/workspace/docs?doc=1a3900ac-774d-4a47-9ecd-4fc716542aa3&view=doc) (`1a3900ac-774d-4a47-9ecd-4fc716542aa3`) on 2026-10-11T19:45:52Z; edit in Qto, not here.
+Exported from the Qto doc [Installation and configuration guide](https://spool-hub.ai/workspace/docs?doc=1a3900ac-774d-4a47-9ecd-4fc716542aa3&view=doc) (`1a3900ac-774d-4a47-9ecd-4fc716542aa3`) on 2026-10-11T19:49:02Z; edit in Qto, not here.
 
 # 1 About this guide
 
@@ -97,7 +97,7 @@ gcloud version
 - **Go**: the version in `csi-spl-api/src/go/spool-hub-api/go.mod`. The harness installer (section 7) downloads it into the user's tools dir when it must build `spool`; the CI and the cron PATH use `csi-spl-api/src/bash/use-go-toolchain.sh`. The satellite puts it in `/usr/local/go` (role 02).
 - **yq v4**: installed per user by `install.sh` (section 7).
 - **Node and pnpm**: Node from Debian; pnpm through corepack at the WUI's pin (`csi-spl-wui/package.json` `packageManager`), as role `09_agent_tools` does.
-- **The CI-pinned scanners** (shellcheck, actionlint, hadolint, trufflehog, gosec, eslint, checkov, semgrep), needed by the pre-push gate:
+- **The CI-pinned scanners** (shellcheck, actionlint, hadolint, trufflehog, gosec, eslint, checkov, semgrep) are needed by the pre-push gate. To install them for every user, run:
 
 ```bash
 cd /opt/csi/csi-spl/csi-spl-iac && LINT_TOOLS_SYSTEM=1 ./run -a do_install_lint_tools
@@ -141,7 +141,11 @@ git clone https://github.com/csitea/csi-spl.git /opt/csi/csi-spl
 
 ## 4.2 Identity for commits
 
-Never `git config` in a shared tree: pass the identity on each commit and rebase with `-c user.name=... -c user.email=...`. The address is the one on the repo CLAUDE.md "Commits:" line; no AI trailers ([developer guide](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/md/developer-guide.md) 2.4).
+Never `git config` in a shared tree: pass the identity on each commit and rebase with `-c user.name=... -c user.email=...`. The address is the one on the repo CLAUDE.md "Commits:" line; no AI trailers ([developer guide](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/md/developer-guide.md) 2.4). A commit, with the name and address from that line:
+
+```bash
+git -c user.name="FirstName LastName" -c user.email=<COMMIT_EMAIL> commit -m "<why>"
+```
 
 ## 4.3 Read and acknowledge the developer guide
 
@@ -275,7 +279,7 @@ sudo su --pty - <AGENT_USER> -c 'claude auth login'
 
 ## 7.6 The agent hooks and MCP tools
 
-The agent hook (spec 093) in the agent user's claude settings, and the spool as MCP tools (`spool-dev`, `spool-prd`) for every agent CLI. Each is a dry run first; repeat with `DRY_RUN=0`:
+The agent hook (spec 093) in the agent user's claude settings, and the spool as MCP tools (`spool-dev`, `spool-prd`) for every agent CLI. Each action is a dry run unless `DRY_RUN=0`; the command below applies both. To see the plan first, run it without the two `DRY_RUN=0`:
 
 ```bash
 cd /opt/csi/csi-spl/csi-spl-orc && DRY_RUN=0 ./run -a do_spl_agent_hooks_install && DRY_RUN=0 ./run -a do_spl_agent_mcp_install

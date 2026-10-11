@@ -50,6 +50,12 @@ func FlowMarkKey(msgID string) string { return "f:" + msgID }
 // Total the sum.
 // Channels and DMs split the same Total by where the line is (owner, t1
 // f4e6c677: the rail's Channels and Direct messages numbers).
+//
+// Release (spec 130 section 6) is in Counts only: the UTC days with a
+// release newer than the member's f:seen, the release lines the pane has
+// not shown yet. It is NOT in Total (Total stays the member's own events);
+// the badge shows Total + Release. A member who never opened the pane counts
+// none, so the release history is not a flood.
 type FlowCounts struct {
 	Mention  int `json:"mention"`
 	Reply    int `json:"reply"`
@@ -57,6 +63,7 @@ type FlowCounts struct {
 	Total    int `json:"total"`
 	Channels int `json:"channels"`
 	DMs      int `json:"dms"`
+	Release  int `json:"release"`
 }
 
 func (c *FlowCounts) add(kind, channel string) {
@@ -404,7 +411,23 @@ func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent) (count
 			counts.add(ev.Kind, ev.Channel)
 		}
 	}
+	if hasSeen {
+		counts.Release = s.flowReleaseDaysAfter(seen.At)
+	}
 	return counts, unread, keys
+}
+
+// flowReleaseDaysAfter is the UTC days with a release after t.
+func (s *Memory) flowReleaseDaysAfter(t time.Time) int {
+	memReleaseMu.Lock()
+	defer memReleaseMu.Unlock()
+	days := map[string]bool{}
+	for sha, at := range memReleased[s] {
+		if at.After(t) && s.releases()[sha].Version != "" {
+			days[flowDay(at)] = true
+		}
+	}
+	return len(days)
 }
 
 // flowKindMatch: the kind= filter, FlowMention taking pokes too.

@@ -240,3 +240,87 @@ func TestFlowReleaseMarkKey(t *testing.T) {
 		}
 	}
 }
+
+// Spec 130 section 6 (FR-003 of 062 kept) and section 3: the badge counts
+// the release days newer than f:seen, never the history before it; setting
+// an issue assignee makes the human seat a watcher of the issue's topic, so
+// the next reply in it is in their Flow.
+func TestFlowReleaseBadgeAndAssigneeWatch(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			fe, ctx := s.(FlowEvents), context.Background()
+			tid := newTenant(t, s)
+			base := time.Date(2092, 5, 6, 10, 0, 0, 0, time.UTC).Add(time.Duration(time.Now().UnixNano()%1000) * 24 * time.Hour)
+			if rn, ok := s.(ReleaseNotes); ok {
+				major := 900000 + int(time.Now().UnixNano()%99999)
+				var shas []string
+				for i, at := range []time.Time{base.Add(-time.Hour), base.Add(time.Hour), base.Add(2 * time.Hour), base.Add(25 * time.Hour)} {
+					sha := strings.Repeat(uuid4()[:8], 5)
+					shas = append(shas, sha)
+					if err := rn.PutReleaseNotes(ctx, []ReleaseNote{{SHA: sha, Version: fmt.Sprintf("v%d.1.%d", major, i), CommittedAt: base, Subject: "x", State: "ok"}}, at); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if pg, ok := s.(*Postgres); ok {
+					t.Cleanup(func() {
+						pg.pool.Exec(context.Background(), `DELETE FROM release_notes WHERE sha = ANY($1)`, shas) //nolint:errcheck
+					})
+				}
+				read := func() FlowCounts {
+					p, err := fe.FlowRead(ctx, FlowQuery{Tenant: tid, Member: "HUM-1", Now: base.Add(26 * time.Hour)})
+					if err != nil {
+						t.Fatal(err)
+					}
+					return p.Counts
+				}
+				if c := read(); c.Release != 0 {
+					t.Fatalf("no f:seen: release = %d, want 0 (no flood)", c.Release)
+				}
+				if err := s.(ReadMarks).SaveReadMarks(ctx, tid, "HUM-1", map[string]ReadMark{FlowSeenKey: {At: base}}, base); err != nil {
+					t.Fatal(err)
+				}
+				// Two days after f:seen (base day: +1 h, +2 h; next day: +25 h).
+				if c := read(); c.Release < 2 || c.Total != 0 {
+					t.Fatalf("after f:seen: release %d total %d, want >= 2 and 0", c.Release, c.Total)
+				}
+			}
+
+			is, ok := s.(Issues)
+			if !ok {
+				t.Skip("no issues")
+			}
+			task := uuid4()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			post := func(from, body string, at time.Time) {
+				m := msgFor(tid, task, "box-a", at, at, "env-"+uuid4())
+				m.FromID, m.ToID, m.Channel, m.Body = from, "", "lobby", body
+				if _, err := s.InsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+			}
+			post("c-009", "the topic", now)
+			iss, err := is.CreateIssue(ctx, Issue{TenantID: tid, Title: "t", TaskID: task, CreatedBy: "HUM-9", Assignee: "HUM-3"}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			post("c-009", "a reply", now.Add(time.Second))
+			who := ""
+			if _, err := is.UpdateIssue(ctx, tid, iss.Number, IssuePatch{Assignee: &[]string{"HUM-4"}[0]}, "HUM-9", now.Add(2*time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			post("c-009", "another reply", now.Add(3*time.Second))
+			for _, m := range []string{"HUM-3", "HUM-4"} {
+				p, err := fe.FlowRead(ctx, FlowQuery{Tenant: tid, Member: m, Limit: 10, Now: now.Add(time.Hour)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, e := range p.Events {
+					who += m + ":" + e.Kind + ":" + e.Body + "|"
+				}
+			}
+			if want := "HUM-3:reply:another reply|HUM-3:reply:a reply|HUM-4:reply:another reply|"; who != want {
+				t.Fatalf("assignee watch\n got %s\nwant %s", who, want)
+			}
+		})
+	}
+}

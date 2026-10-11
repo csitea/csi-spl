@@ -635,7 +635,21 @@ func (s *Memory) CreateIssue(_ context.Context, in Issue, now time.Time) (Issue,
 		s.iss.rows[in.TenantID] = map[int]Issue{}
 	}
 	s.iss.rows[in.TenantID][in.Number] = copyIssue(in)
+	s.flowWatchAssigneeLocked(in.TenantID, in.TaskID, in.Assignee, now)
 	return copyIssue(in), nil
+}
+
+// flowWatchAssigneeLocked is the memory twin of flowWatchAssigneeSQL.
+func (s *Memory) flowWatchAssigneeLocked(tenant, task, assignee string, now time.Time) {
+	if !IsFlowMember(assignee) {
+		return
+	}
+	if s.flowWatches == nil {
+		s.flowWatches, s.flowEvents = map[[3]string]time.Time{}, map[[3]string]memFlowEvent{}
+	}
+	if k := [3]string{tenant, task, assignee}; s.flowWatches[k].IsZero() {
+		s.flowWatches[k] = now
+	}
 }
 
 func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p IssuePatch, by string, now time.Time) (Issue, error) {
@@ -661,6 +675,7 @@ func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p Iss
 	}
 	row.Prefix = s.iss.prefixOf(tenant)
 	s.iss.rows[tenant][number] = copyIssue(row)
+	s.flowWatchAssigneeLocked(tenant, row.TaskID, row.Assignee, now)
 	if row.Level != was { // an issue made an epic: its subtasks are issues now
 		for n, c := range s.iss.rows[tenant] {
 			if c.Parent == number {

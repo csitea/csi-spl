@@ -107,8 +107,9 @@ func flowCoveredSQL(e, m, lobby string) string {
 }
 
 // flowCountsSQL selects the ten counts (badge mention/reply/dm/channels/dms,
-// then the same unread) of member in tenant at now, and the unread per
-// sidebar row as a jsonb object (FlowKeys: flowPlaceKey and t:<task_id>).
+// then the same unread), the release days newer than f:seen (spec 130), of
+// member in tenant at now, and the unread per sidebar row as a jsonb object
+// (FlowKeys: flowPlaceKey and t:<task_id>).
 //
 // It reads only the tail past each place's read mark (api perf ap-01b):
 // fp walks the member's distinct place_key values on flow_events_place (one
@@ -160,6 +161,9 @@ func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 			count(*) FILTER (WHERE fc.kind = 'dm'),
 			count(*) FILTER (WHERE fc.in_ch),
 			count(*) FILTER (WHERE NOT fc.in_ch),
+			(SELECT count(DISTINCT (r.released_at AT TIME ZONE 'UTC')::date) FROM release_notes r
+				WHERE r.released_at IS NOT NULL AND r.version IS NOT NULL AND r.released_at <= ` + now + `
+				  AND r.released_at > (SELECT s.at FROM read_marks s WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen')),
 			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, count(*) AS n
 				FROM fc f2 CROSS JOIN LATERAL (VALUES (f2.place_key), (f2.topic_key)) x(key) GROUP BY x.key) k)
 		FROM fc`
@@ -189,7 +193,7 @@ func scanFlowCounts(r pgx.Rows, extra ...any) (c, u FlowCounts, keys map[string]
 
 // flowCountsDest are the scan targets of flowCountsSQL's columns, in order.
 func flowCountsDest(c, u *FlowCounts, keys *map[string]int) []any {
-	return []any{&c.Mention, &c.Reply, &c.DM, &c.Channels, &c.DMs, &u.Mention, &u.Reply, &u.DM, &u.Channels, &u.DMs, keys}
+	return []any{&c.Mention, &c.Reply, &c.DM, &c.Channels, &c.DMs, &u.Mention, &u.Reply, &u.DM, &u.Channels, &u.DMs, &c.Release, keys}
 }
 
 // flowKindsFilter is the kind= filter as kind values (nil = all).

@@ -193,10 +193,17 @@ func createIssueOn(ctx context.Context, conn *pgx.Conn, in Issue, now time.Time)
 	if err := setLevel(&in, r, in.Level); err != nil {
 		return Issue{}, err
 	}
+	return insertIssueOn(ctx, conn, in, now)
+}
+
+// insertIssueOn is createIssueOn's second round trip: it takes the number,
+// inserts the row, writes the assignee's Flow watch (spec 130 section 3) and
+// commits.
+func insertIssueOn(ctx context.Context, conn *pgx.Conn, in Issue, now time.Time) (Issue, error) {
 	// The counter row is the lock: two creates in one tenant serialize on it
 	// and never share a number. The INSERT reads the number the upsert just
 	// wrote, in the same transaction.
-	b = &pgx.Batch{}
+	b := &pgx.Batch{}
 	b.Queue(`INSERT INTO issue_counters (tenant_id, last_number) VALUES ($1, 1)
 		ON CONFLICT (tenant_id) DO UPDATE SET last_number = issue_counters.last_number + 1
 		RETURNING prefix`, in.TenantID)
@@ -208,6 +215,7 @@ func createIssueOn(ctx context.Context, conn *pgx.Conn, in Issue, now time.Time)
 		RETURNING `+issueCols,
 		in.TenantID, in.Title, in.Description, in.Status, in.Priority, in.Level, in.Assignee, in.Labels,
 		in.Deadline, nullParent(in.Parent), in.TaskID, in.CreatedBy, now, in.CompletedAt, in.CanceledAt, in.Kind)
+	b.Queue(flowWatchAssigneeSQL, in.TenantID, in.TaskID, in.Assignee, now)
 	b.Queue(`COMMIT`)
 	br := conn.SendBatch(ctx, b)
 	defer br.Close()
@@ -219,11 +227,27 @@ func createIssueOn(ctx context.Context, conn *pgx.Conn, in Issue, now time.Time)
 	if err != nil {
 		return Issue{}, err
 	}
-	if _, err := br.Exec(); err != nil {
-		return Issue{}, err
+	for range 2 { // the assignee's watch, COMMIT
+		if _, err := br.Exec(); err != nil {
+			return Issue{}, err
+		}
 	}
 	return out, br.Close()
 }
+
+// flowWatchAssigneeUpsert writes the Flow watch of an issue's assignee on its
+// topic (spec 130 section 3): setting an assignee makes them part of the
+// discussion. Human seats only (an agent's inbox already carries its
+// lines); never a second row. Its arguments are SQL expressions.
+func flowWatchAssigneeUpsert(tenant, task, assignee, at string) string {
+	return `INSERT INTO flow_watches (tenant_id, task_id, member_id, since)
+		SELECT ` + tenant + `, ` + task + `, ` + assignee + `, ` + at + ` WHERE ` + assignee + ` ~ '^(HUM|GST)-[0-9]+$'
+		ON CONFLICT DO NOTHING`
+}
+
+// flowWatchAssigneeSQL is that write alone, in CreateIssue's batch (no extra
+// round trip): $1 tenant, $2 task, $3 assignee, $4 now.
+var flowWatchAssigneeSQL = flowWatchAssigneeUpsert("$1", "$2::uuid", "$3::text", "$4::timestamptz")
 
 func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p IssuePatch, by string, now time.Time) (Issue, error) {
 	want, err := patchLevel(p)
@@ -259,13 +283,14 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 				return err
 			}
 		}
-		out, err = scanIssue(tx.QueryRow(ctx, `UPDATE issues SET title = $3, description = $4, status = $5,
+		out, err = scanIssue(tx.QueryRow(ctx, `WITH w AS (`+flowWatchAssigneeUpsert("$1", "$17::uuid", "$8", "$13")+`)
+			UPDATE issues SET title = $3, description = $4, status = $5,
 				priority = $6, level = $7, assignee = $8, labels = $9, deadline = $10, parent_number = $11,
 				updated_by = $12, updated_at = $13, completed_at = $14, canceled_at = $15, kind = $16
 			WHERE tenant_id = $1 AND number = $2
 			RETURNING `+issueCols,
 			tenant, number, cur.Title, cur.Description, cur.Status, cur.Priority, cur.Level, cur.Assignee, cur.Labels,
-			cur.Deadline, nullParent(cur.Parent), cur.UpdatedBy, cur.UpdatedAt, cur.CompletedAt, cur.CanceledAt, cur.Kind), tenant, prefix)
+			cur.Deadline, nullParent(cur.Parent), cur.UpdatedBy, cur.UpdatedAt, cur.CompletedAt, cur.CanceledAt, cur.Kind, cur.TaskID), tenant, prefix)
 		return err
 	})
 	return out, pgIssueErr(err)

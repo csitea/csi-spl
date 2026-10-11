@@ -33,6 +33,9 @@ func flowCountsOracleSQL(tenant, member, now, pub, lobby string) string {
 			count(*) FILTER (WHERE fc.kind = 'dm'),
 			count(*) FILTER (WHERE fc.in_ch),
 			count(*) FILTER (WHERE NOT fc.in_ch),
+			(SELECT count(DISTINCT (r.released_at AT TIME ZONE 'UTC')::date) FROM release_notes r
+				WHERE r.released_at IS NOT NULL AND r.version IS NOT NULL AND r.released_at <= ` + now + `
+				  AND r.released_at > (SELECT s.at FROM read_marks s WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen')),
 			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, count(*) AS n
 				FROM fc f2 CROSS JOIN LATERAL (VALUES (f2.place_key), (f2.topic_key)) x(key) GROUP BY x.key) k)
 		FROM fc`

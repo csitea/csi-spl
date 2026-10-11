@@ -22,7 +22,9 @@ page stays as it was until the WUI switches.
 ```
 
 `counts`, `unread`, `keys`: as flow-v1. A `blocked` or `ready` event counts
-under `mention`.
+under `mention`. `counts.release` is the UTC days with a release newer than
+the member's `f:seen` (0 before the first `f:seen`); it is not in `total`:
+the badge shows `total + release`.
 
 ### 2.1 A topic line: one topic on one UTC day
 

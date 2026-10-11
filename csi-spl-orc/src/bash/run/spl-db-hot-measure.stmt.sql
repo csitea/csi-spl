@@ -86,7 +86,7 @@ SELECT msg_id::text, received_at, env, edited_at, edited_by,
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))
 			ORDER BY received_at DESC, msg_id::text DESC
 			LIMIT $6
--- @@stmt flow_counts sha256=9234dfff9c0c23360ce376e35bd512ec13c44296441f76a6737e75f35631b6cc scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
+-- @@stmt flow_counts sha256=ecd1e5b653e80c152919656bcfcdfbd696d1ae8c303467078ba6e66d1a9dc974 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2
 			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2 AND x.place_key > fp.k)
@@ -132,6 +132,9 @@ WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tena
 			count(*) FILTER (WHERE fc.kind = 'dm'),
 			count(*) FILTER (WHERE fc.in_ch),
 			count(*) FILTER (WHERE NOT fc.in_ch),
+			(SELECT count(DISTINCT (r.released_at AT TIME ZONE 'UTC')::date) FROM release_notes r
+				WHERE r.released_at IS NOT NULL AND r.version IS NOT NULL AND r.released_at <= $3
+				  AND r.released_at > (SELECT s.at FROM read_marks s WHERE s.tenant_id = $1 AND s.member_id = $2 AND s.mark_key = 'f:seen')),
 			(SELECT coalesce(jsonb_object_agg(k.key, k.n), '{}'::jsonb) FROM (SELECT x.key, count(*) AS n
 				FROM fc f2 CROSS JOIN LATERAL (VALUES (f2.place_key), (f2.topic_key)) x(key) GROUP BY x.key) k)
 		FROM fc

@@ -36,6 +36,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { AGENT_SPLIT_KINDS, DEFAULT_SPLIT_KINDS, splitKindRule, splitMainOf } from '../../src/utils/tenant-settings.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const RED = process.env.PROVE_RED || ''
@@ -229,17 +230,26 @@ try {
   // spec 115 HUB-1: the split per task kind. The table shows the section 2
   // defaults; agy in a coding kind is refused before Save (the CONTROL:
   // PROVE_RED=agy-coding saves it anyway and the mock hub refuses it, 8o
-  // red); new weights save and read back after a section change.
+  // red); new weights save and read back after a section change. The
+  // defaults are read from DEFAULT_SPLIT_KINDS (the mock hub serves them and
+  // the hub's DefaultSplitKinds matches), never pinned here.
   await p.waitForSelector('[data-test=split-kind-simple_coding-mistral]', { visible: true, timeout: 10000 })
   const kindRow = (k) => p.$$eval(`[data-test^=split-kind-${k}-]`, (els, kk) => els.filter((e) => e.tagName === 'INPUT' || e.tagName === 'SELECT')
     .map((e) => `${e.getAttribute('data-test').slice(12 + kk.length)}=${e.value}`).join(' '), k)
+  const splitRowOf = (w, backup) => [...AGENT_SPLIT_KINDS.map((v) => `${v}=${w[v]}`), `backup=${backup}`].join(' ')
+  const simpleDef = DEFAULT_SPLIT_KINDS.simple_coding
+  const simpleMain = splitMainOf(simpleDef.weights)
+  const enLabels = createRequire(import.meta.url)('../../i18n/locales/en.json').tenant_settings
   const kinds0 = { simple: await kindRow('simple_coding'), main: await text(p, '[data-test=split-kind-simple_coding-main]'), i18n: await text(p, '[data-test=split-kind-i18n-main]') }
-  ok('8m the per-kind table shows the spec 115 defaults and the main', kinds0.simple === 'claude=20 grok=0 agy=0 qwen=0 mistral=80 backup=claude' && kinds0.main === 'Mistral' && kinds0.i18n === 'Antigravity', kinds0)
-  await setNum('[data-test=split-kind-simple_coding-mistral]', '70')
+  ok('8m the per-kind table shows the spec 115 defaults and the main', kinds0.simple === splitRowOf(simpleDef.weights, simpleDef.backup) && kinds0.main === enLabels[`split_${simpleMain}`] && kinds0.i18n === 'Antigravity', kinds0)
+  // agy 10 taken from the default main: the row still sums to 100, so the
+  // one rule it breaks is agy in a coding kind (checked on the code too).
+  const agyRow = { ...simpleDef.weights, [simpleMain]: simpleDef.weights[simpleMain] - 10, agy: 10 }
+  await setNum(`[data-test=split-kind-simple_coding-${simpleMain}]`, String(agyRow[simpleMain]))
   await setNum('[data-test=split-kind-simple_coding-agy]', '10')
   await sleep(100)
-  const agy = { rule: await text(p, '[data-test=split-kind-simple_coding-main]'), disabled: await p.$eval('[data-test=split-kinds-save]', (el) => el.disabled) }
-  ok('8n CONTROL: agy 10 in simple coding names the rule and keeps Save off', agy.rule === 'Antigravity writes no code' && agy.disabled === true, agy)
+  const agy = { code: splitKindRule('simple_coding', agyRow, simpleDef.backup), rule: await text(p, '[data-test=split-kind-simple_coding-main]'), disabled: await p.$eval('[data-test=split-kinds-save]', (el) => el.disabled) }
+  ok('8n CONTROL: agy 10 in simple coding names the rule and keeps Save off', agy.code === 'agy' && agy.rule === 'Antigravity writes no code' && agy.disabled === true, agy)
   if (RED === 'agy-coding') {
     await p.$eval('[data-test=split-kinds-save]', (el) => { el.disabled = false })
     await p.click('[data-test=split-kinds-save]')
@@ -259,7 +269,7 @@ try {
   await p.waitForSelector('[data-test=split-kind-simple_coding-mistral]', { visible: true, timeout: 10000 })
   await sleep(100)
   const kinds1 = { simple: await kindRow('simple_coding'), reset: Boolean(await p.$('[data-test=split-kind-simple_coding-reset]')), tests: await kindRow('tests') }
-  ok('8o new per-kind weights save and read back', kinds1.simple === 'claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=claude' && kinds1.reset && kinds1.tests === 'claude=70 grok=0 agy=0 qwen=0 mistral=30 backup=mistral', kinds1)
+  ok('8o new per-kind weights save and read back', kinds1.simple === 'claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=claude' && kinds1.reset && kinds1.tests === splitRowOf(DEFAULT_SPLIT_KINDS.tests.weights, DEFAULT_SPLIT_KINDS.tests.backup), kinds1)
   if (process.env.SPLIT_SHOT) await p.screenshot({ path: process.env.SPLIT_SHOT, fullPage: true })
 
   // 4. Channels: no-fallback + archive

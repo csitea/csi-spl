@@ -28,7 +28,6 @@ import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { readSyncPage } from '~/utils/sidebar-tabs.mjs'
 
 export default defineNuxtPlugin(() => {
   if (!import.meta.client) return
@@ -48,14 +47,11 @@ export default defineNuxtPlugin(() => {
     started = true
     client.subscribeAll()
     const seed = () => channel.loadDmActivity(live.identity.value)
-    /* spec 109 FR-004: a page that starts the hub read sync would move the
-       dm: cursors right after this seed and read it again; there the seed
-       waits for that first pull and goes out once, with the moved cursors */
-    if (readSyncPage(router.currentRoute.value.path)) {
-      void import('~/utils/read-sync-boot').then((m) => m.seedDmsAfterPull(api, seed), () => seed())
-    } else {
-      void seed()
-    }
+    /* spec 109 FR-004: read-sync-boot (on demand, out of the initial chunk)
+       holds the seed for the read sync's first pull where that pull would
+       move the dm: cursors and read it again; it goes out once */
+    const path = router.currentRoute.value.path
+    void import('~/utils/read-sync-boot').then((m) => m.seedDms(api, path, seed), () => seed())
 
     live.onMessage((m) => channel.noteLive(m, live.identity.value))
     live.onChannel((f) => channel.addChannel(f))

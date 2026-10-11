@@ -12,11 +12,11 @@ import { createSpoolClient, TOPIC_READS_IN_FLIGHT, FIRST_SCREEN_MS } from '../..
 import { withSessionRetry } from '../../src/utils/live-follow.mjs'
 import { sharedPreview, resetSharedPreviews, PREVIEW_CACHE_MAX } from '../../src/utils/file-preview.mjs'
 import { loadAvatarFiles, resetAvatarFiles } from '../../src/utils/avatar.mjs'
-import { createReadSync, createSeedGate } from '../../src/utils/read-sync.mjs'
+import { createReadSync } from '../../src/utils/read-sync.mjs'
 import { loadCursors } from '../../src/utils/read-cursor.mjs'
 import { dmReadParams } from '../../src/utils/channel-feed.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
-import { readSyncPage } from '../../src/utils/sidebar-tabs.mjs'
+import { createSeedGate, readSyncPage, seedWaitsForPull } from '../../src/utils/dm-seed.mjs'
 
 const src = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8')
 const tick = () => new Promise((r) => setTimeout(r, 0))
@@ -471,10 +471,19 @@ describe('cold /lobby: the DM seed is one GET /v1/view/topics (spec 109 FR-004)'
     for (const p of ['/lobby', '/bg/lobby', '/dm/CLE-1@box-a', '/channel/devel']) assert.ok(readSyncPage(p), p)
     for (const p of ['/', '/issues', '/t/abc', '/dm', '/lobbyx']) assert.ok(!readSyncPage(p), p)
     const plugin = src('src/plugins/spool-live.client.ts')
-    assert.match(plugin, /readSyncPage\(router\.currentRoute\.value\.path\)/)
-    assert.match(plugin, /m\.seedDmsAfterPull\(api, seed\)/)
+    assert.match(plugin, /import\('~\/utils\/read-sync-boot'\)\.then\(\(m\) => m\.seedDms\(api, path, seed\), \(\) => seed\(\)\)/)
+    /* ci_initial_gzip_kb 155.1 > 155 on 1db5fe64b (gate 38118720855): the gate and the
+       rule load on demand with read-sync-boot, so the plugin imports neither statically */
+    assert.doesNotMatch(plugin, /^import .*(dm-seed|read-sync|sidebar-tabs|read-cursor)/m)
     const boot = src('src/utils/read-sync-boot.ts')
+    /* prd e2e after 1db5fe64b, fresh profile (an orchestrator probe, fresh.mjs, n=2): the form sign-in
+       started the socket on /login, so the seed went out with no dm_read= and again after
+       the /lobby pull, 2 of 2. A browser with no dm: cursor holds it on any page. */
+    assert.ok(seedWaitsForPull('/login', {}), 'fresh profile, sign-in on /login')
+    assert.ok(seedWaitsForPull('/issues', { 'ch:devel': { ts: T1 } }), 'no dm: cursor yet')
+    assert.ok(!seedWaitsForPull('/issues', { 'dm:CLE-1@box-a': { ts: T1 } }), 'a stored dm: cursor seeds at once off the feed pages')
+    assert.ok(seedWaitsForPull('/lobby', { 'dm:CLE-1@box-a': { ts: T1 } }), 'a feed page always holds')
     assert.match(boot, /dmSeed\.moved\(\(\) => channel\.loadDmActivity\(self\)\)/)
-    assert.match(boot, /dmSeed\.after\(sync \? sync\.ready : null, seed\)/)
+    assert.match(boot, /if \(!seedWaitsForPull\(path, loadCursors\(\)\)\) return seed\(\)\n  startReadSync\(api\)\n  return dmSeed\.after\(sync \? sync\.ready : null, seed\)/)
   })
 })

@@ -72,16 +72,6 @@ export function tabForPath(path) {
   return null
 }
 
-/**
- * spec 109 FR-004: the feed pages whose onMounted starts the hub read sync
- * (pages/lobby.vue, pages/dm/[peer].vue, pages/channel/[name].vue).
- * @param {string} path vue-router path
- */
-export function readSyncPage(path) {
-  const p = productPath(path)
-  return p === '/lobby' || p.startsWith('/dm/') || p.startsWith('/channel/')
-}
-
 /** 081 T003: the page each page-backed tab opens, tabForPath's inverse. */
 const TAB_ROUTES = {
   topics: '/',

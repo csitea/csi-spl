@@ -5,7 +5,8 @@
  * thread cards, DM badges and channel badges are recomputed, and a feed's
  * frozen "New messages" boundary moves up to what the member already saw.
  */
-import { createReadSync, createSeedGate, laterThan } from '~/utils/read-sync.mjs'
+import { createReadSync, laterThan } from '~/utils/read-sync.mjs'
+import { createSeedGate, seedWaitsForPull } from '~/utils/dm-seed.mjs'
 import { loadCursors } from '~/utils/read-cursor.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
@@ -39,11 +40,14 @@ export function startReadSync(api: Api) {
 }
 
 /**
- * spec 109 FR-004: the tab's first DM seed (plugins/spool-live.client.ts) on
- * a page that starts this sync. It goes out once, after the first pull, with
- * the dm: cursors that pull moved (utils/read-sync.mjs createSeedGate).
+ * spec 109 FR-004: the tab's first DM seed (plugins/spool-live.client.ts).
+ * Where this sync's first pull would move the dm: cursors (a feed page, or a
+ * browser with no dm: cursor yet: utils/dm-seed.mjs seedWaitsForPull) it
+ * starts the sync and goes out once, after that pull, with the moved cursors;
+ * elsewhere it goes out at once, as before.
  */
-export function seedDmsAfterPull(api: Api, seed: () => unknown) {
+export function seedDms(api: Api, path: string, seed: () => unknown) {
+  if (!seedWaitsForPull(path, loadCursors())) return seed()
   startReadSync(api)
   return dmSeed.after(sync ? sync.ready : null, seed)
 }

@@ -28,6 +28,7 @@ declare module '~/utils/link-preview-lookup.mjs' {
 declare module '~/utils/release-notes-api.mjs' {
   export const RELEASE_NOTES_LATEST: number
   export function releaseNotesGet(api: unknown, path: string, running: string): Promise<unknown>
+  export function releaseNotesRead(api: unknown, path: string, running: string): Promise<unknown>
   export function releasePreviews(ids: string[], get: (path: string) => Promise<unknown>): Promise<{ previews: unknown[] }>
   export function mockReleaseNotes(path: string, top: string): unknown
   export function mergeReleasePages<V extends { version: string, notes?: { sha: string }[] }>(have: V[], page: V[]): V[]

@@ -367,31 +367,40 @@ const chosenAgent = ref<{ id: string, box: string, key: string } | null>(null)
 const agentQuery = ref('')
 const root = ref<HTMLElement | null>(null)
 let ticket = 0
-let sizedFor = 0
 
-// The dialog otherwise hugs its content. The floor is twice that height,
-// and never more than the backdrop leaves after its padding.
-function applyDialogMinHeight() {
-  const panel = root.value?.closest('.ui-dialog')
-  if (!(panel instanceof HTMLElement)) return
-  panel.style.minHeight = ''
-  const natural = panel.getBoundingClientRect().height
-  const backdrop = panel.parentElement
-  const available = backdrop ? backdrop.clientHeight - 32 : 0
-  const min = available > 0 ? Math.min(natural * 2, available) : natural * 2
-  panel.style.minHeight = `${Math.round(min)}px`
+// t1 1d657ae8: the dialog hugs its rows, centred by UiDialog's backdrop, and
+// its body scrolls past the screen. A search list hanging below its input
+// would be clipped by that body, so it is a fixed overlay pinned to the
+// input: it opens down, or up when there is more room above, and never runs
+// past the screen edge.
+function placeOptions() {
+  for (const list of root.value?.querySelectorAll<HTMLElement>('.invite-add__options') ?? []) {
+    const control = list.closest('.invite-add__combo')?.querySelector('.invite-add__control')
+    if (!control) continue
+    const r = control.getBoundingClientRect()
+    const below = window.innerHeight - r.bottom - 12
+    const above = r.top - 12
+    const down = below >= list.scrollHeight || below >= above
+    list.style.left = `${Math.round(r.left)}px`
+    list.style.width = `${Math.round(r.width)}px`
+    list.style.maxHeight = `min(16rem, ${Math.max(0, Math.round(down ? below : above))}px)`
+    list.style.top = down ? `${Math.round(r.bottom + 4)}px` : ''
+    list.style.bottom = down ? '' : `${Math.round(window.innerHeight - r.top + 4)}px`
+  }
 }
 
-watch(() => props.open, (isOpen) => {
-  if (!isOpen) sizedFor = 0
-})
-
-watch(loaded, async (isLoaded) => {
-  if (!props.open || !isLoaded || sizedFor === ticket) return
-  sizedFor = ticket
-  await nextTick()
-  applyDialogMinHeight()
-})
+watch(root, (el, _old, onCleanup) => {
+  if (!el) return
+  const seen = new MutationObserver(placeOptions)
+  seen.observe(el, { childList: true, subtree: true })
+  window.addEventListener('scroll', placeOptions, true)
+  window.addEventListener('resize', placeOptions)
+  onCleanup(() => {
+    seen.disconnect()
+    window.removeEventListener('scroll', placeOptions, true)
+    window.removeEventListener('resize', placeOptions)
+  })
+}, { flush: 'post' })
 
 const nameText = computed(() => aboutChannelName({ name: props.name, channel_id: props.channelId }))
 const descriptionText = computed(() => aboutChannelDescription({ description: props.description }))
@@ -754,12 +763,10 @@ async function onToggle(ev: Event) {
   color: var(--color-muted);
   cursor: pointer;
 }
+/* fixed, placed by placeOptions(): the dialog body would clip an absolute list */
 .invite-add__options {
-  position: absolute;
+  position: fixed;
   z-index: 2;
-  inset-inline-start: 0;
-  top: calc(100% + 4px);
-  width: 100%;
   max-height: 16rem;
   margin: 0;
   padding: 4px 0;

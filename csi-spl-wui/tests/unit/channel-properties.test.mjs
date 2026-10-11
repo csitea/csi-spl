@@ -233,8 +233,10 @@ describe('the Properties dialog', () => {
     assert.match(dialog, /viewerHumanId\(access\.me, live\.identity\.value/)
     assert.doesNotMatch(dialog, /function togglePeople/)
     assert.match(src('src/stores/access.ts'), /withSessionRetry\(api, \(\) => api\.me\(\)\)/)
-    assert.match(dialog, /natural \* 2/)
-    assert.match(dialog, /minHeight/)
+    // t1 1d657ae8: the dialog hugs its content; no fixed or doubled floor
+    assert.doesNotMatch(dialog, /minHeight/)
+    assert.doesNotMatch(dialog, /natural \* 2/)
+    assert.doesNotMatch(dialog, /\.ui-dialog[^{]*\{[^}]*\bheight:/)
     const dir = join(WUI, 'i18n/locales')
     const files = readdirSync(dir).filter((f) => f.endsWith('.json'))
     assert.equal(files.length, 19)
@@ -284,11 +286,16 @@ describe('the dropdown list opens under its own input', () => {
     for (const tag of tags) assert.doesNotMatch(tag, /\sclass=/, tag)
   })
 
-  it('each list is inside a plain positioned element', () => {
+  it('each list is inside a plain element and pinned to its own input', () => {
     const wrapped = template.match(/<div class="invite-add__combo">\s*<Combobox\s/g) || []
     assert.equal(wrapped.length, 2)
     assert.match(style, /\.invite-add__combo\s*\{[^}]*position:\s*relative/)
-    assert.match(style, /\.invite-add__options\s*\{[^}]*position:\s*absolute/)
+    // t1 1d657ae8: the dialog hugs its rows, so the body would clip an
+    // absolute list: it is a fixed overlay placed from its own input's box
+    assert.match(style, /\.invite-add__options\s*\{[^}]*position:\s*fixed/)
+    assert.match(dialog, /list\.closest\('\.invite-add__combo'\)\?\.querySelector\('\.invite-add__control'\)/)
+    assert.match(dialog, /new MutationObserver\(placeOptions\)/)
+    assert.match(dialog, /addEventListener\('scroll', placeOptions, true\)/)
   })
 })
 

@@ -100,6 +100,49 @@ try {
   })
   ok('the People tab lists the current member(s)', seesSelf)
 
+  /* t1 1d657ae8: the dialog hugs its rows (no fixed or doubled min-height):
+     at most 10% of the screen is left under the last row, and it is centred. */
+  const fit = await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid=ui-dialog]')
+    const people = document.querySelector('[data-testid=channel-people]')
+    if (!panel || !people) return null
+    const rows = [...people.children].filter((e) => e.getBoundingClientRect().height > 0)
+    const last = Math.max(...rows.map((e) => e.getBoundingClientRect().bottom))
+    const box = panel.getBoundingClientRect()
+    return {
+      minHeight: panel.style.minHeight,
+      gap: Math.round(box.bottom - last),
+      top: Math.round(box.top),
+      under: Math.round(innerHeight - box.bottom),
+      vh: innerHeight,
+    }
+  })
+  ok('the dialog hugs its rows: no min-height, <= 10% empty under the last row, centred',
+    Boolean(fit) && fit.minHeight === '' && fit.gap <= fit.vh * 0.1 && Math.abs(fit.top - fit.under) <= 2, fit)
+
+  /* ...so an open search list is an overlay: all of it on screen and on top,
+     not clipped by the dialog body. */
+  const listShown = (sel) => page.evaluate((sel) => {
+    const list = document.querySelector(sel)
+    if (!list) return null
+    const r = list.getBoundingClientRect()
+    const x = r.left + r.width / 2
+    const top = document.elementFromPoint(x, r.top + 3)
+    const bottom = document.elementFromPoint(x, r.bottom - 3)
+    return {
+      onScreen: r.top >= 0 && r.bottom <= innerHeight && r.height > 0,
+      topVisible: list.contains(top),
+      bottomVisible: list.contains(bottom),
+    }
+  }, sel)
+  const fully = (v) => Boolean(v) && v.onScreen && v.topVisible && v.bottomVisible
+  await page.click('[data-testid=channel-agent-search-button]').catch(() => {})
+  await sleep(300)
+  const agentList = await listShown('[data-testid=channel-agent-options]')
+  ok('the agent search list is shown whole, over the dialog', fully(agentList), agentList)
+  await page.keyboard.press('Escape')
+  await sleep(200)
+
   /* Invite one: open the dropdown, pick the candidate, Add, and it joins.
      Native page.click (trusted events + auto-scroll) is what headlessui's
      Combobox needs — a synthetic .click() on the option does not select. */
@@ -107,6 +150,8 @@ try {
   await sleep(300)
   const pickable = Boolean(await page.waitForSelector(`[data-testid=channel-invite-pick-${INVITEE}]`, { timeout: 5000 }).catch(() => null))
   ok(`a tenant member (${INVITEE}) is offered to invite`, pickable)
+  const peopleList = await listShown('[data-testid=channel-people-options]')
+  ok('the people search list is shown whole, over the dialog', fully(peopleList), peopleList)
   if (pickable) {
     await page.click(`[data-testid=channel-invite-pick-${INVITEE}]`)
     await sleep(200)

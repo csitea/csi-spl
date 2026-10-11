@@ -25,6 +25,9 @@
 # @example DRY_RUN=0 ./run -a do_spl_unanswered_sweep_install_cron
 # @example SWEEP_CRON_ACTION=check ./run -a do_spl_unanswered_sweep_install_cron
 #------------------------------------------------------------------------------
+declare -F spl_desk_cron_checkout >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-checkout.func.sh"
+
 do_spl_unanswered_sweep_install_cron() {
   do_require_bin crontab || return 1
   local env_name="${ENV:-prd}" act="${SWEEP_CRON_ACTION:-install}" every="${SWEEP_CRON_EVERY:-10}"
@@ -67,8 +70,7 @@ do_spl_unanswered_sweep_install_cron() {
 
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
-    [[ "$act" == install && "$SPL_DESK_CRON_CREATE" == 1 ]] &&
-      do_log "INFO DRY_RUN would: git worktree add --detach $src origin/$trunk (the self-updating checkout)"
+    [[ "$act" == install ]] && spl_desk_cron_checkout_dry "$src" "$trunk"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
     return 0
   fi
@@ -77,11 +79,7 @@ do_spl_unanswered_sweep_install_cron() {
     do_log "OK the unanswered sweep is out of the crontab"
     return 0
   fi
-  if [[ "$SPL_DESK_CRON_CREATE" == 1 ]]; then
-    git -C "$SPL_DESK_CRON_REPO" fetch -q origin "$trunk" &&
-      git -C "$SPL_DESK_CRON_REPO" worktree add -q --detach "$src" "origin/$trunk" ||
-      { do_log "FATAL could not create the self-updating checkout $src"; return 1; }
-  fi
+  spl_desk_cron_checkout "$src" "$trunk" || return 1
   [[ -x "$script" ]] || { do_log "FATAL $script is missing or not executable in $src (is it on trunk yet?)"; return 1; }
   mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
   spl_desk_cron_write "$tag" "$line" || return 1

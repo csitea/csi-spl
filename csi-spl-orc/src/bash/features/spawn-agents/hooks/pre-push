@@ -67,6 +67,27 @@ while read -r _ _pp_lsha _pp_rref _pp_rsha; do
   echo "pre-push: REFUSED -- non-fast-forward push to $_pp_b (${_pp_why% }). Fetch, rebase onto origin/$_pp_b, push again; never --force. SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
   exit 1
 done <<<"$_pp_refs"
+# Spec 129 G1 (phase A0): a PRIVATE lane never pushes to this public
+# repository. The pushing agent is SPOOL_AGENT_ID and the <ID> of a
+# <repo>-wt/<ID> worktree (a `sudo -u` hop drops the env, the path stays);
+# its lane map row's box-local half, $SPOOL_ROOT/<ID>/lane.realm, written at
+# spawn from the box-local private list, decides. realm=private:* is REFUSED,
+# SPL_PREPUSH_OVERRIDE=1 included; the workspace is never printed or logged.
+_pp_realm_lib="$(dirname "$(readlink -f "$0")")/../lib/private-realm.inc.sh"
+if [ -r "$_pp_realm_lib" ]; then
+  # shellcheck source=../lib/private-realm.inc.sh
+  . "$_pp_realm_lib"
+  _pp_wtid="$(git rev-parse --show-toplevel 2>/dev/null)"
+  case "$_pp_wtid" in */*-wt/*) _pp_wtid="${_pp_wtid##*/}" ;; *) _pp_wtid="" ;; esac
+  for _pp_id in ${SPOOL_AGENT_ID:-} $_pp_wtid; do
+    case "$(pr_lane_realm "$_pp_id")" in
+      realm=private:*)
+        _pp_logline "REFUSE $PWD HEAD=$head agent=$_pp_id override=$_pp_override -- realm=private (spec 129 G1)"
+        echo "pre-push: REFUSED -- $_pp_id is a PRIVATE lane (realm=private in $(pr_lane_file "$_pp_id")): its work comes from a customer workspace and never goes to this public repository. Push it to that workspace's private repo; a Spool Hub decision crosses only through an owner-approved crossing (spec 129 section 4.2). SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
+        exit 1 ;;
+    esac
+  done
+fi
 # The git env a hook inherits (GIT_DIR, GIT_INDEX_FILE, ...) is scrubbed before
 # the gate runs: its tests create commits and set config in THROWAWAY repos,
 # and an inherited GIT_DIR made those land on the pushing branch and the shared

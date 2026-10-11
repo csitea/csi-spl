@@ -12,12 +12,31 @@
 # from before the hook existed, or a git that cannot resolve a work tree -- that
 # hook REFUSES a poisoned config); else not the spool tree -> let the push go.
 # git passes remote name/URL as $1/$2 and the refs on stdin; exec keeps both.
+#
+# Spec 129 G1: a PRIVATE lane never pushes to the public repository. Before the
+# hand-off, the pushing agent's realm ($SPOOL_ROOT/<ID>/lane.realm, written at
+# spawn; <ID> = SPOOL_AGENT_ID and the <repo>-wt/<ID> dir) is read here too, so
+# a worktree whose own hook predates the check is still refused. It applies to
+# this repository only (a tree carrying the fleet hook); a private repo's push
+# is not refused. SPL_PREPUSH_OVERRIDE=1 does not skip it.
+# spl-pre-push-trampoline version: 2 (spec 129 G1 realm)
 rel="csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push"
 top="$(git rev-parse --show-toplevel 2>/dev/null)"
+common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || git rev-parse --git-common-dir 2>/dev/null)"
+if [ -n "$top" ] && { [ -f "$top/$rel" ] || [ -f "$(dirname "$common")/$rel" ]; }; then
+  wtid=""
+  case "$top" in */*-wt/*) wtid="${top##*/}" ;; esac
+  for id in ${SPOOL_AGENT_ID:-} $wtid; do
+    case "$id" in */*|.*|"") continue ;; esac
+    if grep -q '^realm=private:' "${SPOOL_ROOT:-/var/spool-hub}/$id/lane.realm" 2>/dev/null; then
+      echo "pre-push: REFUSED -- $id is a PRIVATE lane (realm=private in ${SPOOL_ROOT:-/var/spool-hub}/$id/lane.realm): its work never goes to this public repository (spec 129 G1). SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
+      exit 1
+    fi
+  done
+fi
 if [ -n "$top" ] && [ -x "$top/$rel" ]; then
   exec "$top/$rel" "$@"
 fi
-common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || git rev-parse --git-common-dir 2>/dev/null)"
 if [ -n "$common" ]; then
   repo="$(cd "$common/.." 2>/dev/null && pwd)"
   if [ -n "$repo" ] && [ -x "$repo/$rel" ]; then

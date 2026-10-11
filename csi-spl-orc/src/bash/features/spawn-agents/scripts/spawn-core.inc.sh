@@ -184,6 +184,41 @@ _spawn_worktree() {
   RUNDIR="$WORKTREE_DIR"
 }
 
+# Spec 129 G1 (phase A0): the lane's realm, from its topic, brief and work
+# dir against the box-local private list (lib/private-realm.inc.sh). A
+# private lane gets no worktree of the public repository, whatever path its
+# brief names, and a lane that already holds a public worktree gets no
+# private checkout. Once private, a lane stays private: a respawn keeps it.
+# The realm is recorded in $MSGDIR/lane.realm, the box-local half of the lane
+# map row that the pre-push hook reads; plan and log lines never name the
+# workspace. SPAWN_PUBLIC_REPO (tests): the public repo's main checkout.
+_spawn_realm_gate() {
+  local repo pub held
+  # shellcheck source=../lib/private-realm.inc.sh
+  . "${_SP_DIR}/../lib/private-realm.inc.sh"
+  LANE_REALM="$(pr_resolve "${SPAWN_LANE_TOPIC:-}" "$BRIEF" "$WORKDIR")" \
+    || _sp_fail "REFUSED (spec 129 G1): the private list $(pr_file) cannot be read by $(id -un); a private lane cannot be told from a public one"
+  case "$(pr_lane_realm "$TITLE")" in realm=private:*) LANE_REALM="$(pr_lane_realm "$TITLE")" ;; esac
+  _sp_plan realm "${LANE_REALM%%:*} -> ${MSGDIR}/lane.realm"
+  case "$LANE_REALM" in
+    realm=private:*)
+      repo="$(_spawn_main_checkout "$WORKDIR")"
+      if pr_is_public_repo "$WORKDIR" || { [ -n "$repo" ] && pr_is_public_repo "$repo"; }; then
+        _sp_fail "REFUSED (spec 129 G1): ${TITLE} comes from a private workspace's topic; it gets no worktree of the public repository (${repo:-$WORKDIR}), whatever path its brief names. Spawn it on that workspace's private repo checkout."
+      fi
+      pub="${SPAWN_PUBLIC_REPO:-$(_spawn_main_checkout "${_SP_DIR}")}"
+      held="$(pr_worktree_of "$pub" "$TITLE")"
+      [ -z "$held" ] \
+        || _sp_fail "REFUSED (spec 129 G1): ${TITLE} already holds a worktree of the public repository (${held}); a private checkout goes to a NEW lane id, never to this one."
+      ;;
+  esac
+  if _sp_live; then
+    printf '%s\n' "$LANE_REALM" >"${MSGDIR}/lane.realm" 2>/dev/null \
+      || _sp_fail "REFUSED (spec 129 G1): cannot record the realm in ${MSGDIR}/lane.realm"
+    chmod 0664 "${MSGDIR}/lane.realm" 2>/dev/null || true
+  fi
+}
+
 # The agent's row in the fleet-wide lane map (CLE-77920, specs/058 N2):
 # <TITLE>@<box>, repo, branch, scope, files, topic, state live. Best effort and
 # in the background: a spawn never waits on, or fails for, the hub. Without a
@@ -201,6 +236,9 @@ _spawn_lane_put() {
       tr ',' '\n' | sed -E 's/^[ `]+//; s/[ `.]+$//' | grep -v '^$' | paste -sd, -)"
   fi
   scope="${scope:-$SLUG}"
+  # A private lane's hub row says only that (spec 129 G1): its heading and
+  # workspace can name the customer, and the hub holds no customer business.
+  case "${LANE_REALM:-}" in realm=private:*) scope="realm=private" ;; esac
   [ -n "$REPO" ] && repo="$(basename "$REPO")"
   _sp_plan lane "lane-map.sh put --agent ${TITLE} --repo ${repo:-<none>} --branch ${BRANCH:-<none>} --scope '${scope}' --files '${SPAWN_LANE_FILES:-}' --topic '${SPAWN_LANE_TOPIC:-}'"
   _sp_live || return 0
@@ -376,6 +414,7 @@ spawn_main() {
     _sp_plan brief "${BRIEF} -> ${MSGDIR}/lifetime/brief.md 0664"
   fi
 
+  _spawn_realm_gate
   _spawn_worktree
   _spawn_lane_put
   _spawn_seed_blocks

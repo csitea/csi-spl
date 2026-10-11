@@ -1,8 +1,8 @@
-Exported from the Qto doc [DevOps guide](https://spool-hub.ai/workspace/docs?doc=78e51717-7bcb-4b12-9da8-80af726f8882&view=doc) (`78e51717-7bcb-4b12-9da8-80af726f8882`) on 2026-10-11T20:25:48Z; edit in Qto, not here.
+Exported from the Qto doc [DevOps guide](https://spool-hub.ai/workspace/docs?doc=78e51717-7bcb-4b12-9da8-80af726f8882&view=doc) (`78e51717-7bcb-4b12-9da8-80af726f8882`) on 2026-10-11T20:29:06Z; edit in Qto, not here.
 
 # 1 About this guide
 
-This guide builds the GCP estate of the spool from a checkout of the repo: the projects, the service-account keys, terraform through the tf-runner, Cloud Run, Cloud SQL, Firebase Hosting, DNS, the GitHub workflows, the runners, and a restore from backup. It changes nothing by being read. Every mutating command is a dry run until you add `DRY_RUN=0` or, for terraform, until you run `make do-provision` after a plan you have read. An apply needs the owner's go for that call.
+This guide builds the GCP estate of the spool from a checkout of the repo: the projects, the service-account keys, terraform through the tf-runner, Cloud Run, Cloud SQL, Firebase Hosting, DNS, the GitHub workflows, the runners, and a restore from backup. It changes nothing by being read. Every mutating command is a dry run until you add `DRY_RUN=0` or, for terraform, until you run `make do-provision` after a plan you have read. An apply needs the owner's approval for that call.
 
 It is one of four guides. The others are linked, not copied.
 
@@ -21,9 +21,9 @@ It is one of four guides. The others are linked, not copied.
 | the GCP organisation owner login | only gcp-000..004, and only while that project's key does not exist yet |
 | `GCP_BILLING_ACCOUNT_ID` in the environment | gcp-001 links the project to it; the value is never in the repo |
 | the per-env project keys, once bootstrap has written them | everything after the keys exist |
-| the owner's go | every terraform apply, every project create |
+| the owner's approval | every terraform apply, every project create |
 
-A box that does not exist yet is the installation guide, sections 3 to 5 (packages, the two users, the checkout, tpl-gen at its pin). Come back here, then finish that guide. The product domain is cnf `env.dns.BASE_DOMAIN`. This guide never pastes it.
+For a box that does not exist yet, follow the installation guide, sections 3 to 5 (packages, the two users, the checkout, tpl-gen at its pin, the key table). Come back here, then finish that guide. The product domain is cnf `env.dns.BASE_DOMAIN`. This guide never pastes it.
 
 ## 1.2 Conventions
 
@@ -35,6 +35,8 @@ A box that does not exist yet is the installation guide, sections 3 to 5 (packag
 | `<ORG>` `<APP>` | resolved by the action (`do_resolve_oap`); you do not type them |
 
 Run every command as `<OWNER_USER>`, from `<CHECKOUT>`, never from an agent worktree. One `./run` action is a dry run unless `DRY_RUN=0`. `make do-tf-plan` is the plan. `make do-provision` applies. Terraform runs only inside the tf-runner container.
+
+A block that shows only `ENV=dev` is repeated for prd with `ENV=prd`, unless the section says the step is dev only, prd only, `bkp` or `all`.
 
 ## 1.3 Where the rules live
 
@@ -50,7 +52,7 @@ The gate is `bash csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh`. `gre
 
 ## 2.2 The human login
 
-Creating the first project needs the org admin signed in. There is no `do_*` action for that login. It is gap G1. The iac README names the command, and gcp-000 refuses until that login can mint a token. Do it once, as `<OWNER_USER>`, before the first bootstrap, and do not run it again once the key file exists.
+Creating the first project needs the org admin signed in. There is no `do_*` action for that login. It is gap D1. The iac README names the command, and gcp-000 refuses until that login can mint a token. Do it once, as `<OWNER_USER>`, before the first bootstrap, and do not run it again once the key file exists. This login writes the shared gcloud config. It is the one bootstrap exception to the rule that later actions leave that config alone.
 
 `GCP_ACCOUNT` here is the org admin, for this one step. It is not the project service account.
 
@@ -74,7 +76,7 @@ cd <CHECKOUT>/csi-spl-iac && ENV=dev GCP_BILLING_ACCOUNT_ID="${GCP_BILLING_ACCOU
 
 ## 3.2 Apply, dev
 
-The owner's go for this call. The same shape, with `DRY_RUN=0`, is then repeated for `prd`, `bkp` (the off-project backup project, step 046) and `all` (the satellite project, steps 059 and 060).
+The owner's approval is required for this call. The same shape, with `DRY_RUN=0`, is then repeated for `prd`, `bkp` (the off-project backup project, step 046) and `all` (the satellite project, steps 059 and 060).
 
 ```bash
 cd <CHECKOUT>/csi-spl-iac && ENV=dev DRY_RUN=0 GCP_BILLING_ACCOUNT_ID="${GCP_BILLING_ACCOUNT_ID:?}" ./run -a do_gcp_000_bootstrap_gcp_env
@@ -169,7 +171,7 @@ cd <CHECKOUT>/csi-spl-orc && ENV=dev STEP=000-gcp-remote-bucket make do-tf-plan
 
 ## 5.3 Apply one step
 
-The owner's go for this call. `make do-provision` runs `do_check_container_dns`, then for step 030 `do_check_hub_image_regress`, then `do_provision` in the tf-runner. `grep -c '^do-provision:' csi-spl-orc/src/make/tf-tasks.func.mk` -> 1. `grep -c '^do_provision()' csi-spl-iac/src/bash/run/provision.func.sh` -> 1.
+The owner's approval is required for this call. `make do-provision` runs `do_check_container_dns`, then for step 030 `do_check_hub_image_regress`, then `do_provision` in the tf-runner. `grep -c '^do-provision:' csi-spl-orc/src/make/tf-tasks.func.mk` -> 1. `grep -c '^do_provision()' csi-spl-iac/src/bash/run/provision.func.sh` -> 1.
 
 ```bash
 cd <CHECKOUT>/csi-spl-orc && ENV=dev STEP=000-gcp-remote-bucket make do-provision
@@ -181,7 +183,7 @@ One env and one step at a time, from the checkout the tf-runner mounts. State li
 
 ## 5.5 The steps
 
-`find csi-spl-iac/src/terraform -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | sort` is the numeric order. Apply dev then prd for each step, except where the table says otherwise. Spec 007 R7: on a rebuild of an estate that already exists, do not destroy `020-gcp-relay-bucket` or `040-cloud-sql-postgres`; import them. A from-scratch project creates them. The import make target is gap G4.
+`find csi-spl-iac/src/terraform -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | sort` is the numeric order. Apply dev then prd for each step, except where the table says otherwise. Spec 007 R7: on a rebuild of an estate that already exists, do not destroy `020-gcp-relay-bucket` or `040-cloud-sql-postgres`; import them. A from-scratch project creates them. The import make target is gap D4.
 
 | step | env | what it creates |
 |---|---|---|
@@ -191,7 +193,7 @@ One env and one step at a time, from the checkout the tf-runner mounts. State li
 | 016-firebase-deploy-iam | dev, then prd | IAM for the Firebase deploy |
 | 017-github-wif-deploy | dev, then prd | GitHub workload identity for deploy |
 | 019-firebase-static-site | dev, then prd | the Firebase Hosting site |
-| 020-gcp-relay-bucket | dev, then prd | the git-rel relay bucket; its sender key is not created here (gap G5) |
+| 020-gcp-relay-bucket | dev, then prd | the git-rel relay bucket; its sender key is not created here (gap D5) |
 | 025-gcp-dns-zone | prd, then dev | DNS; the apex zone before the dev sub-zone |
 | 028-gcp-artifact-registry | dev, then prd | the hub image registry |
 | 030-cloud-run-hub | dev, then prd | the hub service; hold until the database bootstrap below |
@@ -228,7 +230,7 @@ cd <CHECKOUT>/csi-spl-orc && ENVS="dev prd" STEPS="000-gcp-remote-bucket 001-ena
 
 ## 5.8 Apply the shared steps
 
-The owner's go. Same `STEPS` and `ENVS` as the plan. `DRY_RUN=0` applies only a plan that adds or changes, and stops on a destroy or a replace.
+The owner's approval is required. Same `STEPS` and `ENVS` as the plan. `DRY_RUN=0` applies only a plan that adds or changes, and stops on a destroy or a replace.
 
 ```bash
 cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS="dev prd" STEPS="000-gcp-remote-bucket 001-enable-gcp-services 005-gcp-domain-verification 016-firebase-deploy-iam 017-github-wif-deploy 019-firebase-static-site 020-gcp-relay-bucket 028-gcp-artifact-registry 040-cloud-sql-postgres 045-gcs-db-backups 046-gcs-offsite-backups 050-gcs-files 051-gcs-docs 052-gcs-workspace-docs 054-gcs-blog-media 055-gcp-kms-marketing 056-gcs-box-state 057-gcp-kms-vendor-keys 070-gcp-monitoring 120-github-general-secrets" ./run -a do_tf_sweep_steps
@@ -260,7 +262,7 @@ cd <CHECKOUT>/csi-spl-orc && ENV=dev DRY_RUN=0 ./run -a do_spl_db_owner_split
 
 ## 6.4 Automated backups
 
-Step 040 turns on Cloud SQL automated backups and point-in-time recovery. Workflow 45 is additive: a Cloud SQL backup restores only into Cloud SQL and dies with the project. There is no `do_*` action that restores a PITR timestamp. That is gap G6. The logical dump is the next section.
+Step 040 turns on Cloud SQL automated backups and point-in-time recovery. Workflow 45 is additive: a Cloud SQL backup restores only into Cloud SQL and dies with the project. There is no `do_*` action that restores a PITR timestamp. That is gap D6. The logical dump is the next section.
 
 # 7 Cloud Run
 
@@ -268,9 +270,9 @@ Step 040 turns on Cloud SQL automated backups and point-in-time recovery. Workfl
 
 Step 030 creates the service and then ignores the image (`lifecycle ignore_changes`), so a later apply does not roll it back. The image is minted and rolled by workflow 20, or from the box by `do_deploy_hub`.
 
-The first apply, when no service exists yet, is gap G3. `make do-provision` of step 030 runs `do_check_hub_image_regress` first, and that action returns 1 when `gcloud run services describe` cannot see a service. `ALLOW_IMAGE_REGRESS` is checked only after a live image is read, so it does not unlock the first create. Do not docker-exec terraform on the host to get past it.
+The first apply, when no service exists yet, is gap D3. `make do-provision` of step 030 runs `do_check_hub_image_regress` first, and that action returns 1 when `gcloud run services describe` cannot see a service. `ALLOW_IMAGE_REGRESS` is checked only after a live image is read, so it does not unlock the first create. Do not docker-exec terraform on the host to get past it.
 
-When the service already exists, the sweep is the path. The owner's go.
+When the service already exists, the sweep is the path. The owner's approval is required.
 
 ```bash
 cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS="dev prd" STEPS=030-cloud-run-hub ./run -a do_tf_sweep_steps
@@ -304,7 +306,7 @@ cd <CHECKOUT>/csi-spl-orc && ENV=dev ./run -a do_check_hub_image_regress
 
 ## 8.1 The zone, prd then dev
 
-Spec 007 R7: apply `025-gcp-dns-zone` on prd before dev, and destroy it on dev before prd. The owner's go.
+Spec 007 R7: apply `025-gcp-dns-zone` on prd before dev, and destroy it on dev before prd. The owner's approval is required.
 
 ```bash
 cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS="prd dev" STEPS=025-gcp-dns-zone ./run -a do_tf_sweep_steps
@@ -348,7 +350,7 @@ cd <CHECKOUT>/csi-spl-iac && ./run -a do_spl_wine_box_budget_tf
 
 ## 10.2 Wine box budget, apply
 
-The owner's go for this call. The same action, with `TF_VERB=provision`.
+The owner's approval is required for this call. The same action, with `TF_VERB=provision`.
 
 ```bash
 cd <CHECKOUT>/csi-spl-iac && TF_VERB=provision ./run -a do_spl_wine_box_budget_tf
@@ -533,20 +535,20 @@ A step with no action, or an action that refuses the from-scratch case. Each one
 
 | id | what is missing | what exists instead |
 |---|---|---|
-| G1 | no `do_*` wraps `gcloud auth login` for the org admin | the iac README names the command; gcp-000 refuses without a token |
-| G2 | no single action applies every step in the legal env order | `do_tf_sweep_steps` with an explicit `STEPS` and `ENVS`, as the sections above |
-| G3 | the first `make do-provision` of 030 returns 1 when the service does not exist yet | `do_check_hub_image_regress` describes the live service before it decides; `ALLOW_IMAGE_REGRESS` does not cover a missing service |
-| G4 | `make do-import` requires `AWS_PROFILE` | `do_tf_import` exists (`grep -c '^do_tf_import()' csi-spl-iac/src/bash/run/tf-import.func.sh` -> 1) but the make target is not a GCP path, and terraform on the host is forbidden |
-| G5 | the relay sender key is not created by terraform | repo `CLAUDE.md`: minted out of band; feature doc section 6.3 |
-| G6 | no `do_*` restores a Cloud SQL PITR timestamp | `do_spl_db_restore` restores the logical dump |
-| G7 | `make do-provision-and-update-gh-keys` calls `do_github_update_gcp_keys` | `grep -c '^do_github_update_gcp_keys()' csi-spl-iac/src/bash/run/*.func.sh csi-spl-orc/src/bash/run/*.func.sh` -> 0; step 120 is the action that sets the secrets |
-| G8 | the owner's go is a spoken yes, not a recorded action | every apply section above waits for it |
+| D1 | no `do_*` wraps `gcloud auth login` for the org admin | the iac README names the command; gcp-000 refuses without a token |
+| D2 | no single action applies every step in the legal env order | `do_tf_sweep_steps` with an explicit `STEPS` and `ENVS`, as the sections above |
+| D3 | the first `make do-provision` of 030 returns 1 when the service does not exist yet | `do_check_hub_image_regress` describes the live service before it decides; `ALLOW_IMAGE_REGRESS` does not cover a missing service |
+| D4 | `make do-import` requires `AWS_PROFILE` | `do_tf_import` exists (`grep -c '^do_tf_import()' csi-spl-iac/src/bash/run/tf-import.func.sh` -> 1) but the make target is not a GCP path, and terraform on the host is forbidden |
+| D5 | the relay sender key is not created by terraform | repo `CLAUDE.md`: minted out of band; feature doc section 6.3 |
+| D6 | no `do_*` restores a Cloud SQL PITR timestamp | `do_spl_db_restore` restores the logical dump |
+| D7 | `make do-provision-and-update-gh-keys` calls `do_github_update_gcp_keys` | `grep -c '^do_github_update_gcp_keys()' csi-spl-iac/src/bash/run/*.func.sh csi-spl-orc/src/bash/run/*.func.sh` -> 0; step 120 is the action that sets the secrets |
+| D8 | the owner's approval is spoken for that call; no action records it | every apply section above waits for it |
 
 # 17 Docs this guide replaces
 
 | doc | what happens to it |
 |---|---|
-| `csi-spl-doc/doc/md/HOWTO-local-cloud-deploy.md` | the two box deploys live here (`do_deploy_hub`, `do_deploy_wui`); that file becomes a pointer after this export is on master |
+| `csi-spl-doc/doc/md/HOWTO-local-cloud-deploy.md` | the two box deploys live here (`do_deploy_hub`, `do_deploy_wui`); that file is a pointer to this guide |
 | `csi-spl-iac/README.md` | stays; `readme-bootstrap.tst.sh` pins the bootstrap contract in it |
 | spec 007, spec 029, spec 044 | stay; they are the design record, this is the operator path |
 | `csi-spl-doc/doc/md/box-state-backup.md` | stays; box state is the installation guide |

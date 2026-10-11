@@ -12,6 +12,42 @@
     - "{{ wine_vars | default(playbook_dir ~ '/vars.example.yml') }}"
 
   pre_tasks:
+    # These four checks fail before any role runs. The secrets copy is no_log,
+    # so a missing directory used to fail with nothing useful. VncAuth stores
+    # 8 characters and drops the rest. The unit's display number is the port
+    # minus 5900. i386 is checked only when that switch is on.
+    - name: Stat a supplied secrets directory on the controller
+      ansible.builtin.stat:
+        path: "{{ secrets_src }}"
+      register: secrets_src_stat
+      delegate_to: localhost
+      become: false
+      when: (secrets_src | default('')) | length > 0
+
+    - name: Refuse a secrets_src that is not an absolute existing directory
+      ansible.builtin.assert:
+        that:
+          - secrets_src is match('^/')
+          - secrets_src_stat.stat.exists | default(false)
+          - secrets_src_stat.stat.isdir | default(false)
+        fail_msg: "secrets_src must be an absolute directory that exists on the controller"
+      when: (secrets_src | default('')) | length > 0
+
+    - name: Refuse a supplied VNC password that VncAuth would shorten or that is too short
+      ansible.builtin.assert:
+        that:
+          - (vnc_password | length) == 8
+        fail_msg: "a supplied VNC password must be exactly 8 characters"
+      no_log: true
+      when: (vnc_password | default('')) | length > 0
+
+    - name: Refuse a VNC port outside the desktop range
+      ansible.builtin.assert:
+        that:
+          - vnc_port | int >= 5900
+          - vnc_port | int <= 5999
+        fail_msg: "vnc_port must be between 5900 and 5999"
+
     - name: Wait for sshd on a fresh VM
       ansible.builtin.wait_for_connection:
         delay: 5
@@ -24,6 +60,38 @@
     - name: Python apt bindings for the apt module
       ansible.builtin.raw: dpkg -s python3-apt >/dev/null 2>&1 || (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-apt)
       changed_when: false
+
+    - name: Foreign architectures before an i386 check
+      ansible.builtin.command: dpkg --print-foreign-architectures
+      register: foreign_arch_pre
+      changed_when: false
+      when: wine_enable_i386 | bool
+
+    - name: Enable i386 so its package lists can be checked
+      ansible.builtin.command: dpkg --add-architecture i386
+      when:
+        - wine_enable_i386 | bool
+        - "'i386' not in (foreign_arch_pre.stdout | default(''))"
+
+    - name: Refresh package lists after enabling i386
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 0
+      when: wine_enable_i386 | bool
+
+    - name: Whether i386 libc is published
+      ansible.builtin.command: apt-cache show libc6:i386
+      register: libc6_i386
+      changed_when: false
+      failed_when: false
+      when: wine_enable_i386 | bool
+
+    - name: Refuse i386 when the mirror has no such packages
+      ansible.builtin.assert:
+        that:
+          - libc6_i386.rc == 0
+        fail_msg: "wine_enable_i386 is set but libc6:i386 is not in the package lists"
+      when: wine_enable_i386 | bool
 
   roles:
     - { role: 01_data_disk, tags: [01_data_disk] }

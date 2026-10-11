@@ -49,6 +49,14 @@ grep -q '\-localhost yes' "$VNC" && grep -q '127.0.0.1' "$VNC" && grep -q '0\\.0
   && pass "the unit binds localhost and the assert rejects a public listen" || fail "VNC is not localhost-only"
 grep -q 'wine explorer' "$VNC" \
   && pass "the desktop starts a Wine file window" || fail "no Wine window in the session startup"
+grep -q 'secrets_src must be an absolute directory that exists on the controller' "$PB" \
+  && grep -q 'delegate_to: localhost' "$PB" \
+  && grep -q 'a supplied VNC password must be exactly 8 characters' "$PB" \
+  && grep -q 'no_log: true' "$PB" \
+  && grep -q 'vnc_port must be between 5900 and 5999' "$PB" \
+  && grep -q 'libc6:i386' "$PB" \
+  && pass "pre-tasks reject a bad secrets path, password, port, or i386 mirror" \
+  || fail "review pre-tasks missing"
 
 # every {{ name }} the roles use is a key of vars.example.yml, except the
 # optional password (defaulted in the task) and ansible's own names

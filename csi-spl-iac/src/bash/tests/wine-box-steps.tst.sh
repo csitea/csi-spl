@@ -64,7 +64,7 @@ grep -q 'timezone' "$v061" && grep -q 'vnc_passwd_bin' "$v061" && grep -q 'not i
 grep -q '# dev-only-step' "$PROJ_ROOT/src/bash/tests/tfvars-cover-declared-vars.tst.sh" \
   && pass "the cover test skips a dev-only step" || fail "the cover test has no dev-only skip"
 
-grep -q 'e2-standard-4' "$CNF/dev.env.yaml" && grep -q 'europe-west2-a' "$CNF/dev.env.yaml" \
+grep -q 'e2-standard-2' "$CNF/dev.env.yaml" && grep -q 'europe-west2-a' "$CNF/dev.env.yaml" \
   && grep -q 'debian-13-trixie-v20261006' "$CNF/dev.env.yaml" && grep -q '10.81.0.0/24' "$CNF/dev.env.yaml" \
   && grep -q 'assign_external_ip: true' "$CNF/dev.env.yaml" && grep -q 'budget_amount_month: 180' "$CNF/dev.env.yaml" \
   && grep -q '35.235.240.0/20' "$CNF/dev.env.yaml" \

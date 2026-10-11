@@ -22,8 +22,16 @@
 # Which red stops it (round 5 action 08): the e2e shards (GITHUB_JOB
 # wui-e2e) stop only on a red in a job they need, `wui-generate` or the wui
 # unit job. In the 6 red master runs of 2026-10-09, 17 of 18 shard ends were
-# kills for a hub or orc red, so e2e gave no verdict of its own. Every other
-# job (hub, orc) still stops on any red job.
+# kills for a hub or orc red, so e2e gave no verdict of its own.
+#
+# When the orc and hub suites stop (round 8 action 01): on any red job, but
+# only once no job outside them (GITHUB_JOB orc-suite, hub-suite) is still
+# running, so they hold the slot no longer than the run already holds it.
+# Over the 16 red master runs 38072152801..38120064586 fail-fast stopped 32
+# of 32 orc shards and 16 of 16 hub jobs, and in 13 of 16 another job (the
+# e2e shards) ran >= 14 min past the orc stop (median 29.4 min): the stop
+# saved no run time and threw the suites' verdicts away. Every other job
+# keeps the rule above: e2e on its needs, the rest on any red.
 #
 # Env: GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT, GH_TOKEN (gh),
 #      GITHUB_JOB (the job id; picks the filter above),
@@ -40,9 +48,13 @@ jobs_api="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/${GITHUB
 
 # needs - a regex of the job names whose red stops this job: for the e2e
 # shards the names of wui-generate and wui-suite in wf 10, else any job.
+# spares - for the orc and hub suites, a regex of the job names that may
+# still run at their stop (their own); empty = stop at once on a red.
+spares=''
 case "${GITHUB_JOB:-}" in
-  wui-e2e) needs='^wui: (nuxt generate|unit tests)' ;;
-  *)       needs='.' ;;
+  wui-e2e)             needs='^wui: (nuxt generate|unit tests)' ;;
+  orc-suite|hub-suite) needs='.'; spares='^(orc: hermetic|hub: )' ;;
+  *)                   needs='.' ;;
 esac
 
 # red_jobs - names of this run attempt's jobs that ended failure / timed_out
@@ -52,6 +64,16 @@ red_jobs() {
   gh api "$jobs_api" --paginate \
     --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .name' 2>/dev/null \
     | grep -E -- "$needs"
+}
+
+# others_running - names of this run attempt's in-progress jobs outside
+# $spares. A failing query counts as running: no stop on a guess. A job that
+# waits on this one (gate-health) is not in progress, so it never holds it.
+others_running() {
+  local names
+  names=$(gh api "$jobs_api" --paginate \
+    --jq '.jobs[] | select(.status == "in_progress") | .name' 2>/dev/null) || { echo "(jobs query failed)"; return 0; }
+  grep -vE -- "$spares" <<<"$names" | grep .
 }
 
 # The command in its own process group, so a stop reaches every child
@@ -68,6 +90,11 @@ while kill -0 "$pid" 2>/dev/null; do
     sleep 1
   done
   red=$(red_jobs) || red=""
+  if [[ -n "$red" && -n "$spares" ]] && running=$(others_running); then
+    [[ -n "${held:-}" ]] || echo "gate fail-fast: held, a red job but other jobs still run: $(paste -sd, <<<"$running")"
+    held=1
+    continue
+  fi
   if [[ -n "$red" ]]; then
     echo "::error::gate fail-fast: stopped, so the next gate run starts; red in this run: $(paste -sd, <<<"$red")"
     kill -TERM -- "-$pid" 2>/dev/null

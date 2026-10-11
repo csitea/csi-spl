@@ -21,9 +21,16 @@
 #      every hub, orc, iac and cnf job of wf 10 does NOT stop it (the shard
 #      ends with its own status); a red wui-generate or wui-suite does. The
 #      job names come from wf 10, so a renamed job breaks this.
+#   6. as the orc or hub suite (round 8 action 01): a red while a job outside
+#      them (an e2e shard) is still in progress does NOT stop it; once that
+#      job ends it stops within one poll. Their own jobs never hold them, a
+#      failing in-progress query holds, and any other job (orc-features)
+#      still stops at once on a red while e2e runs.
 # CONTROLS: a wf with the wrapper dropped (e2e, and orc alone), one with GATE_FAIL_FAST on every
 # event, one asking actions: write, a script that only runs the command
-# (no watcher), and one whose e2e shards stop on any red are each red.
+# (no watcher), one whose e2e shards stop on any red, one whose orc and hub
+# suites stop at once on a red (the old rule), and one where their own jobs
+# hold them, are each red.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -63,16 +70,49 @@ v=$(check_wf "$W10"); [[ -z "$v" ]] && pass "wf 10: e2e, hub and orc under gate-
 # --- the script, against a stubbed gh -------------------------------------
 reset_bin
 export PATH="$T/bin:$PATH" GITHUB_REPOSITORY=o/r GITHUB_RUN_ID=1 GITHUB_RUN_ATTEMPT=1 GATE_FAIL_FAST_POLL_S=1
-gh_red()   { stub gh "echo called >>$T/gh.calls; echo 'wui: browser e2e (mock, generated) 1/3'"; }
-gh_green() { stub gh "echo called >>$T/gh.calls; exit 0"; }
-gh_down()  { stub gh "echo called >>$T/gh.calls; echo 'HTTP 502' >&2; exit 1"; }
+# The stub answers the two queries apart: the in-progress names (--jq
+# selects .status == "in_progress") from $T/running, the red names from
+# $T/red. $T/down fails every query, $T/down-running the in-progress one.
+stub gh "echo called >>$T/gh.calls
+case \"\$*\" in
+  *in_progress*) [[ -e $T/down || -e $T/down-running ]] && { echo 'HTTP 502' >&2; exit 1; }; cat $T/running ;;
+  *) [[ -e $T/down ]] && { echo 'HTTP 502' >&2; exit 1; }; cat $T/red ;;
+esac"
 
 # wf 10 job names as the jobs API prints them (matrix shard 1)
 wf_name() { yq ".jobs.$1.name" "$W10" | sed 's/\${{ *matrix\.shard *}}/1/'; }
 for j in hub-suite orc-suite orc-features iac-suite cnf-suite; do wf_name "$j"; done >"$T/red-other"
 wf_name wui-generate >"$T/red-generate"
 wf_name wui-suite >"$T/red-unit"
-gh_names() { stub gh "echo called >>$T/gh.calls; cat $T/$1"; }
+wf_name iac-suite >"$T/red-iac"
+wf_name wui-e2e >"$T/red-e2e"
+{ wf_name orc-suite; wf_name orc-suite | sed 's#1/2#2/2#'; wf_name hub-suite; } >"$T/run-suites"
+# gh_set <red names file|-> [<in-progress names file>] - what the stub answers
+gh_set() {
+  rm -f "$T/down" "$T/down-running"
+  if [[ "$1" == - ]]; then : >"$T/red"; else cp "$T/$1" "$T/red"; fi
+  cp "$T/${2:-run-suites}" "$T/running"
+}
+gh_red()   { gh_set red-e2e; }
+gh_green() { gh_set -; }
+gh_down()  { gh_set -; touch "$T/down"; }
+gh_names() { gh_set "$1"; }
+
+# held_then_stops <script> <GITHUB_JOB> - an iac red while e2e shard 1/3
+# runs; the shard ends after 3 s. Prints a violation, or nothing.
+held_then_stops() {
+  local s="$1" job="$2" rc t0 secs
+  gh_set red-iac; cat "$T/run-suites" "$T/red-e2e" >"$T/running"
+  ( sleep 3; cp "$T/run-suites" "$T/running" ) &
+  t0=$SECONDS
+  GATE_FAIL_FAST=1 GITHUB_JOB="$job" timeout 60 bash "$s" bash -c 'sleep 12; exit 0' >"$T/held.out" 2>&1; rc=$?
+  secs=$((SECONDS - t0)); wait
+  (( secs >= 3 )) || { echo "$job: an iac red stopped it after ${secs}s while an e2e shard still ran"; return; }
+  (( rc == 1 && secs < 10 )) || { echo "$job: not stopped within one poll of the e2e shard's end (rc=$rc after ${secs}s)"; return; }
+  grep -q 'gate fail-fast: held' "$T/held.out" || { echo "$job: the hold is not printed: $(cat "$T/held.out")"; return; }
+  grep -q '::error::gate fail-fast: stopped, so the next gate run starts; red in this run: iac' "$T/held.out" \
+    || { echo "$job: the stop line changed (report-ci-gate parses it): $(cat "$T/held.out")"; return; }
+}
 
 check_script() {  # <script> - prints the first violation, or nothing
   local s="$1" out rc t0 secs need
@@ -101,6 +141,21 @@ check_script() {  # <script> - prints the first violation, or nothing
     secs=$((SECONDS - t0))
     (( rc == 1 && secs < 10 )) || { echo "an e2e shard was not stopped by $(cat "$T/$need") (rc=$rc after ${secs}s)"; return; }
   done
+  check_spares "$s"
+}
+
+check_spares() {  # <script> - the orc and hub suites' rule; prints the first violation, or nothing
+  local s="$1" v rc t0 secs job
+  for job in orc-suite hub-suite; do
+    v=$(held_then_stops "$s" "$job"); [[ -z "$v" ]] || { echo "$v"; return; }
+  done
+  gh_set red-iac; touch "$T/down-running"
+  GATE_FAIL_FAST=1 GITHUB_JOB=orc-suite bash "$s" bash -c 'sleep 2; exit 3' >/dev/null 2>&1; rc=$?
+  (( rc == 3 )) || { echo "orc-suite was stopped on a failing in-progress query (rc=$rc)"; return; }
+  gh_set red-iac; cat "$T/run-suites" "$T/red-e2e" >"$T/running"; t0=$SECONDS
+  GATE_FAIL_FAST=1 GITHUB_JOB=orc-features timeout 60 bash "$s" bash -c 'sleep 12; exit 0' >/dev/null 2>&1; rc=$?
+  secs=$((SECONDS - t0))
+  (( rc == 1 && secs < 10 )) || { echo "orc-features was not stopped at once by a red while e2e ran (rc=$rc after ${secs}s)"; return; }
 }
 
 v=$(check_script "$FF"); [[ -z "$v" ]] && pass "gate-fail-fast.sh: stops on a red job, passes status through, off by default" || fail "gate-fail-fast.sh: $v"
@@ -129,9 +184,19 @@ yq '.jobs.wui-e2e.permissions.actions = "write"' "$W10" >"$T/c3.yml"
 printf '#!/usr/bin/env bash\nexec "$@"\n' >"$T/no-watch.sh"
 [[ -n "$(check_script "$T/no-watch.sh")" ]] && pass "CONTROL: a wrapper that only runs the command is caught" \
   || fail "CONTROL: a wrapper that only runs the command passed"
-sed "s/^\( *wui-e2e) needs=\).*/\1'.' ;;/" "$FF" >"$T/no-filter.sh"
+sed "s/^\( *wui-e2e) *needs=\).*/\1'.' ;;/" "$FF" >"$T/no-filter.sh"
 cmp -s "$FF" "$T/no-filter.sh" && fail "CONTROL setup: no-filter.sh is the script unchanged"
 [[ -n "$(check_script "$T/no-filter.sh")" ]] && pass "CONTROL: e2e shards that stop on any red are caught" \
   || fail "CONTROL: e2e shards that stop on any red passed"
+sed "s/^\( *orc-suite|hub-suite) needs='.'\);.*/\1 ;;/" "$FF" >"$T/no-spare.sh"
+cmp -s "$FF" "$T/no-spare.sh" && fail "CONTROL setup: no-spare.sh is the script unchanged"
+v=$(check_spares "$T/no-spare.sh")
+[[ "$v" == *"stopped it after"*"while an e2e shard still ran"* ]] && pass "CONTROL: orc and hub suites that stop at once on a red (the old rule) are caught" \
+  || fail "CONTROL: orc and hub suites that stop at once on a red: '$v'"
+sed 's/grep -vE -- "\$spares" <<<"\$names" | grep \./grep . <<<"$names"/' "$FF" >"$T/self-hold.sh"
+cmp -s "$FF" "$T/self-hold.sh" && fail "CONTROL setup: self-hold.sh is the script unchanged"
+v=$(check_spares "$T/self-hold.sh")
+[[ "$v" == *"not stopped within one poll"* ]] && pass "CONTROL: orc and hub suites held by their own jobs are caught" \
+  || fail "CONTROL: orc and hub suites held by their own jobs: '$v'"
 
 echo "---"; (( fails == 0 )) && echo "PASS: all gate10-fail-fast.tst.sh assertions" || { echo "gate10-fail-fast: $fails failed"; exit 1; }

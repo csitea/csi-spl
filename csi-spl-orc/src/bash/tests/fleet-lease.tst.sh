@@ -82,6 +82,11 @@
 #      the PC box gets them back only after 30 min (hold_min) of healthy
 #      beats. CONTROL: LEASE_HEALTH=0 on the same beats keeps both on the PC
 #      box (the old rule). A failed beats read demotes nobody.
+#  24. a rank handback names ONE holder (2026-10-11 07:59:55Z, two holders for
+#      54 s): the claimant wins the hub row 19 s after the holder renewed but
+#      names the old holder for one LEASE_PERIOD; the old box stands down on
+#      its next tick, then the claimant is ACTIVE once. A stale take-over waits
+#      for nobody. (4 and 7 tick once more for the same wait.)
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -192,12 +197,17 @@ tick sat 1300
 
 # --- 4. pc returns: handback ------------------------------------------------------
 tick pc 1320
-[[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc && "$(mirror pc)" == CLE-002@pc ]] &&
-  pass "4. pc returns and takes both roles back on priority" || fail "4. hub $(hubh dispatch)/$(hubh orch)"
+# the hub row moves at once; pc names the satellite for one LEASE_PERIOD (section 24)
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc && "$(mirror pc)" == CLE-002@sat ]] &&
+  pass "4. pc returns and takes both roles back on priority (the hub row; pc names the satellite until it has read it)" ||
+  fail "4. hub $(hubh dispatch)/$(hubh orch) pc $(mirror pc)"
 tick sat 1330; tick sat 1390
 [[ "$(mirror sat)" == CLE-002@pc && "$(sentc sat 'CLE-002 :: FLEET LEASE dispatch: STANDBY')" == 1 &&
    "$(sentc sat 'CLE-001 :: FLEET LEASE orch: STANDBY')" == 1 && "$(hubh dispatch)" == CLE-002@pc ]] &&
   pass "4. the satellite's agents told STANDBY once and the satellite does not grab it back" || fail "4. sat mirror $(mirror sat) sent: $(cat "$T/sat/sent")"
+tick pc 1380
+[[ "$(mirror pc)" == CLE-002@pc && "$(mirror pc orch)" == CLE-001@pc && "$(sentc pc 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 2 ]] &&
+  pass "4. one LEASE_PERIOD after the handback pc names itself and its master is ACTIVE again" || fail "4. pc mirror $(mirror pc) sent: $(cat "$T/pc/sent")"
 
 # --- 5. local order ---------------------------------------------------------------
 kill_agent pc 101
@@ -231,15 +241,16 @@ tick pc 1490 HUB_RACE=CLE-003@sat
   pass "7. pc lost the race: it mirrors the real holder (CLE-003@sat), not its own wish" || fail "7. hub $(hubh dispatch) mirror $(mirror pc)"
 tick pc 1500
 [[ "$(hubh dispatch)" == CLE-002@pc ]] && pass "7. the next tick takes it on priority" || fail "7. hub $(hubh dispatch)"
+tick pc 1560  # the handback's one LEASE_PERIOD: pc names itself again
 
 # --- 8. hub unreachable ----------------------------------------------------------
 tick pc 1600 HUB_DOWN=1
 [[ "$(mirror pc)" == CLE-002@pc && "$(logc pc HUB-UNREACHABLE)" == 2 ]] &&
   pass "8. a short outage keeps the holder; logged once per role" || fail "8. mirror $(mirror pc): $(cat "$T/pc/spool/dispatch/lease.log")"
-tick pc 1700 HUB_DOWN=1
+tick pc 1750 HUB_DOWN=1
 [[ "$(mirror pc)" == none@unreachable && "$(sentc pc 'CLE-002 :: FLEET LEASE dispatch: STANDBY')" -ge 1 && "$(logc pc HUB-UNREACHABLE)" == 2 ]] &&
   pass "8. past LEASE_STALE without a renewal pc demotes itself (no double acting)" || fail "8. mirror $(mirror pc)"
-tick pc 1710
+tick pc 1760
 [[ "$(mirror pc)" == CLE-002@pc && "$(hubh dispatch)" == CLE-002@pc ]] && pass "8. hub back: pc holds again" || fail "8. mirror $(mirror pc)"
 
 # --- 9. no live candidate --------------------------------------------------------
@@ -785,6 +796,45 @@ rm -f "$T"/hub/main.* "$T"/hs/spool/dispatch/fleet.health*; ctl=0
 for i in 60 61 62; do now=$((B0 + i * 120)); t23 hp $now BEATS_DOWN=1; t23 hs $((now + 1)) BEATS_DOWN=1; [[ "$(hm23)" == hp ]] || ctl=$((ctl + 1)); done
 [[ $ctl == 0 && "$(logc hs 'HEALTH-UNREAD')" == 1 ]] &&
   pass "23. beats read failing: nobody demoted, the configured order; HEALTH-UNREAD logged once" || fail "23. unread: $ctl $(logc hs HEALTH-UNREAD)"
+
+# --- 24. a rank handback never names two holders (2026-10-11 07:59:55Z) ----------
+# Replay: st holds dispatch, renewing every 60 s; tk (ranked first) takes it
+# back 19 s after st's last renewal. Each box reads the hub once per tick, so
+# the old holder saw the new one only on its next tick (54 s later that
+# morning). Before the fix tk named itself at once and told its seat ACTIVE
+# while st's seat was still ACTIVE: two holders. Now the claimant names the
+# old holder for one LEASE_PERIOD, the old box stands down on its next tick,
+# then the claimant goes ACTIVE.
+rm -rf "$T/tk" "$T/st"; rm -f "$T"/hub/main.*
+trio st 61
+t24() { tick "$1" "$2" LEASE_PRIORITY=tk,st LEASE_PRIORITY_DISPATCH=tk,st; }
+# selfc: how many boxes name one of their own seats as the dispatch holder
+selfc() { local n=0 m; for m in tk st; do [[ "$(mirror "$m")" == *"@$m" ]] && n=$((n + 1)); done; echo "$n"; }
+t24 st 2000
+mkdir -p "$T/tk/proc"; t24 tk 2001
+[[ "$(hubh dispatch)" == CLE-002@st && "$(mirror tk)" == CLE-002@st ]] && pass "24. setup: st holds, tk has no seat" || fail "24. setup: $(hubh dispatch) tk=$(mirror tk)"
+trio tk 60
+t24 st 2060; t24 tk 2079
+two=0; [[ "$(selfc)" -gt 1 ]] && two=1
+[[ "$(hubh dispatch)" == CLE-002@tk && "$(mirror tk)" == CLE-002@st && "$(sentc tk 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 0 && $two == 0 ]] &&
+  pass "24. tk takes it back on the hub 19 s after st renewed, but names st and keeps its seat STANDBY: one holder" ||
+  fail "24. split: hub $(hubh dispatch) tk=$(mirror tk) st=$(mirror st), tk ACTIVE sent $(sentc tk 'dispatch: you are now ACTIVE')"
+t24 st 2120
+[[ "$(mirror st)" == CLE-002@tk && "$(sentc st 'CLE-002 :: FLEET LEASE dispatch: STANDBY')" == 1 && "$(selfc)" == 0 ]] &&
+  pass "24. st's next tick stands its seat down (STANDBY once)" || fail "24. st: $(mirror st) $(cat "$T/st/sent" 2>&1)"
+t24 tk 2138
+[[ "$(mirror tk)" == CLE-002@st && "$(sentc tk 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 0 && "$(hubh dispatch)" == CLE-002@tk ]] &&
+  pass "24. 59 s after the take-back tk still waits (LEASE_PERIOD 60 s) and renews" || fail "24. early: tk=$(mirror tk) sent $(cat "$T/tk/sent" 2>&1)"
+t24 tk 2139
+[[ "$(mirror tk)" == CLE-002@tk && "$(sentc tk 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 && "$(selfc)" == 1 &&
+   "$(logc tk 'HANDBACK dispatch: CLE-002@tk')" == 1 && "$(logc tk 'takes over from CLE-002@st (silent 19s')" == 1 ]] &&
+  pass "24. one LEASE_PERIOD later tk is ACTIVE once; the handback and its wait are logged once" ||
+  fail "24. active: tk=$(mirror tk) sent $(cat "$T/tk/sent" 2>&1) log $(grep -E 'HANDBACK|takes over' "$T/tk/spool/dispatch/lease.log")"
+# a stale take-over (the holder silent > LEASE_STALE) waits for nobody: st takes it at once
+kill_agent tk 600; kill_agent tk 601; kill_agent tk 602
+t24 st 2320
+[[ "$(mirror st)" == CLE-002@st && "$(sentc st 'CLE-002 :: FLEET LEASE dispatch: you are now ACTIVE')" == 2 && "$(logc st HANDBACK)" == 0 ]] &&
+  pass "24. a stale holder (181 s silent) is taken over at once, no wait" || fail "24. stale: st=$(mirror st) $(cat "$T/st/sent" 2>&1)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

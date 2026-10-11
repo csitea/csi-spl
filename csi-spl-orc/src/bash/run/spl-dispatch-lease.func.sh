@@ -27,7 +27,9 @@
 # @description            LEASE_MASTER, else LEASE_FAILOVER - the local order) renews
 # @description            when this machine holds it, takes it when the holder is
 # @description            silent > LEASE_STALE s on the hub's clock, and takes it
-# @description            back from a machine later in LEASE_PRIORITY (handback).
+# @description            back from a machine later in LEASE_PRIORITY (handback; it
+# @description            names itself locally, and tells its seat ACTIVE, one
+# @description            LEASE_PERIOD later, once the old holder's box has read it).
 # @description            The result is mirrored into <dir>/lease (dispatch) and
 # @description            <dir>/lease.orch as "<ID>@<box> <epoch>" (ids 001-003
 # @description            exist on every box, so the box is always there); every holder
@@ -1307,7 +1309,7 @@ spl_fleet_mirror_file() { [[ "$1" == dispatch ]] && echo "$LEASE_FILE" || echo "
 
 # One role's tick: read, decide, compare-and-set, mirror, tell.
 spl_fleet_role_tick() {
-  local role="$1" me="$LEASE_MACHINE" cand out hm want="" ok now since sincef hold="${LEASE_HOLDDOWN:-300}"
+  local role="$1" me="$LEASE_MACHINE" cand out hm want="" handback=false ok now since sincef hold="${LEASE_HOLDDOWN:-300}"
   ok="$LEASE_DIR/fleet.$role.ok"
   now="$(spl_lease_now)"
   cand="$(spl_fleet_candidate "$role")"
@@ -1334,7 +1336,7 @@ spl_fleet_role_tick() {
     elif (( now - since < hold )); then
       spl_fleet_once "$role.hold" "HOLD $role: $me able $((now - since))s < LEASE_HOLDDOWN ${hold}s: $FH keeps it"
     else
-      want="$cand@$me"
+      want="$cand@$me" handback=true
     fi
   fi
   [[ -n "$want" || -z "$cand" ]] && rm -f "$LEASE_DIR/fleet.$role.hold" "$LEASE_DIR/fleet.$role.hold-int"
@@ -1354,10 +1356,40 @@ spl_fleet_role_tick() {
     fi
   fi
   rm -f "$LEASE_DIR/fleet.$role.unreachable"
-  spl_fleet_apply "$role" "$FH" "$now"
+  [[ "$won" == true && "$handback" == true ]] && spl_fleet_handback_start "$role" "$want" "$before" "$now"
+  spl_fleet_apply "$role" "$(spl_fleet_shown "$role" "$now")" "$now"
   # the holder (this machine, just written) copies it into every served tenant
   [[ "$won" == true ]] && spl_fleet_mirror_out "$role" "$FH"
   return 0
+}
+
+# ---- a rank handback names ONE holder (2026-10-11, two holders for 54 s) ------
+# Every box reads the hub row once per tick. A handback takes the row from a
+# holder that is alive and renewing (07:59:55Z: "silent 19s"), and that box
+# sees it only on its next read, up to one LEASE_PERIOD later (sat: 54 s).
+# Mirrored at once, the claimant told its seat ACTIVE while the old seat was
+# still ACTIVE. Now the claimant keeps naming the old holder locally for one
+# LEASE_PERIOD after its win (fleet.<role>.handback = "<epoch> <old holder>"),
+# by which time the old box has read the row and stood its seat down; then it
+# names itself and tells its seat ACTIVE. The hub row (the post routing) moves
+# at once. A take-over from a stale or absent holder waits for nobody.
+
+# spl_fleet_handback_start <role> <new> <old> <now>: start the wait, log it once.
+spl_fleet_handback_start() {
+  echo "$4 $3" > "$LEASE_DIR/fleet.$1.handback"
+  spl_lease_log "HANDBACK $1: $2 holds it on the hub; this machine names $3 until ${3##*@} has read it (one LEASE_PERIOD, ${LEASE_PERIOD}s), then tells its seat ACTIVE"
+}
+
+# spl_fleet_shown <role> <now>: the holder this machine mirrors, FH unless a
+# handback of ours is still inside its wait. A row no longer ours ends it.
+spl_fleet_shown() {
+  local f="$LEASE_DIR/fleet.$1.handback" at="" old=""
+  [[ -s "$f" ]] && read -r at old < "$f"
+  if [[ "$at" =~ ^[0-9]+$ && -n "$old" && "${FH##*@}" == "$LEASE_MACHINE" ]] && (( $2 - at < LEASE_PERIOD )); then
+    echo "$old"; return 0
+  fi
+  rm -f "$f"
+  echo "$FH"
 }
 
 # A hub call failed. Holding on past LEASE_STALE without a renewal means the

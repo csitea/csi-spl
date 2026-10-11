@@ -112,8 +112,24 @@ only claude and mistral (rdb 0163), whatever keys a workspace holds.
 | rotation | KMS rotates the key version; a named action rewraps the row DEKs | a new version per secret |
 | new infra | one key ring + one key per env (terraform step) | one secret per key, created at runtime by the hub (an IAM grant to create secrets) |
 
-Prices are GCP list prices as both seats believe them, unchecked; task I1
-confirms them.
+Prices confirmed by I1 (c-792) on 2026-10-11 from the GCP list price pages
+`https://cloud.google.com/kms/pricing` and
+`https://cloud.google.com/secret-manager/pricing` (USD, fetched that day):
+
+| item | list price | so |
+|---|---|---|
+| KMS active symmetric key version, SOFTWARE | $0.000082192 / hour | about $0.06 / month per version |
+| KMS cryptographic operation (encrypt, decrypt) | $0.03 / 10,000 | the free 10,000 / month is for Autokey keys only, not ours |
+| KMS key rotation, admin operations, destroyed versions | free | |
+| Secret Manager active secret version (per location) | $0.000082192 / hour after 6 free per billing account | about $0.06 / month per version |
+| Secret Manager access operation | $0.03 / 10,000 after 10,000 free per billing account | |
+
+The pick holds. The KMS column's figure is per **version**: 90-day rotation
+keeps the old versions enabled (older DEKs still unwrap), so the key adds
+about 4 billed versions a year, about $0.24 / month per env after a year,
+until a rewrap lets old versions be disabled. The Secret Manager column, 500
+versions less the 6 free, is about $29.64 / month. The pepper is one version
+per env, about $0.06 / month each.
 
 **Pick: KMS envelope encryption in Postgres.** RLS, the audit row and the
 backup stay in the one store the hub already guards and tests; the cost is

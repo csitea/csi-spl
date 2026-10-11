@@ -121,6 +121,9 @@ bash "$HERE/cookie-secure-cnf.tst.sh"
 echo "== end-to-end smoke =="
 bash "$HERE/spool-smoke.tst.sh"
 
+echo "== store Postgres groups: every store test in exactly one process (both tiers, no Postgres) =="
+bash "$HERE/store-pg-groups.tst.sh"
+
 echo "== hub Postgres gate: migrate, store/hub suites on Postgres, binary e2e (skips without Postgres) =="
 if [ "$tier" = full ]; then
   SPL_COVER_DIR="$COVER_DIR" bash "$HERE/hub-pg.tst.sh"

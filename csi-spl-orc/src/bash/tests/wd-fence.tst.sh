@@ -15,6 +15,10 @@
 #   4. the hub answers again -> unfenced, the takeover runs (the control of
 #      the gate); WD_BEAT=0 (no hub) -> never fenced however old the ack
 #   5. DRY_RUN=1 fences but pushes, TERMs and sends nothing
+#   6. an m- lane is TERMed only through its vibe: a row that points at a
+#      node (spl_wd_agents' fallback) gets its wip push and NO kill, logged
+#      "no agent process to TERM"; a row on the vibe pid is TERMed; a c-
+#      lane on a node keeps today's TERM (fences of 2026-10-11, m-834/m-874)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -122,6 +126,20 @@ ticks 0 0 ok
 DRY=1 ticks 30 120 silent
 [[ -e "$T/wd/fenced" && "$(n acts .)" == 0 && "$(n sent .)" == 0 ]] && grep -q "FENCE-DRY c-050" "$T/wd.log" &&
   pass "5. DRY_RUN=1: fenced, nothing pushed, TERMed or sent" || fail "5. dry run acted: $(cat "$T/acts" "$T/sent" 2>/dev/null)"
+
+# ---- 6. an m- lane: TERM its vibe, never a node ---------------------------------
+reset
+mkdir -p "$T/tick6"
+printf 'm-060\t160\t%%4\nm-061\t161\t%%5\nc-062\t162\t%%6\n' > "$T/tick6/agents"
+printf '160 1 500 node\n161 1 500 vibe\n162 1 500 node\n' > "$T/tick6/ps"
+echo ok > "$T/hub"; DRY_RUN=0 wd spl_wd_fence "$T0" "$T/tick6"
+echo silent > "$T/hub"; DRY_RUN=0 wd spl_wd_fence $(( T0 + 120 )) "$T/tick6"
+[[ "$(n acts 'kill -TERM 160')" == 0 ]] && grep -qx "wip m-060" "$T/acts" &&
+  pass "6. m- lane on a node pid: wip pushed, NO kill" || fail "6. m-060 node pid: $(cat "$T/acts" 2>/dev/null)"
+grep -q "FENCE m-060: .*no agent process to TERM" "$T/wd.log" &&
+  pass "6. m- lane with no vibe: logged 'no agent process to TERM'" || fail "6. no skip line for m-060: $(grep m-060 "$T/wd.log")"
+grep -qx "kill -TERM 161" "$T/acts" && pass "6. m- lane on its vibe pid: TERMed" || fail "6. m-061 vibe not TERMed: $(cat "$T/acts" 2>/dev/null)"
+grep -qx "kill -TERM 162" "$T/acts" && pass "6. c- lane keeps today's pid" || fail "6. c-062 not TERMed: $(cat "$T/acts" 2>/dev/null)"
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

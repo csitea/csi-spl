@@ -1542,7 +1542,7 @@ spl_wd_fence() {
   while IFS=$'\t' read -r id pid _pane; do
     spl_wd_fence_is_seat "$id" && continue
     ( set -C; echo "$now" > "$WD_DIR/fence.term.$id" ) 2>/dev/null || continue
-    spl_wd_fence_lane "$id" "$pid" &
+    spl_wd_fence_lane "$id" "$(spl_wd_fence_pid "$id" "$pid" "$tick")" &
     jp+=("$!")
   done < "$tick/agents"
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
@@ -1563,10 +1563,24 @@ spl_wd_fence_lane() {
   ID="$id" DRY_RUN=0 timeout -k 5 "${WD_FENCE_WIP_TIMEOUT:-60}" ${WD_WIP_CMD:-$ROTATE_RUN -a do_spl_lane_wip_push} \
     >> "$WD_DIR/fence.$id.out" 2>&1 < /dev/null 6>&- 7>&- 8>&- 9>&- || rc=$?
   if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
-    spl_wd_log "FENCE $id: wip push rc=$rc; no process to TERM"; return 0
+    spl_wd_log "FENCE $id: wip push rc=$rc; no agent process to TERM"; return 0
   fi
   ${WD_KILL_CMD:-kill} -TERM "$pid" 2>/dev/null || true
   spl_wd_log "FENCE $id: wip push rc=$rc, TERM pid $pid"
+}
+
+# spl_wd_fence_pid ID PID TICK: the pid the fence may TERM, "-" for none. An
+# m- lane only through its vibe (the comm check of spl_wd_boot_why): the row's
+# node/bun fallback is a child or a stranger (one box's fences 2026-10-11: m-834's
+# TERM hit an npx node, m-874's a dev server, both agents ran on). The other
+# kinds keep the row's pid.
+spl_wd_fence_pid() {
+  local id="$1" pid="$2" tick="$3"
+  if [[ "$id" == m-* && "$pid" =~ ^[0-9]+$ ]] &&
+    ! awk -v p="$pid" '$1 == p && $4 == "vibe" {f = 1} END {exit !f}' "$tick/ps" 2>/dev/null; then
+    pid="-"
+  fi
+  echo "$pid"
 }
 
 # A seat never moves (10.2): ids 001..004, a peer seat, an expected seat.

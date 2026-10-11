@@ -529,7 +529,15 @@ jobs:
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
+      # The whole commit graph and its trees, blobs only on demand: case 9 of
+      # check-pre-push-stale-tree.tst.sh replays the stale-tree detector on the
+      # real r5-02 commits, and _pps_commit reads each path's last 40 commits
+      # (diff-tree + log --raw: trees only, no blob). A depth-1 clone lacks
+      # them, case 9 SKIPs, and a skip fails this job (run 38105201815).
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
 
       # Temp on the job's disk, not the box's shared /tmp tmpfs (see hub-suite;
       # run 37053725586: wui unit, cnf and iac red on ENOSPC, /tmp inodes full).

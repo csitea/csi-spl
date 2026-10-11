@@ -139,3 +139,67 @@ func TestUsageLedgerNaiveSumReadsZero(t *testing.T) {
 		t.Errorf("TurnLedger reads the gap as metered: %+v (%v)", l, err)
 	}
 }
+
+// TestUsageInsertNamesKeySource (spec 127 7.2, C12): the hub's ledger insert
+// names key_source itself, so it holds once rdb 0174's expand default is
+// dropped. In one rolled-back transaction with the default dropped, the
+// insert writes a 'hub' row; CONTROL: the insert as it was before rdb 0174
+// (no key_source) is refused, 23502. And MeterTurn's rows read 'hub'.
+func TestUsageInsertNamesKeySource(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	a := newTenant(t, pg)
+	const oldInsertSQL = `INSERT INTO usage_events (tenant_id, channel_id, agent_id, human_id, turn_id, kind,
+		provider, model, units, unit_cost_micros, currency, at)
+		VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), NULLIF($4, ''), $5, $6,
+		NULLIF($7, ''), NULLIF($8, ''), $9, $10::text::numeric, $11, $12)`
+	at := time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)
+	insert := func(tx pgx.Tx, sql, turn string) error {
+		sp, err := tx.Begin(ctx) // savepoint: the refused CONTROL must not abort the transaction
+		if err != nil {
+			return err
+		}
+		if _, err := sp.Exec(ctx, sql, a, "", "c-925", "", turn, UsageKindIn, "anthropic", "m", int64(5), "1", "EUR", at); err != nil {
+			sp.Rollback(ctx) //nolint:errcheck
+			return err
+		}
+		return sp.Commit(ctx)
+	}
+	err := pgx.BeginFunc(ctx, pg.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `ALTER TABLE usage_events ALTER COLUMN key_source DROP DEFAULT`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, pgScopeTenant, a); err != nil {
+			return err
+		}
+		turn := uid("turn-")
+		if err := insert(tx, usageInsertSQL, turn); err != nil {
+			t.Errorf("usageInsertSQL without the default: %v", err)
+		}
+		var src string
+		if err := tx.QueryRow(ctx, `SELECT key_source FROM usage_events WHERE tenant_id = $1 AND turn_id = $2`, a, turn).Scan(&src); err != nil || src != "hub" {
+			t.Errorf("usageInsertSQL wrote key_source %q (%v), want hub", src, err)
+		}
+		if err := insert(tx, oldInsertSQL, uid("turn-")); pgCode(err) != "23502" {
+			t.Errorf("CONTROL: the insert without key_source: %v, want 23502", err)
+		}
+		return errRollback
+	})
+	if !errors.Is(err, errRollback) {
+		t.Fatal(err)
+	}
+	model := uid("model-")
+	for _, kind := range []string{UsageKindIn, UsageKindOut} {
+		putPrice(t, pg, ModelPrice{"anthropic", model, kind, 3_000_000, "EUR", at.Add(-time.Hour)})
+	}
+	turn := uid("turn-")
+	if n, err := pg.MeterTurn(ctx, a, TurnUsage{TurnRef: TurnRef{TurnID: turn, At: at}, Provider: "anthropic", Model: model, TokensIn: 10}); err != nil || n != 2 {
+		t.Fatalf("MeterTurn = %d, %v; want 2 (in, out)", n, err)
+	}
+	var hub int
+	if err := pg.inTenant(ctx, a, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT count(*) FROM usage_events WHERE tenant_id = $1 AND turn_id = $2 AND key_source = 'hub'`, a, turn).Scan(&hub)
+	}); err != nil || hub != 2 {
+		t.Errorf("MeterTurn's rows read key_source hub %d time(s) (%v), want 2", hub, err)
+	}
+}

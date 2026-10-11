@@ -6,6 +6,7 @@ bdc65df6); section 9.1 records the decisions and each "Q-n" below now reads
 as decided. No design change beyond the answers.
 
 Changelog:
+- D1 (2026-10-11, dispatch-bdc65df6 msg 7da7b68a): `usage_events.key_source` lands expand then contract (rdb 0174 with DEFAULT 'hub', the hub insert names it, a later migration drops the default); no end-state change to 7.2.
 - v1.1 (2026-10-11): owner answers Q-1 A, Q-2 A, Q-3 A, Q-4 A folded in
   (msg 316dd655); section 9.1 added.
 - v1.0 (2026-10-11): signed by all three seats at 64b24b396.

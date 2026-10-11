@@ -263,10 +263,12 @@ const (
 	usagePriceSQL    = `SELECT micros_per_million, currency FROM model_prices
 		WHERE provider = $1 AND model = $2 AND kind = $3 AND valid_from <= $4
 		ORDER BY valid_from DESC LIMIT 1`
+	// key_source (rdb 0174, spec 127 7.2): named on every row, never left to
+	// a default; 'workspace' comes with the lease of spec 127 H2 / P1.
 	usageInsertSQL = `INSERT INTO usage_events (tenant_id, channel_id, agent_id, human_id, turn_id, kind,
-		provider, model, units, unit_cost_micros, currency, at)
+		provider, model, units, unit_cost_micros, currency, at, key_source)
 		VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), NULLIF($4, ''), $5, $6,
-		NULLIF($7, ''), NULLIF($8, ''), $9, $10::text::numeric, $11, $12)`
+		NULLIF($7, ''), NULLIF($8, ''), $9, $10::text::numeric, $11, $12, 'hub')`
 	usageTurnReadSQL = `SELECT count(*), bool_or(kind = 'unmetered'),
 		coalesce(sum(units), 0)::bigint, coalesce(sum(units * unit_cost_micros), 0)::text, coalesce(min(currency), '')
 		FROM usage_events WHERE tenant_id = $1 AND turn_id = $2`

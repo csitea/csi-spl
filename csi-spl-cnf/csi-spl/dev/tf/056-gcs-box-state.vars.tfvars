@@ -5,6 +5,7 @@ env         = "dev"
 gcp_project = "csi-spl-dev"
 gcp_region  = "europe-north1"
 project_sa_email = "csi-spl-dev@csi-spl-dev.iam.gserviceaccount.com"
+shared_prefix = "shared"
 
 state_bucket_name = "csi-spl-dev-box-state"
 writer_sa_account_id = "csi-spl-dev-box-state"

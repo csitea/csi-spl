@@ -144,17 +144,28 @@ grep -qE '^\s*age\s*=\s*var.retention_days' "$f" && grep -qE '^\s*type\s*=\s*"De
   && pass "box state bucket: lifecycle deletes at retention_days" || fail "box state bucket: no retention_days delete rule"
 grep -qE "$public_grant" "$TFD/056-gcs-box-state/"*.tf && fail "a public/ACL/CORS grant appears in 056" || pass "no ACL, allUsers or CORS in 056"
 w="$TFD/056-gcs-box-state/04-box-writer.tf"
-[[ "$(cat "$TFD"/056-gcs-box-state/*.tf | grep -cE '^resource "google_(storage_bucket_iam_(member|binding|policy)|project_iam_[a-z_]+|service_account_iam_[a-z_]+)"')" == 2 ]] \
+rw="$TFD/056-gcs-box-state/06-box-shared-rw.tf"
+[[ "$(cat "$TFD"/056-gcs-box-state/*.tf | grep -cE '^resource "google_(storage_bucket_iam_(member|binding|policy)|project_iam_[a-z_]+|service_account_iam_[a-z_]+)"')" == 3 ]] \
   && grep -qE '^\s*role\s*=\s*"roles/storage.objectCreator"' "$w" \
   && grep -qE '^\s*role\s*=\s*"roles/iam.serviceAccountTokenCreator"' "$w" \
   && grep -qE '^\s*member\s*=\s*"serviceAccount:\$\{var.project_sa_email\}"' "$w" \
-  && ! grep -qE 'objectViewer|objectAdmin|objectUser|legacyBucket' "$TFD/056-gcs-box-state/"*.tf \
-  && pass "056: the box writer only creates objects; the project SA only mints its tokens" || fail "056 bindings are not exactly objectCreator + tokenCreator"
+  && ! grep -qE 'objectViewer|objectAdmin|objectUser|legacyBucket' "$w" "$TFD/056-gcs-box-state/03-state-bucket.tf" \
+  && pass "056: outside shared/ the box writer only creates objects; the project SA only mints its tokens" || fail "056 bindings are not exactly objectCreator + tokenCreator + the shared/ grant"
+# the RW mount (owner t1 151d85fc msg ec950b4b): objectAdmin for the writer,
+# ONLY under <shared_prefix>/ (every clause of the condition names it)
+cond="$(sed -n '/expression/,/\]/p' "$rw")"
+scoped='${var.shared_prefix}/\")'
+grep -qE '^\s*role\s*=\s*"roles/storage.objectAdmin"' "$rw" && grep -qE '^\s*condition\s*\{' "$rw" \
+  && [[ "$(grep -c 'startsWith' <<<"$cond")" == 3 && "$(grep 'startsWith' <<<"$cond" | grep -cF "$scoped")" == 3 ]] \
+  && pass "056: the writer's objectAdmin is conditioned on shared_prefix/ in every clause" || fail "056 shared/ grant is not prefix-scoped: $cond"
+[[ "$(grep -cF "$scoped" <<<'      "resource.name.startsWith(\"projects/_/buckets/${var.state_bucket_name}/objects/\")",')" == 0 ]] \
+  && pass "CONTROL: a clause without the shared prefix is not counted" || fail "CONTROL: the prefix-clause grep counts an unscoped clause"
 grep -qE 'objectViewer|objectAdmin|objectUser|legacyBucket' <<<'  role = "roles/storage.objectViewer"' && pass "CONTROL: a planted reader role in 056 is caught" || fail "CONTROL: the 056 reader-role grep misses objectViewer"
 for env in dev prd; do
   m="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/056-gcs-box-state.vars.tfvars"
   grep -qx "state_bucket_name = \"csi-spl-$env-box-state\"" "$m" && grep -qx "writer_sa_account_id = \"csi-spl-$env-box-state\"" "$m" \
     && grep -qx "retention_days = 30" "$m" && grep -qx "project_sa_email = \"csi-spl-$env@csi-spl-$env.iam.gserviceaccount.com\"" "$m" \
+    && grep -qx 'shared_prefix = "shared"' "$m" \
     && pass "$env box state bucket is csi-spl-$env-box-state, 30 days, written by csi-spl-$env-box-state" || fail "$env 056 tfvars"
 done
 # No secret may reach tf state: no password, no generated secret, no secret

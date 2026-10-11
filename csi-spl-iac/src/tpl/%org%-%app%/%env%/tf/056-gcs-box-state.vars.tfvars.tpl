@@ -5,6 +5,7 @@ env         = "{{ ENV }}"
 gcp_project = "{{ gcp["gcp_project"] }}"
 gcp_region  = "{{ gcp["gcp_region"] }}"
 project_sa_email = "{{ gcp["gcp_project"] }}@{{ gcp["gcp_project"] }}.iam.gserviceaccount.com"
+shared_prefix = {{ box["box_state_mount"]["rw_prefix"] | tojson }}
 {% for key, value in steps["056-gcs-box-state"].items() %}
 {{ key }} = {{ value | tojson }}
 {%- endfor %}

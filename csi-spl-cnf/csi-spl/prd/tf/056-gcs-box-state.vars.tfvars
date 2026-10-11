@@ -5,6 +5,7 @@ env         = "prd"
 gcp_project = "csi-spl-prd"
 gcp_region  = "europe-north1"
 project_sa_email = "csi-spl-prd@csi-spl-prd.iam.gserviceaccount.com"
+shared_prefix = "shared"
 
 state_bucket_name = "csi-spl-prd-box-state"
 writer_sa_account_id = "csi-spl-prd-box-state"

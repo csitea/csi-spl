@@ -75,3 +75,13 @@ variable "soft_delete_retention_seconds" {
   description = "Soft-delete retention, as 050/051/054 (604800 = 7 days, the GCS default)."
   default     = 604800
 }
+
+variable "shared_prefix" {
+  type        = string
+  description = "The RW prefix of the box state bucket (cnf env.box.box_state_mount.rw_prefix); never a box name."
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9._-]*$", var.shared_prefix))
+    error_message = "shared_prefix is one plain name, no slash."
+  }
+}

@@ -1663,6 +1663,8 @@
       "empty": "Darbo srities dokumentų dar nėra.",
       "badge": "darbo sritis",
       "edit": "Redaguoti",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Ištrinti",
       "deleting": "Trinama…",
       "source": "Markdown",

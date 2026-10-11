@@ -1663,6 +1663,8 @@
       "empty": "Henüz çalışma alanı belgesi yok.",
       "badge": "çalışma alanı",
       "edit": "Düzenle",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Sil",
       "deleting": "Siliniyor…",
       "source": "Markdown",

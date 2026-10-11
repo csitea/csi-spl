@@ -1663,6 +1663,8 @@
       "empty": "Aún no hay documentos del espacio de trabajo.",
       "badge": "espacio de trabajo",
       "edit": "Editar",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Eliminar",
       "deleting": "Eliminando…",
       "source": "Markdown",

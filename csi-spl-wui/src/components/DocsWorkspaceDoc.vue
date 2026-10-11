@@ -7,7 +7,9 @@
      ?edit=1 opens the editor, on a new doc too (New doc in the tree): a doc
      that does not exist yet is created by its first Save. Delete asks first.
      Edit and Delete show only to a reader who can write (canWriteDocs); the
-     hub's docs.write check is the control. -->
+     hub's docs.write check is the control.
+     Download (owner HUM-10, sienna msg 814fe6e1) shows to every reader: it
+     saves the stored markdown the reader fetched, as <basename>.md. -->
 <template>
   <div class="ws-doc" data-test="ws-doc" :data-state="state" :data-mode="mode">
     <div class="ws-doc__bar">
@@ -15,15 +17,21 @@
         <span class="ws-doc__badge">{{ t('docs.ws.badge') }}</span>
         <span>{{ path }}</span>
       </p>
-      <div v-if="canWrite && mode === 'view' && state === 'ready'" class="ws-doc__tools">
-        <button type="button" class="btn ghost" data-test="ws-doc-edit" @click="startEdit">
-          <UiIcon name="pencil" :size="16" />
-          <span>{{ t('docs.ws.edit') }}</span>
+      <div v-if="mode === 'view' && state === 'ready'" class="ws-doc__tools">
+        <button type="button" class="btn ghost" data-test="ws-doc-download" :title="t('docs.ws.download_hint')" @click="download">
+          <UiIcon name="file-text" :size="16" />
+          <span>{{ t('docs.ws.download') }}</span>
         </button>
-        <button type="button" class="btn ghost danger" data-test="ws-doc-delete" @click="confirmOpen = true">
-          <UiIcon name="trash" :size="16" />
-          <span>{{ t('docs.ws.delete') }}</span>
-        </button>
+        <template v-if="canWrite">
+          <button type="button" class="btn ghost" data-test="ws-doc-edit" @click="startEdit">
+            <UiIcon name="pencil" :size="16" />
+            <span>{{ t('docs.ws.edit') }}</span>
+          </button>
+          <button type="button" class="btn ghost danger" data-test="ws-doc-delete" @click="confirmOpen = true">
+            <UiIcon name="trash" :size="16" />
+            <span>{{ t('docs.ws.delete') }}</span>
+          </button>
+        </template>
       </div>
     </div>
     <p v-if="state === 'loading'" class="muted">{{ t('common.loading') }}</p>
@@ -117,6 +125,13 @@ function startEdit() {
   preview.value = rewriteDocsLinks(draft.value, props.path, route)
   error.value = ''
   mode.value = 'edit'
+}
+
+/* the bytes the hub returned, not the rendered HTML; the helper loads on
+   the click, off the first screen */
+async function download() {
+  const { downloadWsDoc } = await import('~/utils/ws-doc-download.mjs')
+  downloadWsDoc(props.path, text.value)
 }
 
 function dropEditQuery() {

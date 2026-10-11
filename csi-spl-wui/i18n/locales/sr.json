@@ -1663,6 +1663,8 @@
       "empty": "Још нема докумената радног простора.",
       "badge": "радни простор",
       "edit": "Измени",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Обриши",
       "deleting": "Брисање…",
       "source": "Markdown",

@@ -1663,6 +1663,8 @@
       "empty": "Inga dokument i arbetsytan ännu.",
       "badge": "arbetsyta",
       "edit": "Redigera",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Ta bort",
       "deleting": "Tar bort…",
       "source": "Markdown",

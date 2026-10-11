@@ -1663,6 +1663,8 @@
       "empty": "Darbvietā vēl nav dokumentu.",
       "badge": "darbvieta",
       "edit": "Rediģēt",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Dzēst",
       "deleting": "Dzēš…",
       "source": "Markdown",

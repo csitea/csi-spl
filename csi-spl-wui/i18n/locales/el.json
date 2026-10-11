@@ -1663,6 +1663,8 @@
       "empty": "Δεν υπάρχουν ακόμη έγγραφα χώρου εργασίας.",
       "badge": "χώρος εργασίας",
       "edit": "Επεξεργασία",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Διαγραφή",
       "deleting": "Διαγραφή…",
       "source": "Markdown",

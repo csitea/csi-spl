@@ -7,6 +7,9 @@
 // hidden from a reader who cannot write (a member without docs.write, a
 // guest); the repo docs stay read-only. Desktop light + dark, and a phone.
 // The mock tenant serves an in-memory bucket (src/utils/ws-docs-mock.mjs).
+// Download (owner HUM-10, sienna msg 814fe6e1) saves the stored markdown as
+// <basename>.md, for a reader without docs.write too: the saved bytes equal
+// the doc as saved.
 //
 // Control: before T010 there is no [data-test=ws-docs]; every check fails.
 //
@@ -90,6 +93,22 @@ const previewH1 = (p, want) => p.waitForFunction((want) => {
   const h = document.querySelector('[data-test=ws-doc-preview] h1')
   return h && h.textContent.trim() === want
 }, { timeout: 5000 }, want).then(() => true, () => false)
+/* record what saveBlob hands the browser instead of saving it: the anchor's
+   file name and the blob's bytes as text */
+const catchDownloads = (p) => p.evaluateOnNewDocument(() => {
+  const blobs = new Map()
+  const make = URL.createObjectURL.bind(URL)
+  URL.createObjectURL = (b) => { const u = make(b); blobs.set(u, b); return u }
+  const click = HTMLAnchorElement.prototype.click
+  window.__downloads = []
+  HTMLAnchorElement.prototype.click = function () {
+    const b = this.download ? blobs.get(this.href) : null
+    if (!b) return click.call(this)
+    window.__downloads.push(b.text().then((text) => ({ name: this.download, type: b.type, text })))
+  }
+})
+const lastDownload = (p) => p.waitForFunction(() => window.__downloads.length > 0, { timeout: 5000 })
+  .then(() => p.evaluate(async () => { const d = await window.__downloads.at(-1); window.__downloads = []; return d }), () => null)
 const openDir = async (p, path) => {
   if (await has(p, `[data-test=ws-docs-file][data-path^="${path}/"]`)) return true
   const d = await p.$(`[data-test=ws-docs-dir][data-path="${path}"]`)
@@ -106,6 +125,7 @@ try {
     await p.setViewport({ width: 1440, height: 900 })
     await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
     await p.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
+    await catchDownloads(p)
     await p.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const section = await p.waitForSelector('[data-test=ws-docs][data-state=ready]', { timeout: 15000 }).catch(() => null)
     ok(`${theme}: the explorer has a Workspace docs section`, Boolean(section))
@@ -153,6 +173,14 @@ try {
     await p.click('[data-test=ws-doc-save]')
     ok(`${theme}: Save shows the new text`, await wsDoc(p, WELCOME) && (await h1(p)) === `Welcome ${theme}`)
     ok(`${theme}: the saved markdown renders (bold)`, await p.$eval('[data-test=ws-doc]', (el) => el.querySelector('strong')?.textContent === 'here'))
+
+    /* download: the stored markdown, byte for byte, as <basename>.md */
+    ok(`${theme}: Download shows on the doc`, await shown(p, '[data-test=ws-doc-download]'))
+    await p.click('[data-test=ws-doc-download]')
+    const dl = await lastDownload(p)
+    ok(`${theme}: Download saves welcome.md, the stored markdown exactly`,
+      Boolean(dl && dl.name === WELCOME && dl.text === `# Welcome ${theme}\n\nSaved **here**.\n` && /^text\/markdown/.test(dl.type)), dl)
+    await shot(p, `desktop-${theme}-download`)
     await openDir(p, 'runbooks')
     await p.click(`[data-test=ws-docs-file][data-path="${DEPLOY}"]`)
     ok(`${theme}: another doc opens`, await wsDoc(p, DEPLOY) && (await h1(p)) === 'Deploy')
@@ -197,6 +225,7 @@ try {
     ok(`${theme}: a member without docs.write sees no Edit, no Delete, no New doc`,
       !(await has(p, '[data-test=ws-doc-edit]')) && !(await has(p, '[data-test=ws-doc-delete]')) && !(await has(p, '[data-test=ws-docs-new]')))
     ok(`${theme}: and still reads the doc`, (await h1(p)) === `Welcome ${theme}`)
+    ok(`${theme}: and still downloads it`, await shown(p, '[data-test=ws-doc-download]'))
     await setMe(p, { humanId: null, role: null, tenantOwner: false, permissions: null, channelOrder: null })
     await sleep(200)
     ok(`${theme}: a guest sees no Edit`, !(await has(p, '[data-test=ws-doc-edit]')) && !(await has(p, '[data-test=ws-docs-new]')))

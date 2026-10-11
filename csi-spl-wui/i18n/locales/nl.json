@@ -1663,6 +1663,8 @@
       "empty": "Nog geen werkruimtedocumenten.",
       "badge": "werkruimte",
       "edit": "Bewerken",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Verwijderen",
       "deleting": "Verwijderen…",
       "source": "Markdown",

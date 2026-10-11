@@ -1663,6 +1663,8 @@
       "empty": "Încă nu există documente în spațiul de lucru.",
       "badge": "spațiu de lucru",
       "edit": "Editează",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Șterge",
       "deleting": "Se șterge…",
       "source": "Markdown",

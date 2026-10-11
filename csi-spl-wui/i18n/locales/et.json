@@ -1663,6 +1663,8 @@
       "empty": "Tööruumi dokumente veel pole.",
       "badge": "tööruum",
       "edit": "Muuda",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Kustuta",
       "deleting": "Kustutamine…",
       "source": "Markdown",

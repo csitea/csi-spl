@@ -1663,6 +1663,8 @@
       "empty": "Pracovný priestor zatiaľ nemá žiadne dokumenty.",
       "badge": "pracovný priestor",
       "edit": "Upraviť",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Odstrániť",
       "deleting": "Odstraňuje sa…",
       "source": "Markdown",

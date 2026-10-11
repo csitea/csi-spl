@@ -1663,6 +1663,8 @@
       "empty": "No workspace docs yet.",
       "badge": "workspace",
       "edit": "Edit",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Delete",
       "deleting": "Deleting…",
       "source": "Markdown",

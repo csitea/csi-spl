@@ -9,6 +9,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { DOCS_WRITE, canWriteDocs, newDocBody, newDocPath, wsDocsRoute, wsPathOf, wsTreeFiles } from '../../src/utils/ws-docs.mjs'
+import { wsDocBlob, wsDocFileName } from '../../src/utils/ws-doc-download.mjs'
 import { createMockWsDocs } from '../../src/utils/ws-docs-mock.mjs'
 
 describe('routes', () => {
@@ -92,5 +93,34 @@ describe('placement (t1 199cafc7: the owner could not find Edit / New doc)', () 
   it('New doc carries its text label next to the +', () => {
     const s = read('src/components/DocsWorkspaceTree.vue')
     assert.match(s, /data-test="ws-docs-new"[\s\S]*?<UiIcon name="plus"[^>]*\/>\s*<span>\{\{ t\('docs\.ws\.new'\) \}\}<\/span>/)
+  })
+})
+
+describe('Download (owner HUM-10, sienna msg 814fe6e1: "download the specifications")', () => {
+  it('saves <basename>.md', () => {
+    assert.equal(wsDocFileName('specs/round-6/spec.md'), 'spec.md')
+    assert.equal(wsDocFileName('welcome.md'), 'welcome.md')
+  })
+  it('CONTROL a path without .md still saves as .md', () => {
+    assert.equal(wsDocFileName('notes/today'), 'today.md')
+    assert.equal(wsDocFileName(''), 'doc.md')
+  })
+  it('the file holds the stored markdown, byte for byte', async () => {
+    const stored = '# Spec — round 6\r\n\nÄ ü € 🙂 **bold**\n\n```sh\necho <tag> & "x"\n```\nno trailing newline'
+    const b = createMockWsDocs({ 'spec.md': stored })
+    const blob = wsDocBlob(b.get('spec.md'))
+    const got = Buffer.from(await blob.arrayBuffer())
+    assert.deepEqual(got, Buffer.from(stored, 'utf8'))
+    assert.match(blob.type, /^text\/markdown/)
+  })
+  it('CONTROL an empty doc is an empty file, not "null"', async () => {
+    assert.equal((await wsDocBlob('').arrayBuffer()).byteLength, 0)
+  })
+  it('CONTROL the first screen does not carry it: the reader imports it on the click', () => {
+    const read = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8')
+    const s = read('src/components/DocsWorkspaceDoc.vue')
+    assert.match(s, /await import\('~\/utils\/ws-doc-download\.mjs'\)/)
+    assert.doesNotMatch(s, /^import .*ws-doc-download/m)
+    assert.doesNotMatch(read('src/utils/ws-docs.mjs'), /Blob/)
   })
 })

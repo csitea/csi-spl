@@ -1663,6 +1663,8 @@
       "empty": "У робочому просторі ще немає документів.",
       "badge": "робочий простір",
       "edit": "Редагувати",
+      "download": "Download",
+      "download_hint": "Save the markdown of this doc as a .md file",
       "delete": "Видалити",
       "deleting": "Видалення…",
       "source": "Markdown",

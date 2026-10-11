@@ -35,6 +35,10 @@ g() { git -c user.name=t -c user.email=t@example.com -C "$@"; }
 # fixture. The knobs this test sets itself start unset.
 export APP=/nonexistent/caller-app
 unset TREE_APP SPL_SPOOL_REBUILD
+# A git hook (the pre-push gate) exports GIT_DIR, and git -C does not override
+# it: the fixture's init/add/commit wrote 5 commits into the CALLER's repo
+# (spec 131 C5, c-829). Guard: host-spool-no-rebuild-git-dir.tst.sh.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_PREFIX
 
 # A throwaway tree shaped like the app: <app>/csi-spl-api/{src/bash/build.sh,
 # src/go/spool-hub-api/}. The stub build.sh counts its runs and writes a

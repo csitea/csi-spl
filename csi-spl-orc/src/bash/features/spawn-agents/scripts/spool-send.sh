@@ -58,6 +58,7 @@
 #                 [--task <uuid>] (--body <text> | --body-file <path>)
 #                 [--file-ref <path>]... [--file-id <id>]... [--no-poke]
 #                 [--ask <kind> | --no-ask] [--ask-deadline <ts>]
+#                 [--accept <msg_id>]  # only with --kind result: the accepted result's msg_id
 #   spool-send.sh --poke-only --to <ID> [--from <ID>]   # ring, send nothing
 #
 # stdout: spool's JSON result {delivery, msg_id, task_id, ts}, then one
@@ -184,6 +185,7 @@ send_lane_ask_warn() {  # FROM TO KIND BODY
 }
 
 FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0; RELAY=0
+ACCEPT=""
 ASK_KIND=""; NO_ASK=0; ASK_DEADLINE=""
 EXTRA=()
 while [ "$#" -gt 0 ]; do
@@ -199,11 +201,15 @@ while [ "$#" -gt 0 ]; do
     --file-ref|--file-id|--dir-ref|--dir-blob)
                  [ "$#" -ge 2 ] || usage; EXTRA+=("$1" "$2"); shift 2 ;;
     --no-poke)   POKE=0; shift ;;
+    --accept)    [ "$#" -ge 2 ] || usage; ACCEPT="$2"; shift 2
+                 [[ "$ACCEPT" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { echo "ERROR: --accept must be a lower-case uuid, e.g. 123e4567-e89b-12d3-a456-426614174000" >&2; exit 2; } ;;
     --ask)       [ "$#" -ge 2 ] || usage; ASK_KIND="$2"; shift 2
                  case "$ASK_KIND" in blocker|task|escalation) ;; *) echo "ERROR: --ask must be blocker|task|escalation" >&2; exit 2 ;; esac ;;
     --no-ask)    NO_ASK=1; shift ;;
     --ask-deadline) [ "$#" -ge 2 ] || usage; ASK_DEADLINE="$2"; shift 2
                  [[ "$ASK_DEADLINE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || { echo "ERROR: --ask-deadline must be RFC 3339 UTC, e.g. 2026-10-02T06:00:00Z" >&2; exit 2; } ;;
+    --accept)    [ "$#" -ge 2 ] || usage; ACCEPT="$2"; shift 2
+                 [[ "$ACCEPT" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { echo "ERROR: --accept must be a lower-case uuid, e.g. 123e4567-e89b-12d3-a456-426614174000" >&2; exit 2; } ;;
     --poke-only) POKE_ONLY=1; shift ;;
     -h|--help)   usage ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage ;;
@@ -239,6 +245,8 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   [ -n "$FROM" ] || { echo "ERROR: --from is required" >&2; usage; }
   case "$KIND" in task|result|note|reject|blocker|msg) ;; *) echo "ERROR: --kind must be task|result|note|reject|blocker|msg, got: '${KIND}'" >&2; exit 2 ;; esac
   [ "$BODY_SET" -eq 1 ] || { echo "ERROR: --body or --body-file is required" >&2; exit 2; }
+  [ -z "$ACCEPT" ] || [ "$KIND" = result ] || { echo "ERROR: --accept is only allowed with --kind result" >&2; exit 2; }
+  [ -z "$ACCEPT" ] || [ "$KIND" = result ] || { echo "ERROR: --accept is only allowed with --kind result" >&2; exit 2; }
 
   # ---- an owner topic is the owner's (owner rule 2026-10-08) ----------------
   # Agent-to-agent rows sent on an owner topic uuid land INSIDE the owner's
@@ -278,6 +286,8 @@ if [ "$POKE_ONLY" -eq 0 ]; then
 
   args=(send --from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")
   [ -n "$TASK" ] && args+=(--task "$TASK")
+  [ -z "$ACCEPT" ] || args+=(--accept "$ACCEPT")
+  [ -z "$ACCEPT" ] || args+=(--accept "$ACCEPT")
   args+=("${EXTRA[@]}")
   # specs/061 3.6: an id this machine retired inside its quarantine is not
   # relayed (the hub could hand it to another machine's holder of the same

@@ -385,6 +385,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 	toBox := fs.String("to-box", "", "hub mode: recipient box id (needed when --to exists on several boxes)")
 	answers := fs.String("answers", "", "hub mode: this post answers that msg_id (spec 068 4.2); never queued; exit 5 answered, 6 not_responsible")
 	ifGen := fs.Int64("if-gen", 0, "with --answers: the responsible_gen the seat claimed the message on (spool claim --poll)")
+	accept := fs.String("accept", "", "the msg_id of the accepted result (spec 130); only allowed with --kind result")
 	channel := fs.String("channel", "", "hub mode: post into this channel (a new topic every member reads, to ALL-0), like a human's post; the hub refuses it unless --from is a member")
 	typedBy := fs.String("typed-by", "", "hub mode: the HUM-<n> who typed this line at --from's terminal; the hub refuses it (typed_by_not_bound) unless that human is bound as this box's operator")
 	ref := fs.String("ref", "", "hub mode: the channel topic (task_id) this DM is about (spec 067); it rides the send frame as ref_task_id, kept only when --from may read the topic")
@@ -400,7 +401,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 		From: *from, To: *to, TaskID: *task, Kind: *kind, Body: *body,
 		FileIDs: fileIDs, FileRefs: fileRefs, DirBlobs: dirBlobs, DirRefs: dirRefs,
 		PutFile: *putFile, ToBox: *toBox, TypedBy: *typedBy, Channel: *channel,
-		Answers: *answers, IfGen: *ifGen, Ref: *ref,
+		Answers: *answers, IfGen: *ifGen, Ref: *ref, Accepts: *accept,
 	})
 	if err != nil {
 		return fail(err)

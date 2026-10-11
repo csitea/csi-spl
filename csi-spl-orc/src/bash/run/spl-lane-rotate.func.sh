@@ -78,9 +78,9 @@ spl_lane_rotate_conf() {
   local k
   : "${ROTATE_LANE:=1}" "${ROTATE_LANE_CAP:=3}" "${ROTATE_LANE_WARN_AGE:=2700}" "${ROTATE_LANE_MAX_AGE:=3600}"
   : "${ROTATE_LANE_SLOT:=300}" "${ROTATE_LANE_RETRY:=900}" "${ROTATE_LANE_REPORT_AGE:=3900}"
-  : "${ROTATE_LANE_ACK_TIMEOUT:=600}" "${ROTATE_LANE_EXIT_WAIT:=120}" "${ROTATE_LANE_PROBE_MAX_AGE:=600}"
+  : "${ROTATE_LANE_ACK_TIMEOUT:=600}" "${ROTATE_LANE_EXIT_WAIT:=120}" "${ROTATE_LANE_PROBE_MAX_AGE:=600}" "${ROTATE_LANE_REPORT_GRACE:=900}"
   for k in ROTATE_LANE ROTATE_LANE_CAP ROTATE_LANE_WARN_AGE ROTATE_LANE_MAX_AGE ROTATE_LANE_SLOT ROTATE_LANE_RETRY \
-           ROTATE_LANE_REPORT_AGE ROTATE_LANE_ACK_TIMEOUT ROTATE_LANE_EXIT_WAIT ROTATE_LANE_PROBE_MAX_AGE; do
+           ROTATE_LANE_REPORT_AGE ROTATE_LANE_ACK_TIMEOUT ROTATE_LANE_EXIT_WAIT ROTATE_LANE_PROBE_MAX_AGE ROTATE_LANE_REPORT_GRACE; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   (( ROTATE_LANE_CAP > 0 )) || { do_log "FATAL ROTATE_LANE_CAP must be at least 1"; return 1; }
@@ -119,7 +119,7 @@ spl_lane_rotate_tick() {
   local scan rows id kind pid age pane n
   scan="$(spl_lane_rotate_scan)"
   LR_ROLES=" $(spl_lane_rotate_role_ids | tr '\n' ' ') " LR_INFLIGHT=" $(spl_lane_rotate_inflight | tr '\n' ' ') "
-  LR_SLOTS=$(( ROTATE_LANE_CAP - $(wc -w <<<"$LR_INFLIGHT") )) LR_K=0 LR_STARTED=0 LR_DEFER=0 LR_LOGIN="" LR_LOGIN_HELD=""
+  LR_SLOTS=$(( ROTATE_LANE_CAP - $(wc -w <<<"$LR_INFLIGHT") )) LR_K=0 LR_STARTED=0 LR_STARTED_IDS=" " LR_DEFER=0 LR_LOGIN="" LR_LOGIN_HELD=""
   # one row per id, the oldest first: "<id> <kind> <pid> <age> <pane> <processes>"
   rows="$(awk '{n[$1]++; if (!($1 in r)) r[$1] = $0} END {for (i in r) print r[i], n[i]}' <<<"$scan" | sort -k4,4nr)"
   while read -r id kind pid age pane n; do
@@ -207,30 +207,19 @@ spl_lane_rotate_scan() {
   return 0
 }
 
-# The role ids a role rotation of THIS box rotates: LEASE_ORCH while this box
-# holds the orch lease, LEASE_MASTER + LEASE_FAILOVER while it holds the
-# dispatch lease (no fleet: both). A standby seat is rotated here.
+# The role seats (lease.conf LEASE_ORCH, LEASE_MASTER, LEASE_FAILOVER): spec
+# 060's own rotations (do_spl_orch_rotate, do_spl_dispatch_rotate) own them,
+# holder or standby, so this rotation never touches them (c-001, 2026-10-11:
+# two rotations must not race on one seat).
 spl_lane_rotate_role_ids() {
-  if [[ -z "${LEASE_FLEET:-}" ]]; then printf '%s\n' "${LEASE_ORCH:-}" "${LEASE_MASTER:-}" "${LEASE_FAILOVER:-}"; return 0; fi
-  [[ "$(spl_lane_rotate_holder "$LEASE_FILE.orch")" == "${LEASE_ORCH:-x}@$ROTATE_BOX" ]] && echo "$LEASE_ORCH"
-  case "$(spl_lane_rotate_holder "$LEASE_FILE")" in
-    "${LEASE_MASTER:-x}@$ROTATE_BOX"|"${LEASE_FAILOVER:-x}@$ROTATE_BOX") printf '%s\n' "$LEASE_MASTER" "$LEASE_FAILOVER" ;;
-  esac
-  return 0
+  printf '%s\n' "${LEASE_ORCH:-}" "${LEASE_MASTER:-}" "${LEASE_FAILOVER:-}"
 }
 
-# The holder in a lease mirror file ("<id>@<box> <epoch>"), when fresh.
-spl_lane_rotate_holder() {
-  local h="" t=""
-  [[ -s "$1" ]] && read -r h t < "$1"
-  [[ "$t" =~ ^[0-9]+$ ]] && (( $(date +%s) - t <= ${LEASE_STALE:-180} )) && echo "$h"
-  return 0
-}
-
-# The dispatch lease holder to tell (bare id when it is on this box).
+# The orch lease holder to tell, "<id>@<box>" (bare id when it is on this
+# box): a bare id on a standby box reaches the standby seat, which acts on nothing.
 spl_lane_rotate_holder_to() {
   local h=""
-  [[ -s "$LEASE_FILE" ]] && read -r h _ < "$LEASE_FILE"
+  [[ -s "$LEASE_FILE.orch" ]] && read -r h _ < "$LEASE_FILE.orch"
   spl_is_agent_id "${h%@*}" || { echo orchestrator; return 0; }
   [[ "${h#*@}" == "$ROTATE_BOX" ]] && h="${h%@*}"
   echo "$h"
@@ -285,7 +274,7 @@ spl_lane_rotate_warn() {
   if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_lane_rotate_say "$id" "PLAN warn: rotation at $at"; return 0; fi
   echo "$pid" > "$f" 2>/dev/null || true
   SPOOL_ROOT="$SPOOL_ROOT" bash "$ROTATE_SEND" --from "${LEASE_ORCH:-$id}" --to "$id" --kind note --task "lane-rotate-$id" --no-ask \
-    --body "rotation at $at UTC: push what is green, write your state" >/dev/null 2>&1 7>&- 8>&- 9>&- || true
+    --body "rotation at $at UTC: push what is green, write your state (in your worktree and commits; do not reply to this note)" >/dev/null 2>&1 7>&- 8>&- 9>&- || true
   echo "$(date -u +%FT%TZ) $id WARN rotation at $at UTC (pid $pid, $((age / 60)) min)" | tee -a "$ROTATE_LANE_LOG"
 }
 
@@ -374,20 +363,36 @@ spl_lane_rotate_old() {
   awk -v max="$ROTATE_LANE_REPORT_AGE" -v box="$ROTATE_BOX" '$4 > max {printf "%s@%s %s pid %s %d min\n", $1, box, $2, $3, $4 / 60}' <<<"$1" | sort
 }
 
-# One note to the dispatch lease holder when the set of old sessions changes.
+# The incidents: sessions over ROTATE_LANE_REPORT_AGE that this cron could
+# not rotate (no worker on them, none started, a role seat aside) for over
+# ROTATE_LANE_REPORT_GRACE. ONE note per session (id + pid) to the orch lease
+# holder; a normal tick sends nothing (c-002 msg bb8fe212: one a minute).
 spl_lane_rotate_age_alert() {
-  local old ids f="$ROTATE_LANE_DIR/age.alert" to
+  local old f="$ROTATE_LANE_DIR/age.reported" now id pid first new="" to line
+  now="$(date +%s)"
   old="$(spl_lane_rotate_old "$1")"
-  ids="$(awk '{print $1}' <<<"$old" | tr '\n' ' ')"
-  [[ "$(cat "$f" 2>/dev/null || true)" == "$ids" ]] && return 0
-  [[ "${DRY_RUN:-1}" == 1 ]] && { [[ -n "$old" ]] && echo "PLAN age report: $ids"; return 0; }
-  echo "$ids" > "$f" 2>/dev/null || true
-  [[ -n "$old" ]] || return 0
+  while read -r id _ _ pid _; do
+    [[ -n "$id" ]] || continue
+    id="${id%@*}"
+    [[ "$LR_ROLES" == *" $id "* || "$LR_INFLIGHT" == *" $id "* || "$LR_STARTED_IDS" == *" $id "* ]] && continue
+    first="$(sed -n "s/^over $id $pid //p" "$f" 2>/dev/null | sed -n 1p)"
+    if [[ -z "$first" ]]; then [[ "${DRY_RUN:-1}" == 1 ]] || echo "over $id $pid $now" >> "$f"; continue; fi
+    (( now - first >= ROTATE_LANE_REPORT_GRACE )) || continue
+    grep -qx "told $id $pid" "$f" 2>/dev/null && continue
+    line="$(grep "^$id@" <<<"$old" | sed -n 1p)"
+    new+="${new:+; }$line ($(spl_lane_rotate_why_last "$id"))"
+    [[ "${DRY_RUN:-1}" == 1 ]] || echo "told $id $pid" >> "$f"
+  done <<<"$old"
+  [[ -n "$new" ]] || return 0
   to="$(spl_lane_rotate_holder_to)"
+  [[ "${DRY_RUN:-1}" == 1 ]] && { echo "PLAN age report to $to: $new"; return 0; }
   spl_rotate_note "$to" dispatch-lane-rotate \
-    "**agent-age@$ROTATE_BOX**: $(grep -c . <<<"$old") session(s) older than $((ROTATE_LANE_REPORT_AGE / 60)) min (process start time): $(tr '\n' ';' <<<"$old" | sed 's/;$//; s/;/; /g'). Rotation log: $ROTATE_LANE_LOG"
-  echo "$(date -u +%FT%TZ) ALERT age to $to: $ids" | tee -a "$ROTATE_LANE_LOG"
+    "**agent-age@$ROTATE_BOX**: not rotated, older than $((ROTATE_LANE_REPORT_AGE / 60)) min: $new. Log: $ROTATE_LANE_LOG"
+  echo "$(date -u +%FT%TZ) ALERT age to $to: $new" | tee -a "$ROTATE_LANE_LOG"
 }
+
+# ID's last decision line (why it was not rotated), digits kept out.
+spl_lane_rotate_why_last() { cat "$ROTATE_LANE_DIR/why.$1" 2>/dev/null | cut -c1-120 || echo "no decision"; }
 
 # ---- the worker ------------------------------------------------------------------
 
@@ -395,7 +400,7 @@ spl_lane_rotate_age_alert() {
 # the background (ROTATE_LANE_SYNC=1: in this shell, the tests).
 spl_lane_rotate_start() {
   local id="$1" out="$ROTATE_LANE_DIR/worker.$1.out"
-  LR_SLOTS=$((LR_SLOTS - 1)) LR_STARTED=$((LR_STARTED + 1))
+  LR_SLOTS=$((LR_SLOTS - 1)) LR_STARTED=$((LR_STARTED + 1)) LR_STARTED_IDS+="$id "
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_lane_rotate_say "$id" "PLAN rotate $2 pid $3$([[ "$4" == 1 ]] && echo " at its deadline, in flight: $5")"; return 0
   fi
@@ -433,6 +438,9 @@ spl_lane_rotate_one() {
   [[ -z "$(spl_lane_rotate_recent "$id")" ]] || { spl_rotate_log "$rid" GATE SKIP "$(spl_lane_rotate_recent "$id")"; return 0; }
   pane="$(spl_rotate_pane_of_pid "$pid")"
   [[ -n "$pane" ]] || { spl_rotate_log "$rid" GATE SKIP "pid $pid is in no tmux pane"; return 0; }
+  if spl_lane_rotate_brief_is_seed "$id"; then
+    spl_rotate_log "$rid" GATE SKIP "$SPOOL_ROOT/$id/lifetime/brief.md is a rotation seed, not a task brief: restore it first"; return 0
+  fi
   # shellcheck disable=SC2034 # the lib's globals (spl_rotate_ctx_save, spl_rotate_spawn, spl_rotate_restore)
   ROTATE_RID="$rid" ROTATE_OLD_PID="$pid" ROTATE_OLD_PANE="$pane" ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_QUIESCE="" ROTATE_SWITCH_FROM=""
   # shellcheck disable=SC2034 # read by spl_rotate_spawn / spl_rotate_restore
@@ -464,9 +472,26 @@ spl_lane_rotate_run() {
   spl_lane_rotate_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
   # shellcheck disable=SC2034 # read by spl_rotate_spawn (the lane map row keeps the lane's scope)
   ROTATE_LANE_SCOPE="$(grep -m1 -E '^#+ ' "$SPOOL_ROOT/$id/lifetime/brief.md" 2>/dev/null | sed -E 's/^#+ +//; s/^Brief: *//' | cut -c1-120 || true)"
-  spl_rotate_spawn "$id" "$seed" || { spl_lane_rotate_fail "$id" SPAWN "$ROTATE_ERR"; return 1; }
+  # spawn-core records a BRIEF as lifetime/brief.md unless SPAWN_REUSE_ID
+  # reaches it, which the launcher in the new window does not get: the seed
+  # replaced the task brief (P0, 2026-10-11). The brief is put back
+  # byte for byte right after the spawn; the new session reads the seed file.
+  cp -p "$SPOOL_ROOT/$id/lifetime/brief.md" "$ROTATE_STATE_DIR/brief.keep.md" 2>/dev/null || true
+  spl_rotate_spawn "$id" "$seed" || rc=1
+  spl_lane_rotate_brief_back "$id"
+  (( rc == 0 )) || { spl_lane_rotate_fail "$id" SPAWN "$ROTATE_ERR"; return 1; }
   spl_lane_rotate_step SPAWN OK "new $ROTATE_KIND pid $ROTATE_NEW_PID pane $ROTATE_NEW_PANE; old window $(spl_rotate_retiring_name "$id")"
   spl_lane_rotate_from_spawn "$id"
+}
+
+# The task brief back from brief.keep.md when the spawn changed it.
+spl_lane_rotate_brief_back() {
+  local b="$SPOOL_ROOT/$1/lifetime/brief.md" k="$ROTATE_STATE_DIR/brief.keep.md"
+  [[ -s "$k" ]] || return 0
+  cmp -s "$k" "$b" && return 0
+  cp -f "$k" "$b" 2>/dev/null && chmod 0664 "$b" 2>/dev/null
+  spl_rotate_log "$ROTATE_RID" SPAWN WAIT "the spawn rewrote $b: the task brief put back"
+  return 0
 }
 
 spl_lane_rotate_from_spawn() {
@@ -576,6 +601,14 @@ spl_lane_rotate_handoff() {
   return 0
 }
 
+# Every kind=result message in an outbox (the rotation acks aside), newest 10.
+spl_lane_rotate_results() {
+  local out
+  out="$(find "$1" -maxdepth 1 -name '*.json' -print0 2>/dev/null | xargs -0 -r jq -r 'select(.kind == "result" and ((.task_id // "") | test("-rotate-") | not))
+    | "- \(.ts // "" | .[5:16]) -> \(.to // "") [\(.task_id // "" | .[0:12])] \((.body // "") | split("\n") | map(select(test("\\S"))) | join(" ") | .[0:160])"' 2>/dev/null | sort | tail -n 10)"
+  printf '%s\n' "${out:-none}"
+}
+
 spl_lane_rotate_handoff_body() {
   echo "# $id@$ROTATE_BOX handoff, rotation $rid ($ROTATE_KIND lane)"
   echo
@@ -598,8 +631,10 @@ spl_lane_rotate_handoff_body() {
     git -c safe.directory='*' -C "$wt" log --oneline -n 10 "$(git -c safe.directory='*' -C "$wt" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/master)..HEAD" 2>/dev/null || true
   else echo "UNAVAILABLE: no git worktree"; fi
   echo
-  echo "## 3. Sent by the old session in its last hour (its outbox)"
+  echo "## 3. Sent by the old session: its last hour, and every result it ever sent (never send those again)"
   spl_rotate_msgs "$SPOOL_ROOT/$id/outbox" to 60 40 160
+  echo "Results already sent:"
+  spl_lane_rotate_results "$SPOOL_ROOT/$id/outbox"
   echo
   echo "## 4. Unread inbox: $(find "$SPOOL_ROOT/$id/inbox" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l) message(s), the 20 newest"
   spl_rotate_msgs "$SPOOL_ROOT/$id/inbox" from "" 20 120
@@ -607,6 +642,13 @@ spl_lane_rotate_handoff_body() {
   echo "## 5. Session tail (the old transcript: last 10 user lines, last 10 assistant texts)"
   if [[ -n "$tr" ]]; then spl_rotate_transcript_tail "$tr"; else echo "UNAVAILABLE: no transcript for a $ROTATE_KIND session; read sections 1-4"; fi
   return 0
+}
+
+# 0 when ID's lifetime/brief.md is one of this rotation's seeds.
+spl_lane_rotate_brief_is_seed() {
+  local l=""
+  { IFS= read -r l < "$SPOOL_ROOT/$1/lifetime/brief.md"; } 2>/dev/null || true
+  [[ "$l" =~ ^\#\ Brief:\ you\ are\ .*\ again\ \(hourly\ rotation\  ]]
 }
 
 # spl_lane_rotate_seed ID OUT: the new session's brief: its task brief
@@ -631,6 +673,6 @@ You are the new $id@$ROTATE_BOX session: same id, same inbox, same worktree and 
 3. Run the ack, exactly, before anything else:
 ACK-COMMAND: $ack
    Without the ack within $((ROTATE_ACK_TIMEOUT / 60)) min you are closed and the previous session keeps the task.
-4. Then continue the task where the previous session stopped.
+4. Then continue the task where the previous session stopped. A result the previous session already sent (handoff section 3) is NOT sent again: when the task is done and waits for its verdict, stay idle and answer only send-backs.
 EOF
 }

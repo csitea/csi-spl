@@ -131,6 +131,7 @@ cat >"$T/bin/spawn" <<'EOF'
 n="$(cat "$T/next")"; echo $((n + 1)) >"$T/next"
 echo "spawn $1 $2 $3 SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} scope=${SPAWN_LANE_SCOPE:-}" >>"$T/spawn.log"
 cp "$4" "$T/seed.$2"
+cp -f "$4" "$SPOOL_ROOT/$2/lifetime/brief.md"
 printf '%%%s\t%s\t$0\t%s@box\n' "$n" "$n" "$2" >>"$T/tmux/panes"
 comm=claude; [ "$1" = mistral ] && comm="Vibe CLI"
 "$T/bin/proc" "$n" 0 "$2" "$comm" 1 "$1 --seed"
@@ -191,7 +192,7 @@ export PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" SPOOL_T
   ROTATE_LANE_SYNC=1 ROTATE_LANE_PROBE_CMD="echo ok probe fine" ROTATE_LANE_LOGIN_CACHE="$T/no-cache" ROTATE_BOOT_GRACE=0
 unset SPOOL_AGENT_ID MCP_BOT_AGENT_ID TMUX TMUX_PANE
 tick() { DRY_RUN="${DRY:-0}" "$T/bin/act" >>"$T/tick.out" 2>&1; }
-n() { [ -f "$1" ] && grep -c -- "${2:-.}" "$1" || echo 0; }
+n() { if [ -f "$1" ]; then grep -c -- "${2:-.}" "$1" || true; else echo 0; fi; }
 
 # --- 1. two healthy ticks ---------------------------------------------------------
 reset; lane c-911 10; lane m-912 20 mistral
@@ -207,6 +208,7 @@ reset; lane c-921 50
 tick; tick
 check "2. mid-push: 0 spawns" '[ "$(n "$T/spawn.log")" = 0 ]'
 check "2. mid-push: DEFER names the push" 'grep -q "c-921 DEFER not quiet: running .git push" "$T/tick.out"'
+check "2. the warning asks for no reply" 'grep -q "write your state (in your worktree and commits; do not reply to this note)" "$T/send.log"'
 check "2. the warning, once, exact text" '[ "$(n "$T/send.log" "-> c-921 note lane-rotate-c-921: rotation at [0-9][0-9]:[0-9][0-9]Z UTC: push what is green, write your state")" = 1 ] && [ "$(n "$T/send.log")" = 1 ]'
 rm -rf "$T/proc/4921"
 tick
@@ -244,7 +246,11 @@ reset; lane c-961 70
 ROTATE_LANE_PROBE_CMD="echo expired Please run /login" tick
 ROTATE_LANE_PROBE_CMD="echo expired Please run /login" tick
 check "6. dead login: 0 rotations" '[ "$(n "$T/spawn.log")" = 0 ] && [ ! -s "$T/kill.log" ]'
-check "6. dead login: 1 alert to the dispatch holder" '[ "$(n "$T/send.log" "-> c-002@box-b note dispatch-lane-rotate: \*\*lane-rotate@box-desk\*\*: the claude login probe says .expired")" = 1 ]'
+check "6. dead login: 1 alert to the orch lease holder" '[ "$(n "$T/send.log" "-> c-900 note dispatch-lane-rotate: \*\*lane-rotate@box-desk\*\*: the claude login probe says .expired")" = 1 ]'
+
+reset; lane c-962 70; echo "c-001@box-b $(date +%s)" >"$D/lease.orch"
+ROTATE_LANE_PROBE_CMD="echo expired x" tick
+check "6. a holder on another box is told as <id>@<box>" '[ "$(n "$T/send.log" "-> c-001@box-b note dispatch-lane-rotate")" = 1 ]'
 
 # --- 7. the deadline ---------------------------------------------------------------
 reset; lane c-971 58
@@ -254,11 +260,13 @@ check "7. busy at 58 min: rotated anyway" 'grep -q "lane-c-971 DONE OK" "$D/rota
 check "7. the handoff names what was in flight" 'grep -q "deadline while: running .git push" "$D/handoff/"*-lane-c-971.md'
 
 # --- 8. role seats, accepted lanes -----------------------------------------------------
+reset; lane c-900 70; lane c-902 70; lane c-982 70
+tick
+check "8. role seats over 60 min (holder and standby): never touched" '! grep -qE "c-90[02] " "$T/tick.out" && ! grep -qE "^spawn [a-z]+ c-90[02] " "$T/spawn.log" 2>/dev/null'
+check "8. control: the plain lane of the same age is rotated" 'grep -q "^spawn claude c-982 " "$T/spawn.log"'
 reset; lane c-900 70; lane c-902 70; lane c-981 70
 echo '{"v":1,"from":"c-002","to":"c-981","kind":"note","task_id":"t","body":"ACCEPTED: landed"}' >"$S/c-981/archive/a.json"
 DRY=1 tick
-check "8. the orch seat this box rotates: left out" '! grep -q "c-900 " "$T/tick.out"'
-check "8. a standby dispatcher seat: rotated" 'grep -q "c-902 PLAN rotate claude" "$T/tick.out"'
 check "8. an ACCEPTED lane: left to the orchestrator" 'grep -q "c-981 SKIP accepted" "$T/tick.out" && ! grep -q "c-981 PLAN rotate" "$T/tick.out"'
 check "8. dry run: nothing touched" '[ "$(n "$T/spawn.log")" = 0 ] && [ "$(n "$T/send.log")" = 0 ] && [ ! -f "$D/rotate.log" ]'
 
@@ -286,7 +294,24 @@ check "11. none old: exit 0" '[ "$rc" = 0 ]'
 reset; lane g-913 70 grok
 "$T/bin/proc" 4913 1 g-913 git 2913 "go test ./..."
 ROTATE_LANE_MAX_AGE=7200 tick; ROTATE_LANE_MAX_AGE=7200 tick
-check "11. the tick reports it to the dispatch holder once" '[ "$(n "$T/send.log" "agent-age@box-desk\*\*: 1 session(s) older than 65 min")" = 1 ]'
+check "11. inside the grace: no report (normal ticks send nothing)" '[ "$(n "$T/send.log" "agent-age@")" = 0 ]'
+ROTATE_LANE_REPORT_GRACE=0 ROTATE_LANE_MAX_AGE=7200 tick; ROTATE_LANE_REPORT_GRACE=0 ROTATE_LANE_MAX_AGE=7200 tick
+check "11. past the grace: ONE note to the orch lease holder, not one a minute" '[ "$(n "$T/send.log" "-> c-900 note dispatch-lane-rotate: \*\*agent-age@box-desk\*\*: not rotated, older than 65 min: g-913@box-desk")" = 1 ] && [ "$(n "$T/send.log" "agent-age@")" = 1 ]'
+
+# --- 13. the task brief survives rotations byte for byte; a seed brief is refused --
+reset; lane c-931 50
+cp "$S/c-931/lifetime/brief.md" "$T/brief.orig"
+echo '{"v":1,"msg_id":"r1","ts":"2026-10-11T18:00:00Z","from":"c-931","to":"c-001","kind":"result","task_id":"dispatch-x","body":"DONE: the thing landed"}' >"$S/c-931/outbox/r1.json"
+tick
+check "13. first rotation: brief unchanged" 'grep -q "lane-c-931 DONE OK" "$D/rotate.log" && cmp -s "$T/brief.orig" "$S/c-931/lifetime/brief.md"'
+check "13. the seed is its own file and points at the brief" 'grep -q "^# Brief: you are c-931@box-desk again" "$T/seed.c-931" && grep -q "$S/c-931/lifetime/brief.md" "$T/seed.c-931"'
+check "13. a result already sent: listed in the handoff, the seed says never again" 'grep -q "DONE: the thing landed" "$D/handoff/"*-lane-c-931.md && grep -q "is NOT sent again" "$T/seed.c-931"'
+"$T/bin/proc" 3000 3000 c-931 claude 1 "claude --seed"; rm -f "$S/c-931/lifetime/rotate.lane.last"
+tick
+check "13. second rotation: brief still byte for byte" '[ "$(n "$T/spawn.log")" = 2 ] && cmp -s "$T/brief.orig" "$S/c-931/lifetime/brief.md"'
+cp "$T/seed.c-931" "$S/c-931/lifetime/brief.md"; "$T/bin/proc" 3001 3000 c-931 claude 1 "claude --seed"; rm -f "$S/c-931/lifetime/rotate.lane.last"
+tick
+check "13. red control: a brief that is a rotation seed is refused" '[ "$(n "$T/spawn.log")" = 2 ] && grep -q "is a rotation seed, not a task brief" "$D/rotate.log"'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

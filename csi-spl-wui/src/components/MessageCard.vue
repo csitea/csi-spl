@@ -337,6 +337,12 @@
             :key="String(f.file_id || f.path || i)"
             :file="f"
           />
+          <!-- owner t1 c7ddbf83 ("5 rows should always be 5 rows in size"):
+               the cards of the body's internal links sit INSIDE the clip box,
+               so the 5-row clip, its fade and its grip count them like text
+               (it replaces topic e1f8f797's "under the clip"); titles mode has
+               no body, so no preview adds height there -->
+          <LinkPreviewsLazy v-if="!editing && linkPreviews.length" :refs="linkPreviews" />
         </div>
       </div>
       <button
@@ -351,9 +357,6 @@
         @click.stop="onGripClick"
         @keydown="onGripKey"
       />
-      <!-- topic e1f8f797: the cards of the body's internal links sit under the
-           clip box, so the 5-row clip never cuts them; none in titles mode -->
-      <LinkPreviewsLazy v-if="!titleOnly && !editing && linkPreviews.length" :refs="linkPreviews" />
       <p v-if="editing" :id="editHintId" class="muted msg-edit-hint">
         {{ saving ? t('feed.edit.saving') : t('feed.edit.hint') }}
       </p>
@@ -1558,7 +1561,7 @@ const clipEl = ref<HTMLElement | null>(null)
 const clipInner = ref<HTMLElement | null>(null)
 const picture = computed(() => cardHasPicture(files.value))
 const titleOnly = computed(() => props.clipMode === 'titles' && !editing.value)
-/* topic e1f8f797: the body's internal links, as preview cards under the clip */
+/* topic e1f8f797: the body's internal links, as preview cards inside the clip (t1 c7ddbf83) */
 const linkPreviews = useLinkPreviewRefs(() => String(props.msg.body || ''), {
   skip: () => [String(props.msg.msg_id || ''), String(props.msg.task_id || ''), String(props.msg.parent_task_id || '')],
 })

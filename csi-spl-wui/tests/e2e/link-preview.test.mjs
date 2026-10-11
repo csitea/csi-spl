@@ -12,6 +12,13 @@
 // The link to an unknown topic is the control: it stays a plain link, no
 // card. With the setting off there is no card and the links stay.
 //
+// Owner t1 c7ddbf83 ("5 rows should always be 5 rows in size"): in the
+// message list's "5 rows" mode the previews sit INSIDE the card's clip box,
+// so text plus previews never pass the 5-row height (the rest is cut, with
+// the fade and the grip); in "Titles only" the card is one line and shows no
+// preview. CONTROL: "rows: text + previews fit the 5-row box" fails on a
+// tree that draws the previews under the clip box (e37f117e4).
+//
 // The extra rows ride the e2e hook localStorage `spool.mock.extra-messages`;
 // the signed-in person (and their setting) `spool.mock.session`.
 //
@@ -31,6 +38,7 @@ const FAR_TOPIC = 'fb000000-0000-4000-8000-00000000000a'
 const FAR_CARD = 'fb100000-0000-4000-8000-00000000000a'
 const FAR_REPLY = 'fb200000-0000-4000-8000-00000000000b'
 const DM_TASK = 'fe000000-0000-4000-8000-00000000000d'
+const DM_MSG = 'fe100000-0000-4000-8000-00000000000d'
 const UNKNOWN = '00000000-0000-4000-8000-000000000098'
 const TITLE = 'Release plan for the link previews'
 /* owner 3522fd83 ("I have the setting, but I cannot see any previews"): agent
@@ -53,7 +61,7 @@ const extra = [
   { ...base, msg_id: FAR_CARD, task_id: FAR_TOPIC, channel: 'feedback', from: 'HUM-2', from_box: 'box-wui', to: '@channel', to_box: 'box-wui', body: `${TITLE}\nstep one: the hub\nstep two: the cards\nstep three: the switch\nstep four: never shown`, ts: '2026-09-10T08:00:00Z' },
   { ...base, msg_id: FAR_REPLY, task_id: 'fb300000-0000-4000-8000-00000000000c', parent_task_id: FAR_TOPIC, is_parent: 0, channel: 'feedback', from: 'HUM-3', from_box: 'box-wui', to: '@channel', to_box: 'box-wui', body: 'the reply that proves it', ts: '2026-09-10T08:01:00Z' },
   { ...base, msg_id: ID_MSG, task_id: ID_TASK, channel: null, from: 'CLE-07', from_box: 'box-a', to: 'HUM-1', to_box: 'box-wui', body: ID_BODY, ts: '2026-12-31T23:58:00Z' },
-  { ...base, msg_id: 'fe100000-0000-4000-8000-00000000000d', task_id: DM_TASK, channel: null, from: 'CLE-07', from_box: 'box-a', to: 'HUM-1', to_box: 'box-wui', body: BODY, ts: '2026-12-31T23:59:00Z' },
+  { ...base, msg_id: DM_MSG, task_id: DM_TASK, channel: null, from: 'CLE-07', from_box: 'box-a', to: 'HUM-1', to_box: 'box-wui', body: BODY, ts: '2026-12-31T23:59:00Z' },
 ]
 
 async function launch() {
@@ -74,20 +82,23 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-async function openDm(p, srvBase, linkPreviews) {
+/* `clip` = the message list's stored height mode (titles | rows | full);
+   `topic: false` opens the list alone, with no thread pane beside it */
+async function openDm(p, srvBase, linkPreviews, { clip = '', topic = true } = {}) {
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e).slice(0, 300)))
-  await p.evaluateOnNewDocument((rows, lp) => {
+  await p.evaluateOnNewDocument((rows, lp, mode) => {
     try {
       localStorage.setItem('spool.mock.extra-messages', JSON.stringify(rows))
       localStorage.setItem('spool.mock.session', JSON.stringify({
         hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', link_previews: lp,
       }))
+      if (mode) localStorage.setItem('spool-card-clip-default', mode)
     } catch { /* private mode */ }
-  }, extra, linkPreviews)
+  }, extra, linkPreviews, clip)
   let shell = false
   for (let attempt = 0; attempt < 2 && !shell; attempt++) {
-    await p.goto(`${srvBase}/dm/${encodeURIComponent(PEER)}?topic=${DM_TASK}`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
+    await p.goto(`${srvBase}/dm/${encodeURIComponent(PEER)}${topic ? `?topic=${DM_TASK}` : ''}`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
     shell = await p.waitForSelector('.spool-shell', { timeout: attempt === 0 ? 20000 : NAV_TIMEOUT }).then(() => true, () => false)
   }
   if (!shell) throw new Error('no shell ' + JSON.stringify({ url: p.url(), errors: errors.slice(0, 4) }))
@@ -131,6 +142,41 @@ const look = (p) => p.evaluate((ids) => {
     cards,
   }
 }, { topic: FAR_TOPIC, unknown: UNKNOWN, idMsg: ID_MSG })
+
+/* the DM card in the message list: how tall its body is on screen (the clip
+   box, plus any preview drawn outside it), in px and in the body's rows */
+const cardBox = (p) => p.evaluate((id) => {
+  const card = [...document.querySelectorAll(`[data-msg-id="${id}"]`)].find((el) => el.getBoundingClientRect().height > 0)
+  if (!card) return null
+  const body = card.querySelector('[data-testid=card-body]')
+  const title = card.querySelector('[data-testid=card-title]')
+  const box = body || title
+  if (!box) return null
+  const previews = card.querySelector('[data-test=link-previews]')
+  const inside = !!(previews && body && body.contains(previews))
+  const bottoms = [box.getBoundingClientRect().bottom]
+  if (previews && !inside) bottoms.push(previews.getBoundingClientRect().bottom)
+  const text = card.querySelector('.msg-body') || title
+  const lh = parseFloat(getComputedStyle(text).lineHeight) || 20
+  const topic = card.querySelector('[data-test=link-preview] [data-test=link-preview-title]')
+  let topicSeen = false
+  if (topic) {
+    const r = topic.getBoundingClientRect()
+    const el = r.width > 0 ? document.elementFromPoint(r.left + Math.min(8, r.width / 2), r.top + r.height / 2) : null
+    topicSeen = !!el && topic.closest('[data-test=link-preview]').contains(el)
+  }
+  return {
+    height: Math.round(Math.max(...bottoms) - box.getBoundingClientRect().top),
+    lh,
+    rows: Math.round(((Math.max(...bottoms) - box.getBoundingClientRect().top) / lh) * 10) / 10,
+    clip: body ? body.getAttribute('data-clip') || '' : '',
+    inside,
+    previews: card.querySelectorAll('[data-test=link-preview]').length,
+    grip: !!card.querySelector('[data-testid=card-grip]'),
+    title: !!title,
+    topicSeen,
+  }
+}, DM_MSG)
 
 async function waitFor(p, pred, ms = 15000) {
   const start = Date.now()
@@ -193,6 +239,44 @@ try {
     const after = await look(q).catch(() => off)
     ok(`${label} setting off: the links stay links and no card is shown`, !!(after && after.topicLink && after.cards.length === 0), after)
     await q.close()
+  }
+
+  /* owner t1 c7ddbf83: the message list in "5 rows" and in "Titles only" */
+  for (const [label, vp] of [['1440px', { width: 1440, height: 900 }], ['390px', { width: 390, height: 844, isMobile: true, hasTouch: true }]]) {
+    const r = await browser.newPage()
+    r.setDefaultNavigationTimeout(NAV_TIMEOUT)
+    await r.setViewport(vp)
+    await openDm(r, srv.base, null, { clip: 'rows', topic: false })
+    let b = null
+    for (let start = Date.now(); Date.now() - start < 15000; await sleep(200)) {
+      b = await cardBox(r).catch(() => b)
+      if (b && b.previews >= 2 && b.clip) break
+    }
+    await sleep(500)
+    b = await cardBox(r).catch(() => b)
+    ok(`${label} rows: the card's link previews sit inside its 5-row clip box`, !!(b && b.previews >= 2 && b.inside), b)
+    ok(`${label} rows: text + previews fit the 5-row box`, !!(b && b.height <= Math.round(5 * b.lh) + 1), b)
+    ok(`${label} rows: what is past the box is cut, with the fade and the grip`, !!(b && b.clip === 'cut' && b.grip), b)
+    if (SHOT_DIR) await r.screenshot({ path: join(SHOT_DIR, `link-preview-rows-${label}.png`) })
+    if (b && b.grip) {
+      await r.click(`[data-msg-id="${DM_MSG}"] [data-testid=card-grip]`)
+      await sleep(400)
+      const open = await cardBox(r).catch(() => null)
+      ok(`${label} rows: the grip opens the card and its previews show in full`, !!(open && open.height > Math.round(5 * open.lh) + 1 && open.topicSeen), open)
+    }
+    await r.close()
+
+    const t = await browser.newPage()
+    t.setDefaultNavigationTimeout(NAV_TIMEOUT)
+    await t.setViewport(vp)
+    await openDm(t, srv.base, null, { clip: 'titles', topic: false })
+    let tb = null
+    for (let start = Date.now(); Date.now() - start < 15000 && !(tb && tb.title); await sleep(200)) tb = await cardBox(t).catch(() => tb)
+    await sleep(1500)
+    tb = await cardBox(t).catch(() => tb)
+    ok(`${label} titles: the card is its title line, no preview adds height`, !!(tb && tb.title && tb.previews === 0 && tb.height <= Math.ceil(1.5 * tb.lh)), tb)
+    if (SHOT_DIR) await t.screenshot({ path: join(SHOT_DIR, `link-preview-titles-${label}.png`) })
+    await t.close()
   }
 
   /* the switch: Settings -> Behaviour, the person's own box, sends only

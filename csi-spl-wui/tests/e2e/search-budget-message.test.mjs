@@ -73,8 +73,8 @@ try {
     const shown = set ? Boolean(await page.waitForSelector('[data-test=search-error-message]', { timeout: 10000 }).catch(() => null)) : false
     const n = shown ? await notice(page) : { msg: '', ref: '', refInMsg: false }
     ok(`${width}: the budget notice is shown`, shown)
-    ok(`${width}: it names the 5 second budget and what to try`,
-      n.msg.includes('longer than 5 seconds') && n.msg.includes('fewer or more specific words'), n.msg)
+    ok(`${width}: it names the 7 second budget and what to try`,
+      n.msg.includes('longer than 7 seconds') && n.msg.includes('fewer or more specific words'), n.msg)
     ok(`${width}: the old "Narrow the query." wording is gone`, !n.msg.includes('Narrow the query'), n.msg)
     ok(`${width}: a diagnostics reference sits under it, not in it`, /^ERR-/.test(n.ref) && !n.refInMsg && !n.msg.includes('ERR-'), n)
     if (SHOT_DIR && shown) await page.screenshot({ path: `${SHOT_DIR}/search-budget-${width}.png` })

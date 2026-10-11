@@ -28,7 +28,7 @@ import (
 
 const (
 	searchRateDefault    = 30              // per (tenant, reader) per minute (search-v1 §5.1)
-	searchBudgetDefault  = 5 * time.Second // owner, t1 6d5bd334 (was 2 s)
+	searchBudgetDefault  = 7 * time.Second // owner, t1 a55d2f57 (was 5 s, t1 6d5bd334; 2 s before)
 	searchGroupedDefault = 5
 	searchGroupedMax     = 20
 )

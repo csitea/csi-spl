@@ -5,7 +5,7 @@ import { SEARCH_OPERATORS, ensureSearchOperators, type SearchOperator, type Sear
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 /** The hub's search time budget in seconds (hub searchBudgetDefault, search-v1 §5.1): a 503 search_budget says it. */
-export const SEARCH_BUDGET_S = 5
+export const SEARCH_BUDGET_S = 7
 
 type SearchError = { status: number, token: string, detail: string, pos: number, badToken: string, retryAfter: number, raw: unknown }
 

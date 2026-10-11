@@ -34,9 +34,15 @@
 //   BASE=https://<test tenant host> TENANT=e2e EMAIL=<member> PW_FILE=<0600>
 //   OTHER_BASE=https://<second workspace host> OTHER_TENANT=<its id>
 //   OTHER_EMAIL=<reader there>
-//   OTHER_PW_FILE=<0600> [OTHER_ANY_ROLE=1] OUT=<dir> [FREEZE=tz|wait] [SWEEP_WAIT_MIN=25] [TAIL=1]
+//   OTHER_PW_FILE=<0600> [OTHER_ANY_ROLE=1] OUT=<dir> [FREEZE=tz|wait] [SWEEP_WAIT_MIN=25] [TAIL=1|CROSS=1]
 //   [CHROME_PATH=...] [PUPPETEER_CORE=<path>]
 //     node tests/e2e/hours-107-live.proof.mjs
+//
+// CROSS=1 runs only the cross-workspace step on a week an earlier run approved
+// (read-only: TAIL's sign-in and week read, then the second workspace's
+// reader), and asks more of it: 403 not_member on TENANT's /v1/hours, its
+// export and /v1/me/hours, 200 on the reader's own export (prd: the e2e-2
+// biz owner, owner HUM-10 t1 msg bc92a373).
 //
 // Refuses to write unless the session's tenant claim AND the page host's
 // tenant are TENANT. Passwords are read from the files and never printed.
@@ -57,7 +63,8 @@ const OTHER_EMAIL = need('OTHER_EMAIL')
 const OTHER_PW = readFileSync(need('OTHER_PW_FILE'), 'utf8').trim()
 const OTHER_ANY_ROLE = process.env.OTHER_ANY_ROLE === '1' /* prd: no test login holds hours.read in a second workspace */
 const FREEZE = process.env.FREEZE || 'tz'
-const TAIL = process.env.TAIL === '1' /* only the read-only steps after the approval, on a week already done */
+const CROSS = process.env.CROSS === '1' /* only the second workspace's refusal (TAIL's sign-in + week read, then the reader) */
+const TAIL = process.env.TAIL === '1' || CROSS /* only the read-only steps after the approval, on a week already done */
 const SWEEP_WAIT_MS = Number(process.env.SWEEP_WAIT_MIN || 25) * 60000
 const FREEZE_TZ = 'Pacific/Kiritimati'
 const NOTE = 'T018 proof: please split Monday by topic'
@@ -512,45 +519,47 @@ try {
     await pB2.close()
   }
 
-  /* ---- the hours.read answer: approved entries only, never a raw minute ---- */
-  const team = await call(pA, A.api, 'GET', `/v1/hours?period=${MON}`)
-  const raw = JSON.stringify(team.body || {})
-  const entries = (team.body?.entries || []).filter((e) => e.member_id === hum)
-  step('GET /v1/hours (hours.read) carries no raw minute, block or suggestion', team.status === 200 && !/"(at|src|blocks)"\s*:/.test(raw) && !/"suggested"/.test(raw), { entries: entries.length })
-  /* the export's target_id: the target without its kind; "other" (ws) has none */
-  const want = entries.map((e) => `${e.day}|${e.target === 'ws' ? '' : e.target.replace(/^[a-z]+:/, '')}|${e.minutes}`).sort()
+  if (!CROSS) {
+    /* ---- the hours.read answer: approved entries only, never a raw minute ---- */
+    const team = await call(pA, A.api, 'GET', `/v1/hours?period=${MON}`)
+    const raw = JSON.stringify(team.body || {})
+    const entries = (team.body?.entries || []).filter((e) => e.member_id === hum)
+    step('GET /v1/hours (hours.read) carries no raw minute, block or suggestion', team.status === 200 && !/"(at|src|blocks)"\s*:/.test(raw) && !/"suggested"/.test(raw), { entries: entries.length })
+    /* the export's target_id: the target without its kind; "other" (ws) has none */
+    const want = entries.map((e) => `${e.day}|${e.target === 'ws' ? '' : e.target.replace(/^[a-z]+:/, '')}|${e.minutes}`).sort()
 
-  /* ---- CSV and XLSX from the Download tab ---- */
-  const pD = await page(ctxA, { vp: { width: 1440, height: 900 }, theme: 'light', hum })
-  await desktop(pD, MON)
-  const csv = await download(pD, 'csv')
-  const cr = csv.buf ? csvRows(csv.buf.toString('utf8')) : []
-  const ch = cr[0] || []
-  const ci = (k) => ch.indexOf(k)
-  const cLines = cr.slice(1).filter((r) => r[ci('member_id')] === hum)
-  const cGot = cLines.map((r) => `${r[ci('date')]}|${r[ci('target_id')]}|${r[ci('minutes')]}`).sort()
-  step('the CSV holds exactly the approved lines, every one period_state = approved', csv.buf && want.length && cGot.join() === want.join() && cLines.every((r) => r[ci('period_state')] === 'approved') && cr.length - 1 === cLines.length,
-    { file: csv.file, ui: csv.done, http: csv.http, lines: cLines.length, got: cGot, want })
-  await shot(pD, '8-download-csv-1440-light')
-  const xl = await download(pD, 'xlsx')
-  let xr = { rows: [], sheets: 0, parts: [] }
-  try { if (xl.buf) xr = xlsxRows(xl.buf) } catch (e) { xr.error = String(e) }
-  const xh = xr.rows[0] || []
-  const xi = (k) => xh.indexOf(k)
-  const xLines = xr.rows.slice(1).filter((r) => r[xi('member_id')] === hum)
-  const xGot = xLines.map((r) => `${r[xi('date')]}|${r[xi('target_id')]}|${r[xi('minutes')]}`).sort()
-  step('the XLSX (one sheet) holds the same lines, every one period_state = approved', xl.buf && want.length && xr.sheets === 1 && xGot.join() === want.join() && xLines.every((r) => r[xi('period_state')] === 'approved'),
-    { file: xl.file, ui: xl.done, http: xl.http, parts: xr.parts, error: xr.error, lines: xLines.length, got: xGot })
-  await shot(pD, '8-download-xlsx-1440-light')
+    /* ---- CSV and XLSX from the Download tab ---- */
+    const pD = await page(ctxA, { vp: { width: 1440, height: 900 }, theme: 'light', hum })
+    await desktop(pD, MON)
+    const csv = await download(pD, 'csv')
+    const cr = csv.buf ? csvRows(csv.buf.toString('utf8')) : []
+    const ch = cr[0] || []
+    const ci = (k) => ch.indexOf(k)
+    const cLines = cr.slice(1).filter((r) => r[ci('member_id')] === hum)
+    const cGot = cLines.map((r) => `${r[ci('date')]}|${r[ci('target_id')]}|${r[ci('minutes')]}`).sort()
+    step('the CSV holds exactly the approved lines, every one period_state = approved', csv.buf && want.length && cGot.join() === want.join() && cLines.every((r) => r[ci('period_state')] === 'approved') && cr.length - 1 === cLines.length,
+      { file: csv.file, ui: csv.done, http: csv.http, lines: cLines.length, got: cGot, want })
+    await shot(pD, '8-download-csv-1440-light')
+    const xl = await download(pD, 'xlsx')
+    let xr = { rows: [], sheets: 0, parts: [] }
+    try { if (xl.buf) xr = xlsxRows(xl.buf) } catch (e) { xr.error = String(e) }
+    const xh = xr.rows[0] || []
+    const xi = (k) => xh.indexOf(k)
+    const xLines = xr.rows.slice(1).filter((r) => r[xi('member_id')] === hum)
+    const xGot = xLines.map((r) => `${r[xi('date')]}|${r[xi('target_id')]}|${r[xi('minutes')]}`).sort()
+    step('the XLSX (one sheet) holds the same lines, every one period_state = approved', xl.buf && want.length && xr.sheets === 1 && xGot.join() === want.join() && xLines.every((r) => r[xi('period_state')] === 'approved'),
+      { file: xl.file, ui: xl.done, http: xl.http, parts: xr.parts, error: xr.error, lines: xLines.length, got: xGot })
+    await shot(pD, '8-download-xlsx-1440-light')
 
-  /* ---- version: build.json and the footer ---- */
-  await nav(pD, `${BASE}/lobby`)
-  const foot = await pD.waitForSelector('[data-test=app-version]', { timeout: 15000 }).then((el) => el.evaluate((e) => e.textContent.trim()), () => '')
-  res.build_at_footer = await (await fetch(BASE + '/build.json')).json().catch(() => null) /* a deploy may land during the run */
-  const ver = String(res.build_at_footer?.version || '')
-  step('the footer shows build.json\'s version', ver && foot.includes(ver.replace(/^v/, '')), { footer: foot, build: res.build_at_footer })
-  await shot(pD, '9-footer-version-1440-light')
-  await pD.close()
+    /* ---- version: build.json and the footer ---- */
+    await nav(pD, `${BASE}/lobby`)
+    const foot = await pD.waitForSelector('[data-test=app-version]', { timeout: 15000 }).then((el) => el.evaluate((e) => e.textContent.trim()), () => '')
+    res.build_at_footer = await (await fetch(BASE + '/build.json')).json().catch(() => null) /* a deploy may land during the run */
+    const ver = String(res.build_at_footer?.version || '')
+    step('the footer shows build.json\'s version', ver && foot.includes(ver.replace(/^v/, '')), { footer: foot, build: res.build_at_footer })
+    await shot(pD, '9-footer-version-1440-light')
+    await pD.close()
+  }
 
   /* ---- a second workspace's reader ---- */
   const ctxB = await browser.createBrowserContext()
@@ -570,6 +579,11 @@ try {
   const crossMe = await call(pO, O.api, 'GET', `/v1/me/hours?period=${MON}`)
   const leak = [cross, crossX, crossMe].some((r) => (r.text + JSON.stringify(r.body || '')).includes(tTopic.replace(/^t:/, '')))
   step(`the reader of ${O.claims.t} is refused on ${TENANT}'s hours and export`, cross.status >= 400 && crossX.status >= 400 && !leak, { hours: cross.status, export: crossX.status, me: crossMe.status, body: cross.body })
+  if (CROSS) {
+    const nm = (r) => r.status === 403 && r.body?.error === 'not_member'
+    step(`CROSS: 403 not_member on ${TENANT}'s /v1/hours, export and /v1/me/hours; 200 on ${O.claims.t}'s own export`, nm(cross) && nm(crossX) && nm(crossMe) && own.status === 200,
+      { hours: [cross.status, cross.body?.error], export: [crossX.status, crossX.body?.error], me: [crossMe.status, crossMe.body?.error], own: own.status })
+  }
   await shot(pO, '10-cross-workspace-1440-light')
 } catch (e) {
   step('the run finished', false, { error: String(e?.stack || e).slice(0, 800) })

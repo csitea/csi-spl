@@ -152,7 +152,10 @@ func Join(cfg *config.Config, in JoinArgs) (JoinResult, error) {
 	if err := postJoin(cfg, in, tenant, b); err != nil {
 		return JoinResult{}, err
 	}
-	if err := sign.Pin(cfg.PinsDir, in.Box, pub, false); err != nil {
+	// force: this is the box's OWN key, just accepted by the hub. A stale
+	// local pin of the same box id is the key a revoked seat had (rotation,
+	// spec 108 3.7); keeping it would refuse every later sync.
+	if err := sign.Pin(cfg.PinsDir, in.Box, pub, true); err != nil {
 		return JoinResult{}, fmt.Errorf("seated at the hub, but the local pin: %w", err)
 	}
 	return JoinResult{Tenant: tenant, Box: in.Box, PubKey: pub}, nil

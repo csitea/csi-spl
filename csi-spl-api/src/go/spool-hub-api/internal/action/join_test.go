@@ -170,3 +170,39 @@ func TestJoinRefusals(t *testing.T) {
 		t.Fatalf("CONTROL: the hub saw %d requests, want 1", len(h.reqs))
 	}
 }
+
+// Rotation (spec 108 3.7, a revoked seat joined again with a new key): the
+// box's own stale local pin is replaced once the hub accepted the new key.
+// n = 1. CONTROL: a hub refusal leaves the old local pin as it was.
+func TestJoinReplacesOwnStalePin(t *testing.T) {
+	cfg := testkit.NewConfig(t)
+	old := base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))
+	if err := sign.Pin(cfg.PinsDir, "box-r", old, false); err != nil {
+		t.Fatal(err)
+	}
+	tok := "spj1.t1." + joinSecret
+	refused := newJoinHubStub(t, http.StatusForbidden, `{"error":"box_join_disabled"}`)
+	if _, err := Join(cfg, JoinArgs{HubURL: refused.srv.URL, Token: tok, Box: "box-r", WorkspaceBase: joinBase(t, "t1")}); err == nil {
+		t.Fatal("CONTROL: a refused join succeeded")
+	}
+	if got := pinB64(cfg.PinsDir, "box-r"); got != old {
+		t.Fatalf("CONTROL: a refused join changed the local pin to %q", got)
+	}
+	h := newJoinHubStub(t, http.StatusOK, `{}`)
+	res, err := Join(cfg, JoinArgs{HubURL: h.srv.URL, Token: tok, Box: "box-r", WorkspaceBase: joinBase(t, "t1")})
+	if err != nil {
+		t.Fatalf("join over a stale own pin: %v", err)
+	}
+	if got := pinB64(cfg.PinsDir, "box-r"); got != res.PubKey || got == old {
+		t.Fatalf("local pin %q, want the new key %q", got, res.PubKey)
+	}
+}
+
+// pinB64 is box's local pin as base64, "" when absent.
+func pinB64(dir, box string) string {
+	pub, err := sign.LoadPin(dir, box)
+	if err != nil {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(pub)
+}

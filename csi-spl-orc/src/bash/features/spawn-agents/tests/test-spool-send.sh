@@ -9,20 +9,20 @@ SS="$T_SCRIPTS/spool-send.sh"
 sp() { SPOOL_ROOT="$SPOOL_ROOT" "$SPOOL_BIN" "$@"; }
 
 t_tmux
-P91="$(t_window CLE-91 'sleep 600')"
-printf 'CLE-91\tclaude\t%s\t/x\t20260101T000000Z\n' "$P91" >> "$SPOOL_ROOT/registry.tsv"
+P91="$(t_window c-91 'sleep 600')"
+printf 'c-91\tclaude\t%s\t/x\t20260101T000000Z\n' "$P91" >> "$SPOOL_ROOT/registry.tsv"
 
 # ---- task CLE-90 -> CLE-91, poked ----------------------------------------
-out="$(bash "$SS" --from CLE-90 --to CLE-91 --kind task --body 'ping from 90')"; rc=$?
+out="$(bash "$SS" --from c-90 --to c-91 --kind task --body 'ping from 90')"; rc=$?
 eq "task delivered and poked (exit 0)" 0 "$rc"
 has "spool reports local delivery" '"delivery": "local"' "$(printf '%s' "$out" | sed 's/":"/": "/g')"
-has "poke went to the registered pane" "poke: ${P91} (CLE-91)" "$out"
+has "poke went to the registered pane" "poke: ${P91} (c-91)" "$out"
 TASK="$(printf '%s' "$out" | sed -n 's/.*"task_id" *: *"\([^"]*\)".*/\1/p')"
 check "a task_id was minted" test -n "$TASK"
 
-f="$(ls "$SPOOL_ROOT/CLE-91/inbox/"*.json 2>/dev/null | sed -n 1p)"
+f="$(ls "$SPOOL_ROOT/c-91/inbox/"*.json 2>/dev/null | sed -n 1p)"
 check "a .json landed in the recipient inbox" test -n "$f"
-check "a copy landed in the sender outbox" test -n "$(ls "$SPOOL_ROOT/CLE-90/outbox/"*.json 2>/dev/null)"
+check "a copy landed in the sender outbox" test -n "$(ls "$SPOOL_ROOT/c-90/outbox/"*.json 2>/dev/null)"
 obj="$(cat "$f")"
 has "object is v:1" '"v":1' "$(printf '%s' "$obj" | tr -d ' \n')"
 hasnt "local mode is unsigned (no sig)" '"sig"' "$obj"
@@ -35,12 +35,12 @@ has "the pane shows the BODY itself" "ping from 90" "$screen"
 has "the pane names how to read it in full" "run: spool recv --as CLE-91" "$screen"
 
 # ---- recv, reply on the same topic, tail --------------------------------
-got="$(sp recv --as CLE-91 --ack)"
+got="$(sp recv --as c-91 --ack)"
 has "recv returns the task" '"kind":"task"' "$(printf '%s' "$got" | tr -d ' \n')"
 check "--ack moved it to archive" test -z "$(ls "$SPOOL_ROOT/CLE-91/inbox/" 2>/dev/null)"
-bash "$SS" --from CLE-91 --to CLE-90 --kind result --task "$TASK" --body 'pong from 91' >/dev/null; rc=$?
+bash "$SS" --from c-91 --to c-90 --kind result --task "$TASK" --body 'pong from 91' >/dev/null; rc=$?
 eq "reply to an agent with no window: delivered, exit 5" 5 "$rc"
-check "the reply is in CLE-90's inbox" test -n "$(ls "$SPOOL_ROOT/CLE-90/inbox/"*.json 2>/dev/null)"
+check "the reply is in c-90's inbox" test -n "$(ls "$SPOOL_ROOT/c-90/inbox/"*.json 2>/dev/null)"
 tail_out="$(sp tail --task "$TASK")"
 eq "tail shows the 2-message topic" 2 "$(printf '%s\n' "$tail_out" | grep -c .)"
 has "tail is oldest-first (task first)" "task" "$(printf '%s\n' "$tail_out" | sed -n 1p)"
@@ -48,24 +48,24 @@ has "tail is oldest-first (task first)" "task" "$(printf '%s\n' "$tail_out" | se
 # ---- doorbell outcomes -----------------------------------------------------
 # agents of THIS machine: a send to an id the root does not know is relayed or
 # refused (specs/058 N1, test-fleet-send.sh), never an orphan inbox
-for id in CLE-92 CLE-93 CLE-94 CLE-97; do mkdir -p "$SPOOL_ROOT/$id/inbox"; done
-t_window CLE-92 'bash --norc' >/dev/null
-bash "$SS" --from CLE-90 --to CLE-92 --kind note --body x >/dev/null; eq "pane with only a shell: exit 7" 7 "$?"
-t_window CLE-93 "sh -c 'printf \"❯ half typed\\n\"; sleep 600'" >/dev/null
+for id in c-92 c-93 c-94 c-97; do mkdir -p "$SPOOL_ROOT/$id/inbox"; done
+t_window c-92 'bash --norc' >/dev/null
+bash "$SS" --from c-90 --to c-92 --kind note --body x >/dev/null; eq "pane with only a shell: exit 7" 7 "$?"
+t_window c-93 "sh -c 'printf \"❯ half typed\\n\"; sleep 600'" >/dev/null
 sleep 0.3
-bash "$SS" --from CLE-90 --to CLE-93 --kind note --body x >/dev/null; eq "unsent typed text: refused, exit 6" 6 "$?"
-check "…but the refused message was still delivered" test -n "$(ls "$SPOOL_ROOT/CLE-93/inbox/"*.json 2>/dev/null)"
-bash "$SS" --from CLE-90 --to CLE-91 --kind note --body x --no-poke >/dev/null; eq "--no-poke: exit 0" 0 "$?"
+bash "$SS" --from c-90 --to c-93 --kind note --body x >/dev/null; eq "unsent typed text: refused, exit 6" 6 "$?"
+check "…but the refused message was still delivered" test -n "$(ls "$SPOOL_ROOT/c-93/inbox/"*.json 2>/dev/null)"
+bash "$SS" --from c-90 --to c-91 --kind note --body x --no-poke >/dev/null; eq "--no-poke: exit 0" 0 "$?"
 # A live agent behind the run-as hop: its pane tty shows only "bash sudo"
 # (sudo runs the CLI on its own pty). That is alive, not exited.
 ln -s "$(command -v sleep)" "$T_TMP/sudo"
-t_window CLE-94 "bash -c '$T_TMP/sudo 600; :'" >/dev/null
+t_window c-94 "bash -c '$T_TMP/sudo 600; :'" >/dev/null
 sleep 0.3
-bash "$SS" --from CLE-90 --to CLE-94 --kind note --body x >/dev/null; eq "pane showing bash+sudo is alive: poked, exit 0" 0 "$?"
+bash "$SS" --from c-90 --to c-94 --kind note --body x >/dev/null; eq "pane showing bash+sudo is alive: poked, exit 0" 0 "$?"
 # The TUI's dim ghost suggestion after the prompt glyph is not typed text.
-t_window CLE-97 "sh -c 'printf \"❯ \\033[2mfix the thing\\033[0m\\n\"; sleep 600'" >/dev/null
+t_window c-97 "sh -c 'printf \"❯ \\033[2mfix the thing\\033[0m\\n\"; sleep 600'" >/dev/null
 sleep 0.3
-bash "$SS" --from CLE-90 --to CLE-97 --kind note --body x >/dev/null; eq "dim ghost suggestion is not typed text: exit 0" 0 "$?"
+bash "$SS" --from c-90 --to c-97 --kind note --body x >/dev/null; eq "dim ghost suggestion is not typed text: exit 0" 0 "$?"
 
 # ---- spec 101 R2: a dispatcher asking the orch for a new lane --------------
 # The dispatcher that takes real lane work spawns it (fleet-roles 3): a task
@@ -122,9 +122,29 @@ has "D14: ... the id the sender reports is that id" "\"msg_id\":\"${ids}\"" "$(c
 ids="$(d14 "$D14/ctl" HUB_MINTS=1)"
 eq "D14 CONTROL: a hub leg that mints its own id leaves two ids, two rows" 2 "$(grep -c . <<<"$ids")"
 
+# ---- --accept ----------------------------------------------------------------
+# Valid: --accept with --kind result
+out="$(SPOOL_ROOT="$SPOOL_ROOT" /opt/csi/csi-spl-wt/m-837/bin/spool send --from CLE-90 --to CLE-91 --kind result --body 'accepted' --accept 123e4567-e89b-12d3-a456-426614174000)"; rc=$?
+eq "--accept with --kind result: exit 0" 0 "$rc"
+if [ "$rc" -eq 0 ]; then
+  f="$(ls "$SPOOL_ROOT/CLE-91/inbox/"*.json 2>/dev/null | sed -n 1p)"
+  obj="$(cat "$f")"
+  has "--accept adds the accepts key" '"accepts":"123e4567-e89b-12d3-a456-426614174000"' "$(printf '%s' "$obj" | tr -d ' \n')"
+else
+  nok "--accept with --kind result: exit 0 (want '0', got '$rc')"
+fi
+
+# Invalid: --accept with --kind note
+SPOOL_ROOT="$SPOOL_ROOT" /opt/csi/csi-spl-wt/m-837/bin/spool send --from CLE-90 --to CLE-91 --kind note --body 'not a result' --accept 123e4567-e89b-12d3-a456-426614174000 >/dev/null 2>&1; rc=$?
+eq "--accept with --kind note: exit 2" 2 "$rc"
+
+# Invalid: --accept not a uuid
+SPOOL_ROOT="$SPOOL_ROOT" /opt/csi/csi-spl-wt/m-837/bin/spool send --from CLE-90 --to CLE-91 --kind result --body 'bad accept' --accept not-a-uuid >/dev/null 2>&1; rc=$?
+eq "--accept not a uuid: exit 2" 2 "$rc"
+
 # ---- usage -----------------------------------------------------------------
 bash "$SS" --from CLE-90 --to CLE-91 --kind chat --body x >/dev/null 2>&1; eq "bad kind: exit 2" 2 "$?"
 bash "$SS" --from BOX-1 --to CLE-91 --kind note --body x >/dev/null 2>&1;  eq "BOX sender: exit 2" 2 "$?"
-bash "$SS" --from CLE-90 --to CLE-91 --kind note >/dev/null 2>&1;          eq "no body: exit 2" 2 "$?"
+bash "$SS" --from CLE-90 --to CLE-91 --kind note >/dev/null 2>&1;          eq "no body: exit 2" 2 "$?
 
 t_done

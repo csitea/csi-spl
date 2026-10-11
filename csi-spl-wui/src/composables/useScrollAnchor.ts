@@ -4,6 +4,219 @@ import {
   layoutTop, NEAR_BOTTOM_PX, NEAR_TOP_PX, prependedCount, scrollerOf,
 } from '~/utils/scroll-anchor.mjs'
 
+/** where the reader was, read before the DOM patch */
+interface Before { el: HTMLElement, top: number, height: number, key: string, y: number | null, atBottom: boolean }
+
+/** one feed's anchor: its inputs and the state its steps share */
+interface Anchor {
+  root: Ref<HTMLElement | null>
+  isOwn: (key: string) => boolean
+  enabled: () => boolean
+  newestLast: () => boolean
+  pill: Ref<number>
+  before: Before | null
+  listening: boolean
+  /* newest last: the reader is glued to the bottom (last known from a scroll) */
+  stuck: boolean
+  lastTop: number
+  resize: ResizeObserver | null
+  watched: HTMLElement | null
+  frame: number
+  /* the document scroll listener, one function so it can be removed */
+  onScroll: (ev?: Event) => void
+}
+
+function scroller(a: Anchor): HTMLElement | null {
+  const { enabled, root } = a
+  if (!enabled()) return null
+  const r = root.value
+  if (!r || typeof document === 'undefined') return null
+  const s = scrollerOf(r) as HTMLElement
+  /* the browser's own scroll anchoring would move it a second time */
+  s.style.overflowAnchor = 'none'
+  if (!a.listening) {
+    /* scroll does not bubble; a capturing listener sees the feed and the page */
+    document.addEventListener('scroll', a.onScroll, { capture: true, passive: true })
+    a.listening = true
+  }
+  if (a.newestLast()) observe(a, s)
+  return s
+}
+
+/** viewport y of the scroller's top edge (the page: 0) */
+function edge(s: HTMLElement) {
+  return s === document.scrollingElement ? 0 : s.getBoundingClientRect().top
+}
+
+function fromBottom(s: HTMLElement) {
+  return distanceFromBottom({ top: s.scrollTop, height: s.scrollHeight, client: s.clientHeight })
+}
+
+function onScroll(a: Anchor, ev?: Event) {
+  if (a.newestLast()) {
+    const s = scroller(a)
+    if (!s || (ev && ev.target !== s && !(s === document.scrollingElement && ev.target === document))) return
+    followScroll(a, s)
+    return
+  }
+  if (!a.pill.value) return
+  const s = scroller(a)
+  if (s && s.scrollTop <= NEAR_TOP_PX) a.pill.value = 0
+}
+
+/* Only the reader scrolling UP lets go of the bottom. Content that grows
+   (markdown, pictures, the Omnibox dock padding) fires scroll events far
+   from the bottom too, but never moves scrollTop up (measured live on
+   prd e2e: +203 px of late height read as "scrolled away"). */
+function followScroll(a: Anchor, s: HTMLElement) {
+  const top = s.scrollTop
+  const { lastTop } = a
+  let { stuck } = a
+  if (fromBottom(s) <= NEAR_BOTTOM_PX) stuck = true
+  else if (top < lastTop - 1) stuck = false
+  a.stuck = stuck
+  a.lastTop = top
+  if (stuck) a.pill.value = 0
+}
+
+/* newest last: content or scroller height changed while glued to the bottom */
+function observe(a: Anchor, s: HTMLElement) {
+  if (typeof ResizeObserver === 'undefined') return
+  /* Scrolling INSIDE the callback changes layout in the same frame, which the
+     browser reports as a window error ("ResizeObserver loop completed with
+     undelivered notifications") and the error snackbar showed it on prd e2e.
+     The next animation frame is outside the observer's delivery loop. */
+  if (!a.resize) {
+    a.resize = new ResizeObserver(() => {
+      if (a.frame || !a.stuck || !a.newestLast() || !a.enabled()) return
+      a.frame = requestAnimationFrame(() => {
+        a.frame = 0
+        if (a.stuck && a.newestLast() && a.enabled()) toBottom(a)
+      })
+    })
+  }
+  if (a.watched === s) return
+  a.resize.disconnect()
+  a.watched = s
+  a.resize.observe(s)
+  if (a.root.value) a.resize.observe(a.root.value)
+}
+
+function toBottom(a: Anchor, smooth = false) {
+  const s = scroller(a)
+  if (!s) return
+  a.stuck = true
+  s.scrollTo({ top: s.scrollHeight, behavior: smooth && !reduced() ? 'smooth' : 'auto' })
+  a.lastTop = s.scrollTop
+}
+
+function reduced() {
+  return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function jump(a: Anchor) {
+  if (!a.enabled()) return
+  a.pill.value = 0
+  if (a.newestLast()) {
+    toBottom(a, true)
+    return
+  }
+  const s = scroller(a)
+  if (s) s.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' })
+}
+
+/* before the DOM patch: where the reader is */
+function capture(a: Anchor) {
+  const s = a.enabled() ? scroller(a) : null
+  if (!s) {
+    a.before = null
+    return
+  }
+  /* a scroll UP whose event has not been delivered yet (a wheel, then a click
+     on Load more in the same frame) already left the bottom */
+  if (a.newestLast() && a.stuck && s.scrollTop < a.lastTop - 1 && fromBottom(s) > NEAR_BOTTOM_PX) a.stuck = false
+  const row = firstVisibleRow(a.root.value, edge(s))
+  a.before = {
+    el: s, top: s.scrollTop, height: s.scrollHeight, key: row ? String(row.getAttribute('data-key')) : '',
+    y: row ? layoutTop(row as HTMLElement) : null, atBottom: a.stuck,
+  }
+}
+
+/** the anchor row's layout top now, when it was seen before the patch */
+function anchorNow(a: Anchor, b: Before) {
+  const row = b.key && a.root.value ? a.root.value.querySelector(`[data-key="${CSS.escape(b.key)}"]`) : null
+  return row && b.y !== null ? layoutTop(row as HTMLElement) : null
+}
+
+/* after it: hold the visible rows in place, or jump for our own send */
+function afterPatch(a: Anchor, next: string[], prev: string[]) {
+  if (!a.enabled()) {
+    a.before = null
+    return
+  }
+  const b = a.before
+  a.before = null
+  if (a.newestLast()) {
+    afterAppend(a, b, prev, next)
+    return
+  }
+  if (b) afterPrepend(a, b, prev, next)
+}
+
+function afterPrepend(a: Anchor, b: Before, prev: string[], next: string[]) {
+  const s = b.el
+  const added = prependedCount(prev, next)
+  if (!added) return
+  if (next.slice(0, added).some(a.isOwn)) {
+    jump(a)
+    return
+  }
+  const r = anchorAfterPrepend({
+    top: b.top, prevHeight: b.height, nextHeight: s.scrollHeight, added, pill: a.pill.value,
+    anchorBefore: b.y, anchorAfter: anchorNow(a, b),
+  })
+  if (r.moved) s.scrollTop = r.top
+  a.pill.value = r.pill
+}
+
+function afterAppend(a: Anchor, b: Before | null, prev: string[], next: string[]) {
+  if (isFreshList(prev, next)) {
+    a.pill.value = 0
+    toBottom(a)
+    return
+  }
+  if (!b) return
+  const added = appendedCount(prev, next)
+  const r = anchorAfterAppend({
+    top: b.top, atBottom: b.atBottom, own: next.slice(next.length - added).some(a.isOwn), added, pill: a.pill.value,
+    anchorBefore: b.y, anchorAfter: anchorNow(a, b),
+  })
+  a.pill.value = r.pill
+  if (r.bottom) toBottom(a)
+  else if (r.top !== b.top) b.el.scrollTop = r.top
+}
+
+/* the setting flipped while this feed is open: land at the newest end */
+function flipOrder(a: Anchor, on: boolean) {
+  a.pill.value = 0
+  a.before = null
+  if (!on) {
+    a.resize?.disconnect()
+    a.watched = null
+  }
+  void nextTick(() => {
+    if (!a.enabled()) return
+    if (on) toBottom(a)
+    else scroller(a)?.scrollTo({ top: 0 })
+  })
+}
+
+function teardown(a: Anchor) {
+  if (a.listening) document.removeEventListener('scroll', a.onScroll, { capture: true })
+  a.resize?.disconnect()
+  if (a.frame) cancelAnimationFrame(a.frame)
+}
+
 /**
  * 013 US7 FR-012: a newest-first feed keeps the reader's place when rows are
  * prepended while they are scrolled down, and counts them in a "new" pill.
@@ -26,204 +239,25 @@ export function useScrollAnchor(
   enabled: () => boolean = () => true,
   newestLast: () => boolean = () => false,
 ) {
-  const pill = ref(0)
-  let before: { el: HTMLElement, top: number, height: number, key: string, y: number | null, atBottom: boolean } | null = null
-  let listening = false
-  /* newest last: the reader is glued to the bottom (last known from a scroll) */
-  let stuck = true
-  let lastTop = 0
-  let resize: ResizeObserver | null = null
-  let watched: HTMLElement | null = null
-  let frame = 0
-
-  function el(): HTMLElement | null {
-    if (!enabled()) return null
-    const r = root.value
-    if (!r || typeof document === 'undefined') return null
-    const s = scrollerOf(r) as HTMLElement
-    /* the browser's own scroll anchoring would move it a second time */
-    s.style.overflowAnchor = 'none'
-    if (!listening) {
-      /* scroll does not bubble; a capturing listener sees the feed and the page */
-      document.addEventListener('scroll', onScroll, { capture: true, passive: true })
-      listening = true
-    }
-    if (newestLast()) observe(s)
-    return s
+  const a: Anchor = {
+    root, isOwn, enabled, newestLast, pill: ref(0), before: null, listening: false,
+    stuck: true, lastTop: 0, resize: null, watched: null, frame: 0, onScroll: () => {},
   }
+  a.onScroll = (ev?: Event) => onScroll(a, ev)
 
-  /** viewport y of the scroller's top edge (the page: 0) */
-  function edge(s: HTMLElement) {
-    return s === document.scrollingElement ? 0 : s.getBoundingClientRect().top
-  }
+  watch(keys, () => capture(a), { flush: 'pre' })
+  watch(keys, (next, prev) => afterPatch(a, next || [], prev || []), { flush: 'post' })
+  watch(newestLast, on => flipOrder(a, on))
 
-  function fromBottom(s: HTMLElement) {
-    return distanceFromBottom({ top: s.scrollTop, height: s.scrollHeight, client: s.clientHeight })
-  }
-
-  function onScroll(ev?: Event) {
-    if (newestLast()) {
-      const s = el()
-      if (!s || (ev && ev.target !== s && !(s === document.scrollingElement && ev.target === document))) return
-      /* Only the reader scrolling UP lets go of the bottom. Content that grows
-         (markdown, pictures, the Omnibox dock padding) fires scroll events far
-         from the bottom too, but never moves scrollTop up (measured live on
-         prd e2e: +203 px of late height read as "scrolled away"). */
-      const top = s.scrollTop
-      if (fromBottom(s) <= NEAR_BOTTOM_PX) stuck = true
-      else if (top < lastTop - 1) stuck = false
-      lastTop = top
-      if (stuck) pill.value = 0
-      return
-    }
-    if (!pill.value) return
-    const s = el()
-    if (s && s.scrollTop <= NEAR_TOP_PX) pill.value = 0
-  }
-
-  /* newest last: content or scroller height changed while glued to the bottom */
-  function observe(s: HTMLElement) {
-    if (typeof ResizeObserver === 'undefined') return
-    /* Scrolling INSIDE the callback changes layout in the same frame, which the
-       browser reports as a window error ("ResizeObserver loop completed with
-       undelivered notifications") and the error snackbar showed it on prd e2e.
-       The next animation frame is outside the observer's delivery loop. */
-    if (!resize) {
-      resize = new ResizeObserver(() => {
-        if (frame || !stuck || !newestLast() || !enabled()) return
-        frame = requestAnimationFrame(() => {
-          frame = 0
-          if (stuck && newestLast() && enabled()) toBottom()
-        })
-      })
-    }
-    if (watched === s) return
-    resize.disconnect()
-    watched = s
-    resize.observe(s)
-    if (root.value) resize.observe(root.value)
-  }
-
-  function toBottom(smooth = false) {
-    const s = el()
-    if (!s) return
-    stuck = true
-    s.scrollTo({ top: s.scrollHeight, behavior: smooth && !reduced() ? 'smooth' : 'auto' })
-    lastTop = s.scrollTop
-  }
-
-  function reduced() {
-    return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  }
-
-  function jump() {
-    if (!enabled()) return
-    pill.value = 0
-    if (newestLast()) {
-      toBottom(true)
-      return
-    }
-    const s = el()
-    if (s) s.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' })
-  }
+  onMounted(() => {
+    if (newestLast() && keys().length) void nextTick(() => toBottom(a))
+  })
+  onUnmounted(() => teardown(a))
 
   /** A deep link moved the view to one row: stop following the bottom. */
   function hold() {
-    stuck = false
+    a.stuck = false
   }
 
-  /* before the DOM patch: where the reader is */
-  watch(keys, () => {
-    if (!enabled()) {
-      before = null
-      return
-    }
-    const s = el()
-    if (!s) {
-      before = null
-      return
-    }
-    /* a scroll UP whose event has not been delivered yet (a wheel, then a click
-       on Load more in the same frame) already left the bottom */
-    if (newestLast() && stuck && s.scrollTop < lastTop - 1 && fromBottom(s) > NEAR_BOTTOM_PX) stuck = false
-    const row = firstVisibleRow(root.value, edge(s))
-    before = {
-      el: s, top: s.scrollTop, height: s.scrollHeight, key: row ? String(row.getAttribute('data-key')) : '',
-      y: row ? layoutTop(row as HTMLElement) : null, atBottom: stuck,
-    }
-  }, { flush: 'pre' })
-
-  /* after it: hold the visible rows in place, or jump for our own send */
-  watch(keys, (next, prev) => {
-    if (!enabled()) {
-      before = null
-      return
-    }
-    const b = before
-    before = null
-    if (newestLast()) {
-      afterAppend(b, prev || [], next || [])
-      return
-    }
-    if (!b) return
-    const s = b.el
-    const added = prependedCount(prev || [], next || [])
-    if (!added) return
-    if ((next || []).slice(0, added).some(isOwn)) {
-      jump()
-      return
-    }
-    const row = b.key && root.value ? root.value.querySelector(`[data-key="${CSS.escape(b.key)}"]`) : null
-    const r = anchorAfterPrepend({
-      top: b.top, prevHeight: b.height, nextHeight: s.scrollHeight, added, pill: pill.value,
-      anchorBefore: b.y, anchorAfter: row && b.y !== null ? layoutTop(row as HTMLElement) : null,
-    })
-    if (r.moved) s.scrollTop = r.top
-    pill.value = r.pill
-  }, { flush: 'post' })
-
-  function afterAppend(b: typeof before, prev: string[], next: string[]) {
-    if (isFreshList(prev, next)) {
-      pill.value = 0
-      toBottom()
-      return
-    }
-    if (!b) return
-    const added = appendedCount(prev, next)
-    const row = b.key && root.value ? root.value.querySelector(`[data-key="${CSS.escape(b.key)}"]`) : null
-    const r = anchorAfterAppend({
-      top: b.top, atBottom: b.atBottom, own: next.slice(next.length - added).some(isOwn), added, pill: pill.value,
-      anchorBefore: b.y, anchorAfter: row && b.y !== null ? layoutTop(row as HTMLElement) : null,
-    })
-    pill.value = r.pill
-    if (r.bottom) toBottom()
-    else if (r.top !== b.top) b.el.scrollTop = r.top
-  }
-
-  /* the setting flipped while this feed is open: land at the newest end */
-  watch(newestLast, (on) => {
-    pill.value = 0
-    before = null
-    if (!on) {
-      resize?.disconnect()
-      watched = null
-    }
-    void nextTick(() => {
-      if (!enabled()) return
-      if (on) toBottom()
-      else el()?.scrollTo({ top: 0 })
-    })
-  })
-
-  onMounted(() => {
-    if (newestLast() && keys().length) void nextTick(() => toBottom())
-  })
-
-  onUnmounted(() => {
-    if (listening) document.removeEventListener('scroll', onScroll, { capture: true })
-    resize?.disconnect()
-    if (frame) cancelAnimationFrame(frame)
-  })
-
-  return { pill, jump, hold }
+  return { pill: a.pill, jump: () => jump(a), hold }
 }

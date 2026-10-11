@@ -32,7 +32,6 @@ const MAX_PARAMS = 6
 // property name, or `<anon>`; a repeat in one file gets #2, #3). The ceiling is
 // its length on 2026-10-10 (r5-06): a listed function may not grow past it.
 const LONG = new Map([
-  ['src/composables/useScrollAnchor.ts useScrollAnchor', 208],
   ['src/stores/channel.ts <anon>', 576],
   ['src/stores/flow.ts <anon>', 317],
   ['src/stores/live.ts setup', 304],

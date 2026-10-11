@@ -13,8 +13,12 @@
 #   3. an unchanged red is not re-alerted; a red older than PROBE_REALERT is
 #   4. control: the seat un-muted -> every workspace ok, no alert, exit 0;
 #      every posted probe topic is acked for the unanswered sweep
-#   5. missed (never arrives), unnoticed (no notice), post-failed, unprobed
-#      and noseat are each their own verdict and each alert
+#   5. missed (never arrives), unnoticed (no notice), post-failed and
+#      unprobed are each their own verdict and each alert
+#   9. the dispatcher on ANOTHER box (dev t1 2026-10-11, false red): this box
+#      has only a dead leftover desk dir (no sidecar) or no seat at all ->
+#      remote, nothing posted there, no ask, no #alerts post; never missed.
+#      Control: the same dir with a live sidecar is probed and judged
 #   6. a failed ask keeps the alert for the next probe
 #   7. bad input is refused
 #   8. the cron install: dry run writes nothing, dev one exact tagged line,
@@ -33,7 +37,10 @@ trap 'rm -rf "$T"' EXIT
 S="$T/spool"; ST="$T/state"; D="$ST/desk"; L="$ST/m3-e2e"
 mkdir -p "$S/dispatch" "$T/bin"
 printf 'LEASE_MASTER=c-002\nLEASE_FAILOVER=c-003\nLEASE_ORCH=c-001\nLEASE_TENANT=t1\n' >"$S/dispatch/lease.conf"
-seat() { mkdir -p "$D/$1/sat/spool/$2/inbox" "$D/$1/sat/spool/$2/archive" "$D/$1/sat/spool/$2/.pokes"; }
+# a live desk: <box>/spool/.hub/alive stands in for a live hub-run pid (the
+# spl_desk_alive stub below); dead <ws> drops it
+seat() { mkdir -p "$D/$1/sat/spool/$2/inbox" "$D/$1/sat/spool/$2/archive" "$D/$1/sat/spool/$2/.pokes" "$D/$1/sat/spool/.hub"; touch "$D/$1/sat/spool/.hub/alive"; }
+dead() { rm -f "$D/$1/sat/spool/.hub/alive"; }
 login() { mkdir -p "$L/$1"; echo "probe-$1@example.com" >"$L/$1/human-email"; echo pw >"$L/$1/pw-human"; }
 for w in t1 sienna e2e; do seat "$w" c-002; seat "$w" c-003; login "$w"; done
 seat leiden c-002
@@ -48,7 +55,7 @@ mode="$(cat "$MODE_DIR/mode.$PROBE_TENANT" 2>/dev/null || echo deliver)"
 mid="$(cat /proc/sys/kernel/random/uuid)"
 if [ -n "$PROBE_TO" ] && [ "$mode" != nodeliver ]; then
   s="$DESK_DIR/$PROBE_TENANT/sat/spool/$PROBE_TO"
-  if [ -d "$s" ]; then
+  if [ -d "$s" ] && [ -e "$s/../.hub/alive" ]; then  # the hub reaches live desks only
     printf '{"v":1,"msg_id":"%s","task_id":"%s","from":"HUM-9","to":"%s","kind":"note","body":"probe"}\n' \
       "$mid" "$PROBE_TASK" "$PROBE_TO" >"$s/inbox/20261011T100000Z--HUM-9--delivery-probe-${mid:0:8}.json"
     [ "$mode" = nonotice ] || printf 'SPOOL %s: note from HUM-9 task %s msg %s\tprobe\t1\n' "$PROBE_TO" "$PROBE_TASK" "$mid" >>"$s/.pokes/notices.log"
@@ -72,6 +79,7 @@ probe() {
     set -uo pipefail
     do_log() { echo "$*"; }
     do_spl_cloud_cnf() { return 0; }
+    spl_desk_alive() { [[ -e "$(dirname "$1")/alive" ]]; }
     source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
     source "$PROJ_PATH/src/bash/run/spl-unanswered-ack.func.sh"
     source "$PROJ_PATH/src/bash/run/spl-workspace-delivery-probe.func.sh"
@@ -125,9 +133,9 @@ echo nonotice >"$T/mode.sienna"
 mkdir -p "$D/niba/sat/spool/c-003"; login niba
 mkdir -p "$D/csitea/sat/spool/c-002"
 probe DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -ne 0 ]] && row leiden missed && row sienna unnoticed && row niba noseat && row csitea unprobed && row t1 ok &&
-  grep -q '^| leiden | missed |$' "$T/sent" && grep -q '^| csitea | unprobed |$' "$T/sent" &&
-  pass "5. missed, unnoticed, noseat and unprobed are each a verdict, each alerted" || fail "5. verdicts: rc=$rc $(cat "$T/o")"
+[[ $rc -ne 0 ]] && row leiden missed && row sienna unnoticed && row niba remote && row csitea unprobed && row t1 ok &&
+  grep -q '^| leiden | missed |$' "$T/sent" && grep -q '^| csitea | unprobed |$' "$T/sent" && ! grep -q '^| niba |' "$T/sent" &&
+  pass "5. missed, unnoticed and unprobed are each a verdict, each alerted; no seat here is remote" || fail "5. verdicts: rc=$rc $(cat "$T/o")"
 echo fail >"$T/mode.leiden"
 probe DRY_RUN=0 >"$T/o" 2>&1
 row leiden post-failed && grep -q '^| leiden | post-failed |$' "$T/sent" &&
@@ -143,6 +151,22 @@ probe DRY_RUN=0 >"$T/o2" 2>&1
 [[ $rc -ne 0 ]] && grep -q 'FATAL the ask to c-001 was not delivered' "$T/o" && [[ "$(asks)" == $((n + 1)) ]] &&
   pass "6. a failed ask keeps the alert; the next probe sends it" || fail "6. retry: asks=$(asks) n=$n $(cat "$T/o")"
 rm -f "$D/sienna/sat/spool/c-002/.no-poke"
+
+# --- 9. the dispatcher on another box: a dead leftover dir is remote, never missed --
+seat dev1 c-002; login dev1; dead dev1
+: >"$T/posts"; n="$(asks)"
+probe DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && row dev1 remote && row t1 ok && row sienna ok && [[ "$(asks)" == "$n" ]] &&
+  ! grep -q '^POST dev1 ' "$T/posts" && ! grep -q 'ch=alerts' "$T/posts" &&
+  pass "9. a leftover desk dir with no sidecar: remote, nothing posted, no alert, exit 0" ||
+  fail "9. remote: rc=$rc asks=$(asks)/$n $(cat "$T/o") $(cat "$T/posts")"
+probe >"$T/o" 2>&1
+grep -q '^PLAN dev1: remote - no live seat of c-002 on this machine' "$T/o" && pass "9. the dry run says remote" || fail "9. plan: $(cat "$T/o")"
+touch "$D/dev1/sat/spool/.hub/alive"
+probe DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && row dev1 ok && grep -q '^POST dev1 to=c-002' "$T/posts" &&
+  pass "9. control: the same seat with a live sidecar is probed and ok" || fail "9. control: rc=$rc $(cat "$T/o")"
+rm -rf "$D/dev1"
 
 # --- 7. bad input ---------------------------------------------------------------------------------
 probe ENV=qa >/dev/null 2>&1 && fail "7. ENV=qa accepted" || pass "7. ENV must be dev or prd"

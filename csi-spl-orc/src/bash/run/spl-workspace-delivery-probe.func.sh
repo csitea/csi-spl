@@ -5,8 +5,8 @@
 # @description desk on this machine, a probe human DMs the dispatcher in a
 # @description hidden probe topic (one fixed topic per env, workspace and box;
 # @description a DM is seen by the probe member and the dispatcher only), then
-# @description checks the dispatcher's desk seat on THIS machine within
-# @description PROBE_WAIT seconds:
+# @description checks the dispatcher's LIVE desk seat on THIS machine (its desk
+# @description sidecar is alive) within PROBE_WAIT seconds:
 # @description   ok        - the message is in the seat's spool (inbox or
 # @description               archive), its notices log holds it and the seat
 # @description               is not muted: the dispatcher was TOLD
@@ -15,7 +15,12 @@
 # @description               desk that receives and never tells)
 # @description   unnoticed - it arrived, and no notice was written
 # @description   missed    - it never arrived in time
-# @description   noseat    - the workspace's desk has no seat of the dispatcher
+# @description   remote    - no LIVE seat of the dispatcher on this machine
+# @description               (none, or only a dead leftover desk dir): the
+# @description               dispatcher is told on another box, and that box's
+# @description               probe judges it. Nothing is posted; never an
+# @description               alert (dev t1 2026-10-11: a leftover sat dir with
+# @description               no sidecar read 'missed' while c-002 on another box had it)
 # @description   unprobed  - no probe login for the workspace (below)
 # @description   post-failed - the probe login or the send was refused
 # @description The workspace set is the live desk dirs (<state>/desk/<ws>),
@@ -25,7 +30,7 @@
 # @description the alert workspace (t1) also takes the PROBE_EMAIL /
 # @description PROBE_PW_FILE pair the desk cron already uses, then the e2e
 # @description member's files.
-# @description Any verdict other than ok raises ONE ask to the orchestrator
+# @description Any verdict other than ok or remote raises ONE ask to the orchestrator
 # @description (a spool blocker, journaled as an ask by spool-send.sh) AND one
 # @description blocker post in the alert workspace's #alerts (the owner's t1),
 # @description posted by its probe login. An alert repeats only when a
@@ -53,6 +58,9 @@
 # @example ENV=dev ./run -a do_spl_workspace_delivery_probe
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_workspace_delivery_probe
 #------------------------------------------------------------------------------
+declare -F spl_desk_alive >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-up.func.sh"
+
 do_spl_workspace_delivery_probe() {
   [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd"; return 1; }
   local v
@@ -111,6 +119,7 @@ spl_wdp_plan() {
   for w in "$@"; do
     seats="$(spl_wdp_seat_dirs "$w" | wc -l)"
     if spl_wdp_login "$w" >/dev/null; then
+      [[ "$seats" == 0 ]] && { echo "PLAN $w: remote - no live seat of $WDP_TO on this machine"; continue; }
       echo "PLAN $w: DM $WDP_TO in topic $(spl_wdp_topic "$w"), check $seats seat dir(s) for ${PROBE_WAIT:-180}s"
     else
       echo "PLAN $w: unprobed - no probe login under $WDP_LOGIN/$w"
@@ -118,10 +127,14 @@ spl_wdp_plan() {
   done
 }
 
-# spl_wdp_seat_dirs <ws>: the dispatcher's seat dirs in that workspace's desks.
+# spl_wdp_seat_dirs <ws>: the dispatcher's seat dirs in that workspace's desks
+# whose sidecar is alive: a desk dir with no sidecar is a leftover, nobody is
+# told through it.
 spl_wdp_seat_dirs() {
   local s
-  for s in "$WDP_DESK/$1"/*/spool/"$WDP_TO"; do [[ -d "$s" ]] && echo "$s"; done
+  for s in "$WDP_DESK/$1"/*/spool/"$WDP_TO"; do
+    [[ -d "$s" ]] && spl_desk_alive "$s/../.hub/hub-run.pid" && echo "$s"
+  done
 }
 
 # spl_wdp_topic <ws>: the hidden probe topic, fixed per env, workspace and box.
@@ -173,7 +186,7 @@ spl_wdp_seat_state() {
 }
 
 # spl_wdp_verdict <ws> <msg id>: the best state over the workspace's seats,
-# as a verdict (ok | muted | unnoticed | missed | noseat).
+# as a verdict (ok | muted | unnoticed | missed | remote).
 spl_wdp_verdict() {
   local s st best=none n=0
   while IFS= read -r s; do
@@ -183,7 +196,7 @@ spl_wdp_verdict() {
       told:*) best=told ;; muted:none|muted:unnoticed) best=muted ;; unnoticed:none) best=unnoticed ;;
     esac
   done < <(spl_wdp_seat_dirs "$1")
-  (( n )) || { echo noseat; return 0; }
+  (( n )) || { echo remote; return 0; }
   case "$best" in told) echo ok ;; none) echo missed ;; *) echo "$best" ;; esac
 }
 
@@ -195,7 +208,7 @@ spl_wdp_run() {
   for w in "$@"; do
     task="$(spl_wdp_topic "$w")"
     if ! spl_wdp_login "$w" >/dev/null; then printf '%s\t-\t%s\tunprobed\n' "$w" "$task" >>"$tmp/rows"; continue; fi
-    [[ -n "$(spl_wdp_seat_dirs "$w")" ]] || { printf '%s\t-\t%s\tnoseat\n' "$w" "$task" >>"$tmp/rows"; continue; }
+    [[ -n "$(spl_wdp_seat_dirs "$w")" ]] || { printf '%s\t-\t%s\tremote\n' "$w" "$task" >>"$tmp/rows"; continue; }
     rc=0; out="$(spl_wdp_post "$w" "$WDP_TO" "$task" \
       "delivery probe $WDP_BOX $(date -u +%FT%TZ): no reply needed (do_spl_workspace_delivery_probe)")" || rc=$?
     local mid; mid="$(jq -r '.msg_id // empty' <<<"$out" 2>/dev/null)"
@@ -218,7 +231,7 @@ spl_wdp_run() {
   spl_wdp_report "$tmp/rows"
   spl_wdp_ack "$tmp/rows"
   spl_wdp_alert "$tmp/rows" "$tmp" || return 1
-  ! grep -qv $'\tok$' "$tmp/rows"
+  ! grep -qvE $'\t(ok|remote)$' "$tmp/rows"
 }
 
 # spl_wdp_judge <rows> <final>: re-read every pending row; a pending row that
@@ -257,7 +270,7 @@ spl_wdp_ack() {
   return 0
 }
 
-# spl_wdp_alert <rows> <tmp>: the rows not ok whose verdict changed or whose
+# spl_wdp_alert <rows> <tmp>: the rows not ok (nor remote) whose verdict changed or whose
 # last alert is older than PROBE_REALERT go to the orchestrator (blocker = an
 # ask) and to the alert workspace's #alerts. The memory moves only when the
 # ask landed.
@@ -267,8 +280,9 @@ spl_wdp_alert() {
   awk -F'\t' -v now="$now" -v re="${PROBE_REALERT:-3600}" -v stf="$state" -v out="$tmp/alert" -v nst="$tmp/state.new" '
     BEGIN { while ((getline l < stf) > 0) { split(l, a, "\t"); pv[a[1]] = a[2]; pa[a[1]] = a[3] } }
     { w = $1; v = $4; at = (w in pa) ? pa[w] : 0
-      if (v != "ok" && (pv[w] != v || now - at >= re)) { print w "\t" v > out; at = now }
-      if (v == "ok") at = 0
+      quiet = (v == "ok" || v == "remote")
+      if (!quiet && (pv[w] != v || now - at >= re)) { print w "\t" v > out; at = now }
+      if (quiet) at = 0
       print w "\t" v "\t" at > nst }' "$rows"
   if [[ ! -s "$tmp/alert" ]]; then mv -f "$tmp/state.new" "$state"; return 0; fi
   {

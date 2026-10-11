@@ -188,7 +188,7 @@ declare module '~/utils/spool-client.mjs' {
     moveInfo(msgId: string): Promise<{ msg_id: string, task_id: string, channel: string | null, is_card: boolean, can_move: boolean, moved_from_channel?: string, moved_from_task?: string }>
     fileUrl(fileId: string): string
     bindIssuesMock(factory: (me: string) => unknown): void
-    listIssues(opts?: { filter?: import('~/utils/issues.mjs').IssueFilter, sort?: string }): Promise<import('~/utils/issues.mjs').IssueList>
+    listIssues(opts?: { filter?: import('~/utils/issues.mjs').IssueFilter, sort?: string, dir?: string, limit?: number, cursor?: string }): Promise<import('~/utils/issues.mjs').IssueList>
     getIssue(ref: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     createIssue(body: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     updateIssue(ref: string, patch: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
@@ -2004,6 +2004,9 @@ declare module '~/utils/issues.mjs' {
     labels: IssueLabel[]
     channel: string
     epics?: EpicSummary[]
+    /** t1 d5d00918: the filtered count, and the cursor of the next page ('' = none) */
+    total?: number
+    next_cursor?: string
   }
   export interface EpicSummary {
     key: string
@@ -2026,7 +2029,8 @@ declare module '~/utils/issues.mjs' {
   export function normalizeLabel(raw: unknown): IssueLabel
   export function sortIssues(list: Issue[], by?: string): Issue[]
   export function matchIssue(issue: Issue, f?: IssueFilter, me?: string): boolean
-  export function issueQuery(filter?: IssueFilter, sort?: string): string
+  export function issueQuery(filter?: IssueFilter, sort?: string, page?: { dir?: string, limit?: number, cursor?: string }): string
+  export function orderIssues(list: Issue[], by?: string, dir?: string): Issue[]
   export function createMockIssues(opts?: { me?: string, now?: () => string }): unknown
 }
 
@@ -2067,6 +2071,8 @@ declare module '~/utils/issues-view.mjs' {
   export function nextSort(col: string, cur?: { col: string, dir: string }): { col: string, dir: '' | 'asc' | 'desc' }
   export function sortFromQuery(q?: Record<string, unknown>): { col: string, dir: '' | 'asc' | 'desc' }
   export function hubSort(s: { col: string, dir: string }): string
+  export const ISSUE_PAGE: number
+  export function hubOrder(s: { col: string, dir: string }): { sort: string, dir: string }
   export function sortSheet(list: import('~/utils/issues.mjs').Issue[], s?: { col: string, dir: string }, opts?: { name?: (id: string) => string, labelName?: (id: string) => string }): import('~/utils/issues.mjs').Issue[]
   export function parseDeadlineText(text: string, defaultTime?: string): string | null
   export function monthOf(local: string, today?: string): string

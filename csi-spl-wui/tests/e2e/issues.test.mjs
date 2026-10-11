@@ -17,6 +17,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 // the CI runner user then gets EACCES (gate runs 36227035545 ff.).
 const SHOTS = process.env.ISSUES_SHOTS || mkdtempSync(join(tmpdir(), 'spool-issues-'))
 
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms))
 const results = []
 const ok = (name, pass, ev) => {
   results.push({ name, ok: pass })
@@ -391,6 +392,70 @@ try {
   const narrow = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))
   await p.screenshot({ path: `${SHOTS}/mobile.png` })
   ok('8 no horizontal scroll at 390', narrow.sw <= narrow.cw + 1, narrow)
+
+  /* t1 d5d00918 (owner msg c74e95d4): "It shouldn't list more than 30
+     issues, and then it should have the "Load more" control at the end of
+     the listing." The mock tenant starts with 64 more issues (SPL-1 is the epic, not a row). */
+  const count = (sel) => p.$$eval(sel, (els) => els.length)
+  const moreLast = (rowSel) => p.evaluate((rs) => {
+    const more = document.querySelector('[data-test=issues-load-more]')
+    const rows = document.querySelectorAll(rs)
+    const last = rows[rows.length - 1]
+    return Boolean(more && last && (last.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING))
+  }, rowSel)
+  const loadMore = async (rowSel, want) => {
+    await p.click('[data-test=issues-load-more]')
+    await p.waitForFunction((rs, n) => document.querySelectorAll(rs).length >= n, { timeout: 5000 }, rowSel, want).catch(() => null)
+  }
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.evaluate(() => localStorage.setItem('spool.mock.issues-seed', '64'))
+  await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=issues-row]', { visible: true, timeout: NAV_TIMEOUT })
+  const pg1 = { rows: await count('[data-test=issues-row]'), more: await count('[data-test=issues-load-more]'), last: await moreLast('[data-test=issues-row]'),
+    label: await p.$eval('[data-test=issues-load-more]', (el) => el.textContent.trim()).catch(() => '') }
+  await p.$eval('[data-test=issues-load-more]', (el) => el.scrollIntoView({ block: 'center' })).catch(() => {})
+  await p.screenshot({ path: `${SHOTS}/paged-1440.png` })
+  ok('11 64 issues: the list shows 30 rows and Load more after the last one', pg1.rows === 30 && pg1.more === 1 && pg1.last && pg1.label === 'Load more', pg1)
+  await loadMore('[data-test=issues-row]', 60)
+  const keys60 = await p.$$eval('[data-test=issues-row]', (els) => els.map((e) => e.getAttribute('data-key')))
+  ok('12 Load more reads the next 30: 60 rows, no key twice, Load more still there', keys60.length === 60 && new Set(keys60).size === 60 &&
+    (await count('[data-test=issues-load-more]')) === 1, { rows: keys60.length })
+  await loadMore('[data-test=issues-row]', 64)
+  ok('13 the last page: 64 rows, no Load more', (await count('[data-test=issues-row]')) === 64 && (await count('[data-test=issues-load-more]')) === 0,
+    { rows: await count('[data-test=issues-row]') })
+
+  /* a sort starts the list again at one page */
+  await p.click('[data-test=issues-sort-title]')
+  await p.waitForFunction(() => document.querySelectorAll('[data-test=issues-row]').length === 30, { timeout: 5000 }).catch(() => null)
+  ok('14 a sort reads the first page again (30 rows, Load more)', (await count('[data-test=issues-row]')) === 30 && (await count('[data-test=issues-load-more]')) === 1,
+    { rows: await count('[data-test=issues-row]') })
+
+  /* J walks on past the last row read: it reads the next page first */
+  await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=issues-row]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.evaluate(() => document.activeElement && document.activeElement.blur())
+  for (let k = 0; k < 31; k++) {
+    await p.keyboard.press('KeyJ')
+    await sleepMs(40)
+  }
+  await p.waitForFunction(() => document.querySelectorAll('[data-test=issues-row]').length >= 60, { timeout: 5000 }).catch(() => null)
+  const walked = await p.evaluate(() => {
+    const rows = [...document.querySelectorAll('[data-test=issues-row]')]
+    return { rows: rows.length, at: rows.findIndex((r) => r.getAttribute('data-selected') === 'true') }
+  })
+  ok('15 J from row 30 reads the next page and selects row 31', walked.rows === 60 && walked.at === 30, walked)
+
+  /* the phone's cards: the same page and the same control */
+  await p.setViewport({ width: 390, height: 844, isMobile: true })
+  await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=issues-card]', { visible: true, timeout: NAV_TIMEOUT })
+  const ph1 = { cards: await count('[data-test=issues-card]'), last: await moreLast('[data-test=issues-card]') }
+  await p.$eval('[data-test=issues-load-more]', (el) => el.scrollIntoView({ block: 'center' })).catch(() => {})
+  await p.screenshot({ path: `${SHOTS}/paged-390.png` })
+  await loadMore('[data-test=issues-card]', 60)
+  const ph2 = { cards: await count('[data-test=issues-card]') }
+  ok('16 phone: 30 cards, Load more at the end, then 60', ph1.cards === 30 && ph1.last && ph2.cards === 60, { ph1, ph2 })
+  await p.evaluate(() => localStorage.removeItem('spool.mock.issues-seed'))
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
   ok('9 no page errors', mine.length === 0, mine)
 } finally {

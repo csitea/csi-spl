@@ -27,7 +27,7 @@ const HUMAN_ID_RE = /^HUM-[0-9]+$/
 /* issues-v1 §4 query - the same as issues.mjs issueQuery (kept here so the
    Issues code stays out of this chunk too; tests/unit/issues.test.mjs
    checks the two agree). */
-function issueQuery(filter = {}, sort = '') {
+function issueQuery(filter = {}, sort = '', page = {}) {
   const q = new URLSearchParams()
   if (filter.kind) q.set('kind', filter.kind)
   for (const k of ['epic', 'parent', 'status', 'priority', 'level', 'assignee', 'label']) {
@@ -37,6 +37,9 @@ function issueQuery(filter = {}, sort = '') {
   if (filter.deadlineBefore) q.set('deadline_before', filter.deadlineBefore)
   if (filter.deadlineAfter) q.set('deadline_after', filter.deadlineAfter)
   if (sort && sort !== 'priority') q.set('sort', sort)
+  if (page.dir) q.set('dir', page.dir)
+  if (page.limit) q.set('limit', String(page.limit))
+  if (page.cursor) q.set('cursor', page.cursor)
   return q.toString()
 }
 
@@ -1182,11 +1185,13 @@ async function unarchiveChannel(ctx, channel) {
 
 /**
  * specs/039 issues-v1 §1: the tenant's issues with the filters and sort
- * of §4 applied by the hub. `{ prefix, statuses, counts, issues, labels, channel }`.
+ * of §4 applied by the hub. `{ prefix, statuses, counts, issues, labels,
+ * channel, total, next_cursor }`. t1 d5d00918: `limit` asks a page and
+ * `cursor` (the next_cursor before) the next one; no limit = every issue.
  */
-async function listIssues(ctx, { filter = {}, sort = '' } = {}) {
+async function listIssues(ctx, { filter = {}, sort = '', dir = '', limit = 0, cursor = '' } = {}) {
   const { live, mock, issuesMock } = ctx
-  const q = issueQuery(filter, sort)
+  const q = issueQuery(filter, sort, { dir, limit, cursor })
   if (mock) return issuesMock().list(q)
   return live(`/v1/view/issues${q ? `?${q}` : ''}`)
 }

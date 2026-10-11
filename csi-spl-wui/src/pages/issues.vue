@@ -503,7 +503,22 @@
               </span>
             </button>
           </li>
+          <!-- inside the list, above the room the + button keeps free -->
+          <li v-if="nextCursor && !loadError">
+            <button type="button" class="btn ghost issues-more" data-test="issues-load-more" :disabled="loadingMore" @click="loadMore()">
+              {{ loadingMore ? t('feed.loading_older') : t('feed.load_more') }}
+            </button>
+          </li>
         </ul>
+        <!-- t1 d5d00918: the first ISSUE_PAGE rows, then the other lists' Load more -->
+        <button
+          v-if="!phone && nextCursor && !loadError"
+          type="button"
+          class="btn ghost issues-more"
+          data-test="issues-load-more"
+          :disabled="loadingMore"
+          @click="loadMore()"
+        >{{ loadingMore ? t('feed.loading_older') : t('feed.load_more') }}</button>
       </div>
     </div>
     <!-- SPL-992: the filter row of the sheet, as a bottom sheet on a phone -->
@@ -963,7 +978,8 @@ import {
   applyLabelFrame,
   deadlineToLocalInput,
   groupIssues,
-  hubSort,
+  hubOrder,
+  ISSUE_PAGE,
   nextSort,
   sortFromQuery,
   sortSheet,
@@ -1013,13 +1029,19 @@ const { canEdit } = useMessageEdit()
 const issues = ref<Issue[]>([])
 const labels = ref<IssueLabel[]>([])
 const loading = ref(false)
+/* t1 d5d00918 (owner msg c74e95d4): a page of ISSUE_PAGE rows, then Load
+   more; nextCursor is the hub's next_cursor ('' = no more). loadSeq drops a
+   page that a newer load (a filter or sort change) superseded. */
+const nextCursor = ref('')
+const loadingMore = ref(false)
+let loadSeq = 0
 const busy = ref(false)
 const loadError = ref('')
 const saveError = ref('')
 /* owner, topics e65c0f60 + e00da93b + 3a589b54: one flat list, sorted by a
    header click; the sort lives in ?sort=&dir=. With no ?sort= the list opens
    with the person's PER-TENANT default (issues_sort claim, SPL-1181), else the
-   product default (priority ascending, applied by sortSheet/hubSort). */
+   product default (priority ascending, applied by sortSheet/hubOrder). */
 function initialSort(): { col: string, dir: string } {
   const q = sortFromQuery(route.query as Record<string, unknown>)
   if (q.col) return q
@@ -1268,7 +1290,9 @@ const sheetColumns = computed(() => [
   { col: 'deadline', name: t('issues.field_deadline'), cls: '' },
   { col: 'updated', name: t('issues.sort_updated'), cls: '' },
 ])
-const serverSort = computed(() => hubSort(sheetSort.value))
+/* t1 d5d00918: the hub pages in the sheet's own column and direction */
+const serverOrder = computed(() => hubOrder(sheetSort.value))
+const serverOrderKey = computed(() => `${serverOrder.value.sort}:${serverOrder.value.dir}`)
 /* resizable columns: composables/useIssueColumnGrips (owner, topic beb4024f) */
 const { issueCols, colWidths, onGripDown, onGripKey } = useIssueColumnGrips({
   table: () => pageEl.value?.querySelector<HTMLElement>('.issues-table'),
@@ -1354,8 +1378,13 @@ async function load() {
   }
   loading.value = true
   loadError.value = ''
+  const seq = ++loadSeq
+  loadingMore.value = false
   try {
-    const data = await withSessionRetry(api, () => api.listIssues({ filter: serverFilter(), sort: serverSort.value }))
+    const { sort, dir } = serverOrder.value
+    const data = await withSessionRetry(api, () => api.listIssues({ filter: serverFilter(), sort, dir, limit: ISSUE_PAGE }))
+    if (seq !== loadSeq) return
+    nextCursor.value = data.next_cursor || ''
     issues.value = (data.issues || []).map((row) => normalizeIssue(row))
     labels.value = (data.labels || []).map((row) => normalizeLabel(row))
     epics.value = data.epics || []
@@ -1365,6 +1394,28 @@ async function load() {
     loadError.value = errorKey(e as { status?: number, token?: string }, 'list')
   } finally {
     loading.value = false
+  }
+}
+
+/* Load more: the next page after the last one read, appended; a row the
+   tab already holds (a live frame, a deep link) is not added twice */
+async function loadMore() {
+  if (!nextCursor.value || loadingMore.value || loading.value) return
+  const seq = loadSeq
+  loadingMore.value = true
+  try {
+    const { sort, dir } = serverOrder.value
+    const cursor = nextCursor.value
+    const data = await withSessionRetry(api, () => api.listIssues({ filter: serverFilter(), sort, dir, limit: ISSUE_PAGE, cursor }))
+    if (seq !== loadSeq) return
+    const held = new Set(issues.value.map((i) => i.key))
+    const more = (data.issues || []).map((row) => normalizeIssue(row)).filter((i) => !held.has(i.key))
+    issues.value = [...issues.value, ...more]
+    nextCursor.value = data.next_cursor || ''
+  } catch (e) {
+    if (seq === loadSeq) loadError.value = errorKey(e as { status?: number, token?: string }, 'list')
+  } finally {
+    if (seq === loadSeq) loadingMore.value = false
   }
 }
 
@@ -1556,7 +1607,10 @@ function scrollSelected() {
   /* the sticky names + filter rows cover the top of the scroller */
   scroller.scrollTop -= theadEl.value?.getBoundingClientRect().height || 0
 }
-function move(delta: number) {
+async function move(delta: number) {
+  /* J on the last row read reads the next page first, so the walk goes on */
+  const rows = flat.value
+  if (delta > 0 && nextCursor.value && rows.length && rows[rows.length - 1].key === cursorKey.value) await loadMore()
   const next = stepKey(flat.value, cursorKey.value, delta)
   if (!next) return
   cursorKey.value = next
@@ -2385,9 +2439,9 @@ function onDocKey(ev: KeyboardEvent) {
     if (sc?.type === 'help') { useMsgShortcutsHelp().value = true; ev.preventDefault(); return }
     if (sc?.type === 'action') { runIssueShortcut(sc.key); ev.preventDefault(); return }
   }
-  if (k === 'j' || key === 'ArrowDown') { move(1); focusCell(); ev.preventDefault(); return }
+  if (k === 'j' || key === 'ArrowDown') { void move(1).then(focusCell); ev.preventDefault(); return }
   /* Shift + K is the message kind menu (HUM-10 t1 ffc3b83c), not move-up. */
-  if ((k === 'k' && !ev.shiftKey) || key === 'ArrowUp') { move(-1); focusCell(); ev.preventDefault(); return }
+  if ((k === 'k' && !ev.shiftKey) || key === 'ArrowUp') { void move(-1).then(focusCell); ev.preventDefault(); return }
   /* SPL-1027: Left / Right move the cell cursor, Enter edits the cell */
   if (!phone.value && (key === 'ArrowRight' || key === 'ArrowLeft')) { stepCol(key === 'ArrowRight' ? 1 : -1); ev.preventDefault(); return }
   if (key === 'Enter') {
@@ -2418,7 +2472,7 @@ function runIssueShortcut(letter: string) {
   if (id) runIssueItem(id, tg, pt)
 }
 
-watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, serverSort, epicF], () => { void load() })
+watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, serverOrderKey, epicF], () => { void load() })
 watch(() => session.state, () => { void load() }, { immediate: true })
 async function openLinkedIssue() {
   const key = issueLinkKey()
@@ -2739,6 +2793,7 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-menu--status { overflow: visible; }
 .issues-menu--status .issues-status-tip { left: auto; right: calc(100% + 6px); }
 .issues-prop .issues-status-tip { left: auto; right: 0; top: calc(100% + 4px); transform: none; }
+.issues-more { display: block; margin: 8px auto 12px; }
 .issues-scroll {
   flex: 1 1 auto;
   min-height: 0;

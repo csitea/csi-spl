@@ -90,6 +90,26 @@ export function hubSort(s) {
   return DEFAULT_SORT.col // no explicit sort = the product default (priority)
 }
 
+/** t1 d5d00918: the Issues list is paged by ISSUE_PAGE rows, Load more for the next. */
+export const ISSUE_PAGE = 30
+
+/* the sheet's columns as the hub's paged sorts (hub issues_page.go) */
+const HUB_COLUMN = { key: 'number', title: 'title', status: 'status', priority: 'priority', level: 'level',
+  assignee: 'assignee', label: 'label', deadline: 'deadline', updated: 'updated' }
+
+/**
+ * The hub order a sheet sort pages in (t1 d5d00918): the same column and
+ * direction, so a Load more page continues the rows on screen. No column is
+ * the product default (SPL-1181, sortSheet's defaultSort): `default`.
+ * Assignee and label sort here by shown name and on the hub by id, and a
+ * title here compares its numbers as numbers: there a Load more page may
+ * interleave the held rows (they are re-sorted here as one list).
+ */
+export function hubOrder(s) {
+  if (s && HUB_COLUMN[s.col]) return { sort: HUB_COLUMN[s.col], dir: s.dir === 'desc' ? 'desc' : 'asc' }
+  return { sort: 'default', dir: 'asc' }
+}
+
 const keyNum = (k) => Number(String(k || '').replace(/^\D+-/, '')) || 0
 
 /**

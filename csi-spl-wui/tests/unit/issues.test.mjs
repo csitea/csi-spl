@@ -418,3 +418,39 @@ describe('SPL-1027: delete (issues-v1 op delete, the mock soft delete)', async (
     assert.equal(m.list().issues.some((i) => i.key === e2.key), false)
   })
 })
+
+describe('t1 d5d00918: the list is paged (limit, cursor, dir)', async () => {
+  const { createMockIssues, issueQuery: q5, orderIssues } = await import('../../src/utils/issues.mjs')
+  const { hubOrder, ISSUE_PAGE } = await import('../../src/utils/issues-view.mjs')
+  it('the query carries dir, limit and cursor only when set', () => {
+    assert.equal(q5({}, 'default', { dir: 'asc', limit: 30, cursor: 'abc' }), 'sort=default&dir=asc&limit=30&cursor=abc')
+    assert.equal(q5({}, 'priority', {}), '')
+  })
+  it('a sheet sort pages in the same column and direction on the hub', () => {
+    assert.equal(ISSUE_PAGE, 30)
+    assert.deepEqual(hubOrder({ col: '', dir: '' }), { sort: 'default', dir: 'asc' })
+    assert.deepEqual(hubOrder({ col: 'key', dir: 'desc' }), { sort: 'number', dir: 'desc' })
+    assert.deepEqual(hubOrder({ col: 'title', dir: 'asc' }), { sort: 'title', dir: 'asc' })
+  })
+  it('the mock pages like the hub: 30, a cursor, then the rest; counts stay whole', () => {
+    let t = 0
+    const hub = createMockIssues({ me: 'HUM-1', now: () => new Date(Date.UTC(2026, 9, 1, 0, 0, t++)).toISOString() })
+    for (let k = 0; k < 64; k++) hub.create({ title: `r${k}`, priority: 1 + (k % 5) })
+    const all = hub.list('sort=default&dir=asc').issues.map((i) => i.key)
+    assert.equal(all.length, 65)
+    const p1 = hub.list('sort=default&dir=asc&limit=30')
+    assert.equal(p1.issues.length, 30)
+    assert.equal(p1.total, 65)
+    assert.equal(Object.values(p1.counts).reduce((a, b) => a + b, 0), 65)
+    const p2 = hub.list(`sort=default&dir=asc&limit=30&cursor=${p1.next_cursor}`)
+    const p3 = hub.list(`sort=default&dir=asc&limit=30&cursor=${p2.next_cursor}`)
+    assert.equal(p3.issues.length, 5)
+    assert.equal(p3.next_cursor, '')
+    assert.deepEqual([...p1.issues, ...p2.issues, ...p3.issues].map((i) => i.key), all)
+  })
+  it('orderIssues: the column in its direction, empty last, newest number on a tie', () => {
+    const rows = [{ key: 'A-1', number: 1, priority: 2 }, { key: 'A-2', number: 2, priority: 0 }, { key: 'A-3', number: 3, priority: 2 }, { key: 'A-4', number: 4, priority: 1 }]
+    assert.deepEqual(orderIssues(rows, 'priority', 'asc').map((i) => i.key), ['A-4', 'A-3', 'A-1', 'A-2'])
+    assert.deepEqual(orderIssues(rows, 'priority', 'desc').map((i) => i.key), ['A-3', 'A-1', 'A-4', 'A-2'])
+  })
+})

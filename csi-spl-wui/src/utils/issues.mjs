@@ -101,6 +101,50 @@ export function sortIssues(list, by = 'priority') {
   return out
 }
 
+/** The direction a hub sort runs without ?dir= (hub issueSortDir). */
+const HUB_SORT_DIR = { priority: 'asc', level: 'asc', deadline: 'asc', updated: 'desc', created: 'desc', number: 'desc',
+  title: 'asc', status: 'asc', assignee: 'asc', label: 'asc', default: 'asc' }
+
+/* one row's value in a hub sort column; '' is empty and sorts last either way */
+function hubCell(i, by) {
+  switch (by) {
+    case 'priority': case 'default': return Number(i.priority) || ''
+    case 'level': return Number(i.level) || ''
+    case 'deadline': return Number.isNaN(ms(i.deadline)) ? '' : ms(i.deadline)
+    case 'updated': return ms(i.updated_at) || 0
+    case 'created': return ms(i.created_at) || 0
+    case 'number': return Number(i.number) || 0
+    case 'title': return { s: String(i.title || '').toLowerCase() }
+    case 'status': return ISSUE_STATUSES.indexOf(i.status)
+    case 'assignee': return i.assignee ? { s: i.assignee } : ''
+    case 'label': return (i.labels || []).length ? { s: (i.labels || []).slice().sort()[0] } : ''
+  }
+  return 0
+}
+
+/**
+ * The hub's paged order (hub issueLess, issues_page.go): the column in its
+ * direction, empty last; "default" then updated newest first; then the
+ * newest number. Returns a new array.
+ */
+export function orderIssues(list, by = 'priority', dir = '') {
+  const sign = (dir || HUB_SORT_DIR[by] || 'asc') === 'desc' ? -1 : 1
+  const cmp = (a, b) => {
+    if (a === '' || b === '') return a === b ? 0 : a === '' ? 1 : -1
+    if (typeof a === 'object') return (a.s < b.s ? -1 : a.s > b.s ? 1 : 0) * sign
+    return (a - b) * sign
+  }
+  return (list || []).slice().sort((x, y) => {
+    const c = cmp(hubCell(x, by), hubCell(y, by))
+    if (c) return c
+    if (by === 'default') {
+      const u = (ms(y.updated_at) || 0) - (ms(x.updated_at) || 0)
+      if (u) return u
+    }
+    return (Number(y.number) || 0) - (Number(x.number) || 0)
+  })
+}
+
 /**
  * Filters on every attribute (issues-v1 §4). Each set is any-of; an empty
  * set matches everything. assignee accepts 'me' (with `me`) and 'none'.
@@ -130,8 +174,11 @@ export function matchIssue(issue, f = {}, me = '') {
   return true
 }
 
-/** The URL query the hub reads (issues-v1 §4) for a filter + sort. */
-export function issueQuery(filter = {}, sort = '') {
+/**
+ * The URL query the hub reads (issues-v1 §4) for a filter + sort, and a
+ * page (t1 d5d00918): `dir`, `limit` and the `cursor` of the page before.
+ */
+export function issueQuery(filter = {}, sort = '', page = {}) {
   const q = new URLSearchParams()
   if (filter.kind) q.set('kind', filter.kind)
   for (const k of ['epic', 'parent', 'status', 'priority', 'level', 'assignee', 'label']) {
@@ -141,6 +188,9 @@ export function issueQuery(filter = {}, sort = '') {
   if (filter.deadlineBefore) q.set('deadline_before', filter.deadlineBefore)
   if (filter.deadlineAfter) q.set('deadline_after', filter.deadlineAfter)
   if (sort && sort !== 'priority') q.set('sort', sort)
+  if (page.dir) q.set('dir', page.dir)
+  if (page.limit) q.set('limit', String(page.limit))
+  if (page.cursor) q.set('cursor', page.cursor)
   return q.toString()
 }
 
@@ -252,6 +302,16 @@ function mockFilterOf(q) {
     assignee: csv('assignee'), label: csv('label'), deadlineBefore: q.get('deadline_before') || '', deadlineAfter: q.get('deadline_after') || '' }
 }
 
+/* The mock hub's page (hub issues_page.go): the hub's order, the rows after
+   the cursor (here the last row's key), `limit` of them. No limit = all. */
+function mockPage(matched, q) {
+  const ordered = orderIssues(matched, q.get('sort') || 'priority', q.get('dir') || '')
+  const at = q.get('cursor') ? ordered.findIndex((i) => i.key === q.get('cursor')) + 1 : 0
+  const limit = Number(q.get('limit')) || 0
+  const rows = limit ? ordered.slice(at, at + limit) : ordered.slice(at)
+  return { rows, next: limit && at + limit < ordered.length ? rows[rows.length - 1].key : '' }
+}
+
 /** A new row numbered n from a create body, before the hub's checks. */
 function mockNewIssue(body, n, me, at) {
   const lbl = Array.isArray(body.labels) ? body.labels : []
@@ -260,6 +320,9 @@ function mockNewIssue(body, n, me, at) {
     task_id: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, channel: ISSUE_CHANNEL,
     created_by: me, created_at: at, updated_by: me, updated_at: at })
 }
+
+/** localStorage key: how many issues the mock tenant starts with beyond SPL-1. */
+export const MOCK_ISSUES_SEED_KEY = 'spool.mock.issues-seed'
 
 /**
  * The mock hub's issues (mock mode, no hub): the same answers as issues-v1,
@@ -272,6 +335,14 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
   let issues = [normalizeIssue({ key: 'SPL-1', number: 1, title: 'random', kind: 'epic', labels: ['epic'], status: 'in_progress',
     task_id: '00000000-0000-4000-8000-000000000001', created_by: me, updated_by: me, created_at: now(), updated_at: now() })]
   let labels = [normalizeLabel({ id: 'bug', name: 'Bug', color: '#ef4444' }), normalizeLabel({ id: 'epic', name: 'epic', color: '#8b5cf6' })]
+  /* t1 d5d00918: localStorage `spool.mock.issues-seed` = N plays a tenant
+     with N more issues (SPL-2 ..), so a test reaches a second page */
+  let seed = 0
+  try { seed = Math.min(500, Number(globalThis.localStorage?.getItem(MOCK_ISSUES_SEED_KEY)) || 0) } catch { /* no storage */ }
+  for (let k = 1; k <= seed; k++) {
+    last++
+    issues.push(mockNewIssue({ title: `mock issue ${k}`, priority: 1 + (k % 5) }, last, me, now()))
+  }
   const find = (ref) => mockFind(issues, ref)
   const view = (i) => mockView(issues, i)
   /* SPL-1027 / SPL-1226: the hub's soft delete (remove) and archive - for the
@@ -291,9 +362,11 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     list(query = '') {
       const q = new URLSearchParams(query)
       const f = mockFilterOf(q)
-      const kept = sortIssues(issues.map(view).filter((i) => matchIssue(i, f, me)), q.get('sort') || 'priority')
-      const counts = Object.fromEntries(ISSUE_STATUSES.map((s) => [s, kept.filter((i) => i.status === s).length]))
-      return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: kept, labels: labels.slice(), channel: ISSUE_CHANNEL, epics: mockSummaries(issues) }
+      const matched = issues.map(view).filter((i) => matchIssue(i, f, me))
+      const counts = Object.fromEntries(ISSUE_STATUSES.map((s) => [s, matched.filter((i) => i.status === s).length]))
+      const { rows, next } = mockPage(matched, q)
+      return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: rows, labels: labels.slice(), channel: ISSUE_CHANNEL, epics: mockSummaries(issues),
+        total: matched.length, next_cursor: next }
     },
     get(ref) {
       const i = find(ref)

@@ -70,7 +70,7 @@ rm -f "$T/gcloud.log"
 ( DRY_RUN=0 do_spl_wine_box_start ) >/dev/null
 grep -q 'instances start test-wine-box' "$T/gcloud.log" && pass "start is the same call with start" || fail "start did not call instances start"
 
-if ( DEST= do_spl_wine_box_ansible_sync ) >/dev/null 2>&1; then fail "sync ran without DEST"; else pass "sync refuses without DEST"; fi
+if ( DEST='' do_spl_wine_box_ansible_sync ) >/dev/null 2>&1; then fail "sync ran without DEST"; else pass "sync refuses without DEST"; fi
 dest="$T/dest"
 mkdir -p "$dest"
 printf 'keep-me\n' >"$dest/README.en.md"

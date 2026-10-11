@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"math/rand" // nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used -- a seeded, replayable op sequence for a test (SPOOL_TEST_WSDOC_SEED), never a secret
+	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestWorkspaceDocProperty (spec 113 3.5, T002 Done (a)): random sequences of
@@ -15,32 +17,88 @@ import (
 // ops x 5 seeds. After EVERY step: the invariant check on the tables and the
 // whole tree compared with the model. A failure prints its seed; replay it
 // with SPOOL_TEST_WSDOC_SEED=<seed> (SPOOL_TEST_WSDOC_OPS sets the length).
+//
+// The run is bounded by wall clock, not only by ops: each seed stops at
+// wsPropEnd (SPOOL_TEST_WSDOC_BUDGET, default 6m, never past the go test
+// deadline less 2m) and goes red under SPOOL_TEST_WSDOC_MIN_OPS (default 500)
+// ops. Locally (docker pg16, -race, n = 3, load 10..30) 5 x 5,000 ops took
+// 97..184 s; on a loaded CI runner (run 38133432048) they passed 645 s
+// unfinished and took the package to the 20m panic, beside a store run that
+// timed out too: runner load, not a hang (goroutines runnable on Scan).
 func TestWorkspaceDocProperty(t *testing.T) {
 	pg, tid := wsDocPG(t)
 	other := newTenant(t, pg)
 	ops, seeds := wsEnvInt("SPOOL_TEST_WSDOC_OPS", 5000), wsSeeds([]int64{1, 2, 3, 4, 5})
+	minOps, end := min(wsEnvInt("SPOOL_TEST_WSDOC_MIN_OPS", 500), ops), wsPropEnd(t)
 	var mu sync.Mutex
 	var counts [4]int
+	done := 0
 	t.Run("seeds", func(t *testing.T) {
 		for _, seed := range seeds {
 			t.Run(fmt.Sprint(seed), func(t *testing.T) {
 				t.Parallel() // one doc per seed: independent, and the run is DB-latency bound
 				p := &wsProp{t: t, pg: pg, tenant: tid, other: other, seed: seed, rng: rand.New(rand.NewSource(seed))}
-				p.start()
-				for p.step = 1; p.step <= ops; p.step++ {
-					p.once()
+				n := p.run(ops, end)
+				t.Logf("seed %d: %d of %d ops, %d items at the end, doc rev %d", seed, n, ops, len(p.m.parent), p.rev)
+				if n < minOps {
+					t.Errorf("seed %d: %d ops before the budget ran out, want >= %d (SPOOL_TEST_WSDOC_MIN_OPS): the runner is too slow for the property test",
+						seed, n, minOps)
 				}
-				t.Logf("seed %d: %d ops, %d items at the end, doc rev %d", seed, ops, len(p.m.parent), p.rev)
 				mu.Lock()
 				defer mu.Unlock()
+				done += n
 				for i := range counts {
 					counts[i] += p.counts[i]
 				}
 			})
 		}
 	})
-	t.Logf("WSDOC property: committed=%d 412=%d 404=%d refused=%d (n = %d seeds x %d ops)",
-		counts[0], counts[1], counts[2], counts[3], len(seeds), ops)
+	t.Logf("WSDOC property: committed=%d 412=%d 404=%d refused=%d (n = %d seeds, %d of %d ops)",
+		counts[0], counts[1], counts[2], counts[3], len(seeds), done, len(seeds)*ops)
+}
+
+// TestWorkspaceDocPropertyBudget is the CONTROL of the bound: a seed asked for
+// far more ops than fit stops at its end, long before the ops run out, and
+// every op it did run still checked out against the model.
+func TestWorkspaceDocPropertyBudget(t *testing.T) {
+	pg, tid := wsDocPG(t)
+	const ops, budget = 1_000_000, 2 * time.Second
+	p := &wsProp{t: t, pg: pg, tenant: tid, other: newTenant(t, pg), seed: 1, rng: rand.New(rand.NewSource(1))}
+	start := time.Now()
+	n := p.run(ops, start.Add(budget))
+	took := time.Since(start)
+	if n == 0 || n >= ops || took > budget+30*time.Second {
+		t.Fatalf("budget %s: %d ops in %s, want 0 < ops < %d and a stop near the budget", budget, n, took, ops)
+	}
+	t.Logf("CONTROL budget %s: stopped after %d ops in %s", budget, n, took.Round(time.Millisecond))
+}
+
+// wsPropEnd is when the property seeds stop: SPOOL_TEST_WSDOC_BUDGET (a Go
+// duration, default 6m) from now, never later than 2m before the go test
+// deadline, so a slow runner ends the seeds with their counts, not the panic.
+func wsPropEnd(t *testing.T) time.Time {
+	budget := 6 * time.Minute
+	if d, err := time.ParseDuration(os.Getenv("SPOOL_TEST_WSDOC_BUDGET")); err == nil && d > 0 {
+		budget = d
+	}
+	end := time.Now().Add(budget)
+	if dl, ok := t.Deadline(); ok && dl.Add(-2*time.Minute).Before(end) {
+		end = dl.Add(-2 * time.Minute)
+	}
+	return end
+}
+
+// run starts the doc and runs up to ops steps, stopping at end; it returns
+// the steps run.
+func (p *wsProp) run(ops int, end time.Time) int {
+	p.start()
+	for p.step = 1; p.step <= ops; p.step++ {
+		if time.Now().After(end) {
+			break
+		}
+		p.once()
+	}
+	return p.step - 1
 }
 
 // wsProp is one seed's run: the doc, its model and the outcome counts

@@ -14,7 +14,12 @@
      context-menu key. Edit opens it; Rename is the hub's PATCH
      /v1/workspace/doctree/{doc}; Copy link and Open in a new tab use the
      page's own URL. Delete confirms first, then the hub's DELETE
-     /v1/workspace/doctree/{doc} under a fresh head rev. -->
+     /v1/workspace/doctree/{doc} under a fresh head rev.
+     On a phone (owner t1 8bf89f96, msgs dfe000c1, c09ae88e, d8a12bb3: "drill
+     down" as from Channels to a channel to a topic) the page passes `drill`,
+     the node on screen ('' = the top level): the rows are that node's
+     children only. A row with rows under it drills one level deeper
+     (`drill`), any other opens (`open`); `title` names the node's path. -->
 <template>
   <nav class="qto-tree" data-test="qto-file-tree" :aria-label="t('ws_doctree.title')">
     <UiFileTree :rows="rows" :label="t('ws_doctree.title')" @toggle="toggle" @select="select" @menu="openMenu" />
@@ -74,8 +79,8 @@ import UiConfirm from '~/components/UiConfirm.vue'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import type { DocHead, DocItem, DocTreeClient } from './-doctree-api'
 
-const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient }>()
-const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string] }>()
+const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null }>()
+const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
 /* row keys: d:<doc> for a document, i:<doc>:<item> for a section */
@@ -109,36 +114,95 @@ function setOpen(key: string, on: boolean) {
   opened.value = s
 }
 
+/* an empty title reads as the document view's placeholder (Heading 1.1) */
+const itemName = (it: DocItem) => it.title.trim() || t('ws_doctree.heading_placeholder', { n: it.outline })
+const docName = (d: DocHead) => d.title || t('ws_doctree.default_doc_title')
+
+function sectionRow(doc: string, it: DocItem, m: Map<string, DocItem[]>, depth: number): FileTreeRow {
+  const key = itemKey(doc, it.id)
+  const sub = (m.get(it.id) || []).length > 0
+  const name = itemName(it)
+  return { key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'folder' : 'list', kind: 'section', expandable: sub, open: sub && opened.value.has(key), active: doc === props.active && it.id === activeItem.value }
+}
+
+function docRow(d: DocHead): FileTreeRow {
+  const m = kids.value[d.id]
+  return { key: docKey(d.id), depth: 0, name: docName(d), icon: 'file-text', kind: 'doc', menu: true, expandable: !m || (m.get(d.root) || []).length > 0, open: opened.value.has(docKey(d.id)), active: d.id === props.active && !activeItem.value }
+}
+
+const drilling = computed(() => typeof props.drill === 'string')
+
+/** the phone's node on screen: its document and the parent its rows hang from */
+const drillNode = computed(() => {
+  const [kind, doc, item] = (props.drill || '').split(':')
+  const d = props.docs.find((x) => x.id === doc)
+  if (!d) return null
+  return { doc: d, parent: kind === 'i' ? item : d.root }
+})
+
+/** the phone's drill-down: the rows of one node, one level */
+const drillRows = computed<FileTreeRow[]>(() => {
+  if (!props.drill) return props.docs.map((d) => ({ ...docRow(d), open: false, active: false }))
+  const n = drillNode.value
+  const m = n && kids.value[n.doc.id]
+  if (!n || !m) return []
+  return (m.get(n.parent) || []).map((it) => ({ ...sectionRow(n.doc.id, it, m, 0), open: false, active: false }))
+})
+
+/** the node's path, document first: Handbook / Introduction / Scope */
+const drillTitle = computed(() => {
+  const n = drillNode.value
+  if (!n) return ''
+  const names: string[] = []
+  const byId = new Map<string, DocItem>()
+  for (const list of kids.value[n.doc.id]?.values() || []) for (const it of list) byId.set(it.id, it)
+  for (let it = byId.get(n.parent); it; it = byId.get(it.parent)) names.unshift(itemName(it))
+  return [docName(n.doc), ...names].join(' / ')
+})
+watch(drillTitle, (v) => emit('title', v), { immediate: true })
+watch(() => props.drill, (key) => {
+  const doc = (key || '').split(':')[1]
+  if (doc && !kids.value[doc]) void load(doc)
+}, { immediate: true })
+
 const rows = computed<FileTreeRow[]>(() => {
+  if (drilling.value) return drillRows.value
   const out: FileTreeRow[] = []
   const walk = (doc: string, m: Map<string, DocItem[]>, parent: string, depth: number) => {
     for (const it of m.get(parent) || []) {
-      const key = itemKey(doc, it.id)
-      const sub = (m.get(it.id) || []).length > 0
-      const open = sub && opened.value.has(key)
-      /* an empty title reads as the document view's placeholder (Heading 1.1) */
-      const name = it.title.trim() || t('ws_doctree.heading_placeholder', { n: it.outline })
-      out.push({ key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'folder' : 'list', kind: 'section', expandable: sub, open, active: doc === props.active && it.id === activeItem.value })
-      if (open) walk(doc, m, it.id, depth + 1)
+      const row = sectionRow(doc, it, m, depth)
+      out.push(row)
+      if (row.open) walk(doc, m, it.id, depth + 1)
     }
   }
   for (const d of props.docs) {
-    const key = docKey(d.id)
+    const row = docRow(d)
+    out.push(row)
     const m = kids.value[d.id]
-    const open = opened.value.has(key)
-    out.push({ key, depth: 0, name: d.title || t('ws_doctree.default_doc_title'), icon: 'file-text', kind: 'doc', menu: true, expandable: !m || (m.get(d.root) || []).length > 0, open, active: d.id === props.active && !activeItem.value })
-    if (open && m) walk(d.id, m, d.root, 1)
+    if (row.open && m) walk(d.id, m, d.root, 1)
   }
   return out
 })
 
+/** a phone row: one with rows under it drills, any other opens */
+async function drillSelect(key: string) {
+  const [kind, doc, item] = key.split(':')
+  if (!kids.value[doc]) await load(doc)
+  const m = kids.value[doc]
+  const parent = kind === 'i' ? item : props.docs.find((d) => d.id === doc)?.root
+  if (m && parent && (m.get(parent) || []).length) emit('drill', key)
+  else emit('open', doc, kind === 'i' ? item : '')
+}
+
 function toggle(key: string) {
+  if (drilling.value) return void drillSelect(key)
   const on = !opened.value.has(key)
   setOpen(key, on)
   if (on && key.startsWith('d:') && !kids.value[key.slice(2)]) void load(key.slice(2))
 }
 
 function select(key: string) {
+  if (drilling.value) return void drillSelect(key)
   if (key.startsWith('d:')) {
     const doc = key.slice(2)
     activeItem.value = ''
@@ -177,7 +241,8 @@ function docHref(doc: string): string {
 async function choose(id: string) {
   const doc = menu.value?.doc
   if (!doc) return
-  if (id === 'edit') select(docKey(doc))
+  if (id === 'edit' && drilling.value) emit('open', doc, '')
+  else if (id === 'edit') select(docKey(doc))
   else if (id === 'rename') {
     renameTo.value = props.docs.find((d) => d.id === doc)?.title || ''
     renameError.value = ''

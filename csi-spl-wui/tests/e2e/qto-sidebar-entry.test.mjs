@@ -6,9 +6,17 @@
 // Owner HUM-10 (t1 efde25bb): on /workspace/docs the left panel is a VS
 // Code-like file tree of the documents, not the channel list: the sidebar
 // keeps its icon rail only; the tree's rows expand, collapse, open a
-// document or a section, and answer the arrow keys. A phone folds the tree
-// behind its Documents button. No visible heading above the tree
-// (msg 8471b818); control: the <h3> restored -> that check FAILS.
+// document or a section, and answer the arrow keys. No visible heading
+// above the tree (msg 8471b818); control: the <h3> restored -> that check
+// FAILS.
+//
+// Owner t1 8bf89f96 (msgs dfe000c1, c09ae88e, d8a12bb3): a phone drills
+// down as Channels -> channel -> topic: the first screen lists the top level
+// only; a row with rows under it opens a screen of its rows, its path as the
+// title; Back (the chevron) walks up; any other row opens the document.
+// Control: before the drill-down the phone folds the whole tree (sections
+// included) behind a Documents button and the page has no list, so the
+// top-level-only check FAILS.
 //
 // Owner HUM-10 (t1 91289b0a, msgs 635c2125, 500ca8f5): each DOCUMENT row
 // has a right-click menu (a long press on a phone, Shift+F10 / the
@@ -221,6 +229,48 @@ async function docMenu(p, browser) {
   ok('Delete: the document left opens', await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Notes', { timeout: STEP }).then(() => true, () => false))
 }
 
+/* the phone's list: the page's own tree (the side panel's is not drawn there) */
+const LIST = '[data-test=ws-docs-page] [data-test=qto-file-tree]'
+const listRows = (p) => p.$$eval(`${LIST} [data-test=file-tree-row]`, (els) => els.map((el) => `${el.getAttribute('aria-level')} ${el.textContent.trim()}`)).catch(() => [])
+const heading = (p) => p.$eval('[data-test=ws-docs-heading]', (el) => el.textContent.trim()).catch(() => '')
+const listIs = (p, names) => p.waitForFunction((sel, want) => {
+  const got = [...document.querySelectorAll(sel)].map((el) => el.textContent.trim())
+  return got.join('|') === want.join('|')
+}, { timeout: STEP }, `${LIST} [data-test=file-tree-row]`, names).then(() => true, () => false)
+async function tapRow(p, name) {
+  const row = await p.evaluateHandle((sel, name) => [...document.querySelectorAll(sel)].find((el) => el.textContent.trim() === name) || null, `${LIST} [data-test=file-tree-row]`, name)
+  if (!(await row.evaluate((el) => Boolean(el)))) return false
+  await row.tap()
+  return true
+}
+async function back(p) {
+  await p.tap('[data-test=ws-docs-page] [data-testid=mobile-back]').catch(() => {})
+}
+
+/** t1 8bf89f96: the phone drills down, one level a screen, Back walks up */
+async function drillDown(m) {
+  ok('phone: no side tree and no Documents button', !(await shown(m, '#qto-file-tree')) && !(await m.$('[data-test=qto-file-tree-toggle]')))
+  ok('phone: the first screen lists the top level only', await listIs(m, ['Handbook']) && (await listRows(m)).every((r) => r.startsWith('1 ')), await listRows(m))
+  ok('phone: ... titled Documents, with the Back chevron', await heading(m) === 'Documents' && await shown(m, '[data-test=ws-docs-page] [data-testid=mobile-back]'))
+  if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-drill-phone-top.png` })
+  await tapRow(m, 'Handbook')
+  ok('phone: a tap on a document drills into its sections', await listIs(m, ['Introduction', 'Operations', 'Glossary']), await listRows(m))
+  ok('phone: ... its path is the title, one history entry deeper', await heading(m) === 'Handbook' && new URL(m.url()).searchParams.get('in')?.startsWith('d:'), m.url())
+  await tapRow(m, 'Introduction')
+  ok('phone: a section with sections drills one level more', await listIs(m, ['Scope', 'Audience']) && await heading(m) === 'Handbook / Introduction', await listRows(m))
+  if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-drill-phone-folder.png` })
+  await back(m)
+  ok('phone: Back walks up one level', await listIs(m, ['Introduction', 'Operations', 'Glossary']) && await heading(m) === 'Handbook', await listRows(m))
+  await tapRow(m, 'Glossary')
+  await m.waitForFunction(() => new URL(location.href).searchParams.get('doc') && location.hash.startsWith('#ws-doc-'), { timeout: STEP }).catch(() => {})
+  ok('phone: a row with nothing under it opens the document there', await m.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Handbook', { timeout: STEP }).then(() => true, () => false) && !(await m.$(LIST)), m.url())
+  if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-drill-phone-doc.png` })
+  await back(m)
+  ok('phone: Back from the document returns to its level', await listIs(m, ['Introduction', 'Operations', 'Glossary']), await listRows(m))
+  await back(m)
+  ok('phone: Back again, the top level', await listIs(m, ['Handbook']) && await heading(m) === 'Documents', await listRows(m))
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -271,14 +321,9 @@ try {
   await m.waitForFunction(() => location.pathname === '/workspace/docs', { timeout: STEP }).catch(() => {})
   ok('one tap lands on /workspace/docs', new URL(m.url()).pathname === '/workspace/docs', m.url())
   await onPage(m)
-  ok('phone: the tree is folded', !(await shown(m, '[data-test=qto-file-tree]')))
-  await m.tap('[data-test=qto-file-tree-toggle]').catch(() => {})
-  ok('phone: the Documents button unfolds the tree', await m.waitForFunction(() => {
-    const el = document.querySelector('[data-test=qto-file-tree]')
-    return Boolean(el && el.getBoundingClientRect().height > 0)
-  }, { timeout: STEP }).then(() => true, () => false))
-  ok('phone: a tree row is a 44 px target', await m.$eval('[data-test=file-tree-row]', (el) => el.getBoundingClientRect().height >= 44).catch(() => false))
-  const held = await m.$eval('[data-test=qto-file-tree] [data-kind=doc]', (el) => { const r = el.getBoundingClientRect(); return { x: r.left + 60, y: r.top + r.height / 2 } }).catch(() => null)
+  await drillDown(m)
+  ok('phone: a tree row is a 44 px target', await m.$eval(`${LIST} [data-test=file-tree-row]`, (el) => el.getBoundingClientRect().height >= 44).catch(() => false))
+  const held = await m.$eval(`${LIST} [data-kind=doc]`, (el) => { const r = el.getBoundingClientRect(); return { x: r.left + 60, y: r.top + r.height / 2 } }).catch(() => null)
   if (held) {
     await m.touchscreen.touchStart(held.x, held.y)
     await new Promise((r) => setTimeout(r, 800))

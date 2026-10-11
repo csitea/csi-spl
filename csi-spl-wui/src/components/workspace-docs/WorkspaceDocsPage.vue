@@ -3,25 +3,36 @@
      tree (?doc=<id>&view=doc|grid). The DB is the source of truth
      (spec 0); every edit is one of the hub's ops (T004, /v1/workspace/doctree)
      with the doc rev this page read, so neither view can break the tree. A
-     412 (someone else changed the document) shows the reload prompt. -->
+     412 (someone else changed the document) shows the reload prompt.
+     On a phone (owner t1 8bf89f96, msgs dfe000c1, c09ae88e, d8a12bb3) the
+     page drills down as Channels -> channel -> topic does: with no ?doc= it
+     lists one level of the documents' tree (QtoFileTree `drill`, the node in
+     ?in=), its path as the title; a tap on a row with rows under it pushes
+     the next level, any other row opens the document there. Every step is a
+     route push, so the Back chevron (MobileBack), a swipe and browser Back
+     walk back up the same way they leave a channel. -->
 <template>
   <div class="feed-col wsdocs-page" data-test="ws-docs-page">
     <header class="feed-header wsdocs-head">
       <MobileBack />
-      <h2>{{ t('ws_doctree.title') }}</h2>
+      <h2 data-test="ws-docs-heading">{{ phoneList && drillTitle ? drillTitle : t('ws_doctree.title') }}</h2>
+      <!-- a drilled level opens as a document too: the menu's Edit -->
+      <button v-if="phoneList && drillAt" type="button" class="btn ghost" data-test="ws-docs-drill-open" @click="openDrilled">
+        {{ t('ws_doctree.doc_menu.edit') }}
+      </button>
       <!-- owner t1 889e15d9: a new document is made through the + and its
            modal, the issues page's pattern (SPL-978 round +; SPL-992 on a
            phone it floats bottom right) -->
       <button v-if="state === 'ready' || state === 'loading'" type="button" class="wsdocs-fab" data-test="ws-docs-new" aria-haspopup="dialog" :aria-label="t('ws_doctree.new_doc')" :title="t('ws_doctree.new_doc')" @click="newOpen = true">
         <UiIcon name="plus" :size="22" :stroke-width="2.5" />
       </button>
-      <label v-if="docs.length" class="wsdocs-pick">
+      <label v-if="docs.length && !phoneList" class="wsdocs-pick">
         <span class="sr-only">{{ t('ws_doctree.doc_label') }}</span>
         <select :value="docId" data-test="ws-docs-select" :aria-label="t('ws_doctree.doc_label')" @change="pick(($event.target as HTMLSelectElement).value)">
           <option v-for="d in docs" :key="d.id" :value="d.id">{{ d.title }}</option>
         </select>
       </label>
-      <div v-if="docId" class="wsdocs-views" role="radiogroup" :aria-label="t('ws_doctree.view_label')">
+      <div v-if="docId && !phoneList" class="wsdocs-views" role="radiogroup" :aria-label="t('ws_doctree.view_label')">
         <button
           v-for="v in VIEWS"
           :key="v"
@@ -53,7 +64,20 @@
       </div>
       <p v-else-if="session?.error.value" class="wsdocs-error" role="alert" data-test="ws-docs-error">{{ t(session.error.value) }}</p>
 
-      <template v-if="session && root">
+      <QtoFileTree
+        v-if="phoneList && state === 'ready' && docs.length"
+        :docs="docs"
+        active=""
+        :rev="0"
+        :client="client"
+        :drill="drillAt"
+        @drill="drillTo"
+        @open="openFromList"
+        @renamed="renamedInList"
+        @deleted="deletedInList"
+        @title="(v) => { drillTitle = v }"
+      />
+      <template v-if="session && root && !phoneList">
         <WorkspaceDocView v-if="view === 'doc'" :key="'doc' + mount" :session="session" :root="root" :title="docTitle" :docs="docs" @print="printBranch" @list="openList" @open="openAt" @renamed="renamed" />
         <WorkspaceGridView v-else :key="'grid' + mount" :session="session" :filter="String(route.query.q || '')" @print="printBranch" />
       </template>
@@ -69,9 +93,11 @@ import WorkspaceDocView from './WorkspaceDocView.vue'
 import WorkspaceGridView from './WorkspaceGridView.vue'
 import WorkspaceDocPrint from './WorkspaceDocPrint.vue'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
+import QtoFileTree from './QtoFileTree.vue'
 import { createDocSession, DocTreeError, seedStarterDoc, useDocTree, type DocHead, type DocItem, type DocSession } from './-doctree-api'
 import { picPaths } from './-doc-pics'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useMobileStack } from '~/composables/useMobileStack'
 
 const VIEWS = ['doc', 'grid'] as const
 type View = typeof VIEWS[number]
@@ -92,6 +118,11 @@ const printItems = ref<DocItem[]>([])
 const printSrcs = ref<Record<string, string>>({})
 
 const docId = computed(() => String(route.query.doc || '') || docs.value[0]?.id || '')
+/* the phone's drill-down: no document asked for, the list; ?in= the node on screen */
+const stack = useMobileStack()
+const phoneList = computed(() => stack.isMobile.value && !route.query.doc)
+const drillAt = computed(() => String(route.query.in || ''))
+const drillTitle = ref('')
 const view = computed<View>(() => (route.query.view === 'grid' ? 'grid' : 'doc'))
 const docTitle = computed(() => docs.value.find((d) => d.id === docId.value)?.title || '')
 
@@ -121,7 +152,7 @@ async function open() {
   const id = docId.value
   session.value = null
   root.value = ''
-  if (!id) return
+  if (!id || phoneList.value) return
   const s = createDocSession(client, id)
   const h = await s.run(() => client.head(id))
   if (!h || id !== docId.value) return
@@ -140,6 +171,33 @@ async function pick(id: string) {
 /** the doc view renamed the open document: the picker shows the new title, the view stays mounted */
 function renamed(title: string) {
   docs.value = docs.value.map((d) => (d.id === docId.value ? { ...d, title } : d))
+}
+
+/** a phone row with rows under it: the next level, one history entry deeper */
+async function drillTo(key: string) {
+  const { in: _in, ...rest } = route.query
+  await router.push({ query: key ? { ...rest, in: key } : rest })
+}
+
+/** a phone row without rows under it (or a level's Edit): the document there, one entry deeper */
+async function openFromList(doc: string, item: string) {
+  const { in: _in, q: _q, ...rest } = route.query
+  await router.push({ query: { ...rest, doc, view: 'doc' }, hash: item ? '#ws-doc-' + item : '' })
+  await open()
+}
+
+function openDrilled() {
+  const [kind, doc, item] = drillAt.value.split(':')
+  if (doc) void openFromList(doc, kind === 'i' ? item : '')
+}
+
+/** the list's Rename and Delete (its menu) */
+function renamedInList(doc: string, title: string, rev: number) {
+  docs.value = docs.value.map((d) => (d.id === doc ? { ...d, title, rev } : d))
+}
+function deletedInList(doc: string) {
+  docs.value = docs.value.filter((d) => d.id !== doc)
+  if (drillAt.value.split(':')[1] === doc) void setQuery({ in: '' })
 }
 
 function reopen() {

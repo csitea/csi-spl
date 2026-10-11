@@ -61,6 +61,7 @@
 # @param LEASE_HOLDDOWN (optional) - fleet mode: a rank handback waits until this machine's candidate has been able this many s without a break (spec 092), default 300, 0 = at once
 # @param LEASE_INTERMITTENT (optional) - fleet mode: boxes, comma-separated, that lose power routinely (a laptop): a listed box never hands back by rank, it takes a role only when empty or stale (env or lease.conf)
 # @param LEASE_DESK_GATE / LEASE_DESK_DIR (optional) - fleet mode: 0 turns off the desk gate of the dispatch role (spec 092 FR-002); LEASE_DESK_DIR replaces the desk dir it reads (default <state>/desk/LEASE_TENANT/LEASE_DESK_BOX)
+# @param LEASE_HEALTH (optional) - fleet mode: 0 turns off the beat-health demotion (t1 3cfc236e): a box whose hub beats are degraded, or were within the hold-down (cnf env.box.health, lib/bash/funcs/spl-box-health.func.sh), ranks last for both roles; LEASE_HEALTH_TTL (default 60 s) is how often the beats are read; LEASE_BEATS_CMD (tests) replaces the read (with the LEASE_HUB_CMD stub and no LEASE_BEATS_CMD there is none)
 # @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default spl_desk_box_default: SPOOL_DESK_BOX, else box-desk)
 # @example LEASE_CMD=show ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
@@ -70,6 +71,9 @@
 # this machine's desk box id (specs/058), also when sourced on its own
 declare -F spl_desk_box_default >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
+SPL_BOX_HEALTH_SRC="$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-health.func.sh"
+declare -F spl_box_health_verdicts >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-health.func.sh"
 
 do_spl_dispatch_lease() {
   spl_lease_init || return 1
@@ -808,14 +812,14 @@ spl_lease_pause() {
   if [[ "$1" == fleet ]] && compgen -G "$LEASE_DIR/fleet.*.unreachable" >/dev/null; then echo "$retry"; else echo "$LEASE_PERIOD"; fi
 }
 
-# This file, as the loops run it; its hash is the code version. It also
+# This file and the box health rule, as the loops run them; their hash is the code version. It also
 # hashes lease.conf and this machine's desk box id: a loop reads them once at
 # its start, so a changed priority, fleet or box name (the box-desk -> <box>
 # rename of spec 058) makes ensure replace it on the next tick, with no manual
 # restart and no loop left acting on the old settings.
 SPL_LEASE_SRC="${BASH_SOURCE[0]}"
 spl_lease_code_ver() {
-  { cat "$SPL_LEASE_SRC"; cat "${LEASE_CONF:-/dev/null}" 2>/dev/null; spl_desk_box_default; } | sha1sum | cut -c1-12
+  { cat "$SPL_LEASE_SRC" "$SPL_BOX_HEALTH_SRC"; cat "${LEASE_CONF:-/dev/null}" 2>/dev/null; spl_desk_box_default; } | sha1sum | cut -c1-12
 }
 
 # 0 when a <verb> loop holds its run lock.
@@ -1039,6 +1043,74 @@ spl_fleet_rank() {
   echo "$i"
 }
 
+# ---- the beat-health demotion (t1 3cfc236e, the 2026-10-11 lesson) ----------
+# On 2026-10-11 one box's uplink degraded for 3.5 h (beats 60 -> 1..23 per
+# 10 min) and dispatch was moved off it by hand. Now a box the hub's beats call
+# degraded or recovering (lib/bash/funcs/spl-box-health.func.sh) ranks after
+# every healthy box for both roles; a recovering box gets its configured rank
+# back only after hold_min (30) of healthy beats. Why 30 min: that night the
+# beats never held a healthy 10-min window between 01:50 and 05:20Z, and a role
+# handback costs a dispatcher change, so one flap inside half an hour moves
+# nothing twice. Every box reads the same hub beats (judged on the hub's
+# clock), so the boxes agree; LEASE_PRIORITY_* stays the base order, no file
+# is rewritten. The read is cached in <dir>/fleet.health (LEASE_HEALTH_TTL,
+# 60 s); a failed read keeps the last good one while it is younger than the
+# hold-down, else no box is demoted (the configured order, as before).
+
+# spl_fleet_health_get: prints the verdicts object ({} = none judged).
+spl_fleet_health_get() {
+  local f="$LEASE_DIR/fleet.health" now at=0 v out ttl="${LEASE_HEALTH_TTL:-60}"
+  [[ "${LEASE_HEALTH:-1}" == 0 ]] && { echo '{}'; return 0; }
+  [[ -n "${LEASE_HUB_CMD:-}" && -z "${LEASE_BEATS_CMD:-}" ]] && { echo '{}'; return 0; }
+  now="$(spl_lease_now)"
+  [[ -s "$f" ]] && read -r at v < "$f"
+  [[ "$at" =~ ^[0-9]+$ ]] || at=0
+  (( now - at < ttl )) && [[ -n "${v:-}" ]] && { echo "$v"; return 0; }
+  spl_box_health_cnf
+  if out="$(spl_box_health_verdicts "$(spl_fleet_beats --since "$(spl_box_health_since)" 2>&1)")"; then
+    printf '%s %s\n' "$now" "$out" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+    rm -f "$LEASE_DIR/fleet.health.unread"
+    echo "$out"; return 0
+  fi
+  spl_fleet_once health.unread "HEALTH-UNREAD: the hub's box beats did not read: the last good read is kept for the hold-down, then the configured order"
+  if [[ -n "${v:-}" ]] && (( now - at <= BH_HOLD_S )); then echo "$v"; else echo '{}'; fi
+}
+
+# spl_fleet_beats ARGS: `spool box-beat list ARGS` through the lease desk.
+spl_fleet_beats() {
+  # shellcheck disable=SC2086 # a command line, split on purpose
+  if [[ -n "${LEASE_BEATS_CMD:-}" ]]; then $LEASE_BEATS_CMD box-beat list "$@"; return; fi
+  local d="$SPL_STATE_DIR/desk/$LEASE_TENANT/$LEASE_DESK_BOX"
+  SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
+    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LEASE_TENANT" timeout "${LEASE_HUB_TIMEOUT:-30}" "$SPL_SPOOL" box-beat list "$@"
+}
+
+# spl_fleet_eff_rank <machine> <role> <verdicts>: the configured rank, plus
+# 1000 while the machine is degraded or recovering (after every healthy box,
+# the demoted ones still in their configured order).
+spl_fleet_eff_rank() {
+  local r st
+  r="$(spl_fleet_rank "$1" "$2")"
+  st="$(jq -r --arg b "$1" '.[$b].state // "unknown"' <<<"$3" 2>/dev/null)"
+  [[ "$st" == degraded || "$st" == recovering ]] && r=$((r + 1000))
+  echo "$r"
+}
+
+# spl_fleet_outranks <me> <holder> <role>: 0 when me ranks before the holder.
+# A demotion that decides it (the configured order says otherwise) is logged
+# once per holder until it clears.
+spl_fleet_outranks() {
+  local me="$1" hm="$2" role="$3" v rm rh
+  v="$(spl_fleet_health_get)"
+  rm="$(spl_fleet_eff_rank "$me" "$role" "$v")" rh="$(spl_fleet_eff_rank "$hm" "$role" "$v")"
+  if (( rm < rh )) && (( $(spl_fleet_rank "$me" "$role") >= $(spl_fleet_rank "$hm" "$role") )); then
+    spl_fleet_once "$role.demoted.$hm" "DEMOTED $role: $hm ranks last ($(jq -r --arg b "$hm" '"\(.[$b].state): \(.[$b].why)"' <<<"$v")): $me ranks before it"
+  else
+    rm -f "$LEASE_DIR/fleet.$role.demoted.$hm"
+  fi
+  (( rm < rh ))
+}
+
 # This machine's live candidate for a role (empty = none): the local order.
 spl_fleet_candidate() {
   local id
@@ -1255,7 +1327,7 @@ spl_fleet_role_tick() {
     [[ "$hm" == "$me" ]] && spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role")); it goes stale in ${LEASE_STALE}s"
   elif (( FG == 0 )) || [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )); then
     want="$cand@$me"
-  elif (( $(spl_fleet_rank "$me" "$role") < $(spl_fleet_rank "$hm" "$role") )); then
+  elif spl_fleet_outranks "$me" "$hm" "$role"; then
     # the handback (spec 092 FR-001): a returning box takes nothing back until proven healthy
     if spl_fleet_intermittent "$me"; then
       spl_fleet_once "$role.hold-int" "HOLD $role: $me is intermittent (LEASE_INTERMITTENT): it takes $role only when $FH goes stale"

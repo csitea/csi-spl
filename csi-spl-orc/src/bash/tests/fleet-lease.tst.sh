@@ -74,6 +74,14 @@
 #      full LEASE_PERIOD (2026-10-09: a box back 14:30:20Z, renewed 14:31:28Z,
 #      the standby took over 14:30:50Z): the real loop, a hub failing its first 2 reads
 #      per role, sleeps 10 10 then 60; LEASE_UNREACHABLE_RETRY=60 is the control
+#  23. t1 3cfc236e, the roles follow beat health: a replay of the 2026-10-11
+#      night (the PC box's hub beats per 10 min as measured on prd; the
+#      satellite at 60 all night). The PC box ranked first holds both roles
+#      until its beats degrade; then the satellite ranks before it and takes
+#      both, on the demotion alone (the PC box keeps renewing, never stale);
+#      the PC box gets them back only after 30 min (hold_min) of healthy
+#      beats. CONTROL: LEASE_HEALTH=0 on the same beats keeps both on the PC
+#      box (the old rule). A failed beats read demotes nobody.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -721,6 +729,62 @@ got="$(loop22 l22c LEASE_UNREACHABLE_RETRY=60)"
 [[ "$got" == "60 60 60 " ]] && pass "22. control: LEASE_UNREACHABLE_RETRY=60 (the old pause) waits a full period" || fail "22. control slept '$got'"
 got="$(loop22 l22p LEASE_PERIOD=5)"
 [[ "$got" == "5 5 5 " ]] && pass "22. the retry is never longer than LEASE_PERIOD" || fail "22. cap slept '$got'"
+
+# --- 23. the roles follow beat health (t1 3cfc236e) ------------------------------
+# The beats stub (LEASE_BEATS_CMD) answers `box-beat list --since <n>m` from
+# $BEATS: the rows of the last <n> minutes on the hub's clock HUB_NOW.
+cat >"$T/bin/beats" <<'STUB'
+#!/usr/bin/env bash
+[ "${BEATS_DOWN:-0}" = 1 ] && { echo "dial: i/o timeout" >&2; exit 1; }
+jq -c --argjson now "$HUB_NOW" --argjson s "$(( ${4%m} * 60 ))" \
+  '{rows: [.[] | select(.e <= $now and .e > $now - $s) | {box, beat_at: (.e | todate)}]}' "$BEATS"
+STUB
+chmod +x "$T/bin/beats"
+beats() { jq -nc --arg b "$1" --argjson s "$2" --argjson c "[$3]" \
+  '[range(0; $c | length) as $i | range(0; $c[$i]) as $k | {box: $b, e: ($s + $i * 600 + (($k + 0.5) * 600 / $c[$i] | floor))}]'; }
+B0=1791678600  # 2026-10-11T00:30:00Z
+# hp: the PC box's beats per 10 min from 00:30Z (prd box_beats, 01:00..05:30Z measured), hs: the satellite
+NIGHT=60,60,60,61,60,61,60,62,23,16,10,15,11,16,3,4,9,2,5,5,8,8,2,1,2,2,0,1,0,16,60,60,60,60,60,60,60,60,60
+jq -s add <(beats hp $B0 "$NIGHT") <(beats hs $B0 "$(printf '60,%.0s' {1..38})60") >"$T/beats23.json"
+trio hp 50; trio hs 51
+t23() { tick "$1" "$2" LEASE_PRIORITY=hp,hs LEASE_BEATS_CMD="$T/bin/beats" BEATS="$T/beats23.json" LEASE_HEALTH_TTL=0 "${@:3}"; }
+hm23() { local o d; o="$(hubh orch)" d="$(hubh dispatch)"; [[ "${o##*@}" == "${d##*@}" ]] && echo "${o##*@}" || echo "split:$o/$d"; }
+rm -f "$T"/hub/main.*
+# one tick per box every 170 s (inside LEASE_STALE: nobody goes stale), 01:36..06:59Z (n = 115 steps)
+first_hs="" back_hp="" hp_in_outage=0 split=0 n23=0 n_out=0
+for now in $(seq $((B0 + 3960)) 170 $((B0 + 23340))); do
+  t23 hp $now; t23 hs $((now + 1)); n23=$((n23 + 1))
+  h="$(hm23)"; [[ "$h" == split:* ]] && split=$((split + 1))
+  [[ "$h" == hs && -z "$first_hs" ]] && first_hs=$now
+  [[ -n "$first_hs" && "$h" == hp && -z "$back_hp" ]] && back_hp=$now
+  # 02:10..05:40Z: every 10-min window of the PC box held under 30 beats
+  (( now >= B0 + 6000 && now <= B0 + 18600 )) && { n_out=$((n_out + 1)); [[ "$h" != hs ]] && hp_in_outage=$((hp_in_outage + 1)); }
+done
+utc() { date -u -d "@$1" +%H:%MZ; }
+(( first_hs >= B0 + 4800 && first_hs <= B0 + 5580 )) &&
+  pass "23. the PC box degrades from 01:50Z: the satellite holds both roles at $(utc "$first_hs")" || fail "23. first satellite hold: ${first_hs:+$(utc "$first_hs")}"
+[[ $hp_in_outage == 0 && $split == 0 ]] &&
+  pass "23. 02:10..05:40Z ($n_out of $n23 steps): the satellite holds both roles all through, the PC box never takes one back" ||
+  fail "23. outage: $hp_in_outage step(s) not on the satellite, $split split"
+# its beats are healthy again from ~05:33Z (the window under 30 last at 05:3xZ): back only after 30 min
+(( back_hp >= B0 + 19800 && back_hp <= B0 + 20400 )) &&
+  pass "23. the PC box gets both roles back at $(utc "$back_hp"), after hold_min 30 of healthy beats (none before 06:00Z)" ||
+  fail "23. back: ${back_hp:+$(utc "$back_hp")}"
+[[ "$(hm23)" == hp ]] && pass "23. at 06:59Z the configured order holds again (PC box first)" || fail "23. end: $(hm23)"
+[[ "$(logc hs 'DEMOTED dispatch: hp ranks last (degraded:')" == 1 && "$(logc hs 'takes over from CLE-002@hp (silent 1s')" == 1 ]] &&
+  pass "23. the satellite logs the demotion once and takes over from a holder silent 1 s (never stale)" ||
+  fail "23. log: $(grep -E 'DEMOTED|takes over' "$T/hs/spool/dispatch/lease.log")"
+grep -q '"hp":{"n":[0-9]*,"need":30' "$T/hs/spool/dispatch/fleet.health" &&
+  pass "23. the verdicts are cached in <dir>/fleet.health" || fail "23. cache: $(cat "$T/hs/spool/dispatch/fleet.health" 2>&1)"
+# CONTROL: the same beats with LEASE_HEALTH=0 (the old rule): the PC box keeps both
+rm -f "$T"/hub/main.*; ctl=0
+for i in $(seq 50 59); do now=$((B0 + i * 120)); t23 hp $now LEASE_HEALTH=0; t23 hs $((now + 1)) LEASE_HEALTH=0; [[ "$(hm23)" == hp ]] || ctl=$((ctl + 1)); done
+[[ $ctl == 0 ]] && pass "23. CONTROL: LEASE_HEALTH=0, 02:10..02:28Z (10 steps): the PC box keeps both roles (the old rule)" || fail "23. control: $ctl step(s) moved"
+# a failed beats read with no good read before demotes nobody (rc 0, a HEALTH-UNREAD line once)
+rm -f "$T"/hub/main.* "$T"/hs/spool/dispatch/fleet.health*; ctl=0
+for i in 60 61 62; do now=$((B0 + i * 120)); t23 hp $now BEATS_DOWN=1; t23 hs $((now + 1)) BEATS_DOWN=1; [[ "$(hm23)" == hp ]] || ctl=$((ctl + 1)); done
+[[ $ctl == 0 && "$(logc hs 'HEALTH-UNREAD')" == 1 ]] &&
+  pass "23. beats read failing: nobody demoted, the configured order; HEALTH-UNREAD logged once" || fail "23. unread: $ctl $(logc hs HEALTH-UNREAD)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

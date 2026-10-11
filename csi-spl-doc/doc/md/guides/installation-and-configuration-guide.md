@@ -1,4 +1,4 @@
-Exported from the Qto doc [Installation and configuration guide](https://spool-hub.ai/workspace/docs?doc=1a3900ac-774d-4a47-9ecd-4fc716542aa3&view=doc) (`1a3900ac-774d-4a47-9ecd-4fc716542aa3`) on 2026-10-11T20:31:37Z; edit in Qto, not here.
+Exported from the Qto doc [Installation and configuration guide](https://spool-hub.ai/workspace/docs?doc=1a3900ac-774d-4a47-9ecd-4fc716542aa3&view=doc) (`1a3900ac-774d-4a47-9ecd-4fc716542aa3`) on 2026-10-11T20:33:54Z; edit in Qto, not here.
 
 # 1 About this guide
 
@@ -141,7 +141,7 @@ git clone https://github.com/csitea/csi-spl.git /opt/csi/csi-spl
 
 ### 4.1.1 Check the gh login
 
-Both users, once the token is in place. It prints the account gh is logged in as; "not logged in" means the token step did not run for that user.
+Run this as both users once the token is in place. It prints the account gh is logged in as; "not logged in" means the token step did not run for that user.
 
 ```bash
 gh auth status
@@ -287,7 +287,7 @@ sudo su --pty - <AGENT_USER> -c 'claude auth login'
 
 ### 7.5.1 Check the claude login
 
-After each login, as `<AGENT_USER>`. `"loggedIn": true` is the pass; any other answer means the login did not complete. The other vendor CLIs have no status verb of their own. After this, the box cron row `agent-login-check` (`csi-spl-orc/cnf/box-crons/box-crons.manifest`, installed by `do_install_box_crons`) probes the claude login every minute and heals a dead one.
+Run this after each login as `<AGENT_USER>`. `"loggedIn": true` is the pass; any other answer means the login did not complete. The other vendor CLIs have no status verb of their own. After this, the box cron row `agent-login-check` (`csi-spl-orc/cnf/box-crons/box-crons.manifest`, installed by `do_install_box_crons`) probes the claude login every minute and heals a dead one.
 
 ```bash
 sudo su --pty - <AGENT_USER> -c 'claude auth status'

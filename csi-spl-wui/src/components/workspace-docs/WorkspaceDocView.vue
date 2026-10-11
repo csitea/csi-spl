@@ -973,6 +973,11 @@ onBeforeUnmount(() => {
 .wsdoc__pic img { display: block; max-width: 100%; height: auto; margin-bottom: 4px; }
 .wsdoc__paratools { display: flex; gap: 4px; padding: 2px 8px 0; }
 .wsdoc__tool--label { width: auto; gap: 4px; padding-inline: 8px; color: var(--color-muted); font-size: 0.8rem; }
+/* on a phone (coarse pointer) the Insert picture control and a picture's caption are a full 44 px tap (SPL-1186) */
+@media (pointer: coarse) {
+  .wsdoc__tool--label { height: var(--tap); }
+  .wsdoc__pic .wsdoc__caption { min-height: var(--tap); }
+}
 .wsdoc__doctitle[contenteditable]:focus { outline: 1px solid var(--color-border-strong); outline-offset: 2px; border-radius: var(--radius-sm); }
 
 /* the contents: Qto's rgt_side_nav, sticky beside the document */

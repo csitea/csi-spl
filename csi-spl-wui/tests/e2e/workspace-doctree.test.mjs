@@ -750,6 +750,80 @@ try {
   ok('phone: it comes back after Esc (cancel)', afterCancel === 'shown', afterCancel)
   ok('phone: it hides while the document title is edited', editingTitle === 'hidden', editingTitle)
   ok('phone: it comes back after Enter (save)', afterSave === 'shown', afterSave)
+
+  /* phone pictures (owner HUM-10, t1 46d9c236 msg 3c943bd0: "do it on mobile
+     as well"): touch taps only. Tap a paragraph, the Insert picture control
+     shows on screen (not under the top bar or the + and not lost when the
+     textarea blurs as the picker opens) and a 44 px tap, tap it, choose a png:
+     the picture is inline with "Figure 1" and an editable 44 px caption; a second one in the next
+     section is Figure 2 (one sequence); the caption is edited by touch. */
+  const mDoc = await m.$eval('[data-test=ws-docs-select]', (e) => e.value)
+  const mText = (n) => `${titleSel(n)} [data-test=ws-doc-text]`
+  const mCaps = (id) => m.evaluate(async (d, id) => {
+    const b = (await window.__wsDocTreeCall('GET', `/${d}/subtree`)).items.find((x) => x.id === id)?.body || ''
+    return [...b.matchAll(/!\[([^\]\n]*)\]\(\/v1\/workspace\/doctree\/[^/\s()]+\/images\/[0-9a-f]{64}\.png\)/g)].map((x) => x[1])
+  }, mDoc, id)
+  const mCapsAre = (id, want) => m.waitForFunction(async (d, id, want) => {
+    const b = (await window.__wsDocTreeCall('GET', `/${d}/subtree`)).items.find((x) => x.id === id)?.body || ''
+    return JSON.stringify([...b.matchAll(/!\[([^\]\n]*)\]\(\/v1\/workspace\/doctree\/[^/\s()]+\/images\/[0-9a-f]{64}\.png\)/g)].map((x) => x[1])) === JSON.stringify(want)
+  }, { timeout: STEP, polling: 200 }, mDoc, id, want).catch(() => null)
+  /* the control: on screen, and the topmost element at its centre (nothing covers it) */
+  const picTool = (n) => m.evaluate((sel) => {
+    const b = document.querySelector(`${sel} [data-test=ws-doc-insert-pic]`)
+    if (!b) return { shown: false }
+    const r = b.getBoundingClientRect()
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+    return { shown: r.width > 0 && r.height > 0, inView: r.top >= 0 && r.bottom <= innerHeight, onTop: Boolean(top && b.contains(top)), h: Math.round(r.height) }
+  }, titleSel(n))
+  const mPicIn = async (n, caption) => {
+    await m.tap(mText(n))
+    await m.waitForFunction((sel) => document.activeElement === document.querySelector(sel), { timeout: STEP }, mText(n)).catch(() => null)
+    await m.keyboard.type(`Phone text ${n}`)
+    await m.waitForSelector(`${titleSel(n)} [data-test=ws-doc-insert-pic]`, { visible: true, timeout: STEP }).catch(() => null)
+    const tool = await picTool(n)
+    const [fc] = await Promise.all([m.waitForFileChooser({ timeout: STEP }).catch(() => null), m.tap(`${titleSel(n)} [data-test=ws-doc-insert-pic]`).catch(() => null)])
+    if (!fc) return { tool, chooser: false }
+    await fc.accept([png])
+    await m.waitForFunction((sel) => {
+      const el = document.querySelector(sel)
+      return el === document.activeElement && el.selectionEnd > el.selectionStart
+    }, { timeout: STEP }, mText(n)).catch(() => null)
+    await m.keyboard.type(caption)
+    await m.evaluate(() => document.activeElement?.blur())
+    return { tool, chooser: true }
+  }
+  const mId = (n) => m.$eval(titleSel(n), (r) => r.dataset.id)
+  const [id11, id111] = [await mId('1.1'), await mId('1.1.1')]
+  const pic1 = await mPicIn('1.1', 'Phone pic one')
+  await mCapsAre(id11, ['Phone pic one'])
+  await shoot(m, 'phone-pics-edit')
+  const pic2 = await mPicIn('1.1.1', 'Phone pic two')
+  await mCapsAre(id111, ['Phone pic two'])
+  await m.waitForFunction(() => [...document.querySelectorAll('[data-test=ws-doc-pic-img]')].filter((i) => i.naturalWidth === 1).length === 2, { timeout: STEP }).catch(() => null)
+  const mRead = await m.evaluate(() => ({
+    paras: document.querySelectorAll('[data-test=ws-doc-para]').length,
+    imgs: [...document.querySelectorAll('[data-test=ws-doc-pic-img]')].map((i) => ({ w: i.naturalWidth, fits: i.getBoundingClientRect().right <= innerWidth })),
+    nums: [...document.querySelectorAll('[data-test=ws-doc-pic] [data-test=ws-doc-fig-num]')].map((e) => e.textContent.trim()),
+    caps: [...document.querySelectorAll('[data-test=ws-doc-pic-caption]')].map((e) => e.value),
+    capH: [...document.querySelectorAll('[data-test=ws-doc-pic-caption]')].map((e) => Math.round(e.getBoundingClientRect().height)),
+    fits: document.documentElement.scrollWidth <= innerWidth + 1,
+  }))
+  await shoot(m, 'phone-pics-read')
+  /* CONTROL: before the coarse-pointer rule the control is 28 px tall (FAIL) */
+  ok('phone: tapping a paragraph shows Insert picture on screen, uncovered and a 44 px tap', [pic1.tool, pic2.tool].every((t) => t.shown && t.inView && t.onTop && t.h >= 44), [pic1.tool, pic2.tool])
+  ok('phone: a tap on Insert picture opens the picker and the picture lands in the text', pic1.chooser && pic2.chooser
+    && JSON.stringify(await mCaps(id11)) === JSON.stringify(['Phone pic one']) && JSON.stringify(await mCaps(id111)) === JSON.stringify(['Phone pic two']), { pic1, pic2 })
+  ok('phone: read, both pictures show inline as Figure 1 and Figure 2 with their captions, within the width',
+    mRead.paras === 2 && mRead.imgs.length === 2 && mRead.imgs.every((i) => i.w === 1 && i.fits) && mRead.fits
+    && JSON.stringify(mRead.nums) === JSON.stringify(['Figure 1:', 'Figure 2:'])
+    && JSON.stringify(mRead.caps) === JSON.stringify(['Phone pic one', 'Phone pic two']) && mRead.capH.every((h) => h >= 44), mRead)
+  await m.tap(`${titleSel('1.1.1')} [data-test=ws-doc-pic-caption]`)
+  await m.evaluate((sel) => document.querySelector(sel).select(), `${titleSel('1.1.1')} [data-test=ws-doc-pic-caption]`)
+  await m.keyboard.type('Phone rollback')
+  await m.keyboard.press('Enter')
+  await mCapsAre(id111, ['Phone rollback'])
+  const mRecap = await mCaps(id111)
+  ok('phone: a figure caption is edited by touch, its token rewritten', JSON.stringify(mRecap) === JSON.stringify(['Phone rollback']), mRecap)
   await view(m, 'grid')
   await m.waitForSelector('[data-test=ws-grid-row]', { visible: true, timeout: STEP }).catch(() => null)
   const phoneGrid = await m.evaluate(() => {

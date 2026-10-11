@@ -11,8 +11,8 @@ The system distinguishes between a dead login (expired session) and a usage-limi
 ## 2. End Copying a Login Between Boxes
 Currently, boxes share one Claude login by copying the token. This practice will end:
 - A person runs `/login` once per box (using a browser) at box creation or after a revoke.
-- Each box independently renews its own token.
-- There is no copying of credentials (`~/.claude/credentials.json`) across boxes.
+- Each box independently renews its own token. This relies on the ASSUMPTION that independent tokens per `/login` on one account do not invalidate each other, which the 48h proof step decides.
+- There is no copying of credentials across boxes.
 
 ## 3. PROOF Step
 Before fully dropping the single-refresher fallback, we must prove that multiple boxes can renew independently on the same account without invalidating one another.

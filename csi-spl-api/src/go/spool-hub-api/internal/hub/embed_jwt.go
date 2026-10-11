@@ -36,9 +36,9 @@ import (
 // JWT that is not ES256, not signed by the embed's current key, expired, not
 // yet valid, alive longer than 5 minutes, not for this embed (aud), without
 // a sub, or already used once (replay). Every refusal writes nothing but the
-// replay mark. An address past its sign-ins of the hour or the day is
-// refused 429 embed_visitors before the JWT is read (embedSignInGate, T105's
-// limits). Off (404, as an unknown path) while cnf env.hub.embed.enabled
+// replay mark. A banned address is refused 403 embed_banned, and one past
+// its sign-ins of the hour or the day 429 embed_visitors, before the JWT is
+// read (embedSignInGate, T105's bans and limits). Off (404, as an unknown path) while cnf env.hub.embed.enabled
 // is off, and for an embed that is unknown, disabled or has no key.
 
 const (

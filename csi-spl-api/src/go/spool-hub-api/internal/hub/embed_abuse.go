@@ -161,11 +161,12 @@ func (s *Server) embedAdmit(w http.ResponseWriter, r *http.Request, es store.Emb
 	return ip, true
 }
 
-// embedSignInGate takes one sign-in unit of the request's address in
-// tenant, an hour's and a UTC day's at the new visitor limits (429
-// embed_visitors, all or none), before the JWT is read and so before its
-// replay mark, the visitor and the channel are written. false after
-// answering.
+// embedSignInGate refuses a banned address (403 embed_banned, as the mint
+// does), then takes one sign-in unit of the request's address in tenant, an
+// hour's and a UTC day's at the new visitor limits (429 embed_visitors, all
+// or none), before the JWT is read and so before its replay mark, the
+// visitor and the channel are written. The ban goes first, as in
+// embedAdmit: a banned address takes no quota row. false after answering.
 func (s *Server) embedSignInGate(w http.ResponseWriter, r *http.Request, tenant string) bool {
 	ab, ok := s.o.Store.(store.EmbedAbuse)
 	if !ok {
@@ -174,6 +175,9 @@ func (s *Server) embedSignInGate(w http.ResponseWriter, r *http.Request, tenant 
 	}
 	ctx, now, lim := r.Context(), s.o.Now().UTC(), s.embedLimits()
 	sc := store.EmbedScope{TenantID: tenant}
+	if !s.embedNotBanned(w, r, ab, sc, nil, now) {
+		return false
+	}
 	ip := s.embedIPHash(r, tenant, now, 0)
 	key := store.EmbedIPKey(ip)
 	refused, err := ab.TakeEmbedQuotas(ctx, sc, []store.EmbedTake{

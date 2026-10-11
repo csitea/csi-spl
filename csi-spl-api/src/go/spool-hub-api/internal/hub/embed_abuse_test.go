@@ -336,3 +336,68 @@ func TestEmbedSignInPerIPRefused(t *testing.T) {
 	refusedAs(t, "fourth this day", code, raw, http.StatusTooManyRequests, hub.TokenEmbedVisitors)
 	nothingWritten("a refused sign-in", 4, 4)
 }
+
+// quotaRows is how many quota_counts rows tid holds, and their sum of n,
+// read as the owner role in tid's scope.
+func quotaRows(t *testing.T, pg *store.Postgres, tid string) (rows, sum int) {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := pg.Pool().Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.tenant_id', $1, true)`, tid); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.QueryRow(ctx, `SELECT count(*), coalesce(sum(n), 0)::int FROM quota_counts WHERE tenant_id = $1`,
+		tid).Scan(&rows, &sum); err != nil {
+		t.Fatal(err)
+	}
+	return rows, sum
+}
+
+// TestEmbedSignInBannedRefused: a banned address (here banned by its own
+// hit on the sign-in limit, BanAfterHits 1) signing in in a new hour, with
+// room in its sign-in counters, is 403 embed_banned as at the mint, and
+// writes nothing: no visitor, no replay mark, no quota row or unit (the ban
+// is checked before the per-IP count). CONTROL: the same JWT from an
+// unbanned address is 200; without the ban check the banned address's
+// sign-in is 200 too (it has quota left).
+func TestEmbedSignInBannedRefused(t *testing.T) {
+	clock := newClock()
+	e := rbacEnv(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorToken
+		o.EmbedEnabled, o.EmbedTokenLife, o.EmbedMessageMaxBytes = true, embedLife, 4096
+		o.EmbedLimits = hub.EmbedLimits{VisitorsPerIPHour: 1, VisitorsPerIPDay: 5, BanAfterHits: 1, ChallengeAfterHits: 50}
+		o.Edge.TrustedProxyHops = 1
+		o.Now = clock.now
+	})
+	pg := pgOnly(t, e)
+	k := newEmbedKey(t, "k-signin-ban")
+	tid, embed := keyedEmbed(t, e, k)
+	const ipA, ipB = "198.51.100.7", "203.0.113.9"
+	jwt := func(sub string) string { return signJWT(t, k, es256(k.Kid), claimsFor(embed, sub, clock.now())) }
+	if code, raw := signInFrom(t, e, tid, embed, jwt("user-1"), ipA); code != http.StatusOK {
+		t.Fatalf("first sign-in: %d %s, want 200", code, raw)
+	}
+	code, raw := signInFrom(t, e, tid, embed, jwt("user-2"), ipA)
+	refusedAs(t, "over the hour (the hit that bans)", code, raw, http.StatusTooManyRequests, hub.TokenEmbedVisitors)
+	clock.add(time.Hour)
+	rows, sum := quotaRows(t, pg, tid)
+	banned := jwt("user-3")
+	code, raw = signInFrom(t, e, tid, embed, banned, ipA)
+	refusedAs(t, "banned address", code, raw, http.StatusForbidden, hub.TokenEmbedBanned)
+	if v, _ := embedCounts(t, pg, tid, embed); v != 1 {
+		t.Fatalf("a banned sign-in wrote: %d visitors, want 1", v)
+	}
+	if m := replayMarks(t, pg, tid); m != 1 {
+		t.Fatalf("a banned sign-in wrote: %d replay marks, want 1", m)
+	}
+	if r2, s2 := quotaRows(t, pg, tid); r2 != rows || s2 != sum {
+		t.Fatalf("a banned sign-in wrote quota: %d rows (sum %d), want %d (sum %d)", r2, s2, rows, sum)
+	}
+	if code, raw := signInFrom(t, e, tid, embed, banned, ipB); code != http.StatusOK {
+		t.Fatalf("CONTROL: the same JWT from an unbanned address: %d %s, want 200", code, raw)
+	}
+}

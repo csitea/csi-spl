@@ -590,6 +590,9 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	if rf == nil && (rt.signing.agent != "" || rt.signing.fanOut) { // specs/077 T013, before any delivery is built
 		rf = frameRefusalOf(s.demoAgentTurn(ctx, c.tenant, c.member, m.MsgID))
 	}
+	if rf == nil && (rt.signing.agent != "" || rt.signing.fanOut) { // specs/121 T304, token_budget.go
+		rf = frameRefusalOf(s.tokenBudget(ctx, c.tenant, rt.channel, m.MsgID))
+	}
 	if rf == nil { // specs/077 T025: the demo audit, last check before the store write
 		rf = frameRefusalOf(s.demoAuditPost(ctx, c.tenant, c.member, rt.channel, m))
 	}

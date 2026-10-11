@@ -7,5 +7,5 @@ gcp_region  = "europe-north1"
 hub_runtime_sa_account_id = "csi-spl-hub-dev"
 
 bucket_prefix = "csi-spl-dev-docs-"
-workspaces = ["t1", "csitea", "e2e"]
+workspaces = ["t1", "csitea", "e2e", "demo"]
 soft_delete_retention_seconds = 604800

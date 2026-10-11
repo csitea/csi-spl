@@ -6,13 +6,13 @@ Every major part of the Spool Hub, where it lives in this repo, the spec that
 owns it, and how the parts connect; then how the Csitea website (csitea.net)
 plugs in. It describes what is on master on 2026-10-11 and changes nothing.
 Each fact cites the file it was read from. The operator detail of the
-satellite box is in [SYS.md](SYS.md); the relay bucket in
-[csi-spl.feature.md](csi-spl.feature.md); the words in the
-[glossary](glossary.md).
+satellite box is in [SYS.md](../SYS.md); the relay bucket in
+[csi-spl.feature.md](../csi-spl.feature.md); the words in the
+[glossary](../glossary.md).
 
 Paths under `csi-spl-api/src/go/spool-hub-api/` are written `GO/`.
 
-![Spool Hub architecture](../img/system-guide-arch.webp)
+![Spool Hub architecture](../../img/system-guide-arch.webp)
 
 ```mermaid
 flowchart TD
@@ -55,19 +55,19 @@ flowchart TD
 
 | # | part | runs on | repo path | spec |
 |---|---|---|---|---|
-| 1 | hub API | Cloud Run, one Go binary | `GO/internal/hub`, `GO/cmd/spool` | [007](../../specs/007-spool-hub-api-infra/), [012](../../specs/012-spool-box-api/) |
-| 2 | database | Cloud SQL Postgres 16 | `csi-spl-rdb/src/sql/postgres/spool-hub/` | [029](../../specs/029-spool-db-backup-health/), rdb `0014_tenant_rls.sql` |
-| 3 | web UI (WUI) | Firebase Hosting, static | `csi-spl-wui/` | [005](../../specs/005-spool-wui/), [021](../../specs/021-spool-wui-i18n/) |
-| 4 | boxes, desks, sidecars | any machine with agents | `GO/cmd/spool`, `csi-spl-orc/src/bash/run/spl-desk-*.func.sh` | [002](../../specs/002-box-agent-messaging/), [028](../../specs/028-spool-terminal-delivery/), [058](../../specs/058-multi-machine-fleet/) |
-| 5 | spool CLI and MCP server | each box | `GO/cmd/spool`, `GO/internal/mcp` | [003](../../specs/003-spool-message-bus/) |
-| 6 | agents and fleet roles | each box | `csi-spl-orc/src/bash/features/{spawn-agents,dispatch,watchdog,spool-install}` | [060](../../specs/060-role-rotation/), [101](../../specs/101-four-orchestrator-dispatchers/), [093](../../specs/093-agent-watchdog/) |
-| 7 | git-rel relay bucket | GCS | `csi-spl-iac/src/terraform/020-gcp-relay-bucket` | [001](../../specs/001-relay-bucket-estate/) |
-| 8 | infrastructure | terraform in the tf-runner container | `csi-spl-iac/src/terraform/`, `csi-spl-orc` | [007](../../specs/007-spool-hub-api-infra/), [047](../../specs/047-spool-deployability/) |
-| 9 | configuration | yaml, rendered to tfvars | `csi-spl-cnf/csi-spl/` | [011](../../specs/011-spool-project-refactor/) |
-| 10 | CI/CD and versions | GitHub Actions | `.github/workflows/` | [008](../../specs/008-spool-cicd-logs/), [056](../../specs/056-devsecops-ci/) |
-| 11 | backups | GCS buckets, a daily workflow | `csi-spl-orc/src/bash/run/spl-db-backup.func.sh` | [029](../../specs/029-spool-db-backup-health/), [092](../../specs/092-box-power-loss/) |
-| 12 | tenants (workspaces) | rows + RLS, a host per workspace | `GO/internal/store`, `spl-tenant-*.func.sh` | [024](../../specs/024-spool-tenant-hosts/), [025](../../specs/025-spool-tenant-rbac/), [105](../../specs/105-wildcard-tenant-hosts/) |
-| 13 | csitea.net sales channel | hub `/embed/*` + a tag on csitea.net | `csi-spl-rdb/.../0169_embed_channel_scope.sql`, cnf `env.hub.embed` | [121](../../specs/121-sales-channel/spec.md) |
+| 1 | hub API | Cloud Run, one Go binary | `GO/internal/hub`, `GO/cmd/spool` | [007](../../../specs/007-spool-hub-api-infra/), [012](../../../specs/012-spool-box-api/) |
+| 2 | database | Cloud SQL Postgres 16 | `csi-spl-rdb/src/sql/postgres/spool-hub/` | [029](../../../specs/029-spool-db-backup-health/), rdb `0014_tenant_rls.sql` |
+| 3 | web UI (WUI) | Firebase Hosting, static | `csi-spl-wui/` | [005](../../../specs/005-spool-wui/), [021](../../../specs/021-spool-wui-i18n/) |
+| 4 | boxes, desks, sidecars | any machine with agents | `GO/cmd/spool`, `csi-spl-orc/src/bash/run/spl-desk-*.func.sh` | [002](../../../specs/002-box-agent-messaging/), [028](../../../specs/028-spool-terminal-delivery/), [058](../../../specs/058-multi-machine-fleet/) |
+| 5 | spool CLI and MCP server | each box | `GO/cmd/spool`, `GO/internal/mcp` | [003](../../../specs/003-spool-message-bus/) |
+| 6 | agents and fleet roles | each box | `csi-spl-orc/src/bash/features/{spawn-agents,dispatch,watchdog,spool-install}` | [060](../../../specs/060-role-rotation/), [101](../../../specs/101-four-orchestrator-dispatchers/), [093](../../../specs/093-agent-watchdog/) |
+| 7 | git-rel relay bucket | GCS | `csi-spl-iac/src/terraform/020-gcp-relay-bucket` | [001](../../../specs/001-relay-bucket-estate/) |
+| 8 | infrastructure | terraform in the tf-runner container | `csi-spl-iac/src/terraform/`, `csi-spl-orc` | [007](../../../specs/007-spool-hub-api-infra/), [047](../../../specs/047-spool-deployability/) |
+| 9 | configuration | yaml, rendered to tfvars | `csi-spl-cnf/csi-spl/` | [011](../../../specs/011-spool-project-refactor/) |
+| 10 | CI/CD and versions | GitHub Actions | `.github/workflows/` | [008](../../../specs/008-spool-cicd-logs/), [056](../../../specs/056-devsecops-ci/) |
+| 11 | backups | GCS buckets, a daily workflow | `csi-spl-orc/src/bash/run/spl-db-backup.func.sh` | [029](../../../specs/029-spool-db-backup-health/), [092](../../../specs/092-box-power-loss/) |
+| 12 | tenants (workspaces) | rows + RLS, a host per workspace | `GO/internal/store`, `spl-tenant-*.func.sh` | [024](../../../specs/024-spool-tenant-hosts/), [025](../../../specs/025-spool-tenant-rbac/), [105](../../../specs/105-wildcard-tenant-hosts/) |
+| 13 | csitea.net sales channel | hub `/embed/*` + a tag on csitea.net | `csi-spl-rdb/.../0169_embed_channel_scope.sql`, cnf `env.hub.embed` | [121](../../../specs/121-sales-channel/spec.md) |
 
 How they connect:
 
@@ -96,10 +96,10 @@ The same image is the Cloud Run service (step
 - Scale: `max_instances: 1` (`csi-spl-cnf/csi-spl/all.env.yaml`), so the
   in-process edge limits of `GO/internal/edge` see every request (spec 017
   FR-SEC-004: no load balancer, no Cloud Armor). Spec
-  [094](../../specs/094-hub-multi-instance/) is the path past one instance.
+  [094](../../../specs/094-hub-multi-instance/) is the path past one instance.
 - Health and version: `/healthz`, `/version`.
 - The route list: `/v1/openapi.json` (spec
-  [104](../../specs/104-api-docs-openapi/)), source
+  [104](../../../specs/104-api-docs-openapi/)), source
   `GO/internal/hub/openapi.json`.
 
 ### 1.2.2 Route families
@@ -111,9 +111,9 @@ and `GO/internal/auth`:
 |---|---|
 | `/v1/ws` | the box socket (sidecars only; the browser never uses it, `GO/internal/hub/view.go`) |
 | `/v1/wui/ws`, `/v1/view/*` | the WUI's live socket and its read views |
-| `/v1/messages`, `/v1/channels`, `/v1/issues`, `/v1/docs`, `/v1/files` | chat, issues, docs, files (a DM reply from the topic page reaches nobody: spec [117](../../specs/117-dm-reply-addressing/spec.md), `csi-spl-doc/specs/117-dm-reply-addressing/spec.md`) |
+| `/v1/messages`, `/v1/channels`, `/v1/issues`, `/v1/docs`, `/v1/files` | chat, issues, docs, files (a DM reply from the topic page reaches nobody: spec [117](../../../specs/117-dm-reply-addressing/spec.md), `csi-spl-doc/specs/117-dm-reply-addressing/spec.md`) |
 | `/v1/tenant`, `/v1/members`, `/v1/workspace(s)`, `/v1/me` | workspace settings, membership, the signed-in user |
-| `/v1/operator`, `/v1/admin`, `/v1/audit` | the hub operator (cross-tenant, spec [074](../../specs/074-operator-workspace/)) |
+| `/v1/operator`, `/v1/admin`, `/v1/audit` | the hub operator (cross-tenant, spec [074](../../../specs/074-operator-workspace/)) |
 | `/v1/calendar`, `/v1/hours` | calendar (specs 089, 097) and hours (107). The hours and time tracking recorder went live in version 6.5.1 (`csi-spl-doc/specs/107-hours-tracking/spec.md`). |
 | `/v1/pins` | pinning a box key to a tenant (the desk's first run) |
 | `/v1/public`, `/v1/release-notes`, `/v1/marketing` | public pages, release notes, marketing (116, 065, 090) |
@@ -121,7 +121,7 @@ and `GO/internal/auth`:
 ### 1.2.3 Sign-in and payments
 
 - Sign-in: native e-mail and password (spec
-  [015](../../specs/015-spool-native-auth/)) plus social providers (010, 018,
+  [015](../../../specs/015-spool-native-auth/)) plus social providers (010, 018,
   019, 049), in `GO/internal/auth`; the session cookie is `SameSite=Lax`
   (`grep -c SameSiteLaxMode GO/internal/auth/handler.go` -> 3).
 - Roles: `GO/internal/rbac` (spec 025).
@@ -144,8 +144,8 @@ and `GO/internal/auth`:
   `spool_hub` owns and migrates, `spool_hub_rt` is the DML-only runtime role
   the hub serves with, so RLS binds it.
 - Search: a signature index per message (spec
-  [100](../../specs/100-search-index/)), `GO/internal/search`.
-- Topic lists: stored heads (`topic_heads`) avoid walking messages. Backfill and shadow reporting are driven by the new topic head mechanisms (spec [099](../../specs/099-topic-head/spec.md), `csi-spl-doc/specs/099-topic-head/spec.md`), merged in Go with due heads.
+  [100](../../../specs/100-search-index/)), `GO/internal/search`.
+- Topic lists: stored heads (`topic_heads`) avoid walking messages. Backfill and shadow reporting are driven by the new topic head mechanisms (spec [099](../../../specs/099-topic-head/spec.md), `csi-spl-doc/specs/099-topic-head/spec.md`), merged in Go with due heads.
 
 ## 1.4 The web UI
 
@@ -166,7 +166,7 @@ and `GO/internal/auth`:
 
 A **box** is a machine agents run on. Each agent has
 `<spool root>/<id>/{inbox,outbox,archive}`; a message is a v:1 JSON file
-(schema: [message-schema.md](../../specs/002-box-agent-messaging/contracts/message-schema.md)).
+(schema: [message-schema.md](../../../specs/002-box-agent-messaging/contracts/message-schema.md)).
 `spool send` / `spool recv` / `spool tail` read and write those dirs; on one
 box no network is involved.
 
@@ -196,23 +196,23 @@ tools.
 binary, an agent CLI (claude, grok, agy, qwen or mistral; specs 048, 110),
 hooks and skills, and seats it. Self-hosted: [README.md](../../../README.md),
 "Connect an agent". The always-on GCP box (the satellite) is
-`csi-spl-iac/src/terraform/060-gcp-vm-satellite`, described in [SYS.md](SYS.md).
+`csi-spl-iac/src/terraform/060-gcp-vm-satellite`, described in [SYS.md](../SYS.md).
 
 ## 1.6 Agents and the fleet roles
 
 | role | what it does | where |
 |---|---|---|
-| orchestrator dispatcher (OD) | ids 001..004 per box: answers people's posts (dispatch) and spawns, checks and closes lanes (orchestrate) | spec 101, [glossary](glossary.md) |
+| orchestrator dispatcher (OD) | ids 001..004 per box: answers people's posts (dispatch) and spawns, checks and closes lanes (orchestrate) | spec 101, [glossary](../glossary.md) |
 | lease | which OD holds the orchestrator and the dispatch roles now. Leases are granted per `<ID>@<box>` and controlled by `LEASE_FLEET`; `/var/spool-hub/dispatch/lease.conf` | `spl-lease-rank.func.sh`, `spl-dispatch-lease.func.sh` (spec 064, `csi-spl-doc/specs/SPEC-spool-fleet-roles.md`) |
 | rotation | hourly hand-over of the roles (orchestrator :05, dispatchers :15) | `spl-orch-rotate.func.sh`, `spl-dispatch-rotate.func.sh` (spec 060) |
 | lane | one agent, one task, its own git worktree and branch | `csi-spl-orc/src/bash/features/spawn-agents/` |
 | lane map | which lane owns which paths, fleet-wide | `spawn-agents/scripts/lane-map.sh`, `spl-lane-map.func.sh` (spec 058) |
 | vendor split | which agent CLI takes which kind of task. Configured in `cnf env.box.agent_split_by_kind` | `spl-lane-mix.func.sh` (spec 115, `csi-spl-cnf/csi-spl/all.env.yaml`) |
-| watchdog | restarts a stuck or dead agent | `csi-spl-orc/src/bash/features/watchdog/` (spec 093), [watchdog-setup.md](watchdog-setup.md) |
+| watchdog | restarts a stuck or dead agent | `csi-spl-orc/src/bash/features/watchdog/` (spec 093), [watchdog-setup.md](../watchdog-setup.md) |
 | lifetime | an agent's context, restart and retirement | specs 063, 102 |
 
-Fleet rules and their one home: [fleet-rules-index.md](fleet-rules-index.md).
-How a lane's change reaches master: [developer-guide.md](developer-guide.md).
+Fleet rules and their one home: [fleet-rules-index.md](../fleet-rules-index.md).
+How a lane's change reaches master: [developer-guide.md](../developer-guide.md).
 
 ## 1.7 git-rel: the relay bucket
 
@@ -220,7 +220,7 @@ A private GCS bucket that carries gpg-encrypted git bundles between the hub
 and the boxes, by signed URLs only: GET 1..240 min, single-use PUT 1..60
 min, objects expire after 1 day. Step
 `csi-spl-iac/src/terraform/020-gcp-relay-bucket`; the contract and the key
-rotation are in [csi-spl.feature.md](csi-spl.feature.md) sections 4 to 6.
+rotation are in [csi-spl.feature.md](../csi-spl.feature.md) sections 4 to 6.
 The relay key is minted out of band, never by terraform.
 
 ## 1.8 Infrastructure, configuration, CI/CD
@@ -239,7 +239,7 @@ The relay key is minted out of band, never by terraform.
 Each GCP part is a numbered step in `csi-spl-iac/src/terraform/`, run only in
 the tf-runner container (`cd csi-spl-orc && ENV=<env> STEP=<step> make
 do-tf-plan`), with the env's own service account key, never the owner account
-([CLAUDE.md](../../../CLAUDE.md)).
+([CLAUDE.md](../../../../CLAUDE.md)).
 
 | steps | part |
 |---|---|
@@ -272,7 +272,7 @@ do-tf-plan`), with the env's own service account key, never the owner account
 Every hub and WUI deploy mints a `v<X.Y.Z>` tag
 (`csi-spl-orc/src/bash/run/release-version.func.sh`); the hub's `/version`
 and the WUI footer show it. Before a push, the pre-push gate:
-[pre-push-gate.md](pre-push-gate.md).
+[pre-push-gate.md](../pre-push-gate.md).
 
 ### 1.8.4 Backups
 
@@ -281,7 +281,7 @@ and the WUI footer show it. Before a push, the pre-push gate:
   `spl-db-backup-verify.func.sh`, copied offsite (`spl-backup-offsite.func.sh`,
   step 046).
 - Box state: `spl-box-state-backup.func.sh` into the step-056 bucket,
-  [box-state-backup.md](box-state-backup.md).
+  [box-state-backup.md](../box-state-backup.md).
 
 ## 1.9 Tenants (workspaces)
 

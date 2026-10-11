@@ -1,0 +1,124 @@
+# 48 ops: the daily vendor-key grant check, dev then prd (spec 127 I1).
+#
+# Spec 127 section 5.1: "a daily named check that the decrypt grant names only
+# the hub runtime SA, alerting otherwise". The action is csi-spl-iac
+# do_spl_vendor_key_grant_check: it reads the live IAM policies of the 057 KMS
+# key, its key ring, the project and the fingerprint pepper secret, and prints
+# OK, FAIL (a finding per offending member on stderr, user: members redacted)
+# or SKIP (cnf vendor_keys.grant_check is not "true" yet: 057 not applied in
+# that env). Read-only: it changes nothing.
+#
+# Schedule: 05:37 UTC, clear of 45's 03:17, 46's 03:41, 47's 23:23 and of the
+# busy full hour. Both envs run even when dev fails, so one red names both.
+#
+# Auth: ONLY the per-env project key secrets GCP_KEY_CSI_SPL_<ENV> (iac 120),
+# as 45..47. An env without its key is SKIPPED with a notice. A red scheduled
+# run is the alert.
+#
+# Local equivalent:
+#   ENV=<env> ./csi-spl-iac/run -a do_spl_vendor_key_grant_check
+
+name: "48 ops: vendor-key grant check"
+
+on:
+  schedule:
+    - cron: '37 5 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment ("all" = dev then prd)'
+        type: choice
+        options: [all, dev, prd]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vendor-key-grant-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: "grant check dev then prd"
+    # Estate guard (spec 072 A34): this job reads OUR live estate, so it runs
+    # only where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WANT: ${{ github.event.inputs.environment || 'all' }}
+      HAS_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
+      HAS_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD != '' }}
+    # iac derives ORG/APP from the parent dirs: check out in the operator's
+    # layout <base>/csi/csi-spl (as 45..47 do)
+    defaults:
+      run:
+        working-directory: csi/csi-spl/csi-spl-iac
+    steps:
+      - name: Selected?
+        id: sel
+        working-directory: .
+        run: |
+          for e in dev prd; do
+            has=HAS_${e^^}; go=1
+            if [[ "$WANT" != all && "$WANT" != "$e" ]]; then go=0; echo "$e not selected"
+            elif [[ "${!has}" != true ]]; then go=0; echo "::notice::$e skipped: no secret GCP_KEY_CSI_SPL_${e^^} (iac 120)"; fi
+            echo "$e=$go" >>"$GITHUB_OUTPUT"
+          done
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.sel.outputs.dev == '1' || steps.sel.outputs.prd == '1'
+        with:
+          path: csi/csi-spl
+          ref: master
+
+      # no auth here: the action activates the env key in its own private
+      # CLOUDSDK_CONFIG and pins --account on every call
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+        if: steps.sel.outputs.dev == '1' || steps.sel.outputs.prd == '1'
+
+      - name: SA keys to the path the actions resolve
+        if: steps.sel.outputs.dev == '1' || steps.sel.outputs.prd == '1'
+        working-directory: .
+        env:
+          KEY_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV }}
+          KEY_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD }}
+          SEL_DEV: ${{ steps.sel.outputs.dev }}
+          SEL_PRD: ${{ steps.sel.outputs.prd }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.gcp/.csi"
+          if [[ "$SEL_DEV" == 1 ]]; then printf '%s' "$KEY_DEV" >"$HOME/.gcp/.csi/key-csi-spl-dev.json"; jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-dev.json" >/dev/null; fi
+          if [[ "$SEL_PRD" == 1 ]]; then printf '%s' "$KEY_PRD" >"$HOME/.gcp/.csi/key-csi-spl-prd.json"; jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-prd.json" >/dev/null; fi
+
+      - name: Check dev
+        id: dev
+        if: steps.sel.outputs.dev == '1'
+        continue-on-error: true
+        env:
+          ENV: dev
+        run: ./run -a do_spl_vendor_key_grant_check
+
+      - name: Check prd
+        id: prd
+        if: steps.sel.outputs.prd == '1'
+        continue-on-error: true
+        env:
+          ENV: prd
+        run: ./run -a do_spl_vendor_key_grant_check
+
+      - name: Verdict
+        working-directory: .
+        env:
+          DEV: ${{ steps.dev.outcome }}
+          PRD: ${{ steps.prd.outcome }}
+        run: |
+          echo "dev: ${DEV:-skipped}  prd: ${PRD:-skipped}"
+          [[ "$DEV" != failure && "$PRD" != failure ]] || { echo "::error::vendor-key grant check FAILED (see the step log for the findings)"; exit 1; }
+
+      - name: Drop the keys
+        if: always()
+        working-directory: .
+        run: rm -rf "$HOME/.gcp"

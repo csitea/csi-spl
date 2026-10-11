@@ -47,13 +47,14 @@
 
 <script setup lang="ts">
 import { displayVersion } from '~/utils/display-version.mjs'
+import { SOURCE_REPO_URL } from '~/utils/source-repo.mjs'
 defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
 const { t } = useI18n()
 
 /* the public repository (spec 044: one public repo) and its help pages */
-const SOURCE_URL = 'https://github.com/csitea/csi-spl'
-const DOCS_URL = 'https://github.com/csitea/csi-spl/tree/master/csi-spl-doc/doc/help'
+const SOURCE_URL = SOURCE_REPO_URL
+const DOCS_URL = SOURCE_REPO_URL + '/tree/master/csi-spl-doc/doc/help'
 const version = computed(() => displayVersion(String(useRuntimeConfig().public.appVersion || '').trim() || 'dev'))
 </script>
 

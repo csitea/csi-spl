@@ -66,7 +66,7 @@
         </button>
         <article class="rn-note rn-card" data-test="release-note" :data-state="note.state" :data-sha="note.sha">
           <header class="rn-note__head">
-            <h3 class="rn-note__subject">{{ note.subject || shortSha(note.sha) }}</h3>
+            <h3 class="rn-note__subject"><template v-for="(x, xi) in proseParts(note.subject || shortSha(note.sha))" :key="xi"><a v-if="x.href" class="rn-sha-link" :href="x.href" target="_blank" rel="noopener noreferrer" :title="x.title" data-test="release-note-commit">{{ x.text }}</a><template v-else>{{ x.text }}</template></template></h3>
             <p v-if="note.version || note.kind || note.area || note.committed_at" class="rn-note__meta">
               <span v-if="note.version" class="rn-chip rn-chip--ver" data-test="release-note-version">{{ displayVersion(plainVersion(note.version)) }}</span>
               <span v-if="note.kind" class="rn-chip">{{ note.kind }}</span>
@@ -83,7 +83,7 @@
                 <template v-for="k in PARTS" :key="side + k">
                   <template v-if="note[side + '_' + k]">
                     <dt>{{ t('release_notes.' + k) }}</dt>
-                    <dd>{{ note[side + '_' + k] }}</dd>
+                    <dd><template v-for="(x, xi) in proseParts(String(note[side + '_' + k]))" :key="xi"><a v-if="x.href" class="rn-sha-link" :href="x.href" target="_blank" rel="noopener noreferrer" :title="x.title" data-test="release-note-commit">{{ x.text }}</a><template v-else>{{ x.text }}</template></template></dd>
                   </template>
                 </template>
               </dl>
@@ -92,7 +92,17 @@
           <footer class="rn-note__foot">
             <div class="rn-note__sha">
               <span class="rn-note__label">{{ t('release_notes.col_commit') }}</span>
-              <code dir="ltr" data-test="release-note-full-sha">{{ note.sha }}</code>
+              <!-- owner t1 afb06ae8 + da98036e: the commit links to the repository and
+                   reads <8>...; the hover and the copy button keep it whole -->
+              <code dir="ltr" data-test="release-note-full-sha" :data-sha="note.sha"><a
+                v-if="commitUrl(note.sha)"
+                class="rn-sha-link"
+                :href="commitUrl(note.sha)"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="note.sha"
+                data-test="release-note-sha-link"
+              >{{ shortHash(note.sha) }}</a><template v-else>{{ note.sha }}</template></code>
               <button
                 type="button"
                 class="rn__icon"
@@ -167,14 +177,14 @@
                   </span>
                   <span class="rn-row__sub">
                     <span v-if="n.seq" class="rn-row__seq" data-test="release-row-seq">{{ n.seq }}</span>
-                    <code dir="ltr" data-test="release-row-sha">{{ shortSha(n.sha) }}</code>
+                    <code dir="ltr" data-test="release-row-sha"><a v-if="commitUrl(n.sha)" class="rn-sha-link" :href="commitUrl(n.sha)" target="_blank" rel="noopener noreferrer" :title="n.sha" data-test="release-row-sha-link">{{ shortSha(n.sha) }}</a><template v-else>{{ shortSha(n.sha) }}</template></code>
                     <span v-if="badge(n.state)" class="rn-row__badge" :class="'is-' + n.state" data-test="release-row-badge">{{ badge(n.state) }}</span>
                   </span>
                 </td>
                 <template v-else>
                   <td class="rn-table__seq" data-test="release-row-seq">{{ n.seq || '' }}</td>
                   <td class="rn-table__ver">{{ shownVersion(v) }}</td>
-                  <td class="rn-table__sha"><code dir="ltr" data-test="release-row-sha">{{ shortSha(n.sha) }}</code></td>
+                  <td class="rn-table__sha"><code dir="ltr" data-test="release-row-sha"><a v-if="commitUrl(n.sha)" class="rn-sha-link" :href="commitUrl(n.sha)" target="_blank" rel="noopener noreferrer" :title="n.sha" data-test="release-row-sha-link">{{ shortSha(n.sha) }}</a><template v-else>{{ shortSha(n.sha) }}</template></code></td>
                   <td class="rn-table__time">
                     <time v-if="n.committed_at" :datetime="n.committed_at" :title="fullTime(n.committed_at)" data-test="release-row-time">{{ isoDateTime(n.committed_at) }}</time>
                   </td>
@@ -220,6 +230,8 @@ import { displayVersion } from '~/utils/display-version.mjs'
 import { browserTimeZone, isoDateTime, isoDateTimeSec, viewerTimeZone } from '~/utils/date-iso.mjs'
 import { mergeReleasePages, nextReleaseCursor, releaseKeyFor, releaseNoteCount, releaseNotesGet } from '~/utils/release-notes-api.mjs'
 import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
+import { commitPrefix, linkifyCommitText, shaHref } from '~/utils/commit-links.mjs'
+import { shortHash, shortHashLabel } from '~/utils/hash-label.mjs'
 import { useSessionStore } from '~/stores/session'
 
 interface ReleaseNote {
@@ -297,6 +309,16 @@ const cursor = ref(-1)
 
 function onOpen(v: boolean) { emit('update:open', v) }
 const shortSha = (s: string) => String(s || '').slice(0, 7)
+/* owner t1 afb06ae8 ("convert the Git commit hashes to links"): every commit
+   in the release log links to <repo_web_url><repo_commit_path><sha> (cnf,
+   /config.json); either unset = the sha stays text */
+const commitBase = computed(() => commitPrefix(config.public.repoWebUrl, config.public.repoCommitPath))
+const commitUrl = (sha: string) => shaHref(commitBase.value, sha)
+/* a note's text with its hashes linked; code fences stay as written, and a
+   full hash reads <8>... (owner t1 da98036e) with the hover keeping it */
+function proseParts(text: string): { text: string, href?: string, title?: string }[] {
+  return linkifyCommitText(text, commitBase.value).map((x) => (x.href ? { ...x, text: shortHashLabel(x.text)?.text ?? x.text, title: x.text } : x))
+}
 /* the hover: to the second, with the zone it is printed in */
 const fullTime = (at: string) => [isoDateTimeSec(at), viewerTimeZone() || browserTimeZone()].filter(Boolean).join(' ')
 /* a version's time: its newest change's (the phone's band shows it) */
@@ -609,6 +631,9 @@ watch(() => props.initialRef, (r, old) => {
 .rn-note__sha { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 .rn-note__label { font-size: 0.8125rem; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; flex: none; }
 .rn-note__sha code { font-family: var(--font-mono); font-size: 0.8125rem; overflow-wrap: anywhere; min-width: 0; }
+/* a commit link: above the phone row's tap layer, a taller hit area on touch */
+.rn-sha-link { position: relative; z-index: 1; color: var(--color-accent); text-decoration: none; overflow-wrap: anywhere; }
+.rn-sha-link:hover { text-decoration: underline; }
 .rn-note__links { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 
 /* a phone (the one-panel shell, owner t1 ee8cd6f2: "the times in the mobile
@@ -645,5 +670,6 @@ watch(() => props.initialRef, (r, old) => {
 @media (pointer: coarse) {
   .rn__back, .rn__icon, .rn__action { min-height: var(--tap, 44px); }
   .rn__icon { min-width: var(--tap, 44px); justify-content: center; }
+  .rn-sha-link { display: inline-block; padding: 0.5rem 0.25rem; margin: -0.5rem -0.25rem; }
 }
 </style>

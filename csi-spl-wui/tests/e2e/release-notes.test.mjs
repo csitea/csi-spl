@@ -202,7 +202,8 @@ const noteFacts = (p) => p.evaluate(() => {
   return {
     sha: n.dataset.sha || '',
     state: n.dataset.state || '',
-    fullSha: n.querySelector('[data-test=release-note-full-sha]')?.textContent.trim() || '',
+    /* the full sha rides on the element (owner t1 da98036e: a commit link reads <8>...) */
+    fullSha: n.querySelector('[data-test=release-note-full-sha]')?.getAttribute('data-sha') || '',
     time: n.querySelector('[data-test=release-note-time]')?.textContent.replace(/\s+/g, ' ').trim() || '',
     stateText: n.querySelector('[data-test=release-note-state]')?.textContent.trim() || '',
     lay: lay?.textContent.replace(/\s+/g, ' ').trim() || '',

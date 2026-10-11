@@ -7,11 +7,11 @@
     <a
       v-else-if="p.type === 'link'"
       class="msg-link"
-      :class="{ 'msg-link--event': linkKind(p) === 'event' }"
+      :class="{ 'msg-link--event': p.kind }"
       :href="hrefOf(p.href)"
-      :title="linkTitle(p)"
-      :data-test="linkTitle(p) ? 'app-link' : undefined"
-      :data-kind="linkKind(p) || undefined"
+      :title="p.hover"
+      :data-test="p.app ? 'app-link' : undefined"
+      :data-kind="p.kind || undefined"
       :target="openOf(p.href).target"
       :rel="openOf(p.href).rel"
       draggable="false"
@@ -21,7 +21,7 @@
       @click.stop="onLink($event, p.href)"
       @dblclick.stop
       @keydown.enter.stop
-    >{{ linkText(p) }}</a>
+    >{{ p.shown }}</a>
     <template v-else>
       <!-- SPL-1009: a member id in plain text ("HUM-10 needs you in ...") reads the name -->
       <!-- CLE-77908: an ISO time with a zone reads in the viewer's zone; the hover keeps it as written -->
@@ -56,10 +56,27 @@ const bodyAt = inject<() => unknown>(BODY_TIME_AT, () => undefined)
 const pub = useRuntimeConfig().public
 const requestURL = useRequestURL()
 const router = useRouter()
-const runs = computed(() => props.parts.map((p) => {
+/* A link run, worked out once per render of the parts: its href (a doc of
+   this repository opens /docs), the app label when the lazy chunk is in, or
+   (owner t1 da98036e) <8>... for a text that is a full hash or a url
+   ending in one, the hover keeping it whole. Until the chunk lands the
+   text is as written. */
+type Run = { type: string, text: string, href?: string, shown?: string, hover?: string, app?: boolean, kind?: string }
+const runs = computed(() => props.parts.map((p): Run => {
   if (p.type !== 'link' || !p.href) return p
-  const doc = docsLinkHref(p.href, pub.repoWebUrl)
-  return doc ? { ...p, href: doc } : p
+  const href = docsLinkHref(p.href, pub.repoWebUrl) || p.href
+  const m = labelMod.value
+  const l = labelOf(href, p.text)
+  const s = l ? null : m?.shortHashLabel(p.text)
+  return {
+    ...p,
+    href,
+    shown: l && m ? appLinkText(m, l) : s?.text ?? p.text,
+    hover: l?.title || s?.title,
+    app: Boolean(l),
+    /* 'event' for a calendar event link (t1 9dec05c3): it reads as a chip */
+    kind: l && m?.labelEvent(l) ? 'event' : '',
+  }
 }))
 
 function originNow() {
@@ -95,21 +112,6 @@ function labelOf(href?: string, text?: string) {
   const m = labelMod.value
   if (!m || !href || !text || !m.linkTextIsAddress(text)) return null
   return m.appLinkLabel(href, m.appLinkLabelContext(hrefNow(), pub))
-}
-
-function linkText(p: { text: string, href?: string }) {
-  const l = labelOf(p.href, p.text)
-  return l && labelMod.value ? appLinkText(labelMod.value, l) : p.text
-}
-
-/* 'event' for a calendar event link (t1 9dec05c3): it reads as a chip */
-function linkKind(p: { text: string, href?: string }) {
-  const l = labelOf(p.href, p.text)
-  return l && labelMod.value?.labelEvent(l) ? 'event' : ''
-}
-
-function linkTitle(p: { text: string, href?: string }) {
-  return labelOf(p.href, p.text)?.title || undefined
 }
 
 /* a phone drops the click on a link inside the card; pointerup still fires

@@ -239,3 +239,7 @@ export function eventChipText(label, title) {
    MessageRuns already loads it on every page; a second lazy import there
    cost ~150 B gzip of the home chunks, which sit at their 027 ceiling. */
 export { withShortTimes } from './body-times-short.mjs'
+
+/* owner t1 da98036e: a link reading as a full hash shows <8>... - here, on
+   the same lazy chunk, for the same reason (the home chunks' ceiling) */
+export { shortHashLabel } from './hash-label.mjs'

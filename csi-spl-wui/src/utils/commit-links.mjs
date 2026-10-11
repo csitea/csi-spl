@@ -54,6 +54,15 @@ export function commitHref(prefix, hash) {
   return prefix + String(hash).toLowerCase()
 }
 
+/**
+ * A release note's commit: its sha is a commit by definition, so an
+ * all-digit one links too. <prefix><sha>, or '' when either is not usable.
+ */
+export function shaHref(prefix, sha) {
+  const s = String(sha ?? '')
+  return prefix && /^[0-9a-fA-F]{7,40}$/.test(s) ? prefix + s.toLowerCase() : ''
+}
+
 function protectRanges(s) {
   const ranges = []
   PROTECT_RE.lastIndex = 0

@@ -40,7 +40,9 @@ describe('the logo dialog', () => {
   it('SPL-1150: a compact card - what spool-hub is, the version, the source and the docs', () => {
     assert.match(dialog, /size="card"/)
     for (const id of ['logo-dialog-about', 'logo-dialog-version', 'logo-dialog-source', 'logo-dialog-docs']) assert.match(dialog, new RegExp(`data-testid="${id}"`))
-    assert.match(dialog, /'https:\/\/github\.com\/csitea\/csi-spl'/)
+    /* the address is written once, utils/source-repo.mjs (LoginLinks reads it too) */
+    assert.match(dialog, /SOURCE_REPO_URL/)
+    assert.match(src('src/utils/source-repo.mjs'), /'https:\/\/github\.com\/csitea\/csi-spl'/)
     assert.match(dialog, /useRuntimeConfig\(\)\.public\.appVersion/)
     assert.match(dialog, /rel="noopener noreferrer"/)
     const ui = src('src/components/UiDialog.vue')

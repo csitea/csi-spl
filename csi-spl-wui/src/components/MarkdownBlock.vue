@@ -144,11 +144,13 @@ function node(n: MdNode, inCode = false): VNodeChild {
     const href = open.internal ? open.href : n.attrs.href
     const written = n.children.length === 1 && typeof n.children[0] === 'string' ? n.children[0] : ''
     const lab = written ? labelFor(href, written) : null
+    /* owner t1 da98036e: a full hash (or a url ending in one) reads <8>... */
+    const short = lab ? null : labelMod.value?.shortHashLabel(written)
     const anchor: Record<string, unknown> = {
       class: 'msg-link',
       href,
       draggable: 'false',
-      title: lab ? lab.title : n.attrs.title,
+      title: (lab || short || n.attrs).title,
       onPointerdown: onPointerDown,
       onPointerup: (e: PointerEvent) => onPointerUp(e, href),
       onPointercancel: onPointerCancel,
@@ -166,7 +168,7 @@ function node(n: MdNode, inCode = false): VNodeChild {
       anchor.class = 'msg-link msg-link--event'
       anchor['data-kind'] = 'event'
     }
-    return h('a', anchor, lab && labelMod.value ? [appLinkText(labelMod.value, lab)] : kids)
+    return h('a', anchor, lab && labelMod.value ? [appLinkText(labelMod.value, lab)] : short ? [short.text] : kids)
   }
   if (n.tag === 'table') return h('div', { class: 'md-table' }, [h('table', null, kids)])
   const attrs: Record<string, string> = {}

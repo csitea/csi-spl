@@ -18,13 +18,15 @@
         <a class="ll__link" :href="localePath('/help')" data-test="login-link-help">{{ t('auth.login.links.help') }}</a>
       </li>
       <li class="ll__item">
-        <a class="ll__link" href="https://github.com/csitea/csi-spl" target="_blank" rel="noopener noreferrer" data-test="login-link-source">{{ t('auth.login.links.source') }}</a>
+        <a class="ll__link" :href="SOURCE_REPO_URL" target="_blank" rel="noopener noreferrer" data-test="login-link-source">{{ t('auth.login.links.source') }}</a>
       </li>
     </ul>
   </section>
 </template>
 
 <script setup lang="ts">
+import { SOURCE_REPO_URL } from '~/utils/source-repo.mjs'
+
 const localePath = useLocalePath()
 const { t } = useI18n({ useScope: 'global' })
 </script>

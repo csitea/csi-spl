@@ -80,7 +80,7 @@ mix() {
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
-    do_spl_lane_mix' >"$T/out" 2>&1 </dev/null
+    eval "${MIX_BODY:-do_spl_lane_mix}"' >"$T/out" 2>&1 </dev/null
 }
 pick() { sed -n 's/^pick=\([a-z]*\) .*/\1/p' "$T/out"; }
 kindof() { sed -n 's/^pick=[a-z]* launcher=[^ ]* kind=\([a-z0-9_]*\) .*/\1/p' "$T/out"; }
@@ -424,6 +424,157 @@ rm "$T/registry.tsv"
 mix; rc=$?
 [[ $rc -eq 0 ]] && grep -q ' n=0 ' "$T/out" && [[ "$(pick)" == mistral ]] \
   && pass "9. no registry yet: n=0, the main" || fail "9. no registry: rc=$rc $(cat "$T/out")"
+
+# --- 11. T1: 1,000 simulated picks per coding kind, never agy -----------------
+# simulate <n>: do_spl_lane_mix once (row, instance setting, availability),
+# then <n> picks of the one rule in the same process, each appended to a
+# registry that keeps the last `window` rows (all the nudge reads). Prints
+# `<vendor>=<picks>` for every vendor and hold, then `eff <vendor>=<weight>`.
+simulate() {
+  local n="$1"; shift
+  : >"$T/registry.tsv"
+  mix LANE_FLEET=f1 LANE_HUB_CMD="$T/hub" SIM_N="$n" "$@" MIX_BODY='
+    do_spl_lane_mix >/dev/null || exit 1
+    declare -A got=([hold]=0); for v in "${LANE_MIX_VENDORS[@]}"; do got[$v]=0; done
+    win=()
+    for (( i = 1; i <= SIM_N; i++ )); do
+      _spl_lane_mix_actual "$LANE_MIX_REGISTRY"; _LM_TRIES=0
+      _spl_lane_mix_choose "$_LM_MAIN"
+      got[$_LM_CHOICE]=$(( got[$_LM_CHOICE] + 1 ))
+      [[ "$_LM_CHOICE" == hold ]] && continue
+      printf -v row "%s-%04d\t%s\t%%1\t/w/x\t20261003T%06dZ\tc-001\t%s" "${_LM_CHOICE:0:1}" "$i" "$_LM_CHOICE" "$i" "$_LM_KIND"
+      win+=("$row"); (( ${#win[@]} > _LM_WIN )) && win=("${win[@]:1}")
+      printf "%s\n" "${win[@]}" >"$LANE_MIX_REGISTRY"
+    done
+    for v in "${LANE_MIX_VENDORS[@]}" hold; do echo "$v=${got[$v]}"; done
+    for v in "${LANE_MIX_VENDORS[@]}"; do echo "eff $v=${_LM_EFF[$v]}"; done'
+}
+got() { sed -n "s/^$1=//p" "$T/out"; }
+eff() { sed -n "s/^eff $1=//p" "$T/out"; }
+# t1_check <off-json>: agy 0 of 1,000, and every vendor's share of the picks
+# within the band of its effective weight (out of the weights left: an out
+# claude that is its own backup leaves its 20 of simple_coding to nobody), or
+# all 1,000 hold when claude and mistral are both out. The band is the
+# tolerance (5) plus one window step (100/20): the nudge fires only past the
+# tolerance and the window counts in steps of 5 points, so a vendor's long
+# run sits about 6 points under its weight (simple_coding 80/20: 86/14).
+t1_check() {
+  local v share want sum=0 band=$(( 5 + 100 / 20 )) bad=""
+  [[ "$(got agy)" == 0 ]] || bad+=" agy=$(got agy)"
+  if [[ "$1" == '["claude","mistral"]' ]]; then
+    [[ "$(got hold)" == 1000 ]] || bad+=" hold=$(got hold)"
+  else
+    [[ "$(got hold)" == 0 ]] || bad+=" hold=$(got hold)"
+    for v in claude grok agy qwen mistral; do sum=$(( sum + $(eff "$v") )); done
+    for v in claude grok agy qwen mistral; do
+      share=$(( ($(got "$v") + 5) / 10 )) want=$(( $(eff "$v") * 100 / sum ))
+      (( share >= want - band && share <= want + band )) || bad+=" $v=$share%/$want%"
+    done
+  fi
+  echo "$bad"
+}
+# one background job per kind, each in its own dir (out, registry, hub
+# stub): 12,000 picks take about 90 s of CPU on one core
+pids=()
+for k in tests simple_coding complex_coding; do
+  ( T="$T/t1-$k"; mkdir -p "$T"; cp "${T%/*}/hub" "$T/hub"
+    for off in '[]' '["mistral"]' '["claude"]' '["claude","mistral"]'; do
+      hub "$off"
+      simulate 1000 LANE_MIX_KIND=$k; rc=$?
+      [[ $rc -eq 0 ]] || { echo " $k$off:rc=$rc $(tail -n 1 "$T/out")"; continue; }
+      r="$(t1_check "$off")"
+      [[ -z "$r" ]] || echo " $k$off:$r"
+    done >"$T/bad" ) &
+  pids+=("$!")
+done
+wait "${pids[@]}"
+bad="$(cat "$T"/t1-*/bad)"; rm -rf "$T"/t1-*
+[[ -z "$bad" ]] && pass "11. T1: 1,000 picks of tests, simple_coding and complex_coding under each of the 4 claude/mistral in/out sets: agy 0, every share within the band of its weight" \
+  || fail "11. T1:$bad"
+# CONTROL: agy 10 in simple_coding, on a copy of the picker whose row check
+# lets it through (the validator refuses it, section 13), must pick agy
+CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"
+cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
+sed -i 's/^\( *\)(( _LM_TGT\[agy\] == 0 )) && \[\[ "\$_LM_BACKUP" != agy \]\] || {$/\1true || {/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
+hub '[]'
+MIX_PROJ="$CTL" simulate 1000 LANE_MIX_KIND=simple_coding LANE_MIX_SPLIT_KIND='claude=20 grok=0 agy=10 qwen=0 mistral=70 backup=claude'
+(( $(got agy) > 0 )) \
+  && pass "11. control: agy 10 in simple_coding (row check removed) gives agy $(got agy) of 1,000 picks (T1 would be red)" \
+  || fail "11. control: agy 10 did not reach a pick: $(cat "$T/out")"
+rm -rf "$T/ctl"
+
+# --- 12. T9: i18n with personal data never reaches agy ----------------------
+# Spec 115 section 2: an i18n task that is also secret is drafted under the
+# data rule. LANE_MIX_SENSITIVE=1 turns i18n into secret, so agy (and qwen)
+# is never picked for it: agy receives none of the text, masked or not.
+registry i18n 0 0 0
+mkdir -p "$H/.qwen"; printf '#!/bin/sh\n' >"$H/.local/bin/qwen"; chmod +x "$H/.local/bin/qwen"; : >"$H/.qwen/settings.json"
+t9() {  # t9 <picker-proj>: the bad picks of i18n+secret over the 32 vendors-off sets
+  local m off i v b=""
+  for m in $(seq 0 31); do
+    off=""; i=0
+    for v in claude grok agy qwen mistral; do (( m >> i & 1 )) && off+="${off:+,}\"$v\""; i=$((i + 1)); done
+    hub "[$off]"
+    MIX_PROJ="$1" hmix LANE_MIX_KIND=i18n LANE_MIX_SENSITIVE=1
+    [[ "$(kindof)" == secret || "$(pick)" == hold ]] || b+=" [$off]:kind=$(kindof)"
+    case "$(pick)" in claude|grok|mistral|hold) ;; *) b+=" [$off]:$(pick)" ;; esac
+  done
+  echo "$b"
+}
+bad="$(t9 "$PROJ_ROOT")"
+[[ -z "$bad" ]] && pass "12. T9: i18n + LANE_MIX_SENSITIVE=1 under all 32 vendors-off sets, agy and qwen installed: kind secret, never agy or qwen" \
+  || fail "12. T9: personal data reached agy or qwen:$bad"
+# CONTROL: a picker that lets i18n keep its kind under LANE_MIX_SENSITIVE=1
+# sends the personal data to agy (T9 would be red)
+CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"
+cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
+sed -i 's/^  \[\[ "\$3" == 1 \]\] || return 0$/  [[ "$3" == 1 \&\& "$_LM_KIND" != i18n ]] || return 0/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
+bad="$(t9 "$CTL")"
+[[ "$bad" == *:agy* ]] && pass "12. control: i18n kept under LANE_MIX_SENSITIVE=1 sends the personal data to agy (T9 would be red)" \
+  || fail "12. control: the unmasked route did not reach agy: '$bad'"
+rm -rf "$T/ctl"; rm -f "$H/.local/bin/qwen"; rm -rf "$H/.qwen"
+
+# --- 13. T8: the row validator ------------------------------------------------
+# The data-rule set is the cnf validator's SECRET_VENDORS (claude, grok,
+# mistral since e6ef6ecfa), not the spec's older {claude, mistral}.
+: >"$T/registry.tsv"
+SECRET_SET="$(sed -n 's/^SECRET_VENDORS *= *\(.*\)$/\1/p' "$APP_ROOT/csi-spl-cnf/src/python/conf-validator/EnvModels/agent_split.py" | tr -dc 'a-z,' | tr , ' ')"
+t8() {  # t8 <picker-proj>: the section 8 T8 rows that are NOT refused
+  local c k row why rc b=""
+  for c in 'simple_coding|claude=50 grok=0 agy=0 qwen=0 mistral=60 backup=claude|sums to 110, not 100' \
+           'complex_coding|claude=30 grok=0 agy=0 qwen=0 mistral=60 backup=claude|sums to 90, not 100' \
+           'tests|claude=50 grok=0 agy=0 qwen=0 mistral=50 backup=grok|tied main at 50' \
+           'specs_and_docs|claude=40 grok=0 agy=40 qwen=0 mistral=20 backup=claude|tied main at 40' \
+           'tests|claude=80 grok=0 agy=10 qwen=0 mistral=10 backup=mistral|agy writes no code' \
+           'complex_coding|claude=80 grok=0 agy=0 qwen=0 mistral=20 backup=agy|agy writes no code' \
+           'secret|claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=agy|data rule allows claude, grok or mistral only' \
+           'secret|claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=qwen|data rule allows claude, grok or mistral only'; do
+    k="${c%%|*}" row="${c#*|}"; why="${row#*|}" row="${row%%|*}"
+    MIX_PROJ="$1" mix LANE_MIX_KIND="$k" LANE_MIX_SPLIT_KIND="$row"; rc=$?
+    [[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" && grep -q "$why" "$T/out" || b+=" {$k $row}"
+  done
+  echo "$b"
+}
+bad="$(t8 "$PROJ_ROOT")"
+[[ -z "$bad" ]] && pass "13. T8: a row off 100, a tied main, agy in a coding kind and a secret backup agy or qwen are refused" \
+  || fail "13. T8: not refused:$bad"
+bad=""
+for v in $SECRET_SET; do
+  [[ "$v" == claude ]] && row="claude=0 grok=0 agy=0 qwen=0 mistral=100 backup=claude" || row="claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=$v"
+  mix LANE_MIX_KIND=secret LANE_MIX_SPLIT_KIND="$row" || bad+=" backup=$v"
+done
+[[ "$SECRET_SET" == "claude grok mistral" && -z "$bad" ]] \
+  && pass "13. T8: every backup in the cnf validator's data-rule set ($SECRET_SET) is accepted" \
+  || fail "13. T8: data-rule set '$SECRET_SET' refused:$bad"
+# CONTROL: a picker that accepts a tie lets the tied row through (T8 red)
+CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"
+cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
+sed -i 's/^  (( ties == 0 )) || {/  true || {/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
+bad="$(t8 "$CTL")"
+[[ "$bad" == *"tests claude=50 grok=0 agy=0 qwen=0 mistral=50"* ]] \
+  && pass "13. control: a picker that accepts a tie lets the tied row through (T8 would be red)" \
+  || fail "13. control: the tie was still refused: '$bad'"
+rm -rf "$T/ctl"
 
 # --- 10. do_spl_lane_mix_journal prints a task's tries ---------------------
 attempt task-j mistral fail:F2 m-5; attempt task-j claude run c-5

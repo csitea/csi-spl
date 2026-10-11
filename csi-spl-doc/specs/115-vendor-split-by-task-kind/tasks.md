@@ -34,7 +34,7 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
   - Done: the watchdog writes `fail:F2` when the lane is held out; `do_spl_lane_restart` writes `fail:F2` when it refuses at the split count. Test: a fixture lane held out at 3 restarts writes `fail:F2`; a split refusal does the same. Control: a missing `source` field turns the test red.
   - Vendor: mistral (main: `simple_coding`). Box: any.
 
-- [ ] **ORC-4**: `/exit-clean` writes F3.
+- [x] **ORC-4**: `/exit-clean` writes F3 (a2019fbdd).
   - Depends: ORC-2.
   - Owns: `csi-spl-orc/src/bash/features/spawn-agents/scripts/tmux-close-window.sh`.
   - Done: `/exit-clean` checks F3 (CI on the lane's last landed sha, `git-fetch-fresh.sh --landed`) and writes `fail:F3` or `ok`. Test: a fixture lane with a red CI job it caused writes `fail:F3`; a green lane writes `ok`. Control: a missing `source` field turns the test red.
@@ -65,7 +65,7 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
 
 ## 6. Tests (each with its control)
 
-- [ ] **TST-1**: T1-T9 per section 8.
+- [x] **TST-1**: T1-T9 per section 8 (`spl-lane-mix.tst.sh`: T1, T9, T8 in sections 11-13, each with its control).
   - Depends: ORC-1, ORC-2, ORC-3, ORC-4.
   - Owns: `csi-spl-orc/src/bash/tests/spl-lane-mix.tst.sh` and its fixtures.
   - Done: T1-T9 green. Controls: each test turns red when its guard is removed (section 8).

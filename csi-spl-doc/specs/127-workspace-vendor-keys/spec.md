@@ -1,11 +1,20 @@
 # Spec 127: Workspace vendor keys (bring your own keys)
 
-Version **v1.1** (2026-10-11): the owner answered the four questions of
-section 9, "1a 2a 3a 4a" (msg 316dd655-9f23-4cff-bccc-238add20410b, topic
-bdc65df6); section 9.1 records the decisions and each "Q-n" below now reads
-as decided. No design change beyond the answers.
+Version **v1.2** (2026-10-11): the CLI measurements B0
+([b0-cli-measure.md](b0-cli-measure.md) sections 1-3, 0a368f0c2) and B0b
+(section 4, d8a7ad43d) are folded into sections 3, 4.3, 5.2, 5.4, 6, 8, 9 and 10.
+One new owner question, Q-5 (9.2): support agy through a service-account
+file, or keep agy unsupported. X2 and W1 wait for v1.2.
 
 Changelog:
+- v1.2 (2026-10-11): B0 (0a368f0c2) and B0b (d8a7ad43d) folded in. grok: a
+  stored login beats `XAI_API_KEY`, so the seat runs with no `auth.json`, its
+  log counts as key-bearing, never `GROK_AUTH_PROVIDER_COMMAND` (3, L14).
+  agy: the workspace credential is a Google service-account JSON, not
+  `GEMINI_API_KEY`; how the file reaches the seat (5.4), leak row L18, what
+  W1 asks the admin for (8), Q-5 (9.2). claude: interactive + env leaves the
+  last 20 chars in `.claude.json`, so `apiKeyHelper` in every mode (3, 5.2).
+  Telemetry switches per CLI (L16).
 - D1 (2026-10-11, dispatch-bdc65df6 msg 7da7b68a): `usage_events.key_source` lands expand then contract (rdb 0174 with DEFAULT 'hub', the hub insert names it, a later migration drops the default); no end-state change to 7.2.
 - v1.1 (2026-10-11): owner answers Q-1 A, Q-2 A, Q-3 A, Q-4 A folded in
   (msg 316dd655); section 9.1 added.
@@ -72,21 +81,29 @@ Paths under `csi-spl-api/src/go/spool-hub-api/` unless named.
 Five kinds, the five launchers. Measured by s-claude-2 on a fleet box, 2026-10-10
 (each CLI's `--help`, plus a count of env-var names in the binary: that shows
 the name exists, not that it authenticates; task B0 decides before anything
-is built).
+is built). B0 and B0b measured it on 2026-10-11 with fake keys
+([b0-cli-measure.md](b0-cli-measure.md), n per cell there); the
+"authenticates by" column below now reads as measured.
 
 | kind | vendor | CLI version | the seat authenticates by | evidence |
 |---|---|---|---|---|
-| `claude` | Anthropic | 2.1.292 | `apiKeyHelper` via `--settings <seat file>` ONLY; TTL by `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`. Never `ANTHROPIC_API_KEY` (L14) | `claude --help` -> "Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings" |
-| `grok` | xAI | 1.0.50 | `XAI_API_KEY` (help silent; B0 confirms it beats a login) | binary has `XAI_API_KEY`; help shows only `--oauth`, `login` |
-| `agy` | Google Gemini | 1.3.3 | `GEMINI_API_KEY`; the wrapper also unsets `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_GENAI_USE_VERTEXAI`. If B0 shows agy takes a Google login only, `agy` is "not supported" until it does | binary has those four names; help silent |
-| `mistral` | Mistral | vibe 2.26.0 | `MISTRAL_API_KEY`, which beats vibe's own env file | `sed -n 8,12p spawn-mistral.sh` |
+| `claude` | Anthropic | 2.1.292 | `apiKeyHelper` via `--settings <seat file>` ONLY, interactive and `-p` alike; TTL by `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`. Never `ANTHROPIC_API_KEY`: interactive + env writes the key's last 20 chars to `$HOME/.claude.json` `customApiKeyResponses`, on Yes AND on No, and shows them in the pane (L8, L14). The helper stored nothing (B0 2.2) | `claude --help` -> "Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings"; B0 2.1 n=1 per answer |
+| `grok` | xAI | 1.0.50 | `XAI_API_KEY`, but only as a fallback: **a stored login beats the key** (B0 2.5). So the seat runs with a `HOME` / `GROK_HOME` holding no `auth.json` (else it spends the box login); grok logs the key's last 12 chars to `logs/unified.jsonl` (`key_suffix`), so that log is key-bearing (L5, L14); never `GROK_AUTH_PROVIDER_COMMAND`, which writes the full token to `auth.json` | B0 2.1 n=2 per cell; grok's user guide: "the stored session token takes precedence" |
+| `agy` | Google | 1.3.3 | **not an API key**: `GEMINI_API_KEY` and `GOOGLE_API_KEY` are ignored (B0 2.6, n=3). It takes a Google service-account JSON through `AGY_ADC_AUTH=1` + `GOOGLE_APPLICATION_CREDENTIALS` on a file (B0b 4.2, n=4); without `AGY_ADC_AUTH` the file is ignored (n=2); it also reads the gcloud well-known ADC file under `HOME`. The wrapper unsets `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI`. Delivery: 5.4. A real service account serving a prompt is unmeasured: supported or not is Q-5 (9.2) | B0 2.6, B0b 4 |
+| `mistral` | Mistral | vibe 2.26.0 | `MISTRAL_API_KEY`, which beats vibe's own env file (B0 2.3, code + n=3); the seat home holds no `.vibe/.env` (onboarding writes the key there) | `sed -n 8,12p spawn-mistral.sh` |
 | `qwen` | an OpenAI-compatible endpoint | 0.24.6 | `OPENAI_API_KEY` + `OPENAI_BASE_URL`, launched with `--auth-type openai` pinned; never `--openai-api-key` (argv, L6) | `qwen --help` -> `--auth-type {openai, openai-responses, anthropic, qwen-oauth, gemini, vertex-ai}` |
 
 qwen can also authenticate with an Anthropic or Gemini key (`--auth-type`).
 Unpinned, a qwen seat whose environment carried another vendor's variable
 would spend that key under the qwen kind; the pin plus the wrapper's unset of
-every other vendor variable (L10) closes it. `qwen` has one extra non-secret
-field, `base_url` (https only).
+every other vendor variable (L10) closes it. B0 confirmed the pin is needed:
+unpinned, qwen followed `settings.json` to the other vendor's key (2.4, n=1),
+and the pin is not written back. `qwen` has one extra non-secret field,
+`base_url` (https only).
+
+For `agy` the "key" of this spec is the whole service-account JSON: it is
+stored, leased and redacted as one secret (4.2, 5.4, L9), and `last4` is
+the last 4 of its `private_key_id`.
 
 **One key per kind per workspace.** One key is one account, one bill and one
 spend limit on the customer's vendor console, which is the cap that holds.
@@ -172,7 +189,13 @@ cloud resources at runtime.
 ### 4.3 The API: write only
 
 - `PUT /v1/vendor-keys/{kind}` `{"key": "<VENDOR_KEY>", "base_url": ...}`:
-  set or replace, one transaction with its audit row. 204.
+  set or replace, one transaction with its audit row. 204. For `agy`,
+  `key` is the service-account JSON as one string; the hub accepts it only
+  when it parses, `type` is `service_account`, `private_key`,
+  `private_key_id` and `client_email` are present and `token_uri` equals
+  Google's standard token endpoint (a cnf value), else 422
+  `bad_credential_shape`. A user credential (`authorized_user`) is refused:
+  it carries a refresh token for a person, not a workspace.
 - `DELETE /v1/vendor-keys/{kind}`: remove, audited. 204.
 - `GET /v1/vendor-keys`: per kind `{set, last4, set_at, set_by}`, and the
   key-box list. Never the key, the ciphertext or the fingerprint.
@@ -241,13 +264,19 @@ the hub when the seat starts and, for claude, again when the CLI asks.
    exists has no X25519 key and gets no lease until it re-enrols; the key-box
    list says so.
 4. The desk opens it in memory and hands it to the wrapper on the socket. It
-   never writes it to disk and keeps it only as long as the seat lives.
+   never writes it to disk and keeps it only as long as the seat lives. The
+   one file is agy's credential, written by the wrapper to memory-backed
+   storage (5.4).
 5. The CLI gets the key in its own process only:
    - claude: an `apiKeyHelper` that asks the desk socket, in the seat's own
      settings file passed by `--settings`, never in a shared settings file.
      The helper prints nothing on stderr. The key is never in an environment
      variable, so the CLI's Bash-tool children never inherit it. The CLI
-     re-asks after its TTL or a 401.
+     re-asks after its TTL or a 401. The same in `-p` mode: B0 found `-p` +
+     env stored nothing (n=2), but one rule for every claude seat is the one
+     a test can hold. B0 counted 6 helper calls in 40 s on a refused key
+     (2.1): the desk answers the helper from the lease it holds in memory,
+     never with a new hub lease per call.
    - grok, agy, mistral, qwen: the seat's command is a fixed wrapper,
      `spool-key-exec <kind> -- <cli> <args>`, with no key in it. The wrapper
      runs as the seat, asks the desk socket, puts the key in its OWN
@@ -256,6 +285,12 @@ the hub when the seat starts and, for claude, again when the CLI asks.
      never in a command string, a plan file (`launch.cmd`), tmux or an argv.
      (v0.1's `exec env VAR=<key>` put the key on `env`'s argv and in the tmux
      start command: s-claude-2 C2.)
+   - grok, in addition: the wrapper sets `GROK_HOME` to the seat's own dir
+     (5.4), refuses to start when that dir holds an `auth.json`, and unsets
+     `GROK_AUTH_PROVIDER_COMMAND` and refuses a config naming an
+     `auth_provider_command` (B0 2.5).
+   - agy: no environment key; the wrapper writes the service-account file
+     and sets `AGY_ADC_AUTH=1` + `GOOGLE_APPLICATION_CREDENTIALS` (5.4).
 6. The box login stays untouched for the fleet's own lanes.
 
 "One turn" in the brief: today's seats are long-lived interactive CLIs, not
@@ -315,6 +350,54 @@ token, so this is that admin's choice, said in the UI. On a machine we host
 our root can read the seats; the owner accepted that, stated in the plan's
 terms, with root access by named, audited action only (Q-2 A, 9.1).
 
+### 5.4 The seat's own dir, and agy's credential file
+
+agy reads its workspace credential only from a file (B0b 4.2), so this is
+the one place a customer secret is written down on the box. The design
+keeps it in memory-backed storage, for the seat's life only, with three
+deleters. The agy part is built only if the owner picks Q-5 A (9.2); the
+seat dir is built either way, for grok.
+
+- **The seat dir.** `<runtime>/spool-seat/<seat-id>/`, where `<runtime>` is
+  the workspace OS user's `/run/user/<uid>` (tmpfs; the desk enables
+  lingering for its user at install so the dir exists with no login). Mode
+  0700, owned by the workspace OS user. The desk refuses to start when
+  `<runtime>` is not tmpfs (`stat -f -c %T`), and the no-plain-swap check
+  (5.3) keeps tmpfs pages off a plain disk. The same dir is grok's
+  `GROK_HOME`, so grok's key-bearing log (section 3) lives and dies with the
+  seat.
+- **The file.** `<seat dir>/adc.json`, the JSON exactly as leased, written
+  by the wrapper under `umask 077` with `O_CREAT|O_EXCL|O_NOFOLLOW`, mode
+  0400: it never exists with a wider mode, and an existing file or a
+  symlink at that path refuses the start. Never rewritten in place.
+- **The environment.** `AGY_ADC_AUTH=1`, `GOOGLE_APPLICATION_CREDENTIALS=`
+  that path; unset `GEMINI_API_KEY`, `GOOGLE_API_KEY`,
+  `GOOGLE_GENAI_USE_VERTEXAI`, `CLOUDSDK_CONFIG` and every other vendor
+  variable (L10). The wrapper refuses to start when the seat `HOME` holds
+  a gcloud well-known ADC file (`.config/gcloud/application_default_credentials.json`)
+  or an agy login: agy reads the first (B0b, d runs), and whether a stored
+  login beats ADC is unmeasured, so neither may be there to win over the
+  customer's credential.
+- **Lifetime: the seat's.** Created when the seat starts, gone when it ends.
+  A replace or remove does not touch a running seat's file: the desk ends
+  that kind's seats within one lease TTL (5.2) and the next seat gets the
+  new JSON in a new file.
+- **Who deletes it.** (1) The wrapper: for agy it does not `execve`; it
+  forks the CLI, forwards signals, waits, removes the seat dir and exits
+  with the CLI's code. (2) The desk, for a wrapper that was killed: it
+  removes a seat's dir when it ends the seat, removes every seat dir whose
+  seat process is gone on each lease tick, and empties `spool-seat/` at
+  desk start. (3) A reboot clears tmpfs.
+- **Who can read it.** The workspace OS user, so every seat of that
+  workspace and their children, and the machine's root: the same set that
+  can read an environment key through `/proc` (6, "What is NOT claimed").
+  A service-account key may grant more than agy needs: W1 asks the admin
+  for one that holds only agy's role (8).
+- **Better, if measured.** If X2 measures that agy reads the credential
+  once at start, the wrapper may pass it as a `memfd_create` fd
+  (`/dev/fd/<n>`, no path on any file system) and keep the file as the
+  fallback. That changes L18's test, not its guard.
+
 ## 6. Leak paths, guards and tests
 
 Every test plants the fake `sk-test-0000` (or a fake of the vendor's shape)
@@ -326,19 +409,20 @@ and states its red control: the same test with the guard off fails.
 | L2 | the fleet's own lanes | 5.3 (a)-(c): no customer pin, no approval; desk refuses a root-equivalent user | lease from a pin with no approval -> 403 `box_not_approved`; desk start as a `docker` member -> refused | drop the approval check -> 200; drop the group check -> desk starts |
 | L3 | the operator | no read route; no `operator_scope` on the key table; key-box approval; operator-made admins unconfirmed; KMS grant check | operator-scope SELECT -> 0 rows; operator invite as admin -> join -> dedicated box -> lease -> 403 `box_not_approved`; that admin PUTs a key -> 403 `admin_unconfirmed` | add the policy -> rows; drop approval -> 200; drop confirmation -> 204 |
 | L4 | a hub log | routes on the no-body-log list; no key in any error; encrypt before INSERT | PUT `sk-test-0000`, grep the captured hub and pg logs -> 0 | the route off the list -> found |
-| L5 | a box log | the desk and wrapper never print the key; dry run prints `<VENDOR_KEY>` | spawn dry run + desk log grep -> 0 | a wrapper that prints the key -> found |
+| L5 | a box log | the desk and wrapper never print the key; dry run prints `<VENDOR_KEY>`; grok's `logs/unified.jsonl` (the key's last 12 chars, B0 2.5) is key-bearing: it lives in the seat dir (5.4), is never shipped, mirrored or collected, and goes with the seat dir | spawn dry run + desk log grep -> 0; after a grok seat ends, grep the box for the fake's last 12 chars -> 0 | a wrapper that prints the key -> found; `GROK_HOME` in the persistent home -> the suffix is found after the seat ends |
 | L6 | an argv (`ps`) | key via helper or the wrapper's own `setenv`, never argv | spawn a fake CLI, read every `/proc/<pid>/cmdline` of the launch -> no key | the v0.1 `exec env` launch -> found |
 | L7 | a core dump | hard `RLIMIT_CORE=0`, `suid_dumpable=0`, core_pattern checked | fake CLI aborts -> no core file | no hard limit -> core file appears |
 | L8 | a pane capture | the key is never printed; the fleet lease tick never runs on a dedicated box | capture the fake seat's pane after start -> no key | a seat that echoes its env -> found |
-| L9 | a transcript / the desk mirror | claude: no env var at all; the desk replaces the exact key it handed out with `[vendor key removed]` in every mirror and spool body; the hub fingerprints candidates (vendor-shape matches plus any run of >= 32 `[A-Za-z0-9_-]`) and redacts a match of that workspace's keys | the fake seat echoes its env into a turn: the hub stores the redacted text | redaction off -> the fake reaches the DB |
+| L9 | a transcript / the desk mirror | claude: no env var at all; the desk replaces the exact key it handed out with `[vendor key removed]` in every mirror and spool body; the hub fingerprints candidates (vendor-shape matches plus any run of >= 32 `[A-Za-z0-9_-]`) and redacts a match of that workspace's keys. agy's JSON: a private-key block or a JSON `private_key` field is redacted whoever's key it is, with no fingerprint needed; its `private_key_id` is fingerprinted like a key | the fake seat echoes its env into a turn: the hub stores the redacted text; an agy seat prints its fake service-account file (built at run time as B0b 4.1) into a turn -> the marker is not stored | redaction off -> the fake reaches the DB |
 | L10 | another vendor's key in a seat | the wrapper unsets every other vendor variable; qwen `--auth-type openai`; claude's children see no key | a child of a grok seat runs `env` -> no OTHER vendor variable; a child of a claude seat -> none at all | the unset removed -> the child sees the other variable |
 | L11 | a DB backup | ciphertext only; the KMS key is not in the backup | restore into lde without KMS -> the row does not open | the same restore with the KMS grant -> opens |
 | L12 | the browser | password input, `autocomplete=new-password`, the value cleared from the store after PUT, never in localStorage | e2e: after save, the store and storage hold no `sk-test-0000` | the store not cleared -> found |
 | L13 | swap | desk refuses plain swap (5.3) | desk start with plain swap -> refused | the check off -> desk starts |
-| L14 | the CLI's own state files (claude's `customApiKeyResponses`, an auth step's settings, vibe's env file) | claude only by `apiKeyHelper`; the others by environment only, never an auth subcommand; the seat home holds no key file | after a seat's run, grep the seat user's home for `sk-test-0000` -> 0 | start claude with `ANTHROPIC_API_KEY` -> found (B0 confirms) |
+| L14 | the CLI's own state files (claude's `customApiKeyResponses`, an auth step's settings, vibe's env file, grok's `auth.json`) | claude only by `apiKeyHelper`, interactive and `-p`; the others by environment only, never an auth subcommand; the seat home holds no key file and no `.vibe/.env`; grok: `GROK_HOME` = the seat dir with no `auth.json` (else the box login is spent, B0 2.5), `GROK_AUTH_PROVIDER_COMMAND` unset and refused | after a seat's run, grep the seat user's home for `sk-test-0000` and its last 20 chars -> 0; a grok seat with an `auth.json` planted in its `GROK_HOME` -> refused to start | start claude interactive with `ANTHROPIC_API_KEY` -> last 20 chars found in `.claude.json` (B0 2.2, confirmed n=2); grok with the provider command -> the full fake in `auth.json` (B0 2.5) |
 | L15 | the tmux start command and the dry-run plan | the wrapper of 5.2 step 5 | `tmux list-panes -F '#{pane_start_command}'` and `launch.cmd` -> no fake | the `exec env` launch -> found |
-| L16 | CLI telemetry and crash reports to the vendor or a third party | telemetry off per CLI (as `spawn-mistral.sh:63` does for vibe), measured by B0 | a fake crash with telemetry off -> no report sent | telemetry on -> the report carries the env |
+| L16 | CLI telemetry and crash reports to the vendor or a third party | telemetry off per CLI, switches named by B0 (3): claude `DISABLE_TELEMETRY=1 DISABLE_ERROR_REPORTING=1`; vibe `VIBE_ENABLE_TELEMETRY=false` (also Sentry; as `spawn-mistral.sh:63` does); grok `GROK_TELEMETRY_ENABLED=false`; qwen a seat `settings.json` with `privacy.usageStatisticsEnabled: false` (default on, no env var); agy: no switch found, stated | a fake crash with telemetry off -> no report sent (needs a packet capture; B0 took none) | telemetry on -> the report carries the env |
 | L17 | the WUI's RUM and error beacons; visitor and embed channels (spec 121); WebSocket fan-out; mail | beacons never carry request bodies; the hub redacts (L9) BEFORE the row is written and before any fan-out or mail | a failed PUT -> no beacon carries the fake; a seat posts the fake into a visitor channel -> the visitor sees `[vendor key removed]` | redaction after fan-out -> the visitor gets the fake |
+| L18 | agy's service-account file (5.4) left behind, or readable by another user | tmpfs seat dir 0700, file 0400 by `O_EXCL\|O_NOFOLLOW` under `umask 077`; three deleters (wrapper, desk sweep, reboot); desk refuses a non-tmpfs runtime dir; no gcloud ADC file or agy login in the seat `HOME` | a fake agy CLI seat on a fake JSON (marker built at run time, B0b 4.1): `stat` -> 0400 in a 0700 dir; after a normal exit, and after `SIGKILL` of the wrapper plus one desk tick, `grep -rlF` the marker over the seat `HOME`, `<runtime>` and `/tmp` -> 0; another OS user's read -> EACCES | wrapper deletion off -> the file is found after exit; desk sweep off + `SIGKILL` -> found; write without `umask 077` -> 0644 seen |
 
 What is NOT claimed:
 
@@ -414,6 +498,18 @@ gains `agent-keys.vue`, beside `split.vue`):
 
 - one row per kind: set or not, last 4, set when, by whom; Set / Replace /
   Remove. The input is a password field, cleared after save.
+- what the page asks the admin for, per kind: an API key for claude, grok,
+  mistral and qwen (qwen also its https `base_url`). For agy (only if Q-5 A,
+  9.2; else the row reads "not supported for workspace keys" and Q-1 A sends
+  agy tasks to the backup vendor): a **Google service-account key file
+  (JSON)**, chosen as a file or pasted into a masked text area, read in the
+  browser's memory only and cleared after save (L12). The row then shows the
+  account (`client_email`) and the last 4 of `private_key_id`, never the
+  key. The help text says: create a service account in your own Google
+  Cloud project used for nothing else, grant it only the role agy's models
+  need (named once B0c measures it), create a key for it, and replace or
+  remove it here when you rotate; an organisation policy that forbids
+  service-account keys stops this, and agy then stays on the backup vendor.
 - the key-box list: the workspace's boxes, a "may use agent keys" toggle, the
   last lease, and "re-enrol needed" for a pin without an X25519 key.
 - an unconfirmed admin (5.1) sees the page read-only, with who can confirm.
@@ -423,7 +519,8 @@ gains `agent-keys.vue`, beside `split.vue`):
 ## 9. Owner questions
 
 Real choices only; the dispatcher posted them as one blocker. Both seats
-recommended A on every question. The owner chose A on all four (9.1).
+recommended A on every question. The owner chose A on all four (9.1). Q-5
+came with v1.2 (9.2).
 
 - **Q-1 Missing key.** A `byok` workspace starts a seat of a kind with no key:
   - A (recommended): refuse that kind; the picker takes the backup with a key;
@@ -454,7 +551,30 @@ recommended A on every question. The owner chose A on all four (9.1).
 | Q-3 Margin | A: exactly 50%, `price_plans.margin_pct = 50` for `byok`. | 7.1, P1 |
 | Q-4 Operator-made admins | A: no `vendor_keys.manage` and no key-box approval until a confirmed admin of the workspace confirms; every admin is emailed. | 5.1, 8, H1 |
 
-No question of this spec is open.
+Q-1..Q-4 are decided. Q-5 (9.2, v1.2) is open.
+
+### 9.2 Q-5, open: agy on a workspace credential
+
+B0 and B0b showed agy takes no API key, only a Google service-account JSON
+through `AGY_ADC_AUTH` (section 3). Supporting it means writing a customer
+secret to a file on the box, which no other kind needs (5.4), and a
+service-account key can carry more power than agy needs. Whether a real
+service account serves an agy prompt, and with which least role, is not
+measured: that needs the owner's credential (B0c, 10).
+
+- **A (recommended): support agy by the service-account file of 5.4**,
+  switched on only after B0c passes: the owner's own service account serves
+  one prompt through `AGY_ADC_AUTH`, and B0c names the least role. Until
+  then the agy row reads "not supported" and Q-1 A routes agy tasks to the
+  backup vendor. Cost: L18 and its tests, the shape check of 4.3, the file
+  input of 8. Why: K2 asks for every launcher, and the file stays on tmpfs,
+  0400, for the seat's life, readable by the same set that reads an
+  environment key.
+- **B: keep agy unsupported for workspace keys.** No file is ever written;
+  5.4's agy part, L18, the agy shape check and the file input are not
+  built; agy tasks of a `byok` workspace always go to the backup vendor
+  (Q-1 A). Revisit if agy gains an API-key path. Cost: K2 is met for four
+  kinds of five.
 
 ## 10. Lane plan
 
@@ -463,15 +583,16 @@ Each a small task with tests and red controls; claude or mistral seats only
 
 | # | lane | task |
 |---|---|---|
-| B0 | box (claude) | measure per CLI: what authenticates (env var, helper, login only), the telemetry switch (L16), whether it writes the key to its state (L14), qwen `--auth-type` pin; record each version. Done: [b0-cli-measure.md](b0-cli-measure.md) (grok: a stored login beats `XAI_API_KEY`; agy: Google login only) |
+| B0 | box (claude) | measure per CLI: what authenticates (env var, helper, login only), the telemetry switch (L16), whether it writes the key to its state (L14), qwen `--auth-type` pin; record each version. Done: [b0-cli-measure.md](b0-cli-measure.md) (grok: a stored login beats `XAI_API_KEY`; agy: Google login only for API keys), 0a368f0c2; B0b (section 4, d8a7ad43d): agy takes a service-account JSON via `AGY_ADC_AUTH`. Folded in v1.2 |
+| B0c | box (claude) | only if Q-5 A: the owner's own service account serves one agy prompt through 5.4's file; name the least role; L16 for agy by packet capture. Needs the owner's credential |
 | D1 | rdb (claude) | `workspace_vendor_keys` (tenant_scope only, `personal.profile` shape), `workspace_vendor_key_boxes`, `workspace_vendor_key_audit`, `usage_events.key_source` (no default); cross-tenant and operator-0-rows tests |
 | I1 | iac (claude) | KMS key ring + key per env, decrypt grant to the hub runtime SA only; HMAC pepper secret; the daily grant check action; confirm the list prices |
 | H1 | hub (claude) | `vendor_keys.manage`, PUT/DELETE/GET, audit, no-body-log, act-as refusal, operator-made admin confirmation (Q-4 A); L3, L4 tests |
 | H2 | hub (claude) | the lease route: dedicated pin, approved box, read in the pin's tenant scope, sealed to the box X25519 key; join payload field; key-box approve/revoke; L1, L2 tests |
 | H3 | hub (mistral) | redaction by fingerprint and candidate shapes, before write and fan-out; L9 hub half, L17 hub half |
-| W1 | wui (mistral) | Agent keys page with the key-box list, L12 and L17 e2e; locale text then agy review LAST |
-| X1 | box (claude) | desk socket with `SO_PEERCRED`, lease, seal open, start checks (groups, sudoers, hidepid, ptrace, suid_dumpable, core_pattern, swap), outbound redaction; L5, L8, L9, L13; measure piped core_pattern |
-| X2 | box (claude) | `spool-key-exec` wrapper (setenv, unset other vendors, hard core limit, execve), claude `apiKeyHelper` via `--settings`; L6, L7, L10, L14, L15 |
+| W1 | wui (mistral) | Agent keys page with the key-box list, L12 and L17 e2e; the agy row per Q-5 (8); locale text then agy review LAST. Waits for v1.2 |
+| X1 | box (claude) | desk socket with `SO_PEERCRED`, lease, seal open, start checks (groups, sudoers, hidepid, ptrace, suid_dumpable, core_pattern, swap, tmpfs runtime dir), helper answers from the held lease, seat-dir sweep (5.4), outbound redaction; L5, L8, L9, L13, L18 desk half; measure piped core_pattern |
+| X2 | box (claude) | `spool-key-exec` wrapper (setenv, unset other vendors, hard core limit, execve), claude `apiKeyHelper` via `--settings` in every mode, grok with `GROK_HOME` = seat dir and no provider command, telemetry switches (L16), agy's file per Q-5 (5.4); L6, L7, L10, L14, L15, L18 wrapper half. Waits for v1.2 |
 | P1 | hub (claude) | `byok` plan kind, the three price lines, `key_source` in the draw-down; after spec 122's gate |
 
 ## 11. Panel and consensus

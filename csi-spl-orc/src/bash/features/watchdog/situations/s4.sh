@@ -5,11 +5,14 @@
 # claude transcript shows no open tool_use: a PreToolUse whose PostToolUse
 # never came leaves an idle session in-tool (6.2, c-486 2026-10-07: one
 # with no tool_use, 3 s after a Stop, got an Escape into the idle prompt).
+# Not vibe's self.sleep: a deliberate idle wait, not a hung call (m-801@sat
+# 2026-10-11, n=2: restarted every 16 min); S1 still catches unread mail.
 # Usage: s4.sh ID PID PANE (WD_CTX set; see lib.inc.sh)
 # shellcheck source=lib.inc.sh
 . "$(dirname "$0")/lib.inc.sh"
 [[ -n "$WD_PID" && "$(wd_hb state)" == in-tool ]] || exit 0
 tool="$(wd_hb tool)"
+[[ "$tool" != self.sleep ]] || exit 0
 since="$(wd_epoch "$(wd_hb tool_since)")"
 [[ -n "$since" ]] || exit 0
 cap="$(wd_tool_cap "$tool")"

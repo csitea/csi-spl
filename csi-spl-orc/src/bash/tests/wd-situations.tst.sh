@@ -290,6 +290,13 @@ ctx s4n; hb in-tool 0 "| .tool = \"Monitor\" | .tool_since = \"$(iso $((T0 - 370
 hit "6.2 control: a Monitor past its 60 min cap" s4
 ctx s4w; hb in-tool 0 "| .tool = \"WebFetch\" | .tool_since = \"$(iso $((T0 - 400)))\""
 hit "S4 a WebFetch over its 5 min cap" s4
+# m-801@sat 2026-10-11 (n=2, 10:37Z + 11:17Z): an idle vibe seat in its
+# deliberate self.sleep was restarted as S4 every 16 min; a sleep is idle, S1
+# still catches its unread mail
+ctx s4s; hb in-tool 0 "| .tool = \"self.sleep\" | .tool_since = \"$(iso $((T0 - 960)))\""
+nohit "S4 a vibe self.sleep 16 min long is idle, not a stuck call" s4 m-900
+ctx s4sc; hb in-tool 0 "| .tool = \"file_system.bash\" | .tool_since = \"$(iso $((T0 - 960)))\""
+hit "S4 control: a vibe file_system.bash 16 min long is still stuck" s4 m-900
 # 6.2 c-486 2026-10-07: Stop at 11:00:11, then a PreToolUse at 11:00:14
 # with no PostToolUse and NO tool_use in the transcript; the session idle at
 # its prompt (2 background shells) was Escaped 15 min later. The transcript

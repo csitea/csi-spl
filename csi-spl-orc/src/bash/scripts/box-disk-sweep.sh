@@ -8,7 +8,8 @@
 #   tmp        tmp-stale-sweep.sh     idle go-build / tmp.X / Test* / *-gocache in /tmp
 #   worktrees  wt-dead-sweep.sh       clean, landed worktrees of agents that are gone
 #   go         do_prune_go_build_cache  Go build-cache entries older than a day
-#   docker     prune-docker-images.sh   unused images + build cache older than BOX_SWEEP_DOCKER_UNTIL
+#   docker     prune-docker-images.sh   unused images + build cache older than BOX_SWEEP_DOCKER_UNTIL,
+#                                       then the build cache down to its cap
 # A failing step is a FAIL line and the next step still runs. One sweep at a
 # time (flock); a second one started meanwhile skips.
 #
@@ -20,6 +21,10 @@
 #   low     <  LOW                 12h            360 min        every tick
 #   crit    <  CRIT (7)            2h             60 min         every tick
 # The busy-CI wait and the in-use image pins of the docker step still apply.
+# At EVERY level the build cache is then cut to BOX_SWEEP_BUILDER_CAP_PCT
+# (10) % of the docker disk's size, whatever its age (2026-10-11: sat's
+# 25 GB of cache was nearly all under 12 h old, the low-level prune freed
+# 0 B and /mnt/data reached 93%; the main box held 144 GB on an 889G disk).
 # A crit sweep that leaves the disk under CRIT sends ONE note to the
 # orchestrator (task disk-sweep-<box>), again only after free went back up.
 #
@@ -35,6 +40,8 @@
 #   BOX_SWEEP_LOW_FREE_PCT / _CRIT_FREE_PCT              default 15 / 7
 #   BOX_SWEEP_LOW_DOCKER_UNTIL / _CRIT_DOCKER_UNTIL      default 12h / 2h
 #   BOX_SWEEP_LOW_GO_AGE_MIN / _CRIT_GO_AGE_MIN          default 360 / 60
+#   BOX_SWEEP_BUILDER_CAP_PCT default 10 (0 = no cap), the docker step's
+#                          PRUNE_BUILDER_CAP_PCT
 #   BOX_SWEEP_GATE         1: skip a normal-level tick younger than
 #                          BOX_SWEEP_EVERY_MIN (240); default 0 (always run)
 #   BOX_SWEEP_FREE_PCT     the measured free % (tests: a planted value)
@@ -58,6 +65,7 @@ scripts="${BOX_SWEEP_SCRIPTS:-$self_dir}"
 orc="${BOX_SWEEP_ORC:-$(cd "$self_dir/../../.." && pwd)}"
 lock="${BOX_SWEEP_LOCK:-${TMPDIR:-/tmp}/box-disk-sweep.$(id -un).lock}"
 go_age="${BOX_SWEEP_GO_AGE_MIN:-1440}"
+cap_pct="${BOX_SWEEP_BUILDER_CAP_PCT:-10}"
 low_pct="${BOX_SWEEP_LOW_FREE_PCT:-15}" crit_pct="${BOX_SWEEP_CRIT_FREE_PCT:-7}"
 gate="${BOX_SWEEP_GATE:-0}" every="${BOX_SWEEP_EVERY_MIN:-240}"
 send="${BOX_SWEEP_SEND:-$orc/src/bash/features/spawn-agents/scripts/spool-send.sh}"
@@ -92,7 +100,7 @@ note() {
 }
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || { say "FAIL DRY_RUN must be 0 or 1, got '$dry'"; exit 2; }
-for v in "$low_pct" "$crit_pct" "$every" "$go_age" "${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" "${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}"; do
+for v in "$cap_pct" "$low_pct" "$crit_pct" "$every" "$go_age" "${BOX_SWEEP_LOW_GO_AGE_MIN:-360}" "${BOX_SWEEP_CRIT_GO_AGE_MIN:-60}"; do
   [[ "$v" =~ ^[0-9]+$ ]] || { say "FAIL the free %, age and interval limits must be whole numbers, got '$v'"; exit 2; }
 done
 [[ "$gate" == 0 || "$gate" == 1 ]] || { say "FAIL BOX_SWEEP_GATE must be 0 or 1, got '$gate'"; exit 2; }
@@ -119,7 +127,7 @@ if [[ "$gate" == 1 && "$level" == normal && -f "$stamp" ]] && [[ -n "$(find "$st
 fi
 (( fpct >= crit_pct )) && rm -f "$noted" 2>/dev/null
 
-say "START box=$(hostname -s) user=$(id -un) dry_run=$dry level=$level free=${fpct}% ($fmount) docker_until=$until go_age_min=$go_age steps='$steps' $(df_line)"
+say "START box=$(hostname -s) user=$(id -un) dry_run=$dry level=$level free=${fpct}% ($fmount) docker_until=$until builder_cap_pct=$cap_pct go_age_min=$go_age steps='$steps' $(df_line)"
 rc=0
 for s in $steps; do
   say "STEP $s"
@@ -128,7 +136,7 @@ for s in $steps; do
     tmp)       DRY_RUN="$dry" bash "$scripts/tmp-stale-sweep.sh" ;;
     worktrees) DRY_RUN="$dry" bash "$scripts/wt-dead-sweep.sh" ;;
     go)        ( cd "$orc" && DRY_RUN="$dry" GO_CACHE_MAX_AGE_MIN="$go_age" ./run -a do_prune_go_build_cache ) ;;
-    docker)    DRY_RUN="$dry" PRUNE_UNTIL="$until" bash "$scripts/prune-docker-images.sh" ;;
+    docker)    DRY_RUN="$dry" PRUNE_UNTIL="$until" PRUNE_BUILDER_CAP_PCT="$cap_pct" bash "$scripts/prune-docker-images.sh" ;;
   esac
   r=$?
   if [[ "$r" == 0 ]]; then say "STEP-OK $s $(df_line)"; else say "FAIL step $s rc=$r"; rc=1; fi

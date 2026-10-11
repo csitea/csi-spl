@@ -4,7 +4,11 @@
 # running user's `docker` reaches): unused images and build cache older than
 # PRUNE_UNTIL (168h). Never a container, never a volume, never an image a
 # container (running or stopped) uses. Run by do_prune_docker_images and by
-# the cron line do_prune_docker_images_install_cron writes.
+# the cron line do_prune_docker_images_install_cron writes. Then a size cap
+# on the build cache, whatever its age: PRUNE_BUILDER_CAP_PCT (10) % of the
+# size of the disk under docker's root dir (2026-10-11, sat: 25 GB of cache,
+# nearly all under 12 h old, filled /mnt/data to 93% while the until= prune
+# freed 0 B; the main box held 144 GB on an 889G disk).
 #
 # One line per check, then one RESULT line with the reclaimed bytes:
 #   CHECK  the box, the user, the daemon socket, its root dir and its disk
@@ -22,7 +26,9 @@
 #          its image must exist BEFORE (else a WARN: it was gone already)
 #          and AFTER the prune (else a FAIL)
 #   PLAN   (dry run) the images and build cache a live run would remove
-#   PRUNE  docker image prune -a / docker builder prune, --filter until=
+#   PRUNE  docker image prune -a / docker builder prune, --filter until=,
+#          then docker builder prune --max-used-space <cap> (the least
+#          recently used cache first; --keep-storage on an older buildx)
 #   RESULT box=<box> reclaimed_bytes=<n> (docker's count: `docker image
 #          prune` prints "Total reclaimed space:", `docker builder prune`
 #          (buildx) prints "Total:") and freed_bytes=<n>, the disk's free
@@ -35,7 +41,9 @@
 # (^con-csi-csi-spl-), PRUNE_BUSY_WAIT_S (2700), PRUNE_BUSY_POLL_S (60),
 # PRUNE_LOCK (default ~/.cache/csi-spl/prune-docker-images.lock),
 # PRUNE_SEND (spool-send.sh; tests: a stub), PRUNE_FROM (the note's sender,
-# default LEASE_ORCH or c-001), PRUNE_NOTE=0 (no spool note).
+# default LEASE_ORCH or c-001), PRUNE_NOTE=0 (no spool note),
+# PRUNE_BUILDER_CAP_PCT (10; 0 = no cap), PRUNE_BUILDER_CAP_BYTES (a fixed
+# cap in bytes, beats the %).
 #------------------------------------------------------------------------------
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,6 +53,7 @@ source "$ORC/lib/bash/funcs/spl-desk-box.func.sh" 2>/dev/null || true
 
 DRY_RUN="${DRY_RUN:-1}"
 UNTIL="${PRUNE_UNTIL:-168h}"
+CAP_PCT="${PRUNE_BUILDER_CAP_PCT:-10}"
 PROTECT_RE="${PRUNE_PROTECT_RE:-^con-csi-csi-spl-}"
 WAIT_S="${PRUNE_BUSY_WAIT_S:-2700}"
 POLL_S="${PRUNE_BUSY_POLL_S:-60}"
@@ -83,6 +92,9 @@ to_bytes() {
 # "Total:" (builder prune, buildx) figure in bytes
 reclaimed() { to_bytes "$(sed -nE 's/^Total( reclaimed space)?:[[:space:]]*//p' <<<"$1" | tail -1)"; }
 
+# cache_bytes - the build cache size `docker system df` reports, in bytes
+cache_bytes() { to_bytes "$(docker system df --format '{{.Type}}|{{.Size}}' 2>/dev/null | awk -F'|' '$1 == "Build Cache" { print $2 }')"; }
+
 # sock - the unix socket this user's docker talks to
 sock() {
   local h="${DOCKER_HOST:-}"
@@ -118,6 +130,8 @@ busy() {
 
 [[ "$DRY_RUN" == 0 || "$DRY_RUN" == 1 ]] || { say "FAIL DRY_RUN must be 0 or 1, got: '$DRY_RUN'"; exit 2; }
 [[ "$UNTIL" =~ ^[0-9]+h$ ]] || { say "FAIL PRUNE_UNTIL must be <hours>h, got: '$UNTIL'"; exit 2; }
+[[ "$CAP_PCT" =~ ^[0-9]+$ ]] && (( CAP_PCT <= 100 )) || { say "FAIL PRUNE_BUILDER_CAP_PCT must be 0..100, got: '$CAP_PCT'"; exit 2; }
+[[ "${PRUNE_BUILDER_CAP_BYTES:-0}" =~ ^[0-9]+$ ]] || { say "FAIL PRUNE_BUILDER_CAP_BYTES must be bytes, got: '$PRUNE_BUILDER_CAP_BYTES'"; exit 2; }
 [[ "$WAIT_S" =~ ^[0-9]+$ && "$POLL_S" =~ ^[1-9][0-9]*$ ]] || { say "FAIL PRUNE_BUSY_WAIT_S / PRUNE_BUSY_POLL_S must be seconds"; exit 2; }
 
 # 1. CHECK - the daemon, its root dir and the disk under it
@@ -127,7 +141,16 @@ root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)" && [[ -n "$root"
 free_b() { df -P -B1 "$root" 2>/dev/null | awk 'NR==2 {print $4}'; }
 mnt="$(df -P "$root" 2>/dev/null | awk 'NR==2 {print $6}')"
 before="$(free_b)"
-say "CHECK box=$BOX user=$ME docker=$S root=$root disk=${mnt:-?} free_bytes=${before:-?} dry_run=$DRY_RUN until=$UNTIL"
+# cap - the build cache cap in bytes: the fixed one, else CAP_PCT of the disk; 0 = none
+cap=0
+if (( ${PRUNE_BUILDER_CAP_BYTES:-0} > 0 )); then cap="$PRUNE_BUILDER_CAP_BYTES"
+elif (( CAP_PCT > 0 )); then
+  cap="$(df -P -B1 "$root" 2>/dev/null | awk -v p="$CAP_PCT" 'NR==2 && $2 > 0 { printf "%.0f\n", $2 * p / 100 }')"
+  [[ "$cap" =~ ^[0-9]+$ ]] || cap=0
+fi
+cap_flag=--max-used-space
+docker builder prune --help 2>/dev/null | grep -- --max-used-space >/dev/null || cap_flag=--keep-storage
+say "CHECK box=$BOX user=$ME docker=$S root=$root disk=${mnt:-?} free_bytes=${before:-?} dry_run=$DRY_RUN until=$UNTIL builder_cap_bytes=$cap"
 
 # 2. LOCK - one run at a time
 mkdir -p "$(dirname "$LOCK")" 2>/dev/null
@@ -187,6 +210,8 @@ if [[ "$DRY_RUN" == 1 ]]; then
   say "PLAN docker image prune -a --filter until=$UNTIL: $n unused image(s), at most $b bytes (shared layers counted per image)"
   bc="$(docker system df --format '{{.Type}}|{{.Size}}|{{.Reclaimable}}' 2>/dev/null | awk -F'|' '$1 == "Build Cache" { print $2 " total, " $3 " reclaimable" }')"
   say "PLAN docker builder prune --filter until=$UNTIL: build cache now ${bc:-unknown} (a live run removes the part unused for $UNTIL)"
+  if (( cap > 0 )); then say "PLAN docker builder prune $cap_flag $cap: then the least recently used cache down to $cap bytes, whatever its age"
+  else say "PLAN no build cache cap (PRUNE_BUILDER_CAP_PCT=0)"; fi
   say "RESULT box=$BOX user=$ME dry_run=1 nothing removed. Re-run with DRY_RUN=0."
   exit 0
 fi
@@ -198,6 +223,17 @@ say "PRUNE images rc=$rc_i deleted=$(grep -c '^deleted:' <<<"$out_i") reclaimed_
 out_b="$(docker builder prune -f --filter "until=$UNTIL" 2>&1)"; rc_b=$?
 rb="$(reclaimed "$out_b")"
 say "PRUNE builder rc=$rc_b reclaimed_bytes=$rb"
+# the cut is counted as the cache size before minus after too: on the main box
+# (buildx 0.34) a 43 GB --max-used-space cut printed no "Total:" line
+rc_c=0 rcap=0 out_c=""
+if (( cap > 0 )); then
+  c0="$(cache_bytes)"
+  out_c="$(docker builder prune -f "$cap_flag" "$cap" 2>&1)"; rc_c=$?
+  c1="$(cache_bytes)"; rcap="$(reclaimed "$out_c")"
+  (( c0 - c1 > rcap )) && rcap=$(( c0 - c1 ))
+  say "PRUNE builder-cap $cap_flag $cap rc=$rc_c reclaimed_bytes=$rcap cache_bytes_before=$c0 cache_bytes_after=$c1"
+fi
+rb=$(( rb + rcap ))
 
 # 8. KEEP again - every protected image must still be there
 lost=""
@@ -208,7 +244,7 @@ after="$(free_b)"
 freed="?"; [[ "$before" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]] && freed=$(( after - before ))
 say "RESULT box=$BOX user=$ME disk=${mnt:-?} reclaimed_bytes=$(( ri + rb )) images_bytes=$ri builder_bytes=$rb freed_bytes=$freed free_bytes_before=${before:-?} free_bytes_after=${after:-?}"
 [[ -z "$lost" ]] || { loud FAIL "infra stack image(s) gone after the prune: ${lost% }"; exit 1; }
-if (( rc_i || rc_b )); then
-  loud FAIL "prune failed (image rc=$rc_i: $(tail -1 <<<"$out_i"); builder rc=$rc_b: $(tail -1 <<<"$out_b"))"; exit 1
+if (( rc_i || rc_b || rc_c )); then
+  loud FAIL "prune failed (image rc=$rc_i: $(tail -1 <<<"$out_i"); builder rc=$rc_b: $(tail -1 <<<"$out_b"); builder cap rc=$rc_c: $(tail -1 <<<"$out_c"))"; exit 1
 fi
 exit 0

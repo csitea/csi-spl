@@ -13,6 +13,10 @@
 #      user reaches the socket is waited for, then a loud WARN skip with no
 #      prune; a CI job on a daemon of its own does not hold it; a held lock
 #      is a WARN skip
+#      the build cache cap: 10% of the disk by default, cut with
+#      --max-used-space (--keep-storage on an older buildx) after the until=
+#      prune; PRUNE_BUILDER_CAP_BYTES beats the %; 0 % = no cap call; a bad
+#      % exits 2 (the cap on a planted young cache: box-disk-sweep.tst.sh 3c)
 #      an in-use image with no tag is pinned (tagged) before a live prune,
 #      only planned in a dry run; a stack image gone BEFORE the prune is a
 #      WARN, not blamed on the prune
@@ -55,7 +59,9 @@ case "\$1 \$2" in
   "image prune")
     [ -f "\$T/eat" ] && touch "\$T/gone.sha256:aaa1111111111111"
     printf 'Deleted Images:\ndeleted: sha256:ccc3333333333333\n\nTotal reclaimed space: 1.5GB\n' ;;
-  "builder prune") touch "\$T/reclaimed"; printf 'ID\t\t\t\t\tRECLAIMABLE\tSIZE\nx\ttrue\t250MB\nTotal:\t250MB\n' ;;
+  "builder prune")
+    [ "\$3" = --help ] && { [ -f "\$T/oldbuildx" ] && echo '  --keep-storage bytes' || echo '  --max-used-space bytes'; exit 0; }
+    touch "\$T/reclaimed"; printf 'ID\t\t\t\t\tRECLAIMABLE\tSIZE\nx\ttrue\t250MB\nTotal:\t250MB\n' ;;
   "system df") printf 'Images|3GB|1GB\nBuild Cache|9.4GB|9.4GB\n' ;;
   *) exit 0 ;;
 esac
@@ -78,7 +84,7 @@ prune() {
   env PATH="$T/stub:$PATH" DOCKER_HOST="unix://$T/sock" PRUNE_BOX=testbox PRUNE_SEND="$T/stub/send" \
     PRUNE_LOCK="$T/lock" PRUNE_BUSY_POLL_S=1 PRUNE_BUSY_WAIT_S=1 "$@" bash "$SCRIPT" 2>&1
 }
-pruned() { grep -cE '^docker (image|builder) prune' "$STUB_LOG"; }
+pruned() { grep -E '^docker (image|builder) prune' "$STUB_LOG" | grep -cv -- '--help'; }
 
 out="$(prune DRY_RUN=2)"; rc=$?
 [ "$rc" = 2 ] && grep -q 'DRY_RUN must be 0 or 1' <<<"$out" && pass "1. DRY_RUN is checked" || fail "1. DRY_RUN=2 (rc $rc: $out)"
@@ -104,8 +110,24 @@ out="$(prune DRY_RUN=0)"; rc=$?
 [ "$rc" = 0 ] && grep -q '^docker image prune -a -f --filter until=168h$' "$STUB_LOG" \
   && grep -q '^docker builder prune -f --filter until=168h$' "$STUB_LOG" \
   && pass "1. DRY_RUN=0 prunes images (-a) and build cache, until=168h" || fail "1. live ($out / $(cat "$STUB_LOG"))"
-grep -q 'RESULT box=testbox .* reclaimed_bytes=1750000000 images_bytes=1500000000 builder_bytes=250000000 freed_bytes=-\?[0-9]* free_bytes_before=[0-9]* free_bytes_after=[0-9]*' <<<"$out" \
+grep -q 'RESULT box=testbox .* reclaimed_bytes=2000000000 images_bytes=1500000000 builder_bytes=500000000 freed_bytes=-\?[0-9]* free_bytes_before=[0-9]* free_bytes_after=[0-9]*' <<<"$out" \
   && pass "1. the RESULT line logs the reclaimed bytes (buildx's \"Total:\" line too) and the disk" || fail "1. RESULT ($out)"
+cap="$(sed -nE 's/.*builder_cap_bytes=([0-9]+)$/\1/p' <<<"$out" | sed -n 1p)"
+want_cap="$(df -P -B1 "$T/droot" | awk 'NR==2 { printf "%.0f\n", $2 * 10 / 100 }')"
+[ -n "$cap" ] && [ "$cap" = "$want_cap" ] && grep -q "^docker builder prune -f --max-used-space $cap\$" "$STUB_LOG" \
+  && [ "$(grep -n -- '--filter until=168h$' "$STUB_LOG" | tail -1 | cut -d: -f1)" -lt "$(grep -n -- '--max-used-space' "$STUB_LOG" | cut -d: -f1)" ] \
+  && grep -q "PRUNE builder-cap --max-used-space $cap rc=0 reclaimed_bytes=250000000" <<<"$out" \
+  && pass "1. DRY_RUN=0 then cuts the build cache to 10% of the disk ($cap bytes), after the until= prune" || fail "1. cap ($out / $(cat "$STUB_LOG"))"
+touch "$T/oldbuildx"; out="$(prune DRY_RUN=0 PRUNE_BUILDER_CAP_BYTES=5000000000)"; rm -f "$T/oldbuildx"
+grep -q '^docker builder prune -f --keep-storage 5000000000$' "$STUB_LOG" && ! grep -q -- '--max-used-space 5' "$STUB_LOG" \
+  && pass "1. an older buildx gets --keep-storage; PRUNE_BUILDER_CAP_BYTES beats the %" || fail "1. old buildx ($(cat "$STUB_LOG"))"
+out="$(prune DRY_RUN=0 PRUNE_BUILDER_CAP_PCT=0)"; rc=$?
+[ "$rc" = 0 ] && ! grep -qE -- '--(max-used-space|keep-storage)' "$STUB_LOG" && [ "$(pruned)" = 2 ] \
+  && pass "1. CONTROL: PRUNE_BUILDER_CAP_PCT=0 makes no cap call" || fail "1. cap off ($(cat "$STUB_LOG"))"
+out="$(prune PRUNE_BUILDER_CAP_PCT=x)"; rc=$?
+[ "$rc" = 2 ] && grep -q 'PRUNE_BUILDER_CAP_PCT must be 0..100' <<<"$out" && pass "1. PRUNE_BUILDER_CAP_PCT is checked" || fail "1. cap pct x (rc $rc: $out)"
+grep -q 'PLAN docker builder prune --max-used-space [0-9]*: then the least recently used' <<<"$(prune)" \
+  && pass "1. the dry run plans the cap" || fail "1. PLAN cap ($(prune))"
 grep -q 'PLAN docker builder prune' <<<"$(prune)" && grep -q 'build cache now 9.4GB total, 9.4GB reclaimable' <<<"$(prune)" \
   && pass "1. the dry run states the build cache size" || fail "1. PLAN builder ($(prune))"
 touch "$T/fakedf"; rm -f "$T/reclaimed"
@@ -143,7 +165,7 @@ out="$(prune)"; rc=$?
   && pass "1. the dry run reports a busy daemon and still plans, no note" || fail "1. busy dry run ($out)"
 echo "65534 /srv/r/runner-02/bin/Runner.Worker spawnclient 1 2" >"$T/procs"
 out="$(prune DRY_RUN=0)"; rc=$?
-[ "$rc" = 0 ] && grep -q 'cannot reach .* (its own daemon): not waited for' <<<"$out" && [ "$(pruned)" = 2 ] \
+[ "$rc" = 0 ] && grep -q 'cannot reach .* (its own daemon): not waited for' <<<"$out" && [ "$(pruned)" = 3 ] \
   && pass "1. a CI job on a daemon of its own does not hold the prune" || fail "1. rootless job ($out)"
 echo "0 docker compose -f x.yml build" >"$T/procs"
 out="$(prune DRY_RUN=0)"

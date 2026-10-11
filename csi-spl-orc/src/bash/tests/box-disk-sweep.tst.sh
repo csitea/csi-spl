@@ -19,6 +19,11 @@
 #      (CONTROLS: 15 and 7, the boundaries, are not low / crit; the dry run
 #      only plans the note); the gate skips a normal tick younger than 4 h
 #      but never a low one
+#   3c. the build cache cap, through the REAL docker step on a stubbed docker
+#      (sat buildx: --keep-storage only): a planted 25 GB cache, all under
+#      12 h old, on a 100 GB disk at the LOW level is cut to 10 GB (10%);
+#      RED CONTROL: the old rule (BOX_SWEEP_BUILDER_CAP_PCT=0, until=12h
+#      only) leaves all 25 GB
 #   4. do_box_disk_sweep_install_cron: the dry run prints the 15-min gated line
 #      and changes nothing; DRY_RUN=0 adds ONE tagged line, every other kept;
 #      a second install is a no-op; remove restores the crontab byte for byte
@@ -115,7 +120,7 @@ lim() { grep -oE '^(go .* AGE=[0-9]*|prune-docker-images .* UNTIL=[0-9]+h)$' "$L
 for c in "50 normal AGE=1440 UNTIL=72h" "15 normal AGE=1440 UNTIL=72h" "10 low AGE=360 UNTIL=12h" "7 low AGE=360 UNTIL=12h" "3 crit AGE=60 UNTIL=2h"; do
   read -r f lv a u <<<"$c"; : >"$L"; : >"$T/sent"
   out="$(FREE=$f bsw DRY_RUN=0)"
-  [ "$(lim)" = "$a $u " ] && grep -q "START .* level=$lv free=$f% (planted)" <<<"$out" \
+  [ "$(lim)" = "$a $u " ] && grep -q "START .* level=$lv free=$f% (planted) docker_until=${u#UNTIL=} builder_cap_pct=10 " <<<"$out" \
     && pass "3b. free $f% -> level $lv, go $a, docker $u" || fail "3b. free $f% ($(lim) / $out)"
 done
 grep -q "FAIL level=crit: still 3% free" <<<"$out" && [ "$(grep -c . "$T/sent")" = 1 ] \
@@ -141,6 +146,69 @@ grep -q 'level=normal' <<<"$out" && [ -s "$L" ] && pass "3b. CONTROL: a 5 h old 
 
 out="$(bsw BOX_SWEEP_FREE_PCT=)"
 grep -qE "START .* level=[a-z]+ free=[0-9]+% \($T\)" <<<"$out" && pass "3b. CONTROL: unplanted, the real df measures the mount" || fail "3b. real df ($out)"
+
+# ---- 3c. the build cache cap on a planted young cache ----------------------------
+# the REAL docker step on a stubbed docker with sat's buildx (--keep-storage
+# only): the cache lives in $D/cache as bytes, the until= prune finds nothing
+# old, --keep-storage <n> cuts it to n; the disk is 100 GB
+D="$T/dock"; mkdir -p "$D/bin" "$D/droot"
+cat >"$D/bin/docker" <<EOF
+#!/bin/bash
+D='$D'; echo "docker \$*" >>"\$D/calls"
+case "\$1 \$2" in
+  "info --format") echo "\$D/droot" ;;
+  "image prune") printf 'Total reclaimed space: 0B\n' ;;
+  "system df") echo "Build Cache|\$(cat "\$D/cache")B" ;;
+  "builder prune")
+    [ "\$3" = --help ] && { echo '  --keep-storage bytes'; exit 0; }
+    c="\$(cat "\$D/cache")"
+    if [ "\$3 \$4" = "-f --keep-storage" ] && [ "\$c" -gt "\$5" ]; then
+      echo "\$5" >"\$D/cache"; printf 'Total:\t%sB\n' "\$(( c - \$5 ))"
+    else printf 'Total:\t0B\n'; fi ;;
+  *) exit 0 ;;
+esac
+EOF
+printf '#!/bin/sh\nexit 0\n' >"$D/bin/ps"
+printf '#!/bin/sh\nprintf "Filesystem 1-blocks Used Available Capacity Mounted\\n/dev/x 100000000000 90000000000 10000000000 90%%%% /fake\\n"\n' >"$D/bin/df"
+# The sweep puts /usr/bin etc. FIRST on PATH, which shadowed these stubs once
+# and pruned the main box's real daemon (c-961, 2026-10-11T00:59Z). So the docker step
+# is a wrapper that (1) puts the stubs first again and (2) GUARDS: it refuses,
+# exit 97, before the real step runs unless `docker` resolves to the stub;
+# and (3) DOCKER_HOST points at no daemon, so a real docker that slips past
+# both fails instead of pruning. wrap <prepend 0|1> <guard 0|1> <file>
+wrap() {
+  { echo '#!/bin/bash'
+    [ "$1" = 1 ] && printf 'PATH=%q:$PATH\n' "$D/bin"
+    [ "$2" = 1 ] && printf '[ "$(command -v docker)" = %q ] || { echo "GUARD docker is $(command -v docker), not the stub: refused"; exit 97; }\n' "$D/bin/docker"
+    printf 'exec bash %q\n' "$PROJ_ROOT/src/bash/scripts/prune-docker-images.sh"
+  } >"$3"; chmod +x "$3"
+}
+mkdir -p "$D/w" "$D/w-noguard"
+wrap 1 1 "$D/prune-docker-images.sh"; wrap 0 1 "$D/w/prune-docker-images.sh"; wrap 0 0 "$D/w-noguard/prune-docker-images.sh"
+chmod +x "$D/bin/docker" "$D/bin/ps" "$D/bin/df"
+csw() {
+  echo 25000000000 >"$D/cache"; : >"$D/calls"
+  env DOCKER_HOST="unix://$D/no-daemon.sock" BOX_SWEEP_SCRIPTS="${CW:-$D}" PRUNE_LOCK="$D/plock" PRUNE_NOTE=0 PRUNE_BOX=testbox DRY_RUN=0 BOX_SWEEP_STEPS=docker \
+    BOX_SWEEP_LOCK="$D/sweep.lock" BOX_SWEEP_MOUNTS="$D" BOX_SWEEP_FREE_PCT=10 BOX_SWEEP_NOTE=0 "$@" \
+    bash "$PROJ_ROOT/src/bash/scripts/box-disk-sweep.sh" 2>&1
+}
+out="$(csw)"; rc=$?
+[ "$rc" = 0 ] && ! grep -q GUARD <<<"$out" && grep -q 'START .* level=low .* docker_until=12h builder_cap_pct=10 ' <<<"$out" \
+  && grep -q '^docker builder prune -f --filter until=12h$' "$D/calls" \
+  && grep -q 'PRUNE builder rc=0 reclaimed_bytes=0$' <<<"$out" \
+  && grep -q 'PRUNE builder-cap --keep-storage 10000000000 rc=0 reclaimed_bytes=15000000000 cache_bytes_before=25000000000 cache_bytes_after=10000000000$' <<<"$out" \
+  && [ "$(cat "$D/cache")" = 10000000000 ] \
+  && pass "3c. LOW level: a planted 25 GB young cache (until=12h frees 0 B) is cut to the 10 GB cap" || fail "3c. cap (rc $rc: $out / $(cat "$D/calls"))"
+out="$(csw BOX_SWEEP_BUILDER_CAP_PCT=0)"; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "$D/cache")" = 25000000000 ] && ! grep -q -- '--keep-storage [0-9]' "$D/calls" \
+  && pass "3c. RED CONTROL: the old rule (no cap, until=12h only) leaves all 25 GB" || fail "3c. control (rc $rc: $out)"
+out="$(CW="$D/w" csw)"; rc=$?
+[ "$rc" = 1 ] && grep -q 'GUARD docker is .*, not the stub: refused' <<<"$out" && grep -q 'FAIL step docker rc=97' <<<"$out" \
+  && ! grep -qE 'CHECK|PRUNE' <<<"$out" && [ ! -s "$D/calls" ] \
+  && pass "3c. RED CONTROL: stubs shadowed by the sweep's PATH -> the guard refuses before the step runs" || fail "3c. guard (rc $rc: $out)"
+out="$(CW="$D/w-noguard" csw)"; rc=$?
+grep -q 'FAIL user .* cannot reach the docker daemon' <<<"$out" && ! grep -q 'PRUNE' <<<"$out" && [ ! -s "$D/calls" ] \
+  && pass "3c. RED CONTROL: shadowed with no guard, the real docker reaches no daemon and prunes nothing" || fail "3c. no guard (rc $rc: $out)"
 
 # ---- 4. the cron line --------------------------------------------------------
 CT="$T/crontab"

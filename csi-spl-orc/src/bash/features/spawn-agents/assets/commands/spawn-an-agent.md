@@ -43,8 +43,8 @@ launcher. The split is cnf `env.box.agent_split_by_kind` (all.env.yaml), which d
 
 The backup vendor takes over after 2 failed tries of the main on the same task.
 
-<!-- fleet-pin data-rule-vendors: claude mistral -->
-**Data rule**: Work that carries personal data or secrets (credentials, keys, customer data) always goes to `/claude-spawn` or `/mistral-spawn`, never to qwen, grok, or agy. The backup for `secret` is mistral, and the work is never routed to agy, grok, or qwen.
+<!-- fleet-pin data-rule-vendors: claude grok mistral -->
+**Data rule** (owner msgs 803c3b38, 26117740, 474f32a0): Work that carries personal data or secrets (credentials, keys, customer data) goes only to `/claude-spawn`, `/grok-spawn` or `/mistral-spawn`, never to qwen or agy, and a brief for those lanes never names a credential path. The `secret` row of the cnf may name claude, grok or mistral as its main or backup.
 
 <!-- fleet-pin language-rule-final: agy -->
 **Language rule**: agy has the final word on multilingual text. Any user-facing text in several languages (blog posts, WUI i18n locale files, help pages) gets an agy review as the LAST step before it ships. With no agy on the box, claude drafts and the text waits for an agy review; it never ships unreviewed.

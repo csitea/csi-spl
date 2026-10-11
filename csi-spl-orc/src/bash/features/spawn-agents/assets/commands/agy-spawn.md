@@ -81,6 +81,8 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR
 - agy paints on the NORMAL screen: the launcher marks its pane so a notice is
   never typed over its UI; messages reach it through its inbox and strip.
 - agy cannot name a session: the window name (riname) is the one a human reads.
+- Work that carries personal data or secrets never goes to agy (the data rule
+  in `/spawn-an-agent`).
 
 ## 4. Rules that hold for every kind
 

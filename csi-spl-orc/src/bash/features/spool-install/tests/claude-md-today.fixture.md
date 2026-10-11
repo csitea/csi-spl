@@ -101,11 +101,15 @@ kind and let the per-kind main and backup vendors decide:
 
 The backup vendor takes over after 2 failed tries of the main on the same task.
 
-<!-- fleet-pin data-rule-vendors: claude mistral -->
+<!-- fleet-pin data-rule-vendors: claude grok mistral -->
 **Data rule, overrides kind** (owner, 2026-10-08, msg 803c3b38, spec 110
-D2): work that carries personal data or secrets (credentials, keys, customer
-data) always goes to `/claude-spawn` or `/mistral-spawn`, never to qwen, grok or agy.
-The backup for `secret` is mistral, and the work is never routed to agy, grok, or qwen.
+D2; grok added 2026-10-11, msgs 26117740 and 474f32a0): work that carries
+personal data or secrets (credentials, keys, customer data) goes only to
+`/claude-spawn`, `/grok-spawn` or `/mistral-spawn`, never to qwen (its
+endpoints are run by a Chinese provider) or agy, and a brief for those lanes
+never names a credential path. `do_spl_lane_mix` routes `LANE_MIX_KIND=secret`
+by its cnf row (`env.box.agent_split_by_kind.secret`), where claude, grok or
+mistral may be the main or the backup.
 
 <!-- fleet-pin language-rule-final: agy -->
 **Language rule, owner 2026-10-08** (t1 msg 296582df: "there the final word

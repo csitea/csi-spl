@@ -10,8 +10,8 @@
 #          spl-lane-mix-journal.func.sh). A vendor that is out (no CLI, not
 #          signed in, an S2 limit or auth verdict, off or paused in the
 #          instance setting) is skipped at once and its weight goes to the
-#          backup, else claude. The data rule: secret goes to claude or
-#          mistral only, else hold. The language rule: i18n goes to agy, and
+#          backup, else claude. The data rule: secret goes to claude, grok
+#          or mistral only (never qwen or agy), else hold. The language rule: i18n goes to agy, and
 #          any other pick carries flag=needs_agy_review.
 #          A fake agent home, registry and journal; the cnf is a copy of the
 #          real all.env.yaml with the section 2 table pinned, so a cnf change
@@ -320,11 +320,11 @@ hmix LANE_MIX_KIND=simple_coding
 [[ ! -e "$T/hub.log" ]] && pass "6. already paused on the hub: not reported again" || fail "6. re-report: $(cat "$T/hub.log")"
 rm -rf "$T/dispatch"
 
-# --- 7. the data rule: secret goes to claude or mistral only, else hold (T2) --
+# --- 7. the data rule: secret goes to claude, grok or mistral only, else hold (T2)
 registry secret 0 0 0
 hub '[]'
 hmix LANE_MIX_KIND=secret
-[[ "$(pick)" == claude ]] && grep -q 'reason=data rule: secrets or personal data go to claude or mistral only' "$T/out" \
+[[ "$(pick)" == claude ]] && grep -q 'reason=data rule: secrets or personal data go to claude, grok or mistral only' "$T/out" \
   && pass "7. kind secret -> claude" || fail "7. secret: $(cat "$T/out")"
 hmix LANE_MIX_KIND=i18n LANE_MIX_SENSITIVE=1
 [[ "$(pick)" == claude && "$(kindof)" == secret ]] && pass "7. LANE_MIX_SENSITIVE=1 makes i18n secret" || fail "7. sensitive: $(cat "$T/out")"
@@ -351,8 +351,43 @@ done
 [[ -z "$bad" ]] && pass "7. secret under all 32 combinations of vendors off: claude, mistral or hold" \
   || fail "7. data rule broken:$bad"
 mix LANE_MIX_KIND=secret LANE_MIX_SPLIT_KIND='claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=agy'; rc=$?
-[[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" && grep -q 'data rule allows claude or mistral only, backup=agy' "$T/out" \
+[[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" && grep -q 'data rule allows claude, grok or mistral only, .*backup=agy' "$T/out" \
   && pass "7. a secret row with backup agy is refused" || fail "7. backup agy: rc=$rc $(cat "$T/out")"
+# grok joined the data rule (owner msgs 26117740, 474f32a0): the cnf row may
+# name it as the main or the backup; qwen and agy stay refused in every form.
+hub '[]'
+hmix LANE_MIX_KIND=secret LANE_MIX_SPLIT_KIND='claude=0 grok=100 agy=0 qwen=0 mistral=0 backup=claude'
+[[ "$(pick)" == grok ]] && grep -q '^pick=grok launcher=/grok-spawn kind=secret reason=data rule: ' "$T/out" \
+  && pass "7. a secret row with main grok -> grok" || fail "7. grok main: $(cat "$T/out")"
+hub '["claude"]'
+hmix LANE_MIX_KIND=secret LANE_MIX_SPLIT_KIND='claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=grok'
+[[ "$(pick)" == grok ]] && grep -q 'skip (claude off in instance settings); share to grok$' "$T/out" \
+  && pass "7. claude off, backup grok: secret goes to grok" || fail "7. grok backup: $(cat "$T/out")"
+hub '["grok"]'
+hmix LANE_MIX_KIND=secret LANE_MIX_SPLIT_KIND='claude=0 grok=100 agy=0 qwen=0 mistral=0 backup=mistral'
+[[ "$(pick)" == mistral ]] && pass "7. grok off: secret goes to the backup mistral" || fail "7. grok off: $(cat "$T/out")"
+rm -rf "$T/dispatch"
+mkdir -p "$H/.qwen"; printf '#!/bin/sh\n' >"$H/.local/bin/qwen"; chmod +x "$H/.local/bin/qwen"; : >"$H/.qwen/settings.json"
+bad=""
+for row in 'claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=mistral' 'claude=0 grok=100 agy=0 qwen=0 mistral=0 backup=claude' \
+           'claude=0 grok=0 agy=0 qwen=0 mistral=100 backup=grok'; do
+  for m in $(seq 0 31); do
+    off=""; i=0
+    for v in claude grok agy qwen mistral; do (( m >> i & 1 )) && off+="${off:+,}\"$v\""; i=$((i + 1)); done
+    hub "[$off]"
+    hmix LANE_MIX_KIND=secret LANE_MIX_SPLIT_KIND="$row"
+    case "$(pick)" in claude|grok|mistral|hold) ;; *) bad+=" {$row}[$off]:$(pick)" ;; esac
+  done
+done
+[[ -z "$bad" ]] && pass "7. three secret rows x 32 vendors-off sets, qwen and agy installed: never qwen or agy" \
+  || fail "7. data rule broken with grok rows:$bad"
+for c in 'claude=90 grok=0 agy=0 qwen=10 mistral=0 backup=mistral' 'claude=90 grok=0 agy=10 qwen=0 mistral=0 backup=grok' \
+         'claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=qwen'; do
+  mix LANE_MIX_KIND=secret LANE_MIX_SPLIT_KIND="$c"; rc=$?
+  [[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" && grep -q 'data rule allows claude, grok or mistral only' "$T/out" \
+    && pass "7. secret row refused: $c" || fail "7. secret row not refused: $c rc=$rc $(cat "$T/out")"
+done
+rm -f "$H/.local/bin/qwen"; rm -rf "$H/.qwen"
 
 # --- 8. the language rule: i18n goes to agy (T6) ------------------------------
 registry i18n 0 0 0

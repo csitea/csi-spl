@@ -8,7 +8,8 @@ from pydantic import BaseModel, Extra, conint, root_validator, validator
 VENDORS = ("agy", "mistral", "claude", "grok", "qwen")
 KINDS = ("specs_and_docs", "tests", "simple_coding", "complex_coding", "i18n", "secret")
 CODING_KINDS = ("tests", "simple_coding", "complex_coding")
-SECRET_VENDORS = ("claude", "mistral")
+# the data rule, owner msgs 803c3b38, 26117740, 474f32a0
+SECRET_VENDORS = ("claude", "grok", "mistral")
 
 Weight = conint(ge=0, le=100)
 
@@ -66,6 +67,6 @@ class Box(BaseModel, extra=Extra.allow):
         ]
         if others or row.backup not in SECRET_VENDORS:
             raise ValueError(
-                "secret: only claude and mistral may be non-zero or the backup"
+                "secret: only claude, grok and mistral may be non-zero or the backup"
             )
         return rows

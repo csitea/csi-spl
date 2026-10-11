@@ -72,11 +72,11 @@ plant; sed -i 's/Agent ceiling: 40/Agent ceiling: 41/' "$T/p/CLAUDE.md"
 run "$T/p"; rc=$?; control "5 ceiling-number" "ceiling-number: install.sh=40 y4-claude-config.sh=40 CLAUDE.md=41"
 
 # 6. data-rule: two pins disagree.
-plant; sed -i 's/data-rule-vendors: claude mistral/data-rule-vendors: claude qwen/' "$T/p/$CMDS/spawn-an-agent.md"
+plant; sed -i 's/data-rule-vendors: claude grok mistral/data-rule-vendors: claude qwen/' "$T/p/$CMDS/spawn-an-agent.md"
 run "$T/p"; rc=$?; control "6 data-rule pins" "data-rule: $CMDS/spawn-an-agent.md:[0-9]* pins 'claude qwen'"
 
 # 6b. data-rule: both pins agree, but the prose under them never names a pinned vendor.
-plant; sed -i 's/data-rule-vendors: claude mistral/data-rule-vendors: claude mistral zvendor/' "$T/p/$FRAG/20-spawn-an-agent.md" "$T/p/$CMDS/spawn-an-agent.md"
+plant; sed -i 's/data-rule-vendors: claude grok mistral/data-rule-vendors: claude grok mistral zvendor/' "$T/p/$FRAG/20-spawn-an-agent.md" "$T/p/$CMDS/spawn-an-agent.md"
 run "$T/p"; rc=$?; control "6b data-rule prose" "data-rule: $FRAG/20-spawn-an-agent.md:[0-9]* pins zvendor, the prose under the pin never names it"
 
 # 7. data-rule: the home lost its pin.
@@ -84,8 +84,8 @@ plant; sed -i '/fleet-pin data-rule-vendors/d' "$T/p/$FRAG/20-spawn-an-agent.md"
 run "$T/p"; rc=$?; control "7 data-rule missing pin" "data-rule: no data-rule-vendors pin in $FRAG/20-spawn-an-agent.md"
 
 # 8. data-rule: the code sends secrets outside the pinned set.
-plant; sed -i 's/_spl_lane_mix_pick claude "data rule:/_spl_lane_mix_pick grok "data rule:/' "$T/p/csi-spl-orc/src/bash/run/spl-lane-mix.func.sh"
-run "$T/p"; rc=$?; control "8 data-rule code" "data-rule: do_spl_lane_mix's secret pick is grok"
+plant; sed -i 's/_spl_lane_mix_pick claude "data rule:/_spl_lane_mix_pick qwen "data rule:/' "$T/p/csi-spl-orc/src/bash/run/spl-lane-mix.func.sh"
+run "$T/p"; rc=$?; control "8 data-rule code" "data-rule: do_spl_lane_mix's secret pick is qwen"
 
 # 8b. language-rule: a pin names another vendor; the code sends i18n elsewhere.
 plant; sed -i 's/language-rule-final: agy/language-rule-final: grok/' "$T/p/$CMDS/spawn-an-agent.md"

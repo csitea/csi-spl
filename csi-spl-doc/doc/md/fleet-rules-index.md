@@ -25,7 +25,7 @@ mention is a one-line pointer.
 |---|---|---|
 | agent ceiling (40) and the window-count command | 1.1 `20-spawn-an-agent.md` | repo `CLAUDE.md` (one line); each launcher 1.6 keeps the count command in its section 1.1, because a launcher is read on its own: the drift check (section 3) pins those copies to the home |
 | agent-id grammar `^[acgmq]-[0-9]{3}$` | spec 061 section 0; in code `SPOOL_AGENT_ID_NEW_RX` (`spawn-agents/lib/spool-env.inc.sh`) | repo `CLAUDE.md` (link), 1.3 section 1 |
-| data rule: personal data and secrets to claude or mistral only | 1.1 `20-spawn-an-agent.md` | repo `CLAUDE.md` (one line); the routing row in 1.5 |
+| data rule: personal data and secrets to claude, grok or mistral only, never qwen or agy | 1.1 `20-spawn-an-agent.md` | repo `CLAUDE.md` (one line); the routing row in 1.5 |
 | language rule: agy has the final word on multilingual text | 1.1 `20-spawn-an-agent.md` | repo `CLAUDE.md` (one line); the `i18n` row in 1.5 |
 | commit identity, no AI trailers | repo `CLAUDE.md`, the "Commits:" line (the canonical address the seed's LEAK-GATE defers to) | 1.4 section 5 (the why) |
 | spool posts are markdown | 1.7 | repo `CLAUDE.md` (one line) |

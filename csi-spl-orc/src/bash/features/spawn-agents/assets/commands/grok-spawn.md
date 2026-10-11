@@ -81,6 +81,9 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR
 - grok's TUI binds `Ctrl+J`. If that is your tmux prefix, reach the fleet by a
   status-bar click, `F12 w` or `Ctrl-Alt-Left/Right` (assets/tmux-agent-status.conf).
 - grok cannot name a session: the window name (riname) is the one a human reads.
+- grok may take personal-data and secret work, as claude and mistral do (owner
+  msgs 26117740, 474f32a0; the data rule in `/spawn-an-agent`); a g-NNN brief
+  still never names a credential path.
 
 ## 4. Rules that hold for every kind
 

@@ -51,6 +51,9 @@ class AgentSplitByKindTest(unittest.TestCase):
             AllEnv.parse_obj(_all_env(rows))
         self.assertIn(needle, str(cm.exception))
 
+    def assertGreen(self, rows):
+        AllEnv.parse_obj(_all_env(rows))
+
     def test_all_env_yaml_holds_the_spec_table(self):
         rows = AllEnv.parse_raw(ALL_ENV.read_text()).env.box.agent_split_by_kind
         self.assertEqual(set(rows), set(SPEC_MAIN_BACKUP))
@@ -91,13 +94,27 @@ class AgentSplitByKindTest(unittest.TestCase):
         rows["tests"]["backup"] = "agy"
         self.assertRed(rows, "agy writes no code")
 
-    def test_secret_outside_claude_and_mistral_is_red(self):
+    def test_secret_outside_claude_grok_and_mistral_is_red(self):
         rows = copy.deepcopy(ROWS)
-        rows["secret"].update(claude=90, grok=10)
+        rows["secret"].update(claude=90, qwen=10)
+        self.assertRed(rows, "secret")
+        rows = copy.deepcopy(ROWS)
+        rows["secret"].update(claude=90, agy=10)
         self.assertRed(rows, "secret")
         rows = copy.deepcopy(ROWS)
         rows["secret"]["backup"] = "qwen"
         self.assertRed(rows, "secret")
+        rows = copy.deepcopy(ROWS)
+        rows["secret"]["backup"] = "agy"
+        self.assertRed(rows, "secret")
+
+    def test_secret_with_grok_is_green(self):
+        rows = copy.deepcopy(ROWS)
+        rows["secret"] = {"grok": 60, "claude": 40, "backup": "mistral"}
+        self.assertGreen(rows)
+        rows = copy.deepcopy(ROWS)
+        rows["secret"]["backup"] = "grok"
+        self.assertGreen(rows)
 
     def test_unknown_or_missing_kind_is_red(self):
         rows = copy.deepcopy(ROWS)

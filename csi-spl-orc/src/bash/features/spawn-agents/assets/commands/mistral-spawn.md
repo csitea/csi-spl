@@ -81,9 +81,10 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-inbox.sh --as <YOUR
 - The CLI is `vibe` (PyPI `mistral-vibe`), installed for the agent user by
   `./run -a do_install_mistral_vibe` at the cnf pin
   `env.box.mistral_vibe.version` (spec 110 section 2.2).
-- mistral may take personal-data and secret work, as claude does (spec 110
-  D2). `do_spl_lane_mix` still routes `LANE_MIX_KIND=secret` to claude;
-  picking mistral for such work is this command, chosen by hand.
+- mistral may take personal-data and secret work, as claude and grok do
+  (spec 110 D2; the data rule in `/spawn-an-agent`). `do_spl_lane_mix` routes
+  `LANE_MIX_KIND=secret` by its cnf row; picking mistral outside that row is
+  this command, chosen by hand.
 - Auth is one key per box in the agent user's `~/.vibe/.env` (mode 0600),
   entered with `./run -a do_set_mistral_key`, never pasted into a fleet
   window. The launcher runs `env -u MISTRAL_API_KEY vibe --auto-approve`

@@ -27,8 +27,14 @@ import (
 //   - the four registered workspace keys (spec 098) and N, the idle cutoff,
 //     with the member's own override (owner Q3 = B).
 //
+//   - the spans of an entry (spec 107 3.4, rdb 0176 hours_entry_spans): its
+//     start and end times, written with the entry. An entry without spans
+//     stays valid (spec 118 Q2 A).
+//
 // Privacy (spec 1.7): only this file's Postgres side names hours_minutes, and
-// every read takes the member it is for.
+// every read takes the member it is for. Every per-member call runs in the
+// member scope (inMember, rdb 0176's member_scope): a statement that forgot
+// its member_id still reads and writes 0 rows of another member.
 
 // The four workspace settings (spec 4.2), registered keys of tenants.settings.
 const (
@@ -77,6 +83,21 @@ const (
 	HoursReturned = "returned"
 )
 
+// Span sources (rdb 0176 CHECK). An activity span is an approved
+// suggestion's block: it REPLACES the entry's earlier activity spans (a
+// suggestion is recomputed whole). Every other source ADDS to what the
+// entry holds (a stopped timer adds its interval).
+const (
+	HoursSpanActivity = "activity"
+	HoursSpanTimer    = "timer"
+	HoursSpanPlan     = "plan"
+	HoursSpanClock    = "clock"
+	HoursSpanManual   = "manual"
+)
+
+// MaxHoursSpansPerEntry bounds one entry's spans in one write.
+const MaxHoursSpansPerEntry = 96
+
 // HoursDayCap is the most minutes a member's approved entries hold in a day.
 const HoursDayCap = 1440
 
@@ -96,6 +117,9 @@ var (
 	ErrHoursFrozen = errors.New("store: the day's hours period is frozen")
 	// ErrHoursPeriodState: the period row is not in a state that allows the change.
 	ErrHoursPeriodState = errors.New("store: hours period state does not allow the change")
+	// ErrHoursOverlap: a span would overlap another span of the member in the
+	// workspace, on any target (spec 118 REQ-1; 409 overlap_in_workspace).
+	ErrHoursOverlap = errors.New("store: hours span overlaps another span of the member in this workspace")
 )
 
 // HoursMinute is one hours_minutes row.
@@ -116,6 +140,24 @@ type HoursEntry struct {
 	Note             string
 	UpdatedAt        time.Time
 	UpdatedBy        string
+	// Spans are written with the entry (spec 107 3.4): activity spans replace
+	// the entry's activity spans, other sources add. Never read back here:
+	// HoursEntrySpans reads them.
+	Spans []HoursSpan
+}
+
+// HoursSpan is one interval of an entry: [Start, End), whole minutes, UTC.
+type HoursSpan struct {
+	Start time.Time
+	End   time.Time
+	Src   string // HoursSpanActivity, HoursSpanTimer, ...
+}
+
+// HoursEntrySpan is one hours_entry_spans row: a span with its entry's key.
+type HoursEntrySpan struct {
+	Day    string
+	Target string
+	HoursSpan
 }
 
 // HoursPeriod is one hours_periods row.
@@ -162,6 +204,9 @@ type Hours interface {
 	// PutHoursEntries upserts entries of one member as by, all or none:
 	// ErrHoursFrozen for a frozen day, ErrHoursDayCap above the cap.
 	PutHoursEntries(ctx context.Context, tenant, member string, es []HoursEntry, by string, now time.Time) error
+	// HoursEntrySpans is the spans of the member's entries of days from..to
+	// (inclusive), by start.
+	HoursEntrySpans(ctx context.Context, tenant, member, from, to string) ([]HoursEntrySpan, error)
 	// DeleteHoursEntry removes one entry (an added row taken back);
 	// ErrNotFound when none, ErrHoursFrozen for a frozen day.
 	DeleteHoursEntry(ctx context.Context, tenant, member, day, target string, now time.Time) error
@@ -455,7 +500,47 @@ func checkHoursEntry(e *HoursEntry) error {
 	case len([]rune(e.Note)) > MaxHoursNote:
 		return hoursBad("a note is at most %d characters", MaxHoursNote)
 	}
+	return checkHoursSpans(e)
+}
+
+// checkHoursSpans checks e's spans against rdb 0176's CHECKs and returns
+// them in UTC, by start.
+func checkHoursSpans(e *HoursEntry) error {
+	if len(e.Spans) > MaxHoursSpansPerEntry {
+		return hoursBad("at most %d spans per entry", MaxHoursSpansPerEntry)
+	}
+	if e.Spans == nil {
+		return nil
+	}
+	ss := make([]HoursSpan, len(e.Spans))
+	for i, sp := range e.Spans {
+		sp.Start, sp.End = sp.Start.UTC(), sp.End.UTC()
+		switch {
+		case !sp.Start.Equal(sp.Start.Truncate(time.Minute)) || !sp.End.Equal(sp.End.Truncate(time.Minute)):
+			return hoursBad("a span of %s %s is not on whole minutes", e.Day, e.Target)
+		case !sp.End.After(sp.Start) || sp.End.Sub(sp.Start) > HoursDayCap*time.Minute:
+			return hoursBad("a span of %s %s ends before it starts or runs over 1440 minutes", e.Day, e.Target)
+		case !hoursSpanSrc[sp.Src]:
+			return hoursBad("span source %q", sp.Src)
+		}
+		ss[i] = sp
+	}
+	sort.Slice(ss, func(i, j int) bool { return ss[i].Start.Before(ss[j].Start) })
+	e.Spans = ss
 	return nil
+}
+
+var hoursSpanSrc = map[string]bool{HoursSpanActivity: true, HoursSpanTimer: true, HoursSpanPlan: true,
+	HoursSpanClock: true, HoursSpanManual: true}
+
+// hoursReplacesActivity says whether e's write replaces its activity spans.
+func hoursReplacesActivity(e HoursEntry) bool {
+	for _, sp := range e.Spans {
+		if sp.Src == HoursSpanActivity {
+			return true
+		}
+	}
+	return false
 }
 
 // hoursEntryCounts is what an entry adds to its day's total: a rejected row

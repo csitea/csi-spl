@@ -6,12 +6,13 @@ import (
 	"time"
 )
 
-// memHours is Memory's rdb 0151 tables, guarded by Memory.mu, each keyed by
-// (tenant, member).
+// memHours is Memory's rdb 0151 and 0176 tables, guarded by Memory.mu, each
+// keyed by (tenant, member).
 type memHours struct {
 	minutes map[[2]string]map[int64]HoursMinute    // unix minute -> row
 	entries map[[2]string]map[[2]string]HoursEntry // (day, target) -> row
 	periods map[[2]string]map[string]HoursPeriod   // period start -> row
+	spans   map[[2]string][]HoursEntrySpan         // by start
 }
 
 func (h *memHours) init() {
@@ -19,6 +20,7 @@ func (h *memHours) init() {
 		h.minutes = map[[2]string]map[int64]HoursMinute{}
 		h.entries = map[[2]string]map[[2]string]HoursEntry{}
 		h.periods = map[[2]string]map[string]HoursPeriod{}
+		h.spans = map[[2]string][]HoursEntrySpan{}
 	}
 }
 
@@ -111,14 +113,78 @@ func (s *Memory) PutHoursEntries(ctx context.Context, tenant, member string, es 
 		next[dk] = e
 	}
 	for _, e := range es {
-		e.UpdatedAt, e.UpdatedBy = now.UTC(), by
+		e.UpdatedAt, e.UpdatedBy, e.Spans = now.UTC(), by, nil
 		next[[2]string{e.Day, e.Target}] = e
 	}
 	if err := memHoursCap(next, days); err != nil {
 		return err
 	}
-	s.hrs.entries[k] = next
+	spans, err := memHoursSpans(s.hrs.spans[k], es)
+	if err != nil {
+		return err
+	}
+	s.hrs.entries[k], s.hrs.spans[k] = next, spans
 	return nil
+}
+
+// memHoursSpans is old after es's span writes, as Postgres putHoursSpans:
+// the replaced activity spans dropped, the member's own times added
+// (ErrHoursOverlap on an overlap), then the activity spans that overlap
+// nothing.
+func memHoursSpans(old []HoursEntrySpan, es []HoursEntry) ([]HoursEntrySpan, error) {
+	drop := map[[2]string]bool{}
+	for _, e := range es {
+		if hoursReplacesActivity(e) {
+			drop[[2]string{e.Day, e.Target}] = true
+		}
+	}
+	out := []HoursEntrySpan{}
+	for _, sp := range old {
+		if !(sp.Src == HoursSpanActivity && drop[[2]string{sp.Day, sp.Target}]) {
+			out = append(out, sp)
+		}
+	}
+	overlaps := func(sp HoursSpan) bool {
+		for _, o := range out {
+			if sp.Start.Before(o.End) && o.Start.Before(sp.End) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, act := range []bool{false, true} {
+		for _, e := range es {
+			for _, sp := range e.Spans {
+				if (sp.Src == HoursSpanActivity) != act {
+					continue
+				}
+				if overlaps(sp) {
+					if act {
+						continue
+					}
+					return nil, ErrHoursOverlap
+				}
+				out = append(out, HoursEntrySpan{Day: e.Day, Target: e.Target, HoursSpan: sp})
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })
+	return out, nil
+}
+
+func (s *Memory) HoursEntrySpans(_ context.Context, tenant, member, from, to string) ([]HoursEntrySpan, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := checkTenant(tenant); err != nil {
+		return nil, err
+	}
+	out := []HoursEntrySpan{}
+	for _, sp := range s.hrs.spans[[2]string{tenant, member}] {
+		if from <= sp.Day && sp.Day <= to {
+			out = append(out, sp)
+		}
+	}
+	return out, nil
 }
 
 // memHoursCap is ErrHoursDayCap when one of days sums above the cap.
@@ -146,6 +212,13 @@ func (s *Memory) DeleteHoursEntry(ctx context.Context, tenant, member, day, targ
 		return ErrNotFound
 	}
 	delete(s.hrs.entries[k], dk)
+	kept := []HoursEntrySpan{} // the FK's cascade
+	for _, sp := range s.hrs.spans[k] {
+		if sp.Day != day || sp.Target != target {
+			kept = append(kept, sp)
+		}
+	}
+	s.hrs.spans[k] = kept
 	return nil
 }
 

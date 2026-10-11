@@ -9,9 +9,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// The Postgres side of hours.go (rdb 0151). Every statement runs in the
+// The Postgres side of hours.go (rdb 0151, 0176). Every statement runs in the
 // tenant's RLS scope (FORCE RLS): a query that forgot its tenant_id still
-// cannot reach another workspace.
+// cannot reach another workspace. A per-member statement runs in the member
+// scope too (inMember, rdb 0176's member_scope): one that forgot its
+// member_id still cannot reach another member's rows.
 
 // hoursMinutesUpsert is the post-over-tab rule of spec 1.3 at write time: an
 // existing tab row takes the new target, source and zone; a post row stays.
@@ -32,13 +34,13 @@ func (s *Postgres) UpsertHoursMinutes(ctx context.Context, tenant, member string
 	for i, m := range ms {
 		at[i], tg[i], src[i], tz[i] = m.At, m.Target, m.Src, m.TZ
 	}
-	_, err = s.execTenant(ctx, tenant, hoursMinutesUpsert, tenant, member, at, tg, src, tz)
+	_, err = s.execMember(ctx, tenant, member, hoursMinutesUpsert, tenant, member, at, tg, src, tz)
 	return hoursPGErr(err)
 }
 
 func (s *Postgres) HoursMinutes(ctx context.Context, tenant, member string, from, to time.Time) ([]HoursMinute, error) {
 	out := []HoursMinute{}
-	err := s.queryTenant(ctx, tenant, `SELECT minute, target, src, tz FROM hours_minutes
+	err := s.queryMember(ctx, tenant, member, `SELECT minute, target, src, tz FROM hours_minutes
 		WHERE tenant_id = $1 AND member_id = $2 AND minute >= $3 AND minute < $4
 		ORDER BY minute`, []any{tenant, member, from, to}, func(r pgx.Rows) error {
 		var m HoursMinute
@@ -54,7 +56,7 @@ func (s *Postgres) HoursMinutes(ctx context.Context, tenant, member string, from
 
 func (s *Postgres) HoursEntries(ctx context.Context, tenant, member, from, to string) ([]HoursEntry, error) {
 	out := []HoursEntry{}
-	err := s.queryTenant(ctx, tenant, `SELECT day::text, target, minutes, suggested_minutes, state,
+	err := s.queryMember(ctx, tenant, member, `SELECT day::text, target, minutes, suggested_minutes, state,
 			coalesce(note, ''), updated_at, updated_by
 		FROM hours_entries
 		WHERE tenant_id = $1 AND member_id = $2 AND day BETWEEN $3::date AND $4::date
@@ -105,11 +107,14 @@ func (s *Postgres) PutHoursEntries(ctx context.Context, tenant, member string, e
 		d[i], tg[i], st[i], note[i] = e.Day, e.Target, e.State, e.Note
 		m[i], sm[i] = e.Minutes, e.SuggestedMinutes
 	}
-	err = s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+	err = s.inMember(ctx, tenant, member, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, hoursMemberLock, tenant, member); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, hoursEntriesUpsert, tenant, member, d, tg, m, sm, st, note, now.UTC(), by); err != nil {
+			return err
+		}
+		if err := putHoursSpans(ctx, tx, tenant, member, es); err != nil {
 			return err
 		}
 		var over string
@@ -125,11 +130,97 @@ func (s *Postgres) PutHoursEntries(ctx context.Context, tenant, member string, e
 	return hoursPGErr(err)
 }
 
+// hoursSpansDropActivity removes the activity spans of the entries a write
+// replaces them for (spec 107 3.4).
+const hoursSpansDropActivity = `DELETE FROM hours_entry_spans s
+	USING unnest($3::date[], $4::text[]) AS u(d, t)
+	WHERE s.tenant_id = $1 AND s.member_id = $2 AND s.day = u.d AND s.target = u.t AND s.src = 'activity'`
+
+// hoursSpansInsert inserts spans; with hoursSpansSkip (the activity spans)
+// a span that overlaps a stored one is skipped, not refused.
+const (
+	hoursSpansInsert = `INSERT INTO hours_entry_spans (tenant_id, member_id, day, target, start_at, end_at, src)
+	SELECT $1, $2, u.d, u.t, u.s, u.e, u.src
+	FROM unnest($3::date[], $4::text[], $5::timestamptz[], $6::timestamptz[], $7::text[]) AS u(d, t, s, e, src)`
+	hoursSpansSkip = ` ON CONFLICT DO NOTHING`
+)
+
+// hoursSpanCols is one INSERT's spans as unnest columns.
+type hoursSpanCols struct {
+	d, tg, src []string
+	st, en     []time.Time
+}
+
+func (c *hoursSpanCols) add(e HoursEntry, sp HoursSpan) {
+	c.d, c.tg, c.src = append(c.d, e.Day), append(c.tg, e.Target), append(c.src, sp.Src)
+	c.st, c.en = append(c.st, sp.Start), append(c.en, sp.End)
+}
+
+// putHoursSpans writes es's spans in the entries' transaction (spec 107 3.4):
+// the activity spans dropped where es replaces them; then the member's own
+// times (timer, plan, clock, manual), where an overlap with any span of the
+// member (rdb 0176's EXCLUDE, or the same start: the PK) is ErrHoursOverlap;
+// then the activity spans, the hub's own derivation, skipped where they
+// overlap a stored span (their minutes stay unplaced, spec 118 6.2).
+func putHoursSpans(ctx context.Context, tx pgx.Tx, tenant, member string, es []HoursEntry) error {
+	var rd, rt []string
+	var own, act hoursSpanCols
+	for _, e := range es {
+		if hoursReplacesActivity(e) {
+			rd, rt = append(rd, e.Day), append(rt, e.Target)
+		}
+		for _, sp := range e.Spans {
+			if sp.Src == HoursSpanActivity {
+				act.add(e, sp)
+			} else {
+				own.add(e, sp)
+			}
+		}
+	}
+	if len(rd) > 0 {
+		if _, err := tx.Exec(ctx, hoursSpansDropActivity, tenant, member, rd, rt); err != nil {
+			return err
+		}
+	}
+	if len(own.d) > 0 {
+		_, err := tx.Exec(ctx, hoursSpansInsert, tenant, member, own.d, own.tg, own.st, own.en, own.src)
+		var pe *pgconn.PgError
+		if errors.As(err, &pe) && (pe.Code == "23P01" || (pe.Code == "23505" && pe.ConstraintName == "hours_entry_spans_pkey")) {
+			return ErrHoursOverlap
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if len(act.d) > 0 {
+		_, err := tx.Exec(ctx, hoursSpansInsert+hoursSpansSkip, tenant, member, act.d, act.tg, act.st, act.en, act.src)
+		return err
+	}
+	return nil
+}
+
+func (s *Postgres) HoursEntrySpans(ctx context.Context, tenant, member, from, to string) ([]HoursEntrySpan, error) {
+	out := []HoursEntrySpan{}
+	err := s.queryMember(ctx, tenant, member, `SELECT day::text, target, start_at, end_at, src
+		FROM hours_entry_spans
+		WHERE tenant_id = $1 AND member_id = $2 AND day BETWEEN $3::date AND $4::date
+		ORDER BY start_at`, []any{tenant, member, from, to}, func(r pgx.Rows) error {
+		var sp HoursEntrySpan
+		if err := r.Scan(&sp.Day, &sp.Target, &sp.Start, &sp.End, &sp.Src); err != nil {
+			return err
+		}
+		sp.Start, sp.End = sp.Start.UTC(), sp.End.UTC()
+		out = append(out, sp)
+		return nil
+	})
+	return out, err
+}
+
 func (s *Postgres) DeleteHoursEntry(ctx context.Context, tenant, member, day, target string, now time.Time) error {
 	if err := refuseFrozen(ctx, s, tenant, member, []string{day}, now); err != nil {
 		return err
 	}
-	tag, err := s.execTenant(ctx, tenant, `DELETE FROM hours_entries
+	tag, err := s.execMember(ctx, tenant, member, `DELETE FROM hours_entries
 		WHERE tenant_id = $1 AND member_id = $2 AND day = $3::date AND target = $4`, tenant, member, day, target)
 	if err != nil {
 		return err

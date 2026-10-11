@@ -18,8 +18,8 @@ import (
 // seeds one row of each); this file proves what each scope reads and may
 // write. Postgres only (SPOOL_TEST_PG_DSN).
 
-// hoursTables are rdb 0151's tables.
-var hoursTables = []string{"hours_minutes", "hours_entries", "hours_periods"}
+// hoursTables are rdb 0151's tables and rdb 0176's hours_entry_spans.
+var hoursTables = []string{"hours_minutes", "hours_entries", "hours_periods", "hours_entry_spans"}
 
 // seedHours writes one row of each hours table for member in tenant, under
 // the tenant's own scope (the runtime path: RLS WITH CHECK admits it).
@@ -37,6 +37,9 @@ func seedHours(ctx context.Context, pg *Postgres, tenant, member string, at time
 				VALUES ($1, $2, $3::date, 'ws', 15, 15, 'approved', $2)`, []any{tenant, member, day}},
 			{`INSERT INTO hours_periods (tenant_id, member_id, period_start, period_end, state, minutes, decided_by)
 				VALUES ($1, $2, $3::date, $3::date + 6, 'frozen', 15, 'sweep')`, []any{tenant, member, day}},
+			{`INSERT INTO hours_entry_spans (tenant_id, member_id, day, target, start_at, end_at, src)
+				VALUES ($1, $2, $3::date, 'ws', $3::date::timestamptz, $3::date::timestamptz + interval '15 minutes', 'timer')`,
+				[]any{tenant, member, day}}, // rdb 0176, spec 107 3.4
 		} {
 			if _, err := tx.Exec(ctx, q.sql, q.args...); err != nil {
 				return err
@@ -94,7 +97,8 @@ func TestRLSHoursScopes(t *testing.T) {
 	if err := seedHours(ctx, pg, t1, "HUM-1", now); err != nil {
 		t.Fatal(err)
 	}
-	all, none := "hours_minutes=1 hours_entries=1 hours_periods=1 ", "hours_minutes=0 hours_entries=0 hours_periods=0 "
+	all, none := "hours_minutes=1 hours_entries=1 hours_periods=1 hours_entry_spans=1 ",
+		"hours_minutes=0 hours_entries=0 hours_periods=0 hours_entry_spans=0 "
 	for _, c := range []struct{ scope, want string }{
 		{"tenant:" + t2, none}, {"empty", none}, {"none", none}, {"tenant:" + t1, all}, {"operator", all},
 	} {

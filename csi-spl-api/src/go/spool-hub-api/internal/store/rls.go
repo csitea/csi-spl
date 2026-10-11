@@ -20,6 +20,9 @@ const (
 	// pgScopeChannel is the tenant scope plus rdb 0169's channel scope, in one
 	// statement, so no moment of the transaction holds one without the other.
 	pgScopeChannel = `SELECT set_config('app.tenant_id', $1, true), set_config('app.channel_scope', $2, true)`
+	// pgScopeMember is the tenant scope plus rdb 0176's member scope, in one
+	// statement, like pgScopeChannel.
+	pgScopeMember = `SELECT set_config('app.tenant_id', $1, true), set_config('app.member_id', $2, true)`
 )
 
 // ErrNoTenant: a tenant-scoped statement was asked for without a tenant. The
@@ -86,6 +89,64 @@ func (s *Postgres) inChannel(ctx context.Context, tenant, channel string, fn fun
 	})
 }
 
+// ErrNoMember: a member-scoped statement was asked for without a member.
+// An empty member reads as "no member scope" to rdb 0176's policy (every
+// member's rows), so the store refuses it before Postgres sees it.
+var ErrNoMember = errors.New("store: member-scoped statement without a member")
+
+// inMember runs fn in one transaction scoped to tenant AND one member of it
+// (spec 107 3.4, rdb 0176's restrictive member_scope on hours_entries,
+// hours_entry_spans, hours_minutes): a statement in fn that forgets WHERE
+// member_id still cannot read or write another member's hours rows.
+// Transaction-local, like inTenant's scope.
+func (s *Postgres) inMember(ctx context.Context, tenant, member string, fn func(pgx.Tx) error) error {
+	if err := checkTenant(tenant); err != nil {
+		return err
+	}
+	if strings.TrimSpace(member) == "" {
+		return ErrNoMember
+	}
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, pgScopeMember, tenant, member); err != nil {
+			return err
+		}
+		return fn(tx)
+	})
+}
+
+// memberBatch is tenantBatch under inMember's scope: the scope and ONE
+// statement in one round trip.
+func (s *Postgres) memberBatch(ctx context.Context, tenant, member, sql string, args []any, use func(pgx.BatchResults) error) error {
+	if err := checkTenant(tenant); err != nil {
+		return err
+	}
+	if strings.TrimSpace(member) == "" {
+		return ErrNoMember
+	}
+	return s.scopeBatch(ctx, pgScopeMember, []any{tenant, member}, sql, args, use)
+}
+
+// execMember is one statement in member's scope.
+func (s *Postgres) execMember(ctx context.Context, tenant, member, sql string, args ...any) (pgconn.CommandTag, error) {
+	var tag pgconn.CommandTag
+	err := s.memberBatch(ctx, tenant, member, sql, args, func(br pgx.BatchResults) (err error) {
+		tag, err = br.Exec()
+		return err
+	})
+	return tag, err
+}
+
+// queryMember is one query in member's scope; each is called once per row.
+func (s *Postgres) queryMember(ctx context.Context, tenant, member, sql string, args []any, each func(pgx.Rows) error) error {
+	return s.memberBatch(ctx, tenant, member, sql, args, func(br pgx.BatchResults) error {
+		rows, err := br.Query()
+		if err != nil {
+			return err
+		}
+		return scanRows(rows, each)
+	})
+}
+
 // tenantBatch sends the tenant scope and ONE statement as a single batch:
 // one round trip, run by Postgres as one implicit transaction, so the scope
 // ends with it (measured: inTenant's BEGIN / set_config / COMMIT added three
@@ -94,8 +155,14 @@ func (s *Postgres) tenantBatch(ctx context.Context, tenant, sql string, args []a
 	if err := checkTenant(tenant); err != nil {
 		return err
 	}
+	return s.scopeBatch(ctx, pgScopeTenant, []any{tenant}, sql, args, use)
+}
+
+// scopeBatch sends scope (a set_config statement) and ONE statement as a
+// single batch, one implicit transaction.
+func (s *Postgres) scopeBatch(ctx context.Context, scope string, scopeArgs []any, sql string, args []any, use func(pgx.BatchResults) error) error {
 	b := &pgx.Batch{}
-	b.Queue(pgScopeTenant, tenant)
+	b.Queue(scope, scopeArgs...)
 	b.Queue(sql, args...)
 	br := s.pool.SendBatch(ctx, b)
 	if _, err := br.Exec(); err != nil {

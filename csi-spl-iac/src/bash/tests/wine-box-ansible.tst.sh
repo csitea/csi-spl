@@ -38,7 +38,8 @@ grep -q 'secrets_src' "$D/roles/06_secrets/tasks/main.yml" && grep -q 'no_log: t
   && pass "secrets are copied only from secrets_src, no_log" || fail "secrets role drifted"
 grep -q 'data_disk_enabled' "$D/roles/01_data_disk/tasks/main.yml" \
   && grep -q 'mkfs.ext4' "$D/roles/01_data_disk/tasks/main.yml" \
-  && pass "the data disk is formatted only when enabled and blank" || fail "data disk role drifted"
+  && grep -q 'a format or mount error stops the play' "$D/roles/01_data_disk/tasks/main.yml" \
+  && pass "the data disk is formatted only when enabled and blank, and a failure stops the play" || fail "data disk role drifted"
 grep -q 'system.reg' "$D/roles/07_wine/tasks/main.yml" && grep -q 'install_recommends: false' "$D/roles/07_wine/tasks/main.yml" \
   && pass "the Wine prefix is initialised once, recommends off" || fail "wine role drifted"
 

@@ -51,3 +51,7 @@
     - name: Mount the data disk
       ansible.builtin.command: mount {{ data_disk_mount }}
       when: data_mounted.rc != 0
+  rescue:
+    - name: Stop when the data disk cannot be prepared
+      ansible.builtin.fail:
+        msg: "the data disk block failed; a format or mount error stops the play"

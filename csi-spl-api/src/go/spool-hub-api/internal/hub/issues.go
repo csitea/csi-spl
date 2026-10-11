@@ -446,7 +446,9 @@ type issueFilter struct {
 	status, assignee, label map[string]bool
 	priority, level         map[int]bool
 	before, after           *time.Time
-	sort                    string
+	sort, dir               string          // issues_page.go: the order and its direction
+	limit                   int             // ?limit=; 0 = the whole list
+	cursor                  *store.Issue    // ?cursor=: the last row of the page before
 	epic                    map[int]bool    // SPL-18: rows under these level-1 rows
 	parent                  map[int]bool    // rows whose direct parent is one of these
 	kind                    map[string]bool // epic | feature | issue | subtask
@@ -475,7 +477,7 @@ func intSet(v string, max int) (map[int]bool, bool) {
 }
 
 // parseIssueFilter reads ?status=&priority=&level=&assignee=&label=
-// &deadline_before=&deadline_after=&sort=. assignee "me" is the caller,
+// &deadline_before=&deadline_after=&sort=&dir=&limit=&cursor=. assignee "me" is the caller,
 // "none" is unassigned.
 func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr) {
 	get := func(k string) string {
@@ -540,12 +542,7 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 			return f, badIssue("kind must be epic, feature, issue or subtask")
 		}
 	}
-	switch f.sort = get("sort"); f.sort {
-	case "", "priority", "level", "deadline", "updated", "created", "number":
-	default:
-		return f, badIssue("sort must be priority, level, deadline, updated, created or number")
-	}
-	return f, nil
+	return f, parseIssuePage(get, &f)
 }
 
 func (f issueFilter) match(i store.Issue, get issueGetter) bool {
@@ -588,50 +585,8 @@ func allowsAny[K comparable](set map[K]bool, vs []K) bool {
 	return false
 }
 
-// SortIssues orders like Linear: priority urgent first and "no priority"
-// last; level top of the tree first (1 epic / feature, 2 issue, 3 subtask); deadline soonest first and none last;
-// updated / created newest first. Ties: the newest number first.
-func SortIssues(list []store.Issue, by string) {
-	prio := func(p int) int {
-		if p == 0 {
-			return store.IssuePriorityMax + 1
-		}
-		return p
-	}
-	sort.SliceStable(list, func(a, b int) bool {
-		x, y := list[a], list[b]
-		switch by {
-		case "", "priority":
-			if prio(x.Priority) != prio(y.Priority) {
-				return prio(x.Priority) < prio(y.Priority)
-			}
-		case "level":
-			if x.Level != y.Level {
-				return x.Level < y.Level
-			}
-		case "deadline":
-			switch {
-			case x.Deadline == nil && y.Deadline != nil:
-				return false
-			case x.Deadline != nil && y.Deadline == nil:
-				return true
-			case x.Deadline != nil && !x.Deadline.Equal(*y.Deadline):
-				return x.Deadline.Before(*y.Deadline)
-			}
-		case "updated":
-			if !x.UpdatedAt.Equal(y.UpdatedAt) {
-				return x.UpdatedAt.After(y.UpdatedAt)
-			}
-		case "created":
-			if !x.CreatedAt.Equal(y.CreatedAt) {
-				return x.CreatedAt.After(y.CreatedAt)
-			}
-		}
-		return x.Number > y.Number
-	})
-}
-
-// listIssues is the one list path (browser and agent).
+// listIssues is the one list path (browser and agent). A page is f.limit
+// rows (0 = the whole list), in the order of issues_page.go.
 func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (map[string]any, *issueErr) {
 	is, ie := s.issueStore()
 	if ie != nil {
@@ -663,9 +618,9 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 			counts[i.Status]++
 		}
 	}
-	SortIssues(kept, f.sort)
-	out := make([]issueJSON, len(kept))
-	for k, i := range kept {
+	page, next := pageIssues(kept, f, f.limit)
+	out := make([]issueJSON, len(page))
+	for k, i := range page {
 		out[k] = toIssueJSON(i, get)
 	}
 	lj := make([]issueLabelJSON, len(labels))
@@ -673,7 +628,8 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 		lj[k] = toLabelJSON(l)
 	}
 	return map[string]any{"prefix": prefix, "statuses": store.IssueStatuses, "counts": counts, "epics": epicSummaries(all),
-		"issues": out, "labels": lj, "channel": IssueChannel}, nil
+		"issues": out, "labels": lj, "channel": IssueChannel,
+		"total": len(kept), "next_cursor": next}, nil
 }
 
 func writeIssueErr(w http.ResponseWriter, ie *issueErr) {

@@ -1,8 +1,10 @@
 # 118 Multi-Workspace Hours Tracking
 
-**Status**: v1.0 (panel consensus of four seats; signed, section 11.4; owner questions open, section 12)
+**Status**: v1.1 (panel consensus of four seats; signed, section 11.4; v1.1 folds the owner's answer "Yes all a" to Q1..Q10, owner, 2026-10-11, msg 23d782e1, section 12)
 
 Read beside it: [107 hours tracking](../107-hours-tracking/spec.md) (v2.0-draft: the per-workspace model this spec reuses), [119 personal realm](../119-personal-realm/spec.md) (v0.1: where the personal view lives). The panel's seat files: [reviews/](reviews/).
+
+**Depends on a spec 107 change** (Q1 A, Q3 A, owner, 2026-10-11, msg 23d782e1): 107's store gains start and end times, the `hours_entry_spans` table of 5.3 (the timer, the plan and the clock keep their times instead of dropping them), and the database member guard of 5.2 on `hours_entries`, `hours_entry_spans`, `hours_minutes`. 118 does not edit spec 107: that 107 change is the next build step, and 118's overlap read (5.3, 6) is built after it.
 
 ## 1. Context and Goals
 The goal is to allow each person to individually report and track their own hours across multiple workspaces at once, in a unified view. Each person sees and tracks (enters, not read-only) their own hours across all workspaces they belong to. Cross-workspace reads remain person-only and RLS-safe.
@@ -11,7 +13,7 @@ The goal is to allow each person to individually report and track their own hour
 
 - **REQ-1 (Workspace Scope & Overlaps)**: Hours stay per workspace for approval and accounting. **Within** a workspace a minute counts once, for one target (107 1.1 rule 5); two entries of one person whose times overlap in the same workspace are refused (section 5.3). **Across** workspaces the same wall-clock minute may be entered in each (e.g., a component invoiced to two organizations). Double counting across workspaces is allowed, but double counting within a single workspace is forbidden. *(v1.0: the v0.1 wording "a tracked minute counts in one workspace only" contradicted the next sentence; reworded by all three claude seats.)*
 - **REQ-2 (Working-Time Limits)**: Working-time limits are evaluated on the cross-workspace **actual** total (D1, D3) by the person themselves. Foremen, time-accountants and the external accountant seat (107 FR-21, FR-22) see only inside their own workspace and cannot enforce global cross-workspace limits: no field, route, export or report of a workspace carries a cross-workspace number. A workspace's own overtime flag (107 FR-28) is unchanged.
-- **REQ-3 (Standard Days)**: The standard day is set and configured on a per-workspace basis (e.g., 8 hours in Workspace A, and 4 hours in Workspace B): the person's **resolved** standard day per workspace (107 FR-14: the person override, else the workspace's). The personal view shows each workspace's own and never sums them into one target.
+- **REQ-3 (Standard Days)**: The standard day is set and configured on a per-workspace basis (e.g., 8 hours in Workspace A, and 4 hours in Workspace B): the person's **resolved** standard day per workspace (107 FR-14: the person override, else the workspace's). The personal view shows each workspace's own and never sums them into one target: no summed standard-day line (Q9 A, owner, 2026-10-11, msg 23d782e1).
 - **REQ-4 (Unified Tracking UI)**: The user must be able to see and track (enter) their hours from multiple workspaces in one unified place. Each entry is saved into its respective workspace **under that workspace's own rules unchanged** (freeze 107 4.2, day total <= 1440, its targets, its permissions); a refusal in one workspace never blocks or rolls back another (section 7).
 
 ## 3. Owner Decisions
@@ -56,6 +58,7 @@ What 118 needs from the realm is the contract in section 9: the 118 side of the 
 - **Which workspaces**: `Memberships(ctx, caller)`, minus a membership whose only role is `time_accountant` (107 FR-21: no own hours). The request cannot name a workspace. At most 20 workspaces per call, a 21st is 400 `too_many_workspaces`, never silently dropped.
 - **How**: for each workspace W, one `inTenant(W)` transaction (never `asOperator`, never `app.rls_scope = operator`) running the existing 107 store reads with `member = caller` (never `""`, the store's "every member"): `HoursEntries`, `HoursPeriods`, the spans of 5.3, and today's `HoursMinutes` for the open suggestions. At most **2 workspaces in flight** (pool 8, shared with the hub).
 - `app.person_id` (119) is **never set in the same transaction** as `app.tenant_id` (119 section 5): the realm reads (limit, zone, receipts) are their own transaction.
+- **Member guard in the database** (Q3 A, owner, 2026-10-11, msg 23d782e1): an `app.member_id` setting beside `app.tenant_id` and a `member_scope` policy on `hours_entries`, `hours_entry_spans`, `hours_minutes`, so a dropped `member_id` predicate still reads 0 foreign rows; tested in the 0098 shape. The route filter stays as well.
 - **A failed workspace read** (store error, timeout, membership removed mid-request) returns that workspace as `{"state":"unavailable"}`; the totals are marked `incomplete`. Never a silent zero, never retried under a broader scope.
 - **Privacy**: never raw `hours_minutes` rows, never another member's row. The reads go through the existing hours store functions, so 107's 1.7 grep test stays green unchanged.
 - Nothing is written by the read.
@@ -79,7 +82,7 @@ What 118 needs from the realm is the contract in section 9: the 118 side of the 
 - **Retention**: kept with the entries under 107 FR-34, never pruned at the freeze (unlike `hours_minutes`); deleted by cascade with the entry.
 - **Migration**: one forward-only file, the next free number, DDL first, applied to dev and prd before any code reads it.
 
-Without spans, "actual" equals "reported" on every frozen week and D1's mark is empty exactly where an invoice needs it. Whether to build it is owner question **Q1**.
+Without spans, "actual" equals "reported" on every frozen week and D1's mark is empty exactly where an invoice needs it. **Decided** (Q1 A, owner, 2026-10-11, msg 23d782e1): spans are built, as a 107 store change ahead of 118's build (the dependency at the top).
 
 ## 6. Reported vs actual: the overlap computation (D1)
 
@@ -93,7 +96,7 @@ One pure Go function in `internal/hours` (`Across(days []WorkspaceDay, zone, now
 2. **Reported(D)** = Σ over W of the entries' minutes: approved plus open suggestions, the open part shown as "of which open h:mm". Rejected rows count 0.
 3. Within each W its spans never overlap (5.3); an overlap found in old data is counted as `data_error_minutes`, logged and shown to the person as a fix-me mark, never hidden.
 4. **Sweep line** over the endpoints of all workspaces' spans, sorted, an end before a start at the same instant (`[09:00,10:00)` and `[10:00,11:00)` do not overlap), keeping the set of open workspaces. Each stretch where the set holds 2 or more is an **overlap interval** `{start, end, workspaces[]}`. O(k log k); a heavy month is under 1,000 spans.
-5. **Actual(D)** = |union of the spans| + Σ unplaced minutes. Unplaced minutes are **assumed not to overlap**, so actual errs high, never low, and the D3 warning comes early rather than late. A day with unplaced minutes shows `≈` and "h:mm without times, overlap not checked".
+5. **Actual(D)** = |union of the spans| + Σ unplaced minutes. Unplaced minutes are **assumed not to overlap**, so actual errs high, never low, and the D3 warning comes early rather than late. A day with unplaced minutes shows `≈` and "h:mm without times, overlap not checked" (Q2 A, owner, 2026-10-11, msg 23d782e1: an entry without times stays allowed).
 6. **Overlap(D)** = reported(D) - actual(D), never negative.
 7. A week or a month is the sum of its days, never a second union path.
 
@@ -107,7 +110,7 @@ One pure Go function in `internal/hours` (`Across(days []WorkspaceDay, zone, now
 | **DST** | UTC instants: a 23 h or 25 h day needs no special case; the bounds come from the zone database. 107's 1440-minute cap is per workspace and untouched. |
 | **edit after approval** | Frozen and approved periods cannot change (107 4.2); a Return (107 4.3) and a resubmit show on the next read. Only the D4 receipt is a snapshot. |
 | **a day above 24 h** | Impossible per workspace (107 3.2); the cross-workspace reported total may exceed 24 h, which is D1's case: shown, never refused. |
-| **left workspace** | Its rows come from the receipt (C5): reported counts them, actual counts them as unplaced (unless Q5 keeps spans in receipts). |
+| **left workspace** | Its rows come from the receipt (C5): reported counts them, actual counts them as unplaced (receipts keep no times: Q5 A, owner, 2026-10-11, msg 23d782e1). |
 | **workspace unavailable** | Computed over the rest, the day marked `incomplete`, the workspace named (5.2). |
 
 ### 6.4 Output
@@ -143,11 +146,11 @@ While typing, the day strip marks a new overlap **with another workspace** as in
 - Edit or reject an existing row from the personal view: the same route, that row's workspace. The workspace of an existing row cannot change: moving an hour is delete in A plus add in B, two visible writes.
 - **Timer**: Start in the personal view asks the workspace, then the target, and stores the running timer under that workspace's localStorage key (107 1.5), so the workspace's own header shows it too. One timer is for one workspace; several may run (D2). Stop writes through `PUT /v1/me/realm/hours` with `{start, end}`, split at the member's midnight in that workspace, as 107's timer does.
 - **Approve day / Approve week** stay in each workspace's calendar dialog (107 5.2); the personal view links there and does not duplicate them.
-- "Also enter in …" (a one-tap copy into another workspace as a new row): owner question **Q4**.
+- **"Also enter in …"** (Q4 A, owner, 2026-10-11, msg 23d782e1): one tap copies a saved row's start and end into another workspace as a new row, its target picked there; a separate entry through the same save (7.2), never automatic.
 
 ## 8. UI of the personal view
 
-A realm page, **My hours** (`/me/hours`), one lazy chunk: nothing in the initial bundle (the 160 KB budget, `perf-budget.py`). Entry points: the person menu, and an "All my workspaces" link in each workspace's hours panel and Working hours dialog (107 5.2, 5.4) for a person with 2+ workspaces. The link carries no cross-workspace number into the workspace.
+A realm page, **My hours** (`/me/hours`), one lazy chunk: nothing in the initial bundle (the 160 KB budget, `perf-budget.py`). Entry points: the person menu, and an "All my workspaces" link in each workspace's hours panel and Working hours dialog (107 5.2, 5.4) for a person with 2+ workspaces. The link carries no cross-workspace number into the workspace. No download of the person's own hours (CSV or other) in v1 (Q10 A, owner, 2026-10-11, msg 23d782e1).
 
 ### 8.1 Desktop (> 820 px)
 
@@ -190,7 +193,7 @@ The 118 side of the 118/119 interface; the 119 panel (orch ask `e7b7320c`) answe
 | **C2 route home** | `GET /v1/me/realm/hours`, `PUT /v1/me/realm/hours`, `GET /v1/me/realm/targets` (5.2, 7) live in the realm's route group: human session only, no `X-Spool-Tenant`, refused under act-as (054), for agents and box tokens. The page `/me/hours` is a realm page; 119 owns its frame and navigation. | |
 | **C3 settings** | In 119's one `personal` schema (FORCE RLS on `app.person_id`): `hours_limit_day_minutes` (NULL = off, 60..1440) and `hours_limit_week_minutes` (NULL = off, 60..10080), each optional; read and written only by the person. No `tenants.settings` key, no 098 registered key, no workspace column. | D3, REQ-2 |
 | **C4 zone** | The personal view's zone in the realm profile, `personal.profile.time_zone` (IANA, NULL = the browser's; name aligned with the 119 editor, c-787). | 6.2, 6.3 |
-| **C5 receipts** | `personal.hours_receipts`: `person_id` (`REFERENCES public.humans (human_id) ON DELETE CASCADE`: hub-wide identity, not a workspace), `workspace_id` (text, the copied workspace id, **no FK to any workspace table**; never named `tenant_id`, so the RLS gates and `do_spl_db_rls_check` never take a realm table for a workspace table: 119 bans `tenant_id` in `personal.*`), `workspace_name`, `day`, `minutes`, `label`, `kind` (107 FR-27), `period_start`, `period_end`, `approval_state`, `approver_name`, `copied_at`, `rev` (`smallint NOT NULL DEFAULT 0 CHECK (rev IN (0,1))`); PK `(person_id, workspace_id, day, label, kind, rev)`, minutes summed per (day, label, kind), so a work row and a travel row under one type-only label never collide (raised by s119-claude-2/-3, c-787 msg `9cdbbb68`). Append-only: the runtime role has INSERT only, no UPDATE or DELETE (the 0157 rev-log shape); the view reads `max(rev)` per key. The leave copy is rev 0; under Q6-A the one refresh of the last open period is rev 1, for that period's days only; under Q6-B rev stays 0 (shape agreed with the 119 editor, c-787). **Label**: a `job:` target's job name and site (107 FR-18); for `t:`, `ch:`, `dm:`, `cal:` only the type (`topic`, `channel`, `direct message`, `meeting`), never a title; `ws` = `workspace`. The entry note is never copied (content). **When**: on membership removal, copy first, then remove; two transactions (read under `inTenant(W)` for that member, write in the realm scope); idempotent (`ON CONFLICT DO NOTHING` per rev); a failed copy blocks the removal and is retried, never a leaver without a receipt; `access_until` passing is copied by the sweep that notices it. A rejoin does not merge receipts back. | D4, 119 REQ-4/5, Q5..Q8 |
+| **C5 receipts** | `personal.hours_receipts`: `person_id` (`REFERENCES public.humans (human_id) ON DELETE CASCADE`: hub-wide identity, not a workspace), `workspace_id` (text, the copied workspace id, **no FK to any workspace table**; never named `tenant_id`, so the RLS gates and `do_spl_db_rls_check` never take a realm table for a workspace table: 119 bans `tenant_id` in `personal.*`), `workspace_name`, `day`, `minutes`, `label`, `kind` (107 FR-27), `period_start`, `period_end`, `approval_state`, `approver_name`, `copied_at`, `rev` (`smallint NOT NULL DEFAULT 0 CHECK (rev IN (0,1))`); PK `(person_id, workspace_id, day, label, kind, rev)`, minutes summed per (day, label, kind), so a work row and a travel row under one type-only label never collide (raised by s119-claude-2/-3, c-787 msg `9cdbbb68`). Append-only: the runtime role has INSERT only, no UPDATE or DELETE (the 0157 rev-log shape); the view reads `max(rev)` per key. The leave copy is rev 0; the one refresh of the last open period, when it freezes or is approved, is rev 1, for that period's days only (Q6 A, owner, 2026-10-11, msg 23d782e1; shape agreed with the 119 editor, c-787). No span columns (Q5 A). `approver_name` is kept for the workspace's `hours.retention_years` at copy time (107 FR-34), then blanked (Q8 A). **Label**: a `job:` target's job name and site (107 FR-18); for `t:`, `ch:`, `dm:`, `cal:` only the type (`topic`, `channel`, `direct message`, `meeting`), never a title; `ws` = `workspace`. The entry note is never copied (content). **When**: on membership removal, copy first, then remove; on a workspace delete, copy for every member first, then delete (Q7 A); two transactions (read under `inTenant(W)` for that member, write in the realm scope); idempotent (`ON CONFLICT DO NOTHING` per rev); a failed copy blocks the removal and is retried, never a leaver without a receipt; `access_until` passing is copied by the sweep that notices it. A rejoin does not merge receipts back. | D4, 119 REQ-4/5, Q5..Q8 |
 | **C6 receipts in the view** | The realm route reads the person's receipts in the realm transaction and merges them as "left" workspaces (6.3). | |
 | **C7 nothing flows down** | No realm data (limit, actual, overlap, other workspaces' hours, receipts, zone) is ever written into a workspace. A person's own entry made on the realm screen is an ordinary member write into that workspace, through 107's write, under that workspace's rules: proposed wording for 119 REQ-6. | see 9.1 |
 
@@ -198,7 +201,7 @@ The 118 side of the 118/119 interface; the 119 panel (orch ask `e7b7320c`) answe
 
 | with | what | settled as |
 |---|---|---|
-| 107 3.2 (no times on entries), 107 1.5 (the timer drops its times) | D1 needs intervals | 5.3 `hours_entry_spans`, a 107 store change: owner question Q1 |
+| 107 3.2 (no times on entries), 107 1.5 (the timer drops its times) | D1 needs intervals | 5.3 `hours_entry_spans`, a 107 store change: Q1 A (owner, 2026-10-11, msg 23d782e1), the dependency at the top |
 | 107 1.6 (the day in each workspace's zone) | one personal day across workspaces | 6.3: spans re-bucketed to the personal zone, unplaced rows stay on their workspace date |
 | 107 1.1 rule 5 ("a minute is never counted twice") | none once REQ-1 is reworded: it is within one workspace | REQ-1 v1.0 |
 | 107 FR-37 | none: it hands cross-workspace tracking to this spec | consistent |
@@ -287,18 +290,20 @@ Each seat replied on `dispatch-cee5a73e` with "s118-<seat> signs <sha>" against 
 
 ## 12. Questions for the owner (one list, deduplicated from the four seats; the panel's recommendation first)
 
-| # | question | options | from |
-|---|---|---|---|
-| **Q1** | Keep times of day: add `hours_entry_spans` to 107's store (5.3) and keep the timer's, plan's and clock's times, so D1 can compute actual and mark overlaps? | **A (recommended)**: yes, a 107 store change inside 118's build. B: no; D1 only where raw minutes still exist (the open period, <= 45 days), actual = reported on every frozen week. C: v2 day spans only (FR-32, one interval per workspace-day, coarse) | -1 (2.1), -2 OQ-1, -3 O6 |
-| **Q2** | An entry **without times** (a typed number, old rows) when the person has 2+ workspaces | **A (recommended)**: allowed, counted as not overlapping, marked `≈`. B: the 118 screen requires start and end for every new entry (old rows as A) | -1 OQ2, -3 O1 |
-| **Q3** | A **database-side member guard**: an `app.member_id` setting beside `app.tenant_id` and a `member_scope` policy on `hours_entries`, `hours_entry_spans`, `hours_minutes`, so a dropped `member_id` predicate still reads 0 foreign rows | **A (recommended)**: yes, with the 0098-shape tests. B: the route filter only, as 107 does today | -2 OQ-5 |
-| **Q4** | An "**Also enter in …**" shortcut: copy a saved row's start and end into another workspace as a new row, its target picked there | **A (recommended)**: yes, one tap, a separate entry, never automatic. B: no, each row typed by hand | -1 OQ4, -2 4.4, -3 O4 |
-| **Q5** | Do **receipts keep times of day** (spans), so a past overlap stays exact? | **A (recommended)**: no, minutes per day as D4 lists. B: yes | -1 OQ3, -2 OQ-3 |
-| **Q6** | A receipt whose last period was **still open at leave time** | **A (recommended)**: refreshed once when that period freezes or is approved, then fixed. B: frozen at leave time | -1 OQ5, -2 C3 |
-| **Q7** | A **deleted workspace** (the tenant delete cascades every `hours_*` row): do its members get receipts? | **A (recommended)**: yes, the delete copies receipts first. B: no, D4 covers leaving only | -3 O5 |
-| **Q8** | How long the realm keeps the **approver's name** (another person's name) in a receipt | **A (recommended)**: the workspace's `hours.retention_years` at copy time (107 FR-34). B: as long as the receipt | -2 OQ-6 |
-| **Q9** | A "standard" line in the personal view across workspaces | **A (recommended)**: none, only per workspace (REQ-3). B: also the sum of the workspaces' standard days as a reference line, with no warning | -2 OQ-2, mistral Q4 |
-| **Q10** | A **personal download** (CSV of the person's own rows across workspaces, receipts included) | **A (recommended)**: not in the first version. B: yes, person-only | -2 OQ-4 |
+**Decided** by the owner, 2026-10-11, msg 23d782e1 (t1 cee5a73e, HUM-10): "Yes all a". Every question is A; each is folded where the last column says. Q5..Q8 and Q10 answer 119's OQ-2, OQ-11, OQ-6, OQ-3 and OQ-8 too (119 section 13).
+
+| # | question | options | from | decided |
+|---|---|---|---|---|
+| **Q1** | Keep times of day: add `hours_entry_spans` to 107's store (5.3) and keep the timer's, plan's and clock's times, so D1 can compute actual and mark overlaps? | **A (recommended)**: yes, a 107 store change inside 118's build. B: no; D1 only where raw minutes still exist (the open period, <= 45 days), actual = reported on every frozen week. C: v2 day spans only (FR-32, one interval per workspace-day, coarse) | -1 (2.1), -2 OQ-1, -3 O6 | **A** (owner, 2026-10-11, msg 23d782e1): spans built as a 107 store change first (top dependency, 5.3, 9.1) |
+| **Q2** | An entry **without times** (a typed number, old rows) when the person has 2+ workspaces | **A (recommended)**: allowed, counted as not overlapping, marked `≈`. B: the 118 screen requires start and end for every new entry (old rows as A) | -1 OQ2, -3 O1 | **A** (owner, 2026-10-11, msg 23d782e1): allowed, not overlapping, marked `≈` (6.2 step 5) |
+| **Q3** | A **database-side member guard**: an `app.member_id` setting beside `app.tenant_id` and a `member_scope` policy on `hours_entries`, `hours_entry_spans`, `hours_minutes`, so a dropped `member_id` predicate still reads 0 foreign rows | **A (recommended)**: yes, with the 0098-shape tests. B: the route filter only, as 107 does today | -2 OQ-5 | **A** (owner, 2026-10-11, msg 23d782e1): database member guard (5.2, top dependency) |
+| **Q4** | An "**Also enter in …**" shortcut: copy a saved row's start and end into another workspace as a new row, its target picked there | **A (recommended)**: yes, one tap, a separate entry, never automatic. B: no, each row typed by hand | -1 OQ4, -2 4.4, -3 O4 | **A** (owner, 2026-10-11, msg 23d782e1): "Also enter in …" (7.4) |
+| **Q5** | Do **receipts keep times of day** (spans), so a past overlap stays exact? | **A (recommended)**: no, minutes per day as D4 lists. B: yes | -1 OQ3, -2 OQ-3 | **A** (owner, 2026-10-11, msg 23d782e1): receipts keep no times (6.3, C5) |
+| **Q6** | A receipt whose last period was **still open at leave time** | **A (recommended)**: refreshed once when that period freezes or is approved, then fixed. B: frozen at leave time | -1 OQ5, -2 C3 | **A** (owner, 2026-10-11, msg 23d782e1): one `rev = 1` refresh when the period closes (C5) |
+| **Q7** | A **deleted workspace** (the tenant delete cascades every `hours_*` row): do its members get receipts? | **A (recommended)**: yes, the delete copies receipts first. B: no, D4 covers leaving only | -3 O5 | **A** (owner, 2026-10-11, msg 23d782e1): a deleted workspace's members get receipts (C5) |
+| **Q8** | How long the realm keeps the **approver's name** (another person's name) in a receipt | **A (recommended)**: the workspace's `hours.retention_years` at copy time (107 FR-34). B: as long as the receipt | -2 OQ-6 | **A** (owner, 2026-10-11, msg 23d782e1): approver name kept for `hours.retention_years` (C5) |
+| **Q9** | A "standard" line in the personal view across workspaces | **A (recommended)**: none, only per workspace (REQ-3). B: also the sum of the workspaces' standard days as a reference line, with no warning | -2 OQ-2, mistral Q4 | **A** (owner, 2026-10-11, msg 23d782e1): no summed standard-day line (REQ-3) |
+| **Q10** | A **personal download** (CSV of the person's own rows across workspaces, receipts included) | **A (recommended)**: not in the first version. B: yes, person-only | -2 OQ-4 | **A** (owner, 2026-10-11, msg 23d782e1): no personal download in v1 (8) |
 
 ## 13. Version log
 
@@ -309,4 +314,6 @@ Each seat replied on `dispatch-cee5a73e` with "s118-<seat> signs <sha>" against 
 
 | 1.0 | 2026-10-10 | c-782 (editor) | signed by s118-claude, -2 and mistral on `43f4fbd84`, and -3 by file (11.4); the realm contract aligned with the 119 editor c-787 (msgs `1965e1cf`, `db70a9d1`): C4 `personal.profile.time_zone`; C5 `personal.hours_receipts` gets `workspace_id` (not `tenant_id`), `person_id` FK to `public.humans`, and an append-only `rev` (0 = leave copy, 1 = the one Q6-A refresh) in the PK; one endpoint name `/v1/me/realm/*`; 118 Q5..Q8 offered to 119 verbatim; C5 PK gains `kind` (c-787 msg `9cdbbb68`) |
 
-<!-- version: 1.0.0 · updated: 2026-10-10 · last-edit: 2026-10-10T08:50:00Z -->
+| 1.1 | 2026-10-11 | c-153 | owner fold, msg 23d782e1 "Yes all a": Q1..Q10 decided A in place (12); the spec 107 dependency (top: spans and the member guard); Q1 5.3, 9.1; Q2 6.2; Q3 5.2; Q4 7.4; Q5, Q6, Q7, Q8 C5 and 6.3; Q9 REQ-3; Q10 8 |
+
+<!-- version: 1.1.0 · updated: 2026-10-11 · last-edit: 2026-10-11T09:20:00Z -->

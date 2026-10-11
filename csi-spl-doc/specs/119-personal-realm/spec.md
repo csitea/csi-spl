@@ -1,6 +1,6 @@
 # 119 Personal Realm
 
-**Status**: v1.1 (v1.0 = panel fold of 4 seats, all signed, 2026-10-10; editor s119-claude. v1.1 folds the owner's answer "All A" to the 119-only questions OQ-1, 4, 5, 7, 9, 10, msg ddc23158, 2026-10-10). tasks.md added (build lanes T001..T011). Sections 1..5 are the v0.1 draft, kept as written; where section 6 changes a REQ or a Q, section 6 wins.
+**Status**: v1.1 (v1.0 = panel fold of 4 seats, all signed, 2026-10-10; editor s119-claude. v1.1 folds the owner's answer "All A" to the 119-only questions OQ-1, 4, 5, 7, 9, 10, msg ddc23158, 2026-10-10; v1.2 folds the owner's answer "Yes all a" to the 118-shared OQ-2, 3, 6, 8, 11 = 118 Q5, Q8, Q7, Q10, Q6, owner, 2026-10-11, msg 23d782e1). tasks.md added (build lanes T001..T011). Sections 1..5 are the v0.1 draft, kept as written; where section 6 changes a REQ or a Q, section 6 wins.
 
 ## 1. Context and Goals
 Based on the owner's feedback, there is a need for a "personal realm" — a person-level layer that exists above workspaces. When people leave a workspace, they should retain read-only copies of their own past hours (like pay receipts) without keeping the actual content of the work.
@@ -76,7 +76,7 @@ Folded from the four seat files in [reviews/](reviews/) (section 12). It is the 
 ### 6.1 Requirements, reworded
 
 - **REQ-1 (Identity and Profile)**: The person's identity is the hub-wide `public.humans` row (`HUM-*`, rdb 0006); its name, email and avatar stay there, one source. The realm adds `personal.profile` only for fields no workspace reads: time zone, locale, communication preferences. No workspace reads the profile.
-- **REQ-4 (Read-Only Receipts)**: A person keeps a read-only receipt of their own past hours in a workspace when their live access to it ends: the membership is **removed** (or banned), its **`access_until` passes** (rdb 0113), or the **workspace is deleted** (owner question OQ-6). A **disabled** membership (rdb 0074, reversible) is **not** leaving: it takes no receipt, and only removal, expiry and workspace delete do (OQ-5 A, owner, 2026-10-10, msg ddc23158, "A"). Workspaces left **before 119 ships** get no receipt and no back-fill (OQ-9 A, section 8.1). The copy is taken first and the change made second (section 8.1).
+- **REQ-4 (Read-Only Receipts)**: A person keeps a read-only receipt of their own past hours in a workspace when their live access to it ends: the membership is **removed** (or banned), its **`access_until` passes** (rdb 0113), or the **workspace is deleted** (OQ-6 A = 118 Q7, owner, 2026-10-11, msg 23d782e1). A **disabled** membership (rdb 0074, reversible) is **not** leaving: it takes no receipt, and only removal, expiry and workspace delete do (OQ-5 A, owner, 2026-10-10, msg ddc23158, "A"). Workspaces left **before 119 ships** get no receipt and no back-fill (OQ-9 A, section 8.1). The copy is taken first and the change made second (section 8.1).
 - **REQ-5 (Hours Only)**: A receipt holds exactly 118 D4's fields (section 8.2), a closed list checked by a catalogue test: no note, no topic, channel or meeting title, no message, no target id.
 - **REQ-6 (Data Isolation)**: No realm row is copied, joined or pushed into a workspace, and no workspace scope reads the realm. When the person enters hours from a realm screen, each entry is written by the hub through 107's existing entry write, in that workspace's scope and under that workspace's rules (freeze, day cap, membership, target), exactly as if made inside the workspace. A workspace sees the entry, never that it came from the realm screen. The realm stores nothing about the write.
 
@@ -85,7 +85,7 @@ Folded from the four seat files in [reviews/](reviews/) (section 12). It is the 
 | Q | settled as | why |
 |---|---|---|
 | Q1 | **B, without copies**: name, email and avatar are already on `humans` (rdb 0006, 0010); the realm stores none of them again. `personal.profile` holds time zone, locale and communication preferences. No realm display name: the person's own views show `humans.display_name` too (OQ-10 A, owner, 2026-10-10, msg ddc23158, "A"). | 3 of 4 seats; a second copy of the name is a second source |
-| Q2 | **B**: an interactive read-only view. A person-only download of one's own receipts is owner question OQ-8. | all 4 seats |
+| Q2 | **B**: an interactive read-only view. No person-only download of one's own receipts in v1 (OQ-8 A = 118 Q10, owner, 2026-10-11, msg 23d782e1). | all 4 seats |
 | Q3 | **Replaced by 118 D4's list** (section 8.2), the label per 107 FR-18. | 118 D4 is an owner decision; all 4 seats |
 | Q4 | **`personal`** (owner, already settled). Tables are always schema-qualified; `personal` is never on the runtime `search_path`. | all 4 seats |
 
@@ -175,7 +175,7 @@ Each step is its own transaction; the scopes are never set together.
 |---|---|
 | removal or ban | steps 1..3 in the request. **A failed copy blocks the removal** (503 `receipt_failed`, retried): never a leaver without a receipt (118 C5) |
 | `access_until` passes | a sweep (a named action on the existing sweep cadence) finds memberships past `access_until` through the membership list (its only operator read) and runs steps 1..2 as the person. The expiry itself already stopped access |
-| workspace deleted | the delete action runs steps 1..2 for every member before `DELETE FROM tenants`; a delete that cannot copy is refused (OQ-6) |
+| workspace deleted | the delete action runs steps 1..2 for every member before `DELETE FROM tenants`; a delete that cannot copy is refused (OQ-6 A) |
 | the last period becomes final (8.3) | the sweep reads open `receipt_due` rows through `personal.due_receipts(now)`: a `SECURITY DEFINER` function owned by a NOLOGIN NOBYPASSRLS role `spool_realm_sweeper` (the `spool_search_reader` precedent) that returns only `(person_id, workspace_id)` and can read no other realm table |
 
 Synthetic members (clones, demo stays) get no receipt. A **disabled** membership (rdb 0074) triggers nothing: no copy, no `receipt_due` row; a later removal or expiry of it does (OQ-5 A).
@@ -197,16 +197,16 @@ A rejoin does not merge receipts back; a later leave copies again and the PK kee
 | `kind text` | 107 FR-27 (`work`, `travel`, `wait`, `absence`) |
 | `period_start`, `period_end date` | the 107 period the day belongs to |
 | `approval_state text` | `open`, `approved`, `frozen`, `final`, `returned` |
-| `approver_name text NULL`, `decided_at timestamptz NULL` | the period's decider, resolved to a display name at copy time (how long it is kept: OQ-3 = 118 Q8) |
+| `approver_name text NULL`, `decided_at timestamptz NULL` | the period's decider, resolved to a display name at copy time; kept for the workspace's `hours.retention_years` at copy time (107 FR-34), then blanked (OQ-3 A = 118 Q8, owner, 2026-10-11, msg 23d782e1) |
 | `rev smallint NOT NULL DEFAULT 0 CHECK (rev IN (0, 1))` | 0 = at leave, 1 = the one refresh |
 | `copied_at timestamptz` | |
 
-Never copied: the entry note, `updated_by`, the target id (`t:<topic>` points into content), `hours_minutes`, any message, title or file. Spans (times of day) only if the owner says so (OQ-2 = 118 Q5).
+Never copied: the entry note, `updated_by`, the target id (`t:<topic>` points into content), `hours_minutes`, any message, title or file. No spans (times of day) (OQ-2 A = 118 Q5, owner, 2026-10-11, msg 23d782e1).
 
 ### 8.3 Immutable, with one refresh
 
 - No `UPDATE` or `DELETE` grant: a row once written never changes, and an attempt fails on privilege, not on code.
-- 107 Q8 is open, so the leaver's last period may still be open at leave time (`receipt_due.last_open_from`). When that period freezes or is approved, the sweep appends `rev = 1` rows for those days only and closes `receipt_due`. After that nothing is appended. Under OQ-11 B (= 118 Q6 B) there is no refresh, and `rev` stays 0.
+- 107 Q8 is open, so the leaver's last period may still be open at leave time (`receipt_due.last_open_from`). When that period freezes or is approved, the sweep appends `rev = 1` rows for those days only and closes `receipt_due`. After that nothing is appended. This is OQ-11 A (= 118 Q6 A, owner, 2026-10-11, msg 23d782e1).
 - A workspace deleted before the refresh leaves `rev = 0`, shown as "last period not final".
 - The view reads `max(rev)` per (workspace, day, label, kind).
 - **Erasure, never edit** (OQ-4 A, owner, 2026-10-10, msg ddc23158, "A"): the person may delete their own receipts, never change them. The delete goes through one `SECURITY DEFINER` function `personal.delete_my_receipts(workspace_id)`, owned by a NOLOGIN NOBYPASSRLS role, that reads `app.person_id` itself (refusing an empty or unset one and a set `app.tenant_id` or operator scope), deletes every `rev` of that person's rows for that workspace, and closes that `receipt_due` row so no `rev = 1` refresh re-adds them. The runtime role gets `EXECUTE` on it and still no `UPDATE` or `DELETE` on `hours_receipts`. Route: `DELETE /v1/me/realm/receipts/{workspace_id}`, human session only, as 9 C2. A later leave of the same workspace (after a rejoin) copies again.
@@ -339,13 +339,15 @@ All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `
 
 **Asked once, in 118** (118 v1.0 `1f7c4b33b`, posted to the owner; its answer covers 119 too, so 119 does not ask them again):
 
-| 119 ref | = 118 | the question | where 119 uses the answer |
-|---|---|---|---|
-| OQ-2 | **Q5** | do receipts keep times of day (spans) | 8.2: no span columns under A |
-| OQ-11 | **Q6** | a receipt whose last period was still open at leave time | 8.3: one `rev = 1` refresh under A; `rev` stays 0 under B |
-| OQ-6 | **Q7** | a deleted workspace: do its members get receipts | 8.1: the delete copies first under A |
-| OQ-3 | **Q8** | how long the approver's name is kept | 8.2 `approver_name`: blanked after `hours.retention_years` under A |
-| OQ-8 | **Q10** | a personal download | 6.2 Q2: none in v1 under A |
+**Answered** by the owner, 2026-10-11, msg 23d782e1 (t1 cee5a73e, HUM-10): "Yes all a" (118 v1.1, section 12).
+
+| 119 ref | = 118 | the question | where 119 uses the answer | answer |
+|---|---|---|---|---|
+| OQ-2 | **Q5** | do receipts keep times of day (spans) | 8.2: no span columns under A | **A**, owner, 2026-10-11, msg 23d782e1: no spans (8.2) |
+| OQ-11 | **Q6** | a receipt whose last period was still open at leave time | 8.3: one `rev = 1` refresh under A; `rev` stays 0 under B | **A**, owner, 2026-10-11, msg 23d782e1: one `rev = 1` refresh (8.3) |
+| OQ-6 | **Q7** | a deleted workspace: do its members get receipts | 8.1: the delete copies first under A | **A**, owner, 2026-10-11, msg 23d782e1: the delete copies first (6.1 REQ-4, 8.1) |
+| OQ-3 | **Q8** | how long the approver's name is kept | 8.2 `approver_name`: blanked after `hours.retention_years` under A | **A**, owner, 2026-10-11, msg 23d782e1: kept for `hours.retention_years`, then blanked (8.2) |
+| OQ-8 | **Q10** | a personal download | 6.2 Q2: none in v1 under A | **A**, owner, 2026-10-11, msg 23d782e1: no download in v1 (6.2 Q2) |
 
 **119-only questions** (answered, v1.1):
 
@@ -369,4 +371,6 @@ All four signed v1.0-rc `7547a74db` on `dispatch-151d85fc`. v1.0 adds only the `
 | 1.0 | 2026-10-10 | c-787 (editor) | all four seats signed `7547a74db`; `kind` added to the receipt PK (7.3, 8.2, T-R1; same in 118 C5 `48c0481ce`); the five questions shared with 118 point to 118 v1.0 Q5, Q6, Q7, Q8, Q10 instead of being asked again (13) |
 | 1.1 | 2026-10-10 | c-835 | owner fold, msg ddc23158 "All A" on OQ-1, 4, 5, 7, 9, 10: no operator access (7.6); erasure of own receipts through `personal.delete_my_receipts`, never an edit (8.3, 9 C2); disabled membership is not leaving (6.1, 8.1); own-hub / own-DB = link only in v1 (10); no back-fill before ship (8.1 rollout); no realm display name (6.2 Q1); tests T-C5, T-C6, T-R8..T-R10 (11); the 118-shared OQ-2, 3, 6, 8, 11 unchanged; no seat sign-off (panel retired, the dispatch holder decides) |
 
-<!-- version: 1.1.0 · updated: 2026-10-10 · last-edit: 2026-10-10 -->
+| 1.2 | 2026-10-11 | c-153 | owner fold, msg 23d782e1 "Yes all a" on the 118-shared questions: OQ-2 A no spans (8.2); OQ-3 A approver name kept for `hours.retention_years` (8.2); OQ-6 A receipts on workspace delete (6.1 REQ-4, 8.1); OQ-8 A no download in v1 (6.2 Q2); OQ-11 A one `rev = 1` refresh (8.3); answers in 13 |
+
+<!-- version: 1.2.0 · updated: 2026-10-11 · last-edit: 2026-10-11T09:20:00Z -->

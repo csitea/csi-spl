@@ -36,7 +36,9 @@ import (
 // JWT that is not ES256, not signed by the embed's current key, expired, not
 // yet valid, alive longer than 5 minutes, not for this embed (aud), without
 // a sub, or already used once (replay). Every refusal writes nothing but the
-// replay mark. Off (404, as an unknown path) while cnf env.hub.embed.enabled
+// replay mark. An address past its sign-ins of the hour or the day is
+// refused 429 embed_visitors before the JWT is read (embedSignInGate, T105's
+// limits). Off (404, as an unknown path) while cnf env.hub.embed.enabled
 // is off, and for an embed that is unknown, disabled or has no key.
 
 const (
@@ -271,6 +273,9 @@ func (s *Server) handleEmbedSignIn(w http.ResponseWriter, r *http.Request) {
 		JWT string `json:"jwt"`
 	}
 	if !readJSONStrict(w, r, &in, embedJWTMaxBytes+256, "invalid JSON body (only jwt)") {
+		return
+	}
+	if !s.embedSignInGate(w, r, ec.TenantID) {
 		return
 	}
 	refuse := func(why error) {

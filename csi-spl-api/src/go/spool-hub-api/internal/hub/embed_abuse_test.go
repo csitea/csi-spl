@@ -3,6 +3,7 @@ package hub_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -250,4 +251,88 @@ func TestEmbedTurnQuota(t *testing.T) {
 	if tok, status, _ := e.srv.EmbedTurn(ctx, v); tok != "" {
 		t.Fatalf("CONTROL: next day: %s %d", tok, status)
 	}
+}
+
+// replayMarks is how many sign-in replay marks (kind embed_jwt) tid holds.
+func replayMarks(t *testing.T, pg *store.Postgres, tid string) int {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := pg.Pool().Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.tenant_id', $1, true)`, tid); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM quota_counts WHERE tenant_id = $1 AND kind = 'embed_jwt'`, tid).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// signInFrom posts jwt to embed's sign-in as the client address ip (the
+// edge's one trusted X-Forwarded-For hop): the code and the raw body.
+func signInFrom(t *testing.T, e *env, tid, embed, jwt, ip string) (int, []byte) {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{"jwt": jwt})
+	req, _ := http.NewRequest(http.MethodPost, e.url(tid)+"/v1/embed/"+embed+"/signin", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", ip)
+	resp, err := e.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, raw
+}
+
+// TestEmbedSignInPerIPRefused: an address's third sign-in of an hour (T205)
+// is 429 embed_visitors and writes nothing: no replay mark, no visitor. The
+// same JWT from another address is 200 (CONTROL: it was never marked used,
+// and the other address has its own counters); the next hour admits the
+// first address again until its day is full (429, still nothing written).
+func TestEmbedSignInPerIPRefused(t *testing.T) {
+	clock := newClock()
+	e := rbacEnv(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorToken
+		o.EmbedEnabled, o.EmbedTokenLife, o.EmbedMessageMaxBytes = true, embedLife, 4096
+		o.EmbedLimits = hub.EmbedLimits{VisitorsPerIPHour: 2, VisitorsPerIPDay: 3, BanAfterHits: 50, ChallengeAfterHits: 50}
+		o.Edge.TrustedProxyHops = 1
+		o.Now = clock.now
+	})
+	pg := pgOnly(t, e)
+	k := newEmbedKey(t, "k-signin-ip")
+	tid, embed := keyedEmbed(t, e, k)
+	const ipA, ipB = "198.51.100.7", "203.0.113.9"
+	jwt := func(sub string) string { return signJWT(t, k, es256(k.Kid), claimsFor(embed, sub, clock.now())) }
+	ok := func(what, j, ip string) {
+		t.Helper()
+		if code, raw := signInFrom(t, e, tid, embed, j, ip); code != http.StatusOK {
+			t.Fatalf("%s: %d %s, want 200", what, code, raw)
+		}
+	}
+	nothingWritten := func(what string, visitors, marks int) {
+		t.Helper()
+		if v, _ := embedCounts(t, pg, tid, embed); v != visitors {
+			t.Fatalf("%s wrote: %d visitors, want %d", what, v, visitors)
+		}
+		if m := replayMarks(t, pg, tid); m != marks {
+			t.Fatalf("%s wrote: %d replay marks, want %d", what, m, marks)
+		}
+	}
+	ok("first this hour", jwt("user-1"), ipA)
+	ok("second this hour", jwt("user-2"), ipA)
+	over := jwt("user-3")
+	code, raw := signInFrom(t, e, tid, embed, over, ipA)
+	refusedAs(t, "third this hour", code, raw, http.StatusTooManyRequests, hub.TokenEmbedVisitors)
+	nothingWritten("a refused sign-in", 2, 2)
+	ok("CONTROL: the refused JWT from another address", over, ipB)
+	clock.add(time.Hour)
+	ok("CONTROL: a new hour", jwt("user-4"), ipA)
+	code, raw = signInFrom(t, e, tid, embed, jwt("user-5"), ipA)
+	refusedAs(t, "fourth this day", code, raw, http.StatusTooManyRequests, hub.TokenEmbedVisitors)
+	nothingWritten("a refused sign-in", 4, 4)
 }

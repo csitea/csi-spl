@@ -16,6 +16,7 @@ import (
 // refused unit writes no visitor and no message:
 //
 //	new visitors per client IP   an hour, a UTC day   429 embed_visitors
+//	sign-ins per client IP       an hour, a UTC day   429 embed_visitors
 //	posts per visitor            a minute, a UTC day  429 embed_quota
 //	message size                 (embed_visitor.go)   413 too_large
 //	agent turns per visitor      a UTC day            429 embed_quota
@@ -59,6 +60,10 @@ const (
 	embedKindPostDay     = "embed_post"
 	embedKindPostMinute  = "embed_post_min"
 	embedKindTurnDay     = "embed_turn"
+	// The sign-in's own counters (T205, embed_jwt.go), at the new visitor
+	// limits: a sign-in mints a visitor token as a mint does.
+	embedKindSignInDay  = "embed_signin"
+	embedKindSignInHour = "embed_signin_hour"
 )
 
 // embedIPPeriod is how long one ip_hash salt lives: rotated weekly, so a
@@ -154,6 +159,37 @@ func (s *Server) embedAdmit(w http.ResponseWriter, r *http.Request, es store.Emb
 		return nil, false
 	}
 	return ip, true
+}
+
+// embedSignInGate takes one sign-in unit of the request's address in
+// tenant, an hour's and a UTC day's at the new visitor limits (429
+// embed_visitors, all or none), before the JWT is read and so before its
+// replay mark, the visitor and the channel are written. false after
+// answering.
+func (s *Server) embedSignInGate(w http.ResponseWriter, r *http.Request, tenant string) bool {
+	ab, ok := s.o.Store.(store.EmbedAbuse)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "this store cannot count embed limits")
+		return false
+	}
+	ctx, now, lim := r.Context(), s.o.Now().UTC(), s.embedLimits()
+	sc := store.EmbedScope{TenantID: tenant}
+	ip := s.embedIPHash(r, tenant, now, 0)
+	key := store.EmbedIPKey(ip)
+	refused, err := ab.TakeEmbedQuotas(ctx, sc, []store.EmbedTake{
+		{Key: key, Kind: embedKindSignInHour, Window: now.Truncate(time.Hour), Limit: lim.VisitorsPerIPHour},
+		{Key: key, Kind: embedKindSignInDay, Window: now.Truncate(24 * time.Hour), Limit: lim.VisitorsPerIPDay}})
+	switch {
+	case err != nil:
+		writeErrCause(w, http.StatusInternalServerError, "internal", "embed limits unavailable", err)
+		return false
+	case refused >= 0:
+		s.embedHit(ctx, ab, sc, ip, now)
+		writeErr(w, http.StatusTooManyRequests, TokenEmbedVisitors, "this address signs in at most "+
+			strconv.Itoa(lim.VisitorsPerIPHour)+" times an hour and "+strconv.Itoa(lim.VisitorsPerIPDay)+" a day")
+		return false
+	}
+	return true
 }
 
 // embedNotBanned refuses 403 embed_banned when the request's address, or

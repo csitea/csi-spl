@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/rs/zerolog"
 )
 
 // specs/075 Phase 2 (T007 + T008): each workspace's docs live in its own
@@ -240,6 +242,53 @@ func TestNewWorkspaceDocsNeedsTenant(t *testing.T) {
 	for _, bad := range []string{"", "../t1", "T1", "a.b"} {
 		if _, err := d.Store(context.Background(), bad); err == nil {
 			t.Fatalf("tenant %q resolved", bad)
+		}
+	}
+}
+
+// downStore is a workspace's docs store whose bucket is gone (sienna's 404).
+type downStore struct{ blob.Dir }
+
+var errBucketGone = errors.New("storage: bucket doesn't exist")
+
+func (downStore) List(context.Context, string, func(string, time.Time) error) error {
+	return errBucketGone
+}
+
+func (downStore) Get(context.Context, string) (io.ReadCloser, error) { return nil, errBucketGone }
+
+// A docs 503 logs the workspace, its bucket, the operation and the store's
+// error, and never the caller's session (sienna's Docs 503 logged nothing).
+func TestWorkspaceDocsUnavailableIsLogged(t *testing.T) {
+	var buf bytes.Buffer
+	root := t.TempDir()
+	d, err := hub.NewWorkspaceDocs(filepath.Join(root, "{tenant}"), func(_ context.Context, dir string) (blob.Store, error) {
+		return downStore{blob.Dir{Root: dir}}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := rbacEnv(t, func(o *hub.Options) { o.WorkspaceDocs = d; o.Log = zerolog.New(&buf) })
+	tid, _ := e.tenant()
+	hum := seat(t, e, tid, rbac.Tester)
+	for _, c := range []struct{ path, op string }{{"tree.json", "list"}, {"a.md", "get a.md"}} {
+		buf.Reset()
+		if code, body := wsDoc(t, e, tid, http.MethodGet, c.path, hum, "", ""); code != http.StatusServiceUnavailable {
+			t.Fatalf("GET %s on a gone bucket: %d %s", c.path, code, body)
+		}
+		var line map[string]any
+		for _, l := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+			var m map[string]any
+			if json.Unmarshal([]byte(l), &m) == nil && m["message"] == "workspace docs store unavailable" {
+				line = m
+			}
+		}
+		if line == nil || line["workspace"] != tid || line["bucket"] != filepath.Join(root, tid) ||
+			line["op"] != c.op || line["error"] != errBucketGone.Error() {
+			t.Fatalf("GET %s: the 503 is not logged with workspace, bucket, op and error: %s", c.path, buf.String())
+		}
+		if strings.Contains(buf.String(), hum) {
+			t.Fatalf("GET %s: the log carries the caller's session: %s", c.path, buf.String())
 		}
 	}
 }

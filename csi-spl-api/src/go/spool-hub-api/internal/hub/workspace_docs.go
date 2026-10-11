@@ -175,11 +175,20 @@ func (s *Server) docsCaller(w http.ResponseWriter, r *http.Request, perm string)
 	}
 	st, err := s.o.WorkspaceDocs.Store(r.Context(), t.ID)
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("workspace docs store")
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, t.ID, "open", err)
 		return t, "", nil, false
 	}
 	return t, who, st, true
+}
+
+// docsUnavailable logs why a workspace's docs store failed (the workspace,
+// its bucket, the operation and the store's error; never the caller's
+// session or token) and answers 503. sienna's Docs answered 503 with nothing
+// in the log: its bucket did not exist.
+func (s *Server) docsUnavailable(w http.ResponseWriter, tenant, op string, err error) {
+	loc, _ := s.o.WorkspaceDocs.Location(tenant)
+	s.o.Log.Error().Err(err).Str("workspace", tenant).Str("bucket", loc).Str("op", op).Msg("workspace docs store unavailable")
+	writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
 }
 
 func docHeaders(h http.Header, contentType string) {
@@ -204,7 +213,7 @@ type WorkspaceDocsTree struct {
 
 func (s *Server) handleGetWorkspaceDoc(w http.ResponseWriter, r *http.Request) {
 	p := r.PathValue("path")
-	_, _, st, ok := s.docsCaller(w, r, rbac.DocsRead)
+	t, _, st, ok := s.docsCaller(w, r, rbac.DocsRead)
 	if !ok {
 		return
 	}
@@ -217,7 +226,7 @@ func (s *Server) handleGetWorkspaceDoc(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+			s.docsUnavailable(w, t.ID, "list", err)
 			return
 		}
 		sort.Slice(tree.Files, func(i, j int) bool { return tree.Files[i].Path < tree.Files[j].Path })
@@ -235,7 +244,7 @@ func (s *Server) handleGetWorkspaceDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, t.ID, "get "+p, err)
 		return
 	}
 	defer rc.Close()
@@ -265,7 +274,7 @@ func putDoc(ctx context.Context, st blob.Store, key string, data []byte) error {
 
 func (s *Server) handlePutWorkspaceDoc(w http.ResponseWriter, r *http.Request) {
 	p := r.PathValue("path")
-	_, who, st, ok := s.docsCaller(w, r, rbac.DocsWrite)
+	t, who, st, ok := s.docsCaller(w, r, rbac.DocsWrite)
 	if !ok {
 		return
 	}
@@ -286,11 +295,11 @@ func (s *Server) handlePutWorkspaceDoc(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithoutCancel(r.Context()) // a write the client left still lands whole
 	hist := s.historyKey(p, who, "put")
 	if err := putDoc(ctx, st, hist, data); err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, t.ID, "put "+hist, err)
 		return
 	}
 	if err := putDoc(ctx, st, p, data); err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, t.ID, "put "+p, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, WorkspaceDocWritten{Path: p, History: hist})
@@ -298,7 +307,7 @@ func (s *Server) handlePutWorkspaceDoc(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteWorkspaceDoc(w http.ResponseWriter, r *http.Request) {
 	p := r.PathValue("path")
-	_, who, st, ok := s.docsCaller(w, r, rbac.DocsWrite)
+	t, who, st, ok := s.docsCaller(w, r, rbac.DocsWrite)
 	if !ok {
 		return
 	}
@@ -313,22 +322,22 @@ func (s *Server) handleDeleteWorkspaceDoc(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, t.ID, "get "+p, err)
 		return
 	}
 	old, err := io.ReadAll(rc)
 	rc.Close()
 	if err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, t.ID, "read "+p, err)
 		return
 	}
 	hist := s.historyKey(p, who, "del")
 	if err := putDoc(ctx, st, hist, old); err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, t.ID, "put "+hist, err)
 		return
 	}
 	if err := st.Delete(ctx, p); err != nil && !errors.Is(err, blob.ErrNotFound) {
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, t.ID, "delete "+p, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, WorkspaceDocWritten{Path: p, History: hist})

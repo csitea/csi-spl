@@ -49,32 +49,31 @@ var docTreeImageName = regexp.MustCompile(`^[0-9a-f]{64}\.(png|jpg|gif|webp)$`)
 func docTreeImageKey(doc, name string) string { return ".doctree/" + doc + "/" + name }
 
 // docTreeMedia resolves the caller, the doc (its tenant's, else 404) and
-// the workspace's docs store, or writes the refusal.
-func (s *Server) docTreeMedia(w http.ResponseWriter, r *http.Request, perm string) (string, blob.Store, bool) {
+// the workspace's docs store (doc id, tenant, store), or writes the refusal.
+func (s *Server) docTreeMedia(w http.ResponseWriter, r *http.Request, perm string) (string, string, blob.Store, bool) {
 	c, ok := s.docTreeCaller(w, r, perm)
 	if !ok {
-		return "", nil, false
+		return "", "", nil, false
 	}
 	if s.o.WorkspaceDocs == nil {
 		writeErr(w, http.StatusNotFound, "workspace_docs_off", "this hub has no workspace docs store")
-		return "", nil, false
+		return "", "", nil, false
 	}
 	h, err := c.st.DocHeadOf(r.Context(), c.tenant, r.PathValue("doc"))
 	if err != nil {
 		docTreeFail(w, err)
-		return "", nil, false
+		return "", "", nil, false
 	}
 	st, err := s.o.WorkspaceDocs.Store(r.Context(), c.tenant)
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", c.tenant).Msg("workspace docs store")
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
-		return "", nil, false
+		s.docsUnavailable(w, c.tenant, "open", err)
+		return "", "", nil, false
 	}
-	return h.ID, st, true
+	return h.ID, c.tenant, st, true
 }
 
 func (s *Server) handleDocTreeImagePut(w http.ResponseWriter, r *http.Request) {
-	doc, st, ok := s.docTreeMedia(w, r, rbac.DocsWrite)
+	doc, tenant, st, ok := s.docTreeMedia(w, r, rbac.DocsWrite)
 	if !ok {
 		return
 	}
@@ -97,7 +96,7 @@ func (s *Server) handleDocTreeImagePut(w http.ResponseWriter, r *http.Request) {
 	sum := sha256.Sum256(data)
 	name := hex.EncodeToString(sum[:]) + "." + ext
 	if err := putDoc(context.WithoutCancel(r.Context()), st, docTreeImageKey(doc, name), data); err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, tenant, "put image "+name, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"name": name, "bytes": len(data),
@@ -106,7 +105,7 @@ func (s *Server) handleDocTreeImagePut(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDocTreeImageGet(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	doc, st, ok := s.docTreeMedia(w, r, rbac.DocsRead)
+	doc, tenant, st, ok := s.docTreeMedia(w, r, rbac.DocsRead)
 	if !ok {
 		return
 	}
@@ -121,7 +120,7 @@ func (s *Server) handleDocTreeImageGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "internal", "workspace docs store unavailable")
+		s.docsUnavailable(w, tenant, "get image "+name, err)
 		return
 	}
 	defer rc.Close()

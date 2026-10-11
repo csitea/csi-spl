@@ -14,8 +14,13 @@
 #   5. the first job green -> one `green` send, its streak closed; the second
 #      job, still red, sends nothing
 #   6. the holder on another box -> nothing sent
+#   7. a job whose runner was lost (no steps, no log, one annotation) is a red
+#      (runner-lost, an infra red like a timeout) and the annotation is its
+#      signature (dispatch holder, note 9a44e278)
 #   CONTROL a. the state file wiped before every tick -> 3 sends for 3 ticks
 #              of the same red, so check 1 FAILS without the streak key
+#   CONTROL b. the annotation hidden -> "no FAIL line", so check 7 FAILS
+#              without the annotation fallback
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -149,6 +154,26 @@ for _ in 1 2 3; do : >"$STATE"; tick; done
 [[ "$(sends)" == 3 ]] \
   && pass "CONTROL a. with the state wiped every tick the same red sends 3 times, so check 1 FAILS without the streak key" \
   || { fail "CONTROL a. want 3 sends without the state, got $(sends): check 1 proves nothing"; sed 's/^/    | /' "$T/out"; }
+
+# --- 7. a lost runner: red, the annotation is the signature -------------------
+LOST="The self-hosted runner lost communication with the server. Verify the machine is running and has a healthy network connection. Anything in your workflow that terminates the runner process, starves it for CPU/Memory, or blocks its network access can cause this error."
+WUI="wui: browser e2e (mock, generated) 1/3"
+jobs 970 "$(job 9700 "$WUI" success)"
+jobs 971 "$(job 9710 "$WUI" failure)"
+jq -n --arg m "$LOST" '[{annotation_level: "failure", message: $m}]' >"$T/api/ann-9710.json"
+runs "$(row 971 failure 10 "$RED1")" "$(row 970 success 0 "$GREEN")"
+: >"$STATE"; : >"$CRN_SENT"; tick
+if [[ "$(sends)" == 1 ]] && grep -qF "Signature: The self-hosted runner lost communication with the server." "$CRN_SENT"; then
+  pass "7. a lost runner (no log) is a red with the annotation as its signature"
+else
+  fail "7. lost runner: $(sends) sends"; sed 's/^/    | /' "$CRN_SENT" "$T/out"
+fi
+# --- CONTROL b. the annotation hidden -> no signature ---------------------------
+mv "$T/api/ann-9710.json" "$T/api/ann-9710.hidden"
+: >"$STATE"; : >"$CRN_SENT"; tick
+grep -q 'Signature: (no FAIL line in the job log, no failure annotation)' "$CRN_SENT" \
+  && pass "CONTROL b. with the annotation hidden the note reads 'no FAIL line', so check 7 FAILS without the fallback" \
+  || { fail "CONTROL b. the signature did not depend on the annotation"; sed 's/^/    | /' "$CRN_SENT"; }
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all report-ci-red-note.tst.sh assertions"

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # pre-push-tier: slow -- needs the tpl-gen venv a worktree does not carry (CI runs do_setup_tpl_gen)
+# test-timeout: 240 -- ~113 tpl-gen python starts, CPU-bound: 10 s idle, 99..118 s at 2x cpu oversubscription (c-249)
 #------------------------------------------------------------------------------
 # Purpose: the csi-rel container path (csi-spl-orc `make
 #          do-generate-config-for-step`) renders EXACTLY the committed tfvars,

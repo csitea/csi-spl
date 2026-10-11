@@ -1,5 +1,7 @@
 # 062: Flow per user: only what concerns me, with a count on top
 
+Amended by 130.
+
 Status: **decided** (section 8, owner 2026-10-02 ~17:05Z). The API and WS
 contract is frozen in `contracts/flow-v1.md`.
 

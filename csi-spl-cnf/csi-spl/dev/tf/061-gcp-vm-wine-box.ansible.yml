@@ -19,9 +19,9 @@ data_disk_mount: "/var/lib/wine-box"
 
 timezone: "Europe/London"
 
-os_packages: ["ca-certificates", "curl", "python3", "sudo", "xz-utils", "unzip", "procps", "iproute2", "e2fsprogs", "openssl"]
+os_packages: ["ca-certificates", "curl", "python3", "sudo", "xz-utils", "unzip", "procps", "iproute2", "e2fsprogs", "openssl", "acl"]
 
-wine_packages: ["wine", "wine64", "xvfb"]
+wine_packages: ["wine", "wine64", "xvfb", "xauth"]
 
 wine_enable_i386: false
 

@@ -79,5 +79,11 @@ fi
 grep -qE 'wine_packages: \[wine,' "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml" \
   && pass "dev installs the wine package (wine64 alone has no /usr/bin/wine on Debian 13)" \
   || fail "dev wine_packages lacks wine: no /usr/bin/wine, no wineboot"
+grep -qE 'wine_packages: \[.*xauth' "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml" \
+  && pass "dev wine_packages carries xauth (xvfb-run in 07_wine needs it before 08_vnc)" \
+  || fail "dev wine_packages lacks xauth: xvfb-run fails in 07_wine"
+grep -qE 'os_packages: \[.*\bacl\b' "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml" \
+  && pass "dev os_packages carries acl (become_user to the desktop user needs setfacl)" \
+  || fail "dev os_packages lacks acl: become_user fails with chmod A+user"
 
 (( fails == 0 )) && echo "PASS: all" || { echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1; }

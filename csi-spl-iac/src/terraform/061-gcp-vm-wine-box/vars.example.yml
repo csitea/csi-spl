@@ -20,10 +20,12 @@ os_packages:
   - iproute2
   - e2fsprogs
   - openssl
+  - acl
 wine_packages:
   - wine
   - wine64
   - xvfb
+  - xauth
 wine_enable_i386: false
 desktop_packages:
   - openbox

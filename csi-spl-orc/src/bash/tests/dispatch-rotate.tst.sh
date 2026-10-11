@@ -44,6 +44,11 @@
 #      acks: the ask closed + one "recovered at <ts> by rotation <rid>, now
 #      pid <pid>" line on the ask's thread, the file gone. Control: no open
 #      alert -> no ask close, no line
+#  16. the seed's workspace list is the live pinned desks at write time, not
+#      the stale list the brief was rendered with (sienna missed, 2026-10-10):
+#      test and other-box desks left out; a desk pinned after a rotation is in
+#      the next seed with no code change. Control: no pinned desk -> the
+#      brief's own list stays
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -179,7 +184,7 @@ do_spl_dispatch_rotate || exit $?
 EOF
 chmod +x "$T/bin/"*
 
-export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" SPOOL_TEST=1 SPOOL_DESK_BOX=box-desk \
+export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPL_STATE_DIR="$T/state" SPOOL_BOX_ENV="$S/box.env" SPOOL_TEST=1 SPOOL_DESK_BOX=box-desk \
   LEASE_PROC_ROOT="$T/proc" LEASE_PANE_CMD="$T/bin/footer" ROTATE_TMUX="$T/bin/tmux" ROTATE_SPAWN="$T/bin/spawn" ROTATE_RUN="$T/bin/run" \
   ROTATE_KILL="$T/bin/kill" ROTATE_SEND="$T/bin/send" ROTATE_AI="$T/bin/ai" ROTATE_HOLD_DIR="$T/hold" ROTATE_MEMORY_DIR="$T/mem" \
   ROTATE_AS_AGENT_DIRECT=1 ROTATE_POLL=1 ROTATE_IDLE_SEC=0 ROTATE_IDLE_GRACE=2 ROTATE_ESC_WAIT=1 ROTATE_START_WAIT=4 \
@@ -585,6 +590,27 @@ world; echo no >"$T/ack.mode.c-902"; act DRY_RUN=0 ROTATE_ACK_TIMEOUT=2 >"$T/o" 
 grep -qE '^[0-9a-f-]{36} [0-9]{8}T[0-9]{4}Z-master ACK$' "$S/c-902/lifetime/alerts.open" &&
   pass "15. a FAIL alert is recorded in <id>/lifetime/alerts.open" || fail "15. alerts.open: $(cat "$S/c-902/lifetime/alerts.open" 2>&1)"
 ! grep -q ERRTRAP "$T/o" && pass "15. no stray failing command under the ERR trap" || fail "15. ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+# --- 16. the seed's workspace list is generated --------------------------------------------
+seedws() { sed -n 's/.*in every workspace: \([^.]*\)\. Posts arrive.*/\1/p' "$D/handoff/$1-c-902.seed.md"; }
+rid1() { awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p; }
+pin() { mkdir -p "$T/state/desk/$1/$2"; echo pinned >"$T/state/desk/$1/$2/pinned"; }
+cp "$D/briefs/brief-dispatcher-c-902.md" "$T/brief.keep"
+echo "- **Web UI**: you have a desk (DESK_AGENT=c-902) in every workspace: csi-rel, t1. Posts arrive as spool messages." \
+  >"$D/briefs/brief-dispatcher-c-902.md"
+world; act DRY_RUN=0 >"$T/o" 2>&1; rid="$(rid1)"
+[[ "$(seedws "$rid")" == "csi-rel, t1" ]] &&
+  pass "16. control: no pinned desk under the state dir -> the brief's own list stays" || fail "16. control: '$(seedws "$rid")'"
+for w in csi-rel sienna t1 e2e; do pin "$w" box-desk; done; pin other-box-only sat
+world; act DRY_RUN=0 >"$T/o" 2>&1; rid="$(rid1)"
+[[ "$(seedws "$rid")" == "csi-rel, sienna, t1" ]] &&
+  pass "16. the seed lists every pinned desk of this box (sienna in), not the brief's stale list; e2e and other-box left out" ||
+  fail "16. seed list: '$(seedws "$rid")'"
+pin zeta-new box-desk
+world; act DRY_RUN=0 >"$T/o" 2>&1; rid="$(rid1)"
+[[ "$(seedws "$rid")" == "csi-rel, sienna, t1, zeta-new" ]] &&
+  pass "16. a desk pinned after the last rotation is in the next seed, no code change" || fail "16. new desk: '$(seedws "$rid")'"
+cp "$T/brief.keep" "$D/briefs/brief-dispatcher-c-902.md"; rm -rf "$T/state"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

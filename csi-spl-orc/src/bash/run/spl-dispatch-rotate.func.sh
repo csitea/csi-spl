@@ -466,12 +466,45 @@ spl_disp_fail() {
   return 0
 }
 
-# The seed (FR-040): the role's brief (do_spl_dispatch_setup renders it), the
-# rotation line with the ack command, the standing rules.
+# The workspaces with a desk pinned on this box right now, comma-separated, as
+# spl_dispatch_cnf derives them (test workspaces and DISPATCH_SKIP_TENANTS left
+# out); empty when none is pinned.
+spl_disp_live_workspaces() {
+  local org_app state box d out=""
+  org_app="$(basename "$PROJ_PATH")"; org_app="${org_app%-orc}"
+  state="${SPL_STATE_DIR:-$HOME/.local/share/$org_app/cloud/${ENV:-${LEASE_ENV:-prd}}}"
+  box="${DESK_BOX:-$(spl_desk_box_default)}"
+  for d in "$state"/desk/*/"$box"/pinned; do
+    [[ -e "$d" ]] || continue
+    d="${d%/"$box"/pinned}"; d="${d##*/}"
+    if [[ " ${DISPATCH_SKIP_TENANTS-} " == *" $d "* ]] || spl_test_workspace "$d"; then continue; fi
+    out+="${out:+, }$d"
+  done
+  echo "$out"
+}
+
+# The brief's workspace list replaced by the live one: the brief is rendered
+# once by do_spl_dispatch_setup, so a desk pinned since then (sienna,
+# 2026-10-10) was missing from every rotation's seed.
+spl_disp_seed_workspaces() {
+  local ws; ws="$(spl_disp_live_workspaces)"
+  if [[ -z "$ws" ]]; then cat; return 0; fi
+  sed -E "s/(in every workspace: )[^.]*\./\1$ws./"
+}
+
+# The seed (FR-040): the role's brief (do_spl_dispatch_setup renders it) with
+# the live workspace list, the rotation line with the ack command, the
+# standing rules.
 spl_disp_seed() {
-  local id="$1" dir="${DISPATCH_BRIEF_DIR:-$LEASE_DIR/briefs}" brief as="${SPOOL_BOX_USER:-$USER}" ack old
+  local brief
+  brief="$(spl_disp_seed_brief "$1")" || return 1
+  printf '%s\n' "$brief" | spl_disp_seed_workspaces
+  spl_disp_seed_tail "$1"
+}
+
+spl_disp_seed_brief() {
+  local id="$1" dir="${DISPATCH_BRIEF_DIR:-$LEASE_DIR/briefs}" brief old
   brief="$dir/brief-dispatcher-$id.md"
-  ack="cd $PROJ_PATH && sudo -u $as env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ./run -a do_spl_dispatch_rotate"
   if [[ -f "$brief" ]]; then cat "$brief"
   else
     # spec 061 L6: a role switched to c-00N still has the brief do_spl_dispatch_setup
@@ -491,6 +524,11 @@ s = open(sys.argv[2]).read()
 sys.stdout.write(rx.sub(lambda x: m[x.group(1)], s) if rx else s)
 PY
   fi
+}
+
+spl_disp_seed_tail() {
+  local id="$1" as="${SPOOL_BOX_USER:-$USER}" ack
+  ack="cd $PROJ_PATH && sudo -u $as env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ./run -a do_spl_dispatch_rotate"
   cat <<EOF
 
 ## Hourly rotation $ROTATE_RID (spec 060)

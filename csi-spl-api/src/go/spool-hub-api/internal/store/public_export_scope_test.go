@@ -24,16 +24,24 @@ var exportScopeTables = []string{"tenants", "channels", "messages", "tenant_memb
 // ADMIN on it, which lets it grant itself SET for this transaction only.
 func asExportRole(t *testing.T, pg *Postgres, workspace string, fn func(ctx context.Context, tx pgx.Tx)) {
 	t.Helper()
+	asExportRoleAfter(t, pg, workspace, nil, fn)
+}
+
+// asExportRoleAfter is asExportRole with first run before anything else in
+// the transaction, while it has no transaction id another session could wait
+// on (see exportScopeDropControl).
+func asExportRoleAfter(t *testing.T, pg *Postgres, workspace string, first []string, fn func(ctx context.Context, tx pgx.Tx)) {
+	t.Helper()
 	ctx := context.Background()
 	tx, err := pg.pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	for _, q := range []string{
+	for _, q := range append(first,
 		`GRANT spool_public_export TO CURRENT_USER WITH SET TRUE`,
 		`GRANT SELECT ON tenants, channels, messages, tenant_memberships TO spool_public_export`,
-	} {
+	) {
 		if _, err := tx.Exec(ctx, q); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
@@ -93,28 +101,30 @@ func TestPublicExportScopeOneWorkspace(t *testing.T) {
 				}
 			}
 		}
-		exportScopeDropControl(ctx, t, tx, a)
 	})
+	exportScopeDropControl(t, pg, a)
 }
 
-// exportScopeDropControl: with the restrictive policy gone (in a savepoint),
-// the operator scope shows the export role every workspace.
-func exportScopeDropControl(ctx context.Context, t *testing.T, tx pgx.Tx, a string) {
+// exportScopeDropControl: with the restrictive policy gone (in a rolled-back
+// transaction of its own), the operator scope shows the export role every
+// workspace. The transaction locks messages FIRST: DROP POLICY needs ACCESS
+// EXCLUSIVE on it, and once the GRANT has rewritten messages' pg_class row an
+// ANALYZE of messages (autovacuum's, holding SHARE UPDATE EXCLUSIVE) waits on
+// this transaction to update that row - a deadlock (40P01) if the lock is
+// taken after the GRANT (CI runs 38097305755, 38102838322, 38103951639).
+func exportScopeDropControl(t *testing.T, pg *Postgres, a string) {
 	t.Helper()
-	sp, err := tx.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sp.Rollback(ctx) //nolint:errcheck
-	for _, q := range []string{`RESET ROLE`, `DROP POLICY public_export_scope ON messages`, `SET LOCAL ROLE spool_public_export`} {
-		if _, err := sp.Exec(ctx, q); err != nil {
-			t.Fatalf("%s: %v", q, err)
+	asExportRoleAfter(t, pg, a, []string{`LOCK TABLE messages IN ACCESS EXCLUSIVE MODE`}, func(ctx context.Context, tx pgx.Tx) {
+		for _, q := range []string{`RESET ROLE`, `DROP POLICY public_export_scope ON messages`, `SET LOCAL ROLE spool_public_export`} {
+			if _, err := tx.Exec(ctx, q); err != nil {
+				t.Fatalf("%s: %v", q, err)
+			}
 		}
-	}
-	setScope(ctx, t, sp, "", "operator")
-	if _, others := visible(ctx, t, sp, "messages", a); others == 0 {
-		t.Error("control is void: without public_export_scope the operator scope should show other workspaces' messages")
-	}
+		setScope(ctx, t, tx, "", "operator")
+		if _, others := visible(ctx, t, tx, "messages", a); others == 0 {
+			t.Error("control is void: without public_export_scope the operator scope should show other workspaces' messages")
+		}
+	})
 }
 
 // TestPublicExportScopeHubUnaffected: the hub's roles (the owner here, and

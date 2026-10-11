@@ -399,7 +399,6 @@ declare module '~/utils/channel-feed.mjs' {
   export function retentionDays(row: { channel_id?: string, channel?: string, retention_days?: number }): number
   export function connectionHealth(state: string): 'ok' | 'warn' | 'down'
   export function feedRow<T>(row: T): T
-  export function topicStarter(row: { participants?: readonly string[] } | null | undefined): { id: string, box: string } | null
   export function belongsTo(msg: unknown, where: { channel?: string | null, peer?: string | null }): boolean
   export function mergeLive<T>(rows: T[], msg: unknown): T[]
   export function followPlan(current: Iterable<string>, want: string[], keep?: string): { add: string[], drop: string[] }
@@ -1048,11 +1047,7 @@ declare module '~/utils/topic-list.mjs' {
 
 declare module '~/utils/topic-kind.mjs' {
   export function messageKind(msg: { kind?: string } | null | undefined): string
-  export function openerMessage(messages: unknown, fallbackId?: string): import('./spool').SpoolMessage | null
-  export function openerKindKey(kinds: Record<string, number> | null | undefined, msg: { msg_id?: string, kind?: string, pending?: boolean } | null | undefined): string
-  export function topicRowKind(msg: unknown, viewerId: string, role: string | null | undefined, kinds: Record<string, number> | null | undefined): string
   export function retargetKinds(kinds: Record<string, number> | null | undefined, from: string, to: string): Record<string, number>
-  export function withSetKind<T>(msg: T, kindSet: Record<string, string> | null | undefined): T
   export function topicsWithKind<R extends { task_id: string, kinds: Record<string, number> }>(topics: R[], taskId: string, from: string, to: string): R[]
 }
 

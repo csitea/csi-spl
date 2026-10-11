@@ -33,17 +33,6 @@
     >
       <UiIcon :name="open ? 'x' : 'menu'" :size="16" />
     </button>
-    <!-- t1 b6c742f0 (HUM-10 643c30a8): a topic row's menu ends with the AI
-         actions group, mounted (lazily) only while it is open -->
-    <LazySidebarRowAi
-      v-if="open && aiTask"
-      ref="aiRow"
-      :task-id="aiTask"
-      :title="name"
-      :base="baseItems"
-      :fail="(key: string) => emit('aiFail', key)"
-      @items="aiItems = $event"
-    />
     <Teleport to="body" :disabled="!sheet">
       <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
       <div
@@ -53,7 +42,6 @@
         class="sidebar-row-menu__panel"
         :class="{ 'touch-sheet': sheet }"
         data-testid="sidebar-row-menu-panel"
-        :data-topic-state="topicState || undefined"
         @keydown="onMenuKey"
       >
         <ul role="menu" class="sidebar-row-menu__items" :aria-label="buttonLabel">
@@ -104,13 +92,6 @@ const props = defineProps<{
   /** SPL-1034: a Channels row that may go up / down one place */
   moveUp?: boolean
   moveDown?: boolean
-  /** SPL-986: a topic row the hub said the viewer may archive / delete */
-  topicArchive?: boolean
-  topicDelete?: boolean
-  /** SPL-986: '' | 'loading' | 'ready' | 'none' - the row's card lookup, for tests */
-  topicState?: string
-  /** Topics view: the viewer may set the opener's kind. Opens the kind picker. */
-  topicKind?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -126,13 +107,8 @@ const emit = defineEmits<{
   properties: []
   delete: []
   archiveChannel: []
-  archive: []
-  deleteTopic: []
   moveUp: []
   moveDown: []
-  kind: []
-  /** t1 b6c742f0: an AI action on the topic failed (the i18n key to show) */
-  aiFail: [key: string]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -158,19 +134,9 @@ const baseItems = computed(() => rowMenuItems(!!props.unread, {
   archivable: props.archivable,
   moveUp: props.moveUp,
   moveDown: props.moveDown,
-  topicArchive: props.topicArchive,
-  topicDelete: props.topicDelete,
-  topicKind: props.topicKind,
 }))
-/* t1 b6c742f0 (HUM-10 643c30a8): a topic row - the sidebar Topics tab
-   (th:<task>) and the home topic list (home:<task>) - gets the AI actions
-   group from SidebarRowAi (lazy, while open); every other row keeps its own */
-const aiTask = computed(() => /^(?:th|home):(.+)$/.exec(props.menuId)?.[1] || '')
 type RowItem = { id: string, icon: UiIconName, labelKey: string, groupKey?: string }
-const aiItems = ref<RowItem[] | null>(null)
-const aiRow = ref<{ pick: (id: string) => { mine: boolean, stay: boolean } } | null>(null)
-watch(() => props.open, (v) => { if (!v) aiItems.value = null })
-const items = computed<RowItem[]>(() => (props.open && aiItems.value) || baseItems.value)
+const items = computed<RowItem[]>(() => baseItems.value)
 
 function itemEls(): HTMLElement[] {
   const host = panel.value || root.value
@@ -218,8 +184,7 @@ watch(() => props.open, (v) => {
     focused.value = -1
   }
 })
-/* A topic row's Archive / Delete arrive after the hub answered (SPL-986):
-   keep the grown panel inside the viewport. */
+/* keep a grown panel inside the viewport */
 watch(() => items.value.length, async () => {
   if (!props.open) return
   await nextTick()
@@ -263,14 +228,7 @@ async function copyLink() {
 }
 
 function choose(id: string) {
-  const ai = aiRow.value?.pick(id)
-  if (ai?.stay) {
-    void focusItem(0)
-    return
-  }
-  if (ai?.mine) {
-    /* the run goes on: SidebarRowAi hands it to useAiListRun */
-  } else if (id === 'copy') {
+  if (id === 'copy') {
     void copyLink()
   } else if (id === 'read') {
     emit('markRead')
@@ -290,16 +248,10 @@ function choose(id: string) {
     emit('delete')
   } else if (id === 'archive-channel') {
     emit('archiveChannel')
-  } else if (id === 'archive') {
-    emit('archive')
-  } else if (id === 'delete-topic') {
-    emit('deleteTopic')
   } else if (id === 'move-up') {
     emit('moveUp')
   } else if (id === 'move-down') {
     emit('moveDown')
-  } else if (id === 'kind') {
-    emit('kind')
   } else {
     emit('open')
   }

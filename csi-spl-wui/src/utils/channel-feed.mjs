@@ -377,23 +377,6 @@ function splitLabel(p) {
 }
 
 /**
- * Who a view-v1 §4.3 topic row is drawn as: its first participant that is a
- * person or an agent, or null when the row names nobody. The Topics list
- * draws this one's avatar (owner, prd t1 432769d8: the list showed none).
- * The hub lists the broadcast address `ALL-0@box-wui` FIRST on a channel
- * topic, and the client's `@channel` can appear too: neither is anyone, and
- * drawing it put the same robot on every row (dev 4.6.2).
- */
-export function topicStarter(row) {
-  for (const p of (row && row.participants) || []) {
-    const who = splitLabel(p)
-    if (!who.id || who.id === 'ALL-0' || String(p).startsWith('@')) continue
-    return { id: who.id, box: who.box || '' }
-  }
-  return null
-}
-
-/**
  * One feed row. A flat v:1 message passes through; a view-v1 §4.3 topic row
  * (live `/v1/view/topics?channel=` or `?dm=true&peer=`) becomes a root card
  * keyed by its task_id, with `count - 1` replies.

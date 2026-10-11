@@ -125,8 +125,7 @@ try {
   /* listed: the phone's Mine holds A's line as a mention */
   const listed = await phone.p.waitForFunction((needle) => [...document.querySelectorAll('[data-testid=sidebar-panel-flow] [data-testid=left-entry]')]
     .some((e) => e.getAttribute('data-type') === 'mention' && (e.textContent || '').includes(needle)), { timeout: 10000 }, `flow proof ${RUN}`).then(() => true, () => false)
-  const scope = await phone.p.evaluate(() => document.querySelector('[data-testid=flow-scope-mine]')?.getAttribute('aria-checked') || '')
-  step('listed: B\'s phone lists A\'s line in Mine as a mention', listed && scope === 'true', { scope })
+  step('listed: B\'s phone lists A\'s line in Mine as a mention', listed, { listed })
 
   await desk.p.screenshot({ path: join(OUT, 'flow-counts-desktop.png') })
   await phone.p.screenshot({ path: join(OUT, 'flow-counts-phone.png') })

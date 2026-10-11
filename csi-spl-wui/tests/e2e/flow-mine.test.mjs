@@ -7,7 +7,7 @@
 //   - opening the Flow clears the number (Q4) and lists Mine: only 7a7a...;
 //     the title stays "(1) ..." (spec 079: it sums the unread rows, not Flow)
 //   - the chips: DM 1, mention / reply 0 (dimmed, no filter); the DM chip filters
-//   - All shows today's stream (every message); the choice survives a reload
+//   - spec 130 Q2 (owner t1 da98036e): no Mine/All switch, the Flow is always Mine
 //   - 1440x900 and 390x844 (the phone's level-1 strip carries the number too)
 //
 // Run:
@@ -19,7 +19,6 @@ import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewpo
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const MINE = '7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a7a'
-const NEWEST = '88888888-8888-4888-8888-888888888888'
 const SIZES = [{ width: 1440, height: 900 }, { width: 390, height: 844 }]
 const LIST = '[data-testid=sidebar-panel-flow] [data-testid=left-list][data-mode=flow]'
 const COUNT = '[data-testid=sidebar-tab-flow-count]'
@@ -75,8 +74,7 @@ function facts(page) {
       ids: rows.map((e) => e.getAttribute('data-msg-id')),
       count: c ? c.textContent.trim() : '',
       title: document.title,
-      mine: document.querySelector('[data-testid=flow-scope-mine]')?.getAttribute('aria-checked') || '',
-      all: document.querySelector('[data-testid=flow-scope-all]')?.getAttribute('aria-checked') || '',
+      switches: document.querySelectorAll('[data-testid^=flow-scope-], [data-testid=flow-head] [role=radiogroup]').length,
       chips: { mention: chip('mention'), reply: chip('reply'), dm: chip('dm') },
     }
   }, LIST, COUNT)
@@ -111,7 +109,7 @@ try {
     await p.waitForSelector(`${LIST} [data-testid=left-entry][data-msg-id="${MINE}"]`, { visible: true, timeout: NAV_TIMEOUT })
     await p.waitForFunction((c) => !document.querySelector(c), { timeout: 5000 }, COUNT).catch(() => {})
     f = await facts(p)
-    ok(`${tag}: Mine is the default`, f.mine === 'true' && f.all === 'false', { mine: f.mine, all: f.all })
+    ok(`${tag}: no Mine/All switch (spec 130 Q2)`, f.switches === 0, { switches: f.switches })
     ok(`${tag}: Mine lists only what concerns me`, f.ids.length === 1 && f.ids[0] === MINE, f.ids)
     ok(`${tag}: opening the Flow clears the number`, f.count === '', { count: f.count })
     /* spec 079 FR-006 (Q1, Q4): the title is the sum of the unread rows, not the
@@ -129,18 +127,9 @@ try {
     f = await facts(p)
     ok(`${tag}: the DM chip filters to DMs`, f.chips.dm?.pressed === 'true' && f.ids.length === 1 && f.ids[0] === MINE, { ids: f.ids, dm: f.chips.dm })
     await p.click('[data-testid=flow-chip-dm]')
-
-    /* FR-012: All is today's stream, and the choice survives a reload */
-    await p.click('[data-testid=flow-scope-all]')
-    await p.waitForSelector(`${LIST} [data-testid=left-entry][data-msg-id="${NEWEST}"]`, { visible: true, timeout: NAV_TIMEOUT })
+    await p.waitForFunction(() => document.querySelector('[data-testid=flow-chip-dm]')?.getAttribute('aria-pressed') === 'false', { timeout: 5000 }).catch(() => {})
     f = await facts(p)
-    ok(`${tag}: All lists every message`, f.all === 'true' && f.ids.length > 1 && f.ids[0] === NEWEST, { n: f.ids.length, first: f.ids[0] })
-    await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-    await applyViewport(p, size)
-    await p.click('[data-testid=sidebar-tab-flow]')
-    await p.waitForSelector('[data-testid=flow-scope-all]', { visible: true, timeout: NAV_TIMEOUT })
-    f = await facts(p)
-    ok(`${tag}: the All choice is kept in this browser`, f.all === 'true', { all: f.all })
+    ok(`${tag}: the DM chip again shows every kind`, f.chips.dm?.pressed === 'false' && f.ids.length === 1, f.chips.dm)
 
     ok(`${tag}: no page error`, errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
     await p.close()

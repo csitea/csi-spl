@@ -3,21 +3,9 @@
        panel (the shared SideHitList, lane C). A click / Enter opens the
        message in its original place; the list, its scroll and its selection
        stay while the middle pane changes route. -->
-  <!-- spec 062: Mine (only what concerns me, the default) or All; the chips
-       split Mine's unread by kind and filter on a click (a 0 chip is dimmed) -->
+  <!-- spec 062: Mine, only what concerns me (spec 130 Q2: always, no All
+       switch); the chips split Mine's unread by kind and filter on a click (a 0 chip is dimmed) -->
   <div v-if="flow.available !== false" class="flow-head" data-testid="flow-head">
-    <div class="flow-scope" role="radiogroup" :aria-label="t('flow.scope_label')">
-      <button
-        v-for="s in FLOW_SCOPES"
-        :key="s"
-        type="button"
-        role="radio"
-        class="flow-scope__btn"
-        :aria-checked="flow.scope === s ? 'true' : 'false'"
-        :data-testid="'flow-scope-' + s"
-        @click="flow.setScope(s)"
-      >{{ t('flow.scope_' + s) }}</button>
-    </div>
     <div v-if="flow.mineOn" class="flow-chips" role="group" :aria-label="t('flow.chips_label')">
       <button
         v-for="c in chips"
@@ -88,7 +76,6 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { useNowTick } from '~/composables/useNowTick'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { flowUnread } from '~/utils/flow-entries.mjs'
-import { FLOW_SCOPES } from '~/utils/flow-badge.mjs'
 import type { FlowKind } from '~/utils/flow-badge.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
 import type { SideHitItem } from '~/utils/side-hit-list.mjs'
@@ -298,9 +285,6 @@ onMounted(() => {
 .flow-more { margin: 4px 8px 8px; }
 .flow-ai-error { margin: 4px 8px; }
 .flow-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 8px 6px; }
-.flow-scope { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius-pill); overflow: hidden; }
-.flow-scope__btn { padding: 2px 10px; font-size: 0.8125rem; color: var(--color-muted); background: transparent; border: 0; cursor: pointer; }
-.flow-scope__btn[aria-checked="true"] { color: var(--color-fg); background: var(--color-surface-hover); font-weight: 600; }
 .flow-chips { display: inline-flex; gap: 4px; }
 .flow-chip { padding: 1px 8px; font-size: 0.8125rem; border: 1px solid var(--color-border); border-radius: var(--radius-pill); background: transparent; color: var(--color-fg); cursor: pointer; }
 .flow-chip[aria-pressed="true"] { border-color: var(--color-accent); color: var(--color-accent); font-weight: 600; }

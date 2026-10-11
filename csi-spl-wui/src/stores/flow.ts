@@ -9,7 +9,7 @@ import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow, mergeMine } from '~/utils/f
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
 import { FLOW_SCOPE_KEY, FLOW_SEEN_KEY, parseFlowCounts, parseFlowKeys, parseFlowScope, railFromUnread, syncAppBadge } from '~/utils/flow-badge.mjs'
 import type { FlowCounts, FlowKind, FlowScope } from '~/utils/flow-badge.mjs'
-import { storageGet, storageSet } from '~/utils/prefs.mjs'
+import { storageGet } from '~/utils/prefs.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 /**
@@ -52,8 +52,10 @@ export const useFlowStore = defineStore('flow', () => {
 
   /* spec 062: Mine - only the viewer's flow events, read from the hub
      (GET /v1/view/flow, contract flow-v1), and the Facebook-like number */
-  /** Mine (default, Q1) or All (today's stream); kept per browser. */
-  const scope = ref<FlowScope>(parseFlowScope(import.meta.client ? storageGet(FLOW_SCOPE_KEY) : ''))
+  /** Always Mine (spec 130 Q2, owner t1 da98036e: the Mine/All switch is gone).
+      MOCK ONLY: the mock bundle still reads FLOW_SCOPE_KEY, so the e2e suites
+      that drive entries of the whole mock feed keep their fixture. */
+  const scope: FlowScope = api.mock && import.meta.client ? parseFlowScope(storageGet(FLOW_SCOPE_KEY)) : 'mine'
   /** null = not asked yet; false = this hub has no Flow route (Mine hidden, the pip stays). */
   const available = ref<boolean | null>(null)
   const mine = shallowRef<FlowEntry[]>([])
@@ -72,7 +74,7 @@ export const useFlowStore = defineStore('flow', () => {
   const rail = useFlowRail()
   /** The hub's unread per sidebar row (owner, t1 77540e6f). */
   const rowKeys = useFlowKeys()
-  const mineOn = computed(() => scope.value === 'mine' && available.value !== false)
+  const mineOn = computed(() => scope === 'mine' && available.value !== false)
 
   /** What the panel lists: Mine's held events, or the newest `shown` entries the read pages vouch for. */
   const visible = computed(() => (mineOn.value ? mine.value : view.value.entries as FlowEntry[]))
@@ -276,13 +278,6 @@ export const useFlowStore = defineStore('flow', () => {
     if (on) void seen()
   }
 
-  /** Mine / All (FR-012): the choice is kept in this browser. */
-  function setScope(next: FlowScope) {
-    scope.value = parseFlowScope(next)
-    storageSet(FLOW_SCOPE_KEY, scope.value)
-    ensure()
-  }
-
   /** A chip: that kind only; the same chip again shows every kind. */
   function setKind(next: FlowKind | '') {
     kind.value = kind.value === next ? '' : next
@@ -349,6 +344,6 @@ export const useFlowStore = defineStore('flow', () => {
   }
 
   return {
-    scope, available, mineOn, mine, mineLoading, mineLoaded, kind, counts, unread, paneOpen,
-    startBadge, readCounts, seen, setPaneOpen, setScope, setKind, entries, visible, hasMore, loadingMore, loading, loaded, error, activeKey, opened, ensure, load, loadMore, select, markOpened, drop, self }
+    available, mineOn, mine, mineLoading, mineLoaded, kind, counts, unread, paneOpen,
+    startBadge, readCounts, seen, setPaneOpen, setKind, entries, visible, hasMore, loadingMore, loading, loaded, error, activeKey, opened, ensure, load, loadMore, select, markOpened, drop, self }
 })

@@ -47,7 +47,16 @@ for env in dev prd; do
   o="$(yq -r '.env.hub.cloud_run.max_instances // ""' "$CNF/$env.env.yaml")"
   [[ -n "$o" && "$o" != null ]] && m="$m/$env:$o"
 done
-[[ "$m" == 1 ]] && pass "cnf max_instances is 1 (OQ-05), so the cookie is gone today" || fail "cnf max_instances changed: re-read this test"
+# owner pick "A" (t1 67754bb7, 2026-10-11): 2 instances, so 030 sets the
+# affinity cookie. Per-env overrides would need their own DB budget below.
+[[ "$m" == 2 ]] && pass "cnf max_instances is 2, one value for dev and prd (affinity on)" || fail "cnf max_instances is '$m': re-read this test and the DB budget"
+# The DB budget: db-f1-micro max_connections 25 - 3 superuser-reserved = 22.
+# Each instance holds the pool + 1 LISTEN connection; a roll doubles the
+# instances; the repo-docs worker holds 1 more. It must fit.
+pool="$(yq -r '.env.hub.env.SPOOL_HUB_DB_MAX_CONNS' "$CNF/all.env.yaml")"
+need=$(( 2 * m * (pool + 1) + 1 ))
+(( need <= 22 )) && pass "DB budget: 2 x $m x ($pool + 1) + 1 = $need <= 22" || fail "DB budget: 2 x $m x ($pool + 1) + 1 = $need > 22 (db-f1-micro)"
+(( 2 * m * (8 + 1) + 1 > 22 )) && pass "CONTROL the old pool 8 at $m instances breaks the budget" || fail "CONTROL the old pool 8 at $m instances fits the budget"
 
 # SPL-1129: the Go runtime is sized to the instance, in the rendered 030 tfvars
 cpu="$(yq -r '.env.hub.cloud_run.cpu' "$CNF/all.env.yaml")"

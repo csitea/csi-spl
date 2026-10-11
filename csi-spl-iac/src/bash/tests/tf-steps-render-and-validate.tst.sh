@@ -188,7 +188,8 @@ for env in dev prd; do
 done
 for env in dev prd; do
   v="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/030-cloud-run-hub.vars.tfvars"
-  grep -qx 'max_instances                = 1' "$v" && pass "$env hub max_instances = 1 (OQ-05)" || fail "$env hub max_instances is not 1"
+  mx="$(yq -r '.env.hub.cloud_run.max_instances' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")"
+  grep -qx "max_instances                = $mx" "$v" && pass "$env hub max_instances = cnf $mx" || fail "$env hub max_instances is not cnf $mx"
   grep -qx 'ingress                      = "all"' "$v" && pass "$env hub ingress is all (owner 2026-09-19: csi-rel domain mappings, no LB)" || fail "$env hub ingress is not all"
   grep -qx 'min_instances                = 1' "$v" && pass "$env hub min_instances = 1 (M1)" || fail "$env hub min_instances is not 1"
   grep -q "\"SPOOL_HUB_FILES_BUCKET\": \"csi-spl-$env-files\"" "$v" && pass "$env hub env names the 050 bucket" || fail "$env SPOOL_HUB_FILES_BUCKET is not csi-spl-$env-files"

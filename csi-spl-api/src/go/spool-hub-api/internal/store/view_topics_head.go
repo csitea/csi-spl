@@ -379,22 +379,48 @@ func (b *topicsSQL) headViewer() string {
 // walked: viewTopicsDueSQL reads it the exact old way. The cursor's index
 // condition is the key alone; the (key, task_id::text) pair is a filter, so a
 // non-canonical before= id never meets a ::uuid cast.
+//
+// The probes on messages and issues run AFTER the sort (t1 5901e226): the
+// planner rates `(SELECT .. FROM issues ..) IS NULL` at its 0.5% default, so
+// with them beside the door it expected 2 rows, hash-joined every candidate
+// and probed each (prd t1 2026-10-11: 872 issues and roots probes for a page
+// of 51, 18 ms p50). Sorted first in their own subquery (OFFSET 0 keeps it
+// apart), the candidates are probed in key order and LIMIT stops after about
+// one page. parent= keeps the one statement: its IN drives the walk.
 func viewTopicsHeadSQL(tenant string, q TopicQuery) (string, []any) {
+	return headWalkSQL(tenant, q, q.Parent == "")
+}
+
+// headWalkSQL is viewTopicsHeadSQL with the probes after the sort (late) or
+// beside the door (the form before t1 5901e226, the test's control).
+func headWalkSQL(tenant string, q TopicQuery, late bool) (string, []any) {
 	b := &topicsSQL{c: &sqlc{}, q: q}
 	b.tn, b.now = b.c.arg(tenant), b.c.arg(q.Now)
 	sh := b.shape()
 	door, aggDoor := b.headDoor(sh)
 	walk := sh.where + door + b.headArchived(sh, b.c.arg(q.Lobby))
 	walk += b.headViewer() // before walkParties: it takes the DM viewer off b.q
-	walk += b.walkParties() + b.walkTree()
 	if !q.BeforeAt.IsZero() {
 		at := b.c.arg(q.BeforeAt)
 		walk += " AND " + sh.key + " <= " + at + " AND (" + sh.key + ", l.task_id::text) < (" + at + ", " + b.c.arg(q.BeforeTask) + ")"
 	}
-	return `WITH w (task_id, received_at) AS (
+	probes := b.walkParties() + b.walkTree()
+	lim := ` DESC, l.task_id DESC LIMIT ` + b.c.arg(pgLimit(q.Limit))
+	if !late {
+		return `WITH w (task_id, received_at) AS (
 			SELECT l.task_id, ` + sh.key + ` FROM ` + sh.from + ` l
-			WHERE ` + walk + `
-			ORDER BY ` + sh.key + ` DESC, l.task_id DESC LIMIT ` + b.c.arg(pgLimit(q.Limit)) + `
+			WHERE ` + walk + probes + `
+			ORDER BY ` + sh.key + lim + `
+		)` + b.summary(aggDoor), b.c.args
+	}
+	return `WITH w (task_id, received_at) AS (
+			SELECT l.task_id, l.k FROM (
+				SELECT l.task_id, ` + sh.key + ` AS k FROM ` + sh.from + ` l
+				WHERE ` + walk + `
+				ORDER BY ` + sh.key + ` DESC, l.task_id DESC OFFSET 0
+			) l
+			WHERE true` + probes + `
+			ORDER BY l.k` + lim + `
 		)` + b.summary(aggDoor), b.c.args
 }
 

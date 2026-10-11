@@ -182,12 +182,16 @@ WITH RECURSIVE pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timest
 		SELECT h.channel, count(*)::int FROM h
 		WHERE h.expires_at > $2 AND ($6::text IS NULL OR h.from_id IS DISTINCT FROM $6)
 		GROUP BY h.channel
--- @@stmt walk_all_head sha256=fa0ce858ac08daf8ad1a5268a2dce1941774ac7bda5f6160a0dc350abd81f48b scope=head exec=:'t',now(),:'r',:'pub',:'mine',:'lobby',51
+-- @@stmt walk_all_head sha256=b307a171aa26542f30bd2c41ce9f36e9571837e1553686ab6683ef617123e8b2 scope=head exec=:'t',now(),:'r',:'pub',:'mine',:'lobby',51
 -- @@scope SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true), set_config('enable_bitmapscan', 'on', true), set_config('enable_sort', 'on', true)
 WITH w (task_id, received_at) AS (
-			SELECT l.task_id, l.last_at FROM topic_heads l
-			WHERE l.tenant_id = $1 AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL
-			ORDER BY l.last_at DESC, l.task_id DESC LIMIT $7
+			SELECT l.task_id, l.k FROM (
+				SELECT l.task_id, l.last_at AS k FROM topic_heads l
+				WHERE l.tenant_id = $1 AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6)
+				ORDER BY l.last_at DESC, l.task_id DESC OFFSET 0
+			) l
+			WHERE true AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL
+			ORDER BY l.k DESC, l.task_id DESC LIMIT $7
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
 		FROM w CROSS JOIN LATERAL (
@@ -209,12 +213,16 @@ WITH w (task_id, received_at) AS (
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC
--- @@stmt walk_dm_head sha256=a58f9b835a0e50787b95e5d745b082826cfdcb6a034194df1c2e4fbea9f0da3b scope=head exec=:'t',now(),:'r',:'pub',:'mine',:'lobby',51
+-- @@stmt walk_dm_head sha256=31d567b281648821bd2be30cc39eadcfb278b91a08d06e8882f8048085e2dca2 scope=head exec=:'t',now(),:'r',:'pub',:'mine',:'lobby',51
 -- @@scope SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true), set_config('enable_bitmapscan', 'on', true), set_config('enable_sort', 'on', true)
 WITH w (task_id, received_at) AS (
-			SELECT l.task_id, l.dm_last_at FROM topic_heads l
-			WHERE l.tenant_id = $1 AND l.dm_last_at IS NOT NULL AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND ((d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL
-			ORDER BY l.dm_last_at DESC, l.task_id DESC LIMIT $7
+			SELECT l.task_id, l.k FROM (
+				SELECT l.task_id, l.dm_last_at AS k FROM topic_heads l
+				WHERE l.tenant_id = $1 AND l.dm_last_at IS NOT NULL AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND ((d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6)
+				ORDER BY l.dm_last_at DESC, l.task_id DESC OFFSET 0
+			) l
+			WHERE true AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL
+			ORDER BY l.k DESC, l.task_id DESC LIMIT $7
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
 		FROM w CROSS JOIN LATERAL (
@@ -236,12 +244,16 @@ WITH w (task_id, received_at) AS (
 			ORDER BY m.received_at, m.msg_id::text LIMIT 1
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC
--- @@stmt walk_dm_head_worst sha256=a58f9b835a0e50787b95e5d745b082826cfdcb6a034194df1c2e4fbea9f0da3b scope=head exec=:'t',now(),:'w',:'pub',:'wmine',:'lobby',51
+-- @@stmt walk_dm_head_worst sha256=31d567b281648821bd2be30cc39eadcfb278b91a08d06e8882f8048085e2dca2 scope=head exec=:'t',now(),:'w',:'pub',:'wmine',:'lobby',51
 -- @@scope SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true), set_config('enable_bitmapscan', 'on', true), set_config('enable_sort', 'on', true)
 WITH w (task_id, received_at) AS (
-			SELECT l.task_id, l.dm_last_at FROM topic_heads l
-			WHERE l.tenant_id = $1 AND l.dm_last_at IS NOT NULL AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND ((d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL
-			ORDER BY l.dm_last_at DESC, l.task_id DESC LIMIT $7
+			SELECT l.task_id, l.k FROM (
+				SELECT l.task_id, l.dm_last_at AS k FROM topic_heads l
+				WHERE l.tenant_id = $1 AND l.dm_last_at IS NOT NULL AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND ((d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6)
+				ORDER BY l.dm_last_at DESC, l.task_id DESC OFFSET 0
+			) l
+			WHERE true AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL
+			ORDER BY l.k DESC, l.task_id DESC LIMIT $7
 		)
 		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
 		FROM w CROSS JOIN LATERAL (

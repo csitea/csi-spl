@@ -2418,6 +2418,8 @@ declare module '~/utils/unread-model.mjs' {
 // 081 T003: the forward of tabForPath (merges with its first declare block).
 declare module '~/utils/sidebar-tabs.mjs' {
   export function routeForTab(id: string): '/' | '/issues' | '/users' | '/events' | '/archive' | '/people' | '/agents' | '/boxes' | null
+  /** spec 109 FR-004: the feed pages that start the hub read sync. */
+  export function readSyncPage(path: string): boolean
 }
 
 // 078 T004: the proportional topic default (merges with its first declare block).

@@ -5,7 +5,7 @@
  * thread cards, DM badges and channel badges are recomputed, and a feed's
  * frozen "New messages" boundary moves up to what the member already saw.
  */
-import { createReadSync, laterThan } from '~/utils/read-sync.mjs'
+import { createReadSync, createSeedGate, laterThan } from '~/utils/read-sync.mjs'
 import { loadCursors } from '~/utils/read-cursor.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
@@ -17,15 +17,18 @@ type Mark = { ts?: string, id?: string, cursor?: string, count?: number }
 
 let sync: ReturnType<typeof createReadSync> | null = null
 let waiting = false
+const dmSeed = createSeedGate()
 
 /** Starts once per tab, when a member session is signed in (a door-less read is a 401). */
 export function startReadSync(api: Api) {
-  if (sync || waiting || api.mock || !import.meta.client) return
+  if (sync || api.mock || !import.meta.client) return
   const session = useSessionStore()
   if (String(session.state) === 'in') {
+    /* a page's waiting watch may not have fired yet (the DM seed below asks first): it finds `sync` set */
     sync = createReadSync(api, { onMoved })
     return
   }
+  if (waiting) return
   waiting = true
   const off = watch(() => session.state, (st) => {
     if (String(st) !== 'in') return
@@ -33,6 +36,16 @@ export function startReadSync(api: Api) {
     waiting = false
     startReadSync(api)
   })
+}
+
+/**
+ * spec 109 FR-004: the tab's first DM seed (plugins/spool-live.client.ts) on
+ * a page that starts this sync. It goes out once, after the first pull, with
+ * the dm: cursors that pull moved (utils/read-sync.mjs createSeedGate).
+ */
+export function seedDmsAfterPull(api: Api, seed: () => unknown) {
+  startReadSync(api)
+  return dmSeed.after(sync ? sync.ready : null, seed)
 }
 
 /**
@@ -75,8 +88,9 @@ function onMoved(moved: string[], marks: Record<string, Mark>) {
     /* DB payload cut 1: the seed's dm counts were made by the hub against the
        dm_read= cursors it was sent, so moved dm: cursors need a fresh seed -
        re-applying the cached rows would keep the old counts. notify.client.ts
-       applies the new rows (its dmSeed watch), as for the first paint. */
-    void channel.loadDmActivity(self)
+       applies the new rows (its dmSeed watch), as for the first paint.
+       A seed still held for this pull reads them itself (spec 109 FR-004). */
+    void dmSeed.moved(() => channel.loadDmActivity(self))
   }
   // Best effort: a failed reload keeps the cached channel counts until the next load or live frame.
   if (moved.some((k) => k.startsWith('ch:'))) void channel.loadChannels().catch(() => {})

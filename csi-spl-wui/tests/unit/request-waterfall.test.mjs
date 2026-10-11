@@ -12,6 +12,11 @@ import { createSpoolClient, TOPIC_READS_IN_FLIGHT, FIRST_SCREEN_MS } from '../..
 import { withSessionRetry } from '../../src/utils/live-follow.mjs'
 import { sharedPreview, resetSharedPreviews, PREVIEW_CACHE_MAX } from '../../src/utils/file-preview.mjs'
 import { loadAvatarFiles, resetAvatarFiles } from '../../src/utils/avatar.mjs'
+import { createReadSync, createSeedGate } from '../../src/utils/read-sync.mjs'
+import { loadCursors } from '../../src/utils/read-cursor.mjs'
+import { dmReadParams } from '../../src/utils/channel-feed.mjs'
+import { memoryStore } from '../../src/utils/prefs.mjs'
+import { readSyncPage } from '../../src/utils/sidebar-tabs.mjs'
 
 const src = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8')
 const tick = () => new Promise((r) => setTimeout(r, 0))
@@ -398,5 +403,78 @@ describe('a channel page is one read when the hub inlines per_topic (027 T122)',
     await c.listMessages({ channel: 'lobby', limit: 51 })
     assert.equal(new URL(h.calls[0]).searchParams.get('per_topic'), null)
     assert.equal(h.calls.length, 4)
+  })
+})
+
+// spec 109 FR-004 (second half): c-833's T014 after-round (prd e2e, 1440x900,
+// n=10, WUI cf5afc58) read GET /v1/view/topics 2x per cold /lobby, 10 of 10.
+// The two were the DM seed (?dm=true&dm_counts=true, plugins/spool-live) and
+// the same seed read again when the read sync's first pull moved the fresh
+// tab's dm: cursors (utils/read-sync-boot onMoved).
+describe('cold /lobby: the DM seed is one GET /v1/view/topics (spec 109 FR-004)', () => {
+  const T1 = '2026-10-11T06:00:00Z'
+  /** A fresh tab (no local cursors) against a hub that holds one dm: mark. */
+  function coldTab() {
+    const store = memoryStore()
+    const topicReads = []
+    const fetchFn = async (url) => {
+      if (/\/v1\/me\/reads$/.test(url)) return { ok: true, status: 200, json: async () => ({ marks: { 'dm:CLE-1@box-a': { ts: T1, id: 'm9' } } }) }
+      if (/\/v1\/view\/topics\?/.test(url)) topicReads.push(new URL(url))
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ topics: [] }) }
+    }
+    const api = { mock: false, base: 'https://h', token: '', credentials: 'include' }
+    const client = createSpoolClient({ mock: false, base: 'https://h', fetchFn, firstScreenMs: 0 })
+    /* channel store loadDmActivity: the seed reads the cursors at send time */
+    const seed = () => client.listTopics({ dm: true, limit: 50, dmCounts: true, dmRead: dmReadParams(loadCursors(store)) })
+    const dmMoved = (moved) => moved.some((k) => k.startsWith('dm:'))
+    return { store, topicReads, fetchFn, api, seed, dmMoved }
+  }
+
+  it('the seed waits for the first pull: one read, sent with the moved dm: cursor', async () => {
+    const t = coldTab()
+    const gate = createSeedGate()
+    const sync = createReadSync(t.api, { fetchFn: t.fetchFn, store: t.store, onMoved: (moved) => { if (t.dmMoved(moved)) void gate.moved(t.seed) } })
+    try {
+      await gate.after(sync.ready, t.seed)
+      await tick()
+      assert.equal(t.topicReads.length, 1, 'GET /v1/view/topics per cold /lobby')
+      assert.deepEqual(t.topicReads[0].searchParams.getAll('dm_read'), [`CLE-1@box-a~${T1}~m9`], 'the one read carries the pulled cursor, so the badges read as before')
+    } finally {
+      sync.stop()
+    }
+  })
+
+  it('control: the seed sent before the pull reads twice (the 10-of-10 shape)', async () => {
+    const t = coldTab()
+    void t.seed()
+    const sync = createReadSync(t.api, { fetchFn: t.fetchFn, store: t.store, onMoved: (moved) => { if (t.dmMoved(moved)) void t.seed() } })
+    try {
+      await sync.ready
+      await tick()
+      assert.equal(t.topicReads.length, 2)
+      assert.deepEqual(t.topicReads[0].searchParams.getAll('dm_read'), [], 'the first went out with the empty fresh-tab cursors')
+    } finally {
+      sync.stop()
+    }
+  })
+
+  it('a pull that never answers holds the seed only until waitMs; a later moved cursor still reads', async () => {
+    const t = coldTab()
+    const gate = createSeedGate()
+    await gate.after(new Promise(() => {}), t.seed, 5)
+    assert.equal(t.topicReads.length, 1)
+    await gate.moved(t.seed)
+    assert.equal(t.topicReads.length, 2, 'released: another device moving a dm: cursor refetches the counts')
+  })
+
+  it('the plugin holds the seed on the pages that start the read sync, and only there', () => {
+    for (const p of ['/lobby', '/bg/lobby', '/dm/CLE-1@box-a', '/channel/devel']) assert.ok(readSyncPage(p), p)
+    for (const p of ['/', '/issues', '/t/abc', '/dm', '/lobbyx']) assert.ok(!readSyncPage(p), p)
+    const plugin = src('src/plugins/spool-live.client.ts')
+    assert.match(plugin, /readSyncPage\(router\.currentRoute\.value\.path\)/)
+    assert.match(plugin, /m\.seedDmsAfterPull\(api, seed\)/)
+    const boot = src('src/utils/read-sync-boot.ts')
+    assert.match(boot, /dmSeed\.moved\(\(\) => channel\.loadDmActivity\(self\)\)/)
+    assert.match(boot, /dmSeed\.after\(sync \? sync\.ready : null, seed\)/)
   })
 })

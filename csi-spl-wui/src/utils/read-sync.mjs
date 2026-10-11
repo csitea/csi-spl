@@ -172,3 +172,38 @@ export function createReadSync(api, { onMoved = (_moved, _marks) => {}, fetchFn 
     },
   }
 }
+
+/** How long a held DM seed waits for the first pull before it reads anyway. */
+export const SEED_WAIT_MS = 3000
+
+/**
+ * spec 109 FR-004: one DM seed read per cold load. The tab's first
+ * `?dm=true&dm_counts=true` read sends this tab's dm_read= cursors. On a
+ * fresh tab the first pull then moved the dm: cursors and the seed was read
+ * again: 2 GET /v1/view/topics per cold /lobby, 10 of 10 (spec 109 7.4).
+ *
+ * `after(ready, seed)` holds the seed until the first pull answers (or
+ * `waitMs` passes), then reads it once, with the moved cursors. A pull that
+ * moves dm: cursors while the seed is held calls `moved(seed)`, which does
+ * not read: the held seed is still to go out. Once released, `moved` reads.
+ */
+export function createSeedGate() {
+  let held = false
+  return {
+    async after(ready, seed, waitMs = SEED_WAIT_MS) {
+      held = true
+      let timer
+      try {
+        /* a failed pull still releases the seed: it reads with the cursors it has */
+        await Promise.race([Promise.resolve(ready).catch(() => {}), new Promise((r) => { timer = setTimeout(r, waitMs) })])
+      } finally {
+        clearTimeout(timer)
+        held = false
+      }
+      return seed()
+    },
+    moved(seed) {
+      return held ? undefined : seed()
+    },
+  }
+}

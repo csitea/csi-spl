@@ -7,6 +7,11 @@
  * hub. The page never sees the visitor token or a message: the two sides
  * exchange UI events only (open, close, unread count) through postMessage,
  * each with an exact targetOrigin and an event.origin check.
+ *
+ * A relink mail (T206) opens this page with #spool-relink=<code>: the loader
+ * takes the code out of the page's address and hands it to the iframe in the
+ * iframe's own fragment, which no server receives, never through postMessage
+ * (T202b). The chat page redeems it.
  */
 (function () {
   "use strict";
@@ -27,11 +32,33 @@
     return { spl: 1, ev: ev };
   }
 
+  // takeRelink removes spool-relink=<code> from the page's fragment, so it
+  // is neither bookmarked nor redeemed twice, and returns the code ("" when
+  // there is none or it is not base64url).
+  function takeRelink() {
+    var parts = (window.location.hash || "").replace(/^#/, "").split("&");
+    var code = "";
+    var rest = parts.filter(function (kv) {
+      if (kv.indexOf("spool-relink=") !== 0) return kv !== "";
+      code = kv.slice("spool-relink=".length);
+      return false;
+    });
+    if (!code) return "";
+    try {
+      var l = window.location;
+      window.history.replaceState(window.history.state, "",
+        l.pathname + l.search + (rest.length ? "#" + rest.join("&") : ""));
+    } catch (err) { /* no history API: the code stays in the address */ }
+    return /^[A-Za-z0-9_-]{1,256}$/.test(code) ? code : "";
+  }
+  var relink = takeRelink();
+
   var frame = document.createElement("iframe");
   frame.id = KEY;
   frame.title = "Chat";
   frame.src = hub + "/embed/v1/chat?e=" + encodeURIComponent(embed) +
-    "&o=" + encodeURIComponent(window.location.origin);
+    "&o=" + encodeURIComponent(window.location.origin) +
+    (relink ? "#spool-relink=" + relink : "");
   frame.setAttribute("allow", "");
   frame.style.cssText = "position:fixed;right:16px;bottom:88px;width:360px;max-width:calc(100vw - 32px);" +
     "height:520px;max-height:calc(100vh - 120px);border:0;border-radius:12px;" +

@@ -8,6 +8,13 @@
 // open, close and the unread count, never message text (spec 5). The visitor
 // token lives in the iframe's own localStorage and travels as
 // Authorization: Bearer (spec 4.1).
+//
+// T202b: a relink mail (hub embed_relink.go) opens the customer's page with
+// #spool-relink=<code>. The loader moves the code into the iframe's own
+// fragment, the chat page redeems it in a request body, and the code never
+// crosses postMessage. After the first answer the chat page offers the
+// optional e-mail with its purpose, and "send me a link" while it holds no
+// token.
 package embedassets
 
 import "embed"

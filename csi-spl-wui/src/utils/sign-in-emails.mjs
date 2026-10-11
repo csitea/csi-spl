@@ -130,7 +130,7 @@ async function mockStore() {
  */
 export async function loadSignInEmails(api, humanId) {
   if (api.mock) return (await mockStore()).list(humanId)
-  const r = await fetch(emailsUrl(api, humanId), { credentials: api.credentials, headers: headersOf(api), cache: 'no-store' })
+  const r = await fetch(emailsUrl(api, humanId), { credentials: api.credentials, headers: headersOf(api), cache: 'no-store', signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
   if (!r.ok) throw await refusal(r, 'list')
   return r.json()
 }

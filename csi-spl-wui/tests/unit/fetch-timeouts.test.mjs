@@ -2,9 +2,10 @@
 // carries a timeout signal, so a hung connection ends in 'failed' instead of
 // an endless spinner. This pins the budgets and that each call site passes
 // `signal:` built from them.
+// Refactor round 7, row 1: the scan is the rule; round 6's per-site assertions stay as the budget check.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -14,6 +15,81 @@ import {
 } from '../../src/utils/fetch-timeouts.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
+
+/**
+ * Parse a fetch call's init object from its balanced parentheses.
+ * @param {string} src - The file's source text.
+ * @param {number} pos - The offset of the `fetch(` call.
+ * @returns {string} The init object as text, or '' if not found.
+ */
+function parseFetchInit(src, pos) {
+  let depth = 0
+  let start = -1
+  let end = -1
+  for (let i = pos; i < src.length; i++) {
+    if (src[i] === '(') {
+      if (depth === 0) start = i + 1
+      depth++
+    } else if (src[i] === ')') {
+      depth--
+      if (depth === 0 && start >= 0) {
+        end = i
+        break
+      }
+    }
+  }
+  if (start < 0 || end < 0) return ''
+  const args = src.slice(start, end).trim()
+  if (!args.includes('{')) return ''
+  // Extract the last argument (the init object)
+  const lastComma = args.lastIndexOf(',')
+  const init = lastComma >= 0 ? args.slice(lastComma + 1).trim() : args
+  return init.startsWith('{') && init.endsWith('}') ? init : ''
+}
+
+/**
+ * Check if a fetch call's init object contains `signal:`.
+ * @param {string} init - The init object as text.
+ * @returns {boolean} True if `signal:` is present.
+ */
+function hasSignal(init) {
+  return /\bsignal\s*:/.test(init)
+}
+
+/**
+ * Walk all .ts, .mjs, and .vue files under `src/` and require `signal:` in every `await fetch(` call.
+ * Exclude `src/node/test/` (test servers).
+ */
+describe('fetch timeouts: every fetch call has a signal', () => {
+  const files = []
+  const walk = (dir) => {
+    for (const f of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, f.name)
+      if (f.isDirectory()) {
+        if (f.name === 'node' && dir.endsWith('src')) continue // Skip src/node/
+        walk(path)
+      } else if (f.isFile() && /\.(ts|mjs|vue)$/.test(f.name)) {
+        files.push(path)
+      }
+    }
+  }
+  walk(SRC)
+
+  for (const file of files) {
+    it(`file ${file.slice(SRC.length + 1)} has signal: in every await fetch( call`, () => {
+      const src = readFileSync(file, 'utf8')
+      const lines = src.split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        const pos = line.indexOf('await fetch(')
+        if (pos < 0) continue
+        const init = parseFetchInit(src, src.indexOf(line) + pos)
+        if (!init) continue
+        assert.ok(hasSignal(init), `${file}:${i + 1}: missing signal: in fetch call init: ${init}`)
+      }
+    })
+  }
+})
 
 describe('fetch timeouts', () => {
   it('orders the budgets: write > read > 0, revision > 0', () => {

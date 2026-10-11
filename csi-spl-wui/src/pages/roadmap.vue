@@ -97,7 +97,7 @@ async function setWhen(w: string) {
 /* fetched, never imported: an imported JSON lands in a chunk (spec 112 9) */
 onMounted(async () => {
   try {
-    const res = await fetch('/roadmap.json', { cache: 'no-cache' })
+    const res = await fetch('/roadmap.json', { cache: 'no-cache', signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
     if (!res.ok) throw new Error(String(res.status))
     const doc = await res.json()
     specs.value = roadmapSpecs(doc) as RoadmapSpec[]

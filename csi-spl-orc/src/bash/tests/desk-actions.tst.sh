@@ -43,6 +43,8 @@
 #      agents share the live sidecar, names them and stops nothing; the
 #      last agent on the box, and DESK_ALL=1, still stop it. CONTROL: the
 #      fake sidecar reads as alive to spl_desk_alive before the runs
+#  14. do_spl_desk_check_mutes lists every other .no-poke seat (seat, tenant,
+#      age) and raises ONE ask per mute older than 24 h; a new mute again
 #   6. spl_desk_detach leaves the caller's descriptors alone: a daemon started
 #      inside a command substitution must not hold it open. That regression hung
 #      `./run` after every step of do_spl_desk_up had passed (2026-09-21)
@@ -845,6 +847,42 @@ rm -f "$T/drop.got"; drop_of "$T/drop-none.yaml"
 rm -f "$T/drop.got"; drop_of "$T/drop-bad.yaml"
 [[ ! -f "$T/drop.got" ]] && grep -q 'FATAL cnf env.box.agent_drop_after_minutes' "$T/o" &&
   pass "a non-number threshold is refused before the sidecar starts" || fail "bad drop threshold: $(cat "$T/o")"
+
+
+# --- 14. a muted seat is never silent (M2, 2026-10-11) ----------------------------
+# Dispatcher seats in two customer desks carried .no-poke from 2026-10-10 14:14Z
+# and nothing said so. Every OTHER muted seat is listed (seat, tenant, age); one
+# older than 24 h raises ONE ask to c-001, never a storm, and a NEW mute again.
+mute() { mkdir -p "$T/state/dev/desk/$1/$2/spool/$3"; touch -d "$4" "$T/state/dev/desk/$1/$2/spool/$3/.no-poke"; }
+printf '#!/bin/sh\necho "$*" >>"%s/mute-sends.log"\nexit "${MUTE_SEND_RC:-0}"\n' "$T" >"$T/mute-send.sh"
+mute sienna box-desk c-002 '25 hours ago'
+mute t1 box-desk c-003 '1 hour ago'
+mute t1 box-desk CLE-00 '30 hours ago'
+mutes() { SNIPPET=do_spl_desk_check_mutes in_orc DESK_AGENT=CLE-00 DESK_MUTE_ALARM_STATE_DIR="$T/mute-state" \
+  DESK_MUTE_ALARM_SEND="$T/mute-send.sh" MUTE_SEND_RC="${1:-0}" 2>&1; }
+sends() { { cat "$T/mute-sends.log" 2>/dev/null || true; } | grep -c .; }
+out="$(mutes)"
+[[ "$out" == *"MUTED seat c-002 tenant sienna box box-desk age 25h"* && "$out" == *"MUTED seat c-003 tenant t1 box box-desk age 1h"* ]] &&
+  pass "every other muted seat is listed with tenant and age" || fail "mute list: $out"
+[[ "$out" != *"seat CLE-00 "* ]] && pass "the checked seat itself is not listed" || fail "own seat listed: $out"
+[[ "$(sends)" == 1 ]] && grep -q -- '--to c-001 .*--ask escalation .*MUTED SEAT: c-002 in tenant sienna (box box-desk) has carried .no-poke for 25h' "$T/mute-sends.log" &&
+  pass "a mute older than 24 h raises one ask to c-001 naming seat, tenant, age" || fail "mute ask: $(cat "$T/mute-sends.log" 2>/dev/null)"
+mutes >/dev/null; mutes >/dev/null
+[[ "$(sends)" == 1 ]] && pass "the same mute is never raised again (no storm)" || fail "re-raised: $(sends) sends"
+mute sienna box-desk c-002 '26 hours ago'
+mutes >/dev/null
+[[ "$(sends)" == 2 ]] && pass "a NEW mute of the seat (new marker time) is raised again" || fail "new mute: $(sends) sends"
+mute t1 box-ci c-004 '48 hours ago'
+out="$(mutes 1)"
+[[ "$out" == *"WARN could not raise the mute of c-004 in t1"* && ! -e "$T/mute-state/t1.box-ci.c-004.raised" ]] &&
+  pass "a failed send says so and leaves no mark" || fail "failed send: $out"
+mutes >/dev/null
+[[ "$(sends)" == 4 ]] && pass "…so the next run raises it" || fail "retry after a failed send: $(sends) sends"
+rm -rf "$T/state/dev/desk"; : >"$T/mute-sends.log"; mute t1 box-desk c-003 '23 hours ago'
+out="$(mutes)"
+[[ "$(sends)" == 0 && "$out" == *"MUTED seat c-003"* ]] && pass "CONTROL a mute under 24 h is listed and raises nothing" ||
+  fail "young mute: $(sends) sends: $out"
+rm -rf "$T/state/dev/desk"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-actions.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

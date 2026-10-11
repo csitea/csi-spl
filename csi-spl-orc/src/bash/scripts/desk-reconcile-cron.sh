@@ -294,6 +294,7 @@ if [ "${DESK_SETTINGS_CHECK:-1}" != 0 ]; then
   printf '%s\n' "$sout" | grep -E ' (SETTINGS BAD|INFO told|WARN could not tell) ' | while IFS= read -r l; do say "${l#* }"; done
   say "INFO do_spl_agent_settings_check exit $src"
 fi
+( cd "$ORC" && env ENV="$ENV_NAME" ./run -a do_spl_desk_check_mutes ) || say "WARN do_spl_desk_check_mutes exit $?"
 
 # THE REBOX PAUSE (specs/058 6.5): while do_spl_desk_rebox moves this machine's
 # desks to a new box id, a tick would re-seat the old box and undo the drain.

@@ -1,0 +1,6 @@
+Lay-What: The scheduled disk cleanup now also shrinks the system log and old temporary files left by idle workers.
+Lay-How: It prints the plan first and only deletes when a live run is requested, and it leaves a busy worker alone.
+Lay-Why: The root disk filled up because the cleanup never touched the system log or those leftover worker files.
+Tech-What: The box disk sweep default steps now include journal and runners.
+Tech-How: journal-sweep.sh runs journalctl --vacuum-size (sudo -n only when DRY_RUN=0, default 500M). runner-sweep.sh removes regular files under _work/_temp and _diag/*.log older than BOX_SWEEP_RUNNER_AGE days only when no Runner.Worker names that directory.
+Tech-Why: The default steps were sessions, tmp, worktrees, go and docker, so nothing in the sweep freed the root filesystem.

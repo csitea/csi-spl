@@ -7,7 +7,8 @@
 //   C  create in a new top row (+ and C), with a cell set before Enter
 //   U  update every cell in place (title, status, prio, assignee, labels,
 //      deadline) and by keyboard (arrows, Enter, Esc)
-//   D  delete with the one confirm; a parent with a live subtask is refused
+//   D  delete with the one confirm; a parent with a live subtask asks the
+//      cascade confirm, its count in the button (HUM-10, t1 40c135cb)
 // Each operation carries a control: the same gesture cancelled changes nothing.
 //
 //   pnpm run test:e2e issues-crud
@@ -294,7 +295,7 @@ try {
     ok(`D1 ${W}: the row delete asks with the one confirm (key + title); Cancel keeps the row (control); Delete removes it`,
       dAsk.key === c && dAsk.text.includes('Gamma row') && dCtl2 && dGone && !dDlg, { dAsk, dCtl2, dGone, dDlg })
 
-    /* a parent with a live subtask is refused, and the row stays */
+    /* a parent with a live subtask asks the cascade (HUM-10); Cancel keeps it */
     await p.click(`${row(b)} .issues-c-key`)
     await waitModal(true)
     await p.click('[data-test=issues-subtask-open]')
@@ -304,14 +305,12 @@ try {
     await p.waitForSelector('[data-test=issues-subtask]', { visible: true, timeout: 5000 }).catch(() => {})
     // CLE-77854: Delete is its own button in the modal header, not the body
     await p.click('[data-test=issues-detail-delete]')
-    await p.waitForSelector('[data-testid=issues-delete-confirm]', { visible: true, timeout: 5000 })
-    await p.click('[data-testid=issues-delete-confirm]')
-    const refused = await p.waitForSelector('[data-testid=issues-delete-error]', { visible: true, timeout: 5000 }).then((h) => h.evaluate((el) => el.textContent.trim()), () => '')
-    await p.click('[data-testid=issues-delete-cancel]')
+    const offer = await p.waitForSelector('[data-testid=issues-cascade-confirm]', { visible: true, timeout: 5000 }).then((h) => h.evaluate((el) => el.textContent.trim()), () => '')
+    await p.click('[data-testid=issues-cascade-cancel]')
     await sleep(200)
     const d2 = { stays: (await keys()).includes(b), modal: await modalUp() }
-    ok(`D2 ${W}: deleting a parent with a live subtask is refused with a reason; the issue stays open`,
-      refused === 'Delete or move its subtasks first.' && d2.stays && d2.modal, { refused, d2 })
+    ok(`D2 ${W}: deleting a parent with a live subtask offers the cascade, the count in the button; Cancel keeps the issue open`,
+      offer === 'Delete with its 1 subtask' && d2.stays && d2.modal, { offer, d2 })
     await p.keyboard.press('Escape')
     await waitModal(false)
 

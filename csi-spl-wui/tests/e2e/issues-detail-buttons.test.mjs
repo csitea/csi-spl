@@ -6,6 +6,10 @@
 // and says so, Archive asks the shared archive confirm, Delete asks the
 // single-issue confirm. A regular member sees the same three (the hub is the
 // authority, as it was for the menu). No horizontal scroll at 390.
+// HUM-10 (t1 40c135cb): archiving or deleting an issue with a live sub-issue
+// said only "That change did not save" (the hub's 409 issue_has_children).
+// Every entry point now states the open sub-issues and offers the cascade in
+// the one confirm, the count in its button (cases 8-10).
 //
 //   pnpm run test:e2e issues-detail-buttons
 //   BASE_URL=<generated bundle> pnpm run test:e2e issues-detail-buttons
@@ -100,6 +104,36 @@ const header = (p) => p.evaluate(() => {
     allVisible: btns.every((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.right <= window.innerWidth && r.left >= 0 }),
   }
 })
+/* a sub-issue under the open issue, from its subtasks section */
+async function addSub(p, title) {
+  /* a phone's docked composer covers a + at the bottom edge: centre it first */
+  await p.$eval('[data-test=issues-subtask-open]', (el) => el.scrollIntoView({ block: 'center' }))
+  await p.click('[data-test=issues-subtask-open]')
+  await p.waitForSelector('[data-test=issues-subtask-input]', { visible: true, timeout: 5000 })
+  await p.click('[data-test=issues-subtask-input]')
+  await p.type('[data-test=issues-subtask-input]', title)
+  await p.keyboard.press('Enter')
+  return p.waitForFunction((want) => [...document.querySelectorAll('[data-test=issues-subtask]')].some((s) => s.textContent.includes(want)), { timeout: 5000 }, title).then(() => true, () => false)
+}
+/* the cascade confirm as shown: its key, count, body text, button and error */
+const cascadeAsk = (p) => p.waitForSelector('[data-testid=issues-cascade-confirm]', { visible: true, timeout: 5000 })
+  .then(() => p.waitForFunction(() => document.querySelector('[data-testid=issues-cascade-body]')?.getAttribute('data-count') !== '0', { timeout: 3000 }).catch(() => {}))
+  .then(() => p.evaluate(() => {
+    const body = document.querySelector('[data-testid=issues-cascade-body]')
+    return { key: body?.getAttribute('data-key') || '', count: body?.getAttribute('data-count') || '', text: body?.textContent.trim() || '',
+      button: document.querySelector('[data-testid=issues-cascade-confirm]')?.textContent.trim() || '',
+      error: document.querySelector('[data-testid=issues-cascade-error]')?.textContent.trim() || '' }
+  }), () => null)
+/* confirm the cascade; the row goes, the confirm closes, no error shows */
+async function confirmCascade(p, key) {
+  await p.click('[data-testid=issues-cascade-confirm]')
+  const gone = await p.waitForFunction((sel) => !document.querySelector(sel), { timeout: 5000 }, row(key)).then(() => true, () => false)
+  const closed = await p.waitForFunction(() => !document.querySelector('[data-testid=issues-cascade-confirm]'), { timeout: 5000 }).then(() => true, () => false)
+  const error = await p.$eval('[data-testid=issues-cascade-error]', (el) => el.textContent.trim()).catch(() => '')
+  return { gone, closed, error }
+}
+const offers = (a, key, verb) => Boolean(a) && a.key === key && a.count === '1' && a.text.includes(`${key} has 1 open subtask`)
+  && a.button === `${verb} with its 1 subtask` && !a.error
 const setMe = (p, me) => p.evaluate((me) => {
   const access = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('access')
   if (!access) return false
@@ -176,6 +210,45 @@ try {
     const hm = await header(p)
     ok(`6 ${W}: a regular member sees Copy link / Archive / Delete`, set && Boolean(hm) && JSON.stringify(hm.ids) === JSON.stringify(BUTTONS), hm && hm.ids)
     await closeIssue(p, W)
+
+    // 8) Archive of an issue with a live sub-issue: the confirm states it and
+    //    offers the cascade, the count in the button; confirming archives both
+    const d = await newIssue(p, W, `buttons D ${W}`)
+    await openIssue(p, W, d)
+    const dSub = await addSub(p, `sub of D ${W}`)
+    await p.click('[data-test=issues-detail-archive]')
+    const dAsk = await cascadeAsk(p)
+    await p.screenshot({ path: `${shot}/HUM-10-archive-with-subs-${W}.png` })
+    const dRes = await confirmCascade(p, d)
+    ok(`8 ${W}: Archive of an issue with a sub-issue offers "Archive with its 1 subtask"; confirming archives it`,
+      dSub && offers(dAsk, d, 'Archive') && dRes.gone && dRes.closed && !dRes.error, { dSub, dAsk, dRes })
+    if (await p.$('[data-test=issues-detail]')) await closeIssue(p, W)
+
+    // 9) the same for Delete
+    const e = await newIssue(p, W, `buttons E ${W}`)
+    await openIssue(p, W, e)
+    const eSub = await addSub(p, `sub of E ${W}`)
+    await p.click('[data-test=issues-detail-delete]')
+    const eAsk = await cascadeAsk(p)
+    const eRes = await confirmCascade(p, e)
+    ok(`9 ${W}: Delete of an issue with a sub-issue offers "Delete with its 1 subtask"; confirming deletes it`,
+      eSub && offers(eAsk, e, 'Delete') && eRes.gone && eRes.closed && !eRes.error, { eSub, eAsk, eRes })
+    if (await p.$('[data-test=issues-detail]')) await closeIssue(p, W)
+
+    // 10) from the list's row menu, the issue closed (its sub-issues are not
+    //     loaded): the same offer, never a bare "That change did not save"
+    const f = await newIssue(p, W, `buttons F ${W}`)
+    await openIssue(p, W, f)
+    const fSub = await addSub(p, `sub of F ${W}`)
+    await closeIssue(p, W)
+    const fBox = await p.$eval(row(f), (el) => { const b = el.getBoundingClientRect(); return { x: b.x + Math.min(40, b.width / 2), y: b.y + b.height / 2 } })
+    await p.mouse.click(fBox.x, fBox.y, { button: 'right' })
+    await p.waitForSelector('[data-test=issues-ctxmenu-archive]', { visible: true, timeout: 5000 })
+    await p.click('[data-test=issues-ctxmenu-archive]')
+    const fAsk = await cascadeAsk(p)
+    const fRes = await confirmCascade(p, f)
+    ok(`10 ${W}: the row menu's Archive of a closed issue with a sub-issue offers the cascade; confirming archives it`,
+      fSub && offers(fAsk, f, 'Archive') && fRes.gone && fRes.closed && !fRes.error, { fSub, fAsk, fRes })
 
     const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
     ok(`7 ${W}: no page errors`, mine.length === 0, mine)

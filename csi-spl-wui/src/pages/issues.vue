@@ -88,7 +88,7 @@
             @click="pickEpic(e.key)"
           >{{ e.title }}</button>
         </nav>
-        <p v-if="saveError && !form" class="issues-error issues-merror" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
+        <p v-if="saveError && !form" class="issues-error issues-merror" role="alert" data-test="issues-list-error">{{ t(saveError, { reason: saveReason }) }}</p>
       </template>
       <!-- owner, topic e00da93b: "it should look like a gsheet with columns and a
            table". The list is a table: row 1 the column names, row 2 each
@@ -100,7 +100,7 @@
            and Clear filters moved UP onto the title row; the tools row that
            held them is gone so the table rises by its height. Only the list
            error keeps a spot here, and it renders nothing unless there is one. -->
-      <p v-if="!phone && saveError && !modalOpen" class="issues-error issues-list-error" role="alert" data-test="issues-list-error">{{ t(saveError) }}</p>
+      <p v-if="!phone && saveError && !modalOpen" class="issues-error issues-list-error" role="alert" data-test="issues-list-error">{{ t(saveError, { reason: saveReason }) }}</p>
       <div ref="scrollerEl" class="issues-scroll">
         <table v-if="!phone" class="issues-table" :class="colWidthClasses(colWidths)" :style="colWidthVars(colWidths)" data-test="issues-table">
           <thead ref="theadEl" class="issues-filters" data-test="issues-filters">
@@ -660,7 +660,7 @@
             @draft="onDescriptionDraft"
             @submit="onDescriptionSubmit"
           />
-          <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError) }}</p>
+          <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError, { reason: saveReason }) }}</p>
           <button v-if="creating" type="button" class="btn issues-detail-create" data-test="issues-create" :disabled="busy || !draft.title.trim()" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
         </div>
         <!-- the property panel: one property per row, label | control, aligned.
@@ -878,7 +878,7 @@
       :open="Boolean(actConfirm)"
       :title="actConfirm ? t(actConfirmTitleKey, { key: actConfirm.target.key, count: actConfirm.count }) : ''"
       testid="issues-cascade"
-      :confirm-label="t(actConfirm && actConfirm.action === 'archive' ? 'issues_menu.archive' : 'issues_crud.delete')"
+      :confirm-label="actConfirmLabel"
       :busy-label="t(actConfirm && actConfirm.action === 'archive' ? 'issues_menu.archiving' : 'issues_crud.deleting')"
       :busy="actBusy"
       :error="actError"
@@ -887,7 +887,8 @@
       @confirm="runAction"
     >
       <p class="issues-del-title">{{ actConfirm ? actConfirm.target.title : '' }}</p>
-      <p v-if="actConfirm && actConfirm.count > 0">{{ t(actConfirm.action === 'archive' ? 'issues_menu.archive_cascade_body' : 'issues_menu.delete_cascade_body', { count: actConfirm.count }) }}</p>
+      <p v-if="actConfirm && actConfirm.count > 0 && !actConfirm.target.top">{{ t('issues_menu.has_subs_body', { key: actConfirm.target.key, count: actConfirm.count }, actConfirm.count) }}</p>
+      <p v-else-if="actConfirm && actConfirm.count > 0">{{ t(actConfirm.action === 'archive' ? 'issues_menu.archive_cascade_body' : 'issues_menu.delete_cascade_body', { count: actConfirm.count }) }}</p>
       <p v-else>{{ t(actConfirm && actConfirm.action === 'archive' ? 'issues_menu.archive_body' : 'issues_crud.delete_body') }}</p>
     </UiConfirm>
     <!-- SPL-992: on a phone every picker is a bottom sheet over a scrim -->
@@ -1087,6 +1088,9 @@ const deadlineEditKey = ref('')
 const delTarget = ref<Issue | null>(null)
 const delBusy = ref(false)
 const delError = ref('')
+/* HUM-10 (t1 40c135cb): the hub's own reason for a refused write, shown when
+   the page has no words of its own for it (issues.save_failed_reason) */
+const saveReason = ref('')
 /* SPL-1226: the right-click / long-press context menu (shared with the epics
    sidebar) and its cascade archive/delete confirm */
 const { target: ctxTarget, point: ctxPoint, openAt: openCtxMenu, close: closeCtxMenu, editRequest } = useIssueMenu()
@@ -1172,7 +1176,7 @@ async function openIssueKey(key: string) {
     const data = await withSessionRetry(api, () => api.getIssue(key))
     choose(normalizeIssue(data.issue))
   } catch (e) {
-    saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
+    saveError.value = failKey(e)
   }
 }
 
@@ -1222,6 +1226,17 @@ function errorKey(err: { status?: number, token?: string }, which: 'list' | 'one
   if (token === 'epic_has_issues') return 'issues.err_epic_has_issues'
   if (status === 503 || token === 'unavailable') return 'issues.unavailable'
   return which === 'list' ? 'issues.load_failed' : 'issues.save_failed'
+}
+/* a refused write: the page's own words, or the hub's reason (never a bare
+   "That change did not save" when the hub said why) */
+function failKey(e: unknown): string {
+  const key = errorKey(e as { status?: number, token?: string }, 'one')
+  saveReason.value = String((e as { detail?: string })?.detail || '')
+  return key === 'issues.save_failed' && saveReason.value ? 'issues.save_failed_reason' : key
+}
+function refusedText(key: string, e: unknown): string {
+  const reason = String((e as { detail?: string })?.detail || '')
+  return key === 'issues.save_failed' && reason ? t('issues.save_failed_reason', { reason }) : t(key)
 }
 
 /* the whole closed-control text, for the hover when it is ellipsized */
@@ -1635,7 +1650,7 @@ async function save(key: string, body: Record<string, unknown>) {
     const data = await withSessionRetry(api, () => api.updateIssue(key, body))
     hold(normalizeIssue(data.issue))
   } catch (e) {
-    saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
+    saveError.value = failKey(e)
   } finally {
     busy.value = false
   }
@@ -1757,7 +1772,7 @@ async function addLabel() {
     labelName.value = ''
     await applyMenu(data.label.id)
   } catch (e) {
-    saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
+    saveError.value = failKey(e)
   } finally {
     busy.value = false
   }
@@ -1799,7 +1814,7 @@ async function createIssue() {
     cursorKey.value = created.key
     writeIssueQuery(created.key)
   } catch (e) {
-    saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
+    saveError.value = failKey(e)
   } finally {
     busy.value = false
   }
@@ -1886,6 +1901,8 @@ function onRowDeadline(issue: Issue, local: string) {
 }
 function askDelete(issue: Issue) {
   menu.value = null
+  /* HUM-10: an issue with live sub-issues asks the cascade confirm instead */
+  if (!isTopKind(issue.kind) && loadedSubCount(issue.key) > 0) { askAction('delete', issueTarget(issue)); return }
   delError.value = ''
   delTarget.value = issue
 }
@@ -1912,7 +1929,17 @@ async function confirmDelete() {
     if (cursorKey.value === issue.key) cursorKey.value = flat.value[Math.min(at, flat.value.length - 1)]?.key || ''
     delTarget.value = null
   } catch (e) {
-    delError.value = t(deleteErrKey(e as { status?: number, token?: string }))
+    /* HUM-10: refused for live sub-issues the list did not know of: offer the cascade */
+    if ((e as { token?: string })?.token === 'issue_has_children') {
+      const n = await probeSubCount(issue.key)
+      if (n > 0) {
+        delTarget.value = null
+        actError.value = ''
+        actConfirm.value = { target: issueTarget(issue), action: 'delete', count: n }
+        return
+      }
+    }
+    delError.value = refusedText(deleteErrKey(e as { status?: number, token?: string }), e)
   } finally {
     delBusy.value = false
   }
@@ -2098,7 +2125,7 @@ async function editTarget(tg: IssueMenuTarget) {
     const data = await withSessionRetry(api, () => api.getIssue(tg.key))
     choose(normalizeIssue(data.issue))
   } catch (e) {
-    saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
+    saveError.value = failKey(e)
   }
 }
 /* the shareable link for a menu target: an epic/feature opens its filtered
@@ -2148,12 +2175,34 @@ function descendantCount(tg: IssueMenuTarget): number {
     const inList = issues.value.filter((i) => i.epic === tg.key).length
     return Math.max(inList, epics.value.find((e) => e.key === tg.key)?.total || 0)
   }
-  return issues.value.filter((i) => i.parent === tg.key).length
+  return loadedSubCount(tg.key)
+}
+/* HUM-10 (t1 40c135cb): an issue's live sub-issues - the open issue's are
+   loaded (subtasks), a list row's children may be; else the hub is asked */
+function loadedSubCount(key: string): number {
+  const open = detail.value?.key === key ? subtasks.value.length : 0
+  return Math.max(open, issues.value.filter((i) => i.parent === key).length)
+}
+async function probeSubCount(key: string): Promise<number> {
+  try {
+    const data = await withSessionRetry(api, () => api.listIssues({ filter: { parent: [key] } }))
+    return Math.max(Number((data as { total?: number }).total) || 0, (data.issues || []).length)
+  } catch {
+    return 0
+  }
 }
 function askAction(action: 'archive' | 'delete', tg: IssueMenuTarget) {
   closeCtxMenu()
   actError.value = ''
-  actConfirm.value = { target: tg, action, count: descendantCount(tg) }
+  const count = descendantCount(tg)
+  actConfirm.value = { target: tg, action, count }
+  if (tg.top || count > 0) return
+  /* not loaded here: ask the hub, so the confirm states them before the call
+     (still this ask: the ref holds a proxy, so compare by key, not identity) */
+  void probeSubCount(tg.key).then((n) => {
+    const c = actConfirm.value
+    if (n > 0 && c && c.target.key === tg.key && c.action === action && c.count === 0 && !actBusy.value) actConfirm.value = { ...c, count: n }
+  })
 }
 function onActConfirmOpen(open: boolean) {
   if (!open && !actBusy.value) actConfirm.value = null
@@ -2189,16 +2238,29 @@ async function runAction() {
     if (cursorKey.value && gone.has(cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
     actConfirm.value = null
   } catch (e) {
+    /* HUM-10: refused for sub-issues it did not know of: the confirm turns
+       into the cascade offer, the count in its button */
+    if (!cascade && (e as { token?: string })?.token === 'issue_has_children') {
+      const n = await probeSubCount(c.target.key)
+      if (n > 0 && actConfirm.value === c) { actConfirm.value = { ...c, count: n }; return }
+    }
     /* keep the confirm open with a clear message - never a silent no-op */
-    actError.value = t(actErrorKey(e as { status?: number, token?: string }, cascade))
+    actError.value = refusedText(actErrorKey(e as { status?: number, token?: string }, cascade), e)
   } finally {
     actBusy.value = false
   }
 }
+const actConfirmLabel = computed(() => {
+  const c = actConfirm.value
+  const verb = c && c.action === 'archive' ? 'archive' : 'delete'
+  /* HUM-10: one confirm, the sub-issue count in its button */
+  if (c && c.count > 0 && !c.target.top) return t(`issues_menu.${verb}_with_subs`, { count: c.count }, c.count)
+  return t(verb === 'archive' ? 'issues_menu.archive' : 'issues_crud.delete')
+})
 const actConfirmTitleKey = computed(() => {
   const c = actConfirm.value
   if (!c) return ''
-  if (c.count > 0) return c.action === 'archive' ? 'issues_menu.archive_cascade_title' : 'issues_menu.delete_cascade_title'
+  if (c.count > 0 && c.target.top) return c.action === 'archive' ? 'issues_menu.archive_cascade_title' : 'issues_menu.delete_cascade_title'
   return c.action === 'archive' ? 'issues_menu.archive_title' : 'issues_menu.delete_title'
 })
 
@@ -2290,8 +2352,8 @@ async function sendComment() {
   try {
     await postComment(issue, text)
     commentText.value = ''
-  } catch {
-    saveError.value = 'issues.save_failed'
+  } catch (e) {
+    saveError.value = failKey(e)
   } finally {
     busy.value = false
   }

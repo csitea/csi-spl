@@ -21,9 +21,15 @@
 # @description   4. repair, only while the probe says ok: stop each stuck
 # @description      agent - its pane (and the wrapper that would relaunch
 # @description      claude in it), then ITS OWN claude pid (TERM, KILL after
-# @description      LOGIN_STOP_WAIT s) - then ONE do_spl_agent_identity_restore
-# @description      with IDENTITY_RESTORE_IDS = them. No /login step (owner
-# @description      a7499dc2). A dead login on disk is never restored into.
+# @description      LOGIN_STOP_WAIT s) - then do_spl_agent_identity_restore
+# @description      for that seat alone, seat by seat, at most once per tick.
+# @description      A seat is stopped only when the restore can bring it back
+# @description      (session, worktree, adapter, transcript) and it is still
+# @description      stuck at the moment of the stop; a seat restored, or whose
+# @description      claude started, under the cool-down (cnf
+# @description      env.box.login_check.cooldown_min, 10 min) ago is left
+# @description      alone. No /login step (owner a7499dc2). A dead login on
+# @description      disk is never restored into.
 # @description   5. alert: one spool message to the dispatch lease holder with
 # @description      the counts before and after, when it acted or when a
 # @description      problem first shows (deduplicated by its state).
@@ -33,6 +39,7 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param LOGIN_PROBE_EVERY (optional) - s between probes on a healthy box, default 300 (0 = every tick)
 # @param LOGIN_STOP_WAIT (optional) - s a stopped claude gets before KILL, default 15
+# @param LOGIN_COOLDOWN_MIN (optional) - minutes a just restored or started seat is left alone; default cnf env.box.login_check.cooldown_min (10)
 # @param LOGIN_STATE_DIR (optional) - default /var/csi/csi-spl/agent-login-check
 # @param LOGIN_PEERS (optional) - overrides SPOOL_LOGIN_PEERS of box.env
 # @param LOGIN_ALERT_TO (optional) - default the dispatch lease holder
@@ -58,6 +65,8 @@ do_spl_agent_login_check() {
   exec 8>>"$LC_STATE/tick.lock" || return 1
   flock -n 8 || { echo "login-check: another tick holds $LC_STATE/tick.lock - skipped"; return 0; }
   LC_TAG="$(ai_tag)"; LC_DRY="$dry"
+  LC_COOL="$(_lc_cooldown_min)" || return 1; LC_COOL=$((LC_COOL * 60))
+  [[ -n "${SPOOL_AGENT_USER:-}" ]] || SPOOL_AGENT_USER="$(SPOOL_AGENT_USER=''; _spool_box_env_load; printf '%s' "${SPOOL_AGENT_USER:-}")"
   LC_NOTE=() ; LC_WARN=() ; LC_COPIED=0 ; LC_STOPPED=0 ; LC_RESTORED=0 ; LC_FAILED=0
 
   local stuck0 verdict0 verdict stuck1="" alerted=0
@@ -71,6 +80,20 @@ do_spl_agent_login_check() {
   echo "login-check@${LC_TAG:-box}: probe=${verdict%% *} stuck_login=$(_lc_n login "$stuck0") stuck_limit=$(_lc_n limit "$stuck0") copied=$LC_COPIED stopped=$LC_STOPPED restored=$LC_RESTORED failed=$LC_FAILED alerted=$alerted$([[ "$dry" == 1 ]] && echo ' (DRY_RUN)')"
   exec 8>&-
   (( LC_FAILED == 0 ))
+}
+
+# The cool-down in minutes: LOGIN_COOLDOWN_MIN, else cnf
+# env.box.login_check.cooldown_min, else 10.
+_lc_cooldown_min() {
+  local m="${LOGIN_COOLDOWN_MIN:-}" oa cnf
+  if [[ -z "$m" ]]; then
+    oa="$(basename "$PROJ_PATH")"; oa="${oa%-orc}"
+    cnf="${LOGIN_CNF:-$PROJ_PATH/../$oa-cnf/$oa/all.env.yaml}"
+    m="$(yq -r '.env.box.login_check.cooldown_min // ""' "$cnf" 2>/dev/null)"
+  fi
+  m="${m:-10}"
+  [[ "$m" =~ ^[0-9]+$ ]] || { do_log "FATAL the login check cool-down must be whole minutes, got: '$m'"; return 1; }
+  echo "$m"
 }
 
 # How many lines of the scan carry WHAT (login | limit).
@@ -95,16 +118,24 @@ _lc_agents() {
 # pane's footer AND the transcript's last answer being an API error, so a
 # pane that merely shows the words (an agent discussing them) is not stuck.
 _lc_scan() {
-  local id pid pane foot what
+  local id pid pane what
   while read -r id pid pane; do
     [[ -n "$pane" ]] || continue
-    foot="$(_lc_capture "$pane" | grep -v '^[[:space:]]*$' | tail -n "${LOGIN_PANE_TAIL:-8}")"
-    if grep -qiE "$LC_FOOT_LOGIN_RE" <<<"$foot"; then what=login
-    elif grep -qiE "$LC_FOOT_LIMIT_RE" <<<"$foot"; then what=limit
-    else continue; fi
-    [[ "$(_lc_turn "$pid")" == error ]] || continue
+    what="$(_lc_stuck_now "$pid" "$pane")" || continue
     echo "$id $pid $pane $what"
   done < <(_lc_agents)
+}
+
+# login | limit when PANE's footer shows the banner AND PID's last transcript
+# answer is an API error; non-zero otherwise.
+_lc_stuck_now() {
+  local pid="$1" pane="$2" foot what
+  foot="$(_lc_capture "$pane" | grep -v '^[[:space:]]*$' | tail -n "${LOGIN_PANE_TAIL:-8}")"
+  if grep -qiE "$LC_FOOT_LOGIN_RE" <<<"$foot"; then what=login
+  elif grep -qiE "$LC_FOOT_LIMIT_RE" <<<"$foot"; then what=limit
+  else return 1; fi
+  [[ "$(_lc_turn "$pid")" == error ]] || return 1
+  echo "$what"
 }
 
 _lc_capture() {
@@ -190,21 +221,76 @@ _lc_peer_one() {
 
 # Stop the stuck agents and restore them, only while this box's login works.
 _lc_repair() {
-  local verdict="$1" stuck="$2" wait="$3" id pid pane what ids=""
+  local verdict="$1" stuck="$2" wait="$3" id pid pane what why
   if [[ "${verdict%% *}" != ok ]]; then
     LC_NOTE+=("$(wc -l <<<"$stuck") stuck agent(s) left as they are: this box's login is ${verdict%% *} (a restart would come back dead)")
     return 0
   fi
+  # One seat at a time, each at most once per tick: never stop a seat this run
+  # cannot restore, nor one that is no longer stuck (c-002 ece2ab8a: a pass
+  # that stopped all, then restored all, left two seats stopped).
   while read -r id pid pane what; do
+    if why="$(_lc_cooling "$id" "$pid")"; then LC_NOTE+=("$id left alone: $why"); continue; fi
+    if ! why="$(_lc_restorable "$id")"; then LC_WARN+=("$id is stuck ($what) but cannot be restored: $why; not stopped"); continue; fi
     if [[ "$LC_DRY" == 1 ]]; then LC_NOTE+=("PLAN stop $id (pane $pane, pid $pid, $what) and restore it"); continue; fi
+    # the pane re-read right before the stop: still on the banner = stop and
+    # restore; its claude gone and a bare shell left = restore, nothing to
+    # stop; anything else recovered = left alone
+    if ! _lc_stuck_now "$pid" "$pane" >/dev/null; then
+      if _lc_bare "$pid" "$pane"; then
+        LC_NOTE+=("$id: its claude exited, pane $pane is a bare shell; restored without a stop")
+        _lc_restore "$id"; date +%s >"$LC_STATE/restored.$id" 2>/dev/null || true
+      else LC_NOTE+=("$id recovered before the stop; left alone"); fi
+      continue
+    fi
     if _lc_stop "$id" "$pid" "$pane" "$wait"; then
-      LC_STOPPED=$((LC_STOPPED + 1)); ids+="${ids:+ }$id"
+      LC_STOPPED=$((LC_STOPPED + 1))
+      _lc_restore "$id"
+      date +%s >"$LC_STATE/restored.$id" 2>/dev/null || true
     else
       LC_FAILED=$((LC_FAILED + 1)); LC_NOTE+=("FAILED to stop $id (pid $pid)")
     fi
   done <<<"$stuck"
-  [[ -n "$ids" ]] || return 0
-  _lc_restore "$ids"
+}
+
+# 0 when PID is gone and PANE runs only a shell (the adapter's fallback).
+_lc_bare() {
+  local pid="$1" pane="$2" cmd
+  if [[ -n "${LOGIN_GONE_CMD:-}" ]]; then bash -c "$LOGIN_GONE_CMD \"\$1\"" _ "$pid" || return 1
+  else [[ ! -d "/proc/$pid" ]] || return 1; fi
+  if [[ -n "${LOGIN_PANECMD_CMD:-}" ]]; then cmd="$(bash -c "$LOGIN_PANECMD_CMD \"\$1\"" _ "$pane")"
+  else cmd="$(ai_tmux display-message -p -t "$pane" '#{pane_current_command}' 2>/dev/null)"; fi
+  [[ "$cmd" =~ ^-?(bash|sh|zsh|dash)$ ]]
+}
+
+# Why ID is left alone this tick, when it is: this action restored it, or its
+# claude started, less than the cool-down ago - a resumed session still shows
+# the old banner and error until it answers its kick.
+_lc_cooling() {
+  local id="$1" pid="$2" cool="$LC_COOL" at age
+  at="$(cat "$LC_STATE/restored.$id" 2>/dev/null)"
+  if [[ "$at" =~ ^[0-9]+$ ]] && (( $(date +%s) - at < cool )); then echo "restored by this check $(( $(date +%s) - at ))s ago"; return 0; fi
+  age="$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d ' ')"
+  if [[ "$age" =~ ^[0-9]+$ ]] && (( age < cool )); then echo "its claude started ${age}s ago"; return 0; fi
+  return 1
+}
+
+# 0 when the restore can bring ID back: its record names a session and a
+# worktree that exists, an adapter for its kind exists, and (claude) the
+# transcript is in the agent user's home. Else prints why, non-zero.
+_lc_restorable() {
+  local id="$1" sid wt kind home slug own
+  sid="$(ai_field "$id" session_id)"; wt="$(ai_field "$id" worktree)"; kind="$(ai_field "$id" kind)"
+  kind="${kind:-claude}"
+  [[ -n "$sid" ]] || { echo "its session is unknown"; return 1; }
+  [[ -n "$wt" && -d "$wt" ]] || { echo "its worktree ${wt:-?} is gone"; return 1; }
+  [[ -r "${IDENTITY_RESTORE_ADAPTER_DIR:-$PROJ_PATH/src/bash/features/spawn-agents/scripts}/restore-$kind.sh" ]] || { echo "no restore adapter for $kind"; return 1; }
+  [[ "$kind" == claude ]] || return 0
+  home="${LOGIN_AGENT_HOME:-$(getent passwd "${SPOOL_AGENT_USER:-$(id -un)}" | cut -d: -f6)}"
+  slug="$(sed 's/[^A-Za-z0-9]/-/g' <<<"$wt")"
+  own="$(stat -c %U "$home" 2>/dev/null)"
+  if [[ -z "$own" || "$own" == "$(id -un)" ]]; then test -f "$home/.claude/projects/$slug/$sid.jsonl"
+  else sudo -n -u "$own" test -f "$home/.claude/projects/$slug/$sid.jsonl"; fi || { echo "its transcript $sid is not in the agent user's home"; return 1; }
 }
 
 # Stop ONE agent: its pane first (the restore-claude.sh wrapper in it would

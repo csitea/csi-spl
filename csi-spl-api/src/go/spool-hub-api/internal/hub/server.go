@@ -31,6 +31,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/edge"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub/embedassets"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -440,7 +441,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeEmbedAdmin(mux)    // specs/121 T203: /v1/tenant/embeds*, owner only, off unless EmbedEnabled
 	s.routeEmbedSignIn(mux)   // specs/121 T205: POST /v1/embed/{embed_id}/signin, off unless EmbedEnabled
 	// specs/121 T201: /embed/*, per-embed frame-ancestors; T202 passes its assets.
-	s.routeEmbedServe(mux, s.o.EmbedEnabled, nil)
+	s.routeEmbedServe(mux, s.o.EmbedEnabled, embedassets.FS)
 	s.routeEmbedStaff(mux)  // specs/121 T106: /v1/tenant/embed-visitors*, staff, off unless EmbedEnabled
 	s.routeEmbedRelink(mux) // specs/121 T206: the e-mail relink, off unless EmbedEnabled
 }

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -280,14 +281,17 @@ func TestEmbedHandlerWired(t *testing.T) {
 		wantNone(t, "Handler /v1/health", embedGet(t, h, "/v1/health"))
 		wantNone(t, "Handler /version", embedGet(t, h, "/version"))
 		w := embedGet(t, h, "/embed/v1/chat?e=shop")
-		// Until T202 passes its assets the page is a 404, but an enabled
-		// embed's policy is already on it.
-		want := frameNone
+		// On, the real chat page (T202's embedassets) under the embed's
+		// policy; off, a 404 that refuses framing.
+		want, code := frameNone, http.StatusNotFound
 		if on {
-			want = "frame-ancestors https://shop.example.com https://*.example.org:8443"
+			want, code = "frame-ancestors https://shop.example.com https://*.example.org:8443", http.StatusOK
 		}
-		if w.Code != http.StatusNotFound || w.Header().Get("Content-Security-Policy") != want {
-			t.Errorf("Handler on=%v chat: %d %q, want 404 %q", on, w.Code, w.Header().Get("Content-Security-Policy"), want)
+		if w.Code != code || w.Header().Get("Content-Security-Policy") != want {
+			t.Errorf("Handler on=%v chat: %d %q, want %d %q", on, w.Code, w.Header().Get("Content-Security-Policy"), code, want)
+		}
+		if on && !strings.Contains(w.Body.String(), "uiEvent") {
+			t.Errorf("Handler chat: not the embedassets page: %.80q", w.Body.String())
 		}
 		wantNoCORS(t, "Handler chat", w)
 	}

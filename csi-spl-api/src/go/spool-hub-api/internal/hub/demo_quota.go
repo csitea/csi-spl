@@ -87,3 +87,28 @@ func (s *Server) takeDemoQuota(ctx context.Context, qc store.QuotaCounter, tenan
 	}
 	return "", 0, ""
 }
+
+// demoQuotaKeep is how long a demo counter row is kept: past the longest
+// fixed window that reads one (a UTC day) with a margin; sweepDemoQuota
+// stretches it to the stay, the agent_turn window.
+const demoQuotaKeep = 48 * time.Hour
+
+// sweepDemoQuota drops the demo workspace's counters no window reads any
+// more (the stay sweep's tick); SweepEmbed drops the embed_* kinds. A store
+// that keeps no counter rows has nothing to drop.
+func (s *Server) sweepDemoQuota(ctx context.Context) {
+	qs, ok := s.o.Store.(store.QuotaSweeper)
+	if !ok || s.o.DemoWorkspace == "" {
+		return
+	}
+	kinds := append([]string{demoQuotaAgentTurn, demoQuotaPostMinute, demoQuotaPostDay}, store.DemoAdmitQuotaKinds...)
+	keep := max(demoQuotaKeep, 2*s.demoMaxStay())
+	n, err := qs.SweepQuota(ctx, s.o.DemoWorkspace, kinds, s.o.Now().Add(-keep))
+	if err != nil {
+		s.o.Log.Error().Err(err).Msg("demo quota sweep")
+		return
+	}
+	if n > 0 {
+		s.o.Log.Info().Int("counts", n).Msg("demo quota sweep")
+	}
+}

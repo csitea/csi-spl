@@ -176,3 +176,29 @@ func TestSweepEmbed(t *testing.T) {
 		t.Errorf("a second sweep = %+v, %v; want no token (each is retired once)", again, err)
 	}
 }
+
+// TestSweepEmbedJWTMark: T205's replay mark (kind embed_jwt, window = the
+// JWT's exp) is an embed counter, so SweepEmbed drops it once the exp is
+// older than the keep. CONTROL: a mark whose exp is inside the keep, and a
+// live one (exp ahead), stay.
+func TestSweepEmbedJWTMark(t *testing.T) {
+	pg := rlsStore(t)
+	rt, _ := runtimeStore(t)
+	ctx, now := context.Background(), time.Now().UTC().Truncate(time.Second)
+	a := newTenant(t, pg)
+	past, inside, live := now.Add(-72*time.Hour), now.Add(-time.Hour), now.Add(time.Hour)
+	for _, exp := range []time.Time{past, inside, live} {
+		if _, ok, err := rt.TakeQuota(ctx, a, "jwt:d", "embed_jwt", exp, 1); err != nil || !ok {
+			t.Fatalf("seed %v: %v %v", exp, ok, err)
+		}
+	}
+	if _, err := rt.SweepEmbed(ctx, now, now.Add(-48*time.Hour), now.Add(-24*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if n := quotaN(t, pg, a, "jwt:d", "embed_jwt", past); n != 0 {
+		t.Errorf("an embed_jwt mark past the keep stayed (n = %d)", n)
+	}
+	if quotaN(t, pg, a, "jwt:d", "embed_jwt", inside) != 1 || quotaN(t, pg, a, "jwt:d", "embed_jwt", live) != 1 {
+		t.Error("CONTROL: an embed_jwt mark inside the keep was dropped")
+	}
+}

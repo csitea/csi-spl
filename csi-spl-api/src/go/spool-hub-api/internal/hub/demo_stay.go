@@ -97,10 +97,11 @@ func (s *Server) demoFrameEnded(ctx context.Context, c *wuiConn) bool {
 	return true
 }
 
-// SweepDemo is one stay sweep (RunSweeper, every demoSweepEvery): the store
-// drops the ended seats and the visitors' data, then their sockets close and
-// their avatars go.
+// SweepDemo is one stay sweep (RunSweeper, every demoSweepEvery): the demo
+// counters past their windows go (sweepDemoQuota), the store drops the ended
+// seats and the visitors' data, then their sockets close and their avatars go.
 func (s *Server) SweepDemo(ctx context.Context) {
+	s.sweepDemoQuota(ctx)
 	st, ok := s.o.Store.(store.DemoStays)
 	if !ok || s.o.DemoWorkspace == "" {
 		return

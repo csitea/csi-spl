@@ -168,6 +168,8 @@ const LOOK_A_MEASURE = `(() => {
       const v = box(document.querySelector('.login-body')) || d
       return { test: b.dataset.test, l: Math.max(d.l, v.l), t: Math.max(d.t, v.t), r: Math.min(d.r, v.r), b: Math.min(d.b, v.b) }
     }).filter((d) => d.r > d.l && d.b > d.t),
+    linksRow: box(document.querySelector('[data-test=login-links]')),
+    links: [...document.querySelectorAll('[data-test^=login-link-]')].filter(shown).map((a) => ({ test: a.dataset.test, href: a.getAttribute('href'), target: a.getAttribute('target'), ...box(a) })),
     xScroll: document.documentElement.scrollWidth > window.innerWidth + 1,
   }
 })()`
@@ -243,6 +245,26 @@ async function lookA(browser) {
           for (const l of m.links) for (const d of m.demo) if (hits(l, d)) over.push(`${l.test} on ${d.test}`)
           if (over.length) fail(`${label} overlap`, over.join(', '))
           else ok(`${label} overlap`, `${m.links.length} links clear of ${m.demo.length} demo buttons`)
+        }
+        // 116-T5: the links row under the features row
+        if (!m.linksRow) fail(`${label} links row`, 'not shown')
+        else if (m.linksRow.w <= 0 || m.linksRow.h <= 0) fail(`${label} links row`, 'zero size')
+        else if (m.features.length && m.linksRow.t < m.features[0].b - 1) fail(`${label} links row`, `top ${m.linksRow.t} above the features bottom ${m.features[0].b}`)
+        else {
+          ok(`${label} links row`, `under the features, ${m.links.length} links`)
+          const want = ['blog', 'docs', 'calendar', 'help', 'source']
+          const got = m.links.map((l) => l.test.replace('login-link-', ''))
+          const order = got.every((v, i) => v === want[i])
+          if (!order) fail(`${label} links order`, `got [${got.join(', ')}], want [${want.join(', ')}]`)
+          else ok(`${label} links order`, `in spec order`)
+          const external = m.links.find((l) => l.test === 'login-link-source')
+          if (external?.target !== '_blank') fail(`${label} links external`, 'Source link does not open in a new tab')
+          else if (external?.href !== 'https://github.com/csitea/csi-spl') fail(`${label} links external`, `Source href ${external.href}, want https://github.com/csitea/csi-spl`)
+          else ok(`${label} links external`, 'Source opens in a new tab')
+          const internal = m.links.filter((l) => l.test !== 'login-link-source')
+          const badTarget = internal.find((l) => l.target === '_blank')
+          if (badTarget) fail(`${label} links internal`, `${badTarget.test} opens in a new tab`)
+          else ok(`${label} links internal`, 'internal links open in the same tab')
         }
         // the channel plays about 8 s once; the picture is its still end
         if (SHOT_DIR) { await sleep(9000); await p.screenshot({ path: join(SHOT_DIR, `login-look-a-${vp.name}-${theme}.png`) }) }

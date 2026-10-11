@@ -21,6 +21,9 @@
 #      "exceeded the maximum execution time") is a red job, its run reads
 #      `timeout`; a short superseded cancelled run is never re-read
 #   9. spec 131 C1: a signature is never a PASS line that quotes FAIL
+#  10. spec 131 C4: timeout headroom -- a job whose p90 wall time is 80 % of
+#      its timeout-minutes reads AT RISK, one at 70 % reads ok; a matrix name
+#      ("${{ matrix.shard }}/2") takes its job's timeout
 #   CONTROLS -- the report cannot be silently empty:
 #     a. no runs at all               -> refused (non-zero), not "healthy"
 #     b. gh itself fails              -> refused (non-zero)
@@ -35,6 +38,7 @@
 #     g. RED CONTROL for 8: with the annotations hidden the window reads
 #        "no failed run", the report before C1
 #     h. RED CONTROL for 9: the pre-C1 signature grep picks the PASS line
+#     i. RED CONTROL for 10: without the workflow file no job is AT RISK
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -349,6 +353,48 @@ old=$(grep -aE '(^|[[:space:]])(FAIL[:[:space:]]|FAILED:|--- FAIL|::error::)' "$
 [[ "$old" == "PASS: 1."* ]] \
   && pass "CONTROL h. the pre-C1 signature grep returns '${old:0:40}...', so check 9 FAILS without the PASS filter" \
   || fail "CONTROL h. the old grep did not pick the PASS line ($old): check 9 proves nothing"
+
+# --- 10. timeout headroom (spec 131 C4) ----------------------------------------
+cp "$T/api/runs.json" "$T/api/runs-before-10.json"
+cat >"$T/wf.yml" <<'YML'
+jobs:
+  slow:
+    name: "orc: hermetic ${{ matrix.shard }}/2"
+    needs: classify
+    timeout-minutes: 10
+  fast:
+    name: "cnf: validator"
+    timeout-minutes: 10
+YML
+# 10 green runs: orc 1/2 runs 320..500 s (p90, the 9th, 480 s = 80 % of 600 s),
+# cnf 260..440 s (p90 420 s = 70 %)
+{
+  printf '['
+  for i in 0 1 2 3 4 5 6 7 8 9; do
+    (( i )) && printf ','
+    printf '{"databaseId":94%d,"conclusion":"success","createdAt":"2026-01-04T10:0%d:00Z","headSha":"4040404%daaaa","headBranch":"master"}' "$i" "$i" "$i"
+    o=$((320 + i * 20)); c=$((260 + i * 20))
+    printf '{"jobs":[{"id":95%d0,"name":"orc: hermetic 1/2","conclusion":"success","started_at":"2026-01-04T10:00:00Z","completed_at":"%s"},{"id":95%d1,"name":"cnf: validator","conclusion":"success","started_at":"2026-01-04T10:00:00Z","completed_at":"%s"}]}\n' \
+      "$i" "$(date -u -d "2026-01-04T10:00:00Z + $o seconds" +%Y-%m-%dT%H:%M:%SZ)" "$i" "$(date -u -d "2026-01-04T10:00:00Z + $c seconds" +%Y-%m-%dT%H:%M:%SZ)" >"$T/api/jobs-94$i.json"
+  done
+  printf ']\n'
+} >"$T/api/runs.json"
+report CI_GATE_WORKFLOW_FILE="$T/wf.yml"; rc=$?
+if [[ $rc -eq 0 ]] && grep -qE '^ +AT RISK +orc: hermetic 1/2  p90 480 s of 600 s \(80 %, n=10\)$' "$T/out" \
+   && grep -qE '^ +ok +cnf: validator  p90 420 s of 600 s \(70 %, n=10\)$' "$T/out" \
+   && [[ $(grep -cE '^ +AT RISK ' "$T/out") -eq 1 ]]; then
+  pass "10. headroom: orc 1/2 at 80 % of its matrix job's timeout is AT RISK, cnf at 70 % is ok"
+else
+  fail "10. headroom lines wrong (rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+# --- CONTROL i. no workflow file -> no headroom verdict at all ----------------
+report CI_GATE_WORKFLOW_FILE="$T/no-such-wf.yml"
+if grep -q 'timeout headroom: no workflow file' "$T/out" && ! grep -qE '^ +AT RISK ' "$T/out"; then
+  pass "CONTROL i. without the workflow's timeout-minutes nothing is AT RISK, so check 10 FAILS without the read"
+else
+  fail "CONTROL i. AT RISK without a workflow file: check 10 proves nothing"; sed 's/^/    | /' "$T/out"
+fi
+cp "$T/api/runs-before-10.json" "$T/api/runs.json"
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all report-ci-gate.tst.sh assertions"

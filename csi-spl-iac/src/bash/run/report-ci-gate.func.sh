@@ -16,6 +16,10 @@
 # @description `cancelled` (spec 131 C1: 18 of 22 started-then-cancelled jobs
 # @description on 2026-10-11 were timeouts the report never showed). A
 # @description superseded pending run starts no job and stays `cancelled`.
+# @description Then the timeout headroom (spec 131 C4): per job, the p90 of its
+# @description wall time over the started runs in the window against its
+# @description timeout-minutes in the workflow file; over 75 % reads AT RISK,
+# @description so the next timeout is seen before it turns trunk red.
 # @description Reads the runs, jobs and check-run annotations APIs (no logs)
 # @description unless CI_GATE_SIGNATURES=1, which also prints the first FAIL /
 # @description ::error line per failed job.
@@ -31,6 +35,8 @@
 # @param CI_GATE_REPO repo (that subcommand has no --repo flag). The whole body
 # @param CI_GATE_REPO runs in a subshell, so the export dies with the action.
 # @param CI_GATE_SIGNATURES (optional) - 1 also fetches each failed job's log
+# @param CI_GATE_WORKFLOW_FILE (optional) - default <repo>/.github/workflows/<wf>:
+# @param CI_GATE_WORKFLOW_FILE where the timeout-minutes per job are read
 # @example ./run -a do_report_ci_gate
 # @example CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate
 # @example CI_GATE_BRANCH= ./run -a do_report_ci_gate
@@ -44,6 +50,7 @@ do_report_ci_gate() { (
   if [[ -n "${CI_GATE_REPO:-}" ]]; then export GH_REPO="$CI_GATE_REPO"; fi
 
   command -v gh >/dev/null 2>&1 || { do_log "FATAL gh is required"; return 1; }
+  command -v jq >/dev/null 2>&1 || { do_log "FATAL jq is required"; return 1; }
   [[ "$n" =~ ^[0-9]+$ ]] && (( n > 0 )) || { do_log "FATAL CI_GATE_RUNS must be a positive integer, got '$n'"; return 1; }
 
   local tmp; tmp=$(mktemp -d) || return 1
@@ -67,6 +74,8 @@ do_report_ci_gate() { (
   echo "== $wf on ${branch:-every branch} -- last $total run(s), $oldest .. $newest"
   cut -f2 "$tmp/runs.tsv" | sort | uniq -c | sort -rn | sed 's/^/   /'
 
+  _rcg_headroom "$tmp" "$wf"
+
   awk -F'\t' '$2 == "failure" || $2 == "timeout"' "$tmp/runs.tsv" >"$tmp/failed.tsv"
   local nf; nf=$(wc -l <"$tmp/failed.tsv")
   if (( nf == 0 )); then
@@ -88,8 +97,18 @@ do_report_ci_gate() { (
   _rcg_first_red "$tmp" "$nf"
   _rcg_last_green "$tmp" "$total"
 
+  _rcg_list_failed "$tmp"
+
+  rm -rf "$tmp"
+  return 0
+) }
+
+# _rcg_list_failed <tmp> - one line per red job of each failed run, newest
+# first, with its signature: the timeout annotation, or with
+# CI_GATE_SIGNATURES=1 the first FAIL / ::error line of its log.
+_rcg_list_failed() {
   echo "== failed runs, newest first"
-  local sig
+  local tmp="$1" sig rid created sha jid jname jconcl
   while IFS=$'\t' read -r rid created sha jid jname jconcl; do
     sig=""
     if [[ "$jconcl" == timeout ]]; then
@@ -100,10 +119,7 @@ do_report_ci_gate() { (
     fi
     printf '   %s  %s  %s  %s%s\n' "$rid" "$created" "$sha" "$jname" "${sig:+  || $sig}"
   done <"$tmp/jobs.tsv"
-
-  rm -rf "$tmp"
-  return 0
-) }
+}
 
 # _rcg_signature - stdin a job log, stdout its first FAIL / ::error line. A
 # test's own PASS line that quotes the word ("PASS: 9. ... RS-HANDOFF FAIL
@@ -123,8 +139,10 @@ _rcg_signature() {
 _rcg_run_jobs() {
   local f="$1/jobs-$2.tsv" jid jconcl jname msg
   if [[ ! -f "$f" ]]; then
-    gh api "repos/{owner}/{repo}/actions/runs/$2/jobs" --paginate \
-      --jq '.jobs[] | [.id, (.conclusion // "running"), .name] | @tsv' >"$f.raw" 2>/dev/null || : >"$f.raw"
+    gh api "repos/{owner}/{repo}/actions/runs/$2/jobs" --paginate >"$1/jobs-$2.json" 2>/dev/null || echo '{"jobs":[]}' >"$1/jobs-$2.json"
+    jq -r '.jobs[] | [.id, (.conclusion // "running"), .name] | @tsv' "$1/jobs-$2.json" >"$f.raw" 2>/dev/null || : >"$f.raw"
+    jq -r '.jobs[] | select(.started_at and .completed_at) |
+           [.id, ((.completed_at | fromdate) - (.started_at | fromdate))] | @tsv' "$1/jobs-$2.json" >"$1/dur-$2.tsv" 2>/dev/null || : >"$1/dur-$2.tsv"
     while IFS=$'\t' read -r jid jconcl jname; do
       if [[ "$jconcl" == cancelled ]]; then
         msg=$(gh api "repos/{owner}/{repo}/check-runs/$jid/annotations" --jq '.[].message' 2>/dev/null |
@@ -135,6 +153,59 @@ _rcg_run_jobs() {
     done <"$f.raw" >"$f"
   fi
   cat "$f"
+}
+
+# _rcg_timeouts <workflow file> - "<job name pattern>\t<timeout s>" per job of
+# the workflow. A matrix expression in a name ("${{ matrix.shard }}") is kept
+# as written; _rcg_headroom matches it as a wildcard.
+_rcg_timeouts() {
+  awk '
+    /^  [A-Za-z0-9_-]+:[[:space:]]*$/ { name = ""; next }
+    /^    name:/ { name = $0; sub(/^    name:[[:space:]]*/, "", name); gsub(/^"|"$/, "", name); next }
+    /^    timeout-minutes:/ && name != "" { printf "%s\t%d\n", name, $2 * 60 }' "$1"
+}
+
+# _rcg_headroom <tmp> <wf> - per job, the p90 (nearest rank) of its wall time
+# over the started runs in the window against its timeout-minutes; a job over
+# 75 % is AT RISK. 2026-10-11: orc hermetic 1/2 ran a median 918 s of 1,200 s
+# and timed out 8 times in 11 started runs (spec 131 C4).
+_rcg_headroom() {
+  local tmp="$1" wf="$2" rid concl wff top
+  wff="${CI_GATE_WORKFLOW_FILE:-}"
+  if [[ -z "$wff" ]]; then
+    top=$(git rev-parse --show-toplevel 2>/dev/null) && wff="$top/.github/workflows/$wf"
+  fi
+  [[ -f "$wff" ]] || { echo "== timeout headroom: no workflow file ${wff:-for $wf}, skipped"; return 0; }
+  _rcg_timeouts "$wff" >"$tmp/timeouts.tsv"
+  while IFS=$'\t' read -r rid concl _; do
+    [[ "$concl" == success || "$concl" == failure || "$concl" == timeout ]] || continue
+    # fetch first: in one pipeline awk's BEGIN would read dur-<rid> before
+    # _rcg_run_jobs had written it
+    _rcg_run_jobs "$tmp" "$rid" >"$tmp/run-jobs.tsv"
+    awk -F'\t' -v d="$tmp/dur-$rid.tsv" '
+      BEGIN { while ((getline l < d) > 0) { split(l, p, "\t"); dur[p[1]] = p[2] } }
+      ($2 == "success" || $2 == "failure" || $2 == "timeout") && ($1 in dur) { print $3 "\t" dur[$1] }' "$tmp/run-jobs.tsv"
+  done <"$tmp/runs.tsv" >"$tmp/walls.tsv"
+  echo "== timeout headroom: p90 wall time per JOB of its timeout-minutes (AT RISK over 75 %)"
+  sort -t$'\t' -k1,1 -k2,2n "$tmp/walls.tsv" | awk -F'\t' -v tf="$tmp/timeouts.tsv" '
+    # glob-ish match: a "${{ ... }}" in the workflow name matches any text
+    function matches(job, pat,    pre, rest, i) {
+      i = index(pat, "${{")
+      if (i == 0) return job == pat
+      pre = substr(pat, 1, i - 1); rest = substr(pat, index(pat, "}}") + 2)
+      return substr(job, 1, length(pre)) == pre && length(job) >= length(pre) + length(rest) &&
+             substr(job, length(job) - length(rest) + 1) == rest
+    }
+    BEGIN { while ((getline l < tf) > 0) { split(l, p, "\t"); np++; pat[np] = p[1]; to[np] = p[2] } }
+    { n[$1]++; w[$1, n[$1]] = $2 }
+    END {
+      for (j in n) {
+        k = int((n[j] * 9 + 9) / 10); p90 = w[j, k]; t = 0
+        for (i = 1; i <= np; i++) if (matches(j, pat[i])) { t = to[i]; break }
+        if (t == 0) continue
+        printf "   %-7s  %s  p90 %d s of %d s (%d %%, n=%d)\n", (p90 * 100 > t * 75 ? "AT RISK" : "ok"), j, p90, t, p90 * 100 / t, n[j]
+      }
+    }' | sort
 }
 
 # _rcg_mark_timeout_runs <tmp> - a cancelled run that ran long enough for a

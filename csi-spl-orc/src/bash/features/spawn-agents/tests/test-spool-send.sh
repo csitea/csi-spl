@@ -146,5 +146,12 @@ eq "--accept not a uuid: exit 2" 2 "$rc"
 bash "$SS" --from CLE-90 --to CLE-91 --kind chat --body x >/dev/null 2>&1; eq "bad kind: exit 2" 2 "$?"
 bash "$SS" --from BOX-1 --to CLE-91 --kind note --body x >/dev/null 2>&1;  eq "BOX sender: exit 2" 2 "$?"
 bash "$SS" --from CLE-90 --to CLE-91 --kind note >/dev/null 2>&1;          eq "no body: exit 2" 2 "$?
+# Test --accept flag (spec 130)
+bash "$SS" --from CLE-90 --to CLE-91 --kind result --body x --accept >/dev/null 2>&1; eq "--accept needs a msg_id: exit 2" 2 "$?"
+bash "$SS" --from CLE-90 --to CLE-91 --kind result --body x --accept "not-a-uuid" >/dev/null 2>&1; eq "--accept msg_id must be a uuid: exit 2" 2 "$?"
+bash "$SS" --from CLE-90 --to CLE-91 --kind note --body x --accept "123e4567-e89b-12d3-a456-426614174000" >/dev/null 2>&1; eq "--accept only allowed with kind result: exit 2" 2 "$?"
+
+# Valid --accept
+bash "$SS" --from CLE-90 --to CLE-91 --kind result --body x --accept "123e4567-e89b-12d3-a456-426614174000" >/dev/null 2>&1; eq "valid --accept: exit 0" 0 "$?"
 
 t_done

@@ -106,10 +106,10 @@ type Message struct {
 	// disallows unknown keys), so nothing may set it before every reader
 	// knows it (spec 067 L4).
 	RefTaskID string `json:"ref_task_id,omitempty"`
-<<<<<<< HEAD
 	// Accepts is the msg_id of the accepted result (spec 130). Optional: only
 	// allowed with kind == "result"; the hub emits a `ready` event for it.
 	Accepts string `json:"accepts,omitempty"`
+	Sig     string `json:"sig,omitempty"`
 	Sig     string `json:"sig,omitempty"`
 }
 

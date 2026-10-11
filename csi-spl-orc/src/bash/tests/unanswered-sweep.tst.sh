@@ -28,6 +28,13 @@
 #      9b. a stale failed file while another machine holds the lease is ok
 #  10. the cron install: dry run writes nothing, DRY_RUN=0 one exact tagged
 #      line, idempotent, dev and prd lines apart, check, remove, worktree refused
+#  12. M3 (2026-10-11), the counting test: a burst of human posts every 2 min
+#      in one topic, swept every minute with SWEEP_MIN_AGE=3 and
+#      SWEEP_ESCALATE_AGE=5, is listed at minute 3 (one NEW to the holder)
+#      and escalated at minute 5 (one ESC to the orchestrator), each once
+#      over 10 minutes; an agent reply ends it, a post after the reply is a
+#      new item aged from itself. RED-CONTROL: aged from the newest post the
+#      burst is "fresh" at every sweep and never listed
 #  11. seats (spec 101 D7): with a seat line in peer/seats every box sends,
 #      the lease held on another box: one `peers` note per item (NEW, AGAIN,
 #      ESC); a planted claim bug (a topic whose job is owned by a seat whose
@@ -254,13 +261,16 @@ cron() {
 }
 before="$(md5sum <"$T/crontab")"
 cron >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && "$(md5sum <"$T/crontab")" == "$before" ]] && grep -q '^    +2-59/10 \* \* \* \* ENV=prd .*unanswered-sweep-cron.sh >> .*/cron.out 2>&1 # csi-spl:unanswered-sweep$' "$T/o" &&
+[[ $rc -eq 0 && "$(md5sum <"$T/crontab")" == "$before" ]] && grep -q '^    +\* \* \* \* \* ENV=prd SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5 .*unanswered-sweep-cron.sh >> .*/cron.out 2>&1 # csi-spl:unanswered-sweep$' "$T/o" &&
   pass "10. dry run: the diff, nothing written" || fail "10. dry: rc=$rc $(cat "$T/o")"
 cron SWEEP_CRON_ACTION=check >"$T/o" 2>&1 && fail "10. check passed with no line" || pass "10. check fails while not installed"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-want="2-59/10 * * * * ENV=prd $SRC/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:unanswered-sweep"
+want="* * * * * ENV=prd SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5 $SRC/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:unanswered-sweep"
 [[ $rc -eq 0 && "$(grep -c 'unanswered-sweep$' "$T/crontab")" == 1 ]] && grep -qxF "$want" "$T/crontab" && grep -q 'desk-reconcile' "$T/crontab" &&
-  pass "10. DRY_RUN=0: one exact tagged line, the other line kept" || fail "10. install rc=$rc: $(cat "$T/crontab") $(cat "$T/o")"
+  pass "10. DRY_RUN=0: one exact tagged line (every minute, min age 3, escalation 5), the other line kept" || fail "10. install rc=$rc: $(cat "$T/crontab") $(cat "$T/o")"
+cron SWEEP_CRON_EVERY=10 >"$T/o" 2>&1
+grep -q '^    [-+]2-59/10 \* \* \* \* ENV=prd SWEEP_MIN_AGE=3 ' "$T/o" && pass "10. SWEEP_CRON_EVERY=10 keeps the offset schedule" || fail "10. every 10: $(cat "$T/o")"
+cron SWEEP_CRON_MIN_AGE=6 >"$T/o" 2>&1 && fail "10. an escalation before the min age accepted" || pass "10. SWEEP_CRON_ESCALATE_AGE < SWEEP_CRON_MIN_AGE refused"
 cron DRY_RUN=0 >/dev/null 2>&1; cron DRY_RUN=0 ENV=dev >/dev/null 2>&1
 [[ "$(grep -c '# csi-spl:unanswered-sweep$' "$T/crontab")" == 1 && "$(grep -c '# csi-spl:unanswered-sweep-dev$' "$T/crontab")" == 1 ]] &&
   pass "10. idempotent; the dev line is its own" || fail "10. lines: $(cat "$T/crontab")"
@@ -273,6 +283,48 @@ cron DESK_CRON_SRC="$T/repo-wt/X" >"$T/o" 2>&1 && fail "10. a worktree source ac
 SWEEP_CRON_TOOLS=bash bash "$SRC/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh" --check-tools >"$T/o" 2>&1 &&
   SWEEP_CRON_TOOLS=no-such-tool-x bash "$SRC/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh" --check-tools >"$T/o" 2>&1
 [[ $? -eq 3 ]] && grep -q 'no-such-tool-x' "$T/o" && pass "10. the cron script names a missing tool (exit 3)" || fail "10. tools: $(cat "$T/o")"
+
+# --- 12. M3: a burst is aged from its OLDEST unanswered post ------------------------------------
+S="$T/spool12"; mkdir -p "$S/dispatch"; rm -f "$T/sent"
+echo "c-002 $NOW" >"$S/dispatch/lease"
+printf 'LEASE_MASTER=c-002\nLEASE_FAILOVER=c-003\nLEASE_ORCH=c-001\n' >"$S/dispatch/lease.conf"
+B=00000000-0000-4000-8000-0000000000b1
+# burst_rows <minute> [first msg n]: the topic's row as the hub hands it at
+# <minute>: the newest post (one every 2 min from minute 0) plus the oldest
+# unanswered one (msg n, default 0)
+burst_rows() {
+  local last=$(( $1 / 2 * 2 )) f="${2:-0}"
+  printf '%s\t\tdev\t%s\t10000000-0000-4000-8000-0000000000%02d\t%s\tHUM-10\tbox-desk\thuman\topen\tlive\t-\tpost %s\t%s\t10000000-0000-4000-8000-0000000000%02d\n' \
+    t1 "$B" "$last" $(( NOW + last * 60 )) "$last" $(( NOW + f * 60 )) "$f" >"$T/rows12.tsv"
+}
+s12() { sweep SWEEP_ROWS_FILE="$T/rows12.tsv" DELIVER=1 SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5 SWEEP_NOW=$(( NOW + $1 * 60 )); }
+listed="" escalated=""
+for m in 0 1 2 3 4 5 6 7 8 9; do
+  burst_rows "$m"; n0="$(sends)"; l0="$(cat "$T/sent" 2>/dev/null | wc -l)"; s12 "$m" >"$T/o" 2>&1
+  [[ "$(sends)" != "$n0" ]] || continue
+  tail -n +$(( l0 + 1 )) "$T/sent" | grep '^| NEW | t1 | #dev | '"$B"' |' >/dev/null && listed="$listed $m"
+  tail -n +$(( l0 + 1 )) "$T/sent" | grep '^| ESC | t1 | #dev | '"$B"' |' >/dev/null && escalated="$escalated $m"
+done
+[[ "$listed" == " 3" ]] && pass "12. a burst every 2 min is listed at minute 3, once (NEW to the holder)" ||
+  fail "12. listed at minute(s) '${listed# }' (want 3)"
+[[ "$escalated" == " 5" ]] && grep -q '^TO c-001$' "$T/sent" &&
+  pass "12. ... and escalated to the orchestrator at minute 5, once" || fail "12. escalated at minute(s) '${escalated# }' (want 5): $(cat "$T/sent" 2>/dev/null)"
+[[ "$(sends)" == 2 && "$(grep -c '^| AGAIN |' "$T/sent")" == 0 ]] &&
+  pass "12. 10 sweeps, 5 posts: 2 notes in all, no AGAIN" || fail "12. notes: $(sends) $(grep -c '^| AGAIN |' "$T/sent")"
+grep -q '^| ESC | t1 | #dev | '"$B"' | .* | 5m | HUM-10 | post 4 |' "$T/sent" &&
+  pass "12. the row shows the newest post and the age of the oldest" || fail "12. row: $(grep '^| ESC' "$T/sent")"
+# an agent answered after minute 9; a post at minute 12 starts a new item
+burst_rows 12 12; s12 14 >"$T/o" 2>&1
+grep -q '^| open | t1 | #dev | '"$B"' |' "$T/o" && fail "12. the post after the reply listed at 2 min" ||
+  pass "12. a post after an agent reply is aged from itself (fresh at 2 min)"
+n0="$(sends)"; s12 15 >"$T/o" 2>&1
+[[ "$(sends)" == $(( n0 + 1 )) ]] && tail -n 30 "$T/sent" | grep '^| NEW | .* | 3m | HUM-10 | post 12 |' >/dev/null &&
+  pass "12. ... and is a NEW item at 3 min" || fail "12. new after reply: $(tail -n 12 "$T/sent")"
+# the control: one lone post (13-column row, its own anchor) waits the same 3 min
+printf '%s\t\tdev\t%s\t10000000-0000-4000-8000-0000000000ff\t%s\tHUM-10\tbox-desk\thuman\topen\tlive\t-\tlone post\n' t1 "${B%1}2" "$NOW" >"$T/rows12.tsv"
+rm -f "$S/dispatch/unanswered.state"
+s12 2 >"$T/o" 2>&1; a="$(grep -c '^| open |' "$T/o")"; s12 3 >"$T/o" 2>&1; b="$(grep -c '^| open |' "$T/o")"
+[[ "$a $b" == "0 1" ]] && pass "12. control: a lone post (old 13-column row) is fresh at 2 min, listed at 3" || fail "12. lone: $a $b"
 
 # --- 11. seats: the sweep stays, from every box, one peers note per item (D7) -------------------
 S="$T/spool11"; mkdir -p "$S/dispatch" "$S/peer"; rm -f "$T/sent"

@@ -447,7 +447,7 @@ touch -d '+1 hour' "$P/100"
 # --- 8. setup step 11: the sweep cron ----------------------------------------------------------
 rm -f "$T/crontab"
 setup >"$T/o" 2>&1
-grep -q '^    +2-59/10 \* \* \* \* ENV=prd .*unanswered-sweep-cron.sh .*# csi-spl:unanswered-sweep$' "$T/o" && [[ ! -e "$T/crontab" ]] &&
+grep -q '^    +\* \* \* \* \* ENV=prd SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5 .*unanswered-sweep-cron.sh .*# csi-spl:unanswered-sweep$' "$T/o" && [[ ! -e "$T/crontab" ]] &&
   pass "8. the dry run shows the sweep cron line, writes nothing" || fail "8. dry: $(cat "$T/o")"
 setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1; setup DRY_RUN=0 LEASE_RUN=/bin/true >>"$T/o" 2>&1
 [[ "$(grep -c '# csi-spl:unanswered-sweep$' "$T/crontab" 2>/dev/null)" == 1 ]] &&

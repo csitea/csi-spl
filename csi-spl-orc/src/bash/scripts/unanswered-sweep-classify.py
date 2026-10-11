@@ -4,8 +4,14 @@
 Run by spl_sweep_classify <rows> <state> <outdir> (spl-unanswered-sweep.func.sh),
 which passes its settings as environment (SWEEP_NOW, MIN_AGE, RESEND,
 MAX_ITEMS, SKIP_T, SKIP_RE, SKIP_CH, SKIP_HUM, ACKS, SWEEP_TO_ID,
-SWEEP_ORCH_ID, ENVN). Writes report.md, holder.md, orch.md (empty = nothing
+SWEEP_ORCH_ID, ENVN, ESC_AGE). Writes report.md, holder.md, orch.md (empty = nothing
 to send), state.new and last into <outdir>.
+
+A row is the topic's last message (13 columns) plus, from the hub, the time
+and id of the OLDEST human post after its last agent reply (15 columns, M3
+2026-10-11). An item is aged and keyed from that post, so a burst of human
+posts every 2 min is listed SWEEP_MIN_AGE after its first post, not held as
+fresh by its newest one. A 13-column row (an older export) is its own anchor.
 """
 
 import os, re, sys, time
@@ -15,6 +21,7 @@ e = os.environ
 now = int(e["SWEEP_NOW"])
 min_age = int(e["MIN_AGE"]) * 60
 resend = int(e["RESEND"])
+esc_age = int(e.get("ESC_AGE") or 0) * 60
 max_items = int(e["MAX_ITEMS"])
 skip_t = set(e["SKIP_T"].split())
 skip_re = re.compile(e["SKIP_RE"], re.I) if e["SKIP_RE"] else None
@@ -106,8 +113,14 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
     if len(f) < 13:
         continue
     tenant, tname, chan, task, msg, ts, who, to_id, by, topic, cstate, files = f[:12]
-    body = "\t".join(f[12:])
     ts = int(ts)
+    first_ts, first_msg = ts, msg
+    if len(f) == 15:
+        body = f[12]
+        if f[13].isdigit() and f[14]:
+            first_ts, first_msg = int(f[13]), f[14]
+    else:
+        body = "\t".join(f[12:])
     c = counts.setdefault(
         tenant,
         {
@@ -162,7 +175,7 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
     if who in skip_hum:
         c["human"] += 1
         continue
-    if now - ts < min_age:
+    if now - first_ts < min_age:
         c["fresh"] += 1
         continue
     if acked(task, ts):
@@ -175,10 +188,13 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
         task=task,
         msg=msg,
         ts=ts,
+        first_ts=first_ts,
+        first_msg=first_msg,
         who=who,
         text=body[:120] if body else ("(files)" if files == "files" else "(empty)"),
     )
-    if is_ack(body, files):
+    # an ack after an unanswered question does not answer it
+    if first_msg == msg and is_ack(body, files):
         c["ack"] += 1
         acks.append(row)
     else:
@@ -200,11 +216,14 @@ except OSError:  # no state yet (no file, or no dispatch dir on a report-only bo
 
 new_state, send_new, send_again, escalate = {}, [], [], []
 for r in items:
-    k = "%s|%s|%s" % (r["tenant"], r["task"], r["msg"])
+    k = "%s|%s|%s" % (r["tenant"], r["task"], r["first_msg"])
     st = state.get(k)
     if st is None:
         send_new.append(r)
         new_state[k] = [1, now, now]
+    elif esc_age and st[0] < 3 and now - r["first_ts"] >= esc_age:
+        escalate.append(r)
+        new_state[k] = [3, st[1], now]
     elif st[0] == 1 and now - st[2] >= resend:
         send_again.append(r)
         new_state[k] = [2, st[1], now]
@@ -227,7 +246,7 @@ def table(rows, tag, limit=None):
             cell(r["where"]),
             r["task"],
             utc(r["ts"]),
-            age(now - r["ts"]),
+            age(now - r["first_ts"]),
             cell(r["who"]),
             cell(r["text"]),
         )
@@ -242,7 +261,8 @@ def table(rows, tag, limit=None):
 stamp = utc(now)
 rep = "## Unanswered sweep %s %s\n\n" % (envn, stamp)
 rep += (
-    "Topics whose last message is a human's, older than %d min (sent to %s; escalation %s).\n\n"
+    "Topics whose last message is a human's, the oldest unanswered one older than %d min"
+    " (age: since that post; sent to %s; escalation %s).\n\n"
     % (min_age // 60, to, orch)
 )
 rep += HDR + (table(items, "open") if items else "| - | (none) | | | | | | |\n")
@@ -317,7 +337,12 @@ if send_new or send_again:
         "`./run -a do_spl_take DESK_AGENT=<you> DESK_TO=<HUM-n> DESK_TASK=<uuid> TAKE_PLAN=<plan>`. "
         "An item that needs no agent reply: "
         "`./run -a do_spl_unanswered_ack TOPIC=<uuid> REASON=<why>` and it is not sent again. "
-        "An item still open %s after this note is sent once more, then escalated to %s.\n\n"
+    )
+    holder += (
+        "An item is escalated to %s once its oldest unanswered post is %s old.\n\n"
+        % (orch, age(esc_age))
+        if esc_age
+        else "An item still open %s after this note is sent once more, then escalated to %s.\n\n"
         % (age(resend), orch)
     )
     holder += HDR + table(
@@ -331,8 +356,15 @@ open(os.path.join(out, "holder.md"), "w").write(holder)
 esc = ""
 if escalate:
     esc = (
-        "**Unanswered sweep ESCALATION** (%s, %s): %d topic(s) still unanswered after two notes to %s.\n\n"
-        % (envn, stamp, len(escalate), to)
+        "**Unanswered sweep ESCALATION** (%s, %s): %d topic(s) still unanswered %s.\n\n"
+        % (
+            envn,
+            stamp,
+            len(escalate),
+            "%s after their oldest unanswered post" % age(esc_age)
+            if esc_age
+            else "after two notes to %s" % to,
+        )
     )
     esc += HDR + table(escalate, "ESC", max_items)
 open(os.path.join(out, "orch.md"), "w").write(esc)

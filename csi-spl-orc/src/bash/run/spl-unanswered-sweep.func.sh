@@ -8,7 +8,9 @@
 # @description "the pulling mechanism should work for all the tenants, not only
 # @description the spool t1 tenant"). This reads EVERY workspace of the env's
 # @description hub in one read-only query and lists the topics whose LAST
-# @description message is a human's, older than SWEEP_MIN_AGE minutes.
+# @description message is a human's, aged from the OLDEST human post after
+# @description the topic's last agent reply: listed once that post is older
+# @description than SWEEP_MIN_AGE minutes, however many came after it.
 # @description A topic is one task_id; its last message decides. Left out:
 # @description   answered - the last message is an agent's
 # @description   terminal - a line a human typed in an agent's terminal and
@@ -37,8 +39,12 @@
 # @description since the last sweep, plus each item still open SWEEP_RESEND s
 # @description after it was sent (once); an item still open SWEEP_RESEND s
 # @description after that re-send is escalated to the orchestrator, once.
+# @description With SWEEP_ESCALATE_AGE an item is escalated, once, as soon as
+# @description its oldest unanswered post is that many minutes old (the cron
+# @description line: SWEEP_MIN_AGE=3, SWEEP_ESCALATE_AGE=5, every minute).
 # @description The memory is <spool root>/dispatch/unanswered.state (an item is
-# @description a topic's last message: a new human post in it is a new item),
+# @description a topic's oldest unanswered human post: more human posts keep
+# @description it one item; one after an agent reply is a new item),
 # @description and <spool root>/dispatch/unanswered.last holds the last
 # @description delivered sweep's time and counts (do_spl_dispatch_check reads
 # @description it).
@@ -59,6 +65,7 @@
 # @param SWEEP_MIN_AGE (optional) - minutes a human post waits before it counts, default 15
 # @param SWEEP_DAYS (optional) - lookback in days, default 7
 # @param SWEEP_RESEND (optional) - seconds before a re-send and again before the escalation, default 7200
+# @param SWEEP_ESCALATE_AGE (optional) - minutes from the oldest unanswered post to the escalation; unset = the two-SWEEP_RESEND path
 # @param SWEEP_SKIP_TENANTS (optional) - space-separated test workspaces, default e2e; <spool root>/dispatch/test-workspaces adds to it (one id per line)
 # @param SWEEP_SKIP_RE (optional) - a workspace id or name matching this ERE is a test one, default (^|[-_ ])(e2e|test|proof)([-_ ]|$)
 # @param SWEEP_SKIP_CHANNELS (optional) - default "issues tasks"
@@ -75,7 +82,7 @@ do_spl_unanswered_sweep() {
   [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd"; return 1; }
   local deliver="${DELIVER:-0}" v
   [[ "$deliver" == 0 || "$deliver" == 1 ]] || { do_log "FATAL DELIVER must be 0 or 1"; return 1; }
-  for v in SWEEP_MIN_AGE SWEEP_DAYS SWEEP_RESEND SWEEP_MAX_ITEMS; do
+  for v in SWEEP_MIN_AGE SWEEP_DAYS SWEEP_RESEND SWEEP_MAX_ITEMS SWEEP_ESCALATE_AGE; do
     [[ -z "${!v:-}" || "${!v}" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL $v must be a positive integer, got: '${!v}'"; return 1; }
   done
   spl_lease_init ro || return 1
@@ -260,6 +267,11 @@ SQL
 # index messages_archived, never a per-row loop), and a last
 # message that is itself an agent post answers the agent-post question for
 # its topic without a probe. Same rows (narrow-pg check 1 compares them).
+# M3 (2026-10-11): two trailing columns, read only when the last message is
+# a human's (a one-time filter in the LATERAL f): the time and id of the
+# OLDEST human post after the topic's last agent reply (a terminal mirror
+# counts as one). The sweep ages and keys an item from it, so a burst of
+# human posts is not held as fresh by its newest one.
 _spl_sweep_rows_sql() {
   cat <<'SQL'
 WITH k AS MATERIALIZED (
@@ -285,11 +297,24 @@ SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.tas
             THEN 'thread' ELSE 'dm' END,
        CASE WHEN coalesce(l.has_files, false) THEN 'files' ELSE '-' END,
        CASE WHEN l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
-            THEN regexp_replace(left(l.body, 400), '[[:space:]]+', ' ', 'g') ELSE '' END
+            THEN regexp_replace(left(l.body, 400), '[[:space:]]+', ' ', 'g') ELSE '' END,
+       coalesce(extract(epoch FROM f.received_at)::bigint::text, ''), coalesce(f.msg_id::text, '')
   FROM k
   JOIN messages l ON l.tenant_id = k.tenant_id AND l.msg_id = k.msg_id
   JOIN tenants t ON t.tenant_id = l.tenant_id
   LEFT JOIN channels c ON c.tenant_id = l.tenant_id AND c.channel_id = l.channel
+  LEFT JOIN LATERAL (
+    SELECT h.received_at, h.msg_id FROM messages h
+     WHERE l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
+       AND h.tenant_id = l.tenant_id AND h.task_id = l.task_id
+       AND h.expires_at > now() AND h.received_at > now() - make_interval(days => :days)
+       AND h.typed_by IS NULL AND (h.from_id LIKE 'HUM-%' OR h.from_id LIKE 'GST-%')
+       AND NOT EXISTS (SELECT 1 FROM messages r
+                        WHERE r.tenant_id = h.tenant_id AND r.task_id = h.task_id
+                          AND (r.typed_by IS NOT NULL
+                               OR (r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%'))
+                          AND (r.received_at, r.msg_id) > (h.received_at, h.msg_id))
+     ORDER BY h.received_at, h.msg_id LIMIT 1) f ON true
  ORDER BY 1, 6
 SQL
 }
@@ -299,6 +324,6 @@ SQL
 spl_sweep_classify() {
   SKIP_T="$(spl_test_workspaces)" SKIP_RE="${SWEEP_SKIP_RE-(^|[-_ ])(e2e|test|proof)([-_ ]|$)}" \
   SKIP_CH="${SWEEP_SKIP_CHANNELS-issues tasks}" ACKS="$LEASE_DIR/unanswered.acks" \
-  SKIP_HUM="${SWEEP_SKIP_HUMANS-$([[ "${ENV:-}" == prd ]] && echo HUM-1)}" MIN_AGE="${SWEEP_MIN_AGE:-15}" RESEND="${SWEEP_RESEND:-7200}" \
+  SKIP_HUM="${SWEEP_SKIP_HUMANS-$([[ "${ENV:-}" == prd ]] && echo HUM-1)}" MIN_AGE="${SWEEP_MIN_AGE:-15}" RESEND="${SWEEP_RESEND:-7200}" ESC_AGE="${SWEEP_ESCALATE_AGE:-}" \
   MAX_ITEMS="${SWEEP_MAX_ITEMS:-40}" python3 "$(dirname "${BASH_SOURCE[0]}")/../scripts/unanswered-sweep-classify.py" "$@"
 }

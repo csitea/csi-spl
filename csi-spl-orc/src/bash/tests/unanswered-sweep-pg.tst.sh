@@ -14,6 +14,9 @@
 #   4b. a null channel after an agent post is thread; one with no agent stays dm
 #   2b. a terminal-typed line (typed_by) is 'terminal', not a human post
 #   5. CONTROL: the classifier lists exactly the open topic of each workspace
+#   7. M3: columns 14/15 are the OLDEST human post after the last agent reply
+#      (a burst after a reply: its first post; no reply: the topic's first;
+#      agent last: empty), and the classifier ages the burst from it
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -76,6 +79,9 @@ and a newline"                                              # topic 6: a DM to a
 m t1 8 b "" c-003 HUM-10 50 "outage note with no channel"   # topic 8: agent, null channel
 m t1 8 c "" HUM-10 ALL-0 40 "please fix this class of miss" # topic 8: human last, thread
 m t1 9 d "" HUM-3 ALL-0 40 "two humans, no agent"           # topic 9: dm, reached nobody
+m t1 e e dev CLE-5 HUM-2 20 "agent reply"                   # topic e: a burst after a reply
+m t1 e 0 dev HUM-2 box-desk 6 "burst one"                    # topic e: the oldest unanswered
+m t1 e f dev HUM-2 box-desk 2 "burst two"                    # topic e: human last, 2 min old
 psql_owner -c "UPDATE messages SET archived_at = now(), archived_by = 'HUM-1' WHERE msg_id = '10000000-0000-4000-8000-000000000006'" >/dev/null
 m t1 7 a dev CLE-5 box-desk 80 "typed in the terminal"     # topic 7: a terminal-typed line (specs/036)
 psql_owner -c "UPDATE messages SET typed_by = 'HUM-2' WHERE msg_id = '10000000-0000-4000-8000-00000000000a'" >/dev/null || fail "seed typed_by"
@@ -86,8 +92,8 @@ env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" OUT="$T/rows" bash -c '
   source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
   source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
   _spl_sweep_rows_read "$OUT"' >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && "$(wc -l <"$T/rows")" == 9 ]] && [[ "$(cut -f1 "$T/rows" | sort -u | tr '\n' ' ')" == "csi-rel t1 " ]] &&
-  pass "1. the query runs on the migrated schema as the runtime role: 9 topics, both workspaces" ||
+[[ $rc -eq 0 && "$(wc -l <"$T/rows")" == 10 ]] && [[ "$(cut -f1 "$T/rows" | sort -u | tr '\n' ' ')" == "csi-rel t1 " ]] &&
+  pass "1. the query runs on the migrated schema as the runtime role: 10 topics, both workspaces" ||
   fail "1. rc=$rc rows=$(wc -l <"$T/rows" 2>/dev/null) $(cat "$T/o") $(cat "$T/rows" 2>/dev/null)"
 col() { awk -F'\t' -v t="$1" -v c="$2" '$4 == "00000000-0000-4000-8000-00000000000" t { print $c }' "$T/rows"; }
 [[ "$(col 1 9) $(col 1 5) $(col 1 13)" == "human 10000000-0000-4000-8000-000000000003 still broken" && "$(col 2 9)" == agent && -z "$(col 2 13)" ]] &&
@@ -102,6 +108,24 @@ col() { awk -F'\t' -v t="$1" -v c="$2" '$4 == "00000000-0000-4000-8000-000000000
 [[ "$(col 9 11) $(col 9 8)" == "dm ALL-0" && -z "$(col 9 3)" ]] &&
   pass "4b. a null channel with no agent stays dm" || fail "4b. dm: $(col 9 3) $(col 9 8) $(col 9 11)"
 
+now_s="$(psql_owner -c "SELECT extract(epoch FROM now())::bigint")"
+burst_first="$(psql_owner -c "SELECT extract(epoch FROM received_at)::bigint FROM messages WHERE msg_id = '10000000-0000-4000-8000-000000000000'")"
+topic1_first="$(psql_owner -c "SELECT extract(epoch FROM received_at)::bigint FROM messages WHERE msg_id = '10000000-0000-4000-8000-000000000003'")"
+[[ "$(col e 5) $(col e 15)" == "10000000-0000-4000-8000-00000000000f 10000000-0000-4000-8000-000000000000" && "$(col e 14)" == "$burst_first" ]] &&
+  pass "7. a burst after an agent reply: the last row carries the burst's FIRST post (time and id)" ||
+  fail "7. burst: last $(col e 5) first $(col e 14) $(col e 15) (want $burst_first ..000)"
+[[ "$(col 1 15) $(col 1 14)" == "10000000-0000-4000-8000-000000000003 $topic1_first" && -z "$(col 2 14)$(col 2 15)$(col 7 14)" ]] &&
+  [[ "$(col 5 15)" == 10000000-0000-4000-8000-000000000008 ]] &&
+  pass "7. one human post after the reply is its own anchor; an agent-last or terminal-last row carries none" ||
+  fail "7. anchors: t1 '$(col 1 14) $(col 1 15)' agent '$(col 2 14)$(col 2 15)' terminal '$(col 7 14)' csi-rel '$(col 5 15)'"
+env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/rows" SWEEP_TO=CLE-002 SWEEP_MIN_AGE=3 SWEEP_NOW="$now_s" HOME="$T/home" bash -c '
+  set -uo pipefail
+  do_log() { echo "$*"; }
+  source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
+  do_spl_unanswered_sweep' >"$T/o3" 2>&1
+grep -q '^| open | t1 | #dev | 00000000-0000-4000-8000-00000000000e | .* | 6m | HUM-2 | burst two |' "$T/o3" &&
+  pass "7. SWEEP_MIN_AGE=3: the burst (newest post 2 min old) is listed, aged 6m from its first" || fail "7. burst not listed: $(grep 0000000e "$T/o3")"
 env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/rows" SWEEP_TO=CLE-002 HOME="$T/home" bash -c '
   set -uo pipefail
   do_log() { echo "$*"; }

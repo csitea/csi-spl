@@ -88,8 +88,9 @@ ANALYZE messages;
 PSQL
 
 # The pre-E17 FROM shape (DISTINCT ON over m.*), with the current SELECT
-# list, as the reference. The null-channel cstate split (thread vs dm) is in
-# both, so a row difference is the scan shape, not the rule.
+# list and the M3 oldest-unanswered LATERAL f, as the reference. The
+# null-channel cstate split (thread vs dm) is in both, so a row difference
+# is the scan shape, not the rule.
 old_sql() {
   cat <<'SQL'
 SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.task_id, l.msg_id,
@@ -109,13 +110,26 @@ SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.tas
             THEN 'thread' ELSE 'dm' END,
        CASE WHEN coalesce(l.has_files, false) THEN 'files' ELSE '-' END,
        CASE WHEN l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
-            THEN regexp_replace(left(l.body, 400), '[[:space:]]+', ' ', 'g') ELSE '' END
+            THEN regexp_replace(left(l.body, 400), '[[:space:]]+', ' ', 'g') ELSE '' END,
+       coalesce(extract(epoch FROM f.received_at)::bigint::text, ''), coalesce(f.msg_id::text, '')
   FROM (SELECT DISTINCT ON (m.tenant_id, m.task_id) m.*
           FROM messages m
          WHERE m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
          ORDER BY m.tenant_id, m.task_id, m.received_at DESC, m.msg_id DESC) l
   JOIN tenants t ON t.tenant_id = l.tenant_id
   LEFT JOIN channels c ON c.tenant_id = l.tenant_id AND c.channel_id = l.channel
+  LEFT JOIN LATERAL (
+    SELECT h.received_at, h.msg_id FROM messages h
+     WHERE l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
+       AND h.tenant_id = l.tenant_id AND h.task_id = l.task_id
+       AND h.expires_at > now() AND h.received_at > now() - make_interval(days => :days)
+       AND h.typed_by IS NULL AND (h.from_id LIKE 'HUM-%' OR h.from_id LIKE 'GST-%')
+       AND NOT EXISTS (SELECT 1 FROM messages r
+                        WHERE r.tenant_id = h.tenant_id AND r.task_id = h.task_id
+                          AND (r.typed_by IS NOT NULL
+                               OR (r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%'))
+                          AND (r.received_at, r.msg_id) > (h.received_at, h.msg_id))
+     ORDER BY h.received_at, h.msg_id LIMIT 1) f ON true
  ORDER BY 1, 6
 SQL
 }

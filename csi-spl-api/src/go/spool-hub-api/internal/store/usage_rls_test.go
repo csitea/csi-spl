@@ -19,9 +19,9 @@ import (
 // (SPOOL_TEST_PG_DSN).
 
 // usageEventInsert writes one metered token row; $1 is tenant_id, $2 the
-// turn id.
-const usageEventInsert = `INSERT INTO usage_events (tenant_id, turn_id, kind, provider, model, units, unit_cost_micros, currency)
-	VALUES ($1, $2, 'llm_tokens_in', 'mistral', 'mistral-small', 1200, 0.1, 'EUR')`
+// turn id. key_source is named: rdb 0175 dropped its default (spec 127 C12).
+const usageEventInsert = `INSERT INTO usage_events (tenant_id, key_source, turn_id, kind, provider, model, units, unit_cost_micros, currency)
+	VALUES ($1, 'hub', $2, 'llm_tokens_in', 'mistral', 'mistral-small', 1200, 0.1, 'EUR')`
 
 // tokenBudgetInsert writes the workspace budget of $1: a EUR 20 top-up.
 const tokenBudgetInsert = `INSERT INTO token_budgets (tenant_id, topup_micros, topup_currency, topped_up_at)
@@ -181,17 +181,17 @@ func TestUsageEventsShape(t *testing.T) {
 	for _, c := range []struct {
 		name, sql, code string
 	}{
-		{"unmetered", `INSERT INTO usage_events (tenant_id, turn_id, kind) VALUES ($1, '` + turn + `', 'unmetered')`, ""},
-		{"unmetered with units", `INSERT INTO usage_events (tenant_id, turn_id, kind, units) VALUES ($1, 'u2', 'unmetered', 0)`, "23514"},
-		{"unmetered without a turn", `INSERT INTO usage_events (tenant_id, kind) VALUES ($1, 'unmetered')`, "23514"},
-		{"metered without a cost", `INSERT INTO usage_events (tenant_id, kind, provider, model, units, currency)
-			VALUES ($1, 'llm_tokens_out', 'mistral', 'm', 5, 'EUR')`, "23514"},
-		{"tokens without a model", `INSERT INTO usage_events (tenant_id, kind, provider, units, unit_cost_micros, currency)
-			VALUES ($1, 'llm_tokens_out', 'mistral', 5, 1, 'EUR')`, "23514"},
-		{"seconds without a model", `INSERT INTO usage_events (tenant_id, kind, units, unit_cost_micros, currency)
-			VALUES ($1, 'agent_seconds', 60, 2, 'EUR')`, ""},
-		{"unknown kind", `INSERT INTO usage_events (tenant_id, kind, units, unit_cost_micros, currency)
-			VALUES ($1, 'guess', 1, 1, 'EUR')`, "23514"},
+		{"unmetered", `INSERT INTO usage_events (tenant_id, key_source, turn_id, kind) VALUES ($1, 'hub', '` + turn + `', 'unmetered')`, ""},
+		{"unmetered with units", `INSERT INTO usage_events (tenant_id, key_source, turn_id, kind, units) VALUES ($1, 'hub', 'u2', 'unmetered', 0)`, "23514"},
+		{"unmetered without a turn", `INSERT INTO usage_events (tenant_id, key_source, kind) VALUES ($1, 'hub', 'unmetered')`, "23514"},
+		{"metered without a cost", `INSERT INTO usage_events (tenant_id, key_source, kind, provider, model, units, currency)
+			VALUES ($1, 'hub', 'llm_tokens_out', 'mistral', 'm', 5, 'EUR')`, "23514"},
+		{"tokens without a model", `INSERT INTO usage_events (tenant_id, key_source, kind, provider, units, unit_cost_micros, currency)
+			VALUES ($1, 'hub', 'llm_tokens_out', 'mistral', 5, 1, 'EUR')`, "23514"},
+		{"seconds without a model", `INSERT INTO usage_events (tenant_id, key_source, kind, units, unit_cost_micros, currency)
+			VALUES ($1, 'hub', 'agent_seconds', 60, 2, 'EUR')`, ""},
+		{"unknown kind", `INSERT INTO usage_events (tenant_id, key_source, kind, units, unit_cost_micros, currency)
+			VALUES ($1, 'hub', 'guess', 1, 1, 'EUR')`, "23514"},
 	} {
 		if err := ins(c.sql); pgCode(err) != c.code && !(c.code == "" && err == nil) {
 			t.Errorf("%s: %v, want %q", c.name, err, c.code)

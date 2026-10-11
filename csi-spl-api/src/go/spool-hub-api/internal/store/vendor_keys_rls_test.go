@@ -298,9 +298,10 @@ func TestVendorKeysShape(t *testing.T) {
 	}
 }
 
-// TestUsageEventsKeySource (7.2, expand step): key_source is NOT NULL and
-// one of hub | workspace (23502, 23514); a row the running hub writes
-// without naming it reads 'hub' while the expand default stands.
+// TestUsageEventsKeySource (7.2, C12): key_source is NOT NULL, one of
+// hub | workspace, and has NO default: a writer that forgets it is refused
+// (23502), never charged. CONTROL: under rdb 0174's expand default the same
+// insert passed and read 'hub', so this goes red if the default comes back.
 func TestUsageEventsKeySource(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
@@ -314,14 +315,13 @@ func TestUsageEventsKeySource(t *testing.T) {
 			t.Errorf("key_source %v: %v, want %q", c.src, err, c.code)
 		}
 	}
-	turn := uid("turn-")
-	if _, err := pg.execTenant(ctx, a, usageEventInsert, a, turn); err != nil {
-		t.Fatal(err)
+	forgot := `INSERT INTO usage_events (tenant_id, turn_id, kind) VALUES ($1, $2, 'unmetered')`
+	if _, err := pg.execTenant(ctx, a, forgot, a, uid("turn-")); pgCode(err) != "23502" {
+		t.Errorf("a row written without key_source: %v, want 23502 (no default)", err)
 	}
-	var src string
-	if err := pg.inTenant(ctx, a, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `SELECT key_source FROM usage_events WHERE tenant_id = $1 AND turn_id = $2`, a, turn).Scan(&src)
-	}); err != nil || src != "hub" {
-		t.Errorf("a row written without key_source reads %q (%v), want hub", src, err)
+	var def *string
+	if err := pg.pool.QueryRow(ctx, `SELECT column_default FROM information_schema.columns
+		WHERE table_schema = current_schema() AND table_name = 'usage_events' AND column_name = 'key_source'`).Scan(&def); err != nil || def != nil {
+		t.Errorf("usage_events.key_source default %v (%v), want none", show(def), err)
 	}
 }

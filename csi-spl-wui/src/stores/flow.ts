@@ -5,10 +5,10 @@ import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
-import { FLOW_PAGE, dropFlow, flowWindow, mergeFlow, mergeMine } from '~/utils/flow-entries.mjs'
+import { FLOW_PAGE, dropFlow, mergeMine } from '~/utils/flow-entries.mjs'
 import type { FlowEntry } from '~/utils/flow-entries.mjs'
-import { FLOW_SEEN_KEY, parseFlowCounts, parseFlowKeys, railFromUnread, syncAppBadge } from '~/utils/flow-badge.mjs'
-import type { FlowCounts, FlowKind, FlowScope } from '~/utils/flow-badge.mjs'
+import type { FlowCounts, FlowKind } from '~/utils/flow-badge.mjs'
+import { parseFlowCounts, parseFlowKeys, railFromUnread, syncAppBadge } from '~/utils/flow-badge.mjs'
 import { storageGet, storageSet } from '~/utils/prefs.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -48,7 +48,6 @@ export const useFlowStore = defineStore('flow', () => {
   /** The oldest read topic's last activity, while an older page is unread. */
   const boundary = ref('')
   const loadingMore = ref(false)
-  const view = computed(() => flowWindow(entries.value, shown.value, next.value ? boundary.value : ''))
 
   /* spec 062: Mine - only the viewer's flow events, read from the hub
      (GET /v1/view/flow, contract flow-v1), and the Facebook-like number */
@@ -70,6 +69,8 @@ export const useFlowStore = defineStore('flow', () => {
   const rail = useFlowRail()
   /** The hub's unread per sidebar row (owner, t1 77540e6f). */
   const rowKeys = useFlowKeys()
+  /** The Flow is always Mine (owner Q2). */
+  const mineOn = computed(() => true)
 
   /** What the panel lists: the held events. */
   const visible = computed(() => mine.value)
@@ -340,6 +341,6 @@ export const useFlowStore = defineStore('flow', () => {
   }
 
   return {
-    scope, available, mineOn, mine, mineLoading, mineLoaded, kind, counts, unread, paneOpen,
-    startBadge, readCounts, seen, setPaneOpen, setScope, setKind, entries, visible, hasMore, loadingMore, loading, loaded, error, activeKey, opened, ensure, load, loadMore, select, markOpened, drop, self }
+    available, mineOn, mine, mineLoading, mineLoaded, kind, counts, unread, paneOpen,
+    startBadge, readCounts, seen, setPaneOpen, setKind, entries, visible, hasMore, loadingMore, loading, loaded, error, activeKey, opened, ensure, load, loadMore, select, markOpened, drop, self }
 })

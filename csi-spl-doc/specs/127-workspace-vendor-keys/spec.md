@@ -1,12 +1,16 @@
 # Spec 127: Workspace vendor keys (bring your own keys)
 
-Version **v1.2** (2026-10-11): the CLI measurements B0
-([b0-cli-measure.md](b0-cli-measure.md) sections 1-3, 0a368f0c2) and B0b
-(section 4, d8a7ad43d) are folded into sections 3, 4.3, 5.2, 5.4, 6, 8, 9 and 10.
-One new owner question, Q-5 (9.2): support agy through a service-account
-file, or keep agy unsupported. X2 and W1 wait for v1.2.
+Version **v1.3** (2026-10-11): the owner answered Q-5 A (msg c8593f0f):
+agy is supported through the service-account file of 5.4, switched on only
+after the B0c gate (9.2). Every owner question is decided (9.1, 9.2).
 
 Changelog:
+- v1.3 (2026-10-11): owner answer Q-5 A folded in (msg c8593f0f, topic
+  bdc65df6); section 9.2 is now a decision with requirements R5.1..R5.5 and
+  the B0c gate; sections 3, 5.4, 8 and 10 point to it. Also recorded as
+  decided, not done: "Yes, apply the Terraform step 057 as well" (msg
+  29297bf6), the I1 step `057-gcp-kms-vendor-keys` (6afbfe865), applied by
+  c-001 (10).
 - v1.2 (2026-10-11): B0 (0a368f0c2) and B0b (d8a7ad43d) folded in. grok: a
   stored login beats `XAI_API_KEY`, so the seat runs with no `auth.json`, its
   log counts as key-bearing, never `GROK_AUTH_PROVIDER_COMMAND` (3, L14).
@@ -89,7 +93,7 @@ is built). B0 and B0b measured it on 2026-10-11 with fake keys
 |---|---|---|---|---|
 | `claude` | Anthropic | 2.1.292 | `apiKeyHelper` via `--settings <seat file>` ONLY, interactive and `-p` alike; TTL by `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`. Never `ANTHROPIC_API_KEY`: interactive + env writes the key's last 20 chars to `$HOME/.claude.json` `customApiKeyResponses`, on Yes AND on No, and shows them in the pane (L8, L14). The helper stored nothing (B0 2.2) | `claude --help` -> "Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings"; B0 2.1 n=1 per answer |
 | `grok` | xAI | 1.0.50 | `XAI_API_KEY`, but only as a fallback: **a stored login beats the key** (B0 2.5). So the seat runs with a `HOME` / `GROK_HOME` holding no `auth.json` (else it spends the box login); grok logs the key's last 12 chars to `logs/unified.jsonl` (`key_suffix`), so that log is key-bearing (L5, L14); never `GROK_AUTH_PROVIDER_COMMAND`, which writes the full token to `auth.json` | B0 2.1 n=2 per cell; grok's user guide: "the stored session token takes precedence" |
-| `agy` | Google | 1.3.3 | **not an API key**: `GEMINI_API_KEY` and `GOOGLE_API_KEY` are ignored (B0 2.6, n=3). It takes a Google service-account JSON through `AGY_ADC_AUTH=1` + `GOOGLE_APPLICATION_CREDENTIALS` on a file (B0b 4.2, n=4); without `AGY_ADC_AUTH` the file is ignored (n=2); it also reads the gcloud well-known ADC file under `HOME`. The wrapper unsets `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI`. Delivery: 5.4. A real service account serving a prompt is unmeasured: supported or not is Q-5 (9.2) | B0 2.6, B0b 4 |
+| `agy` | Google | 1.3.3 | **not an API key**: `GEMINI_API_KEY` and `GOOGLE_API_KEY` are ignored (B0 2.6, n=3). It takes a Google service-account JSON through `AGY_ADC_AUTH=1` + `GOOGLE_APPLICATION_CREDENTIALS` on a file (B0b 4.2, n=4); without `AGY_ADC_AUTH` the file is ignored (n=2); it also reads the gcloud well-known ADC file under `HOME`. The wrapper unsets `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI`. Delivery: 5.4. Supported by owner decision Q-5 A (9.2), switched on only after the B0c gate passes; until then agy reads "not supported" | B0 2.6, B0b 4 |
 | `mistral` | Mistral | vibe 2.26.0 | `MISTRAL_API_KEY`, which beats vibe's own env file (B0 2.3, code + n=3); the seat home holds no `.vibe/.env` (onboarding writes the key there) | `sed -n 8,12p spawn-mistral.sh` |
 | `qwen` | an OpenAI-compatible endpoint | 0.24.6 | `OPENAI_API_KEY` + `OPENAI_BASE_URL`, launched with `--auth-type openai` pinned; never `--openai-api-key` (argv, L6) | `qwen --help` -> `--auth-type {openai, openai-responses, anthropic, qwen-oauth, gemini, vertex-ai}` |
 
@@ -355,8 +359,9 @@ terms, with root access by named, audited action only (Q-2 A, 9.1).
 agy reads its workspace credential only from a file (B0b 4.2), so this is
 the one place a customer secret is written down on the box. The design
 keeps it in memory-backed storage, for the seat's life only, with three
-deleters. The agy part is built only if the owner picks Q-5 A (9.2); the
-seat dir is built either way, for grok.
+deleters. The agy part is built (owner decision Q-5 A, 9.2) but stays
+switched off until the B0c gate passes (R5.2); the seat dir serves grok
+either way.
 
 - **The seat dir.** `<runtime>/spool-seat/<seat-id>/`, where `<runtime>` is
   the workspace OS user's `/run/user/<uid>` (tmpfs; the desk enables
@@ -499,9 +504,9 @@ gains `agent-keys.vue`, beside `split.vue`):
 - one row per kind: set or not, last 4, set when, by whom; Set / Replace /
   Remove. The input is a password field, cleared after save.
 - what the page asks the admin for, per kind: an API key for claude, grok,
-  mistral and qwen (qwen also its https `base_url`). For agy (only if Q-5 A,
-  9.2; else the row reads "not supported for workspace keys" and Q-1 A sends
-  agy tasks to the backup vendor): a **Google service-account key file
+  mistral and qwen (qwen also its https `base_url`). For agy (Q-5 A,
+  9.2; until the B0c gate passes the row reads "not supported for workspace
+  keys" and Q-1 A sends agy tasks to the backup vendor, R5.2): a **Google service-account key file
   (JSON)**, chosen as a file or pasted into a masked text area, read in the
   browser's memory only and cleared after save (L12). The row then shows the
   account (`client_email`) and the last 4 of `private_key_id`, never the
@@ -520,7 +525,7 @@ gains `agent-keys.vue`, beside `split.vue`):
 
 Real choices only; the dispatcher posted them as one blocker. Both seats
 recommended A on every question. The owner chose A on all four (9.1). Q-5
-came with v1.2 (9.2).
+came with v1.2; the owner chose A (9.2, v1.3).
 
 - **Q-1 Missing key.** A `byok` workspace starts a seat of a kind with no key:
   - A (recommended): refuse that kind; the picker takes the backup with a key;
@@ -551,9 +556,44 @@ came with v1.2 (9.2).
 | Q-3 Margin | A: exactly 50%, `price_plans.margin_pct = 50` for `byok`. | 7.1, P1 |
 | Q-4 Operator-made admins | A: no `vendor_keys.manage` and no key-box approval until a confirmed admin of the workspace confirms; every admin is emailed. | 5.1, 8, H1 |
 
-Q-1..Q-4 are decided. Q-5 (9.2, v1.2) is open.
+Q-1..Q-4 are decided here; Q-5 is decided in 9.2 (v1.3).
 
-### 9.2 Q-5, open: agy on a workspace credential
+### 9.2 Q-5, decided A: agy on a workspace credential
+
+**Decision (owner, msg c8593f0f-fd7b-4056-937d-d0a920ba35bd, topic
+bdc65df6, 2026-10-11T08:47Z): A.** As asked: "support agy this way
+[Google service-account file written on the box, in memory only, readable
+by that seat alone, deleted when the seat ends], but switch it on only after
+one check with your own service account: it must serve one prompt, and the
+check names the smallest role it needs. Until then agy shows 'not
+supported', and its tasks go to the backup vendor (Q-1 A)."
+
+Requirements it adds:
+
+- **R5.1 Build.** X2 builds 5.4's agy part (file, environment, three
+  deleters, L18 wrapper half), X1 the desk half, H1 the agy shape check of
+  4.3, W1 the file input of 8. Built behind one switch, off by default.
+- **R5.2 Off until the gate.** While the switch is off, the agy row of 8
+  reads "not supported for workspace keys", no agy credential is accepted
+  or leased, no file is written, and Q-1 A sends agy tasks of a `byok`
+  workspace to the backup vendor.
+- **R5.3 The gate, B0c.** Run by c-001 with the owner's own service
+  account, through 5.4's file and `AGY_ADC_AUTH`: (a) one agy prompt is
+  served; (b) the check names the smallest role that serves it (by trying
+  narrower roles first, recording each refusal); (c) L16 for agy by packet
+  capture. The record names the CLI version, the tree (sha) and n. It never
+  carries the key, its path or the account id (org-neutral, 6).
+- **R5.4 Switch on.** Only after B0c passes, by a commit that cites the B0c
+  record; the role it named goes into 8's help text in that commit.
+- **R5.5 Fail closed.** B0c failing, or no role short of a broad one
+  serving the prompt, keeps agy "not supported" (R5.2) and goes back to the
+  owner as a new question; nothing is switched on in the meantime.
+
+"Readable by that seat alone" is the question's shorthand. The exact set is
+5.4's "Who can read it": the workspace OS user (every seat of that workspace)
+and the machine's root (Q-2 A), the same set that can read an environment key.
+
+The question as asked (v1.2):
 
 B0 and B0b showed agy takes no API key, only a Google service-account JSON
 through `AGY_ADC_AUTH` (section 3). Supporting it means writing a customer
@@ -584,15 +624,15 @@ Each a small task with tests and red controls; claude or mistral seats only
 | # | lane | task |
 |---|---|---|
 | B0 | box (claude) | measure per CLI: what authenticates (env var, helper, login only), the telemetry switch (L16), whether it writes the key to its state (L14), qwen `--auth-type` pin; record each version. Done: [b0-cli-measure.md](b0-cli-measure.md) (grok: a stored login beats `XAI_API_KEY`; agy: Google login only for API keys), 0a368f0c2; B0b (section 4, d8a7ad43d): agy takes a service-account JSON via `AGY_ADC_AUTH`. Folded in v1.2 |
-| B0c | box (claude) | only if Q-5 A: the owner's own service account serves one agy prompt through 5.4's file; name the least role; L16 for agy by packet capture. Needs the owner's credential |
+| B0c | box (c-001) | the Q-5 A gate (9.2, R5.3): the owner's own service account serves one agy prompt through 5.4's file; name the smallest role; L16 for agy by packet capture. Needs the owner's credential. Until it passes, agy stays "not supported" (R5.2) |
 | D1 | rdb (claude) | `workspace_vendor_keys` (tenant_scope only, `personal.profile` shape), `workspace_vendor_key_boxes`, `workspace_vendor_key_audit`, `usage_events.key_source` (no default); cross-tenant and operator-0-rows tests |
-| I1 | iac (claude) | KMS key ring + key per env, decrypt grant to the hub runtime SA only; HMAC pepper secret; the daily grant check action; confirm the list prices |
+| I1 | iac (claude) | KMS key ring + key per env, decrypt grant to the hub runtime SA only; HMAC pepper secret; the daily grant check action; confirm the list prices. Step `057-gcp-kms-vendor-keys` (6afbfe865); apply decided by the owner (msg 29297bf6), c-001 applies it; decided, not done at v1.3 |
 | H1 | hub (claude) | `vendor_keys.manage`, PUT/DELETE/GET, audit, no-body-log, act-as refusal, operator-made admin confirmation (Q-4 A); L3, L4 tests |
 | H2 | hub (claude) | the lease route: dedicated pin, approved box, read in the pin's tenant scope, sealed to the box X25519 key; join payload field; key-box approve/revoke; L1, L2 tests |
 | H3 | hub (mistral) | redaction by fingerprint and candidate shapes, before write and fan-out; L9 hub half, L17 hub half |
-| W1 | wui (mistral) | Agent keys page with the key-box list, L12 and L17 e2e; the agy row per Q-5 (8); locale text then agy review LAST. Waits for v1.2 |
+| W1 | wui (mistral) | Agent keys page with the key-box list, L12 and L17 e2e; the agy row per Q-5 A (8, R5.2: "not supported" until B0c passes); locale text then agy review LAST |
 | X1 | box (claude) | desk socket with `SO_PEERCRED`, lease, seal open, start checks (groups, sudoers, hidepid, ptrace, suid_dumpable, core_pattern, swap, tmpfs runtime dir), helper answers from the held lease, seat-dir sweep (5.4), outbound redaction; L5, L8, L9, L13, L18 desk half; measure piped core_pattern |
-| X2 | box (claude) | `spool-key-exec` wrapper (setenv, unset other vendors, hard core limit, execve), claude `apiKeyHelper` via `--settings` in every mode, grok with `GROK_HOME` = seat dir and no provider command, telemetry switches (L16), agy's file per Q-5 (5.4); L6, L7, L10, L14, L15, L18 wrapper half. Waits for v1.2 |
+| X2 | box (claude) | `spool-key-exec` wrapper (setenv, unset other vendors, hard core limit, execve), claude `apiKeyHelper` via `--settings` in every mode, grok with `GROK_HOME` = seat dir and no provider command, telemetry switches (L16), agy's file per Q-5 A (5.4, R5.1, off until B0c); L6, L7, L10, L14, L15, L18 wrapper half |
 | P1 | hub (claude) | `byok` plan kind, the three price lines, `key_source` in the draw-down; after spec 122's gate |
 
 ## 11. Panel and consensus

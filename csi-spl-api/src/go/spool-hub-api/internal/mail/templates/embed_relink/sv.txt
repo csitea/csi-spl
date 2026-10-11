@@ -1,0 +1,11 @@
+Du bad om att få fortsätta din chatt på {{.Site}} på en annan enhet eller i en annan webbläsare.
+
+Öppna den här länken för att fortsätta där. Den gäller i {{duration .TTL}}.
+
+{{.Link}}
+
+Länken fungerar en gång. När du använder den avslutas chattens inloggning på enheten du använde tidigare.
+Om du inte bad om detta kan du ignorera det här mejlet: ingenting ändras.
+
+Du angav den här adressen i chatten på {{.Site}} i ett enda syfte: för att få
+en sådan länk tillbaka till din chatt. Den används inte till något annat.

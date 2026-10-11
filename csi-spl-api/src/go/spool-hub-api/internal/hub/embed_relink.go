@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/invitemail"
 	spoolmail "github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -74,7 +76,7 @@ const (
 )
 
 // EmbedRelinkMailer sends the relink mail with link to the address to
-// (invitemail.SendEmbedRelink). nil = no relay: the ask still answers 202
+// (invitemail.SendEmbedRelink), in invitemail.RelinkLocale(ctx). nil = no relay: the ask still answers 202
 // and mails nothing (logged).
 type EmbedRelinkMailer func(ctx context.Context, to, link string, ttl time.Duration) error
 
@@ -193,8 +195,9 @@ func (s *Server) handleEmbedRelinkAsk(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Email     string `json:"email"`
 		ReturnURL string `json:"return_url"`
+		Locale    string `json:"locale"`
 	}
-	if !readJSONStrict(w, r, &in, 4096, "invalid JSON body (only email, return_url)") {
+	if !readJSONStrict(w, r, &in, 4096, "invalid JSON body (only email, return_url, locale)") {
 		return
 	}
 	email, err := normalizeEmbedEmail(in.Email)
@@ -212,8 +215,21 @@ func (s *Server) handleEmbedRelinkAsk(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
-	s.mailEmbedRelink(r.Context(), rs, ec.EmbedID, email, base)
+	s.mailEmbedRelink(invitemail.WithRelinkLocale(r.Context(), s.relinkLocale(in.Locale)), rs, ec.EmbedID, email, base)
 	writeJSON(w, http.StatusAccepted, map[string]any{"outcome": "accepted"})
+}
+
+// relinkLocale is the relink mail's locale: the chat page's, when the hub
+// ships it, else the hub's default (SPOOL_HUB_DEFAULT_LOCALE); "" past that,
+// which mail.Render renders in mail.FallbackLocale. Never an error.
+func (s *Server) relinkLocale(asked string) string {
+	if l := i18n.Normalize(asked); l != "" {
+		return l
+	}
+	if s.o.Auth != nil {
+		return i18n.Normalize(s.o.Auth.DefaultLocale())
+	}
+	return ""
 }
 
 // mailEmbedRelink mails the link to email when it names a live visitor of

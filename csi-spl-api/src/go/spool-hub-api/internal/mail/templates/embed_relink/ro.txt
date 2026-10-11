@@ -1,0 +1,11 @@
+Ați cerut să continuați conversația pe {{.Site}} pe alt dispozitiv sau în alt browser.
+
+Deschideți acest link pentru a continua acolo. Valabilitate: {{duration .TTL}}.
+
+{{.Link}}
+
+Linkul funcționează o singură dată. Folosirea lui încheie autentificarea conversației pe dispozitivul folosit înainte.
+Dacă nu ați cerut acest lucru, ignorați acest mesaj: nu se schimbă nimic.
+
+Ați dat această adresă în conversația de pe {{.Site}} cu un singur scop: să primiți
+un astfel de link înapoi la conversația dvs. Nu este folosită pentru nimic altceva.

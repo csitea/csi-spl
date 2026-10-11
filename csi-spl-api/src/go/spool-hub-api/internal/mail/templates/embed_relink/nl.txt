@@ -1,0 +1,11 @@
+Je hebt gevraagd om je chat op {{.Site}} op een ander apparaat of in een andere browser voort te zetten.
+
+Open deze link om daar verder te gaan. De link is {{duration .TTL}} geldig.
+
+{{.Link}}
+
+De link werkt één keer. Als je hem gebruikt, wordt de chat afgemeld op het apparaat dat je eerder gebruikte.
+Heb je hier niet om gevraagd, negeer deze mail dan: er verandert niets.
+
+Je gaf dit adres in de chat op {{.Site}} voor één doel: om zo'n link
+terug naar je chat te krijgen. Het wordt nergens anders voor gebruikt.

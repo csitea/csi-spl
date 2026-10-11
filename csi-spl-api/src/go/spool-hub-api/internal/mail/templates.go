@@ -34,11 +34,14 @@ const (
 	// address that has no password but DOES sign in with an IdP. It names the
 	// provider and the sign-in page. NO bearer token and no TTL.
 	TemplateFederatedSignIn = "federated_signin"
+	// TemplateEmbedRelink is the embed visitor's relink mail (specs/121
+	// T206): the site, a single-use link back to its chat, the TTL.
+	TemplateEmbedRelink = "embed_relink"
 )
 
 // Templates lists every template id (tests iterate it).
 var Templates = []string{TemplateEmailVerification, TemplatePasswordReset, TemplateTenantPaid,
-	TemplateTenantInvite, TemplateFederatedSignIn}
+	TemplateTenantInvite, TemplateFederatedSignIn, TemplateEmbedRelink}
 
 // FallbackLocale renders when a locale variant is missing (csi-rel G-02).
 const FallbackLocale = "en"
@@ -64,6 +67,9 @@ type TemplateData struct {
 	// SiteHost names the hub the invite is for: the upper-cased host of
 	// SignInURL (the operator's own domain), never a baked-in one.
 	SiteHost string
+	// Site is the host of the page an embedded chat runs on
+	// (TemplateEmbedRelink), as the visitor saw it.
+	Site string
 }
 
 // providerNames words a provider slug for a mail. An unknown slug is title-cased
@@ -205,4 +211,10 @@ func siteHost(raw string) string {
 func FederatedSignIn(to, locale string, providers []string, signInURL string) (Message, error) {
 	return build(TemplateFederatedSignIn, to, locale,
 		TemplateData{Providers: providerList(providers), SignInURL: signInURL})
+}
+
+// EmbedRelink renders the embed visitor's relink mail in locale: site is the
+// host of the embedding page, link the single-use link (never logged).
+func EmbedRelink(to, locale, site, link string, ttl time.Duration) (Message, error) {
+	return build(TemplateEmbedRelink, to, locale, TemplateData{Site: site, Link: link, TTL: ttl})
 }

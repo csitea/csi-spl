@@ -1,0 +1,11 @@
+You asked to continue your chat on {{.Site}} on another device or browser.
+
+Open this link within {{duration .TTL}} to continue there:
+
+{{.Link}}
+
+The link works once. Using it ends the chat's sign-in on the device you used before.
+If you did not ask for this, ignore this mail: nothing changes.
+
+You gave this address in the chat on {{.Site}} for one purpose only: to get
+such a link back to your chat. It is not used for anything else.

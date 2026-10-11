@@ -1,0 +1,11 @@
+Paprašėte tęsti pokalbį svetainėje {{.Site}} kitame įrenginyje ar naršyklėje.
+
+Atidarykite šią nuorodą, kad tęstumėte ten. Galiojimo laikas: {{duration .TTL}}.
+
+{{.Link}}
+
+Nuoroda veikia vieną kartą. Ją panaudojus, pokalbio prisijungimas įrenginyje, kurį naudojote anksčiau, baigiamas.
+Jei to neprašėte, nekreipkite dėmesio į šį laišką: niekas nepasikeis.
+
+Šį adresą pokalbyje svetainėje {{.Site}} nurodėte tik vienam tikslui: gauti
+tokią nuorodą atgal į savo pokalbį. Jis nenaudojamas niekam kitam.

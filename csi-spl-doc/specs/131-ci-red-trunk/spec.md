@@ -111,14 +111,17 @@ already found by `_rcg_last_green` / `_rcg_first_red`). It lists the commits in
 that range that touch the job's inputs. The first cut is the top dir:
 `csi-spl-wui/` for wui, `csi-spl-orc/` for orc, `csi-spl-api/` for hub,
 `csi-spl-iac/` for iac. It sends ONE spool note (kind `blocker`) to the
-current dispatch lease holder on task `dispatch-ci-red`, keyed by
-`<job>@<first red sha>`. A red that is still red on the next tick sends
-nothing. A job that turns green sends one `green` line on the same key. The
+current dispatch lease holder on task `dispatch-ci-red`, keyed by the
+job's red streak. A red that is still red on the next tick sends nothing. A job that turns green sends one `green` line on the same key. The
 dispatcher routes the note to the lane that landed the suspect commit. The
 dispatch sweep cron runs the action every 10 min.
 
 - Files: `csi-spl-iac/src/bash/run/report-ci-red-note.func.sh` and its test;
-  the cron line in the dispatcher's sweep.
+  the box cron row `ci-red-note` (`csi-spl-orc/cnf/box-crons/box-crons.manifest`,
+  `csi-spl-orc/src/bash/scripts/ci-red-note-cron.sh`). Every box runs it;
+  only the box of the lease holder sends. A gate-fail-fast stopped job is no
+  verdict. Dispatch holder (2026-10-11): one note per red streak, never into
+  an owner topic.
 - Test (counting, stubbed `gh` and `SPOOL_SEND`): the same red over three
   ticks -> exactly **1** send; a second red job -> 2; the first job green ->
   one `green` send; the range lists only commits that touch that job's dir.

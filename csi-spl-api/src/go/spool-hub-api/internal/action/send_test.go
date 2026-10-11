@@ -3,6 +3,7 @@ package action
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/testkit"
@@ -31,6 +32,9 @@ func TestSendArgRefusals(t *testing.T) {
 		{"", SendArgs{From: "CLE-1", To: "c-004@sat"}, `--to "c-004@sat" names box sat; local mode reaches only this machine (no $SPOOL_HUB_URL)`},
 		{hub, SendArgs{From: "CLE-1", To: "c-004@Sat"}, `--to "c-004@Sat" is not <agent id>@<box id>`},
 		{hub, SendArgs{From: "CLE-1", To: "c-004@sat", ToBox: "box-desk"}, `--to "c-004@sat" and --to-box "box-desk" name different boxes`},
+		// spec 130 section 4: --accept accepts a result, by its msg_id
+		{"", SendArgs{From: "CLE-1", To: "CLE-2", Kind: "note", Body: "x", Accepts: acceptedID}, `--accept accepts a result: it needs --kind result, got "note"`},
+		{"", SendArgs{From: "CLE-1", To: "CLE-2", Kind: "result", Body: "x", Accepts: "nope"}, `--accept must be the msg_id (a uuid) of the accepted result, got "nope"`},
 	}
 	for _, c := range cases {
 		cfg := testkit.NewConfig(t)
@@ -38,6 +42,31 @@ func TestSendArgRefusals(t *testing.T) {
 		if _, err := Send(cfg, c.in); err == nil || err.Error() != c.want {
 			t.Errorf("%+v: got %v, want %q", c.in, err, c.want)
 		}
+	}
+}
+
+const acceptedID = "0e1f2a3b-4c5d-4e6f-8a7b-9c0d1e2f3a4b"
+
+// Spec 130 section 4, lane L3: a local --accept writes the v:1 key accepts
+// into the recipient's inbox copy and the sender's outbox copy alike.
+func TestSendLocalAccepts(t *testing.T) {
+	cfg := testkit.NewConfig(t)
+	testkit.Agents(t, cfg, "CLE-1", "CLE-2")
+	out, err := Send(cfg, SendArgs{From: "CLE-1", To: "CLE-2", Kind: "result", Body: "ACCEPTED", Accepts: acceptedID})
+	if err != nil || out.Delivery != "local" {
+		t.Fatalf("local accept: %+v %v", out, err)
+	}
+	got, err := Recv(cfg, "CLE-2", false)
+	if err != nil || len(got) != 1 || got[0].Accepts != acceptedID || got[0].MsgID != out.MsgID {
+		t.Fatalf("inbox = %+v %v, want one line accepting %s", got, err, acceptedID)
+	}
+	obs, _ := filepath.Glob(filepath.Join(cfg.SpoolRoot, "CLE-1", "outbox", "*"))
+	if len(obs) != 1 {
+		t.Fatalf("outbox copies %v, want one", obs)
+	}
+	ob, err := os.ReadFile(obs[0])
+	if err != nil || !strings.Contains(string(ob), `"accepts":"`+acceptedID+`"`) {
+		t.Fatalf("outbox copy %s %v, want the accepts key", ob, err)
 	}
 }
 

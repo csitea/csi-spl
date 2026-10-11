@@ -155,6 +155,13 @@ func (s *Store) KnownLocal(id string) bool {
 // retired it inside the quarantine, bounced (BounceRetired: a reject in the
 // sender's inbox, ErrRetiredRecipient).
 func (s *Store) SendKnown(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
+	return s.SendKnownAccepting(from, to, taskID, kind, body, "", atts)
+}
+
+// SendKnownAccepting is SendKnown for a line that may accept a result: a
+// non-empty accepts sets the v:1 key `accepts` (spec 130 section 4) before
+// the message is validated and written.
+func (s *Store) SendKnownAccepting(from, to, taskID, kind, body, accepts string, atts []msg.Attachment) (*msg.Message, error) {
 	if msg.ValidID(to) && !s.KnownLocal(to) {
 		if _, ok := s.RetiredInQuarantine(to, s.now().UTC()); ok {
 			m, err := s.Compose(from, to, taskID, kind, body, atts)
@@ -167,7 +174,17 @@ func (s *Store) SendKnown(from, to, taskID, kind, body string, atts []msg.Attach
 			"it lives on another machine (spool-send.sh relays it through the hub) or does not exist; nothing was written",
 			ErrUnknownRecipient, to, s.cfg.SpoolRoot)
 	}
-	return s.Send(from, to, taskID, kind, body, atts)
+	m, err := s.Compose(from, to, taskID, kind, body, atts)
+	if err != nil {
+		return nil, err
+	}
+	if accepts != "" {
+		m.Accepts = accepts
+		if err := m.Validate(); err != nil {
+			return nil, err
+		}
+	}
+	return m, s.write(m)
 }
 
 // Send builds an unsigned message (v = cfg.WriteVersion(), specs/020) and writes it to the recipient's inbox
@@ -178,13 +195,16 @@ func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment)
 	if err != nil {
 		return nil, err
 	}
+	return m, s.write(m)
+}
+
+// write puts a composed message in the recipient's inbox and the sender's
+// outbox.
+func (s *Store) write(m *msg.Message) error {
 	if _, err := s.writeBox(m, m.To, boxInbox); err != nil {
-		return nil, err
+		return err
 	}
-	if err := s.WriteOutbox(m); err != nil {
-		return nil, err
-	}
-	return m, nil
+	return s.WriteOutbox(m)
 }
 
 // Compose builds and validates an unsigned message without writing it.

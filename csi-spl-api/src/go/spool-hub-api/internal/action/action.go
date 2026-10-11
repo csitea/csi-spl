@@ -74,6 +74,11 @@ type SendArgs struct {
 	// ExitNotResponsible otherwise).
 	Answers string
 	IfGen   int64
+	// Accepts is the msg_id of the result this line accepts (spec 130
+	// section 4, `spool send --kind result --accept <msg_id>`): the v:1 key
+	// `accepts`, from which the hub labels the line's Flow events `ready`.
+	// Local and hub mode; only on a result.
+	Accepts string
 	// Channel makes the send a POST INTO that channel (specs/038): a new
 	// topic every member of the channel reads, exactly like a human's post -
 	// to ALL-0, to_box box-wui, the channel signed into the envelope. Hub mode
@@ -123,13 +128,27 @@ func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, 
 		return SendResult{}, err
 	}
 	if cfg.HubURL == "" {
-		m, err := spool.New(cfg).SendKnown(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
+		m, err := spool.New(cfg).SendKnownAccepting(in.From, in.To, in.TaskID, in.Kind, in.Body, in.Accepts, atts)
 		if err != nil {
 			return SendResult{}, err
 		}
 		return SendResult{Delivery: "local", MsgID: m.MsgID, TaskID: m.TaskID, TS: m.TS}, nil
 	}
 	return sendHub(ctx, cfg, in, atts)
+}
+
+// checkAccepts refuses --accept on anything but a result, and a value that
+// is not a msg_id, before anything is written (spec 130 section 4).
+func checkAccepts(in SendArgs) error {
+	switch {
+	case in.Accepts == "":
+		return nil
+	case in.Kind != "result":
+		return fmt.Errorf("--accept accepts a result: it needs --kind result, got %q", in.Kind)
+	case !refRe.MatchString(in.Accepts):
+		return fmt.Errorf("--accept must be the msg_id (a uuid) of the accepted result, got %q", in.Accepts)
+	}
+	return nil
 }
 
 // checkSend refuses the hub-only flags in local mode and a malformed channel
@@ -146,6 +165,9 @@ func checkSend(cfg *config.Config, in *SendArgs) error {
 		return fmt.Errorf("--to-box / to_box needs hub mode ($SPOOL_HUB_URL)")
 	}
 	if err := checkAnswers(cfg, *in); err != nil {
+		return err
+	}
+	if err := checkAccepts(*in); err != nil {
 		return err
 	}
 	if in.Channel != "" {
@@ -293,6 +315,12 @@ func sendHub(ctx context.Context, cfg *config.Config, in SendArgs, atts []msg.At
 	m, err := spool.New(cfg).Compose(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
 	if err != nil {
 		return SendResult{}, err
+	}
+	if in.Accepts != "" {
+		m.Accepts = in.Accepts
+		if err := m.Validate(); err != nil {
+			return SendResult{}, err
+		}
 	}
 	hc := in.Hub
 	if hc == nil {

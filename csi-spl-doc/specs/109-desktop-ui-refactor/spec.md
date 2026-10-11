@@ -231,4 +231,95 @@ All three seats agree with changes; none disagrees with another seat's change. *
 | Q2 | Home shows the topic list twice (F1). Which one goes? | (a) the left panel shows Channels while the centre shows Topics; (b) the centre shows the selected topic's messages and the left keeps the list; (c) keep both | **(a)**: the centre has the room (1,133 px) for title, people and count; the left at 212 px wraps titles to 5 lines | **yes** (a) | T008 as drafted: panel 1 shows Channels, panel 2 shows Topics |
 | Q3 | The reply box (F2): docked at the bottom of the thread pane, or keep the single top omnibox? | (a) docked in the pane; the omnibox keeps new topics and search; (b) keep the top omnibox only | **(a)**: the reply is typed where it is read | **no** (b) | T009 and FR-007 dropped; the reply box stays in the top-bar omnibox |
 
+---
+
+## 7. After-numbers (T014, c-833)
+
+### 7.1 How it was measured
+
+| what | value |
+|---|---|
+| date | 2026-10-11, 08:32..08:44 UTC |
+| host | the prd **e2e** workspace host, signed in as the env's m3-e2e member (the drafting box's login, section 1), as in the before-round |
+| viewport | 1440 x 900, headless Chrome; profiles `d1440` (CPU 1x, the box link) and `d1440-cpu4` (CPU 4x), n=10 each |
+| WUI | `6.1.1` `00be0cba` for the baseline probe; `6.1.3` `cf5afc58` for the tab-switch and UI checks (prd rolled at 05:37Z, between the two). Both carry every landed 109 task (T002, T004, T006, T008, T010..T013, T015) |
+| hub | `6.1.2` `456687a4` (`api.<domain>/version`, `topic_heads: on`) |
+| tree | origin/master `899ab6263` at the start |
+| box load | 16 cores; 1-min load 10.5 at the start, 43.8 at the end (the fleet). `d1440`: 3 rounds at load / cores <= 1, 7 above (load / cores p50 1.14, max 2.01). `d1440-cpu4`: all 10 above (p50 2.12, max 2.52). Longest connect per round: max 77 ms, **0 rounds over 1 s** |
+| raw evidence | `/var/tmp/spec109/t014/` on the drafting box: `run1/baseline.json` + `run1.log` (baseline), `sw.log` (tab switch), `ui.log` + `ui.mjs` (UI checks), each with `uptime` before and after |
+
+Commands (read-only, except `SEND=1`, which writes 10 messages per profile into e2e `#lobby`):
+
+```
+BASE=https://e2e.<domain> TENANT=e2e N=10 PROFILES=d1440,d1440-cpu4 SEND=1 node tests/e2e/perf-baseline-live.proof.mjs
+BASE=https://e2e.<domain> N=10 TABS=channels,dm,issues,topics,flow node /var/tmp/spec109/switch.mjs
+BASE=https://e2e.<domain> N=10 node /var/tmp/spec109/t014/ui.mjs
+ENV=prd SQL="<percentiles of wui_perf_samples, desktop, ok, not hidden, tenant <> e2e>" ./run -a do_spl_db_query
+```
+
+The before-round (section 2) recorded no box load. The `d1440` medians below are over **all 10 rounds**, so they compare with section 2 as it was taken; the load-kept column has n=3 only. A loaded box makes the after-numbers slower, not faster (w1-trace.md: W1 844 ms idle vs 2,445 ms at load 36..60), so a "met" here holds with margin.
+
+### 7.2 The waits, before and after
+
+| # | wait | before median (p95), n=10, WUI `bd165b42` | after `d1440` median (p95), n=10 | after, rounds with load / cores <= 1 (n=3) | after `d1440-cpu4` median (p95), n=10, all loaded |
+|---|---|---|---|---|---|
+| W1 | `/lobby` first message, warm | 5,004 (11,074) | **743 (1,830)** | 631 (650) | 1,550 (2,585) |
+| W2 | `/lobby` first message, cold | 5,373 (10,021) | **945 (2,459)** | 899 (2,459) | 3,576 (7,204) |
+| D2 | `ws open after nav` | 4,007 (7,816) | 954 (2,464) | 907 (2,464) | 2,819 (6,709) |
+| W3 | `/` cold to the first topic row | 4,942 (7,504) | **771 (1,976)** | 701 (753) | 1,708 (3,478) |
+| W5 | client route to `/` until the topic list | 977 (1,703) | 221 (468) | 219 (380) | 645 (1,229) |
+| W8 | click a topic row until a message | 541 (914) | 114 (229) | 122 (229) | 343 (854) |
+| W9 | send until hub-confirmed | 544 (1,188) | 192 (309) | 192 (263) | 336 (946) |
+| W10 | `/search` to results | 709 (29,731) | 350 (1,215) | 358 (1,215) | 521 (714), n=9 |
+| - | cold LCP / TBT | 6,248 / 1,628 | 1,256 / 35 | 1,220 / 17 | 4,224 / 1,091 |
+| D6 | cold `/lobby` requests / KB on the wire | 322 / 857.4 | 343 / 951.6 | 343 / 948.7 | 341 / 949.0 |
+
+Tab switch (`switch.mjs`, the before-round's probe; settled = no DOM mutation for 400 ms; n=10 per tab; load / cores 2.7..3.1; WUI `cf5afc58`):
+
+| tab | before panel / settled median ms | after panel / settled median (p90) ms | route |
+|---|---|---|---|
+| Channels | 85..88 / 968 | 26 / **23** (38) | `/` -> `/` |
+| DM | - / 62..64 | 30 / 20 (57) | `/` -> `/` |
+| Issues | - / 725 | 30 / 343 (460) | `/` -> `/issues` |
+| Topics | 85..88 / 1,152 | 24 / **412** (635) | `/issues` -> `/` (changes the route) |
+| Flow | - / 62..64 | 35 / 25 (41) | `/` -> `/` |
+
+### 7.3 Real users (RUM, T013)
+
+prd `wui_perf_samples`, desktop, `outcome = ok`, not hidden, every tenant except `e2e` (the probes' own samples), 2026-10-08..11. The 109 lanes landed 2026-10-08..10, so the split by day is rough, not a build A/B. The build-tagged A/B is `PERF_BUILD_A` / `PERF_BUILD_B` of `do_spl_wui_perf_report`, which needs a workspace-admin login this box does not hold for the tenants with traffic (section 1.1). prd e2e alone (`do_spl_wui_perf_report`, 7 days) holds 7 groups, the largest `inp` n=223 (p75 40 ms), mostly this probe's own traffic.
+
+| metric | before 10-10: n, p50 / p75 / p95 ms | from 10-10: n, p50 / p75 / p95 ms |
+|---|---|---|
+| `load_messages` cold | 90, 5,198 / 19,068 / 226,515 | 54, 5,119 / 28,826 / 276,036 |
+| `switch_view` channel | 263, 283 / 412 / 695 | 65, 347 / 478 / 746 |
+| `switch_view` dm | 34, 492 / 705 / 1,554 | 5, 510 / 1,298 / 1,387 |
+| `switch_view` topic | 17, 302 / 649 / 3,036 | 2, 1,258 / 1,658 / 1,979 |
+| `send_ack` | 175, 278 / 442 / 1,003 | 87, 398 / 618 / 1,424 |
+| `inp` | 1,656, 40 / 56 / 104 | 990, 56 / 80 / 144 |
+| `type_next_paint` | 1,286, 15 / 24 / 46 | 810, 23 / 37 / 76 |
+| `scroll_jank` | 1,025, 33 / 38 / 86 | 372, 33 / 47 / 113 |
+
+Reading: only `inp`, `type_next_paint` and `scroll_jank` have n >= 100 on both sides (spec 066: under n = 100 a round does not plan from a row). Those three are **slower** from 10-10, by 0..16 ms at p50 and 9..24 ms at p75; `send_ack` (n=87 after) is 120 ms slower at p50 while the lab shows send going 544 -> 192 ms. That is a population or device shift until a build-tagged A/B says otherwise: not proved a regression, and left to a 066 round. `load_messages` cold, with a p75 of 19..29 s and a p95 of minutes, counts tabs opened in the background before the page is seen; it does not measure the lab's W1 / W2.
+
+### 7.4 Status per FR
+
+| FR | before | after (n, where) | status |
+|---|---|---|---|
+| FR-001 | W1 warm 5,004 ms | 743 ms median, n=10, `d1440`, box loaded; 1,550 at CPU 4x on a box at load / cores 2.1 | **met** (<= 1,500 ms at CPU 1x; at CPU 4x it needs a box at load / cores <= 1, where T006 measured 1,326 on the mock bundle) |
+| FR-002 | `index.html` not gated | `ci_home_gzip_kb` 352.1 in `perf-budgets.json` (T002) | **met** |
+| FR-003 | 349.8 KB, 85 chunks | live `/` names 86 `modulepreload` links; `ci_home_gzip_kb` 352.1 | **missed** by design (T003: dropping them made the first row slower). W3 itself went 4,942 -> 771 ms, through T006 |
+| FR-004 | roster 2, topics 2 per first screen | cold `/lobby`: roster **1** in 10 of 10 rounds; `GET /v1/view/topics` **2** in 10 of 10 (the probe records the route, not the query, so whether both read the same list is not shown) | **roster met, topics missed** |
+| FR-005 | Topics 1,152 / Channels 968 ms settled | same-route tabs 20..25 ms (Channels 23); Topics 412 ms when it changes the route from `/issues` | **met** for a tab that keeps the route; the route-changing Topics click is outside FR-005 (T007) |
+| FR-006 | 2 lists | panel 1 `sidebar-panel-channels`, panel 2 50 rows, n=10 | **met** |
+| FR-007 | - | dropped (Q3 = no) | dropped |
+| FR-008 | 171 px picker in the bar | 0 pickers in the top bar, n=10 | **met** |
+| FR-009 | 3 entries | 2 on screen, n=10: the rail gear and the first-run chip's link (the e2e workspace's checklist is not done, so the chip stays) | **met as specified**: the chip's link goes when the card goes (T012); 1 once the checklist is done |
+| FR-010 | 270 px card | chip 48 px, n=10 | **met** (<= 48) |
+| FR-011 | 4-line raw header | header 47 px, every visible header button named, n=10 | **met** |
+| FR-012 | no grouping, no labels | 1 divider drawn for the e2e member's stored rail order (11 tabs), n=10; the labels toggle: T015's e2e | **met** |
+| FR-013 | "read-only · workspace-scoped" | "Workspace topics", n=10 | **met** |
+| FR-014 | `click()` opens nothing | not re-read live; T012's DOM `click()` proof on the mock bundle, n=3 | **met** (mock proof only) |
+
+Score: 11 FRs met, FR-003 missed by design, FR-004 half met (topics still read twice per cold load), FR-007 dropped.
+
 <!-- last-edit: 2026-10-08T18:25:00Z — v1.0 fold of seats s109-2..4, c-567 -->

@@ -10,7 +10,9 @@
      ?in=), its path as the title; a tap on a row with rows under it pushes
      the next level, any other row opens the document there. Every step is a
      route push, so the Back chevron (MobileBack), a swipe and browser Back
-     walk back up the same way they leave a channel. -->
+     walk back up the same way they leave a channel. A level loaded fresh
+     (t1 3b8891e0) has none of those entries: Back steps up in place
+     (utils/docs-drill-up.mjs) until the top. -->
 <template>
   <div class="feed-col wsdocs-page" data-test="ws-docs-page">
     <header class="feed-header wsdocs-head">
@@ -98,6 +100,7 @@ import { createDocSession, DocTreeError, seedStarterDoc, useDocTree, useQtoFolde
 import { picPaths } from './-doc-pics'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { drillParent } from '~/utils/docs-drill-up.mjs'
 
 const VIEWS = ['doc', 'grid'] as const
 type View = typeof VIEWS[number]
@@ -178,6 +181,17 @@ async function drillTo(key: string) {
   const { in: _in, ...rest } = route.query
   await router.push({ query: key ? { ...rest, in: key } : rest })
 }
+
+/* t1 3b8891e0: a level loaded fresh (a new tab, a reload, a shared ?in=)
+   has no entry of ours below it. Back steps up to the level above in place,
+   one a tap, to the top of Documents; only from the top does it leave */
+stack.up(() => {
+  const key = drillAt.value
+  if (!phoneList.value || !key) return false
+  void drillParent(key, { nodes: (p) => client.nodes(p), subtree: (d) => client.subtree(d) })
+    .then((up) => (drillAt.value === key ? setQuery({ in: up ?? '' }) : undefined))
+  return true
+})
 
 /** a phone row without rows under it (or a level's Edit): the document there, one entry deeper */
 async function openFromList(doc: string, item: string) {

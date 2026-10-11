@@ -58,6 +58,10 @@ import { useSessionStore } from '~/stores/session'
  *                               // SPL-994: a dialog / bottom sheet is the TOP
  *                               // level while open; Back calls closeSheet and
  *                               // the level under it stays where it was
+ *   stack.up(() => stepUp())    // t1 3b8891e0: a page with levels of its own
+ *                               // (Documents' ?in=) loaded fresh at one: Back
+ *                               // with nothing of ours below calls it first;
+ *                               // true = it stepped up in place itself
  * A route navigation (NuxtLink, router.push) needs NO call: leaving level 1 by
  * a link is noticed in router.afterEach. Opening a topic needs no call either:
  * level 3 follows the topic stores. Only layouts/default.vue calls install().
@@ -372,8 +376,27 @@ function pop() {
   if (overlays.length) return void enqueue(() => (overlays.length ? stepBack(1) : undefined))
   if (level.value === 1) return
   if (mobileHasBelow(window.history.state)) return void window.history.back()
-  /* a deep link: nothing of ours below, so step down in place */
+  /* a deep link: nothing of ours below. A page level above it first (t1
+     3b8891e0), else step down in place */
+  if (level.value === 2 && ups.value.some((u) => u())) return
   applyLevel((level.value - 1) as MobileLevel)
+}
+
+/* t1 3b8891e0: pages whose deep link has levels of its own above it */
+const ups = shallowRef<Array<() => boolean>>([])
+
+/**
+ * A page with levels of its own inside level 2 (Documents' drill-down,
+ * ?in=): Back on its deep link, with no entry of ours below, calls `up`
+ * before leaving the page; `up` returns true when it stepped up a level
+ * itself (in place: router.replace), false at its top. Unregisters itself
+ * when the calling component's scope ends.
+ */
+function up(handler: () => boolean) {
+  ups.value = [...ups.value, handler]
+  const off = () => { ups.value = ups.value.filter((u) => u !== handler) }
+  if (getCurrentScope()) onScopeDispose(off)
+  return off
 }
 
 function toHome() {
@@ -493,6 +516,8 @@ export function useMobileStack() {
     home: toHome,
     rightPanel,
     overlay,
+    /** t1 3b8891e0: a page's own level above its deep link, for Back */
+    up,
     /** CLE-77882: the next topic open lands on the current entry (open in place) */
     landInPlace,
     /** SPL-1005: a page sheet / dialog / menu is open - the composer dock yields */

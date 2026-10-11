@@ -369,6 +369,7 @@ async function drillDown(m) {
   ok('phone: ... its path is the title, one history entry deeper', await heading(m) === 'Handbook' && new URL(m.url()).searchParams.get('in')?.startsWith('d:'), m.url())
   await tapRow(m, 'Introduction')
   ok('phone: a section with sections drills one level more', await listIs(m, ['Scope', 'Audience']) && await heading(m) === 'Handbook / Introduction', await listRows(m))
+  const level = m.url()
   if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-drill-phone-folder.png` })
   await back(m)
   ok('phone: Back walks up one level', await listIs(m, ['Introduction', 'Operations', 'Glossary']) && await heading(m) === 'Handbook', await listRows(m))
@@ -380,6 +381,30 @@ async function drillDown(m) {
   ok('phone: Back from the document returns to its level', await listIs(m, ['Introduction', 'Operations', 'Glossary']), await listRows(m))
   await back(m)
   ok('phone: Back again, the top level', await listIs(m, ['Handbook']) && await heading(m) === 'Documents', await listRows(m))
+  return level
+}
+
+const headingIs = (p, want) => p.waitForFunction((want) => document.querySelector('[data-test=ws-docs-heading]')?.textContent.trim() === want, { timeout: STEP }, want).then(() => true, () => false)
+
+/* t1 3b8891e0 (c-983's finding): a level loaded fresh - a new tab, a reload,
+   a shared link - has no history entry of ours below it. Back goes up one
+   level a tap to the top of Documents, and only then leaves Documents.
+   Control: before the fix the first Back left Documents for the section
+   chooser, so the up-one-level checks FAIL. The in-app path is drillDown's. */
+async function freshBack(browser, url) {
+  const n = await browser.newPage()
+  await n.setViewport({ width: 390, height: 740, isMobile: true, hasTouch: true })
+  await n.goto(url, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await onPage(n)
+  ok('390 fresh: a fresh load opens that level', await listIs(n, ['Scope', 'Audience']) && await headingIs(n, 'Handbook / Introduction'), [n.url(), await listRows(n)])
+  await back(n)
+  ok('390 fresh: Back goes up one level, to the document', await listIs(n, ['Introduction', 'Operations', 'Glossary']) && await headingIs(n, 'Handbook'), [n.url(), await listRows(n)])
+  if (process.env.SHOT_DIR) await n.screenshot({ path: `${process.env.SHOT_DIR}/qto-fresh-back-390.png` })
+  await back(n)
+  ok('390 fresh: Back again, the top of Documents', await listIs(n, ['Handbook']) && await headingIs(n, 'Documents') && !new URL(n.url()).searchParams.has('in'), [n.url(), await listRows(n)])
+  await back(n)
+  ok('390 fresh: only from the top does Back leave Documents', await n.waitForFunction(() => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') === '1', { timeout: STEP }).then(() => true, () => false), n.url())
+  await n.close()
 }
 
 /** a list panel of the sidebar that takes up room, by test id */
@@ -478,7 +503,7 @@ try {
   await m.waitForFunction(() => location.pathname === '/workspace/docs', { timeout: STEP }).catch(() => {})
   ok('one tap lands on /workspace/docs', new URL(m.url()).pathname === '/workspace/docs', m.url())
   await onPage(m)
-  await drillDown(m)
+  const level = await drillDown(m)
   ok('phone: a tree row is a 44 px target', await m.$eval(`${LIST} [data-test=file-tree-row]`, (el) => el.getBoundingClientRect().height >= 44).catch(() => false))
   const held = await m.$eval(`${LIST} [data-kind=doc]`, (el) => { const r = el.getBoundingClientRect(); return { x: r.left + 60, y: r.top + r.height / 2 } }).catch(() => null)
   if (held) {
@@ -492,6 +517,9 @@ try {
   if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-file-tree-phone.png` })
   await phoneFolders(m)
   await m.close()
+
+  console.log('-- 390x740 phone, a level loaded fresh')
+  await freshBack(browser, level)
 
   console.log('-- signed out')
   const o = await browser.newPage()

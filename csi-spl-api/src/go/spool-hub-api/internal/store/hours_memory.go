@@ -144,32 +144,40 @@ func memHoursSpans(old []HoursEntrySpan, es []HoursEntry) ([]HoursEntrySpan, err
 			out = append(out, sp)
 		}
 	}
-	overlaps := func(sp HoursSpan) bool {
-		for _, o := range out {
-			if sp.Start.Before(o.End) && o.Start.Before(sp.End) {
-				return true
+	var own, act []HoursEntrySpan
+	for _, e := range es {
+		for _, sp := range e.Spans {
+			row := HoursEntrySpan{Day: e.Day, Target: e.Target, HoursSpan: sp}
+			if sp.Src == HoursSpanActivity {
+				act = append(act, row)
+			} else {
+				own = append(own, row)
 			}
 		}
-		return false
 	}
-	for _, act := range []bool{false, true} {
-		for _, e := range es {
-			for _, sp := range e.Spans {
-				if (sp.Src == HoursSpanActivity) != act {
-					continue
-				}
-				if overlaps(sp) {
-					if act {
-						continue
-					}
-					return nil, ErrHoursOverlap
-				}
-				out = append(out, HoursEntrySpan{Day: e.Day, Target: e.Target, HoursSpan: sp})
-			}
+	for _, sp := range own {
+		if memSpanOverlaps(out, sp.HoursSpan) {
+			return nil, ErrHoursOverlap
+		}
+		out = append(out, sp)
+	}
+	for _, sp := range act {
+		if !memSpanOverlaps(out, sp.HoursSpan) {
+			out = append(out, sp)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })
 	return out, nil
+}
+
+// memSpanOverlaps says whether sp overlaps one of ss ([a,b) and [b,c) do not).
+func memSpanOverlaps(ss []HoursEntrySpan, sp HoursSpan) bool {
+	for _, o := range ss {
+		if sp.Start.Before(o.End) && o.Start.Before(sp.End) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Memory) HoursEntrySpans(_ context.Context, tenant, member, from, to string) ([]HoursEntrySpan, error) {

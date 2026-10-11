@@ -18,6 +18,8 @@
 #   7. this box newer and working: copied TO the peer (the one refresher)
 #   8. DRY_RUN=1 plans and changes nothing; the live spool root is refused
 #   9. the cred script refuses an input that is no Claude login
+#  10. the peers come from box.env (SPOOL_LOGIN_PEERS, a comma list); none
+#      named there = no peer is asked
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -70,11 +72,13 @@ reset() {
 stuck_login() { printf 'old text\nLogin expired · Please run /login\n' >"$T/panes/$1"; echo error >"$T/turn/$2"; }
 
 tick() {
-  SNIPPET='do_spl_agent_login_check' in_orc SPOOL_ROOT="$T/spool" SPOOL_BOX_TAG=box1 LOGIN_STATE_DIR="$T/state" \
+  local pa=(LOGIN_PEERS="sat=satellite")
+  [ -z "${NOPEERS:-}" ] || pa=()
+  SNIPPET='do_spl_agent_login_check' in_orc SPOOL_ROOT="$T/spool" SPOOL_BOX_ENV="$T/spool/box.env" "${pa[@]}" SPOOL_BOX_TAG=box1 LOGIN_STATE_DIR="$T/state" \
     LOGIN_AGENTS_CMD="cat '$T/agents'" LOGIN_CAPTURE_CMD="$T/bin/capture" LOGIN_TURN_CMD="$T/bin/turn" \
     LOGIN_KILL_CMD="$T/bin/kill" LOGIN_RESTORE_CMD="$T/bin/restore" LOGIN_CLOSE_CMD="$T/bin/close" LOGIN_SEND="$T/bin/send" \
     LOGIN_CRED_CMD="env LOGIN_CRED_FILE=$T/here/cred.json LOGIN_SUDO= bash $CRED" LOGIN_PROBE_CMD="$PROBE_HERE" \
-    LOGIN_PEER_CMD="$T/bin/peer" LOGIN_PEERS="sat=satellite" LOGIN_PROBE_EVERY=0 DRY_RUN="${DRY:-0}" 2>&1
+    LOGIN_PEER_CMD="$T/bin/peer" LOGIN_PROBE_EVERY=0 DRY_RUN="${DRY:-0}" 2>&1
 }
 acts() { grep -vcE '^(probe|peer [^ ]+ (stat|probe))$' "$T/calls"; }
 leaks() { grep -rlE 'rt-[A-Z]+-secret|at-[A-Z]+' "$@" 2>/dev/null | grep -v '/cred.json' | grep -vc 'bak-login'; }
@@ -152,6 +156,15 @@ reset
 out="$(echo '{"x":1}' | LOGIN_CRED_FILE="$T/here/cred.json" LOGIN_SUDO='' bash "$CRED" put 2>&1)"; rc=$?
 [ "$rc" = 1 ] && grep -q 'no Claude login' <<<"$out" && grep -q rt-GOOD "$T/here/cred.json" \
   && pass "9. put refuses an input that is no Claude login" || fail "9. (rc $rc: $out)"
+
+# 10. peers from box.env
+reset; cred "$T/here/cred.json" GOOD 5000; cred "$T/peer/cred.json" OLD 2000
+out="$(NOPEERS=1 tick)"
+! grep -q '^peer ' "$T/calls" && grep -q 'copied=0' <<<"$out" && pass "10. control: no peer in box.env, none asked" || fail "10. control ($out; $(cat "$T/calls"))"
+echo "SPOOL_LOGIN_PEERS=sat=satellite,bad" >"$T/spool/box.env"
+out="$(NOPEERS=1 tick)"
+cmp -s "$T/here/cred.json" "$T/peer/cred.json" && grep -q 'copied=1' <<<"$out" \
+  && pass "10. SPOOL_LOGIN_PEERS in box.env names the peer" || fail "10. box.env ($out; $(cat "$T/calls"))"
 
 echo "spl-agent-login-check: $fails failed"
 exit $(( fails > 0 ))

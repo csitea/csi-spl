@@ -11,8 +11,8 @@
 # @description   2. probe: `claude -p` as the agent user (agent-login-cred.sh
 # @description      probe): ok | expired | limited | unknown. Every
 # @description      LOGIN_PROBE_EVERY s (300), and at once when a pane is stuck.
-# @description   3. peers (SPOOL_LOGIN_PEERS in box.env, "<tag>=<ssh dest> ...",
-# @description      empty = none): the credential whose expiresAt is later wins,
+# @description   3. peers (SPOOL_LOGIN_PEERS in box.env, "<tag>=<ssh dest>,...",
+# @description      set with box-config.sh; empty = none): the credential whose expiresAt is later wins,
 # @description      copied to the other box only when it probes ok there (temp
 # @description      + mv, the old one kept as .bak-login-<UTC>). Both limited =
 # @description      no copy, alert only. One box refreshes; the others follow.
@@ -142,10 +142,11 @@ _lc_cred_at() {
   ssh -o BatchMode=yes -o ConnectTimeout="${LOGIN_SSH_TIMEOUT:-30}" "$dest" "bash -c $(printf '%q' "$script") _ $op"
 }
 
-# The peers, "<tag>=<ssh dest>" words: LOGIN_PEERS, else box.env's SPOOL_LOGIN_PEERS.
+# The peers, "<tag>=<ssh dest>" separated by commas or blanks: LOGIN_PEERS,
+# else box.env's SPOOL_LOGIN_PEERS (box-config.sh SPOOL_LOGIN_PEERS=sat=satellite).
 _lc_peer_list() {
-  if [[ -n "${LOGIN_PEERS+x}" ]]; then echo "$LOGIN_PEERS"; return 0; fi
-  sed -n 's/^SPOOL_LOGIN_PEERS=//p' "${SPOOL_BOX_ENV:-$SPOOL_ROOT/box.env}" 2>/dev/null | tail -1 | tr -d "\"'"
+  if [[ -n "${LOGIN_PEERS+x}" ]]; then echo "${LOGIN_PEERS//,/ }"; return 0; fi
+  sed -n 's/^SPOOL_LOGIN_PEERS=//p' "${SPOOL_BOX_ENV:-$SPOOL_ROOT/box.env}" 2>/dev/null | tail -1 | tr -d "\"'" | tr ',' ' '
 }
 
 # Bring every peer's credential in line with the newest one that works.

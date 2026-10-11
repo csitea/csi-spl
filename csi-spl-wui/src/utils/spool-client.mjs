@@ -487,7 +487,7 @@ export function createSpoolClient({
     async getTopic(taskId, { limit = 200, after, order, before } = {}) {
       const id = String(taskId || '')
       if (!id) throw new Error('task_id required')
-      if (mock) return (await mockAnswers()).mockGetTopic(state, id, { limit, after, order, before })
+      if (mock) return (await mockAnswers()).mockGetTopic(state, id, { limit, after, order, before, viewToken })
       const q = new URLSearchParams()
       if (order === 'desc') q.set('order', 'desc')
       if (limit) q.set('limit', String(limit))

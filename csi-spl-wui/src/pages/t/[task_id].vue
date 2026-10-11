@@ -10,7 +10,10 @@
     :data-phone="stack.isMobile.value ? 'thread' : undefined"
   >
     <div class="topic-browse__thread" data-test="topic-browse-thread">
-      <TopicPane />
+      <!-- t1 e4bfddb1: the door prompt came from the removed Topics list's
+           load; a member whose session does not open the door gets it here -->
+      <ViewTokenForm v-if="door" :detail="door.detail" @saved="onDoor" />
+      <template v-else><TopicPane /></template>
     </div>
   </div>
 </template>
@@ -27,6 +30,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { openingCardId } from '~/utils/topic-archive.mjs'
 import { dmPeerOf } from '~/utils/channel-feed.mjs'
+import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
@@ -43,6 +47,8 @@ const editor = useMessageEdit()
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
 const sending = ref(false)
+/** view-v1 section 2: the hub's 401 view_door for this topic, or null */
+const door = ref<{ detail: string } | null>(null)
 
 /* a phone: the thread is the right panel (level 3); Back leaves the page */
 stack.rightPanel(() => stack.isMobile.value && topic.open, () => topic.close())
@@ -88,9 +94,24 @@ async function seedMockThread(id: string) {
 }
 
 async function showTopic(id: string) {
-  await seedMockThread(id)
+  try {
+    if (api.mock) await seedMockThread(id)
+    else await withSessionRetry(api, () => api.getTopic(id, { limit: 1 }))
+  } catch (e) {
+    /* any other failure is the pane's to show, as before */
+    if (taskId.value === id && isDoor(e)) {
+      door.value = { detail: String((e as { detail?: string }).detail || '') }
+      return
+    }
+  }
   if (taskId.value !== id) return
+  door.value = null
   topic.openTopic(id)
+}
+
+/* a view token was saved: read the topic again with it */
+function onDoor() {
+  if (taskId.value) void showTopic(taskId.value)
 }
 
 /* spec 117 FR-4 (t1 f87e6c9d): this page holds no DM peer, so a reply in a

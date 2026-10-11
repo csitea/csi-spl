@@ -25,7 +25,12 @@ export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
 }
 
 /** view-v1 §4.4 over the mock messages, `order: 'desc'` paged by `before`. */
-export function mockGetTopic(state, id, { limit = 200, after, order, before } = {}) {
+export function mockGetTopic(state, id, { limit = 200, after, order, before, viewToken } = {}) {
+  /* e2e hook (topic-view-door): `spool.mock.view-door` = { detail } stands in
+     for a hub whose door this session does not open (view-v1 section 2): a
+     401 view_door until a view token is set */
+  const door = storageGetJson('spool.mock.view-door', null)
+  if (door && !viewToken) throw Object.assign(new Error('spool 401 view_door'), { status: 401, token: 'view_door', detail: String(door.detail || '') })
   /* t1 404cd808: the hub's topic read keeps the topic's own archived
      card (only the lobby feed hides archived rows), so the mock does too */
   const all = topicMessages([...state.messages, ...(state.archived || [])], id)

@@ -1,6 +1,6 @@
-# Fleet Login Self-Heal on 3 Boxes
+# Multi-Agent Fleet Login Self-Heal on 3 Boxes
 
-This spec solves the problem of keeping every Claude agent logged in and self-repairing across 3 boxes (box-1, box-2, and 1 upcoming cloud box for a new workspace). 
+This spec solves the problem of keeping every agent kind (`claude`, `grok`, `mistral`, `agy`, `qwen`) logged in and self-repairing across 3 boxes (box-1, box-2, and 1 upcoming cloud box for a new workspace). 
 
 ## 1. Separate Weekly-Quota from Login Outages
 The system distinguishes between a dead login (expired session) and a usage-limit ceiling.
@@ -36,3 +36,14 @@ The repair agent lane provides the self-heal action (`do_spl_agent_login_check`,
 - **Restore**: Runs `do_spl_agent_identity_restore` once per tick per stuck seat. Does NOT run `/login`.
 - **Alert**: Sends one spool message to the dispatch lease holder with counts before and after. Deduplicated by state (alert sent when the state changes or an action is taken).
 - **Concurrency**: A per-box `flock` ensures only one instance of the repair script runs at a time.
+
+## 7. Multi-Agent Authentication & Self-Heal
+The system supports multiple agent kinds. Their login, quota, and repair behaviors differ:
+
+| Agent Kind | Sign-In Method | Renewal | "Dead Login" / "Quota Hit" Pane Text | Cross-Box Copying | Self-Heal Action |
+|---|---|---|---|---|---|
+| **Claude** (`c-`) | Browser login (OAuth) | Manual; runs `/login` on expiry | **Dead:** `please run /login` or `oauth token (has )?expired`<br>**Quota:** `hit your (session )?limit` or `usage limit reached` | Breaks it (independent tokens per `/login`) | Self-heal wrapper stops and restores the pane |
+| **Grok** (`g-`) | API key (config.toml) | Never (manual re-key) | **Dead:** `invalid api key`<br>**Quota:** `hit your weekly limit` | Works (static key) | N/A (current script targets `claude` only) |
+| **Mistral** (`m-`, vibe) | API key (`.vibe/.env`) | Never (manual re-key) | **Dead:** `invalid api key (from env var MISTRAL_API_KEY)`<br>**Quota:** `rate limits exceeded` | Works (static key) | N/A (current script targets `claude` only) |
+| **Agy** (`a-`) | API key | Never (manual re-key) | **Dead:** `invalid api key`<br>**Quota:** `usage limit reached` | Works (static key) | N/A (current script targets `claude` only) |
+| **Qwen** (`q-`) | API key (`.qwen/settings.json`, `.qwen/.env`) | Never (manual re-key) | **Dead:** `invalid api key`<br>**Quota:** `usage limit reached` | Works (static key) | N/A (current script targets `claude` only) |

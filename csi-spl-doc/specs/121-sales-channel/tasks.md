@@ -80,7 +80,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T301 | DDL: `usage_events`, `model_prices`, `token_budgets` | 3 | T101 landed | build | claude |
 | T302 | metering: `turn_id`, usage report, `unmetered` alert | 3 | T301 applied dev+prd | done (e3d3ec2a5) | claude |
 | T303 | `model_prices` fill action from cnf | 3 | T301 applied dev+prd | build | claude |
-| T304 | token budgets: refuse before dispatch, 429, 80 % notice | 3 | T302, T303 | build | claude |
+| T304 | token budgets: refuse before dispatch, 429, 80 % notice | 3 | T302, T303 | done (cb9422cdf; live 80 % notice proof: T306) | claude |
 | T305 | unpaid spend cap: EUR 5 per visitor session + embed-wide daily ceiling | 3 | owner N1b; T304, T105 | HOLD | claude |
 | T306 | the sales agent: scoped context, small model, handover | 3 | T104, T304 | build | claude |
 | T307 | sales agent knowledge ingest (website + Drive), standby mode | 3 | owner G1/G2; T306 | HOLD | - |
@@ -388,12 +388,29 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   `csi-spl-cnf/csi-spl/all.env.yaml` (T103 owns the `env.hub.embed` block
   of the same file: disjoint blocks, rebase). Done: dry run by default;
   re-running writes nothing new.
-- [ ] T304 **token budgets** (claude; needs T302, T303). Check before a
+- [x] T304 **token budgets** (claude; needs T302, T303). Check before a
   turn is dispatched (refuse before the work is built), 429 `token_quota`,
   one notice to the workspace owner at 80 %; hard stop by default. Files:
   `GO/hub/token_budget.go` + `_test.go` (*new*); `GO/store/token_budget.go`
   + `_test.go` (*new*). Done: a refused turn writes no usage row and starts
   no seat.
+  Built (c-782; cf762accf, cb9422cdf, 2413f75e5; v6.0.5 dev + prd):
+  `wuiSend` calls `tokenBudget` after the demo agent-turn check, for an
+  @agent dispatch or a channel fan-out only. It reads the workspace's and the
+  channel's budgets (`store.TokenBudgets.BudgetUses`, Postgres only) against
+  the ledger: llm tokens since the UTC day and month began, priced spend
+  since the top-up (a row in another currency reads the balance spent).
+  100 % of a hard-stop limit: 429 `token_quota` before `commitRow` (no
+  message, delivery, seat or usage row); a soft budget dispatches and logs.
+  80 %: one notice per window of the limit that crossed it, claimed on
+  `low_notice_at`: a `token_budget` frame to the open sockets of the
+  `billing.manage` holders and the log line `alert=token_budget_low` (no
+  mail: that needs a mailer in `server.go`). Not checked here: visitor
+  budgets (T305) and agent-to-agent sends. Tests: `TestTokenBudgetTurns`,
+  `TestTokenBudgetUses` (Postgres); red controls: no check in `wuiSend`, or
+  no 429, each fails `TestTokenBudgetTurns`. Live 80 % notice proof: T306
+  (a Done item there, n stated; c-001 msg 064c2504): no metered usage on dev
+  before T306.
 - [ ] T305 **unpaid spend cap, HOLD on N1b** (claude). The owner moved Q-N1
   to EUR 5 per visitor chat session (msg e8a817b3); N1b, the embed-wide
   daily ceiling (recommended EUR 50), is still asked. When answered: both

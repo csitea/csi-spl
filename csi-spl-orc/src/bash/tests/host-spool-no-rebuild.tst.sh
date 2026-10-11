@@ -30,6 +30,11 @@ eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1 (want '$2', got '$3'
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 g() { git -c user.name=t -c user.email=t@example.com -C "$@"; }
+# CONTROL: run as the pre-push gate does. csi-spl-iac/run exports APP (red on
+# every gate run that picked this file, green in CI); it must not reach the
+# fixture. The knobs this test sets itself start unset.
+export APP=/nonexistent/caller-app
+unset TREE_APP SPL_SPOOL_REBUILD
 
 # A throwaway tree shaped like the app: <app>/csi-spl-api/{src/bash/build.sh,
 # src/go/spool-hub-api/}. The stub build.sh counts its runs and writes a
@@ -49,9 +54,11 @@ g "$A" init -q && g "$A" add -A && g "$A" commit -qm one
 S="$T/state"
 : >"$T/builds"
 
-# Runs FUNC in a shell with the orc funcs sourced, APP_PATH=$A unless given.
+# Runs FUNC in a shell with the orc funcs sourced, APP_PATH=$A unless TREE_APP
+# is given. Not APP: csi-spl-iac/run exports APP, so inside the pre-push gate an
+# APP override sent every call out of the fixture (0 builds, cases 1..6 red).
 in_orc() {
-  env PROJ_PATH="$A/csi-spl-orc" APP_PATH="${APP:-$A}" SPL_ORG_APP=csi-spl SPL_STATE_DIR="$S" \
+  env PROJ_PATH="$A/csi-spl-orc" APP_PATH="${TREE_APP:-$A}" SPL_ORG_APP=csi-spl SPL_STATE_DIR="$S" \
     T_BUILDS="$T/builds" ORC_LIB="$PROJ_ROOT/lib/bash/funcs" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -132,12 +139,12 @@ g "$A" worktree add -q "$T/old" "$H1" 2>/dev/null
 
 # --- 5. an older tree is refused -------------------------------------------------
 before="$(md5sum <"$S/bin/spool")"
-out="$(APP="$T/old" in_orc 'spl_host_spool && echo "rc=0 SPOOL=$SPL_SPOOL"')"
+out="$(TREE_APP="$T/old" in_orc 'spl_host_spool && echo "rc=0 SPOOL=$SPL_SPOOL"')"
 eq "5 an OLDER tree builds nothing" 9 "$(builds)"
 eq "5 …the binary is untouched" "$before" "$(md5sum <"$S/bin/spool")"
 grep -q '^WARN keeping .*NEWER than this tree' <<<"$out" && pass "5 …and a WARN says why" || fail "5 no WARN: $out"
 grep -q "^rc=0 SPOOL=$S/bin/spool" <<<"$out" && pass "5 …while the caller still gets the (newer) binary" || fail "5 caller: $out"
-APP="$T/old" SPL_SPOOL_REBUILD=1 in_orc 'spl_host_spool' >/dev/null
+TREE_APP="$T/old" SPL_SPOOL_REBUILD=1 in_orc 'spl_host_spool' >/dev/null
 eq "5 SPL_SPOOL_REBUILD=1 overrides the refusal" 10 "$(builds)"
 eq "5 …and the stamp says so" "$H1 clean" "$(cat "$S/bin/spool.src")"
 

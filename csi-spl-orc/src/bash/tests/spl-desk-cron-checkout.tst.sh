@@ -82,6 +82,21 @@ rc_part="$(echo "$out" | grep -o 'after rc=[0-9]*' | cut -d= -f2)"
 traps_part="$(echo "$out" | grep -o 'traps [a-z]*')"
 [ "$rc_part" = "1" ] && [ "$traps_part" = "traps unchanged" ] && pass "5.1. inherited trap (SIGPIPE): traps unchanged after failure" || fail "5.1. inherited trap ($out)"
 
+# 5.1 red control: the same snippet, but the call resets the inherited SIGPIPE trap; the 5.1 assert must reject it.
+# --default-signal: bash cannot change a signal ignored on entry (CI ignores SIGPIPE), so the plant would be a no-op
+out="$(env --default-signal=PIPE PATH="$T/bin:$PATH" PROJ_ROOT="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK_CRON_REPO=/r/repo SPL_DESK_CRON_CREATE=1 \
+  bash -c 'do_log() { :; }; source "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-checkout.func.sh";
+    spl_desk_cron_checkout() { trap - SIGPIPE; return 1; }
+    trap "" SIGPIPE;
+    traps_before="$(trap -p)";
+    spl_desk_cron_checkout /r/x master; rc=$?; echo "after rc=$rc";
+    traps_after="$(trap -p)";
+    [ "$traps_before" = "$traps_after" ] && echo "traps unchanged" || echo "traps changed: $traps_after"' 2>&1)"
+rc_part="$(echo "$out" | grep -o 'after rc=[0-9]*' | cut -d= -f2)"
+traps_part="$(echo "$out" | grep -o 'traps [a-z]*')"
+[ "$rc_part" = "1" ] && [ "$traps_part" = "traps unchanged" ] &&
+  fail "5.1. control: a call that resets SIGPIPE passed the assert ($out)" || pass "5.1. control: a call that resets SIGPIPE fails the assert"
+
 # 5.2. Red control: helper sets a trap (should fail)
 # Override the helper to set a trap and force a failure
 out="$(env PATH="$T/bin:$PATH" PROJ_ROOT="$PROJ_ROOT" GIT_FAIL_ON=fetch SPL_DESK_CRON_REPO=/r/repo SPL_DESK_CRON_CREATE=1 \

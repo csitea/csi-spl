@@ -9,14 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // The embed's bot gate (specs/121 section 6, T105): a self-hosted
 // proof-of-work plus a honeypot field, on the visitor's FIRST post (not on
 // the page load), and on every post of a repeat offender (ChallengeAfterHits
-// hits of its address in HitsWindow). No outside service sees the visitor
-// (Q-T1 = A).
+// hits of its address in HitsWindow). A signed-in customer's user (T205)
+// never needs the proof. No outside service sees the visitor (Q-T1 = A).
 //
 //	GET /v1/embed/{embed_id}/challenge   {"challenge", "bits", "required"}
 //
@@ -101,10 +103,24 @@ func leadingZeroBits(b []byte) int {
 	return n
 }
 
+// embedSignedIn reports whether v is a signed-in customer's user (T205):
+// store.SignInEmbedVisitor derives those visitor ids as uuid v5, while an
+// anonymous visitor's is gen_random_uuid's v4. The hub assigns every id, so
+// a visitor cannot pick its version.
+func embedSignedIn(v store.EmbedVisitor) bool {
+	id, err := uuid.Parse(v.VisitorID)
+	return err == nil && id.Version() == 5
+}
+
 // embedChallengeNeeded reports whether v's next post must carry a proof:
-// its first post, or any post once its address is a repeat offender.
+// its first post, or any post once its address is a repeat offender. Never
+// for a signed-in customer's user (owner, msg 62a2aac3): the customer's
+// server vouched for it; the honeypot, bans and limits still apply.
 func (s *Server) embedChallengeNeeded(r *http.Request, ab store.EmbedAbuse, sc store.EmbedScope, v store.EmbedVisitor,
 	now time.Time) (bool, error) {
+	if embedSignedIn(v) {
+		return false, nil
+	}
 	posted, err := ab.EmbedVisitorPosted(r.Context(), v)
 	if err != nil || !posted {
 		return true, err

@@ -284,7 +284,9 @@ store: there is no Redis in the estate. Every limit is cnf per embed
 - Bot gate on the FIRST post only (not the page load): a challenge the hub
   verifies server-side, plus a honeypot field. The challenge is our own
   check, a self-hosted proof-of-work: no outside service sees the visitor
-  (Q-T1 = A, e95a0695 as read in 51f088b6).
+  (Q-T1 = A, e95a0695 as read in 51f088b6). A signed-in customer's user
+  (T205) skips the proof-of-work, never the honeypot, bans or limits
+  (owner, msg 62a2aac3).
 - Bans reuse `demo_bans` (rdb 0130), keyed on visitor_id and ip_hash; the
   owner blocks a visitor from the channel header (token revoked, channel kept).
 - Repeat offenders (from mistral): a visitor that hits a limit 3 times in

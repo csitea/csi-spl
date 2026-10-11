@@ -3112,6 +3112,10 @@
                     "maxLength": 320,
                     "type": "string"
                   },
+                  "locale": {
+                    "description": "the chat page's language, the mail's language; unknown or missing: the hub's default locale, else en (never an error)",
+                    "type": "string"
+                  },
                   "return_url": {
                     "description": "the page the link opens; its origin must be one of the embed's allowed origins",
                     "type": "string"

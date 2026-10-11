@@ -1,0 +1,11 @@
+Poproszono o kontynuowanie czatu w witrynie {{.Site}} na innym urządzeniu lub w innej przeglądarce.
+
+Otwórz ten link, aby tam kontynuować. Czas ważności: {{duration .TTL}}.
+
+{{.Link}}
+
+Link działa jeden raz. Jego użycie kończy logowanie czatu na urządzeniu, z którego korzystano wcześniej.
+Jeśli to nie była Twoja prośba, zignoruj tę wiadomość: nic się nie zmieni.
+
+Ten adres został podany w czacie w witrynie {{.Site}} tylko w jednym celu: aby otrzymać
+taki link z powrotem do czatu. Nie jest używany do niczego innego.

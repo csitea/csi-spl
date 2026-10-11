@@ -1,0 +1,11 @@
+Zatražili ste da nastavite razgovor na {{.Site}} na drugom uređaju ili pregledaču.
+
+Otvorite ovaj link da biste nastavili tamo. Rok važenja je {{duration .TTL}}.
+
+{{.Link}}
+
+Link radi jednom. Njegovim korišćenjem prestaje prijava u razgovor na uređaju koji ste ranije koristili.
+Ako ovo niste tražili, zanemarite ovu poruku: ništa se ne menja.
+
+Ovu adresu ste dali u razgovoru na {{.Site}} samo u jednu svrhu: da dobijete
+ovakav link nazad do svog razgovora. Ne koristi se ni za šta drugo.

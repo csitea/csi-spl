@@ -1,0 +1,11 @@
+Požiadali ste o pokračovanie v chate na {{.Site}} v inom zariadení alebo prehliadači.
+
+Otvorte tento odkaz a pokračujte tam. Platnosť: {{duration .TTL}}.
+
+{{.Link}}
+
+Odkaz funguje raz. Jeho použitím sa ukončí prihlásenie do chatu v zariadení, ktoré ste používali predtým.
+Ak ste o to nežiadali, tento e-mail ignorujte: nič sa nezmení.
+
+Túto adresu ste uviedli v chate na {{.Site}} iba na jeden účel: aby ste dostali
+takýto odkaz späť do svojho chatu. Na nič iné sa nepoužíva.

@@ -1,0 +1,11 @@
+{{.Site}} üzerindeki sohbetinize başka bir cihazda veya tarayıcıda devam etmek istediniz.
+
+Orada devam etmek için bu bağlantıyı açın. Geçerlilik süresi: {{duration .TTL}}.
+
+{{.Link}}
+
+Bağlantı yalnızca bir kez çalışır. Kullanıldığında, daha önce kullandığınız cihazdaki sohbet oturumu sona erer.
+Bunu siz istemediyseniz bu e-postayı yok sayın: hiçbir şey değişmez.
+
+Bu adresi {{.Site}} üzerindeki sohbette yalnızca tek bir amaçla verdiniz: sohbetinize
+geri dönmek için böyle bir bağlantı almak. Başka hiçbir şey için kullanılmaz.

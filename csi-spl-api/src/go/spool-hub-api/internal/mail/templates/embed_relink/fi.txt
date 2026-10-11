@@ -1,0 +1,11 @@
+Pyysit saada jatkaa keskusteluasi sivustolla {{.Site}} toisella laitteella tai selaimella.
+
+Avaa tämä linkki jatkaaksesi siellä. Voimassaoloaika: {{duration .TTL}}.
+
+{{.Link}}
+
+Linkki toimii kerran. Sen käyttäminen päättää keskustelun kirjautumisen laitteella, jota käytit aiemmin.
+Jos et pyytänyt tätä, jätä tämä viesti huomiotta: mikään ei muutu.
+
+Annoit tämän osoitteen keskustelussa sivustolla {{.Site}} vain yhteen tarkoitukseen:
+saadaksesi tällaisen linkin takaisin keskusteluusi. Sitä ei käytetä mihinkään muuhun.

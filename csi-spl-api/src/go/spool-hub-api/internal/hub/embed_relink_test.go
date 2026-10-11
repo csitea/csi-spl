@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/invitemail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -31,7 +32,7 @@ type relinkRig struct {
 	logs *lockedBuf
 }
 
-type relinkMail struct{ to, link string }
+type relinkMail struct{ to, link, locale string }
 
 func newRelinkRig(t *testing.T, on bool) *relinkRig {
 	t.Helper()
@@ -42,13 +43,13 @@ func newRelinkRig(t *testing.T, on bool) *relinkRig {
 		o.EmbedEnabled, o.EmbedTokenLife, o.EmbedMessageMaxBytes = on, embedLife, 4096
 		o.Log = zerolog.New(g.logs)
 		o.Now = g.clock
-		o.EmbedRelinkMail = func(_ context.Context, to, link string, ttl time.Duration) error {
+		o.EmbedRelinkMail = func(ctx context.Context, to, link string, ttl time.Duration) error {
 			if ttl != 15*time.Minute {
 				t.Errorf("mailed ttl %v, want 15m", ttl)
 			}
 			g.mu.Lock()
 			defer g.mu.Unlock()
-			g.sent = append(g.sent, relinkMail{to, link})
+			g.sent = append(g.sent, relinkMail{to, link, invitemail.RelinkLocale(ctx)})
 			return nil
 		}
 	})
@@ -276,6 +277,39 @@ func TestEmbedRelinkLinkIsSingleUse(t *testing.T) {
 	}
 	if strings.Contains(logs, "v@example.com") || strings.Contains(logs, link) || !strings.Contains(logs, "embed.relink_mailed") {
 		t.Errorf("logs carry the address or a link, or no mail line:\n%s", logs)
+	}
+}
+
+// TestEmbedRelinkMailLocale (specs/121 T206b): the ask's optional locale is
+// the mail's, normalized ("sv-SE" -> sv); an unknown one ("xx") is the hub's
+// default (none in this rig: "", which the mail renders in en), never an
+// error. A locale opens no oracle: the unknown address with a locale gets
+// the known one's 202, byte for byte, and no mail.
+func TestEmbedRelinkMailLocale(t *testing.T) {
+	g := newRelinkRig(t, true)
+	pg := pgOnly(t, g.e)
+	tid, _ := g.e.tenant()
+	embed, _, _ := relinkVisitor(t, g, pg, tid, "v@example.com")
+	ask := func(body string) (int, string) {
+		code, raw := embedCall(t, g.e, tid, http.MethodPost, "/v1/embed/"+embed+"/relink", "", body)
+		return code, string(raw)
+	}
+	codeK, known := ask(`{"email":"v@example.com","locale":"fi"}`)
+	codeU, unknown := ask(`{"email":"nobody@example.com","locale":"fi"}`)
+	if codeK != http.StatusAccepted || codeU != codeK || unknown != known {
+		t.Errorf("known %d %s, unknown %d %s: want one 202 answer", codeK, known, codeU, unknown)
+	}
+	for _, body := range []string{`{"email":"v@example.com","locale":"sv-SE"}`, `{"email":"v@example.com","locale":"xx"}`} {
+		if c, raw := ask(body); c != http.StatusAccepted || raw != known {
+			t.Errorf("%s: %d %s, want the same 202", body, c, raw)
+		}
+	}
+	var got []string
+	for _, m := range g.mails() {
+		got = append(got, m.to+"/"+m.locale)
+	}
+	if strings.Join(got, " ") != "v@example.com/fi v@example.com/sv v@example.com/" {
+		t.Errorf("mailed %v, want fi, sv, then the default", got)
 	}
 }
 

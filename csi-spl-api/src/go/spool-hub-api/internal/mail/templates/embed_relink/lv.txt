@@ -1,0 +1,11 @@
+Jūs lūdzāt turpināt tērzēšanu vietnē {{.Site}} citā ierīcē vai pārlūkā.
+
+Atveriet šo saiti, lai turpinātu tur. Derīguma termiņš: {{duration .TTL}}.
+
+{{.Link}}
+
+Saite darbojas vienu reizi. To izmantojot, tērzēšanas pieteikšanās ierīcē, ko izmantojāt iepriekš, tiek beigta.
+Ja jūs to nelūdzāt, neņemiet vērā šo vēstuli: nekas nemainās.
+
+Jūs norādījāt šo adresi tērzēšanā vietnē {{.Site}} tikai vienam mērķim: lai saņemtu
+šādu saiti atpakaļ uz savu tērzēšanu. Tā netiek izmantota nekam citam.

@@ -1,0 +1,11 @@
+Pediste continuar tu chat en {{.Site}} en otro dispositivo o navegador.
+
+Abre este enlace para continuar allí. Es válido durante {{duration .TTL}}.
+
+{{.Link}}
+
+El enlace funciona una sola vez. Al usarlo se cierra la sesión del chat en el dispositivo que usabas antes.
+Si no lo pediste, ignora este correo: no cambia nada.
+
+Diste esta dirección en el chat de {{.Site}} con un único fin: recibir
+un enlace como este para volver a tu chat. No se usa para nada más.

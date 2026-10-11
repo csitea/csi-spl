@@ -1,153 +1,174 @@
-Exported from the Qto doc https://spool-hub.ai/workspace/docs?doc=aba39883-47d1-44bc-86c1-dbb48ede9e73&view=doc on 2026-10-11T20:51:00Z; edit in Qto, not here.
-# 1 Operations and Maintenance Guide
+Exported from the Qto doc [Operations and Maintenance Guide](https://spool-hub.ai/workspace/docs?doc=aba39883-47d1-44bc-86c1-dbb48ede9e73&view=doc) (`aba39883-47d1-44bc-86c1-dbb48ede9e73`) on 2026-10-11T20:55:36Z; edit in Qto, not here.
 
-# 1 Operations and Maintenance Guide
+# 1 Daily routine
 
-This guide covers the daily and weekly routines for operating and maintaining the spool fleet. It assumes the system is already installed and configured (see [Installation and Configuration Guide](https://spool-hub.ai/workspace/docs?doc=1a3900ac-774d-4a47-9ecd-4fc716542aa3&view=doc)).
+This guide covers the daily and weekly routines for operating and maintaining the spool fleet. It assumes the system is already installed and configured: see the Installation and configuration guide. `<CHECKOUT>` is the main checkout, `<OWNER_USER>` the OS user that owns it, `<AGENT_USER>` the OS user every AI CLI runs as.
 
-## Table of Contents\n1. [Daily Routine](#1-daily-routine)\n2. [Weekly Routine](#2-weekly-routine)\n3. [Role Rotation](#3-role-rotation)\n4. [Agent Restarts and Identity Restore](#4-agent-restarts-and-identity-restore)\n5. [Quota and Weekly Limit Handling](#5-quota-and-weekly-limit-handling)\n6. [Load Gate](#6-load-gate)\n7. [Box Restart Schedule](#7-box-restart-schedule)\n8. [Incident Runbooks](#8-incident-runbooks)\n9. [Gaps](#9-gaps)
+Run the following checks every morning and after deployments.
 
-## 1.1 1. Daily Routine
+## 1.1 Health checks
 
-Run the following checks every morning and after deployments:
-
-### 1.1.1 1.1 Health Checks
-
-#### 1.1.1.1 1.1.1 Database Health
+### 1.1.1 Database health
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env ENV=prd ./run -a do_spl_db_health\n# Exit 0: healthy. Exit 1: failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env ENV=prd ./run -a do_spl_db_health
 ```
 
-#### 1.1.1.2 1.1.2 Deploy Lag
+### 1.1.2 Deploy lag
+
+Exit 0 means current or pending, exit 3 lagging, exit 1 cannot tell (the function header of `do_check_deploy_lag`).
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env ENV=prd ./run -a do_check_deploy_lag\n# Exit 0: no lag. Exit 3: lag detected.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env ENV=prd ./run -a do_check_deploy_lag
 ```
 
-#### 1.1.1.3 1.1.3 CI Gate Report
+### 1.1.3 CI gate report
+
+Counted per job, not per run.
 
 ```bash
-cd <CHECKOUT>/csi-spl-iac && sudo -u <OWNER_USER> env CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate\n# Exit 0: no reds. Exit 1: reds detected.
+cd <CHECKOUT>/csi-spl-iac && sudo -u <OWNER_USER> env CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate
 ```
 
-#### 1.1.1.4 1.1.4 GitHub Runner Check
+### 1.1.4 GitHub runner check
+
+Exit 1 when any runner fails; a box with no runner unit is OK, exit 0. A runner the CPU budget parked is `PARKED`, not a failure (the function header of `do_check_gh_runner`).
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_check_gh_runner\n# Exit 0: all runners OK. Exit 1: runner failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_check_gh_runner
 ```
 
-#### 1.1.1.5 1.1.5 Backup Verification
+### 1.1.5 Backup verification
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env ENV=prd ./run -a do_spl_db_backup_verify\n# Exit 0: backup verified. Exit 1: backup failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env ENV=prd ./run -a do_spl_db_backup_verify
 ```
 
-### 1.1.2 1.2 Lease Checks
+## 1.2 Lease checks
 
-Verify the dispatch lease is held by an active agent:
+Verify the dispatch lease is held by an active agent.
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env LEASE_CMD=show ./run -a do_spl_dispatch_lease\n# Exit 0: lease held. Exit 1: no lease.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env LEASE_CMD=show ./run -a do_spl_dispatch_lease
 ```
 
-### 1.1.3 1.3 Unanswered Sweep
+## 1.3 Unanswered sweep
 
-Check for unanswered spool messages older than 1 hour:
+Check for unanswered spool messages older than 1 hour.
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_spl_unanswered_sweep\n# Exit 0: sweep completed. Exit 1: sweep failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_spl_unanswered_sweep
 ```
 
-### 1.1.4 2. Weekly Routine
+# 2 Weekly routine
 
-Clean temporary files and stale worktrees:
+Clean temporary files and stale worktrees. Each sweep below is a dry run unless `DRY_RUN=0`: the first block prints the plan, the second one does it.
 
-#### 1.1.4.1 2.1 Clean /tmp
+## 2.1 Clean /tmp, plan
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_tmp_stale_sweep\n# Note: This is a dry run. To execute, use:
-# DRY_RUN=0 ./run -a do_tmp_stale_sweep
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_tmp_stale_sweep
 ```
 
-#### 1.1.4.2 2.2 Clean Scratch Files
+## 2.2 Clean /tmp, apply
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_tmp_scratch_sweep\n# Exit 0: sweep completed. Exit 1: sweep failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_tmp_stale_sweep
 ```
 
-#### 1.1.4.3 2.3 Clean Dead Worktrees
+## 2.3 Clean scratch files, plan
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_wt_dead_sweep\n# Exit 0: sweep completed. Exit 1: sweep failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_tmp_scratch_sweep
 ```
 
-#### 1.1.4.4 2.4 Clean Disk
+## 2.4 Clean scratch files, apply
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_box_disk_sweep\n# Note: This is a dry run. To execute, use:
-# DRY_RUN=0 ./run -a do_box_disk_sweep
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_tmp_scratch_sweep
 ```
 
-### 1.1.5 3. Role Rotation
-
-Rotate the dispatch and orchestrator leases hourly to ensure redundancy:
-
-#### 1.1.5.1 3.1 Dispatch Lease Rotation
+## 2.5 Clean dead worktrees, plan
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_spl_dispatch_rotate\n# Exit 0: rotation completed. Exit 1: rotation failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_wt_dead_sweep
 ```
 
-#### 1.1.5.2 3.2 Orchestrator Lease Rotation
+## 2.6 Clean dead worktrees, apply
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_spl_orch_rotate\n# Exit 0: rotation completed. Exit 1: rotation failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_wt_dead_sweep
 ```
 
-### 1.1.6 4. Agent Restarts and Identity Restore
-
-Restore an agent identity after a restart or crash:
+## 2.7 Clean disk, plan
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env IDENTITY_RESTORE_IDS=<agent-id> DRY_RUN=0 ./run -a do_spl_agent_identity_restore\n# Exit 0: restore completed. Exit 1: restore failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_box_disk_sweep
 ```
 
-### 1.1.7 5. Quota and Weekly Limit Handling
-
-Monitor the weekly vendor login quota (claude/grok). If the limit is reached:
-
-1. Restart the agent on `<BOX>` (global CLAUDE.md).
-2. Respawn the lane on the backup vendor per `<LANE_MIX_KIND>`.
-
-### 1.1.8 6. Load Gate
-
-The load gate ensures the fleet does not exceed 40 concurrent agents. Monitor the agent count with:
+## 2.8 Clean disk, apply
 
 ```bash
-sudo -u <OWNER_USER> tmux -S /tmp/tmux-1000/default list-windows -a -F "#{window_name}" | grep -E "^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)" > /tmp/agent-count && [ $(wc -l < /tmp/agent-count) -le 40 ]\n# Exit 0: count <= 40. Exit 1: count > 40.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env DRY_RUN=0 ./run -a do_box_disk_sweep
 ```
 
-### 1.1.9 7. Box Restart Schedule
+# 3 Role rotation
 
-Restart each box weekly to apply updates and clear stale processes. Schedule restarts during low-traffic periods using the box restart action family:
+The dispatch and orchestrator roles rotate hourly, from the crons `do_spl_dispatch_rotate_install_cron` and `do_spl_orch_rotate_install_cron` install. Both actions are a dry run unless `DRY_RUN=0`; run them by hand only to see the plan.
+
+## 3.1 Dispatch rotation
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> BOX_RESTART_SLOT=<n> ./run -a do_spl_box_restart_install_cron\n# Exit 0: cron installed. Exit 1: cron failed.
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_spl_dispatch_rotate
 ```
 
-### 1.1.10 8. Incident Runbooks
+## 3.2 Orchestrator rotation
 
-#### 1.1.10.1 8.1 Common Incidents
+```bash
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> ./run -a do_spl_orch_rotate
+```
 
-- **CI Gate Red**: See [CI Gate Reliability](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/016-spool-testability/ci-gate-reliability-2026-09-21.md).
-- **Deploy Lag**: Run `gh run list --commit <sha>` and watch the GitHub workflow.
-- **Agent Stuck**: Restart with `do_spl_agent_identity_restore`.
-- **Lease Conflict**: Run `do_spl_dispatch_lease` and resolve conflicts manually.
+# 4 Agent restarts and identity restore
 
-### 1.1.11 9. Gaps
+Restore an agent identity after a restart or crash.
 
-- No named action for cleaning old spool messages beyond `do_spl_unanswered_sweep`.
+```bash
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env IDENTITY_RESTORE_IDS=<agent-id> DRY_RUN=0 ./run -a do_spl_agent_identity_restore
+```
+
+# 5 Quota and weekly limit handling
+
+Watch the weekly vendor login quota (claude, grok). When a seat hits its limit:
+
+1. Restart the agent as `<AGENT_USER>` (global CLAUDE.md).
+2. Respawn the lane on the backup vendor that `do_spl_lane_mix` names for its task kind.
+
+# 6 Load gate
+
+The fleet runs at most 40 concurrent agent windows. The count below must stay at 40 or below.
+
+```bash
+sudo -u <OWNER_USER> tmux -S /tmp/tmux-1000/default list-windows -a -F "#{window_name}" | grep -cE "^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)"
+```
+
+# 7 Box restart schedule
+
+Restart each box weekly to apply updates and clear stale processes, during low-traffic periods, with the box restart action family. `BOX_RESTART_SLOT` is this box's slot index in cnf `env.box.restart.slots`. The action is a dry run unless `DRY_RUN=0`.
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env BOX_RESTART_SLOT=<n> DRY_RUN=0 ./run -a do_spl_box_restart_install_cron
+```
+
+# 8 Incident runbooks
+
+- **CI gate red**: see [CI gate reliability](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/016-spool-testability/ci-gate-reliability-2026-09-21.md).
+- **Deploy lag**: run `do_check_deploy_lag` and watch the GitHub workflow.
+- **Agent stuck**: restart it with `do_spl_agent_identity_restore`.
+- **Lease conflict**: run `LEASE_CMD=fleet-show ./run -a do_spl_dispatch_lease` and resolve the conflict by hand.
+
+# 9 Gaps
+
+- No named action for cleaning old spool messages beyond `do_spl_session_prune` and `do_spl_topic_archive`.
 - No named action for quota monitoring.
 - No named action to pause non-critical workflows.
-- Tenant root keys: no action lists required workspaces or checks for missing keys.
+- Tenant root keys: no action lists the required workspaces or checks for missing keys.

@@ -18,11 +18,16 @@
 //      (on /tenant-settings/hours)
 //   6  every control 44..48 px tall
 //
-// The recorder half of T016 ("toggle off stops the recorder") waits for
-// T012, the tab recorder; it is not in this file.
+// The recorder (T012) on the same desktop page, with Date.now moved by the
+// test (the recorder's clock) and pagehide fired to flush into the mock hub
+// (localStorage spl.hours-minutes.mock):
+//   7a two minutes of scripted input in the lobby write two rows, ch:lobby
+//   7b after 4b ("Count my reading time" off) the same input writes none
 //
 // Plant the defect and watch step 2 go red (the save is never clicked):
 //   PROVE_RED=no-save node tests/e2e/hours-settings.test.mjs
+// and step 7b go red (the switch is never turned off):
+//   PROVE_RED=no-toggle node tests/e2e/hours-settings.test.mjs
 //
 // Run:
 //   BASE_URL=<generated mock bundle> pnpm run test:e2e hours-settings
@@ -110,6 +115,23 @@ const heights = (p, sel) => p.$$eval(sel, (els) => els.filter((e) => e.offsetPar
   .map((e) => ({ id: e.getAttribute('data-test') || e.getAttribute('data-testid') || e.tagName, h: Math.round(e.getBoundingClientRect().height * 10) / 10 })))
 const tapOk = (hs) => hs.length > 0 && hs.every((c) => c.h >= 44 && c.h <= 48)
 
+/* step 7: input, a minute later input again, then pagehide (the flush); the rows the mock hub got */
+async function recordTwoMinutes(p) {
+  await p.bringToFront()
+  await p.evaluate((k) => localStorage.removeItem(k), 'spl.hours-minutes.mock')
+  await sleep(500)
+  for (const step of [0, 60_000]) {
+    await p.evaluate((ms) => { window.__hoursSkew += ms }, step)
+    await p.keyboard.press('Shift')
+    await sleep(100)
+  }
+  return p.evaluate((k) => {
+    window.dispatchEvent(new Event('pagehide'))
+    const log = JSON.parse(localStorage.getItem(k) || '[]')
+    return log.flatMap((b) => b.minutes)
+  }, 'spl.hours-minutes.mock')
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -153,12 +175,21 @@ try {
   const idle = await value(p, '[data-test=tenant-hours-idle]')
   ok('3 CONTROL: an idle cutoff of 99 is refused (out of range) and nothing is saved', overflow && idle === '10', { overflow, idle })
 
+  await p.evaluateOnNewDocument(() => {
+    const real = Date.now.bind(Date)
+    window.__hoursSkew = 0
+    Date.now = () => real() + window.__hoursSkew
+  })
   await p.goto(server.base + '/lobby?settings=behaviour', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   const sw = '[data-testid=settings-hours-reading]'
   ok('4a Settings -> Behaviour shows "Count my reading time", on by default', await until(p, (s) => document.querySelector(s)?.checked === true, sw, 10000))
-  await p.click(sw)
+  const minutes = await recordTwoMinutes(p)
+  ok('7a two minutes of scripted input write two rows through the mock (ch:lobby)', minutes.length === 2 && minutes.every((m) => m.target === 'ch:lobby') && minutes[0].at !== minutes[1].at, minutes)
+  if (RED !== 'no-toggle') await p.click(sw)
   const off = await until(p, (s) => document.querySelector(s)?.checked === false, sw, 4000)
   ok('4b clicking it turns it off and saves hours_reading false', off && d.saved.some((b) => /"hours_reading":false/.test(b)), d.saved)
+  const none = await recordTwoMinutes(p)
+  ok('7b toggle off stops the recorder: the same input writes no row', none.length === 0, none)
   ok('desktop: no unexpected page errors', d.errors.length === 0, d.errors)
   await d.ctx.close()
 

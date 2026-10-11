@@ -22,6 +22,7 @@ const dmSeed = createSeedGate()
 
 /** Starts once per tab, when a member session is signed in (a door-less read is a 401). */
 export function startReadSync(api: Api) {
+  void import('~/utils/hours-recorder-boot').then((m) => m.startHoursRecorder(api)) /* spec 107 T012: tab minutes, a lazy chunk of its own */
   if (sync || api.mock || !import.meta.client) return
   const session = useSessionStore()
   if (String(session.state) === 'in') {

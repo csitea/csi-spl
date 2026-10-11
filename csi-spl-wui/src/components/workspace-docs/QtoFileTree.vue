@@ -19,9 +19,24 @@
      down" as from Channels to a channel to a topic) the page passes `drill`,
      the node on screen ('' = the top level): the rows are that node's
      children only. A row with rows under it drills one level deeper
-     (`drill`), any other opens (`open`); `title` names the node's path. -->
+     (`drill`), any other opens (`open`); `title` names the node's path.
+     Folders (spec 120, owner t1 3b8891e0: "add the + button similarly to
+     how docs are created for the creation of folders - but only on the
+     explorer like pane", msg e3b5a06a: "use the same type and shape of the
+     button and place it respectively on the top"): the tree's top level is
+     the hub's /nodes, folders first; a folder row expands (desktop) or
+     drills (phone, `f:<node>`) into its own /nodes. The + at the top makes
+     a folder in the current folder: the last folder picked on the desktop,
+     the level shown on a phone. The page's + New document lands in that
+     same folder (useQtoFolder). A hub without /nodes keeps the flat list. -->
 <template>
   <nav class="qto-tree" data-test="qto-file-tree" :aria-label="t('ws_doctree.title')">
+    <div v-if="!nodesOff" class="qto-tree__top">
+      <button type="button" class="qto-tree__new" data-test="qto-new-folder" aria-haspopup="dialog" :aria-label="t('ws_doctree.new_folder')" :title="t('ws_doctree.new_folder')" @click="folderOpen = true">
+        <UiIcon name="plus" :size="22" :stroke-width="2.5" />
+      </button>
+    </div>
+    <WorkspaceDocNewDialog v-model:open="folderOpen" folder :create="makeFolder" />
     <UiFileTree :rows="rows" :label="t('ws_doctree.title')" @toggle="toggle" @select="select" @menu="openMenu" />
     <UiPointMenu
       :open="Boolean(menu)"
@@ -77,13 +92,15 @@ import UiPointMenu, { type PointMenuItem } from '~/components/UiPointMenu.vue'
 import UiDialog from '~/components/UiDialog.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import { writeClipboard } from '~/utils/clipboard.mjs'
-import type { DocHead, DocItem, DocTreeClient } from './-doctree-api'
+import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
+import { useQtoFolder, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
 
 const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null }>()
 const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
-/* row keys: d:<doc> for a document, i:<doc>:<item> for a section */
+/* row keys: f:<node> for a folder, d:<doc> for a document, i:<doc>:<item> for a section */
+const folderKey = (id: string) => 'f:' + id
 const docKey = (doc: string) => 'd:' + doc
 const itemKey = (doc: string, item: string) => `i:${doc}:${item}`
 
@@ -125,10 +142,80 @@ function sectionRow(doc: string, it: DocItem, m: Map<string, DocItem[]>, depth: 
   return { key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'folder' : 'list', kind: 'section', expandable: sub, open: sub && opened.value.has(key), active: doc === props.active && it.id === activeItem.value }
 }
 
-function docRow(d: DocHead): FileTreeRow {
+function docRow(d: DocHead, depth = 0): FileTreeRow {
   const m = kids.value[d.id]
-  return { key: docKey(d.id), depth: 0, name: docName(d), icon: 'file-text', kind: 'doc', menu: true, expandable: !m || (m.get(d.root) || []).length > 0, open: opened.value.has(docKey(d.id)), active: d.id === props.active && !activeItem.value }
+  return { key: docKey(d.id), depth, name: docName(d), icon: 'file-text', kind: 'doc', menu: true, expandable: !m || (m.get(d.root) || []).length > 0, open: opened.value.has(docKey(d.id)), active: d.id === props.active && !activeItem.value && !folderPicked.value }
 }
+
+/* the folders: each loaded folder's children ('' = the top level), and each
+   folder's name and parent (the phone's path, the reveal) */
+const nodesAt = ref<Record<string, DocNode[]>>({})
+const folderOf = ref<Record<string, { name: string, parent: string }>>({})
+/* the hub has no /nodes (an older hub, a mock without folders): the flat list */
+const nodesOff = ref(false)
+const folder = useQtoFolder()
+/* the last row picked on the desktop was a folder: it is the marked row */
+const folderPicked = ref(false)
+const folderOpen = ref(false)
+
+async function loadNodes(parent: string) {
+  try {
+    const r = await props.client.nodes(parent)
+    const info = { ...folderOf.value }
+    for (const n of r.nodes) if (n.kind === 'folder') info[n.id] = { name: n.name, parent }
+    folderOf.value = info
+    nodesAt.value = { ...nodesAt.value, [parent]: r.nodes }
+    nodesOff.value = false
+  } catch {
+    if (!parent) nodesOff.value = true
+  }
+}
+
+/** the folder a document's node sits in, '' = the top (or not loaded) */
+function folderOfDoc(doc: string): string {
+  for (const [parent, list] of Object.entries(nodesAt.value)) if (list.some((n) => n.doc === doc)) return parent
+  return ''
+}
+
+/** a document node as the list's head (the list carries the live title), else as the node says */
+function headOf(n: DocNode): DocHead {
+  return props.docs.find((d) => d.id === n.doc) || { id: n.doc, title: n.title, description: n.description, rev: 0, items: 0, root: '', topic_id: '', updated_at: '' }
+}
+
+function folderRow(n: DocNode, depth: number): FileTreeRow {
+  const key = folderKey(n.id)
+  return { key, depth, name: n.name, icon: 'folder', kind: 'folder', expandable: n.child_count > 0, open: n.child_count > 0 && opened.value.has(key), active: folderPicked.value && folder.value === n.id }
+}
+
+/** the folder's path from the top: Plans / 2026 */
+function folderPath(id: string): string {
+  const names: string[] = []
+  for (let f = folderOf.value[id]; f; f = folderOf.value[f.parent]) names.unshift(f.name)
+  return names.join(' / ')
+}
+
+/** every folder up from a document's open, so it shows where it landed */
+function reveal(doc: string) {
+  const s = new Set(opened.value)
+  for (let p = folderOfDoc(doc); p; p = folderOf.value[p]?.parent || '') s.add(folderKey(p))
+  opened.value = s
+}
+
+/** the + at the top: a folder in the current one, then its listing read again */
+async function makeFolder(name: string) {
+  const parent = folder.value
+  await props.client.createFolder(parent, name)
+  await loadNodes(parent)
+  const up = folderOf.value[parent]
+  if (up) await loadNodes(up.parent)
+  if (parent) setOpen(folderKey(parent), true)
+}
+
+/* the list changed (a create, a rename, a delete): the loaded folders read again */
+watch(() => props.docs.map((d) => d.id + d.title).join('|'), async () => {
+  await Promise.all([...new Set(['', ...Object.keys(nodesAt.value)])].map(loadNodes))
+  if (props.active) reveal(props.active)
+}, { immediate: true })
 
 const drilling = computed(() => typeof props.drill === 'string')
 
@@ -140,9 +227,15 @@ const drillNode = computed(() => {
   return { doc: d, parent: kind === 'i' ? item : d.root }
 })
 
+/** one level of folders and documents, as phone rows */
+function levelRows(parent: string): FileTreeRow[] {
+  return (nodesAt.value[parent] || []).map((n) => ({ ...(n.kind === 'folder' ? folderRow(n, 0) : docRow(headOf(n))), expandable: n.kind === 'folder' || docRow(headOf(n)).expandable, open: false, active: false }))
+}
+
 /** the phone's drill-down: the rows of one node, one level */
 const drillRows = computed<FileTreeRow[]>(() => {
-  if (!props.drill) return props.docs.map((d) => ({ ...docRow(d), open: false, active: false }))
+  if (!props.drill && nodesOff.value) return props.docs.map((d) => ({ ...docRow(d), open: false, active: false }))
+  if (!props.drill || props.drill.startsWith('f:')) return levelRows(props.drill ? props.drill.slice(2) : '')
   const n = drillNode.value
   const m = n && kids.value[n.doc.id]
   if (!n || !m) return []
@@ -151,6 +244,7 @@ const drillRows = computed<FileTreeRow[]>(() => {
 
 /** the node's path, document first: Handbook / Introduction / Scope */
 const drillTitle = computed(() => {
+  if (props.drill?.startsWith('f:')) return folderPath(props.drill.slice(2))
   const n = drillNode.value
   if (!n) return ''
   const names: string[] = []
@@ -161,7 +255,14 @@ const drillTitle = computed(() => {
 })
 watch(drillTitle, (v) => emit('title', v), { immediate: true })
 watch(() => props.drill, (key) => {
-  const doc = (key || '').split(':')[1]
+  if (typeof key !== 'string') return
+  if (key.startsWith('f:')) {
+    folder.value = key.slice(2)
+    if (!nodesAt.value[folder.value]) void loadNodes(folder.value)
+    return
+  }
+  const doc = key.split(':')[1]
+  folder.value = doc ? folderOfDoc(doc) : ''
   if (doc && !kids.value[doc]) void load(doc)
 }, { immediate: true })
 
@@ -175,17 +276,31 @@ const rows = computed<FileTreeRow[]>(() => {
       if (row.open) walk(doc, m, it.id, depth + 1)
     }
   }
-  for (const d of props.docs) {
-    const row = docRow(d)
+  const pushDoc = (d: DocHead, depth: number) => {
+    const row = docRow(d, depth)
     out.push(row)
     const m = kids.value[d.id]
-    if (row.open && m) walk(d.id, m, d.root, 1)
+    if (row.open && m) walk(d.id, m, d.root, depth + 1)
   }
+  const level = (parent: string, depth: number) => {
+    for (const n of nodesAt.value[parent] || []) {
+      if (n.kind === 'doc') {
+        pushDoc(headOf(n), depth)
+        continue
+      }
+      const row = folderRow(n, depth)
+      out.push(row)
+      if (row.open) level(n.id, depth + 1)
+    }
+  }
+  if (nodesOff.value || !nodesAt.value['']) for (const d of props.docs) pushDoc(d, 0)
+  else level('', 0)
   return out
 })
 
 /** a phone row: one with rows under it drills, any other opens */
 async function drillSelect(key: string) {
+  if (key.startsWith('f:')) return void emit('drill', key)
   const [kind, doc, item] = key.split(':')
   if (!kids.value[doc]) await load(doc)
   const m = kids.value[doc]
@@ -199,12 +314,24 @@ function toggle(key: string) {
   const on = !opened.value.has(key)
   setOpen(key, on)
   if (on && key.startsWith('d:') && !kids.value[key.slice(2)]) void load(key.slice(2))
+  if (on && key.startsWith('f:') && !nodesAt.value[key.slice(2)]) void loadNodes(key.slice(2))
+}
+
+/** a folder row: it becomes the current folder (the + buttons create in it) and opens */
+function pickFolder(key: string) {
+  folder.value = key.slice(2)
+  folderPicked.value = true
+  if (!opened.value.has(key)) toggle(key)
+  else if (!nodesAt.value[folder.value]) void loadNodes(folder.value)
 }
 
 function select(key: string) {
   if (drilling.value) return void drillSelect(key)
+  if (key.startsWith('f:')) return pickFolder(key)
+  folderPicked.value = false
   if (key.startsWith('d:')) {
     const doc = key.slice(2)
+    folder.value = folderOfDoc(doc)
     activeItem.value = ''
     if (!opened.value.has(key)) toggle(key)
     emit('open', doc, '')
@@ -304,6 +431,7 @@ async function rename() {
 
 /* the open document opens expanded; another document clears the section mark */
 watch(() => props.active, (doc, was) => {
+  if (doc !== was) folderPicked.value = false
   if (doc !== was && was) activeItem.value = ''
   if (!doc) return
   if (!opened.value.has(docKey(doc))) setOpen(docKey(doc), true)
@@ -324,6 +452,36 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .qto-tree { padding: 8px 4px; text-align: start; }
+/* the + New folder: the page's + New document (WorkspaceDocsPage .wsdocs-fab,
+   the issues page's +), same size and look, at the top of the explorer */
+.qto-tree__top { display: flex; justify-content: flex-end; padding: 0 8px 6px; }
+.qto-tree__new {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.qto-tree__new:hover {
+  background: var(--color-accent-pressed);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.22);
+}
+.qto-tree__new:active { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .qto-tree__new { transition: none; }
+  .qto-tree__new:active { transform: none; }
+}
 .qto-tree__status { margin: 4px 8px 0; font-size: 0.75rem; color: var(--color-muted); }
 .qto-tree__status:empty { display: none; }
 .qto-rename { display: grid; gap: 12px; }

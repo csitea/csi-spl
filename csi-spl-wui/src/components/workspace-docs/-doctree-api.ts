@@ -13,6 +13,8 @@ export type DocHead = { id: string, title: string, description?: string, rev: nu
 export type DocItem = { id: string, parent: string, ord: number, outline: string, depth: number, title: string, body: string, attrs: Record<string, unknown>, rev: number }
 export type DocChildren = { doc: string, rev: number, parent: string, path: number[], outline: string, items: DocItem[] }
 export type DocGrid = { doc: string, rev: number, total: number, items: DocItem[] }
+/** one row of the Qto tree (spec 120): a folder, or a document (doc = its id; id '' = a document an older hub made without a node) */
+export type DocNode = { id: string, kind: 'folder' | 'doc', name: string, title: string, description: string, doc: string, child_count: number }
 export type DocHit = { doc: string, item: string, title: string, rank: number }
 export type DocWhere = 'sibling' | 'parent' | 'child'
 export type DocMoveKind = 'indent' | 'outdent' | 'up' | 'down'
@@ -83,6 +85,21 @@ function docImages(api: SpoolApi, mock: () => Promise<Mock>) {
   return { imageSrc, uploadImage }
 }
 
+type DocCall = <T>(method: string, path: string, body?: Record<string, unknown>) => Promise<T>
+
+/** the tree half of the client (spec 120 section 7): the Qto tree's levels, a new document in a folder, the + New folder */
+function docFolders(call: DocCall) {
+  const enc = encodeURIComponent
+  return {
+    /** description is the meta description (rdb 0164), '' = none; folder is the folder node it lands in ('' = the top) */
+    create: (title: string, description = '', folder = '') => call<{ id: string, root: string, rev: number }>('POST', '', folder ? { title, description, parent: folder } : { title, description }),
+    /** one folder of the Qto tree ('' = the top): its folders, then its documents, each by name */
+    nodes: (parent = '') => call<{ parent: string, nodes: DocNode[] }>('GET', `/nodes${parent ? '?parent=' + enc(parent) : ''}`),
+    /** a folder as the last child of parent ('' = the top); 409 name_taken when a sibling has the name */
+    createFolder: (parent: string, name: string) => call<{ id: string, name: string, parent: string }>('POST', '/folders', parent ? { parent, name } : { name }),
+  }
+}
+
 export function useDocTree() {
   const api = useSpoolApi()
   const mock = () => (mockMod ??= import('./-doctree-mock').catch((e) => {
@@ -127,8 +144,7 @@ export function useDocTree() {
     /** delete the whole document under the doc rev read: its items and rev log go with it */
     removeDoc: (doc: string, rev: number) => call<{ rev: number, doc: string, deleted: boolean }>('DELETE', `/${enc(doc)}?rev=${rev}`),
     list: () => call<{ docs: DocHead[] }>('GET', '').then((r) => r.docs),
-    /** description is the meta description (rdb 0164), '' = none */
-    create: (title: string, description = '') => call<{ id: string, root: string, rev: number }>('POST', '', { title, description }),
+    ...docFolders(call),
     head: (doc: string) => call<DocHead>('GET', `/${enc(doc)}`),
     /** the lazy unit: one node's children ('' = the top level) */
     children: (doc: string, parent = '') => call<DocChildren>('GET', `/${enc(doc)}/children${parent ? '?parent=' + enc(parent) : ''}`),
@@ -165,6 +181,11 @@ export function useDocTree() {
 }
 
 export type DocTreeClient = ReturnType<typeof useDocTree>
+
+/** the Qto explorer's current folder node ('' = the top): its + New folder and the page's + New document create there */
+export function useQtoFolder() {
+  return useState<string>('qto-folder', () => '')
+}
 
 /**
  * indent / outdent / up / down as one move: prev is the item's previous

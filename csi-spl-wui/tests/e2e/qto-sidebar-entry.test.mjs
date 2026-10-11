@@ -25,6 +25,14 @@
 // has none. Control: before the menu a right-click draws no
 // [data-testid=qto-doc-menu], so every menu check FAILS.
 //
+// Owner t1 3b8891e0 (msgs 62c51def, 411480f9, e3b5a06a): a + New folder in
+// the explorer pane only, desktop and phone, "the same type and shape" as
+// the page's + New document, "on the top". At 1440 px it sits at the top of
+// the tree: a folder made there lists first; a folder picked, the page's +
+// New document lands inside it. At 390 px it tops each drill-down level and
+// makes the folder in the level shown. Control: before the button there is
+// no [data-test=qto-new-folder], so every folder check FAILS.
+//
 // Control: before the entry there is no [data-testid=qto-open], so every
 // signed-in check FAILS on the earlier master. The channel list check has
 // its control on / (the same selector finds the list there); before the
@@ -229,6 +237,109 @@ async function docMenu(p, browser) {
   ok('Delete: the document left opens', await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Notes', { timeout: STEP }).then(() => true, () => false))
 }
 
+const FOLDER_NEW = '[data-test=qto-new-folder]'
+/** the + buttons' look: the folder one must match the page's document one */
+const look = (p, sel) => p.$eval(sel, (el) => {
+  const c = getComputedStyle(el)
+  return [c.width, c.height, c.borderRadius, c.backgroundColor, el.querySelector('svg') ? 'icon' : 'none'].join(' ')
+}).catch(() => '')
+
+/** the folder dialog from the + in scope (the side tree, or the phone's list): a name, Create; '' = it closed */
+async function newFolder(p, name, scope = '#qto-file-tree') {
+  await p.click(`${scope} ${FOLDER_NEW}`)
+  const input = await p.waitForSelector('[data-test=qto-new-folder-name]', { visible: true, timeout: STEP }).catch(() => null)
+  if (!input) return 'no dialog'
+  await input.type(name)
+  await p.click('[data-test=qto-new-folder-create]')
+  return p.waitForFunction(() => !document.querySelector('[data-test=qto-new-folder-form]') || document.querySelector('[data-test=ws-docs-new-error]'), { timeout: STEP })
+    .then(() => p.$eval('[data-test=ws-docs-new-error]', (el) => el.textContent.trim()).catch(() => ''), () => 'still open')
+}
+
+/** a new document through the page's + and its modal */
+async function newDoc(p, title) {
+  await p.click('[data-test=ws-docs-new]')
+  await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP })
+  await p.type('[data-test=ws-docs-new-title]', title)
+  await p.click('[data-test=ws-docs-create]')
+  return p.waitForFunction((t) => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === t, { timeout: STEP }, title).then(() => true, () => false)
+}
+
+/** the screenshot pair the lane reports: light, then dark */
+async function shots(p, name) {
+  if (!process.env.SHOT_DIR) return
+  for (const theme of ['light', 'dark']) {
+    await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
+    await p.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
+    await new Promise((r) => setTimeout(r, 200))
+    await p.screenshot({ path: `${process.env.SHOT_DIR}/${name}-${theme}.png` })
+  }
+  await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
+  await p.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'))
+}
+
+/** t1 3b8891e0 at 1440 px: the + New folder tops the tree; a folder, then a document inside it */
+async function desktopFolders(p) {
+  await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await onPage(p)
+  await p.waitForSelector('[data-test=qto-file-tree] [data-test=file-tree-row]', { visible: true, timeout: STEP }).catch(() => null)
+  ok('1440: a + New folder is in the explorer pane', await p.waitForSelector(`#qto-file-tree ${FOLDER_NEW}`, { visible: true, timeout: STEP }).then(Boolean, () => false))
+  ok('1440: ... named New folder', await p.$eval(FOLDER_NEW, (el) => el.getAttribute('aria-label')).catch(() => '') === 'New folder')
+  ok('1440: ... at the top, above every row', await p.evaluate((sel) => {
+    const b = document.querySelector(sel)?.getBoundingClientRect()
+    const r = document.querySelector('#qto-file-tree [data-test=file-tree-row]')?.getBoundingClientRect()
+    return Boolean(b && r && b.bottom <= r.top + 1)
+  }, FOLDER_NEW))
+  const want = await look(p, '[data-test=ws-docs-new]')
+  ok('1440: ... the same type and shape as + New document', Boolean(want) && await look(p, FOLDER_NEW) === want, [await look(p, FOLDER_NEW), want])
+  ok('1440: a folder is made', await newFolder(p, 'Plans') === '')
+  ok('1440: ... and listed first in the tree, a folder row', await p.waitForFunction(() => {
+    const first = document.querySelector('#qto-file-tree [data-test=file-tree-row]')
+    return first?.textContent.trim() === 'Plans' && first.getAttribute('data-kind') === 'folder'
+  }, { timeout: STEP }).then(() => true, () => false), await rowKeys(p))
+  ok('1440: the same name again is refused, saying why', await newFolder(p, 'plans') === 'A folder with that name is already here.')
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(() => !document.querySelector('[data-test=qto-new-folder-form]'), { timeout: STEP }).catch(() => {})
+  const plans = await treeRow(p, 'Plans')
+  const folderId = await plans.evaluate((el) => el?.getAttribute('data-key')?.slice(2) || '')
+  await plans.click()
+  ok('1440: a click picks the folder', await p.$eval('#qto-file-tree [aria-selected=true]', (el) => el.textContent.trim()).catch(() => '') === 'Plans')
+  ok('1440: + New document makes a document', await newDoc(p, 'Roadmap'))
+  ok('1440: ... inside the picked folder, one level under it', await p.waitForFunction(() => {
+    const rows = [...document.querySelectorAll('#qto-file-tree [data-test=file-tree-row]')].map((el) => `${el.getAttribute('aria-level')} ${el.textContent.trim()}`)
+    const i = rows.indexOf('1 Plans')
+    return i >= 0 && rows[i + 1] === '2 Roadmap'
+  }, { timeout: STEP }).then(() => true, () => false), await rowKeys(p))
+  const inside = await p.evaluate((id) => window.__wsDocTreeCall?.('GET', '/nodes?parent=' + id).then((r) => r.nodes.map((n) => n.title || n.name)), folderId)
+  ok('1440: ... and the hub has it there', Array.isArray(inside) && inside.join() === 'Roadmap', inside)
+  await shots(p, 'qto-new-folder-1440')
+}
+
+/** t1 3b8891e0 at 390 px: the + New folder tops each drill-down level and makes the folder there */
+async function phoneFolders(m) {
+  await m.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await onPage(m)
+  await listIs(m, ['Handbook'])
+  ok('390: a + New folder tops the list', await m.evaluate((sel) => {
+    const b = document.querySelector(sel)?.getBoundingClientRect()
+    const r = document.querySelector('[data-test=ws-docs-page] [data-test=qto-file-tree] [data-test=file-tree-row]')?.getBoundingClientRect()
+    return Boolean(b && r && b.width > 0 && b.bottom <= r.top + 1)
+  }, `${LIST} ${FOLDER_NEW}`))
+  /* the page's + floats bottom right on a phone at 56 px; the folder one keeps the round accent + at the top */
+  const [w, h, radius, ...rest] = (await look(m, `${LIST} ${FOLDER_NEW}`)).split(' ')
+  const fab = (await look(m, '[data-test=ws-docs-new]')).split(' ')
+  ok('390: ... a round + of 40 px or more, the page\'s colour', parseFloat(w) >= 40 && w === h && radius === '50%' && rest.join(' ') === fab.slice(3).join(' '), [w, h, radius, rest.join(' '), fab.join(' ')])
+  ok('390: a folder made at the top level lists there, first', await newFolder(m, 'Plans', LIST) === '' && await listIs(m, ['Plans', 'Handbook']), await listRows(m))
+  await tapRow(m, 'Plans')
+  ok('390: a tap on the folder drills into it, titled with its name', await m.waitForFunction(() => new URL(location.href).searchParams.get('in')?.startsWith('f:'), { timeout: STEP }).then(() => true, () => false) && await heading(m) === 'Plans', m.url())
+  ok('390: ... the + New folder tops that level too', await shown(m, `${LIST} ${FOLDER_NEW}`))
+  ok('390: ... and a folder level offers no Edit (it is no document)', !(await m.$('[data-test=ws-docs-drill-open]')))
+  ok('390: a folder made there lands in the level shown', await newFolder(m, '2026', LIST) === '' && await listIs(m, ['2026']), await listRows(m))
+  if (process.env.SHOT_DIR) await shots(m, 'qto-new-folder-390')
+  ok('390: + New document makes a document in that level', await newDoc(m, 'Roadmap'))
+  await back(m)
+  ok('390: Back: the level lists the folder, then the document', await listIs(m, ['2026', 'Roadmap']) && await heading(m) === 'Plans', await listRows(m))
+}
+
 /* the phone's list: the page's own tree (the side panel's is not drawn there) */
 const LIST = '[data-test=ws-docs-page] [data-test=qto-file-tree]'
 const listRows = (p) => p.$$eval(`${LIST} [data-test=file-tree-row]`, (els) => els.map((el) => `${el.getAttribute('aria-level')} ${el.textContent.trim()}`)).catch(() => [])
@@ -333,6 +444,12 @@ try {
   await railLeavesQto(d)
   await d.close()
 
+  console.log('-- 1440x900 folders')
+  const f = await browser.newPage()
+  await f.setViewport({ width: 1440, height: 900 })
+  await desktopFolders(f)
+  await f.close()
+
   console.log('-- 390x740 phone')
   const m = await browser.newPage()
   await m.setViewport({ width: 390, height: 740, isMobile: true, hasTouch: true })
@@ -373,6 +490,7 @@ try {
   if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-doc-menu-phone.png` })
   await m.keyboard.press('Escape')
   if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-file-tree-phone.png` })
+  await phoneFolders(m)
   await m.close()
 
   console.log('-- signed out')

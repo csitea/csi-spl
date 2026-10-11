@@ -16,8 +16,8 @@
     <header class="feed-header wsdocs-head">
       <MobileBack />
       <h2 data-test="ws-docs-heading">{{ phoneList && drillTitle ? drillTitle : t('ws_doctree.title') }}</h2>
-      <!-- a drilled level opens as a document too: the menu's Edit -->
-      <button v-if="phoneList && drillAt" type="button" class="btn ghost" data-test="ws-docs-drill-open" @click="openDrilled">
+      <!-- a drilled level opens as a document too: the menu's Edit (a folder level is no document) -->
+      <button v-if="phoneList && drillAt && !drillAt.startsWith('f:')" type="button" class="btn ghost" data-test="ws-docs-drill-open" @click="openDrilled">
         {{ t('ws_doctree.doc_menu.edit') }}
       </button>
       <!-- owner t1 889e15d9: a new document is made through the + and its
@@ -65,7 +65,7 @@
       <p v-else-if="session?.error.value" class="wsdocs-error" role="alert" data-test="ws-docs-error">{{ t(session.error.value) }}</p>
 
       <QtoFileTree
-        v-if="phoneList && state === 'ready' && docs.length"
+        v-if="phoneList && state === 'ready'"
         :docs="docs"
         active=""
         :rev="0"
@@ -94,7 +94,7 @@ import WorkspaceGridView from './WorkspaceGridView.vue'
 import WorkspaceDocPrint from './WorkspaceDocPrint.vue'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
 import QtoFileTree from './QtoFileTree.vue'
-import { createDocSession, DocTreeError, seedStarterDoc, useDocTree, type DocHead, type DocItem, type DocSession } from './-doctree-api'
+import { createDocSession, DocTreeError, seedStarterDoc, useDocTree, useQtoFolder, type DocHead, type DocItem, type DocSession } from './-doctree-api'
 import { picPaths } from './-doc-pics'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useMobileStack } from '~/composables/useMobileStack'
@@ -216,13 +216,18 @@ async function loadDocs() {
   }
 }
 
-/** the modal's create: the typed title (required there) and meta description; the new document starts with the starter outline and opens */
+/* the explorer's current folder (QtoFileTree): a new document lands in it */
+const folder = useQtoFolder()
+
+/** the modal's create: the typed title (required there) and meta description, in the explorer's current folder; the new document starts with the starter outline and opens */
 async function createDoc(title: string, description: string) {
-  const r = await client.create(title, description)
+  const r = await client.create(title, description, folder.value)
   await seedStarterDoc(client, r.id, r.rev)
   docs.value = await client.list()
   state.value = 'ready'
-  await pick(r.id)
+  /* a phone opens it as its list does, one history entry deeper: Back returns to the level it was made in */
+  if (phoneList.value) await openFromList(r.id, '')
+  else await pick(r.id)
 }
 
 function afterPrint() {

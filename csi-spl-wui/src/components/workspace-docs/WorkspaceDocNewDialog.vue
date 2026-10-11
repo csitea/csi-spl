@@ -3,24 +3,27 @@
      description is a short plain-text summary stored with the document (rdb
      0164) for the omnibox search later. UiDialog owns the modal behaviour
      (focus trap, Escape, backdrop click, restored focus); this owns the form.
-     Every opening starts clean: a dialog closed half-typed is a cancel. -->
+     Every opening starts clean: a dialog closed half-typed is a cancel.
+     With `folder` it is the explorer's + New folder (owner t1 3b8891e0):
+     one name field, no description; a sibling of the same name (the hub's
+     409 name_taken) says so. -->
 <template>
-  <UiDialog :open="open" :title="t('ws_doctree.new_doc')" size="md" @update:open="emit('update:open', $event)">
-    <form class="wsdoc-new-dlg" data-test="ws-docs-new-form" @submit.prevent="submit">
+  <UiDialog :open="open" :title="t(folder ? 'ws_doctree.new_folder' : 'ws_doctree.new_doc')" size="md" @update:open="emit('update:open', $event)">
+    <form class="wsdoc-new-dlg" :data-test="folder ? 'qto-new-folder-form' : 'ws-docs-new-form'" @submit.prevent="submit">
       <label class="wsdoc-new-dlg__field">
-        <span>{{ t('ws_doctree.col_title') }}</span>
+        <span>{{ t(folder ? 'ws_doctree.folder_name' : 'ws_doctree.col_title') }}</span>
         <input
           v-model="title"
           type="text"
-          maxlength="500"
+          :maxlength="folder ? 255 : 500"
           required
           data-autofocus
-          data-test="ws-docs-new-title"
-          :placeholder="t('ws_doctree.new_doc_placeholder')"
+          :data-test="folder ? 'qto-new-folder-name' : 'ws-docs-new-title'"
+          :placeholder="t(folder ? 'ws_doctree.new_folder_placeholder' : 'ws_doctree.new_doc_placeholder')"
           :disabled="busy"
         >
       </label>
-      <label class="wsdoc-new-dlg__field">
+      <label v-if="!folder" class="wsdoc-new-dlg__field">
         <span>{{ t('ws_doctree.meta_description') }}</span>
         <textarea
           v-model="description"
@@ -35,7 +38,7 @@
       <p v-if="error" class="wsdoc-new-dlg__error" role="alert" data-test="ws-docs-new-error">{{ t(error) }}</p>
       <div class="wsdoc-new-dlg__actions">
         <button type="button" class="btn ghost" :disabled="busy" data-test="ws-docs-new-cancel" @click="emit('update:open', false)">{{ t('common.cancel') }}</button>
-        <button type="submit" class="btn" data-test="ws-docs-create" :disabled="busy || !title.trim()">{{ t('ws_doctree.create') }}</button>
+        <button type="submit" class="btn" :data-test="folder ? 'qto-new-folder-create' : 'ws-docs-create'" :disabled="busy || !title.trim()">{{ t('ws_doctree.create') }}</button>
       </div>
     </form>
   </UiDialog>
@@ -47,6 +50,8 @@ import UiDialog from '~/components/UiDialog.vue'
 
 const props = defineProps<{
   open: boolean
+  /** the explorer's + New folder: a name only */
+  folder?: boolean
   /** makes the document; a throw shows the error and keeps the dialog open */
   create: (title: string, description: string) => Promise<void>
 }>()
@@ -73,8 +78,8 @@ async function submit() {
   try {
     await props.create(name, description.value.trim())
     emit('update:open', false)
-  } catch {
-    error.value = 'ws_doctree.err_failed'
+  } catch (e) {
+    error.value = (e as { status?: number })?.status === 409 ? 'ws_doctree.err_name_taken' : 'ws_doctree.err_failed'
   } finally {
     busy.value = false
   }

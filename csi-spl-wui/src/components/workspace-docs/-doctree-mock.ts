@@ -16,6 +16,13 @@ type Body = Record<string, unknown>
 const docs = new Map<string, Doc>()
 let seq = 0
 
+/* the Qto tree's folders (spec 120 section 7, the hub's workspace_doc_nodes.go):
+   a folder's parent and each document's folder, '' = the workspace's root */
+type Folder = { id: string, parent: string, name: string }
+const folders = new Map<string, Folder>()
+const docIn = new Map<string, string>()
+const DOC_NODE = 'dn-'
+
 function uuid(): string {
   seq++
   return `00000000-0000-4000-8000-${seq.toString(16).padStart(12, '0')}`
@@ -200,10 +207,44 @@ function rename(d: Doc, b: Body): MockReply {
 function removeDoc(d: Doc, rev: number): MockReply {
   if (stale(d, rev)) return STALE()
   docs.delete(d.id)
+  docIn.delete(d.id)
   return { status: 200, body: { rev: d.rev, doc: d.id, deleted: true } }
 }
 
 const UNTITLED = 'Untitled document'
+
+/** a parent the hub refuses: 404 unknown, 400 a document's node; null = a folder or the root */
+function folderRefused(parent: string): MockReply | null {
+  if (!parent || folders.has(parent)) return null
+  if (parent.startsWith(DOC_NODE) && docs.has(parent.slice(DOC_NODE.length))) return fail(400, 'parent_is_document', 'the parent is a document, not a folder')
+  return fail(404, 'not_found', 'no such document or item')
+}
+
+/** one folder's children: the folders, then the documents, each by name */
+function nodes(parent: string): MockReply {
+  const bad = folderRefused(parent)
+  if (bad) return bad
+  const byName = (a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase())
+  const count = (id: string) => [...folders.values()].filter((f) => f.parent === id).length + [...docIn.values()].filter((p) => p === id).length
+  const fs = [...folders.values()].filter((f) => f.parent === parent).sort((a, b) => byName(a.name, b.name))
+    .map((f) => ({ id: f.id, kind: 'folder', name: f.name, title: '', description: '', doc: '', child_count: count(f.id) }))
+  const ds = [...docs.values()].filter((d) => (docIn.get(d.id) || '') === parent).sort((a, b) => byName(a.title, b.title))
+    .map((d) => ({ id: DOC_NODE + d.id, kind: 'doc', name: '', title: d.title, description: d.description, doc: d.id, child_count: 0 }))
+  return { status: 200, body: { parent, nodes: [...fs, ...ds] } }
+}
+
+/** a folder as parent's last child: 409 name_taken for a sibling of the same name */
+function makeFolder(b: Body): MockReply {
+  const parent = str(b.parent)
+  const name = str(b.name).trim()
+  if (!name || name.length > 255) return fail(400, 'bad_request', 'a folder name is 1 to 255 characters')
+  const bad = folderRefused(parent)
+  if (bad) return bad
+  if ([...folders.values()].some((f) => f.parent === parent && f.name.toLowerCase() === name.toLowerCase())) return fail(409, 'name_taken', 'conflict: name_taken')
+  const f: Folder = { id: uuid(), parent, name }
+  folders.set(f.id, f)
+  return { status: 201, body: { id: f.id, kind: 'folder', name, parent } }
+}
 
 /* the uploaded images: hub path -> the bytes (read as a data: URL, as the hub client does) */
 const images = new Map<string, Blob>()
@@ -278,6 +319,8 @@ export function mockDocTree(method: string, path: string, body: Body = {}): Mock
   const url = new URL(path || '/', 'http://mock.invalid')
   const [docId, sub = '', id = '', verb = ''] = url.pathname.split('/').filter(Boolean)
   if (!docId && method === 'GET') return { status: 200, body: { docs: [...docs.values()].map(head) } }
+  if (docId === 'nodes' && method === 'GET') return nodes(url.searchParams.get('parent') || '')
+  if (docId === 'folders' && method === 'POST' && !sub) return makeFolder(body)
   if (docId === 'search' && method === 'GET') {
     const q = (url.searchParams.get('q') || '').trim().toLowerCase()
     if (!q) return fail(400, 'bad_query', 'q is 1..200 characters')
@@ -296,7 +339,11 @@ export function mockDocTree(method: string, path: string, body: Body = {}): Mock
     const title = str(body.title).trim() || UNTITLED
     const description = str(body.description).trim()
     if (title.length > 500 || description.length > 1000) return fail(400, 'bad_request', 'title is at most 500 characters, description at most 1000')
+    const parent = str(body.parent)
+    const bad = folderRefused(parent)
+    if (bad) return bad
     const d = create(title, description)
+    docIn.set(d.id, parent)
     return { status: 200, body: { id: d.id, root: d.root, rev: 1 } }
   }
   const d = docs.get(docId || '')

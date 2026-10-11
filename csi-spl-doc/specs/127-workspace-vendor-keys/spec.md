@@ -1,11 +1,21 @@
 # Spec 127: Workspace vendor keys (bring your own keys)
 
-Version **v1.0** (2026-10-11): the editor c-928 (claude) folded the two seat
+Version **v1.1** (2026-10-11): the owner answered the four questions of
+section 9, "1a 2a 3a 4a" (msg 316dd655-9f23-4cff-bccc-238add20410b, topic
+bdc65df6); section 9.1 records the decisions and each "Q-n" below now reads
+as decided. No design change beyond the answers.
+
+Changelog:
+- v1.1 (2026-10-11): owner answers Q-1 A, Q-2 A, Q-3 A, Q-4 A folded in
+  (msg 316dd655); section 9.1 added.
+- v1.0 (2026-10-11): signed by all three seats at 64b24b396.
+
+v1.0 (2026-10-11): the editor c-928 (claude) folded the two seat
 reviews in [reviews/](reviews/), s-claude-2 (c-929) and s-mistral (m-930),
 into v0.1 (0caca00c4). Section 11 records what each seat changed.
 **Signed**: v1.0 at 64b24b396 by all three seats (section 11.2). This status
-line and 11.2 are the only edits since; the four owner questions of section 9
-go to the owner as one blocker.
+line and 11.2 were the only edits before v1.1; the four owner questions of
+section 9 went to the owner as one blocker and are answered (9.1).
 
 Doc only. Nothing here is built; the code named below is what exists on
 origin/master at 0caca00c4. No real key, token, credential path or account id
@@ -183,7 +193,7 @@ stop it: only the operator workspace writes that switch. Two guards close it:
   a workspace that holds a vendor key gets neither `vendor_keys.manage` nor
   key-box approval until another, confirmed admin of the workspace confirms
   it (`admin_confirm` audit row). A workspace with no key (the bootstrap
-  case) is unaffected. The choice is Q-4.
+  case) is unaffected. Owner decision Q-4 A (9.1).
 
 So the operator cannot read a key through the hub: no route returns it
 (4.3), the operator scope reads 0 rows (4.2), and a lease needs a box a
@@ -267,7 +277,7 @@ The desk's start checks (it refuses to start otherwise):
   `docker`, `lxd` or `disk` (`/etc/group`, readable by all: each of these is
   root-equivalent and reads every process), and its own user has no sudoers
   grant (`sudo -n -l` lists nothing). It cannot read another user's sudoers
-  entries; that part is the machine root's word (Q-2).
+  entries; that part is the machine root's word (Q-2 A, 9.1).
 - `/proc` mounted `hidepid=2` with no `gid=` exemption naming a seat user,
   and `kernel.yama.ptrace_scope >= 2` (same-user defence in depth; the
   cross-workspace guard is the uid separation).
@@ -284,8 +294,9 @@ Several customer workspaces may share one such machine, each as its own OS
 user (spec 108 3.5), because no OS user on it can read another's processes.
 The machine's root reads all of them, so a customer-run machine should host
 only that customer's workspaces; each workspace's admin mints its own join
-token, so this is that admin's choice, said in the UI. Who the root is on a
-machine we host is Q-2.
+token, so this is that admin's choice, said in the UI. On a machine we host
+our root can read the seats; the owner accepted that, stated in the plan's
+terms, with root access by named, audited action only (Q-2 A, 9.1).
 
 ## 6. Leak paths, guards and tests
 
@@ -318,7 +329,7 @@ What is NOT claimed:
   agent), and can ask the desk socket for the workspace's keys of every other
   kind (the socket answers its OS user, which every seat of that workspace
   is).
-- The root of the machine it runs on can read it (5.3, Q-2).
+- The root of the machine it runs on can read it (5.3, Q-2 A).
 - L9 catches the exact key and its fingerprint, not a transformed copy
   (base64, split): that is a seat of the workspace leaking its own key, and
   the local transcript stays on the workspace's own OS user.
@@ -346,8 +357,8 @@ with the token term at 0 and the plan's margin (s-claude-2 C11):
   chose for the fixed cost.
 - **Margin**: 50% ("something like 50%", 6ad93fae) as
   `price_plans.margin_pct = 50` for `byok`; spec 121's 29% stays for
-  `metered`. The schema already allows a per-plan value. The exact rate is
-  Q-3.
+  `metered`. The schema already allows a per-plan value. The rate is
+  exactly 50% (owner decision Q-3 A, 9.1).
 - **The bill** (spec 006 payments, spec 121 8): the card checkout as today;
   `byok` is a monthly card charge of the price above, shown as "own use",
   "hub share" and "hosted box" (when there is one). No token line.
@@ -375,7 +386,8 @@ with the token term at 0 and the plan's margin (s-claude-2 C11):
 For a customer workspace the pick is the hub's, `internal/hub/agent_split.go`
 (`do_spl_lane_mix` is the fleet's own picker). In a `byok` workspace it
 treats a vendor with no key as weight 0: the main without a key hands to the
-backup; neither with a key -> Q-1. Split settings shows a "no key" mark per
+backup; neither with a key -> the task waits with "no key for <kind>"
+(owner decision Q-1 A, 9.1). Split settings shows a "no key" mark per
 vendor. The `secret` kind's claude/mistral rule is unchanged.
 
 ## 8. The WUI
@@ -393,8 +405,8 @@ gains `agent-keys.vue`, beside `split.vue`):
 
 ## 9. Owner questions
 
-Real choices only; the dispatcher posts them as one blocker. Both seats
-recommend A on every question.
+Real choices only; the dispatcher posted them as one blocker. Both seats
+recommended A on every question. The owner chose A on all four (9.1).
 
 - **Q-1 Missing key.** A `byok` workspace starts a seat of a kind with no key:
   - A (recommended): refuse that kind; the picker takes the backup with a key;
@@ -416,6 +428,17 @@ recommend A on every question.
   - B: same powers as any admin, audited only. This leaves the operator a
     path to a customer key (5.1), against K3.
 
+### 9.1 Decisions (owner, msg 316dd655, "1a 2a 3a 4a")
+
+| question | decision | where it applies |
+|---|---|---|
+| Q-1 Missing key | A: refuse that kind; the picker takes the backup vendor with a key; none -> the task waits with "no key for <kind>", visible in the topic. No fall-back to the box login. | 7.3, H1/H2 lanes |
+| Q-2 Hosted dedicated boxes | A: accepted; our root's read of a hosted `byok` box is stated in the plan's terms; root access to such boxes only by a named, audited action; a customer who needs more runs its own box. | 5.3, 6, 7.1 |
+| Q-3 Margin | A: exactly 50%, `price_plans.margin_pct = 50` for `byok`. | 7.1, P1 |
+| Q-4 Operator-made admins | A: no `vendor_keys.manage` and no key-box approval until a confirmed admin of the workspace confirms; every admin is emailed. | 5.1, 8, H1 |
+
+No question of this spec is open.
+
 ## 10. Lane plan
 
 Each a small task with tests and red controls; claude or mistral seats only
@@ -426,7 +449,7 @@ Each a small task with tests and red controls; claude or mistral seats only
 | B0 | box (claude) | measure per CLI: what authenticates (env var, helper, login only), the telemetry switch (L16), whether it writes the key to its state (L14), qwen `--auth-type` pin; record each version |
 | D1 | rdb (claude) | `workspace_vendor_keys` (tenant_scope only, `personal.profile` shape), `workspace_vendor_key_boxes`, `workspace_vendor_key_audit`, `usage_events.key_source` (no default); cross-tenant and operator-0-rows tests |
 | I1 | iac (claude) | KMS key ring + key per env, decrypt grant to the hub runtime SA only; HMAC pepper secret; the daily grant check action; confirm the list prices |
-| H1 | hub (claude) | `vendor_keys.manage`, PUT/DELETE/GET, audit, no-body-log, act-as refusal, operator-made admin confirmation (Q-4); L3, L4 tests |
+| H1 | hub (claude) | `vendor_keys.manage`, PUT/DELETE/GET, audit, no-body-log, act-as refusal, operator-made admin confirmation (Q-4 A); L3, L4 tests |
 | H2 | hub (claude) | the lease route: dedicated pin, approved box, read in the pin's tenant scope, sealed to the box X25519 key; join payload field; key-box approve/revoke; L1, L2 tests |
 | H3 | hub (mistral) | redaction by fingerprint and candidate shapes, before write and fan-out; L9 hub half, L17 hub half |
 | W1 | wui (mistral) | Agent keys page with the key-box list, L12 and L17 e2e; locale text then agy review LAST |

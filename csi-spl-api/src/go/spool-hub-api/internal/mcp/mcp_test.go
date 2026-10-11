@@ -291,7 +291,7 @@ func TestRecvMalformedIsToolError(t *testing.T) {
 }
 
 // TestToolNamesAreCanonical: exactly the five kind-agnostic tools plus
-// spool_issue (specs/039 FR-008), no per-kind variants (Constitution VIII,
+// spool_issue (specs/039 FR-008) and spool_flow (spec 130), no per-kind variants (Constitution VIII,
 // contracts/mcp-tools.md).
 func TestToolNamesAreCanonical(t *testing.T) {
 	h := newHarness(t)
@@ -304,7 +304,7 @@ func TestToolNamesAreCanonical(t *testing.T) {
 		got = append(got, tl.Name)
 	}
 	sort.Strings(got)
-	want := "spool_get_file,spool_issue,spool_put_file,spool_recv,spool_send,spool_tail"
+	want := "spool_flow,spool_get_file,spool_issue,spool_put_file,spool_recv,spool_send,spool_tail"
 	if strings.Join(got, ",") != want {
 		t.Errorf("tools = %v, want %s", got, want)
 	}
@@ -424,6 +424,18 @@ func TestSeatedIssueTool(t *testing.T) {
 		t.Fatalf("other agent: %v %q", isErr, out)
 	}
 	if out, isErr := callText(t, cs, "spool_issue", map[string]any{"op": "list"}); !isErr || !strings.Contains(out, "hub mode") {
+		t.Fatalf("folder mode: %v %q", isErr, out)
+	}
+}
+
+// spool_flow (spec 130 section 5) acts as the seat only, and the Flow is
+// hub-only: a folder-mode box gets a tool error.
+func TestSeatedFlowTool(t *testing.T) {
+	cs, _ := seated(t, "CLE-07")
+	if out, isErr := callText(t, cs, "spool_flow", map[string]any{"as": "CLE-08"}); !isErr || !strings.Contains(out, "seated as CLE-07") {
+		t.Fatalf("other agent: %v %q", isErr, out)
+	}
+	if out, isErr := callText(t, cs, "spool_flow", map[string]any{}); !isErr || !strings.Contains(out, "hub mode") {
 		t.Fatalf("folder mode: %v %q", isErr, out)
 	}
 }

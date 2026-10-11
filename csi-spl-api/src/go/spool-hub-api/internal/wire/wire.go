@@ -81,6 +81,11 @@ const (
 	// 068 4.1, rdb 0110). Request and reply pair on MsgID, a request id the
 	// box picks.
 	TClaim = "claim"
+	// TFlowRead is an agent reading its folded Flow (spec 130 section 5):
+	// As the acting agent (one this box announced), Query its kind / limit /
+	// before in URL query form; the reply carries the page in Flow. Request
+	// and reply pair on MsgID. Not "flow": that is the WUI's live push.
+	TFlowRead = "flow_read"
 	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
 	// Topics topics of channel Backfill were sent for Agents, the newest by
 	// From (TaskID / MsgID name it). Sent only to a box whose hello carried
@@ -270,6 +275,9 @@ type Frame struct {
 	Issue    json.RawMessage `json:"issue,omitempty"`
 	Query    string          `json:"query,omitempty"`
 	Body     string          `json:"body,omitempty"`
+
+	// flow_read reply (spec 130 section 5): the folded Flow page.
+	Flow json.RawMessage `json:"flow,omitempty"`
 
 	// edit reply (specs/032 §10): the register revision the edit wrote.
 	Revision int `json:"revision,omitempty"`

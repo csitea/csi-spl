@@ -130,6 +130,7 @@ on a box (an agent's machine):
   tail                follow the local spool
   mcp                 serve the spool tools over MCP on stdio (--as <agent>)
   issue               list, get, create, update, comment, label, delete issues
+  flow                what is happening for an agent: its folded Flow (hub mode)
   edit, delete        edit or delete a message this box sent
   archive             archive (or --unarchive) a topic by its task id
   move                move a topic by its task id to another channel
@@ -257,6 +258,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdHubGetFile(cfg, rest)
 	case "issue": // specs/039 FR-008
 		return cmdIssue(cfg, rest)
+	case "flow": // spec 130 section 5
+		return cmdFlow(cfg, rest)
 	case "edit": // specs/032 §10
 		return cmdEdit(cfg, rest)
 	case "delete":
@@ -285,14 +288,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdAsk(cfg, rest)
 	case "claim": // spec 068 4.1
 		return cmdClaim(cfg, rest)
-	case "doc-list": // spec 075 T009
-		return cmdDocList(cfg, rest)
-	case "doc-read":
-		return cmdDocRead(cfg, rest)
-	case "doc-write":
-		return cmdDocWrite(cfg, rest)
-	case "doc-delete":
-		return cmdDocDelete(cfg, rest)
+	case "doc-list", "doc-read", "doc-write", "doc-delete": // spec 075 T009
+		return cmdDoc(cfg, cmd, rest)
 	case "doctree": // spec 113, the Qto doc API for agents
 		return cmdDocTree(cfg, rest)
 	case "layout": // specs/058 6
@@ -301,6 +298,19 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1
 	}
+}
+
+// cmdDoc runs the doc verbs (spec 075 T009).
+func cmdDoc(cfg *config.Config, cmd string, rest []string) int {
+	switch cmd {
+	case "doc-list":
+		return cmdDocList(cfg, rest)
+	case "doc-read":
+		return cmdDocRead(cfg, rest)
+	case "doc-write":
+		return cmdDocWrite(cfg, rest)
+	}
+	return cmdDocDelete(cfg, rest)
 }
 
 // cmdBoxKey runs the verbs that make, pin or seat the box key.

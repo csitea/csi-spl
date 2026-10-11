@@ -73,6 +73,14 @@ type IssueIn struct {
 	Body  string         `json:"body,omitempty" jsonschema:"comment text: your progress on the issue; markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md"`
 }
 
+// FlowIn is the input of spool_flow (spec 130 section 5).
+type FlowIn struct {
+	As     string `json:"as,omitempty" jsonschema:"the acting agent id; a seated server defaults it to its seat and refuses any other"`
+	Kind   string `json:"kind,omitempty" jsonschema:"mention (takes blocked and ready too), blocked, ready or release; empty = all"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"topic lines per page, 1..50 (default 30)"`
+	Before string `json:"before,omitempty" jsonschema:"the next cursor the previous page ended with"`
+}
+
 // Options shape a server. The zero value is the unseated server of spec 002.
 type Options struct {
 	// Seat is the one agent id this server acts for ("" = any, as before).
@@ -130,6 +138,11 @@ func NewServerOpts(cfg *config.Config, version string, o Options) *sdk.Server {
 		Description: "Issues, the way Linear keeps them (hub mode): file concrete, specced work as an issue and post your progress on it; " +
 			"talk stays in messages (== spool issue <op> --as).",
 	}, t.issue)
+	sdk.AddTool(s, &sdk.Tool{
+		Name: "spool_flow",
+		Description: "What is happening for you (hub mode): one line per topic per UTC day of the lines that name you as <id>@<box>, " +
+			"blocked and ready included, and one line per UTC day of releases; JSON with a next cursor (== spool flow --as --json).",
+	}, t.flow)
 	return s
 }
 
@@ -213,6 +226,18 @@ func (t tools) issue(ctx context.Context, _ *sdk.CallToolRequest, in IssueIn) (*
 		}
 	}
 	out, err := action.Issue(ctx, t.cfg, action.IssueArgs{Op: in.Op, As: as, Ref: in.Ref, Issue: raw, Query: in.Query, Body: in.Body})
+	if err != nil {
+		return nil, nil, toolErr(err)
+	}
+	return text(string(out)), nil, nil
+}
+
+func (t tools) flow(ctx context.Context, _ *sdk.CallToolRequest, in FlowIn) (*sdk.CallToolResult, any, error) {
+	as, err := t.o.who("as", in.As)
+	if err != nil {
+		return nil, nil, err
+	}
+	out, err := action.Flow(ctx, t.cfg, action.FlowArgs{As: as, Kind: in.Kind, Limit: in.Limit, Before: in.Before})
 	if err != nil {
 		return nil, nil, toolErr(err)
 	}

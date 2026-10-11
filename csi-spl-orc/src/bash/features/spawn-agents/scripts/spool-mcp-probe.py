@@ -33,13 +33,14 @@ import tempfile
 import time
 
 TOOLS = [
+    "spool_flow",
     "spool_get_file",
     "spool_issue",
     "spool_put_file",
     "spool_recv",
     "spool_send",
     "spool_tail",
-]  # spool_issue: specs/039
+]  # spool_issue: specs/039; spool_flow: spec 130
 
 
 class Server:

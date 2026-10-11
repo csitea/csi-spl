@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -73,8 +74,10 @@ func (s *Server) flowStore() (store.FlowEvents, bool) {
 }
 
 // flowQuery parses GET /v1/view/flow's query (contract section 2).
-func flowQuery(r *http.Request) (store.FlowQuery, bool) {
-	v := r.URL.Query()
+func flowQuery(r *http.Request) (store.FlowQuery, bool) { return flowQueryOf(r.URL.Query()) }
+
+// flowQueryOf parses a flow query: the route's, or a flow_read frame's.
+func flowQueryOf(v url.Values) (store.FlowQuery, bool) {
 	q := store.FlowQuery{Limit: flowLimitDefault, Kind: v.Get("kind")}
 	switch q.Kind {
 	case "", store.FlowMention, store.FlowReply, store.FlowDM, store.FlowBlocked, store.FlowReady:

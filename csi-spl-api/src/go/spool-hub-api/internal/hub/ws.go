@@ -154,6 +154,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onTail(ctx, x, f)
 		case wire.TIssue: // specs/039 §6
 			s.onIssue(ctx, x, f)
+		case wire.TFlowRead: // spec 130 section 5
+			s.onFlowRead(ctx, x, f)
 		case wire.TEdit: // specs/032 §10: a box edits its own message
 			s.onEdit(ctx, x, f)
 		case wire.TDelete:

@@ -19,9 +19,10 @@ and `mcp-tools.md`; this table is the 1:1 check, not a restatement.
 
 CLI-only by design: `send --file-ref|--dir-blob|--dir-ref|--put-file`,
 `put-dir`, `get-dir`, `keygen`, `pin` and the hub/operator verbs. The narrative
-names five tools. The one addition is `spool_issue` (hub mode, == `spool issue
-<op> --as`, specs/039 issues-v1 §6, 2026-09-26): the canonical-names check
-lists six, and a seventh would break it.
+names five tools. The additions are `spool_issue` (hub mode, == `spool issue
+<op> --as`, specs/039 issues-v1 §6, 2026-09-26) and `spool_flow` (hub mode,
+== `spool flow --as --json`, spec 130 section 5, 2026-10-11): the
+canonical-names check lists seven, and an eighth would break it.
 
 ## 2. Exit codes
 
@@ -36,7 +37,7 @@ lists six, and a seventh would break it.
 | Row | Test |
 |---|---|
 | every row of §1, identical files and text | `TestSC004MCPEqualsCLI` (`internal/mcp/mcp_test.go`) |
-| exactly five names + `spool_issue` | `TestToolNamesAreCanonical` |
+| exactly five names + `spool_issue` + `spool_flow` | `TestToolNamesAreCanonical` |
 | 78 on the CLI and as a tool error | `TestSC004MCPEqualsCLI` (corrupted blob) |
 | partial recv output + error | `TestRecvMalformedIsToolError` |
 

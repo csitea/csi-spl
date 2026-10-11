@@ -423,12 +423,15 @@ func readMessage(path string) (*msg.Message, error) {
 }
 
 // Tail returns every message on taskID across all agents' boxes, oldest-first.
+// ts has one-second resolution and msg_id is random, so two messages sent in
+// the same second are ordered by when their first copy was written (the
+// earliest file mtime; an ack's rename keeps it), and only then by msg_id.
 func (s *Store) Tail(taskID string) ([]*msg.Message, error) {
 	agents, err := os.ReadDir(s.cfg.SpoolRoot)
 	if err != nil {
 		return nil, err
 	}
-	seen := map[string]*msg.Message{} // dedupe: same msg exists in inbox+outbox
+	seen := map[string]*tailEntry{} // dedupe: same msg exists in inbox+outbox
 	for _, a := range agents {
 		id, ok := AgentDirID(a.Name())
 		if !ok || !a.IsDir() {
@@ -438,22 +441,37 @@ func (s *Store) Tail(taskID string) ([]*msg.Message, error) {
 			s.tailBox(filepath.Join(s.cfg.SpoolRoot, a.Name(), box), id, taskID, seen)
 		}
 	}
-	out := make([]*msg.Message, 0, len(seen))
-	for _, m := range seen {
-		out = append(out, m)
+	entries := make([]*tailEntry, 0, len(seen))
+	for _, e := range seen {
+		entries = append(entries, e)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].TS != out[j].TS {
-			return out[i].TS < out[j].TS
+	sort.Slice(entries, func(i, j int) bool {
+		a, b := entries[i], entries[j]
+		if a.m.TS != b.m.TS {
+			return a.m.TS < b.m.TS
 		}
-		return out[i].MsgID < out[j].MsgID
+		if !a.written.Equal(b.written) {
+			return a.written.Before(b.written)
+		}
+		return a.m.MsgID < b.m.MsgID
 	})
+	out := make([]*msg.Message, len(entries))
+	for i, e := range entries {
+		out[i] = e.m
+	}
 	return out, nil
 }
 
+// tailEntry is one message on a tail and the mtime of its earliest copy.
+type tailEntry struct {
+	m       *msg.Message
+	written time.Time
+}
+
 // tailBox adds every readable message on taskID in one box dir of owner to
-// seen, keyed by msg id. An unreadable dir or file is skipped.
-func (s *Store) tailBox(dir, owner, taskID string, seen map[string]*msg.Message) {
+// seen, keyed by msg id, keeping the earliest mtime among its copies. An
+// unreadable dir or file is skipped.
+func (s *Store) tailBox(dir, owner, taskID string, seen map[string]*tailEntry) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
@@ -463,8 +481,15 @@ func (s *Store) tailBox(dir, owner, taskID string, seen map[string]*msg.Message)
 			continue
 		}
 		m, err := s.parseMessageFile(filepath.Join(dir, e.Name()), owner)
-		if err == nil && m.TaskID == taskID {
-			seen[m.MsgID] = m
+		if err != nil || m.TaskID != taskID {
+			continue
+		}
+		var written time.Time
+		if info, err := e.Info(); err == nil {
+			written = info.ModTime()
+		}
+		if prev, ok := seen[m.MsgID]; !ok || written.Before(prev.written) {
+			seen[m.MsgID] = &tailEntry{m: m, written: written}
 		}
 	}
 }

@@ -338,12 +338,15 @@ _pp_tree_pass_add() {  # <key>
 }
 
 # One verdict line per part, so an audit of a push answers itself.
+# Builtins only: date + dirname + mkdir on every line were about half the
+# execs of a gate test run, and a fork costs most on a loaded CI runner.
+# Guard: tests/check-pre-push-verdict-forks.tst.sh.
 _pp_verdict() {  # <part> <VERDICT> <secs> [detail]
   local who="${SPOOL_AGENT_ID:-${USER:-$(id -un 2>/dev/null)}}"
-  local line
-  line="$(date -u +%FT%TZ) $who PART $1 $2 ${3}s tree=$_PP_TOP HEAD=$_PP_HEAD${4:+ $4}"
-  mkdir -p "$(dirname "$_PP_LOG")" 2>/dev/null || true
-  printf '%s\n' "$line" >>"$_PP_LOG" 2>/dev/null || true
+  local now dir="${_PP_LOG%/*}"
+  TZ=UTC printf -v now '%(%FT%TZ)T' -1
+  [[ -z "$dir" || "$dir" == "$_PP_LOG" || -d "$dir" ]] || mkdir -p "$dir" 2>/dev/null || true
+  printf '%s\n' "$now $who PART $1 $2 ${3}s tree=$_PP_TOP HEAD=$_PP_HEAD${4:+ $4}" >>"$_PP_LOG" 2>/dev/null || true
 }
 
 # pnpm is often a user-local install (~/.local/bin) not on the minimal PATH a

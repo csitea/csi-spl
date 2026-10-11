@@ -21,7 +21,7 @@ timezone: "Europe/London"
 
 os_packages: ["ca-certificates", "curl", "python3", "sudo", "xz-utils", "unzip", "procps", "iproute2", "e2fsprogs", "openssl"]
 
-wine_packages: ["wine64", "xvfb"]
+wine_packages: ["wine", "wine64", "xvfb"]
 
 wine_enable_i386: false
 

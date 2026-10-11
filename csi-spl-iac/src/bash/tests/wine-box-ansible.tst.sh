@@ -70,4 +70,14 @@ while read -r name; do
 done < <(grep -RhoE '\{\{[[:space:]]*[a-z_][a-z0-9_]*' "$D/roles" | sed -E 's/\{\{[[:space:]]*//' | sort -u)
 [[ -z "$missing" ]] && pass "every role variable is in vars.example.yml" || fail "vars.example.yml lacks:$missing"
 
+# a shell builtin under the command module is rc 2 on the box (061 dev run, 2026-10-11)
+if grep -RInE 'ansible\.builtin\.command:\s*(command -v|type |cd |source )' "$D/roles" >/dev/null; then
+  fail "a role runs a shell builtin through ansible.builtin.command"
+else
+  pass "no shell builtin runs through ansible.builtin.command"
+fi
+grep -qE 'wine_packages: \[wine,' "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml" \
+  && pass "dev installs the wine package (wine64 alone has no /usr/bin/wine on Debian 13)" \
+  || fail "dev wine_packages lacks wine: no /usr/bin/wine, no wineboot"
+
 (( fails == 0 )) && echo "PASS: all" || { echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1; }

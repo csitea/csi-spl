@@ -1,6 +1,8 @@
 ---
-# wine64 only, recommends off, so an i386 package is not pulled unless
-# wine_enable_i386 is true. The prefix is initialised once (system.reg).
+# wine + wine64, recommends off, so an i386 package is not pulled unless
+# wine_enable_i386 is true. On Debian 13 wine64 alone ships no /usr/bin/wine
+# and no wineboot: the wine package carries them (measured 2026-10-11).
+# The prefix is initialised once (system.reg).
 - name: The foreign architectures
   ansible.builtin.command: dpkg --print-foreign-architectures
   register: foreign_arch
@@ -21,8 +23,9 @@
     cache_valid_time: 3600
     install_recommends: false
 
+# command -v is a shell builtin: the command module has no shell to run it
 - name: wine is on PATH
-  ansible.builtin.command: command -v wine
+  ansible.builtin.shell: command -v wine
   changed_when: false
 
 - name: Initialise the Wine prefix once

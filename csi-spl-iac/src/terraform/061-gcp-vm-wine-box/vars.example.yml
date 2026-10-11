@@ -21,6 +21,7 @@ os_packages:
   - e2fsprogs
   - openssl
 wine_packages:
+  - wine
   - wine64
   - xvfb
 wine_enable_i386: false

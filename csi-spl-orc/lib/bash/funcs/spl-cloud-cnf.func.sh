@@ -154,7 +154,12 @@ do_spl_cloud_cnf() {
 #                 the first run saves it as <state>/hub-url, later runs read it
 #                 back, and a different SPOOL_HUB_URL is refused (the box key
 #                 is pinned at the saved hub). State: <data>/<org>-<app>/cloud/self
+# On a box enrolled into one workspace (spec 108 3.5) it first runs that
+# box's guard: any other TENANT_ID is refused, and the state dir is the
+# workspace's, so every desk action (reply, post, down, ...) finds the desk
+# do_spl_desk_up seated there.
 do_spl_desk_cnf() {
+  declare -F spl_box_ws_guard >/dev/null && { spl_box_ws_guard "${TENANT_ID:-}" || return 1; }
   if [[ "${ENV:-}" != self ]]; then
     do_spl_cloud_cnf || return 1
     SPL_HUB_URL="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"

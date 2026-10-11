@@ -8,6 +8,9 @@
 #      do_spl_desk_pin and the operator-only do_spl_desk_up_tenants.
 #      CONTROL: wsa's desk-up and pin dry runs pass, with the state dir
 #      inside the workspace; an unclaimed (operator) box seats wsb as before
+#   1b. (n=1) every other desk action (reply, post, down: do_spl_desk_cnf)
+#      refuses wsb on that box. CONTROL: wsa's reply looks for its desk
+#      inside $W/wsa/state, not in the user's default state dir
 #   2. (n=1) do_spl_box_workspace_setup refuses a second workspace on a
 #      claimed box (exit 3). CONTROL: the claimed workspace's dry run passes
 #   3. (n=2, needs passwordless sudo + useradd: SKIP otherwise) setup for
@@ -53,6 +56,16 @@ SNIPPET=do_spl_desk_up in_orc TENANT_ID=wsb DESK_AGENT=c-101 >"$T/o" 2>&1; rc=$?
 SNIPPET=do_spl_desk_up_tenants in_orc SPL_WS_BASE="$W" >"$T/o" 2>&1; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'operator boxes only' "$T/o" &&
   pass "the multi-workspace desk refuses a workspace box" || fail "up-tenants on a claimed box rc=$rc: $(cat "$T/o")"
+
+# --- 1b. the other desk actions resolve through do_spl_desk_cnf --------------------------
+SNIPPET=do_spl_desk_reply in_orc SPL_WS_BASE="$W" SPL_STATE_DIR= TENANT_ID=wsa DESK_AGENT=c-101 DESK_BODY=hi DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q "no desk for c-101 .*($W/wsa/state/dev/desk/wsa/" "$T/o" &&
+  pass "CONTROL desk-reply of the box's own workspace looks inside $W/wsa/state" || fail "own reply rc=$rc: $(cat "$T/o")"
+for a in do_spl_desk_reply do_spl_desk_post do_spl_desk_down; do
+  SNIPPET=$a in_orc SPL_WS_BASE="$W" SPL_STATE_DIR= TENANT_ID=wsb DESK_AGENT=c-101 DESK_BODY=hi DESK_CHANNEL=lobby DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+  [[ $rc -ne 0 ]] && grep -q "belongs to workspace 'wsa'" "$T/o" &&
+    pass "$a refuses a second workspace on the box" || fail "$a wsb rc=$rc: $(cat "$T/o")"
+done
 
 # --- 2. setup refuses a second workspace -------------------------------------------
 SNIPPET=do_spl_box_workspace_setup in_orc SPL_WS_BASE="$W" TENANT_ID=wsa >"$T/o" 2>&1; rc=$?

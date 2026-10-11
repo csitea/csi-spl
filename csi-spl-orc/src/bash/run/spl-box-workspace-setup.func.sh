@@ -51,7 +51,8 @@ do_spl_box_workspace_setup() {
   _spool_root_run_as_root "${cmds[@]}" || return 1
   spl_box_ws_verify "$b" "$tenant" "$u" || return 1
   do_log "OK this box belongs to workspace '$tenant': user $u, spool root $b/$tenant/spool, state $b/$tenant/state"
-  do_log "OK seat a desk as that user: sudo -u $u env ENV=<env> TENANT_ID=$tenant DESK_AGENT=<id> ROOT_KEY_JSON=<file> DRY_RUN=0 ./run -a do_spl_desk_up"
+  do_log "OK seat a desk as that user: sudo -u $u env ENV=<env> TENANT_ID=$tenant DESK_AGENT=<id> DRY_RUN=0 ./run -a do_spl_desk_up"
+  do_log "OK   with a workspace admin's join token in SPOOL_JOIN_TOKEN (Settings -> Agents; read it from a file, never type it on the command line), or ROOT_KEY_JSON=<file>"
 }
 
 # spl_box_ws_others <base> <tenant>: the workspace dirs under base other than

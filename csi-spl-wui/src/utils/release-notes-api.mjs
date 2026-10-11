@@ -14,6 +14,7 @@
 
 import { isoSeconds } from './iso-seconds.mjs'
 import { HUB_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
+import { withSessionRetry } from './live-follow.mjs'
 
 export const RELEASE_NOTES_LATEST = 30
 const VERSION_RE = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c([2-9]|[1-9][0-9]{1,3}))?$/
@@ -32,6 +33,22 @@ export async function releaseNotesGet(api, path, running) {
   const r = await fetch(`${api.base}${path}`, { credentials: api.credentials, headers, signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
   if (!r.ok) throw Object.assign(new Error(`release notes ${r.status}`), { status: r.status })
   return r.json()
+}
+
+/**
+ * The dialog's read: releaseNotesGet behind the view door, as every other
+ * view read. Opened cold (/releases/<sha> in a new tab) the dialog reads
+ * before the session probe has armed the `session` door, so the first read
+ * goes out without the cookie and the hub answers 401 (c-834, dev, n=4:
+ * "Back to the list" said "Could not load"). A 401 arms the door once and
+ * reads again; any other failure reaches the caller as before.
+ * @param {Parameters<typeof withSessionRetry>[0] & Parameters<typeof releaseNotesGet>[0]} api useSpoolApi()
+ * @param {string} path
+ * @param {string} running
+ */
+export function releaseNotesRead(api, path, running) {
+  if (api.mock) return releaseNotesGet(api, path, running)
+  return withSessionRetry(api, () => releaseNotesGet(api, path, running))
 }
 
 /**

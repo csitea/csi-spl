@@ -228,7 +228,7 @@ import { useBuildWatch } from '~/composables/useBuildWatch'
 import { isNewer } from '~/utils/build-watch.mjs'
 import { displayVersion } from '~/utils/display-version.mjs'
 import { browserTimeZone, isoDateTime, isoDateTimeSec, viewerTimeZone } from '~/utils/date-iso.mjs'
-import { mergeReleasePages, nextReleaseCursor, releaseKeyFor, releaseNoteCount, releaseNotesGet } from '~/utils/release-notes-api.mjs'
+import { mergeReleasePages, nextReleaseCursor, releaseKeyFor, releaseNoteCount, releaseNotesRead } from '~/utils/release-notes-api.mjs'
 import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
 import { commitPrefix, linkifyCommitText, shaHref } from '~/utils/commit-links.mjs'
 import { shortHash, shortHashLabel } from '~/utils/hash-label.mjs'
@@ -367,7 +367,7 @@ const openedVersion = computed(() => (opened.value && versions.value.find((v) =>
 const tableVersions = computed(() => (openedVersion.value ? [openedVersion.value] : latest.value))
 
 function hubGet(path: string): Promise<unknown> {
-  return releaseNotesGet(api, path, running.value)
+  return releaseNotesRead(api, path, running.value)
 }
 
 async function loadLatest() {

@@ -39,6 +39,7 @@ case "$1" in
   box-beat) [ -n "${BEATS:-}" ] || exit 0
     jq -c --argjson now "$HUB_NOW" --argjson s "$(( ${4%m} * 60 ))" \
       '{rows: [.[] | select(.e <= $now and .e > $now - $s) | {box, beat_at: (.e | todate)}]}' "$BEATS" ;;
+  lane) if [ -n "${LANES:-}" ]; then cat "$LANES"; else echo '{"fleet":"main","lanes":[]}'; fi ;;
 esac
 STUB
 chmod +x "$T/bin/hub"
@@ -46,13 +47,13 @@ printf 'env:\n  box:\n    fleet_load:\n      box_order: [box-a, box-b]\n' >"$T/c
 
 # target LOW HIGH ORDER_JSON [BOXES_JSON]
 target() { printf '{"low":%s,"high":%s,"box_order":%s,"boxes":%s,"source":"hub"}\n' "$1" "$2" "$3" "${4:-{\}}" >"$T/target.json"; }
-# stats BOX:LOAD5:CPUS ... (one older sample of every box first, which the latest overrides)
+# stats BOX:LOAD5:CPUS[:AGENTS] ... (one older sample of every box first, which the latest overrides)
 stats() {
-  local rows="" s b l c
+  local rows="" s b l c a
   for s in "$@"; do
-    IFS=: read -r b l c <<<"$s"
+    IFS=: read -r b l c a <<<"$s"
     rows+="{\"box\":\"$b\",\"at\":\"2026-10-04T10:00:00Z\",\"load5\":99,\"cpus\":$c},"
-    rows+="{\"box\":\"$b\",\"at\":\"2026-10-04T10:05:00Z\",\"load5\":$l,\"cpus\":$c},"
+    rows+="{\"box\":\"$b\",\"at\":\"2026-10-04T10:05:00Z\",\"load5\":$l,\"cpus\":$c${a:+,\"agents_live\":$a}},"
   done
   printf '{"since":"x","rows":[%s],"hours":[]}\n' "${rows%,}" >"$T/stats.json"
 }
@@ -60,7 +61,7 @@ stats() {
 run() {
   env SPOOL_ROOT="$T/spool" SPOOL_DESK_BOX=box-desk LANE_FLEET=main LANE_HUB_CMD="$T/bin/hub" \
     CALLS="$T/calls" TARGET="$T/target.json" STATS="$T/stats.json" BOX_PICK_CNF="$T/cnf.yaml" \
-    PROJ_PATH=/x/csi-spl-orc APP_PATH=/x "$@" bash -c '
+    LANE_CI_CMD="echo 0" PROJ_PATH=/x/csi-spl-orc APP_PATH=/x "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { command -v "$1" >/dev/null; }
@@ -134,8 +135,8 @@ out="$(run STATS_DOWN=1 2>&1)"; rc=$?
 
 # 8. the hub calls: the target, then the window.
 : >"$T/calls"; run >/dev/null 2>&1
-[[ "$(cat "$T/calls")" == $'fleet-load get\nbox-stats list --since 15m\nbox-beat list --since 41m' ]] &&
-  pass "8. one fleet-load get, one box-stats list --since 15m, one box-beat list --since 41m" || fail "8. calls: $(cat "$T/calls")"
+[[ "$(cat "$T/calls")" == $'fleet-load get\nbox-stats list --since 15m\nbox-beat list --since 41m\nlane --fleet main' ]] &&
+  pass "8. one fleet-load get, one box-stats list --since 15m, one box-beat list --since 41m, one lane read (the CI jobs)" || fail "8. calls: $(cat "$T/calls")"
 out="$(run BOX_PICK_SINCE=yesterday 2>&1)"; rc=$?
 [[ $rc -ne 0 && "$out" == *"FATAL BOX_PICK_SINCE"* ]] && pass "8. a bad BOX_PICK_SINCE is refused" || fail "8. since: $out"
 
@@ -247,6 +248,51 @@ out="$(run BEATS="$T/all.json" HUB_NOW=$((B0 + 600)))"
 out="$(run 2>&1)"
 [[ "$(pick "$out")" == box-a ]] && grep -q 'WARN the hub did not answer the box beats read' <<<"$out" &&
   pass "12. no beats answer: a WARN, the pick as before" || fail "12. no beats: $out"
+
+# 13. CI busy (owner HUM-10, t1 f67e3656 msg 565d9bbb): a box with a runner
+#     job active takes fewer lanes. lanes BOX:CI:AGE_S ... -> the BOX-0 rows.
+lanes() {
+  local s b c a rows=""
+  for s in "$@"; do
+    IFS=: read -r b c a <<<"$s"
+    rows+="{\"agent_id\":\"BOX-0\",\"agent_box\":\"$b\",\"state\":\"live\",\"age_s\":$a,\"scope\":\"mem_kb=1 ci=$c live=c-001\"},"
+  done
+  printf '{"fleet":"main","lanes":[{"agent_id":"c-100","agent_box":"box-a","state":"live","age_s":5,"scope":"ci=9 not a box row"},%s]}\n' "${rows%,}" >"$T/lanes.json"
+}
+target 50 75 '["box-a","box-b"]'
+# box-a 40 % (under low) with 15 agents, box-b 45 % (under low) with 5
+stats "box-a:3.2:8:15" "box-b:3.6:8:5"
+lanes "box-b:0:60"
+out="$(run LANES="$T/lanes.json")"
+[[ "$(pick "$out")" == box-a ]] && ! grep -q 'ci busy' <<<"$out" &&
+  pass "13. CONTROL: CI idle (and a lane row saying ci=9 is no box row) -> the normal band, box-a" || fail "13. idle: $out"
+lanes "box-a:2:60" "box-b:0:60"
+out="$(run LANES="$T/lanes.json")"
+[[ "$(pick "$out")" == box-b ]] &&
+  grep -q '^BOX box-a  load5 3.2  cpus 8  40%  in band  band 25..50 (fleet, ci busy)  ci busy: 2 jobs, cap 12 (agents 15), AT CAP: not picked$' <<<"$out" &&
+  pass "13. CI busy on box-a with 15 agents >= cap 12 -> pick avoids it (box-b), the line says why" || fail "13. busy: $out"
+out="$(run LANES="$T/lanes.json" BOX_CI_MAX_AGENTS=99)"
+[[ "$(pick "$out")" == box-b ]] && grep -q 'ci busy: 2 jobs, cap 99 (agents 15)$' <<<"$out" &&
+  pass "13. under the cap, box-a's lower band (25..50) puts its 40 % in band: box-b, under its low, first" || fail "13. band: $out"
+stats "box-a:1.6:8:15" "box-b:3.6:8:5"
+out="$(run LANES="$T/lanes.json" BOX_CI_MAX_AGENTS=16)"
+[[ "$(pick "$out")" == box-a ]] &&
+  pass "13. cap honoured both ways: 15 agents under a cap of 16 and 20 % under the CI low -> box-a" || fail "13. cap 16: $out"
+stats "box-a:3.2:8:15" "box-b:3.6:8:5"
+lanes "box-a:2:1200" "box-b:0:60"
+[[ "$(pick "$(run LANES="$T/lanes.json")")" == box-a ]] &&
+  pass "13. a BOX-0 row older than max_age_s (900) tells nothing: box-a" || fail "13. stale"
+lanes "box-b:0:60"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-a LANE_CI_CMD="echo 1")"
+[[ "$(pick "$out")" == box-b ]] && grep -q 'ci busy: 1 jobs, cap 12 (agents 15), AT CAP' <<<"$out" &&
+  pass "13. this box's own runner job (Runner.Worker count) counts before its row says so" || fail "13. here: $out"
+stats "box-a:3.2:8:15" "box-b:13:8:5"
+lanes "box-a:2:60"
+out="$(run LANES="$T/lanes.json")"
+[[ "$(pick "$out")" == hold ]] && grep -q 'or under its CI-busy agent cap' <<<"$out" &&
+  pass "13. CI busy box at cap, the other past its overflow -> hold (queued, nothing killed)" || fail "13. hold: $out"
+out="$(run 2>&1)"
+[[ -n "$(pick "$out")" ]] && pass "13. no lane answer: the pick as before" || fail "13. no lanes: $out"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

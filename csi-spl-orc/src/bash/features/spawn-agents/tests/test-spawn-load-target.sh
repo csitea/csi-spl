@@ -107,4 +107,15 @@ agent_spawn "$(id -un)"
 has "6. CONTROL no hop (the caller's HOME): the old WARN" "WARN no load target pick (FATAL $HERE_BOX is not pinned in t1" "$OUT"
 check "6. CONTROL ... and no hop ran" test ! -e "$T_TMP/hop.calls"
 
+# 7. CI busy (owner HUM-10, t1 f67e3656): a hold for CI holds a NEW lane only;
+#    the hourly rotation (its own id, SPAWN_REUSE_ID=1) replaces a session and
+#    never asks the pick.
+export PICK_OUT="BOX $HERE_BOX  load5 20  cpus 16  125%  full  band 25..50 (fleet, ci busy)  ci busy: 3 jobs, cap 12 (agents 17), AT CAP: not picked
+pick=hold reason=no box with a sample is below its overflow mark (200% of its high) or under its CI-busy agent cap: queue the lane, spawn nothing"
+spawn; check "7. CI busy, every box full: a new lane holds (exit 10)" held
+rm -f "$T_TMP/pick.called"
+OUT="$(SPAWN_REUSE_ID=1 bash "$SW" claude c-002 "$T_TMP/wd" 2>&1)"; RC=$?
+check "7. ... a rotation-shaped spawn (c-002, SPAWN_REUSE_ID=1) never asks the pick" test ! -e "$T_TMP/pick.called"
+check "7. ... and is not held" eval '[ "$RC" != 10 ]'
+
 t_done

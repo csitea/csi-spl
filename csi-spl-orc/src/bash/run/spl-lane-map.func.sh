@@ -39,6 +39,8 @@
 
 declare -F spl_desk_box_default >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
+declare -F spl_box_ci_jobs >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-ci.func.sh"
 
 do_spl_lane_map() {
   local rows hub_json="" fmt="${LANE_FORMAT:-table}" rc=0 live_here load
@@ -300,17 +302,22 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
 }
 
 # Publish THIS box's load as its BOX-0 row, so the other boxes read real
-# activity and free memory here. Only in a fleet, with the hub answering and
-# the panes read; at most once per LANE_BOX_ROW_S (300 s). Best effort: a
-# refusal is one line on stderr, never the map's exit code.
+# activity, free memory and its active CI runner jobs (ci=<N>,
+# lib/bash/funcs/spl-box-ci.func.sh) here. Only in a fleet, with the hub
+# answering and the panes read; at most once per LANE_BOX_ROW_S (300 s), but at
+# once when the CI job count changed. Best effort: a refusal is one line on
+# stderr, never the map's exit code.
 spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
   [[ "$LANE_MODE" == hub && "$LANE_HUB_STATE" == ok && "${2:-null}" != null ]] || return 0
-  local age scope out id
-  age="$(jq -r --arg id "$LANE_BOX_ROW_ID" --arg b "$LANE_BOX" \
-    '[.[] | select(.agent_id == $id and .agent_box == $b and .state == "live") | .age_s] | min // -1' <<<"$1")"
-  [[ "$age" =~ ^[0-9]+$ ]] && (( age < ${LANE_BOX_ROW_S:-300} )) && return 0
-  scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" \
-    '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?") live=\($ids | join(","))"' <<<"$3")"
+  local age was ci scope out id
+  ci="$(spl_box_ci_jobs)"
+  read -r age was < <(jq -r --arg id "$LANE_BOX_ROW_ID" --arg b "$LANE_BOX" \
+    '[.[] | select(.agent_id == $id and .agent_box == $b and .state == "live")] | min_by(.age_s)
+     | if . == null then "-1 -" else "\(.age_s) \((.scope // "") | [capture("(^| )ci=(?<n>[0-9]+)")][0].n // "0")" end' <<<"$1")
+  [[ "$age" =~ ^[0-9]+$ ]] && (( age < ${LANE_BOX_ROW_S:-300} )) && [[ "$was" == "$ci" ]] && return 0
+  # ci=<N> only while N > 0, and before live=: the cut below never drops it
+  scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" --arg ci "$ci" \
+    '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?")\(if $ci == "0" then "" else " ci=\($ci)" end) live=\($ids | join(","))"' <<<"$3")"
   scope="${scope:0:500}"
   # whole ids only: a cut one could name a shorter id that is not clean
   for id in $(spl_lane_clean_here "$1" "$2"); do

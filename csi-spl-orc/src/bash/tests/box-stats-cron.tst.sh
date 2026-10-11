@@ -66,7 +66,7 @@ printf '0 c-001@sat\n0 c-150@sat wip\n1 c-151@sat\n0 shell\n' >"$T/panes"
 printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 100 55 40 58%% /\n/dev/sdb1 900 400 500 45%% /mnt/my data\n/dev/sda1 100 55 40 58%% /\nsrv:/x - - - - /net\n' >"$T/df"
 
 post() {
-  env SPOOL_ROOT="$T/spool" SPOOL_DESK_BOX=sat LANE_FLEET=main LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" \
+  env SPOOL_ROOT="$T/spool" SPOOL_DESK_BOX=sat LANE_FLEET=main LANE_CI_CMD="${CI_JOBS_CMD:-echo 0}" LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" \
     LANE_LOADAVG="$T/loadavg" LANE_MEMINFO="$T/meminfo" LANE_NPROC=8 LANE_PANES_CMD="cat $T/panes" LANE_DF_CMD="cat $T/df" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -111,6 +111,17 @@ row() { jq -r '.lanes[] | select(.agent_id == "BOX-0" and .agent_box == "sat") |
 : >"$T/hub/lane.calls"; post >/dev/null
 [[ "$(cat "$T/hub/lane.calls")" == "lane --fleet main" ]] &&
   pass "a row younger than LANE_BOX_ROW_S (300 s): one read, no write" || fail "rate limit: $(cat "$T/hub/lane.calls")"
+# CI busy (owner HUM-10, t1 f67e3656): a runner job starting or ending
+# rewrites the young row at once; the same count waits for the rate limit
+: >"$T/hub/lane.calls"; CI_JOBS_CMD="echo 2" post >/dev/null
+[[ "$(row)" == "live 0 mem_kb=6000000 ci=2 live=c-001,c-150" && "$(grep -c -- '--agent BOX-0' "$T/hub/lane.calls")" == 1 ]] &&
+  pass "2 runner jobs start: the young row is rewritten at once with ci=2" || fail "ci start: $(row) / $(cat "$T/hub/lane.calls")"
+: >"$T/hub/lane.calls"; CI_JOBS_CMD="echo 2" post >/dev/null
+[[ "$(grep -c -- '--agent BOX-0' "$T/hub/lane.calls")" == 0 ]] &&
+  pass "control: the same 2 jobs on the next tick: no write" || fail "ci same: $(cat "$T/hub/lane.calls")"
+: >"$T/hub/lane.calls"; post >/dev/null
+[[ "$(row)" == "live 0 mem_kb=6000000 live=c-001,c-150" && "$(grep -c -- '--agent BOX-0' "$T/hub/lane.calls")" == 1 ]] &&
+  pass "the jobs end: rewritten at once, no ci= on an idle box" || fail "ci end: $(row) / $(cat "$T/hub/lane.calls")"
 # the other box: pc, whose lease.conf ranks sat, so sat has a header line
 mkdir -p "$T/pc/dispatch"; printf 'LEASE_PRIORITY=pc,sat\n' >"$T/pc/dispatch/lease.conf"
 pcmap() {

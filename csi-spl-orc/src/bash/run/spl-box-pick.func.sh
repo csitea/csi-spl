@@ -30,12 +30,22 @@
 # @description in lib/bash/funcs/spl-box-health.func.sh). Every box with a load
 # @description sample degraded -> the pick as before, with a WARN. No beats
 # @description answer -> no box is judged, with a WARN.
+# @description A box running CI takes FEWER lanes (owner HUM-10, t1 f67e3656 msg
+# @description 565d9bbb): with a runner job active (its BOX-0 row's ci=<N>, this
+# @description box's own Runner.Worker count) its band is the lower cnf
+# @description env.box.ci_busy band and, at or over max_agents live agents, it
+# @description is not picked at all: the lane goes to another box or holds. Its
+# @description line says "ci busy: N jobs, cap M". The rule and its numbers:
+# @description lib/bash/funcs/spl-box-ci.func.sh. A spawn with its own id (the
+# @description rotation, a restore) never asks this pick.
 # @param BOX_PICK_SINCE (optional) - the sample window, default 15m (3 lane-map ticks)
 # @param BOX_PICK_OVERFLOW (optional) - the overflow mark as % of each box's high mark, default 200 (100 = hold at high)
 # @param BOX_PICK_CNF (optional) - default <checkout>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param ENV (optional) - dev or prd: the hub to read, default LANE_ENV / lease.conf LEASE_ENV
 # @param BOX_HEALTH_<KEY> (optional) - overrides cnf env.box.health.<key> (WINDOW_MIN, MIN_BEAT_PCT, BEAT_S, MAX_GAP_S)
-# @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `fleet-load get`, `box-stats list ...` or `box-beat list ...`
+# @param BOX_CI_<KEY> (optional) - overrides cnf env.box.ci_busy.<key> (MAX_AGENTS, LOW_PCT, HIGH_PCT, MAX_AGE_S)
+# @param LANE_CI_CMD (optional, tests) - prints this box's active runner jobs instead of counting Runner.Worker
+# @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `fleet-load get`, `box-stats list ...`, `box-beat list ...` or `lane --fleet ...`
 # @example ./run -a do_spl_box_pick
 # @example BOX_PICK_SINCE=30m ./run -a do_spl_box_pick
 #------------------------------------------------------------------------------
@@ -43,10 +53,12 @@
 declare -F spl_lane_init >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
 declare -F spl_box_health_verdicts >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-health.func.sh"
+declare -F spl_box_ci_jobs >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-ci.func.sh"
 
 do_spl_box_pick() {
   do_require_bin yq || return 1
-  local since="${BOX_PICK_SINCE:-15m}" overflow="${BOX_PICK_OVERFLOW:-200}" org_app cnf target stats seed health
+  local since="${BOX_PICK_SINCE:-15m}" overflow="${BOX_PICK_OVERFLOW:-200}" org_app cnf target stats seed health cicnf ci
   [[ "$since" =~ ^[0-9]+[smhd]$ ]] || { do_log "FATAL BOX_PICK_SINCE must be a duration (15m, 1h), got '$since'"; return 1; }
   [[ "$overflow" =~ ^[0-9]+$ ]] && ((overflow >= 100)) ||
     { do_log "FATAL BOX_PICK_OVERFLOW must be a whole % of the high mark, at least 100, got '$overflow'"; return 1; }
@@ -73,15 +85,22 @@ do_spl_box_pick() {
   spl_box_health_cnf "$cnf"
   health="$(spl_box_health_verdicts "$(spl_lane_spool box-beat list --since "$(spl_box_health_since)" 2>&1)" 0)" || {
     do_log "WARN the hub did not answer the box beats read: no box is judged unhealthy" >&2; health='{}'; }
-  spl_box_pick_decide "$target" "$stats" "$seed" "$since" "$overflow" "$health"
+  cicnf="$(spl_box_ci_cnf "$cnf")"
+  ci="$(spl_box_ci_from_rows "$(spl_lane_hub --fleet "$LANE_FLEET" 2>/dev/null)" "$LANE_BOX_ROW_ID" \
+    "$(jq -r .max_age_s <<<"$cicnf")" "$LANE_BOX" "$(spl_box_ci_jobs)")"
+  spl_box_pick_decide "$target" "$stats" "$seed" "$since" "$overflow" "$health" "$ci" "$cicnf"
 }
 
-# spl_box_pick_decide TARGET STATS SEED SINCE [OVERFLOW] [HEALTH] -> the band
-# line, one line per box in fill order, a WARN per box with no sample, then the
-# pick line. HEALTH is spl_box_health_verdicts' object: a "degraded" box is
-# left out of the pick unless every box with a sample is.
+# spl_box_pick_decide TARGET STATS SEED SINCE [OVERFLOW] [HEALTH] [CI] [CICNF]
+# -> the band line, one line per box in fill order, a WARN per box with no
+# sample, then the pick line. HEALTH is spl_box_health_verdicts' object: a
+# "degraded" box is left out of the pick unless every box with a sample is. CI
+# is {"<box>": jobs} (spl_box_ci_from_rows), CICNF spl_box_ci_cnf's settings:
+# a box with jobs > 0 gets the lower band, and at or over max_agents live
+# agents (its sample's agents_live) it is left out of the pick.
 spl_box_pick_decide() {
   jq -r --argjson seed "$3" --arg since "$4" --argjson over "${5:-200}" --argjson hl "${6:-{\}}" \
+    --argjson ci "${7:-{\}}" --argjson cc "${8:-{\"max_agents\":12,\"low\":25,\"high\":50\}}" \
     --slurpfile st <(printf '%s' "$2") '
     . as $t
     | (if ($t.box_order | length) > 0 then {o: $t.box_order, src: "hub"} else {o: $seed, src: "cnf seed"} end) as $ord
@@ -89,25 +108,28 @@ spl_box_pick_decide() {
     | ($ord.o + (($last | keys) - $ord.o | sort)) as $boxes
     | [$boxes[] as $b | ($last[$b]) as $r
         | (($t.boxes // {})[$b]) as $own
-        | (if $own != null then {low: $own.low, high: $own.high, src: "box"} else {low: $t.low, high: $t.high, src: "fleet"} end) as $band
+        | (if $own != null then {low: $own.low, high: $own.high, src: "box"} else {low: $t.low, high: $t.high, src: "fleet"} end) as $b0
+        | ($ci[$b] // 0) as $jobs
+        | (if $jobs > 0 then {low: ([$b0.low, $cc.low] | min), high: ([$b0.high, $cc.high] | min), src: "\($b0.src), ci busy"} else $b0 end) as $band
         | if $r == null or ($r.cpus // 0) < 1 then {box: $b, miss: true}
           else ($r.load5 * 100 / $r.cpus) as $p
           | {box: $b, load5: $r.load5, cpus: $r.cpus, pct: $p, at: $r.at, band: $band,
              state: (if $p >= $band.high then "full" elif $p >= $band.low then "in band" else "under" end),
-             sick: ($hl[$b].state == "degraded"), why: ($hl[$b].why // "")}
+             sick: ($hl[$b].state == "degraded"), why: ($hl[$b].why // ""),
+             jobs: $jobs, agents: $r.agents_live, capped: ($jobs > 0 and ($r.agents_live // 0) >= $cc.max_agents)}
           end] as $rows
     | ([$rows[] | select(.miss | not)]) as $all
-    | ([$all[] | select(.sick | not)] | if length == 0 then $all else . end) as $seen
+    | ([$all[] | select(.sick | not)] | if length == 0 then $all else . end | map(select(.capped | not))) as $seen
     | ((first($seen[] | select(.pct < .band.low)) | . + {why: "low"})
        // (first($seen[] | select(.pct < .band.high)) | . + {why: "high"})
        // ([$seen[] | select(.pct < .band.high * $over / 100)] | min_by(.pct / .band.high) | if . == null then null else . + {why: "over"} end)
        // null) as $pick
     | "fleet load target: \($t.low)..\($t.high) % of cores (source \($t.source // "hub")), \(($t.boxes // {}) | length) per-box band(s), order \($boxes | join(" ")) (\($ord.src)), samples \($since)",
       ($rows[] | if .miss then "WARN box \(.box): no load sample in the last \($since), skipped"
-        else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high) (\(.band.src))\(if .sick then "  DEGRADED (\(.why))" else "" end)\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
+        else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high) (\(.band.src))\(if .sick then "  DEGRADED (\(.why))" else "" end)\(if .jobs > 0 then "  ci busy: \(.jobs) jobs, cap \($cc.max_agents) (agents \(.agents // "?"))\(if .capped then ", AT CAP: not picked" else "" end)" else "" end)\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
       (if ($all | length) > 0 and all($all[]; .sick) then "WARN every box with a load sample is degraded: the pick ignores the beats" else empty end),
       (if $pick == null then
-         "pick=hold reason=no box with a sample is below its overflow mark (\($over)% of its high): queue the lane, spawn nothing"
+         "pick=hold reason=no box with a sample is below its overflow mark (\($over)% of its high)\(if any($all[]; .capped) then " or under its CI-busy agent cap" else "" end): queue the lane, spawn nothing"
        elif $pick.why == "over" then
          "pick=\($pick.box) reason=every box is at or above its high mark; \($pick.box) is the least past its band (\($pick.pct | floor)% on high \($pick.band.high)%, overflow \($pick.band.high * $over / 100 | floor)%)"
        elif $pick.why == "low" then

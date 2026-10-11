@@ -79,7 +79,7 @@ STUB
 cat > "$T_TMP/bin/map" <<STUB
 #!/usr/bin/env bash
 cd "$ORC" && SPOOL_ROOT="$SPOOL_ROOT" LANE_BOX="$HERE_BOX" LANE_HUB_CMD="$T_TMP/bin/hub" LANE_MEMINFO="$T_TMP/meminfo" \
-  LANE_REPO_DIRS="$T_TMP/none" LANE_PANES_CMD="cat $PANES" LANE_FORMAT=\${FMT:-json} bash -c '
+  LANE_REPO_DIRS="$T_TMP/none" LANE_CI_CMD="echo 0" LANE_PANES_CMD="cat $PANES" LANE_FORMAT=\${FMT:-json} bash -c '
   do_log() { echo "\$*" >&2; }
   source src/bash/run/spl-lane-map.func.sh
   do_spl_lane_map'

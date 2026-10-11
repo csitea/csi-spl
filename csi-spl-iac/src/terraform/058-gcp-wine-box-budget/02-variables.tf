@@ -30,6 +30,7 @@ variable "gcp_region" {
 
 variable "billing_account_id" {
   type        = string
+  sensitive   = true
   description = "The billing account the project is linked to. GCP_BILLING_ACCOUNT_ID at run time (make passes it as TF_VAR_billing_account_id), never cnf."
 
   validation {

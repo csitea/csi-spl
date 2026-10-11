@@ -23,6 +23,11 @@
   form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
   textarea { flex: 1; resize: none; height: 3em; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
   form button { border: 0; border-radius: 8px; padding: 0 16px; background: var(--mine); color: var(--mine-fg); font: inherit; cursor: pointer; }
+  form.mail { flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+  form.mail p { flex-basis: 100%; margin: 0; color: var(--muted); font-size: .85rem; }
+  form.mail input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+  form.mail button { padding: 6px 12px; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -36,6 +41,16 @@
   <textarea id="text" aria-label="Your question" placeholder="Type your question" maxlength="4000" required></textarea>
   <button type="submit" id="send">Send</button>
 </form>
+<form id="email-form" class="mail" hidden>
+  <p id="email-purpose">Optional: leave your e-mail to pick up this chat on another device. We use it only to send you a link back to this chat.</p>
+  <input type="email" id="email" aria-label="Your e-mail (optional)" placeholder="Your e-mail (optional)" maxlength="320" autocomplete="email">
+  <button type="submit">Save</button>
+</form>
+<form id="ask-form" class="mail" hidden>
+  <p>Chatted with us before on another device? We can e-mail you a link back to that chat.</p>
+  <input type="email" id="ask-email" aria-label="Your e-mail" placeholder="Your e-mail" maxlength="320" autocomplete="email" required>
+  <button type="submit">Send me a link</button>
+</form>
 <script>
 (function () {
   "use strict";
@@ -43,6 +58,10 @@
   // travels as Authorization: Bearer, never as a cookie (spec 4.1). The
   // parent page gets UI events only, through toParent: open, close and the
   // unread count, never message text (spec 5).
+  // T202b: a relink code arrives in THIS frame's fragment (#spool-relink=,
+  // put there by the loader), is taken out of the address at once and goes
+  // to the hub only in the body of POST .../relink/redeem: never in a URL,
+  // a postMessage, the storage or a log.
   var q = new URLSearchParams(window.location.search);
   var embed = q.get("e") || "";
   if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(embed)) embed = "";
@@ -88,20 +107,49 @@
   };
   var TOKEN = "spl.embed." + embed + ".token";
   var SEEN = "spl.embed." + embed + ".seen";
+  var EMAIL = "spl.embed." + embed + ".email";
 
   var lines = document.getElementById("lines");
   var status = document.getElementById("status");
   var form = document.getElementById("form");
   var text = document.getElementById("text");
+  var emailForm = document.getElementById("email-form");
+  var email = document.getElementById("email");
+  var askForm = document.getElementById("ask-form");
+  var askEmail = document.getElementById("ask-email");
+  var locale = (document.documentElement && document.documentElement.lang) || "";
   var isOpen = parentOrigin === "";
   var lastUnread = -1;
   var latest = [];
 
+  // The words this page shows besides its markup.
+  var T = {
+    gone: "This link has expired or was already used. Ask for a new one below.",
+    back: "Welcome back.",
+    noAnswer: "You can leave your e-mail after our first answer.",
+    badEmail: "Please enter one e-mail address, like name@example.com.",
+    saved: "Saved. From another device, ask for a link with this e-mail.",
+    asked: "If that e-mail is on file, a link is on its way. It works for 15 minutes.",
+    failed: "Not sent. Please try again."
+  };
+
   function say(s) { status.textContent = s; }
 
-  function call(method, path, body) {
+  // takeRelink takes spool-relink=<code> out of this frame's fragment and
+  // returns the code ("" when there is none).
+  function takeRelink() {
+    var m = /^#spool-relink=([A-Za-z0-9_-]{1,256})$/.exec(window.location.hash || "");
+    if (!window.location.hash) return "";
+    try { window.history.replaceState(null, "", window.location.pathname + window.location.search); }
+    catch (err) { /* no history API: the used code stays in the frame's address */ }
+    return m ? m[1] : "";
+  }
+
+  // call sends the visitor's Bearer token unless anon: the relink routes
+  // take none.
+  function call(method, path, body, anon) {
     var h = { "Accept": "application/json" };
-    var tok = store.get(TOKEN);
+    var tok = anon ? "" : store.get(TOKEN);
     if (tok) h["Authorization"] = "Bearer " + tok;
     if (body !== undefined) h["Content-Type"] = "application/json";
     return fetch(api + path, { method: method, headers: h, credentials: "omit", cache: "no-store",
@@ -113,6 +161,25 @@
       if (r.status !== 201) throw new Error("mint " + r.status);
       return r.json();
     }).then(function (v) { store.set(TOKEN, v.token); });
+  }
+
+  // redeem swaps a relink code for a new token to the same visitor and
+  // channel: 201 keeps it, 410 says the link is used, expired or unknown.
+  function redeem(code) {
+    return call("POST", "/relink/redeem", { code: code }, true).then(function (r) {
+      if (r.status === 410) { say(T.gone); return; }
+      if (r.status !== 201) { say(T.failed); return; }
+      return r.json().then(function (v) { store.set(TOKEN, v.token); store.set(EMAIL, "1"); say(T.back); });
+    }).catch(function () { say(T.failed); });
+  }
+
+  // forms shows the e-mail offer once the channel holds an answer and none
+  // was saved here, and the "send me a link" ask while this frame has no
+  // token.
+  function forms() {
+    var answered = latest.some(function (m) { return !m.mine; });
+    emailForm.hidden = !(store.get(TOKEN) && answered && !store.get(EMAIL));
+    askForm.hidden = !!store.get(TOKEN);
   }
 
   // render draws the lines oldest first, as GET .../messages returns them.
@@ -127,6 +194,7 @@
     }
     lines.scrollTop = lines.scrollHeight;
     unread();
+    forms();
   }
 
   // unread counts the lines from staff newer than the last one the visitor
@@ -177,7 +245,26 @@
       text.value = "";
       say("");
       return load();
-    }).catch(function () { say("Not sent. Please try again."); });
+    }).catch(function () { say(T.failed); });
+  });
+  emailForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    call("PUT", "/visitor/email", { email: email.value.trim() }).then(function (r) {
+      if (r.status === 204) { store.set(EMAIL, "1"); email.value = ""; forms(); say(T.saved); }
+      else if (r.status === 409) say(T.noAnswer);
+      else if (r.status === 400) say(T.badEmail);
+      else if (r.status === 401) { store.del(TOKEN); render([]); say(T.failed); }
+      else say(T.failed);
+    }).catch(function () { say(T.failed); });
+  });
+  askForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (!askEmail.value.trim()) return;
+    call("POST", "/relink", { email: askEmail.value.trim(), locale: locale }, true).then(function (r) {
+      if (r.status === 202) { askEmail.value = ""; say(T.asked); }
+      else if (r.status === 400) say(T.badEmail);
+      else say(T.failed);
+    }).catch(function () { say(T.failed); });
   });
   text.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
@@ -196,8 +283,10 @@
     else if (d.ev === "close") { isOpen = false; }
   });
 
+  var code = takeRelink();
   if (!embed) { say("This chat is not set up."); form.hidden = true; return; }
-  load();
+  forms();
+  (code ? redeem(code) : Promise.resolve()).then(load).then(forms);
   var tick = 0;
   setInterval(function () {
     tick++;

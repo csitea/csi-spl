@@ -13,7 +13,9 @@ import (
 // harness is testdata/postmessage.test.mjs: it runs both assets in node with
 // a fake DOM and fails when message text crosses postMessage, a targetOrigin
 // is not exact, a message from another origin or window is taken, or the
-// token leaves the frame's localStorage / Bearer header.
+// token leaves the frame's localStorage / Bearer header; and (T202b) when
+// the relink code reaches a postMessage, a URL, the storage or a log, or the
+// 410 / 409 answers are not shown plainly.
 const harness = "testdata/postmessage.test.mjs"
 
 func TestFSHoldsTheServedNames(t *testing.T) {
@@ -86,6 +88,21 @@ func TestHarnessRedControls(t *testing.T) {
 		{"loader targetOrigin *", "loader.js", `postMessage(uiEvent(ev), hub)`, `postMessage(uiEvent(ev), "*")`},
 		{"loader no origin check", "loader.js", `e.origin !== hub || `, ``},
 		{"loader no source check", "loader.js", ` || e.source !== frame.contentWindow`, ``},
+		// T202b: the relink code.
+		{"loader posts the relink code", "loader.js", `if (on) setUnread(0);`,
+			`if (on) setUnread(0); if (relink) frame.contentWindow.postMessage({ spl: 1, ev: "open", n: relink }, hub);`},
+		{"loader keeps the code in the page address", "loader.js", `window.history.replaceState(`, `(function () {})(`},
+		{"loader drops the code", "loader.js", `(relink ? "#spool-relink=" + relink : "")`, `""`},
+		{"loader logs the code", "loader.js", `var relink = takeRelink();`, `var relink = takeRelink(); console.log("relink", relink);`},
+		{"chat logs the code", "chat.html", `var code = takeRelink();`, `var code = takeRelink(); console.log("relink " + code);`},
+		{"chat sends the code in the URL", "chat.html", `"/relink/redeem", { code: code }`, `"/relink/redeem?code=" + code, { code: code }`},
+		{"chat stores the code", "chat.html", `store.set(TOKEN, v.token); store.set(EMAIL, "1");`, `store.set(TOKEN, v.token); store.set(EMAIL, code);`},
+		{"chat keeps the code in its address", "chat.html", `try { window.history.replaceState(`, `try { (function () {})(`},
+		{"chat redeem with the old token", "chat.html", `{ code: code }, true)`, `{ code: code })`},
+		{"chat 410 not shown", "chat.html", `if (r.status === 410) { say(T.gone); return; }`, ``},
+		{"chat 409 not shown", "chat.html", `else if (r.status === 409) say(T.noAnswer);`, ``},
+		{"chat offers e-mail before an answer", "chat.html", `var answered = latest.some(function (m) { return !m.mine; });`, `var answered = true;`},
+		{"chat ask without locale", "chat.html", `email: askEmail.value.trim(), locale: locale }`, `email: askEmail.value.trim() }`},
 	}
 	for _, c := range controls {
 		t.Run(c.name, func(t *testing.T) {

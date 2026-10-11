@@ -71,7 +71,7 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
 | T201 | hub serves `/embed/*` with per-customer `frame-ancestors` | 2 | T102, T103 | done (2c5f2fa3b, 6532abba2) | claude |
 | T202 | loader.js + iframe chat page | 2 | T201, T104 | build | claude |
 | T203 | hub: embed admin API (origins, per-embed JWT key) | 2 | T102 | done (4d81f4b88, 40af1ecdb) | claude |
-| T204 | WUI: embed admin page | 2 | T203 | build | mistral or grok |
+| T204 | WUI: embed admin page | 2 | T203 | done (3cafe1a95, 9ccfe5178) | mistral or grok |
 | T205 | hub: signed-in customer JWT -> one `channel_guest` | 2 | T104, T203 | build | claude |
 | T206 | hub: e-mail one-time relink to a new device | 2 | T104 | done | claude |
 | T207 | cnf flip `env.hub.embed.enabled` dev, then prd | 2 | T104..T206 | build | claude |
@@ -262,9 +262,15 @@ prd before T302..T304. T306 (the sales agent) needs T104 and T304.
   while the flag is off. Store writes: `GO/store/embed_admin.go` + `_test.go`
   (*new*: T102 had no write path). Tests on Postgres, a red control per
   Done item. Live 5.9.7 dev + prd.
-- [ ] T204 **WUI embed admin page** (mistral or grok; needs T203 on dev).
+- [x] T204 **WUI embed admin page** (mistral or grok; needs T203 on dev).
   Files: `WUI/pages/embed/` (*new*), its unit test, i18n keys (agy review
   last). Done: as T106b.
+  Built (c-958, 3cafe1a95 + 9ccfe5178, from m-952's draft): `/embed`, owner
+  only (`tenant_owner` false or the hub's 403: one line, no form; flag off:
+  the hub's 404 says "not enabled"). Lazy client calls `listEmbeds`,
+  `createEmbed`, `patchEmbed`, `newEmbedKey`; the private key is shown once
+  and dropped on Close; a second key asks first. 27 `embed.*` keys in 19
+  locales, agy-reviewed (a-959). e2e: tenant-settings step 18.
 - [ ] T205 **signed-in customer** (claude; needs T104, T203). The
   customer's 5-minute JWT (`sub`, `aud` = embed id), verified with the
   per-embed key; (embed, sub) -> one `channel_guest`. Files:

@@ -16,6 +16,10 @@
 # @description The repo comes from the checkout's own remote -- no default URL.
 # @param CI_GATE_RUNS (optional) - default 40: how many recent runs to read
 # @param CI_GATE_WORKFLOW (optional) - default 10_ci-quality.yml
+# @param CI_GATE_BRANCH (optional) - default master: only that branch's runs
+# @param CI_GATE_BRANCH are read (r8-03: 3 of 13 failed runs in round 7's
+# @param CI_GATE_BRANCH report were branch dispatches). Set but empty
+# @param CI_GATE_BRANCH (CI_GATE_BRANCH=) reads every branch.
 # @param CI_GATE_REPO (optional) - default: whatever `gh` infers from the cwd.
 # @param CI_GATE_REPO It is passed as GH_REPO, the only way `gh api` takes a
 # @param CI_GATE_REPO repo (that subcommand has no --repo flag). The whole body
@@ -23,24 +27,28 @@
 # @param CI_GATE_SIGNATURES (optional) - 1 also fetches each failed job's log
 # @example ./run -a do_report_ci_gate
 # @example CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate
+# @example CI_GATE_BRANCH= ./run -a do_report_ci_gate
 #------------------------------------------------------------------------------
 do_report_ci_gate() { (
   local n="${CI_GATE_RUNS:-40}"
   local wf="${CI_GATE_WORKFLOW:-10_ci-quality.yml}"
+  local branch="${CI_GATE_BRANCH-master}"
+  local -a on_branch=()
+  [[ -n "$branch" ]] && on_branch=(--branch "$branch")
   if [[ -n "${CI_GATE_REPO:-}" ]]; then export GH_REPO="$CI_GATE_REPO"; fi
 
   command -v gh >/dev/null 2>&1 || { do_log "FATAL gh is required"; return 1; }
   [[ "$n" =~ ^[0-9]+$ ]] && (( n > 0 )) || { do_log "FATAL CI_GATE_RUNS must be a positive integer, got '$n'"; return 1; }
 
   local tmp; tmp=$(mktemp -d) || return 1
-  if ! gh run list --workflow "$wf" --limit "$n" \
+  if ! gh run list --workflow "$wf" "${on_branch[@]}" --limit "$n" \
         --json databaseId,conclusion,createdAt,headSha \
         --jq '.[] | [.databaseId, (if (.conclusion // "") == "" then "running" else .conclusion end), .createdAt, .headSha[0:8]] | @tsv' >"$tmp/runs.tsv" 2>"$tmp/err"; then
     do_log "FATAL gh run list failed: $(head -2 "$tmp/err")"
     rm -rf "$tmp"; return 1
   fi
   if [[ ! -s "$tmp/runs.tsv" ]]; then
-    do_log "FATAL no runs of '$wf' -- nothing measured, which is not the same as nothing wrong"
+    do_log "FATAL no runs of '$wf' on ${branch:-any branch} -- nothing measured, which is not the same as nothing wrong"
     rm -rf "$tmp"; return 1
   fi
 
@@ -48,7 +56,7 @@ do_report_ci_gate() { (
   total=$(wc -l <"$tmp/runs.tsv")
   newest=$(head -1 "$tmp/runs.tsv" | cut -f3)
   oldest=$(tail -1 "$tmp/runs.tsv" | cut -f3)
-  echo "== $wf -- last $total run(s), $oldest .. $newest"
+  echo "== $wf on ${branch:-every branch} -- last $total run(s), $oldest .. $newest"
   cut -f2 "$tmp/runs.tsv" | sort | uniq -c | sort -rn | sed 's/^/   /'
 
   awk -F'\t' '$2 == "failure"' "$tmp/runs.tsv" >"$tmp/failed.tsv"

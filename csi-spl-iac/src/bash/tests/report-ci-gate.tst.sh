@@ -14,6 +14,9 @@
 #      commas, as the real ones do, and one stopped job names an earlier
 #      stopped one, as a late poll does
 #   6. one `last green: <run> <sha8> <time>` line per failed job
+#   7. master only by default (r8-03): the header names the branch read, and
+#      a failed run on a review branch is never counted; CI_GATE_BRANCH=
+#      (set, empty) reads every branch, CI_GATE_BRANCH=<b> reads <b>
 #   CONTROLS -- the report cannot be silently empty:
 #     a. no runs at all               -> refused (non-zero), not "healthy"
 #     b. gh itself fails              -> refused (non-zero)
@@ -22,6 +25,9 @@
 #        a wrong wiring here would silently report the WRONG repo in CI
 #     e. RED CONTROL for 5: the same run with the annotations hidden counts
 #        9 first reds, so the assertion of 5 fails without the parse
+#     f. RED CONTROL for 7: the stub returns the branch run to a `gh run list`
+#        without --branch, which is the call the report made before r8-03;
+#        that call counts it, so check 7 fails without the --branch
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -41,11 +47,21 @@ cat >"$T/stub/gh" <<'STUB'
 # canned API JSON + the CALLER's own --jq filter through real jq
 [[ "${GH_STUB_BROKEN:-0}" == 1 ]] && { echo "gh: stub failure" >&2; exit 1; }
 printf '%s\n' "${GH_REPO:-}" >>"$GH_STUB_DIR/gh_repo.seen"
-args=("$@"); jqf=""
-for ((i = 0; i < ${#args[@]}; i++)); do [[ "${args[i]}" == "--jq" ]] && jqf="${args[i+1]}"; done
+args=("$@"); jqf=""; branch=""; has_branch=0
+for ((i = 0; i < ${#args[@]}; i++)); do
+  [[ "${args[i]}" == "--jq" ]] && jqf="${args[i+1]}"
+  [[ "${args[i]}" == "--branch" ]] && { has_branch=1; branch="${args[i+1]}"; }
+done
 src=""
 case "${args[0]}" in
-  run) src="$GH_STUB_DIR/runs.json" ;;
+  run)
+    src="$GH_STUB_DIR/runs.json"
+    # the real gh filters on headBranch server side; without --branch it
+    # returns every branch, the review dispatches included
+    if (( has_branch )); then
+      jq --arg b "$branch" '[.[] | select(.headBranch == $b)]' "$src" >"$GH_STUB_DIR/runs-on-branch.json"
+      src="$GH_STUB_DIR/runs-on-branch.json"
+    fi ;;
   api)
     case "${args[1]}" in
       */runs/*/jobs) src="$GH_STUB_DIR/jobs-$(sed 's|.*/runs/\([0-9]*\)/jobs|\1|' <<<"${args[1]}").json" ;;
@@ -60,17 +76,23 @@ if [[ -n "$jqf" ]]; then jq -r "$jqf" "$src"; else cat "$src"; fi
 STUB
 chmod +x "$T/stub/gh"
 
-# runs: 2 failures + 3 successes + 1 still running
+# runs on master: 3 failures + 3 successes + 1 still running; plus 908, a
+# failed branch dispatch of a review branch, which a master report never reads
 cat >"$T/api/runs.json" <<'JSON'
 [
- {"databaseId":901,"conclusion":"","createdAt":"2026-01-02T10:05:00Z","headSha":"aaaaaaaa1111"},
- {"databaseId":902,"conclusion":"failure","createdAt":"2026-01-02T10:00:00Z","headSha":"bbbbbbbb2222"},
- {"databaseId":903,"conclusion":"failure","createdAt":"2026-01-02T09:55:00Z","headSha":"cccccccc3333"},
- {"databaseId":904,"conclusion":"success","createdAt":"2026-01-02T09:50:00Z","headSha":"dddddddd4444"},
- {"databaseId":905,"conclusion":"success","createdAt":"2026-01-02T09:45:00Z","headSha":"eeeeeeee5555"},
- {"databaseId":906,"conclusion":"success","createdAt":"2026-01-02T09:40:00Z","headSha":"ffffffff6666"},
- {"databaseId":907,"conclusion":"failure","createdAt":"2026-01-02T09:35:00Z","headSha":"99999999aaaa"}
+ {"databaseId":901,"conclusion":"","createdAt":"2026-01-02T10:05:00Z","headSha":"aaaaaaaa1111","headBranch":"master"},
+ {"databaseId":902,"conclusion":"failure","createdAt":"2026-01-02T10:00:00Z","headSha":"bbbbbbbb2222","headBranch":"master"},
+ {"databaseId":908,"conclusion":"failure","createdAt":"2026-01-02T09:58:00Z","headSha":"88888888bbbb","headBranch":"review/r8-99"},
+ {"databaseId":903,"conclusion":"failure","createdAt":"2026-01-02T09:55:00Z","headSha":"cccccccc3333","headBranch":"master"},
+ {"databaseId":904,"conclusion":"success","createdAt":"2026-01-02T09:50:00Z","headSha":"dddddddd4444","headBranch":"master"},
+ {"databaseId":905,"conclusion":"success","createdAt":"2026-01-02T09:45:00Z","headSha":"eeeeeeee5555","headBranch":"master"},
+ {"databaseId":906,"conclusion":"success","createdAt":"2026-01-02T09:40:00Z","headSha":"ffffffff6666","headBranch":"master"},
+ {"databaseId":907,"conclusion":"failure","createdAt":"2026-01-02T09:35:00Z","headSha":"99999999aaaa","headBranch":"master"}
 ]
+JSON
+# 908 (review branch): a job that never failed on master
+cat >"$T/api/jobs-908.json" <<'JSON'
+{"jobs":[{"id":7200,"name":"branch: red on a review branch only","conclusion":"failure"}]}
 JSON
 # 902 fails two jobs, 903 fails one of the same two -> counts 2 and 1
 cat >"$T/api/jobs-902.json" <<'JSON'
@@ -184,6 +206,41 @@ if [[ $rc -eq 0 ]] && grep -q 'FAIL: the tfvars differ from a fresh render' "$T/
   pass "CI_GATE_SIGNATURES=1 names the first failure line of each failed job"
 else
   fail "no per-job signature with CI_GATE_SIGNATURES=1 (rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+
+# --- 7. master only by default ------------------------------------------------
+# sees_branch_run <file> - the report read run 908 of the review branch
+sees_branch_run() { grep -qE '908|88888888|red on a review branch only' "$1"; }
+report; rc=$?
+if [[ $rc -eq 0 ]] && grep -qE '^== 10_ci-quality\.yml on master -- last 7 run\(s\)' "$T/out" && ! sees_branch_run "$T/out"; then
+  pass "default: the header says 'on master' over 7 runs and the review-branch run 908 is never counted"
+else
+  fail "default: not master only, or the header does not name the branch (rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+report CI_GATE_BRANCH=; rc=$?
+if [[ $rc -eq 0 ]] && grep -qE '^== 10_ci-quality\.yml on every branch -- last 8 run\(s\)' "$T/out" \
+   && grep -qE '^ +1 branch: red on a review branch only$' "$T/out"; then
+  pass "CI_GATE_BRANCH= (empty) reads every branch, the header says so, and 908 is counted"
+else
+  fail "CI_GATE_BRANCH= did not read every branch (rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+report CI_GATE_BRANCH=review/r8-99; rc=$?
+if [[ $rc -eq 0 ]] && grep -qE '^== 10_ci-quality\.yml on review/r8-99 -- last 1 run\(s\)' "$T/out" \
+   && grep -q '908 .*88888888 .*branch: red on a review branch only' "$T/out" && ! grep -q 'iac: step contracts' "$T/out"; then
+  pass "CI_GATE_BRANCH=review/r8-99 reads that branch only"
+else
+  fail "CI_GATE_BRANCH=review/r8-99 did not read that branch only (rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+
+# --- CONTROL f. red control for 7: the pre-r8-03 call had no --branch -------
+# The stub returns 908 to any `gh run list` without --branch, the call the
+# report made before r8-03 (`gh run list --workflow "$wf" --limit "$n"`).
+PATH="$T/stub:$PATH" GH_STUB_DIR="$T/api" gh run list --workflow 10_ci-quality.yml --limit 40 \
+  --json databaseId,conclusion,createdAt,headSha --jq '.[].databaseId' >"$T/out-f" 2>&1
+if grep -qx 908 "$T/out-f"; then
+  pass "CONTROL f. a run list without --branch returns the review-branch run 908, so check 7 FAILS on the old call"
+else
+  fail "CONTROL f. the stub hides 908 without --branch: check 7 proves nothing"; sed 's/^/    | /' "$T/out-f"
 fi
 
 # --- 4. a clean window --------------------------------------------------------

@@ -5,8 +5,12 @@
 #          stdout, stderr or a file of ours.
 #   1. DRY_RUN=1 (default), empty slot: reports, adds nothing
 #   2. DRY_RUN=0, empty slot: one "versions add --data-file=-" fed 32 bytes on
-#      stdin, verified by length; every call carries --account; the bytes are
-#      in no argv and no output
+#      stdin; verified by the new version's state (versions describe ->
+#      ENABLED), NEVER by reading it back: the project SA is no accessor (only
+#      the hub runtime SA is, 4.2), so an access call is refused (applied
+#      2026-10-11: the old length check exited 1 after a good add); every call
+#      carries --account; the bytes are in no argv and no output
+#   2b. CONTROL: an add that names no version -> refused, rc 1
 #   3. CONTROL: an enabled version exists -> nothing added (a new pepper would
 #      change every stored fingerprint)
 #   4. CONTROL: no slot (057 not applied) -> refused, nothing added
@@ -29,8 +33,9 @@ echo "$*" >>"$GC_CALLS"
 case "$1 $2 $3" in
   "secrets describe "*) [[ "${SLOT:-yes}" == yes ]] ;;
   "secrets versions list") [[ -s "$STORE" ]] && echo "projects/o-a-dev/secrets/pep-z/versions/1"; exit 0 ;;
-  "secrets versions add") cat >"$STORE" ;;
-  "secrets versions access") cat "$STORE" ;;
+  "secrets versions add") cat >"$STORE"; [[ "${ADD_NAME:-yes}" == yes ]] && echo "projects/o-a-dev/secrets/pep-z/versions/1"; exit 0 ;;
+  "secrets versions describe") [[ -s "$STORE" ]] && echo ENABLED ;;
+  "secrets versions access") echo "PERMISSION_DENIED: secretmanager.versions.access" >&2; exit 1 ;;
   *) exit 9 ;;
 esac'
 
@@ -58,11 +63,17 @@ rm -f "$T/store"; run_action; rc=$?
 
 # --- 2. the add ------------------------------------------------------------------------
 rm -f "$T/store"; run_action DRY_RUN=0; rc=$?
-[[ $rc -eq 0 && "$(wc -c <"$T/store")" -eq 32 ]] && grep -qF 'verified by length' "$T/out" && pass "DRY_RUN=0: a 32-byte version, verified by length" || fail "add: rc=$rc out=$(cat "$T/out")"
+[[ $rc -eq 0 && "$(wc -c <"$T/store")" -eq 32 ]] && grep -qF 'versions/1 is ENABLED' "$T/out" && pass "DRY_RUN=0: a 32-byte version, verified ENABLED by describe" || fail "add: rc=$rc out=$(cat "$T/out")"
+grep -q 'versions access' "$T/calls.log" && fail "the action reads the pepper back (the project SA is no accessor)" || pass "the value is never read back"
+grep -qE 'versions describe projects/o-a-dev/secrets/pep-z/versions/1 ' "$T/calls.log" && pass "describes the version the add named" || fail "describe call: $(cat "$T/calls.log")"
 [[ "$(grep -c 'versions add pep-z' "$T/calls.log")" -eq 1 ]] && grep -qF -- '--data-file=-' "$T/calls.log" && pass "one versions add, value on stdin" || fail "add call: $(cat "$T/calls.log")"
 [[ "$(grep -vc -- '--account=o-a-dev@o-a-dev.iam.gserviceaccount.com' "$T/calls.log")" -eq 0 ]] && pass "every gcloud call carries --account" || fail "unpinned: $(cat "$T/calls.log")"
 hex=$(od -An -tx1 "$T/store" | tr -d ' \n')
 if od -An -tx1 "$T/calls.log" "$T/out" | tr -d ' \n' | grep -F "$hex" >/dev/null; then fail "the pepper bytes reached an argv or the output"; else pass "the pepper is in no argv and no output"; fi
+
+# --- 2b. CONTROL: the add names no version -----------------------------------------------
+rm -f "$T/store"; run_action DRY_RUN=0 ADD_NAME=no; rc=$?
+[[ $rc -eq 1 ]] && grep -qF 'named no version' "$T/out" && pass "CONTROL: an add that names no version -> rc 1" || fail "CONTROL noname: rc=$rc out=$(cat "$T/out")"
 
 # --- 3. CONTROL: a version exists --------------------------------------------------------
 cp "$T/store" "$T/store.before"; run_action DRY_RUN=0; rc=$?

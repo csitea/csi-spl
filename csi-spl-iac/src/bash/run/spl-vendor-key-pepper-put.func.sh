@@ -5,8 +5,10 @@
 # @description step 057 creates (cnf vendor_keys.pepper_secret). The value is 32
 # @description random bytes from /dev/urandom, piped straight into gcloud on
 # @description stdin: never argv, a file, a log, git or terraform state. It is
-# @description verified by its LENGTH only, never shown. Runs as the env's
-# @description project SA in a private gcloud config.
+# @description never read back: the project SA is no accessor (only the hub
+# @description runtime SA is, 4.2). The add's own result names the version, and
+# @description versions describe must say ENABLED. Runs as the env's project SA
+# @description in a private gcloud config.
 # @description Refuses when the slot is missing (apply 057 first) and does
 # @description nothing when an enabled version exists: a new pepper changes every
 # @description stored fingerprint, so rotation is a separate, later action.
@@ -30,7 +32,7 @@ do_spl_vendor_key_pepper_put() {
   sec="$(yq -r '.env.vendor_keys.pepper_secret // ""' "$cnf")"
   [[ "$sec" =~ ^[A-Za-z0-9_-]+$ ]] || { do_log "FATAL the $ENV cnf has no valid env.vendor_keys.pepper_secret: '$sec'"; return 1; }
   do_gcp_pin_account || return 1
-  local have
+  local have ver st
   gcloud secrets describe "$sec" --project="$p" --account="$GCP_ACCOUNT" >/dev/null 2>&1 ||
     { do_log "FATAL no secret $p/$sec: apply step 057 first (it creates the empty slot)"; return 1; }
   have="$(gcloud secrets versions list "$sec" --project="$p" --account="$GCP_ACCOUNT" --filter=state:ENABLED --format='value(name)' 2>/dev/null)" ||
@@ -43,11 +45,14 @@ do_spl_vendor_key_pepper_put() {
     do_log "OK DRY_RUN would add a 32-byte random pepper to $p/$sec. Re-run with DRY_RUN=0."
     return 0
   fi
-  head -c 32 /dev/urandom | gcloud secrets versions add "$sec" --project="$p" --account="$GCP_ACCOUNT" --data-file=- >/dev/null 2>&1 ||
+  ver="$(head -c 32 /dev/urandom | gcloud secrets versions add "$sec" --project="$p" --account="$GCP_ACCOUNT" --data-file=- --format='value(name)' 2>/dev/null)" ||
     { do_log "FATAL could not add a version to $p/$sec as $GCP_ACCOUNT"; return 1; }
-  if [[ "$(gcloud secrets versions access latest --secret="$sec" --project="$p" --account="$GCP_ACCOUNT" 2>/dev/null | wc -c)" -eq 32 ]]; then
-    do_log "OK $p/$sec: pepper version added, verified by length (value not shown)"
+  [[ "$ver" == projects/*/secrets/"$sec"/versions/* ]] ||
+    { do_log "ERROR $p/$sec: the add named no version ('$ver')"; return 1; }
+  st="$(gcloud secrets versions describe "$ver" --project="$p" --account="$GCP_ACCOUNT" --format='value(state)' 2>/dev/null)"
+  if [[ "$st" == ENABLED ]]; then
+    do_log "OK $ver is ENABLED (value never read back)"
   else
-    do_log "ERROR $p/$sec: the latest version is not 32 bytes"; return 1
+    do_log "ERROR $ver is '$st', not ENABLED"; return 1
   fi
 }

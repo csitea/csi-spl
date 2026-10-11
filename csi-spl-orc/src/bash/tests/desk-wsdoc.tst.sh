@@ -24,9 +24,13 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 
+# The input file lies under /tmp, not $T: the action allows only the
+# worktree, /tmp and dispatch/, and on CI $T sits under TMPDIR=$RUNNER_TEMP.
+IN=$(mktemp -d /tmp/desk-wsdoc.XXXXXX) || { echo "FAIL: no input dir under /tmp"; exit 1; }
+trap 'rm -rf "$T" "$IN"' EXIT
 orc_stub 1 gcloud curl docker cloud-sql-proxy spool tmux
 D="$T/state/dev/desk/t1/box-desk"
-mkdir -p "$D/spool/a-177" "$D/spool/c-002" "$D/spool/.hub" "$D/keys" "$T/state/dev/bin" "$T/in"
+mkdir -p "$D/spool/a-177" "$D/spool/c-002" "$D/spool/.hub" "$D/keys" "$T/state/dev/bin"
 echo '{"box-desk":["a-177"]}' >"$D/spool/.hub/roster.json"
 echo secret-key >"$D/keys/box.key"
 cat >"$T/state/dev/bin/spool" <<'EOF_STUB'
@@ -36,7 +40,7 @@ if [[ "${STUB_FAIL:-0}" == 1 ]]; then echo "open $SPOOL_KEYS_DIR/box.key: permis
 echo '{"files":[{"path":"ws/agents/howto.md","updated":"2026-01-01T00:00:00Z"}]}'
 EOF_STUB
 chmod +x "$T/state/dev/bin/spool"
-echo "a body" >"$T/in/body.md"
+echo "a body" >"$IN/body.md"
 
 # run [VAR=value]... - the action; stub calls in $T/calls, output in $T/o, rc in $rc
 run() {
@@ -100,18 +104,18 @@ run WSDOC_ARGS='write ws/agents/howto.md' DRY_RUN=0
 refused "write without WSDOC_IN is refused" 'write needs WSDOC_IN'
 run WSDOC_ARGS='write ws/agents/howto.md' WSDOC_IN=/etc/hostname DRY_RUN=0
 refused "WSDOC_IN outside the worktree, /tmp and dispatch/ is refused" 'WSDOC_IN must lie in'
-ln -s "$D/keys/box.key" "$T/in/link"
-run WSDOC_ARGS='write ws/agents/howto.md' WSDOC_IN="$T/in/link" DRY_RUN=0
+ln -s "$D/keys/box.key" "$IN/link"
+run WSDOC_ARGS='write ws/agents/howto.md' WSDOC_IN="$IN/link" DRY_RUN=0
 refused "a /tmp symlink into the desk state is refused" 'WSDOC_IN lies in the desk state'
-run WSDOC_ARGS='read ws/agents/howto.md' WSDOC_IN="$T/in/body.md"
+run WSDOC_ARGS='read ws/agents/howto.md' WSDOC_IN="$IN/body.md"
 refused "WSDOC_IN on a read is refused" 'WSDOC_IN is for write only'
 
 # --- 6. write: dry run by default, DRY_RUN=0 runs ------------------------------------------
-run WSDOC_ARGS='write ws/agents/howto.bg.md' WSDOC_IN="$T/in/body.md"
+run WSDOC_ARGS='write ws/agents/howto.bg.md' WSDOC_IN="$IN/body.md"
 [[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q 'OK DRY_RUN nothing was written' "$T/o" && no_leak &&
   pass "write under the default DRY_RUN makes no spool call" || fail "dry write (rc=$rc): $(cat "$T/o")"
-run WSDOC_ARGS='write ws/agents/howto.bg.md' WSDOC_IN="$T/in/body.md" DRY_RUN=0
-[[ $rc -eq 0 && "$(argv)" == "doc-write ws/agents/howto.bg.md --file $T/in/body.md" ]] &&
+run WSDOC_ARGS='write ws/agents/howto.bg.md' WSDOC_IN="$IN/body.md" DRY_RUN=0
+[[ $rc -eq 0 && "$(argv)" == "doc-write ws/agents/howto.bg.md --file $IN/body.md" ]] &&
   pass "write with DRY_RUN=0 runs doc-write --file WSDOC_IN" || fail "write (rc=$rc): $(argv) / $(cat "$T/o")"
 
 echo "desk-wsdoc: $fails failure(s)"

@@ -22,9 +22,13 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 
+# The input file lies under /tmp, not $T: the action allows only the
+# worktree, /tmp and dispatch/, and on CI $T sits under TMPDIR=$RUNNER_TEMP.
+IN=$(mktemp -d /tmp/desk-doctree.XXXXXX) || { echo "FAIL: no input dir under /tmp"; exit 1; }
+trap 'rm -rf "$T" "$IN"' EXIT
 orc_stub 1 gcloud curl docker cloud-sql-proxy spool tmux
 D="$T/state/dev/desk/t1/box-desk"
-mkdir -p "$D/spool/a-177" "$D/spool/c-002" "$D/spool/.hub" "$D/keys" "$T/state/dev/bin" "$T/in"
+mkdir -p "$D/spool/a-177" "$D/spool/c-002" "$D/spool/.hub" "$D/keys" "$T/state/dev/bin"
 echo '{"box-desk":["a-177"]}' >"$D/spool/.hub/roster.json"
 echo secret-key >"$D/keys/box.key"
 cat >"$T/state/dev/bin/spool" <<'EOF_STUB'
@@ -34,7 +38,7 @@ if [[ "${STUB_FAIL:-0}" == 1 ]]; then echo "open $SPOOL_KEYS_DIR/box.key: permis
 echo '{"docs":[{"id":"42","title":"Rebuild guide"}]}'
 EOF_STUB
 chmod +x "$T/state/dev/bin/spool"
-echo "a body" >"$T/in/body.md"
+echo "a body" >"$IN/body.md"
 
 # run [VAR=value]... - the action; stub calls in $T/calls, output in $T/o, rc in $rc
 run() {
@@ -79,25 +83,25 @@ refused "a verb outside the doctree list is refused" "'hub-pin' is not a doctree
 # --- 5. DOCTREE_IN and the file flags ------------------------------------------------------
 run DOCTREE_ARGS='add 42 --kind para' DOCTREE_IN=/etc/hostname DRY_RUN=0
 refused "DOCTREE_IN outside the worktree, /tmp and dispatch/ is refused" 'DOCTREE_IN must lie in'
-ln -s "$D/keys/box.key" "$T/in/link"
-run DOCTREE_ARGS='add 42 --kind para' DOCTREE_IN="$T/in/link" DRY_RUN=0
+ln -s "$D/keys/box.key" "$IN/link"
+run DOCTREE_ARGS='add 42 --kind para' DOCTREE_IN="$IN/link" DRY_RUN=0
 refused "a /tmp symlink into the desk state is refused" 'DOCTREE_IN lies in the desk state'
 run DOCTREE_ARGS="add 42 --kind para --file $D/keys/box.key" DRY_RUN=0
 refused "a --file naming anything but DOCTREE_IN is refused" 'may only name DOCTREE_IN'
-run DOCTREE_ARGS="add 42 --kind picture --path=/etc/hostname" DOCTREE_IN="$T/in/body.md" DRY_RUN=0
+run DOCTREE_ARGS="add 42 --kind picture --path=/etc/hostname" DOCTREE_IN="$IN/body.md" DRY_RUN=0
 refused "a --path= naming another file is refused" 'may only name DOCTREE_IN'
-run DOCTREE_ARGS="export 42 --out $T/in/x.md"
+run DOCTREE_ARGS="export 42 --out $IN/x.md"
 refused "--out is refused" '\-\-out is refused'
 
 # --- 6. DOCTREE_IN passed through ---------------------------------------------------------
-run DOCTREE_ARGS='add 42 --kind para' DOCTREE_IN="$T/in/body.md" DRY_RUN=0
-[[ $rc -eq 0 && "$(argv)" == "doctree add 42 --kind para --file $T/in/body.md" ]] &&
+run DOCTREE_ARGS='add 42 --kind para' DOCTREE_IN="$IN/body.md" DRY_RUN=0
+[[ $rc -eq 0 && "$(argv)" == "doctree add 42 --kind para --file $IN/body.md" ]] &&
   pass "DOCTREE_IN goes in as --file" || fail "--file (rc=$rc): $(argv) / $(cat "$T/o")"
-run DOCTREE_ARGS='add 42 --kind picture --caption "a b"' DOCTREE_IN="$T/in/body.md" DRY_RUN=0
-[[ $rc -eq 0 && "$(argv)" == "doctree add 42 --kind picture --caption a b --path $T/in/body.md" ]] &&
+run DOCTREE_ARGS='add 42 --kind picture --caption "a b"' DOCTREE_IN="$IN/body.md" DRY_RUN=0
+[[ $rc -eq 0 && "$(argv)" == "doctree add 42 --kind picture --caption a b --path $IN/body.md" ]] &&
   pass "DOCTREE_IN goes in as --path for a picture; quoted words stay one word" || fail "--path (rc=$rc): $(argv) / $(cat "$T/o")"
-run DOCTREE_ARGS="edit 42 7 --field body --file $T/in/../in/body.md" DOCTREE_IN="$T/in/body.md" DRY_RUN=0
-[[ $rc -eq 0 && "$(argv)" == "doctree edit 42 7 --field body --file $T/in/body.md" ]] &&
+run DOCTREE_ARGS="edit 42 7 --field body --file $IN/../${IN##*/}/body.md" DOCTREE_IN="$IN/body.md" DRY_RUN=0
+[[ $rc -eq 0 && "$(argv)" == "doctree edit 42 7 --field body --file $IN/body.md" ]] &&
   pass "an explicit --file naming DOCTREE_IN is kept, not doubled" || fail "explicit --file (rc=$rc): $(argv) / $(cat "$T/o")"
 
 # --- 7. DRY_RUN ---------------------------------------------------------------------------

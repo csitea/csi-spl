@@ -12,8 +12,14 @@
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
       <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
       <!-- W15 (spec 047): the next 3 steps for whoever may set the tenant up;
-           here since `/` (the Topics list) went (t1 e4bfddb1) -->
-      <FirstRunChecklist v-if="firstRunCandidate" :tenant="firstRunTenant" :topics="store.lobbyRows.length" />
+           here since `/` (the Topics list) went (t1 e4bfddb1). The v-if sits
+           on a box of its own (display: contents, no layout): on the bare
+           lazy component Vue mounted its placeholder against .feed-col
+           with LiveFeed as the anchor and threw insertBefore; the error
+           snackbar then covered the phone avatar (top-bar-mobile) -->
+      <div v-if="firstRunCandidate" class="first-run-slot" style="display: contents">
+        <FirstRunChecklist :tenant="firstRunTenant" :topics="store.lobbyRows.length" />
+      </div>
       <!-- Pane 2 is the topic starter only. Later messages of the lobby task are replies and stay in pane 3. -->
       <LiveFeed
         :label="t('pages.feed_label', { target: '#lobby' })"

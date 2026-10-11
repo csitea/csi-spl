@@ -12,15 +12,17 @@
 # @description      probe): ok | expired | limited | unknown. Every
 # @description      LOGIN_PROBE_EVERY s (300), and at once when a pane is stuck.
 # @description   3. peers (SPOOL_LOGIN_PEERS in box.env, "<tag>=<ssh dest>,...",
-# @description      set with box-config.sh; empty = none): the credential whose expiresAt is later wins,
-# @description      copied to the other box only when it probes ok there (temp
-# @description      + mv, the old one kept as .bak-login-<UTC>). Both limited =
-# @description      no copy, alert only. One box refreshes; the others follow.
+# @description      set with box-config.sh; empty = none): the box that names
+# @description      peers is the ONE refresher. When its credential's sha
+# @description      prefix differs from a peer's and it probes ok here, it is
+# @description      pushed (temp + mv, the old one kept as .bak-login-<UTC>,
+# @description      mode 600). A NEWER peer credential is reported, never
+# @description      overwritten or pulled. Limited = no push, alert only.
 # @description   4. repair, only while the probe says ok: stop each stuck
-# @description      claude by ITS OWN pid (TERM, then KILL after
-# @description      LOGIN_STOP_WAIT s), then ONE do_spl_agent_identity_restore
-# @description      with IDENTITY_RESTORE_IDS = them, then close each old pane
-# @description      once its agent runs in a new one. No /login step (owner
+# @description      agent - its pane (and the wrapper that would relaunch
+# @description      claude in it), then ITS OWN claude pid (TERM, KILL after
+# @description      LOGIN_STOP_WAIT s) - then ONE do_spl_agent_identity_restore
+# @description      with IDENTITY_RESTORE_IDS = them. No /login step (owner
 # @description      a7499dc2). A dead login on disk is never restored into.
 # @description   5. alert: one spool message to the dispatch lease holder with
 # @description      the counts before and after, when it acted or when a
@@ -56,7 +58,7 @@ do_spl_agent_login_check() {
   exec 8>>"$LC_STATE/tick.lock" || return 1
   flock -n 8 || { echo "login-check: another tick holds $LC_STATE/tick.lock - skipped"; return 0; }
   LC_TAG="$(ai_tag)"; LC_DRY="$dry"
-  LC_NOTE=() ; LC_COPIED=0 ; LC_STOPPED=0 ; LC_RESTORED=0 ; LC_FAILED=0
+  LC_NOTE=() ; LC_WARN=() ; LC_COPIED=0 ; LC_STOPPED=0 ; LC_RESTORED=0 ; LC_FAILED=0
 
   local stuck0 verdict0 verdict stuck1="" alerted=0
   stuck0="$(_lc_scan)"
@@ -161,61 +163,64 @@ _lc_peers() {
   done
 }
 
+# Push this box's credential to peer TAG when their sha prefixes differ and
+# this one works (g-839 / owner 09e6331e: the box that names peers is the one
+# refresher). A peer whose credential is NEWER, or differs with the same
+# expiry, is reported (LC_WARN), never overwritten and never pulled.
 _lc_peer_one() {
-  local tag="$1" dest="$2" vname="$3" ls ps lsha lexp psha pexp from to fdest tdest sv
+  local tag="$1" dest="$2" vname="$3" ls ps lsha lexp psha pexp got
   local -n _pv="$vname"
   ls="$(_lc_cred_at "" stat 2>/dev/null)"; ps="$(_lc_cred_at "$dest" stat 2>/dev/null)"
   read -r lsha lexp _ <<<"$ls"; read -r psha pexp _ <<<"$ps"
-  [[ "$lsha" =~ ^[0-9a-f]{12}$ && "$psha" =~ ^[0-9a-f]{12}$ ]] || { LC_NOTE+=("peer $tag: no credential to compare (here ${lsha:-?}, there ${psha:-unreachable})"); return 1; }
-  [[ "$lsha" == "$psha" ]] && return 0
-  if (( lexp > pexp )); then from=here; to=$tag; fdest=""; tdest="$dest"; sv="$_pv"
-  elif (( pexp > lexp )); then from=$tag; to=here; fdest="$dest"; tdest=""; sv="$(_lc_cred_at "$dest" probe 2>/dev/null | sed -n 1p)"
-  else LC_NOTE+=("peer $tag: credentials differ ($lsha here, $psha there) with the same expiry: not copied"); return 1; fi
-  if [[ "${sv%% *}" != ok ]]; then
-    LC_NOTE+=("peer $tag: the newer credential ($from) does not work (${sv%% *}): not copied"); return 1
+  if [[ ! "$lsha" =~ ^[0-9a-f]{12}$ || ! "$psha" =~ ^[0-9a-f]{12}$ ]]; then
+    LC_WARN+=("peer $tag: no credential to compare (here ${lsha:-none}, there ${psha:-unreachable})"); return 1
   fi
-  if [[ "$LC_DRY" == 1 ]]; then LC_NOTE+=("PLAN copy the credential $from -> $to (${lsha} here, ${psha} there)"); return 0; fi
-  local got
-  got="$(_lc_cred_at "$fdest" get | _lc_cred_at "$tdest" put 2>/dev/null | tail -n 1)"
-  if [[ "$got" =~ ^[0-9a-f]{12}$ ]]; then
-    LC_COPIED=$((LC_COPIED + 1)); LC_NOTE+=("copied the credential $from -> $to (now $got; was $([[ $to == here ]] && echo "$lsha" || echo "$psha"))")
-    if [[ "$to" == here ]]; then _pv="$($LC_CRED probe 2>/dev/null | sed -n 1p)"; printf '%s %s\n' "$(date +%s)" "$_pv" >"$LC_STATE/probe" 2>/dev/null || true; fi
+  [[ "$lsha" == "$psha" ]] && return 0
+  if (( pexp > lexp )); then LC_WARN+=("peer $tag holds a NEWER credential ($psha there, $lsha here): reported, not overwritten"); return 1; fi
+  if (( pexp == lexp )); then LC_WARN+=("peer $tag: credentials differ ($lsha here, $psha there) with the same expiry: not copied"); return 1; fi
+  if [[ "${_pv%% *}" != ok ]]; then LC_WARN+=("peer $tag: this box's newer credential does not work (${_pv%% *}): not pushed"); return 1; fi
+  if [[ "$LC_DRY" == 1 ]]; then LC_NOTE+=("PLAN push the credential here -> $tag ($lsha here, $psha there)"); return 0; fi
+  got="$(_lc_cred_at "" get | _lc_cred_at "$dest" put 2>/dev/null | tail -n 1)"
+  if [[ "$got" == "$lsha" ]]; then
+    LC_COPIED=$((LC_COPIED + 1)); LC_NOTE+=("pushed the credential here -> $tag (now $got there; was $psha)")
   else
-    LC_FAILED=$((LC_FAILED + 1)); LC_NOTE+=("FAILED to copy the credential $from -> $to")
+    LC_FAILED=$((LC_FAILED + 1)); LC_NOTE+=("FAILED to push the credential here -> $tag")
   fi
 }
 
 # Stop the stuck agents and restore them, only while this box's login works.
 _lc_repair() {
-  local verdict="$1" stuck="$2" wait="$3" id pid pane what ids="" panes=()
+  local verdict="$1" stuck="$2" wait="$3" id pid pane what ids=""
   if [[ "${verdict%% *}" != ok ]]; then
     LC_NOTE+=("$(wc -l <<<"$stuck") stuck agent(s) left as they are: this box's login is ${verdict%% *} (a restart would come back dead)")
     return 0
   fi
   while read -r id pid pane what; do
-    if [[ "$LC_DRY" == 1 ]]; then LC_NOTE+=("PLAN stop $id (pid $pid, $what, pane $pane) and restore it"); continue; fi
-    if _lc_stop "$id" "$pid" "$wait"; then
-      LC_STOPPED=$((LC_STOPPED + 1)); ids+="${ids:+ }$id"; panes+=("$id $pane")
+    if [[ "$LC_DRY" == 1 ]]; then LC_NOTE+=("PLAN stop $id (pane $pane, pid $pid, $what) and restore it"); continue; fi
+    if _lc_stop "$id" "$pid" "$pane" "$wait"; then
+      LC_STOPPED=$((LC_STOPPED + 1)); ids+="${ids:+ }$id"
     else
       LC_FAILED=$((LC_FAILED + 1)); LC_NOTE+=("FAILED to stop $id (pid $pid)")
     fi
   done <<<"$stuck"
   [[ -n "$ids" ]] || return 0
   _lc_restore "$ids"
-  local p
-  # shellcheck disable=SC2086  # "<id> <pane>", split on purpose
-  for p in "${panes[@]}"; do _lc_close_old $p; done
 }
 
-# TERM the agent's own pid, KILL after WAIT s; never a pattern. The pid must
-# still be that agent (ai_alive_fast) unless the tests stub the kill.
+# Stop ONE agent: its pane first (the restore-claude.sh wrapper in it would
+# relaunch claude in place, restore-core's kick fallback, so the restore then
+# SKIPs "already running"; g-839), then its own claude pid, TERM and KILL
+# after WAIT s. Never a pattern. The pid must still be that agent
+# (ai_alive_fast) unless the tests stub the kill.
 _lc_stop() {
-  local id="$1" pid="$2" wait="$3" i
-  if [[ -n "${LOGIN_KILL_CMD:-}" ]]; then bash -c "$LOGIN_KILL_CMD TERM \"\$1\"" _ "$pid"; return; fi
+  local id="$1" pid="$2" pane="$3" wait="$4" i
+  if [[ -n "${LOGIN_KILL_CMD:-}" ]]; then
+    bash -c "$LOGIN_KILL_CMD pane \"\$1\"; $LOGIN_KILL_CMD TERM \"\$2\"" _ "$pane" "$pid"; return
+  fi
   [[ "$(ai_alive_fast "$id")" == "$pid" ]] || { LC_NOTE+=("$id: pid $pid is no longer that agent"); return 1; }
+  ai_tmux kill-pane -t "$pane" 2>/dev/null || LC_NOTE+=("$id: pane $pane was already gone")
   _lc_kill TERM "$pid" || return 1
   for ((i = 0; i < wait; i++)); do [[ -d "/proc/$pid" ]] || return 0; sleep 1; done
-  [[ -d "/proc/$pid" ]] || return 0
   _lc_kill KILL "$pid"; sleep 1; [[ ! -d "/proc/$pid" ]]
 }
 
@@ -234,29 +239,16 @@ _lc_restore() {
   return 0
 }
 
-# The old pane of ID, once ID runs in another pane and nothing claude is left
-# in the old one (the adapter falls back to a shell after claude exits).
-_lc_close_old() {
-  local id="$1" old="$2" new cmd
-  if [[ -n "${LOGIN_CLOSE_CMD:-}" ]]; then bash -c "$LOGIN_CLOSE_CMD \"\$1\" \"\$2\"" _ "$id" "$old"; return 0; fi
-  new="$(ai_pane_of "$id")" || { LC_NOTE+=("$id: no live pane after the restore; old pane $old kept"); return 0; }
-  [[ "$new" != "$old" ]] || return 0
-  cmd="$(ai_tmux display-message -p -t "$old" '#{pane_current_command}' 2>/dev/null)" || return 0
-  [[ "$cmd" =~ ^(claude|node)$ ]] && { LC_NOTE+=("$id: old pane $old still runs $cmd; kept"); return 0; }
-  ai_tmux kill-pane -t "$old" 2>/dev/null && LC_NOTE+=("$id: old pane $old closed (now $new)")
-  return 0
-}
-
 # One message to the dispatch lease holder when the tick acted, or when a
 # problem (a stuck pane, a login that is not ok) first shows or changes.
 # Returns 0 when it sent.
 _lc_alert() {
   local v0="$1" v1="$2" s0="$3" s1="$4" sig last="" body to acted=$((LC_COPIED + LC_STOPPED + LC_FAILED))
-  sig="${v1%% *} $(_lc_n login "$s1") $(_lc_n limit "$s1")"
+  sig="${v1%% *} $(_lc_n login "$s1") $(_lc_n limit "$s1") ${#LC_WARN[@]}"
   [[ -r "$LC_STATE/alert" ]] && last="$(cat "$LC_STATE/alert")"
   if (( acted == 0 )); then
     [[ "${v1%% *}" == unknown ]] && return 1
-    [[ "$sig" == "ok 0 0" || "$sig" == "$last" ]] && { [[ "$sig" == "ok 0 0" && "$LC_DRY" == 0 ]] && printf '%s' "$sig" >"$LC_STATE/alert"; return 1; }
+    [[ "$sig" == "ok 0 0 0" || "$sig" == "$last" ]] && { [[ "$sig" == "ok 0 0 0" && "$LC_DRY" == 0 ]] && printf '%s' "$sig" >"$LC_STATE/alert"; return 1; }
   fi
   to="$(_lc_alert_to)"
   body="$(_lc_alert_body "$v0" "$v1" "$s0" "$s1")"
@@ -276,7 +268,7 @@ _lc_alert_body() {
     "${LC_TAG:-box}" "${v0%% *}" "${v1%% *}" "$(_lc_n login "$s0")" "$(_lc_n limit "$s0")" "$(_lc_n login "$s1")" "$(_lc_n limit "$s1")" \
     "$LC_COPIED" "$LC_STOPPED" "$LC_RESTORED" "$LC_FAILED" "${sha:-?}"
   [[ -n "$s0" ]] && printf -- '- stuck: %s\n' "$(awk '{printf "%s%s (%s)", (NR>1?", ":""), $1, $4}' <<<"$s0")"
-  for n in "${LC_NOTE[@]}"; do printf -- '- %s\n' "$n"; done
+  for n in "${LC_NOTE[@]}" "${LC_WARN[@]}"; do printf -- '- %s\n' "$n"; done
   [[ "${v1%% *}" == ok ]] || printf -- '- probe: %s\n' "${v1#* }"
 }
 

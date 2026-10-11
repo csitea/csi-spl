@@ -40,11 +40,13 @@ export PATH="$T/bin:$PATH"
 # shellcheck disable=SC1091
 source "$PROJ_ROOT/lib/bash/funcs/wine-box.func.sh"
 # shellcheck disable=SC1091
-source "$PROJ_ROOT/src/bash/run/wine-box-ssh-keygen.func.sh"
+source "$PROJ_ROOT/src/bash/run/spl-wine-box-ssh-keygen.func.sh"
 # shellcheck disable=SC1091
-source "$PROJ_ROOT/src/bash/run/wine-box-stop.func.sh"
+source "$PROJ_ROOT/src/bash/run/spl-wine-box-stop.func.sh"
 # shellcheck disable=SC1091
-source "$PROJ_ROOT/src/bash/run/wine-box-ansible-sync.func.sh"
+source "$PROJ_ROOT/src/bash/run/spl-wine-box-start.func.sh"
+# shellcheck disable=SC1091
+source "$PROJ_ROOT/src/bash/run/spl-wine-box-ansible-sync.func.sh"
 
 key="$HOME/.ssh/.t/debian@test-wine-box"
 ( do_spl_wine_box_ssh_keygen ) >/dev/null 2>&1
@@ -83,7 +85,16 @@ pin=$(DEST="$dest" DRY_RUN=0 do_spl_wine_box_ansible_sync)
 [[ "$(cat "$dest/README.en.md")" == "keep-me" ]] && pass "sync leaves a README in place" || fail "sync removed the README"
 sha=$(git -C "$PROJ_ROOT" rev-parse HEAD)
 grep -q "PIN csi-spl ${sha}" <<<"$pin" && pass "sync prints the csi-spl sha" || fail "sync did not print PIN csi-spl ${sha}"
-! grep -q -- '--delete' "$PROJ_ROOT/src/bash/run/wine-box-ansible-sync.func.sh" \
+! grep -q -- '--delete' "$PROJ_ROOT/src/bash/run/spl-wine-box-ansible-sync.func.sh" \
   && pass "sync has no --delete" || fail "sync uses --delete"
+
+
+# ./run registers do_<file-stem>. A function that lives in a differently named
+# file is sourced and then invisible to ./run -a.
+for stem in spl-wine-box-ssh-keygen spl-wine-box-stop spl-wine-box-start spl-wine-box-ansible-sync; do
+  func_name="do_${stem//-/_}"
+  [[ -f "$PROJ_ROOT/src/bash/run/${stem}.func.sh" ]] || { fail "missing ${stem}.func.sh"; continue; }
+  declare -f "$func_name" >/dev/null && pass "registered ${func_name}" || fail "${stem}.func.sh does not define ${func_name}"
+done
 
 (( fails == 0 )) && echo "PASS: all" || { echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1; }

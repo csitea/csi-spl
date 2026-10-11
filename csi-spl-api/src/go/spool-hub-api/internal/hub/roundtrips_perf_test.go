@@ -139,9 +139,27 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// n=5, on c-037's tree); counts_only is the same batch's first read.
 		{"GET /v1/view/flow", 1, get("/v1/view/flow?limit=30")},
 		{"GET /v1/view/flow?counts_only", 1, get("/v1/view/flow?counts_only=true")},
+		// spec 130 FR-010 (L4): the folded page the WUI reads - the newest 200
+		// events, the release days and the counts - stays inside the Flow's
+		// budget of 062 FR-010 (<= 2). The reply must be the folded one
+		// ("lines"): a hub that ignores fold=day answers the raw page.
+		{"GET /v1/view/flow?fold=day", 2, func() error {
+			code, _, body := r.get(t, tenant, "/v1/view/flow?fold=day&limit=30")
+			if code != 200 || !strings.Contains(body, `"lines":`) {
+				return fmt.Errorf("fold=day: %d, no folded lines: %.200s", code, body)
+			}
+			return nil
+		}},
 		// DB payload cut 7: the message and its box-wui delivery (sent) in one
 		// statement; insert + enqueue + claim took three (it was 5).
 		{"WS wui send (lobby) -> ack", 2, func() error { send("probe"); return nil }},
+		// spec 130 FR-008 (L4): a blocker labels its flow events `blocked`
+		// inside the same INSERT's CTEs, so it costs what a chat line costs.
+		{"WS wui send (lobby, blocker) -> ack", 2, func() error {
+			wsjson.Write(ctx, c, map[string]any{"type": "send", "task_id": "lobby", "kind": "blocker", "body": "probe blocked"}) //nolint:errcheck
+			w.read("ack")
+			return nil
+		}},
 		// Perf edition 20261004 E13: a members-only channel adds the tag check
 		// (ChannelKnown) and the post door's channel_humans read; the live
 		// fan-out's second channel_humans read is the frame memo's (it was 5,

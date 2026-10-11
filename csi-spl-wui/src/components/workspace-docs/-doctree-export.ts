@@ -15,7 +15,7 @@ function bodyWithFigures(it: DocItem, f: MdFigures): string {
   return picRuns(it.body, f.doc).map((r) => (r.kind === 'text' ? r.text : `${picToken(r.caption, r.path)}\n\n*${f.figure(n++)} ${r.caption}*\n`)).join('')
 }
 
-/** the branch as Markdown: one heading per item (# by level), its text, its code, its image */
+/** the branch as Markdown: one heading per item (# by level), its text, its code (fenced with its lang), its image */
 export function branchToMarkdown(items: DocItem[], untitled: string, f?: MdFigures): string {
   const base = Math.min(...items.map((it) => it.depth))
   const out: string[] = []
@@ -25,7 +25,8 @@ export function branchToMarkdown(items: DocItem[], untitled: string, f?: MdFigur
     const body = f ? bodyWithFigures(it, f) : it.body
     if (body.trim()) out.push(body.trim(), '')
     const src = typeof it.attrs?.src === 'string' ? it.attrs.src : ''
-    if (src) out.push('```', src, '```', '')
+    const lang = typeof it.attrs?.lang === 'string' ? it.attrs.lang.trim() : ''
+    if (src) out.push('```' + lang, src, '```', '')
     const img = typeof it.attrs?.img_http_path === 'string' ? it.attrs.img_http_path : ''
     const n = f?.figs.get(it.id)?.image
     if (img && f && n) {

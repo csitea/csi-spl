@@ -85,6 +85,10 @@
       "title": "Calendar"
     },
     {
+      "slug": "hours",
+      "title": "Working Hours"
+    },
+    {
       "slug": "set-mistral-key",
       "title": "Set the Mistral key on a box"
     }

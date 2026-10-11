@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Complex coding",
     "split_kind_i18n": "Translations",
     "split_kind_secret": "Secrets and personal data",
+    "split_kind_orchestration": "Dispatching and orchestration",
     "split_rule_tie": "Two vendors tie for main",
     "split_rule_backup": "The backup must differ from the main",
     "split_rule_agy": "Antigravity writes no code",
-    "split_rule_secret": "Only Claude or Mistral"
+    "split_rule_secret": "Only Claude, Grok or Mistral"
   },
   "help": {
     "title": "Help",

@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Сложено кодирање",
     "split_kind_i18n": "Преводи",
     "split_kind_secret": "Тајне и лични подаци",
+    "split_kind_orchestration": "Диспечирање и оркестрација",
     "split_rule_tie": "Два добављача деле прво место",
     "split_rule_backup": "Резервни се мора разликовати од главног",
     "split_rule_agy": "Antigravity не пише код",
-    "split_rule_secret": "Само Claude или Мистрал"
+    "split_rule_secret": "Само Claude, Grok или Мистрал"
   },
   "help": {
     "title": "Помоћ",

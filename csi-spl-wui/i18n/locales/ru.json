@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Сложное программирование",
     "split_kind_i18n": "Переводы",
     "split_kind_secret": "Секреты и персональные данные",
+    "split_kind_orchestration": "Диспетчеризация и оркестрация",
     "split_rule_tie": "Два вендора претендуют на звание основного",
     "split_rule_backup": "Резервный должен отличаться от основного",
     "split_rule_agy": "Antigravity не пишет код",
-    "split_rule_secret": "Только Claude или Mistral"
+    "split_rule_secret": "Только Claude, Grok или Mistral"
   },
   "help": {
     "title": "Справка",

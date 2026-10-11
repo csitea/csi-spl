@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Complex coderen",
     "split_kind_i18n": "Vertalingen",
     "split_kind_secret": "Geheimen en persoonlijke gegevens",
+    "split_kind_orchestration": "Distributie en orkestratie",
     "split_rule_tie": "Twee leveranciers staan gelijk voor hoofd",
     "split_rule_backup": "De back-up moet verschillen van de hoofdleverancier",
     "split_rule_agy": "Antigravity schrijft geen code",
-    "split_rule_secret": "Alleen Claude of Mistral"
+    "split_rule_secret": "Alleen Claude, Grok of Mistral"
   },
   "help": {
     "title": "Help",

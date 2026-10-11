@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Sudėtingas programavimas",
     "split_kind_i18n": "Vertimai",
     "split_kind_secret": "Paslaptys ir asmens duomenys",
+    "split_kind_orchestration": "Paskirstymas ir orkestravimas",
     "split_rule_tie": "Du tiekėjai turi vienodą pagrindinę dalį",
     "split_rule_backup": "Atsarginis turi skirtis nuo pagrindinio",
     "split_rule_agy": "Antigravity nerašo jokio kodo",
-    "split_rule_secret": "Tik Claude arba Mistral"
+    "split_rule_secret": "Tik Claude, Grok arba Mistral"
   },
   "help": {
     "title": "Pagalba",

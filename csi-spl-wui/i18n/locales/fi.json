@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Monimutkainen koodaus",
     "split_kind_i18n": "Käännökset",
     "split_kind_secret": "Salaisuudet ja henkilötiedot",
+    "split_kind_orchestration": "Ohjaus ja orkestrointi",
     "split_rule_tie": "Kaksi toimittajaa on tasapisteissä päätoimittajaksi",
     "split_rule_backup": "Varatoimittajan on erottava päätoimittajasta",
     "split_rule_agy": "Antigravity ei kirjoita koodia",
-    "split_rule_secret": "Vain Claude tai Mistral"
+    "split_rule_secret": "Vain Claude, Grok tai Mistral"
   },
   "help": {
     "title": "Ohje",

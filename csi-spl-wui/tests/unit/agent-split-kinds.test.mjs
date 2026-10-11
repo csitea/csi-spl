@@ -17,10 +17,10 @@ console.log('agent-split-kinds')
 
 // --- the body reader --------------------------------------------------------
 const fresh = normalizeAgentSplitKinds({})
-ok('an empty body reads the six kinds in order', fresh.map((r) => r.kind).join(',') === SPLIT_TASK_KINDS.join(','))
+ok('an empty body reads the seven kinds in order', fresh.map((r) => r.kind).join(',') === SPLIT_TASK_KINDS.join(','))
 ok('an empty body is the spec 115 section 2 table, unset',
   fresh.map((r) => `${r.kind}:${r.main}/${r.backup}:${r.set}`).join(' ') ===
-  'specs_and_docs:agy/claude:false tests:claude/mistral:false simple_coding:mistral/claude:false complex_coding:claude/mistral:false i18n:agy/claude:false secret:claude/mistral:false')
+  'specs_and_docs:agy/claude:false tests:claude/mistral:false simple_coding:grok/claude:false complex_coding:claude/mistral:false i18n:agy/claude:false secret:claude/mistral:false orchestration:claude/grok:false')
 const body = { kinds: [{ kind: 'simple_coding', weights: { mistral: 60, claude: 30, grok: 10 }, backup: 'claude', main: 'mistral', set: true, updated_by: 'HUM-1' }] }
 const read = normalizeAgentSplitKinds(body).find((r) => r.kind === 'simple_coding')
 ok('a set kind reads its weights, backup and writer', read.set && read.weights.mistral === 60 && read.weights.grok === 10 && read.weights.agy === 0 && read.backup === 'claude' && read.updatedBy === 'HUM-1')
@@ -39,14 +39,20 @@ ok('the backup as the main is refused', splitKindRule('tests', w({ claude: 70, m
 ok('CONTROL: agy 10 in simple_coding is refused', splitKindRule('simple_coding', w({ mistral: 70, claude: 20, agy: 10 }), 'claude') === 'agy')
 ok('CONTROL: agy the tests backup is refused', splitKindRule('tests', w({ claude: 70, mistral: 30 }), 'agy') === 'agy')
 ok('agy in specs_and_docs is fine', splitKindRule('specs_and_docs', w({ agy: 60, claude: 40 }), 'claude') === '')
-ok('secret on grok is refused', splitKindRule('secret', w({ claude: 90, grok: 10 }), 'mistral') === 'secret')
+ok('secret on grok is fine (the data rule)', splitKindRule('secret', w({ claude: 90, grok: 10 }), 'mistral') === '' && splitKindRule('secret', w({ claude: 100 }), 'grok') === '')
+ok('secret on qwen is refused', splitKindRule('secret', w({ claude: 90, qwen: 10 }), 'mistral') === 'secret')
 ok('secret with an agy backup is refused', splitKindRule('secret', w({ claude: 100 }), 'agy') === 'secret')
+ok('orchestration on grok and mistral is fine', splitKindRule('orchestration', w({ claude: 50, grok: 30, mistral: 20 }), 'grok') === '')
+ok('CONTROL: orchestration on agy is refused', splitKindRule('orchestration', w({ claude: 90, agy: 10 }), 'grok') === 'secret')
+ok('orchestration with a qwen backup is refused', splitKindRule('orchestration', w({ claude: 100 }), 'qwen') === 'secret')
+ok('the orchestration default is claude 65 / grok 35, backup grok', DEFAULT_SPLIT_KINDS.orchestration.weights.claude === 65 && DEFAULT_SPLIT_KINDS.orchestration.weights.grok === 35 && DEFAULT_SPLIT_KINDS.orchestration.backup === 'grok')
+ok('the specs_and_docs default is agy 60 / mistral 30 / claude 10', DEFAULT_SPLIT_KINDS.specs_and_docs.weights.agy === 60 && DEFAULT_SPLIT_KINDS.specs_and_docs.weights.mistral === 30 && DEFAULT_SPLIT_KINDS.specs_and_docs.weights.claude === 10)
 
 // --- the mock hub -----------------------------------------------------------
 {
   const m = createMockTenant()
   const kinds = (b) => Object.fromEntries(b.kinds.map((k) => [k.kind, k]))
-  ok('mock: six kinds, all unset', m.splitKinds().kinds.length === 6 && m.splitKinds().kinds.every((k) => !k.set))
+  ok('mock: seven kinds, all unset', m.splitKinds().kinds.length === 7 && m.splitKinds().kinds.every((k) => !k.set))
   const after = kinds(m.patchSplitKinds({ kinds: { simple_coding: { weights: { mistral: 60, claude: 30, grok: 10 }, backup: 'claude' } } }))
   ok('mock: a PATCH updates the row', after.simple_coding.set && after.simple_coding.weights.mistral === 60 && after.simple_coding.main === 'mistral' && !after.tests.set)
   ok('mock CONTROL: agy in a coding kind is refused', throws(() => m.patchSplitKinds({ kinds: { complex_coding: { weights: { claude: 80, mistral: 10, agy: 10 }, backup: 'mistral' } } }), 'bad_split'))
@@ -57,7 +63,7 @@ ok('secret with an agy backup is refused', splitKindRule('secret', w({ claude: 1
   ok('mock: an alias kind is refused', throws(() => m.patchSplitKinds({ kinds: { hard: null } }), 'bad_split'))
   ok('mock: an empty PATCH is refused', throws(() => m.patchSplitKinds({ kinds: {} }), 'bad_split'))
   const back = kinds(m.patchSplitKinds({ kinds: { simple_coding: null } }))
-  ok('mock: null resets a kind to the default', !back.simple_coding.set && back.simple_coding.weights.mistral === 80)
+  ok('mock: null resets a kind to the default', !back.simple_coding.set && back.simple_coding.weights.grok === 41)
 }
 
 // --- the page wiring --------------------------------------------------------

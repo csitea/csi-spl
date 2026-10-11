@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Komplex kodning",
     "split_kind_i18n": "Översättningar",
     "split_kind_secret": "Hemligheter och personuppgifter",
+    "split_kind_orchestration": "Fördelning och orkestrering",
     "split_rule_tie": "Två leverantörer hamnar på delad förstaplats",
     "split_rule_backup": "Reserven måste skilja sig från den huvudsakliga",
     "split_rule_agy": "Antigravity skriver ingen kod",
-    "split_rule_secret": "Endast Claude eller Mistral"
+    "split_rule_secret": "Endast Claude, Grok eller Mistral"
   },
   "help": {
     "title": "Hjälp",

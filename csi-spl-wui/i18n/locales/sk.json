@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Zložité kódovanie",
     "split_kind_i18n": "Preklady",
     "split_kind_secret": "Tajomstvá a osobné údaje",
+    "split_kind_orchestration": "Dispečing a orchestrácia",
     "split_rule_tie": "Dvaja dodávatelia zdieľajú prvé miesto",
     "split_rule_backup": "Záložný sa musí líšiť od hlavného",
     "split_rule_agy": "Antigravity nepíše kód",
-    "split_rule_secret": "Iba Claude alebo Mistral"
+    "split_rule_secret": "Iba Claude, Grok alebo Mistral"
   },
   "help": {
     "title": "Pomoc",

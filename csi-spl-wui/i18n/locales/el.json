@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Πολύπλοκη κωδικοποίηση",
     "split_kind_i18n": "Μεταφράσεις",
     "split_kind_secret": "Μυστικά και προσωπικά δεδομένα",
+    "split_kind_orchestration": "Κατανομή και ενορχήστρωση",
     "split_rule_tie": "Δύο πάροχοι ισοβαθμούν για τον κύριο",
     "split_rule_backup": "Ο εφεδρικός πρέπει να διαφέρει από τον κύριο",
     "split_rule_agy": "Η Antigravity δεν γράφει κώδικα",
-    "split_rule_secret": "Μόνο Claude ή Mistral"
+    "split_rule_secret": "Μόνο Claude, Grok ή Mistral"
   },
   "help": {
     "title": "Βοήθεια",

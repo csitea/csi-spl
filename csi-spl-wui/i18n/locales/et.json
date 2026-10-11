@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Keeruline kodeerimine",
     "split_kind_i18n": "Tõlked",
     "split_kind_secret": "Saladused ja isikuandmed",
+    "split_kind_orchestration": "Jaotamine ja orkestreerimine",
     "split_rule_tie": "Kaks pakkujat on peamise kohal viigis",
     "split_rule_backup": "Varupakkuja peab erinema peamisest",
     "split_rule_agy": "Antigravity ei kirjuta koodi",
-    "split_rule_secret": "Ainult Claude või Mistral"
+    "split_rule_secret": "Ainult Claude, Grok või Mistral"
   },
   "help": {
     "title": "Abi",

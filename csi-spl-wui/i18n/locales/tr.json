@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Karmaşık kodlama",
     "split_kind_i18n": "Çeviriler",
     "split_kind_secret": "Sırlar ve kişisel veriler",
+    "split_kind_orchestration": "Dağıtım ve orkestrasyon",
     "split_rule_tie": "İki satıcı asıl için berabere",
     "split_rule_backup": "Yedek asıldan farklı olmalıdır",
     "split_rule_agy": "Antigravity kod yazmaz",
-    "split_rule_secret": "Sadece Claude veya Mistral"
+    "split_rule_secret": "Sadece Claude, Grok veya Mistral"
   },
   "help": {
     "title": "Yardım",

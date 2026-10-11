@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "קידוד מורכב",
     "split_kind_i18n": "תרגומים",
     "split_kind_secret": "סודות ונתונים אישיים",
+    "split_kind_orchestration": "שיגור ותזמור",
     "split_rule_tie": "שני ספקים בתיקו על הראשי",
     "split_rule_backup": "הגיבוי חייב להיות שונה מהראשי",
     "split_rule_agy": "Antigravity לא כותבת קוד",
-    "split_rule_secret": "רק Claude או Mistral"
+    "split_rule_secret": "רק Claude, Grok או Mistral"
   },
   "help": {
     "title": "עזרה",

@@ -101,20 +101,25 @@ export function tenantSettingsErrorKey(err) {
   return 'tenant_settings.error.' + (known.includes(token) ? token : 'generic')
 }
 
-/** spec 115 (rdb 0163): the task kinds, in the order the Vendor split table lists them. */
-export const SPLIT_TASK_KINDS = Object.freeze(['specs_and_docs', 'tests', 'simple_coding', 'complex_coding', 'i18n', 'secret'])
+/** spec 115 (rdb 0163, 0178): the task kinds, in the order the Vendor split table lists them. */
+export const SPLIT_TASK_KINDS = Object.freeze(['specs_and_docs', 'tests', 'simple_coding', 'complex_coding', 'i18n', 'secret', 'orchestration'])
 
 /** The kinds agy never serves (spec 115 G2): 0 and never the backup. */
 const SPLIT_CODING_KINDS = Object.freeze(['tests', 'simple_coding', 'complex_coding'])
 
+/** The secret-class kinds and the only vendors they may weigh or name as the backup (the data rule). */
+const SPLIT_SECRET_KINDS = Object.freeze(['secret', 'orchestration'])
+const SPLIT_SECRET_VENDORS = Object.freeze(['claude', 'grok', 'mistral'])
+
 /** spec 115 section 2: the row of a kind the workspace has not set. */
 export const DEFAULT_SPLIT_KINDS = Object.freeze({
-  specs_and_docs: { weights: { claude: 10, grok: 0, agy: 70, qwen: 0, mistral: 20 }, backup: 'claude' },
-  tests: { weights: { claude: 70, grok: 0, agy: 0, qwen: 0, mistral: 30 }, backup: 'mistral' },
-  simple_coding: { weights: { claude: 20, grok: 0, agy: 0, qwen: 0, mistral: 80 }, backup: 'claude' },
-  complex_coding: { weights: { claude: 80, grok: 0, agy: 0, qwen: 0, mistral: 20 }, backup: 'mistral' },
+  specs_and_docs: { weights: { claude: 10, grok: 0, agy: 60, qwen: 0, mistral: 30 }, backup: 'claude' },
+  tests: { weights: { claude: 70, grok: 15, agy: 0, qwen: 0, mistral: 15 }, backup: 'mistral' },
+  simple_coding: { weights: { claude: 20, grok: 41, agy: 0, qwen: 0, mistral: 39 }, backup: 'claude' },
+  complex_coding: { weights: { claude: 80, grok: 10, agy: 0, qwen: 0, mistral: 10 }, backup: 'mistral' },
   i18n: { weights: { claude: 0, grok: 0, agy: 100, qwen: 0, mistral: 0 }, backup: 'claude' },
   secret: { weights: { claude: 100, grok: 0, agy: 0, qwen: 0, mistral: 0 }, backup: 'mistral' },
+  orchestration: { weights: { claude: 65, grok: 35, agy: 0, qwen: 0, mistral: 0 }, backup: 'grok' },
 })
 
 /** The vendor with the strict highest weight, '' on a tie. */
@@ -134,7 +139,8 @@ export function splitMainOf(weights) {
  * (split_rule_<x>), or '' when the hub would take it: whole numbers 0..100
  * summing to 100 ('sum'), one strict main ('tie'), a backup other than the
  * main ('backup'), agy 0 and never the backup in a coding kind ('agy'),
- * only claude or mistral in secret ('secret'). The hub checks the same.
+ * only claude, grok or mistral in secret and orchestration ('secret'). The
+ * hub checks the same.
  */
 export function splitKindRule(kind, weights, backup) {
   let sum = 0
@@ -148,7 +154,7 @@ export function splitKindRule(kind, weights, backup) {
   if (!main) return 'tie'
   if (!AGENT_SPLIT_KINDS.includes(backup) || backup === main) return 'backup'
   if (SPLIT_CODING_KINDS.includes(kind) && (weights.agy > 0 || backup === 'agy')) return 'agy'
-  if (kind === 'secret' && (AGENT_SPLIT_KINDS.some((v) => v !== 'claude' && v !== 'mistral' && weights[v] > 0) || !['claude', 'mistral'].includes(backup))) return 'secret'
+  if (SPLIT_SECRET_KINDS.includes(kind) && (AGENT_SPLIT_KINDS.some((v) => !SPLIT_SECRET_VENDORS.includes(v) && weights[v] > 0) || !SPLIT_SECRET_VENDORS.includes(backup))) return 'secret'
   return ''
 }
 

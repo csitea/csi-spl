@@ -1636,10 +1636,11 @@
     "split_kind_complex_coding": "Programare complexă",
     "split_kind_i18n": "Traduceri",
     "split_kind_secret": "Secrete și date cu caracter personal",
+    "split_kind_orchestration": "Dispecerizare și orchestrare",
     "split_rule_tie": "Doi furnizori la egalitate pentru principal",
     "split_rule_backup": "Rezerva trebuie să difere de principal",
     "split_rule_agy": "Antigravity nu scrie cod",
-    "split_rule_secret": "Doar Claude sau Mistral"
+    "split_rule_secret": "Doar Claude, Grok sau Mistral"
   },
   "help": {
     "title": "Ajutor",

@@ -61,7 +61,7 @@ T002 and T003 run in parallel. After T004: T005, T006, T007, T016 in parallel. A
 
 ### Phase 4: Docs and proof
 - [ ] T017 **help page** (`doc/doc/help/`): what counts as time worked (spec 1.1 in plain words), approving, the freeze, the biz owner's approval, who sees what, the reading-time switch. Gates: `./run -a do_check_dist_hygiene`, `lint-mdlinks`. Depends: T013..T016.
-- [ ] T018 **live proof on dev and prd** (spec 9 acceptance): the seeded scenario end to end on dev, then prd, at 390 and 1440 px; CSV and XLSX downloaded and checked; cross-workspace read refused; footer / `build.json` show the commit's version; `do_check_deploy_lag`; release-note links for both envs. Depends: T002..T017.
+- [x] T018 **live proof on dev and prd** (spec 9 acceptance): the seeded scenario end to end on dev, then prd, at 390 and 1440 px; CSV and XLSX downloaded and checked; cross-workspace read refused; footer / `build.json` show the commit's version; `do_check_deploy_lag`; release-note links for both envs. Depends: T002..T017. Done: `113a570b9` (c-181), `tests/e2e/hours-107-live.proof.mjs`, n = 1 per env on 6.5.6 (`3521a38d`); dev 21/28 then the read-only tail 10/10 after the proof's own fixes, prd 34/35. Gap: the cross-workspace refusal is proven on dev only (prd has no test login in a second workspace; an `e2e-2` workspace is the owner's call). Evidence and findings F1..F5: `/var/spool-hub/dispatch/5fe7d1da-t018-proof/REPORT.md`.
 
 ---
 

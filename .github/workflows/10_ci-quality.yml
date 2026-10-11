@@ -1127,14 +1127,23 @@ jobs:
           # allows them (the name and mail sweeps allow only the mail key).
           # CONTROL: csi-spl-iac/src/bash/tests/hygiene-box-users-allow.tst.sh
           allow_user_line='^[[:space:]]*"?box_(owner|agent)_user"?[[:space:]]*:[[:space:]]*"?[a-z_][a-z0-9_-]*"?,?[[:space:]]*$'
-          allowed() { # <file:line> <the line regex this sweep allows, or "">
-            local f="${1%%:*}" n="${1#*:}" re="$2"
+          # Spec 129 G2 (phase A0): the private marker, stamped on line 1 of
+          # every file of a customer's private spec, never lands here. Spec
+          # 129 describes it; its lines are allowed ONLY in that spec's dir
+          # and ONLY where the id is the placeholder or the regex, never 16
+          # real hex chars. The token is assembled so this file stays clean.
+          # CONTROL: csi-spl-iac/src/bash/tests/hygiene-private-marker.tst.sh
+          marker="spool""-private:"
+          allow_marker_file='^\./csi-spl-doc/specs/129-private-git-specs/'
+          allow_marker_line="${marker} (<id>|\\[0-9a-f\\]\\{16\\})"
+          allowed() { # <file:line> <the line regex this sweep allows, or ""> [<file regex>]
+            local f="${1%%:*}" n="${1#*:}" re="$2" fre="${3:-$allow_file}"
             [[ -n "$re" ]] || return 1
-            [[ "$f" =~ $allow_file ]] || return 1
+            [[ "$f" =~ $fre ]] || return 1
             [[ "$(sed -n "${n}p" "$f")" =~ $re ]]
           }
-          sweep() { # <label> <pattern> [<allowed line regex> <what it allows>]
-            local label="$1" pattern="$2" re="${3:-}" what="${4:-}" hits rc=0 h kept="" n_allowed=0
+          sweep() { # <label> <pattern> [<allowed line regex> <what it allows> [<allowed file regex>]]
+            local label="$1" pattern="$2" re="${3:-}" what="${4:-}" fre="${5:-$allow_file}" hits rc=0 h kept="" n_allowed=0
             # grep exits 1 on NO match -- the clean case. The step shell is
             # `bash -e` and pipefail carries grep's status out of the
             # pipeline, so an unguarded clean sweep would abort the script
@@ -1149,10 +1158,10 @@ jobs:
             fi
             while IFS= read -r h; do
               [[ -n "$h" ]] || continue
-              if allowed "$h" "$re"; then n_allowed=$((n_allowed + 1)); else kept+="$h"$'\n'; fi
+              if allowed "$h" "$re" "$fre"; then n_allowed=$((n_allowed + 1)); else kept+="$h"$'\n'; fi
             done <<<"$hits"
             hits="${kept%$'\n'}"
-            (( n_allowed )) && echo "allowed - ${label}: ${n_allowed} line(s) = the owner-approved ${what} in csi-spl-cnf"
+            (( n_allowed )) && echo "allowed - ${label}: ${n_allowed} line(s) = the owner-approved ${what}"
             if [[ -n "$hits" ]]; then
               echo "::error::hygiene: ${label} -- $(wc -l <<<"$hits") line(s)"
               sed 's/^/  /' <<<"$hits"
@@ -1163,12 +1172,14 @@ jobs:
           }
           sweep "non-Csitea org or bank reference" '(?i)nordea|\.op\.fi|op-pohjola'
           sweep "personal name"                    '(?i)yordan|georgiev|sandholm|\bpetri\b' \
-                "$allow_line" "gcp_account_owner_email key"
+                "$allow_line" "gcp_account_owner_email key in csi-spl-cnf"
           sweep "literal OS user / box / AD id"    '(?i)\bysg\b(?!-box)|\bclaude-user\b|\bai-usr\b|\bz013503\b|wmpf5jz555|\btnk\b' \
-                "$allow_user_line" "box_owner_user / box_agent_user keys"
+                "$allow_user_line" "box_owner_user / box_agent_user keys in csi-spl-cnf"
           sweep "personal home directory"          '/home/(?!runner\b)[a-z][a-z0-9_-]*/'
           sweep "owner mail address or domain"     '(?i)@gmail\.com|flok\.fi' \
-                "$allow_line" "gcp_account_owner_email key"
+                "$allow_line" "gcp_account_owner_email key in csi-spl-cnf"
+          sweep "private spec marker (spec 129 G2)" "(?i)${marker}" \
+                "$allow_marker_line" "spec 129 description of the marker" "$allow_marker_file"
           # Spec 110 2.3: no TRACKED .vibe/ dir anywhere in the tree. Every
           # worktree is a trusted Vibe folder whose .vibe/{config.toml,
           # hooks.toml,AGENTS.md} is read first, so one commit could change the

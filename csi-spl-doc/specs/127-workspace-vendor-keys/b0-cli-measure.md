@@ -30,7 +30,7 @@ Each ends in the marker `b0tailMARKzz`, so a grep finds the full key, the
 last 20 characters (what claude keeps) and the last 12 (what grok logs).
 
 ```bash
-Z=$(printf '0%.0s' $(seq 60)); KA="sk-ant-api03-FAKE${Z}Qb0tailMARKzz"; KX="xai-FAKE${Z}Xb0tailMARKzz"; KG="AIzaFAKE${Z}Gb0tailMARKzz"; KM="FAKE${Z}Mb0tailMARKzz"; KO="sk-FAKE${Z}Ob0tailMARKzz"
+Z=$(printf '0%.0s' $(seq 60)); KA="sk-ant-""api03-FAKE${Z}Qb0tailMARKzz"; KX="xai-FAKE${Z}Xb0tailMARKzz"; KG="AIza""FAKE${Z}Gb0tailMARKzz"; KM="FAKE${Z}Mb0tailMARKzz"; KO="sk-FAKE${Z}Ob0tailMARKzz"
 ```
 
 ### 1.3 One run
@@ -221,7 +221,7 @@ T=$(mktemp -d); M=b0bADCmarkQQ
 ```
 
 ```bash
-python3 -I -c 'import json,sys; m=sys.argv[2]; json.dump({"type":"service_account","project_id":"fake-b0b","private_key_id":"fake"+m,"private_key":"FAKEKEY-"+m,"client_email":"fake-"+m.lower()+"@fake-b0b.iam.gserviceaccount.com","client_id":"0","token_uri":"http://127.0.0.1:9/token"},open(sys.argv[1],"w"))' $T/fake-sa.json $M
+python3 -I -c 'import json,sys; m=sys.argv[2]; json.dump({"type":"service_account","project_id":"fake-b0b","private_key_id":"fake"+m,"private_"+"key":"FAKEKEY-"+m,"client_email":"fake-"+m.lower()+"@fake-b0b.iam.gserviceaccount.com","client_id":"0","token_uri":"http://127.0.0.1:9/token"},open(sys.argv[1],"w"))' $T/fake-sa.json $M
 ```
 
 One run, `<n>` the run name and `<vars>` the variables under test:

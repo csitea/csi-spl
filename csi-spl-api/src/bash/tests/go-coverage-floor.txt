@@ -5,8 +5,8 @@
 # raises its package's line by hand in the same commit.
 # Measured on eb7c8b962, go1.25.14: go test ./... (no DSN) for the plain
 # packages, hub-pg.tst.sh's docker postgres:16-alpine suites for pg ones.
-cmd/spool 50.9
-internal/action 59.2
+cmd/spool 58.7
+internal/action 70.3
 internal/agentid 97.0
 internal/auth/cmd/auth-demo 0.0
 internal/auth/fakeidp 0.0

@@ -53,11 +53,20 @@
 # --ask <blocker|task|escalation> makes any send an ask; --no-ask (or
 # SPOOL_ASKS=0) makes none; --ask-deadline <RFC 3339 UTC> sets when it is due.
 #
+# Acceptance (spec 130 section 4): `--kind result --accept <msg_id>` accepts
+# that result. The line carries the v:1 key `accepts`, from which the hub
+# shows it as `ready` in the Flow. A line the hub never stores fires nothing,
+# so a same-machine acceptance goes through the hub too, to this machine's
+# own desk box, whose sidecar delivers it here (once, rung by the sidecar).
+# No hub leg (no desk, an old binary): it is delivered locally, as any send,
+# with a WARN that the Flow shows no `ready` for it.
+#
 # Usage:
 #   spool-send.sh --from <ID> --to <ID|ID@box|orchestrator|peers> --kind task|result|note|reject|blocker|msg
 #                 [--task <uuid>] (--body <text> | --body-file <path>)
 #                 [--file-ref <path>]... [--file-id <id>]... [--no-poke]
 #                 [--ask <kind> | --no-ask] [--ask-deadline <ts>]
+#                 [--accept <msg_id>]    (--kind result only, spec 130)
 #   spool-send.sh --poke-only --to <ID> [--from <ID>]   # ring, send nothing
 #
 # stdout: spool's JSON result {delivery, msg_id, task_id, ts}, then one
@@ -183,8 +192,21 @@ send_lane_ask_warn() {  # FROM TO KIND BODY
   echo "lane: WARN ${1} asks the orchestrator for a new lane: the dispatcher that takes real lane work spawns it itself (/spawn-an-agent; SPEC-spool-fleet-roles.md section 3). Sent anyway." >&2
 }
 
+# An acceptance to an agent of THIS machine, through the hub to this
+# machine's own desk box (--to-this-box), so the hub stores it and fires
+# `ready`. Fails (non-zero, WARN) when there is no hub leg: the caller then
+# delivers it locally.
+send_accept_via_hub() {
+  local rargs=(--from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY" --accept "$ACCEPT" --to-this-box) rc
+  [ -n "$TASK" ] && rargs+=(--task "$TASK")
+  spool_fleet_relay "${rargs[@]}"; rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  echo "accept: WARN no hub leg for the acceptance (relay rc=${rc}); delivered locally, the Flow shows no 'ready' for it" >&2
+  return "$rc"
+}
+
 FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0; RELAY=0
-ASK_KIND=""; NO_ASK=0; ASK_DEADLINE=""
+ASK_KIND=""; NO_ASK=0; ASK_DEADLINE=""; ACCEPT=""
 EXTRA=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -199,6 +221,8 @@ while [ "$#" -gt 0 ]; do
     --file-ref|--file-id|--dir-ref|--dir-blob)
                  [ "$#" -ge 2 ] || usage; EXTRA+=("$1" "$2"); shift 2 ;;
     --no-poke)   POKE=0; shift ;;
+    --accept)    [ "$#" -ge 2 ] || usage; ACCEPT="$2"; shift 2
+                 [[ "$ACCEPT" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { echo "ERROR: --accept takes the msg_id (a lower-case uuid) of the accepted result, got: '${ACCEPT}'" >&2; exit 2; } ;;
     --ask)       [ "$#" -ge 2 ] || usage; ASK_KIND="$2"; shift 2
                  case "$ASK_KIND" in blocker|task|escalation) ;; *) echo "ERROR: --ask must be blocker|task|escalation" >&2; exit 2 ;; esac ;;
     --no-ask)    NO_ASK=1; shift ;;
@@ -239,6 +263,8 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   [ -n "$FROM" ] || { echo "ERROR: --from is required" >&2; usage; }
   case "$KIND" in task|result|note|reject|blocker|msg) ;; *) echo "ERROR: --kind must be task|result|note|reject|blocker|msg, got: '${KIND}'" >&2; exit 2 ;; esac
   [ "$BODY_SET" -eq 1 ] || { echo "ERROR: --body or --body-file is required" >&2; exit 2; }
+  [ -z "$ACCEPT" ] || [ "$KIND" = result ] || { echo "ERROR: --accept accepts a result: it needs --kind result, got: '${KIND}'. Nothing was sent." >&2; exit 2; }
+  [ -z "$ACCEPT" ] || [ "$PEERS" -eq 0 ] || { echo "ERROR: --accept goes to the agent whose result it accepts, not to the peers. Nothing was sent." >&2; exit 2; }
 
   # ---- an owner topic is the owner's (owner rule 2026-10-08) ----------------
   # Agent-to-agent rows sent on an owner topic uuid land INSIDE the owner's
@@ -278,6 +304,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
 
   args=(send --from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")
   [ -n "$TASK" ] && args+=(--task "$TASK")
+  [ -n "$ACCEPT" ] && args+=(--accept "$ACCEPT")
   args+=("${EXTRA[@]}")
   # specs/061 3.6: an id this machine retired inside its quarantine is not
   # relayed (the hub could hand it to another machine's holder of the same
@@ -310,12 +337,16 @@ if [ "$POKE_ONLY" -eq 0 ]; then
     rargs=(--from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")
     [ -n "$TASK" ] && rargs+=(--task "$TASK")
     [ -n "$TO_BOX" ] && rargs+=(--to-box "$TO_BOX")
+    [ -n "$ACCEPT" ] && rargs+=(--accept "$ACCEPT")
     out="$(spool_fleet_relay "${rargs[@]}")"; rc=$?
     if [ "$rc" -ne 0 ]; then
       echo "ERROR: ${TO} is not an agent of this machine (${SPOOL_ROOT}) and the hub relay failed (rc=${rc}); nothing was delivered" >&2
       exit $((10 + rc))
     fi
     RELAY=1
+  elif [ -n "$ACCEPT" ] && [ "${#EXTRA[@]}" -eq 0 ] && ! spool_fleet_retired "$TO" &&
+       out="$(send_accept_via_hub)"; then
+    RELAY=2
   else
     # specs/028 FR-008: the binary's own notify hook is OFF for this send. This
     # script rings the pane itself, below, so it can report the outcome as its
@@ -398,6 +429,10 @@ fi
 
 if [ "$PEERS" -eq 1 ]; then
   echo "poke: peers (the seat that claims it is rung by its poll loop)"
+  exit 0
+fi
+if [ "$POKE_ONLY" -eq 0 ] && [ "$RELAY" -eq 2 ]; then
+  echo "poke: hub (the acceptance went through the hub; this machine's sidecar delivers it and rings ${TO})"
   exit 0
 fi
 if [ "$POKE_ONLY" -eq 0 ] && [ "$RELAY" -eq 1 ]; then

@@ -122,6 +122,49 @@ has "D14: ... the id the sender reports is that id" "\"msg_id\":\"${ids}\"" "$(c
 ids="$(d14 "$D14/ctl" HUB_MINTS=1)"
 eq "D14 CONTROL: a hub leg that mints its own id leaves two ids, two rows" 2 "$(grep -c . <<<"$ids")"
 
+# ---- spec 130 section 4: --accept, the `ready` emitter (lane L3) -----------
+# The line carries the v:1 key accepts. A same-machine acceptance goes through
+# the hub to this machine's own desk box (relay --to-this-box), so the hub
+# stores it and fires `ready`; with no hub leg it is delivered locally, WARN.
+RES="0e1f2a3b-4c5d-4e6f-8a7b-9c0d1e2f3a4b"
+for id in CLE-95 CLE-96; do mkdir -p "$SPOOL_ROOT/$id/inbox"; done
+err="$(bash "$SS" --from CLE-96 --to CLE-95 --kind result --accept "$RES" --body 'ACCEPTED' --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "accept, no hub leg: delivered locally (exit 0)" 0 "$rc"
+has "accept, no hub leg: WARNs that the Flow shows no ready" "accept: WARN no hub leg" "$err"
+f="$(ls "$SPOOL_ROOT/CLE-95/inbox/"*.json 2>/dev/null | sed -n 1p)"
+has "accept, no hub leg: the inbox copy carries accepts" "\"accepts\":\"${RES}\"" "$(tr -d ' \n' <"${f:-/dev/null}")"
+has "accept, no hub leg: the outbox copy too" "\"accepts\":\"${RES}\"" "$(cat "$SPOOL_ROOT"/CLE-96/outbox/*.json | tr -d ' \n')"
+bash "$SS" --from CLE-96 --to CLE-95 --kind result --body 'plain result' --no-poke >/dev/null 2>&1
+hasnt "control: a result without --accept carries no accepts key" '"accepts"' \
+  "$(grep -L "$RES" "$SPOOL_ROOT"/CLE-95/inbox/*.json | xargs cat)"
+
+cat >"$T_TMP/accept-hub" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$ACCEPT_ROWS"
+echo '{"delivery":"sent","msg_id":"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d","task_id":"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d","ts":"2026-10-12T00:00:00Z"}'
+SH
+chmod +x "$T_TMP/accept-hub"
+rm -f "$SPOOL_ROOT"/CLE-95/inbox/*.json; : >"$T_TMP/accept.rows"
+out="$(ACCEPT_ROWS="$T_TMP/accept.rows" SPOOL_FLEET_RELAY_CMD="$T_TMP/accept-hub" \
+  bash "$SS" --from CLE-96 --to CLE-95 --kind result --accept "$RES" --body 'ACCEPTED' 2>&1)"; rc=$?
+eq "same-box accept through the hub: exit 0" 0 "$rc"
+has "same-box accept: the relay takes the accepts key" "--accept ${RES}" "$(cat "$T_TMP/accept.rows")"
+has "same-box accept: ... to this machine's own desk box" "--to-this-box" "$(cat "$T_TMP/accept.rows")"
+eq "same-box accept: ONE delivery, the hub's (no local copy)" 0 "$(find "$SPOOL_ROOT/CLE-95/inbox" -name '*.json' | wc -l)"
+has "same-box accept: the sidecar rings the pane" "poke: hub" "$out"
+: >"$T_TMP/accept.rows"
+ACCEPT_ROWS="$T_TMP/accept.rows" SPOOL_FLEET_RELAY_CMD="$T_TMP/accept-hub" \
+  bash "$SS" --from CLE-96 --to CLE-95 --kind result --body 'plain' --no-poke >/dev/null 2>&1
+eq "control: a same-box result without --accept never touches the hub" 0 "$(grep -c . "$T_TMP/accept.rows")"
+ACCEPT_ROWS="$T_TMP/accept.rows" SPOOL_FLEET_RELAY_CMD="$T_TMP/accept-hub" \
+  bash "$SS" --from CLE-96 --to c-500@box-far --kind result --accept "$RES" --body 'ACCEPTED' >/dev/null 2>&1
+has "accept to another machine: the relay carries accepts" "--to-box box-far --accept ${RES}" "$(cat "$T_TMP/accept.rows")"
+hasnt "accept to another machine: no --to-this-box" "--to-this-box" "$(cat "$T_TMP/accept.rows")"
+
+bash "$SS" --from CLE-96 --to CLE-95 --kind note --accept "$RES" --body x >/dev/null 2>&1; eq "--accept on a note: exit 2" 2 "$?"
+bash "$SS" --from CLE-96 --to CLE-95 --kind result --accept NOPE --body x >/dev/null 2>&1; eq "--accept not a uuid: exit 2" 2 "$?"
+bash "$SS" --from CLE-96 --to CLE-95 --kind result --accept >/dev/null 2>&1; eq "--accept without a value: exit 2" 2 "$?"
+
 # ---- usage -----------------------------------------------------------------
 bash "$SS" --from CLE-90 --to CLE-91 --kind chat --body x >/dev/null 2>&1; eq "bad kind: exit 2" 2 "$?"
 bash "$SS" --from BOX-1 --to CLE-91 --kind note --body x >/dev/null 2>&1;  eq "BOX sender: exit 2" 2 "$?"

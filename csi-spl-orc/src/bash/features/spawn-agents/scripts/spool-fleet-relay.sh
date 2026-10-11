@@ -5,6 +5,12 @@
 #
 #   spool-fleet-relay.sh [--spool-root <dir>] --from <ID> --to <ID> --kind <k>
 #                        --body <text> [--task <uuid>] [--to-box <box>]
+#                        [--accept <msg_id>] [--to-this-box]
+#
+# --accept sets the v:1 key `accepts` (spec 130 section 4). --to-this-box
+# sends to an agent of THIS machine through the hub, to the sidecar's own box
+# (its SPOOL_BOX_ID): spool-send.sh uses it for an acceptance, which fires
+# `ready` only when the hub stores the line.
 #
 # It signs the message with THIS machine's desk box and hands it to the hub
 # through that desk's live `spool hub-run` sidecar (its warm socket, the same
@@ -34,7 +40,7 @@ say() { echo "spool-fleet-relay: $*" >&2; }
 # shellcheck source=../lib/spool-env.inc.sh
 . "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/../lib/spool-env.inc.sh"
 
-ROOT="${SPOOL_ROOT:-/var/spool-hub}" FROM="" TO="" KIND="" BODY="" TASK="" TOBOX="" BODY_SET=0
+ROOT="${SPOOL_ROOT:-/var/spool-hub}" FROM="" TO="" KIND="" BODY="" TASK="" TOBOX="" BODY_SET=0 ACCEPT="" THISBOX=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --spool-root) [ "$#" -ge 2 ] || exit 2; ROOT="$2"; shift 2 ;;
@@ -44,12 +50,16 @@ while [ "$#" -gt 0 ]; do
     --body) [ "$#" -ge 2 ] || exit 2; BODY="$2"; BODY_SET=1; shift 2 ;;
     --task) [ "$#" -ge 2 ] || exit 2; TASK="$2"; shift 2 ;;
     --to-box) [ "$#" -ge 2 ] || exit 2; TOBOX="$2"; shift 2 ;;
+    --accept) [ "$#" -ge 2 ] || exit 2; ACCEPT="$2"; shift 2 ;;
+    --to-this-box) THISBOX=1; shift ;;
     *) say "unknown argument: $1"; exit 2 ;;
   esac
 done
 spl_is_participant_id "$FROM" && spl_is_participant_id "$TO" && [[ -n "$KIND" && "$BODY_SET" = 1 ]] ||
   { say "usage: --from <ID> --to <ID> --kind <k> --body <text> [--task <uuid>]"; exit 2; }
 [[ -z "$TOBOX" || "$TOBOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { say "bad --to-box '$TOBOX'"; exit 2; }
+[[ -z "$ACCEPT" || "$ACCEPT" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { say "bad --accept '$ACCEPT'"; exit 2; }
+[[ "$THISBOX" = 0 || -z "$TOBOX" ]] || { say "--to-this-box and --to-box name two boxes"; exit 2; }
 
 # KEY from a KEY=value file (read, never sourced: these files sit in dirs the
 # agents may write).
@@ -99,6 +109,10 @@ while IFS= read -r -d '' e; do
   [ "${e%%=*}" = SPOOL_BOX_ID ] && SIDEBOX="${e#*=}"
 done <"${SPOOL_FLEET_PROC_ROOT:-/proc}/$pid/environ"
 [ "${#envv[@]}" -ge 5 ] || { say "cannot read the sidecar's settings (pid $pid)"; exit 3; }
+if [ "$THISBOX" = 1 ]; then
+  TOBOX="$SIDEBOX"
+  [[ "$TOBOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { say "the sidecar (pid $pid) names no box id for --to-this-box. Nothing was sent."; exit 3; }
+fi
 # The real sender and its box ride as the first body line; the receiving box
 # writes them as `from` (internal/spool WithFromAgent), bound to the box whose
 # pin signs this envelope - the sidecar's SPOOL_BOX_ID.
@@ -119,6 +133,7 @@ if [ -n "$TASK" ] && ! [[ "$TASK" =~ ^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-f
 fi
 [ -n "$TASK" ] && args+=(--task "$TASK")
 [ -n "$TOBOX" ] && args+=(--to-box "$TOBOX")
+[ -n "$ACCEPT" ] && args+=(--accept "$ACCEPT")
 out="$(env -i HOME="$HOME" PATH=/usr/bin:/bin USER="$(id -un)" SPOOL_LOG_LEVEL=error \
   SPOOL_NOTIFY_CMD=off "${envv[@]}" "$BIN" "${args[@]}" 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ]; then

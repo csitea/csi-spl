@@ -24,7 +24,7 @@
 # @description     or /var/spool-hub/dispatch, or inside the desk state
 # @description   - a file flag (--file, --path) naming any file but
 # @description     DOCTREE_IN, and --out (it would write as the box user)
-# @description The writing verbs (create add edit move delete rename folder)
+# @description The writing verbs (create add edit move delete rename folder move-node)
 # @description are a dry run unless DRY_RUN=0; the reads (list nodes head read
 # @description export) run as they are.
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
@@ -48,8 +48,8 @@ do_spl_desk_doctree() {
   local args=()
   _spl_desk_doctree_split args || return 1
   local verb="${args[0]}"
-  [[ " list nodes folder create head read add edit move delete rename export " == *" $verb "* ]] ||
-    { do_log "FATAL '$verb' is not a doctree verb (list nodes folder create head read add edit move delete rename export)"; return 1; }
+  [[ " list nodes folder move-node create head read add edit move delete rename export " == *" $verb "* ]] ||
+    { do_log "FATAL '$verb' is not a doctree verb (list nodes folder move-node create head read add edit move delete rename export)"; return 1; }
   local in=""
   _spl_desk_doctree_in in || return 1
   _spl_desk_doctree_file_flags args "$in" || return 1
@@ -58,7 +58,7 @@ do_spl_desk_doctree() {
   _spl_desk_doctree_seated "$d" "$box" "$agent" "$tenant" || return 1
 
   local dry=0
-  if [[ " create add edit move delete rename folder " == *" $verb "* ]]; then
+  if [[ " create add edit move delete rename folder move-node " == *" $verb "* ]]; then
     dry=1
     if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   fi

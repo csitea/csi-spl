@@ -17,7 +17,7 @@
 #   5. S5: the 5th identical call warns (control: 4 do not, 5 differing do not)
 #   6. Stop block once per turn: a stub / an untouched held job
 #   7. a broken spool root -> exit 0 + hook.err (control: a sound one, none)
-#   8. heartbeat.log keeps 200 lines; the budget (200 runs)
+#   8. heartbeat.log keeps 200 lines (the speed budget: perf-agent-hook.sh)
 #  10. vibe PostToolUse opens a file write_file made 0600 under cwd to the
 #      box user (g+rw,o+r, its new dirs g+rwx); controls: outside cwd and a
 #      claude seat keep their mode
@@ -248,99 +248,22 @@ has "  and still exit 0" "rc=0" "$out"
 env SPOOL_AGENT_ID="$ID" HOOK_NOW=$((T0 + 601)) bash "$HOOK" PreToolUse <<<'not json' >/dev/null
 eq "a payload that is not JSON still beats" "$(iso $((T0 + 601)))" "$(hb ts)"
 
-echo "# 8. heartbeat.log ring + budget"
+echo "# 8. heartbeat.log ring (200 runs)"
+# The speed budget (spec 093: 50 ms a run) is perf-agent-hook.sh next to this
+# file: run-ci-tests.sh runs it after the pool and reports it, never gating.
+# On the shared sat runners it read the box's load, not the hook (c-954,
+# 2026-10-11: 1 red in the 29 wf 10 runs that ran it, the unchanged hook's
+# fastest 27 .. 101 ms at load 9 .. 58; the table is in that commit's body).
 rm -f "$D/heartbeat.log" "$D/hook.err"
-ms() { local a b; a=$(date +%s%N); "$@" >/dev/null 2>&1; b=$(date +%s%N); echo $(( (b - a) / 1000000 )); }
 pay='{"tool_name":"Bash","tool_input":{"command":"make"},"tool_response":"ok"}'
 printf '%s\n' "$pay" > "$T_TMP/pay.json"
-# The floor has the hook's shape (bash, then exec python3 -S) and does nothing:
-# what the harness pays for any hook on this box at this load.
-printf '%s\n' 'exec python3 -S -c pass' > "$T_TMP/floor.sh"
-: > "$T_TMP/t.hook"; : > "$T_TMP/t.floor"
-export SPOOL_AGENT_ID="$ID"
-# Warm-up, not measured: the first runs pay for a cold page cache (bash,
-# python3, the hook file), which is not the hook's cost.
-for i in $(seq 5); do
-  bash "$HOOK" PostToolUse <"$T_TMP/pay.json" >/dev/null 2>&1
-  bash "$T_TMP/floor.sh" PostToolUse <"$T_TMP/pay.json" >/dev/null 2>&1
-done
 for i in $(seq 200); do
-  ms bash "$HOOK" PostToolUse <"$T_TMP/pay.json" >>"$T_TMP/t.hook"
-  ms bash "$T_TMP/floor.sh" PostToolUse <"$T_TMP/pay.json" >>"$T_TMP/t.floor"
+  env SPOOL_AGENT_ID="$ID" bash "$HOOK" PostToolUse <"$T_TMP/pay.json" >/dev/null 2>&1
 done
-unset SPOOL_AGENT_ID
 eq "heartbeat.log keeps the last 200 lines" 200 "$(wc -l < "$D/heartbeat.log")"
 check "200 runs wrote no hook.err" test ! -e "$D/hook.err"
-pct() { sort -n "$1" | awk -v q="$2" '{a[NR]=$1} END{i=int(NR*q/100+0.999); print a[i<1?1:i]}'; }
-med() { pct "$1" 50; }
-over() { awk -v b="$2" '$1 >= b' "$1" | wc -l; }
-mh="$(med "$T_TMP/t.hook")"; mf="$(med "$T_TMP/t.floor")"
-ph="$(pct "$T_TMP/t.hook" 90)"; pf="$(pct "$T_TMP/t.floor" 90)"
-lh="$(pct "$T_TMP/t.hook" 0)"; lf="$(pct "$T_TMP/t.floor" 0)"
-BUDGET="${HOOK_BUDGET_MS:-50}"
-echo "  hook min/median/p90 ${lh}/${mh}/${ph} ms, bare python3 ${lf}/${mf}/${pf} ms, max $(sort -rn "$T_TMP/t.hook" | sed -n 1p) ms, over ${BUDGET} ms: $(over "$T_TMP/t.hook" "$BUDGET")/200, load $(cut -d' ' -f1 /proc/loadavg)"
-# The always-on check is spec 093's budget (50 ms a run) on the FASTEST run.
-# Load only ever adds time, so the minimum is the run that waited least: the
-# hook's own cost. A median, a p90 or a ratio to a bare interpreter reads load
-# too: on the shared CI runner (sat, 2026-10-09, run 37888917837, pool of 6)
-# the floor's median was 25 ms against a p90 of 56 ms and the unchanged hook's
-# median read 2.9x the floor's (its p90 1.8x); even the ratio of minima is
-# 2.3x .. 2.6x on sat alone, as its floor is only 11 .. 12 ms. The hook's
-# minimum was 27 .. 29 ms there, and 26 .. 27 ms here under run-ci-tests.sh at
-# 6 jobs, load 7 .. 15.6, n=10.
-# A saturated runner moves even the minimum of 200 back-to-back runs: run
-# 37956915522 on 240b9e875 (sat, load 20.87) read the unchanged hook at
-# min/median 113/383 ms and the floor at a median of 192 ms (8x its usual),
-# 200/200 runs over 50 ms. So a minimum over budget is sampled again, 20 runs
-# a round 2 s apart, for up to HOOK_RETRY_S (90) s while the burst passes; it
-# stops at the first run under budget, so a sound hook on a quiet box pays
-# nothing. A real regression stays over budget in every round: a 100 ms sleep
-# can never run under 100 ms, so it fails, 90 s later (CONTROL below).
-fast() { awk -v h="$1" -v b="$2" 'BEGIN{exit !(h < b)}'; }
-# A runner loaded for the whole 90 s still reads over budget: run 37980811372
-# on 6dea66a55 (load 36.65) read the hook's fastest of 320 at 61 ms, but the
-# bare interpreter's fastest at 25 ms, twice its quiet 11 .. 12 ms; the hook
-# was 2.4x its floor, as on a quiet box (2.3x .. 2.6x; here 36/15 before and
-# 37/15 after a95f69d34, n=2 each). So only when the floor's own minimum
-# shows the box slow (>= BUDGET/3) is the hook judged by HOOK_FLOOR_X (3) x
-# that floor; on a quiet box the 50 ms budget alone decides.
-within() {  # HOOK_MIN FLOOR_MIN -> 0 = within budget
-  fast "$1" "$BUDGET" && return 0
-  awk -v h="$1" -v f="$2" -v b="$BUDGET" -v x="${HOOK_FLOOR_X:-3}" 'BEGIN{exit !(f * 3 >= b && h < f * x)}'
-}
-yn() { "$@" && echo y || echo n; }
-resample() {  # SCRIPT MIN WINDOW_S -> "<min> <extra runs>"
-  local s="$1" m="$2" end=$(( $(date +%s) + $3 )) n=0 t i
-  while ! fast "$m" "$BUDGET" && [ "$(date +%s)" -lt "$end" ]; do
-    sleep 2
-    for i in $(seq 20); do
-      t="$(ms bash "$s" PostToolUse <"$T_TMP/pay.json")"; n=$((n + 1))
-      [ "$t" -lt "$m" ] && m="$t"
-    done
-  done
-  echo "$m $n"
-}
-read -r lh2 nx < <(SPOOL_AGENT_ID="$ID" resample "$HOOK" "$lh" "${HOOK_RETRY_S:-90}")
-[ "$nx" -eq 0 ] || echo "  fastest of 200 was $lh ms: $nx more runs, fastest $lh2 ms, load $(cut -d' ' -f1 /proc/loadavg)"
-if fast "$lh2" "$BUDGET"; then ok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is under ${BUDGET} ms"
-elif within "$lh2" "$lf"; then ok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is within ${HOOK_FLOOR_X:-3}x a loaded floor ($lf ms >= $((BUDGET / 3)) ms)"; else nok "the hook's fastest of $((200 + nx)) runs ($lh2 ms) is not under ${BUDGET} ms (bare interpreter: $lf ms)"; fi
-# The planted regression: the same hook behind a 100 ms sleep, through the
-# same resample, from a start over budget (one round of 20, ~3 s).
-printf 'sleep 0.1; exec bash %q "$@"\n' "$HOOK" > "$T_TMP/slow-hook.sh"
-read -r ls nxs < <(SPOOL_AGENT_ID="$ID" resample "$T_TMP/slow-hook.sh" 99999 1)
-eq "CONTROL: a 100 ms sleep in the hook stays over ${BUDGET} ms through the resample (fastest of $nxs: $ls ms)" "n" "$(yn fast "$ls" "$BUDGET")"
-eq "CONTROL: the 100 ms sleep is not within ${HOOK_FLOOR_X:-3}x the floor either ($ls ms vs $lf ms)" "n" "$(yn within "$ls" "$lf")"
-eq "CONTROL: within: 61 on a loaded floor of 25 passes (run 37980811372); 61 on a quiet 12, 208 on 25 (the sleep there) and 76 on 25 fail" "y n n n" \
-  "$(yn within 61 25) $(yn within 61 12) $(yn within 208 25) $(yn within 76 25)"
-eq "CONTROL: the budget check fires at ${BUDGET} ms, not at $((BUDGET - 1))" "n y" "$(yn fast "$BUDGET" "$BUDGET") $(yn fast $((BUDGET - 1)) "$BUDGET")"
-printf '%s\n' 10 20 30 40 50 60 70 80 90 100 > "$T_TMP/t.ctl"
-eq "CONTROL: pct reads the 90th, the 50th and the 0th (min) percentile" "90 50 10" "$(pct "$T_TMP/t.ctl" 90) $(pct "$T_TMP/t.ctl" 50) $(pct "$T_TMP/t.ctl" 0)"
-printf '%s\n' 10 20 61 > "$T_TMP/t.ctl"
-eq "CONTROL: the over-budget counter fires on a 61 ms run" 1 "$(over "$T_TMP/t.ctl" "$BUDGET")"
-# The bound on EVERY run is opt-in: HOOK_BUDGET_MS=<ms> on a box known to be idle.
-if [ -n "${HOOK_BUDGET_MS:-}" ]; then
-  eq "200 runs, each under ${BUDGET} ms (HOOK_BUDGET_MS, load $(cut -d' ' -f1 /proc/loadavg))" 0 "$(over "$T_TMP/t.hook" "$BUDGET")"
-fi
+env SPOOL_AGENT_ID="$ID" HOOK_NOW=$((T0 + 800)) bash "$HOOK" PostToolUse <"$T_TMP/pay.json" >/dev/null 2>&1
+eq "CONTROL: a 201st run still keeps 200 lines, the newest last" "200 $(iso $((T0 + 800)))" "$(wc -l < "$D/heartbeat.log") $(tail -n 1 "$D/heartbeat.log" | cut -d' ' -f1)"
 
 echo "# 9. do_spl_agent_hooks_install"
 act() {  # [ENV=VAL...] — through the run action, as ./run -a would

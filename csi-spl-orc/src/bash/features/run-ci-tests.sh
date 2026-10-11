@@ -10,6 +10,9 @@
 #   - a file an orc-suite wrapper already runs (a csi-spl-orc/src/bash/tests
 #     *.tst.sh that execs it), so CI does not run it twice.
 #
+# A features/*/tests/perf-*.sh (a speed budget) runs last, alone, and is
+# reported: its verdict never sets the exit code.
+#
 # Every file runs FEATURE_TEST_JOBS at a time (default: the cpu count, at
 # most 6), except the files named in ci-serial.txt (a timing check or a race
 # that sibling load breaks), which run one by one after the pool. Output is
@@ -107,4 +110,17 @@ done
 echo "=== feature tests: file / verdict / seconds (jobs=$njobs)"
 printf '%s' "$table"
 echo "=== $pass/$(( pass + fail )) feature test files passed in $(( $(date +%s) - start )) s"
+
+# A speed budget the shared runners' load decides (features/*/tests/perf-*.sh)
+# runs alone, after everything, and is REPORTED: its verdict never sets rc.
+# PERF_TEST_RETRY_S (20) caps each one's resample (HOOK_RETRY_S).
+for f in "${feats[@]}"; do
+  for t in "$here/$f/tests"/perf-*.sh; do
+    [[ -f "$t" ]] || continue
+    echo "=== perf, reported, not gating: $f/${t##*/}"
+    HOOK_RETRY_S="${PERF_TEST_RETRY_S:-20}" bash "$t" </dev/null 2>&1; r=$?
+    if [[ "$r" == 0 ]]; then echo "=== perf $f/${t##*/}: PASS"
+    else echo "${GITHUB_ACTIONS:+::warning::}=== perf $f/${t##*/}: OVER BUDGET (rc=$r), reported only"; fi
+  done
+done
 exit "$rc"

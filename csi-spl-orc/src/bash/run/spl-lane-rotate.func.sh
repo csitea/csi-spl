@@ -460,15 +460,16 @@ spl_lane_rotate_step() {
 
 # QUIESCE -> HANDOFF -> SPAWN -> ACK -> RETIRE -> CLOSE, one seat.
 spl_lane_rotate_run() {
-  local id="$1" seed rc=0
+  local id="$1" seed head rc=0
   ROTATE_QUIESCE="$(spl_rotate_quiesce "$ROTATE_OLD_PANE")"
   spl_lane_rotate_step QUIESCE "$([[ "$ROTATE_QUIESCE" == busy-rotated ]] && echo WAIT || echo OK)" "$ROTATE_QUIESCE"
   mkdir -p "$ROTATE_HANDOFF_DIR" 2>/dev/null || true
   spl_rotate_handoff_prune
   spl_lane_rotate_handoff "$id" "$ROTATE_RID" "$ROTATE_HANDOFF"
-  seed="$ROTATE_HANDOFF_DIR/$ROTATE_RID.seed.md"
+  seed="$ROTATE_HANDOFF_DIR/$ROTATE_RID.seed.md" head="$ROTATE_HANDOFF_DIR/$ROTATE_RID.head.md"
   spl_lane_rotate_seed "$id" "$seed"
-  chmod 0644 "$ROTATE_HANDOFF" "$seed" 2>/dev/null || true
+  spl_lane_rotate_prompt_head "$id" "$seed" > "$head"
+  chmod 0644 "$ROTATE_HANDOFF" "$seed" "$head" 2>/dev/null || true
   spl_lane_rotate_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
   # shellcheck disable=SC2034 # read by spl_rotate_spawn (the lane map row keeps the lane's scope)
   ROTATE_LANE_SCOPE="$(grep -m1 -E '^#+ ' "$SPOOL_ROOT/$id/lifetime/brief.md" 2>/dev/null | sed -E 's/^#+ +//; s/^Brief: *//' | cut -c1-120 || true)"
@@ -477,7 +478,7 @@ spl_lane_rotate_run() {
   # replaced the task brief (P0, 2026-10-11). The brief is put back
   # byte for byte right after the spawn; the new session reads the seed file.
   cp -p "$SPOOL_ROOT/$id/lifetime/brief.md" "$ROTATE_STATE_DIR/brief.keep.md" 2>/dev/null || true
-  SPAWN_PROMPT_HEAD="$(spl_lane_rotate_prompt_head "$id" "$seed")" spl_rotate_spawn "$id" "$seed" || rc=1
+  SPAWN_PROMPT_HEAD_FILE="$head" spl_rotate_spawn "$id" "$seed" || rc=1
   spl_lane_rotate_brief_back "$id"
   (( rc == 0 )) || { spl_lane_rotate_fail "$id" SPAWN "$ROTATE_ERR"; return 1; }
   spl_lane_rotate_step SPAWN OK "new $ROTATE_KIND pid $ROTATE_NEW_PID pane $ROTATE_NEW_PANE; old window $(spl_rotate_retiring_name "$id")"
@@ -657,7 +658,7 @@ spl_lane_rotate_ack_cmd() {
 }
 
 # spl_lane_rotate_prompt_head ID SEED: the head of the new session's FIRST
-# prompt (spawn-core SPAWN_PROMPT_HEAD), the ack line itself. A pointer to
+# prompt (spawn-core SPAWN_PROMPT_HEAD_FILE), the ack line itself. A pointer to
 # the seed was not enough: n=4 new sessions on 2026-10-11 never opened the
 # seed and never acked (msg 1764e609).
 spl_lane_rotate_prompt_head() {

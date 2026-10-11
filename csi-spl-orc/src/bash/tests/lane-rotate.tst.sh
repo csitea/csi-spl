@@ -31,7 +31,8 @@
 #      stop tasks", gone without SIGTERM
 #  15. the new session's FIRST prompt carries the ACK-COMMAND (n=4 rotations
 #      on 2026-10-11 never opened the seed it pointed to): the fake agent acks
-#      from its first prompt only; spawn-core renders SPAWN_PROMPT_HEAD on top
+#      from its first prompt only; spawn-core renders SPAWN_PROMPT_HEAD_FILE on
+#      top; spawn-window forwards it into the pane
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -136,13 +137,13 @@ esac
 EOF
 # spawn-window.sh: <kind> <ID> <workdir> <seed> <slug> -> "<ID> <pane>"; the
 # fake agent runs ONLY the ACK-COMMAND line of its first prompt
-# (SPAWN_PROMPT_HEAD, which spawn-core puts on top of the seed it points to)
+# (SPAWN_PROMPT_HEAD_FILE, which spawn-core puts on top of the seed it points to)
 cat >"$T/bin/spawn" <<'EOF'
 #!/usr/bin/env bash
 n="$(cat "$T/next")"; echo $((n + 1)) >"$T/next"
 echo "spawn $1 $2 $3 SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} scope=${SPAWN_LANE_SCOPE:-}" >>"$T/spawn.log"
 cp "$4" "$T/seed.$2"
-printf '%s' "${SPAWN_PROMPT_HEAD:-}" >"$T/prompt.$2"
+cat "${SPAWN_PROMPT_HEAD_FILE:-/dev/null}" >"$T/prompt.$2" 2>/dev/null
 cp -f "$4" "$SPOOL_ROOT/$2/lifetime/brief.md"
 printf '%%%s\t%s\t$0\t%s@box\n' "$n" "$n" "$2" >>"$T/tmux/panes"
 comm=claude; [ "$1" = mistral ] && comm="Vibe CLI"
@@ -338,11 +339,14 @@ tick
 check "15. first prompt: ACK-COMMAND line, run it before anything else" 'grep -q "^ACK-COMMAND: .*ROTATE_ID=[0-9]*T[0-9]*Z-lane-c-951 ID=c-951 ./run -a do_spl_lane_rotate$" "$T/prompt.c-951" && head -c 400 "$T/prompt.c-951" | grep -q "run it before anything else"'
 check "15. first prompt: the same ack as the seed, which keeps it" '[ "$(grep "^ACK-COMMAND:" "$T/prompt.c-951")" = "$(grep "^ACK-COMMAND:" "$T/seed.c-951")" ] && grep -q "$D/handoff/.*-lane-c-951.seed.md" "$T/prompt.c-951"'
 check "15. acked from the first prompt alone: DONE" 'grep -q "lane-c-951 DONE OK" "$D/rotate.log"'
-P15="$T/plan15"; mkdir -p "$P15" "$T/plain15"; echo "brief" >"$T/brief15.md"
+P15="$T/plan15"; mkdir -p "$P15" "$T/plain15"; echo "brief" >"$T/brief15.md"; printf 'HEAD15 run it before anything else\nACK-COMMAND: x' >"$T/head15.md"
 ( unset SPOOL_BOX_ENV; SPOOL_ROOT="$T/spool15" SPAWN_TEST_SANDBOX=1 SPAWN_DRY_RUN=1 SPAWN_PLAN_DIR="$P15" SPOOL_BIN=/opt/x/spool \
-  SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' SPAWN_PROMPT_HEAD=$'HEAD15 run it before anything else\nACK-COMMAND: x' \
+  SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' SPAWN_PROMPT_HEAD_FILE="$T/head15.md" \
   bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-claude.sh" c-952 "$T/plain15" "$T/brief15.md" rotate >"$P15/out" 2>&1 )
-check "15. spawn-core: SPAWN_PROMPT_HEAD is the first line of prompt.txt, the seed follows" '[ "$(head -n1 "$P15/prompt.txt" 2>/dev/null)" = "HEAD15 run it before anything else" ] && grep -q "^ACK-COMMAND: x$" "$P15/prompt.txt" && grep -q "read your full task brief at $T/brief15.md" "$P15/prompt.txt"'
+check "15. spawn-core: SPAWN_PROMPT_HEAD_FILE is the first line of prompt.txt, the seed follows" '[ "$(head -n1 "$P15/prompt.txt" 2>/dev/null)" = "HEAD15 run it before anything else" ] && grep -q "^ACK-COMMAND: x$" "$P15/prompt.txt" && grep -q "read your full task brief at $T/brief15.md" "$P15/prompt.txt"'
+# the real spawn-window starts the launcher in the pane with an env allowlist:
+# the head file must be on it (a live rotation on 2026-10-11 22:25Z lost it there)
+check "15. spawn-window forwards SPAWN_PROMPT_HEAD_FILE into the pane" 'sed -n "/^for v in SPOOL_ROOT /,/; do\$/p" "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-window.sh" | grep -qw SPAWN_PROMPT_HEAD_FILE'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

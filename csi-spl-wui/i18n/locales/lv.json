@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Īsinājumtaustiņi",
       "archive": "Arhivēt / Atjaunot no arhīva",
-      "archive_topic_row": "Arhivēt atlasīto tēmu (Tēmu skats)",
       "move": "Pārvietot vai apvienot…",
       "open_menu": "Atvērt izvēlni",
       "to_parent": "Pāriet uz tēmas pirmo ziņu sarakstā",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, jaunākās vispirms",
-    "index": {
-      "subtitle": "tikai lasīšanai · darbvietas tvērumā",
-      "empty": "Tēmu vēl nav.",
-      "messages": "{n} ziņa | {n} ziņas",
-      "older": "Vecākas"
-    },
     "lobby": {
       "status": "tiešsaistē · {state} · jūs esat {who}",
       "no_lobby": "Vestibils nav konfigurēts ({env} vai centra sveiciens)."

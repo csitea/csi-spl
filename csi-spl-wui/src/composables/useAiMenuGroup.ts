@@ -2,7 +2,7 @@
  * t1 b6c742f0 (HUM-10 14dc0232: "add those same actions to every msg card in
  * every view"; 643c30a8: "every card which has right click menu"): the AI
  * actions group of one open card menu - the card's MessageMenu, the search /
- * Flow row menu (SearchRowMenu), a topic row's menu (SidebarRowAi) and the
+ * Flow row menu (SearchRowMenu) and the
  * issue / epic menu (pages/issues.vue) alike. `aiMsg` is the card's subject
  * (utils/msg-ai-actions.mjs aiSubject). The entries follow withAiItems; on a
  * phone the one "AI actions" entry turns the same sheet into the actions.

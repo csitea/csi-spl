@@ -1465,45 +1465,14 @@ html.pane-dragging * {
   .pane-collapse { display: none; }
 }
 
-/* /t/:id is two panels: the topic list and the thread. From 821px up the
-   shell sidebar is not a third column (out of the row, not painted) but it
-   keeps a real box. display:none would make a row menu's width 0, so the
-   channel menu could not open. Phone widths keep the sidebar (level 1). */
-@media (min-width: 821px) {
-  .spool-shell[data-topic-browse="1"] {
-    position: relative;
-  }
-  .spool-shell[data-topic-browse="1"] > .sidebar {
-    position: absolute;
-    visibility: hidden;
-    width: var(--sidebar-w);
-    inset-inline-start: 0;
-    top: 0;
-    bottom: 0;
-  }
-  .spool-shell[data-topic-browse="1"] > .pane-divider,
-  .spool-shell[data-topic-browse="1"] > .spool-main > .pane-collapse {
-    display: none;
-  }
-  .spool-shell[data-topic-browse="1"] > .spool-main {
-    border-left: 0;
-  }
-}
+/* /t/:id: the thread alone, beside the shell's left panel (the Topics list
+   that sat there went, t1 e4bfddb1) */
 .topic-browse {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
   max-width: 100%;
   display: flex;
-}
-.topic-browse__list {
-  flex: 0 0 340px;
-  max-width: 42%;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-inline-end: 1px solid var(--color-border);
 }
 .topic-browse__thread {
   flex: 1 1 auto;
@@ -1527,14 +1496,4 @@ html.pane-dragging * {
   flex: 1 1 auto;
   border-inline-start: 0;
   box-shadow: none;
-}
-@media (max-width: 820px) {
-  .topic-browse:not([data-phone="list"]) > .topic-browse__list { display: none; }
-  .topic-browse[data-phone="list"] > .topic-browse__thread { display: none; }
-  .topic-browse__list {
-    flex: 1 1 auto;
-    max-width: none;
-    width: 100%;
-    border-inline-end: 0;
-  }
 }

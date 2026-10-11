@@ -87,13 +87,12 @@ describe('topic card menu: one shape for every viewer (HUM-24)', () => {
     assert.equal(ids(msgMenuItems(opts)).includes('parent'), false)
   })
 
-  it('the topic list reuses the channel card menu, it does not keep its own item list', () => {
+  /* t1 e4bfddb1: the topic page's Topics list (and its row menu) is gone;
+     the thread's cards keep the channel card menu through TopicPane */
+  it('the topic page keeps no topic list and no menu of its own', () => {
     const page = readFileSync(join(root, 'src/pages/t/[task_id].vue'), 'utf8')
-    assert.match(page, /topicCardMenuOpts/)
-    assert.match(page, /<LazyMessageMenu/)
-    assert.match(page, /@contextmenu="onRowContext\(row\.task_id, \$event\)"/)
-    assert.match(page, /data-testid="topic-list-menu"/)
-    assert.match(page, /@archive="onMenuArchive"/)
+    assert.match(page, /<TopicPane \/>/)
+    assert.doesNotMatch(page, /topic-list-menu|onRowContext|<LazyMessageMenu|v-for="row in viewer\.topics"/)
     assert.doesNotMatch(page, /rowMenuItems/)
     assert.doesNotMatch(page, /<SidebarRowMenu/)
   })

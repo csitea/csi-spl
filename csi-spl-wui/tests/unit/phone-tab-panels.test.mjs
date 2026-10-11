@@ -11,14 +11,15 @@ import { fileURLToPath } from 'node:url'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = readFileSync(join(WUI, 'src/components/ChannelSidebar.vue'), 'utf8')
-const IDS = ['dm', 'channels', 'topics', 'flow', 'issues', 'events', 'people', 'agents', 'boxes']
+const IDS = ['dm', 'channels', 'flow', 'issues', 'events', 'people', 'agents', 'boxes']
 
 describe('a phone frees a rail panel it has left', () => {
   it('each panel stays mounted after a visit only on desktop', () => {
     for (const id of IDS) {
-      /* spec 109 T008: Channels and Topics follow panelTab (a desktop `/` shows Channels under Topics) */
       assert.match(src, new RegExp(`v-if="(?:tab|panelTab) === '${id}' \\|\\| \\(tabsBuilt\\.${id} && !phone\\)"`))
     }
+    /* no Topics panel any more (t1 e4bfddb1) */
+    assert.doesNotMatch(src, /sidebar-panel-topics/)
     assert.doesNotMatch(src, /v-if="(?:tab|panelTab) === '[a-z]+' \|\| tabsBuilt\.[a-z]+"/)
   })
 

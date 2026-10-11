@@ -165,7 +165,6 @@ describe('the menu sits on objects, not the tab rail', () => {
     const markers = [
       'v-for="(p, peerIndex) in peers"',
       'v-for="(c, channelIndex) in channelRows"',
-      'v-for="(row, topicIndex) in topicRows"',
     ]
     let at = 0
     for (const marker of markers) {
@@ -174,12 +173,15 @@ describe('the menu sits on objects, not the tab rail', () => {
       assert.ok(i > at && menu > i, marker)
       at = menu
     }
-    /* topic 635f8072: the Flow entries are messages (SideHitList), with no row menu */
-    assert.equal(vue.split('<SidebarRowMenu').length - 1, 3)
+    /* topic 635f8072: the Flow entries are messages (SideHitList), with no row
+       menu; t1 e4bfddb1: the Topics rows (th:<task>) and their menu are gone */
+    assert.equal(vue.split('<SidebarRowMenu').length - 1, 2)
     assert.equal(vue.split(':person="true"').length - 1, 1)
+    assert.doesNotMatch(vue, /topicRows|'th:'/)
     const ch = vue.indexOf('v-for="(c, channelIndex) in channelRows"')
-    const th = vue.indexOf('v-for="(row, topicIndex) in topicRows"')
-    assert.equal(vue.slice(ch, th).includes(':person="true"'), false)
+    const flow = vue.indexOf('id="sidebar-panel-flow"')
+    assert.ok(ch > 0 && flow > ch)
+    assert.equal(vue.slice(ch, flow).includes(':person="true"'), false)
   })
 
   it('the button is three lines and becomes an X while open', () => {
@@ -210,9 +212,10 @@ describe('channel rows', () => {
     assert.match(vue, /if \(e\.button !== 0\) return/)
     /* topic 635f8072: Flow lists messages, so only the Channels list has channel rows */
     assert.equal(vue.split(':channel="true"').length - 1, 1)
-    const topic = vue.slice(vue.indexOf('v-for="(row, topicIndex) in topicRows"'), vue.indexOf('id="sidebar-panel-flow"'))
-    assert.doesNotMatch(topic, /openChannelMenu/)
-    assert.doesNotMatch(topic, /:channel="true"/)
+    /* the one :channel="true" menu sits in the Channels list, before the Flow panel */
+    const flow = vue.indexOf('id="sidebar-panel-flow"')
+    assert.ok(flow > 0)
+    assert.equal(vue.slice(flow).includes(':channel="true"'), false)
   })
 })
 

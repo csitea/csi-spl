@@ -43,6 +43,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { wireRailOrder } from '../../src/utils/rail-order.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const WIDTHS = [
@@ -331,7 +332,8 @@ async function checkRailTouch(browser, base, vp) {
     const moved = before[0]
     ok(`${tag} a finger drag moves the first row to the third place`, after.indexOf(moved) === 2 && after.length === before.length, { before, after })
     const put = puts.slice(n0)
-    ok(`${tag} the new order is PUT once`, put.length === 1 && JSON.stringify(put[0]?.rail_order) === JSON.stringify(after), { put })
+    /* the hub still stores the retired Topics id (rail-order.mjs RAIL_RETIRED): the PUT is the drawn order plus it */
+    ok(`${tag} the new order is PUT once`, put.length === 1 && JSON.stringify(put[0]?.rail_order) === JSON.stringify(wireRailOrder(after)), { put })
     const x = await noXScroll(p)
     ok(`${tag} no horizontal page scroll`, x.ok, x)
   } catch (e) {

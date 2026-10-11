@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Comenzi rapide de la tastatură",
       "archive": "Arhivează / Dezarhivează",
-      "archive_topic_row": "Arhivează subiectul selectat (vizualizarea Subiecte)",
       "move": "Mută sau îmbină…",
       "open_menu": "Deschide meniul",
       "to_parent": "Mergi la primul mesaj al subiectului în listă",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, cele mai noi primele",
-    "index": {
-      "subtitle": "doar citire · limitat la spațiul de lucru",
-      "empty": "Încă nu există teme.",
-      "messages": "{n} mesaj | {n} mesaje",
-      "older": "Mai vechi"
-    },
     "lobby": {
       "status": "live · {state} · sunteți {who}",
       "no_lobby": "Niciun hol configurat ({env} sau mesajul de bun venit al hubului)."

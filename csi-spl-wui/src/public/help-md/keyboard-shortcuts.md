@@ -85,7 +85,7 @@ Spool conforms to modern accessibility standards:
 
 ## 7. Message shortcuts
 
-These keys act on the **selected message**; in the **Topics** view, the Archive key also acts on the focused topic. They work on a desktop. Turn them off under **Settings → Behaviour → Keyboard shortcuts**; while that setting is off, the keys do nothing.
+These keys act on the **selected message**. They work on a desktop. Turn them off under **Settings → Behaviour → Keyboard shortcuts**; while that setting is off, the keys do nothing.
 
 | Shortcut | Context | Action |
 |---|---|---|
@@ -103,7 +103,6 @@ These keys act on the **selected message**; in the **Topics** view, the Archive 
 | **`Shift + T`** | Selected message, desktop | Make it a topic |
 | **`Shift + M`** | Selected message, desktop | Move or merge… |
 | **`Shift + D`** | Selected message, desktop | Delete |
-| **`Shift + A`** | Focused topic, Topics view, desktop | Archive the focused topic (Topics view) |
 
 ## 8. When these keys stay quiet
 

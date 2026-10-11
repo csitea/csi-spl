@@ -4,7 +4,6 @@
 //
 //   channel  — focus is the feed heading; the menu is the middle card's
 //   topic    — the thread card in /t/<id>
-//   topics   — a topic row on / and on the /t list
 //   flow     — the active flow entry
 //   issues   — the selected issue's discussion
 //
@@ -147,24 +146,8 @@ try {
     }
     return ''
   })
-  await p.goto(`${srv.base}/`, { waitUntil: 'networkidle2' })
-  const homeRow = `a.topic-row[data-key="${TOPIC}"]`
-  ok('topics: the row is listed', await until(p, (sel) => Boolean(document.querySelector(sel)), homeRow, 15000))
-  await prove(p, 'topics', () => p.evaluate((sel) => {
-    const el = document.querySelector(sel)
-    el?.focus()
-    return document.activeElement === el
-  }, homeRow), (sel) => Boolean(document.activeElement?.matches?.(sel)), homeRow)
-
+  /* the Topics view (a topic row on / and on the /t list) is gone: t1 e4bfddb1 */
   await p.goto(`${srv.base}/t/${TOPIC}`, { waitUntil: 'networkidle2' })
-  const listRow = `a.topic-row[data-key="${TOPIC}"]`
-  ok('topic list: the row is listed', await until(p, (sel) => Boolean(document.querySelector(sel)), listRow, 15000))
-  await prove(p, 'topic list', () => p.evaluate((sel) => {
-    const el = document.querySelector(sel)
-    el?.focus()
-    return document.activeElement === el
-  }, listRow), (sel) => Boolean(document.activeElement?.matches?.(sel)), listRow)
-
   const thread = `.topic-browse__thread article.msg[data-msg-id="${CARD}"]`
   ok('topic thread: the card is shown', await until(p, (sel) => Boolean(document.querySelector(sel)), thread, 15000))
   await prove(p, 'topic thread', () => p.evaluate((sel) => {
@@ -175,7 +158,16 @@ try {
     return document.activeElement === el
   }, thread), (sel) => Boolean(document.activeElement?.matches?.(sel) || document.activeElement?.closest?.(sel)), thread)
 
-  /* /t hides the shell sidebar. Open Flow from a channel page, where the tab is on screen. */
+  /* moved from topics-view-kind (the Topics view went, t1 e4bfddb1): a click
+     on the topic card's kind badge opens the picker, and the kind picked is
+     the one the card then shows */
+  await p.evaluate((sel) => document.querySelector(`${sel} [data-testid="kind-badge-btn"]`)?.click(), thread)
+  const picker = await until(p, () => Boolean(document.querySelector('[data-testid=kind-picker] [data-kind=blocker]')), null, 5000)
+  ok('topic thread: the card\'s kind badge opens the picker', picker)
+  if (picker) await p.evaluate(() => document.querySelector('[data-testid=kind-picker] [data-kind=blocker]').click())
+  ok('topic thread: the card shows the kind picked (blocker)', await until(p, (sel) => Boolean(document.querySelector(`${sel} [data-kind=blocker]`)), thread, 8000))
+
+  /* Flow from a channel page */
   await p.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('#sidebar-tab-flow', { visible: true, timeout: NAV_TIMEOUT })
   await p.click('#sidebar-tab-flow')

@@ -86,15 +86,12 @@ describe('scrollRowIntoPane (CLE-77840: the arrow-key walk)', () => {
 })
 
 describe('the four views do not call scrollIntoView', () => {
-  it('ChannelSidebar, index, and search scroll the pane; MessageCard focus does not scroll', () => {
-    for (const rel of [
-      'src/components/ChannelSidebar.vue',
-      'src/pages/index.vue',
-    ]) {
-      const src = read(rel)
-      assert.doesNotMatch(src, /scrollIntoView\s*\(/, rel)
-      assert.match(src, /scrollRowToTop\(/, rel)
-    }
+  it('ChannelSidebar scrolls the pane; MessageCard focus does not scroll', () => {
+    /* the Topics list (sidebar panel and `/`) that scrolled its row to the
+       top is gone (t1 e4bfddb1); the sidebar still scrolls its own pane */
+    const side = read('src/components/ChannelSidebar.vue')
+    assert.doesNotMatch(side, /scrollIntoView\s*\(/)
+    assert.match(side, /scrollRowIntoPane\(/)
     const card = read('src/components/MessageCard.vue')
     assert.doesNotMatch(card, /scrollIntoView\s*\(/)
     assert.match(card, /rowEl\.value\?\.focus\(\{\s*preventScroll:\s*true\s*\}\)/)
@@ -137,7 +134,8 @@ describe('a thread is not scrolled', () => {
     const topicPage = read('src/pages/t/[task_id].vue')
     assert.doesNotMatch(topicPage, /scrollTop\s*=/)
     assert.doesNotMatch(topicPage, /scrollIntoView\s*\(/)
-    assert.match(topicPage, /scrollRowToTop\s*\(/)
+    /* its Topics list (the row it scrolled to the top) is gone (t1 e4bfddb1) */
+    assert.doesNotMatch(topicPage, /scrollRowToTop\s*\(/)
     /* CLE-77884: the search list moved to the left panel */
     for (const rel of ['src/pages/search.vue', 'src/components/SearchSidePanel.vue', 'src/components/SideHitList.vue']) {
       assert.doesNotMatch(read(rel), /scrollIntoView\s*\(/, rel)

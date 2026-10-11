@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Kiirklahvid",
       "archive": "Arhiveeri / Taasta arhiivist",
-      "archive_topic_row": "Arhiveeri valitud teema (Teemade vaade)",
       "move": "Teisalda või ühenda…",
       "open_menu": "Ava menüü",
       "to_parent": "Mine teema esimese sõnumi juurde loendis",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, uusimad eespool",
-    "index": {
-      "subtitle": "ainult lugemiseks · tööruumi piires",
-      "empty": "Teemasid veel pole.",
-      "messages": "{n} sõnum | {n} sõnumit",
-      "older": "Vanemad"
-    },
     "lobby": {
       "status": "otse · {state} · sina oled {who}",
       "no_lobby": "Fuajeed pole seadistatud ({env} või keskuse tervitus)."

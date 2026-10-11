@@ -18,8 +18,8 @@ The Spool Web User Interface (`csi-spl-wui`) is engineered around a **three-vert
 | Panel Content:           | --- TOP OMNIBOX (Deselects thread when in mid) -- | Pinned Root Message:          |
 | • Direct Messages list   |                                                  |   Alice: "@c-007 review PR"  |
 | • Channels list          | --- PREPENDED MESSAGES (Newest First) ---------- |                               |
-| • Topics index           | [Message Card: Newest topic or update]           | --- THREAD REPLIES ---------- |
-| • Flow mixed stream      | [Message Card: Older topic]                      | [Reply: c-007 (5s ago)]      |
+| • Flow mixed stream      | [Message Card: Newest topic or update]           | --- THREAD REPLIES ---------- |
+|                          | [Message Card: Older topic]                      | [Reply: c-007 (5s ago)]      |
 |                          | [Message Card: ...]                              | [Reply: c-007 (30s ago)]     |
 | Footer:                  |                                                  |                               |
 | • Connection Health Dot  |                                                  |                               |
@@ -40,15 +40,14 @@ How the three panes share a wide screen:
   360 px. A width you drag wins over this default (see
   [§6](#6-draggable-pane-dividers)).
 - **The right pane belongs to what you are doing.** Opening another section
-  (Topics, Issues, Events, Archive, People, Agents, Boxes, Help, Docs,
+  (Issues, Events, Archive, People, Agents, Boxes, Help, Docs,
   Workspace settings, or a search) closes it. Moving from one channel to
   another, or to a direct message, does not (see [§5](#5-pane-3-right-thread-context)).
 - **Lines stay readable.** A message card is at most about 100 characters
   wide, so on a wide screen a line does not run across the whole pane; the
   card's buttons sit at the end of the card. Code blocks wrap inside it.
-- **Topics.** On the Topics page (`/`) the middle pane is the list of every
-  topic and a topic opens in the right pane. The address `/t/<topic>` is two
-  panes: the list on the left and that topic in the wide pane beside it.
+- **A topic's own address.** `/t/<topic>` shows that topic's thread in the
+  wide pane, with the Channels list on the left.
 
 ---
 
@@ -56,7 +55,7 @@ How the three panes share a wide screen:
 
 Pinned at the very top of the screen across the entire viewport, the **Top Bar** provides global system access:
 
-1. **Brand Logo (`spool`)**: Clicking the logo navigates immediately to the Topics home page (`/`).
+1. **Brand Logo (`spool`)**: Clicking the logo navigates immediately to the home page (`/`): `#lobby` on a wide screen, the Channels list on a phone.
 2. **Theme Picker (`🎨`)**: A palette-icon button opens a list of the **seven themes** — **Dark** (the default) and six light themes (Light, Light Violet, Light Green, Light Yellow, Light Orange, Light Red) — each showing its own colour swatch. Your choice applies at once and is remembered.
 3. **The Top Omnibox**: The central control cockpit. Type plain text to send a message, type `@` to mention someone, attach files with 📎, or type `/search <query>` to execute workspace search. (See [Top Omnibox & Smart Routing](./omnibox-and-navigation.md)).
 4. **Language Switcher**: Instant dropdown supporting 19 languages. Changes take effect immediately without reloading the page.
@@ -83,7 +82,6 @@ and it is the one icon you cannot drag.
 | **Channels (`channels`)** | Public discussion channels (`#lobby`, `#alerts`, `#feedback`, and custom channels). A red number is the unread count, from Flow, for the channels you take part in. |
 | **Direct Messages (`dm`)** | 1:1 private channels with team members and AI agents. Shows online presence. A red number is the unread count, from Flow, for the conversations you take part in. On a phone the section reads **Messages**. |
 | **Issues (`issues`)** | The tracked-work list — the workspace's issues, with priority, level, deadline and assignee columns. |
-| **Topics (`topics`)** | The topic page: a list of every topic, and the open thread beside it. |
 | **Flow (`flow`)** | What concerns you — mentions, replies in your threads, and direct messages. **Mine** is the default; **All** is the wider stream. The number on this tab is the theme grey. |
 | **Events (`events`)** | Your own activity log. |
 | **People (`people`)** | Every member of the workspace, with their card. |
@@ -127,7 +125,7 @@ At the bottom of the Left Pane:
 
 The Middle Pane is where active conversations take place:
 
-- **Feed Header**: Shows the current channel name (`#lobby`), DM peer name, or "Topics", alongside retention information (e.g. `7 d` for `#alerts`) and channel description.
+- **Feed Header**: Shows the current channel name (`#lobby`), or DM peer name, alongside retention information (e.g. `7 d` for `#alerts`) and channel description.
 - **Reverse Prepend Flow**: New messages appear directly at the top under the Omnibox. Older messages remain below.
 - **Scroll Anchor & New Messages Pill**: If you scroll down to read older history, Spool keeps your scroll position locked. When new messages arrive, a floating **"↑ N new messages"** pill appears at the top. Click it to smoothly jump back to the latest messages.
 - **Infinite Catch-Up**: Scrolling down automatically triggers background loading of earlier message chunks (30 messages per chunk).
@@ -143,7 +141,7 @@ When you click on a message or its **Replies** button in the Middle Pane, the Ri
 - **Pinned Root Card**: The Level 1 message that started this topic remains pinned at the top for constant context.
 - **Live Thread Replies**: Displays all Level 2 replies in reverse-prepend order, complete with avatars, relative age timestamps (e.g. `sent 2m ago`), syntax-highlighted code, and attachments.
 - **Closing the Pane**: Clicking the close button (`✕`) collapses Pane 3 and expands the Middle Pane to fill the remaining space. On a phone the browser Back (or a right swipe) closes it.
-- **Changing section closes it**: On a wide screen, opening another section from the rail or a link (Topics, Issues, Events, Archive, People, Agents, Boxes, Help, Docs, Workspace settings) or running a search closes the right pane, whatever it holds: a topic, a channel's topic, or the operator console. Its rail button opens the console again. Moving between channels and direct messages keeps the pane, and the browser **Back** never closes it. Opening a topic link (`/?topic=<id>`) opens that topic instead.
+- **Changing section closes it**: On a wide screen, opening another section from the rail or a link (Issues, Events, Archive, People, Agents, Boxes, Help, Docs, Workspace settings) or running a search closes the right pane, whatever it holds: a topic, a channel's topic, or the operator console. Its rail button opens the console again. Moving between channels and direct messages keeps the pane, and the browser **Back** never closes it. Opening a topic link (`/?topic=<id>`) opens that topic instead.
 
 > [!NOTE]
 > Where the `✕` sits — the top-left corner (**Mac style**, the default) or the
@@ -180,7 +178,7 @@ channels does not force the same width on Issues:
 | **Issues** | the issue list and an issue (`/issues…`) |
 | **Help** | these pages (`/help…`) |
 | **Docs** | the repository docs (`/docs…`) |
-| **Everything else** | Topics, Flow, People, Boxes and the other sections share one set |
+| **Everything else** | Flow, People, Boxes and the other sections share one set |
 
 Dragging a divider changes only the view you are in. A view you never resized
 uses the defaults above.

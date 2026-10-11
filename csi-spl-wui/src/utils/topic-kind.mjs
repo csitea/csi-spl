@@ -1,53 +1,10 @@
-// Topic-row kind changes (topics view). A row's `kinds` map counts every
-// message; only the opener's kind is settable, through the same rule as a
-// card (canSetKind). The opener is openingCardId's row.
-
-import { canSetKind } from './msg-kind.mjs'
-import { openingCardId } from './topic-archive.mjs'
+// Topic-row kind counts (the viewer store's topic list). A row's `kinds`
+// map counts every message; a kind set on a message moves one count.
 
 /** The kind a row shows for a message. A post with none is a note. */
 export function messageKind(msg) {
   const k = String((msg && msg.kind) || '')
   return k || 'note'
-}
-
-/**
- * The opener among a getTopic page (oldest first), or null when the page
- * has no card. `fallbackId` is openingCardId's fallback.
- * @param {unknown} messages
- * @param {string} [fallbackId]
- */
-export function openerMessage(messages, fallbackId = '') {
-  const rows = Array.isArray(messages) ? messages : []
-  const id = openingCardId(rows, fallbackId)
-  if (!id) return null
-  return rows.find((m) => m && String(m.msg_id || '') === String(id)) || null
-}
-
-/**
- * The aggregate key that is the opener's badge, or '' when this row has
- * no such key. Other keys stay display-only.
- * @param {Record<string, number> | null | undefined} kinds
- * @param {{ msg_id?: string, kind?: string, pending?: boolean } | null | undefined} msg
- */
-export function openerKindKey(kinds, msg) {
-  if (!msg || !msg.msg_id || msg.pending) return ''
-  const k = messageKind(msg)
-  const map = kinds && typeof kinds === 'object' ? kinds : {}
-  return Object.prototype.hasOwnProperty.call(map, k) ? k : ''
-}
-
-/**
- * The kind key the topics-view menu and badge may set, or '' when the
- * viewer may not set this opener. `role` is the viewer's tenant role.
- * @param {unknown} msg
- * @param {string} viewerId
- * @param {string | null | undefined} role
- * @param {Record<string, number> | null | undefined} kinds
- */
-export function topicRowKind(msg, viewerId, role, kinds) {
-  if (!canSetKind(msg, viewerId, role)) return ''
-  return openerKindKey(kinds, msg)
 }
 
 /**
@@ -70,23 +27,6 @@ export function retargetKinds(kinds, from, to) {
   else delete next[f]
   next[t] = (Number(next[t]) || 0) + 1
   return next
-}
-
-/**
- * The topics view's copy of a message with the kind last set on it from
- * anywhere (a row badge, a card in the pane, the keyboard). `kindSet` maps
- * msg_id to that kind. Without it a row holding its opener from before the
- * change reads the old kind, and the badge the row now shows is not the
- * opener's, so it stops being a button.
- * @template T
- * @param {T} msg
- * @param {Record<string, string> | null | undefined} kindSet
- * @returns {T}
- */
-export function withSetKind(msg, kindSet) {
-  const m = /** @type {{ msg_id?: string, kind?: string } | null | undefined} */ (msg)
-  const k = m && m.msg_id && kindSet ? kindSet[String(m.msg_id)] : ''
-  return m && k && k !== m.kind ? /** @type {T} */ ({ ...m, kind: k }) : msg
 }
 
 /**

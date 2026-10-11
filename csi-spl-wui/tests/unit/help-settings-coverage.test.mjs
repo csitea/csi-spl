@@ -31,7 +31,6 @@ const RAIL_HELP = {
   channels: { slug: 'channels-and-direct-messages', word: 'channel' },
   dm: { slug: 'channels-and-direct-messages', word: 'direct message' },
   issues: { slug: 'issues', word: 'issue' },
-  topics: { slug: 'message-levels-and-topics', word: 'topic' },
   flow: { slug: 'channels-and-direct-messages', word: 'flow' },
   archive: { slug: 'archive', word: 'archive' },
   events: { slug: 'events', word: 'event' },

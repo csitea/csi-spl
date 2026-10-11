@@ -53,13 +53,12 @@ describe('what the row offers', () => {
     assert.equal(member.canArchive || member.canDelete, false)
     assert.equal(rowTopicState({ can_archive: 'yes' }, 'm2').canArchive, false)
   })
-  it('the row menu ends with the card menu\'s own Archive then Delete', () => {
+  /* t1 e4bfddb1: no topic row is left in the rail, so the row menu offers no
+     topic Archive / Delete any more; the card menu keeps them (CONTROL) */
+  it('the row menu offers no topic Archive / Delete; the card menu does', () => {
     assert.deepEqual(rowMenuItems(false).map((i) => i.id), ['open', 'copy'])
-    const items = rowMenuItems(false, { topicArchive: true, topicDelete: true })
-    assert.deepEqual(items.map((i) => i.id), ['open', 'copy', 'archive', 'delete-topic'])
-    const card = msgMenuItems({ topic: true }).slice(-2)
-    assert.deepEqual(items.slice(-2).map((i) => [i.icon, i.labelKey]), card.map((i) => [i.icon, i.labelKey]))
-    assert.deepEqual(rowMenuItems(false, { topicArchive: true }).map((i) => i.id), ['open', 'copy', 'archive'])
+    assert.deepEqual(rowMenuItems(false, { topicArchive: true, topicDelete: true, topicKind: true }).map((i) => i.id), ['open', 'copy'])
+    assert.deepEqual(msgMenuItems({ topic: true }).slice(-2).map((i) => i.icon), ['archive', 'delete'])
   })
 })
 
@@ -81,22 +80,13 @@ describe('which rows a frame removes', () => {
 })
 
 describe('wiring', () => {
-  it('the rail Topics rows and the Topics home open the menu by right-click and by the button', () => {
+  /* t1 e4bfddb1: the rail Topics rows and the Topics home are gone; a topic
+     is archived or deleted from its card (the card menu) */
+  it('no topic row menu is left on the rail or the home page', () => {
     const side = src('src/components/ChannelSidebar.vue')
-    assert.match(side, /@contextmenu\.prevent="openTopicMenu\('th:' \+ row\.task_id, row\.task_id\)"/)
-    /* topic 635f8072: Flow lists messages now, with no topic rows */
-    assert.equal((side.match(/@delete-topic="askDeleteTopic\(/g) || []).length, 1)
-    assert.match(side, /<LazyTopicDeleteDialog/)
+    assert.doesNotMatch(side, /openTopicMenu|askDeleteTopic|archiveTopicRow|<LazyTopicDeleteDialog/)
     const home = src('src/pages/index.vue')
-    assert.match(home, /@contextmenu\.prevent="openTopicMenu\(t\.task_id\)"/)
-    assert.match(home, /@archive="archiveTopicRow\(t\.task_id\)"/)
-    assert.match(home, /<LazyTopicDeleteDialog/)
-  })
-  it('the hub decides: the row asks GET …/topic before it offers anything', () => {
-    const c = src('src/composables/useTopicRowActions.ts')
-    assert.match(c, /api\.topicSize\(id\)/)
-    assert.match(c, /isRowTopic\(size, task, id, lobby\)/)
-    assert.match(c, /api\.archiveTopic\(row\.msgId, true\)/)
+    assert.doesNotMatch(home, /openTopicMenu|archiveTopicRow|<LazyTopicDeleteDialog/)
   })
   it('a live frame drops the row from the lists; the born cards get the card menu', () => {
     assert.match(src('src/layouts/default.vue'), /dropTopics\(topicFrameRows\(f, live\.lobbyTaskId\.value\)\)/)

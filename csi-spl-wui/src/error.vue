@@ -64,7 +64,7 @@ interface Suggestion {
   label: string
 }
 const MAIN_SECTIONS: Suggestion[] = [
-  { path: '/', label: 'nav.topics' },
+  { path: '/', label: 'sidebar.channels' },
   { path: '/lobby', label: 'nav.lobby' },
   { path: '/channel/general', label: 'nav.general' },
 ]
@@ -114,7 +114,7 @@ const suggestions = computed<Suggestion[]>(() => {
   if (!is404.value || !wanted) return MAIN_SECTIONS
   const scored = CANDIDATES
     .map((s) => {
-      const cand = normalize(s.path) || 'topics'
+      const cand = normalize(s.path) || 'channels'
       let score: number
       if (cand.startsWith(wanted) || wanted.startsWith(cand)) {
         score = 0.1

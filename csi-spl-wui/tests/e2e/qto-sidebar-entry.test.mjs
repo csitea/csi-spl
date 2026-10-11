@@ -426,7 +426,7 @@ async function fromQto(p, tab) {
 }
 
 /* Owner (t1 777d6c9a): once in Docs (Qto) on a desktop one cannot get
-   back to the channels nor the topics; the left-most sections strip
+   back to the channels; the left-most sections strip
    freezes. On a desktop /workspace/docs keeps the rail only, so a tab that
    only switched the hidden list changed nothing. Control: before the fix
    Channels, Direct messages and Flow stay on /workspace/docs with no list
@@ -435,8 +435,6 @@ async function railLeavesQto(p) {
   ok('1440: Channels leaves Docs (Qto)', await fromQto(p, 'channels'), p.url())
   ok('1440: ... back to the conversation, the Channels list shown', new URL(p.url()).pathname === '/lobby' && await panelShown(p, 'channels'), p.url())
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/qto-rail-1440-channels.png` })
-  ok('1440: Topics leaves Docs (Qto)', await fromQto(p, 'topics'), p.url())
-  ok('1440: ... to the topics, the Topics tab selected', new URL(p.url()).pathname === '/' && await p.$eval('[data-testid=sidebar-tab-topics]', (el) => el.getAttribute('aria-selected')).catch(() => '') === 'true', p.url())
   ok('1440: Direct messages leaves Docs (Qto), its list shown', await fromQto(p, 'dm') && await panelShown(p, 'dm'), p.url())
   ok('1440: Flow leaves Docs (Qto), its list shown', await fromQto(p, 'flow') && await panelShown(p, 'flow'), p.url())
 }

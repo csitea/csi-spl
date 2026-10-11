@@ -7,7 +7,7 @@
 // Run: node tests/unit/msg-ai-actions.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -241,15 +241,12 @@ describe('every card with a right-click menu, one adapter per kind (HUM-10 643c3
   it('an epic summary (no discussion topic yet) still offers the group: the pick reads the issue', () => {
     assert.equal(offersAiActions(aiSubject('issue', { key: 'SPL-3', kind: 'epic', title: 'Reports' })), true)
   })
-  it('wired: the topic row menu (lazily) and the issue / epic menu use the one group', () => {
+  it('wired: the issue / epic menu uses the one group; no topic row is left to carry it', () => {
+    /* t1 e4bfddb1: the topic rows (rail Topics tab, the Topics home) are gone,
+       and SidebarRowAi with them; a topic's AI actions are on its card */
     const row = src('src/components/SidebarRowMenu.vue')
-    assert.match(row, /<LazySidebarRowAi/)
-    assert.doesNotMatch(row, /msg-ai-actions|useAiMenuGroup/, 'the row menu is in the initial JS: the group stays lazy')
-    assert.match(row, /\^\(\?:th\|home\):/)
-    const ai = src('src/components/SidebarRowAi.vue')
-    assert.match(ai, /useAiMenuGroup\(/)
-    assert.match(ai, /aiSubject\('topic'/)
-    assert.match(ai, /runTopic\(/)
+    assert.doesNotMatch(row, /SidebarRowAi|msg-ai-actions|useAiMenuGroup/)
+    assert.equal(existsSync(join(WUI, 'src/components/SidebarRowAi.vue')), false)
     const issues = src('src/pages/issues.vue')
     assert.match(issues, /useAiMenuGroup\(/)
     assert.match(issues, /aiSubject\('issue'/)

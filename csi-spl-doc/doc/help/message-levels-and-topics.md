@@ -16,7 +16,7 @@ Spool solves this by partitioning all messages into two discrete architectural l
 ===================================================================================
 LEVEL 1: THE OPENING TOPIC CARD (is_parent = 1)
 -----------------------------------------------------------------------------------
-• Displays in the MIDDLE PANE (Channels, DMs, Lobby, Topics Home).
+• Displays in the MIDDLE PANE (Channels, DMs, Lobby).
 • Exactly ONE card per topic.
 • Represents the original problem statement, question, or task prompt.
 • Stays at the top of the conversation hierarchy.
@@ -58,7 +58,7 @@ A **Level 2 message** is an in-depth reply or milestone update:
   - Open a topic (by clicking a card or its "Replies" button).
   - Type into the Top Omnibox and hit `Enter`. Because the Right Pane was selected last, Spool automatically stores the message as a Level 2 thread line attached to that topic's `task_id`.
   - Alternatively, use the explicit prefix `in: <topic_title>` in the Omnibox from any view.
-- **Noise Isolation**: Level 2 messages never clutter the middle channel feed, never spawn new cards, and never create standalone entries in the Topics home list.
+- **Noise Isolation**: Level 2 messages never clutter the middle channel feed, never spawn new cards, and never create standalone entries in a channel's list of topics.
 - **Real-Time Synchronization**: Level 2 lines are pushed over WebSocket live to all connected readers in real time and persist securely in the hub database.
 
 ---
@@ -69,16 +69,8 @@ You can open and inspect any topic through multiple intuitive paths:
 
 1. **Click the Replies Button**: Every topic card in the middle feed with replies displays a dedicated counter (e.g. `💬 3 replies`). Clicking it opens the thread in the Right Pane immediately.
 2. **Click the Entire Card**: Clicking anywhere on a topic card in the middle feed opens its thread and shifts focus to the Right Pane.
-3. **From the Topics page (`/t`)**: The **Topics** tab opens two panels. One panel is the list of topics across the workspace, newest activity first. The other is the same thread a channel already uses. On a wide screen the channel sidebar is hidden, so the conversation has the width. On a phone you see either the list or the thread, and **Back** returns you to the list. `Shift + A` archives the focused row. Leaving the page for an address that still names a topic keeps that topic open.
+3. **From a topic's own address (`/t/<topic>`)**: The page shows that topic's thread, the same thread a channel already uses, with the Channels list beside it. Leaving the page for an address that still names a topic keeps that topic open.
 4. **Direct Deep Links**: Every topic has a unique permanent URL (e.g. `https://spool-hub.ai/t/<uuid>`, or the same `/t/<uuid>` path on your own host). Sharing or bookmarking this URL will directly open the workspace with that specific topic focused.
-
-### 4.1 How a topic row reads
-
-A row in the Topics list (the sidebar and the middle list) shows:
-
-- **A plain title.** The topic's short title when it has one, otherwise its opening line as plain text: markdown marks are removed (`**bold**` reads `bold`, a link reads as its text, a heading or quote loses its `#` or `>`), and `#channels` and `@mentions` stay as written. A long opening is cut at 100 characters with `…`. A screen reader hears the same title.
-- **No `Topic:` label.** The list holds only topics, so the row starts with the title itself.
-- **A time that carries the date.** Today's rows show the clock (`14:05`), rows from earlier this year add the day (`09-18 14:05`), and older rows show the full date (`2025-12-30 14:05`). Desktop and phone use the same rule, so a two-week-old topic never looks like today's.
 
 ---
 

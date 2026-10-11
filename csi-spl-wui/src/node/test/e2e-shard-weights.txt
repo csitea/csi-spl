@@ -154,11 +154,8 @@ tests/e2e/top-bar-mobile.test.mjs 16
 tests/e2e/top-bar-tenant.test.mjs 9
 tests/e2e/topic-archive-policy.test.mjs 19
 tests/e2e/topic-archived-state.test.mjs 12
-tests/e2e/topic-list-row-menu.test.mjs 13
-tests/e2e/topic-list-shift-a.test.mjs 7
 tests/e2e/topic-menu-parity.test.mjs 22
 tests/e2e/topic-pane-single.test.mjs 28
-tests/e2e/topic-row-swipe-archive.test.mjs 14
 tests/e2e/topic-send-target.test.mjs 38
 tests/e2e/topic-unread-count.test.mjs 4
 tests/e2e/topic-unread-live.test.mjs 38

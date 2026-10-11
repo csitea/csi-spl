@@ -377,8 +377,9 @@ describe('DOM contract: every list row carries the clock it is ordered by', () =
     assert.match(s, /formatMsgListTs\(at\.value/)
   })
 
-  it('the topic list row carries last_ts', () => {
-    assert.match(read('pages/index.vue'), /:data-ts="t\.last_ts \|\| undefined"/)
+  it('the home page holds no topic list any more (t1 e4bfddb1)', () => {
+    assert.doesNotMatch(read('pages/index.vue'), /v-for=/)
+    assert.match(read('pages/index.vue'), /lobbyHomeTarget\(/, 'CONTROL: the page is the redirect')
   })
 
   it('the sidebar renders the ORDERED lists and stamps both', () => {

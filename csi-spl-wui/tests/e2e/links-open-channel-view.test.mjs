@@ -171,7 +171,7 @@ async function visibleLink(p, i) {
 /* where the app landed: the route, the rail tab, and the highlighted target */
 const landing = (p, target) => p.evaluate((id) => {
   const sel = (t) => document.querySelector(`#sidebar-tab-${t}[aria-selected="true"]`)
-  const tab = ['dm', 'channels', 'topics', 'flow', 'search'].find(sel) || ''
+  const tab = ['dm', 'channels', 'flow', 'search'].find(sel) || ''
   const lit = [...document.querySelectorAll(`.msg[data-msg-id="${id}"]`)].some((el) => {
     const r = el.getBoundingClientRect()
     return r.width > 0 && r.height > 0 && (el.classList.contains('open-focus') || el.classList.contains('search-focus'))

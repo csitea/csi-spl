@@ -5,7 +5,9 @@ import { useNotificationStore } from '~/stores/notification'
 import { loadMutedChannels } from '~/utils/notify.mjs'
 import { unreadModel } from '~/utils/unread-model.mjs'
 
-export type UnreadSection = 'channels' | 'dms' | 'topics'
+/* no 'topics': the Topics tab that summed them is gone (t1 e4bfddb1); the
+   model still counts each topic's own row (rowOf('t:<task_id>')) */
+export type UnreadSection = 'channels' | 'dms'
 
 /**
  * Spec 079 FR-002: the one reader of the unread inputs. It feeds

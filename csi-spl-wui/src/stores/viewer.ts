@@ -142,7 +142,7 @@ export const useViewerStore = defineStore('viewer', () => {
    * the open topic (the opener included), the keyboard - moves the row's
    * kind counts at once, so clearing the last blocker drops the row's
    * blocker badge with no reload. kindSet remembers the new kind by msg_id
-   * for the opener the topics view already holds (topic-kind withSetKind).
+   * for the opener a list row holds.
    */
   const kindSet = shallowRef<Record<string, string>>({})
   function setKind(taskId: string, msgId: string, from: string, to: string) {

@@ -2,7 +2,7 @@
   <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || calendarRailOnly || helpRailOnly || docsRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
-         order; default: direct messages, channels, issues, topics, flow,
+         order; default: direct messages, channels, issues, flow,
          event log). Icons only; each name lives on aria-label and title.
          Dragging an icon reorders; a click navigates. Owner 2026-09-28
          (topic bea3a4e6): the app settings gear sits at the foot of this
@@ -442,71 +442,6 @@
       :name="archiveTarget.name"
       @done="onChannelArchived"
     />
-    <!-- SPL-986: a topic row's Delete, the card's own confirm (specs/041 §3.5) -->
-    <LazyTopicDeleteDialog
-      v-if="topicDeleteOpen && topicDeleteMsgId"
-      v-model:open="topicDeleteOpen"
-      :msg-id="topicDeleteMsgId"
-      @deleted="onTopicRowDeleted"
-    />
-      </div>
-      <div
-        v-if="panelTab === 'topics' || (tabsBuilt.topics && !phone)"
-        v-show="panelTab === 'topics'"
-        id="sidebar-panel-topics"
-        class="sidebar-panel"
-        role="tabpanel"
-        aria-labelledby="sidebar-tab-topics"
-        data-testid="sidebar-panel-topics"
-      >
-        <h2>{{ t('nav.topics') }}</h2>
-        <div class="sidebar-scroll">
-        <p v-if="!viewer.loading && viewer.topics.length === 0" class="muted topic-empty">{{ t('pages.index.empty') }}</p>
-        <div
-          v-for="(row, topicIndex) in topicRows"
-          :key="row.task_id"
-          class="nav-row"
-          :data-order="row.task_id"
-          :class="{ 'nav-row--pinned': topicOrder.includes(row.task_id), 'nav-row--drag': dragging('topics', row.task_id), 'nav-row--drop': dropping('topics', row.task_id, topicIndex), 'nav-row--drop-after': droppingAfter('topics', topicIndex, topicRows.length) }"
-          @pointerdown="rowPointerDown($event, 'topics', row.task_id)"
-          @click.capture="swallowDragClick"
-          @contextmenu.prevent="openTopicMenu('th:' + row.task_id, row.task_id)"
-        >
-        <a
-          class="nav-item"
-          :class="{ active: topicOpen === row.task_id, 'is-archived': row.archived_at }"
-          :aria-current="topicOpen === row.task_id ? 'true' : undefined"
-          :data-key="row.task_id"
-          :data-ts="row.last_ts || undefined"
-          :href="localePath('/t/' + row.task_id)"
-          @click.exact.prevent="pane.open(row.task_id)"
-        >
-          <span class="label" :title="namedLine(row.participants.join(', '), people.names.value).title">{{ rowTitle(row.subject) || peopleLabels(row.participants, people.names.value) || row.task_id }}</span>
-          <ArchivedBadge v-if="row.archived_at" :at="row.archived_at" />
-          <!-- 080 FR-005: a draft waits here; it shares the badge slot with the 079 unread -->
-          <span v-if="hasDraft('t:' + row.task_id)" class="draft-mark" data-testid="draft-mark" :title="t('composer.draft_mark')" :aria-label="t('composer.draft_mark')" role="img"><UiIcon name="pencil" :size="12" /></span>
-          <span v-if="unreadOf('t:' + row.task_id)" class="badge-unread" data-testid="topic-unread">{{ notes.previewUnread(unreadOf('t:' + row.task_id)) }}</span>
-        </a>
-        <SidebarRowMenu
-          :menu-id="'th:' + row.task_id"
-          :name="rowTitle(row.subject) || peopleLabels(row.participants, people.names.value) || row.task_id"
-          :href="localePath('/t/' + row.task_id)"
-          :unread="!!unreadOf('t:' + row.task_id)"
-          :open="rowMenu === 'th:' + row.task_id"
-          :topic-archive="topicRowState(row.task_id)?.canArchive"
-          :topic-delete="topicRowState(row.task_id)?.canDelete"
-          :topic-state="topicRowState(row.task_id)?.state || ''"
-          @toggle="toggleTopicMenu('th:' + row.task_id, row.task_id)"
-          @close="closeRowMenu()"
-          @open="pane.open(row.task_id)"
-          @archive="archiveTopicRow(row.task_id)"
-          @delete-topic="askDeleteTopic(row.task_id)"
-          @ai-fail="topicAiError = $event"
-        />
-        </div>
-        <!-- t1 b6c742f0: a failed AI pick on a row says so, as the home list does -->
-        <p v-if="topicAiError" class="msg-edit-error" role="alert" data-testid="msg-ai-error">{{ t(topicAiError) }}</p>
-        </div>
       </div>
       <div
         v-if="tab === 'flow' || (tabsBuilt.flow && !phone)"
@@ -784,12 +719,9 @@ import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useCopyText } from '~/composables/useCopyText'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useChannelStore } from '~/stores/channel'
-import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanStatusStore } from '~/stores/human-status'
 import { useStatusPicker } from '~/composables/useStatusPicker'
-import { useViewerStore } from '~/stores/viewer'
-import { useTopicStore } from '~/stores/topic'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { useSearchStore } from '~/stores/search'
@@ -808,7 +740,7 @@ import { withDmPeers } from '~/utils/live-follow.mjs'
 import HumanName from '~/components/HumanName.vue'
 import LastDataClock from '~/components/LastDataClock.vue'
 import { useClockHost } from '~/composables/useClockHost'
-import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, peopleLabels, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
+import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, readBuildStamp, shortCommit } from '~/utils/build-stamp.mjs'
 import { displayVersion } from '~/utils/display-version.mjs'
@@ -831,12 +763,10 @@ import { useMove } from '~/composables/useMove'
 import { isChannelDropTarget } from '~/utils/move.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { useOperatorPane } from '~/stores/operator-pane'
-import { rowTitle } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
-import { useTopicRowActions } from '~/composables/useTopicRowActions'
 import { canDeleteChannel, viewerHumanId } from '~/utils/channel-members.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
-import { scrollRowIntoPane, scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
 import { listRowKey, stepRow } from '~/utils/row-keys.mjs'
 import { focusPane } from '~/composables/useGlobalKeys'
 import { MIDDLE } from '~/utils/pane-focus.mjs'
@@ -846,7 +776,7 @@ import { flowDmPeers } from '~/utils/flow-keys.mjs'
 import { useUnread } from '~/composables/useUnread'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes' | 'calendar'
+type SideTab = 'dm' | 'channels' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes' | 'calendar'
 /* The six rail tabs (utils/rail-order.mjs RAIL_TABS) in the person's order
    (SPL-979). A matching route follows the page; search and settings keep the
    reader's choice. */
@@ -887,8 +817,6 @@ const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people', 'a
    is the open tab. Desktop keeps tabsBuilt so a switch back is instant. */
 const tabsBuilt = reactive<Partial<Record<SideTab, boolean>>>({})
 onMounted(() => { tabsBuilt[panelTab.value] = true })
-/* spec 082 FR-002: a Topics row is named by rowTitle (plain text, no
-   `Topic:` prefix); with no opening, the people, then the id. */
 function peerName(id: string, box?: string) {
   return shownPerson(id, box, people.names.value)
 }
@@ -898,30 +826,6 @@ function toggleRowMenu(id: string) {
 }
 function closeRowMenu() { rowMenu.value = '' }
 function openChannelMenu(id: string) { rowMenu.value = id }
-/* SPL-986: a topic row's menu also offers Archive / Delete once the hub said
-   the viewer may (composables/useTopicRowActions.ts). */
-const {
-  stateOf: topicRowState,
-  resolve: resolveTopicRow,
-  archive: archiveTopicRow,
-  deleteOpen: topicDeleteOpen,
-  deleteMsgId: topicDeleteMsgId,
-  askDelete: askDeleteTopic,
-  onDeleted: onTopicRowDeleted,
-} = useTopicRowActions()
-/* t1 b6c742f0: the last failed AI pick on a topic row; the next row menu clears it */
-const topicAiError = ref('')
-function openTopicMenu(key: string, taskId: string) {
-  topicAiError.value = ''
-  rowMenu.value = key
-  void resolveTopicRow(taskId)
-}
-function toggleTopicMenu(key: string, taskId: string) {
-  toggleRowMenu(key)
-  if (rowMenu.value !== key) return
-  topicAiError.value = ''
-  void resolveTopicRow(taskId)
-}
 /* The flow list stays up while a row from it is opened. Another icon clears it. */
 const holdFlow = ref(false)
 /* CLE-77884: so does the search list while the reader opens its hits; a
@@ -932,16 +836,13 @@ const searchStore = useSearchStore()
 const route = useRoute()
 const mobileStack = useMobileStack()
 const onSearchPage = computed(() => isSearchPage(route.path))
-/* spec 109 T008 (FR-006, owner Q2 = a): on a desktop the centre of `/` IS
-   the topic list, so there panel 1 shows the Channels list under the Topics
-   tab instead of the same list twice; the rail still marks Topics, the
-   section the reader is in. A topic page (/t/<id>) keeps the Topics list;
-   the phone, where `/` is that one list, too. */
-const panelTab = computed<SideTab>(() => (tab.value === 'topics' && !mobileStack.isMobile.value && productPath(route.path) === '/' ? 'channels' : tab.value))
+/* the list panel 1 shows: the rail tab's own (the Topics tab, which showed
+   Channels on `/`, is gone: owner t1 e4bfddb1) */
+const panelTab = computed<SideTab>(() => tab.value)
 /* not immediate: the route sets the real tab during setup, so the 'dm' the
    ref starts with is never built unless it is shown */
 watch(panelTab, (open) => { tabsBuilt[open] = true })
-watch(() => route.path, (path) => {
+watch(() => route.path, (path, prev) => {
   rowMenu.value = ''
   if (isSearchPage(path)) {
     holdFlow.value = false
@@ -954,8 +855,9 @@ watch(() => route.path, (path) => {
   if (holdSearch.value && !held && !searchStore.opening) holdSearch.value = false
   if (holdFlow.value || held || holdSearch.value) return
   /* SPL-989: on a phone at level 1 this list IS the screen - Back to it
-     keeps the section the reader left from, whatever page sits behind */
-  if (mobileStack.isMobile.value && mobileStack.level.value === 1) return
+     keeps the section the reader left from, whatever page sits behind. The
+     first load is not a Back: `/` opens on Channels (t1 e4bfddb1). */
+  if (prev !== undefined && mobileStack.isMobile.value && mobileStack.level.value === 1) return
   const next = tabForPath(path)
   if (next) tab.value = next
 }, { immediate: true })
@@ -1014,9 +916,6 @@ function onTabKey(e: KeyboardEvent) {
 }
 
 const channel = useChannelStore()
-const viewer = useViewerStore()
-const pane = useLiveFeed('pane')
-const topicStore = useTopicStore()
 const roster = useRosterStore()
 const session = useSessionStore()
 const access = useAccessStore()
@@ -1162,7 +1061,6 @@ function railCount(id: SideTab) {
   if (flowKeys.value) {
     if (id === 'channels') return countLabel(listedSum('ch:', channelRows.value.map((c) => String(c.channel_id || ''))))
     if (id === 'dm') return countLabel(listedSum('dm:', peers.value.map((p) => p.label)))
-    if (id === 'topics') return countLabel(listedSum('t:', topicRows.value.map((t) => String(t.task_id || ''))))
     return ''
   }
   const r = flowRail.value
@@ -1172,32 +1070,15 @@ function railCount(id: SideTab) {
   return ''
 }
 function tabUnread(id: SideTab) {
-  if ((id === 'dm' || id === 'channels' || id === 'topics') && flowKeys.value) return false
+  if ((id === 'dm' || id === 'channels') && flowKeys.value) return false
   if ((id === 'dm' || id === 'channels') && flowRail.value) return false
   if (id === 'dm') return dmUnread.value
   if (id === 'channels') return channelUnread.value
   if (id === 'flow') return flowBadge.value < 0 && flowUnread.value
   return false
 }
-const topicOpen = computed(() => {
-  if (pane.taskId) return pane.taskId
-  if (topicStore.open && topicStore.parentTaskId) return topicStore.parentTaskId
-  const m = route.path.match(/\/t\/([^/]+)$/)
-  return m ? decodeURIComponent(m[1]) : ''
-})
-/* A replies click opens the topic on the right and shows this list. The
-   opened topic's title is the selected row, brought to the top. */
-watch([topicOpen, tab, () => viewer.topics.length], async ([id, which]) => {
-  if (which !== 'topics' || !id) return
-  await nextTick()
-  const panel = document.getElementById('sidebar-panel-topics')
-  if (!panel) return
-  const row = panel.querySelector(`[data-key="${CSS.escape(String(id))}"]`)
-  const scroller = panel.querySelector<HTMLElement>('.sidebar-scroll')
-  if (row && scroller) scrollRowToTop(scroller, row)
-})
-/* Topics opens the topic index. Flow stays on this page and mixes the
-   three lists. Direct messages and channels only swap the sidebar. */
+/* Flow stays on this page and mixes the
+   lists. Direct messages and channels only swap the sidebar. */
 async function selectTab(next: SideTab) {
   /* CLE-77886: on a phone, a tap on the section already selected above its
      own page shows that section's list at level 1 (the Issues epics, ...),
@@ -1222,14 +1103,9 @@ async function selectTab(next: SideTab) {
      or Docs document) the sidebar hides its list, so the tab alone changed
      nothing and the rail read as frozen: leave it, to the lobby at least. */
   const railOnlyPage = helpRailOnly.value || docsRailOnly.value
-  if (!mobileStack.isMobile.value && (next === 'channels' || next === 'dm' || next === 'flow') && (railOnlyPage || (isSectionPage(route.path) && tabForPath(route.path) !== 'topics'))) {
+  if (!mobileStack.isMobile.value && (next === 'channels' || next === 'dm' || next === 'flow') && (railOnlyPage || (isSectionPage(route.path) && productPath(route.path) !== '/'))) {
     const back = sectionExit.target(next) || (railOnlyPage ? '/lobby' : '')
     if (back) await navigateTo(back.startsWith('/lobby') ? localePath(back) : back)
-  }
-  if (next === 'topics') {
-    if (viewer.topics.length === 0) void viewer.loadTopics()
-    if (tabForPath(route.path) !== 'topics') await navigateTo(localePath('/'))
-    return
   }
   if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
   if (next === ARCHIVE_TAB && tabForPath(route.path) !== ARCHIVE_TAB) await navigateTo(localePath('/archive'))
@@ -1250,13 +1126,12 @@ function closeSearch() {
 const sidePane = useSidePane()
 watch(() => sidePane.requested.value, (req) => {
   if (!req) return
-  /* The replies link shows the Topics list and stays on this page, so the
-     topic that just opened remains the one the omnibox writes into. */
+  /* reveal: show the list and stay on this page, so the topic that just
+     opened remains the one the omnibox writes into. */
   if (req.stay) {
     holdFlow.value = false
     holdSearch.value = false
     tab.value = req.id
-    if (req.id === 'topics' && viewer.topics.length === 0) void viewer.loadTopics()
     return
   }
   void selectTab(req.id)
@@ -1264,7 +1139,6 @@ watch(() => sidePane.requested.value, (req) => {
 watch(tab, (id) => {
   rowMenu.value = ''
   if (id !== 'search' && id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB && id !== BOXES_TAB && id !== CALENDAR_TAB) sidePane.setCurrent(id)
-  if (id === 'topics' && viewer.topics.length === 0) void viewer.loadTopics()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
@@ -1308,7 +1182,6 @@ function openProperties(id: string) {
 const pinnedPeers = ref<string[]>([])
 /* SPL-1034: the Channels order is the person's, kept on the hub (per tenant) */
 const { order: channelOrder, set: setChannelOrder, step: stepChannelOrder } = useChannelOrder()
-const topicOrder = ref<string[]>([])
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
 /* A person's chosen display name; the id@box stays the key and the tooltip. */
 const people = useHumanNames()
@@ -1366,11 +1239,6 @@ const channelRows = computed(() => pinRows(
   channelOrder.value,
   (c) => String(c.channel_id || ''),
 ))
-const topicRows = computed(() => pinRows(
-  viewer.topics,
-  topicOrder.value,
-  (t) => String(t.task_id || ''),
-))
 
 function toggleOrder(order: string[], key: string) {
   return order.includes(key) ? order.filter((l) => l !== key) : [key, ...order.filter((l) => l !== key)]
@@ -1406,18 +1274,16 @@ function hideFromList(p: { label: string }) {
   listHidden.value = saveHiddenPeers(hidePeer(listHidden.value, p.label, channel.dmAt[p.label] || ''))
   pinnedPeers.value = pinnedPeers.value.filter((l) => l !== p.label)
 }
-type DragList = 'peers' | 'channels' | 'topics'
+type DragList = 'peers' | 'channels'
 const drag = ref<{ list: DragList, key: string, overIndex: number, active: boolean } | null>(null)
 let suppressDragClick = false
 const dragPanel: Record<DragList, string> = {
   peers: 'sidebar-panel-dm',
   channels: 'sidebar-panel-channels',
-  topics: 'sidebar-panel-topics',
 }
 function orderBag(list: DragList) {
   if (list === 'peers') return pinnedPeers
-  if (list === 'channels') return channelOrder
-  return topicOrder
+  return channelOrder
 }
 function dragging(list: DragList, key: string) {
   const d = drag.value

@@ -1,6 +1,7 @@
-// The topic view (/t/:id) is two panels: the list of topics and the
-// thread (TopicPane) filling the rest of the width. The title is the
-// topic text, never the raw id. A phone shows one panel at a time.
+// The topic page (/t/:id) is the thread alone (TopicPane), beside the
+// shell's left panel: its Topics list went with the Topics view (owner
+// HUM-10, t1 e4bfddb1, msg a78e06c8). The title is the topic text, never the
+// raw id.
 // Run: node --test tests/unit/topic-page-header.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -15,46 +16,40 @@ const page = read('src/pages/t/[task_id].vue')
 const template = page.slice(page.indexOf('<template>'), page.lastIndexOf('</template>'))
 const css = read('src/assets/css/main.css')
 
-describe('the topic view is two panels', () => {
-  it('its own Topics list row is plain text: the shared rowTitle, no ** (spec 082 FR-002)', () => {
-    assert.match(page, /import \{ rowTitle \} from '~\/utils\/view-api\.mjs'/)
-    assert.doesNotMatch(page, /function rowTitle\(/)
-    assert.match(template, /class="topic-subject">\{\{ rowTitle\(row\.subject\)/)
+describe('the topic page is the thread alone', () => {
+  it('no Topics list of its own: no rows, no list heading', () => {
+    assert.doesNotMatch(template, /data-test="topic-browse-list"/)
+    assert.doesNotMatch(template, /v-for=/)
+    assert.doesNotMatch(template, /nav\.topics|pages\.index/)
+    assert.doesNotMatch(page, /viewer\.topics|loadTopics/)
+    /* the shared row title helper still strips markdown for every other list */
     assert.equal(rowTitle('Welcome to **#lobby**.'), 'Welcome to #lobby.')
   })
 
-  it('the list names topics and the thread is TopicPane, never the raw id', () => {
+  it('the thread is TopicPane, never the raw id', () => {
     assert.match(template, /data-test="topic-browse"/)
-    assert.match(template, /data-test="topic-browse-list"/)
     assert.match(template, /data-test="topic-browse-thread"/)
     assert.match(template, /<TopicPane\s*\/>/)
-    assert.match(template, /\{\{ t\('nav\.topics'\) \}\}/)
     assert.doesNotMatch(template, /shortId/)
     assert.doesNotMatch(template, /<code/)
     assert.doesNotMatch(template, /<LiveFeed/)
     assert.doesNotMatch(page, /topic\.list_title/)
   })
 
-  it('desktop is the list plus a thread, and the sidebar is not a column', () => {
+  it('the thread fills the page and stays in its column', () => {
     assert.match(css, /\.topic-browse \{[^}]*display: flex;/)
-    assert.match(css, /\.topic-browse__list \{[^}]*flex: 0 0 340px;/)
+    assert.doesNotMatch(css, /\.topic-browse__list/)
     assert.match(css, /\.topic-browse__thread > \.topic \{[^}]*width: auto;/)
     assert.match(css, /\.topic-browse__thread > \.topic \{[^}]*position: relative;/)
     assert.match(css, /\.topic-browse__thread > \.topic \{[^}]*top: auto;/)
-    const start = css.indexOf('/* /t/:id is two panels:')
-    const block = css.slice(start, css.indexOf('.topic-browse {', start))
-    const side = block.match(/\.spool-shell\[data-topic-browse="1"\] > \.sidebar \{[^}]*\}/)
-    assert.ok(side, 'desktop topic-browse sidebar rule')
-    assert.match(side[0], /visibility: hidden;/)
-    assert.match(side[0], /width: var\(--sidebar-w\);/)
-    assert.doesNotMatch(side[0], /display:\s*none/)
   })
 
-  it('a phone shows the thread or the list, one at a time', () => {
-    assert.match(page, /phoneThread/)
-    assert.match(template, /data-phone/)
-    assert.match(css, /\.topic-browse:not\(\[data-phone="list"\]\) > \.topic-browse__list \{ display: none; \}/)
-    assert.match(css, /\.topic-browse\[data-phone="list"\] > \.topic-browse__thread \{ display: none; \}/)
+  it('a phone shows the thread; its X leaves for the front door', () => {
+    assert.doesNotMatch(page, /phoneThread/)
+    assert.match(template, /:data-phone="stack\.isMobile\.value \? 'thread' : undefined"/)
+    assert.doesNotMatch(css, /data-phone="list"/)
+    assert.match(page, /stack\.rightPanel\(/)
+    assert.match(page, /if \(was && !open && taskId\.value\) void navigateTo\(localePath\('\/'\), \{ replace: true \}\)/)
   })
 
   it('a thread title has no Topic: prefix and a four-side border at every width', () => {

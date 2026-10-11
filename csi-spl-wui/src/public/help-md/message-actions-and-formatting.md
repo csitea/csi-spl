@@ -68,7 +68,7 @@ and also has a drag gesture, and each can be reversed with the **Undo** that
 appears after it:
 
 - **Promote a reply to a topic** — pick **Make it a topic** on a thread reply, or
-  drag the message onto the **Topics** list. It leaves the thread and opens as its
+  drag the message onto the channel's list of topics. It leaves the thread and opens as its
   own topic. **Undo** puts it back.
 - **Merge a topic into another** — pick **Merge into…** and choose the target, or
   drag one topic card onto another. Every message from both topics ends up in the

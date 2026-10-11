@@ -2,7 +2,9 @@
 
 import { productPath } from './signed-out-redirect.mjs'
 
-export const SIDE_TABS = ['dm', 'channels', 'topics', 'flow']
+/* owner HUM-10 (t1 e4bfddb1, msg a78e06c8): no Topics tab; a topic opens in
+   its channel (or its DM) */
+export const SIDE_TABS = ['dm', 'channels', 'flow']
 
 /** The admin's Users tab: after flow, only for members.invite
  *  (tenant-users.mjs usersEntryVisible), so it is not in SIDE_TABS. */
@@ -40,27 +42,30 @@ export const BOXES_TAB = 'boxes'
 export const CALENDAR_TAB = 'calendar'
 
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
- *  `topic` and `topics` are the same pane. */
+ *  `topic` and `topics` still parse (the Topics pane is gone, t1 e4bfddb1)
+ *  and open Channels. */
 const SWITCH_PANE_NAMES = {
   messages: 'dm',
   channels: 'channels',
-  topics: 'topics',
-  topic: 'topics',
+  topics: 'channels',
+  topic: 'channels',
   flow: 'flow',
 }
 
 /**
- * The open route picks a tab when the page is one of the four lists.
+ * The open route picks a tab when the page is one of the three lists.
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | null}
+ * @returns {'dm' | 'channels' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
   if (p === '/dm' || p.startsWith('/dm/')) return 'dm'
   if (p === '/channel' || p.startsWith('/channel/')) return 'channels'
-  if (p === '/' || p === '/t' || p.startsWith('/t/')) return 'topics'
+  /* `/` (the front door) and a topic's own page sit under Channels since
+     the Topics tab went (t1 e4bfddb1) */
+  if (p === '/' || p === '/t' || p.startsWith('/t/')) return 'channels'
   if (p === '/issues') return ISSUES_TAB
   if (p === '/users') return USERS_TAB
   if (p === '/events') return EVENTS_TAB
@@ -74,7 +79,6 @@ export function tabForPath(path) {
 
 /** 081 T003: the page each page-backed tab opens, tabForPath's inverse. */
 const TAB_ROUTES = {
-  topics: '/',
   [ISSUES_TAB]: '/issues',
   [USERS_TAB]: '/users',
   [EVENTS_TAB]: '/events',
@@ -113,9 +117,9 @@ export function isSearchPage(path) {
  * Omnibox command `/switch-pane: <name>`.
  * `null` — this line is not the command (send it as a message).
  * `''` — it is the command, but the name is not a pane (do not send).
- * Otherwise the pane id: messages → dm, channels, topics (also topic), flow.
+ * Otherwise the pane id: messages → dm, channels (also topics, topic), flow.
  * @param {string} text
- * @returns {'dm' | 'channels' | 'topics' | 'flow' | '' | null}
+ * @returns {'dm' | 'channels' | 'flow' | '' | null}
  */
 export function switchPaneOf(text) {
   const s = String(text || '').trim()

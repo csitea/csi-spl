@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Sneltoetsen",
       "archive": "Archiveren / Dearchiveren",
-      "archive_topic_row": "Het geselecteerde onderwerp archiveren (weergave Onderwerpen)",
       "move": "Verplaatsen of samenvoegen…",
       "open_menu": "Menu openen",
       "to_parent": "Naar het eerste bericht van het onderwerp in de lijst",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, nieuwste eerst",
-    "index": {
-      "subtitle": "alleen-lezen · werkruimte-gebonden",
-      "empty": "Nog geen onderwerpen.",
-      "messages": "{n} bericht | {n} berichten",
-      "older": "Ouder"
-    },
     "lobby": {
       "status": "live · {state} · je bent {who}",
       "no_lobby": "Geen lobby ingesteld ({env}, of het welkomstbericht van de hub)."

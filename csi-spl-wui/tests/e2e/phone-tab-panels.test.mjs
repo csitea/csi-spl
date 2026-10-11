@@ -50,7 +50,13 @@ try {
   await phone.waitForSelector('[data-testid=sidebar-tab-dm]', { visible: true })
   await sleep(600)
   let c = await panels(phone)
-  ok('390px / starts with the messages panel', c.dm === true && c.flow === false && c.tab === 'sidebar-tab-dm', c)
+  /* the phone's front door is the Channels list since the Topics view went
+     (t1 e4bfddb1): the messages panel is not built until it is opened */
+  ok('390px / starts on Channels, the messages panel not built', c.dm === false && c.flow === false && c.tab === 'sidebar-tab-channels', c)
+  await phone.click('[data-testid=sidebar-tab-dm]')
+  await sleep(800)
+  c = await panels(phone)
+  ok('390px the messages tab builds its panel', c.dm === true && c.flow === false && c.tab === 'sidebar-tab-dm', c)
   await phone.click('[data-testid=sidebar-tab-flow]')
   await sleep(800)
   c = await panels(phone)
@@ -67,7 +73,7 @@ try {
   await desk.goto(`${srv.base}/`, { waitUntil: 'networkidle2' })
   await desk.waitForSelector('[data-testid=sidebar-tab-dm]', { visible: true })
   await sleep(600)
-  /* / on a wide screen opens Topics, so the messages panel is built on the first visit */
+  /* / on a wide screen opens #lobby (Channels), so the messages panel is built on the first visit */
   await desk.click('[data-testid=sidebar-tab-dm]')
   await sleep(600)
   await desk.click('[data-testid=sidebar-tab-flow]')

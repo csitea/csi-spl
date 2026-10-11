@@ -206,6 +206,10 @@ async function phone(browser) {
   ok('390px 3b a topic open, a draft typed: no target chip in the bar (085 AC3)', topicChip === null, { chip: topicChip })
   await p.goto(`${server.base}/`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await sleep(1000)
+  /* the phone's front door is the Channels list since the Topics view went
+     (t1 e4bfddb1): the DM list is one tap away */
+  await p.click('[data-testid=sidebar-tab-dm]').catch(() => {})
+  await sleep(600)
   const dm = await p.evaluate(() => [...document.querySelectorAll('a[href^="/dm/"]')].map((a) => a.getAttribute('href'))[0] || null)
   if (dm) {
     await p.goto(server.base + dm, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

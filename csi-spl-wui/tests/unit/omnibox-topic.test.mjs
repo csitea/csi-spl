@@ -68,14 +68,16 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
   })
 
   it('an open right pane replies there; a closed pane on another tab does not', () => {
-    assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: 'T-1', namedTopicId: '' }), 'T-1')
+    /* the Topics tab is gone (t1 e4bfddb1): a stale tab 'topics' no longer
+       takes the line on its own; only an open pane or a named topic does */
+    assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: 'T-1', namedTopicId: '' }), '')
     assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: 'T-1', namedTopicId: 'T-9' }), 'T-9')
     assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: '', namedTopicId: '' }), '')
     assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: 'T-1', paneVisible: true }), 'T-1')
     assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: 'T-1', namedTopicId: '' }), '')
     assert.equal(omniboxReplyTaskId({ tab: 'dm', selectedTaskId: 'T-1' }), '')
     assert.equal(omniboxReplyTaskId({}), '')
-    assert.match(src('src/pages/index.vue'), /omniboxReplyTaskId/)
+    assert.doesNotMatch(src('src/pages/index.vue'), /omniboxReplyTaskId/, '`/` redirects, it takes no line')
     assert.match(src('src/pages/t/[task_id].vue'), /omniboxReplyTaskId/)
     assert.match(src('src/components/ChannelSidebar.vue'), /setCurrent\(id\)/)
     assert.match(src('src/components/ChannelSidebar.vue'), /req\.stay/)
@@ -92,7 +94,7 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     assert.equal(isParentFlag({ paneVisible: true }), 0)
     assert.equal(isParentFlag({ paneVisible: false }), 1)
     assert.equal(isParentFlag({}), 1)
-    for (const page of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/index.vue', 'src/pages/lobby.vue', 'src/pages/t/[task_id].vue']) {
+    for (const page of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/lobby.vue', 'src/pages/t/[task_id].vue']) {
       assert.match(src(page), /isParentFlag/, page)
     }
   })

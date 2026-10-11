@@ -50,18 +50,17 @@ export function sendsNewTopic({ paneOpen = false, namedTopicId = '' } = {}) {
  * until the reader closes it (X, or Back on a phone). A click on a middle
  * card no longer changes the target; `lastPane` is accepted and ignored.
  * A new topic is explicit: the pane closed, or `in:` naming another topic.
- * Topics with a selected row replies there as before.
  * Owner 2026-10-05 (t1 dc6d5e3f, "reply in topic created a new topic"): a
  * line that starts with `@agent <task>` no longer leaves the open topic;
- * `newTopic` is accepted and ignored, like `lastPane`.
+ * `newTopic` is accepted and ignored, like `lastPane`. So is `tab`: the
+ * Topics tab, where a selected row took the line, is gone (t1 e4bfddb1).
  * @param {{ tab?: string, selectedTaskId?: string, namedTopicId?: string, paneVisible?: boolean, lastPane?: string, newTopic?: boolean }} [opts]
  */
-export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '', paneVisible = false } = {}) {
+export function omniboxReplyTaskId({ selectedTaskId = '', namedTopicId = '', paneVisible = false } = {}) {
   const named = String(namedTopicId || '')
   if (named) return named
   const selected = String(selectedTaskId || '')
   if (paneVisible && selected) return selected
-  if (tab === 'topics' && selected) return selected
   return ''
 }
 

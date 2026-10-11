@@ -4,9 +4,8 @@
 // was the Topics list, whose rows drew no avatar at all).
 //
 // At 1440 and 390 px, light and dark, against the mock bundle:
-//   1. Topics (/, desktop: a phone opens on the sections, where the Topics
-//      tab is a text list like the channels): every row on screen paints its
-//      starter's avatar, never the broadcast address ALL-0's;
+//   (1. the Topics list rows went with the Topics view, owner HUM-10 t1
+//      e4bfddb1; the cards below carry the same avatars)
 //   2. a person's card (#lobby) and an agent's card (#alerts, scrolled into
 //      view) each paint one;
 //   3. both kinds are really painted: loaded (naturalWidth > 0), at least
@@ -14,7 +13,6 @@
 //      topmost element at their centre (nothing laid over them).
 //
 // CONTROLS - plant the defect and watch it go red:
-//   PROVE_RED=no-row-avatar pnpm run test:e2e avatars   (the Topics rows lose it)
 //   PROVE_RED=hidden        pnpm run test:e2e avatars   (every avatar visibility:hidden)
 //
 // Run:
@@ -59,7 +57,6 @@ async function launch() {
 
 /** The planted defects, applied after the page has rendered. */
 async function plant(page) {
-  if (RED === 'no-row-avatar') await page.evaluate(() => document.querySelectorAll('[data-test=topic-row-avatar]').forEach((e) => e.remove()))
   if (RED === 'hidden') await page.addStyleTag({ content: '.spool-avatar { visibility: hidden !important; }' })
 }
 
@@ -156,14 +153,6 @@ try {
       await p.setViewport({ width, height: touch ? 844 : 900, isMobile: touch, hasTouch: touch })
       await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
       await p.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
-
-      // 1. the Topics list
-      if (!touch) {
-        const rows = await measureAt(p, '/', '.topic-row', errors)
-        ok(`1 ${at}: every Topics row on screen paints its starter's avatar`,
-          rows.length > 0 && rows.every(painted) && !rows.some((a) => /ALL-0/.test(a.alt || '')),
-          { rows: rows.length, bad: rows.filter((a) => !painted(a) || /ALL-0/.test(a.alt || '')).slice(0, 3) })
-      }
 
       // 2. #lobby cards: a person and an agent
       const cards = await measureAt(p, '/lobby', 'article.msg', errors)

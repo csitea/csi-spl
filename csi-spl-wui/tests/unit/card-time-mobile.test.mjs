@@ -68,11 +68,7 @@ describe('MessageCard wires it on phones only', () => {
     assert.match(card, /mobile\.value \? phoneCardTime\(fullTime\.value, at\.value\) : fullTime\.value/)
     assert.match(card, /:title="timeTitle"/)
   })
-  it('the home topic rows use it at every width (spec 082 FR-003: desktop rows show the date too)', () => {
-    const home = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/pages/index.vue'), 'utf8')
-    assert.match(home, /<span class="msg-time">\{\{ rowTime\(t\.last_ts\) \}\}<\/span>/)
-    assert.match(home, /const rowTime = \(ts: string\) => phoneCardTime\(formatMsgListTs\(ts\), ts\)\n/)
-  })
+  /* the home topic rows (spec 082 FR-003) went with the Topics view (t1 e4bfddb1) */
   it('phones: card text 10 px from either edge, under the avatar too', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/assets/css/main.css'), 'utf8')
     const phoneCss = css.slice(css.indexOf('@media (max-width: 820px) {'))

@@ -4,6 +4,8 @@
 // as the channel OPENED (CLE-77930 seedTopics); a reply that landed while the
 // reader stayed in the channel - the count arriving after the first paint -
 // left that card a plain total, while topics that had a mark showed "n/total".
+// (The Topics view went, owner HUM-10 t1 e4bfddb1; its right-pane case now
+// opens the topic from a topic link, `/lobby?topic=<id>`.)
 //
 //   before   the topic's replies are all before the channel mark: plain "1 >>"
 //   live     a reply lands after the first paint: "1/2 >>", the 1 bold
@@ -12,9 +14,9 @@
 // Per left tab (Channels, Flow - both keep the channel in the middle), RUNS
 // fresh browser contexts each (default 2; RUNS=10 for a stability count).
 //
-// Topics view (the middle is the Topics list; a topic opens in the right
-// pane): the pane's first message carries the same count - new counted from
-// the topic's read mark before this open read it, on that message only.
+// The right pane (a topic opened from a topic link, /lobby?topic=<id>): the
+// pane's first message carries the same count - new counted from the
+// topic's read mark before this open read it, on that message only.
 //   open     read at 1 of 3 replies: "2/3 >>" on the first message
 //   reopen   closed and opened again (it was read): a plain "3 >>"
 //   BASE_URL=http://127.0.0.1:3111 RUNS=10 node tests/e2e/topic-unread-live.test.mjs
@@ -25,7 +27,7 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV = Number(process.env.NAV_TIMEOUT ?? 60000)
 const RUNS = Math.max(1, Number(process.env.RUNS ?? 2))
-const VIEWS = ['channels', 'flow', 'topics']
+const VIEWS = ['channels', 'flow', 'pane']
 const TASK = '7e7e7e7e-7e7e-4e7e-8e7e-7e7e7e7e7e7e'
 /* the channel mark is after the topic's lines: nothing in it is new at open */
 const MARK = '2026-09-18T09:00:00.000Z'
@@ -34,7 +36,7 @@ const EXTRA = [
   { v: 1, msg_id: '7f7f7f7f-7f7f-4f7f-8f7f-7f7f7f7f7f7f', task_id: TASK, ts: '2026-09-18T08:10:00Z', from: 'CLE-07', from_box: 'box-a', to: '@channel', kind: 'note', body: 'an old reply', channel: 'alerts', parent_task_id: null, is_parent: 0, files: [] },
 ]
 
-/* Topics view: a topic read at 1 reply, with 2 more since */
+/* the right pane: a topic read at 1 reply, with 2 more since */
 const PANE_TASK = '7c7c7c7c-7c7c-4c7c-8c7c-7c7c7c7c7c7c'
 const paneRow = (i, ts, body) => ({ v: 1, msg_id: i ? `7b7b7b7b-7b7b-4b7b-8b7b-7b7b7b7b7b0${i}` : PANE_TASK, task_id: PANE_TASK, ts, from: i ? 'CLE-07' : 'GRK-03', from_box: 'box-a', to: '@channel', kind: 'note', body, channel: 'alerts', parent_task_id: null, is_parent: i ? 0 : 1, files: [] })
 const PANE_EXTRA = [
@@ -145,25 +147,27 @@ async function feedRun(browser, base, view, run) {
   }
 }
 
-/** Topics view: open the topic from the Topics list into the right pane (on a
-    desktop `/` that list is the middle one, spec 109 T008). */
+/** The right pane: a topic link (`/?topic=<id>`, which lands on
+    `/lobby?topic=<id>`) opens it there, pushed in the app so the read marks
+    seeded on the first load stay. */
+const pushTopic = (p) => p.evaluate((id) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/lobby?topic=' + id), PANE_TASK)
 async function paneRun(browser, base, run) {
   const { ctx, p, errors } = await fresh(browser, PANE_EXTRA, { [`t:${PANE_TASK}`]: { ts: MARK, id: '', count: 1 } })
-  const tag = `topics #${run}`
-  const row = `.spool-main a.topic-row[data-key="${PANE_TASK}"]`
+  const tag = `pane #${run}`
   const pane = '[data-test=topic-root]'
   try {
-    await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
-    await p.waitForSelector(row, { visible: true, timeout: NAV })
-    await p.click(row)
+    await p.goto(`${base}/lobby`, { waitUntil: 'networkidle2', timeout: NAV })
+    await p.waitForSelector('[data-testid=sidebar-rail]', { timeout: NAV })
+    await pushTopic(p)
     await p.waitForSelector(`${pane} article.msg[data-msg-id="${PANE_TASK}"]`, { timeout: NAV })
     const open = await reads(p, pane, '2/3 >>', PANE_TASK)
     ok(`${tag}: the pane's first message reads "2/3 >>", the 2 bold`, open.text === '2/3 >>' && open.unread === '2' && open.bold, open)
     const others = await p.$$eval(`${pane} article.msg [data-test=topic-replies]`, (b) => b.length)
     ok(`${tag}: only the first message carries the count`, others === 1, { others })
-    if (run === 1) await shot(p, 'topics')
+    if (run === 1) await shot(p, 'pane')
     await p.click('[data-test=live-topic-close]')
-    await p.click(row)
+    await p.waitForFunction((sel) => !document.querySelector(sel), { timeout: 8000 }, `${pane} article.msg[data-msg-id="${PANE_TASK}"]`).catch(() => {})
+    await pushTopic(p)
     const again = await reads(p, pane, '3 >>', PANE_TASK)
     ok(`${tag}: opened again (read), it reads a plain "3 >>"`, again.text === '3 >>' && again.unread === null, again)
     ok(`${tag}: no page error`, errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
@@ -177,7 +181,7 @@ const browser = await launch()
 let code = 0
 try {
   for (const view of VIEWS) {
-    for (let run = 1; run <= RUNS; run++) await (view === 'topics' ? paneRun(browser, server.base, run) : feedRun(browser, server.base, view, run))
+    for (let run = 1; run <= RUNS; run++) await (view === 'pane' ? paneRun(browser, server.base, run) : feedRun(browser, server.base, view, run))
   }
 } catch (e) {
   console.error(e)

@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Skróty klawiszowe",
       "archive": "Archiwizuj / Przywróć z archiwum",
-      "archive_topic_row": "Archiwizuj zaznaczony temat (widok Tematy)",
       "move": "Przenieś lub scal…",
       "open_menu": "Otwórz menu",
       "to_parent": "Przejdź do pierwszej wiadomości wątku na liście",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, od najnowszych",
-    "index": {
-      "subtitle": "tylko do odczytu · w obrębie obszaru roboczego",
-      "empty": "Brak tematów.",
-      "messages": "{n} wiadomość | {n} wiadomości",
-      "older": "Starsze"
-    },
     "lobby": {
       "status": "na żywo · {state} · jesteś {who}",
       "no_lobby": "Nie skonfigurowano lobby ({env} lub powitanie huba)."

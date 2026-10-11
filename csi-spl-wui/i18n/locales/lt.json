@@ -871,7 +871,6 @@
     "shortcuts": {
       "title": "Spartieji klavišai",
       "archive": "Archyvuoti / Grąžinti iš archyvo",
-      "archive_topic_row": "Archyvuoti pažymėtą temą (Temų rodinys)",
       "move": "Perkelti arba sujungti…",
       "open_menu": "Atidaryti meniu",
       "to_parent": "Eiti į temos pirmąją žinutę sąraše",
@@ -970,12 +969,6 @@
   },
   "pages": {
     "feed_label": "{target}, naujausi viršuje",
-    "index": {
-      "subtitle": "tik skaityti · pagal darbo sritį",
-      "empty": "Temų dar nėra.",
-      "messages": "{n} žinutė | {n} žinutės",
-      "older": "Senesni"
-    },
     "lobby": {
       "status": "tiesiogiai · {state} · jūs esate {who}",
       "no_lobby": "Fojė nesukonfigūruota ({env} arba centro pasveikinimas)."

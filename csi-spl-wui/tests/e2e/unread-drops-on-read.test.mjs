@@ -121,10 +121,15 @@ try {
         const el = [...document.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 0)
         el?.click()
       }, card)
-      await settle(p, before)
-      /* read back on `/` after a reload: what the reader finds when they come
-         back. (Measured 2026-10-11, c-201: in the same page the Channels
-         number and the row keep the 2 until a reload; reported, not pinned.) */
+      /* t1 e4bfddb1 (c-201, 2026-10-11): in the same page the Channels number,
+         the row and the title kept the 2 until a reload, while the same topic
+         opened from the Flow dropped them at once. The card's open now pushes
+         its read mark as the Flow's does. */
+      const live = await settle(p, before)
+      ok(`${tag} channels: opening it drops the Channels total in the same page`, live.channels === before.channels - before.row, { before, live })
+      ok(`${tag} channels: the row's number goes in the same page`, live.row === 0, live)
+      ok(`${tag} channels: the title drops in the same page`, live.title === before.title - before.row, { before, live })
+      /* read back on `/` after a reload: what the reader finds when they come back */
       await new Promise((r) => setTimeout(r, 1500))
       const after = await home(p, size)
       ok(`${tag} channels: opening it drops the Channels total by what was read (after a reload)`, after.channels === before.channels - before.row, { before, after })

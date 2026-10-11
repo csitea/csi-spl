@@ -1,11 +1,11 @@
-Palusite jätkata oma vestlust saidil {{.Site}} teises seadmes või brauseris.
+Palusid jätkata oma vestlust saidil {{.Site}} teises seadmes või brauseris.
 
-Avage see link, et seal jätkata. Link kehtib {{duration .TTL}}.
+Ava see link, et seal jätkata. Link kehtib {{duration .TTL}}.
 
 {{.Link}}
 
-Link töötab ühe korra. Selle kasutamine lõpetab vestluse sisselogimise seadmes, mida varem kasutasite.
-Kui te seda ei palunud, jätke see kiri tähelepanuta: midagi ei muutu.
+Link töötab ühe korra. Selle kasutamine lõpetab vestluse sisselogimise seadmes, mida varem kasutasid.
+Kui sa seda ei palunud, jäta see kiri tähelepanuta: midagi ei muutu.
 
-Andsite selle aadressi vestluses saidil {{.Site}} ainult ühel eesmärgil: et saada
+Andsid selle aadressi vestluses saidil {{.Site}} ainult ühel eesmärgil: et saada
 selline link oma vestluse juurde tagasi. Seda ei kasutata millekski muuks.

@@ -6,9 +6,19 @@ from typing import Dict, Literal, Optional
 from pydantic import BaseModel, Extra, conint, root_validator, validator
 
 VENDORS = ("agy", "mistral", "claude", "grok", "qwen")
-KINDS = ("specs_and_docs", "tests", "simple_coding", "complex_coding", "i18n", "secret")
+KINDS = (
+    "specs_and_docs",
+    "tests",
+    "simple_coding",
+    "complex_coding",
+    "i18n",
+    "secret",
+    "orchestration",
+)
 CODING_KINDS = ("tests", "simple_coding", "complex_coding")
-# the data rule, owner msgs 803c3b38, 26117740, 474f32a0
+# the data rule, owner msgs 803c3b38, 26117740, 474f32a0: the secret-class
+# kinds (orchestration: owner msgs a1e5c678, ff1baf01) take only these
+SECRET_KINDS = ("secret", "orchestration")
 SECRET_VENDORS = ("claude", "grok", "mistral")
 
 Weight = conint(ge=0, le=100)
@@ -61,12 +71,13 @@ class Box(BaseModel, extra=Extra.allow):
                 raise ValueError(
                     f"{kind}: agy writes no code (weight 0, never the backup)"
                 )
-        row = rows["secret"]
-        others = [
-            v for v in VENDORS if v not in SECRET_VENDORS and getattr(row, v) != 0
-        ]
-        if others or row.backup not in SECRET_VENDORS:
-            raise ValueError(
-                "secret: only claude, grok and mistral may be non-zero or the backup"
-            )
+        for kind in SECRET_KINDS:
+            row = rows[kind]
+            others = [
+                v for v in VENDORS if v not in SECRET_VENDORS and getattr(row, v) != 0
+            ]
+            if others or row.backup not in SECRET_VENDORS:
+                raise ValueError(
+                    f"{kind}: only claude, grok and mistral may be non-zero or the backup"
+                )
         return rows

@@ -26,7 +26,7 @@ Name the task kind, estimate difficulty against your own maximum capacity
 launcher:
 
 ```bash
-cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<specs_and_docs|tests|simple_coding|complex_coding|i18n|secret> LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> LANE_MIX_TASK=<task_id> ./run -a do_spl_lane_mix
+cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration> LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> LANE_MIX_TASK=<task_id> ./run -a do_spl_lane_mix
 ```
 
 Its last line, `pick=<vendor> launcher=/<vendor>-spawn reason=...`, is the
@@ -40,6 +40,7 @@ launcher. The split is cnf `env.box.agent_split_by_kind` (all.env.yaml), which d
 | hard coding, architecture, hi-fi work: `LANE_MIX_KIND=complex_coding` | claude  | mistral |
 | translation, or the language review of user-facing text in several languages: `LANE_MIX_KIND=i18n` | agy     | claude  |
 | personal data or secrets: `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude  | mistral |
+| dispatching and orchestrating: `LANE_MIX_KIND=orchestration` | claude  | grok    |
 
 The backup vendor takes over after 2 failed tries of the main on the same task.
 

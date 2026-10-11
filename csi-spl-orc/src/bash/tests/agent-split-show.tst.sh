@@ -5,7 +5,7 @@
 #          proxy as the project SA, with the tenant id as a psql variable,
 #          and prints "claude=N grok=N agy=N qwen=N mistral=N". A row that does not sum
 #          to 100 is refused. gcloud and psql are stubbed.
-#          --kind <k> (spec 115 HUB-1, rdb 0163) prints that kind's row with
+#          --kind <k> (spec 115 HUB-1, rdb 0163, 0178) prints that kind's row with
 #          its backup, from the workspace's rows, else from the cnf
 #          env.box.agent_split_by_kind row; a bad kind never calls the cloud.
 #------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ in_orc 'do_spl_agent_split_show' TENANT_ID=t1 STUB_PSQL_OUT='40|50|10|0'; rc=$?
 # --- 4. --kind (spec 115 HUB-1) ---------------------------------------------
 in_orc 'do_spl_agent_split_show --kind=opus' TENANT_ID=t1; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q "FATAL --kind must be" "$T/out" \
-  && pass "4. a kind outside the six is refused before any call" || fail "4. opus: rc=$rc $(cat "$T/out")"
+  && pass "4. a kind outside the seven is refused before any call" || fail "4. opus: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show --kind "x'"'"'; drop table tenants"' TENANT_ID=t1; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "4. an injected kind is refused before any call" || fail "4. injected kind: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show --kind simple_coding' TENANT_ID=t1 STUB_PSQL_OUT=$'agy|0|false\nclaude|30|true\ngrok|10|false\nmistral|60|false\nqwen|0|false'; rc=$?
@@ -139,6 +139,13 @@ in_orc 'do_spl_agent_split_show --kind hard' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$
 in_orc 'do_spl_agent_split_show --kind i18n' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
 [[ $rc -eq 0 ]] && grep -qx 'claude=0 grok=0 agy=100 qwen=0 mistral=0 backup=claude' "$T/out" \
   && pass "4. a cnf backup with no weight is printed as the backup" || fail "4. cnf backup: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_agent_split_show --kind orchestration' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'claude=65 grok=35 agy=0 qwen=0 mistral=0 backup=grok' "$T/out" \
+  && grep -q '\[kind=orchestration\]' "$T/calls.log" \
+  && pass "4. the orchestration kind (rdb 0178), unset, prints the cnf row" || fail "4. orchestration: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_agent_split_show --kind specs_and_docs' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'claude=10 grok=0 agy=60 qwen=0 mistral=30 backup=claude' "$T/out" \
+  && pass "4. specs_and_docs, unset, prints agy 60 / mistral 30 / claude 10" || fail "4. specs_and_docs: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show --kind tests' TENANT_ID=t1 STUB_PSQL_OUT=$'claude|70|false\nmistral|29|true'; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'sums to 99, not 100' "$T/out" && ! grep -q '^claude=' "$T/out" \
   && pass "4. a kind that does not sum to 100 is not printed" || fail "4. kind sum: rc=$rc $(cat "$T/out")"

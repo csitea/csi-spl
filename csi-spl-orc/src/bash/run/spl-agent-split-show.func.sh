@@ -18,7 +18,7 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug
 # @param --kind <k> (optional) - specs_and_docs, tests, simple_coding,
-# @param   complex_coding, i18n or secret; the picker's aliases spec, hard and
+# @param   complex_coding, i18n, secret or orchestration; the picker's aliases spec, hard and
 # @param   default are read as specs_and_docs, complex_coding, simple_coding
 # @param SPL_SA_KEY (optional) - default the env project SA key; or set
 # @param   GCP_SA_KEY_FILE, which do_gcp_pin_account reads
@@ -52,14 +52,14 @@ do_spl_agent_split_show() {
 
 # _spl_agent_split_kind <k> -> SPL_SPLIT_KIND, the stored kind name (aliases
 # resolved; "" stays "", the five-column split), or a FATAL for anything
-# else. The six names are rdb 0163's kind CHECK.
+# else. The seven names are rdb 0178's kind CHECK.
 _spl_agent_split_kind() {
   case "$1" in
-    "" | specs_and_docs | tests | simple_coding | complex_coding | i18n | secret) SPL_SPLIT_KIND="$1" ;;
+    "" | specs_and_docs | tests | simple_coding | complex_coding | i18n | secret | orchestration) SPL_SPLIT_KIND="$1" ;;
     spec) SPL_SPLIT_KIND=specs_and_docs ;;
     hard) SPL_SPLIT_KIND=complex_coding ;;
     default) SPL_SPLIT_KIND=simple_coding ;;
-    *) do_log "FATAL --kind must be specs_and_docs, tests, simple_coding, complex_coding, i18n or secret (or spec, hard, default), got '$1'"; return 1 ;;
+    *) do_log "FATAL --kind must be specs_and_docs, tests, simple_coding, complex_coding, i18n, secret or orchestration (or spec, hard, default), got '$1'"; return 1 ;;
   esac
 }
 

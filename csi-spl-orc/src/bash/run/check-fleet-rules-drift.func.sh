@@ -185,7 +185,8 @@ tests claude
 simple_coding grok
 complex_coding claude
 i18n agy
-secret claude"
+secret claude
+orchestration claude"
 
   for f in "$t/$_FRD_FRAG/20-spawn-an-agent.md" "$t/$_FRD_CMDS/spawn-an-agent.md"; do
     [[ -f "$f" ]] || { _frd_log "FAIL per-kind-main: $f not found"; bad=1; continue; }

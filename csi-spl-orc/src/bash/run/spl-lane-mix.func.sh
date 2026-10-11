@@ -6,7 +6,7 @@
 # @description LANE_MIX_SPLIT_KIND (do_spl_agent_split_show --kind); the main
 # @description is the vendor with the highest weight. APPROXIMATE, never a quota.
 # @description Kinds: specs_and_docs, tests, simple_coding, complex_coding,
-# @description i18n, secret. The old names stay as aliases: spec is
+# @description i18n, secret, orchestration. The old names stay as aliases: spec is
 # @description specs_and_docs, hard is complex_coding, default is
 # @description simple_coding. No kind: difficulty >= 60 is complex_coding,
 # @description else simple_coding. LANE_MIX_SENSITIVE=1 makes any kind secret.
@@ -36,8 +36,10 @@
 # @description write: a fresh local limit verdict is reported to the hub as a
 # @description pause of that vendor until the verdict runs out
 # @description (`spool fleet-load pause`), so every box skips it.
-# @description Data rule: kind secret goes to claude, grok or mistral only
-# @description (owner msgs 803c3b38, 26117740, 474f32a0), never agy or qwen;
+# @description Data rule: the secret-class kinds, secret and orchestration
+# @description (dispatching and orchestrating, owner msgs a1e5c678, ff1baf01),
+# @description go to claude, grok or mistral only (owner msgs 803c3b38,
+# @description 26117740, 474f32a0), never agy or qwen;
 # @description none left -> pick=hold. Language
 # @description rule: i18n goes to agy; served by anyone else the pick carries
 # @description flag=needs_agy_review and the text waits for an agy review.
@@ -104,7 +106,7 @@ do_spl_lane_mix() {
   _spl_lane_mix_journal "$root" "${LANE_MIX_TASK:-}"
   _spl_lane_mix_table "$cnf" "$reg"
   case "$_LM_KIND" in
-    secret) _spl_lane_mix_secret ;;
+    secret|orchestration) _spl_lane_mix_secret ;;
     # owner HUM-10 t1 296582df (2026-10-08): agy has the final word on any
     # user-facing text in several languages
     i18n) _spl_lane_mix_want agy "kind i18n: agy has the final word on multilingual text" ;;
@@ -117,13 +119,13 @@ do_spl_lane_mix() {
 _spl_lane_mix_kind() {
   _LM_KIND_WHY="LANE_MIX_KIND=$1"
   case "$1" in
-    specs_and_docs|tests|simple_coding|complex_coding|i18n|secret) _LM_KIND="$1" ;;
+    specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration) _LM_KIND="$1" ;;
     spec) _LM_KIND=specs_and_docs ;;
     hard) _LM_KIND=complex_coding ;;
     default) _LM_KIND=simple_coding ;;
     "") if [[ -n "$2" ]] && (( $2 >= 60 )); then _LM_KIND=complex_coding _LM_KIND_WHY="difficulty $2 >= 60"
         else _LM_KIND=simple_coding _LM_KIND_WHY="difficulty ${2:-unset} < 60"; fi ;;
-    *) do_log "FATAL LANE_MIX_KIND must be specs_and_docs, tests, simple_coding, complex_coding, i18n or secret (or spec, hard, default), got '$1'"
+    *) do_log "FATAL LANE_MIX_KIND must be specs_and_docs, tests, simple_coding, complex_coding, i18n, secret or orchestration (or spec, hard, default), got '$1'"
        return 1 ;;
   esac
   [[ "$3" == 1 ]] || return 0
@@ -161,7 +163,7 @@ _spl_lane_mix_target() {
 # _spl_lane_mix_row_check -> _LM_MAIN, or a FATAL for a row that breaks the
 # spec 115 section 2 rules: whole numbers summing to 100, one strict maximum
 # (the main), a known backup other than the main, agy 0 and never the backup
-# in a coding kind, only claude, grok or mistral in secret
+# in a coding kind, only claude, grok or mistral in secret and orchestration
 _spl_lane_mix_row_check() {
   local v sum=0 top=-1 ties=0 at="agent_split_by_kind.$_LM_KIND ($_LM_ROW)"
   _LM_MAIN=""
@@ -179,7 +181,7 @@ _spl_lane_mix_row_check() {
     tests|simple_coding|complex_coding)
       (( _LM_TGT[agy] == 0 )) && [[ "$_LM_BACKUP" != agy ]] || {
         do_log "FATAL $at: agy writes no code (spec 115 G2), agy=${_LM_TGT[agy]} backup=$_LM_BACKUP"; return 1; } ;;
-    secret)
+    secret|orchestration)
       (( _LM_TGT[agy] + _LM_TGT[qwen] == 0 )) && [[ "$_LM_BACKUP" =~ ^(claude|grok|mistral)$ ]] || {
         do_log "FATAL $at: the data rule allows claude, grok or mistral only, agy=${_LM_TGT[agy]} qwen=${_LM_TGT[qwen]} backup=$_LM_BACKUP"; return 1; } ;;
   esac
@@ -367,7 +369,7 @@ _spl_lane_mix_actual() {
     done < <(awk -F'\t' -v want="$_LM_KIND" '
                $1 !~ /-00[1-3]$/ && NF >= 5 {
                  k[$1] = $2; t[$1] = $5
-                 kd[$1] = ($NF ~ /^(specs_and_docs|tests|simple_coding|complex_coding|i18n|secret)$/) ? $NF : "simple_coding"
+                 kd[$1] = ($NF ~ /^(specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration)$/) ? $NF : "simple_coding"
                }
                END { for (i in k) if (kd[i] == want) print t[i] "\t" k[i] }' "$1" |
              sort | tail -n "$_LM_WIN" | cut -f2)

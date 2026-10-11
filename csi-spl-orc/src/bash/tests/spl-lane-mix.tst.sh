@@ -11,7 +11,8 @@
 #          signed in, an S2 limit or auth verdict, off or paused in the
 #          instance setting) is skipped at once and its weight goes to the
 #          backup, else claude. The data rule: secret goes to claude, grok
-#          or mistral only (never qwen or agy), else hold. The language rule: i18n goes to agy, and
+#          or mistral only (never qwen or agy), else hold; orchestration
+#          is secret-class the same way. The language rule: i18n goes to agy, and
 #          any other pick carries flag=needs_agy_review.
 #          A fake agent home, registry and journal; the cnf is a copy of the
 #          real all.env.yaml with the section 2 table pinned, so a cnf change
@@ -36,7 +37,8 @@ yq '.env.box.agent_split.tolerance = 5 | .env.box.agent_split.window = 20
       "simple_coding": {"mistral": 80, "claude": 20, "backup": "claude"},
       "complex_coding": {"claude": 80, "mistral": 20, "backup": "mistral"},
       "i18n": {"agy": 100, "backup": "claude"},
-      "secret": {"claude": 100, "backup": "mistral"}}' "$REAL_CNF" >"$CNF"
+      "secret": {"claude": 100, "backup": "mistral"},
+      "orchestration": {"claude": 65, "grok": 35, "backup": "grok"}}' "$REAL_CNF" >"$CNF"
 H="$T/home"
 mkdir -p "$H/.local/bin" "$H/.grok" "$H/.gemini" "$H/.vibe"
 for c in claude grok agy vibe; do printf '#!/bin/sh\n' >"$H/.local/bin/$c"; chmod +x "$H/.local/bin/$c"; done
@@ -89,12 +91,12 @@ FUNC="$PROJ_ROOT/src/bash/run/spl-lane-mix.func.sh"
 bash -n "$FUNC" && bash -n "$PROJ_ROOT/src/bash/run/spl-lane-mix-journal.func.sh" \
   && pass "0. both actions parse" || fail "0. action syntax"
 bad=""
-for k in specs_and_docs tests simple_coding complex_coding i18n secret; do
+for k in specs_and_docs tests simple_coding complex_coding i18n secret orchestration; do
   [[ "$(yq -r ".env.box.agent_split_by_kind.$k | (.claude // 0) + (.grok // 0) + (.agy // 0) + (.qwen // 0) + (.mistral // 0)" "$REAL_CNF")" == 100 \
      && -n "$(yq -r ".env.box.agent_split_by_kind.$k.backup // \"\"" "$REAL_CNF")" ]] || bad+=" $k"
 done
 [[ -z "$bad" ]] && [[ "$(yq -r '.env.box.agent_split.auth_marker.mistral' "$REAL_CNF")" == .vibe/.env ]] \
-  && pass "0. the real cnf carries the six kind rows, each summing to 100 with a backup" \
+  && pass "0. the real cnf carries the seven kind rows, each summing to 100 with a backup" \
   || fail "0. real cnf rows:$bad"
 grep -q '_spl_lane_mix_next\|first=(\[spec\]' "$FUNC" \
   && fail "0. the fixed chain or the D5 first= map is still in the picker" \
@@ -102,7 +104,7 @@ grep -q '_spl_lane_mix_next\|first=(\[spec\]' "$FUNC" \
 
 # --- 1. kinds, aliases and their mains (T7) -----------------------------------
 : >"$T/registry.tsv"
-for kv in specs_and_docs:agy tests:claude simple_coding:mistral complex_coding:claude i18n:agy secret:claude; do
+for kv in specs_and_docs:agy tests:claude simple_coding:mistral complex_coding:claude i18n:agy secret:claude orchestration:claude; do
   mix LANE_MIX_KIND="${kv%%:*}"
   [[ "$(pick)" == "${kv#*:}" && "$(kindof)" == "${kv%%:*}" ]] \
     || fail "1. kind ${kv%%:*} with no spawn yet picks ${kv#*:}: $(cat "$T/out")"
@@ -386,6 +388,33 @@ for c in 'claude=90 grok=0 agy=0 qwen=10 mistral=0 backup=mistral' 'claude=90 gr
   mix LANE_MIX_KIND=secret LANE_MIX_SPLIT_KIND="$c"; rc=$?
   [[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" && grep -q 'data rule allows claude, grok or mistral only' "$T/out" \
     && pass "7. secret row refused: $c" || fail "7. secret row not refused: $c rc=$rc $(cat "$T/out")"
+done
+# orchestration (dispatching and orchestrating, owner msgs a1e5c678,
+# ff1baf01) is secret-class: claude 65 / grok 35, backup grok; never qwen or agy
+: >"$T/registry.tsv"
+hub '[]'
+hmix LANE_MIX_KIND=orchestration
+[[ "$(pick)" == claude && "$(kindof)" == orchestration ]] && grep -q 'main=claude backup=grok row=cnf ' "$T/out" \
+  && grep -q 'reason=data rule: ' "$T/out" \
+  && pass "7. kind orchestration -> its main claude, under the data rule" || fail "7. orchestration: $(cat "$T/out")"
+hub '["claude"]'
+hmix LANE_MIX_KIND=orchestration
+[[ "$(pick)" == grok ]] && pass "7. claude off: orchestration goes to the backup grok" || fail "7. orchestration backup: $(cat "$T/out")"
+bad=""
+for m in $(seq 0 31); do
+  off=""; i=0
+  for v in claude grok agy qwen mistral; do (( m >> i & 1 )) && off+="${off:+,}\"$v\""; i=$((i + 1)); done
+  hub "[$off]"
+  hmix LANE_MIX_KIND=orchestration
+  case "$(pick)" in claude|grok|mistral|hold) ;; *) bad+=" [$off]:$(pick)" ;; esac
+done
+[[ -z "$bad" ]] && pass "7. orchestration under all 32 vendors-off sets, qwen and agy installed: never qwen or agy" \
+  || fail "7. data rule broken in orchestration:$bad"
+for c in 'claude=90 grok=0 agy=10 qwen=0 mistral=0 backup=grok' 'claude=90 grok=0 agy=0 qwen=10 mistral=0 backup=grok' \
+         'claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=agy'; do
+  mix LANE_MIX_KIND=orchestration LANE_MIX_SPLIT_KIND="$c"; rc=$?
+  [[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" && grep -q 'data rule allows claude, grok or mistral only' "$T/out" \
+    && pass "7. orchestration row refused: $c" || fail "7. orchestration row not refused: $c rc=$rc $(cat "$T/out")"
 done
 rm -f "$H/.local/bin/qwen"; rm -rf "$H/.qwen"
 

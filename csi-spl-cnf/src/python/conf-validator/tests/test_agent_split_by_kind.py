@@ -20,15 +20,17 @@ SPEC_MAIN_BACKUP = {
     "complex_coding": ("claude", "mistral"),
     "i18n": ("agy", "claude"),
     "secret": ("claude", "mistral"),
+    "orchestration": ("claude", "grok"),
 }
 
 ROWS = {
-    "specs_and_docs": {"agy": 70, "mistral": 20, "claude": 10, "backup": "claude"},
-    "tests": {"claude": 70, "mistral": 30, "backup": "mistral"},
-    "simple_coding": {"mistral": 80, "claude": 20, "backup": "claude"},
-    "complex_coding": {"claude": 80, "mistral": 20, "backup": "mistral"},
+    "specs_and_docs": {"agy": 60, "mistral": 30, "claude": 10, "backup": "claude"},
+    "tests": {"claude": 70, "grok": 15, "mistral": 15, "backup": "mistral"},
+    "simple_coding": {"grok": 41, "mistral": 39, "claude": 20, "backup": "claude"},
+    "complex_coding": {"claude": 80, "grok": 10, "mistral": 10, "backup": "mistral"},
     "i18n": {"agy": 100, "backup": "claude"},
     "secret": {"claude": 100, "backup": "mistral"},
+    "orchestration": {"claude": 65, "grok": 35, "backup": "grok"},
 }
 
 
@@ -73,12 +75,12 @@ class AgentSplitByKindTest(unittest.TestCase):
 
     def test_a_tied_main_is_red(self):
         rows = copy.deepcopy(ROWS)
-        rows["tests"].update(claude=50, mistral=50)
+        rows["tests"].update(claude=50, grok=0, mistral=50)
         self.assertRed(rows, "tie")
 
     def test_backup_equal_to_main_is_red(self):
         rows = copy.deepcopy(ROWS)
-        rows["simple_coding"]["backup"] = "mistral"
+        rows["simple_coding"]["backup"] = "grok"
         self.assertRed(rows, "is the main")
 
     def test_a_weight_out_of_range_is_red(self):
@@ -115,6 +117,36 @@ class AgentSplitByKindTest(unittest.TestCase):
         rows = copy.deepcopy(ROWS)
         rows["secret"]["backup"] = "grok"
         self.assertGreen(rows)
+
+    def test_orchestration_outside_claude_grok_and_mistral_is_red(self):
+        rows = copy.deepcopy(ROWS)
+        rows["orchestration"].update(claude=55, agy=10)
+        self.assertRed(rows, "orchestration")
+        rows = copy.deepcopy(ROWS)
+        rows["orchestration"].update(claude=55, qwen=10)
+        self.assertRed(rows, "orchestration")
+        rows = copy.deepcopy(ROWS)
+        rows["orchestration"]["backup"] = "agy"
+        self.assertRed(rows, "orchestration")
+
+    def test_orchestration_with_mistral_is_green(self):
+        rows = copy.deepcopy(ROWS)
+        rows["orchestration"] = {
+            "claude": 50,
+            "grok": 30,
+            "mistral": 20,
+            "backup": "mistral",
+        }
+        self.assertGreen(rows)
+
+    def test_all_env_yaml_rows_hold_the_owner_weights(self):
+        rows = AllEnv.parse_raw(ALL_ENV.read_text()).env.box.agent_split_by_kind
+        for kind, row in ROWS.items():
+            want = {
+                v: row.get(v, 0) for v in ("agy", "mistral", "claude", "grok", "qwen")
+            }
+            got = {v: getattr(rows[kind], v) for v in want}
+            self.assertEqual((got, rows[kind].backup), (want, row["backup"]), kind)
 
     def test_unknown_or_missing_kind_is_red(self):
         rows = copy.deepcopy(ROWS)

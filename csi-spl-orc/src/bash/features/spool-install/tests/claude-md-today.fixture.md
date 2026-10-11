@@ -98,6 +98,7 @@ kind and let the per-kind main and backup vendors decide:
 | hard coding, architecture, hi-fi work (`complex_coding`) | claude  | mistral |
 | translations, language reviews (`i18n`) | agy     | claude  |
 | secrets, personal data (`secret`) | claude  | mistral |
+| dispatching and orchestrating (`orchestration`) | claude  | grok    |
 
 The backup vendor takes over after 2 failed tries of the main on the same task.
 
@@ -109,7 +110,9 @@ personal data or secrets (credentials, keys, customer data) goes only to
 endpoints are run by a Chinese provider) or agy, and a brief for those lanes
 never names a credential path. `do_spl_lane_mix` routes `LANE_MIX_KIND=secret`
 by its cnf row (`env.box.agent_split_by_kind.secret`), where claude, grok or
-mistral may be the main or the backup.
+mistral may be the main or the backup. `LANE_MIX_KIND=orchestration`
+(dispatching and orchestrating, owner 2026-10-11, msgs a1e5c678 and
+ff1baf01) is secret-class the same way.
 
 <!-- fleet-pin language-rule-final: agy -->
 **Language rule, owner 2026-10-08** (t1 msg 296582df: "there the final word

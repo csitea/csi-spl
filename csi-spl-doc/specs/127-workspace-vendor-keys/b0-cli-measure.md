@@ -196,3 +196,103 @@ grep -hE 'Auth mode|not logged' $H/.gemini/antigravity-cli/log/*.log | sort -u
 | L16: telemetry off per CLI | switches named above; none found for agy; qwen usage statistics default ON and settings-only | X2 sets `DISABLE_TELEMETRY=1 DISABLE_ERROR_REPORTING=1` (claude), `VIBE_ENABLE_TELEMETRY=false`, `GROK_TELEMETRY_ENABLED=false`, and a seat `settings.json` with `privacy.usageStatisticsEnabled: false` (qwen). L16's own test still needs a packet capture: none was taken here |
 
 Not done here, by the brief: no code, no launcher change, no other lane.
+
+## 4. agy ADC (B0b)
+
+Measured 2026-10-11 on the main box, as the agent user, by c-987: does
+`AGY_ADC_AUTH` (with or without `GOOGLE_APPLICATION_CREDENTIALS` on a fake
+service-account JSON) make agy use Google Application Default Credentials
+instead of its login? `agy --version` -> `1.3.3`.
+
+**Verdict: workspace key via ADC: possible.** With `AGY_ADC_AUTH=1` agy takes
+its ADC path and reads the credential file (n=4); without it the file is
+ignored (n=2). A real service-account credential serving a prompt was not
+measured: the fake fails at key parse, before any network call.
+
+### 4.1 Setup
+
+ONE throwaway dir is the `HOME` of every run and the root of the leak grep.
+The fake is generated at run time and never committed: a service-account JSON
+whose fake key field (`private_key`) holds the marker `b0bADCmarkQQ` with no
+key header, and whose `token_uri` is a closed local port.
+
+```bash
+T=$(mktemp -d); M=b0bADCmarkQQ
+```
+
+```bash
+python3 -I -c 'import json,sys; m=sys.argv[2]; json.dump({"type":"service_account","project_id":"fake-b0b","private_key_id":"fake"+m,"private_key":"FAKEKEY-"+m,"client_email":"fake-"+m.lower()+"@fake-b0b.iam.gserviceaccount.com","client_id":"0","token_uri":"http://127.0.0.1:9/token"},open(sys.argv[1],"w"))' $T/fake-sa.json $M
+```
+
+One run, `<n>` the run name and `<vars>` the variables under test:
+
+```bash
+env -i PATH=$PATH HOME=$T TERM=dumb <vars> timeout 60 agy -p "say ok" --print-timeout 20s --log-file $T/<n>.log
+```
+
+```bash
+grep -c 'adcAuth:' $T/<n>.log; grep -ohE 'adc_auth.go:[0-9]+\] [^:]*: [^:]*: [^;]{0,70}' $T/<n>.log | sort | uniq -c
+```
+
+### 4.2 Results
+
+| runs | `<vars>` | agy prints, rc | log (`$T/<n>.log`) |
+|---|---|---|---|
+| a1, a2 (n=2) | `AGY_ADC_AUTH=1 GOOGLE_APPLICATION_CREDENTIALS=$T/fake-sa.json` | "authentication required. Run 'agy' to log in.", rc 1 | `adc_auth.go:49] adcAuth: failed to get token from token source: private key should be a PEM or plain PKCS1 or PKCS8`, 2 lines per run: the file was read and its fake key rejected |
+| b1, b2 (n=2) | `GOOGLE_APPLICATION_CREDENTIALS=$T/fake-sa.json` | a browser OAuth URL, waits until the timeout, rc 124 | 0 `adcAuth:` lines: without `AGY_ADC_AUTH` the file is ignored |
+| c1, c2 (n=2) | `AGY_ADC_AUTH=1` | same as a, rc 1 | `adc_auth.go:39] adcAuth: failed to load credentials: google: could not find default credentials` |
+| d1, d2 (n=2) | `AGY_ADC_AUTH=1`, the fake copied to `$T/.config/gcloud/application_default_credentials.json` | same as a, rc 1 | same as a: agy also finds the gcloud well-known file under `HOME` |
+
+The d runs used this setup, removed after them:
+
+```bash
+mkdir -p $T/.config/gcloud && cp $T/fake-sa.json $T/.config/gcloud/application_default_credentials.json
+```
+
+- With `AGY_ADC_AUTH` set and ADC failing, agy does not offer the browser
+  login in `-p`: it exits 1. It did not fall back to the box login, since
+  `HOME` held none.
+- So the seat for a workspace credential sets `AGY_ADC_AUTH=1` and
+  `GOOGLE_APPLICATION_CREDENTIALS` on a file in the seat's own `HOME`. It
+  never relies on `~/.config/gcloud`, which is the box user's.
+- ADC is a Google Cloud credential (a service account or user credential),
+  not a Gemini API key. Whether a workspace service account is entitled to
+  agy's models is not measured.
+
+### 4.3 Leak check (L14)
+
+After the 8 runs, the marker outside the fake itself: 0 files (n=8).
+
+```bash
+grep -rlF -- "$M" $T /tmp 2>/dev/null | grep -vxF $T/fake-sa.json | wc -l
+```
+
+The red control: plant the marker, and the same grep finds it (the path is
+listed twice, once under `$T` and once under `/tmp`). Then remove it, and the
+count is 0 again.
+
+```bash
+echo "planted $M" > $T/.gemini/plant.txt; grep -rlF -- "$M" $T /tmp 2>/dev/null | grep -vxF $T/fake-sa.json; rm $T/.gemini/plant.txt
+```
+
+The fake's other fields (`private_key_id`, `client_email`) also appear only
+in `$T/fake-sa.json`:
+
+```bash
+grep -rliE -- 'fakeb0b|fake-b0badc' $T
+```
+
+### 4.4 Telemetry (L16)
+
+Not measured: no traffic was captured.
+
+### 4.5 What this changes in section 3
+
+The agy row: the B0 cell "Google ADC via `AGY_ADC_AUTH`, not measured" is
+now measured. `AGY_ADC_AUTH=1` takes the ADC path from
+`GOOGLE_APPLICATION_CREDENTIALS` or the gcloud well-known file (n=4; with
+neither it reports no default credentials, n=2),
+and API keys stay ignored (section 2.6, n=3). agy can therefore take a
+workspace credential as a service-account file, but not as an API key.
+Serving a prompt with a real service account is still open, and that test
+needs the owner's credential.

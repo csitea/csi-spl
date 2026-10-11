@@ -32,6 +32,11 @@
 #      stopped; reported
 #  17. the pane re-read right before the stop: recovered = left alone; claude
 #      gone and a bare shell = restored without a stop
+#  18. early warning (spec 132 section 3): expiry in 59 min warns and alerts
+#      once, the same state on the next tick sends nothing, 61 min is quiet,
+#      a renewal clears it; the sample log (cred.log) gets one line per
+#      change, sha prefix and expiresAt only
+#  19. a peer with no credential to read (unreachable): one alert per state
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -113,7 +118,7 @@ tick() {
     LOGIN_KILL_CMD="$T/bin/kill" LOGIN_RESTORE_CMD="$T/bin/restore" LOGIN_SEND="$T/bin/send" \
     LOGIN_CRED_CMD="env LOGIN_CRED_FILE=$T/here/cred.json LOGIN_SUDO= bash $CRED" LOGIN_PROBE_CMD="$PROBE_HERE" \
     LOGIN_PEER_CMD="$T/bin/peer" LOGIN_GONE_CMD="$T/bin/gone" LOGIN_PANECMD_CMD="$T/bin/panecmd" LOGIN_AGENT_HOME="$T/home" \
-    LOGIN_PROBE_EVERY=0 DRY_RUN="${DRY:-0}" 2>&1
+    LOGIN_PROBE_EVERY=0 LOGIN_EXPIRY_WARN_MIN="${WARN_MIN:-0}" LOGIN_NOW="${NOW:-}" DRY_RUN="${DRY:-0}" 2>&1
 }
 acts() { grep -vcE '^(probe|peer [^ ]+ (stat|probe))$' "$T/calls"; }
 leaks() { grep -rlE 'rt-[A-Z]+-secret|at-[A-Z]+' "$@" 2>/dev/null | grep -v '/cred.json' | grep -vc 'bak-login'; }
@@ -266,6 +271,33 @@ touch "$T/gone/999999702"; echo bash >"$T/panecmd/%12"
 out="$(tick)"
 ! grep -q '^kill' "$T/calls" && grep -qx 'restore ids=c-702 dry=0' "$T/calls" && grep -q 'stopped=0 restored=1' <<<"$out" \
   && pass "17. claude gone, bare shell: restored without a stop" || fail "17. bare ($out; $(cat "$T/calls"))"
+
+# 18. early warning
+NOW=1791800000
+reset; cred "$T/here/cred.json" GOOD $(( (NOW + 59 * 60) * 1000 ))
+out="$(NOPEERS=1 WARN_MIN=60 NOW=$NOW tick)"
+grep -qE '^WARN login-check@box1: credential [0-9a-f]{12} expires in 59 min, not renewed$' <<<"$out" && grep -q 'alerted=1' <<<"$out" \
+  && [ "$(grep -c '^send ' "$T/calls")" = 1 ] && grep -q '^send .*--to c-002 ' "$T/calls" && grep -q '^- early warning: .*expires in 59 min.*claude /login' "$T/calls" \
+  && pass "18. 59 min to expiry: a warning line and one alert to the dispatch holder" || fail "18. 59 min ($out; $(cat "$T/calls"))"
+out="$(NOPEERS=1 WARN_MIN=60 NOW=$((NOW + 60)) tick)"
+grep -q '^WARN .*expires in 58 min' <<<"$out" && grep -q 'alerted=0' <<<"$out" && [ "$(grep -c '^send ' "$T/calls")" = 1 ] \
+  && pass "18. the same state on the next tick: no second alert" || fail "18. repeat ($out; $(cat "$T/calls"))"
+cred "$T/here/cred.json" GOOD2 $(( (NOW + 480 * 60) * 1000 ))
+out="$(NOPEERS=1 WARN_MIN=60 NOW=$((NOW + 120)) tick)"
+! grep -q '^WARN' <<<"$out" && [ "$(wc -l <"$T/state/cred.log")" = 2 ] \
+  && grep -qE '^2026-[0-9-]{5}T[0-9:]{8}Z [0-9a-f]{12} [0-9]+ peers=0$' "$T/state/cred.log" && [ "$(leaks "$T/state" "$T/calls")" = 0 ] \
+  && pass "18. renewed: the warning clears; cred.log holds one line per change, no credential content" || fail "18. renewed ($out; $(cat "$T/state/cred.log"))"
+reset; cred "$T/here/cred.json" GOOD $(( (NOW + 61 * 60) * 1000 ))
+out="$(NOPEERS=1 WARN_MIN=60 NOW=$NOW tick)"
+! grep -q '^WARN' <<<"$out" && [ "$(grep -c '^send ' "$T/calls")" = 0 ] && grep -q 'alerted=0$' <<<"$out" \
+  && pass "18. control: 61 min to expiry warns nothing" || fail "18. 61 min ($out; $(cat "$T/calls"))"
+
+# 19. peer unreachable
+reset; rm -f "$T/peer/cred.json"
+out="$(tick)"; out2="$(tick)"
+[ "$(grep -c '^send ' "$T/calls")" = 1 ] && grep -q '^- peer sat: no credential to compare' "$T/calls" \
+  && grep -q 'alerted=1' <<<"$out" && grep -q 'alerted=0' <<<"$out2" \
+  && pass "19. a peer with no credential to read: one alert, none on the same state again" || fail "19. ($out / $out2; $(cat "$T/calls"))"
 
 echo "spl-agent-login-check: $fails failed"
 exit $(( fails > 0 ))

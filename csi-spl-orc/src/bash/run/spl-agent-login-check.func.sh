@@ -30,9 +30,15 @@
 # @description      env.box.login_check.cooldown_min, 10 min) ago is left
 # @description      alone. No /login step (owner a7499dc2). A dead login on
 # @description      disk is never restored into.
-# @description   5. alert: one spool message to the dispatch lease holder with
+# @description   5. expiry (spec 132 section 3): this box's credential sample
+# @description      goes to <state>/cred.log when it changed ("<UTC> <sha12>
+# @description      <expiresAt ms> peers=<n>", read by do_spl_agent_login_proof),
+# @description      and an expiry under LOGIN_EXPIRY_WARN_MIN (60) minutes,
+# @description      not renewed, is an early warning: the refresher is silent.
+# @description   6. alert: one spool message to the dispatch lease holder with
 # @description      the counts before and after, when it acted or when a
-# @description      problem first shows (deduplicated by its state).
+# @description      problem first shows (deduplicated by its state: an early
+# @description      warning once per credential, an unreachable peer once).
 # @description Never prints credential content: sha256 prefixes (12) only.
 # @description A healthy box: 0 actions, one summary line. One tick at a time
 # @description (flock). Dry run unless DRY_RUN=0: plans, probes, no change.
@@ -43,6 +49,7 @@
 # @param LOGIN_STATE_DIR (optional) - default /var/csi/csi-spl/agent-login-check
 # @param LOGIN_PEERS (optional) - overrides SPOOL_LOGIN_PEERS of box.env
 # @param LOGIN_ALERT_TO (optional) - default the dispatch lease holder
+# @param LOGIN_EXPIRY_WARN_MIN (optional) - early warning under this many minutes to expiry, default 60 (0 = off)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ./run -a do_spl_agent_login_check
 # @example DRY_RUN=0 ./run -a do_spl_agent_login_check
@@ -67,7 +74,7 @@ do_spl_agent_login_check() {
   LC_TAG="$(ai_tag)"; LC_DRY="$dry"
   LC_COOL="$(_lc_cooldown_min)" || return 1; LC_COOL=$((LC_COOL * 60))
   [[ -n "${SPOOL_AGENT_USER:-}" ]] || SPOOL_AGENT_USER="$(SPOOL_AGENT_USER=''; _spool_box_env_load; printf '%s' "${SPOOL_AGENT_USER:-}")"
-  LC_NOTE=() ; LC_WARN=() ; LC_COPIED=0 ; LC_STOPPED=0 ; LC_RESTORED=0 ; LC_FAILED=0
+  LC_NOTE=() ; LC_WARN=() ; LC_WKEY="" ; LC_COPIED=0 ; LC_STOPPED=0 ; LC_RESTORED=0 ; LC_FAILED=0
 
   local stuck0 verdict0 verdict stuck1="" alerted=0
   stuck0="$(_lc_scan)"
@@ -75,6 +82,7 @@ do_spl_agent_login_check() {
   verdict="$verdict0"
   _lc_peers verdict
   [[ -n "$stuck0" ]] && _lc_repair "$verdict" "$stuck0" "$wait"
+  _lc_expiry
   if (( LC_STOPPED + LC_COPIED > 0 )) && [[ "$dry" == 0 ]]; then stuck1="$(_lc_scan)"; else stuck1="$stuck0"; fi
   _lc_alert "$verdict0" "$verdict" "$stuck0" "$stuck1" && alerted=1
   echo "login-check@${LC_TAG:-box}: probe=${verdict%% *} stuck_login=$(_lc_n login "$stuck0") stuck_limit=$(_lc_n limit "$stuck0") copied=$LC_COPIED stopped=$LC_STOPPED restored=$LC_RESTORED failed=$LC_FAILED alerted=$alerted$([[ "$dry" == 1 ]] && echo ' (DRY_RUN)')"
@@ -204,7 +212,7 @@ _lc_peer_one() {
   ls="$(_lc_cred_at "" stat 2>/dev/null)"; ps="$(_lc_cred_at "$dest" stat 2>/dev/null)"
   read -r lsha lexp _ <<<"$ls"; read -r psha pexp _ <<<"$ps"
   if [[ ! "$lsha" =~ ^[0-9a-f]{12}$ || ! "$psha" =~ ^[0-9a-f]{12}$ ]]; then
-    LC_WARN+=("peer $tag: no credential to compare (here ${lsha:-none}, there ${psha:-unreachable})"); return 1
+    LC_WARN+=("peer $tag: no credential to compare (here ${lsha:-none}, there ${psha:-unreachable})"); LC_WKEY+=" peer-nocred:$tag"; return 1
   fi
   [[ "$lsha" == "$psha" ]] && return 0
   if (( pexp > lexp )); then LC_WARN+=("peer $tag holds a NEWER credential ($psha there, $lsha here): reported, not overwritten"); return 1; fi
@@ -217,6 +225,31 @@ _lc_peer_one() {
   else
     LC_FAILED=$((LC_FAILED + 1)); LC_NOTE+=("FAILED to push the credential here -> $tag")
   fi
+}
+
+# This box's credential, spec 132 section 3: a sample line in <state>/cred.log
+# when it changed since the last one ("<UTC> <sha12> <expiresAt ms>
+# peers=<n>", the proof's input; DRY_RUN=0 only), and the early warning when it
+# expires in under LOGIN_EXPIRY_WARN_MIN minutes: a renewal moves expiresAt
+# about 8 h on, so a credential that close to its end was not renewed (the
+# refresher is silent). The warning keys on the sha: one alert per credential.
+_lc_expiry() {
+  local warn="${LOGIN_EXPIRY_WARN_MIN:-60}" now sha exp peers line last left
+  [[ "$warn" =~ ^[0-9]+$ ]] || warn=60
+  now="${LOGIN_NOW:-$(date +%s)}"
+  read -r sha exp _ <<<"$($LC_CRED stat 2>/dev/null | sed -n 1p)"
+  [[ "$sha" =~ ^[0-9a-f]{12}$ && "$exp" =~ ^[0-9]+$ ]] || return 0
+  if [[ "$LC_DRY" == 0 ]]; then
+    peers="$(_lc_peer_list | wc -w)"
+    line="$sha $exp peers=$peers"
+    last="$(tail -n 1 "$LC_STATE/cred.log" 2>/dev/null | cut -d' ' -f2-)"
+    [[ "$line" == "$last" ]] || printf '%s %s\n' "$(date -u -d "@$now" +%Y-%m-%dT%H:%M:%SZ)" "$line" >>"$LC_STATE/cred.log" 2>/dev/null || true
+  fi
+  (( warn > 0 && exp > 0 && exp / 1000 - now < warn * 60 )) || return 0
+  left=$(( (exp / 1000 - now) / 60 ))
+  LC_WARN+=("early warning: this box's credential $sha expires in $left min and was not renewed (refresher silent?): a person runs the vendor's login on this box (claude /login)")
+  LC_WKEY+=" expiry:$sha"
+  echo "WARN login-check@${LC_TAG:-box}: credential $sha expires in $left min, not renewed"
 }
 
 # Stop the stuck agents and restore them, only while this box's login works.
@@ -330,7 +363,7 @@ _lc_restore() {
 # Returns 0 when it sent.
 _lc_alert() {
   local v0="$1" v1="$2" s0="$3" s1="$4" sig last="" body to acted=$((LC_COPIED + LC_STOPPED + LC_FAILED))
-  sig="${v1%% *} $(_lc_n login "$s1") $(_lc_n limit "$s1") ${#LC_WARN[@]}"
+  sig="${v1%% *} $(_lc_n login "$s1") $(_lc_n limit "$s1") ${#LC_WARN[@]}${LC_WKEY}"
   [[ -r "$LC_STATE/alert" ]] && last="$(cat "$LC_STATE/alert")"
   if (( acted == 0 )); then
     [[ "${v1%% *}" == unknown ]] && return 1

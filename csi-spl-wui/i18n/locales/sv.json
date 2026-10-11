@@ -2634,5 +2634,34 @@
       "text": "Installera den här arbetsytan som en app på den här enheten.",
       "later": "Inte nu"
     }
+  },
+  "embed": {
+    "title": "Hantering av inbäddningar",
+    "description": "Hantera inbäddningsbara chatwidgetar för din arbetsyta.",
+    "allowed_origins": "Tillåtna ursprung",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Ett ursprung per rad. Måste vara https (http endast för localhost).",
+    "enabled": "Aktiverad",
+    "generate_key": "Generera ny nyckel",
+    "create_title": "Skapa en ny inbäddning",
+    "embed_id": "Inbäddnings-ID",
+    "embed_id_placeholder": "t.ex. my-embed",
+    "create": "Skapa",
+    "save": "Spara",
+    "not_owner": "Endast ägaren av arbetsytan kan hantera inbäddningar.",
+    "fetch_failed": "Kunde inte läsa in inbäddningar. Försök igen.",
+    "save_failed": "Kunde inte spara. Försök igen.",
+    "save_success": "Sparat.",
+    "key_success": "Nyckel genererad.",
+    "private_key_warning": "Detta är den privata nyckeln. Kopiera den nu — den kommer aldrig att visas igen.",
+    "create_success": "Inbäddning skapad.",
+    "disabled": "Inbäddningen är inte aktiverad på den här hubben.",
+    "exists": "Det inbäddnings-ID:t är redan upptaget.",
+    "bad_origin": "Ett ursprung avvisades:",
+    "bad_id": "Inbäddnings-ID: 3 till 64 gemener, siffror eller bindestreck, får inte börja med bindestreck.",
+    "key_id": "Nyckel {id} ({alg})",
+    "no_key": "Ingen nyckel än.",
+    "copy_key": "Kopiera nyckeln",
+    "replace_key_confirm": "En ny nyckel återkallar den nuvarande: webbplatsens server måste byta till den."
   }
 }

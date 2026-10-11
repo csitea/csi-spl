@@ -2634,5 +2634,34 @@
       "text": "Zainstaluj ten obszar roboczy jako aplikację na tym urządzeniu.",
       "later": "Nie teraz"
     }
+  },
+  "embed": {
+    "title": "Zarządzanie embedami",
+    "description": "Zarządzaj widgetami czatu do osadzania w swojej przestrzeni roboczej.",
+    "allowed_origins": "Dozwolone źródła",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Jedno źródło na linię. Musi być https (http tylko dla localhost).",
+    "enabled": "Włączone",
+    "generate_key": "Wygeneruj nowy klucz",
+    "create_title": "Utwórz nowy embed",
+    "embed_id": "ID embeda",
+    "embed_id_placeholder": "np. my-embed",
+    "create": "Utwórz",
+    "save": "Zapisz",
+    "not_owner": "Tylko właściciel przestrzeni roboczej może zarządzać embedami.",
+    "fetch_failed": "Nie można załadować embedów. Spróbuj ponownie.",
+    "save_failed": "Nie można zapisać. Spróbuj ponownie.",
+    "save_success": "Zapisano.",
+    "key_success": "Klucz wygenerowany.",
+    "private_key_warning": "To jest klucz prywatny. Skopiuj go teraz — nigdy więcej nie będzie wyświetlany.",
+    "create_success": "Embed utworzony.",
+    "disabled": "Osadzanie nie jest włączone na tym hubie.",
+    "exists": "Ten identyfikator osadzenia jest już zajęty.",
+    "bad_origin": "Odrzucono źródło:",
+    "bad_id": "Identyfikator osadzenia: od 3 do 64 małych liter, cyfr lub łączników, nie zaczyna się od łącznika.",
+    "key_id": "Klucz {id} ({alg})",
+    "no_key": "Brak klucza.",
+    "copy_key": "Kopiuj klucz",
+    "replace_key_confirm": "Nowy klucz unieważnia obecny: serwer witryny musi na niego przejść."
   }
 }

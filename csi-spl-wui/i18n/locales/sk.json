@@ -2634,5 +2634,34 @@
       "text": "Nainštalujte tento pracovný priestor ako aplikáciu do tohto zariadenia.",
       "later": "Teraz nie"
     }
+  },
+  "embed": {
+    "title": "Správa embedov",
+    "description": "Spravujte vkladateľné chatovacie widgety pre svoju pracovnú plochu.",
+    "allowed_origins": "Povolené zdroje",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Jeden zdroj na riadok. Musí byť https (http len pre localhost).",
+    "enabled": "Povolené",
+    "generate_key": "Generovať nový kľúč",
+    "create_title": "Vytvoriť nový embed",
+    "embed_id": "ID embedu",
+    "embed_id_placeholder": "napr. my-embed",
+    "create": "Vytvoriť",
+    "save": "Uložiť",
+    "not_owner": "Iba vlastník pracovnej plochy môže spravovať embedy.",
+    "fetch_failed": "Nepodarilo sa načítať embedy. Skúste znova.",
+    "save_failed": "Nepodarilo sa uložiť. Skúste znova.",
+    "save_success": "Uložené.",
+    "key_success": "Kľúč vygenerovaný.",
+    "private_key_warning": "Toto je súkromný kľúč. Skopírujte ho teraz — nikdy viac nebude zobrazený.",
+    "create_success": "Embed vytvorený.",
+    "disabled": "Vkladanie nie je na tomto hube zapnuté.",
+    "exists": "Toto ID vloženia je už obsadené.",
+    "bad_origin": "Pôvod bol odmietnutý:",
+    "bad_id": "ID vloženia: 3 až 64 malých písmen, číslic alebo spojovníkov, nezačína spojovníkom.",
+    "key_id": "Kľúč {id} ({alg})",
+    "no_key": "Zatiaľ bez kľúča.",
+    "copy_key": "Kopírovať kľúč",
+    "replace_key_confirm": "Nový kľúč zruší súčasný: server webovej stránky musí prejsť naň."
   }
 }

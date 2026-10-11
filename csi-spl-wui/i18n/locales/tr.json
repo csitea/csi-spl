@@ -2634,5 +2634,34 @@
       "text": "Bu çalışma alanını bu cihaza uygulama olarak yükleyin.",
       "later": "Şimdi değil"
     }
+  },
+  "embed": {
+    "title": "Embed Yönetimi",
+    "description": "Çalışma alanınız için gömülebilir sohbet widget'larını yönetin.",
+    "allowed_origins": "İzin Verilen Kaynaklar",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Satır başına bir kaynak. https olmalıdır (http yalnızca localhost için).",
+    "enabled": "Etkin",
+    "generate_key": "Yeni Anahtar Oluştur",
+    "create_title": "Yeni Embed Oluştur",
+    "embed_id": "Embed Kimliği",
+    "embed_id_placeholder": "örn. my-embed",
+    "create": "Oluştur",
+    "save": "Kaydet",
+    "not_owner": "Yalnızca çalışma alanı sahibi embed'leri yönetebilir.",
+    "fetch_failed": "Embed'ler yüklenemedi. Tekrar deneyin.",
+    "save_failed": "Kaydedilemedi. Tekrar deneyin.",
+    "save_success": "Kaydedildi.",
+    "key_success": "Anahtar oluşturuldu.",
+    "private_key_warning": "Bu özel anahtardır. Kopyalayın — bir daha gösterilmeyecektir.",
+    "create_success": "Embed oluşturuldu.",
+    "disabled": "Bu hub'da embed etkin değil.",
+    "exists": "Bu embed kimliği zaten kullanılıyor.",
+    "bad_origin": "Bir kaynak reddedildi:",
+    "bad_id": "Embed kimliği: 3 ile 64 arası küçük harf, rakam veya tire; tire ile başlayamaz.",
+    "key_id": "Anahtar {id} ({alg})",
+    "no_key": "Henüz anahtar yok.",
+    "copy_key": "Anahtarı kopyala",
+    "replace_key_confirm": "Yeni bir anahtar mevcut olanı iptal eder: web sitesinin sunucusu yenisine geçmelidir."
   }
 }

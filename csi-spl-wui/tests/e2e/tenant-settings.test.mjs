@@ -26,6 +26,8 @@
 //   PROVE_RED=agy-coding node tests/e2e/tenant-settings.test.mjs
 // (Join tokens: the biz_owner mock is not set, so step 17 goes red)
 //   PROVE_RED=biz-sees-join node tests/e2e/tenant-settings.test.mjs
+// (Embed admin: the non-owner mock is not set, so step 18g goes red)
+//   PROVE_RED=embed-non-owner node tests/e2e/tenant-settings.test.mjs
 //
 // Run:
 //   pnpm run test:e2e tenant-settings
@@ -366,6 +368,61 @@ try {
   ok('17 a biz_owner sees the agents but no join-token or Revoke seat control', bizRows > 0 && !bizJoin, { bizRows, bizJoin })
   await q.evaluate(() => localStorage.removeItem('spool.mock.me'))
   await q.close()
+
+  // 8. spec 121 T204: /embed, the workspace owner's embed admin page (the
+  // mock me() null plays the owner). Create (disabled, keyless), origins +
+  // the switch saved, a first key shown once and gone on Close, a second key
+  // only after a confirm, a bad origin refused. A member who is not the
+  // owner gets the one line and no form (PROVE_RED=embed-non-owner: red).
+  const e = await browser.newPage()
+  await pinAgentIdClock(e)
+  e.on('pageerror', (x) => errors.push(String(x && x.message)))
+  await e.goto(server.base + '/embed', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await e.waitForSelector('[data-test=embed-create-form]', { visible: true, timeout: 10000 }).catch(() => null)
+  ok('18a /embed shows the create form and no embed yet', Boolean(await e.$('[data-test=embed-create-form]')) && (await e.$$('[data-test=embed-row]')).length === 0)
+  await e.type('[data-test=embed-new-id]', 'site-one')
+  await e.type('[data-test=embed-new-origins]', 'https://Shop.example.com')
+  await e.click('[data-test=embed-create]')
+  await e.waitForSelector('[data-test=embed-row][data-id=site-one]', { timeout: 10000 }).catch(() => null)
+  const made = await e.$eval('[data-test=embed-row][data-id=site-one]', (r) => ({
+    enabled: r.dataset.enabled, origins: r.querySelector('[data-test=embed-origins]').value, key: r.querySelector('[data-test=embed-key-id]').textContent.trim(),
+  })).catch(() => null)
+  ok('18b a new embed is disabled, keyless, its origin lower-cased', made && made.enabled === 'false' && made.origins === 'https://shop.example.com' && made.key !== '', made)
+  await e.click('[data-test=embed-row][data-id=site-one] [data-test=embed-enabled]')
+  await e.click('[data-test=embed-row][data-id=site-one] [data-test=embed-save]')
+  await e.waitForSelector('[data-test=embed-row][data-id=site-one][data-enabled=true]', { timeout: 10000 }).catch(() => null)
+  ok('18c Save turns the embed on', Boolean(await e.$('[data-test=embed-row][data-id=site-one][data-enabled=true]')))
+  await e.click('[data-test=embed-row][data-id=site-one] [data-test=embed-key-new]')
+  await e.waitForSelector('[data-test=embed-key-private]', { visible: true, timeout: 10000 }).catch(() => null)
+  const key1 = await text(e, '[data-test=embed-key-private]')
+  await e.click('[data-test=embed-key-close]')
+  await sleep(200)
+  const gone = await e.evaluate((k) => !document.body.innerText.includes(k), key1)
+  ok('18d the first key is shown once, then gone from the page on Close', key1.startsWith('mock-private-') && gone, { key1, gone })
+  await e.click('[data-test=embed-row][data-id=site-one] [data-test=embed-key-new]')
+  const confirmShown = Boolean(await e.waitForSelector('[data-test=embed-key-confirm]', { visible: true, timeout: 5000 }).catch(() => null))
+  if (confirmShown) await e.click('[data-test=embed-key-confirm]')
+  await e.waitForSelector('[data-test=embed-key-private]', { visible: true, timeout: 10000 }).catch(() => null)
+  const key2 = await text(e, '[data-test=embed-key-private]')
+  ok('18e a second key needs a confirm and is a new key', confirmShown && key2.startsWith('mock-private-') && key2 !== key1, { confirmShown, key2 })
+  await e.click('[data-test=embed-key-close]')
+  await e.$eval('[data-test=embed-row][data-id=site-one] [data-test=embed-origins]', (t) => { t.value = '' })
+  await e.type('[data-test=embed-row][data-id=site-one] [data-test=embed-origins]', 'http://shop.example.com')
+  await e.click('[data-test=embed-row][data-id=site-one] [data-test=embed-save]')
+  await e.waitForSelector('[data-test=embed-admin-error]', { visible: true, timeout: 10000 }).catch(() => null)
+  ok('18f an http origin is refused with the reason', (await text(e, '[data-test=embed-admin-error]')).includes('http://shop.example.com'), await text(e, '[data-test=embed-admin-error]'))
+  await e.evaluate((red) => {
+    if (red !== 'embed-non-owner') {
+      localStorage.setItem('spool.mock.me', JSON.stringify({ role: 'admin', permissions: ['members.invite', 'tenant.settings', 'keys.manage'] }))
+    }
+  }, RED)
+  await e.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await e.waitForSelector('[data-test=embed-admin-blocked], [data-test=embed-create-form]', { timeout: 10000 }).catch(() => null)
+  const reason = await e.$eval('[data-test=embed-admin-blocked]', (x) => x.dataset.reason).catch(() => '')
+  ok('18g a member who is not the owner sees one line and no form', reason === 'embed.not_owner' && !(await e.$('[data-test=embed-create-form]')), { reason })
+  await e.evaluate(() => localStorage.removeItem('spool.mock.me'))
+  await e.close()
+  ok('18h no page errors on /embed', errors.length === 0, errors)
 } finally {
   await browser.close()
   await server.stop()

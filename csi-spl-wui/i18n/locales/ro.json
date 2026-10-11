@@ -2634,5 +2634,34 @@
       "text": "Instalează acest spațiu de lucru ca aplicație pe acest dispozitiv.",
       "later": "Nu acum"
     }
+  },
+  "embed": {
+    "title": "Administrare Embed",
+    "description": "Gestionați widget-uri de chat încorporabile pentru spațiul dvs. de lucru.",
+    "allowed_origins": "Origini permise",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "O origine pe linie. Trebuie să fie https (http doar pentru localhost).",
+    "enabled": "Activat",
+    "generate_key": "Generează cheie nouă",
+    "create_title": "Creează un nou embed",
+    "embed_id": "ID Embed",
+    "embed_id_placeholder": "ex. my-embed",
+    "create": "Creează",
+    "save": "Salvează",
+    "not_owner": "Doar proprietarul spațiului de lucru poate gestiona embed-uri.",
+    "fetch_failed": "Nu s-au putut încărca embed-urile. Încercați din nou.",
+    "save_failed": "Nu s-a putut salva. Încercați din nou.",
+    "save_success": "Salvat.",
+    "key_success": "Cheie generată.",
+    "private_key_warning": "Aceasta este cheia privată. Copiați-o acum — nu va mai fi afișată niciodată.",
+    "create_success": "Embed creat.",
+    "disabled": "Încorporarea nu este activată pe acest hub.",
+    "exists": "Acest ID de încorporare este deja folosit.",
+    "bad_origin": "O origine a fost refuzată:",
+    "bad_id": "ID de încorporare: între 3 și 64 de litere mici, cifre sau cratime, fără cratimă la început.",
+    "key_id": "Cheia {id} ({alg})",
+    "no_key": "Încă nu există o cheie.",
+    "copy_key": "Copiază cheia",
+    "replace_key_confirm": "O cheie nouă o revocă pe cea curentă: serverul site-ului trebuie să treacă la ea."
   }
 }

@@ -2634,5 +2634,34 @@
       "text": "Instalirajte ovaj radni prostor kao aplikaciju na ovom uređaju.",
       "later": "Ne sada"
     }
+  },
+  "embed": {
+    "title": "Upravljanje ugrađivanjima",
+    "description": "Upravljajte ugradivim čet vidžetima za svoj radni prostor.",
+    "allowed_origins": "Dozvoljena porekla",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Jedno poreklo po redu. Mora biti https (http samo za localhost).",
+    "enabled": "Uključeno",
+    "generate_key": "Generiši novi ključ",
+    "create_title": "Napravi novo ugrađivanje",
+    "embed_id": "ID ugrađivanja",
+    "embed_id_placeholder": "npr. my-embed",
+    "create": "Napravi",
+    "save": "Sačuvaj",
+    "not_owner": "Samo vlasnik radnog prostora može upravljati ugrađivanjima.",
+    "fetch_failed": "Nije moguće učitati ugrađivanja. Pokušajte ponovo.",
+    "save_failed": "Nije moguće sačuvati. Pokušajte ponovo.",
+    "save_success": "Sačuvano.",
+    "key_success": "Ključ je generisan.",
+    "private_key_warning": "Ovo je privatni ključ. Kopirajte ga sada — više se nikada neće prikazati.",
+    "create_success": "Ugrađivanje je napravljeno.",
+    "disabled": "Ugrađivanje nije uključeno na ovom habu.",
+    "exists": "Ovaj ID ugrađivanja je zauzet.",
+    "bad_origin": "Jedno poreklo je odbijeno:",
+    "bad_id": "ID ugrađivanja: od 3 do 64 mala slova, cifre ili crtice, bez crtice na početku.",
+    "key_id": "Ključ {id} ({alg})",
+    "no_key": "Još nema ključa.",
+    "copy_key": "Kopiraj ključ",
+    "replace_key_confirm": "Novi ključ opoziva trenutni: server veb-sajta mora da pređe na njega."
   }
 }

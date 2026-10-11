@@ -2634,5 +2634,34 @@
       "text": "Asenna tämä työtila sovellukseksi tähän laitteeseen.",
       "later": "Ei nyt"
     }
+  },
+  "embed": {
+    "title": "Upotusten hallinta",
+    "description": "Hallitse upotettavia chat-vimpaimia työtilallesi.",
+    "allowed_origins": "Sallitut alkuperät",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Yksi alkuperä per rivi. Täytyy olla https (http vain localhostille).",
+    "enabled": "Käytössä",
+    "generate_key": "Luo uusi avain",
+    "create_title": "Luo uusi upotus",
+    "embed_id": "Upotuksen tunniste",
+    "embed_id_placeholder": "esim. my-embed",
+    "create": "Luo",
+    "save": "Tallenna",
+    "not_owner": "Vain työtilan omistaja voi hallita upotuksia.",
+    "fetch_failed": "Upotusten lataaminen epäonnistui. Yritä uudelleen.",
+    "save_failed": "Tallentaminen epäonnistui. Yritä uudelleen.",
+    "save_success": "Tallennettu.",
+    "key_success": "Avain luotu.",
+    "private_key_warning": "Tämä on yksityinen avain. Kopioi se nyt — sitä ei näytetä enää koskaan.",
+    "create_success": "Upotus luotu.",
+    "disabled": "Upotus ei ole käytössä tässä hubissa.",
+    "exists": "Tämä upotuksen tunniste on jo käytössä.",
+    "bad_origin": "Alkuperä hylättiin:",
+    "bad_id": "Upotuksen tunniste: 3–64 pientä kirjainta, numeroa tai yhdysmerkkiä, ei alussa yhdysmerkkiä.",
+    "key_id": "Avain {id} ({alg})",
+    "no_key": "Avainta ei vielä ole.",
+    "copy_key": "Kopioi avain",
+    "replace_key_confirm": "Uusi avain kumoaa nykyisen: verkkosivuston palvelimen on vaihdettava siihen."
   }
 }

@@ -2634,5 +2634,34 @@
       "text": "Instalējiet šo darbvietu kā lietotni šajā ierīcē.",
       "later": "Ne tagad"
     }
+  },
+  "embed": {
+    "title": "Iegultņu pārvaldība",
+    "description": "Pārvaldiet iegultos tērzēšanas logrīkus savā darba vietā.",
+    "allowed_origins": "Atļautās izcelsmes",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Viena izcelsme rindā. Jābūt https (http tikai localhost).",
+    "enabled": "Ieslēgts",
+    "generate_key": "Ģenerēt jaunu atslēgu",
+    "create_title": "Izveidot jaunu ieguldi",
+    "embed_id": "Ieguldes ID",
+    "embed_id_placeholder": "piem., my-embed",
+    "create": "Izveidot",
+    "save": "Saglabāt",
+    "not_owner": "Tikai darba vietas īpašnieks var pārvaldīt ieguldes.",
+    "fetch_failed": "Neizdevās ielādēt ieguldes. Mēģiniet vēlreiz.",
+    "save_failed": "Neizdevās saglabāt. Mēģiniet vēlreiz.",
+    "save_success": "Saglabāts.",
+    "key_success": "Atslēga ģenerēta.",
+    "private_key_warning": "Šī ir privātā atslēga. Nokopējiet to tagad — tā nekad vairs netiks rādīta.",
+    "create_success": "Iegulde izveidota.",
+    "disabled": "Iegulšana šajā centrmezglā nav ieslēgta.",
+    "exists": "Šis iegulšanas ID jau ir aizņemts.",
+    "bad_origin": "Izcelsme tika noraidīta:",
+    "bad_id": "Iegulšanas ID: no 3 līdz 64 mazajiem burtiem, cipariem vai defisēm, nesākot ar defisi.",
+    "key_id": "Atslēga {id} ({alg})",
+    "no_key": "Atslēgas vēl nav.",
+    "copy_key": "Kopēt atslēgu",
+    "replace_key_confirm": "Jauna atslēga atsauc pašreizējo: vietnes serverim jāpāriet uz to."
   }
 }

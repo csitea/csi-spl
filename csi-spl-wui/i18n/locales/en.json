@@ -2634,5 +2634,34 @@
       "text": "Install this workspace as an app on this device.",
       "later": "Not now"
     }
+  },
+  "embed": {
+    "title": "Embed Admin",
+    "description": "Manage embeddable chat widgets for your workspace.",
+    "allowed_origins": "Allowed origins",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "One origin per line. Must be https (http only for localhost).",
+    "enabled": "Enabled",
+    "generate_key": "Generate new key",
+    "create_title": "Create a new embed",
+    "embed_id": "Embed ID",
+    "embed_id_placeholder": "e.g., my-embed",
+    "create": "Create",
+    "save": "Save",
+    "not_owner": "Only the workspace owner can manage embeds.",
+    "fetch_failed": "Could not load embeds. Try again.",
+    "save_failed": "Could not save. Try again.",
+    "save_success": "Saved.",
+    "key_success": "Key generated.",
+    "private_key_warning": "This is the private key. Copy it now — it will never be shown again.",
+    "create_success": "Embed created.",
+    "disabled": "The embed is not enabled on this hub.",
+    "exists": "That embed ID is taken.",
+    "bad_origin": "An origin was refused:",
+    "bad_id": "Embed ID: 3 to 64 lowercase letters, digits or hyphens, not starting with a hyphen.",
+    "key_id": "Key {id} ({alg})",
+    "no_key": "No key yet.",
+    "copy_key": "Copy the key",
+    "replace_key_confirm": "A new key revokes the current one: the website's server must switch to it."
   }
 }

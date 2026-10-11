@@ -1,9 +1,10 @@
 // Spec 121 T204: the embed admin page's helpers and the mock hub (the WUI
-// side of T203's /v1/tenant/embeds).
+// side of T203's /v1/tenant/embeds). The page itself, in a real browser, is
+// tests/e2e/tenant-settings.test.mjs step 18.
 // Run: node tests/unit/embed-admin.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -108,5 +109,23 @@ describe('createMockEmbeds', () => {
     assert.throws(() => m.patch('site', {}), { status: 400, token: 'bad_embed' })
     assert.throws(() => m.newKey('nope'), { status: 404 })
     assert.throws(() => createMockEmbeds({ enabled: false }).list(), { status: 404 })
+  })
+})
+
+describe('i18n', () => {
+  it('every embed.* key the page uses is in all 19 locales, same set as en', () => {
+    const page = src('src/pages/embed/index.vue')
+    const used = [...new Set([...page.matchAll(/t\('(embed\.[a-z_]+)'/g)].map((m) => m[1].slice(6)))]
+    const used2 = ['disabled', 'exists', 'bad_origin', 'bad_id', 'not_owner', 'fetch_failed', 'save_failed']
+    const dir = join(WUI, 'i18n/locales')
+    const en = Object.keys(JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).embed).sort()
+    for (const k of [...used, ...used2]) assert.ok(en.includes(k), k)
+    const files = readdirSync(dir).filter((f) => f.endsWith('.json'))
+    assert.equal(files.length, 19)
+    for (const f of files) {
+      const e = JSON.parse(readFileSync(join(dir, f), 'utf8')).embed || {}
+      assert.deepEqual(Object.keys(e).sort(), en, f)
+      assert.equal(e.key_id.includes('{id}') && e.key_id.includes('{alg}'), true, f)
+    }
   })
 })

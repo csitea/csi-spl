@@ -2634,5 +2634,34 @@
       "text": "Installeer deze werkruimte als app op dit apparaat.",
       "later": "Niet nu"
     }
+  },
+  "embed": {
+    "title": "Embedbeheer",
+    "description": "Beheer inbedbare chatwidgets voor uw werkruimte.",
+    "allowed_origins": "Toegestane bronnen",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Eén bron per regel. Moet https zijn (http alleen voor localhost).",
+    "enabled": "Ingeschakeld",
+    "generate_key": "Nieuwe sleutel genereren",
+    "create_title": "Nieuwe embed maken",
+    "embed_id": "Embed-ID",
+    "embed_id_placeholder": "bijv. my-embed",
+    "create": "Maken",
+    "save": "Opslaan",
+    "not_owner": "Alleen de eigenaar van de werkruimte kan embeds beheren.",
+    "fetch_failed": "Kan embeds niet laden. Probeer het opnieuw.",
+    "save_failed": "Kan niet opslaan. Probeer het opnieuw.",
+    "save_success": "Opgeslagen.",
+    "key_success": "Sleutel gegenereerd.",
+    "private_key_warning": "Dit is de privésleutel. Kopieer deze nu — deze wordt nooit meer getoond.",
+    "create_success": "Embed gemaakt.",
+    "disabled": "Het insluiten is op deze hub niet ingeschakeld.",
+    "exists": "Die insluit-ID is al in gebruik.",
+    "bad_origin": "Een origin is geweigerd:",
+    "bad_id": "Insluit-ID: 3 tot 64 kleine letters, cijfers of koppeltekens, niet beginnend met een koppelteken.",
+    "key_id": "Sleutel {id} ({alg})",
+    "no_key": "Nog geen sleutel.",
+    "copy_key": "Sleutel kopiëren",
+    "replace_key_confirm": "Een nieuwe sleutel trekt de huidige in: de server van de website moet erop overstappen."
   }
 }

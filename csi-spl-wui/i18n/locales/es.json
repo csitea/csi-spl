@@ -2634,5 +2634,34 @@
       "text": "Instala este espacio de trabajo como app en este dispositivo.",
       "later": "Ahora no"
     }
+  },
+  "embed": {
+    "title": "Administrar Embeds",
+    "description": "Gestiona los widgets de chat embebibles para tu espacio de trabajo.",
+    "allowed_origins": "Orígenes permitidos",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Un origen por línea. Debe ser https (http solo para localhost).",
+    "enabled": "Activado",
+    "generate_key": "Generar nueva clave",
+    "create_title": "Crear un nuevo embed",
+    "embed_id": "ID del Embed",
+    "embed_id_placeholder": "ej. mi-embed",
+    "create": "Crear",
+    "save": "Guardar",
+    "not_owner": "Solo el propietario del espacio de trabajo puede gestionar embeds.",
+    "fetch_failed": "No se pudieron cargar los embeds. Inténtalo de nuevo.",
+    "save_failed": "No se pudo guardar. Inténtalo de nuevo.",
+    "save_success": "Guardado.",
+    "key_success": "Clave generada.",
+    "private_key_warning": "Esta es la clave privada. Cópiala ahora — nunca más se mostrará.",
+    "create_success": "Embed creado.",
+    "disabled": "La inserción no está activada en este hub.",
+    "exists": "Ese ID de inserción ya está en uso.",
+    "bad_origin": "Se rechazó un origen:",
+    "bad_id": "ID de inserción: de 3 a 64 letras minúsculas, dígitos o guiones, sin empezar por guion.",
+    "key_id": "Clave {id} ({alg})",
+    "no_key": "Aún no hay clave.",
+    "copy_key": "Copiar la clave",
+    "replace_key_confirm": "Una clave nueva revoca la actual: el servidor del sitio web debe pasar a usarla."
   }
 }

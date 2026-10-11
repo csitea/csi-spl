@@ -2634,5 +2634,34 @@
       "text": "Įdiekite šią darbo sritį kaip programėlę šiame įrenginyje.",
       "later": "Ne dabar"
     }
+  },
+  "embed": {
+    "title": "Įterpimo administravimas",
+    "description": "Tvarkykite įterpiamus pokalbių valdiklius savo darbo erdvei.",
+    "allowed_origins": "Leidžiami šaltiniai",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Vienas šaltinis eilutėje. Turi būti https (http tik localhost).",
+    "enabled": "Įjungta",
+    "generate_key": "Generuoti naują raktą",
+    "create_title": "Sukurti naują įterpimą",
+    "embed_id": "Įterpimo ID",
+    "embed_id_placeholder": "pvz., my-embed",
+    "create": "Sukurti",
+    "save": "Išsaugoti",
+    "not_owner": "Tik darbo erdvės savininkas gali tvarkyti įterpimus.",
+    "fetch_failed": "Nepavyko įkelti įterpimų. Bandykite dar kartą.",
+    "save_failed": "Nepavyko išsaugoti. Bandykite dar kartą.",
+    "save_success": "Išsaugota.",
+    "key_success": "Raktas sugeneruotas.",
+    "private_key_warning": "Tai yra privatus raktas. Nukopijuokite jį dabar — jis niekada nebebus rodomas.",
+    "create_success": "Įterpimas sukurtas.",
+    "disabled": "Įterpimas šiame centre neįjungtas.",
+    "exists": "Šis įterpimo ID jau užimtas.",
+    "bad_origin": "Kilmė atmesta:",
+    "bad_id": "Įterpimo ID: nuo 3 iki 64 mažųjų raidžių, skaitmenų ar brūkšnelių, neprasidedantis brūkšneliu.",
+    "key_id": "Raktas {id} ({alg})",
+    "no_key": "Rakto dar nėra.",
+    "copy_key": "Kopijuoti raktą",
+    "replace_key_confirm": "Naujas raktas atšaukia dabartinį: svetainės serveris turi pereiti prie jo."
   }
 }

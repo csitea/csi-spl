@@ -2634,5 +2634,34 @@
       "text": "Paigalda see tööruum selle seadme rakendusena.",
       "later": "Mitte praegu"
     }
+  },
+  "embed": {
+    "title": "Manuste haldus",
+    "description": "Halda oma tööruumi manustatavaid vestlusvidinaid.",
+    "allowed_origins": "Lubatud päritolud",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "Üks päritolu rea kohta. Peab olema https (http ainult localhosti jaoks).",
+    "enabled": "Sisse lülitatud",
+    "generate_key": "Loo uus võti",
+    "create_title": "Loo uus manus",
+    "embed_id": "Manuse ID",
+    "embed_id_placeholder": "nt my-embed",
+    "create": "Loo",
+    "save": "Salvesta",
+    "not_owner": "Manuseid saab hallata ainult tööruumi omanik.",
+    "fetch_failed": "Manuseid ei saanud laadida. Proovi uuesti.",
+    "save_failed": "Ei saanud salvestada. Proovi uuesti.",
+    "save_success": "Salvestatud.",
+    "key_success": "Võti loodud.",
+    "private_key_warning": "See on privaatvõti. Kopeeri see kohe — seda ei näidata enam kunagi.",
+    "create_success": "Manus loodud.",
+    "disabled": "Manustamine pole selles jaoturis sisse lülitatud.",
+    "exists": "See manuse ID on juba kasutusel.",
+    "bad_origin": "Päritolu lükati tagasi:",
+    "bad_id": "Manuse ID: 3 kuni 64 väiketähte, numbrit või sidekriipsu, ei alga sidekriipsuga.",
+    "key_id": "Võti {id} ({alg})",
+    "no_key": "Võtit veel pole.",
+    "copy_key": "Kopeeri võti",
+    "replace_key_confirm": "Uus võti tühistab praeguse: veebisaidi server peab sellele üle minema."
   }
 }

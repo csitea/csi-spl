@@ -2634,5 +2634,34 @@
       "text": "התקינו את סביבת העבודה הזו כאפליקציה במכשיר הזה.",
       "later": "לא עכשיו"
     }
+  },
+  "embed": {
+    "title": "ניהול הטמעות",
+    "description": "ניהול וידג'טי צ'אט ניתנים להטמעה עבור סביבת העבודה שלך.",
+    "allowed_origins": "מקורות מותרים",
+    "allowed_origins_placeholder": "https://example.com\nhttps://www.example.com",
+    "allowed_origins_hint": "מקור אחד בשורה. חייב להיות https (http רק עבור localhost).",
+    "enabled": "מופעל",
+    "generate_key": "צור מפתח חדש",
+    "create_title": "צור הטמעה חדשה",
+    "embed_id": "מזהה הטמעה",
+    "embed_id_placeholder": "לדוגמה, my-embed",
+    "create": "צור",
+    "save": "שמור",
+    "not_owner": "רק בעל סביבת העבודה יכול לנהל הטמעות.",
+    "fetch_failed": "לא ניתן לטעון הטמעות. נסה שוב.",
+    "save_failed": "לא ניתן לשמור. נסה שוב.",
+    "save_success": "נשמר.",
+    "key_success": "המפתח נוצר.",
+    "private_key_warning": "זהו המפתח הפרטי. העתק אותו עכשיו — הוא לא יוצג שוב.",
+    "create_success": "ההטמעה נוצרה.",
+    "disabled": "ההטמעה אינה מופעלת ב-hub הזה.",
+    "exists": "מזהה ההטמעה הזה כבר תפוס.",
+    "bad_origin": "מקור נדחה:",
+    "bad_id": "מזהה הטמעה: 3 עד 64 אותיות קטנות באנגלית, ספרות או מקפים, לא מתחיל במקף.",
+    "key_id": "מפתח {id} ({alg})",
+    "no_key": "אין עדיין מפתח.",
+    "copy_key": "העתקת המפתח",
+    "replace_key_confirm": "מפתח חדש מבטל את הנוכחי: השרת של האתר חייב לעבור אליו."
   }
 }

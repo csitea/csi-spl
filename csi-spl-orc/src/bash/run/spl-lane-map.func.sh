@@ -203,8 +203,13 @@ spl_lane_table() {
 spl_lane_table_recent() {
   local shown hidden
   if [[ "${LANE_ALL:-0}" == 1 ]]; then spl_lane_table "$1"; return; fi
+  declare -F spool_spawn_is_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   shown="$(jq -c --argjson max "${LANE_RECENT_S:-7200}" --arg h "$LANE_HUB_STATE" \
     '[.[] | select((.age_s >= 0 and .age_s < $max) or (.age_s < 0 and $h != "ok"))]' <<<"$1")"
+  # Always include live role seats (c-001, c-002, c-003) regardless of age
+  local role_seats
+  role_seats="$(jq -c '[.[] | select(.state == "live" and (.agent_id | test("^c-00[123]@")))]' <<<"$1")"
+  shown="$(jq -s -c '.[0] + .[1] | unique_by(.agent_id)' <<<"$shown $role_seats")"
   spl_lane_table "$shown"
   hidden=$(( $(jq length <<<"$1") - $(jq length <<<"$shown") ))
   (( hidden == 0 )) || echo "$hidden older rows hidden (--all)"

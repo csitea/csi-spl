@@ -187,6 +187,14 @@ want="$(on sat 'spl_lane_init; spl_lane_table "$(spl_lane_merge "$(spl_lane_hub 
   pass "LANE_ALL=1 prints every row, the whole table with no footer" || fail "LANE_ALL table: $all /// $want"
 mv "$T/hub/main.json.keep" "$T/hub/main.json"
 
+# 4c. role seats: a live row whose agent id is c-001, c-002 or c-003 is always shown, even when its age_s >= LANE_RECENT_S (7200)
+cp "$T/hub/main.json" "$T/hub/main.json.keep"
+jq -c '.lanes |= map(if .agent_id == "c-002" then .age_s = 21600 elif .agent_id == "c-003" then .age_s = 21600 elif .agent_id == "c-900" then .age_s = 21600 else . end)' \
+  "$T/hub/main.json.keep" >"$T/hub/main.json"
+out="$(on sat do_spl_lane_map "${F[@]}")"
+[[ "$out" == *c-002@sat* && "$out" == *c-003@sat* && "$out" != *c-900@sat* && "$(tail -1 <<<"$out")" == "1 older rows hidden (--all)" ]] &&
+  fail "role seats must be shown even when old; run the test with -v to see the map" || pass "role seats: default view shows c-002@sat and c-003@sat, hides c-900@sat"
+
 # 5. exit-clean
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-920 LANE_STATE=done >/dev/null
 row="$(jq -c '.lanes[] | select(.agent_id == "c-920")' "$T/hub/main.json")"

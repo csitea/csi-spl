@@ -8,6 +8,17 @@
 //   - right-click on a comment opens the shared card menu WITH Edit (and Delete)
 //   - double-click on a comment opens its editor in place
 //
+// HUM-10 (t1 43ebdf0b): files in the comment box and the description, as in
+// the message composer:
+//   - B1 a file pasted (Ctrl+V: a clipboard holding a File) into the comment
+//     box attaches it; Enter posts the comment with it, and its picture opens
+//   - B2 the comment box's attach button picks a file the same way
+//   - D1 a file pasted into the description editor is stored and named in the
+//     description; the saved description shows it, and it opens
+//   - D2 the description's attach button does the same
+//   CONTROL: with the fix reverted the boxes have no attach button and a paste
+//   attaches nothing, so B1, B2, D1 and D2 fail.
+//
 // CONTROL: on the build before this change the comment MessageCard got no
 // :editable, so the menu had no Edit item and double-click did nothing; and the
 // box saved only on Enter, so the blur check posted nothing. All three fail.
@@ -16,6 +27,9 @@
 //   node tests/e2e/issue-comment-edit.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/issue-comment-edit.test.mjs   # what CI does
 import { createRequire } from 'node:module'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
@@ -23,6 +37,11 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const COMMENT = '[data-test=issues-comment]'
 const INPUT = '[data-test=issues-comment-input]'
+
+/* a real 1x1 PNG: the card previews it only when the magic bytes say picture */
+const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+const DESC = '[data-test=issues-detail-body]'
+const DESC_VIEW = '[data-test=issues-detail-rendered]'
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -67,6 +86,46 @@ async function createIssue(p, title) {
   await p.waitForSelector(INPUT, { timeout: 8000 })
   await sleep(400)
   return key
+}
+
+/** Ctrl+V of a clipboard that holds one file, on the element `sel`. */
+const pasteFile = (p, sel, name, b64, type) => p.evaluate((sel, name, b64, type) => {
+  const el = document.querySelector(sel)
+  if (!el) return false
+  el.focus()
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+  const dt = new DataTransfer()
+  dt.items.add(new File([bytes], name, { type }))
+  return !el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+}, sel, name, b64, type)
+
+/** click `button` and answer its file dialog with `path` */
+async function pickWith(p, button, path) {
+  const btn = await p.$(button)
+  if (!btn) return false
+  const [chooser] = await Promise.all([p.waitForFileChooser({ timeout: 5000 }), btn.click()])
+  await chooser.accept([path])
+  return true
+}
+
+/** the nth-from-last comment card shows a file named `name` */
+const commentHasFile = (p, name) => p.waitForFunction((sel, name) => {
+  const cards = [...document.querySelectorAll(sel)]
+  return cards.some((c) => c.querySelector('.file-card') && c.innerText.includes(name))
+}, { timeout: 8000 }, COMMENT, name).then(() => true).catch(() => false)
+
+/** a picture card under `scope` opens the viewer on a click, then closes */
+async function pictureOpens(p, scope) {
+  const sel = `${scope} [data-test=file-preview]`
+  await p.waitForSelector(sel, { visible: true, timeout: 8000 }).catch(() => null)
+  const all = await p.$$(sel)
+  const btn = all[all.length - 1]
+  if (!btn) return false
+  await btn.click()
+  const open = await p.waitForSelector('[data-test=file-viewer] img', { visible: true, timeout: 5000 }).then(() => true).catch(() => false)
+  if (open) await p.click('[data-testid=ui-dialog-close]').catch(() => {})
+  await p.waitForSelector('[data-test=file-viewer]', { hidden: true, timeout: 3000 }).catch(() => {})
+  return open
 }
 
 /** dispatch a real bubbling mouse event on the nth comment card. */
@@ -155,6 +214,70 @@ try {
   ok('A2/A3 the menu offers Delete too', hasDelete, { hasDelete })
   await p.keyboard.press('Escape')
   await sleep(200)
+
+  /* ---- B/D: files, on a fresh issue (A3's Escape may have closed the pane) ---- */
+  await p.goto(`${server.base}/issues`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV_TIMEOUT })
+  await sleep(400)
+  await createIssue(p, 'Files in an issue')
+
+  /* ---- B1: Ctrl+V of a file in the comment box attaches it ---- */
+  const tmp = mkdtempSync(join(tmpdir(), 'issue-files-'))
+  const shot = `paste-shot-${Date.now()}.png`
+  const pasted = await pasteFile(p, INPUT, shot, PNG_B64, 'image/png')
+  const chip = await p.waitForFunction((n) => [...document.querySelectorAll('[data-test=issues-comment-file]')].some((c) => c.textContent.includes(n)),
+    { timeout: 5000 }, shot).then(() => true).catch(() => false)
+  ok('B1 a pasted file is attached to the comment box (not pasted as text)', pasted && chip, { pasted, chip })
+  await p.focus(INPUT).catch(() => {})
+  await p.keyboard.press('Enter')
+  const b1Posted = await commentHasFile(p, shot)
+  ok('B1 the posted comment carries the pasted file', b1Posted)
+  const b1Opens = b1Posted && await pictureOpens(p, COMMENT)
+  ok('B1 the comment\'s picture opens', b1Opens)
+
+  /* ---- B2: the comment box's attach button ---- */
+  const docName = `attach-note-${Date.now()}.txt`
+  const docPath = join(tmp, docName)
+  writeFileSync(docPath, 'an attached note\n')
+  const picked = await pickWith(p, '[data-test=issues-comment-attach]', docPath).catch(() => false)
+  const chip2 = await p.waitForFunction((n) => [...document.querySelectorAll('[data-test=issues-comment-file]')].some((c) => c.textContent.includes(n)),
+    { timeout: 5000 }, docName).then(() => true).catch(() => false)
+  ok('B2 the comment box has an attach button that picks a file', picked && chip2, { picked, chip2 })
+  await p.type(INPUT, 'with a note').catch(() => {})
+  await p.keyboard.press('Enter')
+  ok('B2 the posted comment carries the picked file', await commentHasFile(p, docName))
+
+  /* ---- D1: Ctrl+V of a file in the description editor ---- */
+  await p.click(DESC_VIEW).catch(() => {})
+  await p.waitForSelector(DESC, { visible: true, timeout: 5000 }).catch(() => {})
+  const dshot = `desc-shot-${Date.now()}.png`
+  const dpasted = await pasteFile(p, DESC, dshot, PNG_B64, 'image/png')
+  const named = await p.waitForFunction((sel, n) => (document.querySelector(sel)?.value || '').includes(`[${n}](`),
+    { timeout: 8000 }, DESC, dshot).then(() => true).catch(() => false)
+  ok('D1 a pasted file is stored and named in the description', dpasted && named, { dpasted, named })
+  await p.$eval(DESC, (el) => el.blur()).catch(() => {})
+  const dShown = await p.waitForFunction((n) => [...document.querySelectorAll('[data-test=issues-desc-file]')].some((c) => c.innerText.includes(n)),
+    { timeout: 8000 }, dshot).then(() => true).catch(() => false)
+  ok('D1 the saved description shows the file', dShown)
+  ok('D1 the description\'s picture opens', dShown && await pictureOpens(p, '[data-test=issues-desc-file]'))
+
+  /* ---- D2: the description's attach button ---- */
+  /* Enter on the view edits it (a click on its centre now lands on the file
+     card, which opens the file, not the editor) */
+  await p.focus(DESC_VIEW).catch(() => {})
+  await p.keyboard.press('Enter')
+  await p.waitForSelector(DESC, { visible: true, timeout: 5000 }).catch(() => {})
+  const d2Name = `desc-note-${Date.now()}.txt`
+  const d2Path = join(tmp, d2Name)
+  writeFileSync(d2Path, 'a description attachment\n')
+  const d2Picked = await pickWith(p, '[data-test=issues-desc-attach]', d2Path).catch(() => false)
+  const d2Named = await p.waitForFunction((sel, n) => (document.querySelector(sel)?.value || '').includes(`[${n}](`),
+    { timeout: 8000 }, DESC, d2Name).then(() => true).catch(() => false)
+  ok('D2 the description has an attach button that stores and names a file', d2Picked && d2Named, { d2Picked, d2Named })
+  await p.$eval(DESC, (el) => el.blur()).catch(() => {})
+  const d2Shown = await p.waitForFunction((n) => [...document.querySelectorAll('[data-test=issues-desc-file]')].some((c) => c.innerText.includes(n)),
+    { timeout: 8000 }, d2Name).then(() => true).catch(() => false)
+  ok('D2 the saved description shows the picked file', d2Shown)
 
   /* the generated bundle CI runs against never hits this; `nuxi dev` under a
      loaded box can drop a chunk's first dynamic import, which is not our bug */

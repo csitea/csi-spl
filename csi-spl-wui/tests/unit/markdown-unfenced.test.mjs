@@ -173,7 +173,9 @@ describe('the components', () => {
     assert.match(desc, /data-test="issues-detail-rendered"/)
     assert.match(desc, /@click="onViewClick"/)
     assert.match(desc, /@keydown\.enter\.self\.prevent="edit"/)
-    assert.match(desc, /@blur="mp\.close\(\); commit\(\)"/)
+    assert.match(desc, /@blur="mp\.close\(\); onBlur\(\)"/)
+    // HUM-10 (t1 43ebdf0b): blur saves, except while the attach dialog or an upload is open
+    assert.match(desc, /function onBlur\(\) \{\s+if \(picking\(\) \|\| uploading\.value\) return\s+void commit\(\)/)
     assert.match(desc, /role="alert" data-test="issues-description-error"/)
     assert.match(desc, /if \(ok\) close\(\)/)
     // the view returns after the pointer is up, so the click that blurred the editor lands

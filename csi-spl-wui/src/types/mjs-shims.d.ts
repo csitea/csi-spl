@@ -1887,6 +1887,13 @@ declare module '~/utils/font-size.mjs' {
 }
 
 
+declare module '~/utils/issue-files.mjs' {
+  export interface IssueFileRef { mode: 'blob', kind: 'file', file_id: string, sha256: string, bytes: number, name: string }
+  export function uploadRefs(files: File[], upload: (f: File) => Promise<{ file_id: string, sha256: string, bytes: number }>): Promise<IssueFileRef[]>
+  export function descFileLink(ref: { name?: string, file_id?: string, sha256?: string, bytes?: number }, url: string): string
+  export function descFileRefs(text: string): IssueFileRef[]
+}
+
 declare module '~/utils/transfer-files.mjs' {
   export function carriesFiles(dt: DataTransfer | null | undefined): boolean
   export function filesOf(dt: DataTransfer | null | undefined): File[]

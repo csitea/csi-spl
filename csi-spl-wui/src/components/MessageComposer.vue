@@ -333,7 +333,8 @@ import { useSubmitKey } from '~/composables/useSubmitKey'
 import { omniboxFocusHeight, omniboxIsMultiline, omniboxOneLinePad, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
 import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.mjs'
-import { carriesFiles, filesOf, pasteAttaches } from '~/utils/transfer-files.mjs'
+import { carriesFiles, filesOf } from '~/utils/transfer-files.mjs'
+import { useFileAttach } from '~/composables/useFileAttach'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useKeyboardInset, usePhone } from '~/composables/useTouchUi'
@@ -395,7 +396,9 @@ const emit = defineEmits<{
   /** mounted: TopBar's deferred Teleport mounts this after the bar (c6994436) */
   ready: [box: { setText: (s: string) => void }]
 }>()
-const picked = ref<File[]>([])
+/* the paperclip's picker and a pasted file (shared with the issue boxes) */
+const fileEl = ref<HTMLInputElement | null>(null)
+const { picked, pickLost, openFiles, onPickCancel, onFiles, onPaste } = useFileAttach(fileEl)
 /* a picked picture shows a thumbnail before it is sent (a data: URL: the
    deployed CSP admits no blob:); every other file shows its type icon */
 const thumbs = shallowRef(new Map<File, string>())
@@ -699,7 +702,6 @@ watch(phoneShare, () => {
     else fitGlobalBox()
   })
 })
-const fileEl = ref<HTMLInputElement | null>(null)
 /* Empty, busy, or with nowhere to send: the button stays in the tab order
    (aria-disabled, not disabled) and onSend refuses the click. */
 const cannotSend = computed(() => Boolean(props.busy) || (Boolean(props.sendBlocked) && !docked.value) || (!text.value.trim() && !picked.value.length))
@@ -1390,61 +1392,8 @@ function onSend() {
   inCode.value = false
 }
 
-/* Owner, 2026-09-25: eight tries, eight messages with no file, and not a
-   word on screen. A DOUBLE-CLICK on the file in the GTK file dialog lost the
-   pick before the page saw it (Select + Open worked, n=1). The page cannot
-   get that file back, but it must not stay silent: when the dialog closes
-   with nothing, say so and name the two ways that work. Chrome fires
-   `cancel` on the input for an empty close; a close that fires neither
-   `change` nor `cancel` is caught when the window gets the focus back. */
-const pickLost = ref(false)
 /* e3e9ca61: the phone's top notice closes itself after this long */
 const ATTACH_NOTICE_MS = 8000
-let awaitingPick = false
-let pickTimer: ReturnType<typeof setTimeout> | null = null
-
-function clearPickWait() {
-  awaitingPick = false
-  if (pickTimer) clearTimeout(pickTimer)
-  pickTimer = null
-  window.removeEventListener('focus', onWindowFocusAfterPick)
-}
-
-function onWindowFocusAfterPick() {
-  if (!awaitingPick) return
-  if (pickTimer) clearTimeout(pickTimer)
-  pickTimer = setTimeout(() => {
-    if (awaitingPick) pickLost.value = true
-    clearPickWait()
-  }, 1000)
-}
-
-function openFiles() {
-  pickLost.value = false
-  clearPickWait()
-  awaitingPick = true
-  window.addEventListener('focus', onWindowFocusAfterPick)
-  fileEl.value?.click()
-}
-
-function onPickCancel() {
-  clearPickWait()
-  pickLost.value = true
-}
-
-function onFiles(ev: Event) {
-  clearPickWait()
-  const input = ev.target as HTMLInputElement
-  if (!input.files || input.files.length === 0) {
-    pickLost.value = true
-    return
-  }
-  pickLost.value = false
-  // uploaded on send (POST /v1/files), then referenced by file_id in files[]
-  picked.value = [...picked.value, ...input.files]
-  input.value = ''
-}
-onBeforeUnmount(clearPickWait)
 
 /* e3e9ca61 (owner, on a phone): "whenever I click somewhere else, the snack
    bar and the omnibar should disappear". Attach keeps the focus in the box
@@ -1461,15 +1410,6 @@ watch(docked, (on) => {
   offDockOutside = on && typeof document !== 'undefined' ? onOutsideTap(document, () => [formEl.value], onDockOutside) : null
 }, { immediate: true, flush: 'post' })
 onBeforeUnmount(() => { offDockOutside?.() })
-
-/* A pasted screenshot or copied file is attached, as if picked with Attach.
-   A paste with no files, or rich text from a document, stays a text paste. */
-function onPaste(ev: ClipboardEvent) {
-  if (!pasteAttaches(ev.clipboardData)) return
-  ev.preventDefault()
-  pickLost.value = false
-  picked.value = [...picked.value, ...filesOf(ev.clipboardData)]
-}
 
 /* A file dropped anywhere on the page is attached to the Omnibox. Without
    this the browser opens the dropped file and leaves the app. Only the one

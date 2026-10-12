@@ -723,6 +723,7 @@
             :text="form.description"
             :save="saveDescription"
             :keep-open="creating"
+            :attach="creating ? undefined : attachToDescription"
             @draft="onDescriptionDraft"
             @submit="onDescriptionSubmit"
           />
@@ -921,12 +922,52 @@
                 @input="commentMp.sync"
                 @click="commentMp.sync"
                 @keyup="commentMp.sync"
+                @paste="commentFiles.onPaste"
                 @blur="commentMp.close(); onCommentBlur()"
                 @keydown="commentMp.onKeydown($event) || onSubmitKey($event, sendComment)"
               />
               <MentionList :picker="commentMp" placement="above" />
             </span>
           </label>
+          <!-- HUM-10 (t1 43ebdf0b): a comment takes files like a message - Ctrl+V
+               or the composer's Attach; they go up with the comment -->
+          <div class="issues-comment-files">
+            <ul v-if="commentPicked.length" class="issues-comment-files__list">
+              <li v-for="(f, i) in commentPicked" :key="f.name + i" data-test="issues-comment-file">
+                <UiIcon name="paperclip" :size="14" />
+                {{ f.name }} <small>{{ t('composer.file_bytes', { n: f.size }) }}</small>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  :aria-label="t('composer.remove_file', { name: f.name })"
+                  :title="t('composer.remove_file', { name: f.name })"
+                  @click="commentPicked.splice(i, 1)"
+                ><UiIcon name="x" :size="14" /></button>
+              </li>
+            </ul>
+            <p v-if="commentPickLost" class="muted" role="status" data-testid="attach-nothing">{{ t('composer.attach_nothing') }}</p>
+            <button
+              type="button"
+              tabindex="-1"
+              class="icon-btn issues-comment-files__attach"
+              data-test="issues-comment-attach"
+              :disabled="busy"
+              :aria-label="t('composer.attach')"
+              :title="t('composer.attach')"
+              @mousedown.prevent
+              @click="commentFiles.openFiles"
+            ><UiIcon name="paperclip" :size="16" /></button>
+            <input
+              ref="commentFileEl"
+              type="file"
+              multiple
+              hidden
+              tabindex="-1"
+              data-test="issues-comment-attach-input"
+              @change="commentFiles.onFiles"
+              @cancel="commentFiles.onPickCancel"
+            >
+          </div>
           </template>
         </section>
       </div>
@@ -1032,6 +1073,9 @@ import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke } from '~/composables/useMentionPoke'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { useFileAttach } from '~/composables/useFileAttach'
+import { descFileLink, uploadRefs, type IssueFileRef } from '~/utils/issue-files.mjs'
+import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import type { EpicSummary, Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
@@ -1172,6 +1216,9 @@ const historyStamp = computed(() => `${detail.value?.updated_at || ''}|${comment
 const commentText = ref('')
 const commentEl = ref<HTMLTextAreaElement | null>(null)
 const commentMp = useMentionPicker({ text: commentText, el: commentEl })
+const commentFileEl = ref<HTMLInputElement | null>(null)
+const commentFiles = useFileAttach(commentFileEl)
+const { picked: commentPicked, pickLost: commentPickLost } = commentFiles
 /* SPL-985 (spec 042 §3): whoever a stored description, comment or new issue
    newly mentions gets a DM asking them to act; issues are tenant-wide (K4) */
 const { poke } = useMentionPoke()
@@ -2590,30 +2637,46 @@ async function loadComments(issue: Issue | null) {
 }
 /* one comment into the issue's discussion (is_parent 0 on its task) - the
    discussion box and, on a phone, the bottom dock's GO */
-async function postComment(issue: Issue, text: string) {
-  await sendToDiscussion(issue, text)
+async function postComment(issue: Issue, text: string, files: IssueFileRef[] = []) {
+  await sendToDiscussion(issue, text, files)
   await loadComments(issue)
 }
 /* the post itself - a comment, or an AI action picked on the issue's menu */
-async function sendToDiscussion(issue: Issue, text: string) {
+async function sendToDiscussion(issue: Issue, text: string, files: IssueFileRef[] = []) {
   const sock = live.ensure()
   if (sock) {
-    await sock.send({ task_id: issue.task_id, kind: 'note', body: text, files: [], channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
+    await sock.send({ task_id: issue.task_id, kind: 'note', body: text, files, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
   } else {
-    await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
+    await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0, files })
   }
-  void poke({ text, where: { issue: true, issueKey: issue.key } })
+  if (text) void poke({ text, where: { issue: true, issueKey: issue.key } })
+}
+/* each picked file up to the hub (POST /v1/files), as the composer's send does */
+const uploadFiles = (files: File[]) => uploadRefs(files, (f) => uploadWithFreshToken(api, live, f))
+/* HUM-10 (t1 43ebdf0b): a description's file. The hub serves a file only to a
+   reader of a message that carries it (rdb 0028), so the file rides on a note
+   in the issue's discussion and the description names it with a link to it
+   (utils/issue-files.mjs). */
+async function attachToDescription(files: File[]): Promise<string[]> {
+  const issue = detail.value
+  if (!issue || !issue.task_id) throw new Error('issue has no discussion')
+  const refs = await uploadFiles(files)
+  await sendToDiscussion(issue, '', refs)
+  void loadComments(issue)
+  return refs.map((r) => descFileLink(r, api.fileUrl(r.file_id)))
 }
 
 async function sendComment() {
   const issue = detail.value
   const text = commentMp.encode(commentText.value).trim()
-  if (!issue || !issue.task_id || !text) return
+  const picked = commentPicked.value.slice()
+  if (!issue || !issue.task_id || (!text && !picked.length)) return
   busy.value = true
   saveError.value = ''
   try {
-    await postComment(issue, text)
+    await postComment(issue, text, await uploadFiles(picked))
     commentText.value = ''
+    commentPicked.value = []
   } catch (e) {
     saveError.value = failKey(e)
   } finally {
@@ -2627,7 +2690,9 @@ async function sendComment() {
    and never blur-posts a half-typed @token. */
 function onCommentBlur() {
   if (busy.value) return
-  if (!commentMp.encode(commentText.value).trim()) return
+  /* the attach dialog's focus loss is not a click elsewhere */
+  if (commentFiles.picking()) return
+  if (!commentMp.encode(commentText.value).trim() && !commentPicked.value.length) return
   void sendComment()
 }
 
@@ -3476,6 +3541,10 @@ select.issues-pctl { appearance: auto; }
 .issues-prop--fixed { cursor: default; display: inline-flex; align-items: center; gap: 4px; }
 .issues-meta { margin: 0; font-size: 0.75rem; }
 .issues-talk { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.issues-comment-files { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
+.issues-comment-files__list { align-self: stretch; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.issues-comment-files__list li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; min-width: 0; overflow-wrap: anywhere; }
+.issues-comment-files > p { margin: 0; align-self: stretch; font-size: 0.8125rem; }
 .issues-deadline { display: flex; gap: 6px; flex-wrap: wrap; }
 .issues-deadline select { min-width: 5.5rem; }
 .issues-subs { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

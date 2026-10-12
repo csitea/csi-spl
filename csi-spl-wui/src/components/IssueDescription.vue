@@ -7,7 +7,10 @@
      `keepOpen` (a new issue) keeps the editor after a blur. The view comes
      back only once the pointer is up: the editor is taller, so closing it on
      the mousedown that blurred it would move the control under the pointer
-     and the click would land elsewhere. -->
+     and the click would land elsewhere.
+     HUM-10 (t1 43ebdf0b): a file pasted into the editor, or picked with its
+     attach button, is stored (`attach`, the page's) and named in the text as
+     a markdown link; the view shows each named file as a card that opens. -->
 <template>
   <div class="issue-desc" data-test="issues-description" :data-state="editing ? 'edit' : 'view'">
     <span :id="labelId" class="issue-desc__label">{{ t('issues.field_description') }}</span>
@@ -25,9 +28,35 @@
         @click="mp.sync"
         @keyup="mp.sync"
         @keydown="mp.onKeydown($event) || onSubmitKey($event, submit)"
-        @blur="mp.close(); commit()"
+        @paste="attach && onPaste($event)"
+        @blur="mp.close(); onBlur()"
       />
       <MentionList :picker="mp" />
+      <div v-if="attach" class="issue-desc__tools">
+        <!-- the composer's Attach: a pointer target only, the box keeps the focus -->
+        <button
+          type="button"
+          tabindex="-1"
+          class="icon-btn"
+          data-test="issues-desc-attach"
+          :disabled="uploading"
+          :aria-label="t('composer.attach')"
+          :title="t('composer.attach')"
+          @mousedown.prevent
+          @click="openFiles"
+        ><UiIcon name="paperclip" :size="16" /></button>
+        <input
+          ref="fileEl"
+          type="file"
+          multiple
+          hidden
+          tabindex="-1"
+          data-test="issues-desc-attach-input"
+          @change="onFiles"
+          @cancel="onPickCancel"
+        >
+      </div>
+      <p v-if="pickLost" class="issue-desc__note" role="status" data-testid="attach-nothing">{{ t('composer.attach_nothing') }}</p>
     </div>
     <div
       v-else
@@ -42,6 +71,12 @@
     >
       <MessageBody v-if="text.trim()" :body="text" markdown />
       <span v-else class="muted">{{ t('issues.description_empty') }}</span>
+      <!-- a file card's own clicks (open, Download) never open the editor -->
+      <div v-if="files.length" class="issue-desc__files" @click.stop>
+        <div v-for="f in files" :key="f.file_id" data-test="issues-desc-file">
+          <FileAttachment :file="f" />
+        </div>
+      </div>
     </div>
     <p v-if="error" class="issue-desc__error" role="alert" data-test="issues-description-error">{{ t('issues.save_failed') }}</p>
   </div>
@@ -50,11 +85,16 @@
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useMentionPicker } from '~/composables/useMentionPicker'
+import { useFileAttach } from '~/composables/useFileAttach'
+import { descFileRefs } from '~/utils/issue-files.mjs'
 const props = defineProps<{
   text: string
   /* resolves true when the text is stored; false keeps the editor open */
   save: (value: string) => Promise<boolean>
   keepOpen?: boolean
+  /* stores the files and resolves the markdown that names each; absent (a new
+     issue, which has no discussion to carry them yet) = no attach, a plain paste */
+  attach?: (files: File[]) => Promise<string[]>
 }>()
 const emit = defineEmits<{ draft: [value: string], submit: [] }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -70,6 +110,11 @@ const area = ref<HTMLTextAreaElement | null>(null)
 const mp = useMentionPicker({ text: draft, el: area, onPick: (v) => emit('draft', mp.encode(v)) })
 let saving = false
 let pressed = false
+const fileEl = ref<HTMLInputElement | null>(null)
+const { picked, pickLost, openFiles, onPickCancel, onFiles, onPaste, picking } = useFileAttach(fileEl)
+const uploading = ref(false)
+/* the stored files the saved text names, shown as cards under it */
+const files = computed(() => descFileRefs(props.text))
 
 /* document-level and capture: the editor's blur fires before the click that
  * caused it lands, so close() must already know a press is down anywhere on
@@ -129,6 +174,43 @@ async function commit() {
   if (ok) close()
 }
 
+/* the file dialog's focus loss, or an upload under way, is not the reader
+   leaving the editor: keep it open, the link lands in it */
+function onBlur() {
+  if (picking() || uploading.value) return
+  void commit()
+}
+
+/* the markdown lands at the caret, on a line of its own */
+function insertAtCaret(md: string) {
+  const el = area.value
+  const v = draft.value
+  const start = el ? el.selectionStart : v.length
+  const end = el ? el.selectionEnd : v.length
+  const before = v.slice(0, start)
+  const after = v.slice(end)
+  const lead = before && !before.endsWith('\n') ? '\n' : ''
+  const tail = after && !after.startsWith('\n') ? '\n' : ''
+  draft.value = before + lead + md + tail + after
+  emit('draft', mp.encode(draft.value))
+}
+
+watch(picked, async (list) => {
+  if (!list.length || !props.attach) return
+  picked.value = []
+  uploading.value = true
+  error.value = false
+  try {
+    insertAtCaret((await props.attach(list)).join('\n'))
+  } catch {
+    error.value = true
+  } finally {
+    uploading.value = false
+  }
+  await nextTick()
+  area.value?.focus()
+})
+
 async function submit() {
   await commit()
   if (!error.value) emit('submit')
@@ -179,6 +261,13 @@ defineExpose({ edit, commit, editing })
 }
 .issue-desc__view:hover {
   border-color: var(--color-border-strong);
+}
+.issue-desc__tools { display: flex; justify-content: flex-end; }
+.issue-desc__files { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; cursor: default; }
+.issue-desc__note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
 }
 .issue-desc__error {
   margin: 0;

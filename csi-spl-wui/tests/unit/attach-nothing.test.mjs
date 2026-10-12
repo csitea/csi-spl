@@ -12,7 +12,10 @@ import { fileURLToPath } from 'node:url'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
-const box = read('src/components/MessageComposer.vue')
+// the picker and paste logic moved to useFileAttach (shared with the issue
+// description and comment boxes, HUM-10 t1 43ebdf0b): read the composer and
+// the composable it uses as one source
+const box = read('src/components/MessageComposer.vue') + read('src/composables/useFileAttach.ts')
 
 describe('an empty file dialog is not silent', () => {
   it('the file input listens for cancel as well as change', () => {

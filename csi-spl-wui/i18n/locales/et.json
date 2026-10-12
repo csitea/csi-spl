@@ -2529,7 +2529,24 @@
     "figure": "Joonis {n}:",
     "picture_caption": "Mida see pilt näitab",
     "insert_picture": "Lisa pilt",
-    "err_image": "Pilt lükati tagasi: kasuta PNG-, JPEG-, GIF- või WebP-faili, mis on kuni 5 MB."
+    "err_image": "Pilt lükati tagasi: kasuta PNG-, JPEG-, GIF- või WebP-faili, mis on kuni 5 MB.",
+    "folder_menu": {
+      "label": "Kausta toimingud",
+      "new_doc": "Uus dokument siia",
+      "new_folder": "Uus kaust siia",
+      "copy_path": "Kopeeri tee",
+      "path_copied": "Tee kopeeritud",
+      "delete": "Kustuta kaust",
+      "delete_title": "Kas kustutada see kaust?",
+      "delete_body": "Kaust \"{name}\" kustutatakse.",
+      "delete_held": "Selles on {folders} kausta ja {documents} dokumenti. Need kustutatakse koos sellega.",
+      "rename_title": "Nimeta kaust ümber",
+      "name_taken": "Selle nimega kaust on siin juba olemas."
+    },
+    "section_menu": {
+      "label": "Jaotise toimingud",
+      "open": "Ava"
+    }
   },
   "hours_cal": {
     "line": "Tööajad",

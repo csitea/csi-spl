@@ -2529,7 +2529,24 @@
     "figure": "Figura {n}:",
     "picture_caption": "Ce arată această imagine",
     "insert_picture": "Inserează imagine",
-    "err_image": "Imaginea a fost refuzată: folosește un fișier PNG, JPEG, GIF sau WebP de cel mult 5 MB."
+    "err_image": "Imaginea a fost refuzată: folosește un fișier PNG, JPEG, GIF sau WebP de cel mult 5 MB.",
+    "folder_menu": {
+      "label": "Acțiuni pentru dosar",
+      "new_doc": "Document nou aici",
+      "new_folder": "Dosar nou aici",
+      "copy_path": "Copiază calea",
+      "path_copied": "Calea a fost copiată",
+      "delete": "Șterge dosarul",
+      "delete_title": "Ștergi acest dosar?",
+      "delete_body": "Dosarul \"{name}\" va fi șters.",
+      "delete_held": "Conține {folders} dosare și {documents} documente. Vor fi șterse împreună cu el.",
+      "rename_title": "Redenumește dosarul",
+      "name_taken": "Aici există deja un dosar cu acest nume."
+    },
+    "section_menu": {
+      "label": "Acțiuni pentru secțiune",
+      "open": "Deschide"
+    }
   },
   "hours_cal": {
     "line": "Ore de lucru",

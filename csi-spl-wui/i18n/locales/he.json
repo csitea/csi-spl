@@ -2529,7 +2529,24 @@
     "figure": "איור {n}:",
     "picture_caption": "מה התמונה הזו מציגה",
     "insert_picture": "הוספת תמונה",
-    "err_image": "התמונה נדחתה: יש להשתמש בקובץ PNG,‏ JPEG,‏ GIF או WebP בגודל של עד 5 MB."
+    "err_image": "התמונה נדחתה: יש להשתמש בקובץ PNG,‏ JPEG,‏ GIF או WebP בגודל של עד 5 MB.",
+    "folder_menu": {
+      "label": "פעולות תיקייה",
+      "new_doc": "מסמך חדש כאן",
+      "new_folder": "תיקייה חדשה כאן",
+      "copy_path": "העתקת נתיב",
+      "path_copied": "הנתיב הועתק",
+      "delete": "מחיקת תיקייה",
+      "delete_title": "למחוק את התיקייה הזו?",
+      "delete_body": "התיקייה \"{name}\" תימחק.",
+      "delete_held": "היא מכילה {folders} תיקיות ו-{documents} מסמכים. הם יימחקו יחד איתה.",
+      "rename_title": "שינוי שם התיקייה",
+      "name_taken": "כבר יש כאן תיקייה בשם הזה."
+    },
+    "section_menu": {
+      "label": "פעולות מקטע",
+      "open": "פתיחה"
+    }
   },
   "hours_cal": {
     "line": "שעות עבודה",

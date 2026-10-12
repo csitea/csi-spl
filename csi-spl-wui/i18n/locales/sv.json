@@ -2529,7 +2529,24 @@
     "figure": "Figur {n}:",
     "picture_caption": "Vad bilden visar",
     "insert_picture": "Infoga bild",
-    "err_image": "Bilden avvisades: använd en PNG-, JPEG-, GIF- eller WebP-fil på högst 5 MB."
+    "err_image": "Bilden avvisades: använd en PNG-, JPEG-, GIF- eller WebP-fil på högst 5 MB.",
+    "folder_menu": {
+      "label": "Mappåtgärder",
+      "new_doc": "Nytt dokument här",
+      "new_folder": "Ny mapp här",
+      "copy_path": "Kopiera sökväg",
+      "path_copied": "Sökvägen kopierades",
+      "delete": "Ta bort mappen",
+      "delete_title": "Ta bort den här mappen?",
+      "delete_body": "Mappen \"{name}\" tas bort.",
+      "delete_held": "Den innehåller {folders} mappar och {documents} dokument. De tas bort tillsammans med den.",
+      "rename_title": "Byt namn på mappen",
+      "name_taken": "Det finns redan en mapp med det här namnet här."
+    },
+    "section_menu": {
+      "label": "Avsnittsåtgärder",
+      "open": "Öppna"
+    }
   },
   "hours_cal": {
     "line": "Arbetstid",

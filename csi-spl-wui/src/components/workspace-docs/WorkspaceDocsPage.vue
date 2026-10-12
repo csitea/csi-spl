@@ -77,6 +77,8 @@
         @open="openFromList"
         @renamed="renamedInList"
         @deleted="deletedInList"
+        @new-doc="newOpen = true"
+        @refresh="refreshDocs"
         @title="(v) => { drillTitle = v }"
       />
       <template v-if="session && root && !phoneList">
@@ -214,6 +216,14 @@ function deletedInList(doc: string) {
   if (drillAt.value.split(':')[1] === doc) void setQuery({ in: '' })
 }
 
+/** the tree deleted a folder with its documents: the list read again; the open one gone, the first left opens */
+async function refreshDocs() {
+  try {
+    docs.value = await client.list()
+  } catch { return }
+  if (docId.value && !docs.value.some((d) => d.id === docId.value)) await pick(docs.value[0]?.id ?? '')
+}
+
 function reopen() {
   void open()
 }
@@ -281,7 +291,7 @@ onBeforeUnmount(() => {
 })
 
 /* the Qto file tree (WorkspaceDocsLayout, t1 efde25bb) reads the list and drives the page */
-defineExpose({ docs, docId, session, pick, openAt })
+defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs })
 </script>
 
 <style scoped>

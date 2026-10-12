@@ -2529,7 +2529,24 @@
     "figure": "{n}. attēls:",
     "picture_caption": "Ko rāda šis attēls",
     "insert_picture": "Ievietot attēlu",
-    "err_image": "Attēls tika noraidīts: izmantojiet PNG, JPEG, GIF vai WebP failu līdz 5 MB."
+    "err_image": "Attēls tika noraidīts: izmantojiet PNG, JPEG, GIF vai WebP failu līdz 5 MB.",
+    "folder_menu": {
+      "label": "Mapes darbības",
+      "new_doc": "Jauns dokuments šeit",
+      "new_folder": "Jauna mape šeit",
+      "copy_path": "Kopēt ceļu",
+      "path_copied": "Ceļš nokopēts",
+      "delete": "Dzēst mapi",
+      "delete_title": "Vai dzēst šo mapi?",
+      "delete_body": "Mape \"{name}\" tiks dzēsta.",
+      "delete_held": "Tajā ir mapes: {folders}, dokumenti: {documents}. Tie tiks dzēsti kopā ar to.",
+      "rename_title": "Pārdēvēt mapi",
+      "name_taken": "Šeit jau ir mape ar šādu nosaukumu."
+    },
+    "section_menu": {
+      "label": "Sadaļas darbības",
+      "open": "Atvērt"
+    }
   },
   "hours_cal": {
     "line": "Darba stundas",

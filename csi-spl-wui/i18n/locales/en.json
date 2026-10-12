@@ -2529,7 +2529,24 @@
     "figure": "Figure {n}:",
     "picture_caption": "What this picture shows",
     "insert_picture": "Insert picture",
-    "err_image": "That image was refused: use a PNG, JPEG, GIF or WebP file of at most 5 MB."
+    "err_image": "That image was refused: use a PNG, JPEG, GIF or WebP file of at most 5 MB.",
+    "folder_menu": {
+      "label": "Folder actions",
+      "new_doc": "New document here",
+      "new_folder": "New folder here",
+      "copy_path": "Copy path",
+      "path_copied": "Path copied",
+      "delete": "Delete folder",
+      "delete_title": "Delete this folder?",
+      "delete_body": "The folder \"{name}\" will be deleted.",
+      "delete_held": "It holds folders: {folders}, documents: {documents}. They will be deleted with it.",
+      "rename_title": "Rename the folder",
+      "name_taken": "A folder with this name is already here."
+    },
+    "section_menu": {
+      "label": "Section actions",
+      "open": "Open"
+    }
   },
   "hours_cal": {
     "line": "Working hours",

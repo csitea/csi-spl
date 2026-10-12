@@ -2529,7 +2529,24 @@
     "figure": "Obrázok {n}:",
     "picture_caption": "Čo zobrazuje tento obrázok",
     "insert_picture": "Vložiť obrázok",
-    "err_image": "Obrázok bol odmietnutý: použite súbor PNG, JPEG, GIF alebo WebP s veľkosťou najviac 5 MB."
+    "err_image": "Obrázok bol odmietnutý: použite súbor PNG, JPEG, GIF alebo WebP s veľkosťou najviac 5 MB.",
+    "folder_menu": {
+      "label": "Akcie priečinka",
+      "new_doc": "Nový dokument sem",
+      "new_folder": "Nový priečinok sem",
+      "copy_path": "Kopírovať cestu",
+      "path_copied": "Cesta skopírovaná",
+      "delete": "Odstrániť priečinok",
+      "delete_title": "Odstrániť tento priečinok?",
+      "delete_body": "Priečinok \"{name}\" bude odstránený.",
+      "delete_held": "Obsahuje priečinky: {folders} a dokumenty: {documents}. Budú odstránené spolu s ním.",
+      "rename_title": "Premenovať priečinok",
+      "name_taken": "Priečinok s týmto názvom tu už je."
+    },
+    "section_menu": {
+      "label": "Akcie sekcie",
+      "open": "Otvoriť"
+    }
   },
   "hours_cal": {
     "line": "Pracovné hodiny",

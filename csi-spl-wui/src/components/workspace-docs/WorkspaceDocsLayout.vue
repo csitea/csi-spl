@@ -17,6 +17,8 @@
         @open="openFromTree"
         @renamed="renamedFromTree"
         @deleted="deletedFromTree"
+        @new-doc="page.newOpen = true"
+        @refresh="page.refreshDocs()"
       />
     </div>
     <WorkspaceDocsPage ref="page" class="wsdocs-layout__page" />

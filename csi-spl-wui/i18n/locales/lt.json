@@ -2529,7 +2529,24 @@
     "figure": "{n} pav.:",
     "picture_caption": "Ką rodo šis paveikslėlis",
     "insert_picture": "Įterpti paveikslėlį",
-    "err_image": "Paveikslėlis atmestas: naudokite PNG, JPEG, GIF arba WebP failą, ne didesnį nei 5 MB."
+    "err_image": "Paveikslėlis atmestas: naudokite PNG, JPEG, GIF arba WebP failą, ne didesnį nei 5 MB.",
+    "folder_menu": {
+      "label": "Aplanko veiksmai",
+      "new_doc": "Naujas dokumentas čia",
+      "new_folder": "Naujas aplankas čia",
+      "copy_path": "Kopijuoti kelią",
+      "path_copied": "Kelias nukopijuotas",
+      "delete": "Ištrinti aplanką",
+      "delete_title": "Ištrinti šį aplanką?",
+      "delete_body": "Aplankas \"{name}\" bus ištrintas.",
+      "delete_held": "Jame yra aplankų: {folders}, dokumentų: {documents}. Jie bus ištrinti kartu su juo.",
+      "rename_title": "Pervadinti aplanką",
+      "name_taken": "Čia jau yra aplankas tokiu pavadinimu."
+    },
+    "section_menu": {
+      "label": "Skyriaus veiksmai",
+      "open": "Atidaryti"
+    }
   },
   "hours_cal": {
     "line": "Darbo valandos",

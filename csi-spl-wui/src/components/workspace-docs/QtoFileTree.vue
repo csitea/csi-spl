@@ -28,7 +28,15 @@
      drills (phone, `f:<node>`) into its own /nodes. The + at the top makes
      a folder in the current folder: the last folder picked on the desktop,
      the level shown on a phone. The page's + New document lands in that
-     same folder (useQtoFolder). A hub without /nodes keeps the flat list. -->
+     same folder (useQtoFolder). A hub without /nodes keeps the flat list.
+     A folder row and a section row have a menu too (owner t1 ed2e3583, msg
+     407fc16f: a right-click in the Qto file system opens a matching menu
+     for the directories as well), the same
+     UiPointMenu, keys and long press. A folder's: New document and New
+     folder in it, Rename (PATCH /folders/{folder}), Copy path, Delete
+     (confirmed; a folder that holds anything shows its counts and goes
+     with them, DELETE /folders/{folder}?recursive=1). A section's: Open,
+     Copy link, Open in a new tab. -->
 <template>
   <nav class="qto-tree" data-test="qto-file-tree" :aria-label="t('ws_doctree.title')">
     <div v-if="!nodesOff" class="qto-tree__top">
@@ -42,14 +50,14 @@
       :open="Boolean(menu)"
       :x="menu?.x ?? 0"
       :y="menu?.y ?? 0"
-      :items="MENU"
-      :label="t('ws_doctree.doc_menu.label')"
-      block="qto-doc-menu"
-      testid="qto-doc-menu"
+      :items="MENUS[menu?.kind ?? 'doc']"
+      :label="t(`ws_doctree.${menu?.kind ?? 'doc'}_menu.label`)"
+      :block="`qto-${menu?.kind ?? 'doc'}-menu`"
+      :testid="`qto-${menu?.kind ?? 'doc'}-menu`"
       @choose="choose"
       @close="menu = null"
     />
-    <UiDialog :open="Boolean(renaming)" :title="t('ws_doctree.edit_doc_title')" size="sm" @update:open="(v) => { if (!v) renaming = null }">
+    <UiDialog :open="Boolean(renaming)" :title="t(renaming?.startsWith('f:') ? 'ws_doctree.folder_menu.rename_title' : 'ws_doctree.edit_doc_title')" size="sm" @update:open="(v) => { if (!v) renaming = null }">
       <form class="qto-rename" data-test="qto-rename-form" @submit.prevent="rename">
         <input
           v-model="renameTo"
@@ -57,14 +65,14 @@
           maxlength="500"
           data-autofocus
           data-test="qto-rename-title"
-          :aria-label="t('ws_doctree.col_title')"
-          :placeholder="t('ws_doctree.default_doc_title')"
+          :aria-label="t(renaming?.startsWith('f:') ? 'ws_doctree.folder_name' : 'ws_doctree.col_title')"
+          :placeholder="renaming?.startsWith('f:') ? '' : t('ws_doctree.default_doc_title')"
           :disabled="busy"
         >
         <p v-if="renameError" class="qto-rename__error" role="alert" data-test="qto-rename-error">{{ t(renameError) }}</p>
         <div class="qto-rename__actions">
           <button type="button" class="btn ghost" :disabled="busy" @click="renaming = null">{{ t('common.cancel') }}</button>
-          <button type="submit" class="btn" data-test="qto-rename-save" :disabled="busy">{{ t('ws_doctree.doc_menu.rename') }}</button>
+          <button type="submit" class="btn" data-test="qto-rename-save" :disabled="busy || (renaming?.startsWith('f:') && !renameTo.trim())">{{ t('ws_doctree.doc_menu.rename') }}</button>
         </div>
       </form>
     </UiDialog>
@@ -81,6 +89,20 @@
     >
       <p>{{ t('ws_doctree.doc_menu.delete_body', { title: deletingTitle }) }}</p>
     </UiConfirm>
+    <UiConfirm
+      :open="Boolean(dropping)"
+      :title="t('ws_doctree.folder_menu.delete_title')"
+      testid="qto-folder-delete"
+      :confirm-label="t('ws_doctree.delete_confirm')"
+      :busy-label="t('ws_doctree.deleting')"
+      :busy="busy"
+      :error="deleteError ? t(deleteError) : ''"
+      @update:open="(v) => { if (!v) dropping = null }"
+      @confirm="removeFolder"
+    >
+      <p>{{ t('ws_doctree.folder_menu.delete_body', { name: dropping?.name ?? '' }) }}</p>
+      <p v-if="dropping?.held" data-test="qto-folder-delete-held">{{ t('ws_doctree.folder_menu.delete_held', { folders: dropping.held.folders, documents: dropping.held.documents }) }}</p>
+    </UiConfirm>
     <p class="qto-tree__status" role="status" data-test="qto-tree-status">{{ status }}</p>
   </nav>
 </template>
@@ -93,10 +115,10 @@ import UiDialog from '~/components/UiDialog.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
-import { useQtoFolder, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
+import { DocTreeError, useQtoFolder, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
 
 const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null }>()
-const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string] }>()
+const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string], newDoc: [], refresh: [] }>()
 const { t } = useI18n({ useScope: 'global' })
 
 /* row keys: f:<node> for a folder, d:<doc> for a document, i:<doc>:<item> for a section */
@@ -139,7 +161,7 @@ function sectionRow(doc: string, it: DocItem, m: Map<string, DocItem[]>, depth: 
   const key = itemKey(doc, it.id)
   const sub = (m.get(it.id) || []).length > 0
   const name = itemName(it)
-  return { key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'folder' : 'list', kind: 'section', expandable: sub, open: sub && opened.value.has(key), active: doc === props.active && it.id === activeItem.value }
+  return { key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'folder' : 'list', kind: 'section', menu: true, expandable: sub, open: sub && opened.value.has(key), active: doc === props.active && it.id === activeItem.value }
 }
 
 function docRow(d: DocHead, depth = 0): FileTreeRow {
@@ -184,7 +206,7 @@ function headOf(n: DocNode): DocHead {
 
 function folderRow(n: DocNode, depth: number): FileTreeRow {
   const key = folderKey(n.id)
-  return { key, depth, name: n.name, icon: 'folder', kind: 'folder', expandable: n.child_count > 0, open: n.child_count > 0 && opened.value.has(key), active: folderPicked.value && folder.value === n.id }
+  return { key, depth, name: n.name, icon: 'folder', kind: 'folder', menu: true, expandable: n.child_count > 0, open: n.child_count > 0 && opened.value.has(key), active: folderPicked.value && folder.value === n.id }
 }
 
 /** the folder's path from the top: Plans / 2026 */
@@ -343,47 +365,127 @@ function select(key: string) {
   emit('open', doc, item)
 }
 
-/* a document row's menu (UiPointMenu, the WUI's one menu at a point) */
-const MENU: PointMenuItem[] = [
-  { id: 'edit', icon: 'edit', labelKey: 'ws_doctree.doc_menu.edit' },
-  { id: 'rename', icon: 'pencil', labelKey: 'ws_doctree.doc_menu.rename' },
-  { id: 'copy_link', icon: 'copy', labelKey: 'ws_doctree.doc_menu.copy_link' },
-  { id: 'new_tab', icon: 'open', labelKey: 'ws_doctree.doc_menu.new_tab' },
-  { id: 'delete', icon: 'delete', labelKey: 'ws_doctree.doc_menu.delete', danger: true },
-]
-const menu = ref<{ doc: string, x: number, y: number } | null>(null)
+/* each row kind's menu (UiPointMenu, the WUI's one menu at a point) */
+type MenuKind = 'doc' | 'folder' | 'section'
+const MENUS: Record<MenuKind, PointMenuItem[]> = {
+  doc: [
+    { id: 'edit', icon: 'edit', labelKey: 'ws_doctree.doc_menu.edit' },
+    { id: 'rename', icon: 'pencil', labelKey: 'ws_doctree.doc_menu.rename' },
+    { id: 'copy_link', icon: 'copy', labelKey: 'ws_doctree.doc_menu.copy_link' },
+    { id: 'new_tab', icon: 'open', labelKey: 'ws_doctree.doc_menu.new_tab' },
+    { id: 'delete', icon: 'delete', labelKey: 'ws_doctree.doc_menu.delete', danger: true },
+  ],
+  folder: [
+    { id: 'new_doc', icon: 'plus', labelKey: 'ws_doctree.folder_menu.new_doc' },
+    { id: 'new_folder', icon: 'folder', labelKey: 'ws_doctree.folder_menu.new_folder' },
+    { id: 'rename', icon: 'pencil', labelKey: 'ws_doctree.doc_menu.rename' },
+    { id: 'copy_path', icon: 'copy', labelKey: 'ws_doctree.folder_menu.copy_path' },
+    { id: 'delete', icon: 'delete', labelKey: 'ws_doctree.folder_menu.delete', danger: true },
+  ],
+  section: [
+    { id: 'open', icon: 'go', labelKey: 'ws_doctree.section_menu.open' },
+    { id: 'copy_link', icon: 'copy', labelKey: 'ws_doctree.doc_menu.copy_link' },
+    { id: 'new_tab', icon: 'open', labelKey: 'ws_doctree.doc_menu.new_tab' },
+  ],
+}
+const KINDS: Record<string, MenuKind> = { d: 'doc', f: 'folder', i: 'section' }
+const menu = ref<{ kind: MenuKind, key: string, x: number, y: number } | null>(null)
 const status = ref('')
 let statusTimer: ReturnType<typeof setTimeout> | undefined
 const router = useRouter()
 
 function openMenu(key: string, x: number, y: number) {
-  if (key.startsWith('d:')) menu.value = { doc: key.slice(2), x, y }
+  const kind = KINDS[key.split(':')[0]]
+  if (kind) menu.value = { kind, key, x, y }
 }
 
-/** the document's own address: the page that opens it */
-function docHref(doc: string): string {
-  return new URL(router.resolve({ path: '/workspace/docs', query: { doc, view: 'doc' } }).href, location.origin).href
+/** a document's own address, at a section when item is set: the page that opens it */
+function docHref(doc: string, item = ''): string {
+  return new URL(router.resolve({ path: '/workspace/docs', query: { doc, view: 'doc' }, hash: item ? '#ws-doc-' + item : '' }).href, location.origin).href
+}
+
+/** a short line under the tree (the copy's answer), gone after 3 s */
+async function copied(text: string, okKey: string) {
+  status.value = ''
+  status.value = t(await writeClipboard(text) ? okKey : 'common.copy_failed')
+  clearTimeout(statusTimer)
+  statusTimer = setTimeout(() => { status.value = '' }, 3000)
 }
 
 async function choose(id: string) {
-  const doc = menu.value?.doc
-  if (!doc) return
-  if (id === 'edit' && drilling.value) emit('open', doc, '')
+  const m = menu.value
+  if (!m) return
+  if (m.kind === 'folder') return chooseFolder(id, m.key.slice(2))
+  const [, doc, item = ''] = m.key.split(':')
+  if (id === 'open' && drilling.value) emit('open', doc, item)
+  else if (id === 'open') select(m.key)
+  else if (id === 'edit' && drilling.value) emit('open', doc, '')
   else if (id === 'edit') select(docKey(doc))
   else if (id === 'rename') {
     renameTo.value = props.docs.find((d) => d.id === doc)?.title || ''
     renameError.value = ''
-    renaming.value = doc
-  } else if (id === 'copy_link') {
-    status.value = ''
-    status.value = t(await writeClipboard(docHref(doc)) ? 'ws_doctree.doc_menu.link_copied' : 'common.copy_failed')
-    clearTimeout(statusTimer)
-    statusTimer = setTimeout(() => { status.value = '' }, 3000)
-  } else if (id === 'new_tab') window.open(docHref(doc), '_blank', 'noopener')
+    renaming.value = m.key
+  } else if (id === 'copy_link') await copied(docHref(doc, item), 'ws_doctree.doc_menu.link_copied')
+  else if (id === 'new_tab') window.open(docHref(doc, item), '_blank', 'noopener')
   else if (id === 'delete') {
     deleteError.value = ''
     deleting.value = doc
   }
+}
+
+/** a folder's menu: New document / New folder land in it (the current folder) */
+async function chooseFolder(id: string, node: string) {
+  if (id === 'new_doc' || id === 'new_folder') {
+    folder.value = node
+    if (id === 'new_doc') emit('newDoc')
+    else folderOpen.value = true
+  } else if (id === 'rename') {
+    renameTo.value = folderOf.value[node]?.name || ''
+    renameError.value = ''
+    renaming.value = folderKey(node)
+  } else if (id === 'copy_path') await copied(folderPath(node), 'ws_doctree.folder_menu.path_copied')
+  else if (id === 'delete') {
+    deleteError.value = ''
+    dropping.value = { node, name: folderOf.value[node]?.name || '' }
+  }
+}
+
+/* Delete a folder: confirmed, then the hub's DELETE; a folder that holds
+   anything answers 409 folder_not_empty with its counts, shown in the same
+   confirm, and a second confirm deletes it with them (recursive) */
+const dropping = ref<{ node: string, name: string, held?: { folders: number, documents: number } } | null>(null)
+
+async function removeFolder() {
+  const d = dropping.value
+  if (!d || busy.value) return
+  busy.value = true
+  deleteError.value = ''
+  try {
+    await props.client.removeFolder(d.node, Boolean(d.held))
+    dropping.value = null
+    await folderGone(d.node)
+  } catch (e) {
+    const held = e instanceof DocTreeError && e.code === 'folder_not_empty' && !d.held ? e.body : null
+    if (held) dropping.value = { ...d, held: { folders: Number(held.folders) || 0, documents: Number(held.documents) || 0 } }
+    else deleteError.value = 'ws_doctree.err_failed'
+  } finally {
+    busy.value = false
+  }
+}
+
+/** a folder went: its listing read again, the current folder moved up out of it, the page's list too */
+async function folderGone(node: string) {
+  const parent = folderOf.value[node]?.parent ?? ''
+  for (let f: string = folder.value; f; f = folderOf.value[f]?.parent || '') {
+    if (f === node) {
+      folder.value = parent
+      folderPicked.value = false
+      break
+    }
+  }
+  setOpen(folderKey(node), false)
+  await loadNodes(parent)
+  emit('refresh')
 }
 
 /* Delete: confirmed, then the hub's DELETE under the doc rev read just now */
@@ -407,23 +509,32 @@ async function removeDoc() {
   }
 }
 
-/* Rename: the hub's PATCH under the doc rev read just now; cleared, the hub gives the default title */
+/* Rename (renaming = the row's key): a document is the hub's PATCH under the
+   doc rev read just now (cleared, the hub gives the default title); a folder
+   is PATCH /folders/{folder}, 409 when a sibling folder has the name */
 const renaming = ref<string | null>(null)
 const renameTo = ref('')
 const renameError = ref('')
 const busy = ref(false)
 async function rename() {
-  const doc = renaming.value
-  if (!doc || busy.value) return
+  const key = renaming.value
+  if (!key || busy.value) return
   busy.value = true
   renameError.value = ''
+  const name = renameTo.value.replace(/\s+/g, ' ').trim()
   try {
-    const h = await props.client.head(doc)
-    const r = await props.client.rename(doc, h.rev, renameTo.value.replace(/\s+/g, ' ').trim())
-    emit('renamed', doc, r.title, r.rev)
+    if (key.startsWith('f:')) {
+      await props.client.renameFolder(key.slice(2), name)
+      await loadNodes(folderOf.value[key.slice(2)]?.parent ?? '')
+    } else {
+      const doc = key.slice(2)
+      const h = await props.client.head(doc)
+      const r = await props.client.rename(doc, h.rev, name)
+      emit('renamed', doc, r.title, r.rev)
+    }
     renaming.value = null
-  } catch {
-    renameError.value = 'ws_doctree.err_failed'
+  } catch (e) {
+    renameError.value = e instanceof DocTreeError && e.code === 'name_taken' ? 'ws_doctree.folder_menu.name_taken' : 'ws_doctree.err_failed'
   } finally {
     busy.value = false
   }

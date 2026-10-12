@@ -21,9 +21,18 @@
 // Owner HUM-10 (t1 91289b0a, msgs 635c2125, 500ca8f5): each DOCUMENT row
 // has a right-click menu (a long press on a phone, Shift+F10 / the
 // context-menu key): Edit, Rename, Copy link, Open in a new tab, Delete
-// (confirmed; the hub's DELETE /v1/workspace/doctree/{doc}). A section row
-// has none. Control: before the menu a right-click draws no
-// [data-testid=qto-doc-menu], so every menu check FAILS.
+// (confirmed; the hub's DELETE /v1/workspace/doctree/{doc}). Control:
+// before the menu a right-click draws no [data-testid=qto-doc-menu], so
+// every menu check FAILS.
+//
+// Owner HUM-10 (t1 ed2e3583, msg 407fc16f): a right-click in the Qto file
+// system opens a matching menu for the directories as well. A FOLDER row's menu: New document here, New folder here, Rename,
+// Copy path, Delete (confirmed; a folder that holds anything shows its
+// counts and a second confirm deletes it with them). A SECTION row's: Open,
+// Copy link, Open in a new tab. Same keys and long press as the document's.
+// Control: before it a right-click on a folder or a section draws no
+// [data-testid=qto-folder-menu] / [data-testid=qto-section-menu], so those
+// checks FAIL.
 //
 // Owner t1 3b8891e0 (msgs 62c51def, 411480f9, e3b5a06a): a + New folder in
 // the explorer pane only, desktop and phone, "the same type and shape" as
@@ -158,9 +167,21 @@ async function chooseOn(p, name, id) {
   return true
 }
 
+/** t1 ed2e3583: a section row's menu: Open, Copy link, Open in a new tab, never the document's */
+async function sectionMenu(p) {
+  const SEC = '[data-testid=qto-section-menu]'
+  ok('a right-click on a section row opens the section menu', await rightClick(p, 'Introduction') && await p.waitForSelector(SEC, { visible: true, timeout: STEP }).then(Boolean, () => false))
+  const ids = await p.$$eval(`${SEC} [role=menuitem]`, (els) => els.map((el) => el.getAttribute('data-testid').replace('qto-section-menu-', ''))).catch(() => [])
+  ok('the section menu: Open, Copy link, Open in a new tab', ids.join(',') === 'open,copy_link,new_tab', ids)
+  ok('... not the document\'s menu', !(await p.$(MENU)))
+  ok('... named', await p.$eval(`${SEC} [role=menu]`, (el) => el.getAttribute('aria-label')).catch(() => '') === 'Section actions')
+  await p.click(`[data-testid=qto-section-menu-open]`).catch(() => {})
+  ok('Open opens that section', await p.waitForFunction(() => location.hash.startsWith('#ws-doc-'), { timeout: STEP }).then(() => true, () => false), p.url())
+}
+
 /** t1 91289b0a: the document row's menu */
 async function docMenu(p, browser) {
-  ok('CONTROL: a section row opens no menu', await rightClick(p, 'Introduction') && !(await p.waitForSelector(MENU, { visible: true, timeout: 1500 }).then(Boolean, () => false)))
+  await sectionMenu(p)
   ok('a right-click on a document row opens its menu', await rightClick(p, 'Handbook') && await menuShown(p))
   const ids = await p.$$eval(`${MENU} [role=menuitem]`, (els) => els.map((el) => el.getAttribute('data-testid').replace('qto-doc-menu-', '')))
   ok('the menu: Edit, Rename, Copy link, Open in a new tab, Delete', ids.join(',') === 'edit,rename,copy_link,new_tab,delete', ids)
@@ -312,6 +333,91 @@ async function desktopFolders(p) {
   const inside = await p.evaluate((id) => window.__wsDocTreeCall?.('GET', '/nodes?parent=' + id).then((r) => r.nodes.map((n) => n.title || n.name)), folderId)
   ok('1440: ... and the hub has it there', Array.isArray(inside) && inside.join() === 'Roadmap', inside)
   await shots(p, 'qto-new-folder-1440')
+  await folderMenu(p, folderId)
+}
+
+const FMENU = '[data-testid=qto-folder-menu]'
+const fmenuShown = (p) => p.waitForSelector(FMENU, { visible: true, timeout: STEP }).then(Boolean, () => false)
+async function chooseFolder(p, name, id) {
+  await rightClick(p, name)
+  if (!(await fmenuShown(p))) return false
+  await p.click(`[data-testid=qto-folder-menu-${id}]`)
+  return true
+}
+
+/** t1 ed2e3583 at 1440 px: the folder row's menu, each entry driven */
+async function folderMenu(p, folderId) {
+  ok('1440: a right-click on a folder row opens the folder menu', await rightClick(p, 'Plans') && await fmenuShown(p))
+  const ids = await p.$$eval(`${FMENU} [role=menuitem]`, (els) => els.map((el) => el.getAttribute('data-testid').replace('qto-folder-menu-', ''))).catch(() => [])
+  ok('1440: ... New document, New folder, Rename, Copy path, Delete', ids.join(',') === 'new_doc,new_folder,rename,copy_path,delete', ids)
+  ok('1440: ... Delete is a danger entry, the menu is named', await p.$eval(`${FMENU} [data-testid=qto-folder-menu-delete]`, (el) => el.classList.contains('point-menu__item--danger')).catch(() => false) &&
+    await p.$eval(`${FMENU} [role=menu]`, (el) => el.getAttribute('aria-label')).catch(() => '') === 'Folder actions')
+  await shots(p, 'qto-folder-menu-1440')
+  await p.keyboard.press('Escape')
+  await p.waitForFunction((sel) => !document.querySelector(sel), { timeout: STEP }, FMENU).catch(() => {})
+  const row = await treeRow(p, 'Plans')
+  await row.evaluate((el) => el.focus())
+  await p.keyboard.down('Shift')
+  await p.keyboard.press('F10')
+  await p.keyboard.up('Shift')
+  ok('1440: Shift+F10 on the focused folder row opens it', await fmenuShown(p))
+  await p.keyboard.press('Escape')
+  await p.waitForFunction((sel) => !document.querySelector(sel), { timeout: STEP }, FMENU).catch(() => {})
+
+  /* New folder here: the dialog makes it inside, whatever folder was picked before */
+  await chooseFolder(p, 'Plans', 'new_folder')
+  const input = await p.waitForSelector('[data-test=qto-new-folder-name]', { visible: true, timeout: STEP }).catch(() => null)
+  if (input) {
+    await input.type('Q4')
+    await p.click('[data-test=qto-new-folder-create]')
+  }
+  const kids = () => p.evaluate((id) => window.__wsDocTreeCall?.('GET', '/nodes?parent=' + id).then((r) => r.nodes.map((n) => n.title || n.name)), folderId)
+  ok('1440: New folder here makes it inside the folder', await p.waitForFunction(() => !document.querySelector('[data-test=qto-new-folder-form]'), { timeout: STEP }).then(() => true, () => false) && (await kids())?.join() === 'Q4,Roadmap', await kids())
+
+  /* Rename: the name filled in, then the row and the hub show the new one; a sibling's name is refused */
+  await chooseFolder(p, 'Plans', 'rename')
+  const name = await p.waitForSelector('[data-test=qto-rename-title]', { visible: true, timeout: STEP }).catch(() => null)
+  ok('1440: Rename asks for the folder name, the current one filled in', (await name?.evaluate((el) => el.value)) === 'Plans')
+  if (name) {
+    await name.click({ count: 3 })
+    await p.keyboard.type('Plans 2026')
+    await p.click('[data-test=qto-rename-save]')
+  }
+  ok('1440: Rename: the row shows the new name', await p.waitForFunction(() => [...document.querySelectorAll('#qto-file-tree [data-kind=folder]')].some((el) => el.textContent.trim() === 'Plans 2026'), { timeout: STEP }).then(() => true, () => false), await rowKeys(p))
+  const top = await p.evaluate(() => window.__wsDocTreeCall?.('GET', '/nodes').then((r) => r.nodes.filter((n) => n.kind === 'folder').map((n) => n.name)))
+  ok('1440: Rename: the hub has it', Array.isArray(top) && top.includes('Plans 2026'), top)
+
+  /* Copy path: the folder's path from the top */
+  await chooseFolder(p, 'Q4', 'copy_path')
+  ok('1440: Copy path says so', await p.waitForFunction(() => document.querySelector('[data-test=qto-tree-status]')?.textContent.trim() === 'Path copied', { timeout: STEP }).then(() => true, () => false))
+  const clip = await p.evaluate(() => navigator.clipboard.readText().catch(() => ''))
+  ok('1440: Copy path copies "Plans 2026 / Q4"', clip === 'Plans 2026 / Q4', clip)
+
+  /* New document here: the page's dialog, the document lands in the folder */
+  await chooseFolder(p, 'Q4', 'new_doc')
+  const t = await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP }).catch(() => null)
+  if (t) {
+    await t.type('Budget')
+    await p.click('[data-test=ws-docs-create]')
+  }
+  const q4 = await p.evaluate(() => window.__wsDocTreeCall?.('GET', '/nodes').then(async (r) => {
+    const plans = r.nodes.find((n) => n.name === 'Plans 2026')
+    const inner = await window.__wsDocTreeCall('GET', '/nodes?parent=' + plans.id)
+    const q = inner.nodes.find((n) => n.name === 'Q4')
+    return (await window.__wsDocTreeCall('GET', '/nodes?parent=' + q.id)).nodes.map((n) => n.title)
+  }))
+  ok('1440: New document here lands in that folder', await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Budget', { timeout: STEP }).then(() => true, () => false) && q4?.join() === 'Budget', q4)
+
+  /* Delete: confirm, the folder holds things, its counts shown, confirm again: gone with them */
+  await chooseFolder(p, 'Plans 2026', 'delete')
+  ok('1440: Delete asks first, naming the folder', await p.waitForSelector('[data-testid=qto-folder-delete-body]', { visible: true, timeout: STEP }).then((el) => el.evaluate((e) => e.textContent.includes('Plans 2026')), () => false))
+  await p.click('[data-testid=qto-folder-delete-confirm]').catch(() => {})
+  const held = await p.waitForSelector('[data-test=qto-folder-delete-held]', { visible: true, timeout: STEP }).then((el) => el.evaluate((e) => e.textContent.trim()), () => '')
+  ok('1440: ... a folder that holds things shows its counts first', held === 'It holds folders: 1, documents: 2. They will be deleted with it.', held)
+  await p.click('[data-testid=qto-folder-delete-confirm]').catch(() => {})
+  ok('1440: Delete: the row is gone', await p.waitForFunction(() => ![...document.querySelectorAll('#qto-file-tree [data-test=file-tree-row]')].some((el) => ['Plans 2026', 'Roadmap', 'Budget'].includes(el.textContent.trim())), { timeout: STEP }).then(() => true, () => false), await rowKeys(p))
+  const listed = await p.evaluate(() => window.__wsDocTreeCall?.('GET', '').then((r) => r.docs.map((d) => d.title)))
+  ok('1440: Delete: the hub lists neither of its documents', Array.isArray(listed) && !listed.includes('Roadmap') && !listed.includes('Budget'), listed)
 }
 
 /** t1 3b8891e0 at 390 px: the + New folder tops each drill-down level and makes the folder there */
@@ -329,6 +435,17 @@ async function phoneFolders(m) {
   const fab = (await look(m, '[data-test=ws-docs-new]')).split(' ')
   ok('390: ... a round + of 40 px or more, the page\'s colour', parseFloat(w) >= 40 && w === h && radius === '50%' && rest.join(' ') === fab.slice(3).join(' '), [w, h, radius, rest.join(' '), fab.join(' ')])
   ok('390: a folder made at the top level lists there, first', await newFolder(m, 'Plans', LIST) === '' && await listIs(m, ['Plans', 'Handbook']), await listRows(m))
+  const held = await m.$eval(`${LIST} [data-kind=folder]`, (el) => { const r = el.getBoundingClientRect(); return { x: r.left + 60, y: r.top + r.height / 2 } }).catch(() => null)
+  if (held) {
+    await m.touchscreen.touchStart(held.x, held.y)
+    await new Promise((r) => setTimeout(r, 800))
+    await m.touchscreen.touchEnd()
+  }
+  ok('390: a long press on a folder opens its menu as a sheet', await m.waitForSelector('[data-testid=qto-folder-menu]', { visible: true, timeout: STEP }).then((el) => el.evaluate((e) => e.classList.contains('touch-sheet')), () => false))
+  if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-folder-menu-390.png` })
+  /* a phone closes the sheet with a tap on the dimmed page above it */
+  await m.touchscreen.tap(195, 120)
+  ok('390: a tap above the sheet closes it', await m.waitForFunction(() => !document.querySelector('[data-testid=qto-folder-menu]'), { timeout: STEP }).then(() => true, () => false))
   await tapRow(m, 'Plans')
   ok('390: a tap on the folder drills into it, titled with its name', await m.waitForFunction(() => new URL(location.href).searchParams.get('in')?.startsWith('f:'), { timeout: STEP }).then(() => true, () => false) && await heading(m) === 'Plans', m.url())
   ok('390: ... the + New folder tops that level too', await shown(m, `${LIST} ${FOLDER_NEW}`))

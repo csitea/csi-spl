@@ -2529,7 +2529,24 @@
     "figure": "Rysunek {n}:",
     "picture_caption": "Co przedstawia ten obraz",
     "insert_picture": "Wstaw obraz",
-    "err_image": "Obraz odrzucono: użyj pliku PNG, JPEG, GIF lub WebP o rozmiarze do 5 MB."
+    "err_image": "Obraz odrzucono: użyj pliku PNG, JPEG, GIF lub WebP o rozmiarze do 5 MB.",
+    "folder_menu": {
+      "label": "Działania na folderze",
+      "new_doc": "Nowy dokument tutaj",
+      "new_folder": "Nowy folder tutaj",
+      "copy_path": "Kopiuj ścieżkę",
+      "path_copied": "Skopiowano ścieżkę",
+      "delete": "Usuń folder",
+      "delete_title": "Usunąć ten folder?",
+      "delete_body": "Folder \"{name}\" zostanie usunięty.",
+      "delete_held": "Zawiera folderów: {folders} i dokumentów: {documents}. Zostaną usunięte razem z nim.",
+      "rename_title": "Zmień nazwę folderu",
+      "name_taken": "Tu już jest folder o tej nazwie."
+    },
+    "section_menu": {
+      "label": "Działania na sekcji",
+      "open": "Otwórz"
+    }
   },
   "hours_cal": {
     "line": "Godziny pracy",

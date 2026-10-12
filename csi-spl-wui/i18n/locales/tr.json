@@ -2529,7 +2529,24 @@
     "figure": "Şekil {n}:",
     "picture_caption": "Bu görsel neyi gösteriyor",
     "insert_picture": "Görsel ekle",
-    "err_image": "Görsel reddedildi: en fazla 5 MB boyutunda bir PNG, JPEG, GIF veya WebP dosyası kullanın."
+    "err_image": "Görsel reddedildi: en fazla 5 MB boyutunda bir PNG, JPEG, GIF veya WebP dosyası kullanın.",
+    "folder_menu": {
+      "label": "Klasör işlemleri",
+      "new_doc": "Buraya yeni belge",
+      "new_folder": "Buraya yeni klasör",
+      "copy_path": "Yolu kopyala",
+      "path_copied": "Yol kopyalandı",
+      "delete": "Klasörü sil",
+      "delete_title": "Bu klasör silinsin mi?",
+      "delete_body": "\"{name}\" klasörü silinecek.",
+      "delete_held": "İçinde {folders} klasör ve {documents} belge var. Bunlar da onunla birlikte silinecek.",
+      "rename_title": "Klasörü yeniden adlandır",
+      "name_taken": "Burada bu adda bir klasör zaten var."
+    },
+    "section_menu": {
+      "label": "Bölüm işlemleri",
+      "open": "Aç"
+    }
   },
   "hours_cal": {
     "line": "Çalışma saatleri",

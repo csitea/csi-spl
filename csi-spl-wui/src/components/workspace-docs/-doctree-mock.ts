@@ -246,6 +246,35 @@ function makeFolder(b: Body): MockReply {
   return { status: 201, body: { id: f.id, kind: 'folder', name, parent } }
 }
 
+/** a folder's rename: 409 name_taken for a sibling of the same name */
+function renameFolder(id: string, b: Body): MockReply {
+  const f = folders.get(id)
+  if (!f) return GONE()
+  const name = str(b.name).trim()
+  if (!name || name.length > 255) return fail(400, 'bad_request', 'a folder name is 1 to 255 characters')
+  if ([...folders.values()].some((x) => x !== f && x.parent === f.parent && x.name.toLowerCase() === name.toLowerCase())) return fail(409, 'name_taken', 'conflict: name_taken')
+  f.name = name
+  return { status: 200, body: { id, name } }
+}
+
+/** a folder's delete: 409 folder_not_empty {folders, documents} unless recursive, which takes its subtree */
+function removeFolder(id: string, recursive: boolean): MockReply {
+  if (!folders.has(id)) return GONE()
+  const under = new Set([id])
+  for (let grew = true; grew;) {
+    grew = false
+    for (const f of folders.values()) if (under.has(f.parent) && !under.has(f.id)) { under.add(f.id); grew = true }
+  }
+  const held = [...docIn.entries()].filter(([, p]) => under.has(p)).map(([d]) => d)
+  if (!recursive && (under.size > 1 || held.length)) return { status: 409, body: { error: 'folder_not_empty', detail: 'the folder is not empty: delete it with recursive=1', folders: under.size - 1, documents: held.length } }
+  for (const d of held) {
+    docs.delete(d)
+    docIn.delete(d)
+  }
+  for (const f of under) folders.delete(f)
+  return { status: 200, body: { id, deleted: true, folders: under.size, documents: held.length } }
+}
+
 /* the uploaded images: hub path -> the bytes (read as a data: URL, as the hub client does) */
 const images = new Map<string, Blob>()
 const IMAGE_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' }
@@ -321,6 +350,8 @@ export function mockDocTree(method: string, path: string, body: Body = {}): Mock
   if (!docId && method === 'GET') return { status: 200, body: { docs: [...docs.values()].map(head) } }
   if (docId === 'nodes' && method === 'GET') return nodes(url.searchParams.get('parent') || '')
   if (docId === 'folders' && method === 'POST' && !sub) return makeFolder(body)
+  if (docId === 'folders' && method === 'PATCH' && sub) return renameFolder(sub, body)
+  if (docId === 'folders' && method === 'DELETE' && sub) return removeFolder(sub, url.searchParams.get('recursive') === '1')
   if (docId === 'search' && method === 'GET') {
     const q = (url.searchParams.get('q') || '').trim().toLowerCase()
     if (!q) return fail(400, 'bad_query', 'q is 1..200 characters')

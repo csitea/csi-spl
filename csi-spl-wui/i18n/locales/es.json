@@ -2529,7 +2529,24 @@
     "figure": "Figura {n}:",
     "picture_caption": "Qué muestra esta imagen",
     "insert_picture": "Insertar imagen",
-    "err_image": "Se rechazó la imagen: usa un archivo PNG, JPEG, GIF o WebP de 5 MB como máximo."
+    "err_image": "Se rechazó la imagen: usa un archivo PNG, JPEG, GIF o WebP de 5 MB como máximo.",
+    "folder_menu": {
+      "label": "Acciones de la carpeta",
+      "new_doc": "Nuevo documento aquí",
+      "new_folder": "Nueva carpeta aquí",
+      "copy_path": "Copiar ruta",
+      "path_copied": "Ruta copiada",
+      "delete": "Eliminar carpeta",
+      "delete_title": "¿Eliminar esta carpeta?",
+      "delete_body": "Se eliminará la carpeta \"{name}\".",
+      "delete_held": "Contiene {folders} carpetas y {documents} documentos. Se eliminarán con ella.",
+      "rename_title": "Cambiar el nombre de la carpeta",
+      "name_taken": "Ya hay una carpeta con este nombre aquí."
+    },
+    "section_menu": {
+      "label": "Acciones de la sección",
+      "open": "Abrir"
+    }
   },
   "hours_cal": {
     "line": "Horas de trabajo",

@@ -30,7 +30,7 @@ export const DOC_IMAGE_MAX = 5 << 20
 
 /** A refused call: 412 stale (reload), 404 gone, 422 refused, 413 too large. */
 export class DocTreeError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
+  constructor(readonly status: number, readonly code: string, message: string, readonly body: Record<string, unknown> = {}) {
     super(message)
   }
 }
@@ -87,7 +87,7 @@ function docImages(api: SpoolApi, mock: () => Promise<Mock>) {
 
 type DocCall = <T>(method: string, path: string, body?: Record<string, unknown>) => Promise<T>
 
-/** the tree half of the client (spec 120 section 7): the Qto tree's levels, a new document in a folder, the + New folder */
+/** the tree half of the client (spec 120 section 7): the Qto tree's levels, a new document in a folder, the + New folder, a folder's rename and delete */
 function docFolders(call: DocCall) {
   const enc = encodeURIComponent
   return {
@@ -97,6 +97,10 @@ function docFolders(call: DocCall) {
     nodes: (parent = '') => call<{ parent: string, nodes: DocNode[] }>('GET', `/nodes${parent ? '?parent=' + enc(parent) : ''}`),
     /** a folder as the last child of parent ('' = the top); 409 name_taken when a sibling has the name */
     createFolder: (parent: string, name: string) => call<{ id: string, name: string, parent: string }>('POST', '/folders', parent ? { parent, name } : { name }),
+    /** rename a folder; 409 name_taken when a sibling has the name */
+    renameFolder: (folder: string, name: string) => call<{ id: string, name: string }>('PATCH', `/folders/${enc(folder)}`, { name }),
+    /** delete a folder; one that holds anything answers 409 folder_not_empty {folders, documents} unless recursive */
+    removeFolder: (folder: string, recursive: boolean) => call<{ id: string, deleted: boolean, folders: number, documents: number }>('DELETE', `/folders/${enc(folder)}${recursive ? '?recursive=1' : ''}`),
   }
 }
 
@@ -128,7 +132,7 @@ export function useDocTree() {
     }
     if (status < 200 || status > 299) {
       const e = (out || {}) as { error?: string, message?: string }
-      throw new DocTreeError(status, e.error || 'error', e.message || `doctree ${status}`)
+      throw new DocTreeError(status, e.error || 'error', e.message || `doctree ${status}`, e as Record<string, unknown>)
     }
     return out as T
   }

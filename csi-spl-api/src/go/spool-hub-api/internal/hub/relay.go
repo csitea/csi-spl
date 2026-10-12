@@ -31,7 +31,9 @@ import (
 //     on them with its own boxes. The window starts relaySweepGrace back,
 //     so the process that holds a member's box has relayed the post first,
 //     and reaches relaySweepWindow back, so a post from before a restart is
-//     not dug up an hour later.
+//     not dug up an hour later;
+//  3. hands a human post a box nacked (spec 053 S3, live_ack.go) to the
+//     tenant's responder, once the nack has settled (nackSettle).
 //
 // Each sweep runs at the cadence of the deadline it serves (P5-03, perf round
 // 5): the queued rows (the wake-up's backstop) and the unheard sweep (15 s
@@ -140,6 +142,7 @@ func (s *Server) Relay(ctx context.Context) {
 			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, escalation{swept: true, taskID: p.TaskID})
 		}
 	}
+	s.escalateNacked(ctx, ids, now) // spec 053 S3: a nack escalates at the next tick
 	if s.o.UnansweredGrace > 0 && s.relayDue.due(&s.relayDue.escalate, s.escalateDeadline(), now) {
 		s.escalateUnanswered(ctx, fb, ids, now)
 	}

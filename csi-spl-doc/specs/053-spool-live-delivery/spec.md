@@ -1,6 +1,6 @@
 # Feature Specification: Live delivery — a human post reaches a live agent in seconds, or escalates
 
-**Feature ID**: `053-spool-live-delivery` · **Milestone**: M3 · **Status**: Planned
+**Feature ID**: `053-spool-live-delivery` · **Milestone**: M3 · **Status**: Partial (S1 and S3 hub side built; S2, S4, S5 Planned)
 **Created**: 2026-09-30 · **Lane**: LIVE-DELIVERY (hub + box sidecar + orc) · **Epic**: SPL-1225
 **Authority**: this file for the rule; the wire additions here are normative until a `contracts/live-ack-v1.md` lands; `tasks.md` for what is built and where.
 **Closest pattern**: `038-spool-fallback-responder` (SPL-997) — the same audience (a human post, the tenant responder), extended from "no box was sent it" to "no *live* agent acted".
@@ -40,6 +40,8 @@ The sidecar probes each of its agents' panes on a short interval and announces (
 ### 4.2 Per-delivery ack
 For each `recv` the sidecar writes the inbox copy and pokes, then sends a new `TAck` frame keyed by `(msg_id, agent)` carrying the poke outcome (from `spool-notify.sh`: exit 0 shown, 5 no live window, 6 pane refused, 7 exited). The hub records it. A `recv` that no live pane took (nack) is the signal the fast path was missed.
 
+The wire, as built (S1, `internal/wire/wire.go`): hello feature `live_ack` (`wire.FeatureLiveAck`); frame `{"type":"ack","msg_id":<uuid>,"agent":<local agent id>,"outcome":<o>}` (`wire.TAck`), fire and forget, no reply; `outcome` is one of `shown` (exit 0, the ack), `no_window` (5), `refused` (6), `exited` (7), each but `shown` a nack. The hub records an ack only from a box that announced `live_ack`, for an agent that box announced, and for a message it sent that box; the latest poke of a `(msg_id, agent)` replaces the earlier one (rdb `0186_delivery_live_acks.sql`, table `delivery_live_acks`).
+
 ### 4.3 The escalation ladder
 | When | What |
 |---|---|
@@ -61,9 +63,9 @@ p95 human-post → live-agent-poke ≤ **3 s**, end to end. Measured by `do_spl_
 
 ## 6. Rollout — small shippable steps (each live on dev + prd, each with full gates)
 
-- **S1** hub accepts + records a `TAck` frame from a `FeatureLiveAck` box; no behavior change; old sidecars unaffected. (store: a `deliveries` liveness column or a small `delivery_acks` table.)
+- **S1** hub accepts + records a `TAck` frame from a `FeatureLiveAck` box; no behavior change; old sidecars unaffected. (store: a `deliveries` liveness column or a small `delivery_acks` table.) **Implemented** (c-897, SPL-1239): table `delivery_live_acks` (rdb 0186), `store.LiveAcks`, `hub/live_ack.go` `onAck`; checks `hub/live_ack_test.go` (recorded, replaced, refused for an unannounced agent / unknown outcome / unsent message, ignored from a box without the feature), memory and Postgres.
 - **S2** the sidecar maps the `spool-notify.sh` exit code to an ack and sends it per `(msg_id, agent)`.
-- **S3** the hub escalates to the responder on a nack / no-live-recipient at fan-out, immediately (tightens the fast path below 120 s).
+- **S3** the hub escalates to the responder on a nack / no-live-recipient at fan-out, immediately (tightens the fast path below 120 s). **Implemented, hub side** (c-897, SPL-1241): every relay tick (`SPOOL_HUB_QUEUE_RELAY`, 5 s) `escalateNacked` hands a signed human post that a nack names, that no agent acked `shown`, that no fallback took and no agent answered, to the responder through the SPL-1225 escalate path, claimed once. A nack waits `nackSettle` (3 s) so another agent's `shown` ack of the same recv lands first. "No live recipient at fan-out" arrives as the desk box's nack (its panes are gone); a post no box was sent at all stays the SPL-997 immediate fallback. Live only once S2 sidecars send acks; until then the 120 s backstop holds. Checks: `hub/live_ack_test.go` (a nack reaches the responder once; control: a `shown` ack does not escalate; inside the settle nothing does).
 - **S4** the sidecar heartbeats a **live-only** roster; `agentOnline` stops counting dead dirs; the SPL-997 immediate fallback becomes honest.
 - **S5** the 10-min "nobody picked this up" → `#spool-hub-ops` post + visible state + alert.
 
@@ -73,4 +75,4 @@ Each step: `run-all-tests.sh` + `hub-pg.tst.sh` (Postgres) + `gofmt -l` green be
 
 The relay/queue for cross-revision delivery (SPL-1004) and the WUI live stream (specs/014) stay as they are; this spec only makes "an agent heard it" mean a *live* agent, and adds the escalation tail. Options B (hub-side per-agent queues) and C (event wake-ups only) were considered and rejected in `9869051b`: B is a larger build for a guarantee the ack already gives; C leaves the root cause (the folder roster) in place.
 
-<!-- last-edit: 2026-09-30T07:20:00Z — merged from csi-spl-doc/specs/053-spool-live-delivery/spec.md -->
+<!-- version: 0.2.0 · updated: 2026-10-13 · last-edit: 2026-10-13T00:00:00Z -->

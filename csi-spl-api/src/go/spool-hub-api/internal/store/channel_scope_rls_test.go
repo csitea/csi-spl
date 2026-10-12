@@ -39,6 +39,7 @@ var channelScopeExempt = map[string]string{
 	"demo_post_audit":     "the demo's operator audit (specs/077), read by the operator only",
 	"usage_events":        "the metering ledger (rdb 0171): a member's credits counter reads it, no visitor route",
 	"token_budgets":       "the token limits (rdb 0171): the hub's quota check and a member's counter, no visitor route",
+	"delivery_live_acks":  "a box's live poke outcome per agent (rdb 0186): read by the hub's nack sweep, no reader route",
 }
 
 // seedEmbedVisitor writes one embed and one visitor (a channel_guest HUM)

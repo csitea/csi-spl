@@ -86,6 +86,19 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		Box: "box-a", Agent: "CLE-01", DeliveredAt: now}); err != nil {
 		t.Fatal(err)
 	}
+	// delivery_live_acks (rdb 0186, spec 053 S1): the message sent to box-b,
+	// whose CLE-02 was poked live, so the table holds a row for both tenants.
+	// box-a's delivery stays queued (the ClaimSent check below reads it).
+	if err := pg.Enqueue(ctx, s.tenant, m.MsgID, "box-b", now, now.Add(time.Hour), 0); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := pg.ClaimSent(ctx, s.tenant, m.MsgID, "box-b", now); err != nil || !ok {
+		t.Fatalf("claim box-b: %v %v", ok, err)
+	}
+	if ok, err := pg.RecordLiveAck(ctx, LiveAck{TenantID: s.tenant, MsgID: m.MsgID, Agent: "CLE-02", Box: "box-b",
+		Outcome: LiveAckShown, AckedAt: now}); err != nil || !ok {
+		t.Fatalf("live ack: %v %v", ok, err)
+	}
 	// message_reactions (rdb 0037): one emoji on the message, so the table
 	// holds a row for both tenants. The glyph is not the search marker.
 	if err := pg.AddReaction(ctx, s.tenant, m.MsgID, "HUM-1", "👍", now.Add(2*time.Second)); err != nil {
@@ -124,7 +137,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.UpdateFleetAsk(ctx, s.tenant, AskUpdate{Fleet: "main", AskID: queued, Op: AskQueue, By: "c-001", Placement: "claude:x-" + s.marker[:8]}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
-	// od_pool and an od job (rdb 0184, spec 134): one pool row and one open
+	// od_pool and an od job (rdb 0185, spec 134): one pool row and one open
 	// job per tenant.
 	if _, err := pg.PutOdPool(ctx, s.tenant, OdPool{Fleet: "main", ClaudeN: 2, GrokN: 2, MinBoxes: 2, Kinds: []string{"spawn"}}, "c-002", "box-a", now); err != nil {
 		t.Fatal(err)
@@ -203,7 +216,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// issue_opens (rdb 0184, SPL-1559): the member opened that issue.
+	// issue_opens (rdb 0185, SPL-1559): the member opened that issue.
 	if err := pg.MarkIssueOpened(ctx, s.tenant, hum, iss.Number, now); err != nil {
 		t.Fatal(err)
 	}
@@ -569,6 +582,16 @@ func TestCrossTenantStoreAPI(t *testing.T) {
 	}
 	if ok, err := pg.ClaimSent(ctx, a.tenant, b.msgID, "box-a", now); err == nil && ok {
 		t.Error("ClaimSent(A, B's msg) claimed B's delivery")
+	}
+	if got, err := pg.LiveAcksOf(ctx, a.tenant, b.msgID); err != nil || len(got) != 0 {
+		t.Errorf("LiveAcksOf(A, B's msg) = %v %v", got, err)
+	}
+	if got, err := pg.LiveAcksOf(ctx, b.tenant, b.msgID); err != nil || len(got) != 1 {
+		t.Errorf("control: LiveAcksOf(B, B's msg) = %v %v", got, err)
+	}
+	if ok, err := pg.RecordLiveAck(ctx, LiveAck{TenantID: a.tenant, MsgID: b.msgID, Agent: "CLE-02", Box: "box-b",
+		Outcome: "refused", AckedAt: now}); err == nil && ok {
+		t.Error("RecordLiveAck(A, B's msg) wrote a row")
 	}
 	if st, _ := pg.DeliveryState(ctx, b.tenant, b.msgID, "box-a"); st != "queued" {
 		t.Errorf("B's delivery after A's claim attempt: %q", st)

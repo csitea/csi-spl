@@ -178,6 +178,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onClaim(ctx, x, f)
 		case wire.TCommit: // spec 059 S2: the box wrote a delivery's inbox copy
 			s.onCommit(ctx, x, f)
+		case wire.TAck: // spec 053 S1: the poke outcome of one delivery to one agent
+			s.onAck(ctx, x, f)
 		case wire.TToken:
 			tok, exp := s.slotToken(&x.upload, x.tenant, x.box, "")
 			x.write(ctx, wire.Frame{Type: wire.TToken, UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)}) //nolint:errcheck

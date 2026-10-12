@@ -119,6 +119,30 @@ const FeatureCommit = "commit"
 // it. Fire and forget: the hub sends no reply.
 const TCommit = "commit"
 
+// FeatureLiveAck is the hello feature of a box client that sends a TAck frame
+// per (recv, agent) with the poke outcome (spec 053 §4.2, S1). Without it the
+// hub expects no ack from the box and records none.
+const FeatureLiveAck = "live_ack"
+
+// TAck is the box's live ack of one delivery to one agent (spec 053 §4.2):
+// MsgID the delivered message, Agent the local agent poked, Outcome what the
+// poke did. Fire and forget: the hub sends no reply. Not the spec 059 commit
+// (TCommit), which says only that the inbox copy is written.
+const TAck = "ack"
+
+// Ack outcomes (spec 053 §4.2), one per spool-notify.sh exit code: 0 the line
+// was shown in a live pane (the ack), 5 no live window, 6 the pane refused the
+// poke, 7 the pane runs only bare shells (each a nack).
+const (
+	AckShown    = "shown"
+	AckNoWindow = "no_window"
+	AckRefused  = "refused"
+	AckExited   = "exited"
+)
+
+// AckOutcomes is every outcome a TAck may carry.
+var AckOutcomes = []string{AckShown, AckNoWindow, AckRefused, AckExited}
+
 // Hello roles (http-v1.md §2.2).
 const (
 	RoleBox = "box" // the session socket: recv frames, roster, last hello wins
@@ -349,6 +373,12 @@ type Frame struct {
 	// poll], dead: [rows a poll closed dead]}.
 	ClaimOp string          `json:"claim_op,omitempty"`
 	Claim   json.RawMessage `json:"claim,omitempty"`
+
+	// ack (spec 053 §4.2): the local agent the delivery MsgID was poked to,
+	// and the poke's outcome (AckOutcomes). Sent only by a box whose hello
+	// carried FeatureLiveAck.
+	Agent   string `json:"agent,omitempty"`
+	Outcome string `json:"outcome,omitempty"`
 
 	// error
 	Error  string `json:"error,omitempty"`

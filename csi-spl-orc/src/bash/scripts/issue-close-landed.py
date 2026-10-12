@@ -24,11 +24,12 @@ EVIDENCE (optional) TSV "<key>\\t<sha>[,<sha>...]\\t<why>": a landing a review
 Which commits count:
   - a fix / feat / perf / refactor commit whose subject scope carries the key,
     "fix(orc, SPL-12): ..." (a "!" before the colon is allowed)
-  - any commit with a "Closes: SPL-12" trailer (comma list allowed), whatever
-    its type: the trailer is the author's explicit word, so a docs(...) or
-    chore(...) commit carrying it closes
+  - any commit but a revert with a "Closes: SPL-12" trailer (comma list
+    allowed), whatever its type: the trailer is the author's explicit word,
+    so a docs(...) or chore(...) commit carrying it closes
   A bare mention in the body, a "Refs: SPL-12" trailer, the key in the scope
-  of a docs / test / chore subject and a revert never close.
+  of a docs / test / chore subject and a revert (its scope or its trailer)
+  never close.
 
 Prints one TSV row per key the range names, its commits newest first:
   <key>\\tclose\\t<sha>[,<older sha>...]\\t<subject of the newest>
@@ -45,6 +46,7 @@ from datetime import datetime
 
 TYPES = ("fix", "feat", "perf", "refactor")
 SUBJECT = re.compile(r"^(?P<type>[a-z]+)\((?P<scope>[^)]*)\)!?:")
+REVERT = re.compile(r"^(Revert\b|revert(\([^)]*\))?!?:)")
 KEY = re.compile(r"\b([A-Z][A-Z0-9]{0,9}-[1-9][0-9]*)\b")
 SEP = "\x1f"
 END = "\x1e"
@@ -77,6 +79,8 @@ def ledger_pairs(path):
 def commit_keys(subject, closes):
     """The keys one commit closes by the rule, in order, no repeats."""
     keys = []
+    if REVERT.match(subject):
+        return keys
     m = SUBJECT.match(subject)
     if m and m.group("type") in TYPES:
         keys += KEY.findall(m.group("scope"))

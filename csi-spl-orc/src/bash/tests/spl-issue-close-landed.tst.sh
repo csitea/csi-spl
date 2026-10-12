@@ -37,6 +37,12 @@ commit "perf(store, SPL-19): already done" >/dev/null
 commit "refactor(orc, SPL-20): an epic" >/dev/null
 commit "feat(wui, SPL-21): older than its issue" >/dev/null
 commit "fix(wui, SPL-22)!: the move fails" >/dev/null
+commit "docs(doc): an explicit trailer closes on any type
+
+Closes: SPL-23" >/dev/null
+commit 'Revert "chore(ci): closed by trailer"
+
+Closes: SPL-24' >/dev/null
 HEAD1=$(g rev-parse HEAD)
 
 # The open list: SPL-19 is done (absent), SPL-20 an epic, SPL-21 created after its commit.
@@ -46,7 +52,8 @@ issue() { printf '{"key":"%s","status":"%s","kind":"%s","created_at":"%s"}' "$1"
   issue SPL-10 todo issue; printf ,; issue SPL-11 qas issue; printf ,; issue SPL-12 wip issue; printf ,
   issue SPL-13 todo issue; printf ,; issue SPL-14 todo issue; printf ,; issue SPL-15 eval issue; printf ,
   issue SPL-16 todo issue; printf ,; issue SPL-17 todo issue; printf ,; issue SPL-18 todo issue; printf ,
-  issue SPL-20 wip epic; printf ,; issue SPL-21 todo issue 2099-01-01T00:00:00Z; printf ,; issue SPL-22 todo issue
+  issue SPL-20 wip epic; printf ,; issue SPL-21 todo issue 2099-01-01T00:00:00Z; printf ,; issue SPL-22 todo issue; printf ,
+  issue SPL-23 todo issue; printf ,; issue SPL-24 todo issue
   printf ']}}\n'
 } >"$T/list.json"
 python3 -m json.tool "$T/list.json" >/dev/null || { echo "FAIL: the fixture list is not JSON"; exit 1; }
@@ -81,10 +88,10 @@ run; rc=$?
 
 # 2. back-fill dry run: the rule's verdicts, no write
 run ISSUE_CLOSE_SINCE=all; rc=$?
-v="$(for k in 10 11 12 13 14 15 16 17 18 19 20 21 22; do printf '%s=%s ' "$k" "$(row SPL-$k)"; done)"
-want="10=would-move 11=would-move 12=would-move 13= 14= 15= 16=would-move 17=would-move 18= 19=noop 20=skip 21=skip 22=would-move "
+v="$(for k in 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do printf '%s=%s ' "$k" "$(row SPL-$k)"; done)"
+want="10=would-move 11=would-move 12=would-move 13= 14= 15= 16=would-move 17=would-move 18= 19=noop 20=skip 21=skip 22=would-move 23=would-move 24= "
 [ "$rc" = 0 ] && [ "$v" = "$want" ] && ! grep -q '^hub' "$T/calls.log" && [ ! -e "$ST/cursor" ] && [ ! -e "$ST/closed.tsv" ] &&
-  pass "2. dry back-fill: subject scope, several keys and Closes: close; docs, body mention, Refs: and revert do not; done = no-op; epic and reused key skipped; nothing written" ||
+  pass "2. dry back-fill: subject scope, several keys and Closes: close (on a docs subject too); docs scope, body mention, Refs: and revert (even with Closes:) do not; done = no-op; epic and reused key skipped; nothing written" ||
   fail "2. dry back-fill (rc $rc) got '$v' want '$want': $(cat "$T/o")"
 
 # 3. real back-fill with one failed move: the others move, the cursor stays

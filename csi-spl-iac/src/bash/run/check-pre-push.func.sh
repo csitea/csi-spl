@@ -94,6 +94,8 @@ declare -F _ppe_plan >/dev/null 2>&1 \
   || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-e2e.func.sh"
 declare -F _ppf_parts >/dev/null 2>&1 \
   || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-features.func.sh"
+declare -F _ppx_parts >/dev/null 2>&1 \
+  || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-cross.func.sh"
 
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
@@ -199,6 +201,7 @@ _pp_paths() {  # <part>
     api)        echo "csi-spl-api csi-spl-rdb .version" ;;
     orc)        echo "csi-spl-orc" ;;
     orc-features) echo "csi-spl-orc csi-spl-api/src/bash/use-go-toolchain.sh" ;;
+    iac-cross)  _ppx_paths ;;
     cnf)        echo "csi-spl-cnf/csi-spl csi-spl-iac/src/tpl csi-spl-iac/cnf/tpl-gen.ref csi-spl-iac/src/bash/run/tpl-gen.func.sh csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh" ;;
     blog)       echo "csi-spl-doc/blog csi-spl-orc/src/bash/run/spl-blog-check.func.sh" ;;
     lint-*)     _ppl_paths "$1" ;;
@@ -210,6 +213,7 @@ _pp_label() {  # <part>
     hygiene)    echo "distribution-hygiene" ;;
     stale-tree) echo "stale-tree (outgoing commits that set paths back)" ;;
     iac)        echo "csi-spl-iac suite" ;;
+    iac-cross)  echo "csi-spl-iac tests that read the touched files of other parts" ;;
     wui-vendor) echo "csi-spl-wui payment-vendor gate" ;;
     wui)        echo "csi-spl-wui unit + typecheck" ;;
     wui-e2e)    echo "csi-spl-wui browser e2e the change maps to (capped)" ;;
@@ -324,7 +328,8 @@ _pp_cache_add() {  # <key>
 _pp_gate_id() {
   cat "$_PP_SELF_DIR/check-pre-push.func.sh" "$_PP_SELF_DIR/check-pre-push-lint.func.sh" \
     "$_PP_SELF_DIR/check-release-note.func.sh" "$_PP_SELF_DIR/check-pre-push-stale-tree.func.sh" \
-    "$_PP_SELF_DIR/check-pre-push-e2e.func.sh" "$_PP_SELF_DIR/check-pre-push-features.func.sh" 2>/dev/null | sha1sum | cut -c1-40
+    "$_PP_SELF_DIR/check-pre-push-e2e.func.sh" "$_PP_SELF_DIR/check-pre-push-features.func.sh" \
+    "$_PP_SELF_DIR/check-pre-push-cross.func.sh" 2>/dev/null | sha1sum | cut -c1-40
 }
 _pp_tree_key() {  # <tree> <tier> <parts> <base>
   local tree="$1" tier="$2" parts="$3" base="$4" st t mb ids=""
@@ -386,7 +391,7 @@ _pp_missing_tools() {  # <part> <tree>
   case "$part" in
     hygiene)
       _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin" ;;
-    iac)
+    iac|iac-cross)
       _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
       _pp_need jq "apt-get install jq"
       _pp_need python3 "apt-get install python3" ;;
@@ -653,6 +658,7 @@ _pp_fn() {  # <part>
     orc) echo _pp_part_orc ;; stale-tree) echo _pp_part_stale_tree ;;
     wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;; blog) echo _pp_part_blog ;;
     wui-e2e) echo _pp_part_wui_e2e ;; orc-features) echo _pp_part_orc_features ;;
+    iac-cross) echo _pp_part_iac_cross ;;
     lint-*) echo "_pp_part_${1//-/_}" ;;
   esac
 }
@@ -916,7 +922,7 @@ do_check_pre_push() {
   case "$only" in ''|lint|override) ;; *) do_log "FATAL pre-push: PRE_PUSH_ONLY must be empty, lint or override (got '$only')"; return 2 ;; esac
   local all="hygiene blog iac orc orc-features wui-vendor wui wui-e2e api" parts="hygiene" p changed="" lint
   local -A _PPL_FILES=()
-  local _PPL_SELECTED="" _PPE_FILES="" _PPE_CUT="" _PPF_FEATS=""
+  local _PPL_SELECTED="" _PPE_FILES="" _PPE_CUT="" _PPF_FEATS="" _PPX_TESTS=""
   if [[ "$mode" == full ]]; then
     parts="$all"
   elif ! changed="$(_pp_changed "$tree" "$base")"; then
@@ -933,7 +939,7 @@ do_check_pre_push() {
       _pp_touches "$sel" $(_pp_paths "$p") && parts+=" $p"
     done
     _pp_cnf_only "$changed" && parts="${parts/ iac/ cnf}"
-  fi; _ppe_parts "$changed" "$tree"; _ppf_parts "$changed" "$tree"
+  fi; _ppe_parts "$changed" "$tree"; _ppf_parts "$changed" "$tree"; _ppx_parts "$changed"
   # The lint parts run right after hygiene: seconds, and the likeliest red.
   if [[ "$only" == override ]]; then
     # The override skips the slow parts, never these: c-226's override landed
@@ -944,7 +950,7 @@ do_check_pre_push() {
   else
     _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
     local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
-    all="hygiene stale-tree $lint_all blog cnf iac orc orc-features wui-vendor wui wui-e2e api"
+    all="hygiene stale-tree $lint_all blog cnf iac iac-cross orc orc-features wui-vendor wui wui-e2e api"
     parts="${parts/hygiene/hygiene stale-tree${lint:+ $lint}}"
     [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
   fi

@@ -37,6 +37,15 @@
 #        CONTROL: a dir read under a checkout constant (join(WUI,
 #        '../csi-spl-doc/doc/help'), join(REPO, '.github/workflows', wf))
 #        still selects it
+#    17. (c-317) an orc-only push runs the iac tests that READ orc files
+#        (part iac-cross): a dangling ref planted in an orc file FAILS the
+#        gate; the fixed tree passes; an orc change after a green re-runs it
+#        (the cache key holds the files those tests read); an iac push runs
+#        the whole iac suite instead. CONTROL: PRE_PUSH_CROSS=0 (the gate
+#        before the part) lets the same dangling ref through.
+#    18. the real map: an orc run/ file selects comment-refs-exist; a wui file
+#        selects no orc-reading test; every fast-tier iac test that names
+#        another part's tree under $APP_ROOT or $PROJ_PATH/.. has a row
 #------------------------------------------------------------------------------
 set -uo pipefail
 # Defensive git-env scrub: this test creates commits in throwaway repos; a leaked
@@ -374,6 +383,54 @@ gate "$R"; eq "16. CONTROL: a push changing a help doc (join(WUI, ...)) runs the
 R="$ROOT/r16c"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
 echo x >>"$R/.github/workflows/10_ci.yml"; git -C "$R" commit -qam "a workflow the wui reads"
 gate "$R"; eq "16. CONTROL: a push changing a workflow (join(REPO, ...)) runs the wui part" 1 "$(runs csi-spl-wui-unit)"
+
+# 17. c-317: orc-only push -> iac-cross runs the iac test that reads orc files.
+# The fixture test stands in for comment-refs-exist: it fails while an orc
+# file carries the word 'dangling'. It runs through the REAL iac runner.
+mkcross() {  # <dir>
+  local R="$1" t="$1/csi-spl-iac/src/bash/tests"
+  mkrepo "$R"
+  mkdir -p "$t" "$R/csi-spl-orc/src/bash/run"
+  cp "$TEST_DIR/run-all-tests.sh" "$t/"; : >"$t/test-lib.inc.sh"
+  printf '#!/usr/bin/env bash\necho comment-refs-exist >>"%s"\n! grep -rq dangling "$(dirname "$0")/../../../../csi-spl-orc"\n' "$COUNT" >"$t/comment-refs-exist.tst.sh"
+  echo '# see ok.sh' >"$R/csi-spl-orc/src/bash/run/x.func.sh"
+  git -C "$R" add -A; git -C "$R" commit -qm cross; git -C "$R" branch -f trunk
+}
+R="$ROOT/r17"; mkcross "$R" >/dev/null 2>&1; : >"$COUNT"
+echo '# see dangling.sh' >>"$R/csi-spl-orc/src/bash/run/x.func.sh"; git -C "$R" commit -qam "orc: a dangling ref"
+gate "$R"; eq "17. orc-only push with a dangling ref -> REFUSED" 1 "$?"
+eq "17. ... iac-cross logged FAIL" FAIL "$(verdict "$R" iac-cross)"
+eq "17. ... the whole iac suite never ran" 0 "$(runs csi-spl-iac)"
+eq "17. ... the orc-reading iac test ran (HEAD, then the trunk re-check)" 2 "$(runs comment-refs-exist)"
+: >"$COUNT"; gate "$R" PRE_PUSH_CROSS=0; eq "17. CONTROL: without the part (PRE_PUSH_CROSS=0) the same push PASSES" 0 "$?"
+eq "17. CONTROL: ... and no iac test ran" 0 "$(runs comment-refs-exist)"
+git -C "$R" reset -q --hard trunk; : >"$COUNT"
+echo '# see ok.sh again' >>"$R/csi-spl-orc/src/bash/run/x.func.sh"; git -C "$R" commit -qam "orc: a good ref"
+gate "$R"; eq "17. orc-only push with good refs -> passes" 0 "$?"
+eq "17. ... iac-cross ran once" 1 "$(runs comment-refs-exist)"
+gate "$R"; eq "17. ... the same tree again re-uses the green" 1 "$(runs comment-refs-exist)"
+eq "17. ... logged PASS-cached" PASS-cached "$(verdict "$R" iac-cross)"
+echo '# see dangling.sh' >>"$R/csi-spl-orc/src/bash/run/x.func.sh"; git -C "$R" commit -qam "orc: a dangling ref after the green"
+gate "$R"; eq "17. an orc change after the green -> re-run and REFUSED" 1 "$?"
+git -C "$R" reset -q --hard trunk; : >"$COUNT"
+echo y >"$R/csi-spl-iac/a.sh"; echo '# see ok.sh 2' >>"$R/csi-spl-orc/src/bash/run/x.func.sh"; git -C "$R" add -A; git -C "$R" commit -qm "iac + orc"
+gate "$R"; eq "17. iac + orc push -> passes" 0 "$?"
+eq "17. ... the whole iac suite ran" 1 "$(runs csi-spl-iac)"
+eq "17. ... iac-cross did not (the suite holds its tests)" SKIP-untouched "$(verdict "$R" iac-cross)"
+
+# 18. the real map
+sel="$(_ppx_select "csi-spl-orc/src/bash/run/gh-runner-add.func.sh" | tr '\n' ' ')"
+[[ " $sel " == *" comment-refs-exist.tst.sh "* ]] && pass "18. an orc run/ file selects comment-refs-exist" || fail "18. an orc run/ file selects comment-refs-exist" "$sel"
+sel="$(_ppx_select "csi-spl-wui/src/pages/index.vue" | tr '\n' ' ')"
+[[ " $sel " != *" comment-refs-exist.tst.sh "* && " $sel " != *" satellite-ansible.tst.sh "* ]] \
+  && pass "18. a wui file selects no orc-reading test ($sel)" || fail "18. a wui file selects no orc-reading test" "$sel"
+listed=" "; for row in "${_PPX_MAP[@]}" "${_PPX_NONE[@]}"; do listed+="${row%% *} "; done
+for f in "$TEST_DIR"/*.tst.sh; do
+  head -40 "$f" | grep -E '^# pre-push-tier: slow( |$)' >/dev/null && continue
+  grep -E '(\$\{?APP_ROOT\}?|\$\{?PROJ_PATH\}?/\.\.)"?/csi-spl-(orc|api|wui|doc|rdb)' "$f" >/dev/null || continue
+  [[ "$listed" == *" $(basename "$f") "* ]] || fail "18. $(basename "$f") reads another part's tree but has no _PPX_MAP row" "check-pre-push-cross.func.sh"
+done
+[[ "$fails" -eq 0 ]] && pass "18. every fast-tier iac test that reads another part's tree has a row"
 
 echo "-- check-pre-push-scope.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

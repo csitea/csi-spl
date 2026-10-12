@@ -24,6 +24,10 @@
 # IAC_TEST_TIMEOUT) instead (c-411): a named heavy test that is merely slow on a
 # loaded runner is not a hang, and every other file keeps the tight bound. Each
 # file's verdict block ends with its wall time, so the next such red is measured.
+#
+# IAC_TEST_ONLY="<a.tst.sh> <b.tst.sh>" runs only the files named (basenames):
+# the pre-push part iac-cross (check-pre-push-cross.func.sh) runs the tests
+# that read the files an orc/api/doc push touched. A name with no file FAILS.
 set -uo pipefail
 # A git hook (pre-push) exports GIT_DIR (+ GIT_PREFIX): inherited, it turns a
 # test fixture's `git -C "$T/app" init/remote` into a write on the CALLER's
@@ -49,8 +53,13 @@ file_to() {
   own=$(sed -nE '1,40{/^# test-timeout: [1-9][0-9]*( |$)/{s/^# test-timeout: ([0-9]+).*/\1/p;q}}' "$1")
   if [[ -n "$own" ]] && (( own > to )); then echo "$own"; else echo "$to"; fi
 }
+only=" ${IAC_TEST_ONLY:-} "
+for o in ${IAC_TEST_ONLY:-}; do
+  [[ -f "$dir/$o" ]] || { echo "IAC_TEST_ONLY names no test file: $o" >&2; exit 2; }
+done
 for t in "$dir"/*.tst.sh; do
   [[ -f "$t" ]] || continue
+  [[ -n "${IAC_TEST_ONLY:-}" && "$only" != *" $(basename "$t") "* ]] && continue
   if [[ "$tier" == fast ]] && head -40 "$t" | grep -E '^# pre-push-tier: slow( |$)' >/dev/null; then
     echo "SKIP-TIER (fast tier; CI workflow 10 runs it): $(basename "$t")"; slow=$((slow + 1))
     continue

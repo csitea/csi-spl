@@ -68,6 +68,22 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   (300 s). Print a selection:
   `FEATURES_RANGE=origin/master..HEAD ./run -a do_check_pre_push_features`.
   `PRE_PUSH_FEATURES=0` turns it off.
+- **The iac-cross part** runs the csi-spl-iac tests that read files of
+  other parts, when a push touches those files but not the iac part's own
+  paths (the whole iac suite runs them then). Each test has a row in
+  `_PPX_MAP` (`csi-spl-iac/src/bash/run/check-pre-push-cross.func.sh`)
+  naming what it reads; an orc file selects `comment-refs-exist`, the
+  `gcp-*` scans and the satellite tests, a doc/help file selects
+  `help-connect-agent`, and so on. Three rows read the whole tree
+  (`domain-single-source`, `no-key-material-in-tree`,
+  `gcloud-account-pinned`): they run on every such push, about 2 s.
+  Before it, 16b39bb9f and 947ec0844 each changed only an orc file and
+  its test, passed the gate, and turned wf 10's iac job red on
+  `comment-refs-exist`. The key is the selected tests, their runner and
+  the paths their rows name. A new iac test that reads another part's
+  tree without a row fails `check-pre-push-scope.tst.sh` (case 18). Print
+  a selection: `CROSS_RANGE=origin/master...HEAD ./run -a do_check_pre_push_cross`.
+  `PRE_PUSH_CROSS=0` turns it off.
 - **The cache key is content**: the git trees and blobs of what the part
   reads, plus the tier and the gate version. No commit sha and no base sha,
   so a re-push after a rebase that brought in only files the part does not

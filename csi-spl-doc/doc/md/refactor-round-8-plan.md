@@ -124,6 +124,7 @@ Notes on the seats' evidence, for the retro, not the rows:
 - The agy seat gives 10 verdicts with no command: the `command / note` column of `seat-agy.md` is empty in all 10 rows (`b30fe1708`), as in round 7 (round 7 plan section 7).
 - The mistral seat measured on the mapped sha `6165cfc71` and gives a command per row, but 4 of them measure something else than the row's number: 05 greps `function spool_notify_poke` (the file defines `spool_notify_poke() {`; that grep finds 0 lines); 07 and 08 use `wc -l` on the file, not the function length the `cleancode.test.mjs` LONG list gates (as round 7's D3-D5); 06 counts `sleep` lines with no word boundary. The plan's own commands and n stand in section 2.
 - The mistral seat's commit subject is `refactor(r8-seat-mistral): ...`. R6's `git log --grep='r8-'` lists it with the rows; the row count reads the `r8-NN-` slug (R4), so a seat commit is not a row.
+- After signing, m-033 pushed `12c21511a` (2026-10-12 00:23Z), which rewrote `seat-mistral.md`. It cited runs 38090045623, 38100056789 and 38110067890 (`gh api repos/csitea/csi-spl/actions/runs/<id>` -> HTTP 404 for all 3) and wrote "Tests pass" for 05 and 08 with no run named. With c-001's go (msg e6982d65) the editor restored the signed text from `c029651ca`. The signing in section 10 is unchanged; the retro records this for the mix.
 
 ## 8. Measured and left out
 

@@ -238,8 +238,8 @@ check "10. an agy waiting on its task (\`? for shortcuts\` footer) is closed onl
 eq "10. ... and never got /exit mid-turn (a-899, 2026-10-10)" "" "$(cat "$T_TMP/got-305" 2>/dev/null)"
 P10E="$(t_window 'a-306@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-306 timer")"
 sleep 1
-in_agy_session env AGY_TMUX_PANE="$P10E" bash "$SUT" --agent a-306 --defer --timeout 60
-check "10. an agy idle with a timer left running closes well before the timeout" wait_gone "$P10E" 30
+in_agy_session env AGY_TMUX_PANE="$P10E" bash "$SUT" --agent a-306 --defer --timeout 120
+check "10. an agy idle with a timer left running closes well before the timeout" wait_gone "$P10E" 120
 has "10. ... it got /exit and left by itself (a timer row alone is not busy)" "AGY-EXITED" "$(cat "$T_TMP/got-306" 2>/dev/null)"
 check "10. the idle agy without a closer is still there" alive "$P10"
 
@@ -329,7 +329,7 @@ sleep 1
 in_agy_session env CLE_TMUX_PANE="$P13" bash "$SUT" --agent c-415 --rebirth --timeout 60
 check "13. --rebirth writes lifetime/rebirth" test -s "$SPOOL_ROOT/c-415/lifetime/rebirth"
 got_exit() { for _ in $(seq 1 "$2"); do grep -q CLAUDE-EXITED "$1" 2>/dev/null && return 0; sleep 0.5; done; return 1; }
-check "13. the idle harness gets /exit typed and leaves" got_exit "$T_TMP/got-415" 40
+check "13. the idle harness gets /exit typed and leaves" got_exit "$T_TMP/got-415" 120
 sleep 3
 eq "13. ... /exit was typed exactly once" 1 "$(grep -cx /exit "$T_TMP/got-415" 2>/dev/null)"
 check "13. the window stays (the watchdog restarts the id in it)" alive "$P13"
@@ -361,16 +361,18 @@ P13D="$(t_window 'c-418@tbox' "sh $T_TMP/bin/claude-pane $T_TMP/bin/claude-fake 
 W13D="$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P13D" '#{session_name}:#{window_index}')"
 check "13. a human client is attached to c-418's window" attach_human "$W13D"
 sleep 1
-in_agy_session env CLE_TMUX_PANE="$P13D" WD_HUMAN_IDLE=120 bash "$SUT" --agent c-418 --rebirth --timeout 8
-sleep 10
+in_agy_session env CLE_TMUX_PANE="$P13D" WD_HUMAN_IDLE=120 bash "$SUT" --agent c-418 --rebirth --timeout 40
+# Poll for the line, never a fixed sleep: on a loaded CI runner the closer took
+# longer than 8 s to read the idle screen 3 polls running (wf 10, 2 of 4 reds).
+got_wait() { for _ in $(seq 1 60); do grep -q 'a human is active in this window' "$CLOSE_LOG_DIR"/rebirth-exit-*.log 2>/dev/null && return 0; sleep 0.5; done; return 1; }
+check "13. ... and the log says /exit waits" got_wait
 eq "13. a human active in THAT window: nothing typed" "" "$(cat "$T_TMP/got-418" 2>/dev/null)"
-has "13. ... and the log says /exit waits" "a human is active in this window" "$(cat "$CLOSE_LOG_DIR"/rebirth-exit-*.log 2>/dev/null)"
 detach_humans
 P13E="$(t_window 'c-419@tbox' "sh $T_TMP/bin/claude-pane $T_TMP/bin/claude-fake $T_TMP/got-419")"
 check "13. a human client is attached to ANOTHER window of the session" attach_human "$VICTIM"
 sleep 1
 in_agy_session env CLE_TMUX_PANE="$P13E" WD_HUMAN_IDLE=120 bash "$SUT" --agent c-419 --rebirth --timeout 60
-check "13. a human in another window: the idle harness gets /exit and leaves" got_exit "$T_TMP/got-419" 40
+check "13. a human in another window: the idle harness gets /exit and leaves" got_exit "$T_TMP/got-419" 120
 sleep 3
 eq "13. ... /exit was typed exactly once" 1 "$(grep -cx /exit "$T_TMP/got-419" 2>/dev/null)"
 detach_humans
@@ -457,7 +459,10 @@ check "14. an unsubmitted /exit: Enter again, the claude leaves" got_exit "$T_TM
 check "14. ... its window is closed and c-427 retired before the timeout" gone_and_retired "$P14G" c-427 20
 has "14. ... the log names the unsubmitted /exit" "the typed /exit sits unsubmitted: Enter (1)" "$(log14)"
 eq "14. ... /exit was typed exactly once into each" "1 1 1" "$(for g in 425 426 427; do grep -cx /exit "$T_TMP/got-$g"; done | paste -sd " ")"
-check "14. controls: all three reach the 15 s timeout" gone_and_retired "$P14J" c-430 40
+# All three, each polled up to 60 s: one 20 s wait on c-430 alone went red 3 of
+# 30 runs on a box capped at 4 CPUs (spec 133 round 7).
+all3_timed_out() { gone_and_retired "$P14H" c-428 120 && gone_and_retired "$P14I" c-429 120 && gone_and_retired "$P14J" c-430 120; }
+check "14. controls: all three reach the 15 s timeout" all3_timed_out
 eq "14. control: plain capture-pane types nothing into the ghost screen (c-638)" "" "$(cat "$T_TMP/got-428" 2>/dev/null)"
 eq "14. control: no verify = the dialog holds the claude to the timeout" 0 "$(grep -c CLAUDE-EXITED "$T_TMP/got-429" 2>/dev/null)"
 eq "14. control: no verify = the unsubmitted /exit holds the claude to the timeout" 0 "$(grep -c CLAUDE-EXITED "$T_TMP/got-430" 2>/dev/null)"

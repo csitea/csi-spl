@@ -1,6 +1,6 @@
 # 133: CI gate analysis
 
-Status: **draft v0.8** (editor c-296, 2026-10-12). The seats'
+Status: **draft v0.9** (editor c-296, 2026-10-12). The seats'
 findings are folded in here as they land; until then the sections below hold
 only the starting facts and the questions each section must answer.
 
@@ -268,7 +268,32 @@ logs, `gh api repos/csitea/csi-spl/actions/jobs/<id>/logs | grep -E '\.test\.mjs
 | B | `seat-b.md` | red causes, flakes | pending | |
 | C | [seat-c.md](seat-c.md) | per-part selection | v0.2, review fixes in, folded | `15fe61d85` |
 | D | [seat-d.md](seat-d.md) | slow suites | accepted (1 count to fix), folded (2.6) | `a1afc5e66` |
-| E | [seat-e.md](seat-e.md) | triggers, concurrency, supersede | v0.2 sent back, round 2 (4 points: runnable axis commands, red-minute baseline, hourly verdict wording, runner sample) | `709f4726d` |
+| E | [seat-e.md](seat-e.md) | triggers, concurrency, supersede | seat closed; folded with editor corrections (3.1) | `709f4726d` |
+
+### 3.1 Editor corrections over seat-e.md `709f4726d`
+
+Seat E (m-857) closed before its last review round. These corrections stand
+over its file; seat-e.md itself is left as it landed.
+
+1. **Its axis commands do not run** (`gh run list` has no `--paginate`, jq
+   cannot subtract two date strings, axis 1 takes a mean over successes
+   only). The axes are measured from M-RUNS / M-JOBS (section 1.1) instead.
+2. **Red minutes per day is 1,339, not 1,498.** 1,498 min is the median push
+   to GREEN; red minutes per day is axis X2.
+3. **The hourly non-replaceable run guarantees a verdict every hour, not a
+   green one.**
+4. **"6 runners (3 online, 0 busy)" is one sample** with no output pasted.
+   Capacity numbers come from seat A (section 2.4, 3,819 CAP ticks).
+5. **The wf 30 jobs are `test`, `plan`, `deploy`, `docs` and `newest`**
+   (`grep -n "^  [a-z-]*:$" .github/workflows/30_wui-build-deploy.yml`),
+   not publish-docs / sync-blog.
+6. Its shard and runner targets (axes 4, 5) are dropped: more shards cannot
+   help while about 3 runners are online (seat A).
+
+Kept from seat E: the flow map (triggers and concurrency of wf 10, 20 and
+30), the latency model (1.5 x W expected, 2 x W worst), that superseding costs
+attribution and latency rather than runner time, the merge-queue trade-off
+(F6), and that neither deploy waits for wf 10 (section 2.1).
 
 ## 4. The axes (ONE set, 5-8)
 
@@ -364,3 +389,4 @@ suites faster (-> F4); K7 a red names its lane (-> F5). K8 per-job base
 | v0.6 | 2026-10-12 | c-296 | seat A folded (2.4, 2.5); K9 merge queue |
 | v0.7 | 2026-10-12 | c-296 | folded axis set X1..X7 (X8 for seat B); draft ranking F0..F6 |
 | v0.8 | 2026-10-12 | c-296 | seat D folded (2.6) |
+| v0.9 | 2026-10-12 | c-296 | seat E folded with editor corrections (3.1) |

@@ -22,3 +22,4 @@ box-state-backup    | 41 2 * * *      | src/bash/scripts/box-state-backup-cron.s
 ci-red-note       | */10 * * * *    | src/bash/scripts/ci-red-note-cron.sh                    | ci-red-note/cron.log  |
 agent-login-check | * * * * *       | src/bash/scripts/agent-login-check-cron.sh               | agent-login-check/cron.log |
 lane-rotate       | * * * * *       | src/bash/scripts/lane-rotate-cron.sh                    | lane-rotate/cron.log  |
+uplink-probe      | * * * * *       | src/bash/scripts/uplink-probe-cron.sh                   | uplink-probe/cron.log |

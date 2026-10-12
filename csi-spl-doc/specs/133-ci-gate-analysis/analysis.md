@@ -1,6 +1,6 @@
 # 133: CI gate analysis
 
-Status: **draft v0.1, skeleton** (editor c-296, 2026-10-12). The seats'
+Status: **draft v0.2** (editor c-296, 2026-10-12). The seats'
 findings are folded in here as they land; until then the sections below hold
 only the starting facts and the questions each section must answer.
 
@@ -56,6 +56,71 @@ Structure, each checked on tree `7d950a8ec`:
 - **Fleet state now**: every non-CI lane paused by owner order; only CI lanes
   push. c-294 is landing the hourly non-replaceable wf 10 verdict.
 
+### 1.1 Editor re-measure (the axis baselines)
+
+Window 2026-10-10T06:00Z..2026-10-12T06:25Z (48.4 h), master tip at the time
+`36c185fec`. Two datasets, every axis below is computed from them:
+
+- **M-RUNS**, n=631 runs:
+  `gh api --paginate "repos/csitea/csi-spl/actions/workflows/10_ci-quality.yml/runs?branch=master&event=push&created=>=2026-10-10T06:00:00Z&per_page=100" --jq '.workflow_runs[] | [.id,.head_sha,.status,.conclusion,.created_at,.run_started_at,.updated_at] | @tsv'`
+- **M-JOBS**, n=1049 jobs: for each run id,
+  `gh api "repos/csitea/csi-spl/actions/runs/<id>/jobs?per_page=100&filter=all"`
+  (name, conclusion, created_at, started_at, completed_at, runner_name).
+
+| fact | value | how |
+|---|---|---|
+| runs | 578 cancelled, 48 failure, **3 success**, 2 running | M-RUNS, count by conclusion (c-002's numbers reproduce) |
+| runs that started any job | **66 of 631 (10.5%)** | run ids present in M-JOBS; the other 565 were pending runs replaced before a runner took them |
+| started runs by conclusion | 48 failure, 14 cancelled (job timeout or hand), 3 success, 1 running | M-JOBS x M-RUNS |
+| wall time of a started run (first job start to last job end) | median **46 min**, failure p90 67 min (n=65) | M-JOBS |
+| runner minutes per started run | median **158 job-min**, 15 jobs (n=66) | M-JOBS, sum of completed-started over jobs with a runner |
+| job queue wait (started - created) | median 0.0 min, **p90 9.0 min**, max 58 (n=969) | M-JOBS |
+| push-to-verdict (run created -> first later run that ended success or failure) | median **81 min**, p90 163 (n=626) | M-RUNS |
+| push-to-green | median **1,498 min** (n=626) | M-RUNS, same with success only |
+| red minutes on the master tip (time since the newest verdict was a failure) | 2,702 min in 48.4 h = **1,339 min/day, 96% of the time** (n=51 verdicts) | M-RUNS, ordered by updated_at |
+| runners seen | 6 (`sat-spl-01..06`) | M-JOBS runner_name |
+
+Per job, from M-JOBS (runs that reached the job; one run can fail several):
+
+| job | success | failure | cancelled | duration median / p90 (min) |
+|---|---|---|---|---|
+| hub (`hub-suite`) | 19 | **44** | 2 | 16.3 / 29.2 |
+| orc hermetic, shard 1 | 13 | **44** | 9 | 10.3 / 23.0 |
+| orc hermetic, shard 2 | 13 | **39** | 14 | 9.0 / 21.8 |
+| wui e2e 1/3 | 28 | 26 | 8 | 30.2 / 38.9 |
+| wui e2e 2/3 | 30 | 24 | 8 | 32.0 / 41.4 |
+| wui e2e 3/3 | 24 | **33** | 5 | 28.3 / 40.4 |
+| iac (`iac-suite`) | 40 | 25 | 1 | 6.7 / 10.0 |
+| wui generate | 48 | 15 | 3 | 5.7 / 8.3 |
+| orc features | 51 | 12 | 3 | 5.3 / 8.2 |
+| wui unit + typecheck | 63 | 0 | 3 | 6.7 / 9.8 |
+| cnf, classify, hygiene, box-ref, gate health | all green | 0 | <=1 | <1.3 |
+
+What each master commit touched, same window, n=682 commits:
+`git log --since=2026-10-10T06:00:00Z --format=@%h --name-only origin/master`,
+first path component per commit:
+
+| parts touched | commits |
+|---|---|
+| exactly one top-level dir | **600 (88%)** |
+| two | 63 |
+| three or four | 19 |
+| `csi-spl-doc` only | 220 (32%) |
+| `csi-spl-orc` only | 161 (24%) |
+| `csi-spl-wui` only | 118 (17%) |
+| `csi-spl-api` only | 58 (9%) |
+| `csi-spl-iac` only | 33 (5%) |
+
+### 1.2 First editor finding: the docs express lane cannot fire on a red trunk
+
+The classify job diffs against the head of the **last green** push run
+(`grep -n "status=success&per_page=1" .github/workflows/10_ci-quality.yml` ->
+1 line, in `classify`). With 3 green runs in 48 h the diff from that base
+spans hundreds of code commits, so a doc-only push still runs the full gate:
+in M-JOBS no started run skipped `hub-suite` (`skipped` count 0 of 66). The
+one per-part skip CI has is therefore switched off exactly when the gate is
+red, which is nearly always (96%).
+
 ## 2. Why the gate almost never gives a verdict
 
 (Folded from the seats. Each cause: the mechanism, the measurement with
@@ -89,15 +154,15 @@ before and after on every axis.
 
 | # | axis | command | baseline (sha, window, n) | target |
 |---|---|---|---|---|
-| X1 | | | | |
-| X2 | | | | |
-| X3 | | | | |
-| X4 | | | | |
-| X5 | | | | |
+| X1 | push-to-verdict, median (min) | M-RUNS, section 1.1 | 81 (p90 163), `36c185fec`, 48.4 h, n=626 | <= 30 |
+| X2 | verdicts green, % (success / (success + failure)) | M-RUNS | 6% (3/51) | >= 80% |
+| X3 | red minutes per day on the master tip | M-RUNS | 1,339 (96%) | <= 120 |
+| X4 | wall time of a started run, median (min) | M-JOBS | 46 | <= 20 |
+| X5 | runner minutes per push (job-min of started runs / pushes) | M-JOBS / M-RUNS | 66 x 158 / 631 = ~17; 158 per started run, every part's jobs | per-part: a one-part push <= 40 job-min |
+| X6 | job queue wait p90 (min) | M-JOBS | 9.0 (n=969) | <= 3 |
 
-Candidates from the brief, to be confirmed or replaced by the seats: median
-push-to-verdict minutes, % master runs finished green, red-minutes per day,
-runner queue wait p90, jobs run per code push, cancelled %.
+Draft by the editor from section 1.1; the seats confirm, replace or add
+(max 8). X1..X3 are what the owner feels; X4..X6 are the levers.
 
 ## 5. Candidate fixes, ranked by expected axis gain per effort
 
@@ -112,3 +177,4 @@ runner queue wait p90, jobs run per code push, cancelled %.
 | version | date | by | what |
 |---|---|---|---|
 | v0.1 | 2026-10-12 | c-296 | skeleton |
+| v0.2 | 2026-10-12 | c-296 | editor re-measure (1.1), express-lane finding (1.2), draft axes X1..X6 |

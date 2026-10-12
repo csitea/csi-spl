@@ -562,7 +562,7 @@ cat >"$T/fakeissue" <<'FAKE'
 #!/bin/sh
 printf '%s|' "$@" >>"$FAKE_LOG"; echo >>"$FAKE_LOG"
 [ -n "${FAKE_REFUSE:-}" ] && { echo 'spool: hub refused: from_not_announced (CLE-00 is not an agent announced by box-desk)' >&2; exit 78; }
-echo '{"issue":{"key":"SPL-7","status":"todo"}}'
+echo "{\"issue\":{\"key\":\"SPL-7\",\"status\":\"${FAKE_STATUS:-todo}\"}}"
 FAKE
 chmod +x "$T/fakeissue"; : >"$T/issue.log"
 ISS='spl_host_spool() { SPL_SPOOL="$FAKE"; }; '
@@ -612,6 +612,44 @@ out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$
   ISSUE_REF=SPL-7 ISSUE_STATUS=in_progress ISSUE_ASSIGNEE= DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -x 'issue|update|--as|CLE-00|--ref|SPL-7|--status|in_progress|--assignee||' >/dev/null &&
   pass "do_spl_issue_update sends only the SET fields; an empty one clears" || fail "update (rc=$rc): $out / $(tail -1 "$T/issue.log")"
+# Spec 135 Q7 (SPL-1566): qas holds only a review a human asked for. Without
+# ISSUE_QAS_ASKED_BY nothing enters it: create refuses before any call, update
+# reads the issue and refuses unless it is already in qas.
+for kv in ISSUE_STATUS=qas ISSUE_STATUS=in_review; do
+  : >"$T/issue.log"
+  out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+    ISSUE_TITLE=t "$kv" DRY_RUN=0 2>&1); rc=$?
+  [[ $rc -ne 0 && "$out" == *'spec 135 Q7'* && ! -s "$T/issue.log" ]] && pass "Q7: do_spl_issue_create refuses $kv with no ISSUE_QAS_ASKED_BY" ||
+    fail "Q7 create $kv (rc=$rc): $out / $(cat "$T/issue.log")"
+  : >"$T/issue.log"
+  out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+    ISSUE_REF=SPL-7 "$kv" DRY_RUN=0 2>&1); rc=$?
+  [[ $rc -ne 0 && "$out" == *'spec 135 Q7'* && "$(cat "$T/issue.log")" == 'issue|get|--as|CLE-00|--ref|SPL-7|' ]] &&
+    pass "Q7: do_spl_issue_update refuses $kv on a wip/todo issue with no ISSUE_QAS_ASKED_BY (read only)" ||
+    fail "Q7 update $kv (rc=$rc): $out / $(cat "$T/issue.log")"
+done
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_REF=SPL-7 ISSUE_STATUS=qas ISSUE_QAS_ASKED_BY='HUM-10 msg 910b14c9' DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/issue.log")" == 'issue|update|--as|CLE-00|--ref|SPL-7|--status|qas|' && "$out" == *'asked by HUM-10 msg 910b14c9'* ]] &&
+  pass "Q7: do_spl_issue_update moves to qas when ISSUE_QAS_ASKED_BY names who asked" ||
+  fail "Q7 asked update (rc=$rc): $out / $(cat "$T/issue.log")"
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_TITLE=t ISSUE_STATUS=qas ISSUE_QAS_ASKED_BY=HUM-10 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/issue.log")" == 'issue|create|--as|CLE-00|--title|t|--status|qas|' ]] &&
+  pass "Q7: do_spl_issue_create files in qas when ISSUE_QAS_ASKED_BY names who asked" ||
+  fail "Q7 asked create (rc=$rc): $out / $(cat "$T/issue.log")"
+: >"$T/issue.log"
+out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" FAKE_STATUS=qas TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_REF=SPL-7 ISSUE_STATUS=qas ISSUE_LABELS=needs-owner DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(tail -1 "$T/issue.log")" == 'issue|update|--as|CLE-00|--ref|SPL-7|--status|qas|--labels|needs-owner|' ]] &&
+  pass "Q7: an issue already in qas keeps qas on an update (needs-owner re-sends its status)" ||
+  fail "Q7 already qas (rc=$rc): $out / $(cat "$T/issue.log")"
+out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_REF=SPL-7 ISSUE_STATUS=done DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$(tail -1 "$T/issue.log")" == 'issue|update|--as|CLE-00|--ref|SPL-7|--status|done|' ]] &&
+  pass "Q7 CONTROL: any other status needs no ISSUE_QAS_ASKED_BY and reads nothing" || fail "Q7 control (rc=$rc): $out / $(cat "$T/issue.log")"
 # SPL-1130: a multi-line description stays ONE argv word, and the flags after it
 # still reach spool (a newline-delimited stream dropped --priority and --epic).
 : >"$T/issue.log"

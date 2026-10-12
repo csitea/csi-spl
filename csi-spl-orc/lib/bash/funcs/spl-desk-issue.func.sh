@@ -113,6 +113,31 @@ spl_issue_check_fields() {
   return 0
 }
 
+# spl_issue_qas_guard <create|update>: qas holds only a review a human asked
+# for, nothing automatic enters it (spec 135 Q7, owner HUM-10 msg 910b14c9).
+# ISSUE_STATUS=qas (or its first-set name in_review) needs ISSUE_QAS_ASKED_BY:
+# who asked, or the message that did (HUM-10, msg 910b14c9). An update of an
+# issue already in qas enters nothing (do_spl_issue_needs_owner re-sends its
+# status) and passes; that read is made only when DRY_RUN=0.
+spl_issue_qas_guard() {
+  [[ "${ISSUE_STATUS:-}" == qas || "${ISSUE_STATUS:-}" == in_review ]] || return 0
+  local asked="${ISSUE_QAS_ASKED_BY:-}" cur
+  if [[ -n "${asked//[[:space:]]/}" ]]; then
+    [[ "$asked" != *$'\n'* ]] || { do_log "FATAL ISSUE_QAS_ASKED_BY must be ONE line"; return 1; }
+    do_log "INFO ${ISSUE_REF:-the new issue} -> qas: a review asked by $asked"
+    return 0
+  fi
+  if [[ "$1" == update && "${DRY_RUN:-1}" == 0 ]]; then
+    cur="$(spl_desk_issue_run get --ref "$ISSUE_REF" | python3 -c 'import json, sys
+lines = sys.stdin.read().strip().splitlines()
+d = json.loads(lines[-1]) if lines else {}
+print(((d.get("result") or {}).get("issue") or {}).get("status") or "")')" || return 1
+    [[ "$cur" == qas ]] && return 0
+  fi
+  do_log "FATAL qas holds only a review a human asked for (spec 135 Q7): set ISSUE_QAS_ASKED_BY=<HUM-n or the msg id that asked>, or use the status the work has (done when it lands)"
+  return 1
+}
+
 # spl_issue_check_ref: ISSUE_REF is an issue key.
 spl_issue_check_ref() {
   [[ "${ISSUE_REF:-}" =~ ^([A-Za-z][A-Za-z0-9]{0,9}-)?[1-9][0-9]*$ ]] ||

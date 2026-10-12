@@ -14,6 +14,7 @@
 # @param ISSUE_KIND (optional) - issue (default) | epic | feature (epics and features are level 1)
 # @param ISSUE_DESCRIPTION (optional) - markdown, no fence needed (csi-spl-doc/doc/help/how-to-post.md); or ISSUE_DESCRIPTION_FILE
 # @param ISSUE_STATUS (optional) - eval (default) | todo | wip | diss | blocked | onhold | qas | done  (01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done)
+# @param ISSUE_QAS_ASKED_BY (optional) - required with ISSUE_STATUS=qas: the human (HUM-n) or the msg id that asked for the review (spec 135 Q7)
 # @param ISSUE_PRIORITY (optional) - prio 1 (highest) .. 5 (lowest, the default)
 # @param ISSUE_LEVEL (optional) - 1 epic / feature, 2 issue, 3 subtask: the hub derives it from the tree and refuses any other
 # @param ISSUE_ASSIGNEE (optional) - a member HUM-* or an agent id
@@ -26,6 +27,7 @@
 do_spl_issue_create() {
   [[ -n "${ISSUE_TITLE:-}" ]] || { do_log "FATAL ISSUE_TITLE must carry the issue title"; return 1; }
   spl_issue_check_fields || return 1
+  spl_issue_qas_guard create || return 1
   local args=()
   mapfile -d '' -t args < <(spl_issue_field_args)
   spl_desk_issue create "${args[@]}" || return 1

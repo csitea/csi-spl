@@ -13,6 +13,9 @@
 //                       retryAfter }, the human-keys client's shape.
 //   createEventShipper  batches journal records to POST /api/v1/auth/events
 //                       while the session is signed in.
+//   createQueueStore    keeps the unsent queue in the tab's sessionStorage, so
+//                       an error that could not be sent survives a reload and
+//                       ships on the next load (SPL-7, owner topic 4335f075).
 //
 // SECURITY — only the fields the journal already redacted at capture leave the
 // page (EVENT_FIELDS). No body, no header, no query string, no stack.
@@ -52,6 +55,8 @@ export const EVENT_QUEUE_MAX = 100
 export const EVENT_FLUSH_DELAY_MS = 1500
 /** Transport/5xx retries of one batch before it is dropped. */
 export const EVENT_RETRY_MAX = 3
+/** sessionStorage key of the unsent queue (wire-form events, a JSON array). */
+export const EVENT_QUEUE_STORE_KEY = 'spl.event-log.queue.v1'
 
 const cut = (v, n) => {
   const s = typeof v === 'string' ? v : v == null ? '' : String(v)
@@ -63,17 +68,74 @@ const cut = (v, n) => {
  * @param {any} rec
  */
 export function toEventPayload(rec) {
-  if (!rec || typeof rec !== 'object') return null
+  return wireForm(rec, (from) => rec[from])
+}
+
+/**
+ * A stored event back in wire form, or null when it is not one. The store is
+ * the page's own, but anything read back is re-cut to EVENT_CAPS so a stale
+ * or edited entry can never send more than toEventPayload would.
+ * @param {any} ev
+ */
+function storedEvent(ev) {
+  return Array.isArray(ev) ? null : wireForm(ev, (_from, to) => ev[to])
+}
+
+/** The capped wire form of `obj`, each field read by `pick(journalName, wireName)`. */
+function wireForm(obj, pick) {
+  if (!obj || typeof obj !== 'object') return null
   const out = {}
   for (const [from, to] of Object.entries(EVENT_FIELDS)) {
     if (to === 'status') {
-      const n = Math.trunc(Number(rec[from]))
+      const n = Math.trunc(Number(pick(from, to)))
       out.status = Number.isFinite(n) && n >= 0 && n <= 999 ? n : 0
     } else {
-      out[to] = cut(rec[from], EVENT_CAPS[to])
+      out[to] = cut(pick(from, to), EVENT_CAPS[to])
     }
   }
   return out
+}
+
+/**
+ * The unsent queue in a Web Storage area (sessionStorage: this tab only, gone
+ * when the tab closes). Every call is silent: no storage, a full quota or a
+ * corrupt entry reads as an empty queue and writes as a no-op.
+ *
+ * @param {Storage | null | undefined} storage
+ * @param {string} [key]
+ * @returns {{ load: () => object[], save: (queue: object[]) => void }}
+ */
+export function createQueueStore(storage, key = EVENT_QUEUE_STORE_KEY) {
+  return {
+    load() {
+      try {
+        const raw = storage ? storage.getItem(key) : null
+        const arr = raw ? JSON.parse(raw) : []
+        if (!Array.isArray(arr)) return []
+        return arr.map(storedEvent).filter(Boolean).slice(-EVENT_QUEUE_MAX)
+      } catch {
+        return []
+      }
+    },
+    save(queue) {
+      try {
+        if (!storage) return
+        if (queue.length) storage.setItem(key, JSON.stringify(queue))
+        else storage.removeItem(key)
+      } catch {
+        /* quota or blocked storage: the queue still lives in memory */
+      }
+    },
+  }
+}
+
+/** The browser tab's sessionStorage, or null (node, blocked storage). */
+function tabStorage() {
+  try {
+    return typeof window !== 'undefined' && window.sessionStorage ? window.sessionStorage : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -148,6 +210,28 @@ function shipperOptions(opts) {
     setTimer: opts.setTimer || ((fn, ms) => setTimeout(fn, ms)),
     clearTimer: opts.clearTimer || ((h) => clearTimeout(h)),
     delay: Number.isFinite(opts.delayMs) && opts.delayMs >= 0 ? opts.delayMs : EVENT_FLUSH_DELAY_MS,
+    store: opts.store === undefined ? createQueueStore(tabStorage()) : opts.store,
+  }
+}
+
+/**
+ * The shipper's queue of wire-form events, oldest first, capped at
+ * EVENT_QUEUE_MAX (the oldest go first), mirrored to `store` on every change.
+ * @param {{ load: () => object[], save: (queue: object[]) => void } | null} store
+ */
+function persistedQueue(store) {
+  let items = store ? store.load() : []
+  const save = () => { if (store) store.save(items) }
+  return {
+    get length() { return items.length },
+    head: (n) => items.slice(0, n),
+    push(ev) {
+      items.push(ev)
+      if (items.length > EVENT_QUEUE_MAX) items.splice(0, items.length - EVENT_QUEUE_MAX)
+      save()
+    },
+    drop(n) { items.splice(0, n); save() },
+    clear() { items = []; save() },
   }
 }
 
@@ -159,19 +243,24 @@ function shipperOptions(opts) {
  * signed-in human belongs to nobody's log). Signed in, a flush runs
  * EVENT_FLUSH_DELAY_MS after the first queued record.
  *
+ * The queue is mirrored to `store` (default: the tab's sessionStorage; null =
+ * memory only) on every change and read back at creation, so what a reload
+ * cut off ships on the next load. A batch leaves the store only once the hub
+ * answered for it: a reload during its POST sends it again (at least once).
+ *
  * @param {{
  *   client: ReturnType<typeof createEventsClient>,
  *   session: () => string,
  *   setTimer?: (fn: () => void, ms: number) => any,
  *   clearTimer?: (h: any) => void,
  *   delayMs?: number,
+ *   store?: { load: () => object[], save: (queue: object[]) => void } | null,
  * }} opts
  */
 export function createEventShipper(opts) {
-  const { client, session, setTimer, clearTimer, delay } = shipperOptions(opts)
+  const { client, session, setTimer, clearTimer, delay, store } = shipperOptions(opts)
 
-  /** @type {object[]} */
-  let queue = []
+  const queue = persistedQueue(store)
   let timer = null
   let busy = false
   let failures = 0
@@ -192,7 +281,6 @@ export function createEventShipper(opts) {
       const ev = toEventPayload(rec)
       if (!ev) return
       queue.push(ev)
-      if (queue.length > EVENT_QUEUE_MAX) queue.splice(0, queue.length - EVENT_QUEUE_MAX)
       if (st === 'in') schedule(delay)
     } catch {
       /* the shipper must never become an error of its own */
@@ -203,22 +291,22 @@ export function createEventShipper(opts) {
   async function flush() {
     if (busy) return 0
     const st = session()
-    if (st === 'out') { queue = []; return 0 }
+    if (st === 'out') { queue.clear(); return 0 }
     if (st !== 'in' || !queue.length) return 0
     busy = true
     let sent = 0
     try {
       while (queue.length) {
-        const batch = queue.slice(0, EVENT_BATCH_MAX)
+        const batch = queue.head(EVENT_BATCH_MAX)
         const res = await client.add(batch)
         const next = batchVerdict(res, failures)
         failures = next.failures
-        if (next.verdict === 'clear') { queue = []; break }
+        if (next.verdict === 'clear') { queue.clear(); break }
         if (next.verdict === 'retry') {
           schedule(res.retryAfter > 0 ? res.retryAfter * 1000 : delay * 2 ** failures)
           break
         }
-        queue.splice(0, batch.length)
+        queue.drop(batch.length)
         if (next.verdict === 'sent') sent += batch.length
       }
     } catch {
@@ -233,7 +321,7 @@ export function createEventShipper(opts) {
   function sessionChanged() {
     const st = session()
     if (st === 'out') {
-      queue = []
+      queue.clear()
       stop()
     } else if (st === 'in' && queue.length) {
       schedule(0)
@@ -243,6 +331,8 @@ export function createEventShipper(opts) {
   function stop() {
     if (timer != null) { clearTimer(timer); timer = null }
   }
+
+  sessionChanged() // what the last page left unsent: ship it, drop it, or wait
 
   return { note, flush, sessionChanged, stop, size: () => queue.length }
 }

@@ -80,9 +80,14 @@ Body `{}` (any field = `400`). Deletes every row of the caller.
   journals transport failures) and never `noteError`. A failed POST retries
   on transport/5xx/429 (≤ 3, backoff or `Retry-After`) and is then dropped;
   401/403 drop the queue; other 4xx drop the batch.
+- **Survives a reload** (SPL-7): the unsent queue (wire form, ≤ 100) is
+  mirrored to the tab's `sessionStorage` (`spl.event-log.queue.v1`) on every
+  change and shipped on the next load once signed in; signed out, it is
+  dropped there too. A batch leaves the store only when the hub answered, so
+  a reload mid-POST sends it again (at least once). No storage = memory only.
 - **Snackbar**: slides down from the top, newest first, ≤ 3 rows; an identical
   error within 5 s bumps a ×N count; 8 s on screen after its last occurrence,
   paused while hovered or focused; close button; `role="alert"`.
 - **Event log page**: `/events`, from the left rail's icon directly after Flow.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:45:00Z -->
+<!-- version: 1.1.0 · updated: 2026-10-13 · last-edit: 2026-10-13T00:00:00Z -->

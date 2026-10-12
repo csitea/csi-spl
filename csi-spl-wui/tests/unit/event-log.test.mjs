@@ -8,9 +8,12 @@ import { fileURLToPath } from 'node:url'
 
 import {
   EVENT_BATCH_MAX,
+  EVENT_QUEUE_MAX,
+  EVENT_QUEUE_STORE_KEY,
   EVENT_RETRY_MAX,
   bindShipperToJournal,
   createEventShipper,
+  createQueueStore,
   createEventsClient,
   eventsErrorKey,
   toEventPayload,
@@ -191,5 +194,119 @@ describe('bindShipperToJournal', () => {
     fire([rec({ seq: 1 }), rec({ seq: 2 }), rec({ seq: 3 })])
     fire([rec({ seq: 1 }), rec({ seq: 2 }), rec({ seq: 3 })])
     assert.deepEqual(seen, [1, 2, 3])
+  })
+})
+
+// SPL-7 (owner topic 4335f075): an error the shipper could not send yet must
+// survive a page reload and ship on the next load.
+function fakeStorage(init = {}) {
+  const m = new Map(Object.entries(init))
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => { m.set(k, String(v)) },
+    removeItem: (k) => { m.delete(k) },
+    map: m,
+  }
+}
+
+describe('unsent queue survives a reload (SPL-7)', () => {
+  it('a 5xx leaves the event in storage; the next page load ships it', async () => {
+    const storage = fakeStorage()
+    const f1 = fakeFetch([{ status: 503 }])
+    const t1 = manualTimers()
+    const s1 = createEventShipper({ client: createEventsClient({ fetchFn: f1.fn }), session: () => 'in', store: createQueueStore(storage), ...t1 })
+    s1.note(rec())
+    t1.pending.shift().fn()
+    await new Promise((r) => setTimeout(r, 0))
+    assert.equal(f1.calls.length, 1)
+    const kept = JSON.parse(storage.getItem(EVENT_QUEUE_STORE_KEY))
+    assert.equal(kept.length, 1)
+    assert.equal(kept[0].error_id, 'ERR-CLIENT-20260925-190000-ABCD')
+    // reload: the old page and its timers are gone, a new shipper boots signed in
+    const f2 = fakeFetch([{ status: 200 }])
+    const t2 = manualTimers()
+    const s2 = createEventShipper({ client: createEventsClient({ fetchFn: f2.fn }), session: () => 'in', store: createQueueStore(storage), ...t2 })
+    assert.equal(s2.size(), 1)
+    await t2.runAll()
+    assert.equal(f2.calls.length, 1)
+    assert.deepEqual(f2.calls[0].body.events, kept)
+    assert.equal(storage.getItem(EVENT_QUEUE_STORE_KEY), null)
+  })
+
+  it('a session still loading at boot waits, then ships the stored queue', async () => {
+    const storage = fakeStorage({ [EVENT_QUEUE_STORE_KEY]: JSON.stringify([toEventPayload(rec())]) })
+    let st = 'loading'
+    const f = fakeFetch([{ status: 200 }])
+    const t = manualTimers()
+    const s = createEventShipper({ client: createEventsClient({ fetchFn: f.fn }), session: () => st, store: createQueueStore(storage), ...t })
+    assert.equal(t.pending.length, 0)
+    st = 'in'
+    s.sessionChanged()
+    await t.runAll()
+    assert.equal(f.calls.length, 1)
+    assert.equal(s.size(), 0)
+  })
+
+  it('signed out at boot or later: the stored queue is dropped, never sent', async () => {
+    const storage = fakeStorage({ [EVENT_QUEUE_STORE_KEY]: JSON.stringify([toEventPayload(rec())]) })
+    const f = fakeFetch([{ status: 200 }])
+    const t = manualTimers()
+    createEventShipper({ client: createEventsClient({ fetchFn: f.fn }), session: () => 'out', store: createQueueStore(storage), ...t })
+    await t.runAll()
+    assert.equal(f.calls.length, 0)
+    assert.equal(storage.getItem(EVENT_QUEUE_STORE_KEY), null)
+  })
+
+  it('a 401 clears the store too', async () => {
+    const storage = fakeStorage()
+    const f = fakeFetch([{ status: 401 }])
+    const t = manualTimers()
+    const s = createEventShipper({ client: createEventsClient({ fetchFn: f.fn }), session: () => 'in', store: createQueueStore(storage), ...t })
+    s.note(rec())
+    assert.notEqual(storage.getItem(EVENT_QUEUE_STORE_KEY), null)
+    await t.runAll()
+    assert.equal(storage.getItem(EVENT_QUEUE_STORE_KEY), null)
+  })
+
+  it('reads back only capped wire fields, at most EVENT_QUEUE_MAX; junk reads as empty', () => {
+    const big = { ...toEventPayload(rec()), message: 'x'.repeat(5000), body: 'secret', status: 'nope' }
+    const many = Array.from({ length: EVENT_QUEUE_MAX + 7 }, () => big)
+    const got = createQueueStore(fakeStorage({ [EVENT_QUEUE_STORE_KEY]: JSON.stringify([...many, 'junk', null, [1]]) })).load()
+    assert.equal(got.length, EVENT_QUEUE_MAX)
+    assert.equal(got[0].message.length, 800)
+    assert.equal(got[0].status, 0)
+    assert.equal('body' in got[0], false)
+    for (const raw of ['{not json', '{"a":1}', '"x"']) {
+      assert.deepEqual(createQueueStore(fakeStorage({ [EVENT_QUEUE_STORE_KEY]: raw })).load(), [])
+    }
+    assert.deepEqual(createQueueStore(null).load(), [])
+  })
+
+  it('a throwing storage (quota, blocked) never breaks the shipper', async () => {
+    const bad = { getItem: () => { throw new Error('SecurityError') }, setItem: () => { throw new Error('QuotaExceeded') }, removeItem: () => { throw new Error('x') } }
+    const f = fakeFetch([{ status: 200 }])
+    const t = manualTimers()
+    const s = createEventShipper({ client: createEventsClient({ fetchFn: f.fn }), session: () => 'in', store: createQueueStore(bad), ...t })
+    s.note(rec())
+    await t.runAll()
+    assert.equal(f.calls.length, 1)
+    assert.equal(s.size(), 0)
+  })
+
+  it('by default the browser tab sessionStorage holds the queue; null = memory only', () => {
+    const storage = fakeStorage()
+    globalThis.window = { sessionStorage: storage }
+    try {
+      const t = manualTimers()
+      const s = createEventShipper({ client: createEventsClient({ fetchFn: fakeFetch([{ status: 200 }]).fn }), session: () => 'loading', ...t })
+      s.note(rec())
+      assert.equal(JSON.parse(storage.getItem(EVENT_QUEUE_STORE_KEY)).length, 1)
+      storage.removeItem(EVENT_QUEUE_STORE_KEY)
+      const m = createEventShipper({ client: createEventsClient({ fetchFn: fakeFetch([{ status: 200 }]).fn }), session: () => 'loading', store: null, ...t })
+      m.note(rec())
+      assert.equal(storage.getItem(EVENT_QUEUE_STORE_KEY), null)
+    } finally {
+      delete globalThis.window
+    }
   })
 })

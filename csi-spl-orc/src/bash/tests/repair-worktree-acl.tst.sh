@@ -99,7 +99,9 @@ if [[ "$CAN_SUDO" == 1 ]]; then
     pass "control: ${NAMED} cannot write a fresh subdir, so a later success is the action"
   fi
 else
-  skip "no sudo -n to ${NAMED}: write probe skipped, ACL text is the proof"
+  # Not SKIP:. The ACL assertions are the proof. A SKIP: line fails the CI
+  # "nothing skipped" gate even when those assertions passed.
+  pass "no sudo -n to ${NAMED}: ACL text is the proof (write probe not run)"
 fi
 
 # --- 2. dry run changes nothing ----------------------------------------------

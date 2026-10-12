@@ -45,6 +45,7 @@ bash -n "$FUNC" || { echo "FAIL: bash -n"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/state" "$T/pkg"
 export STATE="$T/state" RUN_LOG="$T/run.log" MUT_LOG="$T/mut.log" SYSD_LOG="$T/sysd.log" UNIT_DIR="$T/units"
+export DROPIN="$T/home/.config/systemd/user/docker.service.d/50-port-range.conf"
 
 # sudo: drop -u/-U, record root-side mutations, exec the rest as this user
 cat >"$T/bin/sudo" <<'EOF'
@@ -104,7 +105,11 @@ cat >"$T/bin/systemctl" <<'EOF'
 [[ "$1 $3 $4" == "show -p ControlGroup" ]] && { echo "/system.slice/$2"; exit 0; }
 [[ "$*" == "--user is-active --quiet docker" ]] && { [[ -e "$STATE/rootless" ]]; exit; }
 [[ "$*" == "--user is-enabled --quiet docker" ]] && { [[ -e "$STATE/enabled" ]]; exit; }
-[[ "$*" == "--user restart docker" ]] && { echo "systemctl $*" >>"$MUT_LOG"; echo "61000 65535" >"$STATE/range"; exit 0; }
+# dockerd-rootless.sh 29.x: detach-netns is on unless the drop-in turns it
+# off, and a detached dockerd stays on the host's range; "stuck" = a docker
+# that keeps it anyway
+[[ "$*" == "--user restart docker" ]] && { echo "systemctl $*" >>"$MUT_LOG"
+  grep -qx 'Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS=false' "$DROPIN" && [[ ! -e "$STATE/stuck" ]] && echo "61000 65535" >"$STATE/range"; exit 0; }
 [[ "$*" == "--user daemon-reload" ]] && { echo "systemctl $*" >>"$MUT_LOG"; exit 0; }
 [[ "$1 $2" == "--user enable" ]] && { echo "systemctl $*" >>"$MUT_LOG"; touch "$STATE/enabled"; exit 0; }
 exit 0
@@ -196,11 +201,12 @@ grep -q 'systemctl --user enable' "$MUT_LOG" && ok "the rootless docker unit is 
    && "$(grep -c '60-restart.conf' "$MUT_LOG")" == 2 ]] \
   && ok "every runner unit gets the Restart=always drop-in, then one daemon-reload" || no "restart drop-in: $(grep 60-restart "$MUT_LOG"; ls -R "$UNIT_DIR" 2>&1)"
 : >"$SYSD_LOG"
-[[ "$(cat "$T/home/.config/systemd/user/docker.service.d/50-port-range.conf" 2>/dev/null)" == "[Service]
-Environment=DOCKERD=$T/home/.local/bin/csi-spl-dockerd" && -x "$T/home/.local/bin/csi-spl-dockerd" ]] \
+[[ "$(cat "$DROPIN" 2>/dev/null)" == "[Service]
+Environment=DOCKERD=$T/home/.local/bin/csi-spl-dockerd
+Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS=false" && -x "$T/home/.local/bin/csi-spl-dockerd" ]] \
   && grep -q 'echo "61000 65535" >/proc/sys/net/ipv4/ip_local_port_range' "$T/home/.local/bin/csi-spl-dockerd" \
-  && ok "rootless docker gets the DOCKERD wrapper on 61000 65535 and its drop-in" || no "port range files: $(ls -R "$T/home" 2>&1)"
-[[ "$(grep -c -e '--user restart docker' -e '--user daemon-reload' "$MUT_LOG")" == 2 ]] && grep -q 'restarted (idle) onto ports 61000 65535 (was 32768 60999)' "$T/log" \
+  && ok "rootless docker gets the DOCKERD wrapper on 61000 65535 and its drop-in, detach-netns off" || no "port range files: $(ls -R "$T/home" 2>&1; cat "$DROPIN")"
+[[ "$(grep -c -e '--user restart docker' -e '--user daemon-reload' "$MUT_LOG")" == 2 ]] && grep -q 'restarted (idle) onto ports 61000 65535 (was 32768 60999, read back 61000 65535)' "$T/log" \
   && ok "an idle docker on the host's range: one daemon-reload, one restart onto 61000 65535" || no "port restart: $(grep -e --user "$MUT_LOG"; grep -i 'port' "$T/log")"
 # control: the wrapper itself sets the range and hands dockerd its arguments
 mkdir -p "$T/dk"; printf '#!/bin/sh\necho "dockerd $*" >"%s/dk/args"\n' "$T" >"$T/dk/dockerd"; chmod +x "$T/dk/dockerd"
@@ -229,6 +235,28 @@ GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && [[ "$(grep 
 for r in "70000 80000" "61000" "2000 1500" "100 2000"; do
   GH_RUNNER_DOCKER_PORT_RANGE="$r" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g act && no "port range '$r' must fail" || ok "GH_RUNNER_DOCKER_PORT_RANGE '$r' is refused"
 done
+
+# a box, 2026-10-12: the restart "worked" but dockerd's netns kept 32768 60999.
+# The range is read back after the restart: still the host's = FATAL, never OK
+rm -f "$STATE/range"; touch "$STATE/stuck"; : >"$T/log"
+GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && no "a restart that left 32768 60999 must fail" \
+  || { grep -q 'FATAL rootless docker of ghrunner restarted but its netns still publishes in 32768 60999, not 61000 65535' "$T/log" && ! grep -q 'OK rootless docker of ghrunner restarted' "$T/log" \
+       && ok "a restart that leaves dockerd on the host's range is FATAL, read back from its netns" || no "stuck read-back: $(grep -i port "$T/log")"; }
+# controls: each half of the fix, taken out of a copy, turns a check red
+mkdir -p "$T/run"; ln -sf "${FUNC%/*}/apply-gh-runner-cpu-budget.func.sh" "$T/run/"
+sed -e '/^  until now=/,/^    || { do_log "FATAL rootless docker of \$u restarted but/d' -e 's/, read back \$now//' "$FUNC" >"$T/run/no-readback.func.sh"
+: >"$T/log"
+FUNC="$T/run/no-readback.func.sh" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act \
+  && ok "control: without the read-back the same stuck restart says OK (the check above can red)" || no "control read-back: $(cat "$T/log")"
+rm -f "$STATE/stuck" "$STATE/range"
+sed 's/\\nEnvironment=DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS=false//g' "$FUNC" >"$T/run/no-detach.func.sh"
+: >"$T/log"
+FUNC="$T/run/no-detach.func.sh" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && no "control: a drop-in without detach-netns off must fail" \
+  || { grep -q 'FATAL .*still publishes in 32768 60999' "$T/log" && ! grep -q DETACH_NETNS "$DROPIN" \
+       && ok "control: without the detach-netns line the range stays the host's and the read-back FATALs" || no "control detach: $(tail -2 "$T/log"; cat "$DROPIN")"; }
+: >"$T/log"
+GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && grep -qx 'Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS=false' "$DROPIN" && [[ "$(cat "$STATE/range")" == "61000 65535" ]] \
+  && ok "...and the real action rewrites that drop-in and lands on 61000 65535" || no "repair: $(tail -2 "$T/log"; cat "$DROPIN")"
 
 # the sat 2026-10-08 state: docker running (started by hand) but disabled
 rm -f "$STATE/enabled"; : >"$T/log"; : >"$MUT_LOG"; : >"$SYSD_LOG"

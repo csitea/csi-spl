@@ -240,11 +240,17 @@ ghr_setup_user() {
 # GHR_PORT_RANGE as ip_local_port_range BEFORE dockerd starts (its port
 # allocator reads it once): the rootless launcher execs $DOCKERD, so a drop-in
 # points DOCKERD at a wrapper that writes the sysctl (it runs as root of the
-# netns) and execs dockerd. A live docker on another range is restarted only
-# while no job runs on this box (no Runner.Worker of the user); a busy one is
-# a WARN, and the next apply restarts it
+# netns) and execs dockerd. The drop-in also turns rootlesskit's detach-netns
+# mode off: dockerd-rootless.sh of docker-ce-rootless-extras 29.x defaults
+# DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS to true (its line 120), which
+# keeps dockerd in the host's netns, where the wrapper cannot write the sysctl
+# and the allocator reads the host's range (a box, 2026-10-12: "restarted onto
+# 61000 65535" logged, 32768 60999 live). A live docker on another range is
+# restarted only while no job runs on this box (no Runner.Worker of the user);
+# a busy one is a WARN, and the next apply restarts it. After a restart the
+# range is read back from dockerd's netns: a different one is FATAL
 ghr_docker_port_range() {
-  local u="$GHR_USER" bin="$GH_RUNNER_HOME/.local/bin/csi-spl-dockerd" live child changed=0
+  local u="$GHR_USER" bin="$GH_RUNNER_HOME/.local/bin/csi-spl-dockerd" live now changed=0 t=0
   local dropin="$GH_RUNNER_HOME/.config/systemd/user/docker.service.d/50-port-range.conf" want
   want="$(printf '#!/bin/sh\n# csi-spl (do_gh_runner_add): publish ports in %s, never in the host'"'"'s ephemeral range\necho "%s" >/proc/sys/net/ipv4/ip_local_port_range || echo "csi-spl-dockerd: cannot set ip_local_port_range" >&2\nexec dockerd "$@"' "$GHR_PORT_RANGE" "$GHR_PORT_RANGE")"
   if [[ "$(ghr_as "$u" cat "$bin" 2>/dev/null)" != "$want" ]]; then
@@ -252,14 +258,13 @@ ghr_docker_port_range() {
       || { do_log "FATAL cannot write $bin"; return 1; }
     changed=1
   fi
-  if [[ "$(ghr_as "$u" cat "$dropin" 2>/dev/null)" != "$(printf '[Service]\nEnvironment=DOCKERD=%s' "$bin")" ]]; then
-    printf '[Service]\nEnvironment=DOCKERD=%s\n' "$bin" | ghr_as "$u" sh -c 'mkdir -p "${1%/*}" && cat >"$1"' _ "$dropin" \
+  if [[ "$(ghr_as "$u" cat "$dropin" 2>/dev/null)" != "$(printf '[Service]\nEnvironment=DOCKERD=%s\nEnvironment=DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS=false' "$bin")" ]]; then
+    printf '[Service]\nEnvironment=DOCKERD=%s\nEnvironment=DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS=false\n' "$bin" | ghr_as "$u" sh -c 'mkdir -p "${1%/*}" && cat >"$1"' _ "$dropin" \
       || { do_log "FATAL cannot write $dropin"; return 1; }
     changed=1
   fi
   ((changed)) && { ghr_as "$u" systemctl --user daemon-reload || return 1; do_log "OK rootless docker of $u publishes ports in $GHR_PORT_RANGE (drop-in $dropin)"; }
-  child="$(sudo cat "/run/user/$GHR_UID/dockerd-rootless/child_pid" 2>/dev/null)"
-  [[ "$child" =~ ^[0-9]+$ ]] && live="$(ghr_as "$u" nsenter -U --preserve-credentials -n -t "$child" cat /proc/sys/net/ipv4/ip_local_port_range 2>/dev/null | tr -s ' \t' ' ')"
+  live="$(ghr_docker_live_range)"
   [[ "$live" == "$GHR_PORT_RANGE" ]] && return 0
   if pgrep -u "$u" -x Runner.Worker >/dev/null 2>&1; then
     do_log "WARN rootless docker of $u still publishes in ${live:-an unknown range}: a job runs, so it is not restarted now - re-run APPLY=1 when the runners are idle"
@@ -267,7 +272,21 @@ ghr_docker_port_range() {
   fi
   ghr_as "$u" systemctl --user restart docker && ghr_as "$u" systemctl --user is-active --quiet docker \
     || { do_log "FATAL rootless docker of $u did not come back after the restart"; return 1; }
-  do_log "OK rootless docker of $u restarted (idle) onto ports $GHR_PORT_RANGE (was ${live:-unknown})"
+  # the new rootlesskit rewrites child_pid: give it a moment
+  until now="$(ghr_docker_live_range)"; [[ "$now" == "$GHR_PORT_RANGE" ]] || ((t++ >= 10)); do sleep 1; done
+  [[ "$now" == "$GHR_PORT_RANGE" ]] \
+    || { do_log "FATAL rootless docker of $u restarted but its netns still publishes in ${now:-an unknown range}, not $GHR_PORT_RANGE: sudo -u $u XDG_RUNTIME_DIR=/run/user/$GHR_UID journalctl --user -u docker"; return 1; }
+  do_log "OK rootless docker of $u restarted (idle) onto ports $GHR_PORT_RANGE (was ${live:-unknown}, read back $now)"
+}
+
+# ghr_docker_live_range - echo ip_local_port_range as dockerd sees it, in the
+# netns of the rootlesskit child (dockerd itself): "<lo> <hi>", empty when
+# there is no child to read
+ghr_docker_live_range() {
+  local child
+  child="$(sudo cat "/run/user/$GHR_UID/dockerd-rootless/child_pid" 2>/dev/null)"
+  [[ "$child" =~ ^[0-9]+$ ]] || return 0
+  ghr_as "$GHR_USER" nsenter -U --preserve-credentials -n -t "$child" cat /proc/sys/net/ipv4/ip_local_port_range 2>/dev/null | tr -s ' \t' ' '
 }
 
 # ghr_docker <cmd...> - run against the runner user's rootless docker

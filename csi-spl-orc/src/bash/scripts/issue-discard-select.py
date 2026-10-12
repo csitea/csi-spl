@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """The plan of do_spl_issue_discard_stale (spl-issue-discard-stale.func.sh).
 
-argv: WORK CUTOFF KEEP_LABELS WIP_DAYS TRIAGE_MIN_VOTES NOW. WORK holds
+argv: WORK CUTOFF KEEP_LABELS WIP_DAYS TRIAGE_MIN_VOTES NOW [KEYS_ONLY]. WORK holds
 open.json (the open issues), lanes.txt, commits.txt ("<sha> <unix time>
 <KEY>...") and triage.tsv. Prints one TSV line per item to discard: key,
 status, last update, reason code, reason, title; the kept counts per guard go
-to stderr. A fixed rule, no judgement per item.
+to stderr. A fixed rule, no judgement per item. KEYS_ONLY, a keys file (first
+word a line), makes it the selection: only those keys, no recency cutoff, no
+wip window, no landed-sha guard; the keep label, the live assignee and the
+open child still keep an item.
 """
 
 import datetime as dt, json, re, sys
 
-work, cut, labels, wipdays, minvotes, now = sys.argv[1:]
+work, cut, labels, wipdays, minvotes, now = sys.argv[1:7]
+keys_only = sys.argv[7] if len(sys.argv) > 7 else ""
 
 
 def ts(s):
@@ -65,6 +69,9 @@ def guard(i, up):
 
 
 cand, kept = {}, {}
+listed = set()
+if keys_only:
+    listed = {l.split()[0] for l in open(keys_only, encoding="utf-8") if l.split()}
 
 
 def keep(why):
@@ -73,6 +80,15 @@ def keep(why):
 
 for i in issues:
     up = ts(i.get("updated_at"))
+    if keys_only:
+        if i["key"] not in listed:
+            continue
+        g = guard(i, up)
+        if g in ("label", "live-lane"):
+            keep(g)
+        else:
+            cand[i["key"]] = ("KEYS", "the issue check's verdict: outdated")
+        continue
     g = guard(i, up)
     if i["key"] in triage and g != "label":
         cand[i["key"]] = (
@@ -122,6 +138,9 @@ for i in issues:
                 ]
             )
         )
+if keys_only:
+    keep_open = {i["key"] for i in issues}
+    kept["not-open"] = len(listed - keep_open)
 sys.stderr.write(
     "KEPT open=%d %s\n"
     % (len(issues), " ".join("%s=%d" % kv for kv in sorted(kept.items())))

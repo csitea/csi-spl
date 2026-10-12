@@ -6,7 +6,8 @@
 # a recently active wip and an epic with an open child are not. Each guard has
 # a control that switches only that guard off and must then list the item.
 # DRY_RUN=0 comments and sets diss, never deletes, and writes a 0600 undo file;
-# ISSUE_KEYS_FILE narrows it to the listed keys the rule also selects.
+# ISSUE_KEYS_FILE narrows it to the listed keys the rule also selects;
+# ISSUE_KEYS_ONLY=1 makes the file the selection, the keep guards still apply.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -153,6 +154,26 @@ upd=$(grep '|update|' "$T/issue.log" | sed -n 's/.*|--ref|\([^|]*\)|--status|dis
 run ISSUE_KEYS_FILE="$T/missing.keys"
 [[ $RC -ne 0 ]] && grep -q 'ISSUE_KEYS_FILE is not a readable file' "$T/o" && ! grep -q '|list|' "$T/issue.log" &&
   pass "a missing keys file is refused before any hub call" || fail "missing keys file (rc=$RC): $(cat "$T/o")"
+
+
+# ISSUE_KEYS_ONLY=1: the keys file selects. Recent SPL-2 and sha-guarded SPL-3
+# are planned; the keep label (SPL-6), the live assignee (SPL-5) and the open
+# child (epic SPL-10) still keep; unlisted stale SPL-1 and triage SPL-20 are not
+# planned; SPL-99 is not open.
+printf 'SPL-2\nSPL-3\nSPL-5\nSPL-6\nSPL-10\nSPL-99\n' >"$T/ko.keys"
+run ISSUE_KEYS_ONLY=1 ISSUE_KEYS_FILE="$T/ko.keys"
+[[ $RC -eq 0 && "$(cat "$T/keys")" == "SPL-2 SPL-3 " ]] &&
+  grep -q 'label=1' "$T/o" && grep -q 'live-lane=1' "$T/o" && grep -q 'open-child=1' "$T/o" && grep -q 'not-open=1' "$T/o" &&
+  grep -qP '^SPL-2\ttodo\t.*\tKEYS\t' "$T/plan.tsv" && ! grep -q '|update|' "$T/issue.log" &&
+  pass "ISSUE_KEYS_ONLY=1 plans the listed keys past the cutoff; label, live lane and open child still keep" ||
+  fail "keys only (rc=$RC) keys '$(cat "$T/keys")': $(cat "$T/o")"
+run ISSUE_KEYS_FILE="$T/ko.keys"
+[[ $RC -eq 0 && -z "$(cat "$T/keys")" ]] &&
+  pass "control: without ISSUE_KEYS_ONLY the same keys file plans none of them (recent, sha, guards)" ||
+  fail "control keys only (rc=$RC) keys '$(cat "$T/keys")': $(cat "$T/o")"
+run ISSUE_KEYS_ONLY=1
+[[ $RC -ne 0 ]] && grep -q 'ISSUE_KEYS_ONLY=1 needs ISSUE_KEYS_FILE' "$T/o" && ! grep -q '|list|' "$T/issue.log" &&
+  pass "ISSUE_KEYS_ONLY=1 without a keys file is refused before any hub call" || fail "keys only no file (rc=$RC): $(cat "$T/o")"
 
 echo "spl-issue-discard-stale: $fails failure(s)"
 (( fails == 0 ))

@@ -18,6 +18,9 @@
 # @description comments the reason on each, sets it to diss, never deletes, and
 # @description writes an undo file (0600) with one command per item. ISSUE_KEYS_FILE
 # @description (an agent check's verdicts) narrows the plan to those keys.
+# @description ISSUE_KEYS_ONLY=1 makes that file the selection instead: its open
+# @description keys, without the recency cutoff, the wip window or the sha guard;
+# @description the keep label, a live assignee and an open child still keep one.
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent the hub reads and writes as
@@ -30,6 +33,7 @@
 # @param ISSUE_TRIAGE_MIN_VOTES (optional) - default 4
 # @param ISSUE_LIMIT (optional) - list page size 1..500, default 50 (one 100-row open page closed the prd socket)
 # @param ISSUE_KEYS_FILE (optional) - keys, one a line (an agent check's verdicts): only those that the rule also selects are planned and discarded
+# @param ISSUE_KEYS_ONLY (optional) - 0 (default) or 1: ISSUE_KEYS_FILE selects, the recency, wip and sha guards are off
 # @param ISSUE_PLAN (optional) - plan path; default $SPL_STATE_DIR/issue-discard/<tenant>-<utc>.plan.tsv
 # @param ISSUE_UNDO (optional) - undo path; default the plan path, .undo.sh
 # @param DESK_BOX (optional) - default box-desk
@@ -60,6 +64,10 @@ spl_issue_discard_check() {
   [[ "${ISSUE_WIP_DAYS:-7}" =~ ^[0-9]+$ ]] || { do_log "FATAL ISSUE_WIP_DAYS must be a whole number, got: '${ISSUE_WIP_DAYS:-}'"; return 1; }
   [[ "${ISSUE_TRIAGE_MIN_VOTES:-4}" =~ ^[1-9][0-9]*$ ]] ||
     { do_log "FATAL ISSUE_TRIAGE_MIN_VOTES must be 1 or more, got: '${ISSUE_TRIAGE_MIN_VOTES:-}'"; return 1; }
+  [[ "${ISSUE_KEYS_ONLY:-0}" =~ ^[01]$ ]] ||
+    { do_log "FATAL ISSUE_KEYS_ONLY must be 0 or 1, got: '${ISSUE_KEYS_ONLY:-}'"; return 1; }
+  [[ "${ISSUE_KEYS_ONLY:-0}" == 0 || -n "${ISSUE_KEYS_FILE:-}" ]] ||
+    { do_log "FATAL ISSUE_KEYS_ONLY=1 needs ISSUE_KEYS_FILE"; return 1; }
   [[ -z "${ISSUE_KEYS_FILE:-}" || -r "$ISSUE_KEYS_FILE" ]] ||
     { do_log "FATAL ISSUE_KEYS_FILE is not a readable file: '$ISSUE_KEYS_FILE'"; return 1; }
   [[ -z "${ISSUE_TRIAGE_TSV:-}" || -r "$ISSUE_TRIAGE_TSV" ]] ||
@@ -156,7 +164,8 @@ spl_issue_discard_only_keys() {
 # reason, title); the kept counts per guard go to stderr.
 spl_issue_discard_select() {
   python3 "$PROJ_PATH/src/bash/scripts/issue-discard-select.py" "$1" "${ISSUE_STALE_BEFORE:-2026-09-30}" \
-    "${ISSUE_KEEP_LABELS-needs-owner,keep}" "${ISSUE_WIP_DAYS:-7}" "${ISSUE_TRIAGE_MIN_VOTES:-4}" "${ISSUE_NOW:-}"
+    "${ISSUE_KEEP_LABELS-needs-owner,keep}" "${ISSUE_WIP_DAYS:-7}" "${ISSUE_TRIAGE_MIN_VOTES:-4}" "${ISSUE_NOW:-}" \
+    "$( [[ "${ISSUE_KEYS_ONLY:-0}" == 1 ]] && printf '%s' "$ISSUE_KEYS_FILE" )"
 }
 
 # spl_issue_discard_finish PLAN DRY: the counts; the plan, or the discard.

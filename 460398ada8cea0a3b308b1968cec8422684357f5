@@ -1,0 +1,6 @@
+Lay-What: The text under each heading of a document in Docs now shows its formatting: bold, lists, links, code and tables, the same way a message does.
+Lay-How: You read the formatted text; a click or tap on it opens the plain text for editing, and leaving it shows the formatted text again.
+Lay-Why: The owner asked that documents format their text like the message cards; before, the raw marks such as two stars stayed visible.
+Tech-What: WorkspaceDocView renders every non-blank section body through MarkdownBlock bare (as MessageBody does), the textarea only while editing.
+Tech-How: paraRuns (-doc-pics.ts) splits a body into text runs and figures; each run is an MdRun (MarkdownBlock h() tree, plain text until the lazy chunk); click, Enter or focus opens the textarea; blur reads again after the save resolves.
+Tech-Why: Only a paragraph with pictures had a read view, and it printed each text run as plain text, so markdown in a body was never rendered.

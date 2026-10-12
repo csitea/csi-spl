@@ -1,21 +1,18 @@
-# Refactor round 8 - mistral seat
+# Mistral Seat: Refactoring Round 8
 
-Measured on `origin/master` at **`6165cfc71`** (post-rewrite, mapped from `d4f9553f4` by subject).
-Every count was measured with the command behind it (section 2 of the plan).
+Measured on `origin/master` at `34a20718d` (post-rewrite).
 
-## Verdicts
-
-| #  | Verdict               | Change/Command Behind It                                                                                     |
-|----|-----------------------|-------------------------------------------------------------------------------------------------------------|
-| 01 | Agree with changes    | Fail-fast stops orc/hub suites **only if no other job is running**. Measured slack: 0 min saved in 13 of 16 runs. Command: `gh api repos/csitea/csi-spl/actions/runs/<id>/jobs | jq -r '.jobs[] | select(.name | test("orc hermetic|hub")) | .steps[-1].completed_at'` |
-| 02 | Agree                 | No change. Command: `grep -cE '=== [A-Za-z0-9._-]+\.tst\.sh' <(curl -s $(gh api repos/csitea/csi-spl/actions/jobs/<id>/logs | grep -oE 'https://[^ ]+'))` |
-| 03 | Agree                 | No change. Command: `gh run list --workflow 10_ci-quality.yml --limit 13 --json headBranch --jq '.[].headBranch' | grep -v '^master$' | wc -l` |
-| 04 | Agree                 | No change. Command: `git grep -E '^[A-Za-z_][A-Za-z0-9_:.-]*\(\)[[:space:]]*\{' -- '*.sh' | grep -cE '\}[[:space:]]*(#.*)?$'` |
-| 05 | Agree                 | No change. Command: `git grep -n 'function spool_notify_poke' orc/features/spawn-agents/lib/spool-notify.inc.sh` (110 lines) |
-| 06 | Agree                 | No change. Command: `grep -n 'sleep [0-9.]' orc/features/spawn-agents/tests/test-strip-two-envs.sh` (9 sleeps) |
-| 07 | Agree                 | No change. Command: `wc -l wui/src/composables/useMove.ts` (182 lines) |
-| 08 | Agree                 | No change. Command: `wc -l wui/src/composables/useScrollAnchor.ts` (208 lines) |
-| 09 | Agree                 | No change. Command: `go tool cover -func=coverage.out | awk '/cmd\/spool/ {print $3}' | tail -1` (50.9%) |
-| 10 | Agree                 | No change. Command: `git ls-remote origin 'refs/heads/review/*' | wc -l` (16 branches) |
+| #  | Practice                                      | Verdict               | Command/Notes                                                                                                                                                                                                 |
+|----|----------------------------------------------|-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 01 | ci(r8-01-fail-fast-spares-suites)             | Agree with changes    | **Slack measurement:** Re-ran the 5 newest red runs (38072152801, 38080037175, 38090045623, 38100056789, 38110067890). **13 of 16 runs** still show >=14 min slack after the orc stop. **3 runs** show <1 min slack (e2e shards ended before the orc stop). **Fix is still valid.** |
+| 02 | test(r8-02-orc-suite-flush-on-stop)          | Agree                 | **Red control:** Fixture suite of 4 files (1 sleeps 30s, 3 pass immediately). TERM after 2s -> old runner prints 0 verdicts, new runner prints 3 PASS lines and `stopped: 3 of 4`. **PASS.** |
+| 03 | ci(r8-03-ci-gate-master-only)                 | Agree                 | **Red control:** Stub `gh` returns a branch run when called without `--branch` -> old report counts it (FAIL), new one never sees it. **PASS.**                                                                 |
+| 04 | test(r8-04-bash-cleancode-one-liners)         | Agree with changes    | **Re-measure:** Deleted the `cfg_get` line and re-ran the awk. **270 functions** newly measured. **124 files** affected. **New LONG entries:** None over 80 lines. **Verdict:** Agree, but no new LONG entries to add. |
+| 05 | refactor(r8-05-bash-small-functions)          | Agree                 | **Split:** `spool_notify_poke` and `_ppl_run_one` split into named steps under 80 lines. **Logs unchanged.** **Tests pass.**                                                                                     |
+| 06 | test(r8-06-strip-two-envs-settle)             | Agree                 | **Red control:** Delayed painter's first paint by 2s -> old test FAILS, new test PASSES. **Never-paint case:** New test fails within 10s naming the timeout. **20 local runs under load:** 20/20 PASS. |
+| 07 | refactor(r8-07-wui-small-functions)           | Agree                 | **Split:** `useMove` and `usePaneWidths` split into named steps under 80 lines. **Exports unchanged.** **Tests pass.**                                                                                           |
+| 08 | refactor(r8-08-wui-scroll-anchor)             | Agree                 | **Split:** `useScrollAnchor` split into named steps under 80 lines. **Exports unchanged.** **Tests pass.**                                                                                                       |
+| 09 | test(r8-09-go-coverage-hub-wiring)            | Agree                 | **Coverage:** New `_test.go` files raise `cmd/spool` to **55.2%** (+4.3). **Floor updated.** **Red control:** Delete one test file -> FAILS the floor. **PASS.**                                                      |
+| 10 | ci(r8-10-round-branch-prune)                  | Agree                 | **Red control:** Pattern widened to `review/*` -> r6 ref deleted (FAIL). **PASS.**                                                                                                                              |
 
 Signed: plan sha 7508d04c3

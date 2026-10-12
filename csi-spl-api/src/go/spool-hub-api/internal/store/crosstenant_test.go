@@ -124,6 +124,14 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.UpdateFleetAsk(ctx, s.tenant, AskUpdate{Fleet: "main", AskID: queued, Op: AskQueue, By: "c-001", Placement: "claude:x-" + s.marker[:8]}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
+	// od_pool and an od job (rdb 0183, spec 134): one pool row and one open
+	// job per tenant.
+	if _, err := pg.PutOdPool(ctx, s.tenant, OdPool{Fleet: "main", ClaudeN: 2, GrokN: 2, MinBoxes: 2, Kinds: []string{"spawn"}}, "c-002", "box-a", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := pg.EnqueueOdJob(ctx, s.tenant, FleetAsk{Fleet: "main", AskID: uuid4(), Kind: "spawn", From: "c-002", DedupeKey: "x:" + s.marker[:8]}, false, "box-a", now); err != nil {
+		t.Fatal(err)
+	}
 	// message_answers (rdb 0111, spec 068 4.2): the message is to CLE-07, so
 	// rdb 0110 made CLE-07@box-a responsible on gen 0; one answer per tenant.
 	if _, err := pg.ClaimAnswer(ctx, s.tenant, Answer{Answers: m.MsgID, AnswerMsgID: uuid4(), Seat: "CLE-07@box-a", AnsweredAt: now}); err != nil {

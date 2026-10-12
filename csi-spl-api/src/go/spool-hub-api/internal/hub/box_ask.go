@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -215,6 +216,11 @@ func (s *Server) askUpdate(ctx context.Context, x *session, f wire.Frame) (askAn
 	case errors.Is(err, store.ErrConflict):
 		return askAnswer{}, &issueErr{http.StatusConflict, "ask_closed",
 			"already " + got.State + " by " + got.ClosedBy + ": " + got.Reason}
+	case errors.Is(err, store.ErrAskHeld):
+		return askAnswer{}, &issueErr{http.StatusConflict, "ask_held", askHeldDetail(got)}
+	case errors.Is(err, store.ErrAskRole):
+		return askAnswer{}, &issueErr{http.StatusConflict, "ask_op_refused",
+			f.AskOp + " does not apply to a role " + got.Role + " ask in state " + got.State}
 	case err != nil:
 		s.o.Log.Error().Err(err).Str("fleet", f.Fleet).Str("ask", in.AskID).Msg("fleet ask update")
 		return askAnswer{}, &issueErr{http.StatusInternalServerError, "internal", "asks unavailable"}
@@ -225,6 +231,19 @@ func (s *Server) askUpdate(ctx context.Context, x *session, f wire.Frame) (askAn
 		got = s.askQueuePosition(ctx, x.tenant, f.Fleet, got)
 	}
 	return askAnswer{Fleet: f.Fleet, Asks: []AskRow{askRow(got)}}, nil
+}
+
+// askHeldDetail names who holds the lock (spec 134 3.3: a second ack, or an
+// od op off the holder's gen, is 409 naming the holder).
+func askHeldDetail(a store.FleetAsk) string {
+	if a.State != "acked" {
+		return "not locked (" + a.State + "): the lock was lost"
+	}
+	d := "held by " + a.AckedBy
+	if a.Role == store.OdRole {
+		d += " at gen " + strconv.FormatInt(a.Gen, 10)
+	}
+	return d
 }
 
 // askQueuePosition fills a queued ask's position from its role's list, so

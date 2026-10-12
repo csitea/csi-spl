@@ -36,11 +36,11 @@ type FleetAsk struct {
 	Fleet       string
 	AskID       string
 	Role        string // the recipient role, the log's topic: orch (default) | dispatch | ...
-	Kind        string // blocker | task | escalation
+	Kind        string // blocker | task | escalation; role od: route_post | spawn | lane_verify | box_op
 	From        string // <ID> or <ID>@<box>
 	Topic       string
 	Summary     string
-	State       string // open | acked | queued | done | declined | dead
+	State       string // open | acked | queued | needs_owner | done | declined | dead
 	DeadlineAt  time.Time
 	AckedBy     string
 	ClosedBy    string
@@ -53,14 +53,26 @@ type FleetAsk struct {
 	Position    int       // 1 = next to place; 0 = not queued (filled by ListFleetAsks)
 	QueueLen    int       // the queued asks of its role (filled with Position)
 	WriterBox   string    // the box that last wrote it (from the authenticated hello)
+	// The OD pool's columns (rdb 0183, spec 134 3.2), set on role 'od' rows.
+	LockUntil   time.Time // the lock's end on the hub clock; zero = no lease (a book ack holds until released)
+	LeaseS      int       // the lease lock-next and renew grant, seconds
+	Gen         int64     // +1 on every lock and release: the fence renew, done, decline and release carry
+	DedupeKey   string    // one open row per (kind, dedupe_key)
+	IssueKey    string    // the spec 135 card, SPL-n; "" until filed
+	VendorAllow string    // "" | claude | grok
+	Needs       string    // "" | box:<box> | prd
+	NotBy       []string  // the harnesses that refused it: lock-next skips them
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Age         time.Duration
 	Quiet       time.Duration
 }
 
-// Open reports whether the ask still waits on the orchestrator.
-func (a FleetAsk) Open() bool { return a.State == "open" || a.State == "acked" || a.State == "queued" }
+// Open reports whether the ask still waits on the orchestrator (an od job:
+// on a seat or a human).
+func (a FleetAsk) Open() bool {
+	return a.State == "open" || a.State == "acked" || a.State == "queued" || a.State == "needs_owner"
+}
 
 // AskClosedTTL is how long a closed ask stays readable before a write prunes it.
 const AskClosedTTL = 7 * 24 * time.Hour
@@ -75,6 +87,9 @@ const (
 	AskRelease  = "release"  // acked -> open: the acquisition lock expired; acked_by stays as the last holder
 	AskDead     = "dead"     // open|acked -> dead: the delivery limit was reached, Reason required
 	AskQueue    = "queue"    // open|acked|queued -> queued: a spawn request waits for room (enqueued_at set once)
+	// role od only (rdb 0183, spec 134 3.3): the holder's ops carry its Gen
+	AskRenew  = "renew"  // acked by By at Gen: lock_until = now + lease_s
+	AskReopen = "reopen" // needs_owner -> open: a human answered
 )
 
 // AskUpdate is one op on an open ask: Op (AskAck .. AskEscalate) by the
@@ -82,6 +97,8 @@ const (
 type AskUpdate struct {
 	Fleet, AskID, Op, By, Reason string
 	Placement                    string // AskQueue: "<vendor>:<slug>", "" keeps the stored one
+	Gen                          int64  // role od: the holder's fence (renew, done, decline, release)
+	Refuse                       string // role od release: the holder's harness joins not_by
 }
 
 // The shapes 0097's CHECKs enforce, so a refusal is a 400, not a 500.
@@ -114,6 +131,9 @@ const AskTextMax = 500
 
 // FleetAsks is the ask half of the store contract.
 type FleetAsks interface {
+	// The OD pool's job ops on role 'od' rows (spec 134, rdb 0183).
+	OdJobs
+
 	// PutFleetAsk records a new open ask, stamped created_at = now and box,
 	// and prunes the fleet's closed asks older than AskClosedTTL. It is
 	// idempotent on (fleet, AskID): a second put of the same id (a journal
@@ -122,7 +142,9 @@ type FleetAsks interface {
 	PutFleetAsk(ctx context.Context, tenantID string, a FleetAsk, box string, now time.Time) (got FleetAsk, created bool, err error)
 	// UpdateFleetAsk applies u.Op by u.By to an open ask. ErrNotFound when there is no such ask; ErrConflict with
 	// the CURRENT row when it is already closed (the second closer learns who
-	// closed it and why).
+	// closed it and why); ErrAskHeld with it when another holder has the
+	// lock (an ack over a live ack; an od op off the holder's gen);
+	// ErrAskRole when the op does not apply to the row (askGate).
 	UpdateFleetAsk(ctx context.Context, tenantID string, u AskUpdate, box string, now time.Time) (FleetAsk, error)
 	// ListFleetAsks reads the fleet's open asks to role ("" = every role;
 	// all = also the closed week), open first, then oldest first: the
@@ -184,6 +206,8 @@ func CheckFleetAsk(a FleetAsk) string {
 		return "fleet must be a lowercase slug ([a-z0-9-], up to 32)"
 	case !FleetNameRe.MatchString(a.Role):
 		return "role must be the recipient role, a lowercase slug (orch, dispatch)"
+	case a.Role == OdRole:
+		return "role od takes its jobs through enqueue, not put"
 	case !AskIDRe.MatchString(a.AskID):
 		return "ask_id must be the msg_id (a lowercase UUID) of the message that raised it"
 	case a.Kind != "blocker" && a.Kind != "task" && a.Kind != "escalation":
@@ -201,9 +225,9 @@ func CheckFleetAsk(a FleetAsk) string {
 // CheckFleetAskOp names the first thing wrong with an update ("" = fine).
 func CheckFleetAskOp(op, by, reason string) string {
 	switch op {
-	case AskAck, AskDone, AskDecline, AskRaise, AskEscalate, AskRelease, AskDead, AskQueue:
+	case AskAck, AskDone, AskDecline, AskRaise, AskEscalate, AskRelease, AskDead, AskQueue, AskRenew, AskReopen:
 	default:
-		return "ask_op must be put, list, ack, done, decline, raise, escalate, release, dead or queue"
+		return "ask_op must be put, list, ack, done, decline, raise, escalate, release, dead, queue, renew, reopen, enqueue, lock-next or pool"
 	}
 	switch {
 	case !ValidAskAgent(by):
@@ -225,6 +249,9 @@ func applyAskOp(a *FleetAsk, u AskUpdate, box string, now time.Time) {
 		a.State, a.AckedBy = "acked", u.By
 	case AskDone, AskDecline, AskDead:
 		a.State, a.ClosedBy, a.Reason = "done", u.By, u.Reason
+		if a.Role == OdRole {
+			a.LockUntil = time.Time{}
+		}
 		if u.Op == AskDecline {
 			a.State = "declined"
 		} else if u.Op == AskDead {
@@ -238,7 +265,15 @@ func applyAskOp(a *FleetAsk, u AskUpdate, box string, now time.Time) {
 	case AskRelease:
 		if a.State == "acked" {
 			a.State = "open"
+			if a.Role == OdRole {
+				a.Gen, a.LockUntil = a.Gen+1, time.Time{}
+				a.NotBy = odHarnessAdd(a.NotBy, u.Refuse)
+			}
 		}
+	case AskRenew:
+		a.LockUntil = now.Add(time.Duration(a.LeaseS) * time.Second)
+	case AskReopen:
+		a.State = "open"
 	case AskQueue:
 		a.State = "queued"
 		if a.EnqueuedAt.IsZero() {
@@ -292,6 +327,10 @@ func (s *Memory) UpdateFleetAsk(_ context.Context, tenant string, u AskUpdate, b
 	if !a.Open() {
 		askTimes(&a, now)
 		return a, ErrConflict
+	}
+	if err := askGate(a, u, now); err != nil {
+		askTimes(&a, now)
+		return a, err
 	}
 	applyAskOp(&a, u, box, now)
 	s.asks[k] = a

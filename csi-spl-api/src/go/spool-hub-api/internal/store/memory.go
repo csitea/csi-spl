@@ -35,6 +35,7 @@ type Memory struct {
 	lanes     map[[3]string]FleetLane  // rdb 0096 fleet_lanes
 	aliases   map[[3]string]AgentAlias // rdb 0101 agent_id_aliases
 	asks      map[[3]string]FleetAsk   // rdb 0097 fleet_asks
+	odPools   map[[2]string]OdPool     // rdb 0183 od_pool (tenant, fleet)
 	readMarks map[[3]string]ReadMark   // rdb 0098 read_marks (tenant, member, key)
 	// rdb 0104 (spec 062): flow_watches (tenant, task, member) -> since and
 	// flow_events (tenant, member, msg_id); written by InsertMessage.

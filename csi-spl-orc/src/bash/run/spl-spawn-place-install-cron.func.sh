@@ -2,7 +2,8 @@
 #------------------------------------------------------------------------------
 # @description Install (or remove, or check) the spawn queue's placer (owner
 # @description HUM-10, t1 c9beaa77; rdb 0180): ONE line in the box user's
-# @description crontab running `./run -a do_spl_spawn_place` every minute. On
+# @description crontab running `./run -a do_spl_spawn_place` every minute, with a
+# @description PATH that has /usr/local/bin (yq) and under flock -n. On
 # @description every machine but the orch holder's the tick only logs that the
 # @description role is held elsewhere, so the line can sit on every machine and
 # @description the placer follows the orch role. Tagged
@@ -35,7 +36,9 @@ do_spl_spawn_place_install_cron() {
   src="$SPL_DESK_CRON_SRC"
   run="$src/$SPL_ORG_APP-orc/run"
   logdir="${SPAWN_PLACE_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/spawn-place}"
-  line="$(printf '* * * * * cd %s && ./run -a do_spl_spawn_place >> %s/cron.out 2>&1 # %s' "${run%/run}" "$logdir" "$tag")"
+  # cron's own PATH (/usr/bin:/bin) has no yq: every tick read no cnf (c-001@sat, 10-12)
+  # shellcheck disable=SC2016 # $HOME is for the cron shell, not this one
+  line="$(printf '* * * * * cd %s && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin flock -n %s/spawn-place.lock ./run -a do_spl_spawn_place >> %s/cron.out 2>&1 # %s' "${run%/run}" "$logdir" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
   case "$act" in
     check) spl_spawn_place_cron_check "$tag" "$current" "$line" "$run"; return ;;

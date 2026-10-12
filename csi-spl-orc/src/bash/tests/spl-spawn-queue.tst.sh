@@ -21,6 +21,9 @@
 #      closes it and tells the sender
 #   7. the launcher's HOLD (exit 10) puts it back at position 1
 #   8. do_spl_spawn_queue lists POS, sender and summary
+#   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
+#      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
+#      runs under flock -n; idempotent; remove takes only its line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -268,6 +271,39 @@ grep -qE "^1/1 +${A4:0:8} +c-002@box-desk .*claude:hub-pg-split .*SPAWN REQUEST 
   pass "do_spl_spawn_queue: POS, ask, sender, placement and summary" || fail "queue view: $out"
 [[ "$(on pc do_spl_spawn_queue SPAWN_QUEUE_FORMAT=json 2>/dev/null | jq -r '.queue[0].position')" == 1 ]] &&
   pass "do_spl_spawn_queue json" || fail "queue json"
+
+# 9. the cron line ----------------------------------------------------------------------
+cat >"$T/bin/crontab" <<'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = -l ]; then cat "$FAKE_CRONTAB" 2>/dev/null; exit 0; fi
+cp "$1" "$FAKE_CRONTAB"
+EOF
+chmod +x "$T/bin/crontab"
+SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc"; printf '#!/bin/sh\n' >"$SRC/csi-spl-orc/run"; chmod +x "$SRC/csi-spl-orc/run"
+printf '5 * * * * x # csi-spl:orch-rotate\n' >"$T/crontab"
+cron() {
+  # shellcheck disable=SC2016 # the action runs in the child shell
+  env PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SRC" SPAWN_PLACE_CRON_LOG_DIR="$T/cronlog" \
+    PROJ_PATH="$PROJ_ROOT" SPL_ORG_APP=csi-spl "$@" bash -c '
+    do_log() { echo "$*"; }
+    do_require_bin() { return 0; }
+    source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+    source "$PROJ_PATH/src/bash/run/spl-spawn-place-install-cron.func.sh"
+    do_spl_spawn_place_install_cron'
+}
+cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+line="$(grep '# csi-spl:spawn-place$' "$T/crontab")"
+# shellcheck disable=SC2016 # $HOME stays literal in the cron line
+want='PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin'
+[[ $rc -eq 0 && "$line" == "* * * * * cd $SRC/csi-spl-orc && $want flock -n $T/cronlog/spawn-place.lock ./run -a do_spl_spawn_place >> $T/cronlog/cron.out 2>&1 # csi-spl:spawn-place" ]] &&
+  grep -q 'orch-rotate' "$T/crontab" &&
+  pass "cron: one line, PATH has /usr/local/bin (yq), flock -n, other lines kept" || fail "cron install rc=$rc: $(cat "$T/crontab") $(cat "$T/o")"
+cron DRY_RUN=0 >/dev/null 2>&1
+[[ "$(grep -c '# csi-spl:spawn-place$' "$T/crontab")" == 1 ]] && pass "cron: a second install is a no-op" || fail "cron lines: $(cat "$T/crontab")"
+cron SPAWN_PLACE_CRON_ACTION=check >"$T/o" 2>&1 && grep -q 'OK the spawn placer is installed' "$T/o" && ! grep -q 'other settings' "$T/o" &&
+  pass "cron: check says installed" || fail "cron check: $(cat "$T/o")"
+cron DRY_RUN=0 SPAWN_PLACE_CRON_ACTION=remove >/dev/null 2>&1
+! grep -q 'spawn-place' "$T/crontab" && grep -q 'orch-rotate' "$T/crontab" && pass "cron: remove takes only its line" || fail "cron remove: $(cat "$T/crontab")"
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

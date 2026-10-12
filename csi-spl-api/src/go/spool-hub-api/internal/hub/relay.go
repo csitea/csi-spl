@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -31,12 +32,41 @@ import (
 //     so the process that holds a member's box has relayed the post first,
 //     and reaches relaySweepWindow back, so a post from before a restart is
 //     not dug up an hour later.
+//
+// Each sweep runs at the cadence of the deadline it serves (P5-03, perf round
+// 5): the queued rows (the wake-up's backstop) and the unheard sweep (15 s
+// grace) every tick; an unacked row (ackTimeout, 60 s) and an unanswered or
+// re-escalatable post (UnansweredGrace, ReescalateEvery: 120 s on prd) at a
+// quarter of their deadline, 15 s and 30 s, not every 5 s. An escalation can
+// come up to a quarter of its grace later. The queued rows of a tenant's
+// boxes are one read (store.QueuedSets), not one per box.
 
 const (
 	relaySweepGrace  = 15 * time.Second
 	relaySweepWindow = 10 * time.Minute
 	relaySweepMax    = 20 // posts per tenant per tick
+	// relayCadenceDiv: a slow sweep runs every deadline / relayCadenceDiv.
+	relayCadenceDiv = 4
 )
+
+// relayCadence is when this process last ran each slow sweep.
+type relayCadence struct {
+	mu                sync.Mutex
+	unacked, escalate time.Time
+}
+
+// due reports whether the sweep last run at *last is due again at now, once
+// deadline / relayCadenceDiv has passed, and stamps it. A clock that went
+// back (a test's) runs it.
+func (c *relayCadence) due(last *time.Time, deadline time.Duration, now time.Time) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !last.IsZero() && !now.Before(*last) && now.Sub(*last) < deadline/relayCadenceDiv {
+		return false
+	}
+	*last = now
+	return true
+}
 
 // RunRelay runs the queue relay every interval until ctx ends; interval <= 0
 // does nothing (tests and the lde opt in).
@@ -59,14 +89,30 @@ func (s *Server) RunRelay(ctx context.Context, interval time.Duration) {
 // Relay is one relay tick (exported for the tests' clock).
 func (s *Server) Relay(ctx context.Context) {
 	s.sweepHumanStatus(ctx) // spec 096: expired statuses, at most once a minute per tenant
-	boxes := s.relayBoxes()
-	tenants := map[string]bool{}
-	for _, x := range boxes {
-		tenants[x.tenant] = true
-		// spec 059 S2: a row a committing box has held unacked past the
-		// acquisition lock goes to it again.
-		if n := s.pushQueued(ctx, x) + s.pushUnacked(ctx, x, s.o.Now().Add(-ackTimeout)); n > 0 {
-			s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Int("relayed", n).Msg("relay delivered queued rows")
+	now := s.o.Now()
+	// spec 059 S2: a row a committing box has held unacked past the
+	// acquisition lock goes to it again.
+	unacked := s.relayDue.due(&s.relayDue.unacked, ackTimeout, now)
+	byTenant := map[string][]*session{}
+	for _, x := range s.relayBoxes() {
+		byTenant[x.tenant] = append(byTenant[x.tenant], x)
+	}
+	ids := make([]string, 0, len(byTenant))
+	for t := range byTenant {
+		ids = append(ids, t)
+	}
+	sort.Strings(ids)
+	for _, tenant := range ids {
+		xs := byTenant[tenant]
+		sent := s.pushQueuedSet(ctx, tenant, xs)
+		for i, x := range xs {
+			n := sent[i]
+			if unacked {
+				n += s.pushUnacked(ctx, x, s.o.Now().Add(-ackTimeout))
+			}
+			if n > 0 {
+				s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Int("relayed", n).Msg("relay delivered queued rows")
+			}
 		}
 	}
 	if !s.o.Fallback {
@@ -76,12 +122,6 @@ func (s *Server) Relay(ctx context.Context) {
 	if !ok {
 		return
 	}
-	ids := make([]string, 0, len(tenants))
-	for t := range tenants {
-		ids = append(ids, t)
-	}
-	sort.Strings(ids)
-	now := s.o.Now()
 	for _, tenant := range ids {
 		posts, err := fb.UnheardPosts(ctx, tenant, now.Add(-relaySweepWindow), now.Add(-relaySweepGrace), relaySweepMax)
 		if err != nil {
@@ -100,7 +140,19 @@ func (s *Server) Relay(ctx context.Context) {
 			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, escalation{swept: true, taskID: p.TaskID})
 		}
 	}
-	s.escalateUnanswered(ctx, fb, ids, now)
+	if s.o.UnansweredGrace > 0 && s.relayDue.due(&s.relayDue.escalate, s.escalateDeadline(), now) {
+		s.escalateUnanswered(ctx, fb, ids, now)
+	}
+}
+
+// escalateDeadline is the shorter deadline of the two escalation sweeps:
+// UnansweredGrace, and ReescalateEvery when re-escalation is on.
+func (s *Server) escalateDeadline() time.Duration {
+	d := s.o.UnansweredGrace
+	if s.o.ReescalateEvery > 0 && s.o.ReescalateMax >= 2 && s.o.ReescalateEvery < d {
+		d = s.o.ReescalateEvery
+	}
+	return d
 }
 
 // unansweredWindow is how far back the SPL-1225 escalation sweep looks. It is
@@ -168,15 +220,45 @@ func (s *Server) reescalate(ctx context.Context, fb store.Fallbacks, tenants []s
 	}
 }
 
-// relayBoxes is every welcomed role=box session this process holds.
 // pushQueued pushes every queued row of a box socket this process holds and
-// returns how many it sent (the relay tick and the wake-up, wake.go).
+// returns how many it sent (the wake-up, wake.go).
 func (s *Server) pushQueued(ctx context.Context, x *session) int {
 	q, err := s.o.Store.QueuedFor(ctx, x.tenant, x.box, s.o.Now())
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("relay queue")
 		return 0
 	}
+	return s.pushRows(ctx, x, q)
+}
+
+// pushQueuedSet is pushQueued for the box sockets xs of one tenant, read as
+// one set when the store can (store.QueuedSets); sent[i] counts xs[i]'s rows.
+func (s *Server) pushQueuedSet(ctx context.Context, tenant string, xs []*session) []int {
+	sent := make([]int, len(xs))
+	qs, ok := s.o.Store.(store.QueuedSets)
+	if !ok {
+		for i, x := range xs {
+			sent[i] = s.pushQueued(ctx, x)
+		}
+		return sent
+	}
+	boxes := make([]string, len(xs))
+	for i, x := range xs {
+		boxes[i] = x.box
+	}
+	rows, err := qs.QueuedForBoxes(ctx, tenant, boxes, s.o.Now())
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("relay queue")
+		return sent
+	}
+	for i, x := range xs {
+		sent[i] = s.pushRows(ctx, x, rows[x.box])
+	}
+	return sent
+}
+
+// pushRows pushes queued rows q to box socket x and returns how many it sent.
+func (s *Server) pushRows(ctx context.Context, x *session, q []store.Queued) int {
 	n := 0
 	for _, d := range q {
 		if s.push(ctx, x, d.MsgID, s.retaskEnv(ctx, x.tenant, d.Env, d.TaskID)) {
@@ -186,6 +268,7 @@ func (s *Server) pushQueued(ctx context.Context, x *session) int {
 	return n
 }
 
+// relayBoxes is every welcomed role=box session this process holds.
 func (s *Server) relayBoxes() []*session {
 	s.mu.Lock()
 	defer s.mu.Unlock()

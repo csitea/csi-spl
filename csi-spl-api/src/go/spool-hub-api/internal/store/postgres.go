@@ -578,6 +578,37 @@ func (s *Postgres) QueuedFor(ctx context.Context, tenant, toBox string, now time
 	return out, err
 }
 
+// QueuedSets is implemented by stores that read the queued rows of several
+// boxes of one tenant as one set (P5-03: the relay tick, one read per tenant
+// where it took one per box).
+type QueuedSets interface {
+	// QueuedForBoxes is QueuedFor for each of boxes, keyed by box; a box
+	// with no queued row has no key.
+	QueuedForBoxes(ctx context.Context, tenantID string, boxes []string, now time.Time) (map[string][]Queued, error)
+}
+
+// QueuedForBoxes is QueuedFor's predicate with to_box = ANY($2): one
+// statement, each box's rows oldest first.
+func (s *Postgres) QueuedForBoxes(ctx context.Context, tenant string, boxes []string, now time.Time) (map[string][]Queued, error) {
+	out := map[string][]Queued{}
+	if len(boxes) == 0 {
+		return out, nil
+	}
+	err := s.queryTenant(ctx, tenant, `SELECT d.to_box, d.msg_id::text, m.env, m.task_id::text FROM deliveries d
+		JOIN messages m ON m.tenant_id = d.tenant_id AND m.msg_id = d.msg_id
+		WHERE d.tenant_id = $1 AND d.to_box = ANY($2) AND d.state = 'queued' AND d.expires_at > $3
+		ORDER BY d.received_at, d.msg_id`, []any{tenant, boxes, now}, func(rows pgx.Rows) error {
+		var box string
+		var q Queued
+		if err := rows.Scan(&box, &q.MsgID, &q.Env, &q.TaskID); err != nil {
+			return err
+		}
+		out[box] = append(out[box], q)
+		return nil
+	})
+	return out, err
+}
+
 func (s *Postgres) TaskEnvelopes(ctx context.Context, tenant, taskID string) ([][]byte, error) {
 	var out [][]byte
 	err := s.queryTenant(ctx, tenant, `SELECT env FROM messages WHERE tenant_id = $1 AND task_id = $2

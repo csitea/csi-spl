@@ -203,3 +203,104 @@ func TestRelaySweepFallsBackAcrossProcesses(t *testing.T) {
 		t.Fatalf("fallback records %d, want 1", n)
 	}
 }
+
+// P5-03: the unanswered sweep runs at a quarter of UnansweredGrace, not every
+// tick. A sweep that ran just before the post crossed the grace holds the next
+// one off for grace/4 (CONTROL: before P5-03 the tick right after the grace
+// escalated), and the escalation still comes within grace + grace/4.
+func TestRelayEscalatesAtAQuarterOfTheGrace(t *testing.T) {
+	pub, key, _ := ed25519.GenerateKey(nil)
+	const grace = 8 * time.Second // the cadence is 2 s
+	var clock atomic.Int64
+	e := newEnv(t, func(o *hub.Options) {
+		fallbackOpts(o, key, true)
+		o.UnansweredGrace = grace
+		o.Now = func() time.Time { return time.Now().Add(time.Duration(clock.Load())) }
+	})
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	e.pinKey(tid, hub.WUIBox, pub)
+	if err := e.st.(store.Fallbacks).SetTenantResponders(ctx, tid, []string{"CLE-001"}); err != nil {
+		t.Fatal(err)
+	}
+	desk := e.box(tid, "box-desk", "CLE-001")
+	e.pin(tid, desk)
+	sd, err := desk.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeWait(sd)
+	// an ONLINE member agent keeps the immediate fallback off, so only the
+	// unanswered sweep can reach the responder.
+	human := "HUM-google-sub-1@" + tid
+	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "staffed",
+		Name: "staffed", CreatedBy: human, CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.AddChannelHumans(ctx, tid, "staffed", []string{human}, human, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	b := e.box(tid, "box-b", "GRK-36")
+	e.pin(tid, b)
+	sb, err := b.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeWait(sb)
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/staffed/agents", human,
+		map[string]string{"id": "GRK-36", "box": "box-b"}); code != http.StatusCreated {
+		t.Fatalf("invite: %d %v", code, out)
+	}
+	ws := dialMember(t, e, tid, "Owner", human)
+	m1, task := "7d1e2f3a-4b5c-4d6e-8f70-8192a3b4c5d6", "8e2f3a4b-5c6d-4e7f-8091-a2b3c4d5e6f7"
+	threadFrame(t, ws, m1, task, "staffed", 1, "please pick this up")
+	eventually(t, "GRK-36 got it the ordinary way", func() bool { return strings.Join(inboxIDs(t, b, "GRK-36"), ",") == m1 })
+	got := func() bool { return slices.Contains(inboxIDs(t, desk, "CLE-001"), m1) }
+
+	clock.Store(int64(grace - time.Second)) // a sweep inside the grace: nothing
+	e.srv.Relay(ctx)
+	notWithin(t, 200*time.Millisecond, "an escalation inside the grace", got)
+	clock.Store(int64(grace + 500*time.Millisecond)) // past the grace, 1.5 s after that sweep
+	e.srv.Relay(ctx)
+	notWithin(t, 300*time.Millisecond, "an escalation inside the cadence", got)
+	clock.Store(int64(grace + grace/4 - time.Second + 100*time.Millisecond)) // the cadence is up
+	e.srv.Relay(ctx)
+	eventually(t, "CLE-001 got the escalation within grace + grace/4", got)
+}
+
+// P5-03: an unacked row goes out again at a quarter of the acquisition lock
+// (ackTimeout 60 s: every 15 s), not every tick. CONTROL: before P5-03 the
+// first tick past the lock re-pushed it.
+func TestRelayRepushesUnackedAtAQuarterOfTheLock(t *testing.T) {
+	var skew atomic.Int64
+	e := newEnv(t, func(o *hub.Options) {
+		o.Now = func() time.Time { return time.Now().Add(time.Duration(skew.Load())) }
+	})
+	tid, _ := e.tenant()
+	s := e.box(tid, "box-s", "GRK-03")
+	c := e.box(tid, "box-c", "CLE-13")
+	e.pin(tid, s)
+	e.pin(tid, c)
+	raw := e.commitBox(tid, c, "CLE-13", true)
+	send(t, s, "GRK-03", "CLE-13", "note", "dropped", "box-c")
+	recvMsgID(t, raw.next(wire.TRecv)) // never committed
+	nextBody := func() string {
+		id, body := recvMsgID(t, raw.next(wire.TRecv))
+		wsjson.Write(context.Background(), raw.c, wire.Frame{Type: wire.TCommit, MsgID: id}) //nolint:errcheck
+		return body
+	}
+	skew.Store(int64(50 * time.Second))
+	e.srv.Relay(context.Background()) // the unacked sweep runs, inside the lock
+	skew.Store(int64(61 * time.Second))
+	e.srv.Relay(context.Background()) // past the lock, 11 s after that sweep: not yet
+	send(t, s, "GRK-03", "CLE-13", "note", "sentinel", "box-c")
+	if b := nextBody(); b != "sentinel" {
+		t.Fatalf("got %q 11 s after the last unacked sweep, want the sentinel", b)
+	}
+	time.Sleep(100 * time.Millisecond)
+	skew.Store(int64(66 * time.Second))
+	e.srv.Relay(context.Background())
+	if b := nextBody(); b != "dropped" {
+		t.Fatalf("re-pushed %q at the cadence, want the uncommitted one", b)
+	}
+}

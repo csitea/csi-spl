@@ -261,6 +261,7 @@ type Server struct {
 	backfilling sync.Map // backfill.go: [4]string seat -> in flight
 
 	statusSwept statusSweeps // human_status.go: last expiry sweep per tenant, its own lock
+	relayDue    relayCadence // relay.go: when the slow relay sweeps last ran, its own lock
 
 	heads *headShadow // view.go: the topic-head shadow's sampler and counters (spec 099)
 }

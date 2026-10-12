@@ -12,6 +12,10 @@
 //      a key when there is one;
 //   3. nothing blocked: the pages outside the first screen and the Settings
 //      modal, in en, bg and fi, show no key.
+//   4. the second catalogue HELD (its chunk never answers): a cold /issues
+//      still mounts the app within the boot bound (utils/i18n-more-boot.mjs).
+//      Unbounded, the page stayed on the bare shell: a cold prd load of
+//      /issues showed nothing but the shell for 33 s (2026-10-12 16:55:12Z).
 //
 // The blocked chunks are the ones holding a namespace that only the second
 // catalogue has, read from i18n/.split (the build's own split). A build
@@ -136,6 +140,27 @@ async function blockedPage(browser, label) {
   return { p, ctx, blocked, failed }
 }
 
+/** A page whose second-catalogue chunks are paused and never answered. */
+async function heldPage(browser, label) {
+  const ctx = await browser.createBrowserContext()
+  const p = watchPage(await ctx.newPage(), label)
+  const s = await p.createCDPSession()
+  const held = []
+  await s.send('Fetch.enable', { patterns: [{ urlPattern: '*/_nuxt/*.js', requestStage: 'Response' }] })
+  s.on('Fetch.requestPaused', async (e) => {
+    try {
+      const { body, base64Encoded } = await s.send('Fetch.getResponseBody', { requestId: e.requestId })
+      const text = base64Encoded ? Buffer.from(body, 'base64').toString('utf8') : body
+      if (isMoreChunk(text)) held.push(e.request.url.replace(/.*\/_nuxt\//, ''))
+      else await s.send('Fetch.continueRequest', { requestId: e.requestId })
+    } catch {
+      await s.send('Fetch.continueRequest', { requestId: e.requestId }).catch(() => {})
+    }
+  })
+  await p.setViewport({ width: 1280, height: 800 })
+  return { p, ctx, held }
+}
+
 const prefix = (code) => (code === 'en' ? '' : `/${code}`)
 /** The document the step started on is still there: no reload under it. */
 const markDoc = (p) => p.evaluate(() => { window.__i18nSplitDoc = true })
@@ -196,6 +221,20 @@ try {
     for (const code of LOCALES) {
       const checks = await retryOnNetworkChanged(code, () => blockedLocale(code), { failed: failedChecks })
       for (const [name, pass, ev] of checks) ok(name, pass, ev)
+    }
+
+    console.log('-- second catalogue held (never answers): a cold /issues still boots')
+    {
+      const { p, ctx, held } = await heldPage(browser, 'held /issues')
+      try {
+        const t0 = Date.now()
+        await p.goto(server.base + '/issues', { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
+        const up = await railUp(p)
+        const ms = Date.now() - t0
+        ok('cold /issues with the second catalogue held mounts the app (rail up)', up && held.length > 0, { up, ms, held })
+      } finally {
+        await ctx.close()
+      }
     }
   } else {
     console.log('-- not a split build (i18n/.split absent): parts 1 and 2 do not apply')

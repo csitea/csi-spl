@@ -13,7 +13,11 @@
 // The files are modules of compiled messages, made at build time as the
 // i18n module makes the core ones (runtime-only vue-i18n cannot compile). lde (`nuxt dev`) ships whole
 // catalogues and has nothing to load.
+// Both waits are bounded (utils/i18n-more-boot.mjs): a slow or stuck chunk
+// once kept a cold /issues load on the bare shell for 33 s; past the bound
+// the page renders and the catalogue merges whenever it lands.
 import { isFirstScreenRoute } from '~/utils/i18n-first-screen.mjs'
+import { boundedWait } from '~/utils/i18n-more-boot.mjs'
 import { settingsQuerySection } from '~/utils/settings-nav.mjs'
 
 type Catalogue = Record<string, unknown>
@@ -74,10 +78,10 @@ export default defineNuxtPlugin({
 
     const router = useRouter()
     router.beforeResolve(async (to) => {
-      if (needsMore(to)) await load(routeLocale(to))
+      if (needsMore(to)) await boundedWait(load(routeLocale(to)))
     })
     const boot = router.currentRoute.value
-    if (needsMore(boot)) await load(routeLocale(boot))
+    if (needsMore(boot)) await boundedWait(load(routeLocale(boot)))
 
     nuxtApp.hook('i18n:localeSwitched', ({ newLocale }: { newLocale: string }) => {
       if (wanted) void load(newLocale)

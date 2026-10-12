@@ -207,8 +207,12 @@ queue shows up as 23% of a run.
    minutes with 3 or fewer runners online, and the online ones were 76% busy.
    Keeping all 6 online *while a gate run has queued jobs* would remove most of
    that queue. It still has to hold the owner's rule that CI and agents leave
-   20% of the cores free. That makes it a budget-policy question for the
-   editor, not a fix from this seat.
+   20% of the cores free (owner HUM-10, t1 msgs b7917da5 and b3573121:
+   `grep -n "leave 20% of the cores free" csi-spl-orc/src/bash/run/apply-gh-runner-cpu-budget.func.sh`
+   gives line 5; the box ceiling defaults to 80% and is the hub's fleet-load
+   setting `runner_cpu_pct`, which read `ceiling=80% (hub, box sat)` in
+   cron.out). That makes it a budget-policy question for the editor, not a
+   fix from this seat.
 3. **Box load adds ~30% to e2e** and pushes jobs over their limits: 3 timeout
    reds in the last 12 runs. Headroom is the cheapest guard against false
    reds caused by load.

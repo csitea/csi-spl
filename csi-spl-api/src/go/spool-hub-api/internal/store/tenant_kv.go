@@ -81,6 +81,7 @@ var tenantSettingRegistry = struct {
 // on a bad key, a duplicate or a default its own check refuses, so a wrong
 // registration fails every test at start-up.
 func RegisterTenantSetting(d TenantSettingDef) {
+	// Init guard: callers are package init, so a bad key aborts before the process serves.
 	if len(d.Key) > 64 || !tenantSettingKeyRE.MatchString(d.Key) {
 		panic(fmt.Sprintf("store: tenant setting key %q is not dotted lower-case words", d.Key))
 	}

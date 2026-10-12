@@ -4,8 +4,13 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"strings"
 )
+
+// readEntropy is crypto/rand.Read. Tests replace it to drive a failure on
+// the checkout request path, where a panic used to abort the process.
+var readEntropy = rand.Read
 
 // Claim tokens (checkout-v1 §0.2, 017 T008 / SEC-03): single-use bearer
 // tokens that let the buyer mint and see the tenant root private key ONCE.
@@ -13,12 +18,13 @@ import (
 // and never stored or emailed.
 
 // NewClaimToken returns a fresh 256-bit bearer token (base64url, no padding).
-func NewClaimToken() string {
+// A read failure is returned: this runs on the checkout request path.
+func NewClaimToken() (string, error) {
 	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
+	if _, err := readEntropy(b); err != nil {
+		return "", fmt.Errorf("payments: claim token: %w", err)
 	}
-	return base64.RawURLEncoding.EncodeToString(b)
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // ClaimHash is what the store keeps: SHA-256 over a domain tag and the token.

@@ -35,6 +35,7 @@ type msFlow struct {
 func (f *IdP) AddMicrosoft(c Client) *IdP {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
+		// Init guard: the fake mints its signing key once, before Handler serves.
 		panic(err)
 	}
 	f.ms, f.msKey, f.msFlows = &c, key, map[string]msFlow{}
@@ -132,9 +133,7 @@ func (f *IdP) microsoftRoutes(mux *http.ServeMux) {
 		if tamper.Header != nil {
 			tamper.Header(header)
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"token_type": "Bearer", "expires_in": 3600,
-			"access_token": f.mint(f.tokens, auth.ProviderMicrosoft, "at"),
-			"id_token":     f.signRS256(header, claims, tamper.BadSignature)})
+		f.writeIDToken(w, header, claims, tamper.BadSignature)
 	})
 	mux.HandleFunc("GET /{tenant}/discovery/v2.0/keys", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
@@ -149,17 +148,30 @@ func (f *IdP) microsoftRoutes(mux *http.ServeMux) {
 	})
 }
 
-func (f *IdP) signRS256(header, claims map[string]any, bad bool) string {
+// writeIDToken signs the id_token and writes the token response. A signing
+// failure is 500: this handler is on the request path.
+func (f *IdP) writeIDToken(w http.ResponseWriter, header, claims map[string]any, bad bool) {
+	idToken, err := f.signRS256(header, claims, bad)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "server_error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"token_type": "Bearer", "expires_in": 3600,
+		"access_token": f.mint(f.tokens, auth.ProviderMicrosoft, "at"),
+		"id_token":     idToken})
+}
+
+func (f *IdP) signRS256(header, claims map[string]any, bad bool) (string, error) {
 	h, _ := json.Marshal(header)
 	c, _ := json.Marshal(claims)
 	in := base64.RawURLEncoding.EncodeToString(h) + "." + base64.RawURLEncoding.EncodeToString(c)
 	sum := sha256.Sum256([]byte(in))
 	sig, err := rsa.SignPKCS1v15(rand.Reader, f.msKey, crypto.SHA256, sum[:])
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("fakeidp: sign id_token: %w", err)
 	}
 	if bad {
 		sig[len(sig)-1] ^= 0x01
 	}
-	return in + "." + base64.RawURLEncoding.EncodeToString(sig)
+	return in + "." + base64.RawURLEncoding.EncodeToString(sig), nil
 }

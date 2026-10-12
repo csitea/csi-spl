@@ -9,7 +9,7 @@ cmd/spool 58.7
 internal/action 70.3
 internal/agentid 97.0
 internal/auth/cmd/auth-demo 0.0
-internal/auth/fakeidp 0.0
+internal/auth/fakeidp 3.5
 internal/billing 80.8
 internal/blob 66.2
 internal/calquick 97.6
@@ -31,7 +31,7 @@ internal/marketing 63.6
 internal/mcp 88.7
 internal/msg 84.9
 internal/notify 94.8
-internal/payments 72.3
+internal/payments 72.4
 internal/rbac 89.3
 internal/search 95.6
 internal/sign 82.9

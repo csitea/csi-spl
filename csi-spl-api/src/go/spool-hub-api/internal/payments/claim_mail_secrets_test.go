@@ -151,7 +151,11 @@ func TestClaimMailNoKeyMaterialEveryLocale(t *testing.T) {
 		t.Fatalf("i18n.Supported is %d locales, the mail templates ship 19", len(i18n.Supported))
 	}
 	for _, loc := range i18n.Supported {
-		link := i18n.LocalizeURL(claimURL, loc, i18n.DefaultLocale) + "#checkout=co_x&token=" + NewClaimToken()
+		tok, err := NewClaimToken()
+		if err != nil {
+			t.Fatal(err)
+		}
+		link := i18n.LocalizeURL(claimURL, loc, i18n.DefaultLocale) + "#checkout=co_x&token=" + tok
 		m, err := TenantPaid("buyer@example.com", loc, "acme", "https://dev.example.test/login?tenant=acme", link, time.Hour)
 		if err != nil {
 			t.Fatalf("%s: %v", loc, err)

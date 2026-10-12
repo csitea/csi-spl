@@ -202,7 +202,11 @@ func TestFakeBuyEndToEnd(t *testing.T) {
 	if err != nil || ten.BillingStatus != billing.StatusActive {
 		t.Fatalf("tenant after fake-pay: %+v %v", ten, err)
 	}
-	if code, _ := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": NewClaimToken()}); code != 404 {
+	badTok, err := NewClaimToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": badTok}); code != 404 {
 		t.Fatalf("wrong claim token: %d", code)
 	}
 	// fake-pay sent the one email: tenant URL + claim link, NO key (SEC-03)

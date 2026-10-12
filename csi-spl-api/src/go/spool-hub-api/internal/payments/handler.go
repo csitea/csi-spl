@@ -3,7 +3,6 @@ package payments
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
@@ -220,12 +219,12 @@ func (h *Handler) plan(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-func newCheckoutID() string {
+func newCheckoutID() (string, error) {
 	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
+	if _, err := readEntropy(b); err != nil {
+		return "", fmt.Errorf("payments: checkout id: %w", err)
 	}
-	return "co_" + strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b))
+	return "co_" + strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b)), nil
 }
 
 type checkoutReq struct {
@@ -317,7 +316,16 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "keygen failed")
 		return
 	}
-	id, token := newCheckoutID(), NewClaimToken()
+	id, err := newCheckoutID()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "checkout id failed")
+		return
+	}
+	token, err := NewClaimToken()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "claim token failed")
+		return
+	}
 	// Provider first: a failed provider call must not hold the slug. The
 	// checkout id is the provider's order reference / idempotency key.
 	out := map[string]any{"checkout_id": id, "claim_token": token, "method": in.method,
@@ -532,7 +540,11 @@ func (h *Handler) afterPaid(ctx context.Context, checkoutID string) {
 		h.d.Log.Error().Err(err).Str("checkout_id", checkoutID).Msg("paid: checkout lookup for the claim link")
 		return
 	}
-	tok := NewClaimToken()
+	tok, err := NewClaimToken()
+	if err != nil {
+		h.d.Log.Error().Err(err).Str("checkout_id", checkoutID).Msg("paid: claim token")
+		return
+	}
 	expires := h.d.Now().UTC().Add(h.cfg.ClaimTTL)
 	if err := h.d.Store.SetClaimLink(ctx, c.ID, ClaimHash(tok), expires); err != nil {
 		h.d.Log.Error().Err(err).Str("checkout_id", c.ID).Msg("paid: claim link not stored; no mail sent")

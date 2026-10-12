@@ -1,6 +1,6 @@
 # 133: CI gate analysis
 
-Status: **draft v0.3** (editor c-296, 2026-10-12). The seats'
+Status: **draft v0.4** (editor c-296, 2026-10-12). The seats'
 findings are folded in here as they land; until then the sections below hold
 only the starting facts and the questions each section must answer.
 
@@ -130,6 +130,34 @@ command + sha + n, and its share of the lost verdicts.)
 
 ### 2.2 Selection: every push runs every code job
 
+From [seat C](seat-c.md) (c-297, `2921f95b0`, n=614 push diffs):
+
+- **The owner remembered pre-push, not CI.** Pre-push runs only the parts a
+  push touches (`_pp_paths`), and orc picks single test files
+  (`changed-tests.sh`). wf 10 runs all 11 code job instances on every push,
+  by design (header "NO `paths:` FILTER").
+- **The docs express lane fired 0 of 51 completed runs, while 220 of 614
+  pushes (35.8%) changed docs only.** Its base is the last green run
+  (section 1.2 here). Seat C's fix: a **per-job base**. Job J skips only
+  when nothing changed since J's own last success on master touches J's
+  inputs. A red job keeps running until it is green; a wui-only push no
+  longer waits for a green hub before it can skip hub.
+- **wui-e2e is 61% of a gate's job-minutes** (84.6 of 139.4), and only
+  27.7% of pushes touch a wui input. It is the cleanest and largest cut.
+- **iac and orc are read by almost every part** (whole-tree scanners, cross
+  reads: 45 of 138 iac test files name `csi-spl-cnf/`). A part-level rule
+  saves little there; test-level selection is the next step.
+- **hub-suite runs twice on a hub push**: wf 10 `hub-suite` and wf 20's own
+  `test` job (`grep -n "run-all-tests.sh" .github/workflows/20_hub-build-deploy.yml`).
+- **Modelled saving** for a green trunk (upper bound): part-level 64.6% of
+  job-minutes, file-level 58.2%, today 0.0%.
+- **Fail-safe rules** (seat C section 3): workflows, the gate's own code,
+  shared libs, lockfiles, `go.mod`, unmapped paths and pull requests run the
+  full gate. The **hourly non-replaceable verdict always runs the full
+  gate**, which bounds any allow-list miss to one hour and answers wf 10's
+  "fails SILENTLY" objection. A drift test keeps the map in step, as
+  `hub-deploy-guard.tst.sh` does for wf 20.
+
 ### 2.3 Reds: which jobs fail, and why (defect vs flake vs load)
 
 ### 2.4 Capacity: runners, queue wait, box load
@@ -140,11 +168,11 @@ command + sha + n, and its share of the lost verdicts.)
 
 | seat | file | area | status | sha |
 |---|---|---|---|---|
-| A | `seat-a.md` | | pending | |
-| B | `seat-b.md` | | pending | |
-| C | `seat-c.md` | | pending | |
-| D | `seat-d.md` | | pending | |
-| E | `seat-e.md` | | pending | |
+| A | `seat-a.md` | wall time, queue wait, runners | pending | |
+| B | `seat-b.md` | red causes, flakes | pending | |
+| C | [seat-c.md](seat-c.md) | per-part selection | v0.1 reviewed, 3 small fixes asked | `2921f95b0` |
+| D | [seat-d.md](seat-d.md) | slow suites | v0.1 sent back (8 points: real timings, sha + n) | `1c10c7219` |
+| E | `seat-e.md` | triggers, concurrency, supersede | pending | |
 
 ## 4. The axes (ONE set, 5-8)
 
@@ -184,9 +212,10 @@ owner (https://spool-hub.ai/m/a3cf1826-933b-4279-9f9d-4d9f207791d1; n=60 runs,
 | K6 | make the slowest suites faster (e2e 3/3, orc hermetic) | p90 <= 60% of each job's limit | X4 |
 | K7 | a master red pings the lane that caused it; pre-push runs touched e2e files | minutes a red stays on master: p50 < 30 | X3 |
 
-Plus the editor's: **K8** compute the docs express base from the last
-*finished* gate, or from the last run whose code jobs all passed, instead of
-the last fully green run (section 1.2). Fail-safe rules stay seat C's.
+Plus **K8**, the editor's and seat C's: a **per-job base** for the skip
+(job J skips when nothing since J's own last success touches its inputs),
+with the hourly full verdict as the backstop (sections 1.2 and 2.2). It
+generalises K1 and revives the docs express lane on a red trunk.
 
 ## 6. Open questions
 
@@ -197,3 +226,4 @@ the last fully green run (section 1.2). Fail-safe rules stay seat C's.
 | v0.1 | 2026-10-12 | c-296 | skeleton |
 | v0.2 | 2026-10-12 | c-296 | editor re-measure (1.1), express-lane finding (1.2), draft axes X1..X6 |
 | v0.3 | 2026-10-12 | c-296 | panel roster; candidates K1..K8 (c-002 7 actions + express base) |
+| v0.4 | 2026-10-12 | c-296 | seat C folded (2.2) |

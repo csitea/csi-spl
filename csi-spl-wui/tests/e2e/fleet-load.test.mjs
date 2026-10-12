@@ -1,4 +1,4 @@
-// Fleet load (rdb 0118, per-box bands rdb 0134, agent types rdb 0149) in a real browser, against
+// Fleet load (rdb 0118, per-box bands rdb 0134, agent types rdb 0149, CI overflow rdb 0185) in a real browser, against
 // the mock bundle. Also the same per-box band set from the Boxes view
 // (/boxes/<id>, t1 05e0fa03).
 //
@@ -284,6 +284,48 @@ try {
   await p.$$eval('[data-test=tenant-fleet-band-remove]', (els) => els.forEach((e) => e.click()))
   await p.click('[data-test=tenant-fleet-save]')
   await p.waitForFunction((k) => !(localStorage.getItem(k) || '').includes('box-desk'), { timeout: NAV_TIMEOUT }, FLEET_STORE_KEY)
+
+  // rdb 0185 (t1 f67e3656): the CI overflow switch (default on) and the CI
+  // runner cores (default 0 = the cnf share), fleet-wide and per box.
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-overflow]', { visible: true, timeout: NAV_TIMEOUT })
+  const ovOpen = {
+    on: await p.$eval('[data-test=tenant-fleet-overflow]', (e) => e.checked),
+    onDefault: await p.$eval('[data-test=tenant-fleet-overflow]', (e) => e.getAttribute('data-using-default')),
+    cpus: await value(p, '[data-test=tenant-fleet-cpus]'),
+  }
+  ok('31 CI overflow opens on and runner CPUs on 0, both the default', ovOpen.on && ovOpen.onDefault === '1' && ovOpen.cpus === '0', ovOpen)
+  await setField(p, '[data-test=tenant-fleet-cpus]', '300')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-form-error]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('32 CONTROL: 300 runner CPUs is refused in the form, nothing stored', (await storedRow()).runner_cpus == null)
+  await p.click('[data-test=tenant-fleet-overflow]')
+  await setField(p, '[data-test=tenant-fleet-cpus]', '12')
+  await setField(p, '[data-test=tenant-fleet-band-input]', 'box-ci')
+  await p.click('[data-test=tenant-fleet-band-add]')
+  await p.waitForSelector('[data-test=tenant-fleet-band][data-box=box-ci] [data-test=tenant-fleet-band-cpus]', { timeout: NAV_TIMEOUT })
+  await setField(p, '[data-test=tenant-fleet-band][data-box=box-ci] [data-test=tenant-fleet-band-cpus]', '4')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-notice]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-band][data-box=box-ci]', { timeout: NAV_TIMEOUT })
+  const ovKept = {
+    on: await p.$eval('[data-test=tenant-fleet-overflow]', (e) => e.checked),
+    cpus: await value(p, '[data-test=tenant-fleet-cpus]'),
+    box: await value(p, '[data-test=tenant-fleet-band][data-box=box-ci] [data-test=tenant-fleet-band-cpus]'),
+    row: await storedRow(),
+  }
+  ok('33 overflow off, 12 runner CPUs and box-ci\'s own 4 survive a reload',
+    !ovKept.on && ovKept.cpus === '12' && ovKept.box === '4' && ovKept.row.ci_overflow === false && ovKept.row.runner_cpus === 12 &&
+    ovKept.row.boxes['box-ci'].runner_cpus === 4, ovKept)
+  await p.click('[data-test=tenant-fleet-overflow-reset]')
+  await p.click('[data-test=tenant-fleet-cpus-reset]')
+  await p.click('[data-test=tenant-fleet-band][data-box=box-ci] [data-test=tenant-fleet-band-remove]')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForFunction((k) => !(localStorage.getItem(k) || '').includes('box-ci'), { timeout: NAV_TIMEOUT }, FLEET_STORE_KEY)
+  const ovReset = await storedRow()
+  ok('34 reset stores neither: overflow back on, runner CPUs back to 0', ovReset.ci_overflow == null && ovReset.runner_cpus == null &&
+    (await p.$eval('[data-test=tenant-fleet-overflow]', (e) => e.checked)), ovReset)
 
   await openBox()
   await p.evaluate((op) => localStorage.removeItem(op), FLEET_OPERATOR_KEY)

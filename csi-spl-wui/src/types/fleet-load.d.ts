@@ -7,6 +7,9 @@ declare module '~/utils/fleet-load.mjs' {
   export const FLEET_DEFAULT_LOW: number
   export const FLEET_DEFAULT_HIGH: number
   export const FLEET_DEFAULT_RUNNER_CPU: number
+  export const FLEET_DEFAULT_CI_OVERFLOW: boolean
+  export const FLEET_DEFAULT_RUNNER_CPUS: number
+  export const FLEET_RUNNER_CPUS_MAX: number
   export const FLEET_AGENT_KINDS: string[]
 
   export interface FleetBoxBand {
@@ -15,6 +18,8 @@ declare module '~/utils/fleet-load.mjs' {
     high: number
     /** rdb 0152: this box's own runner CPU cap; absent / null = the fleet's */
     runnerCpuPct?: number | null
+    /** rdb 0185: this box's own CI runner cores; absent / null = the fleet's */
+    runnerCpus?: number | null
   }
   export interface FleetKindPause {
     kind: string
@@ -29,6 +34,8 @@ declare module '~/utils/fleet-load.mjs' {
     boxes?: FleetBoxBand[] | null
     kindsOff?: string[] | null
     runnerCpuPct?: number | null
+    ciOverflow?: boolean | null
+    runnerCpus?: number | null
   }
   export interface FleetLoadView {
     low: number
@@ -38,9 +45,11 @@ declare module '~/utils/fleet-load.mjs' {
     kindsOff: string[]
     paused: FleetKindPause[]
     runnerCpuPct: number
+    ciOverflow: boolean
+    runnerCpus: number
     source: string
     stored: FleetLoadStored
-    defaults: { low: number, high: number, boxOrder: string[], runnerCpuPct: number }
+    defaults: { low: number, high: number, boxOrder: string[], runnerCpuPct: number, ciOverflow: boolean, runnerCpus: number }
   }
   export interface FleetLoadDraft {
     low: number
@@ -55,6 +64,10 @@ declare module '~/utils/fleet-load.mjs' {
     lift?: string[]
     runnerCpuPct?: number | ''
     resetCpu?: boolean
+    ciOverflow?: boolean
+    resetOverflow?: boolean
+    runnerCpus?: number | ''
+    resetCpus?: boolean
   }
 
   export function validFleetBox(id: unknown): boolean
@@ -62,6 +75,7 @@ declare module '~/utils/fleet-load.mjs' {
   export function fleetBandMap(list: FleetBoxBand[]): Record<string, { low: number, high: number }>
   export function fleetBandOk(b: unknown): boolean
   export function fleetCpuOk(v: unknown): boolean
+  export function fleetCpusOk(v: unknown): boolean
   export function fleetKindList(v: unknown): string[]
   export function fleetPauseList(v: unknown): FleetKindPause[]
   export function fleetKindsOk(kindsOff: unknown): boolean
@@ -71,6 +85,7 @@ declare module '~/utils/fleet-load.mjs' {
   export function fleetLoadPatchBody(saved: FleetLoadView, draft: FleetLoadDraft): Record<string, unknown>
   export function suggestFleetBoxes(stats: unknown): string[]
   export function fleetBoxBandOf(view: FleetLoadView | null | undefined, box: string): { low: number, high: number } | null
+  export function fleetBoxCpusOf(view: FleetLoadView | null | undefined, box: string): number | null
   export function fleetBoxCpuOf(view: FleetLoadView | null | undefined, box: string): number | null
   export function fleetBoxBandPatch(view: FleetLoadView | null | undefined, box: string, band: { low: number, high: number } | null): Record<string, unknown>
   export function boxLoadPct(row: unknown): number | null

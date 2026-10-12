@@ -12,6 +12,9 @@
  * may use, fleet-wide (default 80), and a band may carry its own
  * {low, high, runner_cpu_pct}. Every boxes PATCH carries each band's own cap,
  * since the hub replaces the whole map.
+ * rdb 0185: `ci_overflow` (default true) lets CI overflow to the box runners;
+ * `runner_cpus` is the cores those runners may take, 0..256, default 0 = the
+ * box's cnf share, fleet-wide and per box {low, high, runner_cpus}.
  * Node tests import this file; the settings card does too.
  */
 
@@ -25,10 +28,15 @@ export const FLEET_DEFAULT_LOW = 50
 export const FLEET_DEFAULT_HIGH = 75
 /** store.DefaultRunnerCPUPct: 20 % of every box kept free. */
 export const FLEET_DEFAULT_RUNNER_CPU = 80
+/** rdb 0185 defaults: CI overflow on, no core count (the cnf share). */
+export const FLEET_DEFAULT_CI_OVERFLOW = true
+export const FLEET_DEFAULT_RUNNER_CPUS = 0
+/** store.MaxRunnerCPUs */
+export const FLEET_RUNNER_CPUS_MAX = 256
 /** The agent kinds a box can start (store.AgentKinds), in the hub's order. */
 export const FLEET_AGENT_KINDS = ['claude', 'grok', 'agy', 'qwen', 'mistral']
 /** The hub's 400 bad_setting detail (internal/hub/fleet_load.go). */
-export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, mistral, never all five; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes'
+export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, mistral, never all five; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes; ci_overflow is true or false; runner_cpus is 0..256 (cores, 0 = the cnf share), fleet-wide or per box in boxes'
 
 export function validFleetBox(id) {
   return FLEET_BOX_RE.test(String(id || ''))
@@ -61,6 +69,11 @@ export function fleetCpuOk(v) {
   return Number.isInteger(v) && v >= 1 && v <= 100
 }
 
+/** True for a runner core count the hub takes: an integer 0..256. */
+export function fleetCpusOk(v) {
+  return Number.isInteger(v) && v >= 0 && v <= FLEET_RUNNER_CPUS_MAX
+}
+
 /** A band's own cap, or null (the box uses the fleet's); '' and junk are null. */
 function bandCpu(b) {
   const n = intOrNull(b && b.runnerCpuPct)
@@ -68,8 +81,8 @@ function bandCpu(b) {
 }
 
 /**
- * {box: {low, high, runner_cpu_pct?}} → [{box, low, high, runnerCpuPct?}]
- * sorted by box; junk entries dropped. runnerCpuPct is there only when set.
+ * {box: {low, high, runner_cpu_pct?, runner_cpus?}} → [{box, low, high, runnerCpuPct?, runnerCpus?}]
+ * sorted by box; junk entries dropped. runnerCpuPct / runnerCpus are there only when set.
  */
 export function fleetBandList(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return []
@@ -79,28 +92,34 @@ export function fleetBandList(v) {
     const high = intOrNull(b && b.high)
     if (low == null || high == null) continue
     const cpu = intOrNull(b.runner_cpu_pct)
-    out.push(cpu ? { box: String(box), low, high, runnerCpuPct: cpu } : { box: String(box), low, high })
+    const cpus = intOrNull(b.runner_cpus)
+    const band = { box: String(box), low, high }
+    if (cpu) band.runnerCpuPct = cpu
+    if (cpus) band.runnerCpus = cpus
+    out.push(band)
   }
   return out.sort((a, b) => (a.box < b.box ? -1 : a.box > b.box ? 1 : 0))
 }
 
-/** [{box, low, high, runnerCpuPct?}] → {box: {low, high, runner_cpu_pct?}}; a null cap is left out. */
+/** [{box, low, high, runnerCpuPct?, runnerCpus?}] → {box: {low, high, runner_cpu_pct?, runner_cpus?}}; a null cap / count is left out. */
 export function fleetBandMap(list) {
   const out = {}
   for (const b of Array.isArray(list) ? list : []) {
     const band = { low: Number(b.low), high: Number(b.high) }
     if (b.runnerCpuPct != null && b.runnerCpuPct !== '') band.runner_cpu_pct = Number(b.runnerCpuPct)
+    if (b.runnerCpus != null && b.runnerCpus !== '') band.runner_cpus = Number(b.runnerCpus)
     out[b.box] = band
   }
   return out
 }
 
-/** True when one per-box band is a box id with both marks in range, low < high, and its cap (if any) 1..100. */
+/** True when one per-box band is a box id with both marks in range, low < high, its cap (if any) 1..100 and its cores (if any) 0..256. */
 export function fleetBandOk(b) {
   if (!b || !validFleetBox(b.box)) return false
   const low = Number(b.low)
   const high = Number(b.high)
   if (b.runnerCpuPct != null && b.runnerCpuPct !== '' && !fleetCpuOk(Number(b.runnerCpuPct))) return false
+  if (b.runnerCpus != null && b.runnerCpus !== '' && !fleetCpusOk(Number(b.runnerCpus))) return false
   return Number.isInteger(low) && Number.isInteger(high) && low >= 1 && low <= 99 && high >= 2 && high <= 100 && low < high
 }
 
@@ -137,6 +156,8 @@ export function normalizeFleetLoad(body) {
     high: intOrNull(d.high) ?? FLEET_DEFAULT_HIGH,
     boxOrder: Array.isArray(d.box_order) ? boxList(d.box_order) : [],
     runnerCpuPct: intOrNull(d.runner_cpu_pct) ?? FLEET_DEFAULT_RUNNER_CPU,
+    ciOverflow: typeof d.ci_overflow === 'boolean' ? d.ci_overflow : FLEET_DEFAULT_CI_OVERFLOW,
+    runnerCpus: intOrNull(d.runner_cpus) ?? FLEET_DEFAULT_RUNNER_CPUS,
   }
   const s = b.stored && typeof b.stored === 'object' ? b.stored : {}
   const stored = {
@@ -146,6 +167,8 @@ export function normalizeFleetLoad(body) {
     boxes: s.boxes == null ? null : fleetBandList(s.boxes),
     kindsOff: s.agent_kinds_off == null ? null : fleetKindList(s.agent_kinds_off),
     runnerCpuPct: s.runner_cpu_pct == null ? null : intOrNull(s.runner_cpu_pct),
+    ciOverflow: typeof s.ci_overflow === 'boolean' ? s.ci_overflow : null,
+    runnerCpus: s.runner_cpus == null ? null : intOrNull(s.runner_cpus),
   }
   const boxOrder = Array.isArray(b.box_order)
     ? boxList(b.box_order)
@@ -158,6 +181,8 @@ export function normalizeFleetLoad(body) {
     kindsOff: b.agent_kinds_off != null ? fleetKindList(b.agent_kinds_off) : (stored.kindsOff ? stored.kindsOff.slice() : []),
     paused: fleetPauseList(b.agent_kinds_paused),
     runnerCpuPct: intOrNull(b.runner_cpu_pct) ?? (stored.runnerCpuPct ?? defaults.runnerCpuPct),
+    ciOverflow: typeof b.ci_overflow === 'boolean' ? b.ci_overflow : (stored.ciOverflow ?? defaults.ciOverflow),
+    runnerCpus: intOrNull(b.runner_cpus) ?? (stored.runnerCpus ?? defaults.runnerCpus),
     source: typeof b.source === 'string' ? b.source : '',
     stored,
     defaults,
@@ -183,6 +208,10 @@ export function fleetLoadPatchBody(saved, draft) {
   else if (!sameBands(bands, saved.boxes || [])) body.boxes = fleetBandMap(bands)
   if (draft.resetCpu) body.runner_cpu_pct = null
   else if (draft.runnerCpuPct != null && Number(draft.runnerCpuPct) !== saved.runnerCpuPct) body.runner_cpu_pct = Number(draft.runnerCpuPct)
+  if (draft.resetOverflow) body.ci_overflow = null
+  else if (typeof draft.ciOverflow === 'boolean' && draft.ciOverflow !== saved.ciOverflow) body.ci_overflow = draft.ciOverflow
+  if (draft.resetCpus) body.runner_cpus = null
+  else if (draft.runnerCpus != null && Number(draft.runnerCpus) !== saved.runnerCpus) body.runner_cpus = Number(draft.runnerCpus)
   if (Array.isArray(draft.kindsOff)) {
     const off = fleetKindList(draft.kindsOff)
     if (off.join() !== fleetKindList(saved.kindsOff).join()) body.agent_kinds_off = off
@@ -204,6 +233,14 @@ export function fleetBoxBandOf(view, box) {
   return b ? { low: b.low, high: b.high } : null
 }
 
+/** One box's own runner core count from a normalizeFleetLoad() view; null = it uses the fleet's. */
+export function fleetBoxCpusOf(view, box) {
+  const list = view && Array.isArray(view.boxes) ? view.boxes : []
+  const b = list.find((x) => x.box === box)
+  const n = b ? intOrNull(b.runnerCpus) : null
+  return n == null ? null : n
+}
+
 /** One box's own runner CPU cap from a normalizeFleetLoad() view; null = it uses the fleet's. */
 export function fleetBoxCpuOf(view, box) {
   const list = view && Array.isArray(view.boxes) ? view.boxes : []
@@ -215,15 +252,18 @@ export function fleetBoxCpuOf(view, box) {
  * The Boxes view's PATCH body: set (band) or remove (null) ONE box's entry.
  * The other boxes' bands, the fleet band and the box order stay as `view` has
  * them (the hub replaces the whole map, so the rest is sent back unchanged).
- * A set keeps the box's own runner_cpu_pct (rdb 0152); a remove drops the
- * entry, cap and all.
+ * A set keeps the box's own runner_cpu_pct (rdb 0152) and runner_cpus (rdb
+ * 0185); a remove drops the entry, cap and all.
  */
 export function fleetBoxBandPatch(view, box, band) {
   if (!view || !validFleetBox(box)) return {}
   const others = (Array.isArray(view.boxes) ? view.boxes : []).filter((b) => b.box !== box)
   const cpu = fleetBoxCpuOf(view, box)
+  const cpus = fleetBoxCpusOf(view, box)
   const own = { box, low: Number(band && band.low), high: Number(band && band.high) }
-  const boxes = band ? others.concat(cpu == null ? own : { ...own, runnerCpuPct: cpu }) : others
+  if (cpu != null) own.runnerCpuPct = cpu
+  if (cpus != null) own.runnerCpus = cpus
+  const boxes = band ? others.concat(own) : others
   return fleetLoadPatchBody(view, {
     low: view.low,
     high: view.high,
@@ -291,6 +331,8 @@ export function fleetStoredOk(stored) {
     }
   }
   if (stored.runnerCpuPct != null && !fleetCpuOk(stored.runnerCpuPct)) return false
+  if (stored.ciOverflow != null && typeof stored.ciOverflow !== 'boolean') return false
+  if (stored.runnerCpus != null && !fleetCpusOk(stored.runnerCpus)) return false
   const off = stored.kindsOff
   if (off != null) {
     if (!Array.isArray(off) || fleetKindList(off).length !== off.length || !fleetKindsOk(off)) return false
@@ -301,58 +343,82 @@ export function fleetStoredOk(stored) {
   return bands.every(fleetBandOk)
 }
 
+const isInt = (v) => typeof v === 'number' && Number.isInteger(v)
+const isBool = (v) => typeof v === 'boolean'
+const hasKey = (o, k) => Object.prototype.hasOwnProperty.call(o, k)
+
+/** The scalar PATCH keys: wire key, stored key, type check (null resets each). */
+const FLEET_PATCH_SCALARS = [
+  ['low', 'low', isInt],
+  ['high', 'high', isInt],
+  ['runner_cpu_pct', 'runnerCpuPct', isInt],
+  ['ci_overflow', 'ciOverflow', isBool],
+  ['runner_cpus', 'runnerCpus', isInt],
+]
+
+/** A PATCH `boxes` map as a band list; undefined = the hub refuses it. */
+function fleetPatchBands(boxes) {
+  const list = []
+  for (const [box, b] of Object.entries(boxes)) {
+    const hasCpu = b && typeof b === 'object' && hasKey(b, 'runner_cpu_pct')
+    const hasCpus = b && typeof b === 'object' && hasKey(b, 'runner_cpus')
+    if (!b || typeof b !== 'object' || Object.keys(b).length !== 2 + (hasCpu ? 1 : 0) + (hasCpus ? 1 : 0)) return undefined
+    if (!Number.isInteger(b.low) || !Number.isInteger(b.high)) return undefined
+    if (hasCpu && !fleetCpuOk(b.runner_cpu_pct)) return undefined
+    if (hasCpus && !Number.isInteger(b.runner_cpus)) return undefined
+    const one = { box, low: b.low, high: b.high }
+    if (hasCpu) one.runnerCpuPct = b.runner_cpu_pct
+    if (hasCpus) one.runnerCpus = b.runner_cpus
+    list.push(one)
+  }
+  return list.length === 0 ? null : fleetBandList(fleetBandMap(list))
+}
+
+/** A copy of a stored row, every field present (null = unset). */
+function fleetStoredCopy(stored) {
+  const s = stored || {}
+  return {
+    low: s.low != null ? s.low : null,
+    high: s.high != null ? s.high : null,
+    boxOrder: Array.isArray(s.boxOrder) ? s.boxOrder.slice() : null,
+    boxes: Array.isArray(s.boxes) ? s.boxes.slice() : null,
+    kindsOff: Array.isArray(s.kindsOff) ? s.kindsOff.slice() : null,
+    paused: s.paused && typeof s.paused === 'object' ? { ...s.paused } : null,
+    runnerCpuPct: s.runnerCpuPct != null ? s.runnerCpuPct : null,
+    ciOverflow: typeof s.ciOverflow === 'boolean' ? s.ciOverflow : null,
+    runnerCpus: s.runnerCpus != null ? s.runnerCpus : null,
+  }
+}
+
 /**
  * Apply one PATCH to a stored row. null = the hub refused it (bad_setting).
  * An empty box_order is stored as unset, matching store.FleetLoadStored.apply.
  */
 export function applyFleetPatch(stored, patch) {
-  const next = {
-    low: stored && stored.low != null ? stored.low : null,
-    high: stored && stored.high != null ? stored.high : null,
-    boxOrder: stored && Array.isArray(stored.boxOrder) ? stored.boxOrder.slice() : null,
-    boxes: stored && Array.isArray(stored.boxes) ? stored.boxes.slice() : null,
-    kindsOff: stored && Array.isArray(stored.kindsOff) ? stored.kindsOff.slice() : null,
-    paused: stored && stored.paused && typeof stored.paused === 'object' ? { ...stored.paused } : null,
-    runnerCpuPct: stored && stored.runnerCpuPct != null ? stored.runnerCpuPct : null,
-  }
+  const next = fleetStoredCopy(stored)
   const p = patch && typeof patch === 'object' ? patch : {}
-  if (Object.prototype.hasOwnProperty.call(p, 'low')) {
-    if (p.low === null) next.low = null
-    else if (typeof p.low === 'number' && Number.isInteger(p.low)) next.low = p.low
+  for (const [wire, key, ok] of FLEET_PATCH_SCALARS) {
+    if (!hasKey(p, wire)) continue
+    if (p[wire] === null) next[key] = null
+    else if (ok(p[wire])) next[key] = p[wire]
     else return null
   }
-  if (Object.prototype.hasOwnProperty.call(p, 'high')) {
-    if (p.high === null) next.high = null
-    else if (typeof p.high === 'number' && Number.isInteger(p.high)) next.high = p.high
-    else return null
-  }
-  if (Object.prototype.hasOwnProperty.call(p, 'box_order')) {
+  if (hasKey(p, 'box_order')) {
     if (p.box_order === null) next.boxOrder = null
     else if (Array.isArray(p.box_order)) {
       const ids = p.box_order.map((x) => String(x))
       next.boxOrder = ids.length === 0 ? null : ids
     } else return null
   }
-  if (Object.prototype.hasOwnProperty.call(p, 'boxes')) {
+  if (hasKey(p, 'boxes')) {
     if (p.boxes === null) next.boxes = null
     else if (p.boxes && typeof p.boxes === 'object' && !Array.isArray(p.boxes)) {
-      const list = []
-      for (const [box, b] of Object.entries(p.boxes)) {
-        const hasCpu = b && typeof b === 'object' && Object.prototype.hasOwnProperty.call(b, 'runner_cpu_pct')
-        if (!b || typeof b !== 'object' || Object.keys(b).length !== (hasCpu ? 3 : 2)) return null
-        if (!Number.isInteger(b.low) || !Number.isInteger(b.high)) return null
-        if (hasCpu && !fleetCpuOk(b.runner_cpu_pct)) return null
-        list.push(hasCpu ? { box, low: b.low, high: b.high, runnerCpuPct: b.runner_cpu_pct } : { box, low: b.low, high: b.high })
-      }
-      next.boxes = list.length === 0 ? null : fleetBandList(fleetBandMap(list))
+      const bands = fleetPatchBands(p.boxes)
+      if (bands === undefined) return null
+      next.boxes = bands
     } else return null
   }
-  if (Object.prototype.hasOwnProperty.call(p, 'runner_cpu_pct')) {
-    if (p.runner_cpu_pct === null) next.runnerCpuPct = null
-    else if (typeof p.runner_cpu_pct === 'number' && Number.isInteger(p.runner_cpu_pct)) next.runnerCpuPct = p.runner_cpu_pct
-    else return null
-  }
-  if (Object.prototype.hasOwnProperty.call(p, 'agent_kinds_off')) {
+  if (hasKey(p, 'agent_kinds_off')) {
     if (p.agent_kinds_off === null) next.kindsOff = null
     else if (Array.isArray(p.agent_kinds_off)) {
       const ks = p.agent_kinds_off.map((x) => String(x))
@@ -360,7 +426,7 @@ export function applyFleetPatch(stored, patch) {
       next.kindsOff = ks.length === 0 ? null : ks
     } else return null
   }
-  if (Object.prototype.hasOwnProperty.call(p, 'agent_kinds_paused') && p.agent_kinds_paused !== null) {
+  if (hasKey(p, 'agent_kinds_paused') && p.agent_kinds_paused !== null) {
     const m = p.agent_kinds_paused
     if (!m || typeof m !== 'object' || Array.isArray(m)) return null
     const left = { ...(next.paused || {}) }
@@ -385,6 +451,8 @@ function fleetBody(stored) {
     agent_kinds_off: stored.kindsOff == null ? [] : stored.kindsOff.slice(),
     agent_kinds_paused: stored.paused == null ? {} : { ...stored.paused },
     runner_cpu_pct: stored.runnerCpuPct == null ? FLEET_DEFAULT_RUNNER_CPU : stored.runnerCpuPct,
+    ci_overflow: stored.ciOverflow == null ? FLEET_DEFAULT_CI_OVERFLOW : stored.ciOverflow,
+    runner_cpus: stored.runnerCpus == null ? FLEET_DEFAULT_RUNNER_CPUS : stored.runnerCpus,
     source: 'hub',
     stored: {
       low: stored.low,
@@ -394,8 +462,20 @@ function fleetBody(stored) {
       agent_kinds_off: stored.kindsOff == null ? null : stored.kindsOff.slice(),
       agent_kinds_paused: stored.paused == null ? null : { ...stored.paused },
       runner_cpu_pct: stored.runnerCpuPct,
+      ci_overflow: stored.ciOverflow,
+      runner_cpus: stored.runnerCpus,
     },
-    defaults: { low: FLEET_DEFAULT_LOW, high: FLEET_DEFAULT_HIGH, box_order: [], boxes: {}, agent_kinds_off: [], agent_kinds_paused: {}, runner_cpu_pct: FLEET_DEFAULT_RUNNER_CPU },
+    defaults: {
+      low: FLEET_DEFAULT_LOW,
+      high: FLEET_DEFAULT_HIGH,
+      box_order: [],
+      boxes: {},
+      agent_kinds_off: [],
+      agent_kinds_paused: {},
+      runner_cpu_pct: FLEET_DEFAULT_RUNNER_CPU,
+      ci_overflow: FLEET_DEFAULT_CI_OVERFLOW,
+      runner_cpus: FLEET_DEFAULT_RUNNER_CPUS,
+    },
   }
 }
 
@@ -411,7 +491,7 @@ function browserStore() {
 function readStored(store) {
   /* keep the "no store" guard: storageGetJson would fall back to localStorage */
   const p = store && typeof store.getItem === 'function' ? storageGetJson(FLEET_STORE_KEY, null, store) : null
-  if (!p || typeof p !== 'object') return { low: null, high: null, boxOrder: null, boxes: null, kindsOff: null, paused: null, runnerCpuPct: null }
+  if (!p || typeof p !== 'object') return { low: null, high: null, boxOrder: null, boxes: null, kindsOff: null, paused: null, runnerCpuPct: null, ciOverflow: null, runnerCpus: null }
   return {
     low: p.low == null ? null : Number(p.low),
     high: p.high == null ? null : Number(p.high),
@@ -421,6 +501,8 @@ function readStored(store) {
     /* the e2e plants a pause here, as a box's fleet_load_pause would */
     paused: p.agent_kinds_paused && typeof p.agent_kinds_paused === 'object' ? { ...p.agent_kinds_paused } : null,
     runnerCpuPct: p.runner_cpu_pct == null ? null : Number(p.runner_cpu_pct),
+    ciOverflow: typeof p.ci_overflow === 'boolean' ? p.ci_overflow : null,
+    runnerCpus: p.runner_cpus == null ? null : Number(p.runner_cpus),
   }
 }
 
@@ -449,6 +531,8 @@ export function mockFleetWrite(patch, store) {
     agent_kinds_off: next.kindsOff,
     agent_kinds_paused: next.paused,
     runner_cpu_pct: next.runnerCpuPct,
+    ci_overflow: next.ciOverflow,
+    runner_cpus: next.runnerCpus,
   }))
   return fleetBody(next)
 }

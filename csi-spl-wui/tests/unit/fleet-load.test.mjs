@@ -259,6 +259,30 @@ try { mockFleetWrite({ runner_cpu_pct: 0 }, cpuStore) } catch (e) { cpuBad = e.t
 ok('CONTROL: mock refuses a fleet cap of 0', cpuBad === 'bad_setting', cpuBad)
 ok('mock: runner_cpu_pct null resets the fleet cap to 80', normalizeFleetLoad(mockFleetWrite({ runner_cpu_pct: null }, cpuStore)).runnerCpuPct === 80)
 
+// rdb 0185: ci_overflow (default on) and runner_cpus (0..256, default 0 = the cnf share)
+const ovStore = mem({ [FLEET_OPERATOR_KEY]: '1' })
+const ovFresh = normalizeFleetLoad(mockFleetRead(ovStore))
+ok('ci overflow: default on, 0 cores, nothing stored', ovFresh.ciOverflow === true && ovFresh.runnerCpus === 0 &&
+  ovFresh.stored.ciOverflow === null && ovFresh.stored.runnerCpus === null, JSON.stringify(ovFresh))
+ok('ci overflow: a missing key in GET is the default', normalizeFleetLoad({ low: 50, high: 75 }).ciOverflow === true && normalizeFleetLoad({}).runnerCpus === 0)
+ok('ci overflow: off and 12 cores go into the PATCH; unchanged ones stay out',
+  JSON.stringify(fleetLoadPatchBody(ovFresh, { ...cpuDraft({}), low: 50, high: 75, boxOrder: [], boxes: [], runnerCpuPct: 80, ciOverflow: false, runnerCpus: 12 })) === '{"ci_overflow":false,"runner_cpus":12}')
+ok('ci overflow: a reset sends null for each',
+  JSON.stringify(fleetLoadPatchBody(ovFresh, { ...cpuDraft({}), low: 50, high: 75, boxOrder: [], boxes: [], runnerCpuPct: 80, resetOverflow: true, resetCpus: true })) === '{"ci_overflow":null,"runner_cpus":null}')
+const ovSaved = normalizeFleetLoad(mockFleetWrite({ ci_overflow: false, runner_cpus: 12, boxes: { 'box-s': { low: 30, high: 60, runner_cpus: 4 } } }, ovStore))
+ok('mock: overflow off, 12 cores and a box count land', !ovSaved.ciOverflow && ovSaved.runnerCpus === 12 && ovSaved.boxes[0].runnerCpus === 4, JSON.stringify(ovSaved))
+const ovBand = normalizeFleetLoad(mockFleetWrite(fleetBoxBandPatch(ovSaved, 'box-s', { low: 35, high: 65 }), ovStore))
+ok('mock: a band save keeps the box core count', ovBand.boxes[0].runnerCpus === 4 && ovBand.boxes[0].low === 35, JSON.stringify(ovBand))
+for (const bad of [{ runner_cpus: -1 }, { runner_cpus: 257 }, { runner_cpus: 2.5 }, { ci_overflow: 'no' }, { boxes: { 'box-s': { low: 30, high: 60, runner_cpus: 300 } } }]) {
+  let tok = ''
+  try { mockFleetWrite(bad, ovStore) } catch (e) { tok = e.token }
+  ok(`CONTROL: mock refuses ${JSON.stringify(bad)}`, tok === 'bad_setting', tok)
+}
+ok('cpus: a box count 0..256 passes; 257 and 1.5 do not', fleetBandOk({ box: 'b', low: 1, high: 2, runnerCpus: 256 }) &&
+  !fleetBandOk({ box: 'b', low: 1, high: 2, runnerCpus: 257 }) && !fleetBandOk({ box: 'b', low: 1, high: 2, runnerCpus: 1.5 }))
+const ovReset = normalizeFleetLoad(mockFleetWrite({ ci_overflow: null, runner_cpus: null }, ovStore))
+ok('mock: null resets overflow to on and cores to 0', ovReset.ciOverflow === true && ovReset.runnerCpus === 0 && ovReset.boxes[0].runnerCpus === 4)
+
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)
 

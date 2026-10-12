@@ -10,7 +10,10 @@
      "paused ... until"; Resume lifts it.
      Runner CPU cap (rdb 0152): the % of a box's cores CI runners plus agents
      may use, fleet-wide, and a band's own cap where set (empty = the fleet's).
-     Every boxes PATCH carries each band's cap: the hub replaces the map. -->
+     Every boxes PATCH carries each band's cap: the hub replaces the map.
+     CI overflow (rdb 0185): one on/off for CI overflowing to the box runners,
+     and the cores those runners may take (0 = the cnf share), fleet-wide and
+     a band's own where set (empty = the fleet's). -->
 <template>
   <div data-test="tenant-fleet-root" :data-state="state">
     <p v-if="state === 'loading'" class="muted">{{ t('common.loading') }}</p>
@@ -84,6 +87,50 @@
         <small class="muted" data-test="tenant-fleet-cpu-default">{{ t('tenant_settings.fleet_load_default', { n: view.defaults.runnerCpuPct }) }}</small>
         <small v-if="cpuUsesDefault" class="muted" data-test="tenant-fleet-cpu-using">{{ t('tenant_settings.fleet_load_using_default') }}</small>
         <button type="button" class="btn ghost" :disabled="saving || cpuUsesDefault" data-test="tenant-fleet-cpu-reset" @click="resetToDefault('cpu')">
+          {{ t('tenant_settings.fleet_load_reset') }}
+        </button>
+      </div>
+
+      <div class="fl-field" data-test="tenant-fleet-overflow-field">
+        <label class="fl-kind__switch">
+          <input
+            type="checkbox"
+            role="switch"
+            :checked="overflow"
+            :disabled="saving"
+            data-test="tenant-fleet-overflow"
+            :data-using-default="overflowUsesDefault ? '1' : '0'"
+            @change="editOverflow(($event.target as HTMLInputElement).checked)"
+          >
+          <span>{{ t('tenant_settings.fleet_load_ci_overflow') }}</span>
+          <span class="muted">{{ overflow ? t('tenant_settings.fleet_load_kind_on') : t('tenant_settings.fleet_load_kind_off') }}</span>
+        </label>
+        <small class="muted">{{ t('tenant_settings.fleet_load_ci_overflow_hint') }}</small>
+        <small v-if="overflowUsesDefault" class="muted" data-test="tenant-fleet-overflow-using">{{ t('tenant_settings.fleet_load_using_default') }}</small>
+        <button type="button" class="btn ghost" :disabled="saving || overflowUsesDefault" data-test="tenant-fleet-overflow-reset" @click="resetToDefault('overflow')">
+          {{ t('tenant_settings.fleet_load_reset') }}
+        </button>
+      </div>
+
+      <div class="fl-field">
+        <label for="tenant-fleet-cpus">{{ t('tenant_settings.fleet_load_runner_cpus') }}</label>
+        <small class="muted">{{ t('tenant_settings.fleet_load_runner_cpus_hint') }}</small>
+        <input
+          id="tenant-fleet-cpus"
+          :value="cpus"
+          type="number"
+          min="0"
+          :max="FLEET_RUNNER_CPUS_MAX"
+          step="1"
+          inputmode="numeric"
+          autocomplete="off"
+          data-test="tenant-fleet-cpus"
+          :data-using-default="cpusUseDefault ? '1' : '0'"
+          @input="editCpus(($event.target as HTMLInputElement).value)"
+        >
+        <small class="muted" data-test="tenant-fleet-cpus-default">{{ t('tenant_settings.fleet_load_default', { n: view.defaults.runnerCpus }) }}</small>
+        <small v-if="cpusUseDefault" class="muted" data-test="tenant-fleet-cpus-using">{{ t('tenant_settings.fleet_load_using_default') }}</small>
+        <button type="button" class="btn ghost" :disabled="saving || cpusUseDefault" data-test="tenant-fleet-cpus-reset" @click="resetToDefault('cpus')">
           {{ t('tenant_settings.fleet_load_reset') }}
         </button>
       </div>
@@ -203,6 +250,20 @@
               data-test="tenant-fleet-band-cpu"
               @input="editBand(i, 'runnerCpuPct', ($event.target as HTMLInputElement).value)"
             >
+            <input
+              :value="b.runnerCpus ?? ''"
+              type="number"
+              min="0"
+              :max="FLEET_RUNNER_CPUS_MAX"
+              step="1"
+              inputmode="numeric"
+              autocomplete="off"
+              :placeholder="String(fleetCpus)"
+              :title="t('tenant_settings.fleet_load_runner_cpus_box', { n: fleetCpus })"
+              :aria-label="t('tenant_settings.fleet_load_runner_cpus') + ' ' + b.box"
+              data-test="tenant-fleet-band-cpus"
+              @input="editBand(i, 'runnerCpus', ($event.target as HTMLInputElement).value)"
+            >
             <button
               type="button"
               class="icon-btn"
@@ -303,8 +364,10 @@ import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
   FLEET_AGENT_KINDS,
   FLEET_BOX_MAX,
+  FLEET_RUNNER_CPUS_MAX,
   fleetBandOk,
   fleetCpuOk,
+  fleetCpusOk,
   fleetKindsOk,
   fleetLoadForbidden,
   fleetLoadPatchBody,
@@ -340,6 +403,10 @@ const bands = ref<FleetBoxBand[]>([])
 const resetBoxes = ref(false)
 const cpu = ref<number | ''>(80)
 const resetCpu = ref(false)
+const overflow = ref(true)
+const resetOverflow = ref(false)
+const cpus = ref<number | ''>(0)
+const resetCpus = ref(false)
 const bandBox = ref('')
 const kindsOff = ref<string[]>([])
 const lift = ref<string[]>([])
@@ -388,6 +455,20 @@ const cpuUsesDefault = computed(() => {
   if (resetCpu.value) return true
   return s.stored.runnerCpuPct == null && Number(cpu.value) === s.defaults.runnerCpuPct
 })
+const overflowUsesDefault = computed(() => {
+  const s = view.value
+  if (!s) return false
+  if (resetOverflow.value) return true
+  return s.stored.ciOverflow == null && overflow.value === s.defaults.ciOverflow
+})
+const cpusUseDefault = computed(() => {
+  const s = view.value
+  if (!s) return false
+  if (resetCpus.value) return true
+  return s.stored.runnerCpus == null && Number(cpus.value) === s.defaults.runnerCpus
+})
+/* what an empty per-box core count falls back to: the fleet's as edited */
+const fleetCpus = computed(() => (cpus.value === '' ? view.value?.runnerCpus ?? '' : cpus.value))
 /* what an empty per-box cap falls back to: the fleet cap as edited */
 const fleetCpu = computed(() => (cpu.value === '' ? view.value?.runnerCpuPct ?? '' : cpu.value))
 const dirty = computed(() => {
@@ -410,6 +491,10 @@ function draft() {
     lift: lift.value.slice(),
     runnerCpuPct: cpu.value,
     resetCpu: resetCpu.value,
+    ciOverflow: overflow.value,
+    resetOverflow: resetOverflow.value,
+    runnerCpus: cpus.value,
+    resetCpus: resetCpus.value,
   }
 }
 
@@ -427,6 +512,10 @@ function take(next: FleetLoadView) {
   lift.value = []
   cpu.value = next.runnerCpuPct
   resetCpu.value = false
+  overflow.value = next.ciOverflow
+  resetOverflow.value = false
+  cpus.value = next.runnerCpus
+  resetCpus.value = false
 }
 
 function toggleKind(k: string, on: boolean) {
@@ -452,7 +541,17 @@ function editCpu(raw: string) {
   cpu.value = raw === '' ? '' : Number(raw)
 }
 
-function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes' | 'cpu') {
+function editOverflow(on: boolean) {
+  resetOverflow.value = false
+  overflow.value = on
+}
+
+function editCpus(raw: string) {
+  resetCpus.value = false
+  cpus.value = raw === '' ? '' : Number(raw)
+}
+
+function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes' | 'cpu' | 'overflow' | 'cpus') {
   const s = view.value
   if (!s) return
   formError.value = ''
@@ -465,6 +564,12 @@ function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes' | 'cpu') {
   } else if (which === 'cpu') {
     cpu.value = s.defaults.runnerCpuPct
     resetCpu.value = true
+  } else if (which === 'overflow') {
+    overflow.value = s.defaults.ciOverflow
+    resetOverflow.value = true
+  } else if (which === 'cpus') {
+    cpus.value = s.defaults.runnerCpus
+    resetCpus.value = true
   } else if (which === 'order') {
     boxes.value = []
     resetOrder.value = true
@@ -474,9 +579,9 @@ function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes' | 'cpu') {
   }
 }
 
-/* an empty cap is null: that box uses the fleet's */
-function editBand(i: number, field: 'low' | 'high' | 'runnerCpuPct', raw: string) {
-  const empty = field === 'runnerCpuPct' ? null : NaN
+/* an empty cap or core count is null: that box uses the fleet's */
+function editBand(i: number, field: 'low' | 'high' | 'runnerCpuPct' | 'runnerCpus', raw: string) {
+  const empty = field === 'runnerCpuPct' || field === 'runnerCpus' ? null : NaN
   bands.value = bands.value.map((b, j) => (j === i ? { ...b, [field]: raw === '' ? empty : Number(raw) } : b))
   resetBoxes.value = false
 }
@@ -560,6 +665,11 @@ async function save() {
   const boxCpuBad = !resetBoxes.value && bands.value.some((b) => b.runnerCpuPct != null && !fleetCpuOk(b.runnerCpuPct))
   if ((!resetCpu.value && !fleetCpuOk(cpu.value)) || boxCpuBad) {
     formError.value = t('tenant_settings.fleet_load_cpu_bad')
+    return
+  }
+  const boxCpusBad = !resetBoxes.value && bands.value.some((b) => b.runnerCpus != null && !fleetCpusOk(b.runnerCpus))
+  if ((!resetCpus.value && !fleetCpusOk(cpus.value)) || boxCpusBad) {
+    formError.value = t('tenant_settings.fleet_load_runner_cpus_bad')
     return
   }
   if (!resetBoxes.value && !bands.value.every(fleetBandOk)) {

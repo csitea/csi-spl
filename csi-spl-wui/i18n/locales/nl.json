@@ -1485,6 +1485,21 @@
     "expand": "{name} uitklappen",
     "add_in": "Nieuw issue in {name}"
   },
+  "issue_history": {
+    "tab": "Geschiedenis",
+    "loading": "Geschiedenis laden…",
+    "failed": "De geschiedenis kon niet worden gelezen.",
+    "empty": "Nog geen geschiedenis.",
+    "created": "heeft het issue aangemaakt",
+    "changed": "heeft {field} gewijzigd",
+    "commented": "heeft gereageerd",
+    "deleted": "heeft het issue verwijderd",
+    "restored": "heeft het issue hersteld",
+    "archived": "heeft het issue gearchiveerd",
+    "unarchived": "heeft het issue uit het archief gehaald",
+    "title": "Titel",
+    "none": "geen"
+  },
   "tenant_settings": {
     "title": "Werkruimte-instellingen",
     "nav_label": "Secties van de werkruimte-instellingen",

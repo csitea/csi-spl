@@ -1485,6 +1485,21 @@
     "expand": "Fäll ut {name}",
     "add_in": "Nytt ärende i {name}"
   },
+  "issue_history": {
+    "tab": "Historik",
+    "loading": "Läser in historiken…",
+    "failed": "Historiken kunde inte läsas.",
+    "empty": "Ingen historik ännu.",
+    "created": "skapade ärendet",
+    "changed": "ändrade {field}",
+    "commented": "kommenterade",
+    "deleted": "tog bort ärendet",
+    "restored": "återställde ärendet",
+    "archived": "arkiverade ärendet",
+    "unarchived": "tog fram ärendet ur arkivet",
+    "title": "Titel",
+    "none": "inget"
+  },
   "tenant_settings": {
     "title": "Arbetsytans inställningar",
     "nav_label": "Avsnitt i arbetsytans inställningar",

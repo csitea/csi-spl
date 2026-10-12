@@ -9583,6 +9583,93 @@
         ]
       }
     },
+    "/v1/view/issues/{ref}/history": {
+      "get": {
+        "operationId": "getViewIssuesByRefHistory",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The History tab of one issue, oldest first (rdb 0181 issue_events plus the comments of its topic).",
+                  "properties": {
+                    "events": {
+                      "items": {
+                        "properties": {
+                          "actor": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "event": {
+                            "description": "created, changed, commented, deleted, restored, archived, unarchived",
+                            "type": "string"
+                          },
+                          "field": {
+                            "description": "the changed field, for a change event",
+                            "type": "string"
+                          },
+                          "msg_id": {
+                            "description": "the comment's message id, for a comment event",
+                            "type": "string"
+                          },
+                          "new": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "old": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the issue's history"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "this hub keeps no issue history"
+          }
+        },
+        "summary": "Read the history of one issue",
+        "tags": [
+          "view"
+        ]
+      }
+    },
     "/v1/view/locate/{id}": {
       "get": {
         "operationId": "getViewLocateById",

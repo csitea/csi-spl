@@ -1485,6 +1485,21 @@
     "expand": "Expandir {name}",
     "add_in": "Nueva incidencia en {name}"
   },
+  "issue_history": {
+    "tab": "Historial",
+    "loading": "Cargando el historial…",
+    "failed": "No se pudo leer el historial.",
+    "empty": "Aún no hay historial.",
+    "created": "creó la incidencia",
+    "changed": "cambió {field}",
+    "commented": "comentó",
+    "deleted": "eliminó la incidencia",
+    "restored": "restauró la incidencia",
+    "archived": "archivó la incidencia",
+    "unarchived": "desarchivó la incidencia",
+    "title": "Título",
+    "none": "ninguno"
+  },
   "tenant_settings": {
     "title": "Ajustes del espacio de trabajo",
     "nav_label": "Secciones de ajustes del espacio de trabajo",

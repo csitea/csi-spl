@@ -1485,6 +1485,21 @@
     "expand": "Expand {name}",
     "add_in": "New issue in {name}"
   },
+  "issue_history": {
+    "tab": "History",
+    "loading": "Loading history…",
+    "failed": "The history could not be read.",
+    "empty": "No history yet.",
+    "created": "created the issue",
+    "changed": "changed {field}",
+    "commented": "commented",
+    "deleted": "deleted the issue",
+    "restored": "restored the issue",
+    "archived": "archived the issue",
+    "unarchived": "unarchived the issue",
+    "title": "Title",
+    "none": "none"
+  },
   "tenant_settings": {
     "title": "Workspace settings",
     "nav_label": "Workspace settings sections",

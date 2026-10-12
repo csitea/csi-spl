@@ -1485,6 +1485,21 @@
     "expand": "{name} genişlet",
     "add_in": "{name} içinde yeni kayıt"
   },
+  "issue_history": {
+    "tab": "Geçmiş",
+    "loading": "Geçmiş yükleniyor…",
+    "failed": "Geçmiş okunamadı.",
+    "empty": "Henüz geçmiş yok.",
+    "created": "konuyu oluşturdu",
+    "changed": "{field} alanını değiştirdi",
+    "commented": "yorum yaptı",
+    "deleted": "konuyu sildi",
+    "restored": "konuyu geri yükledi",
+    "archived": "konuyu arşivledi",
+    "unarchived": "konuyu arşivden çıkardı",
+    "title": "Başlık",
+    "none": "yok"
+  },
   "tenant_settings": {
     "title": "Çalışma alanı ayarları",
     "nav_label": "Çalışma alanı ayarları bölümleri",

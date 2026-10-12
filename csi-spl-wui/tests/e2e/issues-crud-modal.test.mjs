@@ -7,6 +7,7 @@
 //   C  create in a new top row (+ and C), with a cell set before Enter
 //   U  update every cell in place (title, status, prio, assignee, labels,
 //      deadline) and by keyboard (arrows, Enter, Esc)
+//   H  the History tab (rdb 0181): created and each edit, who and when
 //   D  delete with the one confirm; a parent with a live subtask asks the
 //      cascade confirm, its count in the button (HUM-10, t1 40c135cb)
 // Each operation carries a control: the same gesture cancelled changes nothing.
@@ -234,6 +235,32 @@ try {
     }), `${row(b)} .issues-title`)
     ok(`M2 ${W}: the title and description are edited in the modal; Esc in the description leaves it (saved) and the modal stays`,
       m2.rowTitle === 'Beta via modal' && m2.desc === 'described in the modal' && m2.still, m2)
+
+    /* rdb 0181 (owner t1 62e48cef): the History tab lists the issue's events
+       oldest first - created, then the title and description edits above, each
+       with who and when (exact on hover); Discussion keeps the comment box,
+       History has none (control) */
+    const talkIn = () => p.$('[data-test=issues-comment-input]').then(Boolean)
+    const hCtl = await talkIn()
+    await p.click('[data-test=issues-talk-tab][data-value="history"]')
+    await p.waitForSelector('[data-test=issues-history-row]', { visible: true, timeout: 5000 }).catch(() => {})
+    const h1 = await p.evaluate(() => ({
+      tab: document.querySelector('[data-test=issues-talk-tab][aria-selected="true"]')?.getAttribute('data-value'),
+      rows: [...document.querySelectorAll('[data-test=issues-history-row]')].map((r) => ({
+        event: r.getAttribute('data-event'), field: r.getAttribute('data-field'),
+        actor: r.querySelector('[data-test=issues-history-actor]')?.textContent.trim(),
+        values: r.querySelector('[data-test=issues-history-values]')?.textContent.replace(/[\s\u00a0]+/g, ' ').trim() || '',
+        when: r.querySelector('[data-test=issues-history-at]')?.textContent.trim(), exact: r.querySelector('[data-test=issues-history-at]')?.getAttribute('title') || '',
+      })),
+    }))
+    const hInput = await talkIn()
+    const hSeq = h1.rows.map((r) => r.event + (r.field ? ':' + r.field : '')).join(' ')
+    ok(`H1 ${W}: the History tab lists created, then the title and description edits, each with who and when (exact on hover); no comment box there, Discussion has one (control)`,
+      hCtl && !hInput && h1.tab === 'history' && hSeq === 'created changed:title changed:description' &&
+        h1.rows[1].values === 'Beta row → Beta via modal' && h1.rows.every((r) => r.actor && r.when && r.exact), { hCtl, hInput, hSeq, h1 })
+    await p.screenshot({ path: `${SHOTS}/history-${W}.png` })
+    await p.click('[data-test=issues-talk-tab][data-value="discussion"]')
+    await p.waitForSelector('[data-test=issues-comment-input]', { visible: true, timeout: 5000 }).catch(() => {})
 
     await p.keyboard.press('KeyS')
     const m3menu = await p.waitForSelector('[data-test=issues-menu][data-kind="status"]', { visible: true, timeout: 3000 }).then(() => p.evaluate(() => {

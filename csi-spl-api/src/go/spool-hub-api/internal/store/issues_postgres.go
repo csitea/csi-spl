@@ -278,8 +278,10 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 			return err
 		}
 		if cur.Level != was { // an issue made an epic: its subtasks are issues now
-			if _, err := tx.Exec(ctx, `UPDATE issues SET level = $3 WHERE tenant_id = $1 AND parent_number = $2`,
-				tenant, number, cur.Level+1); err != nil {
+			// updated_by / updated_at name who moved them in their history (rdb 0181)
+			if _, err := tx.Exec(ctx, `UPDATE issues SET level = $3, updated_by = $4, updated_at = $5
+				WHERE tenant_id = $1 AND parent_number = $2`,
+				tenant, number, cur.Level+1, by, now); err != nil {
 				return err
 			}
 		}

@@ -85,6 +85,7 @@ const LAZY_METHODS = [
   'unarchiveChannel',
   'listIssues',
   'getIssue',
+  'getIssueHistory',
   'createIssue',
   'updateIssue',
   'deleteIssue',

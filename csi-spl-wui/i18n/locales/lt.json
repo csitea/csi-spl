@@ -1485,6 +1485,21 @@
     "expand": "Išskleisti {name}",
     "add_in": "Nauja užduotis būsenoje {name}"
   },
+  "issue_history": {
+    "tab": "Istorija",
+    "loading": "Įkeliama istorija…",
+    "failed": "Nepavyko perskaityti istorijos.",
+    "empty": "Istorijos dar nėra.",
+    "created": "sukūrė užduotį",
+    "changed": "pakeitė {field}",
+    "commented": "pakomentavo",
+    "deleted": "ištrynė užduotį",
+    "restored": "atkūrė užduotį",
+    "archived": "suarchyvavo užduotį",
+    "unarchived": "grąžino užduotį iš archyvo",
+    "title": "Pavadinimas",
+    "none": "nėra"
+  },
   "tenant_settings": {
     "title": "Darbo srities nustatymai",
     "nav_label": "Darbo srities nustatymų skyriai",

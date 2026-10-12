@@ -322,6 +322,40 @@ function mockNewIssue(body, n, me, at) {
 }
 
 /** localStorage key: how many issues the mock tenant starts with beyond SPL-1. */
+/* rdb 0181: the fields an issue's History tab names, in the hub trigger's order */
+const HISTORY_FIELDS = ['title', 'description', 'status', 'priority', 'level', 'assignee', 'kind', 'parent', 'deadline', 'labels']
+
+/** The mock twin of the rdb 0181 trigger: one `changed` event per field that moved. */
+function mockChanges(was, now) {
+  const out = []
+  for (const f of HISTORY_FIELDS) {
+    const o = Array.isArray(was[f]) ? was[f].join(',') : String(was[f] ?? '')
+    const n = Array.isArray(now[f]) ? now[f].join(',') : String(now[f] ?? '')
+    if (o === n) continue
+    const desc = f === 'description'
+    out.push({ at: now.updated_at, actor: now.updated_by, event: 'changed', field: f, old: desc || o === '' ? null : o, new: desc || n === '' ? null : n })
+  }
+  return out
+}
+
+/** The mock's per-issue history log (rdb 0181), seeded with each issue's created event. */
+function mockHistoryLog(issues) {
+  const created = (i) => ({ at: i.created_at, actor: i.created_by, event: 'created', old: null, new: null })
+  const events = new Map(issues.map((i) => [i.key, [created(i)]]))
+  const record = (key, evs) => events.set(key, [...(events.get(key) || []), ...evs])
+  return {
+    created: (i) => record(i.key, [created(i)]),
+    changed: (was, now) => record(now.key, mockChanges(was, now)),
+    read: (key) => (events.get(key) || []).map((e) => ({ ...e })),
+  }
+}
+
+/** issues-v1 history (rdb 0181) of a live issue; 404 for none. */
+function mockHistoryOf(i, log) {
+  if (!i) throw mockErr(404, 'not_found')
+  return { key: i.key, events: log.read(i.key) }
+}
+
 export const MOCK_ISSUES_SEED_KEY = 'spool.mock.issues-seed'
 
 /**
@@ -345,6 +379,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
   }
   const find = (ref) => mockFind(issues, ref)
   const view = (i) => mockView(issues, i)
+  const log = mockHistoryLog(issues) /* rdb 0181; a gone issue's history reads 404 */
   /* SPL-1027 / SPL-1226: the hub's soft delete (remove) and archive - for the
      mock (no archived store) both hide the row. Without cascade a parent with
      a live child is refused; with it the whole epic / feature and its
@@ -380,6 +415,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       mockLevelField(issues, body, i, true)
       last++
       issues = [...issues, i]
+      log.created(i)
       return { issue: view(i) }
     },
     update(ref, patch = {}) {
@@ -390,8 +426,10 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       mockCheck(issues, labels, next)
       mockLevelField(issues, patch, next, false)
       issues = issues.map((x) => (x.key === i.key ? next : x))
+      log.changed(i, next)
       return { issue: view(next) }
     },
+    history(ref) { return mockHistoryOf(find(ref), log) },
     remove(ref, cascade = false) { return drop(ref, cascade) },
     archive(ref, cascade = false) { return drop(ref, cascade) },
     label({ name = '', color = '' } = {}) {

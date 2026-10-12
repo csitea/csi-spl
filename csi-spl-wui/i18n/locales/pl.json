@@ -1485,6 +1485,21 @@
     "expand": "Rozwiń {name}",
     "add_in": "Nowe zgłoszenie w {name}"
   },
+  "issue_history": {
+    "tab": "Historia",
+    "loading": "Wczytywanie historii…",
+    "failed": "Nie udało się odczytać historii.",
+    "empty": "Brak historii.",
+    "created": "utworzył(a) zgłoszenie",
+    "changed": "zmienił(a) {field}",
+    "commented": "skomentował(a)",
+    "deleted": "usunął(ęła) zgłoszenie",
+    "restored": "przywrócił(a) zgłoszenie",
+    "archived": "zarchiwizował(a) zgłoszenie",
+    "unarchived": "przywrócił(a) zgłoszenie z archiwum",
+    "title": "Tytuł",
+    "none": "brak"
+  },
   "tenant_settings": {
     "title": "Ustawienia obszaru roboczego",
     "nav_label": "Sekcje ustawień obszaru roboczego",

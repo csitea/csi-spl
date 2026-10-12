@@ -867,10 +867,27 @@
         </section>
         <section v-if="!creating && form.task_id" class="issues-talk issues-detail-talk" data-test="issues-talk">
           <!-- SPL-963: the discussion takes its titles / 5 rows / full -->
-          <div class="issues-talk__h">
-            <h3>{{ t('issues.discussion') }}</h3>
-            <LazyCardClipControl pane="thread" />
+          <!-- rdb 0181 (owner t1 62e48cef): Discussion | History, Jira style -->
+          <div class="issues-talk__h" role="tablist" :aria-label="t('issues.discussion')">
+            <button
+              v-for="tab in TALK_TABS"
+              :key="tab"
+              type="button"
+              role="tab"
+              class="issues-talk__tab"
+              data-test="issues-talk-tab"
+              :data-value="tab"
+              :aria-selected="talkTab === tab ? 'true' : 'false'"
+              @click="talkTab = tab"
+            >
+              {{ tab === 'history' ? t('issue_history.tab') : t('issues.discussion') }}
+            </button>
+            <LazyCardClipControl v-if="talkTab === 'discussion'" pane="thread" />
           </div>
+          <div v-if="talkTab === 'history'" role="tabpanel">
+            <LazyIssueHistory :issue-key="form.key" :stamp="historyStamp" :name="person" :label="labelText" />
+          </div>
+          <template v-else>
           <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
           <!-- SPL-982 (owner, topic 8296eeec): a comment is a message card like every
                other one: the same header, the emoji 5px after the time, reactions,
@@ -910,6 +927,7 @@
               <MentionList :picker="commentMp" placement="above" />
             </span>
           </label>
+          </template>
         </section>
       </div>
       </div>
@@ -1145,6 +1163,12 @@ const openKey = ref('')
 const creating = ref(false)
 const detail = ref<Issue | null>(null)
 const comments = ref<Note[]>([])
+/* rdb 0181: the discussion section's two tabs; a newly opened issue starts on Discussion */
+const TALK_TABS = ['discussion', 'history'] as const
+const talkTab = ref<(typeof TALK_TABS)[number]>('discussion')
+watch(openKey, () => { talkTab.value = 'discussion' })
+/* the History tab reads again when the issue or its discussion moved */
+const historyStamp = computed(() => `${detail.value?.updated_at || ''}|${comments.value.length}`)
 const commentText = ref('')
 const commentEl = ref<HTMLTextAreaElement | null>(null)
 const commentMp = useMentionPicker({ text: commentText, el: commentEl })
@@ -3464,6 +3488,8 @@ select.issues-pctl { appearance: auto; }
 .issues-sub-add:hover, .issues-sub-add:focus-visible { color: var(--color-fg); border-color: var(--color-border); }
 .issues-talk h3 { margin: 8px 0 0; font-size: 0.875rem; }
 .issues-talk__h { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.issues-talk__tab { margin: 8px 0 0; background: none; border: 0; border-bottom: 2px solid transparent; padding: 2px 2px 4px; font-family: inherit; font-size: 0.875rem; font-weight: 600; color: inherit; opacity: 0.7; cursor: pointer; }
+.issues-talk__tab[aria-selected='true'] { border-bottom-color: var(--accent, currentColor); opacity: 1; }
 /* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */
 .issues-comment { min-width: 0; }
 .mention-anchor { position: relative; display: flex; flex-direction: column; min-width: 0; }

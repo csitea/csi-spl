@@ -190,6 +190,8 @@ declare module '~/utils/spool-client.mjs' {
     bindIssuesMock(factory: (me: string) => unknown): void
     listIssues(opts?: { filter?: import('~/utils/issues.mjs').IssueFilter, sort?: string, dir?: string, limit?: number, cursor?: string }): Promise<import('~/utils/issues.mjs').IssueList>
     getIssue(ref: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
+    /** rdb 0181: one issue's History tab, oldest first. */
+    getIssueHistory(ref: string): Promise<{ key: string, events: import('~/utils/issues.mjs').IssueEvent[] }>
     createIssue(body: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     updateIssue(ref: string, patch: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     deleteIssue(ref: string, opts?: { cascade?: boolean }): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
@@ -2018,6 +2020,16 @@ declare module '~/utils/issues.mjs' {
     canceled_at: string
   }
   export interface IssueLabel { id: string, name: string, color: string }
+  /** rdb 0181: one row of an issue's History tab (GET /v1/view/issues/{ref}/history). */
+  export interface IssueEvent {
+    at: string
+    actor: string
+    event: 'created' | 'changed' | 'commented' | 'deleted' | 'restored' | 'archived' | 'unarchived'
+    field?: string
+    old: string | null
+    new: string | null
+    msg_id?: string
+  }
   export interface IssueFilter {
     kind?: string
     epic?: string[]

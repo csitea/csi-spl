@@ -1485,6 +1485,21 @@
     "expand": "Extinde {name}",
     "add_in": "Problemă nouă în {name}"
   },
+  "issue_history": {
+    "tab": "Istoric",
+    "loading": "Se încarcă istoricul…",
+    "failed": "Istoricul nu a putut fi citit.",
+    "empty": "Încă nu există istoric.",
+    "created": "a creat problema",
+    "changed": "a schimbat {field}",
+    "commented": "a comentat",
+    "deleted": "a șters problema",
+    "restored": "a restaurat problema",
+    "archived": "a arhivat problema",
+    "unarchived": "a scos problema din arhivă",
+    "title": "Titlu",
+    "none": "niciunul"
+  },
   "tenant_settings": {
     "title": "Setările spațiului de lucru",
     "nav_label": "Secțiunile setărilor spațiului de lucru",

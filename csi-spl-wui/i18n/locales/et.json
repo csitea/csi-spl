@@ -1485,6 +1485,21 @@
     "expand": "Laienda {name}",
     "add_in": "Uus teema olekusse {name}"
   },
+  "issue_history": {
+    "tab": "Ajalugu",
+    "loading": "Ajaloo laadimine…",
+    "failed": "Ajalugu ei õnnestunud lugeda.",
+    "empty": "Ajalugu veel pole.",
+    "created": "lõi teema",
+    "changed": "muutis välja {field}",
+    "commented": "kommenteeris",
+    "deleted": "kustutas teema",
+    "restored": "taastas teema",
+    "archived": "arhiveeris teema",
+    "unarchived": "tõi teema arhiivist tagasi",
+    "title": "Pealkiri",
+    "none": "puudub"
+  },
   "tenant_settings": {
     "title": "Tööruumi seaded",
     "nav_label": "Tööruumi seadete jaotised",

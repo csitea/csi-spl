@@ -1204,6 +1204,17 @@ async function getIssue(ctx, ref) {
   return live(`/v1/view/issues/${encodeURIComponent(String(ref || ''))}`)
 }
 
+/**
+ * rdb 0181 (owner t1 62e48cef): one issue's History tab, oldest first →
+ * `{ key, events: [{ at, actor, event, field?, old, new, msg_id? }] }`;
+ * 404 not_found.
+ */
+async function getIssueHistory(ctx, ref) {
+  const { live, mock, issuesMock } = ctx
+  if (mock) return issuesMock().history(ref)
+  return live(`/v1/view/issues/${encodeURIComponent(String(ref || ''))}/history`)
+}
+
 /** issues-v1 §3: create → `{ issue }`. Refusals keep their token (bad_issue, unknown_label, bad_assignee, unknown_parent). */
 async function createIssue(ctx, body = {}) {
   const { live, mock, issuesMock } = ctx
@@ -1529,6 +1540,7 @@ export const lazySpoolMethods = {
   unarchiveChannel,
   listIssues,
   getIssue,
+  getIssueHistory,
   createIssue,
   updateIssue,
   deleteIssue,

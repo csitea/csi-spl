@@ -1485,6 +1485,21 @@
     "expand": "Izvērst {name}",
     "add_in": "Jauns uzdevums statusā {name}"
   },
+  "issue_history": {
+    "tab": "Vēsture",
+    "loading": "Ielādē vēsturi…",
+    "failed": "Vēsturi neizdevās nolasīt.",
+    "empty": "Vēstures vēl nav.",
+    "created": "izveidoja problēmu",
+    "changed": "mainīja {field}",
+    "commented": "komentēja",
+    "deleted": "izdzēsa problēmu",
+    "restored": "atjaunoja problēmu",
+    "archived": "arhivēja problēmu",
+    "unarchived": "atgrieza problēmu no arhīva",
+    "title": "Nosaukums",
+    "none": "nav"
+  },
   "tenant_settings": {
     "title": "Darbvietas iestatījumi",
     "nav_label": "Darbvietas iestatījumu sadaļas",

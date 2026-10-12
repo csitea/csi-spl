@@ -1485,6 +1485,21 @@
     "expand": "Laajenna {name}",
     "add_in": "Uusi tehtävä tilaan {name}"
   },
+  "issue_history": {
+    "tab": "Historia",
+    "loading": "Ladataan historiaa…",
+    "failed": "Historiaa ei voitu lukea.",
+    "empty": "Ei vielä historiaa.",
+    "created": "loi tiketin",
+    "changed": "muutti kenttää {field}",
+    "commented": "kommentoi",
+    "deleted": "poisti tiketin",
+    "restored": "palautti tiketin",
+    "archived": "arkistoi tiketin",
+    "unarchived": "palautti tiketin arkistosta",
+    "title": "Otsikko",
+    "none": "ei mitään"
+  },
   "tenant_settings": {
     "title": "Työtilan asetukset",
     "nav_label": "Työtilan asetusosiot",

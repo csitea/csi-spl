@@ -1485,6 +1485,21 @@
     "expand": "Rozbaliť {name}",
     "add_in": "Nová úloha v {name}"
   },
+  "issue_history": {
+    "tab": "História",
+    "loading": "Načítava sa história…",
+    "failed": "Históriu sa nepodarilo načítať.",
+    "empty": "Zatiaľ žiadna história.",
+    "created": "vytvoril(a) úlohu",
+    "changed": "zmenil(a) {field}",
+    "commented": "okomentoval(a)",
+    "deleted": "odstránil(a) úlohu",
+    "restored": "obnovil(a) úlohu",
+    "archived": "archivoval(a) úlohu",
+    "unarchived": "vrátil(a) úlohu z archívu",
+    "title": "Názov",
+    "none": "žiadne"
+  },
   "tenant_settings": {
     "title": "Nastavenia pracovného priestoru",
     "nav_label": "Sekcie nastavení pracovného priestoru",

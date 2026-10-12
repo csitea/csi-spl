@@ -528,6 +528,7 @@ type memIssues struct {
 	prefix   map[string]string
 	rows     map[string]map[int]Issue
 	labels   map[string]map[string]IssueLabel
+	history  map[string]map[int][]IssueEvent // rdb 0181 issue_events, without comments
 }
 
 func (m *memIssues) init() {
@@ -635,6 +636,7 @@ func (s *Memory) CreateIssue(_ context.Context, in Issue, now time.Time) (Issue,
 		s.iss.rows[in.TenantID] = map[int]Issue{}
 	}
 	s.iss.rows[in.TenantID][in.Number] = copyIssue(in)
+	s.iss.recordLocked(in.TenantID, in.Number, IssueEvent{At: now, Actor: in.CreatedBy, Event: IssueEventCreated})
 	s.flowWatchAssigneeLocked(in.TenantID, in.TaskID, in.Assignee, now)
 	return copyIssue(in), nil
 }
@@ -664,6 +666,7 @@ func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p Iss
 	if err != nil {
 		return Issue{}, err
 	}
+	old := copyIssue(row)
 	row = copyIssue(row)
 	wasEpic, was := row.IsEpic(), row.Level
 	applyPatch(&row, p, by, now)
@@ -675,12 +678,15 @@ func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p Iss
 	}
 	row.Prefix = s.iss.prefixOf(tenant)
 	s.iss.rows[tenant][number] = copyIssue(row)
+	s.iss.recordLocked(tenant, number, issueChanges(old, row)...)
 	s.flowWatchAssigneeLocked(tenant, row.TaskID, row.Assignee, now)
 	if row.Level != was { // an issue made an epic: its subtasks are issues now
 		for n, c := range s.iss.rows[tenant] {
 			if c.Parent == number {
-				c.Level = row.Level + 1
+				was := c
+				c.Level, c.UpdatedBy, c.UpdatedAt = row.Level+1, by, now
 				s.iss.rows[tenant][n] = c
+				s.iss.recordLocked(tenant, n, issueChanges(was, c)...)
 			}
 		}
 	}
@@ -712,7 +718,7 @@ func (s *Memory) ListIssues(_ context.Context, tenant string) ([]Issue, error) {
 	return out, nil
 }
 
-func (s *Memory) DeleteIssue(_ context.Context, tenant string, number int, _ string, _ time.Time) (Issue, error) {
+func (s *Memory) DeleteIssue(_ context.Context, tenant string, number int, by string, now time.Time) (Issue, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.iss.init()
@@ -730,6 +736,7 @@ func (s *Memory) DeleteIssue(_ context.Context, tenant string, number int, _ str
 		s.iss.gone[tenant] = map[int]Issue{}
 	}
 	s.iss.gone[tenant][number] = row
+	s.iss.recordLocked(tenant, number, IssueEvent{At: now, Actor: by, Event: IssueEventDeleted})
 	row.Prefix = s.iss.prefixOf(tenant)
 	return copyIssue(row), nil
 }
@@ -753,7 +760,7 @@ func memSubtree(src map[int]Issue, number int) []int {
 	return out
 }
 
-func (s *Memory) DeleteIssueCascade(_ context.Context, tenant string, number int, _ string, _ time.Time) (Issue, []int, error) {
+func (s *Memory) DeleteIssueCascade(_ context.Context, tenant string, number int, by string, now time.Time) (Issue, []int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.iss.init()
@@ -768,12 +775,13 @@ func (s *Memory) DeleteIssueCascade(_ context.Context, tenant string, number int
 	for _, n := range append([]int{number}, kids...) {
 		s.iss.gone[tenant][n] = s.iss.rows[tenant][n]
 		delete(s.iss.rows[tenant], n)
+		s.iss.recordLocked(tenant, n, IssueEvent{At: now, Actor: by, Event: IssueEventDeleted})
 	}
 	row.Prefix = s.iss.prefixOf(tenant)
 	return copyIssue(row), kids, nil
 }
 
-func (s *Memory) ArchiveIssue(_ context.Context, tenant string, number int, _ string, _ time.Time, cascade bool) (Issue, []int, error) {
+func (s *Memory) ArchiveIssue(_ context.Context, tenant string, number int, by string, now time.Time, cascade bool) (Issue, []int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.iss.init()
@@ -797,12 +805,13 @@ func (s *Memory) ArchiveIssue(_ context.Context, tenant string, number int, _ st
 	for _, n := range append([]int{number}, kids...) {
 		s.iss.archived[tenant][n] = s.iss.rows[tenant][n]
 		delete(s.iss.rows[tenant], n)
+		s.iss.recordLocked(tenant, n, IssueEvent{At: now, Actor: by, Event: IssueEventArchived})
 	}
 	row.Prefix = s.iss.prefixOf(tenant)
 	return copyIssue(row), kids, nil
 }
 
-func (s *Memory) UnarchiveIssue(_ context.Context, tenant string, number int, _ string, _ time.Time, cascade bool) (Issue, []int, error) {
+func (s *Memory) UnarchiveIssue(_ context.Context, tenant string, number int, by string, now time.Time, cascade bool) (Issue, []int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.iss.init()
@@ -820,6 +829,7 @@ func (s *Memory) UnarchiveIssue(_ context.Context, tenant string, number int, _ 
 	for _, n := range append([]int{number}, kids...) {
 		s.iss.rows[tenant][n] = s.iss.archived[tenant][n]
 		delete(s.iss.archived[tenant], n)
+		s.iss.recordLocked(tenant, n, IssueEvent{At: now, Actor: by, Event: IssueEventUnarchived})
 	}
 	row.Prefix = s.iss.prefixOf(tenant)
 	return copyIssue(row), kids, nil

@@ -700,6 +700,7 @@ func epicSummaries(all []store.Issue) []epicSummary {
 func (s *Server) routeIssues(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/issues", s.viewHandler(s.handleViewIssues))
 	mux.HandleFunc("GET /v1/view/issues/{ref}", s.viewHandler(s.handleViewIssue))
+	mux.HandleFunc("GET /v1/view/issues/{ref}/history", s.viewHandler(s.handleViewIssueHistory))
 	mux.HandleFunc("POST /v1/issues", s.handleCreateIssue)
 	mux.HandleFunc("PATCH /v1/issues/{ref}", s.handlePatchIssue)
 	mux.HandleFunc("DELETE /v1/issues/{ref}", s.handleDeleteIssue)

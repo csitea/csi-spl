@@ -9,6 +9,8 @@
 #      stub log records one when a call IS made
 #   3. summary(): a MISS (no live frame) is counted, and its catch-up time is
 #      reported apart from the live hop, never folded into it
+#   5. post_addressed: the probe post names a channel or a to. A post with
+#      neither is what the hub refuses (dm_needs_to).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -72,6 +74,53 @@ EOP
 )"
 [ "$got" = "m1 m2 m3" ] && pass "the catch-up read matches env.msg, msg and flat rows" ||
   fail "row_msg_id got '$got', want 'm1 m2 m3'"
+
+# --- 5. post_addressed: a channel or a to, never neither -------------------
+# The prd hub refuses a post with neither (dm_needs_to, "say who this is for:
+# a post outside a channel needs a to"). The assert is post_addressed.
+got="$(python3 - "$py" <<'EOP'
+import ast, sys
+src = open(sys.argv[1]).read()
+tree = ast.parse(src)
+
+def find(name):
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return node
+    return None
+
+fn = find("post_frame")
+if fn is None:
+    keys = []
+    for node in ast.walk(tree):
+        call = isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        if call and node.func.attr == "send" and node.args and isinstance(node.args[0], ast.Dict):
+            keys = [k.value for k in node.args[0].keys if isinstance(k, ast.Constant)]
+            break
+    print("missing-post_frame", "addressed" if ("channel" in keys or "to" in keys) else "neither")
+else:
+    start = src.index("def post_frame(")
+    rest = src[start + 1:]
+    nxt = rest.find("\ndef ")
+    chunk = src[start:start + 1 + nxt] if nxt >= 0 else src[start:]
+    ns = {}
+    exec(compile(chunk, "post_frame", "exec"), ns)
+    frame = ns["post_frame"]("m1", "t1", "delivery probe 1/1")
+    where = frame.get("channel") or frame.get("to") or "-"
+    refused = "no"
+    try:
+        ns["post_frame"]("m1", "t1", "body", channel="", to="")
+    except ValueError:
+        refused = "yes"
+    print("called", "addressed" if where != "-" else "neither", refused, where)
+EOP
+)"
+[ "$got" = "called addressed yes lobby" ] &&
+  pass "post_addressed: the probe post names a channel or a to" ||
+  fail "post_addressed got '$got', want 'called addressed yes lobby' (a post with neither channel nor to must be refused)"
+grep -q 'messages in #lobby' "$T/o" &&
+  pass "the dry run names the probe workspace channel" ||
+  fail "the dry run did not name #lobby: $(cat "$T/o")"
 
 [ "$fails" -eq 0 ] && { echo "OK delivery-probe"; exit 0; }
 echo "FAILED delivery-probe: $fails"; exit 1

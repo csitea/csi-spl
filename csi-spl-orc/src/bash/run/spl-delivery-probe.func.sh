@@ -22,6 +22,10 @@
 # @param PROBE_FRESH_SENDER (optional) - 1 (default) new sender socket per send
 # @param PROBE_CHECK_EVERY (optional) - 0 (default) a raw receiver socket; N =
 # @param   the receiver re-dials like the WUI when GET /v1/wui/revision moves
+# @param PROBE_CHANNEL (optional) - channel of the probe workspace, default
+# @param   lobby (a WUI plain post). Empty with PROBE_TO sends a DM instead.
+# @param PROBE_TO (optional) - the one person a DM is for; ignored when the
+# @param   channel is set
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd DRY_RUN=0 PROBE_N=24 ./run -a do_spl_delivery_probe
 #------------------------------------------------------------------------------
@@ -32,13 +36,18 @@ do_spl_delivery_probe() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-e2e}"
   spl_delivery_probe_tenant_ok "$tenant" || return 1
+  # unset -> lobby; an explicit empty channel plus PROBE_TO is a DM.
+  # where is a second local: one local line expands ${channel} before it is set.
+  local channel="${PROBE_CHANNEL-lobby}" who="${PROBE_TO-}"
+  local where="in #${channel}"
+  [[ -n "$channel" ]] || where="to ${who}"
 
   local api_fqdn hub st email
   spl_cnf_api_fqdn api_fqdn || return 1
   hub="https://$api_fqdn"
   st="$SPL_STATE_DIR/m3-e2e/$tenant"
   if (( dry )); then
-    do_log "INFO DRY_RUN would: sign the m3-e2e member of $tenant in twice on $hub and send ${PROBE_N:-20} messages, timing each to the other session's socket"
+    do_log "INFO DRY_RUN would: sign the m3-e2e member of $tenant in twice on $hub and send ${PROBE_N:-20} messages ${where}, timing each to the other session's socket"
     do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to measure."
     return 0
   fi
@@ -48,6 +57,7 @@ do_spl_delivery_probe() {
   local out="$st/delivery-results.json" rc=0
   PROBE_N="${PROBE_N:-20}" PROBE_GAP="${PROBE_GAP:-20}" PROBE_WAIT="${PROBE_WAIT:-30}" \
   PROBE_FRESH_SENDER="${PROBE_FRESH_SENDER:-1}" PROBE_CHECK_EVERY="${PROBE_CHECK_EVERY:-0}" PROBE_OUT="$out" \
+  PROBE_CHANNEL="$channel" PROBE_TO="$who" \
   M3_HUB_URL="$hub" M3_AUTH_URL="$hub" M3_TENANT="$tenant" M3_STATE="$st" M3_HUMAN_EMAIL="$email" \
     python3 "$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/delivery-probe.py" || rc=$?
   (( rc == 0 )) || { do_log "FAIL the delivery probe on $tenant ($ENV) measured nothing: see $out"; return 1; }

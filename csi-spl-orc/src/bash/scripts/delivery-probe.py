@@ -35,6 +35,9 @@ Env (set by ./run -a do_spl_delivery_probe):
                       /v1/wui/revision and, when that is not its welcome's
                       revision, re-dials and runs the catch-up read
   PROBE_OUT           results.json path
+  PROBE_CHANNEL       channel of the probe workspace. default lobby, the
+                      room a WUI plain post uses. Empty with PROBE_TO is a DM.
+  PROBE_TO            the one person a DM is for, only when the channel is empty
 """
 
 import importlib.util
@@ -57,6 +60,8 @@ WAIT = float(os.environ.get("PROBE_WAIT", "30"))
 FRESH = os.environ.get("PROBE_FRESH_SENDER", "1") != "0"
 OUT = os.environ.get("PROBE_OUT", "")
 CHECK = float(os.environ.get("PROBE_CHECK_EVERY", "0"))
+CHANNEL = os.environ.get("PROBE_CHANNEL", "lobby")
+WHO = os.environ.get("PROBE_TO", "")
 
 
 def pct(xs, p):
@@ -157,11 +162,38 @@ def save(rows, task):
             "fresh_sender": FRESH,
             "wait": WAIT,
             "check_every": CHECK,
+            "channel": CHANNEL,
+            "to": WHO,
             "summary": summary(rows),
             "rows": rows,
         }
         with open(OUT, "w") as f:
             json.dump(res, f, indent=1, sort_keys=True)
+
+
+def post_frame(msg_id, task, body, channel="lobby", to=""):
+    """The WUI send: a note in a channel of the probe workspace, or a DM.
+
+    The hub refuses a post with neither channel nor to (dm_needs_to).
+    A channel wins when both are set, as the WUI does on a channel page.
+    """
+    ch = str(channel or "").strip()
+    who = str(to or "").strip()
+    if ch == "" and who == "":
+        raise ValueError("a probe post needs a channel or a to")
+    frame = {
+        "type": "send",
+        "msg_id": msg_id,
+        "task_id": task,
+        "kind": "note",
+        "body": body,
+        "files": [],
+    }
+    if ch != "":
+        frame["channel"] = ch
+    else:
+        frame["to"] = who
+    return frame
 
 
 def main():
@@ -203,14 +235,13 @@ def main():
             "t_send": time.time(),
         }
         tx.send(
-            {
-                "type": "send",
-                "msg_id": msg_id,
-                "task_id": task,
-                "kind": "note",
-                "body": "delivery probe %d/%d" % (i + 1, N),
-                "files": [],
-            }
+            post_frame(
+                msg_id,
+                task,
+                "delivery probe %d/%d" % (i + 1, N),
+                CHANNEL,
+                WHO,
+            )
         )
         ack = tx.wait(
             lambda f: f.get("msg_id") == msg_id and f.get("type") in ("ack", "error"),
@@ -218,6 +249,8 @@ def main():
         )
         if ack and ack.get("type") == "ack":
             row["t_ack"] = ack["_t"]
+        elif ack and ack.get("type") == "error":
+            row["refused"] = ack.get("error") or ""
         live, end = None, time.time() + WAIT
         while live is None and time.time() < end:
             live = rx.wait(
@@ -242,7 +275,7 @@ def main():
         elif "t_seen" not in row and catch_up(recv_cookie, task, msg_id):
             row["t_seen"] = row["t_caught"] = time.time()
         m3.log(
-            "%s %d rx=%s tx=%s ack=%s live=%s"
+            "%s %d rx=%s tx=%s ack=%s live=%s%s"
             % (
                 "OK  " if live else "MISS",
                 i + 1,
@@ -252,6 +285,7 @@ def main():
                 "%.3f" % (row["t_live"] - row["t_send"])
                 if "t_live" in row
                 else "never (waited %ss)" % int(WAIT),
+                (" refused=%s" % row["refused"]) if row.get("refused") else "",
             )
         )
         rows.append(row)

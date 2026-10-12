@@ -235,3 +235,50 @@ func TestFleetLoadRunnerCPU(t *testing.T) {
 		})
 	}
 }
+
+// rdb 0185: the CI overflow switch and the runner core count. Unset is
+// overflow on and 0 cores (the cnf share); both land and read back, a count
+// outside 0..256 (fleet-wide or a box's) is refused and leaves the row, a
+// box's own count rides its band, and a nil resets each.
+// Control: the runner CPU cap is untouched.
+func TestFleetLoadCIOverflow(t *testing.T) {
+	ctx := context.Background()
+	n := func(v int) *int { return &v }
+	off := false
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			fl := st.(FleetLoadTarget)
+			tid := newTenant(t, st)
+			got, err := fl.FleetLoadOf(ctx, tid)
+			if e := got.Effective(); err != nil || got.CIOverflow != nil || got.RunnerCPUs != nil || !e.CIOverflow || e.RunnerCPUs != 0 {
+				t.Fatalf("fresh row = %+v, %v; want unset, overflow on and 0 cores in force", got, err)
+			}
+			got, err = fl.SetFleetLoad(ctx, tid, FleetLoadPatch{CIOverflowSet: true, CIOverflow: &off, RunnerCPUsSet: true, RunnerCPUs: n(12)})
+			if err != nil || *got.CIOverflow || *got.RunnerCPUs != 12 || got.RunnerCPUPct != nil {
+				t.Fatalf("set = %+v, %v", got, err)
+			}
+			for _, bad := range []FleetLoadPatch{
+				{RunnerCPUsSet: true, RunnerCPUs: n(-1)},
+				{RunnerCPUsSet: true, RunnerCPUs: n(MaxRunnerCPUs + 1)},
+				{BoxesSet: true, Boxes: map[string]BoxBand{"box-s": {Low: 50, High: 75, RunnerCPUs: MaxRunnerCPUs + 1}}},
+				{BoxesSet: true, Boxes: map[string]BoxBand{"box-s": {Low: 50, High: 75, RunnerCPUs: -1}}},
+			} {
+				if _, err := fl.SetFleetLoad(ctx, tid, bad); !errors.Is(err, ErrBadFleetLoad) {
+					t.Errorf("patch %+v: %v, want ErrBadFleetLoad", bad, err)
+				}
+			}
+			bands := map[string]BoxBand{"box-s": {Low: 50, High: 75, RunnerCPUs: 4}, "box-t": {Low: 20, High: 40, RunnerCPUPct: 60, RunnerCPUs: 256}}
+			if _, err = fl.SetFleetLoad(ctx, tid, FleetLoadPatch{BoxesSet: true, Boxes: bands}); err != nil {
+				t.Fatalf("set a box's count: %v", err)
+			}
+			if got, _ = fl.FleetLoadOf(ctx, tid); *got.RunnerCPUs != 12 || *got.CIOverflow || !maps.Equal(got.Boxes, bands) {
+				t.Fatalf("read back = %+v", got)
+			}
+			got, err = fl.SetFleetLoad(ctx, tid, FleetLoadPatch{CIOverflowSet: true, RunnerCPUsSet: true})
+			if e := got.Effective(); err != nil || got.CIOverflow != nil || got.RunnerCPUs != nil || !e.CIOverflow || e.RunnerCPUs != 0 ||
+				e.RunnerCPUPct != DefaultRunnerCPUPct {
+				t.Fatalf("reset = %+v, %v", got, err)
+			}
+		})
+	}
+}

@@ -14,7 +14,7 @@ import (
 // 0118), over the authenticated hello like `spool lane`:
 //
 //	fleet-load get                            {low, high, box_order, boxes, agent_kinds_off, agent_kinds_paused,
-//	                                          runner_cpu_pct, source} as JSON
+//	                                          runner_cpu_pct, ci_overflow, runner_cpus, source} as JSON
 //	fleet-load pause <kind> <until> [reason]  pause an agent kind for every box until <until> (RFC 3339)
 //
 // boxes (rdb 0134) is the per-box band, {"<box>": {"low", "high"}}, that
@@ -23,7 +23,10 @@ import (
 // {"<kind>": {until, reason, box}}. runner_cpu_pct (rdb 0152) is the % of a
 // box's cores CI runners plus agents may use, 1..100, default 80; a box's
 // own is boxes.<box>.runner_cpu_pct (jq: .boxes[$box].runner_cpu_pct //
-// .runner_cpu_pct).
+// .runner_cpu_pct). ci_overflow (rdb 0185, default true) lets CI overflow to
+// the box runners; runner_cpus is the cores they may take, 0..256, default
+// 0 = the box's cnf share; a box's own is boxes.<box>.runner_cpus (jq:
+// .boxes[$box].runner_cpus // .runner_cpus).
 //
 // Only the operator workspace's admin changes the target, through
 // PATCH /v1/operator/fleet-load; a box only reports a pause (a lane of that

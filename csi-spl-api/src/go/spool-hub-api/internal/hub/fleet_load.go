@@ -29,7 +29,8 @@ import (
 //
 //	GET   /v1/operator/fleet-load   the target in force, what is stored, the defaults
 //	PATCH /v1/operator/fleet-load   {low?, high?, box_order?, boxes?, agent_kinds_off?, agent_kinds_paused?,
-//	                                 runner_cpu_pct?, ordered_by?, ordered_via?}; null resets one to the default
+//	                                 runner_cpu_pct?, ci_overflow?, runner_cpus?, ordered_by?, ordered_via?};
+//	                                 null resets one to the default
 //
 // boxes (rdb 0134, owner HUM-10 t1 29b19f85: "target hw load per box") is
 // {"<box>": {"low": n, "high": n}}: that box's own band, overriding low /
@@ -48,6 +49,14 @@ import (
 // plus agents may use, 1..100, default 80; a box's band may carry its own
 // (boxes.<box>.runner_cpu_pct), read by csi-spl-orc
 // do_apply_gh_runner_cpu_budget as .boxes[<box>].runner_cpu_pct // .runner_cpu_pct.
+//
+// ci_overflow and runner_cpus (rdb 0185, owner HUM-10 t1 f67e3656 d4ba4b17
+// 70480eb3 61cd35bc: "configurable to be put on or off, and the number of
+// cpus should also be configurable"): ci_overflow (default true) lets CI
+// overflow to the box runners when the hosted runners are overwhelmed,
+// fleet-wide only; runner_cpus is the cores those runners may take, 0..256,
+// default 0 = no count (the box's cnf share), fleet-wide and per box
+// (boxes.<box>.runner_cpus), read as .boxes[<box>].runner_cpus // .runner_cpus.
 //
 // Box side, over the authenticated hello on a one-shot role=cli session (the
 // `spool lane` path), any box of any workspace of the instance, read only:
@@ -157,13 +166,15 @@ type fleetLoadPatchReq struct {
 	KindsOff json.RawMessage `json:"agent_kinds_off"`
 	Paused   json.RawMessage `json:"agent_kinds_paused"`
 	CPUPct   json.RawMessage `json:"runner_cpu_pct"`
+	Overflow json.RawMessage `json:"ci_overflow"`
+	CPUs     json.RawMessage `json:"runner_cpus"`
 	// OrderedBy / OrderedVia: who ordered a change and who carried it, for
 	// the record (a HUM-* id; an agent or channel, at most 64 characters).
 	OrderedBy  string `json:"ordered_by"`
 	OrderedVia string `json:"ordered_via"`
 }
 
-const badFleetLoad = "low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, mistral, never all five; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes"
+const badFleetLoad = "low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, mistral, never all five; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes; ci_overflow is true or false; runner_cpus is 0..256 (cores, 0 = the cnf share), fleet-wide or per box in boxes"
 
 // patch turns the request into a store patch; ok=false: a field is not
 // its JSON type.
@@ -206,6 +217,18 @@ func (q fleetLoadPatchReq) patch() (store.FleetLoadPatch, bool) {
 			return p, false
 		}
 	}
+	if q.Overflow != nil {
+		p.CIOverflowSet = true
+		if !isNull(q.Overflow) && json.Unmarshal(q.Overflow, &p.CIOverflow) != nil {
+			return p, false
+		}
+	}
+	if q.CPUs != nil {
+		p.RunnerCPUsSet = true
+		if !isNull(q.CPUs) && json.Unmarshal(q.CPUs, &p.RunnerCPUs) != nil {
+			return p, false
+		}
+	}
 	if q.Paused != nil && !isNull(q.Paused) {
 		// The admin only lifts a pause here; a box sets one (fleet_load_pause).
 		var m map[string]json.RawMessage
@@ -224,8 +247,9 @@ func (q fleetLoadPatchReq) patch() (store.FleetLoadPatch, bool) {
 }
 
 // decodeBoxBands is a strict read of the boxes map: each band carries both
-// marks as integers, an optional runner_cpu_pct 1..100 (rdb 0152) and
-// nothing else, so a typo is a 400, not a 0.
+// marks as integers, an optional runner_cpu_pct 1..100 (rdb 0152), an
+// optional runner_cpus (rdb 0185; the store checks 0..256) and nothing else,
+// so a typo is a 400, not a 0.
 func decodeBoxBands(raw json.RawMessage, out *map[string]store.BoxBand) bool {
 	var m map[string]map[string]json.RawMessage
 	if json.Unmarshal(raw, &m) != nil {
@@ -241,6 +265,12 @@ func decodeBoxBands(raw json.RawMessage, out *map[string]store.BoxBand) bool {
 				return false
 			}
 		}
+		if cpus, ok := f["runner_cpus"]; ok {
+			n++
+			if json.Unmarshal(cpus, &b.RunnerCPUs) != nil {
+				return false
+			}
+		}
 		if len(f) != n || json.Unmarshal(f["low"], &b.Low) != nil || json.Unmarshal(f["high"], &b.High) != nil {
 			return false
 		}
@@ -249,13 +279,17 @@ func decodeBoxBands(raw json.RawMessage, out *map[string]store.BoxBand) bool {
 	return true
 }
 
-// boxBandsAudit is the boxes map as one sorted "box=low..high[/cpu]" string.
+// boxBandsAudit is the boxes map as one sorted "box=low..high[/cpu][:cpus]"
+// string (cpu = runner_cpu_pct, cpus = runner_cpus).
 func boxBandsAudit(m map[string]store.BoxBand) string {
 	parts := make([]string, 0, len(m))
 	for box, b := range m {
 		part := box + "=" + strconv.Itoa(b.Low) + ".." + strconv.Itoa(b.High)
 		if b.RunnerCPUPct != 0 {
 			part += "/" + strconv.Itoa(b.RunnerCPUPct)
+		}
+		if b.RunnerCPUs != 0 {
+			part += ":" + strconv.Itoa(b.RunnerCPUs)
 		}
 		parts = append(parts, part)
 	}
@@ -301,7 +335,7 @@ func (s *Server) handlePatchFleetLoad(w http.ResponseWriter, r *http.Request) {
 	detail := map[string]any{"setting": "fleet_load",
 		"low": e.Low, "high": e.High, "box_order": strings.Join(e.BoxOrder, ","), "boxes": boxBandsAudit(e.Boxes),
 		"agent_kinds_off": strings.Join(e.AgentKindsOff, ","), "agent_kinds_paused": pausesAudit(e.Paused), "runner_cpu_pct": e.RunnerCPUPct,
-		"ordered_by": q.OrderedBy, "ordered_via": q.OrderedVia}
+		"ci_overflow": e.CIOverflow, "runner_cpus": e.RunnerCPUs, "ordered_by": q.OrderedBy, "ordered_via": q.OrderedVia}
 	if a != nil {
 		s.opAudit(r, *a, tenant, store.AuditUpdate, detail)
 	} else {

@@ -330,3 +330,47 @@ func TestFleetLoadRunnerCPU(t *testing.T) {
 		t.Fatalf("reset = %d %v", code, body)
 	}
 }
+
+// rdb 0185 (owner HUM-10 t1 f67e3656 d4ba4b17 70480eb3 61cd35bc): the CI
+// overflow answers on and runner_cpus 0 by default, the operator admin sets
+// both fleet-wide and the count per box, a bad value is a 400 that leaves the
+// row, a box reads them, and null resets each.
+func TestFleetLoadCIOverflow(t *testing.T) {
+	e, op, other, who, _ := operatorEnv(t, func(op, _ string) string { return op })
+	admin := who[rbac.Admin]
+	code, body := call(t, e, op, http.MethodGet, fleetLoadPath, admin, nil)
+	if code != http.StatusOK || body["ci_overflow"] != true || body["runner_cpus"] != 0.0 {
+		t.Fatalf("default = %d %v, want ci_overflow true, runner_cpus 0", code, body)
+	}
+	code, body = call(t, e, op, http.MethodPatch, fleetLoadPath, admin, map[string]any{"ci_overflow": false, "runner_cpus": 8,
+		"boxes": map[string]any{"box-s": map[string]any{"low": 50, "high": 75, "runner_cpus": 4}}})
+	if code != http.StatusOK || body["ci_overflow"] != false || body["runner_cpus"] != 8.0 || body["runner_cpu_pct"] != 80.0 {
+		t.Fatalf("admin PATCH = %d %v", code, body)
+	}
+	for _, bad := range []map[string]any{
+		{"ci_overflow": "no"}, {"ci_overflow": 0}, {"runner_cpus": -1}, {"runner_cpus": 257}, {"runner_cpus": "8"}, {"runner_cpus": 2.5},
+		{"boxes": map[string]any{"box-s": map[string]any{"low": 50, "high": 75, "runner_cpus": 257}}},
+		{"boxes": map[string]any{"box-s": map[string]any{"low": 50, "high": 75, "runner_cpus": "4"}}},
+		{"boxes": map[string]any{"box-s": map[string]any{"low": 50, "high": 75, "ci_overflow": false}}},
+	} {
+		if code, _ := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, bad); code != http.StatusBadRequest {
+			t.Errorf("PATCH %v = %d, want 400", bad, code)
+		}
+	}
+	b := e.box(other, "box-b", "CLE-08")
+	e.pin(other, b)
+	raw, err := b.c.Lane(context.Background(), "fleet_load_get", "", nil)
+	var got struct {
+		CIOverflow *bool                     `json:"ci_overflow"`
+		RunnerCPUs int                       `json:"runner_cpus"`
+		Boxes      map[string]map[string]int `json:"boxes"`
+	}
+	if err != nil || json.Unmarshal(raw, &got) != nil || got.CIOverflow == nil || *got.CIOverflow || got.RunnerCPUs != 8 ||
+		got.Boxes["box-s"]["runner_cpus"] != 4 {
+		t.Fatalf("box read %s %v", raw, err)
+	}
+	code, body = call(t, e, op, http.MethodPatch, fleetLoadPath, admin, map[string]any{"ci_overflow": nil, "runner_cpus": nil})
+	if code != http.StatusOK || body["ci_overflow"] != true || body["runner_cpus"] != 0.0 {
+		t.Fatalf("reset = %d %v", code, body)
+	}
+}

@@ -31,17 +31,26 @@ import (
 // 20% extra capacity"): RunnerCPUPct is the % of a box's cores CI runners
 // plus agents may use (csi-spl-orc do_apply_gh_runner_cpu_budget); a box's
 // band may carry its own, which overrides it for that box only.
+//
+// rdb 0185 (owner HUM-10, t1 f67e3656 d4ba4b17 70480eb3 61cd35bc: "If the
+// GitHub runners are overwhelmed, then we should spawn local runners ...
+// configurable to be put on or off, and the number of cpus should also be
+// configurable"): CIOverflow switches the CI overflow to the box runners on
+// or off, fleet-wide; RunnerCPUs is the cores those runners may take, 0 = no
+// count (the box uses its cnf share), fleet-wide and per box in a band.
 
 // AgentKinds are the agent kinds a box can start a lane of (the launchers
 // /claude-spawn, /grok-spawn, /agy-spawn, /qwen-spawn, /mistral-spawn; spec 110).
 var AgentKinds = []string{"claude", "grok", "agy", "qwen", "mistral"}
 
-// BoxBand is one box's band, % of cores, and its own runner CPU cap
-// (rdb 0152; 0 = the fleet's RunnerCPUPct).
+// BoxBand is one box's band, % of cores, its own runner CPU cap
+// (rdb 0152; 0 = the fleet's RunnerCPUPct) and its own CI runner core count
+// (rdb 0185; 0 = the fleet's RunnerCPUs).
 type BoxBand struct {
 	Low          int `json:"low"`
 	High         int `json:"high"`
 	RunnerCPUPct int `json:"runner_cpu_pct,omitempty"`
+	RunnerCPUs   int `json:"runner_cpus,omitempty"`
 }
 
 // KindPause is one kind's timed pause (rdb 0149).
@@ -71,6 +80,12 @@ type FleetLoad struct {
 	Paused map[string]KindPause `json:"agent_kinds_paused"`
 	// RunnerCPUPct (rdb 0152): the % of a box's cores CI plus agents may use.
 	RunnerCPUPct int `json:"runner_cpu_pct"`
+	// CIOverflow (rdb 0185): CI overflows to the box runners when the hosted
+	// runners are overwhelmed.
+	CIOverflow bool `json:"ci_overflow"`
+	// RunnerCPUs (rdb 0185): the cores the CI box runners may take; 0 = the
+	// box's cnf share.
+	RunnerCPUs int `json:"runner_cpus"`
 }
 
 // FleetLoadStored is what the row holds; nil = unset (the default).
@@ -83,6 +98,8 @@ type FleetLoadStored struct {
 	AgentKindsOff []string             `json:"agent_kinds_off"`
 	Paused        map[string]KindPause `json:"agent_kinds_paused"`
 	RunnerCPUPct  *int                 `json:"runner_cpu_pct"` // nil = unset (rdb 0152)
+	CIOverflow    *bool                `json:"ci_overflow"`    // nil = unset (rdb 0185)
+	RunnerCPUs    *int                 `json:"runner_cpus"`    // nil = unset (rdb 0185)
 }
 
 // FleetLoadPatch changes the fields whose Set flag is true; a nil value
@@ -92,7 +109,9 @@ type FleetLoadStored struct {
 // Every write that touches the pauses drops the ones run out by Now.
 type FleetLoadPatch struct {
 	LowSet, HighSet, OrderSet, BoxesSet, KindsOffSet, RunnerCPUSet bool
-	Low, High, RunnerCPUPct                                        *int
+	CIOverflowSet, RunnerCPUsSet                                   bool // rdb 0185
+	Low, High, RunnerCPUPct, RunnerCPUs                            *int
+	CIOverflow                                                     *bool
 	BoxOrder                                                       []string
 	Boxes                                                          map[string]BoxBand
 	AgentKindsOff                                                  []string
@@ -106,18 +125,23 @@ const MaxFleetBoxes = 32
 // DefaultRunnerCPUPct is the owner's runner CPU cap: 20 % of every box kept free.
 const DefaultRunnerCPUPct = 80
 
+// MaxRunnerCPUs bounds RunnerCPUs, fleet-wide and per box (rdb 0185 CHECK).
+const MaxRunnerCPUs = 256
+
 // DefaultFleetLoad is the owner's band (50..75 %) with no order of its own,
-// every agent kind on and the runner CPU cap at DefaultRunnerCPUPct.
+// every agent kind on, the runner CPU cap at DefaultRunnerCPUPct, the CI
+// overflow on and no runner core count (the cnf share).
 func DefaultFleetLoad() FleetLoad {
 	return FleetLoad{Low: 50, High: 75, BoxOrder: []string{}, Boxes: map[string]BoxBand{},
-		AgentKindsOff: []string{}, Paused: map[string]KindPause{}, RunnerCPUPct: DefaultRunnerCPUPct}
+		AgentKindsOff: []string{}, Paused: map[string]KindPause{}, RunnerCPUPct: DefaultRunnerCPUPct, CIOverflow: true}
 }
 
 // ErrBadFleetLoad: a mark outside the rdb checks, low >= high, a box order
 // that is not distinct box ids, a per-box band that is not a box id with a
 // valid band, kinds off that are not distinct kinds or name every kind, or a
 // pause that is not a kind with an until, a short reason and a box id, or a
-// runner CPU cap outside 1..100.
+// runner CPU cap outside 1..100, or a runner core count outside
+// 0..MaxRunnerCPUs.
 var ErrBadFleetLoad = errors.New("store: bad fleet load target")
 
 // Effective is the target in force for a stored row.
@@ -143,6 +167,12 @@ func (f FleetLoadStored) Effective() FleetLoad {
 	}
 	if f.RunnerCPUPct != nil {
 		out.RunnerCPUPct = *f.RunnerCPUPct
+	}
+	if f.CIOverflow != nil {
+		out.CIOverflow = *f.CIOverflow
+	}
+	if f.RunnerCPUs != nil {
+		out.RunnerCPUs = *f.RunnerCPUs
 	}
 	return out
 }
@@ -188,6 +218,12 @@ func (f FleetLoadStored) apply(p FleetLoadPatch) FleetLoadStored {
 	if p.RunnerCPUSet {
 		f.RunnerCPUPct = p.RunnerCPUPct
 	}
+	if p.CIOverflowSet {
+		f.CIOverflow = p.CIOverflow
+	}
+	if p.RunnerCPUsSet {
+		f.RunnerCPUs = p.RunnerCPUs
+	}
 	if len(p.Pauses) > 0 {
 		f.Paused = mergePauses(f.Paused, p.Pauses, p.Now)
 	}
@@ -223,8 +259,8 @@ func mergePauses(cur map[string]KindPause, add map[string]*KindPause, now time.T
 // the rdb 0118 range, low < high on the values in force, and the order
 // distinct box ids, at most MaxFleetBoxes; each per-box band a box id with
 // both marks in range and low < high, at most MaxFleetBoxes of them; each
-// runner CPU cap 1..100 (a box's 0 = the fleet's); the agent kinds as
-// checkAgentKinds.
+// runner CPU cap 1..100 (a box's 0 = the fleet's); each runner core count
+// 0..MaxRunnerCPUs; the agent kinds as checkAgentKinds.
 func CheckFleetLoad(f FleetLoadStored) error {
 	if f.Low != nil && (*f.Low < 1 || *f.Low > 99) {
 		return ErrBadFleetLoad
@@ -233,6 +269,9 @@ func CheckFleetLoad(f FleetLoadStored) error {
 		return ErrBadFleetLoad
 	}
 	if f.RunnerCPUPct != nil && (*f.RunnerCPUPct < 1 || *f.RunnerCPUPct > 100) {
+		return ErrBadFleetLoad
+	}
+	if f.RunnerCPUs != nil && (*f.RunnerCPUs < 0 || *f.RunnerCPUs > MaxRunnerCPUs) {
 		return ErrBadFleetLoad
 	}
 	if e := f.Effective(); e.Low >= e.High {
@@ -253,7 +292,7 @@ func CheckFleetLoad(f FleetLoadStored) error {
 	}
 	for b, band := range f.Boxes {
 		if !FleetNameRe.MatchString(b) || band.Low < 1 || band.Low > 99 || band.High < 2 || band.High > 100 || band.Low >= band.High ||
-			band.RunnerCPUPct < 0 || band.RunnerCPUPct > 100 {
+			band.RunnerCPUPct < 0 || band.RunnerCPUPct > 100 || band.RunnerCPUs < 0 || band.RunnerCPUs > MaxRunnerCPUs {
 			return ErrBadFleetLoad
 		}
 	}
@@ -328,13 +367,13 @@ func (s *Memory) SetFleetLoad(_ context.Context, tenant string, p FleetLoadPatch
 // ---- Postgres ---------------------------------------------------------------
 
 const fleetLoadCols = `fleet_load_low, fleet_load_high, fleet_box_order, fleet_box_bands,
-	fleet_agent_kinds_off, fleet_agent_kinds_paused, fleet_runner_cpu_pct`
+	fleet_agent_kinds_off, fleet_agent_kinds_paused, fleet_runner_cpu_pct, fleet_ci_overflow, fleet_runner_cpus`
 
 func scanFleetLoad(row pgx.Row) (FleetLoadStored, error) {
 	var f FleetLoadStored
-	var low, high, cpu *int16
+	var low, high, cpu, cpus *int16
 	var bands, paused []byte
-	if err := row.Scan(&low, &high, &f.BoxOrder, &bands, &f.AgentKindsOff, &paused, &cpu); err != nil {
+	if err := row.Scan(&low, &high, &f.BoxOrder, &bands, &f.AgentKindsOff, &paused, &cpu, &f.CIOverflow, &cpus); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return FleetLoadStored{}, ErrNotFound
 		}
@@ -351,6 +390,10 @@ func scanFleetLoad(row pgx.Row) (FleetLoadStored, error) {
 	if cpu != nil {
 		v := int(*cpu)
 		f.RunnerCPUPct = &v
+	}
+	if cpus != nil {
+		v := int(*cpus)
+		f.RunnerCPUs = &v
 	}
 	if bands != nil {
 		if err := json.Unmarshal(bands, &f.Boxes); err != nil {
@@ -398,9 +441,9 @@ func (s *Postgres) SetFleetLoad(ctx context.Context, tenant string, p FleetLoadP
 		}
 		_, err = tx.Exec(ctx, `UPDATE tenants SET fleet_load_low = $2, fleet_load_high = $3, fleet_box_order = $4,
 			fleet_box_bands = $5::jsonb, fleet_agent_kinds_off = $6, fleet_agent_kinds_paused = $7::jsonb,
-			fleet_runner_cpu_pct = $8
+			fleet_runner_cpu_pct = $8, fleet_ci_overflow = $9, fleet_runner_cpus = $10
 			WHERE tenant_id = $1`, tenant, next.Low, next.High, next.BoxOrder, bands, next.AgentKindsOff, paused,
-			next.RunnerCPUPct)
+			next.RunnerCPUPct, next.CIOverflow, next.RunnerCPUs)
 		return err
 	})
 	if err != nil {

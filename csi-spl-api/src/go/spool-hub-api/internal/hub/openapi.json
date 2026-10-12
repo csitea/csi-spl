@@ -7130,7 +7130,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "description": "OK: the target in force (low, high, box_order, boxes, agent_kinds_off, agent_kinds_paused, runner_cpu_pct, ci_overflow, runner_cpus), source, the stored row (null = default) and the defaults"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -7152,9 +7152,131 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "The instance's fleet load target; an absent field is left, a JSON null resets it to the default. Every field is checked by the hub (400 bad_setting).",
+                "properties": {
+                  "agent_kinds_off": {
+                    "items": {
+                      "enum": [
+                        "claude",
+                        "grok",
+                        "agy",
+                        "qwen",
+                        "mistral"
+                      ],
+                      "type": "string"
+                    },
+                    "nullable": true,
+                    "type": "array"
+                  },
+                  "agent_kinds_paused": {
+                    "additionalProperties": {
+                      "enum": [
+                        null
+                      ],
+                      "nullable": true
+                    },
+                    "description": "{kind: null} lifts that kind's pause",
+                    "nullable": true,
+                    "type": "object"
+                  },
+                  "box_order": {
+                    "items": {
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+                      "type": "string"
+                    },
+                    "maxItems": 32,
+                    "nullable": true,
+                    "type": "array"
+                  },
+                  "boxes": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "high": {
+                          "maximum": 100,
+                          "minimum": 2,
+                          "type": "integer"
+                        },
+                        "low": {
+                          "maximum": 99,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "runner_cpu_pct": {
+                          "maximum": 100,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "runner_cpus": {
+                          "description": "this box's CI runner cores; 0 = the fleet's runner_cpus (rdb 0185)",
+                          "maximum": 256,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "low",
+                        "high"
+                      ],
+                      "type": "object"
+                    },
+                    "description": "per-box band; a PATCH replaces the whole map (rdb 0134)",
+                    "nullable": true,
+                    "type": "object"
+                  },
+                  "ci_overflow": {
+                    "description": "CI overflows to the box runners when the hosted runners are overwhelmed; default true (rdb 0185)",
+                    "nullable": true,
+                    "type": "boolean"
+                  },
+                  "high": {
+                    "maximum": 100,
+                    "minimum": 2,
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "low": {
+                    "maximum": 99,
+                    "minimum": 1,
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "ordered_by": {
+                    "description": "a HUM-* id, for the record",
+                    "type": "string"
+                  },
+                  "ordered_via": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "runner_cpu_pct": {
+                    "description": "% of a box's cores CI runners plus agents may use; default 80 (rdb 0152)",
+                    "maximum": 100,
+                    "minimum": 1,
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "runner_cpus": {
+                    "description": "cores the CI box runners may take, fleet-wide; default 0 = the box's cnf share (rdb 0185)",
+                    "maximum": 256,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "description": "OK: the target in force (low, high, box_order, boxes, agent_kinds_off, agent_kinds_paused, runner_cpu_pct, ci_overflow, runner_cpus), source, the stored row (null = default) and the defaults"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"

@@ -40,7 +40,15 @@ spool message, a poke or your own decision), prefix the gate and the
 `--reporter` call with `EXIT_CLEAN_BY=human EXIT_CLEAN_REASON="<what they typed>"`;
 each use is logged in `{{SPOOL_ROOT}}/exit-override.log` for the dispatcher.
 The report send's `--reporter` runs the same gate, so a refused lane has no
-recipient. `--rebirth` and `report-only` send with `--reporter --no-gate`.
+recipient.
+
+After the ACCEPTED the same gate checks your issue (the `YOUR ISSUE` key of
+your seed): it refuses while no commit on origin/<trunk> cites the key and the
+issue has no end reason, and when those commits change behaviour with no
+`csi-spl-doc/` change and no `Docs: none (<why>)` line. Its line names the
+fix: land the commit or the doc change, or end the issue with
+`LANE_ISSUE_OP=end ./run -a do_spl_lane_issue`
+(`csi-spl-doc/doc/md/lane-issue-and-docs.md`). `--rebirth` and `report-only` send with `--reporter --no-gate`.
 
 ## 1. Land the work
 

@@ -253,6 +253,28 @@ fi
 # The binary the AGENT USER runs, not the spawner's (lib/spool-env.inc.sh).
 _sp_spool_bin="$(spool_agent_spool_bin)"
 SPOOL_PROTO="THE SPOOL MESSAGING PROTOCOL. Your spool agent id is ${TITLE}; the spool root is ${SPOOL_ROOT} and your dirs are ${MSGDIR}/{inbox,outbox,archive}. Messages are v:1 JSON (schema: csi-spl-doc/specs/002-box-agent-messaging/contracts/message-schema.md), UNSIGNED locally: you never handle a key. The spool binary is ${_sp_spool_bin}, always run with SPOOL_ROOT=${SPOOL_ROOT}. READ: 'SPOOL_ROOT=${SPOOL_ROOT} ${_sp_spool_bin} recv --as ${TITLE}' prints your inbox (JSON); add '--ack' once acted on (moves them to archive/). A topic is a task_id: 'SPOOL_ROOT=${SPOOL_ROOT} ${_sp_spool_bin} tail --task <task_id>' shows it oldest-first across every agent. SEND: 'bash ${SPAWN_SCRIPTS_DIR}/spool-send.sh --from ${TITLE} --to <PEER-ID> --kind <task|result|note|reject|blocker|msg> [--task <task_id>] --body \"<text>\"' writes the peer's inbox and your outbox and pokes its tmux window. Reply on the SAME --task as the message you answer. A poke line (': 'SPOOL ${TITLE}: ...'') is only a doorbell, the spool FILE is the message: run spool recv when poked, at breakpoints and before declaring done. ${_sp_report}: orchestrator = the fleet lease's orch holder, any machine (today ${SPOOL_ORCHESTRATOR_ID} here); a peer on another machine is relayed through the hub. OWNER TEXT (a post meant for the owner, e.g. in a t1 topic) goes to whoever holds the dispatch lease RIGHT NOW, read with 'cd ${SPAWN_ORC_DIR} && sudo -u ${SPOOL_BOX_USER} env SPOOL_ROOT=${SPOOL_ROOT} LEASE_CMD=show ./run -a do_spl_dispatch_lease', never to a fixed dispatcher id and never to the dispatcher that last posted in that topic. Message peers ONLY for your task, blocker handoffs and scope collisions, never open-ended chatter; never type message payloads into tmux windows. HOW TO WRITE A POST: markdown, no \`\`\`md fence; the one rule is csi-spl-doc/doc/help/how-to-post.md."
+_spawn_issue_block
+}
+
+# ISSUE_BLOCK: the lane's issue in its seed (owner HUM-10, t1 5ea2e615 msg
+# 346238a8; the rule's one home: csi-spl-doc/doc/md/lane-issue-and-docs.md).
+# spawn-window.sh placed it (lifetime/issue) before this pane started; a dry
+# run reads SPAWN_ISSUE or the brief's `Issue:` line. The recorded brief gets
+# the `Issue:` line too. No key (a plain session, a respawn of a lane placed
+# before the rule): no block. Guard: tests/test-lane-issue.sh.
+_spawn_issue_block() {
+  ISSUE_BLOCK="" ISSUE_KEY=""
+  [ -n "$BRIEF" ] && [ -n "$WORKTREE_DIR" ] || return 0
+  # shellcheck source=../lib/lane-issue.inc.sh
+  . "${_SP_DIR}/../lib/lane-issue.inc.sh" || return 0
+  ISSUE_KEY="$(li_key_of_agent "$SPOOL_ROOT" "$TITLE")"
+  [ -n "$ISSUE_KEY" ] || ISSUE_KEY="${SPAWN_ISSUE:-$(li_key_from_brief "$BRIEF")}"
+  [ -n "$ISSUE_KEY" ] || { _sp_plan issue "none: the seed names no issue"; return 0; }
+  if _sp_live && [ -w "${MSGDIR}/lifetime/brief.md" ] && ! li_key_from_brief "${MSGDIR}/lifetime/brief.md" >/dev/null; then
+    printf '\nIssue: %s\n' "$ISSUE_KEY" >>"${MSGDIR}/lifetime/brief.md" 2>/dev/null || true
+  fi
+  _sp_plan issue "${ISSUE_KEY} in the seed"
+  ISSUE_BLOCK="YOUR ISSUE: ${ISSUE_KEY} (status wip), the tracked record of this task; rule: csi-spl-doc/doc/md/lane-issue-and-docs.md. Cite it in every commit subject scope, e.g. 'feat(orc, ${ISSUE_KEY}): ...'. What CLOSES it on landing, only these two forms: a fix|feat|perf|refactor subject with ${ISSUE_KEY} in its scope, or a 'Closes: ${ISSUE_KEY}' trailer in the body (docs/test/chore/ci subjects, reverts, 'Fixes:'/'Refs:' and bare mentions never close). DOCS: a commit that changes behaviour (code under csi-spl-api, -orc, -iac or -wui) lands with its csi-spl-doc/ change, or its message carries the line 'Docs: none (<why>)'. Ending without landing (dropped by a gate, superseded): '$(li_end_cmd "$TITLE")'. /exit-clean refuses a wip issue with no landed commit and no end reason, and a behaviour change with neither docs nor that line."
 }
 
 # One registry.tsv row. The requester is last so columns 1-5 stay put.
@@ -389,7 +411,7 @@ spawn_main() {
     # c-440 (2026-10-06): one 'pkill -f do_check_pre_push' matched the action
     # name in every agent's argv (this prompt) and killed 15 sessions in 0.7 s.
     STOP_RULE="Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f', 'killall' or 'pgrep -f | xargs kill' on a pattern: it matches other agents' processes."
-    PROMPT="As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
+    PROMPT="As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
 

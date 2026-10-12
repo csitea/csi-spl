@@ -37,6 +37,12 @@
 # a HUM- id), must be newer than every REJECT / SEND-BACK the lane received
 # (kind reject, or a body starting with one of those words). Else one line
 # on stderr names the missing ACCEPTED or the newer REJECT, and exit 3.
+# After the ACCEPTED, the lane's issue (li_gate, lib/lane-issue.inc.sh; rule:
+# csi-spl-doc/doc/md/lane-issue-and-docs.md): refused while its key is still
+# wip with no commit on origin/<trunk> citing it and no end reason
+# (lifetime/issue-end), or when those commits change behaviour with no
+# csi-spl-doc/ change and no `Docs: none (<why>)` line. A lane with no key
+# (placed before the rule) is not checked.
 # The two ways out with no ACCEPTED (c-767 cd0d55925):
 #   - the rotation: it retires only role seats, and a role seat's id passes;
 #   - a human who typed /exit-clean in the pane: EXIT_CLEAN_BY=human plus a
@@ -48,6 +54,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 # shellcheck source=../lib/agent-state.inc.sh
 . "$_here/../lib/agent-state.inc.sh"
+# shellcheck source=../lib/lane-issue.inc.sh
+. "$_here/../lib/lane-issue.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
 MODE=discovery OUTCOME="" NUMBERS="" DETAIL="" DETAIL_PATH="" SHAS=() GATE=1
@@ -150,6 +158,8 @@ ksr_gate() {
     return 3
   fi
   echo "exit gate: ACCEPTED $acc_id at $acc_ts on task $acc_task" >&2
+  # The lane's issue and docs (lib/lane-issue.inc.sh li_gate).
+  li_gate "$SPOOL_ROOT" "$ID" "$WORKDIR" || return 3
   return 0
 }
 

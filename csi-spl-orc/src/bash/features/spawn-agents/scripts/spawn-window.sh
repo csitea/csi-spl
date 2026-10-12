@@ -39,7 +39,8 @@
 # remote spawn on an explicit SPAWN_BOX did not start (PLACEMENT below),
 # 9 the requester is a lane, 10 HOLD: every fleet box is at or above the
 # load target's high mark (LOAD TARGET below), so queue the lane, 11 the
-# new session is stopped on a dialog (START CHECK above). Only c-001, c-002 and c-003 (any box), or a
+# new session is stopped on a dialog (START CHECK above), 12 the lane has
+# no issue (LANE ISSUE below). Only c-001, c-002 and c-003 (any box), or a
 # shell with no agent id, may spawn. The id is the caller's SPOOL_AGENT_ID
 # or MCP_BOT_AGENT_ID, else the window or registry row of $TMUX_PANE, else
 # the closest ancestor that still carries the id (`sudo -u` strips it from
@@ -264,6 +265,59 @@ else
   fi
 fi
 shift 2
+
+# LANE ISSUE (owner HUM-10, t1 5ea2e615 msg 346238a8; the rule:
+# csi-spl-doc/doc/md/lane-issue-and-docs.md): a git lane with a brief starts
+# only with an issue. do_spl_lane_issue links the key in SPAWN_ISSUE or the
+# brief's `Issue: <KEY>` line (status wip, assignee the lane), or files one
+# from the brief, and writes <spool root>/<id>/lifetime/issue, which
+# spawn-core puts in the seed. It runs on the box that launches (the remote
+# serve's spawn-window included), after the claim and before the window, so a
+# refusal reaches the spawner: exit 12, the fresh claim released. A respawn
+# (SPAWN_REUSE_ID=1) keeps the key it has. SPAWN_ISSUE_CREATE=0 refuses a
+# brief with no key instead of filing one. Seam: SPAWN_ISSUE_CMD replaces the
+# action (tests).
+sw_issue() {  # WORKDIR BRIEF
+  local wd="$1" brief="${2:-}" key hop=() out rc=0
+  [ -n "$brief" ] && [ "${SPAWN_REUSE_ID:-0}" != 1 ] || return 0
+  git -C "$wd" remote get-url origin >/dev/null 2>&1 || return 0
+  # shellcheck source=../lib/lane-issue.inc.sh
+  . "$HERE/../lib/lane-issue.inc.sh"
+  key="${SPAWN_ISSUE:-$(li_key_from_brief "$brief")}"
+  if [ -z "$key" ] && [ "${SPAWN_ISSUE_CREATE:-1}" = 0 ]; then
+    echo "spawn-window: REFUSED ${TITLE}: a lane without an issue key does not start. Put 'Issue: <KEY>' in the brief, pass SPAWN_ISSUE=<KEY>, or file one: cd csi-spl-orc && AGENT_ID=${TITLE} BRIEF=${brief} DRY_RUN=0 ./run -a do_spl_lane_issue" >&2
+    return 12
+  fi
+  if [ "$DRY" = 1 ]; then
+    printf 'PLAN %-10s %s\n' issue "${key:+link ${key} -> wip, assignee ${TITLE}}${key:-file one from ${brief} (wip, assignee ${TITLE})} -> ${SPOOL_ROOT}/${TITLE}/lifetime/issue"
+    return 0
+  fi
+  if [ "$(id -un)" != "$SPOOL_BOX_USER" ] && [ -z "${SPAWN_ISSUE_CMD:-}" ]; then
+    hop=(sudo -n -u "$SPOOL_BOX_USER" env HOME="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)")
+  fi
+  if [ -n "${SPAWN_ISSUE_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    out="$(AGENT_ID="$TITLE" BRIEF="$brief" LANE_ISSUE_KEY="$key" LANE_ISSUE_TOPIC="${SPAWN_LANE_TOPIC:-}" $SPAWN_ISSUE_CMD 2>&1)" || rc=$?
+  else
+    out="$(timeout "${SPAWN_ISSUE_TIMEOUT:-120}" "${hop[@]}" env SPOOL_ROOT="$SPOOL_ROOT" AGENT_ID="$TITLE" BRIEF="$brief" \
+      LANE_ISSUE_KEY="$key" LANE_ISSUE_TOPIC="${SPAWN_LANE_TOPIC:-}" DRY_RUN=0 \
+      bash "${SPAWN_ORC_RUN:-$HERE/../../../../../run}" -a do_spl_lane_issue 2>&1)" || rc=$?
+  fi
+  key="$(li_key_of_agent "$SPOOL_ROOT" "$TITLE")"
+  if [ "$rc" -ne 0 ] || [ -z "$key" ]; then
+    echo "spawn-window: REFUSED ${TITLE}: no issue placed (exit ${rc}): $(printf '%s' "$out" | grep -E 'FATAL|WARN' | grep -v 'failed at line' | tail -2 | tr '\n' ' ' | cut -c1-400). A lane without an issue key does not start; fix it, or put an existing 'Issue: <KEY>' in the brief and spawn again" >&2
+    return 12
+  fi
+  echo "spawn-window: ${TITLE} carries issue ${key} (wip)" >&2
+}
+# A refused issue releases the id this call just claimed (empty spool dirs).
+sw_release_claim() {
+  [ "$DRY" = 1 ] || [ "${SPAWN_REUSE_ID:-0}" = 1 ] && return 0
+  rm -f "${SPOOL_ROOT}/${TITLE}/lifetime/issue" 2>/dev/null
+  rmdir "${SPOOL_ROOT}/${TITLE}/inbox" "${SPOOL_ROOT}/${TITLE}/outbox" "${SPOOL_ROOT}/${TITLE}/archive" \
+    "${SPOOL_ROOT}/${TITLE}/lifetime" "${SPOOL_ROOT}/${TITLE}" 2>/dev/null || true
+}
+sw_issue "$@" || { rc=$?; sw_release_claim; exit "$rc"; }
 
 if [ "$DRY" = 1 ]; then
   printf 'PLAN %-10s %s\n' claim "${TITLE} -> ${SPOOL_ROOT}/${TITLE}" \

@@ -1,0 +1,78 @@
+# Lane issue and docs: how the rule is enforced
+
+The rule's one home is the fleet fragment
+`csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/27-lane-issue-and-docs.md`,
+rendered into every seat's global `CLAUDE.md` (and `AGENTS.md` for vibe).
+This page says what code enforces it, and how to use it. It homes no rule
+([fleet rules index](fleet-rules-index.md)).
+
+Owner, HUM-10, t1 topic 5ea2e615 (2026-10-12), in order: msg 5b6f2aa7 (the
+agents "have been implementing the features without actually going through the
+whole process of any certain issues, changing the statuses of the issues,
+keeping track"), msg 5c4c410e ("too cowboy a way to work"), msg 346238a8 ("the
+concrete decision on what needs to be done and the tracking of the statuses
+must be reflected in the issues ... making sure that the documentation is kept
+up to date as well"). And: orchestration is code, not intelligence.
+Then spec 135 section 9 (`csi-spl-doc/specs/135-work-process/spec.md`): Q1 A
+(msg 2ec08981, every discussion an agent takes gets an issue from the first
+answer), Q2 (msg f2c24a7b, an issue holds condensed state and links the
+discussion; it does not become one), Q3 A (msg e2a3f127, `done` when the
+closing commit lands).
+
+## 0. A discussion's issue, at the first answer
+
+Whoever takes a discussion files its issue with the first answer (no lane
+needed): status `eval`, the taker assigned, the topic linked, the key printed
+to post back in the topic. An evaluation or an answer to the owner is an
+`answer` issue (`LANE_ISSUE_ANSWER=1`, label `answer`). Acks, chatter and
+announcements file none (no `LANE_ISSUE_TITLE`: refused).
+
+```bash
+cd csi-spl-orc && AGENT_ID=<taker> LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=<topic uuid> LANE_ISSUE_TITLE='<the work>' LANE_ISSUE_ANSWER=1 DRY_RUN=0 ./run -a do_spl_lane_issue
+```
+
+A lane placed later from that discussion carries the key in its brief
+(`Issue: <KEY>`), so it links that issue instead of filing a second one.
+
+## 1. The life of a lane's issue
+
+| step | what happens | code |
+|---|---|---|
+| 1.1 placement | `spawn-window.sh` (the front door of every spawn, the remote serve's included), after the id claim and before the window: a git lane with a brief gets its issue from `do_spl_lane_issue`. The key in `SPAWN_ISSUE` or the brief's `Issue: <KEY>` line is linked (status `wip`, assignee the lane, a comment with the topic link); no key: one is filed, title = the brief's heading, description = the brief's text up to its first `## ` (the owner's words, at most 1500 bytes) + the lane id + the topic link; a brief line `Kind: answer` labels it `answer`. The key lands in `<spool root>/<id>/lifetime/issue`. | `spawn-agents/scripts/spawn-window.sh` `sw_issue`; `csi-spl-orc/src/bash/run/spl-lane-issue.func.sh` |
+| 1.2 refusal | No issue placed (the hub refused, no seated desk, or `SPAWN_ISSUE_CREATE=0` with no key): exit 12, the claimed id released, one line with the command that makes one. | `sw_issue`, `sw_release_claim` |
+| 1.3 the seed | The seed's `YOUR ISSUE` block names the key, the commit-subject form, the docs rule and the end command; the recorded brief (`lifetime/brief.md`) gets the `Issue:` line. | `spawn-core.inc.sh` `_spawn_issue_block` |
+| 1.4 landing | Every commit cites the key in its subject scope (`feat(orc, SPL-123): ...`). Only two forms close it: a `fix`, `feat`, `perf` or `refactor` subject with the key in its scope, or a `Closes: SPL-123` trailer; `docs`/`test`/`chore`/`ci` subjects, reverts, `Fixes:`, `Refs:` and bare mentions never close. The exit gate's "landed" and the docs check both read it from the one parser. | `csi-spl-orc/src/bash/scripts/issue-close-landed.py --keys` (`commit_keys`) |
+| 1.5 ending without landing | `cd csi-spl-orc && AGENT_ID=<id> LANE_ISSUE_OP=end LANE_ISSUE_STATUS=diss LANE_ISSUE_REASON='<why>' DRY_RUN=0 ./run -a do_spl_lane_issue`: the status (`diss`, `onhold` or `blocked`), a comment with the reason, and `lifetime/issue-end`. | `spl_lane_issue_end` |
+| 1.6 exit | `/exit-clean`'s gate (`kill-your-self-report.sh --gate`), after the ACCEPTED, refuses while no commit on `origin/<trunk>` closes the key (1.4) and there is no end reason (1.5). | `lib/lane-issue.inc.sh` `li_gate` |
+
+The issue is filed by a seated desk of the fleet lease (`LEASE_MASTER`, then
+`LEASE_ORCH`, then `LEASE_FAILOVER` in `<spool root>/dispatch/lease.conf`,
+in its `LEASE_ENV` / `LEASE_TENANT`). The hub takes as assignee only an agent
+its roster announces; a lane it does not know is named in the description and
+the placement comment, and the placing desk is the assignee.
+
+A respawn of an id (`SPAWN_REUSE_ID=1`: the rotation, a restart) keeps the key
+it has. A lane placed before this rule has no key; its exit is not checked.
+
+## 2. Docs kept current
+
+At the same exit gate (1.6): the lane's commits on trunk (those naming its key in the subject scope, any type, or in a `Closes:` trailer)
+that change behaviour, meaning a path under `csi-spl-api/`, `csi-spl-orc/`,
+`csi-spl-iac/` or `csi-spl-wui/` that is not a test, a fixture or markdown,
+need either
+
+- a change under `csi-spl-doc/` in one of those commits, or
+- a line `Docs: none (<why>)` in one of their messages.
+
+Neither: the exit is refused, naming the first code path.
+
+The pre-push gate does not check it: a lane pushes each commit as it is green
+(seed INTEGRATION (2)), so the doc change often lands in a later push than the
+code. The exit is the first point where the lane's whole change is known.
+
+## 3. Tests
+
+`csi-spl-orc/src/bash/features/spawn-agents/tests/test-lane-issue.sh`: every
+refusal (no key at placement, a wip issue with no landed commit, a behaviour
+change with no docs) and each way through, with a control per refusal that
+runs the same case with the gate removed.

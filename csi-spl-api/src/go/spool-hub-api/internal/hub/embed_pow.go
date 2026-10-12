@@ -40,7 +40,7 @@ const DefaultEmbedPowBits = 16
 
 const (
 	// embedPowTTL is how long a challenge is accepted.
-	embedPowTTL = 10 * time.Minute
+	EmbedPowTTL = 10 * time.Minute  // Time-to-live for embed proof-of-work challenges
 	// embedNonceMax is the longest nonce the hub hashes.
 	embedNonceMax = 64
 	// TokenEmbedChallenge: the post needs a (new) proof of work (428), or
@@ -83,7 +83,7 @@ func embedPowValid(p *embedPow, v store.EmbedVisitor, body string, bitsWant int,
 	}
 	minute, err := strconv.ParseInt(rest, 10, 64)
 	nowMin := now.Unix() / 60
-	if err != nil || minute > nowMin || nowMin-minute > int64(embedPowTTL/time.Minute) {
+	if err != nil || minute > nowMin || nowMin-minute > int64(EmbedPowTTL/time.Minute) {
 		return false
 	}
 	bodySum := sha256.Sum256([]byte(body))

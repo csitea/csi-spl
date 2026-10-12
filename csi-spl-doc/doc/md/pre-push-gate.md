@@ -57,6 +57,17 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   cold (113 s build), 31 s warm, n=1 each, for 2 files. Print a selection:
   `WUI_E2E_RANGE=origin/master..HEAD ./run -a do_check_pre_push_e2e`.
   `PRE_PUSH_E2E=0` turns it off.
+- **The orc-features part** (spec 133 F1) runs wf 10's orc feature tests
+  (`features/run-ci-tests.sh`) for the features a csi-spl-orc change maps
+  to: a file under `features/<f>/` selects `<f>`, a file directly under
+  `features/` selects all of them, and any other orc file selects the
+  features whose `tests/test-*.sh` name its basename or stem as a whole
+  word. Before it, a change there made the orc map fall back to `full`,
+  which the fast tier leaves to CI. spawn-agents (80 files) took 85 s on
+  the first box at load 15.7, n=1; the budget is `PRE_PUSH_FEATURES_TIMEOUT`
+  (300 s). Print a selection:
+  `FEATURES_RANGE=origin/master..HEAD ./run -a do_check_pre_push_features`.
+  `PRE_PUSH_FEATURES=0` turns it off.
 - **The cache key is content**: the git trees and blobs of what the part
   reads, plus the tier and the gate version. No commit sha and no base sha,
   so a re-push after a rebase that brought in only files the part does not

@@ -40,7 +40,7 @@ const DefaultEmbedPowBits = 16
 
 const (
 	// embedPowTTL is how long a challenge is accepted.
-	EmbedPowTTL = 10 * time.Minute  // Time-to-live for embed proof-of-work challenges
+	EmbedPowTTL = 10 * time.Minute // Time-to-live for embed proof-of-work challenges
 	// embedNonceMax is the longest nonce the hub hashes.
 	embedNonceMax = 64
 	// TokenEmbedChallenge: the post needs a (new) proof of work (428), or

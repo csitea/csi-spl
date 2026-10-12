@@ -69,7 +69,6 @@ const (
 // embedIPPeriod is how long one ip_hash salt lives: rotated weekly, so a
 // stored hash links one address's visits for a week at most.
 
-
 // embedLimits is s.o.EmbedLimits with every unset field at its default.
 func (s *Server) embedLimits() EmbedLimits {
 	l := s.o.EmbedLimits

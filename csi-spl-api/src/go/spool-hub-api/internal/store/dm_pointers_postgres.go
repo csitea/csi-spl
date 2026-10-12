@@ -18,6 +18,11 @@ import (
 // the peer's box, or every pinned box of the tenant when the peer names none;
 // a tag may also be stored to box-wui (a browser channel post). door is the
 // read door (rdb 0028) on the line's channel, off for the door-off rig.
+// The candidates carry only the keys, newest first behind OFFSET 0 (no qual
+// is pushed below it), so the archived probe runs lazily under the LIMIT: it
+// stops at the page instead of probing every line of the pair's history (prd
+// HUM-10/c-002: 2 511 probes, 24k of 29k buffers, for a 20-row page of which
+// 2 184 lines were archived). The page's full rows are joined back by key.
 // Parameters: $1 tenant, $2 now, $3 viewer, $4 agent, $5 agent box ("" =
 // any), $6 box-wui, $7 lobby, $8 limit, then the door's $9 public channels
 // and $10 the reader's created channels.
@@ -28,19 +33,21 @@ func dmPointersSQL(door bool) string {
 		both += " AND (m.channel = ANY($9::text[]) OR m.channel = ANY($10::text[]))"
 	}
 	return `WITH c AS MATERIALIZED (
-			SELECT ` + topicMsgCols + ` FROM messages m
+			SELECT m.msg_id, m.received_at, m.task_id, m.parent_task_id FROM messages m
 			WHERE m.tenant_id = $1 AND m.to_box = ANY(` + boxes + ` || $6::text) AND m.to_id = $4 AND m.from_id = $3` + both + `
 			UNION ALL
-			SELECT ` + topicMsgCols + ` FROM messages m
-			WHERE m.tenant_id = $1 AND m.from_box = ANY(` + boxes + `) AND m.from_id = $4 AND m.to_id = $3` + both + `)
+			SELECT m.msg_id, m.received_at, m.task_id, m.parent_task_id FROM messages m
+			WHERE m.tenant_id = $1 AND m.from_box = ANY(` + boxes + `) AND m.from_id = $4 AND m.to_id = $3` + both + `),
+		p AS MATERIALIZED (
+			SELECT k.msg_id FROM (SELECT c.msg_id, c.received_at, c.task_id, c.parent_task_id FROM c ORDER BY c.received_at DESC, c.msg_id::text DESC OFFSET 0) k
+			WHERE true` + archivedHideSQL("k", "$1", "$7::text") + `
+			LIMIT $8)
 		SELECT c.msg_id::text, c.received_at, c.env, c.edited_at, c.edited_by,
 			CASE WHEN c.edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
 				FROM message_revisions r WHERE r.tenant_id = c.tenant_id AND r.msg_id = c.msg_id), 0) END,
 			c.is_parent, c.typed_by, c.responsible, c.ref_task_id::text, c.mirror_of::text, c.kind, c.kind_set_at, c.kind_set_by, ` + moveCols("c") + `
-		FROM c
-		WHERE true` + archivedHideSQL("c", "$1", "$7::text") + `
-		ORDER BY c.received_at DESC, c.msg_id::text DESC
-		LIMIT $8`
+		FROM p JOIN messages c ON c.tenant_id = $1 AND c.msg_id = p.msg_id
+		ORDER BY c.received_at DESC, c.msg_id::text DESC`
 }
 
 func (s *Postgres) ViewDMPointers(ctx context.Context, tenant string, q DMPointerQuery) ([]ViewMsg, error) {

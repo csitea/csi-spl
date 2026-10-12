@@ -50,11 +50,6 @@ import (
 const (
 	blobCacheBytes     = 64 << 20
 	blobCacheItemBytes = 4 << 20
-	blobCacheTTL       = 10 * time.Minute
-	sweepEvery         = 10 * time.Minute
-	blockerEvery       = time.Minute // an unanswered blocker -> issue, to the minute of N
-	readHeaderTimeout  = 10 * time.Second
-	idleTimeout        = 120 * time.Second
 	maxHeaderBytes     = 64 << 10
 )
 
@@ -140,10 +135,10 @@ func cmdServe() int {
 	}
 	store.CommittedRetention = hc.CommittedRetention // spec 059 S4, read by Sweep
 	claimOperatorWorkspace(ctx, log, srv)
-	go srv.RunSweeper(ctx, sweepEvery)
+	go srv.RunSweeper(ctx, SweepInterval)
 	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
 	go srv.RunWake(ctx)                 // spec 059 S1 + S3
-	go srv.RunBlockerIssues(ctx, blockerEvery)
+	go srv.RunBlockerIssues(ctx, BlockerInterval)
 	return serveUntilDone(ctx, hc, log, srv)
 }
 
@@ -277,7 +272,7 @@ func mailPreflight(ctx context.Context, hc *config.Hub, log zerolog.Logger, mc *
 func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Store, originTenant *hub.OriginTenant) hub.Options {
 	// attachment reads served from memory after the first; the
 	// hub is one instance of 512 MiB (hub.cloud_run), ~80 MiB in use.
-	cached := blob.NewCached(bs, blobCacheBytes, blobCacheItemBytes, blobCacheTTL)
+	cached := blob.NewCached(bs, blobCacheBytes, blobCacheItemBytes, BlobCacheTTL)
 	return hub.Options{
 		Store: st, Blob: cached, Log: log, TenantHostPattern: hc.TenantHostPattern,
 		HelloSkew: hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, JoinTokenTTL: hc.JoinTokenTTL, QueueTTL: hc.QueueTTL,
@@ -565,8 +560,8 @@ func operatorInviteConfig() (emails []string, audience string, err error) {
 func serveUntilDone(ctx context.Context, hc *config.Hub, log zerolog.Logger, srv *hub.Server) int {
 	// IdleTimeout closes an idle keep-alive connection; a hijacked socket is
 	// not governed by it (keepalive pings do that, 017 FR-SEC-004).
-	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: readHeaderTimeout,
-		IdleTimeout: idleTimeout, MaxHeaderBytes: maxHeaderBytes}
+	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: ReadHeaderTimeout,
+		IdleTimeout: IdleTimeout, MaxHeaderBytes: maxHeaderBytes}
 	// Bind BEFORE claiming to listen, and log the address the kernel actually
 	// gave us. ListenAndServe binds inside the goroutine, so the old line
 	// announced "hub listening" for a socket that might never have bound --

@@ -34,6 +34,14 @@ has "the pane shows the shell-inert poke line" ": 'SPOOL CLE-91: task from CLE-9
 has "the pane shows the BODY itself" "ping from 90" "$screen"
 has "the pane names how to read it in full" "run: spool recv --as CLE-91" "$screen"
 
+# SPL-1575 (specs/017 FR-SEC-030): a probe line is delivered, never typed.
+out="$(bash "$SS" --from CLE-90 --to CLE-91 --kind note --body '[spool-probe] attach L1 lobby zz86')"; rc=$?
+eq "SPL-1575: a probe send exits 0" 0 "$rc"
+has "SPL-1575: …says the prompt was not touched" "poke: probe line" "$out"
+check "SPL-1575: …and the probe is in the inbox" grep -lqF 'zz86' "$SPOOL_ROOT/CLE-91/inbox/"*.json
+sleep 0.5
+hasnt "SPL-1575: the probe never reached the pane" "zz86" "$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$P91")"
+
 # ---- recv, reply on the same topic, tail --------------------------------
 got="$(sp recv --as CLE-91 --ack)"
 has "recv returns the task" '"kind":"task"' "$(printf '%s' "$got" | tr -d ' \n')"

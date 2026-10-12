@@ -442,6 +442,12 @@ fi
 [ "$POKE" -eq 1 ] || { echo "poke: skipped (--no-poke); ${TO} finds it on its next 'spool recv'"; exit 0; }
 
 # ---- the pane leg (lib/spool-notify.inc.sh, contracts/poke-line.md) --------
+# A probe line (specs/017 FR-SEC-030) is never typed, on this leg either; it
+# waits in the inbox like any other message (SPL-1575).
+if spool_notify_is_probe "$BODY"; then
+  echo "poke: probe line (${SPOOL_PROBE_MARK}) - ${TO}'s prompt was not touched; it waits in ${SPOOL_ROOT}/${TO}/inbox/"
+  exit 0
+fi
 spool_notify "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
 rc=$?
 # spec 102 8.1 (S9): a keystroke that reached <to>'s pane is "<ts> <kind>" in

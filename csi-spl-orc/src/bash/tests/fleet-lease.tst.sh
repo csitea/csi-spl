@@ -90,6 +90,9 @@
 #  25. t1 3cfc236e, the bench alert: the same night with both loops gives ONE
 #      post when the PC box is benched and ONE when it is back, both from the
 #      satellite; the ticks in between post nothing; LEASE_ALERT=0 is the control.
+#  26. a bench post that never lands is named on the one back line (the
+#      2026-10-11 16:12Z outage). CONTROL: a delivered bench keeps the short
+#      back line. Still one delivered post per state change.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -892,6 +895,71 @@ b25 hp $((B0 + 5940)); b25 hs $((B0 + 5941))
 rm -f "$T"/hub/main.* "$T"/h[ps]/spool/dispatch/fleet.* "$T/alerts25"
 for now in $(seq $((B0 + 4260)) 680 $((B0 + 6300))); do t25 hp $now LEASE_ALERT=0; t25 hs $((now + 1)) LEASE_ALERT=0; done
 [[ ! -s "$T/alerts25" ]] && pass "25. CONTROL: LEASE_ALERT=0 across the bench edge: no post" || fail "25. control: $(cat "$T/alerts25")"
+
+# --- 26. an undelivered bench is named on the one back line -------------------
+# Red without this change: the back line is "Box hp back after 30 healthy min"
+# and does not name the bench time. Verdicts are injected through the health
+# cache, so this does not replay the night.
+cat >"$T/bin/alert26" <<'STUB'
+#!/usr/bin/env bash
+line=$(cat)
+if [[ "$line" == *' benched:'* && "${ALERT_FAIL:-0}" == 1 ]]; then
+  echo "FAIL :: $line" >>"$ALERTS.tried"
+  exit 1
+fi
+echo "$LEASE_MACHINE :: $line" >>"$ALERTS"
+STUB
+chmod +x "$T/bin/alert26"
+VOK='{"hp":{"state":"healthy","n":60,"age":5},"hs":{"state":"healthy","n":60,"age":5}}'
+VBAD='{"hp":{"state":"degraded","n":3,"age":90},"hs":{"state":"healthy","n":60,"age":5}}'
+VBACK='{"hp":{"state":"healthy","n":60,"age":4},"hs":{"state":"healthy","n":60,"age":4}}'
+VBOTH='{"hp":{"state":"degraded","n":1,"age":80},"hs":{"state":"degraded","n":2,"age":70}}'
+VHS='{"hp":{"state":"degraded","n":1,"age":80},"hs":{"state":"healthy","n":60,"age":3}}'
+tick26() {
+  local m="$1" now="$2" json="$3"; shift 3
+  mkdir -p "$T/$m/spool/dispatch"
+  printf '%s %s\n' "$now" "$json" > "$T/$m/spool/dispatch/fleet.health"
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$m/spool" LEASE_MACHINE="$m" \
+    LEASE_PRIORITY=hp,hs LEASE_NOW="$now" HUB_NOW="$now" \
+    LEASE_HEALTH_TTL=99999 LEASE_BEATS_CMD=/bin/true \
+    LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert26" ALERTS="$T/alerts26" \
+    "$@" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_lease_init || exit 1
+    spl_fleet_bench_tick' >>"$T/out" 2>&1
+}
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
+tick26 hs 1000 "$VOK"
+tick26 hs 2000 "$VBAD" ALERT_FAIL=1
+tick26 hs 3800 "$VBACK"
+since26=$(date -u -d @2000 +%Y-%m-%dT%H:%M:%SZ)
+[[ "$(wc -l <"$T/alerts26" 2>/dev/null)" == 1 && "$(wc -l <"$T/alerts26.tried" 2>/dev/null)" == 1 ]] &&
+  pass "26. a failed bench post is one attempt and one delivered post (the back line)" ||
+  fail "26. counts: alerts $(wc -l <"$T/alerts26" 2>/dev/null) tried $(wc -l <"$T/alerts26.tried" 2>/dev/null) $(cat "$T/alerts26" 2>&1)"
+[[ "$(sed -n 1p "$T/alerts26")" == "hs :: Box hp back after 30 healthy min (benched since ${since26}; the benched alert could not be delivered)" ]] &&
+  pass "26. a failed bench post: the one back line names the bench time" ||
+  fail "26. back line: $(cat "$T/alerts26" 2>&1)"
+# CONTROL: the same edges with the bench post delivered keep the short back line
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
+tick26 hs 1000 "$VOK"
+tick26 hs 2000 "$VBAD"
+tick26 hs 3800 "$VBACK"
+[[ "$(wc -l <"$T/alerts26" 2>/dev/null)" == 2 && "$(sed -n 2p "$T/alerts26")" == "hs :: Box hp back after 30 healthy min" &&
+   "$(sed -n 1p "$T/alerts26")" == "hs :: Box hp benched: 3 of 60 heartbeats in 10 min, last 90 s ago (no new lanes, last for the roles)" ]] &&
+  pass "26. CONTROL: a delivered bench keeps the short back line, one post per change" ||
+  fail "26. control: $(cat "$T/alerts26" 2>&1)"
+# both boxes benched: nobody is healthy, so no bench post is attempted (the outage)
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
+tick26 hs 5000 "$VOK"
+tick26 hs 6000 "$VBOTH"
+tick26 hs 7000 "$VHS"
+since26=$(date -u -d @6000 +%Y-%m-%dT%H:%M:%SZ)
+[[ ! -s "$T/alerts26.tried" && "$(wc -l <"$T/alerts26" 2>/dev/null)" == 1 &&
+   "$(sed -n 1p "$T/alerts26")" == "hs :: Box hs back after 30 healthy min (benched since ${since26}; the benched alert could not be delivered)" ]] &&
+  pass "26. no healthy poster: the one back line names the bench time, and the bench line was not sent" ||
+  fail "26. no poster: $(cat "$T/alerts26" 2>&1) tried $(cat "$T/alerts26.tried" 2>&1)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

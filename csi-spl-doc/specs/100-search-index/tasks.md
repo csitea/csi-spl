@@ -205,6 +205,17 @@ T015 Q3 cold n>=5 on a prd clone (c-001, owner go; optional)
 
 ### T008 P3: equivalence tests T6, T7, T8
 
+- Status: **done** (2026-10-12, SPL-1300): `store/search_index_equiv_test.go`
+  `TestSearchIndexEquivalence`: 22 queries (every search-v1 form, and text
+  with NOT, `from:`, `in:`, `is:`, `has:` below the cap (zulu, queb) and above
+  it (common, 620 rows)), messages by time and by relevance and topics, every
+  page, index path == scan path; again after edit (adds, drops), delete,
+  expiry, archive, move and merge, each write seen by the index path; tenant
+  B holds the same words and never comes back for A, on either path (also
+  `TestCrossTenantStoreAPI`). CONTROL: a probe that drops one candidate turns
+  it red ("zulu": 14 rows != 15). It found a relevance sort with no positive
+  text term (`-zulu`) building `ORDER BY 0`, an error on both paths: fixed in
+  `searchMessagesSQL` (rank `0::real`).
 - Lane: **test**. Spec 6: T6, T7, T8.
 - Files: `store/crosstenant_test.go` (search cases also on the S1r path),
   `store/search_index_equiv_test.go` (new).

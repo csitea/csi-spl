@@ -578,12 +578,23 @@ func TestCrossTenantStoreAPI(t *testing.T) {
 			}
 		}
 	}
-	rs, err := pg.SearchMessages(ctx, a.tenant, sq(t, b.marker, now))
-	if err != nil || len(rs) != 0 {
-		t.Errorf("SearchMessages(A, B's marker) = %d %v", len(rs), err)
+	// spec 100 T6: on the index path (rdb 0143's probe) and the scan path
+	// (the kill switch), as SPOOL_HUB_SEARCH_INDEX on and off.
+	if !pg.hasSearchIndex(ctx) {
+		t.Error("rdb 0143 spool_search_candidates not found: T6 would run the scan path twice")
 	}
-	if rs, err := pg.SearchMessages(ctx, b.tenant, sq(t, b.marker, now)); err != nil || len(rs) != 1 {
-		t.Errorf("control: SearchMessages(B, B's marker) = %d %v", len(rs), err)
+	for _, scanOnly := range []bool{false, true} {
+		qa, qb := sq(t, b.marker, now), sq(t, b.marker, now)
+		qa.ScanOnly, qb.ScanOnly = scanOnly, scanOnly
+		if rs, err := pg.SearchMessages(ctx, a.tenant, qa); err != nil || len(rs) != 0 {
+			t.Errorf("SearchMessages(A, B's marker) scanOnly=%v = %d %v", scanOnly, len(rs), err)
+		}
+		if rs, err := pg.SearchTopics(ctx, a.tenant, qa); err != nil || len(rs) != 0 {
+			t.Errorf("SearchTopics(A, B's marker) scanOnly=%v = %d %v", scanOnly, len(rs), err)
+		}
+		if rs, err := pg.SearchMessages(ctx, b.tenant, qb); err != nil || len(rs) != 1 {
+			t.Errorf("control: SearchMessages(B, B's marker) scanOnly=%v = %d %v", scanOnly, len(rs), err)
+		}
 	}
 	if ps, err := pg.SeatPeriods(ctx, a.tenant); err != nil || len(ps) != 1 {
 		t.Errorf("SeatPeriods(A) = %d %v, want A's own 1", len(ps), err)

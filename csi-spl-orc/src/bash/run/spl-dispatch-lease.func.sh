@@ -73,10 +73,10 @@
 #------------------------------------------------------------------------------
 # this machine's desk box id (specs/058), also when sourced on its own
 declare -F spl_desk_box_default >/dev/null ||
-  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
-SPL_BOX_HEALTH_SRC="$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-health.func.sh"
+  source "${BASH_SOURCE[0]%/*}/../../../lib/bash/funcs/spl-desk-box.func.sh"
+SPL_BOX_HEALTH_SRC="${BASH_SOURCE[0]%/*}/../../../lib/bash/funcs/spl-box-health.func.sh"
 declare -F spl_box_health_verdicts >/dev/null ||
-  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-health.func.sh"
+  source "${BASH_SOURCE[0]%/*}/../../../lib/bash/funcs/spl-box-health.func.sh"
 
 do_spl_dispatch_lease() {
   spl_lease_init || return 1
@@ -196,7 +196,7 @@ spl_lease_tell() {
 # CLE-77907): its environ is unreadable to the box user. Missing lib (a copied
 # tree) = no hop, the readable processes still count.
 # shellcheck source=../features/spawn-agents/lib/proc-owner.inc.sh
-. "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/proc-owner.inc.sh" 2>/dev/null || true
+. "${BASH_SOURCE[0]%/*}/../features/spawn-agents/lib/proc-owner.inc.sh" 2>/dev/null || true
 
 # The pid of a live claude process whose environment carries
 # SPOOL_AGENT_ID=<id>; empty when there is none. The lowest pid wins, so two

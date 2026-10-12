@@ -1,6 +1,6 @@
 # 133: CI gate analysis
 
-Status: **draft v0.7** (editor c-296, 2026-10-12). The seats'
+Status: **draft v0.8** (editor c-296, 2026-10-12). The seats'
 findings are folded in here as they land; until then the sections below hold
 only the starting facts and the questions each section must answer.
 
@@ -235,6 +235,31 @@ From seat A, n=82 completed runs, wall p50 43.0 min:
 The window differs from the editor's (section 1.1: 48.4 h, push-to-verdict
 p50 81); both say the same thing.
 
+### 2.6 The slow suites: where the time inside a job goes
+
+From [seat D](seat-d.md) (a-295, `a1afc5e66`, green run 38207328805 on
+`48ed9c131`; per-file times re-checked by the editor from the three e2e shard
+logs, `gh api repos/csitea/csi-spl/actions/jobs/<id>/logs | grep -E '\.test\.mjs [0-9]+$'`):
+
+- **wui e2e: the slowest files are phone and calendar tests**:
+  phone-composer-target 244 s, phone-back-matrix 210 s, mobile-back-stuck
+  162 s, calendar-phone-shell 157 s; four of the top ten are
+  `calendar-phone-*`, the same family c-002 named for red runs (K4).
+- **The e2e shards are unbalanced**: 2,124 s, 2,050 s and 1,796 s in the
+  same run (one green run, n=3 shards), so the slowest shard sets the path
+  5.5 min after the fastest. The runner already logs each file's time
+  (`run-e2e-tests.mjs` line 260), so weights for the split are on hand.
+- **nuxt generate: the build is 225 s of the 298 s step**; prerendering 523
+  routes is ~63 s. Its p90 target is set at < 5 min, not lower, because
+  Nuxt 3 does not reuse `.nuxt` on its own.
+- **hub: two packages dominate** (local, n=1): `internal/store` 137 s and
+  `internal/hub` 109 s; the rest are under 20 s each. A migrate costs ~45 ms
+  (n=5), so per-package migrations are not the cost. 4 of 4 failed hub jobs
+  looked at were test failures, not timeouts (small n).
+- **orc hermetic: the slowest files are 4-10 min each** (CI log, both
+  shards): spl-lane-mix 582 s, fleet-lease 578 s, peer-poll 482 s,
+  parse-metadata-nofork 437 s.
+
 ## 3. What the seats found
 
 | seat | file | area | status | sha |
@@ -242,7 +267,7 @@ p50 81); both say the same thing.
 | A | [seat-a.md](seat-a.md) | wall time, queue wait, runners | accepted, folded (2.4, 2.5) | `542870ae9` |
 | B | `seat-b.md` | red causes, flakes | pending | |
 | C | [seat-c.md](seat-c.md) | per-part selection | v0.2, review fixes in, folded | `15fe61d85` |
-| D | [seat-d.md](seat-d.md) | slow suites | v0.2 sent back, round 2 (5 points: e2e per-file times from CI logs, exact axis commands) | `4dc3f9a77` |
+| D | [seat-d.md](seat-d.md) | slow suites | accepted (1 count to fix), folded (2.6) | `a1afc5e66` |
 | E | [seat-e.md](seat-e.md) | triggers, concurrency, supersede | v0.2 sent back, round 2 (4 points: runnable axis commands, red-minute baseline, hourly verdict wording, runner sample) | `709f4726d` |
 
 ## 4. The axes (ONE set, 5-8)
@@ -289,7 +314,7 @@ change. One fix per refactor round, each measured on X1..X8.
 | F1 | **Fix the known non-code reds**: pin the calendar e2e clock (K4); the iac fail-fast check and the lane-mix table test (K5); give the at-risk jobs headroom (orc hermetic 2/2 at 101%) | X3 6% -> most verdicts green; X2 down by the share of reds they cause (seat B); X7 6 -> <=2 | S | low | c-002, seat A, seat B |
 | F2 | **Per-job selection with a per-job base** (K8 = K1 done safely): job J skips when nothing since J's own last success touches its inputs; fail-safe full gate on workflows, shared libs, lockfiles, unmapped paths; the **hourly verdict always full**; a drift test keeps the map in step | X5 152 -> ~55 job-min (seat C models 58-65% saved on a green trunk); X4 on non-wui pushes drops to the slowest non-e2e path (hub ~15-29 min); X1 follows X4 (about two minutes per minute cut, seat A) | M | an allow-list miss, bounded to one hour by the full hourly verdict | seat C, editor |
 | F3 | **Do not park runners while a gate job is queued**, within the 80% CPU ceiling (budget policy in `apply-gh-runner-cpu-budget.func.sh`) | X6 24 -> <=5 min (62% of queue minutes fell with <=3 online); X4 a little | S | agents get less CPU while the gate runs | seat A |
-| F4 | **Shorten the e2e shard** (the critical job in 70 of 82 runs): reuse one browser per shard, rebalance shards on the per-file times the runner already logs, cut fixed sleeps | X4 32.9 -> ~25; X7; X1 | M | flakes from shared browser state | seat D |
+| F4 | **Shorten the e2e shard** (the critical job in 70 of 82 runs): rebalance the shards on the per-file times the runner already logs (5.5 min spread today), then speed up the phone and calendar files, reuse one browser per shard, cut fixed sleeps | X4 32.9 -> ~25; X7; X1 | M | flakes from shared browser state | seat D |
 | F5 | **Name the lane that caused a red, at once** (K7) | X2 (time a red stays) | S | noise if attribution is wrong (one verdict covers ~10 pushes) | c-002 |
 | F6 | **Merge queue** (K9): the verdict runs before the land | X2 -> ~0 | L | every land waits ~W; a flaky gate blocks all lands, so only after F1..F4 | seat E |
 
@@ -338,3 +363,4 @@ suites faster (-> F4); K7 a red names its lane (-> F5). K8 per-job base
 | v0.5 | 2026-10-12 | c-296 | 2.1 latency model, deploys do not wait for the gate; D, E in review |
 | v0.6 | 2026-10-12 | c-296 | seat A folded (2.4, 2.5); K9 merge queue |
 | v0.7 | 2026-10-12 | c-296 | folded axis set X1..X7 (X8 for seat B); draft ranking F0..F6 |
+| v0.8 | 2026-10-12 | c-296 | seat D folded (2.6) |

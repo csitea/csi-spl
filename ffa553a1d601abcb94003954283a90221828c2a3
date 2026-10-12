@@ -1,0 +1,6 @@
+Lay-What: The disk cleanup now limits how much space build leftovers may use, not only how old they are.
+Lay-How: Once the leftovers pass eight gigabytes, the oldest are removed until they fit again, and a build that is still running is not wiped.
+Lay-Why: The leftovers were rewritten every day, so removing only the old ones freed nothing and the disk filled up.
+Tech-What: do_prune_go_build_cache trims every resolved GOCACHE to GO_CACHE_CAP_GB (default 8 times 1024^3; 0 off) after the age pass.
+Tech-How: It deletes the oldest depth-2 files until du -sb is at or under the cap, and it never runs go clean -cache while that user has a go build, test or vet.
+Tech-Why: A cache rewritten inside the age window matches no age test, so the age-only sweep could not shrink it.

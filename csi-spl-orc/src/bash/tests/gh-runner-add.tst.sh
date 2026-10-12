@@ -9,7 +9,8 @@
 #          - APPLY=1 registers N runners with the group's labels, as the
 #            dedicated user, with rootless docker + the cleanup hook in .env
 #          - APPLY=1 twice = one set of runners (nothing re-registered)
-#          - a runner user in the docker group is refused
+#          - a runner user in the docker group is refused, or taken out of
+#            it with GH_RUNNER_DROP_DOCKER_GROUP=1 (only docker, never sudo)
 #          - a registration token never reaches the log
 #          - the workflow's img= pins are pulled once into the runner's docker
 #          - the cleanup hook prunes only its OWN runner's work dir
@@ -53,6 +54,7 @@ case "$1" in
   test) [[ "$2" == -S ]] && exit 0; exec "$@" ;;
   useradd) echo "$u $*" >>"$MUT_LOG"; touch "$STATE/user"; exit 0 ;;
   usermod|loginctl|chmod|curl|apt-get) echo "$u $*" >>"$MUT_LOG"; exit 0 ;;
+  gpasswd) echo "$u $*" >>"$MUT_LOG"; touch "$STATE/nodocker"; exit 0 ;;
   tee) [[ "$2" == *60-restart.conf ]] && echo "$u tee $2" >>"$MUT_LOG"; exec "$@" ;;
   install) echo "$u install ${*: -1}" >>"$MUT_LOG"; mkdir -p "${@: -1}"; exit 0 ;;
   env) a=(); for x in "$@"; do [[ "$x" == PATH=* ]] || a+=("$x"); done
@@ -78,7 +80,7 @@ cat >"$T/bin/id" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
   -u) [[ -e "$STATE/user" ]] && echo 1500 || exit 1 ;;
-  -nG) echo "${ID_GROUPS:-ghrunner}" ;;
+  -nG) g="${ID_GROUPS:-ghrunner}"; [[ -e "$STATE/nodocker" ]] && g="${g// docker/}"; echo "$g" ;;
 esac
 EOF
 cat >"$T/bin/dpkg" <<'EOF'
@@ -191,6 +193,14 @@ grep -qx 'systemctl --user enable docker' "$MUT_LOG" && ! grep -q setuptool "$MU
   && ok "a running but disabled rootless docker is enabled, nothing reinstalled or restarted" || no "disabled docker: $(cat "$MUT_LOG" "$SYSD_LOG")"
 
 ID_GROUPS="ghrunner docker" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 act && no "docker-group user must fail" || ok "a runner user in the docker group is refused"
+grep -q gpasswd "$MUT_LOG" && no "gpasswd ran without GH_RUNNER_DROP_DOCKER_GROUP=1" || ok "...and nothing takes it out of the group by default"
+: >"$MUT_LOG"
+ID_GROUPS="ghrunner docker" GH_RUNNER_DROP_DOCKER_GROUP=1 GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act \
+  && grep -qx 'root gpasswd -d ghrunner docker' "$MUT_LOG" && grep -q 'out of the docker group' "$T/log" \
+  && ok "GH_RUNNER_DROP_DOCKER_GROUP=1: the user is taken out of docker, then the apply goes on" || no "drop docker: $(tail -3 "$T/log") / $(cat "$MUT_LOG")"
+rm -f "$STATE/nodocker"
+ID_GROUPS="ghrunner docker sudo" GH_RUNNER_DROP_DOCKER_GROUP=1 GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 act && no "sudo-group user must fail" || ok "GH_RUNNER_DROP_DOCKER_GROUP=1 still refuses a user in sudo"
+rm -f "$STATE/nodocker"
 
 # the cleanup hook: under the threshold it prunes its own work dir only
 for r in box-spl-01 box-spl-02; do mkdir -p "$T/srv/$r/_work/app/app" "$T/srv/$r/_work/_tool/go"; done

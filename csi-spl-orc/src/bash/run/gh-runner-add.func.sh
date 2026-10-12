@@ -44,6 +44,9 @@
 # @param   default 100, a box that also hosts agent lanes gives them the CPU
 # @param   first when it is saturated; an idle CPU is still all the runners'.
 # @param   Default: none, the weights are left as they are
+# @param GH_RUNNER_DROP_DOCKER_GROUP (optional) - 1: an existing runner user
+# @param   in the `docker` group (an older install, e.g. the PC box's) is taken
+# @param   out of it (gpasswd -d) instead of refused. Default 0: refused
 # @param GH_RUNNER_UNIT_DIR (optional) - where the slice drop-ins go, default
 # @param   /etc/systemd/system. Every runner unit is placed in the runner
 # @param   user's slice (Slice=user-<uid>.slice), the one cgroup that
@@ -172,6 +175,10 @@ ghr_setup_user() {
     do_log "OK created user $u"
   fi
   sudo chmod 0700 "$GH_RUNNER_HOME" || return 1
+  if [[ "${GH_RUNNER_DROP_DOCKER_GROUP:-0}" == 1 ]] && id -nG "$u" | tr ' ' '\n' | grep -x docker >/dev/null; then
+    sudo gpasswd -d "$u" docker >/dev/null || { do_log "FATAL cannot take $u out of the docker group"; return 1; }
+    do_log "OK took $u out of the docker group (GH_RUNNER_DROP_DOCKER_GROUP=1)"
+  fi
   id -nG "$u" | tr ' ' '\n' | grep -xE 'docker|sudo|adm|root|wheel' >/dev/null \
     && { do_log "FATAL $u is in a privileged group ($(id -nG "$u")) - a runner must not be root-equivalent"; return 1; }
   sudo -l -U "$u" 2>/dev/null | grep 'may run' >/dev/null && { do_log "FATAL $u has sudo rights - remove them"; return 1; }

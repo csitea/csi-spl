@@ -57,6 +57,7 @@ run_seed() {  # [VAR=value ...] -> stdout+stderr of the action; gcloud argv in $
       esac
     }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    [[ -z "${SEED_FUNC:-}" ]] || source "$SEED_FUNC"
     do_spl_auth_idp_secret_seed' 2>&1
 }
 LS=csi-spl-hub-auth-linkedin-client-secret MS=csi-spl-hub-auth-microsoft-client-secret
@@ -76,14 +77,42 @@ if grep -qxE '<unset>|.*/\.config/gcloud' "$T/cfgs"; then fail "a gcloud call ra
 
 # CTRL_C <cmd...>: a Ctrl-C. It runs <cmd> in its own process group with SIGINT
 # at its default (a runner may start tests with it ignored), so the stub's
-# `kill -INT 0` reaches the whole action and nothing else.
-CTRL_C=(python3 -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])')
-mkdir -p "$T/tmp"; before=$(ls -A "$T/tmp"); : >"$T/cfgs"
-run_seed DRY_RUN=0 GC_INTERRUPT=1 TMPDIR="$T/tmp" "${CTRL_C[@]}" >/dev/null; rc=$?
-after=$(ls -A "$T/tmp")
-[[ $rc -ne 0 && -s "$T/cfgs" && -z "$before" && -z "$after" ]] \
+# `kill -INT 0` reaches the whole action and nothing else. It returns only
+# once every process of that tree has exited (it is their child subreaper):
+# the SIGINT can reach the action's shell before that shell waits on its
+# subshell, so the shell dies at once while the orphaned subshell still runs
+# its EXIT trap. Reading the temp root then raced the trap (wf10 run
+# 38252452159, n=4 reds on two runner kinds).
+CTRL_C=(python3 -c '
+import ctypes, os, signal, sys
+ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0)  # PR_SET_CHILD_SUBREAPER
+pid = os.fork()
+if pid == 0:
+    signal.signal(signal.SIGINT, signal.SIG_DFL); os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])
+st = 0
+while True:
+    try: p, s = os.waitpid(-1, 0)
+    except ChildProcessError: break
+    if p == pid: st = s
+sys.exit(128 + os.WTERMSIG(st) if os.WIFSIGNALED(st) else os.WEXITSTATUS(st))')
+ctrl_c_seed() {  # <tmp-dir> [VAR=value ...] -> "rc=<rc> before='<ls>' after='<ls>'"
+  local tmp="$1" before after rc; shift
+  mkdir -p "$tmp"; before=$(ls -A "$tmp"); : >"$T/cfgs"
+  run_seed DRY_RUN=0 GC_INTERRUPT=1 TMPDIR="$tmp" "$@" "${CTRL_C[@]}" >/dev/null; rc=$?
+  after=$(ls -A "$tmp")
+  echo "rc=$rc before='$before' after='$after'"
+}
+got=$(ctrl_c_seed "$T/tmp")
+[[ "$got" == "rc=130 before='' after=''" && -s "$T/cfgs" ]] \
   && pass "Ctrl-C at activate: the throwaway config is removed (temp root empty before and after)" \
-  || fail "Ctrl-C: rc=$rc temp root before='$before' after='$after'"
+  || fail "Ctrl-C: $got"
+# CONTROL: the same Ctrl-C on a copy of the action without its trap leaves the
+# throwaway config behind, so the check above can see a missing trap.
+sed "/trap 'rm -rf \"\$cfg\"' EXIT/d" "$PROJ_ROOT/src/bash/run/spl-auth-idp-secret-seed.func.sh" >"$T/no-trap.func.sh"
+got=$(ctrl_c_seed "$T/tmp-no-trap" SEED_FUNC="$T/no-trap.func.sh")
+! grep -q "trap " "$T/no-trap.func.sh" && [[ "$got" == "rc=130 before='' after='tmp."* ]] \
+  && pass "CONTROL: without the trap the Ctrl-C leaves the throwaway config" \
+  || fail "CONTROL no-trap: $got"
 
 n=$(adds)
 out=$(run_seed DRY_RUN=0)

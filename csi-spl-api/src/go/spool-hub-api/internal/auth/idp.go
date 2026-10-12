@@ -78,7 +78,7 @@ func httpClient(c *http.Client) *http.Client {
 	if c != nil {
 		return c
 	}
-	return &http.Client{Timeout: 15 * time.Second}
+	return &http.Client{Timeout: HTTPClientTimeout}
 }
 
 // readJSON decodes resp's JSON body into v. It closes resp.Body, reads at
@@ -323,7 +323,7 @@ const (
 	avatarMaxRedirects = 3
 )
 
-var avatarTimeout = 5 * time.Second // a var so tests can shorten it
+var AvatarTimeout = 5 * time.Second // a var so tests can shorten it
 
 var errAvatar = errors.New("auth: avatar not fetched")
 
@@ -350,7 +350,7 @@ func fetchAvatar(ctx context.Context, hc *http.Client, raw, httpBase string) ([]
 	if u.Scheme != "https" && !(u.Scheme == "http" && sameOrigin(u, httpBase)) {
 		return nil, "", fmt.Errorf("%w: %q is not https", errAvatar, u.Scheme)
 	}
-	c := &http.Client{Transport: httpClient(hc).Transport, Timeout: avatarTimeout,
+	c := &http.Client{Transport: httpClient(hc).Transport, Timeout: AvatarTimeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) > avatarMaxRedirects {
 				return fmt.Errorf("%w: too many redirects", errAvatar)
@@ -360,7 +360,7 @@ func fetchAvatar(ctx context.Context, hc *http.Client, raw, httpBase string) ([]
 			}
 			return nil
 		}}
-	ctx, cancel := context.WithTimeout(ctx, avatarTimeout)
+	ctx, cancel := context.WithTimeout(ctx, AvatarTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {

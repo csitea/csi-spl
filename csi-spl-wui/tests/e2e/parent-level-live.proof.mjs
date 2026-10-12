@@ -16,10 +16,10 @@
 //      only, the middle still shows exactly one card for the task and it reads L1
 //   3. reload -> L2 still absent from the middle, the card still reads L1, and
 //      L2 is present once that topic is opened on the right
-// Surface `t` (T014, FR-ML-011): L1 on the channel, then /t/<task> with the
-// pane closed, send L2 -> it shows in the main column (the topic itself), not
-// in the right pane, hub is_parent 0 on the same task, and back on the channel
-// there is still one card for the task and it reads L1.
+// Surface `t` (T014, FR-ML-011): L1 on the channel, then /t/<task> (left
+// open: its thread is the page), send L2 -> it shows in the page's thread in
+// the main column, no other right pane, hub is_parent 0 on the same task, and
+// back on the channel there is still one card for the task and it reads L1.
 //
 // The middle pane is `.feed-col` outside the right `aside.live-pane`; the
 // right pane's own messages exclude the born-topics stack.
@@ -78,8 +78,11 @@ const SNAPSHOT = () => {
       right.push({ task: el.getAttribute('data-task-id') || '', text: text(el) })
     }
   }
+  /* /t/<task>: the topic page's own thread (a TopicPane in the main column) */
+  const thread = document.querySelector('[data-test=topic-browse-thread]')
+  const page = thread ? [...thread.querySelectorAll('article.msg')].map((el) => ({ task: el.getAttribute('data-task-id') || '', text: text(el) })) : []
   const tab = document.querySelector('.sidebar-tab[aria-selected="true"]')
-  return { paneOpen: !!pane, middle, right, tab: tab ? tab.id : '', url: location.pathname + location.search }
+  return { paneOpen: !!pane, paneIsPage: !!pane && !!thread && thread.contains(pane), middle, right, page, tab: tab ? tab.id : '', url: location.pathname + location.search }
 }
 
 /* Two tabs share one headless browser: the one not in front is throttled
@@ -359,13 +362,19 @@ async function topicPageRun(p) {
 
   await p.goto(BASE + '/t/' + encodeURIComponent(task), { waitUntil: 'networkidle2' })
   await sleep(1500)
-  await closePane(p)
+  /* no closePane here: on /t the thread IS the page, and its X leaves for
+     the front door (0f89c5bb0), so L2 would go out as a new #lobby topic */
+  const onPage = new URL(p.url()).pathname.endsWith('/t/' + task)
+  step(tag('2 the topic page stays open'), onPage, { url: p.url() })
+  if (!onPage) return
   await send(p, L2)
-  s = await waitFor(p, (x) => has(x.middle, L2))
+  s = await waitFor(p, (x) => has(x.page, L2))
   await sleep(2500) /* let the echo and any re-read land before judging */
   s = await snap(p)
-  step(tag('2 L2 is in the main column'), has(s.middle, L2), { middle: s.middle.length })
-  step(tag('2 L2 is not in the right pane'), !has(s.right, L2), { paneOpen: s.paneOpen })
+  /* since 0f89c5bb0 the page's thread is a TopicPane in the main column, so
+     the only pane there may be is the page's own */
+  step(tag('2 L2 is in the topic, in the main column'), has(s.page, L2), { page: s.page.length })
+  step(tag('2 no right pane beside the topic page'), !s.paneOpen || s.paneIsPage, { paneOpen: s.paneOpen, paneIsPage: s.paneIsPage })
   const hub = res.apiRoot ? await hubRows(p, res.apiRoot, task) : { status: 0 }
   const h2 = (hub.rows || []).find((r) => r.body.includes(L2))
   step(tag('2 hub stores L2 on the same task with is_parent 0'), !!h2 && h2.is_parent === 0,

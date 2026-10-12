@@ -188,10 +188,15 @@ SC-ML-1 (clean data for the proof round).
 
 ## T014 — `/t/<task_id>`
 
-**Status**: Partial — CLE-34982 (`git log --oneline --grep "spec 033 T014"`) adds surface `t` to
-`csi-spl-wui/tests/e2e/parent-level-live.proof.mjs` (`node --check` clean).
-Missing: a complete live run. Dev runs on 2026-09-25 (build `be948bd6`, n=4)
-reached sign-in and step 1 (one channel card) and were then cut by
+**Status**: Verified (SPL-860, 2026-10-13) — `SURFACES=t` of
+`csi-spl-wui/tests/e2e/parent-level-live.proof.mjs` ran signed in on dev, build
+`057f766c7` (v7.4.2): n=2, every step PASS (L2 on the page's thread, hub
+`is_parent` 0 on the same task, one channel card reading L1). The two runs on
+the proof as it was (n=2) failed: it closed the pane after opening `/t/<task>`,
+and since `0f89c5bb0` that X leaves the page for #lobby, so L2 went out as a
+new lobby topic; and it looked for L2 outside `aside.live-pane`, which is now
+the page's own thread. Both fixed in the proof (SPL-860). Earlier: CLE-34982
+added the surface; dev runs on 2026-09-25 (build `be948bd6`, n=4) were cut by
 `net::ERR_NETWORK_CHANGED` from docker veth churn on the runner box.
 
 The page is the topic in the main column; it sends with `paneVisible: true`

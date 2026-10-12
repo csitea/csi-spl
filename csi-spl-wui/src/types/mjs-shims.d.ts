@@ -2284,6 +2284,20 @@ declare module '~/utils/issues-colw.mjs' {
   export function takeColWidthsStash(store: Storage | null, now?: number): { hum: string, w: ColWidths } | null
 }
 
+declare module '~/utils/issues-bulk.mjs' {
+  export const BULK_PARALLEL: number
+  export function toggleKey(sel: string[], key: string, on?: boolean): string[]
+  export function rangeSelect(sel: string[], order: string[], anchor: string, key: string, on?: boolean): string[]
+  export function pageState(sel: string[], shown: string[]): 'none' | 'some' | 'all'
+  export function toggleAll(sel: string[], shown: string[]): string[]
+  export function keepShown(sel: string[], keys: string[]): string[]
+  export function runBulk(
+    keys: string[],
+    fn: (key: string) => Promise<unknown>,
+    opts?: { parallel?: number, onProgress?: (finished: number, total: number) => void },
+  ): Promise<{ done: string[], failed: { key: string, error: unknown }[] }>
+}
+
 declare module '~/utils/row-keys.mjs' {
   import type { SpoolMessage } from './spool'
   export function rowStep(ev: KeyboardEvent): -1 | 0 | 1

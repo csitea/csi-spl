@@ -32,11 +32,11 @@ prd t1 topic f67e3656, HUM-10, 2026-10-12 06:18Z, verbatim:
 | seat | file | area | agent |
 |---|---|---|---|
 | editor | `analysis.md`, `spec.md` | fold, axes, ranking, sign-off | c-296 |
-| A | `seat-a.md` | (from the orchestrator) | (from the orchestrator) |
-| B | `seat-b.md` | (from the orchestrator) | (from the orchestrator) |
-| C | `seat-c.md` | (from the orchestrator) | (from the orchestrator) |
-| D | `seat-d.md` | (from the orchestrator) | (from the orchestrator) |
-| E | `seat-e.md` | (from the orchestrator) | (from the orchestrator) |
+| A | `seat-a.md` | wall time vs queue wait, runner capacity | c-298 |
+| B | `seat-b.md` | red causes, why pre-push missed them, flakes | grok, being placed |
+| C | `seat-c.md` | per-part test selection (the owner's question) | c-297 |
+| D | `seat-d.md` | the slow suites | a-295 |
+| E | `seat-e.md` | workflow triggers, concurrency, the supersede model | mistral, being placed |
 
 Each seat writes ONLY its own file; the editor alone writes analysis.md and
 spec.md. Spool task for review and send-backs: `ci-gate-analysis`.

@@ -1,6 +1,6 @@
 # 133: CI gate analysis
 
-Status: **draft v0.2** (editor c-296, 2026-10-12). The seats'
+Status: **draft v0.3** (editor c-296, 2026-10-12). The seats'
 findings are folded in here as they land; until then the sections below hold
 only the starting facts and the questions each section must answer.
 
@@ -168,7 +168,25 @@ Draft by the editor from section 1.1; the seats confirm, replace or add
 
 | rank | fix | axes it moves (expected) | effort | risk | from seat |
 |---|---|---|---|---|---|
-| | | | | | |
+| - | (ranking waits for the seats) | | | | |
+
+Input already on the table, unranked: c-002's 7 actions, posted to the
+owner (https://spool-hub.ai/m/a3cf1826-933b-4279-9f9d-4d9f207791d1; n=60 runs,
+2026-10-11T20:53Z..2026-10-12T06:07Z):
+
+| # | candidate | c-002's measure of success | likely axes |
+|---|---|---|---|
+| K1 | run only the parts a push touched | runs starting e2e without a WUI change: 100% -> 0% | X4, X5, X1 |
+| K2 | stop the replace storm: full gate hourly + a selective gate per push | finished runs per hour: ~1 -> >=4 | X1, X3 |
+| K3 | CI gets its own CPU (own box or reserved cores) | runners online 6 of 6; queue wait p50 | X6, X4 |
+| K4 | pin the clock in the calendar e2e tests | calendar reds in 20 runs: 0 | X2, X3 |
+| K5 | fix the iac fail-fast check and the lane-mix table test | first-red count of these two: 0 | X2, X3 |
+| K6 | make the slowest suites faster (e2e 3/3, orc hermetic) | p90 <= 60% of each job's limit | X4 |
+| K7 | a master red pings the lane that caused it; pre-push runs touched e2e files | minutes a red stays on master: p50 < 30 | X3 |
+
+Plus the editor's: **K8** compute the docs express base from the last
+*finished* gate, or from the last run whose code jobs all passed, instead of
+the last fully green run (section 1.2). Fail-safe rules stay seat C's.
 
 ## 6. Open questions
 
@@ -178,3 +196,4 @@ Draft by the editor from section 1.1; the seats confirm, replace or add
 |---|---|---|---|
 | v0.1 | 2026-10-12 | c-296 | skeleton |
 | v0.2 | 2026-10-12 | c-296 | editor re-measure (1.1), express-lane finding (1.2), draft axes X1..X6 |
+| v0.3 | 2026-10-12 | c-296 | panel roster; candidates K1..K8 (c-002 7 actions + express base) |

@@ -29,14 +29,22 @@ const equivRows = 620
 // (DM = NULL), a parent for some topics, files and code blocks, and the
 // test words: zulu (every 40th), the phrase "kilo lima" (every 30th) and its
 // reverse "lima kilo" (every 45th), quebec (every 25th, the prefix queb),
-// foo (every 33rd) and bar (every 37th).
+// foo (every 33rd) and bar (every 37th). The msg_id order within a
+// received_at tie is fixed, so each topic's first message, and so its title,
+// is known: its last i (3k+2) when k % 4 = 2, which is every zulu-without-kilo
+// topic (k = 26 + 40m), else its first i (3k), which titles kilo lima, lima
+// kilo and foo. A random msg_id made the title a 1-in-3 draw, and
+// "zulu -kilo" found no topic after the move step in some runs (wf10
+// 38312213702).
 func equivSeed(t *testing.T, pg *Postgres, tid string, now time.Time) {
 	t.Helper()
 	ctx := context.Background()
 	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO messages (tenant_id, msg_id, task_id, parent_task_id, ts, from_box, from_id,
 				to_box, to_id, kind, body, files, msg, env_sig, env, received_at, expires_at, channel)
-			SELECT $1, gen_random_uuid(), md5($1 || 'topic' || (i / 3))::uuid,
+			SELECT $1, (lpad(to_hex(CASE WHEN (i / 3) % 4 = 2 THEN 100000 - i ELSE i END), 8, '0')
+					|| substr(md5($1 || 'msg' || i), 9))::uuid,
+				md5($1 || 'topic' || (i / 3))::uuid,
 				CASE WHEN (i / 3) % 13 = 0 AND i > 2 THEN md5($1 || 'topic0')::uuid END,
 				$2::timestamptz - i * interval '1 minute', 'box-a',
 				CASE WHEN i % 3 = 0 THEN 'HUM-2' ELSE 'GRK-03' END, 'box-b', 'CLE-07',
@@ -249,6 +257,11 @@ func TestSearchIndexEquivalence(t *testing.T) {
 	equivSeed(t, pg, tid, now)
 	equivSeed(t, pg, other, now)
 	equivNoOtherTenant(t, pg, tid, other, now)
+	// CONTROL: the titles are fixed, so "zulu -kilo" titles exactly the
+	// topics of i = 80, 200, 320, 440, 560 (zulu, i % 3 = 2, no kilo).
+	if n := len(walkTopics(t, pg, tid, sq(t, "zulu -kilo ", now), true, 60)); n != 5 {
+		t.Fatalf("seed: \"zulu -kilo \" titles %d topics, want 5 (is the msg_id order fixed?)", n)
+	}
 	equivCheck(t, pg, tid, now, "seed")
 	for _, s := range equivSteps(t, pg, tid, now) {
 		s.write()

@@ -81,6 +81,15 @@ on:
         default: ""
   push:
     branches: [master]
+  # The HOURLY VERDICT (brief wf10-hourly-verdict, 2026-10-12): gates master's
+  # head as it is at :43 every hour, in a group of its own (see concurrency),
+  # so no push can replace it. Without it, a push every 1-4 min replaced every
+  # pending push run before it started: 12 of 12 master runs read on
+  # 2026-10-12 were cancelled while queued, and 577 of 629 in 48 h, so master
+  # had no verdict since 2026-10-10T04:41Z. Odd minute: clear of :00, GitHub's
+  # busiest, and of the other schedules in .github/workflows.
+  schedule:
+    - cron: "43 * * * *"
   # The pull-request entry (11_ci-public.yml). Empty inputs = a push here.
   workflow_call:
     inputs:
@@ -111,9 +120,15 @@ permissions:
 # a finished verdict every ~25 min (one gate's wall time, ~70 job-min). Do not
 # make the group per sha (~15 pushes/h x ~70 job-min against a 4-runner pool
 # queues without bound) nor set cancel-in-progress (a push every ~4 min would
-# kill every gate before it finishes). Gate: gate10-concurrency.tst.sh.
+# kill every gate before it finishes).
+#
+# That queue holds PUSH runs only (and 11's pull_request calls, per PR ref). A
+# schedule or workflow_dispatch run gets a group of its own, keyed on its
+# run_id: a push never replaces it, so the hourly run and a hand-dispatched one
+# always reach a verdict. The cost is one extra gate per hour, not one per push.
+# Gate: gate10-concurrency.tst.sh.
 concurrency:
-  group: quality-gate-${{ github.ref }}
+  group: quality-gate-${{ github.ref }}${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: false
 
 jobs:

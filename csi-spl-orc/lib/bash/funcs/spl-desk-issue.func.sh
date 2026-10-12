@@ -22,8 +22,36 @@ spl_desk_issue() {
     do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0."
     return 0
   fi
+  spl_desk_issue_run "$op" "$@"
+}
+
+# spl_desk_issue_once: resolve the desk cnf and the host spool once in this
+# shell. do_spl_cloud_cnf replaces $SPL_STATE_DIR/<env>.env.yaml through a temp
+# named with $$, and every background job of one script shares that pid, so a
+# second call from the archive pool deletes the first temp before its mv.
+spl_desk_issue_once() {
+  [[ "${SPL_DESK_ISSUE_READY:-}" == 1 ]] && return 0
+  do_require_bin python3 yq || return 1
+  do_spl_desk_cnf || return 1
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
+  spl_desk_validate "$tenant" "$box" "$agent" || return 1
+  local d="$SPL_STATE_DIR/desk/$tenant/$box"
   [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
+  SPL_DESK_ISSUE_READY=1
+}
+
+# spl_desk_issue_run <op> <args>: the hub call, ignoring DRY_RUN. A list is a
+# read, so do_spl_issue_archive uses this to count keys while DRY_RUN=1.
+spl_desk_issue_run() {
+  local op="$1"; shift
+  spl_desk_issue_once || return 1
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
+  spl_desk_validate "$tenant" "$box" "$agent" || return 1
+  local hub d
+  hub="$SPL_HUB_URL"
+  d="$SPL_STATE_DIR/desk/$tenant/$box"
+  [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   local out rc=0
   out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- issue "$op" --as "$agent" "$@" 2>&1)" || rc=$?
   if (( rc != 0 )); then

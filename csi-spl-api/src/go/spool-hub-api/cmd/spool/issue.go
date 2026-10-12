@@ -14,16 +14,18 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 )
 
-const issueUsage = `usage: spool issue <list|get|create|update|comment|label|delete> --as <AGENT> [flags]
-  list    [--epic SPL-1,..] [--kind epic|issue] [--status s,..] [--priority n,..] [--level n,..] [--assignee id|me|none,..] [--label l,..]
-          [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created]
-  get     --ref SPL-3
-  create  --title T  --epic SPL-1 | --parent SPL-3 (subtask) | --kind epic|feature  [--description D | --description-file F] [--status S]
-          [--priority 1-5] [--level 1-3] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]
-  update  --ref SPL-3 [any create flag; only the flags given change; "" clears]
-  comment --ref SPL-3 --body TEXT | --body-file F
-  label   --name N [--color #rrggbb]
-  delete  --ref SPL-3 (only its creator; a soft delete)`
+const issueUsage = `usage: spool issue <list|get|create|update|comment|label|delete|archive|unarchive> --as <AGENT> [flags]
+  list      [--epic SPL-1,..] [--kind epic|issue] [--status s,..] [--priority n,..] [--level n,..] [--assignee id|me|none,..] [--label l,..]
+            [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created] [--limit N] [--cursor C]
+  get       --ref SPL-3
+  create    --title T  --epic SPL-1 | --parent SPL-3 (subtask) | --kind epic|feature  [--description D | --description-file F] [--status S]
+            [--priority 1-5] [--level 1-3] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]
+  update    --ref SPL-3 [any create flag; only the flags given change; "" clears]
+  comment   --ref SPL-3 --body TEXT | --body-file F
+  label     --name N [--color #rrggbb]
+  delete    --ref SPL-3 (only its creator; a soft delete)
+  archive   --ref SPL-3 [--cascade]
+  unarchive --ref SPL-3 [--cascade]`
 
 // cmdIssue is specs/039 FR-008: an agent files and advances its work as
 // issues. The answer object is printed as JSON.
@@ -55,6 +57,8 @@ var errIssueFlags = errors.New("bad flags")
 type issueFlags struct {
 	as, ref, title, desc, descFile, status, priority, level, assignee, labels, label string
 	deadline, parent, epic, kind, before, after, sortBy, body, bodyFile, name, color string
+	limit, cursor                                                                    string
+	cascade                                                                          bool
 	set                                                                              map[string]bool // the flags given
 }
 
@@ -86,9 +90,12 @@ func newIssueFlagSet(op string, f *issueFlags) *flag.FlagSet {
 		{&f.bodyFile, "body-file", "read the comment from this file"},
 		{&f.name, "name", "label name"},
 		{&f.color, "color", "label colour #rrggbb"},
+		{&f.limit, "limit", "list: page size 1..500 (no --limit is the whole list)"},
+		{&f.cursor, "cursor", "list: the next_cursor of the page before"},
 	} {
 		fs.StringVar(d.p, d.name, "", d.help)
 	}
+	fs.BoolVar(&f.cascade, "cascade", false, "archive/unarchive: include descendants")
 	return fs
 }
 
@@ -113,6 +120,13 @@ func parseIssueArgs(op string, args []string) (action.IssueArgs, error) {
 		in.Body, err = f.commentBody()
 	case "label":
 		in.Issue, _ = json.Marshal(map[string]string{"name": f.name, "color": f.color})
+	case "archive", "unarchive":
+		if f.ref == "" {
+			return action.IssueArgs{}, fmt.Errorf("--ref is required")
+		}
+		if f.cascade {
+			in.Query = "cascade=1"
+		}
 	}
 	if err != nil {
 		return action.IssueArgs{}, err
@@ -124,7 +138,8 @@ func parseIssueArgs(op string, args []string) (action.IssueArgs, error) {
 func (f *issueFlags) listQuery() string {
 	q := url.Values{}
 	for k, v := range map[string]string{"status": f.status, "priority": f.priority, "level": f.level, "assignee": f.assignee,
-		"label": f.label, "deadline_before": f.before, "deadline_after": f.after, "sort": f.sortBy, "epic": f.epic, "kind": f.kind, "parent": f.parent} {
+		"label": f.label, "deadline_before": f.before, "deadline_after": f.after, "sort": f.sortBy, "epic": f.epic, "kind": f.kind, "parent": f.parent,
+		"limit": f.limit, "cursor": f.cursor} {
 		if v != "" {
 			q.Set(k, v)
 		}

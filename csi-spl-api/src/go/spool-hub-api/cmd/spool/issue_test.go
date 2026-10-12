@@ -44,6 +44,13 @@ func TestParseIssueArgs(t *testing.T) {
 		{"comment", []string{"--as", "CLE-1", "--body-file", filepath.Join(dir, "missing")}, `error: open ` + filepath.Join(dir, "missing") + `: no such file or directory`},
 		{"label", []string{"--as", "CLE-1", "--name", "perf", "--color", "#ff0000"}, `{"op":"label","as":"CLE-1","issue":{"color":"#ff0000","name":"perf"}}`},
 		{"label", []string{"--as", "CLE-1"}, `{"op":"label","as":"CLE-1","issue":{"color":"","name":""}}`},
+		{"list", []string{"--as", "CLE-1", "--status", "done", "--limit", "100", "--cursor", "p2"},
+			`{"op":"list","as":"CLE-1","query":"cursor=p2\u0026limit=100\u0026status=done"}`},
+		{"archive", []string{"--as", "CLE-1", "--ref", "SPL-3"}, `{"op":"archive","as":"CLE-1","ref":"SPL-3"}`},
+		{"archive", []string{"--as", "CLE-1", "--ref", "SPL-3", "--cascade"}, `{"op":"archive","as":"CLE-1","ref":"SPL-3","query":"cascade=1"}`},
+		{"unarchive", []string{"--as", "CLE-1", "--ref", "SPL-3"}, `{"op":"unarchive","as":"CLE-1","ref":"SPL-3"}`},
+		{"unarchive", []string{"--as", "CLE-1", "--ref", "SPL-3", "--cascade"}, `{"op":"unarchive","as":"CLE-1","ref":"SPL-3","query":"cascade=1"}`},
+		{"archive", []string{"--as", "CLE-1"}, `error: --ref is required`},
 		{"frobnicate", []string{"--as", "CLE-1", "--ref", "SPL-3"}, `{"op":"frobnicate","as":"CLE-1","ref":"SPL-3"}`},
 		{"list", []string{"--nope"}, `error: bad flags`},
 	}

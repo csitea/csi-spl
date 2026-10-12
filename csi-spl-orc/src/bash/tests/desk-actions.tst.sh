@@ -635,7 +635,7 @@ out=$(SNIPPET="${ISS}do_spl_issue_delete" in_orc FAKE="$T/fakeissue" FAKE_LOG="$
 [[ $rc -eq 0 && "$out" == *'"op": "delete"'* ]] && tail -1 "$T/issue.log" | grep -x 'issue|delete|--as|CLE-00|--ref|SPL-7|' >/dev/null &&
   pass "do_spl_issue_delete sends spool issue delete --as --ref" || fail "delete (rc=$rc): $out / $(tail -1 "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_list" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -x 'issue|list|--as|CLE-00|--assignee|me|--status|eval,todo,wip,blocked,onhold,qas|' >/dev/null &&
+[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -x 'issue|list|--as|CLE-00|--assignee|me|--status|eval,todo,wip,blocked,onhold,qas|--limit|100|' >/dev/null &&
   pass "do_spl_issue_list defaults to my open issues" || fail "list (rc=$rc): $out / $(tail -1 "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_comment" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" FAKE_REFUSE=1 TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_REF=SPL-7 ISSUE_BODY=x DRY_RUN=0 2>&1); rc=$?

@@ -28,12 +28,17 @@ func Issue(ctx context.Context, cfg *config.Config, in IssueArgs) (json.RawMessa
 		return nil, fmt.Errorf("issues need hub mode ($SPOOL_HUB_URL is not set)")
 	}
 	switch in.Op {
-	case "create", "update", "get", "list", "label", "comment", "delete":
+	case "create", "update", "get", "list", "label", "comment", "delete", "archive", "unarchive":
 	default:
-		return nil, fmt.Errorf("op must be create, update, get, list, label, comment or delete")
+		return nil, fmt.Errorf("op must be create, update, get, list, label, comment, delete, archive or unarchive")
 	}
 	if in.As == "" {
 		return nil, fmt.Errorf("--as (the acting agent id) is required")
+	}
+	// archive and unarchive are the soft archive of rdb 0084. --cascade rides
+	// in Query as cascade=1; the hub's agent issue op is what applies it.
+	if (in.Op == "archive" || in.Op == "unarchive") && in.Ref == "" {
+		return nil, fmt.Errorf("--ref is required")
 	}
 	hc := in.Hub
 	if hc == nil {

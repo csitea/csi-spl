@@ -60,6 +60,10 @@
 # @description do_spl_unanswered_sweep_install_cron.
 # @description Read-only on the hub: one statement set in a READ ONLY
 # @description transaction, operator RLS scope, as the env SA.
+# @description Row cache (perf round 5 P5-01): DELIVER=1 keeps the row set in
+# @description <spool root>/dispatch/unanswered.rows and reads only the topics
+# @description that moved since (topic heads, archived channels, edits); every
+# @description SWEEP_FULL_EVERY s a full read replaces it and counts the drift.
 # @param ENV - required: dev or prd
 # @param DELIVER (optional) - 1 sends and records; default 0 (report only)
 # @param SWEEP_MIN_AGE (optional) - minutes a human post waits before it counts, default 15
@@ -71,6 +75,8 @@
 # @param SWEEP_SKIP_CHANNELS (optional) - default "issues tasks"
 # @param SWEEP_SKIP_HUMANS (optional) - posters left out; default HUM-1 on prd (the e2e probe owner), none on dev
 # @param SWEEP_MAX_ITEMS (optional) - rows per delivered note, default 40
+# @param SWEEP_FULL_EVERY (optional) - seconds between full reads of a delivering sweep, default 3600
+# @param SWEEP_OVERLAP (optional) - seconds a delta read reaches back before the last read, default 300
 # @param SWEEP_ROWS_FILE (optional) - read the rows from this file instead of the hub (tests, an export)
 # @param SWEEP_TO / SWEEP_ORCH / SWEEP_FROM (optional) - recipient, escalation target, sender; default the lease holder, LEASE_ORCH (lease.conf) or CLE-001, the orchestrator; with seats both recipients are peers
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
@@ -82,7 +88,7 @@ do_spl_unanswered_sweep() {
   [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd"; return 1; }
   local deliver="${DELIVER:-0}" v
   [[ "$deliver" == 0 || "$deliver" == 1 ]] || { do_log "FATAL DELIVER must be 0 or 1"; return 1; }
-  for v in SWEEP_MIN_AGE SWEEP_DAYS SWEEP_RESEND SWEEP_MAX_ITEMS SWEEP_ESCALATE_AGE; do
+  for v in SWEEP_MIN_AGE SWEEP_DAYS SWEEP_RESEND SWEEP_MAX_ITEMS SWEEP_ESCALATE_AGE SWEEP_FULL_EVERY SWEEP_OVERLAP; do
     [[ -z "${!v:-}" || "${!v}" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL $v must be a positive integer, got: '${!v}'"; return 1; }
   done
   spl_lease_init ro || return 1
@@ -114,7 +120,7 @@ do_spl_unanswered_sweep() {
 # spl_sweep_run <tmp> <deliver>: read, classify, report, then send + record.
 spl_sweep_run() {
   local tmp="$1" deliver="$2" to f ok=1 orch="$SWEEP_ORCH" seats=0
-  spl_sweep_rows "$tmp/rows" || return 1
+  spl_sweep_rows "$tmp/rows" "$deliver" || return 1
   to="$(spl_sweep_holder)"
   if [[ -z "${SWEEP_TO:-}" ]] && spl_sweep_seated; then seats=1 to=peers orch=peers; fi
   SWEEP_NOW="${SWEEP_NOW:-$(date +%s)}" SWEEP_TO_ID="$to" SWEEP_ORCH_ID="$orch" ENVN="$ENV" \
@@ -142,7 +148,9 @@ spl_sweep_run() {
   if (( ok )); then
     mv -f "$tmp/state.new" "$LEASE_DIR/unanswered.state" || return 1
   fi
-  { cat "$tmp/last"; echo "to=$to"; echo "sent=$([[ $ok == 1 ]] && echo ok || echo FAILED)"; } > "$LEASE_DIR/unanswered.last.tmp" &&
+  { cat "$tmp/last"; echo "to=$to"; echo "sent=$([[ $ok == 1 ]] && echo ok || echo FAILED)"
+    if [[ -z "${SWEEP_ROWS_FILE:-}" && -r "$LEASE_DIR/unanswered.rows.info" ]]; then cat "$LEASE_DIR/unanswered.rows.info"; fi
+  } > "$LEASE_DIR/unanswered.last.tmp" &&
     mv -f "$LEASE_DIR/unanswered.last.tmp" "$LEASE_DIR/unanswered.last"
   (( ok )) || { do_log "FATAL a sweep note was not delivered; the items stay NEW for the next sweep"; return 1; }
   return 0
@@ -221,9 +229,10 @@ spl_sweep_check_row() {
   else row "unanswered sweep" "$v" ok; fi
 }
 
-# spl_sweep_rows <out>: the last message of every topic in the window, one TSV
-# line each (spl_sweep_classify names the columns), from SWEEP_ROWS_FILE or
-# the hub.
+# spl_sweep_rows <out> [<deliver>]: the last message of every topic in the
+# window, one TSV line each (spl_sweep_classify names the columns), from
+# SWEEP_ROWS_FILE or the hub. A delivering sweep reads through the row cache
+# (spl_sweep_rows_cached); a report reads the whole set and keeps nothing.
 spl_sweep_rows() {
   if [[ -n "${SWEEP_ROWS_FILE:-}" ]]; then
     cp "$SWEEP_ROWS_FILE" "$1" || { do_log "FATAL cannot read SWEEP_ROWS_FILE $SWEEP_ROWS_FILE"; return 1; }
@@ -233,17 +242,102 @@ spl_sweep_rows() {
   do_spl_cloud_cnf || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  if [[ "${2:-0}" == 1 ]]; then
+    spl_sweep_rows_cached "$1" || { do_log "FATAL could not read the topics of $ENV"; return 1; }
+    return 0
+  fi
   spl_via_proxy _spl_sweep_rows_read "$1" || { do_log "FATAL could not read the topics of $ENV"; return 1; }
 }
 
-# Read-only, inside spl_via_proxy. Tabs and newlines in a body collapse to one
-# space so a row is one line; an agent's body is not read at all.
+# spl_sweep_rows_cached <out> (perf round 5 P5-01): a delivering sweep keeps
+# its row set in $LEASE_DIR/unanswered.rows, with the DB time it was read at
+# (unanswered.rows.meta). The next run reads only the topics that moved since
+# then less SWEEP_OVERLAP s (a write that committed late), and merges them in
+# (spl_sweep_merge). With no cache, a cache of another ENV or SWEEP_DAYS, or
+# the last full read SWEEP_FULL_EVERY s ago or more, it reads the whole set;
+# when a cache exists it reads the delta in the same snapshot too and counts
+# the lines the merge would have got wrong (drift, a WARN when not 0).
+# unanswered.rows.info says which read it was (do_spl_unanswered_sweep
+# appends it to unanswered.last).
+spl_sweep_rows_cached() {
+  local out="$1" cache="$LEASE_DIR/unanswered.rows" meta="$LEASE_DIR/unanswered.rows.meta"
+  local info="$LEASE_DIR/unanswered.rows.info" days="${SWEEP_DAYS:-7}"
+  local every="${SWEEP_FULL_EVERY:-3600}" overlap="${SWEEP_OVERLAP:-300}"
+  local k v m_env="" m_days="" m_now="" m_full="" since="" now full drift="" tns tks
+  if [[ -r "$cache" && -r "$meta" ]]; then
+    while IFS='=' read -r k v; do
+      case "$k" in env) m_env="$v" ;; days) m_days="$v" ;; now) m_now="$v" ;; full) m_full="$v" ;; esac
+    done <"$meta"
+  fi
+  [[ "$m_env" == "$ENV" && "$m_days" == "$days" && "$m_now" =~ ^[0-9]+$ && "$m_full" =~ ^[0-9]+$ ]] &&
+    since=$((m_now - overlap))
+  [[ -n "$since" ]] && read -r tns tks < <(spl_sweep_keep "$cache")
+  if [[ -n "$since" ]] && (( $(date +%s) - m_full < every )); then
+    spl_via_proxy _spl_sweep_rows_read "" "$out.now" "$since" "$out.delta" "$tns" "$tks" || return 1
+    now="$(cat "$out.now")" full="$m_full"
+    [[ "$now" =~ ^[0-9]+$ ]] || { do_log "FATAL the read returned no DB time"; return 1; }
+    spl_sweep_merge "$cache" "$out.delta" "$now" "$days" >"$out" || return 1
+    printf 'rows=delta\nmoved=%s\n' "$(wc -l <"$out.delta")" >"$info.tmp"
+  else
+    if [[ -n "$since" ]]; then
+      spl_via_proxy _spl_sweep_rows_read "$out" "$out.now" "$since" "$out.delta" "$tns" "$tks" || return 1
+    else
+      spl_via_proxy _spl_sweep_rows_read "$out" "$out.now" || return 1
+    fi
+    now="$(cat "$out.now")" full="$now"
+    [[ "$now" =~ ^[0-9]+$ ]] || { do_log "FATAL the read returned no DB time"; return 1; }
+    if [[ -n "$since" ]]; then
+      spl_sweep_merge "$cache" "$out.delta" "$now" "$days" >"$out.merged" || return 1
+      drift="$(diff <(LC_ALL=C sort "$out.merged") <(LC_ALL=C sort "$out") | grep -c '^[<>]')"
+      (( drift == 0 )) ||
+        do_log "WARN the row cache drifted from the hub in $drift line(s) since the last full read; the full read replaces it"
+    fi
+    { echo "rows=full"; [[ -n "$drift" ]] && echo "drift=$drift"; } >"$info.tmp"
+  fi
+  # the cache before its meta: a meta left behind only re-reads more
+  cp "$out" "$cache.tmp" && mv -f "$cache.tmp" "$cache" &&
+    printf 'env=%s\ndays=%s\nnow=%s\nfull=%s\n' "$ENV" "$days" "$now" "$full" >"$meta.tmp" &&
+    mv -f "$meta.tmp" "$meta" && mv -f "$info.tmp" "$info" || { do_log "FATAL cannot write the row cache in $LEASE_DIR"; return 1; }
+  rm -f "$out.now" "$out.delta" "$out.merged"
+}
+
+# spl_sweep_keep <cache> -> two words, the Postgres arrays of the workspaces
+# and topics of its human-last rows (the only rows the sweep can list): the
+# delta looks up their heads every run, so a deleted topic, whose head is
+# deleted with it, leaves the list at once and not at the next full read.
+spl_sweep_keep() {
+  awk -F'\t' '$9 == "human" && $1 ~ /^[A-Za-z0-9._-]+$/ && $4 ~ /^[0-9a-f-]+$/ { tn = tn s $1; tk = tk s $4; s = "," }
+    END { print "{" tn "}", "{" tk "}" }' "$1"
+}
+
+# spl_sweep_merge <cache> <delta> <db now> <days>: the cached rows still in
+# the window, with every topic of <delta> replaced by its delta row; a delta
+# line with no msg_id (column 5) is a topic that left the set. Sorted by
+# workspace and time, as the full read is.
+spl_sweep_merge() {
+  awk -F'\t' -v cut="$(($3 - $4 * 86400))" -v delta="$2" '
+    FILENAME == delta { moved[$1 FS $4] = 1; if ($5 != "") print; next }
+    !(($1 FS $4) in moved) && $6 + 0 > cut' "$2" "$1" | LC_ALL=C sort -t $'\t' -k1,1 -k6,6n -k4,4
+}
+
+# _spl_sweep_rows_read <out> [<now out> [<since> <delta out> [<tns> <tks>]]]:
+# read-only, inside spl_via_proxy, in ONE repeatable-read snapshot: the DB
+# time into <now out>, the delta since the epoch <since> (plus the topics
+# tns[i]/tks[i], spl_sweep_keep) into <delta out>, and the full set into
+# <out> (skipped when <out> is ""). Tabs and newlines in a body collapse to
+# one space so a row is one line; an agent's body is not read.
 _spl_sweep_rows_read() {
+  local none='{}'
+  local out="$1" nowf="${2:-}" since="${3:-}" delta_out="${4:-}" tns="${5:-$none}" tks="${6:-$none}"
   PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" \
-    psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 -v days="${SWEEP_DAYS:-7}" > "$1" <<SQL
-BEGIN READ ONLY;
+    psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 -v days="${SWEEP_DAYS:-7}" -v since="${since:-0}" \
+    -v tns="$tns" -v tks="$tks" >/dev/null <<SQL
+BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
-$(_spl_sweep_rows_sql);
+$([[ -n "$nowf" ]] && printf '\\o %s\nSELECT extract(epoch FROM now())::bigint;\n' "$nowf")
+$([[ -n "$delta_out" ]] && printf '\\o %s\n%s;\n' "$delta_out" "$(_spl_sweep_delta_sql)")
+$([[ -n "$out" ]] && printf '\\o %s\n%s;\n' "$out" "$(_spl_sweep_rows_sql)")
+\o
 COMMIT;
 SQL
 }
@@ -279,13 +373,72 @@ WITH k AS MATERIALIZED (
     FROM messages m
    WHERE m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
    ORDER BY m.tenant_id DESC, m.task_id DESC, m.received_at DESC, m.msg_id DESC)
+SQL
+  _spl_sweep_rows_tail "(l.tenant_id, l.task_id) IN (SELECT a.tenant_id, a.task_id FROM messages a
+                                               WHERE a.archived_at IS NOT NULL)"
+  echo " ORDER BY 1, 6"
+}
+
+# Perf round 5 P5-01: the same rows for the topics that moved after the epoch
+# :since (psql variables :days, :since), for spl_sweep_merge. A topic moved
+# when its head was written (topic_heads.changed_at: an insert, a delete, an
+# archive or an expiry change, spec 099), its head is due (a key line expired:
+# valid_until), its channel was archived or deleted, or one of its lines was
+# edited (message_revisions); and a topic the caller names (:tns, :tks: the
+# cached human-last rows, spl_sweep_keep) whose head is gone (the topic was
+# deleted, and its head with it). Each moved topic's last line is one backward
+# probe of messages_task_received; a moved topic with no line left in the
+# window is one row with its two keys only (it leaves the set). The archived
+# card is a probe per moved row, not the full read's hashed set of every
+# archived line. Not seen until the next full read (SWEEP_FULL_EVERY): a
+# channel un-archived, a workspace renamed.
+_spl_sweep_delta_sql() {
+  cat <<'SQL'
+WITH mv AS MATERIALIZED (
+  SELECT h.tenant_id, h.task_id FROM topic_heads h
+   WHERE h.changed_at > to_timestamp(:since)
+      OR (h.valid_until <= now() AND h.last_at > now() - make_interval(days => :days))
+  UNION
+  SELECT p.tenant_id, p.task_id FROM channels c
+    JOIN topic_head_parts p ON p.tenant_id = c.tenant_id AND p.channel = c.channel_id
+   WHERE c.archived_at > to_timestamp(:since) OR c.deleted_at > to_timestamp(:since)
+  UNION
+  SELECT e.tenant_id, e.task_id FROM message_revisions r
+    JOIN messages e ON e.tenant_id = r.tenant_id AND e.msg_id = r.msg_id
+   WHERE r.edited_at > to_timestamp(:since)
+  UNION
+  SELECT u.tn, u.tk FROM unnest(:'tns'::text[], :'tks'::uuid[]) u (tn, tk)
+   WHERE NOT EXISTS (SELECT 1 FROM topic_heads o WHERE o.tenant_id = u.tn AND o.task_id = u.tk)),
+k AS MATERIALIZED (
+  SELECT mv.tenant_id, mv.task_id, x.msg_id FROM mv
+  LEFT JOIN LATERAL (
+    SELECT m.msg_id FROM messages m
+     WHERE m.tenant_id = mv.tenant_id AND m.task_id = mv.task_id
+       AND m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
+     ORDER BY m.received_at DESC, m.msg_id DESC LIMIT 1) x ON true)
+SQL
+  _spl_sweep_rows_tail "EXISTS (SELECT 1 FROM messages a WHERE a.tenant_id = l.tenant_id
+                                          AND a.task_id = l.task_id AND a.archived_at IS NOT NULL)"
+  cat <<'SQL'
+UNION ALL
+SELECT k.tenant_id, NULL, NULL, k.task_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+  FROM k WHERE k.msg_id IS NULL
+ ORDER BY 1, 6
+SQL
+}
+
+# _spl_sweep_rows_tail <archived predicate>: the select list and joins of
+# both reads, over a CTE k holding (tenant_id, msg_id) of each last line.
+_spl_sweep_rows_tail() {
+  cat <<SQL
 SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.task_id, l.msg_id,
        extract(epoch FROM l.received_at)::bigint, coalesce(l.typed_by, l.from_id), l.to_id,
        CASE WHEN l.typed_by IS NOT NULL THEN 'terminal'
             WHEN l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' THEN 'human' ELSE 'agent' END,
-       CASE WHEN (l.tenant_id, l.task_id) IN (SELECT a.tenant_id, a.task_id FROM messages a
-                                               WHERE a.archived_at IS NOT NULL)
+       CASE WHEN $1
             THEN 'archived' ELSE 'open' END,
+SQL
+  cat <<'SQL'
        CASE WHEN l.channel IS NOT NULL AND c.deleted_at IS NOT NULL THEN 'deleted'
             WHEN l.channel IS NOT NULL AND c.archived_at IS NOT NULL THEN 'archived'
             WHEN l.channel IS NOT NULL THEN 'live'
@@ -315,7 +468,6 @@ SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.tas
                                OR (r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%'))
                           AND (r.received_at, r.msg_id) > (h.received_at, h.msg_id))
      ORDER BY h.received_at, h.msg_id LIMIT 1) f ON true
- ORDER BY 1, 6
 SQL
 }
 

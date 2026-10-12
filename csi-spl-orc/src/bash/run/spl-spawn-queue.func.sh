@@ -27,13 +27,15 @@ do_spl_spawn_queue() {
     jq -c --arg f "$LANE_FLEET" '{fleet: $f, queue: .}' <<<"$rows"
     return 0
   fi
+  # -c 1000: util-linux 2.39 column (ubuntu-latest) drops every column past
+  # 80 characters when stdout is no tty, so a pipe or a CI log lost SUMMARY.
   jq -r '
     def cut($n): if length > $n then .[0:$n-1] + "~" else . end;
     def dur: if . == null then "-" elif . < 3600 then "\(. / 60 | floor)m" elif . < 172800 then "\(. / 3600 | floor)h" else "\(. / 86400 | floor)d" end;
     (["POS", "ASK", "FROM", "AGE", "IN LINE", "PLACEMENT", "TOPIC", "SUMMARY"] | @tsv),
     (.[] | [ (if .state == "acked" then "placing" else "\(.position)/\(.queue_len)" end), .ask_id[0:8], .from,
              (.age_s | dur), (.wait_s | dur), (.placement // "" | if . == "" then "-" else . end),
-             (.topic | cut(12)), (.summary | cut(70)) ] | @tsv)' <<<"$rows" | column -t -s $'\t'
+             (.topic | cut(12)), (.summary | cut(70)) ] | @tsv)' <<<"$rows" | column -t -s $'\t' -c 1000
   do_log "INFO $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued, $(jq '[.[] | select(.state == "acked")] | length' <<<"$rows") placing (fleet $LANE_FLEET)"
 }
 

@@ -6,12 +6,12 @@
 {% if ENV != "dev" %}
 # dev-only-step
 {% else %}
-# runtime-vars: proj_path
+# runtime-vars: proj_path, iap_members, desktop_user_ssh_public_keys
 org         = "{{ ORG }}"
 app         = "{{ APP }}"
 env         = "{{ ENV }}"
 gcp_project = "{{ steps.get("061-gcp-vm-wine-box", {}).get("gcp_project", gcp["gcp_project"]) }}"
-{% for key, value in steps.get("061-gcp-vm-wine-box", {}).items() if key not in ("tf_key_project", "tf_state_bucket", "gcp_project", "timezone", "os_packages", "wine_packages", "wine_enable_i386", "desktop_packages", "vnc_geometry", "vnc_port", "vnc_depth", "vnc_bin", "vnc_passwd_bin", "vnc_security_types", "secrets_src", "data_disk_mount", "data_device", "data_disk_label") %}
+{% for key, value in steps.get("061-gcp-vm-wine-box", {}).items() if key not in ("tf_key_project", "tf_state_bucket", "gcp_project", "timezone", "os_packages", "wine_packages", "wine_enable_i386", "desktop_packages", "vnc_geometry", "vnc_port", "vnc_depth", "vnc_bin", "vnc_passwd_bin", "vnc_security_types", "secrets_src", "data_disk_mount", "data_device", "data_disk_label", "iap_members", "desktop_user_ssh_public_keys") %}
 {{ key }} = {{ value | tojson }}
 {%- endfor %}
 {% endif %}

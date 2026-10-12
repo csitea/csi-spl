@@ -130,7 +130,17 @@ variable "ssh_public_key_file" {
 
 variable "desktop_user_ssh_public_keys" {
   type        = list(string)
-  description = "Extra public keys for the desktop user. Empty until one is added. A public key is not a secret."
+  description = "Public keys for the desktop user. Empty adds none. Set only as TF_VAR_desktop_user_ssh_public_keys at plan time: a tfvars value would hide TF_VAR, and a key in cnf would be published. A public key is not a secret."
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for key in var.desktop_user_ssh_public_keys :
+      can(regex("^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521|sk-ssh-ed25519@openssh.com|sk-ecdsa-sha2-nistp256@openssh.com) [A-Za-z0-9+/]+={0,3}( .+)?$", key))
+      && !can(regex("PRIVATE", key))
+    ])
+    error_message = "desktop_user_ssh_public_keys must be OpenSSH public keys, with no private key and no single quote."
+  }
 }
 
 variable "ssh_source_ranges" {
@@ -152,7 +162,16 @@ variable "assign_external_ip" {
 
 variable "iap_members" {
   type        = list(string)
-  description = "Extra members allowed to open an IAP tunnel. Empty adds no binding."
+  description = "Principals allowed to open an IAP tunnel to tcp/22 on this instance, and to resolve it for start-iap-tunnel. Empty adds no binding. Set only as TF_VAR_iap_members at plan time (user:ADDRESS). A tfvars value would hide TF_VAR, and an address in cnf would be published."
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for member in var.iap_members :
+      can(regex("^(user|group|serviceAccount):[^[:space:]]+$", member))
+    ])
+    error_message = "iap_members entries must be user:, group: or serviceAccount: principals. Empty is allowed."
+  }
 }
 
 variable "extra_apis" {

@@ -48,6 +48,9 @@ resource "local_file" "ansible_script" {
     export ANSIBLE_ROLES_PATH=${local.ansible_dir}/roles
     mkdir -p "$(dirname ${local.ansible_log})"
     test -f ${local.ansible_vars} || { echo "missing vars file ${local.ansible_vars}"; exit 1; }
+    # Overrides the empty list in the rendered vars file. The value is
+    # TF_VAR_desktop_user_ssh_public_keys; the committed vars file stays [].
+    tester_keys_json='${jsonencode({ desktop_user_ssh_public_keys = var.desktop_user_ssh_public_keys })}'
 
     kh=~/.ssh/known_hosts.wine-box id_file=~/.ssh/known_hosts.wine-box.instance
     if [ "$(cat "$id_file" 2>/dev/null)" != "${google_compute_instance.wine.instance_id}" ]; then
@@ -56,12 +59,13 @@ resource "local_file" "ansible_script" {
       echo "${google_compute_instance.wine.instance_id}" >"$id_file"
     fi
 
-    ansible-playbook --syntax-check -i ${local.ansible_inventory} -e @${local.ansible_vars} ${local.ansible_dir}/box-playbook.yaml \
+    ansible-playbook --syntax-check -i ${local.ansible_inventory} -e @${local.ansible_vars} -e "$tester_keys_json" ${local.ansible_dir}/box-playbook.yaml \
       || { echo "Syntax check failed, exiting..."; exit 1; }
 
     timeout 60m ansible-playbook ${local.ansible_dir}/box-playbook.yaml \
       -i ${local.ansible_inventory} \
       -e @${local.ansible_vars} \
+      -e "$tester_keys_json" \
       "$@" 2>&1 | tee -a ${local.ansible_log}
     exit "$${PIPESTATUS[0]}"
   EOT

@@ -39,6 +39,20 @@ grep -q 'debian-13-trixie-v\[0-9\]{8}' "$b061/02-variables.tf" \
 grep -q 'for_each = toset(var.iap_members)' "$b061/06-iap.tf" \
   && ! grep -qE 'member\s*=\s*"user:' "$b061"/*.tf \
   && pass "an empty iap_members list adds no binding" || fail "iap members are not the cnf list"
+grep -A8 'variable "iap_members"' "$b061/02-variables.tf" | grep -F 'default     = []' >/dev/null \
+  && grep -A8 'variable "desktop_user_ssh_public_keys"' "$b061/02-variables.tf" | grep -F 'default     = []' >/dev/null \
+  && pass "tester identity defaults to empty" || fail "tester identity has no empty default"
+grep -q 'destination.port == 22' "$b061/06-iap.tf" \
+  && grep -q 'compute.instances.get' "$b061/06-iap.tf" \
+  && grep -q 'compute.instances.list' "$b061/06-iap.tf" \
+  && grep -q 'length(var.iap_members) == 0 ? toset(\[\])' "$b061/06-iap.tf" \
+  && ! grep -q 'roles/compute.osLogin' "$b061"/*.tf \
+  && ! grep -q 'roles/owner' "$b061"/*.tf \
+  && ! grep -q 'roles/editor' "$b061"/*.tf \
+  && ! grep -q 'setMetadata' "$b061"/*.tf \
+  && pass "the tester grant is tcp/22 plus get and list, and it is absent when the list is empty" || fail "tester grant shape drifted"
+grep -q 'tester_keys_json' "$b061/07-ansible.tf" \
+  && pass "the playbook run passes the desktop keys over the vars file" || fail "the playbook run does not pass the desktop keys"
 grep -q 'for disk in google_compute_disk.data' "$b061/03-vm.tf" \
   && pass "a disabled data disk is an empty for_each map" || fail "attached_disk for_each is not a map"
 ! grep -Eq '^[[:space:]]*currency_code[[:space:]]*=' "$b058/03-budget.tf" \
@@ -56,6 +70,10 @@ grep -q '# dev-only-step' "$v061" && grep -q 'ENV != "dev"' "$v061" \
   && pass "prd renders of 058 and 061 are the dev-only marker" || fail "templates do not emit the dev-only marker"
 grep -q 'runtime-vars: proj_path' "$v061" && grep -q 'runtime-vars: billing_account_id' "$v058" \
   && pass "proj_path and billing_account_id are runtime vars" || fail "runtime-vars markers missing"
+! grep -Eq '^iap_members[[:space:]]*=' "$CNF/dev/tf/061-gcp-vm-wine-box.vars.tfvars" \
+  && ! grep -Eq '^desktop_user_ssh_public_keys[[:space:]]*=' "$CNF/dev/tf/061-gcp-vm-wine-box.vars.tfvars" \
+  && grep -q 'runtime-vars: proj_path, iap_members, desktop_user_ssh_public_keys' "$CNF/dev/tf/061-gcp-vm-wine-box.vars.tfvars" \
+  && pass "dev tfvars does not assign tester identity" || fail "tester identity is still assigned in dev tfvars"
 grep -q 'timezone' "$v061" && grep -q 'vnc_passwd_bin' "$v061" && grep -q 'not in' "$v061" \
   && pass "the tfvars template drops the ansible-only keys" || fail "ansible-only keys are not excluded"
 ! grep -q 'gcp\["gcp_region"\]' "$v061" \

@@ -4,7 +4,7 @@
 # not from env.gcp.gcp_region. Ansible-only keys are left out: they are not
 # terraform variables, and a tfvars key terraform does not declare is an error.
 
-# runtime-vars: proj_path
+# runtime-vars: proj_path, iap_members, desktop_user_ssh_public_keys
 org         = "csi"
 app         = "spl"
 env         = "dev"
@@ -27,10 +27,8 @@ vm_hostname = "wine-box.csi-spl-dev.internal"
 os_user = "debian"
 desktop_user = "wine"
 ssh_public_key_file = "~/.ssh/.csi/debian@csi-spl-dev-wine-box.pub"
-desktop_user_ssh_public_keys = []
 ssh_source_ranges = ["35.235.240.0/20"]
 assign_external_ip = true
-iap_members = []
 extra_apis = ["iap.googleapis.com"]
 box_label = "wine-box"
 vm_sa_roles = ["roles/logging.logWriter", "roles/monitoring.metricWriter"]

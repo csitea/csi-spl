@@ -5,6 +5,10 @@
 #           SPOOL_CI_RUNNER when set, else [self-hosted, spool-ci] on this repo
 #           only, else ubuntu-latest (a fork has no self-hosted runner: a bare
 #           literal label queues its gate for ever)
+#   static: no OTHER workflow reads SPOOL_CI_RUNNER: the deploy jobs (20, 21,
+#           30, ... hold the GCP keys as repo secrets) keep their own runs-on
+#           line, so moving the TEST jobs (owner HUM-10, t1 f67e3656, option 1)
+#           never moves a deploy
 #   do_gh_set_ci_vars (hermetic: `gh` is a stub over a dir of variables):
 #     1. DRY_RUN default: a missing variable is "would create", nothing written
 #     2. DRY_RUN=0 writes it (JSON on --body) and reads it back
@@ -37,6 +41,13 @@ n_all=$(runs_on "$WF" | wc -l)
 if ((n_all == 0)); then fail "wf 10 has no runs-on line"
 elif [[ -n "$(not_var "$WF")" ]]; then fail "wf 10 runs-on lines not read from vars.SPOOL_CI_RUNNER:"; not_var "$WF" | sed 's/^/      /'
 else pass "wf 10: all $n_all runs-on lines: SPOOL_CI_RUNNER, else self-hosted on this repo, else ubuntu-latest"; fi
+readers() { grep -lE 'vars\.SPOOL_CI_RUNNER' "$@" 2>/dev/null | grep -vxF "$WF"; }
+others=$(readers "$APP_ROOT"/.github/workflows/*.yml)
+[[ -z "$others" ]] && pass "only wf 10 reads SPOOL_CI_RUNNER: every deploy job keeps its own runs-on" \
+  || fail "SPOOL_CI_RUNNER read outside wf 10 (a deploy would follow the test runner): $others"
+printf 'jobs:\n  deploy:\n    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) }}\n' >"$T/ctl-deploy.yml"
+[[ -n "$(readers "$T/ctl-deploy.yml")" ]] && pass "CONTROL: a deploy workflow reading SPOOL_CI_RUNNER is caught" \
+  || fail "CONTROL: a deploy workflow reading SPOOL_CI_RUNNER passed"
 printf 'jobs:\n  a:\n    runs-on: [self-hosted, spool-ci]\n' >"$T/ctl.yml"
 [[ -n "$(not_var "$T/ctl.yml")" ]] && pass "CONTROL: a literal self-hosted runs-on is caught" \
   || fail "CONTROL: a literal self-hosted runs-on passed"

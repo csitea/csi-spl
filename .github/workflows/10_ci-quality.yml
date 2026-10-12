@@ -25,6 +25,12 @@
 #   SPOOL_CI_RUNNER='"ubuntu-latest"' DRY_RUN=0 ./run -a do_gh_set_ci_vars
 # Jobs QUEUE rather than fail when the runner is offline, so a dead box looks
 # like a hung gate, not a red one.
+#
+# ONLY the test jobs follow SPOOL_CI_RUNNER (owner HUM-10, t1 f67e3656,
+# option 1: tests on hosted runners). This file holds no deploy job and no
+# GCP identity; the deploy workflows (20, 21, 30, ...) keep their own runs-on
+# line and their keys as repo secrets, so the variable never moves a deploy.
+# Gate: gh-set-ci-vars.tst.sh ("only wf 10 reads SPOOL_CI_RUNNER").
 name: "10 ci: quality gate"
 
 # ONE hermetic quality gate for csi-spl, modelled on csi-rel's

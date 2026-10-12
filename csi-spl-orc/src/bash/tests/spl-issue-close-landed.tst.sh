@@ -43,17 +43,19 @@ Closes: SPL-23" >/dev/null
 commit 'Revert "chore(ci): closed by trailer"
 
 Closes: SPL-24' >/dev/null
+S25=$(commit "fix(orc, SPL-25): a human asked for its review")
 HEAD1=$(g rev-parse HEAD)
 
-# The open list: SPL-19 is done (absent), SPL-20 an epic, SPL-21 created after its commit.
+# The open list: SPL-19 is done (absent), SPL-20 an epic, SPL-21 created after its commit,
+# SPL-25 in qas (a review a human asked for: spec 135 Q7).
 issue() { printf '{"key":"%s","status":"%s","kind":"%s","created_at":"%s"}' "$1" "$2" "$3" "${4:-2000-01-01T00:00:00Z}"; }
 {
   printf '{"env":"dev","result":{"next_cursor":"","issues":['
-  issue SPL-10 todo issue; printf ,; issue SPL-11 qas issue; printf ,; issue SPL-12 wip issue; printf ,
+  issue SPL-10 todo issue; printf ,; issue SPL-11 todo issue; printf ,; issue SPL-12 wip issue; printf ,
   issue SPL-13 todo issue; printf ,; issue SPL-14 todo issue; printf ,; issue SPL-15 eval issue; printf ,
   issue SPL-16 todo issue; printf ,; issue SPL-17 todo issue; printf ,; issue SPL-18 todo issue; printf ,
   issue SPL-20 wip epic; printf ,; issue SPL-21 todo issue 2099-01-01T00:00:00Z; printf ,; issue SPL-22 todo issue; printf ,
-  issue SPL-23 todo issue; printf ,; issue SPL-24 todo issue
+  issue SPL-23 todo issue; printf ,; issue SPL-24 todo issue; printf ,; issue SPL-25 qas issue
   printf ']}}\n'
 } >"$T/list.json"
 python3 -m json.tool "$T/list.json" >/dev/null || { echo "FAIL: the fixture list is not JSON"; exit 1; }
@@ -67,6 +69,7 @@ spl_desk_issue_run() {
       SPL-10) echo "{\"result\":{\"issue\":{\"status\":\"done\"}}}" ;;
       SPL-11) echo "{\"result\":{\"issue\":{\"status\":\"todo\"}}}" ;;
       SPL-12) echo "{\"result\":{\"issue\":{\"status\":\"diss\"}}}" ;;
+      SPL-25) echo "{\"result\":{\"issue\":{\"status\":\"qas\"}}}" ;;
       *) echo "FATAL not found"; return 1 ;;
     esac
   fi
@@ -88,8 +91,8 @@ run; rc=$?
 
 # 2. back-fill dry run: the rule's verdicts, no write
 run ISSUE_CLOSE_SINCE=all; rc=$?
-v="$(for k in 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do printf '%s=%s ' "$k" "$(row SPL-$k)"; done)"
-want="10=would-move 11=would-move 12=would-move 13= 14= 15= 16=would-move 17=would-move 18= 19=noop 20=skip 21=skip 22=would-move 23=would-move 24= "
+v="$(for k in 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do printf '%s=%s ' "$k" "$(row SPL-$k)"; done)"
+want="10=would-move 11=would-move 12=would-move 13= 14= 15= 16=would-move 17=would-move 18= 19=noop 20=skip 21=skip 22=would-move 23=would-move 24= 25=noop "
 [ "$rc" = 0 ] && [ "$v" = "$want" ] && ! grep -q '^hub' "$T/calls.log" && [ ! -e "$ST/cursor" ] && [ ! -e "$ST/closed.tsv" ] &&
   pass "2. dry back-fill: subject scope, several keys and Closes: close (on a docs subject too); docs scope, body mention, Refs: and revert (even with Closes:) do not; done = no-op; epic and reused key skipped; nothing written" ||
   fail "2. dry back-fill (rc $rc) got '$v' want '$want': $(cat "$T/o")"
@@ -103,6 +106,10 @@ run ISSUE_CLOSE_SINCE=all DRY_RUN=0 HUB_FAIL=SPL-22; rc=$?
   ! grep -q '^SPL-22' "$ST/closed.tsv" && [ ! -e "$ST/cursor" ] &&
   pass "3. a failed move is reported, the others move with a sha + release link comment, the ledger keeps them, the cursor stays" ||
   fail "3. real back-fill (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+[ "$(row SPL-25)" = noop ] && grep -q '^SPL-25	noop	.*spec 135 Q7' "$T/o" && ! grep -q 'SPL-25' "$T/calls.log" &&
+  grep -qx "SPL-25	$S25	noop" "$ST/closed.tsv" &&
+  pass "3b. Q7: an issue in qas is not closed by its commit (no hub call); the sha goes to the ledger, so a send-back to wip is not closed by it either" ||
+  fail "3b. qas (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 # 4. retry: only the failed one acts again; the cursor is written
 run ISSUE_CLOSE_SINCE=all DRY_RUN=0; rc=$?
@@ -137,6 +144,10 @@ chk ISSUE_CLOSE_SHAS="$S16" DRY_RUN=0; rc=$?
 [ "$rc" = 1 ] && grep -q '^SPL-16	unknown' "$T/o" && pass "8. a failed hub read is unknown, rc 1, never a pass" || fail "8. unknown (rc $rc): $(cat "$T/o")"
 chk ISSUE_CLOSE_SHAS="$(g log -1 --format=%H --grep='docs never close') $(g log -1 --format=%H --grep='Refs: SPL-15')" DRY_RUN=0; rc=$?
 [ "$rc" = 0 ] && ! grep -q '^hub' "$T/calls.log" && pass "9. commits that name nothing by the rule pass with no hub call" || fail "9. none named (rc $rc): $(cat "$T/o")"
+
+chk ISSUE_CLOSE_SHAS="$S25" DRY_RUN=0; rc=$?
+[ "$rc" = 0 ] && grep -qx 'SPL-25	qas	review-asked' "$T/o" &&
+  pass "9b. Q7: the exit check lets a lane go when its issue waits in a review a human asked for" || fail "9b. qas exit (rc $rc): $(cat "$T/o")"
 
 # 10. evidence: a cited landing closes an issue no commit names by the rule (no reused-key check); an unknown sha is skipped
 CHORE=$(g log -1 --format=%H --grep='docs never close')

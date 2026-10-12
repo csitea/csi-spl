@@ -9,7 +9,9 @@
 # @description     "Refs: SPL-12" trailer never closes
 # @description   - each OPEN issue so named gets a comment with the sha(s) and
 # @description     the release note link, then moves to done; an issue already
-# @description     done or diss is a no-op; an epic or a feature is skipped
+# @description     done or diss is a no-op; an epic or a feature is skipped;
+# @description     an issue in qas is a no-op too: it holds a review a human
+# @description     asked for, which closes it (spec 135 Q7, owner msg 910b14c9)
 # @description   - every (issue, sha) pair acted on goes to a ledger (closed.tsv:
 # @description     key, sha, moved | noop) and never
 # @description     acts again: an issue the owner reopens is not closed again by

@@ -6,6 +6,8 @@
 # @description --keys), and each one's status on the hub. One TSV row per key:
 # @description   <key> closed-by-rule <sha>   done, and the rule's ledger holds it
 # @description   <key> done | diss            closed by hand (or by the qas rule)
+# @description   <key> qas review-asked      in a review a human asked for (spec 135 Q7):
+# @description                               the reviewer closes it, the lane may exit
 # @description   <key> OPEN <status>          still open (or reopened): the lane may not exit
 # @description   <key> unknown <why>          the hub read failed
 # @description Exit 0 when every key is closed (or none is named), 3 when one
@@ -45,6 +47,7 @@ do_spl_issue_close_check() {
         local by
         by="$(awk -F'\t' -v k="$key" '$1 == k && $3 != "noop" { s = $2 } END { print s }' "$dir/closed.tsv" 2>/dev/null)"
         if [[ -n "$by" && "$st" == "done" ]]; then printf '%s\tclosed-by-rule\t%s\n' "$key" "$by"; else printf '%s\t%s\n' "$key" "$st"; fi ;;
+      qas) printf '%s\tqas\treview-asked\n' "$key" ;;
       "") printf '%s\tunknown\tno status in the hub answer\n' "$key"; rc=1 ;;
       *)
         local was

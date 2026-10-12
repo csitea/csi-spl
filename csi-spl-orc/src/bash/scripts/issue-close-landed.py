@@ -33,7 +33,9 @@ Which commits count:
 
 Prints one TSV row per key the range names, its commits newest first:
   <key>\\tclose\\t<sha>[,<older sha>...]\\t<subject of the newest>
-  <key>\\tnoop\\t<shas>\\talready done or diss (or no such issue)
+  <key>\\tnoop\\t<shas>\\talready done or diss (or no such issue), or in qas:
+                        a review a human asked for (spec 135 Q7) closes it,
+                        and these shas never act on it again
   <key>\\tskip\\t<shas>\\t<why>
 A close or noop row's shas all go to the ledger once acted on.
 """
@@ -130,6 +132,13 @@ def verdict(k, cs, issue, done):
             "skip",
             shas,
             "every commit naming it acted once already (reopened by hand: stays open)",
+        )
+    if (issue.get("status") or "") == "qas":
+        return (
+            k,
+            "noop",
+            ",".join(c[0] for c in fresh),
+            "in qas: a review a human asked for closes it, not a commit (spec 135 Q7)",
         )
     kind = issue.get("kind") or "issue"
     if kind in ("epic", "feature"):

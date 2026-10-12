@@ -99,6 +99,9 @@ spl_issue_discard_fetch_open() {
   local out="$1" lim s page rc
   local -a pages=()
   lim="$(spl_issue_limit_or 50)" || return 1
+  # Resolve the desk and the host spool once, its log on stderr: a "WARN keeping
+  # <spool>" line on stdout landed in the first page and broke its JSON.
+  spl_desk_issue_once >&2 || return 1
   for s in eval todo wip blocked onhold qas; do
     page="$(mktemp)"
     pages+=("$page")
@@ -117,7 +120,8 @@ spl_issue_discard_lanes() {
     return 0
   fi
   local lm="$PROJ_PATH/src/bash/features/spawn-agents/scripts/lane-map.sh" raw
-  raw="$(bash "$lm" list --json 2>/dev/null)" || { do_log "FATAL the fleet lane map did not answer: set ISSUE_LIVE_LANES"; return 1; }
+  # Its JSON starts at the first line that opens with "{": a log line may come first.
+  raw="$(bash "$lm" list --json 2>/dev/null | sed -n '/^{/,$p')" || { do_log "FATAL the fleet lane map did not answer: set ISSUE_LIVE_LANES"; return 1; }
   python3 -c 'import json,sys
 for r in json.loads(sys.stdin.read()).get("lanes") or []:
     if r.get("state") == "live" and r.get("agent_id"):

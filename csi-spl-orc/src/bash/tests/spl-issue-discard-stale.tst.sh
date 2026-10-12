@@ -99,6 +99,15 @@ grep -qP '^SPL-1\ttodo\t2026-09-01T00:00:00\tSTALE\t' "$T/plan.tsv" && grep -qP 
 grep -q 'todo/STALE=2' "$T/o" && grep -q 'eval/STALE=1' "$T/o" && grep -q 'todo/TRIAGE=1' "$T/o" &&
   pass "the log counts by status and reason code" || fail "counts: $(cat "$T/o")"
 
+# A log line the spool resolution prints on stdout must not reach a page.
+: >"$T/issue.log"
+SNIPPET='spl_host_spool() { do_log "WARN keeping $FAKE: built from a newer tree"; SPL_SPOOL="$FAKE"; }; do_spl_issue_discard_stale' \
+  in_orc "${base[@]}" ISSUE_PLAN="$T/plan.tsv" >"$T/o" 2>&1
+RC=$?
+[[ $RC -eq 0 && "$(cut -f1 "$T/plan.tsv" | sort -V | tr '\n' ' ')" == "SPL-1 SPL-8 SPL-12 SPL-13 SPL-20 " ]] &&
+  pass "a WARN the spool resolution logs on stdout does not break the issue pages" ||
+  fail "spool WARN on stdout (rc=$RC): $(cat "$T/o")"
+
 # Controls: switch off one guard each; its item must now be listed.
 run ISSUE_STALE_BEFORE=2026-10-12
 has SPL-2 && has SPL-10 && pass "control: a later cutoff lists the recent item and the epic whose child became stale" ||

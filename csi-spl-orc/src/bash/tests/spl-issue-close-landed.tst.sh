@@ -106,7 +106,8 @@ run ISSUE_CLOSE_SINCE=all DRY_RUN=0; rc=$?
 # 5. reopened by hand (still in the open list): never closed again by the same sha, even on a back-fill
 run ISSUE_CLOSE_SINCE=all DRY_RUN=0; rc=$?
 [ "$rc" = 0 ] && [ "$(row SPL-11)" = skip ] && grep -q 'reopened by hand' "$T/o" && ! grep -q '^hub' "$T/calls.log" &&
-  pass "5. an issue reopened by hand is not closed again by the same sha" || fail "5. reopen guard (rc $rc): $(cat "$T/o")"
+  [ "$(row SPL-19)" = noop ] && ! grep -q '^SPL-19	.*reopened' "$T/o" &&
+  pass "5. an issue reopened by hand is not closed again by the same sha; a done one in the ledger stays a no-op, not 'reopened'" || fail "5. reopen guard (rc $rc): $(cat "$T/o")"
 
 # 6. the cursor run reads only the new commits; a NEW commit naming the reopened issue closes it
 S11B=$(commit "fix(api, SPL-11): the rest of it")

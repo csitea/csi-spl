@@ -24,9 +24,11 @@ EVIDENCE (optional) TSV "<key>\\t<sha>[,<sha>...]\\t<why>": a landing a review
 Which commits count:
   - a fix / feat / perf / refactor commit whose subject scope carries the key,
     "fix(orc, SPL-12): ..." (a "!" before the colon is allowed)
-  - any commit with a "Closes: SPL-12" trailer (comma list allowed)
-  A bare mention in the body, a "Refs: SPL-12" trailer, a docs / test / chore
-  subject and a revert never close.
+  - any commit with a "Closes: SPL-12" trailer (comma list allowed), whatever
+    its type: the trailer is the author's explicit word, so a docs(...) or
+    chore(...) commit carrying it closes
+  A bare mention in the body, a "Refs: SPL-12" trailer, the key in the scope
+  of a docs / test / chore subject and a revert never close.
 
 Prints one TSV row per key the range names, its commits newest first:
   <key>\\tclose\\t<sha>[,<older sha>...]\\t<subject of the newest>
@@ -115,6 +117,8 @@ def iso_epoch(s):
 def verdict(k, cs, issue, done):
     """One key's row from the commits naming it (newest first)."""
     shas = ",".join(c[0] for c in cs)
+    if issue is None:
+        return (k, "noop", shas, "already done or diss (or no such issue)")
     fresh = [c for c in cs if (k, c[0]) not in done]
     if not fresh:
         return (
@@ -122,13 +126,6 @@ def verdict(k, cs, issue, done):
             "skip",
             shas,
             "every commit naming it acted once already (reopened by hand: stays open)",
-        )
-    if issue is None:
-        return (
-            k,
-            "noop",
-            ",".join(c[0] for c in fresh),
-            "already done or diss (or no such issue)",
         )
     kind = issue.get("kind") or "issue"
     if kind in ("epic", "feature"):

@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url'
 import {
   AI_ACTIONS, AI_SUBJECT_KINDS, aiActionPost, aiCalendarRoute, aiEventBody, aiIssueBody, aiIssueRoute, aiMenuItems, aiPostTarget, aiSubject, createCalendarEvent, offersAiActions, withAiItems,
 } from '../../src/utils/msg-ai-actions.mjs'
+import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
+import { calEventDay } from '../../src/utils/calendar-drag.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -121,6 +123,22 @@ describe('Add to calendar', () => {
   it('opens the event\'s week on /calendar', () => {
     assert.deepEqual(aiCalendarRoute({ starts_at: '2026-10-06T15:00:00Z' }), { path: '/calendar', query: { d: '2026-10-06' } })
     assert.deepEqual(aiCalendarRoute(null), { path: '/calendar', query: {} })
+  })
+  /* wf 10 e2e red every Sunday 20-23Z east of UTC: the event is local Monday,
+     the calendar draws the viewer's week, so the route must name that day */
+  it('opens the event\'s LOCAL day, the day the calendar draws it on', () => {
+    const sun2030 = Date.parse('2026-10-11T20:30:00Z')
+    const ev = aiEventBody(person, where, sun2030)
+    assert.equal(ev.starts_at, '2026-10-11T21:00:00Z')
+    setTimeZoneSource(() => 'Europe/Helsinki')
+    try {
+      assert.equal(calEventDay(ev), '2026-10-12')
+      assert.deepEqual(aiCalendarRoute(ev).query, { d: calEventDay(ev) })
+    } finally { setTimeZoneSource(() => '') }
+    setTimeZoneSource(() => 'UTC')
+    try {
+      assert.deepEqual(aiCalendarRoute(ev).query, { d: '2026-10-11' })
+    } finally { setTimeZoneSource(() => '') }
   })
   it('POSTs the body to /v1/calendar/events with the session', async () => {
     const seen = []

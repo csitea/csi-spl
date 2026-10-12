@@ -192,7 +192,7 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { calAddDays, calWeekday, calWeekDays, calWeekStart } from '~/utils/calendar-year.mjs'
+import { calAddDays, calLoadWindow, calWeekday, calWeekDays, calWeekStart } from '~/utils/calendar-year.mjs'
 import { isoClock } from '~/utils/date-iso.mjs'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
@@ -281,12 +281,12 @@ function boxStyle(b: { top: number, len: number, col: number, cols: number }) {
 }
 
 let seq = 0
-/* GET /v1/calendar/events for [Monday 00:00Z, next Monday 00:00Z) (6.1.2).
-   The mock workspace answers from calendar-mock. */
+/* GET /v1/calendar/events (6.1.2) for the viewer's week: a day wider than
+   [Monday 00:00Z, next Monday 00:00Z), or local Monday 00:00-03:00 at +03 is
+   never fetched. The mock workspace answers from calendar-mock. */
 async function load() {
   const mine = ++seq
-  const start = `${weekStart.value}T00:00:00Z`
-  const end = `${calAddDays(weekStart.value, 7)}T00:00:00Z`
+  const { start, end } = calLoadWindow(weekStart.value, calAddDays(weekStart.value, 7)) || { start: '', end: '' }
   state.value = 'loading'
   try {
     let body: { events?: CalendarItem[] }

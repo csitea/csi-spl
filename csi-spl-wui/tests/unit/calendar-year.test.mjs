@@ -7,9 +7,11 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  calAddDays, calDayMs, calIsoDay, calMarks, calMarksQuery, calMonth, calStripMonths,
+  calAddDays, calDayMs, calIsoDay, calLoadWindow, calMarks, calMarksQuery, calMonth, calStripMonths,
   calStripYears, calWeekDays, calWeekStart, calWeekday,
 } from '../../src/utils/calendar-year.mjs'
+import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
+import { calEventDay } from '../../src/utils/calendar-drag.mjs'
 import { mockCalendarEvents, mockCalendarItems, mockCalendarMarks } from '../../src/utils/calendar-mock.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -128,5 +130,30 @@ describe('wiring', () => {
       assert.equal(Object.keys(cal.weekdays_narrow).length, 7, code)
       assert.equal(typeof JSON.parse(read(`i18n/locales/${code}.json`)).sidebar.calendar, 'string', code)
     }
+  })
+})
+
+/* the grid draws a timed event on the viewer's day, so the fetch window has
+   to hold the viewer's week, not [Monday 00:00Z, next Monday 00:00Z) */
+describe('calLoadWindow', () => {
+  const holds = (w, at) => Date.parse(w.start) <= Date.parse(at) && Date.parse(at) < Date.parse(w.end)
+  it('holds every instant of the week in any zone', () => {
+    const w = calLoadWindow('2026-10-12', '2026-10-19')
+    for (const [zone, first, last] of [
+      ['Europe/Helsinki', '2026-10-11T21:00:00Z', '2026-10-18T20:59:00Z'],
+      ['America/New_York', '2026-10-12T04:00:00Z', '2026-10-19T03:59:00Z'],
+      ['Pacific/Kiritimati', '2026-10-11T10:00:00Z', '2026-10-18T09:59:00Z'],
+      ['Pacific/Pago_Pago', '2026-10-12T11:00:00Z', '2026-10-19T10:59:00Z'],
+    ]) {
+      setTimeZoneSource(() => zone)
+      try {
+        assert.equal(calEventDay({ starts_at: first }), '2026-10-12', zone)
+        assert.equal(calEventDay({ starts_at: last }), '2026-10-18', zone)
+        assert.ok(holds(w, first) && holds(w, last), zone)
+      } finally { setTimeZoneSource(() => '') }
+    }
+  })
+  it('is empty for a day that is not one', () => {
+    assert.equal(calLoadWindow('x', '2026-10-19'), null)
   })
 })

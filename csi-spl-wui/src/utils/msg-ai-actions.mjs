@@ -1,4 +1,5 @@
 import { isoSeconds } from './iso-seconds.mjs'
+import { isoDate } from './date-iso.mjs'
 import { typedByAuthor } from './typed-by.mjs'
 import { HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
@@ -263,12 +264,14 @@ export function aiEventBody(msg, where = {}, nowMs = Date.now()) {
 }
 
 /**
- * Where the calendar opens a created event: the week of its UTC day.
+ * Where the calendar opens a created event: the week of its day in the
+ * VIEWER's zone, the day the calendar draws a timed event on (calEventDay).
+ * Its UTC day is a week early east of UTC on Sunday evenings.
  * @param {{ starts_at?: string } | null | undefined} event
  * @returns {{ path: string, query: Record<string, string> }}
  */
 export function aiCalendarRoute(event) {
-  const day = String((event && event.starts_at) || '').slice(0, 10)
+  const day = isoDate((event && event.starts_at) || '')
   return { path: '/calendar', query: /^\d{4}-\d{2}-\d{2}$/.test(day) ? { d: day } : {} }
 }
 

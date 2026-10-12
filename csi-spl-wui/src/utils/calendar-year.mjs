@@ -76,6 +76,20 @@ export function calWeekDays(iso) {
 }
 
 /**
+ * The [start, end) instants to fetch for the days [from, to): a day wider on
+ * each side, as a timed event lands on the VIEWER's day (calEventDay) and a
+ * zone is up to 14 h off UTC. Items outside [from, to) are fetched, not drawn.
+ * @param {string} from first day
+ * @param {string} to the day after the last
+ * @returns {{ start: string, end: string } | null}
+ */
+export function calLoadWindow(from, to) {
+  const a = calAddDays(from, -1)
+  const b = calAddDays(to, 1)
+  return a && b ? { start: `${a}T00:00:00Z`, end: `${b}T00:00:00Z` } : null
+}
+
+/**
  * The strip's three years around `todayIso`: previous, current, next.
  * @param {string} todayIso
  * @returns {number[]}

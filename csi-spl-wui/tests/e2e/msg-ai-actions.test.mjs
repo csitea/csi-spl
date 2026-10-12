@@ -369,6 +369,36 @@ try {
   ok('views/phone: picking it shows the seven actions in the same sheet', JSON.stringify(flowNow) === JSON.stringify(AI_IDS), flowNow)
   await closeMenuOf(v, 'flow-menu')
 
+  /* 6. Sunday 20:30Z at UTC+3: the event (21:00Z) is local Monday, and the
+     calendar draws the viewer's week - wf 10 was red every Sunday 20-23Z
+     while the route named the event's UTC day (a week early) */
+  const ctx = await browser.createBrowserContext()
+  const z = await ctx.newPage()
+  z.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+  z.setDefaultNavigationTimeout(NAV_TIMEOUT)
+  await z.emulateTimezone('Europe/Helsinki')
+  await z.evaluateOnNewDocument((extra, at) => {
+    const Real = Date
+    const off = at - Real.now()
+    globalThis.Date = class extends Real {
+      constructor(...a) { if (a.length) super(...a); else super(Real.now() + off) }
+      static now() { return Real.now() + off }
+    }
+    try {
+      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'owner@example.com', name: 'FirstName LastName', t: 't1' }))
+      localStorage.setItem('spool.mock.extra-messages', JSON.stringify(extra))
+    } catch { /* private mode */ }
+  }, EXTRA, Date.parse('2026-10-11T20:30:00Z'))
+  await z.setViewport({ width: 1280, height: 800, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
+  ok('Sunday 20:30Z at UTC+3: the topic opens', await openTopic(z))
+  await sleep(400)
+  await menuItems(z, `${card(HUMAN)} .msg-body`)
+  await z.click('[data-testid=msg-menu-ai-calendar]')
+  const zDay = await until(z, () => /\/calendar/.test(location.pathname), null, 8000) && await z.evaluate(() => new URL(location.href).searchParams.get('d'))
+  const zItem = await z.waitForFunction(() => [...document.querySelectorAll('[data-test=calendar-item]')].find((e) => /Export the weekly report as PDF/.test(e.textContent)), { timeout: 10000 }).then(() => true, () => false)
+  ok('Sunday 20:30Z at UTC+3: the calendar opens the local Monday and shows the event', zDay === '2026-10-12' && zItem, { zDay, zItem })
+  await ctx.close()
+
   const benign = (e) => /Failed to fetch dynamically imported module/.test(e)
   ok('no unexpected page errors', errors.filter((e) => !benign(e)).length === 0, errors)
 } finally {

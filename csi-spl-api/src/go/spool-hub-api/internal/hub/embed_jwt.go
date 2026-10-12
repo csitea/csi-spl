@@ -44,10 +44,10 @@ import (
 const (
 	// CodeEmbedJWT: the sign-in JWT is refused (401).
 	CodeEmbedJWT = "embed_jwt"
-	// embedJWTMaxLife is the longest exp - iat accepted (spec 5: 5 min).
-	embedJWTMaxLife = 5 * time.Minute
-	// embedJWTSkew is the clock skew allowed against exp, iat and nbf.
-	embedJWTSkew = 30 * time.Second
+	// EmbedJWTMaxLife is the longest exp - iat accepted (spec 5: 5 min).
+	EmbedJWTMaxLife = 5 * time.Minute
+	// EmbedJWTSkew is the clock skew allowed against exp, iat and nbf.
+	EmbedJWTSkew = 30 * time.Second
 	// embedJWTMaxBytes caps the compact JWT; embedSubMax caps sub.
 	embedJWTMaxBytes = 4096
 	embedSubMax      = 255
@@ -179,11 +179,11 @@ func checkEmbedJWTTimes(c embedClaims, now time.Time) (time.Time, error) {
 		return time.Time{}, errEmbedJWTForm
 	}
 	switch {
-	case !now.Before(exp.Add(embedJWTSkew)):
+	case !now.Before(exp.Add(EmbedJWTSkew)):
 		return time.Time{}, errEmbedJWTExpired
-	case iat.After(now.Add(embedJWTSkew)):
+	case iat.After(now.Add(EmbedJWTSkew)):
 		return time.Time{}, errEmbedJWTEarly
-	case exp.Sub(iat) > embedJWTMaxLife:
+	case exp.Sub(iat) > EmbedJWTMaxLife:
 		return time.Time{}, errEmbedJWTLife
 	}
 	if c.Nbf != nil {
@@ -191,7 +191,7 @@ func checkEmbedJWTTimes(c embedClaims, now time.Time) (time.Time, error) {
 		if !ok {
 			return time.Time{}, errEmbedJWTForm
 		}
-		if nbf.After(now.Add(embedJWTSkew)) {
+		if nbf.After(now.Add(EmbedJWTSkew)) {
 			return time.Time{}, errEmbedJWTEarly
 		}
 	}

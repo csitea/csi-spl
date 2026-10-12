@@ -76,6 +76,27 @@ panel has signed, its row lanes follow without a go. Plans:
 a prd mutation, a `terraform apply` or a key still needs the owner's go for
 that one call (repo `CLAUDE.md`); the round itself does not.
 
+### 1.3 Issues track the work, discussions stay talk
+
+Owner, HUM-10, t1 5ea2e615 (2026-10-12), decided in
+[spec 135](../../specs/135-work-process/spec.md) v1.0: the discussion is for
+talk; the issue holds the condensed record of what is done or being done and
+links to the discussion (msg f2c24a7b). Who does which step (the flow and the
+state table: spec 135 sections 4 and 5):
+
+| role | does | never does |
+|---|---|---|
+| owner | says what the work is; agrees the entity of work (`eval` -> `todo`); decides owner questions; pauses (`onhold`); reopens a `done` issue | is filed an issue for a question asked to the owner; is asked to move a status |
+| dispatch holder | files one issue per taken discussion from its first answer, in `eval`, description starting `Source: /t/<uuid>` and the restart card, key posted back in the topic (Q1, Q4); an evaluation or answer is an `answer` issue; sets `todo` once agreed; marks `blocked` + `needs-owner` while an owner question holds it (Q2); spawns the lane for the key; tells the owner the key, sha and release | files an issue for a question TO the owner; sets `done` on an unchecked claim |
+| `c-001` | refuses a placement without an issue key | files issues for a discussion it does not own |
+| lane | works one issue; cites its key in the landing commit (`feat(<area>, SPL-n)` or `Closes: SPL-n`); keeps the card current and comments a checkpoint per landed sha, blocker and rotation; ships the docs in the same lane or says `Docs: none (<why>)`; ends the issue with a reason if it stops without landing | touches another issue's status; sets its own issue `done` by hand; posts in the owner's topic |
+| the closer (hourly) | `do_spl_issue_close_landed` sets `done` when the citing commit lands (Q3) | closes an epic, or re-closes what the owner reopened |
+
+The key is enforced at the lane's exit and its rate measured weekly (Q6);
+`qas` is only for a review a human asked for (Q7); the branch model is
+unchanged ([developer guide](developer-guide.md) 1.1-1.4, Q5). Commands for
+lanes: [lane issue and docs](lane-issue-and-docs.md).
+
 ## 2. Where messages come from
 
 | source | arrives as | first reader |
@@ -664,4 +685,4 @@ end to end in every seated workspace.
 | asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.8.0 · updated: 2026-10-04 · last-edit: 2026-10-04T15:15:00Z -->
+<!-- version: 0.9.0 · updated: 2026-10-12 · last-edit: 2026-10-12T20:20:00Z -->

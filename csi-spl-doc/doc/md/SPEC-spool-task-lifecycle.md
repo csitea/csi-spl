@@ -86,4 +86,27 @@ Humans view via `spool-tail` or the WUI. They are not required to have an
 agent id. If a human must **send**, pin a `HUM-*` id and use the same CLI.
 The WUI v1 is read-only (see `SPEC-spool-wui.md`).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:40:00Z -->
+---
+
+## 6. A spool task is not an issue
+
+Decided in [spec 135](../../specs/135-work-process/spec.md) v1.0 (owner
+HUM-10, t1 5ea2e615). A `task_id` thread is the talk; the hub **issue**
+(`SPL-n`) is the tracked record of the work and its status. They link, they
+do not merge:
+
+| | spool thread (`task_id`) | hub issue (`SPL-n`) |
+|---|---|---|
+| holds | the discussion, briefs, results, notes | condensed data: what is done or being done, the restart card, checkpoints |
+| status | none enforced (section 2) | `eval` -> `todo` -> `wip` -> `done`, plus `blocked`, `onhold`, `qas`, `diss` (spec 135 section 5) |
+| link | the taker posts the issue key back in the topic | `Source: /t/<uuid>` at the top of the description |
+| ends | a human closes the topic | `done` when its citing commit lands (hourly closer), or `diss` with a reason |
+
+- One issue per discussion an agent takes, filed from the first answer (Q1).
+- A question to the owner stays a message in the thread; it files no issue,
+  and the issue it holds up is `blocked` + `needs-owner` (Q2).
+- A lane's final `result` message does not close its issue; the landed
+  citing commit does (Q3). An `answer` issue closes with a comment linking
+  the posted answer.
+
+<!-- version: 0.2.0 · updated: 2026-10-12 · last-edit: 2026-10-12T20:20:00Z -->

@@ -45,6 +45,40 @@ Every hub and web UI deploy mints its commit's version with
 roll the version by hand; the repo [CLAUDE.md](../../../CLAUDE.md) says when
 the floor (`.version`) is raised.
 
+### 1.4 Every change rides an issue
+
+Agreed in [spec 135](../../specs/135-work-process/spec.md) v1.0 (owner
+HUM-10, t1 5ea2e615, Q1-Q8 decided). Discussions are for talk; the issue
+holds the condensed record of what is decided, done or being done, and links
+to the discussion instead of repeating it (owner msg f2c24a7b). The branch
+model of 1.1-1.3 does not change (Q5); the issue rides on it:
+
+- **One issue per taken discussion**, filed in `eval` by the dispatch holder
+  from its first answer; an evaluation or an answer to the owner is an
+  `answer`-labelled issue; acks and chatter file none (Q1).
+- **A question to the owner files no issue**: it stays a line in the
+  discussion, and the issue it holds up goes `blocked` + `needs-owner`
+  (`do_spl_issue_needs_owner`) until the owner answers (Q2).
+- **The description starts with the source link and the restart card**
+  (`Source: /t/<uuid>`, then key, scope, test, last citing sha, next step);
+  the key is posted back in the topic (Q4, spec 135 section 7).
+- **Cite the key** in the landing commit's subject scope,
+  `feat(<area>, SPL-n): ...`, or in a `Closes: SPL-n` trailer. Only a
+  `fix|feat|perf|refactor` subject or that trailer closes; `Refs:` and bare
+  mentions link without closing.
+- **Done is automatic**: the hourly closer (`do_spl_issue_close_landed`)
+  sets `done` when the citing commit lands on master (Q3). A docs-only push
+  gets no deploy and no tag; its issue is done on the land.
+- **The key is enforced at the lane's exit**: `/exit-clean` refuses a `wip`
+  issue with no landed citing commit and no end reason, and the fleet's key
+  rate is measured weekly (Q6). A lane that stops without landing ends its
+  issue with a reason (`LANE_ISSUE_OP=end`).
+- **`qas` only when a human asks for a review**; nothing enters it
+  automatically (Q7).
+
+The rule for lanes, with its commands: [lane issue and docs](lane-issue-and-docs.md).
+Who does which step: [fleet roles](SPEC-spool-fleet-roles.md) section 1.3.
+
 ## 2. The rules for a change
 
 ### 2.1 Small commits, explicit pathspecs

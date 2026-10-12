@@ -257,6 +257,35 @@ screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PT")"
 hasnt "the probe body never reached the prompt" "zz91" "$screen"
 has   "CONTROL: the same words unmarked are typed (the check can fail)" "attach L1 lobby zz92" "$screen"
 
+# Live, SPL-1575: a channel post that carries files. The hub hands the notifier
+# the body with one "[<what> attached: ...]" line per file IN FRONT
+# (csi-spl-api internal/notify withAttachments, 99672b28c). attach-live posts
+# files with every probe, and prd 2026-10-12 typed all 8 into a prompt as
+# "[channel post from HUM-34 ...]". The marker is the poster's first word.
+spool_notify_is_probe $'[image attached: a.png, 70 B, file_id ab12]\n[file attached: a.pdf, 50 B, file_id cd34]\n[spool-probe] attach L1 lobby x' \
+  && ok "SPL-1575: a probe behind attachment notes is a probe" || nok "SPL-1575: a probe behind attachment notes is a probe"
+spool_notify_is_probe $'[image attached: a.png, 70 B, file_id ab12]\nattach L1 lobby x' \
+  && nok "SPL-1575: CONTROL: attachment notes alone make no probe" || ok "SPL-1575: CONTROL: attachment notes alone make no probe"
+spool_notify_is_probe $'[spool-probe] x.png]\nattach L1 lobby x' \
+  && ok "SPL-1575: a marker on the first line still counts" || nok "SPL-1575: a marker on the first line still counts"
+SPOOL_SHOW_PANE=0 bash "$SN" --to CLE-81 --from HUM-1 --kind note --task T-1 --msg-id dddddddd-x --body-stdin >"$T_TMP/probe-att.out" <<'EOF_BODY'
+[image attached: attach-L1-lobby-zz88.png, 70 B, file_id ab12]
+[file attached: attach-L1-lobby-zz88.pdf, 50 B, file_id cd34]
+[spool-probe] attach L1 lobby zz88
+EOF_BODY
+eq "SPL-1575: a channel probe with files exits 0" 0 "$?"
+has "SPL-1575: …and says the prompt was not touched" "poke: probe line" "$(cat "$T_TMP/probe-att.out")"
+has "SPL-1575: …and it was SHOWN" "show: " "$(cat "$T_TMP/probe-att.out")"
+SPOOL_SHOW_PANE=0 bash "$SN" --to CLE-81 --from HUM-1 --kind note --task T-1 --msg-id dddddddd-x --body-stdin >/dev/null <<'EOF_BODY'
+[image attached: attach-L1-lobby-zz87.png, 70 B, file_id ab12]
+attach L1 lobby zz87
+EOF_BODY
+sleep 0.6
+screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PT")"
+hasnt "SPL-1575: the channel probe with files never reached the prompt" "lobby zz88" "$screen"
+has   "SPL-1575: CONTROL: the same post unmarked IS typed, with its frame" "[channel post from HUM-1" "$screen"
+has   "SPL-1575: CONTROL: …and its words" "attach L1 lobby zz87" "$screen"
+
 # Live: another human's DM reaches the prompt WITH its provenance, and the
 # mirror's typed record holds that exact framed line (spec 036 FR-003).
 bash "$SN" --to CLE-81 --from HUM-1 --kind note --msg-id cccccccc-x --body 'post L1 in lobby zz93' >/dev/null

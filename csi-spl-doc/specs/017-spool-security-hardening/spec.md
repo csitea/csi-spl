@@ -275,6 +275,11 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   *Status:* Partial — the desk side and the three senders above are Implemented (`0680458c` + this commit;
   `test-spool-notify.sh` 100/100, with the check disabled 11 turn red). Other WUI proofs that post into channels
   (`newest-live`, `list-order-live`, `focus-topic-live`, `code-*-live`, `owner-acceptance-bot`) are not yet marked.
+  *Fix 2026-10-13, SPL-1575:* the hub puts one `[<image|file|dir> attached: ...]` line per file in front of the
+  body it hands the notifier (`csi-spl-api` `internal/notify` `withAttachments`, `99672b28c`), so every
+  `attach-live` probe, which carries files, lost its leading marker and was typed (prd t1 2026-10-12, n=8).
+  `spool_notify_is_probe` now skips those leading attachment lines before it looks for the marker, and
+  `spool-send.sh` checks the marker before its own pane leg.
 - **FR-SEC-031 (Provenance in the prompt) — amendment 2026-09-25, CLE-34988:** The desk's own humans are the ids in
   `<desk>/mirror-to` and `<desk>/operator` (spec 036 FR-013, per env), plus `<desk>/owners` and
   `SPOOL_OWNER_HUMANS`. A line from one of them, addressed to that agent, is typed verbatim (owner rule 2026-09-22).

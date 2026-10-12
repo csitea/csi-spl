@@ -114,10 +114,18 @@ spool_notify_is_human() {  # ID
 # Such a line is shown in the notice strip and NEVER typed into a prompt.
 SPOOL_PROBE_MARK='[spool-probe]'
 
-# 0 when BODY carries the probe marker (leading whitespace ignored).
+# 0 when BODY carries the probe marker (leading whitespace ignored). The
+# "[<what> attached: ...]" lines the hub puts in front of a body that carries
+# files (csi-spl-api internal/notify AttachmentNote) are skipped first: the
+# marker is the poster's first word, and attach-live posts files with every
+# probe (SPL-1575, prd 2026-10-12: all 8 were typed into a prompt).
 spool_notify_is_probe() {  # BODY
-  local b="${1:-}"
+  local b="${1:-}" nl=$'\n' re='^\[(image|file|dir) attached: [^]]*\]$'
   b="${b#"${b%%[![:space:]]*}"}"
+  while [[ "$b" == *"$nl"* && "${b%%"$nl"*}" =~ $re ]]; do
+    b="${b#*"$nl"}"
+    b="${b#"${b%%[![:space:]]*}"}"
+  done
   [ "${b#"$SPOOL_PROBE_MARK"}" != "$b" ]
 }
 

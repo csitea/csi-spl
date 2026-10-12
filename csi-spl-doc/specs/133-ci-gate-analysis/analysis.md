@@ -431,10 +431,21 @@ suites faster (-> F4); K7 a red names its lane (-> F5). K8 per-job base
    and wf 30 deploy on their own `test` job (section 2.1). While the gate is
    red 96% of the time, gating would stop every deploy, so this comes up
    after F1/F2 at the earliest.
+   **Owner decision** (HUM-10, msg `a6f36b11`): "yes, but not now, and per
+   job, not the whole gate". After F1 + F2, a prd deploy waits only for the
+   green jobs that test its inputs, on its own sha: wf 20 for the hub job,
+   wf 30 for the wui jobs. dev never waits. The switch goes on when the
+   master red share is under 20 % over 48 h (`do_report_ci_axes`); it is
+   scheduled as the CI-refactor round after F2, and every round reports the
+   red share until then.
 2. ~~For seat B: the share of non-code reds.~~ Answered: 1.0 % (2.1 %),
    section 3.2.
-3. **For the builders of F2:** the per-job base needs the last success per
-   job, not per run. Is the jobs API enough, or does the gate write it?
+3. ~~For the builders of F2: the per-job base needs the last success per
+   job, not per run. Is the jobs API enough, or does the gate write it?~~
+   Answered by `8a79c19c1`: the jobs API. wf 10's classify step reads the
+   jobs of the newest 15 finished push/schedule runs on master; a part with
+   no all-green run in that window runs in full (the safe side). How often
+   that fallback fires: section 7.2.
 
 ## 7. Editor state (2026-10-12, at v1.0)
 
@@ -501,6 +512,38 @@ each round to c-001@sat on task `ci-refactor-seat`, cc the dispatch holder.
 - Next round: watch wf 10 run 38223810797 (a red in orc feature tests is
   this seat's), re-read the after window (above), then F1 from section 5.
 
+### 7.2 How often a part falls back to the full run (Q3, measured 13:10Z)
+
+Asked by c-002 (msg `f6d8c4c1`). Since `8a79c19c1` wf 10's classify step
+lists the newest 15 push/schedule runs that ended `success` or `failure`
+(`10_ci-quality.yml`, `per_page=15`, `awk 'NR <= 15'`), and a part with no
+all-green run among them prints `no green <part> run listed: run it`
+(`ci-doc-only.sh` line 178).
+
+- **Window:** wf 10 master push runs created 2026-10-12T07:05:52Z
+  (`8a79c19c1`) .. 12:54:02Z (`8a625588f`): n=38 runs, 26 cancelled before
+  any job, so **12 classify logs** = 60 part decisions (5 parts each).
+  Command: `gh run list --workflow 10_ci-quality.yml --branch master
+  --event push --limit 300`, then per run `gh api
+  repos/<repo>/actions/jobs/<classify job id>/logs | grep 'ci-doc-only:'`.
+- **Window fallbacks: 0 of 60** (`grep -l 'no green' log.*` -> 0 of 12).
+- **Margin:** the oldest base any part used was wui's `b49e2580a9b2`
+  (4 runs in a row, 07:44Z..09:51Z, while wui stayed red); at the deepest it
+  sat at **position 8 of 15** in the window (run 38232567250; position =
+  its rank among the success/failure runs with a smaller run id, so +-1 for
+  runs finishing during classify). Every other base sat at 3..5.
+- **The full runs come from elsewhere:** 5 of 12 runs ran every part
+  because their ranges read `parts=all` (a gate script, `.github` or an
+  unmapped path) or touched all five parts, not because a base was
+  missing. One run (`889abb940`, docs only) skipped all five parts; 6 more
+  skipped wui (one of them also cnf).
+
+Reading: at today's verdict rate (17 success/failure runs 05:40Z..12:54Z,
+~2.4 an hour) a part has to stay red for ~6 h before its green base leaves
+the window. The safe-side fallback
+has not cost a run yet; `parts=all` from the range is the larger lever.
+Re-measure when a part stays red for more than 4 h.
+
 ## 8. Sign-off
 
 | version | date | by | what |
@@ -515,3 +558,4 @@ each round to c-001@sat on task `ci-refactor-seat`, cc the dispatch holder.
 | v0.8 | 2026-10-12 | c-296 | seat D folded (2.6) |
 | v0.9 | 2026-10-12 | c-296 | seat E folded with editor corrections (3.1) |
 | **v1.0** | 2026-10-12 | c-296 | seat B folded (3.2); X8 = first-red rows with no local part; F1 = standing defects; 5.1 landed fixes. **Signed.** |
+| v1.1 | 2026-10-12 | c-296 | 6 Q1 owner decision (`a6f36b11`), Q3 answered (`8a79c19c1`), 7.2 window fallback 0 of 60 |

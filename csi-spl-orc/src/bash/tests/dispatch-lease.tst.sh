@@ -10,7 +10,9 @@
 #   5. promotion after 180 s of silence, logged + told once, kept fresh
 #   6. handback when the master renews, logged + told once
 #   7. a dead failover is never promoted; logged + told once
-#   8. a non-claude process carrying the id does not count
+#   8. a non-agent process (bash) carrying the id does not count
+#  8b. a grok or vibe process with the holder's id renews (spec 134 P0);
+#      another id does not; claude still does
 #   9. lease.conf supplies the ids; ensure without it starts nothing
 #  10. ensure starts both loops once, is idempotent, and restarts them after
 #      they die (the reboot case); stop ends them
@@ -155,6 +157,27 @@ agent 400 M-1 bash
 tick renew 2300
 [[ "$(holder)" == F-1 ]] && pass "8. a bash process with the id does not renew" || fail "8. bash renewed: $(cat "$D/lease")"
 kill_agent 400
+
+# --- 8b. a grok or vibe seat holds the lease (spec 134 P0/T0) ---------------------------
+agent 410 X-9 grok
+tick renew 2310
+[[ "$(holder)" == F-1 ]] && pass "8b. control: a grok process with ANOTHER id does not renew" || fail "8b. other-id grok renewed: $(cat "$D/lease")"
+agent 420 M-1 grok
+tick renew 2320
+[[ "$(cat "$D/lease")" == "M-1 2320" && "$(logc 'renew bind M-1 pid=420')" == 1 ]] &&
+  pass "8b. a grok process with the holder's id renews the lease" || fail "8b. grok: $(cat "$D/lease") log: $(tail -3 "$D/lease.log")"
+kill_agent 420; agent 430 M-1 'Vibe CLI'
+tick renew 2330
+[[ "$(cat "$D/lease")" == "M-1 2330" && "$(logc 'renew bind M-1 pid=430')" == 1 ]] &&
+  pass "8b. a vibe process ('Vibe CLI') with the holder's id renews the lease" || fail "8b. vibe: $(cat "$D/lease") log: $(tail -3 "$D/lease.log")"
+kill_agent 430; agent 440 M-1 vibe
+tick renew 2340
+[[ "$(cat "$D/lease")" == "M-1 2340" ]] && pass "8b. a vibe process (comm vibe) with the holder's id renews" || fail "8b. vibe comm: $(cat "$D/lease")"
+kill_agent 440; agent 450 M-1
+tick renew 2350
+[[ "$(cat "$D/lease")" == "M-1 2350" && "$(logc 'renew bind M-1 pid=450')" == 1 ]] &&
+  pass "8b. control: claude still renews" || fail "8b. claude: $(cat "$D/lease") log: $(tail -3 "$D/lease.log")"
+kill_agent 410; kill_agent 450
 
 # --- 9. lease.conf -----------------------------------------------------------------------
 rm -rf "$T/spool"; mkdir -p "$D"

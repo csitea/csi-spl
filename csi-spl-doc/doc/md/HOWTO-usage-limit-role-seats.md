@@ -29,7 +29,7 @@ takes the role once the lease is stale (180 s). The checks run in this order:
 
 | check | not able when | why written to `able.<id>` |
 |---|---|---|
-| process | no live claude process carries the id | `no live process` |
+| process | no live claude, grok or vibe process carries the id | `no live process` |
 | rotation | `rotate.hold` names the id | `held: rotation ...` |
 | modal screen | trust / login picker / onboarding in the pane footer | `stalled pid=N: Do you trust the files` |
 | usage limit, idle | a limit banner, NO spinner, and the reset time in the banner still ahead | `stalled pid=N: Usage limit reached, resets in 109 min` |

@@ -198,10 +198,11 @@ spl_lease_tell() {
 # shellcheck source=../features/spawn-agents/lib/proc-owner.inc.sh
 . "${BASH_SOURCE[0]%/*}/../features/spawn-agents/lib/proc-owner.inc.sh" 2>/dev/null || true
 
-# The pid of a live claude process whose environment carries
-# SPOOL_AGENT_ID=<id>; empty when there is none. The lowest pid wins, so two
-# reads in a row agree. A claude of another user (the agent user) is read
-# through its owner, one hop for all of them.
+# The pid of a live agent process (claude, grok or vibe, spec 134 P0) whose
+# environment carries SPOOL_AGENT_ID=<id>; empty when there is none. vibe
+# renames itself "Vibe CLI" (setproctitle). The lowest pid wins, so two reads
+# in a row agree. An agent of another user (the agent user) is read through
+# its owner, one hop for all of them.
 spl_lease_agent_pid() {
   local id="$1" root="${LEASE_PROC_ROOT:-/proc}" d pid comm
   local -a other=()
@@ -209,9 +210,9 @@ spl_lease_agent_pid() {
     for d in "$root"/[0-9]*; do
       pid="${d##*/}"
       # `read`, not $(cat): a builtin, so the walk forks only for the few
-      # claude processes (measured 2026-10-01: one fork per pid made a tick 26 s)
+      # agent processes (measured 2026-10-01: one fork per pid made a tick 26 s)
       comm=""; { read -r comm < "$d/comm"; } 2>/dev/null
-      [[ "$comm" == claude ]] || continue
+      case "$comm" in claude|grok|vibe|"Vibe CLI") ;; *) continue ;; esac
       if [[ -r "$d/environ" ]]; then
         grep -qzx "SPOOL_AGENT_ID=$id" "$d/environ" 2>/dev/null && echo "$pid"
       else
@@ -226,7 +227,7 @@ spl_lease_agent_pid() {
 
 # The SPOOL_AGENT_ID of every live process on this box that carries one,
 # one per line - any agent kind (an agy or grok agent is not a claude process).
-# For the dead-subscription REPORT; the lease itself keeps the claude-only rule.
+# For the dead-subscription REPORT; the lease itself counts claude, grok and vibe.
 # mapfile, not tr/grep: a builtin, so the walk does not fork per process.
 # Another user's process: only its agent CLIs (comm claude/grok/agy/qwen/vibe/node,
 # and "Vibe CLI": vibe renames itself with setproctitle, spawn-mistral.sh)

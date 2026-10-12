@@ -462,9 +462,12 @@ act ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
 grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*vendor: lane-mix orchestration: grok (nudge: grok 0% < 35%)" "$T/o" &&
   grep -qx "LANE_MIX_KIND=orchestration LANE_MIX_REGISTRY=$J" "$T/mix.log" &&
   pass "14. T-ORCH-SPLIT: ROTATE_ORCH_SPLIT=1 and lane-mix picks grok: the SPAWN plan names grok" || fail "14. split plan: $(grep 'SPAWN PLAN' "$T/o"; cat "$T/mix.log" 2>&1)"
-act ROTATE_ORCH_SPLIT=1 >"$T/o" 2>&1
+act ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude" >"$T/o" 2>&1
 grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*does not count a grok process as the holder: claude" "$T/o" &&
-  pass "14. a fleet lease that counts only claude processes (spl_lease_agent_pid today): claude" || fail "14. lease guard: $(grep 'SPAWN PLAN' "$T/o")"
+  pass "14. a fleet lease that counts only claude processes: claude" || fail "14. lease guard: $(grep 'SPAWN PLAN' "$T/o")"
+act ROTATE_ORCH_SPLIT=1 >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*vendor: lane-mix orchestration: grok" "$T/o" &&
+  pass "14. the real lease counts a grok holder (spl_lease_agent_pid, spec 134 P0): grok" || fail "14. real lease: $(grep 'SPAWN PLAN' "$T/o")"
 echo 'pick=hold kind=orchestration reason=none left' >"$T/mix.out"
 act ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
 grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*lane-mix orchestration gave 'hold': claude" "$T/o" &&

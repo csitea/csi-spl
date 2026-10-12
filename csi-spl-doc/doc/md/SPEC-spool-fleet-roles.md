@@ -281,7 +281,7 @@ sequenceDiagram
     participant W as lease watcher
     participant F as c-003 (failover)
     participant O as c-001
-    loop every 60 s while the master's claude process lives and is able to act
+    loop every 60 s while the master's agent process lives and is able to act
         M->>L: write "c-002 <epoch>"
     end
     W->>L: read every 60 s
@@ -298,7 +298,8 @@ sequenceDiagram
 - The lease is one line, `<holder> <epoch>`, in `$SPOOL_ROOT/dispatch/lease`.
   Only the holder dispatches.
 - The **renew loop** follows the master BY AGENT ID: each tick it looks for a
-  live claude process whose environment carries `SPOOL_AGENT_ID=<master>`, so a
+  live agent process (claude, grok or vibe, spec 134 P0) whose environment
+  carries `SPOOL_AGENT_ID=<master>`, so a
   relaunched master is picked up with no manual step. No such process, no
   renewal, and the lease goes stale.
 - **Live means able to act**: a live process is not enough. On

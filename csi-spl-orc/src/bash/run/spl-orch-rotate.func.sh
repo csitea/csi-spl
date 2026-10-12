@@ -173,8 +173,8 @@ spl_orch_rotate_vendor() {
 }
 
 # spl_orch_rotate_lease_sees KIND: 0 when spl_lease_agent_pid finds a KIND
-# process (a probe in a throwaway proc dir). On 2026-10-12 it counts claude
-# only, so a grok orchestrator would hold the role but not the orch lease.
+# process (a probe in a throwaway proc dir). Since spec 134 P0 it counts
+# claude, grok and vibe; the probe keeps the rotation honest if that changes.
 # ROTATE_LEASE_KINDS (tests) names the kinds it counts instead.
 spl_orch_rotate_lease_sees() {
   local d got="" comm="$1"

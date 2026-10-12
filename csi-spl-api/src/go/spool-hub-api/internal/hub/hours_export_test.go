@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/xlsx"
 )
 
@@ -134,5 +136,41 @@ func TestHoursExportCrossWorkspace(t *testing.T) {
 	// CONTROL: the first workspace's export holds the line.
 	if _, body := export(t, e, tid, owner, "?period="+hoursPrevWeek); len(csvLines(t, body)) != 2 {
 		t.Fatalf("CONTROL t1: %s", body)
+	}
+}
+
+// Spec 107 F2: the WUI is another origin, so it reads the hub's file name only
+// when the download exposes Content-Disposition; CSV and XLSX alike.
+func TestHoursExportExposesFileName(t *testing.T) {
+	e, tid, owner, _, _ := exportWeek(t)
+	for _, f := range []string{"csv", "xlsx"} {
+		resp, _ := export(t, e, tid, owner, "?period="+hoursPrevWeek+"&format="+f)
+		if x := resp.Header.Get("Access-Control-Expose-Headers"); resp.StatusCode != http.StatusOK || !strings.Contains(x, "Content-Disposition") {
+			t.Fatalf("%s: %d, Access-Control-Expose-Headers %q, want Content-Disposition", f, resp.StatusCode, x)
+		}
+	}
+}
+
+// Spec 107 F4: a topic line is named by the topic's subject, the first line
+// of its opening message, the text the WUI shows; CSV and XLSX alike.
+func TestHoursExportTopicName(t *testing.T) {
+	e, tid := hoursEnv(t)
+	owner, a := seat(t, e, tid, rbac.BizOwner), seat(t, e, tid, rbac.Developer)
+	task := putTopic(t, e, tid, store.ChannelLobby, "fix the login page", hoursNow.Add(-48*time.Hour))
+	if code, out := putEntries(t, e, tid, a, map[string]any{"entries": []any{entry("2026-10-06", "t:"+task, 45, "approved")}}); code != http.StatusOK {
+		t.Fatalf("a logs the topic: %d %v", code, out)
+	}
+	_, body := export(t, e, tid, owner, "?period=2026-10-06&final=false")
+	rows := csvLines(t, body)
+	if len(rows) != 2 || rows[1][3] != "topic" || rows[1][4] != task || rows[1][5] != "fix the login page" {
+		t.Fatalf("csv rows: %v", rows)
+	}
+	_, body = export(t, e, tid, owner, "?period=2026-10-06&final=false&format=xlsx")
+	cells, err := xlsx.Read(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cells) != 2 || cells[1][5] != "fix the login page" {
+		t.Fatalf("xlsx cells: %v", cells)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -84,16 +85,17 @@ func hoursTargetParts(target string) (typ, id string) {
 	return "other", ""
 }
 
-// hoursNames resolves the names a line shows: members, issues by task, and
-// meetings, read once per download.
+// hoursNames resolves the names a line shows: members, issues by task,
+// topics and meetings, read once per download.
 type hoursNames struct {
 	members  map[string]string
 	issues   map[string]store.Issue // task_id -> issue
+	topics   map[string]string      // task_id -> subject
 	meetings map[string]string      // event id -> title
 }
 
 func (s *Server) hoursExportNames(ctx context.Context, c hoursTeamCaller, d *hoursTeamData) hoursNames {
-	n := hoursNames{members: d.names, issues: map[string]store.Issue{}, meetings: map[string]string{}}
+	n := hoursNames{members: d.names, issues: map[string]store.Issue{}, topics: map[string]string{}, meetings: map[string]string{}}
 	if is, ok := s.o.Store.(store.Issues); ok {
 		all, err := is.ListIssues(ctx, c.tenant.ID)
 		if err != nil {
@@ -105,6 +107,7 @@ func (s *Server) hoursExportNames(ctx context.Context, c hoursTeamCaller, d *hou
 			}
 		}
 	}
+	s.hoursExportTopics(ctx, c, d, n.topics)
 	cal := s.calendarStore()
 	for _, e := range d.entries {
 		id, ok := strings.CutPrefix(e.Target, "cal:")
@@ -122,6 +125,37 @@ func (s *Server) hoursExportNames(ctx context.Context, c hoursTeamCaller, d *hou
 	return n
 }
 
+// hoursExportTopics names the entries' topics by subject, the text the WUI
+// shows: the topic list read through the exporter's own door, so a topic it
+// may not read, or an archived one, keeps no name.
+func (s *Server) hoursExportTopics(ctx context.Context, c hoursTeamCaller, d *hoursTeamData, out map[string]string) {
+	q := store.TopicQuery{Lobby: s.o.LobbyTaskID, Now: s.o.Now()}
+	for _, e := range d.entries {
+		if id, ok := strings.CutPrefix(e.Target, "t:"); ok && id != "" && !slices.Contains(q.TaskIDs, id) {
+			q.TaskIDs = append(q.TaskIDs, id)
+		}
+	}
+	if len(q.TaskIDs) == 0 {
+		return
+	}
+	q.Limit = len(q.TaskIDs)
+	if c.hum != "" {
+		mine, err := s.readerChannels(ctx, c.tenant.ID, c.hum)
+		if err != nil {
+			s.o.Log.Warn().Err(err).Str("tenant", c.tenant.ID).Msg("hours export: reader channels")
+			return
+		}
+		q.Reader, q.ReaderChannels = c.hum, mine
+	}
+	rows, err := s.o.Store.ViewTopics(ctx, c.tenant.ID, q)
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("tenant", c.tenant.ID).Msg("hours export: topics")
+	}
+	for _, r := range rows {
+		out[r.TaskID] = topicView(r).Subject
+	}
+}
+
 // line is the download line of e.
 func (n hoursNames) line(e store.HoursTeamEntry, row *store.HoursPeriod, state string) hoursExportLine {
 	l := hoursExportLine{Date: e.Day, Member: e.Member, MemberName: n.members[e.Member], Minutes: e.Minutes,
@@ -132,6 +166,8 @@ func (n hoursNames) line(e store.HoursTeamEntry, row *store.HoursPeriod, state s
 	case "topic":
 		if i, ok := n.issues[l.TargetID]; ok {
 			l.TargetType, l.TargetName, l.IssueKey = "issue", i.Title, i.Key()
+		} else {
+			l.TargetName = n.topics[l.TargetID]
 		}
 	case "channel":
 		l.TargetName = l.TargetID
@@ -274,6 +310,7 @@ func (s *Server) handleGetHoursExport(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Type", ctype)
 	h.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="hours-%s-%s-%s.%s"`, c.tenant.ID,
 		q.start.Format(hoursDayLayout), q.end.Format(hoursDayLayout), format))
+	h.Set("Access-Control-Expose-Headers", "Content-Disposition") // the WUI saves under the hub's name
 	h.Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	w.Write(body) //nolint:errcheck

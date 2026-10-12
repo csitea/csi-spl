@@ -94,7 +94,7 @@ res["issues"] = issues
 res["next_cursor"] = ""
 base["result"] = res
 json.dump(base, sys.stdout, sort_keys=True)
-print()
+sys.stdout.write("\n")
 PY
 }
 

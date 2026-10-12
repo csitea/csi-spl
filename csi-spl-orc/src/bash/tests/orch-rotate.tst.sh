@@ -37,6 +37,12 @@
 #      gets no /exit, and the SIGTERM line carries the screen
 #------------------------------------------------------------------------------
 set -uo pipefail
+# hermetic: the verdict never depends on the caller's shell. Agent shells export
+# SPOOL_BOX_TAG (sat) and the like, and the action reads them (an env box tag
+# beats the old window's <ID>@<tag>), so drop every inherited knob it reads;
+# the sandbox below sets the ones it needs.
+while read -r v; do unset "$v"; done < <(compgen -e | grep -E '^(SPOOL_|ROTATE_|LEASE_)')
+unset CLAUDE_BIN MISTRAL_BIN
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 fails=0

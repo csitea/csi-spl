@@ -169,6 +169,14 @@ out="$(bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
   pass "the cron script runs the action with DRY_RUN=0" || fail "cron run (rc=$rc): $out"
 out="$(RUN_RC=1 bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
 [[ $rc -eq 1 && "$out" == *'FAIL CI overflow route rc=1'* ]] && pass "a failed route: exit 1" || fail "cron fail (rc=$rc): $out"
+printf '#!/usr/bin/env bash\necho "token=${GH_TOKEN:-unset}" >"%s/tok"\n' "$T" >"$SH/csi-spl-orc/run"
+echo tok-from-file >"$T/token"
+out="$(env -u GH_TOKEN GH_CONFIG_DIR="$T/nogh" CI_OVERFLOW_GH_TOKEN_FILE="$T/token" bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/tok")" == token=tok-from-file ]] &&
+  pass "gh not logged in: the cron script gives the action GH_TOKEN from the token file" || fail "token file (rc=$rc): $out / $(cat "$T/tok" 2>&1)"
+out="$(GH_TOKEN=set-before GH_CONFIG_DIR="$T/nogh" CI_OVERFLOW_GH_TOKEN_FILE="$T/token" bash "$SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/tok")" == token=set-before ]] &&
+  pass "a GH_TOKEN already set is kept" || fail "token kept (rc=$rc): $out / $(cat "$T/tok" 2>&1)"
 WT="$T/csi-spl-wt/c-9"; mkdir -p "$WT"; cp -a "$SH/csi-spl-orc" "$WT/"
 out="$(bash "$WT/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh" 2>&1)"; rc=$?
 [[ $rc -eq 2 && "$out" == *'agent worktree'* ]] && pass "an agent worktree is refused" || fail "worktree (rc=$rc): $out"

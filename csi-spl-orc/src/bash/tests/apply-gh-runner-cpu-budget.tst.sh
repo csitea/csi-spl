@@ -433,6 +433,14 @@ printf '#!/usr/bin/env bash\necho "floor=${CPU_BUDGET_GATE_FLOOR_PCT:-unset}" >"
 out="$(CPU_BUDGET_GATE_FLOOR_PCT=500 bash "$SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh" 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$T/env")" == floor=500 ]] &&
   pass "the cron script passes CPU_BUDGET_GATE_FLOOR_PCT to the action (the switch-on path)" || fail "cron env (rc=$rc): $out / $(cat "$T/env" 2>&1)"
+printf '#!/usr/bin/env bash\necho "token=${GH_TOKEN:-unset}" >"%s/tok"\n' "$T" >"$SH/csi-spl-orc/run"
+echo tok-from-file >"$T/token"
+out="$(env -u GH_TOKEN GH_CONFIG_DIR="$T/nogh" CPU_BUDGET_GH_TOKEN_FILE="$T/token" bash "$SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/tok")" == token=tok-from-file ]] &&
+  pass "gh not logged in: the cron script gives the action GH_TOKEN from the token file" || fail "token file (rc=$rc): $out / $(cat "$T/tok" 2>&1)"
+out="$(GH_TOKEN=set-before GH_CONFIG_DIR="$T/nogh" CPU_BUDGET_GH_TOKEN_FILE="$T/token" bash "$SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/tok")" == token=set-before ]] &&
+  pass "a GH_TOKEN already set is kept" || fail "token kept (rc=$rc): $out / $(cat "$T/tok" 2>&1)"
 WT="$T/csi-spl-wt/c-9"; mkdir -p "$WT"
 cp -a "$SH/csi-spl-orc" "$WT/"
 out="$(bash "$WT/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh" 2>&1)"; rc=$?

@@ -28,6 +28,10 @@
 #            the contrib setuptool; a caller's GH_RUNNER_SETUPTOOL wins
 #          - boot: a running but DISABLED rootless docker unit is enabled;
 #            every runner unit gets the Restart=always drop-in, written once
+#          - rootless docker publishes in GH_RUNNER_DOCKER_PORT_RANGE (default
+#            61000 65535): the DOCKERD wrapper + drop-in, written once; a live
+#            docker on another range is restarted only while no job runs;
+#            the wrapper sets the sysctl and execs dockerd with its args
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -55,6 +59,7 @@ while [[ "${1:-}" == -* ]]; do
 done
 case "$1" in
   test) [[ "$2" == -S ]] && exit 0; exec "$@" ;;
+  cat) [[ "$2" == */dockerd-rootless/child_pid ]] && { echo 4242; exit 0; }; exec "$@" ;;
   useradd) echo "$u $*" >>"$MUT_LOG"; touch "$STATE/user"; exit 0 ;;
   usermod|loginctl|chmod|curl|apt-get) echo "$u $*" >>"$MUT_LOG"; exit 0 ;;
   gpasswd) echo "$u $*" >>"$MUT_LOG"; touch "$STATE/nodocker"; exit 0 ;;
@@ -99,8 +104,20 @@ cat >"$T/bin/systemctl" <<'EOF'
 [[ "$1 $3 $4" == "show -p ControlGroup" ]] && { echo "/system.slice/$2"; exit 0; }
 [[ "$*" == "--user is-active --quiet docker" ]] && { [[ -e "$STATE/rootless" ]]; exit; }
 [[ "$*" == "--user is-enabled --quiet docker" ]] && { [[ -e "$STATE/enabled" ]]; exit; }
+[[ "$*" == "--user restart docker" ]] && { echo "systemctl $*" >>"$MUT_LOG"; echo "61000 65535" >"$STATE/range"; exit 0; }
+[[ "$*" == "--user daemon-reload" ]] && { echo "systemctl $*" >>"$MUT_LOG"; exit 0; }
 [[ "$1 $2" == "--user enable" ]] && { echo "systemctl $*" >>"$MUT_LOG"; touch "$STATE/enabled"; exit 0; }
 exit 0
+EOF
+# the rootless docker netns: its live port range, and a job running or not
+cat >"$T/bin/nsenter" <<'EOF'
+#!/usr/bin/env bash
+[[ "$*" == "-U --preserve-credentials -n -t 4242 cat /proc/sys/net/ipv4/ip_local_port_range" ]] || exit 1
+cat "$STATE/range" 2>/dev/null || printf '32768\t60999\n'
+EOF
+cat >"$T/bin/pgrep" <<'EOF'
+#!/usr/bin/env bash
+[[ "$*" == "-u ghrunner -x Runner.Worker" && -e "$STATE/busy" ]]
 EOF
 cat >"$T/bin/setuptool" <<'EOF'
 #!/usr/bin/env bash
@@ -179,6 +196,18 @@ grep -q 'systemctl --user enable' "$MUT_LOG" && ok "the rootless docker unit is 
    && "$(grep -c '60-restart.conf' "$MUT_LOG")" == 2 ]] \
   && ok "every runner unit gets the Restart=always drop-in, then one daemon-reload" || no "restart drop-in: $(grep 60-restart "$MUT_LOG"; ls -R "$UNIT_DIR" 2>&1)"
 : >"$SYSD_LOG"
+[[ "$(cat "$T/home/.config/systemd/user/docker.service.d/50-port-range.conf" 2>/dev/null)" == "[Service]
+Environment=DOCKERD=$T/home/.local/bin/csi-spl-dockerd" && -x "$T/home/.local/bin/csi-spl-dockerd" ]] \
+  && grep -q 'echo "61000 65535" >/proc/sys/net/ipv4/ip_local_port_range' "$T/home/.local/bin/csi-spl-dockerd" \
+  && ok "rootless docker gets the DOCKERD wrapper on 61000 65535 and its drop-in" || no "port range files: $(ls -R "$T/home" 2>&1)"
+[[ "$(grep -c -e '--user restart docker' -e '--user daemon-reload' "$MUT_LOG")" == 2 ]] && grep -q 'restarted (idle) onto ports 61000 65535 (was 32768 60999)' "$T/log" \
+  && ok "an idle docker on the host's range: one daemon-reload, one restart onto 61000 65535" || no "port restart: $(grep -e --user "$MUT_LOG"; grep -i 'port' "$T/log")"
+# control: the wrapper itself sets the range and hands dockerd its arguments
+mkdir -p "$T/dk"; printf '#!/bin/sh\necho "dockerd $*" >"%s/dk/args"\n' "$T" >"$T/dk/dockerd"; chmod +x "$T/dk/dockerd"
+sed "s#/proc/sys/net/ipv4/ip_local_port_range#$T/dk/range#" "$T/home/.local/bin/csi-spl-dockerd" >"$T/dk/w"
+PATH="$T/dk:$PATH" sh "$T/dk/w" --a b >/dev/null 2>&1
+[[ "$(cat "$T/dk/range" 2>/dev/null)" == "61000 65535" && "$(cat "$T/dk/args" 2>/dev/null)" == "dockerd --a b" ]] \
+  && ok "control: the wrapper writes the range, then execs dockerd with its args" || no "wrapper run: $(cat "$T/dk/range" "$T/dk/args" 2>&1)"
 
 : >"$T/log"; : >"$RUN_LOG"; : >"$MUT_LOG"
 GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "second apply exits 0" || no "second apply failed: $(tail -3 "$T/log")"
@@ -188,6 +217,18 @@ GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "second 
 [[ "$(grep -c -- '- kept' "$T/log")" == 2 ]] && ! grep -q 'useradd\|setuptool\|^pull ' "$MUT_LOG" && ok "existing runners, user and docker are kept" || no "kept: $(cat "$T/log" "$MUT_LOG")"
 [[ "$(grep -c 'svc.sh start' "$RUN_LOG")" == 2 && "$(grep -c 'svc.sh install' "$RUN_LOG")" == 0 ]] && ok "kept services are only started" || no "svc 2nd: $(cat "$RUN_LOG")"
 ! grep -q '60-restart.conf\|--user enable' "$MUT_LOG" && ok "apply twice: the restart drop-in is written once, docker enabled once" || no "rewritten: $(cat "$MUT_LOG")"
+! grep -q -e '--user restart' -e '--user daemon-reload' "$MUT_LOG" && ok "apply twice: docker on the right range is neither reloaded nor restarted" || no "port re-applied: $(cat "$MUT_LOG")"
+
+# a docker still on the host's range while a job runs: WARN, no restart; idle: restart
+rm -f "$STATE/range"; touch "$STATE/busy"; : >"$T/log"; : >"$MUT_LOG"
+GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ! grep -q -e '--user restart' "$MUT_LOG" && grep -q 'WARN .*a job runs, so it is not restarted now' "$T/log" \
+  && ok "a busy box: the docker is never restarted under a running job, only a WARN" || no "busy restart: $(cat "$MUT_LOG"; grep -i port "$T/log")"
+rm -f "$STATE/busy"; : >"$MUT_LOG"
+GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && [[ "$(grep -c -e '--user restart docker' "$MUT_LOG")" == 1 ]] \
+  && ok "...and the next apply on an idle box restarts it onto the range" || no "idle restart: $(cat "$MUT_LOG")"
+for r in "70000 80000" "61000" "2000 1500" "100 2000"; do
+  GH_RUNNER_DOCKER_PORT_RANGE="$r" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g act && no "port range '$r' must fail" || ok "GH_RUNNER_DOCKER_PORT_RANGE '$r' is refused"
+done
 
 # the sat 2026-10-08 state: docker running (started by hand) but disabled
 rm -f "$STATE/enabled"; : >"$T/log"; : >"$MUT_LOG"; : >"$SYSD_LOG"

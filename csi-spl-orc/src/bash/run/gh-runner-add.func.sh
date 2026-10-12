@@ -47,6 +47,13 @@
 # @param GH_RUNNER_DROP_DOCKER_GROUP (optional) - 1: an existing runner user
 # @param   in the `docker` group (an older install, e.g. the PC box's) is taken
 # @param   out of it (gpasswd -d) instead of refused. Default 0: refused
+# @param GH_RUNNER_DOCKER_PORT_RANGE (optional) - "<lo> <hi>": the ports the
+# @param   runner user's rootless docker publishes on (-p 127.0.0.1::<port>).
+# @param   Default "61000 65535", above the host's ephemeral range: rootless
+# @param   docker picks them inside its own netns, blind to the host's, so in
+# @param   the shared 32768.. range it hands out a port the box's docker (or
+# @param   an agent) already holds - "RootlessKit PortManager.AddPort():
+# @param   bind: address already in use" (a box-spl-01 job, 2026-10-12)
 # @param GH_RUNNER_UNIT_DIR (optional) - where the slice drop-ins go, default
 # @param   /etc/systemd/system. Every runner unit is placed in the runner
 # @param   user's slice (Slice=user-<uid>.slice), the one cgroup that
@@ -225,7 +232,42 @@ ghr_setup_user() {
     fi
     do_log "OK rootless docker of $u enabled: it starts at boot"
   fi
+  ghr_docker_port_range || return 1
   ghr_docker docker info >/dev/null 2>&1 || { do_log "FATAL $u's rootless docker does not answer"; return 1; }
+}
+
+# ghr_docker_port_range - the rootless dockerd's netns gets
+# GHR_PORT_RANGE as ip_local_port_range BEFORE dockerd starts (its port
+# allocator reads it once): dockerd-rootless.sh execs $DOCKERD, so a drop-in
+# points DOCKERD at a wrapper that writes the sysctl (it runs as root of the
+# netns) and execs dockerd. A live docker on another range is restarted only
+# while no job runs on this box (no Runner.Worker of the user); a busy one is
+# a WARN, and the next apply restarts it
+ghr_docker_port_range() {
+  local u="$GHR_USER" bin="$GH_RUNNER_HOME/.local/bin/csi-spl-dockerd" live child changed=0
+  local dropin="$GH_RUNNER_HOME/.config/systemd/user/docker.service.d/50-port-range.conf" want
+  want="$(printf '#!/bin/sh\n# csi-spl (do_gh_runner_add): publish ports in %s, never in the host'"'"'s ephemeral range\necho "%s" >/proc/sys/net/ipv4/ip_local_port_range || echo "csi-spl-dockerd: cannot set ip_local_port_range" >&2\nexec dockerd "$@"' "$GHR_PORT_RANGE" "$GHR_PORT_RANGE")"
+  if [[ "$(ghr_as "$u" cat "$bin" 2>/dev/null)" != "$want" ]]; then
+    printf '%s\n' "$want" | ghr_as "$u" sh -c 'mkdir -p "${1%/*}" && cat >"$1" && chmod 0755 "$1"' _ "$bin" \
+      || { do_log "FATAL cannot write $bin"; return 1; }
+    changed=1
+  fi
+  if [[ "$(ghr_as "$u" cat "$dropin" 2>/dev/null)" != "$(printf '[Service]\nEnvironment=DOCKERD=%s' "$bin")" ]]; then
+    printf '[Service]\nEnvironment=DOCKERD=%s\n' "$bin" | ghr_as "$u" sh -c 'mkdir -p "${1%/*}" && cat >"$1"' _ "$dropin" \
+      || { do_log "FATAL cannot write $dropin"; return 1; }
+    changed=1
+  fi
+  ((changed)) && { ghr_as "$u" systemctl --user daemon-reload || return 1; do_log "OK rootless docker of $u publishes ports in $GHR_PORT_RANGE (drop-in $dropin)"; }
+  child="$(sudo cat "/run/user/$GHR_UID/dockerd-rootless/child_pid" 2>/dev/null)"
+  [[ "$child" =~ ^[0-9]+$ ]] && live="$(ghr_as "$u" nsenter -U --preserve-credentials -n -t "$child" cat /proc/sys/net/ipv4/ip_local_port_range 2>/dev/null | tr -s ' \t' ' ')"
+  [[ "$live" == "$GHR_PORT_RANGE" ]] && return 0
+  if pgrep -u "$u" -x Runner.Worker >/dev/null 2>&1; then
+    do_log "WARN rootless docker of $u still publishes in ${live:-an unknown range}: a job runs, so it is not restarted now - re-run APPLY=1 when the runners are idle"
+    return 0
+  fi
+  ghr_as "$u" systemctl --user restart docker && ghr_as "$u" systemctl --user is-active --quiet docker \
+    || { do_log "FATAL rootless docker of $u did not come back after the restart"; return 1; }
+  do_log "OK rootless docker of $u restarted (idle) onto ports $GHR_PORT_RANGE (was ${live:-unknown})"
 }
 
 # ghr_docker <cmd...> - run against the runner user's rootless docker
@@ -403,6 +445,7 @@ do_gh_runner_add() {
   GHR_REPO="${GH_RUNNER_REPO:-}" GHR_GROUP="${GH_RUNNER_GROUP:-}" GHR_N="${RUNNER_COUNT:-2}"
   GHR_USER="${GH_RUNNER_USER:-ghrunner}" GHR_ROOT="${GH_RUNNER_ROOT:-/srv/gh-runner}"
   GHR_DATA_ROOT="${GH_RUNNER_DATA_ROOT:-}" GHR_CPU_WEIGHT="${GH_RUNNER_CPU_WEIGHT:-}"
+  GHR_PORT_RANGE="${GH_RUNNER_DOCKER_PORT_RANGE:-61000 65535}"
   GHR_MIN_FREE="${GH_RUNNER_MIN_FREE_GB:-8}" GH_RUNNER_HOME="${GH_RUNNER_HOME:-/var/lib/$GHR_USER}"
   [[ "$GHR_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
     || { do_log "FATAL GH_RUNNER_REPO must be <owner>/<repo> (no default)"; return 1; }
@@ -416,11 +459,13 @@ do_gh_runner_add() {
     || { do_log "FATAL GH_RUNNER_CPU_WEIGHT must be 1..10000, got: $GHR_CPU_WEIGHT"; return 1; }
   [[ -z "${GH_RUNNER_GO_CACHE_ROOT:-}" || ( "$GH_RUNNER_GO_CACHE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ && "$GH_RUNNER_GO_CACHE_ROOT" != *..* ) ]] \
     || { do_log "FATAL GH_RUNNER_GO_CACHE_ROOT must be an absolute path, got: $GH_RUNNER_GO_CACHE_ROOT"; return 1; }
+  [[ "$GHR_PORT_RANGE" =~ ^([0-9]{4,5})\ ([0-9]{4,5})$ ]] && ((BASH_REMATCH[1] >= 1024 && BASH_REMATCH[1] < BASH_REMATCH[2] && BASH_REMATCH[2] <= 65535)) \
+    || { do_log "FATAL GH_RUNNER_DOCKER_PORT_RANGE must be \"<lo> <hi>\", 1024 <= lo < hi <= 65535, got: $GHR_PORT_RANGE"; return 1; }
   GHR_ORG="${GHR_REPO%%/*}"
   ghr_check_group || return 1
   ghr_plan
   if [[ "${APPLY:-0}" != 1 ]]; then
-    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker enabled at boot, workflow images cached); runner units Restart=always; job-completed cleanup under ${GHR_MIN_FREE}G free; Go caches in ${GH_RUNNER_GO_CACHE_ROOT:-the current .env of each runner}; CPUWeight ${GHR_CPU_WEIGHT:-unchanged}; units in user-<uid>.slice; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
+    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker enabled at boot and publishing in $GHR_PORT_RANGE, workflow images cached); runner units Restart=always; job-completed cleanup under ${GHR_MIN_FREE}G free; Go caches in ${GH_RUNNER_GO_CACHE_ROOT:-the current .env of each runner}; CPUWeight ${GHR_CPU_WEIGHT:-unchanged}; units in user-<uid>.slice; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
     do_log "OK DRY_RUN nothing changed. Re-run with APPLY=1."
     return 0
   fi

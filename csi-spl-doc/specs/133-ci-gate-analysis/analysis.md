@@ -1,8 +1,8 @@
 # 133: CI gate analysis
 
-Status: **draft v0.9** (editor c-296, 2026-10-12). The seats'
-findings are folded in here as they land; until then the sections below hold
-only the starting facts and the questions each section must answer.
+Status: **v1.0, signed** (editor c-296, 2026-10-12T07:34Z). All five seats
+are folded in (section 3). The axis set is section 4, the ranked fixes are
+section 5, and the CI-refactor seat measures every round against them.
 
 ## 1. Starting facts
 
@@ -265,7 +265,7 @@ logs, `gh api repos/csitea/csi-spl/actions/jobs/<id>/logs | grep -E '\.test\.mjs
 | seat | file | area | status | sha |
 |---|---|---|---|---|
 | A | [seat-a.md](seat-a.md) | wall time, queue wait, runners | accepted, folded (2.4, 2.5) | `542870ae9` |
-| B | `seat-b.md` | red causes, flakes | pending | |
+| B | [seat-b.md](seat-b.md) | red causes, flakes, why pre-push missed them | folded (3.2, X8, F1) | `fe55b9b85` |
 | C | [seat-c.md](seat-c.md) | per-part selection | v0.2, review fixes in, folded | `15fe61d85` |
 | D | [seat-d.md](seat-d.md) | slow suites | folded (2.6) | `f88aa9356` |
 | E | [seat-e.md](seat-e.md) | triggers, concurrency, supersede | seat closed; folded with editor corrections (3.1) | `709f4726d` |
@@ -295,6 +295,42 @@ Kept from seat E: the flow map (triggers and concurrency of wf 10, 20 and
 attribution and latency rather than runner time, the merge-queue trade-off
 (F6), and that neither deploy waits for wf 10 (section 2.1).
 
+### 3.2 Seat B: the reds are defects, mostly in suites pre-push cannot run
+
+From seat-b.md `fe55b9b85` (wf 10 master, newest 1000 runs, 2026-10-08T19:50Z
+..2026-10-12T06:36Z, n=127 verdicts, 96 of 109 failure runs with jobs):
+
+1. **Red 76.8 of 82.8 h** (92.8 %), 11 streaks; the longest, R9, is 42.51 h
+   of overlapping assertion failures.
+2. **Non-code reds are rare.** 1 of 96 red verdicts has only timeout or
+   runner-lost first-red jobs (1.0 %), 2 of 96 with the one opened e2e flake
+   (R8). 95 of 96 carry an assertion failure. Timeouts and lost runners are
+   21 of 209 first-red job ROWS (10 %), almost all beside a real failure.
+3. **46 % of first-red rows (97/209) are suites with no local pre-push
+   part:** browser e2e 48, nuxt generate 31, orc feature tests 18. Editor
+   re-check on `fe55b9b85`, `csi-spl-iac/src/bash/run/check-pre-push.func.sh`:
+   `grep -c test:e2e` 0, `grep -c perf-budget` 0, `grep -c run-ci-tests` 0,
+   `grep -c wui-e2e` 7 (the capped e2e part from `744f8d4f8`, after the
+   window).
+4. **One ceiling, measured: the gzip budget.** 31 of 31 generate first-reds
+   failed the step `Initial JS gzip stays within the performance budget`.
+   Editor re-check: `gh api repos/csitea/csi-spl/actions/jobs/113792563218/logs
+   | grep "FAIL ci_"` -> `FAIL ci_initial_gzip_kb 155.1 > 155` and
+   `FAIL ci_home_gzip_kb 352.9 > 352.1` (run 37921855024, sha `9900bfae34`),
+   as seat B states. The build sits 0.1 KB over the line and crosses it
+   again after each green.
+5. **The parts that exist are skipped, by design.** On the 38 failing shas
+   with a local PASS, the red CI suite was `SKIP-untouched` locally on 21;
+   only 2 rows are a part that ran and passed, then failed in CI.
+   `WARN-pre-existing` (orc 20, iac 14, api 2 attempts) lets pushes land on a
+   red suite, which is how R9 lasted 42.5 h.
+6. **`gate10-fail-fast.tst.sh` was a 3 s clock race, n=3** (runs
+   38190838689, 38197054999, 38209222818), fixed by `f3c92877a`; pre-push
+   missed it because it only fails on a loaded runner.
+
+**What it changes here:** X8 is redefined (section 4) and F1 becomes
+"clear the standing defects", not "fix the flakes" (section 5).
+
 ## 4. The axes (ONE set, 5-8)
 
 Each axis: what it measures, the exact command, the baseline now (with sha,
@@ -311,12 +347,19 @@ before and after on every axis.
 | X6 | **runner queue on the critical path**, p90 min | seat A appendix A, line `queue_on_path` | 24.0 (n=82) | <= 3 |
 | X7 | **jobs at timeout risk** (p90 over 75% of `timeout-minutes`) | `cd csi-spl-iac && CI_GATE_RUNS=100 ./run -a do_report_ci_gate`, block `timeout headroom` | 6 of 13 (n=12) | 0 of 13 |
 
-**X8 is reserved for seat B** (red causes): the share of red verdicts whose
-first red job is not a code defect (flake, timeout, runner lost).
+| X8 | **first-red job rows on a suite pre-push cannot run** (browser e2e, nuxt generate / budget, orc feature tests), % of first-red rows | seat B section 0 first-red rule (drop jobs annotated `gate fail-fast: stopped`), seat-b.md axis A2 | 97 / 209 = 46 % (96 red runs, 82.8 h to 2026-10-12T06:36Z) | <= 10 % |
+
+**Why X8 is not the non-code share.** The draft reserved X8 for the share of
+red verdicts that are flake, timeout or lost runner. Seat B measured it at
+1.0 % (2.1 % with the R8 flake, n=96), already under its 2 % target, so it
+cannot steer a round. It stays as a guard indicator below. The lever that
+does move the red is the share of reds that no local gate could have caught.
 
 - **What the owner feels: X1..X3. The levers: X4..X8.** Each refactor round
   reports before and after on all of them, from the same window length.
-- **Supporting indicators**, not targets: share of runs that ran wui-e2e
+- **Supporting indicators**, not targets: non-code red verdicts (seat B
+  X8, 1.0 %, guard under 2 %), generate budget breaches (seat B A3, 31/31),
+  local PASS then the same suite red in CI (seat B A5, 2 rows), share of runs that ran wui-e2e
   (seat C C-X4: 100% today vs 27.7% of pushes touching wui), docs-only pushes
   with a verdict and no code job (C-X3: 0 of 220), queue minutes with 3 or
   fewer runners online (seat A A4: 62%), and per-suite job duration p50 / p90
@@ -329,18 +372,18 @@ first red job is not a code defect (flake, timeout, runner lost).
 
 ## 5. Candidate fixes, ranked by expected axis gain per effort
 
-Draft ranking; seat B's red causes can still move F1 and F2. Effort: S = one
+Signed ranking (v1.0). Effort: S = one
 lane, under a day; M = one lane, a few rounds; L = several lanes or a policy
 change. One fix per refactor round, each measured on X1..X8.
 
 | rank | fix | axes it moves (expected) | effort | risk | from |
 |---|---|---|---|---|---|
 | F0 | **`do_report_ci_axes`**: one named action that prints X1..X8 from M-RUNS + M-JOBS (+ sat cron.out for queue), with its test | none itself; every later round is measured with it | S | none | editor ("nothing ad hoc") |
-| F1 | **Fix the known non-code reds**: pin the calendar e2e clock (K4); the iac fail-fast check and the lane-mix table test (K5); give the at-risk jobs headroom (orc hermetic 2/2 at 101%) | X3 6% -> most verdicts green; X2 down by the share of reds they cause (seat B); X7 6 -> <=2 | S | low | c-002, seat A, seat B |
+| F1 | **Clear the standing defects, and close the suites pre-push cannot run**: get the initial JS back under the gzip budget with headroom, or reset the budget with the owner (31/31 generate first-reds); give orc feature tests and the budget a local part, next to the new capped e2e part; fix the known clocks (calendar e2e K4, gate10 done in `f3c92877a`); orc hermetic headroom (done in part, `94cd17be3`) | X3 6% -> most verdicts green; X2; X8 46% -> <=10%; X7 6 -> <=2 | S..M | low | c-002, seat A, seat B |
 | F2 | **Per-job selection with a per-job base** (K8 = K1 done safely): job J skips when nothing since J's own last success touches its inputs; fail-safe full gate on workflows, shared libs, lockfiles, unmapped paths; the **hourly verdict always full**; a drift test keeps the map in step | X5 152 -> ~55 job-min (seat C models 58-65% saved on a green trunk); X4 on non-wui pushes drops to the slowest non-e2e path (hub ~15-29 min); X1 follows X4 (about two minutes per minute cut, seat A) | M | an allow-list miss, bounded to one hour by the full hourly verdict | seat C, editor |
 | F3 | **Do not park runners while a gate job is queued**, within the 80% CPU ceiling (budget policy in `apply-gh-runner-cpu-budget.func.sh`) | X6 24 -> <=5 min (62% of queue minutes fell with <=3 online); X4 a little | S | agents get less CPU while the gate runs | seat A |
 | F4 | **Shorten the e2e shard** (the critical job in 70 of 82 runs): rebalance the shards on the per-file times the runner already logs (5.5 min spread today), then speed up the phone and calendar files, reuse one browser per shard, cut fixed sleeps | X4 32.9 -> ~25; X7; X1 | M | flakes from shared browser state | seat D |
-| F5 | **Name the lane that caused a red, at once** (K7) | X2 (time a red stays) | S | noise if attribution is wrong (one verdict covers ~10 pushes) | c-002 |
+| F5 | **Name the lane that caused a red, at once** (K7), and time-box `WARN-pre-existing` so a waiver cannot keep a suite red for a day (R9: 42.5 h) | X2 (time a red stays) | S | noise if attribution is wrong (one verdict covers ~10 pushes) | c-002, seat B |
 | F6 | **Merge queue** (K9): the verdict runs before the land | X2 -> ~0 | L | every land waits ~W; a flaky gate blocks all lands, so only after F1..F4 | seat E |
 
 Not ranked, for the owner (section 6): **deploys do not wait for the gate**
@@ -350,11 +393,28 @@ deploy.
 
 Why this order: F1 first, because a per-job base (F2) keeps re-running a red
 job until it is green, so selection pays off only once the reds are not
-permanent. F3 is a small policy change with a large queue cut. F4 is the
+permanent. Seat B confirms it: 95 of 96 red verdicts are assertion failures,
+and almost half of the red rows come from suites no local gate runs. F3 is a small policy change with a large queue cut. F4 is the
 largest single run-time cut but takes several rounds. F6 is last because it
 amplifies whatever red rate is left.
 
-### 5.1 The candidates as they came in
+### 5.1 Already landed before v1.0
+
+The owner ordered CI actions directly (t1 f67e3656, msg 52474112) while the
+panel was still writing, so parts of the list are built. Check:
+`git log --oneline 8c4f2c4fe..fe55b9b85` and `git log -1 8a79c19c1`.
+
+| commit | what | fix |
+|---|---|---|
+| `8a79c19c1` | wf 10 runs only the parts a push touched, each from its own last green run; schedule run = full gate | F2 (lane L1) |
+| `744f8d4f8` | pre-push runs the e2e files a WUI change touches, at most 6, 240 s | F1, part of X8 |
+| `94cd17be3` | orc hermetic shards packed by measured time (worst shard -15 %) | F1 headroom / X7 |
+| `f3c92877a` | gate10-fail-fast test ordered by events, not a 3 s clock | F1 |
+
+Their effect is not measured yet: the CI-refactor seat's first job is F0, then
+the before/after of these four on X1..X8.
+
+### 5.2 The candidates as they came in
 
 c-002's 7 actions, posted to the owner
 (https://spool-hub.ai/m/a3cf1826-933b-4279-9f9d-4d9f207791d1; n=60 runs,
@@ -371,29 +431,19 @@ suites faster (-> F4); K7 a red names its lane (-> F5). K8 per-job base
    and wf 30 deploy on their own `test` job (section 2.1). While the gate is
    red 96% of the time, gating would stop every deploy, so this comes up
    after F1/F2 at the earliest.
-2. **For seat B:** what share of the 48 red verdicts are flakes, timeouts or
-   lost runners rather than code defects (X8), and why pre-push missed the
-   code ones.
+2. ~~For seat B: the share of non-code reds.~~ Answered: 1.0 % (2.1 %),
+   section 3.2.
 3. **For the builders of F2:** the per-job base needs the last success per
    job, not per run. Is the jobs API enough, or does the gate write it?
 
-## 7. Editor state (2026-10-12 07:22Z, for a successor)
+## 7. Editor state (2026-10-12, at v1.0)
 
-- Folded: seat A `542870ae9`, C `15fe61d85`, D `f88aa9356`; E `709f4726d`
-  with editor corrections (3.1; its seat closed itself on forged ACCEPTED
-  messages, c-001 msg 648542c1).
-- **Open: seat B** (g-858@sat, red causes and flakes). On landing: review it
-  (every number with command, sha and n), fill **X8** in section 4 and
-  re-check the F1 vs F2 order in section 5 against its split of reds.
-- Then sign **v1.0** here and in spec.md, and only then send "ACCEPTED" to
-  each live seat (A c-298, B g-858@sat, C c-297, D a-295). Until v1.0 a seat
-  gets "folded", never "ACCEPTED".
-- Report v1.0 to c-001@sat and to the current dispatch holder
-  (`LEASE_CMD=show ./run -a do_spl_dispatch_lease`) on task
-  `dispatch-f67e3656`. Builders start only after v1.0; the editor then stays
-  as the CI-refactor seat, one ranked fix per round, F0 first.
-- Datasets M-RUNS / M-JOBS (section 1.1) are re-fetchable with the commands
-  given; the editor's scratch copies are not in git.
+- All seats folded: A `542870ae9`, B `fe55b9b85`, C `15fe61d85`, D
+  `f88aa9356`, E `709f4726d` with editor corrections (3.1).
+- v1.0 signed here and in spec.md; ACCEPTED goes to the live seats (A c-298,
+  B g-858@sat, C c-297, D a-295) only after this commit landed.
+- Next: the CI-refactor seat (this editor), one ranked fix per round, F0
+  first, then the before/after of section 5.1 on X1..X8.
 
 ## 8. Sign-off
 
@@ -408,3 +458,4 @@ suites faster (-> F4); K7 a red names its lane (-> F5). K8 per-job base
 | v0.7 | 2026-10-12 | c-296 | folded axis set X1..X7 (X8 for seat B); draft ranking F0..F6 |
 | v0.8 | 2026-10-12 | c-296 | seat D folded (2.6) |
 | v0.9 | 2026-10-12 | c-296 | seat E folded with editor corrections (3.1) |
+| **v1.0** | 2026-10-12 | c-296 | seat B folded (3.2); X8 = first-red rows with no local part; F1 = standing defects; 5.1 landed fixes. **Signed.** |

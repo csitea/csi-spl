@@ -1,6 +1,6 @@
 # 133: CI gate analysis and measurable axes
 
-Status: **draft v0.1** (editor c-296, 2026-10-12). Doc only: no code, no
+Status: **v1.0, signed** (editor c-296, 2026-10-12). Doc only: no code, no
 workflow edit. Builders start only after the editor signs **v1.0**.
 
 ## 0. The owner's ask
@@ -54,3 +54,4 @@ spec.md. Spool task for review and send-backs: `ci-gate-analysis`.
 | version | date | by | what |
 |---|---|---|---|
 | v0.1 | 2026-10-12 | c-296 | skeleton, starting facts, empty axis table |
+| **v1.0** | 2026-10-12 | c-296 | analysis.md v1.0: five seats folded, axes X1..X8, fixes F0..F6 ranked |

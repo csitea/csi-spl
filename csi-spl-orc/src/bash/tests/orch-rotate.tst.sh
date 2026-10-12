@@ -35,6 +35,13 @@
 #      RETIRE types /exit, no SIGTERM; background work: the /exit picker's
 #      "Exit and stop tasks" gets Enter; control: a pane that never turns idle
 #      gets no /exit, and the SIGTERM line carries the screen
+#  14. T-ORCH-ACK-HEAD + T-ORCH-SPLIT: the spawn gets a head file holding the
+#      ACK-COMMAND (any vendor); ROTATE_ORCH_SPLIT=0 = claude, lane-mix not
+#      asked; =1 = lane-mix LANE_MIX_KIND=orchestration over the role journal
+#      names the vendor (grok in the SPAWN plan); a lease that counts only
+#      claude, or pick=hold = claude; a grok successor acks from its first
+#      prompt and holds the role (journal row); a grok that never acks: the
+#      old claude keeps the role; the next rotation finds the grok holder
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -64,10 +71,10 @@ echo x >"$T/mem/orchestrator-never-codes.md"
   echo '{"type":"assistant","message":{"content":[{"type":"text","text":"Routed the budget ask to c-925."}]}}'; } >"$T/transcript.jsonl"
 
 # --- stubs --------------------------------------------------------------------
-# proc <pid> <age-s>: a fake claude carrying SPOOL_AGENT_ID=c-900
+# proc <pid> <age-s> [id] [comm]: a fake claude (or comm) carrying SPOOL_AGENT_ID=c-900
 cat >"$T/bin/proc" <<'EOF'
 #!/usr/bin/env bash
-d="$T/proc/$1"; mkdir -p "$d"; echo claude >"$d/comm"
+d="$T/proc/$1"; mkdir -p "$d"; echo "${4:-claude}" >"$d/comm"
 printf 'SPOOL_AGENT_ID=%s\0' "${3:-$OLD_ID}" >"$d/environ"
 echo "$1 (claude) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $(( (UP - $2) * TCK ))" >"$d/stat"
 printf 'Uid:\t%s\t%s\n' "$(id -u)" "$(id -u)" >"$d/status"
@@ -134,14 +141,18 @@ EOF
 cat >"$T/bin/spawn" <<'EOF'
 #!/usr/bin/env bash
 echo "spawn $* SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} SPOOL_SESSION=${SPOOL_SESSION:-} SPOOL_BOX_TAG=${SPOOL_BOX_TAG:-}" >>"$T/spawn.log"
+# the head of the first prompt (spawn-core SPAWN_PROMPT_HEAD_FILE), as passed
+[ -n "${SPAWN_PROMPT_HEAD_FILE:-}" ] && cp "$SPAWN_PROMPT_HEAD_FILE" "$T/head"
 mode="$(cat "$T/spawn.mode" 2>/dev/null || echo ok)"
 [ "$mode" = nopane ] && { echo "spawn-window: no pane"; exit 4; }
 printf '%%20\t2001\t$0\t%s@box\n' "$2" >>"$T/tmux/panes"
-[ "$mode" = nostart ] || "$T/bin/proc" 2001 0 "$2"
+[ "$mode" = nostart ] || "$T/bin/proc" 2001 0 "$2" "$1"
 # a message lands mid-rotation (T-MSG-IN-FLIGHT)
 echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T04:06:00Z","from":"c-002","to":"'"$OLD_ID"'","kind":"note","task_id":"x","body":"mid-rotation"}' >"$SPOOL_ROOT/$OLD_ID/inbox/m9.json"
 if [ "$(cat "$T/ack.mode" 2>/dev/null || echo yes)" = yes ]; then
-  rid="$(grep '^ACK-COMMAND:' "$4" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
+  # a claude reads its seed; any other vendor ONLY its first prompt (the head)
+  src="$4"; [ "$1" = claude ] || src="$T/head"
+  rid="$(grep '^ACK-COMMAND:' "$src" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
   ( sleep 1; ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID=2001 "$T/bin/act" >>"$T/ack.out" 2>&1 ) >/dev/null 2>&1 &
 fi
 echo "$2 %20"
@@ -156,6 +167,7 @@ case "$a" in
     echo '{"fleet":"main","hub":"ok","asks":[{"ask_id":"aaaaaaaa-0000-4000-8000-000000000001","kind":"task","state":"open","from":"c-002@box-desk","topic":"87eaa57b","summary":"lower the budget","age_s":600},{"ask_id":"bbbbbbbb-0000-4000-8000-000000000002","kind":"blocker","state":"acked","acked_by":"c-900@box-desk","from":"c-911@box-desk","topic":"sat","summary":"drill go?","age_s":7200}]}' ;;
   do_spl_lane_map) echo '{"fleet":"main","hub":"ok","lanes":[{"agent_id":"c-077","agent_box":"box-desk","branch":"c-077-x","scope":"the x lane","state":"live","age_s":300},{"agent_id":"c-078","agent_box":"sat","branch":"c-078-y","scope":"done one","state":"done"}]}' ;;
   do_spl_ask_put|do_spl_desk_reply) exit 0 ;;
+  do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_REGISTRY=${LANE_MIX_REGISTRY:-}" >>"$T/mix.log"; cat "$T/mix.out" 2>/dev/null ;;
   *) exit 1 ;;
 esac
 EOF
@@ -207,7 +219,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env
 
 # the world: one old c-900 (pid 1001, 2 h old, busy) in pane %2
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode" "$T/ack.mode" "$T/ai.$OLD_ID" \
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode" "$T/ack.mode" "$T/ai.$OLD_ID" "$T/head" "$T/mix.out" \
     "$D"/rotate.* "$D/handoff" "$S/$OLD_ID/inbox/"* "$S/$OLD_ID/outbox/"*
   "$T/bin/proc" 1001 7200
   printf '%%2\t1001\t$0\t%s@box sometitle\n' "$OLD_ID" >"$T/tmux/panes"
@@ -434,6 +446,45 @@ act DRY_RUN=0 ROTATE_EXIT_WAIT=3 ROTATE_EXIT_SETTLE=0 >"$T/o" 2>&1; rc=$?
   grep -q '^kill -TERM 1001$' "$T/kill.log" &&
   pass "12. control: a pane still busy gets no /exit; SIGTERM logs the screen" ||
   fail "12. busy rc=$rc $(grep -E '^submit' "$T/tmux/log") $(grep RETIRE "$T/o")"
+
+# --- 14. T-ORCH-ACK-HEAD + T-ORCH-SPLIT ------------------------------------------------------
+J="$D/rotate.orch.mix.tsv"
+world; rm -f "$J"
+act DRY_RUN=0 >"$T/o" 2>&1; rid="$(ctx ROTATE_RID)"
+grep -q "^ACK-COMMAND: .*ROTATE_CMD=ack ROTATE_ID=$rid ./run -a do_spl_orch_rotate\$" "$T/head" 2>/dev/null &&
+  grep -q "^ROTATION $rid: you are the new c-900 session" "$T/head" && [[ "$(ctx ROTATE_PHASE)" == DONE ]] &&
+  pass "14. T-ORCH-ACK-HEAD: the spawn gets a head file holding the ACK-COMMAND" || fail "14. T-ORCH-ACK-HEAD: $(cat "$T/head" 2>&1)"
+grep -q "^spawn claude c-900 " "$T/spawn.log" && grep -q ' GATE OK .*successor claude: ROTATE_ORCH_SPLIT=0: claude' "$T/o" &&
+  [[ ! -e "$T/mix.log" && ! -e "$J" ]] &&
+  pass "14. ROTATE_ORCH_SPLIT unset: claude, lane-mix not asked, no journal row (today's rule)" || fail "14. split off: $(grep -E 'GATE OK' "$T/o"; cat "$T/mix.log" 2>&1)"
+world; printf 'kind=orchestration\npick=grok launcher=/grok-spawn kind=orchestration reason=nudge: grok 0%% < 35%%\n' >"$T/mix.out"
+act ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*vendor: lane-mix orchestration: grok (nudge: grok 0% < 35%)" "$T/o" &&
+  grep -qx "LANE_MIX_KIND=orchestration LANE_MIX_REGISTRY=$J" "$T/mix.log" &&
+  pass "14. T-ORCH-SPLIT: ROTATE_ORCH_SPLIT=1 and lane-mix picks grok: the SPAWN plan names grok" || fail "14. split plan: $(grep 'SPAWN PLAN' "$T/o"; cat "$T/mix.log" 2>&1)"
+act ROTATE_ORCH_SPLIT=1 >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*does not count a grok process as the holder: claude" "$T/o" &&
+  pass "14. a fleet lease that counts only claude processes (spl_lease_agent_pid today): claude" || fail "14. lease guard: $(grep 'SPAWN PLAN' "$T/o")"
+echo 'pick=hold kind=orchestration reason=none left' >"$T/mix.out"
+act ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*lane-mix orchestration gave 'hold': claude" "$T/o" &&
+  pass "14. pick=hold: claude" || fail "14. hold: $(grep 'SPAWN PLAN' "$T/o")"
+world; rm -f "$J"; echo 'pick=grok launcher=/grok-spawn kind=orchestration reason=nudge' >"$T/mix.out"
+act DRY_RUN=0 ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1; rc=$?; rid="$(ctx ROTATE_RID)"
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && "$(cat "$T/proc/2001/comm" 2>/dev/null)" == grok && ! -d "$T/proc/1001" ]] &&
+  grep -q "^spawn grok c-900 " "$T/spawn.log" && grep -q "send c-900 -> c-900 result orch-rotate-$rid: ACK rotation $rid: c-900 pid 2001" "$T/send.log" &&
+  pass "14. a grok successor acks from its first prompt alone and holds the role ($rid)" || fail "14. grok happy rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
+[[ "$(cut -f1,2,4,6 "$J" 2>/dev/null)" == "$rid"$'\t'grok$'\t'c-900$'\t'orchestration ]] &&
+  pass "14. the role journal holds one registry row for it (the window lane-mix reads)" || fail "14. journal: $(cat "$J" 2>&1)"
+! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "14. no stray failing command under the ERR trap" || fail "14. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+rm -rf "$T/proc/2001"; "$T/bin/proc" 2001 7200 c-900 grok
+act >"$T/o" 2>&1
+grep -q ' GATE PLAN pass: c-900 pid 2001, 7200s old, pane %20' "$T/o" && pass "14. the next rotation finds the grok holder (any role vendor counts)" || fail "14. grok holder gate: $(cat "$T/o")"
+world; echo 'pick=grok reason=nudge' >"$T/mix.out"; echo no >"$T/ack.mode"
+act DRY_RUN=0 ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+[[ "$(ctx ROTATE_PHASE)" == FAIL && -d "$T/proc/1001" && ! -d "$T/proc/2001" ]] && grep -q "^spawn grok c-900 " "$T/spawn.log" &&
+  grep -q 'FAIL FAIL ACK: no ack within 6s; the old session (pid 1001) keeps the role' "$T/o" && [[ "$(cat "$T/ai.c-900")" == 1001 ]] &&
+  pass "14. a grok successor that never acks: closed, the old claude keeps the role and the map" || fail "14. grok no-ack: $(grep -E 'FAIL|ACK' "$T/o"; ls "$T/proc")"
 
 # --- 10. T-CRON ----------------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

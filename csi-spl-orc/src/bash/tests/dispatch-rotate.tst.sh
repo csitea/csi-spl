@@ -112,6 +112,8 @@ cat >"$T/bin/spawn" <<'EOF'
 #!/usr/bin/env bash
 id="$2"; n="${id##*-}"; pid=$(( 2000 + 10#$n )); pane="%2$n"
 echo "spawn $* SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-}" >>"$T/spawn.log"
+# the head of the first prompt (spawn-core SPAWN_PROMPT_HEAD_FILE), as passed
+[ -n "${SPAWN_PROMPT_HEAD_FILE:-}" ] && cp "$SPAWN_PROMPT_HEAD_FILE" "$T/head.$id"
 mode="$(cat "$T/spawn.mode.$id" 2>/dev/null || echo ok)"
 [ "$mode" = nopane ] && { echo "spawn-window: no pane"; exit 4; }
 printf '%s\t%s\t$0\t%s@box\n' "$pane" "$pid" "$id" >>"$T/tmux/panes"
@@ -192,7 +194,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPL_STATE_DIR="$T/state" 
 
 # the world: c-902 (pid 102, pane %2) holds the lease, c-903 (pid 103, pane %3) stands by, both 2 h old
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode."* "$T/spawn.kills."* "$T/ack.mode."* "$T/ai."* \
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode."* "$T/spawn.kills."* "$T/ack.mode."* "$T/ai."* "$T/head."* \
     "$D"/rotate.* "$D/handoff" "$D/lease"* "$S"/c-90*
   echo "$CONF" >"$D/lease.conf"
   mkdir -p "$S/c-902/inbox" "$S/c-902/outbox" "$S/c-903/inbox" "$S/c-903/outbox"
@@ -257,6 +259,12 @@ grep -q 'send c-900 -> c-903 note dispatch-lease \[lease=c-903 hold=c-902\]: DIS
 grep -q "send c-900 -> c-902 task dispatch-rotate-$rid .*ROTATION $rid: you are the fresh c-902@box-desk. Read $D/handoff/$rid-c-902.md" "$T/send.log" &&
   grep -q 'brief of c-902: read your inbox' "$D/handoff/$rid-c-902.seed.md" && grep -q "^ACK-COMMAND: .*ROTATE_CMD=ack ROTATE_ID=$rid ./run -a do_spl_dispatch_rotate" "$D/handoff/$rid-c-902.seed.md" &&
   pass "3. the fresh M: seeded with its brief + the ack line, the handoff as an inbox task (FR-026)" || fail "3. seed/task: $(cat "$D/handoff/$rid-c-902.seed.md" 2>&1)"
+# T-DISP-ACK-HEAD: the ack line is in the first prompt, not only behind the
+# seed pointer (the lane fix aa6604b37, for the role seats)
+grep -q "^ACK-COMMAND: .*ROTATE_CMD=ack ROTATE_ID=$rid ./run -a do_spl_dispatch_rotate\$" "$T/head.c-902" 2>/dev/null &&
+  grep -q "^ACK-COMMAND: .*ROTATE_CMD=ack ROTATE_ID=$frid ./run -a do_spl_dispatch_rotate\$" "$T/head.c-903" 2>/dev/null &&
+  grep -q "^ROTATION $rid: you are the new c-902 session" "$T/head.c-902" &&
+  pass "3. T-DISP-ACK-HEAD: the spawns of M and F get a head file holding their ACK-COMMAND" || fail "3. T-DISP-ACK-HEAD: $(cat "$T/head.c-902" "$T/head.c-903" 2>&1)"
 grep -q "send c-902 -> c-902 result dispatch-rotate-$rid .*ACK rotation $rid: c-902 pid 2902" "$T/send.log" &&
   grep -q "send c-903 -> c-903 result dispatch-rotate-$frid .*ACK rotation $frid: c-903 pid 2903" "$T/send.log" &&
   pass "3. each ack = a result in its own outbox on dispatch-rotate-<rid> (FR-041)" || fail "3. ack: $(cat "$T/send.log") $(cat "$T/ack.out")"

@@ -273,7 +273,7 @@ spl_disp_plan() {
   spl_rotate_log "$rid" HOLD PLAN "$LEASE_DIR/rotate.hold = $m; the lease moves to $f (wait ${ROTATE_PROMOTE_WAIT}s)"
   spl_rotate_log "$rid" QUIESCE PLAN "wait ${ROTATE_IDLE_GRACE}s for idle, then Escape, ${ROTATE_ESC_WAIT}s; busy = rotate anyway"
   spl_rotate_log "$rid" HANDOFF PLAN "$ROTATE_HANDOFF_DIR/$rid-$m.md"
-  spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(ROTATE_RID="$rid" spl_rotate_retiring_name "$m"); $ROTATE_SPAWN claude $m <seed: brief + rotation line> (SPAWN_REUSE_ID=1); adopt; a task on $(spl_rotate_ack_task "$rid") in its inbox"
+  spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(ROTATE_RID="$rid" spl_rotate_retiring_name "$m"); $ROTATE_SPAWN claude $m <seed: brief + rotation line> (SPAWN_REUSE_ID=1), the ACK-COMMAND in its first prompt (<rid>-<id>.head.md); adopt; a task on $(spl_rotate_ack_task "$rid") in its inbox"
   spl_rotate_log "$rid" ACK PLAN "wait ${ROTATE_ACK_TIMEOUT}s for a result on $(spl_rotate_ack_task "$rid") in $SPOOL_ROOT/$m/outbox"
   spl_rotate_log "$rid" RETIRE PLAN "/exit-clean into $pane, TERM after ${ROTATE_EXIT_WAIT}s, KILL after ${ROTATE_TERM_WAIT}s more; close it"
   spl_rotate_log "$rid" RELEASE PLAN "remove the hold; $m takes the lease back, $f STANDBY"
@@ -368,7 +368,7 @@ spl_disp_run() {
   fi
   chmod 0640 "$seed" 2>/dev/null || true
   spl_disp_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
-  if ! spl_rotate_spawn "$id" "$seed"; then
+  if ! spl_rotate_spawn_head "$id" "$seed" "$(spl_disp_ack_cmd)"; then
     spl_disp_fail SPAWN "$ROTATE_ERR"; return 1
   fi
   # FR-026: the handoff also arrives as a task in the inbox
@@ -526,9 +526,14 @@ PY
   fi
 }
 
+# The ack the new session runs, as its seed and its first prompt state it.
+spl_disp_ack_cmd() {
+  echo "cd $PROJ_PATH && sudo -u ${SPOOL_BOX_USER:-$USER} env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ./run -a do_spl_dispatch_rotate"
+}
+
 spl_disp_seed_tail() {
-  local id="$1" as="${SPOOL_BOX_USER:-$USER}" ack
-  ack="cd $PROJ_PATH && sudo -u $as env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ./run -a do_spl_dispatch_rotate"
+  local id="$1" ack
+  ack="$(spl_disp_ack_cmd)"
   cat <<EOF
 
 ## Hourly rotation $ROTATE_RID (spec 060)

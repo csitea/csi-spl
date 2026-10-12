@@ -227,7 +227,14 @@ spl_rotate_tmux() {
 # CLI of ROTATE_KIND (default claude: its comm). Another kind is read as
 # agent-identity's kind_of does: argv[0], or argv[1] behind a node/python
 # loader; vibe ("Vibe CLI") is mistral. A tool child (bash, git) never is.
+# ROTATE_CLI_KINDS (a list, e.g. "claude grok mistral") matches any of them:
+# a role rotation whose old and new session may be different vendors.
 spl_rotate_cli() {
+  if [[ -n "${ROTATE_CLI_KINDS:-}" ]]; then
+    local ck
+    for ck in $ROTATE_CLI_KINDS; do ROTATE_CLI_KINDS="" ROTATE_KIND="$ck" spl_rotate_cli "$1" "$2" && return 0; done
+    return 1
+  fi
   local k="${ROTATE_KIND:-claude}" a0="" a1=""
   [[ "$k" == claude ]] && { [[ "$2" == claude ]]; return; }
   case "$2" in "Vibe CLI"|vibe) [[ "$k" == mistral ]]; return ;; "$k") return 0 ;;
@@ -616,6 +623,24 @@ spl_rotate_spawn() {
   [[ "$got" == "$ROTATE_NEW_PANE" ]] ||
     { ROTATE_ERR="the identity map routes $id to '${got:-nothing}', not the new pane $ROTATE_NEW_PANE"; return 1; }
   return 0
+}
+
+# spl_rotate_prompt_head ID ACK SEED: the head of a role session's FIRST
+# prompt (spawn-core SPAWN_PROMPT_HEAD_FILE), the ack line itself, as the lane
+# rotation does (spl_lane_rotate_prompt_head): a pointer to the seed was not
+# enough, n=4 new sessions on 2026-10-11 never opened it and never acked.
+spl_rotate_prompt_head() {
+  printf 'ROTATION %s: you are the new %s session. Run the ack, exactly; run it before anything else (even the rename):\nACK-COMMAND: %s\nThen read your rotation seed %s (your role brief and the handoff) and continue.' \
+    "$ROTATE_RID" "$1" "$2" "$3"
+}
+
+# spl_rotate_spawn_head ID SEED ACK: spl_rotate_spawn with the ack line in
+# the first prompt: <SEED minus .seed.md>.head.md as SPAWN_PROMPT_HEAD_FILE.
+spl_rotate_spawn_head() {
+  local head="${2%.seed.md}.head.md"
+  spl_rotate_prompt_head "$1" "$3" "$2" > "$head"
+  chmod 0644 "$head" 2>/dev/null || true
+  SPAWN_PROMPT_HEAD_FILE="$head" spl_rotate_spawn "$1" "$2"
 }
 
 # spl_rotate_start_check PANE: up to ROTATE_START_CHECK_WAIT (45 s) for the

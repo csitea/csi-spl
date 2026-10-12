@@ -3,7 +3,8 @@
 # @description Rotate the orchestrator to a fresh session every hour (spec 060
 # @description section 4.2, CLE-77939). The orchestrator re-reads its whole
 # @description context on every turn and runs all day, so at :05 (cron, FR-050)
-# @description a NEW claude session takes the role over under the SAME id
+# @description a NEW session (claude; with ROTATE_ORCH_SPLIT=1 the vendor of
+# @description cnf agent_split_by_kind.orchestration) takes the role over under the SAME id
 # @description (same inbox, same asks, same lease) and the old one ends.
 # @description Mechanical (FR-001): no step calls a model; the new session only
 # @description reads its handoff and runs the ack command. ROTATE_CMD picks:
@@ -33,6 +34,11 @@
 # @param ROTATE_IDLE_GRACE / ROTATE_ESC_WAIT / ROTATE_START_WAIT / ROTATE_ACK_TIMEOUT / ROTATE_EXIT_WAIT / ROTATE_TERM_WAIT (optional) - seconds, default 60 / 30 / 120 / 900 / 300 / 30
 # @param ROTATE_HANDOFF_DIR (optional) - default <spool root>/dispatch/handoff
 # @param ROTATE_HOLD_DIR (optional) - the hold notes, default /var/tmp/CLE-parent-level/dispatch/hold
+# @param ROTATE_ORCH_SPLIT (optional) - 1: the successor's vendor follows cnf
+# @param   agent_split_by_kind.orchestration (do_spl_lane_mix, over the role
+# @param   rotations in ROTATE_MIX_JOURNAL); 0 (default): claude, as before.
+# @param   The holder turns it on (env or rotate.conf); dispatch seats stay claude
+# @param ROTATE_MIX_JOURNAL (optional) - default <spool root>/dispatch/rotate.orch.mix.tsv
 # @example ./run -a do_spl_orch_rotate
 # @example DRY_RUN=0 ./run -a do_spl_orch_rotate
 # @example ROTATE_CMD=ack ROTATE_ID=20261002T0505Z-orch ./run -a do_spl_orch_rotate
@@ -44,6 +50,9 @@ declare -F spl_rotate_conf >/dev/null ||
 do_spl_orch_rotate() {
   spl_rotate_conf || return 1
   spl_is_agent_id "${LEASE_ORCH:-}" || { spl_rotate_log - GATE SKIP "no LEASE_ORCH in $LEASE_CONF"; return 0; }
+  # the old and the new session may be different vendors (spl_orch_rotate_vendor)
+  ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral}"
+  ROTATE_MIX_JOURNAL="${ROTATE_MIX_JOURNAL:-$LEASE_DIR/rotate.orch.mix.tsv}"
   case "${ROTATE_CMD:-auto}" in
     auto)    spl_orch_rotate_auto ;;
     ack)     spl_rotate_ack_send orch "$LEASE_ORCH" ;;
@@ -113,12 +122,13 @@ spl_orch_rotate_auto() {
   ROTATE_RID="$rid" ROTATE_OLD_PID="$pid" ROTATE_OLD_PANE="$pane" ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_QUIESCE=""
   ROTATE_OLD_NAME="$(spl_rotate_tmux display-message -p -t "$pane" '#{window_name}' 2>/dev/null || true)"
   ROTATE_HANDOFF="$ROTATE_HANDOFF_DIR/$rid-$id.md"
+  spl_orch_rotate_vendor
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_rotate_log "$rid" GATE PLAN "pass: $id pid $pid, ${age}s old, pane $pane '$ROTATE_OLD_NAME'"
     spl_rotate_log "$rid" QUIESCE PLAN "wait ${ROTATE_IDLE_GRACE}s for idle, then Escape, ${ROTATE_ESC_WAIT}s; busy = rotate anyway"
     spl_rotate_log "$rid" HANDOFF PLAN "$ROTATE_HANDOFF"
     [[ -n "$new" ]] && spl_rotate_log "$rid" SWITCH PLAN "$id -> $new: role rename (spool dir, registry, identity, window, dev+prd desks), lease.conf LEASE_ORCH=$new; the successor starts as $new"
-    spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(spl_rotate_retiring_name "$id"); $ROTATE_SPAWN claude $id $(spl_rotate_workdir "$id") <seed> (SPAWN_REUSE_ID=1); adopt the new pid"
+    spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(spl_rotate_retiring_name "$id"); $ROTATE_SPAWN $ROTATE_KIND $id $(spl_rotate_workdir "$id") <seed> (SPAWN_REUSE_ID=1), the ACK-COMMAND in its first prompt (<rid>-<id>.head.md); adopt the new pid; vendor: $ROTATE_VENDOR_WHY"
     spl_rotate_log "$rid" ACK PLAN "wait ${ROTATE_ACK_TIMEOUT}s for a result on $(spl_rotate_ack_task "$rid") in $SPOOL_ROOT/$id/outbox"
     spl_rotate_log "$rid" RETIRE PLAN "/exit-clean into $pane, TERM after ${ROTATE_EXIT_WAIT}s, KILL after ${ROTATE_TERM_WAIT}s more"
     spl_rotate_log "$rid" CLOSE PLAN "close $pane by pane id; check one process, the lease, the map"
@@ -127,8 +137,62 @@ spl_orch_rotate_auto() {
     echo "---- end of preview: DRY_RUN, nothing was touched. Re-run with DRY_RUN=0."
     return 0
   fi
-  spl_orch_rotate_step GATE OK "pid $pid, ${age}s old, pane $pane"
+  spl_orch_rotate_step GATE OK "pid $pid, ${age}s old, pane $pane; successor $ROTATE_KIND: $ROTATE_VENDOR_WHY"
   spl_orch_rotate_run || return 1
+}
+
+# spl_orch_rotate_vendor -> ROTATE_KIND, ROTATE_VENDOR_WHY: the successor's
+# vendor. Owner HUM-10 (msgs a1e5c678, ff1baf01) made orchestrating a task
+# kind, cnf agent_split_by_kind.orchestration. ROTATE_ORCH_SPLIT=0 (default):
+# claude, the rule before it; the FIRST rotation to another vendor waits for
+# the holder to set 1. With 1: do_spl_lane_mix LANE_MIX_KIND=orchestration
+# over ROTATE_MIX_JOURNAL (the role rotations only, registry rows, so the
+# split is measured over role seats, not lanes); lane-mix already moves a
+# vendor with no CLI or auth to the backup, then claude, and names why. No
+# pick (hold, no answer) or a vendor outside claude/grok/mistral = claude.
+# A non-claude pick the fleet lease would not count as the holder
+# (spl_orch_rotate_lease_sees) = claude: the role would lose its lease.
+spl_orch_rotate_vendor() {
+  local out pick why
+  ROTATE_KIND=claude
+  if [[ "${ROTATE_ORCH_SPLIT:-0}" != 1 ]]; then
+    ROTATE_VENDOR_WHY="ROTATE_ORCH_SPLIT=0: claude"; return 0
+  fi
+  out="$(env LANE_MIX_KIND=orchestration LANE_MIX_REGISTRY="$ROTATE_MIX_JOURNAL" timeout "${ROTATE_SRC_TIMEOUT:-120}" "$ROTATE_RUN" -a do_spl_lane_mix 2>&1 7>&- 8>&- 9>&-)" || true
+  pick="$(grep -m1 -oE '^pick=[a-z]+' <<<"$out" | cut -d= -f2 || true)"
+  why="$(grep -m1 -oE 'reason=.*' <<<"$out" | cut -c8-200 || true)"
+  case "$pick" in
+    claude|grok|mistral) ;;
+    *) ROTATE_VENDOR_WHY="lane-mix orchestration gave '${pick:-no pick}': claude"; return 0 ;;
+  esac
+  if [[ "$pick" != claude ]] && ! spl_orch_rotate_lease_sees "$pick"; then
+    ROTATE_VENDOR_WHY="lane-mix orchestration picked $pick ($why), but the fleet lease does not count a $pick process as the holder: claude"
+    return 0
+  fi
+  ROTATE_KIND="$pick" ROTATE_VENDOR_WHY="lane-mix orchestration: $pick ($why)"
+}
+
+# spl_orch_rotate_lease_sees KIND: 0 when spl_lease_agent_pid finds a KIND
+# process (a probe in a throwaway proc dir). On 2026-10-12 it counts claude
+# only, so a grok orchestrator would hold the role but not the orch lease.
+# ROTATE_LEASE_KINDS (tests) names the kinds it counts instead.
+spl_orch_rotate_lease_sees() {
+  local d got="" comm="$1"
+  if [[ -n "${ROTATE_LEASE_KINDS:-}" ]]; then [[ " $ROTATE_LEASE_KINDS " == *" $1 "* ]]; return; fi
+  [[ "$comm" == mistral ]] && comm=vibe
+  d="$(mktemp -d)" || return 1
+  mkdir -p "$d/7" && echo "$comm" > "$d/7/comm" && printf 'SPOOL_AGENT_ID=probe-%s\0' "$1" > "$d/7/environ" &&
+    got="$(LEASE_PROC_ROOT="$d" spl_lease_agent_pid "probe-$1" 2>/dev/null || true)"
+  rm -rf "$d"
+  [[ "$got" == 7 ]]
+}
+
+# spl_orch_rotate_journal: one registry row per rotation made under the split
+# ("<rid> <vendor> <pane> <id> <ts> orchestration"), the window lane-mix reads.
+spl_orch_rotate_journal() {
+  [[ "${ROTATE_ORCH_SPLIT:-0}" == 1 ]] || return 0
+  printf '%s\t%s\t%s\t%s\t%s\torchestration\n' "$ROTATE_RID" "$ROTATE_KIND" "$ROTATE_NEW_PANE" "$LEASE_ORCH" "$(date -u +%Y%m%dT%H%M%SZ)" \
+    >> "$ROTATE_MIX_JOURNAL" 2>/dev/null || true
 }
 
 # The new id of a legacy LEASE_ORCH (spec 061 L6), from this machine's alias
@@ -201,10 +265,11 @@ spl_orch_rotate_run() {
     id="$LEASE_ORCH"
     sed -i "s/\b$ROTATE_SWITCH_FROM\b/$id/g" "$seed" 2>/dev/null || true
   fi
-  if ! spl_rotate_spawn "$id" "$seed"; then
+  if ! spl_rotate_spawn_head "$id" "$seed" "$(spl_orch_rotate_ack_cmd)"; then
     spl_orch_rotate_fail SPAWN "$ROTATE_ERR"; return 1
   fi
-  spl_orch_rotate_step SPAWN OK "new pid $ROTATE_NEW_PID pane $ROTATE_NEW_PANE; old window $(spl_rotate_retiring_name "$id")"
+  spl_orch_rotate_journal
+  spl_orch_rotate_step SPAWN OK "new pid $ROTATE_NEW_PID pane $ROTATE_NEW_PANE ($ROTATE_KIND); old window $(spl_rotate_retiring_name "$id")"
   spl_orch_rotate_from_spawn || return 1
 }
 
@@ -320,11 +385,16 @@ spl_orch_rotate_abort() {
   spl_orch_rotate_step ABORT ABORT "at $ROTATE_PHASE by hand; the old session (pid $ROTATE_OLD_PID) keeps the role"
 }
 
+# The ack the new session runs, as its seed and its first prompt state it.
+spl_orch_rotate_ack_cmd() {
+  echo "cd $PROJ_PATH && sudo -u ${SPOOL_BOX_USER:-$USER} env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ./run -a do_spl_orch_rotate"
+}
+
 # The seed (FR-040): the role, the rotation line, the standing rules.
 spl_orch_rotate_seed() {
   local id="$LEASE_ORCH" as="${SPOOL_BOX_USER:-$USER}" inbox ack
   inbox="cd $PROJ_PATH && sudo -u $as env SPOOL_ROOT=$SPOOL_ROOT ./run -a do_spl_orch_inbox"
-  ack="cd $PROJ_PATH && sudo -u $as env SPOOL_ROOT=$SPOOL_ROOT ROTATE_CMD=ack ROTATE_ID=$ROTATE_RID ./run -a do_spl_orch_rotate"
+  ack="$(spl_orch_rotate_ack_cmd)"
   cat > "$1" <<EOF
 # Brief: you are the orchestrator $id@$ROTATE_BOX (rotation $ROTATE_RID)
 

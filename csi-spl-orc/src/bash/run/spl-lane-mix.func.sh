@@ -44,6 +44,9 @@
 # @description none left -> pick=hold. Language
 # @description rule: i18n goes to agy; served by anyone else the pick carries
 # @description flag=needs_agy_review and the text waits for an agy review.
+# @description i18n with LANE_MIX_SENSITIVE=1 is secret, and its pick carries
+# @description flag=needs_masked_agy_review: agy reviews the masked copy of
+# @description do_spl_i18n_mask (spl-i18n-mask.func.sh), never the original.
 # @description Prints the kind's table, then `pick=<vendor> launcher=/<vendor>-spawn
 # @description kind=<k> reason=...`, or `pick=hold`.
 # @param LANE_MIX_KIND (optional) - a kind or an alias above; unset reads the difficulty
@@ -115,10 +118,11 @@ do_spl_lane_mix() {
   esac
 }
 
-# _spl_lane_mix_kind <kind> <difficulty> <sensitive> -> _LM_KIND, _LM_KIND_WHY:
-# the spec 115 name (aliases resolved), or a FATAL for an unknown kind
+# _spl_lane_mix_kind <kind> <difficulty> <sensitive> -> _LM_KIND, _LM_KIND_WHY,
+# _LM_KIND_WAS (the kind before sensitive made it secret): the spec 115 name
+# (aliases resolved), or a FATAL for an unknown kind
 _spl_lane_mix_kind() {
-  _LM_KIND_WHY="LANE_MIX_KIND=$1"
+  _LM_KIND_WHY="LANE_MIX_KIND=$1" _LM_KIND_WAS=""
   case "$1" in
     specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration) _LM_KIND="$1" ;;
     spec) _LM_KIND=specs_and_docs ;;
@@ -130,7 +134,7 @@ _spl_lane_mix_kind() {
        return 1 ;;
   esac
   [[ "$3" == 1 ]] || return 0
-  _LM_KIND_WHY="LANE_MIX_SENSITIVE=1"
+  _LM_KIND_WHY="LANE_MIX_SENSITIVE=1" _LM_KIND_WAS="$_LM_KIND"
   _LM_KIND=secret
 }
 
@@ -295,13 +299,19 @@ _spl_lane_mix_want() {
 # _spl_lane_mix_secret -> the pick line under the data rule (global CLAUDE.md
 # "Spawn an agent", spec 110 D2, spec 115 section 5): secrets and personal
 # data go to claude, grok or mistral only, in every path; none of them left ->
-# hold, never agy or qwen
+# hold, never agy or qwen. Sensitive i18n text (spec 115 T9, owner Q2 "2b")
+# carries flag=needs_masked_agy_review: agy reviews only the masked copy
 _spl_lane_mix_secret() {
+  local flag=""
   _spl_lane_mix_choose "$_LM_MAIN" "claude grok mistral"
+  if [[ "${_LM_KIND_WAS:-}" == i18n && "$_LM_CHOICE" != hold ]]; then
+    flag=needs_masked_agy_review
+    _LM_CHOICE_WHY+="; i18n text: agy reviews only the masked copy (do_spl_i18n_mask), never the original"
+  fi
   case "$_LM_CHOICE" in
-    claude) _spl_lane_mix_pick claude "data rule: secrets or personal data go to claude, grok or mistral only; $_LM_CHOICE_WHY" ;;
-    grok) _spl_lane_mix_pick grok "data rule: secrets or personal data go to claude, grok or mistral only; $_LM_CHOICE_WHY" ;;
-    mistral) _spl_lane_mix_pick mistral "data rule: secrets or personal data go to claude, grok or mistral only; $_LM_CHOICE_WHY" ;;
+    claude) _spl_lane_mix_pick claude "data rule: secrets or personal data go to claude, grok or mistral only; $_LM_CHOICE_WHY" "$flag" ;;
+    grok) _spl_lane_mix_pick grok "data rule: secrets or personal data go to claude, grok or mistral only; $_LM_CHOICE_WHY" "$flag" ;;
+    mistral) _spl_lane_mix_pick mistral "data rule: secrets or personal data go to claude, grok or mistral only; $_LM_CHOICE_WHY" "$flag" ;;
     *) _spl_lane_mix_pick hold "data rule: secrets or personal data go to claude, grok or mistral only, and none may take it; $_LM_CHOICE_WHY: queue the work and send a blocker to the orchestrator" ;;
   esac
 }

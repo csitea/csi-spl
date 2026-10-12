@@ -5,7 +5,7 @@
 // assigned issues.
 // Run: node tests/unit/blocker-issue.test.mjs
 import { BLOCKER_KEY_MINUTES, BLOCKER_MINUTES_DEFAULT, BLOCKER_MINUTES_RANGE, blockerMinutesOf, blockerMinutesPatch, blockerMinutesValid } from '../../src/utils/blocker-settings.mjs'
-import { OPEN_ISSUE_STATUSES, openIssueCount, startMyIssuesCount } from '../../src/utils/my-issues-count.mjs'
+import { ISSUE_OPENED_EVENT, OPEN_ISSUE_STATUSES, newIssueCount, openIssueCount, startMyIssuesCount } from '../../src/utils/my-issues-count.mjs'
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
@@ -42,14 +42,18 @@ ok('null resets it to the default', m.settings().settings[BLOCKER_KEY_MINUTES] =
 console.log('blocker-issue: the Issues rail count')
 ok('open = every status but done and diss', same([...OPEN_ISSUE_STATUSES].sort(), ['blocked', 'eval', 'onhold', 'qas', 'todo', 'wip']))
 const rows = [
-  { key: 'SPL-1', status: 'todo', kind: 'issue' },
-  { key: 'SPL-2', status: 'wip', kind: 'issue' },
-  { key: 'SPL-3', status: 'done', kind: 'issue' },
-  { key: 'SPL-4', status: 'diss', kind: 'issue' },
-  { key: 'SPL-5', status: 'todo', kind: 'epic' },
+  { key: 'SPL-1', status: 'todo', kind: 'issue', unopened: true },
+  { key: 'SPL-2', status: 'wip', kind: 'issue', unopened: true },
+  { key: 'SPL-3', status: 'done', kind: 'issue', unopened: true },
+  { key: 'SPL-4', status: 'diss', kind: 'issue', unopened: true },
+  { key: 'SPL-5', status: 'todo', kind: 'epic', unopened: true },
+  { key: 'SPL-6', status: 'todo', kind: 'issue', unopened: false },
 ]
-ok('counts the open issues, not done / diss / an epic', openIssueCount(rows) === 2)
+ok('counts the open issues, not done / diss / an epic', openIssueCount(rows) === 3)
 ok('CONTROL: nothing to count is 0', openIssueCount(undefined) === 0 && openIssueCount([]) === 0)
+// SPL-1559 (owner t1 7edebc75): the tab counts exactly the rows the list marks new
+ok('SPL-1559: counts only the open issues not opened yet', newIssueCount(rows) === 2, String(newIssueCount(rows)))
+ok('SPL-1559 CONTROL: an opened open issue is not counted', newIssueCount([rows[5]]) === 0 && newIssueCount(undefined) === 0)
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let list = rows.slice(0, 1)
@@ -58,6 +62,8 @@ const api = { listIssues: async (opts) => { asked.push(opts); return { issues: l
 const listeners = []
 const live = { onIssue: (fn) => { listeners.push(fn); return () => listeners.splice(listeners.indexOf(fn), 1) }, onReconnected: () => () => {} }
 const count = { value: 0 }
+const hadWindow = 'window' in globalThis
+if (!hadWindow) globalThis.window = new EventTarget()
 const stop = startMyIssuesCount({ api, live, count, delay: 5 })
 await sleep(20)
 ok('the first read asks for the viewer\'s issues', same(asked[0], { filter: { assignee: ['me'] } }))
@@ -68,8 +74,16 @@ listeners.forEach((fn) => fn())
 await sleep(30)
 ok('an issue frame re-reads it', count.value === 2, String(count.value))
 ok('a burst of frames is one re-read', asked.length === 2, String(asked.length))
+list = rows.map((r) => (r.key === 'SPL-1' ? { ...r, unopened: false } : r))
+globalThis.window.dispatchEvent(new Event(ISSUE_OPENED_EVENT))
+await sleep(30)
+ok('SPL-1559: an issue opened in this tab re-reads it', asked.length === 3 && count.value === 1, `${asked.length} ${count.value}`)
 stop()
 ok('stop drops the frame listener', listeners.length === 0)
+globalThis.window.dispatchEvent(new Event(ISSUE_OPENED_EVENT))
+await sleep(30)
+ok('CONTROL: stop drops the opened listener', asked.length === 3, String(asked.length))
+if (!hadWindow) delete globalThis.window
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)

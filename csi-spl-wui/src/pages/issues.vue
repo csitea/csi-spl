@@ -370,6 +370,7 @@
                 :draggable="viewBy === 'status' ? 'true' : undefined"
                 data-test="issues-row"
                 :data-key="issue.key"
+                :data-unopened="issue.unopened ? 'true' : undefined"
                 :data-priority="issue.priority"
                 :data-level="issue.level"
                 :data-selected="cursorKey === issue.key ? 'true' : 'false'"
@@ -414,7 +415,8 @@
                     @blur="commitRowTitle(issue)"
                   >
                   <span v-else class="issues-title-cell issues-title-cell--edit">
-                    <span class="issues-title" :title="issue.title">{{ issue.title }}</span>
+                    <!-- SPL-1559: a new issue I have not opened carries the unread row's mark -->
+                    <span class="issues-title" :title="issue.title"><span v-if="issue.unopened" class="unread-dot issues-unopened-dot" data-test="issues-row-unopened" aria-hidden="true" />{{ issue.title }}</span>
                     <button type="button" class="issues-title-edit" data-test="issues-row-title-edit" :aria-label="t('issues_crud.edit_title')" :title="t('issues_crud.edit_title')" @click.stop="startTitleEdit(issue)">
                       <UiIcon name="pencil" :size="14" />
                     </button>
@@ -539,6 +541,7 @@
               :style="swipe.key === issue.key && swipe.dx !== 0 ? { '--swipe-dx': `${swipe.dx}px` } : undefined"
               data-test="issues-card"
               :data-key="issue.key"
+              :data-unopened="issue.unopened ? 'true' : undefined"
               :data-priority="issue.priority"
               :data-selected="cursorKey === issue.key ? 'true' : 'false'"
               @click="onRowActivate(issue)"
@@ -557,7 +560,7 @@
                 <span class="issues-prio" :class="'issues-prio--' + issue.priority" data-test="issues-card-priority" :aria-label="t('issues.field_priority')">{{ issue.priority }}</span>
                 <time v-if="issue.deadline" class="issues-when issues-card__due" data-test="issues-card-deadline" :datetime="issue.deadline">{{ when(issue.deadline) }}</time>
               </span>
-              <span class="issues-card__title" data-test="issues-card-title">{{ issue.title }}</span>
+              <span class="issues-card__title" data-test="issues-card-title"><span v-if="issue.unopened" class="unread-dot issues-unopened-dot" data-test="issues-card-unopened" aria-hidden="true" />{{ issue.title }}</span>
               <span class="issues-card__meta">
                 <span class="issues-card__who" data-test="issues-card-assignee" :data-assignee="issue.assignee">
                   <SpoolAvatar v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" :size="20" />
@@ -1105,7 +1108,8 @@ import { useIssueGroupDrag } from '~/composables/useIssueGroupDrag'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
 import { keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } from '~/utils/issues-bulk.mjs'
 import type { BulkAction } from '~/components/IssuesBulkBar.vue'
-import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
+import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
+import { ISSUE_OPENED_EVENT } from '~/utils/my-issues-count.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
 import { issueShortcutFor, issueShortcutHint, issueShortcutItem } from '~/utils/msg-shortcuts.mjs'
@@ -2892,7 +2896,40 @@ watch(detail, (issue) => {
   if (creating.value) return
   void loadComments(issue)
   void loadSubtasks(issue)
+  void markOpened(issue)
 })
+/* SPL-1559 (owner t1 7edebc75): a new issue keeps the unread row's mark until
+   it is opened. Opening clears it at once, tells the hub, and asks the Issues
+   tab count to re-read; a refused write puts the mark back. */
+function setUnopened(key: string, on: boolean) {
+  issues.value = issues.value.map((i) => (i.key === key && i.unopened !== on ? { ...i, unopened: on } : i))
+}
+async function markOpened(issue: Issue | null) {
+  if (!issue || !issue.unopened) return
+  issue.unopened = false
+  setUnopened(issue.key, false)
+  try {
+    await withSessionRetry(api, () => api.markIssueOpened(issue.key))
+    window.dispatchEvent(new Event(ISSUE_OPENED_EVENT))
+  } catch {
+    setUnopened(issue.key, true)
+  }
+}
+/* SPL-1559: a frame carries no viewer's mark. A row that just became mine to
+   do (new, reassigned to me, reopened) asks the hub whether I opened it. */
+async function checkUnopened(before: Issue[], frame: unknown) {
+  const key = String((frame as { issue?: { key?: string } })?.issue?.key || '')
+  const me = meId()
+  const row = issues.value.find((i) => i.key === key)
+  const was = before.find((i) => i.key === key)
+  if (!row || !unopenedCandidate(row, me) || (was && unopenedCandidate(was, me))) return
+  try {
+    const data = await withSessionRetry(api, () => api.getIssue(key))
+    if (!normalizeIssue(data.issue).unopened) return
+    if (detail.value?.key === key) void markOpened({ ...row, unopened: true })
+    else setUnopened(key, true)
+  } catch { /* the next list read brings the mark */ }
+}
 /* CLE-77816: the Epics sidebar double-click asks the page to open the dialog on
    an epic / feature (the sidebar owns no dialog). seq re-fires the same key. */
 watch(editRequest, (req) => { if (req) void editTarget(req.target) })
@@ -2961,7 +2998,9 @@ onMounted(() => {
   document.addEventListener('keydown', onDocKeyCapture, true)
   document.addEventListener('pointerdown', onDocPointer)
   offIssue = live.onIssue((f) => {
+    const before = issues.value
     issues.value = applyIssueFrame(issues.value, f)
+    void checkUnopened(before, f)
     refreshEpics()
     const fi = (f as { issue?: { parent?: string } }).issue
     if (detail.value && fi && fi.parent === detail.value.key) void loadSubtasks(detail.value)
@@ -3271,6 +3310,9 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-table td.issues-c-title { width: 100%; }
 .issues-title-cell { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; min-width: 10rem; }
 .issues-title-cell .issues-epic-tag { max-width: 8rem; }
+/* SPL-1559: a new issue, not yet opened - the unread row's dot and bold title */
+.issues-unopened-dot { margin-inline-end: 6px; vertical-align: middle; }
+.issues-row[data-unopened] .issues-title, .issues-card[data-unopened] .issues-card__title { font-weight: 700; }
 .issues-table .issues-person { max-width: 10rem; }
 .issues-table .issues-pill { max-width: 7rem; }
 /* owner, topic e00da93b: sort by a header click; only the sorted column shows its triangle */

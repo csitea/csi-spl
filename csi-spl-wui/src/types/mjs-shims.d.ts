@@ -198,6 +198,8 @@ declare module '~/utils/spool-client.mjs' {
     updateIssue(ref: string, patch: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     deleteIssue(ref: string, opts?: { cascade?: boolean }): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
     archiveIssue(ref: string, opts?: { cascade?: boolean }): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
+    /** SPL-1559: the signed-in member opened the issue (clears its unopened mark). */
+    markIssueOpened(ref: string): Promise<{ key: string, unopened: boolean }>
     createIssueLabel(opts: { name: string, color?: string }): Promise<{ label: import('~/utils/issues.mjs').IssueLabel }>
     /** spec 062 §4.2: the viewer's flow events (a page, or the counts alone). */
     listFlow(opts?: { limit?: number, before?: string, kind?: string, countsOnly?: boolean, self?: string, fold?: boolean }): Promise<{
@@ -2027,6 +2029,8 @@ declare module '~/utils/issues.mjs' {
     updated_at: string
     completed_at: string
     canceled_at: string
+    /** SPL-1559 (rdb 0184): the viewer has not opened it yet. */
+    unopened: boolean
   }
   export interface IssueLabel { id: string, name: string, color: string }
   /** rdb 0181: one row of an issue's History tab (GET /v1/view/issues/{ref}/history). */
@@ -2100,6 +2104,8 @@ declare module '~/utils/issues.mjs' {
   export function issueQuery(filter?: IssueFilter, sort?: string, page?: { dir?: string, limit?: number, cursor?: string }): string
   export function orderIssues(list: Issue[], by?: string, dir?: string): Issue[]
   export function createMockIssues(opts?: { me?: string, now?: () => string }): unknown
+  export function unopenedCandidate(issue: Partial<Issue> | null | undefined, me: string): boolean
+  export const MOCK_ISSUES_NEW_KEY: string
 }
 
 declare module '~/utils/issues-view.mjs' {

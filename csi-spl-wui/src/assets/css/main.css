@@ -287,6 +287,18 @@ html.pane-dragging * {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* SPL-1559: the unread mark of a list row (an unread Flow / search row in
+   SideHitList), also a new, not yet opened issue in the Issues list. With it,
+   the row's title is bold. */
+.unread-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  align-self: center;
+}
 .badge-unread {
   margin-left: auto;
   background: var(--color-accent);

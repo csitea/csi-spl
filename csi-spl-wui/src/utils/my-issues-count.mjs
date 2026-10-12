@@ -18,9 +18,24 @@ export function openIssueCount(issues) {
 }
 
 /**
- * Keeps count.value at the viewer's open assigned issues: one read now, and
- * one after any issue frame or a reconnect (frames come in bursts, so a
- * re-read waits `delay` ms for the last of them). Returns a stop function.
+ * SPL-1559 (owner HUM-10, t1 7edebc75 msg 7d76ce22: "I can see the counter,
+ * but I cannot distinguish which issues are the new ones"): the tab counts
+ * the open issues the viewer has not opened yet, exactly the rows the Issues
+ * list marks (the hub's `unopened`, rdb 0184).
+ */
+export function newIssueCount(issues) {
+  if (!Array.isArray(issues)) return 0
+  return openIssueCount(issues.filter((i) => i && i.unopened === true))
+}
+
+/** The window event the Issues page fires once it marked an issue opened. */
+export const ISSUE_OPENED_EVENT = 'spool:issue-opened'
+
+/**
+ * Keeps count.value at the viewer's new (unopened) assigned issues: one read
+ * now, and one after any issue frame, a reconnect or an issue opened in this
+ * tab (frames come in bursts, so a re-read waits `delay` ms for the last of
+ * them). Returns a stop function.
  */
 export function startMyIssuesCount({ api, live, count, delay = 1000 }) {
   let timer = null
@@ -28,7 +43,7 @@ export function startMyIssuesCount({ api, live, count, delay = 1000 }) {
   const load = async () => {
     try {
       const data = await api.listIssues({ filter: { assignee: ['me'] } })
-      if (!stopped) count.value = openIssueCount(data && data.issues)
+      if (!stopped) count.value = newIssueCount(data && data.issues)
     } catch { /* the count keeps its last value */ }
   }
   const soon = () => {
@@ -36,6 +51,10 @@ export function startMyIssuesCount({ api, live, count, delay = 1000 }) {
     timer = setTimeout(load, delay)
   }
   const offs = [live?.onIssue?.(soon), live?.onReconnected?.(soon)]
+  if (typeof window !== 'undefined') {
+    window.addEventListener(ISSUE_OPENED_EVENT, soon)
+    offs.push(() => window.removeEventListener(ISSUE_OPENED_EVENT, soon))
+  }
   void load()
   return () => {
     stopped = true

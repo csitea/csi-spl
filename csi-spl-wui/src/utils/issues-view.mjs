@@ -199,6 +199,11 @@ export function applyIssueFrame(list, frame) {
   }
   const out = (list || []).slice()
   const at = out.findIndex((i) => i.key === next.key)
+  /* SPL-1559: a frame is tenant-wide, so it carries no viewer's `unopened`;
+     the row keeps its mark while it stays the same assignee's open issue (a
+     new or reassigned row is asked for by the page: issues.vue checkUnopened) */
+  const was = at < 0 ? null : out[at]
+  next.unopened = !!(was && was.unopened && was.assignee === next.assignee && next.status !== 'done' && next.status !== 'diss')
   if (at < 0) out.push(next)
   else if (!out[at].updated_at || !next.updated_at || ms(next.updated_at) >= ms(out[at].updated_at)) out[at] = next
   return out

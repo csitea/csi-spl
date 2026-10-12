@@ -10,6 +10,8 @@ declare module '~/utils/blocker-settings.mjs' {
 declare module '~/utils/my-issues-count.mjs' {
   export const OPEN_ISSUE_STATUSES: readonly string[]
   export function openIssueCount(issues: unknown): number
+  export function newIssueCount(issues: unknown): number
+  export const ISSUE_OPENED_EVENT: string
   export function startMyIssuesCount(opts: {
     api: { listIssues: (opts?: { filter?: Record<string, unknown> }) => Promise<unknown> },
     live?: { onIssue?: (fn: () => void) => unknown, onReconnected?: (fn: () => void) => unknown },

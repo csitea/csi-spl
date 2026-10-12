@@ -51,7 +51,20 @@ export function normalizeIssue(raw) {
     updated_at: String(r.updated_at || ''),
     completed_at: String(r.completed_at || ''),
     canceled_at: String(r.canceled_at || ''),
+    /* SPL-1559 (rdb 0184): the viewer has not opened it yet (the hub's
+       per-viewer mark on a list or single read; a live frame has none) */
+    unopened: r.unopened === true,
   }
+}
+
+/**
+ * SPL-1559: the hub's rule for an issue that can be new to `me` (hub
+ * issue_opens.go issueUnopened, less the opened set): still to do, not a
+ * level-1 row, assigned to me and created by someone else.
+ */
+export function unopenedCandidate(issue, me) {
+  const i = issue || {}
+  return !!me && i.assignee === me && i.created_by !== me && !isTopKind(i.kind) && i.status !== 'done' && i.status !== 'diss'
 }
 
 export function normalizeLabel(raw) {
@@ -357,6 +370,33 @@ function mockHistoryOf(i, log) {
 }
 
 export const MOCK_ISSUES_SEED_KEY = 'spool.mock.issues-seed'
+/** localStorage key (SPL-1559): how many issues a teammate assigned to me the mock tenant starts with, none opened. */
+export const MOCK_ISSUES_NEW_KEY = 'spool.mock.issues-new'
+/** the teammate the mock's new issues come from */
+const MOCK_TEAMMATE = 'HUM-2'
+
+/** a localStorage count, 0..max; 0 without storage */
+function mockStoredCount(key, max) {
+  try { return Math.min(max, Number(globalThis.localStorage?.getItem(key)) || 0) } catch { return 0 }
+}
+
+/** The mock tenant's first issues, numbered from 1 with no gap. */
+function mockSeedIssues(me, now) {
+  const issues = [normalizeIssue({ key: 'SPL-1', number: 1, title: 'random', kind: 'epic', labels: ['epic'], status: 'in_progress',
+    task_id: '00000000-0000-4000-8000-000000000001', created_by: me, updated_by: me, created_at: now(), updated_at: now() })]
+  /* t1 d5d00918: localStorage `spool.mock.issues-seed` = N plays a tenant
+     with N more issues (SPL-2 ..), so a test reaches a second page */
+  const seed = mockStoredCount(MOCK_ISSUES_SEED_KEY, 500)
+  for (let k = 1; k <= seed; k++) {
+    issues.push(mockNewIssue({ title: `mock issue ${k}`, priority: 1 + (k % 5) }, issues.length + 1, me, now()))
+  }
+  /* SPL-1559: `spool.mock.issues-new` = N issues a teammate assigned to me, none opened */
+  const fresh = mockStoredCount(MOCK_ISSUES_NEW_KEY, 50)
+  for (let k = 1; k <= fresh; k++) {
+    issues.push(mockNewIssue({ title: `new for me ${k}`, assignee: me, status: 'todo' }, issues.length + 1, MOCK_TEAMMATE, now()))
+  }
+  return issues
+}
 
 /**
  * The mock hub's issues (mock mode, no hub): the same answers as issues-v1,
@@ -365,18 +405,11 @@ export const MOCK_ISSUES_SEED_KEY = 'spool.mock.issues-seed'
 export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOString() } = {}) {
   /* the tab starts with the "random" epic rdb 0049 gave every tenant, SPL-1;
      since W16 (spec 047) an issue may also stand alone at level 2 */
-  let last = 1
-  let issues = [normalizeIssue({ key: 'SPL-1', number: 1, title: 'random', kind: 'epic', labels: ['epic'], status: 'in_progress',
-    task_id: '00000000-0000-4000-8000-000000000001', created_by: me, updated_by: me, created_at: now(), updated_at: now() })]
+  let issues = mockSeedIssues(me, now)
+  let last = issues.length
   let labels = [normalizeLabel({ id: 'bug', name: 'Bug', color: '#ef4444' }), normalizeLabel({ id: 'epic', name: 'epic', color: '#8b5cf6' })]
-  /* t1 d5d00918: localStorage `spool.mock.issues-seed` = N plays a tenant
-     with N more issues (SPL-2 ..), so a test reaches a second page */
-  let seed = 0
-  try { seed = Math.min(500, Number(globalThis.localStorage?.getItem(MOCK_ISSUES_SEED_KEY)) || 0) } catch { /* no storage */ }
-  for (let k = 1; k <= seed; k++) {
-    last++
-    issues.push(mockNewIssue({ title: `mock issue ${k}`, priority: 1 + (k % 5) }, last, me, now()))
-  }
+  const opened = new Set() /* SPL-1559 (rdb 0184): the keys this viewer opened */
+  const mine = (i) => ({ ...i, unopened: unopenedCandidate(i, me) && !opened.has(i.key) })
   const find = (ref) => mockFind(issues, ref)
   const view = (i) => mockView(issues, i)
   const log = mockHistoryLog(issues) /* rdb 0181; a gone issue's history reads 404 */
@@ -397,7 +430,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     list(query = '') {
       const q = new URLSearchParams(query)
       const f = mockFilterOf(q)
-      const matched = issues.map(view).filter((i) => matchIssue(i, f, me))
+      const matched = issues.map(view).map(mine).filter((i) => matchIssue(i, f, me))
       const counts = Object.fromEntries(ISSUE_STATUSES.map((s) => [s, matched.filter((i) => i.status === s).length]))
       const { rows, next } = mockPage(matched, q)
       return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: rows, labels: labels.slice(), channel: ISSUE_CHANNEL, epics: mockSummaries(issues),
@@ -406,7 +439,14 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     get(ref) {
       const i = find(ref)
       if (!i) throw mockErr(404, 'not_found')
-      return { issue: view(i) }
+      return { issue: mine(view(i)) }
+    },
+    /* SPL-1559: POST /v1/issues/{ref}/opened */
+    opened(ref) {
+      const i = find(ref)
+      if (!i) throw mockErr(404, 'not_found')
+      opened.add(i.key)
+      return { key: i.key, unopened: false }
     },
     create(body = {}) {
       mockEpicField(issues, body)

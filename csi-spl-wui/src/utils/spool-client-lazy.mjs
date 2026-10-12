@@ -1285,6 +1285,14 @@ async function archiveIssue(ctx, ref, { cascade = false } = {}) {
   return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}/archive${q}`, { method: 'POST' })
 }
 
+/** SPL-1559 (rdb 0184): the signed-in member opened the issue, so it is no
+ *  longer marked new for them → `{ key, unopened: false }`; 404 not_found. */
+async function markIssueOpened(ctx, ref) {
+  const { live, mock, issuesMock } = ctx
+  if (mock) return issuesMock().opened(ref)
+  return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}/opened`, { method: 'POST' })
+}
+
 /** issues-v1 §1: a new label in the tenant's catalogue → `{ label }`; 409 label_exists. */
 async function createIssueLabel(ctx, { name = '', color = '' } = {}) {
   const { live, mock, issuesMock } = ctx
@@ -1575,5 +1583,6 @@ export const lazySpoolMethods = {
   updateIssue,
   deleteIssue,
   archiveIssue,
+  markIssueOpened,
   createIssueLabel,
 }

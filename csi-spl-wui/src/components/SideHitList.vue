@@ -47,7 +47,7 @@
           <HumanName v-if="item.who && item.who.id" class="side-hit__who" :id="item.who.id" :box="item.who.box || ''" />
           <span v-if="item.where" class="side-hit__where muted">{{ item.where }}</span>
           <span v-if="item.when" class="side-hit__when muted">{{ item.when }}</span>
-          <span v-if="item.unread" class="side-hit__dot" data-testid="left-entry-unread" aria-hidden="true" />
+          <span v-if="item.unread" class="side-hit__dot unread-dot" data-testid="left-entry-unread" aria-hidden="true" />
         </div>
         <p v-if="segsOf(item).length" class="side-hit__text" :class="{ 'side-hit__text--fold': item.fold }">
           <template v-for="(s, i) in segsOf(item)" :key="i"><mark v-if="s.mark">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>
@@ -210,7 +210,6 @@ defineExpose({ focus, rowEl: (key: string) => {
 .side-hit__who { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
 .side-hit__where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; font-size: 0.75rem; }
 .side-hit__when { flex: none; margin-inline-start: auto; font-size: 0.6875rem; }
-.side-hit__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); align-self: center; }
 .side-hit.unread .side-hit__who { font-weight: 700; }
 /* a short snippet: two lines at most, the match marked */
 .side-hit__text {

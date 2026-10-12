@@ -12,6 +12,8 @@
 #   Timing guard: the run ends with the slowest files, their wall and CPU;
 #   ORC_TEST_SHARD=<k>/<m> splits the files with no file lost or run twice,
 #   and no test file inherits it (a test that runs the suite sees all of it).
+#   The shards are a longest-first pack of orc-shard-weights.txt, the pool
+#   starts the heaviest first, and ORC_TEST_TIMES=1 lists every file's time.
 #   A suite stopped by TERM prints every finished file with its verdict and
 #   '=== stopped: N of M files finished, K not run', and exits non-zero.
 #------------------------------------------------------------------------------
@@ -22,7 +24,7 @@ RUNNER="$PROJ_ROOT/src/bash/tests/run-all-tests.sh"
 JOBS_VAR=ORC_TEST_JOBS
 # the suite under test reads these; a caller's values (a CI shard, a local
 # ORC_TEST_SLOWEST=300) must not reach it
-unset ORC_TEST_SHARD ORC_TEST_SLOWEST
+unset ORC_TEST_SHARD ORC_TEST_SLOWEST ORC_TEST_WEIGHTS ORC_TEST_TIMES
 
 fails=0
 pass() { echo "PASS: $1"; }
@@ -84,6 +86,42 @@ done
 grep -qx 'out-d shard=unset' "$T/outs2" && pass "a test file does not inherit ORC_TEST_SHARD" || fail "ORC_TEST_SHARD leaks into a test" "$(cat "$T/outs2")"
 ORC_TEST_SHARD=3/2 bash "$T/run-all-tests.sh" >"$T/outb" 2>&1; rcb=$?
 [ "$rcb" -eq 2 ] && pass "a bad ORC_TEST_SHARD is refused (rc 2)" || fail "a bad ORC_TEST_SHARD" "rc=$rcb $(cat "$T/outb")"
+
+# L5 (2026-10-12): the shards are a longest-first pack of the weights file.
+# a=50 b=40 c=30, the rest 1: a->1, b->2, c->2 (40 < 50), d and s->1.
+# CONTROL: the old every-2nd-file split gives 1/2 = a c s, so it fails this.
+W=$T/weights; mkdir -p "$W"
+cp "$RUNNER" "$W/run-all-tests.sh"
+for f in a b c d s; do printf '#!/usr/bin/env bash\necho "%s" >>"%s/started"\nsleep 0.3\n' "$f" "$W" >"$W/$f-w.tst.sh"; done
+printf '# test weights\n* 1\na-w.tst.sh 50\nb-w.tst.sh 40\nc-w.tst.sh 30\n' >"$W/orc-shard-weights.txt"
+ORC_TEST_SHARD=1/2 bash "$W/run-all-tests.sh" >"$W/out1" 2>&1
+ORC_TEST_SHARD=2/2 bash "$W/run-all-tests.sh" >"$W/out2" 2>&1
+[ "$(grep '^=== [a-z]-w' "$W/out1" | tr '\n' ' ')" = "=== a-w.tst.sh === d-w.tst.sh === s-w.tst.sh " ] \
+  && [ "$(grep '^=== [a-z]-w' "$W/out2" | tr '\n' ' ')" = "=== b-w.tst.sh === c-w.tst.sh " ] \
+  && grep -qx -- '--- shard 1/2 weight: 52 of 122 s' "$W/out1" && grep -qx -- '--- shard 2/2 weight: 70 of 122 s' "$W/out2" \
+  && pass "ORC_TEST_SHARD packs the weights longest-first (1/2 = a d s, 2/2 = b c), in suite order" \
+  || fail "weighted shards" "$(cat "$W/out1" "$W/out2")"
+printf '* x\n' >"$W/bad-weights.txt"
+ORC_TEST_WEIGHTS="$W/bad-weights.txt" bash "$W/run-all-tests.sh" >"$W/outbad" 2>&1; rcw=$?
+[ "$rcw" -eq 2 ] && grep -q 'orc shard weights: bad line' "$W/outbad" \
+  && pass "a bad weights line is refused (rc 2)" || fail "a bad weights line" "rc=$rcw $(cat "$W/outbad")"
+# the pool starts the heaviest files first: with 2 jobs, a (50) and b (40)
+# start before c, d and s; the suite-order log is unchanged
+: >"$W/started"
+ORC_TEST_JOBS=2 bash "$W/run-all-tests.sh" >"$W/outj" 2>&1
+[ "$(head -2 "$W/started" | sort | tr '\n' ' ')" = "a b " ] \
+  && [ "$(grep '^=== [a-z]-w' "$W/outj" | tr '\n' ' ')" = "=== a-w.tst.sh === b-w.tst.sh === c-w.tst.sh === d-w.tst.sh === s-w.tst.sh " ] \
+  && pass "the pool starts the heaviest files first and still prints in suite order" \
+  || fail "heaviest first" "started: $(tr '\n' ' ' <"$W/started") $(cat "$W/outj")"
+# reorder the weights so the lightest names are heaviest: d and s start first
+printf '* 1\nd-w.tst.sh 50\ns-w.tst.sh 40\n' >"$W/rev.txt"; : >"$W/started"
+ORC_TEST_WEIGHTS="$W/rev.txt" ORC_TEST_JOBS=2 bash "$W/run-all-tests.sh" >/dev/null 2>&1
+[ "$(head -2 "$W/started" | sort | tr '\n' ' ')" = "d s " ] \
+  && pass "CONTROL: the start order follows the weights, not the names" \
+  || fail "CONTROL start order" "started: $(tr '\n' ' ' <"$W/started")"
+ORC_TEST_TIMES=1 ORC_TEST_JOBS=2 bash "$W/run-all-tests.sh" >"$W/outt" 2>&1
+[ "$(sed -n '/^--- every file (wall s)/,$p' "$W/outt" | grep -cE '^[a-z]-w\.tst\.sh [0-9]+$')" -eq 5 ] \
+  && pass "ORC_TEST_TIMES=1 prints every file's wall seconds" || fail "every-file times" "$(cat "$W/outt")"
 
 # Round 8 row 02, red control: a stopped suite prints what it proved. File 1
 # blocks (until released, at most 30 s), files 2-4 pass at once; TERM once

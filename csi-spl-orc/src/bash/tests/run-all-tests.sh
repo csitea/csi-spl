@@ -27,9 +27,19 @@
 # files (wall s, cpu s)" (ORC_TEST_SLOWEST=<n>, 0 = off), so a creep toward
 # CI's timeout-minutes shows in the log before the cap cancels the job. On a
 # CPU-quota'd runner the cpu column is what the quota divides.
-# ORC_TEST_SHARD=<k>/<m> runs only every m-th file starting at the k-th, so
-# CI can split the suite across m parallel jobs; it is unset before any file
-# runs, so a test that runs this script itself sees the whole suite.
+# ORC_TEST_SHARD=<k>/<m> runs shard k of a longest-first pack of the files
+# into m shards, so CI can split the suite across m parallel jobs; it is
+# unset before any file runs, so a test that runs this script itself sees the
+# whole suite. The weights are orc-shard-weights.txt beside this file
+# (ORC_TEST_WEIGHTS=<file> overrides): '<file> <secs>' lines, '* <secs>' for
+# every unlisted file. The heaviest file goes to the lightest shard (ties: the
+# lower shard); with no weights every file ties and the pack is the old
+# every-m-th split. The pool also starts the heaviest files first, so a
+# 10-min file does not start last and hold the shard open alone (L5,
+# 2026-10-12: two shards were 7,378 s and 5,543 s of summed wall, 33 % apart,
+# under every-2nd-file). On CI (ORC_TEST_TIMES=1) the run ends with
+# '--- every file (wall s)', one '<file> <secs>' line each, to refresh the
+# weights from.
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
 changed=0 bg=""
@@ -74,14 +84,39 @@ fi
 [[ "$njobs" =~ ^[1-9][0-9]*$ ]] || { echo "ORC_TEST_JOBS must be a positive integer (got '$njobs')" >&2; exit 2; }
 all=()
 for t in "$dir"/*.tst.sh; do [[ -f "$t" ]] && all+=("$t"); done
+# wt[<basename>] = weight (s); wdef = the weight of an unlisted file
+declare -A wt=()
+wdef=1
+wfile="${ORC_TEST_WEIGHTS:-$dir/orc-shard-weights.txt}"
+if [[ -f "$wfile" ]]; then
+  while read -r wf ws _; do
+    [[ -z "$wf" || "$wf" == \#* ]] && continue
+    [[ "$ws" =~ ^[0-9]+$ ]] || { echo "orc shard weights: bad line '$wf $ws' in $wfile" >&2; exit 2; }
+    if [[ "$wf" == '*' ]]; then wdef=$ws; else wt[$wf]=$ws; fi
+  done <"$wfile"
+fi
+weight() { local b=${1##*/}; echo "${wt[$b]:-$wdef}"; }
+# heaviest_first <file>...: '<index> <weight>' per file (0-based), heaviest
+# first, a tie in the given order
+heaviest_first() {
+  local i
+  for ((i = 1; i <= $#; i++)); do echo "$((i - 1)) $(weight "${!i}")"; done | sort -s -k2,2nr
+}
 shard="${ORC_TEST_SHARD:-}"
 unset ORC_TEST_SHARD
 if [[ -n "$shard" ]]; then
   [[ "$shard" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] && (( BASH_REMATCH[1] <= BASH_REMATCH[2] )) \
     || { echo "ORC_TEST_SHARD must be <k>/<m> with 1 <= k <= m (got '$shard')" >&2; exit 2; }
-  sk=${BASH_REMATCH[1]} sm=${BASH_REMATCH[2]} mine=()
-  for ((i = sk - 1; i < ${#all[@]}; i += sm)); do mine+=("${all[$i]}"); done
+  sk=${BASH_REMATCH[1]} sm=${BASH_REMATCH[2]} mine=() sums=() owner=() total=0
+  for ((s = 0; s < sm; s++)); do sums[s]=0; done
+  while read -r i w; do
+    best=0
+    for ((s = 1; s < sm; s++)); do (( sums[s] < sums[best] )) && best=$s; done
+    owner[i]=$best; sums[best]=$((sums[best] + w)); total=$((total + w))
+  done < <(heaviest_first "${all[@]}")
+  for ((i = 0; i < ${#all[@]}; i++)); do (( owner[i] == sk - 1 )) && mine+=("${all[$i]}"); done
   echo "--- shard $shard: ${#mine[@]} of ${#all[@]} files"
+  echo "--- shard $shard weight: ${sums[sk - 1]} of $total s"
   all=("${mine[@]}")
 fi
 list=("${all[@]}")
@@ -161,10 +196,11 @@ else
   }
   trap stopped INT TERM
   running=0
-  for ((i = 0; i < ${#pool[@]}; i++)); do
+  # heaviest first; files[] keeps suite order, so the log still reads serial
+  while read -r i _; do
     if (( running >= njobs )); then wait -n; running=$((running - 1)); flush; fi
-    start "$i"; started=$((i + 1)) running=$((running + 1))
-  done
+    start "$i"; started=$((started + 1)) running=$((running + 1))
+  done < <(heaviest_first "${pool[@]}")
   wait; flush
   for ((i = ${#pool[@]}; i < n; i++)); do start "$i"; started=$((i + 1)); wait; flush; done
 fi
@@ -174,6 +210,12 @@ if [[ -s "$times" && "$slowest" =~ ^[1-9][0-9]*$ ]]; then
   echo "--- slowest $slowest test files (wall s, cpu s)"
   awk '{ printf "%8.1f %8.1f  %s\n", $2 - $1, $3, $4 }' "$times" | sort -rn | sed -n "1,${slowest}p"
   awk '{ w += $2 - $1; c += $3 } END { printf "--- sum over %d files: wall %.0f s, cpu %.0f s\n", NR, w, c }' "$times"
+fi
+times_all="${ORC_TEST_TIMES:-}"
+[[ -n "$times_all" ]] || { [[ "${GITHUB_ACTIONS:-}" == true ]] && times_all=1 || times_all=0; }
+if [[ -s "$times" && "$times_all" == 1 ]]; then
+  echo "--- every file (wall s), for orc-shard-weights.txt"
+  awk '{ printf "%s %.0f\n", $4, $2 - $1 }' "$times" | sort
 fi
 rm -f "$times" "$times.cpu"
 if [[ -s "$SPOOL_TEST_GUARD_LOG" ]]; then

@@ -1,0 +1,32 @@
+# Wall seconds per orc test file, for the ORC_TEST_SHARD longest-first pack
+# and the start order of the pool (run-all-tests.sh). Source: wf 10 job logs
+# of "orc: hermetic action tests" 1/2 and 2/2, 20 successful jobs of master
+# runs 38159252847 .. 38207328805 (2026-10-11/12). A file listed here is
+# the median of its wall time in the "--- slowest 10 test files" block, over
+# the runs where it was listed (n >= 3). '*' is the weight of every other
+# file: (median two-shard sum 13,458 s - 5,621 s of the listed files) / the
+# 332 other files = 24 s. Refresh from the "--- every file (wall s)" block
+# that the runner prints on CI.
+* 24
+adhoc-harvest-actions.tst.sh 162
+agent-restart.tst.sh 196
+asks.tst.sh 198
+blog-check.tst.sh 201
+blog-image.tst.sh 117
+box-restart-schedule.tst.sh 120
+cloud-actions.tst.sh 140
+desk-actions.tst.sh 366
+dispatch-rotate.tst.sh 263
+dispatch-setup-check.tst.sh 182
+fleet-lease.tst.sh 580
+orch-rotate.tst.sh 222
+parse-metadata-nofork.tst.sh 453
+peer-poll.tst.sh 518
+spl-db-hot-measure.tst.sh 104
+spl-lane-mix.tst.sh 545
+spl-session-prune.tst.sh 243
+spool-install.tst.sh 243
+tenant-host.tst.sh 179
+tmux-close-window.tst.sh 264
+wd-self-update.tst.sh 120
+wd-situations.tst.sh 205

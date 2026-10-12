@@ -582,6 +582,33 @@ async function resetBox(p) {
   }
 }
 const entered = (s) => Boolean(s && (s.search || s.panel || s.value !== HELLO))
+/* spec 133 round 12: a grid press waits for its own click, not a fixed 120 ms.
+   The click is the last event of a press (search starts on pointerup, before
+   it; the click handler is synchronous plus one nextTick), so the click and
+   two frames after it are enough. The inside points are the proof: a settle
+   too short for the real path would leave them "not entered" and red the
+   grid. A press with no click falls back to 1 s. */
+async function countClicks(p) {
+  await p.evaluate(() => {
+    if (window.__tapClicks !== undefined) return
+    window.__tapClicks = 0
+    window.addEventListener('click', () => { window.__tapClicks++ }, true)
+  })
+}
+async function settlePress(p, before) {
+  await p.waitForFunction((n) => window.__tapClicks > n, { polling: 'raf', timeout: 1000 }, before).catch(() => {})
+  await p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+}
+/* the box is back to "hello world", search off, list closed (was a fixed 80 ms).
+   False when it never gets there: a press that entered search late, after the
+   reset, which the grid then reports instead of a bare timeout */
+async function settleReset(p) {
+  return p.waitForFunction((sel, hello) => {
+    const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+    const form = ta && ta.closest('form')
+    return Boolean(form && ta.value === hello && !form.classList.contains('omnibox--search') && !form.querySelector('[data-test=search-syntax-panel]'))
+  }, { polling: 'raf', timeout: 2000 }, TA, HELLO).then(() => true, () => false)
+}
 
 async function tapCase(browser, vp, tag) {
   const touch = Boolean(vp.hasTouch)
@@ -600,18 +627,23 @@ async function tapCase(browser, vp, tag) {
   for (const x of [Math.ceil(b.l) + 1, cx, Math.floor(b.r) - 1]) pts.push([x, Math.floor(b.t) - 1], [x, Math.ceil(b.b) + 1])
   const wrong = []
   let inside = 0
+  await countClicks(p)
   for (const [x, y] of pts) {
     /* the square where it is drawn right now, before this press */
     const now = (await tapState(p)).btn
     const isIn = x >= now.l && x <= now.r && y >= now.t && y <= now.b
     if (isIn) inside++
+    const before = await p.evaluate(() => window.__tapClicks)
     if (touch) await p.touchscreen.tap(x, y)
     else await p.mouse.click(x, y)
-    await sleep(120)
+    await settlePress(p, before)
     const s = await tapState(p)
     if (entered(s) !== isIn) wrong.push({ x, y, inside: isIn, value: s && s.value, panel: s && s.panel })
     await resetBox(p)
-    await sleep(80)
+    if (!(await settleReset(p))) {
+      wrong.push({ x, y, inside: isIn, reset: 'the box did not return to "hello world" within 2 s (a late entry)' })
+      break
+    }
   }
   ok(`${tag} point grid: only a press inside the Search square enters search (${pts.length} points, ${inside} inside)`, wrong.length === 0 && inside > 0, wrong.slice(0, 12))
 

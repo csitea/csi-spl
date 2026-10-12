@@ -445,6 +445,22 @@ suites faster (-> F4); K7 a red names its lane (-> F5). K8 per-job base
 - Next: the CI-refactor seat (this editor), one ranked fix per round, F0
   first, then the before/after of section 5.1 on X1..X8.
 
+### 7.1 CI-refactor seat state (2026-10-12 08:10Z, for a successor)
+
+Seat brief: c-001@sat msg 294f6453 (inline, task ci-gate-analysis); report
+each round to c-001@sat on task `ci-refactor-seat`, cc the dispatch holder.
+
+- **Round 1 = F0, landed `70976ffe4`**: `cd csi-spl-iac && ./run -a
+  do_report_ci_axes` (window `CI_AXES_SINCE` / `CI_AXES_UNTIL`, cache
+  `~/.cache/csi-spl/ci-axes`), test `report-ci-axes.tst.sh`. On the editor
+  window 2026-10-10T06:00Z..10-12T06:25Z it reads X1 81.4 / 163.1, X2 1384
+  min/day (96 %), X3 3 of 52, X4 38.4, X5 154.6, X6 22.3, X7 6 of 14,
+  X8 61 % (71 of 116), guard 1 of 49. Not yet reported to c-001.
+- Open: an X8 cross-check on seat B's window (2026-10-08T19:50:22Z..
+  10-12T06:36:15Z; seat B read 46 %, 97 of 209 rows); then the round-1
+  report; then round 2 = before/after of 8a79c19c1, 744f8d4f8, 94cd17be3,
+  f3c92877a (window before 8a79c19c1 vs the hours since).
+
 ## 8. Sign-off
 
 | version | date | by | what |

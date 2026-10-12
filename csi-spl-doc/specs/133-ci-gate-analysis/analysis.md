@@ -1,6 +1,6 @@
 # 133: CI gate analysis
 
-Status: **draft v0.4** (editor c-296, 2026-10-12). The seats'
+Status: **draft v0.5** (editor c-296, 2026-10-12). The seats'
 findings are folded in here as they land; until then the sections below hold
 only the starting facts and the questions each section must answer.
 
@@ -128,6 +128,32 @@ command + sha + n, and its share of the lost verdicts.)
 
 ### 2.1 Cadence: pushes vs gate wall time
 
+Editor's model, checked against section 1.1. The group
+`quality-gate-${{ github.ref }}` keeps one running and one pending run. A
+push lands while a run is going, waits for the rest of it, then for its own
+(pending, possibly replaced) run to finish. With wall time W = 46 min, the
+expected wait is about 1.5 x W = 69 min and the worst case 2 x W = 92 min,
+plus queue wait. The measured push-to-verdict median is 81 min (p90 163,
+n=626), which fits. I believe, unchecked, that the p90 tail (163) comes from
+the 14 started runs that ended cancelled with no verdict, so those pushes
+waited a further W.
+
+What superseding costs, and what it does not:
+
+- **No runner time.** 565 of 631 runs never started a job (M-JOBS).
+- **Attribution.** One verdict covers ~10 pushes (631 pushes, 51 verdicts),
+  so a red cannot be pinned to one commit without a bisect.
+- **Latency.** Push-to-verdict is bound to W, so **cutting W (X4) is what
+  moves X1**. Selection (2.2) cuts W for most pushes.
+
+**Deploys do not wait for the gate.** wf 20 and wf 30 have no `workflow_run`
+trigger and no reference to wf 10 outside comments
+(`grep -nE "workflow_run|10_ci-quality" .github/workflows/20_hub-build-deploy.yml .github/workflows/30_wui-build-deploy.yml`
+-> lines 100 and 572 of wf 20 and line 92 of wf 30, all comments). The hub
+and wui deploy to dev and prd on their own `test` job, while wf 10 is red
+96% of the time. wf 20's `test` job is a second hub suite run on every hub
+push (seat C, C5).
+
 ### 2.2 Selection: every push runs every code job
 
 From [seat C](seat-c.md) (c-297, `2921f95b0`, n=614 push diffs):
@@ -171,8 +197,8 @@ From [seat C](seat-c.md) (c-297, `2921f95b0`, n=614 push diffs):
 | A | `seat-a.md` | wall time, queue wait, runners | pending | |
 | B | `seat-b.md` | red causes, flakes | pending | |
 | C | [seat-c.md](seat-c.md) | per-part selection | v0.2, review fixes in, folded | `15fe61d85` |
-| D | [seat-d.md](seat-d.md) | slow suites | v0.1 sent back (8 points: real timings, sha + n) | `1c10c7219` |
-| E | `seat-e.md` | triggers, concurrency, supersede | pending | |
+| D | [seat-d.md](seat-d.md) | slow suites | v0.2 sent back, round 2 (5 points: e2e per-file times from CI logs, exact axis commands) | `4dc3f9a77` |
+| E | [seat-e.md](seat-e.md) | triggers, concurrency, supersede | v0.1 sent back (7 points: latency model, supersede cost, merge queue vs red minutes, deploy facts, runnable commands) | `edf2b3fa1` |
 
 ## 4. The axes (ONE set, 5-8)
 
@@ -227,3 +253,4 @@ generalises K1 and revives the docs express lane on a red trunk.
 | v0.2 | 2026-10-12 | c-296 | editor re-measure (1.1), express-lane finding (1.2), draft axes X1..X6 |
 | v0.3 | 2026-10-12 | c-296 | panel roster; candidates K1..K8 (c-002 7 actions + express base) |
 | v0.4 | 2026-10-12 | c-296 | seat C folded (2.2) |
+| v0.5 | 2026-10-12 | c-296 | 2.1 latency model, deploys do not wait for the gate; D, E in review |

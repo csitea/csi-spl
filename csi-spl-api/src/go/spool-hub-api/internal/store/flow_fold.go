@@ -306,16 +306,36 @@ func (s *Memory) flowReleases(from, to time.Time) []flowRelease {
 // Postgres side.
 
 // flowFoldSQL is the window: the member's newest events past the cursor
-// ($6, $7) of kind $8, $5 of them, each with its topic's title (its first
-// message) and issue number, looked up once per topic of the window. The
-// window is flow_events_member_at's index scan, as the plain page.
+// ($6, $7) of kind $8 whose message the member may read, $5 of them, each with
+// its topic's title (its first message) and issue number, looked up once per
+// topic of the window.
+//
+// The page is cut on flow_events alone first (perf round 5, P5-11): ev is the
+// member's newest $5 events, a walk of flow_events_member_at that stops at $5,
+// and only those events probe messages for the door. Joining messages before
+// the LIMIT let the planner probe every event of the member: on prd its
+// RLS predicate hid a member's 6 633 events behind an estimate of 29, and the
+// page cost 2.1 s cold. When the door drops some of ev, fill takes the next
+// events past ev in the old join shape, so a page never comes back short; its
+// guard is an initplan, so a page with no door miss never runs it.
 func flowFoldSQL() string {
-	return `WITH raw AS (SELECT ` + flowEventCols("e", "m", "$9::text") + `, e.at AS ev_at
-			FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
-			WHERE e.tenant_id = $1 AND e.member_id = $2 AND e.expires_at > $3 AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `
+	evWhere := `e.tenant_id = $1 AND e.member_id = $2 AND e.expires_at > $3
 			  AND ($6::timestamptz IS NULL OR (e.at, e.msg_id) < ($6::timestamptz, $7::uuid))
-			  AND ($8::text[] IS NULL OR e.kind = ANY($8::text[]))
+			  AND ($8::text[] IS NULL OR e.kind = ANY($8::text[]))`
+	return `WITH ev AS (SELECT e.tenant_id, e.member_id, e.msg_id, e.kind, e.at FROM flow_events e
+			WHERE ` + evWhere + `
 			ORDER BY e.at DESC, e.msg_id DESC LIMIT $5),
+		hit AS (SELECT e.* FROM ev e WHERE EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
+			AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `)),
+		fill AS (SELECT e.tenant_id, e.member_id, e.msg_id, e.kind, e.at
+			FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
+			WHERE ` + evWhere + ` AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `
+			  AND (SELECT count(*) FROM hit) < (SELECT count(*) FROM ev) AND (SELECT count(*) FROM ev) = $5
+			  AND (e.at, e.msg_id) < (SELECT x.at, x.msg_id FROM ev x ORDER BY x.at, x.msg_id LIMIT 1)
+			ORDER BY e.at DESC, e.msg_id DESC LIMIT $5),
+		raw AS (SELECT ` + flowEventCols("e", "m", "$9::text") + `, e.at AS ev_at
+			FROM (SELECT * FROM hit UNION ALL SELECT * FROM fill ORDER BY at DESC, msg_id DESC LIMIT $5) e
+			CROSS JOIN LATERAL (SELECT * FROM messages m WHERE m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id LIMIT 1) m),
 		tt AS (SELECT d.task_id,
 				coalesce((SELECT left(r.body, 400) FROM messages r WHERE r.tenant_id = $1 AND r.task_id = d.task_id::uuid
 					ORDER BY r.received_at, r.msg_id LIMIT 1), '') AS title,

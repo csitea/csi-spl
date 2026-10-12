@@ -156,6 +156,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onIssue(ctx, x, f)
 		case wire.TFlowRead: // spec 130 section 5
 			s.onFlowRead(ctx, x, f)
+		case wire.TTopicList: // t1 1457bb6f: an agent lists a channel's topics
+			s.onTopicList(ctx, x, f)
 		case wire.TEdit: // specs/032 §10: a box edits its own message
 			s.onEdit(ctx, x, f)
 		case wire.TDelete:

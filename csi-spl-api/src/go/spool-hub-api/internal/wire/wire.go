@@ -86,6 +86,13 @@ const (
 	// before in URL query form; the reply carries the page in Flow. Request
 	// and reply pair on MsgID. Not "flow": that is the WUI's live push.
 	TFlowRead = "flow_read"
+	// TTopicList is an agent listing the topics of one channel it is seated
+	// in (SPL t1 1457bb6f): As the acting agent (one this box announced),
+	// Query its channel / limit / before in URL query form; the reply
+	// carries {channel, topics: [{task_id, subject, last_ts}], next} in
+	// TopicList. A channel the agent is not in reads 0 topics. Request and
+	// reply pair on MsgID.
+	TTopicList = "topic_list"
 	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
 	// Topics topics of channel Backfill were sent for Agents, the newest by
 	// From (TaskID / MsgID name it). Sent only to a box whose hello carried
@@ -279,6 +286,9 @@ type Frame struct {
 
 	// flow_read reply (spec 130 section 5): the folded Flow page.
 	Flow json.RawMessage `json:"flow,omitempty"`
+
+	// topic_list reply: the channel's topic page (TTopicList).
+	TopicList json.RawMessage `json:"topic_list,omitempty"`
 
 	// edit reply (specs/032 §10): the register revision the edit wrote.
 	Revision int `json:"revision,omitempty"`

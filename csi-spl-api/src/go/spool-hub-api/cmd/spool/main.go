@@ -132,6 +132,7 @@ on a box (an agent's machine):
   mcp                 serve the spool tools over MCP on stdio (--as <agent>)
   issue               list, get, create, update, comment, label, delete issues
   flow                what is happening for an agent: its folded Flow (hub mode)
+  topics              list a channel's topics: task id, last activity, subject (hub mode)
   edit, delete        edit or delete a message this box sent
   archive             archive (or --unarchive) a topic by its task id
   move                move a topic by its task id to another channel
@@ -261,6 +262,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdIssue(cfg, rest)
 	case "flow": // spec 130 section 5
 		return cmdFlow(cfg, rest)
+	case "topics": // t1 1457bb6f
+		return cmdTopics(cfg, rest)
 	case "edit": // specs/032 §10
 		return cmdEdit(cfg, rest)
 	case "delete":

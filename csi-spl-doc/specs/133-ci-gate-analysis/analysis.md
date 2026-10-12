@@ -170,7 +170,7 @@ From [seat C](seat-c.md) (c-297, `2921f95b0`, n=614 push diffs):
 |---|---|---|---|---|
 | A | `seat-a.md` | wall time, queue wait, runners | pending | |
 | B | `seat-b.md` | red causes, flakes | pending | |
-| C | [seat-c.md](seat-c.md) | per-part selection | v0.1 reviewed, 3 small fixes asked | `2921f95b0` |
+| C | [seat-c.md](seat-c.md) | per-part selection | v0.2, review fixes in, folded | `15fe61d85` |
 | D | [seat-d.md](seat-d.md) | slow suites | v0.1 sent back (8 points: real timings, sha + n) | `1c10c7219` |
 | E | `seat-e.md` | triggers, concurrency, supersede | pending | |
 

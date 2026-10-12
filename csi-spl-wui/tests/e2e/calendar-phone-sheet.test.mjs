@@ -35,9 +35,9 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calIsoDay } from '../../src/utils/calendar-year.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -72,7 +72,7 @@ async function shot(p, name) {
 }
 
 const ZONE = 'Europe/Helsinki'
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const ROOT = '[data-test=calendar-phone]'
 const SHEET = '[data-test=calphone-sheet]'
 const ADDED_KEY = 'spool.mock.calendar-added'
@@ -83,7 +83,7 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 async function open(browser, vp, { theme = 'dark', level = 3 } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
-  await p.emulateTimezone(ZONE)
+  await pinClock(p, ZONE)
   await p.evaluateOnNewDocument((s) => {
     try {
       if (sessionStorage.getItem('calphone-seeded')) return

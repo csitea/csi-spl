@@ -44,6 +44,7 @@
 //   BASE_URL=<generated bundle> node tests/e2e/msg-ai-actions.test.mjs
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
+import { pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
@@ -191,6 +192,8 @@ const srv = await startServer()
 const browser = await launch()
 try {
   const p = await browser.newPage()
+  /* the pinned calendar clock: the new event's day is the same in every run */
+  await pinClock(p)
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
   p.setDefaultNavigationTimeout(NAV_TIMEOUT)

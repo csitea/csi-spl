@@ -31,9 +31,10 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calIsoDay, calWeekDays } from '../../src/utils/calendar-year.mjs'
+import { calWeekDays } from '../../src/utils/calendar-year.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -66,7 +67,7 @@ async function shot(p, name) {
   await p.screenshot({ path: join(process.env.SHOT_DIR, `calendar-events-${name}.png`) })
 }
 
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const DIALOG = '[data-test=calendar-event-form]'
 
 async function open(p, vp) {
@@ -138,6 +139,7 @@ const browser = await launch()
 try {
   console.log('-- 1440x900')
   const p = await browser.newPage()
+  await pinClock(p)
   await open(p, { width: 1440, height: 900 })
 
   /* AC-03 + AC-09: New event -> workspace */
@@ -224,6 +226,7 @@ try {
 
   /* the copied link opens the event */
   const q = await browser.newPage()
+  await pinClock(q)
   await setPageViewport(q, { width: 1440, height: 900 })
   await q.goto(want.replace(new URL(want).origin, server.base), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   ok('Copy link: the copied link opens that event', await dialog(q) && (await state(q)).title === 'Database maintenance', await state(q))
@@ -233,6 +236,7 @@ try {
   const UNSEEN = '0badbeef-0000-4000-8000-000000000999'
   for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844, hasTouch: true }]) {
     const u = await browser.newPage()
+    await pinClock(u)
     await setPageViewport(u, vp)
     await u.goto(`${server.base}/calendar?d=${dbm?.day}&event=${UNSEEN}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await applyViewport(u, vp)
@@ -249,6 +253,7 @@ try {
   }
   /* CONTROL a seen event's link says nothing */
   const v = await browser.newPage()
+  await pinClock(v)
   await setPageViewport(v, { width: 1440, height: 900 })
   await v.goto(want.replace(new URL(want).origin, server.base), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await dialog(v)

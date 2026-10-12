@@ -31,6 +31,7 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { e2eNow, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
 import { calAddDays, calWeekStart } from '../../src/utils/calendar-year.mjs'
@@ -72,7 +73,7 @@ const PAGE = `${ROOT} [data-test=calphone-page][data-dir="0"]`
 const WEEK = `${PAGE} [data-test=calphone-week]`
 /* today, the weeks and the fixture are the page zone's: the calendar opens the
    viewer's day, and New York is still on Sunday when UTC is on Monday */
-const dayIn = (zone) => new Intl.DateTimeFormat('en-CA', { timeZone: zone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(Date.now())
+const dayIn = (zone) => new Intl.DateTimeFormat('en-CA', { timeZone: zone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(e2eNow())
 let today, thisMon, nextMon, SEED
 const nd = (i) => calAddDays(nextMon, i)
 function forZone(zone) {
@@ -95,7 +96,7 @@ forZone('')
 async function open(browser, vp, { theme = 'dark', level = 3, zone = '' } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
-  if (zone) await p.emulateTimezone(zone)
+  await pinClock(p, zone || 'UTC')
   await p.evaluateOnNewDocument((s) => {
     try {
       if (sessionStorage.getItem('calweek-seeded')) return

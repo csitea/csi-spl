@@ -40,9 +40,10 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calAddDays, calIsoDay } from '../../src/utils/calendar-year.mjs'
+import { calAddDays } from '../../src/utils/calendar-year.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -76,7 +77,7 @@ async function shot(p, name) {
   await p.screenshot({ path: join(process.env.SHOT_DIR, `calendar-phone-day-${name}.png`) })
 }
 
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const ROOT = '[data-test=calendar-phone]'
 const DAY = `${ROOT} [data-test=calphone-page][data-dir="0"] [data-test=calphone-day]`
 const ADDED_KEY = 'spool.mock.calendar-added'
@@ -86,7 +87,7 @@ const SHEET_TITLE = '[data-test=calphone-sheet] [data-test=calphone-sheet-title]
 async function open(browser, vp, { theme = 'dark', level = 3, zone = 'UTC', day = '', added = [] } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
-  await p.emulateTimezone(zone)
+  await pinClock(p, zone)
   await p.evaluateOnNewDocument((s) => {
     try {
       if (sessionStorage.getItem('calday-seeded')) return

@@ -25,9 +25,10 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
-import { calAddDays, calIsoDay, calWeekStart } from '../../src/utils/calendar-year.mjs'
+import { calAddDays, calWeekStart } from '../../src/utils/calendar-year.mjs'
 import { HOURS_BIZ_OWNER, HOURS_MEMBER, driveHoursTeam, hoursFrozenDay } from './lib/hours-team.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
@@ -65,7 +66,7 @@ async function shot(p, name) {
   await p.screenshot({ path: join(process.env.SHOT_DIR, `calendar-${name}.png`) })
 }
 
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const week = (p) => p.$eval('[data-test=calendar-main]', (el) => el.getAttribute('data-week')).catch(() => '')
 const waitWeek = (p, want) => p.waitForFunction((w) => document.querySelector('[data-test=calendar-main]')?.getAttribute('data-week') === w, { timeout: 10000 }, want).then(() => true, () => false)
 const items = (p) => p.$$eval('[data-test=calendar-item]', (els) => els.map((e) => e.getAttribute('data-kind')))
@@ -121,6 +122,7 @@ async function mineDesktop(browser, base) {
   console.log('-- 1440x900 T013 + T014 (Mine)')
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  await pinClock(p)
   await p.setViewport({ width: 1440, height: 900 })
   const lastMon = calAddDays(calWeekStart(today), -7)
   const lastTue = calAddDays(lastMon, 1)
@@ -261,6 +263,7 @@ try {
   for (const theme of ['light', 'dark']) {
     console.log(`-- 1440x900 ${theme}`)
     const p = await browser.newPage()
+    await pinClock(p)
     await p.setViewport({ width: 1440, height: 900 })
     await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
     await p.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
@@ -400,6 +403,7 @@ try {
      check FAILs. */
   for (const [who, me] of [['member', HOURS_MEMBER], ['biz owner', HOURS_BIZ_OWNER]]) {
     const p = await browser.newPage()
+    await pinClock(p)
     await p.setViewport({ width: 1440, height: 900 })
     await p.evaluateOnNewDocument((m) => { try { localStorage.setItem('spool.mock.me', JSON.stringify(m)) } catch { /* private mode */ } }, me)
     await p.goto(server.base + '/calendar?d=' + hoursFrozenDay(calWeekStart(today), calAddDays), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

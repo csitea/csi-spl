@@ -20,9 +20,9 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calIsoDay } from '../../src/utils/calendar-year.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -59,7 +59,7 @@ const ADDED_KEY = 'spool.mock.calendar-added'
 const RELEASE = '00000000-0000-4000-8000-000000000101'
 const SYNCED = '00000000-0000-4000-8000-000000000112'
 const ROADMAP_URL = '/roadmap?ws=demo&goal=G01#spec-112'
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 /* a timed synced event today 13:00-14:00 UTC, beside the seeded Release (09:00) */
 const fixture = {
   id: SYNCED, source: 'event', title: 'G01 deadline', description: '', kind: 'goal',
@@ -75,6 +75,7 @@ const POP = '[data-test=calendar-event-popover]'
 async function open(browser, path) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  await pinClock(p)
   const vp = { width: 1440, height: 900 }
   await setPageViewport(p, vp)
   await p.evaluateOnNewDocument((k, ev) => {

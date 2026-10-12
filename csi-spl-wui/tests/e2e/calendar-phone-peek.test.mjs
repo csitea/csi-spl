@@ -46,6 +46,7 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
 import { calIsoDay } from '../../src/utils/calendar-year.mjs'
@@ -82,7 +83,7 @@ async function shot(p, name) {
   await p.screenshot({ path: join(process.env.SHOT_DIR, `calendar-phone-peek-${name}.png`) })
 }
 
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const ROOT = '[data-test=calendar-phone]'
 const PEEK = '[data-test=calpeek]'
 const at = (hhmm) => `${today}T${hhmm}:00Z`
@@ -109,7 +110,7 @@ const DUP_FORM = { mode: 'copy', full: 'true', title: 'Dup source', date: calIso
 async function open(browser, vp, { theme = 'dark', path = '/calendar', keyboard = false } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
-  await p.emulateTimezone('UTC')
+  await pinClock(p, 'UTC')
   /* a phone keyboard that overlays the page: window.__keyboard(h) shrinks
      the visual viewport by h px, the layout viewport keeps its height */
   if (keyboard) {

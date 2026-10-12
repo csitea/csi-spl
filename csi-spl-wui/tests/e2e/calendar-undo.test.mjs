@@ -19,6 +19,7 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
 
@@ -63,6 +64,7 @@ const ITEM = `[data-test=calendar-item][data-id="${RELEASE}"]`
 async function open(browser, vp) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  await pinClock(p)
   await setPageViewport(p, vp)
   await p.goto(server.base + '/calendar', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, vp)

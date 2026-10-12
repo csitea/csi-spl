@@ -20,6 +20,7 @@
 //   BASE_URL=<generated mock bundle> pnpm run test:e2e public-calendar
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
@@ -48,7 +49,7 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-const today = new Date().toISOString().slice(0, 10)
+const today = E2E_TODAY
 const TENANT_TITLE = 'Tenant-only board meeting 7f3c'
 const WEB_TITLE = 'Web open day 7f3d'
 const SEED = [{
@@ -69,6 +70,7 @@ const SEED = [{
 async function seededPage(browser) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  await pinClock(p)
   await p.setViewport({ width: 1280, height: 900 })
   await p.evaluateOnNewDocument((seed) => {
     try { localStorage.setItem('spool.mock.calendar-added', seed) } catch { /* none */ }
@@ -94,6 +96,7 @@ try {
      links the public calendar. Control: before it, no login-public-calendar. */
   const lc = await browser.createBrowserContext()
   const lp = await lc.newPage()
+  await pinClock(lp)
   await lp.goto(`${server.base}/login`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   const calLink = await lp.waitForSelector('[data-test=login-public-calendar]', { visible: true, timeout: 10000 }).catch(() => null)
   ok('signed-out: /login shows a public calendar link', Boolean(calLink))

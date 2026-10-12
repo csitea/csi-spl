@@ -32,9 +32,10 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calAddDays, calIsoDay } from '../../src/utils/calendar-year.mjs'
+import { calAddDays } from '../../src/utils/calendar-year.mjs'
 import { calPhoneMonthGrid, calPhoneRange, calPhoneStep } from '../../src/utils/calendar-phone-nav.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
@@ -70,7 +71,7 @@ async function shot(p, name) {
 }
 
 /* ---- the fixture: days of today's month grid that nothing else touches ---- */
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const GRID = calPhoneMonthGrid(today).map((c) => c.iso)
 /* the mock's own items (calendar-mock.mjs) and a day of slack for the zones */
 const year = today.slice(0, 4)
@@ -119,7 +120,7 @@ const IN_DAY = calPhoneMonthGrid(today).find((c) => c.inMonth && c.iso !== today
 async function open(browser, vp, { theme = 'dark', level = 3, zone = '' } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
-  if (zone) await p.emulateTimezone(zone)
+  await pinClock(p, zone || 'UTC')
   await p.evaluateOnNewDocument((s) => {
     try {
       if (sessionStorage.getItem('calmonth-seeded')) return

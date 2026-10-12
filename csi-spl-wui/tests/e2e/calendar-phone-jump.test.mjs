@@ -31,9 +31,10 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calAddDays, calIsoDay } from '../../src/utils/calendar-year.mjs'
+import { calAddDays } from '../../src/utils/calendar-year.mjs'
 import { calPhoneRange } from '../../src/utils/calendar-phone-nav.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
@@ -68,7 +69,7 @@ async function shot(p, name) {
   await p.screenshot({ path: join(process.env.SHOT_DIR, `calendar-phone-jump-${name}.png`) })
 }
 
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const ROOT = '[data-test=calendar-phone]'
 const PICKER = '[data-test=calphone-picker]'
 const SEARCH = '[data-test=calphone-searchbox]'
@@ -77,6 +78,7 @@ const SEARCH = '[data-test=calphone-searchbox]'
 async function open(browser, vp, { theme = 'dark', level = 3 } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  await pinClock(p)
   await p.evaluateOnNewDocument((s) => {
     try {
       if (sessionStorage.getItem('calphone-seeded')) return

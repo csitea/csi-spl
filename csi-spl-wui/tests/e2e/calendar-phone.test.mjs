@@ -32,9 +32,10 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calAddDays, calIsoDay, calWeekStart } from '../../src/utils/calendar-year.mjs'
+import { calAddDays, calWeekStart } from '../../src/utils/calendar-year.mjs'
 import { HOURS_BIZ_OWNER, HOURS_MEMBER, driveHoursTeam, hoursFrozenDay } from './lib/hours-team.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
@@ -71,13 +72,14 @@ async function shot(p, name) {
 
 const ROOT = '[data-test=calendar-phone]'
 const PAGE = `${ROOT} [data-test=calphone-page][data-dir="0"]`
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const mon = calWeekStart(today)
 const sat = calAddDays(mon, 5)
 
 async function open(browser, vp, { theme, level, day, me }) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  await pinClock(p)
   await p.evaluateOnNewDocument((s) => {
     try {
       localStorage.setItem('spool-theme', s.theme)

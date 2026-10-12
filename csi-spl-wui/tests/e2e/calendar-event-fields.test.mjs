@@ -22,9 +22,9 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calIsoDay } from '../../src/utils/calendar-year.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -58,7 +58,7 @@ async function shot(p, name) {
   await p.screenshot({ path: join(process.env.SHOT_DIR, `calendar-event-fields-${name}.png`) })
 }
 
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const ADDED = 'spool.mock.calendar-added'
 const DIALOG = '[data-test=calendar-event-form]'
 const POPOVER = '[data-test=calendar-event-popover]'
@@ -71,7 +71,7 @@ const event = (id, title, fields = {}) => ({
 })
 
 async function open(p, vp, events) {
-  await p.emulateTimezone('Europe/Helsinki')
+  await pinClock(p, 'Europe/Helsinki')
   await setPageViewport(p, vp)
   await p.goto(server.base + '/calendar', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.evaluate((k, v) => { localStorage.setItem(k, v); localStorage.removeItem('spool.mock.calendar-hidden') }, ADDED, JSON.stringify(events || []))

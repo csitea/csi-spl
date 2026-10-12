@@ -27,9 +27,10 @@ import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { E2E_TODAY, pinClock } from './lib/clock.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calAddDays, calIsoDay, calWeekDays } from '../../src/utils/calendar-year.mjs'
+import { calAddDays, calWeekDays } from '../../src/utils/calendar-year.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -63,7 +64,7 @@ async function shot(p, name) {
   await p.screenshot({ path: join(process.env.SHOT_DIR, `calendar-drag-${name}.png`) })
 }
 
-const today = calIsoDay(Date.now())
+const today = E2E_TODAY
 const week = calWeekDays(today)
 const other = week.find((d) => d !== today) || today
 const ADDED = 'spool.mock.calendar-added'
@@ -76,7 +77,7 @@ const event = (id, title, day, from, to) => ({
 })
 
 async function open(p, vp, events) {
-  await p.emulateTimezone('UTC')
+  await pinClock(p, 'UTC')
   await setPageViewport(p, vp)
   await p.goto(server.base + '/calendar', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   if (events) {

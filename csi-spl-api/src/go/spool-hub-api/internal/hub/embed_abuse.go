@@ -68,7 +68,7 @@ const (
 
 // embedIPPeriod is how long one ip_hash salt lives: rotated weekly, so a
 // stored hash links one address's visits for a week at most.
-const embedIPPeriod = 7 * 24 * time.Hour
+
 
 // embedLimits is s.o.EmbedLimits with every unset field at its default.
 func (s *Server) embedLimits() EmbedLimits {
@@ -84,10 +84,10 @@ func (s *Server) embedLimits() EmbedLimits {
 		}
 	}
 	if l.HitsWindow <= 0 {
-		l.HitsWindow = 24 * time.Hour
+		l.HitsWindow = EmbedDayDuration
 	}
 	if l.BanFor <= 0 {
-		l.BanFor = 24 * time.Hour
+		l.BanFor = EmbedDayDuration
 	}
 	return l
 }
@@ -97,7 +97,7 @@ func (s *Server) embedLimits() EmbedLimits {
 // is the workspace and the period: one address hashes differently in each
 // workspace and each week, and no raw address is ever stored or logged.
 func (s *Server) embedIPHash(r *http.Request, tenant string, now time.Time, back int) []byte {
-	period := now.Unix()/int64(embedIPPeriod/time.Second) - int64(back)
+	period := now.Unix()/int64(EmbedIPPeriod/time.Second) - int64(back)
 	salt := sha256.Sum256([]byte("spool-embed-ip|v1|" + tenant + "|" + strconv.FormatInt(period, 10)))
 	sum := sha256.Sum256(append(salt[:], s.edge.ClientIP(r)...))
 	return sum[:]
@@ -147,7 +147,7 @@ func (s *Server) embedAdmit(w http.ResponseWriter, r *http.Request, es store.Emb
 	key := store.EmbedIPKey(ip)
 	refused, err := ab.TakeEmbedQuotas(ctx, sc, []store.EmbedTake{
 		{Key: key, Kind: embedKindVisitorHour, Window: now.Truncate(time.Hour), Limit: lim.VisitorsPerIPHour},
-		{Key: key, Kind: embedKindVisitorDay, Window: now.Truncate(24 * time.Hour), Limit: lim.VisitorsPerIPDay}})
+		{Key: key, Kind: embedKindVisitorDay, Window: now.Truncate(EmbedDayDuration), Limit: lim.VisitorsPerIPDay}})
 	switch {
 	case err != nil:
 		writeErrCause(w, http.StatusInternalServerError, "internal", "embed limits unavailable", err)
@@ -182,7 +182,7 @@ func (s *Server) embedSignInGate(w http.ResponseWriter, r *http.Request, tenant 
 	key := store.EmbedIPKey(ip)
 	refused, err := ab.TakeEmbedQuotas(ctx, sc, []store.EmbedTake{
 		{Key: key, Kind: embedKindSignInHour, Window: now.Truncate(time.Hour), Limit: lim.VisitorsPerIPHour},
-		{Key: key, Kind: embedKindSignInDay, Window: now.Truncate(24 * time.Hour), Limit: lim.VisitorsPerIPDay}})
+		{Key: key, Kind: embedKindSignInDay, Window: now.Truncate(EmbedDayDuration), Limit: lim.VisitorsPerIPDay}})
 	switch {
 	case err != nil:
 		writeErrCause(w, http.StatusInternalServerError, "internal", "embed limits unavailable", err)
@@ -252,7 +252,7 @@ func (s *Server) embedPostGate(w http.ResponseWriter, r *http.Request, es store.
 	}
 	refused, err := ab.TakeEmbedQuotas(ctx, sc, []store.EmbedTake{
 		{Key: v.HumanID, Kind: embedKindPostMinute, Window: now.Truncate(time.Minute), Limit: lim.PostsPerMinute},
-		{Key: v.HumanID, Kind: embedKindPostDay, Window: now.Truncate(24 * time.Hour), Limit: lim.PostsPerDay}})
+		{Key: v.HumanID, Kind: embedKindPostDay, Window: now.Truncate(EmbedDayDuration), Limit: lim.PostsPerDay}})
 	switch {
 	case err != nil:
 		writeErrCause(w, http.StatusInternalServerError, "internal", "embed limits unavailable", err)
@@ -277,7 +277,7 @@ func (s *Server) EmbedTurn(ctx context.Context, v store.EmbedVisitor) (string, i
 	}
 	lim := s.embedLimits()
 	refused, err := ab.TakeEmbedQuotas(ctx, store.EmbedScope{TenantID: v.TenantID, ChannelID: v.ChannelID},
-		[]store.EmbedTake{{Key: v.HumanID, Kind: embedKindTurnDay, Window: s.o.Now().UTC().Truncate(24 * time.Hour), Limit: lim.TurnsPerDay}})
+		[]store.EmbedTake{{Key: v.HumanID, Kind: embedKindTurnDay, Window: s.o.Now().UTC().Truncate(EmbedDayDuration), Limit: lim.TurnsPerDay}})
 	switch {
 	case err != nil:
 		s.o.Log.Error().Err(err).Str("tenant", v.TenantID).Msg("embed turn quota")

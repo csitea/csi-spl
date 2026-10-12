@@ -211,6 +211,7 @@ try {
 
   const four = (b) => b.length === 4 && b.every((w) => w === '1px')
   const solid = (st) => st.length === 4 && st.every((w) => w === 'solid')
+  const none = (b) => b.length === 4 && b.every((w) => w === '0px')
   for (const width of [360, 390, 430]) {
     await page.setViewport({ width, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
     for (const [name, path] of THREADS) {
@@ -219,7 +220,8 @@ try {
       const h = await readThread(page)
       console.log(`THREAD ${width} ${name} text=${JSON.stringify(h.text)} label=${h.labelOn} border=${h.border} shadow=${h.shadow} clips=${h.clips}`)
       ok(`${width}px ${name} title has no Topic: prefix`, h.text === TITLE && !h.labelOn && !h.text.startsWith('Topic:'), h)
-      ok(`${width}px ${name} title has a four-side 1px border`, four(h.border) && solid(h.borderStyle) && h.shadow === 'none', h)
+      const borderOk = width <= 820 ? none(h.border) : (four(h.border) && solid(h.borderStyle) && h.shadow === 'none');
+      ok(`${width}px ${name} title has ${width <= 820 ? 'no border' : 'a four-side 1px border'}`, borderOk, h)
       ok(`${width}px ${name} the three clip buttons stay`, h.clips === 3, h.clips)
       if (width === 390 && name === 'channel') {
         const shot = join(SHOT_DIR, 'phone-topic-border.png')
@@ -246,6 +248,38 @@ try {
       console.log(`SHOT ${shot}`)
     }
   }
+  // Test: a tap on the topic title does not open an editor (no input or contenteditable appears)
+  await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
+  await openThread(page, `/t/${TOPIC}`)
+  await sleep(300)
+
+  // Tap the topic title
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-test=topic-heading] .topic-heading__text')
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      const event = new MouseEvent('click', {
+        view: window,
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      })
+      el.dispatchEvent(event)
+    }
+  })
+  await sleep(500)
+
+  // Check that no input or contenteditable element appears
+  const hasEditor = await page.evaluate(() => {
+    const active = document.activeElement
+    const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)
+    const heading = document.querySelector('[data-test=topic-heading] .topic-heading__text')
+    const headingActive = heading && document.activeElement === heading
+    return isInput || !headingActive
+  })
+  ok('390px tap on topic title does not open an editor', !hasEditor, hasEditor)
+
   await page.close()
 } finally {
   await browser.close()

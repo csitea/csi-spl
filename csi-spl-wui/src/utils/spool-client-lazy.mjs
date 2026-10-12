@@ -768,7 +768,9 @@ async function topicSize(ctx, msgId) {
        way the hub's resolveCard does for a plain developer. */
     const policy = mockArchivePolicy()
     const canArchive = !policy || policy === 'everyone' || (policy === 'starter' && Boolean(row) && row.from === state.me.id)
-    return { msg_id: id, task_id: row ? row.task_id : '', replies, task_ids: row ? [row.task_id] : [], can_delete: true, can_archive: canArchive }
+    /* the hub's answer carries the archive stamp (topic_archive.go archivedBody) */
+    const stamp = row && row.archived_at ? { archived: true, archived_at: row.archived_at, archived_by: row.archived_by } : { archived: false }
+    return { msg_id: id, task_id: row ? row.task_id : '', replies, task_ids: row ? [row.task_id] : [], can_delete: true, can_archive: canArchive, ...stamp }
   }
   return live(`/v1/view/messages/${encodeURIComponent(id)}/topic`)
 }
@@ -904,7 +906,8 @@ async function moveInfo(ctx, msgId) {
   const { live, mock, state } = ctx
   const id = String(msgId || '')
   if (mock) {
-    const row = state.messages.find((m) => m.msg_id === id)
+    /* an archived card is still a message the hub answers for */
+    const row = state.messages.find((m) => m.msg_id === id) || (state.archived || []).find((m) => m.msg_id === id)
     if (!row) throw Object.assign(new Error('no such message'), { status: 404, token: 'not_found' })
     /* parent_task_id: mock only. The hub reads a topic by task_id, so a
        reply is found in getTopic(task_id); the mock reads it by

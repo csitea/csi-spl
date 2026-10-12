@@ -52,7 +52,8 @@ export function mockListMessages(state, { channel, peer, limit = 50, since } = {
   const extra = storageGetJson('spool.mock.extra-messages', [])
   if (Array.isArray(extra)) {
     const held = new Set(state.messages.map((m) => m.msg_id))
-    state.messages.push(...extra.filter((m) => m && m.msg_id && !held.has(m.msg_id)))
+    /* an archived card (archived_at) was filed under state.archived at boot */
+    state.messages.push(...extra.filter((m) => m && m.msg_id && !m.archived_at && !held.has(m.msg_id)))
   }
   let rows = state.messages.slice()
   if (channel) rows = rows.filter((m) => m.channel === channel)

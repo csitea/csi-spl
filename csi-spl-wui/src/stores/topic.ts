@@ -17,6 +17,8 @@ export interface TopicTarget {
   rootMsgId: string
   /** message mode: the task the pinned root was posted in (the reply's parent) */
   parentTaskId: string
+  /** an archived topic opened from its link: the route path it stays open on (topic-open.mjs keepsArchivedTopic) */
+  archived?: string
 }
 
 /*

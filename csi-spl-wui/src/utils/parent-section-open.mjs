@@ -35,6 +35,11 @@ import { cardScrollDelta, hashOnlyLocation, issueKeyForTask, mayBeIssueTopic, pa
  *    even when the address did not change. The Flow's own open
  *    (open-message.mjs) keeps its list.
  *
+ * 6. HUM-10 (t1 89b0200d): a message of an archived topic (`msg.archived`,
+ *    open-message.mjs) opens the same way, but its card is in no feed: the
+ *    topic is opened on the right without waiting for the card, and it stays
+ *    open on this place (target.archived, keepsArchivedTopic).
+ *
  * @param {Record<string, any>} msg
  * @param {{ self: string, api: any, router: any, localePath: (p: string) => string, newestLast?: boolean, topicLevel?: boolean, showPlace?: boolean }} deps
  * @returns {Promise<boolean>} false when the message names no parent
@@ -77,6 +82,12 @@ export async function openParentSection(msg, deps) {
     ? open
     : { taskId, mode: to.query.in ? 'message' : 'task', rootMsgId: to.query.in ? taskId : '', parentTaskId: String(to.query.in || '') }
   await router.push({ path: localePath(to.path), query: to.query, hash: to.hash })
+  if (msg.archived === true) {
+    const here = String((router.currentRoute && router.currentRoute.value && router.currentRoute.value.path) || localePath(to.path))
+    topic.openTarget({ ...target, archived: here }, topic.rootMsg)
+    if (showPlace && to.hash) await selectReply(to.hash.slice(1))
+    return true
+  }
   if (!topic.open) topic.openTarget(target, topic.rootMsg)
   await revealCard(topic, target, { router, hash: to.hash, newestLast })
   if (showPlace && to.hash) await selectReply(to.hash.slice(1))

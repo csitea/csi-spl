@@ -55,7 +55,9 @@ export function failureReason(err) {
 }
 
 /**
- * A row that cannot be opened as it is: a tombstone, or an archived card.
+ * What a row is besides an open message: a tombstone, or an archived card.
+ * Only a tombstone fails to open; an archived topic opens from its link
+ * (HUM-10 t1 89b0200d), marked archived.
  * @returns {'' | 'deleted' | 'archived'}
  */
 export function rowReason(row) {
@@ -91,7 +93,7 @@ export function placeOf(topicRow, info) {
  * @param {string} msgId
  * @param {any} api the spool client
  * @param {{ limit?: number }} [opts]
- * @returns {Promise<{ row: Record<string, any>, archived?: boolean } | { reason: 'not_found' | 'no_access' | 'archived' | 'error' }>}
+ * @returns {Promise<{ row: Record<string, any> } | { reason: 'not_found' | 'no_access' | 'error' }>}
  */
 export async function resolveMessage(msgId, api, { limit = 200 } = {}) {
   const id = String(msgId || '').toLowerCase()
@@ -135,15 +137,22 @@ export async function resolveMessage(msgId, api, { limit = 200 } = {}) {
     } catch { /* no place known: the topic page */ }
   }
   const row = found || { msg_id: id, task_id: taskId, ...placeOf(placeRow, info), ...(parent ? { parent_task_id: parent } : {}) }
-  /* the task's opening card: archived, it is in no feed (topic-archive-v1) */
+  /* the task's opening card: archived, it is in no feed (topic-archive-v1),
+     yet its link still opens it (HUM-10 t1 89b0200d), flagged archived */
   const root = rows[0]
   if (root && root.msg_id && typeof api.topicSize === 'function') {
     try {
       const size = await withSessionRetry(api, () => api.topicSize(String(root.msg_id)))
-      if (size && size.archived === true) return { reason: 'archived' }
+      if (size && size.archived === true) return { row: archivedRow(row, size) }
     } catch { /* not a card (a lobby message), or no answer: open it */ }
   }
   return { row }
+}
+
+/** The row flagged archived, with the hub's stamp when it gave one. */
+function archivedRow(row, size) {
+  const at = (size && size.archived_at) || row.archived_at
+  return { ...row, archived: true, ...(at ? { archived_at: String(at) } : {}) }
 }
 
 /**
@@ -160,11 +169,12 @@ export async function resolveTopic(taskId, api) {
     return { reason: failureReason(e) }
   }
   if (!root || !root.msg_id) return { reason: 'not_found' }
-  if (rowReason(root)) return { reason: rowReason(root) }
+  if (rowReason(root) === 'deleted') return { reason: 'deleted' }
+  if (rowReason(root) === 'archived') return { row: archivedRow(root, null) }
   if (typeof api.topicSize === 'function') {
     try {
       const size = await withSessionRetry(api, () => api.topicSize(String(root.msg_id)))
-      if (size && size.archived === true) return { reason: 'archived' }
+      if (size && size.archived === true) return { row: archivedRow(root, size) }
     } catch { /* no answer: open it */ }
   }
   return { row: root }
@@ -232,15 +242,15 @@ export async function openMessage(ref, deps) {
   let row = ref && typeof ref === 'object' ? ref : null
   const msgId = String(row ? row.msg_id || '' : ref || '').toLowerCase()
   if (!msgId) return { ok: false, reason: 'not_found', msgId }
-  const early = rowReason(row)
-  if (early) return { ok: false, reason: early, msgId }
+  if (rowReason(row) === 'deleted') return { ok: false, reason: 'deleted', msgId }
   if (!row || !row.task_id) {
     const got = await resolveMessage(msgId, deps.api)
     if ('reason' in got) return { ok: false, reason: got.reason, msgId }
     row = got.row
   }
-  const late = rowReason(row)
-  if (late) return { ok: false, reason: late, msgId }
+  if (rowReason(row) === 'deleted') return { ok: false, reason: 'deleted', msgId }
+  /* an archived topic opens in its place too; the pane shows it archived */
+  if (rowReason(row) === 'archived' && row.archived !== true) row = archivedRow(row, null)
 
   const router = deps.replace ? { ...deps.router, push: (to) => deps.router.replace(to) } : deps.router
   const openSection = deps.openSection || (await import('./parent-section-open.mjs')).openParentSection

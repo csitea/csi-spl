@@ -48,6 +48,25 @@ export function topicTargetFor(msg, { currentTaskId = '' } = {}) {
   return null
 }
 
+/**
+ * HUM-10 (t1 89b0200d): an archived topic opened from its link stays open in
+ * the place it was opened on (`target.archived` holds that route path), although
+ * that place's feed no longer lists its card. Anywhere else it closes as usual.
+ *
+ * @param {{ archived?: string } | null | undefined} target
+ * @param {string} path the route path of the page judging its feed
+ */
+export function keepsArchivedTopic(target, path) {
+  const at = String((target && target.archived) || '')
+  if (!at) return false
+  const norm = (p) => {
+    let s = String(p || '')
+    try { s = decodeURIComponent(s) } catch { /* keep it as it is */ }
+    return s.replace(/\/+$/, '')
+  }
+  return norm(at) === norm(path)
+}
+
 /** The target a URL carries back, or null. `in` is what makes it message-rooted. */
 export function targetFromQuery(query) {
   const q = query || {}

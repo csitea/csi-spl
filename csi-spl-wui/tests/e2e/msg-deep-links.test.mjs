@@ -9,8 +9,13 @@
 // (<origin>/channel/<ch>?topic=<task>#<msg>), the deep link <origin>/m/<msg>,
 // and the bare message id.
 //
+// HUM-10 (t1 89b0200d): "we should be able to open even archived msg from
+// their link". /m/<id> of an archived topic's card, of the topic itself and of
+// a reply in it opens the channel with the topic on the right, the message
+// marked and the topic shown archived; the topic stays open.
+//
 // The mock feed is lengthened through localStorage `spool.mock.extra-messages`
-// (id-links.test.mjs does the same).
+// (id-links.test.mjs does the same); a row with archived_at is an archived card.
 //
 // Run: node tests/e2e/msg-deep-links.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
@@ -24,6 +29,12 @@ const FROM = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const REPLIES = 60
 const TARGET = 'f5010000-0000-4000-8000-000000000000'
 const CARRIER = 'f5030000-0000-4000-8000-000000000001'
+/* archived topic 1: a card alone, in no feed; topic 2: a card and one reply */
+const ARCH1_CARD = 'f5060000-0000-4000-8000-000000000001'
+const ARCH1_TASK = 'f5070000-0000-4000-8000-000000000001'
+const ARCH2_CARD = 'f5060000-0000-4000-8000-000000000002'
+const ARCH2_TASK = 'f5070000-0000-4000-8000-000000000002'
+const ARCH2_REPLY = 'f5080000-0000-4000-8000-000000000002'
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -71,7 +82,47 @@ function threadRows(base) {
     ].join('\n'),
     ts: '2026-12-31T23:59:00Z',
   }))
+  const archived = { parent_task_id: undefined, is_parent: 1, archived_at: '2026-12-01T09:00:00Z', archived_by: 'HUM-1' }
+  out.push(row({ ...archived, msg_id: ARCH1_CARD, task_id: ARCH1_TASK, body: 'archived topic one', ts: '2026-11-01T09:00:00Z' }))
+  out.push(row({ ...archived, msg_id: ARCH2_CARD, task_id: ARCH2_TASK, body: 'archived topic two', ts: '2026-11-02T09:00:00Z' }))
+  out.push(row({ msg_id: ARCH2_REPLY, task_id: ARCH2_TASK, parent_task_id: undefined, body: 'a reply in the archived topic', ts: '2026-11-02T09:05:00Z' }))
   return out
+}
+
+/* a cold /m/<id> of an archived topic: the channel with the topic open, the
+   archived badge in the pane, no failure notice; still open 2.5 s later. A
+   reply is shown and marked in the pane. The card itself is not checked: the
+   mock pane shows the channel store's rows and never reads the topic (the
+   live pane reads it, and the hub's read keeps the archived card). */
+async function openedArchived(p, base, id, markId, task) {
+  const needMark = markId === id && id !== ARCH1_CARD
+  await p.goto(`${base}/m/${id}`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
+  const state = () => p.evaluate((markId, task) => {
+    const pane = document.querySelector('aside.live-pane')
+    const el = pane && pane.querySelector(`article.msg[data-msg-id="${markId}"]`)
+    const notice = document.querySelector('[data-testid="open-msg-notice"]')
+    return {
+      path: location.pathname + location.search + location.hash,
+      place: location.pathname.endsWith('/channel/lobby') && new URLSearchParams(location.search).get('topic') === task,
+      shown: Boolean(el && el.getBoundingClientRect().height > 0),
+      lit: Boolean(el && (el.classList.contains('open-focus') || el.classList.contains('search-focus'))),
+      badge: Boolean(pane && pane.querySelector('[data-test="archived-badge"]')),
+      notice: notice ? notice.getAttribute('data-reason') : '',
+    }
+  }, markId, task)
+  const start = Date.now()
+  let lit = false
+  let last = null
+  while (Date.now() - start < 20000) {
+    last = await state()
+    lit = lit || last.lit
+    if (last.notice || ((lit || !needMark) && last.place && (last.shown || !needMark) && last.badge)) break
+    await sleep(100)
+  }
+  await sleep(2500)
+  const later = await state()
+  const marked = !needMark || (lit && last.shown && later.shown)
+  return { ok: marked && last.place && last.badge && !last.notice && later.place && later.badge, needMark, lit, last, later }
 }
 
 async function launch() {
@@ -210,6 +261,15 @@ try {
       ok(`${vp.name} ${label}: the target was off screen, now in view and highlighted`, !before.inView && after.ok, { before, after })
       /* let the highlight end before the next form */
       await sleep(2300)
+    }
+
+    for (const [label, id, markId, task] of [
+      ['archived card /m/<card>', ARCH1_CARD, ARCH1_CARD, ARCH1_TASK],
+      ['archived topic /m/<task> (id-links archived form)', ARCH1_TASK, ARCH1_CARD, ARCH1_TASK],
+      ['reply in an archived topic /m/<reply>', ARCH2_REPLY, ARCH2_REPLY, ARCH2_TASK],
+    ]) {
+      const got = await openedArchived(p, srv.base, id, markId, task)
+      ok(`${vp.name} ${label}: opens in its channel${got.needMark ? ', marked' : ''}, shown archived, stays open`, got.ok, got)
     }
     await p.close()
   }

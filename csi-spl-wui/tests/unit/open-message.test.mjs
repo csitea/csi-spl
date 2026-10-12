@@ -151,9 +151,29 @@ test('resolveMessage: unknown / deleted / not yours -> not_found; no topics.read
   assert.deepEqual(await resolveMessage('not-a-uuid', fakeApi({})), { reason: 'not_found' })
 })
 
-test('resolveMessage: a message in an archived topic -> archived', async () => {
-  const api = fakeApi({ info: { task_id: TASK, channel: 'lobby' }, rows: [{ msg_id: ROOT, task_id: TASK }, { msg_id: MSG, task_id: TASK }], size: { archived: true } })
-  assert.deepEqual(await resolveMessage(MSG, api), { reason: 'archived' })
+/* HUM-10 (t1 89b0200d): "we should be able to open even archived msg from
+   their link" - an archived topic resolves to its place, flagged archived */
+test('resolveMessage: a message in an archived topic resolves to its place, flagged archived', async () => {
+  const api = fakeApi({ info: { task_id: TASK, channel: 'lobby' }, rows: [{ msg_id: ROOT, task_id: TASK }, { msg_id: MSG, task_id: TASK }], size: { archived: true, archived_at: '2026-10-01T00:00:00Z' } })
+  assert.deepEqual(await resolveMessage(MSG, api), { row: { msg_id: MSG, task_id: TASK, archived: true, archived_at: '2026-10-01T00:00:00Z' } })
+})
+
+test('openMessage: a link to a message of an archived topic opens its place and marks it', async () => {
+  const marked = []
+  const sections = []
+  const api = fakeApi({ info: { task_id: TASK, channel: 'lobby' }, rows: [{ msg_id: ROOT, task_id: TASK, channel: 'lobby' }, { msg_id: MSG, task_id: TASK, channel: 'lobby' }], size: { archived: true } })
+  const out = await openMessage(MSG, {
+    self: 'HUM-1', api, router: fakeRouter(), localePath: (p) => p,
+    mark: (id) => marked.push(id), openSection: async (row) => { sections.push(row); return true },
+  })
+  assert.deepEqual(out, { ok: true, kind: 'channel', msgId: MSG })
+  assert.equal(sections.length, 1)
+  assert.equal(sections[0].archived, true)
+  assert.deepEqual(marked, [MSG])
+  /* a Flow or search row that carries the archive stamp opens too */
+  const row = { msg_id: MSG, task_id: TASK, channel: 'lobby', archived_at: '2026-10-01T00:00:00Z' }
+  const again = await openMessage(row, { self: 'HUM-1', api: fakeApi({}), router: fakeRouter(), localePath: (p) => p, mark: () => {}, openSection: async () => true })
+  assert.deepEqual(again, { ok: true, kind: 'channel', msgId: MSG })
 })
 
 test('openMessage with the row: no hub lookup, the place opened, the message marked', async () => {
@@ -324,7 +344,9 @@ test('resolveMessage: an id that is no message but a topic resolves to its openi
   const api = fakeApi({ infoErr: http(404), rows: [card] })
   assert.deepEqual(await resolveMessage(TASK, api), { row: card })
   assert.deepEqual(api.calls.map((c) => c[0]), ['moveInfo', 'getTopic', 'topicSize'])
-  assert.deepEqual(await resolveTopic(TASK, fakeApi({ rows: [card], size: { archived: true } })), { reason: 'archived' })
+  assert.deepEqual(await resolveTopic(TASK, fakeApi({ rows: [card], size: { archived: true } })), { row: { ...card, archived: true } })
+  /* a tombstone keeps failing */
+  assert.deepEqual(await resolveTopic(TASK, fakeApi({ rows: [{ ...card, deleted: true }] })), { reason: 'deleted' })
   assert.deepEqual(await resolveTopic(TASK, fakeApi({ rows: [] })), { reason: 'not_found' })
   assert.deepEqual(await resolveTopic(TASK, fakeApi({ topicErr: http(403) })), { reason: 'no_access' })
   /* a 403 on the message read is not retried as a topic */

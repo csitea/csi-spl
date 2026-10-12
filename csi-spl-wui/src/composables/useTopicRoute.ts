@@ -1,6 +1,6 @@
 import type { SpoolMessage } from '~/types/spool'
 import { useTopicStore, type TopicTarget } from '~/stores/topic'
-import { queryWithTopic, sameQuery, sameTarget, targetFromQuery, topicFeedRelease, topicTargetFor } from '~/utils/topic-open.mjs'
+import { keepsArchivedTopic, queryWithTopic, sameQuery, sameTarget, targetFromQuery, topicFeedRelease, topicTargetFor } from '~/utils/topic-open.mjs'
 
 /**
  * the open topic and the URL, kept as one fact.
@@ -99,6 +99,8 @@ export function useTopicFeedClose(opts: {
        topic and strip the query of the NEW route (lane B repro: #alerts,
        then a #lobby reply from Flow). The new page judges its own list. */
     if (router.currentRoute.value.path !== route.path) return
+    /* HUM-10 (t1 89b0200d): an archived topic opened from its link is in no feed */
+    if (keepsArchivedTopic(topic.target, route.path)) return
     const plan = topicFeedRelease(openTopicId(), opts.messages(), route.query)
     if (!plan.close) return
     releasing = true

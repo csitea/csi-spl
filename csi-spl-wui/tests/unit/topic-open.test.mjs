@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   isSelectedRow,
+  keepsArchivedTopic,
   queryWithTopic,
   sameQuery,
   sameTarget,
@@ -172,5 +173,21 @@ describe('sameTarget', () => {
     assert.equal(sameTarget(task, { ...task }), true)
     assert.equal(sameTarget(null, null), true)
     assert.equal(sameTarget(task, null), false)
+  })
+})
+
+/* HUM-10 (t1 89b0200d): an archived topic opened from its link is in no feed;
+   the feed close keeps it on the place it was opened on, nowhere else */
+describe('keepsArchivedTopic', () => {
+  it('keeps an archived target on its own place only', () => {
+    const t = { taskId: OTHER, mode: 'task', rootMsgId: '', parentTaskId: '', archived: '/channel/lobby' }
+    assert.equal(keepsArchivedTopic(t, '/channel/lobby'), true)
+    assert.equal(keepsArchivedTopic(t, '/channel/lobby/'), true)
+    assert.equal(keepsArchivedTopic({ ...t, archived: '/dm/HUM-2%40box' }, '/dm/HUM-2@box'), true)
+    assert.equal(keepsArchivedTopic(t, '/channel/general'), false)
+  })
+  it('a target that is not archived, or none, is never kept', () => {
+    assert.equal(keepsArchivedTopic({ taskId: OTHER, mode: 'task', rootMsgId: '', parentTaskId: '' }, '/channel/lobby'), false)
+    assert.equal(keepsArchivedTopic(null, '/channel/lobby'), false)
   })
 })

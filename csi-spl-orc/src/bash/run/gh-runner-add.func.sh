@@ -68,7 +68,24 @@ declare -F ghrb_place >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/apply-gh-runner-cpu-budget.func.sh"
 
 GH_RUNNER_PKGS="rootlesskit uidmap slirp4netns fonts-noto-core fonts-liberation"
-GH_RUNNER_SETUPTOOL="${GH_RUNNER_SETUPTOOL:-/usr/share/docker.io/contrib/dockerd-rootless-setuptool.sh}"
+
+# ghr_docker_flavour - a box on Docker CE (docker-ce, e.g. the PC box) has no
+# docker.io contrib dir: its setuptool is /usr/bin/dockerd-rootless-setuptool.sh
+# from docker-ce-rootless-extras, which takes rootlesskit's place (it
+# conflicts with it). It is pinned to the installed docker-ce version: an
+# unpinned one pulls a docker-ce upgrade, which restarts the box's docker
+# daemon and every container on it. A GH_RUNNER_SETUPTOOL given by the caller
+# wins
+ghr_docker_flavour() {
+  local v
+  if [[ -z "${GH_RUNNER_SETUPTOOL:-}" ]] && dpkg -s docker-ce >/dev/null 2>&1; then
+    v="$(dpkg-query -W -f='${Version}' docker-ce 2>/dev/null)"
+    GH_RUNNER_PKGS="${GH_RUNNER_PKGS/rootlesskit /} docker-ce-rootless-extras${v:+=$v}"
+    GH_RUNNER_SETUPTOOL=/usr/bin/dockerd-rootless-setuptool.sh
+  fi
+  GH_RUNNER_SETUPTOOL="${GH_RUNNER_SETUPTOOL:-/usr/share/docker.io/contrib/dockerd-rootless-setuptool.sh}"
+}
+ghr_docker_flavour
 
 # ghr_as <user> <cmd...> - run as the runner user, on its own systemd --user bus
 ghr_as() {
@@ -163,7 +180,7 @@ ghr_plan() {
 # linger, its rootless docker; sets GHR_UID
 ghr_setup_user() {
   local p missing=() u="$GHR_USER" t=0
-  for p in $GH_RUNNER_PKGS; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
+  for p in $GH_RUNNER_PKGS; do dpkg -s "${p%%=*}" >/dev/null 2>&1 || missing+=("$p"); done
   if ((${#missing[@]})); then
     sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >/dev/null \
       || { do_log "FATAL apt-get install ${missing[*]} failed"; return 1; }

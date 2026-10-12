@@ -23,6 +23,9 @@
 #            unit; unset = no set-property at all; out of range is refused
 #          - GH_RUNNER_GO_CACHE_ROOT: the Go cache lines in every .env; a
 #            reinstall without it keeps the lines already there
+#          - Docker CE (docker-ce installed): the setuptool from
+#            docker-ce-rootless-extras, that package in the list; docker.io:
+#            the contrib setuptool; a caller's GH_RUNNER_SETUPTOOL wins
 #          - boot: a running but DISABLED rootless docker unit is enabled;
 #            every runner unit gets the Restart=always drop-in, written once
 #------------------------------------------------------------------------------
@@ -259,6 +262,20 @@ got="$( gh() { echo "v9.9.9 $tb_sha"; }
         # shellcheck source=/dev/null
         source "$FUNC"; unset GH_RUNNER_TARBALL; GHR_ROOT="$T/tb" ghr_tarball 2>/dev/null )"
 [[ "$got" == "$T/tb/actions-runner-linux-x64-9.9.9.tar.gz" ]] && ok "ghr_tarball prints only the tarball path on stdout" || no "ghr_tarball stdout: $got"
+
+# Docker CE vs docker.io: which setuptool and packages
+flav() { env -u GH_RUNNER_SETUPTOOL PATH="$T/flav:$PATH" "$@" bash -c 'do_log() { :; }; source "'"$FUNC"'"; echo "$GH_RUNNER_SETUPTOOL|$GH_RUNNER_PKGS"'; }
+mkdir -p "$T/flav"
+printf '#!/usr/bin/env bash\n[[ "$2" == docker-ce && -n "${HAS_CE:-}" ]]\n' >"$T/flav/dpkg"
+printf '#!/usr/bin/env bash\necho -n 5:29.5.2-1\n' >"$T/flav/dpkg-query"; chmod +x "$T/flav/dpkg" "$T/flav/dpkg-query"
+got="$(flav HAS_CE=1)"
+[[ "$got" == "/usr/bin/dockerd-rootless-setuptool.sh|"*" docker-ce-rootless-extras=5:29.5.2-1" && "$got" != *rootlesskit* ]] \
+  && ok "Docker CE: /usr/bin setuptool, docker-ce-rootless-extras pinned to the docker-ce version, no rootlesskit" || no "docker-ce flavour: $got"
+got="$(flav)"
+[[ "$got" == "/usr/share/docker.io/contrib/dockerd-rootless-setuptool.sh|rootlesskit "* && "$got" != *rootless-extras* ]] \
+  && ok "docker.io: the contrib setuptool, no extra package" || no "docker.io flavour: $got"
+got="$(flav HAS_CE=1 GH_RUNNER_SETUPTOOL=/x/tool)"
+[[ "$got" == "/x/tool|"* && "$got" != *rootless-extras* ]] && ok "a caller's GH_RUNNER_SETUPTOOL wins" || no "setuptool override: $got"
 
 echo "=== gh-runner-add: $fails failure(s)"
 [[ "$fails" -eq 0 ]]

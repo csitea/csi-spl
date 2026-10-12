@@ -805,12 +805,12 @@
       }
     },
     "file_remove": {
-      "label": "Remove {name}",
-      "title": "Remove this attachment?",
-      "body": "{name} is removed from the system, everywhere it is attached, for everyone. This cannot be undone.",
-      "confirm": "Remove",
-      "failed": "The attachment was not removed. Try again.",
-      "not_allowed": "Only the uploader or an admin may remove this attachment."
+      "label": "Elimină {name}",
+      "title": "Elimini acest atașament?",
+      "body": "{name} este eliminat din sistem, de oriunde este atașat, pentru toată lumea. Acțiunea nu poate fi anulată.",
+      "confirm": "Elimină",
+      "failed": "Atașamentul nu a fost eliminat. Încearcă din nou.",
+      "not_allowed": "Doar cine l-a încărcat sau un administrator poate elimina acest atașament."
     },
     "merge": {
       "pick_title": "Îmbină acest subiect cu…",

@@ -805,12 +805,12 @@
       }
     },
     "file_remove": {
-      "label": "Remove {name}",
-      "title": "Remove this attachment?",
-      "body": "{name} is removed from the system, everywhere it is attached, for everyone. This cannot be undone.",
-      "confirm": "Remove",
-      "failed": "The attachment was not removed. Try again.",
-      "not_allowed": "Only the uploader or an admin may remove this attachment."
+      "label": "הסרת {name}",
+      "title": "להסיר את הקובץ המצורף?",
+      "body": "{name} יוסר מהמערכת, מכל מקום שבו הוא מצורף, עבור כולם. אי אפשר לבטל זאת.",
+      "confirm": "הסרה",
+      "failed": "הקובץ המצורף לא הוסר. נסו שוב.",
+      "not_allowed": "רק מי שהעלה את הקובץ או מנהל יכולים להסיר אותו."
     },
     "merge": {
       "pick_title": "מזג נושא זה אל…",

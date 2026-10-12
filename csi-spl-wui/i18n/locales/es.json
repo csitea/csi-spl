@@ -805,12 +805,12 @@
       }
     },
     "file_remove": {
-      "label": "Remove {name}",
-      "title": "Remove this attachment?",
-      "body": "{name} is removed from the system, everywhere it is attached, for everyone. This cannot be undone.",
-      "confirm": "Remove",
-      "failed": "The attachment was not removed. Try again.",
-      "not_allowed": "Only the uploader or an admin may remove this attachment."
+      "label": "Quitar {name}",
+      "title": "¿Quitar este adjunto?",
+      "body": "{name} se elimina del sistema, de todos los lugares donde está adjunto, para todos. No se puede deshacer.",
+      "confirm": "Quitar",
+      "failed": "No se quitó el adjunto. Inténtalo de nuevo.",
+      "not_allowed": "Solo quien lo subió o un administrador puede quitar este adjunto."
     },
     "merge": {
       "pick_title": "Combinar este tema con…",

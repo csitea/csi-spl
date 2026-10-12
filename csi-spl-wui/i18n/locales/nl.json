@@ -805,12 +805,12 @@
       }
     },
     "file_remove": {
-      "label": "Remove {name}",
-      "title": "Remove this attachment?",
-      "body": "{name} is removed from the system, everywhere it is attached, for everyone. This cannot be undone.",
-      "confirm": "Remove",
-      "failed": "The attachment was not removed. Try again.",
-      "not_allowed": "Only the uploader or an admin may remove this attachment."
+      "label": "{name} verwijderen",
+      "title": "Deze bijlage verwijderen?",
+      "body": "{name} wordt uit het systeem verwijderd, overal waar het is bijgevoegd, voor iedereen. Dit kan niet ongedaan worden gemaakt.",
+      "confirm": "Verwijderen",
+      "failed": "De bijlage is niet verwijderd. Probeer het opnieuw.",
+      "not_allowed": "Alleen wie de bijlage heeft geüpload of een beheerder kan haar verwijderen."
     },
     "merge": {
       "pick_title": "Voeg dit onderwerp samen met…",

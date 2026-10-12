@@ -805,12 +805,12 @@
       }
     },
     "file_remove": {
-      "label": "Remove {name}",
-      "title": "Remove this attachment?",
-      "body": "{name} is removed from the system, everywhere it is attached, for everyone. This cannot be undone.",
-      "confirm": "Remove",
-      "failed": "The attachment was not removed. Try again.",
-      "not_allowed": "Only the uploader or an admin may remove this attachment."
+      "label": "Удалить {name}",
+      "title": "Удалить это вложение?",
+      "body": "{name} удаляется из системы — везде, где оно прикреплено, для всех. Это нельзя отменить.",
+      "confirm": "Удалить",
+      "failed": "Вложение не удалено. Попробуйте ещё раз.",
+      "not_allowed": "Удалить это вложение может только тот, кто его загрузил, или администратор."
     },
     "merge": {
       "pick_title": "Объединить эту тему с…",

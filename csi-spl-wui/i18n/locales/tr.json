@@ -805,12 +805,12 @@
       }
     },
     "file_remove": {
-      "label": "Remove {name}",
-      "title": "Remove this attachment?",
-      "body": "{name} is removed from the system, everywhere it is attached, for everyone. This cannot be undone.",
-      "confirm": "Remove",
-      "failed": "The attachment was not removed. Try again.",
-      "not_allowed": "Only the uploader or an admin may remove this attachment."
+      "label": "{name} dosyasını kaldır",
+      "title": "Bu ek kaldırılsın mı?",
+      "body": "{name}, eklendiği her yerden ve herkes için sistemden kaldırılır. Bu işlem geri alınamaz.",
+      "confirm": "Kaldır",
+      "failed": "Ek kaldırılmadı. Tekrar deneyin.",
+      "not_allowed": "Bu eki yalnızca yükleyen kişi veya bir yönetici kaldırabilir."
     },
     "merge": {
       "pick_title": "Bu konuyu şununla birleştir…",

@@ -805,12 +805,12 @@
       }
     },
     "file_remove": {
-      "label": "Remove {name}",
-      "title": "Remove this attachment?",
-      "body": "{name} is removed from the system, everywhere it is attached, for everyone. This cannot be undone.",
-      "confirm": "Remove",
-      "failed": "The attachment was not removed. Try again.",
-      "not_allowed": "Only the uploader or an admin may remove this attachment."
+      "label": "Премахни {name}",
+      "title": "Да се премахне ли този прикачен файл?",
+      "body": "{name} се премахва от системата навсякъде, където е прикачен, за всички. Това не може да бъде отменено.",
+      "confirm": "Премахни",
+      "failed": "Прикаченият файл не беше премахнат. Опитайте отново.",
+      "not_allowed": "Само качилият файла или администратор може да го премахне."
     },
     "merge": {
       "pick_title": "Слейте тази тема с…",

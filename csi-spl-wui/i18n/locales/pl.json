@@ -805,12 +805,12 @@
       }
     },
     "file_remove": {
-      "label": "Remove {name}",
-      "title": "Remove this attachment?",
-      "body": "{name} is removed from the system, everywhere it is attached, for everyone. This cannot be undone.",
-      "confirm": "Remove",
-      "failed": "The attachment was not removed. Try again.",
-      "not_allowed": "Only the uploader or an admin may remove this attachment."
+      "label": "Usuń {name}",
+      "title": "Usunąć ten załącznik?",
+      "body": "{name} zostanie usunięty z systemu, ze wszystkich miejsc, w których jest załączony, dla wszystkich. Tego nie można cofnąć.",
+      "confirm": "Usuń",
+      "failed": "Załącznik nie został usunięty. Spróbuj ponownie.",
+      "not_allowed": "Ten załącznik może usunąć tylko osoba, która go przesłała, lub administrator."
     },
     "merge": {
       "pick_title": "Scal ten temat z…",

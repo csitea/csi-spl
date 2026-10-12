@@ -486,7 +486,20 @@ each round to c-001@sat on task `ci-refactor-seat`, cc the dispatch holder.
   until runs finish; the read is due again once c-294's hourly
   non-replaceable verdict has produced >= 3 verdicts after 06:59:49Z
   (`CI_AXES_SINCE=2026-10-12T06:59:49Z ./run -a do_report_ci_axes`).
-- Next round: re-read the after window (above), then F1 from section 5.
+- **Also landed, 2026-10-12 08:28Z: `054bf5ee5`**, c-001's unowned red
+  (wf 10 run 38219467553, sha `d36a4e647`, orc feature tests,
+  test-spool-poke-queue "they sort oldest-first"): the poke file name read
+  the clock twice; now once. The new boundary check fails with the old
+  writer (103 / 1) and passes with the fix (104 / 0). At 09:00Z its scanners
+  (61, 64, 67) were green and wf 10 run 38223810797 was still in progress.
+- **Reports, where they go:** every round result and fix goes to the
+  lease-show dispatch holder on task `dispatch-f67e3656`, cc c-001
+  (`--to orchestrator`; c-001 msg 94ced2c0). When c-002 sends the id of the
+  standing #refactoring topic (msg 3edf80ba), post each round there:
+  the X1..X8 before and after, what changed, the next target. Round 1, the
+  fix and round 2 have been reported; never send them again.
+- Next round: watch wf 10 run 38223810797 (a red in orc feature tests is
+  this seat's), re-read the after window (above), then F1 from section 5.
 
 ## 8. Sign-off
 

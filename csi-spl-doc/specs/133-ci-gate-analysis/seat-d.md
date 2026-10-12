@@ -42,7 +42,7 @@ This analysis targets the four slowest CI suites: `orc hermetic`, `wui e2e`, `hu
   - Shard 1: 2124s
   - Shard 2: 2050s
   - Shard 3: 1796s
-  - RETRY / FLAKY occurrences: 8
+  - RETRY / FLAKY occurrences: 0 (n=3 shard logs, one green run)
 - **Setup and teardown cost**: Browser launch and page open taking time per file.
 - **Duplicated work**: 376 occurrences of `puppeteer.launch` in the codebase (`grep -ro "puppeteer.launch" csi-spl-wui/tests/e2e/ | wc -l`), though actual runtime launches are lower due to parallelism and shard logic.
 - **Sleeps and polling waits**: 1859 `sleep()` calls (`grep -ro "sleep(" csi-spl-wui/tests/e2e | wc -l`).

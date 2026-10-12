@@ -149,18 +149,28 @@ func (s *Postgres) ReleaseNote(ctx context.Context, ref string) (ReleaseNote, er
 	return hit[0], nil
 }
 
+// ListReleaseNotes reads only the page (perf round 5, P5-08): the page's
+// version keys walk rdb 0114's index, its rows are one index range, and the
+// seq is the versioned count minus the rows newer than the page, minus the
+// row's place in the page. It equals releaseNumberedSQL's row_number() over
+// the whole table (TestReleaseNotesPageSeqOracle) without sorting every row.
 func (s *Postgres) ListReleaseNotes(ctx context.Context, before string, versions int) ([]ReleaseNote, error) {
 	if err := checkBefore(before); err != nil {
 		return nil, err
 	}
-	vk := releaseKeySQL("version")
+	vk, cut := releaseKeySQL("version"), releaseKeySQL("$1::text")
 	out, err := s.queryReleaseNotes(ctx, true, `WITH page AS (
 			SELECT DISTINCT `+vk+` AS k FROM release_notes
-			WHERE version IS NOT NULL AND ($1 = '' OR `+vk+` < `+releaseKeySQL("$1::text")+`)
-			ORDER BY k DESC LIMIT $2),
-		numbered AS (`+releaseNumberedSQL()+`)
-		SELECT `+releaseNoteCols+`, seq FROM numbered
-		WHERE k IN (SELECT k FROM page)`, before, ClampReleaseVersions(versions))
+			WHERE version IS NOT NULL AND ($1 = '' OR `+vk+` < `+cut+`)
+			ORDER BY k DESC LIMIT $2)
+		SELECT `+releaseNoteCols+`,
+			(SELECT count(*) FROM release_notes WHERE version IS NOT NULL)
+			- (SELECT count(*) FROM release_notes WHERE version IS NOT NULL AND $1 <> '' AND `+vk+` >= `+cut+`)
+			+ 1 - row_number() OVER (ORDER BY `+vk+` DESC, committed_at DESC, sha)
+		FROM release_notes
+		WHERE version IS NOT NULL
+			AND `+vk+` >= (SELECT min(k) FROM page) AND `+vk+` <= (SELECT max(k) FROM page)`,
+		before, ClampReleaseVersions(versions))
 	sortReleaseNotes(out)
 	return out, err
 }

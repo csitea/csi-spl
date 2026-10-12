@@ -33,7 +33,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
-import { calAddDays, calIsoDay, calWeekStart } from '../../src/utils/calendar-year.mjs'
+import { calAddDays, calWeekStart } from '../../src/utils/calendar-year.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -70,16 +70,26 @@ async function shot(p, name) {
 const ROOT = '[data-test=calendar-phone]'
 const PAGE = `${ROOT} [data-test=calphone-page][data-dir="0"]`
 const WEEK = `${PAGE} [data-test=calphone-week]`
-const today = calIsoDay(Date.now())
-const thisMon = calWeekStart(today)
-const nextMon = calAddDays(thisMon, 7)
+/* today, the weeks and the fixture are the page zone's: the calendar opens the
+   viewer's day, and New York is still on Sunday when UTC is on Monday */
+const dayIn = (zone) => new Intl.DateTimeFormat('en-CA', { timeZone: zone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(Date.now())
+let today, thisMon, nextMon, SEED
 const nd = (i) => calAddDays(nextMon, i)
+function forZone(zone) {
+  today = dayIn(zone)
+  thisMon = calWeekStart(today)
+  nextMon = calAddDays(thisMon, 7)
+  SEED = seedFor()
+}
 
 /* next week's fixture: an all-day Mon-Wed (UTC dates) and Fri 10:00-11:00 */
-const SEED = [
+function seedFor() {
+  return [
   { id: '00000000-0000-4000-8000-000000000601', title: 'Offsite', starts_at: `${nd(0)}T00:00:00Z`, ends_at: `${nd(3)}T00:00:00Z`, all_day: true, color: 'banana' },
   { id: '00000000-0000-4000-8000-000000000602', title: 'Review', starts_at: `${nd(4)}T10:00:00Z`, ends_at: `${nd(4)}T11:00:00Z`, all_day: false, color: 'peacock' },
 ]
+}
+forZone('')
 
 /** a fresh page: the theme, the font level and the fixture in localStorage first */
 async function open(browser, vp, { theme = 'dark', level = 3, zone = '' } = {}) {
@@ -170,6 +180,7 @@ const ZONES = ['America/New_York', 'Asia/Tokyo']
 try {
   for (const vp of PHONES) {
     for (const zone of ZONES) {
+      forZone(zone)
       const w = `${vp.width} ${zone}`
       const { p, ctx } = await open(browser, vp, { zone })
 

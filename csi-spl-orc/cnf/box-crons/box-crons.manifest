@@ -23,3 +23,4 @@ ci-red-note       | */10 * * * *    | src/bash/scripts/ci-red-note-cron.sh      
 agent-login-check | * * * * *       | src/bash/scripts/agent-login-check-cron.sh               | agent-login-check/cron.log |
 lane-rotate       | * * * * *       | src/bash/scripts/lane-rotate-cron.sh                    | lane-rotate/cron.log  |
 uplink-probe      | * * * * *       | src/bash/scripts/uplink-probe-cron.sh                   | uplink-probe/cron.log |
+qas-ci-accept     | 23 * * * *      | src/bash/scripts/qas-ci-accept-cron.sh                  | qas-ci-accept/cron.log |

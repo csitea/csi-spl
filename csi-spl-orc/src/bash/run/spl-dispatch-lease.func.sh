@@ -1391,6 +1391,8 @@ spl_fleet_role_tick() {
     spl_fleet_unreachable "$role" "$now" "$out"; return 0
   fi
   hm=""; [[ "$FH" == *@* ]] && hm="${FH##*@}"
+  # the hub's silence of the holder, for the asks tick's no-orchestrator alert
+  printf '%s %s %s\n' "${FH:-none}" "${FA:-0}" "$now" > "$LEASE_DIR/fleet.$role.age" 2>/dev/null || true
   if [[ -z "$cand" ]]; then
     [[ "$hm" == "$me" ]] && spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role")); it goes stale in ${LEASE_STALE}s"
   elif (( FG == 0 )) || [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )); then

@@ -19,8 +19,9 @@
 #      asks to c-001@sat - from the hub, sat's own journal was empty
 #   5. re-raise: an unacked ask quiet past ASKS_RERAISE_MIN goes again (one
 #      message, raised_n counts); an acked one does not, unless overdue
-#   6. owner leg: unacked past ASKS_OWNER_MIN -> ASKS_OWNER_CMD once; with
-#      no owner leg configured: one WARN per ask, nothing sent
+#   6. fallback (owner t1 c9beaa77): unacked past ASKS_OWNER_MIN goes to the
+#      other DO seats ONCE, never to the owner; with no seat besides the
+#      holder: ONE #alerts line, and once a seat exists it clears itself
 #   7. close: done on sat; the dead holder's late close is exit 3 naming the
 #      closer; a decline needs a reason; a closed ask's inbox file moves to
 #      archive/
@@ -31,10 +32,10 @@
 #      two machines - pc's holder acks and dies, sat's tick releases the
 #      expired lock and re-raises it "lock expired" (CONTROL: lock off = the
 #      old filter leaves it acked forever); a re-ack renews the lock; at the
-#      delivery limit an ask is no longer raised, goes to the owner once and
-#      is dead-lettered with the reason (CONTROL: no limit = raised again);
-#      the next tick posts one resolved line in that reminder; without an
-#      owner leg it is dead-lettered saying nobody was told
+#      delivery limit an ask is no longer raised, goes to the DO seats once
+#      and is dead-lettered with the reason (CONTROL: no limit = raised
+#      again); no resolved reply ever; with no DO seat it is dead-lettered
+#      saying nobody was told
 #  11. a hub book past ARG_MAX (3 MB) is listed (CONTROL: the same book as
 #      a jq argument fails: Argument list too long)
 #  12. the orchestrator view on 5000 inbox files and that book: section 2
@@ -43,11 +44,14 @@
 #      hub message to peers, still an ask; exactly 1 seat is responsible;
 #      ack/done are its message's lock (3 seats refused, book untouched);
 #      CONTROL: SPOOL_TO_PEERS=0 = the book's lock
-#  14. the owner's reminder names the topic, who is waiting and what to do.
-#      A channel topic the owner can read gets the reply in that topic; the
-#      next tick after an ack posts one resolved line there. A title with no
-#      readable topic is a new topic that still names the title and the uuid.
-#      A lookup that fails keeps the old id line and a new topic
+#  14. asks never page the owner (t1 c9beaa77): R1 + addendum - the re-raise
+#      goes to the holder and every live DO seat, any may ack it; the
+#      fallback goes to the orch id on the other boxes and the DO seats.
+#      R2 - ONE single-line #alerts post only when the fallback is left
+#      unanswered or no orchestrator is live on any box (the dispatch
+#      holder's machine says it). R3 - the alert clears itself by an edit,
+#      no resolved reply, no new post. R4 - the 90 asks of 2026-10-11..12
+#      replayed: 0 owner messages, 0 resolved replies (master: 90 + 90)
 #  15. the book's cost: on 300 asks open / ack / close / orch_inbox each run
 #      at most 40 jq (CONTROL: the per-file fallback runs > 300); one changed
 #      hub row mirrors exactly that row
@@ -158,8 +162,19 @@ cat >"$T/bin/owner" <<'STUB'
 jq -c --arg text "$(cat)" --arg task "${ASK_TASK:-}" '. + {owner_text: $text, owner_task: $task}' <<<"$ASK_JSON" >>"$OWNER_LOG"
 STUB
 chmod +x "$T/bin/owner"
+# the #alerts stub: one JSON line per op; a post prints its msg id
+cat >"$T/bin/alert" <<'STUB'
+#!/usr/bin/env bash
+text="$(cat)"
+jq -n -c --arg op "$ASK_ALERT_OP" --arg msg "$ASK_ALERT_MSG" --arg text "$text" '{op: $op, msg: $msg, text: $text}' >>"$ALERT_LOG"
+[ "$ASK_ALERT_OP" = post ] && printf 'a1e70000-0000-4000-8000-%012d\n' "$(wc -l <"$ALERT_LOG")"
+exit 0
+STUB
+chmod +x "$T/bin/alert"
+# the live DO seats stub: $SEATS, space-separated
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" ${SEATS:-}\n' >"$T/bin/seats"; chmod +x "$T/bin/seats"
 
-for m in pc sat; do
+for m in pc sat sq; do
   mkdir -p "$T/$m/spool/c-001/inbox" "$T/$m/spool/c-002/inbox" "$T/$m/spool/c-929/inbox" "$T/$m/spool/dispatch"
   printf 'LEASE_ORCH=c-001\nLEASE_FLEET=main\n' >"$T/$m/spool/dispatch/lease.conf"
 done
@@ -168,11 +183,11 @@ done
 # (section 10 sets it), since sections 4-6 count every hand-over as a raise;
 # an agent's own SPOOL_AGENT_ID would otherwise become the default acker
 menv() {
-  local m="$1" box=box-desk; [[ "$m" == sat ]] && box=sat
+  local m="$1" box=box-desk; [[ "$m" == sat || "$m" == sq ]] && box=sat
   printf '%s\n' "SPOOL_ROOT=$T/$m/spool" "SPOOL_BOX_ENV=$T/$m/spool/box.env" "SPOOL_DESK_BOX=$box" \
     "ASKS_HUB_CMD=$T/bin/hub" "HUB_DIR=$T/hub" "SPOOL_BIN=$T/bin/spool" "SPOOL_ORCHESTRATOR_ID=c-001" \
     "SPOOL_TMUX_SOCKET=$T/tmux.sock" "SPOOL_FLEET_RELAY=0" "ASKS_SEND=$T/bin/send" "SEND_LOG=$T/$m/send.log" \
-    "ASKS_MAX_RAISES=0" "SPOOL_AGENT_ID="
+    "ASKS_MAX_RAISES=0" "SPOOL_AGENT_ID=" "ASKS_ALERT_CMD=$T/bin/alert" "ALERT_LOG=$T/$m/alert.log" "ASKS_SEATS_CMD=$T/bin/seats"
 }
 # on <machine> <action> [env...]: run one action as that machine
 on() {
@@ -268,7 +283,7 @@ sleep 0.5
 out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=15 ASKS_TICK_WAIT=20)"
 wait
 [[ ! -s "$T/sat/send.log" ]] && pass "no re-raise inside ASKS_RERAISE_MIN" || fail "early re-raise: $(cat "$T/sat/send.log")"
-[[ "$out" == *"asks tick: holder c-001@sat, hub ok: 2 open (2 unacked, 0 acked); re-raise due 0 (quiet >= 15 min); owner due 0 (open >= 60 min)"* ]] &&
+[[ "$out" == *"asks tick: holder c-001@sat, hub ok: 2 open (2 unacked, 0 acked); re-raise due 0 (quiet >= 15 min); fallback due 0 (open >= 60 min)"* ]] &&
   pass "a tick with nothing due says so in one summary line - and it ran after waiting out the held lock" || fail "summary / lock wait: $out"
 n1="$(grep -c ' mirror ' "$T/sat/spool/asks/journal.log")"
 on sat do_spl_asks_open ASKS_FLEET=main >/dev/null; on sat do_spl_asks_open ASKS_FLEET=main >/dev/null
@@ -293,15 +308,25 @@ out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=0 ASKS_SEND= SPO
 [[ "$out" == *"did NOT reach c-001@sat (spool-send exit 11)"* && "$out" == *'kind "blocker" is not one of'* && "$out" != *"re-raised"* ]] &&
   pass "a failed send is a WARN naming the exit code and the spool error, never a silent tick" || fail "failed send: $out"
 
-# 6. owner leg -----------------------------------------------------------------
+# 6. fallback, never the owner --------------------------------------------------
+: >"$T/sat/send.log"
+alerts() { jq -c --arg op "$2" 'select(.op == $op)' "$T/$1/alert.log" 2>/dev/null | wc -l; }
 out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0)"
 out2="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0)"
-[[ "$out" == *"no owner leg is configured"* && "$out2" != *"no owner leg"* ]] && pass "no owner leg configured: one WARN per ask, nothing sent" || fail "owner off: $out / $out2"
-on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/owner.log" >/dev/null
-on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/owner.log" >/dev/null
-if [[ "$(wc -l <"$T/owner.log")" -eq 1 && "$(jq -r .ask_id "$T/owner.log")" == "$A2" && -n "$(hubrow "$A2" | jq -r .escalated_at)" ]]; then
-  pass "owner leg: the unacked ask goes to the owner ONCE (escalated_at set); the acked one never"
-else fail "owner leg: $(cat "$T/owner.log" 2>/dev/null)"; fi
+al="$(jq -r 'select(.op == "post") | .text' "$T/sat/alert.log" 2>/dev/null)"
+if [[ "$out" == *"no DO seat besides c-001@sat"* && "$(alerts sat post)" -eq 1 && "$al" == *"no DO seat besides c-001@sat to fall back to"* && "$al" != *$'\n'* ]] &&
+   [[ ! -s "$T/sat/send.log" && -z "$(hubrow "$A2" | jq -r '.e // empty')" ]]; then
+  pass "no DO seat besides the holder: ONE single-line #alerts post over two ticks, nothing escalated"
+else fail "no seat: $(cat "$T/sat/alert.log" 2>/dev/null) / $out / $out2"; fi
+out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0 ASKS_ALERT_MIN=99 SEATS=c-002@east)"
+if grep -q "^c-001 c-002@east \*\*ASKS FALLBACK: 1 ask(s) the orchestrator c-001@sat has not acked" "$T/sat/send.log" && grep -q "${A2:0:8}" "$T/sat/send.log" &&
+   [[ -n "$(hubrow "$A2" | jq -r '.e // empty')" && "$(alerts sat post)" -eq 1 && "$(alerts sat clear)" -eq 1 ]] &&
+   [[ "$(jq -r 'select(.op == "clear") | .msg' "$T/sat/alert.log")" == a1e70000-0000-4000-8000-000000000001 ]]; then
+  pass "R1: a live DO seat appears: the ask goes to it (c-002@east, escalated_at set), and the alert clears itself by editing its post (no new post)"
+else fail "fallback to seat: $(cat "$T/sat/send.log") / $(cat "$T/sat/alert.log") / $out"; fi
+: >"$T/sat/send.log"
+on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0 ASKS_ALERT_MIN=99 SEATS=c-002@east >/dev/null
+[[ ! -s "$T/sat/send.log" && "$(wc -l <"$T/sat/alert.log")" -eq 2 ]] && pass "the fallback goes ONCE per ask; a cleared alert stays cleared" || fail "fallback twice: $(cat "$T/sat/send.log") / $(cat "$T/sat/alert.log")"
 
 # 7. close ---------------------------------------------------------------------
 out="$(on sat 'ASK_ID='"${A1:0:8}"' ASK_REASON="given to c-915, 50-commit target" do_spl_ask_close' ASKS_FLEET=main)"
@@ -367,27 +392,22 @@ out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4)"
 out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=0)"
 [[ "$(kqrow "$B2" | jq -r '.state + " " + (.raised_n | tostring)')" == "open 5" ]] && grep -q "${B2:0:8}" "$T/sat/send.log" &&
   pass "CONTROL: with no delivery limit (the old filter) it is raised again, forever" || fail "no-limit control: $(kqrow "$B2") / $out"
-: >"$T/sat/send.log"
-out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
-out2="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
-dl1="$(sed -n '1p' "$T/dlq.log")"; dl2="$(sed -n '2p' "$T/dlq.log")"
-if [[ "$(kqrow "$B2" | jq -r '.state + "|" + .closed_by + "|" + .reason')" == "dead|c-001@sat|max delivery count 4 reached (raised 5x); the owner was told" ]] &&
-   [[ "$(wc -l <"$T/dlq.log")" -eq 2 && "$(jq -r .ask_id <<<"$dl1")" == "$B2" && "$(jq -r .owner_text <<<"$dl1")" == "**Dead-lettered"* && "$(jq -r .owner_text <<<"$dl1")" == *"Ask id $B2"* ]] &&
-   [[ "$(jq -r .owner_text <<<"$dl2")" == "resolved: it was closed because nobody answered" && "$(jq -r .ask_id <<<"$dl2")" == "$B2" && "$(jq -r .owner_task <<<"$dl1")" == "$(jq -r .owner_task <<<"$dl2")" ]] &&
-   [[ "$out" != *"reminder resolved"* && "$out2" == *"reminder resolved: it was closed because nobody answered"* ]] &&
-   ! grep -q "${B2:0:8}" "$T/sat/send.log" && [[ "$out" == *"dead-letter due 1 (raised >= 4)"* ]]; then
-  pass "at the delivery limit: not re-raised, told to the owner ONCE, dead-lettered with the reason; the next tick posts resolved"
-else fail "dead-letter: $(kqrow "$B2") / $(cat "$T/dlq.log" 2>/dev/null) / $(cat "$T/sat/send.log") / $out / $out2"; fi
-out3="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
-[[ "$(wc -l <"$T/dlq.log")" -eq 2 && "$out3" != *"reminder resolved"* ]] && pass "a third tick adds no second resolved reply" || fail "third tick: $(wc -l <"$T/dlq.log") / $out3"
-[[ "$(jq -r '.state + " " + .reason' <<<"$(jrn sat "$B2")")" == "dead max delivery count 4 reached (raised 5x); the owner was told" ]] && pass "the journal holds the dead-letter and its reason" || fail "journal dead: $(jrn sat "$B2")"
+: >"$T/sat/send.log"; : >"$T/sat/alert.log"
+out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 SEATS=c-002@sat)"
+out2="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 SEATS=c-002@sat)"
+if [[ "$(kqrow "$B2" | jq -r '.state + "|" + .closed_by + "|" + .reason')" == "dead|c-001@sat|max delivery count 4 reached (raised 5x); the DO seats were told" ]] &&
+   grep -q "^c-001 c-002 \*\*ASKS FALLBACK.*${B2:0:8}.*DEAD-LETTERED at the delivery limit" "$T/sat/send.log" &&
+   [[ "$(grep -c "${B2:0:8}" "$T/sat/send.log")" -eq 1 && ! -s "$T/sat/alert.log" && "$out" == *"dead-letter due 1 (raised >= 4)"* && "$out2" != *"resolved"* ]]; then
+  pass "at the delivery limit: not re-raised, told to the DO seats ONCE (never the owner), dead-lettered with the reason; no resolved reply"
+else fail "dead-letter: $(kqrow "$B2") / $(cat "$T/sat/send.log") / $(cat "$T/sat/alert.log" 2>/dev/null) / $out / $out2"; fi
+[[ "$(jq -r '.state + " " + .reason' <<<"$(jrn sat "$B2")")" == "dead max delivery count 4 reached (raised 5x); the DO seats were told" ]] && pass "the journal holds the dead-letter and its reason" || fail "journal dead: $(jrn sat "$B2")"
 out="$(on sat 'ASK_ID='"${B2:0:8}"' do_spl_ask_ack' ASKS_FLEET=kq)"; rc=$?
 [[ $rc -eq 3 && "$out" == *"already dead by c-001@sat"* ]] && pass "a late ack of a dead-lettered ask: exit 3, names who and why" || fail "late ack dead (rc=$rc): $out"
 hub put --fleet kq --id "$B3" --kind task --from c-002@sat --summary "share-group ${B3:0:4}"
 for i in 1 2 3 4; do hub raise --fleet kq --id "$B3" --by c-001@sat; done
 out="$(tick HUB_SKEW=3800 ASKS_MAX_RAISES=4)"
-[[ "$(kqrow "$B3" | jq -r '.state + "|" + .reason')" == "dead|max delivery count 4 reached (raised 4x); no owner leg configured, nobody was told" && "$out" == *"no owner leg is configured"* ]] &&
-  pass "no owner leg: at the limit it is still dead-lettered, the reason says nobody was told" || fail "dead no owner: $(kqrow "$B3") / $out"
+[[ "$(kqrow "$B3" | jq -r '.state + "|" + .reason')" == "dead|max delivery count 4 reached (raised 4x); no DO seat to tell" && "$out" == *"no DO seat besides c-001@sat"* ]] &&
+  pass "no DO seat: at the limit it is still dead-lettered, the reason says nobody was told" || fail "dead no seat: $(kqrow "$B3") / $out"
 out="$(on sat do_spl_asks_open ASKS_FLEET=kq)"
 [[ "$out" == *"${B1:0:8}"* && "$out" != *"${B2:0:8}"* ]] && pass "the open book drops the dead-lettered asks" || fail "open book: $out"
 
@@ -522,110 +542,118 @@ out="$(SPOOL_TO_PEERS=0 asks "$R" ack "${P1:0:8}" 2>&1)"
 [[ "$(cat "$T/orc.log")" == "do_spl_ask_ack ASK_ID=${P1:0:8} ASK_STATE= ASK_BY=" ]] && pass "CONTROL: switch off (SPOOL_TO_PEERS=0): ack is the book's lock again (do_spl_ask_ack)" || fail "control off: $out / $(cat "$T/orc.log")"
 
 
-# 14. the owner's reminder: plain words, one tap, then resolved -------------
-# topic_read: the opening line, 100 characters, and a mention of the whole
-# owner id (HUM-10 is not a prefix of HUM-100). A channel post is to ALL-0.
-python3 - "$T" <<'PY'
-import json, os, sys
-t = sys.argv[1]
-def w(name, rows):
-    with open(os.path.join(t, name), "w") as f:
-        for r in rows:
-            f.write(json.dumps(r, separators=(",", ":")) + "\n")
-w("title-long.json", [{"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "A" * 101 + "\nrest", "to": "ALL-0", "from": "c-176"}])
-w("title-exact.json", [{"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "B" * 100, "to": "ALL-0", "from": "c-176"}])
-w("title-miss.json", [
-    {"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "Needs a go\nmore", "to": "ALL-0", "from": "c-176"},
-    {"ts": "2026-10-04T10:01:00Z", "msg_id": "2", "body": "see @HUM-100", "to": "ALL-0", "from": "c-176"}])
-w("title-hit.json", [
-    {"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "  Needs   a go  ", "to": "ALL-0", "from": "c-001"},
-    {"ts": "2026-10-04T10:02:00Z", "msg_id": "2", "body": "cc @HUM-10 please", "to": "ALL-0", "from": "c-176"}])
-w("title-direct.json", [{"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "cc @HUM-10 please", "to": "HUM-10", "from": "c-176"}])
-w("title-from.json", [{"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "hello", "to": "ALL-0", "from": "HUM-10"}])
+# 14. asks never page the owner (t1 c9beaa77) ---------------------------------
+# machine sq (box sat, its own journal), fleet quiet: the holder c-001@sat is silent; c-002@east is a second live DO seat
+D1=d1d1d1d1-1414-4141-8141-aaaaaaaaaaa1 D2=d2d2d2d2-1414-4141-8141-aaaaaaaaaaa2
+dorow() { jq -c --arg i "$1" '.[] | select(.ask_id == $i)' "$T/hub/quiet.json" 2>/dev/null; }
+hub put --fleet quiet --id "$D1" --kind task --from c-002@east --summary "SPAWN REQUEST lane x"
+dotick() { on sq do_spl_asks_tick ASKS_FLEET=quiet ASKS_MAX_RAISES=4 ASKS_LOCK_MIN=0 OWNER_LOG="$T/do-owner.log" ASKS_OWNER=HUM-10 "$@"; }
+dotick HUB_SKEW=0 >/dev/null
+: >"$T/sq/send.log"; : >"$T/sq/alert.log"
+dotick HUB_SKEW=1000 ASKS_RERAISE_MIN=15 SEATS= >/dev/null
+[[ "$(grep -c "${D1:0:8}" "$T/sq/send.log")" -eq 1 ]] && grep -q "^c-001 c-001 \*\*ASKS STILL OPEN" "$T/sq/send.log" &&
+  pass "CONTROL: with no second live DO the re-raise reaches the holder alone" || fail "control holder only: $(cat "$T/sq/send.log")"
+: >"$T/sq/send.log"
+dotick HUB_SKEW=2000 ASKS_RERAISE_MIN=15 SEATS=c-002@east >/dev/null
+if [[ "$(sed -n 1p "$T/sq/send.log")" == "c-001 c-001 **ASKS STILL OPEN"* && "$(sed -n 2p "$T/sq/send.log")" == "c-001 c-002@east **ASKS STILL OPEN"*"${D1:0:8}"* ]] &&
+   [[ ! -s "$T/sq/alert.log" && ! -s "$T/do-owner.log" ]]; then
+  pass "ADDENDUM: holder silent + a second live DO: the re-raise goes to the holder first, then to c-002@east; 0 owner messages"
+else fail "addendum re-raise: $(cat "$T/sq/send.log") / $(cat "$T/sq/alert.log" 2>/dev/null)"; fi
+out="$(on sq "ASK_ID=${D1:0:8} ASK_BY=c-002@east do_spl_ask_ack" ASKS_FLEET=quiet HUB_SKEW=2000)"
+[[ "$(dorow "$D1" | jq -r '.state + " " + .acked_by')" == "acked c-002@east" ]] && pass "ADDENDUM: any DO seat may take it: c-002@east acks the holder's ask" || fail "seat ack: $(dorow "$D1") / $out"
+
+# R1: the fallback order - the orch id on every other box of the orch order,
+# then the other live DO seats; ONE blocker each, the owner never
+hub put --fleet quiet --id "$D2" --kind blocker --from c-919@sat --summary "relay: owner addendum"
+: >"$T/sq/send.log"
+dotick HUB_SKEW=3700 ASKS_RERAISE_MIN=999 ASKS_OWNER_MIN=60 SEATS=c-002@east LEASE_PRIORITY_ORCH=sat,east,box-desk >/dev/null
+if [[ "$(cut -d' ' -f1-3 "$T/sq/send.log" | tr '\n' '|')" == "c-001 c-001@east **ASKS|c-001 c-001@box-desk **ASKS|c-001 c-002@east **ASKS|" ]] &&
+   grep -q "ASKS FALLBACK: 1 ask(s).*${D2:0:8}" "$T/sq/send.log" && [[ ! -s "$T/sq/alert.log" && ! -s "$T/do-owner.log" ]]; then
+  pass "R1: unacked past ASKS_OWNER_MIN goes to c-001 on the other boxes, then c-002@east - ONE blocker each, 0 owner messages"
+else fail "R1 order: $(cat "$T/sq/send.log") / $(cat "$T/sq/alert.log" 2>/dev/null)"; fi
+
+# R2 + R3: the fallback left unanswered ASKS_ALERT_MIN -> ONE alert line; acked -> it clears itself
+dotick HUB_SKEW=5000 ASKS_RERAISE_MIN=999 ASKS_ALERT_MIN=30 SEATS=c-002@east >/dev/null
+[[ ! -s "$T/sq/alert.log" ]] && pass "CONTROL: inside ASKS_ALERT_MIN after the fallback: no alert" || fail "early alert: $(cat "$T/sq/alert.log")"
+out="$(dotick HUB_SKEW=5700 ASKS_RERAISE_MIN=999 ASKS_ALERT_MIN=30 SEATS=c-002@east)"
+dotick HUB_SKEW=5800 ASKS_RERAISE_MIN=999 ASKS_ALERT_MIN=30 SEATS=c-002@east >/dev/null
+al="$(jq -r 'select(.op == "post") | .text' "$T/sq/alert.log")"
+if [[ "$(alerts sq post)" -eq 1 && "$al" != *$'\n'* && "$al" == "**ALERT** @HUM-10: 1 ask(s) to the orchestrator unanswered by every DO seat 30+ min after the fallback."* &&
+      "$al" == *"${D2:0:8} from c-919@sat"* && "$al" == *"Blocks: c-919."* && "$al" == *"Do: "*"ASK_ID=${D2:0:8} ./run -a do_spl_ask_ack"* ]]; then
+  pass "R2: the fallback unanswered ASKS_ALERT_MIN: ONE single-line alert over two ticks - what failed, what it blocks, what to do"
+else fail "R2 alert: $(cat "$T/sq/alert.log") / $out"; fi
+on sq "ASK_ID=${D2:0:8} ASK_BY=c-003@east do_spl_ask_ack" ASKS_FLEET=quiet HUB_SKEW=5800 >/dev/null
+: >"$T/sq/send.log"
+out="$(dotick HUB_SKEW=5900 ASKS_RERAISE_MIN=999 ASKS_ALERT_MIN=30 SEATS=c-002@east)"
+out2="$(dotick HUB_SKEW=6000 ASKS_RERAISE_MIN=999 ASKS_ALERT_MIN=30 SEATS=c-002@east)"
+cl="$(jq -c 'select(.op == "clear")' "$T/sq/alert.log")"
+if [[ "$(alerts sq post)" -eq 1 && "$(alerts sq clear)" -eq 1 && "$(jq -r .msg <<<"$cl")" == a1e70000-0000-4000-8000-000000000001 ]] &&
+   [[ "$(jq -r .text <<<"$cl")" == "Cleared "*", nothing to do. Was: **ALERT**: 1 ask(s)"* && "$out" == *"cleared itself"* && "$out2" != *"cleared"* && ! -s "$T/sq/send.log" && ! -s "$T/do-owner.log" ]]; then
+  pass "R3: acked by a DO seat -> the alert edits its own post to 'Cleared, nothing to do' (no @mention), ONCE; no new post, no resolved reply"
+else fail "R3 clear: $(cat "$T/sq/alert.log") / $out / $out2"; fi
+
+# R2: no live orchestrator on ANY box. Only the dispatch holder's machine says
+# it, from the lease loop's fleet.orch.age "<holder> <silent s> <epoch>"
+pctick() { on pc do_spl_asks_tick ASKS_FLEET=main ASKS_HOLDER=c-001@sat ASKS_ORCH_STALE=600 ASKS_OWNER=HUM-10; }
+: >"$T/pc/alert.log"
+echo "c-002@sat $(date +%s)" >"$T/pc/spool/dispatch/lease"
+echo "c-001@sat 900 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+[[ ! -s "$T/pc/alert.log" ]] && pass "CONTROL: the dispatch role is on another machine: this one says nothing" || fail "orch alert off-box: $(cat "$T/pc/alert.log")"
+echo "c-002@box-desk $(date +%s)" >"$T/pc/spool/dispatch/lease"
+echo "c-001@sat 60 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+[[ ! -s "$T/pc/alert.log" ]] && pass "CONTROL: the orch holder renewing (silent 60 s): no alert" || fail "orch alert fresh: $(cat "$T/pc/alert.log")"
+echo "c-001@sat 900 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+out="$(pctick)"; pctick >/dev/null
+al="$(jq -r 'select(.op == "post") | .text' "$T/pc/alert.log")"
+[[ "$(alerts pc post)" -eq 1 && "$al" == "**ALERT** @HUM-10: no live orchestrator on any box - c-001@sat has held the orch lease silent 15 min."* && "$al" == *"Blocks: "* && "$al" == *"IDENTITY_RESTORE_IDS=c-001"* && "$out" == *"held on sat"* ]] &&
+  pass "R2: the hub's orch holder silent past ASKS_ORCH_STALE: the dispatch holder's machine posts ONE alert over two ticks" || fail "orch alert: $(cat "$T/pc/alert.log") / $out"
+echo "c-001@east 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null; pctick >/dev/null
+[[ "$(alerts pc post)" -eq 1 && "$(alerts pc clear)" -eq 1 && "$(jq -r 'select(.op == "clear") | .text' "$T/pc/alert.log")" == "Cleared "*"Was: **ALERT**: no live orchestrator"* ]] &&
+  pass "R3: an orchestrator is live again: the alert clears itself once, no new post" || fail "orch clear: $(cat "$T/pc/alert.log")"
+rm -f "$T/pc/spool/dispatch/lease" "$T/pc/spool/dispatch/fleet.orch.age"
+
+# R4: the 90 asks the owner was paged for on 2026-10-11..12 (the journal's
+# escalated_at, measured on the home box 2026-10-12: 90 rows, all acked_by set, 62
+# done, 26 dead; 38 SPAWN REQUEST, 52 relays), replayed through two ticks:
+# open past ASKS_OWNER_MIN, then acked or closed. master: 90 owner reminders
+# + 90 resolved replies; now 0 + 0 (the other DO seat gets the fallback)
+python3 - "$T/hub/r4.json" <<'PY'
+import json, sys, time
+t = time.time() - 4200
+rows = []
+for i in range(90):
+    spawn = i < 38
+    rows.append({"ask_id": "f4f4f4f4-%04d-4444-8444-444444444444" % i, "role": "orch", "kind": "task" if spawn else "blocker",
+                 "from": "c-002@east", "topic": "%08x-0000-4000-8000-000000000000" % i,
+                 "summary": ("SPAWN REQUEST lane %d" % i) if spawn else ("relay %d to the orchestrator" % i),
+                 "deadline_at": "", "state": "open", "acked_by": "", "closed_by": "", "reason": "", "raised_n": 1,
+                 "writer_box": "east", "c": t + i, "u": t + i})
+json.dump(rows, open(sys.argv[1], "w"))
 PY
-tread() { on sat spl_asks_topic_read ASKS_OWNER=HUM-10 <"$1"; }
-got="$(tread "$T/title-long.json")"
-[[ "$(jq -r .title <<<"$got")" == "$(python3 -c 'print("A"*100 + "...")')" && "$(jq -r .readable <<<"$got")" == false ]] &&
-  pass "topic title: 101 characters collapse to 100 plus an ellipsis, and an unnamed channel is not readable" || fail "long title: $got"
-got="$(tread "$T/title-exact.json")"
-[[ "$(jq -r .title <<<"$got")" == "$(python3 -c 'print("B"*100)')" && "$(jq -r .readable <<<"$got")" == false ]] &&
-  pass "topic title: 100 characters stay whole" || fail "exact title: $got"
-got="$(tread "$T/title-miss.json")"
-[[ "$(jq -r .title <<<"$got")" == "Needs a go" && "$(jq -r .readable <<<"$got")" == false ]] &&
-  pass "a mention of HUM-100 does not name HUM-10; the oldest line is the title" || fail "mention boundary: $got"
-got="$(tread "$T/title-hit.json")"
-[[ "$(jq -r .title <<<"$got")" == "Needs a go" && "$(jq -r .readable <<<"$got")" == true ]] &&
-  pass "whitespace collapses, and @HUM-10 on a channel post is readable" || fail "mention hit: $got"
-got="$(tread "$T/title-direct.json")"
-[[ "$(jq -r .title <<<"$got")" == "cc @HUM-10 please" && "$(jq -r .readable <<<"$got")" == false ]] &&
-  pass "a direct message that names the owner is not a channel topic" || fail "dm: $got"
-got="$(tread "$T/title-from.json")"
-[[ "$(jq -r .readable <<<"$got")" == true && "$(jq -r .title <<<"$got")" == hello ]] &&
-  pass "a channel post from the owner is readable" || fail "from owner: $got"
-
-# the set-aside wording, when the title is known (the dead-letter above has none)
-printf '%s\n' '{"ask_id":"abababab-1111-4111-8111-111111111111","from":"c-176@sat","topic":"11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1","summary":"sum","age_s":120,"raised_n":5,"kind":"blocker"}' >"$T/wrow.json"
-printf '%s\n' '{"title":"Needs one owner go","readable":true,"channel":"tasks","ask":"Approve it."}' >"$T/wctx.json"
-words="$(on sat "spl_asks_owner_words \"\$(cat $T/wrow.json)\" c-001@sat true \"\$(cat $T/wctx.json)\" 4" ASKS_OWNER=HUM-10)"
-if [[ "$words" == "Topic: Needs one owner go (#tasks)"* && "$words" == *"@HUM-10"* && "$words" == *"Set aside after 5 raises (the limit is 4): nobody answered (2 min)."* &&
-      "$words" == *"Waiting: c-176."* && "$words" == *"Summary: sum"* && "$words" == *"What to do: Approve it."* && "$words" == *"11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1"* &&
-      "$words" != *"Ask id"* ]]; then
-  pass "a dead-letter whose title is known says set aside, who is waiting, and what to do"
-else fail "set aside words: $words"; fi
-
-C_TOPIC=11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1
-C_PRIV=22222222-bbbb-4bbb-8bbb-bbbbbbbbbbb2
-C_MISS=33333333-cccc-4ccc-8ccc-ccccccccccc3
-C_READ=dddddddd-1414-4141-8141-aaaaaaaaaaa1
-C_NOR=eeeeeeee-2424-4242-8242-bbbbbbbbbbb2
-C_OLD=ffffffff-3434-4343-8343-ccccccccccc3
-cat >"$T/bin/topic" <<EOF
-#!/usr/bin/env bash
-case "\$1" in
-  $C_TOPIC) printf '%s\n' '{"title":"Needs one owner go","readable":true,"channel":"tasks","ask":"Approve the repo-settings change."}' ;;
-  $C_PRIV) printf '%s\n' '{"title":"Private thread","readable":false}' ;;
-  *) exit 1 ;;
-esac
-EOF
-chmod +x "$T/bin/topic"
-hub put --fleet ctx --id "$C_READ" --kind blocker --from c-176@sat --topic "$C_TOPIC" --summary "needs one owner go, a repo-settings change"
-hub put --fleet ctx --id "$C_NOR" --kind blocker --from c-176@sat --topic "$C_PRIV" --summary "the private summary"
-hub put --fleet ctx --id "$C_OLD" --kind task --from c-002@sat --topic "$C_MISS" --summary "lookup misses"
-: >"$T/ctx.log"
-ctx_tick() { on sat do_spl_asks_tick ASKS_FLEET=ctx ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0 ASKS_MAX_RAISES=0 ASKS_OWNER=HUM-10 ASKS_OWNER_CMD="$T/bin/owner" ASKS_TOPIC_CMD="$T/bin/topic" OWNER_LOG="$T/ctx.log" HUB_SKEW=0; }
-ctx_row() { jq -c --arg id "$1" 'select(.ask_id == $id and (.owner_text | startswith("resolved:") | not))' "$T/ctx.log"; }
-out="$(ctx_tick)"
-rread="$(ctx_row "$C_READ")"; rnor="$(ctx_row "$C_NOR")"; rold="$(ctx_row "$C_OLD")"
-uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-if [[ "$(jq -r .owner_task <<<"$rread")" == "$C_TOPIC" && "$(jq -r .owner_text <<<"$rread")" == "Topic: Needs one owner go (#tasks)"* &&
-      "$(jq -r .owner_text <<<"$rread")" == *"@HUM-10"* && "$(jq -r .owner_text <<<"$rread")" == *"Waiting: c-176."* &&
-      "$(jq -r .owner_text <<<"$rread")" == *"Summary: needs one owner go, a repo-settings change"* &&
-      "$(jq -r .owner_text <<<"$rread")" == *"What to do: Approve the repo-settings change."* &&
-      "$(jq -r .owner_text <<<"$rread")" == *"$C_TOPIC"* && "$(jq -r .owner_text <<<"$rread")" != *"Ask id"* &&
-      "$(jq -r .owner_text <<<"$rread")" != *"$C_READ"* ]]; then
-  pass "a readable channel topic: the reminder is a reply in it, in plain words, with the topic uuid"
-else fail "readable reminder: $rread"; fi
-if [[ "$(jq -r .owner_task <<<"$rnor")" != "$C_PRIV" && "$(jq -r .owner_task <<<"$rnor")" =~ $uuid_re &&
-      "$(jq -r .owner_text <<<"$rnor")" == "Topic: Private thread"* && "$(jq -r .owner_text <<<"$rnor")" == *"$C_PRIV"* &&
-      "$(jq -r .owner_text <<<"$rnor")" != *"@HUM-10"* && "$(jq -r .owner_text <<<"$rnor")" != *"Ask id"* &&
-      "$(jq -r .owner_text <<<"$rnor")" == *"Waiting: c-176."* && "$(jq -r .owner_text <<<"$rnor")" == *"Summary: the private summary"* ]]; then
-  pass "a title the owner cannot read: a new topic that names the title and the source uuid"
-else fail "unreadable reminder: $rnor"; fi
-if [[ "$(jq -r .owner_task <<<"$rold")" != "$C_MISS" && "$(jq -r .owner_task <<<"$rold")" =~ $uuid_re &&
-      "$(jq -r .owner_text <<<"$rold")" == "**Unanswered ask to the orchestrator ("* &&
-      "$(jq -r .owner_text <<<"$rold")" == *"re-raised 0x"* && "$(jq -r .owner_text <<<"$rold")" == *"Ask id $C_OLD"* &&
-      "$(jq -r .owner_text <<<"$rold")" == *"topic $C_MISS"* ]]; then
-  pass "a topic lookup that fails keeps the old id line and a new topic"
-else fail "lookup miss: $rold"; fi
-[[ "$(sed -n '1p' "$T/sat/spool/asks/.owner-told.$C_READ")" == "$C_TOPIC" ]] && pass "the reminder topic is recorded beside the ask" || fail "sidecar: $(cat "$T/sat/spool/asks/.owner-told.$C_READ" 2>/dev/null)"
-on sat "ASK_ID=${C_READ:0:8} do_spl_ask_ack" ASKS_FLEET=ctx >/dev/null
-out="$(ctx_tick)"
-res="$(jq -c --arg id "$C_READ" 'select(.ask_id == $id and (.owner_text | startswith("resolved:")))' "$T/ctx.log")"
-[[ "$(jq -r .owner_text <<<"$res")" == "resolved: the orchestrator acknowledged it" && "$(jq -r .owner_task <<<"$res")" == "$C_TOPIC" && "$out" == *"reminder resolved: the orchestrator acknowledged it"* ]] &&
-  pass "an acked ask posts one resolved reply in the reminder's topic" || fail "resolved: $res / $out"
-out="$(ctx_tick)"
-[[ "$(jq -c --arg id "$C_READ" 'select(.ask_id == $id and (.owner_text | startswith("resolved:")))' "$T/ctx.log" | wc -l)" -eq 1 && "$out" != *"reminder resolved"* ]] &&
-  pass "the resolved reply is posted once" || fail "resolved twice: $(cat "$T/ctx.log") / $out"
+: >"$T/r4-owner.log"; : >"$T/sq/alert.log"; : >"$T/sq/send.log"
+r4tick() { on sq do_spl_asks_tick ASKS_FLEET=r4 ASKS_RERAISE_MIN=15 ASKS_OWNER_MIN=60 ASKS_MAX_RAISES=4 ASKS_OWNER=HUM-10 \
+  ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/r4-owner.log" SEATS=c-002@east HUB_SKEW=0; }
+r4tick >/dev/null
+python3 - "$T/hub/r4.json" <<'PY'
+import json, sys, time
+p = sys.argv[1]; rows = json.load(open(p)); now = time.time()
+for i, r in enumerate(rows):
+    r["acked_by"], r["u"] = "c-001@sat", now
+    if i < 62: r["state"], r["closed_by"], r["reason"] = "done", "c-001@sat", "handled"
+    elif i < 88: r["state"], r["closed_by"], r["reason"] = "dead", "c-001@sat", "max delivery count 4 reached"
+    else: r["state"] = "acked"
+json.dump(rows, open(p, "w"))
+PY
+r4tick >/dev/null
+owner_n=$(( $(grep -vc '"owner_text":"resolved:' "$T/r4-owner.log") + $(alerts sq post) ))
+resolved_n="$(grep -c '"owner_text":"resolved:' "$T/r4-owner.log")"
+fb="$(grep -c '^c-001 c-002@east \*\*ASKS FALLBACK: 90 ask(s)' "$T/sq/send.log")"
+[[ "$owner_n" -eq 0 && "$resolved_n" -eq 0 && "$fb" -eq 1 ]] &&
+  pass "R4: the 90 asks of 2026-10-11..12 replayed: 0 owner messages, 0 resolved replies (n=90; the fallback went to c-002@east in ONE blocker)" ||
+  fail "R4: owner messages $owner_n, resolved replies $resolved_n (want 0 + 0, n=90); fallback blockers $fb"
 
 # 15. the ask book's cost does not grow with the book (c-509, sat 2026-10-07:
 # 841 hub rows x ~5 jq forks in the mirror + a jq per journal file made every

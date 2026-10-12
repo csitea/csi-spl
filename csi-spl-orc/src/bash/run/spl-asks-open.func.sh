@@ -84,7 +84,7 @@ spl_asks_conf() {
   [[ -f "$f" ]] || return 0
   while IFS='=' read -r k v; do
     [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v"
-  done < <(grep -E "^(ASKS_(RERAISE_MIN|OWNER_MIN|OWNER|LOCK_MIN|MAX_RAISES)=[A-Za-z0-9-]+|LEASE_ORCH=${SPOOL_PARTICIPANT_RX})\$" "$f")
+  done < <(grep -E "^(ASKS_(RERAISE_MIN|OWNER_MIN|ALERT_MIN|ORCH_STALE|OWNER|LOCK_MIN|MAX_RAISES)=[A-Za-z0-9-]+|(ASKS_SEATS|LEASE_PRIORITY|LEASE_PRIORITY_ORCH)=[a-z0-9@,-]+|LEASE_ORCH=${SPOOL_PARTICIPANT_RX})\$" "$f")
   return 0
 }
 

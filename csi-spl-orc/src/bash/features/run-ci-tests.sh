@@ -37,6 +37,23 @@ fi
 [[ "$njobs" =~ ^[1-9][0-9]*$ ]] || { echo "FEATURE_TEST_JOBS must be a positive integer (got '$njobs')" >&2; exit 2; }
 command -v tmux >/dev/null || { echo "FAIL: tmux is not on PATH (the spawn-agents tests need it)" >&2; exit 1; }
 
+# A tree build of spool OLDER than its sources (every rebase or amend in a
+# worktree) is skipped by spool-env with a WARN on stderr, and the
+# spawn-agents tests that read stderr as output then go red on that line:
+# a false red pre-push blamed on the push (c-873@sat n=3, c-001 msg
+# 60a51b4d). Rebuild it once, before the pool. A fresh clone has no build
+# and is not judged, so CI is unchanged. A failed rebuild is printed and the
+# tests run as before.
+repo=$(cd "$here/../../../.." && pwd)
+spool_built="$repo/csi-spl-api/src/go/spool-hub-api/bin/spool"
+# shellcheck source=spawn-agents/lib/spool-env.inc.sh
+if [[ -x "$spool_built" ]] && ( . "$here/spawn-agents/lib/spool-env.inc.sh" \
+  && _spool_bin_stale "$repo" "$spool_built" ) 2>/dev/null; then
+  echo "=== spool build older than its sources: rebuilding $spool_built"
+  bash "$repo/csi-spl-api/src/bash/build.sh" "$spool_built" >/dev/null 2>&1 \
+    || echo "=== spool rebuild FAILED: the spawn-agents tests may read its WARN (rebuild: bash $repo/csi-spl-api/src/bash/build.sh $spool_built)"
+fi
+
 feats=("$@")
 if (( ${#feats[@]} == 0 )); then
   for d in "$here"/*/tests; do [[ -d "$d" ]] && feats+=("$(basename "$(dirname "$d")")"); done

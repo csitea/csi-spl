@@ -14,19 +14,19 @@ import (
 // closing one ask cannot both win.
 
 const askCols = `ask_id, role, kind, from_agent, topic, summary, state, deadline_at, acked_by, closed_by, reason,
-	raised_n, raised_at, escalated_at, writer_box, created_at, updated_at`
+	raised_n, raised_at, escalated_at, writer_box, created_at, updated_at, enqueued_at, placement`
 
 func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 	a := FleetAsk{Fleet: fleet}
-	var deadline, raised, escalated *time.Time
+	var deadline, raised, escalated, enqueued *time.Time
 	if err := row.Scan(&a.AskID, &a.Role, &a.Kind, &a.From, &a.Topic, &a.Summary, &a.State, &deadline, &a.AckedBy, &a.ClosedBy,
-		&a.Reason, &a.RaisedN, &raised, &escalated, &a.WriterBox, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		&a.Reason, &a.RaisedN, &raised, &escalated, &a.WriterBox, &a.CreatedAt, &a.UpdatedAt, &enqueued, &a.Placement); err != nil {
 		return a, err
 	}
 	for _, p := range []struct {
 		src *time.Time
 		dst *time.Time
-	}{{deadline, &a.DeadlineAt}, {raised, &a.RaisedAt}, {escalated, &a.EscalatedAt}} {
+	}{{deadline, &a.DeadlineAt}, {raised, &a.RaisedAt}, {escalated, &a.EscalatedAt}, {enqueued, &a.EnqueuedAt}} {
 		if p.src != nil {
 			*p.dst = p.src.UTC()
 		}
@@ -81,10 +81,12 @@ func (s *Postgres) UpdateFleetAsk(ctx context.Context, tenant string, u AskUpdat
 		}
 		applyAskOp(&a, u, box, now)
 		if _, err = tx.Exec(ctx, `UPDATE fleet_asks SET state = $4, acked_by = $5, closed_by = $6, reason = $7,
-			raised_n = $8, raised_at = $9, escalated_at = $10, writer_box = $11, updated_at = $12
+			raised_n = $8, raised_at = $9, escalated_at = $10, writer_box = $11, updated_at = $12,
+			enqueued_at = $13, placement = $14
 			WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3`,
 			tenant, fleet, askID, a.State, a.AckedBy, a.ClosedBy, a.Reason, a.RaisedN,
-			nullTime(a.RaisedAt), nullTime(a.EscalatedAt), a.WriterBox, a.UpdatedAt); err != nil {
+			nullTime(a.RaisedAt), nullTime(a.EscalatedAt), a.WriterBox, a.UpdatedAt,
+			nullTime(a.EnqueuedAt), a.Placement); err != nil {
 			return err
 		}
 		askTimes(&a, now)
@@ -105,7 +107,7 @@ func (s *Postgres) ListFleetAsks(ctx context.Context, tenant, fleet, role string
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `SELECT `+askCols+` FROM fleet_asks
 			WHERE tenant_id = $1 AND fleet = $2 AND ($4 = '' OR role = $4)
-			AND ($3 OR state IN ('open', 'acked'))`, tenant, fleet, all, role)
+			AND ($3 OR state IN ('open', 'acked', 'queued'))`, tenant, fleet, all, role)
 		if err != nil {
 			return err
 		}
@@ -120,5 +122,6 @@ func (s *Postgres) ListFleetAsks(ctx context.Context, tenant, fleet, role string
 		return rows.Err()
 	})
 	sortAsks(out)
+	askPositions(out)
 	return out, err
 }

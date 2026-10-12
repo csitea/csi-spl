@@ -19,6 +19,7 @@ import (
 //	ack | done | decline          work it, By = the acting <ID>@<box>
 //	raise | escalate              the lease tick's re-raise / owner leg
 //	release | dead                the lease tick's lock timeout / dead-letter (CLE-77942)
+//	queue                         a spawn request waits for room (rdb 0180), Placement optional
 type AskArgs struct {
 	Fleet    string
 	Op       string
@@ -31,6 +32,7 @@ type AskArgs struct {
 	Deadline string // RFC 3339, put only
 	By       string
 	Reason   string
+	Place    string // queue: "<vendor>:<slug>"
 	All      bool
 	Hub      *hubclient.Client // nil = hubclient.New(cfg)
 }
@@ -87,7 +89,14 @@ func askBody(in AskArgs) (json.RawMessage, error) {
 		if !store.AskIDRe.MatchString(in.AskID) {
 			return nil, fmt.Errorf("ask: --id must be the ask's id (a lowercase UUID)")
 		}
-		v = map[string]any{"ask_id": in.AskID, "by": in.By, "reason": in.Reason}
+		if !store.AskPlacementRe.MatchString(in.Place) {
+			return nil, fmt.Errorf("ask: --placement must be <vendor>:<slug> (lowercase)")
+		}
+		m := map[string]any{"ask_id": in.AskID, "by": in.By, "reason": in.Reason}
+		if in.Place != "" {
+			m["placement"] = in.Place
+		}
+		v = m
 	}
 	return json.Marshal(v)
 }

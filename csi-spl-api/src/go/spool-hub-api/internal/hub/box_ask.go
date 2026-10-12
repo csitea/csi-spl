@@ -28,6 +28,9 @@ import (
 //	                  acked -> open (acked_by stays: the last holder)
 //	ask_op dead     - the lease tick: the delivery limit was reached, closed
 //	                  as dead (Kafka's archived), reason required
+//	ask_op queue    - a spawn request waits for room (rdb 0180): queued, with
+//	                  its position; never raised or escalated. placement
+//	                  "<vendor>:<slug>" is optional
 //
 // The record states follow Kafka's share groups (KIP-932, CLE-77942); the
 // lock timeout and the delivery limit are the tick's knobs, not the hub's.
@@ -52,6 +55,10 @@ type AskRow struct {
 	RaisedN     int    `json:"raised_n"`
 	RaisedAt    string `json:"raised_at,omitempty"`
 	EscalatedAt string `json:"escalated_at,omitempty"`
+	EnqueuedAt  string `json:"enqueued_at,omitempty"`
+	Placement   string `json:"placement,omitempty"`
+	Position    int    `json:"position,omitempty"`
+	QueueLen    int    `json:"queue_len,omitempty"`
 	WriterBox   string `json:"writer_box,omitempty"`
 	CreatedAt   string `json:"created_at,omitempty"`
 	UpdatedAt   string `json:"updated_at,omitempty"`
@@ -61,11 +68,12 @@ type AskRow struct {
 
 // askUpdate is an update request's Ask object; List is a list request's.
 type askUpdate struct {
-	AskID  string `json:"ask_id"`
-	By     string `json:"by"`
-	Reason string `json:"reason"`
-	Role   string `json:"role"`
-	All    bool   `json:"all"`
+	AskID     string `json:"ask_id"`
+	By        string `json:"by"`
+	Reason    string `json:"reason"`
+	Placement string `json:"placement"`
+	Role      string `json:"role"`
+	All       bool   `json:"all"`
 }
 
 // askAnswer is the reply object.
@@ -85,7 +93,8 @@ func askTime(t time.Time) string {
 func askRow(a store.FleetAsk) AskRow {
 	return AskRow{AskID: a.AskID, Role: a.Role, Kind: a.Kind, From: a.From, Topic: a.Topic, Summary: a.Summary, State: a.State,
 		DeadlineAt: askTime(a.DeadlineAt), AckedBy: a.AckedBy, ClosedBy: a.ClosedBy, Reason: a.Reason,
-		RaisedN: a.RaisedN, RaisedAt: askTime(a.RaisedAt), EscalatedAt: askTime(a.EscalatedAt), WriterBox: a.WriterBox,
+		RaisedN: a.RaisedN, RaisedAt: askTime(a.RaisedAt), EscalatedAt: askTime(a.EscalatedAt),
+		EnqueuedAt: askTime(a.EnqueuedAt), Placement: a.Placement, Position: a.Position, QueueLen: a.QueueLen, WriterBox: a.WriterBox,
 		CreatedAt: askTime(a.CreatedAt), UpdatedAt: askTime(a.UpdatedAt),
 		AgeS: int64(a.Age.Seconds()), QuietS: int64(a.Quiet.Seconds())}
 }
@@ -195,7 +204,11 @@ func (s *Server) askUpdate(ctx context.Context, x *session, f wire.Frame) (askAn
 	if !store.AskIDRe.MatchString(in.AskID) {
 		return askAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "ask_id must be a lowercase UUID"}
 	}
-	got, err := s.o.Store.UpdateFleetAsk(ctx, x.tenant, store.AskUpdate{Fleet: f.Fleet, AskID: in.AskID, Op: f.AskOp, By: in.By, Reason: in.Reason}, x.box, s.o.Now())
+	if !store.AskPlacementRe.MatchString(in.Placement) {
+		return askAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "placement must be <vendor>:<slug> (lowercase)"}
+	}
+	u := store.AskUpdate{Fleet: f.Fleet, AskID: in.AskID, Op: f.AskOp, By: in.By, Reason: in.Reason, Placement: in.Placement}
+	got, err := s.o.Store.UpdateFleetAsk(ctx, x.tenant, u, x.box, s.o.Now())
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		return askAnswer{}, &issueErr{http.StatusNotFound, "unknown_ask", "no such ask in this fleet"}
@@ -208,5 +221,24 @@ func (s *Server) askUpdate(ctx context.Context, x *session, f wire.Frame) (askAn
 	}
 	s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Str("fleet", f.Fleet).Str("ask", got.AskID).
 		Str("op", f.AskOp).Str("by", in.By).Str("state", got.State).Msg("fleet ask update")
+	if got.State == "queued" {
+		got = s.askQueuePosition(ctx, x.tenant, f.Fleet, got)
+	}
 	return askAnswer{Fleet: f.Fleet, Asks: []AskRow{askRow(got)}}, nil
+}
+
+// askQueuePosition fills a queued ask's position from its role's list, so
+// the enqueue answer can say "position N of M" (best effort: 0 when the
+// list fails, the row itself is already stored).
+func (s *Server) askQueuePosition(ctx context.Context, tenant, fleet string, a store.FleetAsk) store.FleetAsk {
+	as, err := s.o.Store.ListFleetAsks(ctx, tenant, fleet, a.Role, false, s.o.Now())
+	if err != nil {
+		return a
+	}
+	for _, q := range as {
+		if q.AskID == a.AskID {
+			a.Position, a.QueueLen = q.Position, q.QueueLen
+		}
+	}
+	return a
 }

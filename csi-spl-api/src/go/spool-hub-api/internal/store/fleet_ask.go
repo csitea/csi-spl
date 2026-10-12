@@ -25,6 +25,10 @@ import (
 // the lease tick's (ASKS_LOCK_MIN -> AskRelease, ASKS_MAX_RAISES -> AskDead):
 // the hub stores the record, the tick is the share coordinator.
 //
+// A spawn request waits in a queue (rdb 0180, owner HUM-10 t1 c9beaa77):
+// queued is open for the ops but the tick never raises it, and Position is
+// its rank by EnqueuedAt among its role's queued asks, filled on a list.
+//
 // Age is now - CreatedAt and Quiet is now - the newest of UpdatedAt and
 // RaisedAt, both on the hub's clock, so the machines' clocks never have to
 // agree on when an ask is overdue for a re-raise.
@@ -36,7 +40,7 @@ type FleetAsk struct {
 	From        string // <ID> or <ID>@<box>
 	Topic       string
 	Summary     string
-	State       string // open | acked | done | declined | dead
+	State       string // open | acked | queued | done | declined | dead
 	DeadlineAt  time.Time
 	AckedBy     string
 	ClosedBy    string
@@ -44,7 +48,11 @@ type FleetAsk struct {
 	RaisedN     int
 	RaisedAt    time.Time
 	EscalatedAt time.Time
-	WriterBox   string // the box that last wrote it (from the authenticated hello)
+	EnqueuedAt  time.Time // set once by the first AskQueue: a stalled placement keeps its place
+	Placement   string    // "<vendor>:<slug>" the placer launches; "" = the orchestrator decides
+	Position    int       // 1 = next to place; 0 = not queued (filled by ListFleetAsks)
+	QueueLen    int       // the queued asks of its role (filled with Position)
+	WriterBox   string    // the box that last wrote it (from the authenticated hello)
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Age         time.Duration
@@ -52,7 +60,7 @@ type FleetAsk struct {
 }
 
 // Open reports whether the ask still waits on the orchestrator.
-func (a FleetAsk) Open() bool { return a.State == "open" || a.State == "acked" }
+func (a FleetAsk) Open() bool { return a.State == "open" || a.State == "acked" || a.State == "queued" }
 
 // AskClosedTTL is how long a closed ask stays readable before a write prunes it.
 const AskClosedTTL = 7 * 24 * time.Hour
@@ -66,17 +74,21 @@ const (
 	AskEscalate = "escalate" // open|acked: escalated_at = now (the owner was told)
 	AskRelease  = "release"  // acked -> open: the acquisition lock expired; acked_by stays as the last holder
 	AskDead     = "dead"     // open|acked -> dead: the delivery limit was reached, Reason required
+	AskQueue    = "queue"    // open|acked|queued -> queued: a spawn request waits for room (enqueued_at set once)
 )
 
 // AskUpdate is one op on an open ask: Op (AskAck .. AskEscalate) by the
 // acting agent By (<ID>@<box>), Reason for a close.
 type AskUpdate struct {
 	Fleet, AskID, Op, By, Reason string
+	Placement                    string // AskQueue: "<vendor>:<slug>", "" keeps the stored one
 }
 
 // The shapes 0097's CHECKs enforce, so a refusal is a 400, not a 500.
 var (
 	AskIDRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	// AskPlacementRe is 0180's placement: "" or <vendor>:<slug>.
+	AskPlacementRe = regexp.MustCompile(`^([a-z]{2,16}:[a-z0-9][a-z0-9._-]{0,63})?$`)
 )
 
 // ValidAskAgent is an ask's from / acked_by / closed_by as 0097 accepts it:
@@ -114,7 +126,7 @@ type FleetAsks interface {
 	UpdateFleetAsk(ctx context.Context, tenantID string, u AskUpdate, box string, now time.Time) (FleetAsk, error)
 	// ListFleetAsks reads the fleet's open asks to role ("" = every role;
 	// all = also the closed week), open first, then oldest first: the
-	// longest wait leads.
+	// longest wait leads. A queued ask carries its Position and QueueLen.
 	ListFleetAsks(ctx context.Context, tenantID, fleet, role string, all bool, now time.Time) ([]FleetAsk, error)
 }
 
@@ -129,6 +141,29 @@ func sortAsks(as []FleetAsk) {
 		}
 		return as[i].AskID < as[j].AskID
 	})
+}
+
+// askPositions numbers each role's queued asks by EnqueuedAt (then AskID):
+// position 1 is placed next. Both drivers call it on a list.
+func askPositions(as []FleetAsk) {
+	byRole := map[string][]int{}
+	for i, a := range as {
+		if a.State == "queued" {
+			byRole[a.Role] = append(byRole[a.Role], i)
+		}
+	}
+	for _, ix := range byRole {
+		sort.SliceStable(ix, func(i, j int) bool {
+			a, b := as[ix[i]], as[ix[j]]
+			if !a.EnqueuedAt.Equal(b.EnqueuedAt) {
+				return a.EnqueuedAt.Before(b.EnqueuedAt)
+			}
+			return a.AskID < b.AskID
+		})
+		for n, i := range ix {
+			as[i].Position, as[i].QueueLen = n+1, len(ix)
+		}
+	}
 }
 
 // askTimes fills the hub-clock durations.
@@ -166,9 +201,9 @@ func CheckFleetAsk(a FleetAsk) string {
 // CheckFleetAskOp names the first thing wrong with an update ("" = fine).
 func CheckFleetAskOp(op, by, reason string) string {
 	switch op {
-	case AskAck, AskDone, AskDecline, AskRaise, AskEscalate, AskRelease, AskDead:
+	case AskAck, AskDone, AskDecline, AskRaise, AskEscalate, AskRelease, AskDead, AskQueue:
 	default:
-		return "ask_op must be put, list, ack, done, decline, raise, escalate, release or dead"
+		return "ask_op must be put, list, ack, done, decline, raise, escalate, release, dead or queue"
 	}
 	switch {
 	case !ValidAskAgent(by):
@@ -204,6 +239,14 @@ func applyAskOp(a *FleetAsk, u AskUpdate, box string, now time.Time) {
 		if a.State == "acked" {
 			a.State = "open"
 		}
+	case AskQueue:
+		a.State = "queued"
+		if a.EnqueuedAt.IsZero() {
+			a.EnqueuedAt = now
+		}
+		if u.Placement != "" {
+			a.Placement = u.Placement
+		}
 	}
 	a.WriterBox = box
 	// the tick's own ops are not the holder's activity: quiet keeps counting
@@ -230,7 +273,7 @@ func (s *Memory) PutFleetAsk(_ context.Context, tenant string, a FleetAsk, box s
 		return cur, false, nil
 	}
 	a.State, a.AckedBy, a.ClosedBy, a.Reason, a.RaisedN = "open", "", "", "", 0
-	a.RaisedAt, a.EscalatedAt = time.Time{}, time.Time{}
+	a.RaisedAt, a.EscalatedAt, a.EnqueuedAt, a.Placement = time.Time{}, time.Time{}, time.Time{}, ""
 	a.WriterBox, a.CreatedAt, a.UpdatedAt = box, now, now
 	s.asks[k] = a
 	askTimes(&a, now)
@@ -267,5 +310,6 @@ func (s *Memory) ListFleetAsks(_ context.Context, tenant, fleet, role string, al
 		}
 	}
 	sortAsks(out)
+	askPositions(out)
 	return out, nil
 }

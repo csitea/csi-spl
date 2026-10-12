@@ -112,8 +112,16 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, _, err := pg.PutAgentAlias(ctx, s.tenant, AgentAlias{OldID: "CLE-02", NewID: "c-004", Kind: "claude", BoxID: "box-a"}, now); err != nil {
 		t.Fatal(err)
 	}
-	// fleet_asks (rdb 0097, CLE-77929): one open ask per tenant.
+	// fleet_asks (rdb 0097, CLE-77929): one open ask per tenant, and one
+	// queued spawn request (rdb 0180: enqueued_at, placement) per tenant.
 	if _, _, err := pg.PutFleetAsk(ctx, s.tenant, FleetAsk{Fleet: "main", AskID: uuid4(), Role: "orch", Kind: "blocker", From: "CLE-02"}, "box-a", now); err != nil {
+		t.Fatal(err)
+	}
+	queued := uuid4()
+	if _, _, err := pg.PutFleetAsk(ctx, s.tenant, FleetAsk{Fleet: "main", AskID: queued, Role: "orch", Kind: "task", From: "c-002"}, "box-a", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pg.UpdateFleetAsk(ctx, s.tenant, AskUpdate{Fleet: "main", AskID: queued, Op: AskQueue, By: "c-001", Placement: "claude:x-" + s.marker[:8]}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
 	// message_answers (rdb 0111, spec 068 4.2): the message is to CLE-07, so

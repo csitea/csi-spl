@@ -169,3 +169,34 @@ func TestBoxFleetAskLockReleaseAndDeadLetter(t *testing.T) {
 		t.Fatalf("the open list: %+v", got)
 	}
 }
+
+// rdb 0180 (owner HUM-10, t1 c9beaa77): the enqueue answer carries the
+// position the sender is told ("position N of M"); the placer's ack of the
+// head moves the next one up; a bad placement is refused before dialling.
+func TestBoxFleetAskQueuePosition(t *testing.T) {
+	_, _, _, _, home, sat := boxArchiveRig(t)
+	const (
+		a1 = "a1a1a1a1-0000-4000-8000-000000000001"
+		a2 = "a2a2a2a2-0000-4000-8000-000000000002"
+	)
+	for _, id := range []string{a1, a2} {
+		askCall(t, home, action.AskArgs{Fleet: "main", Op: "put", AskID: id, Kind: "task", From: "c-002@box-b", Summary: "SPAWN REQUEST " + id[:2]})
+	}
+	got := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a1, By: "c-001@box-c", Place: "claude:hub-pg-split"})
+	if r := got.Asks[0]; r.State != "queued" || r.Position != 1 || r.QueueLen != 1 || r.Placement != "claude:hub-pg-split" || r.EnqueuedAt == "" {
+		t.Fatalf("queue a1: %+v", r)
+	}
+	if r := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a2, By: "c-001@box-c"}).Asks[0]; r.Position != 2 || r.QueueLen != 2 || r.Placement != "" {
+		t.Fatalf("queue a2: %+v", r)
+	}
+	askCall(t, sat, action.AskArgs{Fleet: "main", Op: "ack", AskID: a1, By: "c-001@box-c"})
+	for _, r := range askCall(t, home, action.AskArgs{Fleet: "main", Role: "orch"}).Asks {
+		if r.AskID == a2 && (r.Position != 1 || r.QueueLen != 1) || r.AskID == a1 && (r.State != "acked" || r.Position != 0) {
+			t.Fatalf("after the head left: %+v", r)
+		}
+	}
+	_, err := action.Ask(context.Background(), sat.cfg, action.AskArgs{Fleet: "main", Op: "queue", AskID: a2, By: "c-001@box-c", Place: "claude:x;rm", Hub: sat.c})
+	if err == nil || !strings.Contains(err.Error(), "placement") {
+		t.Fatalf("a bad placement: %v", err)
+	}
+}

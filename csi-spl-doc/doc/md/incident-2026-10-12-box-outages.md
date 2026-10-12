@@ -53,7 +53,7 @@ sh -c while :; do :; done
 
 ### 2.1 Incident 1
 - **Cause**: Wi-Fi uplink drop.
-- **Evidence**: DNS timeouts and `getent` failing partially, while local CPU load was normal (burners had not started).
+- **Evidence**: DNS timeouts and `getent` failing partially (local CPU load was not measured at 16:05Z).
 - **Confidence**: Proven.
 
 ### 2.2 Incident 2
@@ -63,9 +63,9 @@ sh -c while :; do :; done
 - **Unproven**: Whether the dropped TX packets (48) on the Wi-Fi interface were purely external network factors or caused by internal CPU starvation of the network driver.
 
 ### 2.3 Incident 3
-- **Cause**: CPU starvation.
-- **Evidence**: The 8 burners were continuously active. `github` fetch failed after 134 s, and local health checks failed or degraded.
-- **Confidence**: Proven.
+- **Cause**: Wi-Fi uplink drop (prime suspect for all 3 incidents), with CPU starvation as an aggravating factor from ~16:29Z.
+- **Evidence**: The 8 burners were continuously active. However, `lease.log` shows `HUB-UNREACHABLE ... dial tcp 216.239.3x.21:443: i/o timeout` at 16:47:54Z and 16:49:11Z, AFTER the burners were stopped at 16:44Z.
+- **Confidence**: Contributing, not proven as the sole cause. The persistence of network timeouts after burners were killed contradicts CPU starvation as the sole root cause.
 
 ## 3. Lessons Learnt
 
@@ -73,12 +73,14 @@ sh -c while :; do :; done
 2. **Box had no live probe**: The box lacked an active live probe, so outages were measured after the fact rather than actively alerted.
 3. **Missing per-run spawn output**: The failed `c-003` rotation cause was unread because the per-run spawn output was not kept.
 4. **Idle agents not reaped**: 14 of 16 panes sat idle for hours, consuming resources without automatic cleanup.
-5. **Orchestrator priority mismatch**: An orchestrator decision kept VM box priority despite the owner's instruction that the hub box should be the sole orchestrator.
+5. **Orchestrator priority mismatch**: Roles ranked the VM box first while the hub box is the owner's box (lease ranks), so the hub box lost the roles on every drop.
+6. **Empty lane-map rows**: Lanes with an empty lane-map row (`c-868@<BOX>`, `m-869@<BOX>`) made 3 new lanes stop on 'exit 4'.
 
 ## 4. Prevention
 
-1. **Burner guard**: A guard that refuses a busy loop without a timeout. (To be built).
-2. **Per-minute link probe on each box**: An active probe monitoring connection health. (Exists in flight: `m-869@<BOX>` uplink-probe named orc action in `csi-spl-orc`).
-3. **Keep per-run spawn output for failed rotations**: Action to retain output for debugging spawn failures. (To be built).
-4. **Idle-agent reaper**: Action to automatically close unused agent panes. (To be built. A dead-agent reaper exists as `do_spl_agent_id_reap`, but not an idle-agent reaper).
+1. **Burner guard**: A guard that refuses a busy loop without a timeout. (To be built in `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh`, action `do_spl_burner_guard`).
+2. **Per-minute link probe on each box**: An active probe monitoring connection health. (Exists in flight: `m-869@<BOX>` `<BOX>-uplink-probe` named orc action in `csi-spl-orc`).
+3. **Keep per-run spawn output for failed rotations**: Action to retain output for debugging spawn failures. (To be built in `csi-spl-orc/src/bash/features/spawn-agents/scripts/rotate.sh`).
+4. **Idle-agent reaper**: Action to automatically close unused agent panes. (To be built. A dead-agent reaper exists as `do_spl_agent_id_reap` in `csi-spl-orc/src/bash/run/spl-agent-id-reap.func.sh`, but not an idle-agent reaper).
 5. **OD Pool Design**: Proper handling of multiple Orchestrators and Dispatchers to prevent priority mismatches. (Covered in a separate spec lane).
+6. **Spawn records SPAWN_LANE_FILES automatically**: Automatically record `SPAWN_LANE_FILES` from the brief. (To be built in `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh`).

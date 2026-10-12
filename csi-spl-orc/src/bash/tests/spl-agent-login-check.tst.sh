@@ -68,7 +68,9 @@ printf '#!/bin/sh\necho "kill $*" >>"%s/calls"\n' "$T" >"$T/bin/kill"
 cat >"$T/bin/restore" <<EOF
 #!/bin/sh
 echo "restore ids=\$IDENTITY_RESTORE_IDS dry=\$DRY_RUN" >>"$T/calls"
-sleep "\${RESTORE_SLEEP:-0}"
+# RESTORE_GATE=FILE: the restore waits (at most 20 s) until FILE exists, so a
+# test decides when the tick holding the lock may finish.
+if [ -n "\${RESTORE_GATE:-}" ]; then i=0; while [ ! -f "\$RESTORE_GATE" ] && [ \$i -lt 200 ]; do sleep 0.1; i=\$((i + 1)); done; fi
 for i in \$IDENTITY_RESTORE_IDS; do echo "STARTED \$i: claude session s in /w [%9]"; done
 EOF
 cat >"$T/bin/send" <<EOF
@@ -245,13 +247,22 @@ out="$(LOGIN_CNF="$T/cnf0.yaml" tick)"
 
 # 15. concurrency
 reset; stuck_login %12 999999702; mkdir -p "$T/state"
-flock "$T/state/tick.lock" sleep 5 & lk=$!; sleep 1
-out="$(tick)"
-grep -q 'another tick holds' <<<"$out" && [ "$(grep -cE '^(kill|restore|probe)' "$T/calls")" = 0 ] \
-  && pass "15. a held lock: the call is skipped, nothing done" || fail "15. lock ($out)"
-wait "$lk"
+# Wait for a condition, never a fixed sleep: a loaded runner can take seconds
+# to start a background flock (wf10 run 38227682514). until_ok SECS CMD...
+until_ok() { local n=$(($1 * 10)); shift; until "$@"; do n=$((n - 1)); [ "$n" -gt 0 ] || return 1; sleep 0.1; done; }
+flock "$T/state/tick.lock" sh -c "touch '$T/held'; while [ ! -f '$T/unlock' ]; do sleep 0.1; done" & lk=$!
+if until_ok 10 test -f "$T/held"; then
+  out="$(tick)"
+  grep -q 'another tick holds' <<<"$out" && [ "$(grep -cE '^(kill|restore|probe)' "$T/calls")" = 0 ] \
+    && pass "15. a held lock: the call is skipped, nothing done" || fail "15. lock ($out)"
+else fail "15. lock: the background flock was not held within 10 s"; fi
+touch "$T/unlock"; wait "$lk"; rm -f "$T/held" "$T/unlock"
 reset; stuck_login %12 999999702
-( RESTORE_SLEEP=3 tick >"$T/o1" ) & a=$!; ( RESTORE_SLEEP=3 tick >"$T/o2" ) & b=$!; wait "$a" "$b"
+# The tick that wins the lock waits in its restore until the other has been
+# turned away, so the two calls always overlap.
+( RESTORE_GATE="$T/unlock" tick >"$T/o1" ) & a=$!; ( RESTORE_GATE="$T/unlock" tick >"$T/o2" ) & b=$!
+until_ok 20 grep -q 'another tick holds' "$T/o1" "$T/o2" || echo "15. race: no call was turned away within 20 s" >>"$T/o1"
+touch "$T/unlock"; wait "$a" "$b"; rm -f "$T/unlock"
 [ "$(grep -c '^kill TERM' "$T/calls")" = 1 ] && [ "$(grep -c '^restore' "$T/calls")" = 1 ] && grep -q 'another tick holds' "$T/o1" "$T/o2" \
   && pass "15. two calls at once: one runs, one stop + restore" || fail "15. race ($(cat "$T/o1" "$T/o2" "$T/calls"))"
 

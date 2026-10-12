@@ -2,8 +2,9 @@
 // went with the Topics view (owner HUM-10, t1 e4bfddb1, msg a78e06c8). On a
 // phone the thread fills the screen; on a desktop the shell sidebar
 // (Channels) is painted beside it and its row menus open. A channel still
-// shows the sidebar. The thread title is the topic text inside a four-side
-// 1px border, in a channel, on the home link (/?topic=) and on /t/:id.
+// shows the sidebar. The thread title is the topic text, inside a four-side
+// 1px border on the desktop and with no border on a phone (t1 83bc77ae),
+// in a channel, on the home link (/?topic=) and on /t/:id.
 //
 // Run: node tests/e2e/phone-topic-header-width.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
@@ -248,37 +249,34 @@ try {
       console.log(`SHOT ${shot}`)
     }
   }
-  // Test: a tap on the topic title does not open an editor (no input or contenteditable appears)
-  await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
-  await openThread(page, `/t/${TOPIC}`)
-  await sleep(300)
-
-  // Tap the topic title
-  await page.evaluate(() => {
-    const el = document.querySelector('[data-test=topic-heading] .topic-heading__text')
-    if (el) {
-      const rect = el.getBoundingClientRect()
-      const event = new MouseEvent('click', {
-        view: window,
-        bubbles: true,
-        cancelable: true,
-        clientX: rect.left + rect.width / 2,
-        clientY: rect.top + rect.height / 2,
-      })
-      el.dispatchEvent(event)
-    }
-  })
-  await sleep(500)
-
-  // Check that no input or contenteditable element appears
-  const hasEditor = await page.evaluate(() => {
-    const active = document.activeElement
-    const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)
-    const heading = document.querySelector('[data-test=topic-heading] .topic-heading__text')
-    const headingActive = heading && document.activeElement === heading
-    return isInput || !headingActive
-  })
-  ok('390px tap on topic title does not open an editor', !hasEditor, hasEditor)
+  // t1 83bc77ae: a tap on the title opens no editor: nothing editable takes
+  // focus and the header grows no input. Phone (390px, a touch tap) and the
+  // desktop control (1280px, a click) assert the same.
+  const tapTitle = async (width, touch) => {
+    await page.setViewport({ width, height: width < 820 ? 844 : 800, isMobile: touch, hasTouch: touch, deviceScaleFactor: 1 })
+    await openThread(page, `/t/${TOPIC}`)
+    await sleep(300)
+    const sel = '[data-test=topic-heading] .topic-heading__text'
+    /* text fields only: the header's clip control is radio buttons */
+    const fields = () => page.evaluate(() => {
+      const box = document.querySelector('[data-test=topic-heading]')?.closest('header')
+      const text = 'input:not([type=radio]):not([type=checkbox]):not([type=button]), textarea, [contenteditable=""], [contenteditable=true]'
+      return box ? box.querySelectorAll(text).length : -1
+    })
+    const before = await fields()
+    if (touch) await page.tap(sel)
+    else await page.click(sel)
+    await sleep(500)
+    const editing = await page.evaluate(() => {
+      const a = document.activeElement
+      return !!(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable))
+    })
+    return { editing, before, after: await fields() }
+  }
+  for (const [width, touch] of [[390, true], [1280, false]]) {
+    const e = await tapTitle(width, touch)
+    ok(`${width}px tap on topic title does not open an editor`, !e.editing && e.before === 0 && e.after === 0, e)
+  }
 
   await page.close()
 } finally {

@@ -185,8 +185,9 @@ try {
 
       if (vp.name === 'phone') {
         const h = before && before.heading
-        const phoneOk = Boolean(h && h.label === 'none' && h.border === '1px' && (h.shadow === 'none' || !/inset/.test(h.shadow)))
-        ok(`${tag}: phone topic heading keeps its own 1px border and no left bar`, phoneOk, h)
+        /* t1 83bc77ae: on a phone the title reads as a heading, not an input: no border. */
+        const phoneOk = Boolean(h && h.label === 'none' && h.border === '0px' && (h.shadow === 'none' || !/inset/.test(h.shadow)))
+        ok(`${tag}: phone topic heading has no border and no left bar`, phoneOk, h)
       }
 
       if (vp.name === 'desktop' && before && before.box && before.box.width > 0) {

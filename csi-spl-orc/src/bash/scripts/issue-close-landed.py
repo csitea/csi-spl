@@ -136,7 +136,8 @@ def verdict(k, cs, issue, done):
             k,
             "skip",
             shas,
-            "an %s closes with its children, not by one commit" % kind,
+            "%s %s closes with its children, not by one commit"
+            % ("an" if kind == "epic" else "a", kind),
         )
     created = iso_epoch(issue.get("created_at"))
     fresh = [c for c in fresh if not created or c[1] < 0 or c[1] >= created]

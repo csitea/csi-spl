@@ -2569,7 +2569,7 @@
     "dl_go": "Atsisiųsti",
     "dl_done": "Atsisiųsta: {name}",
     "dl_failed": "Atsisiųsti nepavyko.",
-    "approve_open": "Patvirtinti {n} dieną | Patvirtinti {n} d.",
+    "approve_open": "Patvirtinti {n} dieną | Patvirtinti dienas: {n}",
     "approve_day": "Patvirtinti dieną",
     "approve_today": "Patvirtinti iki šiol",
     "approve_week": "Patvirtinti savaitę · {n} atvirų",

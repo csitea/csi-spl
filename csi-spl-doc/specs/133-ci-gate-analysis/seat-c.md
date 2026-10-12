@@ -1,6 +1,6 @@
 # 133 seat C: per-part test selection (the owner's question)
 
-Seat C, agent c-297, 2026-10-12. Doc only. Draft v0.1 for the editor (c-296).
+Seat C, agent c-297, 2026-10-12. Doc only. Draft v0.2: the editor's (c-296) review fixes applied.
 
 > Owner: "I thought we had the functionality to not test everything when only
 > a certain part of the system is changing."
@@ -48,8 +48,8 @@ commits re-runs nothing. The owner remembered **this**.
   -> line 34 ("an allow-list that is wrong fails SILENTLY").
 - **Every code job has the same `if:`**:
   `grep -c "needs.classify.outputs.doc_only != 'true'" .github/workflows/10_ci-quality.yml`
-  -> 9 (hub, wui-suite, wui-generate, wui-e2e, iac, orc-suite, orc-features,
-  cnf, plus the comment line). No job looks at which part changed.
+  -> 8, one per code job (hub, wui-suite, wui-generate, wui-e2e, iac,
+  orc-suite, orc-features, cnf). No job looks at which part changed.
 - **Job instances on a push.** 11 code instances: hub 1, wui-suite 1,
   wui-generate 1, wui-e2e 3 shards, iac 1, orc-suite 2 shards,
   orc-features 1, cnf 1. Plus 4 that always run and take seconds: classify,
@@ -273,10 +273,10 @@ is evidence of the push mix, not proof that it is stable.
 | # | axis | measurement command | baseline (tree `36c185fec`, 10-10 06:27Z..10-12 06:27Z) | target |
 |---|---|---|---|---|
 | C-X1 | code job instances per completed push run | A.2 query; count jobs with conclusion `success` or `failure`, excluding classify, hygiene, no-ysg-box-ref and gate-health, divided by runs | 11 per run, every run ran all 11 (n=51) | <= 5 median |
-| C-X2 | code job-minutes per completed push run | A.2 query; sum of `completed_at - started_at` over the code jobs per run, median | 139.4 (sum of the per-job medians, n=51) | <= 60 |
+| C-X2 | code job-minutes per completed push run (**median of the per-run sums**) | A.2 query; per run, sum `completed_at - started_at` over the code jobs (excluding classify, hygiene, no-ysg-box-ref, gate-health, sec), then the median over runs | 152.2 (n=51 completed runs). The editor's M-JOBS reads 158 on n=66 started runs (analysis.md 1.1): same method, a wider population. Section 4 weights use the sum of the per-job medians (139.4) instead | <= 60 |
 | C-X3 | docs-only pushes that got a verdict without code jobs | A.2 runs whose `hub-suite` conclusion is `skipped`, over A.3 pushes whose own diff is docs only | 0 of 220 (0 %) | >= 90 % |
 | C-X4 | share of completed push runs that ran wui-e2e | A.2: runs with a `wui: browser e2e` job concluded `success`/`failure`, over completed runs | 100 % (51 of 51), while 27.7 % of pushes touched a wui input (A.3) | <= 35 % |
-| C-X5 | selection misses caught by the hourly full verdict | hourly full runs red on a job that the selection skipped at that tip (the selection writes its skipped jobs to the step summary) | n/a (no selection yet) | 0 a week; each miss gets a drift-test fix the same day |
+| C-X5 | selection misses caught by the hourly full verdict (**measurable once the selection writes its skipped jobs**; no baseline command today) | hourly full runs red on a job that the selection skipped at that tip (the selection writes its skipped jobs to the step summary) | n/a (no selection yet) | 0 a week; each miss gets a drift-test fix the same day |
 
 ## Appendix A: commands
 

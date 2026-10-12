@@ -51,6 +51,9 @@ import (
 //     open question until they pick "Make an issue" on the message
 //     (POST /v1/messages/{msg_id}/issue, blocker_issue_make.go), which makes
 //     the same issue, with the same links both ways.
+//     Asked in an issue's own topic, it holds that issue instead: blocked +
+//     needs-owner until the owner answers (blocker_issue_hold.go, spec 135
+//     section 9 Q2 A).
 //
 // It runs in the hub (RunBlockerIssues), so it works with every agent down;
 // each workspace's rows are read and written in that workspace's scope. Two
@@ -158,7 +161,11 @@ func (s *Server) blockerStep(ctx context.Context, bi store.BlockerIssues, tenant
 	}
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		if answered || s.workspaceOwner(ctx, tenant, a) {
+		if s.workspaceOwner(ctx, tenant, a) {
+			s.blockerOwnerStep(ctx, bi, tenant, p, a, answered)
+			return 0, 0
+		}
+		if answered {
 			return 0, 0
 		}
 		if s.blockerCreate(ctx, tenant, p, a, task, n) {

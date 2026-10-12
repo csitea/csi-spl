@@ -1,6 +1,7 @@
 package hub_test
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -95,4 +96,68 @@ func TestOwnerIssueResolvesWhenMarkCleared(t *testing.T) {
 	if is := r.blockerIssues(t, r.tid); len(is) != 1 || is[0].Status != store.IssueDone {
 		t.Fatalf("clearing the mark: %+v, want 1 done", is)
 	}
+}
+
+// A question to the owner in an issue's own topic holds that issue: blocked +
+// needs-owner + one line, no new issue; the owner's answer takes it off and
+// the status goes back (spec 135 section 9 Q2 A, owner f2c24a7b).
+func TestOwnerQuestionHoldsItsIssue(t *testing.T) {
+	r := newBlockerRig(t)
+	owner := seat(t, r.e, r.tid, rbac.BizOwner)
+	if code, out := call(t, r.e, r.tid, http.MethodPost, "/v1/issues", r.admin, map[string]any{"title": "Auth", "kind": "epic"}); code != http.StatusCreated {
+		t.Fatalf("epic: %d %v", code, out)
+	}
+	code, out := call(t, r.e, r.tid, http.MethodPost, "/v1/issues", r.admin, map[string]any{"epic": "SPL-1",
+		"title": "Rotate keys", "description": "the plan", "status": store.IssueWIP})
+	if code != http.StatusCreated {
+		t.Fatalf("issue: %d %v", code, out)
+	}
+	is := r.e.st.(store.Issues)
+	get := func() store.Issue {
+		t.Helper()
+		i, err := is.GetIssue(context.Background(), r.tid, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return i
+	}
+	task := get().TaskID
+	id := r.post(t, r.tid, task, r.agent, owner, "blocker", "rotate prd too?", r.base)
+	for _, d := range []time.Duration{10 * time.Minute, 11 * time.Minute} {
+		if got := r.sweep(d); got.Created != 0 {
+			t.Fatalf("an owner question in the issue topic: created %d, want 0", got.Created)
+		}
+	}
+	held := get()
+	line := "answer [the question](/m/" + id + ") (was wip)"
+	if held.Status != store.IssueBlocked || !hasLabel(held.Labels, "needs-owner") ||
+		strings.Count(held.Description, line) != 1 || !strings.HasPrefix(held.Description, "the plan\n\n**Needs owner** since ") {
+		t.Fatalf("held: %+v", held)
+	}
+	if n := len(r.blockerIssues(t, r.tid)); n != 0 {
+		t.Fatalf("held: %d blocker issues, want 0", n)
+	}
+	// CONTROL: a question to an agent in another topic is unchanged, and it
+	// does not touch this issue.
+	r.post(t, r.tid, uid.New(), r.admin, r.agent, "blocker", "the build is red", r.base.Add(time.Minute))
+	r.sweep(12 * time.Minute)
+	if n := len(r.blockerIssues(t, r.tid)); n != 1 {
+		t.Fatalf("CONTROL: a blocker to an agent: %d issues, want 1", n)
+	}
+	// The owner answers in the topic: the hold goes, wip comes back.
+	r.post(t, r.tid, task, owner, r.agent, "note", "yes", r.base.Add(20*time.Minute))
+	r.sweep(21 * time.Minute)
+	freed := get()
+	if freed.Status != store.IssueWIP || hasLabel(freed.Labels, "needs-owner") || freed.Description != "the plan" {
+		t.Fatalf("after the answer: %+v", freed)
+	}
+}
+
+func hasLabel(ls []string, l string) bool {
+	for _, x := range ls {
+		if x == l {
+			return true
+		}
+	}
+	return false
 }

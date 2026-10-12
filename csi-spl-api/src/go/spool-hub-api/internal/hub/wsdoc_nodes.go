@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -9,7 +10,8 @@ import (
 
 // The Qto explorer's folders (spec 120 section 7, the subset the + New
 // folder button needs; owner t1 3b8891e0): one folder's children, a
-// folder create, and a node move (gap topic t1 b67d5dc7). The store ops are workspace_doc_nodes.go's; the caller rule
+// folder create, a node move (gap topic t1 b67d5dc7), and a folder's rename
+// and delete (its right-click menu, owner t1 ed2e3583). The store ops are workspace_doc_nodes.go's; the caller rule
 // and the outcomes are wsdoc_tree.go's (docTreeCaller, docTreeFail).
 
 // docTreeNode is one listed node on the wire. id is "" for a document an
@@ -95,4 +97,64 @@ func (s *Server) handleDocTreeNodeMove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": node, "parent": in.Parent})
+}
+
+// handleDocTreeFolderEdit renames a folder, or sets its title or
+// description (the folder row's menu, owner t1 ed2e3583): 200, 409
+// name_taken, 400 over a length limit, 422 for a node that is no folder.
+func (s *Server) handleDocTreeFolderEdit(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.docTreeCaller(w, r, rbac.DocsWrite)
+	if !ok {
+		return
+	}
+	var in struct {
+		Name        *string `json:"name"`
+		Title       *string `json:"title"`
+		Description *string `json:"description"`
+	}
+	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only name, title, description)") {
+		return
+	}
+	p, err := store.DocFolderPatchCheck(store.DocFolderPatch{Name: in.Name, Title: in.Title, Description: in.Description})
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+	folder := r.PathValue("folder")
+	if err := c.st.DocFolderEdit(r.Context(), c.tenant, folder, p); err != nil {
+		docTreeFail(w, err)
+		return
+	}
+	out := map[string]any{"id": folder}
+	if p.Name != nil {
+		out["name"] = *p.Name
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handleDocTreeFolderDelete deletes a folder: 200 with what went, 409
+// folder_not_empty {folders, documents} for one that holds anything unless
+// ?recursive=1, which takes its whole subtree (one log line, actor and
+// counts).
+func (s *Server) handleDocTreeFolderDelete(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.docTreeCaller(w, r, rbac.DocsWrite)
+	if !ok {
+		return
+	}
+	folder := r.PathValue("folder")
+	recursive := r.URL.Query().Get("recursive") == "1"
+	res, err := c.st.DocFolderDelete(r.Context(), c.tenant, folder, recursive)
+	var ne *store.DocFolderNotEmptyError
+	if errors.As(err, &ne) {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": "folder_not_empty",
+			"detail": "the folder is not empty: delete it with recursive=1", "folders": ne.Folders, "documents": ne.Documents})
+		return
+	}
+	if err != nil {
+		docTreeFail(w, err)
+		return
+	}
+	s.o.Log.Info().Str("tenant", c.tenant).Str("actor", c.who).Str("folder", folder).
+		Int("folders", res.Folders).Int("documents", res.Documents).Msg("doc tree folder delete")
+	writeJSON(w, http.StatusOK, map[string]any{"id": folder, "deleted": true, "folders": res.Folders, "documents": res.Documents})
 }

@@ -36,8 +36,12 @@ func wsNodesPG(t *testing.T) (*Postgres, string) {
 		docNodeMovePlant.keepParent = true
 		t.Logf("CONTROL plant=%s is on: this run must go red", p)
 		t.Cleanup(func() { docNodeMovePlant.keepParent = false })
+	case "delnogap":
+		docNodeEditPlant.noGapClose = true
+		t.Logf("CONTROL plant=%s is on: this run must go red", p)
+		t.Cleanup(func() { docNodeEditPlant.noGapClose = false })
 	default:
-		t.Fatalf("SPOOL_TEST_WSDOC_NODE_PLANT=%q: want noshift or movekeepparent", p)
+		t.Fatalf("SPOOL_TEST_WSDOC_NODE_PLANT=%q: want noshift, movekeepparent or delnogap", p)
 	}
 	return pg, tid
 }

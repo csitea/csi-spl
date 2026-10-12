@@ -26,6 +26,8 @@ import (
 //	POST   /v1/workspace/doctree                  create {title, description, parent}
 //	GET    /v1/workspace/doctree/nodes            ?parent= (none = root): one folder's children
 //	POST   /v1/workspace/doctree/folders          create {parent, name, title, description}
+//	PATCH  /v1/workspace/doctree/folders/{folder} edit any of {name, title, description}
+//	DELETE /v1/workspace/doctree/folders/{folder} ?recursive=1: delete (409 folder_not_empty without it)
 //	GET    /v1/workspace/doctree/search           ?q= [&doc=]: items matching q (spec 100's words)
 //	GET    /v1/workspace/doctree/{doc}            one document's head: rev, items, root, topic
 //	PATCH  /v1/workspace/doctree/{doc}            rename {title, rev} ("" = "Untitled document")
@@ -82,6 +84,8 @@ type docTreeStore interface {
 	DocFolderCreate(ctx context.Context, tenant string, f store.DocFolder) (string, error)
 	DocNodes(ctx context.Context, tenant, parent string) (string, []store.DocNode, error)
 	DocNodeMove(ctx context.Context, tenant, node, parent string) error
+	DocFolderEdit(ctx context.Context, tenant, folder string, p store.DocFolderPatch) error
+	DocFolderDelete(ctx context.Context, tenant, folder string, recursive bool) (store.DocFolderDeleted, error)
 	DocRename(ctx context.Context, tenant, doc string, rev int64, title, actor string) (store.DocOpResult, error)
 	DocDelete(ctx context.Context, tenant, doc string, rev int64) (store.DocOpResult, error)
 	DocItemAdd(ctx context.Context, tenant string, r store.DocItemAddReq) (store.DocOpResult, error)
@@ -104,6 +108,8 @@ func (s *Server) routeDocTree(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/workspace/doctree/nodes", s.handleDocTreeNodes)
 	mux.HandleFunc("POST /v1/workspace/doctree/folders", s.handleDocTreeFolderCreate)
 	mux.HandleFunc("POST /v1/workspace/doctree/nodes/{node}/move", s.handleDocTreeNodeMove)
+	mux.HandleFunc("PATCH /v1/workspace/doctree/folders/{folder}", s.handleDocTreeFolderEdit)
+	mux.HandleFunc("DELETE /v1/workspace/doctree/folders/{folder}", s.handleDocTreeFolderDelete)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}", s.handleDocTreeHead)
 	mux.HandleFunc("PATCH /v1/workspace/doctree/{doc}", s.handleDocTreeRename)
 	mux.HandleFunc("DELETE /v1/workspace/doctree/{doc}", s.handleDocTreeDeleteDoc)

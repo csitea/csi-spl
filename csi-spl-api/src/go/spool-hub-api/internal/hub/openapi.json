@@ -10925,6 +10925,102 @@
         ]
       }
     },
+    "/v1/workspace/doctree/folders/{folder}": {
+      "delete": {
+        "operationId": "deleteWorkspaceDoctreeFolder",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the folder node id (from /v1/workspace/doctree/nodes)",
+            "in": "path",
+            "name": "folder",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "1 = delete the folder with its whole subtree",
+            "in": "query",
+            "name": "recursive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "deleted: {id, deleted, folders, documents}"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "folder_not_empty without recursive=1: {error, detail, folders, documents}"
+          },
+          "422": {
+            "description": "refused: the root or a document is not a folder to delete"
+          }
+        },
+        "summary": "Delete a folder, or with recursive=1 its whole subtree (spec 120 section 7)",
+        "tags": [
+          "workspace"
+        ]
+      },
+      "patch": {
+        "operationId": "patchWorkspaceDoctreeFolder",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the folder node id (from /v1/workspace/doctree/nodes)",
+            "in": "path",
+            "name": "folder",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the folder after the edit: {id, kind, name, title, description}"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "name_taken: a sibling already has this name"
+          },
+          "422": {
+            "description": "refused: the root or a document is not a folder to edit"
+          }
+        },
+        "summary": "Rename a folder or edit its title or description (spec 120 section 7)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
     "/v1/workspace/doctree/nodes": {
       "get": {
         "operationId": "getWorkspaceDoctreeNodes",

@@ -3587,7 +3587,8 @@ select.issues-pctl { appearance: auto; }
     justify-content: center;
   }
   /* the box itself is the 44 px target (a phone control never shrinks under
-     --tap); a 20 px box is drawn in its middle */
+     --tap); a 16 px box, the desktop row box's size, is drawn in its middle
+     (HUM-10, t1 0a6b440f: Gmail's mobile list) */
   .issues-check--card input, .issues-check--page input {
     appearance: none;
     -webkit-appearance: none;
@@ -3604,8 +3605,8 @@ select.issues-pctl { appearance: auto; }
     position: absolute;
     inset: 0;
     margin: auto;
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     box-sizing: border-box;
     border: 2px solid var(--color-muted);
     border-radius: var(--radius-sm);
@@ -3617,8 +3618,8 @@ select.issues-pctl { appearance: auto; }
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 6px;
-    height: 11px;
+    width: 5px;
+    height: 9px;
     border: solid var(--color-on-accent);
     border-width: 0 2px 2px 0;
     transform: translate(-50%, -60%) rotate(45deg);

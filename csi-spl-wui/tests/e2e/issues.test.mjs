@@ -485,6 +485,8 @@ try {
   const s0 = await bulkState()
   ok('17a 1440: every row has a box, none checked, the header shows (no bulk bar)',
     (await count('[data-test=issues-row-check]')) === s0.rows && s0.rows === 30 && s0.checked.length === 0 && !s0.bar && s0.head && (await count('[data-test=issues-select-page]')) === 1, s0)
+  /* HUM-10 (t1 0a6b440f): the desktop row box is the size the phone's drawn box may not exceed */
+  const deskBox = await p.$eval(box(bk[0]), (el) => { const r = el.getBoundingClientRect(); return { w: r.width, h: r.height } })
   await p.click(box(bk[0]))
   await p.click(box(bk[1]))
   await p.waitForSelector('[data-test=issues-bulk-bar]', { visible: true, timeout: 10000 }).catch(() => null)
@@ -564,6 +566,21 @@ try {
   await p.click('[data-test=issues-bulk-clear]')
   const m2 = await bulkState()
   ok('18c 390: Clear unchecks every card and brings the header back', m2.checked.length === 0 && !m2.bar && m2.head, m2)
+  /* HUM-10 (t1 0a6b440f): the phone boxes were drawn larger than the desktop
+     one; the drawn box (::before) is at most the desktop box, its tap target
+     (the label) stays >= 44 px */
+  const m3 = await p.evaluate((ck0) => ['[data-test=issues-select-page]', `[data-test=issues-card-check][data-key="${ck0}"]`].map((sel) => {
+    const el = document.querySelector(sel)
+    if (!el) return { sel, missing: true }
+    const cs = getComputedStyle(el, '::before')
+    const t = el.closest('label').getBoundingClientRect()
+    return { sel, w: parseFloat(cs.width), h: parseFloat(cs.height), tw: t.width, th: t.height }
+  }), ck[0])
+  await p.click(`[data-test=issues-card-check][data-key="${ck[0]}"]`)
+  await p.screenshot({ path: `${SHOTS}/check-390.png` })
+  await p.click(`[data-test=issues-card-check][data-key="${ck[0]}"]`)
+  ok('18d 390: the page and card boxes are drawn no larger than the desktop row box, each a 44 px tap target',
+    m3.every((b) => !b.missing && b.w <= deskBox.w && b.h <= deskBox.h && b.tw >= 44 && b.th >= 44), { deskBox, m3 })
   await p.evaluate(() => localStorage.removeItem('spool.mock.issues-seed'))
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
   ok('9 no page errors', mine.length === 0, mine)

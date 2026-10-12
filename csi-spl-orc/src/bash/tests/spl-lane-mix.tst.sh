@@ -77,13 +77,23 @@ mix() {
     -u CLAUDE_BIN -u GROK_BIN -u AGY_BIN -u QWEN_BIN -u MISTRAL_BIN \
     -u LANE_FLEET -u LANE_HUB_CMD -u LANE_ENV -u ENV -u LANE_TENANT -u LANE_BOX -u LANE_DESK_BOX \
     -u LANE_MIX_INSTANCE -u LANE_MIX_REPORT \
+    MIX_SRC="$([[ "${MIX_FULL:-}" == 1 ]] && echo '*' || echo "$MIX_SRC")" \
     PROJ_PATH="${MIX_PROJ:-$PROJ_ROOT}" APP_PATH="$APP_ROOT" SPOOL_ROOT="$T" \
     LANE_MIX_REGISTRY="$T/registry.tsv" LANE_MIX_AGENT_HOME="$H" LANE_MIX_CNF="$CNF" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
-    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
+    read -ra gs <<<"$MIX_SRC"
+    for g in "${gs[@]}"; do for f in "$PROJ_PATH"/src/bash/run/$g.func.sh; do [[ -e "$f" ]] && source "$f"; done; done
     eval "${MIX_BODY:-do_spl_lane_mix}"' >"$T/out" 2>&1 </dev/null
 }
+# A pick reads only the action and the hub client (spl_lane_init and
+# spl_lane_spool, spl-lane-map). Sourcing all ~440 run/*.func.sh cost 0.33 s
+# of each of the ~600 picks here, 4/5 of this file's time (L5, spec 133
+# action 6). MIX_FULL=1 sources them all (a MIX_PROJ copy holds only the
+# spl-lane-mix files, so it reads the same either way); section 6
+# checks that both print the same bytes.
+MIX_SRC='spl-lane-mix* spl-lane-map'
 pick() { sed -n 's/^pick=\([a-z]*\) .*/\1/p' "$T/out"; }
 kindof() { sed -n 's/^pick=[a-z]* launcher=[^ ]* kind=\([a-z0-9_]*\) .*/\1/p' "$T/out"; }
 
@@ -276,6 +286,24 @@ hub() { printf '{"low":50,"high":75,"box_order":[],"boxes":{},"agent_kinds_off":
 hmix() { mix LANE_FLEET=f1 LANE_HUB_CMD="$T/hub" "$@"; }
 registry simple_coding 4 16 0
 hub '[]'
+# MIX_SRC: a pick with the action and the hub client only prints the same
+# bytes as one with every run/*.func.sh sourced (hub, local, secret, i18n)
+bad=""
+for c in "hmix LANE_MIX_KIND=simple_coding" "mix LANE_MIX_KIND=tests" "hmix LANE_MIX_KIND=secret" "hmix LANE_MIX_KIND=i18n LANE_MIX_SENSITIVE=1"; do
+  MIX_FULL=1 $c; cp "$T/out" "$T/out.full"; $c
+  cmp -s "$T/out" "$T/out.full" || bad+=" [$c]"
+done
+[[ -z "$bad" && -s "$T/out.full" ]] && pass "6. MIX_SRC: the narrow source picks byte-for-byte as the full one" \
+  || fail "6. MIX_SRC differs from the full source:$bad"
+mv "$T/hub.json" "$T/hub.keep"; MIX_FULL=1 hmix LANE_MIX_KIND=simple_coding; cp "$T/out" "$T/out.full"; mv "$T/hub.keep" "$T/hub.json"
+hmix LANE_MIX_KIND=simple_coding
+cmp -s "$T/out" "$T/out.full" && fail "6. control: MIX_SRC cmp cannot tell two picks apart" \
+  || pass "6. control: a pick with the hub file gone differs, so the cmp is live"
+rm -f "$T/out.full"
+MIX_BODY='declare -F do_spl_desk_up >/dev/null && echo full || echo narrow' mix; a="$(cat "$T/out")"
+MIX_FULL=1 MIX_BODY='declare -F do_spl_desk_up >/dev/null && echo full || echo narrow' mix
+[[ "$a" == narrow && "$(cat "$T/out")" == full ]] && pass "6. control: MIX_SRC sources fewer files than MIX_FULL=1" \
+  || fail "6. control: MIX_SRC narrow=$a full=$(cat "$T/out")"
 hmix LANE_MIX_KIND=simple_coding
 [[ "$(pick)" == mistral ]] && grep -q '^instance: kinds off none, paused none (hub)$' "$T/out" && ! grep -q 'not read' "$T/out" \
   && pass "6. control: every vendor on at the hub: mistral" || fail "6. control on: $(cat "$T/out")"

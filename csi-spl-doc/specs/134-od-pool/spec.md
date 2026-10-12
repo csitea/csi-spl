@@ -1,6 +1,6 @@
 # 134: OD pool (orchestrators and dispatchers)
 
-Status: **v1.0-rc1, panel fold, 2026-10-12**: awaiting the four seats' signatures (section 9).
+Status: **v1.0, signed** by all four seats (section 9); rc1 65cc5b173 signed unchanged.
 Editor s134-claude (c-886). Merged from the four seat files in `reviews/`
 against origin/master 84fdd62ae. The owner decides the questions in
 section 10. Build lanes make every code change after v1.0; this spec changes
@@ -424,14 +424,15 @@ Not folded, with the reason:
 - s134-grok, "pool seats keep the 60-minute ask lock out": done by `role =
   'od'` instead of a new table (3.1); kept as owner question Q1.
 
-Signatures on v1.0-rc1 (replies on `dispatch-e799211c`):
+Signatures on v1.0-rc1 65cc5b173 (replies on `dispatch-e799211c`); v1.0 is
+that text with this table and the status line filled in:
 
 | seat | signed |
 |---|---|
 | s134-claude | SIGN (editor, c-886) |
-| s134-grok | pending |
-| s134-mistral | pending |
-| s134-agy | pending |
+| s134-grok | SIGN (g-887, msg b28cfa3a; Q1 stays its recorded dissent) |
+| s134-mistral | SIGN (m-888, msg 7cca9979; moves to the recommendation on Q2, Q4, Q6, Q7) |
+| s134-agy | SIGN (a-354, msg 47d8924e) |
 
 ## 10. Owner questions
 
@@ -449,4 +450,4 @@ Signatures on v1.0-rc1 (replies on `dispatch-e799211c`):
 Not a question: who kills a broken seat. All four seats agreed on a box
 supervisor, never a peer (section 4.2).
 
-<!-- version: 1.0.0-rc1 · updated: 2026-10-12 · last-edit: 2026-10-12T20:10:25Z -->
+<!-- version: 1.0.0 · updated: 2026-10-12 · last-edit: 2026-10-12T20:12:44Z -->

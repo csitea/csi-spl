@@ -28,6 +28,14 @@
 #      runners (a parked one comes back); CPU_BUDGET_CI_WEIGHT=400 sets the
 #      slice weight while CI runs and sets the kept one back once it is idle;
 #      red control: a copy that drops the raise is caught
+#   8. CI overflow cap (HUM-10 msgs d4ba4b17, 70480eb3, 61cd35bc): cnf
+#      cap_pct 25 of 16 cores -> 400% and MemoryMax 25% of MemTotal, after
+#      every floor; a CPU count (hub per box > hub fleet > cnf, env first)
+#      replaces the share, never above the cores; a cap_pct out of 20..30 is
+#      refused; overflow off or SPOOL_CI_RUNNER on hosted parks EVERY idle
+#      runner in one tick (gate file 0, no gate query); the variable on local
+#      or unset keeps them; a failed read touches nothing; FORCE_MIN holds
+#      them online across ticks; red control: a copy without the clamp
 #   4. the cron script runs the action with DRY_RUN=0 and refuses a worktree,
 #      passes CPU_BUDGET_GATE_* through;
 #      the installer writes ONE tagged line, keeps the others, removes its own
@@ -68,7 +76,7 @@ EOF
 printf '#!/usr/bin/env bash\n[[ "$*" == "-u ghrunner" ]] && echo 1500 || exit 1\n' >"$T/bin/id"
 printf '#!/usr/bin/env bash\necho 16\n' >"$T/bin/nproc"
 printf '#!/usr/bin/env bash\n[[ "$*" == "fleet-load get" && "${HUB_FAIL:-0}" == 0 ]] || exit 1\ncat "$T/hub.json"\n' >"$T/bin/hubstub"
-printf '#!/usr/bin/env bash\necho "gh $*" >>"$T/gh.calls"\n[[ "${GH_FAIL:-0}" == 0 ]] || exit 1\ncat "$T/gh.json"\n' >"$T/bin/gh"
+printf '#!/usr/bin/env bash\necho "gh $*" >>"$T/gh.calls"\n[[ "${GH_FAIL:-0}" == 0 ]] || exit 1\n[[ "${GH_404:-0}" == 0 ]] || { echo "gh: Not Found (HTTP 404)"; exit 1; }\ncat "$T/gh.json"\n' >"$T/bin/gh"
 chmod +x "$T/bin/"*
 
 # counters: the root and the slice; each "sleep" adds OTHER + CI cores of use
@@ -76,7 +84,8 @@ set_usage() { printf 'usage_usec %s\n' "$1" >"$T/cg/cpu.stat"; printf 'usage_use
 run_budget() {
   env PATH="$T/bin:$PATH" CPU_BUDGET_CGROUP_ROOT="$T/cg" CPU_BUDGET_UNIT_DIR="$T/units" \
     CPU_BUDGET_SYSTEMCTL=systemctl CPU_BUDGET_SUDO=env CPU_BUDGET_SAMPLE_S=10 SPOOL_ROOT="$T/spool" \
-    CPU_BUDGET_PER_RUNNER_PCT=0 CPU_BUDGET_STATE_DIR="$T/state" CPU_BUDGET_GH="$T/bin/gh" "$@" bash -c '
+    CPU_BUDGET_PER_RUNNER_PCT=0 CPU_BUDGET_STATE_DIR="$T/state" CPU_BUDGET_GH="$T/bin/gh" \
+    CI_OVERFLOW_CAP_PCT=0 CI_OVERFLOW_ACTIVE=1 CI_OVERFLOW_CNF=/nonexistent "$@" bash -c '
     set -uo pipefail
     do_log() { printf "%s\n" "$*"; }
     spl_desk_box_default() { echo sat; }
@@ -86,6 +95,7 @@ run_budget() {
       set_usage $((r + (${OTHER:-0} + ${RUNNER_CORES:-0}) * $1 * 1000000)) $((s + ${RUNNER_CORES:-0} * $1 * 1000000))
     }
     set_usage() { printf "usage_usec %s\n" "$1" >"$T/cg/cpu.stat"; printf "usage_usec %s\n" "$2" >"$T/cg/user.slice/user-1500.slice/cpu.stat"; }
+    source "'"$PROJ_ROOT/lib/bash/funcs/spl-ci-overflow.func.sh"'"
     source "'"$FUNC"'"
     do_apply_gh_runner_cpu_budget'
 }
@@ -321,6 +331,91 @@ out="$(FUNC="$T/red/apply-gh-runner-cpu-budget.func.sh" ci "${R[@]}")"; rc=$?
 [[ $rc -eq 0 && "$out" == *'CI RESERVE'* && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%'* ]] &&
   pass "red control: a copy without the reserve raise stays at 100% (the checks above catch it)" || fail "red control: the broken copy still reached the reserve"
 rm -f "$T/gh.json" "$T/state/weight" "$T/weight"
+
+# 8. CI overflow cap -------------------------------------------------------------------
+printf 'env:\n  box:\n    ci_overflow:\n      enabled: true\n      cap_pct: 25\n      cpus: 0\n' >"$T/cnf.yaml"
+echo 'MemTotal:       33554432 kB' >"$T/meminfo"
+rm -f "$T/state/parked" "$T/state-"* "$T/state/force-until" "$T/hub.json"
+ov() { : >"$SYSD_LOG"; rm -f "$T/gh.calls"; run_budget DRY_RUN=0 CI_OVERFLOW_CNF="$T/cnf.yaml" CI_OVERFLOW_MEMINFO="$T/meminfo" CI_OVERFLOW_CAP_PCT= "$@"; }
+out="$(ov OTHER=0)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == "systemctl set-property --runtime user-1500.slice CPUQuota=400% MemoryMax=8589934592" && "$out" == *'OVERFLOW cap=400% (cpus=0, share 25%; enabled from cnf, cpus from cnf)'* ]] &&
+  pass "cnf cap_pct 25 on 16 cores, idle box: CPUQuota 400% (not 1280%), MemoryMax 8 GiB of 32" || fail "cap 25 (rc=$rc): $out / $(cat "$SYSD_LOG")"
+gh_runs 60 1
+out="$(ov OTHER=15 CPU_BUDGET_GATE_FLOOR_PCT=500 CPU_BUDGET_CI_RESERVE_PCT=950)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=400% MemoryMax=8589934592'* ]] &&
+  pass "the gate floor and the CI reserve never lift the quota over the cap" || fail "cap over floors (rc=$rc): $out / $(cat "$SYSD_LOG")"
+hubov() { ov LANE_FLEET=csi LANE_HUB_CMD="$T/bin/hubstub" OTHER=0 "$@"; }
+echo '{"runner_cpus":3,"boxes":{"sat":{"low":50,"high":70,"runner_cpus":6},"other-box":{"runner_cpus":1}}}' >"$T/hub.json"
+out="$(hubov)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=600% MemoryMax=12884901888' && "$out" == *'cpus from hub'* ]] &&
+  pass "the admin's runner_cpus for this box (6) replaces the share: 600%, MemoryMax 6/16 of 32 GiB" || fail "hub box cpus (rc=$rc): $out / $(cat "$SYSD_LOG")"
+echo '{"runner_cpus":3}' >"$T/hub.json"
+out="$(hubov)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=300% '* ]] && pass "the fleet runner_cpus 3: 300%" || fail "hub fleet cpus (rc=$rc): $out"
+out="$(hubov CI_OVERFLOW_CPUS=2)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=200% '* ]] && pass "env CI_OVERFLOW_CPUS=2 beats the hub: 200%" || fail "env cpus (rc=$rc): $out"
+echo '{"runner_cpus":99}' >"$T/hub.json"
+out="$(hubov CPU_BUDGET_BOX_PCT=100)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=1600% MemoryMax=34359738368' ]] &&
+  pass "a count over the cores: the cores (1600%, all the memory)" || fail "cpus over cores (rc=$rc): $out"
+echo '{}' >"$T/hub.json"
+out="$(hubov)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=400% '* ]] && pass "a hub with no setting stored: the cnf share 25% (400%)" || fail "hub empty (rc=$rc): $out"
+for bad in 35 19 0 x; do
+  sed "s/cap_pct: 25/cap_pct: $bad/" "$T/cnf.yaml" >"$T/cnf-bad.yaml"
+  out="$(ov CI_OVERFLOW_CNF="$T/cnf-bad.yaml")"; rc=$?
+  [[ $rc -ne 0 && "$out" == *'FATAL ci_overflow cap_pct must be 20..30'* && ! -s "$SYSD_LOG" ]] &&
+    pass "cnf cap_pct $bad is refused, nothing set" || fail "cap_pct $bad (rc=$rc): $out"
+done
+out="$(ov CI_OVERFLOW_CPUS=x)"; rc=$?
+[[ $rc -ne 0 && "$out" == *FATAL* ]] && pass "CI_OVERFLOW_CPUS=x is refused" || fail "cpus x (rc=$rc): $out"
+# overflow on / off: six runners online and idle
+park() { ov CPU_BUDGET_PER_RUNNER_PCT=150 CPU_BUDGET_GATE_FLOOR_PCT=500 OTHER=0 CI_OVERFLOW_ACTIVE= "$@"; }
+reset_runners() { rm -f "$T/state/parked" "$T/state-"* "$T/state/gate"; }
+reset_runners
+out="$(park CI_OVERFLOW_ENABLED=false)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c '^systemctl stop' "$SYSD_LOG")" == 6 && "$(grep -c . "$T/state/parked")" == 6 && "$(calls)" == 0 \
+  && "$(cat "$T/state/gate")" =~ ^[0-9]+\ 0$ && "$out" == *'local=0: overflow switched off'* ]] &&
+  pass "overflow switched off: all 6 idle runners parked in ONE tick, gate file 0, no gh call" || fail "off (rc=$rc, calls=$(calls)): $out / $(cat "$SYSD_LOG")"
+sed -i 's/enabled: true/enabled: false/' "$T/cnf.yaml"; reset_runners
+out="$(park)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c '^systemctl stop' "$SYSD_LOG")" == 6 ]] && pass "cnf enabled: false switches it off too" || fail "cnf off (rc=$rc): $out"
+echo '{"ci_overflow":true}' >"$T/hub.json"; reset_runners
+echo '"ubuntu-latest"' >"$T/gh.json"
+out="$(park LANE_FLEET=csi LANE_HUB_CMD="$T/bin/hubstub")"; rc=$?
+[[ $rc -eq 0 && "$out" == *'enabled from hub'* && "$out" == *'local=0: SPOOL_CI_RUNNER="ubuntu-latest"'* && "$(grep -c '^systemctl stop' "$SYSD_LOG")" == 6 \
+  && "$(calls)" == 1 && "$(cat "$T/gh.calls")" == *'actions/variables/SPOOL_CI_RUNNER'* ]] &&
+  pass "the admin's ci_overflow true beats cnf false; wf 10 on hosted: every idle runner parks, ONE gh call (the variable)" || fail "hosted (rc=$rc): $out"
+sed -i 's/enabled: false/enabled: true/' "$T/cnf.yaml"; reset_runners
+printf '%s\n' "${US[@]:1}" >"$T/state/parked"; for u in "${US[@]:1}"; do echo inactive >"$T/state-$u"; done
+echo '["self-hosted","spool-ci"]' >"$T/gh.json"
+out="$(park)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'local=1: SPOOL_CI_RUNNER=["self-hosted","spool-ci"]'* && "$out" == *'the quota feeds 2 at 150% each'* && "$out" == *UNPARKED* ]] &&
+  pass "wf 10 on the local runners: they come back, at most 400 / 150 = 2 online" || fail "local (rc=$rc): $out"
+reset_runners
+out="$(park GH_404=1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'local=1: SPOOL_CI_RUNNER unset'* && "$(grep -c '^systemctl stop' "$SYSD_LOG")" == 1 ]] &&
+  pass "variable unset (wf 10 falls back to local): runners wanted, 6 online > 2 -> one parks" || fail "unset (rc=$rc): $out"
+reset_runners
+out="$(park GH_FAIL=1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'local=unknown: WARN SPOOL_CI_RUNNER does not read'* && "$(grep -c '^systemctl stop' "$SYSD_LOG")" == 1 ]] &&
+  pass "a failed read: no park-all (the plain cap only)" || fail "read fail (rc=$rc): $out"
+reset_runners; echo '"ubuntu-latest"' >"$T/gh.json"
+out="$(park CI_OVERFLOW_FORCE_MIN=30)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'local=1: held online until'* && -s "$T/state/force-until" && "$(grep -c '^systemctl stop' "$SYSD_LOG")" == 1 ]] &&
+  pass "FORCE_MIN=30: runners held online although wf 10 is on hosted (force-until kept)" || fail "force (rc=$rc): $out"
+out="$(park)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'local=1: held online until'* ]] && pass "...and the next tick without it still holds them" || fail "force kept (rc=$rc): $out"
+echo 1 >"$T/state/force-until"; reset_runners
+out="$(park)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'local=0'* && "$(grep -c '^systemctl stop' "$SYSD_LOG")" == 6 ]] && pass "an expired hold: back to park-all" || fail "force expired (rc=$rc): $out"
+rm -f "$T/state/force-until"; reset_runners
+sed 's/    if (cap > 0 \&\& q > cap) q = cap/    cap = 0/' "$FUNC" >"$T/red/apply-gh-runner-cpu-budget.func.sh"
+grep -q 'q > cap' "$T/red/apply-gh-runner-cpu-budget.func.sh" && fail "red control: the sed did not drop the clamp"
+out="$(FUNC="$T/red/apply-gh-runner-cpu-budget.func.sh" ov OTHER=0)"; rc=$?
+[[ "$(cat "$SYSD_LOG")" != *'CPUQuota=400%'* ]] &&
+  pass "red control: a copy without the cap clamp does not set 400% (the first check catches it)" || fail "red control: the broken copy still set 400%"
+rm -f "$T/gh.json" "$T/hub.json"
 
 # 4. cron script + installer -------------------------------------------------------
 SH="$T/shared"

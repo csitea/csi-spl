@@ -55,6 +55,25 @@
 # @description kept in CPU_BUDGET_STATE_DIR/weight and set back once CI is idle.
 # @description OFF by default (0): it takes cores from the agents, which reverses
 # @description HUM-10 (agents first), so switching it on is the owner's call.
+# @description CI overflow cap (owner HUM-10, t1 f67e3656 msgs d4ba4b17,
+# @description 70480eb3, 61cd35bc): the local runners together never take
+# @description more than a share of the box, cnf env.box.ci_overflow.cap_pct
+# @description (20..30, default 25) of its cores AND its memory, or the
+# @description workspace admin's CPU count (hub fleet-load runner_cpus, per box
+# @description boxes.<box>.runner_cpus; never above the cores). The quota is
+# @description min(the load quota above, that cap) after every floor, the
+# @description slice gets MemoryMax = MemTotal * cap / (cores * 100) beside it,
+# @description and the online runners follow the capped quota (CAP below).
+# @description Overflow only: while wf 10 does not target the local runners
+# @description (repo variable SPOOL_CI_RUNNER, do_route_ci_overflow) or the
+# @description admin switched overflow off (hub fleet-load ci_overflow, cnf
+# @description enabled), every idle runner is parked in the same tick and the
+# @description gate is not asked: nothing local runs for CI, nothing waits.
+# @description A failed read of the variable changes nothing (no park, no
+# @description start). CI_OVERFLOW_FORCE_MIN=<n> holds the runners online n
+# @description minutes whatever the variable says (the throwaway-branch proof:
+# @description a wf 10 dispatch with its runner input on the local runners).
+# @description Settings: lib/bash/funcs/spl-ci-overflow.func.sh.
 # @description A box with no runner unit: nothing to do, exit 0.
 # @description Dry run unless DRY_RUN=0 (prints the plan). Needs sudo.
 # @param GH_RUNNER_USER (optional) - the runners' OS user, default ghrunner
@@ -77,6 +96,14 @@
 # @param CPU_BUDGET_CI_WEIGHT (optional) - 1..10000: the slice's CPUWeight while
 # @param   CI runs or waits here, default 0 (left as it is); 400 = four agent
 # @param   user slices at the default 100
+# @param CI_OVERFLOW_CNF (optional) - default <checkout>/<org>-<app>-cnf/<org>-<app>/all.env.yaml
+# @param CI_OVERFLOW_ENABLED / CI_OVERFLOW_CPUS / CI_OVERFLOW_CAP_PCT (optional) -
+# @param   override the hub and cnf (spl-ci-overflow.func.sh); CAP_PCT=0 = no cap
+# @param CI_OVERFLOW_ACTIVE (optional) - 1 / 0: the runners are wanted or not,
+# @param   instead of reading SPOOL_CI_RUNNER
+# @param CI_OVERFLOW_FORCE_MIN (optional) - hold the runners online this many
+# @param   minutes (kept in CPU_BUDGET_STATE_DIR/force-until), 0..240
+# @param CI_OVERFLOW_MEMINFO (optional, tests) - default /proc/meminfo
 # @param CPU_BUDGET_GATE_WORKFLOW (optional) - default 10_ci-quality.yml
 # @param CPU_BUDGET_GATE_BRANCH (optional) - default master
 # @param CPU_BUDGET_GH (optional, tests) - default gh
@@ -89,7 +116,10 @@
 # @example ./run -a do_apply_gh_runner_cpu_budget
 # @example DRY_RUN=0 ./run -a do_apply_gh_runner_cpu_budget
 # @example DRY_RUN=0 CPU_BUDGET_BOX_PCT=85 ./run -a do_apply_gh_runner_cpu_budget
+# @example DRY_RUN=0 CI_OVERFLOW_FORCE_MIN=30 ./run -a do_apply_gh_runner_cpu_budget
 #------------------------------------------------------------------------------
+declare -F spl_ci_overflow_settings >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-ci-overflow.func.sh"
 
 # ghrb_init - the settings of one call, validated
 ghrb_init() {
@@ -117,22 +147,71 @@ ghrb_init() {
 # fleet), else 80. A hub that does not answer is a WARN, never a stop: the
 # runners keep a budget either way
 ghrb_box_pct() {
-  local got v
+  local v
+  ghrb_hub
   if [[ -n "${CPU_BUDGET_BOX_PCT:-}" ]]; then
     GHRB_BOX="$CPU_BUDGET_BOX_PCT" GHRB_SRC=env
     [[ "$GHRB_BOX" =~ ^([1-9][0-9]?|100)$ ]] || { do_log "FATAL CPU_BUDGET_BOX_PCT must be 1..100, got: '$GHRB_BOX'"; return 1; }
     return 0
   fi
   GHRB_BOX=80 GHRB_SRC=default
-  declare -F spl_lane_init >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
-  spl_lane_init >/dev/null 2>&1 && [[ "$LANE_MODE" == hub ]] || { echo "WARN no hub fleet here: the default ceiling 80%"; return 0; }
-  got="$(LANE_TIMEOUT="${LANE_TIMEOUT:-15}" spl_lane_spool fleet-load get 2>/dev/null)"
-  jq -e 'type == "object"' >/dev/null 2>&1 <<<"$got" ||
-    { echo "WARN the hub did not answer fleet-load get: the default ceiling 80%"; return 0; }
-  v="$(jq -r --arg b "$LANE_BOX" '(.boxes[$b].runner_cpu_pct // .runner_cpu_pct // "") | tostring' <<<"$got")"
+  [[ "$GHRB_HUB" == none ]] && { echo "WARN no hub fleet here: the default ceiling 80%"; GHRB_HUB=""; return 0; }
+  [[ "$GHRB_HUB" == failed ]] && { echo "WARN the hub did not answer fleet-load get: the default ceiling 80%"; GHRB_HUB=""; return 0; }
+  v="$(jq -r --arg b "$LANE_BOX" '(.boxes[$b].runner_cpu_pct // .runner_cpu_pct // "") | tostring' <<<"$GHRB_HUB")"
   [[ -z "$v" ]] && { GHRB_SRC="default, no runner_cpu_pct on the hub"; return 0; }
   [[ "$v" =~ ^([1-9][0-9]?|100)$ ]] || { echo "WARN the hub's runner_cpu_pct is not 1..100 ('$v'): the default ceiling 80%"; return 0; }
   GHRB_BOX="$v" GHRB_SRC="hub, box $LANE_BOX"
+}
+
+# ghrb_hub - GHRB_HUB: the hub's fleet-load answer (a JSON object; the
+# ceiling above and the overflow settings read it), "none" with no hub fleet
+# here, "failed" when it does not answer
+ghrb_hub() {
+  local got
+  GHRB_HUB=none
+  declare -F spl_lane_init >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
+  spl_lane_init >/dev/null 2>&1 && [[ "$LANE_MODE" == hub ]] || return 0
+  got="$(LANE_TIMEOUT="${LANE_TIMEOUT:-15}" spl_lane_spool fleet-load get 2>/dev/null)"
+  if jq -e 'type == "object"' >/dev/null 2>&1 <<<"$got"; then GHRB_HUB="$got"; else GHRB_HUB=failed; fi
+}
+
+# ghrb_overflow <cores> - the CI overflow rule (see the header): GHRB_CAPQ
+# (the cap, % of one core; 0 = none), GHRB_MEMMAX (bytes; empty = untouched)
+# and GHRB_LOCAL (1 the runners are wanted, 0 they are not, "" unknown)
+ghrb_overflow() {
+  local cores="$1" orc oa cnf force="${CI_OVERFLOW_FORCE_MIN:-}" until=0 val rc mem
+  orc="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)" oa="$(basename "$orc")" oa="${oa%-orc}"
+  cnf="${CI_OVERFLOW_CNF:-$(dirname "$orc")/$oa-cnf/$oa/all.env.yaml}"
+  [[ "$GHRB_HUB" == none || "$GHRB_HUB" == failed ]] && GHRB_HUB=""
+  spl_ci_overflow_settings "$cnf" "$GHRB_HUB" "${LANE_BOX:-}" || return 1
+  [[ -z "$force" || "$force" =~ ^([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-3][0-9]|240)$ ]] ||
+    { do_log "FATAL CI_OVERFLOW_FORCE_MIN must be 0..240, got: '$force'"; return 1; }
+  [[ -z "${CI_OVERFLOW_ACTIVE:-}" || "$CI_OVERFLOW_ACTIVE" == 0 || "$CI_OVERFLOW_ACTIVE" == 1 ]] ||
+    { do_log "FATAL CI_OVERFLOW_ACTIVE must be 0 or 1, got: '$CI_OVERFLOW_ACTIVE'"; return 1; }
+  GHRB_CAPQ="$(spl_ci_overflow_cap "$cores")" GHRB_MEMMAX=""
+  if ((GHRB_CAPQ > 0)); then
+    mem="$(awk '$1 == "MemTotal:" {print $2}' "${CI_OVERFLOW_MEMINFO:-/proc/meminfo}" 2>/dev/null)"
+    [[ "$mem" =~ ^[0-9]+$ ]] && GHRB_MEMMAX=$((mem * 1024 * GHRB_CAPQ / (cores * 100)))
+  fi
+  if [[ -n "$force" && "$force" != 0 && "$GHRB_DRY" == 0 ]]; then
+    mkdir -p "$GHRB_STATE" && echo $(($(date +%s) + force * 60)) >"$GHRB_STATE/force-until" ||
+      { do_log "FATAL cannot write $GHRB_STATE/force-until"; return 1; }
+  fi
+  [[ -r "$GHRB_STATE/force-until" ]] && until="$(head -1 "$GHRB_STATE/force-until")"
+  [[ "$until" =~ ^[0-9]+$ ]] || until=0
+  if ((CIO_ENABLED == 0)); then GHRB_LOCAL=0 val="overflow switched off"
+  elif [[ -n "${CI_OVERFLOW_ACTIVE:-}" ]]; then GHRB_LOCAL="$CI_OVERFLOW_ACTIVE" val="CI_OVERFLOW_ACTIVE=$CI_OVERFLOW_ACTIVE"
+  elif [[ -n "$force" && "$force" != 0 ]] || ((until > $(date +%s))); then
+    GHRB_LOCAL=1 val="held online until $(date -u -d "@$until" +%H:%M:%SZ 2>/dev/null || echo "$until")"
+  else
+    val="$(cd "$(dirname "${BASH_SOURCE[0]}")" && spl_ci_overflow_var "${CPU_BUDGET_GH:-gh}")"; rc=$?
+    case "$rc" in
+      0) if spl_ci_overflow_is_local "$val"; then GHRB_LOCAL=1; else GHRB_LOCAL=0; fi; val="SPOOL_CI_RUNNER=$val" ;;
+      2) GHRB_LOCAL=1 val="SPOOL_CI_RUNNER unset (wf 10 falls back to the local runners)" ;;
+      *) GHRB_LOCAL="" val="WARN SPOOL_CI_RUNNER does not read: runners left as they are" ;;
+    esac
+  fi
+  echo "OVERFLOW cap=${GHRB_CAPQ}% (cpus=$CIO_CPUS, share ${CIO_CAP_PCT}%; $CIO_SRC)${GHRB_MEMMAX:+ MemoryMax=$GHRB_MEMMAX} local=${GHRB_LOCAL:-unknown}: $val"
 }
 
 # ghrb_gate <cores> - raise GHRB_MIN to the gate floor (clamped to the
@@ -259,10 +338,11 @@ ghrb_place() {
 
 # ghrb_size <cores> <other usec> <window usec> - the quota, % of one core
 ghrb_size() {
-  awk -v c="$1" -v o="$2" -v w="$3" -v box="$GHRB_BOX" -v min="$GHRB_MIN" 'BEGIN {
+  awk -v c="$1" -v o="$2" -v w="$3" -v box="$GHRB_BOX" -v min="$GHRB_MIN" -v cap="${GHRB_CAPQ:-0}" 'BEGIN {
     top = c * box; q = top - (o / w) * 100
     if (q > top) q = top
     if (q < min) q = min
+    if (cap > 0 && q > cap) q = cap
     printf "%d", int(q / 10) * 10 }'
 }
 
@@ -271,11 +351,22 @@ ghrb_size() {
 # it plus GHRB_HYST (see the header). A runner a person stopped is not ours
 ghrb_cap() {
   local quota="$1" u on=0 cap last="" first="" parked="$GHRB_STATE/parked"; shift
-  [[ "$GHRB_PER" == 0 ]] && return 0
+  local -a idle=()
+  [[ "$GHRB_PER" == 0 && "${GHRB_LOCAL-1}" != 0 ]] && return 0
   for u in "$@"; do
     [[ "$($GHRB_SYSTEMCTL show "$u" -p ActiveState --value 2>/dev/null)" == active ]] || continue
-    on=$((on + 1)); ghrb_busy "$u" || last="$u"
+    on=$((on + 1)); ghrb_busy "$u" || { last="$u"; idle+=("$u"); }
   done
+  if [[ "${GHRB_LOCAL-1}" == 0 ]]; then
+    echo "CAP online=$on of $# runner(s), CI is not on the local runners: every idle one parks"
+    for u in "${idle[@]}"; do
+      [[ "$GHRB_DRY" == 1 ]] && { echo "PLAN park $u"; continue; }
+      mkdir -p "$GHRB_STATE" && echo "$u" >>"$parked" || { do_log "FATAL cannot write $parked"; return 1; }
+      $GHRB_SYSTEMCTL stop "$u" || { do_log "FATAL cannot park $u"; return 1; }
+      echo "PARKED $u (idle; no overflow)"
+    done
+    return 0
+  fi
   cap=$((quota / GHRB_PER)); ((cap < 1)) && cap=1
   [[ -r "$parked" ]] && first="$(head -1 "$parked")"
   echo "CAP online=$on of $# runner(s), the quota feeds $cap at ${GHRB_PER}% each"
@@ -302,8 +393,14 @@ do_apply_gh_runner_cpu_budget() {
   slice="user-$uid.slice"
   ghrb_place "$slice" "${units[@]}" || return 1
   cores="$(nproc)"
-  ghrb_gate "$cores"
-  ghrb_reserve "$cores" "${units[@]}"
+  ghrb_overflow "$cores" || return 1
+  if [[ "$GHRB_LOCAL" == 0 ]]; then
+    GHRB_WEIGHT=""
+    { mkdir -p "$GHRB_STATE" && echo "$(date +%s) 0" >"$GHRB_STATE/gate"; } 2>/dev/null
+  else
+    ghrb_gate "$cores"
+    ghrb_reserve "$cores" "${units[@]}"
+  fi
   r0="$(ghrb_usage "$GHRB_CG")" s0="$(ghrb_usage "$GHRB_CG/user.slice/$slice")"
   sleep "$GHRB_WAIT"
   r1="$(ghrb_usage "$GHRB_CG")" s1="$(ghrb_usage "$GHRB_CG/user.slice/$slice")"
@@ -315,9 +412,9 @@ do_apply_gh_runner_cpu_budget() {
   cur="$($GHRB_SYSTEMCTL show "$slice" -p CPUQuotaPerSecUSec --value 2>/dev/null)"
   echo "BUDGET cores=$cores ceiling=${GHRB_BOX}% ($GHRB_SRC) others=$(awk -v o="$other" -v w="$GHRB_WAIT" 'BEGIN {printf "%.2f", o / w / 1e6}') cores over ${GHRB_WAIT}s -> $slice CPUQuota=${quota}% (was ${cur:-unknown})"
   if [[ "$GHRB_DRY" == 1 ]]; then ghrb_cap "$quota" "${units[@]}"; do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."; return 0; fi
-  $GHRB_SYSTEMCTL set-property --runtime "$slice" CPUQuota="${quota}%" ||
+  $GHRB_SYSTEMCTL set-property --runtime "$slice" CPUQuota="${quota}%" ${GHRB_MEMMAX:+MemoryMax=$GHRB_MEMMAX} ||
     { do_log "FATAL cannot set CPUQuota on $slice"; return 1; }
-  do_log "OK $slice CPUQuota=${quota}% ($($GHRB_SYSTEMCTL show "$slice" -p CPUQuotaPerSecUSec --value 2>/dev/null))"
+  do_log "OK $slice CPUQuota=${quota}% ($($GHRB_SYSTEMCTL show "$slice" -p CPUQuotaPerSecUSec --value 2>/dev/null))${GHRB_MEMMAX:+ MemoryMax=$($GHRB_SYSTEMCTL show "$slice" -p MemoryMax --value 2>/dev/null)}"
   ghrb_weight "$slice" || return 1
   ghrb_cap "$quota" "${units[@]}"
 }

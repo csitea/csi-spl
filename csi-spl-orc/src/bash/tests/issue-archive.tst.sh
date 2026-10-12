@@ -81,7 +81,7 @@ rc=$?
 [[ $rc -eq 0 ]] && grep -q 'count=3' "$T/o" && grep -q 'issue SPL-1' "$T/o" && grep -q 'issue SPL-3' "$T/o" &&
   grep -q 'epic SPL-10' "$T/o" && ! grep -q 'SPL-2' "$T/o" && ! grep -q 'SPL-11' "$T/o" &&
   ! grep -q '|archive|' "$T/issue.log" && [[ ! -e "$T/keys" ]] &&
-  grep -c '|list|' "$T/issue.log" | grep -qx 2 && grep -q '|--cursor|p2|' "$T/issue.log" &&
+  [[ "$(grep -c '|list|' "$T/issue.log")" -eq 2 ]] && grep -q '|--cursor|p2|' "$T/issue.log" &&
   pass "dry run pages the done list, prints 3 keys, archives nothing" ||
   fail "dry run (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log")"
 

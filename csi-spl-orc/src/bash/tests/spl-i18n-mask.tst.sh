@@ -20,17 +20,18 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 FUNC="$PROJ_ROOT/src/bash/run/spl-i18n-mask.func.sh"
+UNMASK="$PROJ_ROOT/src/bash/run/spl-i18n-unmask.func.sh"
 
 # run <func-file> <action> [VAR=val...]: one action in a clean shell, the
 # output in $T/out
 run() {
   local file="$1" act="$2"; shift 2
   env -u I18N_MASK_SRC -u I18N_MASK_TERMS -u I18N_MASK_OUT -u I18N_UNMASK_DST -u LANE_MIX_TASK \
-    SPOOL_ROOT="$T/spool" FUNC_FILE="$file" ACT="$act" "$@" bash -c '
+    SPOOL_ROOT="$T/spool" FUNC_FILE="$file" UNMASK_FILE="${UNMASK:-}" ACT="$act" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { command -v "$1" >/dev/null; }
-    source "$FUNC_FILE"
+    source "$FUNC_FILE"; [[ -z "${UNMASK_FILE:-}" ]] || source "$UNMASK_FILE"
     "$ACT"' >"$T/out" 2>&1 </dev/null
 }
 

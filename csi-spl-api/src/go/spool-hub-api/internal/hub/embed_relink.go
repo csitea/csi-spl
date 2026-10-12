@@ -53,7 +53,7 @@ import (
 
 const (
 	// embedRelinkTTL is the link's life (spec 4.1: 15 minutes).
-	embedRelinkTTL = 15 * time.Minute
+	EmbedRelinkTTL = 15 * time.Minute  // Time-to-live for embed relink tokens
 	// embedRelinkPerHour caps the mails per visitor per hour.
 	embedRelinkPerHour = 3
 	// quotaEmbedRelink is the quota_counts kind of those mails.
@@ -254,9 +254,9 @@ func (s *Server) mailEmbedRelink(ctx context.Context, rs store.EmbedRelinks, emb
 		log.Info().Err(err).Str("visitor", v.VisitorID).Msg("embed.relink_rate_limited")
 		return
 	}
-	code, err := relinkCode(embedID, v.VisitorID, hash, now.Add(embedRelinkTTL))
+	code, err := relinkCode(embedID, v.VisitorID, hash, now.Add(EmbedRelinkTTL))
 	if err == nil {
-		err = s.o.EmbedRelinkMail(ctx, email, base+"#"+embedRelinkFragment+"="+code, embedRelinkTTL)
+		err = s.o.EmbedRelinkMail(ctx, email, base+"#"+embedRelinkFragment+"="+code, EmbedRelinkTTL)
 	}
 	if err != nil {
 		log.Error().Err(err).Str("visitor", v.VisitorID).Msg("embed.relink_mail_failed")

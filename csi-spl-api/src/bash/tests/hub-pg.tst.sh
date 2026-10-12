@@ -155,6 +155,11 @@ GO_TEST_TIMEOUT="${SPOOL_TEST_GO_TIMEOUT:-20m}"
 # job slot; store-pg-groups.tst.sh proves each test runs in exactly one.
 # shellcheck source=store-pg-groups.inc.sh
 source "$HERE/store-pg-groups.inc.sh"
+# internal/hub likewise took 1038 s of the 20m (same job): its own SEQUENTIAL
+# groups (hub-pg-groups.inc.sh) on the one hub database; hub-pg-groups.tst.sh
+# proves each test runs in exactly one.
+# shellcheck source=hub-pg-groups.inc.sh
+source "$HERE/hub-pg-groups.inc.sh"
 pg_go_test() { # <db> <dir> <cover tag> [go test selection]: one go test process
   local db="$1" dir="$2" tag="$3" pdsn sel; shift 3
   pdsn="$(app_dsn "$db")" sel=("$@")
@@ -175,6 +180,16 @@ store_groups() { # the store groups one after another; a red group does not stop
   done
   return "$rc"
 }
+hub_groups() { # the hub groups one after another; a red group does not stop the next
+  local g t0 rc=0
+  for g in "${HUB_PG_GROUPS[@]}"; do
+    t0="$SECONDS"
+    if pg_go_test spool_hub_hub hub "hub-$g" -run "$(hub_pg_group_run "$g")"; then
+      echo "ok   - hub group $g: $((SECONDS - t0)) s (timeout $GO_TEST_TIMEOUT)"
+    else echo "FAIL - hub group $g after $((SECONDS - t0)) s"; rc=1; fi
+  done
+  return "$rc"
+}
 pids=()
 for pkg in store wsdoc hub auth repodocs; do # repodocs: the repo-edit worker (spec 075 T10) on its own queue
   db="spool_hub_$pkg" dir="$pkg"
@@ -186,6 +201,7 @@ for pkg in store wsdoc hub auth repodocs; do # repodocs: the repo-edit worker (s
   case "$pkg" in
     store) store_groups & ;;
     wsdoc) pg_go_test "$db" store wsdoc -run "$STORE_PG_WSDOC" & ;;
+    hub) hub_groups & ;;
     *) pg_go_test "$db" "$pkg" "$pkg" & ;;
   esac
   pids+=("$!")
@@ -193,7 +209,7 @@ done
 rc=0
 for p in "${pids[@]}"; do wait "$p" || rc=1; done
 [ "$rc" -eq 0 ] || { echo "FAIL - Postgres package suites"; exit 1; }
-echo "ok   - internal/store (${#STORE_PG_GROUPS[@]} sequential groups; spec 113 workspace docs in their own run) + internal/hub + internal/auth (015 CredStore) + internal/repodocs (075 worker) suites green against Postgres"
+echo "ok   - internal/store (${#STORE_PG_GROUPS[@]} sequential groups; spec 113 workspace docs in their own run) + internal/hub (${#HUB_PG_GROUPS[@]} sequential groups) + internal/auth (015 CredStore) + internal/repodocs (075 worker) suites green against Postgres"
 
 # 017 T021 + FR-SEC-014 CONTROL: EVERY ^TestRLS test must RUN and PASS (a
 # skip is a failure), counted from the source so a new one cannot hide.

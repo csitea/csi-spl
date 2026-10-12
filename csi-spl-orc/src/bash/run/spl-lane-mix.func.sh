@@ -369,6 +369,8 @@ _spl_lane_mix_report() {
 # _spl_lane_mix_actual <registry> -> _LM_CNT, _LM_PCT, _LM_N: the last window
 # spawns of this kind, one row per id (its latest), role seats 001..003 out.
 # The kind is the row's last column; a row with none is simple_coding.
+# One awk keeps the window newest by "time<TAB>vendor" (the order sort gave):
+# sort | tail | cut were 3 of the 4 execs of every call (spec 133).
 _spl_lane_mix_actual() {
   local v vendor
   _LM_N=0
@@ -377,13 +379,22 @@ _spl_lane_mix_actual() {
     while read -r vendor; do
       [[ -n "${_LM_CNT[$vendor]+x}" ]] || continue
       _LM_CNT[$vendor]=$(( _LM_CNT[$vendor] + 1 )); _LM_N=$(( _LM_N + 1 ))
-    done < <(awk -F'\t' -v want="$_LM_KIND" '
+    done < <(awk -F'\t' -v want="$_LM_KIND" -v win="$_LM_WIN" '
                $1 !~ /-00[1-3]$/ && NF >= 5 {
                  k[$1] = $2; t[$1] = $5
                  kd[$1] = ($NF ~ /^(specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration)$/) ? $NF : "simple_coding"
                }
-               END { for (i in k) if (kd[i] == want) print t[i] "\t" k[i] }' "$1" |
-             sort | tail -n "$_LM_WIN" | cut -f2)
+               END {
+                 n = 0; win += 0
+                 for (i in k) {
+                   if (kd[i] != want || win < 1) continue
+                   key = t[i] "\t" k[i]
+                   if (n == win) { if (key <= s[1]) continue; for (j = 1; j < n; j++) s[j] = s[j + 1]; n-- }
+                   for (j = n; j >= 1 && s[j] > key; j--) s[j + 1] = s[j]
+                   s[j + 1] = key; n++
+                 }
+                 for (j = 1; j <= n; j++) { sub(/^[^\t]*\t/, "", s[j]); print s[j] }
+               }' "$1")
   fi
   for v in "${LANE_MIX_VENDORS[@]}"; do
     _LM_PCT[$v]=$(( _LM_N > 0 ? (_LM_CNT[$v] * 100 + _LM_N / 2) / _LM_N : 0 ))

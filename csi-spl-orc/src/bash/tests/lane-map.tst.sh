@@ -17,6 +17,9 @@
 #      behind the `N older rows hidden (--all)` footer
 #   4b. the default map hides rows 2 h old or older; LANE_ALL=1 prints every
 #      row, the same table as before the hiding
+#   4c. a live role seat (c-001, c-002, c-003) stays in the default view past
+#      2 h, including when the same id has a row on two boxes; a non-seat
+#      of that age stays hidden
 #   5. exit-clean: done keeps the row's fields; the default map hides it,
 #      LANE_ALL=1 shows it, and it no longer collides
 #   6. the hub down: WARN, the map falls back to this machine's worktrees,
@@ -187,13 +190,24 @@ want="$(on sat 'spl_lane_init; spl_lane_table "$(spl_lane_merge "$(spl_lane_hub 
   pass "LANE_ALL=1 prints every row, the whole table with no footer" || fail "LANE_ALL table: $all /// $want"
 mv "$T/hub/main.json.keep" "$T/hub/main.json"
 
-# 4c. role seats: a live row whose agent id is c-001, c-002 or c-003 is always shown, even when its age_s >= LANE_RECENT_S (7200)
+# 4c. role seats: a live bare id c-001, c-002 or c-003 is always shown, even
+# when age_s >= LANE_RECENT_S (7200). The same id on two boxes is two rows.
+# A non-seat of that age stays hidden. The hub file is restored afterwards.
 cp "$T/hub/main.json" "$T/hub/main.json.keep"
-jq -c '.lanes |= map(if .agent_id == "c-002" then .age_s = 21600 elif .agent_id == "c-003" then .age_s = 21600 elif .agent_id == "c-900" then .age_s = 21600 else . end)' \
-  "$T/hub/main.json.keep" >"$T/hub/main.json"
+jq -c '.lanes += [
+    {agent_id:"c-002", agent_box:"sat", repo:"csi-spl", branch:"b", scope:"", files:[], topic:"", state:"live", age_s:21600},
+    {agent_id:"c-003", agent_box:"sat", repo:"csi-spl", branch:"b", scope:"", files:[], topic:"", state:"live", age_s:21600},
+    {agent_id:"c-900", agent_box:"sat", repo:"csi-spl", branch:"b", scope:"", files:[], topic:"", state:"live", age_s:21600},
+    {agent_id:"c-002", agent_box:"box-desk", repo:"csi-spl", branch:"b", scope:"", files:[], topic:"", state:"live", age_s:21600}
+  ]' "$T/hub/main.json.keep" >"$T/hub/main.json"
 out="$(on sat do_spl_lane_map "${F[@]}")"
 [[ "$out" == *c-002@sat* && "$out" == *c-003@sat* && "$out" != *c-900@sat* && "$(tail -1 <<<"$out")" == "1 older rows hidden (--all)" ]] &&
-  fail "role seats must be shown even when old; run the test with -v to see the map" || pass "role seats: default view shows c-002@sat and c-003@sat, hides c-900@sat"
+  pass "role seats: default view shows c-002@sat and c-003@sat, hides c-900@sat" ||
+  fail "role seats must be shown even when old; run the test with -v to see the map"
+[[ "$out" == *c-002@sat* && "$out" == *c-002@box-desk* ]] &&
+  pass "role seats: c-002 on sat and c-002 on box-desk are both in the default view" ||
+  fail "two-box role seat: default view dropped one box: $out"
+mv "$T/hub/main.json.keep" "$T/hub/main.json"
 
 # 5. exit-clean
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-920 LANE_STATE=done >/dev/null

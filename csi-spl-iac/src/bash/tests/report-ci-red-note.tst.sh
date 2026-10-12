@@ -216,6 +216,7 @@ TREE="$R2" LSTATE="$LS" tick; TREE="$R2" LSTATE="$LS" tick; TREE="$R2" LSTATE="$
 if [[ "$(lanes)" == 1 ]] && grep -qx 'SEND from=c-900 to=c-777 kind=note task=dispatch-ci-red' "$CRN_SENT" \
    && grep -q -- "- Job: $ORC" "$CRN_SENT" && grep -q -- '- First FAIL line: FAIL: lane case broke' "$CRN_SENT" \
    && grep -q -- '- Run: https://ci.example.org/run/981/job/9810' "$CRN_SENT" \
+   && grep -qxE -- '- Last green: (run [0-9]+ \(sha [0-9a-f]+\)|none in the window)' "$CRN_SENT" \
    && grep -q -- '- [0-9a-f]* orc: lane culprit' "$CRN_SENT" && ! grep -q 'to=g-888\|to=c-999' "$CRN_SENT"; then
   pass "8. three ticks of a red: 1 note to the lane that made the suspect commit (via rebase finish), with job, FAIL line, run link; g-888 and c-999 nothing"
 else

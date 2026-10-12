@@ -227,7 +227,8 @@ _crn_lane() {
   [[ -f "$tmp/lane-shas" ]] || _crn_lane_shas "$top" >"$tmp/lane-shas"
   awk -F'\t' 'NR == FNR { s[$1] = 1; next } ($1 in s) { print $2 "\t" $1 }' "$tmp/suspects" "$tmp/lane-shas" \
     | sort -u >"$tmp/hits"
-  local run sig mine body
+  local run sig mine body green="none in the window"
+  [[ -n "$lg_sha" ]] && green="run $lg_rid (sha $lg_sha)"
   run=$(gh api "repos/{owner}/{repo}/actions/jobs/$fr_jid" --jq '.html_url' 2>/dev/null)
   sig=$(_crn_sig "$tmp" "$fr_jid")
   for id in $(cut -f1 "$tmp/hits" | sort -u); do
@@ -235,7 +236,7 @@ _crn_lane() {
            while read -r h; do git -C "$top" log -1 --format='- %h %s' "$h"; done)
     body=$(printf '## CI red on master: %s\n\nA job on master is red since run %s (sha %s), and your lane made a commit in its suspect range.\n\n- Job: %s\n- First FAIL line: %s\n- Run: %s\n- Last green: %s\n\nYour commits in the range:\n%s\n\nIf it is yours: fix it, rebase, push. If not: tell %s. One note per red (spec 133 action 7).' \
       "$job" "$fr_rid" "$fr_sha" "$job" "${sig:0:200}" "${run:-run $fr_rid, job $fr_jid}" \
-      "${lg_sha:+run $lg_rid (sha $lg_sha)}${lg_sha:-none in the window}" "$mine" "$to")
+      "$green" "$mine" "$to")
     _crn_send_lane "$id" "${to%@*}" "$body" && told=$((told + 1))
   done
   printf '%s\t%s\t%s\n' "$job" "$fr_sha" "$fr_rid" >>"$lstate"

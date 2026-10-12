@@ -153,6 +153,15 @@ try {
   const seed = [event('00000000-0000-4000-8000-0000000d0001', 'Drag me', today, '10:00', '11:00')]
   await open(a, { width: 1440, height: 900 }, seed)
   ok('the week is a time grid: seven day grids', (await a.$$('[data-test=calendar-grid]')).length === 7)
+  /* each day's grid stays in its own column: an overflowing day (today's
+     wider Working hours line) took the drops meant for the next one, red
+     only on the weekday the run's "other" day follows */
+  const cols = await a.evaluate(() => [...document.querySelectorAll('[data-test=calendar-week-day]')].map((d) => {
+    const c = d.getBoundingClientRect()
+    const g = d.querySelector('[data-grid-day]')?.getBoundingClientRect()
+    return { day: d.getAttribute('data-day'), col: [Math.round(c.left), Math.round(c.right)], grid: g ? [Math.round(g.left), Math.round(g.right)] : null }
+  }))
+  ok('each day grid stays inside its column', cols.length === 7 && cols.every((c) => c.grid && c.grid[0] >= c.col[0] - 1 && c.grid[1] <= c.col[1] + 1), cols.filter((c) => !c.grid || c.grid[1] > c.col[1] + 1))
   let it = await item(a, 'Drag me')
   ok('the event sits on its day', it?.day === today, it)
 

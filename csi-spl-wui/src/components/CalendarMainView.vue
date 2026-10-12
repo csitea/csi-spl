@@ -792,6 +792,9 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   grid-row: 1 / span 2;
   display: grid;
   grid-template-rows: subgrid;
+  /* an auto column grew to its widest line (today's Working hours total):
+     the day spilled over the next one, which then lost its drops */
+  grid-template-columns: minmax(0, 1fr);
   padding: 0;
 }
 .cal-week--grid .cal-week__day:first-child { border-inline-start: 1px solid var(--color-border); }

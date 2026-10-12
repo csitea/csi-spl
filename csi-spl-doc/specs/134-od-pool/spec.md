@@ -436,18 +436,18 @@ that text with this table and the status line filled in:
 
 ## 10. Owner questions
 
-| Q | question | A | B | C | panel | recommendation |
-|---|---|---|---|---|---|---|
-| Q1 | Where do the pool rows live? | `fleet_asks` with `role = 'od'` and the new columns; the WUI calls it "OD jobs" | a new table `od_jobs`; `fleet_asks` stays the ask book | - | A: claude, mistral, agy; B: grok | **A**: the smallest working code; `role = 'od'` keeps the ask book's 60-minute lock apart |
-| Q2 | How long is a lock? | fixed per kind: 5 min routing, 60 min box op | one lease, 120 s, renewed every 15 s while the seat is able | per kind, renewed: `route_post` 3, `lane_verify` 5, `spawn` 10, `box_op` 15 min | A: mistral, agy; B: claude; C: grok | **B, with C's per-kind override in cnf** (`lease_s`): a renewed lease frees a dead seat's job in minutes; a fixed 60 min lock is one waiter for an hour |
-| Q3 | Where do the two Claude and two Grok seats sit? | fleet-wide, at least 2 boxes; one vendor out -> the other becomes 4 | 2 Claude + 2 Grok on every box (8, spec 068) | - | A: claude, grok; B: mistral, agy | **A**: "the Grok agents will become 4" is a fleet number; per box repeats 068 F2 |
-| Q4 | Where does a job's context live? | a copy in the row (topic history, brief, repo state) | pointers: topic, issue key, source message; the seat reads the issue card | - | A: mistral; B: claude, grok | **B**: the card is already the restart context (spec 135 7.3); a copy goes stale |
-| Q5 | Does the hourly session restart stay? | drop it once the inbox is not one seat's | keep spec 060 for pool seats, staggered | - | A: the draft (mistral, agy agreed with it); B: grok, claude | **B**: the transcript still grows inside one session |
-| Q6 | Hub down? | the pool waits; lanes keep working; one alert after 10 min | a local `O_EXCL` lock per box for local-origin jobs | - | A: claude; B: mistral | **A**: no local-only job acts (101 3.1) |
-| Q7 | How does the pool go live on prd? | one kind at a time (`lane_verify`, `spawn`, `route_post`, `box_op`), each with its own rollback, after the dev drill | one switch for everything (the draft) | - | A: grok, claude; B: mistral, agy | **A** |
-| Q8 | The inert 068/093 claim code on `messages` (rdb 0110/0111/0132, `spl-peer-*`)? | keep it inert, delete at P9 | build the pool on it instead | delete it now | A: claude; B: offered by agy | **A** |
+| Q | question | A | B | C | panel | recommendation | owner |
+|---|---|---|---|---|---|---|---|
+| Q1 | Where do the pool rows live? | `fleet_asks` with `role = 'od'` and the new columns; the WUI calls it "OD jobs" | a new table `od_jobs`; `fleet_asks` stays the ask book | - | A: claude, mistral, agy; B: grok | **A**: the smallest working code; `role = 'od'` keeps the ask book's 60-minute lock apart | owner: A (HUM-10, e799211c, 20:25Z) |
+| Q2 | How long is a lock? | fixed per kind: 5 min routing, 60 min box op | one lease, 120 s, renewed every 15 s while the seat is able | per kind, renewed: `route_post` 3, `lane_verify` 5, `spawn` 10, `box_op` 15 min | A: mistral, agy; B: claude; C: grok | **B, with C's per-kind override in cnf** (`lease_s`): a renewed lease frees a dead seat's job in minutes; a fixed 60 min lock is one waiter for an hour | owner: B + C (HUM-10, e799211c, 20:25Z) |
+| Q3 | Where do the two Claude and two Grok seats sit? | fleet-wide, at least 2 boxes; one vendor out -> the other becomes 4 | 2 Claude + 2 Grok on every box (8, spec 068) | - | A: claude, grok; B: mistral, agy | **A**: "the Grok agents will become 4" is a fleet number; per box repeats 068 F2 | owner: A (HUM-10, e799211c, 20:25Z) |
+| Q4 | Where does a job's context live? | a copy in the row (topic history, brief, repo state) | pointers: topic, issue key, source message; the seat reads the issue card | - | A: mistral; B: claude, grok | **B**: the card is already the restart context (spec 135 7.3); a copy goes stale | owner: B (HUM-10, e799211c, 20:25Z) |
+| Q5 | Does the hourly session restart stay? | drop it once the inbox is not one seat's | keep spec 060 for pool seats, staggered | - | A: the draft (mistral, agy agreed with it); B: grok, claude | **B**: the transcript still grows inside one session | owner: B (HUM-10, e799211c, 20:25Z) |
+| Q6 | Hub down? | the pool waits; lanes keep working; one alert after 10 min | a local `O_EXCL` lock per box for local-origin jobs | - | A: claude; B: mistral | **A**: no local-only job acts (101 3.1) | owner: A (HUM-10, e799211c, 20:25Z) |
+| Q7 | How does the pool go live on prd? | one kind at a time (`lane_verify`, `spawn`, `route_post`, `box_op`), each with its own rollback, after the dev drill | one switch for everything (the draft) | - | A: grok, claude; B: mistral, agy | **A** | owner: A (HUM-10, e799211c, 20:25Z) |
+| Q8 | The inert 068/093 claim code on `messages` (rdb 0110/0111/0132, `spl-peer-*`)? | keep it inert, delete at P9 | build the pool on it instead | delete it now | A: claude; B: offered by agy | **A** | owner: A (HUM-10, e799211c, 20:25Z) |
 
 Not a question: who kills a broken seat. All four seats agreed on a box
 supervisor, never a peer (section 4.2).
 
-<!-- version: 1.0.0 · updated: 2026-10-12 · last-edit: 2026-10-12T20:12:44Z -->
+<!-- version: 1.0.0 · updated: 2026-10-12 · last-edit: 2026-10-12T20:45:00Z -->

@@ -35,6 +35,10 @@
 #  11. with NO tmux session or agent window (a box just booted) the tick still
 #      starts the default desk's dead sidecar; CONTROL: a live sidecar is not
 #      started twice, and a desk stopped by hand stays down
+#  12. only a lane with a DESK ROLE is seated (t1 prd 2026-10-11: review lanes
+#      answered the owner): a review lane is not seated, a DO seat, a lease.conf
+#      id, a DESK_SEAT id and a .desk-role marker are, and an already seated
+#      lane is kept and named. CONTROL: DESK_ROLE_ONLY=0 seats every live agent
 # No real crontab, no real tmux, no cloud call: crontab and tmux are stubs.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -378,9 +382,9 @@ out=$(SNIPPET="$UPSTUB; do_spl_desk_up_all" in_orc TENANT_ID=csi-x DESK_SEATED_O
   pass "DESK_SEATED_ONLY seats only the live agent already on the desk, and keeps its hand mute" ||
   fail "seated-only: $out"
 out=$(SNIPPET="$UPSTUB; do_spl_desk_up_all" in_orc TENANT_ID=csi-x DESK_RETIRE=0 DESK_HUB_CHECK=0 \
-  DRY_RUN=0 STUB_TMUX_WINDOWS="$T/windows.txt" 2>&1)
+  DESK_ROLE_ONLY=0 DRY_RUN=0 STUB_TMUX_WINDOWS="$T/windows.txt" 2>&1)
 [[ "$out" == *"CALL up csi-x CLE-00 "* && "$out" == *"CALL up csi-x GRK-12 "* ]] &&
-  pass "CONTROL without DESK_SEATED_ONLY every live agent is seated" || fail "CONTROL all live: $out"
+  pass "CONTROL without DESK_SEATED_ONLY (and DESK_ROLE_ONLY=0) every live agent is seated" || fail "CONTROL all live: $out"
 [[ -d "$C/spool/CLE-999" ]] && pass "DESK_RETIRE=0 left the customer desk's dirs" || fail "a customer dir was retired"
 TSTUB='do_spl_desk_up_all() { echo "CALL all $TENANT_ID only=$DESK_SEATED_ONLY retire=$DESK_RETIRE hub=$DESK_HUB_CHECK dry=$DRY_RUN"; }'
 mkdir -p "$T/state/dev/desk/lone/other-box/spool"
@@ -471,6 +475,34 @@ pkill -P "$BLIVE" 2>/dev/null; kill "$BLIVE" 2>/dev/null; wait "$BLIVE" 2>/dev/n
 rm -f "$BD/spool/.hub/hub-run.pid"
 out=$(boot DRY_RUN=0)
 [[ "$out" != *"CALL "* ]] && pass "CONTROL a desk stopped by hand (no pid file) is not started" || fail "CONTROL stopped desk: $out"
+
+# --- 12. only a lane with a DESK ROLE is seated (t1 prd 2026-10-11) ----------------
+# The dry run on one box listed 23 windows for the t1 prd desk, review and panel
+# lanes among them; a-173 then answered the owner "reject" in t1 b1ab562b.
+RD="$T/role/dev/desk/t1/box-desk"
+mkdir -p "$RD/spool/m-033" "$T/spool/c-777" "$T/spool/dispatch"
+touch "$T/spool/c-777/.desk-role"
+printf 'LEASE_ORCH=g-010\nLEASE_MASTER=c-002\n' >"$T/spool/dispatch/lease.conf"
+printf '%s\n' 'a-175 perf5 panel' 'c-001 ORC' 'c-777 desk lane' 'g-010 orch' 'm-033 review' 'q-500 doc' >"$T/role-windows.txt"
+role() { SNIPPET=do_spl_desk_up_all in_orc SPL_STATE_DIR="$T/role/dev" TENANT_ID=t1 DESK_HUB_CHECK=0 \
+           STUB_TMUX_WINDOWS="$T/role-windows.txt" "$@" 2>&1; }
+out=$(role)
+[[ "$out" == *"would: seat 4 agent(s) on box-desk in t1: c-001 c-777 g-010 m-033"* ]] &&
+  pass "by default only desk roles are seated: DO seat c-001, marker c-777, lease.conf g-010, already seated m-033" ||
+  fail "role-only seat list: $out"
+[[ "$out" == *"not seated, no desk role (DESK_ROLE_ONLY): a-175 q-500"* ]] &&
+  pass "…and the review / panel / doc lanes are named as not seated" || fail "role-only skipped list: $out"
+[[ "$out" == *"seated with no desk role, kept: m-033"*"do_spl_desk_unseat"* ]] &&
+  pass "…and an already seated lane is kept, named, and pointed at do_spl_desk_unseat" || fail "role-only kept: $out"
+out=$(role DESK_SEAT="a-175")
+[[ "$out" == *"would: seat 5 agent(s) on box-desk in t1: a-175 c-001 c-777 g-010 m-033"* ]] &&
+  pass "DESK_SEAT seats a named lane as a desk role" || fail "DESK_SEAT: $out"
+out=$(role DESK_ROLE_ONLY=0)
+[[ "$out" == *"would: seat 6 agent(s) on box-desk in t1: a-175 c-001 c-777 g-010 m-033 q-500"* && "$out" != *"no desk role"* ]] &&
+  pass "CONTROL DESK_ROLE_ONLY=0 seats every live agent, review lanes included" || fail "CONTROL role off: $out"
+out=$(role DESK_ROLE_ONLY=2); rc=$?
+[[ $rc -ne 0 && "$out" == *"DESK_ROLE_ONLY must be 0 or 1"* ]] && pass "a bad DESK_ROLE_ONLY is refused" || fail "DESK_ROLE_ONLY=2 (rc=$rc): $out"
+rm -f "$T/spool/dispatch/lease.conf"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-up-all.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

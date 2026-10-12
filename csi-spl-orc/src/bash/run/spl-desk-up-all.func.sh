@@ -1,7 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Seat EVERY agent that is actually live in a terminal pane on this
-# @description machine, and retire the ones that are not. One action for what
+# @description Seat every live agent that owns a DESK ROLE on this machine, and
+# @description retire the ones that are not live. One action for what
 # @description was a hand-written loop: on 2026-09-22 the tmux server restarted,
 # @description every desk died with it, and the orchestrator re-seated four
 # @description agents by hand while the owner watched them read OFFLINE on
@@ -9,7 +9,15 @@
 # @description What "live" means here is the same fact the notifier uses: a tmux
 # @description window whose name carries an agent id (identity-routing section
 # @description 2), on the box user's own socket. Nothing else is a desk.
-# @description Per live agent it runs do_spl_desk_up, which is idempotent: the
+# @description A desk role (spl_desk_has_role): a DO seat c-001..c-003, an
+# @description orchestrator or dispatcher id of lease.conf, an id in DESK_SEAT,
+# @description or a lane whose spawner wrote <SPOOL_ROOT>/<ID>/.desk-role. A
+# @description review, panel or doc lane is NOT seated: on t1 prd 2026-10-11
+# @description the dry run seated 23 windows, and owner posts and the
+# @description unanswered sweep reached review lanes (a-173 answered the owner
+# @description "reject"). A lane already seated keeps its seat and is named in
+# @description the log: take it off with do_spl_desk_unseat.
+# @description Per agent seated it runs do_spl_desk_up, which is idempotent: the
 # @description box key and its hub pin are reused, ONE shared hub-run sidecar
 # @description serves the whole box, and an agent whose notice strip is already
 # @description a right-hand strip keeps the pane it has - no second pane, and
@@ -35,6 +43,9 @@
 # @param   for a seat a PERSON watches, where the prompt is theirs
 # @param DESK_RETIRE (optional) - 1 (default) retire agents with no live window,
 # @param   0 leave them announced
+# @param DESK_ROLE_ONLY (optional) - 1 (default) seat only agents with a desk
+# @param   role (above) or already seated; 0 seats every live agent (the old rule)
+# @param DESK_SEAT (optional) - space-separated agent ids seated as desk roles
 # @param DESK_SKIP (optional) - space-separated agent ids never to seat
 # @param DESK_MUTE (optional) - space-separated agent ids seated with their
 # @param   PROMPT left alone (DESK_POKE=0 for those seats only). Use it for a
@@ -86,13 +97,9 @@ do_spl_desk_up_all() {
   fi
   do_log "INFO live agent windows: ${live[*]}"
 
-  local a skip=" ${DESK_SKIP:-} " mute=" ${DESK_MUTE:-} " only="${DESK_SEATED_ONLY:-0}"
+  local a mute=" ${DESK_MUTE:-} " only="${DESK_SEATED_ONLY:-0}"
   [[ "$only" == 0 || "$only" == 1 ]] || { do_log "FATAL DESK_SEATED_ONLY must be 0 or 1, got: '$only'"; return 1; }
-  for a in "${live[@]}"; do
-    [[ "$skip" == *" $a "* ]] && { do_log "INFO skipping $a (DESK_SKIP)"; continue; }
-    [[ "$only" == 1 && ! -d "$d/spool/$a" ]] && continue
-    seat+=("$a")
-  done
+  _spl_desk_up_all_pick "$d" "$only" || return 1
   if [[ "$only" == 1 && ${#seat[@]} -eq 0 ]]; then
     do_log "OK no live agent is seated on $box in $tenant: its sidecar has nobody to serve (DESK_SEATED_ONLY)"
     return 0
@@ -141,6 +148,44 @@ do_spl_desk_up_all() {
 
   flock -u 8; exec 8>&-
   _spl_desk_up_all_report "$tenant" "$box" "$d" "${#live[@]}" "${#seat[@]}" "$hub" "$hrc"
+}
+
+# _spl_desk_up_all_pick <state dir> <seated-only>: fills the caller's seat[]
+# from its live[]. DESK_SKIP never; a seated-only pass only the agents with a
+# dir on the desk; else, under DESK_ROLE_ONLY=1, an agent already seated or
+# with a desk role. A seated lane with no role is kept and named, so the
+# reconcile never unseats by itself: do_spl_desk_unseat takes it off.
+_spl_desk_up_all_pick() {
+  local d="$1" only="$2" a skip=" ${DESK_SKIP:-} " role="${DESK_ROLE_ONLY:-1}"
+  local -a lanes=() kept=()
+  [[ "$role" == 0 || "$role" == 1 ]] || { do_log "FATAL DESK_ROLE_ONLY must be 0 or 1, got: '$role'"; return 1; }
+  for a in "${live[@]}"; do
+    [[ "$skip" == *" $a "* ]] && { do_log "INFO skipping $a (DESK_SKIP)"; continue; }
+    if [[ -d "$d/spool/$a" ]]; then
+      seat+=("$a")
+      [[ "$role" == 1 ]] && ! spl_desk_has_role "$a" && kept+=("$a")
+      continue
+    fi
+    [[ "$only" == 1 ]] && continue
+    if [[ "$role" == 1 ]] && ! spl_desk_has_role "$a"; then lanes+=("$a"); continue; fi
+    seat+=("$a")
+  done
+  [[ ${#lanes[@]} -gt 0 ]] && do_log "INFO not seated, no desk role (DESK_ROLE_ONLY): ${lanes[*]}"
+  [[ ${#kept[@]} -gt 0 ]] && do_log "INFO seated with no desk role, kept: ${kept[*]} - do_spl_desk_unseat takes one off"
+  return 0
+}
+
+# spl_desk_has_role <agent>: 0 when <agent> owns a desk role: a DO seat
+# c-001..c-003, an orchestrator or dispatcher id of lease.conf
+# (spl_desk_is_od), an id in DESK_SEAT, or a lane whose spawner wrote the
+# marker <SPOOL_ROOT>/<agent>/.desk-role. Every other lane is not a desk.
+spl_desk_has_role() {
+  local a="$1"
+  [[ -n "$a" ]] || return 1
+  [[ "$a" =~ ^c-00[1-3]$ ]] && return 0
+  [[ " ${DESK_SEAT:-} " == *" $a "* ]] && return 0
+  [[ -e "${SPOOL_ROOT:-/var/spool-hub}/$a/.desk-role" ]] && return 0
+  spl_desk_is_od "$a"
 }
 
 # _spl_desk_up_all_poke <state dir> <agent> <poke> <mute list> <seated-only>:

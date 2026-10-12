@@ -64,7 +64,8 @@ _spl_hub_box_band_check() {
 }
 
 # _spl_hub_box_band_body <box> <band> <cpu> <ordered_by> <ordered_via> < GET body
-# -> the PATCH body: every box as read, this box's band and/or cap changed;
+# -> the PATCH body: every box as read, this box's band and/or cap changed
+# (its own runner_cpus, rdb 0185, goes back as read);
 # 1 when the box has no band and BAND is not given
 _spl_hub_box_band_body() {
   jq -c --arg box "$1" --arg band "$2" --arg cpu "$3" --arg by "$4" --arg via "$5" '
@@ -78,7 +79,8 @@ _spl_hub_box_band_body() {
     | ($b + (if $cpu == "default" then {}
              elif $cpu != "" then {runner_cpu_pct: ($cpu | tonumber)}
              elif ($old.runner_cpu_pct // null) != null then {runner_cpu_pct: $old.runner_cpu_pct}
-             else {} end)) as $new
+             else {} end)
+          + (if ($old.runner_cpus // null) != null then {runner_cpus: $old.runner_cpus} else {} end)) as $new
     | {boxes: ($m + {($box): $new})} + by_via end' 2>/dev/null
 }
 

@@ -90,5 +90,17 @@ run BOX=box-a BAND=default ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
 run BOX=box-a BAND=default RUNNER_CPU_PCT=60 ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "7. BAND=default with a cap is refused before any call" || fail "7. drop+cap: rc=$rc $(cat "$T/calls" "$T/o")"
 
+# --- 8. the box's own runner_cpus (rdb 0185) survives every edit of that box ---------
+CPUS_GET='{"boxes":{"box-a":{"low":40,"high":70,"runner_cpu_pct":60,"runner_cpus":12},"box-b":{"low":10,"high":20}}}'
+run BOX=box-a BAND=45..75 ORDERED_BY=HUM-10 DRY_RUN=0 STUB_GET="$CPUS_GET"; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '"box-a":{"low":45,"high":75,"runner_cpu_pct":60,"runner_cpus":12}' "$T/calls" \
+  && pass "8. BAND keeps the box's own runner_cpus" || fail "8. band: rc=$rc $(cat "$T/calls" "$T/o")"
+run BOX=box-a RUNNER_CPU_PCT=default ORDERED_BY=HUM-10 DRY_RUN=0 STUB_GET="$CPUS_GET"; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '"box-a":{"low":40,"high":70,"runner_cpus":12}' "$T/calls" \
+  && pass "8. dropping the cap keeps the box's own runner_cpus" || fail "8. cap default: rc=$rc $(cat "$T/calls" "$T/o")"
+run BOX=box-a BAND=default ORDERED_BY=HUM-10 DRY_RUN=0 STUB_GET="$CPUS_GET"; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q runner_cpus "$T/calls" \
+  && pass "8. BAND=default drops the entry, runner_cpus and all" || fail "8. drop: rc=$rc $(cat "$T/calls" "$T/o")"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

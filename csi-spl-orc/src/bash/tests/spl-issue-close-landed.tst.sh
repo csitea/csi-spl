@@ -130,8 +130,16 @@ chk ISSUE_CLOSE_SHAS="$S16" DRY_RUN=0; rc=$?
 chk ISSUE_CLOSE_SHAS="$(g log -1 --format=%H --grep='docs never close') $(g log -1 --format=%H --grep='Refs: SPL-15')" DRY_RUN=0; rc=$?
 [ "$rc" = 0 ] && ! grep -q '^hub' "$T/calls.log" && pass "9. commits that name nothing by the rule pass with no hub call" || fail "9. none named (rc $rc): $(cat "$T/o")"
 
-# 10. the cron acts only on the box that holds the cursor
+# 10. evidence: a cited landing closes an issue no commit names by the rule (no reused-key check); an unknown sha is skipped
+CHORE=$(g log -1 --format=%H --grep='docs never close')
+printf 'SPL-13\t%s\tthe triage cites it\nSPL-14\tdeadbeef\tbad sha\n' "${CHORE:0:9}" >"$T/ev.tsv"
+run DRY_RUN=0 ISSUE_CLOSE_EVIDENCE="$T/ev.tsv"; rc=$?
+[ "$rc" = 0 ] && [ "$(row SPL-13)" = moved ] && [ "$(row SPL-14)" = skip ] && grep -q "hub comment SPL-13 .*cited: the triage cites it" <(tr '\n' ' ' <"$T/calls.log") &&
+  grep -qx "SPL-13	$CHORE	moved" "$ST/closed.tsv" &&
+  pass "10. a cited landing (ISSUE_CLOSE_EVIDENCE) closes with the same comment and ledger; an unknown sha is skipped" || fail "10. evidence (rc $rc): $(cat "$T/o")"
+
+# 11. the cron acts only on the box that holds the cursor
 out="$(ISSUE_CLOSE_ALLOW_WORKTREE=1 ISSUE_CLOSE_STATE_DIR="$T/empty" bash "$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh")"; rc=$?
-[ "$rc" = 0 ] && grep -q 'no cursor' <<<"$out" && pass "10. the cron is a no-op on a box with no cursor" || fail "10. cron (rc $rc: $out)"
+[ "$rc" = 0 ] && grep -q 'no cursor' <<<"$out" && pass "11. the cron is a no-op on a box with no cursor" || fail "11. cron (rc $rc: $out)"
 
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

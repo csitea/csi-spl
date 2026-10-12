@@ -3,7 +3,7 @@
 (owner HUM-10, t1 dee4081d msg ea519baa: "Done should be the automatic
 target"). Reads only: the open-issue list document, the ledger and local git.
 
-  issue-close-landed.py LIST GIT_DIR RANGE LEDGER
+  issue-close-landed.py LIST GIT_DIR RANGE LEDGER [EVIDENCE]
   issue-close-landed.py --keys GIT_DIR SHA...   (the exit gate: the keys those
                                                 commits close, one per line)
 
@@ -15,6 +15,11 @@ RANGE   the git revision range read, e.g. <cursor>..origin/master, or a bare
 LEDGER  TSV "<key>\\t<sha>" of every (issue, commit) pair the rule has already
         acted on; a pair in it never acts again, so an issue the owner
         reopened is never closed again by the same sha (it may be by a newer)
+
+EVIDENCE (optional) TSV "<key>\\t<sha>[,<sha>...]\\t<why>": a landing a review
+        cited although no commit names the key by the rule (the back-fill of
+        a triage); each sha must be an ancestor of the range's tip, and the
+        reused-key check does not apply (an issue imported after its work)
 
 Which commits count:
   - a fix / feat / perf / refactor commit whose subject scope carries the key,
@@ -134,7 +139,7 @@ def verdict(k, cs, issue, done):
             "an %s closes with its children, not by one commit" % kind,
         )
     created = iso_epoch(issue.get("created_at"))
-    fresh = [c for c in fresh if not created or c[1] >= created]
+    fresh = [c for c in fresh if not created or c[1] < 0 or c[1] >= created]
     if not fresh:
         return (
             k,
@@ -145,11 +150,60 @@ def verdict(k, cs, issue, done):
     return (k, "close", ",".join(c[0] for c in fresh), fresh[0][2])
 
 
-def plan(issues, done, rows):
+def cited(gdir, tip, path):
+    """key -> [(sha, -1, "cited: <why>")] from the evidence file; ct -1 marks a
+    citation. A sha that is not an ancestor of tip makes a skip row instead."""
+    out, bad = {}, []
+    if not path:
+        return out, bad
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            p = line.rstrip("\n").split("\t")
+            if len(p) < 2 or not KEY.fullmatch(p[0].strip()):
+                continue
+            key, why = (
+                p[0].strip(),
+                (p[2].strip() if len(p) > 2 else "") or "cited by a review",
+            )
+            for short in [x.strip() for x in p[1].split(",") if x.strip()]:
+                r = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        gdir,
+                        "rev-parse",
+                        "-q",
+                        "--verify",
+                        short + "^{commit}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+                sha = r.stdout.strip()
+                anc = (
+                    r.returncode == 0
+                    and subprocess.run(
+                        ["git", "-C", gdir, "merge-base", "--is-ancestor", sha, tip]
+                    ).returncode
+                    == 0
+                )
+                if not anc:
+                    bad.append(
+                        (key, "skip", short, "the cited sha is not on the trunk read")
+                    )
+                    continue
+                out.setdefault(key, []).append((sha, -1, "cited: " + why))
+    return out, bad
+
+
+def plan(issues, done, rows, extra=None):
     named = {}
     for sha, ct, subject, closes in rows:
         for k in commit_keys(subject, closes):
             named.setdefault(k, []).append((sha, ct, subject))
+    for k, cs in (extra or {}).items():
+        have = {c[0] for c in named.get(k, [])}
+        named.setdefault(k, []).extend(c for c in cs if c[0] not in have)
     return [verdict(k, cs, issues.get(k), done) for k, cs in named.items()]
 
 
@@ -178,12 +232,14 @@ def main(argv):
         for k in keys_of(argv[2], argv[3:]):
             print(k)
         return 0
-    if len(argv) != 5:
+    if len(argv) not in (5, 6):
         print(__doc__, file=sys.stderr)
         return 2
     issues = open_issues(argv[1])
     done = ledger_pairs(argv[4])
-    for row in plan(issues, done, commits(argv[2], argv[3])):
+    tip = argv[3].split("..")[-1]
+    extra, bad = cited(argv[2], tip, argv[5] if len(argv) == 6 else "")
+    for row in plan(issues, done, commits(argv[2], argv[3]), extra) + bad:
         print("\t".join(x.replace("\t", " ") for x in row))
     return 0
 

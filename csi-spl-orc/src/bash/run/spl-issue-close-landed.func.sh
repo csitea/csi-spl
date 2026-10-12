@@ -33,6 +33,8 @@
 # @param ISSUE_CLOSE_SINCE (optional) - all | <sha>: read from there instead of the cursor
 # @param ISSUE_CLOSE_STATE_DIR (optional) - the cursor + ledger dir, default
 # @param   ${XDG_STATE_HOME:-$HOME/.local/state}/<org>-<app>/issue-close-landed/<env>-<tenant>
+# @param ISSUE_CLOSE_EVIDENCE (optional) - TSV key, sha[,sha], why: landings a review cited
+# @param   though no commit names the key by the rule (a triage back-fill); same comment + ledger
 # @param ISSUE_CLOSE_WUI_URL (optional) - the release note host, default the cnf's WUI
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 DESK_BOX=box-ci ISSUE_CLOSE_SINCE=all ./run -a do_spl_issue_close_landed
@@ -52,7 +54,12 @@ do_spl_issue_close_landed() {
   list="$(mktemp)"; plan="$(mktemp)"
   spl_issue_list_fetch --status eval,todo,wip,blocked,onhold,qas --limit 500 >"$list" ||
     { rm -f "$list" "$plan"; return 1; }
-  python3 "$PROJ_PATH/src/bash/scripts/issue-close-landed.py" "$list" "$APP_PATH" "$rng" "$dir/closed.tsv" >"$plan" ||
+  local -a ev=()
+  if [[ -n "${ISSUE_CLOSE_EVIDENCE:-}" ]]; then
+    [[ -r "$ISSUE_CLOSE_EVIDENCE" ]] || { do_log "FATAL ISSUE_CLOSE_EVIDENCE is not a readable file: '$ISSUE_CLOSE_EVIDENCE'"; rm -f "$list" "$plan"; return 1; }
+    ev=("$ISSUE_CLOSE_EVIDENCE")
+  fi
+  python3 "$PROJ_PATH/src/bash/scripts/issue-close-landed.py" "$list" "$APP_PATH" "$rng" "$dir/closed.tsv" "${ev[@]}" >"$plan" ||
     { do_log "FATAL issue-close-landed.py failed"; rm -f "$list" "$plan"; return 1; }
   rm -f "$list"
   local rc=0

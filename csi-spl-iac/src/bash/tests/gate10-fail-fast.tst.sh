@@ -134,7 +134,7 @@ check_script() {  # <script> - prints the first violation, or nothing
   out=$(GATE_FAIL_FAST=1 GITHUB_JOB=orc-suite timeout 60 bash "$s" bash -c "echo \$\$ >$T/child.pid; sleep 20; exit 0" 2>&1); rc=$?
   secs=$((SECONDS - t0))
   (( rc == 1 && secs < 10 )) || { echo "a red job did not stop the command (rc=$rc after ${secs}s)"; return; }
-  [[ "$out" == *"::error::gate fail-fast"*"1/3"* ]] || { echo "the stop does not name the red job: $out"; return; }
+  [[ "$out" == *"::error::gate fail-fast"*"$(cat "$T/red-e2e")"* ]] || { echo "the stop does not name the red job: $out"; return; }
   sleep 0.5; kill -0 "$(cat "$T/child.pid")" 2>/dev/null && { echo "the command's child survived the stop"; return; }
   gh_green
   GATE_FAIL_FAST=1 bash "$s" bash -c 'sleep 2; exit 3' >/dev/null 2>&1; rc=$?

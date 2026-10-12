@@ -451,20 +451,25 @@ jobs:
   # tests/e2e/*.proof.mjs (live sites or credentials).
   # ===========================================================================
   wui-e2e:
-    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/3"
+    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/5"
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     # the bundle exists even when its budget step failed (see wui-generate)
     needs: [classify, wui-generate]
     if: ${{ !cancelled() && needs.classify.outputs.run_wui != 'false' && needs.wui-generate.outputs.bundle == 'success' }}
-    # 3 round-robin shards (E2E_SHARD, run-e2e-tests.mjs), CLE-77945
+    # Longest-first shards (E2E_SHARD, run-e2e-tests.mjs), CLE-77945
     # 2026-10-02: one serial job ran 104 files in 35 min green and hit the
     # 45 min timeout under load (run 36962189149), so this gate finished once
     # per ~45 min and every push in between was cancelled while pending
     # (36968259163 and ~40 before it). Each shard is ~10-13 min green.
+    # 3 -> 5 (L5, spec 133 action 6, 2026-10-12): 3 shards ran p90 2,557 /
+    # 2,453 / 2,366 s of 2,700 s (do_report_ci_gate, n=11-12). The files sum
+    # to 5,381 s of medians, so 3 balanced shards are still 1,794 s (66 %);
+    # 5 are 1,077 s each (e2e-shard-weights.txt). The shards are not
+    # required checks (oss-public-settings.func.sh), so the count is free.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4, 5]
     # 10 -> 20 (2026-09-27): the job reached 9m21s green on 94118eef, and
     # run 36313405989 was killed at 10m with every suite passing so far.
     # 20 -> 30 (2026-09-27): 9bce3654 took 19m51s green; run 36338326017 was
@@ -541,7 +546,7 @@ jobs:
       - name: Browser e2e (every tests/e2e/*.test.mjs minus ci-skip.txt)
         env:
           CI: "1"
-          E2E_SHARD: "${{ matrix.shard }}/3"
+          E2E_SHARD: "${{ matrix.shard }}/5"
           E2E_SKIP: ${{ inputs.e2e_skip }}
           # On a master push only: a pull request (wf 11) keeps the full red
           # report, every red file in one round, and nothing queues behind it.

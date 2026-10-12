@@ -67,5 +67,5 @@ do_provision() {
   fi
 
   rv=$?
-  test $rv == "0"
+  return "$rv"
 }

@@ -33,14 +33,23 @@ do_tf_apply() {
     echo "=========================================="
   fi
 
-  test -f "${PROJ_PATH}/src/bash/scripts/run-ansible-${ORG}-${APP}-${ENV}-${STEP}.sh" && {
-    do_log "INFO running: ${PROJ_PATH}/src/bash/scripts/run-ansible-${ORG}-${APP}-${ENV}-${STEP}.sh"
-    "${PROJ_PATH}/src/bash/scripts/run-ansible-${ORG}-${APP}-${ENV}-${STEP}.sh"
-  }
+  # The step's run-ansible script (written by its 07-ansible.tf) runs after a
+  # good apply. Its exit status is the playbook's (failed>0 or unreachable>0 ->
+  # non-zero) and it is this action's status: dropped, a failed playbook made
+  # `make do-provision` exit 0 (step 061 on dev, failed=1, exit 0).
+  local _ansible="${PROJ_PATH}/src/bash/scripts/run-ansible-${ORG}-${APP}-${ENV}-${STEP}.sh"
+  if [ "$_rc" -eq 0 ] && [ -f "$_ansible" ]; then
+    do_log "INFO running: $_ansible"
+    "$_ansible"
+    _rc=$?
+    [ "$_rc" -eq 0 ] || do_log "ERROR the playbook failed with status $_rc (its PLAY RECAP is above): $_ansible"
+  elif [ -f "$_ansible" ]; then
+    do_log "ERROR terraform apply failed with status $_rc, so the playbook did not run: $_ansible"
+  fi
   # jump-init
   # rm -rf ${tf_run_path} # && rm -rf ${modules_tgt_dir}
 
   do_simple_log "INFO STOP  ::: provisioning step ${tf_proj}"
   do_log "INFO ::: terraform apply log file: $tf_apply_log_fle"
-
+  return "$_rc"
 }

@@ -447,8 +447,13 @@ try {
     await waitRoot(p, 'data-view', 'month')
     await p.waitForSelector(MONTH, { visible: true, timeout: 5000 }).catch(() => null)
 
-    /* S4-2 the keyboard: arrows move day and focus, Enter opens Day */
-    await tapCell(p, today)
+    /* S4-2 the keyboard: arrows move day and focus, Enter opens Day.
+       Today first: ALLDAY may lie in the previous month, whose grid can end
+       before today (2026-09's ends 2026-10-11; wf 10 run 38188013921) */
+    await p.click(`${ROOT} [data-test=calphone-today]`)
+    const back = (await waitRoot(p, 'data-day', today)) && (await waitRoot(p, 'data-period', periodOf(today)))
+    const home = await p.waitForSelector(cell(today), { visible: true, timeout: 5000 }).then(() => true, () => false)
+    ok(`${w}: Today brings Month back to today, its month`, back && home, { day: await rootAttr(p, 'data-day'), period: await rootAttr(p, 'data-period') })
     await p.focus(cell(today))
     await p.keyboard.press('ArrowRight')
     const r1 = await waitRoot(p, 'data-day', calAddDays(today, 1))

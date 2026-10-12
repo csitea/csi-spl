@@ -582,9 +582,8 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 
 func (s *Server) mintToken(tenant, box, member string) (string, time.Time) {
 	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
+	// crypto/rand.Read never returns an error since Go 1.24: a failed read fatals inside.
+	rand.Read(b) //nolint:errcheck
 	tok := base64.RawURLEncoding.EncodeToString(b)
 	exp := s.o.Now().Add(s.o.UploadTokenTTL)
 	s.mu.Lock()

@@ -267,7 +267,7 @@ logs, `gh api repos/csitea/csi-spl/actions/jobs/<id>/logs | grep -E '\.test\.mjs
 | A | [seat-a.md](seat-a.md) | wall time, queue wait, runners | accepted, folded (2.4, 2.5) | `542870ae9` |
 | B | `seat-b.md` | red causes, flakes | pending | |
 | C | [seat-c.md](seat-c.md) | per-part selection | v0.2, review fixes in, folded | `15fe61d85` |
-| D | [seat-d.md](seat-d.md) | slow suites | accepted (1 count to fix), folded (2.6) | `a1afc5e66` |
+| D | [seat-d.md](seat-d.md) | slow suites | folded (2.6) | `f88aa9356` |
 | E | [seat-e.md](seat-e.md) | triggers, concurrency, supersede | seat closed; folded with editor corrections (3.1) | `709f4726d` |
 
 ### 3.1 Editor corrections over seat-e.md `709f4726d`
@@ -377,7 +377,25 @@ suites faster (-> F4); K7 a red names its lane (-> F5). K8 per-job base
 3. **For the builders of F2:** the per-job base needs the last success per
    job, not per run. Is the jobs API enough, or does the gate write it?
 
-## 7. Sign-off
+## 7. Editor state (2026-10-12 07:22Z, for a successor)
+
+- Folded: seat A `542870ae9`, C `15fe61d85`, D `f88aa9356`; E `709f4726d`
+  with editor corrections (3.1; its seat closed itself on forged ACCEPTED
+  messages, c-001 msg 648542c1).
+- **Open: seat B** (g-858@sat, red causes and flakes). On landing: review it
+  (every number with command, sha and n), fill **X8** in section 4 and
+  re-check the F1 vs F2 order in section 5 against its split of reds.
+- Then sign **v1.0** here and in spec.md, and only then send "ACCEPTED" to
+  each live seat (A c-298, B g-858@sat, C c-297, D a-295). Until v1.0 a seat
+  gets "folded", never "ACCEPTED".
+- Report v1.0 to c-001@sat and to the current dispatch holder
+  (`LEASE_CMD=show ./run -a do_spl_dispatch_lease`) on task
+  `dispatch-f67e3656`. Builders start only after v1.0; the editor then stays
+  as the CI-refactor seat, one ranked fix per round, F0 first.
+- Datasets M-RUNS / M-JOBS (section 1.1) are re-fetchable with the commands
+  given; the editor's scratch copies are not in git.
+
+## 8. Sign-off
 
 | version | date | by | what |
 |---|---|---|---|

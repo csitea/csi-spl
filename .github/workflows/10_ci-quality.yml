@@ -848,11 +848,13 @@ jobs:
       # ghrunner has no sudo (a CI user with root on the box is not worth it),
       # so the root-only sections of spool-permissions (1-3), lde-stack (5)
       # and box-workspace-isolation (3: throwaway users, EACCES) SKIP on the
-      # host. They run here instead, in a throwaway container whose
-      # user has passwordless sudo, setfacl and a `nobody`; yq is the runner's.
+      # host. repair-worktree-acl's write probe does too: the host run proves
+      # the ACL text and must not print SKIP, and the write itself runs here.
+      # They run in a throwaway container whose user has passwordless sudo,
+      # setfacl and a `nobody`; yq is the runner's.
       # The container has no docker compose, so lde-stack's compose check
       # SKIPs there -- the host run above covers it. Shard 1 only: it runs
-      # its three files whole, whichever shard runs them on the host.
+      # these files whole, whichever shard runs them on the host.
       - name: Root-only sections in a container (sudo, setfacl, nobody)
         if: matrix.shard == 1
         run: |
@@ -868,14 +870,17 @@ jobs:
           docker run --rm -v "$(command -v yq)":/usr/local/bin/yq:ro \
             -v "$PWD":/w/csi/csi-spl:ro -w /w/csi/csi-spl spl-orc-sudo:ci bash -c '
               set -uo pipefail; rc=0
-              for t in spool-permissions lde-stack box-workspace-isolation; do
+              for t in spool-permissions lde-stack box-workspace-isolation repair-worktree-acl; do
                 echo "=== $t.tst.sh"; bash csi-spl-orc/src/bash/tests/$t.tst.sh || rc=1
               done; exit $rc' 2>&1 | tee "$RUNNER_TEMP/orc-sudo.log"
           if grep -E '^SKIP:' "$RUNNER_TEMP/orc-sudo.log" | grep -vx 'SKIP: no docker compose'; then
             echo "::error::a root-only orc section skipped in the container too"; exit 1
           fi
           for want in 'PASS: an outsider cannot inject a message' 'PASS: sticky cleared, setgid set' \
-                      "PASS: workspace B's user gets EACCES reading A's message"; do
+                      "PASS: workspace B's user gets EACCES reading A's message" \
+                      'PASS: control: nobody cannot write a fresh subdir, so a later success is the action' \
+                      'PASS: a fresh subdir is writable for nobody' \
+                      'PASS: nobody can append the old log and create a new one'; do
             grep -qxF "$want" "$RUNNER_TEMP/orc-sudo.log" || { echo "::error::container run lacks: $want"; exit 1; }
           done
           echo "ok - the root-only sections ran and passed in the container"

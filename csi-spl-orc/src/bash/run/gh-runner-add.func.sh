@@ -241,7 +241,7 @@ ghr_setup_user() {
 # allocator reads it once): the rootless launcher execs $DOCKERD, so a drop-in
 # points DOCKERD at a wrapper that writes the sysctl (it runs as root of the
 # netns) and execs dockerd. The drop-in also turns rootlesskit's detach-netns
-# mode off: dockerd-rootless.sh of docker-ce-rootless-extras 29.x defaults
+# mode off: the rootless launcher of docker-ce-rootless-extras 29.x defaults
 # DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS to true (its line 120), which
 # keeps dockerd in the host's netns, where the wrapper cannot write the sysctl
 # and the allocator reads the host's range (a box, 2026-10-12: "restarted onto

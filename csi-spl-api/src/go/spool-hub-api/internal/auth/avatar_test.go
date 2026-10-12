@@ -89,13 +89,13 @@ func TestFetchAvatarPolicy(t *testing.T) {
 	plainURL = plain.URL
 	hc := tls.Client() // trusts the test CA; fetchAvatar keeps its transport only
 
-	old := avatarTimeout
-	// 1 s, not 300 ms: the budget also covers the first TLS handshake to a
+	old := AvatarTimeout
+	// 1 s, not 300 ms: the budget also covers the first TLS handshake to
 	// fresh httptest server, which a loaded CI runner took past 300 ms (wf 10
 	// runs 37963828126, 37965905561: the https CONTROL hit "context deadline
 	// exceeded"). /slow.png still waits 2 s, so the timeout case still times out.
-	avatarTimeout = time.Second
-	defer func() { avatarTimeout = old }()
+	AvatarTimeout = time.Second
+	defer func() { AvatarTimeout = old }()
 	ctx := context.Background()
 
 	// CONTROL: https, png, under the cap.

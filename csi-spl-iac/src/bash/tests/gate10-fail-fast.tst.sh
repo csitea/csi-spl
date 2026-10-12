@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-timeout: 240 -- 80..83 s in red CI runs 38190838689, 38197054999 (n=2) against the 120 s default; 77..86 s locally at load1 ~49 on 16 cores
 #------------------------------------------------------------------------------
 # Gate 10 fail-fast (spec 072 US1): once any job of a master gate run is red,
 # the e2e shards stop, so the run ends and the waiting run starts. Before it,
@@ -99,16 +100,28 @@ gh_down()  { gh_set -; touch "$T/down"; }
 gh_names() { gh_set "$1"; }
 
 # held_then_stops <script> <GITHUB_JOB> - an iac red while e2e shard 1/3
-# runs; the shard ends after 3 s. Prints a violation, or nothing.
+# runs; the shard ends once the script prints its hold (30 s cap). Ordered
+# by events, not by the clock: "the shard ended after 3 s" read a slow first
+# poll of the old rule on a loaded CI runner as a hold (runs 38190838689,
+# 38197054999, 38209222818). The command runs 20 s and exits 0, so rc 1
+# is a stop. Prints a violation, or nothing.
 held_then_stops() {
-  local s="$1" job="$2" rc t0 secs
+  local s="$1" job="$2" rc t0 secs ended bg
   gh_set red-iac; cat "$T/run-suites" "$T/red-e2e" >"$T/running"
-  ( sleep 3; cp "$T/run-suites" "$T/running" ) &
+  rm -f "$T/held.out" "$T/e2e.ended" "$T/held.done"
+  ( for _ in $(seq 300); do
+      [[ -e "$T/held.done" ]] && exit 0
+      grep -q 'gate fail-fast: held' "$T/held.out" 2>/dev/null && break
+      sleep 0.1
+    done
+    touch "$T/e2e.ended"; cp "$T/run-suites" "$T/running" ) &
+  bg=$!
   t0=$SECONDS
-  GATE_FAIL_FAST=1 GITHUB_JOB="$job" timeout 60 bash "$s" bash -c 'sleep 12; exit 0' >"$T/held.out" 2>&1; rc=$?
-  secs=$((SECONDS - t0)); wait
-  (( secs >= 3 )) || { echo "$job: an iac red stopped it after ${secs}s while an e2e shard still ran"; return; }
-  (( rc == 1 && secs < 10 )) || { echo "$job: not stopped within one poll of the e2e shard's end (rc=$rc after ${secs}s)"; return; }
+  GATE_FAIL_FAST=1 GITHUB_JOB="$job" timeout 90 bash "$s" bash -c 'sleep 20; exit 0' >"$T/held.out" 2>&1; rc=$?
+  secs=$((SECONDS - t0)); ended=0; [[ -e "$T/e2e.ended" ]] && ended=1
+  touch "$T/held.done"; wait "$bg"
+  (( rc != 1 || ended )) || { echo "$job: an iac red stopped it after ${secs}s while an e2e shard still ran"; return; }
+  (( rc == 1 )) || { echo "$job: not stopped within one poll of the e2e shard's end (rc=$rc after ${secs}s)"; return; }
   grep -q 'gate fail-fast: held' "$T/held.out" || { echo "$job: the hold is not printed: $(cat "$T/held.out")"; return; }
   grep -q '::error::gate fail-fast: stopped, so the next gate run starts; red in this run: iac' "$T/held.out" \
     || { echo "$job: the stop line changed (report-ci-gate parses it): $(cat "$T/held.out")"; return; }

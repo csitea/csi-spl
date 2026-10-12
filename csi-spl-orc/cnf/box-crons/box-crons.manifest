@@ -24,3 +24,4 @@ agent-login-check | * * * * *       | src/bash/scripts/agent-login-check-cron.sh
 lane-rotate       | * * * * *       | src/bash/scripts/lane-rotate-cron.sh                    | lane-rotate/cron.log  |
 uplink-probe      | * * * * *       | src/bash/scripts/uplink-probe-cron.sh                   | uplink-probe/cron.log |
 qas-ci-accept     | 23 * * * *      | src/bash/scripts/qas-ci-accept-cron.sh                  | qas-ci-accept/cron.log |
+owner-digest      | 7 * * * *       | src/bash/scripts/owner-digest-cron.sh                   | owner-digest/cron.log |

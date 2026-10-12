@@ -753,3 +753,55 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/22_deploy-verify.yml
+
+  # t1 afa8a4fb (R7 of the issue triage 1457bb6f): invite -> mail -> sign-in
+  # -> first message, on dev, after every hub deploy (do_spl_invite_e2e). A
+  # fresh plus-address of the relay mailbox is invited through the operator
+  # route, the mail is read over IMAP with the relay's own password (Secret
+  # Manager, read as the project SA), and the address signs up and lands in
+  # the tenant. NON-BLOCKING while it proves itself (continue-on-error): a red
+  # here never fails the deploy. Step 6 (an agent answers) needs the tenant
+  # root key, which CI does not hold: it is SKIPPED here, and runs where the
+  # key is (`ENV=dev TENANT_ID=t1 ./run -a do_spl_invite_e2e` on the box).
+  invite-e2e:
+    name: Invite e2e on dev (non-blocking)
+    needs: [test, prepare-deploy, deploy]
+    if: always() && needs.test.result == 'success' && needs.prepare-deploy.result == 'success' && needs.deploy.result == 'success' && contains(needs.prepare-deploy.outputs.envs, '"dev"') && (vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write   # google-github-actions/auth via WIF
+    env:
+      ENV: dev
+      HAS_KEY: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
+      WIF_SA: ${{ vars.GCP_DEPLOY_SA_EMAIL_DEV }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Authenticate to Google Cloud (project key)
+        if: env.HAS_KEY == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets.GCP_KEY_CSI_SPL_DEV }}
+
+      - name: Authenticate to Google Cloud (WIF alternative)
+        if: env.HAS_KEY != 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ env.WIF_SA }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Invite -> mail -> sign-in -> bound (do_spl_invite_e2e)
+        run: |
+          set -euo pipefail
+          p="$(APP_PATH="$GITHUB_WORKSPACE" SPL_STATE_DIR="$(mktemp -d)" bash -c '
+            do_log() { echo "$*" >&2; }
+            source "$APP_PATH/csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh"
+            do_spl_cloud_cnf >/dev/null && echo "$SPL_PROJECT"')"
+          if [[ "$HAS_KEY" == true ]]; then sa="$p@$p.iam.gserviceaccount.com"; else sa="$WIF_SA"; fi
+          GCP_ACCOUNT="$sa" TENANT_ID=t1 SPL_STATE_DIR="$RUNNER_TEMP/spl" ./csi-spl-orc/run -a do_spl_invite_e2e

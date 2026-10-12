@@ -15,6 +15,8 @@
 #   4. spl_sweep_rows_cached: no cache -> full; next run -> delta; after
 #      SWEEP_FULL_EVERY -> full again with drift=0; a cache of another
 #      ENV -> full
+#   5. the read's DB time is floored, never past the read (a rounded
+#      time skips a change made just after a read in the upper half second)
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -132,6 +134,11 @@ psql_owner -c "DELETE FROM messages WHERE tenant_id = 'w3' AND task_id = '$gone_
 # a cached row that has left the window since (no DB change: the clock alone)
 printf 't1\t\tdev\t%s\t%s\t%s\tHUM-2\tc-005\thuman\topen\tlive\t-\told\t\t\n' "$(tk t1 998)" "$(tk t1 997)" "$((now0 - 8 * 86400))" >>"$T/f0"
 
+# the DB time is now()::bigint, which ROUNDS: a change in the same second as
+# now1 is still > to_timestamp(now1) and would come back in case 2's delta
+# (case 2 has no overlap). 1.1 s keeps every change strictly before now1.
+sleep 1.1
+
 # 1. full + delta in ONE transaction (one snapshot, one now()), then merge
 # shellcheck disable=SC2046 # two words: the arrays
 sweep _spl_sweep_rows_read "$T/f1" "$T/now1" "$now0" "$T/d1" $(sweep spl_sweep_keep "$T/f0") 2>"$T/e1" || fail "1. read: $(cat "$T/e1")"
@@ -175,6 +182,28 @@ SW_FULL=1 sweep spl_sweep_rows_cached "$T/r3" 2>"$T/e4" && [[ "$(info)" == *"row
   pass "4. after SWEEP_FULL_EVERY: a full reconcile, drift=0 ($(info))" || fail "4. reconcile: $(info) $(cat "$T/e4")"
 SW_ENV=dev sweep spl_sweep_rows_cached "$T/r4" 2>"$T/e4" && [[ "$(info)" == *"rows=full"* && "$(info)" != *drift* ]] &&
   pass "4. a cache of another ENV is not merged into: full read ($(info))" || fail "4. env change: $(info) $(cat "$T/e4")"
+
+# 5. the read's DB time is floored, never after the read: a rounded now
+# (::bigint) stores the NEXT second for a read in the upper half of one, and
+# a change committed just after that read is then older than the next
+# delta's since and missed. Bracketed by the DB clock: t0 before the read,
+# t1 after it, both in one second with t0 at >= .5 s; retried until it holds.
+n5=""
+for try in 1 2 3 4 5 6 7 8; do
+  until [[ "$(psql_owner -c "SELECT extract(microseconds FROM clock_timestamp())::int % 1000000 BETWEEN 500000 AND 520000")" == t ]]; do sleep 0.005; done
+  t0="$(psql_owner -c "SELECT extract(epoch FROM clock_timestamp())")"
+  sweep _spl_sweep_rows_read "" "$T/now5" 2>"$T/e5" || { fail "5. read: $(cat "$T/e5")"; break; }
+  t1="$(psql_owner -c "SELECT extract(epoch FROM clock_timestamp())")"
+  [[ "${t0%.*}" == "${t1%.*}" ]] || continue
+  n5="$(cat "$T/now5")"; break
+done
+if [[ -z "$n5" ]]; then
+  fail "5. the timing never held in 8 tries (a read inside the upper half of one second)"
+elif [[ "$n5" == "${t0%.*}" ]]; then
+  pass "5. a read at $t0..$t1 stores $n5: floored, not past the read (try $try)"
+else
+  fail "5. a read at $t0..$t1 stores $n5, past the read: a change right after it would be missed"
+fi
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

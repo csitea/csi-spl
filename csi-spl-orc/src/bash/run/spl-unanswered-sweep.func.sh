@@ -322,7 +322,7 @@ spl_sweep_merge() {
 
 # _spl_sweep_rows_read <out> [<now out> [<since> <delta out> [<tns> <tks>]]]:
 # read-only, inside spl_via_proxy, in ONE repeatable-read snapshot: the DB
-# time into <now out>, the delta since the epoch <since> (plus the topics
+# time (floored: never past the read) into <now out>, the delta since the epoch <since> (plus the topics
 # tns[i]/tks[i], spl_sweep_keep) into <delta out>, and the full set into
 # <out> (skipped when <out> is ""). Tabs and newlines in a body collapse to
 # one space so a row is one line; an agent's body is not read.
@@ -334,7 +334,7 @@ _spl_sweep_rows_read() {
     -v tns="$tns" -v tks="$tks" >/dev/null <<SQL
 BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
-$([[ -n "$nowf" ]] && printf '\\o %s\nSELECT extract(epoch FROM now())::bigint;\n' "$nowf")
+$([[ -n "$nowf" ]] && printf '\\o %s\nSELECT floor(extract(epoch FROM now()))::bigint;\n' "$nowf")
 $([[ -n "$delta_out" ]] && printf '\\o %s\n%s;\n' "$delta_out" "$(_spl_sweep_delta_sql)")
 $([[ -n "$out" ]] && printf '\\o %s\n%s;\n' "$out" "$(_spl_sweep_rows_sql)")
 \o

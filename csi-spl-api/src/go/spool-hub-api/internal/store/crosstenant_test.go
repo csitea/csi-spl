@@ -124,7 +124,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.UpdateFleetAsk(ctx, s.tenant, AskUpdate{Fleet: "main", AskID: queued, Op: AskQueue, By: "c-001", Placement: "claude:x-" + s.marker[:8]}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
-	// od_pool and an od job (rdb 0183, spec 134): one pool row and one open
+	// od_pool and an od job (rdb 0184, spec 134): one pool row and one open
 	// job per tenant.
 	if _, err := pg.PutOdPool(ctx, s.tenant, OdPool{Fleet: "main", ClaudeN: 2, GrokN: 2, MinBoxes: 2, Kinds: []string{"spawn"}}, "c-002", "box-a", now); err != nil {
 		t.Fatal(err)
@@ -198,8 +198,13 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.CreateIssueLabel(ctx, IssueLabel{TenantID: s.tenant, Name: "bug", CreatedBy: hum}, now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pg.CreateIssue(ctx, Issue{TenantID: s.tenant, Title: "issue " + s.tenant, Labels: []string{"bug"},
-		TaskID: uuid4(), CreatedBy: hum, Parent: testEpic(t, pg, s.tenant, now)}, now); err != nil {
+	iss, err := pg.CreateIssue(ctx, Issue{TenantID: s.tenant, Title: "issue " + s.tenant, Labels: []string{"bug"},
+		TaskID: uuid4(), CreatedBy: hum, Parent: testEpic(t, pg, s.tenant, now)}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// issue_opens (rdb 0184, SPL-1559): the member opened that issue.
+	if err := pg.MarkIssueOpened(ctx, s.tenant, hum, iss.Number, now); err != nil {
 		t.Fatal(err)
 	}
 	// member_clones (rdb 0088, specs/054): a technical clone human of the

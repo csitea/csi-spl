@@ -529,6 +529,7 @@ type memIssues struct {
 	rows     map[string]map[int]Issue
 	labels   map[string]map[string]IssueLabel
 	history  map[string]map[int][]IssueEvent // rdb 0181 issue_events, without comments
+	opened   map[[2]string]map[int]time.Time // rdb 0184 issue_opens: (tenant, member) -> number -> opened_at
 }
 
 func (m *memIssues) init() {

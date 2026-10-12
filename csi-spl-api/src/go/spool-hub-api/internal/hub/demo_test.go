@@ -170,6 +170,7 @@ var demoAllowed = map[string]bool{
 	"DELETE /v1/messages/{msg_id}/topic":     true, // own topic only
 	"PUT /v1/me/channel-order":               true,
 	"PUT /v1/me/reads":                       true,
+	"POST /v1/issues/{ref}/opened":           true, // per-user read state, like /v1/me/reads (SPL-1559)
 	"POST /v1/view/ids":                      true, // reads
 	"POST /v1/view/previews":                 true,
 	"POST /v1/perf/samples":                  true, // anonymous WUI perf ingest

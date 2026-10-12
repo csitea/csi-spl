@@ -13,6 +13,7 @@ agents use their own socket (§6). Errors are `{error, detail}`.
 | PATCH | `/v1/issues/{ref}` | notes.send | 200 `{issue}`; 404 `not_found` |
 | DELETE | `/v1/issues/{ref}` | notes.send + (creator, or `tenant.settings`) | 200 `{issue}` (the row as deleted); 404 `not_found`; 403 `forbidden`; 409 `issue_has_children` |
 | POST | `/v1/issue-labels` | notes.send | 201 `{label}`; 409 `label_exists` |
+| POST | `/v1/issues/{ref}/opened` | a member session | 200 `{key, unopened: false}`; 404 `not_found` (§2.1) |
 | OPTIONS | the three write paths | — | 204, `POST, PATCH, DELETE`, no new request header |
 
 `{ref}` is `SPL-12`, `spl-12` or `12`. A write on an unpaid tenant is the
@@ -57,6 +58,29 @@ from then on. The discussion topic and the number stay.
 
 A label: `{"id":"bug","name":"Bug","color":"#ff0000","created_by":"…","created_at":"…"}`.
 
+### 2.1 `unopened`: a new issue, not opened yet (SPL-1559, rdb 0184)
+
+Owner HUM-10 (t1 7edebc75, msg 7d76ce22): "A new issue should be marked as a
+new issue, which has not been opened yet, so it will be distinguishable from
+the rest of the issues."
+
+- A member's list (`GET /v1/view/issues`) and single read
+  (`GET /v1/view/issues/{ref}`) carry `"unopened": true|false` per issue for
+  that member. A live frame (§5) is sent to the whole tenant and carries no
+  `unopened`; a client keeps the row's mark and asks the single read when a
+  frame makes the row the member's to do.
+- `true` when the issue is still to do (not `done`, not `diss`), not a level-1
+  row, assigned to the member, not created by the member, and the member has
+  no `issue_opens` row for it.
+- `POST /v1/issues/{ref}/opened` records the open (the first one is kept, a
+  repeat is a no-op); it is per member, so it is read state, not an issue
+  write: no `notes.send`, no `issue` frame, a demo seat may call it.
+- rdb 0184 backfilled every live issue as opened by its assignee at the
+  deploy: only issues assigned after it are new.
+- The WUI marks an unopened row with the unread row's dot and bold title
+  (`.unread-dot`, as in the Flow list), clears it when the issue opens, and
+  the Issues tab counts exactly those rows.
+
 ## 3. Create and patch body
 
 Any subset of `title, description, status, priority, level, assignee, labels,
@@ -83,7 +107,8 @@ W16).
 ## 5. Live frames on `/v1/wui/ws`
 
 - `{"type":"issue","op":"create"|"update"|"delete","issue":{…}}` - on
-  `delete` the client drops the row with that `key` (SPL-1027).
+  `delete` the client drops the row with that `key` (SPL-1027). The issue
+  carries no `unopened` (§2.1).
 - `{"type":"issue_label","label":{…}}`
 
 Sent to every browser socket of the tenant, the writer's own tabs included.

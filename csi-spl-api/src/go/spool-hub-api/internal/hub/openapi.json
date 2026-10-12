@@ -442,6 +442,10 @@
           "title": {
             "type": "string"
           },
+          "unopened": {
+            "description": "SPL-1559: the viewer has not opened this issue yet (set on a member's list and single-issue reads; absent on a live frame)",
+            "type": "boolean"
+          },
           "updated_at": {
             "format": "date-time",
             "type": "string"
@@ -4220,6 +4224,45 @@
           }
         },
         "summary": "Create or act on issues archive",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
+    "/v1/issues/{ref}/opened": {
+      "post": {
+        "operationId": "postIssuesByRefOpened",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {key, unopened: false}; the issue no longer carries the unopened mark for this member"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Mark an issue opened by the signed-in member (SPL-1559)",
         "tags": [
           "issues"
         ]

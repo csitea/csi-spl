@@ -61,6 +61,10 @@ type issueJSON struct {
 	UpdatedAt   string   `json:"updated_at"`
 	CompletedAt string   `json:"completed_at"`
 	CanceledAt  string   `json:"canceled_at"`
+	// Unopened (SPL-1559, rdb 0184): the viewer has not opened this issue
+	// yet. Set on a member's list and single-issue reads; a tenant-wide
+	// issue frame leaves it out (it is per viewer).
+	Unopened *bool `json:"unopened,omitempty"`
 }
 
 type issueLabelJSON struct {
@@ -452,6 +456,7 @@ type issueFilter struct {
 	epic                    map[int]bool    // SPL-18: rows under these level-1 rows
 	parent                  map[int]bool    // rows whose direct parent is one of these
 	kind                    map[string]bool // epic | feature | issue | subtask
+	viewer                  string          // SPL-1559: the member whose unopened marks the list carries; "" = none
 }
 
 func csvSet(v string) map[string]bool {
@@ -619,9 +624,17 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 		}
 	}
 	page, next := pageIssues(kept, f, f.limit)
+	opened, ie := s.issuesOpenedBy(ctx, tenant, f.viewer)
+	if ie != nil {
+		return nil, ie
+	}
 	out := make([]issueJSON, len(page))
 	for k, i := range page {
 		out[k] = toIssueJSON(i, get)
+		if f.viewer != "" {
+			u := issueUnopened(i, f.viewer, opened)
+			out[k].Unopened = &u
+		}
 	}
 	lj := make([]issueLabelJSON, len(labels))
 	for k, l := range labels {
@@ -706,11 +719,13 @@ func (s *Server) routeIssues(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/issues/{ref}", s.handleDeleteIssue)
 	mux.HandleFunc("POST /v1/issues/{ref}/archive", s.handleArchiveIssue)
 	mux.HandleFunc("POST /v1/issues/{ref}/unarchive", s.handleUnarchiveIssue)
+	mux.HandleFunc("POST /v1/issues/{ref}/opened", s.handleIssueOpened)
 	mux.HandleFunc("POST /v1/issue-labels", s.handleCreateIssueLabel)
 	mux.HandleFunc("OPTIONS /v1/issues", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issues/{ref}", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issues/{ref}/archive", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issues/{ref}/unarchive", s.issuesPreflight)
+	mux.HandleFunc("OPTIONS /v1/issues/{ref}/opened", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issue-labels", s.issuesPreflight)
 }
 
@@ -721,6 +736,7 @@ func (s *Server) handleViewIssues(w http.ResponseWriter, r *http.Request, t stor
 		writeIssueErr(w, ie)
 		return
 	}
+	f.viewer = hum
 	out, ie := s.listIssues(r.Context(), t.ID, f)
 	if ie != nil {
 		writeIssueErr(w, ie)
@@ -745,7 +761,17 @@ func (s *Server) handleViewIssue(w http.ResponseWriter, r *http.Request, t store
 		writeIssueErr(w, ie)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))})
+	out := toIssueJSON(i, s.storeGetter(r.Context(), t.ID))
+	if hum, _ := s.memberID(r, t.ID); hum != "" {
+		opened, ie := s.issuesOpenedBy(r.Context(), t.ID, hum)
+		if ie != nil {
+			writeIssueErr(w, ie)
+			return
+		}
+		u := issueUnopened(i, hum, opened)
+		out.Unopened = &u
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"issue": out})
 }
 
 // issueWriter resolves a browser write: tenant, actor, notes.send, billing.

@@ -34,7 +34,9 @@ spool_poke_queue_add() {  # ID LINE
   dir="$(spool_poke_queue_dir "$id")"
   mkdir -p "$dir" 2>/dev/null || return 1
   # The name sorts oldest-first and stays unique per process and nanosecond.
-  f="$dir/$(date -u +%Y%m%dT%H%M%S)-$(date +%N)-$$.poke"
+  # ONE clock read: seconds and nanoseconds from two `date` calls straddle a
+  # second boundary and sort a later poke first (wf 10 run 38219467553).
+  f="$dir/$(date -u +%Y%m%dT%H%M%S-%N)-$$.poke"
   printf '%s\n' "$line" >"$f" || return 1
   printf '%s' "$f"
 }

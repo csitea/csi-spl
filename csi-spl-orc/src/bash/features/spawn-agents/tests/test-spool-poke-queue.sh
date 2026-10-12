@@ -37,6 +37,32 @@ eq "they sort oldest-first" "$e1
 $e2" "$(ls -1 "$q"/*.poke | sort)"
 rm -f "$q"/*.poke
 
+# Across a second boundary: a stub `date` hands out one instant per call,
+# 34.980, 34.985, 34.999, 35.010 s. The second poke is written as the clock
+# turns 35 s; with seconds and nanoseconds read apart it was named
+# 34-010602922 and sorted before 34-985 (wf 10 run 38219467553).
+_real_date="$(command -v date)"
+_dstub="$T_TMP/date-stub"; mkdir -p "$_dstub"; echo 0 >"$_dstub/n"
+cat >"$_dstub/date" <<STUB
+#!/bin/bash
+n=\$(( \$(cat "$_dstub/n") + 1 )); echo "\$n" >"$_dstub/n"
+t=(1760255734.980000000 1760255734.985010188 1760255734.999000000 1760255735.010602922)
+exec "$_real_date" -d "@\${t[\$n-1]:-1760255736}" "\$@"
+STUB
+chmod +x "$_dstub/date"
+b1="$(PATH="$_dstub:$PATH" spool_poke_queue_add CLE-91 "before the second")"
+b2="$(PATH="$_dstub:$PATH" spool_poke_queue_add CLE-91 "across the second")"
+eq "across a second boundary they still sort oldest-first" "$b1
+$b2" "$(ls -1 "$q"/*.poke | sort)"
+# CONTROL: the old two-read name, under the same clock, sorts them backwards -
+# the check above depends on the single read.
+echo 0 >"$_dstub/n"
+o1="$(PATH="$_dstub:$PATH"; echo "$(date -u +%Y%m%dT%H%M%S)-$(date +%N)")"
+o2="$(PATH="$_dstub:$PATH"; echo "$(date -u +%Y%m%dT%H%M%S)-$(date +%N)")"
+eq "CONTROL two clock reads name the later poke first" "$o2
+$o1" "$(printf '%s\n' "$o1" "$o2" | sort)"
+rm -f "$q"/*.poke
+
 # ---- SHOW, against a private tmux server ----------------------------------
 t_tmux
 P91="$(t_window CLE-91 'sleep 600')"

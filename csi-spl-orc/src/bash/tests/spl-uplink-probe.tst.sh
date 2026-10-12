@@ -10,9 +10,11 @@
 #   4. the hub host is the cnf's env.dns.api_fqdn, the host of the desk's
 #      SPL_HUB_URL (do_spl_desk_cnf)
 #   5. report: 3 down probe samples in a row = 1 window of 3; up/down/up
-#      fixture = 2 windows, longest 3; an all-up file = 0 windows (control)
-#   6. red control: a copy whose merge opens a window per down sample is
-#      caught by the same check
+#      fixture = 2 windows, longest 2; an all-up file = 0 windows (control);
+#      gateway 100% loss with DNS and TCP fine is NOT down (a cloud VM's
+#      gateway may drop ICMP), only counted as gw_loss_100
+#   6. red controls: a copy whose merge opens a window per down sample, and
+#      a copy that counts gateway loss alone as down, are each caught
 #   7. samples older than 7 days are dropped
 #   8. bad UPLINK_PROBE_CMD / UPLINK_PROBE_HOURS are refused
 #   9. the manifest row and the cron script: executable, exits 0 with the
@@ -95,16 +97,32 @@ F="$T/fix"; mkdir -p "$F"
   tab 2026-10-12T15:06:00Z 33 1 5 1 30 wlan0
 } >"$F/bx.tsv"
 out="$(SNIPPET='do_spl_uplink_probe' in_orc UPLINK_PROBE_DIR="$F" UPLINK_PROBE_BOX=bx "${REPORT[@]}" 2>&1)"
-[[ "$out" == *"7 samples, 2 outage windows, longest 3 samples (2026-10-12T15:01:00Z .. 2026-10-12T15:03:00Z)"* &&
-   "$out" == *"15:01:00Z .. 2026-10-12T15:03:00Z  3 samples  gw_down=1 dns_fail=1 tcp_fail=2"* &&
+[[ "$out" == *"7 samples, 2 outage windows, longest 2 samples (2026-10-12T15:02:00Z .. 2026-10-12T15:03:00Z); gw_loss_100=1 samples"* &&
+   "$out" == *"15:02:00Z .. 2026-10-12T15:03:00Z  2 samples  gw_down=0 dns_fail=1 tcp_fail=2"* &&
    "$out" == *"15:05:00Z .. 2026-10-12T15:05:00Z  1 samples  gw_down=0 dns_fail=1 tcp_fail=0"* ]] &&
-  pass "5b. up/down/up: 2 windows, longest 3, which check failed per window" || fail "5b. fixture: $out"
+  pass "5b. up/down/up: 2 windows, longest 2, which check failed per window; gw loss counted apart" || fail "5b. fixture: $out"
 out="$(SNIPPET='do_spl_uplink_probe' in_orc UPLINK_PROBE_DIR="$F" UPLINK_PROBE_BOX=bx UPLINK_PROBE_CMD=report UPLINK_PROBE_HOURS=1 UPLINK_PROBE_NOW=$((NOW + 7200)) 2>&1)"
 [[ "$out" == *"0 samples, 0 outage windows"* ]] && pass "5c. UPLINK_PROBE_HOURS=1: samples before the window are not counted" || fail "5c. cutoff: $out"
 { tab 2026-10-12T15:00:00Z 0 1 5 1 30 wlan0; tab 2026-10-12T15:01:00Z 33 1 5 1 30 wlan0; } >"$F/up.tsv"
 out="$(SNIPPET='do_spl_uplink_probe' in_orc UPLINK_PROBE_DIR="$F" UPLINK_PROBE_BOX=up "${REPORT[@]}" 2>&1)"
 [[ "$out" == *"2 samples, 0 outage windows"* && "$out" != *" .. "* ]] &&
   pass "5d. up control: an all-up file reports no window" || fail "5d. up control: $out"
+
+# 5e. gateway 100% loss with DNS and TCP fine (sat 2026-10-12T17:52:06Z)
+G="$T/gw"; mkdir -p "$G"
+{ tab 2026-10-12T15:00:00Z 100 1 9 1 10 ens4; tab 2026-10-12T15:01:00Z 100 1 9 1 10 ens4; } >"$G/bx.tsv"
+gw_ok() { [[ "$1" == *"2 samples, 0 outage windows; gw_loss_100=2 samples"* && "$1" != *" .. "* ]]; }
+out="$(SNIPPET='do_spl_uplink_probe' in_orc UPLINK_PROBE_DIR="$G" UPLINK_PROBE_BOX=bx "${REPORT[@]}" 2>&1)"
+gw_ok "$out" && pass "5e. gw 100% loss, dns ok, tcp ok: no outage window, gw_loss_100=2" || fail "5e. gw-only: $out"
+BADGW="$T/badgw.func.sh"
+sed 's/down = (\$3 == "0"/down = ($2 == 100 || $3 == "0"/' "$FUNC" >"$BADGW"
+if cmp -s "$FUNC" "$BADGW"; then
+  fail "6b. red control: the gw mutation did not apply"
+else
+  out="$(SNIPPET="source '$BADGW'; do_spl_uplink_probe" in_orc UPLINK_PROBE_DIR="$G" UPLINK_PROBE_BOX=bx "${REPORT[@]}" 2>&1)"
+  gw_ok "$out" && fail "6b. red control: gw loss counted as down passed the 5e check: $out" ||
+    pass "6b. red control: a report that counts gw loss alone as down fails the 5e check"
+fi
 
 # 6. red control: a broken merge (each down sample its own window)
 BAD="$T/bad.func.sh"

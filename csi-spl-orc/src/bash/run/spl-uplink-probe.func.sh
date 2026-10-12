@@ -15,10 +15,13 @@
 # @description cron (row uplink-probe of cnf/box-crons/box-crons.manifest).
 # @description
 # @description UPLINK_PROBE_CMD=report prints the outage windows of the last
-# @description UPLINK_PROBE_HOURS: runs of consecutive samples with the gateway
-# @description at 100% loss, the DNS lookup failed or the TCP connect failed,
-# @description each with its span and which check failed, then the count and
-# @description the longest window. This is what an orchestrator reads.
+# @description UPLINK_PROBE_HOURS: runs of consecutive samples whose DNS lookup
+# @description or TCP connect failed, each with its span and which check
+# @description failed, then the count and the longest window. Gateway loss
+# @description alone is NOT down (a cloud VM's virtual gateway may drop ICMP:
+# @description sat's first sample read 100% loss with DNS and TCP fine); it
+# @description is counted on its own, as gw_loss_100. This is what an
+# @description orchestrator reads.
 # @description
 # @description The hub API host is cnf env.dns.api_fqdn of ENV, the value
 # @description do_spl_desk_cnf makes the desk's SPL_HUB_URL from
@@ -161,7 +164,8 @@ spl_uplink_report() {
     $1 < cut || NF < 7 { next }
     {
       samples++
-      down = ($2 == 100 || $3 == "0" || $5 == "0")
+      gw100 += ($2 == 100)
+      down = ($3 == "0" || $5 == "0")
       if (!down) { close_window(); next }
       if (!open) { open = 1; ws = $1; wn = 0; wg = 0; wd = 0; wt = 0 }
       we = $1; wn++
@@ -171,7 +175,7 @@ spl_uplink_report() {
       close_window()
       printf "uplink-probe %s: last %d h, %d samples, %d outage windows", box, hours, samples, n
       if (n) printf ", longest %d samples (%s .. %s)", longest, lws, lwe
-      printf "\n"
+      printf "; gw_loss_100=%d samples (gateway ping only, not down alone)\n", gw100
       for (i = 1; i <= n; i++) print line[i]
     }' "$file"
 }

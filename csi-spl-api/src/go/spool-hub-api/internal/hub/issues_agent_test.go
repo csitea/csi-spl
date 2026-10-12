@@ -157,6 +157,51 @@ func TestAgentIssues(t *testing.T) {
 	if _, err := do(action.IssueArgs{Op: "delete", As: "CLE-07", Ref: "SPL-9"}); hubErr(err) != "not_found" {
 		t.Fatalf("delete missing: %v", err)
 	}
+	// HUM-10: archive and unarchive, the browser route's store call and answer
+	// {issue, descendants}. A live parent without cascade is refused; an agent
+	// archives and restores a member's issue (it holds no tenant role); Query
+	// cascade=yes / true takes the epic's subtree along.
+	arch := func(op, ref, query string) (map[string]any, error) {
+		return do(action.IssueArgs{Op: op, As: "CLE-07", Ref: ref, Query: query})
+	}
+	descs := func(v any) []any { d, _ := v.([]any); return d }
+	if _, err := arch("archive", "SPL-1", ""); hubErr(err) != "issue_has_children" {
+		t.Fatalf("non-cascade archive of a parent: %v", err)
+	}
+	if out, err := arch("archive", "SPL-3", ""); err != nil || out["issue"].(map[string]any)["key"] != "SPL-3" || len(descs(out["descendants"])) != 0 {
+		t.Fatalf("agent archive of a member's issue: %v %v", err, out)
+	}
+	if f := readType(t, watcher, "issue"); f["op"] != "archive" || f["issue"].(map[string]any)["key"] != "SPL-3" {
+		t.Fatalf("archive frame %v", f)
+	}
+	if _, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); hubErr(err) != "not_found" {
+		t.Fatalf("archived issue still readable: %v", err)
+	}
+	if _, err := arch("unarchive", "SPL-3", ""); err != nil {
+		t.Fatalf("agent unarchive: %v", err)
+	}
+	if f := readType(t, watcher, "issue"); f["op"] != "create" || f["issue"].(map[string]any)["key"] != "SPL-3" {
+		t.Fatalf("unarchive frame %v", f)
+	}
+	if out, err := arch("archive", "SPL-1", "cascade=yes"); err != nil || len(descs(out["descendants"])) != 1 || descs(out["descendants"])[0] != "SPL-3" {
+		t.Fatalf("cascade archive: %v %v", err, out)
+	}
+	if f := readType(t, watcher, "issue"); f["op"] != "archive" || len(descs(f["descendants"])) != 1 {
+		t.Fatalf("cascade archive frame %v", f)
+	}
+	if _, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); hubErr(err) != "not_found" {
+		t.Fatalf("cascade left the child readable: %v", err)
+	}
+	if out, err := arch("unarchive", "SPL-1", "cascade=true"); err != nil || len(descs(out["descendants"])) != 1 {
+		t.Fatalf("cascade unarchive: %v %v", err, out)
+	}
+	readType(t, watcher, "issue")
+	if _, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-3"}); err != nil {
+		t.Fatalf("CONTROL cascade unarchive restored the child: %v", err)
+	}
+	if _, err := arch("archive", "SPL-9", ""); hubErr(err) != "not_found" {
+		t.Fatalf("archive missing: %v", err)
+	}
 	if _, err := do(action.IssueArgs{Op: "drop", As: "CLE-07"}); err == nil {
 		t.Fatal("unknown op accepted")
 	}

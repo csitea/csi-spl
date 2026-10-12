@@ -72,8 +72,10 @@ func (s *Server) agentIssueOp(ctx context.Context, x *session, f wire.Frame) (an
 		return s.agentComment(ctx, x, f.As, f.IssueRef, f.Body)
 	case "delete":
 		return s.agentDeleteIssue(ctx, x.tenant, f.As, f.IssueRef)
+	case "archive", "unarchive":
+		return s.agentArchiveIssue(ctx, x.tenant, f.As, f.IssueRef, f.IssueOp == "archive", f.Query)
 	}
-	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, label, comment or delete"}
+	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, label, comment, delete, archive or unarchive"}
 }
 
 // issueWriteAllowed refuses a write while the tenant's billing is unpaid.
@@ -179,6 +181,49 @@ func (s *Server) agentDeleteIssue(ctx context.Context, tenant, as, ref string) (
 	body := toIssueJSON(out, s.storeGetter(ctx, tenant))
 	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "delete", "issue": body})
 	return map[string]any{"issue": body}, nil
+}
+
+// agentArchiveIssue is archive / unarchive (HUM-10, do_spl_issue_archive):
+// the soft archive of rdb 0084, the same store call, answer {issue,
+// descendants} and fanout as POST /v1/issues/{ref}/archive and /unarchive.
+// query carries cascade=1 (or true, yes); without it a live issue with
+// children is refused, as in the browser route. The browser's authority (the
+// creator or an admin; admin only to restore) has no agent form, since an
+// agent holds no tenant role and would never be let restore: an agent that
+// its box announced may archive and restore, like update. It is reversible.
+func (s *Server) agentArchiveIssue(ctx context.Context, tenant, as, ref string, archive bool, query string) (any, *issueErr) {
+	is, ie := s.issueStore()
+	if ie != nil {
+		return nil, ie
+	}
+	n, ok := store.ParseIssueRef(ref)
+	if !ok {
+		return nil, &issueErr{http.StatusNotFound, "not_found", "no such issue"}
+	}
+	q, err := url.ParseQuery(query)
+	if err != nil {
+		return nil, badIssue("query must be URL query form, e.g. cascade=1")
+	}
+	cascade := cascadeValue(q.Get("cascade"))
+	op, frameOp := "issue archive", "archive"
+	var out store.Issue
+	var kids []int
+	if archive {
+		out, kids, err = is.ArchiveIssue(ctx, tenant, n, as, s.o.Now(), cascade)
+	} else {
+		op, frameOp = "issue unarchive", "create" // as the browser route: the tabs re-add it
+		out, kids, err = is.UnarchiveIssue(ctx, tenant, n, as, s.o.Now(), cascade)
+	}
+	if ie := storeIssueErr(err); ie != nil {
+		if ie.status == http.StatusInternalServerError {
+			s.o.Log.Error().Err(err).Str("tenant", tenant).Int("number", n).Msg("agent " + op)
+		}
+		return nil, ie
+	}
+	body := toIssueJSON(out, s.storeGetter(ctx, tenant))
+	keys := descendantKeys(out.Prefix, kids)
+	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": frameOp, "issue": body, "descendants": keys})
+	return map[string]any{"issue": body, "descendants": keys}, nil
 }
 
 func decodeIssueFrame(raw json.RawMessage) (issueRequest, *issueErr) {

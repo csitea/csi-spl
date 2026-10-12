@@ -824,7 +824,13 @@ func (s *Server) mayDeleteIssue(ctx context.Context, tenant, hum string, i store
 // cascadeParam reads ?cascade=1 (or true): the caller asked to take the whole
 // epic or feature down with its descendants (SPL-1226). Anything else is false.
 func cascadeParam(r *http.Request) bool {
-	switch r.URL.Query().Get("cascade") {
+	return cascadeValue(r.URL.Query().Get("cascade"))
+}
+
+// cascadeValue is the one reading of a cascade value, for the browser query
+// and the agent issue op's Query alike.
+func cascadeValue(v string) bool {
+	switch v {
 	case "1", "true", "yes":
 		return true
 	}

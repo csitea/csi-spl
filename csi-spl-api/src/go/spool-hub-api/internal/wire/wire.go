@@ -265,10 +265,11 @@ type Frame struct {
 	Fallback string `json:"fallback,omitempty"`
 
 	// issue (specs/039 §6): IssueOp create | update | get | list | label |
-	// comment, As the acting agent (one this box announced), IssueRef the
-	// issue key, Issue the request body (issues-v1 §3) on a request and the
-	// answer object on the reply, Query the list filters (§4, URL query
-	// form), Body a comment's text.
+	// comment | delete | archive | unarchive, As the acting agent (one this
+	// box announced), IssueRef the issue key, Issue the request body
+	// (issues-v1 §3) on a request and the answer object on the reply, Query
+	// the list filters (§4, URL query form) or archive's cascade=1, Body a
+	// comment's text.
 	IssueOp  string          `json:"issue_op,omitempty"`
 	As       string          `json:"as,omitempty"`
 	IssueRef string          `json:"issue_ref,omitempty"`

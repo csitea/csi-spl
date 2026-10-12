@@ -115,6 +115,25 @@ async function menu(p, v, title, op, how = v === 'doc' ? 'right' : 'dots') {
   await item.click()
 }
 
+/** a section body opened for editing (owner HUM-10, t1 09a69b01): a body
+    with text reads as rendered markdown, a click (tap) on it opens its
+    textarea; an empty body is the textarea already */
+async function editBody(q, row, tap = false) {
+  const read = `${row} [data-test=ws-doc-para]`
+  const box = `${row} [data-test=ws-doc-text]`
+  const run = `${read} .wsdoc__run`
+  const at = (await q.$(run)) ? run : (await q.$(read)) ? read : box
+  if (tap) await q.tap(at).catch(() => null)
+  else await q.click(at).catch(() => null)
+  await q.waitForFunction((sel) => document.activeElement === document.querySelector(sel), { timeout: STEP }, box).catch(() => null)
+}
+
+/** a section body's text as the page shows it: the textarea while editing, else the read view */
+const bodyText = (q, row) => q.evaluate((row) => {
+  const box = document.querySelector(`${row} [data-test=ws-doc-text]`)
+  return box ? box.value : document.querySelector(`${row} [data-test=ws-doc-para]`)?.textContent?.trim()
+}, row)
+
 /** type a title into the cell the add just opened, and commit it */
 async function name(p, v, title) {
   if (v === 'doc') {
@@ -298,16 +317,16 @@ try {
   await p.keyboard.up('Control')
   await p.keyboard.type('Beta edited')
   await p.keyboard.press('Enter')
-  await p.click(`${titleOf('2')} [data-test=ws-doc-text]`)
+  await editBody(p, titleOf('2'))
   await p.keyboard.type('A paragraph under Beta.')
   await p.evaluate(() => document.activeElement?.blur())
   await view(p, 'grid')
   await view(p, 'doc')
   await outlineIs(p, 'doc', ['1 Alpha', '1.1 Delta', '2 Beta edited', '3 Beta child'])
-  const edited = await p.evaluate((sel) => ({
-    title: document.querySelector(`${sel} [data-test=ws-doc-title]`)?.value,
-    text: document.querySelector(`${sel} [data-test=ws-doc-text]`)?.value,
-  }), titleOf('2'))
+  const edited = {
+    title: await p.$eval(`${titleOf('2')} [data-test=ws-doc-title]`, (e) => e.value),
+    text: await bodyText(p, titleOf('2')),
+  }
   ok('title and text are edited in place and saved', edited.title === 'Beta edited' && edited.text === 'A paragraph under Beta.', edited)
 
   /* a contents link scrolls its heading in and puts its anchor in the URL */
@@ -417,8 +436,16 @@ try {
   /* create, update, delete, then a reload re-reads the document from the hub
      (the part Qto got wrong, t1 519a4ee9 msg 1ecb465b) */
   const titleSel = (n) => `[data-test=ws-doc-row][data-outline="${n}"]`
+  const shoot = async (q, name) => {
+    if (!process.env.SHOT_DIR) return
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(process.env.SHOT_DIR, { recursive: true })
+    await q.screenshot({ path: `${process.env.SHOT_DIR}/ws-doctree-${name}.png` })
+  }
   const typeInto = async (sel, text) => {
-    await p.click(sel)
+    const body = sel.endsWith(' [data-test=ws-doc-text]')
+    if (body) await editBody(p, sel.slice(0, -' [data-test=ws-doc-text]'.length))
+    else await p.click(sel)
     await p.keyboard.down('Control')
     await p.keyboard.press('KeyA')
     await p.keyboard.up('Control')
@@ -459,10 +486,56 @@ try {
   await p.select('[data-test=ws-docs-select]', docOf)
   const wantReloaded = ['1 Alpha (other writer)', ...wantCrud.slice(1)]
   got = await outlineIs(p, 'doc', wantReloaded)
-  const texts = await p.evaluate((a, b) => [document.querySelector(`${a} [data-test=ws-doc-text]`)?.value, document.querySelector(`${b} [data-test=ws-doc-text]`)?.value], titleSel('1'), titleSel('3'))
+  const texts = [await bodyText(p, titleSel('1')), await bodyText(p, titleSel('3'))]
   ok('CONTROL: before the reload the page still shows its own copy', beforeReload[0] === '1 Alpha', beforeReload)
   ok('after a reload every create, update and delete is still there (read from the hub)', JSON.stringify(got) === JSON.stringify(wantReloaded)
     && texts[0] === 'Level-1 paragraph, see https://example.com/qto' && texts[1] === 'Text edited in place.', { got, texts })
+
+  /* the Qto doc's markdown (owner HUM-10, t1 09a69b01 msg 5092cd2d): a body
+     READS as rendered markdown and EDITS as the raw text. Bold, a list and a
+     link are <strong>, <li> and <a>; a click opens the textarea on the raw
+     markdown; blur renders it again; focus opens it too. CONTROL: before this
+     change the body is always a textarea, nothing is rendered (FAIL). */
+  const mdRow = titleSel('4')
+  const MD = 'Some **bold words** here\n\n- first item\n- second item\n\nSee [the site](https://example.com/md)'
+  await editBody(p, mdRow)
+  await p.keyboard.type(MD)
+  await p.click('[data-test=ws-doc-doctitle]')
+  const mdRead = () => p.waitForFunction((row) => document.querySelector(`${row} [data-test=ws-doc-para] [data-testid=md-block][data-rendered=true]`), { timeout: STEP }, mdRow)
+    .catch(() => null).then(() => p.evaluate((row) => {
+      const para = document.querySelector(`${row} [data-test=ws-doc-para]`)
+      return {
+        para: Boolean(para),
+        textarea: Boolean(document.querySelector(`${row} [data-test=ws-doc-text]`)),
+        strong: para?.querySelector('strong')?.textContent ?? null,
+        lis: [...(para?.querySelectorAll('li') ?? [])].map((e) => e.textContent.trim()),
+        link: para?.querySelector('a')?.getAttribute('href') ?? null,
+        raw: (para?.textContent ?? '').includes('**'),
+      }
+    }, mdRow))
+  const md1 = await mdRead()
+  ok('a section body reads as rendered markdown: **bold**, a list and a link are <strong>, <li> and <a>',
+    md1.para && !md1.textarea && md1.strong === 'bold words' && JSON.stringify(md1.lis) === JSON.stringify(['first item', 'second item'])
+    && md1.link === 'https://example.com/md' && !md1.raw, md1)
+  await shoot(p, 'md-read')
+  await p.click(`${mdRow} [data-test=ws-doc-para] li`).catch(() => null)
+  await p.waitForFunction((row) => document.activeElement === document.querySelector(`${row} [data-test=ws-doc-text]`), { timeout: STEP }, mdRow).catch(() => null)
+  const mdEdit = await p.evaluate((row) => ({
+    focused: document.activeElement === document.querySelector(`${row} [data-test=ws-doc-text]`),
+    value: document.querySelector(`${row} [data-test=ws-doc-text]`)?.value ?? null,
+    para: Boolean(document.querySelector(`${row} [data-test=ws-doc-para]`)),
+  }), mdRow)
+  ok('a click on the rendered body edits the raw markdown in its textarea', mdEdit.focused && mdEdit.value === MD && !mdEdit.para, mdEdit)
+  await shoot(p, 'md-edit')
+  await p.evaluate(() => document.activeElement?.blur())
+  const md2 = await mdRead()
+  ok('blur renders the body again', md2.para && !md2.textarea && md2.strong === 'bold words' && md2.lis.length === 2, md2)
+  await p.focus(`${mdRow} [data-test=ws-doc-para]`).catch(() => null)
+  await p.waitForFunction((row) => document.activeElement === document.querySelector(`${row} [data-test=ws-doc-text]`), { timeout: STEP }, mdRow).catch(() => null)
+  const mdFocus = await p.evaluate((row) => document.activeElement === document.querySelector(`${row} [data-test=ws-doc-text]`), mdRow)
+  await p.keyboard.press('Escape')
+  const md3 = await mdRead()
+  ok('keyboard focus on the rendered body opens the textarea; Esc reads it again', mdFocus && md3.para && md3.strong === 'bold words', { mdFocus, md3 })
 
   /* rename in place (the hub's PATCH /{doc}); cleared, it is the default title.
      The CONTROL reads the title back from the hub, not from the page */
@@ -554,12 +627,6 @@ try {
   ok('the caption is edited in place and the image is removed, the code block kept',
     captioned.img_name === 'Deploy diagram' && !removed.img_http_path && !removed.img_name && removed.src === 'make deploy ENV=dev', { captioned, removed })
 
-  const shoot = async (q, name) => {
-    if (!process.env.SHOT_DIR) return
-    const { mkdirSync } = await import('node:fs')
-    mkdirSync(process.env.SHOT_DIR, { recursive: true })
-    await q.screenshot({ path: `${process.env.SHOT_DIR}/ws-doctree-${name}.png` })
-  }
 
   /* every deployed CSP is img-src 'self' data:, so a doc image's src is a data: URL, never blob: (blocked on prd) */
   ok('the section image is shown from a data: URL (the deployed CSP blocks blob:)', img.data, img)
@@ -599,7 +666,7 @@ try {
     await p.keyboard.press('End')
     await p.keyboard.up('Control')
   }
-  await p.click(textSel)
+  await editBody(p, titleSel('2'))
   await p.keyboard.type('Before the pictures')
   await pastePng()
   await tokensAre(1)
@@ -624,8 +691,11 @@ try {
       nums: [...document.querySelectorAll(`${sel} [data-test=ws-doc-fig-num]`)].map((e) => e.textContent.trim()),
       caps: [...(para?.querySelectorAll('[data-test=ws-doc-pic-caption]') ?? [])].map((e) => e.value),
       text: [...(para?.querySelectorAll('.wsdoc__run') ?? [])].map((e) => e.textContent).join('|'),
+      links: [...(para?.querySelectorAll('.wsdoc__run a') ?? [])].map((a) => a.href),
+      md: [...(para?.querySelectorAll('.wsdoc__run') ?? [])].map((e) => e.querySelector('[data-testid=md-block]')?.dataset.rendered ?? 'none'),
     }
   }, titleSel('2'))
+  await p.waitForFunction((sel) => [...document.querySelectorAll(`${sel} .wsdoc__run [data-testid=md-block]`)].some((e) => e.dataset.rendered === 'true'), { timeout: STEP }, titleSel('2')).catch(() => null)
   const read = await readPics()
   ok('paste puts two pictures at the cursor: uploaded, kept as ![caption](<images route>) tokens in the text, shown inline as Figure 1 and 2',
     JSON.stringify(tokens(pasted)) === JSON.stringify(['Deploy step one', 'Deploy step two'])
@@ -633,8 +703,10 @@ try {
     && read.para && !read.textarea && read.imgs.length === 2 && read.imgs.every((i) => i.w === 1 && i.lazy === 'lazy' && i.max === '100%' && i.data)
     && read.imgs[0].alt === 'Deploy step one' && JSON.stringify(read.nums) === JSON.stringify(['Figure 1:', 'Figure 2:'])
     && JSON.stringify(read.caps) === JSON.stringify(['Deploy step one', 'Deploy step two']), { pasted, read })
-  ok('a picture token whose path is not this doc\'s images route stays text', read.text.includes('![x](https://example.com/a.png)')
-    && read.text.includes('/v1/workspace/doctree/other-doc/images/') && read.imgs.length === 2, read.text)
+  /* each text run between the figures renders as markdown (t1 09a69b01): such a token is a link to the picture, never a figure */
+  ok('a picture token whose path is not this doc\'s images route is no figure: its text run renders it as markdown, a link',
+    read.text.includes('Before the pictures') && read.text.includes('Between them') && read.md.length > 0 && read.md.every((x) => x === 'true')
+    && read.links.includes('https://example.com/a.png') && !read.text.includes('![') && read.imgs.length === 2 && read.nums.length === 2, read)
   await shoot(p, 'pics-read')
 
   /* the caption edited in place under the picture rewrites its token */
@@ -824,6 +896,28 @@ try {
   await mCapsAre(id111, ['Phone rollback'])
   const mRecap = await mCaps(id111)
   ok('phone: a figure caption is edited by touch, its token rewritten', JSON.stringify(mRecap) === JSON.stringify(['Phone rollback']), mRecap)
+  /* phone, the Qto doc's markdown (t1 09a69b01): a tap on a body with a picture
+     opens its raw markdown; a list and bold typed there render after blur, the figure kept */
+  await editBody(m, titleSel('1.1'), true)
+  const mRaw = await m.$eval(mText('1.1'), (e) => e.value).catch(() => null)
+  await m.keyboard.down('Control')
+  await m.keyboard.press('End')
+  await m.keyboard.up('Control')
+  await m.keyboard.type('\n\n- phone **bold** item')
+  await m.evaluate(() => document.activeElement?.blur())
+  await m.waitForFunction((row) => document.querySelector(`${row} [data-test=ws-doc-para] li strong`), { timeout: STEP }, titleSel('1.1')).catch(() => null)
+  const mMd = await m.evaluate((row) => {
+    const para = document.querySelector(`${row} [data-test=ws-doc-para]`)
+    return {
+      li: para?.querySelector('li')?.textContent?.trim() ?? null,
+      strong: para?.querySelector('li strong')?.textContent ?? null,
+      pics: para?.querySelectorAll('[data-test=ws-doc-pic-img]').length ?? 0,
+      fits: document.documentElement.scrollWidth <= innerWidth + 1,
+    }
+  }, titleSel('1.1'))
+  await shoot(m, 'phone-md-read')
+  ok('phone: a tap opens the raw markdown; a list with bold renders after blur, the figure kept',
+    typeof mRaw === 'string' && mRaw.includes('![Phone pic one](') && mMd.li === 'phone bold item' && mMd.strong === 'bold' && mMd.pics === 1 && mMd.fits, { mRaw, mMd })
   await view(m, 'grid')
   await m.waitForSelector('[data-test=ws-grid-row]', { visible: true, timeout: STEP }).catch(() => null)
   const phoneGrid = await m.evaluate(() => {

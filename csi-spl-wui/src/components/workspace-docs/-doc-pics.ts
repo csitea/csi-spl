@@ -28,6 +28,27 @@ export function picRuns(body: string, doc: string): PicRun[] {
   return out
 }
 
+export type ParaRun = { kind: 'text', text: string } | { kind: 'pic', caption: string, path: string, k: number, n: number }
+
+/** a section body as the read view shows it (owner HUM-10, t1 09a69b01: the
+    text renders as markdown, a click edits the raw text): its text runs and
+    this doc's figures (k = the picture's index, n = its figure number counted
+    from first). null = a blank body, which stays its textarea (the placeholder,
+    a level-1 section's closed paragraph). */
+export function paraRuns(body: string, doc: string, first = 1): ParaRun[] | null {
+  if (!body.trim()) return null
+  const runs = picRuns(body, doc)
+  let k = 0
+  return runs.flatMap((r, i): ParaRun[] => {
+    if (r.kind === 'pic') return [{ ...r, k, n: first + k++ }]
+    /* a figure is its own block: the line breaks around it are not text */
+    let text = r.text
+    if (i > 0) text = text.replace(/^\n/, '')
+    if (i < runs.length - 1) text = text.replace(/\n$/, '')
+    return text ? [{ kind: 'text', text }] : []
+  })
+}
+
 /** the hub paths of a paragraph's pictures */
 export function picPaths(body: string, doc: string): string[] {
   return picRuns(body, doc).flatMap((r) => (r.kind === 'pic' ? [r.path] : []))

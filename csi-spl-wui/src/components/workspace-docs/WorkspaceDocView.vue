@@ -2,7 +2,8 @@
      519a4ee9: "needs to look exactly how the qto did - a doc with titles and
      paragraphs"). One continuous document: per item a heading with its
      logical number (1 / 1.1 / 1.1.1) and its title, edited in place, the text
-     as a paragraph below it, edited in place, then the optional source block
+     as a paragraph below it, read as rendered markdown and edited in place as
+     the raw markdown (t1 09a69b01), then the optional source block
      and image (attrs.src, attrs.img_http_path), both edited in place too: the
      menu's Add code block / Add image put them on the section, the image
      uploaded to the hub (POST /{doc}/images). The document's title is edited
@@ -108,7 +109,7 @@
               @blur="commit(it, 'title', ($event.target as HTMLTextAreaElement).value.replace(/\s+/g, ' ').trim())"
             />
           </h3>
-          <!-- a paragraph with pictures, read: its text runs and figures; a click on the text edits it -->
+          <!-- a paragraph with text, read: its text runs rendered as markdown and its figures; a click, Enter or focus edits the raw text -->
           <div
             v-if="paras.get(it.id) && !paraEditing.has(it.id)"
             class="wsdoc__para"
@@ -118,9 +119,10 @@
             :aria-label="t('ws_doctree.edit_body') + ' ' + it.outline"
             @click="editPara(it.id)"
             @keydown.enter.self.prevent="editPara(it.id)"
+            @focus.self="editPara(it.id)"
           >
             <template v-for="(r, i) in paras.get(it.id)" :key="i">
-              <span v-if="r.kind === 'text'" class="wsdoc__run">{{ r.text }}</span>
+              <MdRun v-if="r.kind === 'text'" :text="r.text" />
               <figure v-else class="wsdoc__pic" data-test="ws-doc-pic">
                 <img v-if="imgUrl[r.path]" loading="lazy" data-test="ws-doc-pic-img" :src="imgUrl[r.path]" :alt="r.caption">
                 <figcaption class="wsdoc__figcap" @click.stop>
@@ -147,7 +149,7 @@
             rows="1"
             :value="it.body"
             :placeholder="paraShown(it) ? t('ws_doctree.body_placeholder') : ''"
-            @focus="paraOpen.add(it.id); paraFocus = it.id"
+            @focus="paraOpen.add(it.id); paraEditing.add(it.id); paraFocus = it.id"
             :aria-label="t('ws_doctree.edit_body') + ' ' + it.outline"
             @input="grow($event.target as HTMLTextAreaElement)"
             @keyup.tab="($event.target as HTMLTextAreaElement).select()"
@@ -276,7 +278,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
+import MarkdownBlock from '~/components/MarkdownBlock.vue'
 import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import { useEditModeStore } from '~/stores/editMode'
@@ -285,7 +288,7 @@ import {
   DOC_IMAGE_MAX, DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget,
   type DocHead, type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
-import { figureNumbers, picPaths, picRuns, picToken, setPicCaption } from './-doc-pics'
+import { figureNumbers, paraRuns, picPaths, picToken, setPicCaption, type ParaRun } from './-doc-pics'
 
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[] }>()
 const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string], renamed: [title: string] }>()
@@ -344,25 +347,27 @@ const byParent = computed(() => {
 /** every picture's figure number, counted through the whole document (owner msg 3c874763) */
 const figs = computed(() => figureNumbers(items.value, props.session.doc))
 
-type ParaRun = { kind: 'text', text: string } | { kind: 'pic', caption: string, path: string, k: number, n: number }
-/** per item with pictures in its paragraph: its text runs and figures (k = the picture's index, n = its figure number) */
+/** per item with text: its read view, text runs (markdown) and figures; a blank body has none and stays its textarea */
 const paras = computed(() => {
   const m = new Map<string, ParaRun[]>()
   for (const it of items.value) {
-    const runs = picRuns(it.body, props.session.doc)
-    if (!runs.some((r) => r.kind === 'pic')) continue
-    const first = figs.value.get(it.id)?.first ?? 1
-    let k = 0
-    m.set(it.id, runs.flatMap((r, i): ParaRun[] => {
-      if (r.kind === 'pic') return [{ ...r, k, n: first + k++ }]
-      /* a figure is its own block: the line breaks around it are not text */
-      let text = r.text
-      if (i > 0) text = text.replace(/^\n/, '')
-      if (i < runs.length - 1) text = text.replace(/\n$/, '')
-      return text ? [{ kind: 'text', text }] : []
-    }))
+    const runs = paraRuns(it.body, props.session.doc, figs.value.get(it.id)?.first ?? 1)
+    if (runs) m.set(it.id, runs)
   }
   return m
+})
+
+/* one text run of a read paragraph: MarkdownBlock's h() tree (never v-html);
+   the plain text until the lazy markdown chunk has rendered it */
+const MdRun = defineComponent({
+  props: { text: { type: String, required: true } },
+  setup(p) {
+    const on = ref(false)
+    return () => h('div', { class: ['wsdoc__run', { 'wsdoc__run--plain': !on.value }], 'data-test': 'ws-doc-md' }, [
+      on.value ? null : p.text,
+      h(MarkdownBlock, { text: p.text, bare: true, onRendered: (v: boolean) => { on.value = v } }),
+    ])
+  },
 })
 
 const branchItem = computed(() => (branch.value ? byId.value.get(branch.value) : undefined))
@@ -505,12 +510,16 @@ async function onImageFile(e: Event) {
   if (path) await commitAttrs(it, { img_http_path: path, img_name: attr(it, 'img_name') || file.name.replace(/\.[^.]+$/, '') })
 }
 
-/** a paragraph left: its text saved; a read paragraph closes again unless the picker is about to insert into it */
+/** a paragraph left: its text saved, then it reads again (rendered, never the old text first) unless
+    the picker is about to insert into it or it was opened again meanwhile */
 function leavePara(it: DocItem, el: HTMLTextAreaElement) {
-  saving = commit(it, 'body', el.value)
+  const done = commit(it, 'body', el.value)
+  saving = done
   if (picFor.value?.it.id === it.id) return
   paraFocus.value = ''
-  paraEditing.delete(it.id)
+  void done.finally(() => {
+    if (paraFocus.value !== it.id) paraEditing.delete(it.id)
+  })
 }
 
 /** a read paragraph opened for editing, its cursor at the end */
@@ -957,7 +966,7 @@ onBeforeUnmount(() => {
 }
 .wsdoc__caption:hover, .wsdoc__caption:focus { border-color: var(--color-border-strong); }
 .wsdoc__fignum { flex: none; padding-inline-start: 6px; }
-/* a paragraph with pictures, read: its text and figures, one column wide; a click edits the text */
+/* a paragraph with text, read: its markdown and figures, one column wide; a click edits the text */
 .wsdoc__para {
   margin-top: 2px;
   padding: 6px 8px;
@@ -968,7 +977,9 @@ onBeforeUnmount(() => {
   cursor: text;
 }
 .wsdoc__para:hover { border-color: var(--color-border-strong); }
-.wsdoc__run { white-space: pre-wrap; overflow-wrap: anywhere; }
+.wsdoc__run { overflow-wrap: anywhere; }
+/* before the markdown chunk renders it, the run is its text as written */
+.wsdoc__run--plain { white-space: pre-wrap; }
 .wsdoc__pic { margin: 8px 0 12px; color: var(--color-muted); font-size: 0.8rem; font-weight: 700; line-height: 1.4; }
 .wsdoc__pic img { display: block; max-width: 100%; height: auto; margin-bottom: 4px; }
 .wsdoc__paratools { display: flex; gap: 4px; padding: 2px 8px 0; }

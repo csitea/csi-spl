@@ -460,7 +460,7 @@ func searchMessagesSQL(tenant string, q SearchQuery, sig bool, ids []string) (st
 				tq = append(tq, c.tsq(term))
 			}
 		}
-		rank := "0"
+		rank := "0::real" // an expression: a bare 0 is ORDER BY position 0, an error
 		if len(tq) > 0 {
 			rank = "ts_rank_cd(m.search_tsv, " + strings.Join(tq, " || ") + ")"
 		}

@@ -29,13 +29,14 @@ cp "$T/brief.md" "$S/c-123/lifetime/brief.md"
 STUBS='do_spl_desk_cnf() { SPL_WUI_URL=https://wui.invalid; return 0; }
 spl_desk_issue_run() {
   local a; for a in "$@"; do printf "%s|" "$a"; done >>"$STUB_LOG"; echo >>"$STUB_LOG"
-  if [[ "$1" == create && -n "${DESC_COPY:-}" ]]; then
-    local i; for ((i = 1; i <= $#; i++)); do [[ "${!i}" == --description-file ]] && { i=$((i + 1)); cp "${!i}" "$DESC_COPY"; }; done
+  if [[ "$1" =~ ^(create|update)$ && -n "${DESC_COPY:-}" ]]; then
+    local i; for ((i = 1; i <= $#; i++)); do [[ "${!i}" == --description-file ]] && { i=$((i + 1)); cp "${!i}" "$DESC_COPY.$1"; }; done
   fi
   if [[ "${ROSTER:-1}" == 0 && " $* " == *" --assignee c-123 "* ]]; then echo "FATAL spool issue $1 as c-002: hub refused: bad_assignee"; return 1; fi
   [[ "$1" == create ]] && echo "{\"op\": \"create\", \"result\": {\"key\": \"SPL-42\", \"epic\": \"SPL-1\"}}"
   return 0
 }
+do_spl_desk_reply() { printf "post|%s|%s|%s|\n" "$DESK_TASK" "$DRY_RUN" "$DESK_BODY" >>"$STUB_LOG"; }
 '
 run() {  # VAR=value... -> output in $T/o, rc in $rc
   : >"$T/calls.log"
@@ -54,16 +55,32 @@ line="$(head -1 "$T/calls.log")"
   pass "no key: files one and records SPL-42 in lifetime/issue" || fail "file (rc=$rc): $(cat "$T/o")"
 [[ "$line" == "create|--title|make the widget blue (one lane)|--description-file|"*"|--status|wip|--assignee|c-123|" ]] &&
   pass "... title = the brief's heading, status wip, the lane assigned" || fail "create args: $line"
-grep -q '"make it blue"' "$T/desc.md" && grep -qx -- '- Lane: c-123' "$T/desc.md" &&
-  grep -qx -- '- Topic: https://wui.invalid/t/5ea2e615-ca23-451f-9fea-e1b87c369476' "$T/desc.md" && ! grep -q 'Paint it' "$T/desc.md" &&
-  pass "... description = the owner's words up to the first ## + the lane + the topic link" || fail "description: $(cat "$T/desc.md")"
+grep -q '"make it blue"' "$T/desc.md.create" && grep -qx -- '- Lane: c-123' "$T/desc.md.create" &&
+  grep -qx -- '- Topic: https://wui.invalid/t/5ea2e615-ca23-451f-9fea-e1b87c369476' "$T/desc.md.create" && ! grep -q 'Paint it' "$T/desc.md.create" &&
+  pass "... description = the owner's words up to the first ## + the lane + the topic link" || fail "description: $(cat "$T/desc.md.create")"
 grep -qx 'Issue: SPL-42' "$S/c-123/lifetime/brief.md" && pass "... the recorded brief carries the key" || fail "brief: $(tail -2 "$S/c-123/lifetime/brief.md")"
+
+# Q4A (spec 135 section 7.1): the card starts the description, names its own
+# key once filed, and the key is posted back in the topic.
+[[ "$(sed -n 1,4p "$T/desc.md.create")" == $'## Source\n/t/5ea2e615-ca23-451f-9fea-e1b87c369476\n\n## Restart' ]] &&
+  grep -qx -- '- key: <new>' "$T/desc.md.create" && grep -qx -- '- last citing sha: none' "$T/desc.md.create" &&
+  pass "card: ## Source /t/<topic> then ## Restart at the top of the description" || fail "card: $(head -16 "$T/desc.md.create")"
+grep -q '^update|--ref|SPL-42|--description-file|' "$T/calls.log" && grep -qx -- '- key: SPL-42' "$T/desc.md.update" &&
+  grep -q '"make it blue"' "$T/desc.md.update" && pass "... once filed, the card names SPL-42" || fail "card key: $(cat "$T/calls.log")"
+grep -qx 'post|5ea2e615-ca23-451f-9fea-e1b87c369476|0|Tracked as \*\*SPL-42\*\*: make the widget blue (one lane) (lane c-123).|' "$T/calls.log" &&
+  pass "... the key is posted back in the topic" || fail "post back: $(cat "$T/calls.log")"
+run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_POST=0 DRY_RUN=0
+[[ $rc -eq 0 ]] && grep -q '^create|' "$T/calls.log" && ! grep -q '^post|' "$T/calls.log" &&
+  pass "control: LANE_ISSUE_POST=0 files the issue, posts nothing" || fail "post control (rc=$rc): $(cat "$T/calls.log")"
+run AGENT_ID=c-123 BRIEF="$T/brief.md"
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'would: post' "$T/o" &&
+  pass "dry run: plans the post, posts nothing" || fail "dry post (rc=$rc): $(cat "$T/o")"
 
 # A key: linked, never a second issue.
 run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
 [[ $rc -eq 0 ]] && ! grep -q '^create' "$T/calls.log" && grep -qx 'update|--ref|SPL-7|--status|wip|--assignee|c-123|' "$T/calls.log" &&
   grep -q '^comment|--ref|SPL-7|--body|Lane c-123 placed on SPL-7' "$T/calls.log" && [[ "$(cat "$S/c-123/lifetime/issue")" == SPL-7 ]] &&
-  pass "a key: wip, the lane assigned, a comment; no create" || fail "link (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+  ! grep -q '^post|' "$T/calls.log" && pass "a key: wip, the lane assigned, a comment; no create, no post (no migration)" || fail "link (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
 
 # The roster does not announce the lane: the placing desk, qualified by its box.
 run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 ROSTER=0 DRY_RUN=0
@@ -103,8 +120,9 @@ run AGENT_ID=c-125 BRIEF="$T/brief.md" DRY_RUN=0
 # discussion: the first answer files the discussion's issue (owner Q1A).
 run AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=5ea2e615-ca23-451f-9fea-e1b87c369476 LANE_ISSUE_TITLE='Evaluate the runner' LANE_ISSUE_TEXT='"is the VM dead?"' LANE_ISSUE_ANSWER=1 DESC_COPY="$T/d2.md" DRY_RUN=0
 [[ $rc -eq 0 ]] && grep -q '^create|--title|Evaluate the runner|.*|--status|eval|--labels|answer|--assignee|c-002|' "$T/calls.log" &&
-  grep -qx 'SPL-42' "$T/o" && grep -qx -- '- Topic: https://wui.invalid/t/5ea2e615-ca23-451f-9fea-e1b87c369476' "$T/d2.md" && grep -q 'is the VM dead' "$T/d2.md" &&
-  pass "discussion: eval, answer label, the taker assigned, the topic linked, the key printed" || fail "discussion (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+  grep -qx 'SPL-42' "$T/o" && grep -qx -- '- Topic: https://wui.invalid/t/5ea2e615-ca23-451f-9fea-e1b87c369476' "$T/d2.md.create" && grep -q 'is the VM dead' "$T/d2.md.create" &&
+  grep -qx '## Source' "$T/d2.md.create" && grep -q '^post|5ea2e615-ca23-451f-9fea-e1b87c369476|0|Tracked as \*\*SPL-42\*\*' "$T/calls.log" &&
+  pass "discussion: eval, answer label, the taker assigned, the card, the key printed and posted back" || fail "discussion (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
 run AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=5ea2e615-ca23-451f-9fea-e1b87c369476 DRY_RUN=0
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'acks, chatter and announcements file no issue' "$T/o" &&
   pass "discussion with no title (an ack): refused, nothing filed" || fail "no title (rc=$rc): $(cat "$T/o")"

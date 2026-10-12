@@ -8,7 +8,9 @@
 # @description     brief's `Issue: <KEY>` (or LANE_ISSUE_KEY) to the lane: status
 # @description     wip, assignee the lane, a comment; no key: create the issue,
 # @description     title = the brief's heading, description = its text up to
-# @description     the first `## ` + the topic link. Writes the key to
+# @description     the first `## ` + the topic link, under the spec 135 section
+# @description     7.1 card (`## Source` + `## Restart`, owner Q4A); the key is
+# @description     then posted back in the topic. Writes the key to
 # @description     <spool root>/<id>/lifetime/issue and an `Issue:` line into
 # @description     lifetime/brief.md.
 # @description     A brief line `Kind: answer` (or LANE_ISSUE_ANSWER=1) labels
@@ -17,8 +19,9 @@
 # @description     first answer; owner Q1A, spec 135 section 9): files the
 # @description     discussion's issue, status eval, assignee AGENT_ID, title
 # @description     LANE_ISSUE_TITLE, description LANE_ISSUE_TEXT + the topic
-# @description     link; `answer` label with LANE_ISSUE_ANSWER=1. Acks, chatter
-# @description     and announcements file none. Prints the key to post back.
+# @description     link, under the same card; `answer` label with
+# @description     LANE_ISSUE_ANSWER=1. Acks, chatter and announcements file
+# @description     none. Prints the key and posts it back in the topic.
 # @description   LANE_ISSUE_OP=end (the lane, when it ends without landing):
 # @description     status LANE_ISSUE_STATUS (diss, onhold or blocked), a comment
 # @description     with LANE_ISSUE_REASON, and lifetime/issue-end.
@@ -29,6 +32,7 @@
 # @param BRIEF (optional, place) - the brief file; default <spool root>/<id>/lifetime/brief.md
 # @param LANE_ISSUE_KEY (optional, place) - an existing key to link, e.g. SPL-123; default the brief's Issue: line
 # @param LANE_ISSUE_TOPIC (optional, place) - the discussion's topic id; default the first uuid after "topic" in the brief
+# @param LANE_ISSUE_POST (optional, place/discussion) - 0: do not post a filed key back in its topic (default 1)
 # @param LANE_ISSUE_ANSWER (optional, place/discussion) - 1: label the filed issue `answer` (an evaluation, an answer to the owner)
 # @param LANE_ISSUE_TITLE (required, discussion) - what the work is
 # @param LANE_ISSUE_TEXT (optional, discussion) - the owner's words that ask for it
@@ -115,12 +119,14 @@ spl_lane_issue_place() {
     title="$(grep -m1 -E '^#+ ' "$brief" | sed -E 's/^#+ +//; s/^Brief: *//' | cut -c1-200)"
     [[ -n "$title" ]] || { do_log "FATAL the brief $brief has no heading to title the issue with"; return 1; }
     desc="$(mktemp)"
-    { awk 'NR > 1 && /^## / { exit } NR > 1 { n += length($0) + 1; if (n > 1500) exit; print }' "$brief"
+    { spl_lane_issue_card '<new>' "$topic" "$brief" 'the lane starts from its brief'
+      awk 'NR > 1 && /^## / { exit } NR > 1 { n += length($0) + 1; if (n > 1500) exit; print }' "$brief"
       printf '\n- Lane: %s\n' "$id"
       [[ -n "$topic" ]] && printf -- '- Topic: %s\n' "$(spl_lane_issue_link "$topic")"
     } >"$desc"
     grep -qiE '^Kind:[[:space:]]*answer[[:space:]]*$' "$brief" && LANE_ISSUE_ANSWER=1
     key="$(spl_lane_issue_file wip "$title" "$desc")" || rc=$?
+    (( rc == 0 )) && spl_lane_issue_keyed "$key" "$desc" && spl_lane_issue_post "$key" "$topic" "$title"
     rm -f "$desc"
     (( rc == 0 )) || return 1
   fi
@@ -170,15 +176,17 @@ spl_lane_issue_discussion() {
   title="$(printf '%s' "${LANE_ISSUE_TITLE:-}" | tr '\t\n\r' '   ' | sed 's/^ *//; s/ *$//' | cut -c1-200)"
   [[ -n "$title" ]] || { do_log "FATAL LANE_ISSUE_TITLE must name the work (an evaluation or an answer counts: LANE_ISSUE_ANSWER=1); acks, chatter and announcements file no issue"; return 1; }
   desc="$(mktemp)"
-  { [[ -n "${LANE_ISSUE_TEXT:-}" ]] && printf '%s\n\n' "$LANE_ISSUE_TEXT"
+  { spl_lane_issue_card '<new>' "$topic" '' 'the first answer in the topic'
+    [[ -n "${LANE_ISSUE_TEXT:-}" ]] && printf '%s\n\n' "$LANE_ISSUE_TEXT"
     printf -- '- Taken by: %s\n- Topic: %s\n' "$id" "$(spl_lane_issue_link "$topic")"
   } >"$desc"
   key="$(spl_lane_issue_file eval "$title" "$desc")" || rc=$?
+  (( rc == 0 )) && spl_lane_issue_keyed "$key" "$desc" && spl_lane_issue_post "$key" "$topic" "$title"
   rm -f "$desc"
   (( rc == 0 )) || return 1
   if (( SLI_DRY )); then do_log "OK DRY_RUN topic $topic -> a new issue (eval); nothing filed. Re-run with DRY_RUN=0."; return 0; fi
   printf '%s\n' "$key"
-  do_log "OK topic $topic -> issue $key (eval, $id); post the key back in the topic" >&2
+  do_log "OK topic $topic -> issue $key (eval, $id)" >&2
 }
 
 spl_lane_issue_end() {
@@ -200,4 +208,42 @@ spl_lane_issue_end() {
 spl_lane_issue_link() {
   [[ -n "${SPL_WUI_URL:-}" ]] || do_spl_desk_cnf >/dev/null 2>&1
   printf '%s/t/%s' "${SPL_WUI_URL:-}" "$1"
+}
+
+# spl_lane_issue_card KEY TOPIC BRIEF NEXT: the card that starts a filed
+# issue's description (spec 135 section 7.1, owner Q4A: no column, no
+# migration). The lane keeps it current with do_spl_issue_update
+# ISSUE_DESCRIPTION_FILE=...; the owner's words follow it.
+spl_lane_issue_card() {
+  local spec="" avoid="" scope="the topic"
+  if [[ -r "$3" ]]; then
+    scope="the brief of lane $id"
+    spec="$(grep -m1 -oE 'csi-spl-doc/specs/[0-9]{3}-[a-z0-9-]+(/spec\.md)?' "$3")"
+    avoid="$(grep -m1 -iE 'not touch' "$3" | sed -E 's/^[-* ]+//' | cut -c1-200)"
+  fi
+  printf '## Source\n%s\n\n## Restart\n' "$([[ -n "$2" ]] && echo "/t/$2" || echo none)"
+  printf -- '- key: %s\n- spec: %s\n- scope: %s\n- must not touch: %s\n' "$1" "${spec:-none}" "$scope" "${avoid:-see the brief}"
+  printf -- '- test: see the brief\n- last citing sha: none\n- next: %s\n- open question: none\n- docs: none yet\n\n' "$4"
+}
+
+# spl_lane_issue_keyed KEY DESC_FILE: the filed issue's card names its own
+# key, unknown until the create. A failure warns: the issue stands.
+spl_lane_issue_keyed() {
+  (( SLI_DRY )) && return 0
+  sed -i "0,/^- key: <new>\$/s//- key: $1/" "$2" &&
+    RUN_STDOUT_IS_DATA=1 spl_lane_issue_hub update --ref "$1" --description-file "$2" >/dev/null 2>&1 ||
+    do_log "WARN $1 is filed, but its card still says key <new>: spool issue update --ref $1 --description-file <the card>" >&2
+  return 0
+}
+
+# spl_lane_issue_post KEY TOPIC TITLE: the key, posted back in the topic it
+# came from (owner Q4A) by the desk that filed it; LANE_ISSUE_POST=0 skips.
+# A failed post warns: the issue stands and the key is printed.
+spl_lane_issue_post() {
+  [[ -n "$2" && "${LANE_ISSUE_POST:-1}" != 0 ]] || return 0
+  local body="Tracked as **$1**: $3 (lane $id)."
+  if (( SLI_DRY )); then do_log "INFO DRY_RUN would: post '$body' in topic $2 (as $DESK_AGENT)" >&2; return 0; fi
+  DESK_TASK="$2" DESK_BODY="$body" DESK_BOX="$SLI_BOX" DRY_RUN=0 RUN_STDOUT_IS_DATA=1 do_spl_desk_reply >/dev/null 2>&1 ||
+    do_log "WARN $1 is filed, but posting it back in topic $2 failed: post it by hand" >&2
+  return 0
 }

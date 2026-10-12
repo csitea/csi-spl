@@ -17,19 +17,48 @@ Then spec 135 section 9 (`csi-spl-doc/specs/135-work-process/spec.md`): Q1 A
 (msg 2ec08981, every discussion an agent takes gets an issue from the first
 answer), Q2 (msg f2c24a7b, an issue holds condensed state and links the
 discussion; it does not become one), Q3 A (msg e2a3f127, `done` when the
-closing commit lands).
+closing commit lands), Q4 A (msg 910b14c9, the source link and the restart
+card at the top of the description, the key posted back in the topic, no
+migration).
 
 ## 0. A discussion's issue, at the first answer
 
 Whoever takes a discussion files its issue with the first answer (no lane
-needed): status `eval`, the taker assigned, the topic linked, the key printed
-to post back in the topic. An evaluation or an answer to the owner is an
+needed): status `eval`, the taker assigned, the topic linked, the card (0.1)
+on top, the key printed and posted back in the topic. An evaluation or an answer to the owner is an
 `answer` issue (`LANE_ISSUE_ANSWER=1`, label `answer`). Acks, chatter and
 announcements file none (no `LANE_ISSUE_TITLE`: refused).
 
 ```bash
 cd csi-spl-orc && AGENT_ID=<taker> LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=<topic uuid> LANE_ISSUE_TITLE='<the work>' LANE_ISSUE_ANSWER=1 DRY_RUN=0 ./run -a do_spl_lane_issue
 ```
+
+### 0.1 The card and the key in the topic
+
+Every issue this code files (0, and 1.1 with no key) starts its description
+with the spec 135 section 7.1 card, the owner's words below it:
+
+    ## Source
+    /t/<topic uuid>
+
+    ## Restart
+    - key: SPL-n
+    - spec: <the first csi-spl-doc/specs/NNN-slug the brief names, or none>
+    - scope: the brief of lane <id>
+    - must not touch: <the brief's first "not touch" line, or see the brief>
+    - test: see the brief
+    - last citing sha: none
+    - next: <one line>
+    - open question: none
+    - docs: none yet
+
+The key is unknown until the create, so a second `update` writes it into the
+card. Then the filing desk posts `Tracked as **SPL-n**: <title> (lane <id>).`
+in the topic (`do_spl_desk_reply DESK_TASK=<topic>`); `LANE_ISSUE_POST=0`
+skips the post. A failed card update or post warns and the issue stands. An
+issue that is linked, not filed, is not rewritten (no migration). The lane
+keeps its card current with
+`do_spl_issue_update ISSUE_DESCRIPTION_FILE=<file>`.
 
 A lane placed later from that discussion carries the key in its brief
 (`Issue: <KEY>`), so it links that issue instead of filing a second one.
@@ -38,7 +67,7 @@ A lane placed later from that discussion carries the key in its brief
 
 | step | what happens | code |
 |---|---|---|
-| 1.1 placement | `spawn-window.sh` (the front door of every spawn, the remote serve's included), after the id claim and before the window: a git lane with a brief gets its issue from `do_spl_lane_issue`. The key in `SPAWN_ISSUE` or the brief's `Issue: <KEY>` line is linked (status `wip`, assignee the lane, a comment with the topic link); no key: one is filed, title = the brief's heading, description = the brief's text up to its first `## ` (the owner's words, at most 1500 bytes) + the lane id + the topic link; a brief line `Kind: answer` labels it `answer`. The key lands in `<spool root>/<id>/lifetime/issue`. | `spawn-agents/scripts/spawn-window.sh` `sw_issue`; `csi-spl-orc/src/bash/run/spl-lane-issue.func.sh` |
+| 1.1 placement | `spawn-window.sh` (the front door of every spawn, the remote serve's included), after the id claim and before the window: a git lane with a brief gets its issue from `do_spl_lane_issue`. The key in `SPAWN_ISSUE` or the brief's `Issue: <KEY>` line is linked (status `wip`, assignee the lane, a comment with the topic link); no key: one is filed, title = the brief's heading, description = the brief's text up to its first `## ` (the owner's words, at most 1500 bytes) + the lane id + the topic link, under the card (0.1), and the key is posted back in the topic; a brief line `Kind: answer` labels it `answer`. The key lands in `<spool root>/<id>/lifetime/issue`. | `spawn-agents/scripts/spawn-window.sh` `sw_issue`; `csi-spl-orc/src/bash/run/spl-lane-issue.func.sh` |
 | 1.2 refusal | No issue placed (the hub refused, no seated desk, or `SPAWN_ISSUE_CREATE=0` with no key): exit 12, the claimed id released, one line with the command that makes one. | `sw_issue`, `sw_release_claim` |
 | 1.3 the seed | The seed's `YOUR ISSUE` block names the key, the commit-subject form, the docs rule and the end command; the recorded brief (`lifetime/brief.md`) gets the `Issue:` line. | `spawn-core.inc.sh` `_spawn_issue_block` |
 | 1.4 landing | Every commit cites the key in its subject scope (`feat(orc, SPL-123): ...`). Only two forms close it: a `fix`, `feat`, `perf` or `refactor` subject with the key in its scope, or a `Closes: SPL-123` trailer; `docs`/`test`/`chore`/`ci` subjects, reverts, `Fixes:`, `Refs:` and bare mentions never close. The exit gate's "landed" and the docs check both read it from the one parser. | `csi-spl-orc/src/bash/scripts/issue-close-landed.py --keys` (`commit_keys`) |

@@ -18,3 +18,18 @@ The proposal in `g1.md` is well-measured and targets the right bottlenecks (cach
 10. **5.10 Relay three reads, one batch:** **AGREE**. Though the queries execute in sub-millisecond time, replacing three `queryTenant` calls with one `queryTenantBatch` removes two network round trips, which adds up on high-frequency cron ticks.
 
 *(Reviews for c1 and m1 will be appended when their files land on master.)*
+
+## Review of m1 (Mistral)
+
+The proposal in `m1.md` correctly maps empirical evidence (Insights, route logs, and network dev logs) to architectural and design patterns.
+
+1. **1. Flow counts: Seek on stored place/time:** **AGREE**. Applying CQRS and Covering Indexes converts an O(all events) scan into O(unread) by seeking on `place_key` and `cov_at`.
+2. **2. Channel list: Filter archived lines by mark:** **AGREE**. Lazy Loading the archived lines only when a mark is missing stops unnecessary index/heap expansion for users who have read everything, yielding a solid measured gain (26ms to ~2ms).
+3. **3. Messages autovacuum: Tune for index-only scans:** **AGREE**. Tuning the autovacuum insert scale factor/threshold ensures the visibility map is current, making index-only scans effective without falling back to heap fetches.
+4. **4. Topic walk: Server-maintained topic summary:** **AGREE**. The Materialized Views approach (keeping a topic head row) drastically reduces the walk work.
+5. **5. WUI: Fix channels GET per PUT (echo fix):** **AGREE**. Fixing idempotency on timestamp echoes is a direct logic win that prevents redundant `GET` requests per `PUT`.
+6. **6. Message insert: Batch Flow event updates:** **AGREE**. Batch Processing the updates directly in the `WITH ins AS (INSERT ...)` CTE effectively reduces latency and WAL footprint.
+7. **7. WS compression: Permessage-deflate:** **AGREE**. Enabling compression is an easy win, reducing WebSocket frame sizes substantially (707 B to ~166 B).
+8. **8. Reconnect: Delta catch-up (`since=<cursor>`):** **AGREE**. Implementing Delta Sync for reconnects avoids ~44 KB per tab of redundant data transfer.
+9. **9. Flow counts: Scope to tenant (JIT/generic plan):** **AGREE**. Query Plan Caching is aided by scoping to the tenant, preventing suboptimal generic plans or JIT overhead.
+10. **10. Topic walk: Split archived OR into two probes:** **AGREE**. Splitting the `OR` condition into two `NOT EXISTS` probes resolves the planner's inability to use indexes on the `OR`, effectively avoiding the N+1 issue.

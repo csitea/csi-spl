@@ -1,6 +1,6 @@
 # 133: CI gate analysis
 
-Status: **draft v0.5** (editor c-296, 2026-10-12). The seats'
+Status: **draft v0.6** (editor c-296, 2026-10-12). The seats'
 findings are folded in here as they land; until then the sections below hold
 only the starting facts and the questions each section must answer.
 
@@ -188,17 +188,62 @@ From [seat C](seat-c.md) (c-297, `2921f95b0`, n=614 push diffs):
 
 ### 2.4 Capacity: runners, queue wait, box load
 
+From [seat A](seat-a.md) (c-298, `e788ef2f5`, the last 100 runs that ran
+jobs, 2026-10-09T14:27Z..10-12T05:17Z, sat `gh-runner-cpu-budget` cron.out,
+3,819 CAP ticks):
+
+- **4.22 of 6 runners online on average**; the online ones were 76% busy.
+- **62% of job-queue minutes fell in minutes with 3 or fewer runners
+  online** (3,743 of 6,073). The budget cron parked an idle runner 396 times.
+  So most of the queue is parking by the CPU budget, not a shortage of
+  runners. The budget keeps CI and agents together under 80% of the cores
+  (`grep -n "20% of the cores free" csi-spl-orc/src/bash/run/apply-gh-runner-cpu-budget.func.sh`
+  -> line 5).
+- **39% of GATE ticks read STARVED** (1,012 of 2,591): the gate was already
+  past its own 40 min stale mark.
+- **Box load stretches the critical jobs**: an e2e shard takes 27.4 min p50
+  with the rest of the box under 3 cores, and 36.0 min at 6 cores or more
+  (n=33 / 24, +31%). Hub goes from 19.5 to 29.2 min, but with n<=12 per cell.
+  iac and generate barely move.
+- **Headroom is thin**: `do_report_ci_gate` (n=12) marks 6 of 13 jobs AT
+  RISK (p90 over 75% of the limit); orc hermetic 2/2 sits at 101%. 3 timeout
+  reds and 1 runner-lost in those 12 runs: verdicts on load, not on code.
+
 ### 2.5 Wall time: the critical path inside one run
+
+From seat A, n=82 completed runs, wall p50 43.0 min:
+
+| part of one run's wall | p50 min | share of summed wall |
+|---|---|---|
+| before any job exists (previous run holds the slot) | 2.3 | 12% |
+| runner queue on the critical path | 6.5 | 23% |
+| **run time on the critical path** | **32.9** | **63%** |
+| gaps between `needs:` | 0.0 | 2% |
+
+- **An e2e shard is the critical job in 70 of 82 runs.** The path is
+  classify -> nuxt generate -> the slowest e2e shard -> gate health.
+- Even with a free runner for every job, a run lasts **32.9 min**.
+- One run asks for 13 runner jobs, 130.2 runner-min p50. Over 6 runners that
+  is 21.7 min, less than the path; at the mean 4.22 online it is 30.9 min,
+  about the path. That is why queue shows up as 23%.
+- **Push to verdict** (seat A, n=809): p50 72.9, p90 154.2. 53% of it is
+  waiting in line behind the run already going, 14% runner queue and 33%
+  running. 12.9 pushes an hour against 1.32 verdicts an hour. **Every minute
+  cut from the critical path saves a push about two minutes**: one in line,
+  one running.
+
+The window differs from the editor's (section 1.1: 48.4 h, push-to-verdict
+p50 81); both say the same thing.
 
 ## 3. What the seats found
 
 | seat | file | area | status | sha |
 |---|---|---|---|---|
-| A | `seat-a.md` | wall time, queue wait, runners | pending | |
+| A | [seat-a.md](seat-a.md) | wall time, queue wait, runners | v0.1 accepted (1 cite asked), folded (2.4, 2.5) | `e788ef2f5` |
 | B | `seat-b.md` | red causes, flakes | pending | |
 | C | [seat-c.md](seat-c.md) | per-part selection | v0.2, review fixes in, folded | `15fe61d85` |
 | D | [seat-d.md](seat-d.md) | slow suites | v0.2 sent back, round 2 (5 points: e2e per-file times from CI logs, exact axis commands) | `4dc3f9a77` |
-| E | [seat-e.md](seat-e.md) | triggers, concurrency, supersede | v0.1 sent back (7 points: latency model, supersede cost, merge queue vs red minutes, deploy facts, runnable commands) | `edf2b3fa1` |
+| E | [seat-e.md](seat-e.md) | triggers, concurrency, supersede | v0.2 sent back, round 2 (4 points: runnable axis commands, red-minute baseline, hourly verdict wording, runner sample) | `709f4726d` |
 
 ## 4. The axes (ONE set, 5-8)
 
@@ -243,6 +288,12 @@ Plus **K8**, the editor's and seat C's: a **per-job base** for the skip
 with the hourly full verdict as the backstop (sections 1.2 and 2.2). It
 generalises K1 and revives the docs express lane on a red trunk.
 
+Plus **K9**, from [seat E](seat-e.md): a **merge queue** (the verdict runs
+before the commit lands). It takes X3 (red minutes on master) towards zero,
+at the cost of land latency (each land waits about W). It does not shorten
+X1. On a gate that is red on its own (flakes, seat B), a queue also blocks
+every land, so it comes after K4..K6.
+
 ## 6. Open questions
 
 ## 7. Sign-off
@@ -254,3 +305,4 @@ generalises K1 and revives the docs express lane on a red trunk.
 | v0.3 | 2026-10-12 | c-296 | panel roster; candidates K1..K8 (c-002 7 actions + express base) |
 | v0.4 | 2026-10-12 | c-296 | seat C folded (2.2) |
 | v0.5 | 2026-10-12 | c-296 | 2.1 latency model, deploys do not wait for the gate; D, E in review |
+| v0.6 | 2026-10-12 | c-296 | seat A folded (2.4, 2.5); K9 merge queue |

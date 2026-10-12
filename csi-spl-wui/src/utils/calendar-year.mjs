@@ -6,6 +6,8 @@
 // day (6.1.2), written 'YYYY-MM-DD'. Weeks start on Monday (spec 2 layout).
 // Loaded only by the /calendar page, never by the shell.
 
+import { isoDate } from './date-iso.mjs'
+
 const DAY_MS = 86400000
 const ISO_DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 
@@ -17,6 +19,17 @@ const ISO_DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 export function calIsoDay(date) {
   const d = date instanceof Date ? date : new Date(date)
   return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10)
+}
+
+/**
+ * Today in the VIEWER's zone as 'YYYY-MM-DD': the day the grid draws a timed
+ * event on (calEventDay). calIsoDay(Date.now()) is still yesterday at
+ * local 00:30 east of UTC, and the calendar opened the week before.
+ * @param {number} [nowMs]
+ * @returns {string}
+ */
+export function calToday(nowMs = Date.now()) {
+  return isoDate(nowMs)
 }
 
 /**

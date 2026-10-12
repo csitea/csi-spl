@@ -82,6 +82,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
+import { calToday } from '~/utils/calendar-year.mjs'
 import {
   mergePublicCalendar, pubCalAddMonths, pubCalMonthDays, pubCalShownMonth,
 } from '~/utils/public-calendar.mjs'
@@ -101,7 +102,8 @@ const built = ref<PubEvents>([])
 const web = ref<PubEvents>([])
 const events = computed(() => (web.value.length ? mergePublicCalendar(built.value, web.value) : built.value))
 const state = ref<'loading' | 'ready' | 'error'>('loading')
-const today = new Date().toISOString().slice(0, 10)
+/* the viewer's day: the UTC one showed last month at local 00:30 on the 1st */
+const today = calToday()
 
 /* the build's file (PUBLIC_CALENDAR_SOURCES releases + features) */
 async function load() {

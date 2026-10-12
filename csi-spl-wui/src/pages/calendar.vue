@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { calDayMs, calIsoDay } from '~/utils/calendar-year.mjs'
+import { calDayMs, calToday } from '~/utils/calendar-year.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { useMobileStack } from '~/composables/useMobileStack'
@@ -64,7 +64,9 @@ const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const router = useRouter()
 
-const today = calIsoDay(Date.now())
+/* the viewer's day, the one the grid draws on: the UTC day opened last
+   week at local Monday 00:30 east of UTC */
+const today = calToday()
 const focus = computed(() => {
   const d = String(route.query.d || '')
   return Number.isNaN(calDayMs(d)) ? today : d

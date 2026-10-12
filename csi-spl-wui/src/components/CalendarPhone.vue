@@ -229,7 +229,7 @@ import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneStep, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
-import { calAddDays } from '~/utils/calendar-year.mjs'
+import { calAddDays, calLoadWindow } from '~/utils/calendar-year.mjs'
 import { useCalendarHours } from '~/composables/useCalendarHours'
 import { calSwipeClaims, calSwipeClassify, calSwipeInEdge, calSwipeLock } from '~/utils/calendar-swipe.mjs'
 import type { CalPhoneCreate } from './CalendarPhoneDay.vue'
@@ -400,8 +400,9 @@ async function fetchRange(r: { from: string, to: string }, signal: AbortSignal):
   const key = `${r.from}/${r.to}`
   const hit = cache.get(key)
   if (hit) return hit
-  const start = `${r.from}T00:00:00Z`
-  const end = `${r.to}T00:00:00Z`
+  /* a day wider than the range's UTC midnights: a timed event is drawn on
+     the viewer's day, so local Monday 00:30 at +03 is Sunday 21:30Z */
+  const { start, end } = calLoadWindow(r.from, r.to) || { start: '', end: '' }
   let body: { events?: CalendarItem[] }
   if (api.mock) {
     const { mockCalendarEvents } = await import('~/utils/calendar-mock.mjs')

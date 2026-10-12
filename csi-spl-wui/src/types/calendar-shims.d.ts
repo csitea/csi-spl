@@ -3,6 +3,7 @@ declare module '~/utils/calendar-year.mjs' {
   export type CalMonth = { key: string, year: number, month0: number, lead: number, days: { iso: string, d: number }[] }
   export type CalMarks = { days: Map<string, { count: number, kinds: string[] }>, official: Map<string, string> }
   export function calIsoDay(date: Date | number | string): string
+  export function calToday(nowMs?: number): string
   export function calDayMs(iso: string): number
   export function calAddDays(iso: string, n: number): string
   export function calWeekStart(iso: string): string

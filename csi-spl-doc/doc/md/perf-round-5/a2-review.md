@@ -33,3 +33,17 @@ The proposal in `m1.md` correctly maps empirical evidence (Insights, route logs,
 8. **8. Reconnect: Delta catch-up (`since=<cursor>`):** **AGREE**. Implementing Delta Sync for reconnects avoids ~44 KB per tab of redundant data transfer.
 9. **9. Flow counts: Scope to tenant (JIT/generic plan):** **AGREE**. Query Plan Caching is aided by scoping to the tenant, preventing suboptimal generic plans or JIT overhead.
 10. **10. Topic walk: Split archived OR into two probes:** **AGREE**. Splitting the `OR` condition into two `NOT EXISTS` probes resolves the planner's inability to use indexes on the `OR`, effectively avoiding the N+1 issue.
+
+## Review of c1 (Claude)
+
+The proposal in `c1.md` is highly data-driven, carefully tying practices to measured costs from `pg_stat_statements` under production bounds.
+
+1. **4.1 Relay tick: each sweep at the cadence of its deadline:** **AGREE**. Polling every 5s for 120s deadlines oversamples and wastes pool slots. Aligning the poll cadence to the deadlines and batching reads per tenant effectively drops statements from 1.24M to ~0.25M per day, saving ~45s/day without affecting the user experience.
+2. **4.2 Unanswered sweep reads changed topics only:** **AGREE**. Replacing a stateless `DISTINCT ON` with an incremental read of topics whose heads moved since the last sweep avoids massive cache misses (saving ~293s/day). The hourly full reconcile mitigates any expiry edge cases.
+3. **4.3 `topic_head_apply_marks` keeps the add path O(probes):** **AGREE**. Segregating the fast incremental add path from the heavy rebuild path removes the ~39ms overhead per apply on the insert path.
+4. **4.4 Channel GET: make the existing 304 gate reachable:** **AGREE**. Making the `If-None-Match` gate reachable by omitting the high-churn `deliveries` table from the view's stamp is a brilliant conditional read optimization. It avoids the ~126s/day cost of 6,840 GETs without the write-path penalty of building a counter.
+5. **4.5 `search_sig` full compare off the per-deploy path:** **AGREE**. Shifting the 2.4s table scan from application deploy to Postgres version changes removes a severe connection pool stall.
+6. **4.6 Flow fold: one anti-join:** **AGREE**. A set-based anti-join avoids the N+1 correlated `EXISTS` overhead that currently takes ~598ms on average.
+7. **4.7 DM pointers: top-N per arm:** **AGREE**. Pushing the limit into each `UNION` arm prevents scanning the entire tenant backward. As noted, indexing `received_at` within the arm is necessary.
+8. **4.8 Issue list without `description`:** **AGREE**. Excluding the potentially TOASTed `description` column eliminates unnecessary I/O overhead on the list view.
+9. **4.9 Release-note page by keyset:** **AGREE**. Replacing the unpartitioned `row_number() OVER ()` window with keyset pagination limits the read to O(page) instead of O(table), capping the currently growing 54ms cost.

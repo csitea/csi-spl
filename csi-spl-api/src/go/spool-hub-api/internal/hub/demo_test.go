@@ -160,6 +160,7 @@ func TestDemoUserCannotUpload(t *testing.T) {
 var demoAllowed = map[string]bool{
 	"PATCH /v1/messages/{msg_id}":            true, // own message only (edit.go)
 	"DELETE /v1/messages/{msg_id}":           true,
+	"DELETE /v1/attachments/{file_id}":       true, // own attachment only (SPL-1560, the edit rule)
 	"POST /v1/messages/{msg_id}/merge":       true,
 	"PATCH /v1/messages/{msg_id}/kind":       true,
 	"PUT /v1/messages/{msg_id}/reactions":    true,

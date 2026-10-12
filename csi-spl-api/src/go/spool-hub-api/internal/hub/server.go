@@ -382,6 +382,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/messages/{msg_id}", s.handleEditMessage) // specs/032
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}", s.handleDeleteMessage)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}", s.editPreflight)
+	mux.HandleFunc("DELETE /v1/attachments/{file_id}", s.handleRemoveAttachment) // SPL-1560
+	mux.HandleFunc("OPTIONS /v1/attachments/{file_id}", s.attachmentPreflight)
 	mux.HandleFunc("POST /v1/messages/{msg_id}/merge", s.handleMergeMessage)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/merge", s.mergePreflight)
 	mux.HandleFunc("PATCH /v1/messages/{msg_id}/kind", s.handleSetMessageKind) // SPL-952

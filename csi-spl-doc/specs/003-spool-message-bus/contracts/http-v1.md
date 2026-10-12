@@ -85,6 +85,7 @@ GET    /v1/view/me                         the reader's roles and permissions   
 
 ```
 DELETE /v1/files/{file_id}                        upload token; 204 / 404 → ./wui-live-ws.md §5   003 (owner goal)
+DELETE /v1/attachments/{file_id}                  remove from the system → §3.1                    003 (SPL-1560)
 POST   /v1/channels                               create → ./channels-v1.md §5.1                   003 FR-025
 PATCH  /v1/channels/{channel}                     members_open_invite → ./channels-v1.md §7.4      003
 GET    /v1/channels/{channel}/members             → ./channels-v1.md §7.4                          003, 025
@@ -309,6 +310,38 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
   is allowed later; it is never logged or persisted (Constitution VII). The box
   CLI re-hashes and refuses a mismatch (`78`) without writing a partial file.
 
+### 3.1 DELETE /v1/attachments/{file_id}: remove an attachment from the system
+
+Owner HUM-10 (t1 d74ecae5, SPL-1560): an X on every attachment (message
+cards, issue comments, issue descriptions) removes it "from the system". The
+WUI places the X at the side the `close_buttons` setting picks (Mac = left,
+the default; Windows = right), and asks before it calls this.
+
+- Caller: a signed-in member session, `notes.send`, a billing state that
+  allows writes (the edit rules of 032).
+- The hub lists every message in retention that carries the file (by
+  `file_id` or `sha256`). For each one the caller may READ (the read door of
+  rdb 0028/0030):
+  - it may CHANGE it when it is the uploader (the author of that message: a
+    file is uploaded by the member who sends it) or the tenant owner or an
+    admin (the 041 author/owner/admin rule);
+  - a box-signed message keeps the file: the hub cannot re-sign an agent's
+    envelope (032 rule 7). A browser-signed one is re-signed;
+  - a changed row loses the file from `files[]`, from its inner object and
+    from its envelope, keeps its body, ts, cursor and edit marker, and goes to
+    every viewer as a `message_edited` frame.
+- The blob at `t/<tenant_id>/files/<sha256>` is deleted once no message
+  carries the file any more; a carrier the caller may not change keeps it.
+- `200 { file_id, removed: [msg_id], messages: [view element], kept,
+  blob_deleted }`. No readable carrier → `404 not_found` (as GET answers it,
+  no existence oracle). Readable but none changeable → `403 not_author`, or
+  `409 not_editable` when every one is box-signed.
+- No undo. The hub has no audit table for deletes; it logs one line per
+  removal (`attachment removed`, with the msg_ids and `blob_deleted`).
+- An issue description names its files with a markdown link
+  (`utils/issue-files.mjs`); the WUI also takes that link out of the
+  description text.
+
 ## 4. Pins (owned by 004 / 006, hosted here)
 
 - `GET /v1/pins` with the upload token → `{ "pins": [ { "box_id", "pubkey" } ] }`
@@ -357,4 +390,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.6.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->
+<!-- version: 0.7.0 · updated: 2026-10-12 · last-edit: 2026-10-12T20:30:00Z -->

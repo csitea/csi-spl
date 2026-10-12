@@ -338,6 +338,9 @@ type Store interface {
 	// The same door on a stored attachment (file_door.go, rdb 0028 + 0029).
 	FileDoor
 
+	// Taking an attachment off the rows that carry it (file_detach.go, SPL-1560).
+	FileDetacher
+
 	// M2 checkouts and payment events (payments.go, checkout-v1).
 	Payments
 

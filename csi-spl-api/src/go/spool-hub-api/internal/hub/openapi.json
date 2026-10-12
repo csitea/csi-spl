@@ -1339,6 +1339,45 @@
         ]
       }
     },
+    "/v1/attachments/{file_id}": {
+      "delete": {
+        "operationId": "deleteAttachmentsByFileId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the file is off every message the caller may change that carries it (the uploader, the tenant owner or an admin); { file_id, removed, messages, kept, blob_deleted }, and each changed row goes out as a message_edited frame. The blob is deleted once no message carries it. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §3.1."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: not_editable, every carrier is box-signed (the hub cannot re-sign an agent's envelope)."
+          }
+        },
+        "summary": "Remove an attachment",
+        "tags": [
+          "files"
+        ]
+      }
+    },
     "/v1/audit/clones": {
       "get": {
         "operationId": "getAuditClones",

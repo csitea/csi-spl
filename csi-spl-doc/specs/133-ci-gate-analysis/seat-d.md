@@ -7,17 +7,17 @@ This analysis targets the four slowest CI suites: `orc hermetic`, `wui e2e`, `hu
 ## 1. orc hermetic (2 shards)
 
 - **Slowest 10 test files**:
-  (Measured locally using `time bash csi-spl-orc/src/bash/tests/run-all-tests.sh` on SHA `48ed9c131`, n=1):
-  1. `wd-situations.tst.sh` (331s)
-  2. `dispatch-rotate.tst.sh` (331s)
-  3. `dispatch-setup-check.tst.sh` (243s)
-  4. `cloud-actions.tst.sh` (226s)
-  5. `agent-restart.tst.sh` (213s)
-  6. `spl-lane-mix.tst.sh` (185s)
-  7. `tmux-close-window.tst.sh` (182s)
-  8. `workspace-doc-node.tst.sh` (178s)
-  9. `orch-rotate.tst.sh` (151s)
-  10. `spool-install.tst.sh` (142s)
+  (Extracted from CI run 38207328805, job IDs 114674124416 and 114674124454. The `run-all-tests.sh` script ends with a "--- slowest 10 test files" block).
+  1. `spl-lane-mix.tst.sh` (582.0s)
+  2. `fleet-lease.tst.sh` (578.1s)
+  3. `peer-poll.tst.sh` (482.3s)
+  4. `parse-metadata-nofork.tst.sh` (437.4s)
+  5. `desk-actions.tst.sh` (302.0s)
+  6. `asks.tst.sh` (272.9s)
+  7. `tmux-close-window.tst.sh` (264.0s)
+  8. `dispatch-rotate.tst.sh` (261.5s)
+  9. `agent-restart.tst.sh` (236.5s)
+  10. `orch-rotate.tst.sh` (224.8s)
 - **Setup and teardown cost**: Each script does a full shell execution setup, creating temporary files and resetting state independently.
 - **Duplicated work**: Setting up the test environment for every single file over ~350 files.
 - **Sleeps and polling waits**: 272 `sleep` calls across the suite.
@@ -27,7 +27,22 @@ This analysis targets the four slowest CI suites: `orc hermetic`, `wui e2e`, `hu
 ## 2. wui e2e (3 shards)
 
 - **Slowest 10 test files**:
-  (Currently unmeasured individually as the shards run tests in parallel and group output, making file-level parsing complex without a dedicated reporter.)
+  (From green CI run 38207328805, shards 114675449458, 114675449581, and 114675449482)
+  1. `tests/e2e/phone-composer-target.test.mjs` (244s)
+  2. `tests/e2e/phone-back-matrix.test.mjs` (210s)
+  3. `tests/e2e/mobile-back-stuck.test.mjs` (162s)
+  4. `tests/e2e/calendar-phone-shell.test.mjs` (157s)
+  5. `tests/e2e/links-open-channel-view.test.mjs` (147s)
+  6. `tests/e2e/unread-drops-on-read.test.mjs` (142s)
+  7. `tests/e2e/delete-confirm.test.mjs` (124s)
+  8. `tests/e2e/calendar-phone-sheet.test.mjs` (121s)
+  9. `tests/e2e/calendar-phone-month.test.mjs` (107s)
+  10. `tests/e2e/calendar-phone-jump.test.mjs` (106s)
+- **Total seconds per shard / RETRY / FLAKY counts**: 
+  - Shard 1: 2124s
+  - Shard 2: 2050s
+  - Shard 3: 1796s
+  - RETRY / FLAKY occurrences: 8
 - **Setup and teardown cost**: Browser launch and page open taking time per file.
 - **Duplicated work**: 376 occurrences of `puppeteer.launch` in the codebase (`grep -ro "puppeteer.launch" csi-spl-wui/tests/e2e/ | wc -l`), though actual runtime launches are lower due to parallelism and shard logic.
 - **Sleeps and polling waits**: 1859 `sleep()` calls (`grep -ro "sleep(" csi-spl-wui/tests/e2e | wc -l`).
@@ -37,7 +52,9 @@ This analysis targets the four slowest CI suites: `orc hermetic`, `wui e2e`, `hu
 
 ## 3. hub go incl. store
 
-- **Overview**: The CI job limit is `timeout-minutes: 35`, but `hub-pg.tst.sh` splits the test into groups, applying a `GO_TEST_TIMEOUT=20m` (1200 s) limit to each. CI run `38207328805` took 1574 s overall, which is well within the 35 min limit, as it represents sequential group executions. The 38 failures noted in `analysis.md` are predominantly test logic failures (as queried from recent check-run annotations on failed runs), not timeouts.
+- **Overview**: The CI job limit is `timeout-minutes: 35`, but `hub-pg.tst.sh` splits the test into groups, applying a `GO_TEST_TIMEOUT=20m` (1200 s) limit to each. CI run `38207328805` took 1574 s overall, which is well within the 35 min limit, as it represents sequential group executions.
+- **Timeout vs. Test Failures**: Checked n=4 failed hub jobs across recent failed runs (`114642216718`, `114459893794`, `114445898364`, `114438582356`). Out of these 4 failures, 0 were timeouts and 4 were test logic failures.
+  (Query used to extract them: `gh api "repos/csitea/csi-spl/actions/runs?status=failure&per_page=30" --jq '.workflow_runs[].id' | xargs -I {} gh api repos/csitea/csi-spl/actions/runs/{}/jobs --jq '.jobs[]|select(.name|test("^hub:"))|select(.conclusion=="failure")|.id'`)
 - **Slowest 10 test packages**:
   (Measured from local `bash csi-spl-api/src/bash/tests/run-all-tests.sh > hub.log` on SHA `48ed9c131`, n=1):
   1. `spool-hub-api/internal/store` (137.3s)
@@ -66,21 +83,21 @@ This analysis targets the four slowest CI suites: `orc hermetic`, `wui e2e`, `hu
 ## MEASURABLE axes
 
 1. **Hub Go Duration**
-   - Exact measurement command: `gh api repos/csitea/csi-spl/actions/runs --jq '...'` (median/p90 calculation over past week)
+   - Exact measurement command: `jq '.[] | select(.name|test("^hub:")) | [.started_at, .completed_at]' M-JOBS.json` (where M-JOBS.json is the jobs array from analysis.md 1.1)
    - Baseline now (from analysis.md 1.1): 16.3 min (median) / 29.2 min (p90)
    - Proposed target: 10.0 min (median) / 15.0 min (p90)
 2. **ORC Hermetic Duration**
-   - Exact measurement command: Jobs API duration for `orc-suite`
+   - Exact measurement command: `jq '.[] | select(.name|test("^orc: hermetic")) | [.started_at, .completed_at]' M-JOBS.json`
    - Baseline now (from analysis.md 1.1): Shard 1: 10.3m/23.0m, Shard 2: 9.0m/21.8m
    - Proposed target: < 10.0m (p90)
 3. **WUI E2E Duration**
-   - Exact measurement command: Jobs API duration for `wui-e2e`
+   - Exact measurement command: `jq '.[] | select(.name|test("e2e")) | [.started_at, .completed_at]' M-JOBS.json`
    - Baseline now (from analysis.md 1.1): ~30.0m (median) / ~40.0m (p90)
    - Proposed target: < 15.0m (p90)
 4. **Nuxt Generate Duration**
-   - Exact measurement command: Jobs API duration for `wui-generate`
+   - Exact measurement command: `jq '.[] | select(.name|test("nuxt generate")) | [.started_at, .completed_at]' M-JOBS.json`
    - Baseline now (from analysis.md 1.1): 5.7 min (median) / 8.3 min (p90)
-   - Proposed target: < 2.0 min (p90)
+   - Proposed target: < 5.0 min (p90)
 
 **(Secondary Lever Axes)**
 - **WUI e2e browser launches code occurrences** (`grep -ro "puppeteer.launch" csi-spl-wui/tests/e2e/ | wc -l`): 376 occurrences target -> < 5

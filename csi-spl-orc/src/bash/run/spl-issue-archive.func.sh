@@ -208,9 +208,13 @@ spl_issue_archive_apply() {
 }
 
 # spl_issue_archive_pool OP KEYFILE JOURNAL [cascade]: at most ISSUE_ARCHIVE_JOBS at once.
+# Named pids only. A bare `wait` (and a bare `wait -n`) also waits for ./run's
+# tee process substitutions (run.sh main), and that wait never ends: the issue
+# phase archived one key, then the done epics never started.
 spl_issue_archive_pool() {
   local op="$1" file="$2" journal="$3" casc="${4:-}"
-  local jobs="${ISSUE_ARCHIVE_JOBS:-4}" key n=0 fail
+  local jobs="${ISSUE_ARCHIVE_JOBS:-4}" key fail pid finished
+  local -a pids=() live=()
   [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL ISSUE_ARCHIVE_JOBS must be 1 or more, got: '$jobs'"; return 1; }
   # Parent resolves cnf before any job: the children inherit SPL_DESK_ISSUE_READY.
   spl_desk_issue_once || return 1
@@ -219,13 +223,20 @@ spl_issue_archive_pool() {
   while IFS= read -r key || [[ -n "$key" ]]; do
     [[ -n "$key" ]] || continue
     spl_issue_archive_one "$op" "$key" "$journal" "$fail" "$casc" &
-    n=$((n + 1))
-    if (( n >= jobs )); then
-      wait -n || true
-      n=$((n - 1))
+    pids+=("$!")
+    if (( ${#pids[@]} >= jobs )); then
+      finished=""
+      wait -n -p finished "${pids[@]}" 2>/dev/null || true
+      live=()
+      for pid in "${pids[@]}"; do
+        [[ -n "$finished" && "$pid" == "$finished" ]] && continue
+        live+=("$pid")
+      done
+      pids=()
+      if (( ${#live[@]} )); then pids=("${live[@]}"); fi
     fi
   done <"$file"
-  wait || true
+  if (( ${#pids[@]} )); then wait "${pids[@]}" 2>/dev/null || true; fi
   if [[ -s "$fail" ]]; then
     do_log "FATAL spool issue $op failed for $(tr '\n' ' ' <"$fail")"
     rm -f "$fail"

@@ -47,6 +47,8 @@ if [ "$op" = list ]; then
   if [ -n "$epic" ]; then
     if [ "$epic" = SPL-11 ]; then
       echo '{"issues":[{"key":"SPL-2","kind":"issue","status":"todo"}],"next_cursor":""}'
+    elif [ "$epic" = SPL-20 ]; then
+      echo '{"issues":[],"next_cursor":""}'
     else
       echo '{"issues":[{"key":"SPL-1","kind":"issue","status":"done"}],"next_cursor":""}'
     fi
@@ -58,6 +60,8 @@ fi
 if [ "$op" = get ]; then
   if [ "$ref" = SPL-11 ]; then
     echo '{"issue":{"key":"SPL-11","kind":"epic","status":"done"}}'
+  elif [ "$ref" = SPL-20 ]; then
+    echo '{"issue":{"key":"SPL-20","kind":"feature","status":"done"}}'
   else
     echo '{"issue":{"key":"'"$ref"'","kind":"issue","status":"done"}}'
   fi
@@ -114,6 +118,41 @@ rc=$?
 [[ $rc -eq 0 ]] && ! grep -q '|archive|' "$T/issue.log" && [[ ! -s "$T/epic.keys" ]] &&
   pass "a named done epic with an open child is skipped" ||
   fail "named epic (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log")"
+
+# ./run redirects this shell's stdout and stderr to tee process substitutions
+# (run.sh main). A bare wait in the pool blocks on those until they exit,
+# which they do not. The long sleep stands in for that tee.
+run_under_procsub() {
+  local s0=$SECONDS
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" STUB_LOG="$T/calls.log" \
+    PATH="$T/stub:$PATH" ENV=dev "${base[@]}" "$@" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    do_require_bin() { return 0; }
+    exec > >(cat) 2> >(sleep 60)
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    eval "$SNIPPET"' >"$T/proc.out" 2>&1
+  PROCSUB_RC=$?
+  PROCSUB_DT=$((SECONDS - s0))
+}
+
+: >"$T/issue.log"
+rm -f "$T/keys"
+SNIPPET="${ISS}do_spl_issue_archive" \
+  run_under_procsub ISSUE_STATUS=done ISSUE_ARCHIVE_JOBS=2 ISSUE_JOURNAL="$T/keys" DRY_RUN=0
+got=$(grep '|archive|' "$T/issue.log" | sed -n 's/.*|--ref|\([^|]*\)|.*/\1/p' | sort | tr '\n' ' ')
+[[ $PROCSUB_RC -eq 0 && $PROCSUB_DT -lt 15 && "$got" == "SPL-1 SPL-10 SPL-3 " ]] &&
+  pass "bulk archive under a live process substitution finishes (${PROCSUB_DT}s)" ||
+  fail "procsub bulk rc=$PROCSUB_RC ${PROCSUB_DT}s archived '$got': $(cat "$T/proc.out") / $(cat "$T/issue.log")"
+
+: >"$T/issue.log"
+rm -f "$T/feat.keys"
+SNIPPET="${ISS}do_spl_issue_archive" \
+  run_under_procsub ISSUE_REF=SPL-20 ISSUE_ARCHIVE_JOBS=1 ISSUE_JOURNAL="$T/feat.keys" DRY_RUN=0
+[[ $PROCSUB_RC -eq 0 && $PROCSUB_DT -lt 15 && "$(cat "$T/feat.keys" 2>/dev/null)" == "SPL-20" ]] &&
+  grep -q '|--ref|SPL-20|' "$T/issue.log" &&
+  pass "a done feature with no children archives under a live process substitution (${PROCSUB_DT}s)" ||
+  fail "feature procsub rc=$PROCSUB_RC ${PROCSUB_DT}s journal='$(cat "$T/feat.keys" 2>/dev/null)' log=$(cat "$T/issue.log") out=$(cat "$T/proc.out")"
 
 echo "issue-archive: $fails failure(s)"
 (( fails == 0 ))

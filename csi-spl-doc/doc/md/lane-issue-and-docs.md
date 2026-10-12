@@ -105,3 +105,31 @@ code. The exit is the first point where the lane's whole change is known.
 refusal (no key at placement, a wip issue with no landed commit, a behaviour
 change with no docs) and each way through, with a control per refusal that
 runs the same case with the gate removed.
+`csi-spl-orc/src/bash/tests/spl-lane-issue.tst.sh`: the hub calls of
+placement, discussion and end, the card (0.1) and the key posted back.
+`csi-spl-orc/src/bash/tests/spl-issue-key-rate.tst.sh`: what the key rate (4)
+counts.
+
+## 4. The key rate, weekly
+
+Owner Q6 A (msg 910b14c9): the key is enforced at the lane's exit (1.6), not
+by the pre-push hook, and the fleet's key rate is measured weekly. If the rate
+stays low after two weeks, the hook is the next step (spec 135 section 9, Q6
+B), and that is the owner's call.
+
+```bash
+cd csi-spl-orc && ./run -a do_spl_issue_key_rate
+```
+
+Of the non-merge commits on `origin/master` in the last 7 days
+(`KEY_RATE_SINCE`, `KEY_RATE_REF`): `cite` = the key in the subject scope (any
+type) or a `Closes:` trailer; `close` = the commits the landed-fix rule closes
+an issue with (1.4, the same parser). It prints one JSON line (with the
+uncited commits per subject type) and one OK line. The box cron
+`issue-key-rate` (Mondays 06:53, `cnf/box-crons/box-crons.manifest`) fetches
+trunk and appends the week's row to
+`/var/csi/csi-spl/issue-key-rate/history.tsv`:
+`<utc> <since> <commits> <cite> <close> <cite %> <close %>`.
+
+Baseline, 2026-10-12, the day the rule landed: 1978 commits in 7 days, 17
+cite a key (0.9%), 13 close one (0.7%).

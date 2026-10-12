@@ -174,6 +174,7 @@ has "X7 jobs at timeout risk 1 of 3 (orc: feature tests 93%)" "4. X7: 93 % is AT
 # no local gate: e2e + generate = 2
 has "X8 reds with no local gate 50% (2 of 4 first-red rows, 3 of 3 failure runs read)" \
     "5. X8: fail-fast stops left out, a timeout is a red row"
+has "X8 by kind: failure 1, timeout 1, runner-lost 0" "5. X8 split: the generate failure, the e2e timeout"
 has "guard: red verdicts whose first reds are all timeout / runner-lost: 1 of 3" "5. guard: the lost-runner run"
 # --- 6. API cost ---------------------------------------------------------------
 jobs_calls=$(grep -c '/jobs' "$T/api/calls.log"); ann_calls=$(grep -c '/annotations' "$T/api/calls.log")

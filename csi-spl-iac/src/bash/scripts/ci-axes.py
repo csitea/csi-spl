@@ -199,6 +199,7 @@ print(
 # X8 first reds on a suite pre-push cannot run (seat B's rule); guard: non-code reds
 NOLOCAL = ("browser e2e", "nuxt generate", "feature tests")
 rows = nol = 0
+nol_kind = {"failure": 0, "timeout": 0, "runner-lost": 0}
 nfail = covered = noncode = 0
 for r in inwin:
     if not (verdict(r) and r["conclusion"] == "failure"):
@@ -227,11 +228,18 @@ for r in inwin:
         rows += 1
         if any(s in j["name"] for s in NOLOCAL):
             nol += 1
+            nol_kind[kind] += 1
     if kinds and all(k != "failure" for k in kinds):
         noncode += 1
 print(
     "X8 reds with no local gate %s (%d of %d first-red rows, %d of %d failure runs read)   target <= 10%%"
     % ("%.0f%%" % (100.0 * nol / rows) if rows else "n/a", nol, rows, covered, nfail)
+)
+# seat B's A2 counted the failure rows only (97 of 209, timeouts "extra"):
+# print the split so both readings come from this one command
+print(
+    "   X8 by kind: failure %d, timeout %d, runner-lost %d"
+    % (nol_kind["failure"], nol_kind["timeout"], nol_kind["runner-lost"])
 )
 print(
     "   guard: red verdicts whose first reds are all timeout / runner-lost: %d of %d   target < 2%%"

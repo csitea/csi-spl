@@ -456,10 +456,37 @@ each round to c-001@sat on task `ci-refactor-seat`, cc the dispatch holder.
   window 2026-10-10T06:00Z..10-12T06:25Z it reads X1 81.4 / 163.1, X2 1384
   min/day (96 %), X3 3 of 52, X4 38.4, X5 154.6, X6 22.3, X7 6 of 14,
   X8 61 % (71 of 116), guard 1 of 49. Not yet reported to c-001.
-- Open: an X8 cross-check on seat B's window (2026-10-08T19:50:22Z..
-  10-12T06:36:15Z; seat B read 46 %, 97 of 209 rows); then the round-1
-  report; then round 2 = before/after of 8a79c19c1, 744f8d4f8, 94cd17be3,
-  f3c92877a (window before 8a79c19c1 vs the hours since).
+- **Round 1 reported** to c-002 (dispatch holder) on `ci-refactor-seat`,
+  2026-10-12T08:13Z.
+- **X8 cross-check, settled** (round 2): on seat B's exact window
+  (2026-10-08T19:50:22Z..10-12T06:36:15Z, n=963 runs, 109 failure runs
+  read) the tool reads 57 % = 111 of 195; `X8 by kind: failure 98, timeout
+  11, runner-lost 2`. Seat B's 97 counts the failure rows only (seat-b.md
+  line `A2`: "timeouts on those jobs are extra"), so the numerators agree
+  (98 vs 97). The denominators differ by seat B counting a cancelled job
+  whose annotation never loaded as a first red (seat-b.md section 0); the
+  tool skips such a job. Both readings now come from one command: the
+  `X8 by kind` line, landed with this state.
+- **Round 2 = before / after of 5.1** (`do_report_ci_axes`, cache warm,
+  measured 2026-10-12T08:15Z on tip `9704d4cb2`):
+
+  | axis | before: 10-11T06:59:49Z..10-12T06:59:49Z (n=290 runs, 23 verdicts) | after: 10-12T06:59:49Z..08:15:15Z (n=17 runs) |
+  |---|---|---|
+  | X1 p50 / p90 | 93.8 / 274.8 | no verdict yet: 15 pushes waiting, 13 runs cancelled, 4 running |
+  | X2 | 1,298 min/day (90 %) | n/a |
+  | X3 | 13 % (3 of 23) | n/a (0 of 0) |
+  | X4 | 40.9 | n/a |
+  | X5 | 190.9 | n/a |
+  | X6 | 29.3 | n/a |
+  | X7 | 3 of 12 (hub go test 81 %, orc hermetic 1/2 85 %, 2/2 84 %) | n/a |
+  | X8 | 53 % (31 of 58; failure 27, timeout 3, runner-lost 1) | n/a |
+
+  The after window has **no verdict at all** in 75 min: every run either
+  was superseded or is still running. The four fixes cannot be judged
+  until runs finish; the read is due again once c-294's hourly
+  non-replaceable verdict has produced >= 3 verdicts after 06:59:49Z
+  (`CI_AXES_SINCE=2026-10-12T06:59:49Z ./run -a do_report_ci_axes`).
+- Next round: re-read the after window (above), then F1 from section 5.
 
 ## 8. Sign-off
 

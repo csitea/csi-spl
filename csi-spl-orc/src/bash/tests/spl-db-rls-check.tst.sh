@@ -95,7 +95,9 @@ if command -v docker >/dev/null && docker image inspect "$IMG" >/dev/null 2>&1 &
   trap 'docker rm -fv "$PG_CTR" >/dev/null 2>&1; rm -rf "$T"' EXIT
   docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=su -e POSTGRES_PASSWORD=su -e POSTGRES_DB=spool \
     -p 127.0.0.1::5432 "$IMG" >/dev/null
-  PORT=$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')
+  # shellcheck source=pg-throwaway.inc.sh
+  source "$TEST_DIR/pg-throwaway.inc.sh"
+  PORT="$(pg_throwaway_port "$PG_CTR")" || exit 1
   for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U su -d spool -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
   sleep 1
   su_sql() { docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U su -d spool >/dev/null; }

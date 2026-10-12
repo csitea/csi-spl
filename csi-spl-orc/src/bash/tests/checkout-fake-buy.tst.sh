@@ -60,7 +60,9 @@ BIN="$T/spool"
 PG_CTR="spl-fake-buy-pg-$$"
 docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool \
   -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
-PGPORT="$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')"
+# shellcheck source=pg-throwaway.inc.sh
+source "$TEST_DIR/pg-throwaway.inc.sh"
+PGPORT="$(pg_throwaway_port "$PG_CTR")" || exit 1
 for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
 DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 "$BIN" migrate --db "$DSN" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null || { fail "migrate"; exit 1; }

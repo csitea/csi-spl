@@ -108,7 +108,7 @@ nothing (the same check for any other vendor binary).
 
 - **Re-raise text clocks:** The ask re-raise text ("nobody has acked") covers both the 15 min and 60 min clocks. An ask may be already acked and still trigger a lock expired re-raise. Check the actual ask state before acking again.
 
-- **Queued asks:** An ask that is queued on purpose still counts toward the 4-raise dead-letter. Ack the ask to park it and stop the clock, and track it in your handoff.
+- **Queued asks:** An ask that is queued on purpose still counts toward the 4-raise dead-letter. Nothing parks a queued ask today; it re-raises until closed (`do_spl_ask_close`) - track it in your handoff.
 
 ## 4. The leases and standby
 
@@ -136,7 +136,7 @@ nothing (the same check for any other vendor binary).
 
 - **Shadow feed limitations:** The shadow feed mirrors `c-001`, `c-002`, and `c-003` only. Lane mailboxes, handoff files (`/var/spool-hub/dispatch/handoff/`), and heartbeats are absent. A GO or FIX sent to a lane is visible only as the leader's outbox copy.
 
-- **Stuck rule after rotation:** A rotation ACK with a large unread inbox starts the 10-minute stuck clock. FYI archive comes before the runner restarts.
+- **Open:** Does a rotation ACK with a large unread inbox start the 10-minute stuck clock? Does FYI archive come before the runner restarts?
 
 - **Decision ownership during rotation:** A rotation makes the failover ACTIVE for about two minutes. A decision addressed during that window belongs to the seat that is ACTIVE when the decision is sent.
 
@@ -246,9 +246,9 @@ never worked around.
 
 - **S4 Watchdog:** A lane that waits with one bash call longer than 15 minutes is restarted by S4. This drops instructions the old session had. Re-send them if this happens.
 
-- **LAST_RUN counters:** Lifetime attachment drops are not the LAST_RUN counter (`files_dropped=0` is the last pass only). Trust the mirror's total.
+- **Open:** Which number should a shadow seat trust for lifetime attachment drops (LAST_RUN only shows the last pass)?
 
-- **Disk headroom notice:** On a disk-headroom notice, stop placing lanes on that box. The owner decides what to delete; wait for an owner go before running box-disk-sweep.
+- **Disk headroom notice:** On a disk-headroom notice, stop placing lanes on that box.
 
 - **Stalled boxes:** A stalled box does not show in LAST_RUN as a stall (`copied=` is the last pass). Check `ctime` of paths to detect bursts after a stall.
 
@@ -285,7 +285,7 @@ The dispatcher runbook's section 9 applies in full. In addition:
 | a commit after the final result | a restarted session told "take no new work" still pushed a second commit after its final result, and that commit held a vacuous assert | diff every commit after a lane's final result before `ACCEPTED` |
 | a stale lease file | a seat on a machine whose loop had stopped kept acting on a lease file older than 180 s | the age is part of the rule |
 
-| the split lease (shadow) | A shadow seat reads the lease from the feed's notes, not the spool root. | A lease note is stale if it is older than 180 s. |
+| the split lease (shadow) | A shadow seat reads the lease from the feed's notes, not the spool root. | No age is defined for a lease note; trust the lease file when you can read it. |
 
 | 429 fencing (maxScale >= 2) | Both leases can become none@unreachable in the same minute the hub returns 429, and spec 102 fences both boxes. | The recovery and who may restart prd is an open owner decision (maxScale >= 2). |
 

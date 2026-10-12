@@ -81,7 +81,7 @@ secrets, and no filler: a post that only acknowledges is not sent.
 
 - **Mirror inbox archive:** An acked message leaves the mirror inbox and appears under `archive/` as a new path whose mtime is the original message time. `ls -t` will show it as old. Sort by `ctime` or read everything since your last check.
 
-- **LAST_RUN counters:** Lifetime attachment drops are not the LAST_RUN counter (`files_dropped=0` is the last pass only). Trust the mirror's total.
+- **Open:** Which number should a shadow seat trust for lifetime attachment drops (LAST_RUN only shows the last pass)?
 
 - **Unseating agents:** No named action unseats one live agent. `do_spl_desk_up_all` seats every live window on the owner desk.
 
@@ -176,7 +176,7 @@ Before you post:
 
 - **Shadow feed limitations:** The shadow feed mirrors `c-001`, `c-002`, and `c-003` only. Lane mailboxes, handoff files, and heartbeats are absent. A GO or FIX sent to a lane is visible only as the leader's outbox copy.
 
-- **Stuck rule after rotation:** A rotation ACK with a large unread inbox starts the 10-minute stuck clock. FYI archive comes before the runner restarts.
+- **Open:** Does a rotation ACK with a large unread inbox start the 10-minute stuck clock? Does FYI archive come before the runner restarts?
 
 - **Decision ownership during rotation:** A rotation makes the failover ACTIVE for about two minutes. A decision addressed during that window belongs to the seat that is ACTIVE when the decision is sent. The fresh session reads the handoff and posts nothing about the rotation.
 
@@ -222,7 +222,7 @@ closed by the orchestrator, not kept open "in case".
 
 - **Lane map check:** A seat with no recorded files (read-only, not a git repo) makes every `lane-map.sh --check` exit 4. Recording a non-repo path clears this.
 
-- **Disk headroom notice:** On a disk-headroom notice, stop placing lanes on that box. The owner decides what to delete; wait for an owner go before running box-disk-sweep.
+- **Disk headroom notice:** On a disk-headroom notice, stop placing lanes on that box.
 
 - **Spawn HOLD:** A spawn answered HOLD (rc 10, "nothing was spawned") still leaves a remote request behind. Drop the duplicate before it spawns.
 
@@ -295,7 +295,7 @@ any crossing with ONE final message.
 | a backtick in `--body "…"` | the shell ran it as a command and the message arrived garbled | `--body-file <file>` |
 | two seats relayed one owner post | four contradictory messages reached one lane within seconds | one seat relays; the other says so |
 
-| the split lease (shadow) | A shadow seat reads the lease from the feed's notes, not the spool root. | A lease note is stale if it is older than 180 s; trust the file over the notes if available, otherwise check the note's age. |
+| the split lease (shadow) | A shadow seat reads the lease from the feed's notes, not the spool root. | No age is defined for a lease note; trust the lease file when you can read it. |
 
 | 429 fencing (maxScale >= 2) | Both leases can become none@unreachable in the same minute the hub returns 429, and spec 102 fences both boxes. | The recovery and who may restart prd is an open owner decision (maxScale >= 2). |
 

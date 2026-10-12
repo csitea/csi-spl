@@ -66,6 +66,7 @@ ok('decision: a return carries its note, trimmed', JSON.stringify(hoursDecision(
 
 ok('export path: the T009 query', hoursExportPath('2026-10-05', 'xlsx', true) === '/v1/hours/export?period=2026-10-05&format=xlsx&final=true' && hoursExportPath('2026-10-05', 'other', false).endsWith('format=csv&final=false'))
 ok('file name from Content-Disposition', hoursDownloadName('attachment; filename="hours-ws-2026-10-05-2026-10-11.csv"', 'x') === 'hours-ws-2026-10-05-2026-10-11.csv')
+ok('file name: an unquoted token (RFC 6266) is read too', hoursDownloadName('attachment; filename=hours-ws-2026-10-05-2026-10-11.xlsx', 'x') === 'hours-ws-2026-10-05-2026-10-11.xlsx' && hoursDownloadName('attachment; filename=../x', 'f.csv') === 'f.csv')
 ok('file name: none or a path falls back', hoursDownloadName('', 'f.csv') === 'f.csv' && hoursDownloadName('attachment; filename="../x"', 'f.csv') === 'f.csv')
 
 // the mock as the hub: the week of 2026-09-28 is frozen on 2026-10-09 (freezes 10-07 00:00)

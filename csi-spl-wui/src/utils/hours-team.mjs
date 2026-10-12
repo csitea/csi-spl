@@ -106,10 +106,10 @@ export function hoursExportPath(day, format, final) {
   return `/v1/hours/export?period=${encodeURIComponent(String(day || ''))}&format=${f}&final=${final ? 'true' : 'false'}`
 }
 
-/** The file name of a Content-Disposition `attachment; filename="..."`, else `fallback`. */
+/** The file name of a Content-Disposition `attachment; filename="..."` (or an unquoted token), else `fallback`. */
 export function hoursDownloadName(disposition, fallback) {
-  const m = String(disposition || '').match(/filename="([^"/\\]+)"/)
-  return m ? m[1] : fallback
+  const m = String(disposition || '').match(/filename="([^"/\\]+)"|filename=([^";\s/\\]+)(?=;|$)/)
+  return m ? m[1] || m[2] : fallback
 }
 
 /**

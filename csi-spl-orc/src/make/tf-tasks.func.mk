@@ -12,7 +12,16 @@ do-tf-plan: demand_var-ENV demand_var-STEP
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
 	  export ENV=$(ENV); \
+	  # 061 only, and only when set: an empty string is not a list, and other steps stay unchanged. \
+	  wine_tf=(); \
+	  case "$(STEP)" in \
+	    061-gcp-vm-wine-box) \
+	      [ -n "$${TF_VAR_iap_members:-}" ] && wine_tf+=(-e TF_VAR_iap_members); \
+	      [ -n "$${TF_VAR_desktop_user_ssh_public_keys:-}" ] && wine_tf+=(-e TF_VAR_desktop_user_ssh_public_keys); \
+	      ;; \
+	  esac; \
 	  docker exec \
+		"$${wine_tf[@]}" \
 		-e ORG=$$ORG \
 		-e ENV=$$ENV \
 		-e APP=$${APP#*-} \
@@ -56,7 +65,16 @@ do-provision: demand_var-ENV demand_var-STEP
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
 	  export ENV=$(ENV); \
+	  # 061 only, and only when set: an empty string is not a list, and other steps stay unchanged. \
+	  wine_tf=(); \
+	  case "$(STEP)" in \
+	    061-gcp-vm-wine-box) \
+	      [ -n "$${TF_VAR_iap_members:-}" ] && wine_tf+=(-e TF_VAR_iap_members); \
+	      [ -n "$${TF_VAR_desktop_user_ssh_public_keys:-}" ] && wine_tf+=(-e TF_VAR_desktop_user_ssh_public_keys); \
+	      ;; \
+	  esac; \
 	  docker exec \
+		"$${wine_tf[@]}" \
 		-e ORG=$$ORG \
 		-e ENV=$$ENV \
 		-e APP=$${APP#*-} \

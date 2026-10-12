@@ -69,5 +69,83 @@ else
     || fail "control: a planted img-tf-runner passed"
 fi
 
+# 5. step 061 forwards tester identity into the tf-runner only when the var is set.
+#    docker is a stub: it records its argv and exits. The value stays in the
+#    environment, so the log must not contain it.
+T=$(mktemp -d)
+trap 'rm -rf "$T"' EXIT
+DOCKER_LOG="$T/docker.args"
+export DOCKER_LOG
+mkdir -p "$T/bin"
+cat >"$T/bin/docker" <<'EOF'
+#!/bin/bash
+{
+  printf '%s\n' "$*"
+  if [[ " $* " == *" -e TF_VAR_iap_members "* ]]; then
+    if [[ -n "${TF_VAR_iap_members:-}" ]]; then echo iap-env=nonempty; else echo iap-env=empty; fi
+  fi
+  if [[ " $* " == *" -e TF_VAR_desktop_user_ssh_public_keys "* ]]; then
+    if [[ -n "${TF_VAR_desktop_user_ssh_public_keys:-}" ]]; then echo keys-env=nonempty; else echo keys-env=empty; fi
+  fi
+} >"${DOCKER_LOG:?}"
+exit 0
+EOF
+chmod +x "$T/bin/docker"
+run_plan() { # STEP
+  rm -f "$DOCKER_LOG"
+  PATH="$T/bin:$PATH" ENV=dev STEP="$1" GITHUB_TOKEN=x make --no-print-directory do-tf-plan >/dev/null
+  cat "$DOCKER_LOG"
+}
+member='["user:tester@example.com"]'
+pubkey='["ssh-ed25519 TESTKEY"]'
+out=$(TF_VAR_iap_members="$member" TF_VAR_desktop_user_ssh_public_keys='' run_plan 061-gcp-vm-wine-box)
+if grep -q -- '-e TF_VAR_iap_members' <<<"$out" && grep -q 'iap-env=nonempty' <<<"$out" \
+   && ! grep -q -- '-e TF_VAR_desktop_user_ssh_public_keys' <<<"$out" \
+   && ! grep -q 'tester@example.com' <<<"$out" \
+   && grep -q -- '-e TF_VAR_billing_account_id=' <<<"$out"; then
+  pass "061 plan forwards iap members only when that var is set"
+else
+  fail "061 plan member forward: $(tr '\n' ' ' <<<"$out")"
+fi
+out=$(TF_VAR_iap_members='' TF_VAR_desktop_user_ssh_public_keys="$pubkey" run_plan 061-gcp-vm-wine-box)
+if grep -q -- '-e TF_VAR_desktop_user_ssh_public_keys' <<<"$out" && grep -q 'keys-env=nonempty' <<<"$out" \
+   && ! grep -q -- '-e TF_VAR_iap_members' <<<"$out" && ! grep -q 'TESTKEY' <<<"$out"; then
+  pass "061 plan forwards desktop keys only when that var is set"
+else
+  fail "061 plan key forward: $(tr '\n' ' ' <<<"$out")"
+fi
+out=$(env -u TF_VAR_iap_members -u TF_VAR_desktop_user_ssh_public_keys PATH="$T/bin:$PATH" \
+  ENV=dev STEP=061-gcp-vm-wine-box GITHUB_TOKEN=x make --no-print-directory do-tf-plan >/dev/null
+  cat "$DOCKER_LOG")
+if ! grep -q 'TF_VAR_iap_members' <<<"$out" && ! grep -q 'TF_VAR_desktop_user_ssh_public_keys' <<<"$out"; then
+  pass "061 plan with both vars unset adds neither flag"
+else
+  fail "061 plan unset vars still forwarded: $(tr '\n' ' ' <<<"$out")"
+fi
+out=$(TF_VAR_iap_members="$member" TF_VAR_desktop_user_ssh_public_keys="$pubkey" run_plan 056-gcs-box-state)
+if ! grep -q 'TF_VAR_iap_members' <<<"$out" && ! grep -q 'TF_VAR_desktop_user_ssh_public_keys' <<<"$out" \
+   && grep -q -- '-e TF_VAR_billing_account_id=' <<<"$out"; then
+  pass "a non-061 plan does not forward the wine-box vars"
+else
+  fail "non-061 plan forwarded wine-box vars: $(tr '\n' ' ' <<<"$out")"
+fi
+prov=$(ENV=dev STEP=061-gcp-vm-wine-box GITHUB_TOKEN=x make --no-print-directory -n do-provision 2>/dev/null)
+if grep -q '061-gcp-vm-wine-box)' <<<"$prov" && grep -q 'TF_VAR_iap_members:-' <<<"$prov" \
+   && grep -q 'TF_VAR_desktop_user_ssh_public_keys:-' <<<"$prov" \
+   && grep -q -- '-e TF_VAR_iap_members' <<<"$prov" \
+   && grep -q -- '-e TF_VAR_desktop_user_ssh_public_keys' <<<"$prov"; then
+  pass "do-provision carries the same 061-only forward"
+else
+  fail "do-provision recipe has no 061 forward"
+fi
+for tgt in do-deprovision do-tf-plan-destroy; do
+  rec=$(ENV=dev STEP=061-gcp-vm-wine-box GITHUB_TOKEN=x make --no-print-directory -n "$tgt" 2>/dev/null)
+  if grep -q 'TF_VAR_iap_members' <<<"$rec" || grep -q 'TF_VAR_desktop_user_ssh_public_keys' <<<"$rec"; then
+    fail "make $tgt forwards wine-box tester vars"
+  else
+    pass "make $tgt does not forward wine-box tester vars"
+  fi
+done
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

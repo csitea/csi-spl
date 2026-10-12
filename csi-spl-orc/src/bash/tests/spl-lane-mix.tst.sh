@@ -143,8 +143,8 @@ mix LANE_MIX_KIND=simple_coding; rc=$?
   && grep -qE '^mistral +80% +80% +80% +16 yes +ok$' "$T/out" \
   && grep -qE '^agy +0% +0% +0% +0 yes +ok$' "$T/out" \
   && grep -q '^journal: no LANE_MIX_TASK, no try counted$' "$T/out" \
-  && [[ "$(pick)" == mistral ]] && grep -q 'the simple_coding mix is inside the band; mistral is the main' "$T/out" \
-  && pass "2. on target: 20 of simple_coding (a row with no kind counts, seats and other kinds do not), inside the band -> main" \
+  && [[ "$(pick)" == mistral ]] && grep -q 'no simple_coding vendor is further under its weight than the main; mistral is the main' "$T/out" \
+  && pass "2. on target: 20 of simple_coding (a row with no kind counts, seats and other kinds do not) -> main" \
   || fail "2. table: rc=$rc $(cat "$T/out")"
 mix LANE_MIX_KIND=complex_coding
 grep -q '^window=20 n=1 ' "$T/out" && [[ "$(pick)" == claude ]] \
@@ -154,11 +154,18 @@ grep -q '^window=20 n=1 ' "$T/out" && [[ "$(pick)" == claude ]] \
 registry simple_coding 0 20 0
 mix LANE_MIX_KIND=simple_coding
 [[ "$(pick)" == claude ]] && grep -qE '^claude +20% +20% +0% +0 yes +under$' "$T/out" \
-  && grep -q 'claude is 20 points under its 20% of simple_coding (band 5)' "$T/out" \
+  && grep -q 'claude has 0 of the last 20 simple_coding spawns, under its 20 of 100' "$T/out" \
   && pass "3. simple_coding at 100% mistral: the next pick is claude" || fail "3. nudge: $(cat "$T/out")"
+# any deficit nudges, not only one past the band: gated on the band the
+# smaller vendors settled 6..11 points under their weights (T1 below)
 registry simple_coding 3 17 0
 mix LANE_MIX_KIND=simple_coding
-[[ "$(pick)" == mistral ]] && pass "3. claude 15% of 20%, inside the band: main mistral" || fail "3. band: $(cat "$T/out")"
+[[ "$(pick)" == claude ]] && grep -qE '^claude +20% +20% +15% +3 yes +ok$' "$T/out" \
+  && pass "3. claude 15% of 20%, inside the band but under its weight: claude" || fail "3. under, in band: $(cat "$T/out")"
+registry simple_coding 5 15 0
+mix LANE_MIX_KIND=simple_coding
+[[ "$(pick)" == mistral ]] && grep -q 'no simple_coding vendor is further under its weight than the main; mistral is the main' "$T/out" \
+  && pass "3. claude 25% of 20%, mistral 75% of 80%: the main mistral" || fail "3. main under: $(cat "$T/out")"
 
 # --- 4. the tries journal (T4) and the one rule ------------------------------
 registry simple_coding 0 20 0
@@ -455,6 +462,9 @@ mix; rc=$?
   && pass "9. no registry yet: n=0, the main" || fail "9. no registry: rc=$rc $(cat "$T/out")"
 
 # --- 11. T1: 1,000 simulated picks per coding kind, never agy -----------------
+# T1 runs on the REAL cnf rows (simple_coding grok 41 / mistral 39 / claude
+# 20 since c743cc022), not the pinned ones: the band must hold for the rows
+# the fleet spawns by.
 # simulate <n>: do_spl_lane_mix once (row, instance setting, availability),
 # then <n> picks of the one rule in the same process, each appended to a
 # registry that keeps the last `window` rows (all the nudge reads). Prints
@@ -483,18 +493,17 @@ eff() { sed -n "s/^eff $1=//p" "$T/out"; }
 # t1_check <off-json>: agy 0 of 1,000, and every vendor's share of the picks
 # within the band of its effective weight (out of the weights left: an out
 # claude that is its own backup leaves its 20 of simple_coding to nobody), or
-# all 1,000 hold when claude and mistral are both out. The band is the
-# tolerance (5) plus one window step (100/20): the nudge fires only past the
-# tolerance and the window counts in steps of 5 points, so a vendor's long
-# run sits about 6 points under its weight (simple_coding 80/20: 86/14).
+# all 1,000 hold when nothing is left (claude and mistral out of a row with
+# no other vendor, as complex_coding without grok). The band is the
+# tolerance, 5 points (spec 115 section 2.1).
 t1_check() {
-  local v share want sum=0 band=$(( 5 + 100 / 20 )) bad=""
+  local v share want sum=0 band=5 bad=""
   [[ "$(got agy)" == 0 ]] || bad+=" agy=$(got agy)"
-  if [[ "$1" == '["claude","mistral"]' ]]; then
+  for v in claude grok agy qwen mistral; do sum=$(( sum + $(eff "$v") )); done
+  if (( sum == 0 )); then
     [[ "$(got hold)" == 1000 ]] || bad+=" hold=$(got hold)"
   else
     [[ "$(got hold)" == 0 ]] || bad+=" hold=$(got hold)"
-    for v in claude grok agy qwen mistral; do sum=$(( sum + $(eff "$v") )); done
     for v in claude grok agy qwen mistral; do
       share=$(( ($(got "$v") + 5) / 10 )) want=$(( $(eff "$v") * 100 / sum ))
       (( share >= want - band && share <= want + band )) || bad+=" $v=$share%/$want%"
@@ -509,7 +518,7 @@ for k in tests simple_coding complex_coding; do
   ( T="$T/t1-$k"; mkdir -p "$T"; cp "${T%/*}/hub" "$T/hub"
     for off in '[]' '["mistral"]' '["claude"]' '["claude","mistral"]'; do
       hub "$off"
-      simulate 1000 LANE_MIX_KIND=$k; rc=$?
+      simulate 1000 LANE_MIX_KIND=$k LANE_MIX_CNF="$REAL_CNF"; rc=$?
       [[ $rc -eq 0 ]] || { echo " $k$off:rc=$rc $(tail -n 1 "$T/out")"; continue; }
       r="$(t1_check "$off")"
       [[ -z "$r" ]] || echo " $k$off:$r"
@@ -530,6 +539,17 @@ MIX_PROJ="$CTL" simulate 1000 LANE_MIX_KIND=simple_coding LANE_MIX_SPLIT_KIND='c
 (( $(got agy) > 0 )) \
   && pass "11. control: agy 10 in simple_coding (row check removed) gives agy $(got agy) of 1,000 picks (T1 would be red)" \
   || fail "11. control: agy 10 did not reach a pick: $(cat "$T/out")"
+rm -rf "$T/ctl"
+# CONTROL: the nudge gated on the band again (a deficit past the tolerance
+# only, as before c-851) on the real simple_coding row must break the band
+mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"
+cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
+sed -i 's/^\( *\)d=\$(( _LM_EFF\[\$v\] \* (_LM_N + 1) - _LM_CNT\[\$v\] \* sum ))$/\1d=$(( _LM_EFF[$v] * _LM_N - _LM_CNT[$v] * sum )); (( d * 100 > _LM_TOL * _LM_N * sum )) || d=0/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
+MIX_PROJ="$CTL" simulate 1000 LANE_MIX_KIND=simple_coding LANE_MIX_CNF="$REAL_CNF"
+r="$(t1_check '[]')"
+grep -qF '_LM_TOL * _LM_N' "$CTL/src/bash/run/spl-lane-mix.func.sh" && [[ -n "$r" ]] \
+  && pass "11. control: the nudge gated on the band drifts out of it on simple_coding:$r (T1 would be red)" \
+  || fail "11. control: the band-gated nudge held the band: '$r' $(tail -n 3 "$T/out")"
 rm -rf "$T/ctl"
 
 # --- 12. T9: i18n with personal data never reaches agy ----------------------

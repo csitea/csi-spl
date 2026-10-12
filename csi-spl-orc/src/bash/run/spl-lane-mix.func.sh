@@ -17,7 +17,8 @@
 # @description (LANE_MIX_TASK, read from the tries journal,
 # @description spl-lane-mix-journal.func.sh). With no try on the task yet, the
 # @description per-kind nudge comes first: the vendor of the row furthest below
-# @description its weight by MORE than the tolerance, over the last `window`
+# @description its weight (any deficit, so each long-run share holds within
+# @description the tolerance; the tolerance marks the table), over the last `window`
 # @description spawns of that kind in $SPOOL_ROOT/registry.tsv (the kind is the
 # @description row's last column; a row with none counts as simple_coding).
 # @description A vendor that is out is skipped at once, with no 2-try wait, and
@@ -403,20 +404,26 @@ _spl_lane_mix_table() {
 }
 
 # _spl_lane_mix_easy -> _LM_EASY, _LM_EASY_WHY: the per-kind nudge (spec 115
-# section 2.1), the vendor furthest below its effective weight by more than
-# the tolerance, else nothing (the main takes it)
+# section 2.1), the vendor furthest below its effective weight (out of the
+# weights left) with this spawn counted, else nothing: the main takes it, as
+# it does when it is the furthest below itself or ties. Any deficit counts,
+# not only one past the tolerance: gated on the band, a 20-spawn window that
+# moves in 5-point steps let the smaller vendors settle 6..11 points under
+# (simple_coding 41/39/20 ran 52/33/14). Exact counts, no rounded
+# percentages: the deficit is weight*(n+1) - count*sum, in 1/((n+1)*sum).
 _spl_lane_mix_easy() {
-  local v d best=-1
+  local v d best=0 sum=0
   _LM_EASY=""
-  for v in "${LANE_MIX_VENDORS[@]}"; do
+  for v in "${LANE_MIX_VENDORS[@]}"; do sum=$(( sum + _LM_EFF[$v] )); done
+  for v in "$_LM_MAIN" "${LANE_MIX_VENDORS[@]}"; do
     (( _LM_EFF[$v] > 0 )) || continue
-    d=$(( _LM_EFF[$v] - _LM_PCT[$v] ))
-    if (( d > _LM_TOL && d > best )); then _LM_EASY="$v" best="$d"; fi
+    d=$(( _LM_EFF[$v] * (_LM_N + 1) - _LM_CNT[$v] * sum ))
+    if (( d > best )); then _LM_EASY="$v" best="$d"; fi
   done
-  if [[ -n "$_LM_EASY" ]]; then
-    _LM_EASY_WHY="$_LM_EASY is ${best} points under its ${_LM_EFF[$_LM_EASY]}% of $_LM_KIND (band $_LM_TOL)"
+  if [[ -n "$_LM_EASY" && "$_LM_EASY" != "$_LM_MAIN" ]]; then
+    _LM_EASY_WHY="$_LM_EASY has ${_LM_CNT[$_LM_EASY]} of the last $_LM_N $_LM_KIND spawns, under its ${_LM_EFF[$_LM_EASY]} of $sum"
   else
-    _LM_EASY_WHY="the $_LM_KIND mix is inside the band"
+    _LM_EASY="" _LM_EASY_WHY="no $_LM_KIND vendor is further under its weight than the main"
   fi
   return 0
 }

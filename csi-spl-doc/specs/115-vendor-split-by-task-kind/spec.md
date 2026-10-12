@@ -94,8 +94,11 @@ per-kind weights.** The owner said "much more **weight**", not "only", and
 the code already has the machinery:
 
 - `_spl_lane_mix_easy` (csi-spl-orc `spl-lane-mix.func.sh`) picks the vendor
-  furthest below its target by more than the tolerance, and otherwise the
-  largest share. Run per kind, the same function does what the owner
+  furthest below its target, and otherwise the main. Any deficit counts:
+  gated on the tolerance, the 20-spawn window (5-point steps) let the
+  smaller vendors settle 6..11 points under their weights (c-214 TST-1;
+  `simple_coding` 41/39/20 ran 52/33/14); ungated, each long-run share holds
+  within the tolerance (T1). Run per kind, the same function does what the owner
   described: with mistral 80 / claude 20 for `simple_coding`, about 1 lane
   in 5 goes to claude when that kind's actual mix drifts.
 - With main and backup only, claude would get 0% of simple coding until 2
@@ -105,7 +108,7 @@ the code already has the machinery:
 
 Change from today: a kind no longer forces its first vendor (D5's "the kind
 picks the FIRST vendor"). The weighted nudge now works inside each kind,
-and with no drift beyond the tolerance it picks the main. This needs
+and with no vendor under its weight it picks the main. This needs
 per-kind actuals, so each registry row records the kind (section 4).
 
 ## 3. Configuration

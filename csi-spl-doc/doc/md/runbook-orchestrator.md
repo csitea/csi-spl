@@ -104,6 +104,12 @@ nothing (the same check for any other vendor binary).
 | a red on trunk whose author seat is stopped or retired | `do_report_ci_gate`, `git log` for the commit and its seat; place a small fix lane yourself and tell the dispatcher. The brief fixes the convention, never the test |
 | FYI, chatter, duplicates | archive |
 
+- **Shadow feed limitations:** Attachments (`files=[]`) are dropped in the shadow feed. A shadow seat cannot look at an owner image.
+
+- **Re-raise text clocks:** The ask re-raise text ("nobody has acked") covers both the 15 min and 60 min clocks. An ask may be already acked and still trigger a lock expired re-raise. Check the actual ask state before acking again.
+
+- **Queued asks:** An ask that is queued on purpose still counts toward the 4-raise dead-letter. Ack the ask to park it and stop the clock, and track it in your handoff.
+
 ## 4. The leases and standby
 
 - You act only while `/var/spool-hub/dispatch/lease.orch` names YOUR id AND
@@ -127,6 +133,26 @@ nothing (the same check for any other vendor binary).
   `do_spl_orch_inbox`. Finally it runs the ACK-COMMAND from its seed within
   600 s. It posts nothing about the rotation and picks up what the old
   session left.
+
+- **Shadow feed limitations:** The shadow feed mirrors `c-001`, `c-002`, and `c-003` only. Lane mailboxes, handoff files (`/var/spool-hub/dispatch/handoff/`), and heartbeats are absent. A GO or FIX sent to a lane is visible only as the leader's outbox copy.
+
+- **Stuck rule after rotation:** A rotation ACK with a large unread inbox starts the 10-minute stuck clock. FYI archive comes before the runner restarts.
+
+- **Decision ownership during rotation:** A rotation makes the failover ACTIVE for about two minutes. A decision addressed during that window belongs to the seat that is ACTIVE when the decision is sent.
+
+- **Unsubmitted text:** A rotation can lift unsubmitted prompt-suggestion text out of the old pane. The fresh session must never relay unsubmitted text after the prompt marker as an owner go.
+
+- **Rotation replies:** A lane-rotate state note addressed to bare `c-001` on another box goes to the standby seat, not the orch lease holder. Address it to the lease holder.
+
+- **Orchestrator flap:** An orchestrator flap at hub recovery can misdirect decisions. Verify you are still the active holder before acting on decisions received during a flap.
+
+- **Login expired:** A login-expired watchdog stays in the old box's inbox when the lease moves. The new holder must be told this was the reason.
+
+- **Crossed asks:** An ask that crosses an orchestrator move can arrive as a truncated summary. The new holder must ask for the full file.
+
+- **Lane rotation (operator view):** During lane rotation, `lifetime/brief.md` is temporarily a seed. The `ACK-COMMAND` is not in the new session's first prompt, and the old and new sessions share the worktree while the 600s clock runs.
+
+- **Role rotation (operator view):** The lane-rotation fix does not cover a role rotation. A role rotation is outside the lane fix, and `ACK-COMMAND` is not in the new role seat's first prompt.
 
 ## 5. Spawning and placement
 
@@ -170,6 +196,10 @@ load 125 on 16 cores with 91% pressure, and a lane saw a fake navigation
 timeout. Pin `SPAWN_BOX=<box>`, with the reason in the report, only when the
 picker would choose the starved box, or when the owner orders a box.
 
+- **Lane map check:** A seat with no recorded files (read-only, not a git repo) makes every `lane-map.sh --check` exit 4. Recording a non-repo path clears this.
+
+- **Spawn HOLD:** A spawn answered HOLD (rc 10, "nothing was spawned") still leaves a remote request behind. Drop the duplicate before it spawns.
+
 ## 6. Production operations
 
 | operation | needs |
@@ -208,6 +238,30 @@ Every GCP call runs as the per-environment service account (repo
 `CLAUDE.md`), never the owner account; a missing permission is reported,
 never worked around.
 
+- **Destructive action lanes:** An accepted restore lane (or other destructive action) must not re-run the action while it exits. Stop and restore the same seat, then observe a 10-minute cool-down.
+
+- **Workspace doc rename:** The workspace docs API (`do_spl_desk_doctree`) has no history-keeping rename. A brief cannot order a workspace-doc rename through it.
+
+- **CI gate reports:** When reading `do_report_ci_gate` with signatures on, ignore lines that start with PASS even if they contain the word FAIL.
+
+- **S4 Watchdog:** A lane that waits with one bash call longer than 15 minutes is restarted by S4. This drops instructions the old session had. Re-send them if this happens.
+
+- **LAST_RUN counters:** Lifetime attachment drops are not the LAST_RUN counter (`files_dropped=0` is the last pass only). Trust the mirror's total.
+
+- **Disk headroom notice:** On a disk-headroom notice, stop placing lanes on that box. The owner decides what to delete; wait for an owner go before running box-disk-sweep.
+
+- **Stalled boxes:** A stalled box does not show in LAST_RUN as a stall (`copied=` is the last pass). Check `ctime` of paths to detect bursts after a stall.
+
+- **Unseating agents:** No named action unseats one live agent. `do_spl_desk_up_all` seats every live window on the owner desk.
+
+- **Disk sweep (operator view):** A disk sweep (`box-disk-sweep`) freed count is only real if the file count dropped. Ignore rc=0 or DONE if no files were removed.
+
+- **Backing up untracked tests:** Read the copy's result before reporting the backup. A mode 711 file owned by another user needs a different copy (`sudo` and a `cmp` check).
+
+- **Exit gate ACCEPTED:** An `ACCEPTED` line must come from a role seat or the spawner. An editor's line is refused, and a seat on the other box needs its own line from the spawner.
+
+- **Pre-push override:** Only the owner can set `SPL_PREPUSH_OVERRIDE`. A permission denied on the hook's log is not a failing test.
+
 ## 7. Escalation to the owner
 
 - A question only the owner can answer goes to the topic it belongs to, as a
@@ -231,6 +285,10 @@ The dispatcher runbook's section 9 applies in full. In addition:
 | a commit after the final result | a restarted session told "take no new work" still pushed a second commit after its final result, and that commit held a vacuous assert | diff every commit after a lane's final result before `ACCEPTED` |
 | a stale lease file | a seat on a machine whose loop had stopped kept acting on a lease file older than 180 s | the age is part of the rule |
 
+| the split lease (shadow) | A shadow seat reads the lease from the feed's notes, not the spool root. | A lease note is stale if it is older than 180 s. |
+
+| 429 fencing (maxScale >= 2) | Both leases can become none@unreachable in the same minute the hub returns 429, and spec 102 fences both boxes. | The recovery and who may restart prd is an open owner decision (maxScale >= 2). |
+
 ## 9. Gaps for a non-Claude seat
 
 | part | today | a Grok seat |
@@ -241,3 +299,5 @@ The dispatcher runbook's section 9 applies in full. In addition:
 | memory files | `~/.claude/projects/*/memory/` | this page, the dispatcher's and the role spec carry what the memory held |
 
 <!-- version: 0.2.0 · updated: 2026-10-11 · with the orchestrator's additions -->
+
+- **Shadow feed limitations:** The feed has no pane footer, so confirming "able" cannot be done from the feed alone.

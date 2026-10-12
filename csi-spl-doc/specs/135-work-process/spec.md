@@ -1,6 +1,7 @@
 # 135: The work process: discussions, issues, lanes, docs, releases
 
-Status: **v1.0-rc1**, editor s135-claude (c-882). Signatures: section 10.
+Status: **v1.0, signed** by all four seats (section 10); rc1 43f203c17 signed unchanged.
+Editor s135-claude (c-882). Owner questions Q1-Q8 (section 9) are the owner's to decide.
 Merged from the four seat files in `reviews/` against origin/master
 28484d78a. Build lanes make every code and doc-page change after v1.0;
 this spec changes no code.
@@ -271,14 +272,14 @@ Not folded, with the reason:
 - s135-agy, the issue's link to the discussion "via `TaskID`": `task_id`
   is the issue's own discussion (`api/internal/hub/issues.go:27-31`).
 
-Signatures on v1.0-rc1 (each seat replies on `dispatch-5ea2e615`: `signed
-<sha>` or the exact change):
+Signatures on v1.0-rc1 43f203c17 (replies on `dispatch-5ea2e615`); v1.0 is
+that text with this table and the status line filled in:
 
 | seat | signed |
 |---|---|
-| s135-claude | editor |
-| s135-agy | pending |
-| s135-grok | pending |
-| s135-mistral | pending |
+| s135-claude | SIGN (editor, c-882) |
+| s135-agy | SIGN (a-353, msg 072a16ee) |
+| s135-grok | SIGN (g-351, msg 2f430818) |
+| s135-mistral | SIGN (m-352, msg 4cc5d42c) |
 
-<!-- version: 1.0.0-rc1 · updated: 2026-10-12 · last-edit: 2026-10-12T19:20:00Z -->
+<!-- version: 1.0.0 · updated: 2026-10-12 · last-edit: 2026-10-12T19:10:00Z -->

@@ -10,7 +10,10 @@
   >
     <UiIcon :name="kind.icon" size="1em" />
   </button>
-  <div v-else class="file-card">
+  <div v-else class="file-card" :class="removable ? ['file-card--x', `file-card--x-${xSide}`] : []">
+    <!-- SPL-1560: the X that removes the file from the system, at the side
+         Settings -> Behaviour -> close_buttons picks (one of the two renders) -->
+    <LazyAttachmentRemoveX v-if="removable" side="start" :name="file.name" :remove="remove!" />
     <button
       v-if="previewUrl"
       type="button"
@@ -29,6 +32,7 @@
     </div>
     <a v-if="linkable" class="btn ghost" :href="href" :download="file.name" @click.prevent="onDownload">{{ label }}</a>
     <small v-else :title="file.path">{{ t('feed.on_box_path', { path: file.path }) }}</small>
+    <LazyAttachmentRemoveX v-if="removable" side="end" :name="file.name" :remove="remove!" />
   </div>
   <UiDialog v-if="previewUrl" v-model:open="viewerOpen" :title="file.name" size="xl">
     <div class="file-viewer" data-test="file-viewer">
@@ -46,11 +50,24 @@ import { fileKind, isPreviewableImage, previewImageMime, sharedPreview } from '~
 import { bytesToDataUri } from '~/utils/avatar.mjs'
 import type { FileRef } from '~/types/spool'
 import { saveBlob } from '~/utils/save-blob.mjs'
+import { parseCloseButtons } from '~/utils/view-prefs.mjs'
+import { useSessionStore } from '~/stores/session'
 
-const props = withDefaults(defineProps<{ file: FileRef, iconOnly?: boolean }>(), { iconOnly: false })
+const props = withDefaults(defineProps<{
+  file: FileRef
+  iconOnly?: boolean
+  /** SPL-1560: removes the file from the system; absent = no X (the viewer may not). */
+  remove?: () => Promise<unknown>
+}>(), { iconOnly: false, remove: undefined })
 
 const api = useSpoolApi()
-const { t, locale } = useI18n({ useScope: 'global' })
+const { t, te, locale } = useI18n({ useScope: 'global' })
+const session = useSessionStore()
+/* The X's strings wait in the second catalogue (ON_DEMAND_COMPONENTS), so it
+   shows once they are merged; a blob never stored (mode "path") has nothing
+   to remove. */
+const removable = computed(() => !!props.remove && isDownloadable(props.file) && te('feed.file_remove.label'))
+const xSide = computed(() => (parseCloseButtons(session.claims?.close_buttons) === 'mac' ? 'start' : 'end'))
 const size = computed(() => formatBytes(props.file.bytes, locale.value))
 const shortHash = computed(() => String(props.file.sha256 || props.file.file_id || '').slice(0, 12))
 /* spec 005 US3: only mode "blob" has bytes on the hub; mode "path" never left the box */
@@ -145,6 +162,11 @@ async function onDownload() {
 </script>
 
 <style scoped>
+/* SPL-1560: the remove X sits in the card's top corner on its side; the
+   card keeps that corner clear */
+.file-card--x { position: relative; }
+.file-card--x-start { padding-left: 36px; }
+.file-card--x-end { padding-right: 36px; }
 .file-icon {
   display: inline-flex;
   flex: none;
@@ -223,5 +245,7 @@ async function onDownload() {
   .file-card .btn { min-height: var(--tap); }
   .file-icon { min-width: var(--tap); min-height: var(--tap); justify-content: center; margin-block: -12px; }
   .file-preview img { max-width: 100%; }
+  .file-card--x-start { padding-left: calc(var(--tap) + 4px); }
+  .file-card--x-end { padding-right: calc(var(--tap) + 4px); }
 }
 </style>

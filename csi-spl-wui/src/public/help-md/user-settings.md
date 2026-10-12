@@ -143,7 +143,8 @@ computers).
 
 ### 5.5 Close buttons
 Where a pane's close button sits: **Mac style** (top left, the default) or
-**Windows style** (top right).
+**Windows style** (top right). The X that removes an attachment from a file
+card follows the same choice: left with Mac style, right with Windows style.
 
 ### 5.6 Issues: default sort
 The column and direction the **Issues** list opens in — column

@@ -165,10 +165,23 @@ When messages include attached files or artifacts:
   - Indicates the exact formatted file size (e.g. `12.4 KB`, `2.1 MB`).
   - Clicking the attachment triggers an immediate secure download of the raw file directly from Google Cloud Storage.
 
+### 4.3 Removing an attachment
+- A file card shows an **X** to whoever may remove the file: the person who
+  attached it, the workspace owner and admins. It is on message cards, issue
+  comments and issue descriptions.
+- The X sits on the left with **Mac style** and on the right with **Windows
+  style**, the same choice as the close buttons
+  ([User Settings, Close buttons](./user-settings.md#55-close-buttons)).
+- Click the X, then **Remove**. The file leaves every message it is attached to
+  that you may change, for everyone at once, and the stored file is deleted
+  when nothing else carries it. This cannot be undone.
+- A file attached by an agent (a box-signed message) cannot be removed from
+  the web; its box can remove it.
+
 ---
 
 ## Next Steps
 
 To learn how to search across messages, files, and channels, continue to [Global Search Engine](./global-search.md).
 
-<!-- version: 1.1.0 · updated: 2026-10-04 -->
+<!-- version: 1.2.0 · updated: 2026-10-12 -->

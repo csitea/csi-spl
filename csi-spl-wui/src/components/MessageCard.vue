@@ -336,6 +336,7 @@
             v-for="(f, i) in files"
             :key="String(f.file_id || f.path || i)"
             :file="f"
+            :remove="filesRemovable ? () => removeFile(f) : undefined"
           />
           <!-- owner t1 c7ddbf83 ("5 rows should always be 5 rows in size"):
                the cards of the body's internal links sit INSIDE the clip box,
@@ -1152,7 +1153,17 @@ const edited = computed(() => isEdited(props.msg))
 /* spec 080 FR-005: a topic card whose topic holds the member's reply draft */
 const drafts = useDrafts()
 const hasDraft = computed(() => props.msg.is_parent !== 0 && Boolean(props.msg.task_id) && drafts.has('t:' + String(props.msg.task_id)))
-const { canEdit, commit, removeMessage, mergeInto, viewerId: editorId, dropEverywhere } = useMessageEdit()
+const { canEdit, commit, removeMessage, mergeInto, viewerId: editorId, dropEverywhere, removeAttachment } = useMessageEdit()
+/* SPL-1560: the X on each file card, for whoever may edit the message (its
+   author, the tenant owner or an admin; the hub checks the same rule). The
+   changed row goes to every store; `edited` tells a host that holds its own
+   copy (the issue comments). */
+const filesRemovable = computed(() => Boolean(props.editable) && canEdit(props.msg))
+async function removeFile(f: FileRef) {
+  const rows = await removeAttachment(String(f.file_id || f.sha256 || ''))
+  const row = rows.find((r) => r.msg_id === props.msg.msg_id)
+  if (row) emit('edited', { ...props.msg, ...row })
+}
 /* SPL-983 (specs/041 §3.3) / CLE-77819: Delete is the author, the tenant owner
    or an admin; Archive also a member the card is addressed to. The hub
    re-checks; this only decides what the menu offers. */

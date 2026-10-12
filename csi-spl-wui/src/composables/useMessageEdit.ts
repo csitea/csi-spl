@@ -141,5 +141,18 @@ export function useMessageEdit() {
     return row
   }
 
-  return { viewer, viewerId, canEdit, commit, applyEverywhere, applyKind, dropEverywhere, removeMessage, mergeInto }
+  /**
+   * SPL-1560: the X on an attachment. The hub takes the file off every row
+   * the viewer may change (and drops the blob once nothing carries it); each
+   * changed row goes to every store here, and to the other viewers as a
+   * message_edited frame. Resolves with the changed rows; rejects with the
+   * hub token (not_found / not_author / not_editable).
+   */
+  async function removeAttachment(fileId: string): Promise<SpoolMessage[]> {
+    const out = await api.removeAttachment(String(fileId || ''))
+    for (const row of out.messages) applyEverywhere(row)
+    return out.messages
+  }
+
+  return { viewer, viewerId, canEdit, commit, applyEverywhere, applyKind, dropEverywhere, removeMessage, mergeInto, removeAttachment }
 }

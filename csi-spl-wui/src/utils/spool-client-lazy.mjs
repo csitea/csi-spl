@@ -708,6 +708,32 @@ async function mergeMessage(ctx, msgId, intoId) {
 }
 
 /**
+ * SPL-1560: DELETE /v1/attachments/{file_id} - the X on an attachment takes
+ * the file off every message the caller may change that carries it (the
+ * uploader, the tenant owner or an admin), and the hub deletes the blob once
+ * nothing carries it. Resolves { file_id, removed: msg_id[], messages: rows,
+ * kept, blob_deleted }; rejects with the hub token on err.token (not_found,
+ * not_author, not_editable). The mock applies the author rule to its store.
+ */
+async function removeAttachment(ctx, fileId) {
+  const { live, mock, state } = ctx
+  const id = String(fileId || '')
+  if (!id) throw Object.assign(new Error('file_id required'), { status: 400, token: 'bad_json' })
+  if (mock) {
+    const carries = (m) => Array.isArray(m.files) && m.files.some((f) => f && (f.file_id === id || f.sha256 === id))
+    const rows = state.messages.filter(carries)
+    if (!rows.length) throw Object.assign(new Error('no such file'), { status: 404, token: 'not_found' })
+    const mine = rows.filter((m) => m.from === state.me.id && m.from_box === state.me.box)
+    if (!mine.length) throw Object.assign(new Error('only the uploader may remove this attachment'), { status: 403, token: 'not_author' })
+    for (const m of mine) m.files = m.files.filter((f) => !(f && (f.file_id === id || f.sha256 === id)))
+    return { file_id: id, removed: mine.map((m) => m.msg_id), messages: mine.map((m) => ({ ...m })), kept: rows.length - mine.length, blob_deleted: rows.length === mine.length }
+  }
+  const data = await live(`/v1/attachments/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const messages = (Array.isArray(data?.messages) ? data.messages : []).map((m) => normalizeViewMessage(m))
+  return { ...data, messages }
+}
+
+/**
  * SPL-983, specs/041 topic-archive-v1 §2: archive (PUT) or unarchive
  * (DELETE) a topic card. The hub lets the card's author, the tenant owner
  * or an admin (403 not_allowed otherwise); a reply is 409 not_a_card.
@@ -1518,6 +1544,7 @@ export const lazySpoolMethods = {
   editMessage,
   deleteMessage,
   mergeMessage,
+  removeAttachment,
   archiveTopic: archiveTopicAndTell,
   topicSize,
   deleteTopic,

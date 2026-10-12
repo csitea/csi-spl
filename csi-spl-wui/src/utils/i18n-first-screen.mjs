@@ -30,6 +30,9 @@ export const ON_DEMAND_COMPONENTS = {
   // second catalogue is merged (te('demo.intro.title')); its ~0.5 KB of text
   // stays off the first download of every first-screen page (ci_home_gzip_kb).
   "components/DemoIntro.vue": "idle",
+  // SPL-1560: the attachment X and its confirm; FileAttachment mounts it once
+  // te('feed.file_remove.label') holds, so the feed's first paint is unchanged
+  "components/AttachmentRemoveX.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

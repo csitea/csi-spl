@@ -160,6 +160,8 @@ declare module '~/utils/spool-client.mjs' {
     deleteMessage(msgId: string): Promise<null>
     /** fold msgId into intoId (one hub transaction); resolves with the kept row. */
     mergeMessage(msgId: string, intoId: string): Promise<import('./spool').SpoolMessage & { merged_from: string }>
+    /** SPL-1560: DELETE /v1/attachments/{file_id}; the changed rows come back in `messages`. */
+    removeAttachment(fileId: string): Promise<{ file_id: string, removed: string[], messages: import('./spool').SpoolMessage[], kept: number, blob_deleted: boolean }>
     /** Add (`op` add) or remove the viewer's emoji. Same call for is_parent 0 and 1. */
     setReaction(msgId: string, emoji: string, op: 'add' | 'remove', current?: { emoji: string, actors: string[] }[]): Promise<import('./spool').ReactionUpdate>
     /** SPL-952: set a sent message's kind (author, biz_owner or admin). */

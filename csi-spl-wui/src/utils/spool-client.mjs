@@ -60,6 +60,7 @@ const LAZY_METHODS = [
   'editMessage',
   'deleteMessage',
   'mergeMessage',
+  'removeAttachment',
   'archiveTopic',
   'topicSize',
   'deleteTopic',

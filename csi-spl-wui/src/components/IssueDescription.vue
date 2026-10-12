@@ -74,7 +74,7 @@
       <!-- a file card's own clicks (open, Download) never open the editor -->
       <div v-if="files.length" class="issue-desc__files" @click.stop>
         <div v-for="f in files" :key="f.file_id" data-test="issues-desc-file">
-          <FileAttachment :file="f" />
+          <FileAttachment :file="f" :remove="attach ? () => removeFile(f.file_id) : undefined" />
         </div>
       </div>
     </div>
@@ -87,6 +87,7 @@ import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useFileAttach } from '~/composables/useFileAttach'
 import { descFileRefs } from '~/utils/issue-files.mjs'
+import { useMessageEdit } from '~/composables/useMessageEdit'
 const props = defineProps<{
   text: string
   /* resolves true when the text is stored; false keeps the editor open */
@@ -115,6 +116,22 @@ const { picked, pickLost, openFiles, onPickCancel, onFiles, onPaste, picking } =
 const uploading = ref(false)
 /* the stored files the saved text names, shown as cards under it */
 const files = computed(() => descFileRefs(props.text))
+
+/* SPL-1560: the X on a description's file. The file rides on a note in the
+   issue's discussion, so the hub takes it off that note (and drops the blob);
+   then the link leaves the text. A refusal leaves both as they were; a file
+   no note carries any more (not_found) still loses its link. Shown where the
+   description takes files (an existing issue: `attach`). */
+const { removeAttachment } = useMessageEdit()
+async function removeFile(fileId: string) {
+  try {
+    await removeAttachment(fileId)
+  } catch (e) {
+    if ((e as { token?: string })?.token !== 'not_found') throw e
+  }
+  const link = new RegExp(`\\[[^\\]\\n]*\\]\\([^()\\s]*/v1/files/${fileId}(?:#bytes=\\d+)?\\)\\n?`, 'g')
+  if (!(await props.save(props.text.replace(link, '').trimEnd()))) throw new Error('description not saved')
+}
 
 /* document-level and capture: the editor's blur fires before the click that
  * caused it lands, so close() must already know a press is down anywhere on

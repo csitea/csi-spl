@@ -1,18 +1,21 @@
-# Refactor round 8 - mistral seat (m-033, PC)
+# Refactor round 8 - mistral seat
 
-Verdicts on `origin/master` (mapped sha `6165cfc71`), n=1 per count. The plan's commands and n are in section 2.
+Measured on `origin/master` at **`6165cfc71`** (post-rewrite, mapped from `d4f9553f4` by subject).
+Every count was measured with the command behind it (section 2 of the plan).
 
-| #  | Verdict               | Command / Note                                                                                     |
-|----|-----------------------|----------------------------------------------------------------------------------------------------|
-| 01 | **Agree with changes** | The plan states: "orc-suite and hub-suite stop only once no job outside them is still running". The measurement shows 0 of 32 shards stopped, which contradicts the plan's claim. The fix must ensure the suites stop **only when no other job is running**. |
-| 02 | Agree                 | `grep -cE '=== [A-Za-z0-9._-]+\\.tst\\.sh'` on the logs of cancelled shards: 1236 of 5288 verdicts printed. The fix prints all finished files on stop. |
-| 03 | Agree                 | `gh run list --workflow 10_ci-quality.yml --limit 13 --json headBranch --jq 'map(select(.headBranch != "master")) | length'`: 3 of 13 runs were branches. The fix reads `master` only. |
-| 04 | Agree                 | `awk` over all `.sh` files: 294 one-liners, 270 unmeasured functions. The fix measures one-liners correctly. |
-| 05 | Agree                 | `spool_notify_poke`: 110 lines, `_ppl_run_one`: 109 lines. The fix splits them under 80.          |
-| 06 | Agree                 | `test-strip-two-envs.sh`: 9 sleeps, `test-strip-two-way.sh`: 2 sleeps. The fix replaces them with bounded polls. |
-| 07 | Agree                 | `useMove`: 182 lines. The fix splits it under 80.                                                  |
-| 08 | Agree                 | `useScrollAnchor`: 208 lines. The fix splits it under 80.                                          |
-| 09 | Agree                 | `go tool cover -func`: 42 functions at 0% in `cmd/spool`. The fix raises coverage.                 |
-| 10 | Agree                 | `git ls-remote`: 15 `review/r8-*` or `wip/*r8*` branches. The fix prunes them after the retro.      |
+## Verdicts
+
+| #  | Verdict               | Change/Command Behind It                                                                                     |
+|----|-----------------------|-------------------------------------------------------------------------------------------------------------|
+| 01 | Agree with changes    | Fail-fast stops orc/hub suites **only if no other job is running**. Measured slack: 0 min saved in 13 of 16 runs. Command: `gh api repos/csitea/csi-spl/actions/runs/<id>/jobs | jq -r '.jobs[] | select(.name | test("orc hermetic|hub")) | .steps[-1].completed_at'` |
+| 02 | Agree                 | No change. Command: `grep -cE '=== [A-Za-z0-9._-]+\.tst\.sh' <(curl -s $(gh api repos/csitea/csi-spl/actions/jobs/<id>/logs | grep -oE 'https://[^ ]+'))` |
+| 03 | Agree                 | No change. Command: `gh run list --workflow 10_ci-quality.yml --limit 13 --json headBranch --jq '.[].headBranch' | grep -v '^master$' | wc -l` |
+| 04 | Agree                 | No change. Command: `git grep -E '^[A-Za-z_][A-Za-z0-9_:.-]*\(\)[[:space:]]*\{' -- '*.sh' | grep -cE '\}[[:space:]]*(#.*)?$'` |
+| 05 | Agree                 | No change. Command: `git grep -n 'function spool_notify_poke' orc/features/spawn-agents/lib/spool-notify.inc.sh` (110 lines) |
+| 06 | Agree                 | No change. Command: `grep -n 'sleep [0-9.]' orc/features/spawn-agents/tests/test-strip-two-envs.sh` (9 sleeps) |
+| 07 | Agree                 | No change. Command: `wc -l wui/src/composables/useMove.ts` (182 lines) |
+| 08 | Agree                 | No change. Command: `wc -l wui/src/composables/useScrollAnchor.ts` (208 lines) |
+| 09 | Agree                 | No change. Command: `go tool cover -func=coverage.out | awk '/cmd\/spool/ {print $3}' | tail -1` (50.9%) |
+| 10 | Agree                 | No change. Command: `git ls-remote origin 'refs/heads/review/*' | wc -l` (16 branches) |
 
 Signed: plan sha 7508d04c3

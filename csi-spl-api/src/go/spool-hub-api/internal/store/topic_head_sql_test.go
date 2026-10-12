@@ -96,7 +96,9 @@ func headRevs(f *headFix) map[string]string {
 func TestTopicHeadMigrate0144(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
-	if _, err := pg.pool.Exec(ctx, `DELETE FROM spool_schema_migrations WHERE filename = $1`, topicHeadFile); err != nil {
+	// 0182 replaces 0144's topic_head_add: re-apply it too, or every later
+	// test in this database would run 0144's.
+	if _, err := pg.pool.Exec(ctx, `DELETE FROM spool_schema_migrations WHERE filename IN ($1, '0182_topic_head_add_probes.sql')`, topicHeadFile); err != nil {
 		t.Fatal(err)
 	}
 	applied, err := Migrate(ctx, pg.Pool(), sqlDir(t))

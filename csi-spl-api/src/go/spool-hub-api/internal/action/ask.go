@@ -20,6 +20,16 @@ import (
 //	raise | escalate              the lease tick's re-raise / owner leg
 //	release | dead                the lease tick's lock timeout / dead-letter (CLE-77942)
 //	queue                         a spawn request waits for room (rdb 0180), Placement optional
+//
+// The OD pool's jobs, role od (spec 134 3.4, rdb 0183):
+//
+//	enqueue                       insert a job: Kind, From, Topic, IssueKey, DedupeKey, ...
+//	lock-next                     lock the next job for Seat (Vendor, Harness, Caps)
+//	renew | done | decline | release  the holder By at its Gen; release with no AskID
+//	                              frees every job of By; Refuse adds a harness to not_by
+//	reopen                        needs_owner -> open
+//	pool                          read od_pool; PoolSet writes the Pool* fields given
+//	list Free                     role od: the jobs a seat could lock now
 type AskArgs struct {
 	Fleet    string
 	Op       string
@@ -34,7 +44,23 @@ type AskArgs struct {
 	Reason   string
 	Place    string // queue: "<vendor>:<slug>"
 	All      bool
-	Hub      *hubclient.Client // nil = hubclient.New(cfg)
+	// role od
+	Gen         int64
+	Refuse      string
+	Free        bool
+	Seat        string
+	Vendor      string
+	Harness     string
+	Caps        []string
+	IssueKey    string
+	DedupeKey   string
+	VendorAllow string
+	Needs       string
+	LeaseS      int
+	NeedsOwner  bool
+	PoolSet     bool
+	Pool        map[string]any    // pool set: the od_pool fields to write (claude_n, grok_n, min_boxes, vendor_out, out_until, kinds)
+	Hub         *hubclient.Client // nil = hubclient.New(cfg)
 }
 
 // Ask runs one op and returns the hub's answer {fleet, created, asks}. Hub
@@ -66,7 +92,10 @@ func askBody(in AskArgs) (json.RawMessage, error) {
 	var v any
 	switch in.Op {
 	case "list":
-		v = map[string]any{"role": in.Role, "all": in.All}
+		if in.Free && in.Role != store.OdRole {
+			return nil, fmt.Errorf("ask: --free lists --role od only")
+		}
+		v = map[string]any{"role": in.Role, "all": in.All, "free": in.Free}
 	case "put":
 		if in.Role == "" {
 			in.Role = "orch"
@@ -82,6 +111,17 @@ func askBody(in AskArgs) (json.RawMessage, error) {
 		}
 		v = map[string]any{"ask_id": a.AskID, "role": a.Role, "kind": a.Kind, "from": a.From, "topic": a.Topic,
 			"summary": a.Summary, "deadline_at": in.Deadline}
+	case "enqueue", "lock-next", "pool":
+		return odBody(in)
+	case "release":
+		if in.AskID == "" {
+			if !store.ValidAskAgent(in.By) || in.By == "" {
+				return nil, fmt.Errorf("ask: a seat release needs --by, the seat <ID>@<box>")
+			}
+			v = map[string]any{"by": in.By}
+			break
+		}
+		fallthrough
 	default:
 		if why := store.CheckFleetAskOp(in.Op, in.By, in.Reason); why != "" {
 			return nil, fmt.Errorf("ask: %s", why)
@@ -95,6 +135,49 @@ func askBody(in AskArgs) (json.RawMessage, error) {
 		m := map[string]any{"ask_id": in.AskID, "by": in.By, "reason": in.Reason}
 		if in.Place != "" {
 			m["placement"] = in.Place
+		}
+		if in.Gen != 0 {
+			m["gen"] = in.Gen
+		}
+		if in.Refuse != "" {
+			m["refuse"] = in.Refuse
+		}
+		v = m
+	}
+	return json.Marshal(v)
+}
+
+// odBody checks and builds the OD pool's insert, lock and pool ops (spec 134).
+func odBody(in AskArgs) (json.RawMessage, error) {
+	var v any
+	switch in.Op {
+	case "enqueue":
+		a := store.FleetAsk{Fleet: in.Fleet, AskID: in.AskID, Kind: in.Kind, From: in.From, Topic: in.Topic, Summary: in.Summary,
+			IssueKey: in.IssueKey, DedupeKey: in.DedupeKey, VendorAllow: in.VendorAllow, Needs: in.Needs, LeaseS: in.LeaseS}
+		if why := store.CheckOdJob(a); why != "" {
+			return nil, fmt.Errorf("ask: %s", why)
+		}
+		if in.Deadline != "" {
+			if _, err := time.Parse(time.RFC3339, in.Deadline); err != nil {
+				return nil, fmt.Errorf("ask: --deadline must be RFC 3339 (e.g. 2026-10-02T06:00:00Z)")
+			}
+		}
+		v = map[string]any{"ask_id": a.AskID, "kind": a.Kind, "from": a.From, "topic": a.Topic, "summary": a.Summary,
+			"deadline_at": in.Deadline, "issue_key": a.IssueKey, "dedupe_key": a.DedupeKey, "vendor_allow": a.VendorAllow,
+			"needs": a.Needs, "lease_s": a.LeaseS, "needs_owner": in.NeedsOwner}
+	case "lock-next":
+		q := store.OdLock{Fleet: in.Fleet, Seat: in.Seat, Vendor: in.Vendor, Harness: in.Harness, Caps: in.Caps}
+		if why := store.CheckOdLock(q); why != "" {
+			return nil, fmt.Errorf("ask: %s", why)
+		}
+		v = map[string]any{"seat": q.Seat, "vendor": q.Vendor, "harness": q.Harness, "caps": q.Caps}
+	case "pool":
+		m := map[string]any{}
+		for k, x := range in.Pool {
+			m[k] = x
+		}
+		if in.PoolSet {
+			m["set"], m["by"] = true, in.By
 		}
 		v = m
 	}

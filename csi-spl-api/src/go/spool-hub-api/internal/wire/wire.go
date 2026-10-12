@@ -337,6 +337,9 @@ type Frame struct {
 	// escalate | release | dead (CLE-77942) | queue (rdb 0180), Fleet names the ask book. The request's Ask is the new ask
 	// (put), {ask_id, by, reason, placement} (an update) or {all} (list); the reply's Ask
 	// is {fleet, created, asks: [row + writer_box, times, age_s, quiet_s]}.
+	// The OD pool (spec 134, rdb 0183) adds enqueue | lock-next | renew |
+	// reopen | pool, and {gen, refuse} on an update, {role: od, free} on a list;
+	// the reply may carry dead (lock-next) and pool.
 	AskOp string          `json:"ask_op,omitempty"`
 	Ask   json.RawMessage `json:"ask,omitempty"`
 

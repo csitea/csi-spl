@@ -628,6 +628,29 @@ deciding and answering an ask stay the agent's.
   machines, renewal, the delivery limit and the dead-letter, each with a
   control running the old filter).
 
+**OD pool jobs, role `od` (spec 134 steps P1 + P2, rdb 0183, SPL-1569).**
+The same table carries the OD pool's jobs: one row per job (`route_post`,
+`spawn`, `lane_verify`, `box_op`), locked by any able seat. Built, not yet
+used: nothing inserts or locks them before P3/P4, and the lease holder does
+all OD work until P6 lists a kind in the pool row. The ops, all on `spool ask`:
+
+| op | does |
+|---|---|
+| `enqueue --kind <k> --id <msg id> --from <ID> [--topic --issue SPL-n --dedupe <key> --vendor-allow claude\|grok --needs box:<box>\|prd --lease <s> --needs-owner]` | inserts a job; a second OPEN job of the same kind and `--dedupe` key is 409 `ask_duplicate` naming the open one |
+| `lock-next --seat <ID>@<box> --vendor claude\|grok [--harness <h>] [--caps prd]` | the hub locks the oldest free job of the pool's kinds for the seat (gen + 1, `lock_until` = now + `lease_s`), or answers none. Free = open, or locked with `lock_until` passed: expiry is lazy, no tick. The 4th lost lock closes it `dead` (the answer's `dead`). The `box:` cap is the session's box |
+| `renew`, `done`, `decline`, `release --id <job> --by <seat> --gen <n>` | the holder at its gen; anyone else, or an old gen, is 409 `ask_held` naming the holder. `release --refuse <harness>` adds it to `not_by` |
+| `release --by <seat>` (no `--id`) | frees every job the seat holds, gen + 1: the supervisor's kill |
+| `decline` of an open or `needs_owner` job, `reopen` | the human or admin answer; `reopen` is `needs_owner` -> open |
+| `pool [--set --by <ID> --kinds a,b --claude-n --grok-n --min-boxes --vendor-out --out-until]` | reads or writes the `od_pool` row (target 2 + 2 on 2 boxes; kinds empty = nothing is locked) |
+| `list --role od --free` | the jobs a seat could lock now |
+
+The book's ops (`ack`, `raise`, `escalate`, `queue`, `dead`) are 409
+`ask_op_refused` on an od job, and the od ops on a book ask, so the two lock
+regimes never mix. Tests: `TestFleetAskLockNext`, `TestFleetAskLockNextRaces`
+(4 seats on 1 row, n = 20, exactly one lock; 40 rows, each locked once),
+`TestFleetAskLockNextAckCAS` (memory + Postgres), `TestBoxOdPoolLockNext`
+(two boxes through `spool ask`).
+
 ### 4.4 Hourly rotation: a fresh session per role (spec 060)
 
 Every role gets a FRESH session under the SAME id once an hour, so no

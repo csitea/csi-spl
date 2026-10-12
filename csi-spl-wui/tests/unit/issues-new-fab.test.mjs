@@ -14,7 +14,8 @@ const src = readFileSync(join(WUI, 'src/pages/issues.vue'), 'utf8')
 describe('SPL-978 the New issue button is a round +', () => {
   const btn = (/<button[^>]*data-test="issues-new"[^>]*>([\s\S]*?)<\/button>/.exec(src) || [])
   it('sits in the list header, beside the heading', () => {
-    const head = /<header class="feed-header issues-head">([\s\S]*?)<\/header>/.exec(src)
+    /* HUM-10: the header gives way to the bulk bar (v-else), so other attributes may come first */
+    const head = /<header[^>]*class="feed-header issues-head"[^>]*>([\s\S]*?)<\/header>/.exec(src)
     assert.ok(head && head[1].includes('data-test="issues-new"'))
   })
   it('shows only the plus icon, no visible text', () => {

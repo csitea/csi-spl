@@ -9,7 +9,29 @@
 <template>
   <div ref="pageEl" class="issues-page" data-test="issues-page">
     <div class="issues-list" data-test="issues-list">
-      <header class="feed-header issues-head">
+      <!-- owner HUM-10 (t1 53ab04e7, msg 14b0e604): with a row checked the
+           bulk bar takes the header's place (Gmail); lazy, and wrapped: a bare
+           v-if on an async component threw insertBefore in the lobby -->
+      <div v-if="bulkOn" class="issues-bulk-host">
+        <LazyIssuesBulkBar
+          :count="selected.length"
+          :page-state="bulkPage"
+          :shown="flatKeys.length"
+          :total="matchTotal"
+          :can-match-all="canMatchAll"
+          :all-matching="allMatching"
+          :selecting="selectingAll"
+          :busy="bulkBusy"
+          :phone="phone"
+          :progress="bulkProgress"
+          :result="bulkResult"
+          @toggle-page="togglePage"
+          @clear="clearSelection"
+          @select-matching="selectAllMatching"
+          @act="onBulkAct"
+        />
+      </div>
+      <header v-else class="feed-header issues-head">
         <!-- SPL-992: on a phone the list is level 2; Back goes to the sections (level 1) -->
         <MobileBack class="issues-mback" data-test="issues-back" />
         <SectionClose side="start" />
@@ -67,6 +89,9 @@
            menu) and the epics as a chip strip in place of the sheet's header rows -->
       <template v-if="phone">
         <div class="issues-mbar" data-test="issues-mbar">
+          <label v-if="!bulkOn && rowCount" class="issues-check issues-check--page">
+            <input type="checkbox" data-test="issues-select-page" :checked="bulkPage === 'all'" :aria-label="t('issues_bulk.select_page')" @click="togglePage">
+          </label>
           <button type="button" class="btn ghost issues-mbar__btn" data-test="issues-filters-open" :data-active="filtersActive ? 'true' : 'false'" aria-haspopup="dialog" @click="filtersOpen = true">
             <span>{{ t('issues_mobile.filters') }}</span><i v-if="filtersActive" class="issues-mbar__dot" aria-hidden="true" />
           </button>
@@ -100,6 +125,7 @@
            and Clear filters moved UP onto the title row; the tools row that
            held them is gone so the table rises by its height. Only the list
            error keeps a spot here, and it renders nothing unless there is one. -->
+      <p v-if="!bulkOn && bulkResult" class="issues-bulk-done muted" role="status" data-test="issues-bulk-result" :data-failed="bulkResult.failed.join(',')">{{ t('issues_bulk.result_ok', { done: bulkResult.done, total: bulkResult.total }) }}</p>
       <p v-if="!phone && saveError && !modalOpen" class="issues-error issues-list-error" role="alert" data-test="issues-list-error">{{ t(saveError, { reason: saveReason }) }}</p>
       <div ref="scrollerEl" class="issues-scroll">
         <table v-if="!phone" class="issues-table" :class="colWidthClasses(colWidths)" :style="colWidthVars(colWidths)" data-test="issues-table">
@@ -143,7 +169,20 @@
               <th scope="col" class="issues-c-act" :aria-label="t('issues_crud.delete')" />
             </tr>
             <tr class="issues-frow">
-              <th data-col="key" class="issues-c-key" />
+              <th data-col="key" class="issues-c-key">
+                <!-- HUM-10 (Gmail): every row shown checked, or none; a dash when some -->
+                <input
+                  ref="pageBoxEl"
+                  type="checkbox"
+                  class="issues-check"
+                  data-test="issues-select-page"
+                  :checked="bulkPage === 'all'"
+                  :disabled="!rowCount"
+                  :aria-label="t('issues_bulk.select_page')"
+                  :title="t('issues_bulk.select_page')"
+                  @click="togglePage"
+                >
+              </th>
               <th data-col="title" />
               <th data-col="status">
                 <div class="issues-status-dd" data-test="issues-filter-status">
@@ -334,6 +373,7 @@
                 :data-priority="issue.priority"
                 :data-level="issue.level"
                 :data-selected="cursorKey === issue.key ? 'true' : 'false'"
+                :data-checked="selSet.has(issue.key) ? 'true' : undefined"
                 @click="onRowActivate(issue)"
                 @keydown.enter.self.prevent="choose(issue)"
                 @contextmenu="onRowContext(issue, $event)"
@@ -344,7 +384,22 @@
                 @dragstart="onRowDragStart($event, issue)"
                 @dragend="onRowDragEnd"
               >
-                <td class="issues-c-key" v-bind="cellAttrs(issue, 'key')"><span class="issues-key">{{ issue.key }}</span></td>
+                <!-- HUM-10 (Gmail): the row's box; shift-click checks the run from the last box clicked -->
+                <td class="issues-c-key" v-bind="cellAttrs(issue, 'key')">
+                  <span class="issues-keycell">
+                    <input
+                      type="checkbox"
+                      class="issues-check"
+                      tabindex="-1"
+                      data-test="issues-row-check"
+                      :checked="selSet.has(issue.key)"
+                      :aria-label="t('issues_bulk.select_row', { key: issue.key })"
+                      @pointerdown.stop
+                      @click.stop="onCheck(issue, $event)"
+                    >
+                    <span class="issues-key">{{ issue.key }}</span>
+                  </span>
+                </td>
                 <!-- SPL-1027 UPDATE: the title is edited in place (the pencil, or
                      Enter on the cell); Enter or leaving saves, Esc cancels -->
                 <td class="issues-c-title" v-bind="cellAttrs(issue, 'title')">
@@ -450,7 +505,18 @@
             <p v-else-if="loadError" class="issues-error" role="alert" data-test="issues-error">{{ t(loadError) }}</p>
             <p v-else class="muted" data-test="issues-empty">{{ t('issues.empty') }}</p>
           </li>
-          <li v-for="issue in (rowCount ? flat : [])" :key="issue.key" class="issues-card-li">
+          <li v-for="issue in (rowCount ? flat : [])" :key="issue.key" class="issues-card-li" :data-checked="selSet.has(issue.key) ? 'true' : undefined">
+            <!-- HUM-10 (Gmail): the card's box, a full tap target at its start -->
+            <label class="issues-check issues-check--card" @pointerdown.stop>
+              <input
+                type="checkbox"
+                data-test="issues-card-check"
+                :data-key="issue.key"
+                :checked="selSet.has(issue.key)"
+                :aria-label="t('issues_bulk.select_row', { key: issue.key })"
+                @click.stop="onCheck(issue, $event)"
+              >
+            </label>
             <!-- HUM-10 (t1 aedca86a, f83f73b9): a card swipes the way a message
                  card does - LEFT archives (the menu's Archive and its confirm),
                  RIGHT opens the card's menu; the strip shows what a lift does -->
@@ -891,6 +957,20 @@
       <p v-else-if="actConfirm && actConfirm.count > 0">{{ t(actConfirm.action === 'archive' ? 'issues_menu.archive_cascade_body' : 'issues_menu.delete_cascade_body', { count: actConfirm.count }) }}</p>
       <p v-else>{{ t(actConfirm && actConfirm.action === 'archive' ? 'issues_menu.archive_body' : 'issues_crud.delete_body') }}</p>
     </UiConfirm>
+    <!-- HUM-10: archive / delete the checked rows - one confirm naming the count -->
+    <UiConfirm
+      :open="Boolean(bulkConfirm)"
+      :title="bulkConfirm ? t(bulkConfirm === 'archive' ? 'issues_bulk.archive_title' : 'issues_bulk.delete_title', { count: selected.length }) : ''"
+      testid="issues-bulk-confirm"
+      :confirm-label="bulkConfirm ? t(bulkConfirm === 'archive' ? 'issues_bulk.archive_confirm' : 'issues_bulk.delete_confirm', { count: selected.length }) : ''"
+      :busy-label="t(bulkConfirm === 'archive' ? 'issues_menu.archiving' : 'issues_crud.deleting')"
+      :busy="bulkBusy"
+      :body-attrs="{ 'data-count': String(selected.length), 'data-action': bulkConfirm || '' }"
+      @update:open="onBulkConfirmOpen"
+      @confirm="runBulkConfirm"
+    >
+      <p>{{ t(bulkConfirm === 'archive' ? 'issues_bulk.archive_body' : 'issues_bulk.delete_body') }}</p>
+    </UiConfirm>
     <!-- SPL-992: on a phone every picker is a bottom sheet over a scrim -->
     <div v-if="menu && phone" class="issues-scrim" data-test="issues-sheet-scrim" @pointerdown.stop @click="menu = null" />
     <!-- SPL-1027: over the issue modal the picker rides above the backdrop -->
@@ -961,6 +1041,8 @@ import { ISSUES_VIEWS, type IssuesView } from '~/utils/view-prefs.mjs'
 import { useIssueColumnGrips } from '~/composables/useIssueColumnGrips'
 import { useIssueGroupDrag } from '~/composables/useIssueGroupDrag'
 import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-colw.mjs'
+import { keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } from '~/utils/issues-bulk.mjs'
+import type { BulkAction } from '~/components/IssuesBulkBar.vue'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
@@ -1069,7 +1151,7 @@ const commentMp = useMentionPicker({ text: commentText, el: commentEl })
 /* SPL-985 (spec 042 §3): whoever a stored description, comment or new issue
    newly mentions gets a DM asking them to act; issues are tenant-wide (K4) */
 const { poke } = useMentionPoke()
-const menu = ref<{ kind: string, key: string } | null>(null)
+const menu = ref<{ kind: string, key: string, bulk?: boolean } | null>(null)
 const menuIndex = ref(0)
 const menuPos = ref({ top: 80, left: 80 })
 const labelName = ref('')
@@ -1400,6 +1482,7 @@ async function load() {
     const data = await withSessionRetry(api, () => api.listIssues({ filter: serverFilter(), sort, dir, limit: ISSUE_PAGE }))
     if (seq !== loadSeq) return
     nextCursor.value = data.next_cursor || ''
+    matchTotal.value = Number((data as { total?: number }).total) || 0
     issues.value = (data.issues || []).map((row) => normalizeIssue(row))
     labels.value = (data.labels || []).map((row) => normalizeLabel(row))
     epics.value = data.epics || []
@@ -1731,6 +1814,7 @@ function moveLevel(issue: Issue, want: number, ev?: Event) {
 async function applyMenu(value: string) {
   const kind = menu.value?.kind || ''
   if (!kind) return
+  if (menu.value?.bulk) { menu.value = null; await runBulkPatch(kind, value); return }
   if (creating.value) {
     if (kind === 'status') draft.status = value
     else if (kind === 'priority') draft.priority = Number(value)
@@ -2264,6 +2348,160 @@ const actConfirmTitleKey = computed(() => {
   return c.action === 'archive' ? 'issues_menu.archive_title' : 'issues_menu.delete_title'
 })
 
+/* ---- owner HUM-10 (t1 53ab04e7, msg 14b0e604): Gmail-style checkboxes ----
+   "the issues listing should have checkboxes to perform multiple actions the
+   same way as in gmail". A box per row and a page box; shift-click checks a
+   run, x the focused row, Esc clears. With one row checked the bulk bar
+   (components/IssuesBulkBar.vue, lazy) replaces the header. The hub has no
+   bulk route; per-issue calls, BULK_PARALLEL at a time, were measured fast
+   enough on dev (2026-10-12, n=6 status PATCHes, ~0.3..0.6 s each). */
+const selected = ref<string[]>([])
+const selSet = computed(() => new Set(selected.value))
+const bulkOn = computed(() => selected.value.length > 0)
+const flatKeys = computed(() => flat.value.map((i) => i.key))
+const bulkPage = computed(() => pageState(selected.value, flatKeys.value))
+const matchTotal = ref(0)
+const allMatching = ref(false)
+const selectingAll = ref(false)
+const canMatchAll = computed(() => bulkPage.value === 'all' && (Boolean(nextCursor.value) || matchTotal.value > flatKeys.value.length))
+const bulkBusy = ref(false)
+const bulkProgress = ref<{ done: number, total: number } | null>(null)
+const bulkResult = ref<{ done: number, total: number, failed: string[] } | null>(null)
+const bulkConfirm = ref<'archive' | 'delete' | ''>('')
+const pageBoxEl = ref<HTMLInputElement | null>(null)
+let checkAnchor = ''
+
+function setSelected(next: string[]) {
+  if (next === selected.value) return
+  selected.value = next
+  allMatching.value = false
+  bulkResult.value = null
+}
+function clearSelection() {
+  setSelected([])
+  checkAnchor = ''
+}
+function onCheck(issue: Issue, ev: MouseEvent) {
+  const on = !selSet.value.has(issue.key)
+  setSelected(ev.shiftKey && checkAnchor
+    ? rangeSelect(selected.value, flatKeys.value, checkAnchor, issue.key, on)
+    : toggleKey(selected.value, issue.key, on))
+  checkAnchor = issue.key
+  cursorKey.value = issue.key
+  /* the box takes no focus: the row keeps it, so j / k / x go on */
+  const row = (ev.target as HTMLElement | null)?.closest?.<HTMLElement>('[data-test=issues-row]')
+  row?.focus({ preventScroll: true })
+}
+function togglePage() {
+  setSelected(toggleAll(selected.value, flatKeys.value))
+}
+function toggleFocused() {
+  const focused = (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>('[data-test=issues-row], [data-test=issues-card]')
+  const key = focused?.getAttribute('data-key') || cursorKey.value
+  if (!key || !flatKeys.value.includes(key)) return
+  setSelected(toggleKey(selected.value, key))
+  checkAnchor = key
+  cursorKey.value = key
+}
+/* Gmail's "Select all N matching": read the pages not loaded yet, then check them all */
+async function selectAllMatching() {
+  if (selectingAll.value) return
+  selectingAll.value = true
+  try {
+    for (let i = 0; i < 100 && nextCursor.value && !loadError.value; i++) await loadMore()
+    setSelected(toggleAll([], flatKeys.value))
+    allMatching.value = !nextCursor.value
+  } finally {
+    selectingAll.value = false
+  }
+}
+/* the page box's dash: some rows shown are checked */
+watchEffect(() => { if (pageBoxEl.value) pageBoxEl.value.indeterminate = bulkPage.value === 'some' })
+/* another filter is another list: nothing stays checked (Gmail) */
+watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, epicF], () => clearSelection())
+/* a row that left the list (deleted, archived, live) leaves the selection */
+watch(issues, (rows) => {
+  const next = keepShown(selected.value, rows.map((i) => i.key))
+  if (next !== selected.value) selected.value = next
+})
+
+function onBulkAct(id: BulkAction, ev: MouseEvent) {
+  if (bulkBusy.value || !selected.value.length) return
+  if (id === 'archive' || id === 'delete') { bulkConfirm.value = id; return }
+  /* the row menu's pickers (applyMenu), aimed at every checked row */
+  const kind = id === 'move' ? 'move-epic' : id
+  const el = ev.currentTarget as HTMLElement | null
+  const r = el?.getBoundingClientRect?.()
+  menuPos.value = { top: r ? r.bottom + 4 : 120, left: Math.max(8, r ? r.left : 80) }
+  menu.value = { kind, key: '', bulk: true }
+  menuIndex.value = 0
+  void nextTick(clampMenuIntoView)
+}
+function onBulkConfirmOpen(open: boolean) {
+  if (!open && !bulkBusy.value) bulkConfirm.value = ''
+}
+async function runBulkConfirm() {
+  const action = bulkConfirm.value
+  if (!action) return
+  /* the archive path of c-241 (5913daef1): a row takes its sub-issues along */
+  await runBulkCalls(async (key) => {
+    try {
+      const res = action === 'archive'
+        ? await withSessionRetry(api, () => api.archiveIssue(key, { cascade: true }))
+        : await withSessionRetry(api, () => api.deleteIssue(key, { cascade: true }))
+      dropKeys([key, ...((res.descendants as string[] | undefined) || [])])
+    } catch (e) {
+      /* gone with a parent checked in the same run */
+      if (Number((e as { status?: number })?.status) !== 404) throw e
+      dropKeys([key])
+    }
+  })
+  bulkConfirm.value = ''
+}
+function dropKeys(keys: string[]) {
+  const gone = new Set(keys)
+  issues.value = issues.value.filter((i) => !gone.has(i.key))
+  subtasks.value = subtasks.value.filter((i) => !gone.has(i.key))
+  if (detail.value && gone.has(detail.value.key)) closeDetail()
+  if (cursorKey.value && gone.has(cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
+}
+/* Status / Assignee / Move to on every checked row. An epic or feature does
+   not move under an epic: it is named as not changed, never demoted. */
+async function runBulkPatch(kind: string, value: string) {
+  let body: Record<string, unknown> | null = null
+  if (kind === 'status') body = { status: value }
+  else if (kind === 'assign') body = { assignee: value }
+  else if (kind === 'move-epic') body = { kind: 'issue', parent: value }
+  if (!body) return
+  const patch = body
+  await runBulkCalls(async (key) => {
+    const row = issues.value.find((i) => i.key === key)
+    if (kind === 'move-epic' && (!row || isTopKind(row.kind) || key === value)) throw new Error('not movable')
+    const data = await withSessionRetry(api, () => api.updateIssue(key, patch))
+    hold(normalizeIssue(data.issue))
+  })
+}
+/* one progress line while it runs, one summary naming the rows that failed;
+   those stay checked, the rows done leave the selection */
+async function runBulkCalls(fn: (key: string) => Promise<void>) {
+  const keys = [...selected.value]
+  bulkBusy.value = true
+  bulkResult.value = null
+  bulkProgress.value = { done: 0, total: keys.length }
+  try {
+    const out = await runBulk(keys, fn, { onProgress: (done, total) => { bulkProgress.value = { done, total } } })
+    const failed = out.failed.map((f) => f.key)
+    /* a changed row stays checked (Gmail), an archived / deleted one is gone */
+    selected.value = keepShown(keys, issues.value.map((i) => i.key))
+    allMatching.value = false
+    bulkResult.value = { done: out.done.length, total: keys.length, failed }
+    refreshEpics()
+  } finally {
+    bulkProgress.value = null
+    bulkBusy.value = false
+  }
+}
+
 /* the page's own copy of the comments; the card already told the stores */
 function onCommentEdited(row: SpoolMessage) {
   comments.value = applyEdit(comments.value, row) as Note[]
@@ -2429,6 +2667,8 @@ function keyAnchor(kind: string, issue: Issue): Event | undefined {
 function typingTarget(el: EventTarget | null) {
   if (!(el instanceof HTMLElement)) return false
   const tag = el.tagName
+  /* a row's box keeps the list keys (j / k / x) working, Gmail's way */
+  if (tag === 'INPUT' && (el as HTMLInputElement).type === 'checkbox') return false
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
 }
 /* SPL-1027: the issue modal is the ONE open dialog and holds the issue */
@@ -2473,6 +2713,7 @@ function onDocKey(ev: KeyboardEvent) {
     ev.preventDefault()
     if (statusOpen.value) { statusOpen.value = false; return }
     if (menuOpen) menu.value = null
+    else if (selected.value.length) clearSelection()
     else if (creating.value && !phone.value) cancelCreate()
     else if (cursorCol.value) { cursorCol.value = ''; (ev.target as HTMLElement)?.blur?.() }
     else closeDetail()
@@ -2501,6 +2742,8 @@ function onDocKey(ev: KeyboardEvent) {
     if (sc?.type === 'help') { useMsgShortcutsHelp().value = true; ev.preventDefault(); return }
     if (sc?.type === 'action') { runIssueShortcut(sc.key); ev.preventDefault(); return }
   }
+  /* HUM-10 (Gmail): x checks / unchecks the focused row, else the selected one */
+  if (k === 'x' && !ev.shiftKey && !inModal && !creating.value) { toggleFocused(); ev.preventDefault(); return }
   if (k === 'j' || key === 'ArrowDown') { void move(1).then(focusCell); ev.preventDefault(); return }
   /* Shift + K is the message kind menu (HUM-10 t1 ffc3b83c), not move-up. */
   if ((k === 'k' && !ev.shiftKey) || key === 'ArrowUp') { void move(-1).then(focusCell); ev.preventDefault(); return }
@@ -2886,6 +3129,13 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-names th { top: 0; height: 1.75rem; font-size: 0.75rem; font-weight: 600; color: var(--color-muted); }
 .issues-frow th { top: 1.75rem; font-weight: normal; }
 .issues-c-key { width: 1%; }
+/* owner HUM-10 (t1 53ab04e7): Gmail's boxes - one per row before its key, the
+   page box in the filter row above them; a checked row is tinted */
+.issues-bulk-host { display: contents; }
+.issues-keycell { display: inline-flex; align-items: center; gap: 6px; }
+.issues-check { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; vertical-align: middle; accent-color: var(--color-accent); cursor: pointer; }
+.issues-row[data-checked='true'] > td, .issues-table .issues-row[data-checked='true'] > .issues-c-key { background: var(--color-selected); }
+.issues-bulk-done { margin: 0; padding: 4px 20px; font-size: 0.875rem; }
 /* owner, topic beb4024f: a resized column - the width the reader dragged,
    exactly (min = max), its body cells clipped with an ellipsis; header
    controls shrink with it. Unset columns keep the automatic layout. */
@@ -3324,6 +3574,60 @@ select.issues-pctl { appearance: auto; }
   /* HUM-10 (t1 aedca86a): the swipe, MessageCard's look (.msg--swipe) */
   .issues-card-li { position: relative; overflow: hidden; }
   .issues-card { touch-action: pan-y; }
+  /* HUM-10 (Gmail): the card's box is a full tap target at its start */
+  .issues-check--card {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    z-index: 1;
+    width: var(--tap, 44px);
+    height: var(--tap, 44px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* the box itself is the 44 px target (a phone control never shrinks under
+     --tap); a 20 px box is drawn in its middle */
+  .issues-check--card input, .issues-check--page input {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    width: var(--tap, 44px);
+    height: var(--tap, 44px);
+    margin: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .issues-check--card input::before, .issues-check--page input::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 20px;
+    height: 20px;
+    box-sizing: border-box;
+    border: 2px solid var(--color-muted);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+  }
+  .issues-check--card input:checked::before, .issues-check--page input:checked::before { border-color: var(--color-accent); background: var(--color-accent); }
+  .issues-check--card input:checked::after, .issues-check--page input:checked::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 11px;
+    border: solid var(--color-on-accent);
+    border-width: 0 2px 2px 0;
+    transform: translate(-50%, -60%) rotate(45deg);
+  }
+  .issues-check--card input:focus-visible, .issues-check--page input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -8px; }
+  .issues-card-li > .issues-card { padding-inline-start: var(--tap, 44px); }
+  .issues-card-li[data-checked='true'] > .issues-card { background: var(--color-selected); }
+  .issues-check--page { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
+  .issues-bulk-done { padding: 0 12px 8px; }
   .issues-card--swiping, .issues-card--settle { transform: translateX(var(--swipe-dx, 0px)); }
   .issues-card--settle { transition: transform 0.18s ease-out; }
   :global(html[dir="rtl"]) .issues-card--swiping, :global(html[dir="rtl"]) .issues-card--settle { transform: translateX(calc(-1 * var(--swipe-dx, 0px))); }

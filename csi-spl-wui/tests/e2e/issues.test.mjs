@@ -455,6 +455,115 @@ try {
   await loadMore('[data-test=issues-card]', 60)
   const ph2 = { cards: await count('[data-test=issues-card]') }
   ok('16 phone: 30 cards, Load more at the end, then 60', ph1.cards === 30 && ph1.last && ph2.cards === 60, { ph1, ph2 })
+
+  /* owner HUM-10 (t1 53ab04e7, msg 14b0e604): "the issues listing should
+     have checkboxes to perform multiple actions the same way as in gmail".
+     A box per row, a page box, shift-click runs, x the focused row, Esc
+     clears; with a row checked the bulk bar replaces the header. */
+  const bulkState = () => p.evaluate(() => {
+    const rows = [...document.querySelectorAll('[data-test=issues-row], [data-test=issues-card]')]
+    const checked = [...document.querySelectorAll('[data-test=issues-row-check], [data-test=issues-card-check]')].map((b, i) => (b.checked ? i : -1)).filter((i) => i >= 0)
+    const bar = document.querySelector('[data-test=issues-bulk-bar]')
+    return {
+      rows: rows.length,
+      checked,
+      tinted: rows.map((r, i) => ((r.getAttribute('data-checked') || r.closest('li')?.getAttribute('data-checked')) === 'true' ? i : -1)).filter((i) => i >= 0),
+      bar: Boolean(bar && bar.getBoundingClientRect().height > 0),
+      head: Boolean(document.querySelector('[data-test=issues-heading]')),
+      count: document.querySelector('[data-test=issues-bulk-count]')?.textContent.trim() || '',
+      note: document.querySelector('[data-test=issues-bulk-note]')?.textContent.replace(/\s+/g, ' ').trim() || '',
+      result: document.querySelector('[data-test=issues-bulk-result]')?.textContent.replace(/\s+/g, ' ').trim() || '',
+    }
+  })
+  const rowKeys = (sel) => p.$$eval(sel, (els) => els.map((e) => e.getAttribute('data-key')))
+  const statusOf = (sel, keys) => p.evaluate((s, ks) => ks.map((k) => document.querySelector(`[data-key="${k}"] ${s}`)?.getAttribute('data-status')), sel, keys)
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=issues-row]', { visible: true, timeout: NAV_TIMEOUT })
+  const bk = await rowKeys('[data-test=issues-row]')
+  const box = (k) => `[data-test=issues-row][data-key="${k}"] [data-test=issues-row-check]`
+  const s0 = await bulkState()
+  ok('17a 1440: every row has a box, none checked, the header shows (no bulk bar)',
+    (await count('[data-test=issues-row-check]')) === s0.rows && s0.rows === 30 && s0.checked.length === 0 && !s0.bar && s0.head && (await count('[data-test=issues-select-page]')) === 1, s0)
+  await p.click(box(bk[0]))
+  await p.click(box(bk[1]))
+  await p.waitForSelector('[data-test=issues-bulk-bar]', { visible: true, timeout: 10000 }).catch(() => null)
+  const s1 = await bulkState()
+  ok('17b checking 2 rows: the bulk bar replaces the header and counts 2, both rows tinted',
+    s1.bar && !s1.head && s1.count === 'Selected: 2' && JSON.stringify(s1.checked) === '[0,1]' && JSON.stringify(s1.tinted) === '[0,1]', s1)
+  const ctl0 = (await statusOf('[data-test=issues-row-status]', [bk[2]]))[0]
+  await p.click('[data-test=issues-bulk-status]')
+  await p.waitForSelector('[data-test=issues-menu][data-kind=status] [data-value=onhold]', { visible: true, timeout: 5000 }).catch(() => null)
+  await p.click('[data-test=issues-menu][data-kind=status] [data-value=onhold]').catch(() => null)
+  await p.waitForFunction((a, b) => [a, b].every((k) => document.querySelector(`[data-test=issues-row][data-key="${k}"] [data-test=issues-row-status]`)?.getAttribute('data-status') === 'onhold'), { timeout: 10000 }, bk[0], bk[1]).catch(() => null)
+  const st = { two: await statusOf('[data-test=issues-row-status]', [bk[0], bk[1]]), control: (await statusOf('[data-test=issues-row-status]', [bk[2]]))[0], ctl0, bulk: await bulkState() }
+  await p.screenshot({ path: `${SHOTS}/bulk-1440.png` })
+  ok('17c Status on the bar sets both checked rows to 06-onhold; the unchecked row (control) keeps its status; one summary',
+    st.two.every((s) => s === 'onhold') && st.control === ctl0 && ctl0 !== 'onhold' && st.bulk.result === 'Done: 2 of 2.' && st.bulk.count === 'Selected: 2', st)
+  await p.click(box(bk[4]))
+  await p.keyboard.down('Shift')
+  await p.click(box(bk[7]))
+  await p.keyboard.up('Shift')
+  const s2 = await bulkState()
+  ok('17d shift-click checks the run from the last box clicked (rows 5..8)', JSON.stringify(s2.checked) === '[0,1,4,5,6,7]' && s2.count === 'Selected: 6', s2)
+  await p.focus(`[data-test=issues-row][data-key="${bk[10]}"]`)
+  await p.keyboard.press('KeyX')
+  const s3 = await bulkState()
+  await p.keyboard.press('KeyX')
+  const s4 = await bulkState()
+  ok('17e x checks, then unchecks, the focused row', s3.checked.includes(10) && s3.count === 'Selected: 7' && !s4.checked.includes(10) && s4.count === 'Selected: 6', { s3: s3.checked, s4: s4.checked })
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(() => !document.querySelector('[data-test=issues-bulk-bar]'), { timeout: 5000 }).catch(() => null)
+  const s5 = await bulkState()
+  ok('17f Esc clears the selection: no box checked, the header is back', s5.checked.length === 0 && !s5.bar && s5.head, s5)
+  await p.click('[data-test=issues-select-page]')
+  await p.waitForSelector('[data-test=issues-bulk-note]', { visible: true, timeout: 5000 }).catch(() => null)
+  const s6 = await bulkState()
+  ok('17g the page box checks the 30 rows shown and offers all 64 matching (Gmail)',
+    s6.checked.length === 30 && s6.count === 'Selected: 30' && s6.note === 'All 30 on this page are selected. Select all 64 matching', s6)
+  await p.click('[data-test=issues-bulk-all-matching]')
+  await p.waitForFunction(() => document.querySelector('[data-test=issues-bulk-count]')?.textContent.trim() === 'Selected: 64', { timeout: 10000 }).catch(() => null)
+  const s7 = await bulkState()
+  ok('17h Select all matching reads every page: 64 rows, 64 checked', s7.rows === 64 && s7.checked.length === 64 && s7.count === 'Selected: 64' && s7.note === 'All 64 matching are selected.', { rows: s7.rows, n: s7.checked.length, count: s7.count, note: s7.note })
+  await p.click('[data-test=issues-bulk-clear]')
+  await p.click(box(bk[2]))
+  await p.click(box(bk[3]))
+  await p.click('[data-test=issues-bulk-delete]')
+  await p.waitForSelector('[data-testid=issues-bulk-confirm-body]', { visible: true, timeout: 5000 }).catch(() => null)
+  const dlg = await p.evaluate(() => ({ count: document.querySelector('[data-testid=issues-bulk-confirm-body]')?.getAttribute('data-count'), title: document.querySelector('[role=dialog] h2, [role=alertdialog] h2')?.textContent.trim() || '', btn: document.querySelector('[data-testid=issues-bulk-confirm-confirm]')?.textContent.trim() }))
+  await p.click('[data-testid=issues-bulk-confirm-confirm]').catch(() => null)
+  await p.waitForFunction((a, b) => !document.querySelector(`[data-test=issues-row][data-key="${a}"]`) && !document.querySelector(`[data-test=issues-row][data-key="${b}"]`), { timeout: 10000 }, bk[2], bk[3]).catch(() => null)
+  const s8 = await bulkState()
+  ok('17i Delete asks once, naming the count, then both rows go and the summary says so',
+    dlg.count === '2' && dlg.btn === 'Delete 2' && s8.rows === 62 && !s8.bar && s8.result === 'Done: 2 of 2.', { dlg, rows: s8.rows, result: s8.result })
+
+  /* the phone: a box per card, the bar fits 390 with 44 px targets */
+  await p.setViewport({ width: 390, height: 844, isMobile: true })
+  await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=issues-card]', { visible: true, timeout: NAV_TIMEOUT })
+  const ck = await rowKeys('[data-test=issues-card]')
+  await p.click(`[data-test=issues-card-check][data-key="${ck[0]}"]`)
+  await p.click(`[data-test=issues-card-check][data-key="${ck[1]}"]`)
+  await p.waitForSelector('[data-test=issues-bulk-bar]', { visible: true, timeout: 10000 }).catch(() => null)
+  const m1 = await p.evaluate(() => {
+    const vw = document.documentElement.clientWidth
+    const btns = [...document.querySelectorAll('[data-test=issues-bulk-bar] button')].map((b) => b.getBoundingClientRect())
+    return { sw: document.documentElement.scrollWidth, vw, inside: btns.every((r) => r.left >= 0 && r.right <= vw + 1), tap: btns.every((r) => r.width >= 43 && r.height >= 43), n: btns.length, opened: Boolean(document.querySelector('[data-test=issues-detail]')) }
+  })
+  const m1s = await bulkState()
+  ok('18a 390: checking 2 cards opens no issue; the bar counts 2, fits the width, every button a 44 px target',
+    m1s.bar && m1s.count === 'Selected: 2' && JSON.stringify(m1s.checked) === '[0,1]' && !m1.opened && m1.sw <= m1.vw + 1 && m1.inside && m1.tap && m1.n === 6, { m1, m1s })
+  await p.click('[data-test=issues-bulk-assign]')
+  await p.waitForSelector('[data-test=issues-menu][data-kind=assign] [data-test=issues-menu-option]', { visible: true, timeout: 5000 }).catch(() => null)
+  const assignee = await p.$$eval('[data-test=issues-menu][data-kind=assign] [data-test=issues-menu-option]', (els) => els.map((e) => e.getAttribute('data-value')).find((v) => v))
+  await p.click(`[data-test=issues-menu][data-kind=assign] [data-value="${assignee}"]`).catch(() => null)
+  await p.waitForFunction((a, b, w) => [a, b].every((k) => document.querySelector(`[data-test=issues-card][data-key="${k}"] [data-test=issues-card-assignee]`)?.getAttribute('data-assignee') === w), { timeout: 10000 }, ck[0], ck[1], assignee).catch(() => null)
+  const asg = await p.evaluate((ks) => ks.map((k) => document.querySelector(`[data-test=issues-card][data-key="${k}"] [data-test=issues-card-assignee]`)?.getAttribute('data-assignee')), [ck[0], ck[1], ck[2]])
+  await p.screenshot({ path: `${SHOTS}/bulk-390.png` })
+  ok('18b 390: Assignee on the bar assigns both checked cards; the unchecked card (control) is not assigned', Boolean(assignee) && asg[0] === assignee && asg[1] === assignee && asg[2] !== assignee, { assignee, asg })
+  await p.click('[data-test=issues-bulk-clear]')
+  const m2 = await bulkState()
+  ok('18c 390: Clear unchecks every card and brings the header back', m2.checked.length === 0 && !m2.bar && m2.head, m2)
   await p.evaluate(() => localStorage.removeItem('spool.mock.issues-seed'))
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
   ok('9 no page errors', mine.length === 0, mine)

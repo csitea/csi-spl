@@ -1,6 +1,6 @@
 # 133 seat B: red causes, and why pre-push missed them
 
-Seat B, agent g-858, 2026-10-12. Doc only. Draft v0.1.
+Seat B, agent g-858, 2026-10-12. Doc only. Draft v0.2. v0.1 is `d1fdcb215`. v0.2 adds section 3.1 and axis X8.
 
 > Owner: "I thought we had the functionality to not test everything when only
 > a certain part of the system is changing."
@@ -14,6 +14,8 @@ them, so a green local push still lands on a trunk whose other suites are
 already red. One ceiling is measured: `ci_initial_gzip_kb` **155.1 > 155**
 (n=2 logs), and **31 of 31** generate jobs that were a first-red failed on
 that budget step.
+
+Of the 96 covered red verdicts, **1** has every first-red job as a timeout or a lost runner (X8, 1.0 %). The `gate10-fail-fast` control that failed three times on 2026-10-12 is one line, a 3 s clock race, fixed in `f3c92877a` (section 3.1).
 
 ## 0. How this was measured
 
@@ -50,9 +52,14 @@ fetches also timed out on some jobs (37 error lines): a stopped job whose
 annotation never loaded is counted as a first-red, so a multi-job row is an
 upper bound.
 
-File claims below are `grep` on worktree `15fe61d85`, then again after
-rebase onto `origin/master` at `8c4f2c4fe`. The five counts and the two line
-numbers (114, 560) did not move.
+File claims below are `grep` on worktree `15fe61d85`, then again at
+`8c4f2c4fe`. The five counts and the line numbers 114 and 560 were the
+same on both. Re-grepped on `744f8d4f8` (2026-10-12T07:18:45Z, after this
+window): the four `grep -c` counts are unchanged, including `test:e2e`
+still 0. The generate comment moved from line 114 to 119, and
+`run test:unit` from line 560 to 576. That commit adds a `wui-e2e` part
+(`grep -c wui-e2e` -> 7 on `check-pre-push.func.sh`). The part is not in
+the window this file measures. Section 2.1 says what it changes.
 
 This box's pre-push log (`~/.cache/csi-spl/pre-push.log`, lines with
 timestamp >= `2026-10-08T19:50:00Z`, n=32700 lines) is **this box only**.
@@ -147,6 +154,16 @@ counts twice). n=209 rows on 96 runs.
 `orc-features` (workflow comment at the `orc-suite` job: feature tests are
 the job below).
 
+After the window, `744f8d4f8` (`git log -1 --format='%cI %s' 744f8d4f8` ->
+`2026-10-12T10:18:45+03:00`, which is 2026-10-12T07:18:45Z, `ci(133 action 7):
+pre-push runs the e2e files a WUI change touches, capped`) adds part `wui-e2e`. A WUI change runs at most 6
+mapped `tests/e2e` files, 240 s cap; the rest are printed as left to CI.
+`grep -c test:e2e` stays 0 because the part's name is `wui-e2e`
+(`grep -c wui-e2e` -> 7). The 48 e2e failure rows above were measured while
+that part did not exist. A push that does not touch `csi-spl-wui`, and any
+e2e file past the cap of 6, still has no local run. `grep -c perf-budget`
+and `grep -c run-ci-tests` stay 0.
+
 On the 38 failure shas that have both a first-red list and a sat summary
 PASS, the unmapped jobs are: generate 13, e2e 12 failures + 2 runner-lost
 + 1 timeout, orc features 9.
@@ -237,6 +254,7 @@ runner rather than an assertion.
 | runner-lost | 3 | 209 (1.4 %) | e2e 2, iac 1. Annotation `lost communication with the server` |
 | e2e fail then pass with no wui diff | 1 | 1 pair | R8, `calendar-phone.test.mjs`, section 2.1. Not a rate |
 | orc hermetic, one failure, next full gate green | 1 | R1 | the range also contains orc commits, so this one may be a fix whose run was superseded, not a flake |
+| `gate10-fail-fast.tst.sh` control, same line | 3 | 3 runs | section 3.1. A 3 s clock on a loaded runner. Fixed in `f3c92877a` |
 
 The workflow file already records the load failure mode, at the `orc-suite`
 job: both shards ran 850..1180 s under CPU pressure and timed out 8 times in
@@ -254,6 +272,48 @@ rows say `(no FAIL line)`, and 31 log downloads timed out. Job, step and
 annotation are what sections 1 and 2 use, plus the two budget logs and the
 one e2e log.
 
+### 3.1 `gate10-fail-fast.tst.sh`: flake, n=3, one line
+
+The second red (run 38209222818, sha `b49e2580a`) is a flake. The same assertion failed on three runs, and the test file changed afterwards to stop using the clock. `gate-fail-fast.sh` is untouched by that fix.
+
+The test those runs executed (`git show b49e2580a9:csi-spl-iac/src/bash/tests/gate10-fail-fast.tst.sh`, the `held_then_stops` function) ends the fake e2e shard with `sleep 3`, then requires `secs >= 3` before it looks for `gate fail-fast: held`. The control is the old rule (`no-spare.sh`): it prints the stop line and has no hold line. A first poll that returns before 3 s makes `secs >= 3` fail, and the control reports `stopped it after ... while an e2e shard still ran`, which is the string the assertion wants. A poll that lands after 3 s skips that branch, and the hold grep fails.
+
+Logs, `gh api repos/csitea/csi-spl/actions/jobs/<id>/logs`, this seat, 2026-10-12:
+
+| run | job | sha | log time | line |
+|---|---|---|---|---|
+| 38190838689 | 114623288976 | `cf72600e0e` | 2026-10-12T01:13:17Z | the sentence below |
+| 38197054999 | 114642216729 | `a9b5c5f403` | 2026-10-12T02:50:15Z | the same sentence |
+| 38209222818 | 114684877275 | `b49e2580a9` | 2026-10-12T06:11:47Z | the same sentence |
+
+```text
+FAIL: CONTROL: orc and hub suites that stop at once on a red: 'orc-suite: the hold is not printed: ::error::gate fail-fast: stopped, so the next gate run starts; red in this run: iac: tfvars parity, step contracts, terraform validate'
+FAILED: gate10-fail-fast.tst.sh
+```
+
+Each log also has `gate10-fail-fast: 1 failed`. n=3.
+
+`f3c92877a` (`git log -1 --format='%cI %s' f3c92877a` -> `2026-10-12T09:59:04+03:00`, which is 2026-10-12T06:59:04Z) rewrites `held_then_stops` to end the shard when the hold line appears, and to read an `e2e.ended` marker instead of `secs >= 3`. Its message names these three run ids and says the repro is `GATE_FAIL_FAST_POLL_S=3` on the old file. That commit is already in this tree (ancestor of `d1fdcb215`).
+
+**Why pre-push missed it: CI-load-only, and these three pushes did not select iac.**
+
+`grep -n pre-push-tier csi-spl-iac/src/bash/tests/gate10-fail-fast.tst.sh` returns no line. The fast tier skips a file only when its header has `# pre-push-tier: slow` (`csi-spl-iac/src/bash/tests/run-all-tests.sh` lines 9-12 and 54). The hook's iac part sets `IAC_TEST_TIER=fast` (`check-pre-push.func.sh` line 516 on `744f8d4f8`; line 500 on `8c4f2c4fe`) and therefore runs this file. On a quiet box the first poll beats 3 s and the control passes. On a loaded runner it fails. CI workflow 10 runs the suite at `tier=full` (the three logs: `135/136 test files passed (tier=full, 0 left to CI)`).
+
+`git diff-tree --name-only -r` for the three shas:
+
+| sha | paths |
+|---|---|
+| `cf72600e0e` | `csi-spl-orc/src/bash/run/spl-watchdog.func.sh`, `csi-spl-orc/src/bash/tests/wd-situations.tst.sh` |
+| `a9b5c5f403` | `spl-asks-open.func.sh`, `spl-asks-tick.func.sh`, `spl-dispatch-lease.func.sh`, `asks.tst.sh` (all under `csi-spl-orc/src/bash/`) |
+| `b49e2580a9` | `csi-spl-wui/i18n/locales/lt.json` |
+
+`grep` of `cf72600e0`, `a9b5c5f40` and `b49e2580a` in this box's pre-push log returned no line. The path rule would log `SKIP-untouched` for iac on a push that ran here: none of the three diffs touches `csi-spl-iac`. The red was already on trunk.
+
+**What else those runs failed.** Job conclusions and annotations, `gh api .../actions/runs/<id>/jobs` and the job's check-run annotations, this seat:
+
+- 38209222818: iac is the only first-red. Orc hermetic 1/2 (job 114684877319) is annotated `gate fail-fast: stopped, so the next gate run starts; red in this run: iac: tfvars parity, step contracts, terraform validate`. This run was still `in_progress` at the 06:41Z list (one of the 2 empty rows), so it sits outside the 11 streaks and outside the 96.
+- 38190838689 and 38197054999 are 2 of the 13 failure runs whose jobs payload timed out at that pull (`/tmp` err lines `dial tcp ... i/o timeout`). Their job lists, fetched for this section: 38190838689 also failed e2e shards 1/3 and 2/3 on the browser step (exit 1, no fail-fast annotation). 38197054999 also failed hub (exit 2) and e2e 3/3 (exit 1, no fail-fast annotation). Those two verdicts carry assertion failures beside the clock race. 38197054999 is R11's first sha `a9b5c5f403`. The streak table's "orc hermetic" for R11 is the one later run in that streak whose jobs payload did return.
+
 ## 4. Measurable axes
 
 | axis | command | baseline | target |
@@ -263,3 +323,8 @@ one e2e log.
 | A3 generate budget breaches | For each run whose first-red includes `nuxt generate`, the failed step name. A breach log contains `FAIL ci_initial_gzip_kb` | **31 / 31** failed the step `Initial JS gzip stays within the performance budget`. Logs n=2, both `155.1 > 155` | 0 in 50 completed gates |
 | A4 timeout + runner-lost share | First-red rows whose annotation is the timeout sentence or `lost communication with the server` | **21 / 209 = 10 %** (18 + 3) | under 2 % |
 | A5 local PASS, then that suite red in CI | Join failure shas to this box's hook summary line (`PASS` / `FAIL` / `OVERRIDE`, not a `PART` line). Then the part verdict versus the CI job | **42 / 109** failure shas are a sat summary PASS (61 have no sat line). Of the 38 of those with a first-red list, the part the hook ran was `PASS` and CI still failed it **2 times** (orc 1, iac 1). The rest were `SKIP-untouched` or a suite with no part | false-green of a part the hook ran: under 1 % of that part's CI runs. Unmapped suites move onto A2 |
+| X8 red verdicts whose first-red jobs are all non-defect | Section 0's first-red rule, grouped by run. A run counts when every first-red kind is `timeout` or `runner-lost`. An opened flake log (section 3) counts as well. Editor name, analysis.md section 4: flake, timeout, runner lost | **1 / 96 = 1.0 %** by kind. The one run is 38176570111, sha `215126c04c`, 2026-10-11T21:29:23Z, runner-lost, job `wui: browser e2e (mock, generated) 3/3`. **2 / 96 = 2.1 %** once R8 is added (run 38021028676, sha `892f26545d`, the only first-red on that run). 95 of 96 have at least one `kind=failure`. 9 of those 95 also carry a timeout or a runner-lost beside the assertion, and they stay with the defects. 157 failure rows have no recovered FAIL line, so 2/96 counts the opened logs and the kind-only runs. The two in-window gate10 runs are in the 13 uncovered; run 38209222818 was still empty at the pull. Seat A's last 12 (`do_report_ci_gate`: 3 timeout, 1 runner-lost) are a different window and are not in this 96 | under 2 % of completed red verdicts |
+
+X8 is the verdict share. A4 is the job-row share (21/209). They answer different questions: a run can carry 17 timeout rows and still be a defect verdict if one assertion also failed (R9).
+
+The split leaves the long red on the defects. R9 is 42.51 h of overlapping assertion failures (section 1), and 46 % of first-red rows are suites with no local part (A2). Non-code reds are 1 verdict in 96 by kind. The known flake fixes (the calendar e2e clock, this 3 s control, timeout headroom) are small next to A2 and the gzip ceiling. A per-job base keeps re-running a red suite until that suite is green, so it starts to pay once those defects are gone. This seat's numbers keep defect work ahead of selection, and they do not move flake suppression ahead of A2.

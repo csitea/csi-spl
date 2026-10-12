@@ -7,6 +7,8 @@
 #      gcloud with --account. do_spl_wine_box_start is the same verb flipped.
 #   3. do_spl_wine_box_ansible_sync refuses without DEST, copies the four
 #      paths, leaves a README in place, and prints the csi-spl sha.
+#   4. do_spl_wine_box_status is read-only: describe with --account, the ssh
+#      probe through an IAP ProxyCommand only when RUNNING and the key exists.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -26,6 +28,7 @@ env:
       gcp_project: test-proj
       vm_name: test-wine-box
       gcp_zone: europe-west2-a
+      os_user: debian
       ssh_public_key_file: ~/.ssh/.t/debian@test-wine-box.pub
 EOF
 do_log() { echo "$*"; }
@@ -47,6 +50,8 @@ source "$PROJ_ROOT/src/bash/run/spl-wine-box-stop.func.sh"
 source "$PROJ_ROOT/src/bash/run/spl-wine-box-start.func.sh"
 # shellcheck disable=SC1091
 source "$PROJ_ROOT/src/bash/run/spl-wine-box-ansible-sync.func.sh"
+# shellcheck disable=SC1091
+source "$PROJ_ROOT/src/bash/run/spl-wine-box-status.func.sh"
 
 key="$HOME/.ssh/.t/debian@test-wine-box"
 ( do_spl_wine_box_ssh_keygen ) >/dev/null 2>&1
@@ -88,10 +93,41 @@ grep -q "PIN csi-spl ${sha}" <<<"$pin" && pass "sync prints the csi-spl sha" || 
 ! grep -q -- '--delete' "$PROJ_ROOT/src/bash/run/spl-wine-box-ansible-sync.func.sh" \
   && pass "sync has no --delete" || fail "sync uses --delete"
 
+# --- status: read-only describe, ssh probe only when RUNNING -----------------
+cat >"$T/bin/gcloud" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >> "$T/gcloud.log"
+[[ "\$*" == *"instances describe"* ]] && printf '%s\tf1-micro\t2026-10-11T20:25:00Z\n' "\${FAKE_STATE:-RUNNING}"
+exit 0
+EOF
+cat >"$T/bin/ssh" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >> "$T/ssh.log"
+printf 'UPTIME=up 1 hour\nWINE=wine-10.0\n'
+EOF
+chmod +x "$T/bin/gcloud" "$T/bin/ssh"
+rm -f "$T/gcloud.log" "$T/ssh.log"
+out=$(FAKE_STATE=TERMINATED do_spl_wine_box_status 2>&1)
+grep -qx 'STATE=TERMINATED' <<<"$out" && grep -q 'do_spl_wine_box_start' <<<"$out" && [[ ! -s "$T/ssh.log" ]] \
+  && pass "status on a stopped VM names the start action, no ssh" || fail "status stopped: $out"
+grep -q -- '--account=sa@test-proj.iam.gserviceaccount.com' "$T/gcloud.log" && grep -q 'instances describe test-wine-box' "$T/gcloud.log" \
+  && pass "status describes with --account" || fail "status describe: $(cat "$T/gcloud.log")"
+out=$(do_spl_wine_box_status 2>&1)
+grep -qx 'STATE=RUNNING' <<<"$out" && grep -qx 'WINE=wine-10.0' <<<"$out" && grep -qx 'MACHINE_TYPE=f1-micro' <<<"$out" \
+  && pass "status on a running VM prints state, size and the Wine version" || fail "status running: $out"
+grep -q 'ProxyCommand=gcloud compute start-iap-tunnel test-wine-box 22 --listen-on-stdin' "$T/ssh.log" \
+  && grep -q -- "--account=sa@test-proj.iam.gserviceaccount.com" "$T/ssh.log" && grep -q 'debian@test-wine-box' "$T/ssh.log" \
+  && pass "status ssh goes through the IAP tunnel with the pinned account" || fail "status ssh: $(cat "$T/ssh.log")"
+rm -f "$T/ssh.log"
+out=$(WINE_BOX_SSH=0 do_spl_wine_box_status 2>&1)
+[[ ! -s "$T/ssh.log" ]] && pass "WINE_BOX_SSH=0 skips the probe" || fail "WINE_BOX_SSH=0 still ran ssh"
+! grep -qE 'instances (start|stop|delete|add-metadata)' "$T/gcloud.log" \
+  && pass "status mutates nothing" || fail "status called a mutating verb: $(cat "$T/gcloud.log")"
+
 
 # ./run registers do_<file-stem>. A function that lives in a differently named
 # file is sourced and then invisible to ./run -a.
-for stem in spl-wine-box-ssh-keygen spl-wine-box-stop spl-wine-box-start spl-wine-box-ansible-sync; do
+for stem in spl-wine-box-ssh-keygen spl-wine-box-stop spl-wine-box-start spl-wine-box-ansible-sync spl-wine-box-status; do
   func_name="do_${stem//-/_}"
   [[ -f "$PROJ_ROOT/src/bash/run/${stem}.func.sh" ]] || { fail "missing ${stem}.func.sh"; continue; }
   declare -f "$func_name" >/dev/null && pass "registered ${func_name}" || fail "${stem}.func.sh does not define ${func_name}"

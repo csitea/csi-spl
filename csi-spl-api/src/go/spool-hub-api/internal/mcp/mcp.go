@@ -256,5 +256,5 @@ func text(s string) *sdk.CallToolResult {
 
 // toolErr renders err as the CLI's stderr line plus the exit code it maps to.
 func toolErr(err error) error {
-	return fmt.Errorf("spool: %v (exit %d)", err, action.ExitCode(err))
+	return fmt.Errorf("spool: %w (exit %d)", err, action.ExitCode(err))
 }

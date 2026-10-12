@@ -136,6 +136,40 @@ func (failKMS) Decrypt(context.Context, string, []byte) ([]byte, error) {
 	return nil, errors.New("kms down")
 }
 
+// causeKMS fails every call with one fixed error, so a test can errors.Is it.
+type causeKMS struct{ err error }
+
+func (k causeKMS) Encrypt(context.Context, string, []byte) ([]byte, string, error) {
+	return nil, "", k.err
+}
+
+func (k causeKMS) Decrypt(context.Context, string, []byte) ([]byte, error) {
+	return nil, k.err
+}
+
+// TestOpenWrapsKMSCause: Open's KMS failure is ErrOpen and the cause, so
+// errors.Is reaches both. %v of the cause would keep the text and drop the chain.
+func TestOpenWrapsKMSCause(t *testing.T) {
+	cause := errors.New("kms down")
+	s, err := NewSealer(causeKMS{err: cause}, testKeyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct := "v1." + base64.RawURLEncoding.EncodeToString([]byte("wrapped")) + "." +
+		base64.RawURLEncoding.EncodeToString([]byte("box"))
+	_, err = s.Open(context.Background(), ct)
+	if !errors.Is(err, ErrOpen) {
+		t.Fatalf("Open err = %v, want ErrOpen", err)
+	}
+	if !errors.Is(err, cause) {
+		t.Fatalf("Open err = %v, want the KMS cause", err)
+	}
+	const want = "marketing: sealed token does not open: kms unwrap: kms down"
+	if err.Error() != want {
+		t.Fatalf("Open err text = %q, want %q", err.Error(), want)
+	}
+}
+
 func TestSealKMSErrorSurfaces(t *testing.T) {
 	s, _ := NewSealer(failKMS{}, testKeyName)
 	if ct, _, err := s.Seal(context.Background(), NewPlaintext(testSecret)); err == nil || ct != "" {

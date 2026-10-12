@@ -124,12 +124,12 @@ func (s *Sealer) Open(ctx context.Context, ciphertext string) (Plaintext, error)
 	}
 	dek, err := s.kms.Decrypt(ctx, s.keyName, wrapped)
 	if err != nil {
-		return Plaintext{}, fmt.Errorf("%w: kms unwrap: %v", ErrOpen, err)
+		return Plaintext{}, fmt.Errorf("%w: kms unwrap: %w", ErrOpen, err)
 	}
 	defer clear(dek)
 	gcm, err := newGCM(dek)
 	if err != nil {
-		return Plaintext{}, fmt.Errorf("%w: %v", ErrOpen, err)
+		return Plaintext{}, fmt.Errorf("%w: %w", ErrOpen, err)
 	}
 	n := gcm.NonceSize()
 	if len(box) < n+gcm.Overhead() {
@@ -137,7 +137,7 @@ func (s *Sealer) Open(ctx context.Context, ciphertext string) (Plaintext, error)
 	}
 	out, err := gcm.Open(nil, box[:n], box[n:], sealAAD)
 	if err != nil {
-		return Plaintext{}, fmt.Errorf("%w: %v", ErrOpen, err)
+		return Plaintext{}, fmt.Errorf("%w: %w", ErrOpen, err)
 	}
 	return Plaintext{s: string(out)}, nil
 }
@@ -150,10 +150,10 @@ func splitSealed(sealed string) (wrapped, box []byte, err error) {
 	}
 	enc := base64.RawURLEncoding
 	if wrapped, err = enc.DecodeString(parts[1]); err != nil {
-		return nil, nil, fmt.Errorf("%w: wrapped key: %v", ErrOpen, err)
+		return nil, nil, fmt.Errorf("%w: wrapped key: %w", ErrOpen, err)
 	}
 	if box, err = enc.DecodeString(parts[2]); err != nil {
-		return nil, nil, fmt.Errorf("%w: body: %v", ErrOpen, err)
+		return nil, nil, fmt.Errorf("%w: body: %w", ErrOpen, err)
 	}
 	return wrapped, box, nil
 }

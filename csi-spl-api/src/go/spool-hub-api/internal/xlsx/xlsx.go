@@ -178,7 +178,7 @@ func sheet(r io.ReaderAt, size int64) (readSheet, error) {
 	var ws readSheet
 	z, err := zip.NewReader(r, size)
 	if err != nil {
-		return ws, fmt.Errorf("%w: %v", ErrNotSheet, err)
+		return ws, fmt.Errorf("%w: %w", ErrNotSheet, err)
 	}
 	files := map[string]*zip.File{}
 	for _, f := range z.File {
@@ -195,7 +195,7 @@ func sheet(r io.ReaderAt, size int64) (readSheet, error) {
 	}
 	defer rc.Close()
 	if err := xml.NewDecoder(rc).Decode(&ws); err != nil {
-		return ws, fmt.Errorf("%w: %v", ErrNotSheet, err)
+		return ws, fmt.Errorf("%w: %w", ErrNotSheet, err)
 	}
 	return ws, nil
 }

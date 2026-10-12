@@ -325,7 +325,7 @@ func flowFoldSQL() string {
 	return `WITH ev AS (SELECT e.tenant_id, e.member_id, e.msg_id, e.kind, e.at FROM flow_events e
 			WHERE ` + evWhere + `
 			ORDER BY e.at DESC, e.msg_id DESC LIMIT $5),
-		hit AS (SELECT e.* FROM ev e WHERE EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
+		hit AS (SELECT e.tenant_id, e.member_id, e.msg_id, e.kind, e.at FROM ev e WHERE EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
 			AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `)),
 		fill AS (SELECT e.tenant_id, e.member_id, e.msg_id, e.kind, e.at
 			FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
@@ -334,8 +334,10 @@ func flowFoldSQL() string {
 			  AND (e.at, e.msg_id) < (SELECT x.at, x.msg_id FROM ev x ORDER BY x.at, x.msg_id LIMIT 1)
 			ORDER BY e.at DESC, e.msg_id DESC LIMIT $5),
 		raw AS (SELECT ` + flowEventCols("e", "m", "$9::text") + `, e.at AS ev_at
-			FROM (SELECT * FROM hit UNION ALL SELECT * FROM fill ORDER BY at DESC, msg_id DESC LIMIT $5) e
-			CROSS JOIN LATERAL (SELECT * FROM messages m WHERE m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id LIMIT 1) m),
+			FROM (SELECT h.tenant_id, h.member_id, h.msg_id, h.kind, h.at FROM hit h
+				UNION ALL SELECT f.tenant_id, f.member_id, f.msg_id, f.kind, f.at FROM fill f
+				ORDER BY at DESC, msg_id DESC LIMIT $5) e
+			JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id),
 		tt AS (SELECT d.task_id,
 				coalesce((SELECT left(r.body, 400) FROM messages r WHERE r.tenant_id = $1 AND r.task_id = d.task_id::uuid
 					ORDER BY r.received_at, r.msg_id LIMIT 1), '') AS title,

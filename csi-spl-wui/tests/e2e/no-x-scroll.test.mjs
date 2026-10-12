@@ -60,6 +60,20 @@ const LOCALE_PATHS = [
   { path: '/lobby', wait: '.spool-shell' },
 ]
 
+// spec 021 T042 (SPL-648): the user menu OPENED in the rtl locale. Its panel
+// is pinned with inset-inline-end, so at `he` it must open under its own
+// trigger (the panel spans the trigger's centre), inside the viewport, and
+// add no x-scroll, on a desktop and a phone. CONTROL: the page is really rtl
+// (<html dir>) and the panel is really shown, so a page that never switched
+// locale or never opened the menu cannot pass; the pre-fix `right: 0`
+// injected at 1440 opens the panel at the far edge, away from its trigger.
+const MENU_LOCALE = 'he'
+const MENU_VIEWPORTS = [
+  { name: '1440x900', width: 1440, height: 900 },
+  { name: '390x844', width: 390, height: 844 },
+]
+const MOCK_SESSION = JSON.stringify({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' })
+
 const results = []
 const ok = (name) => {
   results.push({ name, ok: true })
@@ -411,6 +425,47 @@ async function measurePuppeteer(browser, vp, route, url) {
   }
 }
 
+async function measureUserMenuOpen(browser, vp, url) {
+  const page = await browser.newPage()
+  try {
+    await page.evaluateOnNewDocument((s) => {
+      try { localStorage.setItem('spool.mock.session', s) } catch { /* opaque first document */ }
+    }, MOCK_SESSION)
+    await setPageViewport(page, vp)
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
+    await page.waitForSelector('[data-test=user-menu-trigger]', { visible: true, timeout: NAV_TIMEOUT })
+    await applyViewport(page, vp)
+    await page.click('[data-test=user-menu-trigger]')
+    await page.waitForSelector('[data-test=user-menu-panel]', { visible: true, timeout: 5000 })
+    await new Promise((r) => setTimeout(r, 300))
+    return page.evaluate(() => {
+      const root = document.scrollingElement || document.documentElement
+      const r = document.querySelector('[data-test=user-menu-panel]').getBoundingClientRect()
+      const t = document.querySelector('[data-test=user-menu-trigger]').getBoundingClientRect()
+      return {
+        triggerMid: Math.round(t.left + t.width / 2),
+        dir: document.documentElement.getAttribute('dir') || getComputedStyle(document.documentElement).direction,
+        scrollWidth: root.scrollWidth,
+        innerWidth: window.innerWidth,
+        left: Math.round(r.left), right: Math.round(r.right), width: Math.round(r.width),
+      }
+    })
+  } finally {
+    await page.close().catch(() => {})
+  }
+}
+
+function assertMenuInside(name, m) {
+  const why = []
+  if (m.dir !== 'rtl') why.push(`CONTROL dir=${m.dir}, not rtl`)
+  if (!(m.width > 0)) why.push('CONTROL the panel has no width')
+  if (m.left < 0 || m.right > m.innerWidth) why.push(`panel ${m.left}..${m.right} outside 0..${m.innerWidth}`)
+  if (m.triggerMid < m.left || m.triggerMid > m.right) why.push(`panel ${m.left}..${m.right} away from its trigger at x=${m.triggerMid}`)
+  if (m.scrollWidth > m.innerWidth) why.push(`scrollWidth=${m.scrollWidth} innerWidth=${m.innerWidth}`)
+  if (why.length) fail(name, why.join('; '))
+  else ok(`${name} rtl, panel ${m.left}..${m.right} under its trigger (x=${m.triggerMid}) inside ${m.innerWidth}, no x-scroll`)
+}
+
 // A page that never rendered within NAV_TIMEOUT on a loaded runner failed a
 // different route each run (item 18, 2026-09-26: /search, then /tr/lobby; all
 // green locally n=6). One retry, printed as RETRY so a repeat stays visible; a
@@ -488,6 +543,17 @@ function assertNoX(name, dims) {
           if (isViewportHarnessError(e)) throw e
           fail(label, e.message)
         }
+      }
+    }
+    for (const vp of MENU_VIEWPORTS) {
+      const label = `${vp.name} /${MENU_LOCALE}/lobby user menu open`
+      if (!puppeteer) { fail(label, 'needs puppeteer-core (the CDP fallback cannot click)'); continue }
+      try {
+        const m = await measureRetry(label, () => measureUserMenuOpen(browser, vp, `${server.base}/${MENU_LOCALE}/lobby`))
+        assertMenuInside(label, m)
+      } catch (e) {
+        if (isViewportHarnessError(e)) throw e
+        fail(label, e.message)
       }
     }
   } finally {

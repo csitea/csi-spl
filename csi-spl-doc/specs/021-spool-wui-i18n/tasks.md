@@ -41,6 +41,6 @@
 ## Phase 6 — Follow-ups found by the spec-vs-code pass (trunk `28442ef6`)
 
 - [ ] T041 (FR-001) Drop the dead key `pages.message_placeholder` from all 19 catalogues (022 T033 made it unused). Check: `python3 csi-spl-wui/src/python/i18n/find_dead_keys.py` -> `3 unreachable` today, the key gone after.
-- [~] T042 (FR-004) Partial — CLE-34982 (`git log --oneline --grep "spec 021 T042"`): `UserMenu.vue` panel `right: 0` -> `inset-inline-end: 0`, item `text-align: left` -> `start`; guard in `tests/unit/user-menu.test.mjs` (15/15; CONTROL: `right: 0` restored -> 2 fail). Missing: a browser proof of the opened menu at `he` with no x-scroll.
+- [x] T042 (FR-004) CLE-34982 (`git log --oneline --grep "spec 021 T042"`): `UserMenu.vue` panel `right: 0` -> `inset-inline-end: 0`, item `text-align: left` -> `start`; guard in `tests/unit/user-menu.test.mjs` (15/15; CONTROL: `right: 0` restored -> 2 fail). Browser proof (SPL-648): `tests/e2e/no-x-scroll.test.mjs` opens the user menu at `/he/lobby`, 1440x900 and 390x844, and asserts `<html dir=rtl>`, the panel under its trigger, inside the viewport, no x-scroll. n=2 green (60/60 each) on the mock bundle of 853d612c0's tree (`UserMenu.vue` unchanged since 6d10cec57). CONTROLS: the pre-fix `right: 0` injected at 1440 -> FAIL "panel 1168..1440 away from its trigger at x=34"; `fi` instead of `he` -> FAIL "dir=ltr, not rtl" at both sizes.
 
 <!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->

@@ -137,10 +137,11 @@ func IsFlowAgent(key string) bool {
 }
 
 // flowMemberKey is the flow member_id of a line end: a seat by its id, an
-// agent by <id>@<box>, "" when it is neither.
+// agent by <id>@<box> (an id already in that form as it is), "" when it is
+// neither.
 func flowMemberKey(id, box string) string {
 	switch {
-	case IsFlowMember(id):
+	case IsFlowMember(id), IsFlowAgent(id):
 		return id
 	case IsFlowAgent(id + "@" + box):
 		return id + "@" + box

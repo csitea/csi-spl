@@ -183,7 +183,7 @@ var flowLateralEdits = [][2]string{
 				AND fe.cov_at >= coalesce(fb.at, '-infinity'::timestamptz)`, `CROSS JOIN LATERAL (SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM flow_events fe
 				WHERE fe.tenant_id = $1 AND fe.member_id = $2 AND fe.place_key = fp.k
 				AND fe.cov_at >= fb.at OFFSET 0) fe`},
-	{`FROM ft fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id`, `FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm`},
+	{`FROM ft fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id`, `FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_box, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm`},
 }
 
 // flowCountsTailV1 is the a8e3723 statement (the one the LATERAL shape

@@ -86,7 +86,7 @@ SELECT msg_id::text, received_at, env, edited_at, edited_by,
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))
 			ORDER BY received_at DESC, msg_id::text DESC
 			LIMIT $6
--- @@stmt flow_counts sha256=ecd1e5b653e80c152919656bcfcdfbd696d1ae8c303467078ba6e66d1a9dc974 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
+-- @@stmt flow_counts sha256=3970e3539a5e8aec67b3ed87b62728f0f035edd581b0772d0c1ae330f945b386 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2
 			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2 AND x.place_key > fp.k)
@@ -107,8 +107,9 @@ WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tena
 				't:' || fm.task_id::text AS topic_key,
 				fe.at > coalesce((SELECT s.at FROM read_marks s
 				WHERE s.tenant_id = $1 AND s.member_id = $2 AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
-			FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm
-			WHERE fe.expires_at > $3 AND fm.expires_at > $3 AND CASE WHEN fm.channel IS NULL THEN fe.member_id IN (fm.to_id, fm.from_id)
+			FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_box, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm
+			WHERE fe.expires_at > $3 AND fm.expires_at > $3 AND CASE WHEN fm.channel IS NULL THEN fe.member_id IN (fm.to_id, fm.from_id,
+			fm.to_id || '@' || fm.to_box, fm.from_id || '@' || fm.from_box)
 		WHEN fm.channel = ANY($4::text[]) THEN true
 		ELSE (EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = fe.tenant_id AND h.channel_id = fm.channel AND h.human_id = fe.member_id)
 				OR EXISTS (SELECT 1 FROM channel_subscriptions cs WHERE cs.tenant_id = fe.tenant_id AND cs.channel_id = fm.channel

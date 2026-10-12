@@ -29,8 +29,9 @@ import (
 // mention in the linked task folds into it: no row. A blocker line and a
 // line that carries `accepts` label every event blocked / ready (spec 130
 // section 4). An agent (<id>@<box>, spec 130 section 5) takes rank 1 of a
-// channel line only, behind its channel_subscriptions door, and never
-// watches: its inbox already delivers DMs and replies.
+// channel line, behind its channel_subscriptions door, and a DM to it that
+// carries accepts (`ready`), and never watches: its inbox already delivers
+// DMs and replies.
 func flowInsertCTE(n int) string {
 	p := func(i int, typ string) string { return fmt.Sprintf("$%d::%s", n+i, typ) }
 	a, ms, pk, pub := p(0, "text"), p(1, "text[]"), p(2, "uuid"), p(3, "bool")
@@ -45,7 +46,7 @@ func flowInsertCTE(n int) string {
 			UNION ALL SELECT w.member_id, 4 FROM flow_watches w WHERE w.tenant_id = $1 AND w.task_id = $3 AND $4::text IS NOT NULL
 		) c
 		WHERE c.member_id <> ` + a + ` AND c.member_id <> ` + snd + ` AND (c.member_id ~ '^(HUM|GST)-[0-9]+$'
-			OR c.rnk = 1 AND $4::text IS NOT NULL AND ` + agent + `)
+			OR (c.rnk = 1 AND $4::text IS NOT NULL OR $4::text IS NULL AND ` + lbl + ` = 'ready') AND ` + agent + `)
 		  AND ($4::text IS NULL OR ` + pub + ` OR (
 			(EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = $1 AND h.channel_id = $4 AND h.human_id = c.member_id)
 				OR EXISTS (SELECT 1 FROM channel_subscriptions cs WHERE cs.tenant_id = $1 AND cs.channel_id = $4
@@ -79,11 +80,12 @@ func flowInsertArgs(m Message) []any {
 }
 
 // flowDoorSQL is the read door on event e of message m for e's member:
-// a DM by its two ends, a created channel by its (unarchived) member list
+// a DM by its two ends (an agent end as <id>@<box>), a created channel by its (unarchived) member list
 // (an agent <id>@<box> by its channel_subscriptions row), a public channel
 // ($pub text[]) for every member.
 func flowDoorSQL(e, m, pub string) string {
-	return ` AND CASE WHEN ` + m + `.channel IS NULL THEN ` + e + `.member_id IN (` + m + `.to_id, ` + m + `.from_id)
+	return ` AND CASE WHEN ` + m + `.channel IS NULL THEN ` + e + `.member_id IN (` + m + `.to_id, ` + m + `.from_id,
+			` + m + `.to_id || '@' || ` + m + `.to_box, ` + m + `.from_id || '@' || ` + m + `.from_box)
 		WHEN ` + m + `.channel = ANY(` + pub + `) THEN true
 		ELSE (EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = ` + e + `.tenant_id AND h.channel_id = ` + m + `.channel AND h.human_id = ` + e + `.member_id)
 				OR EXISTS (SELECT 1 FROM channel_subscriptions cs WHERE cs.tenant_id = ` + e + `.tenant_id AND cs.channel_id = ` + m + `.channel
@@ -148,7 +150,7 @@ func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 				't:' || fm.task_id::text AS topic_key,
 				fe.at > coalesce((SELECT s.at FROM read_marks s
 				WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
-			FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm
+			FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_box, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm
 			WHERE fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
 		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm", lobby) + `)
 		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke', 'blocked', 'ready')),

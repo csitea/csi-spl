@@ -244,8 +244,8 @@ func (s *Memory) flowWriteLocked(m Message) {
 			return false
 		}
 		agent := IsFlowAgent(member)
-		if !IsFlowMember(member) && (!agent || r != 1 || m.Channel == "") {
-			return false // an agent takes channel mentions only (spec 130 section 5)
+		if !IsFlowMember(member) && !(agent && (r == 1 && m.Channel != "" || m.Channel == "" && t.label == FlowReady)) {
+			return false // an agent takes channel mentions and an accepting DM only (spec 130 section 5)
 		}
 		if m.Channel == "" || t.public {
 			return true
@@ -342,7 +342,7 @@ func (s *Memory) flowEventLocked(k [3]string, e memFlowEvent, now time.Time, lob
 	member := k[1]
 	switch {
 	case m.Channel == "":
-		if m.ToID != member && m.FromID != member {
+		if !slices.Contains([]string{m.ToID, m.FromID, m.ToID + "@" + m.ToBox, m.FromID + "@" + m.FromBox}, member) {
 			return FlowEvent{}, false
 		}
 	case !ChannelPublic(m.Channel):

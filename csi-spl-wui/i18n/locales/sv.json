@@ -668,6 +668,8 @@
       "move_topic": "Flytta till ämne…",
       "hide_flow": "Dölj från flödet",
       "promote_topic": "Make it a topic",
+      "make_issue": "Gör ett ärende",
+      "make_issue_failed": "Ärendet skapades inte. Försök igen.",
       "why": {
         "edit": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan redigera det här ämnet",
         "edit_agent": "En agents meddelande kan bara redigeras av agenten själv",

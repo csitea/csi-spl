@@ -668,6 +668,8 @@
       "move_topic": "Przenieś do tematu…",
       "hide_flow": "Ukryj z przepływu",
       "promote_topic": "Make it a topic",
+      "make_issue": "Utwórz zgłoszenie",
+      "make_issue_failed": "Zgłoszenie nie zostało utworzone. Spróbuj ponownie.",
       "why": {
         "edit": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może edytować ten temat",
         "edit_agent": "Wiadomość agenta może edytować tylko sam agent",

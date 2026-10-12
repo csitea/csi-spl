@@ -11,9 +11,18 @@
 // Phone, 360x780 and 390x844, dark and light, font levels 1, 3, 5:
 //   4  no sideways scroll (document and every element: scrollLeft == 0)
 //   5  every control 44..48 px tall
+// The owner decides (t1 5ea2e615, owner msg db5ed497: "An owner question
+// should not become an issue until the owner decides that"), desktop:
+//   6  the owner's menu on a blocker offers Make an issue; picking it opens
+//      the new issue (todo, label blocker) on the issues sheet
+//   7  CONTROL: the owner's menu on a note has no Make an issue
+//   8  CONTROL: a developer's menu on the same blocker has none (the hub
+//      refuses them too: internal/hub/blocker_issue_owner_test.go)
 //
 // Plant the defect and watch step 2 go red (the save is never clicked):
 //   PROVE_RED=no-save node tests/e2e/blocker-issue-setting.test.mjs
+// and step 6 (the blocker is sent as a note, so nothing is offered):
+//   PROVE_RED=no-blocker node tests/e2e/blocker-issue-setting.test.mjs
 //
 // Run:
 //   BASE_URL=<generated mock bundle> pnpm run test:e2e blocker-issue-setting
@@ -75,6 +84,50 @@ async function open(browser, vp, path, { theme = 'dark', level = 3 } = {}) {
   return { p, ctx, errors }
 }
 
+/* steps 6-8: an agent's blocker to the owner and a note, in #alerts */
+const BLOCKER = 'b10c4e00-5ea2-4e15-8db5-000000000001'
+const NOTE = 'b10c4e00-5ea2-4e15-8db5-000000000002'
+const card = (msg_id, kind, body) => ({
+  v: 1, msg_id, task_id: msg_id.replace(/1$|2$/, (d) => String(Number(d) + 4)), ts: '2026-12-01T10:00:00Z', from: 'c-101',
+  from_box: 'box-a', to: '@channel', to_box: 'box-wui', kind, body, channel: 'alerts', parent_task_id: null, is_parent: 1, files: [],
+})
+const EXTRA = [card(BLOCKER, RED === 'no-blocker' ? 'note' : 'blocker', '@HUM-1 Rotate the prd key?'), card(NOTE, 'note', 'FYI the build is green')]
+/* the developer's me(): role + permission list, so tenantOwner is false */
+const DEVELOPER = { role: 'developer', permissions: ['topics.read', 'notes.send', 'topics.manage'] }
+
+/** the channel with the two cards; me = null (the owner) unless `as` */
+async function openAlerts(browser, as) {
+  const ctx = await browser.createBrowserContext()
+  const p = await ctx.newPage()
+  const errors = []
+  p.on('pageerror', (e) => errors.push(String(e && e.message).slice(0, 200)))
+  await p.evaluateOnNewDocument((s) => {
+    try {
+      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', name: 'Owner', email: 'owner@example.com', t: 'mock' }))
+      localStorage.setItem('spool.mock.extra-messages', JSON.stringify(s.extra))
+      if (s.as) localStorage.setItem('spool.mock.me', JSON.stringify(s.as))
+    } catch { /* about:blank */ }
+  }, { extra: EXTRA, as })
+  await setPageViewport(p, { width: 1280, height: 800 })
+  await p.goto(server.base + '/channel/alerts', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector(`article.msg[data-msg-id="${NOTE}"]`, { timeout: NAV_TIMEOUT }).catch(() => null)
+  await sleep(500)
+  return { p, ctx, errors }
+}
+
+/** the item ids of a card's menu, then the menu closed again unless keep */
+async function menuOf(p, id, keep = false) {
+  await p.evaluate((i) => {
+    const b = [...document.querySelectorAll(`article.msg[data-msg-id="${i}"] [data-testid=msg-menu-btn]`)].find((x) => x.getBoundingClientRect().width > 0)
+    b?.click()
+  }, id)
+  await until(p, () => Boolean(document.querySelector('[data-testid^="msg-menu-"][role=menuitem]')), null, 5000)
+  const ids = await p.$$eval('[role=menuitem][data-testid^="msg-menu-"]', (els) => els.map((e) => e.getAttribute('data-testid').slice('msg-menu-'.length)))
+  if (!keep) await p.keyboard.press('Escape')
+  await sleep(200)
+  return ids
+}
+
 /* away to Performance and back to General: the value is read again from the mock hub */
 async function reopen(p) {
   await p.click('[data-test=tenant-settings-nav-performance]')
@@ -129,6 +182,33 @@ try {
   ok('3 CONTROL: 1441 is refused (out of range) and nothing is saved', disabled && overflow && kept === '10', { disabled, overflow, kept })
   ok('desktop: no unexpected page errors', d.errors.length === 0, d.errors)
   await d.ctx.close()
+
+  /* ---- the owner decides ---- */
+  const o = await openAlerts(browser)
+  const noteItems = await menuOf(o.p, NOTE)
+  const blockerItems = await menuOf(o.p, BLOCKER, true)
+  const offered = blockerItems.includes('make-issue')
+  if (offered) await o.p.click('[data-testid=msg-menu-make-issue]')
+  const opened = offered && await until(o.p, () => /^\?issue=SPL-\d+$/.test(location.search) && location.pathname.endsWith('/issues'), null, 10000)
+  const key = opened ? await o.p.evaluate(() => new URLSearchParams(location.search).get('issue')) : ''
+  const where = await o.p.evaluate(() => ({ url: location.pathname + location.search, err: document.querySelector('[data-testid=msg-ai-error]')?.textContent?.trim() || '' }))
+  const made = key && await until(o.p, () => Boolean(document.querySelector('[data-test=issues-detail-title]')?.value), null, 10000)
+    ? await o.p.evaluate(() => ({
+      key: document.querySelector('[data-test=issues-detail-key]')?.textContent?.trim() || '',
+      title: document.querySelector('[data-test=issues-detail-title]')?.value || '',
+      side: (document.querySelector('[data-test=issues-detail-side]')?.innerText || '').toLowerCase(),
+    }))
+    : null
+  ok('6 the owner: Make an issue on a blocker opens the new issue (todo, label blocker)',
+    opened && made?.title === '@HUM-1 Rotate the prd key?' && /status\n(\d+-)?todo\n/.test(made.side) && /labels\n(.*\n)*blocker/.test(made.side),
+    { offered, opened, key, made, where })
+  ok('7 CONTROL: the owner\'s menu on a note has no Make an issue', noteItems.length > 0 && !noteItems.includes('make-issue'), noteItems)
+  ok('owner: no unexpected page errors', o.errors.length === 0, o.errors)
+  await o.ctx.close()
+  const dev = await openAlerts(browser, DEVELOPER)
+  const devItems = await menuOf(dev.p, BLOCKER)
+  ok('8 CONTROL: a developer\'s menu on the blocker has no Make an issue', devItems.length > 0 && !devItems.includes('make-issue'), devItems)
+  await dev.ctx.close()
 
   /* ---- phone matrix ---- */
   for (const vp of [{ width: 360, height: 780 }, { width: 390, height: 844 }]) {

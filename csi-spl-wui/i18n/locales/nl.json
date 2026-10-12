@@ -668,6 +668,8 @@
       "move_topic": "Verplaatsen naar onderwerp…",
       "hide_flow": "Verberg uit de flow",
       "promote_topic": "Make it a topic",
+      "make_issue": "Maak er een issue van",
+      "make_issue_failed": "Het issue is niet gemaakt. Probeer het opnieuw.",
       "why": {
         "edit": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp bewerken",
         "edit_agent": "Het bericht van een agent kan alleen die agent zelf bewerken",

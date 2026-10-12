@@ -12,6 +12,13 @@ const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 const pathFor = (p) => '/fi' + p
 
 describe('msgMenuItems', () => {
+  it('t1 5ea2e615: Make an issue only when makeIssue (an owner, a blocker), desktop and phone', () => {
+    for (const touch of [false, true]) {
+      const on = msgMenuItems({ touch, makeIssue: true }).find((i) => i.id === 'make-issue')
+      assert.deepEqual(on, { id: 'make-issue', icon: 'issues', labelKey: 'feed.msg_menu.make_issue' })
+      assert.equal(msgMenuItems({ touch }).some((i) => i.id === 'make-issue'), false, 'CONTROL: no makeIssue, no entry')
+    }
+  })
   it('offers open, copy link, edit, and delete on the author\'s own message', () => {
     assert.deepEqual(msgMenuItems({ editable: true }).map((i) => i.id), ['open', 'copy', 'edit', 'delete'])
     assert.deepEqual(msgMenuItems({ editable: true }).map((i) => i.icon), ['open', 'copy', 'pencil', 'trash'])
@@ -192,7 +199,7 @@ describe('every locale names the message actions', () => {
     const dir = join(WUI, 'i18n/locales')
     const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).feed.msg_menu
     assert.equal(en.hide_flow, 'Hide from flow')
-    assert.deepEqual(Object.keys(en).sort(), ['ai', 'archive', 'copy_link', 'copy_text', 'delete', 'edit', 'hide_flow', 'kind', 'label', 'merge_next', 'merge_prev', 'merge_topic', 'move_channel', 'move_topic', 'open', 'open_in_channels', 'open_in_dm', 'open_parent', 'promote_topic', 'reply', 'unarchive', 'why'])
+    assert.deepEqual(Object.keys(en).sort(), ['ai', 'archive', 'copy_link', 'copy_text', 'delete', 'edit', 'hide_flow', 'kind', 'label', 'make_issue', 'make_issue_failed', 'merge_next', 'merge_prev', 'merge_topic', 'move_channel', 'move_topic', 'open', 'open_in_channels', 'open_in_dm', 'open_parent', 'promote_topic', 'reply', 'unarchive', 'why'])
     const codes = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'en.json').map((f) => f.replace(/\.json$/, ''))
     assert.ok(codes.length >= 18)
     for (const code of codes) {
@@ -210,6 +217,8 @@ describe('every locale names the message actions', () => {
       assert.notEqual(row.reply, en.reply, code) // SPL-991
       assert.notEqual(row.copy_text, en.copy_text, code)
       assert.notEqual(row.kind, en.kind, code)
+      assert.notEqual(row.make_issue, en.make_issue, code) // t1 5ea2e615
+      assert.notEqual(row.make_issue_failed, en.make_issue_failed, code)
       assert.notEqual(row.move_channel, en.move_channel, code) // SPL-1024
       assert.notEqual(row.move_topic, en.move_topic, code)
       assert.notEqual(row.merge_topic, en.merge_topic, code) // 714c7028

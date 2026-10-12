@@ -73,6 +73,7 @@ const LAZY_METHODS = [
   'moveInfo',
   'listArchived',
   'setMessageKind',
+  'makeBlockerIssue',
   'setReaction',
   'createChannel',
   'listChannelMembers',
@@ -227,10 +228,10 @@ export function createSpoolClient({
   const mockBlobs = new Map()
   let mockIssues = null
   let mockFactory = null
-  const issuesMock = () => {
+  const issuesMock = (fallback) => {
     if (!mockIssues) {
-      if (typeof mockFactory !== 'function') throw Object.assign(new Error('issues mock is not bound'), { status: 500, token: 'no_mock' })
-      mockIssues = mockFactory((state && state.me && state.me.id) || 'HUM-1')
+      if (typeof mockFactory !== 'function' && typeof fallback !== 'function') throw Object.assign(new Error('issues mock is not bound'), { status: 500, token: 'no_mock' })
+      mockIssues = (typeof mockFactory === 'function' ? mockFactory : fallback)((state && state.me && state.me.id) || 'HUM-1')
     }
     return mockIssues
   }

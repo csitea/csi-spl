@@ -393,6 +393,7 @@
       :merge-topic="canMoveTopic"
       :move-topic="canMoveMsg"
       :promote-topic="canPromoteMsg"
+      :make-issue="canMakeIssue"
       :hide="menuHide"
       :locks="menuLocks"
       :ai-msg="msg"
@@ -416,6 +417,7 @@
       @move-topic="openMovePicker('topic')"
       @merge-topic="openMovePicker('merge')"
       @promote-topic="onPromote"
+      @make-issue="onMakeIssue"
       @hide-flow="onMenuHide"
     />
     <!-- SPL-1024: Move to channel… / Move to topic…, mounted when picked -->
@@ -501,6 +503,7 @@ import { reactionChips, emojiName } from '~/utils/emoji.mjs'
 import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
+import { ownerAllows } from '~/utils/access.mjs'
 import { COMPOSER_FOCUS_EVENT, LONG_PRESS_MS, LONG_PRESS_SLOP_PX, createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone, swipeLeftAction } from '~/utils/swipe-archive.mjs'
 import { useHiddenCards } from '~/composables/useHiddenCards'
@@ -1418,6 +1421,22 @@ function openMovePicker(mode: 'channel' | 'topic' | 'merge') {
 function onPromote() {
   closeMenu()
   void move.run({ kind: 'promote', msgId: String(props.msg.msg_id || '') })
+}
+
+/* t1 5ea2e615 (owner db5ed497): "An owner question should not become an
+   issue until the owner decides that." A workspace owner makes an issue of a
+   message that carries the blocker mark; the hub re-checks both, and the new
+   (or already made) issue opens on the issues sheet. */
+const canMakeIssue = computed(() => ownerAllows(access.me) && String(props.msg.kind || '') === 'blocker')
+async function onMakeIssue() {
+  closeMenu()
+  aiError.value = ''
+  try {
+    const out = await parentDeps.api.makeBlockerIssue(String(props.msg.msg_id || ''))
+    await parentDeps.router.push(localePath({ path: '/issues', query: { issue: out.issue.key } }))
+  } catch {
+    aiError.value = 'feed.msg_menu.make_issue_failed'
+  }
 }
 
 /* "moved from #x" on a card, "moved from <topic>" on a reply */

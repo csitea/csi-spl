@@ -52,8 +52,14 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * reason as `hintKey`, instead of vanishing. Without `locks` (a reply, a
  * thread line) nothing changes.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, paneArchive?: boolean, hide?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
- * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'hide-flow' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off', labelKey: string, disabled?: boolean, hintKey?: string }[]}
+ * Owner HUM-10 (t1 5ea2e615 msg db5ed497): "An owner question should not
+ * become an issue until the owner decides that." `makeIssue` (a workspace
+ * owner, on a message that carries the blocker mark) adds Make an issue,
+ * desktop and phone, before the Move entries; the hub makes the issue
+ * (POST /v1/messages/{msg_id}/issue) and refuses everyone else.
+ *
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, paneArchive?: boolean, hide?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-issue' | 'hide-flow' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off', labelKey: string, disabled?: boolean, hintKey?: string }[]}
  */
 /** HUM-10 (topic c15b557e): the parent item's words per place */
 const PARENT_LABEL = { dm: 'feed.msg_menu.open_in_dm', channel: 'feed.msg_menu.open_in_channels' }
@@ -88,6 +94,7 @@ export function msgMenuItems(opts = {}) {
   const archive = () => gated(wantArchive, { id: 'archive', icon: 'archive', labelKey: 'feed.msg_menu.archive' }, locks.archive)
   if (touch) archive()
   if (touch && o.kind) items.push({ id: 'kind', icon: 'tag', labelKey: 'feed.msg_menu.kind' })
+  if (o.makeIssue) items.push({ id: 'make-issue', icon: 'issues', labelKey: 'feed.msg_menu.make_issue' })
   if (editable && o.mergePrev) items.push({ id: 'merge-prev', icon: 'merge', labelKey: 'feed.msg_menu.merge_prev' })
   if (editable && o.mergeNext) items.push({ id: 'merge-next', icon: 'merge', labelKey: 'feed.msg_menu.merge_next' })
   gated(o.moveChannel, { id: 'move-channel', icon: 'move', labelKey: 'feed.msg_menu.move_channel' }, locks.move)

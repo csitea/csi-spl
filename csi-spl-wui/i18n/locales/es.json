@@ -668,6 +668,8 @@
       "move_topic": "Mover a un tema…",
       "hide_flow": "Ocultar del flujo",
       "promote_topic": "Make it a topic",
+      "make_issue": "Crear una incidencia",
+      "make_issue_failed": "No se creó la incidencia. Inténtalo de nuevo.",
       "why": {
         "edit": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede editar este tema",
         "edit_agent": "El mensaje de un agente solo lo puede editar el propio agente",

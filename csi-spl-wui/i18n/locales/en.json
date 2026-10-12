@@ -668,6 +668,8 @@
       "move_topic": "Move to topic…",
       "hide_flow": "Hide from flow",
       "promote_topic": "Make it a topic",
+      "make_issue": "Make an issue",
+      "make_issue_failed": "The issue was not made. Try again.",
       "why": {
         "edit": "Only the topic starter, the workspace owner or an admin can edit this topic",
         "edit_agent": "An agent's message can be edited only by its agent",

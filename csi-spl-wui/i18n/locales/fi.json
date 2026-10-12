@@ -668,6 +668,8 @@
       "move_topic": "Siirrä aiheeseen…",
       "hide_flow": "Piilota flowsta",
       "promote_topic": "Make it a topic",
+      "make_issue": "Tee tiketti",
+      "make_issue_failed": "Tikettiä ei tehty. Yritä uudelleen.",
       "why": {
         "edit": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi muokata tätä aihetta",
         "edit_agent": "Agentin viestiä voi muokata vain agentti itse",

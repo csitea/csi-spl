@@ -668,6 +668,8 @@
       "move_topic": "Mută în subiect…",
       "hide_flow": "Ascunde din flux",
       "promote_topic": "Make it a topic",
+      "make_issue": "Creează un tichet",
+      "make_issue_failed": "Tichetul nu a fost creat. Încearcă din nou.",
       "why": {
         "edit": "Doar cel care a început subiectul, proprietarul spațiului de lucru sau un administrator poate edita acest subiect",
         "edit_agent": "Mesajul unui agent poate fi editat doar de agentul însuși",

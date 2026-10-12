@@ -166,6 +166,8 @@ declare module '~/utils/spool-client.mjs' {
     setReaction(msgId: string, emoji: string, op: 'add' | 'remove', current?: { emoji: string, actors: string[] }[]): Promise<import('./spool').ReactionUpdate>
     /** SPL-952: set a sent message's kind (author, biz_owner or admin). */
     setMessageKind(msgId: string, kind: string): Promise<import('./spool').SpoolMessage>
+    /** t1 5ea2e615: a workspace owner makes an issue of a blocker (a second call answers the same one). */
+    makeBlockerIssue(msgId: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     /** SPL-983 (specs/041): archive (true) or unarchive (false) a topic card. */
     archiveTopic(msgId: string, archived?: boolean): Promise<{ msg_id: string, task_id: string, archived: boolean, archived_at?: string, archived_by?: string }>
     /** SPL-983: the confirm dialog's reply count and what the caller may do. */
@@ -796,7 +798,7 @@ declare module '~/utils/msg-ai-actions.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, paneArchive?: boolean, hide?: boolean, locks?: Partial<import('~/utils/topic-menu.mjs').TopicMenuLocks> }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'hide-flow' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off', labelKey: string, disabled?: boolean, hintKey?: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, paneArchive?: boolean, hide?: boolean, locks?: Partial<import('~/utils/topic-menu.mjs').TopicMenuLocks> }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-issue' | 'hide-flow' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off', labelKey: string, disabled?: boolean, hintKey?: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
@@ -1589,6 +1591,7 @@ declare module '~/utils/access.mjs' {
   export function normalizeActAs(a: unknown): ActAs | null
   export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null, channelOrder: string[] | null, actAs: ActAs | null, topicArchivePolicy: string }
   export function accessAllows(me: { permissions: string[] | null } | null | undefined, perm: string): boolean
+  export function ownerAllows(me: { permissions: string[] | null, tenantOwner?: boolean } | null | undefined): boolean
   export function canRemoveMember(
     me: { permissions?: string[] | null } | null | undefined,
     ctx: { targetId?: string, selfId?: string, targetIsOwner?: boolean, ownerCount?: number },

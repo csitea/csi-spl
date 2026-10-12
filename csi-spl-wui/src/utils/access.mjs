@@ -68,6 +68,16 @@ export function accessAllows(me, perm) {
   return me.permissions.includes(perm)
 }
 
+/**
+ * A workspace owner's action (tenant_owner on /v1/view/me), failing OPEN like
+ * accessAllows: no answer or an unrestricted one shows it, the hub's 403 is
+ * the control. t1 5ea2e615: Make an issue of a blocker.
+ */
+export function ownerAllows(me) {
+  if (!me || !Array.isArray(me.permissions)) return true
+  return me.tenantOwner === true
+}
+
 /** The permission that invites and removes tenant members (hub rbac.MembersInvite). */
 export const MEMBERS_INVITE = 'members.invite'
 

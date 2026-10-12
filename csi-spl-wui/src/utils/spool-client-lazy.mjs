@@ -998,6 +998,43 @@ async function setMessageKind(ctx, msgId, kind) {
   return normalizeViewMessage(data)
 }
 
+/**
+ * Owner HUM-10, t1 5ea2e615 msg db5ed497: "An owner question should not
+ * become an issue until the owner decides that." POST
+ * /v1/messages/{msg_id}/issue: a workspace owner makes an issue of a message
+ * that carries the blocker mark (todo, label blocker, linked both ways);
+ * 403 not_allowed for anyone else, 409 not_blocker once the mark is gone.
+ * A second call answers the same issue. Resolves with `{ issue }`.
+ */
+const mockMadeIssues = new Map()
+async function makeBlockerIssue(ctx, msgId) {
+  const { live, mock, state, issuesMock } = ctx
+  const id = String(msgId || '')
+  if (!id) throw Object.assign(new Error('msg_id required'), { status: 400, token: 'bad_json' })
+  if (mock) {
+    const { createMockIssues } = await import('./issues.mjs')
+    /* A channel can make an issue before the issues page ever bound its
+       mock: the first use falls back to the same store the page would bind. */
+    const issues = issuesMock((me) => createMockIssues({ me }))
+    const row = state.messages.find((m) => m.msg_id === id)
+    if (!row) throw Object.assign(new Error('no such message'), { status: 404, token: 'not_found' })
+    if (row.kind !== 'blocker') throw Object.assign(new Error('not a blocker'), { status: 409, token: 'not_blocker' })
+    const made = mockMadeIssues.get(id)
+    if (made) return issues.get(made)
+    try { issues.label({ name: 'blocker', color: '#dc2626' }) } catch { /* label_exists */ }
+    const line = String(row.body || '').split('\n').map((l) => l.replace(/^[\s#>]+/, '').trim()).find(Boolean) || `Blocker from ${row.from}`
+    const out = issues.create({ title: line.slice(0, 200), status: 'todo', labels: ['blocker'], assignee: state.me.id,
+      description: `Blocker from ${row.from}: ${state.me.id} made it this issue.\n\n[Open the message](/m/${id})` })
+    mockMadeIssues.set(id, out.issue.key)
+    return out
+  }
+  return live(`/v1/messages/${encodeURIComponent(id)}/issue`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{}',
+  })
+}
+
 async function setReaction(ctx, msgId, emoji, op, current) {
   const { live, mock, state } = ctx
   const id = String(msgId || '')
@@ -1565,6 +1602,7 @@ export const lazySpoolMethods = {
   moveInfo,
   listArchived,
   setMessageKind,
+  makeBlockerIssue,
   setReaction,
   createChannel,
   listChannelMembers,

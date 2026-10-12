@@ -668,6 +668,8 @@
       "move_topic": "Presunúť do témy…",
       "hide_flow": "Skryť z toku",
       "promote_topic": "Make it a topic",
+      "make_issue": "Vytvoriť úlohu",
+      "make_issue_failed": "Úloha nebola vytvorená. Skúste to znova.",
       "why": {
         "edit": "Túto tému môže upraviť len jej zakladateľ, vlastník pracovného priestoru alebo správca",
         "edit_agent": "Správu agenta môže upraviť len samotný agent",

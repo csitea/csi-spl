@@ -1,6 +1,6 @@
 // specs/025 FR-006/FR-008: the WUI's reading of GET /v1/view/me.
 // Run: node tests/unit/access.test.mjs
-import { accessAllows, archivePolicyOf, canRemoveMember, normalizeActAs, normalizeMe, roleLabelKey, ROLE_IDS, MEMBERS_IMPERSONATE } from '../../src/utils/access.mjs'
+import { accessAllows, archivePolicyOf, ownerAllows, canRemoveMember, normalizeActAs, normalizeMe, roleLabelKey, ROLE_IDS, MEMBERS_IMPERSONATE } from '../../src/utils/access.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -16,6 +16,9 @@ ok('owner flags', owner.tenantOwner === true && owner.role === 'biz_owner' && ac
 const guest = normalizeMe({ human_id: null, tenant_id: 't1', role: null, tenant_owner: null, permissions: null })
 ok('door-off guest: unrestricted, no role', guest.permissions === null && guest.role === null && accessAllows(guest, 'channels.manage'))
 ok('no answer (old hub / error): fails open', accessAllows(null, 'channels.manage') && accessAllows(normalizeMe(undefined), 'x'))
+// t1 5ea2e615: an owner's action (Make an issue of a blocker) fails open like accessAllows
+ok('ownerAllows: the owner yes, a tester no (CONTROL)', ownerAllows(owner) && !ownerAllows(tester))
+ok('ownerAllows: no answer or a door-off guest fails open', ownerAllows(null) && ownerAllows(guest))
 ok('junk permissions are dropped', normalizeMe({ permissions: ['a', 3, null] }).permissions.length === 1)
 ok('role keys for the eight roles', ROLE_IDS.length === 8 && ROLE_IDS.every((r) => roleLabelKey(r) === `role.${r}`))
 ok('unknown / empty role has no key', roleLabelKey('custom_x') === '' && roleLabelKey(null) === '')

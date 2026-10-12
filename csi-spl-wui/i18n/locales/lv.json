@@ -668,6 +668,8 @@
       "move_topic": "Pārvietot uz tēmu…",
       "hide_flow": "Paslēpt no plūsmas",
       "promote_topic": "Make it a topic",
+      "make_issue": "Izveidot problēmu",
+      "make_issue_failed": "Problēma netika izveidota. Mēģiniet vēlreiz.",
       "why": {
         "edit": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var rediģēt šo tēmu",
         "edit_agent": "Aģenta ziņojumu var rediģēt tikai pats aģents",

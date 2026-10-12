@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_prune_go_build_cache removes only stale Go build-cache files.
+# Purpose: do_prune_go_build_cache removes only stale Go build-cache files,
+#   and trims a cache that is over GO_CACHE_CAP_GB even when every file is fresh.
 #   1. a fixture cache with an old file and a fresh file: only the old one goes
 #   2. a directory that is not a Go cache: untouched, non-zero exit
 #   3. DRY_RUN=1 changes nothing
 #   4. the gate is per cache: two caches on two fake filesystems, only the
 #      one at/over the percent is pruned; an unreadable user is a WARN; the
 #      default users include the CI runner user when it exists
+#   5. size cap: all files fresh and over the cap -> oldest gone, size <= cap;
+#      under the cap -> nothing; a busy go test -> no `go clean -cache`;
+#      DRY_RUN deletes nothing. Cap 0 is the control that (5a) can fail.
 #   The gate (hourly minute, or filesystem at/over the percent) and the cron
 #   line are covered with the same fixtures. No real cache, crontab or sudo:
 #   df, sudo and getent are stubs, and SPOOL_TEST=1 refuses live discovery.
@@ -270,6 +274,96 @@ out="$(setup DRY_RUN=0 GO_CACHE_CRON_ACTION=remove)"; rc=$?
 cmp -s "$T/crontab" "$T/crontab.orig" && [[ $rc -eq 0 ]] &&
   pass "remove takes only its own line" ||
   fail "remove (rc=$rc): $(cat "$T/crontab")"
+
+# 5. size cap: fresh files, oldest first, never a full go clean -------------
+# Three sparse 500000000-byte files plus a 23-byte README and an 8-byte
+# depth-1 file (du -sb 1500000031). Cap 1 GiB is 1073741824, so the excess
+# is one file: the oldest goes, the other two stay, and the tree is <= the cap.
+# Age is 100000 min, so the age rule matches nothing. GO_CACHE_CAP_GB=0 is
+# the control: the same tree is not trimmed, so (5a) can fail.
+CAPB=$((1024 * 1024 * 1024))
+mk_sized() {
+  local d="$1"
+  mkdir -p "$d/00" "$d/ff"
+  printf 'cached build artifacts\n' >"$d/README"
+  printf 'depth-1\n' >"$d/keep"
+  truncate -s 500000000 "$d/00/old" "$d/ff/mid" "$d/ff/new"
+  touch -d '5 minutes ago' "$d/00/old"
+  touch -d '3 minutes ago' "$d/ff/mid"
+  touch -d '1 minute ago' "$d/ff/new"
+}
+# 0 when the oldest file is gone, the newer two and the depth-1 file stay,
+# and du -sb is at or under 1 GiB. This is the (5a) assertion.
+trimmed_to_1g() {
+  local d="$1" sz
+  [[ ! -e "$d/00/old" && -f "$d/ff/mid" && -f "$d/ff/new" && -f "$d/keep" && -f "$d/README" ]] || return 1
+  sz="$(du -sb "$d" | awk 'NR==1 { print $1 }')"
+  [[ "$sz" =~ ^[0-9]+$ ]] && (( sz <= CAPB ))
+}
+
+S5="$T/cap-over"
+mk_sized "$S5"
+printf 'outside\n' >"$T/outside-keep"
+out="$(run_prune "$S5" 0 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=1")"; rc=$?
+if [[ $rc -eq 0 ]] && trimmed_to_1g "$S5" && [[ -f "$T/outside-keep" \
+  && "$out" == *'PLAN user='*'files=1 bytes=500000000 cap_gb=1 dry_run=0'* ]]; then
+  pass "over the cap, all files fresh: the oldest goes first, the cache is <= 1 GiB, nothing outside it is touched"
+else
+  fail "cap trim (rc=$rc du=$(du -sb "$S5" | awk '{print $1}')): $out"
+fi
+
+S0="$T/cap-off"
+mk_sized "$S0"
+out="$(run_prune "$S0" 0 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=0")"; rc=$?
+if [[ $rc -eq 0 && -f "$S0/00/old" && -f "$S0/ff/mid" && -f "$S0/ff/new" ]] && ! trimmed_to_1g "$S0"; then
+  pass "CONTROL: GO_CACHE_CAP_GB=0 leaves the fresh over-size cache, so the (5a) check can fail"
+else
+  fail "cap off control (rc=$rc): $out"
+fi
+
+SU="$T/cap-under"
+mk_sized "$SU"
+truncate -s 1000 "$SU/00/old" "$SU/ff/mid" "$SU/ff/new"
+out="$(run_prune "$SU" 0 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=1")"; rc=$?
+[[ $rc -eq 0 && -f "$SU/00/old" && -f "$SU/ff/mid" && -f "$SU/ff/new" && -f "$SU/keep" \
+  && "$out" == *'PLAN user='*'files=0 bytes=0 cap_gb=1'* ]] &&
+  pass "under the cap: nothing touched" ||
+  fail "cap under (rc=$rc): $out"
+
+SD="$T/cap-dry"
+mk_sized "$SD"
+out="$(run_prune "$SD" 1 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=1")"; rc=$?
+[[ $rc -eq 0 && -f "$SD/00/old" && -f "$SD/ff/mid" && -f "$SD/ff/new" \
+  && "$out" == *'PLAN user='*'files=1 bytes=500000000 cap_gb=1 dry_run=1'* \
+  && "$out" == *'would be removed'* ]] &&
+  pass "DRY_RUN prints the cap plan and deletes nothing" ||
+  fail "cap dry (rc=$rc): $out"
+
+mkdir -p "$T/busy"
+cat >"$T/busy/ps" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "/usr/local/go/bin/go test ./..."
+STUB
+cat >"$T/busy/go" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${GO_STUB_LOG:?}"
+exit 0
+STUB
+chmod +x "$T/busy/ps" "$T/busy/go"
+SB="$T/cap-busy"
+mk_sized "$SB"
+: >"$T/go.log"
+out="$(run_prune "$SB" 0 "GO_CACHE_MAX_AGE_MIN=100000 GO_CACHE_CAP_GB=1 PATH=$T/busy:$PATH GO_STUB_LOG=$T/go.log")"; rc=$?
+if [[ $rc -eq 0 ]] && trimmed_to_1g "$SB" && [[ "$out" == *'no go clean -cache'* ]] && ! grep -q 'clean' "$T/go.log"; then
+  pass "a busy go test: oldest files trimmed to the cap, go clean -cache is not run"
+else
+  fail "cap busy (rc=$rc log=$(cat "$T/go.log" 2>/dev/null)): $out"
+fi
+
+out="$(run_prune "$SB" 0 "GO_CACHE_CAP_GB=no")"; rc=$?
+[[ $rc -ne 0 && -f "$SB/ff/new" && "$out" == *'GO_CACHE_CAP_GB'* && "$out" == FATAL* ]] &&
+  pass "a bad GO_CACHE_CAP_GB is refused" ||
+  fail "bad cap (rc=$rc): $out"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "prune-go-build-cache: all passed"; exit 0; fi

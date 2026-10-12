@@ -1,10 +1,18 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description Delete Go build-cache entries older than GO_CACHE_MAX_AGE_MIN
-# @description (default 1440, one day) for each agent user. The cache directory
-# @description comes from `go env GOCACHE` run as that user, or from the
-# @description env-var list GO_CACHE_USERS (users) / GO_CACHE_DIRS (directories,
-# @description pruned as the current user). No home path is written here.
+# @description (default 1440, one day), then trim each cache to GO_CACHE_CAP_GB
+# @description (default 8, each a gigabyte of 1024^3; 0 means no size cap) by
+# @description deleting the oldest remaining depth-2 files. A full `go clean
+# @description -cache` is not used: it would drop the newest bytes the cap
+# @description keeps, and it is refused while that user runs go build, go test
+# @description or go vet. The cache directory comes from `go env GOCACHE` run
+# @description as that user, or from the env-var list GO_CACHE_USERS (users) /
+# @description GO_CACHE_DIRS (directories, pruned as the current user). No home
+# @description path is written here. The runner user's cache
+# @description (GH_RUNNER_GO_CACHE_ROOT/go-build, default
+# @description /mnt/data/gh-runner-go/go-build) is one of those: go env -w
+# @description points GOCACHE there, and the runner user is in the default set.
 # @description A directory is pruned only when it is a Go build cache: a
 # @description regular README and real 00 and ff bucket directories. Anything
 # @description else is left untouched and the action exits non-zero.
@@ -21,6 +29,9 @@
 # @description other caches are still pruned.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param GO_CACHE_MAX_AGE_MIN (optional) - age in minutes, default 1440
+# @param GO_CACHE_CAP_GB (optional) - whole gigabytes (1024^3), default 8;
+# @param   0 disables the size cap. The sweep's other marks are env defaults,
+# @param   not cnf, so the default lives here.
 # @param GO_CACHE_USERS (optional) - space-separated users; default the box
 # @param   user, SPOOL_AGENT_USER, the spool-agents group and the CI runner
 # @param   user(s) GH_RUNNER_USER (gh-runner-add's, default ghrunner) when
@@ -182,14 +193,16 @@ go_cache_lock_or_stop() {
   return 2
 }
 
-# go_cache_check_inputs <dry> <gate> <age> <thr> <hour>: 0 when every knob is
-# valid, else logs the FATAL and returns 1.
+# go_cache_check_inputs <dry> <gate> <age> <thr> <hour> <cap-gb>: 0 when every
+# knob is valid, else logs the FATAL and returns 1.
 go_cache_check_inputs() {
   local dry="$1" gate="$2" age="$3" thr="$4" hour="$5"
+  local capgb="$6"
   do_require_bin find df du awk readlink || return 1
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$gate" == 0 || "$gate" == 1 ]] || { do_log "FATAL GO_CACHE_GATE must be 0 or 1, got: '$gate'"; return 1; }
   [[ "$age" =~ ^[0-9]+$ ]] || { do_log "FATAL GO_CACHE_MAX_AGE_MIN must be a whole number of minutes, got: '$age'"; return 1; }
+  [[ "$capgb" =~ ^[0-9]+$ ]] || { do_log "FATAL GO_CACHE_CAP_GB must be a whole number of gigabytes, got: '$capgb'"; return 1; }
   [[ "$thr" =~ ^[0-9]+$ ]] && (( thr <= 100 )) || { do_log "FATAL GO_CACHE_PRUNE_AT_PCT must be 0..100, got: '$thr'"; return 1; }
   [[ "$hour" =~ ^[0-9]+$ ]] && (( 10#$hour <= 59 )) || { do_log "FATAL GO_CACHE_HOURLY_MINUTE must be 0..59, got: '$hour'"; return 1; }
   [[ "${GO_CACHE_LOCK:-1}" == 0 || "${GO_CACHE_LOCK:-1}" == 1 ]] || { do_log "FATAL GO_CACHE_LOCK must be 0 or 1"; return 1; }
@@ -230,6 +243,58 @@ go_cache_split_fs() {
   pct="${pct%% *}"
 }
 
+# go_cache_go_busy <user>: 0 when that user's processes include go build,
+# go test or go vet. A full `go clean -cache` is allowed only when this is
+# false; the size cap never runs one (it would drop the warm tail).
+go_cache_go_busy() {
+  local u="$1" line
+  while IFS= read -r line; do
+    [[ "$line" =~ (^|[[:space:]/])go[[:space:]]+(build|test|vet)([[:space:]]|$) ]] && return 0
+  done < <(ps -u "$u" -o args= 2>/dev/null || true)
+  return 1
+}
+
+# go_cache_cap_trim <user> <dir> <age-min> <dry>: one PLAN line for the size
+# cap, then (dry 0) delete the oldest depth-2 files the age step is keeping
+# until du -sb is at or under the cap. Adds those counts to removed_files /
+# removed_bytes. Never runs `go clean -cache`. 1 when the list or the delete
+# fails (nothing from this step is deleted if the list fails).
+go_cache_cap_trim() {
+  local u="$1" d="$2" age="$3" dry="$4" gb cap total old_b excess list n=0 s=0 paths
+  gb="${GO_CACHE_CAP_GB:-8}"
+  cap=$(( gb * 1024 * 1024 * 1024 ))
+  if (( cap > 0 )); then
+    total="$(go_cache_bytes "$u" "$d")" || return 1
+    [[ "$total" =~ ^[0-9]+$ ]] || return 1
+    old_b="$(go_cache_old_stats "$u" "$d" "$age" | awk 'NR==1 { print $2 }')" || return 1
+    [[ "$old_b" =~ ^[0-9]+$ ]] || return 1
+    if (( old_b > total )); then old_b=$total; fi
+    excess=$(( total - old_b - cap ))
+    if (( excess > 0 )); then
+      list="$(
+        set -o pipefail
+        go_cache_as "$u" find "$d" -xdev -mindepth 2 -type f ! -mmin "+${age}" -printf '%T@\t%s\t%p\n' |
+          sort -n -s | awk -F '\t' -v excess="$excess" 's < excess { s += $2; print }'
+      )" || { do_log "FATAL cannot list cache entries in $d for the size cap; nothing deleted there"; return 1; }
+      n="$(awk -F '\t' 'NF >= 3 { c++ } END { print c + 0 }' <<<"$list")"
+      s="$(awk -F '\t' 'NF >= 3 { b += $2 } END { print b + 0 }' <<<"$list")"
+      paths="$(awk -F '\t' 'NF >= 3 { print $3 }' <<<"$list")"
+      if (( n == 0 )); then
+        do_log "WARN user=$u cache stays over the ${gb}G cap: no depth-2 file left to trim"
+      fi
+    fi
+  fi
+  printf 'PLAN user=%s files=%s bytes=%s cap_gb=%s dry_run=%s\n' "$u" "$n" "$s" "$gb" "$dry"
+  removed_files=$(( removed_files + n ))
+  removed_bytes=$(( removed_bytes + s ))
+  if [[ "$dry" != 0 || "$n" == 0 ]]; then return 0; fi
+  if go_cache_go_busy "$u"; then
+    do_log "INFO user=$u a go build, test or vet is running: trimming oldest files to the cap, no go clean -cache"
+  fi
+  printf '%s\n' "$paths" | go_cache_as "$u" xargs -r -d $'\n' rm -f -- ||
+    { do_log "FATAL size-cap delete failed in $d"; return 1; }
+}
+
 # go_cache_prune_one <user> <dir> <age> <dry>: check, measure, prune one cache
 # and print its BEFORE / PLAN / AFTER lines. Adds to the caller's
 # removed_files / removed_bytes and sets first_free, first_mount and last_free
@@ -259,6 +324,7 @@ go_cache_prune_one() {
   read -r files bytes <<<"$stats"
   [[ "$files" =~ ^[0-9]+$ && "$bytes" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot list old entries in $real; nothing deleted there"; return 1; }
   printf 'PLAN user=%s files=%s bytes=%s age_min=%s dry_run=%s\n' "$u" "$files" "$bytes" "$age" "$dry"
+  go_cache_cap_trim "$u" "$real" "$age" "$dry" || return 1
   if [[ "$dry" == 0 && "$files" != 0 ]]; then
     go_cache_as "$u" find "$real" -xdev -mindepth 2 -type f -mmin "+${age}" -delete ||
       { do_log "FATAL delete failed in $real"; return 1; }
@@ -274,11 +340,12 @@ go_cache_prune_one() {
 
 do_prune_go_build_cache() {
   local dry="${DRY_RUN:-1}" age="${GO_CACHE_MAX_AGE_MIN:-1440}" gate="${GO_CACHE_GATE:-0}"
+  local capgb="${GO_CACHE_CAP_GB:-8}"
   local thr="${GO_CACHE_PRUNE_AT_PCT:-85}" hour="${GO_CACHE_HOURLY_MINUTE:-0}"
   local targets u d rc=0 removed_files=0 removed_bytes=0 minute="" pruned=0
   local first_free="" last_free="" first_mount="" lrc=0 grc=0
 
-  go_cache_check_inputs "$dry" "$gate" "$age" "$thr" "$hour" || return 1
+  go_cache_check_inputs "$dry" "$gate" "$age" "$thr" "$hour" "$capgb" || return 1
 
   go_cache_lock_or_stop || lrc=$?
   if (( lrc == 2 )); then

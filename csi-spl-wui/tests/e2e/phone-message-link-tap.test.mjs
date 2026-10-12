@@ -7,8 +7,10 @@
 // the tap stays on the topic. Desktop clicks stay on the click path.
 //
 // An archived topic is the same anchor. The tap opens it: HUM-10 (t1
-// 36ea84a6) no link opens the Topics view, so /t/<id> goes through /m/<id>,
-// which says the topic is archived and where it went. Resolving an id into a link is not this test.
+// 36ea84a6) no link opens the Topics view, so /t/<id> goes through /m/<id>;
+// HUM-10 (t1 89b0200d) "we should be able to open even archived msg from
+// their link": it lands on its channel with the topic in the pane, shown
+// archived, no failure notice. Resolving an id into a link is not this test.
 //
 // Run: node tests/e2e/phone-message-link-tap.test.mjs
 //      BASE_URL=<generated mock bundle> node tests/e2e/phone-message-link-tap.test.mjs
@@ -358,19 +360,15 @@ try {
   }, { timeout: 8000 }, ARCH_TASK)
   await swallowClicks(phone, true)
   const archTap = await tapLink(phone, `/t/${ARCH_TASK}`)
-  await waitPath(phone, `/m/${ARCH_TASK}`)
   try {
-    await phone.waitForFunction(() => {
-      const e = document.querySelector('[data-testid=open-msg-notice][data-reason=archived]')
-      if (!e) return false
-      const r = e.getBoundingClientRect()
-      return r.width > 0 && r.height > 0
-    }, { timeout: 8000 })
-  } catch { /* the assertion reports the badge */ }
+    await phone.waitForFunction((id) => location.pathname.endsWith('/channel/lobby')
+      && new URLSearchParams(location.search).get('topic') === id
+      && Boolean(document.querySelector('.spool-shell > .topic [data-test=archived-badge]')), { timeout: 8000 }, ARCH_TASK)
+  } catch { /* the assertion reports the page */ }
   s = await state(phone)
   ok('CONTROL: a tap on a link to an archived topic opens that topic',
     archived.ok === true && archived.archived === true && archived.task_id === ARCH_TASK
-      && archTap.tapped && s.path.includes(`/m/${ARCH_TASK}`) && s.archivedNotice && !s.topicPage,
+      && archTap.tapped && s.path === `/channel/lobby?topic=${ARCH_TASK}` && s.pane && s.topicPage && s.archived && !s.archivedNotice,
     { archive: archived, tap: archTap.pt, page: s })
   await phone.close()
 

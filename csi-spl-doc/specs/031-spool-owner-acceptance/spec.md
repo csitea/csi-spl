@@ -68,7 +68,7 @@ The gate keeps the two in step.
 | a real IdP sign-in | OA-37 | `MANUAL`, §5 |
 | the owner's own thread URL | OA-38 | the bot — **PASS** since `7044c2e0`, §3.1 |
 | attachments survive a send | OA-39 | **PASS** on `713d6a8` — §3.2 |
-| an attached file round trips | OA-40 | the half OA-39 does NOT prove — **UNVERIFIED**, composer proof `attach-live.proof.mjs`, §3.2 |
+| an attached file round trips | OA-40 | the half OA-39 does NOT prove — **PASS** (SPL-834, dev, n=4), composer proof `attach-live.proof.mjs`, §3.2 |
 
 ### 2.1 Why the terminal cases are `orc-e2e` and not CI
 
@@ -209,7 +209,18 @@ on the wire and not that the hub stores and serves it. That second half is
 sent" and "the file arrived" are different claims, and this register exists to
 stop exactly that kind of merge.
 
-**OA-40 is UNVERIFIED** (re-read 2026-09-25, tree `6eba06ca`, n=1).
+**OA-40 is PASS** (SPL-834, 2026-10-13). `attach-live.proof.mjs` ran signed
+in against dev serving build `853d612c0` (v7.3.9), surfaces channel, dm, lobby
+and home. Runs 1-2 (proof as on master): every round-trip step passed (POST
+`/v1/files` 201 per file, the hub row with both refs, both files download 200),
+but "L2 the topic opens on the right" failed on lobby and home: the proof
+clicked the card's centre, which is the picture (it opened the image viewer),
+and `/` on a desktop now lands on #lobby, so home has no topic row. With the
+proof clicking the card's text instead: 3 of n=4 runs 92/92; the 4th lost one
+lobby upload to `net::ERR_NETWORK_CHANGED` (the box's docker veth churn, below).
+The history of the row before this run follows.
+
+Earlier: **OA-40 was UNVERIFIED** (re-read 2026-09-25, tree `6eba06ca`, n=1).
 The composer step the owner sees is `csi-spl-wui/tests/e2e/attach-live.proof.mjs`:
 it clicks Attach, picks the file, and clicks Send, then checks `POST /v1/files`,
 the hub row, the preview and the download.

@@ -243,12 +243,14 @@ async function surfaceRun(p, surface) {
   if (surface !== 'home') await checkCards(p, tag('L1'), f1)
 
   /* L2: the topic open on the right, the reader clicked in that pane */
-  const card = surface === 'home'
-    ? await p.$(`a.topic-row[data-key="${task}"]`)
-    : await p.$(`.feed-col article.msg[data-task-id="${task}"]`)
+  // `/` on a desktop lands on #lobby (index.vue lobbyHomeTarget), so home may
+  // show the feed card rather than a topic row. A lobby card has no Replies
+  // button: click its text, not its centre, which is the picture (that opens
+  // the image viewer, not the topic).
+  const card = await p.$(`a.topic-row[data-key="${task}"]`) || await p.$(`.feed-col article.msg[data-task-id="${task}"]`)
   if (card) {
-    const replies = surface === 'home' ? null : await card.$('[data-test=topic-replies]')
-    await (replies || card).click()
+    const target = await card.$('[data-test=topic-replies]') || await card.$('.msg-body') || card
+    await target.click()
   }
   const open = await p.waitForSelector('aside.live-pane', { timeout: 10000 }).then(() => true, () => false)
   step(tag('L2 the topic opens on the right'), open, {})

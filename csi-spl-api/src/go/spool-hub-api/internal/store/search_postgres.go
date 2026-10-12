@@ -210,6 +210,23 @@ func (c *sqlc) msgLeaf(t *search.Term) (string, bool) {
 	return "", false
 }
 
+// relaySQL is search.Relay on the message columns of prefix ("m." or ""):
+// a direct message whose two ends are agents. Constants only, no user text.
+func relaySQL(p string) string {
+	agent := func(col string) string {
+		return "left(" + p + col + ", 4) NOT IN ('HUM-', 'GST-') AND " + p + col + " <> 'ALL-0'"
+	}
+	return "(COALESCE(" + p + "channel, '') = '' AND " + agent("from_id") + " AND " + agent("to_id") + ")"
+}
+
+// relayHideSQL is SearchQuery.HideRelay: "" when off.
+func relayHideSQL(q SearchQuery, p string) string {
+	if !q.HideRelay {
+		return ""
+	}
+	return " AND NOT " + relaySQL(p)
+}
+
 func (c *sqlc) messageLeaf(t *search.Term) string {
 	if s, ok := c.msgLeaf(t); ok {
 		return s
@@ -218,6 +235,9 @@ func (c *sqlc) messageLeaf(t *search.Term) string {
 	case search.OpText:
 		return c.textMatch("m", t)
 	case search.OpIs:
+		if t.Enum == "relay" {
+			return relaySQL("m.")
+		}
 		return "m.kind = " + c.arg(t.Enum)
 	case search.OpHas:
 		if t.Enum == "code" {
@@ -427,7 +447,8 @@ func searchMessagesSQL(tenant string, q SearchQuery, sig bool, ids []string) (st
 		priv = `((m.channel IS NULL AND (m.from_id = ` + v + ` OR m.to_id = ` + v + `))
 			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
-	where := "(" + c.sigAll("m", q.Q.Root, c.cond(q.Q.Root, c.messageLeaf), search.OpText) + ")" + archivedHideSQL("m", t, c.arg(q.Lobby))
+	where := "(" + c.sigAll("m", q.Q.Root, c.cond(q.Q.Root, c.messageLeaf), search.OpText) + ")" + archivedHideSQL("m", t, c.arg(q.Lobby)) +
+		relayHideSQL(q, "m.")
 	if ids != nil {
 		where += " AND m.msg_id = ANY(" + c.arg(ids) + "::uuid[])"
 	}
@@ -470,7 +491,7 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 		priv = `((m.channel IS NULL AND (m.from_id = ` + v + ` OR m.to_id = ` + v + `))
 			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
-	where := "(" + c.cond(q.Q.Root, c.fileLeaf) + ")" + archivedHideSQL("m", t, c.arg(q.Lobby))
+	where := "(" + c.cond(q.Q.Root, c.fileLeaf) + ")" + archivedHideSQL("m", t, c.arg(q.Lobby)) + relayHideSQL(q, "m.")
 	page := ""
 	if !q.AfterAt.IsZero() {
 		at, id := c.arg(q.AfterAt), c.arg(q.AfterID)
@@ -546,6 +567,7 @@ func searchTopicsSQL(tenant string, q SearchQuery, sig bool, ids []string) (stri
 			" OR channel = ANY(" + pub + "::text[]) OR channel = ANY(" + mine + "::text[]))"
 	}
 	door += archivedHideSQL("messages", t, c.arg(q.Lobby)) // specs/041
+	door += relayHideSQL(q, "")
 	door += c.topicCandidates(q.Q.Root, t, now, ids)
 	where := c.cond(q.Q.Root, c.topicLeaf)
 	page := ""

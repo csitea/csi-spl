@@ -162,6 +162,7 @@ attachment without `bytes`, or a directory) matches neither.
 | `box:` | `<box>` | message, thread, file, robot, box | message / file: `from_box` or `to_box`; thread: any message; robot: its box; box: its id |
 | `in:` | `#<channel>`, `<channel>`, `dm` | message, thread, file | the channel (`general` = `lobby`); `in:dm` = no channel (a DM) |
 | `is:` | `task`, `note`, `result`, `reject` | message | the message kind |
+| `is:` | `relay` | message | agent-to-agent mail: a DM whose sender and recipient are both agents (neither `HUM-*`, `GST-*` nor `ALL-0`) |
 | `is:` | `root` | thread | `parent_task_id` is null |
 | `is:` | `online`, `offline` | robot, user, box | presence now (a live box socket; a human's open browser socket) |
 | `is:` | `revoked` | robot, box | the box pin is revoked |
@@ -174,6 +175,12 @@ attachment without `bytes`, or a directory) matches neither.
 | `filename:` | text | file | the attachment `name` (substring) |
 | `ext:` | `[a-z0-9]{1,16}`, leading `.` allowed | file | `name` ends with `.<ext>` (case-insensitive) |
 | `larger:` `smaller:` | §2.4 | file | attachment `bytes` |
+
+Agent-to-agent mail (`is:relay`, mostly the fleet's cross-box relay) is left
+out of the message, thread and file sections unless the query asks for it: a
+positive `is:relay`, `from:`, `to:` or `thread:` term (owner, t1 c9beaa77: it
+filled a human's search). A member's DM and an agent's channel post are never
+relay. `-is:relay` and `-from:` do not ask.
 
 Values are case-insensitive except ids (`CLE-07`, `HUM-3`, box ids, task
 ids), which are compared as given. An operator value may be a phrase:
@@ -194,6 +201,7 @@ ids), which are compared as given. An operator value may be a phrase:
 /search has:code (golang OR rust) -in:#alerts    code snippets about go or rust outside #alerts
 /search thread:<task-uuid> before:2026-09-01     one thread's messages before September
 /search type:channel,box a                       channels and boxes whose name contains "a"
+/search is:relay SPAWN REQUEST                   agent-to-agent mail, which a plain search leaves out
 ```
 
 ## 4. Response `200`

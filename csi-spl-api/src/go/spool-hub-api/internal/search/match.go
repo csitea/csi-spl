@@ -98,6 +98,9 @@ func MatchMsg(n *Node, m Msg) bool {
 		case OpIn:
 			return inChannel(m.Channel, t)
 		case OpIs:
+			if t.Enum == "relay" {
+				return Relay(m)
+			}
 			return m.Kind == t.Enum
 		case OpHas:
 			if t.Enum == "code" {
@@ -111,6 +114,19 @@ func MatchMsg(n *Node, m Msg) bool {
 		}
 		return false
 	})
+}
+
+// AgentEnd reports whether id is an agent: not a member (HUM-), a guest
+// (GST-) or the broadcast (ALL-0).
+func AgentEnd(id string) bool {
+	return !strings.HasPrefix(id, "HUM-") && !strings.HasPrefix(id, "GST-") && id != "ALL-0"
+}
+
+// Relay reports agent-to-agent mail: a direct message whose sender and
+// recipient are both agents (the hub's cross-box relay, spool-fleet-relay.sh,
+// is all of this kind). A channel post is never relay.
+func Relay(m Msg) bool {
+	return m.Channel == "" && AgentEnd(m.FromID) && AgentEnd(m.ToID)
 }
 
 // MatchFile reports whether f matches n.

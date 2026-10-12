@@ -153,7 +153,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		return
 	}
 	base := store.SearchQuery{Q: q, Now: now, Viewer: reader, ViewerChannels: mine, Lobby: s.o.LobbyTaskID, // specs/041
-		Limit: limit + 1, Budget: s.o.SearchBudget, Relevance: sortBy == "relevance", ScanOnly: searchIndexOff()}
+		Limit: limit + 1, Budget: s.o.SearchBudget, Relevance: sortBy == "relevance", ScanOnly: searchIndexOff(),
+		HideRelay: !q.Relay} // agent-to-agent mail only when asked (t1 c9beaa77)
 	groups, names, err := s.searchSections(ctx, t, q, base, types, cur, hash, limit)
 	if errors.Is(err, store.ErrSearchBudget) {
 		writeErr(w, http.StatusServiceUnavailable, "search_budget", "the search ran past its time budget; narrow the query")

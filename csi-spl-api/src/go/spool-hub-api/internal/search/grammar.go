@@ -154,9 +154,9 @@ var Operators = []Operator{
 	{Name: OpIn, Aliases: []string{"channel"}, Values: "channel", Applies: msgTopicFile, Example: "in:#lobby", Doc: "a channel (#name or name), or dm for direct messages"},
 	{Name: OpIs, Values: "enum", Enum: map[string][]Type{
 		"task": {TypeMessage}, "note": {TypeMessage}, "result": {TypeMessage}, "reject": {TypeMessage},
-		"blocker": {TypeMessage}, "msg": {TypeMessage},
+		"blocker": {TypeMessage}, "msg": {TypeMessage}, "relay": {TypeMessage},
 		"root": {TypeTopic}, "online": presence, "offline": presence, "revoked": {TypeRobot, TypeBox},
-	}, Applies: []Type{TypeMessage, TypeTopic, TypeRobot, TypeUser, TypeBox}, Example: "is:task", Doc: "message kind, root topic, presence or revoked pin"},
+	}, Applies: []Type{TypeMessage, TypeTopic, TypeRobot, TypeUser, TypeBox}, Example: "is:task", Doc: "message kind, root topic, presence or revoked pin; is:relay: agent-to-agent mail, which a search leaves out unless it asks (is:relay, from:, to: or topic:)"},
 	{Name: OpHas, Values: "enum", Enum: map[string][]Type{
 		"file": {TypeMessage}, "attachment": {TypeMessage}, "code": {TypeMessage},
 	}, Applies: []Type{TypeMessage}, Example: "has:file", Doc: "messages with attachments or a fenced code block"},
@@ -254,6 +254,10 @@ type Query struct {
 	Explicit bool   // type: was given
 	Warnings []Warning
 	Positive []*Term // text-bearing terms not under a Not (highlights, rank)
+	// Relay: the query asks for agent-to-agent mail (search.Relay), which
+	// every other search leaves out (owner, t1 c9beaa77: relayed SPAWN
+	// REQUESTs filled his search). A positive is:relay, from:, to: or topic:.
+	Relay bool
 }
 
 // ---- tokenizer ------------------------------------------------------------------
@@ -610,7 +614,26 @@ func (q *Query) finish(root *Node) error {
 		}
 	}
 	q.Positive = positives(q.Root, false, nil)
+	q.Relay = asksRelay(q.Root, false)
 	return nil
+}
+
+// asksRelay reports a term not under a Not that names agent mail: is:relay,
+// or a party or topic the reader picked (from:c-001 finds c-001's relays).
+func asksRelay(n *Node, neg bool) bool {
+	if n == nil {
+		return false
+	}
+	if n.Kind == Leaf {
+		t := n.Term
+		return !neg && (t.Op == OpFrom || t.Op == OpTo || t.Op == OpTopic || (t.Op == OpIs && t.Enum == "relay"))
+	}
+	for _, k := range n.Kids {
+		if asksRelay(k, neg != (n.Kind == Not)) {
+			return true
+		}
+	}
+	return false
 }
 
 // splitTypeTerm takes the one type: term off the top-level conjuncts

@@ -50,6 +50,11 @@ type SearchQuery struct {
 	// spool_search_candidates and runs the 0135 statement alone.
 	ScanOnly bool
 
+	// HideRelay leaves agent-to-agent mail out (search.Relay; the hub sets
+	// it unless the query asks for it, search.Query.Relay). Per message,
+	// before a topic's aggregate, like the read door.
+	HideRelay bool
+
 	Relevance bool // messages: rank, paged by Offset
 	Offset    int
 	// Keyset (newest first): strictly older than (AfterAt, AfterID[, AfterIdx]).
@@ -164,6 +169,11 @@ func (q SearchQuery) readable(m *Message) bool {
 	return !q.Hides(m.Channel)
 }
 
+// hidesRelay is HideRelay on m.
+func (q SearchQuery) hidesRelay(m *Message) bool {
+	return q.HideRelay && search.Relay(search.Msg{Channel: m.Channel, FromID: m.FromID, ToID: m.ToID})
+}
+
 func (s *Memory) SearchMessages(_ context.Context, tenant string, q SearchQuery) ([]SearchMsgRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -171,7 +181,7 @@ func (s *Memory) SearchMessages(_ context.Context, tenant string, q SearchQuery)
 	var out []SearchMsgRow
 	for i := len(live) - 1; i >= 0; i-- { // newest first
 		m := live[i]
-		if !q.readable(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) {
+		if !q.readable(m) || q.hidesRelay(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) {
 			continue
 		}
 		sm := searchMsg(m)
@@ -207,7 +217,7 @@ func (s *Memory) SearchFiles(_ context.Context, tenant string, q SearchQuery) ([
 	var out []SearchFileRow
 	for i := len(live) - 1; i >= 0; i-- {
 		m := live[i]
-		if !q.readable(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) {
+		if !q.readable(m) || q.hidesRelay(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) {
 			continue
 		}
 		sm := searchMsg(m)
@@ -240,7 +250,7 @@ func (s *Memory) SearchTopics(_ context.Context, tenant string, q SearchQuery) (
 	msgs := map[string][]search.Msg{}
 	var order []string
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
-		if !q.readable(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) { // per message, before the aggregate; specs/041
+		if !q.readable(m) || q.hidesRelay(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) { // per message, before the aggregate; specs/041
 			continue
 		}
 		r := byTask[m.TaskID]

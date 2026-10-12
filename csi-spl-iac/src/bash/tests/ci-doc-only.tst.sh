@@ -102,6 +102,7 @@ put csi-spl-doc/specs/x/c.json a; put csi-spl-cnf/csi-spl/dev.env.yaml a; put cs
 put csi-spl-orc/src/bash/scripts/gate-fail-fast.sh a; put csi-spl-orc/src/bash/tests/run-all-tests.sh a
 put csi-spl-api/src/go/go.mod a; put csi-spl-wui/pnpm-lock.yaml a; put csi-spl-iac/run a; put Makefile a
 put csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh a; put csi-spl-orc/src/bash/features/f/lib/x.inc.sh a
+put csi-spl-iac/src/bash/run/check-pre-push.func.sh a
 base2=$(commit base2)
 one() {  # <want> <label> <path> - a push that changes only <path>
   g reset -q --hard "$base2"; echo b >>"$R/$3"; local h; h=$(commit "$2")
@@ -116,6 +117,7 @@ one "parts=iac orc"         "a non-.md doc file"                         csi-spl
 one "parts=wui"             "a blog post .md (the wui build reads it)"   csi-spl-doc/blog/posts/p.md
 one "parts=cnf hub iac orc wui" "an orc script the e2e job runs"         csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh
 one "parts=cnf hub iac orc" "a feature's own lib/ is the orc part, not the full gate" csi-spl-orc/src/bash/features/f/lib/x.inc.sh
+one "parts=cnf iac orc wui" "the pre-push gate (the wui list source) is iac + wui, not the full gate" csi-spl-iac/src/bash/run/check-pre-push.func.sh
 WUI_EXT="csi-spl-doc/doc/help"
 one "parts=wui"             "a help .md on the wui list"                 csi-spl-doc/doc/help/h.md
 WUI_EXT="csi-spl-api/*.go"

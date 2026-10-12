@@ -33,8 +33,11 @@
 #     docker-pull-mirror, any run-all-tests/run-ci-tests/changed-tests and test
 #     lib), the dispatchers and shared libs (csi-spl-*/run, src/bash/run/run.sh,
 #     csi-spl-*/lib/**), go.mod/go.sum, the wui package.json/lockfile,
-#     .version, csi-spl-cnf/** (cnf feeds every part), check-pre-push.func.sh
-#     (the source of the wui list), and any path no rule maps;
+#     .version, csi-spl-cnf/** (cnf feeds every part), and any path no rule
+#     maps;
+#   - check-pre-push.func.sh (the source of the wui list) -> its iac parts
+#     plus wui: wui runs whatever the list now says, and no hub job reads it
+#     (spec 133 round 6: 11 edits in 3 days, each one a full gate);
 #   - a *.md outside csi-spl-wui/ and .github/: nothing (the express lane),
 #     unless the wui unit tests read it (below);
 #   - csi-spl-api, csi-spl-rdb -> hub orc iac  (orc builds the spool binary)
@@ -106,9 +109,10 @@ part_of() {  # <path> <wui entry>...
       | */go.mod | */go.sum | csi-spl-wui/package.json | csi-spl-wui/pnpm-lock.yaml \
       | */run-all-tests.sh | */run-ci-tests.sh | */changed-tests.sh | */test-lib.inc.sh | */lib.inc.sh \
       | csi-spl-orc/src/bash/scripts/ci-doc-only.sh | csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
-      | csi-spl-orc/src/bash/scripts/docker-pull-mirror.sh | csi-spl-iac/src/bash/run/check-pre-push.func.sh)
+      | csi-spl-orc/src/bash/scripts/docker-pull-mirror.sh)
       echo all; return ;;
   esac
+  [[ "$f" == csi-spl-iac/src/bash/run/check-pre-push.func.sh ]] && echo wui
   listed "$f" "$@" && echo wui
   case "$f" in
     csi-spl-wui/*)                 echo wui iac orc ;;

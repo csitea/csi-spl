@@ -11,8 +11,9 @@
 # @description <spool root>/dispatch/wd.<id> ("HIT <code> <epoch>" or "OK <epoch>")
 # @description for the able check, prints one verdict line per agent and
 # @description acts: S1 rings at 120 s and takes over at 240 s, S2 never
-# @description restarts (a login: ONE blocker to the orchestrator; a dead
-# @description API key, kind=auth: ONE blocker to the dispatcher; a usage
+# @description restarts (a login: ONE blocker to the orchestrator; kind=auth:
+# @description ONE blocker to the dispatcher, "login required (agy)" for agy
+# @description and "API key refused" for the others; a usage
 # @description limit: ONE blocker to the orchestrator naming the reset, ONE
 # @description wake once its reset + WD_LIMIT_GRACE passed, and S1 does not
 # @description take the seat over until 2 x WD_JOB_WAIT after that), S3 takes
@@ -1053,6 +1054,20 @@ spl_wd_gate() {
   return 0
 }
 
+# spl_wd_auth_body ID EV PANE CTX: the kind=auth blocker. agy (id a-, or a
+# registry harness of agy) has no API key: the banner is a missing login
+# (spec 132 section 7). Every other vendor's kind=auth is a refused key.
+spl_wd_auth_body() {
+  local id="$1" ev="$2" pane="$3" ctx="$4" cause fix
+  cause="its API key is refused"
+  fix="a restart does not fix a dead key. The owner re-keys"
+  if [[ "$(spl_wd_harness "$id")" == agy || "${id:0:2}" == a- ]]; then
+    cause="login required (agy)"
+    fix="a restart does not fix a missing login. The owner logs in"
+  fi
+  printf '%s\n' "WATCHDOG (110 2.5, S2 kind=auth): $id cannot act, $cause: ${ev#kind=auth }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. No restart: $fix; lane-mix skips this kind until then."
+}
+
 # Act on one confirmed code; prints what was done (or would be).
 spl_wd_act() {
   local id="$1" code="$2" ev="$3" pane="$4" now="$5" ctx="$6" age out
@@ -1065,7 +1080,7 @@ spl_wd_act() {
         else spl_wd_once "$id" S1 ring "$now" "$ctx" spl_wd_ring "$id"; fi ;;
     S2) if [[ "$ev" == kind=auth* ]]; then
           spl_wd_once "$id" S2 auth "$now" "$ctx" spl_wd_send "$(spl_wd_dispatcher)" blocker "$id" \
-            "WATCHDOG (110 2.5, S2 kind=auth): $id cannot act, its API key is refused: ${ev#kind=auth }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. No restart: a restart does not fix a dead key. The owner re-keys; lane-mix skips this kind until then."
+            "$(spl_wd_auth_body "$id" "$ev" "$pane" "$ctx")"
         elif [[ "$ev" == kind=login* ]]; then
           spl_wd_once "$id" S2 dm "$now" "$ctx" spl_wd_send orchestrator blocker "$id" \
             "WATCHDOG (093 S2): $id cannot act, a login or access screen: ${ev#kind=login }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. A restart does not fix a login: a human runs /login in that pane."

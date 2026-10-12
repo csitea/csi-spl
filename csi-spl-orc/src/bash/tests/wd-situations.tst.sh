@@ -66,7 +66,8 @@
 #      the wake, the list complete, a working heartbeat, a moving spinner
 #  S2 agy (spec 132 section 7): agy 1.3.3's "You are currently not signed in"
 #      screen and agy -p's "authentication required" are kind=auth; controls:
-#      the pre-132 patterns, the login picker alone, a moving spinner
+#      the pre-132 patterns, the login picker alone, a moving spinner.
+#      The tick-level blocker says "login required (agy)", not a refused key.
 #  11. S2 kind=limit wakes after its reset (2026-10-08, a seat 2.5 h
 #      idle past "resets 1:50am (Europe/Helsinki)"): the reset read once per
 #      episode (1:50am Helsinki on a summer date = 22:50Z), no wake before
@@ -911,6 +912,18 @@ grep -q '^HIT S2 kind=auth ' "$D/wd/ctx/m-972/out.s2" && pass "10 ctx/m-972/out.
 mreset; agent m-973 %1 4073 "Vibe CLI" 3600 "$MF/pane-mistral-auth.txt"
 for k in 0 1; do NOW=$((T0 + 30 * k)) wd >/dev/null; done; sleep 0.3
 grep -q -- '--to orchestrator --kind blocker --task wd-m-973' "$T/sent" && pass "10 control: no dispatch lease: the blocker goes to the orchestrator" || fail "10 no lease: $(cat "$T/sent" 2>/dev/null)"
+# spec 132: agy's kind=auth is a missing login, not a refused key. The same
+# shape as m-972 (4 ticks, one blocker, no restart), the wording differs.
+reset_box; rm -rf "$S"/a-*
+agent a-980 %1 4080 agy 3600 "$FX/s2-agy-login.pane"
+echo '{"v":1,"kind":"task","from":"c-002","to":"a-980","body":"do"}' > "$S/a-980/inbox/j.json"; touch -d "@$((T0 - 300))" "$S/a-980/inbox/j.json"
+echo "c-002@box1 $T0" > "$D/lease"
+for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; sleep 0.3
+grep -q 'a-980 HIT S2 kind=auth pane: You are currently not signed in' <<<"$out" && pass "10 agy's missing login: HIT S2 kind=auth" || fail "10 agy auth: $out"
+[[ ! -s "$T/takeovers" ]] && pass "10 an agy auth lane is left alone: no respawn" || fail "10 agy auth took over: $(cat "$T/takeovers")"
+[[ "$(grep -c -- '--to c-002@box1 --kind blocker --task wd-a-980' "$T/sent")" == 1 ]] && grep -q 'login required (agy)' "$T/sent" &&
+  grep -q 'The owner logs in' "$T/sent" && ! grep -q 'API key is refused' "$T/sent" && ! grep -q 're-keys' "$T/sent" &&
+  pass "10 ONE blocker says login required (agy), not a refused key" || fail "10 agy blocker: $(cat "$T/sent" 2>/dev/null)"
 # the idle mid-task lane of m-595: no file, empty prompt, a job unread; it rings
 mreset; agent m-974 %1 4074 "Vibe CLI"
 echo '{"v":1,"kind":"task","from":"c-002","to":"m-974","body":"do"}' > "$S/m-974/inbox/j.json"; touch -d "@$((T0 - 130))" "$S/m-974/inbox/j.json"

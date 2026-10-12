@@ -56,9 +56,9 @@ const list = (shard) => {
   const parsed = parseWeights(readFileSync(WEIGHTS, 'utf8'))
   assert.equal(parsed.size, weights.size)
   assert.ok(parsed.size >= 100, `weights file has ${parsed.size} rows`)
-  assert.equal(medianWeight([...parsed.values()]), 13)
-  assert.equal(weightFor('tests/e2e/not-yet-measured.test.mjs', parsed), 13)
-  assert.equal(weightFor('tests/e2e/mobile-back-stuck.test.mjs', parsed), 165)
+  assert.equal(medianWeight([...parsed.values()]), 12)
+  assert.equal(weightFor('tests/e2e/not-yet-measured.test.mjs', parsed), 12)
+  assert.equal(weightFor('tests/e2e/mobile-back-stuck.test.mjs', parsed), 162)
   assert.equal(medianWeight([]), 1)
   assert.equal(medianWeight([4, 1, 9]), 4)
   assert.equal(medianWeight([1, 2, 3, 4]), 3)
@@ -97,16 +97,18 @@ const list = (shard) => {
 }
 
 // --- the checked-in weights, on the selection CI actually runs -------------
-{
+// 3 shards (the split the weights were measured under) and 5 (wf 10's
+// wui-e2e matrix since L5, 2026-10-12).
+for (const n of [3, 5]) {
   const all = list()
-  const packed = [1, 2, 3].map((i) => list(`${i}/3`))
-  const viaFn = packShards(all, 3, weightOf)
+  const packed = Array.from({ length: n }, (_, k) => list(`${k + 1}/${n}`))
+  const viaFn = packShards(all, n, weightOf)
   assert.deepEqual(packed, viaFn)
   const flat = packed.flat()
   assert.deepEqual([...flat].sort(), [...all].sort())
   assert.equal(new Set(flat).size, all.length)
   const packedSums = sums(packed, weightOf)
-  const oldSums = sums(roundRobin(all, 3), weightOf)
+  const oldSums = sums(roundRobin(all, n), weightOf)
   const packedMax = Math.max(...packedSums)
   const oldMax = Math.max(...oldSums)
   // Measured 2026-10-05 on these weights: round-robin max 1302 s, packed

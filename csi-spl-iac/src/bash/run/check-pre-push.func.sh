@@ -14,6 +14,9 @@
 # @description   wui-vendor  csi-spl-wui/ (the api's payment-vendor grep over WUI)
 # @description   wui         csi-spl-wui/ minus edits to e2e/bench files, plus the
 # @description               repo files the unit tests read (unit tests + typecheck)
+# @description   wui-e2e     csi-spl-wui/: the browser e2e files the change maps
+# @description               to, on a cached mock bundle, under a time cap --
+# @description               check-pre-push-e2e.func.sh (spec 133 action 7)
 # @description   api         csi-spl-api/ csi-spl-rdb/ .version
 # @description   orc         csi-spl-orc/: the orc *.tst.sh that name a touched
 # @description               file (run-all-tests.sh --changed) + bash-cleancode
@@ -84,6 +87,8 @@ declare -F _ppl_plan >/dev/null 2>&1 \
   || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-lint.func.sh"
 declare -F _pp_part_stale_tree >/dev/null 2>&1 \
   || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-stale-tree.func.sh"
+declare -F _ppe_plan >/dev/null 2>&1 \
+  || . "$(dirname "${BASH_SOURCE[0]}")/check-pre-push-e2e.func.sh"
 
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
@@ -185,6 +190,7 @@ _pp_paths() {  # <part>
     iac)        echo "csi-spl-iac csi-spl-cnf .github .zap .hadolint.yaml .gitleaks.toml .trivyignore.yaml osv-scanner.toml docker-compose.yml" ;;
     wui)        echo "csi-spl-wui${_PP_TOP:+ $(_pp_wui_external "$_PP_TOP")}" ;;
     wui-vendor) echo "csi-spl-wui csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" ;;
+    wui-e2e)    echo "csi-spl-wui csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh csi-spl-orc/src/bash/scripts/wui-e2e-mock-api.py" ;;
     api)        echo "csi-spl-api csi-spl-rdb .version" ;;
     orc)        echo "csi-spl-orc" ;;
     cnf)        echo "csi-spl-cnf/csi-spl csi-spl-iac/src/tpl csi-spl-iac/cnf/tpl-gen.ref csi-spl-iac/src/bash/run/tpl-gen.func.sh csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh" ;;
@@ -200,6 +206,7 @@ _pp_label() {  # <part>
     iac)        echo "csi-spl-iac suite" ;;
     wui-vendor) echo "csi-spl-wui payment-vendor gate" ;;
     wui)        echo "csi-spl-wui unit + typecheck" ;;
+    wui-e2e)    echo "csi-spl-wui browser e2e the change maps to (capped)" ;;
     api)        echo "csi-spl-api suite" ;;
     orc)        echo "csi-spl-orc suite (tests naming a touched file) + bash-cleancode" ;;
     cnf)        echo "csi-spl-cnf tpl-gen render check (dev, prd)" ;;
@@ -309,7 +316,8 @@ _pp_cache_add() {  # <key>
 # than the hook would run), and only when the key still holds at the end.
 _pp_gate_id() {
   cat "$_PP_SELF_DIR/check-pre-push.func.sh" "$_PP_SELF_DIR/check-pre-push-lint.func.sh" \
-    "$_PP_SELF_DIR/check-release-note.func.sh" "$_PP_SELF_DIR/check-pre-push-stale-tree.func.sh" 2>/dev/null | sha1sum | cut -c1-40
+    "$_PP_SELF_DIR/check-release-note.func.sh" "$_PP_SELF_DIR/check-pre-push-stale-tree.func.sh" \
+    "$_PP_SELF_DIR/check-pre-push-e2e.func.sh" 2>/dev/null | sha1sum | cut -c1-40
 }
 _pp_tree_key() {  # <tree> <tier> <parts> <base>
   local tree="$1" tier="$2" parts="$3" base="$4" st t mb ids=""
@@ -390,6 +398,13 @@ _pp_missing_tools() {  # <part> <tree>
     wui)
       _pp_pnpm >/dev/null || echo "pnpm -- corepack enable pnpm, or install it into ~/.local/bin"
       _pp_need node "install Node (the version in csi-spl-wui/package.json engines)" ;;
+    wui-e2e)
+      _pp_pnpm >/dev/null || echo "pnpm -- corepack enable pnpm, or install it into ~/.local/bin"
+      _pp_need node "install Node (the version in csi-spl-wui/package.json engines)"
+      _pp_need python3 "apt-get install python3 (the mock api)"
+      _pp_need curl "apt-get install curl"
+      [[ -n "${CHROME_PATH:-}" ]] || command -v google-chrome >/dev/null 2>&1 || command -v chromium >/dev/null 2>&1 \
+        || echo "google-chrome -- install Chrome (the CI runners use /usr/bin/google-chrome), or set CHROME_PATH" ;;
     api)
       _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
       ( export GOTOOLCHAIN=local
@@ -445,6 +460,7 @@ _pp_budget() {  # <part-fn>
     # the full tier runs every orc file: 16..17 min per CI shard of two
     _pp_part_orc) _pp_full_timeout "${PRE_PUSH_ORC_FULL_TIMEOUT:-1800}" ;;
     _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
+    _pp_part_wui_e2e) echo "${PRE_PUSH_E2E_TIMEOUT:-600}" ;;
     *) echo "$_pp_timeout" ;;
   esac
 }
@@ -627,6 +643,7 @@ _pp_fn() {  # <part>
     hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;; cnf) echo _pp_part_cnf ;;
     orc) echo _pp_part_orc ;; stale-tree) echo _pp_part_stale_tree ;;
     wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;; blog) echo _pp_part_blog ;;
+    wui-e2e) echo _pp_part_wui_e2e ;;
     lint-*) echo "_pp_part_${1//-/_}" ;;
   esac
 }
@@ -888,9 +905,9 @@ do_check_pre_push() {
 
   local only="${PRE_PUSH_ONLY:-}"
   case "$only" in ''|lint|override) ;; *) do_log "FATAL pre-push: PRE_PUSH_ONLY must be empty, lint or override (got '$only')"; return 2 ;; esac
-  local all="hygiene blog iac orc wui-vendor wui api" parts="hygiene" p changed="" lint
+  local all="hygiene blog iac orc wui-vendor wui wui-e2e api" parts="hygiene" p changed="" lint
   local -A _PPL_FILES=()
-  local _PPL_SELECTED=""
+  local _PPL_SELECTED="" _PPE_FILES="" _PPE_CUT=""
   if [[ "$mode" == full ]]; then
     parts="$all"
   elif ! changed="$(_pp_changed "$tree" "$base")"; then
@@ -907,7 +924,7 @@ do_check_pre_push() {
       _pp_touches "$sel" $(_pp_paths "$p") && parts+=" $p"
     done
     _pp_cnf_only "$changed" && parts="${parts/ iac/ cnf}"
-  fi
+  fi; _ppe_parts "$changed" "$tree"
   # The lint parts run right after hygiene: seconds, and the likeliest red.
   if [[ "$only" == override ]]; then
     # The override skips the slow parts, never these: c-226's override landed
@@ -918,7 +935,7 @@ do_check_pre_push() {
   else
     _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
     local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
-    all="hygiene stale-tree $lint_all blog cnf iac orc wui-vendor wui api"
+    all="hygiene stale-tree $lint_all blog cnf iac orc wui-vendor wui wui-e2e api"
     parts="${parts/hygiene/hygiene stale-tree${lint:+ $lint}}"
     [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
   fi

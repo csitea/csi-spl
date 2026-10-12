@@ -61,6 +61,9 @@ ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
 mkdir -p "$ROOT/tools"
 for t in node pnpm; do printf '#!/bin/sh\necho v0-stub\n' >"$ROOT/tools/$t"; chmod +x "$ROOT/tools/$t"; done
 export PATH="$ROOT/tools:$PATH"
+# The wui-e2e part (its own test: check-pre-push-e2e.tst.sh) would build a
+# real bundle for the wui fixtures here; these cases are about the other parts.
+export PRE_PUSH_E2E=0
 
 do_log() { :; }
 do_check_dist_hygiene() { return 0; }

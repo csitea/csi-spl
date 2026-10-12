@@ -47,6 +47,16 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   `tasks.md` tick select the 3..5 min wui part and miss its cache, and 4
   lanes lost the trunk ref lock to it within an hour. Print the list:
   `bash -c '. csi-spl-iac/src/bash/run/check-pre-push.func.sh; _pp_wui_external .'`.
+- **The wui-e2e part** (spec 133 action 7) runs the browser e2e files a
+  WUI change maps to: an edited test itself, a helper's importers, and the
+  tests that name a testid (or a page's route) of the changed file or of the
+  files that use it, never through the layouts. Best score first, at most
+  `PRE_PUSH_E2E_MAX` files (6) summing to `PRE_PUSH_E2E_BUDGET` CI seconds
+  (240); the rest print as left to CI. The mock bundle is cached by the WUI
+  tree without e2e contents: measured 2026-10-12 on the first box, 152 s
+  cold (113 s build), 31 s warm, n=1 each, for 2 files. Print a selection:
+  `WUI_E2E_RANGE=origin/master..HEAD ./run -a do_check_pre_push_e2e`.
+  `PRE_PUSH_E2E=0` turns it off.
 - **The cache key is content**: the git trees and blobs of what the part
   reads, plus the tier and the gate version. No commit sha and no base sha,
   so a re-push after a rebase that brought in only files the part does not

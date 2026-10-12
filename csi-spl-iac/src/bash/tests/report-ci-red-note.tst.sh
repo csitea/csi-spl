@@ -17,10 +17,21 @@
 #   7. a job whose runner was lost (no steps, no log, one annotation) is a red
 #      (runner-lost, an infra red like a timeout) and the annotation is its
 #      signature (dispatch holder, note 9a44e278)
+#   8. the lane note (spec 133 action 7): a red job whose suspect commit a
+#      lane branch of this box made (here through `rebase (finish) onto`)
+#      sends that lane ONE note over three ticks - job, first FAIL line, run
+#      link, its commit; a lane whose commit is outside the job's tree, and a
+#      lane that only fast-forwarded to master, get nothing
+#   9. the holder on another box: the lane note is still sent (box-local)
+#  10. the job green again, then red from a new sha: one more lane note
 #   CONTROL a. the state file wiped before every tick -> 3 sends for 3 ticks
 #              of the same red, so check 1 FAILS without the streak key
 #   CONTROL b. the annotation hidden -> "no FAIL line", so check 7 FAILS
 #              without the annotation fallback
+#   CONTROL c. the lane state wiped before every tick -> 3 lane notes, so
+#              check 8 FAILS without its key
+#   CONTROL d. the lane branch deleted -> no lane note, so the lane is found
+#              from its branch, not from the commit text
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -56,6 +67,7 @@ case "${args[0]}" in
   api)
     case "${args[1]}" in
       */runs/*/jobs) src="$GH_STUB_DIR/jobs-$(sed 's|.*/runs/\([0-9]*\)/jobs|\1|' <<<"${args[1]}").json" ;;
+      */actions/jobs/[0-9]*[0-9]) src="$GH_STUB_DIR/job-${args[1]##*/}.json" ;;
       */jobs/*/logs) cat "$GH_STUB_DIR/log-$(sed 's|.*/jobs/\([0-9]*\)/logs|\1|' <<<"${args[1]}").txt" 2>/dev/null; exit 0 ;;
       */check-runs/*/annotations)
         src="$GH_STUB_DIR/ann-$(sed 's|.*/check-runs/\([0-9]*\)/annotations|\1|' <<<"${args[1]}").json"
@@ -94,11 +106,12 @@ runs "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 
 export CRN_SENT="$T/sent"; : >"$CRN_SENT"
 STATE="$T/state.tsv"
 tick() {
-  ( cd "$R" && env PATH="$T/stub:$PATH" GH_STUB_DIR="$T/api" CI_RED_NOTE_STATE="$STATE" \
-      CI_RED_NOTE_TO="${TO:-c-900@b1}" CI_RED_NOTE_BOX=b1 CI_RED_NOTE_SEND="$T/stub/send" \
+  ( cd "${TREE:-$R}" && env PATH="$T/stub:$PATH" GH_STUB_DIR="$T/api" CI_RED_NOTE_STATE="$STATE" \
+      CI_RED_NOTE_LANE_STATE="${LSTATE:-$T/lane.tsv}" CI_RED_NOTE_TO="${TO:-c-900@b1}" CI_RED_NOTE_BOX=b1 CI_RED_NOTE_SEND="$T/stub/send" \
       bash -c 'do_log() { echo "$*"; }; source "'"$GATE"'"; source "'"$FUNC"'"; do_report_ci_red_note' ) >"$T/out" 2>&1
 }
-sends() { grep -c '^SEND ' "$CRN_SENT"; }
+sends() { grep -c '^SEND .*kind=blocker' "$CRN_SENT"; }
+lanes() { grep -c '^SEND .*kind=note' "$CRN_SENT"; }
 
 # --- 1. the same red over three ticks -> 1 send ------------------------------
 tick; tick; tick
@@ -174,6 +187,71 @@ mv "$T/api/ann-9710.json" "$T/api/ann-9710.hidden"
 grep -q 'Signature: (no FAIL line in the job log, no failure annotation)' "$CRN_SENT" \
   && pass "CONTROL b. with the annotation hidden the note reads 'no FAIL line', so check 7 FAILS without the fallback" \
   || { fail "CONTROL b. the signature did not depend on the annotation"; sed 's/^/    | /' "$CRN_SENT"; }
+
+# --- 8. the lane note --------------------------------------------------------
+# R2: master at base; c-777 commits an orc fix on its branch, rebases it over
+# a hub commit (reflog: commit, then rebase (finish) onto master) and lands
+# it; g-888 lands a README commit; c-999 only fast-forwards to master.
+R2="$T/repo2"; mkdir -p "$R2/csi-spl-orc" "$R2/csi-spl-api"
+g2() { git -c user.name=t -c user.email=t@example.com -C "$R2" "$@"; }
+g2 init -q -b master
+echo 0 >"$R2/csi-spl-orc/a"; g2 add -A; g2 commit -qm "base"
+G2=$(g2 rev-parse HEAD)
+g2 checkout -qb c-777-orc-fix
+echo 1 >"$R2/csi-spl-orc/a"; g2 commit -qam "orc: lane culprit"
+g2 checkout -q master
+echo 1 >"$R2/csi-spl-api/b"; g2 add -A; g2 commit -qm "hub: landed meanwhile"
+g2 checkout -q c-777-orc-fix; g2 rebase -q master; g2 checkout -q master; g2 merge -q --ff-only c-777-orc-fix
+g2 checkout -qb g-888-readme; echo 1 >"$R2/README"; g2 add -A; g2 commit -qm "docs: readme"
+g2 checkout -q master; g2 merge -q --ff-only g-888-readme
+g2 checkout -qb c-999-idle; g2 checkout -q master
+R3=$(g2 rev-parse HEAD)
+jobs 980 "$(job 9800 "$ORC" success)"
+jobs 981 "$(job 9810 "$ORC" failure)"
+printf '2026-01-05T10:00:02Z FAIL: lane case broke\n' >"$T/api/log-9810.txt"
+echo '{"html_url":"https://ci.example.org/run/981/job/9810"}' >"$T/api/job-9810.json"
+runs "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
+: >"$STATE"; : >"$CRN_SENT"; LS="$T/lane2.tsv"; : >"$LS"
+TREE="$R2" LSTATE="$LS" tick; TREE="$R2" LSTATE="$LS" tick; TREE="$R2" LSTATE="$LS" tick
+if [[ "$(lanes)" == 1 ]] && grep -qx 'SEND from=c-900 to=c-777 kind=note task=dispatch-ci-red' "$CRN_SENT" \
+   && grep -q -- "- Job: $ORC" "$CRN_SENT" && grep -q -- '- First FAIL line: FAIL: lane case broke' "$CRN_SENT" \
+   && grep -q -- '- Run: https://ci.example.org/run/981/job/9810' "$CRN_SENT" \
+   && grep -q -- '- [0-9a-f]* orc: lane culprit' "$CRN_SENT" && ! grep -q 'to=g-888\|to=c-999' "$CRN_SENT"; then
+  pass "8. three ticks of a red: 1 note to the lane that made the suspect commit (via rebase finish), with job, FAIL line, run link; g-888 and c-999 nothing"
+else
+  fail "8. lane note: $(lanes) lane sends"; sed 's/^/    | /' "$CRN_SENT" "$T/out"
+fi
+# --- 9. the holder elsewhere: the lane note is still sent ----------------------
+: >"$CRN_SENT"; : >"$LS"
+TO=c-900@other TREE="$R2" LSTATE="$LS" tick
+[[ "$(lanes)" == 1 && "$(sends)" == 0 ]] && grep -q 'to=c-777 ' "$CRN_SENT" \
+  && pass "9. the holder on another box: no holder note here, the lane note still goes to this box's lane" \
+  || { fail "9. holder elsewhere: $(sends) holder, $(lanes) lane sends"; sed 's/^/    | /' "$CRN_SENT" "$T/out"; }
+# --- 10. green, then red again from a new sha -> one more ------------------------
+jobs 982 "$(job 9820 "$ORC" success)"
+runs "$(row 982 success 20 "$R3")" "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
+: >"$CRN_SENT"; TREE="$R2" LSTATE="$LS" tick
+[[ -s "$LS" ]] && fail "10. the green run left the lane key: $(cat "$LS")"
+jobs 983 "$(job 9830 "$ORC" failure)"
+echo '{"html_url":"https://ci.example.org/run/983/job/9830"}' >"$T/api/job-9830.json"
+runs "$(row 983 failure 30 "$R3")" "$(row 982 success 20 "$G2")" "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
+TREE="$R2" LSTATE="$LS" tick; TREE="$R2" LSTATE="$LS" tick
+[[ "$(lanes)" == 1 ]] && grep -q -- '- Run: https://ci.example.org/run/983/job/9830' "$CRN_SENT" \
+  && pass "10. green closes the lane key; a new red streak tells the lane once more" \
+  || { fail "10. new red: $(lanes) lane sends"; sed 's/^/    | /' "$CRN_SENT" "$T/out"; }
+# --- CONTROL c. no lane key -> one note per tick -------------------------------
+runs "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
+: >"$CRN_SENT"
+for _ in 1 2 3; do : >"$LS"; TREE="$R2" LSTATE="$LS" tick; done
+[[ "$(lanes)" == 3 ]] \
+  && pass "CONTROL c. with the lane state wiped every tick the lane gets 3 notes, so check 8 FAILS without the key" \
+  || { fail "CONTROL c. want 3 lane notes, got $(lanes): check 8 proves nothing"; sed 's/^/    | /' "$T/out"; }
+# --- CONTROL d. no lane branch -> no lane note -----------------------------------
+g2 branch -qD c-777-orc-fix
+: >"$CRN_SENT"; : >"$LS"; TREE="$R2" LSTATE="$LS" tick
+[[ "$(lanes)" == 0 ]] \
+  && pass "CONTROL d. the c-777 branch deleted: no lane note, so the lane comes from its branch reflog" \
+  || { fail "CONTROL d. a lane was told without its branch ($(lanes))"; sed 's/^/    | /' "$CRN_SENT"; }
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all report-ci-red-note.tst.sh assertions"

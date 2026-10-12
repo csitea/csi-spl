@@ -4,7 +4,9 @@
 # holder per red wf 10 job on master, per red streak. Installed by
 # do_install_box_crons as the manifest row ci-red-note
 # (cnf/box-crons/box-crons.manifest), tagged `# csi-spl:box-cron:ci-red-note`.
-# Every box runs it; only the holder's box sends (the action checks).
+# Every box runs it; only the holder's box sends the holder's blocker (the
+# action checks), and every box tells the lanes it hosts when one of their
+# commits is in a red job's suspect range (spec 133 action 7).
 #
 # A cron job reads no profile: the PATH is set here and the tools are checked
 # before any work. gh with no login reads GH_TOKEN from CI_RED_NOTE_GH_TOKEN_FILE

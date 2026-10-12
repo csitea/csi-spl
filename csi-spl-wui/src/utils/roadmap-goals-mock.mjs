@@ -19,7 +19,8 @@
  * `spool.mock.roadmap-public` = a JSON list of public workspace ids.
  * Loaded lazily by the roadmap and goal pages only.
  */
-import { calAddDays, calIsoDay } from './calendar-year.mjs'
+import { calAddDays } from './calendar-year.mjs'
+import { isoDate } from './date-iso.mjs'
 
 export const MOCK_ROADMAP_PUBLIC_KEY = 'spool.mock.roadmap-public'
 export const MOCK_GOAL_WS = Object.freeze({ a: 'demo', b: 'beta-ws' })
@@ -33,8 +34,14 @@ function publicSet() {
   }
 }
 
-/** The fixture's synced goal events of workspace `ws` around `today`. */
-export function mockGoalFixture(ws, today = calIsoDay(Date.now())) {
+/**
+ * The fixture's synced goal events of workspace `ws` around `today`, the
+ * VIEWER's day (the page's week is the viewer's): 12:00Z of it is that same
+ * day in every zone from -11 to +11.
+ * @param {string} ws
+ * @param {string} [today] YYYY-MM-DD
+ */
+export function mockGoalFixture(ws, today = isoDate(Date.now())) {
   const at = (days, hhmm = '12:00') => `${calAddDays(today, days)}T${hhmm}:00Z`
   const audience = publicSet().has(ws) ? 'public' : 'internal'
   const ev = (n, fields) => ({

@@ -22,6 +22,7 @@ import {
 } from '../../src/utils/roadmap-goals.mjs'
 import { MOCK_GOAL_WS, MOCK_ROADMAP_PUBLIC_KEY, mockGoalEvents, mockGoalFixture, mockPublicGoalEvents } from '../../src/utils/roadmap-goals-mock.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
+import { isoDate, setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
@@ -105,6 +106,23 @@ ok('signed out, a public roadmap answers its goal events', pub.length === 3 && p
 ok('the public read carries no id (the hub sends none)', pub.every((e) => !('id' in e)))
 ok('B stays internal when A is public', mockPublicGoalEvents(MOCK_GOAL_WS.b).events.length === 0)
 delete globalThis.localStorage
+
+/* wf 10 e2e red Sunday 20-23Z east of UTC (run 38179635327): the fixture's
+   milestone "today" sat on the UTC day, the page's week on the viewer's */
+{
+  const now0 = Date.now
+  Date.now = () => Date.parse('2026-10-11T21:00:00Z')
+  setTimeZoneSource(() => 'Europe/Helsinki')
+  try {
+    const today = isoDate(Date.now())
+    const g01 = roadmapGoals(mockGoalFixture(MOCK_GOAL_WS.a)).find((g) => g.id === 'G01')
+    ok('Sunday 21:00Z at +03: the fixture milestone is on the viewer\'s today', g01 && g01.milestones.some((m) => isoDate(m.at) === today), { today, at: g01 && g01.milestones.map((m) => m.at) })
+    ok('Sunday 21:00Z at +03: G01 is in ?when=week', g01 && goalInWindow(g01, 'week', today, isoDate))
+  } finally {
+    Date.now = now0
+    setTimeZoneSource(() => '')
+  }
+}
 
 /* ── wiring: chunks and fetches ──────────────────────────────────────── */
 const page = readFileSync(join(WUI, 'src/pages/roadmap.vue'), 'utf8')

@@ -20,6 +20,10 @@
 #   6. the seat: pinned -> seated; pending -> exit 0 and the one hub-pin line;
 #      a failure -> exit 5; the action gets ENV/TENANT/BOX/HUB/ROOT_KEY_JSON;
 #      a bare re-run uses the saved config, an option / the env win over it
+#   6b. --join (spec 073 T005): the token reaches do_spl_desk_pin in its
+#      environment only (not argv, output or the saved config); the
+#      SPOOL_JOIN_TOKEN form works; a token of another tenant or one next to
+#      ROOT_KEY_JSON is exit 2 and the action never runs
 #   7. a re-run: agy present -> `agy update`, no installer fetched; the
 #      toolchain found in tools is not downloaded again
 #   7b. --update: one pull, then the pulled installer runs (no loop)
@@ -140,6 +144,7 @@ case "\$2" in
   do_spl_desk_mirror_settings) exec env PATH="/usr/local/bin:\$PATH" "$REAL_RUN" "\$@" ;;
   do_spl_desk_pin)
     echo "pin ENV=\$ENV TENANT_ID=\$TENANT_ID DESK_BOX=\$DESK_BOX SPOOL_HUB_URL=\$SPOOL_HUB_URL ROOT_KEY_JSON=\$ROOT_KEY_JSON DRY_RUN=\$DRY_RUN yq=\$(command -v yq)" >>"$T/seat.log"
+    printf '%s\n' "\${SPOOL_JOIN_TOKEN:-}" >"$T/tokseen"; printf '%s\n' "\$*" >>"$T/seat-argv.log"
     case "\${STUB_SEAT:-pinned}" in
       pinned)  echo '{"box": "'\$DESK_BOX'", "box_pubkey": "PUBKEY=", "pinned": true, "admin_cmd": null}'; exit 0 ;;
       pending) echo '{"box": "'\$DESK_BOX'", "box_pubkey": "PUBKEY=", "pinned": false, "admin_cmd": "ENV=x ./run -a do_spl_desk_pin"}'; exit 3 ;;
@@ -295,6 +300,27 @@ ARGS=(--cli none --env self --tenant main --box box-ext); inst SPOOL_HUB_URL=htt
 [[ $rc -eq 0 ]] && grep -q 'seated: box-ext is pinned in main (self)' "$T/o" &&
   grep -q "^pin ENV=self TENANT_ID=main DESK_BOX=box-ext SPOOL_HUB_URL=http://localhost:18478 ROOT_KEY_JSON=/k/root.key DRY_RUN=0" "$T/seat.log" &&
   pass "6. --env self seats against any hub URL (ENV=self to do_spl_desk_pin)" || fail "6. self: rc $rc $(cat "$T/o" "$T/seat.log")"
+# --- 6b. --join: seat with a join token, no root key -------------------------------------------------
+TOK="spj1.t1.sec$RANDOM$RANDOM$RANDOM"; : >"$T/seat.log"; : >"$T/seat-argv.log"
+ARGS=(--cli none --env dev --tenant t1 --box box-ext --dry-run --join "$TOK"); inst SPOOL_HUB_URL=$HUB; rc=$?
+[[ $rc -eq 0 && ! -s "$T/seat.log" ]] && grep -q 'do_spl_desk_pin, with the join token' "$T/o" && ! grep -qF "$TOK" "$T/o" &&
+  pass "6b. the dry run names the join token, not its value" || fail "6b. dry: rc $rc $(cat "$T/o")"
+ARGS=(--cli none --env dev --tenant t1 --box box-ext --join "$TOK"); inst SPOOL_HUB_URL=$HUB; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'seated: box-ext is pinned in t1 (dev)' "$T/o" && grep -qx "$TOK" "$T/tokseen" &&
+  grep -q "^pin ENV=dev TENANT_ID=t1 DESK_BOX=box-ext SPOOL_HUB_URL=$HUB ROOT_KEY_JSON= DRY_RUN=0" "$T/seat.log" &&
+  pass "6b. --join hands the token to do_spl_desk_pin's environment and seats" || fail "6b. join: rc $rc $(cat "$T/o" "$T/seat.log")"
+grep -qF "$TOK" "$T/o" "$T/seat.log" "$T/seat-argv.log" "$CFG" && fail "6b. the join token leaked into output, argv or the config" ||
+  pass "6b. the join token is in neither output, the action's argv nor the saved config"
+ARGS=(--cli none); inst SPOOL_JOIN_TOKEN="$TOK"; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "$TOK" "$T/tokseen" && pass "6b. SPOOL_JOIN_TOKEN works without --join" || fail "6b. env form: rc $rc $(cat "$T/o")"
+inst; grep -qx '' "$T/tokseen" && pass "6b. a re-run without a token hands none on (never saved)" || fail "6b. token remembered: $(cat "$T/tokseen")"
+: >"$T/seat.log"
+ARGS=(--cli none --env dev --tenant t1 --box box-ext --join "$TOK"); inst SPOOL_HUB_URL=$HUB ROOT_KEY_JSON=/k/t1.json; rc=$?
+[[ $rc -eq 2 && ! -s "$T/seat.log" ]] && grep -q 'two ways to seat' "$T/o" &&
+  pass "6b. CONTROL: --join with ROOT_KEY_JSON is exit 2" || fail "6b. join+root: rc $rc $(cat "$T/o")"
+ARGS=(--cli none --env dev --tenant t1 --box box-ext --join "spj1.t2.sec$RANDOM"); inst SPOOL_HUB_URL=$HUB; rc=$?
+[[ $rc -eq 2 && ! -s "$T/seat.log" ]] && grep -q 'not one of tenant t1' "$T/o" && ! grep -q 'spj1.t2' "$T/o" &&
+  pass "6b. CONTROL: a token of another tenant is exit 2 and not printed" || fail "6b. other tenant: rc $rc $(cat "$T/o")"
 ARGS=(--cli none --env qa --tenant main --box box-ext); inst SPOOL_HUB_URL=http://localhost:18478; rc=$?
 [[ $rc -eq 2 ]] && pass "6. CONTROL: --env qa is refused (exit 2)" || fail "6. --env qa: rc $rc"
 

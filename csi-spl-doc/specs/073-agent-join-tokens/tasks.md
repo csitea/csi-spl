@@ -36,9 +36,16 @@ its lane, the files it owns and its done check. Status vocabulary:
       new refusal is a pin rdb 0154 already refused as a 500.
 - [x] T004 **CLI** (c-561, d72e0654e, after T003): `spool join`, token from env / stdin, usage
       line. Done: a CLI test against a test hub seats a box with no root key.
-- [ ] T005 **orc** (after T004): `do_spl_desk_pin` join mode and its test in
+- [x] T005 **orc** (after T004): `do_spl_desk_pin` join mode and its test in
       `desk-pin.tst.sh`; then `install.sh --join` with the lane that holds the
       installer. Done: hermetic suite seats via a stub `spool join`.
+      **Built**: the desk-pin join mode 002bec9a4 (spec 108 T004),
+      `desk-pin.tst.sh` case 9 / 9b. `install.sh --join <token>` (or
+      `SPOOL_JOIN_TOKEN`) by c-897 (SPL-907): the token reaches
+      `do_spl_desk_pin` in its environment only, never argv, output or the
+      saved config; a token of another tenant or one next to `ROOT_KEY_JSON`
+      is exit 2. Check: `spool-install/tests/test-install.sh` case 6b, 111/111
+      (control: the old installer -> 4 FAIL, `unknown option --join`).
 - [~] T006 **WUI** (after T003): New join token, optional `for_human`, open
       tokens list, Revoke seat. Shown only when the session holds
       `agents.join` (spec 4.6). The connect guide is T009, not this task.
@@ -70,4 +77,4 @@ its lane, the files it owns and its done check. Status vocabulary:
       `README.md`. Done: AC13; `help-sync` and
       `csi-spl-iac/src/bash/tests/help-connect-agent.tst.sh` green.
 
-<!-- version: 0.2.1 · updated: 2026-10-08 · last-edit: 2026-10-08T16:30:00Z -->
+<!-- version: 0.2.2 · updated: 2026-10-13 · last-edit: 2026-10-13T00:00:00Z -->

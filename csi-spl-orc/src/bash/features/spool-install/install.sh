@@ -44,9 +44,12 @@
 #      it only while it is untouched; a hand-edited one is left alone and
 #      named, a same-named file we did not write is never touched
 #   5. your box on a tenant: its key, and its pin at the hub. The hub pins a
-#      box only with the tenant root key: with ROOT_KEY_JSON you pin it
-#      yourself; without, the seat is PENDING - this prints the one line your
-#      tenant admin runs, and exits 0; re-running install.sh picks the pin up.
+#      box with the tenant root key or with a join token (spec 073): with
+#      ROOT_KEY_JSON you pin it yourself; with --join (a one-use join token a
+#      workspace admin minted in Settings -> Agents) `spool join` seats it,
+#      no root key needed; with neither, the seat is PENDING - this prints the
+#      one line your tenant admin runs, and exits 0; re-running install.sh
+#      picks the pin up.
 #      The hub is checked first (GET <hub>/version): one that does not answer,
 #      fails TLS or returns an error is exit 5 naming the URL, before anything
 #      is installed
@@ -78,6 +81,9 @@
 #                     docker compose stack of this repo (specs/047 W4)
 #   --tenant <slug>   the tenant (default $SPOOL_TENANT)
 #   --box <box>       your box id (default $SPOOL_BOX, else box-<user>-<host>)
+#   --join <token>    seat the box with a join token (spj1.<tenant>.<secret>)
+#                     instead of the root key; SPOOL_JOIN_TOKEN works too and
+#                     keeps it out of ps and shell history. Never saved
 #   --no-seat         skip step 5 (no hub needed)
 #   --fleet           also step 6: the fleet's CLAUDE.md, settings and browser
 #                     MCP (the fleet's own boxes pass it). Remembered: a re-run
@@ -103,6 +109,7 @@
 #      A re-run takes env / tenant / box / hub from ~/.config/spool-agent/env
 #      ROOT_KEY_JSON - the tenant's 0600 create JSON, or a 0600 file with the
 #      bare root key (the compose stack's tenant-root.key): pin the box yourself
+#      SPOOL_JOIN_TOKEN - the join token of --join; not with ROOT_KEY_JSON
 #      SPOOL_INSTALL_PREFIX - default $HOME/.local (bin/ and share/ under it)
 #      SPOOL_INSTALL_SHARED - the ONE spool binary of this machine (a file
 #      path every user can read, e.g. /var/<org>/<org>-<app>/spool/bin/spool):
@@ -171,6 +178,7 @@ while [ "$#" -gt 0 ]; do
     --env)      [ "$#" -ge 2 ] || usage; ENVN="$2"; shift 2 ;;
     --tenant)   [ "$#" -ge 2 ] || usage; TENANT="$2"; shift 2 ;;
     --box)      [ "$#" -ge 2 ] || usage; BOX="$2"; shift 2 ;;
+    --join)     [ "$#" -ge 2 ] || usage; SPOOL_JOIN_TOKEN="$2"; shift 2 ;;
     --no-seat)  SEAT=0; shift ;;
     --fleet)    FLEET=1; shift ;;
     --no-hooks) HOOKS=0; shift ;;
@@ -229,6 +237,11 @@ if [ "$SEAT" = 1 ]; then
   [ -n "$TENANT" ] || die 2 "a seat needs the tenant: --tenant <slug> or SPOOL_TENANT (or pass --no-seat)"
   [[ "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || die 2 "bad tenant '$TENANT'"
   [[ "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$BOX" != box-wui ]] || die 2 "bad box '$BOX' (pass --box)"
+  if [ -n "${SPOOL_JOIN_TOKEN:-}" ]; then
+    [ -z "${ROOT_KEY_JSON:-}" ] || die 2 "--join (SPOOL_JOIN_TOKEN) and ROOT_KEY_JSON are two ways to seat: pass one"
+    [[ "$SPOOL_JOIN_TOKEN" == "spj1.$TENANT."?* ]] ||
+      die 2 "the join token is not one of tenant $TENANT (spj1.$TENANT.<secret>): ask a workspace admin for one in Settings -> Agents"
+  fi
 fi
 (( BASH_VERSINFO[0] >= 4 )) || die 3 "bash 4 or newer is needed (this is $BASH_VERSION)"
 
@@ -945,10 +958,11 @@ source "$_here/steps/y9-vendor-lane-rule.sh" && spool_install_vendor_lane_rule |
 
 # ── 6. the seat ───────────────────────────────────────────────────────────────
 if [ "$SEAT" = 1 ]; then
-  if [ "$DRY" = 1 ]; then plan "key + pin $BOX in $TENANT at $SPOOL_HUB_URL ($ENVN; ./run -a do_spl_desk_pin${ROOT_KEY_JSON:+, with ROOT_KEY_JSON})"
+  if [ "$DRY" = 1 ]; then plan "key + pin $BOX in $TENANT at $SPOOL_HUB_URL ($ENVN; ./run -a do_spl_desk_pin${ROOT_KEY_JSON:+, with ROOT_KEY_JSON}${SPOOL_JOIN_TOKEN:+, with the join token})"
   else
-    out="$(PATH="$TPATH:$PATH" env ENV="$ENVN" TENANT_ID="$TENANT" DESK_BOX="$BOX" SPOOL_HUB_URL="$SPOOL_HUB_URL" \
-      ROOT_KEY_JSON="${ROOT_KEY_JSON:-}" DRY_RUN=0 "$RUN" -a do_spl_desk_pin 2>&1)"; rc=$?
+    # the join token reaches the action through its environment, never argv
+    out="$(PATH="$TPATH:$PATH" SPOOL_JOIN_TOKEN="${SPOOL_JOIN_TOKEN:-}" env ENV="$ENVN" TENANT_ID="$TENANT" DESK_BOX="$BOX" \
+      SPOOL_HUB_URL="$SPOOL_HUB_URL" ROOT_KEY_JSON="${ROOT_KEY_JSON:-}" DRY_RUN=0 "$RUN" -a do_spl_desk_pin 2>&1)"; rc=$?
     json="$(grep -m1 '^{' <<<"$out")"
     if [ "$rc" -eq 0 ] && printf '%s' "$json" | grep '"pinned": true' >/dev/null; then
       say "seated: $BOX is pinned in $TENANT ($ENVN) - start an agent with:  spool-agent claude"

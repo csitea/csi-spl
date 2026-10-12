@@ -57,8 +57,8 @@ The gate keeps the two in step.
 | area | cases | where the proof lives |
 |---|---|---|
 | terminal delivery (028) | OA-01 OA-02 OA-03 OA-04 OA-05 OA-06 OA-07 OA-08 OA-09 | the Go notify hook tests, the `do_spl_m3_e2e` step `f`, and the spawn-agents notify test |
-| the notice pane (028) | OA-10 OA-11 OA-12 OA-13 | CLE-3434's desk work — `PENDING` |
-| latency (030) | OA-14 | CLE-3435's budget — `PENDING` |
+| the notice pane (028) | OA-10 OA-11 OA-12 OA-13 | `csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh` — **PASS**, §2.2 |
+| latency (030) | OA-14 | `csi-spl-orc/src/bash/tests/chat-latency-budget.tst.sh` — **UNVERIFIED**, §2.2 |
 | newest first (013) | OA-15 OA-16 OA-17 OA-18 | the WUI unit suite and two live proofs |
 | code blocks (013) | OA-19 OA-20 OA-21 OA-22 OA-23 | the WUI unit suite and the live code-block proof |
 | send reliability (013) | OA-24 OA-25 | the WUI unit suite and the live send-failure proof |
@@ -78,6 +78,32 @@ runner, so those rows are **proven on the box and recorded here** rather than
 gated in CI; what CI gates is the layer underneath them — the notify hook
 (`go`) — and the register itself. A row that claims CI coverage it does not
 have would be worse than a row that says where it really runs.
+
+### 2.2 The notice pane and latency rows (SPL-804..808, 2026-10-12)
+
+`desk-notice-pane.tst.sh` drives the real notifier (`spool-notify.sh`) and the
+real renderer (`spool-notice-pane.sh`) on a private tmux server and a
+throwaway spool root (`SPOOL_TEST=1`). Each case carries a control that fails
+when the property is missing: a tailing pane for OA-10, a planted duplicate
+record for OA-11, a poke-on pane that is typed into for OA-12, an outbound
+(green) head and an under-the-bound log for OA-13. Five product mutations
+(oldest-first loop, no scrollback drop, a non-blue head colour, no trim,
+`.no-poke` ignored) each turn it red.
+
+**OA-12's scope.** The test proves the notice lands in the NOTICE pane and
+that nothing is typed into the prompt with `SPOOL_POKE=0` or a per-agent
+`.no-poke`. With the poke ON, the doorbell types into the prompt on purpose
+(spec 028 FR-009, D-06). The row's literal "never types" conflicts with that
+decision. Reconciling the wording is the owner's call, so it is not changed
+here.
+
+**OA-14 stays UNVERIFIED.** `chat-latency-budget.tst.sh` pins the instrument
+offline: the budget row of `latency-probe.py` is `t_send -> notify_visible`,
+no hop includes a reply or model stamp, and a run with no stamps reports
+`n=0`. The live figure is judged only with
+`CHAT_LATENCY_RESULTS=<results.json>` from
+`ENV=dev ... DRY_RUN=0 ./run -a do_spl_latency_probe`. No such run is recorded
+for this register yet.
 
 ## 3. The WUI-driving bot (the owner's addition)
 
@@ -341,4 +367,4 @@ control is the consent screen itself.
   every bot message is labelled as a case and the agent-to-agent cases use
   throwaway ids that touch no live lane.
 
-<!-- version: 1.0.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:44Z -->
+<!-- version: 1.0.3 · updated: 2026-10-12 · last-edit: 2026-10-12T20:40:00Z -->

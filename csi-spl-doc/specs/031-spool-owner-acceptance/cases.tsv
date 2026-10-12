@@ -24,11 +24,13 @@ OA-06	terminal	the pane line carries body + sender + kind + task_id + msg_id	028
 OA-07	terminal	CONTROL: a message for agent X never appears in another agent's pane	028	orc-e2e	csi-spl-orc/src/bash/scripts/m3-e2e.py	PASS	CLE-3428
 OA-08	terminal	a BUSY pane keeps its half-typed line and is not poked over	028	spawn-tst	csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-notify.sh	PASS	CLE-3428
 OA-09	terminal	a redelivery that wrote nothing rings nothing (no replay on reconnect)	028	go	csi-spl-api/src/go/spool-hub-api/internal/spool/notify_hook_test.go	PASS	CLE-3428
-OA-10	notice	the NEWEST notice is the FIRST visible line of the notice pane	028	pending	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PENDING	CLE-3434
-OA-11	notice	each notice is rendered EXACTLY ONCE, and never re-notified across repaint / restart / reconnect	028	pending	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PENDING	CLE-3434
-OA-12	notice	the notifier never types into the agent’s own prompt: a notice lands in the NOTICE pane	028	pending	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PENDING	CLE-3434
-OA-13	notice	notices are BLUE, and the history is bounded	028	pending	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PENDING	CLE-3434
-OA-14	latency	delivery+visible p50/p95 under 0.3 s on the live dev path, model reply time reported SEPARATELY	030	pending	csi-spl-orc/src/bash/tests/chat-latency-budget.tst.sh	PENDING	CLE-3435
+OA-10	notice	the NEWEST notice is the FIRST visible line of the notice pane	028	orc-tst	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PASS	CLE-3434
+OA-11	notice	each notice is rendered EXACTLY ONCE, and never re-notified across repaint / restart / reconnect	028	orc-tst	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PASS	CLE-3434
+# OA-12: proven for the notice surface: the notice lands in the NOTICE pane, and with SPOOL_POKE=0 or a per-agent .no-poke nothing is typed into the prompt. With the poke ON the doorbell still types into the prompt by design (spec 028 FR-009 / D-06); the literal "never" of this title is the owner's to reconcile with that.
+OA-12	notice	the notifier never types into the agent’s own prompt: a notice lands in the NOTICE pane	028	orc-tst	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PASS	CLE-3434
+OA-13	notice	notices are BLUE, and the history is bounded	028	orc-tst	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PASS	CLE-3434
+# OA-14: the test pins the instrument offline (the budget row is send -> visible, the reply is in no hop); the LIVE p50/p95 is judged only with CHAT_LATENCY_RESULTS=<do_spl_latency_probe results.json>, and no live run is recorded here, so UNVERIFIED.
+OA-14	latency	delivery+visible p50/p95 under 0.3 s on the live dev path, model reply time reported SEPARATELY	030	orc-tst	csi-spl-orc/src/bash/tests/chat-latency-budget.tst.sh	UNVERIFIED	CLE-3435
 OA-15	newest	every listing defaults NEWEST FIRST	013	node-unit	csi-spl-wui/tests/unit/list-order.test.mjs	PASS	CLE-3425
 OA-16	newest	a new item appears ON TOP live over the socket, without a refresh	013	node-unit	csi-spl-wui/tests/unit/newest-live.test.mjs	PASS	CLE-3425
 OA-17	newest	live proof of newest-first against a deployed host	013	node-e2e	csi-spl-wui/tests/e2e/newest-live.proof.mjs	PASS	CLE-3425

@@ -27,7 +27,7 @@
         data-test="hours-approve-open"
         :disabled="busy"
         @click="approve('closed')"
-      >{{ t('hours_cal.approve_open', { n: banner.openDays.length }) }}</button>
+      >{{ t('hours_cal.approve_open', { n: banner.openDays.length }, banner.openDays.length) }}</button>
     </div>
     <div v-if="periodState === 'returned'" class="hours-day__note" data-test="hours-day-returned">
       <span>{{ t('hours_cal.banner_returned', { note: banner?.note || '' }) }}</span>
@@ -272,7 +272,7 @@ const bannerText = computed(() => {
   if (!b) return ''
   const at = hoursFreezeText(b.freezesAt, props.tz)
   return b.openDays.length
-    ? t('hours_cal.banner_open', { n: b.openDays.length, at })
+    ? t('hours_cal.banner_open', { n: b.openDays.length, at }, b.openDays.length)
     : t('hours_cal.banner_none', { at })
 })
 

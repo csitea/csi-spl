@@ -38,7 +38,7 @@
     <div v-if="tab === 'mine'" class="hours-panel__body" role="tabpanel" data-test="hours-panel-mine">
       <div v-if="banner" class="hours-panel__banner" data-test="hours-panel-banner" :data-open="banner.openDays.length">
         <span>{{ bannerText }}</span>
-        <button v-if="periodOpen && banner.openDays.length" type="button" class="btn primary hours-panel__btn" data-test="hours-panel-approve-open" :disabled="w.busy.value" @click="approveClosed">{{ t('hours_cal.approve_open', { n: banner.openDays.length }) }}</button>
+        <button v-if="periodOpen && banner.openDays.length" type="button" class="btn primary hours-panel__btn" data-test="hours-panel-approve-open" :disabled="w.busy.value" @click="approveClosed">{{ t('hours_cal.approve_open', { n: banner.openDays.length }, banner.openDays.length) }}</button>
       </div>
       <div v-if="banner && banner.state === 'returned'" class="hours-panel__banner" data-test="hours-panel-returned">
         <span>{{ t('hours_cal.banner_returned', { note: banner.note }) }}</span>
@@ -110,7 +110,7 @@ const bannerText = computed(() => {
   const b = banner.value
   if (!b) return ''
   const at = hoursFreezeText(b.freezesAt, hours.tz.value)
-  return b.openDays.length ? t('hours_cal.banner_open', { n: b.openDays.length, at }) : t('hours_cal.banner_none', { at })
+  return b.openDays.length ? t('hours_cal.banner_open', { n: b.openDays.length, at }, b.openDays.length) : t('hours_cal.banner_none', { at })
 })
 
 /* T013 (spec 4.1, 5.4): Approve N days / Approve week approve the closed

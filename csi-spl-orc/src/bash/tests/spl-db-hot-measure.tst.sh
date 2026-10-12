@@ -131,12 +131,16 @@ SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 hub "" 0' in_orc SPL_HOT_STMT_FILE="
 # TestHotStmtCopyCurrent is the same gate; this leg runs it from here when Go is on the box.
 GO_BIN=$(command -v go || true); [[ -x /usr/local/go1.26.9/bin/go ]] && GO_BIN=/usr/local/go1.26.9/bin/go
 API="$APP_ROOT/csi-spl-api/src/go/spool-hub-api"
+# 300 s, not 60: a fresh GitHub-hosted runner has no Go build cache and the
+# store package's cold compile outran 60 s there (timeout prints nothing: the
+# SKIP read "()", 2/2 ubuntu-latest runs of wf 11 on 2026-10-12).
 if [[ -n "$GO_BIN" && -d "$API" ]]; then
-  if (cd "$API" && SPL_STMT_PRINT="$T/printed.sql" GOFLAGS="${GOFLAGS:--mod=mod}" timeout 60 "$GO_BIN" test -count=1 -run '^TestHotStmtPrint$' ./internal/store/ >"$T/go.log" 2>&1); then
+  if (cd "$API" && SPL_STMT_PRINT="$T/printed.sql" GOFLAGS="${GOFLAGS:--mod=mod}" timeout 300 "$GO_BIN" test -count=1 -run '^TestHotStmtPrint$' ./internal/store/ >"$T/go.log" 2>&1); then
     cmp -s "$T/printed.sql" "$F" && pass "the builders print the copy byte for byte" ||
       fail "the copy drifted from the builders: regenerate it (stmt_print_test.go says how)"
   else
-    echo "SKIP: the Go printer did not run here ($(tail -1 "$T/go.log")); the api suite's TestHotStmtCopyCurrent gates it"
+    rc=$?
+    echo "SKIP: the Go printer did not run here (exit $rc: $(tail -1 "$T/go.log")); the api suite's TestHotStmtCopyCurrent gates it"
   fi
 else
   echo "SKIP: no Go on this box; the api suite's TestHotStmtCopyCurrent gates the copy"

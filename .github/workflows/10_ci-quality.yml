@@ -36,16 +36,23 @@ name: "10 ci: quality gate"
 # regression nobody is told about. These suites are cheap, so they run on
 # every master push.
 #
-# EXPRESS DOCS LANE (owner, t1 a477c187, msgs 50a349f4 "a bypass lane for
-# those purely doc changes" + 31e00aee "integrated in the CICD"; reverses spec
-# 075 O6). Still no `paths:` filter: every push starts this gate, and the
-# first job (classify) decides by FILES, never by author. A push whose every
-# path changed since the last GREEN gate on the ref is a *.md outside csi-spl-wui/** and .github/** (the set wf 32
-# publishes) skips the code jobs (hub, wui, wui-generate, wui-e2e, iac, orc,
-# orc-features, cnf); distribution-hygiene and no-ysg-box-ref still run (a doc can carry a
-# banned name), and a skipped job is not a failure, so the gate is green.
+# PER-PART SELECTION (owner, t1 f67e3656, msg 52474112, CI action 1; spec 133
+# seat C), which grew out of the EXPRESS DOCS LANE (owner, t1 a477c187, msgs
+# 50a349f4 + 31e00aee; reverses spec 075 O6). Still no `paths:` filter: every
+# push starts this gate, and the first job (classify) decides by FILES, never
+# by author, which PARTS (hub, wui, iac, orc, cnf) the push needs. Each part
+# has its OWN base: the head sha of the newest finished master run where all
+# of that part's jobs were green. A part runs unless every file changed since
+# its base is outside its inputs (the map is in
+# csi-spl-orc/src/bash/scripts/ci-doc-only.sh): a wui-only push skips hub,
+# while a red hub keeps running until it is green. A docs-only push (*.md
+# outside csi-spl-wui/** and .github/**) skips every code job.
+# distribution-hygiene and no-ysg-box-ref always run (a doc can carry a banned
+# name), and a skipped job is not a failure.
 # It FAILS SAFE: an error, an empty diff, a merge, a force-push or new-branch
-# base, a pull request, a dispatch without express_base -> the full gate.
+# base, a change to .github/** or the shared test infra, a path no rule maps,
+# a pull request, the hourly schedule run, a dispatch without express_base ->
+# the full gate. The hourly full run is the backstop for a map mistake.
 #
 # ONE GATE FOR PUSH AND PULL REQUEST (spec 072 A35): this file is also the
 # reusable gate. 11_ci-public.yml calls it on `pull_request` (fork branches
@@ -133,38 +140,43 @@ concurrency:
 
 jobs:
   # ===========================================================================
-  # Express docs lane classifier (see EXPRESS DOCS LANE at the top):
-  # csi-spl-orc/src/bash/scripts/ci-doc-only.sh on <last GREEN gate>..sha.
-  # NOT github.event.before: the concurrency group cancels pending runs as
-  # superseded, so `before` may be a code push whose gate never ran (2fb25f650
-  # then 875251619, 2026-10-07); diffing from it would wave that code through
-  # behind a doc push. The base is the head sha of the newest successful push
-  # run of this workflow on this ref, so everything since the last green
-  # verdict must be docs. No such run, or the API fails: full gate.
-  # Its output doc_only is 'true' ONLY when the script proved it; the code
-  # jobs below skip only on == 'true' and carry !cancelled(), so a failed or
-  # skipped classify runs them. Gate: ci-doc-only.tst.sh.
+  # Per-part classifier (see PER-PART SELECTION at the top):
+  # csi-spl-orc/src/bash/scripts/ci-doc-only.sh --select <sha> <jobs.tsv>.
+  # The TSV holds the jobs of the newest finished push and schedule runs of
+  # this workflow on master (newest first); the script takes each part's base
+  # from it. NOT github.event.before: the concurrency group cancels pending
+  # runs as superseded, so `before` may be a code push whose gate never ran
+  # (2fb25f650 then 875251619, 2026-10-07). Each output run_<part> is 'false'
+  # ONLY when the script proved it; the code jobs below skip only on
+  # == 'false' and carry !cancelled(), so a failed or skipped classify runs
+  # them. The step summary lists what was skipped, so the hourly full run can
+  # show a selection miss. Gate: ci-doc-only.tst.sh.
   # ===========================================================================
   classify:
-    name: "classify: doc-only push (express docs lane)?"
+    name: "classify: which parts does this push need?"
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
-    # actions: read to find the last green run of this workflow
+    # actions: read to list the recent runs of this workflow and their jobs
     permissions:
       contents: read
       actions: read
     outputs:
-      doc_only: ${{ steps.cls.outputs.doc_only }}
+      run_hub: ${{ steps.cls.outputs.run_hub }}
+      run_wui: ${{ steps.cls.outputs.run_wui }}
+      run_iac: ${{ steps.cls.outputs.run_iac }}
+      run_orc: ${{ steps.cls.outputs.run_orc }}
+      run_cnf: ${{ steps.cls.outputs.run_cnf }}
     steps:
       # the commit graph and trees, no blobs: enough for rev-list and a
-      # name-only diff between the base and sha
+      # name-only diff between a base and sha (the checked-out tree is whole,
+      # so the wui list is read from it)
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           filter: blob:none
           persist-credentials: false
 
-      - name: Classify the push (anything unproven = code, full gate)
+      - name: Classify the push per part (anything unproven = run it)
         id: cls
         continue-on-error: true
         env:
@@ -176,20 +188,40 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
-          v=doc_only=false
+          cls=csi-spl-orc/src/bash/scripts/ci-doc-only.sh
+          tsv="$RUNNER_TEMP/jobs.tsv"; : >"$tsv"
+          out=""
           if [[ "$EVENT" == push ]]; then
-            BASE=$(gh api "repos/$REPO/actions/workflows/10_ci-quality.yml/runs?branch=$REF_NAME&event=push&status=success&per_page=1" \
-              --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null) || BASE=""
-            [[ -n "$BASE" ]] || echo "ci-doc-only: no last green push run found"
-          fi
-          if [[ "$EVENT" == push || "$EVENT" == workflow_dispatch ]] && [[ -n "$BASE" ]]; then
-            v=$(bash csi-spl-orc/src/bash/scripts/ci-doc-only.sh "$BASE" "$HEAD_SHA") || v=doc_only=false
+            # the newest 15 push/schedule runs that reached a verdict (most
+            # runs end cancelled, superseded, with no jobs); one jobs call
+            # each, ~17 API calls per started gate. Run ids grow with time.
+            ids=$(for st in success failure; do
+                gh api "repos/$REPO/actions/workflows/10_ci-quality.yml/runs?branch=$REF_NAME&status=$st&per_page=15" \
+                  --jq '.workflow_runs[] | select(.event == "push" or .event == "schedule") | "\(.id)\t\(.head_sha)"' 2>/dev/null
+              done | sort -rn | awk 'NR <= 15')
+            while IFS=$'\t' read -r id sha; do
+              [[ -n "$id" ]] || continue
+              gh api "repos/$REPO/actions/runs/$id/jobs?per_page=100" \
+                --jq ".jobs[] | [\"$id\", \"$sha\", .name, (.conclusion // \"-\")] | @tsv" >>"$tsv" 2>/dev/null || true
+            done <<<"$ids"
+            echo "ci-doc-only: $(wc -l <"$tsv") job rows from $(grep -c . <<<"$ids") finished runs"
+            out=$(bash "$cls" --select "$HEAD_SHA" "$tsv") || out=""
+          elif [[ "$EVENT" == workflow_dispatch && -n "$BASE" ]]; then
+            line=$(bash "$cls" "$BASE" "$HEAD_SHA") || line=parts=all
+            for p in cnf hub iac orc wui; do
+              if [[ "$line" == parts=all || " ${line#parts=} " == *" $p "* ]]; then out+="run_$p=true"$'\n'; else out+="run_$p=false"$'\n'; fi
+            done
           else
             echo "ci-doc-only: $EVENT without a base: full gate"
           fi
-          [[ "$v" == doc_only=true ]] || v=doc_only=false
-          echo "$v" >>"$GITHUB_OUTPUT"
-          echo "**$v** (${BASE:0:12}..${HEAD_SHA:0:12}, $EVENT)" >>"$GITHUB_STEP_SUMMARY"
+          sum="**parts** (${HEAD_SHA:0:12}, $EVENT):"
+          for p in cnf hub iac orc wui; do
+            v=true
+            grep -qx "run_$p=false" <<<"$out" && v=false
+            echo "run_$p=$v" >>"$GITHUB_OUTPUT"
+            [[ "$v" == true ]] && sum+=" $p=run" || sum+=" $p=SKIPPED"
+          done
+          echo "$sum" >>"$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
   # The hub suite: csi-spl-api/src/bash/tests/run-all-tests.sh -- gofmt,
@@ -199,7 +231,7 @@ jobs:
   hub-suite:
     name: "hub: gofmt, go vet, go test, smoke, Postgres + GCS gates"
     needs: classify
-    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
+    if: ${{ !cancelled() && needs.classify.outputs.run_hub != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     # Above hub-pg.tst.sh's go test -timeout 20m plus the ~7 min of steps and
     # suites before it, so a hung Postgres test fails with its dump, not a kill
@@ -282,7 +314,7 @@ jobs:
   wui-suite:
     name: "wui: unit tests + typecheck"
     needs: classify
-    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
+    if: ${{ !cancelled() && needs.classify.outputs.run_wui != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     defaults:
@@ -336,7 +368,7 @@ jobs:
   wui-generate:
     name: "wui: nuxt generate (mock tenant) once for the e2e shards"
     needs: classify
-    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
+    if: ${{ !cancelled() && needs.classify.outputs.run_wui != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
@@ -423,7 +455,7 @@ jobs:
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     # the bundle exists even when its budget step failed (see wui-generate)
     needs: [classify, wui-generate]
-    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' && needs.wui-generate.outputs.bundle == 'success' }}
+    if: ${{ !cancelled() && needs.classify.outputs.run_wui != 'false' && needs.wui-generate.outputs.bundle == 'success' }}
     # 3 round-robin shards (E2E_SHARD, run-e2e-tests.mjs), CLE-77945
     # 2026-10-02: one serial job ran 104 files in 35 min green and hit the
     # 45 min timeout under load (run 36962189149), so this gate finished once
@@ -540,7 +572,7 @@ jobs:
   iac-suite:
     name: "iac: tfvars parity, step contracts, terraform validate"
     needs: classify
-    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
+    if: ${{ !cancelled() && needs.classify.outputs.run_iac != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
@@ -700,7 +732,7 @@ jobs:
   orc-suite:
     name: "orc: hermetic action tests (stubbed gcloud/curl/docker) ${{ matrix.shard }}/2"
     needs: classify
-    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
+    if: ${{ !cancelled() && needs.classify.outputs.run_orc != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
@@ -874,7 +906,7 @@ jobs:
   orc-features:
     name: "orc: feature tests (spawn-agents, graft, mcp-bot, ...)"
     needs: classify
-    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
+    if: ${{ !cancelled() && needs.classify.outputs.run_orc != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     # Same operator layout as orc-suite: ./run derives ORG/APP from the parent dirs.
@@ -923,7 +955,7 @@ jobs:
   cnf-suite:
     name: "cnf: conf-validator exit codes"
     needs: classify
-    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
+    if: ${{ !cancelled() && needs.classify.outputs.run_cnf != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:

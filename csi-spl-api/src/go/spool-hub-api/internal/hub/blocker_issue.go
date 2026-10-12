@@ -44,6 +44,13 @@ import (
 //   - Resolving the issue clears the blocker mark on the message (kind back to
 //     what it was before blocker, else note); clearing the mark resolves every
 //     open issue made from that message.
+//   - A workspace owner (the role's tenant_owner flag, never a literal id) is
+//     the exception. Owner HUM-10, t1 5ea2e615 msg db5ed497: "An owner
+//     question should not become an issue until the owner decides that." The
+//     sweep never makes an issue for an owner; the blocker mark stays their
+//     open question until they pick "Make an issue" on the message
+//     (POST /v1/messages/{msg_id}/issue, blocker_issue_make.go), which makes
+//     the same issue, with the same links both ways.
 //
 // It runs in the hub (RunBlockerIssues), so it works with every agent down;
 // each workspace's rows are read and written in that workspace's scope. Two
@@ -151,7 +158,7 @@ func (s *Server) blockerStep(ctx context.Context, bi store.BlockerIssues, tenant
 	}
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		if answered {
+		if answered || s.workspaceOwner(ctx, tenant, a) {
 			return 0, 0
 		}
 		if s.blockerCreate(ctx, tenant, p, a, task, n) {
@@ -170,19 +177,9 @@ func (s *Server) blockerStep(ctx context.Context, bi store.BlockerIssues, tenant
 // blockerCreate makes the issue; false when the assignee is nobody this
 // workspace knows, or another hub process made it first.
 func (s *Server) blockerCreate(ctx context.Context, tenant string, p store.BlockerPost, a, task string, n int) bool {
-	if ie := s.checkAssignee(ctx, tenant, a); ie != nil {
-		return false
-	}
-	if _, ie := s.createIssueLabel(ctx, tenant, p.FromID, store.BlockerIssueLabel, blockerLabelColor); ie != nil && ie.token != "label_exists" {
-		s.o.Log.Error().Str("tenant", tenant).Str("err", ie.Error()).Msg("blocker issues: label")
-		return false
-	}
-	title, desc := blockerTitle(p), blockerDescription(p, a, n)
-	status, labels := store.IssueTodo, []string{store.BlockerIssueLabel}
-	out, ie := s.createIssueOn(ctx, tenant, p.FromID, task, issueRequest{Title: &title, Description: &desc,
-		Status: &status, Assignee: &a, Labels: &labels})
+	out, ie := s.blockerIssueOn(ctx, tenant, p.FromID, p, a, task, blockerDescription(p, a, n))
 	if ie != nil {
-		if ie.token != "conflict" {
+		if ie.token != "conflict" && ie.token != "bad_assignee" {
 			s.o.Log.Error().Str("tenant", tenant).Str("msg_id", p.MsgID).Str("err", ie.Error()).Msg("blocker issues: create")
 		}
 		return false
@@ -190,6 +187,32 @@ func (s *Server) blockerCreate(ctx context.Context, tenant string, p store.Block
 	s.o.Log.Info().Str("tenant", tenant).Str("msg_id", p.MsgID).Str("assignee", a).Str("issue", out.Key()).
 		Msg("blocker issues: unanswered blocker made an issue")
 	return true
+}
+
+// blockerIssueOn makes the issue of (p, a) on topic task, reported by actor:
+// status todo, label blocker, desc linking back to the message. The sweep and
+// the owner's "Make an issue" both make it here, so both link the same way.
+func (s *Server) blockerIssueOn(ctx context.Context, tenant, actor string, p store.BlockerPost, a, task, desc string) (store.Issue, *issueErr) {
+	if ie := s.checkAssignee(ctx, tenant, a); ie != nil {
+		return store.Issue{}, ie
+	}
+	if _, ie := s.createIssueLabel(ctx, tenant, actor, store.BlockerIssueLabel, blockerLabelColor); ie != nil && ie.token != "label_exists" {
+		return store.Issue{}, ie
+	}
+	title := blockerTitle(p)
+	status, labels := store.IssueTodo, []string{store.BlockerIssueLabel}
+	return s.createIssueOn(ctx, tenant, actor, task, issueRequest{Title: &title, Description: &desc,
+		Status: &status, Assignee: &a, Labels: &labels})
+}
+
+// workspaceOwner: a is a member HUM-n whose role is the workspace owner's.
+// No member table (the door-off rig) makes nobody an owner.
+func (s *Server) workspaceOwner(ctx context.Context, tenant, a string) bool {
+	if !humanIDRe.MatchString(a) || s.o.Authorizer == nil {
+		return false
+	}
+	acc, err := s.access(ctx, a, tenant)
+	return err == nil && acc.TenantOwner
 }
 
 // blockerResolve posts the resolving comment on the issue's topic and sets

@@ -388,6 +388,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/merge", s.mergePreflight)
 	mux.HandleFunc("PATCH /v1/messages/{msg_id}/kind", s.handleSetMessageKind) // SPL-952
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/kind", s.kindPreflight)
+	mux.HandleFunc("POST /v1/messages/{msg_id}/issue", s.handleMakeBlockerIssue) // t1 5ea2e615: the owner decides
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/issue", s.makeIssuePreflight)
 	mux.HandleFunc("PUT /v1/messages/{msg_id}/reactions", s.handlePutReaction)
 	mux.HandleFunc("PUT /v1/messages/{msg_id}/archive", s.handleArchiveTopic) // specs/041
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}/archive", s.handleArchiveTopic)

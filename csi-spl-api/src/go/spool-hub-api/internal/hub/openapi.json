@@ -6164,6 +6164,91 @@
         ]
       }
     },
+    "/v1/messages/{msg_id}/issue": {
+      "post": {
+        "description": "The workspace owner makes an issue of a blocker (todo, label blocker, linked both ways); the sweep never does it for an owner. Owner HUM-10, t1 5ea2e615 msg db5ed497.",
+        "operationId": "postMessagesByMsgIdIssue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "msg_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "assignee": {
+                    "description": "one id the blocker tags; default the caller when tagged, else the only tagged id",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/IssueBody"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "OK: the issue made before"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/IssueBody"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "not_blocker: the message no longer carries the blocker mark"
+          }
+        },
+        "summary": "Make an issue of a blocker (owner)",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
     "/v1/messages/{msg_id}/kind": {
       "patch": {
         "operationId": "patchMessagesByMsgIdKind",

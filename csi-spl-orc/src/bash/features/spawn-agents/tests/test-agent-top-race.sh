@@ -114,6 +114,21 @@ for _ in $(seq 50); do [ -n "$(loops_top)" ] && break; sleep 0.2; done
 sleep 1
 eq "5. six concurrent ensure calls start one loop" 1 "$(loops_top | wc -l)"
 eq "5. ... and it is the pidfile's loop" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)" "$(loops_top | sed -n 1p)"
-pgrep -f "^bash \\S*agent-top.sh --badge-loop --interval $IV\$" | xargs -r kill 2>/dev/null
+# Reap the loop AND its `sleep "$IV"` (about 28 h): an orphaned sleep holds the
+# caller's stdout, and do_check_pre_push's tee then never saw EOF and hung
+# (2026-10-12, n=2). Killing the loops' direct children was not enough under
+# the gate, so match the sleep by its unique interval until nothing is left.
+reap_loop() {
+  local _
+  for _ in $(seq 25); do
+    pkill -f "^bash \\S*agent-top.sh --badge-loop --interval $IV\$" 2>/dev/null
+    pkill -f "^sleep $IV\$" 2>/dev/null
+    pgrep -f "^(bash \\S*agent-top.sh --badge-loop --interval|sleep) $IV\$" >/dev/null || return 0
+    sleep 0.2
+  done
+}
+reap_loop
+eq "5. ... and no loop or sleep of it is left behind" 0 \
+  "$(pgrep -fc "^(bash \\S*agent-top.sh --badge-loop --interval|sleep) $IV\$")"
 
 t_done

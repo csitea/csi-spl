@@ -238,7 +238,7 @@ ghr_setup_user() {
 
 # ghr_docker_port_range - the rootless dockerd's netns gets
 # GHR_PORT_RANGE as ip_local_port_range BEFORE dockerd starts (its port
-# allocator reads it once): dockerd-rootless.sh execs $DOCKERD, so a drop-in
+# allocator reads it once): the rootless launcher execs $DOCKERD, so a drop-in
 # points DOCKERD at a wrapper that writes the sysctl (it runs as root of the
 # netns) and execs dockerd. A live docker on another range is restarted only
 # while no job runs on this box (no Runner.Worker of the user); a busy one is

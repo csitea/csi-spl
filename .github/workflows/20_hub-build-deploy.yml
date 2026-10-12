@@ -799,7 +799,7 @@ jobs:
       - name: Invite -> mail -> sign-in -> bound (do_spl_invite_e2e)
         run: |
           set -euo pipefail
-          p="$(APP_PATH="$GITHUB_WORKSPACE" SPL_STATE_DIR="$(mktemp -d)" bash -c '
+          p="$(APP_PATH="$GITHUB_WORKSPACE" PROJ_PATH="$GITHUB_WORKSPACE/csi-spl-orc" SPL_STATE_DIR="$(mktemp -d)" bash -c '
             do_log() { echo "$*" >&2; }
             source "$APP_PATH/csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh"
             do_spl_cloud_cnf >/dev/null && echo "$SPL_PROJECT"')"

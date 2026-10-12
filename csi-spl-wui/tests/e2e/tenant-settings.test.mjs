@@ -32,11 +32,12 @@
 // Run:
 //   pnpm run test:e2e tenant-settings
 //   BASE_URL=<generated bundle> pnpm run test:e2e tenant-settings
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
-import { AGENT_SPLIT_KINDS, DEFAULT_SPLIT_KINDS, splitKindRule, splitMainOf } from '../../src/utils/tenant-settings.mjs'
+import { AGENT_SPLIT_KINDS, splitKindRule, splitMainOf } from '../../src/utils/tenant-settings.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const RED = process.env.PROVE_RED || ''
@@ -47,6 +48,30 @@ const ok = (name, pass, ev) => {
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// cnfSplitKinds - env.box.agent_split_by_kind of csi-spl-cnf all.env.yaml
+// as { kind: { weights: { <every vendor>: n }, backup } }; a vendor left
+// out of a row is 0 (cnf's rule). The rows are one-line flow maps; a cnf
+// that no longer parses throws, never falls back to a copy.
+function cnfSplitKinds() {
+  const file = new URL('../../../csi-spl-cnf/csi-spl/all.env.yaml', import.meta.url)
+  const lines = readFileSync(file, 'utf8').split('\n')
+  const at = lines.findIndex((l) => /^\s+agent_split_by_kind:\s*$/.test(l))
+  if (at < 0) throw new Error(`no agent_split_by_kind in ${file.pathname}`)
+  const indent = lines[at].search(/\S/)
+  const kinds = {}
+  for (const l of lines.slice(at + 1)) {
+    if (/^\s*(#.*)?$/.test(l)) continue
+    if (l.search(/\S/) <= indent) break
+    const m = l.match(/^\s+([a-z0-9_]+):\s*\{(.*)\}\s*(#.*)?$/)
+    if (!m) throw new Error(`cnf agent_split_by_kind row is not a one-line map: ${l}`)
+    const row = Object.fromEntries(m[2].split(',').map((kv) => kv.split(':').map((x) => x.trim())))
+    const weights = Object.fromEntries(AGENT_SPLIT_KINDS.map((v) => [v, Number(row[v] ?? 0)]))
+    kinds[m[1]] = { weights, backup: row.backup }
+  }
+  for (const k of ['simple_coding', 'tests']) if (!kinds[k]) throw new Error(`cnf agent_split_by_kind has no ${k} row`)
+  return kinds
+}
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -231,13 +256,16 @@ try {
   // defaults; agy in a coding kind is refused before Save (the CONTROL:
   // PROVE_RED=agy-coding saves it anyway and the mock hub refuses it, 8o
   // red); new weights save and read back after a section change. The
-  // defaults are read from DEFAULT_SPLIT_KINDS (the mock hub serves them and
-  // the hub's DefaultSplitKinds matches), never pinned here.
+  // expected defaults are read from cnf env.box.agent_split_by_kind, the
+  // one source (the mock hub serves DEFAULT_SPLIT_KINDS, so a WUI copy that
+  // drifts from cnf reds 8m), never pinned here: two runs (38179635327,
+  // 38181865978) went red on literals left behind by a cnf change.
   await p.waitForSelector('[data-test=split-kind-simple_coding-mistral]', { visible: true, timeout: 10000 })
   const kindRow = (k) => p.$$eval(`[data-test^=split-kind-${k}-]`, (els, kk) => els.filter((e) => e.tagName === 'INPUT' || e.tagName === 'SELECT')
     .map((e) => `${e.getAttribute('data-test').slice(12 + kk.length)}=${e.value}`).join(' '), k)
   const splitRowOf = (w, backup) => [...AGENT_SPLIT_KINDS.map((v) => `${v}=${w[v]}`), `backup=${backup}`].join(' ')
-  const simpleDef = DEFAULT_SPLIT_KINDS.simple_coding
+  const cnfKinds = cnfSplitKinds()
+  const simpleDef = cnfKinds.simple_coding
   const simpleMain = splitMainOf(simpleDef.weights)
   const enLabels = createRequire(import.meta.url)('../../i18n/locales/en.json').tenant_settings
   const kinds0 = { simple: await kindRow('simple_coding'), main: await text(p, '[data-test=split-kind-simple_coding-main]'), i18n: await text(p, '[data-test=split-kind-i18n-main]') }
@@ -269,7 +297,7 @@ try {
   await p.waitForSelector('[data-test=split-kind-simple_coding-mistral]', { visible: true, timeout: 10000 })
   await sleep(100)
   const kinds1 = { simple: await kindRow('simple_coding'), reset: Boolean(await p.$('[data-test=split-kind-simple_coding-reset]')), tests: await kindRow('tests') }
-  ok('8o new per-kind weights save and read back', kinds1.simple === 'claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=claude' && kinds1.reset && kinds1.tests === splitRowOf(DEFAULT_SPLIT_KINDS.tests.weights, DEFAULT_SPLIT_KINDS.tests.backup), kinds1)
+  ok('8o new per-kind weights save and read back', kinds1.simple === 'claude=30 grok=10 agy=0 qwen=0 mistral=60 backup=claude' && kinds1.reset && kinds1.tests === splitRowOf(cnfKinds.tests.weights, cnfKinds.tests.backup), kinds1)
   if (process.env.SPLIT_SHOT) await p.screenshot({ path: process.env.SPLIT_SHOT, fullPage: true })
 
   // 4. Channels: no-fallback + archive

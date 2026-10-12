@@ -5,8 +5,9 @@
 //   AC4  the #alerts row in Channels shows 1, the Channels rail counts it,
 //        and the tab title carries a number
 //   AC5  opening the topic from the Flow list drops the row to nothing, the
-//        Channels rail and the title by that 1 - checked one
-//        requestAnimationFrame after the row clears (FR-009)
+//        Channels rail and the title by that 1 - the rail checked one
+//        requestAnimationFrame after the row clears (FR-009), the title once
+//        the head has written it (see AC5 below)
 //
 // The Topics list (its row and rail number) was AC4/AC5's place until the
 // Topics view went (owner HUM-10, t1 e4bfddb1): the row is now the topic's
@@ -106,7 +107,18 @@ try {
   }), ROW)
   ok('AC5: the #alerts row drops to nothing', after.row === 0, after)
   ok('AC5: the Channels rail drops by that 1', after.rail === before.rail - 1, { before, after })
-  ok('AC5: the title drops by that 1', after.title === before.title - 1, { before, after })
+  /* The title is the model's number too, but unhead writes document.title
+     on a setTimeout after the reactive tick and holds it from page:start to
+     page:finish (nuxt/dist/head/runtime/plugins/unhead.js): the Flow click
+     navigates, so the DOM title can lag the row by more than one frame. It
+     read 2 -> 2 one frame after the row cleared on 11/12 ubuntu-latest runs,
+     so the title gets until the head has flushed. */
+  await p.waitForFunction((want) => {
+    const m = /^\((\d+)\+?\) /.exec(document.title)
+    return (m ? Number(m[1]) : 0) === want
+  }, { timeout: 8000 }, before.title - 1).catch(() => {})
+  const titled = await p.evaluate(READ, ROW)
+  ok('AC5: the title drops by that 1', titled.title === before.title - 1, { before, after, titled })
   ok('no page error', errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
   await ctx.close()
 } finally {

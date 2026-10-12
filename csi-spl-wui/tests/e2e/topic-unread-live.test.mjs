@@ -167,6 +167,12 @@ async function paneRun(browser, base, run) {
     if (run === 1) await shot(p, 'pane')
     await p.click('[data-test=live-topic-close]')
     await p.waitForFunction((sel) => !document.querySelector(sel), { timeout: 8000 }, `${pane} article.msg[data-msg-id="${PANE_TASK}"]`).catch(() => {})
+    /* The card goes with the store; the URL drops ?topic= one router.replace
+       later (useTopicRoute). A push before that replace commits is a
+       duplicate of the still-current /lobby?topic=<id>, the replace then wins
+       and the pane stays shut: 12/12 red on ubuntu-latest, where the next
+       line ran inside that gap. Push once the route is query-less. */
+    await p.waitForFunction(() => !document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.currentRoute.value.query.topic, { timeout: 8000 }).catch(() => {})
     await pushTopic(p)
     const again = await reads(p, pane, '3 >>', PANE_TASK)
     ok(`${tag}: opened again (read), it reads a plain "3 >>"`, again.text === '3 >>' && again.unread === null, again)

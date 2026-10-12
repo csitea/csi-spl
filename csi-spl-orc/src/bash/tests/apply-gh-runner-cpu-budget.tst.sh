@@ -22,6 +22,12 @@
 #      ceiling, never below the load quota); a fresh verdict, nothing waiting
 #      or a failing gh: the plain floor; red control: a copy that drops the
 #      raise is caught
+#   7. CI reserve (HUM-10 msg 52474112, action 3): off by default; with
+#      CPU_BUDGET_CI_RESERVE_PCT=950 a busy runner or a waiting gate run
+#      raises the floor to 950% (clamped to the ceiling), which feeds 6 of 6
+#      runners (a parked one comes back); CPU_BUDGET_CI_WEIGHT=400 sets the
+#      slice weight while CI runs and sets the kept one back once it is idle;
+#      red control: a copy that drops the raise is caught
 #   4. the cron script runs the action with DRY_RUN=0 and refuses a worktree,
 #      passes CPU_BUDGET_GATE_* through;
 #      the installer writes ONE tagged line, keeps the others, removes its own
@@ -47,12 +53,14 @@ case "$1" in
   list-units) cat "$T/units.list" 2>/dev/null; exit 0 ;;
   daemon-reload|stop|kill|start|set-property) echo "systemctl $*" >>"$SYSD_LOG"
     [[ "$1" == start ]] && echo "/user.slice/user-1500.slice/$2" >"$T/cgof-$2" && echo active >"$T/state-$2"
-    [[ "$1" == stop ]] && echo inactive >"$T/state-$2"; exit 0 ;;
+    [[ "$1" == stop ]] && echo inactive >"$T/state-$2"
+    [[ "$1" == set-property && "$*" == *CPUWeight=* ]] && { a="$*"; echo "${a##*CPUWeight=}" >"$T/weight"; }; exit 0 ;;
   show) case "$4" in
       ControlGroup) cat "$T/cgof-$2" 2>/dev/null ;;
       Slice) echo system.slice ;;
       CPUQuotaPerSecUSec) echo infinity ;;
       ActiveState) cat "$T/state-$2" 2>/dev/null || echo active ;;
+      CPUWeight) cat "$T/weight" 2>/dev/null || echo '[not set]' ;;
     esac; exit 0 ;;
 esac
 exit 0
@@ -87,7 +95,7 @@ set_usage 1000 500
 out="$(run_budget DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'nothing to budget'* && ! -s "$SYSD_LOG" ]] &&
   pass "no runner unit: exit 0, nothing touched" || fail "no runner (rc=$rc): $out"
-for bad in "CPU_BUDGET_GATE_FLOOR_PCT=x" "CPU_BUDGET_GATE_STALE_MIN=0" "CPU_BUDGET_PER_RUNNER_PCT=x" "CPU_BUDGET_HYST_PCT=-1" "CPU_BUDGET_BOX_PCT=101" "CPU_BUDGET_BOX_PCT=0" "CPU_BUDGET_MIN_PCT=x" "CPU_BUDGET_SAMPLE_S=0" "DRY_RUN=2"; do
+for bad in "CPU_BUDGET_CI_RESERVE_PCT=x" "CPU_BUDGET_CI_WEIGHT=10001" "CPU_BUDGET_GATE_FLOOR_PCT=x" "CPU_BUDGET_GATE_STALE_MIN=0" "CPU_BUDGET_PER_RUNNER_PCT=x" "CPU_BUDGET_HYST_PCT=-1" "CPU_BUDGET_BOX_PCT=101" "CPU_BUDGET_BOX_PCT=0" "CPU_BUDGET_MIN_PCT=x" "CPU_BUDGET_SAMPLE_S=0" "DRY_RUN=2"; do
   out="$(run_budget "$bad")"; rc=$?
   [[ $rc -ne 0 && "$out" == *FATAL* ]] && pass "$bad is refused" || fail "$bad (rc=$rc): $out"
 done
@@ -256,7 +264,63 @@ grep -q 'GHRB_MIN="$floor"' "$T/red/apply-gh-runner-cpu-budget.func.sh" && fail 
 out="$(FUNC="$T/red/apply-gh-runner-cpu-budget.func.sh" gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'GATE STARVED'* && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' ]] &&
   pass "red control: a copy without the raise does not reach 500% (the check above catches it)" || fail "red control: the broken copy still reached 500%"
-rm -f "$T/gh.json"
+
+# 7. CI reserve -------------------------------------------------------------------------
+# every runner online and idle; busy <unit index> puts a Runner.Worker in it
+rm -f "$T/state-"* "$T/state/parked" "$T/weight"
+rm -f "$T/cg/user.slice/user-1500.slice/"*/cgroup.procs
+busy() { "$T/Runner.Worker" 60 & WPID=$!; echo "$WPID" >"$T/cg/user.slice/user-1500.slice/${US[$1]}/cgroup.procs"; }
+idle() { [[ -n "$WPID" ]] && { kill "$WPID"; wait "$WPID" 2>/dev/null; }; WPID=""; rm -f "$T/cg/user.slice/user-1500.slice/"*/cgroup.procs; }
+ci() { : >"$SYSD_LOG"; rm -f "$T/gh.calls"; run_budget DRY_RUN=0 OTHER=15 "$@"; }
+R=(CPU_BUDGET_CI_RESERVE_PCT=950 CPU_BUDGET_CI_WEIGHT=400)
+gh_runs 5 0
+busy 0
+out="$(ci)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' && "$(grep -c CPUWeight "$SYSD_LOG")" == 0 && "$(calls)" == 0 ]] &&
+  pass "CI reserve off by default: a busy runner, still 100%, no weight, 0 gh calls" || fail "reserve default (rc=$rc): $out"
+echo 25 >"$T/weight"
+out="$(ci "${R[@]}")"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=950%'* && "$out" == *'CI RESERVE 1 runner(s) busy, 0 gate run(s) waiting -> floor 950%, CPUWeight 400'* \
+  && "$(grep -c 'set-property --runtime user-1500.slice CPUWeight=400' "$SYSD_LOG")" == 1 && "$(cat "$T/state/weight")" == 25 ]] &&
+  pass "RESERVE=950: a busy runner + agents on 15 cores -> 950%, CPUWeight 25 -> 400 (25 kept)" || fail "reserve busy (rc=$rc): $out / $(cat "$SYSD_LOG")"
+out="$(ci "${R[@]}")"; rc=$?
+[[ $rc -eq 0 && "$(grep -c CPUWeight "$SYSD_LOG")" == 0 && "$(cat "$T/state/weight")" == 25 ]] &&
+  pass "the next CI tick: the weight is already 400, no systemctl call, 25 still kept" || fail "reserve again (rc=$rc): $out / $(cat "$SYSD_LOG")"
+idle
+gh_runs 5 1
+out="$(ci "${R[@]}")"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=950%'* && "$out" == *'CI RESERVE 0 runner(s) busy, 1 gate run(s) waiting'* ]] &&
+  pass "RESERVE=950: no runner busy but a gate run waits -> 950%" || fail "reserve wait (rc=$rc): $out"
+gh_runs 5 0
+out="$(ci "${R[@]}")"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%'* && "$out" == *'CI idle here: no reserve'* \
+  && "$(grep -c 'CPUWeight=25' "$SYSD_LOG")" == 1 && "$(cat "$T/weight")" == 25 && ! -e "$T/state/weight" ]] &&
+  pass "CI idle: the plain floor 100%, CPUWeight back to the kept 25, the kept file gone" || fail "reserve idle (rc=$rc): $out / $(cat "$SYSD_LOG")"
+out="$(ci "${R[@]}")"; rc=$?
+[[ $rc -eq 0 && "$(grep -c CPUWeight "$SYSD_LOG")" == 0 ]] &&
+  pass "CI still idle: no weight call" || fail "reserve idle again (rc=$rc): $(cat "$SYSD_LOG")"
+gh_runs 5 1
+out="$(ci "${R[@]}" GH_FAIL=1)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%'* && "$out" == *'runs query failed'* ]] &&
+  pass "gh fails and no runner busy: no reserve (never a boost on a failed call)" || fail "reserve gh fail (rc=$rc): $out"
+out="$(ci "${R[@]}" CPU_BUDGET_BOX_PCT=25)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=400%'* ]] &&
+  pass "RESERVE=950 over a 400% ceiling: clamped to 400%" || fail "reserve clamp (rc=$rc): $out"
+rm -f "$T/weight"
+echo "${US[5]}" >"$T/state/parked"; echo inactive >"$T/state-${US[5]}"
+out="$(ci "${R[@]}" CPU_BUDGET_PER_RUNNER_PCT=150)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'CAP online=5 of 6 runner(s), the quota feeds 6 at 150% each'* && "$out" == *"UNPARKED ${US[5]}"* && "$(tail -1 "$SYSD_LOG")" == "systemctl start ${US[5]}" ]] &&
+  pass "the axis: agents on 15 of 16 cores + a gate run waiting -> 950% feeds 6, the parked runner comes back (6 of 6)" || fail "reserve 6 of 6 (rc=$rc): $out / $(cat "$SYSD_LOG")"
+out="$(ci CPU_BUDGET_PER_RUNNER_PCT=150)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'CAP online=6 of 6 runner(s), the quota feeds 1 at 150% each'* && "$out" == *PARKED* ]] &&
+  pass "...and without the reserve the same load feeds 1 runner (the baseline it fixes)" || fail "reserve baseline (rc=$rc): $out"
+rm -f "$T/state/parked" "$T/state-"* "$T/state/weight" "$T/weight"
+sed 's/((floor > GHRB_MIN)) \&\& GHRB_MIN="$floor"$/:/' "$FUNC" >"$T/red/apply-gh-runner-cpu-budget.func.sh"
+[[ "$(grep -c 'GHRB_MIN="$floor"' "$T/red/apply-gh-runner-cpu-budget.func.sh")" == 0 ]] || fail "red control: the sed did not drop the reserve raise"
+out="$(FUNC="$T/red/apply-gh-runner-cpu-budget.func.sh" ci "${R[@]}")"; rc=$?
+[[ $rc -eq 0 && "$out" == *'CI RESERVE'* && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%'* ]] &&
+  pass "red control: a copy without the reserve raise stays at 100% (the checks above catch it)" || fail "red control: the broken copy still reached the reserve"
+rm -f "$T/gh.json" "$T/state/weight" "$T/weight"
 
 # 4. cron script + installer -------------------------------------------------------
 SH="$T/shared"
@@ -284,7 +348,7 @@ chmod +x "$T/bin/crontab"
 printf '%s\n' '# keep me' '*/5 * * * * /x/box-stats-cron.sh >> /l/cron.out 2>&1 # csi-spl:box-stats' >"$T/crontab"
 cp "$T/crontab" "$T/crontab.orig"
 setup() {
-  env -u CPU_BUDGET_GATE_FLOOR_PCT PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" SPL_ORG_APP=csi-spl \
+  env -u CPU_BUDGET_GATE_FLOOR_PCT -u CPU_BUDGET_CI_RESERVE_PCT -u CPU_BUDGET_CI_WEIGHT PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" SPL_ORG_APP=csi-spl \
     DESK_CRON_SRC="$SH" CPU_BUDGET_CRON_LOG_DIR="$T/log" "$@" bash -c '
     set -uo pipefail
     do_log() { printf "%s\n" "$*"; }
@@ -292,7 +356,7 @@ setup() {
     source "'"$PROJ_ROOT"'/src/bash/run/setup-gh-runner-cpu-budget-cron.func.sh"
     do_setup_gh_runner_cpu_budget_cron'
 }
-want="* * * * * CPU_BUDGET_GATE_FLOOR_PCT=500 $SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:gh-runner-cpu-budget"
+want="* * * * * CPU_BUDGET_GATE_FLOOR_PCT=500 CPU_BUDGET_CI_RESERVE_PCT=950 CPU_BUDGET_CI_WEIGHT=400 $SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:gh-runner-cpu-budget"
 out="$(setup)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'DRY_RUN nothing was touched'* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
   pass "dry run: prints the every-minute line, writes nothing" || fail "install dry (rc=$rc): $out"
@@ -307,6 +371,13 @@ out="$(setup CPU_BUDGET_CRON_ACTION=check)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'is installed'* ]] && pass "check: installed, script executable" || fail "check (rc=$rc): $out"
 out="$(setup DRY_RUN=0 CPU_BUDGET_CRON_ACTION=remove)"; rc=$?
 cmp -s "$T/crontab" "$T/crontab.orig" && [[ $rc -eq 0 ]] && pass "remove takes only its own line" || fail "remove (rc=$rc): $(cat "$T/crontab")"
+out="$(setup CPU_BUDGET_CI_RESERVE_PCT=0 CPU_BUDGET_CI_WEIGHT=0)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'CPU_BUDGET_CI_RESERVE_PCT=0 CPU_BUDGET_CI_WEIGHT=0 '* ]] &&
+  pass "CPU_BUDGET_CI_RESERVE_PCT=0 CPU_BUDGET_CI_WEIGHT=0: the line writes the reserve off" || fail "install reserve off (rc=$rc): $out"
+for bad in CPU_BUDGET_CI_RESERVE_PCT=x CPU_BUDGET_CI_WEIGHT=10001; do
+  out="$(setup "$bad")"; rc=$?
+  [[ $rc -ne 0 && "$out" == *FATAL* ]] && pass "installer: $bad is refused" || fail "installer $bad (rc=$rc): $out"
+done
 
 echo
 if [ "$fails" -eq 0 ]; then echo "apply-gh-runner-cpu-budget: all passed"; exit 0; fi

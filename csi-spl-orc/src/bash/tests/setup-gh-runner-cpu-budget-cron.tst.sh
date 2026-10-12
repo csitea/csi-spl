@@ -32,7 +32,7 @@ printf '%s\n' '# keep me' >"$T/crontab"
 # setup <func file> [VAR=v ...]: run the installer against the stub crontab
 setup() {
   local f="$1"; shift
-  env -u CPU_BUDGET_GATE_FLOOR_PCT PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" \
+  env -u CPU_BUDGET_GATE_FLOOR_PCT -u CPU_BUDGET_CI_RESERVE_PCT -u CPU_BUDGET_CI_WEIGHT PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" \
     FAKE_CRONTAB="$T/crontab" SPL_ORG_APP=csi-spl DESK_CRON_SRC="$SH" CPU_BUDGET_CRON_LOG_DIR="$T/log" "$@" bash -c '
     set -uo pipefail
     do_log() { printf "%s\n" "$*"; }
@@ -42,7 +42,7 @@ setup() {
     do_setup_gh_runner_cpu_budget_cron'
 }
 script="$SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh"
-want() { printf '* * * * * CPU_BUDGET_GATE_FLOOR_PCT=%s %s >> %s/log/cron.out 2>&1 # csi-spl:gh-runner-cpu-budget' "$1" "$script" "$T"; }
+want() { printf '* * * * * CPU_BUDGET_GATE_FLOOR_PCT=%s CPU_BUDGET_CI_RESERVE_PCT=950 CPU_BUDGET_CI_WEIGHT=400 %s >> %s/log/cron.out 2>&1 # csi-spl:gh-runner-cpu-budget' "$1" "$script" "$T"; }
 tagged() { grep -c 'csi-spl:gh-runner-cpu-budget$' "$T/crontab"; }
 
 # check_default <func file>: 0 when the default install writes the 500 floor
@@ -75,7 +75,7 @@ out="$(setup "$FUNC" DRY_RUN=0 CPU_BUDGET_GATE_FLOOR_PCT=5x)"; rc=$?
   pass "a bad floor is refused, the crontab untouched" || fail "bad floor (rc=$rc): $out"
 
 # 4. red control: the installer without the floor
-sed -e 's/%sCPU_BUDGET_GATE_FLOOR_PCT=%s %s >>/%s%s >>/' -e 's/"\$pre" "\$floor" "\$script"/"$pre" "$script"/' "$FUNC" >"$T/nofloor.func.sh"
+sed -e 's/%sCPU_BUDGET_GATE_FLOOR_PCT=%s CPU/%sCPU/' -e 's/"\$pre" "\$floor" "\$reserve"/"$pre" "$reserve"/' "$FUNC" >"$T/nofloor.func.sh"
 if grep -q 'CPU_BUDGET_GATE_FLOOR_PCT=%s' "$T/nofloor.func.sh"; then
   fail "red control: could not strip the floor from the copy"
 elif check_default "$T/nofloor.func.sh"; then

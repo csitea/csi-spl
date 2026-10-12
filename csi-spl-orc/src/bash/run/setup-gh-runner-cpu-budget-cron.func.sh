@@ -12,10 +12,15 @@
 # @description Install it only on a box that carries runners.
 # @description The line carries CPU_BUDGET_GATE_FLOOR_PCT (default 500, owner
 # @description HUM-10 2026-10-10: 5 cores while gate 10 has had no verdict for
-# @description CPU_BUDGET_GATE_STALE_MIN and a run waits), so a re-run keeps it.
+# @description CPU_BUDGET_GATE_STALE_MIN and a run waits), so a re-run keeps it,
+# @description and the CI reserve: CPU_BUDGET_CI_RESERVE_PCT (default 950, 6
+# @description runners online) and CPU_BUDGET_CI_WEIGHT (default 400) while CI
+# @description runs or waits on the box (owner HUM-10, t1 f67e3656 msg 52474112).
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param CPU_BUDGET_CRON_ACTION (optional) - install (default) | remove | check
 # @param CPU_BUDGET_GATE_FLOOR_PCT (optional) - default 500; 0 writes the floor off
+# @param CPU_BUDGET_CI_RESERVE_PCT (optional) - default 950; 0 writes the reserve off
+# @param CPU_BUDGET_CI_WEIGHT (optional) - default 400; 0 leaves the weight as it is
 # @param CPU_BUDGET_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/gh-runner-cpu-budget
 # @param DESK_CRON_SRC / DESK_CRON_SELF_UPDATE / DESK_CRON_TRUNK (optional) - as do_spl_desk_install_service
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -33,9 +38,12 @@ do_setup_gh_runner_cpu_budget_cron() {
   do_require_bin crontab || return 1
   local act="${CPU_BUDGET_CRON_ACTION:-install}" trunk="${DESK_CRON_TRUNK:-master}"
   local tag src script logdir line current pre="" floor="${CPU_BUDGET_GATE_FLOOR_PCT:-500}"
+  local reserve="${CPU_BUDGET_CI_RESERVE_PCT:-950}" weight="${CPU_BUDGET_CI_WEIGHT:-400}"
   case "$act" in install|remove|check) ;; *) do_log "FATAL CPU_BUDGET_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   [[ "$floor" =~ ^(0|[1-9][0-9]{0,4})$ ]] || { do_log "FATAL CPU_BUDGET_GATE_FLOOR_PCT must be 0..99999, got: '$floor'"; return 1; }
+  [[ "$reserve" =~ ^(0|[1-9][0-9]{0,4})$ ]] || { do_log "FATAL CPU_BUDGET_CI_RESERVE_PCT must be 0..99999, got: '$reserve'"; return 1; }
+  [[ "$weight" =~ ^(0|[1-9][0-9]{0,3}|10000)$ ]] || { do_log "FATAL CPU_BUDGET_CI_WEIGHT must be 0..10000, got: '$weight'"; return 1; }
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
   tag="$SPL_ORG_APP:gh-runner-cpu-budget"
@@ -45,7 +53,8 @@ do_setup_gh_runner_cpu_budget_cron() {
   logdir="${CPU_BUDGET_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/gh-runner-cpu-budget}"
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
-  line="$(printf '* * * * * %sCPU_BUDGET_GATE_FLOOR_PCT=%s %s >> %s/cron.out 2>&1 # %s' "$pre" "$floor" "$script" "$logdir" "$tag")"
+  line="$(printf '* * * * * %sCPU_BUDGET_GATE_FLOOR_PCT=%s CPU_BUDGET_CI_RESERVE_PCT=%s CPU_BUDGET_CI_WEIGHT=%s %s >> %s/cron.out 2>&1 # %s' \
+    "$pre" "$floor" "$reserve" "$weight" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
 
   if [[ "$act" == check ]]; then

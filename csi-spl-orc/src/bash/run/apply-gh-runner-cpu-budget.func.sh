@@ -41,6 +41,18 @@
 # @description with runners parked, do_spl_box_pick counts them as CI busy and
 # @description sends new lanes elsewhere (lib/bash/funcs/spl-box-ci.func.sh), so
 # @description the agents yield back the cores this action gave them.
+# @description CI reserve (owner HUM-10 t1 f67e3656 msg 52474112, action 3:
+# @description "CI gets its CPU on satellite"; 2026-10-11 the agents' ~13 of 16
+# @description cores left 3 of 6 runners online while gate runs waited). While
+# @description CI runs or waits here (a runner busy, or a gate run not
+# @description completed), the floor is CPU_BUDGET_CI_RESERVE_PCT (up to the
+# @description ceiling; 950 = 6 runners at 150% + the 50% hysteresis, so 6 of 6
+# @description stay online) and the slice's CPUWeight is CPU_BUDGET_CI_WEIGHT
+# @description (--runtime), so under contention the agents' CPU goes to CI
+# @description first: their processes are never stopped or reniced, the kernel
+# @description just shares the cores by weight. The weight the slice had
+# @description before (do_gh_runner_add's GH_RUNNER_CPU_WEIGHT, 25 on sat) is
+# @description kept in CPU_BUDGET_STATE_DIR/weight and set back once CI is idle.
 # @description OFF by default (0): it takes cores from the agents, which reverses
 # @description HUM-10 (agents first), so switching it on is the owner's call.
 # @description A box with no runner unit: nothing to do, exit 0.
@@ -60,6 +72,11 @@
 # @param   starved, default 0 (off); 500 = 3 runners at 150% + the 50% hysteresis
 # @param CPU_BUDGET_GATE_STALE_MIN (optional) - minutes without a verdict that
 # @param   make the gate starved, default 40 (a fed gate takes ~36)
+# @param CPU_BUDGET_CI_RESERVE_PCT (optional) - the floor while CI runs or
+# @param   waits here, default 0 (off); 950 = 6 runners at 150% + 50%
+# @param CPU_BUDGET_CI_WEIGHT (optional) - 1..10000: the slice's CPUWeight while
+# @param   CI runs or waits here, default 0 (left as it is); 400 = four agent
+# @param   user slices at the default 100
 # @param CPU_BUDGET_GATE_WORKFLOW (optional) - default 10_ci-quality.yml
 # @param CPU_BUDGET_GATE_BRANCH (optional) - default master
 # @param CPU_BUDGET_GH (optional, tests) - default gh
@@ -83,6 +100,9 @@ ghrb_init() {
   GHRB_PER="${CPU_BUDGET_PER_RUNNER_PCT:-150}" GHRB_HYST="${CPU_BUDGET_HYST_PCT:-50}"
   GHRB_STATE="${CPU_BUDGET_STATE_DIR:-/var/tmp/gh-runner-cpu-budget}"
   GHRB_GATE_FLOOR="${CPU_BUDGET_GATE_FLOOR_PCT:-0}" GHRB_GATE_STALE="${CPU_BUDGET_GATE_STALE_MIN:-40}"
+  GHRB_RESERVE="${CPU_BUDGET_CI_RESERVE_PCT:-0}" GHRB_CI_WEIGHT="${CPU_BUDGET_CI_WEIGHT:-0}" GHRB_GATE_WAIT=0
+  [[ "$GHRB_RESERVE" =~ ^(0|[1-9][0-9]{0,4})$ ]] || { do_log "FATAL CPU_BUDGET_CI_RESERVE_PCT must be 0..99999, got: '$GHRB_RESERVE'"; return 1; }
+  [[ "$GHRB_CI_WEIGHT" =~ ^(0|[1-9][0-9]{0,3}|10000)$ ]] || { do_log "FATAL CPU_BUDGET_CI_WEIGHT must be 0..10000, got: '$GHRB_CI_WEIGHT'"; return 1; }
   [[ "$GHRB_GATE_FLOOR" =~ ^(0|[1-9][0-9]{0,4})$ ]] || { do_log "FATAL CPU_BUDGET_GATE_FLOOR_PCT must be 0..99999, got: '$GHRB_GATE_FLOOR'"; return 1; }
   [[ "$GHRB_GATE_STALE" =~ ^[1-9][0-9]{0,3}$ ]] || { do_log "FATAL CPU_BUDGET_GATE_STALE_MIN must be 1..9999, got: '$GHRB_GATE_STALE'"; return 1; }
   [[ "$GHRB_DRY" == 0 || "$GHRB_DRY" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
@@ -121,24 +141,63 @@ ghrb_box_pct() {
 ghrb_gate() {
   local wf="${CPU_BUDGET_GATE_WORKFLOW:-10_ci-quality.yml}" br="${CPU_BUDGET_GATE_BRANCH:-master}"
   local got last wait age floor
-  [[ "$GHRB_GATE_FLOOR" == 0 ]] && return 0
+  [[ "$GHRB_GATE_FLOOR" == 0 && "$GHRB_RESERVE" == 0 && "$GHRB_CI_WEIGHT" == 0 ]] && return 0
   got="$(cd "$(dirname "${BASH_SOURCE[0]}")" && timeout 20 ${CPU_BUDGET_GH:-gh} api \
     "repos/{owner}/{repo}/actions/workflows/$wf/runs?branch=$br&event=push&per_page=100" 2>/dev/null |
     jq -r '[.workflow_runs[]] | "\([.[] | select(.conclusion == "success" or .conclusion == "failure")
       | .updated_at | fromdate] | max // 0) \([.[] | select(.status != "completed")] | length)"' 2>/dev/null)"
   [[ "$got" =~ ^([0-9]+)\ ([0-9]+)$ ]] || { echo "WARN gate $wf on $br: the runs query failed, no gate floor"; return 0; }
-  last="${BASH_REMATCH[1]}" wait="${BASH_REMATCH[2]}"
+  last="${BASH_REMATCH[1]}" wait="${BASH_REMATCH[2]}" GHRB_GATE_WAIT="${BASH_REMATCH[2]}"
   age=never
   ((last > 0)) && age=$((($(date +%s) - last) / 60))
   # for the box pick (lib/bash/funcs/spl-box-ci.func.sh): runs waiting while
   # runners are parked are CI waiting for this box's cores, so new agents yield
   { mkdir -p "$GHRB_STATE" && echo "$(date +%s) $wait" >"$GHRB_STATE/gate"; } 2>/dev/null
-  if ((wait == 0)) || { [[ "$age" != never ]] && ((age < GHRB_GATE_STALE)); }; then
+  if ((wait == 0 || GHRB_GATE_FLOOR == 0)) || { [[ "$age" != never ]] && ((age < GHRB_GATE_STALE)); }; then
     echo "GATE $wf on $br: last verdict $age min ago, $wait run(s) waiting -> floor ${GHRB_MIN}%"; return 0
   fi
   floor=$(($1 * GHRB_BOX)); ((GHRB_GATE_FLOOR < floor)) && floor="$GHRB_GATE_FLOOR"
   ((floor > GHRB_MIN)) && GHRB_MIN="$floor"
   echo "GATE STARVED $wf on $br: last verdict $age min ago (>= $GHRB_GATE_STALE), $wait run(s) waiting -> floor ${GHRB_MIN}%"
+}
+
+# ghrb_reserve <cores> <unit...> - while CI runs (a busy runner) or waits (a
+# gate run not completed, from ghrb_gate): raise GHRB_MIN to the CI reserve
+# (clamped to the ceiling) and set GHRB_WEIGHT to the CI weight; else
+# GHRB_WEIGHT is empty (the weight goes back, see ghrb_weight)
+ghrb_reserve() {
+  local cores="$1" u busy=0 floor; shift
+  GHRB_WEIGHT=""
+  [[ "$GHRB_RESERVE" == 0 && "$GHRB_CI_WEIGHT" == 0 ]] && return 0
+  for u in "$@"; do ghrb_busy "$u" && busy=$((busy + 1)); done
+  if ((busy == 0 && GHRB_GATE_WAIT == 0)); then echo "CI idle here: no reserve"; return 0; fi
+  ((GHRB_CI_WEIGHT > 0)) && GHRB_WEIGHT="$GHRB_CI_WEIGHT"
+  floor=$((cores * GHRB_BOX)); ((GHRB_RESERVE < floor)) && floor="$GHRB_RESERVE"
+  ((floor > GHRB_MIN)) && GHRB_MIN="$floor"
+  echo "CI RESERVE $busy runner(s) busy, $GHRB_GATE_WAIT gate run(s) waiting -> floor ${GHRB_MIN}%${GHRB_WEIGHT:+, CPUWeight $GHRB_WEIGHT}"
+}
+
+# ghrb_weight <slice> - the slice's CPUWeight follows GHRB_WEIGHT: set (the
+# weight before is kept in GHRB_STATE/weight) while CI runs or waits, set back
+# to the kept one once it is idle. Only a change calls systemctl
+ghrb_weight() {
+  local cur kept="$GHRB_STATE/weight" want
+  cur="$($GHRB_SYSTEMCTL show "$1" -p CPUWeight --value 2>/dev/null)"
+  [[ "$cur" =~ ^[0-9]+$ ]] || cur=100
+  if [[ -n "$GHRB_WEIGHT" ]]; then
+    want="$GHRB_WEIGHT"
+    [[ -s "$kept" || "$cur" == "$want" ]] || { mkdir -p "$GHRB_STATE" && echo "$cur" >"$kept"; } ||
+      { do_log "FATAL cannot write $kept"; return 1; }
+  else
+    [[ -s "$kept" ]] || return 0
+    want="$(head -1 "$kept")"; [[ "$want" =~ ^[0-9]+$ ]] || want=100
+  fi
+  if [[ "$cur" != "$want" ]]; then
+    $GHRB_SYSTEMCTL set-property --runtime "$1" CPUWeight="$want" || { do_log "FATAL cannot set CPUWeight on $1"; return 1; }
+    echo "WEIGHT $1 CPUWeight=$want (was $cur)"
+  fi
+  [[ -z "$GHRB_WEIGHT" ]] && rm -f "$kept"
+  return 0
 }
 
 # ghrb_units - the runner units of this box, one per line
@@ -244,6 +303,7 @@ do_apply_gh_runner_cpu_budget() {
   ghrb_place "$slice" "${units[@]}" || return 1
   cores="$(nproc)"
   ghrb_gate "$cores"
+  ghrb_reserve "$cores" "${units[@]}"
   r0="$(ghrb_usage "$GHRB_CG")" s0="$(ghrb_usage "$GHRB_CG/user.slice/$slice")"
   sleep "$GHRB_WAIT"
   r1="$(ghrb_usage "$GHRB_CG")" s1="$(ghrb_usage "$GHRB_CG/user.slice/$slice")"
@@ -258,5 +318,6 @@ do_apply_gh_runner_cpu_budget() {
   $GHRB_SYSTEMCTL set-property --runtime "$slice" CPUQuota="${quota}%" ||
     { do_log "FATAL cannot set CPUQuota on $slice"; return 1; }
   do_log "OK $slice CPUQuota=${quota}% ($($GHRB_SYSTEMCTL show "$slice" -p CPUQuotaPerSecUSec --value 2>/dev/null))"
+  ghrb_weight "$slice" || return 1
   ghrb_cap "$quota" "${units[@]}"
 }

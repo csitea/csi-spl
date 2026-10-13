@@ -5,19 +5,29 @@ Helper of do_spl_doctree_import_md and do_spl_doctree_export_md; run by them,
 never by hand. Two verbs:
 
   split <md> <out dir>
-      A numbered md page (one '# ' title, a preamble, then '## 1. ...',
-      '### 1.1 ...' sections) cut into what the import writes: <out>/title,
-      <out>/preamble.md and per section <out>/NNNN.body.md, plus one TSV line
-      per section on stdout: level, outline, title, body file ('' = none).
-      Refused (exit 1): no title, a heading deeper than '####', a section with
-      no number, or numbers that are not the outline the qto doc will derive
-      (the import must never renumber a section others cite).
+      An md page (an optional YAML front matter, one '# ' title, a preamble,
+      then '## ' .. '###### ' sections) cut into what the import writes:
+      <out>/title, <out>/preamble.md, <out>/front_matter.yml (only when the
+      page has one) and per section <out>/NNNN.body.md, plus one TSV line per
+      section on stdout: level, outline ('-' = unnumbered), title, body file
+      ('' = none).
+      A section is numbered ('## 1. x', '### 1.1 y') or not ('## Overview':
+      the qto item gets attrs.numbered false and no outline number); a
+      heading under an unnumbered one is unnumbered too, its text kept whole
+      as the title. Refused (exit 1): no title, a heading that skips a level,
+      or numbers that are not the outline the qto doc will derive (the import
+      must never renumber a section others cite).
 
   compose <head.json> <root read.json> <export.md> <doc id>
-      The md file the export writes: the title, the "generated from" line,
-      the preamble (the hidden root's body), then `spool doctree export` with
-      every heading one level down (outside code fences), so the sections
-      are '##' under the page's '#'. One trailing newline: byte-stable.
+      The md file the export writes: the front matter (the hidden root's
+      attrs.front_matter), the title, the "generated from" line, the preamble
+      (the root's body), then `spool doctree export` with every heading one
+      level down (outside code fences), so the sections are '##' under the
+      page's '#'. One trailing newline: byte-stable.
+
+Code fences are tracked by their opening run (CommonMark): a fence opened by
+'````' closes only on a '````' or longer line of the same character, so a
+'```' inside it is text.
 """
 
 import json
@@ -27,21 +37,54 @@ import sys
 
 HEAD = re.compile(r"^(#{1,6}) (.*)$")
 NUM = re.compile(r"^(\d+(?:\.\d+)*)\.? +(.+)$")
-FENCE = re.compile(r"^(```|~~~)")
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+FM_END = ("---", "...")
+
+
+class Fences:
+    """Whether a line is inside a code fence; feed every line in order."""
+
+    def __init__(self):
+        self.open = ""
+
+    def inside(self, line):
+        """True when line is in a fence or is one of its fence lines."""
+        m = FENCE.match(line)
+        if not self.open:
+            if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+                self.open = m.group(1)
+                return True
+            return False
+        if (
+            m
+            and m.group(1)[0] == self.open[0]
+            and len(m.group(1)) >= len(self.open)
+            and not m.group(2).strip()
+        ):
+            self.open = ""
+        return True
+
+
+def front_matter(lines):
+    """(the YAML between the page's opening '---' and its end line, the rest)."""
+    if not lines or lines[0].rstrip() != "---":
+        return None, lines
+    for i in range(1, len(lines)):
+        if lines[i].rstrip() in FM_END:
+            return "\n".join(lines[1:i]), lines[i + 1 :]
+    return None, lines
 
 
 def split(md_path, out):
-    lines = open(md_path, encoding="utf-8").read().split("\n")
-    title, sections, pre, cur, fence = None, [], [], None, False
+    fm, lines = front_matter(open(md_path, encoding="utf-8").read().split("\n"))
+    title, sections, pre, cur, fences = None, [], [], None, Fences()
     for line in lines:
-        m = None if fence else HEAD.match(line)
-        if FENCE.match(line):
-            fence = not fence
+        m = None if fences.inside(line) else HEAD.match(line)
         if m and len(m.group(1)) == 1 and title is None:
             title = m.group(2).strip()
             continue
         if m and len(m.group(1)) > 1:
-            cur = section(md_path, m, line)
+            cur = section(m)
             sections.append(cur)
             continue
         (cur["body"] if cur else pre).append(line)
@@ -51,25 +94,24 @@ def split(md_path, out):
     os.makedirs(out, exist_ok=True)
     write(os.path.join(out, "title"), title)
     write(os.path.join(out, "preamble.md"), "\n".join(pre).strip() + "\n")
+    if fm is not None:
+        write(os.path.join(out, "front_matter.yml"), fm)
     for i, s in enumerate(sections, 1):
         body, name = "\n".join(s["body"]).strip(), ""
         if body:
             name = os.path.join(out, f"{i:04d}.body.md")
             write(name, body + "\n")
-        print("\t".join([str(s["level"]), s["outline"], s["title"], name]))
+        print("\t".join([str(s["level"]), s["outline"] or "-", s["title"], name]))
 
 
-def section(md_path, m, line):
-    level = len(m.group(1)) - 1
-    if level > 3:
-        sys.exit(f"FATAL {md_path}: heading deeper than ####: {line}")
-    n = NUM.match(m.group(2).strip())
-    if not n:
-        sys.exit(f"FATAL {md_path}: a section with no number: {line}")
+def section(m):
+    text = m.group(2).strip()
+    n = NUM.match(text)
     return {
-        "level": level,
-        "outline": n.group(1),
-        "title": n.group(2).strip(),
+        "level": len(m.group(1)) - 1,
+        "outline": n.group(1) if n else None,
+        "title": n.group(2).strip() if n else text,
+        "text": text,
         "body": [],
     }
 
@@ -80,16 +122,23 @@ def write(path, text):
 
 
 def check_outline(md_path, sections):
-    """The numbers must be the outline the doc derives: 1, 1.1, 1.2, 2, ..."""
-    counts = []
+    """The numbers must be the outline the doc derives: 1, 1.1, 1.2, 2, ...
+    An unnumbered section is not counted among its siblings, and every
+    section under it is unnumbered (the qto doc gives them no number)."""
+    counts, numbered = [], [True]
     for s in sections:
         lvl = s["level"]
-        if lvl > len(counts) + 1:
-            sys.exit(f"FATAL {md_path}: section {s['outline']} skips a level")
-        counts = counts[:lvl]
-        if len(counts) < lvl:
+        if lvl > len(numbered):
+            sys.exit(f"FATAL {md_path}: section '{s['text']}' skips a level")
+        counts, numbered = counts[:lvl], numbered[:lvl]
+        while len(counts) < lvl:
             counts.append(0)
+        if s["outline"] is None or not numbered[-1]:
+            s["outline"], s["title"] = None, s["text"]
+            numbered.append(False)
+            continue
         counts[-1] += 1
+        numbered.append(True)
         want = ".".join(str(c) for c in counts)
         if s["outline"] != want:
             sys.exit(
@@ -101,15 +150,19 @@ def compose(head_path, root_path, export_path, doc):
     head = json.load(open(head_path, encoding="utf-8"))
     items = json.load(open(root_path, encoding="utf-8")).get("items") or []
     root = items[0] if items and not items[0].get("parent") else {}
-    out, fence = [], False
+    out, fences = [], Fences()
     for line in open(export_path, encoding="utf-8").read().split("\n"):
-        if FENCE.match(line):
-            fence = not fence
-            out.append(line)
-            continue
-        down = not fence and HEAD.match(line) and not line.startswith("######")
+        down = (
+            not fences.inside(line)
+            and HEAD.match(line)
+            and not line.startswith("######")
+        )
         out.append("#" + line if down else line)
-    parts = [
+    parts = []
+    fm = (root.get("attrs") or {}).get("front_matter")
+    if isinstance(fm, str):
+        parts.append("---\n" + fm + "\n---" if fm else "---\n---")
+    parts += [
         "# " + (head.get("title") or "Untitled"),
         f"> Generated from qto doc `{doc}`; edit it there. This file is its export: "
         "`cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.",

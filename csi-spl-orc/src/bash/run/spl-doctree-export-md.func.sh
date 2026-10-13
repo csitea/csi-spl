@@ -10,8 +10,9 @@
 # @description path reaches the caller), the head (title, hidden root), the
 # @description root's body (the preamble before section 1) and the Markdown of
 # @description `spool doctree export` (the WUI's export rules), and composes:
-# @description title, generated-from line, preamble, the sections one heading
-# @description level down. Byte-stable: an unchanged doc leaves the file as it
+# @description front matter (the root's attrs.front_matter), title,
+# @description generated-from line, preamble, the sections one heading level
+# @description down. Any repo-relative .md path (spec 137 T017). Byte-stable: an unchanged doc leaves the file as it
 # @description is (not even rewritten); a changed node changes only its lines.
 # @description It writes the worktree only; committing the result is the
 # @description caller's (explicit pathspec).
@@ -65,9 +66,11 @@ _spl_doctree_call() {
   DOCTREE_ARGS="$1" DOCTREE_IN="${2:-}" DRY_RUN=0 do_spl_desk_doctree
 }
 
-# _spl_doctree_md_path <rel>: 0 for an .md path under csi-spl-doc/ of the repo.
+# _spl_doctree_md_path <rel>: 0 for a repo-relative .md path (no leading /,
+# no .. step, no .git/ part).
 _spl_doctree_md_path() {
-  [[ "$1" == csi-spl-doc/*.md && "$1" != *..* ]] && return 0
-  do_log "FATAL a qto export path must be an .md file under csi-spl-doc/ (repo-relative, no ..): '$1'"
+  local p="/$1/"
+  [[ "$1" == *?.md && "$1" != /* && "$p" != */../* && "$p" != */./* && "$p" != */.git/* && "$1" != *//* ]] && return 0
+  do_log "FATAL a qto export path must be a repo-relative .md file (no leading /, no . or .. step, not under .git/): '$1'"
   return 1
 }

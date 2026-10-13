@@ -1,15 +1,19 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Move a numbered md page of the repo into a qto document (spec
-# @description 113 / 120), once: after it the qto doc is the primary copy and
+# @description Move an md page of the repo into a qto document (spec 113 /
+# @description 120 / 137), once: after it the qto doc is the primary copy and
 # @description the md file its export (do_spl_doctree_export_md). The page is
-# @description one '# ' title, a preamble, then numbered sections ('## 1. x',
-# @description '### 1.1 y', '#### 1.1.1 z'); each section becomes a heading
-# @description node at its level with its text as the node's body, and the
-# @description preamble the body of the doc's hidden root. Refused before any
-# @description hub call: a path off csi-spl-doc/*.md, a page already in the
-# @description map, a section with no number or numbers the doc would not
-# @description derive (the import never renumbers what others cite). After the
+# @description an optional YAML front matter, one '# ' title, a preamble, then
+# @description sections '## ' .. '###### ', numbered ('## 1. x', '### 1.1 y')
+# @description or not ('## Overview': attrs.numbered false, no outline
+# @description number); each section becomes a heading node at its level with
+# @description its text as the node's body, the preamble the body of the doc's
+# @description hidden root and the front matter its attrs.front_matter.
+# @description Refused before any hub call: a path that is not a repo-relative
+# @description .md file, a page already in the map, a heading that skips a
+# @description level or numbers the doc would not derive (the import never
+# @description renumbers what others cite). All or nothing: a write that fails
+# @description deletes the doc it created, so no partial doc is left. After the
 # @description writes it adds the map row and runs the export, so the md file
 # @description carries its "generated from" line in the same run.
 # @description Every hub call goes through do_spl_desk_doctree (no key path).
@@ -17,7 +21,7 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the workspace, e.g. t1
 # @param DESK_AGENT - required: a seat of this box's desk (do_spl_desk_doctree)
-# @param MD_PATH - required: the md page, repo-relative, e.g. csi-spl-doc/doc/md/runbook-dispatcher.md
+# @param MD_PATH - required: the md page, repo-relative, e.g. csi-spl-doc/doc/md/runbook-dispatcher.md or README.md
 # @param QTO_FOLDER (optional) - the folder id to create the doc in; none = top level
 # @param QTO_MAP (optional) - default <repo>/csi-spl-doc/doc/md/qto-docs.tsv
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -51,25 +55,53 @@ do_spl_doctree_import_md() {
 }
 
 # _spl_doctree_import_write <split dir> <plan> <map> <rel>: create the doc,
-# its preamble and sections, then the map row and the export.
+# its front matter, preamble and sections, then the map row and the export.
+# A failed write after the create deletes the doc (all or nothing).
 _spl_doctree_import_write() {
-  local dir="$1" plan="$2" map="$3" rel="$4" out doc root args lvl num title body
+  local dir="$1" plan="$2" map="$3" rel="$4" out doc root args
   args="create --title $(_spl_doctree_q "$(cat "$dir/title")")"
   [[ -z "${QTO_FOLDER:-}" ]] || args+=" --folder $(_spl_doctree_q "$QTO_FOLDER")"
   out="$(_spl_doctree_call "$args")" || { do_log "$out"; return 1; }
   read -r doc root < <(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d["id"], d["root"])' "$out") ||
     { do_log "FATAL create did not answer an id and a root: $out"; return 1; }
   do_log "INFO created qto doc $doc"
-  if [[ -s "$dir/preamble.md" && -n "$(tr -d '[:space:]' <"$dir/preamble.md")" ]]; then
-    out="$(_spl_doctree_call "edit $doc $root --field body" "$dir/preamble.md")" || { do_log "$out"; return 1; }
+  if ! out="$(_spl_doctree_import_items "$dir" "$plan" "$doc" "$root")"; then
+    do_log "FATAL $rel: $out"
+    _spl_doctree_import_rollback "$doc"
+    return 1
   fi
-  while IFS=$'\t' read -r lvl num title body; do
-    out="$(_spl_doctree_call "add $doc --kind heading --level $lvl --title $(_spl_doctree_q "$title")" "$body")" ||
-      { do_log "FATAL section $num of $rel: $out (qto doc $doc is partial: delete it before a re-run)"; return 1; }
-  done <<<"$plan"
   printf '%s\t%s\n' "$doc" "$rel" >>"$map"
   do_log "OK $rel imported as qto doc $doc ($(wc -l <<<"$plan") sections); map row added"
   QTO_MAP="$map" QTO_DOC="$doc" do_spl_doctree_export_md
+}
+
+# _spl_doctree_import_items <split dir> <plan> <doc> <root>: the writes into
+# the created doc; stops at the first failure, its reason on stdout.
+_spl_doctree_import_items() {
+  local dir="$1" plan="$2" doc="$3" root="$4" out lvl num title body flag
+  if [[ -f "$dir/front_matter.yml" ]]; then
+    out="$(_spl_doctree_call "edit $doc $root --field attrs.front_matter" "$dir/front_matter.yml")" ||
+      { echo "the front matter: $out"; return 1; }
+  fi
+  if [[ -s "$dir/preamble.md" && -n "$(tr -d '[:space:]' <"$dir/preamble.md")" ]]; then
+    out="$(_spl_doctree_call "edit $doc $root --field body" "$dir/preamble.md")" || { echo "the preamble: $out"; return 1; }
+  fi
+  while IFS=$'\t' read -r lvl num title body; do
+    flag=""
+    [[ "$num" != "-" ]] || flag=" --unnumbered"
+    out="$(_spl_doctree_call "add $doc --kind heading --level $lvl$flag --title $(_spl_doctree_q "$title")" "$body")" ||
+      { echo "section $num $title: $out"; return 1; }
+  done <<<"$plan"
+}
+
+# _spl_doctree_import_rollback <doc>: delete the doc a failed import created.
+_spl_doctree_import_rollback() {
+  local out
+  if out="$(_spl_doctree_call "delete $1")"; then
+    do_log "INFO rolled back: qto doc $1 deleted, nothing of the import is left"
+  else
+    do_log "FATAL the rollback failed, qto doc $1 is partial: delete it by hand ($out)"
+  fi
 }
 
 # _spl_doctree_q <text>: one word for DOCTREE_ARGS (its shlex split).

@@ -558,7 +558,7 @@ function entitiesBrowserModule() {
 export default defineNuxtConfig({
   srcDir: "src/",
   compatibilityDate: "2026-09-18",
-  devtools: { enabled: false },
+  devtools: { enabled: isDev },
   ssr: true,
   // the painted app-frame outline 200.html shows until the app
   // mounts (every non-prerendered route boots from 200.html); see the file.

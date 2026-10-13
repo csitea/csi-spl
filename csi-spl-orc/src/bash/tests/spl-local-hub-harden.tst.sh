@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: the local hub's hardening gates (spl-local-hub-harden.func.sh),
+# Purpose: the local hub's hardening gates (spl-local-hub-harden-check.func.sh, spl-local-hub-ports-gate.func.sh),
 #   hermetic: a temp cnf, temp /etc/sub[ug]id, linger and run dirs, the test
 #   user as the hub user, stub docker / ss / getent / id on PATH.
 #   1. _slh_cnf reads user, home, project and ports from cnf env.lde.local_hub;
@@ -94,14 +94,14 @@ run_fn() {
     LOCAL_HUB_COMPOSE_JSON="$T/compose.json" LOCAL_HUB_HUB_ENV="$T/hub.env" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
-    source "$PROJ_PATH/src/bash/run/spl-local-hub-harden.func.sh"
+    source "$PROJ_PATH/src/bash/run/spl-local-hub-harden-check.func.sh"; source "$PROJ_PATH/src/bash/run/spl-local-hub-ports-gate.func.sh"
     eval "$SNIPPET"'
 }
 export -f run_fn
 
 # --- 1. cnf ---------------------------------------------------------------------
 out=$(env -u LOCAL_HUB_USER -u LOCAL_HUB_HOME PROJ_PATH="$PROJ_ROOT" LOCAL_HUB_CNF="$T/lde.env.yaml" bash -c '
-  do_log() { echo "$*"; }; source "$PROJ_PATH/src/bash/run/spl-local-hub-harden.func.sh"
+  do_log() { echo "$*"; }; source "$PROJ_PATH/src/bash/run/spl-local-hub-harden-check.func.sh"; source "$PROJ_PATH/src/bash/run/spl-local-hub-ports-gate.func.sh"
   _slh_cnf && echo "U=$LOCAL_HUB_USER H=$LOCAL_HUB_HOME P=$LOCAL_HUB_PROJECT PORTS=$LOCAL_HUB_PORTS"' 2>&1)
 [[ "$out" == "U=hub-from-cnf H=/var/lib/hub-from-cnf P=proj-from-cnf PORTS=55532 54543 58180 3180" ]] \
   && pass "cnf: user, home, project and the four ports come from env.lde.local_hub" || fail "cnf: $out"

@@ -62,7 +62,7 @@ run_install() {  # extra env as args
     "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
-    source "$PROJ_PATH/src/bash/run/spl-local-hub-harden.func.sh"
+    source "$PROJ_PATH/src/bash/run/spl-local-hub-harden-check.func.sh"; source "$PROJ_PATH/src/bash/run/spl-local-hub-ports-gate.func.sh"
     source "$PROJ_PATH/src/bash/run/spl-local-hub-install.func.sh"
     do_spl_local_hub_install'
 }

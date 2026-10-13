@@ -20,9 +20,8 @@
 # @description     social sign-in, every URL on localhost or a compose service
 # @description   - running containers of the project: no process as host root
 # @description     (the hub user or its subuids only), published on loopback
-# @description do_spl_local_hub_ports_gate  `ss -ltune`: every listener of the
-# @description   hub user, and every listener on a local hub port by anyone,
-# @description   is on loopback; exit 1 otherwise (do_spl_local_hub_status).
+# @description The live ports gate is do_spl_local_hub_ports_gate (its own
+# @description file); it uses _slh_cnf and _slh_loopback from this one.
 # @description
 # @description The user, home, project and ports are cnf env.lde.local_hub
 # @description (lde.env.yaml); LOCAL_HUB_USER / LOCAL_HUB_HOME /
@@ -31,7 +30,6 @@
 # @param   output; default: lde_compose config, when it is defined
 # @param LOCAL_HUB_HUB_ENV (optional) - default $LOCAL_HUB_HOME/state/hub.env
 # @example sudo -u spl-hub -H ./run -a do_spl_local_hub_harden_check
-# @example ./run -a do_spl_local_hub_ports_gate
 #------------------------------------------------------------------------------
 
 # _slh_cnf -- exports LOCAL_HUB_USER, _HOME, _PROJECT and LOCAL_HUB_PORTS (the
@@ -201,24 +199,4 @@ do_spl_local_hub_harden_check() {
   _slhc_user; _slhc_home; _slhc_subids; _slhc_daemon; _slhc_compose; _slhc_hubenv; _slhc_containers
   if ((_SLH_FAILS)); then do_log "FATAL local hub harden check: $_SLH_FAILS FAIL(s)"; return 1; fi
   do_log "OK local hub harden check: $LOCAL_HUB_USER, $LOCAL_HUB_HOME, $LOCAL_HUB_PROJECT"
-}
-
-# do_spl_local_hub_ports_gate -- nothing public: `ss -Hltune` (tcp + udp, the
-# socket's uid), every listener of the hub user and every listener on a local
-# hub port (cnf) must be on loopback.
-do_spl_local_hub_ports_gate() {
-  _slh_cnf || return 1
-  local uid net addr port owner line n=0 bad=0
-  uid="$(id -u "$LOCAL_HUB_USER" 2>/dev/null)" || uid=-1
-  while read -r line; do
-    [[ -z "$line" ]] && continue
-    read -r net _ _ _ addr _ <<<"$line"
-    port="${addr##*:}"; addr="${addr%:*}"
-    owner="$(grep -oE '(^| )uid:[0-9]+' <<<"$line" | cut -d: -f2)"
-    [[ "$owner" == "$uid" || " $LOCAL_HUB_PORTS " == *" $port "* ]] || continue
-    n=$((n + 1))
-    _slh_loopback "$addr" || { echo "FAIL  $net $addr:$port is public (uid ${owner:-0})"; bad=1; }
-  done < <(ss -Hltune 2>/dev/null)
-  if ((bad)); then do_log "FATAL local hub ports gate: a listener is public"; return 1; fi
-  do_log "OK local hub ports gate: $n listener(s) of $LOCAL_HUB_USER / ports $LOCAL_HUB_PORTS, all loopback"
 }

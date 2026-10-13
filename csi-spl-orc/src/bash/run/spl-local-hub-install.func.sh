@@ -145,7 +145,7 @@ _sli_firewall() {
 
 do_spl_local_hub_install() {
   # the cnf reader and the gates live in the harden file
-  declare -F _slh_cnf >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-local-hub-harden.func.sh"
+  declare -F _slh_cnf >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-local-hub-harden-check.func.sh"
   _slh_cnf || return 1
   do_log "INFO local hub install: user $LOCAL_HUB_USER, home $LOCAL_HUB_HOME, DRY_RUN=${DRY_RUN:-1}"
   _sli_prereqs && _sli_user && _sli_home && _sli_subids && _sli_linger && _sli_rootless || return 1

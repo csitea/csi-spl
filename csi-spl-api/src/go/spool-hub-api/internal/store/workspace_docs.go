@@ -42,6 +42,7 @@ var ErrDocRefused = errors.New("refused")
 // DocWhere is where DocItemAdd puts the new item, relative to its anchor.
 type DocWhere string
 
+// The places DocItemAdd may put a new item.
 const (
 	DocSibling DocWhere = "sibling" // right after the anchor, same parent
 	DocParent  DocWhere = "parent"  // in the anchor's place; the anchor becomes its only child

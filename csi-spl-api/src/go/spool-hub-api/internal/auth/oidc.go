@@ -116,8 +116,12 @@ const (
 )
 
 // OIDC paths the fake IdP serves per provider (auth.OIDCAuthPath("xai") …).
-func OIDCAuthPath(p string) string     { return "/oidc/" + p + "/authorize" }
-func OIDCTokenPath(p string) string    { return "/oidc/" + p + "/token" }
+func OIDCAuthPath(p string) string { return "/oidc/" + p + "/authorize" }
+
+// OIDCTokenPath is the fake IdP's token endpoint of provider p.
+func OIDCTokenPath(p string) string { return "/oidc/" + p + "/token" }
+
+// OIDCUserinfoPath is the fake IdP's userinfo endpoint of provider p.
 func OIDCUserinfoPath(p string) string { return "/oidc/" + p + "/userinfo" }
 
 // newOIDC builds a generic OIDC client from the validated config; base is the

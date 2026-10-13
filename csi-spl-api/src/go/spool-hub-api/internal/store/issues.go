@@ -55,6 +55,7 @@ func NormalizeIssueStatus(s string) string {
 	return s
 }
 
+// The bounds of an issue's fields.
 const (
 	// "prio" (rdb 0054 + 0055, owner 2026-09-26): a plain number, 1 the highest,
 	// 5 the lowest; a new issue starts at IssuePriorityDefault. The column

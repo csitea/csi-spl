@@ -33,6 +33,7 @@ import (
 // SettingKind is the JSON type a key holds.
 type SettingKind int
 
+// The kinds a key may hold.
 const (
 	SettingBool SettingKind = iota + 1
 	SettingInt

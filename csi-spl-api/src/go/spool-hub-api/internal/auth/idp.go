@@ -323,7 +323,8 @@ const (
 	avatarMaxRedirects = 3
 )
 
-var AvatarTimeout = 5 * time.Second // a var so tests can shorten it
+// AvatarTimeout bounds one avatar fetch; a var so tests can shorten it.
+var AvatarTimeout = 5 * time.Second
 
 var errAvatar = errors.New("auth: avatar not fetched")
 

@@ -27,6 +27,7 @@ import (
 // ChangeKind names why a row is in a ViewChanges answer.
 type ChangeKind string
 
+// The change kinds.
 const (
 	ChangeNew     ChangeKind = "new"
 	ChangeEdit    ChangeKind = "edit"

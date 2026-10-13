@@ -27,6 +27,7 @@ const (
 // Type is an entity type (search-v1 §0).
 type Type string
 
+// The entity types.
 const (
 	TypeMessage Type = "message"
 	TypeTopic   Type = "topic"
@@ -214,6 +215,7 @@ type Term struct {
 // NodeKind is the AST node kind.
 type NodeKind int
 
+// The node kinds: a leaf term and the three operators.
 const (
 	Leaf NodeKind = iota
 	And

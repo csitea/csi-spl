@@ -36,6 +36,9 @@ const OdRole = "od"
 // OdKinds are the pool's job kinds (3.2), in the P6 cut-over order.
 var OdKinds = []string{"lane_verify", "spawn", "route_post", "box_op"}
 
+// The pool's limits: a lock's lease in seconds (default, min, max), the
+// locks a row may lose, the harnesses a row may exclude and the length of
+// its dedupe key.
 const (
 	OdLeaseDefault = 120 // seconds, owner question Q2 (B); cnf may set lease_s per kind
 	OdLeaseMin     = 15
@@ -59,6 +62,7 @@ var (
 	ErrAskDuplicate = errors.New("ask duplicate")
 )
 
+// The shapes an ask's issue key, needs and vendor (or harness) must have.
 var (
 	IssueKeyRe = regexp.MustCompile(`^([A-Z][A-Z0-9]{1,9}-[0-9]{1,9})?$`)
 	OdNeedsRe  = regexp.MustCompile(`^(box:[a-z0-9][a-z0-9-]{0,31}|prd)?$`)

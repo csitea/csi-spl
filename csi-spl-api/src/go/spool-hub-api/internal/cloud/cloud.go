@@ -18,6 +18,7 @@ import (
 // Provider names one cloud.
 type Provider string
 
+// The providers.
 const (
 	GCP  Provider = "gcp"
 	None Provider = "none"

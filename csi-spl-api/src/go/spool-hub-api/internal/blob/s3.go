@@ -36,6 +36,7 @@ const (
 	s3EnvSession  = "SPOOL_S3_SESSION_TOKEN"
 )
 
+// The S3 driver's env names, as described above.
 const (
 	EnvS3AccessKey    = s3EnvKeyID
 	EnvS3SecretKey    = s3EnvKeyValue

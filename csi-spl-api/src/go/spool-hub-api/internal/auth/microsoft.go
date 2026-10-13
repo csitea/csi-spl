@@ -69,9 +69,13 @@ func validMicrosoftTenant(t string) bool {
 }
 
 // Paths under LoginBase, per authority (the fake IdP serves the same).
-func MicrosoftAuthPath(tenant string) string  { return tenant + "/oauth2/v2.0/authorize" }
+func MicrosoftAuthPath(tenant string) string { return tenant + "/oauth2/v2.0/authorize" }
+
+// MicrosoftTokenPath is the token endpoint of a tenant.
 func MicrosoftTokenPath(tenant string) string { return tenant + "/oauth2/v2.0/token" }
-func MicrosoftKeysPath(tenant string) string  { return tenant + "/discovery/v2.0/keys" }
+
+// MicrosoftKeysPath is the signing-key (JWKS) document of a tenant.
+func MicrosoftKeysPath(tenant string) string { return tenant + "/discovery/v2.0/keys" }
 
 // MicrosoftIssuer is the v2.0 id_token issuer of a tenant.
 func MicrosoftIssuer(loginBase, tid string) string { return loginBase + tid + "/v2.0" }

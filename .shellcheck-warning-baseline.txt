@@ -60,7 +60,6 @@ SC2209|csi-spl-orc/lib/bash/funcs/spl-stripe.func.sh|1
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/lib/spool-mirror-hooks.inc.sh|2
 SC2088|csi-spl-orc/src/bash/features/spawn-agents/lib/spool-mirror-hooks.inc.sh|2
-SC2034|csi-spl-orc/src/bash/features/spawn-agents/lib/spool-notify.inc.sh|1
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/lib/spool-poke-queue.inc.sh|1
 SC1090|csi-spl-orc/src/bash/features/spawn-agents/scripts/agent-identity-reconcile.sh|1
 SC1090|csi-spl-orc/src/bash/features/spawn-agents/scripts/agent-top.sh|1

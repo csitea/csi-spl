@@ -161,7 +161,7 @@ function sectionRow(doc: string, it: DocItem, m: Map<string, DocItem[]>, depth: 
   const key = itemKey(doc, it.id)
   const sub = (m.get(it.id) || []).length > 0
   const name = itemName(it)
-  return { key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'folder' : 'list', kind: 'section', menu: true, expandable: sub, open: sub && opened.value.has(key), active: doc === props.active && it.id === activeItem.value }
+  return { key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'plus' : 'list', kind: 'section', menu: true, expandable: sub, open: sub && opened.value.has(key), active: doc === props.active && it.id === activeItem.value }
 }
 
 function docRow(d: DocHead, depth = 0): FileTreeRow {

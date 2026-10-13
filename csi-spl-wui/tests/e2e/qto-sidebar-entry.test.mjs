@@ -119,6 +119,13 @@ async function fileTree(p) {
   const rows = await rowKeys(p)
   ok('the open document is the active row, expanded to its sections', rows[0] === '1 Handbook' && rows.includes('2 Introduction') && rows.includes('2 Glossary'), rows)
   ok('the active row is marked', await p.$eval('[data-test=qto-file-tree] [aria-selected=true]', (el) => el.textContent.trim()).catch(() => '') === 'Handbook')
+
+  /* SPL-1731: a section with sections under it shows a plus, not a folder; a leaf section a list */
+  const icon = (name) => p.evaluate((name) => [...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].find((el) => el.textContent.trim() === name)?.querySelector('.ftree__icon')?.getAttribute('data-icon') ?? null, name)
+  const introIcon = await icon('Introduction')
+  ok('a section with sections under it shows the plus icon', introIcon === 'plus', introIcon)
+  const leafIcon = await icon('Glossary')
+  ok('a section with no sections under it shows the list icon', leafIcon === 'list', leafIcon)
   /* a section with sections under it starts closed; its chevron opens it */
   const intro = await p.evaluateHandle(() => [...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].find((el) => el.textContent.trim() === 'Introduction'))
   if (!(await intro.evaluate((el) => Boolean(el)))) {

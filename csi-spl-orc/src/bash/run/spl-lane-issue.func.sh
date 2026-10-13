@@ -95,7 +95,7 @@ spl_lane_issue_desk() {
 # spl_lane_issue_announced FLEET_ROOT BOX ID: the desk sidecar on BOX announces
 # ID, by its own rule (hubclient agent_run.go + agent_drop.go). With a fresh
 # run report (FLEET_ROOT/dispatch/agent-run.tsv, at most 5 min old): an id it
-# says runs, one a rotation holds, or a role seat (001-003) a lease mirror
+# says runs, one a rotation holds, or a role seat (spl_is_role_seat) a lease mirror
 # names on BOX; an older or no report drops nothing. A hub cli session acts
 # only as an agent its box announced: on 2026-10-13 a satellite box's role seats were on a
 # usage-limit screen, the lease moved to another box, that desk left c-002 out, and
@@ -106,7 +106,8 @@ spl_lane_issue_announced() {
   (( $(date +%s) - $(stat -c %Y "$rep" 2>/dev/null || echo 0) <= 300 )) || return 0
   st="$(awk -F'\t' -v id="$id" '$1 == id { v = $2 "\t" $3 } END { print v }' "$rep")"
   [[ "$st" == run || "$st" == run$'\t'* || "$st" == $'stop\theld:'* ]] && return 0
-  [[ "$id" =~ ^[A-Za-z]{1,3}-00[1-3]$ ]] || return 1
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_role_seat "$id" || return 1
   for f in lease lease.orch; do
     [[ "$(awk 'NR == 1 { print $1 }' "$fleet/dispatch/$f" 2>/dev/null)" == "$id@$box" ]] && return 0
   done

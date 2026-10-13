@@ -45,7 +45,7 @@ owner's steps at the stage gates.
 | [ ] T030 | Client licence split: a client binary/module that does not import hub, store or billing; an import test enforces it; per-package SPDX | after D2 = split | FR-OS-016 | SPL-1022 |
 | [ ] T031 | TRADEMARK.md; asset licence for wallpapers and logo | after D7 | FR-OS-009 | SPL-1016 |
 | [ ] T032 | Curated public docs: architecture, wire/auth contracts, the relay contract, self-hosting | after D6 | FR-OS-013 | SPL-66, SPL-1021 |
-| [ ] T034 | Per-agent prompt allow-list (FR-OS-017), D12 (owner t1 `dee4081d`, msg `e9ec66fa`). Hub half landed: rdb 0188, the hub check on a DM and an @mention (403 `sender_not_allowed`), admin endpoints. Still open: the Workspace settings editor and the WUI refusal line. Box principals are not listed (agents never checked) | D10: first Stage 3 item | FR-OS-017 | SPL-1018 |
+| [x] T034 | Per-agent prompt allow-list (FR-OS-017), D12 (owner t1 `dee4081d`, msg `e9ec66fa`). Hub half: rdb 0188, the hub check on a DM and an @mention (403 `sender_not_allowed`), admin endpoints. WUI half: the "Who may message each agent" editor on the agent's row in Workspace settings > Agents (admins only) and the refusal line under the composer naming the agent (`composer.send_failed_not_allowed`). Box principals are not listed (agents never checked) | D10: first Stage 3 item | FR-OS-017 | SPL-1018 |
 | [ ] T033 | Run T002 + T003 into a PRIVATE target repo named per D1; `checklist.md` §1 green | T001-T026, D1 | FR-OS-001..004 | SPL-61 |
 
 ## 2. Stage 1: private beta, the stranger test

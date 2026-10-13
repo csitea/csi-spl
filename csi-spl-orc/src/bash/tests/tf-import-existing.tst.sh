@@ -146,8 +146,10 @@ out=$(run_action ENV=prd STEP=040-cloud-sql-postgres DRY_RUN=1 STATE_FIXTURE="$T
 out=$(run_action ENV=dev STEP=040-cloud-sql-postgres STATE_FAIL=1); rc=$?
 [[ $rc -ne 0 && $(command grep -c do_tf_import "$T/docker.log") -eq 0 ]] && pass "state list failure -> rc 1, no import" || fail "state fail: rc=$rc"
 
-# 11. the verdict contract, straight against the real do_log
-real() { env LOG_DIR="$T/log" bash -c 'source "$0"; do_log "$1"' "$T/do_log.sh" "$1" 2>&1; }
+# 11. the verdict contract, straight against the real do_log in its full
+# (decorated) form: the caller's RUN_LOG / RUN_LOG_COMPACT / RUN_STDOUT_IS_DATA
+# must not leak in (the full-tier pre-push exports RUN_LOG_COMPACT=1)
+real() { env -u RUN_LOG -u RUN_STDOUT_IS_DATA RUN_LOG_COMPACT=0 LOG_DIR="$T/log" bash -c 'source "$0"; do_log "$1"' "$T/do_log.sh" "$1" 2>&1; }
 ok_out=$(real "OK Resource imported successfully: a.b -> x y")
 bad_out=$(real "FATAL Failed to import resource: a.b -> x y")
 [[ "$ok_out" != *"OK Resource imported successfully"* ]] \

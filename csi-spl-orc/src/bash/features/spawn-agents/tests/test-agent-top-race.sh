@@ -97,13 +97,44 @@ eq "4. a window renamed after the snapshot keeps the newer name" "CLE-30 renamed
 # Deterministic under load (CLE-77907, flaky at load ~23): wait for the loop
 # to come up (not a fixed sleep), and count only TOP-LEVEL loops - a $(...)
 # the loop forks carries the same cmdline and pgrep -f matched it as a second.
-# The interval is this run's own: pgrep is box-wide, and a sibling run of this
-# test (or its orphaned subshells) matched a shared "--interval 91".
+# The interval is this run's own, so a sibling run's loop never matches.
+#
+# The loop must never outlive this test (SPL-1665). The loop and its
+# `sleep "$IV"` (about 28 h) held the caller's pipes, so do_check_pre_push's
+# tee never saw EOF: the push hung and kept its lock (2026-10-12/13, n=5).
+# The reap was `pkill -f`, which the agent box's kill-guard shim
+# (~/.local/bin/pkill, first on PATH under the hook) refuses with exit 2; a
+# `2>/dev/null` hid that, so nothing was ever killed (red 3 of 3 with the
+# shim on PATH, green without it). So no pattern kill at all:
+#   - the six ensure calls run in a session of their own (setsid -w): the
+#     loop, its forks and its sleep share one process group, the session id;
+#   - that group is SIGKILLed on every exit path of this test (the EXIT trap;
+#     TERM, INT and HUP exit through it);
+#   - the session first closes every inherited fd above 2, so even a loop that
+#     outlives a SIGKILL of this test holds none of the hook's pipes.
 IV="$((100000 + $$ % 100000))"
-for _ in 1 2 3 4 5 6; do bash "$TOP" --ensure-badge-loop --interval "$IV" & done; wait
+SID_FILE="$T_TMP/loop.sid"
+loop_group() { tr -d '[:space:]' 2>/dev/null <"$SID_FILE"; }
+reap_group() {  # SIGKILL the loop's group, then wait until it is empty (<= 10 s)
+  local g _; g="$(loop_group)"; [ -n "$g" ] || return 0
+  for _ in $(seq 50); do
+    kill -KILL -- "-$g" 2>/dev/null
+    pgrep -g "$g" >/dev/null || return 0
+    sleep 0.2
+  done
+}
+trap 'reap_group; t_cleanup' EXIT
+trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+# shellcheck disable=SC2016 # expands in the session's own shell
+setsid -w bash -c '
+  for fd in /proc/$$/fd/*; do fd="${fd##*/}"; [ "$fd" -gt 2 ] && eval "exec $fd>&-"; done 2>/dev/null
+  echo $$ > "$1"; shift
+  for _ in 1 2 3 4 5 6; do bash "$@" & done; wait' \
+  _ "$SID_FILE" "$TOP" --ensure-badge-loop --interval "$IV" </dev/null
+eq "5. the ensure calls ran in a session of their own" 1 "$([ -n "$(loop_group)" ] && echo 1)"
 # A fork that exits between pgrep and ps has no ppid: skipped, never counted.
 loops_top() {
-  local m p pp; m=" $(pgrep -f "^bash \\S*agent-top.sh --badge-loop --interval $IV\$" | tr '\n' ' ')"
+  local m p pp; m=" $(pgrep -g "$(loop_group)" -f "^bash \\S*agent-top.sh --badge-loop --interval $IV\$" | tr '\n' ' ')"
   for p in $m; do
     pp="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')"
     [ -n "$pp" ] || continue
@@ -114,21 +145,14 @@ for _ in $(seq 50); do [ -n "$(loops_top)" ] && break; sleep 0.2; done
 sleep 1
 eq "5. six concurrent ensure calls start one loop" 1 "$(loops_top | wc -l)"
 eq "5. ... and it is the pidfile's loop" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)" "$(loops_top | sed -n 1p)"
-# Reap the loop AND its `sleep "$IV"` (about 28 h): an orphaned sleep holds the
-# caller's stdout, and do_check_pre_push's tee then never saw EOF and hung
-# (2026-10-12, n=2). Killing the loops' direct children was not enough under
-# the gate, so match the sleep by its unique interval until nothing is left.
-reap_loop() {
-  local _
-  for _ in $(seq 25); do
-    pkill -f "^bash \\S*agent-top.sh --badge-loop --interval $IV\$" 2>/dev/null
-    pkill -f "^sleep $IV\$" 2>/dev/null
-    pgrep -f "^(bash \\S*agent-top.sh --badge-loop --interval|sleep) $IV\$" >/dev/null || return 0
-    sleep 0.2
-  done
-}
-reap_loop
-eq "5. ... and no loop or sleep of it is left behind" 0 \
+# What this test holds open (its caller's pipes and files), and what the loop does.
+fd_targets() { local f; for f in /proc/"$1"/fd/*; do readlink "$f"; done 2>/dev/null | grep -v '^/dev/null$' | sort -u; }
+lp="$(loops_top | sed -n 1p)"
+eq "5. ... and it holds none of this test's open pipes or files" "" \
+  "$([ -n "$lp" ] && comm -12 <(fd_targets "$$") <(fd_targets "$lp") | tr '\n' ' ')"
+reap_group
+eq "5. ... and no process of its group is left behind" 0 "$(pgrep -g "$(loop_group)" | wc -l)"
+eq "5. ... nor any loop or sleep with its interval" 0 \
   "$(pgrep -fc "^(bash \\S*agent-top.sh --badge-loop --interval|sleep) $IV\$")"
 
 t_done

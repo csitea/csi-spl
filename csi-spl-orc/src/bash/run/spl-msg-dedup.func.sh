@@ -27,7 +27,9 @@
 # @description SAFETY. DRY_RUN=1 (default) runs the SAME delete inside a
 # @description transaction that is rolled back, and lists every duplicate
 # @description (tenant, channel, topic, msg_id, ts, sender, kept msg_id, first
-# @description 60 chars) plus the count per workspace. DRY_RUN=0 needs
+# @description 60 chars) plus the count per workspace. A workspace whose
+# @description tenants.settings spool_enc is true (spec 136 L6a) lists an
+# @description empty head: the body is not printed (FR9 W5). DRY_RUN=0 needs
 # @description MSG_DEDUP_CONFIRM="<env>/<tenant or all>" and takes a backup
 # @description FIRST (do_spl_db_backup into <env>/pre-msg-dedup-<utc date>/):
 # @description no backup, no delete. It is NOT do_spl_msg_wipe, which deletes
@@ -106,10 +108,13 @@ WITH c AS (
   WHERE c.rn > 1 AND x.tenant_id = c.tenant_id AND x.msg_id = c.msg_id
   RETURNING x.tenant_id, x.channel, x.task_id, x.msg_id, x.ts, x.from_id, c.keep_id, x.body
 )
-SELECT 'DUP', tenant_id, coalesce(channel, '-'), task_id, msg_id,
-       to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), from_id, keep_id,
-       left(regexp_replace(btrim(body), '\s+', ' ', 'g'), 60)
-FROM d ORDER BY tenant_id, channel, task_id, ts, msg_id;
+SELECT 'DUP', d.tenant_id, coalesce(d.channel, '-'), d.task_id, d.msg_id,
+       to_char(d.ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), d.from_id, d.keep_id,
+       CASE WHEN coalesce(t.settings->'spool_enc' = 'true'::jsonb, false) THEN ''
+            ELSE left(regexp_replace(btrim(d.body), '\s+', ' ', 'g'), 60) END
+FROM d
+LEFT JOIN tenants t ON t.tenant_id = d.tenant_id
+ORDER BY d.tenant_id, d.channel, d.task_id, d.ts, d.msg_id;
 \if :dry
 ROLLBACK;
 \else

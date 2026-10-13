@@ -65,6 +65,11 @@
 # @description <spool root>/dispatch/unanswered.rows and reads only the topics
 # @description that moved since (topic heads, archived channels, edits); every
 # @description SWEEP_FULL_EVERY s a full read replaces it and counts the drift.
+# @description A workspace whose tenants.settings spool_enc is true (spec 136
+# @description L6a) contributes an empty body: the excerpt is not copied out
+# @description of the hub (FR9 W5). The cache meta records v=2; a cache without
+# @description it is replaced by a full read, so an excerpt saved earlier does
+# @description not stay.
 # @param ENV - required: dev or prd
 # @param DELIVER (optional) - 1 sends and records; default 0 (report only)
 # @param SWEEP_MIN_AGE (optional) - minutes a human post waits before it counts, default 15
@@ -252,7 +257,9 @@ spl_sweep_rows() {
 
 # spl_sweep_rows_cached <out> (perf round 5 P5-01): a delivering sweep keeps
 # its row set in $LEASE_DIR/unanswered.rows, with the DB time it was read at
-# (unanswered.rows.meta). The next run reads only the topics that moved since
+# (unanswered.rows.meta, v=2). v=2 means a spool_enc workspace's body is empty
+# in every row; a cache with another v is stale and is replaced by a full read.
+# Otherwise the next run reads only the topics that moved since
 # then less SWEEP_OVERLAP s (a write that committed late), and merges them in
 # (spl_sweep_merge). With no cache, a cache of another ENV or SWEEP_DAYS, or
 # the last full read SWEEP_FULL_EVERY s ago or more, it reads the whole set;
@@ -264,13 +271,13 @@ spl_sweep_rows_cached() {
   local out="$1" cache="$LEASE_DIR/unanswered.rows" meta="$LEASE_DIR/unanswered.rows.meta"
   local info="$LEASE_DIR/unanswered.rows.info" days="${SWEEP_DAYS:-7}"
   local every="${SWEEP_FULL_EVERY:-3600}" overlap="${SWEEP_OVERLAP:-300}"
-  local k v m_env="" m_days="" m_now="" m_full="" since="" now full drift="" tns tks
+  local k v m_env="" m_days="" m_now="" m_full="" m_v="" since="" now full drift="" tns tks
   if [[ -r "$cache" && -r "$meta" ]]; then
     while IFS='=' read -r k v; do
-      case "$k" in env) m_env="$v" ;; days) m_days="$v" ;; now) m_now="$v" ;; full) m_full="$v" ;; esac
+      case "$k" in env) m_env="$v" ;; days) m_days="$v" ;; now) m_now="$v" ;; full) m_full="$v" ;; v) m_v="$v" ;; esac
     done <"$meta"
   fi
-  [[ "$m_env" == "$ENV" && "$m_days" == "$days" && "$m_now" =~ ^[0-9]+$ && "$m_full" =~ ^[0-9]+$ ]] &&
+  [[ "$m_env" == "$ENV" && "$m_days" == "$days" && "$m_v" == 2 && "$m_now" =~ ^[0-9]+$ && "$m_full" =~ ^[0-9]+$ ]] &&
     since=$((m_now - overlap))
   [[ -n "$since" ]] && read -r tns tks < <(spl_sweep_keep "$cache")
   if [[ -n "$since" ]] && (( $(date +%s) - m_full < every )); then
@@ -297,7 +304,7 @@ spl_sweep_rows_cached() {
   fi
   # the cache before its meta: a meta left behind only re-reads more
   cp "$out" "$cache.tmp" && mv -f "$cache.tmp" "$cache" &&
-    printf 'env=%s\ndays=%s\nnow=%s\nfull=%s\n' "$ENV" "$days" "$now" "$full" >"$meta.tmp" &&
+    printf 'env=%s\ndays=%s\nnow=%s\nfull=%s\nv=2\n' "$ENV" "$days" "$now" "$full" >"$meta.tmp" &&
     mv -f "$meta.tmp" "$meta" && mv -f "$info.tmp" "$info" || { do_log "FATAL cannot write the row cache in $LEASE_DIR"; return 1; }
   rm -f "$out.now" "$out.delta" "$out.merged"
 }
@@ -326,7 +333,9 @@ spl_sweep_merge() {
 # time (floored: never past the read) into <now out>, the delta since the epoch <since> (plus the topics
 # tns[i]/tks[i], spl_sweep_keep) into <delta out>, and the full set into
 # <out> (skipped when <out> is ""). Tabs and newlines in a body collapse to
-# one space so a row is one line; an agent's body is not read.
+# one space so a row is one line; an agent's body is not read. A workspace
+# whose tenants.settings spool_enc is true (spec 136 L6a) contributes an
+# empty body too: that excerpt must not leave the hub (FR9 W5).
 _spl_sweep_rows_read() {
   local none='{}'
   local out="$1" nowf="${2:-}" since="${3:-}" delta_out="${4:-}" tns="${5:-$none}" tks="${6:-$none}"
@@ -451,6 +460,7 @@ SQL
             THEN 'thread' ELSE 'dm' END,
        CASE WHEN coalesce(l.has_files, false) THEN 'files' ELSE '-' END,
        CASE WHEN l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
+                 AND NOT coalesce(t.settings->'spool_enc' = 'true'::jsonb, false)
             THEN regexp_replace(left(l.body, 400), '[[:space:]]+', ' ', 'g') ELSE '' END,
        coalesce(extract(epoch FROM f.received_at)::bigint::text, ''), coalesce(f.msg_id::text, '')
   FROM k

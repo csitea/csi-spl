@@ -167,7 +167,8 @@ owner's email and password.
 In order: render the env, run the hardening check (any FAIL stops it), build
 the images, start Postgres and ask for the passphrase, start the GCS emulator,
 migrate, run the hub smoke on the separate `smoke` workspace, create the
-workspace once, generate the Web UI when the tree moved, and serve it.
+workspace once, generate the Web UI when the tree moved, serve it, and start
+the daily backup job once its key exists (section 7.1).
 
 ### 4.2 Status and the ports gate
 
@@ -175,8 +176,8 @@ workspace once, generate the Web UI when the tree moved, and serve it.
 ./run -a do_spl_local_hub_status
 ```
 
-Lists the services, checks the hub `/healthz` and the Web UI for 200, and
-fails when any listener of the hub user, or any listener on a local hub port,
+Lists the services and fails when one of them is not running, checks the hub
+`/healthz` and the Web UI for 200, and fails when any listener of the hub user, or any listener on a local hub port,
 is bound beyond loopback. The gate alone, as any user:
 
 ```bash
@@ -269,11 +270,77 @@ Then revoke its seat in **Settings -> Agents**. Its inbox stays on disk under
 
 ## 7. Backup and restore
 
-The local backup job and its restore action are not on master yet.
-`do_spl_local_hub_up` says so on every start (`WARN no backup service`).
-Until they land, no daily backup runs: losing the box's disk loses the
-workspace. This section is replaced by the backup and restore commands when
-they land.
+### 7.1 Make the backup key, once
+
+Backups are encrypted with an age key pair. The job on the box holds only the
+public half; the private half is wrapped with a passphrase and belongs off the
+box. Until the key exists, `do_spl_local_hub_up` does not start the backup
+job and says so on every start (`WARN no backup key yet`).
+
+Make the key on the owner's terminal; it asks for a new passphrase twice:
+
+```bash
+./run -a do_spl_local_hub_backup_keygen
+```
+
+It writes `/var/lib/spl-hub/.config/csi-spl/backup-key/recipient` (the public
+key) and `identity.age` (the wrapped private key) next to it. Copy the
+private key off the box, for example to a USB stick:
+
+```bash
+sudo -u spl-hub cat /var/lib/spl-hub/.config/csi-spl/backup-key/identity.age > <off-box path>/identity.age
+```
+
+Then delete it from the box:
+
+```bash
+sudo -u spl-hub rm /var/lib/spl-hub/.config/csi-spl/backup-key/identity.age
+```
+
+Restart the stack so the daily job starts (section 4.1). Without the private
+key and its passphrase no backup can be read: keep both, apart.
+
+### 7.2 The daily backup
+
+Once a day at 03:15 UTC the job pipes `pg_dump` through age into the
+`backups` volume; no clear dump touches the disk. It keeps the newest 14.
+`LOCAL_HUB_BACKUP_AT` and `LOCAL_HUB_BACKUP_KEEP` change both. Check that the
+key is in place:
+
+```bash
+./run -a do_spl_local_hub_backup_check
+```
+
+Take a backup now:
+
+```bash
+./run -a do_spl_local_hub_backup
+```
+
+List the backups:
+
+```bash
+./run -a do_spl_local_hub_backup_list
+```
+
+### 7.3 Prove a backup restores
+
+Restores the newest backup into a new scratch database, checks its table and
+migration counts against the backup's record, then drops the scratch
+database. The live data is not touched. It asks for the private key's
+passphrase on the terminal:
+
+```bash
+LOCAL_HUB_BACKUP_IDENTITY_FILE=<off-box path>/identity.age ./run -a do_spl_local_hub_restore
+```
+
+`LOCAL_HUB_RESTORE_FILE=<backup name>` picks an older backup from the list.
+
+### 7.4 Restore over the live data
+
+`LOCAL_HUB_RESTORE_LIVE=1` replaces the workspace's data with the backup. It
+refuses while the hub runs and needs `LOCAL_HUB_RESTORE_CONFIRM` set to the
+live database's name. Prove the backup first (section 7.3).
 
 ## 8. Updates
 

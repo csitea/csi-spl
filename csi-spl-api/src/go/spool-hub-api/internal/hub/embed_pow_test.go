@@ -33,9 +33,15 @@ func powZeroBits(s string) int {
 // iframe does.
 func solvePow(t *testing.T, challenge, body string, want int) string {
 	t.Helper()
+	return solvePowFrom(t, challenge, body, want, 0)
+}
+
+// solvePowFrom is solvePow trying nonces from from on.
+func solvePowFrom(t *testing.T, challenge, body string, want, from int) string {
+	t.Helper()
 	bodySum := sha256.Sum256([]byte(body))
 	prefix := challenge + "." + hex.EncodeToString(bodySum[:]) + "."
-	for i := 0; i < 1<<26; i++ {
+	for i := from; i < 1<<26; i++ {
 		if nonce := strconv.Itoa(i); powZeroBits(prefix+nonce) >= want {
 			return nonce
 		}
@@ -107,7 +113,14 @@ func TestEmbedFirstPostNeedsProof(t *testing.T) {
 		refusal.Error != hub.TokenEmbedChallenge || refusal.Challenge == "" || refusal.Bits != 8 {
 		t.Fatalf("no proof: %d %s, want 428 embed_challenge with a challenge", code, raw)
 	}
+	// good proves "hi" but not "other text": "another body" reuses it, and a
+	// nonce proving both (1 in 2^8) let that case through, after which every
+	// later case was a second post that needs no proof (SPL-1702).
 	good := solvePow(t, c.Challenge, "hi", 8)
+	for powZeroBits(c.Challenge+"."+hexSum("other text")+"."+good) >= 8 {
+		n, _ := strconv.Atoi(good)
+		good = solvePowFrom(t, c.Challenge, "hi", 8, n+1)
+	}
 	oc := getChallenge(t, e, tid, embed, other)
 	bad := "x"
 	for powZeroBits(c.Challenge+"."+hexSum("hi")+"."+bad) >= 8 {

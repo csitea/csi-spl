@@ -47,8 +47,15 @@ mkdir -p "$SPOOL_ROOT/c-777"/{inbox,outbox,archive,lifetime}
 out="$(sw 1 grok c-777)"; rc=$?
 eq "lane c-777 grok reuse: refused, exit 2" 2 "$rc"
 has "lane c-777 grok reuse: names the mismatch" "c-777 is not a grok id" "$out"
+# SPL-1685: a seat is 001-003 in ANY vendor letter, so the way back from a
+# Grok seat (g-001 respawned as claude) is a seat too; a lane stays refused
+mkdir -p "$SPOOL_ROOT/g-001"/{inbox,outbox,archive,lifetime}
 out="$(sw 1 claude g-001)"; rc=$?
-eq "g-001 claude reuse: refused, exit 2" 2 "$rc"
+eq "g-001 claude reuse (SPL-1685 seat): dry run exits 0" 0 "$rc"
+hasnt "g-001 claude reuse: no kind/id refusal" "is not a claude id" "$out"
+mkdir -p "$SPOOL_ROOT/g-777"/{inbox,outbox,archive,lifetime}
+out="$(sw 1 claude g-777)"; rc=$?
+eq "lane g-777 claude reuse: refused, exit 2" 2 "$rc"
 
 # the live hop: the pane's launcher must see SPAWN_REUSE_ID=1 too
 pane_out() {  # PANE: the pane's screen once its launcher has finished

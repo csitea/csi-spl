@@ -207,9 +207,10 @@ spl_lane_table() {
 spl_lane_table_recent() {
   local shown hidden
   if [[ "${LANE_ALL:-0}" == 1 ]]; then spl_lane_table "$1"; return; fi
-  shown="$(jq -c --argjson max "${LANE_RECENT_S:-7200}" --arg h "$LANE_HUB_STATE" \
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  shown="$(jq -c --argjson max "${LANE_RECENT_S:-7200}" --arg h "$LANE_HUB_STATE" --arg seat "^${SPL_ROLE_SEAT_RX}$" \
     '[.[] | select(
-        (.state == "live" and (.agent_id | test("^c-00[123]$")))
+        (.state == "live" and (.agent_id | test($seat)))
         or (.age_s >= 0 and .age_s < $max)
         or (.age_s < 0 and $h != "ok"))]' <<<"$1")"
   spl_lane_table "$shown"
@@ -280,6 +281,7 @@ spl_lane_clis_here() {
 # rankings (LEASE_PRIORITY*), then any other box a row names.
 # spawn-window.sh places a lane by it; the table prints it as its header.
 spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON array or null) [CLIS_HERE (JSON array or null)]
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   local f="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf" conf_boxes="" seat_ids="" kb
   if [[ -r "$f" ]]; then
     conf_boxes="$(sed -n 's/^LEASE_PRIORITY[A-Z_]*=\([a-z0-9,-]*\)$/\1/p' "$f" | tr ',' '\n' | grep -E '^[a-z0-9][a-z0-9-]{0,31}$')"
@@ -289,9 +291,9 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
   [[ "$kb" =~ ^[0-9]+$ ]] || kb=null
   jq -c --arg here "$LANE_BOX" --argjson herekb "$kb" --argjson herelive "${2:-null}" --argjson hereclis "${3:-null}" --arg h "$LANE_HUB_STATE" \
     --argjson max "${LANE_RECENT_S:-7200}" --argjson boxmax "${LANE_BOX_ROW_MAX_S:-3600}" --arg brid "$LANE_BOX_ROW_ID" \
-    --arg conf "$conf_boxes" --arg seats "$seat_ids" '
+    --arg conf "$conf_boxes" --arg seats "$seat_ids" --arg seatrx "^${SPL_ROLE_SEAT_RX}$" '
     ($seats | split("\n") | map(select(length > 0))) as $ids
-    | def seat: test("^[A-Za-z]+-00[1-3]$") or (. as $a | $ids | index($a) != null);
+    | def seat: test($seatrx) or (. as $a | $ids | index($a) != null);
       def gb: if . == null then "?" else (. / 104857.6 | round) as $t | "\($t / 10 | floor).\($t % 10)G" end;
       def field($k): [capture($k + "=(?<v>[^ ]*)")][0].v // "";
     [.[] | select(.agent_id == $brid and .state == "live" and .age_s >= 0 and .age_s < $boxmax)] as $reports

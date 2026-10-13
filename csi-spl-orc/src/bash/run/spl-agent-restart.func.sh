@@ -314,7 +314,8 @@ spl_ars_run() {
   local id="$1" rid="$2" ts="$3" now="$4" d hand seed name="" rc=0 role=""
   d="$SPOOL_ROOT/$id/handoff"
   hand="$d/$rid.md" seed="$d/$rid.seed.md"
-  if [[ "$id" =~ -00[1-3]$ ]]; then role=1; fi
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  if spl_is_role_seat "$id"; then role=1; fi
   if [[ -n "$ARS_PANE" ]]; then name="$(spl_rotate_tmux display-message -p -t "$ARS_PANE" '#{window_name}' 2>/dev/null || true)"; fi
   # shellcheck disable=SC2034 # read by spl_peer_restart_spawn and the rotate lib
   ROTATE_RID="$rid" ROTATE_OLD_PID="$ARS_PID" ROTATE_OLD_PANE="$ARS_PANE" ROTATE_OLD_NAME="$name" ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_ERR=""

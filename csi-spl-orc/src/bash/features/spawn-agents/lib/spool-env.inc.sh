@@ -179,6 +179,45 @@ spl_kind_of_agent_id() {  # ID -> KIND
   esac
 }
 
+# The role seats (spec 058 3.0: 001 the orchestrator, 002 / 003 the master and
+# failover dispatchers) in the letter of the vendor that runs them (SPL-1685,
+# owner t1 ee1e58d5: c-001 run by Grok is g-001). The ONE list: awk, jq and
+# grep callers take SPL_ROLE_SEAT_RX, bash callers spl_is_role_seat.
+SPL_ROLE_SEAT_RX='[acgmq]-00[1-3]'
+
+# 0 when ID (an "@<box>" allowed) is a role seat in any vendor letter, or its
+# legacy form (CLE-001, specs/061) that queued mail and old journals still carry.
+spl_is_role_seat() {  # ID
+  local id="${1:-}"
+  [[ "$id" =~ ^${SPL_ROLE_SEAT_RX}(@[A-Za-z0-9._-]+)?$ ]] && return 0
+  [[ "$id" =~ ^(CLE|GRK|AGY|QWN)-00[1-3](@[A-Za-z0-9._-]+)?$ ]]
+}
+
+# The seat number of a role seat id (c-001@box-a -> 001); rc 1 for any other id.
+spl_role_seat_num() {  # ID -> NNN
+  spl_is_role_seat "${1:-}" || return 1
+  local id="${1%%@*}"
+  printf '%s' "${id#*-}"
+}
+
+# The role seat id KIND runs seat N as: claude 1 -> c-001, grok 2 -> g-002.
+spl_role_seat_id() {  # KIND N -> ID
+  local l n="${2:-}"
+  case "${1:-}" in
+    claude) l=c ;; grok) l=g ;; agy) l=a ;; mistral) l=m ;; qwen) l=q ;; *) return 1 ;;
+  esac
+  [[ "$n" =~ ^0*[1-3]$ ]] || return 1
+  printf '%s-%03d' "$l" "$((10#$n))"
+}
+
+# Every id of role seat ID's number, one per vendor letter (c-001 -> a-001
+# c-001 g-001 m-001 q-001): the names a vendor switch links to the live seat.
+spl_role_seat_ids() {  # ID
+  local n l
+  n="$(spl_role_seat_num "${1:-}")" || return 1
+  for l in a c g m q; do printf '%s-%s\n' "$l" "$n"; done
+}
+
 # The kinds this feature can launch, and the legacy id prefix each one owns.
 # mistral has none (spec 110 3.1: no MST- is ever minted): nothing, rc 1.
 spool_prefix_of_kind() {  # KIND -> PREFIX
@@ -684,10 +723,10 @@ spool_spawn_requester() {
   printf '%s' "$id"
 }
 
-# 0 for a role seat. These three ids, on any box; the "@<box>" is already
-# stripped. A lease.conf id that is not one of them is still a lane.
+# 0 for a role seat: 001-003 in any vendor letter (spl_is_role_seat), on any
+# box. A lease.conf id that is not one of them is still a lane.
 spool_spawn_is_seat() {  # ID
-  case "$1" in c-001|c-002|c-003) return 0 ;; *) return 1 ;; esac
+  spl_is_role_seat "$1"
 }
 
 # Allow a seat or a shell with no agent id. A lane is exit 9 and one line on
@@ -714,7 +753,7 @@ spool_spawn_gate() {
   if [ "${SPAWN_ALLOW_LANE:-}" = 1 ]; then
     echo "spawn: refused: requester ${req} is a lane; SPAWN_ALLOW_LANE=1 needs a reason in SPAWN_ALLOW_REASON" >&2
   else
-    echo "spawn: refused: requester ${req} is a lane; only c-001, c-002 and c-003, or a shell with no agent id, may spawn" >&2
+    echo "spawn: refused: requester ${req} is a lane; only a role seat (001-003, any vendor letter), or a shell with no agent id, may spawn" >&2
   fi
   return 9
 }

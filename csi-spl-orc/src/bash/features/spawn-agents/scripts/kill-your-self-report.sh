@@ -117,7 +117,7 @@ ksr_reporter() {
 # A role seat: the rotation (spec 060) retires it with `/exit-clean no-close`
 # and hands the same id to the successor; no reviewer ACCEPTs a seat.
 ksr_is_seat() {  # ID (bare)
-  [[ "$1" =~ ^[A-Za-z]+-00[1-3]$ ]] && return 0
+  spl_is_role_seat "$1" && return 0
   grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
 }
 

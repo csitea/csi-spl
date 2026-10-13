@@ -29,7 +29,7 @@ now="${LANE_AGE_NOW:-$(date +%s)}"
 [ -r "$R/registry.tsv" ] || { echo "lane-age-report.sh: no $R/registry.tsv" >&2; exit 1; }
 
 is_role_seat() {  # ID
-  [[ "$1" =~ ^[A-Za-z]+-00[1-3]$ ]] && return 0
+  spl_is_role_seat "$1" && return 0
   grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$R/dispatch/lease.conf" 2>/dev/null
 }
 

@@ -114,7 +114,7 @@ SEND_BODY_WARN=1200
 
 # A role seat (001-003, or an id lease.conf names) takes every topic by design.
 send_role_seat() {  # ID
-  [[ "$1" =~ ^[A-Za-z]+-00[1-3]$ ]] && return 0
+  spl_is_role_seat "$1" && return 0
   grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
 }
 
@@ -182,12 +182,12 @@ send_peers_local() {
 }
 
 # Spec 101 R2 (fleet-roles 3): the dispatcher that takes real lane work spawns
-# the lane itself. A `task` from a dispatcher (c-002 / c-003) to the
+# the lane itself. A `task` from a dispatcher (?-002 / ?-003) to the
 # orchestrator whose body asks for a new lane is that work handed back to the
 # orch: one WARN on stderr; the message is still sent.
 send_lane_ask_warn() {  # FROM TO KIND BODY
-  [ "$3" = task ] && [[ "$1" =~ ^c-00[23]$ ]] || return 0
-  [ "$2" = orchestrator ] || [[ "$2" =~ ^c-001(@.*)?$ ]] || return 0
+  [ "$3" = task ] && [[ "$(spl_role_seat_num "$1")" =~ ^00[23]$ ]] || return 0
+  [ "$2" = orchestrator ] || [ "$(spl_role_seat_num "$2")" = 001 ] || return 0
   grep -qiE '(new|another|fresh|separate) (lane|agent|worker)|spawn (a |an |one )?(lane|agent|worker)|lane,? please' <<<"$4" || return 0
   echo "lane: WARN ${1} asks the orchestrator for a new lane: the dispatcher that takes real lane work spawns it itself (/spawn-an-agent; SPEC-spool-fleet-roles.md section 3). Sent anyway." >&2
 }

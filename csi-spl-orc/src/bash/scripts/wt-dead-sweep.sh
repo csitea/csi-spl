@@ -19,7 +19,7 @@
 #   WT_ROOT           default <WT_REPO>-wt
 #   WT_TRUNK          default origin/master
 #   WT_SWEEP_AGE_H    default 72
-#   WT_SWEEP_KEEP_RE  default ^(c-00[1-3]|CLE-00[1-3])$
+#   WT_SWEEP_KEEP_RE  default ^(<SPL_ROLE_SEAT_RX>|CLE-00[1-3])$ (role seats, any vendor letter)
 #   SPOOL_ROOT        default /var/spool-hub (its agents/ records)
 #
 # One PLAN|REMOVE / KEEP line per worktree, a DONE line.
@@ -33,7 +33,9 @@ repo="${WT_REPO:-$(git -C "$self_dir" rev-parse --path-format=absolute --git-com
 wt_root="${WT_ROOT:-${repo}-wt}"
 trunk="${WT_TRUNK:-origin/master}"
 age_h="${WT_SWEEP_AGE_H:-72}"
-keep_re="${WT_SWEEP_KEEP_RE:-^(c-00[1-3]|CLE-00[1-3])$}"
+# shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
+. "$self_dir/../features/spawn-agents/lib/spool-env.inc.sh"
+keep_re="${WT_SWEEP_KEEP_RE:-^(${SPL_ROLE_SEAT_RX}|CLE-00[1-3])$}"
 spool="${SPOOL_ROOT:-/var/spool-hub}"
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }

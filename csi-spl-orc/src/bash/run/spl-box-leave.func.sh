@@ -281,9 +281,10 @@ spl_box_others() {
   return 0
 }
 
-# A role seat: 001-003 (every box), or an id lease.conf names (as lane-map.sh).
+# A role seat: 001-003 in any vendor letter (every box), or an id lease.conf names (as lane-map.sh).
 spl_box_role_seat() {
-  [[ "$1" =~ ^[A-Za-z]+-00[1-3]$ ]] && return 0
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_role_seat "$1" && return 0
   grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$LEASE_CONF" 2>/dev/null
 }
 

@@ -190,7 +190,7 @@ mix LANE_MIX_KIND=simple_coding LANE_MIX_TASK=task-x
   && pass "4. T4: 1 failed try -> mistral again, though claude is under target" || fail "4. T4 1 try: $(cat "$T/out")"
 # CONTROL: the same 2-try case on a copy of the picker whose threshold is 3
 # must give mistral; it proves the case above can turn red
-CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"
+CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"; ln -s "$PROJ_ROOT/src/bash/features" "$CTL/src/bash/features"
 cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
 sed -i 's/^LANE_MIX_TRIES_MAX=2$/LANE_MIX_TRIES_MAX=3/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
 attempt task-x mistral fail:F2
@@ -559,7 +559,7 @@ bad="$(cat "$T"/t1-*/bad)"; rm -rf "$T"/t1-*
   || fail "11. T1:$bad"
 # CONTROL: agy 10 in simple_coding, on a copy of the picker whose row check
 # lets it through (the validator refuses it, section 13), must pick agy
-CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"
+CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"; ln -s "$PROJ_ROOT/src/bash/features" "$CTL/src/bash/features"
 cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
 sed -i 's/^\( *\)(( _LM_TGT\[agy\] == 0 )) && \[\[ "\$_LM_BACKUP" != agy \]\] || {$/\1true || {/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
 hub '[]'
@@ -570,7 +570,7 @@ MIX_PROJ="$CTL" simulate 1000 LANE_MIX_KIND=simple_coding LANE_MIX_SPLIT_KIND='c
 rm -rf "$T/ctl"
 # CONTROL: the nudge gated on the band again (a deficit past the tolerance
 # only, as before c-851) on the real simple_coding row must break the band
-mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"
+mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"; ln -s "$PROJ_ROOT/src/bash/features" "$CTL/src/bash/features"
 cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
 sed -i 's/^\( *\)d=\$(( _LM_EFF\[\$v\] \* (_LM_N + 1) - _LM_CNT\[\$v\] \* sum ))$/\1d=$(( _LM_EFF[$v] * _LM_N - _LM_CNT[$v] * sum )); (( d * 100 > _LM_TOL * _LM_N * sum )) || d=0/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
 MIX_PROJ="$CTL" simulate 1000 LANE_MIX_KIND=simple_coding LANE_MIX_CNF="$REAL_CNF"
@@ -603,7 +603,7 @@ bad="$(t9 "$PROJ_ROOT")"
   || fail "12. T9: personal data reached agy or qwen:$bad"
 # CONTROL: a picker that lets i18n keep its kind under LANE_MIX_SENSITIVE=1
 # sends the personal data to agy (T9 would be red)
-CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"
+CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"; ln -s "$PROJ_ROOT/src/bash/features" "$CTL/src/bash/features"
 cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
 sed -i 's/^  \[\[ "\$3" == 1 \]\] || return 0$/  [[ "$3" == 1 \&\& "$_LM_KIND" != i18n ]] || return 0/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
 bad="$(t9 "$CTL")"
@@ -644,7 +644,7 @@ done
   && pass "13. T8: every backup in the cnf validator's data-rule set ($SECRET_SET) is accepted" \
   || fail "13. T8: data-rule set '$SECRET_SET' refused:$bad"
 # CONTROL: a picker that accepts a tie lets the tied row through (T8 red)
-CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"
+CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"; ln -s "$PROJ_ROOT/src/bash/features" "$CTL/src/bash/features"
 cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
 sed -i 's/^  (( ties == 0 )) || {/  true || {/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
 bad="$(t8 "$CTL")"

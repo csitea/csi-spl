@@ -45,7 +45,7 @@
 #   SESSION_PRUNE_HUMAN_USERS  default every user ("" = none): agent slugs only
 #   SESSION_PRUNE_AGENT_ONLY   1: this tree is a human's (set by the outer run)
 #   SESSION_PRUNE_AGENT_SLUG_ERE  default: -wt<N>-<agent id> at the slug's end
-#   SESSION_PRUNE_KEEP_RE   default ^(c-00[1-3]|CLE-00[1-3])$
+#   SESSION_PRUNE_KEEP_RE   default ^(<SPL_ROLE_SEAT_RX>|CLE-00[1-3])$ (role seats, any vendor letter)
 #   SESSION_PRUNE_ROOT      one projects root, pruned as the current user
 #   SESSION_PRUNE_SESSIONS  default <home>/.claude/sessions
 #   SESSION_PRUNE_VIBE_DIR  one Vibe session dir; the outer run passes
@@ -65,8 +65,10 @@ uuid_ere='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 agent_only="${SESSION_PRUNE_AGENT_ONLY:-0}"
 slug_ere='-wt[0-9]*-([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)$'
 slug_ere="${SESSION_PRUNE_AGENT_SLUG_ERE:-$slug_ere}"
-keep_re="${SESSION_PRUNE_KEEP_RE:-^(c-00[1-3]|CLE-00[1-3])\$}"
 self="$(readlink -f "${BASH_SOURCE[0]}")"
+# shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
+. "$(dirname "$self")/../features/spawn-agents/lib/spool-env.inc.sh"
+keep_re="${SESSION_PRUNE_KEEP_RE:-^(${SPL_ROLE_SEAT_RX}|CLE-00[1-3])\$}"
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 refuse() { say "REFUSE $*: nothing removed"; exit 2; }

@@ -176,13 +176,14 @@ _spl_desk_up_all_pick() {
 }
 
 # spl_desk_has_role <agent>: 0 when <agent> owns a desk role: a DO seat
-# c-001..c-003, an orchestrator or dispatcher id of lease.conf
+# 001-003 in any vendor letter (spl_is_role_seat), an orchestrator or dispatcher id of lease.conf
 # (spl_desk_is_od), an id in DESK_SEAT, or a lane whose spawner wrote the
 # marker <SPOOL_ROOT>/<agent>/.desk-role. Every other lane is not a desk.
 spl_desk_has_role() {
   local a="$1"
   [[ -n "$a" ]] || return 1
-  [[ "$a" =~ ^c-00[1-3]$ ]] && return 0
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_role_seat "$a" && return 0
   [[ " ${DESK_SEAT:-} " == *" $a "* ]] && return 0
   [[ -e "${SPOOL_ROOT:-/var/spool-hub}/$a/.desk-role" ]] && return 0
   spl_desk_is_od "$a"

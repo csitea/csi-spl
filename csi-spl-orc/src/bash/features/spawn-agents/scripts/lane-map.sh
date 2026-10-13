@@ -65,9 +65,10 @@ fi
 
 # A role seat's lane outlives the seat: the hourly rotation (spec 060) hands
 # the same id to the successor, so marking it done would hide a live lane.
-# The ids: 001-003 (next-agent-id.sh), and whatever lease.conf names.
+# The ids: 001-003 in any vendor letter (spl_is_role_seat), and whatever
+# lease.conf names.
 lane_is_role_seat() {  # ID
-  [[ "$1" =~ ^[A-Za-z]+-00[1-3]$ ]] && return 0
+  spl_is_role_seat "$1" && return 0
   grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
 }
 if [ "$verb" = "done" ] && lane_is_role_seat "$_lane_agent"; then

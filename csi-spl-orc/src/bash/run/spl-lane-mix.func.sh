@@ -374,13 +374,14 @@ _spl_lane_mix_report() {
 _spl_lane_mix_actual() {
   local v vendor
   _LM_N=0
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   for v in "${LANE_MIX_VENDORS[@]}"; do _LM_CNT[$v]=0; done
   if [[ -r "$1" ]]; then
     while read -r vendor; do
       [[ -n "${_LM_CNT[$vendor]+x}" ]] || continue
       _LM_CNT[$vendor]=$(( _LM_CNT[$vendor] + 1 )); _LM_N=$(( _LM_N + 1 ))
-    done < <(awk -F'\t' -v want="$_LM_KIND" -v win="$_LM_WIN" '
-               $1 !~ /-00[1-3]$/ && NF >= 5 {
+    done < <(awk -F'\t' -v want="$_LM_KIND" -v win="$_LM_WIN" -v seat="^${SPL_ROLE_SEAT_RX}(@|$)" '
+               $1 !~ seat && NF >= 5 {
                  k[$1] = $2; t[$1] = $5
                  kd[$1] = ($NF ~ /^(specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration)$/) ? $NF : "simple_coding"
                }

@@ -251,10 +251,11 @@ spl_asks_seats() {  # HOLDER
 spl_asks_seats_here() {
   local f="$SPOOL_ROOT/dispatch/agent-run.tsv" at="" id st
   [[ -r "$f" ]] || return 0
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   read -r _ _ _ at _ <"$f"
   [[ "$at" =~ ^[0-9]+$ ]] && (( $(date +%s) - at <= ${ASKS_SEAT_STALE:-300} )) || return 0
   while IFS=$'\t' read -r id st _; do
-    [[ "$id" =~ ^c-00[1-3]$ && "$st" == run ]] && printf '%s@%s\n' "$id" "$ASKS_BOX"
+    spl_is_role_seat "$id" && [[ "$st" == run ]] && printf '%s@%s\n' "$id" "$ASKS_BOX"
   done <"$f"
   return 0
 }

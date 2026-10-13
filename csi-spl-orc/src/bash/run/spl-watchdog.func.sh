@@ -393,7 +393,7 @@ spl_wd_boot_queue() {
       1) q=$((q + 1)); continue ;;
       *) ref=$((ref + 1)); spl_wd_boot_tally "$bt" refused; failed="$failed $id"; spl_wd_boot_done "$id" "$bt"; continue ;;
     esac
-    if spl_wd_boot_seat "$id"; then seat=""; [[ "$id" =~ -00[1-3]$ ]] && stop="its restart of $id holds rotate.hold"
+    if spl_wd_boot_seat "$id"; then seat=""; spl_wd_is_role_seat "$id" && stop="its restart of $id holds rotate.hold"
     else lanes=$((lanes - 1)); fi
   done < <(spl_wd_boot_ids | spl_wd_boot_order)
   if (( n + q + fly == 0 )); then
@@ -465,6 +465,12 @@ spl_wd_boot_order() {
   for id in "${ids[@]}"; do spl_wd_boot_seat "$id" && echo "$id"; done
   for id in "${ids[@]}"; do spl_wd_boot_seat "$id" || echo "$id"; done
   return 0
+}
+
+# A role seat id, 001-003 in any vendor letter (spl_is_role_seat).
+spl_wd_is_role_seat() {
+  declare -F spl_is_role_seat >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_is_role_seat "$1"
 }
 
 # A seat restarts in slot 0 (do_spl_agent_restart's spl_ars_is_seat): 001..004, an expected seat.
@@ -683,8 +689,8 @@ spl_wd_expected() {
   {
     printf '%s\n' "${LEASE_ORCH:-}" "${LEASE_MASTER:-}" "${LEASE_FAILOVER:-}"
     awk '$1 !~ /^#/ && NF {print $1}' "$SPOOL_ROOT/peer/seats" 2>/dev/null || true
-    for f in "$SPOOL_ROOT"/agents/[acgqm]-00[1-3].json; do
-      [[ -f "$f" ]] || continue
+    for f in "$SPOOL_ROOT"/agents/*.json; do
+      [[ -f "$f" ]] && spl_wd_is_role_seat "$(basename "$f" .json)" || continue
       sn="$(jq -r '.session_name // empty' "$f" 2>/dev/null || true)"
       [[ "$sn" != *@* || "${sn#*@}" == "$ROTATE_BOX" || "${sn#*@}" == "${SPOOL_BOX_TAG:-}" ]] && basename "$f" .json
     done

@@ -433,12 +433,16 @@ spl_wd_upd_exec() {
 # and each reload left them behind for good, carried on by every later exec
 # (SPL-1732: a desk box, 2026-10-13, 926 processes over ~220 code/<sha>
 # trees, ~4 per master push). Closed, they end with the code that made them.
+# 7 and 9 stay only as lock files: once the keeper closed fd 9, a later tee
+# pipe can land on 9 (a sat instance, 2026-10-13: fd 9 a pipe, 54 tee
+# subshells kept alive behind it after the first fixed reload).
 spl_wd_upd_close_fds() {
   local fd
   for fd in "/proc/$BASHPID/fd/"*; do
     fd="${fd##*/}"
     [[ "$fd" =~ ^[0-9]+$ ]] || continue
-    (( fd > 2 && fd != 7 && fd != 9 && fd != 255 )) || continue
+    (( fd > 2 && fd != 255 )) || continue
+    if (( fd == 7 || fd == 9 )) && [[ "$(readlink "/proc/$BASHPID/fd/$fd" 2>/dev/null)" != pipe:* ]]; then continue; fi
     eval "exec $fd>&-" 2>/dev/null || true
   done
   return 0

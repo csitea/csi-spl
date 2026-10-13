@@ -15,6 +15,7 @@
 #   1. the instance's own descendants (no sleep) are the 2 tee subshells of
 #      the code it runs now, never more (red before the fix: 4, then 6)
 #   2. no tee of an earlier code tree is alive anywhere (by its log name)
+#      (also a tee pipe on fd 9, where the keeper lock was: closed too)
 #   3. control: same pid (exec, not restart) and the run lock (fd 7) still
 #      held by it through both reloads
 #------------------------------------------------------------------------------
@@ -54,6 +55,8 @@ main_exec() {
   local n
   # the run lock: taken on the first start, kept through every exec (fd 7)
   [[ -n "${WD_UPD_EXEC:-}" ]] || { exec 7>>"$WD_DIR/run.$WD_INST.lock"; flock -n 7 || exit 1; }
+  # a tee pipe that landed on fd 9 after the keeper closed it (sat 2026-10-13)
+  [[ -n "${WD_UPD_EXEC:-}" ]] || exec 9> >(tee "$WD_DIR/log/run.sh.K9.out.log")
   echo "$$ $CODE" >> "$WD_DIR/execs"
   while :; do
     n="$(cat "$WD_DIR/go" 2>/dev/null || true)"
@@ -123,7 +126,7 @@ cleanup() {
     d="$(under "$PID" | awk '{print $1}')"
     # shellcheck disable=SC2086 # one pid per word
     kill -KILL "$PID" $d 2>/dev/null
-    for c in A B C; do pgrep -f -- "tee $W/log/+run.sh.$c\." | xargs -r kill -KILL 2>/dev/null; done
+    for c in A B C K9; do pgrep -f -- "tee $W/log/+run.sh.$c\." | xargs -r kill -KILL 2>/dev/null; done
   fi
   rm -rf "$T"
 }
@@ -138,8 +141,8 @@ trap cleanup EXIT
 PID=$!
 disown "$PID"
 wait_execs 1 || fail "the loop did not start from code/A"
-k0="$(settle "$PID" 2)"
-[[ "$k0" == 2 ]] && pass "start on A: 2 descendants (the 2 tee subshells)" || fail "start on A: $k0 descendants, want 2"
+k0="$(settle "$PID" 3)"
+[[ "$k0" == 3 ]] && pass "start on A: 3 descendants (the 2 tee subshells + the fd 9 tee)" || fail "start on A: $k0 descendants, want 3"
 
 n=0
 for code in B C; do
@@ -147,7 +150,7 @@ for code in B C; do
   echo "$code" > "$W/go"
   wait_execs $(( n + 1 )) || { fail "reload $n: no exec into code/$code"; continue; }
   k="$(settle "$PID" 2)"
-  case "$code" in B) old="$(old_tees A)" ;; *) old="$(old_tees A B)" ;; esac
+  case "$code" in B) old="$(old_tees A K9)" ;; *) old="$(old_tees A B K9)" ;; esac
   [[ "$k" == 2 ]] && pass "1 reload $n into $code: $k descendants, the old code's are gone" ||
     fail "1 reload $n into $code: $k descendants of pid $PID, want 2 (the old code's tee subshells leaked)"
   [[ "$old" == 0 ]] && pass "2 reload $n into $code: no tee of an earlier code tree alive" ||

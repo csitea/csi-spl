@@ -38,7 +38,7 @@
 import type { IssueEvent } from '~/utils/issues.mjs'
 import { statusLabel } from '~/utils/issues-view.mjs'
 import { ageParts } from '~/composables/errorJournal.mjs'
-import { isoDateTime } from '~/utils/date-iso.mjs'
+import { isoDateTime, isoDateTimeSec } from '~/utils/date-iso.mjs'
 
 const props = defineProps<{
   /** the issue's key, SPL-12 */

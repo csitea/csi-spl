@@ -1,0 +1,6 @@
+Lay-What: A reference to one of our own documents written as plain text in a message or an issue now opens that document when you click it.
+Lay-How: The app checks each such reference against the list of documents it can show and turns only the ones it knows into links.
+Lay-Why: Readers had to copy a document's location by hand to find it; references to unknown documents stay plain so no link leads nowhere.
+Tech-What: WUI: repo doc paths (csi-spl-doc/..., specs/NNN-.../*.md, optional #section) in plain text or a whole inline code span link to /docs/<path>.
+Tech-How: utils/doc-paths.mjs matcher over the docs tree.json, hooked lazily into parseBody (MessageRuns) and markdownTree (MarkdownBlock); fences and links untouched.
+Tech-Why: Owner t1 cda174ef: every doc reference in message cards and issue fields must be clickable; the renderers only linked urls and markdown links.

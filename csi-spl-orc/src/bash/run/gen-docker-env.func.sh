@@ -22,6 +22,10 @@
 # @description                         come from the caller's env (fail fast)
 # @description   LDE_WUI_DISPATCH=1    SPOOL_HUB_WUI_DISPATCH=true with an
 # @description                         ephemeral box-wui key (do_spl_pin_box_wui)
+# @description LDE_HUB_ENV_OVERLAY=<yq path> (e.g. .env.lde.local_hub.hub.env)
+# @description lays that cnf map over the result: a value replaces the key,
+# @description an EMPTY value removes it. {lde_wui_port} / {lde_hub_port} are
+# @description filled in there too.
 # @description An auth switch also sets SPOOL_HUB_AUTH_SESSION_KEY from
 # @description $LDE_STATE_DIR/auth-session.key (generated once per tree, 0600,
 # @description never logged), so sessions survive a hub restart.
@@ -37,7 +41,7 @@ do_gen_docker_env() {
   yq -r '[.env.hub.env, .env.auth.social.env // {}, .env.auth.native.env // {}, .env.mail.env // {}] | .[]
          | to_entries | .[] | select((.value | tostring | test("PLACEHOLDER")) | not)
          | .key + "=" + (.value | tostring)' "$LDE_CNF" >"$tmp" || { rm -f "$tmp"; return 1; }
-  _gde_ports "$tmp" && _gde_switches "$tmp" || { rm -f "$tmp" "$tmp".*; return 1; }
+  _gde_switches "$tmp" && _gde_overlay "$tmp" && _gde_ports "$tmp" || { rm -f "$tmp" "$tmp".*; return 1; }
   if grep -qvE '^SPOOL_HUB_[A-Z_]+=|^STORAGE_EMULATOR_HOST=' "$tmp"; then
     do_log "FATAL hub.env holds a name outside SPOOL_HUB_* / STORAGE_EMULATOR_HOST: $(grep -vE '^SPOOL_HUB_[A-Z_]+=|^STORAGE_EMULATOR_HOST=' "$tmp" | cut -d= -f1 | tr '\n' ' ')"
     rm -f "$tmp"; return 1
@@ -70,6 +74,7 @@ LDE_HUB_PORT=$LDE_HUB_PORT
 LDE_HUB_CONTAINER_PORT=$LDE_HUB_CONTAINER_PORT
 LDE_HUB_ENV_FILE=$LDE_HUB_ENV_FILE
 LDE_SMOKE_TENANT=$LDE_SMOKE_TENANT
+LDE_WUI_TENANT=$LDE_WUI_TENANT
 LDE_WUI_IMAGE=$LDE_WUI_IMAGE
 LDE_WUI_PORT=$LDE_WUI_PORT
 LDE_WUI_SRC=$LDE_WUI_SRC
@@ -102,6 +107,21 @@ _gde_cors() {
     [[ ",$cors," == *",$o,"* ]] || cors="${cors:+$cors,}$o"
   done
   _gde_set "$f" SPOOL_HUB_VIEW_CORS_ORIGINS "$cors"
+}
+
+# _gde_overlay <file> -- LDE_HUB_ENV_OVERLAY (see the header); no-op unset.
+_gde_overlay() {
+  [[ -n "${LDE_HUB_ENV_OVERLAY:-}" ]] || return 0
+  local f="$1" kv
+  [[ "$(yq -r "$LDE_HUB_ENV_OVERLAY | type" "$LDE_CNF")" == '!!map' ]] ||
+    { do_log "FATAL LDE_HUB_ENV_OVERLAY $LDE_HUB_ENV_OVERLAY is not a map in $LDE_CNF"; return 1; }
+  while IFS= read -r kv; do
+    if [[ "$kv" == *= ]]; then
+      grep -v "^${kv%=}=" "$f" >"$f.set"; mv -f "$f.set" "$f"
+    else
+      _gde_set "$f" "${kv%%=*}" "${kv#*=}" || return 1
+    fi
+  done < <(yq -r "$LDE_HUB_ENV_OVERLAY | to_entries | .[] | .key + \"=\" + (.value | tostring)" "$LDE_CNF")
 }
 
 # _gde_set <file> <KEY> <value> -- replace KEY's line, or append it.

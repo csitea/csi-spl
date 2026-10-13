@@ -22,6 +22,12 @@
 # @param   env.lde.switches.auth_native / .wui_dispatch
 # @param LDE_AUTH_PROVIDERS (optional) - comma list, overrides
 # @param   env.lde.switches.auth_providers (set it empty to force social off)
+# @param LDE_COMPOSE_PROJECT_NAME (optional) - the compose project, instead of
+# @param   <cnf compose_project>-<tree slug> (the local hub runs its own)
+# @param LDE_SMOKE_TENANT (optional) - overrides env.lde.smoke_tenant
+# @param LDE_WUI_TENANT (optional) - the WUI's tenant, default the smoke tenant
+# @param LDE_COMPOSE_EXTRA_FILES (optional) - space-separated compose files
+# @param   lde_compose adds after the four lde ones (overlays)
 # @example do_lde_cnf && echo "$LDE_COMPOSE_PROJECT $LDE_HUB_PORT"
 #------------------------------------------------------------------------------
 do_lde_cnf() {
@@ -49,7 +55,7 @@ do_lde_cnf() {
   do_spl_merged_cnf "$LDE_CNF_DIR" lde "$LDE_CNF" || { do_log "FATAL cannot merge the lde cnf"; return 1; }
 
   _lde_get() { yq -r "$1 // \"\"" "$LDE_CNF"; }
-  LDE_COMPOSE_PROJECT="$(_lde_get .env.lde.compose_project)-$slug"
+  LDE_COMPOSE_PROJECT="${LDE_COMPOSE_PROJECT_NAME:-$(_lde_get .env.lde.compose_project)-$slug}"
   LDE_PG_IMAGE="$(_lde_get .env.lde.pg.image)"
   LDE_PG_PORT="${LDE_PG_PORT:-$(_lde_get .env.lde.pg.host_port)}"
   LDE_PG_DB="$(_lde_get .env.lde.pg.db)"
@@ -68,7 +74,8 @@ do_lde_cnf() {
     LDE_WUI_IMAGE="node:${node_major:-20}-bookworm-slim"
   fi
   LDE_HUB_CONTAINER_PORT="$(_lde_get .env.hub.cloud_run.port)"
-  LDE_SMOKE_TENANT="$(_lde_get .env.lde.smoke_tenant)"
+  LDE_SMOKE_TENANT="${LDE_SMOKE_TENANT:-$(_lde_get .env.lde.smoke_tenant)}"
+  LDE_WUI_TENANT="${LDE_WUI_TENANT:-$LDE_SMOKE_TENANT}"
   LDE_FILES_BUCKET="$(_lde_get .env.hub.env.SPOOL_HUB_FILES_BUCKET)"
   LDE_MIGRATIONS_DIR="$(_lde_get .env.hub.env.SPOOL_HUB_MIGRATIONS_DIR)"
   LDE_SQL_SRC="$APP_PATH/$(_lde_get .env.lde.hub.sql_src)"
@@ -91,12 +98,12 @@ do_lde_cnf() {
 
   local v
   for v in LDE_PG_IMAGE LDE_PG_PORT LDE_PG_DB LDE_PG_USER LDE_PG_PASSWORD LDE_GCS_IMAGE LDE_GCS_PORT \
-           LDE_HUB_PORT LDE_WUI_PORT LDE_HUB_CONTAINER_PORT LDE_SMOKE_TENANT LDE_FILES_BUCKET LDE_MIGRATIONS_DIR LDE_SQL_SRC; do
+           LDE_HUB_PORT LDE_WUI_PORT LDE_HUB_CONTAINER_PORT LDE_SMOKE_TENANT LDE_WUI_TENANT LDE_FILES_BUCKET LDE_MIGRATIONS_DIR LDE_SQL_SRC; do
     [[ -n "${!v}" && "${!v}" != null ]] || { do_log "FATAL $v is empty: check lde.env.yaml / all.env.yaml"; return 1; }
   done
   export LDE_ORG LDE_APP LDE_ORG_APP LDE_CNF_DIR LDE_TREE_SLUG LDE_STATE_DIR LDE_CNF LDE_COMPOSE_PROJECT \
     LDE_PG_IMAGE LDE_PG_PORT LDE_PG_DB LDE_PG_USER LDE_PG_PASSWORD LDE_GCS_IMAGE LDE_GCS_PORT LDE_HUB_PORT LDE_WUI_PORT \
-    LDE_HUB_CONTAINER_PORT LDE_SMOKE_TENANT LDE_FILES_BUCKET LDE_MIGRATIONS_DIR LDE_SQL_SRC LDE_HUB_IMAGE LDE_COMPOSE_ENV \
+    LDE_HUB_CONTAINER_PORT LDE_SMOKE_TENANT LDE_WUI_TENANT LDE_FILES_BUCKET LDE_MIGRATIONS_DIR LDE_SQL_SRC LDE_HUB_IMAGE LDE_COMPOSE_ENV \
     LDE_HUB_ENV_FILE LDE_DOCKER_DIR LDE_WUI_IMAGE LDE_WUI_SRC LDE_WUI_UID LDE_WUI_GID LDE_AUTH_NATIVE LDE_WUI_DISPATCH LDE_AUTH_PROVIDERS
 }
 
@@ -111,11 +118,13 @@ _lde_bool() {
 }
 
 # lde_compose <args...> -- docker compose over the four lde files (infra, rdb,
-# api, wui), this tree's project name and the generated interpolation env.
+# api, wui) plus LDE_COMPOSE_EXTRA_FILES, this tree's project name and the
+# generated interpolation env.
 lde_compose() {
-  docker compose -p "$LDE_COMPOSE_PROJECT" --env-file "$LDE_COMPOSE_ENV" \
-    -f "$LDE_DOCKER_DIR/docker-compose-infra.yaml" \
-    -f "$LDE_DOCKER_DIR/docker-compose-rdb.yaml" \
-    -f "$LDE_DOCKER_DIR/docker-compose-api.yaml" \
-    -f "$LDE_DOCKER_DIR/docker-compose-wui.yaml" "$@"
+  local f files=()
+  for f in docker-compose-infra.yaml docker-compose-rdb.yaml docker-compose-api.yaml docker-compose-wui.yaml; do
+    files+=(-f "$LDE_DOCKER_DIR/$f")
+  done
+  for f in ${LDE_COMPOSE_EXTRA_FILES:-}; do files+=(-f "$f"); done
+  docker compose -p "$LDE_COMPOSE_PROJECT" --env-file "$LDE_COMPOSE_ENV" "${files[@]}" "$@"
 }

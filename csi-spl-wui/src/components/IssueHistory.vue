@@ -3,9 +3,10 @@
      the issue's History tab, oldest first. One row per event: who, what,
      old -> new where it applies, when: YYYY-MM-DD HH:MM:SS and relative
      (SPL-1666, owner msg 01153a44: "the iso ... yyyy-mm-dd HH:MM:SS format
-     on when the events have happened ... and on the mobile IF it fits"). A
-     row where the absolute time would push the time onto a new line shows
-     the relative time only; hover or a tap shows the full time. The hub
+     on when the events have happened ... and on the mobile IF it fits").
+     Desktop always shows both (the row wraps if it must). On the phone
+     layout a row where the absolute time would push the time onto a new
+     line shows the relative time only; hover or a tap shows the full time. The hub
      answers GET /v1/view/issues/{ref}/history; `stamp` changes when the issue
      or its discussion did, and the list is read again. -->
 <template>
@@ -47,6 +48,7 @@ import type { IssueEvent } from '~/utils/issues.mjs'
 import { statusLabel } from '~/utils/issues-view.mjs'
 import { ageParts } from '~/composables/errorJournal.mjs'
 import { browserTimeZone, isoDateTime, isoDateTimeSec, viewerTimeZone } from '~/utils/date-iso.mjs'
+import { useMobileStack } from '~/composables/useMobileStack'
 
 const props = defineProps<{
   /** the issue's key, SPL-12 */
@@ -65,6 +67,7 @@ const events = ref<IssueEvent[]>([])
 const state = ref<'loading' | 'ok' | 'failed'>('loading')
 const now = ref(Date.now())
 const list = ref<HTMLElement | null>(null)
+const stack = useMobileStack()
 
 /* the issue's own field names (issues.*), so the tab adds no copy of them */
 const FIELD_KEY: Record<string, string> = {
@@ -91,14 +94,17 @@ async function load() {
 }
 watch(() => [props.issueKey, props.stamp], load, { immediate: true })
 
-/* "IF it fits": a row keeps the absolute time only while the time stays on
-   the line it would have without it. Measured in the DOM (data-fit, not
-   reactive state), again on every resize. */
+/* "IF it fits", phone layout only (desktop always shows it): a row keeps
+   the absolute time only while the time stays on the line it would have
+   without it. Measured in the DOM (data-fit, not reactive state), again on
+   every resize. */
 function fit() {
+  const phone = stack.isMobile.value
   for (const li of list.value?.children || []) {
     const at = li.querySelector<HTMLElement>('.issue-history__at')
     if (!at || at.dataset.open) continue
     delete at.dataset.fit
+    if (!phone) continue
     const top = at.offsetTop
     at.dataset.fit = 'rel'
     if (at.offsetTop === top) delete at.dataset.fit
@@ -114,7 +120,7 @@ watch(list, (el) => {
   ro?.disconnect()
   if (el && typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(() => fit()); ro.observe(el) }
 })
-watch([events, now], () => nextTick(fit))
+watch([events, now, () => stack.isMobile.value], () => nextTick(fit))
 onBeforeUnmount(() => ro?.disconnect())
 
 function whatOf(e: IssueEvent): string {

@@ -80,6 +80,8 @@ declare -F spl_wd_peers >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-peers.func.sh"
 declare -F spl_wd_self_update >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-self-update.func.sh"
+declare -F spl_wd_orch_outcome >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-orch-outcome.func.sh"
 
 SPL_WD_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -195,6 +197,8 @@ spl_wd_tick() {
   spl_wd_agents "$tick" > "$tick/agents"
   spl_wd_fence "$now" "$tick"
   spl_wd_boot "$now" "$tick"
+  # SPL-1717: the orchestrator role judged by its output (spl-wd-orch-outcome.func.sh)
+  spl_wd_orch_outcome "$now"
   spl_wd_heartbeat agents
   # named pids only: a bare `wait` also waits for ./run's tee process substitutions
   local -a jp=()

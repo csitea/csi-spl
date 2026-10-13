@@ -381,6 +381,34 @@ State lives in `<spool root>/dispatch/wd/` (`ensure.restarts`, `ensure.last`,
 
 **Retention**: `wd.log` (written by the loop), and `run.out` and `ensure.out` (rotated by the keeper), are copied to `<file>.1` and emptied in place once a day (`WD_LOG_KEEP`, 86400 s) or when they pass `WD_LOG_MAX_BYTES` (64 MiB). So each log holds between one and two days. `<file>.since` holds the start of the current generation. The 5000-line cap it replaces held about an hour on a busy box. Measured 2026-10-06: about 5000 lines/h on one box and about 600 lines/h on another.
 
+### 6.5 The orchestrator judged by its output (SPL-1717)
+
+Lesson [lesson-grok-od-roles-2026-10-13.md](../../doc/md/lesson-grok-od-roles-2026-10-13.md)
+1.5: a role seat can renew every lease and send many messages and still
+produce nothing. The situations of 6.1 judge a session; this check judges the
+orchestrator ROLE, whatever vendor runs it. It is one box-level call of the
+tick, like the fence (`spl_wd_orch_outcome`,
+`csi-spl-orc/src/bash/run/spl-wd-orch-outcome.func.sh`), not a situation
+script, and changes none of them.
+
+- **Where**: only the box named by `<LEASE_DIR>/lease.orch`, at most once per
+  `WD_ORCH_OUTCOME_EVERY` (300 s) across the three instances.
+- **Outcome** in the last `WD_ORCH_OUTCOME_HOURS` (2 h; 0 = off), any one of:
+  a lane brief (a new `<x>001*.md` in `WD_ORCH_BRIEF_DIRS`, default
+  `<spool root>/dispatch/briefs` and `/var/tmp/c-parent-level/dispatch/briefs`),
+  a round brief (a `kind: task` message in a `<x>-001/outbox`), or an ask the
+  role closed (a `done` or `decline` line by seat 001 in
+  `<spool root>/asks/journal.log`). Another seat's briefs, notes and closes
+  do not count.
+- **Waiting**: an ask to the orchestrator (a spawn request is one) still
+  `open` or `acked` in the ask book and created before the window.
+- **Alert**: no outcome while something waits -> ONE `blocker` to the
+  dispatch lease holder on task `wd-orch-outcome`, naming up to 5 asks. Once
+  per episode; an outcome, or nothing waiting, ends it and re-arms it. Every
+  check writes one `ORCH-OUTCOME` line to `wd.log`; `DRY_RUN=1` logs the
+  blocker it would send.
+- **Test**: `csi-spl-orc/src/bash/tests/wd-orch-outcome.tst.sh`.
+
 ## 7. The hooks, and the inbox-inject hook
 
 ### 7.1 Events (Claude Code first)

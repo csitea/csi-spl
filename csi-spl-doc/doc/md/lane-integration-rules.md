@@ -103,6 +103,43 @@ renders it (`tests/test-seed-no-force-push.sh`).
 What enforces it (ruleset, pre-push hook, matcher, seed), for humans too:
 [developer guide](developer-guide.md) section 4.
 
+### 3.3 Push in the background, poll the verdict (SPL-1578)
+
+Rule (4) pushes with `do_spl_push_master` (`csi-spl-orc/src/bash/run/spl-push-master.func.sh`),
+never a foreground `git push origin HEAD:master` and never a foreground loop
+around one. The action checks the tree, detaches one worker (setsid, its log
+and ONE status file under `<spool root>/<id>/lifetime/push-master/`) and
+returns at once. The worker runs FETCH, the rebase with the lane's identity,
+the `%ae %ce` check of rule (6), then the push; a push refused because master
+moved while the hook ran is rebased and retried (`PUSH_RETRIES`, default 4).
+It ends with `PUSHED <sha>` plus the `FETCH --landed` exit code, `REFUSED
+<reason>` with the hook's tail, or `GAVE-UP`. `PUSH_CMD=status` prints it and
+exits 0 / 1 / 3 (running); the lane polls it in short calls. The action never
+forces, unsets `SPL_PREPUSH_OVERRIDE` and edits no file (a conflicting rebase
+is aborted). Test: `csi-spl-orc/src/bash/tests/spl-push-master.tst.sh`.
+
+Why: the watchdog kills a lane whose ONE tool call runs past 15 min (S4), and
+the push is the call that does: m-900@sat (mistral, 2026-10-13 00:30Z, the
+push call open 16 min), g-881@sat (grok, 2026-10-12, a foreground fetch ->
+rebase -> test -> push loop of up to 4 tries), m-188 on the other box (mistral,
+2026-10-11); n=3, two vendors. The pre-push hook's wall time on sat, 48 h to
+2026-10-13T00:50Z, from `~/.cache/csi-spl/pre-push.log` (`secs=` of the
+verdict lines):
+
+| verdicts | n | p50 | p90 | max | > 10 min | > 15 min |
+|---|---|---|---|---|---|---|
+| PASS + REFUSE | 292 | 16 s | 450 s | 79058 s (a hung run) | 17 | 9 |
+| PASS | 249 | 13 s | 363 s | 857 s | 4 | 0 |
+| REFUSE | 43 | 255 s | 1029 s | 79058 s | 13 | 9 |
+
+The hook log does not record git's own verdict, so a push rejected AFTER a
+green hook (master moved) is not counted directly. A proxy: of the 102 PASS
+shas not on `origin/master` afterwards, 83 were followed by another hook run
+of the same tree on a new HEAD within 30 min, the rebase-and-retry shape. Each
+retry pays the hook again, so a busy master turns a 6-min hook into a call
+past 15 min. The verdict cache (`pre-push-gate.md` 1.1) is content-keyed and
+does not help: the rebase makes a new tree.
+
 ## 4. Refresh the main source (rule 5)
 
 ### 4.1 `merge --ff-only`, never `pull --ff-only`

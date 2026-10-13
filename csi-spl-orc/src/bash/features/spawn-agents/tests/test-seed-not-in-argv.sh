@@ -22,7 +22,7 @@ for k in claude grok agy qwen mistral; do
   out="$(SPAWN_PLAN_DIR="$P" SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' \
     bash "$T_SCRIPTS/spawn-$k.sh" "$id" "$T_TMP/repo" "$T_TMP/brief.md" "slug words 77" 2>&1)"
   launch="$(cat "$P/launch.cmd" 2>/dev/null)"; seed="$(cat "$P/prompt.txt" 2>/dev/null)"
-  has "$k: control: the seed file holds the full seed (git push)" "git push origin HEAD:master" "$seed"
+  has "$k: control: the seed file holds the full seed (push action)" "do_spl_push_master" "$seed"
   has "$k: control: ... and the brief path" "read your full task brief at $T_TMP/brief.md" "$seed"
   hasnt "$k: the launch carries no 'git push'" "git push" "$launch"
   hasnt "$k: ... no seed text" "INTEGRATION / CLOSING STEPS" "$launch"

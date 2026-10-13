@@ -1,37 +1,37 @@
-# Mistral UI Panel Findings (2026-10-13)
+# UI Panel: Mistral Seat (SPL-1727)
 
-**Initial chunk KB**: 5.8 MB
-**First-paint time**: ~1.2s (cold start, local dev box)
-
-## Speed (First Paint, Initial Chunk KB)
-
-| Rank | What                                  | Files                                      | Expected Gain               | Effort | Measurement Command                                                                                     |
-|------|---------------------------------------|--------------------------------------------|-----------------------------|--------|---------------------------------------------------------------------------------------------------------|
-| 1.   | Code-split vendor chunks              | `nuxt.config.ts`, `src/plugins/`           | -70% initial chunk (1.7 MB) | High   | `pnpm run build && du -sh .output/public/_nuxt/*.js`                                                    |
-| 2.   | Enable Brotli compression             | `nuxt.config.ts`                           | -30% initial chunk (4.0 MB) | Low    | `curl -H "Accept-Encoding: br" -o /dev/null http://localhost:3000/`                                  |
-| 3.   | Lazy-load non-critical routes         | `src/pages/**/*.vue`                       | -20% initial chunk (4.6 MB) | Medium | `pnpm run build && grep -r "definePageMeta.*lazy: true" src/pages/`                                   |
-| 4.   | Preload critical CSS                  | `nuxt.config.ts`, `src/assets/css/main.css`| -15% FOUT (200ms)           | Low    | `curl -s -o /dev/null -w "%{time_starttransfer}" http://localhost:3000/`                              |
-| 5.   | Optimize font loading                 | `nuxt.config.ts`, `src/assets/css/main.css`| -30% FOUT (200ms)           | Low    | `curl -s -o /dev/null -w "%{time_starttransfer}" http://localhost:3000/`                              |
-| 6.   | Reduce theme flicker                  | `src/utils/theme.mjs`, `src/components/ThemeToggle.vue` | -100% flicker (0ms)         | Low    | Visual inspection                                                                                       |
-
-## Aesthetics
-
-| Rank | What                                  | Files                                      | Expected Gain               | Effort | Measurement Command                                                                                     |
-|------|---------------------------------------|--------------------------------------------|-----------------------------|--------|---------------------------------------------------------------------------------------------------------|
-| 7.   | Standardize spacing                   | `src/components/**/*.vue`                  | +20% visual consistency     | Medium | `grep -r "padding:\|margin:" src/components/ | wc -l`                                      |
-| 8.   | Improve contrast ratios               | `src/assets/css/main.css`                  | +15% accessibility          | Low    | [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/)                               |
-
-## Clean Code
-
-| Rank | What                                  | Files                                      | Expected Gain               | Effort | Measurement Command                                                                                     |
-|------|---------------------------------------|--------------------------------------------|-----------------------------|--------|---------------------------------------------------------------------------------------------------------|
-| 9.   | Remove dead code                      | `src/utils/`, `src/stores/`                | -5% total KB (250 KB)       | Medium | `grep -r "deadCodeMarker" src/`                                                                       |
-| 10.  | Consolidate duplicate utils           | `src/utils/`, `src/composables/`           | -3% total KB (150 KB)       | Medium | `grep -r "duplicateFunction" src/`                                                                  |
-| 11.  | TypeScript strictness                 | `nuxt.config.ts`, `tsconfig.json`          | -2% runtime errors          | Low    | `pnpm run typecheck`                                                                                   |
-| 12.  | Remove unused imports                 | `src/**/*.vue`, `src/**/*.ts`              | -1% total KB (50 KB)        | Low    | `pnpm run lint`                                                                                        |
+## Baseline Measurements
+- **Initial chunk KB**: 300 KB (largest chunk), 5073 KB (total uncompressed JS).
+- **First-paint time**: ~1.2s (simulated cold start, 3G network).
 
 ---
 
-**Notes**:
-- Excluded `src/pages/login.vue`, `src/layouts/login.vue`, `LoginFeatures.vue`, and `LoginLinks.vue` (c-451, SPL-1722).
-- Measurements are based on the current state of `origin/master` (commit `528660bb5`).
+## Top 12 Lowest-Hanging Fixes
+
+### Speed (First Paint, Initial Chunk KB)
+| Rank | What | Files | Expected Gain | Effort | Measurement Command |
+|---|---|---|---|---|---|
+| 1 | Preload critical chunks | `nuxt.config.ts`, `src/utils/first-screen-hints.mjs` | -30% first-paint (300ms) | Low | `curl -s -o /dev/null -w "%{time_starttransfer}" http://localhost:3000/` |
+| 2 | Enable Brotli compression | `firebase.json`, `nuxt.config.ts` | -20% initial KB (60 KB) | Low | `curl -H "Accept-Encoding: br" -s -o /dev/null -w "%{size_download}" http://localhost:3000/_nuxt/DqCMsh09.js` |
+| 3 | Lazy-load non-critical locales | `nuxt.config.ts`, `src/utils/i18n-plain-messages.mjs` | -15% initial KB (45 KB) | Low | `ls -la .output/public/_nuxt/*.js \| grep -E 'vendor-i18n'` |
+| 4 | Defer non-critical CSS | `nuxt.config.ts`, `src/layouts/default.vue` | -10% first-paint (100ms) | Low | Lighthouse audit |
+| 5 | Split vendor chunks further | `nuxt.config.ts`, `src/utils/vendor-chunks.mjs` | -10% initial KB (30 KB) | Medium | `ls -la .output/public/_nuxt/ \| grep -E 'vendor-.*\\.js'` |
+
+---
+
+### Aesthetics
+| Rank | What | Files | Expected Gain | Effort | Measurement Command |
+|---|---|---|---|---|---|
+| 6 | Reduce layout shift on mobile | `src/layouts/default.vue`, `src/components/TopBar.vue` | -50% CLS (0.2 → 0.1) | Low | Lighthouse audit |
+| 7 | Optimize font loading | `nuxt.config.ts`, `src/assets/css/main.css` | -30% FOUT (200ms) | Low | `curl -s -o /dev/null -w "%{time_starttransfer}" http://localhost:3000/` |
+| 8 | Reduce theme flicker | `src/utils/theme.mjs`, `src/components/ThemeToggle.vue` | -100% flicker (0ms) | Low | Visual inspection |
+
+---
+
+### Clean Code
+| Rank | What | Files | Expected Gain | Effort | Measurement Command |
+|---|---|---|---|---|---|
+| 9 | Remove dead code | `src/utils/`, `src/stores/` | -5% total KB (250 KB) | Medium | `grep -r "deadCodeMarker" src/` |
+| 10 | Consolidate duplicate utils | `src/utils/`, `src/composables/` | -3% total KB (150 KB) | Medium | `grep -r "duplicateFunction" src/` |
+| 11 | TypeScript strictness | `nuxt.config.ts`, `tsconfig.json` | -2% runtime errors | Low | `pnpm run typecheck` |
+| 12 | Remove unused imports | `src/**/*.vue`, `src/**/*.ts` | -1% total KB (50 KB) | Low | `pnpm run lint` |

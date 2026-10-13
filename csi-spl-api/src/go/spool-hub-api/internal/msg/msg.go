@@ -306,3 +306,110 @@ func Filename(m *Message) string {
 	}
 	return fmt.Sprintf("%s--%s--%s-%s.json", stamp, m.From, slug, frag)
 }
+
+// V3 is a sealed message (spec 136 section 3.1): the clear envelope of an
+// `enc` workspace's message, its body and files sealed into `ct`. It is not
+// in Supported: a v:3 file lives only under `encrypted/`, and Parse refuses
+// it (no body, unknown keys), so a reader of v:1/v:2 never takes it for mail.
+const V3 = 3
+
+// SealScheme is the one `enc` value v:3 knows (spec 136 section 4, Q1 A).
+const SealScheme = "age"
+
+// MaxSealedCTBytes caps `ct` before it is decoded: the 64 KiB clear body
+// plus 16 attachments' metadata, as base64 with an age stanza per recipient,
+// stays far below it.
+const MaxSealedCTBytes = 1 << 20
+
+// Sealed is the v:3 object. `body` is absent, not empty; `files` stays
+// empty on the outside (attachment metadata is sealed inside `ct`).
+type Sealed struct {
+	V      int          `json:"v"`
+	MsgID  string       `json:"msg_id"`
+	TaskID string       `json:"task_id"`
+	TS     string       `json:"ts"`
+	From   string       `json:"from"`
+	To     string       `json:"to"`
+	Kind   string       `json:"kind"`
+	Enc    string       `json:"enc"`
+	For    []string     `json:"for"`
+	CT     string       `json:"ct"`
+	Files  []Attachment `json:"files"`
+}
+
+// MarshalSealed returns the v:3 object in sorted-key compact form, as written
+// to disk.
+func MarshalSealed(s *Sealed) ([]byte, error) {
+	c := *s
+	if c.Files == nil {
+		c.Files = []Attachment{}
+	}
+	raw, err := json.Marshal(&c)
+	if err != nil {
+		return nil, err
+	}
+	return sortedCompact(raw)
+}
+
+// ParseSealed decodes a stored v:3 object, rejecting unknown keys (a `body`
+// among them).
+func ParseSealed(raw []byte) (*Sealed, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var s Sealed
+	if err := dec.Decode(&s); err != nil {
+		return nil, fmt.Errorf("decode sealed message: %w", err)
+	}
+	return &s, nil
+}
+
+// Validate enforces the v:3 rules on the clear envelope.
+func (s *Sealed) Validate() error {
+	if s.V != V3 {
+		return fmt.Errorf("sealed message has version %d (want %d)", s.V, V3)
+	}
+	if s.MsgID == "" || s.TaskID == "" || s.TS == "" {
+		return fmt.Errorf("msg_id, task_id and ts are required")
+	}
+	if !ValidID(s.From) {
+		return fmt.Errorf("from %q is not a valid agent id", s.From)
+	}
+	if !ValidTo(s.To) {
+		return fmt.Errorf("to %q is not a valid agent id (nor %s)", s.To, PeersID)
+	}
+	if !validKinds[s.Kind] {
+		return fmt.Errorf("kind %q is not one of "+KindList, s.Kind)
+	}
+	if s.Enc != SealScheme {
+		return fmt.Errorf("enc %q is not %q", s.Enc, SealScheme)
+	}
+	if len(s.For) == 0 {
+		return fmt.Errorf("for names no identity")
+	}
+	for _, id := range s.For {
+		if !ValidID(id) {
+			return fmt.Errorf("for %q is not a valid participant id", id)
+		}
+	}
+	if s.CT == "" || len(s.CT) > MaxSealedCTBytes {
+		return fmt.Errorf("ct is %d bytes (want 1..%d)", len(s.CT), MaxSealedCTBytes)
+	}
+	if len(s.Files) != 0 {
+		return fmt.Errorf("a sealed message carries its files inside ct")
+	}
+	return nil
+}
+
+// SealedFilename builds <yyyymmddThhmmssZ>--<from>--<msg_id first 8>.age.json:
+// no slug, so the name carries no body text (spec 136 3.1, row D5).
+func SealedFilename(s *Sealed) string {
+	t, err := time.Parse(time.RFC3339, s.TS)
+	if err != nil {
+		t = time.Now().UTC()
+	}
+	frag := s.MsgID
+	if len(frag) > 8 {
+		frag = frag[:8]
+	}
+	return fmt.Sprintf("%s--%s--%s.age.json", t.UTC().Format("20060102T150405Z"), s.From, frag)
+}

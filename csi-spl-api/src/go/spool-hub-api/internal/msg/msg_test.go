@@ -271,3 +271,80 @@ func TestAccepts(t *testing.T) {
 		}
 	}
 }
+
+// FR1 (spec 136): a plain message's bytes and file name are exactly today's.
+func TestPlainGoldenUnchanged(t *testing.T) {
+	m := sample()
+	raw, err := Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"body":"review this","files":[],"from":"GRK-03","kind":"task","msg_id":"11111111-2222-4333-8444-555555555555","task_id":"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee","to":"CLE-07","ts":"2026-09-18T12:00:00Z","v":1}`
+	if string(raw) != want {
+		t.Fatalf("Marshal =\n%s\nwant\n%s", raw, want)
+	}
+	if got := Filename(m); got != "20260918T120000Z--GRK-03--review-this-11111111.json" {
+		t.Fatalf("Filename = %q", got)
+	}
+}
+
+func TestSealedValidate(t *testing.T) {
+	ok := func() *Sealed {
+		return &Sealed{V: V3, MsgID: "m", TaskID: "t", TS: "2026-10-13T12:00:00Z",
+			From: "c-101", To: "c-102", Kind: "note", Enc: SealScheme,
+			For: []string{"c-102", "HUM-1"}, CT: "YWdl"}
+	}
+	if err := ok().Validate(); err != nil {
+		t.Fatalf("valid: %v", err)
+	}
+	bad := map[string]func(s *Sealed){
+		"v":     func(s *Sealed) { s.V = V1 },
+		"enc":   func(s *Sealed) { s.Enc = "gpg" },
+		"for":   func(s *Sealed) { s.For = nil },
+		"forid": func(s *Sealed) { s.For = []string{"nope"} },
+		"ct":    func(s *Sealed) { s.CT = "" },
+		"files": func(s *Sealed) { s.Files = []Attachment{{Mode: "path", Kind: "file", Path: "/x", Name: "x"}} },
+		"from":  func(s *Sealed) { s.From = "x" },
+		"kind":  func(s *Sealed) { s.Kind = "x" },
+		"ids":   func(s *Sealed) { s.MsgID = "" },
+		"to":    func(s *Sealed) { s.To = "x" },
+	}
+	for k, f := range bad {
+		s := ok()
+		f(s)
+		if s.Validate() == nil {
+			t.Errorf("%s: want refusal", k)
+		}
+	}
+	if _, err := ParseSealed([]byte(`{"v":3,"body":"x"}`)); err == nil {
+		t.Fatal("ParseSealed must refuse a body key")
+	}
+	if got := SealedFilename(ok()); got != "20261013T120000Z--c-101--m.age.json" {
+		t.Fatalf("SealedFilename = %q", got)
+	}
+}
+
+func TestSealedMarshalRoundTrip(t *testing.T) {
+	s := &Sealed{V: V3, MsgID: "11111111-2222-4333-8444-555555555555", TaskID: "t",
+		TS: "not a time", From: "c-101", To: "peers", Kind: "msg", Enc: SealScheme,
+		For: []string{"HUM-1"}, CT: "YWdl"}
+	raw, err := MarshalSealed(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"ct":"YWdl","enc":"age","files":[],"for":["HUM-1"],"from":"c-101","kind":"msg","msg_id":"11111111-2222-4333-8444-555555555555","task_id":"t","to":"peers","ts":"not a time","v":3}`
+	if string(raw) != want {
+		t.Fatalf("MarshalSealed =\n%s\nwant\n%s", raw, want)
+	}
+	back, err := ParseSealed(raw)
+	if err != nil || back.MsgID != s.MsgID || len(back.For) != 1 {
+		t.Fatalf("ParseSealed: %+v %v", back, err)
+	}
+	if !strings.HasSuffix(SealedFilename(s), "--c-101--11111111.age.json") {
+		t.Fatalf("bad ts name = %q", SealedFilename(s))
+	}
+	s.CT = strings.Repeat("A", MaxSealedCTBytes+1)
+	if s.Validate() == nil {
+		t.Fatal("an oversized ct must be refused before decoding")
+	}
+}

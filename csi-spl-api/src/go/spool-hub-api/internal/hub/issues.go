@@ -470,6 +470,13 @@ type issueFilter struct {
 	parent                  map[int]bool    // rows whose direct parent is one of these
 	kind                    map[string]bool // epic | feature | issue | subtask
 	viewer                  string          // SPL-1559: the member whose unopened marks the list carries; "" = none
+	sheet                   bool            // P5-06: the browser's sheet, read without descriptions
+}
+
+// issueSheetStore reads the list without descriptions (P5-06): the sheet
+// paints none, and the open issue is the by-number read.
+type issueSheetStore interface {
+	ListIssueSheet(ctx context.Context, tenant string) ([]store.Issue, error)
 }
 
 func csvSet(v string) map[string]bool {
@@ -610,7 +617,11 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 	if ie != nil {
 		return nil, ie
 	}
-	all, err := is.ListIssues(ctx, tenant)
+	list := is.ListIssues
+	if ss, ok := is.(issueSheetStore); ok && f.sheet {
+		list = ss.ListIssueSheet
+	}
+	all, err := list(ctx, tenant)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("issue list")
 		return nil, &issueErr{http.StatusInternalServerError, "internal", "issues unavailable"}
@@ -749,7 +760,7 @@ func (s *Server) handleViewIssues(w http.ResponseWriter, r *http.Request, t stor
 		writeIssueErr(w, ie)
 		return
 	}
-	f.viewer = hum
+	f.viewer, f.sheet = hum, true
 	out, ie := s.listIssues(r.Context(), t.ID, f)
 	if ie != nil {
 		writeIssueErr(w, ie)

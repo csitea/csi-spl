@@ -58,6 +58,18 @@ from then on. The discussion topic and the number stay.
 
 A label: `{"id":"bug","name":"Bug","color":"#ff0000","created_by":"…","created_at":"…"}`.
 
+### 2.0 The browser's list carries no description (P5-06, SPL-1739)
+
+`GET /v1/view/issues` (the WUI sheet) answers every issue object with
+`"description": ""`: the sheet paints none, and on prd the text was up to
+0.9 MB detoasted per list read (`csi-spl-doc/doc/md/perf-round-5-plan.md`
+row 6). The text comes with the single read `GET /v1/view/issues/{ref}`,
+which the WUI makes before it opens an issue, so an opened issue never shows
+a blank description. Everything else keeps the text: a live frame (§5), the
+agent list (§6), search (`type:issue` matches words in the description) and
+the hours export. Postgres reads the narrow projection
+(`ListIssueSheet`); the memory store has the one list read.
+
 ### 2.1 `unopened`: a new issue, not opened yet (SPL-1559, rdb 0184)
 
 Owner HUM-10 (t1 7edebc75, msg 7d76ce22): "A new issue should be marked as a

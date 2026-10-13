@@ -181,7 +181,12 @@ func TestEpicCloseArchivesIssues(t *testing.T) {
 	if len(bs) != 1 {
 		t.Fatalf("bugs after a failed cascade: %v", bs)
 	}
-	desc := bs[0]["description"].(string)
+	// The sheet carries no description (P5-06): the bug's text is its by-number read.
+	code, out = call(t, e, tid, http.MethodGet, "/v1/view/issues/"+bs[0]["key"].(string), dev, nil)
+	if code != http.StatusOK {
+		t.Fatalf("read the bug: %d %v", code, out)
+	}
+	desc := issueOf(t, out)["description"].(string)
 	if bs[0]["assignee"] != dev || !strings.Contains(desc, "/issues?issue="+h.key) || !strings.Contains(desc, hi.key) ||
 		!strings.Contains(desc, "forced") {
 		t.Fatalf("the bug: %v", bs[0])

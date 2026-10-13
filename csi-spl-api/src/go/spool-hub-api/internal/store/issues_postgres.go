@@ -15,10 +15,28 @@ import (
 const issueCols = `number, title, description, status, priority, level, assignee, labels, deadline,
 	COALESCE(parent_number, 0), task_id::text, created_by, created_at, updated_by, updated_at, completed_at, canceled_at, kind`
 
+// issueSheetCols is issueCols without description: what the issue sheet
+// paints (perf round 5 P5-06). The open issue is GetIssue's read.
+const issueSheetCols = `number, title, status, priority, level, assignee, labels, deadline,
+	COALESCE(parent_number, 0), task_id::text, created_by, created_at, updated_by, updated_at, completed_at, canceled_at, kind`
+
 func scanIssue(row pgx.Row, tenant, prefix string) (Issue, error) {
 	i := Issue{TenantID: tenant, Prefix: prefix}
 	err := row.Scan(&i.Number, &i.Title, &i.Description, &i.Status, &i.Priority, &i.Level, &i.Assignee, &i.Labels,
 		&i.Deadline, &i.Parent, &i.TaskID, &i.CreatedBy, &i.CreatedAt, &i.UpdatedBy, &i.UpdatedAt, &i.CompletedAt, &i.CanceledAt, &i.Kind)
+	return issueRead(i, err)
+}
+
+// scanIssueSheet reads an issueSheetCols row: Description stays "".
+func scanIssueSheet(row pgx.Row, tenant, prefix string) (Issue, error) {
+	i := Issue{TenantID: tenant, Prefix: prefix}
+	err := row.Scan(&i.Number, &i.Title, &i.Status, &i.Priority, &i.Level, &i.Assignee, &i.Labels,
+		&i.Deadline, &i.Parent, &i.TaskID, &i.CreatedBy, &i.CreatedAt, &i.UpdatedBy, &i.UpdatedAt, &i.CompletedAt, &i.CanceledAt, &i.Kind)
+	return issueRead(i, err)
+}
+
+// issueRead is the tail both scans share.
+func issueRead(i Issue, err error) (Issue, error) {
 	if i.Labels == nil {
 		i.Labels = []string{}
 	}
@@ -319,14 +337,25 @@ func (s *Postgres) GetIssue(ctx context.Context, tenant string, number int) (Iss
 }
 
 func (s *Postgres) ListIssues(ctx context.Context, tenant string) ([]Issue, error) {
+	return s.listIssueRows(ctx, tenant, issueCols, scanIssue)
+}
+
+// ListIssueSheet is ListIssues without description, for the issue sheet
+// (P5-06: up to 0.9 MB of description detoasted per list read on prd).
+// Search, hours export and the calendar keep ListIssues.
+func (s *Postgres) ListIssueSheet(ctx context.Context, tenant string) ([]Issue, error) {
+	return s.listIssueRows(ctx, tenant, issueSheetCols, scanIssueSheet)
+}
+
+func (s *Postgres) listIssueRows(ctx context.Context, tenant, cols string, scan func(pgx.Row, string, string) (Issue, error)) ([]Issue, error) {
 	out := []Issue{}
 	prefix := IssuePrefixDefault
 	err := s.queryTenantBatch(ctx, tenant,
 		tenantRead{sql: `SELECT prefix FROM issue_counters WHERE tenant_id = $1`, args: []any{tenant},
 			each: func(r pgx.Rows) error { return r.Scan(&prefix) }},
-		tenantRead{sql: `SELECT ` + issueCols + ` FROM issues WHERE tenant_id = $1 AND deleted_at IS NULL AND archived_at IS NULL ORDER BY number DESC`, args: []any{tenant},
+		tenantRead{sql: `SELECT ` + cols + ` FROM issues WHERE tenant_id = $1 AND deleted_at IS NULL AND archived_at IS NULL ORDER BY number DESC`, args: []any{tenant},
 			each: func(r pgx.Rows) error {
-				i, err := scanIssue(r, tenant, "")
+				i, err := scan(r, tenant, "")
 				out = append(out, i)
 				return err
 			}})

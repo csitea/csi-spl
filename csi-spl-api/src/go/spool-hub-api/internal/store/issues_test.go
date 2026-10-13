@@ -546,3 +546,50 @@ func TestIssueSoftDelete(t *testing.T) {
 		})
 	}
 }
+
+// P5-06: ListIssueSheet is ListIssues without description, row for row, so
+// the sheet reads no description bytes; GetIssue still carries the text.
+// Postgres only (SPOOL_TEST_PG_DSN): memory has no sheet read.
+func TestListIssueSheet(t *testing.T) {
+	pg, ok := drivers(t)["postgres"].(*Postgres)
+	if !ok {
+		t.Skip("SPOOL_TEST_PG_DSN unset")
+	}
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	tn := uid("is-")
+	if err := pg.CreateTenant(ctx, Tenant{ID: tn, RootPubKey: pubkey()}); err != nil {
+		t.Fatal(err)
+	}
+	ep := testEpic(t, pg, tn, now)
+	desc := "the long text\n" + strings.Repeat("x", 4096)
+	in, err := pg.CreateIssue(ctx, Issue{TenantID: tn, Title: "with text", Description: desc, Parent: ep, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	full, err := pg.ListIssues(ctx, tn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheet, err := pg.ListIssueSheet(ctx, tn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sheet) != len(full) || len(sheet) != 2 {
+		t.Fatalf("rows: sheet %d, full %d, want 2", len(sheet), len(full))
+	}
+	for k := range full {
+		want := full[k]
+		want.Description = ""
+		if sheet[k].Description != "" || sheet[k].Key() != want.Key() || sheet[k].Title != want.Title ||
+			sheet[k].Parent != want.Parent || sheet[k].TaskID != want.TaskID || !sheet[k].UpdatedAt.Equal(want.UpdatedAt) {
+			t.Fatalf("row %d: sheet %+v, want %+v", k, sheet[k], want)
+		}
+	}
+	if full[0].Description != desc {
+		t.Fatalf("ListIssues lost the text: %q", full[0].Description)
+	}
+	if got, err := pg.GetIssue(ctx, tn, in.Number); err != nil || got.Description != desc {
+		t.Fatalf("GetIssue: %v %q", err, got.Description)
+	}
+}

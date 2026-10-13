@@ -69,7 +69,8 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst, withoutMsg } from '~/utils/feed.mjs'
 import { rowsForRightPane } from '~/utils/channel-feed.mjs'
-import { rowTitle, topicTitleFromRows } from '~/utils/view-api.mjs'
+import { topicTitleFromRows } from '~/utils/view-api.mjs'
+import { plainText } from '~/utils/plain-text.mjs'
 import { archiveStamp, latestMessageId } from '~/utils/topic-archive.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
@@ -128,7 +129,7 @@ const latestId = computed(() => latestMessageId(paneRows.value))
 const titleText = computed(() => {
   const rows = (api.mock ? topic.messages : liveRows.value) as SpoolMessage[]
   const subject = topicTitleFromRows(oldestRow.value ? [oldestRow.value, ...rows] : rows, topic.rootMsg)
-  return rowTitle(subject, '')
+  return plainText(subject)
 })
 const heading = computed(() => (titleText.value ? t('topic.list_title', { text: titleText.value }) : t('topic.title')))
 

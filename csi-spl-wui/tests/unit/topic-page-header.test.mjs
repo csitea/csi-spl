@@ -71,13 +71,18 @@ describe('the topic page is the thread alone', () => {
     assert.match(css, /\.topic\.selected,\n\.search-row\.active \{\n  background: var\(--color-selected\);\n  box-shadow: inset var\(--select-bar-w\) 0 0 var\(--focus-ring\);\n\}/)
   })
 
-  it('every topic header strips markdown from the title through rowTitle (SPL-1683)', () => {
+  /* plainText from plain-text.mjs, not rowTitle: view-api.mjs is in the entry
+     chunk, and a live rowTitle pulls plainText into the initial JS (+0.4 KB
+     gzip, over ci_initial_gzip_kb). topicTitleFromRows already cuts the
+     title to TOPIC_TITLE_CHARS. */
+  it('every topic header strips markdown from the title through plainText (SPL-1683)', () => {
     const topicPane = read('src/components/TopicPane.vue')
-    assert.match(topicPane, /rowTitle\(subject, ''\)/)
+    assert.match(topicPane, /plainText\(subject\)/)
     const livePane = read('src/components/LiveTopicPane.vue')
-    assert.match(livePane, /rowTitle\(topicTitleFromRows\(pane\.messages, /)
+    assert.match(livePane, /plainText\(topicTitleFromRows\(pane\.messages, messageRooted\.value \? topic\.rootMsg : null\)\)\)/)
     const dmPage = read('src/pages/dm/[peer].vue')
-    assert.match(dmPage, /rowTitle\(topicTitleFromRows\(data\.messages \|\| \[\], topic\.rootMsg\), ''\)/)
+    assert.match(dmPage, /plainText\(topicTitleFromRows\(data\.messages \|\| \[\], topic\.rootMsg\)\) : ''/)
+    for (const src of [topicPane, livePane, dmPage]) assert.doesNotMatch(src, /\browTitle\b/)
   })
 
   it('rowTitle with no gist strips each inline mark (e.g., **bold** -> bold)', () => {

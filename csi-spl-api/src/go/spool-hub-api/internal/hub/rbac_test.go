@@ -58,6 +58,11 @@ func seat(t *testing.T, e *env, tid, role string) string {
 func call(t *testing.T, e *env, tid, method, path, as string, body any) (int, map[string]any) {
 	t.Helper()
 	var rd io.Reader
+	if m, ok := body.(map[string]any); ok && method == http.MethodPost && path == "/v1/issues" {
+		if _, has := m["discussions"]; !has { // SPL-1593: every create links one; the tenant's default
+			m["discussions"] = []string{store.IssueDiscussionDefault(tid)}
+		}
+	}
 	if body != nil {
 		raw, _ := json.Marshal(body)
 		rd = bytes.NewReader(raw)

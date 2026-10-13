@@ -28,9 +28,9 @@ func Issue(ctx context.Context, cfg *config.Config, in IssueArgs) (json.RawMessa
 		return nil, fmt.Errorf("issues need hub mode ($SPOOL_HUB_URL is not set)")
 	}
 	switch in.Op {
-	case "create", "update", "get", "list", "label", "comment", "delete", "archive", "unarchive":
+	case "create", "update", "get", "list", "label", "comment", "delete", "archive", "unarchive", "link", "unlink":
 	default:
-		return nil, fmt.Errorf("op must be create, update, get, list, label, comment, delete, archive or unarchive")
+		return nil, fmt.Errorf("op must be create, update, get, list, label, comment, delete, archive, unarchive, link or unlink")
 	}
 	if in.As == "" {
 		return nil, fmt.Errorf("--as (the acting agent id) is required")
@@ -39,6 +39,11 @@ func Issue(ctx context.Context, cfg *config.Config, in IssueArgs) (json.RawMessa
 	// in Query as cascade=1; the hub's agent issue op is what applies it.
 	if (in.Op == "archive" || in.Op == "unarchive") && in.Ref == "" {
 		return nil, fmt.Errorf("--ref is required")
+	}
+	// link and unlink (SPL-1593): one discussion of the issue, the topic id
+	// or a /t/<id> link in Body; the hub keeps the last one.
+	if (in.Op == "link" || in.Op == "unlink") && (in.Ref == "" || in.Body == "") {
+		return nil, fmt.Errorf("--ref and --discussion are required")
 	}
 	hc := in.Hub
 	if hc == nil {

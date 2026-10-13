@@ -65,6 +65,10 @@ type issueJSON struct {
 	// yet. Set on a member's list and single-issue reads; a tenant-wide
 	// issue frame leaves it out (it is per viewer).
 	Unopened *bool `json:"unopened,omitempty"`
+	// Discussions (SPL-1593, rdb 0187): the topics the issue links to, at
+	// least one. A list read carries the links; a single-issue read adds each
+	// one's state and title (issue_discussions.go).
+	Discussions []issueDiscussionJSON `json:"discussions,omitempty"`
 }
 
 type issueLabelJSON struct {
@@ -159,6 +163,13 @@ type issueRequest struct {
 	// the reserved label and drops the parent, kind issue removes the label.
 	Epic *string `json:"epic"`
 	Kind *string `json:"kind"`
+	// Discussions: a create's topic ids or /t/<id> links, at least one
+	// (SPL-1593). An update ignores it: POST / DELETE
+	// /v1/issues/{ref}/discussions change them.
+	Discussions *[]string `json:"discussions"`
+	// trusted: the hub itself files it (the blocker sweep): its discussion
+	// is the topic it read, not one the actor must be able to read.
+	trusted bool
 }
 
 // issueErr is a refusal: HTTP status, error token, detail.
@@ -339,6 +350,11 @@ func (s *Server) createIssueOn(ctx context.Context, tenant, actor, task string, 
 	if ie := s.ensureEpicLabel(ctx, tenant, actor, in.Labels); ie != nil {
 		return store.Issue{}, ie
 	}
+	ds, ie := s.discussionsFor(ctx, tenant, actor, q)
+	if ie != nil {
+		return store.Issue{}, ie
+	}
+	in.Discussions = ds
 	out, err := is.CreateIssue(ctx, in, s.o.Now())
 	if ie := storeIssueErr(err); ie != nil {
 		if ie.status == http.StatusInternalServerError {
@@ -346,7 +362,12 @@ func (s *Server) createIssueOn(ctx context.Context, tenant, actor, task string, 
 		}
 		return store.Issue{}, ie
 	}
-	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "create", "issue": toIssueJSON(out, s.storeGetter(ctx, tenant))})
+	j := toIssueJSON(out, s.storeGetter(ctx, tenant))
+	j.Discussions = make([]issueDiscussionJSON, len(ds))
+	for k, d := range ds {
+		j.Discussions[k] = issueDiscussionJSON{TaskID: d, LinkedBy: actor, LinkedAt: rfc(out.CreatedAt)}
+	}
+	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "create", "issue": j})
 	return out, nil
 }
 
@@ -628,9 +649,13 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 	if ie != nil {
 		return nil, ie
 	}
+	links := s.tenantDiscussionLinks(ctx, tenant)
 	out := make([]issueJSON, len(page))
 	for k, i := range page {
 		out[k] = toIssueJSON(i, get)
+		if links != nil {
+			out[k].Discussions = linksJSON(links[i.Number])
+		}
 		if f.viewer != "" {
 			u := issueUnopened(i, f.viewer, opened)
 			out[k].Unopened = &u
@@ -720,12 +745,16 @@ func (s *Server) routeIssues(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/issues/{ref}/archive", s.handleArchiveIssue)
 	mux.HandleFunc("POST /v1/issues/{ref}/unarchive", s.handleUnarchiveIssue)
 	mux.HandleFunc("POST /v1/issues/{ref}/opened", s.handleIssueOpened)
+	mux.HandleFunc("POST /v1/issues/{ref}/discussions", s.handleIssueDiscussionAdd)
+	mux.HandleFunc("DELETE /v1/issues/{ref}/discussions/{task}", s.handleIssueDiscussionRemove)
 	mux.HandleFunc("POST /v1/issue-labels", s.handleCreateIssueLabel)
 	mux.HandleFunc("OPTIONS /v1/issues", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issues/{ref}", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issues/{ref}/archive", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issues/{ref}/unarchive", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issues/{ref}/opened", s.issuesPreflight)
+	mux.HandleFunc("OPTIONS /v1/issues/{ref}/discussions", s.issuesPreflight)
+	mux.HandleFunc("OPTIONS /v1/issues/{ref}/discussions/{task}", s.issuesPreflight)
 	mux.HandleFunc("OPTIONS /v1/issue-labels", s.issuesPreflight)
 }
 
@@ -762,7 +791,9 @@ func (s *Server) handleViewIssue(w http.ResponseWriter, r *http.Request, t store
 		return
 	}
 	out := toIssueJSON(i, s.storeGetter(r.Context(), t.ID))
-	if hum, _ := s.memberID(r, t.ID); hum != "" {
+	hum, _ := s.memberID(r, t.ID)
+	s.withFullDiscussions(r.Context(), t.ID, hum, &out)
+	if hum != "" {
 		opened, ie := s.issuesOpenedBy(r.Context(), t.ID, hum)
 		if ie != nil {
 			writeIssueErr(w, ie)
@@ -812,7 +843,13 @@ func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
 		writeIssueErr(w, ie)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))})
+	out := toIssueJSON(i, s.storeGetter(r.Context(), t.ID))
+	reader := actor
+	if !humanIDRe.MatchString(reader) {
+		reader = ""
+	}
+	s.withFullDiscussions(r.Context(), t.ID, reader, &out)
+	writeJSON(w, http.StatusCreated, map[string]any{"issue": out})
 }
 
 func (s *Server) handlePatchIssue(w http.ResponseWriter, r *http.Request) {

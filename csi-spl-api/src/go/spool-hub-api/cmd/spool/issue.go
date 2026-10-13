@@ -14,18 +14,21 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 )
 
-const issueUsage = `usage: spool issue <list|get|create|update|comment|label|delete|archive|unarchive> --as <AGENT> [flags]
+const issueUsage = `usage: spool issue <list|get|create|update|comment|label|delete|archive|unarchive|link|unlink> --as <AGENT> [flags]
   list      [--epic SPL-1,..] [--kind epic|issue] [--status s,..] [--priority n,..] [--level n,..] [--assignee id|me|none,..] [--label l,..]
             [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created] [--limit N] [--cursor C]
   get       --ref SPL-3
-  create    --title T  --epic SPL-1 | --parent SPL-3 (subtask) | --kind epic|feature  [--description D | --description-file F] [--status S]
+  create    --title T  --discussions <topic id or /t/ link>,..  --epic SPL-1 | --parent SPL-3 (subtask) | --kind epic|feature
+            [--description D | --description-file F] [--status S]
             [--priority 1-5] [--level 1-3] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]
   update    --ref SPL-3 [any create flag; only the flags given change; "" clears]
   comment   --ref SPL-3 --body TEXT | --body-file F
   label     --name N [--color #rrggbb]
   delete    --ref SPL-3 (only its creator; a soft delete)
   archive   --ref SPL-3 [--cascade]
-  unarchive --ref SPL-3 [--cascade]`
+  unarchive --ref SPL-3 [--cascade]
+  link      --ref SPL-3 --discussion <topic id or /t/ link>
+  unlink    --ref SPL-3 --discussion <topic id> (never the issue's last one)`
 
 // cmdIssue is specs/039 FR-008: an agent files and advances its work as
 // issues. The answer object is printed as JSON.
@@ -57,7 +60,7 @@ var errIssueFlags = errors.New("bad flags")
 type issueFlags struct {
 	as, ref, title, desc, descFile, status, priority, level, assignee, labels, label string
 	deadline, parent, epic, kind, before, after, sortBy, body, bodyFile, name, color string
-	limit, cursor                                                                    string
+	limit, cursor, discussions, discussion                                           string
 	cascade                                                                          bool
 	set                                                                              map[string]bool // the flags given
 }
@@ -92,6 +95,8 @@ func newIssueFlagSet(op string, f *issueFlags) *flag.FlagSet {
 		{&f.color, "color", "label colour #rrggbb"},
 		{&f.limit, "limit", "list: page size 1..500 (no --limit is the whole list)"},
 		{&f.cursor, "cursor", "list: the next_cursor of the page before"},
+		{&f.discussions, "discussions", "create: the discussions it links, topic ids or /t/<id> links, comma separated (at least one)"},
+		{&f.discussion, "discussion", "link / unlink: one topic id or /t/<id> link"},
 	} {
 		fs.StringVar(d.p, d.name, "", d.help)
 	}
@@ -118,6 +123,8 @@ func parseIssueArgs(op string, args []string) (action.IssueArgs, error) {
 		in.Issue, err = f.issueObject()
 	case "comment":
 		in.Body, err = f.commentBody()
+	case "link", "unlink":
+		in.Body = f.discussion
 	case "label":
 		in.Issue, _ = json.Marshal(map[string]string{"name": f.name, "color": f.color})
 	case "archive", "unarchive":
@@ -181,6 +188,15 @@ func (f *issueFlags) issueObject() (json.RawMessage, error) {
 			}
 		}
 		obj["labels"] = ls
+	}
+	if f.set["discussions"] {
+		ds := []string{}
+		for _, d := range strings.Split(f.discussions, ",") {
+			if d = strings.TrimSpace(d); d != "" {
+				ds = append(ds, d)
+			}
+		}
+		obj["discussions"] = ds
 	}
 	return json.Marshal(obj)
 }

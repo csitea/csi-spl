@@ -165,6 +165,7 @@ func TestAgentIssuesWholeList(t *testing.T) {
 	defer closeWait(sa)
 	do := func(in action.IssueArgs) map[string]any {
 		in.Hub = a.c
+		in.Issue = withDefaultDiscussion(tid, in.Op, in.Issue)
 		raw, err := action.Issue(ctx, a.cfg, in)
 		if err != nil {
 			t.Fatalf("%+v: %v", in, err)

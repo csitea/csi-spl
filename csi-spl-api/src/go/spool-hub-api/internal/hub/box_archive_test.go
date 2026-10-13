@@ -144,7 +144,7 @@ func TestBoxArchiveIssueRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	task := uuidV4()
-	if _, err := is.CreateIssue(ctx, store.Issue{TenantID: tid, Title: "Epic", Priority: 2, Labels: []string{store.IssueEpicLabel},
+	if _, err := is.CreateIssue(ctx, store.Issue{Discussions: []string{testDiscussion}, TenantID: tid, Title: "Epic", Priority: 2, Labels: []string{store.IssueEpicLabel},
 		TaskID: task, CreatedBy: "HUM-1"}, now); err != nil {
 		t.Fatal(err)
 	}

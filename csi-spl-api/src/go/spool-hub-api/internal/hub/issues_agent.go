@@ -74,8 +74,10 @@ func (s *Server) agentIssueOp(ctx context.Context, x *session, f wire.Frame) (an
 		return s.agentDeleteIssue(ctx, x.tenant, f.As, f.IssueRef)
 	case "archive", "unarchive":
 		return s.agentArchiveIssue(ctx, x.tenant, f.As, f.IssueRef, f.IssueOp == "archive", f.Query)
+	case "link", "unlink": // SPL-1593: body is the discussion (topic id or /t/<id> link)
+		return s.agentLinkDiscussion(ctx, x.tenant, f.As, f.IssueRef, f.Body, f.IssueOp == "link")
 	}
-	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, label, comment, delete, archive or unarchive"}
+	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, label, comment, delete, archive, unarchive, link or unlink"}
 }
 
 // issueWriteAllowed refuses a write while the tenant's billing is unpaid.
@@ -252,7 +254,18 @@ func (s *Server) agentGetIssue(ctx context.Context, tenant, ref string) (any, *i
 	if ie := storeIssueErr(err); ie != nil {
 		return nil, ie
 	}
-	return map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, tenant))}, nil
+	out := toIssueJSON(i, s.storeGetter(ctx, tenant))
+	s.withFullDiscussions(ctx, tenant, "", &out)
+	return map[string]any{"issue": out}, nil
+}
+
+// agentLinkDiscussion is link / unlink: add or remove one discussion.
+func (s *Server) agentLinkDiscussion(ctx context.Context, tenant, as, ref, discussion string, add bool) (any, *issueErr) {
+	out, ie := s.changeDiscussion(ctx, tenant, as, ref, discussion, add)
+	if ie != nil {
+		return nil, ie
+	}
+	return map[string]any{"issue": out}, nil
 }
 
 // agentComment posts the agent's progress line into the issue's discussion

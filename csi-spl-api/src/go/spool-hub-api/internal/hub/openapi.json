@@ -4229,6 +4229,114 @@
         ]
       }
     },
+    "/v1/issues/{ref}/discussions": {
+      "post": {
+        "operationId": "postIssuesByRefDiscussions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "discussion": {
+                    "description": "a topic id, or a link carrying /t/<topic id>",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "discussion"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {issue}; the issue now also links the discussion (a second add is a no-op)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Link a discussion to an issue (SPL-1593)",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
+    "/v1/issues/{ref}/discussions/{task}": {
+      "delete": {
+        "operationId": "deleteIssuesByRefDiscussionsByTask",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {issue}; the link is removed"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "last_discussion: an issue keeps at least one discussion"
+          }
+        },
+        "summary": "Unlink a discussion from an issue; never the last one (SPL-1593)",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
     "/v1/issues/{ref}/opened": {
       "post": {
         "operationId": "postIssuesByRefOpened",

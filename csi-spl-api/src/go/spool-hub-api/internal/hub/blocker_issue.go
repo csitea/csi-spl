@@ -208,8 +208,10 @@ func (s *Server) blockerIssueOn(ctx context.Context, tenant, actor string, p sto
 	}
 	title := blockerTitle(p)
 	status, labels := store.IssueTodo, []string{store.BlockerIssueLabel}
+	// SPL-1593: the issue links the topic the blocker was posted in
+	ds := []string{p.TaskID}
 	return s.createIssueOn(ctx, tenant, actor, task, issueRequest{Title: &title, Description: &desc,
-		Status: &status, Assignee: &a, Labels: &labels})
+		Status: &status, Assignee: &a, Labels: &labels, Discussions: &ds, trusted: true})
 }
 
 // workspaceOwner: a is a member HUM-n whose role is the workspace owner's.

@@ -195,7 +195,7 @@ func seedHeadFix(t *testing.T, pg *Postgres, t0 time.Time) *headFix {
 	f.line("d1", "D", 30*time.Minute, lineOpt{ch: "-", from: "AGT-1", fromBox: "box-a", to: "HUM-1", toBox: "box-wui", kind: "result"})
 	f.line("k0", "K", 25*time.Minute, lineOpt{card: true, parent: "A", body: "child of alpha"})
 	f.line("i0", "I", 20*time.Minute, lineOpt{card: true, ch: ChannelIssues, from: "HUM-2", fromBox: "box-wui", to: "ALL-0"})
-	_, err := pg.CreateIssue(ctx, Issue{TenantID: f.tn, Title: "an issue", TaskID: f.task["I"], CreatedBy: "HUM-2"}, t0)
+	_, err := pg.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: f.tn, Title: "an issue", TaskID: f.task["I"], CreatedBy: "HUM-2"}, t0)
 	f.must("issue", err)
 	f.parent = f.task["A"]
 	return f

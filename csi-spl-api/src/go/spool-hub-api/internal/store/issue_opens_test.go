@@ -21,11 +21,11 @@ func TestIssueOpensPerMember(t *testing.T) {
 			ctx := context.Background()
 			now := time.Now().UTC().Truncate(time.Microsecond)
 			tid := newTenant(t, s)
-			one, err := is.CreateIssue(ctx, Issue{TenantID: tid, Title: "one", TaskID: uuid4(), CreatedBy: "HUM-1", Assignee: "HUM-2"}, now)
+			one, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tid, Title: "one", TaskID: uuid4(), CreatedBy: "HUM-1", Assignee: "HUM-2"}, now)
 			if err != nil {
 				t.Fatal(err)
 			}
-			two, err := is.CreateIssue(ctx, Issue{TenantID: tid, Title: "two", TaskID: uuid4(), CreatedBy: "HUM-1", Assignee: "HUM-2"}, now)
+			two, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tid, Title: "two", TaskID: uuid4(), CreatedBy: "HUM-1", Assignee: "HUM-2"}, now)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -14,7 +14,9 @@ agents use their own socket (§6). Errors are `{error, detail}`.
 | DELETE | `/v1/issues/{ref}` | notes.send + (creator, or `tenant.settings`) | 200 `{issue}` (the row as deleted); 404 `not_found`; 403 `forbidden`; 409 `issue_has_children` |
 | POST | `/v1/issue-labels` | notes.send | 201 `{label}`; 409 `label_exists` |
 | POST | `/v1/issues/{ref}/opened` | a member session | 200 `{key, unopened: false}`; 404 `not_found` (§2.1) |
-| OPTIONS | the three write paths | — | 204, `POST, PATCH, DELETE`, no new request header |
+| POST | `/v1/issues/{ref}/discussions` | notes.send | 200 `{issue}` with its discussions (§2.2); 400 `unknown_discussion` / `ambiguous_discussion`; 404 `not_found` |
+| DELETE | `/v1/issues/{ref}/discussions/{task}` | notes.send | 200 `{issue}`; 409 `last_discussion`; 404 `not_found` (§2.2) |
+| OPTIONS | the write paths | — | 204, `POST, PATCH, DELETE`, no new request header |
 
 `{ref}` is `SPL-12`, `spl-12` or `12`. A write on an unpaid tenant is the
 billing refusal every write gets.
@@ -55,6 +57,10 @@ from then on. The discussion topic and the number stay.
   `issues` is a reserved channel id, not a channel (spec §Discussion space,
   SPL-68): never listed or creatable, readable by every member of the
   tenant. Send the `channel` the object carries; do not hard-code it.
+  It is the issue's OWN comment thread, not the discussion it came from
+  (§2.2).
+- `discussions` (SPL-1593, rdb 0187): the topics the issue links to, at least
+  one (§2.2).
 
 A label: `{"id":"bug","name":"Bug","color":"#ff0000","created_by":"…","created_at":"…"}`.
 
@@ -81,11 +87,60 @@ the rest of the issues."
   (`.unread-dot`, as in the Flow list), clears it when the issue opens, and
   the Issues tab counts exactly those rows.
 
+### 2.2 `discussions`: every issue links to one or more (SPL-1593, rdb 0187)
+
+Owner HUM-10, t1 topic fcf09921: "Issues must be linked to one or more
+discussions." (msg 3e75e13e) "We must create a special part of the UI
+somewhere in the bottom panel where one could click on that one or more
+discussions." (msg 9a8e4764) "that link in the database should be enforced,
+so it should be not null. For all of the existing issues, they could link to
+this discussion." (msg 62f96f94) It replaces spec 135 Q4 A (the source as a
+description line only).
+
+```json
+"discussions":[{"task_id":"<uuid>","state":"live","title":"Login breaks","channel":"devel",
+                "linked_by":"HUM-10","linked_at":"…"}]
+```
+
+- A list read and a live frame carry `task_id`, `linked_by`, `linked_at`. A
+  single read (`GET /v1/view/issues/{ref}`, the agent `get`) adds `state`:
+  `live`, `archived` (it still opens: owner msg 28b479fd) or `gone` (no
+  message left: the WUI opens its "no longer exists" page), and, only when
+  the reader may read that topic, `title` (the opening line) and `channel`.
+- The database keeps the rule: `issue_discussions` (one row per issue and
+  topic); an issue with no row is refused at COMMIT, and so is removing an
+  issue's last row. A topic has no table, so the link carries no foreign key
+  to it.
+- When a discussion is deleted physically (its last message gone: a delete,
+  a topic or channel delete, the retention sweep), its links go; an issue
+  left with none links its tenant's default discussion (owner msg 81a43a7f,
+  "B"). A topic merged into another moves its links there.
+- The default (`issue_discussion_default`, Go `store.IssueDiscussionDefault`):
+  in t1 the owner's topic `fcf09921-8f21-4518-a117-f8ddb41bfff5`; in every
+  other workspace its "Issue backlog" topic (owner msg e3c349e2, "A"), a #lobby
+  card the hub posts (it is signed, so SQL cannot) under msg_id = task_id =
+  the first 128 bits of sha256(`spool-issue-backlog:<tenant>`), at start, on
+  every retention sweep and on a link to it. rdb 0187 linked every issue that
+  existed to it.
+- Add: `{"discussion":"<topic id | 8-hex short id | a link carrying /t/<id>>"}`.
+  A short id must match exactly one topic of the tenant
+  (`ambiguous_discussion` otherwise, never a guess); the actor must be able to
+  read the topic (`unknown_discussion` otherwise). The default discussion is
+  always accepted. A second add is a no-op. At most 20 per issue.
+- Remove: the last one is refused, `last_discussion` 409.
+
 ## 3. Create and patch body
 
 Any subset of `title, description, status, priority, level, assignee, labels,
-deadline, parent, epic, kind`; unknown fields are refused (`bad_json`). Create
-needs `title`; `epic` (or `parent`) is optional since W16 (spec 047): an issue
+deadline, parent, epic, kind, discussions`; unknown fields are refused
+(`bad_json`). Create needs `title` and at least one discussion (§2.2):
+`discussions` is a list of topic ids, short ids or `/t/` links, each one
+resolved as an add is, `discussion_required` 400 for none. A create with no
+`discussions` field links the `/t/` links of its description that resolve (the
+spec 135 card's `Source` line, which an older `spool` binary sends); while
+the WUI still sends neither (the rollout step of SPL-1593), such a create
+links the tenant's default and the hub logs it. A PATCH ignores
+`discussions` (§1 add / remove change them). `epic` (or `parent`) is optional since W16 (spec 047): an issue
 without one stands alone at level 2 and may take subtasks. In a PATCH an absent (or null) field is left alone; `deadline ""`,
 `parent ""`, `assignee ""`, `labels []` clear. `deadline` is RFC 3339 with a
 zone and is stored UTC. Refusals: `bad_issue` (shape / range, the detail names
@@ -132,6 +187,7 @@ mints):
 | `update` | `issue_ref`, `issue` (§3 patch) | `{issue}` |
 | `label` | `issue` = `{name, color?}` | `{label}` |
 | `comment` | `issue_ref`, `body` (1..20000 characters) | `{issue, msg_id, task_id, channel}` |
+| `link` / `unlink` | `issue_ref`, `body` (the discussion, §2.2) | `{issue}` with its discussions |
 
 - `as` must be an agent THIS box announced, else `error`
   `from_not_announced` 403 (the send rule). The agent is `created_by` /
@@ -142,7 +198,8 @@ mints):
   agent on the issue's `task_id` in `#tasks`, `to` `ALL-0`, `to_box`
   `box-wui`, unsigned like a browser post, and shown live in browsers. It is
   delivered to no box.
-- Front ends: `spool issue <op> --as <AGENT> …` (prints the reply as JSON).
+- Front ends: `spool issue <op> --as <AGENT> …` (prints the reply as JSON);
+  `create --discussions <id>,…`, `link|unlink --ref SPL-3 --discussion <id>`.
 
 ## 7. Lists never show an issue's discussion
 

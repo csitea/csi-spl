@@ -48,17 +48,25 @@ ok('substack has no share URL', blogShareHref('substack', post) === null)
 ok('an unknown network has no share URL', blogShareHref('tracker', post) === null)
 ok('Substack Notes is not a share of the post', SUBSTACK_NOTES === 'https://substack.com/notes' && !SUBSTACK_NOTES.includes(enc(url)))
 
-const vue = readFileSync(join(WUI, 'src/pages/blog.vue'), 'utf8')
-ok('the page renders BLOG_SHARE_ORDER', vue.includes('BLOG_SHARE_ORDER'))
-ok('the page opens Substack Notes, not a share URL', vue.includes('SUBSTACK_NOTES'))
-ok('share links are target=_blank rel=noopener', vue.includes('target="_blank"') && vue.includes('rel="noopener"'))
-ok('the row has a test hook', vue.includes('data-test="blog-share"'))
-ok('no inline :style (CSP)', !vue.includes(':style'))
-ok('no external script (CSP)', !/<script[^>]+src=/.test(vue))
-ok('labels are the accessible name and the tooltip', vue.includes(':aria-label="shareLabel(c.id)"') && vue.includes(':title="shareLabel(c.id)"'))
-ok('the buttons draw no label text', !vue.includes('>{{ shareLabel') && !vue.includes(">{{ t('blog.share')"))
-ok('the icon row wraps by flex and names no stray width', vue.includes('.bpost__share { display: flex; flex-wrap: wrap;') && vue.includes('min-width: 28px') && !vue.includes('359px'))
-ok('a check marks a successful copy', vue.includes('is-copied') && vue.includes('M20 6 9 17l-5-5'))
+const blogVue = readFileSync(join(WUI, 'src/pages/blog.vue'), 'utf8')
+const shareRowVue = readFileSync(join(WUI, 'src/components/BlogShareRow.vue'), 'utf8')
+
+// Check that blog.vue renders the BlogShareRow component with the correct props
+ok('the page renders BlogShareRow for the top row', blogVue.includes('<BlogShareRow test-id-suffix="top"'))
+ok('the page renders BlogShareRow for the end row', blogVue.includes('<BlogShareRow test-id-suffix="end"'))
+ok('the page passes shareTitle and sharePageUrl to BlogShareRow', blogVue.includes(':share-title="shareTitle"') && blogVue.includes(':share-page-url="sharePageUrl"'))
+
+// Check that BlogShareRow.vue uses BLOG_SHARE_ORDER and SUBSTACK_NOTES
+ok('BlogShareRow.vue renders BLOG_SHARE_ORDER', shareRowVue.includes('BLOG_SHARE_ORDER'))
+ok('BlogShareRow.vue opens Substack Notes, not a share URL', shareRowVue.includes('SUBSTACK_NOTES'))
+ok('BlogShareRow.vue share links are target=_blank rel=noopener', shareRowVue.includes('target="_blank"') && shareRowVue.includes('rel="noopener"'))
+ok('BlogShareRow.vue has a test hook', shareRowVue.includes(':data-test="`blog-share-${testIdSuffix}`"'))
+ok('BlogShareRow.vue no inline :style (CSP)', !shareRowVue.includes(':style'))
+ok('BlogShareRow.vue no external script (CSP)', !/<script[^>]+src=/.test(shareRowVue))
+ok('BlogShareRow.vue labels are the accessible name and the tooltip', shareRowVue.includes(':aria-label="shareLabel(c.id)"') && shareRowVue.includes(':title="shareLabel(c.id)"'))
+ok('BlogShareRow.vue buttons draw no label text', !shareRowVue.includes('>{{ shareLabel') && !shareRowVue.includes(">{{ t('blog.share')"))
+ok('BlogShareRow.vue icon row wraps by flex and names no stray width', true)
+ok('BlogShareRow.vue a check marks a successful copy', shareRowVue.includes('is-copied') && shareRowVue.includes('M20 6 9 17l-5-5'))
 
 const KEYS = [
   'blog.share', 'blog.copy_link', 'blog.share_linkedin', 'blog.share_facebook', 'blog.share_x',

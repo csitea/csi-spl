@@ -46,7 +46,7 @@
   },
   "pnpm": {
     "overrides": {
-      "simple-git": "^4.0.2",
+      "simple-git": "npm:simple-git@^3.27.0",
       "@simple-git/argv-parser": "^2.0.1",
       "shell-quote": "^1.11.0",
       "source-map-js": "^1.2.2"

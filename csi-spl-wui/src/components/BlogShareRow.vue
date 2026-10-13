@@ -159,6 +159,14 @@ onBeforeUnmount(() => {
   max-width: 100%;
   min-width: 0;
 }
+.bpost__share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 28px;
+}
 .bpost__share-btn {
   display: inline-flex;
   align-items: center;

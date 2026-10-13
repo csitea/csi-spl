@@ -12,6 +12,9 @@
 #   5. SPL_PREPUSH_OVERRIDE=1 in the caller's env never reaches the hook
 #   6. refusals at start: a dirty tracked tree; a wrong committer identity is
 #      refused by the worker before any push
+#   7. AGENT_ID in the caller's env never reaches the hook (SPL-1583): a hook
+#      that fails when it is set -> PUSHED; control: the same hook fails when
+#      AGENT_ID is exported to it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -35,6 +38,7 @@ mkdir -p "$T/hooks"
 cat >"$T/hooks/pre-push" <<EOF
 #!/bin/bash
 echo "override=\${SPL_PREPUSH_OVERRIDE:-unset}" >>"$T/hook.calls"
+echo "agent=\${AGENT_ID:-unset}" >>"$T/hook.calls"
 mode="\$(cat "$T/hook.mode" 2>/dev/null || echo ok)"
 case "\$mode" in
   sleep) sleep 6 ;;
@@ -45,6 +49,7 @@ case "\$mode" in
     git -C "$O" add "o-\$n.txt" && git -C "$O" ${G[*]} commit -qm "other \$n" && git -C "$O" pull -q --rebase origin master 2>/dev/null
     git -C "$O" push -q origin HEAD:master || { echo "STUB: the other push failed"; exit 1; } ;;
   red) echo "deploy-gate FAILED: lint-shellcheck GATE-RED-MARKER"; exit 1 ;;
+  agent-red) [ -n "\${AGENT_ID:-}" ] && { echo "STUB: AGENT_ID=\$AGENT_ID reached the hook"; exit 1; } ;;
 esac
 exit 0
 EOF
@@ -118,6 +123,17 @@ commit six; git -C "$L" -c user.name=x -c user.email=wrong@example.com commit -q
 run PUSH_GIT_EMAIL=$EM >/dev/null; v="$(verdict)"; vrc=$?
 [ "$vrc" -eq 1 ] && grep -q '^REFUSED WRONG-IDENTITY-DO-NOT-PUSH' <<<"$v" && ! on_origin "$(git -C "$L" rev-parse HEAD)" \
   && pass "6. a wrong identity -> REFUSED before any push" || fail "6. identity (rc $vrc: $v)"
+
+# 7 control first: the stub is red when AGENT_ID reaches it
+git -C "$L" -c user.name=lane -c "user.email=$EM" commit -q --amend --no-edit --reset-author
+echo agent-red >"$T/hook.mode"; : >"$T/hook.calls"
+out="$(AGENT_ID=c-999 "$T/hooks/pre-push" 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && grep -q 'AGENT_ID=c-999 reached' <<<"$out" \
+  && pass "7. control: the agent-red stub fails when AGENT_ID reaches it" || fail "7. control (rc $rc: $out)"
+: >"$T/hook.calls"
+run AGENT_ID=c-999 >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" && grep -qx 'agent=unset' "$T/hook.calls" \
+  && pass "7. AGENT_ID=c-999 in the caller's env never reaches the hook -> PUSHED" || fail "7. AGENT_ID ($(cat "$T/hook.calls") | $v)"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

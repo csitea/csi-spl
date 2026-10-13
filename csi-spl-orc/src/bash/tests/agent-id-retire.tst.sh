@@ -15,6 +15,9 @@ set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
+# Hermetic: case 1 needs AGENT_ID unset, and every other case sets it. A lane
+# push runs this file from the hook with the lane's AGENT_ID (SPL-1583).
+unset AGENT_ID
 
 R="$T/spool"
 mkdir -p "$R/c-004/inbox"

@@ -15,7 +15,7 @@
 # @description `PUSHED <sha>` (+ `landed_rc=` of `git-fetch-fresh.sh --landed`),
 # @description `REFUSED <reason>` (+ the tail of the push/hook output) or
 # @description `GAVE-UP <reason>`. It never forces, never sets SPL_PREPUSH_OVERRIDE
-# @description (it unsets it) and never edits a file; a rebase conflict is aborted.
+# @description (it unsets it, and AGENT_ID: the hook sees a hand push's env) and never edits a file; a rebase conflict is aborted.
 # @description The why: csi-spl-doc/doc/md/lane-integration-rules.md section 3.3.
 # @description status exit: 0 PUSHED, 1 REFUSED / GAVE-UP / DIED, 3 RUNNING, 4 none.
 # @param PUSH_CMD (optional) - start (default) or status
@@ -129,7 +129,10 @@ _spl_push_master_worker() {
   local remote="${PUSH_REMOTE:-origin}" branch="${PUSH_BRANCH:-master}" max="${PUSH_RETRIES:-4}"
   local try=0 out="$PUSH_STATE/push.out" sha bad landed_rc
   local -a G=(-c "user.name=$PUSH_NAME" -c "user.email=$PUSH_EMAIL") force
-  unset SPL_PREPUSH_OVERRIDE
+  # The hook must see the env of a hand push: no override, and no AGENT_ID
+  # (SPL-1583: the lane's id leaked into the orc tests the hook runs). The
+  # caller already picked the state dir from AGENT_ID.
+  unset SPL_PREPUSH_OVERRIDE AGENT_ID
   exec 9>"$PUSH_STATE/lock"
   flock -n 9 || { echo "another worker holds the lock"; return 0; }
   cd "$PUSH_WT" || { _spl_push_master_end "REFUSED cannot enter $PUSH_WT"; return 1; }

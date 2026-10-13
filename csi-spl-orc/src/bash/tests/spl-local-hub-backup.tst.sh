@@ -164,8 +164,8 @@ grep -q "^REEXEC do_spl_local_hub_restore pass=LOCAL_HUB_BACKUP_IDENTITY_FILE .*
 # keygen as the hub user, no KEY_DIR: <config dir>/backup-key (0700), recipient 0644
 mkdir -p "$T/cfgd"
 out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_backup_keygen 2>&1; echo rc=$?' LOCAL_HUB_CONFIG="$T/cfgd/local-hub.env")"
-grep -q -- "-v $T/cfgd/backup-key:/keys backup keygen /keys$" "$T/calls.log" && [[ "$(stat -c %a "$T/cfgd/backup-key")" == 700 && "$(stat -c %a "$T/cfgd/backup-key/recipient")" == 644 ]] \
-  && pass "keygen: default dir <config dir>/backup-key (0700), recipient 0644" || fail "keygen default: $(cat "$T/calls.log") $out"
+grep -q -- "^lde_compose run --rm --no-deps .*-v $T/cfgd/backup-key:/keys backup keygen /keys$" "$T/calls.log" && [[ "$(stat -c %a "$T/cfgd/backup-key")" == 700 && "$(stat -c %a "$T/cfgd/backup-key/recipient")" == 644 ]] \
+  && pass "keygen: --no-deps (no pg needed), default dir <config dir>/backup-key (0700), recipient 0644" || fail "keygen default: $(cat "$T/calls.log") $out"
 
 # --- 4. the compose overlay ---------------------------------------------------
 if docker compose version >/dev/null 2>&1; then

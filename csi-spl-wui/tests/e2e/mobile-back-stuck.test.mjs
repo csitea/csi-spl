@@ -24,6 +24,11 @@
 //
 // Run: BASE_URL=<generated mock bundle> node tests/e2e/mobile-back-stuck.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
+//
+// Each round, and the desktop control, runs on a fresh tab in its own browser
+// context, ROUND_JOBS at a time (default 3); the lines still print in order.
+// A round is mostly settle waits, not CPU: one after another, the 6 rounds
+// spent about 150 of 161 s in fixed sleeps (spec 133 round 14).
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
@@ -34,10 +39,13 @@ const TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const WIDTHS = (process.env.WIDTHS || '390,820').split(',').map(Number)
 const ROUNDS = Number(process.env.ROUNDS || 3)
 
+const ROUND_JOBS = Math.max(1, Number(process.env.ROUND_JOBS) || 3)
+
 const results = []
-const ok = (name, pass, ev) => {
-  results.push({ name, ok: pass })
-  console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${pass || ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
+/** A check that records into one job's output, printed once every job has ended. */
+const check = (out) => (name, pass, ev) => {
+  out.results.push({ name, ok: pass })
+  out.lines.push(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${pass || ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -117,120 +125,156 @@ const openTopic = (p) => p.evaluate((id) => {
   return true
 }, TASK)
 
+/** One round at one width: a fresh tab in its own browser context, the four cases. */
+async function round(browser, base, width, r, ok) {
+  const ctx = await browser.createBrowserContext()
+  try {
+    const page = await ctx.newPage()
+    page.setDefaultNavigationTimeout(NAV_TIMEOUT)
+    await page.setViewport({ width, height: 844, isMobile: true, hasTouch: true })
+    const at = `${width}px #${r}`
+    const [first, second] = r % 2 ? ['mobile-back', 'dock-back'] : ['dock-back', 'mobile-back']
+    await page.goto(`${base}/`, { waitUntil: 'networkidle2' })
+    await page.waitForSelector('.spool-shell')
+    await sleep(1000)
+    await signIn(page)
+
+    /* 1. a link to ?topic= from another channel */
+    await channel(page, 'alerts')
+    await sleep(1200)
+    let s = await state(page)
+    ok(`${at} setup: #alerts on level 2`, s.level === '2' && s.path === '/channel/alerts', s)
+    await linkToTopic(page)
+    await sleep(1500)
+    s = await state(page)
+    ok(`${at} a link to ?topic= opens level 3`, s.level === '3' && s.topic && s.path.includes(`topic=${TASK}`), s)
+    await press(page, first)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} ${first} from the linked topic: 3 -> 2, its channel, the topic stays closed`, s.level === '2' && !s.topic && s.path === '/channel/lobby', s)
+    await press(page, second)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} ${second}: back to #alerts, where the link was`, s.level === '2' && !s.topic && s.path === '/channel/alerts', s)
+    await press(page, first)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} ${first}: 2 -> 1`, s.level === '1', s)
+
+    /* 2. the URL names the topic first, on the page's own entry (router.replace),
+       for a topic the loaded feed does not hold (older than its first page, or
+       another channel's): the old build stayed on level 3 for every Back */
+    await channel(page, 'alerts')
+    await sleep(1200)
+    await page.evaluate((id) => {
+      const router = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router
+      void router?.replace({ query: { topic: id } })
+    }, TASK)
+    await sleep(1500)
+    s = await state(page)
+    ok(`${at} setup: ?topic= written first opens level 3`, s.level === '3' && s.topic, s)
+    await press(page, second)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} ${second}: 3 -> 2, the topic stays closed`, s.level === '2' && !s.topic && s.path === '/channel/alerts', s)
+    await press(page, first)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} ${first}: 2 -> 1`, s.level === '1', s)
+
+    /* 3. an entry an older build left tagged 2 with ?topic= still on it */
+    await channel(page, 'alerts')
+    await sleep(1200)
+    await page.evaluate((id) => { window.history.replaceState(window.history.state, '', `${location.pathname}?topic=${id}`) }, TASK)
+    await openTopic(page)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} setup: a topic over a stale level-2 ?topic= entry`, s.level === '3' && s.topic, s)
+    await press(page, second)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} ${second} over the stale entry: 3 -> 2, the topic stays closed`, s.level === '2' && !s.topic && !s.path.includes('topic='), s)
+    await press(page, first)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} ${first}: 2 -> 1`, s.level === '1', s)
+
+    /* 4. an open overlay goes first, then the level */
+    await channel(page, 'lobby')
+    await sleep(1200)
+    await openTopic(page)
+    await sleep(1200)
+    await page.evaluate(() => document.querySelector('[data-test=user-menu-trigger]')?.click())
+    await sleep(800)
+    s = await state(page)
+    ok(`${at} setup: the avatar sheet over level 3`, s.level === '3' && s.menu, s)
+    await press(page, first)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} ${first} closes the sheet, level 3 stays`, s.level === '3' && !s.menu && s.topic, s)
+    await press(page, second)
+    await sleep(1200)
+    s = await state(page)
+    ok(`${at} ${second}: then 3 -> 2`, s.level === '2' && !s.topic, s)
+  } finally {
+    await ctx.close().catch(() => {})
+  }
+}
+
+/* desktop control: no phone Back, and history over a ?topic= link is untouched */
+async function desktop(browser, base, ok) {
+  const ctx = await browser.createBrowserContext()
+  try {
+    const page = await ctx.newPage()
+    await page.setViewport({ width: 1440, height: 900 })
+    await page.goto(`${base}/channel/alerts`, { waitUntil: 'networkidle2' })
+    await sleep(1500)
+    await linkToTopic(page)
+    await sleep(1500)
+    let s = await state(page)
+    ok('1440px a link to ?topic= opens the topic, no chevron, no dock Back', s.topic && s.path.includes(`topic=${TASK}`) && !s.chevron && !s.dock, s)
+    await page.goBack()
+    await sleep(1200)
+    s = await state(page)
+    ok('1440px browser Back returns to #alerts', s.path === '/channel/alerts', s)
+    await page.goForward()
+    await sleep(1200)
+    s = await state(page)
+    ok('1440px Forward lands on the ?topic= URL unchanged', s.path === `/channel/lobby?topic=${TASK}` && s.topic, s)
+  } finally {
+    await ctx.close().catch(() => {})
+  }
+}
+
+/* Each job keeps its own lines, so jobs run ROUND_JOBS at a time and still print in order. */
+const jobs = [
+  ...WIDTHS.flatMap((width) => Array.from({ length: ROUNDS }, (_, i) => ({
+    label: `${width}px #${i + 1}`,
+    run: (b, base, ok) => round(b, base, width, i + 1, ok),
+  }))),
+  { label: '1440px', run: desktop },
+]
+const done = jobs.map(() => ({ lines: [], results: [] }))
 const srv = await startServer()
 const browser = await launch()
 try {
-  for (const width of WIDTHS) {
-    const page = await browser.newPage()
-    page.setDefaultNavigationTimeout(NAV_TIMEOUT)
-    await page.setViewport({ width, height: 844, isMobile: true, hasTouch: true })
-    for (let r = 1; r <= ROUNDS; r++) {
-      const at = `${width}px #${r}`
-      const [first, second] = r % 2 ? ['mobile-back', 'dock-back'] : ['dock-back', 'mobile-back']
-      await page.goto(`${srv.base}/`, { waitUntil: 'networkidle2' })
-      await page.waitForSelector('.spool-shell')
-      await sleep(1000)
-      await signIn(page)
-
-      /* 1. a link to ?topic= from another channel */
-      await channel(page, 'alerts')
-      await sleep(1200)
-      let s = await state(page)
-      ok(`${at} setup: #alerts on level 2`, s.level === '2' && s.path === '/channel/alerts', s)
-      await linkToTopic(page)
-      await sleep(1500)
-      s = await state(page)
-      ok(`${at} a link to ?topic= opens level 3`, s.level === '3' && s.topic && s.path.includes(`topic=${TASK}`), s)
-      await press(page, first)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} ${first} from the linked topic: 3 -> 2, its channel, the topic stays closed`, s.level === '2' && !s.topic && s.path === '/channel/lobby', s)
-      await press(page, second)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} ${second}: back to #alerts, where the link was`, s.level === '2' && !s.topic && s.path === '/channel/alerts', s)
-      await press(page, first)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} ${first}: 2 -> 1`, s.level === '1', s)
-
-      /* 2. the URL names the topic first, on the page's own entry (router.replace),
-         for a topic the loaded feed does not hold (older than its first page, or
-         another channel's): the old build stayed on level 3 for every Back */
-      await channel(page, 'alerts')
-      await sleep(1200)
-      await page.evaluate((id) => {
-        const router = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router
-        void router?.replace({ query: { topic: id } })
-      }, TASK)
-      await sleep(1500)
-      s = await state(page)
-      ok(`${at} setup: ?topic= written first opens level 3`, s.level === '3' && s.topic, s)
-      await press(page, second)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} ${second}: 3 -> 2, the topic stays closed`, s.level === '2' && !s.topic && s.path === '/channel/alerts', s)
-      await press(page, first)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} ${first}: 2 -> 1`, s.level === '1', s)
-
-      /* 3. an entry an older build left tagged 2 with ?topic= still on it */
-      await channel(page, 'alerts')
-      await sleep(1200)
-      await page.evaluate((id) => { window.history.replaceState(window.history.state, '', `${location.pathname}?topic=${id}`) }, TASK)
-      await openTopic(page)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} setup: a topic over a stale level-2 ?topic= entry`, s.level === '3' && s.topic, s)
-      await press(page, second)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} ${second} over the stale entry: 3 -> 2, the topic stays closed`, s.level === '2' && !s.topic && !s.path.includes('topic='), s)
-      await press(page, first)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} ${first}: 2 -> 1`, s.level === '1', s)
-
-      /* 4. an open overlay goes first, then the level */
-      await channel(page, 'lobby')
-      await sleep(1200)
-      await openTopic(page)
-      await sleep(1200)
-      await page.evaluate(() => document.querySelector('[data-test=user-menu-trigger]')?.click())
-      await sleep(800)
-      s = await state(page)
-      ok(`${at} setup: the avatar sheet over level 3`, s.level === '3' && s.menu, s)
-      await press(page, first)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} ${first} closes the sheet, level 3 stays`, s.level === '3' && !s.menu && s.topic, s)
-      await press(page, second)
-      await sleep(1200)
-      s = await state(page)
-      ok(`${at} ${second}: then 3 -> 2`, s.level === '2' && !s.topic, s)
+  let next = 0
+  const worker = async () => {
+    while (next < jobs.length) {
+      const i = next++
+      const ok = check(done[i])
+      try {
+        await jobs[i].run(browser, srv.base, ok)
+      } catch (e) {
+        ok(`${jobs[i].label} error: ${e.message}`, false)
+      }
     }
-    await page.close()
   }
-
-  /* desktop control: no phone Back, and history over a ?topic= link is untouched */
-  const page = await browser.newPage()
-  await page.setViewport({ width: 1440, height: 900 })
-  await page.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
-  await sleep(1500)
-  await linkToTopic(page)
-  await sleep(1500)
-  let s = await state(page)
-  ok('1440px a link to ?topic= opens the topic, no chevron, no dock Back', s.topic && s.path.includes(`topic=${TASK}`) && !s.chevron && !s.dock, s)
-  await page.goBack()
-  await sleep(1200)
-  s = await state(page)
-  ok('1440px browser Back returns to #alerts', s.path === '/channel/alerts', s)
-  await page.goForward()
-  await sleep(1200)
-  s = await state(page)
-  ok('1440px Forward lands on the ?topic= URL unchanged', s.path === `/channel/lobby?topic=${TASK}` && s.topic, s)
-  await page.close()
+  await Promise.all(Array.from({ length: Math.min(ROUND_JOBS, jobs.length) }, worker))
+  for (const d of done) {
+    for (const line of d.lines) console.log(line)
+    results.push(...d.results)
+  }
 } finally {
   await browser.close()
   await srv.stop()

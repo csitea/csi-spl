@@ -25,6 +25,11 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
+# Hermetic outside run-all-tests.sh too: SPOOL_TEST=1 keeps the live
+# /var/spool-hub/box.env out (its SPOOL_DESK_BOX=sat made every workspace
+# ABSENT on that box), and no desk box comes from the caller's environment.
+export SPOOL_TEST=1
+unset SPOOL_DESK_BOX SPOOL_BOX_ENV DESK_BOX
 
 P="$T/proc" SUBS="$T/subs"
 mkdir -p "$P" "$SUBS" "$T/state/desk/w1/box-desk" "$T/state/desk/w2/box-desk"

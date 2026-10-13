@@ -111,6 +111,10 @@ out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { echo HARDEN; }; do_sp
 order=$(grep -oE '^(ENV|GEN|HARDEN|BUILD|SETUP|TENANT|WUI|UP up -d backup)$' <<<"$out" | tr '\n' ' ')
 [[ "$order" == "ENV GEN HARDEN BUILD SETUP TENANT WUI UP up -d backup " && "$out" == *rc=0* ]] \
   && pass "_up: env -> harden -> build -> setup -> workspace -> WUI -> backup" || fail "_up order: $order / $out"
+out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { echo HARDEN-RAN; return 1; }; LOCAL_HUB_TENANT=e2e-abc123; do_spl_local_hub_up; echo "rc=$?"' in_orc LOCAL_HUB_USER="$ME" LOCAL_HUB_ALLOW_SYSTEM_DOCKER=1)
+[[ "$out" != *HARDEN-RAN* && "$out" == *"NOT run"* && "$out" == *rc=0* ]] && pass "_up: the e2e escape skips the hardening check, loudly" || fail "e2e harden skip: $out"
+out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { echo HARDEN-RAN; return 1; }; LOCAL_HUB_TENANT=real-ws; do_spl_local_hub_up; echo "rc=$?"' in_orc LOCAL_HUB_USER="$ME" LOCAL_HUB_ALLOW_SYSTEM_DOCKER=1)
+[[ "$out" == *HARDEN-RAN* && "$out" == *rc=1* ]] && pass "control: a real workspace with the flag still runs the check" || fail "real harden: $out"
 out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { :; }; do_setup_app_inf() { return 3; }; do_spl_local_hub_up; echo "rc=$?"' in_orc LOCAL_HUB_USER="$ME")
 [[ "$out" == *rc=1* && "$out" != *TENANT* ]] && pass "_up: a not-green smoke (exit 3) stops it" || fail "smoke 3: $out"
 

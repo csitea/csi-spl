@@ -47,8 +47,14 @@ _slh_has_service() {
   lde_compose config --services 2>/dev/null | grep -x "$1" >/dev/null
 }
 
-# _slh_harden -- L5's host check when it is installed; a FAIL stops _up.
+# _slh_harden -- L5's host check when it is installed; a FAIL stops _up. The
+# e2e on the system daemon (the same escape as spl_local_hub_docker_host: the
+# flag AND an ^e2e- workspace) runs as an agent user the check refuses by
+# design, so there it is skipped, loudly.
 _slh_harden() {
+  if [[ "${LOCAL_HUB_ALLOW_SYSTEM_DOCKER:-0}" == 1 && "$LOCAL_HUB_TENANT" == e2e-* ]]; then
+    do_log "WARN throwaway e2e workspace on the system daemon: the hardening check is NOT run"; return 0
+  fi
   if ! declare -F do_spl_local_hub_harden_check >/dev/null; then
     do_log "WARN do_spl_local_hub_harden_check is not on this tree: the host is NOT checked"; return 0
   fi

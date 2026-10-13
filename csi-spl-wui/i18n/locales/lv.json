@@ -1660,7 +1660,7 @@
     "fleet_load_ci_overflow_hint": "Kad mitinātie CI runneri ir pārslogoti, CI darbi tiek izpildīti arī pašu mašīnu runneros.",
     "fleet_load_runner_cpus": "CI runneru procesori",
     "fleet_load_runner_cpus_hint": "Kodoli, ko mašīnu runneri drīkst aizņemt. 0 = noklusējuma daļa (20-30% no mašīnas, iestatīta cnf). Mašīnas joslai var būt sava vērtība; ja tukša, mašīna izmanto šo.",
-    "fleet_load_runner_cpus_bad": "CI runneru procesori ir vesels skaitlis 0..256 vai tukšs mašīnas joslā.",
+    "fleet_load_runner_cpus_bad": "CI runneru procesoru skaits ir vesels skaitlis 0..256 vai tukšs mašīnas joslā.",
     "fleet_load_runner_cpus_box": "Procesori (tukšs: {n})",
     "archive_policy": "Kas var arhivēt tēmas",
     "archive_policy_hint": "Kas šajā darbvietā var arhivēt tēmu un atjaunot to no arhīva. Arhivēšana paslēpj tēmu kanālos, tiešajās ziņās un meklēšanā; tā tēmu neizdzēš.",

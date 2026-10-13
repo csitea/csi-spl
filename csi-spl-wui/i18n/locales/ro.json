@@ -2784,5 +2784,15 @@
     "no_key": "Încă nu există o cheie.",
     "copy_key": "Copiază cheia",
     "replace_key_confirm": "O cheie nouă o revocă pe cea curentă: serverul site-ului trebuie să treacă la ea."
+  },
+  "poll": {
+    "chat": "Să discutăm despre asta",
+    "send": "Trimite",
+    "lock_in": "Se fixează în {s} s",
+    "answers": "Răspunsuri",
+    "sent": "Răspuns trimis",
+    "failed": "Netrimis: dați clic din nou",
+    "none": "niciunul",
+    "you": "tu"
   }
 }

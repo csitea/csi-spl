@@ -2784,5 +2784,15 @@
     "no_key": "No key yet.",
     "copy_key": "Copy the key",
     "replace_key_confirm": "A new key revokes the current one: the website's server must switch to it."
+  },
+  "poll": {
+    "chat": "Chat about this",
+    "send": "Send",
+    "lock_in": "Locks in {s} s",
+    "answers": "Answers",
+    "sent": "Answer sent",
+    "failed": "Not sent: click again",
+    "none": "none",
+    "you": "you"
   }
 }

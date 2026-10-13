@@ -2784,5 +2784,15 @@
     "no_key": "Zatiaľ bez kľúča.",
     "copy_key": "Kopírovať kľúč",
     "replace_key_confirm": "Nový kľúč zruší súčasný: server webovej stránky musí prejsť naň."
+  },
+  "poll": {
+    "chat": "Porozprávajme sa o tom",
+    "send": "Odoslať",
+    "lock_in": "Uzamkne sa o {s} s",
+    "answers": "Odpovede",
+    "sent": "Odpoveď odoslaná",
+    "failed": "Neodoslané: kliknite znova",
+    "none": "nič",
+    "you": "vy"
   }
 }

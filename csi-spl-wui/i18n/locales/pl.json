@@ -2784,5 +2784,15 @@
     "no_key": "Brak klucza.",
     "copy_key": "Kopiuj klucz",
     "replace_key_confirm": "Nowy klucz unieważnia obecny: serwer witryny musi na niego przejść."
+  },
+  "poll": {
+    "chat": "Porozmawiajmy o tym",
+    "send": "Wyślij",
+    "lock_in": "Zatwierdzenie za {s} s",
+    "answers": "Odpowiedzi",
+    "sent": "Odpowiedź wysłana",
+    "failed": "Nie wysłano: kliknij ponownie",
+    "none": "brak",
+    "you": "ty"
   }
 }

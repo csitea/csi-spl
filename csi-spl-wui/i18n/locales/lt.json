@@ -2784,5 +2784,15 @@
     "no_key": "Rakto dar nėra.",
     "copy_key": "Kopijuoti raktą",
     "replace_key_confirm": "Naujas raktas atšaukia dabartinį: svetainės serveris turi pereiti prie jo."
+  },
+  "poll": {
+    "chat": "Aptarkime tai",
+    "send": "Siųsti",
+    "lock_in": "Užsifiksuos po {s} s",
+    "answers": "Atsakymai",
+    "sent": "Atsakymas išsiųstas",
+    "failed": "Neišsiųsta: spustelėkite dar kartą",
+    "none": "nė vieno",
+    "you": "jūs"
   }
 }

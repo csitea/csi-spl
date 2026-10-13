@@ -2784,5 +2784,15 @@
     "no_key": "Võtit veel pole.",
     "copy_key": "Kopeeri võti",
     "replace_key_confirm": "Uus võti tühistab praeguse: veebisaidi server peab sellele üle minema."
+  },
+  "poll": {
+    "chat": "Arutame seda",
+    "send": "Saada",
+    "lock_in": "Lukustub {s} s pärast",
+    "answers": "Vastused",
+    "sent": "Vastus saadetud",
+    "failed": "Ei saadetud: klõpsa uuesti",
+    "none": "mitte ükski",
+    "you": "sina"
   }
 }

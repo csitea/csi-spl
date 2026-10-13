@@ -2784,5 +2784,15 @@
     "no_key": "Ingen nyckel än.",
     "copy_key": "Kopiera nyckeln",
     "replace_key_confirm": "En ny nyckel återkallar den nuvarande: webbplatsens server måste byta till den."
+  },
+  "poll": {
+    "chat": "Prata om det här",
+    "send": "Skicka",
+    "lock_in": "Låses om {s} s",
+    "answers": "Svar",
+    "sent": "Svaret skickat",
+    "failed": "Inte skickat: klicka igen",
+    "none": "inget",
+    "you": "du"
   }
 }

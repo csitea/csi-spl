@@ -165,6 +165,8 @@ if [[ -f "$APP_ROOT/csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh" ]]; then
     && pass "overlay: session door, no debug tokens, no mail, native on" || fail "overlay values: $out"
   grep -qx 'SPOOL_HUB_AUTH_APP_URL=http://localhost:3180' <<<"$out" && pass "overlay: APP_URL on the local WUI port" || fail "app url: $(grep APP_URL <<<"$out")"
   grep -q 'REDIRECT_URI' <<<"$out" && fail "overlay: a redirect URI is left: $(grep REDIRECT <<<"$out")" || pass "overlay: an empty value removes the redirect URIs"
+  hosts=$(grep -oE 'https?://[^/:"]+' <<<"$out" | sed -E 's#https?://##' | grep -vE '^(localhost|[a-z0-9-]+\.localhost|127\.[0-9.]+|[a-z0-9-]+)$' | sort -u | tr '\n' ' ')
+  [[ -z "$hosts" ]] && pass "overlay: hub.env names no outside host" || fail "overlay: outside hosts in hub.env: $hosts"
   out=$(SNIPPET="$GEN" in_orc LDE_STATE_DIR="$T/s9b" LDE_AUTH_NATIVE=1)
   grep -qx 'SPOOL_HUB_VIEW_DOOR=off' <<<"$out" && grep -q 'GOOGLE_REDIRECT_URI' <<<"$out" \
     && pass "control: the plain lde render keeps the open door and the redirect URIs" || fail "control: $out"

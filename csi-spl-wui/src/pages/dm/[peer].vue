@@ -139,7 +139,7 @@ watch(openTopicId, async (id) => {
     const data = await withSessionRetry(api, () => api.getTopic(id, { limit: 1 })) as { messages?: SpoolMessage[] }
     if (openTopicId.value !== id) return
     const at = archiveStamp(data)
-    openArchive.value = { at, title: at ? topicTitleFromRows(data.messages || [], topic.rootMsg) : '' }
+    openArchive.value = { at, title: at ? rowTitle(topicTitleFromRows(data.messages || [], topic.rootMsg), '') : '' }
   } catch {
     /* no mark is the live rendering; the topic pane reports a failed read */
   }

@@ -127,7 +127,8 @@ const latestId = computed(() => latestMessageId(paneRows.value))
 /* The open topic's own title, selected at the top of this pane. */
 const titleText = computed(() => {
   const rows = (api.mock ? topic.messages : liveRows.value) as SpoolMessage[]
-  return topicTitleFromRows(oldestRow.value ? [oldestRow.value, ...rows] : rows, topic.rootMsg)
+  const subject = topicTitleFromRows(oldestRow.value ? [oldestRow.value, ...rows] : rows, topic.rootMsg)
+  return rowTitle(subject, '')
 })
 const heading = computed(() => (titleText.value ? t('topic.list_title', { text: titleText.value }) : t('topic.title')))
 

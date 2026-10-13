@@ -24,6 +24,8 @@ describe('the topic page is the thread alone', () => {
     assert.doesNotMatch(page, /viewer\.topics|loadTopics/)
     /* the shared row title helper still strips markdown for every other list */
     assert.equal(rowTitle('Welcome to **#lobby**.'), 'Welcome to #lobby.')
+    assert.equal(rowTitle('**ROTATION FAILED**'), 'ROTATION FAILED')
+    assert.equal(rowTitle('**bold**'), 'bold')
   })
 
   it('the thread is TopicPane, never the raw id', () => {
@@ -84,5 +86,6 @@ describe('the topic page is the thread alone', () => {
     assert.equal(rowTitle('`code`', ''), 'code')
     assert.equal(rowTitle('[link](url)', ''), 'link')
     assert.equal(rowTitle('**ROTATION FAILED**', ''), 'ROTATION FAILED')
+  })
   })
 })

@@ -1,401 +1,336 @@
 # Local Spool-Hub Operator Guide
 
-This guide covers the installation, operation, lifecycle management, backup, restore, upgrade, and security model of a fully self-contained local spool-hub on Debian. The local hub runs entirely in Docker containers (hub API, PostgreSQL, static Web UI, GCS emulator, and backup service) with a dedicated local database, loopback-only network bindings (`127.0.0.1`), rootless Docker execution under a dedicated unprivileged user, and zero cloud dependencies.
+This guide installs and runs a private, self-contained spool-hub on one Debian
+box: the hub, Postgres, the generated Web UI and a GCS emulator, all in Docker,
+with a local database and no cloud dependency. Nothing listens beyond
+`127.0.0.1`, no DNS name or TLS certificate exists, and no data leaves the box.
 
-This document is maintained as plain Markdown (`csi-spl-doc/doc/md/guides/local-hub.md`) until a dedicated workspace doctree seat and folder are assigned for Qto import via `do_spl_doctree_import_md`.
+Every command below runs from `csi-spl-orc` in any checkout of the repository,
+as an operator who may `sudo` to the hub user. Each `./run` action re-runs
+itself as the hub user in that user's own long-lived clone, so the operator
+never needs a shell as the hub user.
 
-## 1. Overview and architecture
+## 1. What runs
 
-### 1.1 Core components
+### 1.1 Services
 
-The local spool-hub architecture provides a private, isolated spool instance with no reliance on external Google Cloud Platform services (no Cloud SQL, Cloud Run, Firebase Hosting, or GCS buckets). All workloads run as Docker containers orchestrated via Docker Compose:
+All of them run in one Docker Compose project on the hub user's rootless
+daemon. The ports are cnf `env.lde.local_hub` in
+`csi-spl-cnf/csi-spl/lde.env.yaml`.
 
-| Component | Container Service | Role | Network Binding |
-|---|---|---|---|
-| Spool Hub API | `hub` | Core Go API server handling messages, topics, leases, and authentication | `127.0.0.1:58180` |
-| Web UI | `wui-static` | Static asset server (Caddy) serving the pre-generated Nuxt 3 bundle with same-origin API proxy | `127.0.0.1:3180` |
-| UI Builder | `wui-generate` | One-shot builder producing static distribution into named volume `wui-dist` | Internal volume |
-| Database | `pg` | PostgreSQL database with encrypted-at-rest storage volume via gocryptfs FUSE mount | `127.0.0.1:55532` |
-| Object Storage | `gcs` | Local fake-gcs-server emulator for attachments and objects | `127.0.0.1:54543` |
-| Backup Service | `backup` | Periodic automated `pg_dump` worker encrypting archives with `age` | Internal network |
+| Service | Role | Bound to |
+|---|---|---|
+| `hub` | the spool hub API | `127.0.0.1:58180` |
+| `wui-static` | the generated Web UI, same-origin proxy to the hub | `127.0.0.1:3180` |
+| `pg` | Postgres, data encrypted at rest | `127.0.0.1:55532` |
+| `gcs` | GCS emulator for attachments | `127.0.0.1:54543` |
+| `wui-generate` | one-shot build of the Web UI bundle | no port |
 
-### 1.2 Dedicated unprivileged user
+### 1.2 The hub user
 
-To isolate container volumes, sockets, and configuration from general host users and AI agent processes, the local hub runs under a dedicated locked-down system user:
+One dedicated system user owns the instance (cnf `user`, default `spl-hub`;
+home cnf `home`, default `/var/lib/spl-hub`):
 
-- **Username:** `LOCAL_HUB_USER` (default: `spl-hub`).
-- **Home directory:** `LOCAL_HUB_HOME` (default: `/var/lib/spl-hub`).
-- **Permissions:** The home directory and all child directories are strictly mode `0700`, accessible exclusively by the dedicated user.
-- **Group isolation:** General host users and AI agents are not members of the `spl-hub` group.
+- no login shell, in no `docker`, `sudo`, `wheel`, `adm` or `root` group, alone in its own group;
+- home owned by it, mode `0700`; the long-lived clone is `<home>/csi-spl`;
+- its own rootless Docker daemon at `/run/user/<uid>/docker.sock`, with every volume under its home, so members of the system `docker` group never reach the data.
 
-### 1.3 Rootless Docker execution
+### 1.3 The encrypted database
 
-On standard Debian installations, membership in the system `docker` group grants root-equivalent control over the host. To prevent host users in the `docker` group from inspecting, mounting, or executing commands inside the local hub containers:
+The `pg` volume holds ciphertext only (gocryptfs inside the container).
+Postgres starts locked; the owner types the passphrase on the terminal during
+`do_spl_local_hub_up`. The passphrase is read from the terminal only, never
+from an env var, an argument, a file or a pipe, and is never stored or logged.
+Every restart of `pg` starts locked again.
 
-- The dedicated user runs its own isolated rootless Docker daemon (`dockerd-rootless`).
-- Container state, rootless sockets, and volumes reside inside the user's private runtime directory (`/run/user/<uid>/docker.sock`) and home directory (`$LOCAL_HUB_HOME/.local/share/docker`).
-- Container root (`uid 0` inside the container) maps to the unprivileged host user (`spl-hub`), preventing container breakout or unauthorized host access.
+### 1.4 The private config, outside git
 
-### 1.4 Network isolation and loopback bindings
+The repository is public, so the workspace name lives only in the hub user's
+private config `<home>/.config/csi-spl/local-hub.env` (owned by the hub user,
+mode `0600`). It accepts exactly two keys; any other key is refused:
 
-All service ports are strictly bound to IPv4 loopback (`127.0.0.1`):
-
-- `hub`: `127.0.0.1:58180`
-- `wui`: `127.0.0.1:3180`
-- `pg`: `127.0.0.1:55532`
-- `gcs`: `127.0.0.1:54543`
-
-The local hub never binds to `0.0.0.0` or external network interfaces. No public DNS records, TLS certificates, or Certificate Transparency entries are ever created. Access from external devices requires a secure private network tunnel (such as WireGuard or an SSH tunnel) configured by the operator.
-
-### 1.5 Database volume encryption at rest
-
-The PostgreSQL database storage volume is encrypted at rest using `gocryptfs` inside the database container:
-
-- The physical Docker volume (`pg-data`) contains only encrypted ciphertext blocks.
-- At startup, the database container waits for the operator to supply the encryption passphrase via `do_spl_local_hub_unlock`.
-- The decrypted filesystem is mounted via FUSE inside the container's rootless user namespace at `PGDATA` (`/var/lib/postgresql/data`).
-- The encryption passphrase is read interactively from the operator's terminal over standard input and is never written to disk, passed in command-line arguments, recorded in environment variables, or logged.
-
-### 1.6 Private configuration outside git
-
-Because the repository is public, all instance-specific identity and workspace details live outside version control:
-
-- **Config file:** `$LOCAL_HUB_HOME/.config/csi-spl/local-hub.env` (mode `0600`).
-- **Workspace key:** `LOCAL_HUB_TENANT=<workspace-id>` (no default value exists in the codebase).
-- **Identity:** Operator credentials and owner email addresses are stored only in this private file or within the local database.
+- `LOCAL_HUB_TENANT`: the workspace slug, `^[a-z0-9][a-z0-9-]{0,31}$`;
+- `LOCAL_HUB_OWNER_EMAIL`: the owner's sign-in email.
 
 ## 2. The trust caveat
 
-### 2.1 The isolation boundary
+The lock-down stops accidental reads: other users' processes, backup and
+search sweeps, and anyone in the `docker` group. It does not stop root.
 
-The local hub hardening measures create a robust barrier against ambient access, unintended inspection, and unprivileged processes:
+- Anyone with `sudo` on the box is root, can become the hub user, and can read the data while the database is unlocked. On a shared box that includes every agent user with `sudo`.
+- While `pg` runs unlocked, the plaintext lives in RAM and in the container's FUSE view. `do_spl_local_hub_down` locks it again.
+- For data that root on this box must not see, run the local hub on a box or VM where only the owner has an account and `sudo`.
 
-1. Rootless Docker ensures that members of the host's `docker` group cannot execute `docker exec` against the database or mount local hub volumes.
-2. Mode `0700` permissions on `$LOCAL_HUB_HOME` prevent non-root users from listing or reading local configuration, keys, or logs.
-3. Database volume encryption protects data at rest if the host drive is unmounted, copied, or inspected while the stack is stopped.
+## 3. Installation
 
-### 2.2 Sudo access on the host
+### 3.1 Host packages
 
-Operators must understand the fundamental trust boundary when hosting on a shared machine:
-
-> [!WARNING]
-> Users on the host with passwordless `sudo` privileges (including host developer accounts with passwordless sudo access) possess root privileges. Because root can assume any user identity (`sudo -u spl-hub`) and inspect process memory or kernel mounts, any user or AI agent with sudo access can technically access local hub data while the instance is unlocked.
-
-The local hardening prevents accidental reads, background search indexing, and ambient tool sweeps, but cannot prevent intentional inspection by a process with host root privileges.
-
-### 2.3 At-rest versus in-memory security
-
-While the PostgreSQL container is running and unlocked:
-
-- The plaintext database pages reside in host RAM and inside the active FUSE mount.
-- Stopping the stack (`do_spl_local_hub_down`) immediately unmounts the FUSE filesystem, reverting the stored database volume to unreadable ciphertext.
-
-### 2.4 Deployment recommendation
-
-For sensitive private workspaces requiring total isolation:
-
-- **Recommended:** Deploy the local hub on a dedicated Debian machine or virtual machine where only the human operator has user accounts and `sudo` access.
-- **Shared box:** If deployed on a multi-user or AI-assisted development machine, maintain awareness that host root access encompasses container access.
-
-## 3. Host prerequisites and installation
-
-### 3.1 Operating system requirements
-
-- Debian 12 (Bookworm) or Debian 13 (Trixie).
-- Linux kernel supporting user namespaces (`CONFIG_USER_NS=y`, default in Debian).
-- FUSE support (`/dev/fuse` accessible to user sessions).
-
-### 3.2 Required software packages
-
-Install the base container tools and rootless prerequisites:
+Docker is the only host tool; Postgres, gocryptfs and the Web UI build live in
+the containers. `do_spl_local_hub_install` refuses to start when one of these
+is missing and names the package:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y \
-  docker-ce docker-ce-cli containerd.io \
-  docker-buildx-plugin docker-compose-plugin \
-  docker-ce-rootless-extras uidmap dbus-user-session \
-  fuse3 age git curl jq
+sudo apt-get install -y docker-ce docker-compose-plugin docker-ce-rootless-extras uidmap slirp4netns iproute2 systemd
 ```
 
-### 3.3 Automated host installation
+Docker CE comes from Docker's own apt repository. The kernel needs user
+namespaces and `/dev/fuse`, both present on a stock Debian 12 or 13.
 
-The host setup action `do_spl_local_hub_install` automates user creation, subuid allocations, and rootless daemon initialization:
+### 3.2 Create the hub user and its rootless daemon
+
+The one step that needs root. Run it first as a dry run, which prints every
+root command and changes nothing:
 
 ```bash
-cd /opt/csi/csi-spl/csi-spl-orc && sudo ./run -a do_spl_local_hub_install
+./run -a do_spl_local_hub_install
 ```
 
-This action performs the following tasks:
-
-1. Creates the system user `spl-hub` with home directory `/var/lib/spl-hub` (mode `0700`).
-2. Configures subordinate UID and GID ranges in `/etc/subuid` and `/etc/subgid` (e.g. `spl-hub:100000:65536`).
-3. Enables systemd user lingering via `loginctl enable-linger spl-hub` so the user's services run without an active login session.
-4. Initializes the rootless Docker daemon for `spl-hub`.
-5. Prepares the long-lived repository clone at `/var/lib/spl-hub/csi-spl`.
-
-### 3.4 Manual host configuration
-
-If configuring the host manually without `do_spl_local_hub_install`:
+Then apply it:
 
 ```bash
-# 1. Create system user
-sudo useradd -r -m -d /var/lib/spl-hub -s /bin/bash spl-hub
-sudo chmod 0700 /var/lib/spl-hub
-
-# 2. Assign subordinate IDs if not automatically allocated
-grep -q "^spl-hub:" /etc/subuid || echo "spl-hub:100000:65536" | sudo tee -a /etc/subuid
-grep -q "^spl-hub:" /etc/subgid || echo "spl-hub:100000:65536" | sudo tee -a /etc/subgid
-
-# 3. Enable lingering
-sudo loginctl enable-linger spl-hub
-
-# 4. Initialize rootless dockerd as spl-hub
-sudo -u spl-hub -H dockerd-rootless-setuptool.sh install
-
-# 5. Clone repository
-sudo -u spl-hub git clone https://github.com/csitea/csi-spl.git /var/lib/spl-hub/csi-spl
+DRY_RUN=0 ./run -a do_spl_local_hub_install
 ```
 
-### 3.5 Private environment configuration
+It creates the system user and its `0700` home, a subuid and subgid range,
+linger, and the user's rootless `dockerd`, then checks that the daemon is
+rootless with its data under the home. It is idempotent. It reports, but never
+changes, the firewall: the `127.0.0.1` binds are the gate.
 
-Create the private configuration file for the instance:
+### 3.3 Write the private config
+
+Create the config directory:
 
 ```bash
-sudo -u spl-hub mkdir -p /var/lib/spl-hub/.config/csi-spl
-sudo -u spl-hub tee /var/lib/spl-hub/.config/csi-spl/local-hub.env > /dev/null << 'EOF'
-LOCAL_HUB_TENANT=my-private-workspace
-LOCAL_HUB_HUB_PORT=58180
-LOCAL_HUB_WUI_PORT=3180
-LOCAL_HUB_PG_PORT=55532
-LOCAL_HUB_GCS_PORT=54543
-EOF
-sudo chmod 0600 /var/lib/spl-hub/.config/csi-spl/local-hub.env
+sudo -u spl-hub mkdir -p -m 700 /var/lib/spl-hub/.config/csi-spl
 ```
 
-## 4. Lifecycle management
-
-### 4.1 Starting the local hub
-
-To bring up the entire stack:
+Write the file. The command waits for input; type the two lines, then press
+Ctrl-D. Typing them here keeps the workspace name out of the shell history:
 
 ```bash
-cd /var/lib/spl-hub/csi-spl/csi-spl-orc && sudo -u spl-hub ./run -a do_spl_local_hub_up
+sudo -u spl-hub sh -c 'umask 077; cat > /var/lib/spl-hub/.config/csi-spl/local-hub.env'
 ```
 
-The startup sequence executes in strict dependency order:
+The two lines are:
 
-1. **Hardening check:** Runs `do_spl_local_hub_harden_check` to verify rootless daemon isolation and loopback configuration. If any check fails, startup aborts.
-2. **PostgreSQL startup:** Starts the `pg` container and prepares the encrypted volume mount.
-3. **Vault unlock:** Invokes `do_spl_local_hub_unlock`, prompting the operator to type the encryption passphrase.
-4. **Database migrations:** Executes database migrations against the unlocked PostgreSQL instance.
-5. **Web UI compilation:** Compiles the static distribution via `wui-generate` into volume `wui-dist`.
-6. **Service startup:** Starts `hub`, `wui-static`, `gcs`, and `backup` services.
-7. **Health verification:** Polls `http://127.0.0.1:58180/healthz` until the hub reports healthy.
+```text
+LOCAL_HUB_TENANT=<workspace>
+LOCAL_HUB_OWNER_EMAIL=<owner email>
+```
 
-### 4.2 Database unlocking
+### 3.4 First start
 
-When prompted by the startup process (or when unlocking a running container after a daemon restart), provide the database passphrase:
+Clone the long-lived tree and bring the stack up, on the owner's terminal:
 
 ```bash
-cd /var/lib/spl-hub/csi-spl/csi-spl-orc && sudo -u spl-hub ./run -a do_spl_local_hub_unlock
+./run -a do_spl_local_hub_update
 ```
 
-The passphrase prompt uses silent terminal input (`read -rs`), ensuring no characters or echoes appear in terminal scrollback or shell histories.
+The first run clones the public repository over https into
+`/var/lib/spl-hub/csi-spl` as the hub user, then runs
+`do_spl_local_hub_up`. On a new database it asks for a new passphrase twice
+(at least 16 characters). Keep it safe: without it the data cannot be read,
+and nobody can reset it.
 
-### 4.3 Verifying status and the ports gate
+### 3.5 Seat the owner
 
-Verify container status and network boundaries using `do_spl_local_hub_status`:
+Sign-up is closed: the hub has no mail transport and returns no debug tokens,
+so every web registration answers 503. The owner's account is created from the
+terminal. Check first (asks nothing):
 
 ```bash
-cd /var/lib/spl-hub/csi-spl/csi-spl-orc && sudo -u spl-hub ./run -a do_spl_local_hub_status
+./run -a do_spl_local_hub_owner_add
 ```
 
-This command runs:
-
-- `docker compose -p spl-local-hub ps` to display active containers.
-- The loopback ports gate (`do_spl_local_hub_ports_gate` / `ss -ltnp`), asserting that all listening ports match `127.0.0.1` and no ports are exposed externally.
-- API health check verification.
-
-### 4.4 Stopping the local hub
-
-To shut down the instance cleanly:
+Then create it; it asks for a display name and the password twice, not shown:
 
 ```bash
-cd /var/lib/spl-hub/csi-spl/csi-spl-orc && sudo -u spl-hub ./run -a do_spl_local_hub_down
+DRY_RUN=0 ./run -a do_spl_local_hub_owner_add
 ```
 
-This stops all running compose services. The database FUSE mount unmounts immediately, locking all on-disk data. Named Docker volumes (`pg-data`, `wui-dist`) are preserved across stops.
+It seats `LOCAL_HUB_OWNER_EMAIL` from the private config as the workspace's
+owner, email pre-verified. A re-run keeps an existing password.
 
-## 5. Owner provisioning and access
+### 3.6 Sign in
 
-### 5.1 Closed registration security model
+Open `http://localhost:3180/` in a browser on the box and sign in with the
+owner's email and password.
 
-Unlike public or shared hub environments, the local hub strictly disables public self-registration:
+## 4. Daily operation
 
-- `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS=false`: No authentication tokens are ever returned in API response bodies.
-- `SPOOL_HUB_MAIL_TRANSPORT=none`: No verification emails are dispatched.
-- `SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=false`: No unauthenticated first-come ownership race is permitted.
-- `SPOOL_HUB_AUTH_PROVIDERS=""`: Third-party OAuth and social login providers are disabled.
-
-Any public HTTP attempt to call the `/api/v1/auth/register` endpoint returns HTTP 503 `mail_unavailable`. Sign-up is closed by construction.
-
-### 5.2 Initial owner account creation
-
-The workspace owner is provisioned directly through the local operator CLI, bypassing network registration:
+### 4.1 Start, also after a reboot
 
 ```bash
-cd /var/lib/spl-hub/csi-spl/csi-spl-orc && sudo -u spl-hub ./run -a do_spl_local_hub_owner_add
+./run -a do_spl_local_hub_up
 ```
 
-1. Enter the desired owner email address and display name.
-2. Enter the account password twice when prompted on the terminal.
-3. The action executes `spool hub-provision-member` within the container, creating a pre-verified user with the `biz_owner` role.
+In order: render the env, run the hardening check (any FAIL stops it), build
+the images, start Postgres and ask for the passphrase, start the GCS emulator,
+migrate, run the hub smoke on the separate `smoke` workspace, create the
+workspace once, generate the Web UI when the tree moved, and serve it.
 
-### 5.3 Accessing the Web UI
-
-Once provisioned, access the Web UI from a browser running on the host:
-
-1. Navigate to: `http://localhost:3180` (or `http://127.0.0.1:3180`).
-2. Log in using the provisioned email address and password.
-3. All UI requests communicate directly with the local hub via the same-origin proxy, ensuring no external network requests are made.
-
-## 6. Agent participation on request
-
-### 6.1 Least privilege for agents
-
-To protect private workspace data from broad agent access:
-
-- No agent desks or seats are created by default.
-- Background reconcile loops and fleet desk monitors ignore the local hub.
-- Agents can only connect if explicitly issued a one-time join token by the workspace owner.
-
-### 6.2 Generating join credentials
-
-The workspace owner generates a desk join token from the Web UI or via the operator CLI:
+### 4.2 Status and the ports gate
 
 ```bash
-cd /var/lib/spl-hub/csi-spl/csi-spl-orc && sudo -u spl-hub \
-  docker compose -p spl-local-hub exec -T hub spool hub-desk-token --tenant <workspace-id> > /tmp/join-token.txt
-chmod 0600 /tmp/join-token.txt
+./run -a do_spl_local_hub_status
 ```
 
-### 6.3 Joining an agent desk
-
-When an AI agent is requested to perform work in the private workspace, it connects using `do_spl_local_hub_agent_join`:
+Lists the services, checks the hub `/healthz` and the Web UI for 200, and
+fails when any listener of the hub user, or any listener on a local hub port,
+is bound beyond loopback. The gate alone, as any user:
 
 ```bash
-cd /opt/csi/csi-spl/csi-spl-orc && sudo -u <agent-user> \
-  env LOCAL_HUB_JOIN_TOKEN_FILE=/tmp/join-token.txt \
-      LOCAL_HUB_TENANT=<workspace-id> \
-      ./run -a do_spl_local_hub_agent_join
+./run -a do_spl_local_hub_ports_gate
 ```
 
-- The join action enforces loopback-only hub URLs (`http://127.0.0.1:58180`).
-- Desk state and cryptographic keys are isolated in `$HOME/.local/share/csi-spl/local-hub`.
-- Once consumed, the temporary token file should be shredded (`shred -u /tmp/join-token.txt`).
+### 4.3 The hardening check
 
-### 6.4 Leaving the local hub
-
-When the agent's task is completed, remove the agent seat:
+`do_spl_local_hub_up` runs it every time. To run it alone:
 
 ```bash
-cd /opt/csi/csi-spl/csi-spl-orc && sudo -u <agent-user> \
-  env LOCAL_HUB_TENANT=<workspace-id> \
-  ./run -a do_spl_local_hub_agent_leave
+sudo -u spl-hub -H bash -c 'cd /var/lib/spl-hub/csi-spl/csi-spl-orc && ./run -a do_spl_local_hub_harden_check'
 ```
 
-This unseats the agent, terminates the local desk sidecar, and deletes local session credentials. Future access requires a newly minted join token.
+One PASS or FAIL line per check: the hub user and its groups, the `0700` home,
+subuid and subgid, linger, the rootless daemon and its data root, every
+published port on loopback, a `hub.env` with no cloud credential and no
+outside host, and no container process running as host root.
 
-## 7. Backup and disaster recovery
-
-### 7.1 Automated daily backups
-
-The local hub includes a containerized backup service running on an automated daily schedule:
-
-- Executes `pg_dump` against the local PostgreSQL container.
-- Streams the SQL dump through `age` encryption using the owner's recipient public key.
-- Stores the encrypted archive (`backup-YYYY-MM-DDTHHMMSSZ.sql.age`) in `/var/lib/spl-hub/backups` (mode `0700`).
-- Rotates old backups according to retention policies.
-
-### 7.2 On-demand manual backups
-
-To trigger an immediate backup:
+### 4.4 Stop
 
 ```bash
-cd /var/lib/spl-hub/csi-spl/csi-spl-orc && sudo -u spl-hub ./run -a do_spl_local_hub_backup
+./run -a do_spl_local_hub_down
 ```
 
-The resulting encrypted archive is placed in `$LOCAL_HUB_HOME/backups/`. The private key required to decrypt the archive must be kept securely off-box or protected with a passphrase.
+Stops every service; the database locks. The volumes are kept.
 
-### 7.3 Restoring from backup
+### 4.5 Remove everything
 
-To restore a database backup archive:
+Deletes the workspace's data for good. Take a backup first (section 7):
 
 ```bash
-cd /var/lib/spl-hub/csi-spl/csi-spl-orc && sudo -u spl-hub \
-  env BACKUP_FILE=/var/lib/spl-hub/backups/backup-<timestamp>.sql.age \
-  ./run -a do_spl_local_hub_restore
+LOCAL_HUB_PURGE=1 DRY_RUN=0 ./run -a do_spl_local_hub_down
 ```
 
-The restore procedure enforces safety checks:
+## 5. The owner's account
 
-1. Prompts the operator for the `age` decryption key or passphrase.
-2. Restores the decrypted archive into an isolated scratch database first.
-3. Validates database schema integrity and message row counts in the scratch database.
-4. With operator confirmation, switches the active database to the restored copy.
+### 5.1 Reset a forgotten owner password
 
-## 8. Updates and maintenance
-
-### 8.1 Software updates
-
-To update the local spool-hub software to a newer version of the repository:
+The local hub sends no mail, so a reset link never arrives, and a re-run of
+`owner_add` keeps the old password. Run these on the owner's terminal on the
+box; a pipe, a file or a script is refused. Check what it will do (asks
+nothing):
 
 ```bash
-cd /var/lib/spl-hub/csi-spl/csi-spl-orc && sudo -u spl-hub ./run -a do_spl_local_hub_update
+./run -a do_spl_local_hub_owner_reset
 ```
 
-The update action safely performs the following sequence:
-
-1. Performs `git fetch origin master` and `git merge --ff-only origin/master` in the long-lived clone.
-2. Checks for updated Docker image references and pulls new images.
-3. Automatically triggers `do_spl_local_hub_up`, which applies any pending database migrations and rebuilds static UI assets.
-4. Runs `do_spl_local_hub_status` to ensure all services and loopback ports remain healthy.
-
-### 8.2 Log inspection and monitoring
-
-Inspect service logs via Docker Compose without exposing outputs to external monitoring:
+Reset it; it asks twice, then signs the owner out everywhere:
 
 ```bash
-# Follow logs for all services
-sudo -u spl-hub docker compose -p spl-local-hub -f /var/lib/spl-hub/csi-spl/csi-spl-orc/src/docker/docker-compose-local-hub.yaml logs -f
-
-# Inspect hub API logs specifically
-sudo -u spl-hub docker compose -p spl-local-hub logs -f hub
-
-# Inspect rootless daemon systemd logs
-sudo -u spl-hub journalctl --user -u docker.service -f
+DRY_RUN=0 ./run -a do_spl_local_hub_owner_reset
 ```
 
-### 8.3 Troubleshooting common issues
+Sign in again with the new password on `http://localhost:3180/`. If it says
+no owner with a password is seated yet, seat the owner first (section 3.5).
 
-#### 8.3.1 Rootless Docker daemon fails to start
+### 5.2 The database passphrase
 
-Verify that subordinate UID and GID ranges are properly mapped and that lingering is enabled:
+There is no reset for the database passphrase: it is the encryption key. A
+lost passphrase means the data is restored from a backup into a new volume.
+
+## 6. Agents on request
+
+### 6.1 Admit an agent
+
+No agent is seated on the local hub by default, and the fleet's own desk
+actions never reach it. To admit one:
+
+1. A workspace admin opens the local hub's **Settings -> Agents** and mints a join token for that agent.
+2. On the box, save the token in a file only you can read (`chmod 600`).
+3. Run the join; drop `DRY_RUN=0` to see the plan first.
 
 ```bash
-loginctl show-user spl-hub | grep Linger
-cat /etc/subuid | grep spl-hub
+LOCAL_HUB_TENANT=<workspace> DESK_AGENT=<agent id> LOCAL_HUB_JOIN_TOKEN_FILE=<file> DRY_RUN=0 ./run -a do_spl_local_hub_agent_join
 ```
 
-#### 8.3.2 Database fails to mount or unlock
+Each agent gets its own box `lh-<agent>` and its own key, and serves one
+workspace only. It talks to the hub on `127.0.0.1` only; a cloud hub URL is
+refused.
 
-Ensure that the FUSE device `/dev/fuse` is accessible and that the `fuse3` package is installed on the host. If an incorrect passphrase was entered during `do_spl_local_hub_unlock`, re-run the unlock action.
-
-#### 8.3.3 Port conflicts on loopback interface
-
-If startup fails with `bind: address already in use`, verify whether another service is occupying the configured loopback ports:
+### 6.2 Remove an agent
 
 ```bash
-sudo ss -ltnp | grep -E ':(58180|3180|55532|54543)\b'
+LOCAL_HUB_TENANT=<workspace> DESK_AGENT=<agent id> DRY_RUN=0 ./run -a do_spl_local_hub_agent_leave
 ```
-Modify port assignments in `/var/lib/spl-hub/.config/csi-spl/local-hub.env` if required.
+
+Then revoke its seat in **Settings -> Agents**. Its inbox stays on disk under
+`left/`; a new join needs a new token.
+
+## 7. Backup and restore
+
+The local backup job and its restore action are not on master yet.
+`do_spl_local_hub_up` says so on every start (`WARN no backup service`).
+Until they land, no daily backup runs: losing the box's disk loses the
+workspace. This section is replaced by the backup and restore commands when
+they land.
+
+## 8. Updates
+
+### 8.1 Update to the latest master
+
+```bash
+./run -a do_spl_local_hub_update
+```
+
+Fetches, fast-forwards the long-lived clone to `origin/master`, then runs
+`do_spl_local_hub_up` from the updated code: new migrations apply and the Web
+UI is regenerated. A clone with local edits cannot fast-forward and is
+refused, never reset. To see what would change without changing anything:
+
+```bash
+DRY_RUN=1 ./run -a do_spl_local_hub_update
+```
+
+## 9. Reaching it from another device
+
+The local hub answers on the box only. The Web UI and the hub expect the
+origin `http://localhost:3180`, so another device reaches it through a tunnel
+that keeps that origin, for example an SSH port forward from the device:
+
+```bash
+ssh -N -L 3180:127.0.0.1:3180 <user>@<box>
+```
+
+Then open `http://localhost:3180/` on the device. A private network
+(WireGuard, Tailscale) also works, but it changes the origin and needs a
+matching cnf change; set it up only with the owner. Never publish a local hub
+port on a public interface: the ports gate fails on it.
+
+## 10. Troubleshooting
+
+### 10.1 Container logs
+
+The containers belong to the hub user's rootless daemon, so the system
+`docker` command does not list them. Follow the hub's log:
+
+```bash
+sudo -u spl-hub -H docker --host "unix:///run/user/$(id -u spl-hub)/docker.sock" logs -f spl-local-hub-hub-1
+```
+
+### 10.2 The rootless daemon is down
+
+Re-run the install; it is idempotent and restarts what is missing:
+
+```bash
+DRY_RUN=0 ./run -a do_spl_local_hub_install
+```
+
+### 10.3 A port is already in use
+
+```bash
+ss -ltnp 'sport = :58180 or sport = :3180 or sport = :55532 or sport = :54543'
+```
+
+The ports are cnf `env.lde.local_hub` (`hub_port`, `wui_port`, `pg_port`,
+`gcs_port`); `LOCAL_HUB_*_PORT` env vars override them for one run.

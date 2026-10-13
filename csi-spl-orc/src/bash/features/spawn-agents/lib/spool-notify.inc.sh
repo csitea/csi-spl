@@ -278,8 +278,13 @@ spool_notify_frame() {  # VAR TO FROM TASK MSGID
   printf -v "$__var" '%s' "$pre"
 }
 
+# 0 when this delivery is a sealed message (spec 136 FR7). Callers set
+# SPOOL_NOTIFY_ENC=1 and still pass the clear body; the renderer drops it.
+spool_notify_enc_on() { [ "${SPOOL_NOTIFY_ENC:-}" = 1 ]; }
+
 # Render the poke line into VAR. Every field is cleaned, not just the body:
 # a hostile `from` would otherwise be the way out of the quoted argument.
+# A sealed message names the envelope only (spec 136 section 3.3).
 spool_notify_render() {  # VAR TO KIND FROM TASK MSGID BODY
   local __var="$1" to kind from task msgid body line
   to="$(spool_notify_clean "${2:-}")"
@@ -287,11 +292,16 @@ spool_notify_render() {  # VAR TO KIND FROM TASK MSGID BODY
   from="$(spool_notify_clean "${4:-}")"; from="${from:-?}"
   task="$(spool_notify_clean "${5:-}")"
   msgid="$(spool_notify_clean "${6:-}")"
-  body="$(spool_notify_clean "${7:-}")"
-  body="$(spool_notify_cut "$body" "${SPOOL_NOTIFY_BODY_MAX:-600}")"
-  [ -n "$body" ] || body='(no body)'
-  line=": 'SPOOL ${to}: ${kind} from ${from}${task:+ task ${task}}${msgid:+ msg ${msgid}}"
-  line="${line} :: ${body} :: run: spool recv --as ${to}'"
+  if spool_notify_enc_on; then
+    line=": 'SPOOL ${to}: ${kind} from ${from}${task:+ task ${task}}${msgid:+ msg ${msgid}}"
+    line="${line} :: encrypted :: run: spool recv --encrypted --as ${to}'"
+  else
+    body="$(spool_notify_clean "${7:-}")"
+    body="$(spool_notify_cut "$body" "${SPOOL_NOTIFY_BODY_MAX:-600}")"
+    [ -n "$body" ] || body='(no body)'
+    line=": 'SPOOL ${to}: ${kind} from ${from}${task:+ task ${task}}${msgid:+ msg ${msgid}}"
+    line="${line} :: ${body} :: run: spool recv --as ${to}'"
+  fi
   line="$(spool_notify_cut "$line" "${SPOOL_NOTIFY_LINE_MAX:-1200}")"
   # The cut may have dropped the closing quote; a line that is not inert is
   # worse than a shorter one, so close it again.
@@ -410,6 +420,11 @@ spool_notify_pane_dead() {  # TO PANE
 # the body goes in verbatim; VAR keeps the doorbell line otherwise.
 spool_notify_pick_line() {  # VAR PANE BODY FROM
   local __var="$1" pane="$2" body="$3" from="$4" alt prompt
+  # A sealed body is never pasted into the prompt (spec 136 S2). The doorbell
+  # line already names the envelope.
+  if spool_notify_enc_on; then
+    return 0
+  fi
   # WHAT the prompt is given. The owner's rule, 2026-09-22: "the communication
   # would be as a human would be typing into this chat textbox" - so a message
   # from a human is the human's words, nothing wrapped round them.

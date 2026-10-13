@@ -672,6 +672,30 @@ def seat_env(seat):
     return env
 
 
+def sealed_surface(text):
+    """A v:3 envelope handed to the mirror as terminal text.
+
+    The post then carries the envelope line only. ct and a planted body stay
+    out of argv and out of mirror.log (spec 136 FR7). None when text is an
+    ordinary answer, which is posted as before.
+    """
+    raw = str(text or "").strip()
+    if not raw.startswith("{"):
+        return None
+    try:
+        obj = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(obj, dict) or not (obj.get("v") == 3 or obj.get("enc")):
+        return None
+    return ":: encrypted :: from %s kind %s task %s msg %s" % (
+        obj.get("from") or "?",
+        obj.get("kind") or "?",
+        obj.get("task_id") or "",
+        obj.get("msg_id") or "",
+    )
+
+
 def clip_body(s):
     b = s.encode()
     if len(b) <= BODY_MAX:
@@ -757,6 +781,9 @@ def post_one(seat, agent, event, text, session):
             f"skip answer: the turn was not started by a DM ({turn.get('kind') or 'no prompt recorded'})",
         )
         return "skipped"
+    sealed = sealed_surface(text)
+    if sealed is not None:
+        text = sealed
     h = hashlib.sha256((session + "\0" + norm(text)).encode()).hexdigest()
     last = os.path.join(adir, ".mirror", "last-answer")
     try:
@@ -768,7 +795,8 @@ def post_one(seat, agent, event, text, session):
     except OSError:
         pass
     human, task = turn["to"], turn["task"]
-    text = answer_text(text)
+    if sealed is None:
+        text = answer_text(text)
     if not text:
         log(
             adir,

@@ -73,17 +73,56 @@ func RunCtx(ctx context.Context, cfg *config.Config, m *msg.Message, to string) 
 	if !Enabled(cfg) || m == nil || to == "" {
 		return
 	}
+	runNotify(ctx, cfg, delivery{
+		to: to, from: m.From, kind: m.Kind, taskID: m.TaskID, msgID: m.MsgID,
+		body: withAttachments(m),
+	})
+}
+
+// RunSealed rings the pane for a v:3 message (spec 136 section 3.3, FR7).
+// ct stays off stdin and off argv. SPOOL_NOTIFY_ENC=1 tells the notifier to
+// render the header-only poke. DeliverSealed is the same call for the store:
+// the poke queue holds a clear message, so a sealed one stays on this path.
+func RunSealed(cfg *config.Config, s *msg.Sealed, to string) {
+	RunSealedCtx(context.Background(), cfg, s, to)
+}
+
+// RunSealedCtx is RunSealed under a caller ctx.
+func RunSealedCtx(ctx context.Context, cfg *config.Config, s *msg.Sealed, to string) {
+	if !Enabled(cfg) || s == nil || to == "" {
+		return
+	}
+	runNotify(ctx, cfg, delivery{
+		to: to, from: s.From, kind: s.Kind, taskID: s.TaskID, msgID: s.MsgID,
+		enc: true,
+	})
+}
+
+// DeliverSealed is what a store calls after a sealed message lands. It does
+// not enter the clear-message queue.
+func DeliverSealed(cfg *config.Config, s *msg.Sealed, to string) {
+	RunSealed(cfg, s, to)
+}
+
+// delivery is one terminal ring. enc marks a v:3 message: the body stays
+// empty and the notifier renders the header only (spec 136 section 3.3).
+type delivery struct {
+	to, from, kind, taskID, msgID, body string
+	enc                                 bool
+}
+
+func runNotify(ctx context.Context, cfg *config.Config, d delivery) {
 	argv := strings.Fields(cfg.NotifyCmd)
 	argv = append(argv,
-		"--to", to,
-		"--from", m.From,
-		"--kind", m.Kind,
-		"--task", m.TaskID,
-		"--msg-id", m.MsgID,
+		"--to", d.to,
+		"--from", d.from,
+		"--kind", d.kind,
+		"--task", d.taskID,
+		"--msg-id", d.msgID,
 		"--body-stdin",
 	)
 
-	trace.Mark(trace.Event{Stage: trace.StageNotifyStart, MsgID: m.MsgID, To: to})
+	trace.Mark(trace.Event{Stage: trace.StageNotifyStart, MsgID: d.msgID, To: d.to})
 	ctx, cancel := context.WithTimeout(ctx, cfg.NotifyTimeoutOr())
 	defer cancel()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) //nolint:gosec // operator-set command, no shell
@@ -92,18 +131,8 @@ func RunCtx(ctx context.Context, cfg *config.Config, m *msg.Message, to string) 
 	// block on that pipe until the grandchild exits. WaitDelay gives up on the
 	// pipe shortly after the kill, which is what actually bounds Run.
 	cmd.WaitDelay = time.Second
-	cmd.Stdin = strings.NewReader(withAttachments(m))
-	// The notifier resolves the recipient's pane from $SPOOL_ROOT/registry.tsv,
-	// so it must see the same root this store wrote into, whatever the parent
-	// process inherited.
-	cmd.Env = append(os.Environ(), "SPOOL_ROOT="+cfg.SpoolRoot)
-	// The notifier reports its own "the line is on the screen" instant into
-	// the same trace file; this one brackets the whole leg, submit wait and
-	// all, which is what blocks the caller.
-	if trace.On() {
-		cmd.Env = append(cmd.Env, "SPOOL_TRACE="+os.Getenv("SPOOL_TRACE"),
-			"SPOOL_TRACE_MSG_ID="+m.MsgID, "SPOOL_TRACE_TO="+to)
-	}
+	cmd.Stdin = strings.NewReader(d.body)
+	cmd.Env = notifyEnv(cfg, d)
 	out, err := cmd.CombinedOutput()
 
 	var ee *exec.ExitError
@@ -111,9 +140,9 @@ func RunCtx(ctx context.Context, cfg *config.Config, m *msg.Message, to string) 
 	if errors.As(err, &ee) {
 		rc = ee.ExitCode()
 	}
-	trace.Mark(trace.Event{Stage: trace.StageNotifyDone, MsgID: m.MsgID, To: to, RC: rc})
+	trace.Mark(trace.Event{Stage: trace.StageNotifyDone, MsgID: d.msgID, To: d.to, RC: rc})
 
-	log := logging.New(cfg).With().Str("to", to).Str("msg_id", m.MsgID).Logger()
+	log := logging.New(cfg).With().Str("to", d.to).Str("msg_id", d.msgID).Logger()
 	line := strings.TrimSpace(string(out))
 	switch {
 	case err == nil:
@@ -126,6 +155,28 @@ func RunCtx(ctx context.Context, cfg *config.Config, m *msg.Message, to string) 
 		log.Warn().Err(err).Str("cmd", argv[0]).Str("notify", line).
 			Msg("terminal delivery failed; the message is still in the inbox")
 	}
+}
+
+// notifyEnv is the notifier's environment. A sealed delivery sets
+// SPOOL_NOTIFY_ENC=1; a plain one strips that variable so a parent that
+// leaked it cannot hide a clear body.
+func notifyEnv(cfg *config.Config, d delivery) []string {
+	env := make([]string, 0, len(os.Environ())+5)
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "SPOOL_NOTIFY_ENC=") {
+			continue
+		}
+		env = append(env, kv)
+	}
+	env = append(env, "SPOOL_ROOT="+cfg.SpoolRoot)
+	if d.enc {
+		env = append(env, "SPOOL_NOTIFY_ENC=1")
+	}
+	if trace.On() {
+		env = append(env, "SPOOL_TRACE="+os.Getenv("SPOOL_TRACE"),
+			"SPOOL_TRACE_MSG_ID="+d.msgID, "SPOOL_TRACE_TO="+d.to)
+	}
+	return env
 }
 
 // withAttachments is the body the pane is shown: one "[image attached: ...]"

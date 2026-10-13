@@ -473,6 +473,10 @@ spool_notice_record() {  # ID HEAD BODY
   # the colour, so the newest can be put on top without re-parsing escapes.
   # Both fields went through spool_notify_clean, which leaves no tab or newline
   # in either, so a line is exactly one record.
+  # A sealed message records the envelope word, never the clear body (spec 136 FR7).
+  if [ "${SPOOL_NOTIFY_ENC:-}" = 1 ]; then
+    body=':: encrypted ::'
+  fi
   spool_notice_line "$head" "$body" >>"$log" 2>/dev/null
 }
 
@@ -493,8 +497,13 @@ spool_poke_show() {  # TO KIND FROM TASK MSGID BODY
   task="$(spool_notify_clean "$task")"; msgid="$(spool_notify_clean "$msgid")"
   # Same body the prompt is typed and the WUI row shows. SPOOL_SHOW_BODY_MAX
   # still overrides the bound; the default is the prompt bound, not 400.
-  body="$(spool_notify_shown_body "$body")"
-  [ -n "$body" ] || body='(no body)'
+  # A sealed message shows the envelope word on every surface (spec 136 FR7).
+  if [ "${SPOOL_NOTIFY_ENC:-}" = 1 ]; then
+    body=':: encrypted ::'
+  else
+    body="$(spool_notify_shown_body "$body")"
+    [ -n "$body" ] || body='(no body)'
+  fi
   head="$(spool_notice_head_in "$to" "$kind" "$from" "$task" "$msgid")"
   plain="${head} :: ${body}"
   if spool_show_colour; then

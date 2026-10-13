@@ -70,6 +70,11 @@ spool_ask_wanted() {  # TO KIND FORCE NO
 }
 
 spool_ask_summary() {  # BODY
+  # A sealed ask records that it is sealed, not its first line (spec 136 FR7).
+  if [ "${SPOOL_NOTIFY_ENC:-}" = 1 ]; then
+    printf '%s' ':: encrypted ::'
+    return 0
+  fi
   printf '%s' "$1" | sed -n '/[^[:space:]]/{p;q;}' | tr -d '\000-\037\177' |
     sed -E 's/^[[:space:]#>*-]+//; s/\*\*//g' | head -c 200
 }

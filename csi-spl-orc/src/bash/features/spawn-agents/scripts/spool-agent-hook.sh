@@ -255,6 +255,11 @@ def render(path, m):
         return "- unreadable inbox file: %s" % path
     head = "- from: %s, kind: %s, task_id: %s, msg_id: %s" % (
         m.get("from"), m.get("kind"), m.get("task_id"), m.get("msg_id"))
+    # spec 136 FR7: a v:3 file has no clear body in the hook context, even
+    # when a body or ct key was planted beside the envelope.
+    if m.get("v") == 3 or m.get("enc"):
+        return "%s\n  :: encrypted :: run: spool recv --encrypted --as %s" % (
+            head, m.get("to") or "")
     if stub_of(m):
         return "%s\n  offered job, round %s: %s\n  accept with: `spool claim --accept %s --round %s`" % (
             head, m.get("round"), m.get("title") or "", m.get("msg_id"), m.get("round"))

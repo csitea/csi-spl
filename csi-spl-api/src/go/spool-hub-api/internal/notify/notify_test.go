@@ -22,7 +22,7 @@ func fakeNotifier(t *testing.T, rc int, extra string) (cmd, log string) {
 	cmd = filepath.Join(dir, "notify.sh")
 	body := "#!/usr/bin/env bash\n" +
 		extra +
-		"{ echo \"ARGV: $*\"; echo \"ROOT: ${SPOOL_ROOT:-}\"; echo \"STDIN: $(cat)\"; } >> " + log + "\n" +
+		"{ echo \"ARGV: $*\"; echo \"ROOT: ${SPOOL_ROOT:-}\"; echo \"ENC: ${SPOOL_NOTIFY_ENC-}\"; echo \"STDIN: $(cat)\"; } >> " + log + "\n" +
 		"exit " + itoa(rc) + "\n"
 	if err := os.WriteFile(cmd, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
@@ -218,5 +218,61 @@ func TestAttachmentNote(t *testing.T) {
 	m := testMsg()
 	if got := withAttachments(m); got != m.Body {
 		t.Fatalf("no files must leave the body alone: %q", got)
+	}
+}
+
+// spec 136 FR7 (L5a): a sealed message's ct never reaches the notifier.
+// Stdin stays empty and SPOOL_NOTIFY_ENC=1 tells the pane script to render
+// the header-only poke. A plain Run still puts the body on stdin.
+func TestRunSealedOmitsBody(t *testing.T) {
+	cmd, log := fakeNotifier(t, 0, "")
+	root := t.TempDir()
+	cfg := &config.Config{SpoolRoot: root, NotifyCmd: cmd}
+	const marker = "SPL136L5A-MARKER-7f3c9a"
+	s := &msg.Sealed{
+		V: msg.V3, MsgID: "m-seal", TaskID: "t-seal", TS: msg.Now(time.Now()),
+		From: "c-101", To: "c-102", Kind: "note", Enc: msg.SealScheme,
+		For: []string{"c-102"}, CT: marker,
+	}
+	RunSealed(cfg, s, "c-102")
+	got := readLog(t, log)
+	if strings.Contains(got, marker) {
+		t.Fatalf("sealed notify carried the body marker:\n%s", got)
+	}
+	for _, want := range []string{"--to c-102", "--from c-101", "--kind note", "--msg-id m-seal", "ENC: 1", "STDIN: \n"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("sealed notify missing %q:\n%s", want, got)
+		}
+	}
+	plain := testMsg()
+	plain.Body = marker
+	cmd2, log2 := fakeNotifier(t, 0, "")
+	Run(&config.Config{SpoolRoot: root, NotifyCmd: cmd2}, plain, "c-102")
+	got2 := readLog(t, log2)
+	if !strings.Contains(got2, "STDIN: "+marker) {
+		t.Fatalf("plain notify dropped the body:\n%s", got2)
+	}
+	// A parent that already exported the flag must not hide a clear body.
+	t.Setenv("SPOOL_NOTIFY_ENC", "leak")
+	cmd3, log3 := fakeNotifier(t, 0, "")
+	Run(&config.Config{SpoolRoot: root, NotifyCmd: cmd3}, plain, "c-102")
+	got3 := readLog(t, log3)
+	if strings.Contains(got3, "ENC: leak") || strings.Contains(got3, "ENC: 1") {
+		t.Fatalf("plain notify kept a leaked enc flag:\n%s", got3)
+	}
+	if !strings.Contains(got3, "STDIN: "+marker) {
+		t.Fatalf("plain notify dropped the body under a leaked flag:\n%s", got3)
+	}
+	cmd4, log4 := fakeNotifier(t, 0, "")
+	DeliverSealed(&config.Config{SpoolRoot: root, NotifyCmd: cmd4}, s, "c-102")
+	got4 := readLog(t, log4)
+	if strings.Contains(got4, marker) || !strings.Contains(got4, "ENC: 1") || !strings.Contains(got4, "STDIN: \n") {
+		t.Fatalf("DeliverSealed leaked or skipped:\n%s", got4)
+	}
+	before := strings.Count(got4, "ARGV:")
+	RunSealed(&config.Config{SpoolRoot: root, NotifyCmd: cmd4}, nil, "c-102")
+	RunSealed(&config.Config{SpoolRoot: root, NotifyCmd: cmd4}, s, "")
+	if strings.Count(readLog(t, log4), "ARGV:") != before {
+		t.Fatalf("nil or empty-to sealed notify ran:\n%s", readLog(t, log4))
 	}
 }

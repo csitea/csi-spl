@@ -128,6 +128,9 @@
 #      for SPOOL_INSTALL_REPO); SPOOL_INSTALL_URL_CLI - the download base,
 #      <base>/<tag>/<asset> (default that repo's releases/download)
 #      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
+#      SPOOL_INSTALL_AGY_VERSION - an agy floor X.Y.Z (do_install_agy_cli
+#      passes the cnf env.box.agy_cli.version): at or above it is kept, below
+#      it is updated, still below is exit 4; unset = the latest, as before
 #      SPOOL_INSTALL_NPM_QWEN - the qwen npm package (default @qwen-code/qwen-code@latest)
 #      SPOOL_INSTALL_NPM - the npm command (default npm)
 #      SPOOL_INSTALL_MISTRAL_VERSION - the mistral-vibe pin, X.Y.Z (default
@@ -443,10 +446,49 @@ mistral_install() {
   fi
   say "mistral: $have (vibe $cur)"
 }
+# agy with a pin (SPOOL_INSTALL_AGY_VERSION, X.Y.Z; do_install_agy_cli passes
+# the cnf one). The vendor serves only its latest and agy updates itself in
+# the background, so the pin is a FLOOR: an agy at or above it is kept as it
+# is (above it: named, bump the cnf); none is installed with the vendor
+# installer, one below it is moved up with its own `update`; still below the
+# pin afterwards is a failed CLI (exit 4).
+AGY_PIN="${SPOOL_INSTALL_AGY_VERSION:-}"
+[ -z "$AGY_PIN" ] || [[ "$AGY_PIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+  die 2 "SPOOL_INSTALL_AGY_VERSION must be one X.Y.Z, got '$AGY_PIN': never latest"
+agy_version() { "$1" --version 2>/dev/null | sed -n '1s/^[^0-9]*\([0-9][0-9.]*\).*/\1/p'; }
+ver_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | sed -n 1p)" = "$2" ]; }  # $1 >= $2
+agy_pinned() {
+  local url="$1" have="$2" cur="" tmp rc
+  [ -n "$have" ] && cur="$(agy_version "$have")"
+  if [ -n "$cur" ] && ver_ge "$cur" "$AGY_PIN"; then
+    say "agy: $have is $cur, at or above the pin $AGY_PIN: not reinstalled"
+    [ "$cur" = "$AGY_PIN" ] || say "WARN agy: $cur is past the cnf pin $AGY_PIN (agy updates itself): bump env.box.agy_cli.version"
+    return 0
+  fi
+  if [ -n "$have" ]; then
+    if [ "$DRY" = 1 ]; then plan "$have update (have ${cur:-an unreadable version}, the pin is $AGY_PIN)"; return 0; fi
+    say "agy: $have is ${cur:-unreadable}, below the pin $AGY_PIN: $have update"
+    "$have" update >&2 || say "WARN agy: '$have update' failed"
+  else
+    if [ "$DRY" = 1 ]; then plan "install agy (pin $AGY_PIN or newer): bash <($url)"; return 0; fi
+    tmp="$(mktemp)"
+    fetch "$url" "$tmp" || { rm -f "$tmp"; cli_fail agy "cannot download the agy installer from $url"; return 0; }
+    [ "$(head -c 2 "$tmp")" = "#!" ] || { rm -f "$tmp"; cli_fail agy "$url did not return a script: retry later, or set SPOOL_INSTALL_URL_AGY"; return 0; }
+    say "installing agy ($url), pin $AGY_PIN"
+    bash "$tmp" >&2; rc=$?; rm -f "$tmp"
+    [ "$rc" -eq 0 ] || { cli_fail agy "the agy installer failed (rc $rc)"; return 0; }
+  fi
+  have="$(cli_path agy)"; [ -n "$have" ] || { cli_fail agy "no agy binary on PATH or in $BIN after the install"; return 0; }
+  cur="$(agy_version "$have")"
+  [ -n "$cur" ] && ver_ge "$cur" "$AGY_PIN" || { cli_fail agy "$have is ${cur:-unreadable}, below the pin $AGY_PIN"; return 0; }
+  say "agy: $have (agy $cur, pin $AGY_PIN)"
+}
 for c in "${CLI_LIST[@]}"; do
   [ "$c" = mistral ] && { mistral_install "$(cli_path vibe)"; continue; }
   url="$(cli_url "$c")"; have="$(cli_path "$c")"
   [ "$c" = qwen ] && { qwen_install "$have"; continue; }
+  # agy with a pin (do_install_agy_cli): the pin is a floor, see agy_pinned.
+  if [ "$c" = agy ] && [ -n "$AGY_PIN" ]; then agy_pinned "$url" "$have"; continue; fi
   # agy's installer stops at "already installed"; its own `update` is the
   # documented way to the latest. claude's and grok's installers update in place.
   if [ "$c" = agy ] && [ -n "$have" ]; then

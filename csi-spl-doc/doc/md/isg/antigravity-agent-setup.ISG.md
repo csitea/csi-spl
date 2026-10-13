@@ -124,6 +124,40 @@ None held by the agent.
 
 ## 4. Install steps
 
+### 4.0 The agy CLI for the agent user
+
+A box with no agy (`spool-harness: agent command 'agy' not found`) gets it
+with the named action `do_install_agy_cli`. It runs the box installer as the
+agent user (`SPOOL_AGENT_USER`, in that user's home):
+`install.sh --cli agy --cli-only`. DRY_RUN=1 is the default and only prints the plan:
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-orc && DRY_RUN=1 ./run -a do_install_agy_cli
+```
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-orc && DRY_RUN=0 ./run -a do_install_agy_cli
+```
+
+- The version is a FLOOR: cnf `env.box.agy_cli.version`, 1.3.4 while the
+  cnf has no such key. The vendor installer serves only its latest, and agy
+  updates itself in the background, so an exact pin cannot hold.
+  - An agy at or above the floor is left as it is. Above it, a WARN asks for
+    a cnf bump.
+  - No agy: the vendor installer runs (`SPOOL_INSTALL_URL_AGY`, default the
+    vendor's `install.sh`).
+  - An agy below the floor runs its own `agy update`. Still below after that
+    is exit 4.
+- It ends with `agy --version` as the agent user.
+- The sign-in is never read or copied between boxes. agy keeps it in
+  `~/.gemini/antigravity-cli/` of the agent user. A new box is signed in
+  there once by the owner (an interactive `agy` as that user). agy has no
+  auth-status command: check it with one harmless prompt,
+  `agy -p 'Reply with the single word OK.' --print-timeout 90s`.
+- Test: `csi-spl-orc/src/bash/tests/install-agy-cli.tst.sh`.
+
+### 4.1 Seat the agent
+
 To seat the agent on dev or prd:
 
 ```bash
@@ -214,4 +248,4 @@ n as each step states. Both dev and prd desk checks and seating are verified.
 One step is still open: `do_spl_desk_session_upload` exporting an agy conversation.
 Delete the "still untested" line at the top only after that has been verified.
 
-<!-- version: 0.5.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:00:00Z -->
+<!-- version: 0.6.0 · updated: 2026-10-13 · last-edit: 2026-10-13T09:30:00Z -->

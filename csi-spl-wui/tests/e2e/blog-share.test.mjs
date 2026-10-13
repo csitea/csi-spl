@@ -100,10 +100,17 @@ try {
       await p.screenshot({ path: shot })
       ok(`${label}: screenshot`, true, shot)
     }
-    const ids = await p.$$eval('[data-test=blog-share] [data-test]', (els) => els.map((el) => el.getAttribute('data-test')))
-    const named = ids.filter((id) => id !== 'blog-share-native')
-    ok(`${label}: Copy link is first, then the sites, e-mail last`, JSON.stringify(named) === JSON.stringify(BLOG_SHARE_ORDER.map((id) => `blog-share-${id}`)), named)
-    ok(`${label}: Web Share does not replace the row`, !ids.includes('blog-share-native') || ids[ids.length - 1] === 'blog-share-native', ids)
+    const ids = await p.$$eval('[data-test^="blog-share-"] [data-test]', (els) => els.map((el) => el.getAttribute('data-test')))
+    const named = ids.filter((id) => id !== 'blog-share-native-top' && id !== 'blog-share-native-end')
+    ok(`${label}: Copy link is first, then the sites, e-mail last`, JSON.stringify(named) === JSON.stringify(BLOG_SHARE_ORDER.map((id) => `blog-share-${id}-top`)), named)
+    ok(`${label}: Web Share does not replace the row`, !ids.includes('blog-share-native-top') || ids[ids.length - 1] === 'blog-share-native-top', ids)
+    
+    // Check the end row exists and has the same controls as the top row.
+    const endRow = await p.waitForSelector('[data-test=blog-share-end]', { visible: true, timeout: 5000 }).catch(() => null)
+    ok(`${label}: the post shows the end share row`, Boolean(endRow))
+    const endIds = await p.$$eval('[data-test=blog-share-end] [data-test]', (els) => els.map((el) => el.getAttribute('data-test')))
+    const endNamed = endIds.filter((id) => id !== 'blog-share-native-end')
+    ok(`${label}: end row has the same controls as the top row`, JSON.stringify(endNamed) === JSON.stringify(BLOG_SHARE_ORDER.map((id) => `blog-share-${id}-end`)), endNamed)
 
     const links = await p.$$eval('a[data-test^="blog-share-"]', (els) => els.map((el) => ({
       id: el.getAttribute('data-test'),

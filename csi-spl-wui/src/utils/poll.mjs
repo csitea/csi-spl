@@ -79,7 +79,14 @@ export function parsePoll(text) {
   }
   const real = questions.filter((x) => x.options.length || x.chat)
   if (!real.length || real.length !== questions.length || real.some((x) => !x.options.length)) return null
-  return { multi: shape === 'check', questions: real.map(({ text, options }) => ({ text, options })) }
+  return {
+    multi: shape === 'check', 
+    questions: real.map(({ text, options }) => ({
+      text,
+      kind: options.length === 1 ? 'button' : 'radio',
+      options
+    }))
+  }
 }
 
 /**

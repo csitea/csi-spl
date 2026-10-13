@@ -21,8 +21,13 @@ describe('parsePoll: one form, all radios or all checkboxes', () => {
   it('radio options make a single-choice form', () => {
     assert.deepEqual(parsePoll(RADIO), {
       multi: false,
-      questions: [{ text: 'Which deploy path?', options: [{ key: 'A', text: 'Deploy now' }, { key: 'B', text: 'Wait for CI' }] }],
+      questions: [{ text: 'Which deploy path?', kind: 'radio', options: [{ key: 'A', text: 'Deploy now' }, { key: 'B', text: 'Wait for CI' }] }],
     })
+  })
+  it('a one-option radio question is a button, not radios', () => {
+    const p = parsePoll('Go?\n(A) Go')
+    assert.equal(p.questions[0].kind, 'button')
+    assert.equal(p.questions[0].options[0].text, 'Go')
   })
   it('a checkbox form of two questions; keys upper-cased; list dashes allowed', () => {
     const p = parsePoll(CHECK)

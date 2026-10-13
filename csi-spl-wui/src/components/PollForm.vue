@@ -14,31 +14,46 @@
   >
     <fieldset v-for="(q, qi) in form.questions" :key="qi" class="poll-q" :disabled="!canAnswer" data-testid="poll-question">
       <legend v-if="q.text" class="poll-q__text">{{ q.text }}</legend>
-      <label v-for="o in q.options" :key="o.key" class="poll-opt" data-testid="poll-option" :data-key="o.key">
-        <input
-          :type="form.multi ? 'checkbox' : 'radio'"
-          class="poll-opt__input"
-          :name="`${uid}-${qi}`"
-          :value="o.key"
-          :checked="(picks[qi] || []).includes(o.key)"
-          @change="onPick(qi, o.key, ($event.target as HTMLInputElement).checked)"
+      <div v-if="q.kind === 'button'" class="poll-opt-button">
+        <button
+          type="button"
+          class="poll-go composer-go"
+          data-testid="poll-go-button"
+          :data-key="q.options[0].key"
+          :class="{ 'poll-go--sent': (picks[qi] || []).includes(q.options[0].key) }"
+          @click="onPick(qi, q.options[0].key, true)"
         >
-        <span class="poll-opt__key">{{ o.key }}</span>
-        <span class="poll-opt__text">{{ o.text }}</span>
-      </label>
-      <!-- owner 6cd5873a: every question ALWAYS ends with "Chat about this";
-           picking it is not an answer, it opens the reply box -->
-      <label class="poll-opt poll-opt--chat" data-testid="poll-chat">
-        <input
-          :type="form.multi ? 'checkbox' : 'radio'"
-          class="poll-opt__input"
-          :name="`${uid}-${qi}`"
-          value=""
-          :checked="false"
-          @change="onChat(qi, $event.target as HTMLInputElement)"
-        >
-        <span class="poll-opt__text">{{ t('poll.chat') }}</span>
-      </label>
+          <UiIcon name="go" :size="20" />
+          <span class="poll-go__text">{{ q.options[0].text }}</span>
+        </button>
+      </div>
+      <template v-else>
+        <label v-for="o in q.options" :key="o.key" class="poll-opt" data-testid="poll-option" :data-key="o.key">
+          <input
+            :type="form.multi ? 'checkbox' : 'radio'"
+            class="poll-opt__input"
+            :name="`${uid}-${qi}`"
+            :value="o.key"
+            :checked="(picks[qi] || []).includes(o.key)"
+            @change="onPick(qi, o.key, ($event.target as HTMLInputElement).checked)"
+          >
+          <span class="poll-opt__key">{{ o.key }}</span>
+          <span class="poll-opt__text">{{ o.text }}</span>
+        </label>
+        <!-- owner 6cd5873a: every question ALWAYS ends with "Chat about this";
+             picking it is not an answer, it opens the reply box -->
+        <label class="poll-opt poll-opt--chat" data-testid="poll-chat">
+          <input
+            :type="form.multi ? 'checkbox' : 'radio'"
+            class="poll-opt__input"
+            :name="`${uid}-${qi}`"
+            value=""
+            :checked="false"
+            @change="onChat(qi, $event.target as HTMLInputElement)"
+          >
+          <span class="poll-opt__text">{{ t('poll.chat') }}</span>
+        </label>
+      </template>
     </fieldset>
     <div class="poll-foot">
       <!-- owner 8f0da7ca: a checkbox form also has a Send; a radio form never -->
@@ -261,6 +276,37 @@ function picksText(p: Record<number, string[]>) {
   overflow-wrap: anywhere;
 }
 .poll-answers__label { font-weight: 600; }
+/* Go button: reuse omnibox Go button styles, smaller, greenish, black play icon */
+.poll-go {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 2px 0;
+}
+.poll-go:hover:not(:disabled),
+.poll-go:focus-visible:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 82%, #000);
+  color: var(--color-accent-fg);
+}
+.poll-go:active:not(:disabled) {
+  background: var(--color-accent-pressed);
+}
+.poll-go--sent {
+  background: var(--color-selected);
+  color: var(--color-fg);
+}
+.poll-go__text {
+  margin-top: 1px;
+}
+
 /* a finger needs a taller row than a mouse */
 @media (pointer: coarse) {
   .poll-opt { padding: 6px 0; }

@@ -24,7 +24,14 @@ const segments = computed(() => (te('poll.chat') ? splitPolls(props.body) : [{ t
 </script>
 
 <script lang="ts">
-export interface PollShape { multi: boolean, questions: Array<{ text: string, options: Array<{ key: string, text: string }> }> }
+export interface PollShape {
+  multi: boolean,
+  questions: Array<{
+    text: string,
+    kind?: 'button' | 'radio',
+    options: Array<{ key: string, text: string }>
+  }>
+}
 </script>
 
 <style scoped>

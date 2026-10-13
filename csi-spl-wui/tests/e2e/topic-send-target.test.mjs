@@ -18,6 +18,8 @@
 //   phone (360x740, 820x1180, touch): tap a card (level 3), send from the
 //     docked composer -> is_parent 0 into the open topic, not a middle card.
 //   SPL-1637 poll-control, 1440 and 390: a ```poll radio form posts its answer
+  //   SPL-1654 go-button: a one-option poll renders as a Go button; a click posts
+  //     `Answer: GO`; after the click the button shows as pressed (done).
 //     on the click (no Send), re-answer replaces, "Chat about this" opens the
 //     reply box; a checkbox form waits for its lock-in or its Send.
 //
@@ -176,6 +178,7 @@ async function phoneCase(browser, width, height) {
    form's topic: `Poll: <msg_id>` + `Answer: ...`; the form shows who answered. */
 const POLL_RADIO = 'Pick a deploy path\n\n```poll\nWhich deploy path?\n(A) Deploy now\n(B) Wait for CI\n```'
 const POLL_CHECK = 'Pick the envs\n\n```poll\nWhich envs?\n[A] dev\n[B] prd\n[C] staging\n```'
+const POLL_GO = '```poll\nGo?\n(GO) Go\n```'
 
 function seedPoll(p, body) {
   return p.evaluate((body) => {
@@ -269,6 +272,30 @@ async function pollRadioCase(browser, vp, tag) {
   const shownAgain = await p.evaluate((form) => [...document.querySelectorAll(`${form} [data-testid=poll-answer]`)].map((e) => e.textContent.trim()), form)
   ok(`${tag} poll: re-answer posts again and replaces the shown answer`,
     again.length === 2 && /Answer: A/.test(again[1].body) && shownAgain.length === 1 && /— A$/.test(shownAgain[0]), { again, shownAgain })
+
+  // SPL-1654 go-button: a one-option poll renders as a Go button
+  const goSeeded = await seedPoll(p, POLL_GO)
+  const goForm = await openPoll(p, goSeeded, touch)
+  const goShape = await p.evaluate((form) => ({
+    kind: document.querySelector(form).getAttribute('data-poll-kind'),
+    button: document.querySelector(`${form} [data-testid=poll-go-button]`),
+    radios: document.querySelectorAll(`${form} input[type=radio]`).length,
+    checks: document.querySelectorAll(`${form} input[type=checkbox]`).length,
+    send: document.querySelectorAll(`${form} [data-testid=poll-send]`).length,
+    last: document.querySelector(`${form} [data-testid=poll-chat] .poll-opt__text`)?.textContent.trim(),
+  }), goForm)
+  ok(`${tag} poll: a one-option poll renders as a Go button, no radios, no Send, "Chat about this" last`,
+    goShape.kind === 'radio' && goShape.button && goShape.radios === 0 && goShape.checks === 0 && goShape.send === 0 && goShape.last === 'Chat about this', goShape)
+  await clickIn(p, `${goForm} [data-testid=poll-go-button]`, touch)
+  const goAfter = await pollReplies(p, goSeeded.msg_id)
+  const goShown = await p.evaluate((form) => ({
+    sent: document.querySelector(`${form} .poll-go--sent`),
+    answers: [...document.querySelectorAll(`${form} [data-testid=poll-answer]`)].map((e) => e.textContent.trim()),
+  }), goForm)
+  ok(`${tag} poll: Go button click posts the answer at once, a reply into the form's topic with the marker; the button shows as pressed`,
+    goAfter.length === 1 && /^Poll: [0-9a-f-]+\nAnswer: GO — Go$/.test(goAfter[0].body) && goAfter[0].is_parent === 0
+      && (goAfter[0].parent_task_id === goSeeded.task_id || goAfter[0].task_id === goSeeded.task_id)
+      && goShown.sent && goShown.answers.length === 1 && /— GO$/.test(goShown.answers[0]), { goAfter, goShown })
   await clickIn(p, `${form} [data-testid=poll-chat]`, touch)
   const chat = await p.evaluate((form) => ({
     box: document.querySelector('form.composer.omnibox--global textarea')?.value || '',

@@ -35,6 +35,8 @@ import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointe
 import { mentionParts } from '~/utils/code-blocks.mjs'
 import { hasBodyTime } from '~/utils/body-times.mjs'
 import { activeDocPathLinker } from '~/utils/doc-path-hook.mjs'
+import { contactHref } from '~/utils/contact-links.mjs'
+import { useSessionStore } from '~/stores/session'
 import CodeBlock from '~/components/CodeBlock.vue'
 import MessageRuns from '~/components/MessageRuns.vue'
 import { appLinkText, useAppLinkLabel } from '~/composables/useAppLinkLabel'
@@ -46,6 +48,7 @@ const router = useRouter()
 const showSource = ref(false)
 const labelMod = useAppLinkLabel()
 const pub = useRuntimeConfig().public
+const session = useSessionStore()
 const requestURL = useRequestURL()
 /* stamp changes when the lazy label chunk arrives, so the tree paints again */
 const labelStamp = computed(() => (labelMod.value ? 1 : 0))
@@ -142,12 +145,14 @@ function node(n: MdNode, inCode = false): VNodeChild {
   if (!tags.has(n.tag)) return kids
   if (n.tag === 'a') {
     const origin = import.meta.client ? window.location.origin : ''
-    const open = linkOpen(n.attrs.href, origin)
+    /* SPL-1609: an email / phone link opens the reader's chosen app */
+    const wrote = contactHref(n.attrs.href, session.claims)
+    const open = linkOpen(wrote, origin)
     if (!open) return kids
     // an internal link may be rewritten to its canonical https product URL
     // (SPL-951 regression: a www or http link to this site loads); an external
     // link keeps the href as written.
-    const href = open.internal ? open.href : n.attrs.href
+    const href = open.internal ? open.href : wrote
     const written = n.children.length === 1 && typeof n.children[0] === 'string' ? n.children[0] : ''
     const lab = written ? labelFor(href, written) : null
     /* owner t1 da98036e: a full hash (or a url ending in one) reads <8>... */

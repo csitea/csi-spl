@@ -135,6 +135,25 @@
       "windows": "Windows style (top right)",
       "hint": "Where the X that closes dialogs, panes and sheets sits. Phones keep Back at the top left. Kept on your account."
     },
+    "email_client": {
+      "label": "Email links open in",
+      "gmail": "Gmail in the browser",
+      "system": "System default (mailto:)",
+      "outlook_web": "Outlook on the web",
+      "outlook": "Outlook (desktop app)",
+      "thunderbird": "Thunderbird",
+      "hint": "Which app opens when you click an email address in a message. Thunderbird and the desktop Outlook open through your device's default mail app, so set that one there. Only for you."
+    },
+    "phone_app": {
+      "label": "Phone numbers open in",
+      "whatsapp": "WhatsApp",
+      "tel": "Regular phone call",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Which app opens when you click a phone number (+ and the country code) in a message. Only for you."
+    },
     "signin_security": "Sign-in and security",
     "signed_in_with": "Signed in with",
     "password_managed_by": "Your password is managed by {method}.",

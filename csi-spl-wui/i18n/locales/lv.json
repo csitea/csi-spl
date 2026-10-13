@@ -135,6 +135,25 @@
       "windows": "Windows stils (augšā pa labi)",
       "hint": "Kur atrodas X, kas aizver dialogus, rūtis un lapas. Tālrunī Atpakaļ paliek augšā pa kreisi. Saglabā jūsu kontā."
     },
+    "email_client": {
+      "label": "E-pasta saites atver",
+      "gmail": "Gmail pārlūkā",
+      "system": "Sistēmas noklusējums (mailto:)",
+      "outlook_web": "Outlook tīmeklī",
+      "outlook": "Outlook (darbvirsmas lietotne)",
+      "thunderbird": "Thunderbird",
+      "hint": "Kura lietotne atveras, kad ziņojumā noklikšķināt uz e-pasta adreses. Thunderbird un darbvirsmas Outlook atveras caur ierīces noklusējuma pasta lietotni, tāpēc iestatiet to tur. Tikai jums."
+    },
+    "phone_app": {
+      "label": "Tālruņa numurus atver",
+      "whatsapp": "WhatsApp",
+      "tel": "Parasts zvans",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Kura lietotne atveras, kad ziņojumā noklikšķināt uz tālruņa numura (+ un valsts kods). Tikai jums."
+    },
     "signin_security": "Pieteikšanās un drošība",
     "signed_in_with": "Pieteicies ar",
     "password_managed_by": "Jūsu paroli pārvalda {method}.",

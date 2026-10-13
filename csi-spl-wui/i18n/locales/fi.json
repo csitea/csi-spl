@@ -135,6 +135,25 @@
       "windows": "Windows-tyyli (ylhäällä oikealla)",
       "hint": "Missä valintaikkunat, paneelit ja arkit sulkeva X on. Puhelimessa Takaisin pysyy ylhäällä vasemmalla. Tallennetaan tilillesi."
     },
+    "email_client": {
+      "label": "Sähköpostilinkit avautuvat sovelluksessa",
+      "gmail": "Gmail selaimessa",
+      "system": "Järjestelmän oletus (mailto:)",
+      "outlook_web": "Outlook verkossa",
+      "outlook": "Outlook (työpöytäsovellus)",
+      "thunderbird": "Thunderbird",
+      "hint": "Mikä sovellus avautuu, kun napsautat viestissä olevaa sähköpostiosoitetta. Thunderbird ja Outlookin työpöytäsovellus avautuvat laitteesi oletussähköpostisovelluksen kautta, joten valitse se siellä. Vain sinulle."
+    },
+    "phone_app": {
+      "label": "Puhelinnumerot avautuvat sovelluksessa",
+      "whatsapp": "WhatsApp",
+      "tel": "Tavallinen puhelu",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Mikä sovellus avautuu, kun napsautat viestissä olevaa puhelinnumeroa (+ ja maatunnus). Vain sinulle."
+    },
     "signin_security": "Kirjautuminen ja tietoturva",
     "signed_in_with": "Kirjautumistapa",
     "password_managed_by": "Salasanaasi hallinnoi {method}.",

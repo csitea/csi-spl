@@ -68,6 +68,8 @@ type MembershipSettings struct {
 	IssuesView       *string         `json:"issues_view,omitempty"`
 	CloseButtons     *string         `json:"close_buttons,omitempty"`
 	LinkPreviews     *string         `json:"link_previews,omitempty"`
+	EmailClient      *string         `json:"email_client,omitempty"`
+	PhoneApp         *string         `json:"phone_app,omitempty"`
 	IssueColumns     map[string]int  `json:"issues_columns,omitempty"`
 	Diagnostics      *bool           `json:"diagnostics_enabled,omitempty"`
 	IssuesSort       *IssuesSort     `json:"issues_sort,omitempty"`
@@ -116,6 +118,12 @@ func (b HumanSettings) Overlay(o MembershipSettings) HumanSettings {
 	}
 	if o.LinkPreviews != nil {
 		vp[PrefLinkPreviews] = *o.LinkPreviews
+	}
+	if o.EmailClient != nil {
+		vp[PrefEmailClient] = *o.EmailClient
+	}
+	if o.PhoneApp != nil {
+		vp[PrefPhoneApp] = *o.PhoneApp
 	}
 	b.ViewPrefs = vp
 	if o.IssueColumns != nil {

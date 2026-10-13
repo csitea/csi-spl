@@ -1804,12 +1804,14 @@ declare module '~/utils/view-prefs.mjs' {
   export type ComposerPosition = 'top' | 'bottom'
   export type IssuesView = 'list' | 'status'
   export type CloseButtons = 'mac' | 'windows'
-  export type ViewPrefKey = 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons'
+  export type ViewPrefKey = 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons' | 'email_client' | 'phone_app'
+  export const EMAIL_CLIENTS: readonly string[]
+  export const PHONE_APPS: readonly string[]
   export const MESSAGE_ORDERS: readonly MessageOrder[]
   export const COMPOSER_POSITIONS: readonly ComposerPosition[]
   export const ISSUES_VIEWS: readonly IssuesView[]
   export const CLOSE_BUTTONS: readonly CloseButtons[]
-  export const VIEW_PREFS: Readonly<{ message_order: readonly MessageOrder[], composer_position: readonly ComposerPosition[], issues_view: readonly IssuesView[], close_buttons: readonly CloseButtons[] }>
+  export const VIEW_PREFS: Readonly<{ message_order: readonly MessageOrder[], composer_position: readonly ComposerPosition[], issues_view: readonly IssuesView[], close_buttons: readonly CloseButtons[], email_client: readonly string[], phone_app: readonly string[] }>
   export const DEFAULT_MESSAGE_ORDER: MessageOrder
   export const DEFAULT_COMPOSER_POSITION: ComposerPosition
   export function parseViewPref(key: ViewPrefKey, raw: unknown): string
@@ -2637,4 +2639,17 @@ declare module '~/utils/vim-panels.mjs' {
 
 declare module '~/utils/composer-code-marks.mjs' {
   export function composerCodeRuns(src: string): { text: string, kind?: 'inline' | 'block' }[]
+}
+
+declare module '~/utils/contact-links.mjs' {
+  export const EMAIL_CLIENTS: readonly string[]
+  export const PHONE_APPS: readonly string[]
+  export function parseEmailClient(raw: unknown): string
+  export function parsePhoneApp(raw: unknown): string
+  export function emailHref(href: string, client: unknown): string | null
+  export function phoneHref(href: string, app: unknown): string | null
+  export function contactHref(href: string, prefs: { email_client?: unknown, phone_app?: unknown } | null | undefined): string
+  export function phoneParts(text: string): { type: 'text' | 'link', text: string, href?: string }[]
+  export function hasPhone(text: string): boolean
+  export function phoneBlocks<T>(blocks: T[]): T[]
 }

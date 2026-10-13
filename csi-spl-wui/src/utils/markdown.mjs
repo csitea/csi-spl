@@ -36,6 +36,7 @@ import MarkdownIt from 'markdown-it'
 import { classifyHref, linkOpen, NEW_TAB_REL } from './link-target.mjs'
 import { docsLinkHref } from './docs.mjs'
 import { codeDocHref, docPathParts } from './doc-paths.mjs'
+import { hasPhone, phoneParts } from './contact-links.mjs'
 
 /** Every element the tree may hold. */
 export const TAGS = new Set([
@@ -109,8 +110,15 @@ function textOf(children) {
 
 /** Text nodes with each listed doc path a link (SPL-1592, doc-paths.mjs). */
 function docPathNodes(s, docPath) {
-  if (!docPath) return [s]
-  return docPathParts(s, docPath).map((p) => (p.type === 'link' ? el('a', { href: p.href, title: p.href }, [p.text]) : p.text))
+  if (!docPath) return phoneNodes(s)
+  return docPathParts(s, docPath).flatMap((p) => (p.type === 'link' ? [el('a', { href: p.href, title: p.href }, [p.text])] : phoneNodes(p.text)))
+}
+
+/* SPL-1609: a phone number in text is a tel: link (contact-links.mjs); the
+   renderer opens it in the reader's phone app */
+function phoneNodes(s) {
+  if (!hasPhone(s)) return [s]
+  return phoneParts(s).map((p) => (p.type === 'link' ? el('a', { href: p.href }, [p.text]) : p.text))
 }
 
 /** One inline token list -> nodes. `breaks`: a single newline is a <br>.
@@ -167,7 +175,7 @@ function inline(tokens, breaks = false, docsRepo = undefined, docPath = null) {
       }
       default:
         // text, text_special, html_inline (html is off, but never trust it)
-        if (tok.content) top().children.push(...(tok.type === 'text' ? docPathNodes(tok.content, paths) : [tok.content]))
+        if (tok.content) top().children.push(...(tok.type === 'text' && !inLink ? docPathNodes(tok.content, paths) : [tok.content]))
     }
   }
   return root.children

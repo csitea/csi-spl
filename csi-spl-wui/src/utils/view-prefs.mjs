@@ -17,14 +17,20 @@
 //   close_buttons     'mac'           every close X in the top left (the
 //                                     owner's default, SPL-1133, rdb 0077)
 //                     'windows'       every close X in the top right
+//   email_client      'gmail' ...     the app an email address opens in, and
+//   phone_app         'whatsapp' ...  a phone number (SPL-1609, rdb 0187;
+//                                     the lists live in contact-links.mjs)
 //
 // The hub lists the same values in the same order (auth.ViewPrefs); the unit
 // test tests/unit/view-prefs.test.mjs pins the two lists equal.
+
+import { EMAIL_CLIENTS, PHONE_APPS } from './contact-links.mjs'
 
 export const MESSAGE_ORDERS = Object.freeze(['newest-first', 'newest-last'])
 export const COMPOSER_POSITIONS = Object.freeze(['top', 'bottom'])
 export const ISSUES_VIEWS = Object.freeze(['list', 'status'])
 export const CLOSE_BUTTONS = Object.freeze(['mac', 'windows'])
+export { EMAIL_CLIENTS, PHONE_APPS }
 
 /** Each claim's values, default first. */
 export const VIEW_PREFS = Object.freeze({
@@ -32,6 +38,8 @@ export const VIEW_PREFS = Object.freeze({
   composer_position: COMPOSER_POSITIONS,
   issues_view: ISSUES_VIEWS,
   close_buttons: CLOSE_BUTTONS,
+  email_client: EMAIL_CLIENTS,
+  phone_app: PHONE_APPS,
 })
 
 export const DEFAULT_MESSAGE_ORDER = MESSAGE_ORDERS[0]

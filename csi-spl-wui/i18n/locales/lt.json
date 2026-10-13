@@ -135,6 +135,25 @@
       "windows": "Windows stilius (viršuje dešinėje)",
       "hint": "Kur yra X, uždarantis dialogus, skydelius ir lapus. Telefone Atgal lieka viršuje kairėje. Saugoma jūsų paskyroje."
     },
+    "email_client": {
+      "label": "El. pašto nuorodos atidaromos",
+      "gmail": "Gmail naršyklėje",
+      "system": "Sistemos numatytoji (mailto:)",
+      "outlook_web": "Outlook žiniatinklyje",
+      "outlook": "Outlook (darbalaukio programa)",
+      "thunderbird": "Thunderbird",
+      "hint": "Kuri programa atsidaro spustelėjus el. pašto adresą žinutėje. Thunderbird ir darbalaukio Outlook atidaromi per numatytąją įrenginio pašto programą, todėl nustatykite ją ten. Tik jums."
+    },
+    "phone_app": {
+      "label": "Telefono numeriai atidaromi",
+      "whatsapp": "WhatsApp",
+      "tel": "Įprastas skambutis",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Kuri programa atsidaro spustelėjus telefono numerį (+ ir šalies kodą) žinutėje. Tik jums."
+    },
     "signin_security": "Prisijungimas ir sauga",
     "signed_in_with": "Prisijungta per",
     "password_managed_by": "Jūsų slaptažodį tvarko {method}.",

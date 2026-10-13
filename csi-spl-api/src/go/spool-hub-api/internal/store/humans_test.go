@@ -415,9 +415,11 @@ func TestHumansPreferredLocale(t *testing.T) {
 			for key, vals := range map[string][]string{
 				"message_order":     {"newest-last", "newest-first", ""},
 				"composer_position": {"bottom", "top", ""},
-				"issues_view":       {"status", "list", ""}, // SPL-1028, rdb 0072
-				"close_buttons":     {"windows", "mac", ""}, // SPL-1133, rdb 0077
-				"link_previews":     {"off", "on", ""},      // topic e1f8f797, rdb 0120
+				"issues_view":       {"status", "list", ""},       // SPL-1028, rdb 0072
+				"close_buttons":     {"windows", "mac", ""},       // SPL-1133, rdb 0077
+				"link_previews":     {"off", "on", ""},            // topic e1f8f797, rdb 0120
+				"email_client":      {"outlook-web", "gmail", ""}, // SPL-1609, rdb 0187
+				"phone_app":         {"viber", "whatsapp", ""},    // SPL-1609, rdb 0187
 			} {
 				if got, err := h.ViewPref(ctx, hum, key); err != nil || got != "" {
 					t.Fatalf("unset %s %q %v", key, got, err)

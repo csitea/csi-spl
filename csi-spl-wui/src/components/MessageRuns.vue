@@ -35,6 +35,8 @@
 import { mentionDisplay, namedRuns } from '~/utils/channel-feed.mjs'
 import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp } from '~/utils/link-target.mjs'
 import { docsLinkHref } from '~/utils/docs.mjs'
+import { contactHref } from '~/utils/contact-links.mjs'
+import { useSessionStore } from '~/stores/session'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { appLinkText, useAppLinkLabel } from '~/composables/useAppLinkLabel'
 import { BODY_TIME_AT, bodyTimeRuns } from '~/utils/body-times.mjs'
@@ -46,9 +48,12 @@ import { BODY_TIME_AT, bodyTimeRuns } from '~/utils/body-times.mjs'
    (link-target.mjs). A click, double-click or Enter on the link does not
    also open the row's topic.
    SPL-1291: a link to a doc of this repository (cnf repoWebUrl) or a bare
-   repo-relative .md path opens our own /docs/<path> (docsLinkHref). */
+   repo-relative .md path opens our own /docs/<path> (docsLinkHref).
+   SPL-1609: a mailto: / tel: link is built for the reader's email_client /
+   phone_app (contactHref; never picked = Gmail compose / WhatsApp). */
 const props = defineProps<{ parts: { type: string, text: string, href?: string, code?: boolean }[] }>()
 const people = useHumanNames()
+const session = useSessionStore()
 const labelMod = useAppLinkLabel()
 /* t1 179ef3f9: the message timestamp (MessageBody) is the day of a short
    10:45Z; withShortTimes arrives with the lazy label chunk */
@@ -64,7 +69,8 @@ const router = useRouter()
 type Run = { type: string, text: string, href?: string, shown?: string, hover?: string, app?: boolean, kind?: string, code?: boolean }
 const runs = computed(() => props.parts.map((p): Run => {
   if (p.type !== 'link' || !p.href) return p
-  const href = docsLinkHref(p.href, pub.repoWebUrl) || p.href
+  /* SPL-1609: an email / phone link opens the reader's chosen app */
+  const href = contactHref(docsLinkHref(p.href, pub.repoWebUrl) || p.href, session.claims)
   const m = labelMod.value
   const l = labelOf(href, p.text)
   const s = l ? null : m?.shortHashLabel(p.text)

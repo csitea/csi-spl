@@ -18,7 +18,7 @@ func (s *Postgres) SweepHours(ctx context.Context, now time.Time, open HoursOpen
 
 func (s *Postgres) hoursSweepTenants(ctx context.Context) ([]string, error) {
 	out := []string{}
-	err := s.asOperatorQuery(ctx, `SELECT tenant_id FROM tenants ORDER BY tenant_id`, nil, func(r pgx.Rows) error {
+	err := s.asOperatorQuery(ctx, `SELECT tenant_id FROM tenants WHERE tenant_id <> $1 ORDER BY tenant_id`, []any{SystemTenant}, func(r pgx.Rows) error {
 		var id string
 		if err := r.Scan(&id); err != nil {
 			return err

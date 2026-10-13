@@ -35,6 +35,13 @@ import (
 //	POST /v1/docs/edits/{id}/retry       a failed edit back to the queue
 //	GET  /v1/docs/edits/{id}/conflict    {base, theirs, mine} of a conflict
 //
+// A doc Qto manages (spec 137 T024, section 5.2 Phase 4, panel Correction
+// 2) is no longer saved here: its published text carries the export stamp
+// do_spl_doctree_export_md writes for every doc mapped in
+// csi-spl-doc/doc/md/qto-docs.tsv, and a save or a retry of it answers 409
+// qto_managed, so no overlay of it is queued and the worker pushes no commit
+// that would race the export. The edit goes to the Qto doc the stamp names.
+//
 // GET /v1/docs/{path} (docs.go) serves the newest live overlay, and
 // tree.json gains the overlay-only paths and an editable flag per file.
 // Options.RepoEdit nil (cnf env.docs.repo_edit.enabled false), no docs
@@ -580,6 +587,9 @@ func (s *Server) repoDocSaveInput(w http.ResponseWriter, r *http.Request, c repo
 		writeErr(w, http.StatusForbidden, "path_denied", why)
 		return nil, nil, false
 	}
+	if !s.repoDocNotQto(w, r, p) {
+		return nil, nil, false
+	}
 	data, err := readAllCapped(w, r, MaxRepoDoc)
 	var tooBig *http.MaxBytesError
 	if errors.As(err, &tooBig) {
@@ -591,6 +601,38 @@ func (s *Server) repoDocSaveInput(w http.ResponseWriter, r *http.Request, c repo
 		return nil, nil, false
 	}
 	return tree, data, true
+}
+
+// qtoStampRe is the export stamp of a Qto-managed doc (spec 137 section
+// 5.1), under its title: "> Generated from qto doc `<id>`; edit it there."
+var qtoStampRe = regexp.MustCompile("(?m)^> Generated from qto doc `?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})`?; edit it there")
+
+// qtoStampHead is how far into a text the stamp is looked for: the title
+// and a blank line come first.
+const qtoStampHead = 2048
+
+// qtoDocOf is the Qto doc id a published text is the export of, "" for none.
+func qtoDocOf(text []byte) string {
+	if m := qtoStampRe.FindSubmatch(text[:min(len(text), qtoStampHead)]); m != nil {
+		return string(m[1])
+	}
+	return ""
+}
+
+// repoDocNotQto answers 409 qto_managed when p's published text is a Qto
+// export (T024); false = answered.
+func (s *Server) repoDocNotQto(w http.ResponseWriter, r *http.Request, p string) bool {
+	text, err := s.readDocsKey(r.Context(), p)
+	if err != nil {
+		writeErrCause(w, http.StatusServiceUnavailable, "internal", "docs store unavailable", err)
+		return false
+	}
+	if doc := qtoDocOf(text); doc != "" {
+		writeErr(w, http.StatusConflict, "qto_managed",
+			"this doc is managed by Qto (doc "+doc+"): edit it there; do_spl_doctree_export_md writes this file")
+		return false
+	}
+	return true
 }
 
 // repoDocSaveAuthor is the identity the save commits under (§4.1), once the
@@ -849,6 +891,9 @@ func (s *Server) handleRetryRepoDocEdit(w http.ResponseWriter, r *http.Request) 
 	mine := (c.agent == "" && c.hum == e.HumanID) || (c.agent != "" && c.agent == e.AgentID)
 	if !mine && (c.agent != "" || !s.allowed(r.Context(), c.hum, c.t.ID, rbac.TenantSettings)) {
 		writeForbidden(w, rbac.TenantSettings, "only the editor, the requester or an admin retries an edit")
+		return
+	}
+	if !s.repoDocNotQto(w, r, e.Path) {
 		return
 	}
 	row, err := st.RetryRepoDocEdit(r.Context(), c.t.ID, e.EditID, s.o.Now())

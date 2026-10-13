@@ -190,8 +190,8 @@ func TestWorkspaceDocDeleteNodeGap(t *testing.T) {
 				CASE kind WHEN 'root' THEN 'root' WHEN 'folder' THEN name
 				ELSE (SELECT title FROM workspace_doc w WHERE w.id = n.doc_id) END
 				|| ' ' || lft || ' ' || rgt, ', ' ORDER BY lft)
-			|| ' docs=' || (SELECT doc_count FROM workspace_doc_node WHERE kind = 'root')
-			FROM workspace_doc_node n`, nil, &s); err != nil {
+			|| ' docs=' || (SELECT doc_count FROM workspace_doc_node WHERE tenant_id = $1 AND kind = 'root')
+			FROM workspace_doc_node n WHERE n.tenant_id = $1`, []any{tid}, &s); err != nil {
 			t.Fatal(err)
 		}
 		return s

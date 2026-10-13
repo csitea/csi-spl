@@ -378,8 +378,15 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		}
 		// workspace_doc_node (rdb 0165, spec 120): the hidden root (1, 4) and
 		// the doc's node (2, 3). No store API yet, so raw rows.
-		_, err := tx.Exec(ctx, `WITH r AS (INSERT INTO workspace_doc_node (tenant_id, lft, rgt, kind) VALUES ($1, 1, 4, 'root') RETURNING id)
+		if _, err := tx.Exec(ctx, `WITH r AS (INSERT INTO workspace_doc_node (tenant_id, lft, rgt, kind) VALUES ($1, 1, 4, 'root') RETURNING id)
 			INSERT INTO workspace_doc_node (tenant_id, lft, rgt, parent_id, parent_kind, kind, doc_id) SELECT $1, 2, 3, r.id, 'root', 'doc', $2::uuid FROM r`,
+			s.tenant, doc); err != nil {
+			return err
+		}
+		// workspace_doc_acl (rdb 0192, spec 137 T021): one grant on the doc's
+		// node. No store API yet, so a raw row.
+		_, err := tx.Exec(ctx, `INSERT INTO workspace_doc_acl (tenant_id, node_id, subject, action)
+			SELECT $1, id, 'role:tester', 'read' FROM workspace_doc_node WHERE tenant_id = $1 AND doc_id = $2::uuid`,
 			s.tenant, doc)
 		return err
 	}); err != nil {
@@ -471,6 +478,12 @@ func countOf(t *testing.T, pg *Postgres, tb, tenant string) int {
 	return n
 }
 
+// systemReadTables let every scope READ the system tenant's rows, the repo
+// docs (rdb 0191, 0192, spec 137 T020): the read census does not count them
+// as another tenant's. Writes stay scoped: the write census covers them.
+var systemReadTables = map[string]bool{"workspace_doc": true, "workspace_doc_item": true, "workspace_doc_node": true,
+	"workspace_doc_rev_log": true, "workspace_doc_acl": true}
+
 // appendOnlyTables refuse every UPDATE and DELETE outside their purge
 // (rdb 0131 demo_post_audit) or a tenant delete (rdb 0171 usage_events,
 // rdb 0174 workspace_vendor_key_audit, rdb 0187 marketing_post_events).
@@ -504,7 +517,8 @@ func TestCrossTenantEveryTable(t *testing.T) {
 		id := pgx.Identifier{tb}.Sanitize()
 		err := pg.inTenant(ctx, a.tenant, func(tx pgx.Tx) error {
 			var other, own int
-			if err := tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE tenant_id <> $1), count(*) FILTER (WHERE tenant_id = $1) FROM `+id, a.tenant).Scan(&other, &own); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE tenant_id <> $1 AND NOT ($2 AND tenant_id = $3)),
+				count(*) FILTER (WHERE tenant_id = $1) FROM `+id, a.tenant, systemReadTables[tb], SystemTenant).Scan(&other, &own); err != nil {
 				return err
 			}
 			if other != 0 {

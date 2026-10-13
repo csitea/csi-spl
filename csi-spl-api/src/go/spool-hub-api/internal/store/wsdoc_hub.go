@@ -38,16 +38,17 @@ type DocHit struct {
 }
 
 // wsDocHeadSQL reads document heads; $1 = one doc id or NULL, $2 = a topic
-// id or NULL, $3 = the limit.
+// id or NULL, $3 = the limit, $4 = the tenant (RLS also lets every tenant
+// read the system tenant's docs, rdb 0191: a workspace lists only its own).
 const wsDocHeadSQL = `SELECT d.id::text, d.title, d.description, d.rev, coalesce(r.attrs->>'topic_id', ''), d.updated_at,
 		(SELECT count(*) FROM workspace_doc_item i WHERE i.doc_id = d.id), r.id::text, r.rev, r.attrs
 	FROM workspace_doc d JOIN workspace_doc_item r ON r.doc_id = d.id AND r.parent_id IS NULL
-	WHERE ($1::uuid IS NULL OR d.id = $1) AND ($2::text IS NULL OR r.attrs->>'topic_id' = $2)
+	WHERE d.tenant_id = $4 AND ($1::uuid IS NULL OR d.id = $1) AND ($2::text IS NULL OR r.attrs->>'topic_id' = $2)
 	ORDER BY d.updated_at DESC, d.id LIMIT $3`
 
 func (s *Postgres) docHeads(ctx context.Context, tenant string, doc, topic any, limit int) ([]DocHead, error) {
 	var out []DocHead
-	err := s.queryTenantBatch(ctx, tenant, tenantRead{sql: wsDocHeadSQL, args: []any{doc, topic, limit},
+	err := s.queryTenantBatch(ctx, tenant, tenantRead{sql: wsDocHeadSQL, args: []any{doc, topic, limit, tenant},
 		each: func(r pgx.Rows) error {
 			var h DocHead
 			err := r.Scan(&h.ID, &h.Title, &h.Desc, &h.Rev, &h.TopicID, &h.UpdatedAt, &h.Items, &h.RootID, &h.RootRev, &h.RootAttrs)
@@ -101,9 +102,9 @@ func (s *Postgres) DocSearch(ctx context.Context, tenant, doc, q string, limit i
 	err := s.queryTenantBatch(ctx, tenant, tenantRead{sql: `WITH q AS (SELECT plainto_tsquery('spool_search', $2) AS q)
 		SELECT i.doc_id::text, i.id::text, i.title, ts_rank(to_tsvector('spool_search', i.title || ' ' || i.body), q.q)
 		FROM workspace_doc_item i, q
-		WHERE ($1::uuid IS NULL OR i.doc_id = $1) AND i.parent_id IS NOT NULL
+		WHERE i.tenant_id = $4 AND ($1::uuid IS NULL OR i.doc_id = $1) AND i.parent_id IS NOT NULL
 			AND to_tsvector('spool_search', i.title || ' ' || i.body) @@ q.q
-		ORDER BY 4 DESC, 1, 2 LIMIT $3`, args: []any{d, q, limit},
+		ORDER BY 4 DESC, 1, 2 LIMIT $3`, args: []any{d, q, limit, tenant},
 		each: func(r pgx.Rows) error {
 			var h DocHit
 			err := r.Scan(&h.DocID, &h.ItemID, &h.Title, &h.Rank)

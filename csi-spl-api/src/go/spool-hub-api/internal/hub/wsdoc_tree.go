@@ -63,6 +63,14 @@ import (
 // agent (a box upload token), as the 075 workspace docs. The tenant is the
 // caller's verified one, never the request's. A store without these ops (the
 // memory store) answers 404 workspace_doc_tree_off.
+//
+// One file system (spec 137 T022, section 4.1.2): ?fs= picks the tree a
+// route works on. fs=workspace (the default) is the caller's workspace;
+// fs=repo is the repository docs, the reserved system tenant (rdb 0191),
+// which every caller allowed docs.read in its own workspace reads through the
+// same read routes. The repo tree is written only by its import
+// (do_spl_doctree_import_md, operator scope), so a write route with fs=repo
+// answers 403 repo_docs_read_only; any other fs value is 400 bad_query.
 
 // DocTreeMaxItems is the whole-document read limit (spec 113 section 2.1).
 const DocTreeMaxItems = 20000
@@ -76,6 +84,12 @@ const (
 	docTreeDocTitle = 500
 	docTreeDocDesc  = 1000 // the meta description (rdb 0164)
 	docTreeQueryMax = 200
+)
+
+// The ?fs= values (spec 137 T022).
+const (
+	docTreeFSWorkspace = "workspace"
+	docTreeFSRepo      = "repo"
 )
 
 // docTreeStore is the store side: T002's ops plus the reads of wsdoc_hub.go.
@@ -150,6 +164,11 @@ type docTreeCall struct {
 // first: a demo visitor gets its 403 whatever the store.
 func (s *Server) docTreeCaller(w http.ResponseWriter, r *http.Request, perm string) (docTreeCall, bool) {
 	s.allowOrigin(w, r)
+	fs := r.URL.Query().Get("fs")
+	if fs != "" && fs != docTreeFSWorkspace && fs != docTreeFSRepo {
+		writeErr(w, http.StatusBadRequest, "bad_query", "fs is workspace (the default) or repo")
+		return docTreeCall{}, false
+	}
 	tenant, who, ok := s.docTreeWho(w, r, perm)
 	if !ok {
 		return docTreeCall{}, false
@@ -158,6 +177,14 @@ func (s *Server) docTreeCaller(w http.ResponseWriter, r *http.Request, perm stri
 	if !on {
 		writeErr(w, http.StatusNotFound, "workspace_doc_tree_off", "this hub's store has no workspace documents")
 		return docTreeCall{}, false
+	}
+	if fs == docTreeFSRepo {
+		if perm != rbac.DocsRead {
+			writeErr(w, http.StatusForbidden, "repo_docs_read_only",
+				"the repo docs are read-only here: their import (do_spl_doctree_import_md) writes them")
+			return docTreeCall{}, false
+		}
+		tenant = store.SystemTenant
 	}
 	return docTreeCall{tenant: tenant, who: who, st: st}, true
 }

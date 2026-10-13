@@ -121,7 +121,7 @@ func scanWorkspace(r pgx.Row) (Workspace, error) {
 
 func (s *Postgres) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 	var out []Workspace
-	err := s.asOperatorQuery(ctx, s.workspaceSQL(ctx)+` ORDER BY tenant_id`, nil, func(r pgx.Rows) error {
+	err := s.asOperatorQuery(ctx, s.workspaceSQL(ctx)+` WHERE tenant_id <> $1 ORDER BY tenant_id`, []any{SystemTenant}, func(r pgx.Rows) error {
 		w, err := scanWorkspace(r)
 		out = append(out, w)
 		return err

@@ -127,7 +127,7 @@ The serial spine is T002 -> T004 -> T006 -> T008 -> T012 -> T013..T015 (first li
   - **Needs from the owner**: nothing to stage on dev. A staged candidate in the cloud needs T007 applied (Q8).
   - **Deploy + prove**: `ENV=dev PUBLIC_DATASET_FORCE=1 ./run -a do_spl_public_dataset_export` stages a candidate on dev; report its sha256, the row counts and the removed counts by class (no content).
 
-- [ ] T007 **terraform step** `iac/src/terraform/053-gcs-public-dataset/` (§6).
+- [x] T007 **terraform step** `iac/src/terraform/053-gcs-public-dataset/` (§6). Landed 9f1fb065f + 304483f2a; dev and prd plans 13 to add, 0 change, 0 destroy (2026-10-13). Apply waits for Q8.
   - **Build**: the public bucket (uniform access, `allUsers` `roles/storage.objectViewer`, nothing else in it); the private staging bucket; lifecycle rules from cnf (daily objects `daily_retention_days`, objects under `stable/` `stable_retention_days`); three service accounts:
     - **export** SA: Cloud SQL client (the proxy) and object create on staging; no access to the public bucket.
     - **publish** SA: read staging, object **create** on the public bucket, overwrite of `latest.json` only (IAM condition on the object name); no database access.

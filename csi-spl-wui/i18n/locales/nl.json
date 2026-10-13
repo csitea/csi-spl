@@ -2784,5 +2784,15 @@
     "no_key": "Nog geen sleutel.",
     "copy_key": "Sleutel kopiëren",
     "replace_key_confirm": "Een nieuwe sleutel trekt de huidige in: de server van de website moet erop overstappen."
+  },
+  "poll": {
+    "chat": "Hierover praten",
+    "send": "Verzenden",
+    "lock_in": "Vast over {s} s",
+    "answers": "Antwoorden",
+    "sent": "Antwoord verzonden",
+    "failed": "Niet verzonden: klik opnieuw",
+    "none": "geen",
+    "you": "jij"
   }
 }

@@ -547,8 +547,12 @@ function watchDock(on: boolean) {
   }
 }
 watch(docked, (on) => { void nextTick(() => watchDock(on)) })
-/* the sheet's Reply (MessageCard) puts the caret here */
-function onFocusRequest() {
+/* the sheet's Reply (MessageCard) puts the caret here. SPL-1637: a poll's
+   "Chat about this" hands a start text too (the marker and the question
+   quoted); it fills an empty box only, so a draft is never overwritten. */
+function onFocusRequest(ev?: Event) {
+  const text = (ev as CustomEvent<{ text?: string }> | undefined)?.detail?.text
+  if (text && !String(inputEl.value?.value || '').trim()) setText(text)
   inputEl.value?.focus()
 }
 onMounted(() => {

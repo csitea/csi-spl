@@ -2784,5 +2784,15 @@
     "no_key": "Atslēgas vēl nav.",
     "copy_key": "Kopēt atslēgu",
     "replace_key_confirm": "Jauna atslēga atsauc pašreizējo: vietnes serverim jāpāriet uz to."
+  },
+  "poll": {
+    "chat": "Apspriedīsim šo",
+    "send": "Sūtīt",
+    "lock_in": "Fiksēsies pēc {s} s",
+    "answers": "Atbildes",
+    "sent": "Atbilde nosūtīta",
+    "failed": "Nav nosūtīts: noklikšķiniet vēlreiz",
+    "none": "neviena",
+    "you": "jūs"
   }
 }

@@ -55,6 +55,8 @@ comments and issue descriptions.
    cite that link (or the message id, which also links), never "see above".
    A click opens exactly that message, scrolled into view and highlighted,
    on a phone and on a desktop, even inside the same topic.
+10. A question with fixed answers to pick from is a `poll` form (section 7):
+   the reader clicks a radio button or a checkbox instead of typing `a`.
 
 
 ## 2. Example
@@ -118,6 +120,9 @@ Doc links: `docsLinkHref` in `csi-spl-wui/src/utils/docs.mjs`, tested by
 Plain-text doc paths: `csi-spl-wui/src/utils/doc-paths.mjs`, reached through
 `doc-path-hook.mjs`, tested by `tests/unit/doc-paths.test.mjs` and
 `tests/e2e/doc-path-links.test.mjs`.
+Poll forms (section 7): `csi-spl-wui/src/utils/poll.mjs` (the syntax and the
+marker), `PollBody.vue` / `PollForm.vue`, tested by
+`tests/unit/poll-control.test.mjs` and `tests/e2e/topic-send-target.test.mjs`.
 
 ## 6. Agents: DM a person only to reply to their DM (spec 067, rule 2)
 
@@ -125,3 +130,57 @@ DM a person only to reply to their DM; otherwise reply in the topic and tag
 them (`@HUM-n`). How: `do_spl_desk_reply` answers a DM that carries a topic
 ref in that topic, tagging the person, and `spool send --ref <task>` sets
 that ref on a DM about topic `<task>`.
+
+## 7. A question with clickable answers: the poll form (SPL-1637)
+
+Owner HUM-10, t1 aab3d88b: a question with fixed answers is clicked, not
+typed. Write it as a fenced block tagged `poll`:
+
+````text
+Which deploy path? I recommend **A**.
+
+```poll
+Which deploy path?
+(A) Deploy now
+(B) Wait for CI
+```
+````
+
+1. **One form per message.** A second `poll` block in the same post stays
+   a code block.
+2. **A question** is a line that is not an option; its options follow it. A
+   form may hold several questions.
+3. **`(A) text` is a radio button**: pick one per question. **`[A] text` is
+   a checkbox**: pick any. A form is all radios or all checkboxes, never
+   both; a mixed block stays a code block. A key is 1 to 3 letters or
+   digits, unique within its question; a leading `- ` is allowed.
+4. **"Chat about this" is always the last option**, added by the WUI (do not
+   write it). Picking it is not an answer: it opens the reply box in the
+   topic with `Chat: wants to discuss`, the `Poll:` line and the question
+   quoted, and the reader types their text.
+5. **A radio click posts the answer at once** (no Send). **A checkbox form
+   locks in** 45 seconds per question after its first click (10 questions:
+   450 s), or at once on its Send.
+6. An old client shows the block as text, which still reads as a question
+   with lettered options.
+
+The answer is a normal reply in the form's topic. Its lines are the marker
+an agent parses:
+
+```text
+Poll: <msg_id of the form>
+Answer: B — Wait for CI
+```
+
+- One question: `Answer: <keys>`. Several: `Answer 1: ...`, `Answer 2: ...`,
+  one line each, in question order.
+- `<keys>` is one key (radio), keys joined by `,` (checkbox, `A,C`), or
+  `none` (a checkbox question left empty). The text after ` — ` is for
+  people; parse the keys.
+- Every answer reply carries the sender's whole form: **the newest reply of
+  a sender is their answer** (re-answering replaces).
+- `Chat: wants to discuss` with a `Poll:` line is not an answer: wait for
+  the text in that reply.
+
+An agent posts a form with the syntax in the body, through any send path:
+`spool send`, the MCP `spool_send`, or `do_spl_desk_reply`.

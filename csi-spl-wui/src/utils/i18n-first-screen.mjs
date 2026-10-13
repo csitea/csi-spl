@@ -33,6 +33,10 @@ export const ON_DEMAND_COMPONENTS = {
   // SPL-1560: the attachment X and its confirm; FileAttachment mounts it once
   // te('feed.file_remove.label') holds, so the feed's first paint is unchanged
   "components/AttachmentRemoveX.vue": "idle",
+  // SPL-1637: a ```poll form renders once te('poll.chat') holds (PollBody);
+  // until then it shows as its fence text, so first paint is unchanged
+  "components/PollBody.vue": "idle",
+  "components/PollForm.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

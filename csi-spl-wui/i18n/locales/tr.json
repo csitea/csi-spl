@@ -2784,5 +2784,15 @@
     "no_key": "Henüz anahtar yok.",
     "copy_key": "Anahtarı kopyala",
     "replace_key_confirm": "Yeni bir anahtar mevcut olanı iptal eder: web sitesinin sunucusu yenisine geçmelidir."
+  },
+  "poll": {
+    "chat": "Bunu konuşalım",
+    "send": "Gönder",
+    "lock_in": "{s} sn sonra kilitlenir",
+    "answers": "Yanıtlar",
+    "sent": "Yanıt gönderildi",
+    "failed": "Gönderilmedi: yeniden tıklayın",
+    "none": "hiçbiri",
+    "you": "siz"
   }
 }

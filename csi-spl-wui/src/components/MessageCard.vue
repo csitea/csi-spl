@@ -504,6 +504,7 @@ import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
 import { ownerAllows } from '~/utils/access.mjs'
+import { POLL_HOST, mayHavePoll } from '~/utils/poll-fence.mjs'
 import { COMPOSER_FOCUS_EVENT, LONG_PRESS_MS, LONG_PRESS_SLOP_PX, createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone, swipeLeftAction } from '~/utils/swipe-archive.mjs'
 import { useHiddenCards } from '~/composables/useHiddenCards'
@@ -574,6 +575,9 @@ const repliesName = computed(() => {
 function openReplies() {
   emit('open-topic', props.msg)
 }
+/* SPL-1637: the form in the body answers THIS message; its "Chat about this"
+   opens the topic as Reply does (a thread line is already in it) */
+provide(POLL_HOST, { msg: () => props.msg, open: () => { if (props.clickable) openReplies() } })
 
 const { t, te } = useI18n({ useScope: 'global' })
 const people = useHumanNames()
@@ -1595,7 +1599,10 @@ const titleOnly = computed(() => props.clipMode === 'titles' && !editing.value)
 const linkPreviews = useLinkPreviewRefs(() => String(props.msg.body || ''), {
   skip: () => [String(props.msg.msg_id || ''), String(props.msg.task_id || ''), String(props.msg.parent_task_id || '')],
 })
-const clipOn = computed(() => props.clipMode === 'rows' && !editing.value)
+/* SPL-1637: a card holding a ```poll form is never clipped: its options are
+   to click, and a cut would hide them behind the grip */
+const hasPoll = computed(() => mayHavePoll(String(props.msg.body || '')))
+const clipOn = computed(() => props.clipMode === 'rows' && !editing.value && !hasPoll.value)
 const title = computed(() => {
   const own = cardTitle(String(props.msg.body || ''))
   if (own) return own

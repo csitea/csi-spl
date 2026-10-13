@@ -2784,5 +2784,15 @@
     "no_key": "Avainta ei vielä ole.",
     "copy_key": "Kopioi avain",
     "replace_key_confirm": "Uusi avain kumoaa nykyisen: verkkosivuston palvelimen on vaihdettava siihen."
+  },
+  "poll": {
+    "chat": "Keskustellaan tästä",
+    "send": "Lähetä",
+    "lock_in": "Lukittuu {s} s kuluttua",
+    "answers": "Vastaukset",
+    "sent": "Vastaus lähetetty",
+    "failed": "Ei lähetetty: napsauta uudelleen",
+    "none": "ei mitään",
+    "you": "sinä"
   }
 }

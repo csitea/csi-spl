@@ -88,7 +88,9 @@ describe('loader gates', () => {
     assert.ok(!isFirstScreenRoute({ name: undefined }))
   })
   it('the Settings modal is mounted only on ?settings=, which the loader awaits', () => {
-    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue'])
+    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue'])
+    /* SPL-1637: a ```poll form renders only once its strings are merged; until then its fence text */
+    assert.match(read('src/components/PollBody.vue'), /te\('poll\.chat'\) \? splitPolls/)
     /* spec 116 T3: the sign-in page mounts the demo intro only once its strings are merged */
     assert.match(read('src/pages/login.vue'), /<LazyDemoIntro v-if="[^"]*&& te\('demo\.intro\.title'\)"/)
     /* SPL-1560: a file card mounts its remove X only once its strings are merged */

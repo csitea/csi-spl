@@ -78,6 +78,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { onDeleteRestore } from '~/composables/useDeleteUndo'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { useMove } from '~/composables/useMove'
+import { POLL_ROWS } from '~/utils/poll-fence.mjs'
 import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
 
 const topic = useTopicStore()
@@ -119,6 +120,8 @@ const paneRows = computed(() => {
   return (api.mock ? mockRows : rowsForRightPane(liveRows.value, channel.messages, topic.parentTaskId || '')) as SpoolMessage[]
 })
 const messages = computed(() => newestFirst(paneRows.value.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[])
+/* SPL-1637: a ```poll form in this topic reads its answers from these replies */
+provide(POLL_ROWS, () => paneRows.value)
 /* HUM-10: the topic's latest message offers Archive topic, a search or not */
 const latestId = computed(() => latestMessageId(paneRows.value))
 /* The open topic's own title, selected at the top of this pane. */

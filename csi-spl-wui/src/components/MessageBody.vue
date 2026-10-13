@@ -1,7 +1,8 @@
 <template>
   <div class="msg-body">
     <MarkdownBlock v-if="mdSource !== null" v-show="mdOn" :text="mdSource" bare @rendered="mdOn = $event" />
-    <template v-for="(b, i) in (mdOn ? [] : blocks)" :key="i">
+    <PollBody v-else-if="poll" :body="body" :at="at" />
+    <template v-for="(b, i) in (mdOn || poll ? [] : blocks)" :key="i">
       <MarkdownBlock v-if="b.type === 'code' && isMarkdownLang(b.lang)" :text="b.text" />
       <CodeBlock v-else-if="b.type === 'code'" :text="b.text" :lang="b.lang" />
       <h2 v-else-if="b.type === 'heading' && b.level === 1" class="msg-h"><MessageRuns :parts="b.parts" /></h2>
@@ -25,6 +26,7 @@ import { isMarkdownLang, looksLikeMarkdown, markdownSource, parseBody } from '~/
 import MessageRuns from '~/components/MessageRuns.vue'
 import { BODY_TIME_AT } from '~/utils/body-times.mjs'
 import { LinkPreviewsLazy, useLinkPreviewRefs } from '~/composables/useLinkPreviewRefs'
+import { mayHavePoll } from '~/utils/poll-fence.mjs'
 
 /* Slack-style ``` blocks and `inline code`; every string is text-interpolated,
    never markup. A fenced block is CodeBlock.vue (preview, highlighting, the
@@ -42,12 +44,17 @@ import { LinkPreviewsLazy, useLinkPreviewRefs } from '~/composables/useLinkPrevi
    body when `markdown` is set (an issue description), renders whole through
    MarkdownBlock's bare mode; until that lazy chunk has rendered, and when it
    fails, the blocks below stay on screen. A plain body never loads it. */
-const props = defineProps<{ body: string, markdown?: boolean, noPreviews?: boolean, at?: string | number }>()
+const props = defineProps<{ body: string, markdown?: boolean, noPreviews?: boolean, at?: string | number, noPoll?: boolean }>()
 /* t1 179ef3f9: `at` = the message timestamp, the day a short `10:45Z` in the
    body is on (MessageRuns, body-times.mjs). No `at`: short forms stay as written. */
 provide(BODY_TIME_AT, () => props.at)
-const blocks = computed(() => parseBody(props.body))
-const mdSource = computed(() => (props.markdown || looksLikeMarkdown(props.body) ? markdownSource(props.body) : null))
+/* SPL-1637 poll-control: a body that may hold a ```poll form renders through
+   PollBody, which splits the form out and renders the text around it with
+   this component again. Lazy: a body with no form never loads the parser. */
+const PollBody = defineAsyncComponent(() => import('~/components/PollBody.vue'))
+const poll = computed(() => !props.markdown && !props.noPoll && mayHavePoll(props.body))
+const blocks = computed(() => (poll.value ? [] : parseBody(props.body)))
+const mdSource = computed(() => (!poll.value && (props.markdown || looksLikeMarkdown(props.body)) ? markdownSource(props.body) : null))
 const mdOn = ref(false)
 watch(mdSource, (v) => { if (v === null) mdOn.value = false })
 

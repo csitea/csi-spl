@@ -96,8 +96,8 @@ write_cnf 'LOCAL_HUB_TENANT=e2e-abc123'
 # --- 4. re-exec as the hub user ----------------------------------------------------------
 printf '#!/bin/sh\necho "SUDO $*" >>"%s/sudo.args"\n' "$T" >"$T/sudo"; chmod +x "$T/sudo"
 out=$(SNIPPET='do_spl_local_hub_up' in_orc LOCAL_HUB_USER=root LOCAL_HUB_SUDO="$T/sudo" LOCAL_HUB_TREE=/srv/tree LOCAL_HUB_TENANT=leak)
-grep -q "^SUDO -n -u root -H env DRY_RUN= LOCAL_HUB_PURGE=0 bash -c .* _ /srv/tree/csi-spl-orc do_spl_local_hub_up$" "$T/sudo.args" \
-  && pass "re-exec: sudo -u <hub user> runs the action in the long-lived tree" || fail "re-exec args: $(cat "$T/sudo.args" 2>&1) / $out"
+grep -q "^SUDO -n -u root -H env LOCAL_HUB_USER=root .*LOCAL_HUB_TREE=/srv/tree .*LOCAL_HUB_HUB_PORT=58180 .*LOCAL_HUB_PURGE=0 bash -c .* _ /srv/tree/csi-spl-orc do_spl_local_hub_up$" "$T/sudo.args" \
+  && pass "re-exec: sudo -u <hub user> runs the action in the long-lived tree, the instance's knobs carried" || fail "re-exec args: $(cat "$T/sudo.args" 2>&1) / $out"
 [[ "$out" != *"compose"* && "$out" != *"harden"* ]] && pass "re-exec: nothing runs in the caller's process" || fail "in-process: $out"
 grep -q 'leak' "$T/sudo.args" && fail "re-exec: the command line carried LOCAL_HUB_TENANT" || pass "re-exec: no private value crosses on the command line (sudo resets the env)"
 

@@ -118,16 +118,23 @@ spl_local_hub_env() {
 spl_local_hub_is_user() { [[ "$(id -un)" == "$LOCAL_HUB_USER" ]]; }
 
 # spl_local_hub_reexec <action> -- run `./run -a <action>` as the hub user in
-# its long-lived tree. Only DRY_RUN and LOCAL_HUB_PURGE pass through: the
-# private config is read on the other side, never carried in the env.
+# its long-lived tree. The non-secret knobs pass through (the instance's
+# user, home, tree, project and ports, so a second instance stays itself,
+# plus DRY_RUN / LOCAL_HUB_PURGE / the docker host); the private config is
+# read on the other side, never carried in the env or on the command line.
 spl_local_hub_reexec() {
-  local action="$1" orc="${PROJ_PATH##*/}"
+  local action="$1" orc="${PROJ_PATH##*/}" v pass=()
+  for v in LOCAL_HUB_USER LOCAL_HUB_HOME LOCAL_HUB_TREE LOCAL_HUB_CONFIG LOCAL_HUB_PROJECT \
+           LOCAL_HUB_PG_PORT LOCAL_HUB_GCS_PORT LOCAL_HUB_HUB_PORT LOCAL_HUB_WUI_PORT \
+           LOCAL_HUB_DOCKER_HOST LOCAL_HUB_ALLOW_SYSTEM_DOCKER DRY_RUN; do
+    [[ -n "${!v:-}" ]] && pass+=("$v=${!v}")
+  done
+  pass+=("LOCAL_HUB_PURGE=${LOCAL_HUB_PURGE:-0}")
   id "$LOCAL_HUB_USER" >/dev/null 2>&1 ||
     { do_log "FATAL no user $LOCAL_HUB_USER: run ./run -a do_spl_local_hub_install first"; return 1; }
   ${LOCAL_HUB_SUDO:-sudo} -n -u "$LOCAL_HUB_USER" test -d "$LOCAL_HUB_TREE/$orc" ||
     { do_log "FATAL no tree $LOCAL_HUB_TREE: run ./run -a do_spl_local_hub_update first"; return 1; }
   do_log "INFO $action as $LOCAL_HUB_USER in $LOCAL_HUB_TREE"
   ${LOCAL_HUB_SUDO:-sudo} -n -u "$LOCAL_HUB_USER" -H \
-    env DRY_RUN="${DRY_RUN:-}" LOCAL_HUB_PURGE="${LOCAL_HUB_PURGE:-0}" \
-    bash -c 'cd "$1" && exec ./run -a "$2"' _ "$LOCAL_HUB_TREE/$orc" "$action"
+    env "${pass[@]}" bash -c 'cd "$1" && exec ./run -a "$2"' _ "$LOCAL_HUB_TREE/$orc" "$action"
 }

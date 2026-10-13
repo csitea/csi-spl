@@ -321,4 +321,33 @@ bash "$SN" --body x >/dev/null 2>&1;             eq "no --to: exit 2" 2 "$?"
 bash "$SN" --to BOX-1 --body x >/dev/null 2>&1;  eq "BOX recipient: exit 2" 2 "$?"
 bash "$SN" --to cle-1 --body x >/dev/null 2>&1;  eq "bad id: exit 2" 2 "$?"
 
+# ---- role seat id poke (SPL-1692) ---------------------------------------------
+# A send to c-001, c-002, c-003 must ring the live window of g-001, g-002, g-003.
+. "$T_FEAT/lib/spool-env.inc.sh"
+
+for old in c-001 c-002 c-003; do
+  case "$old" in
+    c-001) new="g-001" ;;
+    c-002) new="g-002" ;;
+    c-003) new="g-003" ;;
+  esac
+  ok "role seat $old resolves to $new" [ -n "$new" ]
+  
+  # Set up a pane for the new id.
+  P_NEW="$(t_window "$new" 'sleep 600')"
+  printf '%s\tclaude\t%s\t/x\t20260101T000000Z\n' "$P_NEW" "$new" >> "$SPOOL_ROOT/registry.tsv"
+  
+  # Run the notifier for the old id.
+  out="$(bash "$SN" --to "$old" --from CLE-90 --kind task --task T-1 --msg-id M-1 --body "test role poke")"
+  eq "poke to $old exits 0" 0 "$?"
+  has "poke: role seat $old -> $new" "poke: role seat $old -> $new" "$out"
+  has "pokes the new pane" "poke: ${P_NEW} (${new})" "$out"
+  
+  # Verify the pane shows the message.
+  sleep 0.5
+  screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$P_NEW")"
+  has "the pane shows the body" "test role poke" "$screen"
+  has "the pane shows the sender" "from CLE-90" "$screen"
+done
+
 t_done

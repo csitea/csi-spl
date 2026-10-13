@@ -472,7 +472,20 @@ spool_notify_refuse_unsent() {  # TO PANE
 
 spool_notify_poke() {  # TO LINE [BODY] [FROM]
   local to="$1" line="$2" body="${3:-}" from="${4:-}"
-  local pane esc=$'\033'
+  local pane esc=$'\033' seat_num new_to
+
+  # Resolve old role ids (c-001, c-002, c-003) to the live role seat id.
+  case "$to" in
+    c-001) new_to="g-001" ;;
+    c-002) new_to="g-002" ;;
+    c-003) new_to="g-003" ;;
+    *) unset new_to ;;
+  esac
+  if [ -n "${new_to:-}" ]; then
+    echo "poke: role seat $to -> $new_to"
+    to="$new_to"
+  fi
+
   SPOOL_POKE_LINE="$line"
 
   # _var, not $( ): the subshell would fork and would lose SPOOL_PANE_TTY.

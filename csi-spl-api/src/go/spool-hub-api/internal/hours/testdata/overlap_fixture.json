@@ -1,0 +1,107 @@
+{
+  "about": "Spec 118 6.2/6.3 (T-OV-JS): one fixture for hours.Across (Go) and the WUI's today/timer function. Each case: the person's zone, now, the workspace days (the input of Across) and want, the personal days it returns. Minutes are integers, instants RFC 3339 UTC.",
+  "cases": [
+    {
+      "name": "T-R1a two workspaces overlap 10:00-12:00",
+      "zone": "UTC",
+      "now": "2026-10-13T18:00:00Z",
+      "days": [
+        {"workspace": "A", "day": "2026-10-13", "entries": [
+          {"target": "t:1", "minutes": 180, "state": "approved", "spans": [{"start": "2026-10-13T09:00:00Z", "end": "2026-10-13T12:00:00Z"}]}
+        ]},
+        {"workspace": "B", "day": "2026-10-13", "entries": [
+          {"target": "t:2", "minutes": 180, "state": "approved", "spans": [{"start": "2026-10-13T10:00:00Z", "end": "2026-10-13T13:00:00Z"}]}
+        ]}
+      ],
+      "want": [
+        {
+          "day": "2026-10-13",
+          "reported": 360, "open": 0, "actual": 240, "overlap": 120, "unplaced": 0, "data_error_minutes": 0,
+          "approx": false, "incomplete": false, "unavailable": [],
+          "overlap_intervals": [
+            {"start": "2026-10-13T10:00:00Z", "end": "2026-10-13T12:00:00Z", "workspaces": ["A", "B"]}
+          ],
+          "workspaces": {
+            "A": {"minutes": 180, "open": 0, "spans": [{"start": "2026-10-13T09:00:00Z", "end": "2026-10-13T12:00:00Z"}]},
+            "B": {"minutes": 180, "open": 0, "spans": [{"start": "2026-10-13T10:00:00Z", "end": "2026-10-13T13:00:00Z"}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "touching spans do not overlap",
+      "zone": "UTC",
+      "now": "2026-10-13T18:00:00Z",
+      "days": [
+        {"workspace": "A", "day": "2026-10-13", "entries": [
+          {"target": "t:1", "minutes": 60, "state": "approved", "spans": [{"start": "2026-10-13T09:00:00Z", "end": "2026-10-13T10:00:00Z"}]}
+        ]},
+        {"workspace": "B", "day": "2026-10-13", "entries": [
+          {"target": "t:2", "minutes": 60, "state": "approved", "spans": [{"start": "2026-10-13T10:00:00Z", "end": "2026-10-13T11:00:00Z"}]}
+        ]}
+      ],
+      "want": [
+        {
+          "day": "2026-10-13",
+          "reported": 120, "open": 0, "actual": 120, "overlap": 0, "unplaced": 0, "data_error_minutes": 0,
+          "approx": false, "incomplete": false, "unavailable": [],
+          "overlap_intervals": [],
+          "workspaces": {
+            "A": {"minutes": 60, "open": 0, "spans": [{"start": "2026-10-13T09:00:00Z", "end": "2026-10-13T10:00:00Z"}]},
+            "B": {"minutes": 60, "open": 0, "spans": [{"start": "2026-10-13T10:00:00Z", "end": "2026-10-13T11:00:00Z"}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "open timer counts in actual, not in reported",
+      "zone": "UTC",
+      "now": "2026-10-13T10:30:00Z",
+      "days": [
+        {"workspace": "A", "day": "2026-10-13", "entries": [
+          {"target": "t:1", "minutes": 60, "state": "approved", "spans": [{"start": "2026-10-13T09:00:00Z", "end": "2026-10-13T10:00:00Z"}]}
+        ]},
+        {"workspace": "B", "day": "2026-10-13", "timer": "2026-10-13T09:30:00Z"}
+      ],
+      "want": [
+        {
+          "day": "2026-10-13",
+          "reported": 60, "open": 0, "actual": 90, "overlap": 0, "unplaced": 0, "data_error_minutes": 0,
+          "approx": false, "incomplete": false, "unavailable": [],
+          "overlap_intervals": [
+            {"start": "2026-10-13T09:30:00Z", "end": "2026-10-13T10:00:00Z", "workspaces": ["A", "B"]}
+          ],
+          "workspaces": {
+            "A": {"minutes": 60, "open": 0, "spans": [{"start": "2026-10-13T09:00:00Z", "end": "2026-10-13T10:00:00Z"}]},
+            "B": {"minutes": 0, "open": 0, "spans": [{"start": "2026-10-13T09:30:00Z", "end": "2026-10-13T10:30:00Z", "provisional": true}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "open suggestion and an entry without times",
+      "zone": "UTC",
+      "now": "2026-10-13T18:00:00Z",
+      "days": [
+        {"workspace": "A", "day": "2026-10-13", "entries": [
+          {"target": "t:1", "minutes": 120, "state": "open", "spans": [{"start": "2026-10-13T09:00:00Z", "end": "2026-10-13T11:00:00Z"}]}
+        ]},
+        {"workspace": "B", "day": "2026-10-13", "entries": [
+          {"target": "ws", "minutes": 60, "state": "approved"}
+        ]}
+      ],
+      "want": [
+        {
+          "day": "2026-10-13",
+          "reported": 180, "open": 120, "actual": 180, "overlap": 0, "unplaced": 60, "data_error_minutes": 0,
+          "approx": true, "incomplete": false, "unavailable": [],
+          "overlap_intervals": [],
+          "workspaces": {
+            "A": {"minutes": 120, "open": 120, "spans": [{"start": "2026-10-13T09:00:00Z", "end": "2026-10-13T11:00:00Z"}]},
+            "B": {"minutes": 60, "open": 0, "spans": []}
+          }
+        }
+      ]
+    }
+  ]
+}

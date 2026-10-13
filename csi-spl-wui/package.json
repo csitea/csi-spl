@@ -16,7 +16,8 @@
     "test:unit": "node src/node/test/run-unit-tests.mjs",
     "test": "node src/node/test/run-unit-tests.mjs",
     "test:e2e": "node src/node/test/run-e2e-tests.mjs",
-    "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
+    "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs",
+    "lint": "eslint . --ext .ts,.vue"
   },
   "dependencies": {
     "@headlessui/vue": "^1.7.23",

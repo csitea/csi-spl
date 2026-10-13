@@ -588,7 +588,8 @@ _pp_part_wui() {
       "$2" install --frozen-lockfile || exit 1
     fi
     "$2" run test:unit || exit 1
-    "$2" run typecheck  || exit 1
+    "$2" run typecheck || exit 1
+    "$2" run lint      || exit 1
   ' _ "$1" "$pn"
 }
 # The blog post check (spec 111 4.4) on the post files THIS push adds or

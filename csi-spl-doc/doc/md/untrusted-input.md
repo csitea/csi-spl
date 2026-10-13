@@ -41,6 +41,8 @@ until a maintainer opens a task for it in their own words.
 ## 5. Inside a tenant
 
 Members of a tenant are not public, but they are not all trusted equally
-either: today any member can prompt any agent of the tenant. That is a known
-limitation, stated in SECURITY.md, until the per-agent prompt allow-list
-(FR-OS-017) lands.
+either. A workspace admin can give an agent a sender allow-list (FR-OS-017,
+SPL-1018: Workspace settings -> Agents): its DMs and @mentions then come only
+from the members on it, and the hub refuses anyone else's send with 403
+`sender_not_allowed`. An agent with no list still takes messages from every
+member, and a channel post that does not @mention it is not covered.

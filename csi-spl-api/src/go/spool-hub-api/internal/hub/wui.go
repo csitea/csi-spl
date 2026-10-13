@@ -558,7 +558,11 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		s.o.Log.Info().Str("tenant", c.tenant).Str("member", c.member).Str("msg_id", f.MsgID).
 			Str("task_id", f.TaskID).Str("channel", f.Channel).Str("token", rf.token).Int("status", rf.status).
 			Str("detail", rf.detail).Msg("wui send refused")
-		c.write(ctx, wuiErr{"error", rf.token, rf.status, rf.detail, f.MsgID}) //nolint:errcheck
+		var frame any = wuiErr{"error", rf.token, rf.status, rf.detail, f.MsgID}
+		if a := refusedAgent(rf); a != "" { // SPL-1018 decision 5, sender_allow.go
+			frame = wuiErrAgent{frame.(wuiErr), a}
+		}
+		c.write(ctx, frame) //nolint:errcheck
 	}
 	task, id, isParent, tok, status, detail := s.wuiIDs(f)
 	if tok != "" {
@@ -580,6 +584,9 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	rt, rf := s.wuiRoute(ctx, c, f, m, isParent, agent)
 	if fb != nil { // retired_reply.go: a legacy id with no successor
 		rt.fallback = fb
+	}
+	if rf == nil { // SPL-1018 (spec 044 FR-OS-017): before anything is stored or delivered
+		rf = s.senderAllowed(ctx, c, m, rt.signing.agent)
 	}
 	if rf == nil { // specs/077 T014, demo_dm.go
 		rf = frameRefusalOf(s.demoDM(ctx, c, rt.channel, m))

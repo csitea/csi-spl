@@ -56,6 +56,8 @@ type Memory struct {
 	cal         memCalendar             // calendar_memory.go (rdb 0125), guarded by mu
 	hrs         memHours                // hours_memory.go (rdb 0151), guarded by mu
 	anyMoved    bool                    // message_move.go (rdb 0069): a row was ever moved
+	// sender_allow.go (rdb 0188): (tenant, agent) -> its sender list, guarded by mu
+	senders map[[2]string]memSenderList
 	// tenant_settings.go (rdb 0074): tenants.default_locale, guarded by mu
 	tenantLocale map[string]string
 	// session_revocations.go (rdb 0148): per-human session cut-offs, guarded by mu

@@ -165,6 +165,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.GrantBoxOperator(ctx, s.tenant, "box-a", hum, hum, now); err != nil { // box_operators (rdb 0040)
 		t.Fatal(err)
 	}
+	// agent_sender_lists + agent_sender_allow (rdb 0188, SPL-1018): CLE-01
+	// takes messages from this tenant's member only.
+	if err := pg.SetSenderList(ctx, s.tenant, "CLE-01", []string{hum}, hum, now); err != nil {
+		t.Fatal(err)
+	}
 	if err := pg.AddChannelHumans(ctx, s.tenant, s.channelID, []string{hum}, hum, now); err != nil { // channel_humans
 		t.Fatal(err)
 	}

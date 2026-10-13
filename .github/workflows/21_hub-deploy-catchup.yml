@@ -22,6 +22,11 @@
 # "Failed" means a job that got a runner went red: a run whose only losses are
 # jobs the hosted pool never acquired is starved, and an in-flight run that
 # already lost a job that way is not counted on to deploy (c-333).
+# A red run on an OLDER sha than trunk head is not the last word (SPL-1719):
+# master moved on and nothing ever ran on the new head (its push touched no
+# hub input), so the lag would stay forever. Then it dispatches ONCE for trunk
+# head; any run of that workflow on head (red, cancelled, in flight) means the
+# one re-dispatch is spent, so a broken deploy is never retried in a loop.
 #
 # Local equivalent of the read: ENV=<env> GRACE_MINUTES=30 ./csi-spl-orc/run -a do_check_deploy_lag
 
@@ -129,7 +134,7 @@ jobs:
             echo "$n"
           }
           catchup() {  # <workflow file> <component> [job name it may lose]
-            local wf="$1" comp="$2" spare="${3:-}" inflight=0 id verdict last
+            local wf="$1" comp="$2" spare="${3:-}" inflight=0 id verdict last lastsha onhead
             # an in-flight run deploys only while none of its jobs starved
             for id in $(gh run list --workflow="$wf" --branch master --limit 20 --json databaseId,status \
                           --jq '.[] | select(.status != "completed") | .databaseId'); do
@@ -139,9 +144,12 @@ jobs:
                 echo "::notice::$comp: $wf run $id is in flight but already lost a job to the hosted queue -- not counting on it"
               fi
             done
-            read -r verdict last < <(gh run list --workflow="$wf" --branch master --limit 25 --json conclusion,databaseId \
-              --jq '[.[] | select(.conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | .[0] // {} | "\(.conclusion // "none") \(.databaseId // 0)"') || true
-            verdict="${verdict:-none}"; last="${last:-0}"
+            read -r verdict last lastsha < <(gh run list --workflow="$wf" --branch master --limit 25 --json conclusion,databaseId,headSha \
+              --jq '[.[] | select(.conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | .[0] // {} | "\(.conclusion // "none") \(.databaseId // 0) \(.headSha // "-")"') || true
+            verdict="${verdict:-none}"; last="${last:-0}"; lastsha="${lastsha:--}"
+            # runs of any kind already on trunk head: a non-zero count spends the one re-dispatch
+            onhead="$(gh run list --workflow="$wf" --branch master --limit 25 --json headSha \
+              --jq "[.[] | select(.headSha == \"$SHA\")] | length" 2>/dev/null)" || onhead=1
             if [[ "$verdict" != success && "$verdict" != none && "$(ran_red "$last")" -eq 0 ]]; then
               echo "::notice::$comp: $wf run $last concluded $verdict, but no job that ran went red (starved, not broken)"
               verdict=starved
@@ -149,7 +157,12 @@ jobs:
             if [[ "$inflight" -gt 0 ]]; then
               echo "::notice::$comp lags, but a $wf run is already queued/running on master -- it deploys; not dispatching"
             elif [[ "$verdict" != success && "$verdict" != none && "$verdict" != starved ]]; then
-              echo "::warning::$comp lags and $wf last concluded $verdict -- the deploy is broken, not starved; not dispatching"
+              if [[ "$lastsha" != - && "$lastsha" != "$SHA" && "${onhead:-1}" == 0 ]]; then
+                echo "::warning::$comp: $wf run $last went $verdict at ${lastsha:0:8}, master moved on to ${SHA:0:8} with no run there -- dispatching $wf once"
+                gh workflow run "$wf" --ref master -f environment=all
+              else
+                echo "::warning::$comp lags and $wf last concluded $verdict -- the deploy is broken, not starved (trunk head already had its run); not dispatching"
+              fi
             else
               echo "::warning::$comp lags at ${SHA:0:8} -- dispatching $wf (environment=all, forward-guarded)"
               gh workflow run "$wf" --ref master -f environment=all

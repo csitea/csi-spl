@@ -21,7 +21,8 @@
 #        makes the leg run the suite itself (green passes, red fails); 21
 #        re-dispatches a run lost only to the hosted queue and does not count
 #        on an in-flight run that already lost a job, but a suite that ran red
-#        still stops it
+#        still stops it -- unless that red is on an older sha than trunk head
+#        and no run exists on head yet: then 21 dispatches once (SPL-1719)
 #   CONTROLS: a hub deploy that loses `needs.test.result == 'success'`, a
 #   prebuild that pushes the release tag, and a WUI gate moved after the
 #   mint are each reported.
@@ -185,6 +186,22 @@ red_case() {
   && pass "21: an in-flight run that already lost a job is not counted on -> dispatches 20" || fail "21: doomed in-flight run still held the dispatch back"
 [[ "$(catch_case '[{"databaseId":8,"status":"in_progress","conclusion":null},{"databaseId":7,"status":"completed","conclusion":"success"}]' 8 "$J_OK")" == none ]] \
   && pass "CONTROL: 21: a healthy in-flight run still holds the dispatch back" || fail "CONTROL: 21 dispatched beside a healthy run"
+
+# SPL-1719: a red 20 on an older sha must not strand a newer trunk head; 21
+# re-dispatches once for that head, never again once a run exists on it
+R_OLD='{"databaseId":7,"status":"completed","conclusion":"failure","headSha":"fedcba9876543210"}'
+red_moved() {  # <list json> [<run id> <jobs json>]... -> what 21 dispatched; run 7's suite ran red
+  catch_case "$@" 7 "$J_RED" >/dev/null
+  printf '%s\n' 'not ok 3 - store: tenant isolation' > "$FIX/logs-91.txt"; rm -f "$FIX/dispatched"
+  PATH="$T/bin:$PATH" GITHUB_REPOSITORY=o/r HUB=true WUI=false SHA=0123456789abcdef bash -c "$catch" >/dev/null 2>&1
+  cat "$FIX/dispatched" 2>/dev/null || echo none
+}
+[[ "$(red_moved "[$R_OLD]")" == 20_hub-build-deploy.yml ]] \
+  && pass "21: 20 red on an older sha, master moved on, no run on head yet -> dispatches 20 once" || fail "21: a red 20 on an older sha stranded trunk head"
+[[ "$(red_moved '[{"databaseId":9,"status":"completed","conclusion":"failure","headSha":"0123456789abcdef"},'"$R_OLD]" 9 "$J_RED")" == none ]] \
+  && pass "CONTROL: 21: the re-dispatch on head went red too -> no second dispatch (no loop)" || fail "CONTROL: 21 re-dispatched a sha whose run already went red"
+[[ "$(red_moved '[{"databaseId":9,"status":"completed","conclusion":"cancelled","headSha":"0123456789abcdef"},'"$R_OLD]")" == none ]] \
+  && pass "CONTROL: 21: a run already exists on head (cancelled) -> it was the one re-dispatch, no more" || fail "CONTROL: 21 dispatched again on a sha that already had a run"
 
 # --- controls ------------------------------------------------------------------
 python3 - "$W/20_hub-build-deploy.yml" "$T/h1.yml" <<'PY'

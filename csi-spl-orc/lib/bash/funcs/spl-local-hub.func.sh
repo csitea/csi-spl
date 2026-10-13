@@ -50,17 +50,19 @@ spl_local_hub_cnf() {
     LOCAL_HUB_GCS_PORT LOCAL_HUB_HUB_PORT LOCAL_HUB_WUI_PORT LOCAL_HUB_TREE LOCAL_HUB_CONFIG
 }
 
-# spl_local_hub_private_cnf -- LOCAL_HUB_TENANT (required) and
-# LOCAL_HUB_OWNER_EMAIL (optional) from $LOCAL_HUB_CONFIG: owned by the
-# caller, mode 0600, KEY=value lines; an unknown key is a typo, refused. The
-# file is parsed, never sourced. The values are never logged.
+# spl_local_hub_private_cnf -- LOCAL_HUB_TENANT (required),
+# LOCAL_HUB_OWNER_EMAIL and LOCAL_HUB_BACKUP_RECIPIENT_FILE (optional; default
+# <config dir>/backup-key/recipient when it exists, where
+# do_spl_local_hub_backup_keygen writes it) from $LOCAL_HUB_CONFIG: owned by
+# the caller, mode 0600, KEY=value lines; an unknown key is a typo, refused.
+# The file is parsed, never sourced. The values are never logged.
 spl_local_hub_private_cnf() {
   local f="$LOCAL_HUB_CONFIG" line k v mode
   [[ -f "$f" ]] || { do_log "FATAL no private config $f: write LOCAL_HUB_TENANT=<workspace> there (mode 0600)"; return 1; }
   [[ -O "$f" ]] || { do_log "FATAL $f is not owned by $(id -un)"; return 1; }
   mode="$(stat -c %a "$f")"
   [[ "$mode" == 600 || "$mode" == 400 ]] || { do_log "FATAL $f has mode $mode: it must be 0600"; return 1; }
-  LOCAL_HUB_TENANT="" LOCAL_HUB_OWNER_EMAIL=""
+  LOCAL_HUB_TENANT="" LOCAL_HUB_OWNER_EMAIL="" LOCAL_HUB_BACKUP_RECIPIENT_FILE=""
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
     k="${line%%=*}" v="${line#*=}"
@@ -68,14 +70,17 @@ spl_local_hub_private_cnf() {
     case "$k" in
       LOCAL_HUB_TENANT) LOCAL_HUB_TENANT="$v" ;;
       LOCAL_HUB_OWNER_EMAIL) LOCAL_HUB_OWNER_EMAIL="$v" ;;
-      *) do_log "FATAL $f: unknown key '$k' (LOCAL_HUB_TENANT, LOCAL_HUB_OWNER_EMAIL)"; return 1 ;;
+      LOCAL_HUB_BACKUP_RECIPIENT_FILE) LOCAL_HUB_BACKUP_RECIPIENT_FILE="$v" ;;
+      *) do_log "FATAL $f: unknown key '$k' (LOCAL_HUB_TENANT, LOCAL_HUB_OWNER_EMAIL, LOCAL_HUB_BACKUP_RECIPIENT_FILE)"; return 1 ;;
     esac
   done <"$f"
   [[ "$LOCAL_HUB_TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] ||
     { do_log "FATAL $f: LOCAL_HUB_TENANT must match ^[a-z0-9][a-z0-9-]{0,31}\$"; return 1; }
   [[ "$LOCAL_HUB_TENANT" != "$LOCAL_HUB_SMOKE_TENANT" ]] ||
     { do_log "FATAL $f: LOCAL_HUB_TENANT must not be the smoke tenant"; return 1; }
-  export LOCAL_HUB_TENANT LOCAL_HUB_OWNER_EMAIL
+  if [[ -z "$LOCAL_HUB_BACKUP_RECIPIENT_FILE" && -f "${f%/*}/backup-key/recipient" ]]; then
+    LOCAL_HUB_BACKUP_RECIPIENT_FILE="${f%/*}/backup-key/recipient"; fi
+  export LOCAL_HUB_TENANT LOCAL_HUB_OWNER_EMAIL LOCAL_HUB_BACKUP_RECIPIENT_FILE
 }
 
 # spl_local_hub_docker_host -- DOCKER_HOST = the caller's rootless daemon. The
@@ -120,13 +125,14 @@ spl_local_hub_is_user() { [[ "$(id -un)" == "$LOCAL_HUB_USER" ]]; }
 # spl_local_hub_reexec <action> -- run `./run -a <action>` as the hub user in
 # its long-lived tree. The non-secret knobs pass through (the instance's
 # user, home, tree, project and ports, so a second instance stays itself,
-# plus DRY_RUN / LOCAL_HUB_PURGE / the docker host); the private config is
-# read on the other side, never carried in the env or on the command line.
+# plus DRY_RUN / LOCAL_HUB_PURGE / the docker host, and the names an action
+# lists in LOCAL_HUB_REEXEC_PASS); the private config is read on the other
+# side, never carried in the env or on the command line.
 spl_local_hub_reexec() {
   local action="$1" orc="${PROJ_PATH##*/}" v pass=()
   for v in LOCAL_HUB_USER LOCAL_HUB_HOME LOCAL_HUB_TREE LOCAL_HUB_CONFIG LOCAL_HUB_PROJECT \
            LOCAL_HUB_PG_PORT LOCAL_HUB_GCS_PORT LOCAL_HUB_HUB_PORT LOCAL_HUB_WUI_PORT \
-           LOCAL_HUB_DOCKER_HOST LOCAL_HUB_ALLOW_SYSTEM_DOCKER DRY_RUN; do
+           LOCAL_HUB_DOCKER_HOST LOCAL_HUB_ALLOW_SYSTEM_DOCKER DRY_RUN ${LOCAL_HUB_REEXEC_PASS:-}; do
     [[ -n "${!v:-}" ]] && pass+=("$v=${!v}")
   done
   pass+=("LOCAL_HUB_PURGE=${LOCAL_HUB_PURGE:-0}")

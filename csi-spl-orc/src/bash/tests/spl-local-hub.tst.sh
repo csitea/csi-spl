@@ -74,6 +74,13 @@ out=$(SNIPPET='spl_local_hub_cnf && spl_local_hub_private_cnf' in_orc LOCAL_HUB_
 write_cnf '# a comment' '' 'LOCAL_HUB_TENANT="e2e-abc123"' 'LOCAL_HUB_OWNER_EMAIL=owner@example.com'
 out=$(pcnf); [[ "$out" == *"TENANT=e2e-abc123" && "$out" != *owner@example.com* ]] \
   && pass "private config: comments and quotes; the values are never logged" || fail "quoted: $out"
+rcp() { SNIPPET='spl_local_hub_cnf && spl_local_hub_private_cnf && echo "REC=$LOCAL_HUB_BACKUP_RECIPIENT_FILE"' in_orc LOCAL_HUB_HOME="$H"; }
+out=$(rcp); [[ "$out" == *"REC=" && "$out" != *REC=/* ]] && pass "private config: no backup recipient, none set" || fail "no recipient: $out"
+mkdir -p "$H/.config/csi-spl/backup-key"; echo age1x >"$H/.config/csi-spl/backup-key/recipient"
+out=$(rcp); [[ "$out" == *"REC=$H/.config/csi-spl/backup-key/recipient" ]] && pass "private config: the keygen recipient is the default" || fail "default recipient: $out"
+write_cnf 'LOCAL_HUB_TENANT=e2e-abc123' 'LOCAL_HUB_BACKUP_RECIPIENT_FILE=/srv/keys/recipient'
+out=$(rcp); [[ "$out" == *"REC=/srv/keys/recipient" ]] && pass "private config: LOCAL_HUB_BACKUP_RECIPIENT_FILE is read and wins" || fail "recipient key: $out"
+rm -rf "$H/.config/csi-spl/backup-key"; write_cnf 'LOCAL_HUB_TENANT=e2e-abc123'
 
 # --- 3. the docker host ---------------------------------------------------------------
 python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])' "$T/rootless.sock"

@@ -112,7 +112,13 @@ out="$(job RESTORE_DB=spool_p3 "${SHA[@]}" "$JOB" restore "$g" 2>&1)" && fail "a
 # --- 3. the actions -----------------------------------------------------------
 orc_stub 0 docker
 ACT_STUBS='spl_local_hub_env() { export LDE_COMPOSE_PROJECT=spl-local-hub LDE_PG_DB=spool; }
-lde_compose() { echo "lde_compose $*" >>"$STUB_LOG"; }
+spl_local_hub_cnf() { export LOCAL_HUB_USER=hubu LOCAL_HUB_HOME="${LOCAL_HUB_HOME:-/nonexistent}" LOCAL_HUB_CONFIG="${LOCAL_HUB_CONFIG:-/nonexistent/local-hub.env}"; }
+spl_local_hub_is_user() { [[ "${STUB_NOT_HUB:-0}" == 0 ]]; }
+spl_local_hub_reexec() { echo "REEXEC $1 pass=${LOCAL_HUB_REEXEC_PASS:-} idf=${LOCAL_HUB_BACKUP_IDENTITY_FILE:-}" >>"$STUB_LOG"
+  [[ -n "${LOCAL_HUB_BACKUP_IDENTITY_FILE:-}" && -f "$LOCAL_HUB_BACKUP_IDENTITY_FILE" ]] && { cmp -s "$LOCAL_HUB_BACKUP_IDENTITY_FILE" "$STUB_IDF" && echo STAGED-SAME >>"$STUB_LOG"; stat -c "%a" "${LOCAL_HUB_BACKUP_IDENTITY_FILE%/*}" >>"$STUB_LOG"; }
+  return "${STUB_REEXEC_RC:-0}"; }
+lde_compose() { echo "lde_compose $*" >>"$STUB_LOG"
+  if [[ "$*" == *" keygen /keys" ]]; then local v="$*"; v="${v#*-v }"; v="${v%%:/keys*}"; echo age1x >"$v/recipient"; echo w >"$v/identity.age"; fi; }
 docker() { echo "docker $*" >>"$STUB_LOG"; [[ "$*" == ps* ]] && echo "${STUB_HUB_ID:-}"; return 0; }'
 act() { : >"$T/calls.log"; SNIPPET="$ACT_STUBS; $1" in_orc "${@:2}" 2>&1; }
 out="$(act do_spl_local_hub_backup_check)" && fail "check passed with no recipient" || pass "check: no LOCAL_HUB_BACKUP_RECIPIENT_FILE refused"
@@ -138,6 +144,28 @@ out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_restore' LOCAL_HUB_BAC
 out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_restore' LOCAL_HUB_BACKUP_IDENTITY_FILE="$K/identity.age" LOCAL_HUB_RESTORE_LIVE=1 LOCAL_HUB_RESTORE_CONFIRM=spool STUB_HUB_ID=abc123)" && fail "LIVE with the hub running passed" || { grep -q 'hub' <<<"$out" && pass "LIVE refused while the hub runs" || fail "hub-running msg: $out"; }
 out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_restore' LOCAL_HUB_BACKUP_IDENTITY_FILE="$K/identity.age" LOCAL_HUB_RESTORE_LIVE=1 LOCAL_HUB_RESTORE_CONFIRM=spool)"
 grep -q -- '-e RESTORE_LIVE=1 .*backup restore latest$' "$T/calls.log" && pass "LIVE with the hub stopped + confirm runs" || fail "live calls: $(cat "$T/calls.log") $out"
+
+# not the hub user: every action re-runs as it, nothing runs here
+for a in do_spl_local_hub_backup do_spl_local_hub_backup_list do_spl_local_hub_backup_check; do
+  out="$(act "$a" STUB_NOT_HUB=1 STUB_REEXEC_RC=7)"; rc=$?
+  grep -q "^REEXEC $a " "$T/calls.log" && ! grep -q '^lde_compose' "$T/calls.log" && [[ $rc == 7 ]] \
+    && pass "$a: not the hub user -> re-runs as it (its exit status kept)" || fail "$a reexec rc=$rc: $(cat "$T/calls.log") $out"
+done
+out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_backup_keygen' STUB_NOT_HUB=1)"
+grep -q '^REEXEC do_spl_local_hub_backup_keygen pass=LOCAL_HUB_BACKUP_KEY_DIR ' "$T/calls.log" && ! grep -q '^lde_compose' "$T/calls.log" \
+  && pass "keygen: not the hub user -> re-runs as it, KEY_DIR passed" || fail "keygen reexec: $(cat "$T/calls.log") $out"
+# restore as the operator: the wrapped identity is staged for the hub user (0700), passed, then removed
+mkdir -p "$T/hh/state"; printf '#!/bin/bash\nwhile [[ $1 == -* ]]; do [[ $1 == -u ]] && shift; shift; done; exec "$@"\n' >"$T/sudo"; chmod +x "$T/sudo"
+out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_restore' STUB_NOT_HUB=1 LOCAL_HUB_SUDO="$T/sudo" LOCAL_HUB_HOME="$T/hh" STUB_IDF="$K/identity.age" \
+  LOCAL_HUB_BACKUP_IDENTITY_FILE="$K/identity.age" LOCAL_HUB_RESTORE_DB=spool_proof)"; rc=$?
+grep -q "^REEXEC do_spl_local_hub_restore pass=LOCAL_HUB_BACKUP_IDENTITY_FILE .*LOCAL_HUB_RESTORE_DB.* idf=$T/hh/state/restore-key\." "$T/calls.log" && grep -qx STAGED-SAME "$T/calls.log" && grep -qx 700 "$T/calls.log" \
+  && pass "restore: not the hub user -> identity staged (0700, same bytes) and passed" || fail "restore reexec rc=$rc: $(cat "$T/calls.log") $out"
+[[ $rc == 0 && -z "$(ls -A "$T/hh/state")" ]] && pass "restore: the staged identity is removed after the run" || fail "staged left: $(ls -A "$T/hh/state")"
+# keygen as the hub user, no KEY_DIR: <config dir>/backup-key (0700), recipient 0644
+mkdir -p "$T/cfgd"
+out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_backup_keygen 2>&1; echo rc=$?' LOCAL_HUB_CONFIG="$T/cfgd/local-hub.env")"
+grep -q -- "-v $T/cfgd/backup-key:/keys backup keygen /keys$" "$T/calls.log" && [[ "$(stat -c %a "$T/cfgd/backup-key")" == 700 && "$(stat -c %a "$T/cfgd/backup-key/recipient")" == 644 ]] \
+  && pass "keygen: default dir <config dir>/backup-key (0700), recipient 0644" || fail "keygen default: $(cat "$T/calls.log") $out"
 
 # --- 4. the compose overlay ---------------------------------------------------
 if docker compose version >/dev/null 2>&1; then
@@ -167,6 +195,7 @@ set -uo pipefail
 do_log() { echo "\$*"; }
 for f in "$PROJ_ROOT"/lib/bash/funcs/*.func.sh "$PROJ_ROOT"/src/bash/run/*.func.sh; do source "\$f"; done
 spl_local_hub_env() { export LDE_COMPOSE_PROJECT=$P; }
+spl_local_hub_cnf() { :; }; spl_local_hub_is_user() { return 0; }
 lde_compose() { docker compose -p $P -f "$PROJ_ROOT/src/docker/docker-compose-infra.yaml" -f "$PROJ_ROOT/src/docker/docker-compose-rdb.yaml" -f "$OVL" "\$@"; }
 "\$@"
 EOF2

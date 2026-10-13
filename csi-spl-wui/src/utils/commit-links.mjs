@@ -22,6 +22,9 @@
 const HASH_RE = /(?<![0-9A-Za-z_\-/.#@])[0-9a-fA-F]{7,40}(?![0-9A-Za-z_\-/@]|\.[0-9A-Za-z])/g
 const HAS_RUN = /[0-9a-fA-F]{7}/
 const MD_LANG = /^(?:md|markdown)$/i
+/* HUM-10 t1 67e2039a (SPL-1164 "in topic bea3a4e6"): a hex the text names as
+   a topic, discussion or message is an id, never a commit */
+const ID_WORD_RE = /\b(?:topics?|discussions?|threads?|msgs?|messages?|replies|reply|task(?:_id)?|msg_id)\s*(?:id\s*)?[:#=]?\s*$/i
 
 /* closed fences, inline code, markdown links, and bare urls (id-links.mjs) */
 const PROTECT_RE = /```[\s\S]*?```|`{1,2}[^`\n]+`{1,2}|\[[^\]\n]+\]\([^)\n]+\)|https?:\/\/[^\s<>)\]]+|www\.[^\s<>)\]]+/gi
@@ -75,24 +78,33 @@ function protectRanges(s) {
   return ranges
 }
 
-function findHits(s) {
+/** Is the hex at start an id: a known topic/message (isId) or named as one? */
+function namedAsId(s, start, token, isId) {
+  if (typeof isId === 'function' && isId(token)) return true
+  return ID_WORD_RE.test(s.slice(Math.max(0, start - 24), start))
+}
+
+function findHits(s, isId) {
   const ranges = protectRanges(s)
   const hits = []
   HASH_RE.lastIndex = 0
   for (const m of s.matchAll(HASH_RE)) {
     const start = m.index
     const end = start + m[0].length
-    if (!isCommitHash(m[0]) || ranges.some(([a, z]) => start >= a && end <= z)) continue
+    if (!isCommitHash(m[0]) || ranges.some(([a, z]) => start >= a && end <= z) || namedAsId(s, start, m[0], isId)) continue
     hits.push({ start, end })
   }
   return hits
 }
 
-/** Text parts and link parts. `prefix` is commitPrefix(); '' = unchanged. */
-export function linkifyCommitText(text, prefix) {
+/**
+ * Text parts and link parts. `prefix` is commitPrefix(); '' = unchanged.
+ * isId(token) = an id the id linker owns (never a commit).
+ */
+export function linkifyCommitText(text, prefix, isId) {
   const s = String(text ?? '')
   if (!prefix || !HAS_RUN.test(s)) return [{ type: 'text', text: s }]
-  const hits = findHits(s)
+  const hits = findHits(s, isId)
   if (!hits.length) return [{ type: 'text', text: s }]
   const parts = []
   let last = 0
@@ -107,30 +119,34 @@ export function linkifyCommitText(text, prefix) {
 }
 
 /** The same markdown, a hash written as a link; code and links untouched. */
-export function linkifyCommitMarkdown(src, prefix) {
+export function linkifyCommitMarkdown(src, prefix, isId) {
   const s = String(src ?? '')
-  const parts = linkifyCommitText(s, prefix)
+  const parts = linkifyCommitText(s, prefix, isId)
   if (parts.length === 1 && parts[0].type === 'text') return s
   return parts.map((p) => (p.type === 'link' ? '[' + p.text + '](' + p.href + ')' : p.text)).join('')
 }
 
-/** An inline code span that is only a hash: its commit href, or ''. */
-export function inlineCommitHref(prefix, text, isId) {
+/** An inline code span that is only a hash: its commit href, or ''. before = the text in front of it. */
+export function inlineCommitHref(prefix, text, isId, before = '') {
   const s = String(text ?? '').trim()
-  if (!isCommitHash(s) || (typeof isId === 'function' && isId(s))) return ''
+  if (!isCommitHash(s) || (typeof isId === 'function' && isId(s)) || ID_WORD_RE.test(String(before).slice(-24))) return ''
   return commitHref(prefix, s)
 }
 
 function linkifyParts(parts, prefix, isId) {
   const out = []
+  let before = ''
   for (const p of parts || []) {
+    const after = p && typeof p.text === 'string' ? p.text : ''
     if (p && p.type === 'inline') {
-      const href = inlineCommitHref(prefix, p.text, isId)
+      const href = inlineCommitHref(prefix, p.text, isId, before)
+      before = after
       out.push(href ? { type: 'link', text: String(p.text).trim(), href, code: true } : p)
       continue
     }
+    before = after
     if (p && (p.type === 'text' || p.type === 'strong' || p.type === 'em') && typeof p.text === 'string') {
-      const bits = linkifyCommitText(p.text, prefix)
+      const bits = linkifyCommitText(p.text, prefix, isId)
       if (bits.length === 1 && bits[0].type === 'text') out.push(p)
       else for (const x of bits) out.push(x.type === 'link' ? x : { ...p, text: x.text })
       continue
@@ -167,7 +183,7 @@ export function commitLinker(webUrl, commitPath) {
   if (!prefix) return null
   return {
     blocks: (blocks, isId) => linkifyCommitBlocks(blocks, prefix, isId),
-    markdown: (src) => linkifyCommitMarkdown(src, prefix),
-    inline: (text, isId) => inlineCommitHref(prefix, text, isId),
+    markdown: (src, isId) => linkifyCommitMarkdown(src, prefix, isId),
+    inline: (text, isId, before) => inlineCommitHref(prefix, text, isId, before),
   }
 }

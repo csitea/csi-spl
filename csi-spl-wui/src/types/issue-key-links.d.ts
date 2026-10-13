@@ -19,5 +19,5 @@ declare module '~/utils/issue-key-links.mjs' {
 }
 
 declare module '~/utils/commit-links.mjs' {
-  export function inlineCommitHref(prefix: string, text: unknown, isId?: (token: string) => boolean): string
+  export function inlineCommitHref(prefix: string, text: unknown, isId?: (token: string) => boolean, before?: string): string
 }

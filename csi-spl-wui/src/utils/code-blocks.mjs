@@ -644,10 +644,10 @@ export function markdownSource(src) {
   const issues = activeIssueLinker()
   const isId = idTokenOf(index)
   const ids = (s) => (index.empty ? s : linkifyMarkdown(s, index))
-  const hashed = (s) => (commits ? commits.markdown(ids(s)) : ids(s))
+  const hashed = (s) => (commits ? commits.markdown(ids(s), isId) : ids(s))
   const plain = (s) => (issues ? issues.markdown(hashed(s)) : hashed(s))
   /* t1 0f2ed820: a code span that is only an issue key or a commit hash links */
-  const codeHref = (s) => (issues && issues.inline(s)) || (commits && commits.inline ? commits.inline(s, isId) : '')
+  const codeHref = (s, before) => (issues && issues.inline(s)) || (commits && commits.inline ? commits.inline(s, isId, before) : '')
   let out = ''
   const block = (s) => {
     if (out && !out.endsWith('\n')) out += '\n'
@@ -662,7 +662,7 @@ export function markdownSource(src) {
         const fence = '`'.repeat(longestRun(t.text) + 1)
         const pad = t.text.startsWith('`') || t.text.endsWith('`') ? ' ' : ''
         const code = fence + pad + t.text + pad + fence
-        const href = codeHref(t.text)
+        const href = codeHref(t.text, out)
         out += href ? '[' + code + '](' + href + ')' : code
       } else if (isMarkdownLang(t.lang)) block(plain(t.text))
       else {

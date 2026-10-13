@@ -143,7 +143,10 @@ repository, when the instance has named that repository. The hash is 7 to 40
 hex characters, with at least one digit and one letter, standing on its own
 — not part of a longer word, and not a topic id. Inline code that holds only
 a hash, such as `368450c92`, links too and stays shown as code; eight
-characters that match a topic or message you can read stay that id's link. A
+characters that match a topic or message you can read stay that id's link.
+A hex run the text names as an id ("topic bea3a4e6", "discussion …",
+"msg …", "message …", "thread …") is never a commit link: it links to that
+topic or message when you can read it, and otherwise stays plain text. A
 hash inside a code block, inside longer inline code, in a link or in a web
 address stays as written. When the instance has not named a repository, a
 hash stays plain text.

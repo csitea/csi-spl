@@ -59,6 +59,18 @@ ok('blocks: a code block stays code', out[1] === blocks[1])
 ok('blocks: list items link', out[2].items[0].parts[0].type === 'link')
 ok('blocks: no prefix returns the same tree', linkifyCommitBlocks(blocks, '') === blocks)
 
+/* HUM-10 t1 67e2039a: SPL-1164's description says "in topic bea3a4e6". A hex
+   the text names as a topic, discussion or message is an id, never a commit;
+   'commit bea3a4e6' is the control and still links to the repository. */
+ok('SPL-1164: "in topic bea3a4e6" is not a commit link', t('in topic bea3a4e6').length === 0)
+ok('control: "commit bea3a4e6" is a commit link', t('commit bea3a4e6').join() === 'bea3a4e6')
+ok('discussion / msg / message / thread / topic: <hex> are ids', t('discussion bea3a4e6, msg 1f5e074b, message: 1f5e074b, thread #bea3a4e6, topic id bea3a4e6, Topic: bea3a4e6').length === 0)
+ok('a word that only ends like one does not count', t('subtopic bea3a4e6').join() === 'bea3a4e6')
+ok('a known id (isId) is never a commit, even unnamed', linkifyCommitText('see bea3a4e6', P, (k) => k === 'bea3a4e6').length === 1)
+ok('markdown: the SPL-1164 sentence stays text', linkifyCommitMarkdown('in topic bea3a4e6', P) === 'in topic bea3a4e6')
+ok('a code span named as a topic is not a commit', links(linkifyCommitBlocks([{ type: 'para', parts: [{ type: 'text', text: 'in topic ' }, { type: 'inline', text: 'bea3a4e6' }] }], P)[0].parts).length === 0)
+ok('control: a code span after "commit" links', links(linkifyCommitBlocks([{ type: 'para', parts: [{ type: 'text', text: 'commit ' }, { type: 'inline', text: 'bea3a4e6' }] }], P)[0].parts).length === 1)
+
 /* the seam: nothing registered (a unit test, the cnf unset, chunk not loaded) = the old tree */
 setCommitLinkProvider(null)
 ok('hook: no provider is null', activeCommitLinker() === null)
@@ -68,6 +80,7 @@ setCommitLinkProvider(() => { throw new Error('x') })
 ok('hook: a throwing provider is null (the body still renders)', activeCommitLinker() === null)
 setCommitLinkProvider(() => commitLinker(WEB, '/commit/'))
 ok('parseBody links a hash once a linker is registered', links(parseBody('fixed in 785470e9c')[0].parts).join() === '785470e9c')
+ok('markdownSource: SPL-1164 "in topic bea3a4e6" (prose and code span) stays text', markdownSource('# x\nin topic bea3a4e6 and topic `bea3a4e6`, commit bea3a4e6') === '# x\nin topic bea3a4e6 and topic `bea3a4e6`, commit [bea3a4e6](' + P + 'bea3a4e6)')
 ok('markdownSource links a hash in prose and a hash-only code span', markdownSource('# x\nfixed in 785470e9c `785470e9c` `git show 785470e9c`') === '# x\nfixed in [785470e9c](' + P + '785470e9c) [`785470e9c`](' + P + '785470e9c) `git show 785470e9c`')
 setCommitLinkProvider(null)
 

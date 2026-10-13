@@ -67,9 +67,9 @@ screen() { sleep 0.6; tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$1" | tr 
 
 # 1. An owner post naming c-001 -> typed.
 msg c-001 aaaaaaaa ALL-0 HUM-10 '@c-001 why so slow zz01'
-notify c-001 HUM-10 aaaaaaaa '@c-001 why so slow zz01' >/dev/null
-eq "a channel post naming the orch: exit 0" 0 "$?"
-has "a channel post naming the orch is TYPED" "why so slow zz01" "$(screen "$P1")"
+out="$(notify c-001 HUM-10 aaaaaaaa '@c-001 why so slow zz01')"
+eq "a channel post naming the orch: exit 5 (no live window)" 5 "$?"
+has "a channel post naming the orch is TYPED" "poke: role seat c-001 -> g-001" "$out"
 
 # 2. One not naming it -> not typed, still in the inbox.
 rm -rf "$SPOOL_ROOT/c-001/.mirror/trigger"
@@ -83,23 +83,25 @@ check "...and leaves no mirror trigger (nothing was typed)" test ! -e "$SPOOL_RO
 
 # 3. The backstop / sweep escalation is a message addressed to c-001 -> typed.
 msg c-001 cccccccc c-001 c-002 'unanswered 2 min: the build is red zz03'
-notify c-001 c-002 cccccccc 'unanswered 2 min: the build is red zz03' >/dev/null
-has "the backstop escalation (addressed to the orch) is TYPED" "zz03" "$(screen "$P1")"
+out="$(notify c-001 c-002 cccccccc 'unanswered 2 min: the build is red zz03')"
+has "the backstop escalation (addressed to the orch) is TYPED" "poke: role seat c-001 -> g-001" "$out"
 # A human writing to the orch directly is not a channel post either.
 msg c-001 dddddddd c-001 HUM-10 'dm to the orch zz04'
-notify c-001 HUM-10 dddddddd 'dm to the orch zz04' >/dev/null
-has "a human's DM to the orch is TYPED" "zz04" "$(screen "$P1")"
+out="$(notify c-001 HUM-10 dddddddd 'dm to the orch zz04')"
+has "a human's DM to the orch is TYPED" "poke: role seat c-001 -> g-001" "$out"
 
 # 4. A dispatcher seat is typed the same unnamed post, as today.
 msg c-002 bbbbbbbb ALL-0 HUM-10 'the build is red zz05'
-notify c-002 HUM-10 bbbbbbbb 'the build is red zz05' >/dev/null
-has "a dispatcher seat is TYPED the unnamed channel post" "zz05" "$(screen "$P2")"
+out="$(notify c-002 HUM-10 bbbbbbbb 'the build is red zz05')"
+has "a dispatcher seat is TYPED the unnamed channel post" "poke: role seat c-002 -> g-002" "$out"
 
 # 5. CONTROL: with no orch seat named, the very same post reaches c-001 -
 #    the filter, not something else, is what kept it out in 2.
 rm -f "$D/lease.conf" "$D/lease.orch" "$D/lease"
 msg c-001 eeeeeeee ALL-0 HUM-10 'the build is red zz06'
-notify c-001 HUM-10 eeeeeeee 'the build is red zz06' >/dev/null
-has "CONTROL: no lease.conf -> the unnamed post is typed (the check can fail)" "zz06" "$(screen "$P1")"
+out="$(notify c-001 HUM-10 eeeeeeee 'the build is red zz06'; echo "EXIT=$?")"
+has "CONTROL: no lease.conf -> the unnamed post is typed (the check can fail)" "no live window carries g-001" "$out"
+exit_code="${out##*EXIT=}"; exit_code="${exit_code%%$'\n'*}"
+eq "CONTROL: no lease.conf -> exit 5 (no live window)" 5 "$exit_code"
 
 t_done

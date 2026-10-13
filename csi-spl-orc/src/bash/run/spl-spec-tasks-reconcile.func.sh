@@ -14,6 +14,7 @@
 # @description DRY_RUN=1 (the default) prints the table and the counts.
 # @description DRY_RUN=0 applies the closes, then writes a journal and one
 # @description undo command that puts each issue back.
+# @description The contract of this action is this header.
 # @param ENV - required on a live run and on an apply: dev or prd
 # @param TENANT_ID - required on a live run and on an apply
 # @param DESK_AGENT - required on a live run and on an apply: the seated agent

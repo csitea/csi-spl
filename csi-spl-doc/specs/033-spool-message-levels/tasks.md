@@ -222,6 +222,14 @@ needs an agent peer) against `https://<cnf env.dns.fqdn>`.
   that runs and fails fails the job.
 - Test `csi-spl-orc/src/bash/tests/wui-live-proof.tst.sh` (hermetic, a fake
   proof): 17/17 PASS.
+- SPL-1604: the first CI runs (wf 30 run 38354202653, n=1 per env) were red
+  on 13-14 steps, every one a stale expectation of the proof, none a WUI
+  regression (reproduced on the mock bundle): 2b still expected the
+  selected-last rule SPL-996 B retired (`a3f49471b`), so L3 now goes into the
+  open topic; 2d double-clicked the card's centre, which on a selected card is
+  the emoji button, so it now double-clicks the text; `home` looked for Topics
+  rows, gone since `0f89c5bb0`, so it now checks that `/` lands on #lobby and
+  posts nothing.
 
 T010 needs a member password, so it runs by hand today. Wire it into the
 deploy workflow with the m3-e2e member's secret, so a regression on either

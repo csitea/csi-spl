@@ -108,7 +108,7 @@ the same in-place editor as `e` (032).
 | FR-ML-001 | `messages.is_parent smallint NOT NULL`, 0 or 1; existing topic openers backfilled to 1 | Implemented — rdb `0034`, `0035` |
 | FR-ML-002 | Browser send frame carries `is_parent`; absent = 1, other values rejected; box sends stored as 1 (except FR-ML-013) | Implemented — `internal/hub/wui.go` `uiParent` |
 | FR-ML-003 | The topic read and the live `message` frame return `is_parent` | Implemented — `69cdf97` |
-| FR-ML-004 | A send is level 2 into the open topic iff the right pane is open **and** was selected last; otherwise level 1 on a new task; `in:` wins | Implemented — `618851f` (`utils/pane-focus.mjs`, `utils/omnibox-topic.mjs`) |
+| FR-ML-004 | A send is level 2 into the open topic iff the right pane is open; otherwise level 1 on a new task; `in:` wins. Was "open **and** selected last" (`618851f`); SPL-996 owner answer B (topic e0b12a2c, 2026-09-27) retired the selected-last half | Implemented — `a3f49471b` (`utils/pane-focus.mjs` `paneTakesLine`, `utils/omnibox-topic.mjs`) |
 | FR-ML-005 | The middle list never shows an `is_parent = 0` line as a card; one card per topic, reading the opening line | Implemented — `66de3bc`, `778cf49` |
 | FR-ML-006 | The right pane keeps its topic's level-2 lines after the send is confirmed | Implemented — `778cf49` |
 | FR-ML-007 | The topics home list never gets a new row for a level-2 line | Implemented — `topic-list.mjs` `bumpTopic` |

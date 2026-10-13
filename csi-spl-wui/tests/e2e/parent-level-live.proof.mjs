@@ -9,13 +9,16 @@
 //            where it was). is_parent = 0. It is drawn only inside the open
 //            topic on the right - never a middle card, never a new topic.
 //
-// Per surface (channel, DM, lobby, topics home, t), n = 1 each:
+// Per surface (channel, DM, lobby, t), n = 1 each:
 //   1. pane closed, send L1  -> one new middle card, hub is_parent 1, pane stays closed
 //   2. open the card's topic (replies / row click), send L2 with the left tab
 //      untouched -> hub is_parent 0 on the SAME task_id, L2 in the right pane
 //      only, the middle still shows exactly one card for the task and it reads L1
 //   3. reload -> L2 still absent from the middle, the card still reads L1, and
 //      L2 is present once that topic is opened on the right
+// Surface `home`: `/` lands on #lobby and shows no Topics rows (owner t1
+// e4bfddb1 removed the Topics view, 0f89c5bb0). It posts nothing: the lobby
+// surface already proves the levels there.
 // Surface `t` (T014, FR-ML-011): L1 on the channel, then /t/<task> (left
 // open: its thread is the page), send L2 -> it shows in the page's thread in
 // the main column, no other right pane, hub is_parent 0 on the same task, and
@@ -163,12 +166,6 @@ async function closePane(p) {
 /** Open the topic of the middle card for TASK the way a reader does. */
 async function openTopic(p, surface, task) {
   await front(p)
-  if (surface === 'home') {
-    const row = await p.$(`.feed-col a.topic-row[data-key="${task}"]`)
-    if (!row) return false
-    await row.click()
-    return true
-  }
   const card = await p.$(`.feed-col article.msg[data-task-id="${task}"]`)
   if (!card) return false
   const replies = await card.$('[data-test=topic-replies]')
@@ -182,7 +179,6 @@ function pathFor(surface) {
     case 'channel': return '/channel/' + encodeURIComponent(CHANNEL)
     case 'dm': return '/dm/' + encodeURIComponent(PEER)
     case 'lobby': return '/lobby'
-    case 'home': return '/'
     default: throw new Error('unknown surface ' + surface)
   }
 }
@@ -259,8 +255,12 @@ async function surfaceRun(p, surface) {
     await watcher.screenshot({ path: `${OUT}/${surface}-2-watcher.png` })
   }
 
-  /* 2b. test-02: the pane stays open but the reader clicks back in the
-     middle. The next line is a NEW level-1 topic, not a line of the open one. */
+  /* 2b. test-02: the pane stays open and the reader clicks back in the
+     middle. SPL-996, owner answer B (topic e0b12a2c, 2026-09-27, a3f49471b):
+     the open topic takes every line until it is closed, whatever was clicked
+     last, so L3 is level 2 of the open topic. The rule this replaced (the
+     pane selected last decides, 618851f67) made L3 a new middle card: each
+     check below fails on that. */
   const L3 = `${PROBE_MARK} L3 ${surface} ${run}`
   const L4 = `${PROBE_MARK} L4 ${surface} ${run}`
   ev.L3 = L3
@@ -269,15 +269,14 @@ async function surfaceRun(p, surface) {
   await p.click('.spool-main .feed-header').catch(async () => { await p.click('.spool-main') })
   await sleep(400)
   await send(p, L3)
-  s = await waitFor(p, (x) => has(x.middle, L3))
-  const l3 = s.middle.filter((m) => m.text.includes(L3))
-  const task3 = l3.length ? l3[0].task : ''
-  step(tag('2b middle selected last: L3 is a new middle card'), l3.length === 1 && !!task3 && task3 !== task, { cards: l3.length, task3 })
-  step(tag('2b L3 is not a line of the open topic'), !s.right.some((m) => m.text.includes(L3) && m.task === task), {})
-  if (task3) {
-    const h3 = ((await hubRows(p, res.apiRoot, task3)).rows || []).find((r) => r.body.includes(L3))
-    step(tag('2b hub stores L3 with is_parent 1'), !!h3 && h3.is_parent === 1, { is_parent: h3 && h3.is_parent })
-  }
+  s = await waitFor(p, (x) => has(x.right, L3) || has(x.middle, L3))
+  await sleep(1500)
+  s = await snap(p)
+  step(tag('2b open topic takes the line: L3 is not a middle card'), !has(s.middle, L3),
+    { middle: s.middle.filter((m) => m.text.includes(L3)).map((m) => m.task) })
+  step(tag('2b L3 is in the right pane'), has(s.right, L3), { right: s.right.length, paneOpen: s.paneOpen })
+  const h3 = ((await hubRows(p, res.apiRoot, task)).rows || []).find((r) => r.body.includes(L3))
+  step(tag('2b hub stores L3 on the open (L1) topic with is_parent 0'), !!h3 && h3.is_parent === 0, { is_parent: h3 && h3.is_parent })
 
   /* 2c. test-03: the reader clicks in the right pane again. The next line is
      level 2 of the topic that pane shows. */
@@ -291,26 +290,29 @@ async function surfaceRun(p, surface) {
     await sleep(1500)
     s = await snap(p)
     step(tag('2c right selected last: L4 is in the right pane, not the middle'), has(s.right, L4) && !has(s.middle, L4), {})
-    /* the pane still shows L1's topic; L3 sits above it as a born card, which
-       is a different stack. L4 belongs to L1's topic. */
+    /* the pane still shows L1's topic; L4 belongs to it */
     const h4 = ((await hubRows(p, res.apiRoot, task)).rows || []).find((r) => r.body.includes(L4))
     step(tag('2c hub stores L4 with is_parent 0 in the open (L1) topic'), !!h4 && h4.is_parent === 0, { is_parent: h4 && h4.is_parent })
   } else {
     step(tag('2c the right pane is still open after the middle send'), false, {})
   }
 
-  /* 2d. double click on the reader's own level-1 card opens the editor */
-  if (surface !== 'home') {
+  /* 2d. double click on the reader's own level-1 card's text opens the
+     editor. The text, not the card's centre: a selector list resolves to the
+     first match in document order, which is the <article>, and on a selected
+     card its centre is the action bar's emoji button, a control that rightly
+     edits nothing. */
+  {
     await front(p)
-    const card = await p.$(`.spool-main article.msg[data-task-id="${task}"] .msg-body, .spool-main article.msg[data-task-id="${task}"]`)
-    if (card) await card.click({ count: 2 })
+    const body = await p.$(`.spool-main article.msg[data-task-id="${task}"] .msg-body`)
+    if (body) await body.click({ count: 2 })
     const editing = await p.waitForSelector(`.spool-main article.msg[data-task-id="${task}"] [data-test=msg-edit-box]`, { timeout: 5000 }).then(() => true, () => false)
-    step(tag('2d double click on the L1 card opens its editor'), editing, {})
+    step(tag('2d double click on the L1 card text opens its editor'), !!body && editing, { body: !!body })
     if (editing) { await p.keyboard.press('Escape'); await sleep(400) }
   }
 
   /* 2e. the Open button: on middle cards only, and it opens the topic on the right */
-  if (surface !== 'home') {
+  {
     await closePane(p)
     await front(p)
     const btn = await p.$(`.spool-main article.msg[data-task-id="${task}"] [data-test=open-topic]`)
@@ -340,11 +342,22 @@ async function surfaceRun(p, surface) {
   await closePane(p)
 }
 
+/* `/` is no Topics list any more (owner t1 e4bfddb1, 0f89c5bb0): a desktop
+   lands on #lobby. Posts nothing. */
+async function homeRun(p) {
+  await front(p)
+  await p.goto(BASE + '/', { waitUntil: 'networkidle2' })
+  await sleep(1500)
+  const at = await p.evaluate(() => ({ path: location.pathname, rows: document.querySelectorAll('a.topic-row').length }))
+  step('home: / lands on #lobby', /\/lobby\/?$/.test(at.path), { path: at.path })
+  step('home: no Topics rows', at.rows === 0, { rows: at.rows })
+}
+
 /* T014: /t/<task> is the topic in the main column; a line sent there is
    level 2 of that topic and adds no card on the channel feed. */
 async function topicPageRun(p) {
-  const L1 = `L1 t ${run}`
-  const L2 = `L2 t ${run}`
+  const L1 = `${PROBE_MARK} L1 t ${run}`
+  const L2 = `${PROBE_MARK} L2 t ${run}`
   const ev = { L1, L2 }
   res.surfaces.t = ev
   const tag = (n) => `t: ${n}`
@@ -414,6 +427,7 @@ try {
     if (surface === 'dm' && !PEER) { step('dm: PEER is set', false, { hint: 'PEER=<agent>@<box>' }); continue }
     try {
       if (surface === 't') await topicPageRun(p)
+      else if (surface === 'home') await homeRun(p)
       else await surfaceRun(p, surface)
     } catch (e) {
       step(`${surface}: ran to the end`, false, { error: String(e).slice(0, 300) })

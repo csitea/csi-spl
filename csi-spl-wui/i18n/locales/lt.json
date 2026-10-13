@@ -1411,7 +1411,7 @@
   "issues_mobile": {
     "filters": "Filtrai",
     "sort": "Rikiuoti",
-    "sort_default": "Numatytoji (prioritetas, tada naujausi)",
+    "sort_default": "Numatytasis (prioritetas, tada naujausi)",
     "sort_now": "{col}, {dir}",
     "sorted_by": "Rikiuota: {sort}",
     "sort_reverse": "Apversti",

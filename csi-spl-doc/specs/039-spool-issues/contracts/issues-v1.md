@@ -223,5 +223,9 @@ bug".
   reason.
 - Hub notes are English, like the blocker notes; the WUI strings are in every
   locale (`issues_epic_close.*`).
+- **Live proof** on a deployed env: `ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a
+  do_spl_issue_epic_close_probe` (csi-spl-orc) files a test epic with 2 open
+  issues as the probe member, checks the 409, the cascade close (all 3 read
+  404), the unarchive (all 3 back, done), then archives the tree again.
 
-<!-- version: 0.8.0 · updated: 2026-10-13 · last-edit: 2026-10-13T09:10:00Z -->
+<!-- version: 0.8.1 · updated: 2026-10-13 · last-edit: 2026-10-13T12:45:00Z -->

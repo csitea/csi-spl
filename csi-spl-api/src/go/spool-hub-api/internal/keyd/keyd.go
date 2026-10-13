@@ -169,7 +169,8 @@ func Serve(ctx context.Context, dir, workspace string, agents []AgentKey) error 
 func handle(conn net.Conn, workspace string, secs []secret) (stop bool) {
 	defer conn.Close()
 	cred, err := peerCred(conn)
-	if err != nil || cred.Uid != uint32(os.Getuid()) {
+	// int64 so a uid is not narrowed. A negative Getuid matches nothing.
+	if err != nil || int64(cred.Uid) != int64(os.Getuid()) {
 		_ = writeResp(conn, response{OK: false, Error: "peer uid refused"})
 		return false
 	}

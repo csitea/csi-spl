@@ -18,7 +18,8 @@
 # @description   DISPATCH_SWEEP_STALE s old, with its open count (SPEC 3.2)
 # @description   per workspace: inbound - humans posted in the last
 # @description   DISPATCH_SILENCE_WINDOW min and the dispatchers' desk received
-# @description   files, and no post was stored unsigned (CLE-77876)
+# @description   files, and no post was stored unsigned (CLE-77876).
+# @description   #issues, #tasks and #probe are in neither count (SPL-1648)
 # @description   per workspace and channel: every OD seat (orchestrator, master,
 # @description   failover) of every fleet box subscribed, where the workspace
 # @description   seats it (owner 2026-10-03, SPEC 2.1; the hub delivers a web UI

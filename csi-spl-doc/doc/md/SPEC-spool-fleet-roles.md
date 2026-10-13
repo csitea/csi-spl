@@ -251,6 +251,12 @@ topic whose LAST message is a human's and older than 15 minutes.
 | a pure acknowledgement ("ok", "thanks", emoji only) | lists it in its own table, never sends it |
 | any other human post | sends it to the lease holder |
 
+`do_spl_dispatch_check`'s unsigned count leaves out `#issues`, `#tasks` and
+`#probe` (the live-proof channel), the same channels `SWEEP_SKIP_CHANNELS`
+skips. Both numbers it prints leave them out: how many human posts, and how
+many of them were stored unsigned. The skip is the channel, so a post in
+`#probe` does not count, whoever sent it (SPL-1648).
+
 Delivery is ONE spool note per sweep (task `unanswered-sweep`) to the lease
 holder, with only the items NEW since the last sweep: a table of workspace,
 channel, topic, last human post, age, who and the first 120 characters. The

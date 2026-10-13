@@ -8,8 +8,8 @@
 #   1. the read runs on the migrated schema and prints one hum| line
 #   2. unsigned counts a post with no pin, a post after the pin and a post
 #      under a revoked pin; NOT a post from before the live pin
-#   3. posts: a signed one counts, an agent's, a DM, #issues, a typed_by
-#      line and one outside the window do not
+#   3. posts: a signed one counts, an agent's, a DM, #issues, #probe, a
+#      typed_by line and one outside the window do not
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -77,6 +77,7 @@ m wp ops HUM-2 sig 10          # signed
 m wp ops CLE-5 '' 10           # an agent
 m wp '' HUM-2 '' 10            # a DM
 m wp issues HUM-2 '' 10        # #issues
+m wp probe HUM-2 '' 10         # #probe: the live proof, not counted (SPL-1648)
 m wp ops HUM-2 '' 300          # outside the window
 m wp ops HUM-2 '' 2            # inside the grace
 m wp ops HUM-2 '' 15; psql_owner -c "UPDATE messages SET typed_by = 'HUM-2' WHERE msg_id = '$LAST_ID'" >/dev/null

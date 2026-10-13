@@ -40,7 +40,11 @@
 # @description            window unsigned (no box-wui pin), so no box got them;
 # @description            a post from before the workspace's current pin does
 # @description            not count (that one is do_spl_replay_unsigned's)
-# @description            (do_spl_check_box_wui_pins, do_spl_cloud_pin_box_wui)
+# @description            (do_spl_check_box_wui_pins, do_spl_cloud_pin_box_wui).
+# @description            #issues, #tasks and #probe are out of both counts
+# @description            (the unanswered sweep's channel skip; #probe is the
+# @description            live-proof channel). The skip is the channel, not
+# @description            the sender (SPL-1648)
 # @description One read per workspace, through ONE proxy session, which the
 # @description dry run makes too (read-only) to compute the plan. DRY_RUN=1
 # @description (default) prints the plan; DRY_RUN=0 applies it in that session.
@@ -77,7 +81,8 @@ do_spl_dispatch_subscribe() {
 #   hum|<posts>|<unsigned>    human channel posts the hub stored between
 #                             DISPATCH_SILENCE_WINDOW and _GRACE minutes ago,
 #                             and how many of them unsigned and not older
-#                             than the live box-wui pin (absent = 0|0)
+#                             than the live box-wui pin (absent = 0|0).
+#                             #issues, #tasks and #probe are in neither number
 # DISPATCH_SUBS_DIR (<dir>/<tenant>.txt holding those lines) replaces the hub
 # DB, for the tests and for an offline look at an export.
 spl_dispatch_with_subs() {
@@ -134,12 +139,15 @@ SELECT 'ros|' || r.box_id || '|' || r.agent_id FROM roster r
 -- unsigned leaves out a post stored before the live box-wui pin was set: a
 -- post stored before the pin is the replay's (do_spl_replay_unsigned), not a
 -- live gap (CLE-001, 2026-10-01: the first ticks after the pin alerted).
+-- #issues, #tasks and #probe are out of both counts: the unanswered sweep's
+-- channel skip. #probe is the live-proof channel. The skip is the channel,
+-- not the sender, so a post there does not count whoever sent it (SPL-1648).
 SELECT 'hum|' || count(*) || '|' || count(*) FILTER (WHERE m.env_sig = '' AND NOT EXISTS (
          SELECT 1 FROM pins p WHERE p.tenant_id = m.tenant_id AND p.box_id = 'box-wui'
             AND p.revoked_at IS NULL AND p.updated_at > m.received_at))
   FROM messages m
  WHERE m.tenant_id = :'tenant' AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%'
-   AND m.channel IS NOT NULL AND m.channel NOT IN ('issues', 'tasks') AND m.typed_by IS NULL
+   AND m.channel IS NOT NULL AND m.channel NOT IN ('issues', 'tasks', 'probe') AND m.typed_by IS NULL
    AND m.received_at > now() - make_interval(mins => :win)
    AND m.received_at <= now() - make_interval(mins => :grace);
 COMMIT;

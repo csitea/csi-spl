@@ -312,13 +312,14 @@ try {
         actor: r.querySelector('[data-test=issues-history-actor]')?.textContent.trim(),
         values: r.querySelector('[data-test=issues-history-values]')?.textContent.replace(/[\s\u00a0]+/g, ' ').trim() || '',
         when: r.querySelector('[data-test=issues-history-at]')?.textContent.trim(), exact: r.querySelector('[data-test=issues-history-at]')?.getAttribute('title') || '',
+        exactTime: r.querySelector('[data-test=issues-history-exact-time]')?.textContent.trim() || '',
       })),
     }))
     const hInput = await talkIn()
     const hSeq = h1.rows.map((r) => r.event + (r.field ? ':' + r.field : '')).join(' ')
-    ok(`H1 ${W}: the History tab lists created, then the title and description edits, each with who and when (exact on hover); no comment box there, Discussion has one (control)`,
+    ok(`H1 ${W}: the History tab lists created, then the title and description edits, each with who and when (exact on hover + full ISO time on desktop); no comment box there, Discussion has one (control)`,
       hCtl && !hInput && h1.tab === 'history' && hSeq === 'created changed:title changed:description' &&
-        h1.rows[1].values === 'Beta row → Beta via modal' && h1.rows.every((r) => r.actor && r.when && r.exact), { hCtl, hInput, hSeq, h1 })
+        h1.rows[1].values === 'Beta row → Beta via modal' && h1.rows.every((r) => r.actor && r.when && r.exact && (W <= 360 || /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(r.exactTime))), { hCtl, hInput, hSeq, h1, exactTime: h1.rows.map((r) => r.exactTime) })
     await p.screenshot({ path: `${SHOTS}/history-${W}.png` })
     await p.click('[data-test=issues-talk-tab][data-value="discussion"]')
     await p.waitForSelector('[data-test=issues-comment-input]', { visible: true, timeout: 5000 }).catch(() => {})

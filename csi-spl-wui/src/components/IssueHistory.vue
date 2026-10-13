@@ -26,7 +26,9 @@
           <span class="issue-history__new">{{ valueOf(e.field, e.new) }}</span>
         </span>
         <span v-else-if="e.event === 'commented' && e.new" class="issue-history__excerpt">{{ e.new }}</span>
-        <time class="issue-history__at" data-test="issues-history-at" :datetime="e.at" :title="exact(e.at)">{{ ago(e.at) }}</time>
+        <time class="issue-history__at" data-test="issues-history-at" :datetime="e.at" :title="exact(e.at)">
+          {{ ago(e.at) }} <span class="issue-history__exact-time" data-test="issues-history-exact-time">{{ isoDateTimeSec(e.at) }}</span>
+        </time>
       </li>
     </ol>
   </div>
@@ -150,5 +152,15 @@ function ago(at: string): string {
   margin-inline-start: auto;
   opacity: 0.7;
   font-size: 0.875rem;
+}
+
+.issue-history__exact-time {
+  display: inline;
+}
+
+@media (max-width: 360px) {
+  .issue-history__exact-time {
+    display: none;
+  }
 }
 </style>

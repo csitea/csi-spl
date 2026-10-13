@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
-import { isoDate, isoDateTime, parseIsoDate } from "../../src/utils/date-iso.mjs"
+import { isoDate, isoDateTime, isoDateTimeSec, parseIsoDate } from "../../src/utils/date-iso.mjs"
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "../../src")
 const BANNED = /toLocale(?:Date|Time)?String|Intl\.DateTimeFormat/
@@ -20,12 +20,20 @@ function files(dir) {
 }
 
 describe("iso dates", () => {
-  const stamp = new Date(2026, 8, 26, 15, 4)
+  const stamp = new Date(2026, 8, 26, 15, 4, 5)
   it("prints a local day and a 24-hour minute", () => {
     assert.equal(isoDate(stamp), "2026-09-26")
     assert.equal(isoDateTime(stamp), "2026-09-26 15:04")
+    assert.equal(isoDateTimeSec(stamp), "2026-09-26 15:04:05")
     assert.equal(isoDate("not a date"), "")
     assert.equal(isoDateTime(""), "")
+    assert.equal(isoDateTimeSec(""), "")
+  })
+  it("pads single-digit hours, minutes and seconds", () => {
+    const midnight = new Date(2026, 8, 26, 0, 0, 0)
+    assert.equal(isoDateTimeSec(midnight), "2026-09-26 00:00:00")
+    const singleDigit = new Date(2026, 8, 26, 1, 2, 3)
+    assert.equal(isoDateTimeSec(singleDigit), "2026-09-26 01:02:03")
   })
   it("accepts only a real calendar day", () => {
     assert.equal(parseIsoDate("2026-09-26"), "2026-09-26")

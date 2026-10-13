@@ -27,6 +27,9 @@ printf 'base\n' >"$L/base.txt"
 git -C "$L" add base.txt && git -C "$L" "${G[@]}" commit -qm base && git -C "$L" push -q origin HEAD:master
 git -C "$L" switch -q -c lane-branch
 git "${G[@]}" clone -q "$B" "$O"
+# Their own identity: a runner has no global one, and the hook's pull --rebase
+# in the other clone needs a committer (CI red e3145e1d3, run 38330391482).
+for r in "$L" "$O"; do git -C "$r" config user.name lane; git -C "$r" config user.email "$EM"; done
 mkdir -p "$T/hooks"
 # The stub hook: $T/hook.mode = ok | sleep | race | red | race-always.
 cat >"$T/hooks/pre-push" <<EOF
@@ -40,7 +43,7 @@ case "\$mode" in
     n=\$(date +%s%N)
     echo "\$n" >"$O/o-\$n.txt"
     git -C "$O" add "o-\$n.txt" && git -C "$O" ${G[*]} commit -qm "other \$n" && git -C "$O" pull -q --rebase origin master 2>/dev/null
-    git -C "$O" push -q origin HEAD:master ;;
+    git -C "$O" push -q origin HEAD:master || { echo "STUB: the other push failed"; exit 1; } ;;
   red) echo "deploy-gate FAILED: lint-shellcheck GATE-RED-MARKER"; exit 1 ;;
 esac
 exit 0

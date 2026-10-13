@@ -16,7 +16,8 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 import { BLOG_SHARE_ORDER, SUBSTACK_NOTES } from '../../src/utils/blog-share.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
-const SHOTS = process.env.BLOG_SHARE_SHOTS || '/var/spool-hub/g-391/lifetime'
+/* Shots only when the caller asks. CI cannot create a path under the spool. */
+const SHOTS = process.env.BLOG_SHARE_SHOTS || ''
 const results = []
 const ok = (name, pass, ev) => {
   results.push({ name, ok: pass })
@@ -44,7 +45,7 @@ async function launch() {
 const server = await startServer()
 const browser = await launch()
 try {
-  mkdirSync(SHOTS, { recursive: true })
+  if (SHOTS) mkdirSync(SHOTS, { recursive: true })
   const index = await fetch(server.base + '/blog-md/index.json').then((r) => (r.ok ? r.json() : null), () => null)
   const posts = index?.locales?.en || []
   ok('the bundle carries a blog post', posts.length > 0, posts.length)
@@ -57,10 +58,11 @@ try {
   ok('the list has no share row', (await list.$('[data-test=blog-share]')) === null)
   await ctx0.close()
 
-  for (const [label, size, shot] of [
-    ['phone', { width: 390, height: 844 }, `${SHOTS}/blog-share-phone.png`],
-    ['desktop', { width: 1440, height: 900 }, `${SHOTS}/blog-share-desktop.png`],
+  for (const [label, size, name] of [
+    ['phone', { width: 390, height: 844 }, 'blog-share-phone.png'],
+    ['desktop', { width: 1440, height: 900 }, 'blog-share-desktop.png'],
   ]) {
+    const shot = SHOTS ? `${SHOTS}/${name}` : ''
     console.log(`-- ${label}`)
     const ctx = await browser.createBrowserContext()
     const p = await ctx.newPage()
@@ -114,9 +116,11 @@ try {
 
     const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     ok(`${label}: no sideways scroll`, wide <= 1, wide)
-    await p.$eval('[data-test=blog-share]', (el) => el.scrollIntoView({ block: 'center' }))
-    await p.screenshot({ path: shot })
-    ok(`${label}: screenshot`, true, shot)
+    if (shot) {
+      await p.$eval('[data-test=blog-share]', (el) => el.scrollIntoView({ block: 'center' }))
+      await p.screenshot({ path: shot })
+      ok(`${label}: screenshot`, true, shot)
+    }
     await ctx.close()
   }
 } finally {

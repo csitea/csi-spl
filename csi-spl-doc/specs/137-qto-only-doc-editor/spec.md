@@ -1,6 +1,6 @@
 # 137: Qto as the only doc editor, unified spool-hub file system, and md retirement
 
-Status: **Draft v0.1** (Step 1 of owner HUM-10 task dispatch-bed3ed0a; agy a-954; issue SPL-1730).
+Status: **Consensus v0.2** (Step 2 panel consensus folded; agy a-965; issue SPL-1743).
 Authority: this file for the architecture and technical requirements; `tasks.md` for the phased build tasks.
 Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 Topic: `bed3ed0a-dd34-46b9-a7ea-a8c89c5f596c` (HUM-10, prd t1, msgs 25579adb, ae9d80a4, 0e9d17b5, 2c82489a, b1661d1c).
@@ -48,7 +48,7 @@ What they bind:
 
 ## 1. Ground truth & measured scale (checked on origin/master)
 
-Every figure in this section was verified against the repository tree at commit `4ac30d59b` on 2026-10-13 using the exact commands shown.
+Every figure in this section was verified against the repository tree at commit `4ac30d59b` on 2026-10-13 using the exact commands shown (updated at `1466560e8` on 2026-10-14: 1,257 total `.md` files; 1,158 under `csi-spl-doc/`, 99 outside).
 
 ### 1.1 Repository scale
 
@@ -128,15 +128,15 @@ The table below catalogs every Markdown feature, its prevalence in the repositor
 | **F04** | **ATX Headings: h4 (`#### `)** | 17 | Supported (level-3 section node) | Preserved | Supported (`h4` in `TAGS`) | Ensure export heading shift does not truncate at depth 6. |
 | **F05** | **ATX Headings: h5 (`##### `)** | 0 | **Refused** (rejected by `spl-doctree-md.py:65`) | **Broken** (fails import) | Supported (`h5` in `TAGS`) | Allow arbitrary tree depth in Qto item model; map depth >= 5 cleanly to h5/h6. |
 | **F06** | **ATX Headings: h6 (`###### `)** | 0 | **Refused** (rejected by `spl-doctree-md.py:65`) | **Broken** (fails import) | Supported (`h6` in `TAGS`) | Map depth >= 6 cleanly; do not prepend extra `#` if level reaches 6. |
-| **F07** | **Unnumbered Headings** (`## Overview`) | **559** | **Refused** (`NUM.match` fails, :67) | **Broken** (fails import) | Supported (standard md) | **CRITICAL GAP**: Modify parser to treat unnumbered headings as first-class nodes with empty outline prefix; preserve on export. |
+| **F07** | **Unnumbered Headings** (`## Overview`) | **559** | **Refused** (`NUM.match` fails, :67) | **Broken** (fails import) | Supported (standard md) | **CRITICAL GAP (P-Q1 Choice A)**: Store `attrs.numbered = false` in `workspace_doc_item.attrs` (zero SQL migrations). Outline derivation (`workspace_docs_read.go`) and exporters (`doctree_export.go`, `-doctree-export.ts`) suppress outline prefix when false and skip unnumbered siblings; parser preserves on export. |
 | **F08** | **Setext Headings** (`===` / `---`) | 436 | Partial (treated as body text unless matched) | **Altered** (normalized to ATX on export) | Supported (markdown-it parses setext) | Normalize setext to ATX during import; document normalization rule. |
 | **F09** | **Outline Numbering Mismatch** (skips, roman, letters) | 110 | **Refused** (`check_outline` aborts, :83-98) | **Broken** (fails import) | Supported (text) | Decouple stored section title from computed outline; support custom or non-derived outline numbers. |
-| **F10** | **YAML Front Matter** (`---` header) | **443** | **Refused** (no `# ` first line, :48) | **Lost** (stripped or refused) | Ignored / text | Parse YAML front matter into `workspace_doc.attrs.front_matter` JSONB; regenerate on export. |
-| **F11** | **Pipe Tables (GFM)** (`\| a \| b \|`) | **584** | **No editor tool** (raw text in textarea) | **Preserved** (survives text export) | Supported (pipe tables in `markdown.mjs:196`) | **Owner msg 2c82489a**: Add table insert/edit tool in paragraph toolbar; verify edit + export cycle. |
+| **F10** | **YAML Front Matter** (`---` header) | **443** | **Refused** (no `# ` first line, :48) | **Lost** (stripped or refused) | Ignored / text | **(Correction 4)**: Parse YAML front matter into the root item's `attrs.front_matter` JSONB (`workspace_doc_item` where `parent_id IS NULL`, zero SQL migrations); regenerate on export. |
+| **F11** | **Pipe Tables (GFM)** (`\| a \| b \|`) | **584** | **No editor tool** (raw text in textarea) | **Preserved** (survives text export) | Supported (pipe tables in `markdown.mjs:196`) | **Owner msg 2c82489a (P-Q3 Choice A)**: Toolbar button (`ws-doc-insert-table`) in `WorkspaceDocView.vue` inserts pipe table skeleton into textarea; renders in `MdRun`; verified round-trip through `workspace_doc_item.body` -> `spool doctree export`. |
 | **F12** | **HTML Tables** (`<table><tr><td>`) | 676 | **No editor tool** (raw text in textarea) | **Preserved** (survives text export) | Supported (`htmlTableNodes` in `markdown.mjs:203`) | Support visual table editing or preserve raw HTML blocks untouched. |
-| **F13** | **Blockquotes (Simple)** (`> quote`) | 123 | **No editor tool** (raw text in textarea) | **Preserved** (survives text export) | Supported (`blockquote` in `TAGS`) | **Owner msg b1661d1c**: Add quote tool in paragraph toolbar; render styled quote card. |
-| **F14** | **Nested Blockquotes** (`> > quote`) | 18 | **No editor tool** (raw text in textarea) | **Preserved** (survives text export) | Supported (nested `blockquote`) | Ensure quote tool supports indentation levels. |
-| **F15** | **Citations & Attributions** (`— Author / Link`) | 123 | **No editor tool / field** | **Altered** (raw text only) | Supported as inline text | **Owner msg b1661d1c**: Support attribution field/line under blockquote; export as `> — [Source](url)`. |
+| **F13** | **Blockquotes (Simple)** (`> quote`) | 123 | **No editor tool** (raw text in textarea) | **Preserved** (survives text export) | Supported (`blockquote` in `TAGS`) | **Owner msg b1661d1c (P-Q4 Choice A)**: Toolbar button (`ws-doc-insert-quote`) in `WorkspaceDocView.vue` inserts blockquote template with attribution line; render styled quote card in CSS. |
+| **F14** | **Nested Blockquotes** (`> > quote`) | 18 | **No editor tool** (raw text in textarea) | **Preserved** (survives text export) | Supported (nested `blockquote`) | Preserved in textarea body; renderer supports nested `blockquote`. |
+| **F15** | **Citations & Attributions** (`— Author / Link`) | 123 | **No editor tool / field** | **Altered** (raw text only) | Supported as inline text | **Owner msg b1661d1c (P-Q4 Choice A)**: Attribution line (`> — [Source](url)`) stored in markdown body; styled via CSS (`blockquote p:last-child`) in `MarkdownBlock.vue`. |
 | **F16** | **Code Fences: 3-backtick / tilde** | 278 | Partial (rendered in `MdRun`, edited in textarea) | **Preserved** | Supported (`pre`, `code` in `TAGS`) | Preserve language tag and syntax highlighting across edit and export. |
 | **F17** | **Code Fences: 4-backtick / nested** | 2 | **Broken** (regex flip toggles inside fence, :38) | **Altered / Corrupted** | Supported (markdown-it handles 4-backtick) | Fix fence parser in import/export to track fence length and matching closing fence. |
 | **F18** | **Mermaid Diagrams** (` ```mermaid `) | 6 | **No editor preview** | **Preserved** (raw text) | **Missing** (rendered as raw code block) | Integrate client-side Mermaid renderer in `MarkdownBlock.vue` for diagram visualization. |
@@ -319,40 +319,32 @@ CONSTRAINT fk_workspace_doc_item_parent
 #### 4.2.2 RLS Policy definition for the unified file system
 We establish a dedicated reserved system tenant: `system` (or `_repo`). Repository documentation nodes belong to `tenant_id = 'system'`. Workspace documentation nodes belong to their respective workspace `tenant_id` (e.g. `'t1'`, `'engineering'`).
 
+As verified during panel review (Correction 1), Row-Level Security, `FORCE ROW LEVEL SECURITY`, and composite tenant foreign keys are already live on `workspace_doc_node`, `workspace_doc`, `workspace_doc_item`, and `workspace_doc_rev_log` (rdb `0157`, `0165`). The runtime session GUCs are `app.tenant_id` and `app.rls_scope = 'operator'` (not the draft `spool.*` GUCs).
+
+To provide universal read access to repository docs while maintaining strict tenant isolation, a single permissive `FOR SELECT` policy is added per table for `tenant_id = 'system'`:
+
 ```sql
--- Enable and force RLS on the filesystem tables
-ALTER TABLE workspace_doc_node ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workspace_doc_node FORCE ROW LEVEL SECURITY;
-
-ALTER TABLE workspace_doc ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workspace_doc FORCE ROW LEVEL SECURITY;
-
-ALTER TABLE workspace_doc_item ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workspace_doc_item FORCE ROW LEVEL SECURITY;
-
--- Policy: A session can read documents of its own workspace OR system repo docs
-CREATE POLICY doc_node_select ON workspace_doc_node
+-- Permissive SELECT policy: all workspaces can read system repo docs
+CREATE POLICY doc_node_select_repo ON workspace_doc_node
     FOR SELECT
-    USING (
-        tenant_id = NULLIF(current_setting('spool.tenant_id', true), '')
-        OR tenant_id = 'system'
-        OR current_setting('spool.operator_scope', true) = 'true'
-    );
+    USING (tenant_id = 'system');
 
--- Policy: A session can ONLY insert/update/delete documents within its own workspace (never system repo docs)
-CREATE POLICY doc_node_modify ON workspace_doc_node
-    FOR ALL
-    USING (
-        tenant_id = NULLIF(current_setting('spool.tenant_id', true), '')
-        AND tenant_id <> 'system'
-        OR current_setting('spool.operator_scope', true) = 'true'
-    )
-    WITH CHECK (
-        tenant_id = NULLIF(current_setting('spool.tenant_id', true), '')
-        AND tenant_id <> 'system'
-        OR current_setting('spool.operator_scope', true) = 'true'
-    );
+CREATE POLICY doc_select_repo ON workspace_doc
+    FOR SELECT
+    USING (tenant_id = 'system');
+
+CREATE POLICY doc_item_select_repo ON workspace_doc_item
+    FOR SELECT
+    USING (tenant_id = 'system');
+
+CREATE POLICY doc_rev_log_select_repo ON workspace_doc_rev_log
+    FOR SELECT
+    USING (tenant_id = 'system');
 ```
+
+Writes remain strictly governed by the existing policies:
+- A standard workspace session (`app.tenant_id = '<id>'`, `app.rls_scope` unset) can only modify rows where `tenant_id` matches its session tenant. Since `tenant_id = 'system'` is distinct, standard sessions cannot modify repo docs (Invariant I2).
+- An operator session (`app.rls_scope = 'operator'`) can insert, update, or delete across all tenants, enabling authorized CI and administration pipelines to maintain repository documentation.
 
 #### 4.2.3 Isolation invariants
 - **Invariant I1 (Cross-tenant blindness)**: A session authenticated to workspace `t2` querying `workspace_doc_node` receives 0 rows matching `tenant_id = 't1'`.
@@ -465,11 +457,13 @@ Phase 1: Gap Closure ──► Phase 2: Bulk Import ──► Phase 3: Export Pa
 - Verify that `git diff` produces zero unintended textual or whitespace drift (apart from the standardized "Generated from qto doc" header).
 - Run repo test gates to ensure all module tests remain green.
 
-#### Phase 4: Git Pre-Push Gate Enforcement
-- Update the pre-push gate (`csi-spl-iac/src/bash/run/spl-check-pre-push.func.sh` / `10_ci-quality.yml`):
-  - A commit touching a mapped `.md` file must be generated by `do_spl_doctree_export_md` (verified by comparing the commit against the exported hash or checking the export stamp).
-  - Direct, manual edits to `.md` files that are not synchronized with the database are rejected by the pre-push hook:
+#### Phase 4: Git Pre-Push Gate Enforcement & Legacy Deprecation
+- **Deprecate Spec 075 Repo-Edit Path (Correction 2)**: Before activating the gate, retire or disable `PUT /v1/docs/{path}` and the `repodocs.Worker` background git committer for all paths registered in `qto-docs.tsv`, eliminating background commit collisions.
+- **Pre-Push Gate (P-Q5 Choice A)**: Update the pre-push gate (`csi-spl-iac/src/bash/run/spl-check-pre-push.func.sh` / `10_ci-quality.yml`):
+  - A commit touching a mapped `.md` file must be generated by `do_spl_doctree_export_md` (verified by comparing against export hash or checking export stamp).
+  - Direct, manual edits to mapped `.md` files that are not synchronized with the database are rejected by the pre-push hook:
     `FATAL: direct edit to <file>.md detected. This document is managed by Qto. Edit it via Qto and run do_spl_doctree_export_md.`
+  - Unmapped documents remain editable until their respective bulk import phase completes.
 
 #### Phase 5: Complete Retirement of Manual Markdown Editing
 - Remove manual markdown authoring instructions from developer guides.
@@ -526,6 +520,24 @@ The panel will evaluate and rank solutions for the following core technical deci
    - *Option B (CI Auto-Commit)*: CI runs `do_spl_doctree_export_md` and auto-commits any drift back to master.
    - *Option C (Advisory Warning)*: CI warns if `.md` was edited by hand without database update.
 
+### 6.3 Expert panel outcome & consensus (SPL-1743)
+
+On 2026-10-14, the expert panel convened across 4 placed review seats:
+- `s137-claude` ([`panel/claude.md`](panel/claude.md), `6216915b8`): Decisions A A A A A, plus 5 tasks.md corrections.
+- `s137-grok` ([`panel/grok.md`](panel/grok.md), `d999a070f`): Decisions A A A A A, plus 5 tasks.md corrections.
+- `s137-mistral` ([`panel/mistral.md`](panel/mistral.md), `e33014485`): Decisions A A B A A (substantive agreement on A for P-Q3).
+- `s137-agy` ([`panel/agy.md`](panel/agy.md), `06373720f`): Decisions A A A A A, plus 5 tasks.md corrections.
+- `s137-qwen`: Not placed (no qwen CLI available on sat; primary box over its load gate). The panel proceeded with 4 seats.
+
+The complete consensus rationale, weighing of Mistral's P-Q3 vote, and 5 verified corrections are documented in [`panel/consensus.md`](panel/consensus.md).
+
+**Summary of Adopted Decisions**:
+1. **P-Q1**: Choice **A** — `attrs.numbered = false` stored in existing JSONB `attrs` (no migration); outline derivation and exporters omit outline prefix when false.
+2. **P-Q2**: Choice **A** — Single reserved `system` tenant with permissive `FOR SELECT` RLS policies and operator-only writes.
+3. **P-Q3**: Choice **A** — Paragraph toolbar button (`ws-doc-insert-table`) inserting Markdown pipe-table template into textarea; interactive grid modal can follow as client-side enhancement.
+4. **P-Q4**: Choice **A** — Standard Markdown blockquotes (`> passage`) and trailing attribution lines (`> — [Source](url)`) in body; styled via CSS in `MarkdownBlock.vue`.
+5. **P-Q5**: Choice **A** — Hard pre-push and CI quality gate scoped strictly to files registered in `qto-docs.tsv`, phasing in as import progresses.
+
 ---
 
 ## 7. Functional requirements & acceptance matrix
@@ -580,5 +592,6 @@ The panel will evaluate and rank solutions for the following core technical deci
 | Version | Date | Author | Description |
 |---|---|---|---|
 | v0.1.0 | 2026-10-13 | a-954 | Initial complete specification for Qto as the only doc editor, unified spool-hub file system, and markdown editing retirement (SPL-1730). Covers verbatim owner requirements (topic `bed3ed0a`), full measured scale across all 1,247 repo md files, comprehensive 27-row Markdown feature and gap matrix, detailed specifications for paragraph tables (Owner msg 2c82489a) and citations (Owner msg b1661d1c), architecture for merging Spec 075 and Qto into ONE PostgreSQL file system with RLS and capability permissions, a five-phase markdown retirement plan, and preparation for the Step 2 expert panel. |
+| v0.2.0 | 2026-10-14 | a-965 | Step 2 panel consensus folded (SPL-1743): P-Q1..P-Q5 decided (A A A A A), 5 verified corrections applied (RLS GUCs corrected to app.tenant_id/app.rls_scope, front matter stored in root item attrs.front_matter, spec 075 repo-edit deprecation tasked, Go export test moved to Phase 1, bulk import decomposed into 4 slices). Tasks marked ready to build with disjoint lane groups. |
 
-<!-- version: 0.1.0 · updated: 2026-10-13 · last-edit: 2026-10-13T21:00:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-14 · last-edit: 2026-10-14T00:45:00Z -->

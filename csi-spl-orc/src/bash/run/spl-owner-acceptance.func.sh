@@ -54,13 +54,15 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 OA_TOPIC=<uuid> DRY_RUN=0 ./run -a do_spl_owner_acceptance
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_owner_acceptance() {
   do_require_bin python3 yq node || return 1
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
 
-  local tenant="${TENANT_ID:-}" agent="${OA_AGENT:-c-001}" box="${OA_BOX:-$(spl_desk_box_default)}"
+  local tenant="${TENANT_ID:-}" agent="${OA_AGENT:-$(spl_role_seat 1)}" box="${OA_BOX:-$(spl_desk_box_default)}"
   local topic="${OA_TOPIC:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   spl_oa_validate "$topic" || return 1

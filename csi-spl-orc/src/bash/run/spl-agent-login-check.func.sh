@@ -54,6 +54,8 @@
 # @example ./run -a do_spl_agent_login_check
 # @example DRY_RUN=0 ./run -a do_spl_agent_login_check
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 LC_FOOT_LOGIN_RE='login expired|please run /login|oauth (session|token) (has )?expired|could not be refreshed'
 LC_FOOT_LIMIT_RE='(you[^[:space:]]* )?hit your ([a-z]+ )?limit|usage limit reached'
 
@@ -404,6 +406,6 @@ _lc_alert_to() {
 _lc_alert_from() {
   local o
   o="$(sed -n 's/^LEASE_ORCH=//p' "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null | tail -1)"
-  [[ "$o" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || o=c-001
+  [[ "$o" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || o="$(spl_role_seat 1)"
   echo "${LOGIN_FROM:-$o}"
 }

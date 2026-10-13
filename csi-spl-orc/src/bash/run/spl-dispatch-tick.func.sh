@@ -36,6 +36,8 @@
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ENV=prd ./run -a do_spl_dispatch_tick
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_dispatch_tick() {
   [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd"; return 1; }
   spl_lease_init ro || return 1
@@ -95,7 +97,7 @@ do_spl_dispatch_tick() {
       grep '^GAP ' "$tmp/added" >"$tmp/new.gap"
       [[ -s "$tmp/new.gap" ]] && { _spl_dispatch_tick_note "$(_spl_dispatch_tick_holder)" "new since the last desk tick" "$tmp/new.gap" "$tmp" ||
         echo "DISPATCH WARN could not send the gap note"; }
-      [[ -s "$tmp/escalate" ]] && { _spl_dispatch_tick_note "${LEASE_ORCH:-c-001}" "open for over ${DISPATCH_GAP_ESCALATE:-3600}s" "$tmp/escalate" "$tmp" ||
+      [[ -s "$tmp/escalate" ]] && { _spl_dispatch_tick_note "${LEASE_ORCH:-$(spl_role_seat 1)}" "open for over ${DISPATCH_GAP_ESCALATE:-3600}s" "$tmp/escalate" "$tmp" ||
         echo "DISPATCH WARN could not send the escalation"; }
     fi
     cp "$tmp/state" "$f.tmp" && mv -f "$f.tmp" "$f" || echo "DISPATCH WARN cannot write $f"
@@ -109,10 +111,10 @@ do_spl_dispatch_tick() {
 # THIS machine go to its own orchestrator.
 _spl_dispatch_tick_holder() {
   spl_lease_read
-  if spl_lease_remote; then echo "${LEASE_ORCH:-c-001}"
+  if spl_lease_remote; then echo "${LEASE_ORCH:-$(spl_role_seat 1)}"
   elif [[ "$LH" != none ]]; then spl_lease_holder_id
   elif [[ -n "${LEASE_MASTER:-}" ]]; then echo "$LEASE_MASTER"
-  else echo "${LEASE_ORCH:-c-001}"; fi
+  else echo "${LEASE_ORCH:-$(spl_role_seat 1)}"; fi
 }
 
 # _spl_dispatch_tick_note <to> <why> <items file> <tmp>: ONE spool note.
@@ -129,7 +131,7 @@ _spl_dispatch_tick_note() {
     echo
     echo "Open GAP rows: $(grep -c '^GAP ' "$tmp/gaps"). \`ENV=$ENV ./run -a do_spl_dispatch_check\` shows them."
   } >"$tmp/note"
-  SPOOL_BIN="$bin" SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "${LEASE_ORCH:-c-001}" \
+  SPOOL_BIN="$bin" SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "${LEASE_ORCH:-$(spl_role_seat 1)}" \
     --to "$to" --kind note --task dispatch-gaps --body-file "$tmp/note" >/dev/null 2>&1 8>&- 9>&- || return 1
   echo "DISPATCH told $to"
 }

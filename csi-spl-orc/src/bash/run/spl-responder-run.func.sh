@@ -61,11 +61,13 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_responder_run
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_responder_run() {
   do_require_bin python3 yq || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-rsp}" agent="${DESK_AGENT:-$SPL_RSP_AGENT}"
-  local fwd="${RESP_FORWARD_TO:-c-001}" wait="${RESP_HUB_WAIT:-900}" reply="${RESP_SEEN_REPLY:-0}"
+  local fwd="${RESP_FORWARD_TO:-$(spl_role_seat 1)}" wait="${RESP_HUB_WAIT:-900}" reply="${RESP_SEEN_REPLY:-0}"
   [[ "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL RESP_HUB_WAIT must be whole seconds, got: '$wait'"; return 1; }
   [[ "$reply" =~ ^[01]$ ]] || { do_log "FATAL RESP_SEEN_REPLY must be 0 or 1, got: '$reply'"; return 1; }
   spl_desk_validate "$tenant" "$box" "$agent" || return 1

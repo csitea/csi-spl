@@ -8,7 +8,7 @@
 #      are agent ids on a clock PAST the cutoff
 #   2. every desk default reads them: the responder run and sweep, the ops
 #      alarm cron, the weekly full scan; and the responder's forward target
-#      (RESP_FORWARD_TO, CLE-001 before) is c-001. RED CONTROL: a default that is a
+#      (RESP_FORWARD_TO, CLE-001 before) is role seat 001 (c-001 under claude). RED CONTROL: a default that is a
 #      legacy id (RSP-01 before this change) is refused on that clock, and a
 #      literal legacy default anywhere in the desk code fails the sweep
 #   3. do_spl_desk_agent_rename: the dry run touches nothing; DRY_RUN=0 moves
@@ -55,7 +55,10 @@ default() {
   local v
   v="$(sed -nE "s/.*$2.*/\\1/p" "$1")"; v="${v%%$'\n'*}"
   [[ -n "$v" ]] || return 1
-  eval "printf '%s' \"$v\""
+  # a role seat default is spl_role_seat N (SPL-1695): claude, no lease.conf
+  # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
+  ( . "$ENVINC"; export SPL_ROLE_VENDOR=claude LEASE_CONF=/nonexistent; unset LEASE_ORCH LEASE_MASTER LEASE_FAILOVER
+    eval "printf '%s' \"$v\"" )
 }
 for site in \
   "$ORC/src/bash/run/spl-responder-run.func.sh|agent=\"\\\$\\{DESK_AGENT:-([^}]+)\\}\"|$SPL_RSP_AGENT" \

@@ -45,6 +45,8 @@
 # PRUNE_BUILDER_CAP_PCT (10; 0 = no cap), PRUNE_BUILDER_CAP_BYTES (a fixed
 # cap in bytes, beats the %).
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ORC="$(cd "$DIR/../../.." && pwd)"
@@ -71,7 +73,7 @@ loud() {
   local lvl="$1" text="$2" rc=0
   say "$lvl $text"
   [[ "${PRUNE_NOTE:-1}" == 0 ]] && return 0
-  SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$SEND" --from "${PRUNE_FROM:-${LEASE_ORCH:-c-001}}" \
+  SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$SEND" --from "${PRUNE_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}" \
     --to orchestrator --kind note --task "docker-prune-$BOX" \
     --body "docker prune on $BOX ($ME): $lvl $text" >/dev/null 2>&1 7>&- 8>&- || rc=$?
   # spool-send.sh 1-9: delivered, only the poke did not ring

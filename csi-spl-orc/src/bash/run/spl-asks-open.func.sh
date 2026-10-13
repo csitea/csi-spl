@@ -26,6 +26,8 @@
 # @param SPOOL_ROOT (optional) - default /var/spool-hub; the journal is <root>/asks
 # @example ./run -a do_spl_asks_open
 # @example ASKS_ALL=1 ASKS_FORMAT=json ./run -a do_spl_asks_open
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 
 declare -F spl_lane_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
@@ -121,7 +123,7 @@ spl_asks_sync_pending() {
       by="$(jq -r 'if .state == "acked" then .acked_by else .closed_by end' <<<"$rec")"
       local op="$state"
       case "$state" in acked) op=ack ;; declined) op=decline ;; esac
-      if ! out="$(spl_asks_hub "$op" --fleet "$LANE_FLEET" --id "$id" --by "${by:-${ASKS_BY:-c-001}}" --reason "$(jq -r '.reason' <<<"$rec")" 2>&1)" &&
+      if ! out="$(spl_asks_hub "$op" --fleet "$LANE_FLEET" --id "$id" --by "${by:-${ASKS_BY:-$(spl_role_seat 1)}}" --reason "$(jq -r '.reason' <<<"$rec")" 2>&1)" &&
          ! grep -q 'ask_closed' <<<"$out"; then
         bad=$((bad + 1)); continue
       fi

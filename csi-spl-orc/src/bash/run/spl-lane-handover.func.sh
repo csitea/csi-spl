@@ -39,6 +39,8 @@
 # @example FROM=c-050 TO_BOX=sat ./run -a do_spl_lane_handover
 # @example FROM=c-050 TO_BOX=sat DRY_RUN=0 ./run -a do_spl_lane_handover
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 
 do_spl_lane_handover() {
   do_require_bin jq tar zstd || return 1
@@ -280,9 +282,9 @@ Mode $m: $( [[ "$m" == A ]] && echo "your session IS $from's, resumed: what you 
   $from's unpushed commits plus its uncommitted work. When the top commit is
   "wip($from): ... handover", it holds that uncommitted work: run
   'git reset --mixed HEAD~1' first, then commit it properly in small commits.
-- Spool task: ${task:-unknown (read your inbox)}. Report to ${reqr:-c-001} as $from would have.
+- Spool task: ${task:-unknown (read your inbox)}. Report to ${reqr:-$(spl_role_seat 1)} as $from would have.
 - After your FIRST landed push to master: 'git push origin :$ref' (deletes the
-  handover ref), and tell ${reqr:-c-001} that $from's old worktree $wt on
+  handover ref), and tell ${reqr:-$(spl_role_seat 1)} that $from's old worktree $wt on
   $here may be removed.
 - Everything else (scope, integration, closing steps) is $from's brief below.
 

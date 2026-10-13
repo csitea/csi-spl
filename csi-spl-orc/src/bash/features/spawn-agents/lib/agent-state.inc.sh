@@ -14,6 +14,8 @@
 #
 # The tag: SPOOL_BOX_TAG, else BOX_TAG, else the tag most agent windows on the
 # server already carry (agent_top_infer_tag, set by agent-top.sh), else none.
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/spool-env.inc.sh"
 
 # A token that cannot be confused with an agent id, followed by ": ".
 AN_TAG_TOKEN_RE='^[A-Za-z0-9][A-Za-z0-9._-]*$'
@@ -222,7 +224,7 @@ kind_from_launch() {
 #   legacy - files in <SPOOL_LEGACY_INBOX_ROOT>/<ID>/outbox (that protocol's
 #            orchestrator moves them away when read)
 pending_files() {  # ID -> one path per line
-  local id="$1" orc="${SPOOL_ORCHESTRATOR_ID:-c-001}" dir mark
+  local id="$1" orc="${SPOOL_ORCHESTRATOR_ID:-$(spl_role_seat 1)}" dir mark
   dir="${SPOOL_ROOT:-/var/spool-hub}/$orc/inbox"
   mark="${SPOOL_ROOT:-/var/spool-hub}/$orc/.agent-inbox-seen"
   if [ -d "$dir" ]; then

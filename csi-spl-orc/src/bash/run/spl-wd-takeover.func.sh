@@ -46,6 +46,8 @@
 # @example ID=c-007 REASON=S3 DRY_RUN=0 ./run -a do_spl_wd_takeover
 # @example ID=c-007@sat REASON="no progress for 10 min" DRY_RUN=0 ./run -a do_spl_wd_takeover
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_wd_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-watchdog.func.sh"
 declare -F spl_peer_restart_spawn >/dev/null ||
@@ -63,7 +65,7 @@ do_spl_wd_takeover() {
   [[ "$id" =~ ^[acgqm]-[0-9]{3}$ ]] || { do_log "FATAL ID must be an agent id (c-NNN, optionally @<box>), got: '${ID:-}'"; return 1; }
   spl_wd_init || return 1
   spl_peer_init ro || return 1
-  : "${WD_START_WAIT:=120}" "${WD_RELAY_TO:=c-001}"
+  : "${WD_START_WAIT:=120}" "${WD_RELAY_TO:=$(spl_role_seat 1)}"
   [[ "$WD_START_WAIT" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL WD_START_WAIT must be a positive integer"; return 1; }
   if [[ -n "$box" && "$box" != "$ROTATE_BOX" && "$box" != "${SPOOL_BOX_TAG:-}" ]]; then
     spl_wdt_relay "$id" "$box" "$reason" "$req"

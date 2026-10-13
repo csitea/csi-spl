@@ -70,6 +70,8 @@
 # @example WD_ONLY="c-981 c-982" WD_STATE_DIR=/var/tmp/wd-drill DRY_RUN=0 WD_TICKS=20 ./run -a do_spl_watchdog
 # @example WD_INST_START="1 2 3" ./run -a do_spl_watchdog
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
 declare -F spl_wd_log_rotate >/dev/null ||
@@ -150,7 +152,7 @@ spl_wd_init() {
   (( WD_TICK > 0 && WD_JOBS > 0 && WD_SCRIPT_TIMEOUT > 0 )) ||
     { do_log "FATAL WD_TICK, WD_JOBS and WD_SCRIPT_TIMEOUT must be at least 1"; return 1; }
   [[ -d "$WD_SITUATIONS" ]] || { do_log "FATAL no situation scripts in $WD_SITUATIONS"; return 1; }
-  WD_FROM="${WD_FROM:-${LEASE_ORCH:-c-001}}"
+  WD_FROM="${WD_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
   WD_SEND="${WD_SEND:-$ROTATE_SEND}"
   WD_BOX="${ROTATE_BOX:-}"
   export WD_JOB_WAIT WD_LOOP_N WD_BOX WD_S1_TOOL_CAP

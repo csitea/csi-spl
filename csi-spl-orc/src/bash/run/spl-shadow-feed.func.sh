@@ -32,9 +32,11 @@
 # @example ./run -a do_spl_shadow_feed
 # @example SHADOW_FEED_REMOTES="box-b=box-b.example.net" ./run -a do_spl_shadow_feed
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_shadow_feed() {
   local root="${SPOOL_ROOT:-/var/spool-hub}" feed="${SHADOW_FEED_DIR:-/var/spool-shadow}"
-  local agents="${SHADOW_FEED_AGENTS:-c-001 c-002 c-003}" stage="${SHADOW_FEED_STAGE:-$HOME/.cache/csi-spl/shadow-feed-stage}"
+  local agents="${SHADOW_FEED_AGENTS:-$(spl_role_seat 1) $(spl_role_seat 2) $(spl_role_seat 3)}" stage="${SHADOW_FEED_STAGE:-$HOME/.cache/csi-spl/shadow-feed-stage}"
   local py="$PROJ_PATH/src/bash/scripts/spl-shadow-feed.py" box a r rbox rhost rroot out err rc=0 sum=""
   local -a ids=()
   read -ra ids <<<"$agents"

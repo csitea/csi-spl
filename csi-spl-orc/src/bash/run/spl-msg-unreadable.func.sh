@@ -29,6 +29,8 @@
 # @example ENV=prd ./run -a do_spl_msg_unreadable
 # @example ENV=prd DELIVER=1 ./run -a do_spl_msg_unreadable
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_msg_unreadable() {
   spl_require_cloud_env || return 1
   local deliver="${DELIVER:-0}" v
@@ -38,7 +40,7 @@ do_spl_msg_unreadable() {
   done
   spl_lease_init ro || return 1
   spl_lease_conf
-  local to="${UNREADABLE_TO:-${LEASE_ORCH:-c-001}}" tmp rc=0
+  local to="${UNREADABLE_TO:-${LEASE_ORCH:-$(spl_role_seat 1)}}" tmp rc=0
   [[ "$to" =~ ^[A-Za-z0-9@._-]+$ ]] || { do_log "FATAL UNREADABLE_TO is not an agent id: '$to'"; return 1; }
   # one alert per fleet: the machine that holds the dispatch lease sends it
   if (( deliver )) && [[ -z "${UNREADABLE_TO:-}" ]] && spl_lease_read && spl_lease_remote; then

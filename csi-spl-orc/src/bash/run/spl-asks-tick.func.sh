@@ -64,6 +64,8 @@
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ./run -a do_spl_asks_tick
 # @example ASKS_RERAISE_MIN=5 ASKS_OWNER_MIN=30 ./run -a do_spl_asks_tick
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 
 do_spl_asks_tick() {
   spl_asks_init || return 1
@@ -336,12 +338,12 @@ spl_asks_fallback_alert() {  # HOLDER ROWS FALLBACK_SEATS
       | select(($e != null and $c > 0 and $t - $e >= $m) or ($none and .age_s >= $o))]' <<<"$2")"
   n="$(jq length <<<"$stuck")"
   if (( n > 0 )); then
-    text="$(jq -r --arg h "$holder" --arg who "$(spl_asks_alert_who)" --argjson none "$none" --arg m "${ASKS_ALERT_MIN:-${ASKS_OWNER_MIN:-60}}" '
+    text="$(jq -r --arg h "$holder" --arg who "$(spl_asks_alert_who)" --argjson none "$none" --arg m "${ASKS_ALERT_MIN:-${ASKS_OWNER_MIN:-60}}" --arg seats "$(spl_role_seat 1)/$(spl_role_seat 2)/$(spl_role_seat 3)" '
       (sort_by(-.age_s) | .[0]) as $o |
       "**ALERT**\($who): \(length) ask(s) to the orchestrator \(if $none then "and no DO seat besides \($h) to fall back to" else "unanswered by every DO seat \($m)+ min after the fallback" end). "
       + "Oldest \($o.ask_id[0:8]) from \($o.from), \($o.age_s / 60 | floor) min: \($o.summary // "" | .[0:100]). "
       + "Blocks: \([.[].from | split("@")[0]] | unique | join(", ")). "
-      + "Do: wake a DO seat (c-001/c-002/c-003), or take it: `ASK_ID=\($o.ask_id[0:8]) ./run -a do_spl_ask_ack`."' <<<"$stuck" | tr -d '\n')"
+      + "Do: wake a DO seat (\($seats)), or take it: `ASK_ID=\($o.ask_id[0:8]) ./run -a do_spl_ask_ack`."' <<<"$stuck" | tr -d '\n')"
   fi
   spl_asks_alert fallback "$(( n > 0 ))" "$text" "${holder%@*}"
 }

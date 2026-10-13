@@ -39,6 +39,8 @@
 #
 # Exit: 0 all under the limits; 1 a mount is over a limit or a check failed;
 # 2 usage.
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
@@ -55,7 +57,7 @@ cpct="${DISK_HEADROOM_CRIT_PCT:-93}"
 skip_types=" ${DISK_HEADROOM_SKIP_TYPES:-tmpfs devtmpfs ramfs overlay squashfs efivarfs autofs nsfs proc sysfs cgroup cgroup2} "
 state_dir="${DISK_HEADROOM_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/share/$app/cloud/self}/disk-headroom}"
 to="${DISK_HEADROOM_TO:-orchestrator}"
-from="${DISK_HEADROOM_FROM:-c-001}"
+from="${DISK_HEADROOM_FROM:-$(spl_role_seat 1)}"
 task="${DISK_HEADROOM_TASK:-disk-headroom}"
 df_bin="${DISK_HEADROOM_DF:-df}"
 send="${DISK_HEADROOM_SEND:-$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh}"

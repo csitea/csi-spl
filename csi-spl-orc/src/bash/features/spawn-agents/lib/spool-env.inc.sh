@@ -17,7 +17,8 @@
 #   SPOOL_TMUX_SOCKET   the box user's tmux socket  default /tmp/tmux-<uid>/default
 #   SPOOL_TMUX_SIZE     WxH for a window nobody is looking at   default 200x50
 #   SPOOL_BOX_TAG       display tag on window names ("<tag>: CLE-07") default none
-#   SPOOL_ORCHESTRATOR_ID  who spawned agents report to   default c-001
+#   SPOOL_ORCHESTRATOR_ID  who spawned agents report to   default role seat 001
+#                       in its live letter (spl_role_seat 1, SPL-1695)
 #   SPOOL_BIN           the spool binary            default: this repo's build
 #                       output, else `spool` on PATH. The seed names the
 #                       agent user's one instead: spool_agent_spool_bin
@@ -210,6 +211,33 @@ spl_role_seat_id() {  # KIND N -> ID
   printf '%s-%03d' "$l" "$((10#$n))"
 }
 
+# The vendor that runs the role seats (SPL-1695, owner: "Keep the hardcoded
+# 001, 002 and 003 numbers. The vendor letter ... is a parameter and can be
+# switched"): SPL_ROLE_VENDOR, else ROTATE_ROLE_VENDOR (environment, else
+# <spool root>/dispatch/rotate.conf, the switch the rotation reads), else claude.
+spl_role_vendor() {  # -> KIND
+  local v="${SPL_ROLE_VENDOR:-${ROTATE_ROLE_VENDOR:-}}"
+  [[ -n "$v" ]] || v="$(sed -n 's/^ROTATE_ROLE_VENDOR=\([a-z]*\)$/\1/p' \
+    "${LEASE_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch}/rotate.conf" 2>/dev/null | tail -1)"
+  case "$v" in claude|grok|agy|mistral|qwen) printf '%s' "$v" ;; *) printf 'claude' ;; esac
+}
+
+# The id that runs role seat N (1 the orchestrator, 2 the master, 3 the
+# failover dispatcher) on this machine, for every default that used to say
+# c-00N: LEASE_ORCH / LEASE_MASTER / LEASE_FAILOVER (environment, else
+# lease.conf; a seat switch flips it) when it names seat N, else seat N in
+# spl_role_vendor's letter. rc 1 for any N but 1-3.
+spl_role_seat() {  # N -> ID
+  local n keys=(ORCH MASTER FAILOVER) key v
+  [[ "${1:-}" =~ ^0*([1-3])$ ]] || return 1
+  n="${BASH_REMATCH[1]}"; key="LEASE_${keys[n-1]}"; v="${!key:-}"
+  [[ -n "$v" ]] || v="$(sed -n "s/^$key=//p" \
+    "${LEASE_CONF:-${LEASE_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch}/lease.conf}" 2>/dev/null | tail -1)"
+  v="${v%%@*}"
+  if [[ "$(spl_role_seat_num "$v" 2>/dev/null)" == "00$n" ]]; then printf '%s' "$v"; return 0; fi
+  spl_role_seat_id "$(spl_role_vendor)" "$n"
+}
+
 # Every id of role seat ID's number, one per vendor letter (c-001 -> a-001
 # c-001 g-001 m-001 q-001): the names a vendor switch links to the live seat.
 spl_role_seat_ids() {  # ID
@@ -317,7 +345,7 @@ spool_env_resolve() {
   fi
   SPOOL_TMUX_SIZE="${SPOOL_TMUX_SIZE:-200x50}"
   SPOOL_BOX_TAG="${SPOOL_BOX_TAG:-}"
-  SPOOL_ORCHESTRATOR_ID="${SPOOL_ORCHESTRATOR_ID:-c-001}"
+  SPOOL_ORCHESTRATOR_ID="${SPOOL_ORCHESTRATOR_ID:-$(spl_role_seat 1)}"
   SPOOL_FEATURE_DIR="$(_spool_feature_dir)"
   if [ -z "${SPOOL_BIN:-}" ]; then
     # <repo>/csi-spl-orc/src/bash/features/spawn-agents -> <repo>

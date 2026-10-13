@@ -15,6 +15,8 @@
 # QAS_DESK_AGENT (default c-002, the dispatch seat), QAS_PATH_EXTRA.
 # Exit: 0 every target ran or was skipped, 1 a target failed (the others
 # still ran), 2 usage or a refusal, 3 a tool this needs is not on the PATH.
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 [ -n "${QAS_PATH_EXTRA:-}" ] && PATH="${QAS_PATH_EXTRA}:${PATH}"
@@ -51,7 +53,7 @@ case "$ORC" in
 esac
 [ -x "$ORC/run" ] || { say "FATAL $ORC/run not found or not executable"; exit 2; }
 
-agent="${QAS_DESK_AGENT:-c-002}"
+agent="${QAS_DESK_AGENT:-$(spl_role_seat 2)}"
 oa="$(basename "$ORC")"; oa="${oa%-orc}"
 rc=0
 for target in ${QAS_CRON_TARGETS:-prd:t1}; do

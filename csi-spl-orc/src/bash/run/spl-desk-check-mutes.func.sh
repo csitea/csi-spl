@@ -21,6 +21,8 @@
 # @param DESK_MUTE_ALARM_RAISE (optional) - 0 lists only, default 1
 # @example ./run -a do_spl_desk_check_mutes
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_desk_check_mutes() {
   local max="${DESK_MUTE_ALARM_SECS:-86400}" raise="${DESK_MUTE_ALARM_RAISE:-1}"
   [[ "$max" =~ ^[0-9]+$ ]] || { do_log "FATAL DESK_MUTE_ALARM_SECS must be seconds, got '$max'"; return 2; }
@@ -58,7 +60,7 @@ spl_desk_mute_raise() {
   mark="$state/$tenant.$box.$seat.raised"
   [[ "$(cat "$mark" 2>/dev/null)" == "$mt" ]] && return 0
   mkdir -p "$state" 2>/dev/null || true
-  to="${DESK_MUTE_ALARM_TO:-c-001}"
+  to="${DESK_MUTE_ALARM_TO:-$(spl_role_seat 1)}"
   body="MUTED SEAT: $seat in tenant $tenant (box $box) has carried .no-poke for $(spl_desk_mute_age "$age") (since $(date -u -d "@$mt" +%FT%TZ)). A muted seat is never told of a message. Unmute: TENANT_ID=$tenant DESK_BOX=$box DESK_AGENT=$seat DESK_POKE=1 DRY_RUN=0 ./run -a do_spl_desk_up"
   bash "${DESK_MUTE_ALARM_SEND:-$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/scripts/spool-send.sh}" \
     --from "$to" --to "$to" --kind note --task desk-mute-alarm --ask escalation --body "$body" >/dev/null 2>&1 7>&- 8>&- 9>&- || rc=$?

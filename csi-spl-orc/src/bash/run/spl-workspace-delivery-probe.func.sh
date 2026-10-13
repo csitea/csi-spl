@@ -59,6 +59,8 @@
 # @example ENV=dev ./run -a do_spl_workspace_delivery_probe
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_workspace_delivery_probe
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_desk_box_default >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
 declare -F spl_desk_alive >/dev/null ||
@@ -74,8 +76,8 @@ do_spl_workspace_delivery_probe() {
   do_spl_cloud_cnf || return 1
   spl_lease_init ro || return 1
   spl_lease_conf
-  WDP_TO="${PROBE_TO:-${LEASE_MASTER:-c-002}}"
-  WDP_ASK_TO="${PROBE_ASK_TO:-${LEASE_ORCH:-c-001}}"
+  WDP_TO="${PROBE_TO:-${LEASE_MASTER:-$(spl_role_seat 2)}}"
+  WDP_ASK_TO="${PROBE_ASK_TO:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
   WDP_FROM="${PROBE_FROM:-$WDP_TO}"
   WDP_ALERT_T="${PROBE_ALERT_TENANT:-${LEASE_TENANT:-t1}}"
   WDP_DESK="${PROBE_DESK_DIR:-$SPL_STATE_DIR/desk}"

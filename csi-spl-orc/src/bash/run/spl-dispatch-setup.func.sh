@@ -63,6 +63,8 @@
 # @example ENV=prd DISPATCH_STEPS='3 5' DRY_RUN=0 ./run -a do_spl_dispatch_setup
 #------------------------------------------------------------------------------
 # this machine's desk box id (specs/058), also when sourced on its own
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_desk_box_default >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
 
@@ -232,9 +234,9 @@ spl_dispatch_cnf() {
   # the role ids lease.conf names (spec 061 L6: c-001..003 after the switch);
   # a hard-coded CLE-00N here read both live dispatchers as "not running"
   spl_lease_conf
-  DISPATCH_MASTER="${DISPATCH_MASTER:-${LEASE_MASTER:-c-002}}"
-  DISPATCH_FAILOVER="${DISPATCH_FAILOVER:-${LEASE_FAILOVER:-c-003}}"
-  DISPATCH_ORCH="${DISPATCH_ORCH:-${LEASE_ORCH:-c-001}}"
+  DISPATCH_MASTER="${DISPATCH_MASTER:-${LEASE_MASTER:-$(spl_role_seat 2)}}"
+  DISPATCH_FAILOVER="${DISPATCH_FAILOVER:-${LEASE_FAILOVER:-$(spl_role_seat 3)}}"
+  DISPATCH_ORCH="${DISPATCH_ORCH:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
   local v
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   declare -F spl_dispatch_worktree >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-check.func.sh"

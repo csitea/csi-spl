@@ -17,6 +17,14 @@ table below names the claude ids. Test "is this a role seat" with the one helper
 (`spl_is_role_seat` / `SPL_ROLE_SEAT_RX` in bash, `agentid.IsRoleSeat` in Go),
 never with a literal list. Section 4.4 says how a rotation changes the letter.
 
+The numbers `001`..`003` are fixed; the letter is a parameter (SPL-1695, owner
+HUM-10): `ROTATE_ROLE_VENDOR` in `<spool root>/dispatch/rotate.conf` (the
+environment, or `SPL_ROLE_VENDOR`, overrides it; unset = claude). A script that
+needs a role seat as a default never writes `c-001`: it asks `spl_role_seat N`
+(spool-env.inc.sh), which answers lease.conf's `LEASE_ORCH` / `LEASE_MASTER` /
+`LEASE_FAILOVER` when that names seat N (a seat switch flips it), else seat N in
+the parameter's letter. Test: `spawn-agents/tests/test-role-seat-vendor-param.sh`.
+
 | id | role | does | never does |
 |---|---|---|---|
 | `c-001` | orchestrator | decides; spawns, re-seats and closes agents; verifies "live" claims; runs the production operations agents' harnesses refuse (prd reads, prd desk and issue writes, deploys the owner pre-approved); in every channel (2.1), it takes a post only as section 3 says | takes a post the dispatch lease holder has taken; routes routine traffic |

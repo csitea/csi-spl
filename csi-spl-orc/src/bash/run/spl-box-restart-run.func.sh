@@ -50,6 +50,8 @@
 # Test seams: BOX_RESTART_EPOCH (now), BOX_RESTART_SYSTEMCTL (sudo -n
 # systemctl, the reboot's), BOX_RESTART_INHIBITORS_CMD (busctl ListInhibitors), BOX_RESTART_CGROUP_ROOT (/sys/fs/cgroup), and the prepare's LEASE_PROC_ROOT / BOX_RESTART_PS_CMD /
 # BOX_RESTART_SEND.
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_brs_agents >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-box-restart-prepare.func.sh"
 
@@ -99,7 +101,7 @@ spl_brx_conf() {
   for k in SPL_BRX_WAIT SPL_BRX_POLL SPL_BRX_GRACE; do
     v="${!k}"; [[ "$v" =~ ^[0-9]+$ ]] || { do_log "FATAL ${k/SPL_BRX_/BOX_RESTART_} must be a number of seconds, got: '$v'"; return 1; }
   done
-  SPL_BRX_FROM="${BOX_RESTART_FROM:-${SPOOL_AGENT_ID:-c-001}}"
+  SPL_BRX_FROM="${BOX_RESTART_FROM:-${SPOOL_AGENT_ID:-$(spl_role_seat 1)}}"
   SPL_BRX_WFS="${BOX_RESTART_DEPLOY_WORKFLOWS:-20_hub-build-deploy.yml 30_wui-build-deploy.yml}"
   spl_brx_gh_auth
   SPL_BRX_REPO="${BOX_RESTART_REPO:-$(spl_brx_cnf_get '.. | select(type == "!!map" and has("github_repository")) | .github_repository')}"

@@ -150,9 +150,11 @@ F="$T/fake/x-y-orc"
 mkdir -p "$F/src/bash/scripts" "$F/lib/bash/funcs"
 cp "$PROJ_ROOT/src/bash/scripts/qas-ci-accept-cron.sh" "$F/src/bash/scripts/"
 cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$F/lib/bash/funcs/"
+mkdir -p "$F/src/bash/features/spawn-agents/lib"
+cp "$PROJ_ROOT/src/bash/features/spawn-agents/lib/spool-env.inc.sh" "$F/src/bash/features/spawn-agents/lib/"
 printf '#!/bin/sh\necho "run $* ENV=$ENV TENANT_ID=$TENANT_ID DESK_AGENT=$DESK_AGENT DRY_RUN=$DRY_RUN" >>"$CRON_LOG"\n' >"$F/run"
 chmod +x "$F/run"
-cron() { : >"$T/cron.log"; env CRON_LOG="$T/cron.log" QAS_TOOLS=sh QAS_STATE_ROOT="$T/st" SPOOL_DESK_BOX=bx bash "$F/src/bash/scripts/qas-ci-accept-cron.sh" >"$T/co" 2>&1; }
+cron() { : >"$T/cron.log"; env SPL_ROLE_VENDOR=claude LEASE_CONF="$T/no-lease.conf" CRON_LOG="$T/cron.log" QAS_TOOLS=sh QAS_STATE_ROOT="$T/st" SPOOL_DESK_BOX=bx bash "$F/src/bash/scripts/qas-ci-accept-cron.sh" >"$T/co" 2>&1; }
 cron
 rc=$?
 [[ $rc -eq 0 && ! -s "$T/cron.log" ]] && grep -q 'SKIP prd:t1: c-002 is not seated on bx' "$T/co" &&

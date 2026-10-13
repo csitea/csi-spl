@@ -99,6 +99,8 @@
 # @example ENV=prd DELIVER=1 ./run -a do_spl_unanswered_sweep
 # @example ENV=prd SWEEP_MIN_AGE=60 SWEEP_SKIP_TENANTS='e2e leiden' ./run -a do_spl_unanswered_sweep
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_unanswered_sweep() {
   [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd"; return 1; }
   local deliver="${DELIVER:-0}" v
@@ -108,7 +110,7 @@ do_spl_unanswered_sweep() {
   done
   spl_lease_init ro || return 1
   spl_lease_conf
-  SWEEP_ORCH="${SWEEP_ORCH:-${LEASE_ORCH:-c-001}}"
+  SWEEP_ORCH="${SWEEP_ORCH:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
   SWEEP_FROM="${SWEEP_FROM:-$SWEEP_ORCH}"
   # fleet mode (CLE-77911): another machine holds the dispatch lease, so its
   # own sweep sends; sending from here too would deliver every item twice

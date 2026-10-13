@@ -60,6 +60,8 @@
 #   BOX_SWEEP_ORC          the orc dir for ./run (tests), default ../..
 #
 # Exit: 0 every step ran clean; 1 a step failed; 2 usage.
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin${PATH:+:$PATH}"
 export PATH
@@ -102,7 +104,7 @@ free_pct() {
 note() {
   [[ "${BOX_SWEEP_NOTE:-1}" == 0 || "$dry" == 1 ]] && { say "PLAN note to orchestrator: $1"; return 0; }
   local box; box="$(hostname -s)"
-  if bash "$send" --from "${LEASE_ORCH:-c-001}" --to orchestrator --kind note --task "disk-sweep-$box" \
+  if bash "$send" --from "${LEASE_ORCH:-$(spl_role_seat 1)}" --to orchestrator --kind note --task "disk-sweep-$box" \
       --body "box disk sweep on $box ($(id -un)): $1" >/dev/null 2>&1 7>&- 8>&- 9>&-; then
     say "INFO note sent to the orchestrator (task disk-sweep-$box)"; return 0
   fi

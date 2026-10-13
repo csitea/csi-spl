@@ -25,6 +25,8 @@
 # @param WD_LOG_KEEP / WD_LOG_MAX_BYTES (optional) - rotate a log after 86400 s or 64 MiB
 # @example ./run -a do_spl_wd_ensure
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_lease_detach >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-lease.func.sh"
 
@@ -152,7 +154,7 @@ spl_wd_ensure_alert() {
   fi
   echo "$now" > "$f"
   bash "${WD_ENSURE_SEND:-$SPL_WD_ENSURE_DIR/../features/spawn-agents/scripts/spool-send.sh}" \
-    --from "${LEASE_ORCH:-c-001}" --to orchestrator --kind blocker --task "wd-keeper-$(spl_wd_ensure_box)" \
+    --from "${LEASE_ORCH:-$(spl_role_seat 1)}" --to orchestrator --kind blocker --task "wd-keeper-$(spl_wd_ensure_box)" \
     --body "$text" 7>&- 8>&- || rc=$?
   # spool-send.sh 1-9: delivered, only the poke did not ring
   if (( rc >= 10 || rc == 2 )); then do_log "WARN $cond blocker NOT delivered (spool-send.sh exit $rc)"
@@ -174,7 +176,7 @@ spl_wd_ensure_owner() {
   [[ "$owner" =~ ^HUM-[0-9]+$ && -n "${LEASE_ENV:-}" && -n "${LEASE_TENANT:-}" ]] ||
     { do_log "WARN no owner DM: $LEASE_CONF names no ASKS_OWNER, LEASE_ENV or LEASE_TENANT"; return 0; }
   ( ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="${LEASE_DESK_BOX:-$(spl_desk_box_default)}" \
-      DESK_AGENT="${LEASE_ORCH:-c-001}" DESK_TO="$owner" DESK_TASK="$(cat /proc/sys/kernel/random/uuid)" \
+      DESK_AGENT="${LEASE_ORCH:-$(spl_role_seat 1)}" DESK_TO="$owner" DESK_TASK="$(cat /proc/sys/kernel/random/uuid)" \
       DESK_KIND=note DESK_BODY="$text" DRY_RUN=0 \
       timeout 120 "${PROJ_PATH:-}/run" -a do_spl_desk_reply \
       >> "$WD_DIR/owner-dm.out" 2>&1 < /dev/null 7>&- 8>&- & ) 2>/dev/null

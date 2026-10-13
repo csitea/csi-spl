@@ -34,7 +34,7 @@
 # @param GC_VENDOR (optional) - start: this vendor instead of the slot's
 # @param GC_CONF (optional) - default <orc>/cnf/gc/gc.conf
 # @param GC_STATE_DIR (optional) - default <spool root>/dispatch/gc
-# @param GC_REPORT_TO (optional) - the summary's addressee, default c-001
+# @param GC_REPORT_TO (optional) - the summary's addressee, default role seat 001 (spl_role_seat 1; c-001 under claude)
 # @param GC_NOW / GC_CLOSE_DELAY / GC_RESTART_CMD / GC_SEND / ROTATE_TMUX (optional) - seams for the tests
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example GC_CMD=start ./run -a do_spl_gc
@@ -76,8 +76,8 @@ spl_gc_init() {
   GC_NOW="${GC_NOW:-$(date +%s)}"
   GC_BOX="${SPOOL_BOX_TAG:-$ROTATE_BOX}"
   GC_WIN="gc@$GC_BOX"
-  GC_FROM="${GC_FROM:-${LEASE_ORCH:-c-001}}"
-  GC_REPORT_TO="${GC_REPORT_TO:-c-001}"
+  GC_FROM="${GC_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
+  GC_REPORT_TO="${GC_REPORT_TO:-$(spl_role_seat 1)}"
   GC_SEND="${GC_SEND:-$ROTATE_SEND}"
   GC_RUN="${GC_RUN:-$ROTATE_RUN}"
   GC_DRY="${DRY_RUN:-1}"

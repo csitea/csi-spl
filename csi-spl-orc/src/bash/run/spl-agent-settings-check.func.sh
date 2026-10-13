@@ -24,6 +24,8 @@
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ./run -a do_spl_agent_settings_check
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_agent_settings_check() {
   do_require_bin python3 || return 1
   local feat users u f rc=0 line
@@ -118,7 +120,7 @@ spl_settings_tell() {
   fi
   conf="$SPOOL_ROOT/dispatch/lease.conf"
   to="${SETTINGS_CHECK_TO:-$(sed -n 's/^LEASE_ORCH=\([A-Za-z0-9_-]*\)$/\1/p' "$conf" 2>/dev/null | sed -n 1p)}"
-  to="${to:-c-001}"
+  to="${to:-$(spl_role_seat 1)}"
   SPOOL_ROOT="$SPOOL_ROOT" bash "${SETTINGS_CHECK_SEND:-$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/scripts/spool-send.sh}" \
     --from "$to" --to "$to" --kind note --task agent-settings-check --no-ask --body "$body" >/dev/null 2>&1 7>&- 8>&- 9>&- || rc=$?
   if (( rc < 10 && rc != 2 )); then

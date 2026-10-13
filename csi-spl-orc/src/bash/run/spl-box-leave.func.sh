@@ -35,6 +35,8 @@
 # @example ./run -a do_spl_box_leave
 # @example DRY_RUN=1 ./run -a do_spl_box_leave
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_lease_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-lease.func.sh"
 
@@ -356,7 +358,7 @@ spl_box_note() {
   local id="$1" send="${BOX_LEAVE_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}" rc=0
   local from="${SPOOL_AGENT_ID:-}"
   [[ -n "$from" ]] || from="$(spl_box_conf_get LEASE_ORCH)"
-  SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "${from:-c-001}" --to "$id" --kind note \
+  SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" --from "${from:-$(spl_role_seat 1)}" --to "$id" --kind note \
     --task "box-leave-$SPL_BOX_ME" --body "drain: push your work, write your hold note, report, exit. $SPL_BOX_ME is being switched off: you have ${DRAIN_MIN:-10} min. Hold note: $(spl_box_hold "$id") (branch, unpushed commits, the open question, NEXT lines) so another box can respawn you; then /exit-clean." \
     >/dev/null 2>&1 8>&- || rc=$?
   # spool-send.sh: 1-9 = delivered, only the poke did not ring; 10+ = nothing delivered

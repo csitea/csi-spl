@@ -20,8 +20,10 @@
 # @example ./run -a do_spl_orch_load_report
 # @example SINCE=2026-10-04 UNTIL=2026-10-06 ./run -a do_spl_orch_load_report
 #------------------------------------------------------------------------------
+# spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_orch_load_report() {
-  local root="${SPOOL_ROOT:-/var/spool-hub}" orch="${ORCH_ID:-c-001}" since until s_ep u_ep
+  local root="${SPOOL_ROOT:-/var/spool-hub}" orch="${ORCH_ID:-$(spl_role_seat 1)}" since until s_ep u_ep
   do_require_bin jq || return 1
   [[ "$orch" =~ ^[A-Za-z0-9][A-Za-z0-9._@-]*$ ]] || { do_log "FATAL ORCH_ID is not an agent id: '$orch'"; return 1; }
   [[ -d "$root/$orch" ]] || { do_log "FATAL no orch spool dir: $root/$orch"; return 1; }

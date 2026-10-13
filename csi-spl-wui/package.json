@@ -14,6 +14,8 @@
     "typecheck": "nuxt typecheck",
     "lint": "eslint --max-warnings 0 src",
     "postinstall": "nuxt prepare",
+    "shims": "node src/node/generate-mjs-shims.mjs",
+    "shims:check": "node src/node/generate-mjs-shims.mjs --check",
     "test:unit": "node src/node/test/run-unit-tests.mjs",
     "test": "node src/node/test/run-unit-tests.mjs",
     "test:e2e": "node src/node/test/run-e2e-tests.mjs",

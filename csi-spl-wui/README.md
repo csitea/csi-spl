@@ -231,6 +231,13 @@ pnpm test:e2e
 pnpm typecheck
 ```
 
+`src/types/mjs-shims.d.ts` types the `~/utils/*.mjs` modules for typecheck.
+`pnpm shims` regenerates it from the code: it drops a block or a value the
+module no longer has, adds a name a `.vue` / `.ts` file imports with the
+declaration tsc infers, and lists a function whose new parameter the shim
+does not declare yet (type that one by hand). `pnpm shims:check` and the unit
+test `tests/unit/mjs-shims-drift.test.mjs` fail on any such drift.
+
 `pnpm test:e2e` checks the tenant drop box, then loads `/login` and `/channel/general` at 390x844 and 1280x800
 and asserts `document.scrollingElement.scrollWidth <= innerWidth`. When
 `BASE_URL` is unset it starts `nuxi dev` with the mock tenant. Uses

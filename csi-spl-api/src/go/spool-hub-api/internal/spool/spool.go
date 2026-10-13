@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/notify"
@@ -261,34 +262,85 @@ func (s *Store) deliverTo(m *msg.Message, id string, ring bool) (bool, error) {
 	if !msg.ValidID(id) {
 		return false, fmt.Errorf("to must be a valid agent id")
 	}
+	dm := id == m.To
+	id = liveRoleSeat(s.cfg.SpoolRoot, id)
 	name := msg.Filename(m)
 	for _, box := range []string{boxInbox, boxArchive} {
 		if _, err := os.Stat(filepath.Join(s.dir(id, box), name)); err == nil {
 			// a redelivery: the fleet copy may be the half that failed
-			return false, s.bridgeFleet(m, id)
+			return false, s.bridgeFleet(m, id, dm)
 		}
 	}
 	wrote, err := s.writeBoxRing(m, id, boxInbox, ring)
 	if err != nil {
 		return wrote, err
 	}
-	return wrote, s.bridgeFleet(m, id)
+	return wrote, s.bridgeFleet(m, id, dm)
+}
+
+// roleSeatLetters are the vendor letters a role seat id can carry (agentid's
+// new grammar, [acgmq]-NNN).
+const roleSeatLetters = "acgmq"
+
+// liveRoleSeat is the id whose mailbox under root holds role seat id's mail
+// (SPL-1716). A role seat's id follows the vendor that runs it (SPL-1685:
+// c-001 run by Grok is g-001). The box that switched links every other letter
+// to its live dir (role-seat-switch.sh); another box does not, so a send to
+// g-001@sat minted an orphan g-001 beside sat's live c-001 and never reached
+// it. When root has no entry for id and the other letters of the seat that
+// live there all resolve to ONE dir, that letter is the seat; anything else
+// (no role seat, id present, no live letter, two live dirs) keeps id.
+func liveRoleSeat(root, id string) string {
+	if !agentid.IsNew(id) || !agentid.IsRoleSeat(id) {
+		return id
+	}
+	if _, err := os.Lstat(filepath.Join(root, id)); !errors.Is(err, fs.ErrNotExist) {
+		return id
+	}
+	live, real := "", ""
+	for _, l := range roleSeatLetters {
+		alt := string(l) + id[1:]
+		if alt == id {
+			continue
+		}
+		r, err := filepath.EvalSymlinks(filepath.Join(root, alt))
+		if err != nil {
+			continue
+		}
+		if fi, err := os.Stat(r); err != nil || !fi.IsDir() {
+			continue
+		}
+		switch {
+		case real == "":
+			live, real = alt, r
+		case r != real:
+			return id
+		case filepath.Base(r) == alt:
+			live = alt // the seat's real dir over a link to it
+		}
+	}
+	if live == "" {
+		return id
+	}
+	return live
 }
 
 // bridgeFleet writes an agent-to-agent DM the hub delivered into the same
 // agent's inbox under cfg.FleetRoot (specs/058 N1): the inbox a harness agent
 // reads with `spool recv`, so a peer message or a report sent from another
 // machine reaches it. Only when that inbox already exists (never an orphan),
-// only for a DM (id is the message's to, not a channel mention) from an
+// only for a DM (dm: id is the message's to, not a channel mention; a role
+// seat alias resolves on root, liveRoleSeat) from an
 // agent (not a human or a broadcast), shown once (inbox or archive), and
 // without a ring: the desk delivery above already rang the pane. An error is
 // returned, not swallowed, so the hub redelivers and this half is retried.
-func (s *Store) bridgeFleet(m *msg.Message, id string) error {
+func (s *Store) bridgeFleet(m *msg.Message, id string, dm bool) error {
 	root := s.cfg.FleetRoot
-	if root == "" || id != m.To || !agentSender(m.From) ||
+	if root == "" || !dm || !agentSender(m.From) ||
 		filepath.Clean(root) == filepath.Clean(s.cfg.SpoolRoot) {
 		return nil
 	}
+	id = liveRoleSeat(root, id)
 	inbox := filepath.Join(root, id, boxInbox)
 	if fi, err := os.Stat(inbox); err != nil || !fi.IsDir() {
 		return nil

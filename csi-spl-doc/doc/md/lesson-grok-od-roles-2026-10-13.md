@@ -195,7 +195,7 @@ no push" (hold note 1605, 16:44Z .. 17:03Z, 7 such replies).
 | fixed `c-` ids for the role seats | Grok worked as `c-001`; the owner and an audit misread who acted | **fixed** SPL-1685: `3ee0cdd58`, `688bddbc7`, `7228224e1`, `c58eb9f60`, `eef0a6475` (`ROTATE_ROLE_ID_FOLLOWS_VENDOR` defaults to 1) |
 | the lease transcript tail read only Claude session files | a working Grok orchestrator read as "stuck"; false alert `0af972ea` | **fixed** SPL-1696 `5b02b5ae1`; the watchdog's progress checks (S1, S8, S9) read the Grok session too |
 | `do_spl_dispatch_check` wants `--dangerously-skip-permissions` with no `--permission-mode`, and a Claude `.claude/settings.local.json` | a false permission GAP for every Grok seat, re-checked by hand in at least 5 hold-note entries (hold notes 1305, 1405, 1505) | **open**: `csi-spl-orc/src/bash/run/spl-dispatch-check.func.sh:58-77` unchanged |
-| a role alias (`g-001`) exists only on the box that switched | a send to `g-001@sat` found no spool dir (16:18Z) | **open**: `git log origin/master --since=2026-10-13T12:00Z -i --grep='role alias'` -> 0 commits |
+| a role alias (`g-001`) exists only on the box that switched | a send to `g-001@sat` found no spool dir (16:18Z) | **fixed** SPL-1716: the receiving box's sidecar writes mail for an alias it has no dir for into the seat's one live letter, desk and fleet inbox both, and mints no orphan (`liveRoleSeat`, `csi-spl-api/src/go/spool-hub-api/internal/spool/spool.go`; test `role_alias_test.go`) |
 
 ### 4.2 Two settings that could each pick the vendor
 
@@ -239,7 +239,7 @@ real tmux pane in a sandbox socket. **Fixed** for the role seat spawn
 | 5 | a Grok session counts as activity for the lease and the watchdog | **done** SPL-1696, `5b02b5ae1` |
 | 6 | `do_spl_dispatch_check`: accept a Grok seat's flags, skip the Claude settings file for other vendors | open, no issue yet; for the orchestrator to place |
 | 7 | one vendor switch for the roles: `ROTATE_ROLE_VENDOR` wins and an empty value means Claude, not the split; or retire `ROTATE_ORCH_SPLIT` for roles | open, no issue yet; the owner's call, because the 65/35 split is an owner order |
-| 8 | a role alias reaches the other box (`g-001@sat` -> its live seat) | open, no issue yet |
+| 8 | a role alias reaches the other box (`g-001@sat` -> its live seat) | **fixed** SPL-1716 (section 4.1); live on a box once its desk sidecar runs the new spool binary |
 | 9 | an outcome check for the orchestrator role: alert when no lane brief, no round brief and no ask closed for N hours while lanes wait | open, no issue yet |
 | 10 | a take in an owner topic does not count as the answer for the unanswered sweep | open, no issue yet |
 | 11 | workflow 21 catch-up re-dispatches once after a red hub run on a new sha | open, `c-001-<box>-1743-orch.md` "Idea, not placed" |

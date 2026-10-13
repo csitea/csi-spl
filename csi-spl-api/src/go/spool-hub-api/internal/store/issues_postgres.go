@@ -269,7 +269,7 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 		if err != nil {
 			return err
 		}
-		wasEpic, was := cur.IsEpic(), cur.Level
+		wasEpic, was, wasStatus := cur.IsEpic(), cur.Level, cur.Status
 		applyPatch(&cur, p, by, now)
 		if err := checkIssue(&cur); err != nil {
 			return err
@@ -293,7 +293,10 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 			RETURNING `+issueCols,
 			tenant, number, cur.Title, cur.Description, cur.Status, cur.Priority, cur.Level, cur.Assignee, cur.Labels,
 			cur.Deadline, nullParent(cur.Parent), cur.UpdatedBy, cur.UpdatedAt, cur.CompletedAt, cur.CanceledAt, cur.Kind, cur.TaskID), tenant, prefix)
-		return err
+		if err != nil || !ClosesEpic(wasStatus, out) {
+			return err
+		}
+		return txCloseEpic(ctx, tx, &out, by, now) // SPL-1643
 	})
 	return out, pgIssueErr(err)
 }
@@ -382,6 +385,9 @@ type cascadeOp struct {
 	live    string
 	set     string
 	cascade bool
+	// epicTree: a level-1 target takes its subtree whatever cascade says
+	// (SPL-1643: unarchiving an epic brings its issues back).
+	epicTree bool
 }
 
 // cascadeStamp walks the subtree rooted at op.number (parent_number, at most
@@ -406,7 +412,7 @@ func (s *Postgres) cascadeStamp(ctx context.Context, op cascadeOp, out *Issue) (
 			return err
 		}
 		*out = row
-		if !op.cascade {
+		if !op.cascade && !(op.epicTree && row.IsEpic()) {
 			var has bool
 			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues
 				WHERE tenant_id = $1 AND parent_number = $2 AND `+op.live+`)`, op.tenant, op.number).Scan(&has); err != nil {
@@ -418,30 +424,43 @@ func (s *Postgres) cascadeStamp(ctx context.Context, op cascadeOp, out *Issue) (
 			_, err := tx.Exec(ctx, `UPDATE issues SET `+op.set+` WHERE tenant_id = $1 AND number = $2`, op.tenant, op.number, op.now, op.by)
 			return err
 		}
-		rows, err := tx.Query(ctx, `WITH RECURSIVE tree AS (
-				SELECT number FROM issues WHERE tenant_id = $1 AND number = $2 AND `+op.live+`
-				UNION ALL
-				SELECT c.number FROM issues c JOIN tree t ON c.parent_number = t.number
-					WHERE c.tenant_id = $1 AND `+op.live+`)
-			UPDATE issues SET `+op.set+` WHERE tenant_id = $1 AND number IN (SELECT number FROM tree)
-			RETURNING number`, op.tenant, op.number, op.now, op.by)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var n int
-			if err := rows.Scan(&n); err != nil {
-				return err
-			}
-			if n != op.number {
-				kids = append(kids, n)
-			}
-		}
-		return rows.Err()
+		kids, err = txStampTree(ctx, tx, op)
+		return err
 	})
 	if err != nil {
 		return nil, pgIssueErr(err)
+	}
+	return kids, nil
+}
+
+// txStampTree is cascadeStamp's walk inside tx: it stamps op.set on op.number
+// and every descendant that satisfies op.live, in one statement, and answers
+// the descendants touched (target excluded), sorted. UpdateIssue runs it when
+// it closes an epic (SPL-1643).
+func txStampTree(ctx context.Context, tx pgx.Tx, op cascadeOp) ([]int, error) {
+	rows, err := tx.Query(ctx, `WITH RECURSIVE tree AS (
+			SELECT number FROM issues WHERE tenant_id = $1 AND number = $2 AND `+op.live+`
+			UNION ALL
+			SELECT c.number FROM issues c JOIN tree t ON c.parent_number = t.number
+				WHERE c.tenant_id = $1 AND `+op.live+`)
+		UPDATE issues SET `+op.set+` WHERE tenant_id = $1 AND number IN (SELECT number FROM tree)
+		RETURNING number`, op.tenant, op.number, op.now, op.by)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var kids []int
+	for rows.Next() {
+		var n int
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		if n != op.number {
+			kids = append(kids, n)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	sortInts(kids)
 	return kids, nil
@@ -464,12 +483,99 @@ func (s *Postgres) DeleteIssueCascade(ctx context.Context, tenant string, number
 	return out, kids, err
 }
 
-func (s *Postgres) ArchiveIssue(ctx context.Context, tenant string, number int, by string, now time.Time, cascade bool) (Issue, []int, error) {
-	var out Issue
-	kids, err := s.cascadeStamp(ctx, cascadeOp{
+// txCloseEpic closes and archives an epic's issues (ClosesEpic, SPL-1643)
+// inside UpdateIssue's transaction, under a savepoint: a failure rolls back
+// the cascade alone, so the epic's own status change stands, and is
+// answered in out.CascadeErr / CascadeOpen, not as an error.
+func txCloseEpic(ctx context.Context, tx pgx.Tx, out *Issue, by string, now time.Time) error {
+	sp, err := tx.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	err = runEpicCloseFault(out.TenantID, out.Number)
+	if err == nil {
+		err = txCloseTree(ctx, sp, out, by, now)
+	}
+	if err == nil {
+		out.ArchivedWith, err = txStampTree(ctx, sp, archiveOp(out.TenantID, out.Number, by, now, true))
+	}
+	if err == nil {
+		out.ClosedArchived = true
+		return sp.Commit(ctx)
+	}
+	if rbErr := sp.Rollback(ctx); rbErr != nil {
+		return rbErr
+	}
+	out.ClosedWith, out.ArchivedWith, out.CascadeErr = nil, nil, err.Error()
+	open, oerr := txOpenTree(ctx, tx, out.TenantID, out.Number)
+	out.CascadeOpen = open
+	return oerr
+}
+
+// epicTreeCTE is the live subtree under $2 (target excluded).
+const epicTreeCTE = `WITH RECURSIVE tree AS (
+		SELECT number FROM issues WHERE tenant_id = $1 AND parent_number = $2 AND deleted_at IS NULL AND archived_at IS NULL
+		UNION ALL
+		SELECT c.number FROM issues c JOIN tree t ON c.parent_number = t.number
+			WHERE c.tenant_id = $1 AND c.deleted_at IS NULL AND c.archived_at IS NULL)`
+
+// txCloseTree gives every open live descendant the epic's status, stamped as
+// applyPatch stamps it; out.ClosedWith answers which.
+func txCloseTree(ctx context.Context, tx pgx.Tx, out *Issue, by string, now time.Time) error {
+	rows, err := tx.Query(ctx, epicTreeCTE+`
+		UPDATE issues SET status = $3, updated_by = $4, updated_at = $5,
+			completed_at = CASE WHEN $3 = 'done' THEN $5::timestamptz END,
+			canceled_at = CASE WHEN $3 = 'diss' THEN $5::timestamptz END
+		WHERE tenant_id = $1 AND number IN (SELECT number FROM tree) AND status NOT IN ('done', 'diss')
+		RETURNING number`, out.TenantID, out.Number, out.Status, by, now)
+	if err != nil {
+		return err
+	}
+	out.ClosedWith, err = scanNumbers(rows)
+	return err
+}
+
+// txOpenTree is the open live descendants of number, sorted.
+func txOpenTree(ctx context.Context, tx pgx.Tx, tenant string, number int) ([]int, error) {
+	rows, err := tx.Query(ctx, epicTreeCTE+`
+		SELECT number FROM issues WHERE tenant_id = $1 AND number IN (SELECT number FROM tree) AND status NOT IN ('done', 'diss')`,
+		tenant, number)
+	if err != nil {
+		return nil, err
+	}
+	return scanNumbers(rows)
+}
+
+// scanNumbers reads one int column, closes rows and sorts.
+func scanNumbers(rows pgx.Rows) ([]int, error) {
+	defer rows.Close()
+	var out []int
+	for rows.Next() {
+		var n int
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sortInts(out)
+	return out, nil
+}
+
+// archiveOp is the soft archive of rdb 0084 as a cascadeOp: ArchiveIssue's,
+// and UpdateIssue's when it closes an epic.
+func archiveOp(tenant string, number int, by string, now time.Time, cascade bool) cascadeOp {
+	return cascadeOp{
 		tenant: tenant, number: number, by: by, now: now.UTC().Truncate(time.Microsecond),
 		live: "deleted_at IS NULL AND archived_at IS NULL", set: "archived_at = $3, archived_by = $4", cascade: cascade,
-	}, &out)
+	}
+}
+
+func (s *Postgres) ArchiveIssue(ctx context.Context, tenant string, number int, by string, now time.Time, cascade bool) (Issue, []int, error) {
+	var out Issue
+	kids, err := s.cascadeStamp(ctx, archiveOp(tenant, number, by, now, cascade), &out)
 	return out, kids, err
 }
 
@@ -480,6 +586,7 @@ func (s *Postgres) UnarchiveIssue(ctx context.Context, tenant string, number int
 	kids, err := s.cascadeStamp(ctx, cascadeOp{
 		tenant: tenant, number: number, by: by, now: now.UTC().Truncate(time.Microsecond),
 		live: "deleted_at IS NULL AND archived_at IS NOT NULL", set: "archived_at = NULL, archived_by = NULL, updated_at = $3, updated_by = $4", cascade: cascade,
+		epicTree: true,
 	}, &out)
 	return out, kids, err
 }

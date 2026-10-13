@@ -159,6 +159,9 @@ type issueRequest struct {
 	// the reserved label and drops the parent, kind issue removes the label.
 	Epic *string `json:"epic"`
 	Kind *string `json:"kind"`
+	// Cascade confirms closing an epic that has open issues (SPL-1643): they
+	// are closed and archived with it. Without it such a close is refused.
+	Cascade *bool `json:"cascade"`
 }
 
 // issueErr is a refusal: HTTP status, error token, detail.
@@ -376,6 +379,10 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 			return store.Issue{}, ie
 		}
 	}
+	tree, ie := s.epicCloseGate(ctx, is, tenant, number, p, q.Cascade != nil && *q.Cascade)
+	if ie != nil {
+		return store.Issue{}, ie
+	}
 	out, err := is.UpdateIssue(ctx, tenant, number, p, actor, s.o.Now())
 	if ie := storeIssueErr(err); ie != nil {
 		if ie.status == http.StatusInternalServerError {
@@ -383,7 +390,13 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 		}
 		return store.Issue{}, ie
 	}
-	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "update", "issue": toIssueJSON(out, s.storeGetter(ctx, tenant))})
+	if out.ClosedArchived { // SPL-1643: the tabs drop the epic and its issues
+		s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "archive", "issue": toIssueJSON(out, s.storeGetter(ctx, tenant)),
+			"descendants": descendantKeys(out.Prefix, out.ArchivedWith)})
+	} else {
+		s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "update", "issue": toIssueJSON(out, s.storeGetter(ctx, tenant))})
+	}
+	s.afterEpicClose(ctx, tenant, actor, out, tree)
 	if p.Status != nil && issueResolved(out.Status) {
 		s.clearBlockerMark(ctx, tenant, actor, out) // blocker_issue.go: resolving the issue clears the mark
 	}
@@ -834,7 +847,7 @@ func (s *Server) handlePatchIssue(w http.ResponseWriter, r *http.Request) {
 		writeIssueErr(w, ie)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))})
+	writeJSON(w, http.StatusOK, epicCloseAnswer(map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))}, i))
 }
 
 // mayDeleteIssue (SPL-1027, spec 039 FR-009): the member who created the
@@ -1014,6 +1027,7 @@ func (s *Server) handleUnarchiveIssue(w http.ResponseWriter, r *http.Request) {
 	body := toIssueJSON(out, s.storeGetter(r.Context(), t.ID))
 	keys := descendantKeys(out.Prefix, kids)
 	s.fanoutIssue(r.Context(), t.ID, map[string]any{"type": issueFrame, "op": "create", "issue": body, "descendants": keys})
+	s.afterEpicUnarchive(r.Context(), t.ID, actor, out, kids)
 	writeJSON(w, http.StatusOK, map[string]any{"issue": body, "descendants": keys})
 }
 

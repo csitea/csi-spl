@@ -131,7 +131,7 @@ func (s *Server) agentUpdateIssue(ctx context.Context, tenant, as, ref string, r
 	if ie != nil {
 		return nil, ie
 	}
-	return map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, tenant))}, nil
+	return epicCloseAnswer(map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, tenant))}, i), nil
 }
 
 // agentCreateLabel is label: {name, color?}.
@@ -223,6 +223,9 @@ func (s *Server) agentArchiveIssue(ctx context.Context, tenant, as, ref string, 
 	body := toIssueJSON(out, s.storeGetter(ctx, tenant))
 	keys := descendantKeys(out.Prefix, kids)
 	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": frameOp, "issue": body, "descendants": keys})
+	if !archive {
+		s.afterEpicUnarchive(ctx, tenant, as, out, kids)
+	}
 	return map[string]any{"issue": body, "descendants": keys}, nil
 }
 

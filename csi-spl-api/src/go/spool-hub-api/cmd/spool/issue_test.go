@@ -36,6 +36,10 @@ func TestParseIssueArgs(t *testing.T) {
 		{"update", []string{"--as", "CLE-1", "--ref", "SPL-3", "--deadline", "", "--labels", ""},
 			`{"op":"update","as":"CLE-1","ref":"SPL-3","issue":{"deadline":"","labels":[]}}`},
 		{"update", []string{"--as", "CLE-1", "--ref", "SPL-3"}, `{"op":"update","as":"CLE-1","ref":"SPL-3","issue":{}}`},
+		// SPL-1643: --cascade confirms closing an epic with open issues; the control above sends none.
+		{"update", []string{"--as", "CLE-1", "--ref", "SPL-3", "--status", "done", "--cascade"},
+			`{"op":"update","as":"CLE-1","ref":"SPL-3","issue":{"cascade":true,"status":"done"}}`},
+		{"create", []string{"--as", "CLE-1", "--title", "T", "--cascade"}, `{"op":"create","as":"CLE-1","issue":{"title":"T"}}`},
 		{"update", []string{"--as", "CLE-1", "--ref", "SPL-3", "--priority", "high"}, `error: --priority must be a number`},
 		{"update", []string{"--as", "CLE-1", "--ref", "SPL-3", "--level", "x"}, `error: --level must be a number`},
 		{"create", []string{"--as", "CLE-1", "--description-file", filepath.Join(dir, "missing")}, `error: open ` + filepath.Join(dir, "missing") + `: no such file or directory`},

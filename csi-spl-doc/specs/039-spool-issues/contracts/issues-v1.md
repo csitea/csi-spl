@@ -93,6 +93,8 @@ the field), `unknown_label`, `unknown_parent` (absent or a cycle),
 `bad_assignee` (not a member, not a roster agent), and the epic rule (§8):
 `bad_epic` 400, `epic_has_issues` 409 (`epic_required` is no longer sent since
 W16).
+A PATCH also takes `cascade: true`, the confirmation of an epic close (§9);
+`epic_close_confirm` 409 refuses that close without it.
 
 ## 4. List filters
 
@@ -183,4 +185,43 @@ bugs, tasks, etc.) and those could have subtasks in the third level".
   `{key, kind, number, title, status, total, done, canceled, counts}` over
   its level-2 issues; progress is Linear's `done / (total - canceled)`.
 
-<!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->
+## 9. Closing an epic closes and archives its issues (SPL-1643)
+
+Owner HUM-10, t1 1ccf3a20: msg 4913b500 "Epic close should also archive all
+the issues"; msg d6300003 "if one closes an epic, it must be clear that he
+knows what he's doing. Then all of the issues will be closed as well, with
+some kind of automated post explaining why the issue has been closed"; msg
+7c07c95d "if something doesn't work as expected, that should be filed as a
+bug".
+
+- **The rule** (`store.ClosesEpic`, one function for both drivers, so every
+  path gets it: the WUI, bulk status, `PATCH`, an agent's `update`, `spool
+  issue update`): a status change of a level-1 row (epic or feature) into
+  `done` or `diss` gives every open descendant (all levels) the same status,
+  stamped as a patch stamps it, then archives the row and every live
+  descendant (rdb 0084, as `archive?cascade=1`), in the update's transaction.
+- **The confirmation**: while the epic has open descendants, the update needs
+  `cascade: true`; without it `409 epic_close_confirm`, the detail naming the
+  count (`SPL-17 has 12 open issues: ...`). The WUI asks "Close SPL-17 and its
+  12 open issues?" with a Close button and resends with it; the CLI flag is
+  `spool issue update --cascade`. An epic with no open descendant closes and
+  archives without it.
+- **The answer** (`PATCH` and agent `update`) adds `archived` (true),
+  `closed` (the keys it closed) and `descendants` (every key archived with
+  it); the frame is `op: "archive"` with `descendants`, so tabs drop them.
+- **The comment**: each issue it closed gets a hub note on its topic:
+  `Closed because its epic SPL-17 was closed by <who> at <ISO UTC>.`
+- **Unarchive** of a level-1 row always restores its archived descendants
+  (with or without `cascade`), keeps every status, and notes on each:
+  `Restored from the archive because its epic SPL-17 was restored by <who> at
+  <ISO UTC>; its status stays <status>.`
+- **A failure files a bug.** The cascade runs under a savepoint: when it fails
+  the epic's own status change stands, nothing else moves, and the answer
+  carries `archived: false` and `cascade_error`. A failed cascade or a comment
+  that was not posted files one issue labelled `bug`, assigned to whoever
+  closed the epic, naming the epic (linked), the issues left behind and the
+  reason.
+- Hub notes are English, like the blocker notes; the WUI strings are in every
+  locale (`issues_epic_close.*`).
+
+<!-- version: 0.8.0 · updated: 2026-10-13 · last-edit: 2026-10-13T09:10:00Z -->

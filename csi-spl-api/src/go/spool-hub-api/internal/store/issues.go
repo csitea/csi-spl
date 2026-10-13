@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -145,6 +146,55 @@ type Issue struct {
 	UpdatedAt   time.Time
 	CompletedAt *time.Time
 	CanceledAt  *time.Time
+	// The epic close of SPL-1643, set only on UpdateIssue's answer when the
+	// update closed a level-1 row (ClosesEpic). ClosedWith: the descendants
+	// that were open and now carry the epic's status; ArchivedWith: every
+	// descendant archived with it (both sorted, target excluded);
+	// ClosedArchived: the row itself was archived too. CascadeErr: why the
+	// cascade failed; the epic's own status change stands, nothing else
+	// moved, and CascadeOpen lists the descendants left open.
+	ClosedArchived bool
+	ClosedWith     []int
+	ArchivedWith   []int
+	CascadeErr     string
+	CascadeOpen    []int
+}
+
+// ClosesEpic is the one rule of SPL-1643 (owner HUM-10, t1 1ccf3a20, msgs
+// 4913b500 + d6300003: "Epic close should also archive all the issues";
+// "Then all of the issues will be closed as well"): an update that moves a
+// level-1 row (an epic or a feature) into done or diss closes every open
+// descendant with the same status and archives the row and every live
+// descendant, in the same transaction. wasStatus is the row's status before
+// the update. Both drivers' UpdateIssue apply it, so every path that closes
+// an epic (the WUI, spool issue update, an agent's issue_op, a bulk status)
+// gets it; the hub asks for the confirmation first (hub/issue_epic_close.go).
+func ClosesEpic(wasStatus string, after Issue) bool {
+	return after.IsEpic() && after.Status != wasStatus && IssueClosed(after.Status)
+}
+
+// IssueClosed reports done or diss.
+func IssueClosed(status string) bool { return status == IssueDone || status == IssueDiss }
+
+// epicCloseFault, when set (tests only, SetEpicCloseFault), runs before an
+// epic-close cascade; an error fails the cascade as a store error would.
+var epicCloseFault atomic.Pointer[func(tenant string, epic int) error]
+
+// SetEpicCloseFault installs f for tests that force a failed cascade
+// (SPL-1643: a failure files a bug); nil removes it.
+func SetEpicCloseFault(f func(tenant string, epic int) error) {
+	if f == nil {
+		epicCloseFault.Store(nil)
+		return
+	}
+	epicCloseFault.Store(&f)
+}
+
+func runEpicCloseFault(tenant string, epic int) error {
+	if f := epicCloseFault.Load(); f != nil {
+		return (*f)(tenant, epic)
+	}
+	return nil
 }
 
 // Key is <prefix>-<number>, e.g. SPL-12.
@@ -287,7 +337,11 @@ type Issues interface {
 	CreateIssue(ctx context.Context, in Issue, now time.Time) (Issue, error)
 	// UpdateIssue applies p. ErrNotFound for no such issue. A status change
 	// into done / canceled stamps completed_at / canceled_at, out of it
-	// clears them.
+	// clears them. When it closes a level-1 row (ClosesEpic) its open
+	// descendants get the same status and the row and every live descendant
+	// are archived, in the same transaction; the answer carries the epic
+	// close fields (Issue.ClosedWith ..). A failed cascade leaves the row's
+	// own change in place and reports CascadeErr.
 	UpdateIssue(ctx context.Context, tenantID string, number int, p IssuePatch, by string, now time.Time) (Issue, error)
 	GetIssue(ctx context.Context, tenantID string, number int) (Issue, error)
 	// ListIssues is every issue of the tenant, newest number first.
@@ -323,7 +377,8 @@ type Issues interface {
 	// cascade is false and a live issue names it as parent.
 	ArchiveIssue(ctx context.Context, tenantID string, number int, by string, now time.Time, cascade bool) (Issue, []int, error)
 	// UnarchiveIssue clears archived_at / archived_by, restoring an archived
-	// issue (rdb 0084). cascade also restores every archived descendant.
+	// issue (rdb 0084). cascade also restores every archived descendant; a
+	// level-1 row always takes them (SPL-1643). Statuses stay as they are.
 	// Answers the target as it was (archived) and the descendant numbers also
 	// restored. ErrNotFound for no such archived issue.
 	UnarchiveIssue(ctx context.Context, tenantID string, number int, by string, now time.Time, cascade bool) (Issue, []int, error)
@@ -692,7 +747,55 @@ func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p Iss
 			}
 		}
 	}
+	if ClosesEpic(old.Status, row) { // SPL-1643: closing an epic closes and archives its issues
+		s.iss.closeEpicLocked(&row, by, now)
+	}
 	return row, nil
+}
+
+// closeEpicLocked is the memory twin of txCloseEpic. Caller holds Memory.mu.
+func (m *memIssues) closeEpicLocked(row *Issue, by string, now time.Time) {
+	tenant := row.TenantID
+	kids := memSubtree(m.rows[tenant], row.Number)
+	if err := runEpicCloseFault(tenant, row.Number); err != nil {
+		row.CascadeErr = err.Error()
+		for _, n := range kids {
+			if !IssueClosed(m.rows[tenant][n].Status) {
+				row.CascadeOpen = append(row.CascadeOpen, n)
+			}
+		}
+		return
+	}
+	for _, n := range kids {
+		c := m.rows[tenant][n]
+		if IssueClosed(c.Status) {
+			continue
+		}
+		was := copyIssue(c)
+		c.Status, c.UpdatedBy, c.UpdatedAt = row.Status, by, now
+		stampStatus(&c, now)
+		m.rows[tenant][n] = c
+		m.recordLocked(tenant, n, issueChanges(was, c)...)
+		row.ClosedWith = append(row.ClosedWith, n)
+	}
+	row.ArchivedWith = m.archiveTreeLocked(tenant, row.Number, by, now)
+	row.ClosedArchived = true
+}
+
+// archiveTreeLocked moves number and every live descendant to the archive,
+// recording each, and answers the descendants (target excluded). Caller
+// holds Memory.mu.
+func (m *memIssues) archiveTreeLocked(tenant string, number int, by string, now time.Time) []int {
+	kids := memSubtree(m.rows[tenant], number)
+	if m.archived[tenant] == nil {
+		m.archived[tenant] = map[int]Issue{}
+	}
+	for _, n := range append([]int{number}, kids...) {
+		m.archived[tenant][n] = m.rows[tenant][n]
+		delete(m.rows[tenant], n)
+		m.recordLocked(tenant, n, IssueEvent{At: now, Actor: by, Event: IssueEventArchived})
+	}
+	return kids
 }
 
 func (s *Memory) GetIssue(_ context.Context, tenant string, number int) (Issue, error) {
@@ -791,24 +894,14 @@ func (s *Memory) ArchiveIssue(_ context.Context, tenant string, number int, by s
 	if !ok {
 		return Issue{}, nil, ErrNotFound
 	}
-	var kids []int
-	if cascade {
-		kids = memSubtree(s.iss.rows[tenant], number)
-	} else {
+	if !cascade {
 		for _, c := range s.iss.rows[tenant] {
 			if c.Parent == number {
 				return Issue{}, nil, ErrIssueHasChildren
 			}
 		}
 	}
-	if s.iss.archived[tenant] == nil {
-		s.iss.archived[tenant] = map[int]Issue{}
-	}
-	for _, n := range append([]int{number}, kids...) {
-		s.iss.archived[tenant][n] = s.iss.rows[tenant][n]
-		delete(s.iss.rows[tenant], n)
-		s.iss.recordLocked(tenant, n, IssueEvent{At: now, Actor: by, Event: IssueEventArchived})
-	}
+	kids := s.iss.archiveTreeLocked(tenant, number, by, now)
 	row.Prefix = s.iss.prefixOf(tenant)
 	return copyIssue(row), kids, nil
 }
@@ -822,7 +915,7 @@ func (s *Memory) UnarchiveIssue(_ context.Context, tenant string, number int, by
 		return Issue{}, nil, ErrNotFound
 	}
 	var kids []int
-	if cascade {
+	if cascade || row.IsEpic() { // SPL-1643: an epic brings its issues back
 		kids = memSubtree(s.iss.archived[tenant], number)
 	}
 	if s.iss.rows[tenant] == nil {
@@ -910,3 +1003,7 @@ func (s *Memory) CreateIssueLabel(_ context.Context, l IssueLabel, now time.Time
 	s.iss.labels[l.TenantID][l.LabelID] = l
 	return l, nil
 }
+
+// IsEpicClose reports an UpdateIssue answer that closed an epic (ClosesEpic):
+// its cascade archived the tree, or failed.
+func IsEpicClose(i Issue) bool { return i.ClosedArchived || i.CascadeErr != "" }

@@ -95,7 +95,7 @@ func newIssueFlagSet(op string, f *issueFlags) *flag.FlagSet {
 	} {
 		fs.StringVar(d.p, d.name, "", d.help)
 	}
-	fs.BoolVar(&f.cascade, "cascade", false, "archive/unarchive: include descendants")
+	fs.BoolVar(&f.cascade, "cascade", false, "archive/unarchive: include descendants; update: confirm closing an epic with open issues (they are closed and archived)")
 	return fs
 }
 
@@ -115,7 +115,7 @@ func parseIssueArgs(op string, args []string) (action.IssueArgs, error) {
 	case "list":
 		in.Query = f.listQuery()
 	case "create", "update":
-		in.Issue, err = f.issueObject()
+		in.Issue, err = f.issueObject(op == "update" && f.cascade)
 	case "comment":
 		in.Body, err = f.commentBody()
 	case "label":
@@ -149,8 +149,11 @@ func (f *issueFlags) listQuery() string {
 
 // issueObject is the create / update body: only the flags given, so an
 // update changes those and "" clears.
-func (f *issueFlags) issueObject() (json.RawMessage, error) {
+func (f *issueFlags) issueObject(cascade bool) (json.RawMessage, error) {
 	obj := map[string]any{}
+	if cascade { // SPL-1643: the confirmation of an epic close
+		obj["cascade"] = true
+	}
 	if f.set["description-file"] {
 		b, err := os.ReadFile(f.descFile)
 		if err != nil {

@@ -171,6 +171,28 @@
             >
               <UiIcon name="file-image" :size="16" /><span>{{ t('ws_doctree.insert_picture') }}</span>
             </button>
+            <button
+              type="button"
+              class="wsdoc__tool wsdoc__tool--label"
+              data-test="ws-doc-insert-table"
+              :disabled="busy"
+              @pointerdown.prevent
+              @mousedown.prevent
+              @click="insertTable(it)"
+            >
+              <UiIcon name="table" :size="16" /><span>{{ t('ws_doctree.insert_table') }}</span>
+            </button>
+            <button
+              type="button"
+              class="wsdoc__tool wsdoc__tool--label"
+              data-test="ws-doc-insert-quote"
+              :disabled="busy"
+              @pointerdown.prevent
+              @mousedown.prevent
+              @click="insertQuote(it)"
+            >
+              <UiIcon name="quote-right" :size="16" /><span>{{ t('ws_doctree.insert_quote') }}</span>
+            </button>
           </div>
           <p v-if="links(it.body).length" class="wsdoc__links" data-test="ws-doc-links">
             <a v-for="(u, i) in links(it.body)" :key="i" :href="u" target="_blank" rel="noopener noreferrer">{{ u }}</a>
@@ -289,6 +311,7 @@ import {
   type DocHead, type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
 import { figureNumbers, paraRuns, picPaths, picToken, setPicCaption, type ParaRun } from './-doc-pics'
+import { insertBlock, quoteBlock, tableBlock, type Block } from './-doc-blocks'
 
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[] }>()
 const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string], renamed: [title: string] }>()
@@ -590,6 +613,25 @@ async function insertPic(it: DocItem, file: File, value: string, start: number, 
   grow(el)
   el.focus()
   el.setSelectionRange(before.length + 2, before.length + token.indexOf(']('))
+}
+
+/** Insert table / Insert quote (spec 137 T010, T011): the block goes into the
+    paragraph being edited, at the cursor, and its first placeholder is
+    selected; the paragraph saves when it is left, as typed text does */
+function insertAt(it: DocItem, make: (selected: string) => Block) {
+  const el = rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-text]`)
+  if (!el) return
+  const r = insertBlock(el.value, el.selectionStart, el.selectionEnd, make)
+  el.value = r.value
+  grow(el)
+  el.focus()
+  el.setSelectionRange(r.selStart, r.selEnd)
+}
+function insertTable(it: DocItem) {
+  insertAt(it, () => tableBlock((n) => t('ws_doctree.table_header', { n }), (n) => t('ws_doctree.table_cell', { n })))
+}
+function insertQuote(it: DocItem) {
+  insertAt(it, (selected) => quoteBlock(selected, t('ws_doctree.quote_text'), t('ws_doctree.quote_source')))
 }
 
 /** a figure's caption edited in place: the k-th picture's token rewritten */
@@ -982,7 +1024,7 @@ onBeforeUnmount(() => {
 .wsdoc__run--plain { white-space: pre-wrap; }
 .wsdoc__pic { margin: 8px 0 12px; color: var(--color-muted); font-size: 0.8rem; font-weight: 700; line-height: 1.4; }
 .wsdoc__pic img { display: block; max-width: 100%; height: auto; margin-bottom: 4px; }
-.wsdoc__paratools { display: flex; gap: 4px; padding: 2px 8px 0; }
+.wsdoc__paratools { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 8px 0; }
 .wsdoc__tool--label { width: auto; gap: 4px; padding-inline: 8px; color: var(--color-muted); font-size: 0.8rem; }
 /* on a phone (coarse pointer) the Insert picture control and a picture's caption are a full 44 px tap (SPL-1186) */
 @media (pointer: coarse) {

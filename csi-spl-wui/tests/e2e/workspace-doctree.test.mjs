@@ -17,6 +17,8 @@
 // The grid's level and meta columns (t1 504fe47d): level = the item's depth
 // ("1.1" = 2), sortable through the hub's depth sort; meta = its own attrs
 // as key: value, read after the code block; on a phone meta is hidden.
+// Spec 137 T010 / T011: the paragraph toolbar's Insert table and Insert
+// quote, read back rendered, from the hub and from the Markdown export.
 //
 //   node tests/e2e/workspace-doctree.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/workspace-doctree.test.mjs
@@ -536,6 +538,63 @@ try {
   await p.keyboard.press('Escape')
   const md3 = await mdRead()
   ok('keyboard focus on the rendered body opens the textarea; Esc reads it again', mdFocus && md3.para && md3.strong === 'bold words', { mdFocus, md3 })
+
+  /* spec 137 T010 + T011 (owner HUM-10, t1 bed3ed0a msgs 2c82489a "tables in
+     the paragraphs", b1661d1c "citates"): the paragraph toolbar's Insert
+     table and Insert quote put a pipe table and a quote with its source line
+     into the text at the cursor, the first placeholder selected to type over.
+     Left, the paragraph reads as a <table> and a <blockquote> whose source
+     line is p[data-cite] (upright, not the passage's italic); the hub keeps
+     the markdown and the Markdown export carries it as written.
+     CONTROL: before this change neither control exists (FAIL). */
+  const blkRow = titleSel('5.1.1')
+  const picked = () => p.evaluate((row) => {
+    const el = document.querySelector(`${row} [data-test=ws-doc-text]`)
+    return el && document.activeElement === el ? el.value.slice(el.selectionStart, el.selectionEnd) : null
+  }, blkRow)
+  await editBody(p, blkRow)
+  const tools = await p.evaluate((row) => ['ws-doc-insert-table', 'ws-doc-insert-quote'].map((t) => Boolean(document.querySelector(`${row} [data-test=${t}]`))), blkRow)
+  ok('T010/T011: the focused paragraph offers Insert table and Insert quote', tools[0] && tools[1], tools)
+  await p.click(`${blkRow} [data-test=ws-doc-insert-table]`).catch(() => null)
+  const tPick = await picked()
+  await p.keyboard.type('Name')
+  await p.keyboard.down('Control')
+  await p.keyboard.press('End')
+  await p.keyboard.up('Control')
+  await p.click(`${blkRow} [data-test=ws-doc-insert-quote]`).catch(() => null)
+  const qPick = await picked()
+  await p.keyboard.type('To be, or not to be.')
+  const typed = await p.$eval(`${blkRow} [data-test=ws-doc-text]`, (e) => e.value).catch(() => '')
+  const WANT_BODY = '| Name | Header 2 | Header 3 |\n|---|---|---|\n| Cell 1 | Cell 2 | Cell 3 |\n\n> To be, or not to be.\n>\n> — [Author or source](https://)'
+  ok('T010: Insert table puts the pipe table in and selects "Header 1"; T011: Insert quote adds the quote and selects its passage',
+    tPick === 'Header 1' && qPick === 'Quoted passage' && typed === WANT_BODY, { tPick, qPick, typed })
+  await p.click('[data-test=ws-doc-doctitle]')
+  const blkId = await p.$eval(blkRow, (e) => e.dataset.id)
+  await p.waitForFunction(async (d, id, want) => (await window.__wsDocTreeCall('GET', `/${d}/subtree`)).items.find((x) => x.id === id)?.body === want, { timeout: STEP, polling: 200 }, docOf, blkId, WANT_BODY).catch(() => null)
+  const blkHub = (await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}/subtree`), docOf)).items.find((x) => x.id === blkId)?.body
+  await p.waitForFunction((row) => document.querySelector(`${row} [data-test=ws-doc-para] [data-testid=md-block][data-rendered=true]`), { timeout: STEP }, blkRow).catch(() => null)
+  const blkRead = await p.evaluate((row) => {
+    const para = document.querySelector(`${row} [data-test=ws-doc-para]`)
+    const q = para?.querySelector('blockquote')
+    const cite = q?.querySelector('p[data-cite]')
+    return {
+      ths: [...(para?.querySelectorAll('table th') ?? [])].map((e) => e.textContent.trim()),
+      tds: [...(para?.querySelectorAll('table td') ?? [])].map((e) => e.textContent.trim()),
+      quote: q?.querySelector('p')?.textContent?.trim() ?? null,
+      cite: cite?.textContent?.trim() ?? null,
+      styles: q && cite ? [getComputedStyle(q).fontStyle, getComputedStyle(cite).fontStyle, getComputedStyle(q).borderLeftStyle] : null,
+    }
+  }, blkRow)
+  ok('T010/T011: the hub keeps the markdown; the paragraph reads as a table and a styled quote with its source line',
+    blkHub === WANT_BODY && JSON.stringify(blkRead.ths) === '["Name","Header 2","Header 3"]' && blkRead.tds.length === 3
+    && blkRead.quote === 'To be, or not to be.' && blkRead.cite === '— Author or source'
+    && JSON.stringify(blkRead.styles) === '["italic","normal","solid"]', { blkHub, blkRead })
+  await shoot(p, 'table-quote-read')
+  await p.evaluate(() => { window.__exports = [] })
+  await menu(p, 'doc', 'New child', 'export_md')
+  await p.waitForFunction(() => window.__exports.some((x) => x.startsWith('# ')), { timeout: STEP }).catch(() => null)
+  const blkMd = await p.evaluate(() => window.__exports.find((x) => x.startsWith('# ')) || '')
+  ok('T010/T011: the Markdown export carries the table and the quote as written', blkMd.includes(WANT_BODY), blkMd)
 
   /* rename in place (the hub's PATCH /{doc}); cleared, it is the default title.
      The CONTROL reads the title back from the hub, not from the page */

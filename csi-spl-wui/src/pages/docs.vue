@@ -131,7 +131,7 @@
           <p v-else-if="state === 'failed'" class="muted" role="alert">{{ t('docs.load_failed') }}</p>
           <RepoDocConflict v-else-if="conflictId" :id="conflictId" @saved="onResolved" @cancel="closeConflict" />
           <RepoDocEditor v-else-if="editing" :path="docPath" :text="raw" :base="base || editFiles.get(docPath)?.blob || ''" @saved="onSaved" @cancel="editing = false" />
-          <MarkdownBlock v-else :text="text" bare />
+          <MarkdownBlock v-else :text="text" bare anchors />
           </template>
         </article>
       </div>

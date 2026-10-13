@@ -276,6 +276,18 @@ export const UI_ICON_PATHS = {
     "M8 12h8v5H8z",
   ],
   // Attachment: a picture that does not preview.
+  // spec 137 T010: the Qto paragraph's Insert table (lucide table).
+  table: [
+    "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+    "M3 9h18",
+    "M3 15h18",
+    "M12 3v18",
+  ],
+  // spec 137 T011: the Qto paragraph's Insert quote (lucide quote).
+  "quote-right": [
+    "M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z",
+    "M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z",
+  ],
   "file-image": [
     "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
     "M14 2v4a2 2 0 0 0 2 2h4",

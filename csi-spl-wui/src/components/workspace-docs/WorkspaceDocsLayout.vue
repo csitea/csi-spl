@@ -4,16 +4,22 @@
      docs section, as /docs is), and this is the two panes: the tree
      (QtoFileTree) left, the page (WorkspaceDocsPage) right, each scrolling
      on its own. At <= 820 px the tree is not drawn: the page itself is the
-     phone's drill-down (WorkspaceDocsPage, t1 8bf89f96). -->
+     phone's drill-down (WorkspaceDocsPage, t1 8bf89f96).
+     Spec 137 T023: the tree's Repository branch opens a repository doc in
+     the right pane (?repo=<path>, WorkspaceRepoDoc) while the Qto page
+     stays mounted behind it; a workspace row drops ?repo= and opens the
+     document as before. -->
 <template>
   <div class="wsdocs-layout" data-test="ws-docs-layout">
     <div id="qto-file-tree" class="wsdocs-layout__tree">
       <QtoFileTree
         v-if="page"
         :docs="page.docs"
-        :active="page.docId"
+        :active="repoPath ? '' : page.docId"
         :rev="page.session?.rev.value ?? 0"
         :client="client"
+        :repo="repoPath"
+        @repo="openRepo"
         @open="openFromTree"
         @renamed="renamedFromTree"
         @deleted="deletedFromTree"
@@ -21,17 +27,24 @@
         @refresh="page.refreshDocs()"
       />
     </div>
-    <WorkspaceDocsPage ref="page" class="wsdocs-layout__page" />
+    <WorkspaceRepoDoc v-if="repoPath" :path="repoPath" class="wsdocs-layout__page" />
+    <WorkspaceDocsPage v-show="!repoPath" ref="page" class="wsdocs-layout__page" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref } from 'vue'
 import WorkspaceDocsPage from './WorkspaceDocsPage.vue'
 import QtoFileTree from './QtoFileTree.vue'
 import { useDocTree } from './-doctree-api'
 
+/* T023: the repo doc pane loads when a repo doc is first opened */
+const WorkspaceRepoDoc = defineAsyncComponent(() => import('./WorkspaceRepoDoc.vue'))
+
 const route = useRoute()
+const router = useRouter()
+/** the repository doc open in the right pane ('' = the Qto page) */
+const repoPath = computed(() => (typeof route.query.repo === 'string' ? route.query.repo : ''))
 const client = useDocTree()
 const page = ref<InstanceType<typeof WorkspaceDocsPage> | null>(null)
 
@@ -51,8 +64,18 @@ function deletedFromTree(doc: string) {
   if (doc === p.docId) void p.pick(p.docs[0]?.id ?? '')
 }
 
+/** a Repository row: its doc in the right pane, the Qto page kept as it was */
+function openRepo(path: string) {
+  void router.push({ query: { ...route.query, repo: path }, hash: '' })
+}
+
 /** a tree row: the open document's section scrolls into view; anything else opens through the page */
-function openFromTree(doc: string, item: string) {
+async function openFromTree(doc: string, item: string) {
+  if (repoPath.value) {
+    const { repo: _repo, ...rest } = route.query
+    await router.push({ query: rest })
+    await nextTick()
+  }
   const p = page.value
   if (!p) return
   const here = doc === p.docId && route.query.view !== 'grid'

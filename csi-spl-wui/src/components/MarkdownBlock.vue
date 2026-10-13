@@ -12,7 +12,11 @@
      a line break, an HTML table passes the allow-list, a ``` block is a
      CodeBlock and an @CLE-1 mention stays a mention. Until the tree exists it
      renders nothing and emits rendered=false, so its parent keeps showing the
-     plain body. -->
+     plain body.
+     `anchors` (spec 137 T018) is a document page, not a message: headings
+     and footnotes get their md- ids, and a #fragment link scrolls to its
+     target inside whatever pane holds it. Task items draw their box here
+     (li[data-task]); the notes close the block (ol[data-footnotes]). -->
 <template>
   <div class="md-block" :class="{ 'md-block--bare': bare }" data-testid="md-block" :data-rendered="tree ? 'true' : 'false'">
     <button
@@ -39,7 +43,7 @@ import CodeBlock from '~/components/CodeBlock.vue'
 import MessageRuns from '~/components/MessageRuns.vue'
 import { appLinkText, useAppLinkLabel } from '~/composables/useAppLinkLabel'
 
-const props = defineProps<{ text: string, bare?: boolean }>()
+const props = defineProps<{ text: string, bare?: boolean, anchors?: boolean }>()
 const emit = defineEmits<{ rendered: [on: boolean] }>()
 const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()
@@ -84,7 +88,7 @@ watch(
       tags = TAGS
       /* SPL-1291: a doc link opens /docs/<path> (cnf repoWebUrl) */
       const docsRepo = String(pub.repoWebUrl || '')
-      tree.value = markdownTree(src, { ...(props.bare ? { breaks: true, html: true } : {}), docsRepo, docPath: docs ? docs.resolve : null })
+      tree.value = markdownTree(src, { ...(props.bare ? { breaks: true, html: true } : {}), docsRepo, docPath: docs ? docs.resolve : null, anchors: props.anchors })
       emit('rendered', true)
     } catch {
       /* the source stays readable */
@@ -119,6 +123,12 @@ function onPointerUp(e: PointerEvent, href: string) {
 function onLink(e: MouseEvent, href: string) {
   stop(e)
   if (!import.meta.client) return
+  /* spec 137 T018: a heading or a footnote of this page, in the pane that scrolls it */
+  if (href.startsWith('#')) {
+    e.preventDefault()
+    document.getElementById(decodeURIComponent(href.slice(1)))?.scrollIntoView({ block: 'start' })
+    return
+  }
   messageLinkClick(e, href, window.location.href, go)
 }
 
@@ -178,7 +188,7 @@ function node(n: MdNode, inCode = false): VNodeChild {
   }
   if (n.tag === 'table') return h('div', { class: 'md-table' }, [h('table', null, kids)])
   const attrs: Record<string, string> = {}
-  for (const k of ['start', 'data-align', 'data-lang', 'colspan', 'rowspan']) if (n.attrs[k]) attrs[k] = n.attrs[k]
+  for (const k of ['start', 'data-align', 'data-lang', 'colspan', 'rowspan', 'id', 'data-task', 'data-footnotes', 'data-cite']) if (n.attrs[k]) attrs[k] = n.attrs[k]
   return h(n.tag, attrs, kids)
 }
 
@@ -252,10 +262,30 @@ MdNodes.props = ['nodes', 'stamp']
 .md-block :deep(ol) { padding-left: 1.5em; }
 .md-block :deep(li + li) { margin-top: 0.15em; }
 .md-block :deep(blockquote) {
-  padding-left: 0.75em;
-  border-left: 3px solid var(--color-border-strong);
+  padding: 0.5em 1em;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-bg-2);
+  color: var(--color-muted);
+  font-style: italic;
+}
+/* spec 137 T011: a quote's attribution line ("— Source"), upright and smaller */
+.md-block :deep(blockquote > p[data-cite]) {
+  font-style: normal;
+  font-size: 0.875em;
+  text-align: end;
+}
+/* spec 137 T018: a task item's box, drawn (no input: nothing here is a control) */
+.md-block :deep(li[data-task]) { list-style: none; }
+.md-block :deep(li[data-task])::before {
+  content: "\2610";
+  display: inline-block;
+  width: 1.25em;
+  margin-inline-start: -1.25em;
   color: var(--color-muted);
 }
+.md-block :deep(li[data-task="done"])::before { content: "\2611"; color: var(--color-accent); }
+.md-block :deep(sup) { font-size: 0.75em; line-height: 0; }
+.md-block :deep(ol[data-footnotes]) { font-size: 0.875em; color: var(--color-muted); }
 .md-block :deep(hr) {
   border: 0;
   border-top: 1px solid var(--color-border);

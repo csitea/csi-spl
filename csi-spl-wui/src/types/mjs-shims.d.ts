@@ -1450,7 +1450,10 @@ declare module '~/utils/markdown.mjs' {
   export const TAGS: Set<string>
   export const ATTRS: Record<string, Set<string>>
   export function safeHref(raw: string): string
-  export interface MdOptions { breaks?: boolean, html?: boolean, docsRepo?: string, docPath?: ((raw: string) => string) | null }
+  export interface MdOptions { breaks?: boolean, html?: boolean, docsRepo?: string, docPath?: ((raw: string) => string) | null, anchors?: boolean }
+  export const ANCHOR_PREFIX: string
+  export function splitFootnotes(src: string): { body: string, notes: Map<string, string> }
+  export function headingSlug(text: string): string
   export function markdownTree(src: string, opts?: MdOptions): MdNode[]
   export function htmlTableNodes(html: string): MdNode[]
   export function treeToHtml(nodes: MdNode[], origin?: string): string

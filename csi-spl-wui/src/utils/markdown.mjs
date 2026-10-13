@@ -28,6 +28,9 @@
  *     link to the picture, labelled with its alt text
  *   - no style attribute ever: a table cell's alignment is data-align, styled
  *     by the component
+ *   - task lists, footnotes and heading ids (spec 137 T018) are passes of
+ *     this file over the tree, not markdown-it plugins; an id is always
+ *     ANCHOR_PREFIX + a slug, never text copied as written
  *
  * Pure apart from the markdown-it import: node tests import this file
  * directly; the WUI imports it lazily, only when a page has such a block.
@@ -43,13 +46,18 @@ export const TAGS = new Set([
   'ul', 'ol', 'li', 'blockquote', 'hr', 'br',
   'pre', 'code', 'strong', 'em', 's',
   'table', 'thead', 'tbody', 'tfoot', 'caption', 'tr', 'th', 'td',
-  'a',
+  'a', 'sup',
 ])
 
 /** Every attribute the tree may hold, per tag. */
 export const ATTRS = {
   a: new Set(['href', 'title']),
-  ol: new Set(['start']),
+  ol: new Set(['start', 'data-footnotes']),
+  p: new Set(['data-cite']),
+  li: new Set(['id', 'data-task']),
+  sup: new Set(['id']),
+  h1: new Set(['id']), h2: new Set(['id']), h3: new Set(['id']),
+  h4: new Set(['id']), h5: new Set(['id']), h6: new Set(['id']),
   th: new Set(['data-align', 'colspan', 'rowspan']),
   td: new Set(['data-align', 'colspan', 'rowspan']),
   pre: new Set(['data-lang']),
@@ -303,6 +311,158 @@ export function htmlTableNodes(html) {
   return tidy(root.children)
 }
 
+/*
+ * Spec 137 T018 (§1.4, F18-F20): task lists, footnotes and heading ids, so a
+ * repo doc reads in the WUI as it reads on a forge. No markdown-it plugin:
+ * each is a small pass over the source or over the allow-listed tree, so no
+ * attribute is copied from a token and the tree stays the only output.
+ *   - a list item that starts with "[ ] " or "[x] " is a task: its li carries
+ *     data-task="todo" | "done" (the component draws the box), the marker goes
+ *   - "[^id]: note" lines (outside a code fence) are taken out of the source;
+ *     each "[^id]" in the text that has a note becomes a superscript number,
+ *     and the notes follow the document as one numbered list
+ *     (ol data-footnotes), in the order they are first cited
+ *   - `anchors` (a document page, not a chat message): each heading has an
+ *     id from its text (GitHub's slug rule), a footnote number links to its
+ *     note and back, and a "#slug" link finds its heading. Every id is
+ *     prefixed with ANCHOR_PREFIX so a heading never clashes with an id of
+ *     the page around it, nor shadows a global (DOM clobbering)
+ */
+export const ANCHOR_PREFIX = 'md-'
+
+const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/
+const NOTE_DEF = /^ {0,3}\[\^([^\]\s]{1,64})\]:[ \t]?(.*)$/
+const NOTE_REF = /\[\^([^\]\s]{1,64})\]/g
+const TASK = /^\[([ xX])\][ \t]+/
+
+/**
+ * The source without its footnote definitions, and the definitions by id
+ * (a definition's indented lines continue it; the first one of an id wins).
+ */
+export function splitFootnotes(src) {
+  const lines = String(src ?? '').split('\n')
+  const keep = []
+  const notes = new Map()
+  let fence = ''
+  let note = null
+  for (const line of lines) {
+    if (fence) {
+      keep.push(line)
+      if (line.trim().startsWith(fence) && /^\s*([`~])\1*\s*$/.test(line)) fence = ''
+      continue
+    }
+    if (note && /^(?: {4}|\t)\S/.test(line)) {
+      note.push(line.replace(/^(?: {4}|\t)/, ''))
+      continue
+    }
+    note = null
+    const def = NOTE_DEF.exec(line)
+    if (def) {
+      note = [def[2]]
+      if (!notes.has(def[1])) notes.set(def[1], note)
+      continue
+    }
+    const f = FENCE_OPEN.exec(line)
+    if (f) fence = f[1]
+    keep.push(line)
+  }
+  const out = new Map()
+  for (const [id, body] of notes) out.set(id, body.join('\n').trim())
+  return { body: keep.join('\n'), notes: out }
+}
+
+/** GitHub's heading slug: lower case, punctuation dropped, spaces as dashes. */
+export function headingSlug(text) {
+  return String(text ?? '').trim().toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s_-]/gu, '').replace(/\s/g, '-')
+}
+
+function plainText(nodes) {
+  return (nodes || []).map((n) => (typeof n === 'string' ? n : plainText(n.children))).join('')
+}
+
+/** a task item: its li marked and the "[ ] " marker taken off its first text */
+function markTask(li) {
+  let host = li
+  while (host.children.length && typeof host.children[0] !== 'string' && host.children[0].tag === 'p') host = host.children[0]
+  const first = host.children[0]
+  if (typeof first !== 'string') return
+  const m = TASK.exec(first)
+  if (!m) return
+  li.attrs = { ...li.attrs, 'data-task': m[1] === ' ' ? 'todo' : 'done' }
+  host.children = [first.slice(m[0].length), ...host.children.slice(1)].filter((c) => c !== '')
+}
+
+/* spec 137 T011 (owner, t1 b1661d1c "citates"): a quote's last paragraph
+   that starts with a dash ("— Source", "-- Source") is its attribution line,
+   p[data-cite]; the component sets it apart from the quoted passage */
+const CITE = /^(?:\u2014|\u2015|--)(?:\s|$)/
+function markCite(q) {
+  const last = q.children.at(-1)
+  if (q.children.length < 2 || typeof last === 'string' || last.tag !== 'p') return
+  if (typeof last.children[0] === 'string' && CITE.test(last.children[0])) last.attrs = { ...last.attrs, 'data-cite': 'true' }
+}
+
+const HEADING = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+
+/**
+ * The extras over a finished tree (see the block above). `notes` is
+ * splitFootnotes' map, `noteTree` renders one note's markdown.
+ */
+function gfmExtras(nodes, notes, noteTree, anchors) {
+  const order = []
+  const slugs = new Map()
+  const idOf = (base) => {
+    const n = slugs.get(base) ?? 0
+    slugs.set(base, n + 1)
+    return ANCHOR_PREFIX + (n ? `${base}-${n}` : base)
+  }
+  const refs = (s) => {
+    const out = []
+    let last = 0
+    for (const m of s.matchAll(NOTE_REF)) {
+      if (!notes.has(m[1])) continue
+      out.push(s.slice(last, m.index))
+      let at = order.indexOf(m[1])
+      const first = at < 0
+      if (first) at = order.push(m[1]) - 1
+      const num = String(at + 1)
+      const fid = headingSlug(m[1]) || num
+      out.push(anchors
+        ? el('sup', first ? { id: `${ANCHOR_PREFIX}fnref-${fid}` } : {}, [el('a', { href: `#${ANCHOR_PREFIX}fn-${fid}`, title: `#${ANCHOR_PREFIX}fn-${fid}` }, [num])])
+        : el('sup', {}, [num]))
+      last = m.index + m[0].length
+    }
+    if (!out.length) return [s]
+    out.push(s.slice(last))
+    return out.filter((c) => c !== '')
+  }
+  const walk = (list, inText) => list.flatMap((n) => {
+    if (typeof n === 'string') return inText && notes.size ? refs(n) : [n]
+    if (n.tag === 'li') markTask(n)
+    if (n.tag === 'blockquote') markCite(n)
+    if (anchors && n.tag === 'a' && /^#./.test(n.attrs.href || '') && !n.attrs.href.startsWith('#' + ANCHOR_PREFIX)) {
+      const href = '#' + ANCHOR_PREFIX + n.attrs.href.slice(1)
+      n.attrs = { ...n.attrs, href, title: href }
+    }
+    n.children = walk(n.children, inText && n.tag !== 'code' && n.tag !== 'pre' && n.tag !== 'a')
+    if (anchors && HEADING.has(n.tag)) {
+      const slug = headingSlug(plainText(n.children))
+      if (slug) n.attrs = { ...n.attrs, id: idOf(slug) }
+    }
+    return [n]
+  })
+  const out = walk(nodes, true)
+  if (!order.length) return out
+  const items = order.map((id, i) => {
+    const fid = headingSlug(id) || String(i + 1)
+    let body = noteTree(notes.get(id))
+    if (body.length === 1 && typeof body[0] !== 'string' && body[0].tag === 'p') body = body[0].children
+    const back = anchors ? [' ', el('a', { href: `#${ANCHOR_PREFIX}fnref-${fid}`, title: `#${ANCHOR_PREFIX}fnref-${fid}` }, ['↩'])] : []
+    return el('li', anchors ? { id: `${ANCHOR_PREFIX}fn-${fid}` } : {}, [...body, ...back])
+  })
+  return [...out, el('hr'), el('ol', { 'data-footnotes': 'true' }, items)]
+}
+
 /**
  * The node tree of one markdown source. Always an array; an empty source is
  * an empty array. `breaks` makes a single newline a <br> and `html` lets an
@@ -312,9 +472,16 @@ export function htmlTableNodes(html) {
  * docs, or a bare repo-relative .md path, opens /docs/<path> (SPL-1291).
  * `docPath` is doc-paths.mjs' resolver: a listed doc path written as text
  * links to its /docs page (SPL-1592); null leaves text as written.
+ * `anchors` gives headings and footnotes their ids (spec 137 T018, above):
+ * a document page sets it, a chat message does not.
  */
-export function markdownTree(src, { breaks = false, html = false, docsRepo = undefined, docPath = null } = {}) {
-  const tokens = md(html).parse(String(src ?? ''), {})
+export function markdownTree(src, { anchors = false, ...opts } = {}) {
+  const { body, notes } = splitFootnotes(src)
+  return gfmExtras(baseTree(body, opts), notes, (note) => baseTree(note, opts), anchors)
+}
+
+function baseTree(src, { breaks = false, html = false, docsRepo = undefined, docPath = null } = {}) {
+  const tokens = md(html).parse(src, {})
   const root = el(null)
   const stack = [root]
   const top = () => stack.at(-1)

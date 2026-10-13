@@ -36,7 +36,15 @@
      folder in it, Rename (PATCH /folders/{folder}), Copy path, Delete
      (confirmed; a folder that holds anything shows its counts and goes
      with them, DELETE /folders/{folder}?recursive=1). A section's: Open,
-     Copy link, Open in a new tab. -->
+     Copy link, Open in a new tab.
+     Spec 137 T023 (§4.1, owner t1 bed3ed0a msg 0e9d17b5: "one spool-hub
+     file system"): on the desktop, under the workspace's documents, one
+     Repository row holds the repository's docs (the /docs tree.json) as
+     folders and files in the same tree, the same keys; a file opens in the
+     explorer's right pane (`repo`, WorkspaceRepoDoc), a workspace row opens
+     the Qto document again. The layout passes `repo` (the open repo doc's
+     path, '' = none); without it (the phone's drill list) there is no such
+     row. -->
 <template>
   <nav class="qto-tree" data-test="qto-file-tree" :aria-label="t('ws_doctree.title')">
     <div v-if="!nodesOff" class="qto-tree__top">
@@ -116,12 +124,15 @@ import UiConfirm from '~/components/UiConfirm.vue'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
 import { DocTreeError, useQtoFolder, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
+import { useRepoDocs } from './-repo-docs'
+import { buildDocsTree, docsAncestors, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
 
-const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null }>()
-const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string], newDoc: [], refresh: [] }>()
+const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null, repo?: string }>()
+const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string], newDoc: [], refresh: [], repo: [path: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
-/* row keys: f:<node> for a folder, d:<doc> for a document, i:<doc>:<item> for a section */
+/* row keys: f:<node> for a folder, d:<doc> for a document, i:<doc>:<item> for a section;
+   the Repository branch (T023): r: itself, rd:<path> a repo folder, rf:<path> a repo doc */
 const folderKey = (id: string) => 'f:' + id
 const docKey = (doc: string) => 'd:' + doc
 const itemKey = (doc: string, item: string) => `i:${doc}:${item}`
@@ -288,8 +299,65 @@ watch(() => props.drill, (key) => {
   if (doc && !kids.value[doc]) void load(doc)
 }, { immediate: true })
 
+/* the Repository branch (T023): tree.json read once, the first time it opens */
+const REPO = 'r:'
+const repoDocs = typeof props.repo === 'string' ? useRepoDocs() : null
+const repoTree = ref<DocsDir | null>(null)
+const repoOpen = ref<Set<string>>(new Set())
+let repoLoad: Promise<void> | null = null
+
+function loadRepo() {
+  if (!repoDocs || repoLoad) return repoLoad
+  repoLoad = (async () => {
+    try {
+      const files = await repoDocs.files()
+      if (files === 'off') throw new Error('docs off')
+      repoTree.value = buildDocsTree(files)
+    } catch {
+      repoLoad = null
+      status.value = t('ws_doctree.repo_failed')
+    }
+  })()
+  return repoLoad
+}
+
+function toggleRepo(key: string) {
+  if (key === REPO) {
+    const on = !opened.value.has(REPO)
+    setOpen(REPO, on)
+    if (on) void loadRepo()
+    return
+  }
+  const s = new Set(repoOpen.value)
+  const path = key.slice(3)
+  if (s.has(path)) s.delete(path)
+  else s.add(path)
+  repoOpen.value = s
+}
+
+/* the open repo doc (a fresh load of ?repo= too): its branch opens down to it */
+watch(() => props.repo, (path) => {
+  if (!path) return
+  setOpen(REPO, true)
+  repoOpen.value = new Set([...repoOpen.value, ...docsAncestors(path)])
+  void loadRepo()
+}, { immediate: true })
+
+function repoRows(): FileTreeRow[] {
+  const open = opened.value.has(REPO)
+  const out: FileTreeRow[] = [{ key: REPO, depth: 0, name: t('ws_doctree.repo_root'), icon: 'book-open', kind: 'repo', expandable: true, open }]
+  if (!open || !repoTree.value) return out
+  for (const r of visibleDocsRows(repoTree.value, repoOpen.value)) {
+    out.push(r.kind === 'dir'
+      ? { key: 'rd:' + r.path, depth: r.depth + 1, name: r.name, icon: 'folder', kind: 'repo-dir', expandable: true, open: r.open }
+      : { key: 'rf:' + r.path, depth: r.depth + 1, name: r.name, title: r.title, icon: 'file-text', kind: 'repo-doc', expandable: false, active: r.path === props.repo })
+  }
+  return out
+}
+
 const rows = computed<FileTreeRow[]>(() => {
   if (drilling.value) return drillRows.value
+  const tail = repoDocs ? repoRows() : []
   const out: FileTreeRow[] = []
   const walk = (doc: string, m: Map<string, DocItem[]>, parent: string, depth: number) => {
     for (const it of m.get(parent) || []) {
@@ -317,7 +385,7 @@ const rows = computed<FileTreeRow[]>(() => {
   }
   if (nodesOff.value || !nodesAt.value['']) for (const d of props.docs) pushDoc(d, 0)
   else level('', 0)
-  return out
+  return [...out, ...tail]
 })
 
 /** a phone row: one with rows under it drills, any other opens */
@@ -333,6 +401,7 @@ async function drillSelect(key: string) {
 
 function toggle(key: string) {
   if (drilling.value) return void drillSelect(key)
+  if (key === REPO || key.startsWith('rd:')) return toggleRepo(key)
   const on = !opened.value.has(key)
   setOpen(key, on)
   if (on && key.startsWith('d:') && !kids.value[key.slice(2)]) void load(key.slice(2))
@@ -349,6 +418,12 @@ function pickFolder(key: string) {
 
 function select(key: string) {
   if (drilling.value) return void drillSelect(key)
+  if (key === REPO || key.startsWith('rd:')) return toggleRepo(key)
+  if (key.startsWith('rf:')) {
+    folderPicked.value = false
+    activeItem.value = ''
+    return void emit('repo', key.slice(3))
+  }
   if (key.startsWith('f:')) return pickFolder(key)
   folderPicked.value = false
   if (key.startsWith('d:')) {

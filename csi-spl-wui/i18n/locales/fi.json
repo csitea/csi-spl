@@ -2784,5 +2784,17 @@
     "no_key": "Avainta ei vielä ole.",
     "copy_key": "Kopioi avain",
     "replace_key_confirm": "Uusi avain kumoaa nykyisen: verkkosivuston palvelimen on vaihdettava siihen."
+  },
+  "blog": {
+    "share": "Jaa",
+    "copy_link": "Kopioi linkki",
+    "share_linkedin": "Jaa LinkedInissä",
+    "share_facebook": "Jaa Facebookissa",
+    "share_x": "Jaa X:ssä",
+    "share_whatsapp": "Jaa WhatsAppissa",
+    "share_telegram": "Jaa Telegramissa",
+    "share_reddit": "Jaa Redditissä",
+    "share_substack": "Jaa Substackissa",
+    "share_email": "Jaa sähköpostitse"
   }
 }

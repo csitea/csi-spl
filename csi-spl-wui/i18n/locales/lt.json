@@ -2784,5 +2784,17 @@
     "no_key": "Rakto dar nėra.",
     "copy_key": "Kopijuoti raktą",
     "replace_key_confirm": "Naujas raktas atšaukia dabartinį: svetainės serveris turi pereiti prie jo."
+  },
+  "blog": {
+    "share": "Dalintis",
+    "copy_link": "Kopijuoti nuorodą",
+    "share_linkedin": "Dalintis \"LinkedIn\"",
+    "share_facebook": "Dalintis \"Facebook\"",
+    "share_x": "Dalintis \"X\"",
+    "share_whatsapp": "Dalintis \"WhatsApp\"",
+    "share_telegram": "Dalintis \"Telegram\"",
+    "share_reddit": "Dalintis \"Reddit\"",
+    "share_substack": "Dalintis \"Substack\"",
+    "share_email": "Dalintis el. paštu"
   }
 }

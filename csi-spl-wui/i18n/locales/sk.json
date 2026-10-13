@@ -2784,5 +2784,17 @@
     "no_key": "Zatiaľ bez kľúča.",
     "copy_key": "Kopírovať kľúč",
     "replace_key_confirm": "Nový kľúč zruší súčasný: server webovej stránky musí prejsť naň."
+  },
+  "blog": {
+    "share": "Zdieľať",
+    "copy_link": "Kopírovať odkaz",
+    "share_linkedin": "Zdieľať na LinkedIn",
+    "share_facebook": "Zdieľať na Facebook",
+    "share_x": "Zdieľať na X",
+    "share_whatsapp": "Zdieľať na WhatsApp",
+    "share_telegram": "Zdieľať na Telegram",
+    "share_reddit": "Zdieľať na Reddit",
+    "share_substack": "Zdieľať na Substack",
+    "share_email": "Zdieľať cez e-mail"
   }
 }

@@ -2784,5 +2784,17 @@
     "no_key": "Ingen nyckel än.",
     "copy_key": "Kopiera nyckeln",
     "replace_key_confirm": "En ny nyckel återkallar den nuvarande: webbplatsens server måste byta till den."
+  },
+  "blog": {
+    "share": "Dela",
+    "copy_link": "Kopiera länk",
+    "share_linkedin": "Dela på LinkedIn",
+    "share_facebook": "Dela på Facebook",
+    "share_x": "Dela på X",
+    "share_whatsapp": "Dela på WhatsApp",
+    "share_telegram": "Dela på Telegram",
+    "share_reddit": "Dela på Reddit",
+    "share_substack": "Dela på Substack",
+    "share_email": "Dela via e-post"
   }
 }

@@ -2784,5 +2784,17 @@
     "no_key": "Võtit veel pole.",
     "copy_key": "Kopeeri võti",
     "replace_key_confirm": "Uus võti tühistab praeguse: veebisaidi server peab sellele üle minema."
+  },
+  "blog": {
+    "share": "Jaga",
+    "copy_link": "Kopeeri link",
+    "share_linkedin": "Jaga LinkedInis",
+    "share_facebook": "Jaga Facebookis",
+    "share_x": "Jaga X-is",
+    "share_whatsapp": "Jaga WhatsAppis",
+    "share_telegram": "Jaga Telegramis",
+    "share_reddit": "Jaga Redditis",
+    "share_substack": "Jaga Substackis",
+    "share_email": "Jaga e-posti teel"
   }
 }

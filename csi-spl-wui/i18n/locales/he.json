@@ -2784,5 +2784,17 @@
     "no_key": "אין עדיין מפתח.",
     "copy_key": "העתקת המפתח",
     "replace_key_confirm": "מפתח חדש מבטל את הנוכחי: השרת של האתר חייב לעבור אליו."
+  },
+  "blog": {
+    "share": "שיתוף",
+    "copy_link": "העתק קישור",
+    "share_linkedin": "שיתוף ב-LinkedIn",
+    "share_facebook": "שיתוף ב-Facebook",
+    "share_x": "שיתוף ב-X",
+    "share_whatsapp": "שיתוף ב-WhatsApp",
+    "share_telegram": "שיתוף ב-Telegram",
+    "share_reddit": "שיתוף ב-Reddit",
+    "share_substack": "שיתוף ב-Substack",
+    "share_email": "שיתוף באמצעות דואר אלקטרוני"
   }
 }

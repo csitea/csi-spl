@@ -2784,5 +2784,17 @@
     "no_key": "Још нема кључа.",
     "copy_key": "Копирај кључ",
     "replace_key_confirm": "Нови кључ опозива тренутни: сервер веб-сајта мора да пређе на њега."
+  },
+  "blog": {
+    "share": "Podeli",
+    "copy_link": "Kopiraj link",
+    "share_linkedin": "Podeli na LinkedIn-u",
+    "share_facebook": "Podeli na Facebook-u",
+    "share_x": "Podeli na X-u",
+    "share_whatsapp": "Podeli na WhatsApp-u",
+    "share_telegram": "Podeli na Telegramu",
+    "share_reddit": "Podeli na Reddit-u",
+    "share_substack": "Podeli na Substack-u",
+    "share_email": "Podeli putem e-pošte"
   }
 }

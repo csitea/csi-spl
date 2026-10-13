@@ -2784,5 +2784,17 @@
     "no_key": "No key yet.",
     "copy_key": "Copy the key",
     "replace_key_confirm": "A new key revokes the current one: the website's server must switch to it."
+  },
+  "blog": {
+    "share": "Share",
+    "copy_link": "Copy link",
+    "share_linkedin": "Share on LinkedIn",
+    "share_facebook": "Share on Facebook",
+    "share_x": "Share on X",
+    "share_whatsapp": "Share on WhatsApp",
+    "share_telegram": "Share on Telegram",
+    "share_reddit": "Share on Reddit",
+    "share_substack": "Share on Substack",
+    "share_email": "Share via Email"
   }
 }

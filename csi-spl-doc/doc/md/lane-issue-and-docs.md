@@ -76,7 +76,14 @@ A lane placed later from that discussion carries the key in its brief
 
 The issue is filed by a seated desk of the fleet lease (`LEASE_MASTER`, then
 `LEASE_ORCH`, then `LEASE_FAILOVER` in `<spool root>/dispatch/lease.conf`,
-in its `LEASE_ENV` / `LEASE_TENANT`). The hub takes as assignee only an agent
+in its `LEASE_ENV` / `LEASE_TENANT`), the first of them that the box's desk
+sidecar announces; failing all three, any other agent of that desk it
+announces (SPL-1707). The sidecar leaves out an agent its fresh run report
+(`dispatch/agent-run.tsv`) has said "stop" for an hour, unless a lease mirror
+seats that role on this box or a rotation holds it, and the hub refuses an
+issue call as an unannounced agent (`from_not_announced`). On 2026-10-13 every
+role seat on a satellite box was on a usage-limit screen while the lease was on another box, and
+every spawn there was refused at this step. The hub takes as assignee only an agent
 its roster announces; a lane it does not know is named in the description and
 the placement comment, and the placing desk is the assignee.
 

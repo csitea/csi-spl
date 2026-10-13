@@ -70,9 +70,19 @@ spl_lane_issue_desk() {
   if [[ -z "${DESK_AGENT:-}" ]]; then
     do_spl_desk_cnf >/dev/null || return 1
     box="$SLI_BOX"
-    for a in $(_sli_conf LEASE_MASTER) $(_sli_conf LEASE_ORCH) $(_sli_conf LEASE_FAILOVER); do
-      [[ -d "$SPL_STATE_DIR/desk/$TENANT_ID/$box/spool/$a" ]] && { DESK_AGENT="$a"; break; }
+    local d="$SPL_STATE_DIR/desk/$TENANT_ID/$box/spool" first=""
+    # The lease's seats first, then any other agent of the desk: the first
+    # one the desk sidecar announces (SPL-1707), else the first seated.
+    for a in $(_sli_conf LEASE_MASTER) $(_sli_conf LEASE_ORCH) $(_sli_conf LEASE_FAILOVER) \
+             $(find "$d" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | grep -E '^[A-Za-z]{1,3}-[0-9]{2,5}$' | sort); do
+      [[ -d "$d/$a" ]] || continue
+      first="${first:-$a}"
+      spl_lane_issue_announced "$1" "$box" "$a" && { DESK_AGENT="$a"; break; }
     done
+    if [[ -z "${DESK_AGENT:-}" ]]; then DESK_AGENT="$first"
+    elif [[ "$DESK_AGENT" != "$first" ]]; then
+      do_log "WARN the $box desk does not announce $first (the run report says it does not run, no lease mirror seats it on $box): filing as $DESK_AGENT" >&2
+    fi
   fi
   if [[ -z "${DESK_AGENT:-}" ]]; then
     (( $2 )) && { DESK_AGENT="<a seated desk>"; return 0; }
@@ -80,6 +90,27 @@ spl_lane_issue_desk() {
     return 1
   fi
   export DESK_AGENT
+}
+
+# spl_lane_issue_announced FLEET_ROOT BOX ID: the desk sidecar on BOX announces
+# ID, by its own rule (hubclient agent_run.go + agent_drop.go). With a fresh
+# run report (FLEET_ROOT/dispatch/agent-run.tsv, at most 5 min old): an id it
+# says runs, one a rotation holds, or a role seat (001-003) a lease mirror
+# names on BOX; an older or no report drops nothing. A hub cli session acts
+# only as an agent its box announced: on 2026-10-13 a satellite box's role seats were on a
+# usage-limit screen, the lease moved to another box, that desk left c-002 out, and
+# every spawn there was refused from_not_announced at this step.
+spl_lane_issue_announced() {
+  local fleet="$1" box="$2" id="$3" rep="$1/dispatch/agent-run.tsv" st f
+  [[ -f "$rep" ]] || return 0
+  (( $(date +%s) - $(stat -c %Y "$rep" 2>/dev/null || echo 0) <= 300 )) || return 0
+  st="$(awk -F'\t' -v id="$id" '$1 == id { v = $2 "\t" $3 } END { print v }' "$rep")"
+  [[ "$st" == run || "$st" == run$'\t'* || "$st" == $'stop\theld:'* ]] && return 0
+  [[ "$id" =~ ^[A-Za-z]{1,3}-00[1-3]$ ]] || return 1
+  for f in lease lease.orch; do
+    [[ "$(awk 'NR == 1 { print $1 }' "$fleet/dispatch/$f" 2>/dev/null)" == "$id@$box" ]] && return 0
+  done
+  return 1
 }
 
 # spl_lane_issue_hub OP ARGS: the hub call, or the plan line in a dry run.

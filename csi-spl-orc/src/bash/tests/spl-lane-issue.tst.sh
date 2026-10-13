@@ -29,6 +29,7 @@ cp "$T/brief.md" "$S/c-123/lifetime/brief.md"
 STUBS='do_spl_desk_cnf() { SPL_WUI_URL=https://wui.invalid; return 0; }
 spl_desk_issue_run() {
   local a; for a in "$@"; do printf "%s|" "$a"; done >>"$STUB_LOG"; echo >>"$STUB_LOG"
+  echo "$DESK_AGENT" >>"$STUB_LOG.as"
   if [[ "$1" =~ ^(create|update)$ && -n "${DESC_COPY:-}" ]]; then
     local i; for ((i = 1; i <= $#; i++)); do [[ "${!i}" == --description-file ]] && { i=$((i + 1)); cp "${!i}" "$DESC_COPY.$1"; }; done
   fi
@@ -39,7 +40,7 @@ spl_desk_issue_run() {
 do_spl_desk_reply() { printf "post|%s|%s|%s|\n" "$DESK_TASK" "$DRY_RUN" "$DESK_BODY" >>"$STUB_LOG"; }
 '
 run() {  # VAR=value... -> output in $T/o, rc in $rc
-  : >"$T/calls.log"
+  : >"$T/calls.log"; : >"$T/calls.log.as"
   SNIPPET="${STUBS}do_spl_lane_issue" in_orc SPOOL_ROOT="$S" SPOOL_DESK_BOX=box-a TENANT_ID= "$@" >"$T/o" 2>&1; rc=$?
 }
 
@@ -86,6 +87,35 @@ run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
 run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 ROSTER=0 DRY_RUN=0
 [[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-7|--status|wip|--assignee|c-002@box-a|' "$T/calls.log" && grep -q 'does not announce c-123' "$T/o" &&
   pass "bad_assignee: retried with the placing desk c-002@box-a, said why" || fail "roster fallback (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+
+# SPL-1707: the desk files as an agent its sidecar announces. 2026-10-13 on a satellite box:
+# c-002 on a usage-limit screen (run report "stop"), the lease on box-b, so the
+# sidecar left c-002 out and the hub refused it (from_not_announced).
+mkdir -p "$T/state/dev/desk/t1/box-a/spool/c-946"
+printf '# agent-run v1 1\nc-002\tstop\twd S2: HIT 10s ago\nc-946\trun\n' >"$S/dispatch/agent-run.tsv"
+echo "c-002@box-b 1" >"$S/dispatch/lease"
+run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
+[[ $rc -eq 0 && "$(sort -u "$T/calls.log.as")" == c-946 ]] && grep -q 'does not announce c-002' "$T/o" &&
+  pass "c-002 stopped, the lease on box-b: files as c-946, which the desk announces, said why" || fail "announced pick (rc=$rc): $(cat "$T/calls.log.as") / $(cat "$T/o")"
+echo "c-002@box-a 1" >"$S/dispatch/lease"
+run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
+[[ $rc -eq 0 && "$(sort -u "$T/calls.log.as")" == c-002 ]] && ! grep -q 'does not announce' "$T/o" &&
+  pass "control: the lease mirror seats c-002 on box-a: files as c-002" || fail "lease control (rc=$rc): $(cat "$T/calls.log.as")"
+echo "c-002@box-b 1" >"$S/dispatch/lease"
+printf '# agent-run v1 1\nc-002\tstop\theld: rotation since 5s\nc-946\trun\n' >"$S/dispatch/agent-run.tsv"
+run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
+[[ $rc -eq 0 && "$(sort -u "$T/calls.log.as")" == c-002 ]] &&
+  pass "control: a rotation holds c-002: files as c-002" || fail "held control (rc=$rc): $(cat "$T/calls.log.as")"
+printf '# agent-run v1 1\nc-002\tstop\twd S2: HIT 10s ago\nc-946\trun\n' >"$S/dispatch/agent-run.tsv"
+touch -d '-10 minutes' "$S/dispatch/agent-run.tsv"
+run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
+[[ $rc -eq 0 && "$(sort -u "$T/calls.log.as")" == c-002 ]] &&
+  pass "control: a stale run report drops nothing: files as c-002" || fail "stale control (rc=$rc): $(cat "$T/calls.log.as")"
+printf '# agent-run v1 1\nc-002\tstop\twd S2: HIT 10s ago\n' >"$S/dispatch/agent-run.tsv"
+run AGENT_ID=c-123 BRIEF="$T/brief.md" LANE_ISSUE_KEY=SPL-7 DRY_RUN=0
+[[ $rc -eq 0 && "$(sort -u "$T/calls.log.as")" == c-002 ]] &&
+  pass "nobody announced: the first seated (c-002), as before" || fail "fallback (rc=$rc): $(cat "$T/calls.log.as")"
+rm -rf "$S/dispatch/agent-run.tsv" "$S/dispatch/lease" "$T/state/dev/desk/t1/box-a/spool/c-946"
 
 # No seated desk of the lease: refused, nothing called.
 run AGENT_ID=c-123 BRIEF="$T/brief.md" SPOOL_DESK_BOX=box-z DRY_RUN=0

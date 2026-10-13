@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
-import { isoDate, isoDateTime, parseIsoDate } from "../../src/utils/date-iso.mjs"
+import { isoDate, isoDateTime, isoDateTimeSec, parseIsoDate } from "../../src/utils/date-iso.mjs"
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "../../src")
 const BANNED = /toLocale(?:Date|Time)?String|Intl\.DateTimeFormat/
@@ -26,6 +26,16 @@ describe("iso dates", () => {
     assert.equal(isoDateTime(stamp), "2026-09-26 15:04")
     assert.equal(isoDate("not a date"), "")
     assert.equal(isoDateTime(""), "")
+  })
+  /* SPL-1666 (owner t1 62e48cef): issue History prints when each event
+     happened as YYYY-MM-DD HH:MM:SS; isoDateTime keeps its minute */
+  it("prints seconds, every field padded, midnight as 00:00:00", () => {
+    assert.equal(isoDateTimeSec(new Date(2026, 0, 5, 7, 8, 9)), "2026-01-05 07:08:09")
+    assert.equal(isoDateTimeSec(new Date(2026, 11, 31, 0, 0, 0)), "2026-12-31 00:00:00")
+    assert.equal(isoDateTimeSec(new Date(2026, 8, 26, 23, 59, 59)), "2026-09-26 23:59:59")
+    assert.equal(isoDateTime(new Date(2026, 0, 5, 7, 8, 9)), "2026-01-05 07:08")
+    assert.equal(isoDateTimeSec("not a date"), "")
+    assert.equal(isoDateTimeSec(""), "")
   })
   it("accepts only a real calendar day", () => {
     assert.equal(parseIsoDate("2026-09-26"), "2026-09-26")

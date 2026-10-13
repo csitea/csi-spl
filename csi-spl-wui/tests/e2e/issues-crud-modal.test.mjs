@@ -8,6 +8,8 @@
 //   U  update every cell in place (title, status, prio, assignee, labels,
 //      deadline) and by keyboard (arrows, Enter, Esc)
 //   H  the History tab (rdb 0181): created and each edit, who and when
+//      (YYYY-MM-DD HH:MM:SS and relative, SPL-1666); on phones (PHONES,
+//      390x844 and 360x740) the absolute time only where it fits
 //   D  delete with the one confirm; a parent with a live subtask asks the
 //      cascade confirm, its count in the button (HUM-10, t1 40c135cb)
 // Each operation carries a control: the same gesture cancelled changes nothing.
@@ -25,6 +27,25 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOTS = process.env.ISSUES_SHOTS || mkdtempSync(join(tmpdir(), 'spool-issues-crud-'))
 const WIDTHS = (process.env.WIDTHS || '1440,1024').split(',').map(Number)
+const PHONES = (process.env.PHONES || '390x844,360x740').split(',').map((v) => v.split('x').map(Number))
+const ISO_SEC = /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/
+
+/* SPL-1666: each History row's time - the absolute part shown or not, the
+   relative part, the hover title, and whether the absolute part moves the
+   time onto a new line (measured by hiding it) */
+const historyTimes = (p) => p.evaluate(() => [...document.querySelectorAll('[data-test=issues-history-at]')].map((at) => {
+  const abs = at.querySelector('[data-test=issues-history-abs]')
+  const shown = Boolean(abs) && getComputedStyle(abs).display !== 'none'
+  const top = at.offsetTop
+  const fit = at.dataset.fit
+  at.dataset.fit = 'rel'
+  const topRel = at.offsetTop
+  if (fit) at.dataset.fit = fit; else delete at.dataset.fit
+  return {
+    shown, abs: abs?.textContent.trim() || '', ago: at.querySelector('[data-test=issues-history-ago]')?.textContent.trim() || '',
+    title: at.getAttribute('title') || '', wraps: shown && top !== topRel,
+  }
+}))
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -319,6 +340,9 @@ try {
     ok(`H1 ${W}: the History tab lists created, then the title and description edits, each with who and when (exact on hover); no comment box there, Discussion has one (control)`,
       hCtl && !hInput && h1.tab === 'history' && hSeq === 'created changed:title changed:description' &&
         h1.rows[1].values === 'Beta row → Beta via modal' && h1.rows.every((r) => r.actor && r.when && r.exact), { hCtl, hInput, hSeq, h1 })
+    const h2 = await historyTimes(p)
+    ok(`H2 ${W}: every History row shows when as YYYY-MM-DD HH:MM:SS next to the relative time, the hover title with seconds`,
+      h2.length > 0 && h2.every((r) => r.shown && new RegExp(`^${ISO_SEC.source}$`).test(r.abs) && r.ago && ISO_SEC.test(r.title)), h2)
     await p.screenshot({ path: `${SHOTS}/history-${W}.png` })
     await p.click('[data-test=issues-talk-tab][data-value="discussion"]')
     await p.waitForSelector('[data-test=issues-comment-input]', { visible: true, timeout: 5000 }).catch(() => {})
@@ -440,6 +464,34 @@ try {
     ok(`X1 ${W}: no horizontal page scroll`, wide.sw <= wide.cw + 1, wide)
     const mine = errors.filter((e) => !/Failed to fetch dynamically imported module|ResizeObserver loop/.test(e))
     ok(`X2 ${W}: no page errors`, mine.length === 0, mine)
+    await p.close()
+  }
+
+  /* SPL-1666 phones: the absolute time shows where it fits on the row's line,
+     never pushes the time onto a new line; where it does not, the relative
+     time stays, and the title and a tap give the full time */
+  for (const [W, H] of PHONES) {
+    console.log(`-- phone ${W}x${H}`)
+    const p = await browser.newPage()
+    await p.setViewport({ width: W, height: H, isMobile: true, hasTouch: true })
+    await p.goto(server.base + '/issues?issue=SPL-1', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: NAV_TIMEOUT })
+    await p.$eval('[data-test=issues-talk-tab][data-value="history"]', (el) => el.click())
+    await p.waitForSelector('[data-test=issues-history-row]', { visible: true, timeout: 5000 }).catch(() => {})
+    await sleep(300)
+    const ph = await historyTimes(p)
+    ok(`H3 ${W}x${H}: each History row shows YYYY-MM-DD HH:MM:SS only where it keeps the time on its line, else the relative time; the title has the seconds`,
+      ph.length > 0 && ph.every((r) => r.ago && ISO_SEC.test(r.title) && !r.wraps && (!r.shown || new RegExp(`^${ISO_SEC.source}$`).test(r.abs))), ph)
+    const hidden = await p.$('[data-test=issues-history-at][data-fit="rel"]')
+    if (hidden) {
+      await hidden.tap()
+      const tapped = await hidden.evaluate((at) => getComputedStyle(at.querySelector('[data-test=issues-history-abs]')).display !== 'none')
+      ok(`H4 ${W}x${H}: a tap on a relative-only time shows the full time`, tapped, { tapped })
+      await hidden.tap()
+    }
+    await p.screenshot({ path: `${SHOTS}/history-phone-${W}.png` })
+    const wide = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))
+    ok(`X1 ${W}x${H}: no horizontal page scroll`, wide.sw <= wide.cw + 1, wide)
     await p.close()
   }
 } finally {

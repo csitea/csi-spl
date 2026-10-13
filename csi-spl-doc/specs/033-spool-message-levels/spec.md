@@ -1,6 +1,6 @@
 # Feature Specification: Message Levels — the Opening Card and the Thread Line
 
-**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (the prd live proof in CI waits for its member in cnf, `tasks.md` T015)
+**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (the live proof in CI skips until the secrets `SPL_PROBE_PW_<ENV>` are set, `tasks.md` T015)
 **Created**: 2026-09-25 · **Lane**: MESSAGE-LEVELS (hub + DB + browser)
 **Authority**: this file for the rule; `tasks.md` for what is built and where.
 

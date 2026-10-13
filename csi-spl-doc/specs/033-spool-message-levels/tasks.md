@@ -212,9 +212,9 @@ do_spl_wui_live_proof` (`csi-spl-orc/src/bash/run/spl-wui-live-proof.func.sh`)
 runs `parent-level-live.proof.mjs` with `SURFACES=channel,lobby,home,t` (dm
 needs an agent peer) against `https://<cnf env.dns.fqdn>`.
 
-- The member is cnf `env.wui.live_proof_email` / `live_proof_tenant`: dev the
-  t1 probe seat (`do_spl_probe_member_seat`), prd empty until the owner names
-  the member.
+- The member is cnf `env.wui.live_proof_email` / `live_proof_tenant`: the
+  owner's test member `sys@csitea.net` (role tester) in t1, on dev and prd
+  (SPL-1591).
 - The password is ONLY the GitHub secret `SPL_PROBE_PW_DEV` /
   `SPL_PROBE_PW_PRD`, passed through env, written to a 0600 temp file for
   `PW_FILE`, removed after; the proof runs without it in its env.

@@ -19,7 +19,7 @@ import * as Vue from 'vue'
 import { compile } from '@vue/compiler-dom'
 import { renderToString } from 'vue/server-renderer'
 import { archiveStamp } from '../../src/utils/topic-archive.mjs'
-import { mergeTopicPage } from '../../src/utils/topic-list.mjs'
+import { mergeTopicPage, rowTitle } from '../../src/utils/view-api.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
@@ -148,7 +148,7 @@ describe('the DM view header marks an archived open topic', () => {
   const FeedHeader = {
     props: ['title', 'titleTip', 'status', 'statusText', 'statusShown', 'archivedAt', 'topicTitle'],
     setup(props) {
-      const tpl = component(headerTpl, new Proxy({ t: (k) => k }, { get: (o, k) => (k in o ? o[k] : props[k]), has: () => true }))
+      const tpl = component(headerTpl, new Proxy({ t: (k) => k, rowTitle }, { get: (o, k) => (k in o ? o[k] : props[k]), has: () => true }))
       return () => tpl.render(null, [])
     },
   }

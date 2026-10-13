@@ -1,0 +1,6 @@
+Lay-What: Labels on an issue can now be taken off again, not only added.
+Lay-How: Each label shows as a small tag with a cross, and the label list ticks the ones already set; clicking a ticked one or the cross removes it.
+Lay-Why: Nothing showed which labels were set, so choosing one again seemed to do nothing and a wrong label could not be removed.
+Tech-What: The issue modal's Labels field renders chips with an x; the label picker marks set labels data-checked; Backspace in the empty name box drops the last label.
+Tech-How: issues.vue toggles the label array and PATCHes the issue (the hub already replaced labels on PATCH); new key issues.remove_label in 19 locales; e2e in issues-crud-modal and issues-mobile.
+Tech-Why: The field was a comma list and the picker highlight was only the keyboard cursor, so a pick on a set label looked like a no-op.

@@ -169,7 +169,9 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
         c["nobody"] += 1
         nobody.append(dict(tenant=tenant, task=task, msg=msg, ts=ts, who=who))
         continue
-    if chan in skip_ch:
+    # SPL-1684: the channel's AI agents switch is off and the post names no
+    # agent (cstate ai_off): no agent is meant to answer it.
+    if chan in skip_ch or cstate == "ai_off":
         c["channel"] += 1
         continue
     if who in skip_hum:

@@ -31,7 +31,10 @@
 # @description              null-channel post to ALL-0 after an agent post
 # @description              is open (cstate thread)
 # @description   channel  - a channel in SWEEP_SKIP_CHANNELS (#issues, #tasks,
-# @description              #probe: the live proof's hidden test channel)
+# @description              #probe: the live proof's hidden test channel), or
+# @description              a channel whose AI agents switch is off (SPL-1684,
+# @description              rdb 0189: cstate ai_off) when the post names no
+# @description              agent (to ALL-0); an @agent dispatch stays open
 # @description   fresh    - younger than SWEEP_MIN_AGE (the live path has it)
 # @description   ack      - a pure acknowledgement ("ok", "thanks", emoji
 # @description              only): LISTED in its own table, never delivered
@@ -401,7 +404,8 @@ SQL
 # window is one row with its two keys only (it leaves the set). The archived
 # card is a probe per moved row, not the full read's hashed set of every
 # archived line. Not seen until the next full read (SWEEP_FULL_EVERY): a
-# channel un-archived, a workspace renamed.
+# channel un-archived, a workspace renamed, a workspace's AI agents default
+# changed (a channel's own switch is read: ai_agents_at).
 _spl_sweep_delta_sql() {
   cat <<'SQL'
 WITH mv AS MATERIALIZED (
@@ -412,6 +416,7 @@ WITH mv AS MATERIALIZED (
   SELECT p.tenant_id, p.task_id FROM channels c
     JOIN topic_head_parts p ON p.tenant_id = c.tenant_id AND p.channel = c.channel_id
    WHERE c.archived_at > to_timestamp(:since) OR c.deleted_at > to_timestamp(:since)
+      OR c.ai_agents_at > to_timestamp(:since)
   UNION
   SELECT e.tenant_id, e.task_id FROM message_revisions r
     JOIN messages e ON e.tenant_id = r.tenant_id AND e.msg_id = r.msg_id
@@ -451,6 +456,8 @@ SQL
   cat <<'SQL'
        CASE WHEN l.channel IS NOT NULL AND c.deleted_at IS NOT NULL THEN 'deleted'
             WHEN l.channel IS NOT NULL AND c.archived_at IS NOT NULL THEN 'archived'
+            WHEN l.channel IS NOT NULL AND coalesce(l.to_id, 'ALL-0') = 'ALL-0'
+                 AND NOT coalesce(c.ai_agents, (t.settings->>'channel_ai_agents')::boolean, true) THEN 'ai_off'
             WHEN l.channel IS NOT NULL THEN 'live'
             WHEN l.typed_by IS NULL AND l.from_id NOT LIKE 'HUM-%' AND l.from_id NOT LIKE 'GST-%' THEN 'thread'
             WHEN EXISTS (SELECT 1 FROM messages g

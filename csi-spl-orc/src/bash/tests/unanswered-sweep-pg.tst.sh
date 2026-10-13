@@ -14,6 +14,9 @@
 #   4b. a null channel after an agent post is thread; one with no agent stays dm
 #   2b. a terminal-typed line (typed_by) is 'terminal', not a human post
 #   5. CONTROL: the classifier lists exactly the open topic of each workspace
+#   8. SPL-1684 (rdb 0189): a channel whose AI agents switch is off (the
+#      workspace default, or its own) is cstate ai_off and not listed; an
+#      @agent dispatch in it and a channel switched on stay open
 #   7. M3: columns 14/15 are the OLDEST human post after the last agent reply
 #      (a burst after a reply: its first post; no reply: the topic's first;
 #      agent last: empty), and the classifier ages the burst from it
@@ -144,6 +147,41 @@ nb="$(sed -n '/^### Reached nobody/,/^###/p' "$T/o")"
 grep -q '^| t1 | 00000000-0000-4000-8000-000000000009 | 10000000-0000-4000-8000-00000000000d | .* | HUM-3 |$' <<<"$nb" &&
   ! grep -q 'two humans, no agent' "$T/o" &&
   pass "6. the writer-only row (topic 9) is in the reached-nobody table, ids and seat only" || fail "6. reached nobody: $(cat "$T/o")"
+
+# --- 8. SPL-1684: the AI agents switch -------------------------------------------
+psql_owner <<'PSQL' >/dev/null || fail "8. seed the off workspace"
+INSERT INTO tenants (tenant_id, root_pubkey, settings) VALUES ('mtx', decode(repeat('ad', 32), 'hex'), '{"channel_ai_agents": false}');
+INSERT INTO channels (tenant_id, channel_id, name, created_by, ai_agents) VALUES ('mtx', 'rides', 'rides', 'HUM-5', NULL), ('mtx', 'ops', 'ops', 'HUM-5', true);
+PSQL
+# m8 <task n> <msg n> <channel> <to>: a human post in mtx, 100 minutes old
+m8() {
+  psql_owner -c "INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts, from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, received_at, expires_at)
+    VALUES ('mtx', '30000000-0000-4000-8000-00000000000$2', '20000000-0000-4000-8000-00000000000$1', '$3', now(), 'box-wui', 'HUM-5', 'box-desk', '$4',
+            'note', 'car $1 is late', '{}'::jsonb, 'sig', '\\x00', now() - interval '100 minutes', now() + interval '30 days')" >/dev/null || fail "8. seed task $1"
+}
+m8 1 1 rides ALL-0   # the workspace default: off
+m8 2 2 ops ALL-0     # the channel's own switch: on
+m8 3 3 rides c-007   # an @agent dispatch in the off channel
+env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" OUT="$T/rows8" bash -c '
+  set -uo pipefail
+  do_log() { echo "$*"; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
+  _spl_sweep_rows_read "$OUT"' >"$T/o8" 2>&1 || fail "8. read: $(cat "$T/o8")"
+c8() { awk -F'\t' -v t="20000000-0000-4000-8000-00000000000$1" '$4 == t { print $11 }' "$T/rows8"; }
+[[ "$(c8 1) $(c8 2) $(c8 3) $(col 1 11)" == "ai_off live live live" ]] &&
+  pass "8. off by the workspace default -> ai_off; own switch on, an @agent dispatch, another workspace -> live" ||
+  fail "8. cstate: $(c8 1) $(c8 2) $(c8 3) t1 $(col 1 11)"
+env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/rows8" SWEEP_TO=CLE-002 HOME="$T/home" bash -c '
+  set -uo pipefail
+  do_log() { echo "$*"; }
+  source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
+  do_spl_unanswered_sweep' >"$T/o9" 2>&1
+! grep -q '^| open | mtx | #rides | 20000000-0000-4000-8000-000000000001 |' "$T/o9" &&
+  grep -q '^| open | mtx | #ops | 20000000-0000-4000-8000-000000000002 |' "$T/o9" &&
+  grep -q '^| open | mtx | #rides | 20000000-0000-4000-8000-000000000003 |' "$T/o9" &&
+  pass "8. the off channel's post is not listed; CONTROL: the on channel and the dispatch are" || fail "8. classify: $(cat "$T/o9")"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

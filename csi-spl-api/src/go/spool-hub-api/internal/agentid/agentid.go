@@ -110,6 +110,30 @@ func Kind(s string) string {
 	return ""
 }
 
+// roleSeatNumbers are the role seats (spec 058 section 3.0): 001 the
+// orchestrator, 002 / 003 the master and failover dispatchers. The bash twin
+// is SPL_ROLE_SEAT_RX in csi-spl-orc's spool-env.inc.sh.
+var roleSeatNumbers = map[string]bool{"001": true, "002": true, "003": true}
+
+// IsRoleSeat reports whether s ("@<box>" allowed) is a role seat: 001-003 in
+// ANY vendor letter (SPL-1685: the seat's id follows the vendor that runs it,
+// c-001 run by Grok is g-001), or its legacy form (CLE-001).
+func IsRoleSeat(s string) bool {
+	id, _ := SplitAtBox(s)
+	return IsAgent(id) && roleSeatNumbers[Number(id)]
+}
+
+// RoleSeatID is the id kind runs role seat n (1-3) as: ("grok", 1) -> g-001;
+// "" for an unknown kind or a number that is no seat.
+func RoleSeatID(kind string, n int) string {
+	for l, k := range kinds {
+		if k == kind && n >= 1 && n <= 3 {
+			return fmt.Sprintf("%c-%03d", l, n)
+		}
+	}
+	return ""
+}
+
 // Normalize is the one edge normalisation (spec 061 section 2): a new-form
 // id in any case becomes lower case (C-004 -> c-004), a box suffix is kept.
 // Everything else comes back unchanged.

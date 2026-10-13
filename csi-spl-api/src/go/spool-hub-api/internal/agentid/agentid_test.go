@@ -195,3 +195,44 @@ func TestIsResponder(t *testing.T) {
 		}
 	}
 }
+
+// SPL-1685: a role seat is 001-003 in every vendor letter, with or without a
+// box, and its legacy form; the id a vendor runs a seat as round-trips Kind.
+func TestRoleSeat(t *testing.T) {
+	for _, l := range []string{"a", "c", "g", "m", "q"} {
+		for _, n := range []string{"001", "002", "003"} {
+			for _, id := range []string{l + "-" + n, l + "-" + n + "@box-a"} {
+				if !IsRoleSeat(id) {
+					t.Errorf("IsRoleSeat(%q) = false, want true", id)
+				}
+			}
+		}
+	}
+	for _, id := range []string{"CLE-001", "GRK-002@box-a"} {
+		if !IsRoleSeat(id) {
+			t.Errorf("IsRoleSeat(%q) (legacy) = false, want true", id)
+		}
+	}
+	for _, id := range []string{"c-000", "c-004", "g-422", "x-001", "HUM-001", "CLE-0011", "", "c-01"} {
+		if IsRoleSeat(id) {
+			t.Errorf("IsRoleSeat(%q) = true, want false", id)
+		}
+	}
+	for kind, want := range map[string]string{"claude": "c-001", "grok": "g-001", "agy": "a-001", "mistral": "m-001", "qwen": "q-001"} {
+		got := RoleSeatID(kind, 1)
+		if got != want || Kind(got) != kind {
+			t.Errorf("RoleSeatID(%q, 1) = %q (kind %q), want %q", kind, got, Kind(got), want)
+		}
+	}
+	if got := RoleSeatID("grok", 3); got != "g-003" {
+		t.Errorf("RoleSeatID(grok, 3) = %q, want g-003", got)
+	}
+	for _, c := range []struct {
+		kind string
+		n    int
+	}{{"grok", 0}, {"grok", 4}, {"x", 1}} {
+		if got := RoleSeatID(c.kind, c.n); got != "" {
+			t.Errorf("RoleSeatID(%q, %d) = %q, want empty", c.kind, c.n, got)
+		}
+	}
+}

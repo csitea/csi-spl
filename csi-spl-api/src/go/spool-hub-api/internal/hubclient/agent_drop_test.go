@@ -76,3 +76,21 @@ func TestParseDropAfter(t *testing.T) {
 		t.Fatal("a bad value must refuse")
 	}
 }
+
+// SPL-1685: a role seat run by another vendor (g-003, the dispatcher as
+// Grok) is kept like c-003 while the lease mirror seats it here; a Grok
+// lane (g-045) is dropped like any lane.
+func TestDropDeadRoleIDsAnyVendor(t *testing.T) {
+	agents := []string{"g-001", "g-003", "g-045"}
+	run := map[string]bool{"g-001": false, "g-003": false, "g-045": false}
+	c, now := dropClient(t, map[string]string{
+		"dispatch/lease":      "g-003@box-a 1791472541\n",
+		"dispatch/lease.orch": "g-001@box-b 1791472539\n",
+		AgentRunFile:          "# agent-run v1\n",
+	})
+	c.dropDead(agents, run)
+	*now = now.Add(time.Hour + time.Second)
+	if got, want := c.dropDead(agents, run), []string{"g-003"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("past 1h = %v, want %v", got, want)
+	}
+}

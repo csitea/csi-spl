@@ -20,8 +20,8 @@ import (
 // that says it runs again - or a line it sends - puts it back on the next
 // announce (the 10 s scan tick).
 //
-// The role ids 001..003 exist on every box. One of them is kept while the
-// box's own lease mirror (dispatch/lease, dispatch/lease.orch:
+// The role ids 001..003 (any vendor letter, agentid.IsRoleSeat) exist on
+// every box. One of them is kept while the box's own lease mirror (dispatch/lease, dispatch/lease.orch:
 // "<id>@<box> <epoch>") names it on this box, or while the report holds it
 // for a rotation ("stop" + "held: ..."): the role is seated here and a fresh
 // session is on its way.
@@ -34,9 +34,6 @@ const AgentRunHeldWhy = "held:"
 
 // AgentLeaseFiles are the lease mirrors under the fleet root.
 var AgentLeaseFiles = []string{"dispatch/lease", "dispatch/lease.orch"}
-
-// roleNumbers are the role seats every box carries (spec 058: 001-003).
-var roleNumbers = map[string]bool{"001": true, "002": true, "003": true}
 
 // rosterAgents is what this box announces: the scanned roster minus the
 // agents dropped as dead, and the run report for those it keeps.
@@ -99,7 +96,7 @@ func (c *Client) dropDead(agents []string, run map[string]bool) []string {
 			out = append(out, id)
 			continue
 		}
-		if roleNumbers[agentid.Number(id)] {
+		if agentid.IsRoleSeat(id) {
 			if seated == nil {
 				seated = c.roleSeated()
 			}

@@ -7,7 +7,9 @@
      "Add to #lobby" (POST /v1/channels/lobby/agents), so the agent hears the
      tenant's lobby without a detour through the channel's properties.
      Spec 073 4.6 (108 T010): join tokens and Revoke seat, only with
-     agents.join, loaded on demand (JoinTokensPanel). -->
+     agents.join, loaded on demand (JoinTokensPanel).
+     SPL-1018 (spec 044 FR-OS-017): who may message each agent (AgentSenders,
+     loaded on demand). -->
 <template>
   <SettingsSection id="tenant-agents" :title="t('tenant_settings.agents_title')" data-test="tenant-settings-agents">
     <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
@@ -36,6 +38,9 @@
       <JoinTokensPanel v-if="mayJoin" :seats="seats" @revoked="dropBox" />
     </template>
   </SettingsSection>
+
+  <!-- SPL-1018: who may DM or @mention each agent, on demand -->
+  <AgentSenders v-if="!loading && !loadError && seats.length" :seats="seats" />
 
   <SettingsSection id="tenant-responders" :title="t('tenant_settings.responders_title')" data-test="tenant-settings-responders">
     <p class="muted ts-hint">{{ t('tenant_settings.responders_hint') }}</p>
@@ -114,6 +119,7 @@ import { useAccessStore } from '~/stores/access'
 import { canJoinAgents } from '~/utils/join-tokens.mjs'
 
 const JoinTokensPanel = defineAsyncComponent(() => import('~/components/JoinTokensPanel.vue'))
+const AgentSenders = defineAsyncComponent(() => import('~/components/AgentSenders.vue'))
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()

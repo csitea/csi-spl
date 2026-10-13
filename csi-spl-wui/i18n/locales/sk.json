@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Odpovedať",
     "phone_placeholder_search": "Hľadať",
     "send_failed_agent_inactive": "Neodoslané — tento agent už nie je aktívny. Označte aktívneho agenta; váš text je stále tu.",
+    "send_failed_not_allowed": "Neodoslané — {agent} od vás neprijíma správy. Váš text je stále tu.",
     "sent_to_topic_retired": "Odoslané do témy: {retired} už nie je aktívny.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "Dvaja dodávatelia zdieľajú prvé miesto",
     "split_rule_backup": "Záložný sa musí líšiť od hlavného",
     "split_rule_agy": "Antigravity nepíše kód",
-    "split_rule_secret": "Iba Claude, Grok alebo Mistral"
+    "split_rule_secret": "Iba Claude, Grok alebo Mistral",
+    "senders": {
+      "title": "Kto môže písať každému agentovi",
+      "hint": "Priame správy a zmienky agenta prichádzajú iba od členov, ktorých vyberiete. Agent bez zoznamu prijíma správy od každého člena. Príspevky v kanáli, ktoré ho nezmieňujú, nie sú ovplyvnené.",
+      "everyone": "Každý člen",
+      "nobody": "Nikto",
+      "some": "Povolení členovia: {n}",
+      "edit": "Upraviť",
+      "mode_all": "Každý člen pracovného priestoru",
+      "mode_list": "Iba členovia označení nižšie",
+      "none_ticked": "Nie je označený žiadny člen: tomuto agentovi nemôže nikto písať.",
+      "cancel": "Zrušiť"
+    }
   },
   "help": {
     "title": "Pomoc",

@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Svara",
     "phone_placeholder_search": "Sök",
     "send_failed_agent_inactive": "Inte skickat — den agenten är inte längre aktiv. Tagga en aktiv agent; din text finns kvar.",
+    "send_failed_not_allowed": "Inte skickat — {agent} tar inte emot meddelanden från dig. Din text finns kvar.",
     "sent_to_topic_retired": "Skickat till ämnet: {retired} är inte längre aktiv.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "Två leverantörer hamnar på delad förstaplats",
     "split_rule_backup": "Reserven måste skilja sig från den huvudsakliga",
     "split_rule_agy": "Antigravity skriver ingen kod",
-    "split_rule_secret": "Endast Claude, Grok eller Mistral"
+    "split_rule_secret": "Endast Claude, Grok eller Mistral",
+    "senders": {
+      "title": "Vem som får skriva till varje agent",
+      "hint": "Direktmeddelanden och omnämnanden av en agent kommer bara från de medlemmar du väljer. En agent utan lista tar emot meddelanden från alla medlemmar. Kanalinlägg som inte nämner den påverkas inte.",
+      "everyone": "Alla medlemmar",
+      "nobody": "Ingen",
+      "some": "Tillåtna medlemmar: {n}",
+      "edit": "Redigera",
+      "mode_all": "Alla medlemmar i arbetsytan",
+      "mode_list": "Bara medlemmarna som är markerade nedan",
+      "none_ticked": "Ingen medlem markerad: ingen får skriva till den här agenten.",
+      "cancel": "Avbryt"
+    }
   },
   "help": {
     "title": "Hjälp",

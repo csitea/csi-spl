@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Reply",
     "phone_placeholder_search": "Search",
     "send_failed_agent_inactive": "Not sent — that agent is no longer active. Tag an active agent; your text is still here.",
+    "send_failed_not_allowed": "Not sent — {agent} does not take messages from you. Your text is still here.",
     "sent_to_topic_retired": "Sent to the topic: {retired} is retired.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "Two vendors tie for main",
     "split_rule_backup": "The backup must differ from the main",
     "split_rule_agy": "Antigravity writes no code",
-    "split_rule_secret": "Only Claude, Grok or Mistral"
+    "split_rule_secret": "Only Claude, Grok or Mistral",
+    "senders": {
+      "title": "Who may message each agent",
+      "hint": "Direct messages and mentions of an agent come only from the members you pick. An agent with no list takes messages from every member. Channel posts that do not mention it are not affected.",
+      "everyone": "Every member",
+      "nobody": "Nobody",
+      "some": "Members allowed: {n}",
+      "edit": "Edit",
+      "mode_all": "Every member of the workspace",
+      "mode_list": "Only the members ticked below",
+      "none_ticked": "No member ticked: nobody may message this agent.",
+      "cancel": "Cancel"
+    }
   },
   "help": {
     "title": "Help",

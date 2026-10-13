@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Răspunde",
     "phone_placeholder_search": "Caută",
     "send_failed_agent_inactive": "Netrimis — acel agent nu mai este activ. Etichetează un agent activ; textul tău este încă aici.",
+    "send_failed_not_allowed": "Netrimis — {agent} nu primește mesaje de la tine. Textul tău este încă aici.",
     "sent_to_topic_retired": "Trimis în subiect: {retired} nu mai este activ.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "Doi furnizori la egalitate pentru principal",
     "split_rule_backup": "Rezerva trebuie să difere de principal",
     "split_rule_agy": "Antigravity nu scrie cod",
-    "split_rule_secret": "Doar Claude, Grok sau Mistral"
+    "split_rule_secret": "Doar Claude, Grok sau Mistral",
+    "senders": {
+      "title": "Cine poate scrie fiecărui agent",
+      "hint": "Mesajele directe și mențiunile unui agent vin doar de la membrii pe care îi alegi. Un agent fără listă primește mesaje de la orice membru. Postările din canal care nu îl menționează nu sunt afectate.",
+      "everyone": "Orice membru",
+      "nobody": "Nimeni",
+      "some": "Membri permiși: {n}",
+      "edit": "Editează",
+      "mode_all": "Orice membru al spațiului de lucru",
+      "mode_list": "Doar membrii bifați mai jos",
+      "none_ticked": "Niciun membru bifat: nimeni nu poate scrie acestui agent.",
+      "cancel": "Anulează"
+    }
   },
   "help": {
     "title": "Ajutor",

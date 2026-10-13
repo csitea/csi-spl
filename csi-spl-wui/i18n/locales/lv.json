@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Atbildēt",
     "phone_placeholder_search": "Meklēt",
     "send_failed_agent_inactive": "Nav nosūtīts — šis aģents vairs nav aktīvs. Atzīmējiet aktīvu aģentu; jūsu teksts joprojām ir šeit.",
+    "send_failed_not_allowed": "Nav nosūtīts — {agent} nepieņem no jums ziņas. Jūsu teksts joprojām ir šeit.",
     "sent_to_topic_retired": "Nosūtīts uz tēmu: {retired} vairs nav aktīvs.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "Diviem piegādātājiem ir vienāda galvenā daļa",
     "split_rule_backup": "Rezerves daļai jāatšķiras no galvenās",
     "split_rule_agy": "Antigravity neraksta kodu",
-    "split_rule_secret": "Tikai Claude, Grok vai Mistral"
+    "split_rule_secret": "Tikai Claude, Grok vai Mistral",
+    "senders": {
+      "title": "Kas drīkst rakstīt katram aģentam",
+      "hint": "Tiešās ziņas un aģenta pieminējumi nāk tikai no jūsu izvēlētajiem dalībniekiem. Aģents bez saraksta pieņem ziņas no visiem dalībniekiem. Kanāla ierakstus, kuros tas nav pieminēts, tas neietekmē.",
+      "everyone": "Visi dalībnieki",
+      "nobody": "Neviens",
+      "some": "Atļauto dalībnieku: {n}",
+      "edit": "Rediģēt",
+      "mode_all": "Visi darbvietas dalībnieki",
+      "mode_list": "Tikai zemāk atzīmētie dalībnieki",
+      "none_ticked": "Neviens dalībnieks nav atzīmēts: neviens nevar rakstīt šim aģentam.",
+      "cancel": "Atcelt"
+    }
   },
   "help": {
     "title": "Palīdzība",

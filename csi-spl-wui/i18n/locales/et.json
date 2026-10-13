@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Vasta",
     "phone_placeholder_search": "Otsi",
     "send_failed_agent_inactive": "Ei saadetud — see agent pole enam aktiivne. Märgi aktiivne agent; sinu tekst on alles.",
+    "send_failed_not_allowed": "Ei saadetud — {agent} ei võta sinult sõnumeid vastu. Sinu tekst on alles.",
     "sent_to_topic_retired": "Saadetud teemasse: {retired} pole enam aktiivne.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "Kaks pakkujat on peamise kohal viigis",
     "split_rule_backup": "Varupakkuja peab erinema peamisest",
     "split_rule_agy": "Antigravity ei kirjuta koodi",
-    "split_rule_secret": "Ainult Claude, Grok või Mistral"
+    "split_rule_secret": "Ainult Claude, Grok või Mistral",
+    "senders": {
+      "title": "Kes võib igale agendile kirjutada",
+      "hint": "Agendi otsesõnumid ja mainimised tulevad ainult sinu valitud liikmetelt. Ilma loendita agent võtab sõnumeid vastu igalt liikmelt. Kanali postitusi, mis teda ei maini, see ei mõjuta.",
+      "everyone": "Iga liige",
+      "nobody": "Mitte keegi",
+      "some": "Lubatud liikmeid: {n}",
+      "edit": "Muuda",
+      "mode_all": "Iga tööruumi liige",
+      "mode_list": "Ainult allpool märgitud liikmed",
+      "none_ticked": "Ühtegi liiget pole märgitud: keegi ei saa sellele agendile kirjutada.",
+      "cancel": "Tühista"
+    }
   },
   "help": {
     "title": "Abi",

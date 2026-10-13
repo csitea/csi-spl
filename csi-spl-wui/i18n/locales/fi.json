@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Vastaa",
     "phone_placeholder_search": "Hae",
     "send_failed_agent_inactive": "Ei lähetetty — agentti ei ole enää aktiivinen. Merkitse aktiivinen agentti; tekstisi on yhä tallessa.",
+    "send_failed_not_allowed": "Ei lähetetty — {agent} ei ota vastaan viestejä sinulta. Tekstisi on yhä tallessa.",
     "sent_to_topic_retired": "Lähetetty aiheeseen: {retired} ei ole enää aktiivinen.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "Kaksi toimittajaa on tasapisteissä päätoimittajaksi",
     "split_rule_backup": "Varatoimittajan on erottava päätoimittajasta",
     "split_rule_agy": "Antigravity ei kirjoita koodia",
-    "split_rule_secret": "Vain Claude, Grok tai Mistral"
+    "split_rule_secret": "Vain Claude, Grok tai Mistral",
+    "senders": {
+      "title": "Kuka saa viestiä kullekin agentille",
+      "hint": "Agentin yksityisviestit ja maininnat tulevat vain valitsemiltasi jäseniltä. Agentti, jolla ei ole listaa, ottaa viestejä vastaan kaikilta jäseniltä. Kanavan viesteihin, joissa sitä ei mainita, tämä ei vaikuta.",
+      "everyone": "Kaikki jäsenet",
+      "nobody": "Ei kukaan",
+      "some": "Sallittuja jäseniä: {n}",
+      "edit": "Muokkaa",
+      "mode_all": "Kaikki työtilan jäsenet",
+      "mode_list": "Vain alla valitut jäsenet",
+      "none_ticked": "Yhtään jäsentä ei ole valittu: kukaan ei voi viestiä tälle agentille.",
+      "cancel": "Peruuta"
+    }
   },
   "help": {
     "title": "Ohje",

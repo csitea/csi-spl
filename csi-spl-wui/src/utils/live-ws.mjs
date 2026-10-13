@@ -536,7 +536,7 @@ export function createLiveClient({
         settle(f.msg_id, (p) => p.resolve(f))
         return
       case FRAMES.error: {
-        const err = Object.assign(new Error(f.detail || f.error || 'error'), { token: f.error, status: f.status })
+        const err = Object.assign(new Error(f.detail || f.error || 'error'), { token: f.error, status: f.status, agent: f.agent })
         if (f.msg_id) settle(f.msg_id, (p) => p.reject(err))
         return
       }

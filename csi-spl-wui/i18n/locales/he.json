@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "תגובה",
     "phone_placeholder_search": "חיפוש",
     "send_failed_agent_inactive": "לא נשלח — הסוכן הזה כבר אינו פעיל. תייגו סוכן פעיל; הטקסט שלכם נשמר.",
+    "send_failed_not_allowed": "לא נשלח — {agent} אינו מקבל מכם הודעות. הטקסט שלכם נשמר.",
     "sent_to_topic_retired": "נשלח לנושא: {retired} כבר אינו פעיל.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "שני ספקים בתיקו על הראשי",
     "split_rule_backup": "הגיבוי חייב להיות שונה מהראשי",
     "split_rule_agy": "Antigravity לא כותבת קוד",
-    "split_rule_secret": "רק Claude, Grok או Mistral"
+    "split_rule_secret": "רק Claude, Grok או Mistral",
+    "senders": {
+      "title": "מי רשאי לשלוח הודעות לכל סוכן",
+      "hint": "הודעות ישירות ואזכורים של סוכן מגיעים רק מהחברים שתבחרו. סוכן ללא רשימה מקבל הודעות מכל חבר. פוסטים בערוץ שאינם מזכירים אותו אינם מושפעים.",
+      "everyone": "כל חבר",
+      "nobody": "אף אחד",
+      "some": "חברים מורשים: {n}",
+      "edit": "עריכה",
+      "mode_all": "כל חברי סביבת העבודה",
+      "mode_list": "רק החברים המסומנים למטה",
+      "none_ticked": "לא סומן אף חבר: אף אחד אינו יכול לשלוח הודעות לסוכן הזה.",
+      "cancel": "ביטול"
+    }
   },
   "help": {
     "title": "עזרה",

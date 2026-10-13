@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Antwoorden",
     "phone_placeholder_search": "Zoeken",
     "send_failed_agent_inactive": "Niet verzonden — die agent is niet meer actief. Tag een actieve agent; je tekst staat er nog.",
+    "send_failed_not_allowed": "Niet verzonden — {agent} neemt geen berichten van je aan. Je tekst staat er nog.",
     "sent_to_topic_retired": "Naar het onderwerp verzonden: {retired} is niet meer actief.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "Twee leveranciers staan gelijk voor hoofd",
     "split_rule_backup": "De back-up moet verschillen van de hoofdleverancier",
     "split_rule_agy": "Antigravity schrijft geen code",
-    "split_rule_secret": "Alleen Claude, Grok of Mistral"
+    "split_rule_secret": "Alleen Claude, Grok of Mistral",
+    "senders": {
+      "title": "Wie elke agent berichten mag sturen",
+      "hint": "Directe berichten en vermeldingen van een agent komen alleen van de leden die je kiest. Een agent zonder lijst neemt berichten aan van elk lid. Kanaalberichten die hem niet vermelden, blijven ongewijzigd.",
+      "everyone": "Elk lid",
+      "nobody": "Niemand",
+      "some": "Toegestane leden: {n}",
+      "edit": "Bewerken",
+      "mode_all": "Elk lid van de werkruimte",
+      "mode_list": "Alleen de hieronder aangevinkte leden",
+      "none_ticked": "Geen lid aangevinkt: niemand mag deze agent berichten sturen.",
+      "cancel": "Annuleren"
+    }
   },
   "help": {
     "title": "Help",

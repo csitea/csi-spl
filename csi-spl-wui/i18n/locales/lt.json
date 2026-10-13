@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Atsakyti",
     "phone_placeholder_search": "Ieškoti",
     "send_failed_agent_inactive": "Neišsiųsta — šis agentas nebeaktyvus. Pažymėkite aktyvų agentą; jūsų tekstas vis dar čia.",
+    "send_failed_not_allowed": "Neišsiųsta — {agent} nepriima iš jūsų žinučių. Jūsų tekstas vis dar čia.",
     "sent_to_topic_retired": "Išsiųsta į temą: {retired} nebeaktyvus.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1714,7 +1715,19 @@
     "split_rule_tie": "Du tiekėjai turi vienodą pagrindinę dalį",
     "split_rule_backup": "Atsarginis turi skirtis nuo pagrindinio",
     "split_rule_agy": "Antigravity nerašo jokio kodo",
-    "split_rule_secret": "Tik Claude, Grok arba Mistral"
+    "split_rule_secret": "Tik Claude, Grok arba Mistral",
+    "senders": {
+      "title": "Kas gali rašyti kiekvienam agentui",
+      "hint": "Tiesioginės žinutės ir agento paminėjimai ateina tik iš jūsų pasirinktų narių. Agentas be sąrašo priima žinutes iš visų narių. Kanalo įrašų, kuriuose jis nėra paminėtas, tai neveikia.",
+      "everyone": "Visi nariai",
+      "nobody": "Niekas",
+      "some": "Leidžiamų narių: {n}",
+      "edit": "Redaguoti",
+      "mode_all": "Visi darbo srities nariai",
+      "mode_list": "Tik žemiau pažymėti nariai",
+      "none_ticked": "Nepažymėtas nė vienas narys: niekas negali rašyti šiam agentui.",
+      "cancel": "Atšaukti"
+    }
   },
   "help": {
     "title": "Pagalba",

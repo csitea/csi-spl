@@ -1,0 +1,79 @@
+# ci-cd: agent join check (spec 073 T005 / T007, AC8; SPL-907)
+#
+# End to end, per env, against the deployed hub: a workspace admin's session
+# mints a join token, a throwaway box joins with `install.sh --join`, the
+# seat is verified (the token lists as used by that box), then removed (a
+# second removal answers 404). AC8's "seated in < 1 min" is the wall clock of
+# the joining install.sh run and is enforced. The named action
+# do_spl_join_check (csi-spl-orc) does every step; this file carries no host.
+#
+# THE SECRET: the admin member's password is ONLY the GitHub secret
+# SPL_PROBE_ADMIN_PW_<ENV>, handed to the action through env. The action puts
+# it in a 0600 request body file and removes it; the join token and the
+# session cookie stay in its 0700 temp dir; the installer never sees the
+# password. The member's email and workspace are cnf
+# env.box.join_check_email / join_check_tenant. An absent secret skips with
+# a ::notice::; a check that runs and fails fails the job.
+#
+# WHEN: daily, on a dispatch, and on a push that changes the check or the
+# installer. Not on every hub deploy: the mint window is 30 per admin per
+# hour and the redeem window 20 per address per hour.
+
+name: "23 ci-cd: agent join check"
+
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/23_join-check.yml'
+      - 'csi-spl-orc/src/bash/run/spl-join-check.func.sh'
+      - 'csi-spl-orc/src/bash/features/spool-install/install.sh'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to check'
+        type: choice
+        required: true
+        default: 'all'
+        options:
+          - all
+          - dev
+          - prd
+
+permissions:
+  contents: read
+
+concurrency:
+  group: join-check
+  cancel-in-progress: false
+
+jobs:
+  join-check:
+    name: Join check in ${{ matrix.environment }}
+    # Estate guard (spec 072 A34): this job changes OUR live estate (a seat
+    # added and removed), so a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        environment: ${{ fromJson((github.event_name == 'workflow_dispatch' && github.event.inputs.environment != 'all') && format('["{0}"]', github.event.inputs.environment) || '["dev","prd"]') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # the throwaway box builds spool from this checkout (SPOOL_INSTALL_CLI=build)
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: false
+
+      - name: Mint, join, verify, remove (do_spl_join_check)
+        env:
+          ENV: ${{ matrix.environment }}
+          SPOOL_INSTALL_CLI: build
+          SPL_PROBE_ADMIN_PW: ${{ secrets[format('SPL_PROBE_ADMIN_PW_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+        run: ./csi-spl-orc/run -a do_spl_join_check

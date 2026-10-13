@@ -60,6 +60,15 @@ its lane, the files it owns and its done check. Status vocabulary:
       and an admin test session on dev / prd e2e (both test members lack
       `agents.join`).
 - [ ] T007 **close 037 T005** and 072 A5 once AC8 is green.
+      **Check** (c-916, SPL-907): workflow 23 (`23_join-check.yml`, daily,
+      dispatch, and a push to the check or the installer) runs
+      `do_spl_join_check` per env: the admin member of cnf
+      `env.box.join_check_email` / `join_check_tenant` signs in, mints a
+      token bound to a throwaway box, the box joins with `install.sh --join`
+      (seat < 60 s enforced, AC8), the token lists as used, the seat is
+      removed (second DELETE 404). Password: the secret
+      `SPL_PROBE_ADMIN_PW_<ENV>` only. Test `csi-spl-orc` `join-check.tst.sh`
+      (fake hub + fake installer).
 - [ ] T008 **membership end** (after T003): spec 4.8. On `RemoveMember`, in
       that transaction, revoke open tokens and seated pins with this
       `for_human` (`pins_history.reason = membership-end`) and close those

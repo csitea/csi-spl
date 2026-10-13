@@ -6,7 +6,8 @@
 # @description hub user's ROOTLESS daemon, every port on 127.0.0.1. No cloud.
 # @description Run by any operator: it re-executes itself as the hub user
 # @description (cnf env.lde.local_hub.user) in that user's long-lived tree.
-# @description   1. the host hardening check (do_spl_local_hub_harden_check)
+# @description   1. render the env, then the host hardening check
+# @description      (do_spl_local_hub_harden_check reads the compose config)
 # @description   2. build every overlay image (lde_compose build)
 # @description   3. the lde hub stack and its smoke (do_setup_app_inf) against
 # @description      the smoke tenant; an encrypted pg is unlocked on the way
@@ -26,8 +27,8 @@ do_spl_local_hub_up() {
   if ! spl_local_hub_is_user; then spl_local_hub_reexec do_spl_local_hub_up; return; fi
   do_require_bin docker curl yq || return 1
   spl_local_hub_env || return 1
-  _slh_harden || return 1
   do_gen_docker_env || return 1
+  _slh_harden || return 1
   lde_compose build -q || { do_log "FATAL lde_compose build failed"; return 1; }
   do_setup_app_inf || { do_log "FATAL the hub stack is not green (do_setup_app_inf exit $?)"; return 1; }
   _slh_tenant || return 1

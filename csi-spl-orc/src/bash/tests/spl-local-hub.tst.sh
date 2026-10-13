@@ -108,9 +108,9 @@ STUBS='spl_local_hub_env() { echo ENV; LDE_WUI_PORT=1 LDE_COMPOSE_PROJECT=p; }; 
 out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { echo HARDEN-FAIL; return 1; }; do_spl_local_hub_up' in_orc LOCAL_HUB_USER="$ME")
 [[ "$out" == *HARDEN-FAIL* && "$out" != *BUILD* && "$out" != *SETUP* ]] && pass "_up: a failed hardening check starts nothing" || fail "harden: $out"
 out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { echo HARDEN; }; do_spl_local_hub_up; echo "rc=$?"' in_orc LOCAL_HUB_USER="$ME")
-order=$(grep -oE '^(ENV|HARDEN|GEN|BUILD|SETUP|TENANT|WUI|UP up -d backup)$' <<<"$out" | tr '\n' ' ')
-[[ "$order" == "ENV HARDEN GEN BUILD SETUP TENANT WUI UP up -d backup " && "$out" == *rc=0* ]] \
-  && pass "_up: harden -> build -> setup -> workspace -> WUI -> backup" || fail "_up order: $order / $out"
+order=$(grep -oE '^(ENV|GEN|HARDEN|BUILD|SETUP|TENANT|WUI|UP up -d backup)$' <<<"$out" | tr '\n' ' ')
+[[ "$order" == "ENV GEN HARDEN BUILD SETUP TENANT WUI UP up -d backup " && "$out" == *rc=0* ]] \
+  && pass "_up: env -> harden -> build -> setup -> workspace -> WUI -> backup" || fail "_up order: $order / $out"
 out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { :; }; do_setup_app_inf() { return 3; }; do_spl_local_hub_up; echo "rc=$?"' in_orc LOCAL_HUB_USER="$ME")
 [[ "$out" == *rc=1* && "$out" != *TENANT* ]] && pass "_up: a not-green smoke (exit 3) stops it" || fail "smoke 3: $out"
 

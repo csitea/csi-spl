@@ -47,6 +47,11 @@
 #      (lane-mix) or a lease that counts only claude = claude, the reason
 #      named; a grok successor acks from its first prompt; no ack = the old
 #      claude keeps the role
+#  16. T-ORCH-SPAWN-DIED: a grok successor whose CLI exits at once: the new
+#      pane is kept (remain-on-exit), FAIL SPAWN names the vendor, the pane's
+#      exit status and its last screen lines, the window is still closed and
+#      the old session keeps the role; rotate.log carries the spawn-window
+#      output; control: a started session gets remain-on-exit back off
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -106,7 +111,8 @@ field() { awk -F'\t' -v p="$tgt" -v f="$1" '$1 == p {print $f}' "$P"; }
 case "$cmd" in
   list-panes) awk -F'\t' '{print $2" "$1}' "$P" ;;
   display-message) grep -q "^$tgt	" "$P" || exit 1
-    case "${args[0]}" in *window_name*) field 4 ;; *session_id*) field 3 ;; *pane_id*) echo "$tgt" ;; esac ;;
+    case "${args[0]}" in *window_name*) field 4 ;; *session_id*) field 3 ;; *pane_id*) echo "$tgt" ;;
+      *pane_dead*) if [ -f "$T/tmux/dead.$tgt" ]; then echo "1 $(cat "$T/tmux/dead.$tgt")"; else echo "0 "; fi ;; esac ;;
   capture-pane) grep -q "^$tgt	" "$P" || exit 1
     if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'some output\n❯ \n'; fi
     if [ "$esc" = 1 ] && [ ! -f "$T/tmux/nobox.$tgt" ]; then
@@ -137,6 +143,7 @@ case "$cmd" in
       else case "$b" in /exit|'/exit-clean no-close') [ -f "$T/tmux/stubborn.$tgt" ] || rm -rf "$T/proc/$(field 2)" ;; esac; fi
       : >"$T/tmux/typed.$tgt"
     fi ;;
+  set-option) echo "set $tgt ${args[*]}" >>"$L" ;;
   kill-window) awk -F'\t' -v p="$tgt" '$1 != p' "$P" >"$P.new" && mv "$P.new" "$P"; echo "kill $tgt" >>"$L" ;;
   *) echo "tmux stub: $cmd" >&2; exit 1 ;;
 esac
@@ -151,7 +158,9 @@ echo "spawn $* SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} SPOOL_SESSION=${SPOOL_SESSION:
 mode="$(cat "$T/spawn.mode" 2>/dev/null || echo ok)"
 [ "$mode" = nopane ] && { echo "spawn-window: no pane"; exit 4; }
 printf '%%20\t2001\t$0\t%s@box\n' "$2" >>"$T/tmux/panes"
-[ "$mode" = nostart ] || "$T/bin/proc" 2001 0 "$2" "$1"
+# dies: the CLI exits at once; the pane stays (remain-on-exit) with its last words
+[ "$mode" = dies ] && { printf "error: unexpected argument '--permission-mode' found\n" >"$T/tmux/screen.%20"; echo 2 >"$T/tmux/dead.%20"; }
+[ "$mode" = nostart ] || [ "$mode" = dies ] || "$T/bin/proc" 2001 0 "$2" "$1"
 # a message lands mid-rotation (T-MSG-IN-FLIGHT)
 echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T04:06:00Z","from":"c-002","to":"'"$OLD_ID"'","kind":"note","task_id":"x","body":"mid-rotation"}' >"$SPOOL_ROOT/$OLD_ID/inbox/m9.json"
 if [ "$(cat "$T/ack.mode" 2>/dev/null || echo yes)" = yes ]; then
@@ -538,6 +547,24 @@ act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2
   grep -q 'FAIL FAIL ACK: no ack within 6s; the old session (pid 1001) keeps the role' "$T/o" && [[ "$(cat "$T/ai.c-900")" == 1001 ]] &&
   pass "15. ROTATE_ROLE_VENDOR=grok, no ack: the grok closed, the old claude keeps the role" || fail "15. no-ack: $(grep -E 'FAIL|ACK' "$T/o"; ls "$T/proc")"
 ! grep -q ERRTRAP "$T/o" && pass "15. no stray failing command under the ERR trap" || fail "15. ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+# --- 16. T-ORCH-SPAWN-DIED: why a successor never started is in the FAIL line --------------------
+world; echo 'pick=grok launcher=/grok-spawn kind=orchestration reason=nudge' >"$T/mix.out"; echo dies >"$T/spawn.mode"
+act DRY_RUN=0 ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q "FAIL SPAWN: no grok carrying c-900 started in %20 within 4s; the pane died (exit 2): error: unexpected argument '--permission-mode' found" "$T/o" &&
+  grep -qx 'set %20 remain-on-exit on' "$T/tmux/log" && grep -qx 'kill %20' "$T/tmux/log" && [[ -d "$T/proc/1001" ]] &&
+  pass "16. a grok CLI that exits at once: FAIL SPAWN names grok, the exit status and its last words; window closed, old kept" ||
+  fail "16. died rc=$rc $(grep -E 'FAIL' "$T/o"; cat "$T/tmux/log")"
+grep -q ' SPAWN WAIT spawn-window: c-900 %20' "$T/o" && pass "16. rotate.log carries the spawn-window output" || fail "16. no spawn output: $(grep SPAWN "$T/o")"
+world; echo nostart >"$T/spawn.mode"
+act DRY_RUN=0 >"$T/o" 2>&1
+grep -q "FAIL SPAWN: no claude carrying c-900 started in %20 within 4s; the pane is up, no claude process in it: some output" "$T/o" &&
+  pass "16. a live pane with no CLI process: its screen is in the FAIL line" || fail "16. nostart: $(grep FAIL "$T/o")"
+world; rm -f "$T/spawn.mode"
+act DRY_RUN=0 >"$T/o" 2>&1
+grep -qx 'set %20 remain-on-exit on' "$T/tmux/log" && grep -qx 'set %20 remain-on-exit off' "$T/tmux/log" &&
+  pass "16. control: a started session gets remain-on-exit back off" || fail "16. control: $(grep '^set' "$T/tmux/log")"
+rm -f "$T/spawn.mode"
 
 # --- 10. T-CRON ----------------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

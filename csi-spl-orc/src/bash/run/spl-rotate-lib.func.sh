@@ -385,6 +385,16 @@ spl_rotate_claude_ancestor() {
   return 0
 }
 
+# spl_rotate_pane_why PANE: why no CLI pid showed in PANE, for ROTATE_ERR:
+# the pane is gone, died (its exit status and last screen lines; the spawn
+# set remain-on-exit) or is up with no CLI process in it (its screen).
+spl_rotate_pane_why() {
+  local st
+  st="$(spl_rotate_tmux display-message -p -t "$1" '#{pane_dead} #{pane_dead_status}' 2>/dev/null)" || { echo "the pane is gone"; return 0; }
+  if [[ "$st" == 1* ]]; then echo "the pane died (exit ${st#1 }): $(spl_rotate_screen_tail "$1")"
+  else echo "the pane is up, no ${ROTATE_KIND:-claude} process in it: $(spl_rotate_screen_tail "$1")"; fi
+}
+
 spl_rotate_screen() { spl_rotate_tmux capture-pane -p -t "$1" 2>/dev/null || true; }
 
 # spl_rotate_idle PANE: 0 when the screen reads idle (classify_screen) AND is
@@ -647,6 +657,9 @@ spl_rotate_spawn() {
     bash "$ROTATE_SPAWN" "${ROTATE_KIND:-claude}" "$id" "$(spl_rotate_workdir "$id")" "$seed" rotate 2>&1 7>&- 8>&- 9>&-)" || true
   ROTATE_NEW_PANE="$(grep -m1 -oE "^$id %[0-9]+" <<<"$out" | cut -d' ' -f2)"
   [[ -n "$ROTATE_NEW_PANE" ]] || { ROTATE_ERR="spawn printed no pane: $(tr '\n' ' ' <<<"$out" | cut -c1-200)"; return 1; }
+  spl_rotate_log "$ROTATE_RID" SPAWN WAIT "spawn-window: $(tr '\n' '|' <<<"$out" | tail -c 400)"
+  # a CLI that exits at once must leave its last words: keep the pane until a pid shows
+  spl_rotate_tmux set-option -p -t "$ROTATE_NEW_PANE" remain-on-exit on 2>/dev/null || true
   t0=$SECONDS
   while (( SECONDS - t0 < ROTATE_START_WAIT )); do
     for pid in $(spl_rotate_pids "$id"); do
@@ -654,7 +667,8 @@ spl_rotate_spawn() {
     done
     sleep "$ROTATE_POLL"
   done
-  [[ -n "$ROTATE_NEW_PID" ]] || { ROTATE_ERR="no claude carrying $id started in $ROTATE_NEW_PANE within ${ROTATE_START_WAIT}s"; return 1; }
+  [[ -n "$ROTATE_NEW_PID" ]] || { ROTATE_ERR="no ${ROTATE_KIND:-claude} carrying $id started in $ROTATE_NEW_PANE within ${ROTATE_START_WAIT}s; $(spl_rotate_pane_why "$ROTATE_NEW_PANE")"; return 1; }
+  spl_rotate_tmux set-option -p -t "$ROTATE_NEW_PANE" remain-on-exit off 2>/dev/null || true
   # the ack sender reads the new pid from the ctx: record it at once
   ROTATE_PHASE=SPAWN spl_rotate_ctx_save "$(spl_rotate_family "${ROTATE_RID##*-}")"
   # agents run as the agent user, never as the box user (FR-006)

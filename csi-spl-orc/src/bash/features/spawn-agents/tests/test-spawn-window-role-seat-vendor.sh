@@ -7,10 +7,16 @@
 #
 # Allowed: exactly a role seat id + SPAWN_REUSE_ID=1. Still refused: a role
 # seat without reuse, and a lane id under another kind with reuse.
+#
+# LIVE HOP: the 10:05Z rotation (480a44659 live) still failed: spawn-window
+# passed the dry run, but the launcher in the NEW PANE refused the id again
+# ("TITLE 'c-001' does not carry the grok prefix GRK-") because SPAWN_REUSE_ID
+# did not cross the tmux hop. Here spawn-window runs live in the sandbox tmux;
+# only the pane's launcher is a dry run (SPAWN_DRY_RUN=1 in the server env).
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
-t_tmux
+t_tmux SPAWN_DRY_RUN=1
 SW="$T_SCRIPTS/spawn-window.sh"
 echo brief > "$T_TMP/brief.md"
 ORC="$T_TMP/orc"; mkdir -p "$ORC"
@@ -43,5 +49,27 @@ eq "lane c-777 grok reuse: refused, exit 2" 2 "$rc"
 has "lane c-777 grok reuse: names the mismatch" "c-777 is not a grok id" "$out"
 out="$(sw 1 claude g-001)"; rc=$?
 eq "g-001 claude reuse: refused, exit 2" 2 "$rc"
+
+# the live hop: the pane's launcher must see SPAWN_REUSE_ID=1 too
+pane_out() {  # PANE: the pane's screen once its launcher has finished
+  local n=0
+  while [ "$n" -lt 50 ]; do
+    n=$((n + 1))
+    [ "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$1" '#{pane_dead}' 2>/dev/null)" = 1 ] && break
+    sleep 0.2
+  done
+  tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -J -S - -t "$1" 2>/dev/null
+}
+mkdir -p "$SPOOL_ROOT/c-001"/{inbox,outbox,archive,lifetime}
+out="$(SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 SPOOL_BIN=/opt/x/spool timeout 60 bash "$SW" grok c-001 "$T_TMP/repo" "$T_TMP/brief.md" rotate 2>&1)"; rc=$?
+eq "live c-001 grok reuse: spawn-window exits 0" 0 "$rc"
+pane="$(grep -m1 -oE '^c-001 %[0-9]+' <<<"$out" | cut -d' ' -f2)"
+has "live c-001 grok reuse: prints the new pane" "%" "$pane"
+scr="$(pane_out "$pane")"
+hasnt "live c-001 grok reuse: the pane's launcher does not refuse the id" "does not carry the grok" "$scr"
+has "live c-001 grok reuse: the pane's launcher reaches the launch" "PLAN launch" "$scr"
+# control: the same live hop without reuse is refused before a window opens
+out="$(SPAWN_START_CHECK=0 SPOOL_BIN=/opt/x/spool timeout 60 bash "$SW" grok c-001 "$T_TMP/repo" "$T_TMP/brief.md" rotate 2>&1)"; rc=$?
+eq "live c-001 grok without reuse: refused, exit 2" 2 "$rc"
 
 t_done

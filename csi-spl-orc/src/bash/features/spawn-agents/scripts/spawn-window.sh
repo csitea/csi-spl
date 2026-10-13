@@ -406,11 +406,13 @@ fi
 
 # The launcher runs as the box user inside the pane and hops to the agent user
 # itself. The SPOOL_* settings this caller resolved travel with it, because the
-# tmux server does not inherit this process's environment.
+# tmux server does not inherit this process's environment. SPAWN_REUSE_ID
+# too: the launcher re-checks the kind/id pair and keeps a respawn's brief
+# (a role seat under ROTATE_ROLE_VENDOR failed live without it, SPL-1605).
 envs=()
 for v in SPOOL_ROOT SPOOL_BOX_USER SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT SPOOL_TMUX_SOCKET \
          SPOOL_BOX_TAG SPOOL_ORCHESTRATOR_ID SPOOL_BIN CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN SPOOL_MISTRAL_MAX_PRICE SPAWN_GIT_IDENTITY \
-         SPAWN_REQUESTER SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC SPAWN_PROMPT_HEAD_FILE LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
+         SPAWN_REUSE_ID SPAWN_REQUESTER SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC SPAWN_PROMPT_HEAD_FILE LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
   [ -n "${!v:-}" ] && envs+=("$v=${!v}")
 done
 printf -v cmd '%q ' env "${envs[@]}" bash "$LAUNCHER" "$TITLE" "$@"

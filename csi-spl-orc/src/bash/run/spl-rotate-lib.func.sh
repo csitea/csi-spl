@@ -153,11 +153,12 @@ spl_rotate_family() {
 # is it called c-001@<box> .. should be g-001@<box>"): a role seat's id is the
 # letter of the vendor that runs it, so a rotation to another vendor starts
 # the successor as spl_role_seat_id ROTATE_KIND <seat>. Prints that id when
-# ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 (env > rotate.conf), ID is a bare role seat
-# in the new form and the vendor's id differs; nothing otherwise (the id stays).
+# ID is a bare role seat in the new form and the vendor's id differs; nothing
+# otherwise (the id stays). ROTATE_ROLE_ID_FOLLOWS_VENDOR=0 (env >
+# rotate.conf; default 1) turns it off: every vendor keeps the claude id.
 spl_rotate_vendor_id() {
   local id="$1" n new
-  [[ "${ROTATE_ROLE_ID_FOLLOWS_VENDOR:-0}" == 1 && "$id" =~ ^${SPL_ROLE_SEAT_RX}$ ]] || return 0
+  [[ "${ROTATE_ROLE_ID_FOLLOWS_VENDOR:-1}" == 1 && "$id" =~ ^${SPL_ROLE_SEAT_RX}$ ]] || return 0
   n="$(spl_role_seat_num "$id")" || return 0
   new="$(spl_role_seat_id "${ROTATE_KIND:-claude}" "$n")" || return 0
   [[ "$new" != "$id" ]] && echo "$new"

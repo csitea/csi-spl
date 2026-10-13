@@ -52,8 +52,8 @@
 #      exit status and its last screen lines, the window is still closed and
 #      the old session keeps the role; rotate.log carries the spawn-window
 #      output; control: a started session gets remain-on-exit back off
-#  17. T-ROLE-ID-FOLLOWS-VENDOR (SPL-1685): knob off = today (grok as c-001);
-#      on: c-001 -> g-001 -> c-001 through the real role-seat-switch.sh: the
+#  17. T-ROLE-ID-FOLLOWS-VENDOR (SPL-1685): knob =0 keeps c-001 for grok;
+#      on (the default): c-001 -> g-001 -> c-001 through the real role-seat-switch.sh: the
 #      successor starts as the vendor's id, lease.conf follows after the
 #      spawn, the old id is a link so a message sent to it mid-rotation lands
 #      in the live inbox, the desk dir moves, the old identity record is
@@ -580,12 +580,12 @@ export OLD_ID=c-001 DESK_STATE_ROOT="$T/desk"
 mkdir -p "$S/c-001/inbox" "$S/c-001/outbox" "$S/c-001/archive" "$T/desk/prd/desk/t1/box-desk/spool/c-001/inbox"
 printf 'LEASE_ORCH=c-001\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
 world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
-act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=0 >"$T/o" 2>&1
 grep -q " SPAWN PLAN .* $T/bin/spawn grok c-001 " "$T/o" && ! grep -q ' SWITCH PLAN' "$T/o" &&
-  pass "17. knob off: a grok successor keeps c-001 (today)" || fail "17. off: $(grep PLAN "$T/o")"
-act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1
+  pass "17. knob off (=0): a grok successor keeps c-001" || fail "17. off: $(grep PLAN "$T/o")"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
 grep -q " SWITCH PLAN c-001 -> g-001: the grok successor takes its vendor's id" "$T/o" && [[ -d "$S/c-001" && ! -L "$S/c-001" && ! -e "$S/g-001" ]] &&
-  pass "17. knob on, dry run: plans c-001 -> g-001, moves nothing" || fail "17. dry: $(grep PLAN "$T/o"; ls -l "$S")"
+  pass "17. knob on by default, dry run: plans c-001 -> g-001, moves nothing" || fail "17. dry: $(grep PLAN "$T/o"; ls -l "$S")"
 world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; touch "$T/touch-agent"
 act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1; rc=$?; rid="$(ctx ROTATE_RID)"
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q "^spawn grok g-001 " "$T/spawn.log" && grep -qx 'LEASE_ORCH=g-001' "$D/lease.conf" &&

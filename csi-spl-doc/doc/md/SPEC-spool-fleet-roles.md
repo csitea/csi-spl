@@ -11,6 +11,12 @@ takes a post answers it and owns that topic.
 Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
 `^[acgmq]-[0-9]{3}$` (`m` = mistral since 2026-10-08, [spec 110](../../specs/110-mistral-vendor/spec.md)). Roles `001`..`003` are claimed (`--claim`), never allocated. Legacy `CLE-` ids end at `2026-10-03T20:59:59Z`.
 
+A role seat's letter is the vendor that runs it (SPL-1685, owner 2026-10-13): the
+orchestrator run by Grok is `g-001`, by claude `c-001`, by agy `a-001`. The
+table below names the claude ids. Test "is this a role seat" with the one helper
+(`spl_is_role_seat` / `SPL_ROLE_SEAT_RX` in bash, `agentid.IsRoleSeat` in Go),
+never with a literal list. Section 4.4 says how a rotation changes the letter.
+
 | id | role | does | never does |
 |---|---|---|---|
 | `c-001` | orchestrator | decides; spawns, re-seats and closes agents; verifies "live" claims; runs the production operations agents' harnesses refuse (prd reads, prd desk and issue writes, deploys the owner pre-approved); in every channel (2.1), it takes a post only as section 3 says | takes a post the dispatch lease holder has taken; routes routine traffic |
@@ -674,6 +680,18 @@ it is not restated here.
   fresh `rotate.hold` naming an id as "held: rotation", so renew, watch and
   the fleet candidate skip that id; a hold older than `ROTATE_HOLD_MAX`
   (1800 s) is ignored with one `WARN` in `lease.log` (060 FR-023, FR-024);
+- **the id follows the vendor** (SPL-1685): a rotation whose successor is
+  another vendor starts it under that vendor's letter (`c-001` -> `g-001`)
+  with `role-seat-switch.sh`. Before the spawn, the seat's one real spool dir
+  moves to the new id, and every other letter of the seat (`a/c/g/m/q-00N`)
+  becomes a link to it. Mail sent to the old id, a `${X:-c-001}` default or a
+  queued message still lands in the live inbox, and the desk dirs move the same
+  way. `lease.conf` (`LEASE_ORCH`, `LEASE_MASTER`, `LEASE_FAILOVER`, and the
+  master's `rotate.hold`) takes the new id only once the new pid shows, so the
+  old pid keeps the lease until then. The ack may come from either id. A
+  failed rotation puts `lease.conf` and the dirs back. CLOSE retires the old
+  id's identity record. The knob is `ROTATE_ROLE_ID_FOLLOWS_VENDOR` (default
+  1; `0` keeps the claude id for every vendor);
 - what ran: `<spool root>/dispatch/rotate.log`, one line per step;
 - stop it: `ROTATE=0` (or `ROTATE_DISPATCH=0`) in
   `<spool root>/dispatch/rotate.conf` (060 FR-090);

@@ -111,13 +111,20 @@ grep -q 'leak' "$T/sudo.args" && fail "re-exec: the command line carried LOCAL_H
 # --- 5. _up order ---------------------------------------------------------------------------
 STUBS='spl_local_hub_env() { echo ENV; LDE_WUI_PORT=1 LDE_COMPOSE_PROJECT=p; }; do_require_bin() { :; }
   do_gen_docker_env() { echo GEN; }; do_setup_app_inf() { echo SETUP; }; _slh_tenant() { echo TENANT; }
-  _slh_wui() { echo WUI; }; lde_compose() { case "$1" in build) echo BUILD ;; config) echo backup ;; up) echo "UP $*" >&2 ;; esac; }'
+  _slh_wui() { echo WUI; }; do_spl_local_hub_backup_check() { echo "${BKCHECK_OUT:-}"; return "${BKCHECK_RC:-0}"; }
+  lde_compose() { case "$1" in build) echo BUILD ;; config) echo backup ;; up|rm) echo "UP $*" >&2 ;; esac; }'
 out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { echo HARDEN-FAIL; return 1; }; do_spl_local_hub_up' in_orc LOCAL_HUB_USER="$ME")
 [[ "$out" == *HARDEN-FAIL* && "$out" != *BUILD* && "$out" != *SETUP* ]] && pass "_up: a failed hardening check starts nothing" || fail "harden: $out"
 out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { echo HARDEN; }; do_spl_local_hub_up; echo "rc=$?"' in_orc LOCAL_HUB_USER="$ME")
 order=$(grep -oE '^(ENV|GEN|HARDEN|BUILD|SETUP|TENANT|WUI|UP up -d backup)$' <<<"$out" | tr '\n' ' ')
 [[ "$order" == "ENV GEN HARDEN BUILD SETUP TENANT WUI UP up -d backup " && "$out" == *rc=0* ]] \
   && pass "_up: env -> harden -> build -> setup -> workspace -> WUI -> backup" || fail "_up order: $order / $out"
+# no backup key yet: the job would crash-loop (restart: unless-stopped) and
+# then fail the hardening check of the next _up (live proof 2026-10-13), so
+# _up removes it and says so loudly instead
+out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { :; }; do_spl_local_hub_up; echo "rc=$?"' in_orc LOCAL_HUB_USER="$ME" BKCHECK_RC=1 BKCHECK_OUT="FATAL no recipient")
+[[ "$out" != *"UP up -d backup"* && "$out" == *"UP rm -sf backup"* && "$out" == *"NO daily backup"* && "$out" == *"FATAL no recipient"* && "$out" == *rc=0* ]] \
+  && pass "_up: no backup key -> the backup job is not started, loudly" || fail "_up no key: $out"
 out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { echo HARDEN-RAN; return 1; }; LOCAL_HUB_TENANT=e2e-abc123; do_spl_local_hub_up; echo "rc=$?"' in_orc LOCAL_HUB_USER="$ME" LOCAL_HUB_ALLOW_SYSTEM_DOCKER=1)
 [[ "$out" != *HARDEN-RAN* && "$out" == *"NOT run"* && "$out" == *rc=0* ]] && pass "_up: the e2e escape skips the hardening check, loudly" || fail "e2e harden skip: $out"
 out=$(SNIPPET="$STUBS"'; do_spl_local_hub_harden_check() { echo HARDEN-RAN; return 1; }; LOCAL_HUB_TENANT=real-ws; do_spl_local_hub_up; echo "rc=$?"' in_orc LOCAL_HUB_USER="$ME" LOCAL_HUB_ALLOW_SYSTEM_DOCKER=1)

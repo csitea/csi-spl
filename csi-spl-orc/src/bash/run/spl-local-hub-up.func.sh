@@ -15,7 +15,7 @@
 # @description   4. the workspace: created once from the private config, its
 # @description      root key kept in the state dir (0600)
 # @description   5. the WUI: generate (when the tree moved) and serve
-# @description   6. the backup job
+# @description   6. the backup job, once its key exists (else a WARN)
 # @description Sign-up is closed: the owner's account comes from
 # @description do_spl_local_hub_owner_add, which _up only prints.
 # @description Exit: 0 up; 1 a step failed.
@@ -33,13 +33,24 @@ do_spl_local_hub_up() {
   do_setup_app_inf || { do_log "FATAL the hub stack is not green (do_setup_app_inf exit $?)"; return 1; }
   _slh_tenant || return 1
   _slh_wui || return 1
-  if _slh_has_service backup; then
-    lde_compose up -d backup >/dev/null || { do_log "FATAL the backup job did not start"; return 1; }
-  else
-    do_log "WARN no backup service (docker-compose-local-hub-backup.yaml): NO daily backup runs"
-  fi
+  _slh_backup || return 1
   printf '\n  wui     http://localhost:%s/\n  owner   DRY_RUN=0 ./run -a do_spl_local_hub_owner_add   (once, on the owner'"'"'s terminal)\n  status  ./run -a do_spl_local_hub_status\n  stop    ./run -a do_spl_local_hub_down\n\n' "$LDE_WUI_PORT"
   do_log "OK local hub $LDE_COMPOSE_PROJECT is up"
+}
+
+# _slh_backup -- start the daily backup job, but only once its key exists
+# (do_spl_local_hub_backup_check): without one the job crash-loops, and a
+# looping container fails the next hardening check. A WARN says why not.
+_slh_backup() {
+  if ! _slh_has_service backup; then
+    do_log "WARN no backup service (docker-compose-local-hub-backup.yaml): NO daily backup runs"; return 0
+  fi
+  if declare -F do_spl_local_hub_backup_check >/dev/null && ! do_spl_local_hub_backup_check; then
+    lde_compose rm -sf backup >/dev/null
+    do_log "WARN no backup key yet: the backup job is NOT started, NO daily backup runs; run ./run -a do_spl_local_hub_backup_keygen once"
+    return 0
+  fi
+  lde_compose up -d backup >/dev/null || { do_log "FATAL the backup job did not start"; return 1; }
 }
 
 # _slh_has_service <name> -- an overlay defines the compose service.

@@ -22,9 +22,11 @@ do_spl_local_hub_backup_keygen() {
   spl_lhb_env || return 1
   printf '\n  type the passphrase here (twice; it is not echoed)\n\n' >/dev/tty 2>/dev/null || true
   # --no-deps: keygen needs no DB, so it works with the stack down or pg locked.
+  # --tty: ./run tees stdout, so compose would give the container no /dev/tty
+  # and age could not ask for the passphrase.
   # The recipient is not there yet: a missing bind source would be created as
   # a DIR by docker, so the run mounts /dev/null for it.
-  LOCAL_HUB_BACKUP_RECIPIENT_FILE=/dev/null lde_compose run --rm --no-deps -u "$(spl_lhb_host_uid "")" -v "$dir:/keys" backup keygen /keys || { do_log "FATAL keygen failed (above)"; return 1; }
+  LOCAL_HUB_BACKUP_RECIPIENT_FILE=/dev/null lde_compose run --rm --no-deps --tty -u "$(spl_lhb_host_uid "")" -v "$dir:/keys" backup keygen /keys || { do_log "FATAL keygen failed (above)"; return 1; }
   chmod 644 "$dir/recipient" || return 1
   do_log "OK keygen in LOCAL_HUB_BACKUP_KEY_DIR: move identity.age OFF this box; recipient stays (the job reads it)"
 }

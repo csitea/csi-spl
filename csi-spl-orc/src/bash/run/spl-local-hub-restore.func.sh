@@ -34,7 +34,9 @@ do_spl_local_hub_restore() {
   printf '\n  type the passphrase here (it is not echoed)\n\n' >/dev/tty 2>/dev/null || true
   # as this user (it alone reads the identity) in the postgres group (70: it
   # reads the backups volume, 0750)
-  lde_compose run --rm -u "$(spl_lhb_host_uid 70)" -v "$idf:/run/keys/identity:ro" -e "RESTORE_DB=${LOCAL_HUB_RESTORE_DB:-}" -e "RESTORE_LIVE=$live" \
+  # --tty: ./run tees stdout, so compose would give the container no /dev/tty
+  # and age could not ask for the passphrase.
+  lde_compose run --rm --tty -u "$(spl_lhb_host_uid 70)" -v "$idf:/run/keys/identity:ro" -e "RESTORE_DB=${LOCAL_HUB_RESTORE_DB:-}" -e "RESTORE_LIVE=$live" \
     -e "RESTORE_KEEP=${LOCAL_HUB_RESTORE_KEEP:-0}" backup restore "${LOCAL_HUB_RESTORE_FILE:-latest}" ||
     { do_log "FATAL local hub restore failed (above)"; return 1; }
   do_log "OK local hub restore $([[ "$live" == 1 ]] && echo "into the live $LDE_PG_DB" || echo proof)"

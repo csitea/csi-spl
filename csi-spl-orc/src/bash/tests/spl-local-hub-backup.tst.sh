@@ -137,8 +137,8 @@ out="$(act 'do_spl_local_hub_backup_keygen </dev/null' LOCAL_HUB_BACKUP_KEY_DIR=
 out="$(act 'echo pw | do_spl_local_hub_backup_keygen' LOCAL_HUB_BACKUP_KEY_DIR="$T/kd")" && fail "keygen with piped stdin passed" || pass "keygen refuses piped stdin"
 grep -q '^lde_compose' "$T/calls.log" && fail "a refused keygen still ran compose" || pass "a refused keygen runs nothing"
 out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_restore' LOCAL_HUB_BACKUP_IDENTITY_FILE="$K/identity.age" LOCAL_HUB_RESTORE_DB=spool_proof)"
-grep -q "^lde_compose run --rm -u $(id -u):70 -v $K/identity.age:/run/keys/identity:ro -e RESTORE_DB=spool_proof -e RESTORE_LIVE=0 -e RESTORE_KEEP=0 backup restore latest$" "$T/calls.log" \
-  && pass "restore: identity mounted read-only, scratch DB, latest" || fail "restore calls: $(cat "$T/calls.log") $out"
+grep -q "^lde_compose run --rm --tty -u $(id -u):70 -v $K/identity.age:/run/keys/identity:ro -e RESTORE_DB=spool_proof -e RESTORE_LIVE=0 -e RESTORE_KEEP=0 backup restore latest$" "$T/calls.log" \
+  && pass "restore: --tty, identity mounted read-only, scratch DB, latest" || fail "restore calls: $(cat "$T/calls.log") $out"
 out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_restore' LOCAL_HUB_BACKUP_IDENTITY_FILE="$K/secret")" && fail "restore passed a clear identity" || pass "restore: a clear identity refused"
 out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_restore' LOCAL_HUB_BACKUP_IDENTITY_FILE="$K/identity.age" LOCAL_HUB_RESTORE_LIVE=1)" && fail "LIVE without confirm passed" || pass "LIVE needs LOCAL_HUB_RESTORE_CONFIRM=<db>"
 out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_restore' LOCAL_HUB_BACKUP_IDENTITY_FILE="$K/identity.age" LOCAL_HUB_RESTORE_LIVE=1 LOCAL_HUB_RESTORE_CONFIRM=spool STUB_HUB_ID=abc123)" && fail "LIVE with the hub running passed" || { grep -q 'hub' <<<"$out" && pass "LIVE refused while the hub runs" || fail "hub-running msg: $out"; }
@@ -164,8 +164,8 @@ grep -q "^REEXEC do_spl_local_hub_restore pass=LOCAL_HUB_BACKUP_IDENTITY_FILE .*
 # keygen as the hub user, no KEY_DIR: <config dir>/backup-key (0700), recipient 0644
 mkdir -p "$T/cfgd"
 out="$(act 'spl_lhr_tty() { return 0; }; do_spl_local_hub_backup_keygen 2>&1; echo rc=$?' LOCAL_HUB_CONFIG="$T/cfgd/local-hub.env")"
-grep -q -- "^lde_compose run --rm --no-deps .*-v $T/cfgd/backup-key:/keys backup keygen /keys$" "$T/calls.log" && [[ "$(stat -c %a "$T/cfgd/backup-key")" == 700 && "$(stat -c %a "$T/cfgd/backup-key/recipient")" == 644 ]] \
-  && pass "keygen: --no-deps (no pg needed), default dir <config dir>/backup-key (0700), recipient 0644" || fail "keygen default: $(cat "$T/calls.log") $out"
+grep -q -- "^lde_compose run --rm --no-deps --tty .*-v $T/cfgd/backup-key:/keys backup keygen /keys$" "$T/calls.log" && [[ "$(stat -c %a "$T/cfgd/backup-key")" == 700 && "$(stat -c %a "$T/cfgd/backup-key/recipient")" == 644 ]] \
+  && pass "keygen: --no-deps (no pg needed), --tty (age asks under ./run tee), default dir <config dir>/backup-key (0700), recipient 0644" || fail "keygen default: $(cat "$T/calls.log") $out"
 
 # --- 4. the compose overlay ---------------------------------------------------
 if docker compose version >/dev/null 2>&1; then
@@ -202,14 +202,14 @@ EOF2
   pc up -d --wait pg >"$T/p.up" 2>&1 || fail "proof: pg up: $(tail -3 "$T/p.up")"
   pc exec -T pg psql -q -U spool -d spool -c "create table spool_schema_migrations(v int); insert into spool_schema_migrations values (1),(2),(3);
     create table proof_rows(x int); insert into proof_rows select generate_series(1, 500);" >/dev/null 2>&1
-  printf 'throwaway-pw\nthrowaway-pw\n' | LOCAL_HUB_BACKUP_KEY_DIR="$PK" script -qec "bash $PD do_spl_local_hub_backup_keygen" /dev/null >"$T/p.kg" 2>&1
+  printf 'throwaway-pw\nthrowaway-pw\n' | LOCAL_HUB_BACKUP_KEY_DIR="$PK" script -qec "bash $PD do_spl_local_hub_backup_keygen | cat" /dev/null >"$T/p.kg" 2>&1
   [[ -s "$PK/recipient" ]] && [[ "$(sed -n 1p "$PK/identity.age")" == age-encryption.org/v1 ]] && ! grep -q AGE-SECRET-KEY "$PK/identity.age" \
     && pass "proof: keygen via the terminal -> wrapped identity + recipient" || fail "proof keygen: $(tail -5 "$T/p.kg")"
   bash "$PD" do_spl_local_hub_backup >"$T/p.bk" 2>&1 && grep -q 'tables=2 migrations=3' "$T/p.bk" && pass "proof: backup once (tables=2 migrations=3)" || fail "proof backup: $(tail -5 "$T/p.bk")"
-  printf 'throwaway-pw\n' | LOCAL_HUB_BACKUP_IDENTITY_FILE="$PK/identity.age" LOCAL_HUB_RESTORE_DB=spool_proof script -qec "bash $PD do_spl_local_hub_restore" /dev/null >"$T/p.rs" 2>&1
+  printf 'throwaway-pw\n' | LOCAL_HUB_BACKUP_IDENTITY_FILE="$PK/identity.age" LOCAL_HUB_RESTORE_DB=spool_proof script -qec "bash $PD do_spl_local_hub_restore | cat" /dev/null >"$T/p.rs" 2>&1
   grep -q 'PASS restore .* -> spool_proof: tables migrations = 2 3' "$T/p.rs" && pass "proof: restore into scratch spool_proof, counts = .meta" || fail "proof restore: $(tail -8 "$T/p.rs")"
   [[ -z "$(pc exec -T pg psql -U spool -d spool -Atc "select 1 from pg_database where datname = 'spool_proof'")" ]] && pass "proof: the scratch DB is dropped" || fail "proof: spool_proof left behind"
-  printf 'wrong-pw\n' | LOCAL_HUB_BACKUP_IDENTITY_FILE="$PK/identity.age" LOCAL_HUB_RESTORE_DB=spool_p2 script -qec "bash $PD do_spl_local_hub_restore" /dev/null >"$T/p.rs2" 2>&1
+  printf 'wrong-pw\n' | LOCAL_HUB_BACKUP_IDENTITY_FILE="$PK/identity.age" LOCAL_HUB_RESTORE_DB=spool_p2 script -qec "bash $PD do_spl_local_hub_restore | cat" /dev/null >"$T/p.rs2" 2>&1
   grep -q 'PASS restore' "$T/p.rs2" && fail "proof control: a wrong passphrase restored" || pass "proof control: a wrong passphrase restores nothing"
   pc down -v >/dev/null 2>&1
 fi

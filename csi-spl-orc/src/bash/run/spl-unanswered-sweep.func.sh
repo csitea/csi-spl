@@ -13,6 +13,11 @@
 # @description than SWEEP_MIN_AGE minutes, however many came after it.
 # @description A topic is one task_id; its last message decides. Left out:
 # @description   answered - the last message is an agent's
+# @description   taken    - the last message is a take line (do_spl_take)
+# @description              younger than SWEEP_TAKE_GRACE minutes (SPL-1718):
+# @description              a take is not the answer, so after the grace
+# @description              the topic is open again, aged and keyed from
+# @description              the oldest human post before the take
 # @description   terminal - a line a human typed in an agent's terminal and
 # @description              the agent mirrored (typed_by set, specs/036): the
 # @description              agent read it where it was typed
@@ -78,6 +83,7 @@
 # @param SWEEP_MIN_AGE (optional) - minutes a human post waits before it counts, default 15
 # @param SWEEP_DAYS (optional) - lookback in days, default 7
 # @param SWEEP_RESEND (optional) - seconds before a re-send and again before the escalation, default 7200
+# @param SWEEP_TAKE_GRACE (optional) - minutes a take line holds its topic before it is open again, default 30
 # @param SWEEP_ESCALATE_AGE (optional) - minutes from the oldest unanswered post to the escalation; unset = the two-SWEEP_RESEND path
 # @param SWEEP_SKIP_TENANTS (optional) - space-separated test workspaces, default e2e; <spool root>/dispatch/test-workspaces adds to it (one id per line)
 # @param SWEEP_SKIP_RE (optional) - a workspace id or name matching this ERE is a test one, default (^|[-_ ])(e2e|test|proof)([-_ ]|$)
@@ -97,7 +103,7 @@ do_spl_unanswered_sweep() {
   [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd"; return 1; }
   local deliver="${DELIVER:-0}" v
   [[ "$deliver" == 0 || "$deliver" == 1 ]] || { do_log "FATAL DELIVER must be 0 or 1"; return 1; }
-  for v in SWEEP_MIN_AGE SWEEP_DAYS SWEEP_RESEND SWEEP_MAX_ITEMS SWEEP_ESCALATE_AGE SWEEP_FULL_EVERY SWEEP_OVERLAP; do
+  for v in SWEEP_MIN_AGE SWEEP_DAYS SWEEP_RESEND SWEEP_MAX_ITEMS SWEEP_ESCALATE_AGE SWEEP_TAKE_GRACE SWEEP_FULL_EVERY SWEEP_OVERLAP; do
     [[ -z "${!v:-}" || "${!v}" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL $v must be a positive integer, got: '${!v}'"; return 1; }
   done
   spl_lease_init ro || return 1
@@ -313,11 +319,12 @@ spl_sweep_rows_cached() {
 }
 
 # spl_sweep_keep <cache> -> two words, the Postgres arrays of the workspaces
-# and topics of its human-last rows (the only rows the sweep can list): the
+# and topics of its human-last and take-last rows (the only rows the sweep
+# can list): the
 # delta looks up their heads every run, so a deleted topic, whose head is
 # deleted with it, leaves the list at once and not at the next full read.
 spl_sweep_keep() {
-  awk -F'\t' '$9 == "human" && $1 ~ /^[A-Za-z0-9._-]+$/ && $4 ~ /^[0-9a-f-]+$/ { tn = tn s $1; tk = tk s $4; s = "," }
+  awk -F'\t' '($9 == "human" || $9 == "take") && $1 ~ /^[A-Za-z0-9._-]+$/ && $4 ~ /^[0-9a-f-]+$/ { tn = tn s $1; tk = tk s $4; s = "," }
     END { print "{" tn "}", "{" tk "}" }' "$1"
 }
 
@@ -449,11 +456,12 @@ _spl_sweep_rows_tail() {
 SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.task_id, l.msg_id,
        extract(epoch FROM l.received_at)::bigint, coalesce(l.typed_by, l.from_id), l.to_id,
        CASE WHEN l.typed_by IS NOT NULL THEN 'terminal'
-            WHEN l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' THEN 'human' ELSE 'agent' END,
+            WHEN l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' THEN 'human'
+            WHEN $(_spl_sweep_take_sql l) THEN 'take' ELSE 'agent' END,
        CASE WHEN $1
             THEN 'archived' ELSE 'open' END,
 SQL
-  cat <<'SQL'
+  cat <<SQL
        CASE WHEN l.channel IS NOT NULL AND c.deleted_at IS NOT NULL THEN 'deleted'
             WHEN l.channel IS NOT NULL AND c.archived_at IS NOT NULL THEN 'archived'
             WHEN l.channel IS NOT NULL AND coalesce(l.to_id, 'ALL-0') = 'ALL-0'
@@ -476,17 +484,28 @@ SQL
   LEFT JOIN channels c ON c.tenant_id = l.tenant_id AND c.channel_id = l.channel
   LEFT JOIN LATERAL (
     SELECT h.received_at, h.msg_id FROM messages h
-     WHERE l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
+     WHERE l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' OR $(_spl_sweep_take_sql l))
        AND h.tenant_id = l.tenant_id AND h.task_id = l.task_id
        AND h.expires_at > now() AND h.received_at > now() - make_interval(days => :days)
        AND h.typed_by IS NULL AND (h.from_id LIKE 'HUM-%' OR h.from_id LIKE 'GST-%')
        AND NOT EXISTS (SELECT 1 FROM messages r
                         WHERE r.tenant_id = h.tenant_id AND r.task_id = h.task_id
                           AND (r.typed_by IS NOT NULL
-                               OR (r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%'))
+                               OR (r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%'
+                                   AND NOT $(_spl_sweep_take_sql r)))
                           AND (r.received_at, r.msg_id) > (h.received_at, h.msg_id))
      ORDER BY h.received_at, h.msg_id LIMIT 1) f ON true
 SQL
+}
+
+# _spl_sweep_take_sql <alias>: true when that message is a take line
+# (do_spl_take: "Taken by <id>@<box>: <plan>. I post the result here.", an
+# agent's, not a terminal mirror). SPL-1718: a take is not the answer, so it
+# does not end the oldest-human anchor (columns 14/15) and, as a topic's last
+# line, is 'take', not 'agent'; the classifier holds it SWEEP_TAKE_GRACE
+# minutes. A spool_enc workspace's take is ciphertext: not seen, 'agent'.
+_spl_sweep_take_sql() {
+  printf "(%s.typed_by IS NULL AND %s.from_id NOT LIKE 'HUM-%%' AND %s.from_id NOT LIKE 'GST-%%' AND %s.body LIKE 'Taken by %%: %% I post the result here.')" "$1" "$1" "$1" "$1"
 }
 
 # spl_sweep_classify <rows> <state> <outdir>: writes report.md, holder.md,
@@ -495,5 +514,6 @@ spl_sweep_classify() {
   SKIP_T="$(spl_test_workspaces)" SKIP_RE="${SWEEP_SKIP_RE-(^|[-_ ])(e2e|test|proof)([-_ ]|$)}" \
   SKIP_CH="${SWEEP_SKIP_CHANNELS-issues tasks probe}" ACKS="$LEASE_DIR/unanswered.acks" \
   SKIP_HUM="${SWEEP_SKIP_HUMANS-$([[ "${ENV:-}" == prd ]] && echo HUM-1)}" MIN_AGE="${SWEEP_MIN_AGE:-15}" RESEND="${SWEEP_RESEND:-7200}" ESC_AGE="${SWEEP_ESCALATE_AGE:-}" \
+  TAKE_GRACE="${SWEEP_TAKE_GRACE:-30}" \
   MAX_ITEMS="${SWEEP_MAX_ITEMS:-40}" python3 "$(dirname "${BASH_SOURCE[0]}")/../scripts/unanswered-sweep-classify.py" "$@"
 }

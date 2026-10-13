@@ -35,6 +35,14 @@
 #      over 10 minutes; an agent reply ends it, a post after the reply is a
 #      new item aged from itself. RED-CONTROL: aged from the newest post the
 #      burst is "fresh" at every sweep and never listed
+#  13. SPL-1718, the counting test: a human post at minute 0, an agent's take
+#      line at minute 1, swept every minute for 40 minutes with the cron's
+#      SWEEP_MIN_AGE=3 and SWEEP_ESCALATE_AGE=5: 'taken' for the 30-minute
+#      grace, then NEW at minute 31 and ESC at minute 32, each once, aged
+#      from the human post; a real answer at minute 35 ends it. RED on the
+#      old code (a take was 'answered': 0 notes). CONTROLS: a real agent
+#      reply at minute 1 is never listed; a take with no human anchor is
+#      answered; SWEEP_TAKE_GRACE moves the window
 #  11. seats (spec 101 D7): with a seat line in peer/seats every box sends,
 #      the lease held on another box: one `peers` note per item (NEW, AGAIN,
 #      ESC); a planted claim bug (a topic whose job is owned by a seat whose
@@ -119,8 +127,8 @@ for t in 02 03 04 05 06 07 08 09 e1 e2 e3 e6 e7; do
 done
 pass "1. agent-last, archived topic/channel, e2e, proof-*, to a human, terminal, HUM-1, #issues, fresh: left out"
 [[ "$(grep -c '^| ack |' "$T/o")" == 2 ]] && pass "1. 'ok thanks!' and an emoji-only post are listed as acks" || fail "1. acks: $(grep '^| ack' "$T/o")"
-grep -q '^| t1 | 2 | 0 | 0 | 0 | 2 | 1 | 1 | 2 | 0 | 0 | 1 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 1 | 1 | 1 | 0 | 0 |$' "$T/o" &&
-  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=4 ack=2 nobody=1 new=4 resend=0 escalate=0$' "$T/o" &&
+grep -q '^| t1 | 2 | 0 | 0 | 0 | 2 | 1 | 0 | 1 | 2 | 0 | 0 | 1 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 0 | 0 |$' "$T/o" &&
+  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=4 ack=2 nobody=1 new=4 resend=0 escalate=0$' "$T/o" &&
   pass "1. per-workspace counts" || fail "1. counts: $(grep -A10 'Per workspace' "$T/o")"
 # spec 117 1.3: a null-channel ALL-0 with no agent in the topic is read by its
 # writer alone. It used to be counted as to-human and listed nowhere; now it
@@ -325,6 +333,55 @@ printf '%s\t\tdev\t%s\t10000000-0000-4000-8000-0000000000ff\t%s\tHUM-10\tbox-des
 rm -f "$S/dispatch/unanswered.state"
 s12 2 >"$T/o" 2>&1; a="$(grep -c '^| open |' "$T/o")"; s12 3 >"$T/o" 2>&1; b="$(grep -c '^| open |' "$T/o")"
 [[ "$a $b" == "0 1" ]] && pass "12. control: a lone post (old 13-column row) is fresh at 2 min, listed at 3" || fail "12. lone: $a $b"
+
+# --- 13. SPL-1718: a take line is not the answer --------------------------------------------------
+S="$T/spool13"; mkdir -p "$S/dispatch"; rm -f "$T/sent"
+echo "c-002 $NOW" >"$S/dispatch/lease"
+printf 'LEASE_MASTER=c-002\nLEASE_FAILOVER=c-003\nLEASE_ORCH=c-001\n' >"$S/dispatch/lease.conf"
+TK=00000000-0000-4000-8000-0000000000d1 HM=10000000-0000-4000-8000-0000000000d1
+# take_rows <minute> [take|agent]: the topic's row as the hub hands it: the
+# human post (minute 0), then from minute 1 the take line (or a real reply)
+# with the human post as its anchor, from minute 35 a real answer (no anchor)
+take_rows() {
+  if (( $1 == 0 )); then
+    printf '%s\t\tdev\t%s\t%s\t%s\tHUM-10\tbox-desk\thuman\topen\tlive\t-\twhy is the deploy red\t%s\t%s\n' t1 "$TK" "$HM" "$NOW" "$NOW" "$HM"
+  elif (( $1 >= 35 )) || [[ "${2:-take}" == agent ]]; then
+    printf '%s\t\tdev\t%s\t10000000-0000-4000-8000-0000000000d3\t%s\tc-002\tHUM-10\tagent\topen\tlive\t-\t\t\t\n' t1 "$TK" $(( NOW + 60 ))
+  else
+    printf '%s\t\tdev\t%s\t10000000-0000-4000-8000-0000000000d2\t%s\tc-002\tHUM-10\ttake\topen\tlive\t-\t\t%s\t%s\n' t1 "$TK" $(( NOW + 60 )) "$NOW" "$HM"
+  fi >"$T/rows13.tsv"
+}
+s13() { sweep SWEEP_ROWS_FILE="$T/rows13.tsv" DELIVER=1 SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5 SWEEP_NOW=$(( NOW + $1 * 60 )) "${@:2}"; }
+# run13 <take|agent> [env...]: 41 sweeps, minute 0..40; sets listed / escalated / taken13
+run13() {
+  local kind="$1" m n0 l0; shift
+  listed="" escalated="" taken13=0; rm -f "$T/sent" "$S/dispatch/unanswered.state"
+  for m in $(seq 0 40); do
+    take_rows "$m" "$kind"; n0="$(sends)"; l0="$(cat "$T/sent" 2>/dev/null | wc -l)"; s13 "$m" "$@" >"$T/o" 2>&1
+    grep -q '^| t1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |' "$T/o" && taken13=$(( taken13 + 1 ))
+    [[ "$(sends)" != "$n0" ]] || continue
+    tail -n +$(( l0 + 1 )) "$T/sent" | grep '^| NEW | t1 | #dev | '"$TK"' |' >/dev/null && listed="$listed $m"
+    tail -n +$(( l0 + 1 )) "$T/sent" | grep '^| ESC | t1 | #dev | '"$TK"' |' >/dev/null && escalated="$escalated $m"
+  done
+}
+run13 take
+[[ "$listed" == " 31" && "$escalated" == " 32" && "$(sends)" == 2 ]] &&
+  pass "13. a take at minute 1, no answer: NEW at minute 31, ESC at 32, each once (n=41 sweeps, 2 notes)" ||
+  fail "13. take: listed '${listed# }' (want 31) escalated '${escalated# }' (want 32) notes $(sends)"
+[[ "$taken13" == 30 ]] && pass "13. the 30 sweeps of minutes 1..30 count it 'taken'" || fail "13. taken in $taken13 sweep(s) (want 30)"
+grep -q '^| NEW | t1 | #dev | '"$TK"' | .* | 31m | c-002 | (taken by c-002 30m ago, no answer since) |' "$T/sent" &&
+  pass "13. the row is aged from the human post and names the taker" || fail "13. row: $(grep '^| NEW' "$T/sent")"
+run13 agent
+[[ -z "$listed$escalated" && "$(sends)" == 0 ]] &&
+  pass "13. CONTROL: a real agent reply at minute 1 is never listed (41 sweeps, 0 notes)" || fail "13. control reply: '$listed' '$escalated' $(sends)"
+run13 take SWEEP_TAKE_GRACE=10
+[[ "$listed" == " 11" && "$escalated" == " 12" ]] && pass "13. SWEEP_TAKE_GRACE=10: NEW at minute 11, ESC at 12" ||
+  fail "13. grace 10: '${listed# }' '${escalated# }'"
+printf '%s\t\tdev\t%s\t10000000-0000-4000-8000-0000000000d2\t%s\tc-002\tHUM-10\ttake\topen\tlive\t-\t\t\t\n' t1 "$TK" "$H" >"$T/rows13.tsv"
+sweep SWEEP_ROWS_FILE="$T/rows13.tsv" >"$T/o" 2>&1
+grep -q '^| t1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |' "$T/o" && pass "13. CONTROL: a take with no human post before it is answered" || fail "13. no anchor: $(grep '^| t1' "$T/o")"
+sweep SWEEP_ROWS_FILE="$T/rows13.tsv" SWEEP_TAKE_GRACE=0 >"$T/o" 2>&1
+grep -q 'FATAL SWEEP_TAKE_GRACE must be a positive integer' "$T/o" && pass "13. SWEEP_TAKE_GRACE=0 is refused" || fail "13. grace 0: $(cat "$T/o")"
 
 # --- 11. seats: the sweep stays, from every box, one peers note per item (D7) -------------------
 S="$T/spool11"; mkdir -p "$S/dispatch" "$S/peer"; rm -f "$T/sent"

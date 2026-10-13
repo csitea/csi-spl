@@ -247,6 +247,7 @@ topic whose LAST message is a human's and older than 15 minutes.
 | a topic whose last message is | the sweep |
 |---|---|
 | an agent's | leaves it: answered |
+| a take line (`do_spl_take`, "Taken by ... I post the result here."), younger than 30 minutes (`SWEEP_TAKE_GRACE`) | leaves it: taken. A take is not the answer (SPL-1718): after the 30 minutes the topic is listed again, aged and keyed from the oldest human post before the take, until an agent answers. A human post after a take keeps that oldest post as the age |
 | a human's, in a test workspace (`e2e`, or an id or name with `e2e`, `test` or `proof` as a word) | leaves it |
 | a human's, in an archived topic or an archived or deleted channel | leaves it: closed |
 | a line a human typed in an agent's terminal (`typed_by`, specs/036) | leaves it: the agent read it where it was typed |

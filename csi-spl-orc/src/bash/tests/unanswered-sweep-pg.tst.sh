@@ -17,6 +17,10 @@
 #   8. SPL-1684 (rdb 0189): a channel whose AI agents switch is off (the
 #      workspace default, or its own) is cstate ai_off and not listed; an
 #      @agent dispatch in it and a channel switched on stay open
+#   9. SPL-1718: a take line (do_spl_take) last is 'take' with the human post
+#      before it as its anchor; a take is no reply, so a human post after
+#      one keeps the oldest anchor; a real answer after a take is 'agent'.
+#      CONTROL: an agent line that only starts "Taken by" is 'agent'
 #   7. M3: columns 14/15 are the OLDEST human post after the last agent reply
 #      (a burst after a reply: its first post; no reply: the topic's first;
 #      agent last: empty), and the classifier ages the burst from it
@@ -182,6 +186,43 @@ env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/row
   grep -q '^| open | mtx | #ops | 20000000-0000-4000-8000-000000000002 |' "$T/o9" &&
   grep -q '^| open | mtx | #rides | 20000000-0000-4000-8000-000000000003 |' "$T/o9" &&
   pass "8. the off channel's post is not listed; CONTROL: the on channel and the dispatch are" || fail "8. classify: $(cat "$T/o9")"
+
+# --- 9. SPL-1718: a take is not the answer ------------------------------------
+# m9 <task n> <msg n> <from> <to> <minutes ago> <body>: a line in t1 #dev
+m9() {
+  psql_owner -c "INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts, from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, received_at, expires_at)
+    VALUES ('t1', '50000000-0000-4000-8000-0000000000$2', '40000000-0000-4000-8000-00000000000$1', 'dev', now(),
+            CASE WHEN '$3' LIKE 'HUM-%' THEN 'box-wui' ELSE 'box-desk' END, '$3', 'box-desk', '$4', 'note', \$b\$$6\$b\$,
+            '{}'::jsonb, 'sig', '\\x00', now() - interval '$5 minutes', now() + interval '30 days')" >/dev/null || fail "9. seed task $1 msg $2"
+}
+TAKE='Taken by c-002@box-a: I read the hub logs. I post the result here.'
+m9 1 11 HUM-2 box-desk 30 "why is the deploy red"; m9 1 12 c-002 HUM-2 20 "$TAKE"
+m9 2 21 HUM-2 box-desk 30 "question"; m9 2 22 c-002 HUM-2 25 "$TAKE"; m9 2 23 c-002 HUM-2 20 "the answer"
+m9 3 31 HUM-2 box-desk 30 "question"; m9 3 32 c-002 HUM-2 20 "Taken by surprise: the cause is the cache"
+m9 4 41 HUM-2 box-desk 40 "first ask"; m9 4 42 c-002 HUM-2 30 "$TAKE"; m9 4 43 HUM-2 box-desk 20 "any news?"
+env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" OUT="$T/rows9" bash -c '
+  set -uo pipefail
+  do_log() { echo "$*"; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
+  _spl_sweep_rows_read "$OUT"' >"$T/o9r" 2>&1 || fail "9. read: $(cat "$T/o9r")"
+c9() { awk -F'\t' -v t="40000000-0000-4000-8000-00000000000$1" -v c="$2" '$4 == t { print $c }' "$T/rows9"; }
+[[ "$(c9 1 9) $(c9 1 15) $(c9 1 13)" == "take 50000000-0000-4000-8000-000000000011 " ]] &&
+  pass "9. a take last is 'take', anchored on the human post before it, no body" || fail "9. take: '$(c9 1 9)' '$(c9 1 15)' '$(c9 1 13)'"
+[[ "$(c9 2 9) $(c9 3 9)" == "agent agent" && -z "$(c9 2 15)$(c9 3 15)" ]] &&
+  pass "9. a real answer after a take is 'agent'; CONTROL: a line that only starts 'Taken by' is 'agent'" || fail "9. agent: $(c9 2 9) $(c9 3 9) '$(c9 2 15)$(c9 3 15)'"
+[[ "$(c9 4 9) $(c9 4 15)" == "human 50000000-0000-4000-8000-000000000041" ]] &&
+  pass "9. a human post after a take keeps the anchor before the take" || fail "9. after take: $(c9 4 9) $(c9 4 15)"
+env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/rows9" SWEEP_TO=CLE-002 SWEEP_MIN_AGE=3 SWEEP_TAKE_GRACE=10 HOME="$T/home" bash -c '
+  set -uo pipefail
+  do_log() { echo "$*"; }
+  source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"
+  do_spl_unanswered_sweep' >"$T/o9" 2>&1
+grep -q '^| open | t1 | #dev | 40000000-0000-4000-8000-000000000001 | .* | 30m | c-002 | (taken by c-002 20m ago, no answer since) |' "$T/o9" &&
+  grep -q '^| open | t1 | #dev | 40000000-0000-4000-8000-000000000004 | .* | 40m | HUM-2 | any news? |' "$T/o9" &&
+  ! grep -q '^| open | .*4000000[0-9-]*0000000000[23] |' "$T/o9" &&
+  pass "9. the classifier lists the stalled take (aged from the ask) and the follow-up, not the answered ones" || fail "9. classify: $(grep 40000000 "$T/o9")"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

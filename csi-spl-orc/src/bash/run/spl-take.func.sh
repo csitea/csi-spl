@@ -9,8 +9,10 @@
 # @description a post with a note to the agents only, and the human saw no
 # @description reply in the topic until the full answer, much later.
 # @description The take line is also the first agent reply in the topic, which
-# @description is what makes the taker its owner (spec 3, "The owner record")
-# @description and what the unanswered sweep counts as answered.
+# @description is what makes the taker its owner (spec 3, "The owner record").
+# @description It is NOT the answer for the unanswered sweep (SPL-1718): the
+# @description sweep holds a take-last topic SWEEP_TAKE_GRACE minutes
+# @description (default 30), then lists it again until a real answer.
 # @description Idempotent: one take line per (topic, taker). The ledger is
 # @description <spool root>/dispatch/take.log ("<epoch> <topic> <id>@<box>
 # @description <plan>", tab-separated); a second call for the same pair posts

@@ -12,6 +12,12 @@ and id of the OLDEST human post after its last agent reply (15 columns, M3
 2026-10-11). An item is aged and keyed from that post, so a burst of human
 posts every 2 min is listed SWEEP_MIN_AGE after its first post, not held as
 fresh by its newest one. A 13-column row (an older export) is its own anchor.
+
+SPL-1718: a topic whose last line is an agent's take line (do_spl_take,
+column 9 'take') is not answered. The take opens a grace window of
+TAKE_GRACE minutes ('taken'); after it the topic is open again, aged and
+keyed from the same oldest human post as before the take, until a real
+answer comes. A take row with no human anchor is counted as answered.
 """
 
 import os, re, sys, time
@@ -22,6 +28,7 @@ now = int(e["SWEEP_NOW"])
 min_age = int(e["MIN_AGE"]) * 60
 resend = int(e["RESEND"])
 esc_age = int(e.get("ESC_AGE") or 0) * 60
+take_grace = int(e.get("TAKE_GRACE") or 30) * 60
 max_items = int(e["MAX_ITEMS"])
 skip_t = set(e["SKIP_T"].split())
 skip_re = re.compile(e["SKIP_RE"], re.I) if e["SKIP_RE"] else None
@@ -131,6 +138,7 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
                 "fresh",
                 "closed",
                 "answered",
+                "taken",
                 "terminal",
                 "handled",
                 "test",
@@ -149,14 +157,22 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
     if by == "terminal":
         c["terminal"] += 1
         continue
-    if by != "human":
+    take = by == "take"
+    if take and first_msg == msg:
+        c["answered"] += 1  # no human post before the take: nothing to answer
+        continue
+    if take and now - ts < take_grace:
+        c["taken"] += 1  # the taker's grace window: its answer is due
+        continue
+    if by not in ("human", "take"):
         c["answered"] += 1
         continue
     if topic == "archived" or cstate in ("archived", "deleted"):
         c["closed"] += 1
         continue
-    # Addressed to a person: that person reads it, no agent has to.
-    if re.match(r"(HUM|GST)-", to_id):
+    # Addressed to a person: that person reads it, no agent has to. A take
+    # line is addressed to the human who asked, by design.
+    if not take and re.match(r"(HUM|GST)-", to_id):
         c["to-human"] += 1
         continue
     # A null-channel ALL-0 in a topic no agent has posted in (cstate dm) is
@@ -174,7 +190,7 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
     if chan in skip_ch or cstate == "ai_off":
         c["channel"] += 1
         continue
-    if who in skip_hum:
+    if not take and who in skip_hum:
         c["human"] += 1
         continue
     if now - first_ts < min_age:
@@ -195,6 +211,8 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
         who=who,
         text=body[:120] if body else ("(files)" if files == "files" else "(empty)"),
     )
+    if take:
+        row["text"] = "(taken by %s %s ago, no answer since)" % (who, age(now - ts))
     # an ack after an unanswered question does not answer it
     if first_msg == msg and is_ack(body, files):
         c["ack"] += 1
@@ -263,9 +281,10 @@ def table(rows, tag, limit=None):
 stamp = utc(now)
 rep = "## Unanswered sweep %s %s\n\n" % (envn, stamp)
 rep += (
-    "Topics whose last message is a human's, the oldest unanswered one older than %d min"
+    "Topics whose last message is a human's, the oldest unanswered one older than %d min,"
+    " or a take line older than %d min with no answer after it"
     " (age: since that post; sent to %s; escalation %s).\n\n"
-    % (min_age // 60, to, orch)
+    % (min_age // 60, take_grace // 60, to, orch)
 )
 rep += HDR + (table(items, "open") if items else "| - | (none) | | | | | | |\n")
 rep += (
@@ -299,6 +318,7 @@ COLS = (
     "fresh",
     "closed",
     "answered",
+    "taken",
     "terminal",
     "to-human",
     "nobody",

@@ -1,6 +1,6 @@
 # Feature Specification: Message Levels — the Opening Card and the Thread Line
 
-**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (three items Planned, `tasks.md` T013–T015)
+**Feature ID**: `033-spool-message-levels` · **Milestone**: M3 · **Status**: Implemented (the prd live proof in CI waits for its member in cnf, `tasks.md` T015)
 **Created**: 2026-09-25 · **Lane**: MESSAGE-LEVELS (hub + DB + browser)
 **Authority**: this file for the rule; `tasks.md` for what is built and where.
 
@@ -115,7 +115,7 @@ the same in-place editor as `e` (032).
 | FR-ML-008 | After a reload a topic keeps its card even when its newest page is all level 2 | Implemented — `618851f` (`listMessages`) |
 | FR-ML-009 | A new lobby topic reaches every open `/lobby` live, not only its sender | Implemented — `618851f` (`pages/lobby.vue`) |
 | FR-ML-010 | Double click opens the editor on the viewer's own message at either level | Implemented — `82ddd5e` + `618851f` |
-| FR-ML-011 | `/t/<task_id>` shows the level-2 line in the topic and adds no second card | Partial — code: `pages/t/[task_id].vue` sends level 2 (`isParentFlag({ paneVisible: true })`); the proof surface is missing, `tasks.md` T014 |
+| FR-ML-011 | `/t/<task_id>` shows the level-2 line in the topic and adds no second card | Implemented — `pages/t/[task_id].vue` sends level 2 (`isParentFlag({ paneVisible: true })`); proof surface `t`, verified on dev (SPL-860), run by every WUI deploy (`tasks.md` T014, T015) |
 | FR-ML-012 | A level-2 reply is stored in its topic root's channel, whatever client sent it untagged | Implemented — hub `7b6e0ae` (0.5.4); backfill rdb 0042 applied dev + prd, `tasks.md` T017 |
 | FR-ML-013 | An agent's line on a channel topic's task is a level-2 reply, as the same line from the WUI reply pane is | Partial — hub 0.5.7 `boxLevel` built; rdb 0043 backfill applied on dev/prd is not recorded, `tasks.md` T018 |
 

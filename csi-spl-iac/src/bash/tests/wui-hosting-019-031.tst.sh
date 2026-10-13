@@ -107,13 +107,15 @@ if [[ -f "$W" ]]; then
   grep -q 'deploy --only hosting' "$W" && pass "workflow deploys hosting only" || fail "workflow deploy command"
   # T080 (owner 2026-09-19): the project key GCP_KEY_CSI_SPL_<ENV> from iac 120
   # is primary, WIF the alternative. Any OTHER secret or a Firebase token is a leak path.
+  # The one exception: spec 033 T015 (SPL-12), the probe member's password
+  # SPL_PROBE_PW_<ENV>, read only by the live proof step through env.
   code=$(grep -vE '^\s*#' "$W")
   grep -q "credentials_json: \${{ secrets\[format('GCP_KEY_CSI_SPL_{0}'" <<<"$code" \
     && pass "workflow authenticates with the project key GCP_KEY_CSI_SPL_<ENV>" || fail "workflow does not use GCP_KEY_CSI_SPL_<ENV>"
   grep -q 'workload_identity_provider:' <<<"$code" && pass "workflow keeps WIF as the alternative" || fail "workflow lost the WIF alternative"
   grep -qE 'FIREBASE_TOKEN|GOOGLE_CREDENTIALS' <<<"$code" && fail "workflow uses a Firebase token or raw credentials env" || pass "workflow uses no Firebase token"
-  others=$(grep -oE "secrets(\.[A-Za-z0-9_]+|\[format\('[A-Za-z0-9_{}]+')" <<<"$code" | grep -vE "GCP_KEY_CSI_SPL_(DEV|PRD|\{0\})" | sort -u)
-  [[ -z "$others" ]] && pass "workflow reads no secret but GCP_KEY_CSI_SPL_<ENV>" || fail "workflow reads other secrets: $others"
+  others=$(grep -oE "secrets(\.[A-Za-z0-9_]+|\[format\('[A-Za-z0-9_{}]+')" <<<"$code" | grep -vE "(GCP_KEY_CSI_SPL|SPL_PROBE_PW)_(DEV|PRD|\{0\})" | sort -u)
+  [[ -z "$others" ]] && pass "workflow reads no secret but GCP_KEY_CSI_SPL_<ENV> (+ the live proof's SPL_PROBE_PW_<ENV>)" || fail "workflow reads other secrets: $others"
   grep -qE 'echo .*secrets|cat .*credentials' <<<"$code" && fail "workflow may print a secret" || pass "workflow prints no secret"
   # an env deploys only where its site exists: cnf 019 wui_deploy (dev true, prd false until the owner go)
   grep -q '"019-firebase-static-site"\]\.get("wui_deploy", False)' "$W" \

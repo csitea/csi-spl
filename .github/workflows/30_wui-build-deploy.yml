@@ -550,6 +550,22 @@ jobs:
             [[ "$code" == 200 ]] && echo "ok - https://${FQDN}/version -> 200 (hub)" || { echo "::error::https://${FQDN}/version -> $code"; rc=1; }; }
           exit $rc
 
+      # spec 033 T015 (SPL-12): the level 1 / level 2 live proof (T010 + the
+      # /t/<task_id> surface of T014), signed in as the probe member, so a
+      # regression on either env is caught by the deploy, not by the owner.
+      # The password is ONLY the secret SPL_PROBE_PW_<ENV>, handed to the
+      # action through env (it writes a 0600 temp file for the proof and
+      # removes it); the member's email and workspace are cnf
+      # env.wui.live_proof_email / live_proof_tenant. An absent secret skips
+      # with a ::notice::; a proof that runs and fails fails the job.
+      - name: Live proof, signed in (do_spl_wui_live_proof)
+        if: steps.ver.outputs.stale != 'true'
+        timeout-minutes: 15
+        env:
+          ENV: ${{ matrix.environment }}
+          SPL_PROBE_PW: ${{ secrets[format('SPL_PROBE_PW_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+        run: ./csi-spl-orc/run -a do_spl_wui_live_proof
+
       # spec 065 L5, as in 20: a WUI-only push gets its release notes here,
       # not at the next hub deploy. The project key's SA is the hub's operator
       # (the WIF fallback is the Firebase deploy SA, which is not), so only

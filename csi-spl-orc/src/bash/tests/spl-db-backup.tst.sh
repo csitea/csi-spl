@@ -42,6 +42,8 @@ echo "gcloud $*" >>"$STUB_LOG"
 case "$*" in
   *"print-access-token"*) head -c 1024 /dev/zero | tr '\0' 'x'; echo; exit 0 ;;
   *"objects describe"*)   [ -n "$STUB_SIZE" ] && echo "$STUB_SIZE"; exit "${STUB_DESCRIBE_RC:-0}" ;;
+  *"get-iam-policy"*)     printf '{"bindings":[{"role":"roles/storage.objectViewer","members":["%s"]}]}\n' "${STUB_MEMBER:-serviceAccount:x@example.com}"; exit 0 ;;
+  *"uniform_bucket_level_access"*) echo "${STUB_UBLA:-True}"; exit 0 ;;
   *"buckets describe"*)   [ "${STUB_NO_BUCKET:-0}" = 1 ] && exit 1; echo "a-bucket"; exit 0 ;;
   *) exit "${STUB_RC:-0}" ;;
 esac
@@ -55,7 +57,7 @@ PIN='do_gcp_pin_account(){ export GCP_ACCOUNT=tester@example.com; };'
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" STUB_LOG="$T/calls.log" \
     STUB_SIZE="${STUB_SIZE:-}" STUB_RC="${STUB_RC:-0}" STUB_DESCRIBE_RC="${STUB_DESCRIBE_RC:-0}" \
-    STUB_NO_BUCKET="${STUB_NO_BUCKET:-0}" \
+    STUB_NO_BUCKET="${STUB_NO_BUCKET:-0}" STUB_MEMBER="${STUB_MEMBER:-}" STUB_UBLA="${STUB_UBLA:-}" \
     PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -131,6 +133,25 @@ grep -q 'sql export' "$T/calls.log" && fail "it exported despite no bucket" ||
 STUB_NO_BUCKET=0 STUB_SIZE=999999 SNIPPET="$PIN do_spl_db_backup" in_orc DRY_RUN=0 >/dev/null 2>&1
 grep -q 'sql export' "$T/calls.log" && pass "CONTROL: with the bucket present the export runs" ||
   fail "CONTROL: no export with a present bucket: $(cat "$T/calls.log")"
+
+# --- 4c. never into a public bucket (owner 2026-10-13, topic dd1fdead) -------------
+for m in allUsers allAuthenticatedUsers; do
+  : >"$T/calls.log"
+  o=$(STUB_MEMBER=$m STUB_SIZE=999999 SNIPPET="$PIN do_spl_db_backup" in_orc DRY_RUN=0 2>&1); rc=$?
+  (( rc == 5 )) && pass "a bucket granting $m is exit 5" || fail "$m bucket rc=$rc: $o"
+  grep -q 'sql export' "$T/calls.log" && fail "it exported into a bucket granting $m" ||
+    pass "$m: nothing is exported"
+done
+: >"$T/calls.log"
+o=$(STUB_UBLA=False STUB_SIZE=999999 SNIPPET="$PIN do_spl_db_backup" in_orc DRY_RUN=0 2>&1); rc=$?
+(( rc == 5 )) && pass "a bucket without uniform access is exit 5" || fail "no-ubla rc=$rc: $o"
+grep -q 'sql export' "$T/calls.log" && fail "it exported into a bucket without uniform access" ||
+  pass "no uniform access: nothing is exported"
+: >"$T/calls.log"
+STUB_SIZE=999999 SNIPPET="$PIN do_spl_db_backup" in_orc DRY_RUN=0 >/dev/null 2>&1
+grep -q 'get-iam-policy' "$T/calls.log" && grep -q 'sql export' "$T/calls.log" &&
+  pass "CONTROL: a private bucket's policy is read and the export runs" ||
+  fail "CONTROL: private bucket: $(cat "$T/calls.log")"
 
 # --- 5. the restore verdict ----------------------------------------------------------
 cmp_v() { # <restored> <live> -> "rc=<n> <output>"

@@ -652,6 +652,25 @@ are not in the copy (26 live on prd, none restored). The files copy is 6
 objects and 2 576 671 B short of the in-project files bucket measured the
 same day. Secrets and the cnf stay outside the bucket (§6.6.1).
 
+## 6.8 Never public (2026-10-13, SPL-1687)
+
+Owner, topic dd1fdead: "the db exports which are public to the Internet should
+contain only the data from the spool tenant , all of hte other tenants should
+be private data".
+
+Measured on tree `629cb12ab` with the read-only `ENV=<env> ./run -a
+do_spl_db_export_audit` (csi-spl-orc): 35 buckets (dev 12, prd 23), 0 public;
+130 dump objects (dev 31 in `csi-spl-dev-db-backups` + 31 in
+`csi-spl-bkp-dev/dev/db`, prd 34 + 34), 0 public. Every project bucket has
+uniform bucket-level access and no `allUsers` / `allAuthenticatedUsers`
+member. So no dump of this job was ever on the internet, and none was deleted
+(c-003, msg e45ab02a: choice A, until the owner says otherwise).
+
+The dump holds every workspace, so the job now refuses (exit 5) before the
+export when its bucket is public, lacks uniform access, or has a policy it
+cannot read (`spl_db_backup_bucket_private`). The one export meant for the
+internet is spec 091's, of the spool workspace only.
+
 ## 7. Out of scope
 
 Anything that changes the schema, the instance flags, the tier or the

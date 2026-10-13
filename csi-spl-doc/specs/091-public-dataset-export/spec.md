@@ -74,6 +74,9 @@ Spool Hub, and nothing about any other workspace.**
 ## 4. The allow-list (version 1)
 
 Source: the **prd** Spool Hub workspace, its id read from cnf (`env.public_dataset.workspace_id`), never a literal.
+On prd that id is `spool`, the workspace named spool (owner, 2026-10-13, topic dd1fdead: public exports
+"should contain only the data from the spool tenant", every other workspace stays private). It was `t1`
+until SPL-1687. Dev keeps `t1`: dev has no spool workspace and nothing on dev is public.
 
 ### 4.1 Rows and columns that ARE exported
 

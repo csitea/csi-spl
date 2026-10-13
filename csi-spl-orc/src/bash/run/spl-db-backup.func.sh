@@ -22,6 +22,14 @@
 # @description dies with the project, retainedBackups is 7, and a logical dump
 # @description can be read, diffed and partially restored.
 # @description
+# @description NEVER PUBLIC. The dump holds every workspace. Owner, 2026-10-13
+# @description (topic dd1fdead): "the db exports which are public to the
+# @description Internet should contain only the data from the spool tenant".
+# @description So the export refuses (exit 5) a bucket whose IAM policy names
+# @description allUsers or allAuthenticatedUsers, or that lacks uniform
+# @description bucket-level access: a whole-database dump is a private backup,
+# @description and the one public export is spec 091's, of one workspace only.
+# @description
 # @description DRY_RUN=1 (the default) resolves and prints the target object
 # @description and touches nothing. DRY_RUN=0 performs the export.
 # @param ENV - required: dev or prd
@@ -50,6 +58,7 @@ do_spl_db_backup() {
   fi
 
   spl_db_backup_bucket_exists "$bucket" || return $?
+  spl_db_backup_bucket_private "$bucket" || return $?
   spl_db_backup_export "$uri" || return $?
   spl_db_backup_check "$uri" || return $?
   printf 'uri=%s\n' "$uri"
@@ -87,6 +96,24 @@ spl_db_backup_bucket_exists() {
   do_log "FATAL   cd csi-spl-orc && ENV=$ENV STEP=045-gcs-db-backups make do-tf-plan"
   do_log "FATAL   cd csi-spl-orc && ENV=$ENV STEP=045-gcs-db-backups make do-provision"
   return 2
+}
+
+# spl_db_backup_bucket_private <bucket> -> exit 5 unless the bucket is private:
+# no allUsers / allAuthenticatedUsers member in its IAM policy, and uniform
+# bucket-level access on (without it an object ACL could still be public). An
+# unreadable policy is a refusal too: "could not check" is not "private".
+spl_db_backup_bucket_private() {
+  local policy ubla
+  policy="$(gcloud storage buckets get-iam-policy "gs://$1" --account="$GCP_ACCOUNT" --format=json 2>/dev/null)" ||
+    { do_log "FATAL $ENV: cannot read the IAM policy of gs://$1 as $GCP_ACCOUNT; not exporting a whole-database dump into a bucket of unknown access"; return 5; }
+  if grep -qE '"(allUsers|allAuthenticatedUsers)"' <<<"$policy"; then
+    do_log "FATAL $ENV: gs://$1 is PUBLIC (allUsers or allAuthenticatedUsers in its IAM policy). The dump holds every workspace; it is never written to a public bucket"
+    return 5
+  fi
+  ubla="$(gcloud storage buckets describe "gs://$1" --account="$GCP_ACCOUNT" \
+    --format='value(uniform_bucket_level_access)' 2>/dev/null)"
+  [[ "${ubla,,}" == true ]] ||
+    { do_log "FATAL $ENV: gs://$1 has no uniform bucket-level access, so an object ACL could make the dump public; refusing"; return 5; }
 }
 
 # spl_db_backup_export <uri> -> the export, retrying while the instance says an

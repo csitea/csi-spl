@@ -1,0 +1,6 @@
+Lay-What: Each blog post now shows a short row of share icons under the title.
+Lay-How: Tap an icon to copy the link or open that site. A check mark shows the copy worked.
+Lay-Why: The old named buttons used the top of a phone screen, so the article started lower.
+Tech-What: The blog post page draws one icon row. The words are the accessible name and the tooltip.
+Tech-How: The row is inline icons, 32px, that wrap only when they no longer fit. A successful copy swaps in a check for 1.6 seconds.
+Tech-Why: Named buttons wrapped onto extra lines on a narrow screen, pushing the article down.

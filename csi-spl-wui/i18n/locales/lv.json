@@ -2797,15 +2797,15 @@
     "you": "jūs"
   },
   "blog": {
-    "share": "Kopliet",
+    "share": "Kopīgot",
     "copy_link": "Kopēt saiti",
-    "share_linkedin": "Kopliet LinkedIn",
-    "share_facebook": "Kopliet Facebook",
-    "share_x": "Kopliet X",
-    "share_whatsapp": "Kopliet WhatsApp",
-    "share_telegram": "Kopliet Telegram",
-    "share_reddit": "Kopliet Reddit",
-    "share_substack": "Kopliet Substack",
-    "share_email": "Kopliet pa e-pastu"
+    "share_linkedin": "Kopīgot LinkedIn",
+    "share_facebook": "Kopīgot Facebook",
+    "share_x": "Kopīgot X",
+    "share_whatsapp": "Kopīgot WhatsApp",
+    "share_telegram": "Kopīgot Telegram",
+    "share_reddit": "Kopīgot Reddit",
+    "share_substack": "Kopīgot Substack",
+    "share_email": "Kopīgot pa e-pastu"
   }
 }

@@ -2797,15 +2797,15 @@
     "you": "ви"
   },
   "blog": {
-    "share": "Podeli",
-    "copy_link": "Kopiraj link",
-    "share_linkedin": "Podeli na LinkedIn-u",
-    "share_facebook": "Podeli na Facebook-u",
-    "share_x": "Podeli na X-u",
-    "share_whatsapp": "Podeli na WhatsApp-u",
-    "share_telegram": "Podeli na Telegramu",
-    "share_reddit": "Podeli na Reddit-u",
-    "share_substack": "Podeli na Substack-u",
-    "share_email": "Podeli putem e-pošte"
+    "share": "Подели",
+    "copy_link": "Копирај везу",
+    "share_linkedin": "Подели на LinkedIn-у",
+    "share_facebook": "Подели на Facebook-у",
+    "share_x": "Подели на X-у",
+    "share_whatsapp": "Подели на WhatsApp-у",
+    "share_telegram": "Подели на Telegram-у",
+    "share_reddit": "Подели на Reddit-у",
+    "share_substack": "Подели на Substack-у",
+    "share_email": "Подели путем имејла"
   }
 }

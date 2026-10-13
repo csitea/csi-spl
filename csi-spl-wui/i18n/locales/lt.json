@@ -2797,15 +2797,15 @@
     "you": "jūs"
   },
   "blog": {
-    "share": "Dalintis",
+    "share": "Bendrinti",
     "copy_link": "Kopijuoti nuorodą",
-    "share_linkedin": "Dalintis \"LinkedIn\"",
-    "share_facebook": "Dalintis \"Facebook\"",
-    "share_x": "Dalintis \"X\"",
-    "share_whatsapp": "Dalintis \"WhatsApp\"",
-    "share_telegram": "Dalintis \"Telegram\"",
-    "share_reddit": "Dalintis \"Reddit\"",
-    "share_substack": "Dalintis \"Substack\"",
-    "share_email": "Dalintis el. paštu"
+    "share_linkedin": "Bendrinti per LinkedIn",
+    "share_facebook": "Bendrinti per Facebook",
+    "share_x": "Bendrinti per X",
+    "share_whatsapp": "Bendrinti per WhatsApp",
+    "share_telegram": "Bendrinti per Telegram",
+    "share_reddit": "Bendrinti per Reddit",
+    "share_substack": "Bendrinti per Substack",
+    "share_email": "Bendrinti el. paštu"
   }
 }

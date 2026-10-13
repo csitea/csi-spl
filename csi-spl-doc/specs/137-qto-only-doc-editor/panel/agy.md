@@ -97,4 +97,4 @@ P-Q1 **A** (stored as `attrs.numbered = false`), P-Q2 **A** (one reserved repo w
 |---|---|---|---|
 | 1.0 | 2026-10-14 | s137-agy (a-960) | Initial consensus review: decisions P-Q1..P-Q5 and five tasks.md corrections. |
 
-<!-- version: 1.0 · updated: 2026-10-14 · last-edit: 2026-10-14T00:15:00Z -->
+<!-- version: 1.0 · updated: 2026-10-14 · last-edit: 2026-10-14T00:44:00Z -->

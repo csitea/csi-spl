@@ -184,7 +184,11 @@ func (h *dtHub) serve(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
 			return
 		}
-		it := &dtItem{ID: h.id(), Title: str("title"), Body: str("body"), Attrs: map[string]any{}, Rev: 1}
+		attrs, _ := in["attrs"].(map[string]any)
+		if attrs == nil {
+			attrs = map[string]any{}
+		}
+		it := &dtItem{ID: h.id(), Title: str("title"), Body: str("body"), Attrs: attrs, Rev: 1}
 		if str("where") == "sibling" {
 			for _, s := range d.children(a.Parent) {
 				if s.Ord > a.Ord {
@@ -367,7 +371,10 @@ func TestDocTreeRefusals(t *testing.T) {
 		{[]string{"add", dtDocID, "--kind", "table", "--text", "| a |\n| b |"}, "separator row"},
 		{[]string{"add", dtDocID, "--kind", "picture", "--path", "x.svg"}, ".png, .jpg"},
 		{[]string{"add", dtDocID, "--kind", "nope"}, "--kind is heading"},
-		{[]string{"edit", dtDocID, "x", "--field", "attrs", "--value", "{}"}, "--field is title or body"},
+		{[]string{"edit", dtDocID, "x", "--field", "attrs", "--value", "{}"}, "--field is title, body or attrs.<key>"},
+		{[]string{"edit", dtDocID, "x", "--field", "attrs.src", "--value", "x"}, "set by add --kind code"},
+		{[]string{"edit", dtDocID, "x", "--field", "attrs.Bad-Key", "--value", "x"}, "lower case letters"},
+		{[]string{"edit", dtDocID, "x", "--field", "attrs.numbered", "--value", "nope", "--json"}, "not JSON"},
 		{[]string{"rename", dtDocID, "--title", "x", "--rev", "9"}, "412"},
 		{[]string{"frob"}, "unknown doctree verb"},
 	}

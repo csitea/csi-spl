@@ -13,7 +13,8 @@ import (
 // file the WUI saves. Change both together.
 //
 // Per item, in document order: a heading (# by level, from the branch's top
-// level, at most ######) with the outline number and the title; the body
+// level, at most ######) with the outline number and the title (no number
+// for an unnumbered item, spec 137 T012a: the hub sends it no outline); the body
 // with each picture token followed by its "*Figure N: caption*" line; the
 // code block (attrs.src) fenced with ```<attrs.lang> (bare when no lang); the
 // section image (attrs.img_http_path) as a token and its figure line. Figure
@@ -112,27 +113,33 @@ func bodyWithFigures(it dtItem, doc string, figs map[string]docFig) string {
 	return b.String()
 }
 
-// docTreeBranch is the item and everything under it (WorkspaceDocView branchOf).
+// docTreeBranch is the item and everything under it (WorkspaceDocView
+// branchOf): in document order, the items after it that are deeper. By
+// depth, not by outline prefix: an unnumbered item has no outline.
 func docTreeBranch(items []dtItem, item string) ([]dtItem, error) {
 	if item == "" {
 		return items, nil
 	}
-	var top *dtItem
 	for i := range items {
-		if items[i].ID == item {
-			top = &items[i]
+		if items[i].ID != item {
+			continue
 		}
-	}
-	if top == nil {
-		return nil, fmt.Errorf("404: no item %s in the document", item)
-	}
-	var out []dtItem
-	for _, x := range items {
-		if x.ID == top.ID || strings.HasPrefix(x.Outline, top.Outline+".") {
-			out = append(out, x)
+		end := i + 1
+		for end < len(items) && items[end].Depth > items[i].Depth {
+			end++
 		}
+		return items[i:end], nil
 	}
-	return out, nil
+	return nil, fmt.Errorf("404: no item %s in the document", item)
+}
+
+// docTreeHeading is one item's heading line: the outline number and the
+// title, the title alone when the item is unnumbered (no outline).
+func docTreeHeading(level int, outline, title string) string {
+	if outline == "" {
+		return strings.Repeat("#", level) + " " + title
+	}
+	return strings.Repeat("#", level) + " " + outline + " " + title
 }
 
 // docTreeMarkdown is branchToMarkdown over the whole document's items (in
@@ -154,7 +161,7 @@ func docTreeMarkdown(items []dtItem, doc, item string) (string, error) {
 			title = docTreeUntitled
 		}
 		level := min(6, it.Depth-base+1)
-		out = append(out, strings.Repeat("#", level)+" "+it.Outline+" "+title, "")
+		out = append(out, docTreeHeading(level, it.Outline, title), "")
 		if body := strings.TrimSpace(bodyWithFigures(it, doc, figs)); body != "" {
 			out = append(out, body, "")
 		}

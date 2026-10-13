@@ -11,6 +11,8 @@ import (
 // The readers of spec 113 T002: DocSubtree (one item and everything under it,
 // in document order) and DocChildren (one item's children, the lazy route).
 // The outline number is derived here from the ord path, never stored (I6).
+// Spec 137 T012a: an item whose attrs.numbered is false has no outline and
+// does not count among its siblings; the items under it have no outline.
 
 // wsDocStartSQL resolves the start item: $2, or the doc's root when $2 is NULL.
 const wsDocStartSQL = `s AS (SELECT coalesce($2::uuid,
@@ -23,23 +25,34 @@ const wsDocStartSQL = `s AS (SELECT coalesce($2::uuid,
 	base AS (SELECT coalesce(array_agg(ord ORDER BY lvl DESC) FILTER (WHERE parent_id IS NOT NULL), '{}') AS path,
 		count(*) AS n FROM up)`
 
-// wsDocSubtreeSQL is the recursive CTE down from the start item; ORDER BY the
-// int[] ord path is document order (a prefix sorts first).
-const wsDocSubtreeSQL = `WITH RECURSIVE ` + wsDocStartSQL + `,
-	down AS (
-		SELECT i.id, i.parent_id, i.ord, i.title, i.body, i.attrs, i.rev, b.path::int[] AS path
-		FROM workspace_doc_item i JOIN s ON i.id = s.id CROSS JOIN base b WHERE i.doc_id = $1
-		UNION ALL
-		SELECT c.id, c.parent_id, c.ord, c.title, c.body, c.attrs, c.rev, d.path || c.ord
-		FROM workspace_doc_item c JOIN down d ON c.parent_id = d.id
-		WHERE c.doc_id = $1 AND cardinality(d.path) < 100000)
-	SELECT id::text, coalesce(parent_id::text, ''), ord, title, body, attrs, rev, path FROM down ORDER BY path`
+// wsDocNumSQL is every item's number among its siblings (spec 137 T012a):
+// 0 when its attrs.numbered is false, else the count of its numbered
+// siblings up to it; bnum is the start item's number path (the ancestors').
+const wsDocNumSQL = `nums AS (SELECT id, CASE WHEN coalesce(attrs->>'numbered', '') = 'false' THEN 0
+		ELSE count(*) FILTER (WHERE coalesce(attrs->>'numbered', '') <> 'false')
+			OVER (PARTITION BY parent_id ORDER BY ord) END AS n
+		FROM workspace_doc_item WHERE doc_id = $1),
+	bnum AS (SELECT coalesce(array_agg(n.n ORDER BY up.lvl DESC) FILTER (WHERE up.parent_id IS NOT NULL), '{}') AS np
+		FROM up JOIN nums n ON n.id = up.id)`
 
-// wsDocChildrenSQL is one item's children, with the item's own ord path as
-// the outline prefix (the ancestors' ord path of the lazy route).
-const wsDocChildrenSQL = `WITH RECURSIVE ` + wsDocStartSQL + `
-	SELECT c.id::text, coalesce(c.parent_id::text, ''), c.ord, c.title, c.body, c.attrs, c.rev, b.path::int[] || c.ord
-	FROM workspace_doc_item c JOIN s ON c.parent_id = s.id CROSS JOIN base b
+// wsDocSubtreeSQL is the recursive CTE down from the start item; ORDER BY the
+// int[] ord path is document order (a prefix sorts first); np, the number
+// path beside it, is what the outline is made of.
+const wsDocSubtreeSQL = `WITH RECURSIVE ` + wsDocStartSQL + `, ` + wsDocNumSQL + `,
+	down AS (
+		SELECT i.id, i.parent_id, i.ord, i.title, i.body, i.attrs, i.rev, b.path::int[] AS path, bn.np::int[] AS np
+		FROM workspace_doc_item i JOIN s ON i.id = s.id CROSS JOIN base b CROSS JOIN bnum bn WHERE i.doc_id = $1
+		UNION ALL
+		SELECT c.id, c.parent_id, c.ord, c.title, c.body, c.attrs, c.rev, d.path || c.ord, d.np || n.n::int
+		FROM workspace_doc_item c JOIN down d ON c.parent_id = d.id JOIN nums n ON n.id = c.id
+		WHERE c.doc_id = $1 AND cardinality(d.path) < 100000)
+	SELECT id::text, coalesce(parent_id::text, ''), ord, title, body, attrs, rev, np FROM down ORDER BY path`
+
+// wsDocChildrenSQL is one item's children, with the item's own number path
+// as the outline prefix (the ancestors' of the lazy route).
+const wsDocChildrenSQL = `WITH RECURSIVE ` + wsDocStartSQL + `, ` + wsDocNumSQL + `
+	SELECT c.id::text, coalesce(c.parent_id::text, ''), c.ord, c.title, c.body, c.attrs, c.rev, bn.np::int[] || n.n::int
+	FROM workspace_doc_item c JOIN s ON c.parent_id = s.id JOIN nums n ON n.id = c.id CROSS JOIN bnum bn
 	WHERE c.doc_id = $1 ORDER BY c.ord`
 
 // wsDocPathSQL is the start item's ord path and whether it (and the doc) exist.
@@ -113,10 +126,14 @@ func scanDocItem(r pgx.Rows) (DocItem, error) {
 	return it, err
 }
 
-// outlineOf is the derived number: the ord path joined by dots.
+// outlineOf is the derived number: the number path joined by dots; "" when
+// the item or one above it is unnumbered (a 0 in the path).
 func outlineOf(path []int32) string {
 	parts := make([]string, len(path))
 	for i, p := range path {
+		if p == 0 {
+			return ""
+		}
 		parts[i] = strconv.Itoa(int(p))
 	}
 	return strings.Join(parts, ".")

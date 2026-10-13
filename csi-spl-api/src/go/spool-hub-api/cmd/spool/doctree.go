@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -32,17 +33,19 @@ import (
 //	doctree head <doc>                           rev, items, root, topic
 //	doctree read <doc> [--item id]               the items as JSON (a subtree, or the whole doc)
 //	doctree add <doc> --kind heading|para|code|table|picture ...
-//	doctree edit <doc> <item> --field title|body [--value v | --file f]
+//	doctree edit <doc> <item> --field title|body|attrs.<key> [--value v | --file f] [--json]
 //	doctree move <doc> <item> [--parent id] [--ord n] [--rev n]
 //	doctree delete <doc> [<item>] [--rev n]      an item's subtree, or the whole document
 //	doctree rename <doc> --title t [--rev n]
-//	doctree export <doc> [--item id] [--out f]   Markdown, the WUI's export rules
+//	doctree export <doc> [--item id] [--out f] [--from read.json]
+//	                                             Markdown, the WUI's export rules
 //
 // The item kinds of add (the WUI's model: an item is a heading; its body is
 // the paragraph text; its attrs carry one code block and one image):
 //
-//	heading  --title t [--level n | --under item | --after item] [--text t]
-//	         a new item; --level n appends it at depth n, under the last item at n-1
+//	heading  --title t [--level n | --under item | --after item] [--text t] [--unnumbered]
+//	         a new item; --level n appends it at depth n, under the last item at n-1;
+//	         --unnumbered sets attrs.numbered false: no outline number (spec 137)
 //	para     --text t | --file f [--item id]     text appended to the item's body
 //	table    --text t | --file f [--item id]     a Markdown table appended to the body
 //	code     --text t | --file f [--lang l] [--item id] [--replace]
@@ -388,28 +391,79 @@ func dtRead(ctx context.Context, cfg *config.Config, args []string) error {
 }
 
 func dtEdit(ctx context.Context, cfg *config.Config, args []string) error {
-	fs := newDTFlags("edit", "usage: spool doctree edit <doc> <item> --field title|body [--value v | --file f]")
-	field := fs.String("field", "", "title or body")
+	fs := newDTFlags("edit", "usage: spool doctree edit <doc> <item> --field title|body|attrs.<key> [--value v | --file f] [--json]")
+	field := fs.String("field", "", "title, body, or attrs.<key>: one key of the item's attrs")
 	value := fs.String("value", "", "the new text")
 	file := fs.String("file", "", "read the new text from this file")
+	asJSON := fs.Bool("json", false, "attrs.<key>: the value is JSON (true, 3, null drops the key), not a string")
 	pos, err := fs.parse(args, 2, 2)
 	if err != nil {
 		return err
 	}
-	if *field != "title" && *field != "body" {
-		return errors.New("--field is title or body; " + fs.usage)
+	key, isAttr := strings.CutPrefix(*field, "attrs.")
+	if isAttr {
+		if err := dtAttrKeyOK(key); err != nil {
+			return err
+		}
+	} else if *field != "title" && *field != "body" {
+		return errors.New("--field is title, body or attrs.<key>; " + fs.usage)
 	}
 	text, err := dtText(*value, *file, *field == "title")
 	if err != nil {
 		return err
+	}
+	var v any = text
+	if *asJSON {
+		if !isAttr {
+			return errors.New("--json is for --field attrs.<key>")
+		}
+		if err := json.Unmarshal([]byte(text), &v); err != nil {
+			return fmt.Errorf("--json: the value is not JSON: %w", err)
+		}
 	}
 	return dtRun(ctx, cfg, func(c *dtClient) ([]byte, error) {
 		it, err := c.item(ctx, pos[0], pos[1])
 		if err != nil {
 			return nil, err
 		}
-		return c.edit(ctx, pos[0], pos[1], *field, text, it.Rev)
+		if !isAttr {
+			return c.edit(ctx, pos[0], pos[1], *field, text, it.Rev)
+		}
+		raw, err := json.Marshal(dtAttrsWith(it.Attrs, key, v))
+		if err != nil {
+			return nil, err
+		}
+		return c.edit(ctx, pos[0], pos[1], "attrs", string(raw), it.Rev)
 	})
+}
+
+// dtAttrKeyRe is an attrs key edit may set: lower case, digits, underscore.
+var dtAttrKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
+
+// dtAttrKeyOK refuses a malformed key and the typed keys, which add --kind
+// code / picture own (they set them together, the hub checks them together).
+func dtAttrKeyOK(key string) error {
+	switch {
+	case !dtAttrKeyRe.MatchString(key):
+		return fmt.Errorf("attrs.%s: a key is lower case letters, digits and _", key)
+	case key == "kind" || key == "src" || key == "lang" || key == "img_http_path" || key == "img_name":
+		return fmt.Errorf("attrs.%s is set by add --kind code or picture, not by edit", key)
+	}
+	return nil
+}
+
+// dtAttrsWith is attrs with key set to v (a copy; nil v drops the key).
+func dtAttrsWith(attrs map[string]any, key string, v any) map[string]any {
+	out := map[string]any{}
+	for k, x := range attrs {
+		out[k] = x
+	}
+	if v == nil {
+		delete(out, key)
+	} else {
+		out[key] = v
+	}
+	return out
 }
 
 func dtMove(ctx context.Context, cfg *config.Config, args []string) error {
@@ -455,19 +509,15 @@ func dtRename(ctx context.Context, cfg *config.Config, args []string) error {
 }
 
 func dtExport(ctx context.Context, cfg *config.Config, args []string) error {
-	fs := newDTFlags("export", "usage: spool doctree export <doc> [--item id] [--out file]")
+	fs := newDTFlags("export", "usage: spool doctree export <doc> [--item id] [--out file] [--from read.json]")
 	item := fs.String("item", "", "export this item's branch (none = the whole document)")
 	out := fs.String("out", "", "write the Markdown to this file (none = stdout)")
+	from := fs.String("from", "", "export a saved `spool doctree read <doc>` answer (a file) instead of reading the hub")
 	pos, err := fs.parse(args, 1, 1)
 	if err != nil {
 		return err
 	}
-	c, done, err := dtDial(ctx, cfg)
-	if err != nil {
-		return err
-	}
-	defer done()
-	_, items, err := c.subtree(ctx, pos[0], "")
+	items, err := dtExportItems(ctx, cfg, pos[0], *from)
 	if err != nil {
 		return err
 	}
@@ -482,6 +532,37 @@ func dtExport(ctx context.Context, cfg *config.Config, args []string) error {
 		return errors.New("stdout")
 	}
 	return nil
+}
+
+// dtExportItems is the whole document's items: from the hub, or from a
+// saved read answer (--from: offline, no hub; the hidden root dropped).
+func dtExportItems(ctx context.Context, cfg *config.Config, doc, from string) ([]dtItem, error) {
+	if from == "" {
+		c, done, err := dtDial(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+		defer done()
+		_, items, err := c.subtree(ctx, doc, "")
+		return items, err
+	}
+	b, err := os.ReadFile(from)
+	if err != nil {
+		return nil, err
+	}
+	var res struct {
+		Items []dtItem `json:"items"`
+	}
+	if err := json.Unmarshal(b, &res); err != nil {
+		return nil, fmt.Errorf("--from %s: not a doctree read answer: %w", from, err)
+	}
+	items := res.Items[:0]
+	for _, it := range res.Items {
+		if it.Parent != "" || it.Depth > 0 {
+			items = append(items, it)
+		}
+	}
+	return items, nil
 }
 
 // dtText is --value / --text, or --file, or stdin when neither is given.
@@ -509,12 +590,12 @@ type dtAddOpts struct {
 	item, under, after                           string
 	level                                        int
 	rev                                          int64
-	replace                                      bool
+	replace, unnumbered                          bool
 }
 
 func dtAdd(ctx context.Context, cfg *config.Config, args []string) error {
 	fs := newDTFlags("add", "usage: spool doctree add <doc> --kind heading|para|code|table|picture "+
-		"[--title t] [--level n | --under id | --after id] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]")
+		"[--title t] [--level n | --under id | --after id] [--unnumbered] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]")
 	var o dtAddOpts
 	fs.StringVar(&o.kind, "kind", "", "heading, para, code, table or picture")
 	fs.StringVar(&o.title, "title", "", "the heading's title")
@@ -529,6 +610,7 @@ func dtAdd(ctx context.Context, cfg *config.Config, args []string) error {
 	fs.StringVar(&o.item, "item", "", "para, table, code, picture: the item (none = the last item)")
 	fs.Int64Var(&o.rev, "rev", 0, "heading: the doc rev read (0 = no precondition)")
 	fs.BoolVar(&o.replace, "replace", false, "code: replace the item's code block")
+	fs.BoolVar(&o.unnumbered, "unnumbered", false, "heading: no outline number (attrs.numbered false)")
 	pos, err := fs.parse(args, 1, 1)
 	if err != nil {
 		return err
@@ -590,6 +672,9 @@ func dtAddHeading(ctx context.Context, doc string, o dtAddOpts) (func(*dtClient)
 			anchor = p
 		}
 		in := map[string]any{"rev": o.rev, "anchor": anchor, "where": where, "ord": 0, "title": o.title, "body": body}
+		if o.unnumbered {
+			in["attrs"] = map[string]any{"numbered": false}
+		}
 		return c.json(ctx, http.MethodPost, dtDoc(doc)+"/items", in, nil)
 	}, nil
 }

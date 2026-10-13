@@ -36,9 +36,9 @@ var docTreeVerbs = []dtVerb{
 		"usage: spool doctree read <doc> [--item id]"},
 	{"add", dtAdd, "add a heading, or a paragraph, table, code block or picture to an item",
 		"usage: spool doctree add <doc> --kind heading|para|code|table|picture " +
-			"[--title t] [--level n | --under id | --after id] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]"},
-	{"edit", dtEdit, "replace an item's title or body",
-		"usage: spool doctree edit <doc> <item> --field title|body [--value v | --file f]"},
+			"[--title t] [--level n | --under id | --after id] [--unnumbered] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]"},
+	{"edit", dtEdit, "replace an item's title or body, or set one key of its attrs",
+		"usage: spool doctree edit <doc> <item> --field title|body|attrs.<key> [--value v | --file f] [--json]"},
 	{"move", dtMove, "move an item to another parent or position",
 		"usage: spool doctree move <doc> <item> [--parent id] [--ord n] [--rev n]"},
 	{"delete", dtDelete, "delete an item's subtree, or the whole document",
@@ -46,7 +46,7 @@ var docTreeVerbs = []dtVerb{
 	{"rename", dtRename, "rename a document",
 		"usage: spool doctree rename <doc> --title t [--rev n]"},
 	{"export", dtExport, "export a document or a branch as Markdown (the WUI's export rules)",
-		"usage: spool doctree export <doc> [--item id] [--out file]"},
+		"usage: spool doctree export <doc> [--item id] [--out file] [--from read.json]"},
 }
 
 func dtVerbByName(name string) (dtVerb, bool) {

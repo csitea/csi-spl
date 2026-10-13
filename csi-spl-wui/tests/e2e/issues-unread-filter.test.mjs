@@ -103,9 +103,14 @@ try {
   ok('3 open SPL-2, back: it leaves the list and the badge drops by one', opened && closed && left && dropped, { opened, closed, left, rows: await keys(p, ROW), badge: await badge(p) })
 
   await p.click('[data-test=issues-filter-unread]')
-  const off = await until(p, (s) => Boolean(document.querySelector(`${s}[data-key="SPL-2"]`)), ROW, 8000)
+  /* the list reloads and router.replace drops ?unread: wait for both, the
+     replace can land after the rows on a slow runner */
+  const off = await until(p, (s) => Boolean(document.querySelector(`${s}[data-key="SPL-2"]`))
+    && !new URL(window.location.href).searchParams.has('unread'), ROW, 8000)
   const back = await keys(p, ROW)
-  ok('4 CONTROL: Unread off lists the opened SPL-2 again and leaves the URL', off && back.length === all && (await unreadInUrl(p)) === '', { back, all })
+  const url = await unreadInUrl(p)
+  const search = await p.evaluate(() => window.location.search)
+  ok('4 CONTROL: Unread off lists the opened SPL-2 again and leaves the URL', off && back.length === all && url === '', { off, back, all, url, search })
   ok('desktop: no unexpected page errors', d.errors.length === 0, d.errors)
   await d.ctx.close()
 

@@ -550,34 +550,20 @@ func uiParent(v *int) (int, bool) {
 // wuiSend builds the v:1 object for a browser send and stores it through the
 // shared commit path (messages + deliveries rows).
 func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
-	fail := func(rf *frameRefusal) {
-		// a refusal used to leave no line in the hub log, and the
-		// WUI shows every refusal as "did not reach the hub" - so the owner's
-		// ERR-CLIENT-20260927-204316-6D9A could not be joined to a reason on
-		// either side. One line per refusal: the token names the check.
-		s.o.Log.Info().Str("tenant", c.tenant).Str("member", c.member).Str("msg_id", f.MsgID).
-			Str("task_id", f.TaskID).Str("channel", f.Channel).Str("token", rf.token).Int("status", rf.status).
-			Str("detail", rf.detail).Msg("wui send refused")
-		var frame any = wuiErr{"error", rf.token, rf.status, rf.detail, f.MsgID}
-		if a := refusedAgent(rf); a != "" { // SPL-1018 decision 5, sender_allow.go
-			frame = wuiErrAgent{frame.(wuiErr), a}
-		}
-		c.write(ctx, frame) //nolint:errcheck
-	}
 	task, id, isParent, tok, status, detail := s.wuiIDs(f)
 	if tok != "" {
-		fail(&frameRefusal{tok, status, detail})
+		s.wuiRefuse(ctx, c, f, &frameRefusal{tok, status, detail})
 		return
 	}
 	f.MsgID = id
 	to, agent, fb, rf := s.wuiRecipient(ctx, c.tenant, task, f)
 	if rf != nil {
-		fail(rf)
+		s.wuiRefuse(ctx, c, f, rf)
 		return
 	}
 	m, rf := s.wuiMessage(ctx, c, f, task, to)
 	if rf != nil {
-		fail(rf)
+		s.wuiRefuse(ctx, c, f, rf)
 		return
 	}
 	f.ParentTaskID = strings.ToLower(f.ParentTaskID)
@@ -604,12 +590,12 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		rf = frameRefusalOf(s.demoAuditPost(ctx, c.tenant, c.member, rt.channel, m))
 	}
 	if rf != nil {
-		fail(rf)
+		s.wuiRefuse(ctx, c, f, rf)
 		return
 	}
 	env, tok, status, detail := s.wuiEnvelope(ctx, c.tenant, m, rt.signing, rt.channel, f.ParentTaskID)
 	if tok != "" {
-		fail(&frameRefusal{tok, status, detail})
+		s.wuiRefuse(ctx, c, f, &frameRefusal{tok, status, detail})
 		return
 	}
 	ref := s.wuiDMRef(ctx, c, f.RefTaskID) // spec 067 3.3, dm_ref.go
@@ -617,17 +603,17 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	ctx = ref
 	r, err := s.commitRow(ctx, c.tenant, env, m, isParent)
 	if errors.Is(err, store.ErrConflict) {
-		fail(&frameRefusal{"conflict_msg", http.StatusConflict, "msg_id exists with a different message"})
+		s.wuiRefuse(ctx, c, f, &frameRefusal{"conflict_msg", http.StatusConflict, "msg_id exists with a different message"})
 		return
 	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui store message")
-		fail(&frameRefusal{"internal", http.StatusInternalServerError, "message not stored"})
+		s.wuiRefuse(ctx, c, f, &frameRefusal{"internal", http.StatusInternalServerError, "message not stored"})
 		return
 	}
 	ack, rf := s.wuiAck(ctx, c, m, rt, r)
 	if rf != nil {
-		fail(rf)
+		s.wuiRefuse(ctx, c, f, rf)
 		return
 	}
 	c.write(ctx, ack) //nolint:errcheck
@@ -635,6 +621,24 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	if r.inserted {
 		s.fallback(ctx, c.tenant, rt.channel, env, m)
 	}
+}
+
+// wuiRefuse logs one line for a browser send the hub did not store and
+// writes the error frame. A sender_not_allowed refusal also names the agent
+// (SPL-1018 decision 5, sender_allow.go).
+func (s *Server) wuiRefuse(ctx context.Context, c *wuiConn, f wuiIn, rf *frameRefusal) {
+	// a refusal used to leave no line in the hub log, and the
+	// WUI shows every refusal as "did not reach the hub" - so the owner's
+	// ERR-CLIENT-20260927-204316-6D9A could not be joined to a reason on
+	// either side. One line per refusal: the token names the check.
+	s.o.Log.Info().Str("tenant", c.tenant).Str("member", c.member).Str("msg_id", f.MsgID).
+		Str("task_id", f.TaskID).Str("channel", f.Channel).Str("token", rf.token).Int("status", rf.status).
+		Str("detail", rf.detail).Msg("wui send refused")
+	var frame any = wuiErr{"error", rf.token, rf.status, rf.detail, f.MsgID}
+	if a := refusedAgent(rf); a != "" {
+		frame = wuiErrAgent{frame.(wuiErr), a}
+	}
+	c.write(ctx, frame) //nolint:errcheck
 }
 
 // shareMembersMemo makes the request memo of from (privacy.go) the memo of

@@ -180,6 +180,15 @@ One file shape, with a `type` field:
 - **Theme.** The pages use the WUI's CSS variables, so dark and light follow
   the user's theme. A visitor with no setting gets `prefers-color-scheme`.
 
+- **Share row** (HUM-10, t1 c15a822c). Under the title of a post: Copy link,
+  LinkedIn, Facebook, X, WhatsApp, Telegram, Reddit, Substack, e-mail.
+  Copy link is a button and copies the post's canonical URL. The others are
+  plain links (`target=_blank`, `rel=noopener`), each built from that URL
+  and the title. No third-party script. Substack has no share URL: that
+  control copies the link and opens Substack Notes. Where the browser
+  offers the Web Share API, that control is last and does not replace
+  the row.
+
 ### 3.4 Source: markdown in the repo (D4)
 
 **Decided: one markdown file per post and locale in

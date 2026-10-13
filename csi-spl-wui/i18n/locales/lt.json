@@ -2795,5 +2795,17 @@
     "failed": "Neišsiųsta: spustelėkite dar kartą",
     "none": "nė vieno",
     "you": "jūs"
+  },
+  "blog": {
+    "share": "Dalintis",
+    "copy_link": "Kopijuoti nuorodą",
+    "share_linkedin": "Dalintis \"LinkedIn\"",
+    "share_facebook": "Dalintis \"Facebook\"",
+    "share_x": "Dalintis \"X\"",
+    "share_whatsapp": "Dalintis \"WhatsApp\"",
+    "share_telegram": "Dalintis \"Telegram\"",
+    "share_reddit": "Dalintis \"Reddit\"",
+    "share_substack": "Dalintis \"Substack\"",
+    "share_email": "Dalintis el. paštu"
   }
 }

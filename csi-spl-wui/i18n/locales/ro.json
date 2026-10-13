@@ -2795,5 +2795,17 @@
     "failed": "Netrimis: dați clic din nou",
     "none": "niciunul",
     "you": "tu"
+  },
+  "blog": {
+    "share": "Distribuie",
+    "copy_link": "Copiază linkul",
+    "share_linkedin": "Distribuie pe LinkedIn",
+    "share_facebook": "Distribuie pe Facebook",
+    "share_x": "Distribuie pe X",
+    "share_whatsapp": "Distribuie pe WhatsApp",
+    "share_telegram": "Distribuie pe Telegram",
+    "share_reddit": "Distribuie pe Reddit",
+    "share_substack": "Distribuie pe Substack",
+    "share_email": "Distribuie prin e-mail"
   }
 }

@@ -2795,5 +2795,17 @@
     "failed": "Gönderilmedi: yeniden tıklayın",
     "none": "hiçbiri",
     "you": "siz"
+  },
+  "blog": {
+    "share": "Paylaş",
+    "copy_link": "Bağlantıyı kopyala",
+    "share_linkedin": "LinkedIn'de paylaş",
+    "share_facebook": "Facebook'ta paylaş",
+    "share_x": "X'te paylaş",
+    "share_whatsapp": "WhatsApp'ta paylaş",
+    "share_telegram": "Telegram'da paylaş",
+    "share_reddit": "Reddit'te paylaş",
+    "share_substack": "Substack'te paylaş",
+    "share_email": "E-posta ile paylaş"
   }
 }

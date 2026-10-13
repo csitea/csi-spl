@@ -2795,5 +2795,17 @@
     "failed": "Nav nosūtīts: noklikšķiniet vēlreiz",
     "none": "neviena",
     "you": "jūs"
+  },
+  "blog": {
+    "share": "Kopliet",
+    "copy_link": "Kopēt saiti",
+    "share_linkedin": "Kopliet LinkedIn",
+    "share_facebook": "Kopliet Facebook",
+    "share_x": "Kopliet X",
+    "share_whatsapp": "Kopliet WhatsApp",
+    "share_telegram": "Kopliet Telegram",
+    "share_reddit": "Kopliet Reddit",
+    "share_substack": "Kopliet Substack",
+    "share_email": "Kopliet pa e-pastu"
   }
 }

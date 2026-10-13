@@ -2795,5 +2795,17 @@
     "failed": "Није послато: кликните поново",
     "none": "ништа",
     "you": "ви"
+  },
+  "blog": {
+    "share": "Podeli",
+    "copy_link": "Kopiraj link",
+    "share_linkedin": "Podeli na LinkedIn-u",
+    "share_facebook": "Podeli na Facebook-u",
+    "share_x": "Podeli na X-u",
+    "share_whatsapp": "Podeli na WhatsApp-u",
+    "share_telegram": "Podeli na Telegramu",
+    "share_reddit": "Podeli na Reddit-u",
+    "share_substack": "Podeli na Substack-u",
+    "share_email": "Podeli putem e-pošte"
   }
 }

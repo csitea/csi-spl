@@ -2795,5 +2795,17 @@
     "failed": "Neodoslané: kliknite znova",
     "none": "nič",
     "you": "vy"
+  },
+  "blog": {
+    "share": "Zdieľať",
+    "copy_link": "Kopírovať odkaz",
+    "share_linkedin": "Zdieľať na LinkedIn",
+    "share_facebook": "Zdieľať na Facebook",
+    "share_x": "Zdieľať na X",
+    "share_whatsapp": "Zdieľať na WhatsApp",
+    "share_telegram": "Zdieľať na Telegram",
+    "share_reddit": "Zdieľať na Reddit",
+    "share_substack": "Zdieľať na Substack",
+    "share_email": "Zdieľať cez e-mail"
   }
 }

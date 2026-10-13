@@ -2795,5 +2795,17 @@
     "failed": "Не е изпратено: щракнете отново",
     "none": "нищо",
     "you": "вие"
+  },
+  "blog": {
+    "share": "Споделяне",
+    "copy_link": "Копиране на връзка",
+    "share_linkedin": "Споделяне в LinkedIn",
+    "share_facebook": "Споделяне във Facebook",
+    "share_x": "Споделяне в X",
+    "share_whatsapp": "Споделяне във WhatsApp",
+    "share_telegram": "Споделяне в Telegram",
+    "share_reddit": "Споделяне в Reddit",
+    "share_substack": "Споделяне в Substack",
+    "share_email": "Споделяне по имейл"
   }
 }

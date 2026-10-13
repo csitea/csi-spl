@@ -2795,5 +2795,17 @@
     "failed": "Not sent: click again",
     "none": "none",
     "you": "you"
+  },
+  "blog": {
+    "share": "Share",
+    "copy_link": "Copy link",
+    "share_linkedin": "Share on LinkedIn",
+    "share_facebook": "Share on Facebook",
+    "share_x": "Share on X",
+    "share_whatsapp": "Share on WhatsApp",
+    "share_telegram": "Share on Telegram",
+    "share_reddit": "Share on Reddit",
+    "share_substack": "Share on Substack",
+    "share_email": "Share via Email"
   }
 }

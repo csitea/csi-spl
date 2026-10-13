@@ -2795,5 +2795,17 @@
     "failed": "No enviada: haz clic de nuevo",
     "none": "ninguna",
     "you": "tú"
+  },
+  "blog": {
+    "share": "Compartir",
+    "copy_link": "Copiar enlace",
+    "share_linkedin": "Compartir en LinkedIn",
+    "share_facebook": "Compartir en Facebook",
+    "share_x": "Compartir en X",
+    "share_whatsapp": "Compartir en WhatsApp",
+    "share_telegram": "Compartir en Telegram",
+    "share_reddit": "Compartir en Reddit",
+    "share_substack": "Compartir en Substack",
+    "share_email": "Compartir por correo electrónico"
   }
 }

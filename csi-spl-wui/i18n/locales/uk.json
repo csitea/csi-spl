@@ -2795,5 +2795,17 @@
     "failed": "Не надіслано: натисніть ще раз",
     "none": "нічого",
     "you": "ви"
+  },
+  "blog": {
+    "share": "Поділитися",
+    "copy_link": "Копіювати посилання",
+    "share_linkedin": "Поділитися в LinkedIn",
+    "share_facebook": "Поділитися у Facebook",
+    "share_x": "Поділитися у X",
+    "share_whatsapp": "Поділитися у WhatsApp",
+    "share_telegram": "Поділитися в Telegram",
+    "share_reddit": "Поділитися на Reddit",
+    "share_substack": "Поділитися на Substack",
+    "share_email": "Поділитися електронною поштою"
   }
 }

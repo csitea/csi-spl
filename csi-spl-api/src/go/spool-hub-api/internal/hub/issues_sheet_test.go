@@ -21,11 +21,11 @@ func sheetIssue(t *testing.T, is store.Issues, tid, desc string) store.Issue {
 	if _, err := is.CreateIssueLabel(ctx, store.IssueLabel{TenantID: tid, LabelID: store.IssueEpicLabel, Name: store.IssueEpicLabel, CreatedBy: "HUM-1"}, now); err != nil {
 		t.Fatal(err)
 	}
-	ep, err := is.CreateIssue(ctx, store.Issue{TenantID: tid, Title: "Epic", Labels: []string{store.IssueEpicLabel}, TaskID: uuidV4(), CreatedBy: "HUM-1"}, now)
+	ep, err := is.CreateIssue(ctx, store.Issue{Discussions: []string{uuidV4()}, TenantID: tid, Title: "Epic", Labels: []string{store.IssueEpicLabel}, TaskID: uuidV4(), CreatedBy: "HUM-1"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	it, err := is.CreateIssue(ctx, store.Issue{TenantID: tid, Title: "with text", Description: desc, Parent: ep.Number, TaskID: uuidV4(), CreatedBy: "HUM-1"}, now)
+	it, err := is.CreateIssue(ctx, store.Issue{Discussions: []string{uuidV4()}, TenantID: tid, Title: "with text", Description: desc, Parent: ep.Number, TaskID: uuidV4(), CreatedBy: "HUM-1"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}

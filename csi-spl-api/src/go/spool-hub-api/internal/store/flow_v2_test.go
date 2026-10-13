@@ -299,7 +299,7 @@ func TestFlowReleaseBadgeAndAssigneeWatch(t *testing.T) {
 				}
 			}
 			post("c-009", "the topic", now)
-			iss, err := is.CreateIssue(ctx, Issue{TenantID: tid, Title: "t", TaskID: task, CreatedBy: "HUM-9", Assignee: "HUM-3"}, now)
+			iss, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tid, Title: "t", TaskID: task, CreatedBy: "HUM-9", Assignee: "HUM-3"}, now)
 			if err != nil {
 				t.Fatal(err)
 			}

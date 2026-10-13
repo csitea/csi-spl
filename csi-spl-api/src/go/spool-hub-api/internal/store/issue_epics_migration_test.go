@@ -40,8 +40,12 @@ func TestMigration0049EpicBackfill(t *testing.T) {
 					return err
 				}
 			}
-			_, err := tx.Exec(ctx, `INSERT INTO issues (tenant_id, number, title, labels, parent_number, task_id, created_by, updated_by)
-				VALUES ($1, $2, $3, $4, $5, $6, 'HUM-1', 'HUM-1')`, tn, n, title, labels, parent, uuid4())
+			if _, err := tx.Exec(ctx, `INSERT INTO issues (tenant_id, number, title, labels, parent_number, task_id, created_by, updated_by)
+				VALUES ($1, $2, $3, $4, $5, $6, 'HUM-1', 'HUM-1')`, tn, n, title, labels, parent, uuid4()); err != nil {
+				return err
+			}
+			// rdb 0194: an issue commits with a discussion
+			_, err := tx.Exec(ctx, `INSERT INTO issue_discussions (tenant_id, number, task_id) VALUES ($1, $2, $3)`, tn, n, uuid4())
 			return err
 		}); err != nil {
 			t.Fatal(err)
@@ -68,7 +72,14 @@ func TestMigration0049EpicBackfill(t *testing.T) {
 	}
 	run := func() {
 		t.Helper()
-		if err := pg.asOperator(ctx, func(tx pgx.Tx) error { _, err := tx.Exec(ctx, string(raw)); return err }); err != nil {
+		// rdb 0194 ran after 0049: the "random" epic it makes gets a discussion
+		if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, string(raw)); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, backfill0194(t))
+			return err
+		}); err != nil {
 			t.Fatalf("0049: %v", err)
 		}
 		// rdb 0053 ran after 0049 on every database: its data step makes the

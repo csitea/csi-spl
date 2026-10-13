@@ -163,6 +163,9 @@ type Issue struct {
 	// with its cascade (ClosesEpic) answered on it. The row itself is in its
 	// ArchivedWith.
 	AutoClosedEpic *Issue
+	// Discussions are the topic ids a create links (rdb 0194, SPL-1593): at
+	// least one. Reads leave it nil; IssueDiscussions reads the links.
+	Discussions []string
 }
 
 // ClosesEpic is the one rule of SPL-1643 (owner HUM-10, t1 1ccf3a20, msgs
@@ -616,8 +619,9 @@ type memIssues struct {
 	prefix   map[string]string
 	rows     map[string]map[int]Issue
 	labels   map[string]map[string]IssueLabel
-	history  map[string]map[int][]IssueEvent // rdb 0181 issue_events, without comments
-	opened   map[[2]string]map[int]time.Time // rdb 0184 issue_opens: (tenant, member) -> number -> opened_at
+	history  map[string]map[int][]IssueEvent      // rdb 0181 issue_events, without comments
+	opened   map[[2]string]map[int]time.Time      // rdb 0184 issue_opens: (tenant, member) -> number -> opened_at
+	links    map[string]map[int][]IssueDiscussion // rdb 0194 issue_discussions
 }
 
 func (m *memIssues) init() {
@@ -702,6 +706,11 @@ func (s *Memory) CreateIssue(_ context.Context, in Issue, now time.Time) (Issue,
 	if err := checkIssue(&in); err != nil {
 		return Issue{}, err
 	}
+	ds, err := normDiscussions(in.Discussions)
+	if err != nil {
+		return Issue{}, err
+	}
+	in.Discussions = nil
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.tenants[in.TenantID]; !ok {
@@ -725,6 +734,11 @@ func (s *Memory) CreateIssue(_ context.Context, in Issue, now time.Time) (Issue,
 		s.iss.rows[in.TenantID] = map[int]Issue{}
 	}
 	s.iss.rows[in.TenantID][in.Number] = copyIssue(in)
+	links := make([]IssueDiscussion, 0, len(ds))
+	for _, d := range ds {
+		links = append(links, IssueDiscussion{TaskID: d, LinkedBy: in.CreatedBy, LinkedAt: now})
+	}
+	s.iss.setLinks(in.TenantID, in.Number, links)
 	s.iss.recordLocked(in.TenantID, in.Number, IssueEvent{At: now, Actor: in.CreatedBy, Event: IssueEventCreated})
 	s.flowWatchAssigneeLocked(in.TenantID, in.TaskID, in.Assignee, now)
 	return copyIssue(in), nil

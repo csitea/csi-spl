@@ -139,6 +139,11 @@ func (s *Postgres) CreateIssue(ctx context.Context, in Issue, now time.Time) (Is
 	if err := checkIssue(&in); err != nil {
 		return Issue{}, err
 	}
+	ds, err := normDiscussions(in.Discussions)
+	if err != nil {
+		return Issue{}, err
+	}
+	in.Discussions = ds
 	now = now.UTC().Truncate(time.Microsecond)
 	stampStatus(&in, now)
 	if err := checkTenant(in.TenantID); err != nil {
@@ -234,6 +239,8 @@ func insertIssueOn(ctx context.Context, conn *pgx.Conn, in Issue, now time.Time)
 		in.TenantID, in.Title, in.Description, in.Status, in.Priority, in.Level, in.Assignee, in.Labels,
 		in.Deadline, nullParent(in.Parent), in.TaskID, in.CreatedBy, now, in.CompletedAt, in.CanceledAt, in.Kind)
 	b.Queue(flowWatchAssigneeSQL, in.TenantID, in.TaskID, in.Assignee, now)
+	// rdb 0194: the links, before the COMMIT that checks there is one
+	b.Queue(issueDiscussionsInsertSQL, in.TenantID, in.Discussions, in.CreatedBy, now)
 	b.Queue(`COMMIT`)
 	br := conn.SendBatch(ctx, b)
 	defer br.Close()
@@ -245,7 +252,7 @@ func insertIssueOn(ctx context.Context, conn *pgx.Conn, in Issue, now time.Time)
 	if err != nil {
 		return Issue{}, err
 	}
-	for range 2 { // the assignee's watch, COMMIT
+	for range 3 { // the assignee's watch, the links, COMMIT
 		if _, err := br.Exec(); err != nil {
 			return Issue{}, err
 		}

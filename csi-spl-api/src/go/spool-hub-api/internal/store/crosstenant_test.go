@@ -216,7 +216,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.CreateIssueLabel(ctx, IssueLabel{TenantID: s.tenant, Name: "bug", CreatedBy: hum}, now); err != nil {
 		t.Fatal(err)
 	}
-	iss, err := pg.CreateIssue(ctx, Issue{TenantID: s.tenant, Title: "issue " + s.tenant, Labels: []string{"bug"},
+	iss, err := pg.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: s.tenant, Title: "issue " + s.tenant, Labels: []string{"bug"},
 		TaskID: uuid4(), CreatedBy: hum, Parent: testEpic(t, pg, s.tenant, now)}, now)
 	if err != nil {
 		t.Fatal(err)

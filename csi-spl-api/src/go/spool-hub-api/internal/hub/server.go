@@ -554,6 +554,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	bt := time.NewTicker(backfillEvery)
 	defer bt.Stop()
 	s.PostPublicNotices(ctx) // rdb 0173: the #public notice of every existing tenant
+	s.PostIssueBacklogs(ctx) // rdb 0194: the "Issue backlog" topic the backfill linked
 	for {
 		select {
 		case <-ctx.Done():
@@ -590,6 +591,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepHours(ctx)          // spec 107 4.2: hours freeze + 45-day minutes
 			s.sweepEmbedRetention(ctx) // specs/121 4.4: visitor channels, 30 days after the last message
 			s.PostPublicNotices(ctx)   // rdb 0173: a tenant made outside the hub gets its notice
+			s.PostIssueBacklogs(ctx)   // rdb 0194: a relink to a tenant's backlog topic
 		}
 	}
 }

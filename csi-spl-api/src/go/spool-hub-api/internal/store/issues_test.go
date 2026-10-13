@@ -15,7 +15,7 @@ func testEpic(t *testing.T, is Issues, tenant string, now time.Time) int {
 	if _, err := is.CreateIssueLabel(context.Background(), IssueLabel{TenantID: tenant, LabelID: IssueEpicLabel, Name: IssueEpicLabel}, now); err != nil && !errors.Is(err, ErrConflict) {
 		t.Fatal(err)
 	}
-	e, err := is.CreateIssue(context.Background(), Issue{TenantID: tenant, Title: "an epic", Labels: []string{IssueEpicLabel}, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+	e, err := is.CreateIssue(context.Background(), Issue{Discussions: []string{uuid4()}, TenantID: tenant, Title: "an epic", Labels: []string{IssueEpicLabel}, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestIssues(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if _, err := is.CreateIssue(ctx, Issue{TenantID: uid("nope-"), Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1"}, now); !errors.Is(err, ErrNotFound) {
+			if _, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: uid("nope-"), Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1"}, now); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("unknown tenant: %v", err)
 			}
 			for _, bad := range []Issue{
@@ -51,10 +51,10 @@ func TestIssues(t *testing.T) {
 				}
 			}
 			ea := testEpic(t, is, a, now)
-			if _, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: ea, Labels: []string{"bug"}}, now); !errors.Is(err, ErrUnknownLabel) {
+			if _, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: a, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: ea, Labels: []string{"bug"}}, now); !errors.Is(err, ErrUnknownLabel) {
 				t.Fatalf("unknown label: %v", err)
 			}
-			if _, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: 99}, now); !errors.Is(err, ErrUnknownParent) {
+			if _, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: a, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: 99}, now); !errors.Is(err, ErrUnknownParent) {
 				t.Fatalf("unknown parent: %v", err)
 			}
 			bug, err := is.CreateIssueLabel(ctx, IssueLabel{TenantID: a, Name: " Bug ", Color: "#FF0000", CreatedBy: "HUM-1"}, now)
@@ -69,7 +69,7 @@ func TestIssues(t *testing.T) {
 			}
 			dl := now.Add(48 * time.Hour)
 			task := uuid4()
-			one, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "  First  ", Description: "## md", Priority: 1, Level: 2,
+			one, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: a, Title: "  First  ", Description: "## md", Priority: 1, Level: 2,
 				Assignee: "CLE-01", Labels: []string{"bug", "bug"}, Deadline: &dl, TaskID: task, CreatedBy: "HUM-1", Parent: ea}, now)
 			if err != nil {
 				t.Fatal(err)
@@ -79,21 +79,21 @@ func TestIssues(t *testing.T) {
 				one.TaskID != task || one.UpdatedBy != "HUM-1" || !one.CreatedAt.Equal(now) || one.CompletedAt != nil || one.Parent != ea || one.IsEpic() {
 				t.Fatalf("created: %+v", one)
 			}
-			if _, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "dup task", TaskID: task, CreatedBy: "HUM-1", Parent: ea}, now); !errors.Is(err, ErrConflict) {
+			if _, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: a, Title: "dup task", TaskID: task, CreatedBy: "HUM-1", Parent: ea}, now); !errors.Is(err, ErrConflict) {
 				t.Fatalf("dup task_id: %v", err)
 			}
-			two, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "Second", Status: IssueDone, Parent: ea, TaskID: uuid4(), CreatedBy: "CLE-01"}, now)
+			two, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: a, Title: "Second", Status: IssueDone, Parent: ea, TaskID: uuid4(), CreatedBy: "CLE-01"}, now)
 			if err != nil || two.Number != ea+2 || two.Parent != ea || two.CompletedAt == nil {
 				t.Fatalf("second: %+v %v", two, err)
 			}
 			// An open issue keeps the epic open while one and two close
 			// (SPL-1729: the last open issue closes its epic).
-			if _, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "Keeps the epic open", Parent: ea, TaskID: uuid4(), CreatedBy: "HUM-1"}, now); err != nil {
+			if _, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: a, Title: "Keeps the epic open", Parent: ea, TaskID: uuid4(), CreatedBy: "HUM-1"}, now); err != nil {
 				t.Fatal(err)
 			}
 			// B numbers from 1 and sees none of A's.
 			eb := testEpic(t, is, b, now)
-			other, err := is.CreateIssue(ctx, Issue{TenantID: b, Title: "B's", TaskID: uuid4(), CreatedBy: "HUM-2", Parent: eb}, now)
+			other, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: b, Title: "B's", TaskID: uuid4(), CreatedBy: "HUM-2", Parent: eb}, now)
 			if err != nil || eb != 1 || other.Number != 2 {
 				t.Fatalf("tenant b: %+v %v", other, err)
 			}
@@ -130,7 +130,7 @@ func TestIssues(t *testing.T) {
 					t.Fatalf("bad level %d: %v", lv, err)
 				}
 			}
-			if _, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "x", Level: 1, TaskID: uuid4(), CreatedBy: "HUM-1", Parent: ea}, now); !errors.Is(err, ErrInvalidIssue) {
+			if _, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: a, Title: "x", Level: 1, TaskID: uuid4(), CreatedBy: "HUM-1", Parent: ea}, now); !errors.Is(err, ErrInvalidIssue) {
 				t.Fatalf("create with a level off the tree: %v", err)
 			}
 			if got, err := is.UpdateIssue(ctx, a, one.Number, IssuePatch{Level: ptrInt(2)}, "HUM-3", later); err != nil || got.Level != 2 {
@@ -168,14 +168,14 @@ func TestSetIssuePrefix(t *testing.T) {
 			if p, err := is.SetIssuePrefix(ctx, tn, "ops"); err != nil || p != "OPS" {
 				t.Fatalf("before any issue: %q %v", p, err)
 			}
-			one, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "first", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+			one, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "first", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 			if err != nil || one.Number != 1 || IssueKey(one.Prefix, one.Number) != "OPS-1" {
 				t.Fatalf("first issue: %+v %v", one, err)
 			}
 			if _, err := is.SetIssuePrefix(ctx, tn, "AC2"); err != nil {
 				t.Fatal(err)
 			}
-			two, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "second", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+			two, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "second", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 			if err != nil || IssueKey(two.Prefix, two.Number) != "AC2-2" {
 				t.Fatalf("after a rename: %+v %v", two, err)
 			}
@@ -208,12 +208,12 @@ func TestIssueEpicRule(t *testing.T) {
 			if got, _ := is.GetIssue(ctx, tn, e1); got.Kind != IssueKindEpic {
 				t.Fatalf("label form: %+v", got)
 			}
-			f1, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "a feature", Kind: IssueKindFeature, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+			f1, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "a feature", Kind: IssueKindFeature, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 			if err != nil || !f1.IsEpic() || f1.Kind != IssueKindFeature || f1.Level != 1 {
 				t.Fatalf("feature: %+v %v", f1, err)
 			}
 			mk := func(parent int, kind string) (Issue, error) {
-				return is.CreateIssue(ctx, Issue{TenantID: tn, Title: "i", Parent: parent, Kind: kind, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+				return is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "i", Parent: parent, Kind: kind, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 			}
 			// W16 (spec 047): an issue needs no epic; it stands at level 2
 			// and takes subtasks like any level-2 issue.
@@ -306,7 +306,7 @@ func TestIssueNumbersConcurrent(t *testing.T) {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					i, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "c", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: ep}, time.Now())
+					i, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "c", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: ep}, time.Now())
 					if err != nil {
 						t.Error(err)
 						return
@@ -361,11 +361,11 @@ func TestIssuesCascade(t *testing.T) {
 				t.Fatal(err)
 			}
 			e := testEpic(t, is, tn, now) // level 1
-			child, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "feature work", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: e}, now)
+			child, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "feature work", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: e}, now)
 			if err != nil {
 				t.Fatal(err)
 			}
-			sub, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "a subtask", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: child.Number}, now)
+			sub, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "a subtask", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: child.Number}, now)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -435,7 +435,7 @@ func TestIssueTopicsHidden(t *testing.T) {
 				t.Fatal(err)
 			}
 			issueTask, plainTask := uuid4(), uuid4()
-			if _, err := s.(Issues).CreateIssue(ctx, Issue{TenantID: tn, Title: "x", TaskID: issueTask, CreatedBy: "HUM-1", Parent: testEpic(t, s.(Issues), tn, now)}, now); err != nil {
+			if _, err := s.(Issues).CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "x", TaskID: issueTask, CreatedBy: "HUM-1", Parent: testEpic(t, s.(Issues), tn, now)}, now); err != nil {
 				t.Fatal(err)
 			}
 			for _, task := range []string{issueTask, plainTask} {
@@ -474,7 +474,7 @@ func TestIssueBlockedOnHold(t *testing.T) {
 				t.Fatal(err)
 			}
 			ep := testEpic(t, is, tn, now)
-			i, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "waits", Status: IssueBlocked, Parent: ep, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+			i, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "waits", Status: IssueBlocked, Parent: ep, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 			if err != nil || i.Status != IssueBlocked || i.CompletedAt != nil || i.CanceledAt != nil {
 				t.Fatalf("blocked: %+v %v", i, err)
 			}
@@ -505,7 +505,7 @@ func TestIssueSoftDelete(t *testing.T) {
 			ep := testEpic(t, is, tn, now)
 			mk := func(title string, parent int) Issue {
 				t.Helper()
-				i, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: title, Parent: parent, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+				i, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: title, Parent: parent, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -542,7 +542,7 @@ func TestIssueSoftDelete(t *testing.T) {
 			if _, err := is.DeleteIssue(ctx, tn, parent.Number, "HUM-1", now); err != nil {
 				t.Fatalf("parent after its child: %v", err)
 			}
-			if _, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "orphan", Parent: parent.Number, TaskID: uuid4(), CreatedBy: "HUM-1"}, now); !errors.Is(err, ErrUnknownParent) {
+			if _, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "orphan", Parent: parent.Number, TaskID: uuid4(), CreatedBy: "HUM-1"}, now); !errors.Is(err, ErrUnknownParent) {
 				t.Fatalf("child of a deleted parent: %v", err)
 			}
 			if next := mk("next", ep); next.Number <= sub.Number {
@@ -568,7 +568,7 @@ func TestListIssueSheet(t *testing.T) {
 	}
 	ep := testEpic(t, pg, tn, now)
 	desc := "the long text\n" + strings.Repeat("x", 4096)
-	in, err := pg.CreateIssue(ctx, Issue{TenantID: tn, Title: "with text", Description: desc, Parent: ep, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+	in, err := pg.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: "with text", Description: desc, Parent: ep, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}

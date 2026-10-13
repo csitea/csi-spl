@@ -26,11 +26,11 @@ func TestIssueHistory(t *testing.T) {
 				}
 			}
 			task := uuid4()
-			one, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "first", TaskID: task, CreatedBy: "HUM-1"}, at(0))
+			one, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: a, Title: "first", TaskID: task, CreatedBy: "HUM-1"}, at(0))
 			if err != nil {
 				t.Fatal(err)
 			}
-			kid, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "kid", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: one.Number}, at(0))
+			kid, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: a, Title: "kid", TaskID: uuid4(), CreatedBy: "HUM-1", Parent: one.Number}, at(0))
 			if err != nil || kid.Level != 3 {
 				t.Fatalf("subtask: %+v %v", kid, err)
 			}

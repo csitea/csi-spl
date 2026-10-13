@@ -31,7 +31,7 @@
 # @param LANE_ISSUE_OP (optional) - place (default) | discussion | end
 # @param BRIEF (optional, place) - the brief file; default <spool root>/<id>/lifetime/brief.md
 # @param LANE_ISSUE_KEY (optional, place) - an existing key to link, e.g. SPL-123; default the brief's Issue: line
-# @param LANE_ISSUE_TOPIC (optional, place) - the discussion's topic id; default the first uuid after "topic" in the brief
+# @param LANE_ISSUE_TOPIC (optional, place) - the discussion's topic id or its 8-hex short id; default the first one after "topic" (or "dispatch-") in the brief. The issue links it (SPL-1593, rdb 0194); none, or one the hub cannot resolve to exactly one topic of the tenant, links the tenant's default discussion and logs one WARN line naming the brief - a placement never fails on the link
 # @param LANE_ISSUE_POST (optional, place/discussion) - 0: do not post a filed key back in its topic (default 1)
 # @param LANE_ISSUE_ANSWER (optional, place/discussion) - 1: label the filed issue `answer` (an evaluation, an answer to the owner)
 # @param LANE_ISSUE_TITLE (required, discussion) - what the work is
@@ -141,7 +141,7 @@ spl_lane_issue_place() {
   SLI_DRY="$3"
   brief="${BRIEF:-$life/brief.md}"
   key="${LANE_ISSUE_KEY:-$(li_key_from_brief "$brief")}"
-  topic="${LANE_ISSUE_TOPIC:-$(grep -m1 -oiE 'topic[^0-9a-f]{0,40}[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$brief" 2>/dev/null | grep -oE '[0-9a-f]{8}-[0-9a-f-]{27}$')}"
+  topic="${LANE_ISSUE_TOPIC:-$(spl_lane_issue_topic "$brief")}"
   if [[ -n "$key" ]]; then
     [[ "$key" =~ ^${LI_KEY_RE}$ ]] || { do_log "FATAL LANE_ISSUE_KEY must be an issue key like SPL-12, got: '$key'"; return 1; }
     spl_lane_issue_assign update --ref "$key" --status wip >/dev/null || return 1
@@ -150,15 +150,20 @@ spl_lane_issue_place() {
     [[ -r "$brief" ]] || { do_log "FATAL no issue key and no readable brief to file one from ($brief): pass LANE_ISSUE_KEY=<KEY> or BRIEF=<file>"; return 1; }
     title="$(grep -m1 -E '^#+ ' "$brief" | sed -E 's/^#+ +//; s/^Brief: *//' | cut -c1-200)"
     [[ -n "$title" ]] || { do_log "FATAL the brief $brief has no heading to title the issue with"; return 1; }
+    [[ -n "$topic" ]] || {
+      topic="$(spl_lane_issue_default_topic)"
+      do_log "WARN brief $brief names no topic: the issue links the default discussion $topic of $TENANT_ID (SPL-1593)" >&2
+    }
     desc="$(mktemp)"
     { spl_lane_issue_card '<new>' "$topic" "$brief" 'the lane starts from its brief'
       awk 'NR > 1 && /^## / { exit } NR > 1 { n += length($0) + 1; if (n > 1500) exit; print }' "$brief"
       printf '\n- Lane: %s\n' "$id"
-      [[ -n "$topic" ]] && printf -- '- Topic: %s\n' "$(spl_lane_issue_link "$topic")"
+      [[ "$topic" =~ ^[0-9a-f]{8}-[0-9a-f-]{27}$ ]] && printf -- '- Topic: %s\n' "$(spl_lane_issue_link "$topic")"
     } >"$desc"
     grep -qiE '^Kind:[[:space:]]*answer[[:space:]]*$' "$brief" && LANE_ISSUE_ANSWER=1
-    key="$(spl_lane_issue_file wip "$title" "$desc")" || rc=$?
-    (( rc == 0 )) && spl_lane_issue_keyed "$key" "$desc" && spl_lane_issue_post "$key" "$topic" "$title"
+    out="$(spl_lane_issue_file wip "$title" "$desc" "$brief")" || rc=$?
+    key="${out%%$'\t'*}"; [[ -n "${out#*$'\t'}" ]] && topic="${out#*$'\t'}"
+    (( rc == 0 )) && spl_lane_issue_keyed "$key" "$desc" "$topic" && spl_lane_issue_post "$key" "$topic" "$title"
     rm -f "$desc"
     (( rc == 0 )) || return 1
   fi
@@ -169,25 +174,61 @@ spl_lane_issue_place() {
   do_log "OK $id carries issue $key (wip)"
 }
 
-# spl_lane_issue_file STATUS TITLE DESC_FILE -> the new key ("<new>" in a dry
-# run): created with the lane ($id of the caller) assigned, labelled `answer`
-# when LANE_ISSUE_ANSWER=1.
+# spl_lane_issue_file STATUS TITLE DESC_FILE [BRIEF] -> "<key>\t<topic>" ("<new>"
+# in a dry run): created with the lane ($id of the caller) assigned, labelled
+# `answer` when LANE_ISSUE_ANSWER=1. <topic> is the discussion the hub linked
+# (SPL-1593) from the card's Source line. When the hub resolves none (no such
+# topic in the tenant, an ambiguous short id), one WARN line names the brief
+# and the create runs once more on the tenant's default discussion: a
+# placement never fails on the link (c-002, dispatch-fcf09921 msg c5c7d032).
 spl_lane_issue_file() {
-  local out key rc=0
+  local out key rc=0 def err
   local -a lab=()
   if [[ "${LANE_ISSUE_ANSWER:-0}" == 1 ]]; then
     spl_lane_issue_label answer || return 1
     lab=(--labels answer)
   fi
-  out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}")" || return 1
-  (( SLI_DRY )) && { echo "<new>"; return 0; }
+  err="$(mktemp)"
+  out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" 2>"$err")" || rc=$?
+  def="$(spl_lane_issue_default_topic)"
+  if (( rc != 0 )) && [[ "$(cat "$err")" =~ (discussion_required|unknown_discussion|ambiguous_discussion) ]] &&
+    ! grep -qx "/t/$def" "$3"; then
+    do_log "WARN brief ${4:-<none>}: topic $(sed -n '2p' "$3") did not resolve in $TENANT_ID (${BASH_REMATCH[1]}): the issue links the default discussion $def (SPL-1593)" >&2
+    sed -i "2s|.*|/t/$def|" "$3"
+    rc=0; out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" 2>"$err")" || rc=$?
+  fi
+  cat "$err" >&2; rm -f "$err"
+  (( rc == 0 )) || return 1
+  (( SLI_DRY )) && { printf '<new>\t%s\n' "$(sed -n '2s|^/t/||p' "$3")"; return 0; }
   key="$(printf '%s' "$out" | python3 -c 'import json,sys
 j = [l for l in sys.stdin.read().splitlines() if l.startswith("{")]
 r = json.loads(j[-1]).get("result") or {}
 r = r.get("issue", r) if isinstance(r, dict) else {}
-print(r.get("key", "") if isinstance(r, dict) else "")' 2>/dev/null)" || rc=$?
-  [[ $rc -eq 0 && "$key" =~ ^${LI_KEY_RE}$ ]] || { do_log "FATAL the hub filed no key for $id: $out" >&2; return 1; }
+r = r if isinstance(r, dict) else {}
+ds = [d.get("task_id", "") for d in r.get("discussions") or [] if isinstance(d, dict)]
+print(r.get("key", "") + "\t" + (ds[0] if ds else ""))' 2>/dev/null)" || rc=$?
+  [[ $rc -eq 0 && "${key%%$'\t'*}" =~ ^${LI_KEY_RE}$ ]] || { do_log "FATAL the hub filed no key for $id: $out" >&2; return 1; }
   printf '%s\n' "$key"
+}
+
+# spl_lane_issue_topic BRIEF -> the topic the brief names: its first full
+# topic id after "topic", else the first 8-hex short id after "topic" or
+# "dispatch-" (the hub resolves it inside the tenant), else nothing.
+spl_lane_issue_topic() {
+  local u='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' t
+  t="$(grep -m1 -oiE "topic[^0-9a-f]{0,40}$u" "$1" 2>/dev/null | grep -oiE "$u\$")"
+  [[ -n "$t" ]] || t="$(grep -m1 -oiE '(topic[^0-9a-f]{0,40}|dispatch-)[0-9a-f]{8}([^0-9a-f-]|$)' "$1" 2>/dev/null | grep -oiE '[0-9a-f]{8}' | tail -1)"
+  printf '%s' "${t,,}"
+}
+
+# spl_lane_issue_default_topic -> the tenant's default discussion, the twin
+# of rdb 0194 issue_discussion_default: t1 the owner's topic, any other
+# tenant its "Issue backlog" topic (owner msgs 62f96f94, e3c349e2).
+spl_lane_issue_default_topic() {
+  local h
+  [[ "$TENANT_ID" == t1 ]] && { printf 'fcf09921-8f21-4518-a117-f8ddb41bfff5'; return 0; }
+  h="$(printf 'spool-issue-backlog:%s' "$TENANT_ID" | sha256sum | cut -c1-32)"
+  printf '%s-%s-%s-%s-%s' "${h:0:8}" "${h:8:4}" "${h:12:4}" "${h:16:4}" "${h:20:12}"
 }
 
 # spl_lane_issue_label NAME: the label is in the tenant's catalogue (an
@@ -201,7 +242,7 @@ spl_lane_issue_label() {
 # spl_lane_issue_discussion ROOT ID DRY: the first answer in a discussion files
 # its issue (owner Q1A): eval, the taker assigned, the topic linked.
 spl_lane_issue_discussion() {
-  local id="$2" topic="${LANE_ISSUE_TOPIC:-}" title desc key rc=0
+  local id="$2" topic="${LANE_ISSUE_TOPIC:-}" title desc key out rc=0
   SLI_DRY="$3"
   [[ "$topic" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
     { do_log "FATAL LANE_ISSUE_TOPIC must be the discussion's topic uuid, got: '$topic'"; return 1; }
@@ -212,8 +253,9 @@ spl_lane_issue_discussion() {
     [[ -n "${LANE_ISSUE_TEXT:-}" ]] && printf '%s\n\n' "$LANE_ISSUE_TEXT"
     printf -- '- Taken by: %s\n- Topic: %s\n' "$id" "$(spl_lane_issue_link "$topic")"
   } >"$desc"
-  key="$(spl_lane_issue_file eval "$title" "$desc")" || rc=$?
-  (( rc == 0 )) && spl_lane_issue_keyed "$key" "$desc" && spl_lane_issue_post "$key" "$topic" "$title"
+  out="$(spl_lane_issue_file eval "$title" "$desc")" || rc=$?
+  key="${out%%$'\t'*}"; [[ -n "${out#*$'\t'}" ]] && topic="${out#*$'\t'}"
+  (( rc == 0 )) && spl_lane_issue_keyed "$key" "$desc" "$topic" && spl_lane_issue_post "$key" "$topic" "$title"
   rm -f "$desc"
   (( rc == 0 )) || return 1
   if (( SLI_DRY )); then do_log "OK DRY_RUN topic $topic -> a new issue (eval); nothing filed. Re-run with DRY_RUN=0."; return 0; fi
@@ -258,10 +300,12 @@ spl_lane_issue_card() {
   printf -- '- test: see the brief\n- last citing sha: none\n- next: %s\n- open question: none\n- docs: none yet\n\n' "$4"
 }
 
-# spl_lane_issue_keyed KEY DESC_FILE: the filed issue's card names its own
-# key, unknown until the create. A failure warns: the issue stands.
+# spl_lane_issue_keyed KEY DESC_FILE [TOPIC]: the filed issue's card names
+# its own key, unknown until the create, and the topic the hub linked (a short
+# id resolved). A failure warns: the issue stands.
 spl_lane_issue_keyed() {
   (( SLI_DRY )) && return 0
+  [[ "${3:-}" =~ ^[0-9a-f]{8}-[0-9a-f-]{27}$ ]] && sed -i "2s|.*|/t/$3|" "$2"
   sed -i "0,/^- key: <new>\$/s//- key: $1/" "$2" &&
     RUN_STDOUT_IS_DATA=1 spl_lane_issue_hub update --ref "$1" --description-file "$2" >/dev/null 2>&1 ||
     do_log "WARN $1 is filed, but its card still says key <new>: spool issue update --ref $1 --description-file <the card>" >&2
@@ -272,7 +316,7 @@ spl_lane_issue_keyed() {
 # came from (owner Q4A) by the desk that filed it; LANE_ISSUE_POST=0 skips.
 # A failed post warns: the issue stands and the key is printed.
 spl_lane_issue_post() {
-  [[ -n "$2" && "${LANE_ISSUE_POST:-1}" != 0 ]] || return 0
+  [[ "$2" =~ ^[0-9a-f]{8}-[0-9a-f-]{27}$ && "$2" != "$(spl_lane_issue_default_topic)" && "${LANE_ISSUE_POST:-1}" != 0 ]] || return 0
   local body="Tracked as **$1**: $3 (lane $id)."
   if (( SLI_DRY )); then do_log "INFO DRY_RUN would: post '$body' in topic $2 (as $DESK_AGENT)" >&2; return 0; fi
   DESK_TASK="$2" DESK_BODY="$body" DESK_BOX="$SLI_BOX" DRY_RUN=0 RUN_STDOUT_IS_DATA=1 do_spl_desk_reply >/dev/null 2>&1 ||

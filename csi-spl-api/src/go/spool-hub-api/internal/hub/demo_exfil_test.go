@@ -49,7 +49,7 @@ func seedExfilB(t *testing.T, e *env, docs *hub.WorkspaceDocs) exfilB {
 	t.Helper()
 	ctx := context.Background()
 	b := exfilB{crossB: seedCrossB(t, e)}
-	is, err := e.st.(store.Issues).CreateIssue(ctx, store.Issue{TenantID: b.tenant, Title: "issue " + b.marker,
+	is, err := e.st.(store.Issues).CreateIssue(ctx, store.Issue{Discussions: []string{testDiscussion}, TenantID: b.tenant, Title: "issue " + b.marker,
 		Description: "body " + b.marker, TaskID: uuidV4(), CreatedBy: b.owner}, time.Now())
 	if err != nil {
 		t.Fatal(err)

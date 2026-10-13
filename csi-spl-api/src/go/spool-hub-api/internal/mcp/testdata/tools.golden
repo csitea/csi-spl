@@ -73,16 +73,16 @@
           "type": "string"
         },
         "body": {
-          "description": "comment text: your progress on the issue; markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md",
+          "description": "comment text: your progress on the issue; markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md; link/unlink: the topic id or /t/\u003cid\u003e link",
           "type": "string"
         },
         "issue": {
           "additionalProperties": true,
-          "description": "create/update fields: title, description (markdown), status (eval|todo|wip|diss|blocked|onhold|qas|done = 01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done), priority (prio 1 highest .. 5 lowest), level (derived from the tree, read-only: 1 epic or feature, 2 issue, 3 subtask), assignee, labels, deadline (RFC 3339), epic (the epic / feature above it), parent (a level-2 issue: makes a subtask), kind (epic|feature|issue); for label: name, color",
+          "description": "create/update fields: title, description (markdown), status (eval|todo|wip|diss|blocked|onhold|qas|done = 01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done), priority (prio 1 highest .. 5 lowest), level (derived from the tree, read-only: 1 epic or feature, 2 issue, 3 subtask), assignee, labels, deadline (RFC 3339), epic (the epic / feature above it), parent (a level-2 issue: makes a subtask), kind (epic|feature|issue), discussions (create: the topic ids or /t/\u003cid\u003e links it links, at least one); for label: name, color",
           "type": "object"
         },
         "op": {
-          "description": "one of list, get, create, update, comment, label, delete (only the issue's creator)",
+          "description": "one of list, get, create, update, comment, label, delete (only the issue's creator), link, unlink (one discussion, in body)",
           "type": "string"
         },
         "query": {

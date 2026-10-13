@@ -111,7 +111,7 @@ func TestWriteBatchRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	epic, err := pg.CreateIssue(ctx, Issue{TenantID: tid, Title: "epic", Kind: "epic", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+	epic, err := pg.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tid, Title: "epic", Kind: "epic", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,13 +138,13 @@ func TestWriteBatchRoundTrips(t *testing.T) {
 		}},
 		{"CreateIssue (plain)", 2, func() func() error {
 			return func() error {
-				_, err := pg.CreateIssue(ctx, Issue{TenantID: tid, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+				_, err := pg.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tid, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 				return err
 			}
 		}},
 		{"CreateIssue (label + parent)", 2, func() func() error {
 			return func() error {
-				_, err := pg.CreateIssue(ctx, Issue{TenantID: tid, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1",
+				_, err := pg.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tid, Title: "x", TaskID: uuid4(), CreatedBy: "HUM-1",
 					Labels: []string{bug.LabelID}, Parent: epic.Number}, now)
 				return err
 			}
@@ -193,6 +193,7 @@ func TestCreateIssueBatchRollsBack(t *testing.T) {
 	a, b := newTenant(t, pg), newTenant(t, pg)
 	create := func(i Issue) (Issue, error) {
 		i.Title, i.TaskID, i.CreatedBy = "x", uuid4(), "HUM-1"
+		i.Discussions = []string{uuid4()}
 		return pg.CreateIssue(ctx, i, now)
 	}
 	idle := func(after string) {

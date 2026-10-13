@@ -27,7 +27,7 @@ func TestEpicCloseArchivesIssues(t *testing.T) {
 			}
 			mk := func(title, kind string, parent int, status string) Issue {
 				t.Helper()
-				i, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: title, Kind: kind, Parent: parent, Status: status,
+				i, err := is.CreateIssue(ctx, Issue{Discussions: []string{uuid4()}, TenantID: tn, Title: title, Kind: kind, Parent: parent, Status: status,
 					TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 				if err != nil {
 					t.Fatalf("%s: %v", title, err)

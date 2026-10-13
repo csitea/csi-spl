@@ -10,6 +10,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -33,6 +34,7 @@ func TestAgentIssues(t *testing.T) {
 
 	do := func(in action.IssueArgs) (map[string]any, error) {
 		in.Hub = a.c
+		in.Issue = withDefaultDiscussion(tid, in.Op, in.Issue)
 		raw, err := action.Issue(ctx, a.cfg, in)
 		out := map[string]any{}
 		if err == nil {
@@ -81,6 +83,17 @@ func TestAgentIssues(t *testing.T) {
 	}
 	if _, err := do(action.IssueArgs{Op: "create", As: "CLE-07", Issue: json.RawMessage(`{"title":"x","bogus":1}`)}); hubErr(err) != "bad_json" {
 		t.Fatalf("unknown field: %v", err)
+	}
+	// SPL-1593: link / unlink one discussion; the last one stays.
+	if _, err := do(action.IssueArgs{Op: "unlink", As: "CLE-07", Ref: "SPL-2", Body: store.IssueDiscussionDefault(tid)}); hubErr(err) != "last_discussion" {
+		t.Fatalf("agent unlink of the last discussion: %v", err)
+	}
+	if _, err := do(action.IssueArgs{Op: "link", As: "CLE-07", Ref: "SPL-2", Body: "/t/" + uid.New()}); hubErr(err) != "unknown_discussion" {
+		t.Fatalf("agent link of an unknown topic: %v", err)
+	}
+	if got, err := do(action.IssueArgs{Op: "get", As: "CLE-07", Ref: "SPL-2"}); err != nil ||
+		len(discussionsOf(t, got["issue"].(map[string]any))) != 1 {
+		t.Fatalf("agent get carries the discussion: %v %v", err, got)
 	}
 	if _, err := do(action.IssueArgs{Op: "update", As: "CLE-07", Ref: "SPL-2", Issue: json.RawMessage(`{"status":"in_progress"}`)}); err != nil {
 		t.Fatal(err)

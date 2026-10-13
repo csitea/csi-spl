@@ -40,7 +40,7 @@ func TestSearchIssues(t *testing.T) {
 		if _, err := is.CreateIssueLabel(ctx, store.IssueLabel{TenantID: tn, LabelID: store.IssueEpicLabel, Name: store.IssueEpicLabel, CreatedBy: "HUM-1"}, now); err != nil {
 			t.Fatal(err)
 		}
-		ep, err := is.CreateIssue(ctx, store.Issue{TenantID: tn, Title: "Epic", Priority: 2, Assignee: "HUM-9",
+		ep, err := is.CreateIssue(ctx, store.Issue{Discussions: []string{testDiscussion}, TenantID: tn, Title: "Epic", Priority: 2, Assignee: "HUM-9",
 			Labels: []string{store.IssueEpicLabel}, TaskID: uuidV4(), CreatedBy: "HUM-1"}, now)
 		if err != nil {
 			t.Fatal(err)
@@ -49,7 +49,7 @@ func TestSearchIssues(t *testing.T) {
 	}
 	mk := func(tn, title, desc, status, assignee string, prio int, labels ...string) store.Issue {
 		t.Helper()
-		it, err := is.CreateIssue(ctx, store.Issue{TenantID: tn, Title: title, Description: desc, Status: status, Priority: prio,
+		it, err := is.CreateIssue(ctx, store.Issue{Discussions: []string{testDiscussion}, TenantID: tn, Title: title, Description: desc, Status: status, Priority: prio,
 			Assignee: assignee, Labels: labels, TaskID: uuidV4(), CreatedBy: "HUM-1", Parent: epics[tn].Number}, now)
 		if err != nil {
 			t.Fatal(err)

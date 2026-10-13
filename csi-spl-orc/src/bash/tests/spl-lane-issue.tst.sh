@@ -34,7 +34,12 @@ spl_desk_issue_run() {
     local i; for ((i = 1; i <= $#; i++)); do [[ "${!i}" == --description-file ]] && { i=$((i + 1)); cp "${!i}" "$DESC_COPY.$1"; }; done
   fi
   if [[ "${ROSTER:-1}" == 0 && " $* " == *" --assignee c-123 "* ]]; then echo "FATAL spool issue $1 as c-002: hub refused: bad_assignee"; return 1; fi
-  [[ "$1" == create ]] && echo "{\"op\": \"create\", \"result\": {\"key\": \"SPL-42\", \"epic\": \"SPL-1\"}}"
+  if [[ "$1" == create && "${REFUSE_TOPIC:-0}" == 1 ]]; then
+    local j; for ((j = 1; j <= $#; j++)); do [[ "${!j}" == --description-file ]] && { j=$((j + 1)); break; }; done
+    [[ "$(sed -n 2p "${!j}")" == /t/fcf09921-8f21-4518-a117-f8ddb41bfff5 ]] || { echo "FATAL spool issue create as c-002: hub refused: unknown_discussion"; return 1; }
+  fi
+  local ds=""; [[ -n "${RESOLVE:-}" ]] && ds=", \"discussions\": [{\"task_id\": \"$RESOLVE\"}]"
+  [[ "$1" == create ]] && echo "{\"op\": \"create\", \"result\": {\"key\": \"SPL-42\", \"epic\": \"SPL-1\"$ds}}"
   return 0
 }
 do_spl_desk_reply() { printf "post|%s|%s|%s|\n" "$DESK_TASK" "$DRY_RUN" "$DESK_BODY" >>"$STUB_LOG"; }
@@ -158,6 +163,37 @@ run AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=5ea2e615-ca23-451f-
   pass "discussion with no title (an ack): refused, nothing filed" || fail "no title (rc=$rc): $(cat "$T/o")"
 run AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=nope LANE_ISSUE_TITLE=x DRY_RUN=0
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "discussion with a bad topic: refused" || fail "bad topic (rc=$rc)"
+
+# SPL-1593 (rdb 0194): every issue links a discussion; a placement never
+# fails on the link (c-002, dispatch-fcf09921 msg c5c7d032).
+# (1) A full topic id: the card's Source line carries it (tested above).
+# (2) An 8-hex short id: the card carries it, the hub resolves it inside the
+# tenant, and the card and the post-back then use the full id.
+printf '# Brief: short topic\n\nOwner on dispatch-0a1b2c3d: "do it".\n' >"$T/short.md"
+run AGENT_ID=c-126 BRIEF="$T/short.md" DESC_COPY="$T/s.md" RESOLVE=0a1b2c3d-0000-4000-8000-000000000001 DRY_RUN=0
+[[ $rc -eq 0 && "$(sed -n 2p "$T/s.md.create")" == /t/0a1b2c3d ]] && [[ "$(sed -n 2p "$T/s.md.update")" == /t/0a1b2c3d-0000-4000-8000-000000000001 ]] &&
+  grep -q '^post|0a1b2c3d-0000-4000-8000-000000000001|0|' "$T/calls.log" && ! grep -q 'WARN brief' "$T/o" &&
+  pass "short id: the card sends /t/0a1b2c3d; the resolved full id goes into the card and the post-back" || fail "short id (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+# (3) No topic: the tenant's default (t1: fcf09921), one WARN naming the brief, no post-back.
+printf '# Brief: no topic at all\n\nJust do it.\n' >"$T/none.md"
+run AGENT_ID=c-127 BRIEF="$T/none.md" DESC_COPY="$T/n.md" DRY_RUN=0
+[[ $rc -eq 0 && "$(sed -n 2p "$T/n.md.create")" == /t/fcf09921-8f21-4518-a117-f8ddb41bfff5 ]] &&
+  [[ "$(grep -c "WARN brief $T/none.md names no topic" "$T/o")" == 1 ]] && ! grep -q '^post|' "$T/calls.log" &&
+  [[ "$(cat "$S/c-127/lifetime/issue")" == SPL-42 ]] &&
+  pass "no topic: links t1's default fcf09921, one WARN line names the brief, no post-back" || fail "no topic (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
+# A topic the hub does not resolve: one WARN naming the brief, then the default; the placement stands.
+run AGENT_ID=c-128 BRIEF="$T/short.md" DESC_COPY="$T/u.md" REFUSE_TOPIC=1 DRY_RUN=0
+[[ $rc -eq 0 && "$(grep -c '^create|' "$T/calls.log")" == 2 && "$(sed -n 2p "$T/u.md.create")" == /t/fcf09921-8f21-4518-a117-f8ddb41bfff5 ]] &&
+  [[ "$(grep -c "WARN brief $T/short.md: topic /t/0a1b2c3d did not resolve in t1 (unknown_discussion)" "$T/o")" == 1 ]] &&
+  [[ "$(cat "$S/c-128/lifetime/issue")" == SPL-42 ]] &&
+  pass "an unresolved topic: one WARN naming the brief, the create again on the default, the lane keeps SPL-42" || fail "unresolved (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
+# Another tenant's default is its backlog topic, as rdb 0194 computes it.
+want="$(printf 'spool-issue-backlog:acme' | sha256sum | cut -c1-32)"
+want="${want:0:8}-${want:8:4}-${want:12:4}-${want:16:4}-${want:20:12}"
+mkdir -p "$T/state/dev/desk/acme/box-a/spool/c-002"
+run AGENT_ID=c-129 BRIEF="$T/none.md" DESC_COPY="$T/a.md" TENANT_ID=acme DRY_RUN=0
+[[ "$(sed -n 2p "$T/a.md.create" 2>/dev/null)" == "/t/$want" ]] &&
+  pass "tenant acme: the default is its backlog topic $want" || fail "acme default (rc=$rc): $(head -3 "$T/a.md.create" 2>/dev/null) / $(cat "$T/o")"
 
 echo "spl-lane-issue: $fails failure(s)"
 exit "$fails"

@@ -251,7 +251,7 @@ own one file (`git show --stat`).
 | blocker that tags the owner files no issue | yes | n/a | yes | n/a | build (c-350) |
 | `done` | `qas` after deploy, then acceptance | automatic on land | automatic on land | automatic on land | automatic (Q3, 3:1) |
 | `qas` | acceptance step | review | a human-asked review | lane sets it | a human-asked review (Q7) |
-| source link | new column | `task_id` (that is the issue's own topic, not the source) | description line + key posted back | n/a | description line (Q4) |
+| source link | new column | `task_id` (that is the issue's own topic, not the source) | description line + key posted back | n/a | description line (Q4); since SPL-1593 an enforced link table, rdb 0194 (owner t1 fcf09921, msg 62f96f94; issues-v1 §2.2) |
 | restart state | checkpoint comments | hub record + hold dir | the card in the description | logged in the issue | the card + checkpoints (7) |
 | branching | trunk | trunk | trunk | trunk (+ per-part CI) | trunk (Q5) |
 | key enforcement | pre-push after a warn week | n/a | exit check | n/a | exit check, measured (Q6) |

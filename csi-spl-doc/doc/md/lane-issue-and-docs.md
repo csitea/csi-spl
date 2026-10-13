@@ -19,7 +19,7 @@ answer), Q2 (msg f2c24a7b, an issue holds condensed state and links the
 discussion; it does not become one), Q3 A (msg e2a3f127, `done` when the
 closing commit lands), Q4 A (msg 910b14c9, the source link and the restart
 card at the top of the description, the key posted back in the topic, no
-migration).
+migration; the source link is an enforced link since SPL-1593, section 0.2).
 
 ## 0. A discussion's issue, at the first answer
 
@@ -62,6 +62,24 @@ keeps its card current with
 
 A lane placed later from that discussion carries the key in its brief
 (`Issue: <KEY>`), so it links that issue instead of filing a second one.
+
+### 0.2 The issue links its discussion (SPL-1593, rdb 0194)
+
+Every issue links to one or more discussions, enforced by the database
+(issues-v1 §2.2; owner HUM-10, t1 fcf09921, msgs 3e75e13e, 62f96f94). The
+card's `Source` line is what links it: the hub reads the `/t/` links of a
+create's description when the create names no `discussions` (every `spool`
+binary sends the card). `do_spl_lane_issue` takes the topic from
+`LANE_ISSUE_TOPIC`, else the brief's first full topic id after "topic", else
+its first 8-hex short id after "topic" or "dispatch-"; the hub resolves a
+short id inside the issue's own workspace and links it only when exactly one
+topic matches. With no topic, or one the hub does not resolve (no such topic,
+an ambiguous short id), the issue links the workspace's default discussion
+(t1: topic fcf09921; any other workspace: its "Issue backlog" topic) and one
+`WARN brief <path> ...` line names the brief so it can be fixed. A placement
+never fails on the link (c-002, dispatch-fcf09921 msg c5c7d032). Once filed,
+the card's `Source` line carries the full id the hub linked, and the key is
+posted back only in a named topic, never in the default one.
 
 ## 1. The life of a lane's issue
 

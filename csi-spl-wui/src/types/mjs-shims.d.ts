@@ -116,6 +116,8 @@ declare module '~/utils/spool-client.mjs' {
     dropAgentSenders(agent: string): Promise<null>
     getMarketingSwitch(): Promise<{ tenant_id?: string, enabled?: boolean }>
     patchMarketingSwitch(enabled: boolean): Promise<{ tenant_id?: string, enabled?: boolean }>
+    listMarketingPosts(): Promise<{ posts?: Array<{ id: string, title?: string, summary?: string, image?: string }> }>
+    publishMarketingPost(postId: string): Promise<{ post?: string, scheduled?: number, published?: number, retried?: number, failed?: number }>
     listTenantChannels(): Promise<unknown>
     setTenantChannelNoFallback(channel: string, off: boolean): Promise<unknown>
     archiveTenantChannel(channel: string): Promise<null>

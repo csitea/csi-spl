@@ -41,6 +41,8 @@ const LAZY_METHODS = [
   'dropAgentSenders',
   'getMarketingSwitch',
   'patchMarketingSwitch',
+  'listMarketingPosts',
+  'publishMarketingPost',
   'mintJoinToken',
   'listJoinTokens',
   'revokeJoinToken',

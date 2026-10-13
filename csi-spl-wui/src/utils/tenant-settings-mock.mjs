@@ -82,16 +82,55 @@ function mockSplitKinds() {
   }
 }
 
-export function createMockTenant() {
-  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0 } }
-  const channels = MOCK_CHANNELS.map((c) => ({ ...c }))
+/** The mock's marketing routes: the switch (spec 090 §15) and the owner's publish (SPL-1698). */
+function mockMarketing() {
   // spec 090 §15: the mock workspace is allow-listed and starts OFF, like a
   // real one; localStorage spool.mock.marketing=unlisted plays a workspace
   // outside the cnf allow-list (every marketing route 404).
   const mkt = { enabled: false }
+  // SPL-1698: the mock signed-in member is the workspace owner holding the
+  // LinkedIn channel, with two live posts not shared yet. localStorage
+  // spool.mock.marketing.publish=forbidden plays a non-owner (403),
+  // =recorded a post already published elsewhere (409).
+  const unshared = [
+    { id: '2026-10-13-mock-second', title: 'Mock post two', summary: 'The newer mock post.', image: '' },
+    { id: '2026-10-12-mock-first', title: 'Mock post one', summary: 'The older mock post.', image: '' },
+  ]
+  const mktPublish = () => {
+    try { return globalThis.localStorage?.getItem('spool.mock.marketing.publish') || '' } catch { return '' }
+  }
   const mktListed = () => {
     try { return globalThis.localStorage?.getItem('spool.mock.marketing') !== 'unlisted' } catch { return true }
   }
+  return {
+    marketing() {
+      if (!mktListed()) throw mockErr(404, 'not_found')
+      return { tenant_id: 'mock', enabled: mkt.enabled }
+    },
+    setMarketing(on) {
+      if (!mktListed()) throw mockErr(404, 'not_found')
+      mkt.enabled = Boolean(on)
+      return { tenant_id: 'mock', enabled: mkt.enabled }
+    },
+    marketingPosts() {
+      if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
+      if (mktPublish() === 'forbidden') throw mockErr(403, 'forbidden')
+      return { posts: unshared.map((p) => ({ ...p })) }
+    },
+    publishMarketingPost(id) {
+      if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
+      if (mktPublish() === 'forbidden') throw mockErr(403, 'forbidden')
+      const i = unshared.findIndex((p) => p.id === id)
+      if (mktPublish() === 'recorded' || i < 0) throw mockErr(409, 'already_recorded')
+      unshared.splice(i, 1)
+      return { post: id, scheduled: 1, published: 1, retried: 0, failed: 0 }
+    },
+  }
+}
+
+export function createMockTenant() {
+  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0 } }
+  const channels = MOCK_CHANNELS.map((c) => ({ ...c }))
   const kv = {}
   const settings = () => ({ tenant_id: 'mock', ...cfg, responders: cfg.responders.slice(), agent_split: { ...cfg.agent_split }, max_responders: 20, settings: { ...KV_DEFAULTS, ...kv } })
   return {
@@ -135,15 +174,7 @@ export function createMockTenant() {
       if (p.settings !== undefined) patchKv(kv, p.settings)
       return settings()
     },
-    marketing() {
-      if (!mktListed()) throw mockErr(404, 'not_found')
-      return { tenant_id: 'mock', enabled: mkt.enabled }
-    },
-    setMarketing(on) {
-      if (!mktListed()) throw mockErr(404, 'not_found')
-      mkt.enabled = Boolean(on)
-      return { tenant_id: 'mock', enabled: mkt.enabled }
-    },
+    ...mockMarketing(),
     channels: () => ({ tenant_id: 'mock', channels: channels.map((c) => ({ ...c })) }),
     setNoFallback(id, off) {
       const c = channels.find((x) => x.channel === id)

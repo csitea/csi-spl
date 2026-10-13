@@ -4569,6 +4569,37 @@
         ]
       }
     },
+    "/v1/marketing/posts": {
+      "get": {
+        "operationId": "getMarketingPosts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {posts: [{id, title, summary, image}]}; the live blog posts the workspace owner can still publish on their LinkedIn channel, newest first (SPL-1698)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "the LinkedIn app is not configured on this hub"
+          }
+        },
+        "summary": "List the live blog posts not shared on LinkedIn yet (workspace owner only)",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/marketing/posts/{id}/publish": {
       "post": {
         "operationId": "postMarketingPostsByIdPublish",

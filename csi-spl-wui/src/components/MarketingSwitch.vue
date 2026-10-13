@@ -28,6 +28,8 @@ import { tenantSettingsErrorKey } from '~/utils/tenant-settings.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
+// changed: the switch flipped, so the owner's Publish list re-reads (SPL-1698)
+const emit = defineEmits<{ changed: [] }>()
 
 const shown = ref(false)
 const enabled = ref(false)
@@ -41,6 +43,7 @@ async function flip(on: boolean) {
   try {
     const s = await api.patchMarketingSwitch(on)
     enabled.value = s?.enabled === true
+    emit('changed')
   } catch (e) {
     enabled.value = !on
     error.value = t(tenantSettingsErrorKey(e))

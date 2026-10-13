@@ -3,7 +3,8 @@
      (the invite mail's language when the admin's own is not sent) and the
      issue key prefix (W16, spec 047), and who can archive topics (CLE-77819,
      owner 2026-09-30: a per-workspace setting, default everyone), and the
-     marketing switch (spec 090 §15, MarketingSwitch.vue), and "blocker to
+     marketing switch (spec 090 §15, MarketingSwitch.vue), the owner's
+     Publish to LinkedIn list (SPL-1698, MarketingPublish.vue), and "blocker to
      issue after N minutes" (BlockerIssueSetting.vue). The hours keys
      (spec 107) are their own section, hours.vue.
      tenant.settings. -->
@@ -60,7 +61,8 @@
         <p v-if="error" class="ts-error" role="alert" data-test="tenant-general-error">{{ error }}</p>
       </div>
     </form>
-    <MarketingSwitch v-if="!loading && !loadError" />
+    <MarketingSwitch v-if="!loading && !loadError" @changed="mktKey++" />
+    <MarketingPublish v-if="!loading && !loadError" :key="mktKey" />
     <BlockerIssueSetting v-if="!loading && !loadError" />
   </SettingsSection>
 </template>
@@ -69,6 +71,7 @@
 import SettingsSection from '~/components/SettingsSection.vue'
 import LocaleCombobox from '~/components/LocaleCombobox.vue'
 import MarketingSwitch from '~/components/MarketingSwitch.vue'
+import MarketingPublish from '~/components/MarketingPublish.vue'
 import BlockerIssueSetting from '~/components/BlockerIssueSetting.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
@@ -86,6 +89,7 @@ const locale = ref('')
 const prefix = ref('')
 const policy = ref('everyone')
 const loading = ref(true)
+const mktKey = ref(0)
 const loadError = ref('')
 const busy = ref(false)
 const error = ref('')

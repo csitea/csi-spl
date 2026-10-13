@@ -600,6 +600,30 @@ async function patchMarketingSwitch(ctx, enabled) {
   })
 }
 
+/**
+ * GET /v1/marketing/posts (SPL-1698): the live blog posts the workspace owner
+ * can still publish on their LinkedIn channel, { posts: [{ id, title,
+ * summary, image }] }. 403 for anyone but the owner, 404 while marketing is
+ * off or the owner connected no LinkedIn account: the WUI then hides the list.
+ */
+async function listMarketingPosts(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).marketingPosts()
+  return live('/v1/marketing/posts')
+}
+
+/**
+ * POST /v1/marketing/posts/{id}/publish (SPL-40): the owner shares one post
+ * on LinkedIn, { post, scheduled, published, retried, failed }; 403 for
+ * anyone but the owner, 409 once it is published or recorded.
+ */
+async function publishMarketingPost(ctx, postId) {
+  const { live, mock, tenantMock } = ctx
+  const id = String(postId || '')
+  if (mock) return (await tenantMock()).publishMarketingPost(id)
+  return live(`/v1/marketing/posts/${encodeURIComponent(id)}/publish`, { method: 'POST' })
+}
+
 /** GET /v1/tenant/channels: every channel of the tenant (private ones too), admin view. */
 async function listTenantChannels(ctx) {
   const { live, mock, tenantMock } = ctx
@@ -1638,6 +1662,8 @@ export const lazySpoolMethods = {
   dropAgentSenders,
   getMarketingSwitch,
   patchMarketingSwitch,
+  listMarketingPosts,
+  publishMarketingPost,
   mintJoinToken,
   listJoinTokens,
   revokeJoinToken,

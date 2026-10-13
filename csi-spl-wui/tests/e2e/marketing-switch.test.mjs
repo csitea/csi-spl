@@ -5,6 +5,10 @@
 //   1. Tenant settings -> General shows the toggle to the admin, OFF by
 //      default (owner msg 5cd2e544: nothing posts until an admin turns it on);
 //   2. the admin turns it on, then off again;
+//   P. SPL-1698, while it is on: the owner (the mock's member holds the
+//      LinkedIn channel) sees the unshared live posts, each with a Publish
+//      button; a 409 and a 403 answer show as plain messages, a publish
+//      that goes out removes its row; switched off, the list is gone;
 //   3. CONTROL: a workspace outside the cnf allow-list (the mock answers 404,
 //      as the hub does) shows no toggle at all, while General still renders.
 // The hub half (403 for a non-admin, 404 off the allow-list) is
@@ -12,6 +16,8 @@
 //
 // Plant the defect and watch step 3 go red (the unlisted flag is not set):
 //   PROVE_RED=listed node tests/e2e/marketing-switch.test.mjs
+// or step P2 (the mock answers 200 instead of 409):
+//   PROVE_RED=recorded node tests/e2e/marketing-switch.test.mjs
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e marketing-switch
@@ -49,6 +55,41 @@ async function launch() {
 
 const TOGGLE = '[data-test=tenant-marketing-toggle]'
 const checked = (p) => p.$eval(TOGGLE, (e) => e.checked)
+const PUB = '[data-test=tenant-marketing-publish]'
+const PUB_ROW = '[data-test=tenant-marketing-publish-row]'
+const PUB_BTN = '[data-test=tenant-marketing-publish-button]'
+const rows = (p) => p.$$eval(PUB_ROW, (es) => es.map((e) => e.getAttribute('data-post')))
+const text = (p, sel) => p.$eval(sel, (e) => e.textContent.trim()).catch(() => '')
+const mockPublish = (p, v) => p.evaluate((x) => localStorage.setItem('spool.mock.marketing.publish', x), v)
+// one Publish click; resolves once the buttons are enabled again
+async function clickPublish(p) {
+  await p.click(PUB_BTN)
+  await p.waitForFunction((s) => !document.querySelector(s)?.disabled, { timeout: 5000 }, PUB_BTN).catch(() => null)
+  await new Promise((r) => setTimeout(r, 200))
+}
+
+// SPL-1698: the owner's Publish to LinkedIn list, while marketing is on
+async function publishSteps(p) {
+  await p.waitForSelector(PUB_ROW, { visible: true, timeout: 5000 }).catch(() => null)
+  const first = await rows(p)
+  ok('P1 the owner sees the two unshared live posts, each with a Publish button', first.length === 2 && (await p.$$(PUB_BTN)).length === 2, first)
+  // 409: the post is already published, or recorded for LinkedIn
+  await mockPublish(p, RED === 'recorded' ? '' : 'recorded')
+  await clickPublish(p)
+  const conflict = await text(p, '[data-test=tenant-marketing-publish-error]')
+  ok('P2 a 409 shows as a plain message and drops the row', conflict.includes('already published') && (await rows(p)).length === 1, { conflict })
+  // 403: not the owner who connected LinkedIn
+  await mockPublish(p, 'forbidden')
+  await clickPublish(p)
+  const forbidden = await text(p, '[data-test=tenant-marketing-publish-error]')
+  ok('P3 a 403 shows as a plain message and keeps the row', forbidden.startsWith('Only the workspace owner') && (await rows(p)).length === 1, { forbidden })
+  // CONTROL: the owner's publish goes out and the list empties
+  await mockPublish(p, '')
+  await clickPublish(p)
+  const done = await text(p, '[data-test=tenant-marketing-publish-notice]')
+  ok('P4 CONTROL: a publish that goes out shows it and removes the row', done === 'Published on LinkedIn.' && (await rows(p)).length === 0 &&
+    Boolean(await p.$('[data-test=tenant-marketing-publish-empty]')) && !(await p.$('[data-test=tenant-marketing-publish-error]')), { done })
+}
 
 const server = await startServer()
 const browser = await launch()
@@ -73,9 +114,12 @@ try {
     await p.click(TOGGLE)
     await p.waitForFunction((s) => document.querySelector(s)?.checked === true && !document.querySelector(s)?.disabled, { timeout: 5000 }, TOGGLE).catch(() => null)
     ok('2 the admin turns marketing on', await checked(p))
+    await publishSteps(p)
     await p.click(TOGGLE)
     await p.waitForFunction((s) => document.querySelector(s)?.checked === false && !document.querySelector(s)?.disabled, { timeout: 5000 }, TOGGLE).catch(() => null)
     ok('2b and off again', !(await checked(p)) && !(await p.$('[data-test=tenant-marketing-error]')))
+    await new Promise((r) => setTimeout(r, 300))
+    ok('P5 switched off, the Publish list is gone', !(await p.$(PUB)))
   }
 
   // 3. CONTROL: outside the allow-list there is no toggle, General still renders

@@ -1,0 +1,107 @@
+package hub
+
+import (
+	"context"
+	"errors"
+	"net/http"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+)
+
+// The owner's list of live blog posts not shared yet (SPL-1698; owner
+// HUM-10, topic add4fbf4 msgs f78e3eab, 3a3f366b), so the WUI can offer a
+// Publish button for each one: GET /v1/marketing/posts. Same gate as the
+// publish (PublishMarketingPost): only the workspace owner (rbac
+// TenantOwner) who connected a LinkedIn channel; anyone else gets 403. A
+// post is listed when one of the owner's baselined channels has no row for
+// it yet, the case where the publish answers 200 rather than 409.
+
+// UnsharedMarketingPosts is the live posts that hum, the workspace owner,
+// can still publish on one of their LinkedIn channels, newest first.
+func (s *Server) UnsharedMarketingPosts(ctx context.Context, tenant, hum string) ([]marketing.BlogPost, error) {
+	m := s.o.MarketingLinkedIn
+	mk, ok := s.o.Store.(store.Marketing)
+	if m == nil || !ok {
+		return nil, ErrMarketingNoLinked
+	}
+	if !s.marketingSweepable(ctx, tenant) {
+		return nil, ErrMarketingOff
+	}
+	if a, err := s.access(ctx, hum, tenant); hum == "" || err != nil || !a.TenantOwner {
+		return nil, ErrMarketingNotOwner
+	}
+	chs, err := s.ownerChannels(ctx, mk, tenant, hum)
+	if err != nil {
+		return nil, err
+	}
+	if len(chs) == 0 {
+		return nil, ErrMarketingNoChannel
+	}
+	var known []map[string]bool
+	for _, ch := range chs {
+		if ch.BaselineAt == nil { // before the first sweep: the back catalogue is not listed
+			continue
+		}
+		refs, err := mk.MarketingPostRefs(ctx, tenant, ch.ID)
+		if err != nil {
+			return nil, err
+		}
+		known = append(known, refs)
+	}
+	out := []marketing.BlogPost{}
+	if len(known) == 0 {
+		return out, nil
+	}
+	posts, err := marketing.FetchBlogIndex(ctx, m.httpClient(), m.AppURL)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range posts {
+		for _, refs := range known {
+			if !refs[p.ID] {
+				out = append(out, p)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// GET /v1/marketing/posts: the owner's unshared live blog posts.
+func (s *Server) handleMarketingPosts(w http.ResponseWriter, r *http.Request, tenant string) {
+	w.Header().Set("Cache-Control", "no-store")
+	hum, _ := s.memberID(r, tenant)
+	posts, err := s.UnsharedMarketingPosts(r.Context(), tenant, hum)
+	switch {
+	case errors.Is(err, ErrMarketingNotOwner):
+		writeForbidden(w, permTenantOwner, err.Error())
+	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingOff):
+		writeErr(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, ErrMarketingNoLinked):
+		writeErr(w, http.StatusServiceUnavailable, "linkedin_off", err.Error())
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "the unshared blog posts are unavailable")
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"posts": posts})
+	}
+}
+
+// marketingPostsPreflight answers the browser's CORS preflight for the list
+// and the publish: the WUI calls the hub cross-origin with a bearer token.
+func (s *Server) marketingPostsPreflight(w http.ResponseWriter, r *http.Request) {
+	if s.allowOrigin(w, r) {
+		h := w.Header()
+		h.Set("Access-Control-Allow-Methods", "GET, POST")
+		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
+		h.Set("Access-Control-Max-Age", corsMaxAge)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// routeMarketingPosts registers the list and the preflights (from routeMarketing).
+func (s *Server) routeMarketingPosts(mux *http.ServeMux) {
+	s.marketingRoute(mux, "GET /v1/marketing/posts", s.handleMarketingPosts)
+	mux.HandleFunc("OPTIONS /v1/marketing/posts", s.marketingPostsPreflight)
+	mux.HandleFunc("OPTIONS /v1/marketing/posts/{id}/publish", s.marketingPostsPreflight)
+}

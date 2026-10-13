@@ -1474,6 +1474,12 @@
     "epic_actions": "Acties voor {key}",
     "select_epic": "Open een epic of functie om er actie op te ondernemen"
   },
+  "issues_epic_close": {
+    "title": "{key} en het {count} openstaande issue sluiten? | {key} en de {count} openstaande issues sluiten?",
+    "body": "Ze worden samen ermee gesloten en gearchiveerd, elk met een opmerking waarom. Als je de epic uit het archief terugzet, komen ze terug.",
+    "confirm": "Sluiten",
+    "closing": "Bezig met sluiten…"
+  },
   "issues_bulk": {
     "label": "Bulkacties",
     "select_row": "{key} selecteren",

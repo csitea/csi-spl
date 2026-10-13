@@ -1474,6 +1474,12 @@
     "epic_actions": "Toimingud: {key}",
     "select_epic": "Ava epic või funktsioon, et sellega tegutseda"
   },
+  "issues_epic_close": {
+    "title": "Kas sulgeda {key} ja selle {count} avatud teema? | Kas sulgeda {key} ja selle {count} avatud teemat?",
+    "body": "Need suletakse ja arhiveeritakse koos sellega, igaüks kommentaariga, mis selgitab põhjust. Eepose taastamine arhiivist toob need tagasi.",
+    "confirm": "Sulge",
+    "closing": "Sulgemine…"
+  },
   "issues_bulk": {
     "label": "Hulgitoimingud",
     "select_row": "Vali {key}",

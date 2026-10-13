@@ -1474,6 +1474,12 @@
     "epic_actions": "Acțiuni pentru {key}",
     "select_epic": "Deschide un epic sau o funcționalitate pentru a acționa asupra ei"
   },
+  "issues_epic_close": {
+    "title": "Închizi {key} și {count} problemă deschisă din el? | Închizi {key} și problemele deschise din el: {count}?",
+    "body": "Vor fi închise și arhivate împreună cu el, fiecare cu un comentariu care explică motivul. Restaurarea epicului din arhivă le aduce înapoi.",
+    "confirm": "Închide",
+    "closing": "Se închide…"
+  },
   "issues_bulk": {
     "label": "Acțiuni în bloc",
     "select_row": "Selectează {key}",

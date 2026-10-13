@@ -1474,6 +1474,12 @@
     "epic_actions": "Akcje dla {key}",
     "select_epic": "Otwórz epik lub funkcję, aby wykonać na niej działanie"
   },
+  "issues_epic_close": {
+    "title": "Zamknąć {key} i jego {count} otwarte zgłoszenie? | Zamknąć {key} i jego otwarte zgłoszenia: {count}?",
+    "body": "Zostaną zamknięte i zarchiwizowane razem z nim, każde z komentarzem wyjaśniającym dlaczego. Przywrócenie epiki z archiwum przywraca je.",
+    "confirm": "Zamknij",
+    "closing": "Zamykanie…"
+  },
   "issues_bulk": {
     "label": "Działania zbiorcze",
     "select_row": "Zaznacz {key}",

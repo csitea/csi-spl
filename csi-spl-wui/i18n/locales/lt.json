@@ -1474,6 +1474,12 @@
     "epic_actions": "Veiksmai: {key}",
     "select_epic": "Atverkite epiką ar funkciją, kad galėtumėte su ja dirbti"
   },
+  "issues_epic_close": {
+    "title": "Uždaryti {key} ir {count} atvirą jo užduotį? | Uždaryti {key} ir atviras jo užduotis: {count}?",
+    "body": "Jos bus uždarytos ir archyvuotos kartu su juo, kiekviena su komentaru, paaiškinančiu kodėl. Atkūrus epiką iš archyvo, jos grįžta.",
+    "confirm": "Uždaryti",
+    "closing": "Uždaroma…"
+  },
   "issues_bulk": {
     "label": "Masiniai veiksmai",
     "select_row": "Pasirinkti {key}",

@@ -398,6 +398,41 @@ function mockSeedIssues(me, now) {
   return issues
 }
 
+/* SPL-1643, the hub's epic close: null when the update closes no epic; a
+   close of an epic with open issues is refused without the confirmation. */
+function mockEpicClose(issues, was, next, confirmed) {
+  const closed = (s) => s === 'done' || s === 'diss'
+  if (!isTopKind(next.kind) || next.status === was.status || !closed(next.status)) return null
+  const kids = mockSubtree(issues, was.key)
+  const open = issues.filter((x) => kids.includes(x.key) && !closed(x.status)).map((x) => x.key)
+  if (open.length && !confirmed) {
+    throw Object.assign(mockErr(409, 'epic_close_confirm'), {
+      detail: `${was.key} has ${open.length} open issues: closing it closes and archives them; send cascade: true to confirm`,
+    })
+  }
+  return { kids, open }
+}
+
+/* The mock hub's PATCH: the tab's next `issues` and the answer. */
+function mockUpdate({ issues, labels, log, me, now }, ref, body) {
+  const { cascade, ...patch } = body
+  mockEpicField(issues, patch)
+  const i = mockFind(issues, ref)
+  if (!i) throw mockErr(404, 'not_found')
+  const next = normalizeIssue(mockApplyPatch(i, patch, me, now))
+  mockCheck(issues, labels, next)
+  mockLevelField(issues, patch, next, false)
+  const closing = mockEpicClose(issues, i, next, cascade === true)
+  let rows = issues.map((x) => (x.key === i.key ? next : x))
+  log.changed(i, next)
+  const issue = mockView(rows, next)
+  if (!closing) return { issues: rows, answer: { issue } }
+  /* SPL-1643: its open issues take its status; all of them are archived */
+  const gone = new Set([i.key, ...closing.kids])
+  rows = rows.filter((x) => !gone.has(x.key))
+  return { issues: rows, answer: { issue, archived: true, closed: closing.open, descendants: closing.kids } }
+}
+
 /**
  * The mock hub's issues (mock mode, no hub): the same answers as issues-v1,
  * held in memory for the tab. `now` is injectable for tests.
@@ -458,16 +493,10 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       log.created(i)
       return { issue: view(i) }
     },
-    update(ref, patch = {}) {
-      mockEpicField(issues, patch)
-      const i = find(ref)
-      if (!i) throw mockErr(404, 'not_found')
-      const next = normalizeIssue(mockApplyPatch(i, patch, me, now))
-      mockCheck(issues, labels, next)
-      mockLevelField(issues, patch, next, false)
-      issues = issues.map((x) => (x.key === i.key ? next : x))
-      log.changed(i, next)
-      return { issue: view(next) }
+    update(ref, body = {}) {
+      const out = mockUpdate({ issues, labels, log, me, now }, ref, body)
+      issues = out.issues
+      return out.answer
     },
     history(ref) { return mockHistoryOf(find(ref), log) },
     remove(ref, cascade = false) { return drop(ref, cascade) },

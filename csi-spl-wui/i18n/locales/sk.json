@@ -1474,6 +1474,12 @@
     "epic_actions": "Akcie pre {key}",
     "select_epic": "Otvorte epik alebo funkciu, aby ste s ňou mohli pracovať"
   },
+  "issues_epic_close": {
+    "title": "Zavrieť {key} a jeho {count} otvorenú úlohu? | Zavrieť {key} a jeho otvorené úlohy: {count}?",
+    "body": "Budú zatvorené a archivované spolu s ním, každá s komentárom, prečo. Obnovenie eposu z archívu ich vráti.",
+    "confirm": "Zavrieť",
+    "closing": "Zatvára sa…"
+  },
   "issues_bulk": {
     "label": "Hromadné akcie",
     "select_row": "Vybrať {key}",

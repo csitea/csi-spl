@@ -1065,6 +1065,20 @@
       <p v-else-if="actConfirm && actConfirm.count > 0">{{ t(actConfirm.action === 'archive' ? 'issues_menu.archive_cascade_body' : 'issues_menu.delete_cascade_body', { count: actConfirm.count }) }}</p>
       <p v-else>{{ t(actConfirm && actConfirm.action === 'archive' ? 'issues_menu.archive_body' : 'issues_crud.delete_body') }}</p>
     </UiConfirm>
+    <!-- SPL-1643: closing an epic closes and archives its open issues - one confirm naming the count -->
+    <UiConfirm
+      :open="Boolean(epicClose)"
+      :title="epicClose ? t('issues_epic_close.title', { key: epicClose.key, count: epicClose.count }, epicClose.count) : ''"
+      testid="issues-epic-close"
+      :confirm-label="t('issues_epic_close.confirm')"
+      :busy-label="t('issues_epic_close.closing')"
+      :busy="busy"
+      :body-attrs="{ 'data-key': epicClose ? epicClose.key : '', 'data-count': epicClose ? String(epicClose.count) : '0' }"
+      @update:open="onEpicCloseOpen"
+      @confirm="runEpicClose"
+    >
+      <p>{{ t('issues_epic_close.body') }}</p>
+    </UiConfirm>
     <!-- HUM-10: archive / delete the checked rows - one confirm naming the count -->
     <UiConfirm
       :open="Boolean(bulkConfirm)"
@@ -1158,6 +1172,7 @@ import { keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } from
 import type { BulkAction } from '~/components/IssuesBulkBar.vue'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
 import { ISSUE_OPENED_EVENT, isNewIssue } from '~/utils/my-issues-count.mjs'
+import { epicCloseOpenCount, epicClosedKeys } from '~/utils/issue-epic-close.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
 import { issueShortcutFor, issueShortcutHint, issueShortcutItem } from '~/utils/msg-shortcuts.mjs'
@@ -1869,12 +1884,32 @@ async function save(key: string, body: Record<string, unknown>) {
   saveError.value = ''
   try {
     const data = await withSessionRetry(api, () => api.updateIssue(key, body))
-    hold(normalizeIssue(data.issue))
+    keepOrDrop(key, data)
   } catch (e) {
-    saveError.value = failKey(e)
+    /* SPL-1643: an epic with open issues closes only once confirmed */
+    const open = epicCloseOpenCount(e)
+    if (open !== null) epicClose.value = { key, body, count: open }
+    else saveError.value = failKey(e)
   } finally {
     busy.value = false
   }
+}
+/* an update's answer: the row, or (an epic closed) the keys it archived */
+function keepOrDrop(key: string, data: { issue: Issue }) {
+  const gone = epicClosedKeys(key, data)
+  if (!gone.length) { hold(normalizeIssue(data.issue)); return }
+  dropKeys(gone)
+  refreshEpics()
+}
+const epicClose = ref<{ key: string, body: Record<string, unknown>, count: number } | null>(null)
+function onEpicCloseOpen(open: boolean) {
+  if (!open && !busy.value) epicClose.value = null
+}
+async function runEpicClose() {
+  const c = epicClose.value
+  if (!c) return
+  await save(c.key, { ...c.body, cascade: true })
+  epicClose.value = null
 }
 function onDraftInput(ev: Event, field: 'title') {
   if (!creating.value) return
@@ -2646,7 +2681,7 @@ async function runBulkPatch(kind: string, value: string) {
     const row = issues.value.find((i) => i.key === key)
     if (kind === 'move-epic' && (!row || isTopKind(row.kind) || key === value)) throw new Error('not movable')
     const data = await withSessionRetry(api, () => api.updateIssue(key, patch))
-    hold(normalizeIssue(data.issue))
+    keepOrDrop(key, data)
   })
 }
 /* one progress line while it runs, one summary naming the rows that failed;

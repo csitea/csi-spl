@@ -1474,6 +1474,12 @@
     "epic_actions": "Darbības ar {key}",
     "select_epic": "Atveriet eposu vai funkciju, lai ar to darbotos"
   },
+  "issues_epic_close": {
+    "title": "Aizvērt {key} un tā {count} atvērto uzdevumu? | Aizvērt {key} un tā atvērtos uzdevumus: {count}?",
+    "body": "Tie tiks aizvērti un arhivēti kopā ar to, katrs ar komentāru, kas paskaidro iemeslu. Atjaunojot eposu no arhīva, tie atgriežas.",
+    "confirm": "Aizvērt",
+    "closing": "Aizver…"
+  },
   "issues_bulk": {
     "label": "Grupas darbības",
     "select_row": "Atlasīt {key}",

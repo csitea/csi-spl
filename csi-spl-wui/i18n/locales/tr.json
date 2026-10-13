@@ -1474,6 +1474,12 @@
     "epic_actions": "{key} için eylemler",
     "select_epic": "Üzerinde işlem yapmak için bir epik veya özellik açın"
   },
+  "issues_epic_close": {
+    "title": "{key} ve içindeki {count} açık iş kapatılsın mı? | {key} ve içindeki {count} açık iş kapatılsın mı?",
+    "body": "Onunla birlikte kapatılıp arşivlenecekler; her birine nedenini açıklayan bir yorum eklenecek. Epic arşivden geri yüklenince geri gelirler.",
+    "confirm": "Kapat",
+    "closing": "Kapatılıyor…"
+  },
   "issues_bulk": {
     "label": "Toplu işlemler",
     "select_row": "{key} seç",

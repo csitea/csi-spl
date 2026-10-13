@@ -1474,6 +1474,12 @@
     "epic_actions": "Toiminnot: {key}",
     "select_epic": "Avaa eepos tai ominaisuus, jotta voit toimia sen suhteen"
   },
+  "issues_epic_close": {
+    "title": "Suljetaanko {key} ja sen {count} avoin tehtävä? | Suljetaanko {key} ja sen {count} avointa tehtävää?",
+    "body": "Ne suljetaan ja arkistoidaan sen mukana, kukin kommentilla, joka kertoo syyn. Eepoksen palauttaminen arkistosta tuo ne takaisin.",
+    "confirm": "Sulje",
+    "closing": "Suljetaan…"
+  },
   "issues_bulk": {
     "label": "Joukkotoiminnot",
     "select_row": "Valitse {key}",

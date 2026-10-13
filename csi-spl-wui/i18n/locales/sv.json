@@ -1474,6 +1474,12 @@
     "epic_actions": "Åtgärder för {key}",
     "select_epic": "Öppna ett epos eller en funktion för att agera på det"
   },
+  "issues_epic_close": {
+    "title": "Stänga {key} och dess {count} öppna ärende? | Stänga {key} och dess {count} öppna ärenden?",
+    "body": "De stängs och arkiveras tillsammans med den, var och en med en kommentar om varför. Återställs eposet från arkivet kommer de tillbaka.",
+    "confirm": "Stäng",
+    "closing": "Stänger…"
+  },
   "issues_bulk": {
     "label": "Massåtgärder",
     "select_row": "Markera {key}",

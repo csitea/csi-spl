@@ -1474,6 +1474,12 @@
     "epic_actions": "Actions for {key}",
     "select_epic": "Open an epic or feature to act on it"
   },
+  "issues_epic_close": {
+    "title": "Close {key} and its {count} open issue? | Close {key} and its {count} open issues?",
+    "body": "They will be closed and archived with it, each with a comment saying why. Restoring the epic from the archive brings them back.",
+    "confirm": "Close",
+    "closing": "Closing…"
+  },
   "issues_bulk": {
     "label": "Bulk actions",
     "select_row": "Select {key}",

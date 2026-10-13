@@ -1474,6 +1474,12 @@
     "epic_actions": "Acciones para {key}",
     "select_epic": "Abre un épico o una función para actuar sobre él"
   },
+  "issues_epic_close": {
+    "title": "¿Cerrar {key} y su {count} incidencia abierta? | ¿Cerrar {key} y sus {count} incidencias abiertas?",
+    "body": "Se cerrarán y archivarán con él, cada una con un comentario que explica el motivo. Restaurar la épica desde el archivo las recupera.",
+    "confirm": "Cerrar",
+    "closing": "Cerrando…"
+  },
   "issues_bulk": {
     "label": "Acciones en bloque",
     "select_row": "Seleccionar {key}",

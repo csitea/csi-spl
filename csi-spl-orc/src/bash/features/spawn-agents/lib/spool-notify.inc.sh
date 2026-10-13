@@ -192,6 +192,45 @@ spool_notify_lease_id_var() {  # VAR FILE
   printf -v "$__v" '%s' "$h"
 }
 
+# The box's dispatch/ dir: under SPOOL_FLEET_ROOT when it has one (the desk
+# sidecar), else under SPOOL_ROOT.
+spool_notify_dispatch_dir_var() {  # VAR
+  local __v="$1" __d="${SPOOL_FLEET_ROOT:-}"
+  __d="${__d%/}/dispatch"
+  [ -n "${SPOOL_FLEET_ROOT:-}" ] && [ -d "$__d" ] || __d="${SPOOL_ROOT%/}/dispatch"
+  printf -v "$__v" '%s' "$__d"
+}
+
+# The live seat of a role id (SPL-1692). A send to c-001/c-002/c-003 found no
+# window once another vendor took the role (g-001 when Grok holds the orch):
+# a role seat keeps its number, not its prefix. Put into VAR the first holder
+# the box's leases name (lease.orch, lease, then lease.conf LEASE_ORCH,
+# LEASE_MASTER, LEASE_FAILOVER) that has TO's seat number (001..003), is not
+# TO, and has a live pane; else ''. Read from the leases, never guessed from a
+# vendor. The pane goes into SPOOL_ROLE_PANE, its tty and command into
+# SPOOL_PANE_TTY/SPOOL_PANE_CMD as spool_pane_of_var leaves them.
+spool_notify_role_seat_var() {  # VAR TO
+  local __v="$1" to="${2:-}" d c __rp held disp orch master fail
+  printf -v "$__v" '%s' ""; SPOOL_ROLE_PANE=""
+  spl_is_role_seat "$to" && [ -n "${SPOOL_ROOT:-}" ] || return 1
+  spool_notify_dispatch_dir_var d
+  spool_notify_lease_id_var held "$d/lease.orch"
+  spool_notify_lease_id_var disp "$d/lease"
+  spool_notify_conf_var orch "$d/lease.conf" LEASE_ORCH
+  spool_notify_conf_var master "$d/lease.conf" LEASE_MASTER
+  spool_notify_conf_var fail "$d/lease.conf" LEASE_FAILOVER
+  for c in "$held" "$disp" "$orch" "$master" "$fail"; do
+    spl_is_role_seat "$c" || continue
+    if [ "$c" = "$to" ] || [ "${c#?-}" != "${to#?-}" ]; then continue; fi
+    spool_pane_of_var __rp "$c"
+    [ -n "$__rp" ] || continue
+    SPOOL_ROLE_PANE="$__rp"
+    printf -v "$__v" '%s' "$c"
+    return 0
+  done
+  return 1
+}
+
 # 0 when TO is this machine's orchestrator seat AND not the acting dispatcher:
 # lease.conf LEASE_ORCH or the orch lease holder (dispatch/lease.orch), never
 # the holder of the dispatch lease (dispatch/lease), which takes new posts
@@ -201,8 +240,7 @@ spool_notify_lease_id_var() {  # VAR FILE
 spool_notify_is_orch_seat() {  # TO
   local to="${1:-}" d orch held disp
   [ -n "$to" ] && [ -n "${SPOOL_ROOT:-}" ] || return 1
-  d="${SPOOL_FLEET_ROOT:-}"; d="${d%/}/dispatch"
-  [ -n "${SPOOL_FLEET_ROOT:-}" ] && [ -d "$d" ] || d="${SPOOL_ROOT%/}/dispatch"
+  spool_notify_dispatch_dir_var d
   spool_notify_conf_var orch "$d/lease.conf" LEASE_ORCH
   spool_notify_lease_id_var held "$d/lease.orch"
   [ -n "$orch" ] || [ -n "$held" ] || return 1
@@ -472,11 +510,16 @@ spool_notify_refuse_unsent() {  # TO PANE
 
 spool_notify_poke() {  # TO LINE [BODY] [FROM]
   local to="$1" line="$2" body="${3:-}" from="${4:-}"
-  local pane esc=$'\033'
+  local pane seat esc=$'\033'
   SPOOL_POKE_LINE="$line"
 
   # _var, not $( ): the subshell would fork and would lose SPOOL_PANE_TTY.
   spool_pane_of_var pane "$to"
+  # No window for a role id: ring the seat that holds the role now (SPL-1692).
+  if [ -z "$pane" ] && spool_notify_role_seat_var seat "$to"; then
+    echo "poke: role seat ${to} -> ${seat} (lease holder)"
+    to="$seat"; pane="$SPOOL_ROLE_PANE"
+  fi
   if [ -z "$pane" ]; then
     # Nothing was typed, so nothing is left in SPOOL_POKE_LINE: the mirror's
     # trigger record (spec 067 L2) is for a line a live pane really got, never

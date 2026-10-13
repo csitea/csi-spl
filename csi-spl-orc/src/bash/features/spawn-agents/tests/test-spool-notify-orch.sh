@@ -102,4 +102,45 @@ msg c-001 eeeeeeee ALL-0 HUM-10 'the build is red zz06'
 notify c-001 HUM-10 eeeeeeee 'the build is red zz06' >/dev/null
 has "CONTROL: no lease.conf -> the unnamed post is typed (the check can fail)" "zz06" "$(screen "$P1")"
 
+
+# ---- a role id another vendor holds (SPL-1692) ------------------------------
+# The role seat keeps its number, not its prefix: with Grok in the orch seat a
+# send to c-001 rings g-001's pane. The holder comes from the leases.
+for p in $(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{window_name}' | awk '$2=="c-001"{print $1}'); do
+  tmux -S "$SPOOL_TMUX_SOCKET" kill-pane -t "$p"
+done
+G1="$(tui g-001)"; G3="$(tui g-003)"; G4="$(tui g-004)"
+sleep 0.4
+
+# 6. CONTROL first: the leases name no seat 001 but c-001, so nothing is
+#    rerouted - a live g-001 alone is no reason to ring it (no vendor guess).
+printf 'LEASE_MASTER=c-002\nLEASE_FAILOVER=c-003\nLEASE_ORCH=c-001\n' >"$D/lease.conf"
+msg c-001 f0000001 c-001 c-002 'unanswered 2 min zz10'
+out="$(notify c-001 c-002 f0000001 'unanswered 2 min zz10')"
+eq "CONTROL: c-001 held by c-001 and no c-001 window: exit 5" 5 "$?"
+hasnt "CONTROL: ...g-001 is not typed it" "zz10" "$(screen "$G1")"
+
+# 7. Grok holds the orch (lease.orch g-001): the backstop to c-001 is TYPED into g-001.
+printf 'LEASE_MASTER=g-002\nLEASE_FAILOVER=g-003\nLEASE_ORCH=g-001\n' >"$D/lease.conf"
+echo 'g-001@sat 1791399727' >"$D/lease.orch"
+msg c-001 f0000002 c-001 c-002 'unanswered 2 min zz11'
+out="$(notify c-001 c-002 f0000002 'unanswered 2 min zz11')"
+eq "a send to c-001 with g-001 holding the orch: exit 0" 0 "$?"
+has "...the notifier names the role seat it rang" "poke: role seat c-001 -> g-001 (lease holder)" "$out"
+has "...and the post is TYPED into g-001's pane" "zz11" "$(screen "$G1")"
+
+# 8. lease.conf alone: c-003 (the failover) rings g-003.
+rm -f "$D/lease.orch"
+msg c-003 f0000003 c-003 HUM-10 'dm to the failover zz12'
+out="$(notify c-003 HUM-10 f0000003 'dm to the failover zz12')"
+eq "a send to c-003 with LEASE_FAILOVER=g-003: exit 0" 0 "$?"
+has "...the post is TYPED into g-003's pane" "zz12" "$(screen "$G3")"
+
+# 9. CONTROL: c-004 is no role seat; a live g-004 is not rung for it.
+printf 'LEASE_ORCH=g-004\n' >>"$D/lease.conf"
+msg c-004 f0000004 c-004 HUM-10 'not a role zz13'
+out="$(notify c-004 HUM-10 f0000004 'not a role zz13')"
+eq "CONTROL: c-004 with no window: exit 5" 5 "$?"
+hasnt "CONTROL: ...g-004 is not typed it" "zz13" "$(screen "$G4")"
+
 t_done

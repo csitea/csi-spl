@@ -607,6 +607,8 @@ func visibleTo(evs []store.CalendarEvent, demo bool) []store.CalendarEvent {
 }
 
 // deadlinesIn is the workspace's issue deadlines inside rg (read only here).
+// done and diss drop out immediately (SPL-37). ListIssues already omits
+// archived rows, so this does not filter archived_at again.
 func (s *Server) deadlinesIn(ctx context.Context, tenant string, rg store.CalendarRange) ([]store.Issue, error) {
 	is, ok := s.o.Store.(store.Issues)
 	if !ok {
@@ -617,7 +619,8 @@ func (s *Server) deadlinesIn(ctx context.Context, tenant string, rg store.Calend
 		return nil, err
 	}
 	return slices.DeleteFunc(all, func(i store.Issue) bool {
-		return i.Deadline == nil || i.Deadline.Before(rg.Start) || !i.Deadline.Before(rg.End)
+		return store.IssueClosed(i.Status) || i.Deadline == nil ||
+			i.Deadline.Before(rg.Start) || !i.Deadline.Before(rg.End)
 	}), nil
 }
 

@@ -227,6 +227,45 @@ func TestCalendarMergesIssueDeadlines(t *testing.T) {
 	}
 }
 
+// SPL-37: a done or diss issue leaves the calendar the moment it closes.
+// An open issue with a deadline in the same range stays on the events and
+// on the year marks.
+func TestCalendarHidesClosedDeadlines(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	dev := seat(t, e, tid, rbac.Developer)
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/issues", dev, map[string]any{"title": "Auth", "kind": "epic"}); code != http.StatusCreated {
+		t.Fatalf("epic: %d %v", code, out)
+	}
+	mk := func(title, status, dl string) {
+		t.Helper()
+		body := map[string]any{"epic": "SPL-1", "title": title, "deadline": dl}
+		if status != "" {
+			body["status"] = status
+		}
+		if code, out := call(t, e, tid, http.MethodPost, "/v1/issues", dev, body); code != http.StatusCreated {
+			t.Fatalf("issue %s: %d %v", title, code, out)
+		}
+	}
+	mk("Still open", "", "2026-10-07T15:00:00Z")
+	mk("Already done", "done", "2026-10-08T15:00:00Z")
+	mk("Discarded", "diss", "2026-10-09T15:00:00Z")
+
+	code, out := call(t, e, tid, http.MethodGet, calWeekQuery, dev, nil)
+	if code != http.StatusOK || calTitles(out, "events") != "Still open" {
+		t.Fatalf("closed deadlines still on the range: %d %v", code, out)
+	}
+	code, out = call(t, e, tid, http.MethodGet, "/v1/calendar/marks?start_year=2026&end_year=2026", dev, nil)
+	var got []string
+	for _, x := range out["days"].([]any) {
+		m := x.(map[string]any)
+		got = append(got, m["day"].(string)+":"+strings.Join(toStrings(m["kinds"]), "+"))
+	}
+	if code != http.StatusOK || strings.Join(got, " ") != "2026-10-07:deadline" {
+		t.Fatalf("closed deadlines still on the marks: %d %v", code, out)
+	}
+}
+
 func toStrings(v any) []string {
 	var out []string
 	list, _ := v.([]any)

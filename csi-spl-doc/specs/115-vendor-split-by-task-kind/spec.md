@@ -53,14 +53,16 @@ it points again. Grok took half of mistral's share in the three coding kinds
 on 2026-10-11 (owner HUM-10, msg a2d222f9: "if Mistral misbehaves in coding
 again, halve its coding share, Grok gets it"); `simple_coding` is grok 41 /
 mistral 39 because the main must be a strict maximum. The same day the owner
-moved 10 points of `specs_and_docs` from agy to mistral (msg 2f705011, now
+moved 10 points of `specs_and_docs` from agy to mistral (msg 2f705011, then
 60 / 30 / 10) and added a seventh kind, `orchestration` (msgs a1e5c678,
 ff1baf01: "Claude will do 65% and Grok will do 35%"), secret-class like
-`secret` (rdb 0178).
+`secret` (rdb 0178). On 2026-10-13 the owner set `specs_and_docs` to agy 80 /
+mistral 15 / claude 5 (HUM-10, t1 ee1e58d5, msgs 9466b9aa and cb1b623e): agy
+does 80% of the documentation, the spec reviews and the code reviews.
 
 | kind | covers | agy | mistral | claude | grok | qwen | main | backup |
 |---|---|---|---|---|---|---|---|---|
-| `specs_and_docs` | specs, docs, plans, reviews of those | 60 | 30 | 10 | 0 | 0 | agy | claude |
+| `specs_and_docs` | specs, docs, plans, reviews of those, and code reviews | 80 | 15 | 5 | 0 | 0 | agy | claude |
 | `tests` | writing tests | 0 | 15 | 70 | 15 | 0 | claude | mistral |
 | `simple_coding` | running tests, simple and routine coding | 0 | 39 | 20 | 41 | 0 | grok | claude |
 | `complex_coding` | hard coding, architecture, hi-fi work | 0 | 10 | 80 | 10 | 0 | claude | mistral |
@@ -80,9 +82,10 @@ Rules on the table, enforced by the cnf validator and the hub PATCH:
   2026-10-11, owner msgs 26117740, 474f32a0).
 - **Multilingual personal data** (an `i18n` task that is also `secret`): claude or mistral drafts the text under the data rule, then agy reviews a masked copy. The masking is a coded step with a test, and what counts as personal data for the mask must be named or listed as a build-time detail.
 
-Old kind names stay as aliases, so no caller breaks: `spec` is
-`specs_and_docs`, `hard` is `complex_coding`, `default` (or unset) is
-`simple_coding`, and `i18n` and `secret` keep their names. `tests` is new.
+Old kind names stay as aliases, so no caller breaks: `spec`, `review` and
+`code_review` are `specs_and_docs` (a spec review or a code review is that
+row), `hard` is `complex_coding`, `default` (or unset) is `simple_coding`,
+and `i18n` and `secret` keep their names. `tests` is new.
 A `LANE_MIX_DIFFICULTY >= 60` with no kind means `complex_coding`. Below 60
 with no kind it means `simple_coding`.
 
@@ -119,7 +122,7 @@ per-kind actuals, so each registry row records the kind (section 4).
 env:
   box:
     agent_split_by_kind:
-      specs_and_docs: { agy: 60, mistral: 30, claude: 10, backup: claude }
+      specs_and_docs: { agy: 80, mistral: 15, claude: 5, backup: claude }
       tests:          { claude: 70, grok: 15, mistral: 15, backup: mistral }
       simple_coding:  { grok: 41, mistral: 39, claude: 20, backup: claude }
       complex_coding: { claude: 80, grok: 10, mistral: 10, backup: mistral }

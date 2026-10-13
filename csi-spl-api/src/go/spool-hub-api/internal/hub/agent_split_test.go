@@ -59,7 +59,7 @@ func TestAgentSplitKinds(t *testing.T) {
 		t.Fatalf("fresh: %d %v", code, body)
 	}
 	ks := splitKinds(t, body)
-	assertKind(t, ks["specs_and_docs"], "agy", "claude", false, map[string]float64{"agy": 60, "mistral": 30, "claude": 10})
+	assertKind(t, ks["specs_and_docs"], "agy", "claude", false, map[string]float64{"agy": 80, "mistral": 15, "claude": 5})
 	assertKind(t, ks["tests"], "claude", "mistral", false, map[string]float64{"claude": 70, "grok": 15, "mistral": 15})
 	assertKind(t, ks["simple_coding"], "grok", "claude", false, map[string]float64{"grok": 41, "mistral": 39, "claude": 20})
 	assertKind(t, ks["complex_coding"], "claude", "mistral", false, map[string]float64{"claude": 80, "grok": 10, "mistral": 10})

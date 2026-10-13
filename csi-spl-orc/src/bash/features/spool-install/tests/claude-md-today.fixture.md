@@ -92,7 +92,7 @@ kind and let the per-kind main and backup vendors decide:
 
 | task kind               | main    | backup  |
 |-------------------------|---------|---------|
-| specs, docs, plans, reviews (`specs_and_docs`) | agy     | claude  |
+| specs, docs, plans, spec reviews and code reviews (`specs_and_docs`) | agy     | claude  |
 | writing tests (`tests`) | claude  | mistral |
 | simple and routine coding (`simple_coding`) | grok    | claude  |
 | hard coding, architecture, hi-fi work (`complex_coding`) | claude  | mistral |

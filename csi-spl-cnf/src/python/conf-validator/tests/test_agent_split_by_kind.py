@@ -24,7 +24,7 @@ SPEC_MAIN_BACKUP = {
 }
 
 ROWS = {
-    "specs_and_docs": {"agy": 60, "mistral": 30, "claude": 10, "backup": "claude"},
+    "specs_and_docs": {"agy": 80, "mistral": 15, "claude": 5, "backup": "claude"},
     "tests": {"claude": 70, "grok": 15, "mistral": 15, "backup": "mistral"},
     "simple_coding": {"grok": 41, "mistral": 39, "claude": 20, "backup": "claude"},
     "complex_coding": {"claude": 80, "grok": 10, "mistral": 10, "backup": "mistral"},

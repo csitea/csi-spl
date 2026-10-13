@@ -692,5 +692,38 @@ else
     && pass "ORC-2: journal row written with all fields" || fail "ORC-2: rc=$rc $(cat "$T/out")"
 fi
 
+# --- 14. specs_and_docs is agy 80 +/- 3 of 1,000 picks (SPL-1656) ------------
+# The seed is the empty registry and picks 1..1000 in order: the nudge is
+# deterministic, so that sequence is the fixed seed. The real cnf row.
+# code_review and review are the same row (owner msg cb1b623e). The control
+# is the old 60/30/10 row, which must fall outside the band.
+docs80() {  # <kind> [extra mix args...] -> bad text, empty when agy is 770..830 and eff 80
+  local kind="$1" n bad="" rc; shift
+  hub '[]'
+  simulate 1000 LANE_MIX_KIND="$kind" LANE_MIX_CNF="$REAL_CNF" "$@"; rc=$?
+  n="$(got agy)"
+  [[ $rc -eq 0 && "$n" =~ ^[0-9]+$ && "$n" -ge 770 && "$n" -le 830 && "$(eff agy)" == 80 ]] \
+    || bad=" $kind:rc=$rc agy=${n:-?}/1000 eff=$(eff agy)"
+  printf '%s' "$bad"
+}
+bad="$(docs80 specs_and_docs)"
+[[ -z "$bad" ]] && pass "14. specs_and_docs, real cnf, 1,000 picks from an empty registry: agy $(got agy) (80% +/- 3)" \
+  || fail "14. specs_and_docs band:$bad"
+bad="$(docs80 code_review)"
+n="$(got agy)"
+mix LANE_MIX_KIND=code_review LANE_MIX_CNF="$REAL_CNF"
+[[ -z "$bad" && "$(kindof)" == specs_and_docs && "$(pick)" == agy ]] \
+  && pass "14. code_review is the specs_and_docs row: agy $n of 1,000" \
+  || fail "14. code_review:$bad kind=$(kindof) pick=$(pick)"
+mix LANE_MIX_KIND=review LANE_MIX_CNF="$REAL_CNF"
+[[ "$(kindof)" == specs_and_docs && "$(pick)" == agy ]] \
+  && pass "14. review is specs_and_docs, main agy" || fail "14. review: $(cat "$T/out")"
+# CONTROL: the old 60/30/10 row must miss the 80 +/- 3 band (this case would
+# be green if the assertion still accepted 60).
+bad="$(docs80 specs_and_docs LANE_MIX_SPLIT_KIND='claude=10 grok=0 agy=60 qwen=0 mistral=30 backup=claude')"
+[[ -n "$bad" && "$(eff agy)" == 60 ]] \
+  && pass "14. control: the old 60 row misses the 80 band ($bad)" \
+  || fail "14. control: the old 60 row held the 80 band: '$bad' eff=$(eff agy)"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

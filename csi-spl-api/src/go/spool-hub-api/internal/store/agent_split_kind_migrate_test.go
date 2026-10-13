@@ -34,7 +34,7 @@ type splitRow struct {
 
 // spec115Rows is the spec 115 section 2 table.
 var spec115Rows = []splitRow{
-	{"specs_and_docs", map[string]int{"agy": 60, "mistral": 30, "claude": 10}, "claude"},
+	{"specs_and_docs", map[string]int{"agy": 80, "mistral": 15, "claude": 5}, "claude"},
 	{"tests", map[string]int{"claude": 70, "grok": 15, "mistral": 15}, "mistral"},
 	{"simple_coding", map[string]int{"grok": 41, "mistral": 39, "claude": 20}, "claude"},
 	{"complex_coding", map[string]int{"claude": 80, "grok": 10, "mistral": 10}, "mistral"},

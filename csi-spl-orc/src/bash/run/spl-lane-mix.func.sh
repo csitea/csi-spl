@@ -6,9 +6,9 @@
 # @description LANE_MIX_SPLIT_KIND (do_spl_agent_split_show --kind); the main
 # @description is the vendor with the highest weight. APPROXIMATE, never a quota.
 # @description Kinds: specs_and_docs, tests, simple_coding, complex_coding,
-# @description i18n, secret, orchestration. The old names stay as aliases: spec is
-# @description specs_and_docs, hard is complex_coding, default is
-# @description simple_coding. No kind: difficulty >= 60 is complex_coding,
+# @description i18n, secret, orchestration. The old names stay as aliases: spec,
+# @description review and code_review are specs_and_docs, hard is complex_coding,
+# @description default is simple_coding. No kind: difficulty >= 60 is complex_coding,
 # @description else simple_coding. LANE_MIX_SENSITIVE=1 makes any kind secret.
 # @description The one rule (spec 115 section 5): the candidates are the main,
 # @description then the backup, then claude, the default and last fallback.
@@ -125,12 +125,12 @@ _spl_lane_mix_kind() {
   _LM_KIND_WHY="LANE_MIX_KIND=$1" _LM_KIND_WAS=""
   case "$1" in
     specs_and_docs|tests|simple_coding|complex_coding|i18n|secret|orchestration) _LM_KIND="$1" ;;
-    spec) _LM_KIND=specs_and_docs ;;
+    spec|review|code_review) _LM_KIND=specs_and_docs ;;
     hard) _LM_KIND=complex_coding ;;
     default) _LM_KIND=simple_coding ;;
     "") if [[ -n "$2" ]] && (( $2 >= 60 )); then _LM_KIND=complex_coding _LM_KIND_WHY="difficulty $2 >= 60"
         else _LM_KIND=simple_coding _LM_KIND_WHY="difficulty ${2:-unset} < 60"; fi ;;
-    *) do_log "FATAL LANE_MIX_KIND must be specs_and_docs, tests, simple_coding, complex_coding, i18n, secret or orchestration (or spec, hard, default), got '$1'"
+    *) do_log "FATAL LANE_MIX_KIND must be specs_and_docs, tests, simple_coding, complex_coding, i18n, secret or orchestration (or spec, review, code_review, hard, default), got '$1'"
        return 1 ;;
   esac
   [[ "$3" == 1 ]] || return 0

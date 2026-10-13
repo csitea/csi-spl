@@ -34,7 +34,7 @@ launcher. The split is cnf `env.box.agent_split_by_kind` (all.env.yaml), which d
 
 | the task | main    | backup  |
 |----------|---------|---------|
-| specs, docs, plans, reviews: `LANE_MIX_KIND=specs_and_docs` | agy     | claude  |
+| specs, docs, plans, spec reviews and code reviews: `LANE_MIX_KIND=specs_and_docs` | agy     | claude  |
 | writing tests: `LANE_MIX_KIND=tests` | claude  | mistral |
 | simple and routine coding: `LANE_MIX_KIND=simple_coding` | grok    | claude  |
 | hard coding, architecture, hi-fi work: `LANE_MIX_KIND=complex_coding` | claude  | mistral |

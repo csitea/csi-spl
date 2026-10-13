@@ -57,7 +57,7 @@ func TestSplitKinds(t *testing.T) {
 				want(got[d.Kind], d.Main(), d.Backup, false, d.Weights)
 			}
 			want(got["simple_coding"], "grok", "claude", false, map[string]int{"grok": 41, "mistral": 39, "claude": 20})
-			want(got["specs_and_docs"], "agy", "claude", false, map[string]int{"agy": 60, "mistral": 30, "claude": 10})
+			want(got["specs_and_docs"], "agy", "claude", false, map[string]int{"agy": 80, "mistral": 15, "claude": 5})
 			want(got["orchestration"], "claude", "grok", false, map[string]int{"claude": 65, "grok": 35})
 
 			if err := sk.SetSplitKinds(ctx, tid, SplitKindPatch{By: "HUM-1", Set: []SplitKind{

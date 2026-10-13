@@ -144,8 +144,8 @@ in_orc 'do_spl_agent_split_show --kind orchestration' TENANT_ID=t1 STUB_PSQL_OUT
   && grep -q '\[kind=orchestration\]' "$T/calls.log" \
   && pass "4. the orchestration kind (rdb 0178), unset, prints the cnf row" || fail "4. orchestration: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show --kind specs_and_docs' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'claude=10 grok=0 agy=60 qwen=0 mistral=30 backup=claude' "$T/out" \
-  && pass "4. specs_and_docs, unset, prints agy 60 / mistral 30 / claude 10" || fail "4. specs_and_docs: rc=$rc $(cat "$T/out")"
+[[ $rc -eq 0 ]] && grep -qx 'claude=5 grok=0 agy=80 qwen=0 mistral=15 backup=claude' "$T/out" \
+  && pass "4. specs_and_docs, unset, prints agy 80 / mistral 15 / claude 5" || fail "4. specs_and_docs: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show --kind tests' TENANT_ID=t1 STUB_PSQL_OUT=$'claude|70|false\nmistral|29|true'; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'sums to 99, not 100' "$T/out" && ! grep -q '^claude=' "$T/out" \
   && pass "4. a kind that does not sum to 100 is not printed" || fail "4. kind sum: rc=$rc $(cat "$T/out")"

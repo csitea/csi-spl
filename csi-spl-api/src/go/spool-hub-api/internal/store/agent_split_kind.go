@@ -78,7 +78,7 @@ func DefaultSplitKinds() []SplitKind {
 		return SplitKind{Kind: kind, Weights: fullWeights(w), Backup: backup}
 	}
 	return []SplitKind{
-		row("specs_and_docs", "claude", map[string]int{"agy": 60, "mistral": 30, "claude": 10}),
+		row("specs_and_docs", "claude", map[string]int{"agy": 80, "mistral": 15, "claude": 5}),
 		row("tests", "mistral", map[string]int{"claude": 70, "grok": 15, "mistral": 15}),
 		row("simple_coding", "claude", map[string]int{"grok": 41, "mistral": 39, "claude": 20}),
 		row("complex_coding", "mistral", map[string]int{"claude": 80, "grok": 10, "mistral": 10}),

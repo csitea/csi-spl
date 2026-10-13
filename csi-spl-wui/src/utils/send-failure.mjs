@@ -82,8 +82,16 @@ export function sendFailureKey(err) {
        recycled one no box announces any more (unknown_agent) */
     case 'retired_id':
     case 'unknown_agent': return 'composer.send_failed_agent_inactive'
+    /* SPL-1018 (spec 044 FR-OS-017): the agent's allow-list does not name you */
+    case 'sender_not_allowed': return 'composer.send_failed_not_allowed'
     default: return 'composer.send_failed'
   }
+}
+
+/** The params of that line: the agent a sender_not_allowed refusal names. */
+export function sendFailureParams(err) {
+  const a = /** @type {{ agent?: unknown } | null | undefined} */ (err)?.agent
+  return { agent: typeof a === 'string' ? a : '' }
 }
 
 /**

@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Responder",
     "phone_placeholder_search": "Buscar",
     "send_failed_agent_inactive": "No enviado: ese agente ya no está activo. Etiqueta a un agente activo; tu texto sigue aquí.",
+    "send_failed_not_allowed": "No enviado: {agent} no acepta mensajes tuyos. Tu texto sigue aquí.",
     "sent_to_topic_retired": "Enviado al tema: {retired} ya no está activo.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1708,7 +1709,19 @@
     "split_rule_tie": "Dos proveedores empatan como principal",
     "split_rule_backup": "El respaldo debe diferir del principal",
     "split_rule_agy": "Antigravity no escribe código",
-    "split_rule_secret": "Solo Claude, Grok o Mistral"
+    "split_rule_secret": "Solo Claude, Grok o Mistral",
+    "senders": {
+      "title": "Quién puede escribir a cada agente",
+      "hint": "Los mensajes directos y las menciones a un agente solo llegan de los miembros que elijas. Un agente sin lista acepta mensajes de todos los miembros. Las publicaciones de canal que no lo mencionan no se ven afectadas.",
+      "everyone": "Todos los miembros",
+      "nobody": "Nadie",
+      "some": "Miembros permitidos: {n}",
+      "edit": "Editar",
+      "mode_all": "Todos los miembros del espacio de trabajo",
+      "mode_list": "Solo los miembros marcados abajo",
+      "none_ticked": "Ningún miembro marcado: nadie puede escribir a este agente.",
+      "cancel": "Cancelar"
+    }
   },
   "help": {
     "title": "Ayuda",

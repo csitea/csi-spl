@@ -452,6 +452,34 @@ async function patchAgentSplit(ctx, kinds = {}) {
   })
 }
 
+let senderMock = null
+const senderAllowMock = async () => (senderMock ||= (await import('./sender-allow-mock.mjs')).createMockSenderAllow())
+
+/** GET /v1/tenant/agent-senders (SPL-1018, tenant.settings): every agent's sender allow-list. */
+async function listAgentSenders(ctx) {
+  const { live, mock } = ctx
+  if (mock) return (await senderAllowMock()).list()
+  return live('/v1/tenant/agent-senders')
+}
+
+/** PUT /v1/tenant/agent-senders/{agent} { members } ([] = nobody) -> the list. */
+async function putAgentSenders(ctx, agent, members = []) {
+  const { live, mock } = ctx
+  if (mock) return (await senderAllowMock()).put(agent, members)
+  return live(`/v1/tenant/agent-senders/${encodeURIComponent(agent)}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ members }),
+  })
+}
+
+/** DELETE /v1/tenant/agent-senders/{agent}: no list, every member may message it again. */
+async function dropAgentSenders(ctx, agent) {
+  const { live, mock } = ctx
+  if (mock) return (await senderAllowMock()).drop(agent)
+  return live(`/v1/tenant/agent-senders/${encodeURIComponent(agent)}`, { method: 'DELETE' })
+}
+
 let joinMock = null
 const joinTokensMock = async () => (joinMock ||= (await import('./join-tokens-mock.mjs')).createMockJoinTokens())
 
@@ -1565,6 +1593,9 @@ export const lazySpoolMethods = {
   patchTenantSettings,
   getAgentSplit,
   patchAgentSplit,
+  listAgentSenders,
+  putAgentSenders,
+  dropAgentSenders,
   getMarketingSwitch,
   patchMarketingSwitch,
   mintJoinToken,

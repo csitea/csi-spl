@@ -579,6 +579,7 @@
     "phone_placeholder_reply": "Yanıtla",
     "phone_placeholder_search": "Ara",
     "send_failed_agent_inactive": "Gönderilmedi — bu ajan artık etkin değil. Etkin bir ajanı etiketleyin; metniniz hâlâ burada.",
+    "send_failed_not_allowed": "Gönderilmedi — {agent} sizden mesaj kabul etmiyor. Metniniz hâlâ burada.",
     "sent_to_topic_retired": "Konuya gönderildi: {retired} artık etkin değil.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
@@ -1708,7 +1709,19 @@
     "split_rule_tie": "İki satıcı asıl için berabere",
     "split_rule_backup": "Yedek asıldan farklı olmalıdır",
     "split_rule_agy": "Antigravity kod yazmaz",
-    "split_rule_secret": "Sadece Claude, Grok veya Mistral"
+    "split_rule_secret": "Sadece Claude, Grok veya Mistral",
+    "senders": {
+      "title": "Her ajana kimler mesaj gönderebilir",
+      "hint": "Bir ajana doğrudan mesajlar ve bahsetmeler yalnızca seçtiğiniz üyelerden gelir. Listesi olmayan bir ajan her üyeden mesaj kabul eder. Ondan bahsetmeyen kanal gönderileri etkilenmez.",
+      "everyone": "Her üye",
+      "nobody": "Hiç kimse",
+      "some": "İzin verilen üyeler: {n}",
+      "edit": "Düzenle",
+      "mode_all": "Çalışma alanının her üyesi",
+      "mode_list": "Yalnızca aşağıda işaretlenen üyeler",
+      "none_ticked": "Hiçbir üye işaretlenmedi: bu ajana kimse mesaj gönderemez.",
+      "cancel": "İptal"
+    }
   },
   "help": {
     "title": "Yardım",

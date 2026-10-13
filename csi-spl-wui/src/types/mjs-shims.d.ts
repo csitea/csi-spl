@@ -110,6 +110,10 @@ declare module '~/utils/spool-client.mjs' {
     patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number, mistral: number }, settings?: Record<string, string | number | null> }): Promise<unknown>
     getAgentSplit(): Promise<unknown>
     patchAgentSplit(kinds: Record<string, { weights: Record<string, number>, backup: string } | null>): Promise<unknown>
+    /* SPL-1018: per-agent sender allow-lists (tenant.settings) */
+    listAgentSenders(): Promise<{ tenant_id?: string, lists?: { agent: string, members: string[], updated_by?: string, updated_at?: string }[] }>
+    putAgentSenders(agent: string, members: string[]): Promise<{ agent: string, members: string[] }>
+    dropAgentSenders(agent: string): Promise<null>
     getMarketingSwitch(): Promise<{ tenant_id?: string, enabled?: boolean }>
     patchMarketingSwitch(enabled: boolean): Promise<{ tenant_id?: string, enabled?: boolean }>
     listTenantChannels(): Promise<unknown>

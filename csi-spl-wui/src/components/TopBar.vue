@@ -76,7 +76,7 @@
       <ErrorNotice
         v-if="sendError"
         class="top-bar__send-error"
-        :message="t(sendError.key)"
+        :message="t(sendError.key, sendFailureParams(sendError.err))"
         :error="sendError.err"
         source="omnibox-send"
         test-id="omnibox-send-error"
@@ -118,7 +118,7 @@ import { useSearchStore } from '~/stores/search'
 import { useEditModeStore } from '~/stores/editMode'
 import { searchPath, shouldLoadOperators } from '~/utils/search.mjs'
 import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
-import { sendFailureKey } from '~/utils/send-failure.mjs'
+import { sendFailureKey, sendFailureParams } from '~/utils/send-failure.mjs'
 import { retryWith } from '~/utils/offline-queue.mjs'
 import { useChannelStore } from '~/stores/channel'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'

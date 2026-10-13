@@ -200,7 +200,7 @@ case "$op" in
     rm -rf "${d:?}/$1" && mv "$in/$1" "$d/$1" && rmdir "$in" && echo ok ;;
   resume)
     scripts="$1" id="$2" wt="$3" sid="$4" brief="$5" agent="$6"
-    . "$scripts/../lib/spool-env.inc.sh"; spool_env_resolve; spool_tmux_argv
+    . "$scripts/../lib/spool-env.inc.sh"; SPOOL_LIVE_OK=1 spool_env_resolve; spool_tmux_argv
     bash "$scripts/next-agent-id.sh" --claim "$id" >/dev/null || { echo "id $id is taken here" >&2; exit 3; }
     # the brief where every restore of the lane looks (restore-mistral.sh), read back as the agent
     lt="$SPOOL_ROOT/$id/lifetime"

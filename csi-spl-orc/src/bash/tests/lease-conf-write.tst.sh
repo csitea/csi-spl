@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: SPL-1713. On 2026-10-13 tnk's lease.conf was cut to its three
+# Purpose: SPL-1713. On 2026-10-13 a box's lease.conf was cut to its three
 #          LEASE_MASTER / FAILOVER / ORCH lines (20:05Z, no backup), then
 #          removed (20:07Z); the next LEASE_CMD=ensure left fleet mode.
 #   1. spl_lease_conf_write keeps every key the new text does not name, sets
@@ -16,6 +16,11 @@
 #   5. LEASE_CMD=ensure on a lease.conf that lost LEASE_FLEET while its newest
 #      backup has it: refused, the fleet loop is NOT stopped and nothing
 #      starts; CONTROL: with no such backup, ensure leaves fleet mode as before
+#   6. spool_env_resolve refuses the live root (exit 96) from a hand-typed
+#      shell that loaded spool-env.inc.sh from a lane worktree (the
+#      2026-10-13 shape) and from a shell with the test lib loaded; CONTROLS:
+#      SPOOL_LIVE_OK=1, a main checkout, a script file, a sandbox root pass.
+#      The "live" root here is a mktemp dir (SPOOL_LIVE_ROOT).
 #  Fixtures only in a mktemp root: never the live /var/spool-hub.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -121,6 +126,33 @@ ensure; rc=$?
 [[ $rc == 0 ]] && grep -qx 'stop fleet' "$T/calls" &&
   pass "5. CONTROL: no backup with LEASE_FLEET: ensure leaves fleet mode as before" ||
   fail "5. CONTROL rc=$rc calls=[$(tr '\n' ' ' <"$T/calls")]: $(cat "$T/o")"
+
+# --- 6. the live-root guard ---------------------------------------------------
+ENVLIB="$PROJ_ROOT/src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+LIVE="$T/live"; mkdir -p "$LIVE" "$T/csi-spl-wt/x-001/lib" "$T/csi-spl/lib" "$T/sbx"
+cp "$ENVLIB" "$T/csi-spl-wt/x-001/lib/"; cp "$ENVLIB" "$T/csi-spl/lib/"
+WTL="$T/csi-spl-wt/x-001/lib/spool-env.inc.sh"; MAINL="$T/csi-spl/lib/spool-env.inc.sh"
+# resolve <lib> <root> [pre-code]: a hand-typed `bash -c` shell, as on 2026-10-13
+resolve() {
+  (cd "$T" && env -u SPOOL_TEST -u SPOOL_LIVE_OK SPOOL_LIVE_ROOT="$LIVE" SPOOL_ROOT="$2" SPOOL_ENV_NO_BINS=1 \
+    SPOOL_BOX_ENV=/nonexistent ${EXTRA:-} bash -c "${3:-} . '$1'; spool_env_resolve; echo REACHED") >"$T/o6" 2>&1
+}
+resolve "$WTL" "$LIVE"; rc=$?
+[[ $rc == 96 ]] && ! grep -q REACHED "$T/o6" && grep -q 'REFUSED.*lane worktree' "$T/o6" &&
+  pass "6. a bash -c shell with the lib from a lane worktree: the live root is refused (96)" || fail "6. worktree shell rc=$rc: $(cat "$T/o6")"
+resolve "$MAINL" "$LIVE" 't_sandbox() { :; };'; rc=$?
+[[ $rc == 96 ]] && ! grep -q REACHED "$T/o6" && grep -q 'REFUSED.*test lib' "$T/o6" &&
+  pass "6. the test lib loaded (t_sandbox): the live root is refused" || fail "6. test lib rc=$rc: $(cat "$T/o6")"
+EXTRA=SPOOL_LIVE_OK=1 resolve "$WTL" "$LIVE"; rc=$?
+[[ $rc == 0 ]] && grep -q REACHED "$T/o6" && pass "6. CONTROL: SPOOL_LIVE_OK=1 passes" || fail "6. CONTROL live ok rc=$rc: $(cat "$T/o6")"
+resolve "$MAINL" "$LIVE"; rc=$?
+[[ $rc == 0 ]] && grep -q REACHED "$T/o6" && pass "6. CONTROL: the lib from a main checkout passes" || fail "6. CONTROL main rc=$rc: $(cat "$T/o6")"
+resolve "$WTL" "$T/sbx"; rc=$?
+[[ $rc == 0 ]] && grep -q REACHED "$T/o6" && pass "6. CONTROL: a sandbox root passes" || fail "6. CONTROL sandbox rc=$rc: $(cat "$T/o6")"
+printf '. "%s"; spool_env_resolve; echo REACHED\n' "$WTL" >"$T/csi-spl-wt/x-001/s.sh"
+(cd "$T" && env -u SPOOL_TEST -u SPOOL_LIVE_OK SPOOL_LIVE_ROOT="$LIVE" SPOOL_ROOT="$LIVE" SPOOL_ENV_NO_BINS=1 SPOOL_BOX_ENV=/nonexistent \
+  bash "$T/csi-spl-wt/x-001/s.sh") >"$T/o6" 2>&1; rc=$?
+[[ $rc == 0 ]] && grep -q REACHED "$T/o6" && pass "6. CONTROL: a script file in a worktree passes" || fail "6. CONTROL script rc=$rc: $(cat "$T/o6")"
 
 echo "---"
 [[ $fails == 0 ]] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAILED"; exit 1; }

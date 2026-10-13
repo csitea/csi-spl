@@ -326,10 +326,41 @@ spool_test_guard() {
   return 0
 }
 
+# SPL-1713: the live spool root, reached from a test or a hand-typed shell.
+# On 2026-10-13 a lane pasted test lines into `sudo -u <box user> bash -c '.
+# <worktree>/.../spool-env.inc.sh; spool_env_resolve; printf ... >
+# "$SPOOL_ROOT/dispatch/lease.conf"'`: with no sandbox SPOOL_ROOT became the
+# live root, lease.conf was cut to 3 lines and then removed. Refused (96)
+# when SPOOL_ROOT is the live root and
+#   - a test file is on the call stack, or the test lib (t_sandbox) is loaded:
+#     a test outside its sandbox, or
+#   - the shell runs no script file ($0 is a bare shell: bash -c / -s / a
+#     prompt) and this lib was loaded from a lane worktree (<repo>-wt/<id>).
+# A real caller of that second shape says so with SPOOL_LIVE_OK=1.
+spool_live_root_guard() {
+  [ "${SPOOL_LIVE_OK:-}" = 1 ] && return 0
+  local live="${SPOOL_LIVE_ROOT:-/var/spool-hub}" rr lr src why=""
+  rr="$(readlink -m -- "${SPOOL_ROOT:-$live}")"; lr="$(readlink -m -- "$live")"
+  [ "$rr" = "$lr" ] || return 0
+  for src in "${BASH_SOURCE[@]}" "$0"; do
+    case "$src" in */tests/*) why="a test file is on the call stack ($src)"; break ;; esac
+  done
+  [ -z "$why" ] && declare -F t_sandbox >/dev/null && why="the test lib is loaded (t_sandbox), but SPOOL_ROOT is not its sandbox"
+  if [ -z "$why" ] && [ ! -f "$0" ]; then
+    case "$(readlink -m -- "${BASH_SOURCE[0]}")" in
+      *-wt/*) why="a hand-typed shell ($0) loaded this lib from a lane worktree" ;;
+    esac
+  fi
+  [ -n "$why" ] || return 0
+  echo "spool-env: REFUSED: SPOOL_ROOT is the live root ($lr) and $why; run the test file whole (its sandbox), or set SPOOL_LIVE_OK=1 if the live root is meant" >&2
+  return 96
+}
+
 spool_env_resolve() {
   # exit, not return: callers source this and run unchecked, so a refusal that
   # returned would fall through to the send it exists to stop.
   spool_test_guard || exit 96
+  spool_live_root_guard || exit 96
   SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
   _spool_box_env_load
   # Not $SUDO_USER: under `sudo -u <box user>` that names the CALLER, and an

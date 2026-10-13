@@ -298,7 +298,12 @@ that change was cut by hand. On 2026-10-13 a lane pasted the lines of
 no sandbox, `spool_env_resolve` put `SPOOL_ROOT` on the live
 `/var/spool-hub`, its `printf` left three lines (20:05Z) and its `rm -f`
 removed the file (20:07Z). Run a test file whole, never its lines: only its
-sandbox keeps it off the live root.
+sandbox keeps it off the live root. `spool_env_resolve` now refuses the live
+root (exit 96, `spool-env: REFUSED`) when a test file is on the call stack,
+when the test lib (`t_sandbox`) is loaded, or when a shell that runs no
+script file (`bash -c`, `bash -s`, a prompt) loaded `spool-env.inc.sh` from a
+lane worktree (`<repo>-wt/<id>`). A real caller of that last shape sets
+`SPOOL_LIVE_OK=1` (the lane restart and handover launchers do).
 
 `LEASE_CMD=ensure` now refuses to leave fleet mode while the fleet loop runs
 and the newest backup still has `LEASE_FLEET`: it logs `ensure REFUSED` in

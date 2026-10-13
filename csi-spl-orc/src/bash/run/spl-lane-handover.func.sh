@@ -247,7 +247,7 @@ case "$op" in
     mkdir -p "${1%/*}" && cat >"$1" && chmod 644 "$1" && echo ok ;;
   resume)
     scripts="$1" id="$2" wt="$3" sid="$4" brief="$5" agent="$6"
-    . "$scripts/../lib/spool-env.inc.sh"; spool_env_resolve; spool_tmux_argv
+    . "$scripts/../lib/spool-env.inc.sh"; SPOOL_LIVE_OK=1 spool_env_resolve; spool_tmux_argv
     bash "$scripts/next-agent-id.sh" --claim "$id" >/dev/null || { echo "id $id is taken here" >&2; exit 3; }
     sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_attached} #{session_id}' 2>/dev/null | awk '$1 > 0 {print $2; exit}')"
     [ -n "$sess" ] || sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_id}' 2>/dev/null | sed -n 1p)"

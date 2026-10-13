@@ -41,7 +41,8 @@
 # @description warning only - the answer is still sent, unchanged.
 # @description Prints one JSON line (msg_id, task_id, to, kind, the answered
 # @description message's id and its first characters, and `permalink`: the
-# @description WUI deep link <wui>/m/<msg_id> of the post just sent), then the
+# @description WUI deep link <wui>/m/<msg_id> of the post just sent, on the host
+# @description of the topic's workspace: the desk's tenant), then the
 # @description permalink on its own OK line. A post that asks the owner a
 # @description question (DESK_KIND=blocker at least) keeps that link and cites
 # @description it whenever it refers to the question again (owner, t1 48d09034;
@@ -59,7 +60,12 @@
 # @param   A missing file and a file this run user cannot read are different
 # @param   FATALS; the latter names the user and the spool root's dispatch/.
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
-# @param DESK_WUI_URL (optional) - the WUI base of the permalink, default the env's WUI (cnf env.dns.fqdn)
+# @param DESK_WUI_URL (optional) - the WUI base of the permalink, default the env's WUI (cnf env.dns.fqdn).
+# @param   The permalink is on the workspace's host under that base: the base
+# @param   itself for the apex tenant (019 wui_default_tenant), else
+# @param   https://<tenant>.<base host> when the cnf turns tenant hosts on and
+# @param   maps the tenant (SPL-1693: a csitea reply on prd is
+# @param   https://csitea.<fqdn>/m/<msg_id>, never the apex)
 # @param DESK_KIND (optional) - note (default) | result | reject | blocker | msg
 # @param   (blocker = the agent cannot proceed without the human's input; SPL-952)
 # @param DESK_TO (optional) - answer THIS human id instead of the newest sender
@@ -111,7 +117,7 @@ do_spl_desk_reply() {
   local sent route=dm sent_task="$ans_task"
   _spl_desk_reply_send || return 1
   local summary link
-  summary="$(SPL_SENT="$sent" SPL_ROUTE="$route" SPL_REF="$ans_ref" SPL_LINK_BASE="${DESK_WUI_URL:-${SPL_WUI_URL:-}}" \
+  summary="$(SPL_SENT="$sent" SPL_ROUTE="$route" SPL_REF="$ans_ref" SPL_LINK_BASE="$(_spl_desk_reply_link_base "$tenant")" \
     _spl_desk_reply_summary "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$sent_task" "$ans_msg" "$ans_head")"
   printf '%s\n' "$summary"
   link="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("permalink",""))' "$summary" 2>/dev/null)"
@@ -195,6 +201,33 @@ _spl_desk_reply_send() {
       --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}" "${ref_args[@]}")" || rc=$?
   fi
   (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
+}
+
+# _spl_desk_reply_link_base <tenant>: the WUI base of the permalink, on the
+# host of the workspace the post is in (SPL-1693: a csitea reply printed as
+# the apex, which is t1). The base is DESK_WUI_URL, else the env's WUI. The
+# apex tenant (019 wui_default_tenant) keeps it; another tenant gets
+# https://<tenant>.<base host> when the cnf turns tenant hosts on
+# (019 wui_tenant_hosts) and maps it (env.dns.mapped_tenants). A self-hosted
+# hub, or a cnf that does not say, keeps the base: no host is guessed. An
+# unmapped tenant keeps the base too, with a WARN (its host does not resolve).
+_spl_desk_reply_link_base() {
+  local tenant="$1" base="${DESK_WUI_URL:-${SPL_WUI_URL:-}}"
+  local -a v=()
+  base="${base%/}"
+  if [[ -n "$base" && "${ENV:-}" != self && -r "${SPL_CNF:-}" ]]; then
+    mapfile -t v < <(yq -r '[.env.steps."019-firebase-static-site".wui_default_tenant,
+        .env.steps."019-firebase-static-site".wui_tenant_hosts,
+        ((.env.dns.mapped_tenants // []) | join(" "))] | .[] | (. // "")' "$SPL_CNF" 2>/dev/null)
+    if [[ ${#v[@]} -eq 3 && -n "${v[0]}" && "$tenant" != "${v[0]}" && "${v[1]}" == true ]]; then
+      if [[ " ${v[2]} " == *" $tenant "* && "$base" =~ ^(https?://)([^/]+)$ ]]; then
+        base="${BASH_REMATCH[1]}$tenant.${BASH_REMATCH[2]}"
+      else
+        do_log "WARN $tenant has no tenant host (env.dns.mapped_tenants): the permalink uses $base" >&2
+      fi
+    fi
+  fi
+  printf '%s' "$base"
 }
 
 # _spl_desk_reply_summary <env> <tenant> <box> <agent> <kind> <to> <task>

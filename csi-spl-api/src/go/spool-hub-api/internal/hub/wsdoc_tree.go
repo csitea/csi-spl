@@ -379,7 +379,9 @@ func (s *Server) handleDocTreeHead(w http.ResponseWriter, r *http.Request) {
 
 // handleDocTreeChildren is the lazy unit (spec 6): one node's children and
 // its ancestors' ord path, never an offset page over the whole document. The
-// doc rev is read first, so a write in between makes the next op a 412.
+// doc rev is read first, so a write in between makes the next op a 412. The
+// outline is the store's number of the parent (spec 137 T012a: "" when it or
+// one above it is unnumbered), not its ord path.
 func (s *Server) handleDocTreeChildren(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.docTreeCaller(w, r, rbac.DocsRead)
 	if !ok {
@@ -405,15 +407,7 @@ func (s *Server) handleDocTreeChildren(w http.ResponseWriter, r *http.Request) {
 		path = []int{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"doc": doc, "rev": h.Rev, "parent": parent,
-		"path": path, "outline": outlineOfPath(path), "items": docTreeItems(res.Items)})
-}
-
-func outlineOfPath(p []int) string {
-	parts := make([]string, len(p))
-	for i, v := range p {
-		parts[i] = strconv.Itoa(v)
-	}
-	return strings.Join(parts, ".")
+		"path": path, "outline": res.Outline, "items": docTreeItems(res.Items)})
 }
 
 func docTreeTooLarge(w http.ResponseWriter) {

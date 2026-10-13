@@ -55,51 +55,56 @@ const wsDocChildrenSQL = `WITH RECURSIVE ` + wsDocStartSQL + `, ` + wsDocNumSQL 
 	FROM workspace_doc_item c JOIN s ON c.parent_id = s.id JOIN nums n ON n.id = c.id CROSS JOIN bnum bn
 	WHERE c.doc_id = $1 ORDER BY c.ord`
 
-// wsDocPathSQL is the start item's ord path and whether it (and the doc) exist.
-const wsDocPathSQL = `WITH RECURSIVE ` + wsDocStartSQL + `
-	SELECT EXISTS (SELECT 1 FROM workspace_doc WHERE id = $1), b.n > 0, b.path::int[] FROM base b`
+// wsDocPathSQL is the start item's ord path, its number path and whether it
+// (and the doc) exist.
+const wsDocPathSQL = `WITH RECURSIVE ` + wsDocStartSQL + `, ` + wsDocNumSQL + `
+	SELECT EXISTS (SELECT 1 FROM workspace_doc WHERE id = $1), b.n > 0, b.path::int[], bn.np::int[]
+	FROM base b CROSS JOIN bnum bn`
 
-// DocChildrenResult is DocChildren's answer: the parent's ord path (its
-// outline is the prefix of every child's) and its children in order.
+// DocChildrenResult is DocChildren's answer: the parent's ord path, its
+// outline (the prefix of every numbered child's; "" when it or one above it
+// is unnumbered, or it is the root) and its children in order.
 type DocChildrenResult struct {
-	Path  []int
-	Items []DocItem
+	Path    []int
+	Outline string
+	Items   []DocItem
 }
 
 // DocSubtree reads item ("" = the root) and its whole subtree in document
 // order, each with its outline number.
 func (s *Postgres) DocSubtree(ctx context.Context, tenant, doc, item string) ([]DocItem, error) {
 	var out []DocItem
-	_, err := s.docRead(ctx, tenant, doc, item, wsDocSubtreeSQL, func(it DocItem) { out = append(out, it) })
+	_, _, err := s.docRead(ctx, tenant, doc, item, wsDocSubtreeSQL, func(it DocItem) { out = append(out, it) })
 	return out, err
 }
 
 // DocChildren reads one item's children ("" = the root's: the top level).
 func (s *Postgres) DocChildren(ctx context.Context, tenant, doc, parent string) (DocChildrenResult, error) {
 	var res DocChildrenResult
-	path, err := s.docRead(ctx, tenant, doc, parent, wsDocChildrenSQL, func(it DocItem) { res.Items = append(res.Items, it) })
-	res.Path = path
+	path, np, err := s.docRead(ctx, tenant, doc, parent, wsDocChildrenSQL, func(it DocItem) { res.Items = append(res.Items, it) })
+	res.Path, res.Outline = path, outlineOf(np)
 	return res, err
 }
 
 // docRead runs the existence/path read and sql as one batch (one snapshot,
-// one round trip), and answers 404 for a missing doc or start item.
-func (s *Postgres) docRead(ctx context.Context, tenant, doc, item, sql string, each func(DocItem)) ([]int, error) {
+// one round trip), and answers 404 for a missing doc or start item. It
+// returns the start item's ord path and number path.
+func (s *Postgres) docRead(ctx context.Context, tenant, doc, item, sql string, each func(DocItem)) ([]int, []int32, error) {
 	if !isUUID(doc) {
-		return nil, ErrDocNotFound
+		return nil, nil, ErrDocNotFound
 	}
 	var start any
 	if item != "" {
 		if !isUUID(item) {
-			return nil, ErrDocItemNotFound
+			return nil, nil, ErrDocItemNotFound
 		}
 		start = item
 	}
 	var docThere, itemThere bool
-	var path []int32
+	var path, np []int32
 	err := s.queryTenantBatch(ctx, tenant,
 		tenantRead{sql: wsDocPathSQL, args: []any{doc, start}, each: func(r pgx.Rows) error {
-			return r.Scan(&docThere, &itemThere, &path)
+			return r.Scan(&docThere, &itemThere, &path, &np)
 		}},
 		tenantRead{sql: sql, args: []any{doc, start}, each: func(r pgx.Rows) error {
 			it, err := scanDocItem(r)
@@ -108,13 +113,13 @@ func (s *Postgres) docRead(ctx context.Context, tenant, doc, item, sql string, e
 		}})
 	switch {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	case !docThere:
-		return nil, ErrDocNotFound
+		return nil, nil, ErrDocNotFound
 	case !itemThere:
-		return nil, ErrDocItemNotFound
+		return nil, nil, ErrDocItemNotFound
 	}
-	return intsOf(path), nil
+	return intsOf(path), np, nil
 }
 
 func scanDocItem(r pgx.Rows) (DocItem, error) {

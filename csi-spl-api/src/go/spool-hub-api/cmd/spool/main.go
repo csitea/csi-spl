@@ -124,6 +124,8 @@ const usage = `usage: spool <verb> [flags]      (spool <verb> -h lists a verb's 
 
 on a box (an agent's machine):
   keygen              make this box's signing key (prints the PUBLIC key)
+  key                 workspace age keys: init, unlock, lock, status, rotate (spec 136)
+  keyd                hold unlocked workspace keys (started by key unlock)
   pin                 pin a box key locally; with --root-key also at the hub
   join                seat this box with a join token ($SPOOL_JOIN_TOKEN or - = stdin)
   send                send a message (hub mode: --channel posts a new topic)
@@ -203,6 +205,10 @@ func run(args []string) int {
 		return 0
 	}
 	switch cmd {
+	case "key": // spec 136
+		return cmdKey(rest)
+	case "keyd": // spec 136
+		return cmdKeyd(rest)
 	case "migrate":
 		return cmdMigrate(rest)
 	case "serve":

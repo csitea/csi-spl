@@ -113,6 +113,9 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
+/* tabs whose one boot reload has been waited for */
+const booted = new WeakSet()
+
 async function goto(p, url) {
   let shell = false
   for (let attempt = 0; attempt < 2 && !shell; attempt++) {
@@ -120,7 +123,14 @@ async function goto(p, url) {
     shell = await p.waitForSelector('.spool-shell', { timeout: attempt === 0 ? 20000 : NAV_TIMEOUT }).then(() => true, () => false)
   }
   if (!shell) throw new Error('no shell at ' + url)
-  /* a generated bundle reloads once while the shell settles (id-links.test.mjs) */
+  /* a generated bundle reloads once while the shell settles (id-links.test.mjs).
+     That reload is build-watch's, guarded once per tab and build in
+     sessionStorage, which a goto in the same tab keeps, so only a tab's first
+     goto waits for it (chunk-reload fires only on a missing chunk). Waiting
+     on every goto ran the 2 s out 56 times: 112 of the file's 161 s locally
+     (spec 133 round 16). */
+  if (booted.has(p)) return
+  booted.add(p)
   await p.evaluate(() => { window.__lovBoot = 1 })
   const reloaded = await p.waitForFunction(() => window.__lovBoot !== 1, { timeout: 2000 }).then(() => true, () => false)
   if (reloaded) await p.waitForSelector('.spool-shell', { timeout: 15000 })
@@ -142,13 +152,16 @@ const LINKS_SEL = `article.msg[data-msg-id="${CARRIER}"] a.msg-link`
 
 async function visibleLink(p, i) {
   const deadline = Date.now() + 20000
+  let prev = null
   while (Date.now() < deadline) {
-    const at = await p.evaluate((sel, i) => {
+    const at = await p.evaluate((sel, i, n) => {
       const cards = [...document.querySelectorAll(`article.msg[data-msg-id="${sel}"]`)]
         .filter((c) => { const r = c.getBoundingClientRect(); return r.width > 0 && r.height > 0 })
       for (const card of cards) {
+        /* a bare id turns into a link a moment after the card renders: count
+           the n-th link only once every form's link is there */
         const links = [...card.querySelectorAll('a.msg-link')]
-        if (links.length <= i) continue
+        if (links.length < n) continue
         const a = links[i]
         /* only the link's own feed scrolls: scrollIntoView would move the document too */
         const scroller = a.closest('.feed-body')
@@ -161,8 +174,11 @@ async function visibleLink(p, i) {
         if (hit && a.contains(hit)) return { x, y, href: a.getAttribute('href') }
       }
       return null
-    }, CARRIER, i)
-    if (at) return at
+    }, CARRIER, i, FORMS.length)
+    /* links still reflow as they resolve: a tap on a moving link lands on its
+       neighbour, so tap only where the same link sat on the last poll too */
+    if (at && prev && at.href === prev.href && Math.abs(at.x - prev.x) < 1 && Math.abs(at.y - prev.y) < 1) return at
+    prev = at
     await sleep(200)
   }
   return null

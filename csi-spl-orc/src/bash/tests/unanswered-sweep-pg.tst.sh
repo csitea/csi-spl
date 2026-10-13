@@ -213,7 +213,11 @@ c9() { awk -F'\t' -v t="40000000-0000-4000-8000-00000000000$1" -v c="$2" '$4 == 
   pass "9. a real answer after a take is 'agent'; CONTROL: a line that only starts 'Taken by' is 'agent'" || fail "9. agent: $(c9 2 9) $(c9 3 9) '$(c9 2 15)$(c9 3 15)'"
 [[ "$(c9 4 9) $(c9 4 15)" == "human 50000000-0000-4000-8000-000000000041" ]] &&
   pass "9. a human post after a take keeps the anchor before the take" || fail "9. after take: $(c9 4 9) $(c9 4 15)"
-env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/rows9" SWEEP_TO=CLE-002 SWEEP_MIN_AGE=3 SWEEP_TAKE_GRACE=10 HOME="$T/home" bash -c '
+# The clock is the DB's, 30 s past the seed: a row's epoch is ::bigint-rounded
+# (up to 1 s late) and a wall clock read under a second after the seed made
+# the 40-minute ask '39m' (wf 10 run 38472051929, SPL-1747).
+now9=$(( $(psql_owner -c "SELECT floor(extract(epoch FROM now()))::bigint") + 30 ))
+env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" ENV=prd SWEEP_ROWS_FILE="$T/rows9" SWEEP_TO=CLE-002 SWEEP_MIN_AGE=3 SWEEP_TAKE_GRACE=10 SWEEP_NOW="$now9" HOME="$T/home" bash -c '
   set -uo pipefail
   do_log() { echo "$*"; }
   source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"

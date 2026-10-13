@@ -105,12 +105,28 @@ try {
     ok(`${label}: Copy link is first, then the sites, e-mail last`, JSON.stringify(named) === JSON.stringify(BLOG_SHARE_ORDER.map((id) => `blog-share-${id}-top`)), named)
     ok(`${label}: Web Share does not replace the row`, !ids.includes('blog-share-native-top') || ids[ids.length - 1] === 'blog-share-native-top', ids)
     
-    // Check the end row exists and has the same controls as the top row.
+    // Check the end row exists and is positioned after the last paragraph.
     const endRow = await p.waitForSelector('[data-test=blog-share-end]', { visible: true, timeout: 5000 }).catch(() => null)
     ok(`${label}: the post shows the end share row`, Boolean(endRow))
+    
+    const lastParagraph = await p.waitForSelector('[data-test=blog-post-body] > *:last-child', { timeout: 5000 }).catch(() => null)
+    ok(`${label}: the post has a last paragraph`, Boolean(lastParagraph))
+    
+    if (lastParagraph) {
+      const lastParaRect = await lastParagraph.evaluate((el) => ({
+        bottom: el.getBoundingClientRect().bottom,
+      }))
+      const endRowRect = await endRow.evaluate((el) => ({
+        top: el.getBoundingClientRect().top,
+      }))
+      ok(`${label}: the end row is after the last paragraph`, endRowRect.top >= lastParaRect.bottom, { lastParaBottom: lastParaRect.bottom, endRowTop: endRowRect.top })
+    }
+    
     const endIds = await p.$$eval('[data-test=blog-share-end] [data-test]', (els) => els.map((el) => el.getAttribute('data-test')))
     const endNamed = endIds.filter((id) => id !== 'blog-share-native-end')
     ok(`${label}: end row has the same controls as the top row`, JSON.stringify(endNamed) === JSON.stringify(BLOG_SHARE_ORDER.map((id) => `blog-share-${id}-end`)), endNamed)
+    
+
 
     const links = await p.$$eval('a[data-test^="blog-share-"]', (els) => els.map((el) => ({
       id: el.getAttribute('data-test'),

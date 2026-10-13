@@ -86,6 +86,13 @@
         }
       },
       {
+        "source": "/api/v1/marketing/linkedin/callback",
+        "run": {
+          "serviceId": "csi-spl-hub-dev",
+          "region": "europe-north1"
+        }
+      },
+      {
         "source": "/_nuxt/builds/**",
         "destination": "/__stale-nuxt-build-404__"
       },

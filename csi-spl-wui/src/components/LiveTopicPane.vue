@@ -121,7 +121,7 @@ function rootUnread(id: string) {
 }
 
 /* The open topic's own title, selected at the top of this pane. */
-const titleText = computed(() => topicTitleFromRows(pane.messages, messageRooted.value ? topic.rootMsg : null))
+const titleText = computed(() => rowTitle(topicTitleFromRows(pane.messages, messageRooted.value ? topic.rootMsg : null), ''))
 const heading = computed(() => (titleText.value ? t('topic.list_title', { text: titleText.value }) : t('topic.title')))
 
 /*

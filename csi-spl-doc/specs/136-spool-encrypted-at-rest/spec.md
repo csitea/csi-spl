@@ -1,6 +1,6 @@
 # 136: Spool messages encrypted at rest (phase 2 of the private workspace)
 
-Status: **v1.0**, the editor's fold of the three seat reviews in `reviews/`
+Status: **v1.0, signed by all four seats (section 13), consensus met; the build lanes of section 11 start**. It is the editor's fold of the three seat reviews in `reviews/`
 (section 13). Every CHANGE that a seat set as its condition to sign is in.
 The owner's answers to Q1-Q7 are pending (section 12); all four seats vote
 A on each. Editor s136-claude (c-399). Issue: SPL-1658. v0.1 was 2e21b62db,

@@ -676,6 +676,22 @@ regimes never mix. Tests: `TestFleetAskLockNext`, `TestFleetAskLockNextRaces`
 `TestFleetAskLockNextAckCAS` (memory + Postgres), `TestBoxOdPoolLockNext`
 (two boxes through `spool ask`).
 
+**OD pool seats and their supervisor (spec 134 step P3, SPL-1710).** Two
+shell actions, off by default. With `od_pool.kinds` empty no seat locks
+anything, so the lease keeps doing all OD work.
+
+| action | does |
+|---|---|
+| `do_spl_od_seat` (`OD_SEAT_ID=<c-NNN\|g-NNN>`) | the seat's loop, every `OD_TICK` (15 s): `lock-next` while able and holding nothing; renew the held job at its gen while able and the heartbeat's `progress_ts` is at most `OD_PROGRESS_MAX` (900 s) old, else let the lock run out; a 409 drops the job; a locked job goes to the seat's own inbox as a task (pointers only). State in `<spool root>/od/<id>/` |
+| `do_spl_od_pool_supervise` (`OD_POOL_SUPERVISE=1`) | every 30 s per box: the able check per seat of this box (`spl_lease_agent_able`, the lease's own); two failed ticks = release its jobs (gen + 1), then `do_spl_wd_takeover`; every seat of a vendor failed twice with a limit banner = the pool row goes to 0 + 4 until the banner's reset, and back after it. Slots `<vendor>-<k>` are fleet leases `od-<vendor>-<k>` held by their seat; a slot whose holder is silent `OD_SLOT_TTL` (300 s) is taken by one other box (compare-and-set). One spawn or retire per tick; an extra seat takes no new job and is retired once it holds none. Off: it retires the seats it spawned (the P3 rollback) |
+| `do_spl_od_pool_supervise_install_cron` | the two cron lines (`* * * * *` and `sleep 30`), installed with `OD_POOL_SUPERVISE=0` unless `OD_CRON_SUPERVISE=1` |
+
+A takeover refuses a seat stalled at a usage limit (situation S2 is never
+taken over): the seat stays and the dispatch holder gets one note an hour.
+Only a whole vendor out moves seats to the other vendor. Tests (hub,
+spawn and takeover stubbed, each with a mutation control):
+`od-pool-spof.tst.sh`, `od-pool-replace.tst.sh` and `od-pool-vendor.tst.sh`.
+
 ### 4.4 Hourly rotation: a fresh session per role (spec 060)
 
 Every role gets a FRESH session under the SAME id once an hour, so no

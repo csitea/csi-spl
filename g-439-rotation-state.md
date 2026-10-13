@@ -1,7 +1,8 @@
 # g-439 rotation state
 
-Written 2026-10-13T20:47Z after rotation 20261013T2042Z-lane-g-439 (ACK OK).
-The 20:41Z warn (note 69fcbe9a, for 20:41Z) is the parent commit c89b95fbc.
+Written 2026-10-13T21:30Z for the lane-rotate handoff (warn for 21:43Z UTC).
+The 20:42Z rotation record is the parent commit b66ae379d.
+The 20:41Z warn (note 69fcbe9a, for 20:41Z) is c89b95fbc.
 The earlier warn (19:25Z, note 39a63044, for 19:39Z) is cdf0ae8e5.
 The warn before that (18:23Z, note 32f26d78, for 18:37Z) is e437988a1.
 The warn before that (17:27Z, note e58bb842, for 17:41Z) is f64f401a4.
@@ -27,25 +28,23 @@ Do not send the result again.
 - pnpm run typecheck exited 0 before the views-last reorder. The unit test passed 3/3 after that reorder.
 - Headless Chrome, n=1, this tree, before the product commit: at 1440 the four controls share the header row and the views are at the right end; at 390 the top level has no Documents heading. The full e2e file was not re-run green. The booting dev server uses the main checkout node_modules, which lacks markdown-it, so a vite overlay swallows clicks. A fresh install here does not boot (simple-git 4). Do not patch that shared tree. The worktree node_modules symlink is gitignored.
 
-## Why these rotations did not push
+## Why this warn did not push
 
 - g-002 note df451778 (2026-10-13T17:08:18Z) says the sha was posted in the topic: stay idle, do not push, do not deploy.
-- The brief forbids push and deploy. Nothing on task 0d910440 starts with ACCEPTED.
+- The brief forbids push and deploy. Nothing on task 0d910440 starts with ACCEPTED. The thread's last line is still that g-002 note.
 - Result already sent to g-002: msg 57aa005e-cdc9-427a-8523-dbc87467f4cf at 2026-10-13T17:07:40Z.
 - Note 91896f9d (views at the right end) was followed and archived with df451778.
-- A push of b97cb4e9a would land a feat subject with SPL-1697 and close the issue before ACCEPTED.
-- Fetched origin/master at 2026-10-13T20:47Z: tip 4ac30d59b. Before this commit the branch was ahead 5, behind 26 (rev-list --left-right --count origin/master...HEAD). It was not rebased. The wip commits must stay off origin/master.
-- lane-map --check g-439-rotation-state.md --agent g-439 exited 4 (9 unknown lanes, none list that path). That does not cancel this note.
+- A push of b97cb4e9a would land a feat subject with SPL-1697 and close the issue before ACCEPTED. The warn says push what is green; this lane's brief and g-002 override that for this commit.
+- origin/master at 2026-10-13T21:29Z: tip 528660bb5 (git-fetch-fresh skipped, fetched 18 s earlier). Before this commit the branch was ahead 6, behind 38 (rev-list --left-right --count origin/master...HEAD). It was not rebased. The 20:47Z reading (4ac30d59b, ahead 5, behind 26) is stale. The wip commits must stay off origin/master.
+- lane-map --check g-439-rotation-state.md --agent g-439 exited 4 (11 unknown lanes, none list that path). That does not cancel this note.
 
 ## This rotation
 
-- Rotation 20261013T2042Z-lane-g-439 was ACK OK at 2026-10-13T20:43:23Z by pid 4051089. Do not ack it again.
-- Self-ack 87a9ac99-f1d6-4e9b-84f5-cc477bda5771 (task lane-rotate-20261013T2042Z-lane-g-439) was archived and not answered.
-- Handoff at rotate time: previous session idle. Product commit still b97cb4e9a. Result already sent. Do not send it again.
-- Inbox at the second read held only that self-ack. After --ack the inbox was empty.
+- Note e60be861-77c4-4a72-b826-23cb313eb673 (c-001, task lane-rotate-g-439, ts 2026-10-13T21:28:27Z, rotation at 21:43Z) is recorded and not replied to.
+- Inbox at read time held only this rotation note.
 - The product commit stays the only commit that may be pushed later, and only after ACCEPTED. The wip commits stay off origin/master.
-- Live window main index 29 @914, identity pane %1789, title g-439@tnk > wait accept. The first riname still named retiring pane %1728; the second, after the map showed %1789, set wait accept and dropped the badge; tmux rename-window -t %1789 restored the badge.
-- Retiring window is main index 28, name g-439-2042Z-retiring, panes %1728 and %1774.
+- Live window main index 34 @914, identity pane %1789. Title had lost the badge (g-439@tnk wait accept); tmux rename-window restores g-439@tnk > wait accept. Retiring window from the 2042Z rotation is main index 28, name g-439-2042Z-retiring, panes %1728 and %1774.
+- Rotation 20261013T2042Z-lane-g-439 was ACK OK at 2026-10-13T20:43:23Z by pid 4051089. Do not ack it again. Self-ack 87a9ac99 was archived and not answered. That takeover is commit b66ae379d.
 - Session rotation 20261013T1941Z-lane-g-439 was ACK OK at 2026-10-13T19:41:41Z by pid 3971095. Do not ack it again. Self-ack a687c43d was archived and not answered.
 - Do not ack 20261013T1839Z-lane-g-439 again (ACK OK 2026-10-13T18:39:37Z, pid 3896127).
 - Prior rotation 20261013T1737Z-lane-g-439 was ACK OK at 2026-10-13T17:37:30Z by pid 969233. Do not ack it again.
@@ -53,4 +52,4 @@ Do not send the result again.
 - Prior warn 39a63044-1a41-406a-bfda-337e61808d03 (c-001, ts 2026-10-13T19:25:03Z, rotation at 19:39Z) was recorded in cdf0ae8e5 and not replied to.
 - Prior warn 32f26d78-c6cf-4bb6-afd0-a6d8f4fa82b2 (c-001, ts 2026-10-13T18:23:04Z, rotation at 18:37Z) was recorded in e437988a1 and not replied to.
 - Prior warn e58bb842-431a-42dd-8629-6fd6cac2820b (g-001, ts 2026-10-13T17:27:05Z, rotation at 17:41Z) was recorded in f64f401a4 and not replied to.
-- Developer-guide ack for g-439 is blob 5b034cd00, already confirmed. This session read the guide again before this edit.
+- Developer-guide ack for g-439 is blob 5b034cd00, same blob as HEAD:csi-spl-doc/doc/md/developer-guide.md. Confirmed earlier this session.

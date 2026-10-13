@@ -30,7 +30,8 @@
 # @description              do_spl_msg_unreadable alerts on these. A
 # @description              null-channel post to ALL-0 after an agent post
 # @description              is open (cstate thread)
-# @description   channel  - a channel in SWEEP_SKIP_CHANNELS (#issues, #tasks)
+# @description   channel  - a channel in SWEEP_SKIP_CHANNELS (#issues, #tasks,
+# @description              #probe: the live proof's hidden test channel)
 # @description   fresh    - younger than SWEEP_MIN_AGE (the live path has it)
 # @description   ack      - a pure acknowledgement ("ok", "thanks", emoji
 # @description              only): LISTED in its own table, never delivered
@@ -72,7 +73,7 @@
 # @param SWEEP_ESCALATE_AGE (optional) - minutes from the oldest unanswered post to the escalation; unset = the two-SWEEP_RESEND path
 # @param SWEEP_SKIP_TENANTS (optional) - space-separated test workspaces, default e2e; <spool root>/dispatch/test-workspaces adds to it (one id per line)
 # @param SWEEP_SKIP_RE (optional) - a workspace id or name matching this ERE is a test one, default (^|[-_ ])(e2e|test|proof)([-_ ]|$)
-# @param SWEEP_SKIP_CHANNELS (optional) - default "issues tasks"
+# @param SWEEP_SKIP_CHANNELS (optional) - default "issues tasks probe" (probe: wf 30's live proof posts, SPL-1632)
 # @param SWEEP_SKIP_HUMANS (optional) - posters left out; default HUM-1 on prd (the e2e probe owner), none on dev
 # @param SWEEP_MAX_ITEMS (optional) - rows per delivered note, default 40
 # @param SWEEP_FULL_EVERY (optional) - seconds between full reads of a delivering sweep, default 3600
@@ -475,7 +476,7 @@ SQL
 # orch.md (empty = nothing to send), state.new and last into <outdir>.
 spl_sweep_classify() {
   SKIP_T="$(spl_test_workspaces)" SKIP_RE="${SWEEP_SKIP_RE-(^|[-_ ])(e2e|test|proof)([-_ ]|$)}" \
-  SKIP_CH="${SWEEP_SKIP_CHANNELS-issues tasks}" ACKS="$LEASE_DIR/unanswered.acks" \
+  SKIP_CH="${SWEEP_SKIP_CHANNELS-issues tasks probe}" ACKS="$LEASE_DIR/unanswered.acks" \
   SKIP_HUM="${SWEEP_SKIP_HUMANS-$([[ "${ENV:-}" == prd ]] && echo HUM-1)}" MIN_AGE="${SWEEP_MIN_AGE:-15}" RESEND="${SWEEP_RESEND:-7200}" ESC_AGE="${SWEEP_ESCALATE_AGE:-}" \
   MAX_ITEMS="${SWEEP_MAX_ITEMS:-40}" python3 "$(dirname "${BASH_SOURCE[0]}")/../scripts/unanswered-sweep-classify.py" "$@"
 }

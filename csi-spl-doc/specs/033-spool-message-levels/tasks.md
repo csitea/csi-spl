@@ -230,6 +230,19 @@ needs an agent peer) against `https://<cnf env.dns.fqdn>`.
   the emoji button, so it now double-clicks the text; `home` looked for Topics
   rows, gone since `0f89c5bb0`, so it now checks that `/` lands on #lobby and
   posts nothing.
+- SPL-1632 (owner answer 5cb37834 in t1 df7023f8: "a separate hidden channel
+  for test posts, so #lobby stays clean"): the channel and `t` surfaces post
+  into `#probe`, cnf `env.wui.live_proof_channel` (default `probe`; `lobby` /
+  `general` are refused), a members-only channel whose only member is the
+  probe member, so it is in nobody else's channel list (rdb 0028
+  `visibleChannels`, no admin bypass). The `lobby` surface posts nothing: it
+  renders `/lobby`, finds its cards and composer, and opens a card's topic on
+  the right; the level-1/level-2 send on `/lobby` is left to the mock e2e.
+  The unanswered sweep skips `#probe` (`SWEEP_SKIP_CHANNELS` default
+  `issues tasks probe`). Created once per env, 2026-10-13, through the hub:
+  `ENV=<env> TENANT_ID=t1 CHANNEL=probe ORDERED_BY=<probe member: HUM-57 dev, HUM-51 prd> DRY_RUN=0 ./run -a do_spl_channel_create`
+  (`ORDERED_BY` is seated as the creator, so it is the probe member, never
+  the owner).
 
 T010 needs a member password, so it runs by hand today. Wire it into the
 deploy workflow with the m3-e2e member's secret, so a regression on either

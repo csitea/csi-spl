@@ -10,6 +10,9 @@
 #     the password reaches it ONLY as a 0600 PW_FILE, never in its env or argv
 #     and never in the step's output; the file is gone afterwards
 #   - a failing proof -> rc 1 and ::error::
+#   - SPL-1632: the proof posts into the hidden test channel, cnf
+#     env.wui.live_proof_channel, default probe; #lobby is refused, and the
+#     proof's lobby surface sends nothing
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"
@@ -21,9 +24,9 @@ fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 FUNC="$PROJ_ROOT/src/bash/run/spl-wui-live-proof.func.sh"
 PW='s3cr3t-not-real-$(x) "q"'
 mkdir -p "$T/app/csi-spl-orc" "$T/app/csi-spl-cnf/csi-spl" "$T/tmp"
-cnf() { # <email> <tenant>
-  printf '{"env":{"dns":{"fqdn":"dev.example.com"},"wui":{"live_proof_email":"%s","live_proof_tenant":"%s"}}}\n' \
-    "$1" "$2" >"$T/app/csi-spl-cnf/csi-spl/dev.env.json"
+cnf() { # <email> <tenant> [channel]
+  printf '{"env":{"dns":{"fqdn":"dev.example.com"},"wui":{"live_proof_email":"%s","live_proof_tenant":"%s"%s}}}\n' \
+    "$1" "$2" "${3:+,\"live_proof_channel\":\"$3\"}" >"$T/app/csi-spl-cnf/csi-spl/dev.env.json"
 }
 # the fake proof: records what it was given, exits FAKE_RC
 cat >"$T/fake-proof.sh" <<'SH'
@@ -31,6 +34,7 @@ cat >"$T/fake-proof.sh" <<'SH'
 {
   echo "argv=$*"
   echo "base=$BASE email=$EMAIL tenant=$TENANT surfaces=$SURFACES out=$OUT"
+  echo "channel=${CHANNEL:-}"
   echo "mode=$(stat -c %a "$PW_FILE")"
   echo "pw=$(cat "$PW_FILE")"
   env | grep '^SPL_PROBE_PW' >/dev/null && echo "env-has-secret" || echo "env-clean"
@@ -79,6 +83,29 @@ grep -q 'argv=.*s3cr3t' "$T/fake.log" && fail "the password is on the command li
 grep -q 's3cr3t' "$T/stdout" && fail "the password is in the step output" || pass "the password is not in the step output"
 pwf="$(sed -n 's/^pwfile=//p' "$T/fake.log")"
 [[ -n "$pwf" && ! -e "$pwf" ]] && pass "PW_FILE is removed after the run" || fail "PW_FILE left behind: $pwf"
+
+grep -qx 'channel=probe' "$T/fake.log" && pass "no cnf channel: the proof posts into #probe" || fail "default channel: $(grep channel= "$T/fake.log")"
+
+# 3b. SPL-1632: the channel is cnf, and never #lobby
+cnf probe@example.com t1 qa-probe
+act SPL_PROBE_PW="$PW"; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'channel=qa-probe' "$T/fake.log" && pass "cnf live_proof_channel reaches the proof" || fail "cnf channel: rc=$rc $(cat "$T/fake.log" 2>/dev/null)"
+for ch in lobby general; do
+  cnf probe@example.com t1 "$ch"
+  act SPL_PROBE_PW="$PW"; rc=$?
+  [[ $rc -ne 0 && ! -e "$T/fake.log" ]] && grep -q "FATAL cnf env.wui.live_proof_channel is #$ch" "$T/stdout" \
+    && pass "cnf channel $ch: refused, the proof never runs" || fail "cnf channel $ch: rc=$rc $(cat "$T/stdout")"
+done
+[[ -z "$(ls -A "$T/tmp")" ]] && pass "a refused channel leaves no temp file" || fail "TMPDIR not empty: $(ls -A "$T/tmp")"
+cnf probe@example.com t1
+
+# 3c. SPL-1632: the proof's lobby surface renders /lobby and sends nothing
+PROOF="$PROJ_ROOT/../csi-spl-wui/tests/e2e/parent-level-live.proof.mjs"
+lobby_fn="$(awk '/^async function lobbyRun\(/{f=1} f{print} f && /^}/{exit}' "$PROOF")"
+[[ -n "$lobby_fn" ]] && grep -q "'/lobby'" <<<"$lobby_fn" && ! grep -qE '\bsend\(' <<<"$lobby_fn" \
+  && pass "lobby surface: lobbyRun opens /lobby and calls no send()" || fail "lobby surface: no lobbyRun, or it sends"
+grep -q "surface === 'lobby') await lobbyRun(p)" "$PROOF" \
+  && pass "the lobby surface runs lobbyRun, not the posting surfaceRun" || fail "the lobby surface is not routed to lobbyRun"
 
 # 4. a failing proof fails the step
 act SPL_PROBE_PW="$PW" FAKE_RC=1; rc=$?

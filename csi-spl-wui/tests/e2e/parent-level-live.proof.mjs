@@ -9,13 +9,19 @@
 //            where it was). is_parent = 0. It is drawn only inside the open
 //            topic on the right - never a middle card, never a new topic.
 //
-// Per surface (channel, DM, lobby, t), n = 1 each:
+// Per posting surface (channel, DM), n = 1 each:
 //   1. pane closed, send L1  -> one new middle card, hub is_parent 1, pane stays closed
 //   2. open the card's topic (replies / row click), send L2 with the left tab
 //      untouched -> hub is_parent 0 on the SAME task_id, L2 in the right pane
 //      only, the middle still shows exactly one card for the task and it reads L1
 //   3. reload -> L2 still absent from the middle, the card still reads L1, and
 //      L2 is present once that topic is opened on the right
+// The channel and t surfaces post into CHANNEL, the hidden members-only test
+// channel (wf 30: cnf env.wui.live_proof_channel, default probe; owner answer
+// 5cb37834, SPL-1632), so #lobby stays clean. Surface `lobby` posts nothing:
+// /lobby renders its cards and a composer, and a card's topic opens on the
+// right with the left tab untouched. The level-1/level-2 send on /lobby is
+// left to the mock e2e: a live send there is a post in #lobby.
 // Surface `home`: `/` lands on #lobby and shows no Topics rows (owner t1
 // e4bfddb1 removed the Topics view, 0f89c5bb0). It posts nothing: the lobby
 // surface already proves the levels there.
@@ -28,7 +34,7 @@
 // right pane's own messages exclude the born-topics stack.
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=t1] [CHANNEL=lobby] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home,t] \
+//     [TENANT=t1] [CHANNEL=probe] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home,t] \
 //     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/parent-level-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -40,7 +46,7 @@ const OUT = need('OUT')
 const email = need('EMAIL')
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
-const CHANNEL = process.env.CHANNEL || 'lobby'
+const CHANNEL = process.env.CHANNEL || 'probe'
 const PEER = process.env.PEER || ''
 const SURFACES = (process.env.SURFACES || 'channel,dm,lobby,home,t').split(',').map((s) => s.trim()).filter(Boolean)
 mkdirSync(OUT, { recursive: true })
@@ -342,6 +348,31 @@ async function surfaceRun(p, surface) {
   await closePane(p)
 }
 
+/* SPL-1632: /lobby is checked without a post. It renders the lobby's cards
+   and its composer; opening a card's topic shows it on the right and leaves
+   the left tab where it was. Nothing is typed into the composer. */
+async function lobbyRun(p) {
+  const tag = (n) => `lobby: ${n}`
+  res.surfaces.lobby = { posts: 0 }
+  await p.goto(BASE + '/lobby', { waitUntil: 'networkidle2' })
+  await sleep(1500)
+  await closePane(p)
+  let s = await waitFor(p, (x) => x.middle.some((m) => m.task), 15000)
+  step(tag('renders on /lobby'), /\/lobby\/?$/.test(new URL(p.url()).pathname), { url: p.url() })
+  const card = s.middle.find((m) => m.task)
+  step(tag('shows the lobby cards'), !!card, { cards: s.middle.length })
+  const composer = await p.$('form.composer textarea')
+  step(tag('has a composer (not typed into)'), !!composer, {})
+  if (!card) return
+  const tabBefore = s.tab
+  const opened = await openTopic(p, 'lobby', card.task)
+  s = await waitFor(p, (x) => x.paneOpen && x.right.length > 0, 10000)
+  step(tag('a card opens its topic on the right'), opened && s.paneOpen && s.right.length > 0, { opened, paneOpen: s.paneOpen, right: s.right.length })
+  step(tag('left tab unchanged'), s.tab === tabBefore, { before: tabBefore, after: s.tab })
+  await p.screenshot({ path: `${OUT}/lobby-topic-open.png` })
+  await closePane(p)
+}
+
 /* `/` is no Topics list any more (owner t1 e4bfddb1, 0f89c5bb0): a desktop
    lands on #lobby. Posts nothing. */
 async function homeRun(p) {
@@ -428,6 +459,7 @@ try {
     try {
       if (surface === 't') await topicPageRun(p)
       else if (surface === 'home') await homeRun(p)
+      else if (surface === 'lobby') await lobbyRun(p)
       else await surfaceRun(p, surface)
     } catch (e) {
       step(`${surface}: ran to the end`, false, { error: String(e).slice(0, 300) })

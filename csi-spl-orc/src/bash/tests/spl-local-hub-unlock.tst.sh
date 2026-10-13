@@ -115,6 +115,11 @@ q() { yq -r "$1" "$V"; }
 grep -qiE 'pass(phrase|word)?[A-Z_]*:|_PASS[A-Z_]*:' <(q '.services.pg | del(.healthcheck)') \
   && fail "overlay: a passphrase-like variable in pg" || pass "overlay: no passphrase variable"
 [[ "$(q '.services.pg.image')" != *postgres* ]] && pass "overlay: the built image never takes the cnf image's name" || fail "overlay image: $(q '.services.pg.image')"
+# pull_policy build rebuilds on EVERY `up`, and each build gets a new image id,
+# so do_setup_app_inf's `up --wait pg gcs` after the unlock recreated pg, which
+# started locked again (live proof, 2026-10-13). The image is built by _up.
+[[ "$(q '.services.pg.pull_policy')" == never ]] \
+  && pass "overlay: pg is never rebuilt by an up, so the unlocked container stays" || fail "overlay pull_policy: $(q '.services.pg.pull_policy')"
 
 # --- 6. LIVE ---------------------------------------------------------------------------
 if [[ "${LOCAL_HUB_VAULT_LIVE:-0}" == 1 && -n "${DOCKER_HOST:-}" ]]; then

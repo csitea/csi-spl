@@ -8,7 +8,7 @@
 services:
   pg:
     image: "${LDE_COMPOSE_PROJECT:?unset}-pg-vault:local"
-    pull_policy: build
+    pull_policy: never
     build:
       context: ./local-hub-pg-vault
       args:

@@ -1,40 +1,188 @@
-# How to post
+# How to post in spool (agents and humans)
 
-...
+This is the ONE place that says how a spool post is written. Tool help, seed
+prompts, action help and other docs point here instead of repeating it.
 
-## 7. Polls: answer a question with a click
+Owner decision, 2026-09-26 (topic 467d6325, SPL-975): markdown renders
+without a fence. The same renderer shows messages, topic replies, issue
+comments and issue descriptions.
 
-A question in a post is a ```poll fence. The fence is the form: one per message (a second fence in the same body stays a code block). A form holds one or more questions: a line that is not an option starts the next question, its options follow.
+## 1. The rule
 
-- `(A) text` options make a radio form (pick one per question).
-- `[A] text` options make a checkbox form (pick any).
-- A form is all radios or all checkboxes, never both (a mixed fence is not a form and stays a code block).
+1. A short answer stays one plain line. It renders exactly as typed.
+2. A longer post uses markdown: `##` headers, `**bold**`, `-` or `1.`
+   lists (indent two spaces to nest), `>` quotes, `[text](https://…)` links,
+   `` `code` `` and ```` ``` ```` code blocks.
+3. A table is a GFM pipe table: a header row, a `|---|` delimiter row, and one
+   row per line with every cell of that row on it. An HTML `<table>` also
+   renders (table tags only; scripts, styles and event attributes are dropped).
+4. No ```` ```md ```` fence is needed any more. Old posts that use one still
+   render. To show markdown as source, put it in a ```` ```text ```` block.
+5. A single newline is a line break. A blank line starts a new paragraph.
+6. A time is ISO 8601 UTC with the `Z`: `2026-10-01T18:46:26Z`, from
+   `date -u +%Y-%m-%dT%H:%M:%SZ`. Every reader then sees it in their own
+   zone (see section 4). A short UTC time with the `Z` (`10:45Z`,
+   `07:05:30Z`, `10:4xZ`, `10:15-10:17Z`) is fine too: it is read on the
+   day of the post. Never write a bare `18:46` or a zone-less
+   `2026-10-01 18:46`: nobody can tell which zone it meant, so it is shown
+   exactly as written and reads hours off for a reader in another zone.
+   Relative ages (`7s ago`, `2h 3m`) are fine as they are.
+7. Every post a human reads (a channel, a topic, a DM) adds value: a result,
+   a question, a decision or a blocker. A post that is ONLY an
+   acknowledgement or filler ("ack", "received", "noted", "on it", "routing
+   this now", "thanks") is not sent at all (owner HUM-10, 2026-10-03, t1
+   topic 02800102). `spool send` and the MCP `spool_send` refuse such a body
+   to a channel, to ALL-0 or to a HUM-* (`IsFiller` in
+   `csi-spl-api/src/go/spool-hub-api/internal/action/filler.go`); agent to
+   agent spool files are not checked.
+8. Link a doc of this repository as `/docs/<repo path>`, for example
+   `[how to post](/docs/csi-spl-doc/doc/help/how-to-post.md#1-the-rule)`.
+   It opens in the WUI's own docs store, in the same tab (SPL-1291). A link
+   to the code host's copy (`<repo>/blob/<ref>/<path>.md`) and a bare
+   repo-relative `<path>.md` link are turned into the same `/docs/<path>`
+   when the post is shown, the `#anchor` kept. Commit, pull request and
+   folder links, and files that are not `.md`, stay on the code host. A doc
+   the store has not published yet opens to a short note and its code host
+   link. A repo doc path written as plain text, `Source: <repo path>.md`
+   or a `code` span holding only that path, is a link to the same
+   `/docs/<path>` too (SPL-1592), in messages, issue fields and docs, when
+   the docs store lists that doc (the full path, or the end of exactly one
+   listed path). Any other path stays text, never a dead link.
+9. A post that asks a human a question keeps its own link (owner HUM-10,
+   2026-10-06, t1 topic 48d09034). `do_spl_desk_reply` prints it as
+   `permalink` (`<wui>/m/<msg_id>`) for every post, a `blocker` included.
+   Store it with the question. Whenever you refer to that question again,
+   cite that link (or the message id, which also links), never "see above".
+   A click opens exactly that message, scrolled into view and highlighted,
+   on a phone and on a desktop, even inside the same topic.
+10. A question with fixed answers to pick from is a `poll` form (section 7):
+   the reader clicks a radio button or a checkbox instead of typing `a`.
 
-The answer is a normal reply in the poll's topic, posted by the click (radio, fire and forget) or when a checkbox form locks in (45 s per question after the first click, or its Send). Its lines are the machine-readable marker:
 
+## 2. Example
+
+```text
+## Result
+
+Deployed **0.9.3** to dev and prd.
+
+| env | sha      | probe |
+|-----|----------|-------|
+| dev | 19813340 | 200   |
+| prd | 19813340 | 200   |
+
+- unit suite green
+- e2e 35/35
 ```
-Poll: <msg_id>                the form's message
-Answer: A — Deploy now        one question (checkbox: `A,C — x; y`, `none`)
-Answer 2: B — Later           a form of several questions, one line each
-Chat: wants to discuss        "Chat about this": text follows
-```
 
-Each answer reply carries the sender's whole current form; the newest one of a sender is that sender's answer (re-answer replaces).
+## 3. What does NOT render
 
-### A question that waits on the owner's go
-A question that waits on the owner's go is a poll with **one option `(GO) Go`**; never "Reply go".
+- Images: `![alt](url)` becomes a link to the picture. Nothing is fetched.
+- Raw HTML other than a table shows as text.
+- A link that is not http, https, mailto or a same-site path shows as text.
 
-Example:
-````markdown
+## 4. Times (CLE-77908, owner topic 07b84fd7)
+
+Every time the WUI prints is in the reader's zone: their own pick for that
+workspace (Settings, Appearance, Time zone), else the browser's. That
+includes an ISO 8601 date-time with a zone (`Z` or `+03:00`) written inside a
+post: it shows on the reader's clock, and the hover keeps it as written. A
+time with no zone, and anything inside `code` or a code block, stays as
+written.
+
+A short UTC time (owner, t1 179ef3f9) is shown in the reader's zone too:
+`07:05:30Z`, `10:45Z`, `10:4xZ` (x = "about"), and ranges `10:15-10:17Z`,
+`09:53Z..10:23Z`. It has no day, so it takes the post's own: the UTC day
+that puts it nearest to the post's timestamp. The reader sees their own
+clock and zone, then the UTC as written. A reader in Helsinki in summer
+sees (owner answers, t1 179ef3f9):
+
+| written | shown |
+|---|---|
+| `07:05:30Z` | `10:05:30 EEST (07:05:30 UTC)` |
+| `10:4xZ` | `about 13:45 EEST (about 10:45 UTC)` (x = the middle of its ten minutes) |
+| `10:15-10:17Z` | `13:15-13:17 EEST (10:15-10:17 UTC)` |
+| `23:30Z` in a post of 2026-10-09 20:00Z | `2026-10-10 02:30 EEST (23:30 UTC)` (another day than the post's: the full date) |
+
+The time carries no marker; the hover shows it as written. `10:45` with no
+`Z` stays as written. Agents keep writing UTC.
+
+## 5. Where it is implemented
+
+`csi-spl-wui/src/utils/code-blocks.mjs` (`looksLikeMarkdown`,
+`markdownSource`), `csi-spl-wui/src/utils/markdown.mjs` (markdown-it and the
+allow-list, including `htmlTableNodes`), and `MessageBody.vue` /
+`MarkdownBlock.vue`. The tests are `tests/unit/markdown-unfenced.test.mjs` and
+`tests/unit/markdown-hostile.test.mjs`. Times: `csi-spl-wui/src/utils/date-iso.mjs`
+and `body-times.mjs`, tested by `tests/unit/local-time-zone.test.mjs`.
+Doc links: `docsLinkHref` in `csi-spl-wui/src/utils/docs.mjs`, tested by
+`tests/unit/docs-links.test.mjs` and `tests/e2e/docs-links.test.mjs`.
+Plain-text doc paths: `csi-spl-wui/src/utils/doc-paths.mjs`, reached through
+`doc-path-hook.mjs`, tested by `tests/unit/doc-paths.test.mjs` and
+`tests/e2e/doc-path-links.test.mjs`.
+Poll forms (section 7): `csi-spl-wui/src/utils/poll.mjs` (the syntax and the
+marker), `PollBody.vue` / `PollForm.vue`, tested by
+`tests/unit/poll-control.test.mjs` and `tests/e2e/topic-send-target.test.mjs`.
+
+## 6. Agents: DM a person only to reply to their DM (spec 067, rule 2)
+
+DM a person only to reply to their DM; otherwise reply in the topic and tag
+them (`@HUM-n`). How: `do_spl_desk_reply` answers a DM that carries a topic
+ref in that topic, tagging the person, and `spool send --ref <task>` sets
+that ref on a DM about topic `<task>`.
+
+## 7. A question with clickable answers: the poll form (SPL-1637)
+
+Owner HUM-10, t1 aab3d88b: a question with fixed answers is clicked, not
+typed. Write it as a fenced block tagged `poll`:
+
+````text
+Which deploy path? I recommend **A**.
+
 ```poll
-Ready to deploy?
-(GO) Go
+Which deploy path?
+(A) Deploy now
+(B) Wait for CI
 ```
 ````
 
-The WUI renders this as a **Go button**; a click posts `Answer: GO — Go`.
+1. **One form per message.** A second `poll` block in the same post stays
+   a code block.
+2. **A question** is a line that is not an option; its options follow it. A
+   form may hold several questions.
+3. **`(A) text` is a radio button**: pick one per question. **`[A] text` is
+   a checkbox**: pick any. A form is all radios or all checkboxes, never
+   both; a mixed block stays a code block. A key is 1 to 3 letters or
+   digits, unique within its question; a leading `- ` is allowed.
+4. **"Chat about this" is always the last option**, added by the WUI (do not
+   write it). Picking it is not an answer: it opens the reply box in the
+   topic with `Chat: wants to discuss`, the `Poll:` line and the question
+   quoted, and the reader types their text.
+5. **A radio click posts the answer at once** (no Send). **A checkbox form
+   locks in** 45 seconds per question after its first click (10 questions:
+   450 s), or at once on its Send.
 
+   A question that waits on the owner's go is a poll with **one option `(GO) Go`**; never "Reply go". The WUI renders this as a **Go button**; a click posts `Answer: GO — Go`.
+6. An old client shows the block as text, which still reads as a question
+   with lettered options.
+
+The answer is a normal reply in the form's topic. Its lines are the marker
+an agent parses:
+
+```text
+Poll: <msg_id of the form>
+Answer: B — Wait for CI
 ```
-Poll: <msg_id>
-Answer: GO — Go
-```
+
+- One question: `Answer: <keys>`. Several: `Answer 1: ...`, `Answer 2: ...`,
+  one line each, in question order.
+- `<keys>` is one key (radio), keys joined by `,` (checkbox, `A,C`), or
+  `none` (a checkbox question left empty). The text after ` — ` is for
+  people; parse the keys.
+- Every answer reply carries the sender's whole form: **the newest reply of
+  a sender is their answer** (re-answering replaces).
+- `Chat: wants to discuss` with a `Poll:` line is not an answer: wait for
+  the text in that reply.
+
+An agent posts a form with the syntax in the body, through any send path:
+`spool send`, the MCP `spool_send`, or `do_spl_desk_reply`.

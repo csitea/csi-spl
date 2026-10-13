@@ -272,7 +272,7 @@ function picksText(p: Record<number, string[]>) {
   flex-wrap: wrap;
   gap: 2px 10px;
   font-size: 0.75rem;
-  color: var(--color-muted);
+  color: var(--color-fg-muted);
   overflow-wrap: anywhere;
 }
 .poll-answers__label { font-weight: 600; }
@@ -298,6 +298,7 @@ function picksText(p: Record<number, string[]>) {
 }
 .poll-go:active:not(:disabled) {
   background: var(--color-accent-pressed);
+  color: var(--color-fg);
 }
 .poll-go--sent {
   background: var(--color-selected);

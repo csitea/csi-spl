@@ -161,6 +161,8 @@ Which deploy path?
 5. **A radio click posts the answer at once** (no Send). **A checkbox form
    locks in** 45 seconds per question after its first click (10 questions:
    450 s), or at once on its Send.
+
+   A question that waits on the owner's go is a poll with **one option `(GO) Go`**; never "Reply go". The WUI renders this as a **Go button**; a click posts `Answer: GO — Go`.
 6. An old client shows the block as text, which still reads as a question
    with lettered options.
 

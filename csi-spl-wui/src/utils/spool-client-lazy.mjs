@@ -71,6 +71,7 @@ function parseMemberList(data, channel) {
     created_by: String((data && data.created_by) || ''),
     agents,
     responders,
+    ...(data && data.ai_agents_off === true ? { ai_agents_off: true } : {}), // SPL-1684
   }
 }
 
@@ -91,6 +92,7 @@ function mockMemberList(ctx, channel) {
       members_open_invite: false,
       created_by: 'hub',
       agents: (state.agentMembers[id] || []).slice(),
+      ...mockAIAgentsOff(state, id),
     }
   }
   const row = state.channels.find((c) => c.channel_id === id)
@@ -105,7 +107,21 @@ function mockMemberList(ctx, channel) {
     members_open_invite: state.openInvite[id] === true,
     created_by: String((row && row.created_by) || ''),
     agents: (state.agentMembers[id] || []).slice(),
+    ...mockAIAgentsOff(state, id),
   }
+}
+
+/**
+ * SPL-1684: the members answer carries ai_agents_off only when it is off. A
+ * channel's own switch (state.aiAgents) wins over the workspace default; the
+ * mock's default is on unless localStorage `spool.mock.ai-agents-default` is
+ * 'off' (an e2e hook).
+ */
+function mockAIAgentsOff(state, id) {
+  state.aiAgents ||= Object.create(null)
+  const own = state.aiAgents[id]
+  const on = typeof own === 'boolean' ? own : storageGet('spool.mock.ai-agents-default', 'on') !== 'off'
+  return on ? {} : { ai_agents_off: true }
 }
 
 function mockMayInvite(ctx, row) {
@@ -1220,6 +1236,30 @@ async function removeChannelAgent(ctx, channel, agentId, box) {
 }
 
 /**
+ * SPL-1684: the channel's AI agents switch. on = true | false, or null (back
+ * to the workspace default). The channel owner or a workspace admin
+ * (tenant.settings) may. Answers whether it is off now.
+ */
+async function setChannelAIAgents(ctx, channel, on) {
+  const { live, mock, state } = ctx
+  const value = on === true || on === false ? on : null
+  const id = String(channel || '')
+  if (mock) {
+    const key = normalizeChannelId(id)
+    state.aiAgents ||= Object.create(null)
+    if (value === null) delete state.aiAgents[key]
+    else state.aiAgents[key] = value
+    return { channel: key, on: value, ai_agents_off: mockAIAgentsOff(state, key).ai_agents_off === true }
+  }
+  const data = await live(`/v1/channels/${encodeURIComponent(id)}/ai-agents`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ on: value }),
+  })
+  return { channel: String((data && data.channel) || id), on: value, ai_agents_off: Boolean(data && data.ai_agents_off === true) }
+}
+
+/**
  * channels-v1 membership flag. Only the channel owner may change it.
  * Absent on a read means false. 403 forbidden, 409 channel_public,
  * 404 unknown_channel.
@@ -1642,6 +1682,7 @@ export const lazySpoolMethods = {
   removeChannelMember,
   removeChannelAgent,
   setMembersOpenInvite,
+  setChannelAIAgents,
   deleteChannel,
   archiveChannel,
   unarchiveChannel,

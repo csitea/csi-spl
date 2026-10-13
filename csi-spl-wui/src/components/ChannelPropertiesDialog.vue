@@ -242,6 +242,7 @@
         role="tabpanel"
         data-testid="channel-agents"
       >
+        <p v-if="loaded && !aiAgentsOn" class="muted" data-testid="channel-ai-agents-off-note">{{ t('channels.properties.ai_agents_off_note') }}</p>
         <p v-if="!loaded" class="muted">{{ t('common.loading') }}</p>
         <p v-else-if="agentRows.length === 0" class="muted" data-testid="channel-agents-none">{{ t('channels.properties.agents_none') }}</p>
         <ul v-else class="member-rows" data-testid="channel-agents-readonly">
@@ -287,6 +288,22 @@
           >
           <span>{{ t('channels.properties.everyone_can_invite') }}</span>
         </label>
+        <!-- SPL-1684: the channel's AI agents switch. Off, agents do not read
+             the channel; a DM or a mention still reaches one. -->
+        <label class="channel-properties__check">
+          <input
+            type="checkbox"
+            role="switch"
+            data-testid="channel-ai-agents"
+            :checked="aiAgentsOn"
+            :aria-checked="aiAgentsOn"
+            :disabled="!loaded || !canEditAIAgents || busy"
+            @change="onToggleAIAgents"
+          >
+          <span>{{ t('channels.properties.ai_agents') }}</span>
+        </label>
+        <p class="muted" data-testid="channel-ai-agents-hint">{{ t(aiAgentsOn ? 'channels.properties.ai_agents_on_hint' : 'channels.properties.ai_agents_off_hint') }}</p>
+        <p v-if="loaded && !canEditAIAgents" class="muted" data-testid="channel-ai-agents-edit-only">{{ t('channels.properties.ai_agents_edit_only') }}</p>
       </div>
     </div>
   </UiDialog>
@@ -356,6 +373,8 @@ const failedLoad = ref(false)
 const isDefault = ref(false)
 const error = ref('')
 const openInvite = ref(false)
+// SPL-1684: the members answer carries ai_agents_off only when it is off.
+const aiAgentsOn = ref(true)
 const localMembers = ref<string[]>([])
 const rosterIds = ref<string[]>([])
 const rosterBag = ref<Record<string, string[]>>({})
@@ -407,6 +426,8 @@ const descriptionText = computed(() => aboutChannelDescription({ description: pr
 const selfId = computed(() => viewerHumanId(access.me, live.identity.value, { mock: api.mock, rosterMe: roster.me?.id || '' }))
 const effectiveCreatedBy = computed(() => createdByLive.value || props.createdBy)
 const canEdit = computed(() => canEditOpenInvite({ selfId: selfId.value, createdBy: effectiveCreatedBy.value }))
+// SPL-1684: the channel's owner or a workspace admin; the hub checks again.
+const canEditAIAgents = computed(() => canEdit.value || access.can('tenant.settings'))
 const canAdd = computed(() => canAddChannelMember({
   selfId: selfId.value,
   createdBy: effectiveCreatedBy.value,
@@ -445,6 +466,7 @@ watch(() => props.open, async (isOpen) => {
   isDefault.value = false
   busy.value = false
   openInvite.value = false
+  aiAgentsOn.value = true
   localMembers.value = []
   rosterIds.value = []
   rosterBag.value = {}
@@ -459,9 +481,10 @@ watch(() => props.open, async (isOpen) => {
     const [mem, ros] = await Promise.all([
       withSessionRetry(api, () => api.listChannelMembers(props.channelId)),
       withSessionRetry(api, () => api.listRoster()),
-    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, created_by?: string, agents?: { id: string, box: string, online?: boolean, seated?: boolean }[], fallback?: unknown }, unknown]
+    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, ai_agents_off?: boolean, created_by?: string, agents?: { id: string, box: string, online?: boolean, seated?: boolean }[], fallback?: unknown }, unknown]
     if (my !== ticket) return
     fallback.value = channelFallbackLine(mem.fallback)
+    aiAgentsOn.value = mem.ai_agents_off !== true
     const bag = rosterOf(ros) || {}
     rosterBag.value = bag
     if (mem.default) {
@@ -605,6 +628,23 @@ async function pick(id: string) {
     if (!localMembers.value.includes(id)) localMembers.value = [...localMembers.value, id]
   } catch (e) {
     error.value = inviteErrorToken(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function onToggleAIAgents(ev: Event) {
+  const input = ev.target
+  const next = input instanceof HTMLInputElement ? input.checked : !aiAgentsOn.value
+  if (!canEditAIAgents.value || busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    const saved = await withSessionRetry(api, () => api.setChannelAIAgents(props.channelId, next))
+    aiAgentsOn.value = saved.ai_agents_off !== true
+  } catch (e) {
+    error.value = inviteErrorToken(e)
+    if (input instanceof HTMLInputElement) input.checked = aiAgentsOn.value
   } finally {
     busy.value = false
   }

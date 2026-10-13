@@ -82,6 +82,38 @@ describe('PATCH members_open_invite', () => {
   })
 })
 
+describe('SPL-1684 AI agents switch', () => {
+  it('PUTs {on} to /v1/channels/<c>/ai-agents and reads ai_agents_off back', async () => {
+    const { fn, calls } = stubFetch([
+      [(u, o) => u === '/v1/channels/rides/ai-agents' && o.method === 'PUT', [200, { channel: 'rides', on: false, ai_agents_off: true }]],
+    ])
+    const c = createSpoolClient({ fetchFn: fn, mock: false, door: 'session' })
+    const out = await c.setChannelAIAgents('rides', false)
+    assert.equal(calls[0].opts.credentials, 'include')
+    assert.deepEqual(JSON.parse(calls[0].opts.body), { on: false })
+    assert.equal(out.ai_agents_off, true)
+    await c.setChannelAIAgents('rides', null)
+    assert.deepEqual(JSON.parse(calls[1].opts.body), { on: null })
+  })
+
+  it('the members answer keeps ai_agents_off only when the hub sent it', async () => {
+    for (const [body, want] of [[{ channel: 'rides', ai_agents_off: true }, true], [{ channel: 'rides' }, undefined]]) {
+      const { fn } = stubFetch([[() => true, [200, body]]])
+      const c = createSpoolClient({ fetchFn: fn, mock: false, door: 'session' })
+      assert.equal((await c.listChannelMembers('rides')).ai_agents_off, want)
+    }
+  })
+
+  it('mock: the switch flips the members answer', async () => {
+    const c = createSpoolClient({ mock: true })
+    await c.createChannel({ name: 'rides' })
+    assert.equal((await c.listChannelMembers('rides')).ai_agents_off, undefined)
+    assert.equal((await c.setChannelAIAgents('rides', false)).ai_agents_off, true)
+    assert.equal((await c.listChannelMembers('rides')).ai_agents_off, true)
+    assert.equal((await c.setChannelAIAgents('rides', null)).ai_agents_off, false)
+  })
+})
+
 describe('invite picker', () => {
   it('hides humans already in the channel and humans who are not HUM-*', () => {
     const ids = channelInviteCandidates(

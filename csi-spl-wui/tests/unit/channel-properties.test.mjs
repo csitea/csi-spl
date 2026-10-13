@@ -201,6 +201,17 @@ describe('the Properties dialog', () => {
     assert.equal(aboutChannelDescription({ description: '' }), '')
   })
 
+  it('SPL-1684: the AI agents switch is the owner\'s or a workspace admin\'s, and says what off means', () => {
+    assert.match(dialog, /data-testid="channel-ai-agents"/)
+    assert.match(dialog, /:disabled="!loaded \|\| !canEditAIAgents \|\| busy"/)
+    assert.match(dialog, /canEdit\.value \|\| access\.can\('tenant\.settings'\)/)
+    assert.match(dialog, /api\.setChannelAIAgents\(props\.channelId, next\)/)
+    assert.match(dialog, /aiAgentsOn\.value = mem\.ai_agents_off !== true/)
+    for (const k of ['ai_agents', 'ai_agents_on_hint', 'ai_agents_off_hint', 'ai_agents_off_note', 'ai_agents_edit_only']) {
+      assert.match(dialog, new RegExp(`channels\\.properties\\.${k}'`))
+    }
+  })
+
   it('the checkbox is disabled unless this human is the owner, and the label key exists', () => {
     assert.match(dialog, /data-testid="channel-open-invite"/)
     assert.match(dialog, /:disabled="!canEdit \|\| busy"/)

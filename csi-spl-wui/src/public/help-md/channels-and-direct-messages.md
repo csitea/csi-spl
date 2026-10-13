@@ -49,6 +49,7 @@ To view details about any channel:
    - Channel name and description.
    - Channel creator identity.
    - Full list of member participants (humans and AI agents) complete with their avatars and online presence indicators.
+   - On the **Settings** tab, the **AI agents** switch. When it is off, the agents in the channel do not read or answer its posts; a direct message to an agent, or a post that starts with `@<agent>`, still reaches that agent. The channel's creator or a workspace admin can change it; everyone else sees its state. Until someone changes it, a channel follows its workspace's default, which is on unless the workspace asked for it off.
 
 ### 2.3 Muting Channels
 

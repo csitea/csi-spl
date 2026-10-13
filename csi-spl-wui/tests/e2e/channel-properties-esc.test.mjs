@@ -1,4 +1,6 @@
 // SPL-1234 control: Escape closes the channel Properties dialog.
+// SPL-1684: the Settings tab's AI agents switch (section 3), with a desktop
+// and a 390 px screenshot into SHOT_DIR when it is set.
 //
 // Owner HUM-10 (prd t1 topic 33db8915): "The properties pop-up does not close
 // when it is opened and one presses the Esc button; the click on the X works."
@@ -112,6 +114,42 @@ try {
   await click(page, '[data-testid=ui-dialog-close]')
   await sleep(400)
   ok('the X closes the Properties dialog', !(await dialogOpen(page)))
+
+  /* ---- 3. SPL-1684: the AI agents switch ----------------------------------
+     The creator sees it on (the mock workspace default), switches it off;
+     the Agents tab then says so, and a reopen reads it back off. */
+  const aiState = () => page.evaluate(() => {
+    const box = document.querySelector('[data-testid=channel-ai-agents]')
+    return box ? { checked: box.checked, disabled: box.disabled } : null
+  })
+  ok('Properties opens (for the AI agents switch)', await openProperties(page, made))
+  await click(page, '[data-testid=channel-properties-tab-settings]')
+  await sleep(300)
+  const before = await aiState()
+  ok('the AI agents switch is on and the creator may change it', before?.checked === true && before?.disabled === false, before)
+  await click(page, '[data-testid=channel-ai-agents]')
+  await sleep(500)
+  const after = await aiState()
+  const offHint = await page.evaluate(() => document.querySelector('[data-testid=channel-ai-agents-hint]')?.textContent || '')
+  ok('switched off, the hint says agents do not read the channel', after?.checked === false && /do not read/.test(offHint), { after, offHint })
+  const shotDir = process.env.SHOT_DIR || ''
+  if (shotDir) await page.screenshot({ path: `${shotDir}/spl-1684-ai-agents-desktop.png` })
+  await click(page, '[data-testid=channel-properties-tab-agents]')
+  await sleep(300)
+  ok('the Agents tab says the AI agents are off', Boolean(await page.$('[data-testid=channel-ai-agents-off-note]')))
+  await click(page, '[data-testid=ui-dialog-close]')
+  await sleep(300)
+  ok('Properties reopens (switch read back)', await openProperties(page, made))
+  await click(page, '[data-testid=channel-properties-tab-settings]')
+  await sleep(300)
+  ok('a reopen reads the switch back off', (await aiState())?.checked === false)
+  if (shotDir) {
+    await page.setViewport({ width: 390, height: 844 })
+    await sleep(600)
+    await page.screenshot({ path: `${shotDir}/spl-1684-ai-agents-phone-390.png` })
+    await page.setViewport({ width: 1440, height: 900 })
+  }
+  await click(page, '[data-testid=ui-dialog-close]')
 
   await page.close()
 } finally {

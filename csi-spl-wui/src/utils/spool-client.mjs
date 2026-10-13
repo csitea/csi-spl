@@ -85,6 +85,7 @@ const LAZY_METHODS = [
   'removeChannelMember',
   'removeChannelAgent',
   'setMembersOpenInvite',
+  'setChannelAIAgents',
   'deleteChannel',
   'archiveChannel',
   'unarchiveChannel',

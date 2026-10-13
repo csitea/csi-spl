@@ -120,7 +120,31 @@ hasnt "enc mirror side files carry no marker body" "$MARK" "$MIR"
 
 echo "# 6. notify stdin (Go)"
 API="$T_REPO/csi-spl-api/src/go/spool-hub-api"
-if ( cd "$API" && /usr/local/go/bin/go test -count=1 -timeout 120s ./internal/notify/ -run 'TestRunSealedOmitsBody|TestRunPassesTheMessage' ); then
+# setup-go puts a new enough go on PATH in CI. The box PATH is often the
+# older /usr/local/go, with the go.mod version beside it. Take the first
+# binary that satisfies go.mod so GOTOOLCHAIN=local does not refuse it.
+NEED=$(awk '/^go /{print $2; exit}' "$API/go.mod")
+go_meets() {
+  local bin=$1 have
+  [[ -n "$bin" && -x "$bin" ]] || return 1
+  have=$("$bin" version 2>/dev/null | awk '{print $3}')
+  have=${have#go}
+  [[ -n "$have" && -n "$NEED" ]] || return 1
+  printf '%s\n%s\n' "$NEED" "$have" | sort -V -C
+}
+GO=""
+PATH_GO=$(command -v go 2>/dev/null || true)
+if go_meets "$PATH_GO"; then
+  GO=$PATH_GO
+else
+  for gobin in $(printf '%s\n' /usr/local/go*/bin/go 2>/dev/null | sort -Vr); do
+    if go_meets "$gobin"; then GO=$gobin; break; fi
+  done
+fi
+if [[ -z "$GO" ]]; then
+  echo "no go >= ${NEED:-unknown} on PATH or under /usr/local" >&2
+fi
+if [[ -n "$GO" ]] && ( cd "$API" && GOTOOLCHAIN=local "$GO" test -count=1 -timeout 120s ./internal/notify/ -run 'TestRunSealedOmitsBody|TestRunPassesTheMessage' ); then
   ok "enc notify stdin carries no marker body"
 else
   nok "enc notify stdin carries no marker body"

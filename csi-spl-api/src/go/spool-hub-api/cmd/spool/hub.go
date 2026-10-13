@@ -139,6 +139,7 @@ func cmdServe() int {
 	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
 	go srv.RunWake(ctx)                 // spec 059 S1 + S3
 	go srv.RunBlockerIssues(ctx, BlockerInterval)
+	go srv.RunMarketingShare(ctx) // spec 090 T015, SPL-1634
 	return serveUntilDone(ctx, hc, log, srv)
 }
 

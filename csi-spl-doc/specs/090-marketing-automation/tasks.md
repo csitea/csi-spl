@@ -212,13 +212,19 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
   - **Tests**: hub `TestMarketingSwitch*` (on both stores), store `TestMarketingSwitch*` (RLS on Postgres), `hub-marketing-workspaces-030.tst.sh`, and e2e `marketing-switch.test.mjs`.
 
 - [ ] T015 **blog auto-share to the owner's LinkedIn** (c-919, SPL-1634; owner HUM-10, topic `add4fbf4` msgs `06f5fd99`, `489d18e6`: "each time a new publish is done from spool hub to the blog post it should be also posted to my LinkedIn profile", "not even approve it"). It replaces T007, T008 and T012 for this flow: no draft queue and no approval.
-  - [x] **Connect path** (this commit): rdb `0187_marketing.sql` (the four tables of section 12, `tenant_id`; posts keyed UNIQUE on `(channel_id, source_type, source_ref)`, the events table append-only), `store.Marketing` (`marketing.go`, `marketing_memory.go`), the LinkedIn OAuth client (`internal/marketing/linkedin_oauth.go`), and the hub routes (`hub/marketing_channels.go`):
+  - [x] **Connect path**: rdb `0187_marketing.sql` (the four tables of section 12, `tenant_id`; posts keyed UNIQUE on `(channel_id, source_type, source_ref)`, the events table append-only), `store.Marketing` (`marketing.go`, `marketing_memory.go`), the LinkedIn OAuth client (`internal/marketing/linkedin_oauth.go`), and the hub routes (`hub/marketing_channels.go`):
     - `GET /v1/marketing/linkedin/connect?workspace=<id>`: the one-click link, a 302 to LinkedIn. It runs on the hub's API host, where the member's session cookie arrives. `POST` gives `{authorize_url}` for the WUI.
     - `GET /v1/marketing/linkedin/callback`: verifies the HMAC state (workspace, member, 15 minutes; keyed from the client secret, so any instance checks it), exchanges the code, reads the member id, seals the token (T005), stores the channel with `auto_publish`. The callback arrives through the WUI host's `/api` rewrite with no cookie, so the state is the only proof. No PKCE: LinkedIn offers it to native apps only.
     - `GET /v1/marketing/channels`: the workspace's accounts, never a token.
     - Who: an admin (`tenant.settings`) of an allow-listed workspace with the switch on (T014).
     - cnf `marketing.kms_key.inject: "true"` renders `SPOOL_HUB_MARKETING_KMS_KEY` into 030 (`hub-marketing-kms-key-030.tst.sh`). It reaches the hub only with a 030 apply (owner go). Connect is on only when the client id, the secret and the key are all set; otherwise it answers 503.
-  - [ ] **Share sweep**: a new `en` post in the live blog index is shared once per channel on the Posts API; a failure retries, then is reported; a re-connect reminder goes out 7 days before the token expires.
+  - [x] **Share sweep** (`hub/marketing_share.go`, `marketing/blog.go`, `marketing/linkedin_post.go`; started next to `RunSweeper` in `cmd/spool/hub.go`), every 5 minutes on every hub instance:
+    - **New** = a post of the LIVE `en` blog index (`<app>/blog-md/index.json`) with no row on the channel yet. The first sweep after a connect records the posts already live as `skipped` (the baseline): connecting never floods the profile with the back catalogue.
+    - **Once**: the row is UNIQUE per `(channel, source_type, source_ref)` and a claim moves it to `dispatching` in one guarded UPDATE, so two instances never both call LinkedIn for it (`TestMarketingShareEachNewPostOnce`: the trigger twice, four racing sweeps, one share per post).
+    - **The share**: `POST /rest/posts` as `urn:li:person:<sub>`, commentary = title, summary and link (little-text escaped), an article card linking to `<app>/blog/<id>`, its thumbnail the post's picture (WEBP re-encoded as PNG, uploaded through the Images API; a picture failure shares without it).
+    - **Failures**: a 429, a 503 or a connection that failed before sending is retried (10, then 20 minutes), at most 3 attempts, then failed. Any other answer, and a request whose outcome is unknown (sent, then no answer, or a 500/502/504), fails at once and is never sent again. A final failure is an error log line plus a mail to the member who connected. A 401 expires the channel; its posts wait for the re-connect.
+    - **Token lifetime**: 60 days, no refresh token. 7 days before the end, one mail with the one-click re-connect link (`<api>/v1/marketing/linkedin/connect?workspace=<id>`); at the end the channel is expired and new posts wait.
+    - **Where it runs**: only where LinkedIn is wired (client id, secret and KMS key all set) and only for an allow-listed, switched-on workspace (T014 sweep rule). dev keeps `linkedin.inject: "false"`, so dev never posts.
 
 ### Later phases (placeholders, one line each; each gets its own tasks when phase 1 is live)
 - [ ] T020 **Phase 2, email newsletter**: transactional provider, double opt-in, RFC 8058 headers, bounce/complaint webhooks, per-release or weekly cadence. Needs from the owner: the provider, the sending subdomain and the postal address (`spec.md` §11 Q4, Q5).
@@ -227,4 +233,4 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
 - [ ] T023 **Phase 3, X**: OAuth 2.0 PKCE, rotating refresh tokens, live price check. Needs from the owner: an X developer account and prepaid credit.
 - [ ] T024 **Phase 3, Facebook Page and LinkedIn company page**: needs from the owner Meta App Review and Business Verification, plus LinkedIn Community Management API access.
 
-<!-- version: 0.1.1 · updated: 2026-10-13 · last-edit: 2026-10-13T08:00:00Z -->
+<!-- version: 0.1.2 · updated: 2026-10-13 · last-edit: 2026-10-13T09:00:00Z -->

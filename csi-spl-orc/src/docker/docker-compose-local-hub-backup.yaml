@@ -1,0 +1,40 @@
+# csi-spl local hub ::: the daily backup job (lane L4), an overlay on the lde
+# files (infra, rdb): a container, never a host cron (owner: everything in
+# docker). Once a day at LOCAL_HUB_BACKUP_AT (UTC) it pipes pg_dump -Fc of the
+# pg service through age to the backups volume: no clear dump on disk.
+#
+# Keys (owner msg 8fbbb8e0: an OWNER-HELD key): the job mounts the age PUBLIC
+# key only (LOCAL_HUB_BACKUP_RECIPIENT_FILE, read-only). The secret identity is
+# passphrase-wrapped and mounted only into a one-shot restore run
+# (do_spl_local_hub_restore), never here. Unset, the recipient is /dev/null and
+# the job refuses loudly; do_spl_local_hub_backup_check refuses before _up.
+# No published port. LOCAL_HUB_BACKUP_DIR: a host dir instead of the volume.
+volumes:
+  backups: {}
+
+services:
+  backup:
+    build:
+      context: ./local-hub-backup
+      args:
+        PG_IMAGE: "${LDE_PG_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
+    command: ["loop"]
+    environment:
+      PGHOST: pg
+      PGUSER: "${LDE_PG_USER:?unset}"
+      PGPASSWORD: "${LDE_PG_PASSWORD:?unset}"
+      PGDATABASE: "${LDE_PG_DB:?unset}"
+      BACKUP_AT: "${LOCAL_HUB_BACKUP_AT:-03:15}"
+      BACKUP_KEEP: "${LOCAL_HUB_BACKUP_KEEP:-14}"
+    volumes:
+      - "${LOCAL_HUB_BACKUP_DIR:-backups}:/backups"
+      - "${LOCAL_HUB_BACKUP_RECIPIENT_FILE:-/dev/null}:/run/keys/recipient:ro"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      pg:
+        condition: service_healthy
+    networks: [lde]
+    restart: unless-stopped

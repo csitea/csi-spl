@@ -1326,9 +1326,10 @@ spl_fleet_intermittent() { [[ ",${LEASE_INTERMITTENT:-}," == *",$1,"* ]]; }
 # - last activity: the newest mtime of a transcript (*.jsonl) in the agent's
 #   project dir (<HOME>/.claude/projects/<cwd, non-alphanumerics as ->), which
 #   grows with every prompt, tool call and tool result;
-# - a turn in progress: the spinner "…(12s · ↓ 214 tokens)" in the pane footer;
-#   a long tool call writes nothing to the transcript but shows the spinner
-#   (a frozen spinner is spl_lease_stall's case, not this one);
+# - a turn in progress: the spinner "…(12s · ↓ 214 tokens)" in the pane footer,
+#   or grok's "[stop]" at the end of its spinner line (SPL-1696); a long tool
+#   call writes nothing to the transcript but shows the spinner (a frozen
+#   spinner is spl_lease_stall's case, not this one);
 # - a message read and handled earlier is older than the last activity, so an
 #   inbox nobody archives never counts against an agent that is working.
 # Prints why when stuck. Fails OPEN: no transcript or no pane = not stuck.
@@ -1346,7 +1347,8 @@ spl_fleet_stuck() {
   now="$(spl_lease_now)"
   (( now - oldest > max )) || return 0
   text="$(spl_lease_pane_text "$pid" 2>/dev/null)" || return 0
-  grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}" | grep -E -- '…[[:space:]]*\([0-9][^)]*\)' >/dev/null && return 0
+  grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}" |
+    grep -E -- '…[[:space:]]*\([0-9][^)]*\)|….*\[stop\][[:space:]]*$' >/dev/null && return 0
   echo "oldest unread $((now - oldest))s > ${max}s, idle $((now - act))s"
 }
 
@@ -1375,20 +1377,28 @@ spl_lease_activity() {
 
 # "ok" when <pid>'s last assistant entry is a real reply, "error" when it is
 # an isApiErrorMessage one (Login expired, usage limit), empty when unknown.
+# A grok session's entries (.grok, SPL-1696) carry no API error, so they stay
+# unknown here: a banner over a grok pane is judged as before.
 spl_lease_last_turn() {
   spl_lease_transcript_tail "$1" | jq -Rrn '
-    [inputs | fromjson? // empty | select(type == "object" and .type == "assistant")] | last
+    [inputs | fromjson? // empty | select(type == "object" and .type == "assistant" and .grok == null)] | last
     | if . == null then empty elif .isApiErrorMessage == true then "error" else "ok" end' 2>/dev/null
 }
 
 # The last LEASE_TRANSCRIPT_TAIL (400) lines of <pid>'s transcript: the
 # session file named by <HOME>/.claude/sessions/<pid>.json, else the newest
 # *.jsonl of its project dir (<HOME>/.claude/projects/<cwd, non-alphanumerics
-# as ->), which agents sharing a cwd also write. Read through the owner when
-# it is another user's. LEASE_TRANSCRIPT_CMD (called with the pid) replaces it
-# in the tests.
+# as ->), which agents sharing a cwd also write. A grok pid (comm grok,
+# SPL-1696) reads its own session instead, never a claude transcript of its
+# cwd: <HOME>/.grok/sessions/<cwd, url-encoded>/<sid>/updates.jsonl, sid from
+# <HOME>/.grok/active_sessions.json by pid, else the cwd's newest session.
+# Its lines come out in the claude shape the readers know: a message, thought
+# or tool call is an "assistant" entry, a finished tool call a "user"
+# tool_result, a prompt a "user" text, the rest "system". Read through the
+# owner when it is another user's. LEASE_TRANSCRIPT_CMD (called with the pid)
+# replaces it in the tests.
 spl_lease_transcript_tail() {
-  local pid="$1" root="${LEASE_PROC_ROOT:-/proc}" n="${LEASE_TRANSCRIPT_TAIL:-400}" home cwd
+  local pid="$1" root="${LEASE_PROC_ROOT:-/proc}" n="${LEASE_TRANSCRIPT_TAIL:-400}" home cwd comm
   # shellcheck disable=SC2086 # a command line, split on purpose
   [[ -n "${LEASE_TRANSCRIPT_CMD:-}" ]] && { $LEASE_TRANSCRIPT_CMD "$pid"; return 0; }
   [[ "$n" =~ ^[0-9]+$ ]] || n=400
@@ -1397,8 +1407,31 @@ spl_lease_transcript_tail() {
   cwd="$(readlink "$root/$pid/cwd" 2>/dev/null)"
   [[ -z "$cwd" ]] && cwd="$(spool_proc_as_owner "$root" "$pid" readlink "$root/$pid/cwd")"
   [[ -n "$home" && -n "$cwd" ]] || return 0
+  comm="$(cat "$root/$pid/comm" 2>/dev/null)"
   # shellcheck disable=SC2016 # expanded by the inner shell
   local -a q=(bash -c '
+    if [ "$5" = grok ]; then
+      g="$1/.grok" cwd="$2" sid="" f=""
+      if [ -r "$g/active_sessions.json" ]; then
+        sid="$(jq -r --argjson p "$3" "[.[]? | select(.pid == \$p)] | last | .session_id // empty" "$g/active_sessions.json" 2>/dev/null)"
+        c="$(jq -r --argjson p "$3" "[.[]? | select(.pid == \$p)] | last | .cwd // empty" "$g/active_sessions.json" 2>/dev/null)"
+        [ -n "$c" ] && cwd="$c"
+      fi
+      d="$g/sessions/$(jq -rn --arg c "$cwd" "\$c | @uri")"
+      [ -n "$sid" ] && [ -f "$d/$sid/updates.jsonl" ] && f="$d/$sid/updates.jsonl"
+      [ -n "$f" ] || f="$(find "$d" -mindepth 2 -maxdepth 2 -name updates.jsonl -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d" " -f2-)"
+      [ -n "$f" ] || exit 0
+      tail -n "$4" "$f" | jq -Rc "
+        fromjson? // empty | select(type == \"object\" and (.timestamp | type) == \"number\")
+        | (.timestamp | floor | todateiso8601) as \$t | (.params.update // {}) as \$u | (\$u.sessionUpdate // \"\") as \$k
+        | {timestamp: \$t, grok: \$k} + (
+            if \$k == \"agent_message_chunk\" or \$k == \"agent_thought_chunk\" or \$k == \"tool_call\" then {type: \"assistant\"}
+            elif \$k == \"tool_call_update\" and (\$u.status == \"completed\" or \$u.status == \"failed\") then
+              {type: \"user\", message: {content: [{type: \"tool_result\", tool_use_id: (\$u.toolCallId // \"\")}]}}
+            elif \$k == \"user_message_chunk\" then {type: \"user\", message: {content: \"\"}}
+            else {type: \"system\"} end)" 2>/dev/null
+      exit 0
+    fi
     s="$1/.claude/sessions/$3.json" sid="" cwd="$2" f=""
     if [ -r "$s" ]; then
       sid="$(jq -r ".sessionId // empty" "$s" 2>/dev/null)"
@@ -1407,7 +1440,7 @@ spl_lease_transcript_tail() {
     d="$1/.claude/projects/$(printf "%s" "$cwd" | sed "s/[^A-Za-z0-9]/-/g")"
     [ -n "$sid" ] && [ -f "$d/$sid.jsonl" ] && f="$d/$sid.jsonl"
     [ -n "$f" ] || f="$(find "$d" -maxdepth 1 -name "*.jsonl" -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d" " -f2-)"
-    [ -n "$f" ] && tail -n "$4" "$f"' _ "$home" "$cwd" "$pid" "$n")
+    [ -n "$f" ] && tail -n "$4" "$f"' _ "$home" "$cwd" "$pid" "$n" "$comm")
   # the agent user's projects and sessions are its own (0700): nothing read
   # directly is read through the owner
   local out

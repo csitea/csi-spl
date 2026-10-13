@@ -83,7 +83,8 @@ wd_spin_moving() {
 
 # The epoch of the newest transcript entry that proves the model produced
 # something: a reply that is not an API error, or a tool result (the same rule
-# as spl_lease_activity, with no fallback). Nothing when there is none.
+# as spl_lease_activity, with no fallback). Nothing when there is none. A grok
+# seat's transcript is its own session (spl_lease_transcript_tail, SPL-1696).
 wd_transcript_progress() {
   wd_has transcript || return 0
   jq -Rrn '
@@ -127,10 +128,11 @@ wd_progress() {
 
 # "ok" when the transcript's last assistant entry is a real reply,
 # "error<TAB><its text>" for an isApiErrorMessage one, nothing when unknown.
+# A grok session's entries (.grok, SPL-1696) carry no API error: unknown.
 wd_last_turn() {
   wd_has transcript || return 0
   jq -Rrn '
-    [inputs | fromjson? // empty | select(type == "object" and .type == "assistant")] | last
+    [inputs | fromjson? // empty | select(type == "object" and .type == "assistant" and .grok == null)] | last
     | if . == null then empty
       elif .isApiErrorMessage == true then
         "error\t" + ([.message.content[]? | select(type == "object") | .text // empty] | join(" ") | .[0:120])

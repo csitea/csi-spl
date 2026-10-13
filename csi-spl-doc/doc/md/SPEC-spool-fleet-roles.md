@@ -451,8 +451,12 @@ resource, and its age would have come from each machine's own clock.
   *Unread* = an inbox message (`<root>/<orch id>/inbox/*.json`) that arrived
   after the agent's last activity. *Last activity* = the newest write of a
   transcript in the agent's project dir (`<HOME>/.claude/projects/<cwd>/*.jsonl`,
-  every prompt, tool call and tool result). *Idle* = no turn in progress (no
-  `…(12s · …)` spinner in the pane footer), so a long tool call is busy, not
+  every prompt, tool call and tool result). A grok seat's last activity is
+  its own session (`<HOME>/.grok/sessions/<cwd, url-encoded>/<sid>/updates.jsonl`,
+  a reply, thought, tool call or tool result), never a claude transcript of
+  the same cwd (SPL-1696: g-001 in `/opt` read "idle 4105s" from one while
+  it worked). *Idle* = no turn in progress (no `…(12s · …)` spinner, nor
+  grok's `… [stop]`, in the pane footer), so a long tool call is busy, not
   stuck. A message read before the last activity never counts, so an inbox
   nobody archives does not trip an agent that works. No transcript or no pane
   found = not stuck (fails open). Knob `LEASE_UNREAD_MAX` (600 s; 0 = off,

@@ -93,6 +93,14 @@
 #  26. a bench post that never lands is named on the one back line (the
 #      2026-10-11 16:12Z outage). CONTROL: a delivered bench keeps the short
 #      back line. Still one delivered post per state change.
+#  27. a grok seat's own session is its activity (SPL-1696, 2026-10-13 15:52Z:
+#      g-001, a live grok in /opt, read "idle 4105s" from a claude transcript
+#      of the same cwd). The real spl_lease_transcript_tail on a fake /proc
+#      and HOME: a moving grok session is not stuck under an unread > 600 s;
+#      an idle one is, unless its pane shows a turn ("[stop]"); a prompt and a
+#      hook entry are not activity; a grok pid missing from active_sessions
+#      reads its cwd's newest session; the watchdog's progress reads the same
+#      tail. CONTROL: a claude pid in that cwd still reads its own transcript.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -960,6 +968,60 @@ since26=$(date -u -d @6000 +%Y-%m-%dT%H:%M:%SZ)
    "$(sed -n 1p "$T/alerts26")" == "hs :: Box hs back after 30 healthy min (benched since ${since26}; the benched alert could not be delivered)" ]] &&
   pass "26. no healthy poster: the one back line names the bench time, and the bench line was not sent" ||
   fail "26. no poster: $(cat "$T/alerts26" 2>&1) tried $(cat "$T/alerts26.tried" 2>&1)"
+
+# --- 27. a grok seat's own session is its activity (SPL-1696) --------------------
+G="$T/g"; N=1791900000
+rm -rf "$G"; mkdir -p "$G/proc" "$G/home" "$G/wt" "$T/pane"
+[[ "$G" != /var/spool-hub* ]] || { echo "FAIL: 27. a fixture root is the live spool"; exit 1; }
+# seat <pid> <comm>: a live agent in $G/wt whose HOME is $G/home
+seat() { mkdir -p "$G/proc/$1"; echo "$2" >"$G/proc/$1/comm"; ln -sfn "$G/wt" "$G/proc/$1/cwd"
+  printf 'HOME=%s\0SPOOL_AGENT_ID=g-001\0' "$G/home" >"$G/proc/$1/environ"; }
+seat 300 grok; seat 301 grok; seat 302 claude
+# the grok session of pid 300 (active_sessions.json), and a stale claude transcript of the same cwd
+gdir="$G/home/.grok/sessions/$(jq -rn --arg c "$G/wt" '$c | @uri')"
+cdir="$G/home/.claude/projects/$(printf '%s' "$G/wt" | sed 's/[^A-Za-z0-9]/-/g')"
+mkdir -p "$gdir/s300" "$cdir"
+jq -n --arg c "$G/wt" '[{session_id: "s300", pid: 300, cwd: $c}]' >"$G/home/.grok/active_sessions.json"
+printf '{"type":"assistant","timestamp":"%s","message":{"content":[{"type":"text","text":"x"}]}}\n' \
+  "$(date -ud @$((N - 4105)) +%Y-%m-%dT%H:%M:%S.000Z)" >"$cdir/old.jsonl"
+# gup <ts> <sessionUpdate> [status]: one updates.jsonl line of a grok session
+gup() { jq -cn --argjson t "$1" --arg k "$2" --arg s "${3:-}" \
+  '{timestamp: $t, method: "session/update", params: {sessionId: "s", update: ({sessionUpdate: $k, toolCallId: "c1"} + (if $s == "" then {} else {status: $s} end))}}'; }
+{ gup $((N - 900)) user_message_chunk; gup $((N - 890)) tool_call; gup $((N - 60)) tool_call_update completed
+  gup $((N - 30)) hook_execution; } >"$gdir/s300/updates.jsonl"
+G27=(LEASE_TRANSCRIPT_CMD= LEASE_PROC_ROOT="$G/proc" SPOOL_ROOT="$G/spool" LEASE_NOW="$N")
+printf '   ⠙ Waiting for response… 2.4s      33s ⇣109k\n  ╭──\n  │ ❯\n  ╰──\n  Enter:send now  │  Ctrl+x:shortcuts\n' >"$T/pane/300"
+cp "$T/pane/300" "$T/pane/301"; cp "$T/pane/300" "$T/pane/302"
+msg g g-001 $((N - 700))
+got="$(unit spl_lease_activity 300 "${G27[@]}")"
+[[ "$got" == $((N - 60)) ]] && pass "27. grok activity = its session's last tool result, not the cwd's claude transcript" || fail "27. activity: '$got' want $((N - 60))"
+got="$(unit spl_fleet_stuck "g-001 300" "${G27[@]}")"
+[[ -z "$got" ]] && pass "27. a moving grok session is not stuck under an unread 700 s old" || fail "27. moving: '$got'"
+# idle: the last reply before the unread, nothing since but a hook and a prompt
+{ gup $((N - 2000)) user_message_chunk; gup $((N - 1990)) agent_message_chunk; gup $((N - 30)) hook_execution
+  gup $((N - 20)) user_message_chunk; } >"$gdir/s300/updates.jsonl"
+got="$(unit spl_lease_activity 300 "${G27[@]}")"
+[[ "$got" == $((N - 1990)) ]] && pass "27. a prompt and a hook entry are not grok activity" || fail "27. idle activity: '$got' want $((N - 1990))"
+got="$(unit spl_fleet_stuck "g-001 300" "${G27[@]}")"
+[[ "$got" == "oldest unread 700s > 600s, idle 1990s" ]] && pass "27. an idle grok seat with an unread 700 s old is stuck ($got)" || fail "27. idle: '$got'"
+printf '   ⠙ Waiting for response… 2.4s      33s ⇣109k [stop]\n  ╭──\n  │ ❯\n  ╰──\n  Ctrl+c:cancel  │  Ctrl+x:shortcuts\n' >"$T/pane/300"
+got="$(unit spl_fleet_stuck "g-001 300" "${G27[@]}")"
+[[ -z "$got" ]] && pass "27. the same idle session under a grok turn in progress ([stop]) is not stuck" || fail "27. turn: '$got'"
+# pid 301: not in active_sessions -> the newest session of its cwd
+mkdir -p "$gdir/s301"; gup $((N - 120)) agent_thought_chunk >"$gdir/s301/updates.jsonl"; touch -d @$((N - 10)) "$gdir/s300/updates.jsonl"
+got="$(unit spl_lease_activity 301 "${G27[@]}")"
+[[ "$got" == $((N - 120)) ]] && pass "27. a grok pid missing from active_sessions reads its cwd's newest session" || fail "27. fallback: '$got' want $((N - 120))"
+# the watchdog reads the same tail (spl_wd_transcript -> wd_transcript_progress)
+mkdir -p "$G/wd"; unit spl_lease_transcript_tail 300 "${G27[@]}" >"$G/wd/transcript"
+got="$(WD_CTX="$G/wd" bash -c 'source "$1/src/bash/features/watchdog/situations/lib.inc.sh" g-001 300 -; wd_transcript_progress' _ "$PROJ_ROOT")"
+[[ "$got" == $((N - 1990)) ]] && pass "27. watchdog S8 progress reads the grok session" || fail "27. wd: '$got' want $((N - 1990))"
+# a grok session has no API-error entry: its last turn stays unknown, so a banner is judged as before
+got="$(unit spl_lease_last_turn 300 "${G27[@]}")"
+[[ -z "$got" ]] && pass "27. a grok session's last turn is unknown (login banners as before)" || fail "27. last turn: '$got'"
+# CONTROL: a claude pid in the same cwd keeps its own transcript
+got="$(unit spl_lease_activity 302 "${G27[@]}")"
+[[ "$got" == $((N - 4105)) ]] && pass "27. CONTROL: a claude pid in that cwd still reads its claude transcript" || fail "27. claude: '$got' want $((N - 4105))"
+rm -f "$T/pane/300" "$T/pane/301" "$T/pane/302"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

@@ -84,14 +84,29 @@ const previews = useLinkPreviewRefs(() => props.body, { blocks: () => blocks.val
 .code-block + .md-block,
 .md-block + .code-block,
 .md-block + .md-block { margin-top: 4px; }
-.msg-h {
-  margin: 8px 0 2px;
-  font-size: 1rem;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
+/* SPL-1646: a heading in a card or an issue body stays near the body size.
+   h1/h2 are 1.1em of that body, h3-h6 match it, margins stay tight.
+   Docs and help do not use this component, so their heading sizes stay. */
+.msg-body :deep(.md-block h1),
+.msg-body :deep(.md-block h2),
+h2.msg-h {
+  font-size: 1.1em;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0.15em 0;
 }
-h3.msg-h { font-size: 0.9375rem; }
-h4.msg-h { font-size: 0.875rem; }
+.msg-body :deep(.md-block h3),
+.msg-body :deep(.md-block h4),
+.msg-body :deep(.md-block h5),
+.msg-body :deep(.md-block h6),
+h3.msg-h,
+h4.msg-h {
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0.15em 0;
+}
+.msg-h { overflow-wrap: anywhere; }
 .msg-list {
   margin: 4px 0;
   padding-inline-start: 1.25em;

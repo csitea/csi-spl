@@ -41,7 +41,7 @@ import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useTopicFeedClose } from '~/composables/useTopicRoute'
 import { useNotificationStore } from '~/stores/notification'
 import { dmPresence } from '~/utils/dm-presence.mjs'
-import { BROWSER_BOX, topicTitleFromRows } from '~/utils/view-api.mjs'
+import { BROWSER_BOX, rowTitle, topicTitleFromRows } from '~/utils/view-api.mjs'
 import { archiveStamp } from '~/utils/topic-archive.mjs'
 import { seatedAtFor } from '~/utils/seat-divider.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
@@ -139,7 +139,7 @@ watch(openTopicId, async (id) => {
     const data = await withSessionRetry(api, () => api.getTopic(id, { limit: 1 })) as { messages?: SpoolMessage[] }
     if (openTopicId.value !== id) return
     const at = archiveStamp(data)
-    openArchive.value = { at, title: at ? topicTitleFromRows(data.messages || [], topic.rootMsg) : '' }
+    openArchive.value = { at, title: at ? rowTitle(topicTitleFromRows(data.messages || [], topic.rootMsg), '') : '' }
   } catch {
     /* no mark is the live rendering; the topic pane reports a failed read */
   }

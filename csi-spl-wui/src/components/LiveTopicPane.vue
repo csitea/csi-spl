@@ -66,7 +66,7 @@ import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
 import { useNotificationStore } from '~/stores/notification'
 import { newestFirst } from '~/utils/feed.mjs'
-import { topicTitleFromRows } from '~/utils/view-api.mjs'
+import { rowTitle, topicTitleFromRows } from '~/utils/view-api.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import type { SpoolMessage } from '~/types/spool'
@@ -121,7 +121,7 @@ function rootUnread(id: string) {
 }
 
 /* The open topic's own title, selected at the top of this pane. */
-const titleText = computed(() => topicTitleFromRows(pane.messages, messageRooted.value ? topic.rootMsg : null))
+const titleText = computed(() => rowTitle(topicTitleFromRows(pane.messages, messageRooted.value ? topic.rootMsg : null), ''))
 const heading = computed(() => (titleText.value ? t('topic.list_title', { text: titleText.value }) : t('topic.title')))
 
 /*

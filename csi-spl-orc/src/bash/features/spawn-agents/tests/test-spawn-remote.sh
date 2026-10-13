@@ -42,7 +42,8 @@ EOF
 cat >"$T_TMP/spawn-window-stub" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$T_TMP/spawn.calls"
-[ -n "\${4:-}" ] && cp "\$4" "$T_TMP/spawn.brief"
+[ -n "\${4:-}" ] && cp "\$4" "$T_TMP/spawn.brief" && stat -c %a "\$4" >"$T_TMP/spawn.brief.mode" \\
+  && { getfacl -cp "\$4" 2>/dev/null || true; } >"$T_TMP/spawn.brief.acl"
 echo "PLAN noise"
 echo "c-009 %42"
 EOF
@@ -75,6 +76,7 @@ has "1. ... with the request's kind, title, workdir and slug" "claude auto $WORK
 has "1. ... slug last" " my-slug" "$(cat "$T_TMP/spawn.calls")"
 check "1. the brief arrived verbatim (data, never evaluated)" cmp -s "$T_TMP/brief.md" "$T_TMP/spawn.brief"
 check "1. ... and nothing in it ran" test ! -e "$T_TMP/pwned"
+eq "1. the brief file is 600, owner only (spec 136 P5)" 600 "$(cat "$T_TMP/spawn.brief.mode")"
 has "1. the reply is a result on the request's task" '"kind": "result"' "$(jq . "$B"/c-001/inbox/*.json)"
 has "1. serve.log says SPAWNED" "SPAWNED" "$(cat "$A/spawn-remote/serve.log")"
 serve_a
@@ -140,5 +142,18 @@ out="$(on "$B" sat bash "$SR" --box home vibe auto "$WORK" 2>&1)"; rc=$?
 eq "7. control: the binary name 'vibe' is not a kind: exit 2" 2 "$rc"
 has "7. ... named" "bad kind 'vibe'" "$out"
 eq "7. ... and never sent" 4 "$(calls)"
+
+# ---- 8. an agent user other than the box user reads its brief (spec 136 P5) ------
+# The CLI runs as SPOOL_AGENT_USER; a 600 brief of the box user would lock it
+# out, so it gets a named read entry and the group none.
+if command -v setfacl >/dev/null 2>&1 && getent passwd nobody >/dev/null; then
+  SPOOL_AGENT_USER=nobody req_b "$T_TMP/r8" claude auto "$WORK" "$T_TMP/brief.md" acl-slug
+  eq "8. a request with agent user nobody: exit 0" 0 "$(cat "$T_TMP/r8.rc")"
+  has "8. ... the agent user reads the brief" "user:nobody:r--" "$(cat "$T_TMP/spawn.brief.acl")"
+  has "8. ... the group reads nothing" "group::---" "$(cat "$T_TMP/spawn.brief.acl")"
+  has "8. ... others read nothing" "other::---" "$(cat "$T_TMP/spawn.brief.acl")"
+else
+  ok "8. skipped: no setfacl or no user nobody"
+fi
 
 t_done

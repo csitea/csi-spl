@@ -208,7 +208,13 @@ handle() {  # INBOX_ID FILE
     return 0
   fi
   brief="$STATE/briefs/$msg.md"
-  sed '1,/^---$/d' <<<"$body" >"$brief" && chmod 644 "$brief"
+  # 600 before a byte lands (the dir's default ACL beats a umask); an agent
+  # CLI of another OS user gets a named read entry, the group none (spec 136 P5).
+  : >"$brief" && chmod 600 "$brief" && sed '1,/^---$/d' <<<"$body" >"$brief"
+  if [ "${SPOOL_AGENT_USER:-}" != "$(id -un)" ] && [ -n "${SPOOL_AGENT_USER:-}" ] && [ -s "$brief" ]; then
+    setfacl -m "u:${SPOOL_AGENT_USER}:r,g::-,o::-" "$brief" 2>/dev/null \
+      || say "WARN brief $brief: no read entry for agent user ${SPOOL_AGENT_USER} (setfacl failed)"
+  fi
   [ -s "$brief" ] || { rm -f "$brief"; brief=""; }
   # The cron tick has no agent id. The verified `from` is who asked; the
   # target's spawn-window records it (a bare id; "@<box>" is the relay).

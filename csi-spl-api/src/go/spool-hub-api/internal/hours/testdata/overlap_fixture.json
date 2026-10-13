@@ -1,0 +1,106 @@
+{
+	"days": [
+		{
+			"workspace_id": "ws:1",
+			"date": "2026-10-13",
+			"entries": [
+				{
+					"start": "2026-10-13T09:00:00Z",
+					"end": "2026-10-13T11:00:00Z",
+					"minutes": 120,
+					"unplaced": 0
+				}
+			],
+			"receipts": [],
+			"state": "ok"
+		},
+		{
+			"workspace_id": "ws:2",
+			"date": "2026-10-13",
+			"entries": [
+				{
+					"start": "2026-10-13T10:00:00Z",
+					"end": "2026-10-13T12:00:00Z",
+					"minutes": 120,
+					"unplaced": 0
+				}
+			],
+			"receipts": [],
+			"state": "ok"
+		},
+		{
+			"workspace_id": "ws:3",
+			"date": "2026-10-13",
+			"entries": [
+				{
+					"start": null,
+					"end": null,
+					"minutes": 60,
+					"unplaced": 60
+				}
+			],
+			"receipts": [],
+			"state": "ok"
+		},
+		{
+			"workspace_id": "ws:4",
+			"date": "2026-10-13",
+			"entries": [],
+			"receipts": [
+				{
+					"minutes": 30,
+					"approver": "user:1"
+				}
+			],
+			"state": "ok"
+		},
+		{
+			"workspace_id": "ws:5",
+			"date": "2026-10-13",
+			"entries": [],
+			"receipts": [],
+			"state": "unavailable"
+		}
+	],
+	"zone": "UTC",
+	"now": "2026-10-13T12:00:00Z",
+	"want": [
+		{
+			"date": "2026-10-13",
+			"reported": 330,
+			"actual": 270,
+			"overlap": 60,
+			"workspaces": {
+				"ws:1": {
+					"reported": 120,
+					"actual": 120,
+					"spans": [
+						{"start": "2026-10-13T09:00:00Z", "end": "2026-10-13T11:00:00Z"}
+					]
+				},
+				"ws:2": {
+					"reported": 120,
+					"actual": 120,
+					"spans": [
+						{"start": "2026-10-13T10:00:00Z", "end": "2026-10-13T12:00:00Z"}
+					]
+				},
+				"ws:3": {
+					"reported": 60,
+					"actual": 60,
+					"spans": []
+				},
+				"ws:4": {
+					"reported": 30,
+					"actual": 30,
+					"spans": []
+				},
+				"ws:5": {
+					"reported": 0,
+					"actual": 0,
+					"spans": []
+				}
+			}
+		}
+	]
+}

@@ -8,7 +8,7 @@
 # @description rejoin needs a fresh join token. The hub keeps the pin until the
 # @description owner revokes the seat in Settings -> Agents of the local hub.
 # @description Idempotent: an agent that never joined is OK. Dry run unless DRY_RUN=0.
-# @param LOCAL_HUB_TENANT - required: the workspace slug (spl_local_hub_private_cnf when loaded)
+# @param LOCAL_HUB_TENANT - required, no default: the workspace slug, from the operator
 # @param DESK_AGENT - required: the agent id that leaves
 # @param LOCAL_HUB_HUB_PORT, LOCAL_HUB_DESK_BOX, LOCAL_HUB_DESK_STATE (optional) - as do_spl_local_hub_agent_join
 # @param DRY_RUN (optional) - 1 (default) or 0

@@ -19,12 +19,13 @@
 # @description ENV other than self, ROOT_KEY_JSON, SPOOL_JOIN_TOKEN in the
 # @description environment (the token comes from a 0600 file and never reaches
 # @description argv or output). Dry run unless DRY_RUN=0.
-# @param LOCAL_HUB_TENANT - required: the workspace slug (spl_local_hub_private_cnf when loaded)
+# @param LOCAL_HUB_TENANT - required, no default: the workspace slug, from the operator
+# @param   (the hub user's private config is not readable by an agent user)
 # @param DESK_AGENT - required: the agent id of the pane to seat
 # @param LOCAL_HUB_JOIN_TOKEN_FILE - required on the first join of the agent's
 # @param   box: a 0600 file holding the join token spj1.<workspace>.<secret>
-# @param LOCAL_HUB_HUB_PORT (optional) - the hub's loopback port, default 58180
-# @param   (spl_local_hub_cnf when loaded)
+# @param LOCAL_HUB_HUB_PORT (optional) - the hub's loopback port; default cnf
+# @param   env.lde.local_hub.hub_port (spl_local_hub_cnf), else 58180
 # @param LOCAL_HUB_DESK_BOX (optional) - default lh-<agent, lower case>
 # @param LOCAL_HUB_DESK_STATE (optional) - default $HOME/.local/share/<org>-<app>/local-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -32,11 +33,12 @@
 #------------------------------------------------------------------------------
 
 # spl_local_hub_agent_ctx: validate the inputs both actions share and set
-# LH_TENANT, LH_AGENT, LH_BOX, LH_STATE, LH_HUB. The tenant and the port come
-# from the lead's cnf lib when it is loaded (no second parse here).
+# LH_TENANT, LH_AGENT, LH_BOX, LH_STATE, LH_HUB. The port comes from the
+# lead's cnf lib (spl_local_hub_cnf, no second parse here). The tenant comes
+# from the operator's env only: spl_local_hub_private_cnf reads the hub user's
+# 0700 home, which an agent user cannot read, so it is never called here.
 spl_local_hub_agent_ctx() {
   declare -F spl_local_hub_cnf >/dev/null && { spl_local_hub_cnf || return 1; }
-  declare -F spl_local_hub_private_cnf >/dev/null && { spl_local_hub_private_cnf || return 1; }
   [[ -z "${ENV:-}" || "${ENV}" == self ]] ||
     { do_log "FATAL ENV=$ENV: the local hub is ENV=self only; a cloud desk is do_spl_desk_up"; return 1; }
   LH_TENANT="${LOCAL_HUB_TENANT:-}"

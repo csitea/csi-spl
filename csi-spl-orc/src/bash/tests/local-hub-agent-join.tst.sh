@@ -12,8 +12,9 @@
 #   3. a valid token file seats the agent on its OWN box lh-<agent> at
 #      http://127.0.0.1:<hub port>, ENV=self, in the local-hub state dir; the
 #      token never reaches the output; CONTROL a cloud SPL_STATE_DIR in the
-#      caller's env is not used; the lead's cnf lib (spl_local_hub_cnf), when
-#      loaded, is what sets the tenant and the port
+#      caller's env is not used; the port comes from the lead's real cnf lib
+#      (spl_local_hub_cnf), the tenant from the env only: the hub user's
+#      private config (0700 home) is never read
 #   4. a box that already joined re-seats with no token
 #   4b. an agent is dedicated to ONE workspace: a join to a second is refused
 #   5. leave: a dry run touches nothing; DRY_RUN=0 stops that box's sidecar
@@ -30,18 +31,13 @@ fails=0
 
 in_orc() {
   env -u SPOOL_JOIN_TOKEN -u ROOT_KEY_JSON -u SPOOL_HUB_URL -u ENV -u LOCAL_HUB_HUB_PORT -u LOCAL_HUB_TENANT \
+      -u LOCAL_HUB_CONFIG LOCAL_HUB_HOME="$T/hub-home" \
       PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" HOME="$T/home" SPL_STATE_DIR="$T/cloud-state" \
       SPOOL_ROOT="$T/spool" CALLS="$T/calls" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
-    if [[ -n "${LIB_PORT:-}" ]]; then
-      spl_local_hub_cnf() { LOCAL_HUB_HUB_PORT="$LIB_PORT"; }
-      spl_local_hub_private_cnf() { LOCAL_HUB_TENANT="$LIB_TENANT"; }
-    else
-      unset -f spl_local_hub_cnf spl_local_hub_private_cnf
-    fi
     do_spl_desk_up() {
       echo "up ENV=$ENV TENANT_ID=$TENANT_ID DESK_AGENT=$DESK_AGENT DESK_BOX=$DESK_BOX SPOOL_HUB_URL=$SPOOL_HUB_URL SPL_STATE_DIR=$SPL_STATE_DIR DRY_RUN=${DRY_RUN:-} TOKEN=${SPOOL_JOIN_TOKEN:-none}" >>"$CALLS"
       [[ "${DRY_RUN:-1}" == 0 ]] || return 0
@@ -55,6 +51,8 @@ join() { in_orc ACTION=do_spl_local_hub_agent_join "$@"; }
 leave() { in_orc ACTION=do_spl_local_hub_agent_leave "$@"; }
 calls() { cat "$T/calls" 2>/dev/null; }
 
+mkdir -m 700 "$T/hub-home"
+CNF_PORT="$(yq -r '.env.lde.local_hub.hub_port' "$APP_ROOT/$(basename "$PROJ_ROOT" | sed 's/-orc$//')-cnf/$(basename "$PROJ_ROOT" | sed 's/-orc$//')/lde.env.yaml")"
 LH="$T/home/.local/share/$(basename "$PROJ_ROOT" | sed 's/-orc$//')/local-hub"
 TOK="$T/tok"; printf 'spj1.ws-test.s3cr3tvalue\n' >"$TOK"; chmod 600 "$TOK"
 OK=(LOCAL_HUB_TENANT=ws-test DESK_AGENT=c-123)
@@ -87,13 +85,15 @@ refused "a token of another workspace" "another workspace" LOCAL_HUB_JOIN_TOKEN_
 [[ -z "$(calls)" ]] && pass "CONTROL no refusal called do_spl_desk_up" || fail "desk_up called: $(calls)"
 
 # --- 3. join with a token -----------------------------------------------------------
-out=$(join "${OK[@]}" DESK_AGENT=CLE-07 LIB_PORT=58199 LIB_TENANT=ws-test LOCAL_HUB_TENANT= LOCAL_HUB_JOIN_TOKEN_FILE="$TOK" 2>&1); rc=$?
+out=$(join "${OK[@]}" DESK_AGENT=CLE-07 LOCAL_HUB_HUB_PORT=58199 LOCAL_HUB_JOIN_TOKEN_FILE="$TOK" 2>&1); rc=$?
 [[ $rc -eq 0 && "$(calls)" == *"TENANT_ID=ws-test "*"DESK_BOX=lh-cle-07 SPOOL_HUB_URL=http://127.0.0.1:58199 "*"DRY_RUN=1 "* ]] &&
-  pass "dry run by default; the cnf lib sets tenant and port; a legacy id is lower-cased into the box" || fail "lib/dry (rc=$rc): $out | $(calls)"
+  pass "dry run by default; LOCAL_HUB_HUB_PORT wins over the cnf; a legacy id is lower-cased into the box" || fail "port/dry (rc=$rc): $out | $(calls)"
+[[ -d "$T/hub-home" && "$(stat -c %a "$T/hub-home")" == 700 ]] &&
+  pass "CONTROL the hub user's home is 0700 with no private config: the join never needs it" || fail "hub-home fixture"
 : >"$T/calls"
 out=$(join "${OK[@]}" LOCAL_HUB_JOIN_TOKEN_FILE="$TOK" DRY_RUN=0 2>&1); rc=$?
-want="up ENV=self TENANT_ID=ws-test DESK_AGENT=c-123 DESK_BOX=lh-c-123 SPOOL_HUB_URL=http://127.0.0.1:58180 SPL_STATE_DIR=$LH DRY_RUN=0 TOKEN=spj1.ws-test.s3cr3tvalue"
-[[ $rc -eq 0 && "$(calls)" == "$want" ]] && pass "a token seats c-123 on its own box lh-c-123 at the loopback hub, ENV=self, local-hub state" ||
+want="up ENV=self TENANT_ID=ws-test DESK_AGENT=c-123 DESK_BOX=lh-c-123 SPOOL_HUB_URL=http://127.0.0.1:$CNF_PORT SPL_STATE_DIR=$LH DRY_RUN=0 TOKEN=spj1.ws-test.s3cr3tvalue"
+[[ $rc -eq 0 && "$(calls)" == "$want" ]] && pass "a token seats c-123 on its own box lh-c-123 at the cnf hub port ($CNF_PORT, the real lib), ENV=self, local-hub state" ||
   fail "join (rc=$rc): $out | calls: $(calls)"
 [[ "$out" != *s3cr3t* ]] && pass "the token never reaches the output" || fail "token leaked: $out"
 [[ ! -e "$T/cloud-state" ]] && pass "CONTROL the caller's cloud SPL_STATE_DIR is not used" || fail "cloud state touched"

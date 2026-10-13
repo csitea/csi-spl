@@ -4,8 +4,9 @@
 # @description owner order 496e7273) on a THROWAWAY workspace, never the
 # @description private one: its own temp home, compose project and ports, so
 # @description the long-lived stack is never touched. The steps, in order:
-# @description   unlock    do_spl_local_hub_unlock (L5), a throwaway passphrase typed on a pty
-# @description   up        do_spl_local_hub_up (L1)
+# @description   up        do_spl_local_hub_up (L1); it unlocks the pg vault itself
+# @description             (do_spl_local_hub_unlock, L5) once pg is up, so it runs
+# @description             on a pty and gets a throwaway passphrase typed
 # @description   health    the hub answers GET /healthz on 127.0.0.1
 # @description   owner     do_spl_local_hub_owner_add (L3), a throwaway password typed on a pty
 # @description   post      sign in natively, post one message to #general, read it back
@@ -15,7 +16,7 @@
 # @description   down      do_spl_local_hub_down (L1) with LOCAL_HUB_PURGE=1, ALWAYS,
 # @description             also after a failed step
 # @description Owner rule (msg 3cfe43ce): a passphrase or password is read only
-# @description from the terminal. So unlock and owner run as ./run -a <action>
+# @description from the terminal. So up and owner run as ./run -a <action>
 # @description under a pseudo-terminal (scripts/local-hub-e2e-tty.py) that types
 # @description the throwaway secret at each prompt; nothing is piped or passed in env.
 # @description Each step prints PASS|FAIL <step> <evidence>; a lane action that is
@@ -39,7 +40,7 @@
 #------------------------------------------------------------------------------
 
 # the step -> lane action map; "-" = done by this file
-_LHE2E_STEPS="unlock:do_spl_local_hub_unlock:L5 up:do_spl_local_hub_up:L1 health:-:L9 owner:do_spl_local_hub_owner_add:L3 post:-:L9 ports:do_spl_local_hub_ports_gate:L5 backup:do_spl_local_hub_backup:L4 restore:do_spl_local_hub_restore:L4"
+_LHE2E_STEPS="up:do_spl_local_hub_up:L1 health:-:L9 owner:do_spl_local_hub_owner_add:L3 post:-:L9 ports:do_spl_local_hub_ports_gate:L5 backup:do_spl_local_hub_backup:L4 restore:do_spl_local_hub_restore:L4"
 
 _lhe2e_tenant_ok() { [[ "$1" =~ ^e2e-[a-z0-9]{6,}$ ]]; }
 
@@ -98,7 +99,7 @@ _lhe2e_run_step() {
     echo "FAIL $step missing action $fn (lane $lane)"; return 1
   fi
   case "$step" in
-    unlock) out=$(_lhe2e_tty "$LOCAL_HUB_E2E_PASSPHRASE_FILE" "$fn" 2>&1) ;;
+    up) out=$(_lhe2e_tty "$LOCAL_HUB_E2E_PASSPHRASE_FILE" "$fn" 2>&1) ;;
     owner) out=$(_lhe2e_tty "$LOCAL_HUB_E2E_PW_FILE" "$fn" 2>&1) ;;
     health) out="GET http://127.0.0.1:$LOCAL_HUB_HUB_PORT/healthz"; _lhe2e_wait_hub ;;
     post) out=$(_lhe2e_post 2>&1) ;;

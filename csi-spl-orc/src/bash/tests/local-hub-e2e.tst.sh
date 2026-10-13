@@ -4,7 +4,7 @@
 # L9): the e2e of the local private spool-hub, driven against STUBBED lane
 # actions, so the cheap gate checks the flow in seconds; the live run is
 # DRY_RUN=0 ./run -a do_spl_local_hub_e2e. It names every lane action
-# (do_spl_local_hub_unlock, do_spl_local_hub_up, do_spl_local_hub_owner_add,
+# (do_spl_local_hub_up, which runs do_spl_local_hub_unlock, do_spl_local_hub_owner_add,
 # do_spl_local_hub_ports_gate, do_spl_local_hub_backup,
 # do_spl_local_hub_restore, do_spl_local_hub_down), so changed-tests.sh picks
 # this test whenever one of them changes, or the drivers local-hub-e2e-post.py
@@ -37,17 +37,15 @@ EOF
 # secret action (it gets the secret from the pty only)
 cat >"$T/bin/tty" <<'EOF'
 #!/bin/sh
-case "$4" in do_spl_local_hub_unlock) n=unlock f="${FAIL_UNLOCK:-0}" ;; *) n=owner_add f="${FAIL_OWNER:-0}" ;; esac
+case "$4" in do_spl_local_hub_up) n=up f="${FAIL_UP:-0}" ;; *) n=owner_add f="${FAIL_OWNER:-0}" ;; esac
 [ "$(head -c1 | wc -c)" -eq 0 ] && in=closed || in=open
 echo "$n len=$(tr -d '\n' <"$1" | wc -c) mode=$(stat -c %a "$1") run=$2 $3 dry=$DRY_RUN stdin=$in" >>"$STUB_LOG"
+[ "$n" = up ] && { echo "up user=$LOCAL_HUB_USER project=$LOCAL_HUB_PROJECT ports=$LOCAL_HUB_PG_PORT,$LOCAL_HUB_GCS_PORT,$LOCAL_HUB_HUB_PORT,$LOCAL_HUB_WUI_PORT cnf=$(stat -c %a "$LOCAL_HUB_HOME/.config/csi-spl/local-hub.env") home=$(stat -c %a "$LOCAL_HUB_HOME") $(cat "$LOCAL_HUB_HOME/.config/csi-spl/local-hub.env" | tr '\n' ' ')" >>"$STUB_LOG"; echo "$LOCAL_HUB_HOME" >"$T/home.seen"; }
 exit "$f"
 EOF
 chmod +x "$T/bin/curl" "$T/bin/post" "$T/bin/tty"
 STUBS='
-do_spl_local_hub_unlock() { echo "unlock called in-process" >>"$STUB_LOG"; return 1; }
-do_spl_local_hub_up() {
-  echo "up user=$LOCAL_HUB_USER project=$LOCAL_HUB_PROJECT ports=$LOCAL_HUB_PG_PORT,$LOCAL_HUB_GCS_PORT,$LOCAL_HUB_HUB_PORT,$LOCAL_HUB_WUI_PORT cnf=$(stat -c %a "$LOCAL_HUB_HOME/.config/csi-spl/local-hub.env") home=$(stat -c %a "$LOCAL_HUB_HOME") $(cat "$LOCAL_HUB_HOME/.config/csi-spl/local-hub.env" | tr "\n" " ")" >>"$STUB_LOG"
-  echo "$LOCAL_HUB_HOME" >"$T/home.seen"; return "${FAIL_UP:-0}"; }
+do_spl_local_hub_up() { echo "up called in-process" >>"$STUB_LOG"; return 1; }
 do_spl_local_hub_owner_add() { echo "owner_add called in-process" >>"$STUB_LOG"; return 1; }
 do_spl_local_hub_ports_gate() { echo "ports_gate"; echo "ports_gate" >>"$STUB_LOG"; [ -z "${FAIL_PORTS:-}" ] || { echo "FAIL 0.0.0.0:58282 public"; return 1; }; }
 do_spl_local_hub_backup() { echo "backup dry=$DRY_RUN" >>"$STUB_LOG"; return "${FAIL_BACKUP:-0}"; }
@@ -69,15 +67,15 @@ has() { grep -qF -- "$2" "$1"; }
 
 # 1. the whole flow, every lane green
 e2e DRY_RUN=0 LOCAL_HUB_E2E_TENANT=e2e-abc123xyz
-want="unlock up curl owner_add post ports_gate backup restore down "
+want="up up curl owner_add post ports_gate backup restore down "
 [[ $rc -eq 0 && "$(steps)" == "$want" ]] && pass "green flow runs every step in order" \
   || fail "green flow: rc=$rc steps='$(steps)' want '$want' :: $(cat "$T/out")"
 has "$T/out" "OK local-hub e2e green on e2e-abc123xyz" && pass "green flow says OK" || fail "no OK line: $(cat "$T/out")"
-for s in unlock up health owner post ports backup restore down; do
+for s in up health owner post ports backup restore down; do
   grep -q "^PASS $s " "$T/out" || fail "no PASS line for $s: $(cat "$T/out")"
 done
-has "$T/calls.log" "unlock len=32 mode=600 run=./run -a dry=0 stdin=closed" \
-  && pass "unlock runs as ./run -a under the pty seat with a 0600 throwaway passphrase, stdin closed" || fail "unlock seat: $(cat "$T/calls.log")"
+has "$T/calls.log" "up len=32 mode=600 run=./run -a dry=0 stdin=closed" \
+  && pass "up (it unlocks the vault) runs as ./run -a under the pty seat with a 0600 throwaway passphrase, stdin closed" || fail "up seat: $(cat "$T/calls.log")"
 has "$T/calls.log" "up user=$(id -un) project=spl-lhe2e-abc123xyz ports=58280,58281,58282,58283 cnf=600 home=700 LOCAL_HUB_TENANT=e2e-abc123xyz LOCAL_HUB_OWNER_EMAIL=owner-abc123xyz@example.com" \
   && pass "up sees its own project, off ports, a 0600 private config naming only the throwaway tenant" || fail "up env: $(cat "$T/calls.log")"
 has "$T/calls.log" "curl -fsS -o /dev/null --max-time 5 http://127.0.0.1:58282/healthz" && pass "health asks the hub on 127.0.0.1" || fail "health: $(cat "$T/calls.log")"
@@ -94,11 +92,11 @@ for f in "$T"/spl-lhe2e.*/.e2e/pw; do [[ -f "$f" ]] && grep -qF "$(cat "$f")" "$
 (( pw_leak == 0 )) && pass "no password in the output" || fail "a password reached the output"
 
 # 2. a failing step stops the run, down still runs
-for case in "FAIL_UNLOCK=1:unlock down " "FAIL_UP=1:unlock up down " "FAIL_HEALTH=1:unlock up curl down " \
-  "FAIL_OWNER=1:unlock up curl owner_add down " "FAIL_POST=2:unlock up curl owner_add post down " \
-  "FAIL_PORTS=1:unlock up curl owner_add post ports_gate down " \
-  "FAIL_BACKUP=1:unlock up curl owner_add post ports_gate backup down " \
-  "FAIL_RESTORE=1:unlock up curl owner_add post ports_gate backup restore down "; do
+for case in "FAIL_UP=1:up down " "FAIL_HEALTH=1:up curl down " \
+  "FAIL_OWNER=1:up curl owner_add down " "FAIL_POST=2:up curl owner_add post down " \
+  "FAIL_PORTS=1:up curl owner_add post ports_gate down " \
+  "FAIL_BACKUP=1:up curl owner_add post ports_gate backup down " \
+  "FAIL_RESTORE=1:up curl owner_add post ports_gate backup restore down "; do
   var="${case%%:*}" want="${case#*:}"
   e2e DRY_RUN=0 LOCAL_HUB_E2E_TENANT=e2e-abc123xyz LOCAL_HUB_E2E_WAIT=2 "$var"
   # curl is retried until the wait runs out: collapse repeats

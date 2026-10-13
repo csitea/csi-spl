@@ -1310,6 +1310,7 @@
     "shortcuts": "C nytt. J och K flyttar. Enter öppnar. S status. P prioritet. A tilldelad. L etikett. Esc stänger.",
     "add_label": "Lägg till etikett",
     "label_name": "Etikettnamn",
+    "remove_label": "Ta bort etiketten {name}",
     "status": {
       "backlog": "Kö",
       "todo": "Att göra",

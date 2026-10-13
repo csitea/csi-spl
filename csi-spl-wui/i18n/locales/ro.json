@@ -1310,6 +1310,7 @@
     "shortcuts": "C nou. J și K mută. Enter deschide. S stare. P prioritate. A responsabil. L etichetă. Esc închide.",
     "add_label": "Adaugă etichetă",
     "label_name": "Numele etichetei",
+    "remove_label": "Elimină eticheta {name}",
     "status": {
       "backlog": "În așteptare",
       "todo": "De făcut",

@@ -1310,6 +1310,7 @@
     "shortcuts": "C yeni. J ve K gezer. Enter açar. S durum. P öncelik. A atanan. L etiket. Esc kapatır.",
     "add_label": "Etiket ekle",
     "label_name": "Etiket adı",
+    "remove_label": "{name} etiketini kaldır",
     "status": {
       "backlog": "Beklemede",
       "todo": "Yapılacak",

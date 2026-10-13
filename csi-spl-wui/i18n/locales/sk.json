@@ -1310,6 +1310,7 @@
     "shortcuts": "C nová. J a K posúvajú. Enter otvorí. S stav. P priorita. A riešiteľ. L štítok. Esc zavrie.",
     "add_label": "Pridať štítok",
     "label_name": "Názov štítku",
+    "remove_label": "Odstrániť štítok {name}",
     "status": {
       "backlog": "V rade",
       "todo": "Na spracovanie",

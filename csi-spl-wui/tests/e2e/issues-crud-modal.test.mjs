@@ -53,6 +53,67 @@ async function launch() {
 const row = (key) => `[data-test=issues-row][data-key="${key}"]`
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/* SPL-1633: set two labels on the issue's modal, take one off by its chip's x
+   and one by picking it again in the picker, then Backspace; the modal is
+   closed and opened again to read what stayed. Leaves the modal closed. */
+async function labelRemoval(p, key, W) {
+  const chips = () => p.$$eval('[data-test=issues-detail] [data-test=issues-label-chip]', (els) => els.map((e) => e.getAttribute('data-value')))
+  const rowLabels = () => p.$$eval(`${row(key)} [data-test=issues-row-label]`, (els) => els.map((e) => e.textContent.trim().toLowerCase()))
+  const checked = () => p.$$eval('[data-test=issues-menu-option][data-checked="true"]', (els) => els.map((e) => e.getAttribute('data-value')))
+  const chipsAre = (want) => p.waitForFunction((w) => [...document.querySelectorAll('[data-test=issues-detail] [data-test=issues-label-chip]')].map((e) => e.getAttribute('data-value')).join() === w,
+    { timeout: 5000 }, want).catch(() => {})
+  const openPicker = async () => {
+    await p.click('[data-test=issues-detail] [data-test=issues-labels]').catch(() => {})
+    await p.waitForSelector('[data-test=issues-menu][data-kind="label"]', { visible: true, timeout: 5000 }).catch(() => {})
+  }
+  const closePicker = async () => {
+    await p.keyboard.press('Escape')
+    await p.waitForFunction(() => !document.querySelector('[data-test=issues-menu]'), { timeout: 5000 }).catch(() => {})
+  }
+  await p.click(`${row(key)} .issues-c-key`)
+  await p.waitForSelector('[data-test=issues-detail] [data-test=issues-labels]', { visible: true, timeout: 5000 })
+  await openPicker()
+  await p.click('[data-test=issues-menu-option][data-value="bug"]')
+  await chipsAre('bug')
+  await p.type('[data-test=issues-label-name]', 'docs')
+  await p.click('[data-test=issues-label-add]')
+  await chipsAre('bug,docs')
+  const out = { W, chips2: await chips(), checked2: await checked() }
+  await closePicker()
+  await p.click('[data-test=issues-detail] [data-test=issues-label-chip][data-value="bug"] [data-test=issues-label-chip-remove]').catch(() => {})
+  await chipsAre('docs')
+  await p.waitForFunction((sel) => [...document.querySelectorAll(sel)].map((e) => e.textContent.trim().toLowerCase()).join() === 'docs', { timeout: 5000 }, `${row(key)} [data-test=issues-row-label]`).catch(() => {})
+  out.chipsX = await chips()
+  out.rowX = await rowLabels()
+  await openPicker()
+  await p.click('[data-test=issues-menu-option][data-value="docs"]')
+  await chipsAre('')
+  out.chipsT = await chips()
+  out.checkedT = await checked()
+  await p.click('[data-test=issues-menu-option][data-value="bug"]')
+  await chipsAre('bug')
+  await p.type('[data-test=issues-label-name]', 'x')
+  await p.keyboard.press('Backspace') /* deletes the typed x only */
+  await sleep(300)
+  out.bsCtl = await chips()
+  await p.focus('[data-test=issues-label-name]')
+  await p.keyboard.press('Backspace')
+  await chipsAre('')
+  out.bs = await chips()
+  await p.click('[data-test=issues-menu-option][data-value="bug"]')
+  await chipsAre('bug')
+  await closePicker()
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 5000 }).catch(() => {})
+  await p.click(`${row(key)} .issues-c-key`)
+  await p.waitForSelector('[data-test=issues-detail] [data-test=issues-labels]', { visible: true, timeout: 5000 })
+  out.reopen = await chips()
+  out.rowReopen = await rowLabels()
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 5000 }).catch(() => {})
+  return out
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -305,6 +366,19 @@ try {
     await p.mouse.click(4, 450)
     const bdClosed = await waitModal(false)
     ok(`M6 ${W}: a click on the backdrop closes the modal`, bdClosed, { bdClosed })
+
+    /* ---- L: a label can be removed (SPL-1633, owner t1 4b3e268a) ---------------- */
+    const L = await labelRemoval(p, b, W)
+    ok(`L1 ${W}: two labels set in the modal show as chips, each picked option carries a check`,
+      L.chips2.join() === 'bug,docs' && L.checked2.join() === 'bug,docs', L)
+    ok(`L2 ${W}: the x on a chip removes that label; the row's Labels cell follows live`,
+      L.chipsX.join() === 'docs' && L.rowX.join() === 'docs', L)
+    ok(`L3 ${W}: picking a set (checked) label in the picker removes it; its check goes`,
+      L.chipsX.join() === 'docs' && L.chipsT.join() === '' && L.checkedT.join() === '', L)
+    ok(`L4 ${W}: Backspace in the empty Label name box removes the last label; with text typed it removes nothing (control)`,
+      L.bsCtl.join() === 'bug' && L.bs.join() === '', L)
+    ok(`L5 ${W}: closed and opened again, the issue still has the label state it was left with`,
+      L.reopen.join() === 'bug' && L.rowReopen.join() === 'bug', L)
 
     /* ---- D: delete ------------------------------------------------------------------ */
     await p.click(`${row(c)} [data-test=issues-row-delete]`)

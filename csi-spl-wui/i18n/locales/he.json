@@ -1310,6 +1310,7 @@
     "shortcuts": "C חדש. J ו-K מזיזים. Enter פותח. S מצב. P עדיפות. A אחראי. L תווית. Esc סוגר.",
     "add_label": "הוסף תווית",
     "label_name": "שם התווית",
+    "remove_label": "הסר את התווית {name}",
     "status": {
       "backlog": "ממתינות",
       "todo": "לביצוע",

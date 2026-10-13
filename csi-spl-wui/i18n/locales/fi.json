@@ -1310,6 +1310,7 @@
     "shortcuts": "C uusi. J ja K siirtävät. Enter avaa. S tila. P tärkeys. A vastuuhenkilö. L merkki. Esc sulkee.",
     "add_label": "Lisää merkki",
     "label_name": "Merkin nimi",
+    "remove_label": "Poista merkki {name}",
     "status": {
       "backlog": "Jonossa",
       "todo": "Tehtävä",

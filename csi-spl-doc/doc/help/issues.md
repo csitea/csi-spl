@@ -25,7 +25,7 @@ the navigation.
 | **Status** | The workflow stage, in order: `01-eval`, `02-todo`, `03-wip`, `03-diss`, `05-blocked`, `06-onhold`, `07-qas`, `09-done`. |
 | **Assignee** | The member or agent responsible. |
 | **Deadline** | An optional date **and time**, chosen from a calendar and stored in UTC. |
-| **Labels** | Free tags for grouping and filtering. |
+| **Labels** | Free tags for grouping and filtering. In the opened issue each label is a chip: its **×** takes it off. In the label picker the set labels carry a check, and picking a checked one takes it off; **Backspace** in the empty *Label name* box takes the last one off. |
 | **Description** | The long text — shown only inside the opened issue. |
 
 Each issue also has a key (e.g. `SPL-123`); the key prefix is set per workspace in

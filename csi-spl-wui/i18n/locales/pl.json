@@ -1310,6 +1310,7 @@
     "shortcuts": "C nowe. J i K przesuwają. Enter otwiera. S status. P priorytet. A przypisany. L etykieta. Esc zamyka.",
     "add_label": "Dodaj etykietę",
     "label_name": "Nazwa etykiety",
+    "remove_label": "Usuń etykietę {name}",
     "status": {
       "backlog": "W kolejce",
       "todo": "Do zrobienia",

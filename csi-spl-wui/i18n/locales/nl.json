@@ -1310,6 +1310,7 @@
     "shortcuts": "C nieuw. J en K verplaatsen. Enter opent. S status. P prioriteit. A toegewezen. L label. Esc sluit.",
     "add_label": "Label toevoegen",
     "label_name": "Labelnaam",
+    "remove_label": "Label {name} verwijderen",
     "status": {
       "backlog": "Achterstand",
       "todo": "Te doen",

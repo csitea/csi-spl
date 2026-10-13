@@ -342,6 +342,40 @@ try {
         }
       }
 
+      /* SPL-1633 (owner, t1 4b3e268a): a label can be removed on a phone - the
+         chip's x, and a tap on a checked label in the sheet */
+      const chipsNow = () => p.$$eval('[data-test=issues-detail] [data-test=issues-label-chip]', (els) => els.map((e) => e.getAttribute('data-value')))
+      const chipsAre = (want) => p.waitForFunction((v) => [...document.querySelectorAll('[data-test=issues-detail] [data-test=issues-label-chip]')].map((e) => e.getAttribute('data-value')).join() === v, { timeout: 5000 }, want).catch(() => {})
+      const labelSheet = async () => {
+        await p.click('[data-test=issues-detail] [data-test=issues-labels]').catch(() => {})
+        await p.waitForSelector('[data-test=issues-menu][data-kind="label"]', { visible: true, timeout: 5000 }).catch(() => {})
+      }
+      const sheetShut = async () => {
+        await p.click('[data-test=issues-sheet-scrim]').catch(() => {})
+        await p.waitForFunction(() => !document.querySelector('[data-test=issues-menu]'), { timeout: 5000 }).catch(() => {})
+      }
+      await labelSheet()
+      await p.click('[data-test=issues-menu-option][data-value="bug"]').catch(() => {})
+      await chipsAre('bug')
+      await p.type('[data-test=issues-label-name]', 'docs').catch(() => {})
+      await p.click('[data-test=issues-label-add]').catch(() => {})
+      await chipsAre('bug,docs')
+      const lab = { two: await chipsNow() }
+      await sheetShut()
+      lab.small = await smallTargets(p, '[data-test=issues-detail] [data-test=issues-props]')
+      await p.screenshot({ path: join(SHOTS, `issues-${w}-labels.png`) })
+      await p.click('[data-test=issues-detail] [data-test=issues-label-chip][data-value="bug"] [data-test=issues-label-chip-remove]').catch(() => {})
+      await chipsAre('docs')
+      lab.byX = await chipsNow()
+      await labelSheet()
+      lab.checked = await p.$$eval('[data-test=issues-menu-option][data-checked="true"]', (els) => els.map((e) => e.getAttribute('data-value')))
+      await p.click('[data-test=issues-menu-option][data-value="docs"]').catch(() => {})
+      await chipsAre('')
+      lab.byTap = await chipsNow()
+      await sheetShut()
+      ok(`16a ${w}: two labels show as chips (>= 44 px targets); the x takes one off, a tap on the checked one in the sheet the other`,
+        lab.two.join() === 'bug,docs' && lab.small.length === 0 && lab.byX.join() === 'docs' && lab.checked.join() === 'docs' && lab.byTap.join() === '', lab)
+
       /* back: the Back button and the browser back both go 3 -> 2 */
       await p.click('[data-test=issues-detail-back]')
       await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 5000 }).catch(() => {})

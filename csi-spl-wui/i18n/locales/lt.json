@@ -1310,6 +1310,7 @@
     "shortcuts": "C nauja. J ir K juda. Enter atidaro. S būsena. P prioritetas. A atsakingas. L žyma. Esc uždaro.",
     "add_label": "Pridėti žymą",
     "label_name": "Žymos pavadinimas",
+    "remove_label": "Pašalinti žymą {name}",
     "status": {
       "backlog": "Atsargoje",
       "todo": "Atlikti",

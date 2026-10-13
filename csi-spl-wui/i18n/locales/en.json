@@ -1310,6 +1310,7 @@
     "shortcuts": "C new issue. J and K move. Enter opens. S status. P priority. A assignee. L label. Esc closes.",
     "add_label": "Add label",
     "label_name": "Label name",
+    "remove_label": "Remove label {name}",
     "status": {
       "backlog": "Backlog",
       "todo": "Todo",

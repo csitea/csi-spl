@@ -844,9 +844,35 @@
             <!-- Labels -->
             <div class="issues-prow">
               <span class="issues-prow__k">{{ t('issues.field_labels') }}</span>
-              <button type="button" class="issues-pctl" data-test="issues-labels" @click="openMenu('label', detailOrDraft(), $event)">
-                <span class="issues-pctl__v">{{ activeLabels.length ? activeLabels.map(labelText).join(', ') : t('issues.add_label') }}</span>
-              </button>
+              <!-- SPL-1633 (owner, t1 4b3e268a): a set label is a chip with an x;
+                   Backspace on the field takes the last one off -->
+              <div class="issues-pctl issues-labels-field" data-test="issues-labels-field">
+                <span v-for="id in activeLabels" :key="id" class="issues-pill issues-label-chip" data-test="issues-label-chip" :data-value="id">
+                  <i class="issues-dot" :style="dotStyle(id)" /><span class="issues-label-chip__t">{{ labelText(id) }}</span>
+                  <button
+                    type="button"
+                    class="issues-label-chip__x"
+                    data-test="issues-label-chip-remove"
+                    :aria-label="t('issues.remove_label', { name: labelText(id) })"
+                    :title="t('issues.remove_label', { name: labelText(id) })"
+                    @click.stop="removeLabel(id)"
+                  >
+                    <UiIcon name="x" :size="12" />
+                  </button>
+                </span>
+                <button
+                  type="button"
+                  class="issues-labels-add"
+                  data-test="issues-labels"
+                  :aria-label="t('issues.add_label')"
+                  :title="t('issues.add_label')"
+                  @click="openMenu('label', detailOrDraft(), $event)"
+                  @keydown.backspace.prevent="removeLastLabel"
+                >
+                  <span v-if="!activeLabels.length" class="issues-pctl__v">{{ t('issues.add_label') }}</span>
+                  <UiIcon v-else name="plus" :size="14" />
+                </button>
+              </div>
             </div>
           </div>
           <div v-if="!creating && (form.created_by || form.updated_by)" class="issues-detail-meta">
@@ -1060,7 +1086,7 @@
     <div
       v-if="menu"
       class="issues-menu"
-      :class="{ 'issues-menu--status': menu.kind === 'status', 'issues-sheet': phone, 'issues-menu--modal': menuOverModal }"
+      :class="{ 'issues-menu--status': menu.kind === 'status', 'issues-menu--label': menu.kind === 'label', 'issues-sheet': phone, 'issues-menu--modal': menuOverModal }"
       role="listbox"
       data-test="issues-menu"
       :data-kind="menu.kind"
@@ -1076,14 +1102,16 @@
         data-test="issues-menu-option"
         :data-value="opt.value"
         :aria-selected="i === menuIndex ? 'true' : 'false'"
+        :data-checked="menu.kind === 'label' ? String(labelSet(opt.value)) : undefined"
         :title="opt.hint || undefined"
         @click="applyMenu(opt.value)"
       >
         <span class="issues-status-code">{{ opt.label }}</span>
+        <UiIcon v-if="menu.kind === 'label' && labelSet(opt.value)" class="issues-menu__check" name="check" :size="14" />
         <span v-if="opt.hint" class="issues-status-tip" role="tooltip">{{ opt.hint }}</span>
       </button>
       <form v-if="menu.kind === 'label'" class="issues-menu__add" @submit.prevent="addLabel">
-        <input v-model="labelName" data-test="issues-label-name" :placeholder="t('issues.label_name')" :aria-label="t('issues.label_name')">
+        <input v-model="labelName" data-test="issues-label-name" :placeholder="t('issues.label_name')" :aria-label="t('issues.label_name')" @keydown.backspace="onLabelNameBackspace">
         <button type="submit" class="btn" data-test="issues-label-add">{{ t('issues.add_label') }}</button>
       </form>
     </div>
@@ -1954,6 +1982,36 @@ async function applyMenu(value: string) {
   }
   await save(issue.key, body)
   if (kind !== 'label') menu.value = null
+}
+/* SPL-1633: the labels the open picker's issue holds - the picker marks them,
+   and a pick on a marked one takes it off (applyMenu toggles) */
+function menuLabels(): string[] {
+  if (creating.value) return draft.labels
+  const key = menu.value?.key
+  const issue = (key && issues.value.find((i) => i.key === key)) || detail.value
+  return issue?.labels || []
+}
+function labelSet(id: string) {
+  return menuLabels().includes(id)
+}
+/* SPL-1633: the x on a chip of the issue modal's Labels field */
+async function removeLabel(id: string) {
+  if (creating.value) { draft.labels = draft.labels.filter((x) => x !== id); return }
+  const issue = detail.value
+  if (!issue?.key || !issue.labels.includes(id)) return
+  await save(issue.key, { labels: issue.labels.filter((x) => x !== id) })
+}
+function removeLastLabel() {
+  const last = activeLabels.value[activeLabels.value.length - 1]
+  if (last) void removeLabel(last)
+}
+/* Backspace in the empty Label name box takes the last label off the issue */
+function onLabelNameBackspace(ev: KeyboardEvent) {
+  if (labelName.value) return
+  ev.preventDefault()
+  const set = menuLabels()
+  const last = set[set.length - 1]
+  if (last) void applyMenu(last)
 }
 async function addLabel() {
   const name = labelName.value.trim()
@@ -3678,6 +3736,23 @@ select.issues-pctl { appearance: auto; }
 }
 .issues-menu__opt[aria-selected="true"] { background: var(--color-selected); }
 .issues-menu__add { display: flex; gap: 4px; padding: 4px; min-width: 0; }
+/* SPL-1633: a set label carries a check; the label row is a flex line */
+.issues-menu--label .issues-menu__opt { display: flex; align-items: center; gap: 8px; }
+.issues-menu__check { margin-inline-start: auto; flex: 0 0 auto; color: var(--color-accent); }
+.issues-labels-field { flex-wrap: wrap; gap: 4px; padding-block: 3px; }
+.issues-label-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding-inline-end: 2px; }
+.issues-label-chip__t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.issues-label-chip__x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0; border: 0; border-radius: var(--radius-pill);
+  background: transparent; color: var(--color-muted); cursor: pointer; flex: 0 0 auto;
+}
+.issues-label-chip__x:hover { color: var(--color-fg); background: var(--color-selected); }
+.issues-labels-add {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 24px; min-width: 24px;
+  padding: 0 4px; border: 0; border-radius: var(--radius-sm); background: transparent;
+  color: inherit; font: inherit; cursor: pointer; flex: 1 1 auto; justify-content: flex-start;
+}
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
@@ -3867,6 +3942,7 @@ select.issues-pctl { appearance: auto; }
   .issues-detail__title { min-height: var(--tap, 44px); }
   .issues-prop, .issues-pctl, .issues-pval, .issues-sub, .issues-sub-add { min-height: var(--tap, 44px); }
   .issues-sub-add { min-width: var(--tap, 44px); }
+  .issues-label-chip__x, .issues-labels-add { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
   /* the sheets: filters, sort and every picker */
   .issues-scrim { position: fixed; inset: 0; z-index: 38; background: rgb(0 0 0 / .4); }
   .issues-sheet,

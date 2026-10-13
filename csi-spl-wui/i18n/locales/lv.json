@@ -1310,6 +1310,7 @@
     "shortcuts": "C jauna. J un K pārvieto. Enter atver. S statuss. P prioritāte. A atbildīgais. L etiķete. Esc aizver.",
     "add_label": "Pievienot etiķeti",
     "label_name": "Etiķetes nosaukums",
+    "remove_label": "Noņemt etiķeti {name}",
     "status": {
       "backlog": "Gaida",
       "todo": "Darāms",

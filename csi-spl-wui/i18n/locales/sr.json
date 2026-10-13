@@ -1310,6 +1310,7 @@
     "shortcuts": "C нови. J и K померају. Enter отвара. S статус. P приоритет. A задужен. L ознака. Esc затвара.",
     "add_label": "Додај ознаку",
     "label_name": "Име ознаке",
+    "remove_label": "Уклони ознаку {name}",
     "status": {
       "backlog": "У реду",
       "todo": "За рад",

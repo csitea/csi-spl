@@ -1310,6 +1310,7 @@
     "shortcuts": "C uus. J ja K liigutavad. Enter avab. S olek. P tähtsus. A vastutaja. L silt. Esc sulgeb.",
     "add_label": "Lisa silt",
     "label_name": "Sildi nimi",
+    "remove_label": "Eemalda silt {name}",
     "status": {
       "backlog": "Ootel",
       "todo": "Teha",

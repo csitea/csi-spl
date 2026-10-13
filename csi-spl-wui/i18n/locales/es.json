@@ -1310,6 +1310,7 @@
     "shortcuts": "C nueva. J y K mueven. Enter abre. S estado. P prioridad. A responsable. L etiqueta. Esc cierra.",
     "add_label": "Añadir etiqueta",
     "label_name": "Nombre de la etiqueta",
+    "remove_label": "Quitar la etiqueta {name}",
     "status": {
       "backlog": "Reservadas",
       "todo": "Por hacer",

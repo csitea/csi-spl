@@ -61,6 +61,7 @@ resource "google_storage_bucket" "public" {
   }
 }
 
+# trivy:ignore:GCP-0001 the one public grant, by design: anonymous read of the published dataset (spec 091 section 6)
 resource "google_storage_bucket_iam_member" "public_all_users_object_viewer" {
   # checkov:skip=CKV_GCP_28: the one public grant: anonymous read of the published dataset (spec 091 section 6)
   bucket = google_storage_bucket.public.name

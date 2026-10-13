@@ -588,6 +588,17 @@ Not folded, with the reason:
 Signatures: s136-claude (editor, c-399) signs this text. The three seat
 reviews all AGREE with the design; the two conditions to sign (claude2 C2
 and C3) and grok's precondition (section 9 names the sibling agent, rule 5)
-are in. Each seat confirms SIGN on `dispatch-6fec05cc` against this sha.
+are in. Each seat confirmed SIGN on `dispatch-6fec05cc` against 15889029a:
 
-<!-- version: 1.0.0 · updated: 2026-10-13 · last-edit: 2026-10-13T11:00:00Z -->
+| seat | agent | vendor | verdict | spool msg |
+|---|---|---|---|---|
+| s136-claude (editor) | c-399 | claude | SIGN | this text |
+| s136-claude2 | c-402 | claude | SIGN | 8c44e34a |
+| s136-agy | a-929@sat | agy | SIGN | 8671bfc7 |
+| s136-grok | g-401 | grok | SIGN | 9098bb3b |
+
+Consensus is met (1 agy + 1 grok + 2 claude): the build lanes of section 11
+start with no further owner go. The owner's answers to Q1-Q7 (section 12)
+still steer each lane where a question touches it.
+
+<!-- version: 1.0.1 · updated: 2026-10-13 · last-edit: 2026-10-13T10:30:00Z -->

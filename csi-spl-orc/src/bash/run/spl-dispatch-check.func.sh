@@ -3,9 +3,11 @@
 # @description Verify the master/failover dispatchers (the counterpart of
 # @description do_spl_dispatch_setup). Prints one markdown table, a row per
 # @description fact, then exits 1 when any row is a GAP:
-# @description   per dispatcher: its claude process (found by SPOOL_AGENT_ID),
-# @description   model, permission mode (must be --dangerously-skip-permissions,
-# @description   owner 2026-10-06: bypass is the only mode), desk settings loaded
+# @description   per dispatcher: its agent process (found by SPOOL_AGENT_ID),
+# @description   model, permission mode (claude: --dangerously-skip-permissions,
+# @description   owner 2026-10-06: bypass is the only mode; another vendor: its
+# @description   own launch flags, spool_claude_perm_flags, SPL-1714), and for a
+# @description   claude seat only: desk settings loaded
 # @description   (the session started after its settings.local.json's desk
 # @description   rules were written - the file's birth time; a rewrite for
 # @description   another rule does not unload them) and their
@@ -44,7 +46,7 @@
 do_spl_dispatch_check() {
   spl_dispatch_cnf || return 1
   rm -rf "$SPL_DISPATCH_TMP"
-  local id pid gaps=0 v t seats miss n wt mode model
+  local id pid gaps=0 v t seats miss n model vendor
   local max="${DISPATCH_UNREAD_MAX:-20}"
   echo "| what | value | verdict |"
   echo "|---|---|---|"
@@ -55,29 +57,15 @@ do_spl_dispatch_check() {
       row "$id process" "none with SPOOL_AGENT_ID=$id" "GAP not running"
     else
       row "$id process" "pid $pid, SPOOL_AGENT_ID=$id" ok
-      mode="$(spl_dispatch_cmd_flag "$pid" --permission-mode)"
-      if [[ -z "$mode" ]] && spl_dispatch_cmd_has "$pid" --dangerously-skip-permissions; then
-        row "$id permission mode" skip-permissions ok
-      else
-        row "$id permission mode" "${mode:-default}" "GAP not skip-permissions"
-      fi
-      model="$(spl_dispatch_model "$pid")"
+      vendor="$(spl_dispatch_vendor "$pid")"
+      spl_dispatch_perm_row "$id" "$pid" "$vendor"
+      model="$(spl_dispatch_model "$pid" "$vendor")"
       if [[ -n "${DISPATCH_MODEL:-}" && -n "$model" && "$model" != "$DISPATCH_MODEL"* ]]; then
         row "$id model" "$model" "GAP not $DISPATCH_MODEL"
       else
         row "$id model" "${model:-unknown}" ok
       fi
-      wt="$(spl_dispatch_worktree "$id")"
-      if [[ ! -f "$wt/.claude/settings.local.json" ]]; then
-        row "$id desk-reply permission" "no $wt/.claude/settings.local.json" "GAP run do_spl_dispatch_setup"
-      elif ! spl_dispatch_reply_allowed "$id" "$wt/.claude/settings.local.json"; then
-        row "$id desk-reply permission" "no allow rule matches the brief's desk-reply command" \
-          "GAP the taught command is not one command the rule allows: DRY_RUN=0 do_spl_dispatch_setup, relaunch $id"
-      elif spl_dispatch_stale_desk_rules "$pid" "$wt/.claude/settings.local.json"; then
-        row "$id desk-reply permission" "desk rules written after the session started" "GAP relaunch $id"
-      else
-        row "$id desk-reply permission" loaded ok
-      fi
+      spl_dispatch_reply_row "$id" "$pid" "$vendor"
     fi
     seats=0 miss=""
     for t in $DISPATCH_TENANTS; do
@@ -122,6 +110,80 @@ do_spl_dispatch_check() {
   echo "dispatch check: no gap"
 }
 
+# The permission mode row of seat <id> (process <pid>, <vendor>): a claude
+# seat runs --dangerously-skip-permissions and no --permission-mode (owner
+# 2026-10-06), another vendor the launch flags its spawn gives it (SPL-1714).
+# Needs row().
+spl_dispatch_perm_row() {
+  local id="$1" pid="$2" vendor="$3" mode flags=""
+  mode="$(spl_dispatch_cmd_flag "$pid" --permission-mode)"
+  if [[ "$vendor" == claude ]]; then
+    if [[ -z "$mode" ]] && spl_dispatch_cmd_has "$pid" --dangerously-skip-permissions; then
+      row "$id permission mode" skip-permissions ok
+    else
+      row "$id permission mode" "${mode:-default}" "GAP not skip-permissions"
+    fi
+  elif flags="$(spl_dispatch_perm_flags "$vendor")" && spl_dispatch_perm_ok "$pid" "$flags"; then
+    row "$id permission mode" "$vendor: $flags" ok
+  else
+    row "$id permission mode" "$vendor: ${mode:-default}" "GAP not ${flags:-the launch flags of a known vendor}"
+  fi
+}
+
+# The desk-reply permission row of seat <id> (process <pid>, <vendor>). The
+# settings file and its allow rules are Claude's; another vendor's seat runs
+# on its own launch flags, judged in the permission mode row (SPL-1714).
+# Needs row().
+spl_dispatch_reply_row() {
+  local id="$1" pid="$2" vendor="$3" wt
+  wt="$(spl_dispatch_worktree "$id")"
+  if [[ "$vendor" != claude ]]; then
+    row "$id desk-reply permission" "$vendor seat, no Claude settings file" "ok (its launch flags allow it)"
+  elif [[ ! -f "$wt/.claude/settings.local.json" ]]; then
+    row "$id desk-reply permission" "no $wt/.claude/settings.local.json" "GAP run do_spl_dispatch_setup"
+  elif ! spl_dispatch_reply_allowed "$id" "$wt/.claude/settings.local.json"; then
+    row "$id desk-reply permission" "no allow rule matches the brief's desk-reply command" \
+      "GAP the taught command is not one command the rule allows: DRY_RUN=0 do_spl_dispatch_setup, relaunch $id"
+  elif spl_dispatch_stale_desk_rules "$pid" "$wt/.claude/settings.local.json"; then
+    row "$id desk-reply permission" "desk rules written after the session started" "GAP relaunch $id"
+  else
+    row "$id desk-reply permission" loaded ok
+  fi
+}
+
+# The vendor of the agent process <pid>: its comm, else its argv[0] name
+# (vibe renames itself "Vibe CLI"). claude, grok, mistral, agy or qwen;
+# anything else is printed as it is and has no launch flags.
+spl_dispatch_vendor() {
+  local root="${LEASE_PROC_ROOT:-/proc}" c="" a=""
+  { read -r c < "$root/$1/comm"; } 2>/dev/null
+  case "$c" in claude|grok|agy|qwen) echo "$c"; return 0 ;; vibe|"Vibe CLI") echo mistral; return 0 ;; esac
+  { IFS= read -r -d '' a < "$root/$1/cmdline"; } 2>/dev/null
+  case "${a##*/}" in claude|grok|agy|qwen) echo "${a##*/}" ;; vibe) echo mistral ;; *) echo "${c:-unknown}" ;; esac
+}
+
+# The launch flags every <vendor> seat carries: the one helper the spawn
+# uses (spool_claude_perm_flags, 060 FR-061), never a copy of its table.
+spl_dispatch_perm_flags() {
+  # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
+  ( source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh" >/dev/null 2>&1 &&
+      spool_claude_perm_flags "$1" 2>/dev/null )
+}
+
+# 0 when the command line of <pid> carries every flag of <flags> and its
+# --permission-mode is the one <flags> names (none named: no mode at all).
+spl_dispatch_perm_ok() {
+  local pid="$1" want="" f prev=""
+  # shellcheck disable=SC2086  # the flags are words
+  set -- $2
+  for f in "$@"; do
+    [[ "$prev" == --permission-mode ]] && want="$f"
+    [[ "$f" == --* ]] && ! spl_dispatch_cmd_has "$pid" "$f" && return 1
+    prev="$f"
+  done
+  [[ "$(spl_dispatch_cmd_flag "$pid" --permission-mode)" == "$want" ]]
+}
+
 # The value after <flag> on the process's command line (or "<flag>=v").
 spl_dispatch_cmd_flag() {
   local a prev="" root="${LEASE_PROC_ROOT:-/proc}"
@@ -142,12 +204,14 @@ spl_dispatch_cmd_has() {
   return 1
 }
 
-# --model from the command line, else the last model the session's transcript
-# recorded (<HOME>/.claude/projects/<cwd with / and . as ->/<session>.jsonl).
+# --model from the command line, else, for a claude <vendor> (the default),
+# the last model the session's transcript recorded
+# (<HOME>/.claude/projects/<cwd with / and . as ->/<session>.jsonl).
 spl_dispatch_model() {
   local pid="$1" root="${LEASE_PROC_ROOT:-/proc}" m home cwd sid
   m="$(spl_dispatch_cmd_flag "$pid" --model)"
   [[ -n "$m" ]] && { echo "$m"; return 0; }
+  [[ "${2:-claude}" == claude ]] || return 0
   if declare -F spool_proc_environ >/dev/null; then
     home="$(spool_proc_environ "$root" "$pid" | tr '\0' '\n' | sed -n 's/^HOME=//p' | sed -n 1p)"
   else

@@ -27,6 +27,10 @@
 #      makes a new one (relaunch GAP)
 #  11. DISPATCH_STEPS="3 5" re-renders only the briefs and settings: no
 #      posts dir, lease.conf, worktree, spawn, desk, lease loops or sweep
+#  12. another vendor's seat (SPL-1714): a grok or mistral seat is judged by
+#      its own launch flags and reads no Claude settings file; a grok seat in
+#      auto mode or without its bypass mode, and a claude process with no
+#      settings file, are still GAPs
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -443,6 +447,47 @@ touch -d "@$(( $(stat -c %W "$SF") - 60 ))" "$P/100"
 nine | grep -E '\| c-002 desk-reply permission \| desk rules written after the session started \| GAP relaunch' >/dev/null &&
   pass "10. ... and a session older than that new file is a relaunch GAP" || fail "10. new file: $(grep desk-reply "$T/o")"
 touch -d '+1 hour' "$P/100"
+
+# --- 12. another vendor's role seat (SPL-1714) -------------------------------------------------
+# 2026-10-13: the role seats switch to Grok (g-001..003). The check judged every
+# seat by Claude's flags and Claude's settings file: a healthy g-002 read
+# "GAP not skip-permissions" and "GAP run do_spl_dispatch_setup". Each vendor
+# is judged by its own launch flags (spool_claude_perm_flags); only a claude
+# seat needs the settings file. The vendor is the process's, not the id's.
+vseat() { # <pid> <id> <comm> <argv...>
+  local pid="$1" id="$2" comm="$3"; shift 3
+  rm -rf "${P:?}/$pid"; mkdir -p "$P/$pid" "$R-wt/$id"
+  echo "$comm" >"$P/$pid/comm"
+  printf 'HOME=%s\0SPOOL_AGENT_ID=%s\0' "$T/home" "$id" >"$P/$pid/environ"
+  printf '%s\0' "$@" >"$P/$pid/cmdline"
+  ln -sfn "$R-wt/$id" "$P/$pid/cwd"; touch -d '+1 hour' "$P/$pid"
+}
+twelve() { check DISPATCH_MASTER=g-002 DISPATCH_CHECK_SUBS=0 DISPATCH_SWEEP=0 DISPATCH_DEPLOY_LAG=0 >"$T/o" 2>&1; grep -E '\| g-002 (permission mode|desk-reply permission|model) ' "$T/o"; }
+rm -rf "$R-wt/g-002/.claude"
+vseat 300 g-002 grok grok --dangerously-skip-permissions --permission-mode bypassPermissions "Read and follow your seed"
+twelve >"$T/rows"
+grep -qF '| g-002 permission mode | grok: --dangerously-skip-permissions --permission-mode bypassPermissions | ok |' "$T/rows" &&
+  grep -qF '| g-002 desk-reply permission | grok seat, no Claude settings file | ok (its launch flags allow it) |' "$T/rows" &&
+  ! grep -q GAP "$T/rows" &&
+  pass "12. a healthy grok seat: its own flags ok, no Claude settings file read" || fail "12. grok seat: $(cat "$T/rows")"
+vseat 300 g-002 "Vibe CLI" vibe --auto-approve
+twelve >"$T/rows"
+grep -qF '| g-002 permission mode | mistral: --auto-approve | ok |' "$T/rows" && ! grep -q GAP "$T/rows" &&
+  pass "12. a mistral seat (comm 'Vibe CLI'): --auto-approve ok" || fail "12. mistral seat: $(cat "$T/rows")"
+vseat 300 g-002 grok grok --permission-mode auto
+twelve >"$T/rows"
+grep -qF '| g-002 permission mode | grok: auto | GAP not --dangerously-skip-permissions --permission-mode bypassPermissions |' "$T/rows" &&
+  pass "12. CONTROL: a grok seat in auto mode is a GAP" || fail "12. grok auto: $(cat "$T/rows")"
+vseat 300 g-002 grok grok --dangerously-skip-permissions
+twelve >"$T/rows"
+grep -qF '| g-002 permission mode | grok: default | GAP not --dangerously-skip-permissions --permission-mode bypassPermissions |' "$T/rows" &&
+  pass "12. CONTROL: a grok seat without its bypass mode is a GAP" || fail "12. grok half flags: $(cat "$T/rows")"
+vseat 300 g-002 claude claude --dangerously-skip-permissions
+twelve >"$T/rows"
+grep -qF '| g-002 permission mode | skip-permissions | ok |' "$T/rows" &&
+  grep -qF "| g-002 desk-reply permission | no $R-wt/g-002/.claude/settings.local.json | GAP run do_spl_dispatch_setup |" "$T/rows" &&
+  pass "12. CONTROL: a claude process under a g- id still needs its settings file" || fail "12. claude under g-002: $(cat "$T/rows")"
+rm -rf "${P:?}/300" "$R-wt/g-002"
 
 # --- 8. setup step 11: the sweep cron ----------------------------------------------------------
 rm -f "$T/crontab"

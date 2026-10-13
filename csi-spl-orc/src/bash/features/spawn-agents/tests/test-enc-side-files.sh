@@ -142,12 +142,13 @@ else
   done
 fi
 if [[ -z "$GO" ]]; then
-  echo "no go >= ${NEED:-unknown} on PATH or under /usr/local" >&2
-fi
-if [[ -n "$GO" ]] && ( cd "$API" && GOTOOLCHAIN=local "$GO" test -count=1 -timeout 120s ./internal/notify/ -run 'TestRunSealedOmitsBody|TestRunPassesTheMessage' ); then
-  ok "enc notify stdin carries no marker body"
+  echo "SKIP: no go >= ${NEED:-unknown} on PATH or under /usr/local (enc notify stdin)"
 else
-  nok "enc notify stdin carries no marker body"
+  if ( cd "$API" && GOTOOLCHAIN=local "$GO" test -count=1 -timeout 120s ./internal/notify/ -run 'TestRunSealedOmitsBody|TestRunPassesTheMessage' ); then
+    ok "enc notify stdin carries no marker body"
+  else
+    nok "enc notify stdin carries no marker body"
+  fi
 fi
 
 t_done

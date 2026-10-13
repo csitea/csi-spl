@@ -14,6 +14,7 @@ do_spl_local_hub_status() {
   spl_local_hub_env && do_gen_docker_env || return 1
   local fails=0 p code
   lde_compose ps --format 'table {{.Service}}\t{{.State}}\t{{.Status}}'
+  spl_local_hub_services_running || fails=$((fails + 1))
   code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' --resolve "$LDE_SMOKE_TENANT.localhost:$LDE_HUB_PORT:127.0.0.1" \
     "http://$LDE_SMOKE_TENANT.localhost:$LDE_HUB_PORT/healthz")
   _slh_status_line hub "$code" || fails=$((fails + 1))
@@ -47,4 +48,18 @@ spl_local_hub_loopback_only() {
   done <<<"$addrs"
   (( ${#bad[@]} == 0 )) || { do_log "ERROR port $p listens beyond loopback: ${bad[*]}"; return 1; }
   do_log "OK port $p: loopback only ($(tr '\n' ' ' <<<"$addrs"))"
+}
+
+# spl_local_hub_services_running -- every service of the project is running;
+# a restarting or exited one (a job looping on its own error) is a FAIL.
+spl_local_hub_services_running() {
+  local svc state bad=() n=0
+  while read -r svc state; do
+    [[ -n "$svc" ]] || continue
+    n=$((n + 1))
+    [[ "$state" == running ]] || bad+=("$svc is $state")
+  done < <(lde_compose ps -a --format '{{.Service}} {{.State}}' 2>/dev/null)
+  ((n > 0)) || { do_log "ERROR no service of ${LDE_COMPOSE_PROJECT:-the project} runs"; return 1; }
+  ((${#bad[@]} == 0)) || { do_log "ERROR not running: ${bad[*]}"; return 1; }
+  do_log "OK all $n services running"
 }

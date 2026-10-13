@@ -16,7 +16,7 @@
 #   6. the workspace is created once (stamp); another name on the same state
 #      dir is refused
 #   7. the loopback gate: 0.0.0.0, a public address or no listener FAIL;
-#      127.0.0.1 / [::1] PASS
+#      127.0.0.1 / [::1] PASS; _status fails on a service that is not running
 #   8. _down keeps the volumes; LOCAL_HUB_PURGE=1 removes them only with DRY_RUN=0
 #   9. hub.env with the local hub overlay: view door session, no debug
 #      tokens, no redirect URIs, APP_URL on the local WUI port; control: the
@@ -149,6 +149,15 @@ ssout "'LISTEN 0 4096 192.0.2.7:58180 0.0.0.0:*' 'LISTEN 0 4096 127.0.0.1:58180 
 [[ "$(lb)" == *rc=1* ]] && pass "loopback: a public address beside loopback fails" || fail "public: $(lb)"
 printf '#!/bin/sh\nexit 0\n' >"$T/ss"
 [[ "$(lb)" == *rc=1* && "$(lb)" == *"nothing listens"* ]] && pass "loopback: no listener fails" || fail "none: $(lb)"
+
+# every service running: a restarting or exited one (the backup job looping
+# on a missing key, live proof 2026-10-13) is a FAIL, not "all PASS"
+svc() { SNIPPET='lde_compose() { printf "%s\n" '"$1"'; }; spl_local_hub_services_running; echo "rc=$?"' in_orc; }
+[[ "$(svc "'hub running' 'pg running'")" == *$'\n'rc=0 ]] && pass "services: all running pass" || fail "services ok: $(svc "'hub running'")"
+out=$(svc "'hub running' 'backup restarting'")
+[[ "$out" == *$'\n'rc=1 && "$out" == *"backup is restarting"* ]] && pass "services: a restarting one fails, by name" || fail "services restarting: $out"
+out=$(svc "")
+[[ "$out" == *"no service"*$'\n'rc=1 ]] && pass "services: none listed fails" || fail "services none: $out"
 
 # --- 8. _down ---------------------------------------------------------------------------------------------
 DN='spl_local_hub_env() { :; }; do_gen_docker_env() { :; }; LDE_COMPOSE_PROJECT=p; lde_compose() { echo "COMPOSE $*"; }; do_spl_local_hub_down'

@@ -24,6 +24,8 @@ describe('the topic page is the thread alone', () => {
     assert.doesNotMatch(page, /viewer\.topics|loadTopics/)
     /* the shared row title helper still strips markdown for every other list */
     assert.equal(rowTitle('Welcome to **#lobby**.'), 'Welcome to #lobby.')
+    assert.equal(rowTitle('**ROTATION FAILED**'), 'ROTATION FAILED')
+    assert.equal(rowTitle('**bold**'), 'bold')
   })
 
   it('the thread is TopicPane, never the raw id', () => {
@@ -67,5 +69,12 @@ describe('the topic page is the thread alone', () => {
     assert.doesNotMatch(css, /@media \(max-width: 820px\) \{\n  \.topic-heading__label/)
     assert.doesNotMatch(css, /\.topic-heading__title,\n\.search-row\.active/)
     assert.match(css, /\.topic\.selected,\n\.search-row\.active \{\n  background: var\(--color-selected\);\n  box-shadow: inset var\(--select-bar-w\) 0 0 var\(--focus-ring\);\n\}/)
+  })
+
+  it('the thread-pane header uses rowTitle to strip markdown from the topic title', () => {
+    const topicPane = read('src/components/TopicPane.vue')
+    assert.match(topicPane, /rowTitle\(subject, ''\)/)  
+    const dmPage = read('src/pages/dm/[peer].vue')
+    assert.match(dmPage, /rowTitle\(topicTitleFromRows\(data\.messages \|\| \[\], topic\.rootMsg\), ''\)/)  
   })
 })

@@ -181,6 +181,13 @@ LHE2E_TTY_TIMEOUT=1 python3 "$TTY_PY" "$T/sec" "$T/hang.sh" </dev/null >/dev/nul
 # 8. the post driver compiles and sends no password on argv or stdout
 python3 -m py_compile "$POST_PY" "$TTY_PY" 2>"$T/pyc.err" && pass "local-hub-e2e-post.py and -tty.py compile" || fail "py_compile: $(cat "$T/pyc.err")"
 grep -q 'print(.*pw' "$POST_PY" && fail "post driver prints the password" || pass "post driver never prints the password"
+# the read-back finds the body where the hub's topic view puts it (live proof
+# 2026-10-13: messages[].env.msg.body; a flat .body read nothing)
+got=$(cd "$(dirname "$POST_PY")" && python3 -c '
+import importlib.util, sys
+s = importlib.util.spec_from_file_location("p", sys.argv[1]); p = importlib.util.module_from_spec(s); s.loader.exec_module(p)
+print(p.body_of({"env": {"msg": {"body": "b1"}}}), p.body_of({"body": "b2"}), p.body_of({"env": {}}))' "$POST_PY" 2>&1)
+[[ "$got" == "b1 b2 None" ]] && pass "post driver reads the body from the topic view's envelope" || fail "post driver body_of: $got"
 
 echo "local-hub-e2e: $fails failure(s)"
 (( fails == 0 ))

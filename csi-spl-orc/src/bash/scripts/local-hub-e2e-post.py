@@ -72,6 +72,12 @@ def send(cookie, body):
         ws.close()
 
 
+def body_of(m):
+    """A topic view row's body: the hub nests it in the envelope
+    (messages[].env.msg.body); a flat "body" is read too."""
+    return m.get("body") or ((m.get("env") or {}).get("msg") or {}).get("body")
+
+
 def main():
     st, cookie = login()
     if not cookie:
@@ -86,7 +92,7 @@ def main():
         "GET", API + "/v1/view/topics/" + f["task_id"], headers={"Cookie": cookie}
     )
     msgs = out.get("messages", []) if st == 200 and isinstance(out, dict) else []
-    back = any(m.get("body") == body for m in msgs)
+    back = any(body_of(m) == body for m in msgs)
     print(
         json.dumps(
             {"step": "read-back", "status": st, "task_id": f["task_id"], "ok": back}

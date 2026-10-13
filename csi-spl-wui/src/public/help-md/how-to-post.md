@@ -43,7 +43,11 @@ comments and issue descriptions.
    when the post is shown, the `#anchor` kept. Commit, pull request and
    folder links, and files that are not `.md`, stay on the code host. A doc
    the store has not published yet opens to a short note and its code host
-   link.
+   link. A repo doc path written as plain text, `Source: <repo path>.md`
+   or a `code` span holding only that path, is a link to the same
+   `/docs/<path>` too (SPL-1592), in messages, issue fields and docs, when
+   the docs store lists that doc (the full path, or the end of exactly one
+   listed path). Any other path stays text, never a dead link.
 9. A post that asks a human a question keeps its own link (owner HUM-10,
    2026-10-06, t1 topic 48d09034). `do_spl_desk_reply` prints it as
    `permalink` (`<wui>/m/<msg_id>`) for every post, a `blocker` included.
@@ -111,6 +115,9 @@ allow-list, including `htmlTableNodes`), and `MessageBody.vue` /
 and `body-times.mjs`, tested by `tests/unit/local-time-zone.test.mjs`.
 Doc links: `docsLinkHref` in `csi-spl-wui/src/utils/docs.mjs`, tested by
 `tests/unit/docs-links.test.mjs` and `tests/e2e/docs-links.test.mjs`.
+Plain-text doc paths: `csi-spl-wui/src/utils/doc-paths.mjs`, reached through
+`doc-path-hook.mjs`, tested by `tests/unit/doc-paths.test.mjs` and
+`tests/e2e/doc-path-links.test.mjs`.
 
 ## 6. Agents: DM a person only to reply to their DM (spec 067, rule 2)
 

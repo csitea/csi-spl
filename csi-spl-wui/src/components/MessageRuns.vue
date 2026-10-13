@@ -21,7 +21,7 @@
       @click.stop="onLink($event, p.href)"
       @dblclick.stop
       @keydown.enter.stop
-    >{{ p.shown }}</a>
+    ><code v-if="p.code" class="code-inline">{{ p.shown }}</code><template v-else>{{ p.shown }}</template></a>
     <template v-else>
       <!-- SPL-1009: a member id in plain text ("HUM-10 needs you in ...") reads the name -->
       <!-- CLE-77908: an ISO time with a zone reads in the viewer's zone; the hover keeps it as written -->
@@ -47,7 +47,7 @@ import { BODY_TIME_AT, bodyTimeRuns } from '~/utils/body-times.mjs'
    also open the row's topic.
    SPL-1291: a link to a doc of this repository (cnf repoWebUrl) or a bare
    repo-relative .md path opens our own /docs/<path> (docsLinkHref). */
-const props = defineProps<{ parts: { type: string, text: string, href?: string }[] }>()
+const props = defineProps<{ parts: { type: string, text: string, href?: string, code?: boolean }[] }>()
 const people = useHumanNames()
 const labelMod = useAppLinkLabel()
 /* t1 179ef3f9: the message timestamp (MessageBody) is the day of a short
@@ -61,7 +61,7 @@ const router = useRouter()
    (owner t1 da98036e) <8>... for a text that is a full hash or a url
    ending in one, the hover keeping it whole. Until the chunk lands the
    text is as written. */
-type Run = { type: string, text: string, href?: string, shown?: string, hover?: string, app?: boolean, kind?: string }
+type Run = { type: string, text: string, href?: string, shown?: string, hover?: string, app?: boolean, kind?: string, code?: boolean }
 const runs = computed(() => props.parts.map((p): Run => {
   if (p.type !== 'link' || !p.href) return p
   const href = docsLinkHref(p.href, pub.repoWebUrl) || p.href

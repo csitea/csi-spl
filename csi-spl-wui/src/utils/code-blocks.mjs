@@ -31,6 +31,7 @@ import { BIDI_CLASS } from './bidi.mjs'
 import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 import { activeIdIndex, linkifyBlocks, linkifyMarkdown, noteIds } from './id-link-gate.mjs'
 import { activeCommitLinker } from './commit-link-hook.mjs'
+import { activeDocPathLinker } from './doc-path-hook.mjs'
 
 const LANG_RE = /^([A-Za-z0-9_+#.-]{1,24})\n/
 
@@ -439,7 +440,10 @@ export function parseBody(src) {
   const linked = index.empty ? blocks : linkifyBlocks(blocks, index)
   // Commit hashes after the ids (commit-links.mjs): null until it loads.
   const commits = activeCommitLinker()
-  return commits ? commits.blocks(linked) : linked
+  const hashed = commits ? commits.blocks(linked) : linked
+  // SPL-1592: a repo doc path written as text opens /docs (doc-paths.mjs)
+  const docs = activeDocPathLinker(src)
+  return docs ? docs.blocks(hashed) : hashed
 }
 
 /**

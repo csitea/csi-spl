@@ -34,6 +34,7 @@ import type { MdNode } from '~/utils/markdown.mjs'
 import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp } from '~/utils/link-target.mjs'
 import { mentionParts } from '~/utils/code-blocks.mjs'
 import { hasBodyTime } from '~/utils/body-times.mjs'
+import { activeDocPathLinker } from '~/utils/doc-path-hook.mjs'
 import CodeBlock from '~/components/CodeBlock.vue'
 import MessageRuns from '~/components/MessageRuns.vue'
 import { appLinkText, useAppLinkLabel } from '~/composables/useAppLinkLabel'
@@ -65,12 +66,17 @@ let tags: Set<string> = new Set()
 /* only the newest render may write; an older one that resolves late is dropped */
 let seq = 0
 
+/* SPL-1592: a doc path written as text links once the list of docs is in
+   (doc-path-hook.mjs); the epoch it reads paints the tree again then */
 watch(
-  () => props.text,
-  async (src) => {
+  () => [props.text, activeDocPathLinker(props.text)] as const,
+  async ([src, docs], was) => {
     const mine = ++seq
-    tree.value = null
-    emit('rendered', false)
+    /* the same text, only now with doc links: the old tree stays until the new one */
+    if (!was || was[0] !== src) {
+      tree.value = null
+      emit('rendered', false)
+    }
     if (!import.meta.client) return
     try {
       const { markdownTree, TAGS } = await import('~/utils/markdown.mjs')
@@ -78,7 +84,7 @@ watch(
       tags = TAGS
       /* SPL-1291: a doc link opens /docs/<path> (cnf repoWebUrl) */
       const docsRepo = String(pub.repoWebUrl || '')
-      tree.value = markdownTree(src, { ...(props.bare ? { breaks: true, html: true } : {}), docsRepo })
+      tree.value = markdownTree(src, { ...(props.bare ? { breaks: true, html: true } : {}), docsRepo, docPath: docs ? docs.resolve : null })
       emit('rendered', true)
     } catch {
       /* the source stays readable */

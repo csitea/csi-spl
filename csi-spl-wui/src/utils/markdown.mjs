@@ -35,6 +35,7 @@
 import MarkdownIt from 'markdown-it'
 import { classifyHref, linkOpen, NEW_TAB_REL } from './link-target.mjs'
 import { docsLinkHref } from './docs.mjs'
+import { codeDocHref, docPathParts } from './doc-paths.mjs'
 
 /** Every element the tree may hold. */
 export const TAGS = new Set([
@@ -106,14 +107,26 @@ function textOf(children) {
   return (children || []).map((c) => (c.type === 'image' ? textOf(c.children) : c.content || '')).join('')
 }
 
+/** Text nodes with each listed doc path a link (SPL-1592, doc-paths.mjs). */
+function docPathNodes(s, docPath) {
+  if (!docPath) return [s]
+  return docPathParts(s, docPath).map((p) => (p.type === 'link' ? el('a', { href: p.href, title: p.href }, [p.text]) : p.text))
+}
+
 /** One inline token list -> nodes. `breaks`: a single newline is a <br>.
  * `docsRepo` (a string, '' allowed): a doc link becomes /docs/<path>
- * (docsLinkHref, SPL-1291); undefined leaves every link as written. */
-function inline(tokens, breaks = false, docsRepo = undefined) {
+ * (docsLinkHref, SPL-1291); undefined leaves every link as written.
+ * `docPath` (doc-paths.mjs resolver): a doc path written as text or as a
+ * whole `code` span, outside a link, becomes a link (SPL-1592). */
+function inline(tokens, breaks = false, docsRepo = undefined, docPath = null) {
   const root = el(null)
   const stack = [root]
   const top = () => stack.at(-1)
+  let inLink = 0
   for (const tok of tokens || []) {
+    if (tok.type === 'link_open') inLink++
+    else if (tok.type === 'link_close' && inLink) inLink--
+    const paths = inLink ? null : docPath
     if (tok.nesting === 1) {
       let node
       if (tok.type === 'link_open') {
@@ -139,9 +152,12 @@ function inline(tokens, breaks = false, docsRepo = undefined) {
       case 'hardbreak':
         top().children.push(el('br'))
         break
-      case 'code_inline':
-        top().children.push(el('code', {}, [tok.content]))
+      case 'code_inline': {
+        const href = paths ? codeDocHref(tok.content, paths) : ''
+        const code = el('code', {}, [tok.content])
+        top().children.push(href ? el('a', { href, title: href }, [code]) : code)
         break
+      }
       case 'image': {
         const alt = textOf(tok.children)
         const href = safeHref(tok.attrGet('src'))
@@ -151,7 +167,7 @@ function inline(tokens, breaks = false, docsRepo = undefined) {
       }
       default:
         // text, text_special, html_inline (html is off, but never trust it)
-        if (tok.content) top().children.push(tok.content)
+        if (tok.content) top().children.push(...(tok.type === 'text' ? docPathNodes(tok.content, paths) : [tok.content]))
     }
   }
   return root.children
@@ -294,8 +310,10 @@ export function htmlTableNodes(html) {
  * description (SPL-975); a ```md fence uses neither. `docsRepo` is the
  * repository web URL (cnf repo_web_url, '' = none): set, a link to one of its
  * docs, or a bare repo-relative .md path, opens /docs/<path> (SPL-1291).
+ * `docPath` is doc-paths.mjs' resolver: a listed doc path written as text
+ * links to its /docs page (SPL-1592); null leaves text as written.
  */
-export function markdownTree(src, { breaks = false, html = false, docsRepo = undefined } = {}) {
+export function markdownTree(src, { breaks = false, html = false, docsRepo = undefined, docPath = null } = {}) {
   const tokens = md(html).parse(String(src ?? ''), {})
   const root = el(null)
   const stack = [root]
@@ -321,7 +339,7 @@ export function markdownTree(src, { breaks = false, html = false, docsRepo = und
       continue
     }
     if (tok.type === 'inline') {
-      top().children.push(...inline(tok.children, breaks, docsRepo))
+      top().children.push(...inline(tok.children, breaks, docsRepo, docPath))
     } else if (tok.type === 'fence' || tok.type === 'code_block') {
       const lang = String(tok.info || '').trim().split(/\s+/)[0].slice(0, 24)
       const text = tok.content.endsWith('\n') ? tok.content.slice(0, -1) : tok.content

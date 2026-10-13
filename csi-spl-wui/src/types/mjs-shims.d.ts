@@ -1443,7 +1443,7 @@ declare module '~/utils/markdown.mjs' {
   export const TAGS: Set<string>
   export const ATTRS: Record<string, Set<string>>
   export function safeHref(raw: string): string
-  export interface MdOptions { breaks?: boolean, html?: boolean, docsRepo?: string }
+  export interface MdOptions { breaks?: boolean, html?: boolean, docsRepo?: string, docPath?: ((raw: string) => string) | null }
   export function markdownTree(src: string, opts?: MdOptions): MdNode[]
   export function htmlTableNodes(html: string): MdNode[]
   export function treeToHtml(nodes: MdNode[], origin?: string): string
@@ -1678,6 +1678,23 @@ declare module '~/utils/commit-link-hook.mjs' {
   export type CommitLinker = { blocks: (blocks: unknown[]) => unknown[], markdown: (src: string) => string }
   export function setCommitLinkProvider(fn: (() => CommitLinker | null) | null): void
   export function activeCommitLinker(): CommitLinker | null
+}
+
+declare module '~/utils/doc-path-hook.mjs' {
+  export type DocPathLinker = { resolve: (raw: string) => string, blocks: (blocks: unknown[]) => unknown[] }
+  export const docPathEpoch: import('vue').ShallowRef<number>
+  export function setDocPathLoader(fn: (() => unknown) | null): void
+  export function setDocPathLinker(next: DocPathLinker | null): void
+  export function activeDocPathLinker(src: unknown): DocPathLinker | null
+}
+
+declare module '~/utils/doc-paths.mjs' {
+  export function mayHoldDocPath(text: unknown): boolean
+  export function docPathResolver(paths: unknown, route?: (path: string) => string): (raw: string) => string
+  export function docPathParts(text: unknown, resolve: (raw: string) => string): { type: 'text' | 'link', text: string, href?: string }[]
+  export function codeDocHref(code: unknown, resolve: (raw: string) => string): string
+  export function linkDocPathBlocks<T>(blocks: T, resolve: (raw: string) => string): T
+  export function docPathLinker(paths: unknown, route?: (path: string) => string): { resolve: (raw: string) => string, blocks: (blocks: unknown[]) => unknown[] }
 }
 
 declare module '~/utils/commit-links.mjs' {

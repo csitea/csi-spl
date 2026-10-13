@@ -1,0 +1,30 @@
+# csi-spl local hub ::: pg data encrypted at rest (local hub swarm, lane L5).
+# Overrides the lde `pg` service (docker-compose-rdb.yaml): the image is the
+# cnf Postgres plus gocryptfs (local-hub-pg-vault/), the pg-data volume holds
+# ciphertext only, and Postgres runs on a FUSE view that exists only inside
+# the container after the owner typed the passphrase on the terminal
+# (do_spl_local_hub_unlock). A restart starts locked. FUSE needs /dev/fuse and
+# CAP_SYS_ADMIN, both inside the hub user's rootless user namespace.
+services:
+  pg:
+    image: "${LDE_COMPOSE_PROJECT:?unset}-pg-vault:local"
+    pull_policy: build
+    build:
+      context: ./local-hub-pg-vault
+      args:
+        LDE_PG_IMAGE: "${LDE_PG_IMAGE:?unset}"
+    entrypoint: ["/usr/local/bin/vault-entrypoint.sh"]
+    command: ["postgres"]
+    environment:
+      PGDATA: /run/pgplain/data
+    devices:
+      - "/dev/fuse:/dev/fuse"
+    cap_add: [SYS_ADMIN]
+    tmpfs:
+      - "/run/vault:mode=0700"
+    healthcheck:
+      # unlocked AND ready; locked reads unhealthy until do_spl_local_hub_unlock
+      test: ["CMD-SHELL", "[ \"$$(cat /run/vault/state 2>/dev/null)\" = unlocked ] && pg_isready -h 127.0.0.1 -p 5432 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 3s
+      retries: 30

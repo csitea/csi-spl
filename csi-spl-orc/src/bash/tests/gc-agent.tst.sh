@@ -20,7 +20,8 @@
 #   8. close-ask: one note to the orchestrator, a second in 24 h refused
 #   9. done: one summary line to c-001 and the GC window closed
 #  10. scan: this box's agents only, an ACCEPTED lane hinted done
-#  11. gc-session.sh: grok missing on the box = the cnf fallback (claude),
+#  11. gc-session.sh: which CLIs exist is probed as the agent user (bare
+#      *_BIN names count); grok missing on the box = the cnf fallback (claude),
 #      bypass flags, the fixed prompt file
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc, old, gp and out are read inside the check strings (eval)
@@ -220,8 +221,12 @@ check "10. silent past GC_SILENT_AGE is hinted silent" 'grep -q "^== c-917 .*hin
 
 # --- 11. the session command -----------------------------------------------------------
 printf '#!/bin/sh\n' >"$T/bin/claude"; chmod +x "$T/bin/claude"
-out="$(CLAUDE_BIN="$T/bin/claude" GROK_BIN="$T/none/grok" GC_SESSION_PRINT=1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" grok claude 20261013T2100Z-gc-box-a "$T" 2>&1)"
+out="$(SPOOL_VENDOR_CLIS_CMD="echo claude" CLAUDE_BIN="$T/bin/claude" GROK_BIN="$T/none/grok" GC_SESSION_PRINT=1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" grok claude 20261013T2100Z-gc-box-a "$T" 2>&1)"
 check "11. grok missing = the cnf fallback claude, bypass flags" 'grep -q "no grok CLI on this box" <<<"$out" && grep -q "$T/bin/claude.* --dangerously-skip-permissions" <<<"$out"'
+out2="$(SPOOL_VENDOR_CLIS_CMD="echo claude,grok" CLAUDE_BIN=claude GROK_BIN=grok GC_SESSION_PRINT=1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" claude grok 20261013T2200Z-gc-box-a "$T" 2>&1)"
+check "11. a bare-name CLAUDE_BIN on the agent PATH starts claude (sat 22:00Z)" '! grep -q "no claude CLI" <<<"$out2" && grep -q "'"'"'claude'"'"' --name" <<<"$out2"'
+out3="$(SPOOL_VENDOR_CLIS_CMD="echo mistral" CLAUDE_BIN=claude GROK_BIN=grok GC_SESSION_PRINT=1 timeout 1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" claude grok 20261013T2200Z-gc-box-a "$T" 2>&1)"
+check "11. neither CLI on the agent PATH = no GC this slot" 'grep -q "no grok CLI either" <<<"$out3"'
 check "11. the session reads the fixed prompt file" 'grep -q "features/gc/gc-prompt.md" <<<"$out" && [ -s "$PROJ_ROOT/src/bash/features/gc/gc-prompt.md" ]'
 check "11. no ERR trap fired in any run" '! grep -q ERRTRAP "$T/all.out"'
 

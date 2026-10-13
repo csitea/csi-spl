@@ -22,12 +22,18 @@ bin_of() {
   case "$1" in claude) printf '%s' "${CLAUDE_BIN:-}" ;; grok) printf '%s' "${GROK_BIN:-}" ;;
     agy) printf '%s' "${AGY_BIN:-}" ;; qwen) printf '%s' "${QWEN_BIN:-}" ;; *) return 1 ;; esac
 }
+# Which CLIs the agent user can start, probed the way the CLI is exec'd
+# (spool_vendor_clis: `command -v` in its login shell). A *_BIN is often the
+# bare name (no <agent home>/.local/bin/<cli>), so `[ -x "$bin" ]` refused
+# every CLI on sat: the first pass, 20261013T2200Z, slept 30 s and closed.
+# A failed probe (exit 1) is "unknown": try the slot's vendor anyway.
+if clis="$(spool_vendor_clis)"; then has() { [[ ",$clis," == *",$1,"* ]]; }; else has() { true; }; fi
 bin="$(bin_of "$vendor" || true)"
-if [ -z "$bin" ] || [ ! -x "$bin" ]; then
+if [ -z "$bin" ] || ! has "$vendor"; then
   echo "gc-session: no $vendor CLI on this box (${bin:-unset}): $fallback instead"
   vendor="$fallback"; bin="$(bin_of "$vendor" || true)"
 fi
-[ -n "$bin" ] && [ -x "$bin" ] || { echo "gc-session: no $vendor CLI either: no GC this slot" >&2; sleep 30; exit 3; }
+[ -n "$bin" ] && has "$vendor" || { echo "gc-session: no $vendor CLI either: no GC this slot" >&2; sleep 30; exit 3; }
 perm="$(spool_claude_perm_flags "$vendor")" || exit 2
 case "$vendor" in
   claude) args="--name 'gc@${SPOOL_BOX_TAG:-box}' $perm" ;;

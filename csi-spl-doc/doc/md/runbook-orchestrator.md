@@ -34,6 +34,7 @@ Conventions on this page:
 | answer the asks raised to you, and close them | leave an ask unacked: it is re-raised, then sent to the owner |
 | take a post that names you, and any post still unanswered after 2 minutes (the backstop), then own that topic | force-push, delete or rewrite master |
 | verify "live" claims before they reach a human (dispatcher runbook section 4) | relay a result as Done before the dispatcher's `ACCEPTED` |
+| keep the hanging-agent roster, and re-check it at least every 5 minutes (section 2.4) | treat a watchdog `OK` as proof that no agent is hung |
 
 ## 2 The commands
 
@@ -50,6 +51,7 @@ Conventions on this page:
 | who owns a path | `bash $SA/lane-map.sh --check <path,...> --agent c-001` (exit 3 = owned, exit 4 = unknown lanes: ask them) |
 | live agent windows (ceiling 40) | the count command in the global rule `20-spawn-an-agent.md` |
 | dispatcher seats and gaps | `./run -a do_spl_dispatch_check` |
+| hanging agents, at least every 5 minutes | section 2.4. Run it at the start of the session and again before each 5 minutes is up. Record the rows in the hold note |
 | what is red on trunk, per job | `cd csi-spl-iac && CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate` |
 | deployed or lagging | `ENV=dev ./run -a do_check_deploy_lag`, then `ENV=prd` |
 | prd hub logs (read-only) | `cd csi-spl-iac && ENV=prd FRESHNESS=<1h> ./run -a do_gcp_tail_logs` |
@@ -84,6 +86,61 @@ Every seat runs as the agent user, never as the box's human login user, and
 only in the permission mode the global rule `07` names. After any start:
 `ps -u <human user> -o pid=,args= | awk '$2 ~ /(^|\/)claude$/'` prints
 nothing (the same check for any other vendor binary).
+
+### 2.4 Hanging agents, every 5 minutes
+
+Run this at the start of the session, and again at least every 5 minutes. It lists live hangs the watchdog's `OK` does not name. An idle seat with an empty inbox is not a row. Record every row in the hold note. A finished lane whose accept never reached the model is closed with section 2.3 (`--dry-run` first), not restarted. A hang whose job is not finished is one paragraph to the dispatch holder; you do not `kill` the process yourself.
+
+A row is a live process that is any of these:
+
+- `dispatch/wd.<id>` starts with `HIT`
+- the heartbeat `state` is `working` or `in-tool`, `progress_ts` is older than 5 minutes, and the open tool is not `ScheduleWakeup`
+- the id is a grok seat (`g-`) and there is no `heartbeat.json`
+
+```bash
+python3 - << 'PY'
+import json, os, time, glob
+from datetime import datetime, timezone
+now = time.time()
+root = "/var/spool-hub"
+cut = 300
+
+def epoch(s):
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+    except Exception:
+        return None
+
+for p in sorted(glob.glob(root + "/agents/*.json")):
+    d = json.load(open(p))
+    if not d.get("alive"):
+        continue
+    aid, pid = d.get("id") or os.path.basename(p)[:-5], d.get("pid") or 0
+    if not pid or not os.path.exists("/proc/%s" % pid):
+        continue
+    wd = root + "/dispatch/wd." + aid
+    verdict = open(wd).read().strip().splitlines()[-1] if os.path.isfile(wd) else "-"
+    hb = root + "/" + aid + "/heartbeat.json"
+    state, age, tool = "", None, ""
+    if os.path.isfile(hb):
+        h = json.load(open(hb))
+        state = h.get("state") or ""
+        tool = h.get("tool") or ""
+        prog = epoch(h.get("progress_ts") or "")
+        if prog:
+            age = int(now - prog)
+    hit = verdict.startswith("HIT")
+    wait = tool == "ScheduleWakeup"
+    stale = state in ("working", "in-tool") and age is not None and age > cut and not wait
+    missing = aid.startswith("g-") and not os.path.isfile(hb)
+    if hit or stale or missing:
+        print("%s %s state=%s tool=%s progress_age=%s %s" % (aid, pid, state or "-", tool or "-", age if age is not None else "-", verdict[:80]))
+PY
+```
+
+No line means no live hang. `ScheduleWakeup` is a wait the seat asked for, so it is not a row. A `HIT` whose evidence text is the same on two checks 5 minutes apart has stopped escalating: treat it as a hang even when the line still says the hook warned.
 
 ## 3 Decision table: message -> action
 
@@ -291,6 +348,7 @@ The dispatcher runbook's section 9 applies in full. In addition:
 | contradictory orders | STOP, then RESUME, then a re-placement, for a check the dispatcher had run itself in one command | one decider; ask one question on crossed notes |
 | a commit after the final result | a restarted session told "take no new work" still pushed a second commit after its final result, and that commit held a vacuous assert | diff every commit after a lane's final result before `ACCEPTED` |
 | a stale lease file | a seat on a machine whose loop had stopped kept acting on a lease file older than 180 s | the age is part of the rule |
+| a frozen seat the watchdog keeps calling OK | a grok turn that stops emitting hooks stays `OK`: the transcript reader looks only under `~/.claude/projects`, and the unfinished-plan lines are vibe's `▶` and `☐` glyphs. An S5 loop whose call timestamp never moves stays on "the hook warned" and never reaches Escape or takeover | the 5-minute check in section 2.4. A `HIT` whose evidence is unchanged for 5 minutes is a hang |
 
 | the split lease (shadow) | A shadow seat reads the lease from the feed's notes, not the spool root. | No age is defined for a lease note; trust the lease file when you can read it. |
 
@@ -301,10 +359,11 @@ The dispatcher runbook's section 9 applies in full. In addition:
 | part | today | a Grok seat |
 |---|---|---|
 | launchers and `/tmux-close-window` | Claude slash commands | the shell lines in section 2.3 |
-| the "able" and "stuck" checks of the lease | read the seat's pane footer and its transcript dir (`~/.claude/projects/...`) | to be confirmed by the Grok shadow run (lane B of `ee1e58d5`); until then the stuck check fails open for a seat with no transcript there |
+| the "able" check of the lease | read the seat's pane footer | the shadow feed has no pane footer, so "able" still cannot be confirmed from the feed alone |
+| the stuck check | the heartbeat is written by the grok hooks (`PreToolUse`, `PostToolUse`, `Stop`) | a frozen mid-turn with an empty inbox stays `OK`. The transcript tail reads `~/.claude/projects/*.jsonl` only, and a grok session lives under `~/.grok/sessions`. S8 needs that transcript to have moved in the last 5 minutes, so a freeze is not a hit. Section 2.4 is the check that covers it |
 | hourly rotation | restarts the seat's session and waits for its ack | to be confirmed by the shadow run |
 | memory files | `~/.claude/projects/*/memory/` | this page, the dispatcher's and the role spec carry what the memory held |
 
-<!-- version: 0.2.0 · updated: 2026-10-11 · with the orchestrator's additions -->
+<!-- version: 0.3.0 · updated: 2026-10-13 · hanging-agent check, section 2.4 -->
 
 - **Shadow feed limitations:** The feed has no pane footer, so confirming "able" cannot be done from the feed alone.

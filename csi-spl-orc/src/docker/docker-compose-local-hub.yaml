@@ -1,0 +1,84 @@
+# csi-spl local hub ::: the PRODUCTION WUI over the lde stack: the generated
+# bundle behind a same-origin proxy, never the Nuxt dev server. Appended to
+# the four lde files (infra, rdb, api, wui) by the local hub's lde_compose.
+# It sets nothing on `hub` (its runtime values: cnf env.lde.local_hub.hub.env)
+# and leaves the lde dev `wui` service as it is: start wui-static BY NAME,
+# both publish LDE_WUI_PORT.
+#
+#   wui-generate  one-shot, profile local-hub-build: `nuxt generate` of the
+#                 tree's csi-spl-wui into the named volume wui-dist
+#                 (local-hub/wui-generate.sh). Container root on purpose: on
+#                 the stack's rootless dockerd that is the stack's own user.
+#   wui-static    Caddy as nobody, read-only, one capability: serves
+#                 wui-dist and proxies every hub path to `hub` on the same
+#                 origin (local-hub/Caddyfile), so the session cookie rides
+#                 every read. /config.json comes from its env: apiBase ""
+#                 (this origin) and the tenant, so a tenant change is a
+#                 restart, not a rebuild.
+#
+#   lde_compose --profile local-hub-build run --rm --no-deps wui-generate
+#   lde_compose up -d wui-static
+volumes:
+  wui-dist: {}
+
+services:
+  wui-generate:
+    profiles: [local-hub-build]
+    image: "${LDE_WUI_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
+    pull_policy: if_not_present
+    user: "0:0"
+    working_dir: /app
+    entrypoint: ["/bin/sh", "/opt/local-hub/wui-generate.sh"]
+    environment:
+      HOME: /tmp
+      NODE_COMPILE_CACHE: /tmp/node-compile-cache
+      NUXT_TELEMETRY_DISABLED: "1"
+      NUXT_PUBLIC_USE_MOCK: "0"
+      # the baked defaults; the served /config.json overrides apiBase + tenant
+      NUXT_PUBLIC_API_BASE: "http://{tenant}.localhost:${LDE_HUB_PORT:?unset}"
+      NUXT_PUBLIC_TENANT: "${LDE_WUI_TENANT:?unset}"
+      WUI_DIR: /app
+      WUI_DIST: /dist
+    volumes:
+      - "${LDE_WUI_SRC:?unset}:/app"
+      - "./local-hub/wui-generate.sh:/opt/local-hub/wui-generate.sh:ro"
+      - "wui-dist:/dist"
+    networks: [lde]
+    restart: "no"
+
+  wui-static:
+    image: "${LDE_WUI_STATIC_IMAGE:-mirror.gcr.io/library/caddy:2-alpine}"
+    pull_policy: if_not_present
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    # the image's caddy binary carries the file capability
+    # cap_net_bind_service=ep: without it in the bounding set the exec itself
+    # fails ("exec /usr/bin/caddy: operation not permitted"). It listens on
+    # 8080 and needs nothing else.
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    environment:
+      XDG_CONFIG_HOME: /tmp/caddy-config
+      XDG_DATA_HOME: /tmp/caddy-data
+      LOCAL_HUB_UPSTREAM: "hub:${LDE_HUB_CONTAINER_PORT:?unset}"
+      LOCAL_HUB_WUI_TENANT: "${LDE_WUI_TENANT:?unset}"
+      LOCAL_HUB_WUI_API_BASE: "${LOCAL_HUB_WUI_API_BASE:-}"
+      LOCAL_HUB_WUI_CONNECT_SRC: "${LOCAL_HUB_WUI_CONNECT_SRC:-}"
+    tmpfs: ["/tmp"]
+    volumes:
+      - "wui-dist:/srv:ro"
+      - "./local-hub/Caddyfile:/etc/caddy/Caddyfile:ro"
+    ports:
+      - "127.0.0.1:${LDE_WUI_PORT:?unset}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/config.json >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      hub:
+        condition: service_started
+    networks: [lde]
+    restart: unless-stopped

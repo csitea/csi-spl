@@ -1,0 +1,55 @@
+# The local hub's front door (docker-compose-local-hub.yaml, service
+# wui-static): the generated WUI and a same-origin proxy to the hub, so the
+# session cookie the sign-in sets is the one every read carries (the hub's
+# view door is `session` here, never the lde `off`). Plain http on :8080
+# inside the container; compose publishes it on 127.0.0.1 only.
+#
+#   LOCAL_HUB_UPSTREAM          the hub service, hub:<container port>
+#   LOCAL_HUB_WUI_TENANT        the tenant sign-in binds (config.json)
+#   LOCAL_HUB_WUI_API_BASE      config.json apiBase; "" = this origin (the
+#                               default). A cross-origin base also needs
+#                               LOCAL_HUB_WUI_CONNECT_SRC for the CSP.
+#   LOCAL_HUB_WUI_CONNECT_SRC   extra connect-src sources ("" = none)
+#
+# The page reads /config.json at boot (csi-spl-wui
+# src/utils/runtime-config.mjs, spec 072 A3): a tenant change is a restart of
+# wui-static, not a rebuild. Same paths and headers as the standalone stack's
+# csi-spl-wui/src/docker/Caddyfile.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	encode zstd gzip
+
+	# the hub: REST, the box and WUI websockets, browser sign-in, checkout, health
+	@hub path /v1/* /api/* /healthz /version
+	handle @hub {
+		reverse_proxy {$LOCAL_HUB_UPSTREAM}
+	}
+
+	handle /config.json {
+		header Content-Type application/json
+		header Cache-Control no-store
+		respond `{"apiBase":"{$LOCAL_HUB_WUI_API_BASE}","authBase":"","tenant":"{$LOCAL_HUB_WUI_TENANT}"}` 200
+	}
+
+	# the WUI: the generated bundle, and the SPA fallback for every other path
+	handle {
+		root * /srv
+		header {
+			X-Frame-Options DENY
+			X-Content-Type-Options nosniff
+			Referrer-Policy strict-origin-when-cross-origin
+			Permissions-Policy "camera=(), microphone=(), geolocation=()"
+			X-Robots-Tag "noindex, nofollow"
+			Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' {$LOCAL_HUB_WUI_CONNECT_SRC}; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		}
+		@immutable path /_nuxt/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} {path}.html {path}/index.html /200.html
+		file_server
+	}
+}

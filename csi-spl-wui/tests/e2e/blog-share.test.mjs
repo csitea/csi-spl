@@ -70,6 +70,36 @@ try {
     await p.goto(server.base + `/blog/${posts[0].id}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const row = await p.waitForSelector('[data-test=blog-share]', { visible: true, timeout: 15000 }).catch(() => null)
     ok(`${label}: the post shows the share row`, Boolean(row))
+    const shape = await p.$eval('[data-test=blog-share]', (el) => {
+      const controls = [...el.querySelectorAll('[data-test]')]
+      const tops = controls.map((n) => Math.round(n.getBoundingClientRect().top))
+      return {
+        h: Math.round(el.getBoundingClientRect().height),
+        tops,
+        names: controls.map((n) => (n.getAttribute('aria-label') || '').trim()),
+        titles: controls.map((n) => (n.getAttribute('title') || '').trim()),
+        texts: controls.map((n) => (n.textContent || '').replace(/\s+/g, '')),
+      }
+    })
+    ok(`${label}: one line`, shape.tops.length > 0 && shape.tops.every((t) => t === shape.tops[0]) && shape.h <= 40, shape)
+    ok(`${label}: every control has an accessible name`, shape.names.length > 0 && shape.names.every((n) => n.length > 0) && shape.titles.every((n) => n.length > 0), shape.names)
+    ok(`${label}: icon only`, shape.texts.every((t) => t === ''), shape.texts)
+    const fold = await p.evaluate(() => {
+      const row = document.querySelector('[data-test=blog-share]').getBoundingClientRect()
+      const body = document.querySelector('[data-test=blog-post-body]').getBoundingClientRect()
+      return {
+        rowTop: Math.round(row.top),
+        rowBottom: Math.round(row.bottom),
+        bodyTop: Math.round(body.top),
+        vh: window.innerHeight,
+      }
+    })
+    ok(`${label}: the article starts on the first screen`, fold.bodyTop > fold.rowBottom && fold.bodyTop < fold.vh, fold)
+    await p.evaluate(() => window.scrollTo(0, 0))
+    if (shot) {
+      await p.screenshot({ path: shot })
+      ok(`${label}: screenshot`, true, shot)
+    }
     const ids = await p.$$eval('[data-test=blog-share] [data-test]', (els) => els.map((el) => el.getAttribute('data-test')))
     const named = ids.filter((id) => id !== 'blog-share-native')
     ok(`${label}: Copy link is first, then the sites, e-mail last`, JSON.stringify(named) === JSON.stringify(BLOG_SHARE_ORDER.map((id) => `blog-share-${id}`)), named)
@@ -97,6 +127,15 @@ try {
     await p.click('[data-test=blog-share-copy]')
     const copied = await p.evaluate(() => window.__copied)
     ok(`${label}: Copy link copies one address`, copied.length === 1 && copied[0].includes(`/blog/${posts[0].id}`), copied)
+    const marked = await p.waitForFunction(
+      () => {
+        const btn = document.querySelector('[data-test=blog-share-copy]')
+        const d = btn?.querySelector('path')?.getAttribute('d') || ''
+        return Boolean(btn?.classList.contains('is-copied') && d.startsWith('M20 6'))
+      },
+      { timeout: 3000 },
+    ).then(() => true, () => false)
+    ok(`${label}: Copy link shows a check`, marked)
     const pageUrl = copied[0] || ''
     const encUrl = encodeURIComponent(pageUrl)
     const encTitle = encodeURIComponent(title)
@@ -116,11 +155,6 @@ try {
 
     const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     ok(`${label}: no sideways scroll`, wide <= 1, wide)
-    if (shot) {
-      await p.$eval('[data-test=blog-share]', (el) => el.scrollIntoView({ block: 'center' }))
-      await p.screenshot({ path: shot })
-      ok(`${label}: screenshot`, true, shot)
-    }
     await ctx.close()
   }
 } finally {

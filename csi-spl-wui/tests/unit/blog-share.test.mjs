@@ -55,6 +55,10 @@ ok('share links are target=_blank rel=noopener', vue.includes('target="_blank"')
 ok('the row has a test hook', vue.includes('data-test="blog-share"'))
 ok('no inline :style (CSP)', !vue.includes(':style'))
 ok('no external script (CSP)', !/<script[^>]+src=/.test(vue))
+ok('labels are the accessible name and the tooltip', vue.includes(':aria-label="shareLabel(c.id)"') && vue.includes(':title="shareLabel(c.id)"'))
+ok('the buttons draw no label text', !vue.includes('>{{ shareLabel') && !vue.includes(">{{ t('blog.share')"))
+ok('the icon row wraps by flex and names no stray width', vue.includes('.bpost__share { display: flex; flex-wrap: wrap;') && vue.includes('min-width: 28px') && !vue.includes('359px'))
+ok('a check marks a successful copy', vue.includes('is-copied') && vue.includes('M20 6 9 17l-5-5'))
 
 const KEYS = [
   'blog.share', 'blog.copy_link', 'blog.share_linkedin', 'blog.share_facebook', 'blog.share_x',

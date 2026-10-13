@@ -64,27 +64,37 @@
                 v-if="c.id === 'copy'"
                 type="button"
                 class="bpost__share-btn"
+                :class="{ 'is-copied': copiedId === c.id }"
                 data-test="blog-share-copy"
-                @click="copyShareLink"
+                :aria-label="shareLabel(c.id)"
+                :title="shareLabel(c.id)"
+                @click="copyShareLink()"
               >
                 <svg class="bpost__share-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-                  <path v-for="(d, i) in c.paths" :key="i" :d="d" />
+                  <path v-if="copiedId === c.id" d="M20 6 9 17l-5-5" />
+                  <template v-else>
+                    <path v-for="(d, i) in c.paths" :key="i" :d="d" />
+                  </template>
                 </svg>
-                <span>{{ shareLabel(c.id) }}</span>
               </button>
               <a
                 v-else
                 class="bpost__share-btn"
+                :class="{ 'is-copied': copiedId === c.id }"
                 :data-test="'blog-share-' + c.id"
                 :href="c.href"
                 target="_blank"
                 rel="noopener"
+                :aria-label="shareLabel(c.id)"
+                :title="shareLabel(c.id)"
                 @click="onShareClick(c.id)"
               >
-                <svg class="bpost__share-icon" :class="{ 'is-fill': c.fill }" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-                  <path v-for="(d, i) in c.paths" :key="i" :d="d" />
+                <svg class="bpost__share-icon" :class="{ 'is-fill': c.fill && copiedId !== c.id }" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-if="copiedId === c.id" d="M20 6 9 17l-5-5" />
+                  <template v-else>
+                    <path v-for="(d, i) in c.paths" :key="i" :d="d" />
+                  </template>
                 </svg>
-                <span>{{ shareLabel(c.id) }}</span>
               </a>
             </template>
             <button
@@ -92,6 +102,8 @@
               type="button"
               class="bpost__share-btn"
               data-test="blog-share-native"
+              :aria-label="t('blog.share')"
+              :title="t('blog.share')"
               @click="shareNative"
             >
               <svg class="bpost__share-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
@@ -101,7 +113,6 @@
                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
                 <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
               </svg>
-              <span>{{ t('blog.share') }}</span>
             </button>
           </div>
           <p class="bpost__meta" data-test="blog-post-meta">
@@ -332,13 +343,19 @@ function shareLabel(id: string): string {
     default: return t('blog.share')
   }
 }
-async function copyShareLink() {
+const copiedId = ref('')
+let copiedTimer: ReturnType<typeof setTimeout> | undefined
+async function copyShareLink(which = 'copy') {
   const url = sharePageUrl.value
   if (!url) return
-  await writeClipboard(url)
+  const ok = await writeClipboard(url)
+  if (!ok) return
+  copiedId.value = which
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => { copiedId.value = '' }, 1600)
 }
 function onShareClick(id: string) {
-  if (id === 'substack') void copyShareLink()
+  if (id === 'substack') void copyShareLink('substack')
 }
 async function shareNative() {
   const p = post.value
@@ -376,7 +393,11 @@ onMounted(() => {
   document.addEventListener('click', closeLangMenu)
   document.addEventListener('keydown', closeLangMenu)
 })
-onBeforeUnmount(() => { document.removeEventListener('click', closeLangMenu); document.removeEventListener('keydown', closeLangMenu) })
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeLangMenu)
+  document.removeEventListener('keydown', closeLangMenu)
+  if (copiedTimer) clearTimeout(copiedTimer)
+})
 
 useHead(() => {
   const base = seoBase.value
@@ -533,26 +554,29 @@ useHead(() => {
 .bpost__pager { padding-top: 16px; border-top: 1px solid var(--color-border); }
 .bpost__all { font-weight: 600; }
 
-.bpost__share { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.bpost__share { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
 .bpost__share-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  max-width: 100%;
-  padding: 0 10px;
-  border: 1px solid var(--color-border);
+  justify-content: center;
+  flex: 0 1 32px;
+  width: 32px;
+  min-width: 28px;
+  max-width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
   border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-fg);
+  background: transparent;
+  color: var(--color-muted);
   font: inherit;
-  font-size: 0.85rem;
-  line-height: 1.2;
+  line-height: 1;
   text-decoration: none;
   cursor: pointer;
 }
-.bpost__share-btn:hover { background: var(--color-surface-hover); }
-.bpost__share-btn span { overflow-wrap: anywhere; }
+.bpost__share-btn:hover,
+.bpost__share-btn:focus-visible { background: var(--color-surface-hover); color: var(--color-fg); }
+.bpost__share-btn.is-copied { color: var(--color-fg); }
 .bpost__share-icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .bpost__share-icon.is-fill { fill: currentColor; stroke: none; }
 @media (max-width: 820px) {

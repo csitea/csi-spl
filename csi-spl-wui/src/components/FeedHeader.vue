@@ -34,7 +34,7 @@
       data-test="feed-header-archived"
       :title="topicTitle || undefined"
     >
-      <span v-if="topicTitle" class="feed-header__topic-title">{{ topicTitle }}</span>
+      <span v-if="topicTitle" class="feed-header__topic-title">{{ rowTitle(topicTitle, '') }}</span>
       <ArchivedBadge :at="archivedAt" />
     </span>
     <CardClipControl />

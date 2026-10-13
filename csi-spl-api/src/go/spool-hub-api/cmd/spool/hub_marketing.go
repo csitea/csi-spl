@@ -13,11 +13,6 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
 )
 
-// linkedInCallbackPath is the callback as registered in the LinkedIn app
-// (linkedin-app-setup.md 1.1): on the WUI origin, which rewrites /api to
-// the hub.
-const linkedInCallbackPath = "/api/v1/marketing/linkedin/callback"
-
 // marketingLinkedIn builds the LinkedIn connect + share wiring (spec 090,
 // SPL-1634), or nil while the app's id, its secret or the KMS key is not
 // set: then connect answers 503 and the share sweep idles. The hub's public
@@ -44,7 +39,7 @@ func marketingLinkedIn(ctx context.Context, hc *config.Hub, log zerolog.Logger, 
 	}
 	m := &hub.MarketingLinkedIn{
 		LinkedIn: &marketing.LinkedIn{ClientID: id, ClientSecret: marketing.NewPlaintext(secret),
-			RedirectURI: appURL + linkedInCallbackPath, Version: hc.MarketingLinkedInVersion},
+			RedirectURI: appURL + hub.LinkedInCallbackPath, Version: hc.MarketingLinkedInVersion},
 		Sealer: sealer, AppURL: appURL, APIURL: apiURL,
 	}
 	if pmc != nil && pmc.Transport != mail.TransportNone {

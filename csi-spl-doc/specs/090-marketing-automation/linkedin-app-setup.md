@@ -27,6 +27,8 @@ All four are registered. The callback route is built by T006; whichever path for
 
 The `/api/v1/...` form matches the existing sign-in callback (`SPOOL_HUB_AUTH_LINKEDIN_REDIRECT_URI` = `https://<host>/api/v1/auth/linkedin/callback`, the WUI host proxying `/api` to the hub). The `/v1/...` form is the one `tasks.md` T002 names.
 
+The hub uses the `/api/v1/...` form (`hub.LinkedInCallbackPath`). The WUI host has no general `/api` proxy, so each path needs its own Hosting rewrite. `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` forwards this exact path to the hub ahead of the SPA fallback, and the hub routes it alongside `/v1/...` (SPL-1688). Before that rewrite existed, Allow ended on the WUI's "The page does not exist" (2026-10-13). `csi-spl-orc/src/bash/tests/wui-actions.tst.sh` fails when the rewrite is missing or sits after `**`.
+
 ## 2. Where the client id and secret live
 
 One app serves every env, so the same two values are stored in each place below. The values never passed through a chat, a spool post, a log or a commit: they were read from the LinkedIn page and piped straight into each store, then checked by comparing sha256 hashes only.

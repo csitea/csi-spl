@@ -297,6 +297,10 @@ doc = {
       {"source": "/v1/**", "run": {"serviceId": service, "region": region}},
       # spec 010 auth-v1 §1: social sign-in is same-origin under /api/v1/auth/
       {"source": "/api/v1/auth/**", "run": {"serviceId": service, "region": region}},
+      # spec 090 T006 (SPL-1688): LinkedIn's OAuth redirect, registered on the
+      # WUI origin (cmd/spool/hub_marketing.go linkedInCallbackPath). Without
+      # it the SPA fallback answers "The page does not exist".
+      {"source": "/api/v1/marketing/linkedin/callback", "run": {"serviceId": service, "region": region}},
       # spec 006 checkout-v1 §1 (the bare prefix for POST /api/v1/checkout)
       {"source": "/api/v1/checkout", "run": {"serviceId": service, "region": region}},
       {"source": "/api/v1/checkout/**", "run": {"serviceId": service, "region": region}},

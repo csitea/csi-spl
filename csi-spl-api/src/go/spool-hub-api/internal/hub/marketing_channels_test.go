@@ -136,10 +136,16 @@ func startConnect(t *testing.T, e *mktLinkedInEnv, tid, as string) string {
 }
 
 // callback is LinkedIn's redirect: a browser with NO session (the WUI
-// host's /api rewrite drops it), so no member header.
+// host's /api rewrite drops it), so no member header. It comes on the path
+// the rewrite keeps, LinkedInCallbackPath (SPL-1688: only /v1 was routed).
 func callback(t *testing.T, e *mktLinkedInEnv, tid string, q url.Values) (int, string) {
 	t.Helper()
-	resp, err := e.client.Get(e.url(tid) + "/v1/marketing/linkedin/callback?" + q.Encode())
+	return callbackAt(t, e, tid, hub.LinkedInCallbackPath, q)
+}
+
+func callbackAt(t *testing.T, e *mktLinkedInEnv, tid, path string, q url.Values) (int, string) {
+	t.Helper()
+	resp, err := e.client.Get(e.url(tid) + path + "?" + q.Encode())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,9 +195,10 @@ func TestMarketingLinkedInConnect(t *testing.T) {
 	if lc != 200 || len(list["channels"].([]any)) != 1 {
 		t.Fatalf("channels list: %d %v", lc, list)
 	}
-	// a second connect of the same LinkedIn member renews the one channel
+	// a second connect of the same LinkedIn member renews the one channel;
+	// the hub-origin /v1 path answers too
 	state = startConnect(t, e, tid, admin)
-	if code, _ := callback(t, e, tid, url.Values{"code": {fakeLinkedInCode}, "state": {state}}); code != 200 {
+	if code, _ := callbackAt(t, e, tid, "/v1/marketing/linkedin/callback", url.Values{"code": {fakeLinkedInCode}, "state": {state}}); code != 200 {
 		t.Fatalf("re-connect: %d", code)
 	}
 	if chs, _ := mk.MarketingChannels(context.Background(), tid); len(chs) != 1 {

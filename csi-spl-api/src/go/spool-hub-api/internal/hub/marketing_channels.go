@@ -20,7 +20,8 @@ import (
 //	GET  /v1/marketing/linkedin/connect?workspace=<id>  302 to LinkedIn: the
 //	     one-click link (a browser navigation, the member's session cookie)
 //	POST /v1/marketing/linkedin/connect?workspace=<id>  {authorize_url} (WUI)
-//	GET  /v1/marketing/linkedin/callback?code&state     LinkedIn's redirect
+//	GET  /v1/marketing/linkedin/callback?code&state     LinkedIn's redirect,
+//	     also at LinkedInCallbackPath, the path the WUI host's rewrite keeps
 //	GET  /v1/marketing/channels                         the workspace's
 //	     connected accounts, never a token (marketingRoute)
 //
@@ -46,6 +47,11 @@ type MarketingLinkedIn struct {
 	// Mail sends the re-connect reminder; nil = no mail relay (log only).
 	Mail func(ctx context.Context, to, subject, body string) error
 }
+
+// LinkedInCallbackPath is the callback as registered in the LinkedIn app
+// (linkedin-app-setup.md 1.1): on the WUI origin, whose Hosting rewrite
+// (render-wui-firebase-json.sh) forwards it to the hub with the path as is.
+const LinkedInCallbackPath = "/api/v1/marketing/linkedin/callback"
 
 // connectStateTTL is how long a started connect may take.
 const connectStateTTL = 15 * time.Minute
@@ -238,5 +244,8 @@ func (s *Server) routeMarketingChannels(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/marketing/linkedin/connect", s.handleLinkedInConnectGo)
 	mux.HandleFunc("POST /v1/marketing/linkedin/connect", s.handleLinkedInConnect)
 	mux.HandleFunc("GET /v1/marketing/linkedin/callback", s.handleLinkedInCallback)
+	// = LinkedInCallbackPath, a literal for the demo tests' route scan; the
+	// connect test calls it by the constant, so the two cannot drift apart
+	mux.HandleFunc("GET /api/v1/marketing/linkedin/callback", s.handleLinkedInCallback)
 	s.marketingRoute(mux, "GET /v1/marketing/channels", s.handleMarketingChannels)
 }

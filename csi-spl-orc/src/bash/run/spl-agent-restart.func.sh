@@ -56,7 +56,7 @@
 # @description gets ONE message. Dry run unless DRY_RUN=0.
 # @description Exit: 0 done (or planned), 1 failed, 3 nothing to restart (no hit, done, retired), 4 refused by a guard, a lock or a limit.
 # @param ID - required: the agent id (<id>@<this box> accepted)
-# @param CAUSE - required: rebirth | hard-end | S1 | S3 | S4 | S5 | S7 | S9 | reboot | box-down | login-reset
+# @param CAUSE - required: rebirth | hard-end | S1 | S3 | S4 | S5 | S7 | S9 | reboot | box-down | login-reset | gc (the GC agent: poked on an earlier pass, no progress since; spl-gc.func.sh)
 # @param DRY_RUN (optional) - 1 (default): PLAN lines, nothing touched; 0: act
 # @param WD_EVIDENCE (optional) - the watchdog's evidence line (set by do_spl_watchdog)
 # @param RESTART_SLOTS (optional) - lane restarts at once on this box, default 4
@@ -78,7 +78,7 @@ declare -F do_spl_agent_handoff >/dev/null ||
 declare -F do_spl_lane_wip_push >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-wip-push.func.sh"
 
-ARS_CAUSES="rebirth hard-end S1 S3 S4 S5 S7 S9 reboot box-down login-reset"
+ARS_CAUSES="rebirth hard-end S1 S3 S4 S5 S7 S9 reboot box-down login-reset gc"
 
 do_spl_agent_restart() {
   local id="${ID:-}" cause="${CAUSE:-}" req="${REQ_FROM:-${SPOOL_AGENT_ID:-}}" box=""

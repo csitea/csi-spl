@@ -22,11 +22,14 @@
 # @example LEASE_RANK=sat,<pc box>,box-desk APPLY=1 ./run -a do_spl_lease_rank
 #------------------------------------------------------------------------------
 # the lease dir, lease.conf reader and the desk box id, also when sourced on its own
+# the one lease.conf writer (SPL-1713: keeps the other keys, leaves a .bak)
+declare -F spl_lease_conf_write >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-lease-conf.func.sh"
 declare -F spl_lease_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-lease.func.sh"
 
 do_spl_lease_rank() {
-  local apply="${APPLY:-0}" orch dispatch machine k v cur new bak tmp
+  local apply="${APPLY:-0}" orch dispatch machine k v cur new bak
   [[ "$apply" == 0 || "$apply" == 1 ]] || { do_log "FATAL APPLY must be 0 or 1"; return 1; }
   orch="${LEASE_RANK_ORCH:-${LEASE_RANK:-}}"
   dispatch="${LEASE_RANK_DISPATCH:-${LEASE_RANK:-}}"
@@ -62,14 +65,9 @@ do_spl_lease_rank() {
     return 0
   fi
 
-  bak="$LEASE_CONF.bak-$(date -u +%Y%m%dT%H%M%SZ)"
-  [[ -e "$bak" ]] && bak="$bak-$$"
-  cp -p "$LEASE_CONF" "$bak" || { do_log "FATAL cannot back up $LEASE_CONF to $bak"; return 1; }
-  # a temp file in the same dir, then a rename: a reader never sees half a file
-  tmp="$(mktemp "$LEASE_DIR/.lease.conf.XXXXXX")" || { do_log "FATAL cannot create a temp file in $LEASE_DIR"; return 1; }
-  printf '%s\n' "$new" >"$tmp" && chmod --reference="$LEASE_CONF" "$tmp" &&
-    { chgrp --reference="$LEASE_CONF" "$tmp" 2>/dev/null || true; } && mv -f "$tmp" "$LEASE_CONF" ||
-    { rm -f "$tmp"; do_log "FATAL cannot write $LEASE_CONF (the old file is unchanged)"; return 1; }
+  # the one writer: a byte-identical backup first, every other key kept
+  bak="$(printf '%s\n' "$new" | spl_lease_conf_write "$LEASE_CONF" | sed -n 's/^BACKUP //p')"
+  [[ -n "$bak" ]] || { do_log "FATAL cannot write $LEASE_CONF"; return 1; }
   [[ "$(sed -n 's/^LEASE_PRIORITY_ORCH=//p' "$LEASE_CONF")" == "$orch" &&
      "$(sed -n 's/^LEASE_PRIORITY_DISPATCH=//p' "$LEASE_CONF")" == "$dispatch" ]] ||
     { do_log "FATAL $LEASE_CONF does not read back the ranking; the old file is $bak"; return 1; }

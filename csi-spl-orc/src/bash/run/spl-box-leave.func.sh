@@ -37,6 +37,9 @@
 #------------------------------------------------------------------------------
 # spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
 declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
+# the one lease.conf writer (SPL-1713: keeps the other keys, leaves a .bak)
+declare -F spl_lease_conf_write >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-lease-conf.func.sh"
 declare -F spl_lease_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-lease.func.sh"
 
@@ -164,8 +167,8 @@ spl_box_rank() {
   if [[ "$dry" == 1 ]]; then rm -f "$tmp"; [[ "$changed" == 1 ]] && echo "2. lease: WOULD restart the lease loop on it (LEASE_CMD=ensure)"; return 0; fi
   if (( changed )); then
     [[ "$verb" == leave && ! -f "$saved" ]] && cp -p "$LEASE_CONF" "$saved"
-    # in place (cat >, not mv): keep the file's owner and mode for every reader
-    cat "$tmp" > "$LEASE_CONF" || { rm -f "$tmp"; do_log "FATAL cannot write $LEASE_CONF"; return 1; }
+    # the one writer: in place (owner and mode kept), a backup, other keys kept
+    spl_lease_conf_write "$LEASE_CONF" "box-$verb" <"$tmp" >/dev/null || { rm -f "$tmp"; do_log "FATAL cannot write $LEASE_CONF"; return 1; }
   fi
   rm -f "$tmp"
   [[ "$verb" == join ]] && rm -f "$saved"

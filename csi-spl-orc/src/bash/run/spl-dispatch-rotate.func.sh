@@ -450,7 +450,7 @@ spl_disp_unswitch() {
   [[ -n "${ROTATE_SWITCH_TO:-}" ]] || return 0
   key="$(spl_disp_role_key)"
   if [[ "${!key}" != "$ROTATE_SWITCH_FROM" ]]; then
-    sed -i "s/^$key=${!key}\$/$key=$ROTATE_SWITCH_FROM/" "$LEASE_CONF" 2>/dev/null || true
+    spl_lease_conf_flip "$LEASE_CONF" "$ROTATE_RID-unswitch" "$key" "${!key}" "$ROTATE_SWITCH_FROM" 2>/dev/null || true
     [[ -s "$LEASE_DIR/rotate.hold" ]] && { sed -i "1s/^$ROTATE_SWITCH_TO /$ROTATE_SWITCH_FROM /" "$LEASE_DIR/rotate.hold" 2>/dev/null || true; }
     printf -v "$key" '%s' "$ROTATE_SWITCH_FROM"
     ROTATE_UNSWITCH_WHY+="; lease.conf $key back to $ROTATE_SWITCH_FROM"

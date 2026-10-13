@@ -21,6 +21,9 @@
 # @example ROLE_ID=CLE-003 ./run -a do_spl_role_id_switch
 # @example DRY_RUN=0 ROLE_ID=CLE-003 ./run -a do_spl_role_id_switch
 #------------------------------------------------------------------------------
+# the one lease.conf writer (SPL-1713: keeps the other keys, leaves a .bak)
+declare -F spl_lease_conf_write >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-lease-conf.func.sh"
 do_spl_role_id_switch() {
   local dry=1 root="${SPOOL_ROOT:-/var/spool-hub}" id="${ROLE_ID:-}" old new key conf feat agent_user
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
@@ -39,7 +42,7 @@ do_spl_role_id_switch() {
     do_spl_agent_id_rename || { do_log "FATAL the rename of $old failed; lease.conf left as it was"; return 1; }
   echo "== 2. lease.conf $key=$new"
   if (( ! dry )) && ! grep -qx "$key=$new" "$conf"; then
-    cp -p "$conf" "$conf.bak-$(date -u +%Y%m%dT%H%M%SZ)" && sed -i "s/^$key=$old\$/$key=$new/" "$conf" ||
+    spl_lease_conf_flip "$conf" role-switch "$key" "$old" "$new" ||
       { do_log "FATAL could not write $conf"; return 1; }
   fi
   echo "== 3. resume as $agent_user"

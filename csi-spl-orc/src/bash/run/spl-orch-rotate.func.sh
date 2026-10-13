@@ -48,6 +48,9 @@
 # @example ROTATE_CMD=ack ROTATE_ID=20261002T0505Z-orch ./run -a do_spl_orch_rotate
 # @example ROTATE_CMD=abort DRY_RUN=0 ./run -a do_spl_orch_rotate
 #------------------------------------------------------------------------------
+# the one lease.conf writer (SPL-1713: keeps the other keys, leaves a .bak)
+declare -F spl_lease_conf_write >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-lease-conf.func.sh"
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
 
@@ -205,8 +208,7 @@ spl_orch_rotate_switch() {
   new="$(spl_orch_rotate_new_id "$old")"
   out="$(${ROTATE_RENAME:-bash "$ROTATE_FEAT/scripts/agent-id-rename.sh"} --apply --roles --desk-envs "${ROTATE_SWITCH_DESK_ENVS-dev prd}" "$old" 2>&1)" ||
     { ROTATE_ERR="the rename $old -> $new failed: $(tr '\n' ' ' <<<"$out" | cut -c1-300)"; return 1; }
-  cp -p "$LEASE_CONF" "$LEASE_CONF.bak-$ROTATE_RID" 2>/dev/null || true
-  sed -i "s/^LEASE_ORCH=$old\$/LEASE_ORCH=$new/" "$LEASE_CONF" && grep -qx "LEASE_ORCH=$new" "$LEASE_CONF" ||
+  spl_lease_conf_flip "$LEASE_CONF" "$ROTATE_RID" LEASE_ORCH "$old" "$new" ||
     { ROTATE_ERR="lease.conf did not take LEASE_ORCH=$new"; return 1; }
   ROTATE_SWITCH_FROM="$old" LEASE_ORCH="$new"
   spl_orch_rotate_step SWITCH OK "$old -> $new: $(grep -c '^DO ' <<<"$out") rename step(s), lease.conf LEASE_ORCH=$new"
@@ -306,7 +308,7 @@ spl_orch_rotate_unswitch() {
   ROTATE_UNSWITCH_WHY=""
   [[ -n "${ROTATE_SWITCH_FROM:-}" ]] || return 0
   if [[ "$LEASE_ORCH" != "$ROTATE_SWITCH_FROM" ]]; then
-    sed -i "s/^LEASE_ORCH=$LEASE_ORCH\$/LEASE_ORCH=$ROTATE_SWITCH_FROM/" "$LEASE_CONF" 2>/dev/null || true
+    spl_lease_conf_flip "$LEASE_CONF" "$ROTATE_RID-unswitch" LEASE_ORCH "$LEASE_ORCH" "$ROTATE_SWITCH_FROM" 2>/dev/null || true
     ROTATE_UNSWITCH_WHY+="; lease.conf LEASE_ORCH back to $ROTATE_SWITCH_FROM"
   fi
   if [[ -z "${ROTATE_SWITCH_TO:-}" ]]; then

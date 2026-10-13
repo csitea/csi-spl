@@ -67,6 +67,9 @@
 declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_desk_box_default >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
+# the one lease.conf writer (SPL-1713: keeps the other keys, leaves a .bak)
+declare -F spl_lease_conf_write >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-lease-conf.func.sh"
 
 do_spl_dispatch_setup() {
   spl_dispatch_cnf || return 1
@@ -108,12 +111,19 @@ spl_dispatch_setup_shared() {
   local conf
   spl_dispatch_lease_conf_text || return 1
   if ! spl_dispatch_step 2 lease-conf; then :
-  elif [[ "$(cat "$LEASE_CONF" 2>/dev/null)" == "$conf" ]]; then
+  elif [[ -f "$LEASE_CONF" && "$(cat "$LEASE_CONF")" == "$(printf '%s\n' "$conf" | spl_lease_conf_merge "$LEASE_CONF")" ]]; then
     spl_dispatch_ok lease-conf "$LEASE_CONF"
   else
+    # through the one writer: a key this text lacks is kept, never dropped,
+    # and the old file is left as lease.conf.bak-<UTC>-setup
     spl_dispatch_do lease-conf "write $LEASE_CONF ($DISPATCH_MASTER / $DISPATCH_FAILOVER / $DISPATCH_ORCH)" \
-      bash -c 'printf "%s\n" "$2" > "$1"' _ "$LEASE_CONF" "$conf" || return 1
+      spl_dispatch_lease_conf_put "$conf" || return 1
   fi
+}
+
+# spl_dispatch_lease_conf_put <text>: step 2's write, via spl_lease_conf_write.
+spl_dispatch_lease_conf_put() {
+  printf '%s\n' "$1" | spl_lease_conf_write "$LEASE_CONF" setup
 }
 
 # spl_dispatch_setup_dispatcher <id>: steps 3-8 for one dispatcher, the master

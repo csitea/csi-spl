@@ -74,7 +74,7 @@ The steps, in the order the action runs them:
 | step | does |
 |---|---|
 | `posts-dir` | creates the post-drop dir, mode 2777 |
-| `lease-conf` | writes `<spool root>/dispatch/lease.conf`; this file is what turns the lease on for this box |
+| `lease-conf` | writes `<spool root>/dispatch/lease.conf`; this file is what turns the lease on for this box. A re-run keeps every key it does not set and leaves `lease.conf.bak-<UTC>-setup` (section 7.2) |
 | `brief` | renders each dispatcher's brief from `csi-spl-orc/src/bash/features/dispatch/brief-dispatcher.tpl.md` |
 | `worktree` | creates `<checkout>-wt/<id>` BEFORE the spawn, so the session starts with its settings |
 | `settings` / `exclude` | writes `.claude/settings.local.json` (desk replies only) and keeps it out of git |
@@ -282,4 +282,28 @@ also matches the shell that runs it, and kills that shell.
 cd "$CHECKOUT/csi-spl-orc" && LEASE_CMD=stop ./run -a do_spl_dispatch_lease && rm "${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
 ```
 
-<!-- version: 0.3.1 · updated: 2026-10-03 · last-edit: 2026-10-03T19:00:00Z -->
+### 7.2 lease.conf has one writer; never edit it from a test shell
+
+Every action that changes `lease.conf` (setup, the orch and dispatch
+rotations, the role switch, `do_spl_lease_rank`, `do_spl_box_leave`) writes it
+through `spl_lease_conf_write` (`csi-spl-orc/lib/bash/funcs/spl-lease-conf.func.sh`):
+a key the writer does not name is kept, and the old file is left as
+`lease.conf.bak-<UTC>[-<tag>]` first. The test
+`csi-spl-orc/src/bash/tests/lease-conf-write.tst.sh` fails on any other
+write to it in the orc code (SPL-1713).
+
+So a `lease.conf` with fewer keys than its newest backup and no backup of
+that change was cut by hand. On 2026-10-13 a lane pasted the lines of
+`test-spool-notify-orch.sh` into a plain `sudo -u <box user> bash -c '...'`: with
+no sandbox, `spool_env_resolve` put `SPOOL_ROOT` on the live
+`/var/spool-hub`, its `printf` left three lines (20:05Z) and its `rm -f`
+removed the file (20:07Z). Run a test file whole, never its lines: only its
+sandbox keeps it off the live root.
+
+`LEASE_CMD=ensure` now refuses to leave fleet mode while the fleet loop runs
+and the newest backup still has `LEASE_FLEET`: it logs `ensure REFUSED` in
+`lease.log` and the loop keeps running. Restore the file from that backup,
+then ensure again. To leave fleet mode on purpose, stop the loops first
+(`LEASE_CMD=stop`), then edit the file and ensure.
+
+<!-- version: 0.3.2 · updated: 2026-10-13 · last-edit: 2026-10-13T20:30:00Z -->

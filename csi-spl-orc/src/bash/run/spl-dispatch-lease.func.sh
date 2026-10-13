@@ -881,8 +881,9 @@ spl_lease_ensure() {
       spl_lease_running "$verb" && { spl_lease_log "ensure stops $verb (fleet mode)"; spl_lease_stop_one "$verb" || return 1; }
     done
     verbs=(fleet)
-  else
-    spl_lease_running fleet && { spl_lease_log "ensure stops fleet (no LEASE_FLEET)"; spl_lease_stop_one fleet || return 1; }
+  elif spl_lease_running fleet; then
+    spl_lease_conf_lost_fleet && return 1
+    spl_lease_log "ensure stops fleet (no LEASE_FLEET)"; spl_lease_stop_one fleet || return 1
   fi
   for verb in "${verbs[@]}"; do
     if spl_lease_running "$verb"; then
@@ -906,6 +907,22 @@ spl_lease_ensure() {
     do_log "INFO lease $verb loop started (log $out)"
     spl_lease_log "ensure started $verb"
   done
+  return 0
+}
+
+# 0 (and a loud refusal) when lease.conf has no LEASE_FLEET but its newest
+# backup has: a writer cut the file without leaving a backup (every action
+# writes through spl_lease_conf_write, which leaves one), as on 2026-10-13
+# (SPL-1713: three lines, then the file gone). Leaving fleet mode on such a
+# file would turn the fleet loop off; ensure keeps it and says what to restore.
+# A deliberate exit from fleet mode drops LEASE_FLEET by hand: then remove the
+# newer backups too, or stop the loop with LEASE_CMD=stop.
+spl_lease_conf_lost_fleet() {
+  local bak
+  bak="$(ls -t "$LEASE_CONF".bak-* 2>/dev/null | sed -n 1p)"
+  [[ -n "$bak" ]] && grep -qE '^LEASE_FLEET=' "$bak" 2>/dev/null || return 1
+  spl_lease_log "ensure REFUSED: $LEASE_CONF has no LEASE_FLEET but its newest backup $bak has; the fleet loop keeps running"
+  do_log "FATAL $LEASE_CONF lost LEASE_FLEET (its newest backup $bak has it) and no action rewrote it with a backup: restore it from $bak, then LEASE_CMD=ensure. The fleet loop keeps running."
   return 0
 }
 

@@ -36,6 +36,9 @@
 # plain command that fails ends the whole action. Every probe here that may
 # fail sits in a condition or an `||`, or prints nothing and returns 0.
 #------------------------------------------------------------------------------
+# the one lease.conf writer (SPL-1713: keeps the other keys, leaves a .bak)
+declare -F spl_lease_conf_write >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-lease-conf.func.sh"
 declare -F spl_lease_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-lease.func.sh"
 
@@ -180,8 +183,7 @@ spl_rotate_seat_switch() {
 # first) and the shell's KEY with it. Non-zero = lease.conf did not take it.
 # shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
 spl_rotate_conf_flip() {
-  cp -p "$LEASE_CONF" "$LEASE_CONF.bak-$ROTATE_RID" 2>/dev/null || true
-  sed -i "s/^$1=$2\$/$1=$3/" "$LEASE_CONF" && grep -qx "$1=$3" "$LEASE_CONF" ||
+  spl_lease_conf_flip "$LEASE_CONF" "$ROTATE_RID" "$1" "$2" "$3" ||
     { ROTATE_ERR="lease.conf did not take $1=$3"; return 1; }
   printf -v "$1" '%s' "$3"
 }

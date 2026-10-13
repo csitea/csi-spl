@@ -166,9 +166,35 @@ cd <CHECKOUT>/csi-spl-orc && sudo -u <OWNER_USER> env BOX_RESTART_SLOT=<n> DRY_R
 - **Agent stuck**: restart it with `do_spl_agent_identity_restore`.
 - **Lease conflict**: run `LEASE_CMD=fleet-show ./run -a do_spl_dispatch_lease` and resolve the conflict by hand.
 
-# 9 Gaps
+# 9 Purge a listed set of messages
 
-- No named action for cleaning old spool messages beyond `do_spl_session_prune` and `do_spl_topic_archive`.
+`do_spl_msg_purge` (SPL-1641) deletes an exact list of messages, any sender, and archives their topics, in a cloud env. The list file holds one `<tenant> <msg_id> <task_id>` per line. It deletes the way the hub deletes a message (a hard delete; the revisions, reactions, deliveries and the other `ON DELETE CASCADE` rows go with it) and archives each topic the way the hub does (`archived_at` / `archived_by` on the topic's first remaining opening card and its DM mirrors), so the web UI lists the topic as archived and its link still opens it. An issue's discussion is skipped: it is archived with its issue.
+
+It runs one transaction per tenant under that tenant's row-level security, as the env's project service account, and refuses unless every listed id exists in its task and the file holds `EXPECT_N` rows. Before each delete it writes the full rows to an undo journal, `<state dir>/msg-purge/<env>-<tenant>-<utc>.undo.tsv`. It is a dry run, counts only, unless `DRY_RUN=0`.
+
+## 9.1 Purge, plan
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && ENV=<env> LIST_FILE=<list.tsv> EXPECT_N=<rows> ARCHIVED_BY=<HUM-id> ./run -a do_spl_msg_purge
+```
+
+## 9.2 Purge, apply
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && ENV=<env> LIST_FILE=<list.tsv> EXPECT_N=<rows> ARCHIVED_BY=<HUM-id> DRY_RUN=0 ./run -a do_spl_msg_purge
+```
+
+## 9.3 Undo one tenant's purge
+
+Puts the journaled rows back with every column they had and clears the archive stamps that run set where they still hold. Refused when any journaled message exists again.
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && ENV=<env> JOURNAL=<file.undo.tsv> DRY_RUN=0 ./run -a do_spl_msg_purge_undo
+```
+
+# 10 Gaps
+
+- No named action for cleaning old spool messages by age or sender beyond `do_spl_session_prune` and `do_spl_topic_archive`; `do_spl_msg_purge` takes an exact list.
 - No named action for quota monitoring.
 - No named action to pause non-critical workflows.
 - Tenant root keys: no action lists the required workspaces or checks for missing keys.

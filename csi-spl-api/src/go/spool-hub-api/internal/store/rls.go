@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -46,6 +47,44 @@ func (s *Postgres) inTenant(ctx context.Context, tenant string, fn func(pgx.Tx) 
 	}
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, pgScopeTenant, tenant); err != nil {
+			return err
+		}
+		return fn(tx)
+	})
+}
+
+// pgScopePerson is the person scope of the personal realm (specs/119 7.2,
+// rdb 0168's person_scope policy): transaction-local like app.tenant_id. Only
+// inPerson sets it (TestPersonScopeCallers).
+const pgScopePerson = `SELECT set_config('app.person_id', $1, true)`
+
+// ErrNoPerson: a realm statement was asked for without a valid person. The
+// store refuses "" and anything not HUM-<digits> before Postgres sees it
+// (specs/119 7.2, T-N7); rdb 0168's NULLIF guard is the database half.
+var ErrNoPerson = errors.New("store: person-scoped statement without a valid person")
+
+// personIDRe is rdb 0168's person_id CHECK.
+var personIDRe = regexp.MustCompile(`^HUM-[0-9]+$`)
+
+// checkPerson is the store half of the person scope's fail-closed.
+func checkPerson(person string) error {
+	if !personIDRe.MatchString(person) {
+		return ErrNoPerson
+	}
+	return nil
+}
+
+// inPerson runs fn in one transaction scoped to person's realm (specs/119
+// 7.2), the twin of inTenant. It never sets app.tenant_id, and it never nests
+// with inTenant: rdb 0168's policy reads 0 realm rows while a tenant is set.
+// person comes only from the authenticated human session, never from a path,
+// query, header or body.
+func (s *Postgres) inPerson(ctx context.Context, person string, fn func(pgx.Tx) error) error {
+	if err := checkPerson(person); err != nil {
+		return err
+	}
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, pgScopePerson, person); err != nil {
 			return err
 		}
 		return fn(tx)

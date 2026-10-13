@@ -55,6 +55,7 @@ type Memory struct {
 	liveAcks    map[[3]string]LiveAck   // live_acks.go (rdb 0186), guarded by mu
 	cal         memCalendar             // calendar_memory.go (rdb 0125), guarded by mu
 	hrs         memHours                // hours_memory.go (rdb 0151), guarded by mu
+	realm       memRealm                // personal_memory.go (rdb 0168), guarded by mu
 	anyMoved    bool                    // message_move.go (rdb 0069): a row was ever moved
 	// sender_allow.go (rdb 0188): (tenant, agent) -> its sender list, guarded by mu
 	senders map[[2]string]memSenderList

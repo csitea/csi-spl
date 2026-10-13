@@ -1399,7 +1399,7 @@ async function openIssueKey(key: string) {
   if (held) { choose(held); return }
   try {
     const data = await withSessionRetry(api, () => api.getIssue(key))
-    choose(normalizeIssue(data.issue))
+    choose(normalizeIssue(data.issue), false, true)
   } catch (e) {
     saveError.value = failKey(e)
   }
@@ -1733,7 +1733,21 @@ function pushIssueQuery(key: string) {
   pendingPush = push
   void push.finally(() => { if (pendingPush === push) pendingPush = null })
 }
-function choose(issue: Issue, fromLink = false) {
+/* P5-06: a sheet row carries no description (the hub's list projects only
+   what the sheet paints), so opening one reads the issue by number first and
+   the modal paints the whole issue, never a blank description. `loaded` = the
+   caller already holds that read. The last open wins a race. */
+let chooseSeq = 0
+function choose(issue: Issue, fromLink = false, loaded = false) {
+  const seq = ++chooseSeq
+  if (loaded) { show(issue, fromLink); return }
+  cursorKey.value = issue.key
+  void withSessionRetry(api, () => api.getIssue(issue.key)).then(
+    (data) => { if (seq === chooseSeq) show(normalizeIssue(data.issue), fromLink) },
+    (e) => { if (seq === chooseSeq) saveError.value = failKey(e) },
+  )
+}
+function show(issue: Issue, fromLink: boolean) {
   const wasOpen = modalOpen.value
   cursorKey.value = issue.key
   creating.value = false
@@ -1744,6 +1758,7 @@ function choose(issue: Issue, fromLink = false) {
   detail.value = issue
 }
 function closeDetail() {
+  chooseSeq++ /* an open still loading stays closed */
   const wasModal = modalOpen.value
   const closedKey = detail.value?.key || ''
   creating.value = false
@@ -1765,6 +1780,7 @@ function closeDetail() {
   writeIssueQuery('')
 }
 function startCreate(status = '') {
+  chooseSeq++
   creating.value = true
   openKey.value = ''
   detail.value = null
@@ -1866,11 +1882,7 @@ async function move(delta: number) {
   if (!next) return
   cursorKey.value = next
   const issue = flat.value.find((i) => i.key === next)
-  if (issue && openKey.value && !creating.value) {
-    openKey.value = issue.key
-    detail.value = issue
-    writeIssueQuery(issue.key)
-  }
+  if (issue && openKey.value && !creating.value) choose(issue)
   void nextTick(scrollSelected)
 }
 function hold(issue: Issue) {
@@ -2361,7 +2373,9 @@ const aiLocalePath = useLocalePath()
 async function runIssueAi(id: string, tg: IssueMenuTarget) {
   saveError.value = ''
   try {
-    const issue = heldIssue(tg.key) || normalizeIssue((await withSessionRetry(api, () => api.getIssue(tg.key))).issue)
+    /* P5-06: a held sheet row has no description; the subject needs it */
+    const open = detail.value?.key === tg.key ? detail.value : null
+    const issue = open || normalizeIssue((await withSessionRetry(api, () => api.getIssue(tg.key))).issue)
     if (!issue.task_id) throw new Error('no discussion topic')
     const { runAiAction } = await import('~/utils/msg-ai-run')
     const send = (text: string) => sendToDiscussion(issue, text)
@@ -2410,7 +2424,7 @@ async function editTarget(tg: IssueMenuTarget) {
   if (held) { choose(held); return }
   try {
     const data = await withSessionRetry(api, () => api.getIssue(tg.key))
-    choose(normalizeIssue(data.issue))
+    choose(normalizeIssue(data.issue), false, true)
   } catch (e) {
     saveError.value = failKey(e)
   }
@@ -3018,17 +3032,16 @@ async function openLinkedIssue() {
   const key = issueLinkKey()
   if (!key) return
   if (detail.value && detail.value.key.toLowerCase() === key.toLowerCase()) return
-  let issue = issues.value.find((i) => i.key.toLowerCase() === key.toLowerCase())
-  if (!issue) {
-    try {
-      const data = await withSessionRetry(api, () => api.getIssue(key))
-      issue = normalizeIssue(data.issue)
-      hold(issue)
-    } catch {
-      return
-    }
+  const held = issues.value.find((i) => i.key.toLowerCase() === key.toLowerCase())
+  if (held) { choose(held, true); return }
+  try {
+    const data = await withSessionRetry(api, () => api.getIssue(key))
+    const issue = normalizeIssue(data.issue)
+    hold(issue)
+    choose(issue, true, true)
+  } catch {
+    /* an unknown key opens nothing */
   }
-  choose(issue, true)
 }
 watch(detail, (issue) => {
   if (creating.value) return

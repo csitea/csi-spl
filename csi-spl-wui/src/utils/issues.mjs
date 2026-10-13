@@ -388,7 +388,7 @@ function mockSeedIssues(me, now) {
      with N more issues (SPL-2 ..), so a test reaches a second page */
   const seed = mockStoredCount(MOCK_ISSUES_SEED_KEY, 500)
   for (let k = 1; k <= seed; k++) {
-    issues.push(mockNewIssue({ title: `mock issue ${k}`, priority: 1 + (k % 5) }, issues.length + 1, me, now()))
+    issues.push(mockNewIssue({ title: `mock issue ${k}`, description: `mock issue ${k} text`, priority: 1 + (k % 5) }, issues.length + 1, me, now()))
   }
   /* SPL-1559: `spool.mock.issues-new` = N issues a teammate assigned to me, none opened */
   const fresh = mockStoredCount(MOCK_ISSUES_NEW_KEY, 50)
@@ -468,7 +468,9 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       const matched = issues.map(view).map(mine).filter((i) => matchIssue(i, f, me))
       const counts = Object.fromEntries(ISSUE_STATUSES.map((s) => [s, matched.filter((i) => i.status === s).length]))
       const { rows, next } = mockPage(matched, q)
-      return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: rows, labels: labels.slice(), channel: ISSUE_CHANNEL, epics: mockSummaries(issues),
+      /* P5-06: like the hub's sheet read, a listed row carries no description;
+         the open issue is get(ref) */
+      return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: rows.map((i) => ({ ...i, description: '' })), labels: labels.slice(), channel: ISSUE_CHANNEL, epics: mockSummaries(issues),
         total: matched.length, next_cursor: next }
     },
     get(ref) {

@@ -1,0 +1,6 @@
+Lay-What: A browser message the hub refuses is still refused the same way.
+Lay-How: The refusal is written by one helper, called from each place the send used to write it.
+Lay-Why: The send function had grown past the line limit, which blocked the allow-list change from landing.
+Tech-What: wuiRefuse logs the refusal and writes the error frame, including the agent name on sender_not_allowed.
+Tech-How: wuiSend calls wuiRefuse at every refusal; the allow-list check still runs after routing and before any store write.
+Tech-Why: The clean-code gate rejects a new function over 80 lines, and wuiSend was 87.

@@ -34,13 +34,13 @@
 // [data-testid=qto-folder-menu] / [data-testid=qto-section-menu], so those
 // checks FAIL.
 //
-// Owner t1 3b8891e0 (msgs 62c51def, 411480f9, e3b5a06a): a + New folder in
-// the explorer pane only, desktop and phone, "the same type and shape" as
-// the page's + New document, "on the top". At 1440 px it sits at the top of
-// the tree: a folder made there lists first; a folder picked, the page's +
-// New document lands inside it. At 390 px it tops each drill-down level and
-// makes the folder in the level shown. Control: before the button there is
-// no [data-test=qto-new-folder], so every folder check FAILS.
+// Owner t1 3b8891e0 (msgs 62c51def, 411480f9, e3b5a06a): a + New folder,
+// "the same type and shape" as the page's + New document. At 1440 px it
+// shares the page header row with the view buttons and + New document (no
+// Documents heading); a folder made there lists first, and a folder picked,
+// the page's + New document lands inside it. At 390 px it stays above each
+// drill-down level and makes the folder in the level shown. Control: before
+// the button there is no [data-test=qto-new-folder], so every folder check FAILS.
 //
 // Control: before the entry there is no [data-testid=qto-open], so every
 // signed-in check FAILS on the earlier master. The channel list check has
@@ -303,21 +303,32 @@ async function desktopFolders(p) {
   await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await onPage(p)
   await p.waitForSelector('[data-test=qto-file-tree] [data-test=file-tree-row]', { visible: true, timeout: STEP }).catch(() => null)
-  ok('1440: a + New folder is in the explorer pane', await p.waitForSelector(`#qto-file-tree ${FOLDER_NEW}`, { visible: true, timeout: STEP }).then(Boolean, () => false))
+  ok('1440: no Documents heading, and the views and both + buttons share the header row', await p.waitForFunction(() => {
+    const box = (sel) => {
+      const el = document.querySelector(sel)
+      if (!el) return null
+      const r = el.getBoundingClientRect()
+      return r.width > 0 && r.height > 0 ? r : null
+    }
+    const views = box('.wsdocs-head .wsdocs-views')
+    const doc = box('.wsdocs-head [data-test=ws-docs-new]')
+    const folder = box('.wsdocs-head [data-test=qto-new-folder]')
+    const head = box('.wsdocs-head')
+    const heading = document.querySelector('[data-test=ws-docs-heading]')
+    const shownHeading = heading && heading.getBoundingClientRect().height > 0 && /\bDocuments\b/.test(heading.textContent || '')
+    if (!views || !doc || !folder || !head || shownHeading) return false
+    const same = (a, b) => a.top < b.bottom - 1 && b.top < a.bottom - 1
+    return same(views, doc) && same(views, folder) && views.left >= head.left + head.width / 3
+  }, { timeout: STEP }).then(() => true, () => false))
   ok('1440: ... named New folder', await p.$eval(FOLDER_NEW, (el) => el.getAttribute('aria-label')).catch(() => '') === 'New folder')
-  ok('1440: ... at the top, above every row', await p.evaluate((sel) => {
-    const b = document.querySelector(sel)?.getBoundingClientRect()
-    const r = document.querySelector('#qto-file-tree [data-test=file-tree-row]')?.getBoundingClientRect()
-    return Boolean(b && r && b.bottom <= r.top + 1)
-  }, FOLDER_NEW))
   const want = await look(p, '[data-test=ws-docs-new]')
   ok('1440: ... the same type and shape as + New document', Boolean(want) && await look(p, FOLDER_NEW) === want, [await look(p, FOLDER_NEW), want])
-  ok('1440: a folder is made', await newFolder(p, 'Plans') === '')
+  ok('1440: a folder is made', await newFolder(p, 'Plans', '.wsdocs-head') === '')
   ok('1440: ... and listed first in the tree, a folder row', await p.waitForFunction(() => {
     const first = document.querySelector('#qto-file-tree [data-test=file-tree-row]')
     return first?.textContent.trim() === 'Plans' && first.getAttribute('data-kind') === 'folder'
   }, { timeout: STEP }).then(() => true, () => false), await rowKeys(p))
-  ok('1440: the same name again is refused, saying why', await newFolder(p, 'plans') === 'A folder with that name is already here.')
+  ok('1440: the same name again is refused, saying why', await newFolder(p, 'plans', '.wsdocs-head') === 'A folder with that name is already here.')
   await p.keyboard.press('Escape')
   await p.waitForFunction(() => !document.querySelector('[data-test=qto-new-folder-form]'), { timeout: STEP }).catch(() => {})
   const plans = await treeRow(p, 'Plans')
@@ -479,7 +490,7 @@ async function back(p) {
 async function drillDown(m) {
   ok('phone: no side tree and no Documents button', !(await shown(m, '#qto-file-tree')) && !(await m.$('[data-test=qto-file-tree-toggle]')))
   ok('phone: the first screen lists the top level only', await listIs(m, ['Handbook']) && (await listRows(m)).every((r) => r.startsWith('1 ')), await listRows(m))
-  ok('phone: ... titled Documents, with the Back chevron', await heading(m) === 'Documents' && await shown(m, '[data-test=ws-docs-page] [data-testid=mobile-back]'))
+  ok('phone: ... no Documents heading, with the Back chevron', !(await m.$('[data-test=ws-docs-heading]')) && await shown(m, '[data-test=ws-docs-page] [data-testid=mobile-back]'))
   if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-drill-phone-top.png` })
   await tapRow(m, 'Handbook')
   ok('phone: a tap on a document drills into its sections', await listIs(m, ['Introduction', 'Operations', 'Glossary']), await listRows(m))
@@ -497,7 +508,7 @@ async function drillDown(m) {
   await back(m)
   ok('phone: Back from the document returns to its level', await listIs(m, ['Introduction', 'Operations', 'Glossary']), await listRows(m))
   await back(m)
-  ok('phone: Back again, the top level', await listIs(m, ['Handbook']) && await heading(m) === 'Documents', await listRows(m))
+  ok('phone: Back again, the top level', await listIs(m, ['Handbook']) && !(await m.$('[data-test=ws-docs-heading]')), await listRows(m))
   return level
 }
 
@@ -518,7 +529,7 @@ async function freshBack(browser, url) {
   ok('390 fresh: Back goes up one level, to the document', await listIs(n, ['Introduction', 'Operations', 'Glossary']) && await headingIs(n, 'Handbook'), [n.url(), await listRows(n)])
   if (process.env.SHOT_DIR) await n.screenshot({ path: `${process.env.SHOT_DIR}/qto-fresh-back-390.png` })
   await back(n)
-  ok('390 fresh: Back again, the top of Documents', await listIs(n, ['Handbook']) && await headingIs(n, 'Documents') && !new URL(n.url()).searchParams.has('in'), [n.url(), await listRows(n)])
+  ok('390 fresh: Back again, the top level has no Documents heading', await listIs(n, ['Handbook']) && await n.waitForFunction(() => !document.querySelector('[data-test=ws-docs-heading]'), { timeout: STEP }).then(() => true, () => false) && !new URL(n.url()).searchParams.has('in'), [n.url(), await listRows(n)])
   await back(n)
   ok('390 fresh: only from the top does Back leave Documents', await n.waitForFunction(() => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') === '1', { timeout: STEP }).then(() => true, () => false), n.url())
   await n.close()

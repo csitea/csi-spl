@@ -7,26 +7,22 @@
      On a phone (owner t1 8bf89f96, msgs dfe000c1, c09ae88e, d8a12bb3) the
      page drills down as Channels -> channel -> topic does: with no ?doc= it
      lists one level of the documents' tree (QtoFileTree `drill`, the node in
-     ?in=), its path as the title; a tap on a row with rows under it pushes
-     the next level, any other row opens the document there. Every step is a
-     route push, so the Back chevron (MobileBack), a swipe and browser Back
-     walk back up the same way they leave a channel. A level loaded fresh
+     ?in=). A drilled level's path is the title; the top level has no
+     Documents heading. A tap on a row with rows under it pushes the next
+     level, any other row opens the document there. Every step is a route
+     push, so the Back chevron (MobileBack), a swipe and browser Back walk
+     back up the same way they leave a channel. A level loaded fresh
      (t1 3b8891e0) has none of those entries: Back steps up in place
      (utils/docs-drill-up.mjs) until the top. -->
 <template>
   <div class="feed-col wsdocs-page" data-test="ws-docs-page">
     <header class="feed-header wsdocs-head">
       <MobileBack />
-      <h2 data-test="ws-docs-heading">{{ phoneList && drillTitle ? drillTitle : t('ws_doctree.title') }}</h2>
+      <!-- a drilled phone level names its path; the word Documents is not a heading (the tree keeps that string as its aria-label) -->
+      <h2 v-if="phoneList && drillTitle" data-test="ws-docs-heading">{{ drillTitle }}</h2>
       <!-- a drilled level opens as a document too: the menu's Edit (a folder level is no document) -->
       <button v-if="phoneList && drillAt && !drillAt.startsWith('f:')" type="button" class="btn ghost" data-test="ws-docs-drill-open" @click="openDrilled">
         {{ t('ws_doctree.doc_menu.edit') }}
-      </button>
-      <!-- owner t1 889e15d9: a new document is made through the + and its
-           modal, the issues page's pattern (SPL-978 round +; SPL-992 on a
-           phone it floats bottom right) -->
-      <button v-if="state === 'ready' || state === 'loading'" type="button" class="wsdocs-fab" data-test="ws-docs-new" aria-haspopup="dialog" :aria-label="t('ws_doctree.new_doc')" :title="t('ws_doctree.new_doc')" @click="newOpen = true">
-        <UiIcon name="plus" :size="22" :stroke-width="2.5" />
       </button>
       <label v-if="docs.length && !phoneList" class="wsdocs-pick">
         <span class="sr-only">{{ t('ws_doctree.doc_label') }}</span>
@@ -34,20 +30,33 @@
           <option v-for="d in docs" :key="d.id" :value="d.id">{{ d.title }}</option>
         </select>
       </label>
-      <div v-if="docId && !phoneList" class="wsdocs-views" role="radiogroup" :aria-label="t('ws_doctree.view_label')">
-        <button
-          v-for="v in VIEWS"
-          :key="v"
-          type="button"
-          role="radio"
-          class="wsdocs-views__opt"
-          :data-test="'ws-docs-view-' + v"
-          :aria-checked="view === v ? 'true' : 'false'"
-          @click="setView(v)"
-        >
-          <UiIcon :name="v === 'doc' ? 'list' : 'file-spreadsheet'" :size="16" />
-          <span>{{ t('ws_doctree.view_' + v) }}</span>
+      <!-- the doc/grid views and both + buttons share this row, at the right.
+           QtoFileTree teleports + New folder into the slot on a desktop.
+           On a phone + New document stays the floating action (below). -->
+      <div class="wsdocs-head__actions" data-test="ws-docs-head-actions">
+        <div id="wsdocs-folder-slot" class="wsdocs-folder-slot"></div>
+        <!-- owner t1 889e15d9: a new document is made through the + and its
+             modal, the issues page's pattern (SPL-978 round +; SPL-992 on a
+             phone it floats bottom right) -->
+        <button v-if="state === 'ready' || state === 'loading'" type="button" class="wsdocs-fab" data-test="ws-docs-new" aria-haspopup="dialog" :aria-label="t('ws_doctree.new_doc')" :title="t('ws_doctree.new_doc')" @click="newOpen = true">
+          <UiIcon name="plus" :size="22" :stroke-width="2.5" />
         </button>
+        <!-- Outline and Grid sit at the inline end of this row (g-002 91896f9d) -->
+        <div v-if="docId && !phoneList" class="wsdocs-views" role="radiogroup" :aria-label="t('ws_doctree.view_label')">
+          <button
+            v-for="v in VIEWS"
+            :key="v"
+            type="button"
+            role="radio"
+            class="wsdocs-views__opt"
+            :data-test="'ws-docs-view-' + v"
+            :aria-checked="view === v ? 'true' : 'false'"
+            @click="setView(v)"
+          >
+            <UiIcon :name="v === 'doc' ? 'list' : 'file-spreadsheet'" :size="16" />
+            <span>{{ t('ws_doctree.view_' + v) }}</span>
+          </button>
+        </div>
       </div>
     </header>
     <div class="feed-body wsdocs-body">
@@ -295,7 +304,18 @@ defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs })
 </script>
 
 <style scoped>
-.wsdocs-head { gap: 12px; flex-wrap: wrap; }
+.wsdocs-head { gap: 12px; flex-wrap: nowrap; min-width: 0; }
+.wsdocs-head h2 { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wsdocs-head__actions {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.wsdocs-folder-slot { display: contents; }
+.wsdocs-folder-slot:empty { display: none; }
+.wsdocs-pick { min-width: 0; flex: 0 1 18rem; }
 .wsdocs-pick select {
   font: inherit;
   padding: 4px 8px;
@@ -303,7 +323,7 @@ defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs })
   border-radius: var(--radius-sm);
   background: var(--color-bg);
   color: var(--color-fg);
-  max-width: 18rem;
+  max-width: 100%;
 }
 .wsdocs-views { display: inline-flex; gap: 4px; }
 .wsdocs-views__opt {

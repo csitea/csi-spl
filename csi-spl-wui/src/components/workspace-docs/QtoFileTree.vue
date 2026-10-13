@@ -25,10 +25,12 @@
      explorer like pane", msg e3b5a06a: "use the same type and shape of the
      button and place it respectively on the top"): the tree's top level is
      the hub's /nodes, folders first; a folder row expands (desktop) or
-     drills (phone, `f:<node>`) into its own /nodes. The + at the top makes
-     a folder in the current folder: the last folder picked on the desktop,
-     the level shown on a phone. The page's + New document lands in that
-     same folder (useQtoFolder). A hub without /nodes keeps the flat list.
+     drills (phone, `f:<node>`) into its own /nodes. The + makes a folder
+     in the current folder: the last folder picked on the desktop, the
+     level shown on a phone. On a desktop that + sits on the page header
+     row with the view buttons and + New document; on a phone it stays
+     above the list. The page's + New document lands in that same folder
+     (useQtoFolder). A hub without /nodes keeps the flat list.
      A folder row and a section row have a menu too (owner t1 ed2e3583, msg
      407fc16f: a right-click in the Qto file system opens a matching menu
      for the directories as well), the same
@@ -39,11 +41,14 @@
      Copy link, Open in a new tab. -->
 <template>
   <nav class="qto-tree" data-test="qto-file-tree" :aria-label="t('ws_doctree.title')">
-    <div v-if="!nodesOff" class="qto-tree__top">
-      <button type="button" class="qto-tree__new" data-test="qto-new-folder" aria-haspopup="dialog" :aria-label="t('ws_doctree.new_folder')" :title="t('ws_doctree.new_folder')" @click="folderOpen = true">
-        <UiIcon name="plus" :size="22" :stroke-width="2.5" />
-      </button>
-    </div>
+    <!-- desktop: the page header row. A phone (and a missing slot) keeps the button here. -->
+    <Teleport to="#wsdocs-folder-slot" :disabled="!folderInHeader">
+      <div v-if="!nodesOff" class="qto-tree__top" :class="{ 'qto-tree__top--bar': folderInHeader }">
+        <button type="button" class="qto-tree__new" data-test="qto-new-folder" aria-haspopup="dialog" :aria-label="t('ws_doctree.new_folder')" :title="t('ws_doctree.new_folder')" @click="folderOpen = true">
+          <UiIcon name="plus" :size="22" :stroke-width="2.5" />
+        </button>
+      </div>
+    </Teleport>
     <WorkspaceDocNewDialog v-model:open="folderOpen" folder :create="makeFolder" />
     <UiFileTree :rows="rows" :label="t('ws_doctree.title')" @toggle="toggle" @select="select" @menu="openMenu" />
     <UiPointMenu
@@ -109,6 +114,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useMobileStack } from '~/composables/useMobileStack'
 import UiFileTree, { type FileTreeRow } from '~/components/UiFileTree.vue'
 import UiPointMenu, { type PointMenuItem } from '~/components/UiPointMenu.vue'
 import UiDialog from '~/components/UiDialog.vue'
@@ -118,6 +124,9 @@ import WorkspaceDocNewDialog from './WorkspaceDocNewDialog.vue'
 import { DocTreeError, useQtoFolder, type DocHead, type DocItem, type DocNode, type DocTreeClient } from './-doctree-api'
 
 const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null }>()
+const stack = useMobileStack()
+/* desktop only: join the page's header row. A phone keeps this + above the list. */
+const folderInHeader = computed(() => import.meta.client && !stack.isMobile.value)
 const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string], newDoc: [], refresh: [] }>()
 const { t } = useI18n({ useScope: 'global' })
 
@@ -564,8 +573,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .qto-tree { padding: 8px 4px; text-align: start; }
 /* the + New folder: the page's + New document (WorkspaceDocsPage .wsdocs-fab,
-   the issues page's +), same size and look, at the top of the explorer */
+   the issues page's +), same size and look. On a phone it tops the list;
+   on a desktop the page header row holds it (--bar). */
 .qto-tree__top { display: flex; justify-content: flex-end; padding: 0 8px 6px; }
+.qto-tree__top--bar { justify-content: flex-start; padding: 0; }
 .qto-tree__new {
   position: relative;
   flex: 0 0 auto;

@@ -158,6 +158,19 @@ out=$("$T/ask.sh" </dev/null 2>&1); r=$?
 [[ $r -eq 9 && "$out" == *refused* ]] && pass "the tty-only prompt refuses /dev/null" || fail "control /dev/null: rc=$r $out"
 out=$(echo thr0waway-secret | "$T/ask.sh" 2>&1); r=$?
 [[ $r -eq 9 && "$out" == *refused* ]] && pass "the tty-only prompt refuses a pipe" || fail "control pipe: rc=$r $out"
+# owner_add asks a display name first (read -r, echoed): the seat answers it
+# empty, and does not spend the secret on it
+cat >"$T/owner.sh" <<'EOF'
+#!/bin/bash
+printf 'display name of the owner (empty = none): ' >/dev/tty; IFS= read -r n </dev/tty
+read -rs -p "type the password here (not shown): " a </dev/tty; echo
+read -rs -p "type it again: " b </dev/tty; echo
+[[ "$a" == "$b" ]] && echo "got ${#a} name=[$n]" || { echo mismatch; exit 1; }
+EOF
+chmod +x "$T/owner.sh"
+out=$(LHE2E_TTY_TIMEOUT=20 python3 "$TTY_PY" "$T/sec" "$T/owner.sh" </dev/null 2>&1); r=$?
+[[ $r -eq 0 && "$out" == *"got 16 name=[]"* ]] && pass "pty seat answers owner_add's display name empty, then the password twice" ||
+  fail "pty seat owner_add: rc=$r $out"
 printf '#!/bin/sh\nexit 7\n' >"$T/x7.sh"; chmod +x "$T/x7.sh"
 LHE2E_TTY_TIMEOUT=20 python3 "$TTY_PY" "$T/sec" "$T/x7.sh" </dev/null >/dev/null 2>&1; r=$?
 [[ $r -eq 7 ]] && pass "pty seat returns the child's exit code" || fail "pty exit code: $r"

@@ -22,6 +22,8 @@ import sys
 import time
 
 PROMPT = re.compile(rb"(passphrase|password|again)[^\n]*$", re.I)
+# owner_add asks a display name first: an empty Enter (no name), no secret spent
+NAME = re.compile(rb"display name[^\n]*:\s*$", re.I)
 
 
 def main():
@@ -52,7 +54,10 @@ def main():
         sys.stdout.buffer.write(chunk.replace(secret, b"***"))
         sys.stdout.flush()
         tail = (tail + chunk).split(b"\n")[-1][-200:]
-        if left > 0 and PROMPT.search(tail):
+        if NAME.search(tail):
+            os.write(fd, b"\n")
+            tail = b""
+        elif left > 0 and PROMPT.search(tail):
             os.write(fd, secret + b"\n")
             left -= 1
             tail = b""

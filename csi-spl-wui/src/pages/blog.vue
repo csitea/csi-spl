@@ -75,6 +75,7 @@
         <!-- the one v-html sink: a fragment escaped and allow-listed at build
              time (sync-blog.mjs, markdownToHtml) and refused there and in
              render-wui-firebase-json.sh when it holds a script or handler -->
+        <!-- eslint-disable-next-line vue/no-v-html -- SAFE: SPL-1053, built by markdownToHtml, hostile copy refused at build -->
         <div class="bpost__body" data-test="blog-post-body" v-html="post.html" />
         <nav class="bpost__pager" aria-label="More posts">
           <NuxtLink v-if="post.newer" :to="localePath(`/blog/${post.newer.id}`)" rel="prev" data-test="blog-post-newer">&larr; {{ post.newer.title }}</NuxtLink>

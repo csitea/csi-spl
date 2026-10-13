@@ -12,6 +12,7 @@
     "generate": "node src/node/blog/sync-blog.mjs && node src/node/roadmap/sync-roadmap.mjs && node src/node/docs/sync-public-docs.mjs && nuxt generate",
     "preview": "nuxt preview --host 0.0.0.0 --port 3000",
     "typecheck": "nuxt typecheck",
+    "lint": "eslint --max-warnings 0 src",
     "postinstall": "nuxt prepare",
     "test:unit": "node src/node/test/run-unit-tests.mjs",
     "test": "node src/node/test/run-unit-tests.mjs",
@@ -32,8 +33,12 @@
   "devDependencies": {
     "@types/markdown-it": "^14",
     "@types/node": "^22.13.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-vue": "^10",
     "puppeteer-core": "^25.0.4",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8",
+    "vue-eslint-parser": "^10",
     "vue-tsc": "^2.2.0"
   },
   "engines": {

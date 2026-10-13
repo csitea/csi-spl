@@ -223,6 +223,10 @@ type Frame struct {
 	Roster               map[string][]string `json:"roster,omitempty"`
 	UploadToken          string              `json:"upload_token,omitempty"`
 	UploadTokenExpiresAt string              `json:"upload_token_expires_at,omitempty"`
+	// welcome / roster (spec 136 8.1): the workspace seals its messages at
+	// rest (its spool_enc setting). Omitted when false: a plain workspace's
+	// frames are unchanged, and an older box ignores the key.
+	SpoolEnc bool `json:"spool_enc,omitempty"`
 
 	// send / recv / tail_msg
 	Env json.RawMessage `json:"env,omitempty"`
@@ -1065,6 +1069,10 @@ type RevokeRequest struct {
 type PinEntry struct {
 	BoxID  string `json:"box_id"`
 	PubKey string `json:"pubkey"`
+	// SpoolEnc, on the POST /v1/pins answer only: the workspace seals its
+	// messages at rest (spec 136 8.1). Omitted when false, so a plain
+	// workspace's answer and every GET /v1/pins row are unchanged.
+	SpoolEnc bool `json:"spool_enc,omitempty"`
 }
 
 // PinList is the body of GET /v1/pins.

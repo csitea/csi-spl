@@ -1,3 +1,4 @@
+| `spool_enc` | bool, false: the workspace seals its spool messages at rest (spec 136); a box seat learns it from the POST /v1/pins answer and the ws `welcome` / `roster` frames (`"spool_enc":true`, the key omitted when false) | `internal/store/spool_enc.go` |
 # 098 Generic workspace settings: one `tenants.settings` jsonb column
 
 Status: **v1.0, built.** Owner's go: t1 `29b19f85` msg `1ec24f32`.

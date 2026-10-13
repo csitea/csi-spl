@@ -497,7 +497,8 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "pin not stored")
 		return
 	}
-	writeJSON(w, http.StatusOK, wire.PinEntry{BoxID: req.BoxID, PubKey: req.PubKey})
+	// Spec 136 8.1: the seat learns the workspace's spool_enc flag at pin time.
+	writeJSON(w, http.StatusOK, wire.PinEntry{BoxID: req.BoxID, PubKey: req.PubKey, SpoolEnc: t.SpoolEnc()})
 }
 
 // DELETE /v1/pins/{box_id}: revoke, signed by the tenant root key. A live

@@ -329,13 +329,19 @@ func (s *Server) seatSession(ctx context.Context, conn *websocket.Conn, tenant s
 	return x, true
 }
 
-// welcome answers the registered session with the roster and its upload
-// token; false has dropped it.
+// welcome answers the registered session with the roster, the workspace's
+// spool_enc flag and its upload token; false has dropped it.
 func (s *Server) welcome(ctx context.Context, x *session) bool {
+	enc, err := s.spoolEnc(ctx, x.tenant)
+	if err != nil { // never a false "plain" to an enc seat: the box reconnects
+		x.markWelcomed()
+		s.drop(x)
+		return false
+	}
 	roster, _ := s.o.Store.Roster(ctx, x.tenant)
 	x.agents = roster[x.box] // Roster sorts each box's list
 	tok, exp := s.slotToken(&x.upload, x.tenant, x.box, "")
-	err := x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: x.box, Roster: roster,
+	err = x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: x.box, Roster: roster, SpoolEnc: enc,
 		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)})
 	x.markWelcomed()
 	if err != nil {
@@ -512,6 +518,10 @@ func (s *Server) broadcastRoster(ctx context.Context, tenant string, skip *sessi
 	if err != nil {
 		return
 	}
+	enc, err := s.spoolEnc(ctx, tenant)
+	if err != nil {
+		return
+	}
 	s.mu.Lock()
 	var targets []*session
 	for k, x := range s.boxes {
@@ -521,8 +531,15 @@ func (s *Server) broadcastRoster(ctx context.Context, tenant string, skip *sessi
 	}
 	s.mu.Unlock()
 	for _, x := range targets {
-		x.write(ctx, wire.Frame{Type: wire.TRoster, Roster: roster}) //nolint:errcheck
+		x.write(ctx, wire.Frame{Type: wire.TRoster, Roster: roster, SpoolEnc: enc}) //nolint:errcheck
 	}
+}
+
+// spoolEnc is the workspace's spool_enc flag (spec 136 8.1), from the cached
+// tenant row: no extra round trip per welcome or roster push.
+func (s *Server) spoolEnc(ctx context.Context, tenant string) (bool, error) {
+	t, err := s.o.Store.GetTenant(ctx, tenant)
+	return t.SpoolEnc(), err
 }
 
 // onSend verifies and routes one envelope (http-v1.md §2.4).

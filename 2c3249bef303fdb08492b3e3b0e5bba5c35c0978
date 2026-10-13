@@ -1,0 +1,6 @@
+Lay-What: A new self-check runs the whole private local workspace server once, start to finish, on a disposable test workspace.
+Lay-How: It starts the server, signs in, posts a message and reads it back, checks nothing is reachable from outside, takes a backup, restores it, and shuts down.
+Lay-Why: So the private local server is proven to work end to end without ever touching the real private workspace.
+Tech-What: do_spl_local_hub_e2e (csi-spl-orc) plus local-hub-e2e.tst.sh, a hermetic gate test against stubbed lane actions.
+Tech-How: Throwaway tenant ^e2e-, own temp home, compose project and ports; secret steps run under a pty (local-hub-e2e-tty.py); down with purge always runs.
+Tech-Why: Swarm lane L9: the live run is too slow for the cheap gate, so the gate tests the flow and changed-tests.sh selects it when any lane action changes.

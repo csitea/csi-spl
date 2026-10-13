@@ -36,6 +36,11 @@
 // Run: BASE_URL=<generated mock bundle> node tests/e2e/phone-back-matrix.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
 // Narrow: ENTRIES=tap,login METHODS=chevron,browser WIDTHS=360
+//
+// Cells run CELL_JOBS at a time (default 3), each in its own browser context,
+// so no cell sees another's storage; the lines still print in matrix order.
+// Most of a cell is waiting (the settle reads), not CPU: run alone, the 72
+// cells spent about 138 of 216 s in fixed sleeps (spec 133 round 13).
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
@@ -51,6 +56,7 @@ const pick = (env, all) => (env ? env.split(',').filter((x) => all.includes(x)) 
 const ENTRIES = pick(process.env.ENTRIES, ALL_ENTRIES)
 const METHODS = pick(process.env.METHODS, ALL_METHODS)
 const WIDTHS = (process.env.WIDTHS || '360,390').split(',').map(Number).filter((w) => SIZES[w])
+const CELL_JOBS = Math.max(1, Number(process.env.CELL_JOBS) || 3)
 /* The cells red on today's build by design: `entry/method`, `*` for any.
    The task named in each reason removes its line when it lands. */
 const KNOWN_RED = {
@@ -201,9 +207,10 @@ async function enter(p, base, entry) {
   return (await shellAt(p, 3)).level
 }
 
-/** One cell: a fresh tab, the entry, then Back to the start of history. */
+/** One cell: a fresh tab in its own context, the entry, then Back to the start of history. */
 async function cell(browser, base, width, entry, method) {
-  const p = await browser.newPage()
+  const ctx = await browser.createBrowserContext()
+  const p = await ctx.newPage()
   p.setDefaultNavigationTimeout(NAV_TIMEOUT)
   const steps = []
   const fails = []
@@ -258,25 +265,30 @@ async function cell(browser, base, width, entry, method) {
   } catch (e) {
     fails.push(`error: ${e.message}`)
   } finally {
-    await p.close().catch(() => {})
+    await ctx.close().catch(() => {})
   }
   return { steps, fails }
 }
 
 const srv = await startServer()
 const browser = await launch()
-const cells = []
+const todo = WIDTHS.flatMap((width) => ENTRIES.flatMap((entry) => METHODS.map((method) => ({ width, entry, method }))))
+const cells = new Array(todo.length)
 try {
-  for (const width of WIDTHS) {
-    for (const entry of ENTRIES) {
-      for (const method of METHODS) {
-        const r = await cell(browser, srv.base, width, entry, method)
-        const known = Boolean(knownRed(entry, method))
-        const verdict = r.fails.length ? (known && !STRICT ? 'KNOWN-RED' : 'FAIL') : (known ? 'XPASS' : 'OK')
-        cells.push({ width, entry, method, verdict, ...r })
-        console.log(`  ${verdict.padEnd(9)} ${width} ${entry.padEnd(7)} ${method.padEnd(7)} ${r.steps.join('>')}${r.fails.length ? '  ' + r.fails.join('; ') : ''}`)
-      }
+  let next = 0
+  const worker = async () => {
+    while (next < todo.length) {
+      const i = next++
+      const { width, entry, method } = todo[i]
+      const r = await cell(browser, srv.base, width, entry, method)
+      const known = Boolean(knownRed(entry, method))
+      const verdict = r.fails.length ? (known && !STRICT ? 'KNOWN-RED' : 'FAIL') : (known ? 'XPASS' : 'OK')
+      cells[i] = { width, entry, method, verdict, ...r }
     }
+  }
+  await Promise.all(Array.from({ length: Math.min(CELL_JOBS, todo.length) }, worker))
+  for (const c of cells) {
+    console.log(`  ${c.verdict.padEnd(9)} ${c.width} ${c.entry.padEnd(7)} ${c.method.padEnd(7)} ${c.steps.join('>')}${c.fails.length ? '  ' + c.fails.join('; ') : ''}`)
   }
 } finally {
   await browser.close()

@@ -285,14 +285,18 @@ do_run_actions() {
     exit 1
   }
 
-  local _final_rc=0
-  while IFS= read -r run_func || [[ -n "${run_func:-}" ]]; do
+  # A for loop over an array, not `while read ... <<< "$run_funcs"`: the
+  # actions keep the CALLER's stdin (a pipe, the owner's tty), and an action
+  # that reads stdin cannot swallow the rest of the list (run-action-stdin.tst.sh)
+  local _final_rc=0 _run_list=()
+  mapfile -t _run_list <<< "${run_funcs}"
+  for run_func in "${_run_list[@]}"; do
     [[ -z "${run_func:-}" ]] && continue
     cd ${PROJ_PATH:-}
     execute_step "$run_func" "${args[@]}"
     local _step_rc=$?
     (( _step_rc != 0 )) && _final_rc=$_step_rc
-  done <<< "${run_funcs}"
+  done
   return $_final_rc
 }
 

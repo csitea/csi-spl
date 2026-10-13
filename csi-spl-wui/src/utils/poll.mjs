@@ -48,7 +48,8 @@ const MARKER_POLL_RE = /^Poll:[ \t]*([0-9A-Za-z-]{8,})[ \t]*$/im
 export { mayHavePoll } from './poll-fence.mjs'
 
 /**
- * One form fence's text -> { multi, questions: [{ text, options: [{ key, text }] }] },
+ * One form fence's text -> { multi, questions: [{ text, kind, options: [{ key, text }] }] },
+ * kind 'radio' | 'check' | 'button' (a radio question with one option),
  * or null when it is not a form (a question with no option, an option before
  * any question is fine, radios and checkboxes mixed, a key twice in one
  * question). An author's own "Chat about this" option is dropped: the
@@ -79,7 +80,10 @@ export function parsePoll(text) {
   }
   const real = questions.filter((x) => x.options.length || x.chat)
   if (!real.length || real.length !== questions.length || real.some((x) => !x.options.length)) return null
-  return { multi: shape === 'check', questions: real.map(({ text, options }) => ({ text, options })) }
+  /* SPL-1654 (owner d16ba428): a radio question with ONE option is a Go
+     button; a checkbox question keeps its box (an opt-in, not a go) */
+  const kindOf = (options) => (shape === 'check' ? 'check' : options.length === 1 ? 'button' : 'radio')
+  return { multi: shape === 'check', questions: real.map(({ text, options }) => ({ text, kind: kindOf(options), options })) }
 }
 
 /**

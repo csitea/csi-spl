@@ -20,6 +20,9 @@
 //   SPL-1637 poll-control, 1440 and 390: a ```poll radio form posts its answer
 //     on the click (no Send), re-answer replaces, "Chat about this" opens the
 //     reply box; a checkbox form waits for its lock-in or its Send.
+//   SPL-1654 go-button, 1440 and 390: a one-option question is a Go button;
+//     one click posts `Answer: GO — Go`, the button shows done; a second
+//     click posts nothing. CONTROL: the two-option form above stays radios.
 //
 // Run:
 //   pnpm run test:e2e topic-send-target
@@ -176,6 +179,7 @@ async function phoneCase(browser, width, height) {
    form's topic: `Poll: <msg_id>` + `Answer: ...`; the form shows who answered. */
 const POLL_RADIO = 'Pick a deploy path\n\n```poll\nWhich deploy path?\n(A) Deploy now\n(B) Wait for CI\n```'
 const POLL_CHECK = 'Pick the envs\n\n```poll\nWhich envs?\n[A] dev\n[B] prd\n[C] staging\n```'
+const POLL_GO = 'Ready to deploy\n\n```poll\nDeploy to prd?\n(GO) Go\n```'
 
 function seedPoll(p, body) {
   return p.evaluate((body) => {
@@ -285,6 +289,46 @@ async function pollRadioCase(browser, vp, tag) {
   await p.close()
 }
 
+async function pollGoCase(browser, vp, tag) {
+  const touch = Boolean(vp.hasTouch)
+  const { p, errors } = await open(browser, vp)
+  const seeded = await seedPoll(p, POLL_GO)
+  const form = await openPoll(p, seeded, touch)
+  const shape = await p.evaluate((form) => {
+    const f = document.querySelector(form)
+    const go = f.querySelector('[data-testid=poll-go-button]')
+    const r = go?.getBoundingClientRect()
+    return {
+      go: go ? { text: go.textContent.trim(), pressed: go.getAttribute('aria-pressed'), icon: go.querySelector('svg[data-icon=go]') ? 1 : 0, h: Math.round(r.height), color: getComputedStyle(go).color } : null,
+      radios: f.querySelectorAll('input[type=radio]').length,
+      checks: f.querySelectorAll('input[type=checkbox]').length,
+      send: f.querySelectorAll('[data-testid=poll-send]').length,
+      chat: f.querySelector('[data-testid=poll-chat]')?.textContent.trim(),
+    }
+  }, form)
+  ok(`${tag} go: a one-option question is one Go button (play icon, black text), no radios, no Send, "Chat about this" under it`,
+    shape.go && shape.go.text === 'Go' && shape.go.pressed === 'false' && shape.go.icon === 1 && shape.go.color === 'rgb(0, 0, 0)'
+      && shape.radios === 0 && shape.checks === 0 && shape.send === 0 && shape.chat === 'Chat about this', shape)
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-go-before-${tag}.png`) })
+  await clickIn(p, `${form} [data-testid=poll-go-button]`, touch)
+  const after = await pollReplies(p, seeded.msg_id)
+  const shown = await p.evaluate((form) => ({
+    pressed: document.querySelector(`${form} [data-testid=poll-go-button]`)?.getAttribute('aria-pressed'),
+    mark: document.querySelectorAll(`${form} [data-testid=poll-go-done]`).length,
+    answers: [...document.querySelectorAll(`${form} [data-testid=poll-answer]`)].map((e) => e.textContent.trim()),
+  }), form)
+  ok(`${tag} go: one click posts Answer: GO into the form's topic; the button shows done`,
+    after.length === 1 && /^Poll: [0-9a-f-]+\nAnswer: GO — Go$/.test(after[0].body) && after[0].is_parent === 0
+      && (after[0].parent_task_id === seeded.task_id || after[0].task_id === seeded.task_id)
+      && shown.pressed === 'true' && shown.mark === 1 && shown.answers.length === 1 && /— GO$/.test(shown.answers[0]), { after, shown })
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-go-after-${tag}.png`) })
+  await clickIn(p, `${form} [data-testid=poll-go-button]`, touch)
+  const again = await pollReplies(p, seeded.msg_id)
+  ok(`${tag} go: a second click posts nothing`, again.length === 1, again)
+  ok(`${tag} poll go: no page error`, errors.length === 0, errors)
+  await p.close()
+}
+
 async function pollCheckCase(browser, vp, tag) {
   const touch = Boolean(vp.hasTouch)
   const { p, errors } = await open(browser, vp)
@@ -344,6 +388,8 @@ try {
   await phoneCase(browser, 820, 1180)
   await pollRadioCase(browser, { width: 1440, height: 900 }, '1440px')
   await pollRadioCase(browser, { width: 390, height: 844, isMobile: true, hasTouch: true }, '390px')
+  await pollGoCase(browser, { width: 1440, height: 900 }, '1440px')
+  await pollGoCase(browser, { width: 390, height: 844, isMobile: true, hasTouch: true }, '390px')
   await pollCheckCase(browser, { width: 1440, height: 900 }, '1440px')
   await pollCheckCase(browser, { width: 390, height: 844, isMobile: true, hasTouch: true }, '390px')
 } finally {

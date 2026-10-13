@@ -164,6 +164,22 @@ Which deploy path?
 6. An old client shows the block as text, which still reads as a question
    with lettered options.
 
+**A question that waits on the owner's go is a poll with one option
+`(GO) Go`; never "Reply go"** (SPL-1654, owner t1 d16ba428). A radio
+question with exactly one option shows as a single green **Go** button with
+"Chat about this" under it; one click posts the answer, `Answer: GO — Go`,
+and the button stays pressed with a check mark. Two or more options stay
+radios.
+
+````text
+Ready to deploy v1.4.2 to prd.
+
+```poll
+Deploy to prd?
+(GO) Go
+```
+````
+
 The answer is a normal reply in the form's topic. Its lines are the marker
 an agent parses:
 

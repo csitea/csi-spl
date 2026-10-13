@@ -21,8 +21,19 @@ describe('parsePoll: one form, all radios or all checkboxes', () => {
   it('radio options make a single-choice form', () => {
     assert.deepEqual(parsePoll(RADIO), {
       multi: false,
-      questions: [{ text: 'Which deploy path?', options: [{ key: 'A', text: 'Deploy now' }, { key: 'B', text: 'Wait for CI' }] }],
+      questions: [{ text: 'Which deploy path?', kind: 'radio', options: [{ key: 'A', text: 'Deploy now' }, { key: 'B', text: 'Wait for CI' }] }],
     })
+  })
+  it('SPL-1654: a one-option radio question is a Go button', () => {
+    assert.deepEqual(parsePoll('Go?\n(GO) Go'), {
+      multi: false,
+      questions: [{ text: 'Go?', kind: 'button', options: [{ key: 'GO', text: 'Go' }] }],
+    })
+  })
+  it('SPL-1654 control: two options stay radios; a one-box checkbox question stays a checkbox', () => {
+    assert.equal(parsePoll('Go or close?\n(GO) Go\n(C) Close').questions[0].kind, 'radio')
+    assert.equal(parsePoll('Opt in?\n[A] yes').questions[0].kind, 'check')
+    assert.deepEqual(parsePoll('Q1\n(GO) Go\nQ2\n(A) x\n(B) y').questions.map((q) => q.kind), ['button', 'radio'])
   })
   it('a checkbox form of two questions; keys upper-cased; list dashes allowed', () => {
     const p = parsePoll(CHECK)

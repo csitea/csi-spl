@@ -26,7 +26,7 @@
 # @param ISSUE_STATUS (optional) - overrides the status rule above
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-002 ISSUE_REF=SPL-12 OWNER_STEP='reply "go" in /t/<topic>' ./run -a do_spl_issue_needs_owner
+# @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-002 ISSUE_REF=SPL-12 OWNER_STEP='press Go on the (GO) Go poll in /t/<topic>' ./run -a do_spl_issue_needs_owner
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-002 ISSUE_REF=SPL-12 OWNER_STEP_CLEAR=1 ISSUE_STATUS=qas DRY_RUN=0 ./run -a do_spl_issue_needs_owner
 #------------------------------------------------------------------------------
 SPL_NEEDS_OWNER_LABEL=needs-owner

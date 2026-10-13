@@ -14,31 +14,51 @@
   >
     <fieldset v-for="(q, qi) in form.questions" :key="qi" class="poll-q" :disabled="!canAnswer" data-testid="poll-question">
       <legend v-if="q.text" class="poll-q__text">{{ q.text }}</legend>
-      <label v-for="o in q.options" :key="o.key" class="poll-opt" data-testid="poll-option" :data-key="o.key">
-        <input
-          :type="form.multi ? 'checkbox' : 'radio'"
-          class="poll-opt__input"
-          :name="`${uid}-${qi}`"
-          :value="o.key"
-          :checked="(picks[qi] || []).includes(o.key)"
-          @change="onPick(qi, o.key, ($event.target as HTMLInputElement).checked)"
+      <!-- SPL-1654 (owner d16ba428, 28af126d): a one-option radio question is
+           a Go button, the omnibox Go a bit smaller, green with a black play
+           icon; one click posts the answer as a radio click does -->
+      <div v-if="q.kind === 'button'" class="poll-go-row">
+        <button
+          type="button"
+          class="btn poll-go"
+          data-testid="poll-go-button"
+          :data-key="q.options[0].key"
+          :aria-pressed="goDone(qi) ? 'true' : 'false'"
+          @click="onGo(qi, q.options[0].key)"
         >
-        <span class="poll-opt__key">{{ o.key }}</span>
-        <span class="poll-opt__text">{{ o.text }}</span>
-      </label>
-      <!-- owner 6cd5873a: every question ALWAYS ends with "Chat about this";
-           picking it is not an answer, it opens the reply box -->
-      <label class="poll-opt poll-opt--chat" data-testid="poll-chat">
-        <input
-          :type="form.multi ? 'checkbox' : 'radio'"
-          class="poll-opt__input"
-          :name="`${uid}-${qi}`"
-          value=""
-          :checked="false"
-          @change="onChat(qi, $event.target as HTMLInputElement)"
-        >
-        <span class="poll-opt__text">{{ t('poll.chat') }}</span>
-      </label>
+          <UiIcon name="go" :size="16" />
+          <span class="poll-go__text">{{ q.options[0].text }}</span>
+          <UiIcon v-if="goDone(qi)" name="check" :size="14" data-testid="poll-go-done" />
+        </button>
+        <button type="button" class="poll-chat-link" data-testid="poll-chat" @click="onChat(qi)">{{ t('poll.chat') }}</button>
+      </div>
+      <template v-else>
+        <label v-for="o in q.options" :key="o.key" class="poll-opt" data-testid="poll-option" :data-key="o.key">
+          <input
+            :type="form.multi ? 'checkbox' : 'radio'"
+            class="poll-opt__input"
+            :name="`${uid}-${qi}`"
+            :value="o.key"
+            :checked="(picks[qi] || []).includes(o.key)"
+            @change="onPick(qi, o.key, ($event.target as HTMLInputElement).checked)"
+          >
+          <span class="poll-opt__key">{{ o.key }}</span>
+          <span class="poll-opt__text">{{ o.text }}</span>
+        </label>
+        <!-- owner 6cd5873a: every question ALWAYS ends with "Chat about this";
+             picking it is not an answer, it opens the reply box -->
+        <label class="poll-opt poll-opt--chat" data-testid="poll-chat">
+          <input
+            :type="form.multi ? 'checkbox' : 'radio'"
+            class="poll-opt__input"
+            :name="`${uid}-${qi}`"
+            value=""
+            :checked="false"
+            @change="onChat(qi, $event.target as HTMLInputElement)"
+          >
+          <span class="poll-opt__text">{{ t('poll.chat') }}</span>
+        </label>
+      </template>
     </fieldset>
     <div class="poll-foot">
       <!-- owner 8f0da7ca: a checkbox form also has a Send; a radio form never -->
@@ -157,6 +177,15 @@ function arm() {
 /* a card that leaves the screen with picks waiting still sends them */
 onBeforeUnmount(lockIn)
 
+/* a Go button is done once the reader's answer holds its key; a second
+   click posts nothing new */
+function goDone(qi: number) {
+  return (picks.value[qi] || []).length > 0
+}
+function onGo(qi: number, key: string) {
+  if (!goDone(qi)) onPick(qi, key, true)
+}
+
 function onPick(qi: number, key: string, on: boolean) {
   dirty.value = true
   const next = picks.value.map((p) => p.slice())
@@ -171,8 +200,8 @@ function onPick(qi: number, key: string, on: boolean) {
 const formEl = ref<HTMLFormElement | null>(null)
 /* "Chat about this": the topic opens, the reply box takes the caret with the
    marker and the question quoted; the reader's picks stay as they were */
-function onChat(qi: number, input: HTMLInputElement) {
-  input.checked = false
+function onChat(qi: number, input?: HTMLInputElement) {
+  if (input) input.checked = false
   for (const el of formEl.value?.querySelectorAll<HTMLInputElement>(`input[name="${uid}-${qi}"]`) || []) {
     el.checked = Boolean(el.value) && (picks.value[qi] || []).includes(el.value)
   }
@@ -261,9 +290,50 @@ function picksText(p: Record<number, string[]>) {
   overflow-wrap: anywhere;
 }
 .poll-answers__label { font-weight: 600; }
+/* SPL-1654: the Go button is the shared .btn (the omnibox Go's fill, shape
+   and icon placement), a step smaller; green with a black play icon (owner
+   28af126d). Focus keeps the one global ring. */
+.poll-go-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 2px;
+}
+.poll-go.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 0;
+  padding: 0.25rem 0.75rem 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  background: var(--color-ok);
+  /* owner 28af126d: a BLACK play icon (and text) in every theme */
+  color: black;
+}
+.poll-go.btn[aria-pressed='false']:not(:disabled):hover,
+.poll-go.btn[aria-pressed='false']:active { background: var(--color-ok); filter: brightness(1.12); }
+/* done: pressed in, with the check mark */
+.poll-go.btn[aria-pressed='true'] {
+  background: var(--color-ok);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  cursor: default;
+}
+.poll-q:disabled .poll-go.btn { opacity: 0.55; cursor: default; }
+.poll-chat-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-style: italic;
+  text-decoration: underline;
+}
 /* a finger needs a taller row than a mouse */
 @media (pointer: coarse) {
   .poll-opt { padding: 6px 0; }
   .poll-opt__input { width: 18px; height: 18px; }
+  .poll-go.btn { min-height: 2rem; }
+  .poll-chat-link { padding: 0.25rem 0; }
 }
 </style>

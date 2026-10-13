@@ -1,0 +1,5 @@
+env:
+  vendor_cli:
+    tnk: [claude, agy, qwen, grok, mistral]
+    sat: [claude, qwen, grok, mistral]
+    lde: [claude, agy, qwen, grok, mistral]

@@ -698,19 +698,9 @@ func cmdHubProvisionMember(args []string) int {
 	}
 	pwHash := ""
 	if *pwStdin {
-		raw, err := io.ReadAll(io.LimitReader(os.Stdin, 4096))
-		if err != nil {
-			return fail(fmt.Errorf("read password from stdin: %w", err))
-		}
-		pw := strings.TrimSuffix(string(raw), "\n") // exactly one trailing newline
-		if pw == "" {
-			return fail(fmt.Errorf("--password-stdin was set but STDIN was empty"))
-		}
-		// Argon2id at the deployed floor (native_config minArgon2*): the stored
-		// PHC string carries its own params, so login verifies regardless.
-		pwHash, err = auth.HashPassword(pw, auth.Argon2Params{MemoryKiB: 19456, Iterations: 2})
-		if err != nil {
-			return fail(fmt.Errorf("hash password: %w", err))
+		var err error
+		if pwHash, err = passwordHashFromStdin(); err != nil {
+			return fail(err)
 		}
 	}
 	ctx, stop := interruptible()
@@ -740,6 +730,73 @@ func cmdHubProvisionMember(args []string) int {
 		out["ordered_by"] = *orderedBy
 	}
 	fmt.Println(action.JSON(out))
+	return 0
+}
+
+// passwordHashFromStdin reads a native password from STDIN (never argv or
+// env: one trailing newline is stripped, empty is refused) and hashes it with
+// Argon2id at the deployed floor (native_config minArgon2*): the stored PHC
+// string carries its own params, so login verifies regardless.
+func passwordHashFromStdin() (string, error) {
+	raw, err := io.ReadAll(io.LimitReader(os.Stdin, 4096))
+	if err != nil {
+		return "", fmt.Errorf("read password from stdin: %w", err)
+	}
+	pw := strings.TrimSuffix(string(raw), "\n") // exactly one trailing newline
+	if pw == "" {
+		return "", fmt.Errorf("--password-stdin was set but STDIN was empty")
+	}
+	h, err := auth.HashPassword(pw, auth.Argon2Params{MemoryKiB: 19456, Iterations: 2})
+	if err != nil {
+		return "", fmt.Errorf("hash password: %w", err)
+	}
+	return h, nil
+}
+
+// cmdHubResetPassword replaces a forgotten native password from the
+// operator's terminal (SPL-1635): the local private hub has no mail, so the
+// reset link (auth.AdminPasswordReset) cannot reach the owner. The new
+// password comes on STDIN only (--password-stdin is required); in one
+// transaction the credential's hash is replaced and every session of its
+// human revoked. --tenant limits it to a member of that tenant. An email with
+// no password credential exits 1 and changes nothing.
+func cmdHubResetPassword(args []string) int {
+	fs := flag.NewFlagSet("hub-reset-password", flag.ContinueOnError)
+	tenant := fs.String("tenant", "", "only reset a member of this tenant (optional)")
+	email := fs.String("email", "", "the password credential's email (lower-cased)")
+	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	pwStdin := fs.Bool("password-stdin", false, "required: read the new password from STDIN (one trailing newline stripped, empty refused)")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if strings.TrimSpace(*email) == "" || !*pwStdin || *dsn == "" || (*tenant != "" && !msg.ValidTenantID(*tenant)) {
+		return fail(fmt.Errorf("--email, --password-stdin and --db / $SPOOL_HUB_DB_DSN are required (--tenant, when given, a valid slug)"))
+	}
+	pwHash, err := passwordHashFromStdin()
+	if err != nil {
+		return fail(err)
+	}
+	ctx, stop := interruptible()
+	defer stop()
+	st, err := openStore(ctx, *dsn, store.PoolLimits{})
+	if err != nil {
+		return fail(err)
+	}
+	defer st.Close()
+	r, ok := st.(store.PasswordResetter)
+	if !ok {
+		return fail(fmt.Errorf("this store cannot reset a password"))
+	}
+	hum, err := r.ResetNativePassword(ctx, *tenant, *email, pwHash, time.Now().UTC())
+	switch {
+	case errors.Is(err, auth.ErrCredNotFound):
+		return fail(fmt.Errorf("no password credential for that email: nothing changed"))
+	case errors.Is(err, store.ErrNotTenantMember):
+		return fail(fmt.Errorf("that email is no member of tenant %s: nothing changed", *tenant))
+	case err != nil:
+		return fail(err)
+	}
+	fmt.Println(action.JSON(map[string]any{"human_id": hum, "status": "reset", "sessions_revoked": true}))
 	return 0
 }
 

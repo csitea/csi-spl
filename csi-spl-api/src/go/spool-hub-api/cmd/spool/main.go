@@ -68,6 +68,8 @@
 //	          (via $SPOOL_HUB_DB_DSN) + the invitation email via $SPOOL_HUB_MAIL_* (010 FR-016)
 //	hub-provision-member --tenant <id> --email <addr> --role <role-id> [--name <n>] [--password-stdin]
 //	          seat a member by email before any sign-in, no mail (via $SPOOL_HUB_DB_DSN)
+//	hub-reset-password --email <addr> --password-stdin [--tenant <id>]
+//	          replace a native password from STDIN and revoke the human's sessions (via $SPOOL_HUB_DB_DSN)
 //	hub-invite-mail --tenant <id> --email <addr> [--locale xx] [--min-gap 10m] [--max-sends 5]
 //	          resend the invitation email of an open invite (exit 3 = not sent)
 //	root-keygen --out <path> [--force]   tenant root keypair; prints the public key
@@ -170,6 +172,7 @@ running a hub:
   hub-tenant-billing  set a tenant's billing status
   hub-invite          invite an email address into a tenant
   hub-provision-member  seat a member by email before sign-in (--password-stdin optional)
+  hub-reset-password  replace a forgotten password from STDIN, sign the person out everywhere
   hub-invite-mail     send (or resend) an invite's mail
   version             print the version
 `
@@ -212,6 +215,8 @@ func run(args []string) int {
 		return cmdHubInvite(rest)
 	case "hub-provision-member":
 		return cmdHubProvisionMember(rest)
+	case "hub-reset-password":
+		return cmdHubResetPassword(rest)
 	case "hub-invite-mail":
 		return cmdHubInviteMail(rest)
 	case "root-keygen":

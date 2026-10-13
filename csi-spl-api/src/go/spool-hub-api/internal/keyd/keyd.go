@@ -119,24 +119,26 @@ func Serve(ctx context.Context, dir, workspace string, agents []AgentKey) error 
 		wipeSecrets(secs)
 		return err
 	}
+	// The pid goes first: a Status dial between bind and listen is refused,
+	// and without a live pid Status would remove the socket being started.
+	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())+"\n"), 0644); err != nil {
+		wipeSecrets(secs)
+		return errors.New("could not listen for keyd")
+	}
 	// 0177 makes the new socket 0600 before any peer can connect. Chmod
 	// repeats it in case the platform ignores the umask on a unix socket.
 	oldMask := unix.Umask(0o177)
 	ln, err := net.Listen("unix", sock)
 	unix.Umask(oldMask)
 	if err != nil {
+		os.Remove(pidPath)
 		wipeSecrets(secs)
 		return errors.New("could not listen for keyd")
 	}
 	if err := os.Chmod(sock, 0600); err != nil {
 		ln.Close()
 		os.Remove(sock)
-		wipeSecrets(secs)
-		return errors.New("could not listen for keyd")
-	}
-	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())+"\n"), 0644); err != nil {
-		ln.Close()
-		os.Remove(sock)
+		os.Remove(pidPath)
 		wipeSecrets(secs)
 		return errors.New("could not listen for keyd")
 	}
@@ -243,7 +245,11 @@ func Status(dir string) (string, error) {
 		if daemonAlive(dir) {
 			return "", errors.New("keyd is running but not accepting")
 		}
-		os.Remove(filepath.Join(dir, "keyd.sock"))
+		// Only a refused dial names a stale socket. After a dial that found
+		// none, a remove could take the socket of a keyd that started since.
+		if errors.Is(err, unix.ECONNREFUSED) {
+			os.Remove(filepath.Join(dir, "keyd.sock"))
+		}
 		return "locked", nil
 	}
 	if !resp.OK {

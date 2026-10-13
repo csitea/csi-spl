@@ -215,6 +215,50 @@ func TestPeerUIDRefused(t *testing.T) {
 	}
 }
 
+// TestStatusDuringStartKeepsSocket polls Status with no pause while Serve
+// starts, as waitStatus and `spool key unlock` do. A dial that lands between
+// bind and listen is refused; Status must not then remove the new socket
+// (SPL-1676: Serve failed with "could not listen for keyd").
+func TestStatusDuringStartKeepsSocket(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		dir := shortDir(t)
+		id, err := age.GenerateX25519Identity()
+		if err != nil {
+			t.Fatal(err)
+		}
+		agents := []AgentKey{{ID: "c-101", Identity: id.String()}}
+		ws := randWS(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		errCh := make(chan error, 1)
+		go func() { errCh <- Serve(ctx, dir, ws, agents) }()
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			if st, err := Status(dir); err == nil && st == "unlocked" {
+				break
+			}
+			select {
+			case serveErr := <-errCh:
+				cancel()
+				t.Fatalf("start %d: keyd exited: %v", i, serveErr)
+			default:
+			}
+			if time.Now().After(deadline) {
+				cancel()
+				t.Fatalf("start %d: status did not become unlocked", i)
+			}
+		}
+		if err := Lock(dir); err != nil {
+			cancel()
+			t.Fatal(err)
+		}
+		if err := <-errCh; err != nil {
+			cancel()
+			t.Fatal(err)
+		}
+		cancel()
+	}
+}
+
 func TestDaemonNotDumpable(t *testing.T) {
 	dir := shortDir(t)
 	pass := randPass(t)

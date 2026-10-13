@@ -193,6 +193,9 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 		"created_by":          row.CreatedBy,
 		"agents":              list,
 	}
+	if !s.channelAgentsOn(r.Context(), t.ID, ch) { // SPL-1684: absent = on, the wire as before
+		out["ai_agents_off"] = true
+	}
 	if fb := s.fallbackInfo(r.Context(), t.ID, ch, list); fb != nil { // SPL-997, FR-035
 		out["fallback"] = fb
 		// CLE-77804: a tenant responder hears this channel via the fallback /

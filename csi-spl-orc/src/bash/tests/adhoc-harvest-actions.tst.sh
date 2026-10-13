@@ -286,6 +286,26 @@ in_orc 'do_spl_channel_fallback' TENANT_ID=t1 CHANNEL=live-proof NO_FALLBACK=1 D
   && pass "2e. channel-fallback DRY_RUN=0: values are psql variables, tenant RLS, as $DEV_SA" \
   || fail "2e. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin") $(cat "$T/calls.log")"
 
+# --- 2f. AI agents switch (rdb 0189, SPL-1684) ----------------------------------
+in_orc 'do_spl_channel_ai_agents' TENANT_ID=t1 AI_AGENTS=off; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set the AI agents switch off for the workspace default of t1' "$T/out" \
+  && pass "2f. ai-agents DRY_RUN: no cloud call" || fail "2f. dry: rc=$rc $(cat "$T/out")"
+for bad in "AI_AGENTS=" "AI_AGENTS=yes" "CHANNEL=Live" "CHANNEL=a;b" "TENANT_ID=T_1"; do
+  in_orc 'do_spl_channel_ai_agents' TENANT_ID=t1 AI_AGENTS=off "$bad" DRY_RUN=0; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2f. $bad is refused before any call" || fail "2f. bad '$bad': rc=$rc"
+done
+in_orc 'do_spl_channel_ai_agents' TENANT_ID=t1 AI_AGENTS=off DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q "jsonb_build_object('channel_ai_agents', :'val' = 'on')" "$T/stdin" && ! grep -q 'UPDATE channels' "$T/stdin" \
+  && grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" && grep -q '\[val=off\]' "$T/calls.log" \
+  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
+  && pass "2f. ai-agents workspace default: tenants.settings, psql variables, tenant RLS, as $DEV_SA" \
+  || fail "2f. workspace: rc=$rc $(cat "$T/out") $(cat "$T/stdin") $(cat "$T/calls.log")"
+in_orc 'do_spl_channel_ai_agents' TENANT_ID=t1 CHANNEL=dispatch AI_AGENTS=on DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q "UPDATE channels SET ai_agents" "$T/stdin" && ! grep -q 'UPDATE tenants' "$T/stdin" \
+  && ! grep -q 'dispatch' "$T/stdin" && grep -q '\[ch=dispatch\]' "$T/calls.log" \
+  && pass "2f. ai-agents CHANNEL: the channel's own switch, values as psql variables" \
+  || fail "2f. channel: rc=$rc $(cat "$T/out") $(cat "$T/stdin") $(cat "$T/calls.log")"
+
 # --- 3. read-only query ----------------------------------------------------------------
 for q in "select 1; delete from tenants" "\\! id" ""; do
   in_orc 'do_spl_db_query' SQL="$q"; rc=$?

@@ -191,6 +191,52 @@ offline -> the next online agent; an old client is skipped; a DM to an offline
 agent falls back; a DM to another human does not. Live: `do_spl_fallback_probe`
 in prd e2e (post + control), and the measurement re-run after.
 
+## The AI agents switch per channel (SPL-1684, 2026-10-13)
+
+Owner decision in a workspace poll (both admins voted B): "the AI agents are
+turned on with a button per channel, off by default" in that workspace. Every
+other workspace keeps today's behaviour.
+
+- **FR-040** A channel has an AI agents switch. Off, its posts reach no agent
+  through the channel: the hub builds no member box delivery (routeChannel),
+  drops a member row queued before the switch (recvAgents), leaves the
+  back-fill of its seats pending, and does not hand the post to the fallback
+  responder (fallback or SPL-1225 escalation). The unanswered sweep reads the
+  switch and counts such a post under `channel` (cstate `ai_off`), never as
+  unanswered.
+- **FR-041** What still goes when off: a DM to an agent, and a post addressed
+  to an agent (`@c-007 ...`, msg.to / env.to_box), which the hub enqueues
+  before any channel routing. The WUI's mention poke is a DM, so it goes too.
+  The sweep keeps a post addressed to an agent open.
+- **FR-042** Value in force: the channel's own `channels.ai_agents` (rdb 0189;
+  NULL = follow), else the workspace default `tenants.settings`
+  `channel_ai_agents` (a registered setting, default true), else on. A store
+  read error counts as on, as before the switch existed.
+- **FR-043** Wire: `GET /v1/channels/{c}/members` carries
+  `"ai_agents_off": true` only while off, so a workspace without the setting
+  answers byte for byte as before. `PUT /v1/channels/{c}/ai-agents
+  {"on": true|false|null}` (null = back to the workspace default) answers
+  `{channel, on, ai_agents_off}`; the channel's creator or a workspace admin
+  (`tenant.settings`) may, anyone else 403.
+- **FR-044** WUI: Properties -> Settings shows the switch to every member
+  (disabled for those who may not change it, with a line saying who may) and
+  what on and off mean; Properties -> Agents says when the agents are off.
+- **FR-045** The workspace default and a channel's own value are set by the
+  named action `do_spl_channel_ai_agents` (csi-spl-orc): `ENV=<env>
+  TENANT_ID=<t> AI_AGENTS=on|off|default [CHANNEL=<c>] DRY_RUN=0`. Setting
+  `ai_agents_at` with a channel's value makes the sweep's delta read re-read
+  that channel; a workspace default change is seen at the next full read.
+
+Proof: `internal/hub/channel_ai_agents_test.go` (memory and Postgres): a
+workspace without the setting delivers to the member agent with no new field
+on the wire (control); with the default off, the channel post reaches neither
+the member agent nor the responder (a channel with no agent), while a DM and an
+`@GRK-36 ...` post in the same channel do; the channel's own switch on
+delivers again; a non-owner member is refused. Each gate removed turns it red.
+`internal/store/channel_ai_agents_test.go` (both drivers, tenant isolation),
+`csi-spl-orc` `unanswered-sweep-pg.tst.sh` case 8, `adhoc-harvest-actions.tst.sh`
+2f.
+
 ## Security note
 
 A channel post is typed into every other member agent's prompt (028 poke),

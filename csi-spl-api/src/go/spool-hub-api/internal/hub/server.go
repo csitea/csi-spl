@@ -411,6 +411,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/reactions", s.reactionPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)
 	s.routeChannelMembers(mux)
+	s.routeChannelAIAgents(mux) // SPL-1684
 	s.routeMembers(mux)
 	s.routeOperator(mux)       // CLE-77780: backend invite create/mail/revoke
 	s.routeTenantSettings(mux) // specs/046

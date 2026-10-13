@@ -26,6 +26,9 @@ type memChannels struct {
 	// backfilled is the rdb 0066 stamp per invited seat (backfill_memory.go).
 	// It survives a remove and a re-invite, as the column does.
 	backfilled map[[4]string]time.Time
+	// ai is the rdb 0189 switch per (tenant, channel); absent = follow the
+	// workspace default (channel_ai_agents.go).
+	ai map[[2]string]bool
 }
 
 // archivedCh reports an archived channel of tenant. Caller holds Memory.mu.
@@ -52,6 +55,9 @@ func (c *memChannels) init() {
 	}
 	if c.backfilled == nil {
 		c.backfilled = map[[4]string]time.Time{}
+	}
+	if c.ai == nil {
+		c.ai = map[[2]string]bool{}
 	}
 }
 
@@ -150,6 +156,7 @@ func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now tim
 	delete(s.ch.rows, k)
 	delete(s.ch.archived, k)
 	delete(s.ch.humans, k)
+	delete(s.ch.ai, k)
 	for key := range s.ch.invited { // channel_subscriptions / backfill rows
 		if key[0] == tenant && key[1] == id {
 			delete(s.ch.invited, key)

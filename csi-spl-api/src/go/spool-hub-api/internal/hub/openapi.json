@@ -2092,6 +2092,93 @@
         ]
       }
     },
+    "/v1/channels/{channel}/ai-agents": {
+      "put": {
+        "operationId": "putChannelsByChannelAiAgents",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/038-spool-agent-channel-post/spec.md FR-040..045. null = back to the workspace default (tenants.settings channel_ai_agents, else on).",
+                "properties": {
+                  "on": {
+                    "description": "true = agents receive and answer this channel, false = they do not (a DM or an @mention still reaches the agent)",
+                    "nullable": true,
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "on"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ai_agents_off": {
+                      "description": "true when agents are off for this channel after the default applies",
+                      "type": "boolean"
+                    },
+                    "channel": {
+                      "type": "string"
+                    },
+                    "on": {
+                      "description": "the channel own value; null = workspace default",
+                      "nullable": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "on",
+                    "ai_agents_off"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "the switch as stored and the value in force"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Turn a channel AI agents on or off (channel owner or workspace admin)",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
     "/v1/channels/{channel}/archive": {
       "put": {
         "operationId": "putChannelsByChannelArchive",

@@ -259,6 +259,9 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 	if channel == "" || env.Sig == "" {
 		return
 	}
+	if !s.channelAgentsOn(ctx, tenant, channel) { // SPL-1684: the direct to_box leg still went
+		return
+	}
 	members, err := s.o.Store.ChannelMembers(ctx, tenant, channel)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Msg("channel members")
@@ -306,6 +309,9 @@ func (s *Server) recvAgents(ctx context.Context, x *session, raw []byte) ([]stri
 		return nil, true
 	}
 	own := e.ToBox == x.box
+	if !s.channelAgentsOn(ctx, x.tenant, store.NormalizeChannel(e.Channel)) { // SPL-1684: a row queued before the switch
+		return nil, own
+	}
 	members, err := s.o.Store.ChannelMembers(ctx, x.tenant, store.NormalizeChannel(e.Channel))
 	if err != nil {
 		return nil, own

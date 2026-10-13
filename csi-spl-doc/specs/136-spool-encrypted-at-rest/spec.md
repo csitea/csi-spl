@@ -401,10 +401,12 @@ workspaces; vendor quota and CPU bind first, as today.
 
 ## 7. Performance
 
-- Seal: one X25519 + ChaCha20-Poly1305 per recipient; expected well under
-  1 ms for a 515 B body (p50, 1.1). At 1924 messages a day the added CPU is
-  negligible. Proof in L1: a Go benchmark at the p99 size (3631 B) with 3
-  recipients, n >= 1000, ns/op reported. Not measured yet.
+- Seal: one X25519 + ChaCha20-Poly1305 per recipient. The earlier draft expected
+  "well under 1 ms", which assumed the 515 B p50 body on an idle box. Measured
+  in L1 by c-406 (msg 5ff49231, commit 9ff3e5bc3): Seal of a 3631 B body (p99) to
+  3 recipients is **1.16 ms/op**, Open **0.71 ms/op** (n=1000, load avg 16 on 16
+  CPUs; not re-measured idle). At 1924 messages a day the added CPU is
+  negligible.
 - Unlock: one scrypt (age's default work factor, about 1 s) per unlock,
   because one `agents.age` holds all of a workspace's identities.
 - `recv --encrypted`: one socket round trip to keyd per message; target p50
@@ -504,7 +506,7 @@ throwaway proof hub with a throwaway workspace, never the private one.
 
 | lane | files (only these) | test | live proof | needs |
 |---|---|---|---|---|
-| L0 brief mode | `sa/scripts/spawn-remote.sh` (P5: brief 644 -> 600 only) | a brief file is 600 | one remote spawn, `stat -c %a` -> 600 | - |
+| L0 brief mode | `sa/scripts/spawn-remote.sh` (P5: brief 644 -> 600, or 640 with ACL) | a brief file is 600 where the box user is the agent user; 640 (`stat -c %a`, ACL mask; `getfacl` shows `group::---`) where the agent CLI runs as another user | PENDING: `stat -c %a` and `getfacl` of the next remote spawn's brief on each box shape (no remote spawn reached the box since the land) | - |
 | L1 seal format | new `api/internal/enc/` (age seal/open, the inner JSON, header check); `api/internal/msg/msg.go` (`v:3`, `enc`, `for`, `ct`, the name without slug); `api/go.mod`, `api/go.sum` (`filippo.io/age`, `golang.org/x/term`, and `golang.org/x/sys` promoted to direct). No other lane edits `go.mod` or `go.sum`. | FR1, FR3, FR13, the 7 benchmark | - | - |
 | L2 keys + keyd | new `api/cmd/spool/key.go`, new `api/internal/keyd/` | FR5, FR6 | the owner unlocks a throwaway workspace on the proof hub; `spool key status` -> unlocked, after `lock` -> locked | L1 |
 | L3a store + flags | `api/internal/spool/spool.go`, `api/internal/spool/retired.go`, `api/cmd/spool/main.go` (`--encrypted` on recv/tail) | FR2, FR4, the recv p50 of 7 | two agents of the throwaway workspace exchange 10 sealed DMs; `grep -r <marker>` over every spool root -> 0 | L1, L2 |
@@ -600,5 +602,7 @@ are in. Each seat confirmed SIGN on `dispatch-6fec05cc` against 15889029a:
 Consensus is met (1 agy + 1 grok + 2 claude): the build lanes of section 11
 start with no further owner go. The owner's answers to Q1-Q7 (section 12)
 still steer each lane where a question touches it.
+
+Doc corrections from build lanes: L0 brief mode and live proof (c-405, msg 7e44f3cf, commit 626ac5529) and section 7 benchmark (c-406, msg 5ff49231, commit 9ff3e5bc3), folded in this commit.
 
 <!-- version: 1.0.1 · updated: 2026-10-13 · last-edit: 2026-10-13T10:30:00Z -->

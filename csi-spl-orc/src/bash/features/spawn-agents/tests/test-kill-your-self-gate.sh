@@ -4,8 +4,12 @@
 #   `fail:F3 exit-clean`); the rule was prose only. kill-your-self-report.sh
 #   --gate (and --reporter, which every exit skill's report send calls) exits
 #   0 only on an ACCEPTED from the dispatch holder or the spawner that is newer
-#   than every REJECT / SEND-BACK; else one line on stderr and exit 3. Ways out
-#   with no ACCEPTED: a role seat (the rotation) and a human's logged override.
+#   than every review REJECT / SEND-BACK from those same senders; else one line
+#   on stderr and exit 3. A retired-recipient bounce (kind=reject, body
+#   "<id> retired at <ts>. Your <kind> (msg <id>) was not delivered and does
+#   not queue") never counts: c-376 was locked out by a-380's bounce f95f26fd
+#   after an ACCEPTED. Ways out with no ACCEPTED: a role seat (the rotation)
+#   and a human's logged override.
 # Control: KSR_SCRIPT=<master's kill-your-self-report.sh> runs these checks on
 # the old script; the REJECT-only --reporter case lets the report through.
 set -uo pipefail
@@ -57,13 +61,45 @@ eq "ACCEPTED from the spawner: runs" 0 "${g%%|*}"
 has "ACCEPTED: the line names it" "ACCEPTED b0000002 at 2026-10-10T21:00:00Z on task dispatch-t" "$g"
 eq "ACCEPTED: --reporter prints the spawner" "c-928@box2" "$(SPOOL_AGENT_ID=m-902 bash "$R" --reporter "$W" 2>/dev/null)"
 
-# REJECT after ACCEPTED
+# A peer REJECT after ACCEPTED does not count: c-929 is neither the dispatch
+# holder nor the spawner. The gate used to refuse on every kind=reject.
 life m-903 c-928
 msg m-903 2026-10-10T21:00:00Z c-001@sat note "ACCEPTED"
 msg m-903 2026-10-10T21:05:00Z c-929 reject "the control is missing"
-g="$(gate m-903)"
-eq "REJECT after ACCEPTED: refused" 3 "${g%%|*}"
-has "REJECT after ACCEPTED: names the newer REJECT" "REJECT b0000004 from c-929" "$g"
+eq "a peer REJECT after ACCEPTED: runs" 0 "$(gate m-903 | cut -d'|' -f1)"
+
+# Control: a real holder REJECT after an ACCEPTED still blocks.
+life m-908 c-928
+msg m-908 2026-10-10T21:00:00Z c-001@sat note "ACCEPTED"
+msg m-908 2026-10-10T21:05:00Z c-001@sat reject "the control is missing"
+g="$(gate m-908)"
+eq "holder REJECT after ACCEPTED: refused" 3 "${g%%|*}"
+has "holder REJECT after ACCEPTED: names the newer REJECT" "REJECT" "$g"
+has "holder REJECT after ACCEPTED: names the holder" "from c-001@sat" "$g"
+
+# Retired-recipient bounce after an ACCEPTED from the dispatch holder
+# (c-376 archive f95f26fd, from a-380). BounceRetired's body, with a real
+# version-4 msg id so the gate's 120-character read still sees the shape.
+# The bounce is not a review, so the gate runs (exit 0).
+life m-909 c-928
+msg m-909 2026-10-10T21:00:00Z c-001@sat note "ACCEPTED"
+msg m-909 2026-10-13T10:26:56Z a-380 reject "a-380 retired at 2026-10-13T09:00:00Z. Your note (msg 82ceab6f-1111-4222-8333-000000000001) was not delivered and does not queue: a-380 is quarantined until 2026-10-14T09:00:00Z, then the number may name a new agent."
+eq "retired-recipient bounce after ACCEPTED: runs" 0 "$(gate m-909 | cut -d'|' -f1)"
+
+# The same bounce from the spawner. The sender filter alone would count it;
+# a delivery bounce never counts.
+life m-911 c-928
+msg m-911 2026-10-10T21:00:00Z c-928 note "ACCEPTED: landed"
+msg m-911 2026-10-13T10:30:00Z c-928 reject "c-928 retired at 2026-10-13T10:00:00Z. Your note (msg 82ceab6f-1111-4222-8333-000000000002) was not delivered and does not queue: c-928 is quarantined until 2026-10-14T10:00:00Z, then the number may name a new agent."
+eq "bounce from the spawner after ACCEPTED: runs" 0 "$(gate m-911 | cut -d'|' -f1)"
+
+# A bounce and no ACCEPTED is still a missing ACCEPTED, not a review REJECT.
+life m-912 c-928
+msg m-912 2026-10-13T10:26:56Z a-380 reject "a-380 retired at 2026-10-13T09:00:00Z. Your note (msg 82ceab6f-1111-4222-8333-000000000003) was not delivered and does not queue: a-380 is quarantined until 2026-10-14T09:00:00Z, then the number may name a new agent."
+g="$(gate m-912)"
+eq "bounce alone: refused" 3 "${g%%|*}"
+has "bounce alone: the line names the missing ACCEPTED" "refused: no ACCEPTED" "$g"
+hasnt "bounce alone: not named as a REJECT" "REJECT" "$g"
 
 # a SEND-BACK body after an ACCEPTED, unread in the inbox
 life m-904 c-928

@@ -34,9 +34,14 @@
 # reads every message in <spool root>/<id>/{inbox,archive}: the newest one
 # whose body starts with ACCEPTED, from the dispatch holder or the spawner (a
 # role seat c-001..c-003 or a lease.conf LEASE_* id, any box; the --reporter;
-# a HUM- id), must be newer than every REJECT / SEND-BACK the lane received
-# (kind reject, or a body starting with one of those words). Else one line
-# on stderr names the missing ACCEPTED or the newer REJECT, and exit 3.
+# a HUM- id), must be newer than every review REJECT / SEND-BACK from those
+# same senders (kind reject, or a body starting with one of those words).
+# A delivery bounce never counts, whoever sent it: BounceRetired
+# (internal/spool/retired.go) writes kind=reject from the retired id, body
+# "<id> retired at <rfc3339>. Your <kind> (msg <id>) was not delivered and
+# does not queue". c-376 was locked out by a-380's bounce f95f26fd after an
+# ACCEPTED. Else one line on stderr names the missing ACCEPTED or the newer
+# REJECT, and exit 3.
 # After the ACCEPTED, the lane's issue (li_gate, lib/lane-issue.inc.sh; rule:
 # csi-spl-doc/doc/md/lane-issue-and-docs.md): refused while its key is still
 # wip with no commit on origin/<trunk> citing it and no end reason
@@ -116,6 +121,22 @@ ksr_is_seat() {  # ID (bare)
   grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
 }
 
+# A review counts only from the same senders an ACCEPTED counts from.
+ksr_reviewer() {  # bare-from rep-bare
+  ksr_is_seat "$1" && return 0
+  [ "$1" = "$2" ] && return 0
+  [[ "$1" =~ ^HUM-[0-9]+$ ]]
+}
+
+# BounceRetired is kind=reject and opens "<id> retired at <rfc3339>. Your
+# <kind> (msg <id>) was not delivered and does not queue". The gate reads the
+# first 120 characters; the opener and "(msg " are in that window. A review
+# does not open that way, so a delivery bounce never counts.
+ksr_is_bounce() {  # body
+  [[ "$1" =~ ^[A-Za-z][A-Za-z0-9]*-[0-9]+[[:space:]]retired[[:space:]]at[[:space:]][0-9]{4}-[0-9]{2}-[0-9]{2}T ]] &&
+    [[ "$1" == *"(msg "* ]]
+}
+
 # The exit gate (see the header). 0 = may exit; 3 = refused, one line on stderr.
 ksr_gate() {
   local reason ts from kind task body id up bare rep_bare
@@ -142,9 +163,14 @@ ksr_gate() {
     [ -n "$ts" ] || continue
     body="$(printf '%s' "$body" | sed -E 's/^([[:space:]]|\\[nt]|[*_#>`])+//')"
     up="${body^^}" bare="${from%@*}"
+    if [ "$kind" = reject ] && ksr_is_bounce "$body"; then
+      continue
+    fi
     if [ "$kind" = reject ] || [[ "$up" =~ ^(REJECT|SEND[-\ ]?BACK) ]]; then
-      if [[ "$ts" > "$rej_ts" ]]; then rej_ts="$ts" rej_id="${id:0:8}" rej_from="$from"; fi
-    elif [[ "$body" == ACCEPTED* ]] && { ksr_is_seat "$bare" || [ "$bare" = "$rep_bare" ] || [[ "$bare" =~ ^HUM-[0-9]+$ ]]; }; then
+      if ksr_reviewer "$bare" "$rep_bare"; then
+        if [[ "$ts" > "$rej_ts" ]]; then rej_ts="$ts" rej_id="${id:0:8}" rej_from="$from"; fi
+      fi
+    elif [[ "$body" == ACCEPTED* ]] && ksr_reviewer "$bare" "$rep_bare"; then
       if [[ "$ts" > "$acc_ts" ]]; then acc_ts="$ts" acc_id="${id:0:8}" acc_task="$task"; fi
     fi
   done < <(find "$SPOOL_ROOT/$ID/inbox" "$SPOOL_ROOT/$ID/archive" -maxdepth 1 -type f -name '*.json' -print0 2>/dev/null |

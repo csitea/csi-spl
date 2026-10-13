@@ -27,9 +27,13 @@ import (
 // proves those). Embedding *store.Memory keeps every optional interface.
 type stampFake struct {
 	*store.Memory
-	mu                sync.Mutex
-	stamp             int64
-	settled, expired  bool
+	mu               sync.Mutex
+	stamp            int64
+	settled, expired bool
+	// deliv counts deliveries-only bumps (rdb 0190): they move Stamp, not
+	// NoDeliveries; delivFresh leaves Stamp unsettled and NoDeliveries not.
+	deliv             int64
+	delivFresh        bool
 	err               error
 	calls             int
 	lastSince, lastAt time.Time
@@ -40,7 +44,8 @@ func (f *stampFake) ChangeStamp(_ context.Context, _ string, since, now time.Tim
 	defer f.mu.Unlock()
 	f.calls++
 	f.lastSince, f.lastAt = since, now
-	return store.ChangeStamp{Stamp: f.stamp, Settled: f.settled, Expired: f.expired}, f.err
+	return store.ChangeStamp{Stamp: f.stamp + f.deliv, Settled: f.settled && !f.delivFresh,
+		NoDeliveries: f.stamp, NoDeliveriesSettled: f.settled, Expired: f.expired}, f.err
 }
 
 // stampTagRE is the stamp validator's whole shape, W/"s<mint ms>.<hash>".
@@ -251,7 +256,8 @@ func TestViewStampRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := tx.Exec(ctx, `SELECT set_config('app.rls_scope', 'operator', true)`); err == nil {
-		_, err = tx.Exec(ctx, `UPDATE tenant_change_stamps SET changed_at = changed_at - interval '1 minute' WHERE tenant_id = $1`, tenant)
+		_, err = tx.Exec(ctx, `UPDATE tenant_change_stamps SET changed_at = changed_at - interval '1 minute',
+			nodeliv_changed_at = nodeliv_changed_at - interval '1 minute' WHERE tenant_id = $1`, tenant)
 	}
 	if err != nil {
 		t.Fatal(err)

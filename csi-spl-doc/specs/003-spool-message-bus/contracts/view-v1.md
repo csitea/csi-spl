@@ -119,9 +119,14 @@ The WUI is served from Firebase Hosting, a different origin from the hub.
   `command grep -n 'OPTIONS /v1/files' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go`
   → `mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)`).
 - View preflight `OPTIONS /v1/view/*` → `204` with `Access-Control-Allow-Methods: GET`,
-  `Access-Control-Allow-Headers: Authorization, X-Locale` (`internal/hub/view.go:87`), `Access-Control-Max-Age: 600`,
+  `Access-Control-Allow-Headers: Authorization, X-Locale, If-None-Match` (`internal/hub/view.go` `preflight`), `Access-Control-Max-Age: 7200`,
   `Vary: Origin`. No credentials mode on the token door (the token is a header,
   not a cookie). Session-door credentialed CORS is 003 T033b.
+- A view answer to an allowed origin carries `Access-Control-Expose-Headers: ETag`,
+  so the WUI can send the tag back itself (`If-None-Match`, perf round 5 P5-10).
+  `GET /v1/view/channels` validates against the change stamp without
+  `deliveries` writes (rdb 0190); the other stamped views against the full
+  stamp (rdb 0103). An unchanged read answers `304` before any data read.
 
 ## 4. Shapes
 

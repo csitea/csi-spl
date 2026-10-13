@@ -50,7 +50,7 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/roster", s.viewHandler(s.handleViewRoster))
 	// R2-5: the stamped views answer an unchanged repeat read from the
 	// tenant's change stamp (view_stamp.go, rdb 0103).
-	mux.HandleFunc("GET /v1/view/channels", s.stampedView(s.handleViewChannels))
+	mux.HandleFunc("GET /v1/view/channels", s.viewDoor(s.handleViewChannels, stampNoDeliveries)) // P5-10
 	mux.HandleFunc("GET /v1/view/topics", s.stampedView(s.handleViewTopics))
 	mux.HandleFunc("GET /v1/view/topics/{task_id}", s.stampedView(s.handleViewTopic))
 	mux.HandleFunc("GET /v1/view/topics/{task_id}/children", s.stampedView(s.handleViewChildren))
@@ -112,7 +112,9 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 	if s.allowOrigin(w, r) {
 		h := w.Header()
 		h.Set("Access-Control-Allow-Methods", "GET")
-		h.Set("Access-Control-Allow-Headers", "Authorization, X-Locale")
+		// If-None-Match: the WUI sends the channels ETag it holds itself
+		// (perf round 5 P5-10), a non-safelisted request header.
+		h.Set("Access-Control-Allow-Headers", "Authorization, X-Locale, If-None-Match")
 		h.Set("Access-Control-Max-Age", corsMaxAge)
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -120,7 +122,7 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 
 // viewHandler resolves the tenant, applies CORS and the view door.
 func (s *Server) viewHandler(next func(http.ResponseWriter, *http.Request, store.Tenant)) http.HandlerFunc {
-	return s.viewDoor(next, false)
+	return s.viewDoor(next, stampOff)
 }
 
 // stampedView is viewHandler plus the change-stamp gate (view_stamp.go). Only
@@ -128,15 +130,18 @@ func (s *Server) viewHandler(next func(http.ResponseWriter, *http.Request, store
 // body depends on nothing else but stampKey and message expiry: the roster
 // is not one (its online flag is process memory).
 func (s *Server) stampedView(next func(http.ResponseWriter, *http.Request, store.Tenant)) http.HandlerFunc {
-	return s.viewDoor(next, true)
+	return s.viewDoor(next, stampAll)
 }
 
-func (s *Server) viewDoor(next func(http.ResponseWriter, *http.Request, store.Tenant), stamped bool) http.HandlerFunc {
+func (s *Server) viewDoor(next func(http.ResponseWriter, *http.Request, store.Tenant), stamp stampScope) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// A view is a read: the door, the permit and the handler share one
 		// membership lookup (store.WithMemo).
 		r = r.WithContext(store.WithMemo(r.Context()))
-		s.allowOrigin(w, r)
+		if s.allowOrigin(w, r) {
+			// The WUI reads the tag to send it back (P5-10).
+			w.Header().Set("Access-Control-Expose-Headers", "ETag")
+		}
 		// specs/026: the session's active tenant (the view token format is
 		// owner question OQ-16; until it is decided the token door admits
 		// nobody, fail closed).
@@ -144,9 +149,9 @@ func (s *Server) viewDoor(next func(http.ResponseWriter, *http.Request, store.Te
 		if !ok {
 			return
 		}
-		if stamped {
+		if stamp != stampOff {
 			var done bool
-			if w, done = s.stampGate(w, r, t.ID, hum); done {
+			if w, done = s.stampGate(w, r, t.ID, hum, stamp); done {
 				return
 			}
 		}

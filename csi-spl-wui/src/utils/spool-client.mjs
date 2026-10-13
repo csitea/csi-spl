@@ -146,6 +146,72 @@ export const FIRST_SCREEN_MS = 10000
 /** The reads kept for the first screen: the roster and the topic list (not one topic). */
 const FIRST_SCREEN_READ = /^\/v1\/view\/(roster$|topics\?)/
 
+/*
+ * perf round 5 P5-10 (SPL-1740): the reads that send back the ETag they
+ * hold. The hub answers an unchanged GET /v1/view/channels 304 after one
+ * stamp read, before any data read (hub view_stamp.go), but on prd 24 h no
+ * conditional read ever reached it. The client now holds the tag and the
+ * body of its last 200 per path and sends If-None-Match itself; a 304 hands
+ * back a copy of the held body. The hub exposes ETag and allows the header.
+ */
+const VALIDATED_READ = /^\/v1\/view\/channels(\?|$)/
+/** Held channels reads (one per read= mark set), oldest dropped first. */
+const VALIDATED_MAX = 8
+/** An entity tag as the hub sends it: W/"..." or "...". */
+const ETAG_RE = /^(W\/)?"[^"]*"$/
+
+/** One client's held validators (P5-10): path -> { tag, body } of its last 200. */
+function heldValidators() {
+  const held = new Map()
+  return {
+    /** The held entry of a conditional read, its tag set on headers; else null. */
+    ask(opts, path, headers) {
+      const method = String((opts && opts.method) || 'GET').toUpperCase()
+      const h = method === 'GET' && VALIDATED_READ.test(path) ? held.get(path) : null
+      if (h) headers['if-none-match'] = h.tag
+      return h || null
+    },
+    /** Keeps a 200's tag and a copy of its body; returns the body. */
+    keep(path, res, body) {
+      if (!VALIDATED_READ.test(path)) return body
+      const tag = String(res.headers.get('etag') || '').trim()
+      held.delete(path)
+      if (ETAG_RE.test(tag)) held.set(path, { tag, body: cloneBody(body) })
+      while (held.size > VALIDATED_MAX) held.delete(held.keys().next().value)
+      return body
+    },
+  }
+}
+
+/** The Error a hub answer that is not ok throws: status, token, detail, ... */
+async function hubError(res, path) {
+  let token = ''
+  let detail = ''
+  let permission = ''
+  let pos
+  let bad = ''
+  try {
+    const body = await res.json()
+    token = (body && body.error) || ''
+    detail = (body && body.detail) || ''
+    if (body && typeof body.permission === 'string') permission = body.permission
+    // search-v1 §5.1: bad_query points at the offending token
+    if (body && Number.isInteger(body.pos)) pos = body.pos
+    if (body && typeof body.token === 'string') bad = body.token
+  } catch {
+    /* not json */
+  }
+  const err = new Error(`spool ${res.status} ${token || path}`)
+  err.status = res.status
+  err.token = token
+  err.detail = detail
+  if (permission) err.permission = permission
+  if (pos !== undefined) err.pos = pos
+  if (bad) err.badToken = bad
+  if (res.status === 429) err.retryAfter = Number(res.headers.get('retry-after')) || 0
+  return err
+}
+
 /** A joiner's copy of a shared read (live): JSON-shaped bodies are cloned, the rest passed as is. */
 function cloneBody(v) {
   if (v === null || typeof v !== 'object' || v instanceof ArrayBuffer) return v
@@ -259,14 +325,15 @@ export function createSpoolClient({
   async function hubFetch(url, init) {
     if (typeof rawFetch !== 'function') throw new Error('no fetch')
     const res = await rawFetch(url, init)
-    // One number per hub 2xx. Callers do not stamp themselves.
-    if (res && res.ok) noteLastData()
+    // One number per hub 2xx or 304 (P5-10). Callers do not stamp themselves.
+    if (res && (res.ok || res.status === 304)) noteLastData()
     return res
   }
   /** GET reads in flight, by what makes them identical (see live). */
   const inflight = new Map()
   /** First-screen reads that have settled, by the same key (see live). */
   const settled = new Map()
+  const validated = heldValidators()
   const bornAt = now()
 
   /* Owner, 2026-09-25, prd v0.5.5: four "Failed to fetch" in the diagnostics
@@ -357,37 +424,13 @@ export function createSpoolClient({
     }
     const headers = { accept: 'application/json', ...(opts && opts.headers) }
     if (viewToken) headers.authorization = `Bearer ${viewToken}`
+    const held = validated.ask(opts, path, headers)
     const res = await fetchOnce(fn, `${root}${path}`, { credentials: credentialsFor(viewDoor), ...opts, headers })
-    if (!res.ok) {
-      let token = ''
-      let detail = ''
-      let permission = ''
-      let pos
-      let bad = ''
-      try {
-        const body = await res.json()
-        token = (body && body.error) || ''
-        detail = (body && body.detail) || ''
-        if (body && typeof body.permission === 'string') permission = body.permission
-        // search-v1 §5.1: bad_query points at the offending token
-        if (body && Number.isInteger(body.pos)) pos = body.pos
-        if (body && typeof body.token === 'string') bad = body.token
-      } catch {
-        /* not json */
-      }
-      const err = new Error(`spool ${res.status} ${token || path}`)
-      err.status = res.status
-      err.token = token
-      err.detail = detail
-      if (permission) err.permission = permission
-      if (pos !== undefined) err.pos = pos
-      if (bad) err.badToken = bad
-      if (res.status === 429) err.retryAfter = Number(res.headers.get('retry-after')) || 0
-      throw err
-    }
+    if (held && res.status === 304) return cloneBody(held.body)
+    if (!res.ok) throw await hubError(res, path)
     if (res.status === 204) return null
     const ct = res.headers.get('content-type') || ''
-    if (ct.includes('application/json')) return res.json()
+    if (ct.includes('application/json')) return validated.keep(path, res, await res.json())
     return res.arrayBuffer()
   }
 

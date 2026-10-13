@@ -108,6 +108,46 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
     assert.deepEqual(row.members, { agents: 3, boxes: 2, posters: 1 })
   })
 
+  it('P5-10: listChannels sends back the ETag it holds and a 304 returns the held rows', async () => {
+    const rows = { channels: [{ channel: 'alerts', name: 'alerts', default: true, retention_days: 7, count: 4, unread: 2, last_ts: 't', last_cursor: 'c9' }] }
+    const tag = 'W/"s1760000000000.abc"'
+    const calls = []
+    let answer = 200
+    const fn = async (url, opts = {}) => {
+      calls.push({ url, opts })
+      const status = opts.headers['if-none-match'] === tag ? answer : 200
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        headers: { get: (h) => (h.toLowerCase() === 'etag' ? tag : 'application/json') },
+        json: async () => (status === 304 ? assert.fail('a 304 has no body') : structuredClone(rows)),
+      }
+    }
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    const first = await c.listChannels()
+    assert.equal(calls[0].opts.headers['if-none-match'], undefined, 'a first read holds no tag')
+    answer = 304
+    const again = await c.listChannels()
+    assert.equal(calls[1].opts.headers['if-none-match'], tag)
+    assert.deepEqual(again, first)
+    again[0].unread = 99
+    assert.equal((await c.listChannels())[0].unread, 2, 'each 304 hands out its own copy')
+    // Another read= mark set is another path: no tag of its own yet.
+    await c.listChannels({ read: { alerts: 'c5' } })
+    assert.equal(calls[3].opts.headers['if-none-match'], undefined)
+    // Other views do not send it.
+    await c.listTopics({ channel: 'alerts' }).catch(() => {})
+    assert.equal(calls[4].opts.headers['if-none-match'], undefined)
+  })
+
+  it('P5-10: a non-ETag header value is never held or sent', async () => {
+    const { fn, calls } = stubFetch([[(u) => u.startsWith('/v1/view/channels'), [200, { channels: [] }]]])
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    await c.listChannels()
+    await c.listChannels()
+    assert.equal(calls[1].opts.headers['if-none-match'], undefined)
+  })
+
   it('createChannel POSTs JSON to /v1/channels', async () => {
     const { fn, calls } = stubFetch([[(u, o) => u === '/v1/channels' && o.method === 'POST', [201, { channel: 'feature-auth', name: 'Feature Auth', created_by: 'wui', created_at: 't', default: false }]]])
     const c = createSpoolClient({ fetchFn: fn, mock: false })

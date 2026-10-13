@@ -17,6 +17,12 @@ type ChangeStamp struct {
 	// sooner may come from another hub instance's door cache (hotCacheTTL)
 	// that has not seen the change yet, and would be pinned until the next.
 	Settled bool
+	// NoDeliveries and NoDeliveriesSettled are Stamp and Settled for every
+	// covered table but deliveries (rdb 0190, perf round 5 P5-10): a view
+	// that reads no deliveries row (GET /v1/view/channels) gates on them, so
+	// an ack or a redelivery does not turn its repeat read into a full one.
+	NoDeliveries        int64
+	NoDeliveriesSettled bool
 	// Expired: a message of the tenant left the live window (expires_at) in
 	// (Since, Now]. Expiry changes what a view reads with no write at all.
 	Expired bool
@@ -34,14 +40,17 @@ type ChangeStamper interface {
 }
 
 // changeStampSQL is one aggregate row: no stamp row yet reads 0, settled.
+// Both stamps (0103's and 0190's) ride the same row read.
 const changeStampSQL = `SELECT COALESCE(SUM(n), 0)::bigint,
 		COALESCE(MAX(changed_at) <= clock_timestamp() - make_interval(secs => $4), true),
+		COALESCE(SUM(n_nodeliv), 0)::bigint,
+		COALESCE(MAX(nodeliv_changed_at) <= clock_timestamp() - make_interval(secs => $4), true),
 		EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.expires_at <= $3)
 	FROM tenant_change_stamps WHERE tenant_id = $1`
 
 func (s *Postgres) ChangeStamp(ctx context.Context, tenant string, since, now time.Time) (ChangeStamp, error) {
 	var c ChangeStamp
 	err := s.queryRowTenant(ctx, tenant, changeStampSQL,
-		[]any{tenant, since, now, ChangeStampSettle.Seconds()}, &c.Stamp, &c.Settled, &c.Expired)
+		[]any{tenant, since, now, ChangeStampSettle.Seconds()}, &c.Stamp, &c.Settled, &c.NoDeliveries, &c.NoDeliveriesSettled, &c.Expired)
 	return c, err
 }

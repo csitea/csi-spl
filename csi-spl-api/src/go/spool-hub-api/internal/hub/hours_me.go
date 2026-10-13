@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
@@ -31,7 +32,7 @@ import (
 const (
 	hoursMinutesBatchMax = 60              // spec 6.3
 	hoursMinuteSkew      = 2 * time.Minute // a tab clock slightly ahead
-	hoursMinuteMaxAge    = 45 * 24 * time.Hour
+	hoursMinuteMaxAge    = 45 * timeutil.Day
 	hoursZoneLookback    = 48 * time.Hour // the last tab batch's zone (1.6)
 	hoursBodyMax         = 128 << 10
 	hoursDayLayout       = "2006-01-02"

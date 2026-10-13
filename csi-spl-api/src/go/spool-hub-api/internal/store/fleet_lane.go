@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"sort"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -30,7 +31,7 @@ type FleetLane struct {
 }
 
 // LaneDoneTTL is how long a done row stays readable before a write prunes it.
-const LaneDoneTTL = 7 * 24 * time.Hour
+const LaneDoneTTL = 7 * timeutil.Day
 
 // The shapes 0096's CHECKs enforce, so a refusal is a 400, not a 500.
 var (

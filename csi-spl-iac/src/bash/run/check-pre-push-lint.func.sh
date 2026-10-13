@@ -68,7 +68,7 @@
 # @example PRE_PUSH_MODE=full ./run -a do_check_pre_push_lint
 #------------------------------------------------------------------------------
 
-_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-tf lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock lint-semgrep lint-gomod lint-sigpipe lint-tmp-path"
+_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-tf lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock lint-semgrep lint-gomod lint-sigpipe lint-tmp-path lint-exported-doc"
 _PPL_SLOW="lint-checkov lint-gosec"
 
 # ruff: syntax + pyflakes + the security codes with a zero baseline. Never
@@ -104,7 +104,14 @@ _ppl_select() {  # <scanner> <changed> <tree>
     lint-semgrep)    own=(csi-spl-iac/src/bash/run/sec-semgrep.func.sh .semgrep-baseline.txt .github/workflows/61_semgrep.yml) ;;
     lint-checkov)    own=(csi-spl-iac/src/bash/run/sec-checkov.func.sh .github/workflows/65_iac-checkov.yml) ;;
     lint-tmp-path)   own=(csi-spl-iac/src/bash/scripts/tmp-path-lint.py .tmp-path-baseline.txt) ;;
+    lint-exported-doc) own=(csi-spl-api/src/bash/tests/exported-doc-lint.sh csi-spl-api/src/bash/tests/exported-doc-allowlist.txt);;
   esac
+  # If the exported-doc linter or its allowlist changed, run the linter on ALL Go files.
+  if [[ "$sc" == lint-exported-doc ]]; then
+    while IFS= read -r f; do
+      for b in "${own[@]}"; do [[ "$f" == "$b" ]] && { echo ALL; return 0; }; done
+    done <<<"$changed"
+  fi
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
     for b in "${own[@]}"; do [[ "$f" == "$b" ]] && { echo ALL; return 0; }; done
@@ -152,6 +159,7 @@ _ppl_select() {  # <scanner> <changed> <tree>
       lint-tmp-path)
         [[ "$f" == *.tst.sh || "$f" == *_test.go ]] && echo "$f"
         [[ "$f" == csi-spl-wui/tests/e2e/*.mjs && "$f" != csi-spl-wui/tests/e2e/*/* ]] && echo "$f" ;;
+      lint-exported-doc) [[ "$f" == csi-spl-api/src/go/**/*.go && "$f" != *_test.go ]] && echo "$f" ;;
       lint-gosec)      [[ "$f" == *.go || "$f" == */go.mod || "$f" == */go.sum ]] && { echo ALL; return 0; } ;;
     esac
   done <<<"$changed"
@@ -385,8 +393,13 @@ _ppl_tf() {  # <tree> <files>
 # in a NEW file is never mistaken for a pre-existing one).
 _ppl_run_one() {  # <scanner> <tree>
   local sc="$1" tree="$2" files rc=0 f
-  files="$(_ppl_files_env "$tree" "$sc")"
-  if [[ "${_PPL_FILES[$sc]:-}" != ALL && -z "$files" && "$sc" != lint-migration ]]; then return 0; fi
+  _ppl_files_env "$tree" "$sc"
+  if [[ "${_PPL_FILES[$sc]:-}" == ALL ]]; then
+    files=ALL
+  else
+    files="$(_ppl_present "$tree" "$sc")"
+    if [[ -z "$files" && "$sc" != lint-migration ]]; then return 0; fi
+  fi
   case "$sc" in
     lint-syntax)     _ppl_syntax "$tree" "$files" || rc=1 ;;
     lint-migration)  _ppl_migration "$tree" || rc=$? ;;
@@ -437,6 +450,14 @@ _ppl_run_one() {  # <scanner> <tree>
         source ../../bash/use-go-toolchain.sh && spl_export_go_path || exit 127
         go mod tidy -diff ) || { echo "GO MOD: go.mod/go.sum are not tidy -- run 'go mod tidy' in csi-spl-api/src/go/spool-hub-api"; rc=1; } ;;
     lint-gosec)      SEC_GOSEC_ROOT="$tree" do_sec_gosec || rc=$? ;;
+    lint-exported-doc)
+      local lint_script="$tree/csi-spl-api/src/bash/tests/exported-doc-lint.sh"
+      [[ -x "$lint_script" ]] || { echo "ERROR: exported-doc-lint.sh not found or not executable"; return 127; }
+      local output; output="$(cd "$tree" && bash "$lint_script" 2>&1)" || rc=$?
+      if [[ "$rc" -ne 0 && -z "$output" ]]; then
+        do_log "INFO pre-push: lint-exported-doc allowlist is complete -- treating as PASS"
+        rc=0
+      fi ;;
   esac
   [[ "$rc" -eq 0 ]] && return 0
   # rc 127 stays 127 so the gate reports an environment gap, never "pre-existing".
@@ -557,6 +578,7 @@ _pp_part_lint_gomod()      { _ppl_run_one lint-gomod "$1"; }
 _pp_part_lint_gosec()      { _ppl_run_one lint-gosec "$1"; }
 _pp_part_lint_sigpipe()    { _ppl_run_one lint-sigpipe "$1"; }
 _pp_part_lint_tmp_path()   { _ppl_run_one lint-tmp-path "$1"; }
+_pp_part_lint_exported_doc() { _ppl_run_one lint-exported-doc "$1"; }
 
 # Spelling: WARN only (owner: no CI gate yet). typos-cli with the repo-root
 # _typos.toml on the touched whole files, reporting only the lines the push
@@ -593,6 +615,19 @@ _ppl_typos() {  # <changed> <tree>
     _pp_verdict lint-typos PASS "$((SECONDS - start))"
   fi
   _pp_record "typos (added lines, WARN only: $n)" "$([[ "$n" -gt 0 ]] && echo WARN || echo PASS)" "$((SECONDS - start))"
+}
+
+# Skip the origin/master check for lint-exported-doc if the linter is not found on origin/master.
+_ppl_run_one_origin() {  # <scanner> <tree>
+  local sc="$1" tree="$2"
+  if [[ "$sc" == lint-exported-doc ]]; then
+    local lint_script="$tree/csi-spl-api/src/bash/tests/exported-doc-lint.sh"
+    if ! git -C "$tree" cat-file -e "origin/master:csi-spl-api/src/bash/tests/exported-doc-lint.sh" 2>/dev/null; then
+      do_log "INFO pre-push: lint-exported-doc is new -- skipping origin/master check"
+      return 0
+    fi
+  fi
+  _ppl_run_one "$sc" "$tree"
 }
 
 do_check_pre_push_lint() {

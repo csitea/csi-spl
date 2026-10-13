@@ -6,6 +6,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"spool-hub-api/internal/timeutil"
 	"time"
 	"unicode/utf8"
 
@@ -52,7 +53,7 @@ type KindPause struct {
 }
 
 // MaxKindPause bounds a pause: a weekly usage limit, plus a day.
-const MaxKindPause = 8 * 24 * time.Hour
+const MaxKindPause = 8 * timeutil.Day
 
 // MaxPauseReason bounds KindPause.Reason, in characters.
 const MaxPauseReason = 200

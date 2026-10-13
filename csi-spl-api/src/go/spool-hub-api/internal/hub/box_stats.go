@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -32,7 +33,7 @@ import (
 // hours is one row per (box, UTC hour): load1 and used memory as avg and
 // peak. at is the hub's clock; a box's own clock is never trusted.
 
-const boxStatsSinceDefault = 24 * time.Hour
+const boxStatsSinceDefault = timeutil.Day
 
 func (s *Server) routeBoxStats(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/tenant/box-stats", s.handleBoxStats)
@@ -73,7 +74,7 @@ func boxStatsSince(v string, now time.Time) (time.Time, bool) {
 		} else if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			since = now.Add(-d)
 		} else if n, err := strconv.Atoi(strings.TrimSuffix(v, "d")); err == nil && strings.HasSuffix(v, "d") && n > 0 && n <= 366 {
-			since = now.Add(-time.Duration(n) * 24 * time.Hour)
+			since = now.Add(-time.Duration(n) * timeutil.Day)
 		} else {
 			return since, false
 		}

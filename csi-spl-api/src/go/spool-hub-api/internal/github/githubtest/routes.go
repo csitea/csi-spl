@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -83,7 +84,7 @@ func (s *Server) accessToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wire.WriteJSON(w, http.StatusCreated, map[string]any{
-		"token": s.newToken(), "expires_at": s.now().Add(time.Hour).UTC().Format(time.RFC3339),
+		"token": s.newToken(), "expires_at": s.now().Add(timeutil.Hour).UTC().Format(time.RFC3339),
 	})
 }
 

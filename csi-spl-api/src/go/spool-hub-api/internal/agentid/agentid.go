@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -44,7 +45,7 @@ var Now = defaultNow
 
 func defaultNow() time.Time {
 	if testing.Testing() {
-		return LegacyUntil.Add(-time.Hour)
+		return LegacyUntil.Add(-timeutil.Hour)
 	}
 	return time.Now()
 }

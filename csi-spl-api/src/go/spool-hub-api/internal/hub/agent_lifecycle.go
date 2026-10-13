@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -178,7 +179,7 @@ func (s *Server) handleAgentLifecycleEvents(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	now := s.o.Now()
-	since := now.Add(-24 * time.Hour)
+	since := now.Add(-timeutil.Day)
 	if v := r.URL.Query().Get("since"); v != "" {
 		if at, err := time.Parse(time.RFC3339, v); err == nil {
 			since = at

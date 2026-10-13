@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -26,7 +27,7 @@ import (
 
 const (
 	statusNoteMax    = 80                  // characters, spec section 3
-	statusUntilMax   = 90 * 24 * time.Hour // Q6
+	statusUntilMax   = 90 * timeutil.Day // Q6
 	statusSweepEvery = time.Minute         // per tenant, on the relay tick
 	statusAvailable  = "available"
 )

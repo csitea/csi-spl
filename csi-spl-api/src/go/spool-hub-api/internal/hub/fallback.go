@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -40,7 +41,7 @@ const FeatureFallback = wire.FeatureFallback
 
 // fallbackRecent is how far back the Properties line counts fallback
 // deliveries of a channel.
-const fallbackRecent = 7 * 24 * time.Hour
+const fallbackRecent = 7 * timeutil.Day
 
 // fallbackBox is one live box that takes fallback frames.
 type fallbackBox struct {

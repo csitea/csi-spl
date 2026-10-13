@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
@@ -238,7 +239,7 @@ func hexDigest(s string) string {
 }
 
 // demoDay is the UTC day window of the T010 counters.
-func demoDay(now time.Time) time.Time { return now.UTC().Truncate(24 * time.Hour) }
+func demoDay(now time.Time) time.Time { return now.UTC().Truncate(timeutil.Day) }
 
 // AdmittedDemo marks a membership the open demo rule seated (specs/077).
 const AdmittedDemo = "demo"

@@ -16,6 +16,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -748,7 +749,7 @@ func cmdHubInvite(args []string) int {
 	tenant := fs.String("tenant", "", "tenant id")
 	email := fs.String("email", "", "the invitee's verified sign-in email")
 	role := fs.String("role", store.RoleTenantOwner, "a role id (specs/025): "+strings.Join(rbac.RoleIDs, "|")+"; legacy owner|member map to biz_owner|developer")
-	ttl := fs.Duration("ttl", 7*24*time.Hour, "how long the invite stays open")
+	ttl := fs.Duration("ttl", 7*24*timeutil.Hour, "how long the invite stays open")
 	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
 	orderedBy := fs.String("ordered-by", "", "the human who ordered this invite (a HUM-* id, CLE-77778); recorded as provenance")
 	orderedVia := fs.String("ordered-via", "", "the agent or channel that carried the order, e.g. CLE-34967 (optional)")

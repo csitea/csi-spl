@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -28,7 +29,7 @@ import (
 // writes nothing new (the insert is ON CONFLICT DO NOTHING).
 
 // HoursMinuteRetention: no raw minute outlives this, frozen or not (spec 1.7).
-const HoursMinuteRetention = 45 * 24 * time.Hour
+const HoursMinuteRetention = 45 * timeutil.Day
 
 // HoursSweepBy is hours_periods.decided_by for a row the sweep wrote.
 const HoursSweepBy = "sweep"

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"spool-hub-api/internal/timeutil"
 	"time"
 	"unicode/utf8"
 )
@@ -449,9 +450,9 @@ func calendarDays(e *CalendarEvent, r CalendarRange) []string {
 	if d.Before(r.Start) {
 		d = r.Start
 	}
-	d = d.UTC().Truncate(24 * time.Hour)
+	d = d.UTC().Truncate(timeutil.Day)
 	var out []string
-	for ; !d.After(last); d = d.Add(24 * time.Hour) {
+	for ; !d.After(last); d = d.Add(timeutil.Day) {
 		out = append(out, d.Format(time.DateOnly))
 	}
 	return out

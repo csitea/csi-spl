@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -29,7 +30,7 @@ import (
 // here: it is the box-stats sample's.
 
 // hostEvery: how old the sheet may get before it is collected again.
-const hostEvery = 24 * time.Hour
+const hostEvery = timeutil.Day
 
 // hostProbeTimeout bounds one probe command.
 const hostProbeTimeout = 3 * time.Second

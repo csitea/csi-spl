@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -140,7 +141,7 @@ func (m *MemoryCredStore) IssueToken(_ context.Context, kind, subject, tokenHash
 		if t.created.After(last) {
 			last = t.created
 		}
-		if t.created.After(now.Add(-24 * time.Hour)) {
+		if t.created.After(now.Add(-timeutil.Day)) {
 			today++
 		}
 	}

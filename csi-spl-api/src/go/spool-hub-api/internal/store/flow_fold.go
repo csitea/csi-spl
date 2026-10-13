@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -23,7 +24,7 @@ const (
 	FlowFoldWindow = 200
 	// FlowReleaseSpan is how far back the release lines of the last page
 	// reach: with no older event to page to, the Flow shows a month of releases.
-	FlowReleaseSpan = 30 * 24 * time.Hour
+	FlowReleaseSpan = 30 * timeutil.Day
 )
 
 // flowRank is the strength of a line kind: lower is stronger (spec 130

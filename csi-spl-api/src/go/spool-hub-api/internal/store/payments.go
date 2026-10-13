@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -149,7 +150,7 @@ func errUnknownPayEvent(kind string) error {
 // PaidOwnerInviteTTL is how long the buyer's biz_owner invite waits for the
 // first sign-in (047 W1). It outlives the claim link: payments config refuses
 // a SPOOL_HUB_PAYMENT_CLAIM_TTL longer than this.
-const PaidOwnerInviteTTL = 30 * 24 * time.Hour
+const PaidOwnerInviteTTL = 30 * timeutil.Day
 
 // paidOwnerInvite is the invite the paid transition writes in the same
 // transaction as the tenant row (047 W1, D1): the checkout email signs in as

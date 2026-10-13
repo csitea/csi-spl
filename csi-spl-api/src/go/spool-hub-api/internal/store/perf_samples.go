@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -35,7 +36,7 @@ const (
 	// PerfSampleRetention is how long raw samples live; the hub's retention
 	// sweep prunes older ones. The ONE place the number lives (owner Q6:
 	// 30 days, 90 is this line).
-	PerfSampleRetention = 30 * 24 * time.Hour
+	PerfSampleRetention = 30 * timeutil.Day
 	PerfValueMaxMs      = 600000 // 10 min: a longer "timing" is a stuck tab
 	PerfBatchMax        = 500    // rows one insert takes at most
 )

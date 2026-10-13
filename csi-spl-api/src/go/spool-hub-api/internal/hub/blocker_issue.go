@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -64,7 +65,7 @@ import (
 const (
 	blockerKind          = "blocker"
 	blockerShortLookback = time.Hour      // every tick: a blocker due in the last hour
-	blockerLongLookback  = 24 * time.Hour // every blockerLongEvery ticks: a late answer
+	blockerLongLookback  = timeutil.Day // every blockerLongEvery ticks: a late answer
 	blockerLongEvery     = 10
 	blockerSweepMax      = 200 // blocker posts per workspace per tick
 	blockerExcerpt       = 2000

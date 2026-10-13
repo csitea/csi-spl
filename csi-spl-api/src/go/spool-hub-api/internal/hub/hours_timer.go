@@ -2,6 +2,7 @@ package hub
 
 import (
 	"net/http"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -31,7 +32,7 @@ import (
 //
 // Same caller and privacy line as hours_me.go: only the caller's rows.
 
-const hoursTimerMax = 24 * time.Hour // a longer run is a forgotten timer
+const hoursTimerMax = timeutil.Day // a longer run is a forgotten timer
 
 type hoursTimerBody struct {
 	Target string `json:"target"`

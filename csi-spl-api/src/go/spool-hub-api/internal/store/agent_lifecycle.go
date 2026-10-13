@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -188,7 +189,7 @@ const (
 	LifecycleConfigMax    = 2048 // bytes of the config json
 	LifecycleRefetchKeys  = 16
 	LifecycleEventsMax    = 200 // rows one list returns at most
-	LifecycleRetention    = 90 * 24 * time.Hour
+	LifecycleRetention    = 90 * timeutil.Day
 	LifecycleHubWriterBox = "hub" // writer_box of a config_change
 )
 

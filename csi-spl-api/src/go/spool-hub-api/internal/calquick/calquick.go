@@ -37,6 +37,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -49,7 +50,7 @@ const (
 )
 
 // defaultLength is a timed event's length when the text gives no end.
-const defaultLength = time.Hour
+const defaultLength = timeutil.Hour
 
 const badTime = "is not a time (15:00, 3pm, 15:00-16:00)"
 
@@ -268,7 +269,7 @@ func (p *parsed) setLength(part, word string) error {
 	m := durRe.FindStringSubmatch(word)
 	h, _ := strconv.Atoi(m[1])
 	mins, _ := strconv.Atoi(m[2])
-	d := time.Duration(h)*time.Hour + time.Duration(mins)*time.Minute
+	d := time.Duration(h)*timeutil.Hour + time.Duration(mins)*time.Minute
 	switch {
 	case d <= 0:
 		return refuse(part, "is not a duration (for 30m, for 2h)")

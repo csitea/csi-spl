@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/caarlos0/env/v10"
@@ -117,9 +118,9 @@ type Config struct {
 // IDQuarantine is IDQuarantineH as a duration, 24 h when it is not positive.
 func (c *Config) IDQuarantine() time.Duration {
 	if c.IDQuarantineH <= 0 {
-		return 24 * time.Hour
+		return timeutil.Day
 	}
-	return time.Duration(c.IDQuarantineH) * time.Hour
+	return time.Duration(c.IDQuarantineH) * timeutil.Hour
 }
 
 // NotifyTimeoutOr is NotifyTimeout, or 10s for a Config built in code.
@@ -624,7 +625,7 @@ func (h *Hub) checkStorage() error {
 // than a day so a leaked token is not valid for days.
 const (
 	JoinTokenTTLMin = 5 * time.Minute
-	JoinTokenTTLMax = 24 * time.Hour
+	JoinTokenTTLMax = timeutil.Day
 )
 
 // checkLimits validates durations, edge limits, quotas, the message version, the locale and the CI/CD logs settings.

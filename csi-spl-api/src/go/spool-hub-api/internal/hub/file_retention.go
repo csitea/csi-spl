@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
@@ -25,7 +26,7 @@ const (
 	// FileOrphanGrace is how old such a blob must be before retention
 	// deletes it. Longer than FileUploadGrace: a send may reference an
 	// upload made a while ago, and must still find its bytes.
-	FileOrphanGrace = 24 * time.Hour
+	FileOrphanGrace = timeutil.Day
 	// fileSweepEvery: the orphan sweep lists the whole bucket, so it runs
 	// far less often than the message sweep.
 	fileSweepEvery = time.Hour

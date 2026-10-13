@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -77,7 +78,7 @@ func (s *Server) handlePerfSummary(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, perfSummaryBody{Off: true, Days: days, Rows: []perfSummaryRow{}})
 		return
 	}
-	since := s.o.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	since := s.o.Now().Add(-time.Duration(days) * timeutil.Day)
 	rows, err := ps.PerfSummary(r.Context(), t.ID, since, build)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("perf summary")

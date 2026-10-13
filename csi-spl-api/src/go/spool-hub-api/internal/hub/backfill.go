@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"slices"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -50,7 +51,7 @@ const FeatureBackfill = wire.FeatureBackfill
 const backfillEvery = time.Minute
 
 // defaultBackfillWindow is BackfillWindow when Options leaves it zero.
-const defaultBackfillWindow = 7 * 24 * time.Hour
+const defaultBackfillWindow = 7 * timeutil.Day
 
 func (s *Server) backfillWindow() time.Duration {
 	if s.o.BackfillWindow > 0 {

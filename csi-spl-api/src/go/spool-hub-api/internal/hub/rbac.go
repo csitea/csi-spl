@@ -7,6 +7,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
@@ -147,8 +148,8 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 // ---- members API (025 FR-007) ------------------------------------------------
 
 const (
-	inviteTTLDefault = 7 * 24 * time.Hour
-	inviteTTLMax     = 30 * 24 * time.Hour
+	inviteTTLDefault = 7 * timeutil.Day
+	inviteTTLMax     = 30 * timeutil.Day
 	membersMaxBody   = 4 << 10
 )
 

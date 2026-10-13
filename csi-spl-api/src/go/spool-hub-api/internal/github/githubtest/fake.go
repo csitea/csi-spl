@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/github"
@@ -219,7 +220,7 @@ func (s *Server) newToken() string {
 	_, _ = rand.Read(b)
 	tok := "ghs_fake" + hex.EncodeToString(b)
 	s.mu.Lock()
-	s.tokens[tok] = s.now().Add(time.Hour)
+	s.tokens[tok] = s.now().Add(timeutil.Hour)
 	s.mints++
 	s.mu.Unlock()
 	return tok

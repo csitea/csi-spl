@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -30,7 +31,7 @@ import (
 
 // embedTriageQuiet: a visitor's post after this long without a message in
 // its channel gets a triage line again (spec 4.4).
-const embedTriageQuiet = 24 * time.Hour
+const embedTriageQuiet = timeutil.Day
 
 // permEmbedStaff names the gate in a 403 body; it is not an rbac permission.
 const permEmbedStaff = "embed.staff"

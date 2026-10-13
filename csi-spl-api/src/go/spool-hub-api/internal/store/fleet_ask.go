@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -75,7 +76,7 @@ func (a FleetAsk) Open() bool {
 }
 
 // AskClosedTTL is how long a closed ask stays readable before a write prunes it.
-const AskClosedTTL = 7 * 24 * time.Hour
+const AskClosedTTL = 7 * timeutil.Day
 
 // The ask ops a holder applies to an existing row (UpdateFleetAsk).
 const (

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
@@ -109,7 +110,7 @@ func (s *Server) handleAuditClones(w http.ResponseWriter, r *http.Request) {
 // DefaultActAsTTL is how long an act-as clone lives before the sweeper expires
 // it (specs/054 §8 Q3, owner recommendation 60 min). Kept a var so a deploy
 // could tune it without a schema change.
-var DefaultActAsTTL = time.Hour
+var DefaultActAsTTL = timeutil.Hour
 
 // cloneSweeper expires act-as clones past their TTL (specs/054 §5). *store.Postgres
 // satisfies it; the memory store does not.

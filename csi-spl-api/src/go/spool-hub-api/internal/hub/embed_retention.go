@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -16,7 +17,7 @@ import (
 
 const (
 	// EmbedRetention is how long a visitor channel outlives its last message.
-	EmbedRetention = 30 * 24 * time.Hour // Retention period for embed data
+	EmbedRetention = 30 * timeutil.Day // Retention period for embed data
 	// embedRetentionBatch caps one tick; the next tick takes the rest.
 	embedRetentionBatch = 200
 )

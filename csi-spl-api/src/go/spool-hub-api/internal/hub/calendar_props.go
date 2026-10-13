@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 	"unicode/utf8"
 
@@ -33,7 +34,7 @@ const (
 
 	calendarLocationMax  = 300
 	calendarMaxReminders = 5
-	calendarReminderMax  = 28 * 24 * time.Hour // 4 weeks before the start
+	calendarReminderMax  = 28 * timeutil.Day // 4 weeks before the start
 	calendarMethodPopup  = "popup"
 )
 
@@ -50,7 +51,7 @@ var calendarColors = []string{"tomato", "flamingo", "tangerine", "banana", "sage
 	"blueberry", "lavender", "grape", "graphite"}
 
 // calendarUnits is a reminder's unit and its length.
-var calendarUnits = map[string]time.Duration{"minutes": time.Minute, "hours": time.Hour, "days": 24 * time.Hour}
+var calendarUnits = map[string]time.Duration{"minutes": time.Minute, "hours": time.Hour, "days": timeutil.Day}
 
 // calendarReminder is one typed reminder (spec 4.3).
 type calendarReminder struct {

@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"net/http"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
@@ -30,7 +31,7 @@ type memberActivitySweeper interface {
 // AuthActivityRetention is how long the auth rows (sign_in / sign_out /
 // session_expiry) are kept before the sweep prunes them (owner rule,
 // CLE-77799): 90 days. Membership rows (role_changed, removed) are kept.
-var AuthActivityRetention = 90 * 24 * time.Hour
+var AuthActivityRetention = 90 * timeutil.Day
 
 // authActivityAdapter implements auth.ActivityRecorder by appending sign-in /
 // sign-out events to member_activity (CLE-77799). A store with no append (the

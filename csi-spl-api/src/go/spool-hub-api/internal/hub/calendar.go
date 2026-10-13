@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 	"unicode/utf8"
 
@@ -770,7 +771,7 @@ func eventDays(e store.CalendarEvent, rg store.CalendarRange) []string {
 		d = rg.Start
 	}
 	var out []string
-	for d = d.UTC().Truncate(24 * time.Hour); !d.After(last); d = d.Add(24 * time.Hour) {
+	for d = d.UTC().Truncate(timeutil.Day); !d.After(last); d = d.Add(timeutil.Day) {
 		out = append(out, d.Format(time.DateOnly))
 	}
 	return out

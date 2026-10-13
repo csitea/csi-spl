@@ -773,6 +773,17 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     do_log "FATAL pre-push: FAIL $label -- rc=127, a command it needs is not installed (see the output above)"
     rm -f "$out"; return 0
   fi
+  # Skip the origin/master check for lint-exported-doc if the linter is not found on origin/master.
+  if [[ "$part" == lint-exported-doc ]]; then
+    if ! git -C "$tree" cat-file -e "origin/master:csi-spl-api/src/bash/tests/exported-doc-lint.sh" 2>/dev/null; then
+      do_log "INFO pre-push: lint-exported-doc is new -- skipping origin/master check"
+      _pp_record "$label" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
+      [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note"
+      do_log "FATAL pre-push: FAIL $label ($note)"
+      rm -f "$out"
+      return 0
+    fi
+  fi
   # Pre-existing on trunk? Re-run the SAME part against the base ref.
   local bwt brc=0 bsha bout="" tsig bsig=""
   bsha="$(git -C "$tree" rev-parse --short "$base" 2>/dev/null || echo '?')"

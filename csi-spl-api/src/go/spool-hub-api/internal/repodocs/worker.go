@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -71,8 +72,8 @@ const (
 	DefaultPoll         = 30 * time.Second
 	DefaultFastPoll     = 5 * time.Second
 	DefaultStale        = 10 * time.Minute
-	DefaultOverlayKeep  = 30 * 24 * time.Hour
-	DefaultRefreshEvery = 24 * time.Hour
+	DefaultOverlayKeep  = 30 * timeutil.Day
+	DefaultRefreshEvery = timeutil.Day
 	DefaultClaim        = 10
 	// historyDepth is how many commits the daily author refresh and the
 	// reclaim check read.

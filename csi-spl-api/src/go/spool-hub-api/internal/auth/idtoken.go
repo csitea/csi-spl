@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"spool-hub-api/internal/timeutil"
 	"strings"
 	"sync"
 	"time"
@@ -49,7 +50,7 @@ func newJWKSCache(url string, hc *http.Client, now func() time.Time) *jwksCache 
 	if now == nil {
 		now = time.Now
 	}
-	return &jwksCache{url: url, http: hc, ttl: 24 * time.Hour, minRefetch: time.Minute, now: now}
+	return &jwksCache{url: url, http: hc, ttl: timeutil.Day, minRefetch: time.Minute, now: now}
 }
 
 func (c *jwksCache) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {

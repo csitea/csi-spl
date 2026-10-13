@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -35,7 +36,7 @@ import (
 
 const (
 	// deltaMaxAge: a longer gap reads the whole page.
-	deltaMaxAge = 24 * time.Hour
+	deltaMaxAge = timeutil.Day
 	// deltaSkew widens since: received_at is stamped before its row commits,
 	// so a row stamped just before the newest one the browser holds may have
 	// committed after the browser read. Rows re-sent twice merge by msg_id.

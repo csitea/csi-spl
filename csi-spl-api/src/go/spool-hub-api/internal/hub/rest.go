@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/coder/websocket"
@@ -246,7 +247,7 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 }
 
 // fileCacheMaxAge bounds how long a browser keeps a downloaded attachment.
-const fileCacheMaxAge = 24 * time.Hour
+const fileCacheMaxAge = timeutil.Day
 
 // maxJSONBody caps a small JSON request body (pin, unpin, upload intent):
 // anything larger is not a request the hub makes sense of (017 FR-SEC).

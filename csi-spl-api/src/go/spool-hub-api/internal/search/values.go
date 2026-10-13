@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -242,7 +243,7 @@ func (p *parser) date(t *Term, op, v string) string {
 		if err != nil || n < 1 || n > 3650 {
 			return op + ": age must be 1 to 3650"
 		}
-		unit := map[string]time.Duration{"h": time.Hour, "d": 24 * time.Hour, "w": 7 * 24 * time.Hour}[m[2]]
+		unit := map[string]time.Duration{"h": time.Hour, "d": timeutil.Day, "w": 7 * timeutil.Day}[m[2]]
 		at = p.now.Add(-time.Duration(n) * unit)
 	} else {
 		d, err := time.Parse("2006-01-02", v)

@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
@@ -117,7 +118,7 @@ func (f *IdP) microsoftRoutes(mux *http.ServeMux) {
 		tid := MicrosoftTenantOf(p)
 		now := time.Now()
 		claims := map[string]any{"ver": "2.0", "iss": "http://" + r.Host + "/" + tid + "/v2.0", "aud": f.ms.ID,
-			"exp": now.Add(time.Hour).Unix(), "iat": now.Unix(), "nbf": now.Unix(), "nonce": flow.nonce,
+			"exp": now.Add(timeutil.Hour).Unix(), "iat": now.Unix(), "nbf": now.Unix(), "nonce": flow.nonce,
 			"tid": tid, "oid": MicrosoftOID(p.Subject), "sub": "pairwise-" + p.Subject, "name": p.Name,
 			"preferred_username": p.Email}
 		if p.Email != "" {

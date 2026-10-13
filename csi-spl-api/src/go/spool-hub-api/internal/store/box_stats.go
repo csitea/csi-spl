@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -19,7 +20,7 @@ import (
 const (
 	// BoxStatsRetention is how long a sample lives. The ONE place the
 	// number lives (the brief: 30 days, ~8.6k rows per box).
-	BoxStatsRetention = 30 * 24 * time.Hour
+	BoxStatsRetention = 30 * timeutil.Day
 	// BoxStatsMax is the most rows one list returns: 30 days of one box at
 	// one row per 5 min is 8640, so two boxes fit a full window.
 	BoxStatsMax    = 20000

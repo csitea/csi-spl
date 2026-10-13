@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"net/http"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -37,7 +38,7 @@ import (
 const replayMax = 500
 
 // replayWindow is the oldest since a call may name (the message retention).
-const replayWindow = 30 * 24 * time.Hour
+const replayWindow = 30 * timeutil.Day
 
 type replayResult struct {
 	Tenant   string   `json:"tenant"`

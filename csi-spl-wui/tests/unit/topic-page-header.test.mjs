@@ -87,5 +87,4 @@ describe('the topic page is the thread alone', () => {
     assert.equal(rowTitle('[link](url)', ''), 'link')
     assert.equal(rowTitle('**ROTATION FAILED**', ''), 'ROTATION FAILED')
   })
-  })
 })

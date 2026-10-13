@@ -795,6 +795,15 @@ jobs:
           img=postgres:16-alpine
           bash csi-spl-orc/src/bash/scripts/docker-pull-mirror.sh "$img"
 
+      # local-hub-compose check 6 runs `caddy validate` in the pinned
+      # wui-static image and never pulls (an unlisted SKIP fails this job,
+      # run 38359770051). The ref is already a mirror.gcr.io one, read from
+      # the overlay so the pin has one home.
+      - name: Cache the local hub's Caddy image
+        run: |
+          img=$(yq -r '.services["wui-static"].image' csi-spl-orc/src/docker/docker-compose-local-hub.yaml | sed -E 's/^\$\{[A-Z_]+:-(.*)\}$/\1/')
+          docker image inspect "$img" >/dev/null 2>&1 || docker pull -q "$img"
+
       # Proof that the suite reaches no GCP: gcloud / gsutil / bq on PATH are
       # traps that log their argv and fail, there is no key, no ADC and an
       # empty CLOUDSDK_CONFIG. A test that stubs gcloud puts its stub first on

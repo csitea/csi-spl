@@ -716,6 +716,10 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
        from the candidate snapshot directory.
     2. Self-exec: at its tick boundary, Instance 1 executes `exec` into the
        candidate code, preserving its lock file descriptors, PID, and session.
+       Every other descriptor above 2 is closed first: the write ends of the
+       old code's `./run` tee pipes would otherwise survive the `exec` and keep
+       its tee subshells alive for good, ~4 processes per master push
+       (SPL-1732; `wd-reload-leak.tst.sh` counts them across two reloads).
     3. Accelerated self-check tick: Instance 1 executes an accelerated self-check
        tick ($\le 20\text{ s}$) that verifies syntax, environment, and evaluates
        at least 1 agent with zero script errors, writing `status: ok`.

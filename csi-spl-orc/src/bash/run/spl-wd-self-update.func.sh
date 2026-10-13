@@ -416,12 +416,31 @@ spl_wd_upd_exec() {
   export WD_UPD_EXEC="$sha" WD_UPD_ROLE="$role" WD_UPD_T0 WD_INST INSTANCE="$WD_INST"
   # ./run's tee pipes end with this process: the new code writes the instance log itself
   exec >>"$WD_DIR/run.$WD_INST.out" 2>&1
+  spl_wd_upd_close_fds
   cd / || true
   shopt -s execfail
   # shellcheck disable=SC2093 # execfail: a failed exec returns here
   exec "$run" -a do_spl_watchdog
   spl_wd_upd_log "exec into ${sha:0:9} failed"
   unset WD_UPD_EXEC WD_UPD_ROLE WD_UPD_T0
+  return 0
+}
+
+# spl_wd_upd_close_fds: before the exec, close every fd above 2 but the run
+# lock (7) and the keeper (9). ./run starts an action as `main_exec >
+# >(tee ..out.log) 2> >(tee ..err.log >&2)`, and the write ends of those two
+# pipes (fds 62/63) survive exec: the old code's tee subshells never saw EOF,
+# and each reload left them behind for good, carried on by every later exec
+# (SPL-1732: a desk box, 2026-10-13, 926 processes over ~220 code/<sha>
+# trees, ~4 per master push). Closed, they end with the code that made them.
+spl_wd_upd_close_fds() {
+  local fd
+  for fd in "/proc/$BASHPID/fd/"*; do
+    fd="${fd##*/}"
+    [[ "$fd" =~ ^[0-9]+$ ]] || continue
+    (( fd > 2 && fd != 7 && fd != 9 && fd != 255 )) || continue
+    eval "exec $fd>&-" 2>/dev/null || true
+  done
   return 0
 }
 

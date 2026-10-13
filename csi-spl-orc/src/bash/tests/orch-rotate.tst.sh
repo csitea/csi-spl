@@ -42,6 +42,11 @@
 #      claude, or pick=hold = claude; a grok successor acks from its first
 #      prompt and holds the role (journal row); a grok that never acks: the
 #      old claude keeps the role; the next rotation finds the grok holder
+#  15. T-ROLE-VENDOR: ROTATE_ROLE_VENDOR=grok (env or rotate.conf) = grok in
+#      the SPAWN plan, ahead of the split; empty = today's line; no grok CLI
+#      (lane-mix) or a lease that counts only claude = claude, the reason
+#      named; a grok successor acks from its first prompt; no ack = the old
+#      claude keeps the role
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -167,7 +172,8 @@ case "$a" in
     echo '{"fleet":"main","hub":"ok","asks":[{"ask_id":"aaaaaaaa-0000-4000-8000-000000000001","kind":"task","state":"open","from":"c-002@box-desk","topic":"87eaa57b","summary":"lower the budget","age_s":600},{"ask_id":"bbbbbbbb-0000-4000-8000-000000000002","kind":"blocker","state":"acked","acked_by":"c-900@box-desk","from":"c-911@box-desk","topic":"sat","summary":"drill go?","age_s":7200}]}' ;;
   do_spl_lane_map) echo '{"fleet":"main","hub":"ok","lanes":[{"agent_id":"c-077","agent_box":"box-desk","branch":"c-077-x","scope":"the x lane","state":"live","age_s":300},{"agent_id":"c-078","agent_box":"sat","branch":"c-078-y","scope":"done one","state":"done"}]}' ;;
   do_spl_ask_put|do_spl_desk_reply) exit 0 ;;
-  do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_REGISTRY=${LANE_MIX_REGISTRY:-}" >>"$T/mix.log"; cat "$T/mix.out" 2>/dev/null ;;
+  do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_REGISTRY=${LANE_MIX_REGISTRY:-}" >>"$T/mix.log"
+    echo "LANE_MIX_SPLIT_KIND=${LANE_MIX_SPLIT_KIND:-}" >>"$T/mix2.log"; cat "$T/mix.out" 2>/dev/null ;;
   *) exit 1 ;;
 esac
 EOF
@@ -488,6 +494,50 @@ act DRY_RUN=0 ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
 [[ "$(ctx ROTATE_PHASE)" == FAIL && -d "$T/proc/1001" && ! -d "$T/proc/2001" ]] && grep -q "^spawn grok c-900 " "$T/spawn.log" &&
   grep -q 'FAIL FAIL ACK: no ack within 6s; the old session (pid 1001) keeps the role' "$T/o" && [[ "$(cat "$T/ai.c-900")" == 1001 ]] &&
   pass "14. a grok successor that never acks: closed, the old claude keeps the role and the map" || fail "14. grok no-ack: $(grep -E 'FAIL|ACK' "$T/o"; ls "$T/proc")"
+
+# --- 15. T-ROLE-VENDOR: ROTATE_ROLE_VENDOR names the successor's vendor -----------------------
+# owner HUM-10 (t1 ee1e58d5, msgs f93e7f2a, c43b98f1): Grok as orchestrator
+# and dispatcher for a test; the override beats the split, through the same
+# guards (lane-mix's CLI/auth/limit checks, the fleet lease)
+world; echo 'pick=grok launcher=/grok-spawn kind=orchestration reason=grok is the main' >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*vendor: ROTATE_ROLE_VENDOR=grok: grok" "$T/o" &&
+  grep -qx 'LANE_MIX_SPLIT_KIND=claude=0 grok=100 agy=0 qwen=0 mistral=0 backup=claude' "$T/mix2.log" 2>/dev/null &&
+  pass "15. ROTATE_ROLE_VENDOR=grok: the SPAWN plan names grok (lane-mix asked with a grok=100 row)" || fail "15. override plan: $(grep 'SPAWN PLAN' "$T/o"; cat "$T/mix2.log" 2>&1)"
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo 'ROTATE_ROLE_VENDOR=grok' >"$D/rotate.conf"
+act ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*vendor: ROTATE_ROLE_VENDOR=grok: grok" "$T/o" &&
+  pass "15. ROTATE_ROLE_VENDOR=grok read from rotate.conf: grok" || fail "15. rotate.conf: $(grep 'SPAWN PLAN' "$T/o")"
+world; echo 'pick=claude reason=nudge' >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=grok ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=grok, but lane-mix gave 'claude': claude" "$T/o" &&
+  pass "15. the override goes through lane-mix's checks, the split not asked" || fail "15. override+split: $(grep 'SPAWN PLAN' "$T/o")"
+world
+act ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ORCH_SPLIT=0: claude" "$T/o" && [[ ! -e "$T/mix.log" ]] &&
+  pass "15. ROTATE_ROLE_VENDOR empty: today's line (claude, lane-mix not asked)" || fail "15. empty: $(grep 'SPAWN PLAN' "$T/o")"
+world; printf 'grok      100%%        0%%     0%%     0 no   skip (no grok cli); share to claude\npick=claude launcher=/claude-spawn kind=orchestration reason=claude under\n' >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=grok, but no grok cli: claude" "$T/o" &&
+  pass "15. ROTATE_ROLE_VENDOR=grok with no grok CLI: claude, the reason named" || fail "15. no cli: $(grep 'SPAWN PLAN' "$T/o")"
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*ROTATE_ROLE_VENDOR=grok, but the fleet lease does not count a grok process as the holder: claude" "$T/o" &&
+  pass "15. ROTATE_ROLE_VENDOR=grok, a lease that counts only claude: claude" || fail "15. lease guard: $(grep 'SPAWN PLAN' "$T/o")"
+act ROTATE_ROLE_VENDOR=qwen >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*ROTATE_ROLE_VENDOR='qwen' is not claude or grok: claude" "$T/o" &&
+  pass "15. ROTATE_ROLE_VENDOR=qwen: claude, refused by name" || fail "15. qwen: $(grep 'SPAWN PLAN' "$T/o")"
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1; rc=$?; rid="$(ctx ROTATE_RID)"
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && "$(cat "$T/proc/2001/comm" 2>/dev/null)" == grok && ! -d "$T/proc/1001" ]] &&
+  grep -q "^spawn grok c-900 " "$T/spawn.log" && grep -q "send c-900 -> c-900 result orch-rotate-$rid: ACK rotation $rid: c-900 pid 2001" "$T/send.log" &&
+  pass "15. ROTATE_ROLE_VENDOR=grok: the grok successor acks from its first prompt and holds the role ($rid)" || fail "15. happy rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo no >"$T/ack.mode"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+[[ "$(ctx ROTATE_PHASE)" == FAIL && -d "$T/proc/1001" && ! -d "$T/proc/2001" ]] && grep -q "^spawn grok c-900 " "$T/spawn.log" &&
+  grep -q 'FAIL FAIL ACK: no ack within 6s; the old session (pid 1001) keeps the role' "$T/o" && [[ "$(cat "$T/ai.c-900")" == 1001 ]] &&
+  pass "15. ROTATE_ROLE_VENDOR=grok, no ack: the grok closed, the old claude keeps the role" || fail "15. no-ack: $(grep -E 'FAIL|ACK' "$T/o"; ls "$T/proc")"
+! grep -q ERRTRAP "$T/o" && pass "15. no stray failing command under the ERR trap" || fail "15. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 # --- 10. T-CRON ----------------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

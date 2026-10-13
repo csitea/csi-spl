@@ -6,6 +6,7 @@
 # is a file, a run action, /proc or tmux; nothing calls a model.
 #
 #   spl_rotate_conf                         settings: env > rotate.conf > defaults (FR-074, FR-090)
+#   spl_rotate_role_vendor                  ROTATE_ROLE_VENDOR: the role successor's vendor (claude|grok), guarded
 #   spl_rotate_log RID PHASE RESULT DETAIL  one rotate.log line + the .state file (FR-002)
 #   spl_agent_id_lock ID [ACTOR] [RID] [WAIT] the id lock of every start/stop actor (spec 102 4.2), 4 when held
 #   spl_agent_id_unlock ID                  lets an id lock this shell holds go before the shell ends
@@ -89,6 +90,53 @@ spl_rotate_conf() {
 # The id that holds a role on this machine (lease.conf).
 spl_rotate_role_id() {
   case "$1" in orch) echo "${LEASE_ORCH:-}" ;; master) echo "${LEASE_MASTER:-}" ;; failover) echo "${LEASE_FAILOVER:-}" ;; esac
+}
+
+# spl_rotate_role_vendor -> ROTATE_KIND, ROTATE_VENDOR_WHY from
+# ROTATE_ROLE_VENDOR (env > rotate.conf): the successor's vendor for the orch
+# AND both dispatch seats, ahead of ROTATE_ORCH_SPLIT. Owner HUM-10 (t1
+# ee1e58d5, msgs f93e7f2a, edd7c810, c43b98f1): Grok as orchestrator and
+# dispatcher for a test. claude; or grok through the split's guards:
+# do_spl_lane_mix with a grok=100 row (no CLI, no sign-in or a limit = claude,
+# its skip reason named) and a fleet lease that counts a grok holder
+# (spl_rotate_lease_sees). Any other value = claude. Non-zero when it is
+# unset: the caller's own rule (today's behaviour).
+# shellcheck disable=SC2034 # ROTATE_KIND / ROTATE_VENDOR_WHY are read by the caller
+spl_rotate_role_vendor() {
+  local v="${ROTATE_ROLE_VENDOR:-}" out pick why
+  [[ -n "$v" ]] || return 1
+  ROTATE_KIND=claude
+  case "$v" in
+    claude) ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=claude: claude"; return 0 ;;
+    grok) ;;
+    *) ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR='$v' is not claude or grok: claude"; return 0 ;;
+  esac
+  out="$(env LANE_MIX_KIND=orchestration LANE_MIX_SPLIT_KIND="claude=0 grok=100 agy=0 qwen=0 mistral=0 backup=claude" \
+    timeout "${ROTATE_SRC_TIMEOUT:-120}" "$ROTATE_RUN" -a do_spl_lane_mix 2>&1 7>&- 8>&- 9>&-)" || true
+  pick="$(grep -m1 -oE '^pick=[a-z]+' <<<"$out" | cut -d= -f2 || true)"
+  if [[ "$pick" != grok ]]; then
+    why="$(sed -nE 's/^grok .* skip \((.*)\); share to .*/\1/p' <<<"$out")"; why="${why%%$'\n'*}"
+    ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok, but ${why:-lane-mix gave '${pick:-no pick}'}: claude"; return 0
+  fi
+  if ! spl_rotate_lease_sees grok; then
+    ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok, but the fleet lease does not count a grok process as the holder: claude"; return 0
+  fi
+  ROTATE_KIND=grok ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok: grok"
+}
+
+# spl_rotate_lease_sees KIND: 0 when spl_lease_agent_pid finds a KIND
+# process (a probe in a throwaway proc dir). Since spec 134 P0 it counts
+# claude, grok and vibe; the probe keeps the rotation honest if that changes.
+# ROTATE_LEASE_KINDS (tests) names the kinds it counts instead.
+spl_rotate_lease_sees() {
+  local d got="" comm="$1"
+  if [[ -n "${ROTATE_LEASE_KINDS:-}" ]]; then [[ " $ROTATE_LEASE_KINDS " == *" $1 "* ]]; return; fi
+  [[ "$comm" == mistral ]] && comm=vibe
+  d="$(mktemp -d)" || return 1
+  mkdir -p "$d/7" && echo "$comm" > "$d/7/comm" && printf 'SPOOL_AGENT_ID=probe-%s\0' "$1" > "$d/7/environ" &&
+    got="$(LEASE_PROC_ROOT="$d" spl_lease_agent_pid "probe-$1" 2>/dev/null || true)"
+  rm -rf "$d"
+  [[ "$got" == 7 ]]
 }
 
 # The .state / .lock / task family of a role: orch -> orch, master|failover -> dispatch;

@@ -48,6 +48,10 @@
 # @param ROTATE_SETTLE (optional) - s the fresh master holds the lease before F is refreshed, default 120
 # @param ROTATE_SEQ_WAIT (optional) - s to wait for an orch rotation in flight, default 600
 # @param ROTATE_HOLD_MAX (optional) - s after which the lease loops ignore a hold, default 1800
+# @param ROTATE_ROLE_VENDOR (optional) - claude | grok: the vendor of the fresh
+# @param   master AND failover (env or rotate.conf), shared with the orch
+# @param   rotation (spl_rotate_role_vendor); a grok with no CLI or auth, or that
+# @param   the lease would not count, = claude, logged; empty (default) = claude
 # @param ROTATE_* (optional) - every other knob and switch of spl_rotate_conf (env > rotate.conf > default)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -63,6 +67,8 @@ do_spl_dispatch_rotate() {
   # the dispatchers' ack window is shorter than the orchestrator's (FR-027)
   ROTATE_ACK_TIMEOUT="${ROTATE_ACK_TIMEOUT:-600}"
   spl_rotate_conf || return 1
+  # the old and the new session may be different vendors (ROTATE_ROLE_VENDOR)
+  ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral}"
   : "${ROTATE_PROMOTE_WAIT:=240}" "${ROTATE_SETTLE:=120}" "${ROTATE_SEQ_WAIT:=600}"
   spl_is_agent_id "${LEASE_MASTER:-}" && spl_is_agent_id "${LEASE_FAILOVER:-}" &&
      [[ "$LEASE_MASTER" != "$LEASE_FAILOVER" ]] ||
@@ -269,15 +275,16 @@ spl_disp_once() {
 
 spl_disp_plan() {
   local rid="$1" m="$2" mpid="$3" pane="$4" age="$5" f="$6" fpid="$7"
+  spl_disp_vendor
   spl_rotate_log "$rid" GATE PLAN "pass: $m pid $mpid, ${age}s old, pane $pane; $f pid $fpid; lease $LH"
   spl_rotate_log "$rid" HOLD PLAN "$LEASE_DIR/rotate.hold = $m; the lease moves to $f (wait ${ROTATE_PROMOTE_WAIT}s)"
   spl_rotate_log "$rid" QUIESCE PLAN "wait ${ROTATE_IDLE_GRACE}s for idle, then Escape, ${ROTATE_ESC_WAIT}s; busy = rotate anyway"
   spl_rotate_log "$rid" HANDOFF PLAN "$ROTATE_HANDOFF_DIR/$rid-$m.md"
-  spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(ROTATE_RID="$rid" spl_rotate_retiring_name "$m"); $ROTATE_SPAWN claude $m <seed: brief + rotation line> (SPAWN_REUSE_ID=1), the ACK-COMMAND in its first prompt (<rid>-<id>.head.md); adopt; a task on $(spl_rotate_ack_task "$rid") in its inbox"
+  spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(ROTATE_RID="$rid" spl_rotate_retiring_name "$m"); $ROTATE_SPAWN $ROTATE_KIND $m <seed: brief + rotation line> (SPAWN_REUSE_ID=1), the ACK-COMMAND in its first prompt (<rid>-<id>.head.md); adopt; a task on $(spl_rotate_ack_task "$rid") in its inbox${ROTATE_ROLE_VENDOR:+; vendor: $ROTATE_VENDOR_WHY}"
   spl_rotate_log "$rid" ACK PLAN "wait ${ROTATE_ACK_TIMEOUT}s for a result on $(spl_rotate_ack_task "$rid") in $SPOOL_ROOT/$m/outbox"
   spl_rotate_log "$rid" RETIRE PLAN "/exit-clean into $pane, TERM after ${ROTATE_EXIT_WAIT}s, KILL after ${ROTATE_TERM_WAIT}s more; close it"
   spl_rotate_log "$rid" RELEASE PLAN "remove the hold; $m takes the lease back, $f STANDBY"
-  spl_rotate_log "${rid%-master}-failover" REFRESH PLAN "after ${ROTATE_SETTLE}s with $m holding: $f (pid $fpid, $(spl_rotate_age "$fpid")s old) the same way, no hold"
+  spl_rotate_log "${rid%-master}-failover" REFRESH PLAN "after ${ROTATE_SETTLE}s with $m holding: $f (pid $fpid, $(spl_rotate_age "$fpid")s old) the same way, no hold${ROTATE_ROLE_VENDOR:+; $ROTATE_SPAWN $ROTATE_KIND}"
   spl_rotate_log "$rid" DONE PLAN "$LEASE_DIR/rotate.dispatch.last; a result note to $LEASE_ORCH"
   echo "---- DRY_RUN, nothing was touched. Re-run with DRY_RUN=0."
 }
@@ -353,6 +360,13 @@ spl_disp_release() {
 
 # ---- one role: QUIESCE .. CLOSE ------------------------------------------------
 
+# spl_disp_vendor -> ROTATE_KIND, ROTATE_VENDOR_WHY: claude, unless
+# ROTATE_ROLE_VENDOR names the seats' vendor (spl_rotate_role_vendor).
+spl_disp_vendor() {
+  spl_rotate_role_vendor && return 0
+  ROTATE_KIND=claude ROTATE_VENDOR_WHY="dispatch seats: claude"
+}
+
 spl_disp_run() {
   local id seed
   id="$(spl_rotate_role_id "$(spl_disp_role)")"
@@ -368,13 +382,14 @@ spl_disp_run() {
   fi
   chmod 0640 "$seed" 2>/dev/null || true
   spl_disp_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
+  spl_disp_vendor
   if ! spl_rotate_spawn_head "$id" "$seed" "$(spl_disp_ack_cmd)"; then
     spl_disp_fail SPAWN "$ROTATE_ERR"; return 1
   fi
   # FR-026: the handoff also arrives as a task in the inbox
   spl_rotate_note "$id" "$(spl_rotate_ack_task "$ROTATE_RID")" \
     "ROTATION $ROTATE_RID: you are the fresh $id@$ROTATE_BOX. Read $ROTATE_HANDOFF, then your inbox (spool recv --as $id; skip what $LEASE_FAILOVER's outbox shows handled since the hold), then run the ACK-COMMAND of your seed $seed." task
-  spl_disp_step SPAWN OK "new pid $ROTATE_NEW_PID pane $ROTATE_NEW_PANE; old window $(spl_rotate_retiring_name "$id")"
+  spl_disp_step SPAWN OK "new pid $ROTATE_NEW_PID pane $ROTATE_NEW_PANE ($ROTATE_KIND: $ROTATE_VENDOR_WHY); old window $(spl_rotate_retiring_name "$id")"
   spl_disp_from_spawn
 }
 

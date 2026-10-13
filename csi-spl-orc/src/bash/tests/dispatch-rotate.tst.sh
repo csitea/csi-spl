@@ -49,6 +49,11 @@
 #      test and other-box desks left out; a desk pinned after a rotation is in
 #      the next seed with no code change. Control: no pinned desk -> the
 #      brief's own list stays
+#  17. T-ROLE-VENDOR: ROTATE_ROLE_VENDOR=grok (env or rotate.conf) = grok in
+#      the SPAWN plan of the master and the failover; empty = today's lines;
+#      no grok CLI (lane-mix) or a lease that counts only claude = claude, the
+#      reason named; grok M and F ack from their first prompt and hold the
+#      seats; a grok M with no ack: the old claude M keeps the role and lease
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -68,10 +73,10 @@ CONF=$'LEASE_MASTER=c-902\nLEASE_FAILOVER=c-903\nLEASE_ORCH=c-900\nLEASE_ENV=prd
 for id in c-902 c-903; do echo "brief of $id: read your inbox" >"$D/briefs/brief-dispatcher-$id.md"; done
 
 # --- stubs --------------------------------------------------------------------
-# proc <pid> <id> <age-s>: a fake claude carrying SPOOL_AGENT_ID=<id>
+# proc <pid> <id> <age-s> [comm]: a fake claude (or comm) carrying SPOOL_AGENT_ID=<id>
 cat >"$T/bin/proc" <<'EOF'
 #!/usr/bin/env bash
-d="$T/proc/$1"; mkdir -p "$d"; echo claude >"$d/comm"
+d="$T/proc/$1"; mkdir -p "$d"; echo "${4:-claude}" >"$d/comm"
 printf 'SPOOL_AGENT_ID=%s\0' "$2" >"$d/environ"
 echo "$1 (claude) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $(( (UP - $3) * TCK ))" >"$d/stat"
 printf 'Uid:\t%s\t%s\n' "$(id -u)" "$(id -u)" >"$d/status"
@@ -117,13 +122,15 @@ echo "spawn $* SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-}" >>"$T/spawn.log"
 mode="$(cat "$T/spawn.mode.$id" 2>/dev/null || echo ok)"
 [ "$mode" = nopane ] && { echo "spawn-window: no pane"; exit 4; }
 printf '%s\t%s\t$0\t%s@box\n' "$pane" "$pid" "$id" >>"$T/tmux/panes"
-[ "$mode" = nostart ] || "$T/bin/proc" "$pid" "$id" 0
+[ "$mode" = nostart ] || "$T/bin/proc" "$pid" "$id" 0 "$1"
 # spawn.kills.<id> "<pid> <lease>": that pid dies and the lease moves as this
 # spawn runs (20261007T0915Z: the fresh master's window closed mid-refresh)
 if [ -f "$T/spawn.kills.$id" ]; then read -r kp kl <"$T/spawn.kills.$id"; rm -rf "$T/proc/$kp"; echo "$kl $(date +%s)" >"$SPOOL_ROOT/dispatch/lease"; fi
 echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T05:16:00Z","from":"HUM-10","to":"c-902","kind":"msg","task_id":"y","body":"mid-rotation"}' >"$SPOOL_ROOT/c-902/inbox/m9.json"
 if [ "$(cat "$T/ack.mode.$id" 2>/dev/null || echo yes)" = yes ]; then
-  rid="$(grep '^ACK-COMMAND:' "$4" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
+  # a claude reads its seed; any other vendor ONLY its first prompt (the head)
+  src="$4"; [ "$1" = claude ] || src="$T/head.$id"
+  rid="$(grep '^ACK-COMMAND:' "$src" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
   ( sleep 1; ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID="$pid" "$T/bin/act" >>"$T/ack.out" 2>&1 ) >/dev/null 2>&1 &
 fi
 echo "$id $pane"
@@ -139,6 +146,7 @@ case "$a" in
   do_spl_lane_map) echo '{"lanes":[]}' ;;
   do_spl_dispatch_setup) sleep "${SETUP_SLEEP:-0}"; [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
   do_spl_ask_put|do_spl_desk_reply|do_spl_ask_close) exit 0 ;;
+  do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_SPLIT_KIND=${LANE_MIX_SPLIT_KIND:-}" >>"$T/mix.log"; cat "$T/mix.out" 2>/dev/null ;;
   *) exit 1 ;;
 esac
 EOF
@@ -194,7 +202,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPL_STATE_DIR="$T/state" 
 
 # the world: c-902 (pid 102, pane %2) holds the lease, c-903 (pid 103, pane %3) stands by, both 2 h old
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode."* "$T/spawn.kills."* "$T/ack.mode."* "$T/ai."* "$T/head."* \
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode."* "$T/spawn.kills."* "$T/ack.mode."* "$T/ai."* "$T/head."* "$T/mix.out" \
     "$D"/rotate.* "$D/handoff" "$D/lease"* "$S"/c-90*
   echo "$CONF" >"$D/lease.conf"
   mkdir -p "$S/c-902/inbox" "$S/c-902/outbox" "$S/c-903/inbox" "$S/c-903/outbox"
@@ -619,6 +627,47 @@ world; act DRY_RUN=0 >"$T/o" 2>&1; rid="$(rid1)"
 [[ "$(seedws "$rid")" == "csi-rel, sienna, t1, zeta-new" ]] &&
   pass "16. a desk pinned after the last rotation is in the next seed, no code change" || fail "16. new desk: '$(seedws "$rid")'"
 cp "$T/brief.keep" "$D/briefs/brief-dispatcher-c-902.md"; rm -rf "$T/state"
+
+# --- 17. T-ROLE-VENDOR: ROTATE_ROLE_VENDOR names the seats' vendor ---------------------------
+# owner HUM-10 (t1 ee1e58d5, msgs f93e7f2a, c43b98f1): Grok as orchestrator
+# and dispatcher for a test, through the orch rotation's guards
+GROK='pick=grok launcher=/grok-spawn kind=orchestration reason=grok is the main'
+world; echo "$GROK" >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN rename %2 .*; $T/bin/spawn grok c-902 .*; vendor: ROTATE_ROLE_VENDOR=grok: grok" "$T/o" &&
+  grep -q " REFRESH PLAN .*c-903 (pid 103, .*) the same way, no hold; $T/bin/spawn grok" "$T/o" &&
+  grep -qx 'LANE_MIX_KIND=orchestration LANE_MIX_SPLIT_KIND=claude=0 grok=100 agy=0 qwen=0 mistral=0 backup=claude' "$T/mix.log" &&
+  pass "17. ROTATE_ROLE_VENDOR=grok: the SPAWN plan names grok for the master and the failover" || fail "17. plan: $(grep -E 'SPAWN PLAN|REFRESH PLAN' "$T/o"; cat "$T/mix.log" 2>&1)"
+world; echo "$GROK" >"$T/mix.out"; echo 'ROTATE_ROLE_VENDOR=grok' >"$D/rotate.conf"
+act ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN rename %2 .*; $T/bin/spawn grok c-902 .*vendor: ROTATE_ROLE_VENDOR=grok: grok" "$T/o" &&
+  pass "17. ROTATE_ROLE_VENDOR=grok read from rotate.conf: grok" || fail "17. rotate.conf: $(grep 'SPAWN PLAN' "$T/o")"
+world; act ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
+grep -q " SPAWN PLAN rename %2 -> c-902-[0-9]*Z-retiring; $T/bin/spawn claude c-902 <seed: brief + rotation line> (SPAWN_REUSE_ID=1), the ACK-COMMAND in its first prompt (<rid>-<id>.head.md); adopt; a task on dispatch-rotate-[0-9TZ]*-master in its inbox\$" "$T/o" &&
+  grep -q " REFRESH PLAN .*c-903 (pid 103, [0-9]*s old) the same way, no hold\$" "$T/o" && [[ ! -e "$T/mix.log" ]] &&
+  pass "17. ROTATE_ROLE_VENDOR empty: today's lines, lane-mix not asked" || fail "17. empty: $(grep -E 'SPAWN PLAN|REFRESH PLAN' "$T/o")"
+world; printf 'grok      100%%        0%%     0%%     0 no   skip (no grok cli); share to claude\npick=claude launcher=/claude-spawn kind=orchestration reason=claude under\n' >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .*; $T/bin/spawn claude c-902 .*vendor: ROTATE_ROLE_VENDOR=grok, but no grok cli: claude" "$T/o" &&
+  pass "17. ROTATE_ROLE_VENDOR=grok with no grok CLI: claude, the reason named" || fail "17. no cli: $(grep 'SPAWN PLAN' "$T/o")"
+world; echo "$GROK" >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .*; $T/bin/spawn claude c-902 .*ROTATE_ROLE_VENDOR=grok, but the fleet lease does not count a grok process as the holder: claude" "$T/o" &&
+  pass "17. ROTATE_ROLE_VENDOR=grok, a lease that counts only claude: claude" || fail "17. lease guard: $(grep 'SPAWN PLAN' "$T/o")"
+world; echo "$GROK" >"$T/mix.out"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1; rc=$?
+rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"; frid="${rid%-master}-failover"
+[[ $rc -eq 0 && "$(cat "$T/proc/2902/comm" 2>/dev/null)" == grok && "$(cat "$T/proc/2903/comm" 2>/dev/null)" == grok && ! -d "$T/proc/102" && ! -d "$T/proc/103" ]] &&
+  grep -q "^spawn grok c-902 " "$T/spawn.log" && grep -q "^spawn grok c-903 " "$T/spawn.log" && grep -q " $rid DONE OK fresh c-902" "$T/o" &&
+  grep -q "send c-902 -> c-902 result dispatch-rotate-$rid .*ACK rotation $rid: c-902 pid 2902" "$T/send.log" &&
+  grep -q "send c-903 -> c-903 result dispatch-rotate-$frid .*ACK rotation $frid: c-903 pid 2903" "$T/send.log" && [[ "$(holder)" == c-902 ]] &&
+  pass "17. ROTATE_ROLE_VENDOR=grok: grok M and F ack from their first prompt, M holds the lease ($rid)" || fail "17. happy rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
+world; echo "$GROK" >"$T/mix.out"; echo no >"$T/ack.mode.c-902"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ACK_TIMEOUT=2 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && -d "$T/proc/102" && ! -d "$T/proc/2902" && "$(holder)" == c-902 && ! -e "$D/rotate.hold" ]] && grep -q "^spawn grok c-902 " "$T/spawn.log" &&
+  grep -q ' FAIL FAIL ACK: no ack within 2s; the old session (pid 102) keeps the role' "$T/o" &&
+  pass "17. ROTATE_ROLE_VENDOR=grok, no ack: the grok M closed, the old claude M keeps the role and the lease" || fail "17. no-ack rc=$rc $(grep -E 'FAIL|ACK' "$T/o"; ls "$T/proc")"
+! grep -q ERRTRAP "$T/o" && pass "17. no stray failing command under the ERR trap" || fail "17. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

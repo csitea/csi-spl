@@ -668,8 +668,8 @@
       "move_topic": "Konuya taşı…",
       "hide_flow": "Akıştan gizle",
       "promote_topic": "Make it a topic",
-      "make_issue": "Konu oluştur",
-      "make_issue_failed": "Konu oluşturulmadı. Tekrar deneyin.",
+      "make_issue": "İş kaydı oluştur",
+      "make_issue_failed": "İş kaydı oluşturulmadı. Tekrar deneyin.",
       "why": {
         "edit": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici düzenleyebilir",
         "edit_agent": "Bir ajanın mesajını yalnızca ajanın kendisi düzenleyebilir",

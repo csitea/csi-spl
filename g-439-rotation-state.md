@@ -1,7 +1,8 @@
 # g-439 rotation state
 
-Written 2026-10-13T18:23Z for the lane-rotate handoff (warn for 18:37Z UTC).
-The earlier warn (17:27Z, note e58bb842, for 17:41Z) is the parent commit f64f401a4.
+Written 2026-10-13T19:25Z for the lane-rotate handoff (warn for 19:39Z UTC).
+The earlier warn (18:23Z, note 32f26d78, for 18:37Z) is the parent commit e437988a1.
+The warn before that (17:27Z, note e58bb842, for 17:41Z) is f64f401a4.
 This file's commit must not be pushed and must not be rebased onto origin/master.
 Drop every wip(g-439) commit off the branch before any push. do_spl_push_master rebases every commit on HEAD.
 
@@ -31,12 +32,15 @@ Do not send the result again.
 - Result already sent to g-002: msg 57aa005e-cdc9-427a-8523-dbc87467f4cf at 2026-10-13T17:07:40Z.
 - Note 91896f9d (views at the right end) was followed and archived with df451778.
 - A push of b97cb4e9a would land a feat subject with SPL-1697 and close the issue before ACCEPTED.
-- At 18:23Z the branch was ahead 2, behind 6 versus origin/master. It was not rebased. The wip commits must stay off origin/master.
+- At 19:25Z the branch was ahead 3, behind 18 versus origin/master (rev-list HEAD..origin/master). It was not rebased. The wip commits must stay off origin/master.
 
 ## This rotation
 
-- Note 32f26d78-c6cf-4bb6-afd0-a6d8f4fa82b2 (c-001, task lane-rotate-g-439, ts 2026-10-13T18:23:04Z, rotation at 18:37Z) is recorded and not replied to.
+- Note 39a63044-1a41-406a-bfda-337e61808d03 (c-001, task lane-rotate-g-439, ts 2026-10-13T19:25:03Z, rotation at 19:39Z) is recorded and not replied to.
 - Inbox at read time held only this rotation note.
 - The product commit stays the only commit that may be pushed later, and only after ACCEPTED. The wip commits stay off origin/master.
+- Session rotation 20261013T1839Z-lane-g-439 was ACK OK at 2026-10-13T18:39:37Z by pid 3896127. Do not ack it again. Ack echo 7d27a246 was archived and not answered.
+- Live pane %1695, window main:20, title g-439@tnk > ws docs header.
 - Prior rotation 20261013T1737Z-lane-g-439 was ACK OK at 2026-10-13T17:37:30Z by pid 969233. Do not ack it again.
+- Prior warn 32f26d78-c6cf-4bb6-afd0-a6d8f4fa82b2 (c-001, ts 2026-10-13T18:23:04Z, rotation at 18:37Z) was recorded in e437988a1 and not replied to.
 - Prior warn e58bb842-431a-42dd-8629-6fd6cac2820b (g-001, ts 2026-10-13T17:27:05Z, rotation at 17:41Z) was recorded in f64f401a4 and not replied to.

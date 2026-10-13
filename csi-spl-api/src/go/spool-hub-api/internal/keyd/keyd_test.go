@@ -296,12 +296,12 @@ func helperPeer() int {
 	// AllThreadsSyscall returns ENOTSUP in a cgo binary, and go test links cgo
 	// when a compiler is present. Linux credentials are per-thread, and this
 	// thread stays locked through connect, so SO_PEERCRED sees the mapped uid.
-	if _, _, errno := syscall.RawSyscall(syscall.SYS_SETGID, 1, 0, 0); errno != 0 {
-		fmt.Fprintf(os.Stderr, "setgid %d\n", errno)
-		return 1
-	}
-	if _, _, errno := syscall.RawSyscall(syscall.SYS_SETUID, 1, 0, 0); errno != 0 {
-		fmt.Fprintf(os.Stderr, "setuid %d\n", errno)
+	// setgid is best-effort: a parent namespace that denies setgroups returns
+	// EPERM, and the refusal under test is the uid.
+	_, _, gerr := syscall.RawSyscall(syscall.SYS_SETGID, 1, 0, 0)
+	_, _, uerr := syscall.RawSyscall(syscall.SYS_SETUID, 1, 0, 0)
+	if uerr != 0 {
+		fmt.Fprintf(os.Stderr, "setuid %d setgid %d\n", uerr, gerr)
 		return 1
 	}
 	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
@@ -401,6 +401,8 @@ func runAsSubuid(t *testing.T, sock string) error {
 		cmd.Wait()
 		return err
 	}
+	// deny before gid_map so a nested namespace can install the map.
+	_ = os.WriteFile(fmt.Sprintf("/proc/%d/setgroups", cmd.Process.Pid), []byte("deny\n"), 0)
 	pid := strconv.Itoa(cmd.Process.Pid)
 	uid := strconv.Itoa(os.Getuid())
 	gid := strconv.Itoa(os.Getgid())

@@ -26,6 +26,8 @@ func TestMain(m *testing.M) {
 		os.Exit(helperRead(false))
 	case "peer":
 		os.Exit(helperPeer())
+	case "peer-direct":
+		os.Exit(helperPeerConnect())
 	case "serve":
 		os.Exit(helperServe())
 	}

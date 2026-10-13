@@ -203,7 +203,7 @@ func TestPeerUIDRefused(t *testing.T) {
 	if err := os.Chmod(sock, 0666); err != nil {
 		t.Fatal(err)
 	}
-	if err := runAsSubuid(t, sock); err != nil {
+	if err := runAsOtherUID(t, dir, sock); err != nil {
 		t.Fatal(err)
 	}
 	st, err := Status(dir)
@@ -304,6 +304,10 @@ func helperPeer() int {
 		fmt.Fprintf(os.Stderr, "setuid %d setgid %d\n", uerr, gerr)
 		return 1
 	}
+	return helperPeerConnect()
+}
+
+func helperPeerConnect() int {
 	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "socket")
@@ -367,6 +371,57 @@ func reportDumpable(dir, out string) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+// runAsOtherUID connects as a uid other than the server's. A hosted runner
+// refuses setuid inside a user namespace, and allows sudo to nobody.
+func runAsOtherUID(t *testing.T, dir, sock string) error {
+	t.Helper()
+	if exec.Command("sudo", "-n", "-u", "nobody", "true").Run() == nil {
+		return runAsNobody(t, dir, sock)
+	}
+	return runAsSubuid(t, sock)
+}
+
+func runAsNobody(t *testing.T, dir, sock string) error {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(dir, "peer")
+	in, err := os.Open(exe)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	cmd := exec.Command("sudo", "-n", "-u", "nobody", "env",
+		"KEYD_HELPER=peer-direct", "KEYD_SOCK="+sock, "PATH=/usr/bin:/bin", dst)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := oneLine(stderr.Bytes())
+		if msg == "" {
+			msg = "no helper output"
+		}
+		return fmt.Errorf("peer helper: %v: %s", err, msg)
+	}
+	if strings.TrimSpace(stdout.String()) != "refused" {
+		return fmt.Errorf("other uid was not refused")
+	}
+	return nil
 }
 
 func runAsSubuid(t *testing.T, sock string) error {

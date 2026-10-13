@@ -53,7 +53,8 @@ const blocks = [
   { type: 'list', items: [{ parts: [{ type: 'strong', text: '785470e9c' }] }] },
 ]
 const out = linkifyCommitBlocks(blocks, P)
-ok('blocks: text links, inline code and an id link stay', links(out[0].parts).join() === '785470e9c,a1b2c3d4' && out[0].parts.find((p) => p.type === 'inline').text === '785470e9c')
+/* t1 0f2ed820 msg 8847e183: a code span that is only a hash links, shown as code */
+ok('blocks: text and a hash-only code span link, an id link stays', links(out[0].parts).join() === '785470e9c,785470e9c,a1b2c3d4' && out[0].parts[2].code === true && out[0].parts[3].href === '/t/x')
 ok('blocks: a code block stays code', out[1] === blocks[1])
 ok('blocks: list items link', out[2].items[0].parts[0].type === 'link')
 ok('blocks: no prefix returns the same tree', linkifyCommitBlocks(blocks, '') === blocks)
@@ -67,7 +68,7 @@ setCommitLinkProvider(() => { throw new Error('x') })
 ok('hook: a throwing provider is null (the body still renders)', activeCommitLinker() === null)
 setCommitLinkProvider(() => commitLinker(WEB, '/commit/'))
 ok('parseBody links a hash once a linker is registered', links(parseBody('fixed in 785470e9c')[0].parts).join() === '785470e9c')
-ok('markdownSource links a hash in prose, not in code', markdownSource('# x\nfixed in 785470e9c `785470e9c`') === '# x\nfixed in [785470e9c](' + P + '785470e9c) `785470e9c`')
+ok('markdownSource links a hash in prose and a hash-only code span', markdownSource('# x\nfixed in 785470e9c `785470e9c` `git show 785470e9c`') === '# x\nfixed in [785470e9c](' + P + '785470e9c) [`785470e9c`](' + P + '785470e9c) `git show 785470e9c`')
 setCommitLinkProvider(null)
 
 /* no repository literal in the three url users: every piece comes from cnf */

@@ -3,7 +3,10 @@
 // e2e bundle bakes example values (wf 10/11 mock generate:
 // NUXT_PUBLIC_REPO_WEB_URL + NUXT_PUBLIC_REPO_COMMIT_PATH); the deployed one
 // reads them from /config.json. The uuid, the plain number and the hash in
-// inline code in the same body are the controls: they stay text.
+// a fence in the same body are the controls: they stay text.
+// t1 0f2ed820: a hash alone in inline code links too (shown as code), and an
+// issue key of this workspace (the mock tenant's prefix, SPL) links to
+// /issues?issue=<KEY> in this tab; another prefix and a key in a fence stay text.
 //
 // Run: node tests/e2e/commit-links.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset; export the
@@ -17,7 +20,10 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const HASH = '785470e9c'
 const CODED = 'c90606372'
 const UUID = '00000000-0000-4000-8000-0000000000aa'
-const BODY = `landed in ${HASH} on master\nnot a commit ${UUID} or 20261004\ncode \`${CODED}\``
+const FENCED = 'c90606373'
+const KEY = 'SPL-12'
+const CODED_KEY = 'SPL-13'
+const BODY = `landed in ${HASH} on master for ${KEY}\nnot a commit ${UUID} or 20261004, not ours OTHER-12\ncode \`${CODED}\` and \`${CODED_KEY}\`\n\`\`\`\nSPL-14 ${FENCED}\n\`\`\``
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -84,7 +90,8 @@ try {
   /* the matcher is its own chunk: wait for it, a body re-renders once it lands */
   const link = await p.waitForSelector(`article.msg[data-msg-id="${carrier.msg_id}"] a.msg-link[href$="${HASH}"]`, { visible: true, timeout: 15000 })
     .then(() => true, () => false)
-  const s = await p.evaluate((id, uuid, coded) => {
+  await p.waitForSelector(`article.msg[data-msg-id="${carrier.msg_id}"] a.msg-link[href$="issue=${KEY}"]`, { visible: true, timeout: 15000 }).catch(() => {})
+  const s = await p.evaluate((id, uuid, coded, fenced) => {
     const row = document.querySelector(`article.msg[data-msg-id="${id}"]`)
     const links = [...(row ? row.querySelectorAll('a.msg-link') : [])].map((a) => ({
       text: a.textContent || '', href: a.getAttribute('href') || '', target: a.getAttribute('target') || '',
@@ -93,15 +100,27 @@ try {
       links,
       uuidLinked: links.some((a) => a.text.includes(uuid)),
       numberLinked: links.some((a) => a.text === '20261004'),
-      codedLinked: links.some((a) => a.text === coded),
-      codedShown: !!(row && [...row.querySelectorAll('code')].some((c) => c.textContent === coded)),
+      codedInLink: !!(row && [...row.querySelectorAll('a.msg-link > code')].some((c) => c.textContent === coded)),
+      fencedLinked: links.some((a) => a.text.includes(fenced) || a.text.includes('SPL-14')),
     }
-  }, carrier.msg_id, UUID, CODED)
+  }, carrier.msg_id, UUID, CODED, FENCED)
   const hashLink = s.links.find((a) => a.text === HASH)
   ok('a commit hash links to <repoWebUrl><repoCommitPath><hash>', link && hashLink && hashLink.href === want, { want, links: s.links })
   ok('the repository opens in a new tab', hashLink && hashLink.target === '_blank', hashLink)
   ok('a uuid and a plain number stay text', !s.uuidLinked && !s.numberLinked, s)
-  ok('a hash in inline code stays code', !s.codedLinked && s.codedShown, s)
+  const codedLink = s.links.find((a) => a.text === CODED)
+  ok('a hash alone in inline code links to the commit, shown as code', codedLink && codedLink.href === want.replace(HASH, CODED) && s.codedInLink, s)
+  ok('a hash and a key in a fence stay text', !s.fencedLinked, s)
+  const keyLink = s.links.find((a) => a.text === KEY)
+  const codedKeyLink = s.links.find((a) => a.text === CODED_KEY)
+  ok('an issue key links to /issues?issue=<KEY> in this tab', keyLink && /\/issues\?issue=SPL-12$/.test(keyLink.href) && !keyLink.target, s.links)
+  ok('an issue key alone in inline code links too', codedKeyLink && /\/issues\?issue=SPL-13$/.test(codedKeyLink.href), s.links)
+  ok('another prefix stays text', !s.links.some((a) => a.text === 'OTHER-12'), s.links)
+  if (keyLink) {
+    await p.click(`article.msg[data-msg-id="${carrier.msg_id}"] a.msg-link[href$="issue=${KEY}"]`)
+    const moved = await p.waitForFunction(() => location.pathname.endsWith('/issues') && location.search.includes('issue=SPL-12'), { timeout: 15000 }).then(() => true, () => false)
+    ok('a click on the key opens the Issues page on that issue', moved, await p.evaluate(() => location.href))
+  }
   ok('no page error', errors.length === 0, errors)
   await p.close()
 } finally {

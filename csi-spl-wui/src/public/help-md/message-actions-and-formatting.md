@@ -88,6 +88,8 @@ a direct message or the lobby cannot give or take a topic.
 Spool automatically detects URLs and link-like patterns in message text (e.g. `https://github.com/...`, `http://...`, or `api.example.com`). These are converted into clean, clickable hyperlinks that open safely in a new browser tab.
 
 A topic id or a message id written in the same text is a different link. See section 3.6.
+A commit hash links to the repository (section 3.7), and an issue key such as
+`SPL-12` opens that issue (section 3.9).
 
 ### 3.2 Markdown
 Headers, bold, italics, lists, quotes, links, code and tables render as
@@ -139,15 +141,28 @@ Where the link opens is in [Top Omnibox & Smart Routing](./omnibox-and-navigatio
 A git commit hash written in a message becomes a link to this instance's
 repository, when the instance has named that repository. The hash is 7 to 40
 hex characters, with at least one digit and one letter, standing on its own
-— not part of a longer word, and not a topic id. A hash inside a code block,
-inline code, a link or a web address stays as written. When the instance has
-not named a repository, a hash stays plain text.
+— not part of a longer word, and not a topic id. Inline code that holds only
+a hash, such as `368450c92`, links too and stays shown as code; eight
+characters that match a topic or message you can read stay that id's link. A
+hash inside a code block, inside longer inline code, in a link or in a web
+address stays as written. When the instance has not named a repository, a
+hash stays plain text.
 
 ### 3.8 The responsible seat
 
 When a seat has to deal with a message, the card shows that seat as
 `c-007@box-a`, with a small flag in front. The hover reads **Responsible:**
 and the seat. Nothing is shown while nobody is responsible.
+
+### 3.9 Issue keys
+
+An issue key of this workspace written in a message, such as `SPL-12`, becomes
+a link that opens that issue on the [Issues](./issues.md) page, in the same
+tab. The prefix is your workspace's own issue prefix; a key with another
+prefix stays plain text. Inline code that holds only the key links too and
+stays shown as code. A key that is part of a longer word (`XSPL-12`,
+`SPL-12a`), or that sits in a code block, a link or a web address, stays as
+written.
 
 ---
 

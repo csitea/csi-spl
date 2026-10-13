@@ -8,8 +8,11 @@
  *
  * A commit is a 7..40 hex token with at least one digit and one letter,
  * standing on its own: not part of a longer word, a uuid or a hyphenated id.
- * Code fences, inline code, an existing link (an id link included, which
- * runs first) and a bare url are left as written, the id-link rules.
+ * Code fences, an existing link (an id link included, which runs first) and
+ * a bare url are left as written, the id-link rules. An inline code span
+ * whose whole content is a hash links too (HUM-10 t1 0f2ed820 msg 8847e183:
+ * agents write shas as `368450c92`), shown as code; an 8-hex span that is a
+ * known topic or message id (isId) stays an id, never a commit.
  *
  * Loaded lazily (plugins/commit-links.client.ts) and reached through
  * utils/commit-link-hook.mjs, so the initial chunk does not grow. Pure: node
@@ -111,9 +114,21 @@ export function linkifyCommitMarkdown(src, prefix) {
   return parts.map((p) => (p.type === 'link' ? '[' + p.text + '](' + p.href + ')' : p.text)).join('')
 }
 
-function linkifyParts(parts, prefix) {
+/** An inline code span that is only a hash: its commit href, or ''. */
+export function inlineCommitHref(prefix, text, isId) {
+  const s = String(text ?? '').trim()
+  if (!isCommitHash(s) || (typeof isId === 'function' && isId(s))) return ''
+  return commitHref(prefix, s)
+}
+
+function linkifyParts(parts, prefix, isId) {
   const out = []
   for (const p of parts || []) {
+    if (p && p.type === 'inline') {
+      const href = inlineCommitHref(prefix, p.text, isId)
+      out.push(href ? { type: 'link', text: String(p.text).trim(), href, code: true } : p)
+      continue
+    }
     if (p && (p.type === 'text' || p.type === 'strong' || p.type === 'em') && typeof p.text === 'string') {
       const bits = linkifyCommitText(p.text, prefix)
       if (bits.length === 1 && bits[0].type === 'text') out.push(p)
@@ -125,8 +140,11 @@ function linkifyParts(parts, prefix) {
   return out
 }
 
-/** A parseBody tree with hashes in text linked; code and links left alone. */
-export function linkifyCommitBlocks(blocks, prefix) {
+/**
+ * A parseBody tree with hashes in text and hash-only code spans linked;
+ * fences and links left alone. isId(token) = an id the id linker owns.
+ */
+export function linkifyCommitBlocks(blocks, prefix, isId) {
   if (!prefix || !Array.isArray(blocks)) return blocks
   return blocks.map((b) => {
     if (!b) return b
@@ -135,9 +153,9 @@ export function linkifyCommitBlocks(blocks, prefix) {
       const text = linkifyCommitMarkdown(b.text, prefix)
       return text === b.text ? b : { ...b, text }
     }
-    if (Array.isArray(b.parts)) return { ...b, parts: linkifyParts(b.parts, prefix) }
+    if (Array.isArray(b.parts)) return { ...b, parts: linkifyParts(b.parts, prefix, isId) }
     if (Array.isArray(b.items)) {
-      return { ...b, items: b.items.map((it) => ({ ...it, parts: linkifyParts(it.parts, prefix) })) }
+      return { ...b, items: b.items.map((it) => ({ ...it, parts: linkifyParts(it.parts, prefix, isId) })) }
     }
     return b
   })
@@ -148,7 +166,8 @@ export function commitLinker(webUrl, commitPath) {
   const prefix = commitPrefix(webUrl, commitPath)
   if (!prefix) return null
   return {
-    blocks: (blocks) => linkifyCommitBlocks(blocks, prefix),
+    blocks: (blocks, isId) => linkifyCommitBlocks(blocks, prefix, isId),
     markdown: (src) => linkifyCommitMarkdown(src, prefix),
+    inline: (text, isId) => inlineCommitHref(prefix, text, isId),
   }
 }

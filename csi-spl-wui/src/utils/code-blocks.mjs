@@ -32,6 +32,7 @@ import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 import { activeIdIndex, linkifyBlocks, linkifyMarkdown, noteIds } from './id-link-gate.mjs'
 import { activeCommitLinker } from './commit-link-hook.mjs'
 import { activeDocPathLinker } from './doc-path-hook.mjs'
+import { activeIssueLinker } from './issue-link-hook.mjs'
 
 const LANG_RE = /^([A-Za-z0-9_+#.-]{1,24})\n/
 
@@ -428,6 +429,18 @@ function plainBlocks(src) {
     .filter((b) => b.type === 'code' || b.parts.length > 0)
 }
 
+/**
+ * isId for the commit linker: an 8-hex token that is (the start of) a known
+ * topic or message stays an id, never a commit (owner read msg ids as commits).
+ */
+function idTokenOf(index) {
+  if (!index || index.empty) return () => false
+  return (tok) => {
+    const k = String(tok || '').toLowerCase()
+    return k.length === 8 && (index.topicsByPrefix.has(k) || index.messagesByPrefix.has(k))
+  }
+}
+
 export function parseBody(src) {
   const blocks = []
   for (const region of wikiRegions(src)) {
@@ -440,10 +453,13 @@ export function parseBody(src) {
   const linked = index.empty ? blocks : linkifyBlocks(blocks, index)
   // Commit hashes after the ids (commit-links.mjs): null until it loads.
   const commits = activeCommitLinker()
-  const hashed = commits ? commits.blocks(linked) : linked
+  const hashed = commits ? commits.blocks(linked, idTokenOf(index)) : linked
   // SPL-1592: a repo doc path written as text opens /docs (doc-paths.mjs)
   const docs = activeDocPathLinker(src)
-  return docs ? docs.blocks(hashed) : hashed
+  const pathed = docs ? docs.blocks(hashed) : hashed
+  // Issue keys last (issue-key-links.mjs): null until the prefix is known.
+  const issues = activeIssueLinker()
+  return issues ? issues.blocks(pathed) : pathed
 }
 
 /**
@@ -480,7 +496,8 @@ function partsHtml(parts, origin) {
       // (SPL-951 regression: a www or http link to this site); an external
       // link keeps the href exactly as written.
       const href = open.internal ? open.href : p.href
-      return `<a class="msg-link" href="${esc(href)}"${extra}>${esc(p.text)}</a>`
+      const text = p.code ? `<code>${esc(p.text)}</code>` : esc(p.text)
+      return `<a class="msg-link" href="${esc(href)}"${extra}>${text}</a>`
     }
     return esc(p.text).replace(/\n/g, '<br>')
   }).join('')
@@ -624,8 +641,13 @@ export function markdownSource(src) {
   const index = activeIdIndex()
   if (!index.empty) noteIds(src, index)
   const commits = activeCommitLinker()
+  const issues = activeIssueLinker()
+  const isId = idTokenOf(index)
   const ids = (s) => (index.empty ? s : linkifyMarkdown(s, index))
-  const plain = (s) => (commits ? commits.markdown(ids(s)) : ids(s))
+  const hashed = (s) => (commits ? commits.markdown(ids(s)) : ids(s))
+  const plain = (s) => (issues ? issues.markdown(hashed(s)) : hashed(s))
+  /* t1 0f2ed820: a code span that is only an issue key or a commit hash links */
+  const codeHref = (s) => (issues && issues.inline(s)) || (commits && commits.inline ? commits.inline(s, isId) : '')
   let out = ''
   const block = (s) => {
     if (out && !out.endsWith('\n')) out += '\n'
@@ -639,7 +661,9 @@ export function markdownSource(src) {
       else if (t.type === 'inline') {
         const fence = '`'.repeat(longestRun(t.text) + 1)
         const pad = t.text.startsWith('`') || t.text.endsWith('`') ? ' ' : ''
-        out += fence + pad + t.text + pad + fence
+        const code = fence + pad + t.text + pad + fence
+        const href = codeHref(t.text)
+        out += href ? '[' + code + '](' + href + ')' : code
       } else if (isMarkdownLang(t.lang)) block(plain(t.text))
       else {
         const fence = '`'.repeat(Math.max(3, longestRun(t.text) + 1))

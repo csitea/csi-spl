@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -348,9 +349,74 @@ func TestM2SkuIsOneTenantNoSeats(t *testing.T) {
 	if err != nil || ten.SeatsUsers != 0 || ten.SeatsBots != 0 || ten.ProjectID != "" || !ten.BoughtAt.IsZero() {
 		t.Fatalf("an M2 tenant must carry no seats and no dedicated-project stamp: %+v %v", ten, err)
 	}
-	for _, k := range []string{"seat", "quantity", "line_item"} {
-		if strings.Contains(strings.ToLower(fmt.Sprint(co)), k) {
-			t.Fatalf("the M2 checkout answer mentions %q", k)
+	if co["amount_cents"] != float64(2000) {
+		t.Fatalf("M2 checkout answer amount %v, want the plan price", co["amount_cents"])
+	}
+	if k := seatKey(co); k != "" {
+		t.Fatalf("the M2 checkout answer carries %q", k)
+	}
+}
+
+// seatKey returns the first key, at any depth of a checkout answer, that
+// names seats, a quantity or line items; "" = none. It reads the KEYS, not
+// fmt.Sprint of the answer: the random checkout id and claim token are
+// values, and spell "seat" in about 1 answer in 17,000 (SPL-1659).
+func seatKey(v any) string {
+	switch v := v.(type) {
+	case map[string]any:
+		for k, sub := range v {
+			for _, w := range []string{"seat", "quantity", "line_item"} {
+				if strings.Contains(strings.ToLower(k), w) {
+					return k
+				}
+			}
+			if k := seatKey(sub); k != "" {
+				return k
+			}
+		}
+	case []any:
+		for _, sub := range v {
+			if k := seatKey(sub); k != "" {
+				return k
+			}
+		}
+	}
+	return ""
+}
+
+// SPL-1659: a checkout id and claim token that spell "seat" (the CI red of
+// run 38372992780) leave the M2 answer seat-free; an answer with a seat or
+// line-item key, at any depth, is still caught.
+func TestM2SeatCheckReadsKeysNotRandomIDs(t *testing.T) {
+	orig := readEntropy
+	t.Cleanup(func() { readEntropy = orig })
+	seat, _ := base32.StdEncoding.DecodeString("SEATSEAT") // 5 bytes: base32 "seatseat" repeats on every 5-byte block
+	readEntropy = func(b []byte) (int, error) {
+		for i := range b {
+			b[i] = seat[i%len(seat)]
+		}
+		return len(b), nil
+	}
+	api := &stripeAPI{}
+	r := newRig(t, stripeCfg(t, api.server(t).URL))
+	_, co := r.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "acme", "email": "buyer@example.com"})
+	if id, _ := co["checkout_id"].(string); !strings.Contains(id, "seat") {
+		t.Fatalf("the injected checkout id %q does not spell seat: the case proves nothing", id)
+	}
+	if !strings.Contains(strings.ToLower(fmt.Sprint(co)), "seat") {
+		t.Fatal("the answer's Sprint string has no seat: the old flaky check would not have fired")
+	}
+	if k := seatKey(co); k != "" {
+		t.Fatalf("a random id read as a seat key %q", k)
+	}
+	for _, bad := range []map[string]any{
+		{"checkout_id": "co_x", "seats_users": float64(3)},
+		{"checkout_id": "co_x", "line_items": []any{map[string]any{"name": "plan"}}},
+		{"checkout_id": "co_x", "order": map[string]any{"quantity": float64(2)}},
+		{"checkout_id": "co_x", "items": []any{map[string]any{"bot_seat": float64(1)}}},
+	} {
+		if seatKey(bad) == "" {
+			t.Fatalf("seatKey missed a seat field in %v", bad)
 		}
 	}
 }

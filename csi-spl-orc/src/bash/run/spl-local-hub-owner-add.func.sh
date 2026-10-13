@@ -14,7 +14,8 @@
 # @description the hub CLI (`spool hub-provision-member --password-stdin`, inside
 # @description the running hub container) on STDIN only, never argv, env or a
 # @description log line. Run as anyone: it re-runs itself as the hub user, in
-# @description its long-lived tree. Idempotent: a seated owner is reported.
+# @description its long-lived tree. Idempotent: a seated owner is reported,
+# @description and a re-run KEEPS an existing password (it is no reset).
 # @param DRY_RUN (optional) - 1 (default): say what it would do, ask nothing
 # @example ./run -a do_spl_local_hub_owner_add
 # @example DRY_RUN=0 ./run -a do_spl_local_hub_owner_add
@@ -52,7 +53,14 @@ _slho_provision() {
     return 1
   fi
   [[ "$out" == *'"status":"provisioned"'* ]] || { do_log "FATAL unexpected hub answer: ${out//$LOCAL_HUB_OWNER_EMAIL/<owner>}"; return 1; }
-  do_log "OK owner seated as biz_owner with a verified password credential ($(grep -o '"human_id":"[^"]*"' <<<"$out")); sign in on http://localhost:$LOCAL_HUB_WUI_PORT/"
+  local hum; hum="$(grep -o '"human_id":"[^"]*"' <<<"$out")"
+  # The CLI keeps an existing credential (ON CONFLICT DO NOTHING): a re-run
+  # never changes the password, so do not claim it did.
+  if [[ "$out" == *'"created_human":false'* ]]; then
+    do_log "WARN the owner already existed ($hum): seat ensured, but an existing password was KEPT, not replaced by the one just typed"
+    return 0
+  fi
+  do_log "OK owner seated as biz_owner with a verified password credential ($hum); sign in on http://localhost:$LOCAL_HUB_WUI_PORT/"
 }
 
 # _slho_read_password -- the password from /dev/tty, no echo, typed twice;

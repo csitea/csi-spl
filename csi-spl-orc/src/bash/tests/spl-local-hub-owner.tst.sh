@@ -7,6 +7,7 @@
 #   3. on a pty, DRY_RUN=0: the password reaches the hub CLI on STDIN only
 #      (never argv), as biz_owner with --password-stdin; the OK line names
 #      neither the tenant nor the email
+#      a re-run (the human existed) says the old password was KEPT
 #   4. two different passwords, or a short one: refused, no compose call
 #   5. no LOCAL_HUB_OWNER_EMAIL: refused; not the hub user: re-run as it
 # Hermetic: every spl_local_hub_* / lde_compose call is a stub; no docker.
@@ -29,7 +30,7 @@ spl_local_hub_cnf() { echo CNF-REACHED >>"$T/calls"; }
 spl_local_hub_is_user() { [[ "${STUB_NOT_USER:-0}" == 0 ]]; }
 spl_local_hub_reexec() { echo "REEXEC $1" >>"$T/calls"; }
 spl_local_hub_env() { LOCAL_HUB_TENANT=ws-throwaway LOCAL_HUB_OWNER_EMAIL="${STUB_EMAIL-owner@example.com}" LOCAL_HUB_CONFIG=/x/local-hub.env LOCAL_HUB_WUI_PORT=3180; }
-lde_compose() { printf "%s\n" "$*" >"$T/compose.args"; cat >"$T/compose.stdin"; echo '{"human_id":"HUM-1","status":"provisioned","tenant":"ws-throwaway","email":"owner@example.com"}'; }
+lde_compose() { printf "%s\n" "$*" >"$T/compose.args"; cat >"$T/compose.stdin"; echo '{"created_human":'"${STUB_CREATED:-true}"',"human_id":"HUM-1","status":"provisioned","tenant":"ws-throwaway","email":"owner@example.com"}'; }
 EOF
 
 # the runner: source every orc func, then the stubs, then the action
@@ -107,6 +108,15 @@ if grep -q 'RC=0' "$T/s3.out" && [[ -e "$T/compose.args" ]]; then
 else
   fail "real path: $(tail -4 "$T/s3.out")"
 fi
+
+# --- 3b. a re-run: the CLI keeps the old password; the action must say so ----------
+reset
+on_pty "N
+$PW
+$PW
+" DRY_RUN=0 STUB_CREATED=false >"$T/s3b.out"
+grep -q 'existing password was KEPT' "$T/s3b.out" && ! grep -q '^OK owner seated' "$T/s3b.out" && grep -q 'RC=0' "$T/s3b.out" \
+  && pass "an owner that already existed: no claim the password changed" || fail "re-run: $(tail -3 "$T/s3b.out")"
 
 # --- 4. mismatch / short -------------------------------------------------------------
 reset

@@ -474,7 +474,7 @@ The file is `.github/workflows/<file>`. Runner is the literal `runs-on` in that 
 | 10_ci-quality.yml | the quality gate on every master push; a docs-only push skips the code jobs | expression, self-hosted `spool-ci` on this repo |
 | 11_ci-public.yml | the same gate for a pull request, after a maintainer approves it | passes ubuntu-latest into 10 |
 | 15_sec-deps-secrets.yml | dependency and secret scans | ubuntu-latest |
-| 20_hub-build-deploy.yml | mint, build, migrate, roll the hub | ubuntu-latest |
+| 20_hub-build-deploy.yml | mint, build, migrate, roll the hub; then, non-blocking, the invite e2e (`do_spl_invite_e2e`) on dev t1 and on prd in the test workspace `e2e` only (`vars.INVITE_E2E_TENANT_PRD`; t1 and customer workspaces are refused) | ubuntu-latest |
 | 21_hub-deploy-catchup.yml | a trunk hub or WUI that never got served | ubuntu-latest |
 | 22_deploy-verify.yml | HTTPS smoke of the hub and the WUI | ubuntu-latest |
 | 30_wui-build-deploy.yml | mint and Firebase Hosting | ubuntu-latest |

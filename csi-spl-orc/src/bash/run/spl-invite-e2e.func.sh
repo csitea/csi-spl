@@ -1,6 +1,8 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Invite -> mail -> sign-in -> first message, end to end on DEV
+# @description Invite -> mail -> sign-in -> first message, end to end on DEV,
+# @description and on PRD in a TEST workspace only (e2e, e2e-*, the
+# @description spl_test_workspaces list; never t1 or a customer workspace)
 # @description (t1 afa8a4fb, R7 of the issue triage 1457bb6f: "no end-to-end
 # @description test drives it with a fresh person"). Each step is printed
 # @description PASS/FAIL/SKIPPED with evidence, like do_spl_m3_e2e:
@@ -28,8 +30,9 @@
 # @description list does not grow by one per run.
 # @description Engine: csi-spl-orc/src/bash/scripts/invite-e2e.py (stdlib,
 # @description reuses m3-e2e.py). Offline tests: tests/invite-e2e.tst.sh.
-# @param ENV - required: dev (prd is refused: its tenants are real)
-# @param TENANT_ID - required: the dev tenant the invitee joins
+# @param ENV - required: dev, or prd in a test workspace (its other tenants are real)
+# @param TENANT_ID - required: the tenant the invitee joins; on prd a test
+# @param   workspace (spl_invite_e2e_test_workspace), refused before any call
 # @param ROOT_KEY_JSON (optional) - the tenant's 0600 key JSON (field
 # @param   root_private_key); default the newest $SPL_TENANTS_DIR/<tenant>.*.json
 # @param   when readable. None: step 6 is SKIPPED
@@ -38,10 +41,16 @@
 # @param INVITE_E2E_TIMEOUT (optional) - seconds to wait for the mail, default 240
 # @param SPL_STATE_DIR (optional) - default $HOME/.local/share/<org>-<app>/cloud/<env>
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_invite_e2e
+# @example ENV=prd TENANT_ID=e2e ./run -a do_spl_invite_e2e
 #------------------------------------------------------------------------------
 do_spl_invite_e2e() {
   do_require_bin yq jq python3 curl gcloud || return 1
-  [[ "${ENV:-}" == dev ]] || { do_log "FATAL do_spl_invite_e2e runs on dev only (ENV=dev), got '${ENV:-}': prd tenants are real"; return 1; }
+  case "${ENV:-}" in
+    dev) ;;
+    prd) spl_invite_e2e_test_workspace "${TENANT_ID:-}" ||
+      { do_log "FATAL on prd do_spl_invite_e2e runs only in a test workspace (e2e, e2e-*, spl_test_workspaces), got '${TENANT_ID:-}': prd tenants are real"; return 1; } ;;
+    *) do_log "FATAL do_spl_invite_e2e runs on dev, or prd in a test workspace (ENV=dev|prd), got '${ENV:-}'"; return 1 ;;
+  esac
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" rid="${INVITE_E2E_RUN_ID:-}"
   spl_require_tenant_slug "$tenant" || return 1
@@ -85,6 +94,17 @@ do_spl_invite_e2e() {
   spl_invite_e2e_teardown "$tenant" "$email" "$st"
   (( rc == 0 )) || { do_log "FAIL invite e2e on $ENV/$tenant: see $st/results.json"; return 1; }
   do_log "OK invite e2e on $ENV/$tenant: no step failed ($st/results.json)"
+}
+
+# spl_invite_e2e_test_workspace <tenant>: 0 when <tenant> is a prd test
+# workspace: e2e or e2e-<x>, or on the shared list (spl_test_workspaces:
+# SWEEP_SKIP_TENANTS plus <spool root>/dispatch/test-workspaces). t1 never.
+spl_invite_e2e_test_workspace() {
+  local t="$1"
+  [[ -n "$t" && "$t" != t1 ]] || return 1
+  [[ "$t" =~ ^e2e(-[a-z0-9]+)?$ ]] && return 0
+  declare -F spl_test_workspaces >/dev/null || return 1
+  [[ " $(spl_test_workspaces) " == *" $t "* ]]
 }
 
 # spl_invite_e2e_root_key <tenant> <state dir>: stage the tenant root key and

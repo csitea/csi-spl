@@ -7,7 +7,9 @@
 #      link's login_hint is not the invitee, a sent copy with no Delivered-To,
 #      the hub did not mail the invite, the login is refused
 #   3. no password, token or cookie reaches stdout or results.json
-#   4. the wrapper: prd refused before any call; the invitee is a fresh
+#   4. the wrapper: prd outside a test workspace (t1, a customer) and any
+#      other env refused before any call; prd in e2e / a listed test
+#      workspace runs with the prd cnf mailbox; the invitee is a fresh
 #      plus-address of the cnf relay mailbox; the invite body; the engine runs;
 #      teardown revokes a pending invite (not bound) and removes a bound member
 #------------------------------------------------------------------------------
@@ -148,11 +150,27 @@ run_wrap() {
     do_spl_tenant_member_remove() { echo "member-remove $TENANT_ID $EMAIL $DRY_RUN" >>"$STUB_LOG"; }
     python3() { [[ "$1" == *invite-e2e.py ]] || command python3 "$@"; echo "engine $M3_HUMAN_EMAIL $M3_TENANT pass=$(stat -c %a "$M3_IMAP_PASS_FILE")" >>"$STUB_LOG";
       [[ "${BIND:-0}" == 1 ]] && echo "{}" >"$M3_STATE/bound.json"; return "${PY_RC:-0}"; }
-    do_spl_invite_e2e' in_orc SPL_TENANTS_DIR="$T/no-tenants" "$@" >"$T/wrap.out" 2>&1
+    do_spl_invite_e2e' in_orc SPL_TENANTS_DIR="$T/no-tenants" SPOOL_ROOT="$T/spool" "$@" >"$T/wrap.out" 2>&1
 }
-run_wrap ENV=prd TENANT_ID=t1; rc=$?
-[[ $rc != 0 && ! -s "$T/calls.log" ]] && grep -q "dev only" "$T/wrap.out" && pass "4. prd refused before any call" \
-  || fail "4. prd: rc=$rc $(cat "$T/wrap.out" "$T/calls.log")"
+mkdir -p "$T/spool/dispatch"; printf '# test workspaces\nw12live1  # a listed one\n' >"$T/spool/dispatch/test-workspaces"
+for t in t1 leiden e2ex ''; do
+  run_wrap ENV=prd TENANT_ID="$t"; rc=$?
+  [[ $rc != 0 && ! -s "$T/calls.log" ]] && grep -q "only in a test workspace" "$T/wrap.out" \
+    && pass "4. prd TENANT_ID='$t' refused before any call" || fail "4. prd $t: rc=$rc $(cat "$T/wrap.out" "$T/calls.log")"
+done
+run_wrap ENV=prd TENANT_ID=t1 SWEEP_SKIP_TENANTS=t1; rc=$?
+[[ $rc != 0 && ! -s "$T/calls.log" ]] && pass "4. prd t1 refused even when SWEEP_SKIP_TENANTS lists it" || fail "4. prd t1 listed: rc=$rc"
+run_wrap ENV=stg TENANT_ID=e2e; rc=$?
+[[ $rc != 0 && ! -s "$T/calls.log" ]] && pass "4. an env other than dev/prd refused before any call" || fail "4. stg: rc=$rc $(cat "$T/calls.log")"
+puser=$(yq -r '.env.mail.env.SPOOL_HUB_MAIL_SMTP_USER' "$APP_ROOT/csi-spl-cnf/csi-spl/prd.env.yaml")
+for t in e2e e2e-2 w12live1; do
+  run_wrap ENV=prd TENANT_ID="$t" INVITE_E2E_RUN_ID=p1 SPL_STATE_DIR="$T/state/prd"; rc=$?
+  pwant="${puser%@*}+inv-p1@${puser#*@}"
+  [[ $rc == 0 ]] && jq -e --arg e "$pwant" --arg t "$t" '.tenant == $t and .email == $e' \
+      <<<"$(grep '^hub POST' "$T/calls.log" | cut -d' ' -f4-)" >/dev/null && grep -qx "engine $pwant $t pass=600" "$T/calls.log" \
+    && grep -q "^hub DELETE /v1/operator/invites?tenant=$t&email=" "$T/calls.log" \
+    && pass "4. prd test workspace $t: invites $pwant there, tears it down" || fail "4. prd $t: rc=$rc $(cat "$T/wrap.out" "$T/calls.log")"
+done
 run_wrap TENANT_ID=t1 INVITE_E2E_RUN_ID='Bad_Id'; rc=$?
 [[ $rc != 0 && ! -s "$T/calls.log" ]] && pass "4. a bad run id is refused before any call" || fail "4. run id: rc=$rc $(cat "$T/calls.log")"
 

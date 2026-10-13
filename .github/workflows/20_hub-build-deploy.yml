@@ -805,3 +805,54 @@ jobs:
             do_spl_cloud_cnf >/dev/null && echo "$SPL_PROJECT"')"
           if [[ "$HAS_KEY" == true ]]; then sa="$p@$p.iam.gserviceaccount.com"; else sa="$WIF_SA"; fi
           GCP_ACCOUNT="$sa" TENANT_ID=t1 SPL_STATE_DIR="$RUNNER_TEMP/spl" ./csi-spl-orc/run -a do_spl_invite_e2e
+
+  # The same e2e on PRD (owner HUM-10, t1 afa8a4fb msg 3a042712: "Deploy to
+  # prod."), as the prd project SA, NON-BLOCKING like dev. prd tenants are
+  # real, so it runs ONLY in a test workspace: vars.INVITE_E2E_TENANT_PRD,
+  # default e2e; the action refuses t1 and any non-test workspace
+  # (spl_invite_e2e_test_workspace) before any call. Teardown removes the
+  # invitee from that workspace. Step 6 is SKIPPED here as on dev (no root key
+  # in CI); the box runs it: `ENV=prd TENANT_ID=e2e ./run -a do_spl_invite_e2e`.
+  invite-e2e-prd:
+    name: Invite e2e on prd test workspace (non-blocking)
+    needs: [test, prepare-deploy, deploy]
+    if: always() && needs.test.result == 'success' && needs.prepare-deploy.result == 'success' && needs.deploy.result == 'success' && contains(needs.prepare-deploy.outputs.envs, '"prd"') && (vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write   # google-github-actions/auth via WIF
+    env:
+      ENV: prd
+      TENANT_ID: ${{ vars.INVITE_E2E_TENANT_PRD || 'e2e' }}
+      HAS_KEY: ${{ secrets.GCP_KEY_CSI_SPL_PRD != '' }}
+      WIF_SA: ${{ vars.GCP_DEPLOY_SA_EMAIL_PRD }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Authenticate to Google Cloud (project key)
+        if: env.HAS_KEY == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets.GCP_KEY_CSI_SPL_PRD }}
+
+      - name: Authenticate to Google Cloud (WIF alternative)
+        if: env.HAS_KEY != 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_PRD }}
+          service_account: ${{ env.WIF_SA }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Invite -> mail -> sign-in -> bound, prd test workspace (do_spl_invite_e2e)
+        run: |
+          set -euo pipefail
+          p="$(APP_PATH="$GITHUB_WORKSPACE" PROJ_PATH="$GITHUB_WORKSPACE/csi-spl-orc" SPL_STATE_DIR="$(mktemp -d)" bash -c '
+            do_log() { echo "$*" >&2; }
+            source "$APP_PATH/csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh"
+            do_spl_cloud_cnf >/dev/null && echo "$SPL_PROJECT"')"
+          if [[ "$HAS_KEY" == true ]]; then sa="$p@$p.iam.gserviceaccount.com"; else sa="$WIF_SA"; fi
+          GCP_ACCOUNT="$sa" SPL_STATE_DIR="$RUNNER_TEMP/spl" ./csi-spl-orc/run -a do_spl_invite_e2e

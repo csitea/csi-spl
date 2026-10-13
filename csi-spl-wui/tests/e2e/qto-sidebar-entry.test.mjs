@@ -119,6 +119,22 @@ async function fileTree(p) {
   const rows = await rowKeys(p)
   ok('the open document is the active row, expanded to its sections', rows[0] === '1 Handbook' && rows.includes('2 Introduction') && rows.includes('2 Glossary'), rows)
   ok('the active row is marked', await p.$eval('[data-test=qto-file-tree] [aria-selected=true]', (el) => el.textContent.trim()).catch(() => '') === 'Handbook')
+
+  /* Assert the icon for sections with sub-sections is "plus", and for sections without sub-sections is "list" */
+  const introRow = await p.evaluateHandle(() => [...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].find((el) => el.textContent.trim() === 'Introduction'))
+  const introIcon = await introRow.evaluate((el) => el.querySelector('[data-test=file-tree-icon]')?.getAttribute('data-icon'))
+  ok('a section with sub-sections uses the "plus" icon', introIcon === 'plus', introIcon)
+
+  const scopeRow = await p.evaluateHandle(() => [...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].find((el) => el.textContent.trim() === 'Scope'))
+  const scopeIcon = await scopeRow.evaluate((el) => el.querySelector('[data-test=file-tree-icon]')?.getAttribute('data-icon'))
+  ok('a section without sub-sections uses the "list" icon', scopeIcon === 'list', scopeIcon)
+
+  /* Assert folders use the "folder" icon */
+  const folderRow = await p.evaluateHandle(() => [...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].find((el) => el.getAttribute('data-kind') === 'folder'))
+  if (folderRow) {
+    const folderIcon = await folderRow.evaluate((el) => el.querySelector('[data-test=file-tree-icon]')?.getAttribute('data-icon'))
+    ok('a folder uses the "folder" icon', folderIcon === 'folder', folderIcon)
+  }
   /* a section with sections under it starts closed; its chevron opens it */
   const intro = await p.evaluateHandle(() => [...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].find((el) => el.textContent.trim() === 'Introduction'))
   if (!(await intro.evaluate((el) => Boolean(el)))) {

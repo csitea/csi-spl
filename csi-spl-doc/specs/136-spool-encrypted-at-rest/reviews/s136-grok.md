@@ -153,3 +153,7 @@ L8 as written is a gate that readers skip `encrypted/`. It does not stop W5 from
 ## 13. Panel — AGREE
 
 This file is the grok seat. v1.0 still needs the editor and one more claude, and the owner's answers to Q1-Q7. Section 11's lanes should not start on the Q3 A shape while section 9 still reads as if only root can open another agent's mail.
+
+## Close
+
+The line `Closes: SPL-1662` in `841f2bb28` is above a blank line, so git reads only the two release-note lines as trailers. This commit puts that line in the trailer block.

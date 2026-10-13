@@ -79,12 +79,22 @@ async function settle(page, before) {
   return counts(page)
 }
 
-async function home(p, size) {
+/* `read`: the topic was read before this load, so the row's badge should stay
+   away. Waiting NAV_TIMEOUT for it then always ran out: 60 s at each width,
+   120 of the file's 143 s locally (spec 133 round 15). The
+   title's "(n)" comes from the same unread store (app.vue) and still holds
+   the DM line, so it shows the store has loaded; the badge then gets a short
+   grace in case it comes back. */
+async function home(p, size, { read = false } = {}) {
   await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, size)
   /* a phone's `/` is level 1, which keeps the section last shown there: pick Channels */
   if (!(await p.$(CH_ROW))) await p.click('[data-testid=sidebar-tab-channels]').catch(() => {})
-  await p.waitForSelector(`${CH_ROW} [data-testid=channel-unread]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+  if (read) {
+    await p.waitForSelector(CH_ROW, { timeout: NAV_TIMEOUT }).catch(() => {})
+    await p.waitForFunction(() => /^\(\d+\+?\) /.test(document.title), { timeout: NAV_TIMEOUT }).catch(() => {})
+  }
+  await p.waitForSelector(`${CH_ROW} [data-testid=channel-unread]`, { visible: true, timeout: read ? 2000 : NAV_TIMEOUT }).catch(() => {})
   return counts(p)
 }
 
@@ -131,7 +141,7 @@ try {
       ok(`${tag} channels: the title drops in the same page`, live.title === before.title - before.row, { before, live })
       /* read back on `/` after a reload: what the reader finds when they come back */
       await new Promise((r) => setTimeout(r, 1500))
-      const after = await home(p, size)
+      const after = await home(p, size, { read: true })
       ok(`${tag} channels: opening it drops the Channels total by what was read (after a reload)`, after.channels === before.channels - before.row, { before, after })
       ok(`${tag} channels: the row's own number goes`, after.row === 0, after)
       ok(`${tag} channels: the title drops with it`, after.title === before.title - before.row, { before, after })

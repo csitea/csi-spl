@@ -128,7 +128,7 @@ its deploy check; terraform and applies stay 007's / the owner's.
 - [x] T114 [US2] [007 / 031] Serve the four smoke hosts: A records, and a
       SAN for `dev.api.<BASE_DOMAIN>` (not covered by `*.dev.<BASE_DOMAIN>`;
       031 `extra_host_labels`). Then FR-P12 reads 200 in both envs.
-- [ ] T115 [US2] [007 / 031] (follow-up, owner 2026-09-18) When the M1
+- [ ] ~~T115~~ [US2] [007 / 031] (dropped: SPL-378 discarded) (follow-up, owner 2026-09-18) When the M1
       `0.0.0.0/0` allowlist is tightened post-M1, add a Cloud Armor rule that
       allows `GET /` and `GET /version` publicly (or the CI runner ranges), so
       the post-deploy smoke keeps reading 200 instead of a 403 warning.

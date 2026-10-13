@@ -6,7 +6,9 @@ BRACKET (``[NNN <id>]``) plus that module's CHECK / NEST checkbox
 regexes and its ``{parent}.sN`` subtask ids. A task is closed only when
 its checkbox is ``x`` and the issue is still open. An unticked task whose
 issue is done, a missing task, and anything that was not imported from a
-tasks.md are reported and never written.
+tasks.md are reported and never written. An unticked line carrying
+``(dropped: SPL-N discarded)`` is aligned when the issue is discarded;
+the same mark on an open issue stays a report and is never a close.
 """
 
 from __future__ import annotations
@@ -19,6 +21,9 @@ import sys
 from pathlib import Path
 
 OPEN = {"eval", "todo", "wip", "blocked", "onhold", "qas"}
+# An unticked task the list has given up: the issue was discarded.
+# Read only on that checkbox line, so a later sentence cannot mark it.
+DROPPED_MARK = re.compile(r"\(dropped:\s*SPL-\d+\s+discarded\)")
 COLS = ("spec", "task", "issue", "action", "why", "status", "line")
 
 
@@ -49,13 +54,13 @@ def task_id_shape(mod, tid: str) -> bool:
 
 
 def checkbox_lines(text: str, mod) -> dict:
-    """tid -> (1-based line, box). Fence skipping matches parse_tasks.
+    """tid -> (1-based line, box, dropped). Fence skipping matches parse_tasks.
 
     A nested line with no id of its own is ``{parent}.sN``, the same shape
     ``_checklist`` / ``_heading`` emit. The last checkbox for an id wins,
     which is the importer's replace-the-same-id rule.
     """
-    found: dict[str, tuple[int, str]] = {}
+    found: dict[str, tuple[int, str, bool]] = {}
     fence = False
     parent = ""
     sub_n = 0
@@ -69,7 +74,7 @@ def checkbox_lines(text: str, mod) -> dict:
         if top:
             parent = top.group(2)
             sub_n = 0
-            found[parent] = (n, top.group(1))
+            found[parent] = (n, top.group(1), DROPPED_MARK.search(line) is not None)
             continue
         head = mod.HEAD.match(line)
         if head:
@@ -80,7 +85,7 @@ def checkbox_lines(text: str, mod) -> dict:
         if nest and parent:
             sub_n += 1
             sid = nest.group(3) or f"{parent}.s{sub_n}"
-            found[sid] = (n, nest.group(2))
+            found[sid] = (n, nest.group(2), DROPPED_MARK.search(line) is not None)
             continue
         if line.strip() and not line[0].isspace():
             parent = ""
@@ -88,7 +93,17 @@ def checkbox_lines(text: str, mod) -> dict:
     return found
 
 
-def _decide(box: str, parsed_status: str, issue_status: str) -> tuple[str, str]:
+def _decide(
+    box: str, parsed_status: str, issue_status: str, dropped: bool = False
+) -> tuple[str, str]:
+    # The mark is a drop, not a close and not a reopen. An open issue stays
+    # a report: the list must not hide a task whose issue is still live.
+    if dropped and box == " ":
+        if issue_status in OPEN:
+            return "report", "dropped-open"
+        if issue_status == "done":
+            return "report", "dropped-done"
+        return "aligned", "dropped"
     if box in ("x", "X"):
         if issue_status in OPEN:
             return "close", "ticked-open"
@@ -127,10 +142,10 @@ def reconcile(plan: dict, list_doc: dict, specs: Path, sha: str, mod) -> dict:
         if not tasks.is_file():
             continue
         specs_with[row["spec"]] = row["dir"]
-        for tid, (line, box) in checkbox_lines(
+        for tid, (line, box, dropped) in checkbox_lines(
             tasks.read_text(encoding="utf-8"), mod
         ).items():
-            boxes[(row["spec"], tid)] = (row["dir"], line, box)
+            boxes[(row["spec"], tid)] = (row["dir"], line, box, dropped)
     rows = []
     not_imported = 0
     for issue in issues:
@@ -163,10 +178,10 @@ def reconcile(plan: dict, list_doc: dict, specs: Path, sha: str, mod) -> dict:
                 }
             )
             continue
-        directory, line, box = boxes.get(
-            (spec, tid), (item.get("dir") or specs_with[spec], 0, "")
+        directory, line, box, dropped = boxes.get(
+            (spec, tid), (item.get("dir") or specs_with[spec], 0, "", False)
         )
-        action, why = _decide(box, item.get("status") or "", status)
+        action, why = _decide(box, item.get("status") or "", status, dropped)
         if action == "close" and line <= 0:
             action, why = "report", "ticked-no-line"
         comment = ""

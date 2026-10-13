@@ -14,4 +14,7 @@
 - [x] T010 fenced and not a task
 ```
 
+- [ ] T011 Still open, marked dropped. (dropped: SPL-18 discarded)
+- [ ] T012 Discarded in the hub and marked dropped. (dropped: SPL-19 discarded)
+- [ ] T013 Discarded in the hub, still unticked.
 ## T008 **Implemented** - heading only, no box.

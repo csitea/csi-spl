@@ -206,6 +206,8 @@ the channel feed. FR-ML-011.
 
 ## T015 — the live proof in CI
 
+- [x] T015 — the live proof in CI
+
 **Status**: Implemented (SPL-12) — workflow 30, deploy job, step "Live proof,
 signed in", after the deploy probe, per env: `./csi-spl-orc/run -a
 do_spl_wui_live_proof` (`csi-spl-orc/src/bash/run/spl-wui-live-proof.func.sh`)

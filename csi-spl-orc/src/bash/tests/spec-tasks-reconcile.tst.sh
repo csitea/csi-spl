@@ -62,6 +62,9 @@ issues = [
     row("SPL-14", "001", "T007.s1", "wip"),
     row("SPL-15", "001", "T007.s2", "done"),
     {"key": "SPL-17", "title": "[999 T001] other spec", "status": "wip", "labels": ["task"]},
+    row("SPL-18", "001", "T011", "wip"),
+    row("SPL-19", "001", "T012", "diss"),
+    row("SPL-20", "001", "T013", "diss"),
 ]
 if "T010" in {i["id"] for i in plan["items"]}:
     print("fixture parser kept the fenced T010", file=sys.stderr)
@@ -83,8 +86,8 @@ TABLE="$TMP/table.tsv"
 ) >"$OUT" 2>&1
 rc=$?
 [[ "$rc" -eq 0 ]] && pass "dry-run exits 0" || { fail "dry-run exit $rc"; sed -n 1,40p "$OUT"; }
-grep -q 'COUNTS close=4 report=5 gone=2 aligned=2 not_imported=4' "$OUT" \
-  && pass "counts: 4 close, 5 report, 2 gone, 2 aligned, 4 not imported" \
+grep -q 'COUNTS close=4 report=7 gone=2 aligned=3 not_imported=4' "$OUT" \
+  && pass "counts: 4 close, 7 report, 2 gone, 3 aligned, 4 not imported" \
   || { fail "counts"; grep COUNTS "$OUT" || true; }
 grep -q 'OK DRY_RUN nothing was written' "$OUT" && pass "dry-run writes nothing" || fail "dry-run log"
 [[ -s "$TABLE" ]] && pass "table file kept" || fail "table file missing"
@@ -113,6 +116,14 @@ traps=$(trap -p RETURN)
   && pass "control: Implemented on a heading is not a close" || fail "T008 $(cell SPL-8 4) $(cell SPL-8 5)"
 [[ "$(cell SPL-9 4)" == report && "$(cell SPL-9 5)" == ticked-not-open ]] \
   && pass "control: a discarded issue is not set to done" || fail "T006 $(cell SPL-9 4) $(cell SPL-9 5)"
+# dropped mark. Control: the same mark on an OPEN issue is still reported,
+# and an unticked discarded issue with no mark stays unticked-not-open.
+[[ "$(cell SPL-19 4)" == aligned && "$(cell SPL-19 5)" == dropped ]] \
+  && pass "dropped mark on a discarded issue is aligned" || fail "T012 $(cell SPL-19 4) $(cell SPL-19 5)"
+[[ "$(cell SPL-18 4)" == report && "$(cell SPL-18 5)" == dropped-open ]] \
+  && pass "control: a dropped mark on an open issue is still reported" || fail "T011 $(cell SPL-18 4) $(cell SPL-18 5)"
+[[ "$(cell SPL-20 4)" == report && "$(cell SPL-20 5)" == unticked-not-open ]] \
+  && pass "control: an unticked discarded issue with no drop mark is still reported" || fail "T013 $(cell SPL-20 4) $(cell SPL-20 5)"
 [[ "$(cell SPL-10 4)" == gone ]] && pass "control: a checkbox inside a fence is not a task" || fail "T010 $(cell SPL-10 4)"
 [[ "$(cell SPL-11 4)" == report && "$(cell SPL-11 5)" == partial-done ]] \
   && pass "control: a partial task is not reopened" || fail "T005 $(cell SPL-11 4) $(cell SPL-11 5)"
@@ -164,10 +175,10 @@ grep -q $'\tupdate\t.*\tdone$' "$CALLS" || awk -F '\t' '$1=="update" && $3!="don
   && pass "every update is status done" || fail "a write was not done"
 grep -q $'\tSPL-1\t'"$want"$ "$CALLS" && pass "SPL-1 comment is the line and the sha" || { fail "SPL-1 comment"; grep SPL-1 "$CALLS" || true; }
 untouched=0
-for k in SPL-2 SPL-3 SPL-4 SPL-5 SPL-6 SPL-7 SPL-8 SPL-9 SPL-10 SPL-11 SPL-15 SPL-16 SPL-17; do
+for k in SPL-2 SPL-3 SPL-4 SPL-5 SPL-6 SPL-7 SPL-8 SPL-9 SPL-10 SPL-11 SPL-15 SPL-16 SPL-17 SPL-18 SPL-19 SPL-20; do
   if grep -q $'\t'"$k"$'\t' "$CALLS"; then fail "control: $k was written"; else untouched=$((untouched + 1)); fi
 done
-[[ "$untouched" -eq 13 ]] && pass "control: report, gone, aligned and not-imported issues were not written" || fail "untouched=$untouched"
+[[ "$untouched" -eq 16 ]] && pass "control: report, gone, aligned and not-imported issues were not written" || fail "untouched=$untouched"
 grep -q 'field leaked' "$CALLS" && fail "an ISSUE_* field leaked into the update" || pass "control: the update sets only the status"
 undo=$(grep '^UNDO bash ' "$UNDO_OUT" | awk '{ print $3 }')
 [[ -n "$undo" && -x "$undo" ]] && pass "one undo command: $undo" || fail "undo command missing ($undo)"

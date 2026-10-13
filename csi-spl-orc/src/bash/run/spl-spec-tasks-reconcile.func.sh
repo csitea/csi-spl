@@ -11,6 +11,9 @@
 # @description a checkbox is reported and never written: an issue is never
 # @description reopened, and an issue that was not imported from a tasks.md
 # @description (no prefix, a doc import, a foreign id) is not in the table.
+# @description An unticked checkbox whose line carries `(dropped: SPL-N discarded)`
+# @description is aligned when that issue is discarded. The same mark on an
+# @description open issue is reported (`dropped-open`) and is never a close.
 # @description DRY_RUN=1 (the default) prints the table and the counts.
 # @description DRY_RUN=0 applies the closes, then writes a journal and one
 # @description undo command that puts each issue back.

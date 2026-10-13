@@ -26,17 +26,17 @@ here; each names its owner.
 
 ## Phase 3 — Deferred
 
-- [ ] T030 Planned (only if the owner asks) — the Graph photo as avatar (`User.Read` scope, authenticated fetch). FR-006.
-- [ ] T031 Planned (only if the owner answers OQ-M4 (b)) — certificate credential (`private_key_jwt`).
+- [ ] ~~T030~~ Planned (only if the owner asks) — the Graph photo as avatar (`User.Read` scope, authenticated fetch). FR-006. (dropped: SPL-593 discarded)
+- [ ] ~~T031~~ Planned (only if the owner answers OQ-M4 (b)) — certificate credential (`private_key_jwt`). (dropped: SPL-594 discarded)
 
 ## Phase 4 — Live (owner + deploy lane)
 
-- [ ] T040 Owner — Azure app `spool-hub-dev` per `azure-registration-runbook.md` §2; file `$HOME/.gcp/.csi/.spl/microsoft-client-dev.json`.
-- [ ] T041 Owner — the same for `spool-hub-prd`; `microsoft-client-prd.json`.
-- [ ] T042 dev: seed (FR-010), cnf client id + `SPOOL_HUB_AUTH_PROVIDERS` += `microsoft`, render, 030 apply.
-- [ ] T043 dev verify: SC-003 (providers, start Location, a real sign-in → `auth.login_ok`).
-- [ ] T044 prd: as T042.
-- [ ] T045 prd verify: as T043.
+- [ ] ~~T040~~ Owner — Azure app `spool-hub-dev` per `azure-registration-runbook.md` §2; file `$HOME/.gcp/.csi/.spl/microsoft-client-dev.json`. (dropped: SPL-595 discarded)
+- [ ] ~~T041~~ Owner — the same for `spool-hub-prd`; `microsoft-client-prd.json`. (dropped: SPL-596 discarded)
+- [ ] ~~T042~~ dev: seed (FR-010), cnf client id + `SPOOL_HUB_AUTH_PROVIDERS` += `microsoft`, render, 030 apply. (dropped: SPL-597 discarded)
+- [ ] ~~T043~~ dev verify: SC-003 (providers, start Location, a real sign-in → `auth.login_ok`). (dropped: SPL-598 discarded)
+- [ ] ~~T044~~ prd: as T042. (dropped: SPL-599 discarded)
+- [ ] ~~T045~~ prd: as T043. (dropped: SPL-600 discarded)
 
 ## Spec sync 2026-09-25 (CLE-34983, tree bbe04d26)
 

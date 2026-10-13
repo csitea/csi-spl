@@ -25,7 +25,17 @@ export function openIssueCount(issues) {
  */
 export function newIssueCount(issues) {
   if (!Array.isArray(issues)) return 0
-  return openIssueCount(issues.filter((i) => i && i.unopened === true))
+  return issues.filter(isNewIssue).length
+}
+
+/**
+ * One row the tab counts: open, a task (not an epic / feature) and marked
+ * unopened by the hub. The Issues filter "Unread" lists exactly these rows
+ * (owner HUM-10, t1 27b3ab77 msg de869df4: "an option in the filter to
+ * filter by unread issues"), so the list and the number never disagree.
+ */
+export function isNewIssue(i) {
+  return Boolean(i) && i.unopened === true && openIssueCount([i]) === 1
 }
 
 /** The window event the Issues page fires once it marked an issue opened. */

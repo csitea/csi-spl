@@ -1284,6 +1284,8 @@
     "filter_all": "Alla",
     "filter_me": "Jag",
     "filter_unassigned": "Ingen tilldelad",
+    "filter_unread": "Olästa",
+    "filter_unread_hint": "Bara ärendena som tilldelats dig och som du inte har öppnat än",
     "filter_clear": "Rensa filter",
     "count": "{n}",
     "no_assignee": "Ingen tilldelad",

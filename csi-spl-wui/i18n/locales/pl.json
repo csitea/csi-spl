@@ -1284,6 +1284,8 @@
     "filter_all": "Wszystkie",
     "filter_me": "Ja",
     "filter_unassigned": "Bez przypisania",
+    "filter_unread": "Nieprzeczytane",
+    "filter_unread_hint": "Tylko zgłoszenia przypisane do Ciebie, których jeszcze nie otwarto",
     "filter_clear": "Wyczyść filtry",
     "count": "{n}",
     "no_assignee": "Bez przypisania",

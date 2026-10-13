@@ -1284,6 +1284,8 @@
     "filter_all": "Alles",
     "filter_me": "Ik",
     "filter_unassigned": "Niemand",
+    "filter_unread": "Ongelezen",
+    "filter_unread_hint": "Alleen de issues die aan jou zijn toegewezen en die je nog niet hebt geopend",
     "filter_clear": "Filters wissen",
     "count": "{n}",
     "no_assignee": "Niemand",

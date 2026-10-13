@@ -1284,6 +1284,8 @@
     "filter_all": "Todas",
     "filter_me": "Yo",
     "filter_unassigned": "Sin responsable",
+    "filter_unread": "No leídas",
+    "filter_unread_hint": "Solo las incidencias asignadas a ti que aún no has abierto",
     "filter_clear": "Quitar filtros",
     "count": "{n}",
     "no_assignee": "Sin responsable",

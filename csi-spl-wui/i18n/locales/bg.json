@@ -1284,6 +1284,8 @@
     "filter_all": "Всички",
     "filter_me": "Аз",
     "filter_unassigned": "Без отговорник",
+    "filter_unread": "Непрочетени",
+    "filter_unread_hint": "Само задачите, възложени на вас, които още не сте отворили",
     "filter_clear": "Изчисти филтрите",
     "count": "{n}",
     "no_assignee": "Без отговорник",

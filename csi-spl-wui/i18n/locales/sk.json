@@ -1284,6 +1284,8 @@
     "filter_all": "Všetky",
     "filter_me": "Ja",
     "filter_unassigned": "Bez riešiteľa",
+    "filter_unread": "Neprečítané",
+    "filter_unread_hint": "Iba úlohy pridelené vám, ktoré ste ešte neotvorili",
     "filter_clear": "Zrušiť filtre",
     "count": "{n}",
     "no_assignee": "Bez riešiteľa",

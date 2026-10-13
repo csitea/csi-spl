@@ -1284,6 +1284,8 @@
     "filter_all": "Tümü",
     "filter_me": "Ben",
     "filter_unassigned": "Atanmamış",
+    "filter_unread": "Okunmamış",
+    "filter_unread_hint": "Yalnızca size atanmış ve henüz açmadığınız konular",
     "filter_clear": "Süzgeçleri temizle",
     "count": "{n}",
     "no_assignee": "Atanmamış",

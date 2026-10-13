@@ -1284,6 +1284,8 @@
     "filter_all": "Сите",
     "filter_me": "Јас",
     "filter_unassigned": "Без одговорен",
+    "filter_unread": "Непрочитани",
+    "filter_unread_hint": "Само задачите доделени на вас што сè уште не сте ги отвориле",
     "filter_clear": "Исчисти филтри",
     "count": "{n}",
     "no_assignee": "Без одговорен",

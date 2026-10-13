@@ -47,7 +47,8 @@
         <span v-if="item.id === 'flow' && flowLabel" class="sidebar-tab__count sidebar-tab__count--neutral" data-testid="sidebar-tab-flow-count" :aria-label="t('flow.badge', { n: flowLabel })">{{ flowLabel }}</span>
         <!-- owner (t1 f4e6c677): Channels and Direct messages carry the red number of new
              messages in the viewer's own discussions (the hub's Flow unread, split) -->
-        <span v-else-if="railCount(item.id)" class="sidebar-tab__count" :data-testid="'sidebar-tab-' + item.id + '-count'" :aria-label="t('flow.badge', { n: railCount(item.id) })">{{ railCount(item.id) }}</span>
+        <!-- t1 27b3ab77: a tap on the Issues number opens the list filtered to those issues -->
+        <span v-else-if="railCount(item.id)" class="sidebar-tab__count" :class="{ 'sidebar-tab__count--link': item.id === 'issues' }" :data-testid="'sidebar-tab-' + item.id + '-count'" :aria-label="t('flow.badge', { n: railCount(item.id) })" @click="onCountClick(item.id, $event)">{{ railCount(item.id) }}</span>
         <span v-else-if="tabUnread(item.id)" class="sidebar-tab__pip" :data-testid="'sidebar-tab-' + item.id + '-unread'" aria-hidden="true" />
       </button>
       </div>
@@ -130,7 +131,7 @@
             <UiIcon :name="item.icon" :size="20" />
             <span class="sidebar-tab__label">{{ t(item.labelKey) }}</span>
             <span v-if="item.id === 'flow' && flowLabel" class="sidebar-tab__count sidebar-tab__count--neutral">{{ flowLabel }}</span>
-            <span v-else-if="railCount(item.id)" class="sidebar-tab__count">{{ railCount(item.id) }}</span>
+            <span v-else-if="railCount(item.id)" class="sidebar-tab__count" :class="{ 'sidebar-tab__count--link': item.id === 'issues' }" @click="onCountClick(item.id, $event)">{{ railCount(item.id) }}</span>
             <span v-else-if="tabUnread(item.id)" class="sidebar-tab__pip" />
           </button>
           <NuxtLink class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')">
@@ -1079,11 +1080,19 @@ function tabUnread(id: SideTab) {
 }
 /* Flow stays on this page and mixes the
    lists. Direct messages and channels only swap the sidebar. */
-async function selectTab(next: SideTab) {
+/* owner HUM-10 (t1 27b3ab77 msg 3aee57ba): "no way for me to find out what
+   these three issues are" - the Issues number opens the list filtered to
+   exactly the issues it counts (?unread=1); the rest of the tab stays the tab */
+function onCountClick(id: SideTab, ev: Event) {
+  if (id !== ISSUES_TAB) return
+  ev.stopPropagation()
+  void selectTab(id, { unread: '1' })
+}
+async function selectTab(next: SideTab, query?: Record<string, string>) {
   /* CLE-77886: on a phone, a tap on the section already selected above its
      own page shows that section's list at level 1 (the Issues epics, ...),
      where the page's Back chevron used to lead */
-  if (stripOnly.value && next === tab.value && !onRailLink.value) {
+  if (!query && stripOnly.value && next === tab.value && !onRailLink.value) {
     mobileStack.home()
     return
   }
@@ -1109,7 +1118,8 @@ async function selectTab(next: SideTab) {
   }
   if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
   if (next === ARCHIVE_TAB && tabForPath(route.path) !== ARCHIVE_TAB) await navigateTo(localePath('/archive'))
-  if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
+  if (next === ISSUES_TAB && query) await navigateTo({ path: localePath('/issues'), query })
+  else if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
   /* CLE-77794: People / Agents land on their index (the "pick someone" card in
      the middle pane); a click on a row then opens /people/<id> or /agents/<id>. */
   if (next === PEOPLE_TAB && !phoneList && tabForPath(route.path) !== PEOPLE_TAB) await navigateTo(localePath('/people'))
@@ -1798,6 +1808,10 @@ async function onCreate() {
   text-align: center;
   pointer-events: none;
 }
+/* t1 27b3ab77: the Issues number is its own target (the filtered list); a
+   wider invisible edge keeps it easy to hit with a finger */
+.sidebar-tab__count--link { pointer-events: auto; cursor: pointer; }
+.sidebar-tab__count--link::before { content: ''; position: absolute; inset: -6px; }
 /* owner (t1 f4e6c677): the Flow number is no alarm - the theme's grey, a
    step darker than the background (lighter on the dark theme), edged */
 .sidebar-tab__count--neutral {

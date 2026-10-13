@@ -5,7 +5,7 @@
 // assigned issues.
 // Run: node tests/unit/blocker-issue.test.mjs
 import { BLOCKER_KEY_MINUTES, BLOCKER_MINUTES_DEFAULT, BLOCKER_MINUTES_RANGE, blockerMinutesOf, blockerMinutesPatch, blockerMinutesValid } from '../../src/utils/blocker-settings.mjs'
-import { ISSUE_OPENED_EVENT, OPEN_ISSUE_STATUSES, newIssueCount, openIssueCount, startMyIssuesCount } from '../../src/utils/my-issues-count.mjs'
+import { ISSUE_OPENED_EVENT, OPEN_ISSUE_STATUSES, isNewIssue, newIssueCount, openIssueCount, startMyIssuesCount } from '../../src/utils/my-issues-count.mjs'
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
@@ -54,6 +54,13 @@ ok('CONTROL: nothing to count is 0', openIssueCount(undefined) === 0 && openIssu
 // SPL-1559 (owner t1 7edebc75): the tab counts exactly the rows the list marks new
 ok('SPL-1559: counts only the open issues not opened yet', newIssueCount(rows) === 2, String(newIssueCount(rows)))
 ok('SPL-1559 CONTROL: an opened open issue is not counted', newIssueCount([rows[5]]) === 0 && newIssueCount(undefined) === 0)
+// SPL-1595 (owner t1 27b3ab77 msg de869df4): the Issues filter "Unread" lists
+// exactly the rows the badge counts - one rule, isNewIssue
+const unread = rows.filter(isNewIssue).map((r) => r.key)
+ok('SPL-1595: Unread lists the open, unopened tasks only', same(unread, ['SPL-1', 'SPL-2']), JSON.stringify(unread))
+ok('SPL-1595: the filtered list is as long as the badge', unread.length === newIssueCount(rows))
+ok('SPL-1595 CONTROL: done, diss, an epic, an opened row and nothing are not unread',
+  [rows[2], rows[3], rows[4], rows[5], null, undefined].every((r) => !isNewIssue(r)))
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let list = rows.slice(0, 1)

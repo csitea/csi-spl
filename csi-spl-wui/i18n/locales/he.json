@@ -1284,6 +1284,8 @@
     "filter_all": "הכל",
     "filter_me": "אני",
     "filter_unassigned": "בלי אחראי",
+    "filter_unread": "לא נקראו",
+    "filter_unread_hint": "רק הסוגיות שהוקצו לך ושעדיין לא פתחת",
     "filter_clear": "נקה מסננים",
     "count": "{n}",
     "no_assignee": "בלי אחראי",

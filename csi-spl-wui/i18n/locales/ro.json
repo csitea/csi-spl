@@ -1284,6 +1284,8 @@
     "filter_all": "Toate",
     "filter_me": "Eu",
     "filter_unassigned": "Fără responsabil",
+    "filter_unread": "Necitite",
+    "filter_unread_hint": "Doar problemele atribuite ție pe care nu le-ai deschis încă",
     "filter_clear": "Șterge filtrele",
     "count": "{n}",
     "no_assignee": "Fără responsabil",

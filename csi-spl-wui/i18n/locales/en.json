@@ -1284,6 +1284,8 @@
     "filter_all": "All",
     "filter_me": "Me",
     "filter_unassigned": "No assignee",
+    "filter_unread": "Unread",
+    "filter_unread_hint": "Only the issues assigned to you that you have not opened yet",
     "filter_clear": "Clear filters",
     "count": "{n}",
     "no_assignee": "No assignee",

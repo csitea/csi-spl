@@ -62,6 +62,9 @@
             <span>{{ t('issues_views.' + v) }}</span>
           </button>
         </div>
+        <!-- owner HUM-10 (t1 27b3ab77 msg de869df4): "an option in the filter to
+             filter by unread issues" - exactly the rows the Issues tab counts -->
+        <button v-if="!phone" type="button" class="btn ghost issues-head__clear" data-test="issues-filter-unread" :aria-pressed="unreadF ? 'true' : 'false'" :title="t('issues.filter_unread_hint')" @click="unreadF = !unreadF">{{ t('issues.filter_unread') }}</button>
         <button v-if="!phone" type="button" class="btn ghost issues-head__clear" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
         <!-- owner b82f3853 (SPL-1226): the epic/feature actions button, on the
              title row next to the view toggle + Clear filters. It acts on the
@@ -600,6 +603,12 @@
           <h3>{{ t('issues_mobile.filters') }}</h3>
           <UiCloseButton side="end" :size="20" class="icon-btn issues-sheet__x" data-test="issues-filter-sheet-close" @click="filtersOpen = false" />
         </header>
+        <!-- t1 27b3ab77: Unread, the rows the Issues tab counts -->
+        <div class="issues-sheet__f">
+          <div class="issues-sheet__st">
+            <button type="button" class="issues-chip" data-test="issues-filter-unread-m" :aria-pressed="unreadF ? 'true' : 'false'" :title="t('issues.filter_unread_hint')" @click="unreadF = !unreadF">{{ t('issues.filter_unread') }}</button>
+          </div>
+        </div>
         <!-- the status filter keeps its hints (topic e00da93b): one tappable row per status -->
         <div class="issues-sheet__f" role="radiogroup" :aria-label="t('issues.filter_status')" data-test="issues-filter-status-m">
           <span>{{ t('issues.filter_status') }}</span>
@@ -1109,7 +1118,7 @@ import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-
 import { keepShown, pageState, rangeSelect, runBulk, toggleAll, toggleKey } from '~/utils/issues-bulk.mjs'
 import type { BulkAction } from '~/components/IssuesBulkBar.vue'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel, unopenedCandidate } from '~/utils/issues.mjs'
-import { ISSUE_OPENED_EVENT } from '~/utils/my-issues-count.mjs'
+import { ISSUE_OPENED_EVENT, isNewIssue } from '~/utils/my-issues-count.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
 import { issueShortcutFor, issueShortcutHint, issueShortcutItem } from '~/utils/msg-shortcuts.mjs'
@@ -1206,6 +1215,10 @@ const levelF = ref('')
 const assigneeF = ref('')
 const labelF = ref('')
 const dueF = ref('')
+/* t1 27b3ab77: ?unread=1, the issues the Issues tab badge counts (a tap on
+   the badge opens the list with it on) */
+const unreadOn = () => String(route.query.unread || '') === '1'
+const unreadF = ref(unreadOn())
 const cursorKey = ref('')
 const openKey = ref('')
 const creating = ref(false)
@@ -1366,6 +1379,8 @@ function serverFilter(): IssueFilter {
   if (priorityF.value !== '') f.priority = [Number(priorityF.value)]
   if (levelF.value !== '') f.level = [Number(levelF.value)]
   if (assigneeF.value) f.assignee = [assigneeF.value]
+  /* an unread row is always the viewer's: the badge reads the same list */
+  else if (unreadF.value) f.assignee = ['me']
   if (labelF.value) f.label = [labelF.value]
   /* one day: issues due on or before its last minute */
   const before = dueF.value ? localInputToDeadline(`${dueF.value}:59`) : ''
@@ -1426,7 +1441,8 @@ async function pickView(v: IssuesView) {
   viewLocal.value = v
 }
 const groups = computed(() => {
-  const kept = groupIssues(issues.value, { sort: 'updated', filter: serverFilter(), me: meId(), by: 'none' })[0].issues
+  const base = unreadF.value ? issues.value.filter(isNewIssue) : issues.value
+  const kept = groupIssues(base, { sort: 'updated', filter: serverFilter(), me: meId(), by: 'none' })[0].issues
   const rows = sortSheet(kept, sheetSort.value, { name: person, labelName: labelText })
   if (viewBy.value !== 'status') return [{ status: '', count: rows.length, issues: rows }]
   /* Linear's "group by status": every status in the workflow order, its
@@ -1517,7 +1533,7 @@ stack.rightPanel(() => phone.value && Boolean(form.value), closeDetail)
 stack.overlay(() => phone.value && filtersOpen.value, () => { filtersOpen.value = false })
 stack.overlay(() => phone.value && sortOpen.value, () => { sortOpen.value = false })
 stack.overlay(() => phone.value && Boolean(menu.value), () => { menu.value = null })
-const filtersActive = computed(() => Boolean(statusF.value || priorityF.value || levelF.value || assigneeF.value || labelF.value || dueF.value))
+const filtersActive = computed(() => Boolean(unreadF.value || statusF.value || priorityF.value || levelF.value || assigneeF.value || labelF.value || dueF.value))
 const sortChoices = computed(() => [
   { value: ':', label: t('issues_mobile.sort_default') },
   ...sheetColumns.value.flatMap((c) => [
@@ -1554,10 +1570,12 @@ async function load() {
   loadingMore.value = false
   try {
     const { sort, dir } = serverOrder.value
-    const data = await withSessionRetry(api, () => api.listIssues({ filter: serverFilter(), sort, dir, limit: ISSUE_PAGE }))
+    /* Unread filters on the client, so it reads the whole list, as the badge does */
+    const limit = unreadF.value ? undefined : ISSUE_PAGE
+    const data = await withSessionRetry(api, () => api.listIssues({ filter: serverFilter(), sort, dir, limit }))
     if (seq !== loadSeq) return
     nextCursor.value = data.next_cursor || ''
-    matchTotal.value = Number((data as { total?: number }).total) || 0
+    matchTotal.value = unreadF.value ? (data.issues || []).filter((row) => isNewIssue(normalizeIssue(row))).length : Number((data as { total?: number }).total) || 0
     issues.value = (data.issues || []).map((row) => normalizeIssue(row))
     labels.value = (data.labels || []).map((row) => normalizeLabel(row))
     epics.value = data.epics || []
@@ -1598,6 +1616,7 @@ function pickStatus(s: string) {
 }
 function clearFilters() {
   sheetSort.value = { col: '', dir: '' }
+  unreadF.value = false
   statusF.value = ''
   statusOpen.value = false
   priorityF.value = ''
@@ -2493,7 +2512,7 @@ async function selectAllMatching() {
 /* the page box's dash: some rows shown are checked */
 watchEffect(() => { if (pageBoxEl.value) pageBoxEl.value.indeterminate = bulkPage.value === 'some' })
 /* another filter is another list: nothing stays checked (Gmail) */
-watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, epicF], () => clearSelection())
+watch([unreadF, statusF, priorityF, levelF, assigneeF, labelF, dueF, epicF], () => clearSelection())
 /* a row that left the list (deleted, archived, live) leaves the selection */
 watch(issues, (rows) => {
   const next = keepShown(selected.value, rows.map((i) => i.key))
@@ -2874,7 +2893,17 @@ function runIssueShortcut(letter: string) {
   if (id) runIssueItem(id, tg, pt)
 }
 
-watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, serverOrderKey, epicF], () => { void load() })
+watch([unreadF, statusF, priorityF, levelF, assigneeF, labelF, dueF, serverOrderKey, epicF], () => { void load() })
+/* ?unread=1 follows the filter, and the badge's link sets the filter */
+watch(() => route.query.unread, () => { unreadF.value = unreadOn() })
+watch(unreadF, (on) => {
+  if (!import.meta.client || on === unreadOn()) return
+  const query: Record<string, string> = {}
+  new URL(window.location.href).searchParams.forEach((v, k) => { query[k] = v })
+  if (on) query.unread = '1'
+  else delete query.unread
+  void router.replace({ query })
+})
 watch(() => session.state, () => { void load() }, { immediate: true })
 async function openLinkedIssue() {
   const key = issueLinkKey()
@@ -3058,6 +3087,8 @@ onUnmounted(() => {
    right after the toggle with the normal header gap. */
 .issues-head__views { margin-inline-start: 49px; }
 .issues-head__clear { flex: 0 0 auto; }
+/* t1 27b3ab77: Unread on reads as a chosen filter */
+.issues-head__clear[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-accent); }
 /* owner b82f3853: the epic/feature actions button (three-line menu glyph).
    "not next to it, but just 5 mm right from the screen edge" - it sits at the
    inline END of the title row, ~5 mm (19px @96dpi) from the content's right

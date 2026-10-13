@@ -1284,6 +1284,8 @@
     "filter_all": "Όλα",
     "filter_me": "Εγώ",
     "filter_unassigned": "Χωρίς υπεύθυνο",
+    "filter_unread": "Μη αναγνωσμένα",
+    "filter_unread_hint": "Μόνο τα θέματα που σας ανατέθηκαν και δεν έχετε ανοίξει ακόμη",
     "filter_clear": "Καθαρισμός φίλτρων",
     "count": "{n}",
     "no_assignee": "Χωρίς υπεύθυνο",

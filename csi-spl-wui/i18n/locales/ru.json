@@ -1284,6 +1284,8 @@
     "filter_all": "Все",
     "filter_me": "Я",
     "filter_unassigned": "Без исполнителя",
+    "filter_unread": "Непрочитанные",
+    "filter_unread_hint": "Только задачи, назначенные вам, которые вы ещё не открывали",
     "filter_clear": "Сбросить фильтры",
     "count": "{n}",
     "no_assignee": "Без исполнителя",

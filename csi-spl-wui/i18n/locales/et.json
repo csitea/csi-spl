@@ -1284,6 +1284,8 @@
     "filter_all": "Kõik",
     "filter_me": "Mina",
     "filter_unassigned": "Vastutajata",
+    "filter_unread": "Lugemata",
+    "filter_unread_hint": "Ainult sulle määratud teemad, mida sa pole veel avanud",
     "filter_clear": "Tühjenda filtrid",
     "count": "{n}",
     "no_assignee": "Vastutajata",

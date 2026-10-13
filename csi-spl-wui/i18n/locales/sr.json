@@ -1284,6 +1284,8 @@
     "filter_all": "Сви",
     "filter_me": "Ја",
     "filter_unassigned": "Без задуженог",
+    "filter_unread": "Непрочитано",
+    "filter_unread_hint": "Само задаци додељени вама које још нисте отворили",
     "filter_clear": "Обриши филтере",
     "count": "{n}",
     "no_assignee": "Без задуженог",

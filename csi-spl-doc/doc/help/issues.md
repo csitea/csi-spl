@@ -56,6 +56,10 @@ ascending** (priority 1 at the top).
 ## 5. Filtering
 
 - **Filters** narrow the list by status, priority, level, assignee or label.
+- **Unread** shows only the issues assigned to you that you have not opened
+  yet: exactly the ones the number on the **Issues** tab counts. Click (or tap)
+  that number to open the list with **Unread** on; an issue you open leaves the
+  list and the number drops by one. The link is `/issues?unread=1`.
 - **Epics** — pick an epic to see only its children (a chip strip on a phone).
 - **Clear** removes every active filter at once.
 

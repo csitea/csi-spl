@@ -26,4 +26,16 @@ describe('spa loading template vs the CSP hasher', () => {
     assert.doesNotMatch(outside, /<\/?(style|script)\b/i)
     assert.doesNotMatch(tpl, /\sstyle\s*=/i)
   })
+
+  // SPL-1749 (ui panel item 3): the skeleton's sidebar is the shell's, so
+  // nothing moves sideways when the shell replaces it, and the bar carries
+  // no brand text the shell's top bar does not show in that place
+  it('the sidebar box is --sidebar-w wide and the bar holds no brand text', () => {
+    const vars = readFileSync(new URL('../../src/assets/css/variables.css', import.meta.url), 'utf8')
+    const shell = vars.match(/--sidebar-w:\s*(\d+)px/)?.[1]
+    const boot = tpl.match(/\.spl-boot__side\{[^}]*width:(\d+)px/)?.[1]
+    assert.ok(shell, 'variables.css declares --sidebar-w')
+    assert.equal(boot, shell)
+    assert.doesNotMatch(tpl, /spl-boot__brand|spool-hub<\//)
+  })
 })

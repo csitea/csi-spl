@@ -103,8 +103,19 @@
       </div>
       <template #fallback>
         <!-- 047 W2: the prerendered shell is the document a stranger's first
-             request gets, so the way in to /checkout rides in it -->
-        <div class="login"><p class="muted">{{ $t('app.loading') }}</p><BuyWorkspaceLink /></div>
+             request gets, so the way in to /checkout rides in it.
+             SPL-1749 (ui panel item 3): in the outline of the shell - the
+             top bar and the sidebar boxes of spec 109, the sidebar at
+             --sidebar-w and gone at <= 820 px as in 200.html's skeleton -
+             so neither the prerender nor the frame between that skeleton
+             and the shell moves anything when the shell mounts. -->
+        <div class="app-frame">
+          <div class="shell-late shell-late--bar" aria-hidden="true" />
+          <div class="spool-shell">
+            <div class="shell-late shell-late--side" aria-hidden="true" />
+            <div class="login"><p class="muted">{{ $t('app.loading') }}</p><BuyWorkspaceLink /></div>
+          </div>
+        </div>
       </template>
     </ClientOnly>
     <!-- Renders only for a human who ticked "Debug pane" in Settings →
@@ -471,6 +482,18 @@ const {
 }
 .shell-late--bar {
   flex: 0 0 var(--top-bar-h);
+}
+.shell-late--side {
+  flex: 0 0 var(--sidebar-w);
+}
+.shell-late--side + .login {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+@media (max-width: 820px) {
+  .shell-late--side {
+    display: none;
+  }
 }
 .layout {
   max-width: 100%;

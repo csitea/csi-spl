@@ -46,7 +46,7 @@
 # @param OD_SLOT_TTL (optional) - seconds a slot holder may be silent before another box takes it, default 300
 # @param OD_OUT_RETRY (optional) - seconds a vendor stays out when its banner gives no reset, default 3600
 # @param OD_BACK_CLAUDE_N / OD_BACK_GROK_N (optional) - the target the BACK step restores, default 2 / 2
-# @param OD_BY (optional) - the agent id this box's supervisor writes as (pool --set, notes), default c-001
+# @param OD_BY (optional) - the agent id this box's supervisor writes as (pool --set, notes), default role seat 1 (spl_role_seat 1)
 # @param OD_WORKDIR (optional) - a new seat's workdir, default this checkout
 # @param OD_FLEET / OD_BOX / OD_HUB_CMD / OD_SEND (optional) - as do_spl_od_seat
 # @param OD_SPAWN (optional, tests) - replaces spawn-window.sh: gets <vendor> auto <workdir> <seed> <slug>, prints "<ID> <PANE>"
@@ -59,12 +59,13 @@
 #------------------------------------------------------------------------------
 declare -F spl_od_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-od-seat.func.sh"
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 
 OD_VENDORS="claude grok"
 
 do_spl_od_pool_supervise() {
   spl_od_init || return 1
-  : "${OD_SLOT_TTL:=300}" "${OD_OUT_RETRY:=3600}" "${OD_BACK_CLAUDE_N:=2}" "${OD_BACK_GROK_N:=2}" "${OD_BY:=c-001}"
+  : "${OD_SLOT_TTL:=300}" "${OD_OUT_RETRY:=3600}" "${OD_BACK_CLAUDE_N:=2}" "${OD_BACK_GROK_N:=2}" "${OD_BY:=$(spl_role_seat 1)}"
   local k
   for k in OD_SLOT_TTL OD_OUT_RETRY OD_BACK_CLAUDE_N OD_BACK_GROK_N; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a number, got: '${!k}'"; return 1; }

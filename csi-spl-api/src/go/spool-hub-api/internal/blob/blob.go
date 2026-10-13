@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -308,7 +309,7 @@ func (g *GCS) PutReader(parent context.Context, key string, r io.Reader) (int64,
 // already returned, and the caller's contract is "nothing is left at key",
 // not "a delete was issued". Error path only; it costs nothing on success.
 func (g *GCS) deleteUntilGone(ctx context.Context, key string) error {
-	const attempts, gap = 20, 50 * time.Millisecond // <= 1s
+	const attempts, gap = 20, 50 * timeutil.Millisecond // <= 1s
 	var last error
 	for i := 0; i < attempts; i++ {
 		if err := g.bucket.Object(key).Delete(ctx); err != nil && !errors.Is(err, storage.ErrObjectNotExist) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/teambition/rrule-go"
@@ -66,7 +67,7 @@ func NewSeries(eventID, rule string, start, end time.Time, zone string) (Series,
 		return Series{}, badRule("%v", err)
 	}
 	s := Series{EventID: eventID, Start: start, End: end, Rule: r, Loc: loc, rr: rr}
-	if s.rr.After(start.Add(-time.Second), true).IsZero() {
+	if s.rr.After(start.Add(-timeutil.Second), true).IsZero() {
 		return Series{}, badRule("the rule yields no occurrence")
 	}
 	return s, nil

@@ -48,7 +48,7 @@ const FeatureBackfill = wire.FeatureBackfill
 
 // backfillEvery is how often the sweeper looks for seats owed a back-fill on
 // the connected boxes.
-const backfillEvery = time.Minute
+const backfillEvery = timeutil.Minute
 
 // defaultBackfillWindow is BackfillWindow when Options leaves it zero.
 const defaultBackfillWindow = 7 * timeutil.Day

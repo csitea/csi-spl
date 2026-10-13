@@ -36,6 +36,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -229,7 +230,7 @@ func (d openDoor) Register(ctx context.Context, id auth.Identity, tenant string)
 		d.st.CreateTenant(ctx, store.Tenant{ID: tenant, RootPubKey: pub}) //nolint:errcheck // exists = fine
 		now := time.Now().UTC()
 		if err := d.st.PutInvite(ctx, store.Invite{TenantID: tenant, Email: id.Email, InvitedBy: store.AdmittedOperator,
-			ExpiresAt: now.Add(time.Minute)}, now); err != nil {
+			ExpiresAt: now.Add(timeutil.Minute)}, now); err != nil {
 			return "", err
 		}
 	}

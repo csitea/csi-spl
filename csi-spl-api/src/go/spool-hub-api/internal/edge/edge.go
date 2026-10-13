@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -140,7 +141,7 @@ type Guard struct {
 // NewGuard returns a Guard; now nil = time.Now.
 func NewGuard(l Limits, log zerolog.Logger, now func() time.Time) *Guard {
 	if l.Window <= 0 {
-		l.Window = time.Minute
+		l.Window = timeutil.Minute
 	}
 	return &Guard{l: l, win: NewWindow(l.Window, now), log: log, open: map[string]int{}}
 }

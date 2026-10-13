@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -323,7 +324,7 @@ const (
 	avatarMaxRedirects = 3
 )
 
-var AvatarTimeout = 5 * time.Second // a var so tests can shorten it
+var AvatarTimeout = 5 * timeutil.Second // a var so tests can shorten it
 
 var errAvatar = errors.New("auth: avatar not fetched")
 

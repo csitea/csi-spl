@@ -269,7 +269,7 @@ func (p *parsed) setLength(part, word string) error {
 	m := durRe.FindStringSubmatch(word)
 	h, _ := strconv.Atoi(m[1])
 	mins, _ := strconv.Atoi(m[2])
-	d := time.Duration(h)*timeutil.Hour + time.Duration(mins)*time.Minute
+	d := time.Duration(h)*timeutil.Hour + time.Duration(mins)*timeutil.Minute
 	switch {
 	case d <= 0:
 		return refuse(part, "is not a duration (for 30m, for 2h)")

@@ -34,7 +34,7 @@ import (
 
 // lifecycleEventSkew is how far ahead of the hub's clock a box's event may be
 // stamped; a resent event from the box's local spool is older, never newer.
-const lifecycleEventSkew = 5 * time.Minute
+const lifecycleEventSkew = 5 * timeutil.Minute
 
 func (s *Server) routeAgentLifecycle(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/tenant/agent-lifecycle", s.handleAgentLifecycle)

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/coder/websocket"
@@ -34,7 +35,7 @@ import (
 // Single-shot dial retry budget. Package vars so tests can shorten them.
 var (
 	dialRetries       = 2                      // retries after the first attempt
-	dialRetryBase     = 250 * time.Millisecond // first ceiling of the jitter
+	dialRetryBase     = 250 * timeutil.Millisecond // first ceiling of the jitter
 	dialRetryMax      = time.Second            // cap of the jittered part
 	dialRetryAfterMax = 2 * time.Second        // a CLI waits at most this for Retry-After
 )

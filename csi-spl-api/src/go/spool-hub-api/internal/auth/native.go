@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -208,7 +209,7 @@ func (n *native) mailLocale(ctx context.Context, email, credLocale, reqLocale st
 }
 
 func (n *native) ctx(r *http.Request) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(r.Context(), 10*time.Second)
+	return context.WithTimeout(r.Context(), 10*timeutil.Second)
 }
 
 // answer adds 200 {"debug_token"} when debug tokens are on and a token

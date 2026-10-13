@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -39,7 +40,7 @@ import (
 // submitDialTimeout bounds the connect to a LOCAL socket. It is short on
 // purpose: a sidecar that is not listening must cost a `spool send` almost
 // nothing before it falls back to the 220 ms dial it would have paid anyway.
-const submitDialTimeout = 250 * time.Millisecond
+const submitDialTimeout = 250 * timeutil.Millisecond
 
 // submitReplyTimeout bounds the wait for the sidecar's answer. It is the hub
 // round trip plus the sidecar's own queueing, generously: exceeding it means

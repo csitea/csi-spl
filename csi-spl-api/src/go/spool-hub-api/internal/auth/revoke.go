@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -24,7 +25,7 @@ type SessionRevoker interface {
 
 // revokeRefresh bounds how long another instance keeps honouring a session
 // this one revoked.
-const revokeRefresh = 15 * time.Second
+const revokeRefresh = 15 * timeutil.Second
 
 type revocations struct {
 	src     SessionRevoker // nil = this instance's memory only (tests, lde)
@@ -54,12 +55,12 @@ func (v *revocations) dead(ctx context.Context, s Session, now time.Time) bool {
 	v.mu.Unlock()
 	switch {
 	case first:
-		c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*timeutil.Second)
 		v.load(c, now)
 		cancel()
 	case stale:
 		go func() {
-			c, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			c, cancel := context.WithTimeout(context.Background(), 5*timeutil.Second)
 			defer cancel()
 			v.load(c, now)
 		}()

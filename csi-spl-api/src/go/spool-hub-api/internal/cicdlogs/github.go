@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -21,7 +22,7 @@ func (f HTTPFetcher) client() *http.Client {
 	if f.Client != nil {
 		return f.Client
 	}
-	return &http.Client{Timeout: 60 * time.Second, CheckRedirect: stripAuthRedirect}
+	return &http.Client{Timeout: 60 * timeutil.Second, CheckRedirect: stripAuthRedirect}
 }
 
 func stripAuthRedirect(req *http.Request, via []*http.Request) error {

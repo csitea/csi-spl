@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -97,7 +98,7 @@ func (h *Handler) facebookUnlink(w http.ResponseWriter, r *http.Request, event s
 		return req, false
 	}
 	if h.unlink != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*timeutil.Second)
 		defer cancel()
 		if err := h.unlink.Unlink(ctx, ProviderFacebook, req.UserID); err != nil {
 			h.log.Error().Err(err).Str("event", event).Str("subject", digest(req.UserID)).Msg("auth.facebook_unlink_failed")

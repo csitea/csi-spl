@@ -13,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
@@ -41,7 +42,7 @@ const (
 	docTreePath     = "/v1/workspace/docs/tree.json"
 	docMarkdownType = "text/markdown; charset=utf-8"
 	docMaxBytes     = 1 << 20 // hub MaxWorkspaceDoc
-	docRESTTimeout  = 60 * time.Second
+	docRESTTimeout  = 60 * timeutil.Second
 )
 
 // workspaceDocRe is the hub's ValidWorkspaceDocPath (internal/hub docsPathRe):

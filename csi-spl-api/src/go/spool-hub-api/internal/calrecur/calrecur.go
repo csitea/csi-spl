@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/teambition/rrule-go"
@@ -261,7 +262,7 @@ func (r Rule) option(start time.Time, loc *time.Location) rrule.ROption {
 	}
 	if r.untilDate != "" {
 		d, _ := time.ParseInLocation("20060102", r.untilDate, loc) // checked in setUntil
-		opt.Until = d.AddDate(0, 0, 1).Add(-time.Second)
+		opt.Until = d.AddDate(0, 0, 1).Add(-timeutil.Second)
 	}
 	return opt
 }

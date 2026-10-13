@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 )
 
@@ -47,7 +48,7 @@ const (
 	// labelPKCE derives the PKCE verifier key from the session key.
 	labelPKCE = "spool-auth-pkce-v1"
 	// idTokenSkew tolerates clock drift on exp / nbf / iat.
-	idTokenSkew = 5 * time.Minute
+	idTokenSkew = 5 * timeutil.Minute
 )
 
 // Microsoft authority keywords (SPOOL_HUB_AUTH_MICROSOFT_TENANT).

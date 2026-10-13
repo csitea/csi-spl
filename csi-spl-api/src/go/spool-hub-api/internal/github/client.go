@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -24,7 +25,7 @@ import (
 
 // TokenTTL is how long an installation token is reused. GitHub issues it for
 // 1 h; the margin covers clock skew and a slow request (spec §9).
-const TokenTTL = 50 * time.Minute
+const TokenTTL = 50 * timeutil.Minute
 
 // Config names the App, the repo and the branch. API is cnf
 // env.docs.repo_edit.github_api (a fake in every test); Key is the PEM the

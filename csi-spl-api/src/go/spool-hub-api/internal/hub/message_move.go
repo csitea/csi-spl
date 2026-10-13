@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"spool-hub-api/internal/timeutil"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -305,7 +306,7 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 	}
 	at := now.UTC().Truncate(time.Second)
 	res, err := s.o.Store.MoveMessage(r.Context(), c.t.ID, c.m.MsgID, task, card.Channel, c.from, at,
-		card.ReceivedAt.Add(time.Millisecond))
+		card.ReceivedAt.Add(timeutil.Millisecond))
 	if errors.Is(err, store.ErrMoveCycle) {
 		writeRefusal(w, "cycle")
 		return

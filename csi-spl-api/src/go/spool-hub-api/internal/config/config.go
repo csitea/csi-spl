@@ -624,7 +624,7 @@ func (h *Hub) checkStorage() error {
 // shortest capability the hub issues a person (the upload token), no longer
 // than a day so a leaked token is not valid for days.
 const (
-	JoinTokenTTLMin = 5 * time.Minute
+	JoinTokenTTLMin = 5 * timeutil.Minute
 	JoinTokenTTLMax = timeutil.Day
 )
 
@@ -695,7 +695,7 @@ func (h *Hub) checkViews() error {
 	if h.DemoMaxLive < 1 {
 		return fmt.Errorf("SPOOL_HUB_DEMO_MAX_LIVE %d must be at least 1", h.DemoMaxLive)
 	}
-	if h.DemoMaxStay < time.Minute {
+	if h.DemoMaxStay < timeutil.Minute {
 		return fmt.Errorf("SPOOL_HUB_DEMO_MAX_STAY %v must be at least 1m", h.DemoMaxStay)
 	}
 	if h.DemoAgentTurns < 1 {
@@ -750,7 +750,7 @@ func (h *Hub) checkEmbed() error {
 		{"HITS_WINDOW", h.EmbedHitsWindow}, {"BAN_FOR", h.EmbedBanFor},
 		{"TOKEN_IDLE_TTL", h.EmbedTokenIdleTTL}, {"TOKEN_MAX_AGE", h.EmbedTokenMaxAge},
 	} {
-		if d.v < time.Minute {
+		if d.v < timeutil.Minute {
 			return fmt.Errorf("SPOOL_HUB_EMBED_%s %v must be at least 1m", d.name, d.v)
 		}
 	}

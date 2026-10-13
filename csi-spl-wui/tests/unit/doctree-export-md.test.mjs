@@ -16,14 +16,14 @@ import ts from 'typescript'
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const DIR = 'src/components/workspace-docs'
 
-/** -doctree-export.ts and -doc-pics.ts transpiled side by side, then imported */
+/** -doctree-export.ts and its imports (-doc-pics.ts, -doc-outline.ts) transpiled side by side, then imported */
 async function loadExport() {
   const tmp = mkdtempSync(join(tmpdir(), 'doctree-export-'))
   try {
-    for (const name of ['-doc-pics', '-doctree-export']) {
+    for (const name of ['-doc-pics', '-doc-outline', '-doctree-export']) {
       const src = readFileSync(join(WUI, DIR, `${name}.ts`), 'utf8')
       const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
-      writeFileSync(join(tmp, `${name}.mjs`), js.replace(/from '\.\/-doc-pics'/g, "from './-doc-pics.mjs'"))
+      writeFileSync(join(tmp, `${name}.mjs`), js.replace(/from '\.\/(-doc-pics|-doc-outline)'/g, "from './$1.mjs'"))
     }
     return await import(pathToFileURL(join(tmp, '-doctree-export.mjs')).href)
   } finally {

@@ -5,6 +5,7 @@
    mock bundle, so this is what the doc and grid views are driven against.
    The `-` prefix keeps Nuxt from registering this file as a component. */
 import { readDataUrl } from '~/utils/file-preview.mjs'
+import { outlineOf, siblingNumbers } from './-doc-outline'
 
 export type MockReply = { status: number, body: unknown }
 
@@ -39,15 +40,21 @@ function kids(d: Doc, parent: string): Item[] {
   return [...d.items.values()].filter((it) => it.parent === parent).sort((a, b) => a.ord - b.ord)
 }
 
-/** item with its outline (1 / 1.1 / 1.1.1) and depth, as the hub's docTreeItem */
-function wire(d: Doc, it: Item): Wire {
+/** the item's ord path (the hub's children route `path`), or its number path when `num` (spec 137 T012a) */
+function pathOf(d: Doc, it: Item, num = false): number[] {
   const path: number[] = []
   let cur: Item | undefined = it
   while (cur && cur.parent) {
-    path.unshift(cur.ord)
+    path.unshift(num ? siblingNumbers(kids(d, cur.parent)).get(cur.id) ?? 0 : cur.ord)
     cur = d.items.get(cur.parent)
   }
-  return { id: it.id, parent: it.parent, ord: it.ord, outline: path.join('.'), depth: path.length, title: it.title, body: it.body, attrs: it.attrs, rev: it.rev }
+  return path
+}
+
+/** item with its outline (1 / 1.1 / 1.1.1, '' when unnumbered) and depth, as the hub's docTreeItem */
+function wire(d: Doc, it: Item): Wire {
+  const path = pathOf(d, it, true)
+  return { id: it.id, parent: it.parent, ord: it.ord, outline: outlineOf(path), depth: path.length, title: it.title, body: it.body, attrs: it.attrs, rev: it.rev }
 }
 
 /** item and everything under it, in document order */
@@ -325,9 +332,7 @@ function reads(d: Doc, sub: string, q: URLSearchParams): MockReply {
   if (sub === 'children') {
     const parent = d.items.get(q.get('parent') || d.root)
     if (!parent) return GONE()
-    const at = wire(d, parent)
-    const path = at.outline ? at.outline.split('.').map(Number) : []
-    return { status: 200, body: { doc: d.id, rev: d.rev, parent: parent.id, path, outline: at.outline, items: kids(d, parent.id).map((k) => wire(d, k)) } }
+    return { status: 200, body: { doc: d.id, rev: d.rev, parent: parent.id, path: pathOf(d, parent), outline: wire(d, parent).outline, items: kids(d, parent.id).map((k) => wire(d, k)) } }
   }
   if (sub === 'subtree') {
     const from = q.get('item') || ''

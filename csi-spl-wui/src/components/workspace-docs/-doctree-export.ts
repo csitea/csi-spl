@@ -5,6 +5,7 @@
    keeps Nuxt from registering this file as a component. */
 import type { DocItem } from './-doctree-api'
 import { picRuns, picToken } from './-doc-pics'
+import { headingText } from './-doc-outline'
 
 /** the figures to keep: the doc whose picture tokens count, the figure numbers and their label */
 export type MdFigures = { doc: string, figs: Map<string, { first: number, image: number }>, figure: (n: number) => string }
@@ -15,13 +16,13 @@ function bodyWithFigures(it: DocItem, f: MdFigures): string {
   return picRuns(it.body, f.doc).map((r) => (r.kind === 'text' ? r.text : `${picToken(r.caption, r.path)}\n\n*${f.figure(n++)} ${r.caption}*\n`)).join('')
 }
 
-/** the branch as Markdown: one heading per item (# by level), its text, its code (fenced with its lang), its image */
+/** the branch as Markdown: one heading per item (# by level, no number when unnumbered), its text, its code (fenced with its lang), its image */
 export function branchToMarkdown(items: DocItem[], untitled: string, f?: MdFigures): string {
   const base = Math.min(...items.map((it) => it.depth))
   const out: string[] = []
   for (const it of items) {
     const level = Math.min(6, it.depth - base + 1)
-    out.push(`${'#'.repeat(level)} ${it.outline} ${it.title || untitled}`, '')
+    out.push(`${'#'.repeat(level)} ${headingText(it.outline, it.title || untitled)}`, '')
     const body = f ? bodyWithFigures(it, f) : it.body
     if (body.trim()) out.push(body.trim(), '')
     const src = typeof it.attrs?.src === 'string' ? it.attrs.src : ''

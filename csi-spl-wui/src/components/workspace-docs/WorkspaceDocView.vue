@@ -89,6 +89,7 @@
             </button>
             <a class="wsdoc__perma" :href="'#' + anchor(it.id)" data-test="ws-doc-permalink" :aria-label="t('ws_doctree.permalink')" @click.prevent="goTo(it.id)">#</a>
             <span
+              v-if="it.outline"
               class="wsdoc__num"
               data-test="ws-doc-num"
               @contextmenu.prevent="openMenu(it, $event.clientX, $event.clientY)"
@@ -253,7 +254,7 @@
             data-test="ws-doc-toc-item"
             @contextmenu.prevent="openMenu(it, $event.clientX, $event.clientY)"
           >
-            <a :href="'#' + anchor(it.id)" @click.prevent="goTo(it.id)"><span class="wsdoc__toc-num">{{ it.outline }}</span> {{ it.title || t('ws_doctree.heading_placeholder', { n: it.outline }) }}</a>
+            <a :href="'#' + anchor(it.id)" @click.prevent="goTo(it.id)"><span v-if="it.outline" class="wsdoc__toc-num">{{ it.outline }}</span> {{ it.title || t('ws_doctree.heading_placeholder', { n: it.outline }) }}</a>
           </li>
         </ol>
       </nav>
@@ -312,6 +313,7 @@ import {
 } from './-doctree-api'
 import { figureNumbers, paraRuns, picPaths, picToken, setPicCaption, type ParaRun } from './-doc-pics'
 import { insertBlock, quoteBlock, tableBlock, type Block } from './-doc-blocks'
+import { branchOf as branchIn } from './-doc-outline'
 
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[] }>()
 const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string], renamed: [title: string] }>()
@@ -395,9 +397,9 @@ const MdRun = defineComponent({
 
 const branchItem = computed(() => (branch.value ? byId.value.get(branch.value) : undefined))
 
-/** the item and everything under it, in document order */
+/** the item and everything under it, in document order (by depth: an unnumbered item has no outline, spec 137 T012a) */
 function branchOf(it: DocItem): DocItem[] {
-  return items.value.filter((x) => x.id === it.id || x.outline.startsWith(it.outline + '.'))
+  return branchIn(items.value, it.id)
 }
 
 /** the items shown: the open branch, else the whole document */
@@ -703,9 +705,9 @@ async function viewOp(id: string, it: DocItem): Promise<boolean> {
   const doc = props.title || t('ws_doctree.default_doc_title')
   if (id === 'export_md') {
     const figure = (n: number) => t('ws_doctree.figure', { n })
-    x.saveText(x.exportName(doc, it.outline, 'md'), x.branchToMarkdown(part, t('ws_doctree.untitled'), { doc: props.session.doc, figs: figs.value, figure }), 'text/markdown;charset=utf-8')
+    x.saveText(x.exportName(doc, it.outline || it.title, 'md'), x.branchToMarkdown(part, t('ws_doctree.untitled'), { doc: props.session.doc, figs: figs.value, figure }), 'text/markdown;charset=utf-8')
   }
-  else x.saveText(x.exportName(doc, it.outline, 'csv'), x.branchToCsv(part, [t('ws_doctree.col_outline'), t('ws_doctree.col_level'), t('ws_doctree.col_title'), t('ws_doctree.col_body')]), 'text/csv;charset=utf-8')
+  else x.saveText(x.exportName(doc, it.outline || it.title, 'csv'), x.branchToCsv(part, [t('ws_doctree.col_outline'), t('ws_doctree.col_level'), t('ws_doctree.col_title'), t('ws_doctree.col_body')]), 'text/csv;charset=utf-8')
   return true
 }
 
@@ -771,7 +773,7 @@ async function confirmDelete() {
   busy.value = true
   try {
     if (await removeDocItem(props.session, it)) {
-      if (branch.value && !items.value.some((x) => x.id === branch.value && !x.outline.startsWith(it.outline + '.') && x.id !== it.id)) branch.value = ''
+      if (branch.value && (!byId.value.has(branch.value) || branchOf(it).some((x) => x.id === branch.value))) branch.value = ''
       await load()
       if (before && byId.value.has(before.id)) document.getElementById(anchor(before.id))?.scrollIntoView({ block: 'nearest' })
     }

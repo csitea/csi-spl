@@ -21,13 +21,18 @@ const read = (p) => readFileSync(join(WUI, p), 'utf8')
 const MOCK = read('src/components/workspace-docs/-doctree-mock.ts')
 const HUB = read('../csi-spl-api/src/go/spool-hub-api/internal/hub/wsdoc_nodes.go')
 
+const esm = (src) => ts.transpileModule(src, {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+}).outputText
+/* the outline helper the mock numbers with (spec 137 T012a): a data: URL has no directory to resolve './-doc-outline' from */
+const OUTLINE = 'data:text/javascript,' + encodeURIComponent(esm(read('src/components/workspace-docs/-doc-outline.ts'))).replace(/'/g, '%27')
+
 let n = 0
 /** the mock module from TS source, a fresh copy each time (its state is module-level) */
 async function loadMock(src) {
-  const js = ts.transpileModule(src, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-  }).outputText
+  const js = esm(src)
     .replace(/from '~\/utils\/file-preview\.mjs'/, `from '${pathToFileURL(join(WUI, 'src/utils/file-preview.mjs')).href}'`)
+    .replace(/from '\.\/-doc-outline'/, `from '${OUTLINE}'`)
   return import('data:text/javascript,' + encodeURIComponent(js + `\n// copy ${++n}`))
 }
 

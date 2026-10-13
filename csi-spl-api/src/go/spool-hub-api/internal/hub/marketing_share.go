@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"slices"
 	"strconv"
 	"time"
 
@@ -13,16 +12,22 @@ import (
 )
 
 // The blog share sweep (spec 090 T015, SPL-1634; owner HUM-10, topic
-// add4fbf4 msgs 06f5fd99, 489d18e6): every new English post in the LIVE
-// blog index is shared once on each connected auto-publish LinkedIn account,
-// with no approval step.
+// add4fbf4 msgs 06f5fd99, 489d18e6) and the owner's publish (SPL-40; owner
+// HUM-10, topic add4fbf4 msg 3a3f366b: only they can post to LinkedIn).
 //
-//   - New = not yet a row of the channel. The first sweep after a connect
-//     records every post already live as skipped (the baseline), so
-//     connecting never floods the profile with the back catalogue.
+//   - The sweep never starts a share. A new English post in the live blog
+//     index goes to LinkedIn only when the workspace owner who connected
+//     the channel publishes it: POST /v1/marketing/posts/{id}/publish
+//     (PublishMarketingPost). An agent, any other member and the sweep
+//     cannot.
+//   - The publish uses the one publisher there is: it schedules the post's
+//     row, claims it and shares it (dispatchDue, shareOne). The sweep only
+//     finishes what the owner started: the retries below.
+//   - The first sweep after a connect records every post already live as
+//     skipped (the baseline): the back catalogue cannot be published.
 //   - Once: the row is UNIQUE per (channel, post); a claim moves it to
 //     dispatching in one guarded UPDATE, so two hub instances never both
-//     call LinkedIn for it.
+//     call LinkedIn for it, and a second publish of one post is refused.
 //   - A 429 or 503, or a connection that failed before sending, is retried
 //     with a growing delay, at most marketingMaxAttempts times. Any other
 //     failure, and a call whose outcome is unknown (sent, then no answer),
@@ -31,7 +36,8 @@ import (
 //   - The token lives 60 days with no refresh token: 7 days before, the
 //     holder gets one mail with the one-click re-connect link; at the end
 //     the channel is expired and its posts wait for the re-connect.
-//   - A workspace is swept only while allow-listed AND switched on (T014).
+//   - A workspace is swept, and published to, only while allow-listed AND
+//     switched on (T014).
 
 const (
 	marketingShareEvery   = 5 * time.Minute
@@ -138,7 +144,7 @@ func (s *Server) channelExpiry(ctx context.Context, m *MarketingLinkedIn, mk sto
 		res.Expired++
 		s.mailHolder(ctx, m, ch.Tenant, ch.DelegatedBy, "Your LinkedIn connection has ended: blog posts wait",
 			"The LinkedIn connection of workspace "+ch.Tenant+" ended on "+ch.ExpiresAt.UTC().Format("2006-01-02")+
-				". New blog posts are kept and shared as soon as you connect again:\n\n"+m.ConnectLink(ch.Tenant)+"\n")
+				". The blog posts you published that are waiting are shared as soon as you connect again:\n\n"+m.ConnectLink(ch.Tenant)+"\n")
 		return true
 	}
 	if now.Add(marketingRemindBefore).Before(*ch.ExpiresAt) || ch.RemindedAt != nil {
@@ -152,12 +158,13 @@ func (s *Server) channelExpiry(ctx context.Context, m *MarketingLinkedIn, mk sto
 	s.mailHolder(ctx, m, ch.Tenant, ch.DelegatedBy, "Renew the LinkedIn connection of spool-hub (one click)",
 		"LinkedIn ends the connection of workspace "+ch.Tenant+" on "+ch.ExpiresAt.UTC().Format("2006-01-02")+
 			" (LinkedIn allows 60 days). Renew it with one click; sign in to spool-hub first if it asks:\n\n"+
-			m.ConnectLink(ch.Tenant)+"\n\nUntil then, every new blog post is still shared on your profile.\n")
+			m.ConnectLink(ch.Tenant)+"\n\nUntil then, the blog posts you publish are still shared on your profile.\n")
 	return false
 }
 
-// shareChannel baselines a fresh channel, schedules the new posts, then
-// claims and dispatches the due ones.
+// shareChannel baselines a fresh channel, then claims and dispatches the
+// due posts: only rows the owner's publish made, waiting for a retry. It
+// never schedules a post (SPL-40).
 func (s *Server) shareChannel(ctx context.Context, m *MarketingLinkedIn, mk store.Marketing, ch store.MarketingChannel, posts []marketing.BlogPost, res *MarketingShareResult) {
 	now := s.o.Now()
 	if ch.BaselineAt == nil {
@@ -172,33 +179,128 @@ func (s *Server) shareChannel(ctx context.Context, m *MarketingLinkedIn, mk stor
 		res.Baselined += len(refs)
 		return
 	}
-	have, err := mk.MarketingPostRefs(ctx, ch.Tenant, ch.ID)
-	if err != nil {
-		s.o.Log.Error().Err(err).Str("channel", ch.ID).Msg("marketing: post refs")
-		return
-	}
-	byID := map[string]marketing.BlogPost{}
-	for _, p := range slices.Backward(posts) { // oldest first
-		byID[p.ID] = p
-		if have[p.ID] {
-			continue
-		}
-		a := marketing.BlogArticle(m.AppURL, p, nil)
-		made, err := mk.ScheduleMarketingPost(ctx, store.MarketingPost{Tenant: ch.Tenant, ChannelID: ch.ID,
-			SourceType: store.MarketingSourceBlog, SourceRef: p.ID, ContentText: a.Commentary}, now)
-		if err != nil {
-			s.o.Log.Error().Err(err).Str("channel", ch.ID).Msg("marketing: schedule")
-			return
-		}
-		if made {
-			res.Scheduled++
-		}
-	}
 	due, err := mk.ClaimMarketingPosts(ctx, ch.Tenant, ch.ID, now)
 	if err != nil || len(due) == 0 {
 		return
 	}
-	s.dispatchDue(ctx, m, mk, ch, due, byID, res)
+	s.dispatchDue(ctx, m, mk, ch, due, blogByID(posts), res)
+}
+
+func blogByID(posts []marketing.BlogPost) map[string]marketing.BlogPost {
+	byID := make(map[string]marketing.BlogPost, len(posts))
+	for _, p := range posts {
+		byID[p.ID] = p
+	}
+	return byID
+}
+
+// Why an owner's publish was refused (PublishMarketingPost).
+var (
+	ErrMarketingNotOwner  = errors.New("only the workspace owner publishes to LinkedIn")
+	ErrMarketingNoChannel = errors.New("the workspace owner has no connected LinkedIn account")
+	ErrMarketingNoPost    = errors.New("the post is not in the live blog index")
+	ErrMarketingRecorded  = errors.New("the post is already published, or recorded for LinkedIn")
+	ErrMarketingOff       = errors.New("marketing is not on in this workspace")
+	ErrMarketingNoLinked  = errors.New("LinkedIn is not configured on this hub")
+)
+
+// PublishMarketingPost shares the live blog post postID on every active
+// LinkedIn channel of tenant that hum connected, once each; only the
+// workspace owner (rbac TenantOwner) may. The share goes through the same
+// claim and dispatch as the sweep's retries.
+func (s *Server) PublishMarketingPost(ctx context.Context, tenant, hum, postID string) (MarketingShareResult, error) {
+	var res MarketingShareResult
+	m := s.o.MarketingLinkedIn
+	mk, ok := s.o.Store.(store.Marketing)
+	if m == nil || !ok {
+		return res, ErrMarketingNoLinked
+	}
+	if !s.marketingSweepable(ctx, tenant) {
+		return res, ErrMarketingOff
+	}
+	if a, err := s.access(ctx, hum, tenant); hum == "" || err != nil || !a.TenantOwner {
+		return res, ErrMarketingNotOwner
+	}
+	chs, err := s.ownerChannels(ctx, mk, tenant, hum)
+	if err != nil {
+		return res, err
+	}
+	if len(chs) == 0 {
+		return res, ErrMarketingNoChannel
+	}
+	posts, err := marketing.FetchBlogIndex(ctx, m.httpClient(), m.AppURL)
+	if err != nil {
+		return res, err
+	}
+	byID := blogByID(posts)
+	bp, live := byID[postID]
+	if !live {
+		return res, ErrMarketingNoPost
+	}
+	recorded := 0
+	for _, ch := range chs {
+		now := s.o.Now()
+		made, err := mk.ScheduleMarketingPost(ctx, store.MarketingPost{Tenant: tenant, ChannelID: ch.ID,
+			SourceType: store.MarketingSourceBlog, SourceRef: postID, ContentText: marketing.BlogArticle(m.AppURL, bp, nil).Commentary}, now)
+		if err != nil {
+			return res, err
+		}
+		if !made {
+			recorded++
+			continue
+		}
+		res.Scheduled++
+		s.o.Log.Info().Str("tenant", tenant).Str("channel", ch.ID).Str("post", postID).Str("by", hum).Msg("marketing: the owner publishes a blog post on LinkedIn")
+		if due, err := mk.ClaimMarketingPosts(ctx, tenant, ch.ID, now); err == nil && len(due) > 0 {
+			s.dispatchDue(ctx, m, mk, ch, due, byID, &res)
+		}
+	}
+	if recorded == len(chs) {
+		return res, ErrMarketingRecorded
+	}
+	return res, nil
+}
+
+// ownerChannels: tenant's active LinkedIn channels that hum connected.
+func (s *Server) ownerChannels(ctx context.Context, mk store.Marketing, tenant, hum string) ([]store.MarketingChannel, error) {
+	all, err := mk.MarketingChannels(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+	var out []store.MarketingChannel
+	for _, ch := range all {
+		if ch.Platform == "linkedin" && ch.Status == store.MarketingActive && ch.DelegatedBy == hum {
+			out = append(out, ch)
+		}
+	}
+	return out, nil
+}
+
+// POST /v1/marketing/posts/{id}/publish: the owner shares one live blog post.
+func (s *Server) handleMarketingPublish(w http.ResponseWriter, r *http.Request, tenant string) {
+	w.Header().Set("Cache-Control", "no-store")
+	hum, _ := s.memberID(r, tenant)
+	res, err := s.PublishMarketingPost(r.Context(), tenant, hum, r.PathValue("id"))
+	switch {
+	case errors.Is(err, ErrMarketingNotOwner):
+		writeForbidden(w, permTenantOwner, err.Error())
+	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingNoPost), errors.Is(err, ErrMarketingOff):
+		writeErr(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, ErrMarketingRecorded):
+		writeErr(w, http.StatusConflict, "already_recorded", err.Error())
+	case errors.Is(err, ErrMarketingNoLinked):
+		writeErr(w, http.StatusServiceUnavailable, "linkedin_off", err.Error())
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "the publish failed before LinkedIn was called")
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"post": r.PathValue("id"), "scheduled": res.Scheduled,
+			"published": res.Published, "retried": res.Retried, "failed": res.Failed})
+	}
+}
+
+// routeMarketingShare registers the owner's publish (from routeMarketing).
+func (s *Server) routeMarketingShare(mux *http.ServeMux) {
+	s.marketingRoute(mux, "POST /v1/marketing/posts/{id}/publish", s.handleMarketingPublish)
 }
 
 // dispatchDue opens the token once and shares each claimed post.
@@ -267,7 +369,7 @@ func (s *Server) linkedInRefused(ctx context.Context, m *MarketingLinkedIn, mk s
 		s.o.Log.Error().Err(err).Str("channel", ch.ID).Msg("marketing: expire channel after 401")
 	}
 	s.mailHolder(ctx, m, ch.Tenant, ch.DelegatedBy, "LinkedIn refused the spool-hub connection: connect again",
-		"LinkedIn no longer accepts the connection of workspace "+ch.Tenant+". New blog posts wait and are shared once you connect again:\n\n"+m.ConnectLink(ch.Tenant)+"\n")
+		"LinkedIn no longer accepts the connection of workspace "+ch.Tenant+". The blog posts you published wait and are shared once you connect again:\n\n"+m.ConnectLink(ch.Tenant)+"\n")
 }
 
 func retryOrFail(attempt int, err error, now time.Time) store.MarketingOutcome {

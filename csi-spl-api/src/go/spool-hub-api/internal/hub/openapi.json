@@ -4569,6 +4569,48 @@
         ]
       }
     },
+    "/v1/marketing/posts/{id}/publish": {
+      "post": {
+        "operationId": "postMarketingPostsByIdPublish",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {post, scheduled, published, retried, failed}; the live blog post was shared on the owner's LinkedIn channels, once each (SPL-40)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "the post is already published, or recorded for LinkedIn (the baseline)"
+          },
+          "503": {
+            "description": "the LinkedIn app is not configured on this hub"
+          }
+        },
+        "summary": "Publish a blog post on LinkedIn (workspace owner only)",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/marketing/settings": {
       "get": {
         "operationId": "getMarketingSettings",

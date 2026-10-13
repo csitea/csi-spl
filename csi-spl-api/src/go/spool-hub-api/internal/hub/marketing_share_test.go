@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/png"
 	"io"
@@ -22,10 +23,11 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// Spec 090 T015 / SPL-1634: the blog share sweep against a fake blog and a
-// fake LinkedIn Posts API. The core proof is idempotence: each new post is
-// shared exactly once, a retryable failure is retried then failed, and a
-// post whose outcome is unknown is never sent again.
+// Spec 090 T015 / SPL-1634 and SPL-40: the blog share sweep and the owner's
+// publish against a fake blog and a fake LinkedIn Posts API. The core proofs:
+// the sweep never shares a new post, only the workspace owner's publish does;
+// each post is shared exactly once, a retryable failure is retried then
+// failed, and a post whose outcome is unknown is never sent again.
 
 // shareFake is the WUI's live blog plus LinkedIn's REST API, in one server.
 type shareFake struct {
@@ -115,6 +117,7 @@ type shareEnv struct {
 	clock  *shareClock
 	tid    string
 	admin  string
+	owner  string
 	ch     store.MarketingChannel
 	mails  *[]string
 	logBuf *syncBuf
@@ -132,9 +135,9 @@ func (c *shareClock) add(d time.Duration) {
 	c.now = c.now.Add(d)
 }
 
-// newShareEnv: one allow-listed, switched-on workspace whose admin has a
-// connected LinkedIn channel (token expires in 60 days), and a live blog
-// with two posts.
+// newShareEnv: one allow-listed, switched-on workspace whose owner has a
+// connected LinkedIn channel (token expires in 60 days), an admin, and a
+// live blog with two posts.
 func newShareEnv(t *testing.T) *shareEnv {
 	t.Helper()
 	fake := newShareFake(t)
@@ -166,18 +169,19 @@ func newShareEnv(t *testing.T) *shareEnv {
 	}, tid)
 	admin := seat(t, e, tid, rbac.Admin)
 	mktOn(t, e, tid, admin)
+	owner := seat(t, e, tid, rbac.BizOwner)
 	sealed, keyID, err := sealer.Seal(context.Background(), marketing.NewPlaintext(fakeLinkedInToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	exp := clock.Now().Add(60 * 24 * time.Hour)
 	ch, err := e.st.(store.Marketing).ConnectMarketingChannel(context.Background(), store.MarketingChannel{Tenant: tid,
-		Platform: "linkedin", AccountRef: fakeLinkedInSub, DelegatedBy: admin, AutoPublish: true, ExpiresAt: &exp},
+		Platform: "linkedin", AccountRef: fakeLinkedInSub, DelegatedBy: owner, AutoPublish: true, ExpiresAt: &exp},
 		store.MarketingToken{Ciphertext: sealed, KMSKeyID: keyID}, clock.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &shareEnv{env: e, fake: fake, m: m, srv: e.srv, clock: clock, tid: tid, admin: admin, ch: ch, mails: mails, logBuf: buf}
+	return &shareEnv{env: e, fake: fake, m: m, srv: e.srv, clock: clock, tid: tid, admin: admin, owner: owner, ch: ch, mails: mails, logBuf: buf}
 }
 
 func (e *shareEnv) sweep() hub.MarketingShareResult {
@@ -186,6 +190,26 @@ func (e *shareEnv) sweep() hub.MarketingShareResult {
 
 func (e *shareEnv) publish(id string) {
 	e.fake.set(func(f *shareFake) { f.posts = append([]marketing.BlogPost{blogPost(id)}, f.posts...) })
+}
+
+// ownerPublish is the owner's publish of a live post; a refusal fails t.
+func (e *shareEnv) ownerPublish(t *testing.T, id string) hub.MarketingShareResult {
+	t.Helper()
+	r, err := e.srv.PublishMarketingPost(context.Background(), e.tid, e.owner, id)
+	if err != nil {
+		t.Fatalf("owner publish %s: %v", id, err)
+	}
+	return r
+}
+
+// newPostWaits: a new post in the live index, two sweeps, nothing shared.
+func (e *shareEnv) newPostWaits(t *testing.T, id string) {
+	t.Helper()
+	n := e.fake.shareCount()
+	e.publish(id)
+	if r1, r2 := e.sweep(), e.sweep(); r1 != (hub.MarketingShareResult{}) || r2 != (hub.MarketingShareResult{}) || e.fake.shareCount() != n {
+		t.Fatalf("the sweep acted on new post %s: %+v then %+v, %d shares (was %d)", id, r1, r2, e.fake.shareCount(), n)
+	}
 }
 
 func TestMarketingShareEachNewPostOnce(t *testing.T) {
@@ -197,11 +221,14 @@ func TestMarketingShareEachNewPostOnce(t *testing.T) {
 	if r := e.sweep(); r != (hub.MarketingShareResult{}) {
 		t.Fatalf("quiet sweep did %+v", r)
 	}
-	e.publish("2026-10-13-new")
-	// the trigger runs twice for the one new post: exactly one share
-	r1, r2 := e.sweep(), e.sweep()
-	if r1.Scheduled != 1 || r1.Published != 1 || r2 != (hub.MarketingShareResult{}) || e.fake.shareCount() != 1 {
-		t.Fatalf("new post: %+v then %+v, %d shares; want one share", r1, r2, e.fake.shareCount())
+	// SPL-40: a new post waits for the owner; the sweep never shares it
+	e.newPostWaits(t, "2026-10-13-new")
+	r1 := e.ownerPublish(t, "2026-10-13-new")
+	if _, err := e.srv.PublishMarketingPost(context.Background(), e.tid, e.owner, "2026-10-13-new"); !errors.Is(err, hub.ErrMarketingRecorded) {
+		t.Fatalf("a second publish of one post: %v, want ErrMarketingRecorded", err)
+	}
+	if r2 := e.sweep(); r1.Scheduled != 1 || r1.Published != 1 || r2 != (hub.MarketingShareResult{}) || e.fake.shareCount() != 1 {
+		t.Fatalf("owner publish: %+v then sweep %+v, %d shares; want one share", r1, r2, e.fake.shareCount())
 	}
 	got := e.fake.shares[0]
 	content, _ := got["content"].(map[string]any)
@@ -217,16 +244,21 @@ func TestMarketingShareEachNewPostOnce(t *testing.T) {
 	if h.Get("LinkedIn-Version") != "202606" || h.Get("X-Restli-Protocol-Version") != "2.0.0" || h.Get("Authorization") != "Bearer "+fakeLinkedInToken {
 		t.Fatalf("share headers %v", h)
 	}
-	// two hub instances sweeping at once still share a new post once
-	e.publish("2026-10-14-race")
+	// publishes racing each other and the sweeps of two hub instances
+	// still share a new post once
+	e.newPostWaits(t, "2026-10-14-race")
 	var wg sync.WaitGroup
 	for range 4 {
-		wg.Add(1)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_, _ = e.srv.PublishMarketingPost(context.Background(), e.tid, e.owner, "2026-10-14-race")
+		}()
 		go func() { defer wg.Done(); e.sweep() }()
 	}
 	wg.Wait()
 	if n := e.fake.shareCount(); n != 2 {
-		t.Fatalf("after the racing sweeps: %d shares, want 2", n)
+		t.Fatalf("after the racing publishes: %d shares, want 2", n)
 	}
 	if strings.Contains(e.logBuf.String(), fakeLinkedInToken) {
 		t.Fatal("the LinkedIn token reached a log line")
@@ -237,8 +269,8 @@ func TestMarketingShareRetriesThenReports(t *testing.T) {
 	e := newShareEnv(t)
 	e.sweep()
 	e.fake.set(func(f *shareFake) { f.postCode = http.StatusServiceUnavailable })
-	e.publish("2026-10-13-flaky")
-	if r := e.sweep(); r.Retried != 1 || e.fake.shareCount() != 1 {
+	e.newPostWaits(t, "2026-10-13-flaky")
+	if r := e.ownerPublish(t, "2026-10-13-flaky"); r.Retried != 1 || e.fake.shareCount() != 1 {
 		t.Fatalf("attempt 1: %+v, %d calls", r, e.fake.shareCount())
 	}
 	if r := e.sweep(); r.Retried != 0 || e.fake.shareCount() != 1 {
@@ -268,8 +300,8 @@ func TestMarketingShareUnknownOutcomeIsNeverResent(t *testing.T) {
 	e := newShareEnv(t)
 	e.sweep()
 	e.fake.set(func(f *shareFake) { f.hangUp = true })
-	e.publish("2026-10-13-lost")
-	if r := e.sweep(); r.Failed != 1 || e.fake.shareCount() != 1 {
+	e.newPostWaits(t, "2026-10-13-lost")
+	if r := e.ownerPublish(t, "2026-10-13-lost"); r.Failed != 1 || e.fake.shareCount() != 1 {
 		t.Fatalf("hang-up: %+v, %d calls; want failed at once", r, e.fake.shareCount())
 	}
 	e.fake.set(func(f *shareFake) { f.hangUp = false })
@@ -283,8 +315,8 @@ func TestMarketingShareServerErrorIsNeverResent(t *testing.T) {
 	e := newShareEnv(t)
 	e.sweep()
 	e.fake.set(func(f *shareFake) { f.postCode = http.StatusInternalServerError })
-	e.publish("2026-10-13-maybe")
-	if r := e.sweep(); r.Failed != 1 || e.fake.shareCount() != 1 {
+	e.newPostWaits(t, "2026-10-13-maybe")
+	if r := e.ownerPublish(t, "2026-10-13-maybe"); r.Failed != 1 || e.fake.shareCount() != 1 {
 		t.Fatalf("500: %+v, %d calls; want failed at once (LinkedIn may have posted it)", r, e.fake.shareCount())
 	}
 	e.fake.set(func(f *shareFake) { f.postCode = 0 })
@@ -298,8 +330,8 @@ func TestMarketingShare401WaitsForReconnect(t *testing.T) {
 	e := newShareEnv(t)
 	e.sweep()
 	e.fake.set(func(f *shareFake) { f.postCode = http.StatusUnauthorized })
-	e.publish("2026-10-13-later")
-	if r := e.sweep(); r.Retried != 1 {
+	e.newPostWaits(t, "2026-10-13-later")
+	if r := e.ownerPublish(t, "2026-10-13-later"); r.Retried != 1 {
 		t.Fatalf("401: %+v", r)
 	}
 	chs, _ := e.st.(store.Marketing).MarketingChannels(context.Background(), e.tid)
@@ -314,7 +346,7 @@ func TestMarketingShare401WaitsForReconnect(t *testing.T) {
 	sealed, keyID, _ := e.m.Sealer.Seal(context.Background(), marketing.NewPlaintext(fakeLinkedInToken))
 	exp := e.clock.Now().Add(60 * 24 * time.Hour)
 	if _, err := e.st.(store.Marketing).ConnectMarketingChannel(context.Background(), store.MarketingChannel{Tenant: e.tid,
-		Platform: "linkedin", AccountRef: fakeLinkedInSub, DelegatedBy: e.admin, AutoPublish: true, ExpiresAt: &exp},
+		Platform: "linkedin", AccountRef: fakeLinkedInSub, DelegatedBy: e.owner, AutoPublish: true, ExpiresAt: &exp},
 		store.MarketingToken{Ciphertext: sealed, KMSKeyID: keyID}, e.clock.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -332,6 +364,9 @@ func TestMarketingShareSwitchOffSharesNothing(t *testing.T) {
 	e.publish("2026-10-13-off")
 	if r := e.sweep(); r != (hub.MarketingShareResult{}) || e.fake.shareCount() != 0 {
 		t.Fatalf("switched off: %+v, %d shares", r, e.fake.shareCount())
+	}
+	if _, err := e.srv.PublishMarketingPost(context.Background(), e.tid, e.owner, "2026-10-13-off"); !errors.Is(err, hub.ErrMarketingOff) || e.fake.shareCount() != 0 {
+		t.Fatalf("owner publish while switched off: %v, %d shares", err, e.fake.shareCount())
 	}
 }
 
@@ -355,5 +390,41 @@ func TestMarketingShareReminderOnceAWeekAhead(t *testing.T) {
 	e.clock.add(7 * 24 * time.Hour) // past the end
 	if r := e.sweep(); r.Expired != 1 {
 		t.Fatalf("past expiry: %+v, want expired", r)
+	}
+}
+
+// SPL-40 (owner HUM-10, topic add4fbf4 msg 3a3f366b): only the workspace
+// owner publishes to LinkedIn. An admin, another member and an agent are
+// refused, on the route and on the method; the owner's publish goes out.
+func TestMarketingShareOnlyTheOwnerPublishes(t *testing.T) {
+	e := newShareEnv(t)
+	e.sweep()
+	e.newPostWaits(t, "2026-10-13-owner")
+	dev, agent := seat(t, e.env, e.tid, rbac.Developer), seat(t, e.env, e.tid, rbac.PureAgent)
+	for _, who := range []string{e.admin, dev, agent, "", "AGT-1"} {
+		if _, err := e.srv.PublishMarketingPost(context.Background(), e.tid, who, "2026-10-13-owner"); !errors.Is(err, hub.ErrMarketingNotOwner) {
+			t.Fatalf("publish as %q: %v, want ErrMarketingNotOwner", who, err)
+		}
+	}
+	path := "/v1/marketing/posts/2026-10-13-owner/publish"
+	if code, body := call(t, e.env, e.tid, http.MethodPost, path, e.admin, nil); code != http.StatusForbidden {
+		t.Fatalf("admin POST %s: %d %v, want 403", path, code, body)
+	}
+	if n := e.fake.shareCount(); n != 0 {
+		t.Fatalf("a refused publish reached LinkedIn: %d shares", n)
+	}
+	// CONTROL: the owner, on the same route, is shared once
+	code, body := call(t, e.env, e.tid, http.MethodPost, path, e.owner, nil)
+	if code != http.StatusOK || body["published"] != float64(1) || e.fake.shareCount() != 1 {
+		t.Fatalf("owner POST %s: %d %v, %d shares; want 200, one share", path, code, body, e.fake.shareCount())
+	}
+	if code, _ := call(t, e.env, e.tid, http.MethodPost, path, e.owner, nil); code != http.StatusConflict || e.fake.shareCount() != 1 {
+		t.Fatalf("second owner POST: %d, %d shares; want 409, still one", code, e.fake.shareCount())
+	}
+	if code, _ := call(t, e.env, e.tid, http.MethodPost, "/v1/marketing/posts/2026-10-01-first/publish", e.owner, nil); code != http.StatusConflict {
+		t.Fatalf("publish of a baselined post: %d, want 409", code)
+	}
+	if code, _ := call(t, e.env, e.tid, http.MethodPost, "/v1/marketing/posts/2026-12-31-nope/publish", e.owner, nil); code != http.StatusNotFound {
+		t.Fatalf("publish of a post not live: %d, want 404", code)
 	}
 }

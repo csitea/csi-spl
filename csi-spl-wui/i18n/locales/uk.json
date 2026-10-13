@@ -1285,7 +1285,7 @@
     "filter_me": "Я",
     "filter_unassigned": "Без виконавця",
     "filter_unread": "Непрочитані",
-    "filter_unread_hint": "Лише задачі, призначені вам, які ви ще не відкривали",
+    "filter_unread_hint": "Лише заявки, призначені вам, які ви ще не відкривали",
     "filter_clear": "Скинути фільтри",
     "count": "{n}",
     "no_assignee": "Без виконавця",

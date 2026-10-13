@@ -1285,7 +1285,7 @@
     "filter_me": "Minä",
     "filter_unassigned": "Ei vastuuhenkilöä",
     "filter_unread": "Lukemattomat",
-    "filter_unread_hint": "Vain sinulle osoitetut tehtävät, joita et ole vielä avannut",
+    "filter_unread_hint": "Vain sinulle osoitetut asiat, joita et ole vielä avannut",
     "filter_clear": "Tyhjennä suodattimet",
     "count": "{n}",
     "no_assignee": "Ei vastuuhenkilöä",

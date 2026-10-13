@@ -57,6 +57,35 @@ fails=0
 
 orc_stub 1 gcloud curl docker cloud-sql-proxy spool tmux
 
+# Every process this test starts in the background runs in a session of its
+# own (setsid) and is reaped by its process group, never by a pattern
+# (SPL-1673): `pkill -f 'sleep 30'` here was refused by the agent box's
+# kill-guard shim (~/.local/bin/pkill, first on PATH under the pre-push hook)
+# with exit 2, a redirect hid it, and a pattern kill would also hit other
+# agents' sleeps. REAP_GROUPS holds the groups; the EXIT trap reaps them all.
+REAP_GROUPS=""
+reap_group() {  # SIGKILL group $1, then wait until it is empty (<= 5 s)
+  local g="$1" _
+  [[ "$g" =~ ^[0-9]+$ && "$g" -gt 1 && "$g" -ne "$(ps -o pgid= -p $$ | tr -d ' ')" ]] || return 0
+  for _ in $(seq 50); do
+    kill -KILL -- "-$g" 2>/dev/null || return 0
+    pgrep -g "$g" >/dev/null || return 0
+    sleep 0.1
+  done
+}
+reap_groups() { local g; for g in $REAP_GROUPS; do reap_group "$g"; done; }
+# wait_pid_file <file>: the pid a session leader wrote of itself (<= 5 s), or fail
+wait_pid_file() {
+  local _ p
+  for _ in $(seq 50); do
+    p="$(cat "$1" 2>/dev/null)"; [[ "$p" =~ ^[0-9]+$ ]] && { echo "$p"; return 0; }
+    sleep 0.1
+  done
+  return 1
+}
+trap 'reap_groups' EXIT
+trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+
 # --- 1. the id rules ---------------------------------------------------------------
 SNIPPET='spl_desk_validate t1 box-desk CLE-00' in_orc >/dev/null 2>&1 &&
   pass "a good tenant/box/agent triple passes" || fail "the good triple was refused"
@@ -124,7 +153,7 @@ done
 # traverse: the file is there, and "not a readable file" used to hide that.
 # chmod 000 needs a non-root user; root ignores the mode bits.
 who="$(id -un)"
-trap 'chmod -R u+rwx "$T/priv" "$T/noread.md" 2>/dev/null || true; rm -rf "$T"' EXIT
+trap 'reap_groups; chmod -R u+rwx "$T/priv" "$T/noread.md" 2>/dev/null || true; rm -rf "$T"' EXIT
 body_file_refuses() {
   local act="$1" label="$2" want="$3" forbid="$4"
   shift 4
@@ -439,7 +468,7 @@ out=$(SNIPPET=do_spl_desk_check in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 \
 # daemon inherited run.sh's logging pipes and the reader never saw EOF.
 out=$(SNIPPET='
   log="$SPL_STATE_DIR/detach.log"; mkdir -p "$SPL_STATE_DIR"
-  got="$( spl_desk_detach "$log" sleep 30; echo "started $!" )"
+  got="$( spl_desk_detach "$log" bash -c "echo \$\$ >\"\$0\"; exec sleep 30" "$SPL_STATE_DIR/detach.pid"; echo "started $!" )"
   echo "$got"' in_orc timeout 20 bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -452,9 +481,18 @@ if [[ $rc -eq 0 && "$out" == started\ * ]]; then
 else
   fail "spl_desk_detach hung or failed (rc=$rc): $out"
 fi
-kid=${out#started }
-[[ "$kid" =~ ^[0-9]+$ ]] && { kill "$kid" 2>/dev/null; kill $(pgrep -P "$kid" 2>/dev/null) 2>/dev/null; } || true
-pkill -f 'sleep 30' >/dev/null 2>&1 || true
+# The daemon wrote its own pid; spl_desk_detach made it a session leader, so
+# that pid is its process group: reap the group, not a pattern (SPL-1673).
+if kid="$(wait_pid_file "$T/state/dev/detach.pid")"; then
+  REAP_GROUPS+=" $kid"
+  [[ "$(ps -o sid= -p "$kid" | tr -d ' ')" == "$kid" ]] && pass "…and runs in a session of its own" ||
+    fail "the detached daemon $kid is not a session leader"
+  reap_group "$kid"
+  pgrep -g "$kid" >/dev/null && fail "the detached daemon's group $kid outlived its reap" ||
+    pass "…and its group is reaped, nothing left behind"
+else
+  fail "the detached daemon never wrote its pid"
+fi
 
 # --- 8. the post leg (specs/038) ----------------------------------------------------
 for bad in "DESK_CHANNEL=" "DESK_CHANNEL=no spaces" "DESK_CHANNEL=x;rm" "DESK_KIND=reject" "DESK_BODY=" \
@@ -828,9 +866,16 @@ done
 # do_spl_desk_down in csi-rel; the one shared sidecar stopped, every other
 # csi-rel agent went offline and a person's post waited 35 min.
 DD="$T/state/dev/desk/t1/box-desk"
+# The fake is a session leader that writes its own pid (= its process group):
+# desk_down TERMs that bash, and its `sleep 60` used to outlive it (3 per run,
+# SPL-1673). Each new fake reaps the previous one's group first.
 fake_sidecar() {
+  local pidf="$DD/spool/.hub/hub-run.pid" g
   mkdir -p "$DD/spool/.hub"
-  bash -c 'sleep 60; :' hub-run </dev/null >/dev/null 2>&1 & echo $! >"$DD/spool/.hub/hub-run.pid"
+  g="$(cat "$pidf" 2>/dev/null)"; reap_group "$g"; rm -f "$pidf"
+  # shellcheck disable=SC2016 # expands in the fake's own shell
+  setsid bash -c 'echo $$ >"$1"; sleep 60; :' hub-run "$pidf" </dev/null >/dev/null 2>&1 &
+  g="$(wait_pid_file "$pidf")" && REAP_GROUPS+=" $g" || fail "the fake sidecar never wrote its pid"
 }
 fake_sidecar
 for a in CLE-1 CLE-2; do mkdir -p "$DD/spool/$a"; done
@@ -853,7 +898,7 @@ fake_sidecar
 out=$(SNIPPET=do_spl_desk_down in_orc TENANT_ID=t1 DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *'"was_running": true'* ]] &&
   pass "no DESK_AGENT stops the box as before" || fail "no DESK_AGENT (rc=$rc): $out"
-kill "$(cat "$DD/spool/.hub/hub-run.pid")" 2>/dev/null || true
+reap_group "$(cat "$DD/spool/.hub/hub-run.pid" 2>/dev/null)"
 
 # --- 14. spl_desk_purge_pokes counts the queued pokes it drops (refactor r1 #26) ---
 PQ="$T/purge/spool/CLE-9/.pokes"; mkdir -p "$PQ"; : >"$PQ/a.poke"; : >"$PQ/b.poke"

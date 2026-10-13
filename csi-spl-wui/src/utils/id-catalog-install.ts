@@ -5,7 +5,7 @@
 import { indexCatalog, resolveId, setIdCatalogProvider } from '~/utils/id-links.mjs'
 import { idLinksReady, registerIdLookup } from '~/utils/id-link-gate.mjs'
 import { createIdLookup } from '~/utils/id-lookup.mjs'
-import { useSpoolApi } from '~/composables/useSpoolApi'
+import { hostTenant, useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
 import { useChannelStore } from '~/stores/channel'
 import { useFlowStore } from '~/stores/flow'
@@ -34,6 +34,9 @@ export function installIdCatalog(opts: {
 }) {
   const pathFor = opts.pathFor
   const i18n = opts.i18n
+  // SPL-1693: the page's workspace, the host a msg:/topic: link opens on ('' = none, stays text)
+  const pub = read(() => useRuntimeConfig().public, {} as Record<string, unknown>)
+  const ws = { tenant: read(hostTenant, ''), siteUrl: String(pub.siteUrl || ''), apexTenant: String(pub.tenant || '') }
   let cache: { refs: unknown[], index: ReturnType<typeof indexCatalog> } | null = null
   let self = ''
   const lookup = createIdLookup({
@@ -81,6 +84,7 @@ export function installIdCatalog(opts: {
       self,
       pathFor,
       labels: labels || undefined,
+      ...ws,
     })
     cache = { refs, index }
     return index

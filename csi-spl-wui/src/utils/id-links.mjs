@@ -12,10 +12,15 @@
  * an archived one says where it went). A caller that passes labels gets the kind word in front of the link.
  *
  * A full uuid is a topic when that task is known, otherwise a message when
- * that msg_id is known. An 8-hex token is a topic when exactly one known
- * topic starts with it; otherwise a message when no topic does and exactly
- * one known message does. Anything else (a longer hex run, two matches, an
- * unknown uuid) stays text.
+ * that msg_id is known. A bare 8-hex token stays text (SPL-1693, owner t1
+ * ae38a1a6: an internal object is written type:id). Anything else (a longer
+ * hex run, an unknown uuid) stays text.
+ *
+ * `msg:<uuid>` and `topic:<uuid>` (csi-spl-doc/doc/help/how-to-post.md) link
+ * to that row on its workspace's host: the apex for the apex tenant, else
+ * https://<tenant>.<site host> (tenant-host.mjs). A row's workspace is its
+ * tenant_id, else the tenant of the page that loaded it. No workspace, no
+ * link: the token stays text, no host is guessed.
  *
  * Code fences, inline code and an existing link are not rewritten. The
  * catalog is empty until a plugin registers one, so a direct parseBody call
@@ -23,10 +28,12 @@
  */
 import { parentSection, parentSectionHref } from './parent-section.mjs'
 import { registerIdLinks } from './id-link-gate.mjs'
+import { tenantOrigin } from './tenant-host.mjs'
 
 const UUID_SRC = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 const UUID_RE = new RegExp(`(?<![0-9a-fA-F-])${UUID_SRC}(?![0-9a-fA-F-])`, 'g')
-const SHORT_RE = /(?<![0-9a-fA-F-])[0-9a-fA-F]{8}(?![0-9a-fA-F-])/g
+/* msg:<uuid> / topic:<uuid>, the written form of an internal object */
+const TYPED_RE = new RegExp(`(?<![0-9A-Za-z_:/-])(msg|topic):(${UUID_SRC})(?![0-9a-fA-F-])`, 'gi')
 const UUID_TEST = new RegExp(`^${UUID_SRC}$`, 'i')
 const HAS_HEX = /[0-9a-fA-F]{8}/
 const MD_LANG = /^(?:md|markdown)$/i
@@ -74,6 +81,12 @@ function pathOf(pathFor, path) {
 
 function channelOf(row) {
   return String((row && row.channel) || '').trim().replace(/^#/, '')
+}
+
+/** The origin of a row's workspace host, '' when the row has none. */
+function originOf(row, host) {
+  const t = String((row && row.tenant_id) || host.tenant || '').trim().toLowerCase()
+  return t && host.siteUrl ? tenantOrigin(t, host.siteUrl, host.apexTenant) : ''
 }
 
 function archivedOf(row) {
@@ -137,22 +150,26 @@ function pushPrefix(map, prefix, rec) {
  * Index the topics and messages the reader can already see.
  * `pathFor` is the locale-aware path (identity when omitted).
  * `labels` is the translated kind words. Omit it and the link text is the id alone.
- * @param {{ topics?: unknown[], messages?: unknown[], self?: string, pathFor?: (path: string) => string, labels?: Record<string, string> }} [input]
+ * `tenant` is the page's workspace, `siteUrl` / `apexTenant` the env's apex and
+ * its tenant: a typed token links on the row's workspace host only with them.
+ * @param {{ topics?: unknown[], messages?: unknown[], self?: string, pathFor?: (path: string) => string, labels?: Record<string, string>, tenant?: string, siteUrl?: string, apexTenant?: string }} [input]
  */
 export function indexCatalog(input = {}) {
   const src = input && typeof input === 'object' ? input : {}
   const self = String(src.self || '')
   const pathFor = src.pathFor
+  const host = { tenant: String(src.tenant || ''), siteUrl: String(src.siteUrl || ''), apexTenant: String(src.apexTenant || '') }
   const topicRows = new Map()
   const messageRows = new Map()
 
   function addTopic(id, row) {
     const key = norm(id)
     if (!UUID_TEST.test(key)) return
-    const prev = topicRows.get(key) || { taskId: key, channel: '', peer: '', archived: false }
+    const prev = topicRows.get(key) || { taskId: key, channel: '', peer: '', archived: false, origin: '' }
     const channel = prev.channel || channelOf(row)
     topicRows.set(key, {
       taskId: key,
+      origin: prev.origin || originOf(row, host),
       channel,
       peer: channel ? '' : (prev.peer || peerOf(row, self)),
       archived: Boolean(prev.archived || archivedOf(row)),
@@ -173,6 +190,7 @@ export function indexCatalog(input = {}) {
       to: prev.to || row.to || '',
       to_box: prev.to_box || row.to_box || '',
       archived: Boolean(prev.archived || archivedOf(row)),
+      origin: prev.origin || originOf(row, host),
     })
     addTopic(row.parent_task_id || row.task_id, row)
   }
@@ -195,6 +213,7 @@ export function indexCatalog(input = {}) {
       href: topicHref(info, pathFor),
       label: info.peer && !info.channel ? 'direct-message' : 'topic',
       archived: Boolean(info.archived),
+      origin: info.origin,
     }
     topicsById.set(info.taskId, rec)
     pushPrefix(topicsByPrefix, info.taskId.slice(0, 8), rec)
@@ -208,6 +227,7 @@ export function indexCatalog(input = {}) {
       href,
       label: row.channel ? 'channel-message' : 'direct-message',
       archived,
+      origin: row.origin,
     }
     messagesById.set(id, rec)
     pushPrefix(messagesByPrefix, id.slice(0, 8), rec)
@@ -217,8 +237,8 @@ export function indexCatalog(input = {}) {
 
 /**
  * What one token is, or null.
- * A full uuid prefers the topic. An 8-hex token is a topic when exactly one
- * topic matches; a message only when no topic does and exactly one message does.
+ * A full uuid prefers the topic. A bare 8-hex token is never resolved: the
+ * prefix maps only keep a known one from becoming a commit link.
  */
 export function resolveId(token, index) {
   if (!index || index.empty) return null
@@ -231,29 +251,32 @@ export function resolveId(token, index) {
     if (msg) return { kind: 'message', href: msg.href, label: msg.label, archived: msg.archived }
     return null
   }
-  if (!/^[0-9a-f]{8}$/.test(key)) return null
-  const topics = index.topicsByPrefix.get(key) || []
-  if (topics.length === 1) return { kind: 'topic', href: topics[0].href, label: topics[0].label, archived: topics[0].archived }
-  if (topics.length === 0) {
-    const msgs = index.messagesByPrefix.get(key) || []
-    if (msgs.length === 1) return { kind: 'message', href: msgs[0].href, label: msgs[0].label, archived: msgs[0].archived }
-  }
   return null
+}
+
+/** msg:<uuid> / topic:<uuid>: the row's page on its workspace host, or null. */
+export function resolveTyped(type, id, index) {
+  if (!index || index.empty) return null
+  const key = norm(id)
+  const rec = String(type).toLowerCase() === 'topic' ? index.topicsById.get(key) : index.messagesById.get(key)
+  if (!rec || !rec.origin) return null
+  return { href: rec.origin + rec.href }
 }
 
 function findHits(text, index) {
   const hits = []
+  TYPED_RE.lastIndex = 0
+  for (const m of text.matchAll(TYPED_RE)) {
+    const hit = resolveTyped(m[1], m[2], index)
+    /* the type word is part of the link, and never gets a kind word */
+    if (hit) hits.push({ start: m.index, end: m.index + m[0].length, href: hit.href, typed: true })
+  }
   UUID_RE.lastIndex = 0
   for (const m of text.matchAll(UUID_RE)) {
-    const hit = resolveId(m[0], index)
-    if (!hit) continue
-    hits.push({ start: m.index, end: m.index + m[0].length, href: hit.href, label: hit.label, archived: hit.archived })
-  }
-  SHORT_RE.lastIndex = 0
-  for (const m of text.matchAll(SHORT_RE)) {
     const start = m.index
-    const end = start + 8
-    if (hits.some((h) => start >= h.start && end <= h.end)) continue
+    const end = start + m[0].length
+    /* a typed token is linked whole, or stays text whole */
+    if (text.slice(Math.max(0, start - 6), start).match(/(?:msg|topic):$/i)) continue
     const hit = resolveId(m[0], index)
     if (!hit) continue
     hits.push({ start, end, href: hit.href, label: hit.label, archived: hit.archived })
@@ -264,7 +287,7 @@ function findHits(text, index) {
 
 function kindPrefix(hit, index) {
   const labels = index && index.labels
-  if (!labels || typeof labels !== 'object') return ''
+  if (hit.typed || !labels || typeof labels !== 'object') return ''
   const name = String(labels[hit.label] || '')
   if (!name) return ''
   const arch = hit.archived && labels.archived ? ' (' + String(labels.archived) + ')' : ''

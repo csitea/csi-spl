@@ -75,12 +75,8 @@ describe('id links', () => {
     ])
   })
 
-  it('a unique 8-hex topic prefix opens that topic', () => {
-    assert.deepEqual(linkifyText('see bbbbbbbb now', index), [
-      txt('see '),
-      link('bbbbbbbb', `/channel/lobby?topic=${TOPIC}`),
-      txt(' now'),
-    ])
+  it('a bare 8-hex token stays text, even when one topic starts with it (SPL-1693)', () => {
+    assert.deepEqual(linkifyText('see bbbbbbbb now', index), [txt('see bbbbbbbb now')])
   })
 
   it('a topic prefix shared by two topics stays text', () => {
@@ -100,16 +96,13 @@ describe('id links', () => {
       link(MSG, href),
       txt('.'),
     ])
-    assert.deepEqual(linkifyText('short 33333333', index), [
-      txt('short '),
-      link('33333333', href),
-    ])
+    assert.deepEqual(linkifyText('short 33333333', index), [txt('short 33333333')])
   })
 
   it('a DM topic opens the direct message with that topic', () => {
     const href = `/dm/GRK-03%40box-a?topic=${DM_TOPIC}`
     assert.deepEqual(linkifyText(DM_TOPIC, index), [link(DM_TOPIC, href)])
-    assert.deepEqual(linkifyText('99999999', index), [link('99999999', href)])
+    assert.deepEqual(linkifyText('99999999', index), [txt('99999999')])
   })
 
   it('a DM message opens the direct message, scrolled to it', () => {
@@ -240,6 +233,57 @@ describe('id links', () => {
     } finally {
       resetIdCatalogProvider()
     }
+  })
+})
+
+describe('type:id links (SPL-1693, owner t1 ae38a1a6)', () => {
+  const SITE = 'https://spool-hub.example'
+  const ws = (tenant) => indexCatalog({
+    self: 'HUM-1',
+    tenant,
+    siteUrl: SITE,
+    apexTenant: 't1',
+    labels: { topic: 'Topic', 'channel-message': 'Channel message', 'direct-message': 'direct message', archived: 'Archived' },
+    topics: [{ task_id: OTHER, channel: 'lobby' }],
+    messages: [channelMsg, { ...dmRoot, tenant_id: 'leiden' }],
+  })
+
+  it('msg:<uuid> opens the message on its workspace host: the apex for t1', () => {
+    assert.deepEqual(linkifyText(`see msg:${MSG} now`, ws('t1')), [
+      txt('see '),
+      link(`msg:${MSG}`, `${SITE}/channel/lobby?topic=${TOPIC}#${MSG}`),
+      txt(' now'),
+    ])
+  })
+
+  it('topic:<uuid> of another workspace opens https://<tenant>.<site host>', () => {
+    assert.deepEqual(linkifyText(`topic:${OTHER}`, ws('csitea')), [
+      link(`topic:${OTHER}`, `https://csitea.spool-hub.example/channel/lobby?topic=${OTHER}`),
+    ])
+    assert.equal(
+      linkifyMarkdown(`see topic:${OTHER}`, ws('csitea')),
+      `see [topic:${OTHER}](https://csitea.spool-hub.example/channel/lobby?topic=${OTHER})`,
+    )
+  })
+
+  it('a row that names its workspace wins over the page one', () => {
+    assert.deepEqual(linkifyText(`msg:${DM_MSG}`, ws('csitea')), [
+      link(`msg:${DM_MSG}`, `https://leiden.spool-hub.example/dm/GRK-03%40box-a?topic=${DM_TOPIC}#${DM_MSG}`),
+    ])
+  })
+
+  it('CONTROL: no workspace, an unknown id or a wrong type stays text, whole', () => {
+    const noWs = indexCatalog({ self: 'HUM-1', topics: [{ task_id: OTHER, channel: 'lobby' }], messages: [channelMsg] })
+    assert.deepEqual(linkifyText(`msg:${MSG}`, noWs), [txt(`msg:${MSG}`)])
+    assert.deepEqual(linkifyText(`topic:${OTHER}`, indexCatalog({ tenant: 't1', apexTenant: 't1', topics: [{ task_id: OTHER, channel: 'lobby' }] })), [txt(`topic:${OTHER}`)])
+    assert.deepEqual(linkifyText(`msg:${UNKNOWN}`, ws('t1')), [txt(`msg:${UNKNOWN}`)])
+    assert.deepEqual(linkifyText(`topic:${MSG}`, ws('t1')), [txt(`topic:${MSG}`)])
+    assert.deepEqual(linkifyText(`msg:${MSG.slice(0, 8)}`, ws('t1')), [txt(`msg:${MSG.slice(0, 8)}`)])
+  })
+
+  it('a typed id in code stays text', () => {
+    const blocks = linkifyBlocks(parseBody(`run \`msg:${MSG}\``), ws('t1'))
+    assert.equal(JSON.stringify(blocks).includes('"type":"link"'), false)
   })
 })
 

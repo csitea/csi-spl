@@ -50,13 +50,20 @@ comments and issue descriptions.
    listed path). Any other path stays text, never a dead link.
 9. A post that asks a human a question keeps its own link (owner HUM-10,
    2026-10-06, t1 topic 48d09034). `do_spl_desk_reply` prints it as
-   `permalink` (`<wui>/m/<msg_id>`) for every post, a `blocker` included.
-   Store it with the question. Whenever you refer to that question again,
-   cite that link (or the message id, which also links), never "see above".
+   `permalink` (`<wui>/m/<msg_id>`) for every post, a `blocker` included,
+   on the host of the topic's workspace (`https://csitea.<fqdn>` for
+   csitea, the apex for t1). Store it with the question. Whenever you refer to that
+   question again, cite that link (or `msg:<uuid>`, rule 11), never "see above".
    A click opens exactly that message, scrolled into view and highlighted,
    on a phone and on a desktop, even inside the same topic.
 10. A question with fixed answers to pick from is a `poll` form (section 7):
    the reader clicks a radio button or a checkbox instead of typing `a`.
+11. An internal object is written `type:id` (owner HUM-10, 2026-10-13, t1
+   topic ae38a1a6): `msg:<uuid>` for a message, `topic:<uuid>` for a topic,
+   the full uuid. The WUI links it to that object on its workspace's host
+   (`https://csitea.<fqdn>` for csitea, the apex for t1). An id whose
+   workspace the reader's page does not know stays text: no host is guessed. A bare
+   8-character id (`1f5e074b`) stays text; it reads like a commit sha.
 
 
 ## 2. Example
@@ -120,6 +127,8 @@ Doc links: `docsLinkHref` in `csi-spl-wui/src/utils/docs.mjs`, tested by
 Plain-text doc paths: `csi-spl-wui/src/utils/doc-paths.mjs`, reached through
 `doc-path-hook.mjs`, tested by `tests/unit/doc-paths.test.mjs` and
 `tests/e2e/doc-path-links.test.mjs`.
+`type:id` links (rule 11): `csi-spl-wui/src/utils/id-links.mjs`, tested by
+`tests/unit/id-links.test.mjs`.
 Poll forms (section 7): `csi-spl-wui/src/utils/poll.mjs` (the syntax and the
 marker), `PollBody.vue` / `PollForm.vue`, tested by
 `tests/unit/poll-control.test.mjs` and `tests/e2e/topic-send-target.test.mjs`.

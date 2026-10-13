@@ -1,5 +1,7 @@
 # Runbook: the orchestrator seat (any vendor)
 
+> Generated from qto doc `f10a4274-1ef7-489a-8a9b-cec09fdddf32`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 For whoever holds the orchestrator role (`c-001`), on any agent vendor: a
 Claude seat, a Grok seat or another. Everything here is a shell command, a
 file or a spool message; nothing needs a vendor's own slash commands, skills
@@ -22,7 +24,7 @@ Conventions on this page:
   `sudo -u <box user> env SPOOL_ROOT=/var/spool-hub ...`, unless the line says
   otherwise.
 
-## 1. The job
+## 1 The job
 
 | you do | you never do |
 |---|---|
@@ -33,7 +35,7 @@ Conventions on this page:
 | take a post that names you, and any post still unanswered after 2 minutes (the backstop), then own that topic | force-push, delete or rewrite master |
 | verify "live" claims before they reach a human (dispatcher runbook section 4) | relay a result as Done before the dispatcher's `ACCEPTED` |
 
-## 2. The commands
+## 2 The commands
 
 ### 2.1 Start of a session, and every breakpoint
 
@@ -83,7 +85,7 @@ only in the permission mode the global rule `07` names. After any start:
 `ps -u <human user> -o pid=,args= | awk '$2 ~ /(^|\/)claude$/'` prints
 nothing (the same check for any other vendor binary).
 
-## 3. Decision table: message -> action
+## 3 Decision table: message -> action
 
 | the message is | you do |
 |---|---|
@@ -110,7 +112,7 @@ nothing (the same check for any other vendor binary).
 
 - **Queued asks:** An ask that is queued on purpose still counts toward the 4-raise dead-letter. Nothing parks a queued ask today; it re-raises until closed (`do_spl_ask_close`) - track it in your handoff.
 
-## 4. The leases and standby
+## 4 The leases and standby
 
 - You act only while `/var/spool-hub/dispatch/lease.orch` names YOUR id AND
   YOUR box AND is at most 180 s old. Otherwise **standby**: read, stay ready;
@@ -154,7 +156,7 @@ nothing (the same check for any other vendor binary).
 
 - **Role rotation (operator view):** The lane-rotation fix does not cover a role rotation. A role rotation is outside the lane fix, and `ACK-COMMAND` is not in the new role seat's first prompt.
 
-## 5. Spawning and placement
+## 5 Spawning and placement
 
 0. Extract the brief BEFORE you archive the inbox. Read the request body
    from `inbox/` or `archive/`. Check it is non-empty with `test -s` and a
@@ -200,7 +202,7 @@ picker would choose the starved box, or when the owner orders a box.
 
 - **Spawn HOLD:** A spawn answered HOLD (rc 10, "nothing was spawned") still leaves a remote request behind. Drop the duplicate before it spawns.
 
-## 6. Production operations
+## 6 Production operations
 
 | operation | needs |
 |---|---|
@@ -262,7 +264,7 @@ never worked around.
 
 - **Pre-push override:** Only the owner can set `SPL_PREPUSH_OVERRIDE`. A permission denied on the hook's log is not a failing test.
 
-## 7. Escalation to the owner
+## 7 Escalation to the owner
 
 - A question only the owner can answer goes to the topic it belongs to, as a
   blocker, with ONE recommended action to approve with "go". Keep its
@@ -272,7 +274,7 @@ never worked around.
   Refactoring rounds need no go either (role spec section 1.2).
 - A check that needs an owner-held key is an owner blocker, never "optional".
 
-## 8. Traps we hit
+## 8 Traps we hit
 
 The dispatcher runbook's section 9 applies in full. In addition:
 
@@ -289,7 +291,7 @@ The dispatcher runbook's section 9 applies in full. In addition:
 
 | 429 fencing (maxScale >= 2) | Both leases can become none@unreachable in the same minute the hub returns 429, and spec 102 fences both boxes. | The recovery and who may restart prd is an open owner decision (maxScale >= 2). |
 
-## 9. Gaps for a non-Claude seat
+## 9 Gaps for a non-Claude seat
 
 | part | today | a Grok seat |
 |---|---|---|

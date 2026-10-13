@@ -1,5 +1,7 @@
 # Runbook: the dispatcher seat (any vendor)
 
+> Generated from qto doc `c02033bc-1c58-419f-88c2-4762810121aa`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 For whoever holds the dispatcher role (`c-002` master, `c-003` failover), on
 any agent vendor: a Claude seat, a Grok seat or another. Everything here is a
 shell command, a file or a spool message; nothing needs a vendor's own slash
@@ -21,7 +23,7 @@ Conventions on this page:
   `sudo -u <box user> env SPOOL_ROOT=/var/spool-hub ...`, unless the line says
   otherwise.
 
-## 1. The job
+## 1 The job
 
 | you do | you never do |
 |---|---|
@@ -36,7 +38,7 @@ Conventions on this page:
 2 minutes, the orchestrator takes it as the backstop. The orchestrator then
 owns that topic.
 
-## 2. The commands
+## 2 The commands
 
 ### 2.1 Read
 
@@ -87,7 +89,7 @@ secrets, and no filler: a post that only acknowledges is not sent.
 
 - **Disk sweep (operator view):** A disk sweep (`box-disk-sweep`) freed count is only real if the file count dropped. Ignore rc=0 or DONE if no files were removed.
 
-## 3. Decision table: message -> action
+## 3 Decision table: message -> action
 
 For each message do exactly one row, then archive it.
 
@@ -110,7 +112,7 @@ For each message do exactly one row, then archive it.
 | a short owner answer ("yes", "all a", "2") | find WHICH question it answers (your last post in that topic with those options; one topic can hold two lists) and state your reading in the reply, so the owner can correct it |
 | the owner says no to the same thing three times | take it as decided: pause the work (not cancel), say how to resume, never argue a fourth time |
 
-## 4. Verifying a sha and a deploy
+## 4 Verifying a sha and a deploy
 
 "Landed" is not "Done". Done is yours to judge, against the task's own Done
 line, never on the lane's word.
@@ -143,7 +145,7 @@ Before you post:
 
 - **Pre-push override:** Only the owner can set `SPL_PREPUSH_OVERRIDE`. A permission denied on the hook's log is not a failing test.
 
-## 5. The leases and standby
+## 5 The leases and standby
 
 | file | line | you act only when |
 |---|---|---|
@@ -190,7 +192,7 @@ Before you post:
 
 - **Role rotation (operator view):** The lane-rotation fix does not cover a role rotation. A role rotation is outside the lane fix, and `ACK-COMMAND` is not in the new role seat's first prompt.
 
-## 6. Spawning and placement
+## 6 Spawning and placement
 
 The dispatcher that takes real lane work spawns it itself.
 
@@ -226,7 +228,7 @@ closed by the orchestrator, not kept open "in case".
 
 - **Spawn HOLD:** A spawn answered HOLD (rc 10, "nothing was spawned") still leaves a remote request behind. Drop the duplicate before it spawns.
 
-## 7. The data rule
+## 7 The data rule
 
 Owner rule (2026-10-08, msg 803c3b38, spec 110 D2), extended by the owner on
 2026-10-11 (t1 `ee1e58d5`, msgs 26117740 and 474f32a0): work that carries
@@ -256,7 +258,7 @@ Whatever the vendor:
   a private repo. Rewriting public history, or making a repository private,
   is the owner's decision alone.
 
-## 8. Escalation
+## 8 Escalation
 
 | what | to | how |
 |---|---|---|
@@ -279,7 +281,7 @@ any crossing with ONE final message.
 
 - **Exit gate ACCEPTED:** An `ACCEPTED` line must come from a role seat or the spawner. An editor's line is refused, and a seat on the other box needs its own line from the spawner.
 
-## 9. Traps we hit
+## 9 Traps we hit
 
 | trap | what happened | what to do |
 |---|---|---|
@@ -299,7 +301,7 @@ any crossing with ONE final message.
 
 | 429 fencing (maxScale >= 2) | Both leases can become none@unreachable in the same minute the hub returns 429, and spec 102 fences both boxes. | The recovery and who may restart prd is an open owner decision (maxScale >= 2). |
 
-## 10. Gaps for a non-Claude seat
+## 10 Gaps for a non-Claude seat
 
 These parts of today's setup still assume a Claude seat; a Grok seat works
 around them as shown until they are vendor-neutral. The Grok shadow run

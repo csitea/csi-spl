@@ -2784,5 +2784,17 @@
     "no_key": "Nog geen sleutel.",
     "copy_key": "Sleutel kopiëren",
     "replace_key_confirm": "Een nieuwe sleutel trekt de huidige in: de server van de website moet erop overstappen."
+  },
+  "blog": {
+    "share": "Delen",
+    "copy_link": "Kopieer link",
+    "share_linkedin": "Delen op LinkedIn",
+    "share_facebook": "Delen op Facebook",
+    "share_x": "Delen op X",
+    "share_whatsapp": "Delen op WhatsApp",
+    "share_telegram": "Delen op Telegram",
+    "share_reddit": "Delen op Reddit",
+    "share_substack": "Delen op Substack",
+    "share_email": "Delen via e-mail"
   }
 }

@@ -2784,5 +2784,17 @@
     "no_key": "Aún no hay clave.",
     "copy_key": "Copiar la clave",
     "replace_key_confirm": "Una clave nueva revoca la actual: el servidor del sitio web debe pasar a usarla."
+  },
+  "blog": {
+    "share": "Compartir",
+    "copy_link": "Copiar enlace",
+    "share_linkedin": "Compartir en LinkedIn",
+    "share_facebook": "Compartir en Facebook",
+    "share_x": "Compartir en X",
+    "share_whatsapp": "Compartir en WhatsApp",
+    "share_telegram": "Compartir en Telegram",
+    "share_reddit": "Compartir en Reddit",
+    "share_substack": "Compartir en Substack",
+    "share_email": "Compartir por correo"
   }
 }

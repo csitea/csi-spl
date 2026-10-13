@@ -2784,5 +2784,17 @@
     "no_key": "Δεν υπάρχει ακόμη κλειδί.",
     "copy_key": "Αντιγραφή του κλειδιού",
     "replace_key_confirm": "Ένα νέο κλειδί ανακαλεί το τρέχον: ο διακομιστής του ιστότοπου πρέπει να μεταβεί σε αυτό."
+  },
+  "blog": {
+    "share": "Κοινοποίηση",
+    "copy_link": "Αντιγραφή συνδέσμου",
+    "share_linkedin": "Κοινοποίηση στο LinkedIn",
+    "share_facebook": "Κοινοποίηση στο Facebook",
+    "share_x": "Κοινοποίηση στο X",
+    "share_whatsapp": "Κοινοποίηση στο WhatsApp",
+    "share_telegram": "Κοινοποίηση στο Telegram",
+    "share_reddit": "Κοινοποίηση στο Reddit",
+    "share_substack": "Κοινοποίηση στο Substack",
+    "share_email": "Κοινοποίηση μέσω email"
   }
 }

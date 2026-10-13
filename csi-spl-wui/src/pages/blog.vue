@@ -58,6 +58,114 @@
         </nav>
         <header class="bpost__head">
           <h1 class="bpost__title" data-test="blog-post-title">{{ post.entry.title }}</h1>
+          <div v-if="view.kind === 'post' && post" class="bpost__share">
+            <button
+              v-if="webShareSupported"
+              class="bpost__share-button"
+              :title="t('blog.share')"
+              @click="shareNative"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="5" r="3"></circle>
+                <circle cx="6" cy="12" r="3"></circle>
+                <circle cx="18" cy="19" r="3"></circle>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+              </svg>
+              <span>{{ t('blog.share') }}</span>
+            </button>
+            <div v-else class="bpost__share-row">
+              <button
+                class="bpost__share-button"
+                :title="t('blog.copy_link')"
+                @click="copyLink"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                <span>{{ t('blog.copy_link') }}</span>
+              </button>
+              <a
+                class="bpost__share-button"
+                :href="shareUrl('linkedin')"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="t('blog.share_linkedin')"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                <span>{{ t('blog.share_linkedin') }}</span>
+              </a>
+              <a
+                class="bpost__share-button"
+                :href="shareUrl('facebook')"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="t('blog.share_facebook')"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/></svg>
+                <span>{{ t('blog.share_facebook') }}</span>
+              </a>
+              <a
+                class="bpost__share-button"
+                :href="shareUrl('x')"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="t('blog.share_x')"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.617l-5.21-6.817-6.022 6.817h-3.308l7.73-8.835-7.997-10.66h6.772l4.578 6.117 5.445-6.117zm-1.161 17.52h1.833l-7.69-10.337-1.833 2.456 6.305 8.581z"/></svg>
+                <span>{{ t('blog.share_x') }}</span>
+              </a>
+              <a
+                class="bpost__share-button"
+                :href="shareUrl('whatsapp')"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="t('blog.share_whatsapp')"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+                <span>{{ t('blog.share_whatsapp') }}</span>
+              </a>
+              <a
+                class="bpost__share-button"
+                :href="shareUrl('telegram')"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="t('blog.share_telegram')"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.91 3.79l-2.21 8.21c-1.04 3.86-3.5 7.3-7.36 9.31l-3.5-2.62-1.69 1.6c-.29.28-.49.6-.6.95l.8 3.22c.11 1.14-.74 1.54-1.52.82l-3.2-2.39c-1.38-.99-1.03-2.23.42-2.9l8.32-3.12-4.11-3.95c-.78-.75-1.02-1.8-.6-2.78l1.65-5.23c.42-1.34 1.66-1.92 2.89-1.3l6.12 3.86c1.44.9 3.62.36 4.55-1.22z"/></svg>
+                <span>{{ t('blog.share_telegram') }}</span>
+              </a>
+              <a
+                class="bpost__share-button"
+                :href="shareUrl('reddit')"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="t('blog.share_reddit')"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                <span>{{ t('blog.share_reddit') }}</span>
+              </a>
+              <a
+                class="bpost__share-button"
+                :href="shareUrl('substack')"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="t('blog.share_substack')"
+                @click.prevent="shareSubstack"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.23 7.99h-20.46c-1.01 0-1.83.82-1.83 1.83v.02c0 1.01.82 1.83 1.83 1.83h20.46c1.01 0 1.83-.82 1.83-1.83v-.02c0-1.01-.82-1.83-1.83-1.83zM1.8 14.01h20.46c1.01 0 1.83.82 1.83 1.83v.02c0 1.01-.82 1.83-1.83 1.83h-20.46c-1.01 0-1.83-.82-1.83-1.83v-.02c0-1.01.82-1.83 1.83-1.83zm20.46-6.02h-16.13l8.07 4.99 8.06-4.99z"/></svg>
+                <span>{{ t('blog.share_substack') }}</span>
+              </a>
+              <a
+                class="bpost__share-button"
+                :href="shareUrl('email')"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="t('blog.share_email')"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                <span>{{ t('blog.share_email') }}</span>
+              </a>
+            </div>
+          </div>
           <p class="bpost__meta" data-test="blog-post-meta">
             <time :datetime="post.entry.published || post.entry.date">{{ post.entry.date }}</time>
             <span class="bpost__type" :data-type="post.entry.type">{{ post.entry.type }}</span>
@@ -133,6 +241,84 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { LOCALE_LS_KEY } from '~/composables/useLocaleSwitch'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { SITE_IMAGE, SITE_NAME, jsonLd, localeAlternates, localeLinks, seoIndexOn, socialMeta } from '~/utils/public-seo.mjs'
+
+const { t } = useI18n({ useScope: 'global' })
+const pub = useRuntimeConfig().public
+const siteUrl = String(pub.siteUrl || '').replace(/\/+$/, '')
+
+// Check if Web Share API is supported
+const webShareSupported = ref(typeof navigator !== 'undefined' && 'share' in navigator)
+
+// Canonical URL for the current post
+const postUrl = computed(() => {
+  if (!post.value) return ''
+  const path = `/blog/${post.value.entry.id}`
+  return `${siteUrl}${unprefixed(path)}`
+})
+
+// Share URL for each platform
+const shareUrl = (platform: string) => {
+  if (!post.value) return ''
+  const url = encodeURIComponent(postUrl.value)
+  const title = encodeURIComponent(post.value.entry.title)
+  const text = encodeURIComponent(`${post.value.entry.title} - ${post.value.entry.summary}`)
+
+  switch (platform) {
+    case 'linkedin':
+      return `https://www.linkedin.com/sharing/share-offsite/?url=${url}`
+    case 'facebook':
+      return `https://www.facebook.com/sharer/sharer.php?u=${url}`
+    case 'x':
+      return `https://x.com/intent/post?url=${url}&text=${title}`
+    case 'whatsapp':
+      return `https://wa.me/?text=${url}`
+    case 'telegram':
+      return `https://t.me/share/url?url=${url}&text=${text}`
+    case 'reddit':
+      return `https://www.reddit.com/submit?url=${url}&title=${title}`
+    case 'substack':
+      return `https://substack.com/notes/compose?text=${url}`
+    case 'email':
+      return `mailto:?subject=${title}&body=${url}`
+    default:
+      return ''
+  }
+}
+
+// Copy link to clipboard
+const copyLink = async () => {
+  if (!post.value) return
+  try {
+    await navigator.clipboard.writeText(postUrl.value)
+  } catch (err) {
+    console.error('Failed to copy link:', err)
+  }
+}
+
+// Web Share API
+const shareNative = async () => {
+  if (!post.value || !webShareSupported.value) return
+  try {
+    await navigator.share({
+      title: post.value.entry.title,
+      text: post.value.entry.summary,
+      url: postUrl.value,
+    })
+  } catch (err) {
+    console.error('Failed to share:', err)
+  }
+}
+
+// Substack fallback: copy link + open Substack Notes
+const shareSubstack = async () => {
+  if (!post.value) return
+  try {
+    await navigator.clipboard.writeText(postUrl.value)
+    window.open('https://substack.com/notes', '_blank', 'noopener noreferrer')
+  } catch (err) {
+    console.error('Failed to copy link:', err)
+  }
+}
 
 /* one record for all three paths (spec 111 3.1): nuxt.config sets its path
    to /blog/:slug(.*)* (blogDocumentsModule); a "..." file name would put
@@ -419,8 +605,49 @@ useHead(() => {
   .blog-lang__current { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .blog-lang__code { display: inline; }
 }
+
+.bpost__share {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+
+.bpost__share-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bpost__share-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-fg);
+  text-decoration: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.bpost__share-button:hover {
+  background: var(--color-surface-hover);
+}
+
+.bpost__share-button svg {
+  width: 16px;
+  height: 16px;
+}
+
 @media (max-width: 600px) {
   .blog-main { padding: 16px 12px 32px; }
   .blog__title, .bpost__title { font-size: 1.5rem; }
+  .bpost__share-button span {
+    display: none;
+  }
 }
 </style>

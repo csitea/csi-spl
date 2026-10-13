@@ -2784,5 +2784,17 @@
     "no_key": "Brak klucza.",
     "copy_key": "Kopiuj klucz",
     "replace_key_confirm": "Nowy klucz unieważnia obecny: serwer witryny musi na niego przejść."
+  },
+  "blog": {
+    "share": "Udostępnij",
+    "copy_link": "Kopiuj link",
+    "share_linkedin": "Udostępnij na LinkedIn",
+    "share_facebook": "Udostępnij na Facebooku",
+    "share_x": "Udostępnij na X",
+    "share_whatsapp": "Udostępnij na WhatsApp",
+    "share_telegram": "Udostępnij na Telegram",
+    "share_reddit": "Udostępnij na Reddit",
+    "share_substack": "Udostępnij na Substack",
+    "share_email": "Udostępnij przez e-mail"
   }
 }

@@ -2784,5 +2784,17 @@
     "no_key": "Сè уште нема клуч.",
     "copy_key": "Копирај го клучот",
     "replace_key_confirm": "Нов клуч го поништува тековниот: серверот на веб-страницата мора да премине на него."
+  },
+  "blog": {
+    "share": "Сподели",
+    "copy_link": "Копирај врска",
+    "share_linkedin": "Сподели на LinkedIn",
+    "share_facebook": "Сподели на Facebook",
+    "share_x": "Сподели на X",
+    "share_whatsapp": "Сподели на WhatsApp",
+    "share_telegram": "Сподели на Telegram",
+    "share_reddit": "Сподели на Reddit",
+    "share_substack": "Сподели на Substack",
+    "share_email": "Сподели преку е-пошта"
   }
 }

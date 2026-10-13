@@ -2784,5 +2784,17 @@
     "no_key": "Ключа пока нет.",
     "copy_key": "Скопировать ключ",
     "replace_key_confirm": "Новый ключ отзывает текущий: сервер сайта должен перейти на него."
+  },
+  "blog": {
+    "share": "Поделиться",
+    "copy_link": "Копировать ссылку",
+    "share_linkedin": "Поделиться в LinkedIn",
+    "share_facebook": "Поделиться в Facebook",
+    "share_x": "Поделиться в X",
+    "share_whatsapp": "Поделиться в WhatsApp",
+    "share_telegram": "Поделиться в Telegram",
+    "share_reddit": "Поделиться в Reddit",
+    "share_substack": "Поделиться в Substack",
+    "share_email": "Поделиться по электронной почте"
   }
 }

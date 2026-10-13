@@ -2784,5 +2784,17 @@
     "no_key": "Încă nu există o cheie.",
     "copy_key": "Copiază cheia",
     "replace_key_confirm": "O cheie nouă o revocă pe cea curentă: serverul site-ului trebuie să treacă la ea."
+  },
+  "blog": {
+    "share": "Distribuie",
+    "copy_link": "Copiază link",
+    "share_linkedin": "Distribuie pe LinkedIn",
+    "share_facebook": "Distribuie pe Facebook",
+    "share_x": "Distribuie pe X",
+    "share_whatsapp": "Distribuie pe WhatsApp",
+    "share_telegram": "Distribuie pe Telegram",
+    "share_reddit": "Distribuie pe Reddit",
+    "share_substack": "Distribuie pe Substack",
+    "share_email": "Distribuie prin e-mail"
   }
 }

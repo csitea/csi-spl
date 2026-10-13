@@ -2784,5 +2784,17 @@
     "no_key": "Atslēgas vēl nav.",
     "copy_key": "Kopēt atslēgu",
     "replace_key_confirm": "Jauna atslēga atsauc pašreizējo: vietnes serverim jāpāriet uz to."
+  },
+  "blog": {
+    "share": "Kopīgot",
+    "copy_link": "Kopēt saiti",
+    "share_linkedin": "Kopīgot LinkedIn",
+    "share_facebook": "Kopīgot Facebook",
+    "share_x": "Kopīgot X",
+    "share_whatsapp": "Kopīgot WhatsApp",
+    "share_telegram": "Kopīgot Telegram",
+    "share_reddit": "Kopīgot Reddit",
+    "share_substack": "Kopīgot Substack",
+    "share_email": "Kopīgot e-pastā"
   }
 }

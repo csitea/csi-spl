@@ -322,6 +322,13 @@ _spawn_seed_file() {
   _sp_prompt_args=" ${SPAWN_PROMPT_FLAG:+${SPAWN_PROMPT_FLAG} }\"${PROMPT_ESC}\""
 }
 
+# 0 when ID is a KIND id, or a role seat (c-001/c-002/c-003) respawned
+# under another vendor with SPAWN_REUSE_ID=1 (ROTATE_ROLE_VENDOR, SPL-1605).
+_sp_kind_ok() {  # ID KIND
+  [ "$(spl_kind_of_agent_id "$1")" = "$2" ] && return 0
+  [ "${SPAWN_REUSE_ID:-0}" = 1 ] && spool_spawn_is_seat "$1"
+}
+
 spawn_main() {
   TITLE="${1:-}"; WORKDIR="${2:-}"; BRIEF="${3:-}"; SLUG="${4:-}"
   local _sp_cli _sp_idl _sp_name_args="" _sp_prompt_args=""
@@ -355,7 +362,7 @@ spawn_main() {
   # collapse WORKTREE_DIR to "<repo>-wt/" and MSGDIR to the spool root itself.
   spool_valid_id "$TITLE" 2>/dev/null \
     || _sp_fail "invalid session TITLE '${TITLE}' — expected a spool agent id like ${_sp_id_eg} (${SPOOL_ID_RE}, never BOX-)."
-  [ "$(spl_kind_of_agent_id "$TITLE")" = "$SPAWN_KIND" ] \
+  _sp_kind_ok "$TITLE" "$SPAWN_KIND" \
     || _sp_fail "TITLE '${TITLE}' does not carry the ${SPAWN_KIND} ${_sp_id_mark}"
   [ -n "$WORKDIR" ] || _sp_fail "usage: ${SPAWN_ADAPTER##*/} <TITLE> <WORKDIR> [BRIEF_FILE] [SLUG]"
 

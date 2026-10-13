@@ -255,7 +255,11 @@ if [ "$TITLE" = auto ]; then
   fi
 else
   spool_valid_id "$TITLE" || exit 2
-  [ "$(spl_kind_of_agent_id "$TITLE")" = "$KIND" ] || { echo "spawn-window: ${TITLE} is not a ${KIND} id" >&2; exit 2; }
+  # A role seat respawned by its rotation keeps its id under another vendor
+  # (ROTATE_ROLE_VENDOR, SPL-1605); every other kind/id mismatch is refused.
+  [ "$(spl_kind_of_agent_id "$TITLE")" = "$KIND" ] ||
+    { [ "${SPAWN_REUSE_ID:-0}" = 1 ] && spool_spawn_is_seat "$TITLE"; } ||
+    { echo "spawn-window: ${TITLE} is not a ${KIND} id" >&2; exit 2; }
   if [ "${SPAWN_REUSE_ID:-0}" != 1 ]; then
     if [ "$DRY" = 1 ]; then
       [ ! -e "${SPOOL_ROOT}/${TITLE}" ] || { echo "spawn-window: ${TITLE} is taken (${SPOOL_ROOT}/${TITLE})" >&2; exit 3; }

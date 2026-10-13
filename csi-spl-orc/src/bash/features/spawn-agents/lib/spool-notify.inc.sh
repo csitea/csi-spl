@@ -405,12 +405,14 @@ spool_notify_pane_dead() {  # TO PANE
   # by the same `ps` as before, on the same evidence.
   pane_tty="${SPOOL_PANE_TTY:-}"
   [ -n "$pane_tty" ] || pane_tty="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{pane_tty}' 2>/dev/null || true)"
-  if spool_notify_is_shell "${SPOOL_PANE_CMD:-}" && [ -n "$pane_tty" ]; then
-    tty_cmds="$(ps -t "${pane_tty#/dev/}" -o comm= 2>/dev/null | sort -u | tr '\n' ' ')"
-    if [ -n "$tty_cmds" ] && ! printf '%s\n' $tty_cmds | grep -qvxE 'bash|sh|zsh|dash|login'; then
-      SPOOL_POKE_LINE=""
-      echo "poke: skipped - ${to} pane ${pane} runs only shells (${tty_cmds% }); the agent has exited"
-      return 0
+  if [ -n "$pane_tty" ]; then
+    if spool_notify_is_shell "${SPOOL_PANE_CMD:-}"; then
+      tty_cmds="$(ps -t "${pane_tty#/dev/}" -o comm= 2>/dev/null | sort -u | tr '\n' ' ')"
+      if [ -n "$tty_cmds" ] && ! printf '%s\n' "$tty_cmds" | grep -qvxE 'bash|sh|zsh|dash|login'; then
+        SPOOL_POKE_LINE=""
+        echo "poke: skipped - ${to} pane ${pane} runs only shells (${tty_cmds% }); the agent has exited"
+        return 0
+      fi
     fi
   fi
   return 1
@@ -472,7 +474,7 @@ spool_notify_refuse_unsent() {  # TO PANE
 
 spool_notify_poke() {  # TO LINE [BODY] [FROM]
   local to="$1" line="$2" body="${3:-}" from="${4:-}"
-  local pane esc=$'\033' seat_num new_to
+  local pane new_to
 
   # Resolve old role ids (c-001, c-002, c-003) to the live role seat id.
   case "$to" in
@@ -502,7 +504,7 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
 
   spool_notify_pane_dead "$to" "$pane" && return 7
 
-  spool_notify_pick_line line "$pane" "$body" "$from"
+  spool_notify_pick_line line "$pane" "${body:-}" "${from:-}"
 
   spool_notify_refuse_unsent "$to" "$pane" && return 6
 
@@ -604,10 +606,10 @@ spool_notify_mark_trigger() {  # TO FROM TASK MSGID LINE
 # Wait until PANE shows the start of TEXT. Capped at about 0.3s.
 # Always returns 0: Enter still happens if the TUI is slow to paint.
 spool_notify_wait_composer() {  # PANE TEXT
-  local pane="$1" text="$2" needle i shown
+  local pane="$1" text="$2" needle shown
   needle="${text:0:24}"
   [ -n "$needle" ] || return 0
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
     shown="$("${SPOOL_TM[@]}" capture-pane -p -t "$pane" 2>/dev/null || true)"
     printf '%s' "$shown" | grep -qF -- "$needle" && return 0
     sleep 0.02

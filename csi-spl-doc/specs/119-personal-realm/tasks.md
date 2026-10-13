@@ -32,26 +32,26 @@ Version **v1.0**, built from `spec.md` v1.1 (`0cba1e6c4`). The owner's go:
 
 ## The 118-shared owner questions
 
-Five 119 questions are asked once, in spec 118 (`spec.md` 13), and are still
-open (118 v1.0 status line: "owner questions open, section 12"). Each lane
-below says whether it BUILDS on the recommended A or HOLDS:
+The five 119 questions shared with spec 118 are decided (owner msg 23d782e1:
+Q1..Q10 all A, msg 9d7436e5: Q8 B; spec 118 v1.1 status line). Every lane below
+builds on the decided answer:
 
-| 119 | = 118 | A (recommended) | lanes it touches |
+| 119 | = 118 | Decided | lanes it touches |
 |---|---|---|---|
-| OQ-2 | Q5 | no span columns in receipts | T001 (no span columns), T004 |
-| OQ-11 | Q6 | one `rev = 1` refresh when the last open period becomes final | T001 (`rev`, `last_open_from`), T004, T006 |
-| OQ-6 | Q7 | a workspace delete copies receipts first | T007 |
-| OQ-3 | Q8 | approver name kept as long as the receipt | none |
-| OQ-8 | Q10 | no personal download in v1 | none (no lane under A) |
+| OQ-2 | Q5 | A: no span columns in receipts | T001 (no span columns), T004 |
+| OQ-11 | Q6 | A: one `rev = 1` refresh when the last open period becomes final | T001 (`rev`, `last_open_from`), T004, T006 |
+| OQ-6 | Q7 | A: a workspace delete copies receipts first | T007 |
+| OQ-3 | Q8 | B: approver name kept as long as the receipt | none (T008 removed) |
+| OQ-8 | Q10 | A: no personal download in v1 | none (no lane under A) |
 
 ## Order
 
 T001 lands and is applied on **dev AND prd** before any code lane pushes
 (the DDL-first rule: code that reads a table the live DB does not have yet
 reds the gate and the deploy). Then T002. After T002, T003 and T004 run in
-parallel (disjoint files); T005 follows T004; T009 follows T003; T010
-follows T009. T006 and T007 HOLD on the owner. T011 is spec 118's
-build, not a 119 lane.
+parallel (disjoint files); T005 follows T004; T006 follows T005; T007 follows
+T004; T009 follows T003; T010 follows T009. T011 is spec 118's build
+(see `../118-multi-workspace-hours/tasks.md`).
 
 ## Tasks
 
@@ -178,15 +178,12 @@ build, not a 119 lane.
   118: none.
   Done: green on Postgres; deployed dev and prd.
 
-- [ ] T006 **Lane F: the `rev = 1` refresh** (claude, store; waits on T005
-  and **owner 118 Q6 / OQ-11**; HOLD). `spec.md` 8.3: the sweep reads open
-  `receipt_due` rows through `personal.due_receipts(now)` as
-  `spool_realm_sweeper`, appends `rev = 1` rows for the days of a period
-  that became final, closes `receipt_due`; a second approval appends
-  nothing; a workspace deleted first leaves `rev = 0`.
-  Why HOLD: under Q6 B there is no refresh at all, so this lane would be
-  built only to be deleted; the open `receipt_due` rows simply wait, nothing
-  is lost meanwhile.
+- [ ] T006 **Lane F: the `rev = 1` refresh** (claude, store; waits on T005;
+  BUILD). `spec.md` 8.3: the sweep reads open `receipt_due` rows through
+  `personal.due_receipts(now)` as `spool_realm_sweeper`, appends `rev = 1` rows
+  for the days of a period that became final, closes `receipt_due`; a second
+  approval appends nothing; a workspace deleted first leaves `rev = 0`.
+  Owner 118 Q6 / OQ-11 decided A (owner msg 23d782e1): one `rev = 1` refresh.
   Files (owns): `GO/hub/realm_refresh.go` + `_test.go`,
   `GO/store/personal_refresh.go` (+ `_postgres.go`, `_test.go`) (all *new*).
   Must not touch: T005's files (its call goes into `realm_sweep.go` through
@@ -194,14 +191,11 @@ build, not a 119 lane.
   Tests: T-R5; T-R7 end to end. Done: green on Postgres; deployed dev and prd.
 
 - [ ] T007 **Lane G: a workspace delete copies first** (claude, store +
-  auth; waits on T004 and **owner 118 Q7 / OQ-6**; HOLD). `spec.md` 8.1
-  row 3: steps 1..2 for every member before `DELETE FROM tenants`; a delete
-  that cannot copy is refused.
-  Why HOLD: the answer decides whether the lane exists, and there is no
-  product delete path to hook yet: `grep -rln 'DELETE FROM tenants'
-  --include=*.go --include=*.sh .` -> only the test-tenant and search-seed
-  purge actions and tests, whose members are synthetic and get no receipt.
-  Files (owns, under A): `GO/store/personal_workspace_copy.go` (+ `_test.go`)
+  auth; waits on T004; BUILD). `spec.md` 8.1 row 3: steps 1..2 for every
+  member before `DELETE FROM tenants`; a delete that cannot copy is refused.
+  Owner 118 Q7 / OQ-6 decided A (owner msg 23d782e1): a deleted workspace's
+  members get receipts.
+  Files (owns): `GO/store/personal_workspace_copy.go` (+ `_test.go`)
   (*new*), and the copy call in whichever workspace delete lands first.
   Tests: T-R4. Done: green on Postgres; deployed dev and prd.
 
@@ -230,12 +224,11 @@ build, not a 119 lane.
   Must not touch: T009's pages and store except through T009's agent.
   Done: as T009; agy review of the strings.
 
-- [ ] T011 **118's build, not a 119 lane** (HOLD on spec 118). `GET`/`PUT
-  /v1/me/realm/hours`, `GET /v1/me/realm/targets` and the `/me/hours` page
-  are spec 118's (118 7, C2, C6); they call T002's `inPerson` reads and the
-  receipts of T004. Tests T-K1, T-K2 run there. Why HOLD: spec 118 has no
-  `tasks.md` yet (`ls csi-spl-doc/specs/118-multi-workspace-hours/` ->
-  `reviews`, `spec.md`) and its owner questions are open.
+- [ ] T011 **118's build, not a 119 lane** (defined in `../118-multi-workspace-hours/tasks.md`).
+  `GET`/`PUT /v1/me/realm/hours`, `GET /v1/me/realm/targets` and the `/me/hours`
+  page are spec 118's (118 section 7, C2, C6); they call T002's `inPerson` reads
+  and the receipts of T004. Tests T-K1, T-K2 run there. Build lanes are defined in
+  `csi-spl-doc/specs/118-multi-workspace-hours/tasks.md`.
 
 ## Lanes at a glance
 
@@ -246,11 +239,11 @@ build, not a 119 lane.
 | T003 | C: `/v1/me/realm/*` routes | claude | T002 | Q10 A | BUILD |
 | T004 | D: copy on removal / ban | claude | T002 | Q5 A, Q6 A | BUILD |
 | T005 | E: `access_until` sweep | claude | T004 | none | BUILD |
-| T006 | F: `rev = 1` refresh | claude | T005 + 118 Q6 | Q6 | HOLD |
-| T007 | G: workspace delete copies | claude | T004 + 118 Q7 | Q7 | HOLD |
+| T006 | F: `rev = 1` refresh | claude | T005 | Q6 A | BUILD |
+| T007 | G: workspace delete copies | claude | T004 | Q7 A | BUILD |
 | T008 | H: approver name retention | none | none | Q8 B | removed |
 | T009 | I: WUI realm frame, settings | grok / mistral | T003 deployed | none | BUILD |
 | T010 | J: WUI receipts + erasure | grok / mistral | T009 | none | BUILD |
-| T011 | 118 routes + `/me/hours` | (118's lanes) | spec 118 | all | HOLD |
+| T011 | 118 routes + `/me/hours` | (118's lanes) | 118 tasks.md | all | see 118 |
 
-<!-- version: 1.0.0 · updated: 2026-10-10 · last-edit: 2026-10-10 -->
+<!-- version: 1.1.0 · updated: 2026-10-13 · last-edit: 2026-10-13 -->

@@ -37,7 +37,11 @@
 # @param ROTATE_ORCH_SPLIT (optional) - 1: the successor's vendor follows cnf
 # @param   agent_split_by_kind.orchestration (do_spl_lane_mix, over the role
 # @param   rotations in ROTATE_MIX_JOURNAL); 0 (default): claude, as before.
-# @param   The holder turns it on (env or rotate.conf); dispatch seats stay claude
+# @param   The holder turns it on (env or rotate.conf); dispatch seats follow only ROTATE_ROLE_VENDOR
+# @param ROTATE_ROLE_VENDOR (optional) - claude | grok: the successor's vendor,
+# @param   ahead of ROTATE_ORCH_SPLIT, for the orch AND both dispatch seats
+# @param   (env or rotate.conf); a grok with no CLI or auth, or that the lease
+# @param   would not count, = claude, logged; empty (default) = the rule above
 # @param ROTATE_MIX_JOURNAL (optional) - default <spool root>/dispatch/rotate.orch.mix.tsv
 # @example ./run -a do_spl_orch_rotate
 # @example DRY_RUN=0 ./run -a do_spl_orch_rotate
@@ -151,10 +155,12 @@ spl_orch_rotate_auto() {
 # vendor with no CLI or auth to the backup, then claude, and names why. No
 # pick (hold, no answer) or a vendor outside claude/grok/mistral = claude.
 # A non-claude pick the fleet lease would not count as the holder
-# (spl_orch_rotate_lease_sees) = claude: the role would lose its lease.
+# (spl_rotate_lease_sees) = claude: the role would lose its lease.
+# ROTATE_ROLE_VENDOR, when set, decides first (spl_rotate_role_vendor).
 spl_orch_rotate_vendor() {
   local out pick why
   ROTATE_KIND=claude
+  spl_rotate_role_vendor && return 0
   if [[ "${ROTATE_ORCH_SPLIT:-0}" != 1 ]]; then
     ROTATE_VENDOR_WHY="ROTATE_ORCH_SPLIT=0: claude"; return 0
   fi
@@ -165,26 +171,11 @@ spl_orch_rotate_vendor() {
     claude|grok|mistral) ;;
     *) ROTATE_VENDOR_WHY="lane-mix orchestration gave '${pick:-no pick}': claude"; return 0 ;;
   esac
-  if [[ "$pick" != claude ]] && ! spl_orch_rotate_lease_sees "$pick"; then
+  if [[ "$pick" != claude ]] && ! spl_rotate_lease_sees "$pick"; then
     ROTATE_VENDOR_WHY="lane-mix orchestration picked $pick ($why), but the fleet lease does not count a $pick process as the holder: claude"
     return 0
   fi
   ROTATE_KIND="$pick" ROTATE_VENDOR_WHY="lane-mix orchestration: $pick ($why)"
-}
-
-# spl_orch_rotate_lease_sees KIND: 0 when spl_lease_agent_pid finds a KIND
-# process (a probe in a throwaway proc dir). Since spec 134 P0 it counts
-# claude, grok and vibe; the probe keeps the rotation honest if that changes.
-# ROTATE_LEASE_KINDS (tests) names the kinds it counts instead.
-spl_orch_rotate_lease_sees() {
-  local d got="" comm="$1"
-  if [[ -n "${ROTATE_LEASE_KINDS:-}" ]]; then [[ " $ROTATE_LEASE_KINDS " == *" $1 "* ]]; return; fi
-  [[ "$comm" == mistral ]] && comm=vibe
-  d="$(mktemp -d)" || return 1
-  mkdir -p "$d/7" && echo "$comm" > "$d/7/comm" && printf 'SPOOL_AGENT_ID=probe-%s\0' "$1" > "$d/7/environ" &&
-    got="$(LEASE_PROC_ROOT="$d" spl_lease_agent_pid "probe-$1" 2>/dev/null || true)"
-  rm -rf "$d"
-  [[ "$got" == 7 ]]
 }
 
 # spl_orch_rotate_journal: one registry row per rotation made under the split

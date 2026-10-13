@@ -67,7 +67,7 @@ printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 100
 
 post() {
   env SPOOL_ROOT="$T/spool" SPOOL_DESK_BOX=sat LANE_FLEET=main LANE_CI_CMD="${CI_JOBS_CMD:-echo 0}" LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" \
-    LANE_LOADAVG="$T/loadavg" LANE_MEMINFO="$T/meminfo" LANE_NPROC=8 LANE_PANES_CMD="cat $T/panes" LANE_DF_CMD="cat $T/df" "$@" bash -c '
+    LANE_LOADAVG="$T/loadavg" LANE_MEMINFO="$T/meminfo" LANE_NPROC=8 LANE_PANES_CMD="cat $T/panes" LANE_DF_CMD="cat $T/df" SPOOL_VENDOR_CLIS_CMD=false "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "'"$PROJ_ROOT"'/src/bash/run/post-box-stats.func.sh"

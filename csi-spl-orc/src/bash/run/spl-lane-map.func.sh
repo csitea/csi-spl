@@ -56,7 +56,7 @@ do_spl_lane_map() {
   fi
   rows="$(spl_lane_merge "${hub_json:-{\"lanes\":[]\}}" "$(spl_lane_local_rows)")" || { do_log "FATAL cannot merge the lane rows"; return 1; }
   live_here="$(spl_lane_live_here)"
-  load="$(spl_lane_load "$rows" "$live_here")"
+  load="$(spl_lane_load "$rows" "$live_here" "$(spl_lane_clis_here)")"
   spl_lane_box_report "$rows" "$live_here" "$load"
   # the box rows feed the load only: they are no lane
   rows="$(jq -c --arg b "$LANE_BOX_ROW_ID" '[.[] | select(.agent_id != $b)]' <<<"$rows")"
@@ -218,7 +218,7 @@ spl_lane_table_recent() {
 }
 
 # The reserved id of a box's LOAD row in the lane map: one row per box,
-# BOX-0@<box>, scope `mem_kb=<MemAvailable> live=<id>,<id>,...` - the agents
+# BOX-0@<box>, scope `mem_kb=<MemAvailable> [ci=<n>] [cli=<kind>,...] live=<id>,...`: the agents
 # with a live tmux pane on that box and its free memory, as that box itself
 # read them. The hub stores it like any lane (no field of its own, no hub
 # change); this action writes it (spl_lane_box_report) and the map never
@@ -250,8 +250,17 @@ spl_lane_live_here() {
   done <<<"$out" | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))'
 }
 
+# The vendor kinds this box can start (spool_vendor_clis: the agent user's
+# `command -v` of each *_BIN), as a JSON array; null = could not measure.
+spl_lane_clis_here() {
+  local out
+  declare -F spool_vendor_clis >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  out="$(spool_vendor_clis 2>/dev/null)" || { echo null; return 0; }
+  jq -R -c 'split(",") | map(select(length > 0))' <<<"$out"
+}
+
 # The load per box, as a JSON array of
-# {box, here, live, busy, busy_ids, seats, clean_ids, mem, mem_kb, src}: the
+# {box, here, live, busy, busy_ids, seats, clean_ids, mem, mem_kb, clis, src}: the
 # agents live on the box NOW, split into busy (build lanes, their ids in
 # busy_ids) and seats; clean_ids, from another box's BOX-0 row, are its lanes
 # with `files: []` and a clean worktree (spl_lane_clean_here) (001-003 and the ids lease.conf
@@ -265,10 +274,12 @@ spl_lane_live_here() {
 #          down), the measure before the box rows
 # live = the box is up: a pane or BOX-0 source, or any such row. mem =
 # MemAvailable (here /proc/meminfo, LANE_MEMINFO in the tests; another box its
-# BOX-0 row), "?" unknown. The boxes: this one first, then the lease.conf
+# BOX-0 row), "?" unknown. clis = the vendor kinds the box can start (SPL-1649:
+# here CLIS_HERE, another box the cli= of its BOX-0 row), null unknown (an older
+# box, rows only): spawn-window.sh places a lane only where its kind is. The boxes: this one first, then the lease.conf
 # rankings (LEASE_PRIORITY*), then any other box a row names.
 # spawn-window.sh places a lane by it; the table prints it as its header.
-spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON array or null)
+spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON array or null) [CLIS_HERE (JSON array or null)]
   local f="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf" conf_boxes="" seat_ids="" kb
   if [[ -r "$f" ]]; then
     conf_boxes="$(sed -n 's/^LEASE_PRIORITY[A-Z_]*=\([a-z0-9,-]*\)$/\1/p' "$f" | tr ',' '\n' | grep -E '^[a-z0-9][a-z0-9-]{0,31}$')"
@@ -276,7 +287,7 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
   fi
   kb="$(awk '$1 == "MemAvailable:" {print $2; exit}' "${LANE_MEMINFO:-/proc/meminfo}" 2>/dev/null)"
   [[ "$kb" =~ ^[0-9]+$ ]] || kb=null
-  jq -c --arg here "$LANE_BOX" --argjson herekb "$kb" --argjson herelive "${2:-null}" --arg h "$LANE_HUB_STATE" \
+  jq -c --arg here "$LANE_BOX" --argjson herekb "$kb" --argjson herelive "${2:-null}" --argjson hereclis "${3:-null}" --arg h "$LANE_HUB_STATE" \
     --argjson max "${LANE_RECENT_S:-7200}" --argjson boxmax "${LANE_BOX_ROW_MAX_S:-3600}" --arg brid "$LANE_BOX_ROW_ID" \
     --arg conf "$conf_boxes" --arg seats "$seat_ids" '
     ($seats | split("\n") | map(select(length > 0))) as $ids
@@ -290,7 +301,7 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
     | reduce $all[] as $b ([]; if index($b) then . else . + [$b] end)
     | map(. as $b
         | ([$reports[] | select(.agent_box == $b)] | sort_by(.age_s) | first) as $rep
-        | (if $b == $here and $herelive != null then {src: "panes", ids: $herelive, kb: $herekb}
+        | (if $b == $here and $herelive != null then {src: "panes", ids: $herelive, kb: $herekb, clis: $hereclis}
            elif $rep != null then
              [$lanes[] | select(.agent_box == $b and .age_s >= 0 and .age_s < $rep.age_s)] as $since
              | {src: "box",
@@ -299,13 +310,16 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
                       - [$since[] | select(.state == "done") | .agent_id]),
                 clean: (($rep.scope | field("clean") | split(",") | map(select(length > 0)))
                         - [$since[] | .agent_id]),
-                kb: ($rep.scope | field("mem_kb") | if test("^[0-9]+$") then tonumber else null end)}
-           else {src: "rows", ids: [$recent[] | select(.agent_box == $b) | .agent_id], kb: (if $b == $here then $herekb else null end)}
+                kb: ($rep.scope | field("mem_kb") | if test("^[0-9]+$") then tonumber else null end),
+                clis: ([$rep.scope | capture("(^| )cli=(?<v>[^ ]*)")][0].v
+                       | if . == null then null else split(",") | map(select(test("^[a-z]+$"))) end)}
+           else {src: "rows", ids: [$recent[] | select(.agent_box == $b) | .agent_id], kb: (if $b == $here then $herekb else null end),
+                 clis: (if $b == $here then $hereclis else null end)}
            end) as $x
         | ($x.ids | unique) as $u
         | {box: $b, here: ($b == $here), live: ($x.src != "rows" or ($u | length) > 0),
            busy: ([$u[] | select(seat | not)] | length), busy_ids: [$u[] | select(seat | not)], seats: ([$u[] | select(seat)] | length),
-           clean_ids: ($x.clean // []), mem: ($x.kb | gb), mem_kb: $x.kb, src: $x.src})' <<<"$1"
+           clean_ids: ($x.clean // []), mem: ($x.kb | gb), mem_kb: $x.kb, clis: $x.clis, src: $x.src})' <<<"$1"
 }
 
 # Publish THIS box's load as its BOX-0 row, so the other boxes read real
@@ -322,9 +336,11 @@ spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
     '[.[] | select(.agent_id == $id and .agent_box == $b and .state == "live")] | min_by(.age_s)
      | if . == null then "-1 -" else "\(.age_s) \((.scope // "") | [capture("(^| )ci=(?<n>[0-9]+)")][0].n // "0")" end' <<<"$1")
   [[ "$age" =~ ^[0-9]+$ ]] && (( age < ${LANE_BOX_ROW_S:-300} )) && [[ "$was" == "$ci" ]] && return 0
-  # ci=<N> only while N > 0, and before live=: the cut below never drops it
+  # ci=<N> only while N > 0, and cli=<kinds> ("-" none, left out when
+  # unknown), before live=: the cut below never drops them
   scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" --arg ci "$ci" \
-    '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?")\(if $ci == "0" then "" else " ci=\($ci)" end) live=\($ids | join(","))"' <<<"$3")"
+    '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?")\(if $ci == "0" then "" else " ci=\($ci)" end)\(
+      if .clis == null then "" elif (.clis | length) == 0 then " cli=-" else " cli=\(.clis | join(","))" end) live=\($ids | join(","))"' <<<"$3")"
   scope="${scope:0:500}"
   # whole ids only: a cut one could name a shorter id that is not clean
   for id in $(spl_lane_clean_here "$1" "$2"); do
@@ -349,7 +365,7 @@ spl_lane_box_refresh() {  # LIVE_HERE (JSON array or null)
     { do_log "INFO the hub did not answer: the BOX-0 row of $LANE_BOX was not refreshed" >&2; return 0; }
   LANE_HUB_STATE=ok
   rows="$(spl_lane_merge "$hub_json" '[]')" || return 0
-  spl_lane_box_report "$rows" "$1" "$(spl_lane_load "$rows" "$1")"
+  spl_lane_box_report "$rows" "$1" "$(spl_lane_load "$rows" "$1" "$(spl_lane_clis_here)")"
 }
 
 # This box's hardware sample for the hub's history (rdb 0117), posted by

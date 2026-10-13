@@ -305,6 +305,14 @@ spool_env_resolve() {
   # the safe direction.
   [ "${SPOOL_ENV_NO_BINS:-}" = 1 ] && { export SPOOL_ROOT; return 0; }
 
+  spool_resolve_bins
+  export SPOOL_ROOT
+}
+
+# CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN, each unless already set:
+# <agent home>/.local/bin/<cli> when it exists, else the bare name (resolved on
+# the agent user's PATH when spool-harness.sh runs it). Needs SPOOL_AGENT_USER.
+spool_resolve_bins() {
   SPOOL_AGENT_HOME="$(_spool_home_of "$SPOOL_AGENT_USER")"
   local cli var
   # mistral's binary is vibe (spec 110 2.1); the variable keeps the kind's name.
@@ -319,7 +327,35 @@ spool_env_resolve() {
       fi
     fi
   done
-  export SPOOL_ROOT
+}
+
+# The vendor kinds THIS box can start (SPL-1649): one comma-separated line of
+# claude grok agy qwen mistral, each whose *_BIN `command -v` finds as the
+# agent user in its login shell - the way spool-harness.sh execs it, so a CLI
+# only the box user has does not count. "" = measured, none. Exit 1 = the hop
+# to the agent user failed: unknown, never "none". Before it, a lane placed on
+# a box without agy ended in `agent command 'agy' not found` and three
+# watchdog restarts. SPOOL_VENDOR_CLIS_CMD replaces the probe (tests). Read by
+# spawn-window.sh (placement) and the lane map's BOX-0 load row (cli=), which
+# tells the other boxes.
+spool_vendor_clis() {
+  if [ -n "${SPOOL_VENDOR_CLIS_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    $SPOOL_VENDOR_CLIS_CMD; return
+  fi
+  (
+    [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve
+    SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
+    spool_resolve_bins
+    probe=""
+    for kind in claude grok agy qwen mistral; do
+      var="$(printf '%s' "$kind" | tr '[:lower:]' '[:upper:]')_BIN"
+      probe+="command -v $(printf '%q' "${!var}") >/dev/null 2>&1 && echo $kind; "
+    done
+    out="$(spool_agent_exec "${probe}echo spool-clis-end" </dev/null 2>/dev/null)" || true
+    [[ "$out" == *spool-clis-end* ]] || exit 1
+    grep -xE 'claude|grok|agy|qwen|mistral' <<<"$out" | paste -sd, -
+  )
 }
 
 # The tmux command, hopping to the socket owner when this is someone else.

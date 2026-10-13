@@ -17,6 +17,10 @@
 #          measured on prd) picks the other box all through the outage and
 #          the PC box again once its beats recover; every box degraded ->
 #          the pick as before, with a WARN.
+#          15. BOX_PICK_KIND (SPL-1649): a box measured without that vendor's
+#          CLI (this box: spool_vendor_clis; another: the cli= of its BOX-0
+#          row) is never picked; no box left -> pick=nokind; no cli= is
+#          unknown and stays in; no BOX_PICK_KIND -> the pick as before.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -315,6 +319,43 @@ NOW=$(date +%s)
   pass "14. CONTROL runs waiting but no runner parked: their wait is not for this box's cores -> 0" || fail "14. no parked"
 [[ "$(ci_jobs 'Runner.Listener\n' "$((NOW - 3600)) 2" 'actions.runner.a.service\n')" == 0 ]] &&
   pass "14. CONTROL a gate file an hour old (the budget cron stopped) -> 0" || fail "14. stale gate"
+
+# 15. vendor CLI. clis BOX:CLI:AGE_S ... -> the BOX-0 rows with cli= ("" = none written)
+clis() {
+  local s b c a rows=""
+  for s in "$@"; do
+    IFS=: read -r b c a <<<"$s"
+    rows+="{\"agent_id\":\"BOX-0\",\"agent_box\":\"$b\",\"state\":\"live\",\"age_s\":$a,\"scope\":\"mem_kb=1${c:+ cli=$c} live=c-001\"},"
+  done
+  printf '{"fleet":"main","lanes":[%s]}\n' "${rows%,}" >"$T/lanes.json"
+}
+target 50 75 '["box-a","box-b"]'
+stats "box-a:3.2:8" "box-b:3.6:8"
+ALL=claude,grok,agy,qwen,mistral
+clis "box-b:$ALL:60"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo claude,qwen" BOX_PICK_KIND=agy)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  no agy CLI: not picked$' <<<"$out" &&
+  pass "15. agy, this box (first, under low) without agy -> box-b, the line says why" || fail "15. here: $out"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" BOX_PICK_KIND=agy)"
+[[ "$(pick "$out")" == box-a ]] && pass "15. CONTROL this box with agy -> box-a" || fail "15. control: $out"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo claude,qwen")"
+[[ "$(pick "$out")" == box-a ]] && pass "15. CONTROL no BOX_PICK_KIND -> the pick as before (box-a)" || fail "15. no kind: $out"
+clis "box-a:claude,qwen:60"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $ALL" BOX_PICK_KIND=agy)"
+[[ "$(pick "$out")" == box-b ]] && pass "15. another box's cli= without agy -> not picked (box-b)" || fail "15. row: $out"
+clis "box-a:-:60"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $ALL" BOX_PICK_KIND=agy)"
+[[ "$(pick "$out")" == box-b ]] && pass "15. cli=- (measured none) -> not picked" || fail "15. none: $out"
+clis "box-a::60"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $ALL" BOX_PICK_KIND=agy)"
+[[ "$(pick "$out")" == box-a ]] && pass "15. CONTROL a row with no cli= is unknown: box-a stays in" || fail "15. unknown: $out"
+clis "box-a:claude:60" "box-b:claude:60"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $ALL" BOX_PICK_KIND=agy)"
+[[ "$(pick "$out")" == nokind ]] && grep -q '^pick=nokind reason=.*agy CLI.*box-a box-b' <<<"$out" &&
+  pass "15. no box with agy -> pick=nokind (not hold: queueing would not help)" || fail "15. nokind: $out"
+clis "box-a:claude:4000"
+out="$(run LANES="$T/lanes.json" LANE_BOX=box-desk SPOOL_VENDOR_CLIS_CMD="echo $ALL" BOX_PICK_KIND=agy)"
+[[ "$(pick "$out")" == box-a ]] && pass "15. a BOX-0 row over an hour old tells nothing: box-a" || fail "15. stale: $out"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

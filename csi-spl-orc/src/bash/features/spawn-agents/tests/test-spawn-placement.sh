@@ -37,6 +37,13 @@
 #      every LANE_BOX_ROW_S); the header shows the other box's mem from its
 #      report; a stale report (LANE_BOX_ROW_MAX_S) falls back to its rows;
 #      BOX-0 is never listed as a lane
+#  13. VENDOR CLI (SPL-1649, a-864: an agy lane placed on a box without agy):
+#      this box without agy, the other with it -> there, never here; CONTROL
+#      this box with agy -> here; no box with agy -> exit 13, nothing spawned;
+#      a box with no cli= (unknown) stays a candidate; SPAWN_BOX (this box or
+#      the other) without it -> exit 13; a load target pick without it is
+#      overruled, pick=nokind is exit 13, the pick is told the kind; a failed remote spawn does not fall back to a box without
+#      it; the BOX-0 row publishes cli= and the map reads it back
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -95,6 +102,9 @@ chmod +x "$T_TMP/bin/"*
 export SPAWN_PLACE_MAP_CMD="$T_TMP/bin/map" SPAWN_REMOTE_CMD="$T_TMP/bin/remote"
 # The busy count alone; the load target pick has its own test (test-spawn-load-target.sh).
 export SPAWN_BOX_PICK=0
+# This box can start every kind unless a case says otherwise (13.).
+ALL_KINDS=claude,grok,agy,qwen,mistral
+export SPOOL_VENDOR_CLIS_CMD="echo $ALL_KINDS"
 
 spawn() {  # [TITLE] -> OUT, RC
   rm -f "$T_TMP/remote.calls"
@@ -229,7 +239,7 @@ rm -f "$T_TMP/hub.puts"
 { rows "$HERE_BOX" 1 100; echo "c-001 $HERE_BOX"; report "$OTHER" $((32 * G)) 60 c-200; } | set_rows
 hdr="$(FMT=table "$T_TMP/bin/map" 2>/dev/null)"
 has "12. this box publishes its BOX-0 row: free kB and its live pane ids" \
-  "lane --fleet main --agent BOX-0 --box $HERE_BOX --scope mem_kb=4194304 live=c-001,c-100 --state live" "$(cat "$T_TMP/hub.puts" 2>/dev/null)"
+  "lane --fleet main --agent BOX-0 --box $HERE_BOX --scope mem_kb=4194304 cli=$ALL_KINDS live=c-001,c-100 --state live" "$(cat "$T_TMP/hub.puts" 2>/dev/null)"
 has "12. the header shows the other box's mem from its report" "BOX $OTHER  busy 1  seats 0  mem 32.0G" "$hdr"
 hasnt "12. BOX-0 is never a lane in the table" "BOX-0" "$hdr"
 eq "12. ... nor in the json lanes" "[]" "$(FMT=json "$T_TMP/bin/map" 2>/dev/null | jq -c '[.lanes[] | select(.agent_id == "BOX-0")]')"
@@ -242,5 +252,70 @@ FMT=table "$T_TMP/bin/map" >/dev/null 2>&1
 check "12. CONTROL one 400 s old is" test -s "$T_TMP/hub.puts"
 { rows "$HERE_BOX" 1 100; report "$OTHER" $((32 * G)) 4000 c-200,c-201,c-202; rows "$OTHER" 1 200 60; } | set_rows
 eq "12. a report over an hour old is not read: the other box falls back to its rows" '[1,"?","rows"]' "$(load "$OTHER" '[.busy, .mem, .src]')"
+
+# 13. vendor CLI: the kind goes only where its CLI is (here: no agy)
+NO_AGY="echo claude,grok,qwen,mistral"
+# report_cli <box> <cli value> <age_s> <ids>: a BOX-0 row that publishes cli=
+report_cli() { printf 'BOX-0 %s %s live mem_kb=%s cli=%s live=%s\n' "$1" "$3" $((32 * G)) "$2" "$4"; }
+spawn_k() {  # KIND [env...] -> OUT, RC
+  local kind="$1"; shift
+  rm -f "$T_TMP/remote.calls"
+  OUT="$(env "$@" bash "$SW" "$kind" auto "$T_TMP/wd" 2>&1)"; RC=$?
+}
+went_there_k() { [ "$RC" = 0 ] && [[ "$OUT" == *"c-200@$OTHER %9"* ]] && grep -q -- "--box $OTHER $1 auto $T_TMP/wd" "$T_TMP/remote.calls"; }
+refused() { [ "$RC" = 13 ] && [[ "$OUT" == *"REFUSED"* ]] && [ ! -e "$T_TMP/remote.calls" ]; }
+{ report_cli "$OTHER" claude,agy 60 c-200,c-201; } | set_rows
+spawn_k agy SPOOL_VENDOR_CLIS_CMD="$NO_AGY"
+check "13. agy, this box without agy (0 busy), the other with it (2 busy): starts there" went_there_k agy
+spawn_k agy
+check "13. CONTROL this box with agy: stays here (fewest busy)" went_here
+spawn_k claude SPOOL_VENDOR_CLIS_CMD="$NO_AGY"
+check "13. CONTROL claude, which this box has: stays here" went_here
+eq "13. the map reads the other box's cli= back" '["claude","agy"]' "$(load "$OTHER" .clis)"
+eq "13. ... and this box's from spool_vendor_clis" '["claude","grok","qwen","mistral"]' \
+  "$(SPOOL_VENDOR_CLIS_CMD="$NO_AGY" load "$HERE_BOX" .clis)"
+{ report_cli "$OTHER" claude 60 c-200; } | set_rows
+spawn_k agy SPOOL_VENDOR_CLIS_CMD="$NO_AGY"
+check "13. no box has agy: exit 13, nothing spawned, no remote request" refused
+{ report_cli "$OTHER" - 60 c-200; } | set_rows
+eq "13. cli=- is measured none" '[]' "$(load "$OTHER" .clis)"
+{ report "$OTHER" $((32 * G)) 60 c-200,c-201; } | set_rows
+eq "13. a report with no cli= is unknown" 'null' "$(load "$OTHER" .clis)"
+spawn_k agy SPOOL_VENDOR_CLIS_CMD="$NO_AGY"
+check "13. ... and stays a candidate: starts there" went_there_k agy
+{ report_cli "$OTHER" claude 60 c-200; } | set_rows
+spawn_k agy SPOOL_VENDOR_CLIS_CMD="$NO_AGY" SPAWN_BOX=local
+check "13. SPAWN_BOX=local on a box without agy: exit 13" refused
+spawn_k claude SPOOL_VENDOR_CLIS_CMD="$NO_AGY" SPAWN_BOX=local
+check "13. CONTROL SPAWN_BOX=local with claude: starts here" went_here
+spawn_k agy SPAWN_BOX="$OTHER"
+check "13. SPAWN_BOX=<other> measured without agy: exit 13, no remote request" refused
+{ report_cli "$OTHER" claude,agy 60 c-200; } | set_rows
+spawn_k agy SPAWN_BOX="$OTHER"
+check "13. CONTROL SPAWN_BOX=<other> with agy: starts there" went_there_k agy
+{ report_cli "$OTHER" claude,agy 60 c-200,c-201; } | set_rows
+spawn_k agy SPOOL_VENDOR_CLIS_CMD="$NO_AGY" SPAWN_BOX_PICK=1 SPAWN_BOX_PICK_CMD="echo pick=$HERE_BOX reason=below-low-mark"
+check "13. the load target picks this box, which has no agy: overruled, starts there" went_there_k agy
+has "13. ... with a WARN naming the pick" "WARN load target picked $HERE_BOX, which has no agy CLI" "$OUT"
+spawn_k agy SPAWN_BOX_PICK=1 SPAWN_BOX_PICK_CMD="echo pick=$HERE_BOX reason=below-low-mark"
+check "13. CONTROL the same pick with agy here: stays here" went_here
+spawn_k agy SPAWN_BOX_PICK=1 SPAWN_BOX_PICK_CMD="echo pick=nokind reason=no box with room has a agy CLI"
+check "13. the load target says pick=nokind: exit 13, nothing spawned, no remote request" refused
+printf '#!/usr/bin/env bash\necho "pick=${BOX_PICK_KIND:-none}-box reason=stub"\n' > "$T_TMP/bin/pick-kind" && chmod +x "$T_TMP/bin/pick-kind"
+spawn_k agy SPAWN_BOX_PICK=1 SPAWN_BOX_PICK_CMD="$T_TMP/bin/pick-kind"
+check "13. the pick is told the kind (BOX_PICK_KIND=agy)" bash -c '[ "$1" = 0 ] && grep -q -- "--box agy-box agy auto" "$2"' _ "$RC" "$T_TMP/remote.calls"
+{ rows "$HERE_BOX" 8 100; report_cli "$OTHER" claude,agy 60 c-200; } | set_rows
+spawn_k agy REMOTE_RC=5 SPOOL_VENDOR_CLIS_CMD="$NO_AGY"
+check "13. the remote spawn fails and this box has no agy: exit 13, not started here" \
+  bash -c '[ "$1" = 13 ] && [[ "$2" == *REFUSED* ]] && [[ "$2" != *"no tmux session"* ]]' _ "$RC" "$OUT"
+spawn_k agy REMOTE_RC=5
+check "13. CONTROL with agy here: falls back here" bash -c '[ "$1" = 5 ] && [[ "$2" == *"no tmux session"* ]]' _ "$RC" "$OUT"
+rm -f "$T_TMP/hub.puts"
+{ rows "$HERE_BOX" 1 100; } | set_rows
+SPOOL_VENDOR_CLIS_CMD="$NO_AGY" FMT=table "$T_TMP/bin/map" >/dev/null 2>&1
+has "13. the BOX-0 row publishes this box's kinds" "--scope mem_kb=4194304 cli=claude,grok,qwen,mistral live=c-100" "$(cat "$T_TMP/hub.puts" 2>/dev/null)"
+rm -f "$T_TMP/hub.puts"
+SPOOL_VENDOR_CLIS_CMD=false FMT=table "$T_TMP/bin/map" >/dev/null 2>&1
+has "13. CONTROL a probe that cannot measure publishes no cli=" "--scope mem_kb=4194304 live=c-100" "$(cat "$T_TMP/hub.puts" 2>/dev/null)"
 
 t_done

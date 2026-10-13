@@ -40,7 +40,8 @@
 # 9 the requester is a lane, 10 HOLD: every fleet box is at or above the
 # load target's high mark (LOAD TARGET below), so queue the lane, 11 the
 # new session is stopped on a dialog (START CHECK above), 12 the lane has
-# no issue (LANE ISSUE below). Only c-001, c-002 and c-003 (any box), or a
+# no issue (LANE ISSUE below), 13 the box has no <kind> CLI (VENDOR CLI
+# below). Only c-001, c-002 and c-003 (any box), or a
 # shell with no agent id, may spawn. The id is the caller's SPOOL_AGENT_ID
 # or MCP_BOT_AGENT_ID, else the window or registry row of $TMUX_PANE, else
 # the closest ancestor that still carries the id (`sudo -u` strips it from
@@ -92,6 +93,22 @@
 # not SPOOL_BOX_USER (the agent user) runs the action as SPOOL_BOX_USER, with
 # its HOME, whose state dir holds the seated desk (seam SPAWN_PICK_HOP_CMD,
 # default "sudo -n -u").
+#
+# VENDOR CLI (SPL-1649): a lane goes only to a box that can start its kind.
+# Measured, never listed by hand: this box runs spool_vendor_clis (the agent
+# user's `command -v` of each *_BIN, as spool-harness.sh execs it); another
+# box publishes the same in the cli= of its BOX-0 load row, read from the lane
+# map's .load[].clis. Before it, an agy lane placed on a box without agy ended
+# in `agent command 'agy' not found`, three watchdog restarts, three registry
+# rows. The load target pick (BOX_PICK_KIND) and the busy count both skip a
+# box measured without the kind; `pick=nokind` = exit 13. A pick of this box
+# that lacks it (an older pick action) is overruled (WARN) by the filtered
+# busy count; no box left and this one lacks it too = exit 13, nothing
+# spawned. An explicit SPAWN_BOX (this box or another) measured without it =
+# exit 13 at once, and so does the fallback to this box after a failed remote
+# spawn. A box nobody measured (an older box: no cli= in its row) stays a
+# candidate. Seam: SPOOL_VENDOR_CLIS_CMD prints this box's kinds
+# ("claude,qwen").
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -150,13 +167,67 @@ sw_withdraw_remote() {  # BOX OUT
   echo "spawn-window: WARN could not withdraw remote request $task on $1: it may still spawn there" >&2
   return 1
 }
+# The lane map JSON, read at most once per process (SW_MAP).
+sw_load_map() {
+  [ -z "${SW_MAP_READ:-}" ] || return 0
+  SW_MAP_READ=1
+  if [ -n "${SPAWN_PLACE_MAP_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    SW_MAP="$($SPAWN_PLACE_MAP_CMD 2>/dev/null | grep -m1 '^{')"
+  else
+    SW_MAP="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" bash "$HERE/lane-map.sh" --json 2>/dev/null | grep -m1 '^{')"
+  fi
+}
+# 0 when BOX is measured without the $KIND CLI (VENDOR CLI above); a box
+# nobody measured is 1 (a candidate). Sets SW_CLIS to what was measured.
+sw_lacks_kind() {  # BOX
+  SW_CLIS=""
+  if [ "$1" = "$(spool_fleet_box)" ]; then
+    SW_CLIS="$(spool_vendor_clis 2>/dev/null)" || return 1
+  else
+    sw_load_map
+    SW_CLIS="$(jq -r --arg b "$1" '.load[]? | select(.box == $b) | .clis
+      | if . == null then "?" else join(",") end' <<<"${SW_MAP:-}" 2>/dev/null | head -1)"
+    case "$SW_CLIS" in ""|"?") return 1 ;; esac
+  fi
+  [[ ",$SW_CLIS," != *",$KIND,"* ]]
+}
+sw_refuse_kind() {  # BOX WHY
+  echo "spawn-window: REFUSED ${TITLE} (${KIND}) on $1: $2 (measured there: ${SW_CLIS:-none}); nothing was spawned" >&2
+  return 13
+}
+# The busy count (PLACEMENT above) over the boxes that can start $KIND.
+sw_place_by_busy() {  # HERE
+  local here="$1" floor best
+  sw_load_map
+  jq -e '.load | type == "array"' >/dev/null 2>&1 <<<"${SW_MAP:-}" || {
+    ! sw_lacks_kind "$here" || { sw_refuse_kind "$here" "no lane map load and this box has no ${KIND} CLI"; return; }
+    echo "spawn-window: WARN no lane map load (hub or lane map down): starting here" >&2; return 0; }
+  floor="${SPAWN_MEM_FLOOR_MB:-4096}"
+  [[ "$floor" =~ ^[0-9]+$ ]] || { echo "spawn-window: SPAWN_MEM_FLOOR_MB must be a number of MB, got '$floor'" >&2; return 2; }
+  best="$(jq -r --arg here "$here" --argjson floor "$((floor * 1024))" --arg kind "$KIND" '
+    [.load[] | select((.live or .box == $here) and (.mem_kb == null or .mem_kb >= $floor)
+                      and (.clis == null or (.clis | index($kind)) != null))]
+    | sort_by([.busy, -(.mem_kb // -1), (if .box == $here then 0 else 1 end)])
+    | .[0].box // "-"' <<<"$SW_MAP")"
+  case "$best" in
+    "$here") return 0 ;;
+    -) ! sw_lacks_kind "$here" || { sw_refuse_kind "$here" "no fleet box with room has a ${KIND} CLI and this one has none"; return; }
+       return 0 ;;
+  esac
+  printf '%s' "$best"
+}
 # The box this lane starts on; "" = here.
 place_box() {
-  local want="${SPAWN_BOX:-}" here json holder="" fleet floor
+  local want="${SPAWN_BOX:-}" here holder="" fleet
   here="$(spool_fleet_box)"
-  case "$want" in local|"$here") return 0 ;; esac
+  case "$want" in local|"$here")
+    ! sw_lacks_kind "$here" || { sw_refuse_kind "$here" "SPAWN_BOX names a box with no ${KIND} CLI for the agent user"; return; }
+    return 0 ;;
+  esac
   if [ -n "$want" ]; then
     [[ "$want" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "spawn-window: SPAWN_BOX must be local or ONE box id, got '$want'" >&2; return 2; }
+    ! sw_lacks_kind "$want" || { sw_refuse_kind "$want" "SPAWN_BOX names a box with no ${KIND} CLI for the agent user"; return; }
     printf '%s' "$want"; return 0
   fi
   [ "$TITLE" = auto ] || return 0
@@ -166,12 +237,13 @@ place_box() {
   case "$holder" in ""|*@"$here") ;; *) return 0 ;; esac
   if [ "${SPAWN_BOX_PICK:-1}" != 0 ]; then
     local out pick k pick_hop=()
+    export BOX_PICK_KIND="$KIND"
     # The desk state (the seated desk, its hub key) lives under the BOX user's
     # HOME: an agent-user spawner hops there, the way lane-map.sh does.
     if [ "$(id -un)" != "$SPOOL_BOX_USER" ]; then
       # shellcheck disable=SC2206 # a command prefix, split on purpose
       pick_hop=(${SPAWN_PICK_HOP_CMD:-sudo -n -u} "$SPOOL_BOX_USER" env HOME="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)" "SPOOL_ROOT=$SPOOL_ROOT")
-      for k in ENV BOX_PICK_SINCE BOX_PICK_OVERFLOW BOX_PICK_CNF LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX SPOOL_DESK_BOX SPOOL_BOX_ENV; do
+      for k in ENV BOX_PICK_SINCE BOX_PICK_OVERFLOW BOX_PICK_CNF BOX_PICK_KIND LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX SPOOL_DESK_BOX SPOOL_BOX_ENV; do
         [ -n "${!k:-}" ] && pick_hop+=("$k=${!k}")
       done
     fi
@@ -182,31 +254,28 @@ place_box() {
       out="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" "${pick_hop[@]}" bash "${SPAWN_ORC_RUN:-$HERE/../../../../../run}" -a do_spl_box_pick 2>&1)"
     fi
     pick="$(sed -n 's/^pick=\([a-z0-9][a-z0-9-]*\)\( .*\)\{0,1\}$/\1/p' <<<"$out" | tail -1)"
+    # The pick leaves out the boxes measured without the kind; this box is
+    # re-checked here (cheap, and an older pick action does not know the kind).
+    if [ "$pick" = "$here" ] && sw_lacks_kind "$here"; then
+      echo "spawn-window: WARN load target picked $pick, which has no ${KIND} CLI (measured: ${SW_CLIS:-none}): placing by the busy count among the boxes that have it" >&2
+      pick=""; out=""
+    fi
     case "$pick" in
+      nokind)
+        sw_withdraw_remote "${SW_REMOTE_BOX:-}" "${SW_REMOTE_OUT:-}"
+        echo "spawn-window: REFUSED ${TITLE} (${KIND}): $(sed -n 's/^pick=nokind reason=//p' <<<"$out" | sed -n 1p); nothing was spawned" >&2
+        return 13 ;;
       hold)
         sw_withdraw_remote "${SW_REMOTE_BOX:-}" "${SW_REMOTE_OUT:-}"
         echo "spawn-window: HOLD ${TITLE}: $(sed -n 's/^pick=hold reason=//p' <<<"$out" | sed -n 1p). Queue it; nothing was spawned." >&2
         return 10 ;;
-      "") echo "spawn-window: WARN no load target pick ($(tail -1 <<<"$out" | cut -c1-200)): placing by the busy count" >&2 ;;
+      "") [ -z "$out" ] || echo "spawn-window: WARN no load target pick ($(tail -1 <<<"$out" | cut -c1-200)): placing by the busy count" >&2 ;;
       "$here") echo "spawn-window: ${TITLE} stays on $here (load target: $(sed -n 's/^pick=[^ ]* reason=//p' <<<"$out" | sed -n 1p))" >&2; return 0 ;;
       *) echo "spawn-window: load target: $(sed -n 's/^pick=[^ ]* reason=//p' <<<"$out" | sed -n 1p)" >&2
          printf '%s' "$pick"; return 0 ;;
     esac
   fi
-  if [ -n "${SPAWN_PLACE_MAP_CMD:-}" ]; then
-    # shellcheck disable=SC2086 # a command line, split on purpose
-    json="$($SPAWN_PLACE_MAP_CMD 2>/dev/null | grep -m1 '^{')"
-  else
-    json="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" bash "$HERE/lane-map.sh" --json 2>/dev/null | grep -m1 '^{')"
-  fi
-  jq -e '.load | type == "array"' >/dev/null 2>&1 <<<"$json" ||
-    { echo "spawn-window: WARN no lane map load (hub or lane map down): starting here" >&2; return 0; }
-  floor="${SPAWN_MEM_FLOOR_MB:-4096}"
-  [[ "$floor" =~ ^[0-9]+$ ]] || { echo "spawn-window: SPAWN_MEM_FLOOR_MB must be a number of MB, got '$floor'" >&2; return 2; }
-  jq -r --arg here "$here" --argjson floor "$((floor * 1024))" '
-    [.load[] | select((.live or .box == $here) and (.mem_kb == null or .mem_kb >= $floor))]
-    | sort_by([.busy, -(.mem_kb // -1), (if .box == $here then 0 else 1 end)])
-    | .[0].box // empty | select(. != $here)' <<<"$json"
+  sw_place_by_busy "$here"
 }
 TARGET="$(place_box)" || exit $?
 if [ -n "$TARGET" ]; then
@@ -227,6 +296,7 @@ if [ -n "$TARGET" ]; then
   [ -z "${SPAWN_BOX:-}" ] || { echo "spawn-window: the spawn on SPAWN_BOX=${TARGET} did not start (spawn-remote exit ${rc})" >&2; exit 8; }
   SW_REMOTE_BOX="$TARGET" SW_REMOTE_OUT="$out"
   sw_withdraw_remote "$TARGET" "$out"
+  ! sw_lacks_kind "$(spool_fleet_box)" || { sw_refuse_kind "$(spool_fleet_box)" "the spawn on ${TARGET} did not start (spawn-remote exit ${rc}) and this box has no ${KIND} CLI"; exit 13; }
   echo "spawn-window: WARN the spawn on ${TARGET} did not start (spawn-remote exit ${rc}: 3 not sent, 4 refused, 5 no answer within ${SPAWN_REMOTE_WAIT:-300}s): starting here instead" >&2
 fi
 if [ -f "${SPOOL_ROOT}/peer/seats" ]; then

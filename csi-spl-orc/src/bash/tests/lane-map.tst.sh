@@ -113,7 +113,7 @@ on() {
   local m="$1" a="$2"; shift 2
   local box=box-desk; [[ "$m" == sat ]] && box=sat
   env PROJ_PATH="$T/$m/csi-spl" SPOOL_ROOT="$T/$m/spool" SPOOL_BOX_ENV="$T/$m/spool/box.env" SPOOL_DESK_BOX="$box" \
-    LANE_REPO_DIRS="$T/$m/csi-spl" LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" LANE_PANES_CMD=false LANE_CI_CMD="echo 0" "$@" bash -c '
+    LANE_REPO_DIRS="$T/$m/csi-spl" LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" LANE_PANES_CMD=false LANE_CI_CMD="echo 0" SPOOL_VENDOR_CLIS_CMD=false "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "'"$PROJ_ROOT"'/src/bash/run/spl-lane-map.func.sh"

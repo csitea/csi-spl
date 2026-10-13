@@ -182,7 +182,12 @@ nothing (the same check for any other vendor binary).
    `SPAWN_BOX` by habit: a pin on one box once starved CI of its runners.
    `pick=hold` (exit 10): every box is full, queue it and say so. A box out
    of a vendor's quota (read a seat's pane before placing) gets another
-   vendor the data rule allows.
+   vendor the data rule allows. A lane goes only to a box that has its
+   vendor's CLI for the agent user (SPL-1649): each box measures its own
+   (`spool_vendor_clis`) and publishes it as `cli=` in its BOX-0 lane-map
+   row (`lane-map.sh --json`, `.load[].clis`). Exit 13 = no box with room
+   has that CLI, or `SPAWN_BOX` names one without it; nothing was spawned:
+   pick another vendor or install the CLI there.
 7. Prove it: the window is listed, the seat is up, it runs as the agent user.
    Read every new pane at +2 min for a login screen, a usage-limit menu, a
    trust prompt or a vendor quota error. A grok or agy seat at quota 0 is

@@ -54,6 +54,13 @@
 #      no grok CLI (lane-mix) or a lease that counts only claude = claude, the
 #      reason named; grok M and F ack from their first prompt and hold the
 #      seats; a grok M with no ack: the old claude M keeps the role and lease
+#  18. T-ROLE-ID-FOLLOWS-VENDOR (SPL-1685): knob on, grok seats: c-002 ->
+#      g-002 and c-003 -> g-003 through the real role-seat-switch.sh;
+#      lease.conf names g-002 / g-003, the lease comes back to g-002, the old
+#      ids link to the live dirs (a message sent to c-002 lands in g-002's
+#      inbox), the seed reads the c-00N brief as g-00N; back to claude: g-002
+#      -> c-002 reads c-002's brief; a grok M with no ack: lease.conf, the
+#      hold and the dirs back to c-002, the old M keeps the lease
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -668,6 +675,47 @@ act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_AC
   grep -q ' FAIL FAIL ACK: no ack within 2s; the old session (pid 102) keeps the role' "$T/o" &&
   pass "17. ROTATE_ROLE_VENDOR=grok, no ack: the grok M closed, the old claude M keeps the role and the lease" || fail "17. no-ack rc=$rc $(grep -E 'FAIL|ACK' "$T/o"; ls "$T/proc")"
 ! grep -q ERRTRAP "$T/o" && pass "17. no stray failing command under the ERR trap" || fail "17. ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+# --- 18. T-ROLE-ID-FOLLOWS-VENDOR (SPL-1685): the seats take their vendor's letter ------------
+# w18 <letter> <letter of the live dirs>: the seats as <l>-002 / <l>-003 (pids 102, 103)
+w18() {
+  world; rm -rf "$S/c-90"* "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00*
+  printf 'LEASE_MASTER=%s-002\nLEASE_FAILOVER=%s-003\nLEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' "$1" "$1" >"$D/lease.conf"
+  for n in 002 003; do mkdir -p "$S/$1-$n/inbox" "$S/$1-$n/outbox" "$S/$1-$n/archive"; echo "brief of c-$n: read your inbox" >"$D/briefs/brief-dispatcher-c-$n.md"; done
+  rm -rf "$T/proc/"[0-9]*; "$T/bin/proc" 102 "$1-002" 7200; "$T/bin/proc" 103 "$1-003" 7200
+  printf '%%2\t102\t$0\t%s-002@box > dispatcher\n%%3\t103\t$0\t%s-003@box > dispatcher\n' "$1" "$1" >"$T/tmux/panes"
+  echo "$1-002 $(date +%s)" >"$D/lease"
+  echo '{"v":1,"msg_id":"m1","ts":"2026-10-02T05:10:00Z","from":"HUM-10","to":"'"$1"'-002","kind":"msg","task_id":"t-owner","body":"owner asks for X"}' >"$S/$1-002/inbox/m1.json"
+}
+V18=(ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 ROTATE_LEASE_KINDS="claude grok" ROTATE_SWITCH_DESK_ENVS=)
+w18 c; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+act "${V18[@]}" ROTATE_ROLE_VENDOR=grok >"$T/o" 2>&1
+grep -q " SWITCH PLAN c-002 -> g-002: the grok successor takes its vendor's id" "$T/o" && [[ ! -e "$S/g-002" ]] &&
+  pass "18. dry run: plans c-002 -> g-002, moves nothing" || fail "18. dry: $(grep PLAN "$T/o")"
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=grok >"$T/o" 2>&1; rc=$?
+rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
+[[ $rc -eq 0 ]] && grep -q " $rid DONE OK fresh g-002" "$T/o" && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" && grep -qx 'LEASE_FAILOVER=g-003' "$D/lease.conf" &&
+  [[ "$(holder)" == g-002 && ! -e "$D/rotate.hold" && -d "$T/proc/2002" && -d "$T/proc/2003" ]] &&
+  pass "18. c-002 -> g-002, c-003 -> g-003: lease.conf follows, the lease is back on g-002 ($rid)" || fail "18. rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null); conf: $(cat "$D/lease.conf"); lease $(cat "$D/lease")"
+grep -q "^spawn grok g-002 " "$T/spawn.log" && grep -q "^spawn grok g-003 " "$T/spawn.log" && grep -q 'brief of g-002: read your inbox' "$D/handoff/$rid-c-002.seed.md" &&
+  ! grep -q 'c-002' "$D/handoff/$rid-c-002.seed.md" &&
+  pass "18. the successors start as g-002 / g-003; the seed names only g-002" || fail "18. spawn/seed: $(cat "$T/spawn.log"; cat "$D/handoff/$rid-c-002.seed.md")"
+echo '{"v":1,"msg_id":"m7","from":"HUM-10","to":"c-002","kind":"msg","task_id":"y","body":"late"}' >"$S/c-002/inbox/m7.json"
+[[ "$(readlink "$S/c-002")" == g-002 && "$(readlink "$S/c-003")" == g-003 && -f "$S/g-002/inbox/m1.json" && -f "$S/g-002/inbox/m7.json" ]] &&
+  pass "18. c-002 links to g-002: m1 (before) and m7 (sent to c-002 after) are in the live inbox" || fail "18. dirs: $(ls -l "$S"; ls "$S/g-002/inbox")"
+w18 g; rm -f "$T/mix.out"
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=claude >"$T/o" 2>&1; rc=$?
+rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
+[[ $rc -eq 0 ]] && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && [[ "$(holder)" == c-002 && "$(readlink "$S/g-002")" == c-002 ]] &&
+  grep -q 'brief of c-002: read your inbox' "$D/handoff/$rid-g-002.seed.md" &&
+  pass "18. g-002 -> c-002: back to claude, g-002 (no brief of its own) seeded from c-002's brief" || fail "18. back rc=$rc $(cat "$T/o"); $(cat "$D/lease.conf")"
+w18 c; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo no >"$T/ack.mode.g-002"
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=grok >"$T/o" 2>&1
+grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && [[ "$(holder)" == c-002 && ! -e "$D/rotate.hold" && -d "$S/c-002" && ! -L "$S/c-002" && -d "$T/proc/102" ]] &&
+  grep -q 'lease.conf LEASE_MASTER back to c-002; seat switch back g-002 -> c-002' "$T/o" &&
+  pass "18. a grok M with no ack: lease.conf, hold and dirs back to c-002, the old M keeps the lease" || fail "18. no-ack: $(grep -E 'FAIL|SWITCH' "$T/o"; cat "$D/lease.conf"; ls -l "$S")"
+! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "18. no stray failing command under the ERR trap" || fail "18. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+rm -rf "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00*
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

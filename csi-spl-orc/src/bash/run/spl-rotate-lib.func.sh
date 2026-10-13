@@ -7,6 +7,9 @@
 #
 #   spl_rotate_conf                         settings: env > rotate.conf > defaults (FR-074, FR-090)
 #   spl_rotate_role_vendor                  ROTATE_ROLE_VENDOR: the role successor's vendor (claude|grok), guarded
+#   spl_rotate_vendor_id ID                 the seat id the successor's vendor gives it (SPL-1685), when it differs
+#   spl_rotate_seat_switch OLD NEW          role-seat-switch.sh: the seat's spool dir to NEW, the other letters link to it
+#   spl_rotate_conf_flip KEY OLD NEW        lease.conf KEY=OLD -> NEW and the shell's KEY
 #   spl_rotate_log RID PHASE RESULT DETAIL  one rotate.log line + the .state file (FR-002)
 #   spl_agent_id_lock ID [ACTOR] [RID] [WAIT] the id lock of every start/stop actor (spec 102 4.2), 4 when held
 #   spl_agent_id_unlock ID                  lets an id lock this shell holds go before the shell ends
@@ -146,6 +149,42 @@ spl_rotate_family() {
   [[ "$1" == orch ]] && echo orch || echo dispatch
 }
 
+# spl_rotate_vendor_id ID: SPL-1685 (owner t1 ee1e58d5, msg 10e31037: "why
+# is it called c-001@<box> .. should be g-001@<box>"): a role seat's id is the
+# letter of the vendor that runs it, so a rotation to another vendor starts
+# the successor as spl_role_seat_id ROTATE_KIND <seat>. Prints that id when
+# ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 (env > rotate.conf), ID is a bare role seat
+# in the new form and the vendor's id differs; nothing otherwise (the id stays).
+spl_rotate_vendor_id() {
+  local id="$1" n new
+  [[ "${ROTATE_ROLE_ID_FOLLOWS_VENDOR:-0}" == 1 && "$id" =~ ^${SPL_ROLE_SEAT_RX}$ ]] || return 0
+  n="$(spl_role_seat_num "$id")" || return 0
+  new="$(spl_role_seat_id "${ROTATE_KIND:-claude}" "$n")" || return 0
+  [[ "$new" != "$id" ]] && echo "$new"
+  return 0
+}
+
+# spl_rotate_seat_switch OLD NEW: role-seat-switch.sh --apply (spool dir,
+# links for every other letter, registry, identity, the dev+prd desks);
+# ROTATE_SEAT_SWITCH replaces it in tests. Non-zero = failed, ROTATE_ERR.
+# shellcheck disable=SC2034 # ROTATE_ERR / ROTATE_SWITCH_OUT are read by the caller
+spl_rotate_seat_switch() {
+  local out
+  out="$(${ROTATE_SEAT_SWITCH:-bash "$ROTATE_FEAT/scripts/role-seat-switch.sh"} --apply --desk-envs "${ROTATE_SWITCH_DESK_ENVS-dev prd}" "$1" "$2" 2>&1 7>&- 8>&- 9>&-)" ||
+    { ROTATE_ERR="the seat switch $1 -> $2 failed: $(tr '\n' ' ' <<<"$out" | cut -c1-300)"; return 1; }
+  ROTATE_SWITCH_OUT="$(grep -c '^DO ' <<<"$out" || true) step(s)"
+}
+
+# spl_rotate_conf_flip KEY OLD NEW: lease.conf KEY=OLD -> KEY=NEW (a backup
+# first) and the shell's KEY with it. Non-zero = lease.conf did not take it.
+# shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
+spl_rotate_conf_flip() {
+  cp -p "$LEASE_CONF" "$LEASE_CONF.bak-$ROTATE_RID" 2>/dev/null || true
+  sed -i "s/^$1=$2\$/$1=$3/" "$LEASE_CONF" && grep -qx "$1=$3" "$LEASE_CONF" ||
+    { ROTATE_ERR="lease.conf did not take $1=$3"; return 1; }
+  printf -v "$1" '%s' "$3"
+}
+
 # A new run id: <UTC yyyymmddThhmmZ>-<role> (spec section 2).
 spl_rotate_new_rid() { echo "$(date -u +%Y%m%dT%H%MZ)-$1"; }
 
@@ -248,7 +287,7 @@ spl_agent_id_unlock() {
 }
 
 # The resume context: rotate.<family>.ctx, KEY=value, read, never sourced.
-ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF ROTATE_SWITCH_FROM)
+ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF ROTATE_SWITCH_FROM ROTATE_SWITCH_TO)
 spl_rotate_ctx_save() {  # FAMILY
   local k f="${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$1.ctx"
   { for k in "${ROTATE_CTX_KEYS[@]}"; do printf '%s=%s\n' "$k" "${!k:-}"; done; } > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
@@ -623,6 +662,7 @@ spl_rotate_ai() {
   case "$1" in
     adopt) ai_adopt "$2" "$3" ;;
     pane-of) ai_pane_of "$2" ;;
+    retire) ai_py retire "$2" "$3" </dev/null ;;
   esac
 }
 
@@ -646,7 +686,8 @@ spl_rotate_spawn() {
   sess="$(spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{session_id}' 2>/dev/null || true)"
   # the box tag the old window showed (<ID>@<tag>), so the new one is named alike
   tag="${SPOOL_BOX_TAG:-}"
-  [[ -z "$tag" && "${ROTATE_OLD_NAME:-}" =~ ^$id@([a-z0-9][a-z0-9-]*) ]] && tag="${BASH_REMATCH[1]}"
+  # (named for the old id when the rotation switched it: ROTATE_SWITCH_FROM)
+  [[ -z "$tag" && "${ROTATE_OLD_NAME:-}" =~ ^($id|${ROTATE_SWITCH_FROM:-$id})@([a-z0-9][a-z0-9-]*) ]] && tag="${BASH_REMATCH[2]}"
   # the agent user's own claude, not whatever `claude` a login PATH finds
   bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-}}"
   [[ -z "$bin" && -x "$ROTATE_AGENT_HOME/.local/bin/claude" ]] && bin="$ROTATE_AGENT_HOME/.local/bin/claude"
@@ -887,9 +928,14 @@ spl_rotate_ack_wait() {
   spl_rotate_ack_seen "$id" "$task"
 }
 
+# A role seat's ack may come from any of its ids (SPL-1685): the new session
+# acks as the lease.conf id, still the old letter until the switch flips it,
+# and the old id's outbox is a link to the new one.
 spl_rotate_ack_seen() {  # ID TASK
+  local ids
+  ids="$(spl_role_seat_ids "$1" 2>/dev/null || echo "$1")"
   find "$SPOOL_ROOT/$1/outbox" -maxdepth 1 -name '*.json' -mmin -120 -print0 2>/dev/null |
-    xargs -0 -r jq -r --arg id "$1" --arg t "$2" 'select(.kind == "result" and .task_id == $t and ((.from // "") | sub("@.*"; "")) == $id) | .msg_id' 2>/dev/null |
+    xargs -0 -r jq -r --arg ids "$ids" --arg t "$2" 'select(.kind == "result" and .task_id == $t and (((.from // "") | sub("@.*"; "")) as $f | $ids | split("\n") | any(. == $f))) | .msg_id' 2>/dev/null |
     grep . >/dev/null
 }
 

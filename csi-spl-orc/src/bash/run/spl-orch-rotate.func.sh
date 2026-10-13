@@ -132,6 +132,8 @@ spl_orch_rotate_auto() {
     spl_rotate_log "$rid" QUIESCE PLAN "wait ${ROTATE_IDLE_GRACE}s for idle, then Escape, ${ROTATE_ESC_WAIT}s; busy = rotate anyway"
     spl_rotate_log "$rid" HANDOFF PLAN "$ROTATE_HANDOFF"
     [[ -n "$new" ]] && spl_rotate_log "$rid" SWITCH PLAN "$id -> $new: role rename (spool dir, registry, identity, window, dev+prd desks), lease.conf LEASE_ORCH=$new; the successor starts as $new"
+    [[ -z "$new" ]] && new="$(spl_rotate_vendor_id "$id")" && [[ -n "$new" ]] &&
+      spl_rotate_log "$rid" SWITCH PLAN "$id -> $new: the $ROTATE_KIND successor takes its vendor's id (seat switch: spool dir, links for the other letters, registry, identity, dev+prd desks); lease.conf LEASE_ORCH=$new once its pid shows"
     spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(spl_rotate_retiring_name "$id"); $ROTATE_SPAWN $ROTATE_KIND $id $(spl_rotate_workdir "$id") <seed> (SPAWN_REUSE_ID=1), the ACK-COMMAND in its first prompt (<rid>-<id>.head.md); adopt the new pid; vendor: $ROTATE_VENDOR_WHY"
     spl_rotate_log "$rid" ACK PLAN "wait ${ROTATE_ACK_TIMEOUT}s for a result on $(spl_rotate_ack_task "$rid") in $SPOOL_ROOT/$id/outbox"
     spl_rotate_log "$rid" RETIRE PLAN "/exit-clean into $pane, TERM after ${ROTATE_EXIT_WAIT}s, KILL after ${ROTATE_TERM_WAIT}s more"
@@ -250,10 +252,20 @@ spl_orch_rotate_run() {
   chmod 0640 "$seed" 2>/dev/null || true
   spl_orch_rotate_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
 
-  ROTATE_SWITCH_FROM=""
+  ROTATE_SWITCH_FROM="" ROTATE_SWITCH_TO=""
+  local new
   if [[ -n "$(spl_orch_rotate_new_id "$id")" ]]; then
     spl_orch_rotate_switch "$id" || { spl_orch_rotate_fail SWITCH "$ROTATE_ERR"; return 1; }
     id="$LEASE_ORCH"
+    sed -i "s/\b$ROTATE_SWITCH_FROM\b/$id/g" "$seed" 2>/dev/null || true
+  elif new="$(spl_rotate_vendor_id "$id")" && [[ -n "$new" ]]; then
+    # SPL-1685: the dirs move BEFORE the spawn (it reuses <spool>/<new>);
+    # lease.conf follows once the new pid shows (spl_orch_rotate_flip), so the
+    # old pid keeps the lease until then
+    spl_rotate_seat_switch "$id" "$new" || { spl_orch_rotate_fail SWITCH "$ROTATE_ERR"; return 1; }
+    ROTATE_SWITCH_FROM="$id" ROTATE_SWITCH_TO="$new"
+    spl_orch_rotate_step HANDOFF OK "seat switch $id -> $new ($ROTATE_SWITCH_OUT): the $ROTATE_KIND successor starts as $new"
+    id="$new"
     sed -i "s/\b$ROTATE_SWITCH_FROM\b/$id/g" "$seed" 2>/dev/null || true
   fi
   if ! spl_rotate_spawn_head "$id" "$seed" "$(spl_orch_rotate_ack_cmd)"; then
@@ -266,6 +278,7 @@ spl_orch_rotate_run() {
 
 spl_orch_rotate_from_spawn() {
   local rc=0
+  spl_orch_rotate_flip || { spl_orch_rotate_fail SWITCH "$ROTATE_ERR"; return 1; }
   spl_orch_rotate_step ACK WAIT "up to ${ROTATE_ACK_TIMEOUT}s for $(spl_rotate_ack_task "$ROTATE_RID")"
   spl_rotate_ack_wait "$LEASE_ORCH" "$ROTATE_RID" "$ROTATE_ACK_TIMEOUT" || rc=$?
   case "$rc" in
@@ -275,6 +288,35 @@ spl_orch_rotate_from_spawn() {
   esac
   spl_orch_rotate_step ACK OK "acked by pid $ROTATE_NEW_PID"
   spl_orch_rotate_from_ack || return 1
+}
+
+# spl_orch_rotate_flip: SPL-1685, lease.conf LEASE_ORCH=<ROTATE_SWITCH_TO>
+# once the new pid carries it (the spawn is OK). Idempotent, so a resume
+# flips it too. Non-zero = lease.conf did not take it, ROTATE_ERR.
+spl_orch_rotate_flip() {
+  [[ -n "${ROTATE_SWITCH_TO:-}" && "$LEASE_ORCH" != "$ROTATE_SWITCH_TO" ]] || return 0
+  spl_rotate_conf_flip LEASE_ORCH "$LEASE_ORCH" "$ROTATE_SWITCH_TO" || return 1
+  spl_rotate_log "$ROTATE_RID" SWITCH OK "lease.conf LEASE_ORCH=$LEASE_ORCH: pid $ROTATE_NEW_PID carries it"
+}
+
+# spl_orch_rotate_unswitch: a failed switching rotation puts lease.conf back
+# to ROTATE_SWITCH_FROM and, for a seat switch (ROTATE_SWITCH_TO), the seat's
+# spool dir too. Sets LEASE_ORCH; what it did in ROTATE_UNSWITCH_WHY.
+spl_orch_rotate_unswitch() {
+  ROTATE_UNSWITCH_WHY=""
+  [[ -n "${ROTATE_SWITCH_FROM:-}" ]] || return 0
+  if [[ "$LEASE_ORCH" != "$ROTATE_SWITCH_FROM" ]]; then
+    sed -i "s/^LEASE_ORCH=$LEASE_ORCH\$/LEASE_ORCH=$ROTATE_SWITCH_FROM/" "$LEASE_CONF" 2>/dev/null || true
+    ROTATE_UNSWITCH_WHY+="; lease.conf LEASE_ORCH back to $ROTATE_SWITCH_FROM"
+  fi
+  if [[ -z "${ROTATE_SWITCH_TO:-}" ]]; then
+    ROTATE_UNSWITCH_WHY+=" (the renamed dirs stay, the old id links to them)"
+  elif spl_rotate_seat_switch "$ROTATE_SWITCH_TO" "$ROTATE_SWITCH_FROM"; then
+    ROTATE_UNSWITCH_WHY+="; seat switch back $ROTATE_SWITCH_TO -> $ROTATE_SWITCH_FROM"
+  else
+    ROTATE_UNSWITCH_WHY+="; the seat switch back FAILED ($ROTATE_ERR), $ROTATE_SWITCH_FROM links to $ROTATE_SWITCH_TO"
+  fi
+  LEASE_ORCH="$ROTATE_SWITCH_FROM"
 }
 
 spl_orch_rotate_from_ack() {
@@ -305,6 +347,12 @@ spl_orch_rotate_close() {
   fi
   mp="$(spl_rotate_ai pane-of "$id" 2>/dev/null || true)"
   [[ "$mp" == "$ROTATE_NEW_PANE" ]] || warn+=" map=${mp:-none}"
+  # a seat switch: the old id's identity record must not outlive its process,
+  # or the watchdog (agents/*.json) would bring the old id back
+  if [[ -n "${ROTATE_SWITCH_TO:-}" && -e "$SPOOL_ROOT/agents/$ROTATE_SWITCH_FROM.json" ]] &&
+     [[ -z "$(spl_rotate_pids "$ROTATE_SWITCH_FROM")" ]]; then
+    spl_rotate_ai retire "$ROTATE_SWITCH_FROM" "$ROTATE_RID" >/dev/null 2>&1 || warn+=" identity-$ROTATE_SWITCH_FROM-kept"
+  fi
   spl_orch_rotate_step CLOSE "$([[ -z "$warn" ]] && echo OK || echo WAIT)" "old window closed; checks:${warn:- one process, lease follows pid $ROTATE_NEW_PID, map -> $ROTATE_NEW_PANE}"
   spl_lease_log "ROTATE orch $id $ROTATE_RID: pid $ROTATE_OLD_PID -> $ROTATE_NEW_PID"
   spl_orch_rotate_step DONE OK "$id@$ROTATE_BOX is pid $ROTATE_NEW_PID in $ROTATE_NEW_PANE"
@@ -318,11 +366,8 @@ spl_orch_rotate_close() {
 # the handoff is (FR-014). Returns 0; the caller returns 1.
 spl_orch_rotate_fail() {
   local phase="$1" reason="$2"
-  if [[ -n "${ROTATE_SWITCH_FROM:-}" ]]; then
-    sed -i "s/^LEASE_ORCH=$LEASE_ORCH\$/LEASE_ORCH=$ROTATE_SWITCH_FROM/" "$LEASE_CONF" 2>/dev/null || true
-    reason+="; lease.conf LEASE_ORCH back to $ROTATE_SWITCH_FROM (the renamed dirs stay, the old id links to them)"
-    LEASE_ORCH="$ROTATE_SWITCH_FROM"
-  fi
+  spl_orch_rotate_unswitch
+  reason+="$ROTATE_UNSWITCH_WHY"
   spl_rotate_restore "$LEASE_ORCH" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
   spl_orch_rotate_step FAIL FAIL "$phase: $reason; the old session (pid $ROTATE_OLD_PID) keeps the role"
   spl_rotate_alert orch "$ROTATE_RID" "$phase" "$reason"
@@ -341,10 +386,8 @@ spl_orch_rotate_resume() {
   # a reboot cut it off: no FAIL blocker, a switched lease.conf goes back,
   # the ctx goes, the next run gates afresh (as spl_disp_rotate_resume)
   if why="$(spl_rotate_booted_after "$ROTATE_RID")"; then
-    if [[ -n "${ROTATE_SWITCH_FROM:-}" ]]; then
-      sed -i "s/^LEASE_ORCH=$LEASE_ORCH\$/LEASE_ORCH=$ROTATE_SWITCH_FROM/" "$LEASE_CONF" 2>/dev/null || true
-      why+="; lease.conf LEASE_ORCH back to $ROTATE_SWITCH_FROM"
-    fi
+    spl_orch_rotate_unswitch
+    why+="$ROTATE_UNSWITCH_WHY"
     spl_rotate_log "$ROTATE_RID" ABORT BOOT "interrupted by boot at $ROTATE_PHASE: $why; ctx removed, no alert"
     rm -f "$LEASE_DIR/rotate.orch.ctx"
     return 0

@@ -52,6 +52,12 @@
 #      exit status and its last screen lines, the window is still closed and
 #      the old session keeps the role; rotate.log carries the spawn-window
 #      output; control: a started session gets remain-on-exit back off
+#  17. T-ROLE-ID-FOLLOWS-VENDOR (SPL-1685): knob off = today (grok as c-001);
+#      on: c-001 -> g-001 -> c-001 through the real role-seat-switch.sh: the
+#      successor starts as the vendor's id, lease.conf follows after the
+#      spawn, the old id is a link so a message sent to it mid-rotation lands
+#      in the live inbox, the desk dir moves, the old identity record is
+#      retired at CLOSE; a failed spawn / no ack puts lease.conf and the dirs back
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -161,6 +167,8 @@ printf '%%20\t2001\t$0\t%s@box\n' "$2" >>"$T/tmux/panes"
 # dies: the CLI exits at once; the pane stays (remain-on-exit) with its last words
 [ "$mode" = dies ] && { printf "error: unexpected argument '--permission-mode' found\n" >"$T/tmux/screen.%20"; echo 2 >"$T/tmux/dead.%20"; }
 [ "$mode" = nostart ] || [ "$mode" = dies ] || "$T/bin/proc" 2001 0 "$2" "$1"
+# the old session re-records its identity while it still runs (section 17)
+[ -f "$T/touch-agent" ] && mkdir -p "$SPOOL_ROOT/agents" && echo '{}' >"$SPOOL_ROOT/agents/$OLD_ID.json"
 # a message lands mid-rotation (T-MSG-IN-FLIGHT)
 echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T04:06:00Z","from":"c-002","to":"'"$OLD_ID"'","kind":"note","task_id":"x","body":"mid-rotation"}' >"$SPOOL_ROOT/$OLD_ID/inbox/m9.json"
 if [ "$(cat "$T/ack.mode" 2>/dev/null || echo yes)" = yes ]; then
@@ -205,13 +213,14 @@ echo "kill $*" >>"$T/kill.log"
 case "$1" in -TERM) [ -f "$T/proc/$2/noterm" ] && exit 0 ;; -KILL) [ -f "$T/proc/$2/nokill" ] && exit 0 ;; esac
 rm -rf "$T/proc/$2"
 EOF
-# the identity map: adopt <ID> <PID> / pane-of <ID>
+# the identity map: adopt <ID> <PID> / pane-of <ID> / retire <ID> <GEN>
 cat >"$T/bin/ai" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
   adopt) echo "adopt $2 $3" >>"$T/ai.log"; echo "$3" >"$T/ai.$2" ;;
   pane-of) p="$(cat "$T/ai.$2" 2>/dev/null)"; [ -n "$p" ] && [ -d "$T/proc/$p" ] || exit 1
     awk -F'\t' -v p="$p" '$2 == p {print $1; exit}' "$T/tmux/panes" ;;
+  retire) echo "retire $2 $3" >>"$T/ai.log"; rm -f "$SPOOL_ROOT/agents/$2.json" ;;
 esac
 EOF
 # the action, as ./run runs it: set -E and an ERR trap that ends the run
@@ -565,6 +574,54 @@ act DRY_RUN=0 >"$T/o" 2>&1
 grep -qx 'set %20 remain-on-exit on' "$T/tmux/log" && grep -qx 'set %20 remain-on-exit off' "$T/tmux/log" &&
   pass "16. control: a started session gets remain-on-exit back off" || fail "16. control: $(grep '^set' "$T/tmux/log")"
 rm -f "$T/spawn.mode"
+
+# --- 17. T-ROLE-ID-FOLLOWS-VENDOR (SPL-1685): a role seat's id is its vendor's letter ------------
+export OLD_ID=c-001 DESK_STATE_ROOT="$T/desk"
+mkdir -p "$S/c-001/inbox" "$S/c-001/outbox" "$S/c-001/archive" "$T/desk/prd/desk/t1/box-desk/spool/c-001/inbox"
+printf 'LEASE_ORCH=c-001\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-001 " "$T/o" && ! grep -q ' SWITCH PLAN' "$T/o" &&
+  pass "17. knob off: a grok successor keeps c-001 (today)" || fail "17. off: $(grep PLAN "$T/o")"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1
+grep -q " SWITCH PLAN c-001 -> g-001: the grok successor takes its vendor's id" "$T/o" && [[ -d "$S/c-001" && ! -L "$S/c-001" && ! -e "$S/g-001" ]] &&
+  pass "17. knob on, dry run: plans c-001 -> g-001, moves nothing" || fail "17. dry: $(grep PLAN "$T/o"; ls -l "$S")"
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; touch "$T/touch-agent"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1; rc=$?; rid="$(ctx ROTATE_RID)"
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q "^spawn grok g-001 " "$T/spawn.log" && grep -qx 'LEASE_ORCH=g-001' "$D/lease.conf" &&
+  grep -q " DONE OK g-001@box-desk is pid 2001" "$T/o" &&
+  pass "17. c-001 -> g-001: the grok successor starts as g-001, lease.conf LEASE_ORCH=g-001, DONE ($rid)" || fail "17. switch rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
+[[ -d "$S/g-001" && ! -L "$S/g-001" && "$(readlink "$S/c-001")" == g-001 && "$(readlink "$S/a-001")" == g-001 ]] &&
+  [[ -f "$S/g-001/inbox/m9.json" && -f "$S/g-001/inbox/m1.json" ]] &&
+  pass "17. the old id links to g-001: m1 (before) and m9 (sent to c-001 mid-rotation) are in the live inbox" || fail "17. dirs: $(ls -l "$S"; ls "$S/g-001/inbox" 2>&1)"
+[[ "$(readlink "$T/desk/prd/desk/t1/box-desk/spool/c-001")" == g-001 && -d "$T/desk/prd/desk/t1/box-desk/spool/g-001/inbox" ]] &&
+  pass "17. the prd desk dir moved to g-001 (the sidecar announces g-001)" || fail "17. desk: $(ls -l "$T/desk/prd/desk/t1/box-desk/spool")"
+grep -q " SWITCH OK lease.conf LEASE_ORCH=g-001: pid 2001 carries it" "$T/o" && grep -q "send c-001 -> c-001 result orch-rotate-$rid: ACK\|send g-001 -> g-001 result orch-rotate-$rid: ACK" "$T/send.log" &&
+  pass "17. lease.conf flips once pid 2001 shows; the ack from either id counts" || fail "17. flip/ack: $(grep SWITCH "$T/o"; cat "$T/send.log")"
+grep -qx "retire c-001 $rid" "$T/ai.log" && grep -qx 'adopt g-001 2001' "$T/ai.log" &&
+  pass "17. CLOSE retires the stale agents/c-001.json; the map adopts g-001" || fail "17. identity: $(cat "$T/ai.log")"
+rm -f "$T/touch-agent" "$S/agents/c-001.json"
+export OLD_ID=g-001
+world
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=claude ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q "^spawn claude c-001 " "$T/spawn.log" && grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" &&
+  [[ -d "$S/c-001" && ! -L "$S/c-001" && "$(readlink "$S/g-001")" == c-001 && -f "$S/c-001/inbox/m9.json" ]] &&
+  pass "17. g-001 -> c-001: back to claude, the same path reversed; m9 sent to g-001 is in c-001's inbox" || fail "17. back rc=$rc $(cat "$T/o"); $(ls -l "$S")"
+export OLD_ID=c-001
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo nopane >"$T/spawn.mode"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1
+grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" && [[ -d "$S/c-001" && ! -L "$S/c-001" && -L "$S/g-001" && -d "$T/proc/1001" ]] &&
+  grep -q 'seat switch back g-001 -> c-001' "$T/o" &&
+  pass "17. a failed spawn: the seat switches back, lease.conf never flipped, the old session kept" || fail "17. spawn fail: $(grep -E 'FAIL|SWITCH' "$T/o"; ls -l "$S")"
+rm -f "$T/spawn.mode"
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo no >"$T/ack.mode"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1
+grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" && [[ -d "$S/c-001" && ! -L "$S/c-001" && -d "$T/proc/1001" ]] &&
+  grep -q 'lease.conf LEASE_ORCH back to c-001; seat switch back g-001 -> c-001' "$T/o" && [[ "$(cat "$T/ai.c-001")" == 1001 ]] &&
+  pass "17. no ack: lease.conf and the dirs back to c-001, the old claude keeps the role" || fail "17. no-ack: $(grep -E 'FAIL|SWITCH' "$T/o"; cat "$D/lease.conf"; ls -l "$S")"
+! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "17. no stray failing command under the ERR trap" || fail "17. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+export OLD_ID=c-900; unset DESK_STATE_ROOT
+printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
 
 # --- 10. T-CRON ----------------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

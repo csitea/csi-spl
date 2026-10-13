@@ -280,6 +280,9 @@ spl_disp_plan() {
   spl_rotate_log "$rid" HOLD PLAN "$LEASE_DIR/rotate.hold = $m; the lease moves to $f (wait ${ROTATE_PROMOTE_WAIT}s)"
   spl_rotate_log "$rid" QUIESCE PLAN "wait ${ROTATE_IDLE_GRACE}s for idle, then Escape, ${ROTATE_ESC_WAIT}s; busy = rotate anyway"
   spl_rotate_log "$rid" HANDOFF PLAN "$ROTATE_HANDOFF_DIR/$rid-$m.md"
+  local new
+  new="$(spl_rotate_vendor_id "$m")"
+  [[ -n "$new" ]] && spl_rotate_log "$rid" SWITCH PLAN "$m -> $new: the $ROTATE_KIND successor takes its vendor's id (seat switch: spool dir, links for the other letters, registry, identity, dev+prd desks); lease.conf LEASE_MASTER=$new and the hold once its pid shows"
   spl_rotate_log "$rid" SPAWN PLAN "rename $pane -> $(ROTATE_RID="$rid" spl_rotate_retiring_name "$m"); $ROTATE_SPAWN $ROTATE_KIND $m <seed: brief + rotation line> (SPAWN_REUSE_ID=1), the ACK-COMMAND in its first prompt (<rid>-<id>.head.md); adopt; a task on $(spl_rotate_ack_task "$rid") in its inbox${ROTATE_ROLE_VENDOR:+; vendor: $ROTATE_VENDOR_WHY}"
   spl_rotate_log "$rid" ACK PLAN "wait ${ROTATE_ACK_TIMEOUT}s for a result on $(spl_rotate_ack_task "$rid") in $SPOOL_ROOT/$m/outbox"
   spl_rotate_log "$rid" RETIRE PLAN "/exit-clean into $pane, TERM after ${ROTATE_EXIT_WAIT}s, KILL after ${ROTATE_TERM_WAIT}s more; close it"
@@ -293,6 +296,7 @@ spl_disp_plan() {
 spl_disp_begin() {  # ROLE RID OLD_PID OLD_PANE
   local id; id="$(spl_rotate_role_id "$1")"
   ROTATE_RID="$2" ROTATE_OLD_PID="$3" ROTATE_OLD_PANE="$4" ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_QUIESCE=""
+  ROTATE_SWITCH_FROM="" ROTATE_SWITCH_TO=""
   # shellcheck disable=SC2034 # read by spl_rotate_restore (spl-rotate-lib)
   ROTATE_OLD_NAME="$(spl_rotate_tmux display-message -p -t "$4" '#{window_name}' 2>/dev/null || true)"
   ROTATE_HANDOFF="$ROTATE_HANDOFF_DIR/$2-$id.md"
@@ -383,6 +387,16 @@ spl_disp_run() {
   chmod 0640 "$seed" 2>/dev/null || true
   spl_disp_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
   spl_disp_vendor
+  local new
+  if new="$(spl_rotate_vendor_id "$id")" && [[ -n "$new" ]]; then
+    # SPL-1685: the dirs move BEFORE the spawn (it reuses <spool>/<new>);
+    # lease.conf follows once the new pid shows (spl_disp_flip)
+    spl_rotate_seat_switch "$id" "$new" || { spl_disp_fail SWITCH "$ROTATE_ERR"; return 1; }
+    ROTATE_SWITCH_FROM="$id" ROTATE_SWITCH_TO="$new"
+    spl_disp_step HANDOFF OK "seat switch $id -> $new ($ROTATE_SWITCH_OUT): the $ROTATE_KIND successor starts as $new"
+    id="$new"
+    sed -i "s/\b$ROTATE_SWITCH_FROM\b/$id/g" "$seed" 2>/dev/null || true
+  fi
   if ! spl_rotate_spawn_head "$id" "$seed" "$(spl_disp_ack_cmd)"; then
     spl_disp_fail SPAWN "$ROTATE_ERR"; return 1
   fi
@@ -395,6 +409,7 @@ spl_disp_run() {
 
 spl_disp_from_spawn() {
   local id rc=0
+  spl_disp_flip || { spl_disp_fail SWITCH "$ROTATE_ERR"; return 1; }
   id="$(spl_rotate_role_id "$(spl_disp_role)")"
   spl_disp_step ACK WAIT "up to ${ROTATE_ACK_TIMEOUT}s for $(spl_rotate_ack_task "$ROTATE_RID")"
   spl_rotate_ack_wait "$id" "$ROTATE_RID" "$ROTATE_ACK_TIMEOUT" || rc=$?
@@ -406,6 +421,45 @@ spl_disp_from_spawn() {
   spl_disp_step ACK OK "acked by pid $ROTATE_NEW_PID"
   spl_rotate_recovered "$id" "$ROTATE_RID" "rotation $ROTATE_RID" "$ROTATE_NEW_PID"
   spl_disp_from_ack
+}
+
+# The lease.conf key of this rotation's role.
+spl_disp_role_key() { [[ "$(spl_disp_role)" == master ]] && echo LEASE_MASTER || echo LEASE_FAILOVER; }
+
+# spl_disp_flip: SPL-1685, lease.conf LEASE_MASTER|LEASE_FAILOVER =
+# ROTATE_SWITCH_TO once the new pid carries it; the master's rotate.hold
+# follows, so the new id stays off the lease until RELEASE. Idempotent (a
+# resume flips it too). Non-zero = lease.conf did not take it, ROTATE_ERR.
+spl_disp_flip() {
+  local key
+  key="$(spl_disp_role_key)"
+  [[ -n "${ROTATE_SWITCH_TO:-}" && "${!key}" != "$ROTATE_SWITCH_TO" ]] || return 0
+  spl_rotate_conf_flip "$key" "${!key}" "$ROTATE_SWITCH_TO" || return 1
+  if [[ "$key" == LEASE_MASTER && -s "$LEASE_DIR/rotate.hold" ]]; then
+    sed -i "1s/^$ROTATE_SWITCH_FROM /$ROTATE_SWITCH_TO /" "$LEASE_DIR/rotate.hold" 2>/dev/null || true
+  fi
+  spl_rotate_log "$ROTATE_RID" SWITCH OK "lease.conf $key=$ROTATE_SWITCH_TO: pid $ROTATE_NEW_PID carries it"
+}
+
+# spl_disp_unswitch: a failed seat switch puts lease.conf (and the hold) and
+# the seat's spool dir back to ROTATE_SWITCH_FROM; what it did in
+# ROTATE_UNSWITCH_WHY.
+spl_disp_unswitch() {
+  local key
+  ROTATE_UNSWITCH_WHY=""
+  [[ -n "${ROTATE_SWITCH_TO:-}" ]] || return 0
+  key="$(spl_disp_role_key)"
+  if [[ "${!key}" != "$ROTATE_SWITCH_FROM" ]]; then
+    sed -i "s/^$key=${!key}\$/$key=$ROTATE_SWITCH_FROM/" "$LEASE_CONF" 2>/dev/null || true
+    [[ -s "$LEASE_DIR/rotate.hold" ]] && { sed -i "1s/^$ROTATE_SWITCH_TO /$ROTATE_SWITCH_FROM /" "$LEASE_DIR/rotate.hold" 2>/dev/null || true; }
+    printf -v "$key" '%s' "$ROTATE_SWITCH_FROM"
+    ROTATE_UNSWITCH_WHY+="; lease.conf $key back to $ROTATE_SWITCH_FROM"
+  fi
+  if spl_rotate_seat_switch "$ROTATE_SWITCH_TO" "$ROTATE_SWITCH_FROM"; then
+    ROTATE_UNSWITCH_WHY+="; seat switch back $ROTATE_SWITCH_TO -> $ROTATE_SWITCH_FROM"
+  else
+    ROTATE_UNSWITCH_WHY+="; the seat switch back FAILED ($ROTATE_ERR), $ROTATE_SWITCH_FROM links to $ROTATE_SWITCH_TO"
+  fi
 }
 
 spl_disp_from_ack() {
@@ -433,6 +487,11 @@ spl_disp_close() {
   [[ "$n" == 1 ]] || warn+=" processes=$n"
   mp="$(spl_rotate_ai pane-of "$id" 2>/dev/null || true)"
   [[ "$mp" == "$ROTATE_NEW_PANE" ]] || warn+=" map=${mp:-none}"
+  # a seat switch: the old id's identity record must not outlive its process
+  if [[ -n "${ROTATE_SWITCH_TO:-}" && -e "$SPOOL_ROOT/agents/$ROTATE_SWITCH_FROM.json" ]] &&
+     [[ -z "$(spl_rotate_pids "$ROTATE_SWITCH_FROM")" ]]; then
+    spl_rotate_ai retire "$ROTATE_SWITCH_FROM" "$ROTATE_RID" >/dev/null 2>&1 || warn+=" identity-$ROTATE_SWITCH_FROM-kept"
+  fi
   spl_disp_step CLOSE "$([[ -z "$warn" ]] && echo OK || echo WAIT)" "old window closed; checks:${warn:- one process, map -> $ROTATE_NEW_PANE}"
   # this id's swap is over: a restart of it may run from here on
   spl_agent_id_unlock "$id"
@@ -464,6 +523,8 @@ spl_disp_close() {
 # after an ack timeout the old pane is told where the handoff is (FR-014).
 spl_disp_fail() {
   local phase="$1" reason="$2" role id
+  spl_disp_unswitch
+  reason+="$ROTATE_UNSWITCH_WHY"
   role="$(spl_disp_role)"; id="$(spl_rotate_role_id "$role")"
   spl_rotate_restore "$id" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
   if [[ "$role" == master ]]; then
@@ -525,6 +586,14 @@ spl_disp_seed_brief() {
     # spec 061 L6: a role switched to c-00N still has the brief do_spl_dispatch_setup
     # rendered for its legacy id (brief-dispatcher-CLE-002.md, naming CLE-00N
     # inside): use it, every aliased id in it read as its new id
+    # SPL-1685: a seat in another vendor's letter (g-002) reads the brief of
+    # the same seat in a letter that has one, that seat's id read as its own
+    if spl_is_role_seat "$id"; then
+      for old in $(spl_role_seat_ids "$id"); do
+        [[ "$old" != "$id" && -f "$dir/brief-dispatcher-$old.md" ]] || continue
+        sed "s/\b$old\b/$id/g" "$dir/brief-dispatcher-$old.md"; return 0
+      done
+    fi
     old="$(awk -F'\t' -v id="$id" '$2 == id {print $1; exit}' "$SPOOL_ROOT/agent-id-aliases.tsv" 2>/dev/null)"
     [[ -n "$old" && -f "$dir/brief-dispatcher-$old.md" ]] || return 1
     python3 - "$SPOOL_ROOT/agent-id-aliases.tsv" "$dir/brief-dispatcher-$old.md" <<'PY'
@@ -642,6 +711,8 @@ spl_disp_rotate_resume() {
   # blocker; the hold goes and the ctx with it (.state ends ABORT, a terminal
   # phase every reader knows), the next run gates afresh
   if why="$(spl_rotate_booted_after "$ROTATE_RID")"; then
+    spl_disp_unswitch
+    why+="$ROTATE_UNSWITCH_WHY"
     [[ "$role" == master ]] && spl_disp_release
     spl_rotate_log "$ROTATE_RID" ABORT BOOT "interrupted by boot at $ROTATE_PHASE: $why; ctx and hold removed, no alert"
     rm -f "$LEASE_DIR/rotate.dispatch.ctx"

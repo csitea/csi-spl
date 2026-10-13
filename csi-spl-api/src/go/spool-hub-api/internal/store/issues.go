@@ -158,6 +158,11 @@ type Issue struct {
 	ArchivedWith   []int
 	CascadeErr     string
 	CascadeOpen    []int
+	// AutoClosedEpic (SPL-1729), set only on UpdateIssue's answer when the
+	// update closed the last open issue of an epic: the epic as it closed,
+	// with its cascade (ClosesEpic) answered on it. The row itself is in its
+	// ArchivedWith.
+	AutoClosedEpic *Issue
 }
 
 // ClosesEpic is the one rule of SPL-1643 (owner HUM-10, t1 1ccf3a20, msgs
@@ -175,6 +180,33 @@ func ClosesEpic(wasStatus string, after Issue) bool {
 
 // IssueClosed reports done or diss.
 func IssueClosed(status string) bool { return status == IssueDone || status == IssueDiss }
+
+// ClosesChild is the trigger of SPL-1729 (owner HUM-10, t1 1ccf3a20, poll
+// 954cd02f: "B — Close it automatically"): an update that closes a row under
+// an epic, or moves a closed row under another parent, may have closed the
+// epic's last open issue. wasStatus and wasParent are the row's before the
+// update. The epic then closes through ClosesEpic's cascade (it archives
+// the epic and its issues), never by a second rule; that cascade closes its
+// issues inside the store, not through UpdateIssue, so it never comes back
+// here.
+func ClosesChild(wasStatus string, wasParent int, after Issue) bool {
+	return !after.IsEpic() && after.Parent != 0 && IssueClosed(after.Status) &&
+		(!IssueClosed(wasStatus) || wasParent != after.Parent)
+}
+
+// EpicAutoStatus is the status an open epic takes from its live issues
+// (every level under it): none open and at least one there; done when any
+// is done, diss when every one was dismissed. ok false: it stays open, so an
+// epic with no issues never closes by itself.
+func EpicAutoStatus(total, open, done int) (status string, ok bool) {
+	switch {
+	case total == 0 || open > 0:
+		return "", false
+	case done > 0:
+		return IssueDone, true
+	}
+	return IssueDiss, true
+}
 
 // epicCloseFault, when set (tests only, SetEpicCloseFault), runs before an
 // epic-close cascade; an error fails the cascade as a store error would.
@@ -750,7 +782,46 @@ func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p Iss
 	if ClosesEpic(old.Status, row) { // SPL-1643: closing an epic closes and archives its issues
 		s.iss.closeEpicLocked(&row, by, now)
 	}
+	if ClosesChild(old.Status, old.Parent, row) { // SPL-1729: the last open issue closes its epic
+		row.AutoClosedEpic = s.iss.autoCloseEpicLocked(tenant, row.Parent, by, now)
+	}
 	return row, nil
+}
+
+// autoCloseEpicLocked is the memory twin of txAutoCloseEpic: it closes the
+// open epic above parent when none of its live issues is open any more, and
+// answers it, or nil. Caller holds Memory.mu.
+func (m *memIssues) autoCloseEpicLocked(tenant string, parent int, by string, now time.Time) *Issue {
+	epic, ok := m.rows[tenant][parent]
+	for hop := 0; ok && !epic.IsEpic() && epic.Parent != 0 && hop < 8; hop++ {
+		epic, ok = m.rows[tenant][epic.Parent]
+	}
+	if !ok || !epic.IsEpic() || IssueClosed(epic.Status) {
+		return nil
+	}
+	kids := memSubtree(m.rows[tenant], epic.Number)
+	open, done := 0, 0
+	for _, n := range kids {
+		switch m.rows[tenant][n].Status {
+		case IssueDone:
+			done++
+		case IssueDiss:
+		default:
+			open++
+		}
+	}
+	st, ok := EpicAutoStatus(len(kids), open, done)
+	if !ok {
+		return nil
+	}
+	was := copyIssue(epic)
+	epic = copyIssue(epic)
+	epic.Status, epic.UpdatedBy, epic.UpdatedAt = st, by, now
+	stampStatus(&epic, now)
+	m.rows[tenant][epic.Number] = copyIssue(epic)
+	m.recordLocked(tenant, epic.Number, issueChanges(was, epic)...)
+	m.closeEpicLocked(&epic, by, now)
+	return &epic
 }
 
 // closeEpicLocked is the memory twin of txCloseEpic. Caller holds Memory.mu.

@@ -397,6 +397,7 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 		s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "update", "issue": toIssueJSON(out, s.storeGetter(ctx, tenant))})
 	}
 	s.afterEpicClose(ctx, tenant, actor, out, tree)
+	s.afterEpicAutoClose(ctx, tenant, actor, out) // SPL-1729
 	if p.Status != nil && issueResolved(out.Status) {
 		s.clearBlockerMark(ctx, tenant, actor, out) // blocker_issue.go: resolving the issue clears the mark
 	}
@@ -858,7 +859,7 @@ func (s *Server) handlePatchIssue(w http.ResponseWriter, r *http.Request) {
 		writeIssueErr(w, ie)
 		return
 	}
-	writeJSON(w, http.StatusOK, epicCloseAnswer(map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))}, i))
+	writeJSON(w, http.StatusOK, epicAutoCloseAnswer(epicCloseAnswer(map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))}, i), i))
 }
 
 // mayDeleteIssue (SPL-1027, spec 039 FR-009): the member who created the

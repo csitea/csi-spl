@@ -86,6 +86,11 @@ func TestIssues(t *testing.T) {
 			if err != nil || two.Number != ea+2 || two.Parent != ea || two.CompletedAt == nil {
 				t.Fatalf("second: %+v %v", two, err)
 			}
+			// An open issue keeps the epic open while one and two close
+			// (SPL-1729: the last open issue closes its epic).
+			if _, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "Keeps the epic open", Parent: ea, TaskID: uuid4(), CreatedBy: "HUM-1"}, now); err != nil {
+				t.Fatal(err)
+			}
 			// B numbers from 1 and sees none of A's.
 			eb := testEpic(t, is, b, now)
 			other, err := is.CreateIssue(ctx, Issue{TenantID: b, Title: "B's", TaskID: uuid4(), CreatedBy: "HUM-2", Parent: eb}, now)
@@ -135,7 +140,7 @@ func TestIssues(t *testing.T) {
 				t.Fatalf("missing: %v", err)
 			}
 			list, err := is.ListIssues(ctx, a)
-			if err != nil || len(list) != 3 || list[0].Number != two.Number || list[2].Number != ea || list[0].Prefix != "SPL" {
+			if err != nil || len(list) != 4 || list[1].Number != two.Number || list[3].Number != ea || list[0].Prefix != "SPL" {
 				t.Fatalf("list: %+v %v", list, err)
 			}
 			if p, err := is.IssuePrefix(ctx, a); err != nil || p != "SPL" {

@@ -287,7 +287,7 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 		if err != nil {
 			return err
 		}
-		wasEpic, was, wasStatus := cur.IsEpic(), cur.Level, cur.Status
+		wasEpic, was, wasStatus, wasParent := cur.IsEpic(), cur.Level, cur.Status, cur.Parent
 		applyPatch(&cur, p, by, now)
 		if err := checkIssue(&cur); err != nil {
 			return err
@@ -311,10 +311,15 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 			RETURNING `+issueCols,
 			tenant, number, cur.Title, cur.Description, cur.Status, cur.Priority, cur.Level, cur.Assignee, cur.Labels,
 			cur.Deadline, nullParent(cur.Parent), cur.UpdatedBy, cur.UpdatedAt, cur.CompletedAt, cur.CanceledAt, cur.Kind, cur.TaskID), tenant, prefix)
-		if err != nil || !ClosesEpic(wasStatus, out) {
+		switch {
+		case err != nil:
 			return err
+		case ClosesEpic(wasStatus, out):
+			return txCloseEpic(ctx, tx, &out, by, now) // SPL-1643
+		case ClosesChild(wasStatus, wasParent, out):
+			out.AutoClosedEpic, err = txAutoCloseEpic(ctx, tx, tenant, prefix, out.Parent, by, now) // SPL-1729
 		}
-		return txCloseEpic(ctx, tx, &out, by, now) // SPL-1643
+		return err
 	})
 	return out, pgIssueErr(err)
 }
@@ -539,6 +544,54 @@ func txCloseEpic(ctx context.Context, tx pgx.Tx, out *Issue, by string, now time
 	open, oerr := txOpenTree(ctx, tx, out.TenantID, out.Number)
 	out.CascadeOpen = open
 	return oerr
+}
+
+// txAutoCloseEpic closes the open epic above parent when none of its live
+// issues is open any more (ClosesChild, EpicAutoStatus; SPL-1729), through
+// txCloseEpic's cascade, and answers it, or nil. The epic row is locked
+// before its issues are counted: two of its last issues closing at once
+// serialize on it, and the second one counts the first one's close.
+func txAutoCloseEpic(ctx context.Context, tx pgx.Tx, tenant, prefix string, parent int, by string, now time.Time) (*Issue, error) {
+	var epic int
+	err := tx.QueryRow(ctx, `WITH RECURSIVE up AS (
+			SELECT number, parent_number, kind, 0 AS hop FROM issues
+				WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL AND archived_at IS NULL
+			UNION ALL
+			SELECT p.number, p.parent_number, p.kind, up.hop + 1 FROM issues p JOIN up ON p.number = up.parent_number
+				WHERE p.tenant_id = $1 AND p.deleted_at IS NULL AND p.archived_at IS NULL AND up.hop < 8)
+		SELECT number FROM up WHERE kind IN ($3, $4) ORDER BY hop LIMIT 1`,
+		tenant, parent, IssueKindEpic, IssueKindFeature).Scan(&epic)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	cur, err := scanIssue(tx.QueryRow(ctx, `SELECT `+issueCols+` FROM issues
+		WHERE tenant_id = $1 AND number = $2 AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`, tenant, epic), tenant, prefix)
+	if err != nil || IssueClosed(cur.Status) {
+		return nil, err
+	}
+	var total, open, done int
+	if err := tx.QueryRow(ctx, epicTreeCTE+`
+		SELECT count(*), count(*) FILTER (WHERE status NOT IN ('done', 'diss')), count(*) FILTER (WHERE status = 'done')
+		FROM issues WHERE tenant_id = $1 AND number IN (SELECT number FROM tree)`, tenant, epic).Scan(&total, &open, &done); err != nil {
+		return nil, err
+	}
+	st, ok := EpicAutoStatus(total, open, done)
+	if !ok {
+		return nil, nil
+	}
+	cur.Status = st
+	stampStatus(&cur, now)
+	out, err := scanIssue(tx.QueryRow(ctx, `UPDATE issues SET status = $3, updated_by = $4, updated_at = $5,
+			completed_at = $6, canceled_at = $7
+		WHERE tenant_id = $1 AND number = $2
+		RETURNING `+issueCols, tenant, epic, cur.Status, by, now, cur.CompletedAt, cur.CanceledAt), tenant, prefix)
+	if err != nil {
+		return nil, err
+	}
+	return &out, txCloseEpic(ctx, tx, &out, by, now)
 }
 
 // epicTreeCTE is the live subtree under $2 (target excluded).

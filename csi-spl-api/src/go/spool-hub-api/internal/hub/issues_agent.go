@@ -131,7 +131,7 @@ func (s *Server) agentUpdateIssue(ctx context.Context, tenant, as, ref string, r
 	if ie != nil {
 		return nil, ie
 	}
-	return epicCloseAnswer(map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, tenant))}, i), nil
+	return epicAutoCloseAnswer(epicCloseAnswer(map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, tenant))}, i), i), nil
 }
 
 // agentCreateLabel is label: {name, color?}.

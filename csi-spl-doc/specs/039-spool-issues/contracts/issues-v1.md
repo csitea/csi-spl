@@ -240,4 +240,41 @@ bug".
   issues as the probe member, checks the 409, the cascade close (all 3 read
   404), the unarchive (all 3 back, done), then archives the tree again.
 
-<!-- version: 0.8.1 · updated: 2026-10-13 · last-edit: 2026-10-13T12:45:00Z -->
+## 10. An epic closes by itself when its last issue closes (SPL-1729)
+
+Owner HUM-10, t1 1ccf3a20, poll 954cd02f answered "B — Close it
+automatically".
+
+- **The trigger** (`store.ClosesChild`, both drivers' `UpdateIssue`): an
+  update that moves a row under an epic into `done` or `diss`, or moves a
+  closed row under another parent.
+- **The rule** (`store.EpicAutoStatus`): the nearest open level-1 row above
+  it closes when it has at least one live descendant (all levels) and none
+  is open: `done` when any is done, `diss` when every one was dismissed. An
+  epic with no issues never closes by itself; an epic already closed is left
+  as it is.
+- **Through section 9, never a second rule**: the epic's status change runs
+  the same cascade, so the epic and every issue under it are archived, in the
+  child's update transaction. Postgres locks the epic row before counting, so
+  two last issues closing at once serialize and the second one closes it.
+- **No loop**: section 9 closes an epic's issues inside the store, not
+  through `UpdateIssue`, so it never triggers this; an auto-close answers the
+  epic's own cascade only (test `TestEpicAutoClose`, store and hub).
+- **The answer** (`PATCH` and agent `update`) of the closing issue adds
+  `epic_closed: {key, status, archived, descendants}`; the tabs get the
+  issue's `update` frame, then the epic's `archive` frame with
+  `descendants`. The epic's topic gets a hub note:
+  `Closed as <status> automatically: its last open issue SPL-n was closed by
+  <who> at <ISO UTC>.` A failed cascade files the bug of section 9.
+- Only the moment the last issue closes triggers it: an epic left with only
+  closed issues by a delete or an archive stays open until it is closed by
+  hand.
+- **The one-time backfill** of the epics already in that state:
+  `ENV=prd TENANT_ID=t1 DESK_AGENT=<id> DRY_RUN=1 ./run -a
+  do_spl_issue_epic_autoclose_backfill` (csi-spl-orc) prints the plan;
+  `DRY_RUN=0` comments on each epic, sets its status (the cascade archives
+  it) and writes an undo file. `ISSUE_KEYS` narrows it; `ISSUE_EMPTY_KEYS`
+  names open epics with no live issue to close as done too, which the hub
+  never does by itself and only a decision names.
+
+<!-- version: 0.9.0 · updated: 2026-10-14 · last-edit: 2026-10-14T00:00:00Z -->

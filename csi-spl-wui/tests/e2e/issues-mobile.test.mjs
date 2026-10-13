@@ -255,16 +255,46 @@ try {
       await p.click('[data-test=issues-filter-sheet-close]')
       await p.waitForFunction(() => !document.querySelector('[data-test=issues-filter-sheet]'), { timeout: 5000 })
 
-      /* sort is a menu */
+      /* SPL-1596: Sort and Filter are small icon buttons, no "Sort: ..." text */
+      const bar = await p.evaluate(() => ['issues-sort-open', 'issues-filters-open'].map((id) => {
+        const el = document.querySelector(`[data-test=${id}]`)
+        const r = el.getBoundingClientRect()
+        return { w: Math.round(r.width), icon: !!el.querySelector('svg'), text: el.textContent.trim(), label: el.getAttribute('aria-label') }
+      }))
+      const sortedBy0 = await p.$eval('[data-test=issues-sorted-by]', (el) => ({ sort: el.getAttribute('data-sort'), text: el.textContent.trim() }))
+      ok(`10a ${w}: Sort and Filter are icon buttons (<= 56 px, no text, aria-label); the bar says the default sort`,
+        bar.every((b) => b.icon && b.w <= 56 && b.text === '' && b.label) && sortedBy0.sort === ':' && /priority/i.test(sortedBy0.text), { bar, sortedBy0 })
+
+      /* sort is a menu: each column once, the current sort once at the top */
       await p.click('[data-test=issues-sort-open]')
       await p.waitForSelector('[data-test=issues-sort-sheet]', { visible: true, timeout: 5000 })
       const sortOpts = await p.$$eval('[data-test=issues-sort-opt]', (els) => els.map((e) => e.getAttribute('data-value')))
-      await p.click('[data-test=issues-sort-opt][data-value="key:asc"]')
+      await p.click('[data-test=issues-sort-opt][data-value="key"]')
       await p.waitForFunction(() => !document.querySelector('[data-test=issues-sort-sheet]'), { timeout: 5000 })
       const sorted = await p.$$eval('[data-test=issues-card]', (els) => els.map((e) => e.getAttribute('data-key')))
       const q = new URL(p.url()).searchParams
-      ok(`10 ${w}: Sort is a menu; Key A-Z orders the cards and lands in ?sort=&dir=`,
-        sortOpts.includes('key:asc') && sortOpts.includes(':') && sorted.join() === 'SPL-2,SPL-3' && q.get('sort') === 'key' && q.get('dir') === 'asc', { sortOpts, sorted, q: String(q) })
+      ok(`10 ${w}: Sort is a menu, each column once; Key orders the cards A-Z and lands in ?sort=&dir=`,
+        sortOpts.includes('key') && sortOpts.includes('') && new Set(sortOpts).size === sortOpts.length && sorted.join() === 'SPL-2,SPL-3' && q.get('sort') === 'key' && q.get('dir') === 'asc', { sortOpts, sorted, q: String(q) })
+      await p.click('[data-test=issues-sort-open]')
+      await p.waitForSelector('[data-test=issues-sort-sheet]', { visible: true, timeout: 5000 })
+      const sortSheetNow = await p.evaluate(() => ({
+        now: document.querySelector('[data-test=issues-sort-now]').textContent.trim(),
+        checked: [...document.querySelectorAll('[data-test=issues-sort-opt][aria-selected=true]')].map((e) => e.getAttribute('data-value')),
+        bar: document.querySelector('[data-test=issues-sorted-by]').getAttribute('data-sort'),
+      }))
+      await p.screenshot({ path: join(SHOTS, `issues-${w}-sort-sheet.png`) })
+      await p.click('[data-test=issues-sort-reverse]')
+      await p.waitForFunction(() => !document.querySelector('[data-test=issues-sort-sheet]'), { timeout: 5000 })
+      await p.waitForFunction(() => document.querySelector('[data-test=issues-sorted-by]').getAttribute('data-sort') === 'key:desc', { timeout: 5000 }).catch(() => {})
+      const rev = await p.evaluate(() => ({
+        keys: [...document.querySelectorAll('[data-test=issues-card]')].map((e) => e.getAttribute('data-key')),
+        by: document.querySelector('[data-test=issues-sorted-by]').getAttribute('data-sort'),
+        text: document.querySelector('[data-test=issues-sorted-by]').textContent.trim(),
+      }))
+      await p.screenshot({ path: join(SHOTS, `issues-${w}-sorted.png`) })
+      ok(`10b ${w}: the sheet says the sort once ("Key, A-Z"), checks Key only; Reverse sorts Z-A and the sorted-by line follows`,
+        /Key/.test(sortSheetNow.now) && /A.Z/.test(sortSheetNow.now) && sortSheetNow.checked.join() === 'key' && sortSheetNow.bar === 'key:asc' &&
+        rev.keys.join() === 'SPL-3,SPL-2' && rev.by === 'key:desc' && /Z.A/.test(rev.text), { sortSheetNow, rev })
 
       /* level 3: the issue full screen */
       await p.click('[data-test=issues-card][data-key="SPL-2"]')

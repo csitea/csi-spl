@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Suodattimet",
     "sort": "Järjestä",
-    "sort_default": "Päivitetty, uusin ensin",
+    "sort_default": "Oletus (prioriteetti, sitten uusin)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Järjestys: {sort}",
+    "sort_reverse": "Käännä",
+    "dir_text_asc": "A–Ö",
+    "dir_text_desc": "Ö–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "vanhin ensin",
+    "dir_date_desc": "uusin ensin",
     "epics_all": "Kaikki"
   },
   "build": {

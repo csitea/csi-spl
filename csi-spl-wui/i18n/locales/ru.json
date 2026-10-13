@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Фильтры",
     "sort": "Сортировка",
-    "sort_default": "Обновлённые, сначала новые",
+    "sort_default": "По умолчанию (приоритет, затем новые)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Сортировка: {sort}",
+    "sort_reverse": "Обратный порядок",
+    "dir_text_asc": "А–Я",
+    "dir_text_desc": "Я–А",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "сначала старые",
+    "dir_date_desc": "сначала новые",
     "epics_all": "Все"
   },
   "build": {

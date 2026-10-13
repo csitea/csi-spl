@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Filtre",
     "sort": "Sortare",
-    "sort_default": "Actualizate, cele mai noi primele",
+    "sort_default": "Implicit (prioritate, apoi cele mai noi)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Sortat: {sort}",
+    "sort_reverse": "Inversează",
+    "dir_text_asc": "A–Z",
+    "dir_text_desc": "Z–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "cele mai vechi primele",
+    "dir_date_desc": "cele mai noi primele",
     "epics_all": "Toate"
   },
   "build": {

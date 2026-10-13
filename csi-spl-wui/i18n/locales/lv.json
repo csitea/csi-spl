@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Filtri",
     "sort": "Kārtot",
-    "sort_default": "Atjaunināts, jaunākie vispirms",
+    "sort_default": "Noklusējums (prioritāte, tad jaunākie)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Kārtots: {sort}",
+    "sort_reverse": "Apgriezt",
+    "dir_text_asc": "A–Ž",
+    "dir_text_desc": "Ž–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "vecākie vispirms",
+    "dir_date_desc": "jaunākie vispirms",
     "epics_all": "Visi"
   },
   "build": {

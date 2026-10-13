@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Filtre",
     "sort": "Zoradiť",
-    "sort_default": "Aktualizované, najnovšie prvé",
+    "sort_default": "Predvolené (priorita, potom najnovšie)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Zoradené: {sort}",
+    "sort_reverse": "Obrátiť",
+    "dir_text_asc": "A–Z",
+    "dir_text_desc": "Z–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "najstaršie prvé",
+    "dir_date_desc": "najnovšie prvé",
     "epics_all": "Všetky"
   },
   "build": {

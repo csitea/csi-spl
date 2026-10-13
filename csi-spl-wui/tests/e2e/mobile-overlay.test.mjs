@@ -186,7 +186,7 @@ try {
     /* a pick that closes the sort sheet AND writes ?sort= (replaceState) keeps the sort */
     await click(page, '[data-test=issues-sort-open]')
     await sleep(600)
-    await click(page, '[data-test=issues-sort-opt][data-value="key:asc"]')
+    await click(page, '[data-test=issues-sort-opt][data-value="key"]')
     await sleep(1200)
     s = await state(page)
     ok(`${at} picking a sort closes the sheet and keeps ?sort=key&dir=asc`, !s.filters && /[?&]sort=key/.test(s.path) && /[?&]dir=asc/.test(s.path), s)

@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Filtry",
     "sort": "Sortuj",
-    "sort_default": "Zaktualizowane, najnowsze najpierw",
+    "sort_default": "Domyślnie (priorytet, potem najnowsze)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Sortowanie: {sort}",
+    "sort_reverse": "Odwróć",
+    "dir_text_asc": "A–Z",
+    "dir_text_desc": "Z–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "najstarsze najpierw",
+    "dir_date_desc": "najnowsze najpierw",
     "epics_all": "Wszystkie"
   },
   "build": {

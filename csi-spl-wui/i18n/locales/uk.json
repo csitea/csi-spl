@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Фільтри",
     "sort": "Сортування",
-    "sort_default": "Оновлені, спершу нові",
+    "sort_default": "Типово (пріоритет, потім нові)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Сортування: {sort}",
+    "sort_reverse": "Зворотний порядок",
+    "dir_text_asc": "А–Я",
+    "dir_text_desc": "Я–А",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "спершу старі",
+    "dir_date_desc": "спершу нові",
     "epics_all": "Усі"
   },
   "build": {

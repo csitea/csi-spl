@@ -95,11 +95,14 @@
           <label v-if="!bulkOn && rowCount" class="issues-check issues-check--page">
             <input type="checkbox" data-test="issues-select-page" :checked="bulkPage === 'all'" :aria-label="t('issues_bulk.select_page')" @click="togglePage">
           </label>
-          <button type="button" class="btn ghost issues-mbar__btn" data-test="issues-filters-open" :data-active="filtersActive ? 'true' : 'false'" aria-haspopup="dialog" @click="filtersOpen = true">
-            <span>{{ t('issues_mobile.filters') }}</span><i v-if="filtersActive" class="issues-mbar__dot" aria-hidden="true" />
+          <!-- SPL-1596 (owner, t1 27b3ab77): Sort and Filter are small icon
+               buttons; the line before them says what the list is sorted by -->
+          <span class="issues-mbar__sorted muted" data-test="issues-sorted-by" :data-sort="sortValue" :title="sortWords">{{ t('issues_mobile.sorted_by', { sort: sortWords }) }}</span>
+          <button type="button" class="btn ghost issues-mbar__btn" data-test="issues-sort-open" :aria-label="t('issues_mobile.sort')" :title="t('issues_mobile.sort')" aria-haspopup="dialog" @click="sortOpen = true">
+            <UiIcon name="sort" :size="20" />
           </button>
-          <button type="button" class="btn ghost issues-mbar__btn issues-mbar__sort" data-test="issues-sort-open" aria-haspopup="listbox" @click="sortOpen = true">
-            <span class="issues-mbar__sortlabel">{{ t('issues_mobile.sort') }}: {{ sortShown }}</span>
+          <button type="button" class="btn ghost issues-mbar__btn" data-test="issues-filters-open" :data-active="filtersActive ? 'true' : 'false'" :aria-label="t('issues_mobile.filters')" :title="t('issues_mobile.filters')" aria-haspopup="dialog" @click="filtersOpen = true">
+            <UiIcon name="filter" :size="20" /><i v-if="filtersActive" class="issues-mbar__dot" aria-hidden="true" />
           </button>
         </div>
         <nav v-if="epics.length" class="issues-chips" data-test="issues-epic-chips" :aria-label="t('sidebar.epics')">
@@ -667,23 +670,31 @@
           <button type="button" class="btn" data-test="issues-filter-sheet-done" @click="filtersOpen = false">{{ t('picker.done') }}</button>
         </div>
       </section>
-      <section v-if="sortOpen" class="issues-sheet" role="listbox" :aria-label="t('issues_mobile.sort')" data-test="issues-sort-sheet">
+      <section v-if="sortOpen" class="issues-sheet" role="dialog" :aria-label="t('issues_mobile.sort')" data-test="issues-sort-sheet">
         <header class="issues-sheet__h">
           <UiCloseButton side="start" :size="20" class="icon-btn issues-sheet__x" data-test="issues-sort-sheet-close" @click="sortOpen = false" />
           <h3>{{ t('issues_mobile.sort') }}</h3>
           <UiCloseButton side="end" :size="20" class="icon-btn issues-sheet__x" data-test="issues-sort-sheet-close" @click="sortOpen = false" />
         </header>
-        <button
-          v-for="o in sortChoices"
-          :key="o.value"
-          type="button"
-          role="option"
-          class="issues-menu__opt"
-          data-test="issues-sort-opt"
-          :data-value="o.value"
-          :aria-selected="o.value === sortValue ? 'true' : 'false'"
-          @click="pickSort(o.value)"
-        >{{ o.label }}</button>
+        <!-- SPL-1596: the current sort once, in words; each column once below,
+             the current one checked; Reverse flips the direction -->
+        <div class="issues-sort-now">
+          <p data-test="issues-sort-now">{{ sortWords }}</p>
+          <button v-if="sheetSort.col" type="button" class="btn ghost" data-test="issues-sort-reverse" @click="pickSort(sheetSort.col, sheetSort.dir === 'asc' ? 'desc' : 'asc')">{{ t('issues_mobile.sort_reverse') }}</button>
+        </div>
+        <div role="listbox" :aria-label="t('issues_mobile.sort')">
+          <button
+            v-for="o in sortChoices"
+            :key="o.value"
+            type="button"
+            role="option"
+            class="issues-menu__opt issues-sort-opt"
+            data-test="issues-sort-opt"
+            :data-value="o.value"
+            :aria-selected="o.value === sheetSort.col ? 'true' : 'false'"
+            @click="pickSort(o.value)"
+          ><span>{{ o.label }}</span><UiIcon v-if="o.value === sheetSort.col" name="check" :size="16" /></button>
+        </div>
       </section>
     </template>
     <!-- SPL-1027: > 820 px the opened issue is a modal (UiDialog: Esc, X,
@@ -1139,6 +1150,7 @@ import {
   hubOrder,
   ISSUE_PAGE,
   nextSort,
+  sortDirKey,
   sortFromQuery,
   sortSheet,
   levelKey,
@@ -1534,18 +1546,22 @@ stack.overlay(() => phone.value && filtersOpen.value, () => { filtersOpen.value 
 stack.overlay(() => phone.value && sortOpen.value, () => { sortOpen.value = false })
 stack.overlay(() => phone.value && Boolean(menu.value), () => { menu.value = null })
 const filtersActive = computed(() => Boolean(unreadF.value || statusF.value || priorityF.value || levelF.value || assigneeF.value || labelF.value || dueF.value))
+/* SPL-1596 (owner, t1 27b3ab77): each column once; the direction is said in
+   words ("Deadline, oldest first") and flipped by Reverse, never listed twice */
 const sortChoices = computed(() => [
-  { value: ':', label: t('issues_mobile.sort_default') },
-  ...sheetColumns.value.flatMap((c) => [
-    { value: `${c.col}:asc`, label: `${c.name} ▲` },
-    { value: `${c.col}:desc`, label: `${c.name} ▼` },
-  ]),
+  { value: '', label: t('issues_mobile.sort_default') },
+  ...sheetColumns.value.map((c) => ({ value: c.col, label: c.name })),
 ])
 const sortValue = computed(() => `${sheetSort.value.col}:${sheetSort.value.dir}`)
-const sortShown = computed(() => sortChoices.value.find((o) => o.value === sortValue.value)?.label || '')
-function pickSort(value: string) {
-  const [sort = '', dir = ''] = value.split(':')
-  sheetSort.value = sortFromQuery({ sort, dir })
+const sortWords = computed(() => {
+  const s = sheetSort.value
+  const c = sheetColumns.value.find((x) => x.col === s.col)
+  return c ? t('issues_mobile.sort_now', { col: c.name, dir: t(sortDirKey(s.col, s.dir)) }) : t('issues_mobile.sort_default')
+})
+/* a new column starts ascending (as a header click); the same column keeps its direction */
+function pickSort(col: string, dir = '') {
+  const cur = sheetSort.value
+  sheetSort.value = sortFromQuery({ sort: col, dir: dir || (cur.col === col ? cur.dir : 'asc') })
   sortOpen.value = false
 }
 /* an epic chip is the side panel's epic row: ?epic= on the same entry */
@@ -3684,10 +3700,13 @@ select.issues-pctl { appearance: auto; }
     box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.14), 0 1px 18px rgba(0, 0, 0, 0.12);
   }
   .issues-mbar { flex: 0 0 auto; display: flex; gap: 8px; padding: 0 12px 8px; min-width: 0; }
-  .issues-mbar__btn { min-height: var(--tap, 44px); display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-  .issues-mbar__sort { flex: 1 1 auto; justify-content: flex-start; }
-  .issues-mbar__sortlabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .issues-mbar__dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--color-accent); }
+  .issues-mbar { align-items: center; }
+  .issues-mbar__btn { position: relative; flex: none; min-height: var(--tap, 44px); min-width: var(--tap, 44px); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  .issues-mbar__sorted { flex: 1 1 auto; min-width: 0; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .issues-mbar__dot { position: absolute; top: 8px; inset-inline-end: 8px; width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--color-accent); }
+  .issues-sort-now { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px; border-bottom: 1px solid var(--color-border); margin-bottom: 4px; }
+  .issues-sort-now p { flex: 1 1 auto; min-width: 0; margin: 0; font-weight: 600; }
+  .issues-sort-opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--tap, 44px); }
   /* the strip scrolls inside itself; the page never scrolls sideways */
   /* flex: none - a scrolling row in the list's column would otherwise shrink
      under a long card list and the cards would cover the chips */

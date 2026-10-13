@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Filters",
     "sort": "Sorteren",
-    "sort_default": "Bijgewerkt, nieuwste eerst",
+    "sort_default": "Standaard (prioriteit, dan nieuwste)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Sortering: {sort}",
+    "sort_reverse": "Omdraaien",
+    "dir_text_asc": "A–Z",
+    "dir_text_desc": "Z–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "oudste eerst",
+    "dir_date_desc": "nieuwste eerst",
     "epics_all": "Alle"
   },
   "build": {

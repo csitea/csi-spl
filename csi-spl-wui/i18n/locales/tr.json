@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Filtreler",
     "sort": "Sırala",
-    "sort_default": "Güncellenen, en yeni önce",
+    "sort_default": "Varsayılan (öncelik, sonra en yeni)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Sıralama: {sort}",
+    "sort_reverse": "Ters çevir",
+    "dir_text_asc": "A–Z",
+    "dir_text_desc": "Z–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "en eski önce",
+    "dir_date_desc": "en yeni önce",
     "epics_all": "Tümü"
   },
   "build": {

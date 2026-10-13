@@ -343,6 +343,9 @@ export const UI_ICON_PATHS = {
   // branch, the tree-view connector (lucide list-tree family).
   "thread-tree": ["M6 3v13a2 2 0 0 0 2 2h11", "M6 10h11"],
   // Left panel order (SPL-979): move one up / down, and the drag grip.
+  // SPL-1596: the phone's Issues bar - Sort (lucide arrow-up-down) and Filter (lucide funnel)
+  sort: ["m21 16-4 4-4-4", "M17 20V4", "m3 8 4-4 4 4", "M7 4v16"],
+  filter: ["M22 3H2l8 9.46V19l4 2v-8.54L22 3z"],
   "chevron-up": ["m18 15-6-6-6 6"],
   "chevron-down": ["m6 9 6 6 6-6"],
   // Back one level on the phone top bar (SPL-990); rtl mirrors it in CSS.

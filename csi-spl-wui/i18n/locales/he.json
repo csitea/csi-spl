@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "מסננים",
     "sort": "מיון",
-    "sort_default": "עודכן, החדשים תחילה",
+    "sort_default": "ברירת מחדל (עדיפות, ואז החדשים)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "מיון: {sort}",
+    "sort_reverse": "הפוך סדר",
+    "dir_text_asc": "א–ת",
+    "dir_text_desc": "ת–א",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "הישנים תחילה",
+    "dir_date_desc": "החדשים תחילה",
     "epics_all": "הכול"
   },
   "build": {

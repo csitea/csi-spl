@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Филтери",
     "sort": "Сортирај",
-    "sort_default": "Ажурирано, најновије прво",
+    "sort_default": "Подразумевано (приоритет, па најновије)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Сортирано: {sort}",
+    "sort_reverse": "Обрни",
+    "dir_text_asc": "А–Ш",
+    "dir_text_desc": "Ш–А",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "најстарије прво",
+    "dir_date_desc": "најновије прво",
     "epics_all": "Све"
   },
   "build": {

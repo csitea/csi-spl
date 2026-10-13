@@ -51,11 +51,17 @@ direction the list *opens* with is your **Settings → Behaviour → Issues: def
 sort** choice, kept per workspace; with nothing chosen it is **priority
 ascending** (priority 1 at the top).
 
+On a phone, the bar above the list says what it is sorted by, for example
+"Sorted: Deadline, oldest first". The **Sort** icon (two arrows) opens the sort
+sheet: the current sort at the top, each column once below with the current one
+ticked, and **Reverse** to flip the direction.
+
 ---
 
 ## 5. Filtering
 
-- **Filters** narrow the list by status, priority, level, assignee or label.
+- **Filters** narrow the list by status, priority, level, assignee or label. On a
+  phone they open from the **Filter** icon (a funnel); a dot on it means a filter is on.
 - **Unread** shows only the issues assigned to you that you have not opened
   yet: exactly the ones the number on the **Issues** tab counts. Click (or tap)
   that number to open the list with **Unread** on; an issue you open leaves the

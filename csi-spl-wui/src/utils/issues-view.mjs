@@ -76,6 +76,16 @@ export function sortFromQuery(q = {}) {
   return SHEET_COLUMNS.includes(col) && (dir === 'asc' || dir === 'desc') ? { col, dir } : { col: '', dir: '' }
 }
 
+const SORT_DIR_KIND = { deadline: 'date', updated: 'date', priority: 'num', level: 'num' }
+/**
+ * SPL-1596: the i18n key of a sort's direction in words, by what the column
+ * holds (dates oldest/newest, numbers 1-9, text A-Z), so the phone can say
+ * "Deadline, oldest first" instead of a bare arrow.
+ */
+export function sortDirKey(col, dir) {
+  return `issues_mobile.dir_${SORT_DIR_KIND[col] || 'text'}_${dir === 'desc' ? 'desc' : 'asc'}`
+}
+
 /**
  * SPL-1181: the product default sort of the Issues list — priority ascending
  * (1 at the top), with the stable secondary order updated, newest first. A

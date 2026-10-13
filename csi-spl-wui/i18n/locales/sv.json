@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Filter",
     "sort": "Sortera",
-    "sort_default": "Uppdaterade, nyaste först",
+    "sort_default": "Standard (prioritet, sedan nyaste)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Sorterat: {sort}",
+    "sort_reverse": "Vänd",
+    "dir_text_asc": "A–Ö",
+    "dir_text_desc": "Ö–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "äldsta först",
+    "dir_date_desc": "nyaste först",
     "epics_all": "Alla"
   },
   "build": {

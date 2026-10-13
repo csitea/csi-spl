@@ -4,7 +4,8 @@
 // to the default (Updated, newest first); the sort lives in ?sort=&dir=.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { nextSort, sortFromQuery, hubSort, sortSheet, SHEET_COLUMNS, DEFAULT_SORT } from '../../src/utils/issues-view.mjs'
+import { readFileSync } from 'node:fs'
+import { nextSort, sortFromQuery, sortDirKey, hubSort, sortSheet, SHEET_COLUMNS, DEFAULT_SORT } from '../../src/utils/issues-view.mjs'
 
 const mk = (n, o = {}) => ({ key: `SPL-${n}`, title: `t${n}`, status: 'todo', priority: 3, level: 2, assignee: '', labels: [], deadline: '', updated_at: `2026-09-2${n}T10:00:00Z`, ...o })
 const keys = (l) => l.map((i) => i.key)
@@ -56,5 +57,29 @@ describe('the sheet sort', () => {
   })
   it('every sheet column is sortable', () => {
     assert.deepEqual(SHEET_COLUMNS, ['key', 'title', 'status', 'priority', 'level', 'assignee', 'label', 'deadline', 'updated'])
+  })
+})
+
+/* SPL-1596 (owner, t1 27b3ab77): the phone says the sort in words, once */
+describe('the sort in words', () => {
+  it('dates read oldest/newest, numbers 1-9, the rest A-Z', () => {
+    assert.equal(sortDirKey('deadline', 'asc'), 'issues_mobile.dir_date_asc')
+    assert.equal(sortDirKey('updated', 'desc'), 'issues_mobile.dir_date_desc')
+    assert.equal(sortDirKey('priority', 'asc'), 'issues_mobile.dir_num_asc')
+    assert.equal(sortDirKey('level', 'desc'), 'issues_mobile.dir_num_desc')
+    assert.equal(sortDirKey('title', 'asc'), 'issues_mobile.dir_text_asc')
+    assert.equal(sortDirKey('key', 'desc'), 'issues_mobile.dir_text_desc')
+  })
+  it('every column and direction has its words in every shipped locale', () => {
+    const dir = new URL('../../i18n/locales/', import.meta.url)
+    for (const loc of ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
+      const m = JSON.parse(readFileSync(new URL(`${loc}.json`, dir), 'utf8')).issues_mobile
+      for (const col of SHEET_COLUMNS) for (const d of ['asc', 'desc']) {
+        assert.ok(m[sortDirKey(col, d).split('.')[1]], `${loc} ${col} ${d}`)
+      }
+      for (const k of ['sort_default', 'sort_reverse']) assert.ok(m[k], `${loc} ${k}`)
+      assert.match(m.sort_now, /\{col\}.*\{dir\}|\{dir\}.*\{col\}/, `${loc} sort_now`)
+      assert.match(m.sorted_by, /\{sort\}/, `${loc} sorted_by`)
+    }
   })
 })

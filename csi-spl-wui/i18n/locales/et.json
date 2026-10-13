@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Filtrid",
     "sort": "Sordi",
-    "sort_default": "Muudetud, uusimad eespool",
+    "sort_default": "Vaikimisi (prioriteet, siis uusimad)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Järjestus: {sort}",
+    "sort_reverse": "Pööra ümber",
+    "dir_text_asc": "A–Z",
+    "dir_text_desc": "Z–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "vanimad eespool",
+    "dir_date_desc": "uusimad eespool",
     "epics_all": "Kõik"
   },
   "build": {

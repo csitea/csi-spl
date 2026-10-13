@@ -2164,6 +2164,7 @@ declare module '~/utils/issues-view.mjs' {
   export const SHEET_COLUMNS: string[]
   export function nextSort(col: string, cur?: { col: string, dir: string }): { col: string, dir: '' | 'asc' | 'desc' }
   export function sortFromQuery(q?: Record<string, unknown>): { col: string, dir: '' | 'asc' | 'desc' }
+  export function sortDirKey(col: string, dir: string): string
   export function hubSort(s: { col: string, dir: string }): string
   export const ISSUE_PAGE: number
   export function hubOrder(s: { col: string, dir: string }): { sort: string, dir: string }

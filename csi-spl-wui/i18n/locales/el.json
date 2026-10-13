@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Φίλτρα",
     "sort": "Ταξινόμηση",
-    "sort_default": "Ενημέρωση, νεότερα πρώτα",
+    "sort_default": "Προεπιλογή (προτεραιότητα, μετά νεότερα)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Ταξινόμηση: {sort}",
+    "sort_reverse": "Αντιστροφή",
+    "dir_text_asc": "Α–Ω",
+    "dir_text_desc": "Ω–Α",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "παλαιότερα πρώτα",
+    "dir_date_desc": "νεότερα πρώτα",
     "epics_all": "Όλα"
   },
   "build": {

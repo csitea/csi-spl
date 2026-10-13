@@ -1411,7 +1411,16 @@
   "issues_mobile": {
     "filters": "Filtrai",
     "sort": "Rikiuoti",
-    "sort_default": "Atnaujinta, naujausi pirmi",
+    "sort_default": "Numatytoji (prioritetas, tada naujausi)",
+    "sort_now": "{col}, {dir}",
+    "sorted_by": "Rikiuota: {sort}",
+    "sort_reverse": "Apversti",
+    "dir_text_asc": "A–Ž",
+    "dir_text_desc": "Ž–A",
+    "dir_num_asc": "1–9",
+    "dir_num_desc": "9–1",
+    "dir_date_asc": "seniausi pirmi",
+    "dir_date_desc": "naujausi pirmi",
     "epics_all": "Visi"
   },
   "build": {

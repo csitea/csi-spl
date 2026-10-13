@@ -68,4 +68,21 @@ describe('the topic page is the thread alone', () => {
     assert.doesNotMatch(css, /\.topic-heading__title,\n\.search-row\.active/)
     assert.match(css, /\.topic\.selected,\n\.search-row\.active \{\n  background: var\(--color-selected\);\n  box-shadow: inset var\(--select-bar-w\) 0 0 var\(--focus-ring\);\n\}/)
   })
+
+  it('the thread-pane header uses rowTitle to strip markdown from the topic title', () => {
+    const topicPane = read('src/components/TopicPane.vue')
+    assert.match(topicPane, /rowTitle\(subject, ''\)/)
+    const dmPage = read('src/pages/dm/[peer].vue')
+    assert.match(dmPage, /rowTitle\(topicTitleFromRows\(data\.messages \|\| \[\], topic\.rootMsg\), ''\)/)
+  })
+
+  it('FeedHeader strips markdown from the title (e.g., **bold** → bold)', () => {
+    assert.equal(rowTitle('**bold**', ''), 'bold')
+    assert.equal(rowTitle('__bold__', ''), 'bold')
+    assert.equal(rowTitle('*italic*', ''), 'italic')
+    assert.equal(rowTitle('~~strike~~', ''), 'strike')
+    assert.equal(rowTitle('`code`', ''), 'code')
+    assert.equal(rowTitle('[link](url)', ''), 'link')
+    assert.equal(rowTitle('**ROTATION FAILED**', ''), 'ROTATION FAILED')
+  })
 })

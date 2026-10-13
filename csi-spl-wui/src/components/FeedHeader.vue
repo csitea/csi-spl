@@ -24,7 +24,7 @@
       data-test="feed-header-status"
     />
     <div class="feed-header__who" :class="{ 'feed-header__who--status': statusText && statusShown }">
-      <h2 class="feed-header__title" :title="titleTip || title">{{ title }}</h2>
+      <h2 class="feed-header__title" :title="titleTip || title">{{ plainText(title) }}</h2>
       <span v-if="statusText && statusShown" class="feed-header__status" data-test="feed-header-status-text">{{ statusText }}</span>
       <span v-else-if="statusText" class="sr-only">{{ statusText }}</span>
     </div>
@@ -34,7 +34,7 @@
       data-test="feed-header-archived"
       :title="topicTitle || undefined"
     >
-      <span v-if="topicTitle" class="feed-header__topic-title">{{ topicTitle }}</span>
+      <span v-if="topicTitle" class="feed-header__topic-title">{{ rowTitle(topicTitle, '') }}</span>
       <ArchivedBadge :at="archivedAt" />
     </span>
     <CardClipControl />
@@ -42,6 +42,8 @@
 </template>
 
 <script setup lang="ts">
+import { plainText } from '../utils/plain-text.mjs'
+
 defineProps<{
   title: string
   /** hover text for the title (a DM shows id@box behind the display name) */

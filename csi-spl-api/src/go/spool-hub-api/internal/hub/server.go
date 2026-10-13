@@ -202,6 +202,9 @@ type Options struct {
 	// workspace outside it gets 404 on every /v1/marketing route; inside it,
 	// its admin turns marketing on or off (tenants.marketing_enabled).
 	MarketingWorkspaces []string
+	// MarketingLinkedIn connects LinkedIn accounts and shares the blog with
+	// them (spec 090, SPL-1634, marketing_channels.go); nil = not configured.
+	MarketingLinkedIn *MarketingLinkedIn
 	// DemoMaxStay is how long a demo seat lasts (specs/077 FR-005,
 	// demo_stay.go); <= 0 = store.DefaultDemoMaxStay. GET /v1/demo shows it
 	// and the stay sweep gives a seat admitted before T009 that end.

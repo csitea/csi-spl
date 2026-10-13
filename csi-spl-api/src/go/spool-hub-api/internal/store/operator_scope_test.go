@@ -18,6 +18,8 @@ import (
 // it is added here with its reason, i.e. until someone has reviewed it.
 var operatorCallers = map[string]string{
 	"Sweep":                      "retention sweeper (hub goroutine), global by design; no route",
+	"AutoMarketingChannels":      "blog share sweep (spec 090, SPL-1634, hub goroutine): the active auto-publish channels of every workspace, never a token; no route",
+	"StuckMarketingPosts":        "blog share sweep (spec 090, SPL-1634, hub goroutine): fails posts left dispatching by a dead hub, never retried; no route",
 	"pruneCommitted":             "Sweep's committed-delivery prune (spec 059 S4), global by design; no route",
 	"backfillSearchSig":          "Sweep's search_sig backfill (rdb 0135): signs pre-trigger long rows of every tenant, global by design; no route",
 	"ConsumerLag":                "consumer lag report (spec 059 S4), fleet-wide by design; no route",

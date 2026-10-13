@@ -239,6 +239,8 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 		return opts, err
 	}
 	opts.InviteMail = inviteMailer(hc, log, st, pmc, ac.AppURL)
+	// spec 090 (SPL-1634): connect LinkedIn, share the blog
+	opts.MarketingLinkedIn = marketingLinkedIn(ctx, hc, log, pmc, ac.AppURL)
 	opts.EmbedRelinkMail = embedRelinkMailer(log, pmc) // specs/121 T206
 	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
 	// CLE-77780: the operator invite routes let the box create/mail invites

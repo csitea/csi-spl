@@ -211,6 +211,15 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
   - **Rule for T007 and T009 (sweeps, not routes)**: the draft queue and the dispatcher do not pass through `marketingRoute`. Each one must skip a workspace unless it is allow-listed (`marketingListed`) AND `MarketingEnabled` is true. The dispatcher checks this again when it claims a post, so turning the switch off stops a post that is already approved.
   - **Tests**: hub `TestMarketingSwitch*` (on both stores), store `TestMarketingSwitch*` (RLS on Postgres), `hub-marketing-workspaces-030.tst.sh`, and e2e `marketing-switch.test.mjs`.
 
+- [ ] T015 **blog auto-share to the owner's LinkedIn** (c-919, SPL-1634; owner HUM-10, topic `add4fbf4` msgs `06f5fd99`, `489d18e6`: "each time a new publish is done from spool hub to the blog post it should be also posted to my LinkedIn profile", "not even approve it"). It replaces T007, T008 and T012 for this flow: no draft queue and no approval.
+  - [x] **Connect path** (this commit): rdb `0187_marketing.sql` (the four tables of section 12, `tenant_id`; posts keyed UNIQUE on `(channel_id, source_type, source_ref)`, the events table append-only), `store.Marketing` (`marketing.go`, `marketing_memory.go`), the LinkedIn OAuth client (`internal/marketing/linkedin_oauth.go`), and the hub routes (`hub/marketing_channels.go`):
+    - `GET /v1/marketing/linkedin/connect?workspace=<id>`: the one-click link, a 302 to LinkedIn. It runs on the hub's API host, where the member's session cookie arrives. `POST` gives `{authorize_url}` for the WUI.
+    - `GET /v1/marketing/linkedin/callback`: verifies the HMAC state (workspace, member, 15 minutes; keyed from the client secret, so any instance checks it), exchanges the code, reads the member id, seals the token (T005), stores the channel with `auto_publish`. The callback arrives through the WUI host's `/api` rewrite with no cookie, so the state is the only proof. No PKCE: LinkedIn offers it to native apps only.
+    - `GET /v1/marketing/channels`: the workspace's accounts, never a token.
+    - Who: an admin (`tenant.settings`) of an allow-listed workspace with the switch on (T014).
+    - cnf `marketing.kms_key.inject: "true"` renders `SPOOL_HUB_MARKETING_KMS_KEY` into 030 (`hub-marketing-kms-key-030.tst.sh`). It reaches the hub only with a 030 apply (owner go). Connect is on only when the client id, the secret and the key are all set; otherwise it answers 503.
+  - [ ] **Share sweep**: a new `en` post in the live blog index is shared once per channel on the Posts API; a failure retries, then is reported; a re-connect reminder goes out 7 days before the token expires.
+
 ### Later phases (placeholders, one line each; each gets its own tasks when phase 1 is live)
 - [ ] T020 **Phase 2, email newsletter**: transactional provider, double opt-in, RFC 8058 headers, bounce/complaint webhooks, per-release or weekly cadence. Needs from the owner: the provider, the sending subdomain and the postal address (`spec.md` §11 Q4, Q5).
 - [ ] T021 **Phase 2, standing grants**: 30-day, one person, one channel, release template only. The grant id is logged on each post.
@@ -218,4 +227,4 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
 - [ ] T023 **Phase 3, X**: OAuth 2.0 PKCE, rotating refresh tokens, live price check. Needs from the owner: an X developer account and prepaid credit.
 - [ ] T024 **Phase 3, Facebook Page and LinkedIn company page**: needs from the owner Meta App Review and Business Verification, plus LinkedIn Community Management API access.
 
-<!-- version: 0.1.0 · updated: 2026-10-05 · last-edit: 2026-10-05T05:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-10-13 · last-edit: 2026-10-13T08:00:00Z -->

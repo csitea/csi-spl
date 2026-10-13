@@ -417,6 +417,18 @@ type Hub struct {
 	// on or off, or the one entry "all" (every workspace). Empty = off
 	// everywhere: every /v1/marketing route answers 404.
 	MarketingWorkspaces []string `env:"SPOOL_HUB_MARKETING_WORKSPACES" envSeparator:","`
+	// The LinkedIn marketing app (spec 090 T002/T006, SPL-1634): its client
+	// id and secret (Secret Manager, injected while cnf
+	// marketing.linkedin.inject is "true"; the secret is never logged), the
+	// KMS key that seals member tokens (cnf marketing.kms_key, injected while
+	// marketing.kms_key.inject is "true": the full CryptoKey resource name)
+	// and the LinkedIn-Version header of the REST API (cnf
+	// marketing.linkedin.api_version). Connecting and sharing are on only
+	// when the id, the secret and the key are all set.
+	MarketingLinkedInClientID     string `env:"SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_ID"`
+	MarketingLinkedInClientSecret string `env:"SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_SECRET"`
+	MarketingKMSKey               string `env:"SPOOL_HUB_MARKETING_KMS_KEY"`
+	MarketingLinkedInVersion      string `env:"SPOOL_HUB_MARKETING_LINKEDIN_VERSION" envDefault:"202606"`
 	// DemoMaxLive caps the live demo_user seats (cnf demo.max_live,
 	// specs/077 FR-006); the next visitor is refused demo_full.
 	DemoMaxLive int `env:"SPOOL_HUB_DEMO_MAX_LIVE" envDefault:"9"`

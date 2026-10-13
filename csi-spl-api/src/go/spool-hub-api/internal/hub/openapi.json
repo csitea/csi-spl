@@ -4332,6 +4332,156 @@
         ]
       }
     },
+    "/v1/marketing/channels": {
+      "get": {
+        "operationId": "getMarketingChannels",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {channels: [...]}, the workspace's connected accounts, never a token (spec 090 T006)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "List connected marketing accounts",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/linkedin/callback": {
+      "get": {
+        "operationId": "getMarketingLinkedInCallback",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "an HTML page: connected, or LinkedIn's refusal"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "description": "the exchange with LinkedIn failed; nothing stored"
+          },
+          "503": {
+            "description": "the LinkedIn app is not configured on this hub"
+          }
+        },
+        "summary": "LinkedIn's OAuth redirect",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/linkedin/connect": {
+      "get": {
+        "operationId": "getMarketingLinkedInConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Found: to LinkedIn's authorize page (the one-click connect link, spec 090 T006)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "the LinkedIn app is not configured on this hub"
+          }
+        },
+        "summary": "Connect a LinkedIn account (browser link)",
+        "tags": [
+          "marketing"
+        ]
+      },
+      "post": {
+        "operationId": "postMarketingLinkedInConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {authorize_url}"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "the LinkedIn app is not configured on this hub"
+          }
+        },
+        "summary": "Start connecting a LinkedIn account",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/marketing/settings": {
       "get": {
         "operationId": "getMarketingSettings",

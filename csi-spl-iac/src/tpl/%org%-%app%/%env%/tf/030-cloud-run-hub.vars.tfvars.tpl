@@ -76,6 +76,13 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if (mkt_li.get("inject", "false") | string | lower) == "true" %}
 {%- set _ = run_sec.update(mkt_sec) %}
 {%- endif %}
+{#- spec 090 T006 (SPL-1634): the KMS key that seals LinkedIn member tokens
+    (step 055), as its full CryptoKey name, only while marketing.kms_key.inject
+    is "true" (055 applied, the hub SA holds encrypterDecrypter on it) #}
+{%- set mkt_kms = marketing["kms_key"] if (marketing is defined and marketing["kms_key"] is defined) else {} %}
+{%- if (mkt_kms.get("inject", "false") | string | lower) == "true" %}
+{%- set _ = run_env.update({"SPOOL_HUB_MARKETING_KMS_KEY": "projects/" ~ gcp["gcp_project"] ~ "/locations/" ~ gcp["gcp_region"] ~ "/keyRings/" ~ mkt_kms["key_ring"] ~ "/cryptoKeys/" ~ mkt_kms["crypto_key"]}) %}
+{%- endif %}
 {#- spec 090 switch: the outer allow-list reaches the hub as one plain env
     value, the workspace ids joined with commas, or the literal "all" #}
 {%- set mkt_ws = marketing["workspaces"] if (marketing is defined and marketing["workspaces"] is defined) else [] %}

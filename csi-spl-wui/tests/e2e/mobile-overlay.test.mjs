@@ -69,7 +69,27 @@ const signIn = (p) => p.evaluate(() => {
   session.adopt({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' })
   return true
 })
-const back = async (p) => { await p.goBack().catch(() => {}); await sleep(900) }
+/* Polls the state until want(s) holds on two polls in a row with the same
+   state, so a late second change (a Back that also pops the level) still
+   shows; gives up after max ms and returns the last state for the check.
+   Fixed sleeps after each step were most of the file's 77 s on the hosted
+   runner (spec 133 round 17). */
+async function until(p, want, max = 8000) {
+  const end = Date.now() + max
+  let prev = ''
+  let s = await state(p)
+  while (Date.now() < end) {
+    const key = want(s) ? JSON.stringify(s) : ''
+    if (key && key === prev) return s
+    prev = key
+    await sleep(150)
+    s = await state(p)
+  }
+  return s
+}
+/* waits until a selector has a laid-out element (the next click needs it) */
+const shown = (p, sel) => p.waitForFunction((q) => [...document.querySelectorAll(q)].some((e) => e.getBoundingClientRect().width > 0), { timeout: 8000 }, sel).catch(() => {})
+const back = async (p, want) => { await p.goBack().catch(() => {}); return until(p, want) }
 
 const srv = await startServer()
 const browser = await launch()
@@ -86,40 +106,33 @@ try {
     await sleep(1000)
     await signIn(page)
     await click(page, '[data-testid=sidebar-tab-channels]')
-    await sleep(400)
+    await shown(page, '#sidebar-panel-channels .nav-item')
     await click(page, '#sidebar-panel-channels .nav-item')
-    await sleep(1200)
-    const l2 = await state(page)
+    const l2 = await until(page, (s) => s.level === '2' && s.path.includes('/channel/'))
     ok(`${at} setup: a channel on level 2`, l2.level === '2' && l2.path.includes('/channel/'), l2)
 
     /* the avatar sheet: Back closes it, the level stays; Back again pops */
     await click(page, '[data-test=user-menu-trigger]')
-    await sleep(600)
-    let s = await state(page)
+    let s = await until(page, (s) => s.menu)
     ok(`${at} the avatar sheet opens`, s.menu, s)
-    await back(page)
-    s = await state(page)
+    s = await back(page, (s) => !s.menu)
     ok(`${at} Back closes the avatar sheet, level and URL unchanged`, !s.menu && s.level === '2' && s.path === l2.path, s)
-    await back(page)
-    s = await state(page)
+    s = await back(page, (s) => s.level === '1')
     ok(`${at} Back again pops the level (2 -> 1)`, s.level === '1', s)
 
     /* a dialog at level 1 (the new-channel dialog, nothing saved) */
     await click(page, '[data-testid=sidebar-tab-channels]')
-    await sleep(400)
-    const l1 = await state(page)
+    await shown(page, '[data-testid=create-channel]')
+    const l1 = await until(page, () => true)
     const opened = await click(page, '[data-testid=create-channel]')
-    await sleep(800)
-    s = await state(page)
+    s = await until(page, (s) => s.dialog)
     ok(`${at} the new-channel dialog opens`, opened && s.dialog, s)
-    await back(page)
-    s = await state(page)
+    s = await back(page, (s) => !s.dialog)
     ok(`${at} Back closes the dialog, URL and level unchanged`, !s.dialog && s.level === l1.level && s.path === l1.path, { l1, s })
 
     /* a dialog at level 2: Back closes it, a second Back pops the level */
     await click(page, '#sidebar-panel-channels .nav-item')
-    await sleep(1200)
-    const c2 = await state(page)
+    const c2 = await until(page, (s) => s.path.includes('/channel/'))
     await click(page, '[data-testid=sidebar-tab-channels]')
     const d2 = await page.evaluate(() => {
       /* the channel's own dialog is not needed: the same UiDialog opened from the rail */
@@ -128,14 +141,11 @@ try {
       b.click()
       return true
     })
-    await sleep(800)
-    s = await state(page)
+    s = d2 ? await until(page, (s) => s.dialog) : await state(page)
     if (d2 && s.dialog) {
-      await back(page)
-      s = await state(page)
+      s = await back(page, (s) => !s.dialog)
       ok(`${at} a dialog over level ${c2.level}: Back closes it, level unchanged`, !s.dialog && s.level === c2.level && s.path === c2.path, { c2, s })
-      await back(page)
-      s = await state(page)
+      s = await back(page, (s) => Number(s.level) === Number(c2.level) - 1)
       ok(`${at} ... and a second Back pops the level`, !s.dialog && Number(s.level) === Number(c2.level) - 1, s)
     }
 
@@ -144,19 +154,15 @@ try {
     await sleep(1000)
     await signIn(page)
     await click(page, '[data-testid=sidebar-tab-channels]')
-    await sleep(400)
+    await shown(page, '#sidebar-panel-channels .nav-item')
     await click(page, '#sidebar-panel-channels .nav-item')
-    await sleep(1200)
-    const x0 = await state(page)
+    const x0 = await until(page, (s) => s.level === '2' && s.path.includes('/channel/'))
     await click(page, '[data-test=user-menu-trigger]')
-    await sleep(600)
-    const x1 = await state(page)
+    const x1 = await until(page, (s) => s.menu)
     await click(page, '[data-test=user-menu-scrim]')
-    await sleep(900)
-    s = await state(page)
+    s = await until(page, (s) => !s.menu)
     ok(`${at} closing the sheet itself steps back over its entry`, x1.menu && !s.menu && s.level === '2' && s.path === x0.path, { x1, s })
-    await back(page)
-    s = await state(page)
+    s = await back(page, (s) => s.level === '1')
     ok(`${at} ... so the next Back pops 2 -> 1 (no drift)`, s.level === '1', s)
 
     /* SPL-1005: the search sheet (and the floating GO that opened it) is
@@ -167,8 +173,7 @@ try {
     await sleep(1500)
     const i0 = await state(page)
     await click(page, '[data-test=issues-filters-open]')
-    await sleep(600)
-    s = await state(page)
+    s = await until(page, (s) => s.filters)
     ok(`${at} the issues filter sheet opens`, s.filters, s)
     const picked = await page.evaluate(() => {
       const r = document.querySelector('[data-test=issues-filter-status-m] [role=radio]:not([aria-checked=true])')
@@ -176,19 +181,16 @@ try {
       r.click()
       return true
     })
-    await sleep(700)
-    const i1 = await state(page)
-    await back(page)
-    s = await state(page)
+    const i1 = picked ? await until(page, (s) => s.path !== i0.path, 3000) : await state(page)
+    s = await back(page, (s) => !s.filters)
     ok(`${at} Back closes the filter sheet, stays on /issues at level ${i0.level}`, !s.filters && s.level === i0.level && s.path.startsWith('/issues'), s)
     if (picked && i1.path !== i0.path) ok(`${at} the filter chosen in the sheet survives the Back`, s.path === i1.path, { i1, s })
 
     /* a pick that closes the sort sheet AND writes ?sort= (replaceState) keeps the sort */
     await click(page, '[data-test=issues-sort-open]')
-    await sleep(600)
+    await shown(page, '[data-test=issues-sort-opt][data-value="key"]')
     await click(page, '[data-test=issues-sort-opt][data-value="key"]')
-    await sleep(1200)
-    s = await state(page)
+    s = await until(page, (s) => !s.filters && /[?&]sort=key/.test(s.path) && /[?&]dir=asc/.test(s.path))
     ok(`${at} picking a sort closes the sheet and keeps ?sort=key&dir=asc`, !s.filters && /[?&]sort=key/.test(s.path) && /[?&]dir=asc/.test(s.path), s)
     await page.close()
   }
@@ -200,8 +202,7 @@ try {
   await sleep(1500)
   const d0 = await state(page)
   await click(page, '[data-testid=create-channel]')
-  await sleep(800)
-  const d1 = await state(page)
+  const d1 = await until(page, (s) => s.dialog)
   ok('1440px a dialog opens and writes no history entry', d1.dialog && d1.hist === d0.hist && d1.path === d0.path, { d0, d1 })
   await page.close()
 } finally {

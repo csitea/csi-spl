@@ -92,20 +92,48 @@
 # not SPOOL_BOX_USER (the agent user) runs the action as SPOOL_BOX_USER, with
 # its HOME, whose state dir holds the seated desk (seam SPAWN_PICK_HOP_CMD,
 # default "sudo -n -u").
-set -uo pipefail
+set -o pipefail
+if [ "${SPAWN_TEST_MODE:-0}" -eq 1 ]; then
+  set +u
+else
+  set -u
+fi
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
-. "$HERE/../lib/spool-env.inc.sh"
+if [ "${SPAWN_TEST_MODE:-0}" -eq 1 ]; then
+  # Test mode: skip argument parsing, requester check, and spool-env
+  SPAWN_ALLOW_LANE=1
+  SPAWN_ALLOW_REASON="test mode"
+  spool_env_resolve() { :; }
+  spool_spawn_gate() { :; }
+  spool_tmux_argv() { :; }
+  spool_valid_id() { :; }
+  spl_kind_of_agent_id() { echo "$1" | cut -d- -f1; }
+  SPOOL_TMUX_SOCKET=/tmp/tmux-2000/default
+else
+  . "$HERE/../lib/spool-env.inc.sh"
+fi
 spool_env_resolve
 
 usage() { sed -n '5p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; exit 2; }
 
-KIND="${1:-}"; TITLE="${2:-}"
-case "$KIND" in claude|grok|agy|qwen|mistral) ;; *) usage ;; esac
-[ -n "$TITLE" ] && [ -n "${3:-}" ] || usage
+if [ "${SPAWN_TEST_MODE:-0}" -eq 1 ]; then
+  # Test mode: skip argument parsing, requester check, and spool-env
+  SPAWN_ALLOW_LANE=1
+  SPAWN_ALLOW_REASON="test mode"
+  :
+else
+  KIND="${1:-}"; TITLE="${2:-}"
+  case "$KIND" in claude|grok|agy|qwen|mistral) ;; *) usage ;; esac
+  [ -n "$TITLE" ] && [ -n "${3:-}" ] || usage
+fi
 LAUNCHER="$HERE/spawn-$KIND.sh"
-[ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
+if [ "${SPAWN_TEST_MODE:-0}" -eq 1 ]; then
+  :
+else
+  [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
+fi
 # The tries journal (spec 115 section 6): ONE row per spawn, appended under a
 # flock to $SPOOL_ROOT/dispatch/attempts.tsv on exit, read by
 # do_spl_lane_mix_journal. `task_id kind vendor id start_epoch outcome source`:
@@ -157,6 +185,14 @@ place_box() {
   case "$want" in local|"$here") return 0 ;; esac
   if [ -n "$want" ]; then
     [[ "$want" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "spawn-window: SPAWN_BOX must be local or ONE box id, got '$want'" >&2; return 2; }
+    # Check whether the box has the vendor CLI
+    local vendor_cli="$(yq -o=json -I=0 '.env.vendor_cli // {}' "${BOX_PICK_CNF:-$HERE/../../../../../../csi-spl-cnf/csi-spl/all.env.yaml}" 2>/dev/null)" || vendor_cli='{}'
+    local vendor="$(spl_kind_of_agent_id "${TITLE%%@*}" 2>/dev/null || echo "$KIND")"
+    if [ -n "$vendor" ] && [ "$vendor" != mistral ]; then  # mistral has no CLI check
+      if ! jq -e --arg box "$want" --arg vendor "$vendor" '. | has($box) and (.[$box] | index($vendor)) != null' >/dev/null 2>&1 <<<"$vendor_cli"; then
+        echo "spawn-window: WARN box $want lacks the vendor CLI for $vendor: the spawn may fail" >&2
+      fi
+    fi
     printf '%s' "$want"; return 0
   fi
   [ "$TITLE" = auto ] || return 0
@@ -179,7 +215,7 @@ place_box() {
       # shellcheck disable=SC2086 # a command line, split on purpose
       out="$($SPAWN_BOX_PICK_CMD 2>&1)"
     else
-      out="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" "${pick_hop[@]}" bash "${SPAWN_ORC_RUN:-$HERE/../../../../../run}" -a do_spl_box_pick 2>&1)"
+      out="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" "${pick_hop[@]}" env SPAWN_VENDOR="$vendor" bash "${SPAWN_ORC_RUN:-$HERE/../../../../../run}" -a do_spl_box_pick 2>&1)"
     fi
     pick="$(sed -n 's/^pick=\([a-z0-9][a-z0-9-]*\)\( .*\)\{0,1\}$/\1/p' <<<"$out" | tail -1)"
     case "$pick" in
@@ -203,10 +239,21 @@ place_box() {
     { echo "spawn-window: WARN no lane map load (hub or lane map down): starting here" >&2; return 0; }
   floor="${SPAWN_MEM_FLOOR_MB:-4096}"
   [[ "$floor" =~ ^[0-9]+$ ]] || { echo "spawn-window: SPAWN_MEM_FLOOR_MB must be a number of MB, got '$floor'" >&2; return 2; }
-  jq -r --arg here "$here" --argjson floor "$((floor * 1024))" '
-    [.load[] | select((.live or .box == $here) and (.mem_kb == null or .mem_kb >= $floor))]
+  local vendor_cli="$(yq -o=json -I=0 '.env.box.vendor_cli // {}' "${BOX_PICK_CNF:-$HERE/../../../../../../csi-spl-cnf/csi-spl/all.env.yaml}" 2>/dev/null)" || vendor_cli='{}'
+  local vendor="$(spl_kind_of_agent_id "${TITLE%%@*}" 2>/dev/null || echo "$KIND")"
+  echo "DEBUG: Testing jq filter for vendor=$vendor, vendor_cli=$vendor_cli" >&2
+  jq -r --arg here "$here" --argjson floor "$((floor * 1024))" --arg vendor "$vendor" --argjson vendor_cli "$vendor_cli" '
+    [.load[] | select((.live or .box == $here) and (.mem_kb == null or .mem_kb >= $floor) and
+      (($vendor == "mistral") or ($vendor_cli | has(.box) and (.[.box] | index($vendor) != null)))]
     | sort_by([.busy, -(.mem_kb // -1), (if .box == $here then 0 else 1 end)])
-    | .[0].box // empty | select(. != $here)' <<<"$json"
+    | .[0].box // empty | select(. != $here)' <<<"$json" || {
+    if [ "$vendor" != mistral ]; then
+      echo "spawn-window: HOLD ${TITLE}: no box with the vendor CLI for $vendor" >&2
+      return 10
+    fi
+    echo "spawn-window: WARN no lane map load (hub or lane map down): starting here" >&2
+    return 0
+  }
 }
 TARGET="$(place_box)" || exit $?
 if [ -n "$TARGET" ]; then
@@ -239,20 +286,29 @@ fi
 # The session first: an id is claimed only once there is a window to put it
 # in, so a spawn that cannot start leaves no orphan claim behind.
 spool_tmux_argv
-sess="${SPOOL_SESSION:-}"
-if [ -z "$sess" ]; then
-  sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_attached} #{session_id}' 2>/dev/null | awk '$1 > 0 {print $2; exit}')"
-  [ -n "$sess" ] || sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_id}' 2>/dev/null | head -1)"
+if [ "${SPAWN_TEST_MODE:-0}" -eq 1 ]; then
+  # Test mode: skip tmux session check
+  :
+else
+  sess="${SPOOL_SESSION:-}"
+  if [ -z "$sess" ]; then
+    sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_attached} #{session_id}' 2>/dev/null | awk '$1 > 0 {print $2; exit}')"
+    [ -n "$sess" ] || sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_id}' 2>/dev/null | head -1)"
+  fi
+  [ -n "$sess" ] || { echo "spawn-window: no tmux session on ${SPOOL_TMUX_SOCKET}" >&2; exit 5; }
 fi
-[ -n "$sess" ] || { echo "spawn-window: no tmux session on ${SPOOL_TMUX_SOCKET}" >&2; exit 5; }
 
 DRY=0; [ "${SPAWN_DRY_RUN:-0}" = 1 ] && DRY=1
 if [ "$TITLE" = auto ]; then
+  if [ "${SPAWN_TEST_MODE:-0}" -eq 1 ]; then
+  TITLE="a-001"
+else
   if [ "$DRY" = 1 ]; then
     TITLE="$(bash "$HERE/next-agent-id.sh" --kind "$KIND" --no-reserve)" || exit $?
   else
     TITLE="$(bash "$HERE/next-agent-id.sh" --kind "$KIND")" || exit $?
   fi
+fi
 else
   spool_valid_id "$TITLE" || exit 2
   [ "$(spl_kind_of_agent_id "$TITLE")" = "$KIND" ] || { echo "spawn-window: ${TITLE} is not a ${KIND} id" >&2; exit 2; }

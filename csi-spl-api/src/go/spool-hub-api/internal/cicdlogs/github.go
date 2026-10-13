@@ -17,11 +17,14 @@ type HTTPFetcher struct {
 	Client *http.Client
 }
 
+// logFetchTimeout bounds one log download, a large job log included.
+const logFetchTimeout = 60 * time.Second
+
 func (f HTTPFetcher) client() *http.Client {
 	if f.Client != nil {
 		return f.Client
 	}
-	return &http.Client{Timeout: 60 * time.Second, CheckRedirect: stripAuthRedirect}
+	return &http.Client{Timeout: logFetchTimeout, CheckRedirect: stripAuthRedirect}
 }
 
 func stripAuthRedirect(req *http.Request, via []*http.Request) error {

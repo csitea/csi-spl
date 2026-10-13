@@ -45,11 +45,14 @@ type jwksCache struct {
 	tried   time.Time
 }
 
+// jwksTTL is how long a fetched signing-key set is trusted before a refetch.
+const jwksTTL = 24 * time.Hour
+
 func newJWKSCache(url string, hc *http.Client, now func() time.Time) *jwksCache {
 	if now == nil {
 		now = time.Now
 	}
-	return &jwksCache{url: url, http: hc, ttl: 24 * time.Hour, minRefetch: time.Minute, now: now}
+	return &jwksCache{url: url, http: hc, ttl: jwksTTL, minRefetch: time.Minute, now: now}
 }
 
 func (c *jwksCache) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {

@@ -272,6 +272,10 @@ type uploadToken struct {
 	expires     time.Time
 }
 
+// helloTimeoutDefault is how long a new socket has to say hello when
+// Options.HelloTimeout is 0.
+const helloTimeoutDefault = 10 * time.Second
+
 // New returns a Server. It fails fast on a malformed option.
 func New(o Options) (*Server, error) {
 	if o.Store == nil || o.Blob == nil {
@@ -307,7 +311,7 @@ func New(o Options) (*Server, error) {
 		o.SearchBudget = searchBudgetDefault
 	}
 	if o.HelloTimeout == 0 {
-		o.HelloTimeout = 10 * time.Second
+		o.HelloTimeout = helloTimeoutDefault
 	}
 	if o.PingInterval > 0 && o.PingTimeout <= 0 {
 		o.PingTimeout = writeTimeout

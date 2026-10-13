@@ -114,10 +114,17 @@ type Config struct {
 	IDQuarantineH int `env:"SPOOL_ID_QUARANTINE_H" envDefault:"24"`
 }
 
+// The defaults of a Config built in code (no env): SPOOL_ID_QUARANTINE_H's
+// 24 h and a 10 s notify timeout.
+const (
+	defaultIDQuarantine  = 24 * time.Hour
+	defaultNotifyTimeout = 10 * time.Second
+)
+
 // IDQuarantine is IDQuarantineH as a duration, 24 h when it is not positive.
 func (c *Config) IDQuarantine() time.Duration {
 	if c.IDQuarantineH <= 0 {
-		return 24 * time.Hour
+		return defaultIDQuarantine
 	}
 	return time.Duration(c.IDQuarantineH) * time.Hour
 }
@@ -125,7 +132,7 @@ func (c *Config) IDQuarantine() time.Duration {
 // NotifyTimeoutOr is NotifyTimeout, or 10s for a Config built in code.
 func (c *Config) NotifyTimeoutOr() time.Duration {
 	if c.NotifyTimeout <= 0 {
-		return 10 * time.Second
+		return defaultNotifyTimeout
 	}
 	return c.NotifyTimeout
 }

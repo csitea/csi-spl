@@ -122,6 +122,9 @@ func (m *MemoryCredStore) GetCredential(_ context.Context, subject string) (Cred
 	return c, nil
 }
 
+// mailFloorDay is the window MailFloor counts a subject's tokens in.
+const mailFloorDay = 24 * time.Hour
+
 func (m *MemoryCredStore) IssueToken(_ context.Context, kind, subject, tokenHash, pwHash string, now, expires time.Time, floor MailFloor) (bool, error) {
 	if kind == TokenVerify && pwHash == "" {
 		return false, errors.New("auth: verification token needs a password hash")
@@ -140,7 +143,7 @@ func (m *MemoryCredStore) IssueToken(_ context.Context, kind, subject, tokenHash
 		if t.created.After(last) {
 			last = t.created
 		}
-		if t.created.After(now.Add(-24 * time.Hour)) {
+		if t.created.After(now.Add(-mailFloorDay)) {
 			today++
 		}
 	}

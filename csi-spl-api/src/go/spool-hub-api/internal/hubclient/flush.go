@@ -513,6 +513,10 @@ func (c *Client) Run(ctx context.Context) error {
 // REST calls ran under the daemon's never-ending ctx, so one that hit a
 // silent hub kept hold parked for ever on a session already closed - the
 // process up, the box deaf (prd t1 desk, 2026-10-03 11:36Z, 16 min).
+// rosterScanEvery is how often hold re-reads the run report to re-announce a
+// changed one.
+const rosterScanEvery = 10 * time.Second
+
 func (c *Client) hold(ctx context.Context, sess *Session) error {
 	defer sess.Close()
 	hctx, stop := context.WithCancel(ctx)
@@ -526,7 +530,7 @@ func (c *Client) hold(ctx context.Context, sess *Session) error {
 	last, _ := c.rosterKey()
 	pins := time.NewTicker(c.PinRefresh)
 	defer pins.Stop()
-	scan := time.NewTicker(10 * time.Second)
+	scan := time.NewTicker(rosterScanEvery)
 	defer scan.Stop()
 	var probeC <-chan time.Time
 	if every := c.SessionProbe; every >= 0 {

@@ -72,11 +72,14 @@ func NewPayPal(clientID, clientSecret, mode string) *PayPal {
 	return &PayPal{ClientID: clientID, ClientSecret: clientSecret, Mode: mode}
 }
 
+// vendorHTTPTimeout bounds one call to a payment vendor's API (PayPal, Stripe).
+const vendorHTTPTimeout = 15 * time.Second
+
 func (p *PayPal) client() *http.Client {
 	if p.HTTPClient != nil {
 		return p.HTTPClient
 	}
-	return &http.Client{Timeout: 15 * time.Second}
+	return &http.Client{Timeout: vendorHTTPTimeout}
 }
 
 func (p *PayPal) now() time.Time {

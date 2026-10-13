@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
 
 // defaultStripeAPI is the live Stripe REST base URL.
@@ -52,7 +51,7 @@ func (s *StripePayments) client() *http.Client {
 	if s.HTTPClient != nil {
 		return s.HTTPClient
 	}
-	return &http.Client{Timeout: 15 * time.Second}
+	return &http.Client{Timeout: vendorHTTPTimeout}
 }
 
 func (s *StripePayments) base() string {

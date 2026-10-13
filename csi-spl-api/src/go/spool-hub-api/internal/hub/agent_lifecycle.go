@@ -35,6 +35,9 @@ import (
 // stamped; a resent event from the box's local spool is older, never newer.
 const lifecycleEventSkew = 5 * time.Minute
 
+// lifecycleSinceDefault is how far back the lifecycle read goes with no since=.
+const lifecycleSinceDefault = 24 * time.Hour
+
 func (s *Server) routeAgentLifecycle(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/tenant/agent-lifecycle", s.handleAgentLifecycle)
 	mux.HandleFunc("PATCH /v1/tenant/agent-lifecycle", s.handlePatchAgentLifecycle)
@@ -178,7 +181,7 @@ func (s *Server) handleAgentLifecycleEvents(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	now := s.o.Now()
-	since := now.Add(-24 * time.Hour)
+	since := now.Add(-lifecycleSinceDefault)
 	if v := r.URL.Query().Get("since"); v != "" {
 		if at, err := time.Parse(time.RFC3339, v); err == nil {
 			since = at

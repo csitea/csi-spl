@@ -26,6 +26,9 @@ import (
 // 1 h; the margin covers clock skew and a slow request (spec §9).
 const TokenTTL = 50 * time.Minute
 
+// defaultHTTPTimeout bounds one GitHub API call of a client built with no HTTP.
+const defaultHTTPTimeout = 30 * time.Second
+
 // Config names the App, the repo and the branch. API is cnf
 // env.docs.repo_edit.github_api (a fake in every test); Key is the PEM the
 // hub reads from SPOOL_GITHUB_APP_KEY. Noreply is the domain of the bot's
@@ -81,7 +84,7 @@ func New(cfg Config) (*Client, error) {
 		c.branch = "master"
 	}
 	if c.http == nil {
-		c.http = &http.Client{Timeout: 30 * time.Second}
+		c.http = &http.Client{Timeout: defaultHTTPTimeout}
 	}
 	if c.now == nil {
 		c.now = time.Now

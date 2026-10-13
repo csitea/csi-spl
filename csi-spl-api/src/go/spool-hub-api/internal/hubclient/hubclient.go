@@ -153,9 +153,17 @@ type Client struct {
 	defaultHTTPOnce sync.Once
 }
 
+// Production defaults of a Client: the pin refresh period, the wait for the
+// hub's welcome, and the TCP dial timeout of the default HTTP client.
+const (
+	defaultPinRefresh   = 5 * time.Minute
+	defaultReadyTimeout = 30 * time.Second
+	defaultDialTimeout  = 10 * time.Second
+)
+
 // New returns a Client for cfg with production defaults.
 func New(cfg *config.Config) *Client {
-	return &Client{Cfg: cfg, Log: zerolog.Nop(), Now: time.Now, PinRefresh: 5 * time.Minute, ReadyTimeout: 30 * time.Second}
+	return &Client{Cfg: cfg, Log: zerolog.Nop(), Now: time.Now, PinRefresh: defaultPinRefresh, ReadyTimeout: defaultReadyTimeout}
 }
 
 func (c *Client) now() time.Time {
@@ -188,7 +196,7 @@ func (c *Client) RESTContext(ctx context.Context) (context.Context, context.Canc
 
 func (c *Client) timeout() time.Duration {
 	if c.ReadyTimeout <= 0 {
-		return 30 * time.Second
+		return defaultReadyTimeout
 	}
 	return c.ReadyTimeout
 }
@@ -210,7 +218,7 @@ func (c *Client) http() *http.Client {
 // probe every 30 s, each pin sync and file put - and left the old one idle
 // until its 90 s timeout.
 func newDefaultHTTP() *http.Client {
-	d := &net.Dialer{Timeout: 10 * time.Second}
+	d := &net.Dialer{Timeout: defaultDialTimeout}
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		if h, p, err := net.SplitHostPort(addr); err == nil && strings.HasSuffix(h, ".localhost") {

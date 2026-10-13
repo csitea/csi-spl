@@ -45,7 +45,7 @@ export default defineNuxtPlugin(() => {
   // app.vue on this event); it fires once the manifest below is linked. Only
   // these lines are in the first download: the rest is utils/pwa-install.mjs,
   // in Settings' lazy chunk, which reads window.__spoolPwa (ci_home_gzip_kb).
-  const pwa = ((window as any).__spoolPwa ||= {})
+  const pwa = ((window as Window & { __spoolPwa?: { ev?: Event, done?: number } }).__spoolPwa ||= {})
   addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pwa.ev = e })
   addEventListener('appinstalled', () => { pwa.done = 1 })
   onNuxtReady(() => {

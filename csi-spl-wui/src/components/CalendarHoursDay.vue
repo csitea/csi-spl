@@ -218,7 +218,7 @@ const props = defineProps<{
   day: string
   data?: HoursDay
   /** the GET /v1/me/hours answer holding the day (banner), and its zone */
-  body?: Record<string, any> | null
+  body?: HoursBody | null
   tz?: string
   state?: string
   /** known names per target: topic subjects, '#channel' */
@@ -234,7 +234,7 @@ const channel = useChannelStore()
    HOURS_CHANGED_EVENT) replaces it */
 const local = shallowRef<HoursBody | null>(null)
 watch(() => props.body, () => { local.value = null })
-const curBody = computed(() => (local.value || props.body || null) as Record<string, any> | null)
+const curBody = computed<HoursBody | null>(() => local.value || props.body || null)
 const cur = computed<HoursDay | undefined>(() => (local.value ? (hoursIndex([local.value]) as Map<string, HoursDay>).get(props.day) : props.data))
 const today = computed(() => String(curBody.value?.today || ''))
 const { busy, error, write: put } = useHoursWrite(() => today.value || props.day)

@@ -68,35 +68,37 @@ export type ApiOperation = {
   operator: boolean, deprecated: boolean, params: ApiParam[], body: string, responses: ApiResponse[],
 }
 export type ApiDoc = { title: string, version: string, ops: ApiOperation[] }
-type Obj = Record<string, any>
+type Obj = Record<string, unknown>
 
 const METHODS = ['get', 'put', 'post', 'delete', 'patch', 'head', 'options', 'trace']
 const MAX_REF_DEPTH = 6
 
 /** A local `#/a/b` reference into the document, or the node itself. */
-export function resolveRef(doc: Obj, node: any, depth = 0): any {
-  if (!node || typeof node !== 'object' || typeof node.$ref !== 'string' || depth > MAX_REF_DEPTH) return node
-  if (!node.$ref.startsWith('#/')) return node
-  const target = node.$ref.slice(2).split('/').reduce((o: any, k: string) => o?.[k.replace(/~1/g, '/').replace(/~0/g, '~')], doc)
+export function resolveRef(doc: Obj, node: unknown, depth = 0): unknown {
+  if (!node || typeof node !== 'object' || depth > MAX_REF_DEPTH) return node
+  const ref = (node as Obj).$ref
+  if (typeof ref !== 'string' || !ref.startsWith('#/')) return node
+  const target = ref.slice(2).split('/').reduce<unknown>((o, k) => (o == null ? undefined : (o as Obj)[k.replace(/~1/g, '/').replace(/~0/g, '~')]), doc)
   return target === undefined ? node : resolveRef(doc, target, depth + 1)
 }
 
 /** A schema with its refs expanded (a cycle stops at MAX_REF_DEPTH), as indented JSON text. */
-export function schemaText(doc: Obj, schema: any): string {
+export function schemaText(doc: Obj, schema: unknown): string {
   if (!schema) return ''
-  const expand = (n: any, depth: number): any => {
+  const expand = (n: unknown, depth: number): unknown => {
     if (Array.isArray(n)) return n.map((v) => expand(v, depth))
     if (!n || typeof n !== 'object') return n
-    if (typeof n.$ref === 'string') {
-      return depth >= MAX_REF_DEPTH ? { $ref: n.$ref } : expand(resolveRef(doc, { $ref: n.$ref }), depth + 1)
+    const ref = (n as Obj).$ref
+    if (typeof ref === 'string') {
+      return depth >= MAX_REF_DEPTH ? { $ref: ref } : expand(resolveRef(doc, { $ref: ref }), depth + 1)
     }
     return Object.fromEntries(Object.entries(n).map(([k, v]) => [k, expand(v, depth)]))
   }
   return JSON.stringify(expand(schema, 0), null, 2)
 }
 
-function jsonSchemaOf(doc: Obj, holder: any): string {
-  const content = resolveRef(doc, holder)?.content
+function jsonSchemaOf(doc: Obj, holder: unknown): string {
+  const content = (resolveRef(doc, holder) as Obj | null | undefined)?.content as Obj | undefined
   if (!content || typeof content !== 'object') return ''
   const media = content['application/json'] ?? Object.values(content)[0]
   return schemaText(doc, (media as Obj | undefined)?.schema)
@@ -104,10 +106,10 @@ function jsonSchemaOf(doc: Obj, holder: any): string {
 
 function paramsOf(doc: Obj, pathItem: Obj, op: Obj): ApiParam[] {
   const byKey = new Map<string, ApiParam>()
-  for (const raw of [...(pathItem.parameters || []), ...(op.parameters || [])]) {
-    const p = resolveRef(doc, raw)
+  for (const raw of [...((pathItem.parameters || []) as Iterable<unknown>), ...((op.parameters || []) as Iterable<unknown>)]) {
+    const p = resolveRef(doc, raw) as Obj | null | undefined
     if (!p || typeof p.name !== 'string') continue
-    const schema = resolveRef(doc, p.schema) || {}
+    const schema = (resolveRef(doc, p.schema) || {}) as Obj
     byKey.set(`${p.in}:${p.name}`, {
       name: p.name,
       in: String(p.in || ''),
@@ -120,8 +122,9 @@ function paramsOf(doc: Obj, pathItem: Obj, op: Obj): ApiParam[] {
 }
 
 function responsesOf(doc: Obj, op: Obj): ApiResponse[] {
-  return Object.keys(op.responses || {}).sort().map((code) => {
-    const r = resolveRef(doc, op.responses[code]) || {}
+  const responses = (op.responses || {}) as Obj
+  return Object.keys(responses).sort().map((code) => {
+    const r = (resolveRef(doc, responses[code]) || {}) as Obj
     return { code, description: String(r.description || ''), schema: jsonSchemaOf(doc, r) }
   })
 }
@@ -132,7 +135,7 @@ function operationOf(doc: Obj, path: string, method: string, pathItem: Obj): Api
     id: String(op.operationId || `${method} ${path}`),
     method: method.toUpperCase(),
     path,
-    tag: String(op.tags?.[0] || 'default'),
+    tag: String((op.tags as ArrayLike<unknown> | undefined)?.[0] || 'default'),
     summary: String(op.summary || ''),
     description: String(op.description || ''),
     operator: op['x-role'] === 'operator',
@@ -149,19 +152,20 @@ function operationOf(doc: Obj, path: string, method: string, pathItem: Obj): Api
  * operation inside a good document is skipped, not fatal.
  */
 export function parseApiDoc(input: unknown): ApiDoc {
-  const doc = typeof input === 'string' ? JSON.parse(input) : input
+  const doc: unknown = typeof input === 'string' ? JSON.parse(input) : input
   if (!doc || typeof doc !== 'object' || !/^3\./.test(String((doc as Obj).openapi)) || typeof (doc as Obj).paths !== 'object') {
     throw new Error('not an OpenAPI 3 document')
   }
   const ops: ApiOperation[] = []
-  for (const [path, item] of Object.entries((doc as Obj).paths || {})) {
+  for (const [path, item] of Object.entries(((doc as Obj).paths || {}) as Obj)) {
     if (!item || typeof item !== 'object') continue
     for (const m of METHODS) {
       if ((item as Obj)[m] && typeof (item as Obj)[m] === 'object') ops.push(operationOf(doc as Obj, path, m, item as Obj))
     }
   }
   ops.sort((a, b) => a.path.localeCompare(b.path) || METHODS.indexOf(a.method.toLowerCase()) - METHODS.indexOf(b.method.toLowerCase()))
-  return { title: String((doc as Obj).info?.title || ''), version: String((doc as Obj).info?.version || ''), ops }
+  const info = (doc as Obj).info as Obj | null | undefined
+  return { title: String(info?.title || ''), version: String(info?.version || ''), ops }
 }
 
 /** Search (every word must match path, tag, method, summary or operationId) and scope. */

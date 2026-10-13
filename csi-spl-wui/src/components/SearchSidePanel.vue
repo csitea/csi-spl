@@ -156,7 +156,7 @@ function badgeOf(r: Record<string, unknown>): string {
 
 /** The meta of a non-posted hit, as the search page wrote it. */
 function metaOf(row: SearchRow): string {
-  const r = row as Record<string, any>
+  const r: Record<string, unknown> = row
   switch (row.type) {
     case 'robots': return r.revoked ? t('search.revoked') : ''
     case 'channels': return r.count != null ? t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0) : ''
@@ -173,7 +173,7 @@ function metaOf(row: SearchRow): string {
 }
 
 function itemOf(row: SearchRow): SideHitItem {
-  const r = row as Record<string, any>
+  const r: Record<string, unknown> = row
   const segs = highlightSegments(row.display.text, row.display.highlights)
     .map((s: { text: string, mark: boolean }) => ({ text: row.type === 'messages' ? namedText(s.text, people.names.value) : s.text, mark: s.mark }))
   const base: SideHitItem = { key: row.key, type: row.type, group: groupLabel(row.type), segs, title: row.display.text, ts: rowAt(row) }

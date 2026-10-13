@@ -13,8 +13,10 @@ import { hoursRefusalKey } from '~/utils/hours-mine.mjs'
 export const HOURS_CHANGED_EVENT = 'spool:hours-changed'
 
 export type HoursRow = { target: string, state: string, minutes: number, suggested_minutes?: number, delta?: number, note?: string, blocks?: { start: string, end: string }[] }
-export type HoursDay = { date: string, today: boolean, closed: boolean, frozen: boolean, open: number, approved: number, total: number, rows: HoursRow[], period: Record<string, any> | null }
-export type HoursBody = { tz?: string, today?: string, period?: Record<string, any>, days?: unknown[] }
+/** a pay period of GET /v1/me/hours: its state and its first and last day */
+export type HoursPeriod = { state?: string, start?: string, end?: string, [k: string]: unknown }
+export type HoursDay = { date: string, today: boolean, closed: boolean, frozen: boolean, open: number, approved: number, total: number, rows: HoursRow[], period: HoursPeriod | null }
+export type HoursBody = { tz?: string, today?: string, period?: HoursPeriod, days?: unknown[] }
 /** what the Working hours dialog of one day shows (CalendarEventDialog `hours`) */
 export type CalHoursEntry = { day: string, data?: HoursDay, body?: HoursBody | null, tz?: string, state?: string }
 

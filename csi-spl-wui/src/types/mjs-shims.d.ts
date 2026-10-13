@@ -782,7 +782,7 @@ declare module '~/utils/msg-ai-actions.mjs' {
   export function aiAction(id: string): AiActionDef | null
   export type AiSubjectKind = 'msg' | 'topic' | 'issue'
   export const AI_SUBJECT_KINDS: AiSubjectKind[]
-  export function aiSubject(kind: AiSubjectKind, card: unknown): Record<string, any> | null
+  export function aiSubject(kind: AiSubjectKind, card: unknown): Record<string, unknown> | null
   export function offersAiActions(msg: unknown): boolean
   export function aiMenuItems(msg: unknown): { id: string, icon: import('~/utils/uiIcons').UiIconName, labelKey: string, groupKey?: string }[]
   export const AI_MORE: { id: 'ai-more', icon: 'bot', labelKey: string }
@@ -1160,7 +1160,7 @@ declare module '~/utils/checkout-client.mjs' {
   export interface CheckoutResult {
     ok: boolean
     status: number
-    data: Record<string, any> | null
+    data: Record<string, unknown> | null
     error: string
   }
   export type ClaimOutcome =
@@ -1468,7 +1468,7 @@ declare module '~/utils/search.mjs' {
     type: SearchGroupType
     key: string
     display: { text: string, highlights: unknown[] }
-    [k: string]: any
+    [k: string]: unknown
   }
   export interface SearchGroup { type: SearchGroupType, items: SearchRow[], next: string | null }
   export interface SearchResult {
@@ -1538,12 +1538,12 @@ declare module '~/utils/open-message.mjs' {
   export function messageHref(msgId: string, pathFor?: (path: string) => string): string
   export function failureReason(err: unknown): 'not_found' | 'no_access' | 'error'
   export function rowReason(row: unknown): '' | 'deleted' | 'archived'
-  export function resolveMessage(msgId: string, api: unknown, opts?: { limit?: number }): Promise<{ row: Record<string, any> } | { reason: OpenMessageReason }>
+  export function resolveMessage(msgId: string, api: unknown, opts?: { limit?: number }): Promise<{ row: Record<string, unknown> } | { reason: OpenMessageReason }>
   export function placeKind(row: unknown, self?: string): string
-  export function placeOf(topicRow: unknown, info: unknown): Record<string, any>
+  export function placeOf(topicRow: unknown, info: unknown): Record<string, unknown>
   export function markOpened(msgId: string, opts?: { tries?: number, every?: number, hold?: number, doc?: Document }): void
-  export function resolveTopic(taskId: string, api: unknown): Promise<{ row: Record<string, any> } | { reason: OpenMessageReason }>
-  export function openMessage(ref: string | Record<string, any>, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, replace?: boolean, showPlace?: boolean }): Promise<OpenMessageResult>
+  export function resolveTopic(taskId: string, api: unknown): Promise<{ row: Record<string, unknown> } | { reason: OpenMessageReason }>
+  export function openMessage(ref: string | Record<string, unknown>, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, replace?: boolean, showPlace?: boolean }): Promise<OpenMessageResult>
 }
 
 declare module '~/utils/slash-focus.mjs' {

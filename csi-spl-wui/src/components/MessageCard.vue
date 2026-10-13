@@ -155,6 +155,7 @@
             type="button"
             data-test="topic-replies"
             :data-unread="unreadCount || undefined"
+            :data-zero="count === 0 ? 'true' : undefined"
             :aria-label="repliesName"
             :title="repliesName"
             @click.stop="openReplies"
@@ -2076,6 +2077,37 @@ async function save() {
   background: var(--color-surface-hover);
 }
 .msg-reaction__n { font-variant-numeric: tabular-nums; font-size: 0.75rem; }
+/* SPL-1750 (ui panel 34f4da14, item 4): a card off screen skips its style,
+   layout and paint; 72px is the one-line card's height until it has been
+   drawn once, then the browser keeps its real size (`auto`). Paint
+   containment clips at the card's edge, so a card that is swiping (its strip
+   sits just outside) or holds the focus (the edit box's mention list, the
+   open menu) draws normally. */
+.msg:not(.msg--swiping):not(.msg--swipe-settle):not(:focus-within) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
+}
+/* SPL-1750 (item 5, desktop): Open topic, an empty "0 >>", the smile and the
+   menu show on hover or keyboard focus only, so a quiet feed has no column of
+   icons. opacity, not display: they keep their place (no shift on hover),
+   their click target and the Tab order. A count above 0 is news and stays.
+   A touch screen (hover: none) and the phone stack always show them. */
+@media (hover: hover) and (min-width: 821px) {
+  .msg-actions [data-test="open-topic"],
+  .msg-actions .replies[data-zero],
+  .msg-actions .icon-btn[data-testid="msg-emoji-btn"],
+  .msg-actions .msg-menu-btn {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .msg:hover .msg-actions > *,
+  .msg:focus-within .msg-actions > *,
+  .msg.selected .msg-actions > *,
+  .msg-actions > [aria-expanded="true"] { opacity: 1; }
+}
+@media (hover: hover) and (min-width: 821px) and (prefers-reduced-motion: reduce) {
+  .msg-actions > * { transition: none; }
+}
 /*
  * the middle pane's clipped card. The fallback cap is the same
  * rule as utils/card-clip.mjs (5 rows of the body's 0.875rem x 1.45, or 30%
@@ -2192,6 +2224,13 @@ async function save() {
   /* spec 068 L8: the seat gives way on the header line, as the typist does */
   .msg-meta > .msg-responsible { flex: 1 1 0; max-width: max-content; min-width: 1em; }
   .msg-actions [data-test="open-topic"] { display: none; }
+  /* SPL-1750 (item 5, phone): the sender's name gets the header. "0 >>" goes
+     (a tap on the card opens its topic); the name takes the free space up to
+     its full width before the typist and seat badges do. The kind icon stays:
+     a hold just under the header lands on it (touch adjustment) and lifts the
+     card or opens its menu, where the body text would select instead */
+  .msg-actions .replies[data-zero] { display: none; }
+  .msg-meta > :deep(.msg-author) { flex-grow: 100; }
   /* SPL-1000 (owner, SPL-982 rule on every card): Add emoji stays in the
      header on a phone too - a 44 px target whose 16 px glyph sits 5 px after
      the time (4px row gap + 14px padding - 13px). Long-press keeps it too. */

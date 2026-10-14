@@ -1407,6 +1407,7 @@
     "load_failed": "Το αρχείο δεν φορτώθηκε.",
     "error": "Το θέμα δεν άλλαξε. Δοκιμάστε ξανά.",
     "unarchive": "Επαναφορά από αρχείο",
+    "unarchive_topic": "Επαναφορά θέματος από αρχείο",
     "delete": "Διαγραφή",
     "error_forbidden": "Μόνο ο συντάκτης, ο κάτοχος ή ένας διαχειριστής μπορεί να το κάνει.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

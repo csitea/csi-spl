@@ -1407,6 +1407,7 @@
     "load_failed": "לא ניתן לטעון את הארכיון.",
     "error": "הנושא לא השתנה. נסו שוב.",
     "unarchive": "הוצאה מהארכיון",
+    "unarchive_topic": "הוצאת הנושא מהארכיון",
     "delete": "מחיקה",
     "error_forbidden": "רק הכותב, הבעלים או מנהל יכולים לעשות זאת.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

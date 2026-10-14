@@ -1407,6 +1407,7 @@
     "load_failed": "Arhīvu neizdevās ielādēt.",
     "error": "Tēma netika mainīta. Mēģiniet vēlreiz.",
     "unarchive": "Atjaunot no arhīva",
+    "unarchive_topic": "Atjaunot tēmu no arhīva",
     "delete": "Dzēst",
     "error_forbidden": "To var darīt tikai autors, īpašnieks vai administrators.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

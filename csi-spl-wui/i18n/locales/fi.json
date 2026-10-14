@@ -1407,6 +1407,7 @@
     "load_failed": "Arkistoa ei voitu ladata.",
     "error": "Aihetta ei muutettu. Yritä uudelleen.",
     "unarchive": "Palauta arkistosta",
+    "unarchive_topic": "Palauta aihe arkistosta",
     "delete": "Poista",
     "error_forbidden": "Vain kirjoittaja, omistaja tai ylläpitäjä voi tehdä tämän.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

@@ -1407,6 +1407,7 @@
     "load_failed": "Не вдалося завантажити архів.",
     "error": "Тему не змінено. Спробуйте ще раз.",
     "unarchive": "Повернути з архіву",
+    "unarchive_topic": "Повернути тему з архіву",
     "delete": "Видалити",
     "error_forbidden": "Це може зробити лише автор, власник або адміністратор.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

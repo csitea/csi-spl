@@ -1407,6 +1407,7 @@
     "load_failed": "Arhiva nu a putut fi încărcată.",
     "error": "Subiectul nu a fost modificat. Încearcă din nou.",
     "unarchive": "Scoate din arhivă",
+    "unarchive_topic": "Scoate tema din arhivă",
     "delete": "Șterge",
     "error_forbidden": "Doar autorul, proprietarul sau un administrator poate face asta.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

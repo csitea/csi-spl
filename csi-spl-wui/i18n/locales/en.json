@@ -1407,6 +1407,7 @@
     "load_failed": "Could not load the archive.",
     "error": "Could not change the topic. Try again.",
     "unarchive": "Unarchive",
+    "unarchive_topic": "Unarchive topic",
     "delete": "Delete",
     "error_forbidden": "Only the author, the owner or an admin may do this.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

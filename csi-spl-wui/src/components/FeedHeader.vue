@@ -35,7 +35,7 @@
       :title="topicTitle || undefined"
     >
       <span v-if="topicTitle" class="feed-header__topic-title">{{ topicTitle }}</span>
-      <ArchivedBadge :at="archivedAt" />
+      <ArchivedBadge :at="archivedAt" :task-id="topicId" @unarchived="emit('unarchived')" />
     </span>
     <CardClipControl />
   </header>
@@ -59,7 +59,11 @@ defineProps<{
   archivedAt?: string
   /** the open topic's title, shown muted beside the badge when archived */
   topicTitle?: string
+  /** SPL-1763: the open topic's task, so the badge may unarchive it */
+  topicId?: string
 }>()
+/* SPL-1763: the badge unarchived the topic; the page drops its mark */
+const emit = defineEmits<{ unarchived: [] }>()
 const { t } = useI18n({ useScope: 'global' })
 </script>
 

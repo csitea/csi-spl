@@ -70,6 +70,10 @@ const ArchivedBadge = {
       get when() { return props.at ? `when:${props.at}` : '' },
       get date() { return props.at ? String(props.at).slice(0, 10) : '' },
       get showWhen() { return Boolean(props.showWhen) },
+      /* SPL-1763: no taskId, no hub answer - the plain label (archived-badge-unarchive.test.mjs has the button) */
+      canUnarchive: false,
+      busy: false,
+      get title() { return props.at ? t('archive.archived_at', { when: `when:${props.at}` }) : undefined },
     })
     return () => tpl.render(null, [])
   },

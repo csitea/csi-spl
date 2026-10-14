@@ -1407,6 +1407,7 @@
     "load_failed": "Arşiv yüklenemedi.",
     "error": "Konu değiştirilemedi. Tekrar deneyin.",
     "unarchive": "Arşivden çıkar",
+    "unarchive_topic": "Konuyu arşivden çıkar",
     "delete": "Sil",
     "error_forbidden": "Bunu yalnızca yazar, sahip veya bir yönetici yapabilir.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

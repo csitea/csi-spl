@@ -8,6 +8,7 @@
 // module singleton, so the archiving component and the snackbar in the shell
 // share it. The snackbar itself (UndoSnackbar) owns the auto-dismiss timer.
 import { noteError } from '~/composables/errorJournal.mjs'
+import { useLive } from '~/composables/useLive'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
@@ -15,6 +16,7 @@ import { useTopicStore } from '~/stores/topic'
 import { useViewerStore } from '~/stores/viewer'
 import { reselectRow } from '~/utils/reselect-row.mjs'
 import { topicErrorKey } from '~/utils/topic-archive.mjs'
+import type { SpoolMessage } from '~/types/spool'
 
 /** Owner (topic f20c6052): the snackbar shows for this long. ONE constant. */
 export const ARCHIVE_UNDO_MS = 700
@@ -35,6 +37,16 @@ export async function rereadFeeds() {
     const feed = useLiveFeed(key)
     // Same: the open feed re-reads on the next live frame or reconnect catch-up.
     if (feed.taskId) await feed.open(String(feed.taskId)).catch(() => {})
+  }
+  /* SPL-1763: #lobby's topic cards are not rows of its room task; the page
+     admits them from the channel read (pages/lobby.vue openLobby), so a lobby
+     card that came back is admitted the same way, or it stays hidden until a
+     reload. */
+  const main = useLiveFeed('main')
+  if (main.taskId && String(main.taskId) === useLive().lobbyTaskId.value) {
+    // Same: a failed read leaves the card for the next live frame or reconnect catch-up.
+    const page = await useSpoolApi().listMessages({ channel: 'lobby', limit: 50 }).catch(() => null)
+    if (page) main.admit((page.messages || []) as SpoolMessage[])
   }
 }
 

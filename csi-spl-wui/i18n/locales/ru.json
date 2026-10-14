@@ -1407,6 +1407,7 @@
     "load_failed": "Не удалось загрузить архив.",
     "error": "Тема не изменена. Попробуйте ещё раз.",
     "unarchive": "Вернуть из архива",
+    "unarchive_topic": "Вернуть тему из архива",
     "delete": "Удалить",
     "error_forbidden": "Это может сделать только автор, владелец или администратор.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

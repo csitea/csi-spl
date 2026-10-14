@@ -1407,6 +1407,7 @@
     "load_failed": "Arkivet kunde inte läsas in.",
     "error": "Ämnet ändrades inte. Försök igen.",
     "unarchive": "Återställ från arkiv",
+    "unarchive_topic": "Återställ ämnet från arkiv",
     "delete": "Radera",
     "error_forbidden": "Endast författaren, ägaren eller en administratör kan göra detta.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

@@ -1407,6 +1407,7 @@
     "load_failed": "Nie udało się wczytać archiwum.",
     "error": "Nie zmieniono tematu. Spróbuj ponownie.",
     "unarchive": "Przywróć z archiwum",
+    "unarchive_topic": "Przywróć temat z archiwum",
     "delete": "Usuń",
     "error_forbidden": "Tylko autor, właściciel lub administrator może to zrobić.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

@@ -9,6 +9,8 @@
       status-shown
       :archived-at="openArchive.at"
       :topic-title="openArchive.title"
+      :topic-id="openTopicId"
+      @unarchived="openArchive = { at: '', title: '' }"
     />
     <!-- t1 3eb98913 (owner: "it dos not even have a msg button"): an empty DM
          offered nothing to click - its composer is the Omnibox. -->

@@ -1407,6 +1407,7 @@
     "load_failed": "Het archief kon niet worden geladen.",
     "error": "Het onderwerp is niet gewijzigd. Probeer het opnieuw.",
     "unarchive": "Uit archief halen",
+    "unarchive_topic": "Onderwerp uit archief halen",
     "delete": "Verwijderen",
     "error_forbidden": "Alleen de auteur, de eigenaar of een beheerder kan dit doen.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

@@ -1407,6 +1407,7 @@
     "load_failed": "Архива није учитана.",
     "error": "Тема није промењена. Покушајте поново.",
     "unarchive": "Врати из архиве",
+    "unarchive_topic": "Врати тему из архиве",
     "delete": "Обриши",
     "error_forbidden": "Само аутор, власник или администратор може ово да уради.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

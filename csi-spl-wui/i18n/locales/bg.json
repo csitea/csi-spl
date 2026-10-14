@@ -1407,6 +1407,7 @@
     "load_failed": "Архивът не се зареди.",
     "error": "Темата не беше променена. Опитайте отново.",
     "unarchive": "Разархивирай",
+    "unarchive_topic": "Разархивирай темата",
     "delete": "Изтрий",
     "error_forbidden": "Само авторът, собственикът или администратор може да направи това.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

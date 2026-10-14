@@ -1407,6 +1407,7 @@
     "load_failed": "Archív sa nepodarilo načítať.",
     "error": "Téma sa nezmenila. Skúste to znova.",
     "unarchive": "Obnoviť z archívu",
+    "unarchive_topic": "Obnoviť tému z archívu",
     "delete": "Odstrániť",
     "error_forbidden": "Môže to urobiť iba autor, vlastník alebo správca.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

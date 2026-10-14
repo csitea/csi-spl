@@ -938,6 +938,12 @@ declare module '~/utils/topic-archive.mjs' {
   export function withoutTopics<T>(rows: T[], taskIds: string[]): T[]
 }
 
+declare module '~/utils/archived-card.mjs' {
+  /** SPL-1763: the archived card of a topic and whether the viewer may unarchive it (null = none). */
+  export function archivedCardOf(api: { getTopic: (task: string, opts?: Record<string, unknown>) => Promise<unknown>, topicSize: (msgId: string) => Promise<unknown> }, taskId: string, lobbyTaskId?: string, firstId?: string): Promise<{ msgId: string, canUnarchive: boolean } | null>
+  export function unarchivedTopic(detail: { msgId?: string, taskId?: string, archived?: boolean } | null | undefined, taskId: string): boolean
+}
+
 declare module '~/utils/place-popover.mjs' {
   export const POPOVER_MARGIN: number
   export function placePopover(

@@ -1407,6 +1407,7 @@
     "load_failed": "Nepavyko įkelti archyvo.",
     "error": "Tema nepakeista. Bandykite dar kartą.",
     "unarchive": "Grąžinti iš archyvo",
+    "unarchive_topic": "Grąžinti temą iš archyvo",
     "delete": "Ištrinti",
     "error_forbidden": "Tai gali padaryti tik autorius, savininkas arba administratorius.",
     "error_not_card": "This is not the topic's opening card. Archive the topic from its first card.",

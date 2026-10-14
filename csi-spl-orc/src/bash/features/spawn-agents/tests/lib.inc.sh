@@ -52,6 +52,11 @@ t_sandbox() {
   export SPAWN_TEST_SANDBOX=1
   # CLE-77923: the send/notify path refuses the live spool root under this.
   export SPOOL_TEST=1
+  # SPL-1649 vendor CLI check: without this the spawn asks the REAL box which
+  # CLIs its test user can start. On a box where that user lacks claude every
+  # claude spawn was refused with exit 13 (spec 133 r21: 2 reds on one box
+  # only, green on the others and in CI). A test of the measurement sets its own.
+  export SPOOL_VENDOR_CLIS_CMD="echo claude,grok,agy,qwen,mistral"
   mkdir -p "$SPOOL_ROOT"
   trap 't_cleanup' EXIT
 }

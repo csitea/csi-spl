@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -190,7 +191,21 @@ func TestViewStampChannelsRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := newStmtProxy(t, u.Host)
+	// CI's hub-pg.tst.sh hands a unix-socket DSN (host=<dir>&port=<n>):
+	// proxy that socket, and drop host/port so the hub dials the proxy.
+	network, target := "tcp", u.Host
+	if u.Host == "" {
+		q := u.Query()
+		port := q.Get("port")
+		if port == "" {
+			port = "5432"
+		}
+		network, target = "unix", filepath.Join(q.Get("host"), ".s.PGSQL."+port)
+		q.Del("host")
+		q.Del("port")
+		u.RawQuery = q.Encode()
+	}
+	proxy := newStmtProxy(t, network, target)
 	u.Host = proxy.ln.Addr().String()
 	t.Setenv("SPOOL_TEST_PG_DSN", u.String())
 
@@ -300,7 +315,7 @@ type stmtProxy struct {
 	statements atomic.Int64
 }
 
-func newStmtProxy(t *testing.T, target string) *stmtProxy {
+func newStmtProxy(t *testing.T, network, target string) *stmtProxy {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -313,7 +328,7 @@ func newStmtProxy(t *testing.T, target string) *stmtProxy {
 			if err != nil {
 				return
 			}
-			s, err := net.Dial("tcp", target)
+			s, err := net.Dial(network, target)
 			if err != nil {
 				c.Close()
 				continue

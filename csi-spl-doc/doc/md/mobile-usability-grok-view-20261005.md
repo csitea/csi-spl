@@ -1,5 +1,7 @@
 # Mobile usability — an independent view (2026-10-05)
 
+> Generated from qto doc `a86040a9-b58e-4dea-8f54-638acee9355d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Measured in Chrome with touch on, at 390×844 and 360×780, against the mock bundle the e2e harness serves (`NUXT_PUBLIC_USE_MOCK=1`). Taps were real touch taps. Sizes are CSS pixels from the live DOM (`clientWidth`, `scrollWidth`, bounding boxes). Shots from the pass are in `/var/tmp/g-249-shots/`. A figure below holds for both widths unless it says otherwise.
 
 The first 390×844 load sat on the "Loading Spool…" shell for its opening shots, so the path was run again once the shell was up. Those are the numbers. A viewport 320px shorter is only a stand-in for a browser that shrinks the page when the keyboard opens. This Chrome draws no keyboard, so an overlay keyboard was not measured. Dev-server timings were not used as product speed.

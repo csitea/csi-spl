@@ -1,5 +1,7 @@
 # Refactor round 6 - agy seat proposal
 
+> Generated from qto doc `2a8b1623-2815-4de0-a28d-feac6d4bd9b8`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Re-measured on origin/master:
 - r5 D3: `grep -rnE "await fetch\(" csi-spl-wui/src/utils/ | grep -v signal | wc -l` -> 13
 - r5 D4: `grep -rnE "^\\s+exit [0-9]" --include=*.func.sh csi-spl-{iac,orc}/{src,lib}` -> 11

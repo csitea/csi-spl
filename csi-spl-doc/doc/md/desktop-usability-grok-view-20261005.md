@@ -1,5 +1,7 @@
 # Desktop usability, an independent view
 
+> Generated from qto doc `b1d46454-1e2c-4003-9bbb-9569bc212bf6`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 **Status: VIEW.** One walk of the desktop shell, then a review of the nine
 ideas already picked. Nothing here is a spec, and nothing in the shell was
 changed.

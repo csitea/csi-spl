@@ -135,6 +135,25 @@
       "windows": "Stil Windows (dreapta sus)",
       "hint": "Unde stă X-ul care închide dialogurile, panourile și foile. Pe telefon, Înapoi rămâne stânga sus. Păstrat în contul tău."
     },
+    "email_client": {
+      "label": "Linkurile de e-mail se deschid în",
+      "gmail": "Gmail în browser",
+      "system": "Implicit al sistemului (mailto:)",
+      "outlook_web": "Outlook pe web",
+      "outlook": "Outlook (aplicație desktop)",
+      "thunderbird": "Thunderbird",
+      "hint": "Ce aplicație se deschide când dați clic pe o adresă de e-mail dintr-un mesaj. Thunderbird și Outlook pentru desktop se deschid prin aplicația de e-mail implicită a dispozitivului, așa că setați-o acolo. Doar pentru dvs."
+    },
+    "phone_app": {
+      "label": "Numerele de telefon se deschid în",
+      "whatsapp": "WhatsApp",
+      "tel": "Apel telefonic obișnuit",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Ce aplicație se deschide când dați clic pe un număr de telefon (+ și prefixul țării) dintr-un mesaj. Doar pentru dvs."
+    },
     "signin_security": "Autentificare și securitate",
     "signed_in_with": "Autentificat cu",
     "password_managed_by": "Parola dvs. este gestionată de {method}.",

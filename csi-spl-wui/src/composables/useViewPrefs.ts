@@ -23,13 +23,15 @@ export function useViewPrefs() {
   /* SPL-1133: which corner every close X sits in (mac = top left, the default) */
   const closeButtons = computed<CloseButtons>(() => parseCloseButtons(session.claims?.close_buttons))
 
-  /** Store one choice (optimistic). Resolves the save's outcome. */
-  async function save(key: ViewPrefKey, want: string) {
+  /** Store one choice (optimistic). Resolves the save's outcome. `values`: a
+   *  key VIEW_PREFS does not list (SPL-1609 email_client / phone_app). */
+  async function save(key: ViewPrefKey, want: string, values?: readonly string[]) {
     if (session.state !== 'in') return { ok: false, value: '' }
     return applyViewPref(key, want, {
       current: session.claims?.[key],
       apply: (v: string) => session.setViewPref(key, v),
       save: (v: string) => auth.saveViewPref(key, v),
+      values,
     })
   }
 

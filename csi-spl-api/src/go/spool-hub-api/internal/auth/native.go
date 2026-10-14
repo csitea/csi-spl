@@ -423,6 +423,9 @@ type loginResp struct {
 	CloseButtons *string `json:"close_buttons"`
 	// LinkPreviews as GET /session answers it (topic e1f8f797), null when unset.
 	LinkPreviews *string `json:"link_previews"`
+	// EmailClient and PhoneApp as GET /session answers them (SPL-1609), null when unset.
+	EmailClient *string `json:"email_client"`
+	PhoneApp    *string `json:"phone_app"`
 	// IssuesColumns as GET /session answers it (SPL-1132), null when unset.
 	IssuesColumns map[string]int `json:"issues_columns"`
 	// IssuesSort as GET /session answers it (CLE-35099), null when unset.
@@ -568,7 +571,8 @@ func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string)
 		SubmitKey: n.h.submitKey(ctx, sess), RailOrder: n.h.railOrder(ctx, sess),
 		MessageOrder: n.h.viewPref(ctx, sess, PrefMessageOrder), ComposerPosition: n.h.viewPref(ctx, sess, PrefComposerPosition),
 		IssuesView: n.h.viewPref(ctx, sess, PrefIssuesView), CloseButtons: n.h.viewPref(ctx, sess, PrefCloseButtons),
-		LinkPreviews:  n.h.viewPref(ctx, sess, PrefLinkPreviews),
+		LinkPreviews: n.h.viewPref(ctx, sess, PrefLinkPreviews),
+		EmailClient:  n.h.viewPref(ctx, sess, PrefEmailClient), PhoneApp: n.h.viewPref(ctx, sess, PrefPhoneApp),
 		IssuesColumns: n.h.issueColumns(ctx, sess), IssuesSort: n.h.issuesSort(ctx, sess), PaneSizes: n.h.paneSizes(ctx, sess),
 		TimeZone: n.h.timeZone(ctx, sess), KeyboardShortcuts: n.h.keyboardShortcuts(ctx, sess),
 		HoursReading: n.h.hoursReading(ctx, sess)}

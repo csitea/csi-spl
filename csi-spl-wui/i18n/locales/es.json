@@ -135,6 +135,25 @@
       "windows": "Estilo Windows (arriba a la derecha)",
       "hint": "Dónde está la X que cierra diálogos, paneles y hojas. En el teléfono, Atrás sigue arriba a la izquierda. Se guarda en tu cuenta."
     },
+    "email_client": {
+      "label": "Los enlaces de correo se abren en",
+      "gmail": "Gmail en el navegador",
+      "system": "Predeterminado del sistema (mailto:)",
+      "outlook_web": "Outlook en la web",
+      "outlook": "Outlook (aplicación de escritorio)",
+      "thunderbird": "Thunderbird",
+      "hint": "Qué aplicación se abre al hacer clic en una dirección de correo en un mensaje. Thunderbird y Outlook de escritorio se abren mediante la aplicación de correo predeterminada de tu dispositivo, así que configúrala allí. Solo para ti."
+    },
+    "phone_app": {
+      "label": "Los números de teléfono se abren en",
+      "whatsapp": "WhatsApp",
+      "tel": "Llamada telefónica normal",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Qué aplicación se abre al hacer clic en un número de teléfono (+ y el código de país) en un mensaje. Solo para ti."
+    },
     "signin_security": "Inicio de sesión y seguridad",
     "signed_in_with": "Sesión iniciada con",
     "password_managed_by": "Tu contraseña la gestiona {method}.",

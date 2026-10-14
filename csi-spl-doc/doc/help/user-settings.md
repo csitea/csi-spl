@@ -169,6 +169,25 @@ when. Click the card to open it. Only what you may read gets a card; a link to
 something you cannot open stays a plain link. **On** by default. Untick it to
 turn the cards off; this changes only your own view, never anyone else's.
 
+### 5.9 Email links open in
+Which app opens when you click an email address in a message, whether it is a
+bare address, a markdown link or a `mailto:` link:
+
+- **Gmail in the browser** (the default): a Gmail compose window in a new tab.
+- **Outlook on the web**: an Outlook compose window in a new tab.
+- **System default (mailto:)**, **Thunderbird** or **Outlook (desktop app)**:
+  a `mailto:` link, which your device hands to its default mail app. To get
+  Thunderbird or the desktop Outlook, make it that default app on your device.
+
+A subject or body that a `mailto:` link carries is kept. Kept on your account;
+it changes only your own view.
+
+### 5.10 Phone numbers open in
+Which app opens when you click a phone number written with **+** and the
+country code: **WhatsApp** (the default), **Regular phone call** (`tel:`),
+**Viber**, **Telegram**, **Signal** or **Microsoft Teams**. Kept on your
+account; it changes only your own view.
+
 ---
 
 ## 6. Notifications (`/settings/notifications`)

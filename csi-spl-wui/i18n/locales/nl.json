@@ -135,6 +135,25 @@
       "windows": "Windows-stijl (rechtsboven)",
       "hint": "Waar de X staat die dialogen, panelen en bladen sluit. Op een telefoon blijft Terug linksboven. Bewaard in je account."
     },
+    "email_client": {
+      "label": "E-maillinks openen in",
+      "gmail": "Gmail in de browser",
+      "system": "Systeemstandaard (mailto:)",
+      "outlook_web": "Outlook op het web",
+      "outlook": "Outlook (desktop-app)",
+      "thunderbird": "Thunderbird",
+      "hint": "Welke app opent wanneer je op een e-mailadres in een bericht klikt. Thunderbird en de desktopversie van Outlook openen via de standaard-mailapp van je apparaat, dus stel die daar in. Alleen voor jou."
+    },
+    "phone_app": {
+      "label": "Telefoonnummers openen in",
+      "whatsapp": "WhatsApp",
+      "tel": "Gewoon telefoongesprek",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Welke app opent wanneer je op een telefoonnummer (+ en de landcode) in een bericht klikt. Alleen voor jou."
+    },
     "signin_security": "Inloggen en beveiliging",
     "signed_in_with": "Ingelogd met",
     "password_managed_by": "Je wachtwoord wordt beheerd door {method}.",

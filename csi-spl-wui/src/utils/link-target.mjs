@@ -18,7 +18,9 @@
  * too, and its href is REWRITTEN to this page's own /releases/<ref>: dev,
  * prd and every tenant host show the same note, so it opens in this tab.
  * External: every other http(s) URL, and mailto. A new tab, with
- * rel="noopener noreferrer nofollow". The other env is external: the dev
+ * rel="noopener noreferrer nofollow". SPL-1609: a phone app link (tel:,
+ * viber:, sgnl:, contact-links.mjs) is external too, with no target: the
+ * device hands it to its app, a blank tab would stay behind. The other env is external: the dev
  * origin viewed from production differs, and the reverse, and "dev" is no
  * tenant label.
  *
@@ -59,6 +61,8 @@ export function setLinkSite(siteUrl) {
    that escapes the host fails the origin check. Not a real site. */
 const DUMMY_PAGE = 'https://link-target.invalid/page'
 const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
+/* SPL-1609: the phone apps a number opens in (contact-links.mjs) */
+const APP_SCHEMES = new Set(['tel:', 'viber:', 'sgnl:'])
 
 /* A relative href is a path, a query or a hash — not a scheme hiding behind
    percent-encoding ("%6Aavascript:" decodes to "javascript:"). A colon in the
@@ -126,6 +130,7 @@ export function classifyHref(raw, pageOrigin, site = linkSite) {
   const scheme = SCHEME_RE.exec(s)
   if (scheme) {
     const proto = scheme[0].toLowerCase()
+    if (APP_SCHEMES.has(proto)) return /\s/.test(s) ? null : { href: s, internal: false, app: true }
     if (proto !== 'http:' && proto !== 'https:' && proto !== 'mailto:') return null
     /* "https:example.com" is not an absolute URL; the parser would treat it
        as a path. Only http:// and https:// are absolute. */
@@ -166,6 +171,7 @@ export function linkOpen(href, pageOrigin, site = linkSite) {
   const c = classifyHref(href, pageOrigin, site)
   if (!c) return null
   if (c.internal) return { href: c.href, internal: true }
+  if (c.app) return { href: c.href, internal: false, rel: NEW_TAB_REL }
   return { href: c.href, internal: false, target: '_blank', rel: NEW_TAB_REL }
 }
 

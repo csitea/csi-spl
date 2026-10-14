@@ -135,6 +135,25 @@
       "windows": "Windows-stil (uppe till höger)",
       "hint": "Var X:et som stänger dialoger, paneler och blad sitter. På en telefon stannar Tillbaka uppe till vänster. Sparas på ditt konto."
     },
+    "email_client": {
+      "label": "E-postlänkar öppnas i",
+      "gmail": "Gmail i webbläsaren",
+      "system": "Systemets standard (mailto:)",
+      "outlook_web": "Outlook på webben",
+      "outlook": "Outlook (skrivbordsapp)",
+      "thunderbird": "Thunderbird",
+      "hint": "Vilken app som öppnas när du klickar på en e-postadress i ett meddelande. Thunderbird och skrivbordsversionen av Outlook öppnas via enhetens standardapp för e-post, så välj den där. Bara för dig."
+    },
+    "phone_app": {
+      "label": "Telefonnummer öppnas i",
+      "whatsapp": "WhatsApp",
+      "tel": "Vanligt telefonsamtal",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Vilken app som öppnas när du klickar på ett telefonnummer (+ och landsnumret) i ett meddelande. Bara för dig."
+    },
     "signin_security": "Inloggning och säkerhet",
     "signed_in_with": "Inloggad med",
     "password_managed_by": "Ditt lösenord hanteras av {method}.",

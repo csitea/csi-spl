@@ -14,6 +14,9 @@
 //   A13       flipping the setting on an open feed re-renders it at the
 //             newest end without a reload
 //   settings  Settings -> Behaviour checks the effective choice of both keys
+//   SPL-1609  Settings -> Behaviour "Email links open in": picking Gmail
+//             makes an email address in a message open the Gmail compose
+//             url; the control is a stored 'system' choice (mailto:)
 // Runs at 1440 and 820 (desktop and tablet widths), and 360 (phone, the
 // SPL-1005 dock: the newest row sits above the dock, not under it).
 //
@@ -301,6 +304,59 @@ async function run(browser, base, width, touch) {
   await sleep(200)
   const checkedDefault = await p.$$eval('[data-test=view-pref-message_order] input[type=radio]:checked, [data-test=view-pref-composer_position] input[type=radio]:checked', (els) => els.map((e) => e.value))
   check(`${tag} settings: never picked shows the defaults checked`, checkedDefault.join(',') === 'newest-first,top', { checkedDefault })
+
+  /* SPL-1609: pick Gmail in Settings -> Behaviour, then an email address in a
+     message links to the Gmail compose url; control: the stored 'system'
+     choice draws mailto: (once, at the desktop width) */
+  if (!touch) {
+    const mailHref = async (tagMail) => {
+      await go(p, '/lobby')
+      await p.waitForSelector('.live-rows > article.msg', { timeout: NAV })
+      await p.evaluate((tagMail, base) => {
+        const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('live-main')
+        const ts = new Date(base).toISOString()
+        const id = `${tagMail}-${Date.now()}`
+        s.messages = [...s.messages, { v: 1, msg_id: id, task_id: `t-${id}`, ts, received_at: ts, from: 'HUM-7', from_box: 'box-wui', to: 'ALL-0', kind: 'note', body: `${tagMail} write to someone@example.com`, files: [] }]
+      }, tagMail, (clock += 120e3))
+      await sleep(800)
+      return p.evaluate((tagMail) => {
+        const row = [...document.querySelectorAll('.live-rows > article.msg')].find((r) => r.textContent.includes(tagMail))
+        const a = row && [...row.querySelectorAll('a[href]')].find((el) => /someone/.test(el.textContent))
+        return a ? { href: a.getAttribute('href'), target: a.getAttribute('target') || '' } : null
+      }, tagMail)
+    }
+    await p.evaluate(() => {
+      const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
+      s.adopt({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', email_client: 'system' })
+    })
+    const sys = await mailHref('mail-system')
+    check(`${tag} SPL-1609 control: the 'system' choice links an email address to mailto:`, sys?.href === 'mailto:someone@example.com', sys)
+    /* the mock bundle has no hub: answer the PUT preferences as the hub
+       would (200, the key echoed), as close-buttons.test.mjs does */
+    const puts = []
+    const cors = { 'access-control-allow-origin': new URL(base).origin, 'access-control-allow-credentials': 'true' }
+    await p.setRequestInterception(true)
+    const onReq = (req) => {
+      if (req.method() === 'PUT' && req.url().includes('/api/v1/auth/preferences')) {
+        const body = JSON.parse(req.postData() || '{}')
+        puts.push(body)
+        return req.respond({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(body) })
+      }
+      return req.continue()
+    }
+    p.on('request', onReq)
+    await go(p, '/settings/behaviour')
+    await p.waitForSelector('[data-test=email_client-gmail]', { timeout: 10000 })
+    await p.click('[data-test=email_client-gmail]')
+    await sleep(600)
+    const picked = await p.$eval('[data-test=view-pref-email_client] input[type=radio]:checked', (e) => e.value).catch(() => '')
+    check(`${tag} SPL-1609: Gmail is picked in Settings -> Behaviour and saved`, picked === 'gmail' && puts.some((b) => b.email_client === 'gmail'), { picked, puts })
+    p.off('request', onReq)
+    await p.setRequestInterception(false)
+    if (process.env.OUT) await p.screenshot({ path: `${process.env.OUT}/email-client-setting-${width}.png` })
+    const gm = await mailHref('mail-gmail')
+    check(`${tag} SPL-1609: with Gmail an email address opens the Gmail compose url`, gm?.href === 'https://mail.google.com/mail/?view=cm&fs=1&to=someone%40example.com', gm)
+  }
   await p.close()
 }
 

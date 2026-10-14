@@ -135,6 +135,25 @@
       "windows": "Štýl Windows (vpravo hore)",
       "hint": "Kde je X, ktoré zatvára dialógy, panely a hárky. Na telefóne zostáva Späť vľavo hore. Uložené vo vašom účte."
     },
+    "email_client": {
+      "label": "E-mailové odkazy sa otvárajú v",
+      "gmail": "Gmail v prehliadači",
+      "system": "Predvolené systémom (mailto:)",
+      "outlook_web": "Outlook na webe",
+      "outlook": "Outlook (počítačová aplikácia)",
+      "thunderbird": "Thunderbird",
+      "hint": "Ktorá aplikácia sa otvorí, keď v správe kliknete na e-mailovú adresu. Thunderbird a počítačový Outlook sa otvárajú cez predvolenú poštovú aplikáciu zariadenia, preto ju nastavte tam. Len pre vás."
+    },
+    "phone_app": {
+      "label": "Telefónne čísla sa otvárajú v",
+      "whatsapp": "WhatsApp",
+      "tel": "Bežný hovor",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Ktorá aplikácia sa otvorí, keď v správe kliknete na telefónne číslo (+ a kód krajiny). Len pre vás."
+    },
     "signin_security": "Prihlásenie a zabezpečenie",
     "signed_in_with": "Prihlásený cez",
     "password_managed_by": "Vaše heslo spravuje {method}.",

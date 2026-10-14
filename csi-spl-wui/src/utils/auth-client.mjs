@@ -454,7 +454,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     /**
      * Topic c6994436: Settings -> Behaviour "Message order" / "Omnibox
      * position" (humans.message_order / composer_position, rdb 0070). `key`
-     * is 'message_order' or 'composer_position'; sends ONLY that key, null
+     * is a ViewPrefKey (SPL-1609 adds email_client / phone_app); sends ONLY that key, null
      * clears it. 200 → ok; 400 unsupported_<key>; 401; 409 = no human.
      */
     saveViewPref(key, value) {

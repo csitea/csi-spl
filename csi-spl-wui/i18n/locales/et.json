@@ -135,6 +135,25 @@
       "windows": "Windowsi stiil (üleval paremal)",
       "hint": "Kus asub X, mis sulgeb dialoogid, paanid ja lehed. Telefonis jääb Tagasi üles vasakule. Salvestatakse sinu kontole."
     },
+    "email_client": {
+      "label": "E-posti lingid avanevad rakenduses",
+      "gmail": "Gmail brauseris",
+      "system": "Süsteemi vaikimisi (mailto:)",
+      "outlook_web": "Outlook veebis",
+      "outlook": "Outlook (töölauarakendus)",
+      "thunderbird": "Thunderbird",
+      "hint": "Milline rakendus avaneb, kui klõpsate sõnumis e-posti aadressil. Thunderbird ja Outlooki töölauarakendus avanevad seadme vaikimisi e-posti rakenduse kaudu, seega määrake see seal. Ainult teile."
+    },
+    "phone_app": {
+      "label": "Telefoninumbrid avanevad rakenduses",
+      "whatsapp": "WhatsApp",
+      "tel": "Tavaline telefonikõne",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Milline rakendus avaneb, kui klõpsate sõnumis telefoninumbril (+ ja riigikood). Ainult teile."
+    },
     "signin_security": "Sisselogimine ja turvalisus",
     "signed_in_with": "Sisse logitud teenusega",
     "password_managed_by": "Sinu parooli haldab {method}.",

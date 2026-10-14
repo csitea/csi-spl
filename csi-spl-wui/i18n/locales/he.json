@@ -135,6 +135,25 @@
       "windows": "סגנון Windows (למעלה מימין)",
       "hint": "היכן נמצא ה-X שסוגר חלונות, חלוניות וגיליונות. בטלפון, חזרה נשאר למעלה משמאל. נשמר בחשבון שלך."
     },
+    "email_client": {
+      "label": "קישורי דוא״ל נפתחים ב־",
+      "gmail": "Gmail בדפדפן",
+      "system": "ברירת המחדל של המערכת (mailto:)",
+      "outlook_web": "Outlook באינטרנט",
+      "outlook": "Outlook (אפליקציה למחשב)",
+      "thunderbird": "Thunderbird",
+      "hint": "איזו אפליקציה נפתחת כשלוחצים על כתובת דוא״ל בהודעה. Thunderbird ו־Outlook למחשב נפתחים דרך אפליקציית הדואר שמוגדרת כברירת מחדל במכשיר, לכן יש להגדיר אותה שם. רק עבורך."
+    },
+    "phone_app": {
+      "label": "מספרי טלפון נפתחים ב־",
+      "whatsapp": "WhatsApp",
+      "tel": "שיחת טלפון רגילה",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "איזו אפליקציה נפתחת כשלוחצים על מספר טלפון (+ וקידומת המדינה) בהודעה. רק עבורך."
+    },
     "signin_security": "התחברות ואבטחה",
     "signed_in_with": "מחוברים באמצעות",
     "password_managed_by": "הסיסמה שלכם מנוהלת על ידי {method}.",

@@ -30,6 +30,7 @@ import { classifyHref, linkOpen } from './link-target.mjs'
 import { BIDI_CLASS } from './bidi.mjs'
 import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 import { activeIdIndex, linkifyBlocks, linkifyMarkdown, noteIds } from './id-link-gate.mjs'
+import { phoneBlocks } from './contact-links.mjs'
 import { activeCommitLinker } from './commit-link-hook.mjs'
 import { activeDocPathLinker } from './doc-path-hook.mjs'
 import { activeIssueLinker } from './issue-link-hook.mjs'
@@ -450,7 +451,9 @@ export function parseBody(src) {
   // test, so this returns the same tree it always did.
   const index = activeIdIndex()
   if (!index.empty) noteIds(src, index)
-  const linked = index.empty ? blocks : linkifyBlocks(blocks, index)
+  // SPL-1609: phone numbers first, so no id / hash linker reads their digits
+  const phoned = phoneBlocks(blocks)
+  const linked = index.empty ? phoned : linkifyBlocks(phoned, index)
   // Commit hashes after the ids (commit-links.mjs): null until it loads.
   const commits = activeCommitLinker()
   const hashed = commits ? commits.blocks(linked, idTokenOf(index)) : linked

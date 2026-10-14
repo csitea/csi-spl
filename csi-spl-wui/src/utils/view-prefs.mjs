@@ -17,6 +17,13 @@
 //   close_buttons     'mac'           every close X in the top left (the
 //                                     owner's default, SPL-1133, rdb 0077)
 //                     'windows'       every close X in the top right
+//   email_client      'gmail' ...     the app an email address opens in, and
+//   phone_app         'whatsapp' ...  a phone number (SPL-1609, rdb 0193;
+//                                     the lists live in contact-links.mjs:
+//                                     app.vue imports this file, so they
+//                                     stay out of VIEW_PREFS and the
+//                                     initial chunk; the settings page
+//                                     hands them to applyViewPref)
 //
 // The hub lists the same values in the same order (auth.ViewPrefs); the unit
 // test tests/unit/view-prefs.test.mjs pins the two lists equal.
@@ -90,15 +97,16 @@ export function displayOrder(rows, order) {
  * The radio's save, optimistic like the "Text fields" one: mirror the claim
  * at once so every pane follows, save it, and put the old value back on a
  * refusal.
- * @param {string} key a VIEW_PREFS key
+ * @param {string} key a VIEW_PREFS key, or one whose `values` the caller hands
  * @param {unknown} want
  * @param {{ current: unknown, apply: (v: string) => void,
- *           save: (v: string) => Promise<{ ok: boolean }> }} io
+ *           save: (v: string) => Promise<{ ok: boolean }>,
+ *           values?: readonly string[] }} io
  * @returns {Promise<{ ok: boolean, value: string, out?: unknown }>}
  */
-export async function applyViewPref(key, want, { current, apply, save }) {
-  const vals = VIEW_PREFS[key] || []
-  const prev = parseViewPref(key, current)
+export async function applyViewPref(key, want, { current, apply, save, values }) {
+  const vals = values || VIEW_PREFS[key] || []
+  const prev = vals.includes(current) ? current : vals[0]
   if (!vals.includes(want)) return { ok: false, value: prev }
   if (want === prev && vals.includes(current)) return { ok: true, value: prev }
   apply(want)

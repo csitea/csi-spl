@@ -641,7 +641,7 @@ declare module '~/utils/auth-client.mjs' {
     saveTheme(theme: string): Promise<NativeResult>
     saveSubmitKey(key: string): Promise<NativeResult>
     saveRailOrder(order: string[] | null): Promise<NativeResult>
-    saveViewPref(key: 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons', value: string | null): Promise<NativeResult>
+    saveViewPref(key: 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons' | 'email_client' | 'phone_app', value: string | null): Promise<NativeResult>
     saveIssueColumns(cols: Record<string, number> | null, opts?: { keepalive?: boolean }): Promise<NativeResult>
     switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
@@ -1823,7 +1823,7 @@ declare module '~/utils/view-prefs.mjs' {
   export type ComposerPosition = 'top' | 'bottom'
   export type IssuesView = 'list' | 'status'
   export type CloseButtons = 'mac' | 'windows'
-  export type ViewPrefKey = 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons'
+  export type ViewPrefKey = 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons' | 'email_client' | 'phone_app'
   export const MESSAGE_ORDERS: readonly MessageOrder[]
   export const COMPOSER_POSITIONS: readonly ComposerPosition[]
   export const ISSUES_VIEWS: readonly IssuesView[]
@@ -1841,7 +1841,7 @@ declare module '~/utils/view-prefs.mjs' {
   export function applyViewPref(
     key: ViewPrefKey,
     want: unknown,
-    io: { current: unknown, apply: (v: string) => void, save: (v: string) => Promise<{ ok: boolean }> },
+    io: { current: unknown, apply: (v: string) => void, save: (v: string) => Promise<{ ok: boolean }>, values?: readonly string[] },
   ): Promise<{ ok: boolean, value: string, out?: unknown }>
 }
 
@@ -2656,4 +2656,17 @@ declare module '~/utils/vim-panels.mjs' {
 
 declare module '~/utils/composer-code-marks.mjs' {
   export function composerCodeRuns(src: string): { text: string, kind?: 'inline' | 'block' }[]
+}
+
+declare module '~/utils/contact-links.mjs' {
+  export const EMAIL_CLIENTS: readonly string[]
+  export const PHONE_APPS: readonly string[]
+  export function parseEmailClient(raw: unknown): string
+  export function parsePhoneApp(raw: unknown): string
+  export function emailHref(href: string, client: unknown): string | null
+  export function phoneHref(href: string, app: unknown): string | null
+  export function contactHref(href: string, prefs: { email_client?: unknown, phone_app?: unknown } | null | undefined): string
+  export function phoneParts(text: string): { type: 'text' | 'link', text: string, href?: string }[]
+  export function hasPhone(text: string): boolean
+  export function phoneBlocks<T>(blocks: T[]): T[]
 }

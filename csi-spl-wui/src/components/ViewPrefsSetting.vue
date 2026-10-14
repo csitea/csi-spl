@@ -1,5 +1,6 @@
 <!-- "Message order", "Omnibox position" (topic c6994436) and "Close
-     buttons" (SPL-1133: Mac style top left | Windows style top right) (Settings →
+     buttons" (SPL-1133: Mac style top left | Windows style top right), "Email
+     links open in" and "Phone numbers open in" (SPL-1609) (Settings →
      Behaviour): newest at the top or at the bottom of every message feed and
      thread, and the Omnibox in the top bar or docked at the bottom on tablets
      and computers. The hub keeps each per human (humans.message_order /
@@ -30,7 +31,7 @@
             :checked="g.current === v"
             :disabled="saving"
             :data-test="`${g.key}-${v}`"
-            @change="pick(g.key, v)"
+            @change="pick(g.key, v, g.values)"
           />
           <span>{{ t(`settings.${g.key}.${v.replace('-', '_')}`) }}</span>
         </label>
@@ -46,6 +47,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAuthCopy } from '~/composables/useAuthCopy'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { CLOSE_BUTTONS, COMPOSER_POSITIONS, MESSAGE_ORDERS, type ViewPrefKey } from '~/utils/view-prefs.mjs'
+import { EMAIL_CLIENTS, PHONE_APPS, parseEmailClient, parsePhoneApp } from '~/utils/contact-links.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
@@ -55,22 +57,25 @@ const prefs = useViewPrefs()
 const uid = useId()
 const signedIn = computed(() => session.state === 'in')
 const saving = ref(false)
-const status = reactive<Record<ViewPrefKey, string>>({ message_order: '', composer_position: '', issues_view: '', close_buttons: '' })
+const status = reactive<Record<ViewPrefKey, string>>({ message_order: '', composer_position: '', issues_view: '', close_buttons: '', email_client: '', phone_app: '' })
 
 const groups = computed(() => [
   { key: 'message_order' as const, values: MESSAGE_ORDERS as readonly string[], current: prefs.messageOrder.value as string },
   { key: 'composer_position' as const, values: COMPOSER_POSITIONS as readonly string[], current: prefs.composerPosition.value as string },
   /* SPL-1133: Mac style (top left, the default) | Windows style (top right) */
   { key: 'close_buttons' as const, values: CLOSE_BUTTONS as readonly string[], current: prefs.closeButtons.value as string },
+  /* SPL-1609: the app an email address / a phone number in a message opens */
+  { key: 'email_client' as const, values: EMAIL_CLIENTS, current: parseEmailClient(session.claims?.email_client) },
+  { key: 'phone_app' as const, values: PHONE_APPS, current: parsePhoneApp(session.claims?.phone_app) },
 ])
 
-async function pick(key: ViewPrefKey, want: string) {
+async function pick(key: ViewPrefKey, want: string, values: readonly string[]) {
   if (!signedIn.value || saving.value) return
   saving.value = true
   status[key] = ''
   let res: Awaited<ReturnType<typeof prefs.save>>
   try {
-    res = await prefs.save(key, want)
+    res = await prefs.save(key, want, values)
   } finally {
     saving.value = false
   }

@@ -970,3 +970,57 @@ func TestPreferencesLinkPreviews(t *testing.T) {
 		t.Fatalf("session after clear: %s", got.raw)
 	}
 }
+
+// SPL-1609 (owner HUM-10 t1 51363151): email_client and phone_app are the
+// person's own choice of the app an email address or a phone number in a
+// message opens. Kept on the account like the other layout keys: only their
+// listed values, null clears, independent of each other; GET /session and the
+// native login answer carry them. Never picked = null = the WUI default
+// (Gmail in the browser, WhatsApp), the first value of each list.
+func TestPreferencesContactLinks(t *testing.T) {
+	if auth.ViewPrefs[auth.PrefEmailClient][0] != "gmail" || auth.ViewPrefs[auth.PrefPhoneApp][0] != "whatsapp" {
+		t.Fatalf("defaults drifted: %v %v", auth.ViewPrefs[auth.PrefEmailClient], auth.ViewPrefs[auth.PrefPhoneApp])
+	}
+	r, _ := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	got := r.call(t, c, http.MethodGet, "session", "")
+	for _, k := range []string{"email_client", "phone_app"} {
+		if v, ok := got.body[k]; !ok || v != nil {
+			t.Fatalf("session must answer %s null: %s", k, got.raw)
+		}
+	}
+	got = r.call(t, c, http.MethodPut, "preferences", `{"email_client":"outlook-web"}`)
+	if got.code != http.StatusOK || len(got.body) != 1 || got.body["email_client"] != "outlook-web" {
+		t.Fatalf("put email: %d %s", got.code, got.raw)
+	}
+	got = r.call(t, c, http.MethodPut, "preferences", `{"phone_app":"viber"}`)
+	if got.code != http.StatusOK || len(got.body) != 1 || got.body["phone_app"] != "viber" {
+		t.Fatalf("put phone: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["email_client"] != "outlook-web" || got.body["phone_app"] != "viber" || got.body["link_previews"] != nil {
+		t.Fatalf("session after: %s", got.raw)
+	}
+	if got := r.post(t, browser(t), "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK ||
+		got.body["email_client"] != "outlook-web" || got.body["phone_app"] != "viber" {
+		t.Fatalf("login answer: %d %s", got.code, got.raw)
+	}
+	for k, bad := range map[string][]string{
+		"email_client": {`"Gmail"`, `"proton"`, `""`, `true`},
+		"phone_app":    {`"WhatsApp"`, `"skype"`, `""`, `1`},
+	} {
+		for _, v := range bad {
+			body := `{"` + k + `":` + v + `}`
+			if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest || got.body["error"] != "unsupported_"+k {
+				t.Errorf("%s: %d %s", body, got.code, got.raw)
+			}
+		}
+	}
+	got = r.call(t, c, http.MethodPut, "preferences", `{"email_client":null,"phone_app":null}`)
+	if got.code != http.StatusOK || got.body["email_client"] != nil || got.body["phone_app"] != nil || len(got.body) != 2 {
+		t.Fatalf("clear: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["email_client"] != nil || got.body["phone_app"] != nil {
+		t.Fatalf("session after clear: %s", got.raw)
+	}
+}

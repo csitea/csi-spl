@@ -135,6 +135,25 @@
       "windows": "Windows stili (sağ üst)",
       "hint": "İletişim kutularını, panelleri ve sayfaları kapatan X'in yeri. Telefonda Geri sol üstte kalır. Hesabınızda saklanır."
     },
+    "email_client": {
+      "label": "E-posta bağlantıları şurada açılır",
+      "gmail": "Tarayıcıda Gmail",
+      "system": "Sistem varsayılanı (mailto:)",
+      "outlook_web": "Web'de Outlook",
+      "outlook": "Outlook (masaüstü uygulaması)",
+      "thunderbird": "Thunderbird",
+      "hint": "Bir iletideki e-posta adresine tıkladığınızda hangi uygulamanın açılacağı. Thunderbird ve masaüstü Outlook, cihazınızın varsayılan e-posta uygulaması üzerinden açılır; bu yüzden onu orada ayarlayın. Yalnızca sizin için."
+    },
+    "phone_app": {
+      "label": "Telefon numaraları şurada açılır",
+      "whatsapp": "WhatsApp",
+      "tel": "Normal telefon araması",
+      "viber": "Viber",
+      "telegram": "Telegram",
+      "signal": "Signal",
+      "teams": "Microsoft Teams",
+      "hint": "Bir iletideki telefon numarasına (+ ve ülke kodu) tıkladığınızda hangi uygulamanın açılacağı. Yalnızca sizin için."
+    },
     "signin_security": "Giriş ve güvenlik",
     "signed_in_with": "Giriş yöntemi",
     "password_managed_by": "Parolanız {method} tarafından yönetiliyor.",

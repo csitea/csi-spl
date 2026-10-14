@@ -193,17 +193,17 @@ spl_gc_start() {
 # "<id>\t<pane>" of every agent window of this box (the watchdog's rule: a
 # window named <id>[@<this box>], a "<tag>: " prefix allowed).
 spl_gc_agents() {
-  local re='^[acgqm]-[0-9]{3}$'
-  spl_gc_tmux list-panes -a -F $'#{pane_id}\t#{window_name}' 2>/dev/null |
-    while IFS=$'\t' read -r pane name; do
-      [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*:\  ]] && name="${name#*: }"
-      name="${name%% *}"
-      local id="${name%%@*}" box=""
-      [[ "$name" == *@* ]] && box="${name#*@}"
-      [[ "$id" =~ $re ]] || continue
-      [[ -z "$box" || "$box" == "$GC_BOX" || "$box" == "$ROTATE_BOX" ]] || continue
-      printf '%s\t%s\n' "$id" "$pane"
-    done | sort -u -k1,1 || true
+  local re='^[acgqm]-[0-9]{3}$' output=""
+  while IFS=$'\t' read -r pane name; do
+    [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*:\  ]] && name="${name#*: }"
+    name="${name%% *}"
+    local id="${name%%@*}" box=""
+    [[ "$name" == *@* ]] && box="${name#*@}"
+    [[ "$id" =~ $re ]] || continue
+    [[ -z "$box" || "$box" == "$GC_BOX" || "$box" == "$ROTATE_BOX" ]] || continue
+    output="${output}$(printf '%s\t%s\n' "$id" "$pane")"
+  done < <(spl_gc_tmux list-panes -a -F $'#{pane_id}\t#{window_name}' 2>/dev/null)
+  sort -u -k1,1 <<< "${output}" || true
 }
 
 spl_gc_pane_of() { spl_gc_agents | awk -F'\t' -v i="$1" '$1 == i {print $2; exit}'; }

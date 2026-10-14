@@ -52,11 +52,19 @@
      explorer's right pane (`repo`, WorkspaceRepoDoc), a workspace row opens
      the Qto document again. The layout passes `repo` (the open repo doc's
      path, '' = none); without it (the phone's drill list) there is no such
-     row. -->
+     row.
+     Re-order (SPL-1873, owner t1 1a9a14b6 msg 32d5ea87: "enable drag and
+     drop aka re-order of files within folders in the qto file explorer"):
+     a document or folder row drags onto the gap before or after a row of
+     its kind (folders stay first), in its own folder or another, or onto a
+     folder row or `/` to go into it; the hub's nodes/{node}/move with
+     before / after keeps the order. Escape cancels; Alt+Up / Alt+Down move
+     the focused row within its folder; on a phone, a long press opens the
+     menu and a drag after it moves the row. -->
 <template>
   <nav class="qto-tree" data-test="qto-file-tree" :aria-label="t('ws_doctree.title')">
     <WorkspaceDocNewDialog v-model:open="folderOpen" folder :create="makeFolder" />
-    <UiFileTree :rows="rows" :label="t('ws_doctree.title')" @toggle="toggle" @select="select" @menu="openMenu" />
+    <UiFileTree :rows="rows" :label="t('ws_doctree.title')" :can-drop="canDrop" @toggle="toggle" @select="select" @menu="openMenu" @move="moveRow" @lift="menu = null" />
     <UiPointMenu
       :open="Boolean(menu)"
       :x="menu?.x ?? 0"
@@ -120,7 +128,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import UiFileTree, { type FileTreeRow } from '~/components/UiFileTree.vue'
+import UiFileTree, { type FileTreeDrop, type FileTreeRow } from '~/components/UiFileTree.vue'
 import UiPointMenu, { type PointMenuItem } from '~/components/UiPointMenu.vue'
 import UiDialog from '~/components/UiDialog.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
@@ -182,7 +190,7 @@ function sectionRow(doc: string, it: DocItem, m: Map<string, DocItem[]>, depth: 
 
 function docRow(d: DocHead, depth = 0): FileTreeRow {
   const m = kids.value[d.id]
-  return { key: docKey(d.id), depth, name: docName(d), icon: 'file-text', kind: 'doc', menu: true, expandable: !m || (m.get(d.root) || []).length > 0, open: opened.value.has(docKey(d.id)), active: d.id === props.active && !activeItem.value && !folderPicked.value }
+  return { key: docKey(d.id), depth, name: docName(d), icon: 'file-text', kind: 'doc', menu: true, drag: Boolean(nodeOfDoc(d.id)), expandable: !m || (m.get(d.root) || []).length > 0, open: opened.value.has(docKey(d.id)), active: d.id === props.active && !activeItem.value && !folderPicked.value }
 }
 
 /* the folders: each loaded folder's children ('' = the top level), and each
@@ -215,6 +223,12 @@ function folderOfDoc(doc: string): string {
   return ''
 }
 
+/** a document's node id, '' = none (an older hub's document, or not loaded) */
+function nodeOfDoc(doc: string): string {
+  for (const list of Object.values(nodesAt.value)) for (const n of list) if (n.doc === doc && n.id) return n.id
+  return ''
+}
+
 /** a document node as the list's head (the list carries the live title), else as the node says */
 function headOf(n: DocNode): DocHead {
   return props.docs.find((d) => d.id === n.doc) || { id: n.doc, title: n.title, description: n.description, rev: 0, items: 0, root: '', topic_id: '', updated_at: '' }
@@ -222,12 +236,12 @@ function headOf(n: DocNode): DocHead {
 
 function folderRow(n: DocNode, depth: number): FileTreeRow {
   const key = folderKey(n.id)
-  return { key, depth, name: n.name, icon: 'folder', kind: 'folder', menu: true, expandable: n.child_count > 0, open: n.child_count > 0 && opened.value.has(key), active: folderPicked.value && folder.value === n.id }
+  return { key, depth, name: n.name, icon: 'folder', kind: 'folder', menu: true, drag: true, into: true, expandable: n.child_count > 0, open: n.child_count > 0 && opened.value.has(key), active: folderPicked.value && folder.value === n.id }
 }
 
 /** the `/` row: the top level's folder, open unless closed */
 function rootRow(): FileTreeRow {
-  return { key: ROOT, depth: 0, name: '/', icon: 'folder', kind: 'root', menu: true, expandable: true, open: opened.value.has(ROOT), active: folderPicked.value && !folder.value }
+  return { key: ROOT, depth: 0, name: '/', icon: 'folder', kind: 'root', menu: true, into: !nodesOff.value, expandable: true, open: opened.value.has(ROOT), active: folderPicked.value && !folder.value }
 }
 
 /** the folder's path from the top: Plans / 2026 */
@@ -469,6 +483,47 @@ function select(key: string) {
   emit('open', doc, item)
 }
 
+/* the re-order: a row's node and its folder ('' = the top) */
+const nodeOfKey = (key: string) => (key.startsWith('f:') ? key.slice(2) : key.startsWith('d:') ? nodeOfDoc(key.slice(2)) : '')
+const parentOfKey = (key: string) => (key.startsWith('f:') ? folderOf.value[key.slice(2)]?.parent ?? '' : folderOfDoc(key.slice(2)))
+/** folder f is node or under it: a folder never goes into its own subtree */
+function within(f: string, node: string): boolean {
+  for (let p = f; p; p = folderOf.value[p]?.parent || '') if (p === node) return true
+  return false
+}
+
+/** where a dragged row may land: into a folder or `/`, or next to a row of its own kind (folders stay first) */
+function canDrop(key: string, target: string, where: FileTreeDrop): boolean {
+  const node = nodeOfKey(key)
+  if (!node || nodesOff.value) return false
+  const folderMove = key.startsWith('f:')
+  if (where === 'into') {
+    if (target !== ROOT && !target.startsWith('f:')) return false
+    return !folderMove || !within(target === ROOT ? '' : target.slice(2), node)
+  }
+  if (key.slice(0, 2) !== target.slice(0, 2) || !nodeOfKey(target)) return false
+  return !folderMove || !within(parentOfKey(target), node)
+}
+
+/** a drop or Alt+Up / Alt+Down: the hub's move at that place, then both folders' listings read again */
+async function moveRow(key: string, target: string, where: FileTreeDrop) {
+  const node = nodeOfKey(key)
+  const from = parentOfKey(key)
+  const into = where === 'into'
+  const parent = into ? (target === ROOT ? '' : target.slice(2)) : parentOfKey(target)
+  try {
+    await props.client.moveNode(node, parent, into ? {} : { [where]: nodeOfKey(target) })
+  } catch (e) {
+    say(e instanceof DocTreeError && e.code === 'name_taken' ? 'ws_doctree.folder_menu.name_taken' : 'ws_doctree.err_failed')
+    return
+  }
+  const read = new Set([from, parent])
+  for (const f of [from, parent]) if (f) read.add(folderOf.value[f]?.parent ?? '')
+  await Promise.all([...read].map(loadNodes))
+  if (into) setOpen(parent ? folderKey(parent) : ROOT, true)
+  if (props.active) reveal(props.active)
+}
+
 /* each row kind's menu (UiPointMenu, the WUI's one menu at a point) */
 type MenuKind = 'doc' | 'folder' | 'section' | 'root'
 const NEW_DOC: PointMenuItem = { id: 'new_doc', icon: 'plus', labelKey: 'ws_doctree.folder_menu.new_doc' }
@@ -513,12 +568,16 @@ function docHref(doc: string, item = ''): string {
   return new URL(router.resolve({ path: '/workspace/docs', query: { doc, view: 'doc' }, hash: item ? '#ws-doc-' + item : '' }).href, location.origin).href
 }
 
-/** a short line under the tree (the copy's answer), gone after 3 s */
-async function copied(text: string, okKey: string) {
-  status.value = ''
-  status.value = t(await writeClipboard(text) ? okKey : 'common.copy_failed')
+/** a short line under the tree (the copy's answer, a refused move), gone after 3 s */
+function say(key: string) {
+  status.value = t(key)
   clearTimeout(statusTimer)
   statusTimer = setTimeout(() => { status.value = '' }, 3000)
+}
+
+async function copied(text: string, okKey: string) {
+  status.value = ''
+  say(await writeClipboard(text) ? okKey : 'common.copy_failed')
 }
 
 async function choose(id: string) {

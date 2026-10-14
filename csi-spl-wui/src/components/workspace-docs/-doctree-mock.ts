@@ -3,6 +3,8 @@
    (csi-spl-api internal/hub/wsdoc_tree.go): committed (200 + the doc rev it
    produced), 412 stale_rev, 404 not_found, 422 refused. CI's e2e runs on the
    mock bundle, so this is what the doc and grid views are driven against.
+   A write is kept in the tab's sessionStorage (SPL-1873: a re-order survives
+   a reload, as on the hub); a new tab starts from the seed again.
    The `-` prefix keeps Nuxt from registering this file as a component. */
 import { readDataUrl } from '~/utils/file-preview.mjs'
 import { outlineOf, siblingNumbers } from './-doc-outline'
@@ -23,6 +25,10 @@ type Folder = { id: string, parent: string, name: string }
 const folders = new Map<string, Folder>()
 const docIn = new Map<string, string>()
 const DOC_NODE = 'dn-'
+/* each node's place among its siblings (the hub's lft order): made last, moved by nodes/{node}/move */
+const place = new Map<string, number>()
+let placeSeq = 0
+const placeOf = (node: string) => place.get(node) ?? 0
 
 function uuid(): string {
   seq++
@@ -86,6 +92,7 @@ function create(title: string, description = ''): Doc {
   const d: Doc = { id: uuid(), title, description, rev: 1, root: uuid(), items: new Map(), updated: new Date().toISOString() }
   d.items.set(d.root, { id: d.root, parent: '', ord: 1, title: '', body: '', attrs: {}, rev: 1 })
   docs.set(d.id, d)
+  place.set(DOC_NODE + d.id, ++placeSeq)
   return d
 }
 
@@ -103,8 +110,41 @@ function insert(d: Doc, parent: string, ord: number, title: string, body = ''): 
   return it
 }
 
+/* the tab's copy of the state: every write saves it, the first call of a load reads it back */
+const SAVE_KEY = 'spool.mock.doctree'
+
+function save() {
+  try {
+    globalThis.sessionStorage?.setItem(SAVE_KEY, JSON.stringify({
+      seq, placeSeq, folders: [...folders.values()], docIn: [...docIn], place: [...place],
+      docs: [...docs.values()].map((d) => ({ ...d, items: [...d.items.values()] })),
+    }))
+  } catch { /* storage full or off: the state lasts this load */ }
+}
+
+function restore(): boolean {
+  try {
+    const s = JSON.parse(globalThis.sessionStorage?.getItem(SAVE_KEY) || 'null')
+    if (!s) return false
+    for (const d of s.docs as (Omit<Doc, 'items'> & { items: Item[] })[]) docs.set(d.id, { ...d, items: new Map(d.items.map((it) => [it.id, it])) })
+    for (const f of s.folders as Folder[]) folders.set(f.id, f)
+    for (const [k, v] of s.docIn as [string, string][]) docIn.set(k, v)
+    for (const [k, v] of s.place as [string, number][]) place.set(k, v)
+    seq = s.seq
+    placeSeq = s.placeSeq
+    return true
+  } catch {
+    return false
+  }
+}
+
+let restored = false
 function seed() {
   if (docs.size) return
+  if (!restored) {
+    restored = true
+    if (restore() && docs.size) return
+  }
   const d = create('Handbook')
   const a = insert(d, d.root, 0, 'Introduction', 'Why this document exists: one place for how the team works, read top to bottom or by section.')
   const sc = insert(d, a.id, 0, 'Scope', 'What the handbook covers and what it leaves to other documents.')
@@ -227,17 +267,46 @@ function folderRefused(parent: string): MockReply | null {
   return fail(404, 'not_found', 'no such document or item')
 }
 
-/** one folder's children: the folders, then the documents, each by name */
+/** one folder's children: the folders, then the documents, each in the folder's order */
 function nodes(parent: string): MockReply {
   const bad = folderRefused(parent)
   if (bad) return bad
-  const byName = (a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase())
   const count = (id: string) => [...folders.values()].filter((f) => f.parent === id).length + [...docIn.values()].filter((p) => p === id).length
-  const fs = [...folders.values()].filter((f) => f.parent === parent).sort((a, b) => byName(a.name, b.name))
+  const fs = [...folders.values()].filter((f) => f.parent === parent).sort((a, b) => placeOf(a.id) - placeOf(b.id))
     .map((f) => ({ id: f.id, kind: 'folder', name: f.name, title: '', description: '', doc: '', child_count: count(f.id) }))
-  const ds = [...docs.values()].filter((d) => (docIn.get(d.id) || '') === parent).sort((a, b) => byName(a.title, b.title))
+  const ds = [...docs.values()].filter((d) => (docIn.get(d.id) || '') === parent).sort((a, b) => placeOf(DOC_NODE + a.id) - placeOf(DOC_NODE + b.id))
     .map((d) => ({ id: DOC_NODE + d.id, kind: 'doc', name: '', title: d.title, description: d.description, doc: d.id, child_count: 0 }))
   return { status: 200, body: { parent, nodes: [...fs, ...ds] } }
+}
+
+/** a node's folder ('' = the top), undefined = no such node */
+function parentOfNode(node: string): string | undefined {
+  if (folders.has(node)) return folders.get(node)?.parent
+  if (node.startsWith(DOC_NODE) && docs.has(node.slice(DOC_NODE.length))) return docIn.get(node.slice(DOC_NODE.length)) || ''
+  return undefined
+}
+
+/** nodes/{node}/move (the hub's DocNodeMoveAt): under parent, last or before / after one of its children */
+function moveNode(node: string, b: Body): MockReply {
+  const parent = str(b.parent)
+  const before = str(b.before)
+  const after = str(b.after)
+  if (before && after) return fail(400, 'bad_request', 'before or after, not both')
+  if (parentOfNode(node) === undefined) return GONE()
+  const bad = folderRefused(parent)
+  if (bad) return bad
+  for (let p = parent; p; p = folders.get(p)?.parent || '') if (p === node) return fail(409, 'move_into_own_subtree', 'conflict: move_into_own_subtree')
+  const sib = before || after
+  if (sib && parentOfNode(sib) !== parent) return fail(409, 'not_a_sibling', 'conflict: not_a_sibling')
+  const f = folders.get(node)
+  if (f && f.parent !== parent && [...folders.values()].some((x) => x.parent === parent && x.name.toLowerCase() === f.name.toLowerCase())) return fail(409, 'name_taken', 'conflict: name_taken')
+  if (f) f.parent = parent
+  else docIn.set(node.slice(DOC_NODE.length), parent)
+  const order = [...place.keys()].filter((k) => k !== node && parentOfNode(k) === parent).sort((x, y) => placeOf(x) - placeOf(y))
+  const at = sib ? order.indexOf(sib) + (after ? 1 : 0) : order.length
+  order.splice(at, 0, node)
+  order.forEach((k, i) => place.set(k, i + 1))
+  return { status: 200, body: { id: node, parent, ...(sib ? { before, after } : {}) } }
 }
 
 /** a folder as parent's last child: 409 name_taken for a sibling of the same name */
@@ -250,6 +319,7 @@ function makeFolder(b: Body): MockReply {
   if ([...folders.values()].some((f) => f.parent === parent && f.name.toLowerCase() === name.toLowerCase())) return fail(409, 'name_taken', 'conflict: name_taken')
   const f: Folder = { id: uuid(), parent, name }
   folders.set(f.id, f)
+  place.set(f.id, ++placeSeq)
   return { status: 201, body: { id: f.id, kind: 'folder', name, parent } }
 }
 
@@ -350,10 +420,17 @@ function reads(d: Doc, sub: string, q: URLSearchParams): MockReply {
  */
 export function mockDocTree(method: string, path: string, body: Body = {}): MockReply {
   seed()
+  const r = route(method, path, body)
+  if (method !== 'GET' && r.status < 300) save()
+  return r
+}
+
+function route(method: string, path: string, body: Body): MockReply {
   const url = new URL(path || '/', 'http://mock.invalid')
   const [docId, sub = '', id = '', verb = ''] = url.pathname.split('/').filter(Boolean)
   if (!docId && method === 'GET') return { status: 200, body: { docs: [...docs.values()].map(head) } }
   if (docId === 'nodes' && method === 'GET') return nodes(url.searchParams.get('parent') || '')
+  if (docId === 'nodes' && method === 'POST' && sub && id === 'move') return moveNode(sub, body)
   if (docId === 'folders' && method === 'POST' && !sub) return makeFolder(body)
   if (docId === 'folders' && method === 'PATCH' && sub) return renameFolder(sub, body)
   if (docId === 'folders' && method === 'DELETE' && sub) return removeFolder(sub, url.searchParams.get('recursive') === '1')
@@ -398,5 +475,8 @@ export function mockDocTree(method: string, path: string, body: Body = {}): Mock
     page's doc rev goes stale and its next structural op answers 412 */
 export function mockDocTreeBumpRev(doc: string): number {
   const d = docs.get(doc)
-  return d ? bump(d) : 0
+  if (!d) return 0
+  const rev = bump(d)
+  save()
+  return rev
 }

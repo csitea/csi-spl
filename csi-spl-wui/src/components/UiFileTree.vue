@@ -9,17 +9,25 @@
      right-click, a touch long press, or Shift+F10 / the context-menu key
      on the focused row; the caller draws the menu. Other rows keep the
      browser's own.
+     A row with `drag` set re-orders (SPL-1873, owner t1 1a9a14b6 msg
+     32d5ea87: "drag and drop aka re-order of files within folders"): a mouse
+     drags it, a finger long-presses (the menu opens) and then drags it. A
+     line marks the gap it lands in; over a row with `into` set, its middle
+     marks the row itself (a folder: in it). The caller's `canDrop` says
+     which places it takes; the drop emits `move` (row, target row, before /
+     after / into). Escape cancels. Alt+Up / Alt+Down move the focused row
+     before its previous or after its next sibling.
      Built so the Docs explorer (DocsWorkspaceTree) can share it when the
      two doc sources merge (owner: "later on"). -->
 <template>
-  <ul role="tree" class="ftree" :aria-label="label" data-test="file-tree" @keydown="onKey">
+  <ul role="tree" class="ftree" :class="{ 'ftree--dragging': Boolean(dragKey) }" :aria-label="label" data-test="file-tree" @keydown="onKey">
     <li
       v-for="(row, i) in rows"
       :key="row.key"
       :ref="(el) => setEl(row.key, el)"
       role="treeitem"
       class="ftree__row"
-      :class="{ 'ftree__row--active': row.active }"
+      :class="{ 'ftree__row--active': row.active, 'ftree__row--drag': row.key === dragKey, [`ftree__row--drop-${dropAt?.where}`]: dropAt?.key === row.key }"
       :style="{ '--depth': row.depth }"
       :aria-level="row.depth + 1"
       :aria-expanded="row.expandable ? (row.open ? 'true' : 'false') : undefined"
@@ -29,13 +37,15 @@
       data-test="file-tree-row"
       :data-key="row.key"
       :data-kind="row.kind"
+      :data-drop="dropAt?.key === row.key ? dropAt.where : undefined"
       @focus="focusKey = row.key"
       @click="onRowClick(i)"
       @contextmenu="onContext(i, $event)"
-      @pointerdown="row.menu && press(i, $event)"
-      @pointermove="longPress.move($event)"
-      @pointerup="longPress.up()"
-      @pointercancel="longPress.cancel()"
+      @pointerdown="(row.menu || row.drag) && press(i, $event)"
+      @pointermove="gesture.move($event)"
+      @pointerup="gesture.up($event)"
+      @pointercancel="gesture.cancel()"
+      @touchmove="onTouchMove"
     >
       <span
         class="ftree__chev"
@@ -54,7 +64,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch, type ComponentPublicInstance } from 'vue'
 import type { UiIconName } from '~/utils/uiIcons'
-import { createLongPress } from '~/utils/touch-ui.mjs'
+import { createTreeDrag, dropWhere, siblingAt } from '~/utils/tree-drag.mjs'
 
 export type FileTreeRow = {
   key: string
@@ -68,14 +78,26 @@ export type FileTreeRow = {
   title?: string
   /** the row has a menu: right-click, long press and Shift+F10 emit `menu` */
   menu?: boolean
+  /** the row re-orders: drag, or Alt+Up / Alt+Down */
+  drag?: boolean
+  /** a dragged row may drop into this one (a folder) */
+  into?: boolean
 }
 
-const props = defineProps<{ rows: FileTreeRow[], label: string }>()
-const emit = defineEmits<{ toggle: [key: string], select: [key: string], menu: [key: string, x: number, y: number] }>()
+export type FileTreeDrop = 'before' | 'after' | 'into'
+
+const props = defineProps<{ rows: FileTreeRow[], label: string, canDrop?: (key: string, target: string, where: FileTreeDrop) => boolean }>()
+const emit = defineEmits<{ toggle: [key: string], select: [key: string], menu: [key: string, x: number, y: number], move: [key: string, target: string, where: FileTreeDrop], lift: [key: string] }>()
 
 /* the one row in the tab order: the active row, else the first */
 const focusKey = ref('')
+/* a row moved by the keys: re-ordering the list moves its element, which
+   drops the focus, so it is focused again while the new order lands */
+let refocus = ''
+let refocusTimer: ReturnType<typeof setTimeout> | undefined
 watch(() => props.rows, (rows) => {
+  const j = refocus ? rows.findIndex((r) => r.key === refocus) : -1
+  if (j >= 0) focusAt(j)
   if (rows.some((r) => r.key === focusKey.value)) return
   focusKey.value = (rows.find((r) => r.active) || rows[0])?.key || ''
 }, { immediate: true })
@@ -114,19 +136,97 @@ function onContext(i: number, e: MouseEvent) {
   openMenu(i, e.clientX, e.clientY)
 }
 
-/* a phone has no right-click: a held touch opens the row's menu (touch-ui's timing) */
+/* a phone has no right-click: a held touch opens the row's menu (touch-ui's
+   timing); a drag row then lifts when the finger moves (tree-drag.mjs) */
 let pressAt = -1
-const longPress = createLongPress({ onPress: (x, y) => openMenu(pressAt, x, y) })
+let pressPointer = -1
+const dragKey = ref('')
+const dropAt = ref<{ key: string, where: FileTreeDrop } | null>(null)
+
+function canDrop(target: string, where: FileTreeDrop): boolean {
+  const t = props.rows.find((r) => r.key === target)
+  if (!t || target === dragKey.value || (where === 'into' && !t.into)) return false
+  return props.canDrop ? props.canDrop(dragKey.value, target, where) : where !== 'into'
+}
+
+/** the row under the pointer and the place on it */
+function track(x: number, y: number) {
+  const el = document.elementFromPoint(x, y)?.closest('[data-test=file-tree-row]')
+  const key = el instanceof HTMLElement ? el.dataset.key || '' : ''
+  if (!key || !el || els.get(key) !== el) {
+    dropAt.value = null
+    return
+  }
+  const where = dropWhere(y, el.getBoundingClientRect(), { before: canDrop(key, 'before'), after: canDrop(key, 'after'), into: canDrop(key, 'into') })
+  dropAt.value = where ? { key, where } : null
+}
+
+function endDrag() {
+  dragKey.value = ''
+  dropAt.value = null
+  window.removeEventListener('keydown', onEscape, true)
+}
+
+function onEscape(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  e.preventDefault()
+  e.stopPropagation()
+  gesture.cancel()
+}
+
+const gesture = createTreeDrag({
+  onHold: (x, y) => openMenu(pressAt, x, y),
+  onStart: () => {
+    const row = props.rows[pressAt]
+    if (!row) return
+    dragKey.value = row.key
+    focusKey.value = row.key
+    try { els.get(row.key)?.setPointerCapture(pressPointer) } catch { /* the pointer is gone */ }
+    window.addEventListener('keydown', onEscape, true)
+    emit('lift', row.key)
+  },
+  onMove: track,
+  onDrop: (x, y) => {
+    track(x, y)
+    const key = dragKey.value
+    const at = dropAt.value
+    endDrag()
+    if (key && at) emit('move', key, at.key, at.where)
+  },
+  onCancel: endDrag,
+})
 function press(i: number, e: PointerEvent) {
   pressAt = i
-  longPress.down(e)
+  pressPointer = e.pointerId
+  gesture.down(e, Boolean(props.rows[i]?.drag))
 }
-onBeforeUnmount(() => longPress.cancel())
+/* a held finger drags: the list under it does not scroll */
+function onTouchMove(e: TouchEvent) {
+  if (gesture.holding && e.cancelable) e.preventDefault()
+}
+onBeforeUnmount(() => {
+  gesture.cancel()
+  endDrag()
+  clearTimeout(refocusTimer)
+})
 
-/* the click a finger sends as it lifts from a long press does not also select */
+/* the click a finger sends as it lifts from a long press, or a drag's release, does not also select */
 function onRowClick(i: number) {
-  if (longPress.takeClick()) return
+  if (gesture.takeClick()) return
   select(i)
+}
+
+/** Alt+Up / Alt+Down: before the previous sibling, after the next one */
+function nudge(i: number, dir: -1 | 1) {
+  const row = props.rows[i]
+  const j = siblingAt(props.rows, i, dir)
+  if (!row?.drag || j < 0) return
+  const where = dir < 0 ? 'before' : 'after'
+  if (props.canDrop && !props.canDrop(row.key, props.rows[j].key, where)) return
+  refocus = row.key
+  clearTimeout(refocusTimer)
+  refocusTimer = setTimeout(() => { refocus = '' }, 2000)
+  emit('move', row.key, props.rows[j].key, where)
 }
 
 /** the keyboard's menu: just under the focused row */
@@ -154,6 +254,10 @@ function onKey(e: KeyboardEvent) {
   if (i < 0) return
   const row = props.rows[i]
   let done = true
+  if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    e.preventDefault()
+    return nudge(i, e.key === 'ArrowUp' ? -1 : 1)
+  }
   switch (e.key) {
     case 'ArrowDown': focusAt(i + 1); break
     case 'ArrowUp': focusAt(i - 1); break
@@ -201,6 +305,11 @@ function onKey(e: KeyboardEvent) {
 }
 .ftree__row:hover { background: var(--color-bg-2); }
 .ftree__row--active { background: var(--color-selected); font-weight: 600; }
+.ftree--dragging, .ftree--dragging .ftree__row { cursor: grabbing; }
+.ftree__row--drag { opacity: 0.45; }
+.ftree__row--drop-before { box-shadow: inset 0 2px 0 var(--color-accent); }
+.ftree__row--drop-after { box-shadow: inset 0 -2px 0 var(--color-accent); }
+.ftree__row--drop-into { background: var(--color-selected); box-shadow: inset 0 0 0 1px var(--color-accent); }
 .ftree__chev { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; }
 .ftree__icon { flex: none; color: var(--color-muted); }
 .ftree__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

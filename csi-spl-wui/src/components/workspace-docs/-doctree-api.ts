@@ -93,10 +93,14 @@ function docFolders(call: DocCall) {
   return {
     /** description is the meta description (rdb 0164), '' = none; folder is the folder node it lands in ('' = the top) */
     create: (title: string, description = '', folder = '') => call<{ id: string, root: string, rev: number }>('POST', '', folder ? { title, description, parent: folder } : { title, description }),
-    /** one folder of the Qto tree ('' = the top): its folders, then its documents, each by name */
+    /** one folder of the Qto tree ('' = the top): its folders, then its documents, each in the folder's order */
     nodes: (parent = '') => call<{ parent: string, nodes: DocNode[] }>('GET', `/nodes${parent ? '?parent=' + enc(parent) : ''}`),
     /** a folder as the last child of parent ('' = the top); 409 name_taken when a sibling has the name */
     createFolder: (parent: string, name: string) => call<{ id: string, name: string, parent: string }>('POST', '/folders', parent ? { parent, name } : { name }),
+    /** a folder (with its subtree) or a document node under parent ('' = the top): last, or before / after
+        a child of parent, a re-order in its own folder too (SPL-1873); 409 move_into_own_subtree / name_taken / not_a_sibling */
+    moveNode: (node: string, parent: string, place: { before?: string, after?: string } = {}) =>
+      call<{ id: string, parent: string }>('POST', `/nodes/${enc(node)}/move`, { parent, ...place }),
     /** rename a folder; 409 name_taken when a sibling has the name */
     renameFolder: (folder: string, name: string) => call<{ id: string, name: string }>('PATCH', `/folders/${enc(folder)}`, { name }),
     /** delete a folder; one that holds anything answers 409 folder_not_empty {folders, documents} unless recursive */

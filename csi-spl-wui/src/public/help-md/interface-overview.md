@@ -205,6 +205,11 @@ or Shift+F10) and pick **New document here** or **New folder here** to make one
 at the top level, or do the same on a folder to make one inside it. The page's
 **+** for a new document stays where it is.
 
+To re-order, drag a document or folder onto the gap between two rows of its
+kind (a line marks the spot; folders stay first), or onto a folder or **`/`**
+to move it in; the order is kept. **Escape** cancels; **Alt+Up** / **Alt+Down**
+move the focused row within its folder; on a phone, long-press a row, then drag.
+
 ---
 
 ## 7. Collapsing a Panel

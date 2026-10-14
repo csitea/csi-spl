@@ -68,7 +68,7 @@ rollback_depth() { awk '/^\s*\\if /{d++} /^\s*\\endif/{d--} /^ROLLBACK;$/{print 
 # --- 1. refusals before any call ----------------------------------------------------
 : >"$T/calls.log"
 SNIPPET=do_spl_search_index_probe in_orc ENV=prd >"$T/o" 2>&1 && fail "ENV=prd ran" || pass "ENV=prd refused"
-grep -q "ENV=prd is refused" "$T/o" && pass "the prd refusal says so" || fail "prd refusal text: $(cat "$T/o")"
+grep -q "ENV=prd is opt-in only" "$T/o" && pass "the prd refusal says so" || fail "prd refusal text: $(cat "$T/o")"
 [[ ! -s "$T/calls.log" ]] && pass "prd refusal: no cnf/gcloud/psql call" || fail "prd refusal called: $(cat "$T/calls.log")"
 SNIPPET="$STUBS do_spl_search_index_probe" in_orc ENV=prd PSQL_OUT='@@rolled_back' >"$T/o" 2>&1 &&
   fail "ENV=prd ran with every seam stubbed" || pass "ENV=prd refused with every seam stubbed"

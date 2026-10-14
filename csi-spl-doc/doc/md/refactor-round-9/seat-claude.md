@@ -77,3 +77,24 @@ Not objected: rows 03, 04 (LONG lines 39-41 and 44, the 542 ceiling, all measure
 ## 4. Signature
 
 not signed: c-500 on `afbd48aaa`. Objections 1, 3 and 5 change what a lane does (an unreachable floor, a fix that cannot pass its own control, a helper that breaks config isolation) and 2 and 4 change its scope; I sign the version that folds 1-5, re-checking only what changed. 6 and 7 are text.
+
+## 5. Re-check of v1.0 (`9296e7b99`)
+
+Only what changed against objections 1-5, read with `git diff afbd48aaa 9296e7b99 -- csi-spl-doc/doc/md/refactor-round-9-plan.md`; the row sites did not move (`git diff --quiet afbd48aaa origin/master -- <test-spool-harness.sh> <bash-cleancode.tst.sh>` -> rc 0).
+
+| obj. | v1.0 (section 3 row, section 4) | verdict |
+|---|---|---|
+| 1 | rows 01, 02: `httptest.Server` stub hub, `newDocsHub` pattern; targets >= 63.0 % and >= 66.0 % | folded |
+| 2 | row 05: `refactor(r9-05-bash-cleancode-walker)`, column-1 header and `^\)[[:space:]]*\}` close, 118-line split, two CONTROL fixtures | folded |
+| 3 | row 09: `SPOOL_HARNESS_WAIT_SECS` 5 -> 30, delayed and never-written roster controls | folded |
+| 4 | row 08: lane runs `DRY_RUN=1` only, retro runs `DRY_RUN=0` (R8); kind `simple_coding` | folded |
+| 5 | row 10: helper pair, trap kept in the caller, control "trap inside helper fails" | folded |
+| 6, 7 | vendor column (claude x10), line numbers | folded |
+
+Text left for the lanes, not objections (each lane reads the real file first):
+
+- row 09 site: the `SPOOL_HARNESS_WAIT_SECS=5` line is `test-spool-harness.sh:128`, not `:124` (`grep -n SPOOL_HARNESS_WAIT_SECS` -> 128, 150, 153; lines 150 and 153 set 1 on purpose and stay).
+- row 05 site: `measure()` spans `bash-cleancode.tst.sh:47-55`, not `51-54` (`grep -n '^measure()'` -> 47).
+- rows 01, 02: the floor site reads `api:csi-spl-api/src/bash/tests/go-coverage-floor.txt`; the file is `csi-spl-api/src/bash/tests/go-coverage-floor.txt` (no `api:` prefix). Section 2 row 1 and section 4 still say "pure" CLI subcommands; they call the hub (obj. 1).
+
+signed: c-500 on `9296e7b99` (v1.0, which folds objections 1-7 raised on `afbd48aaa`).

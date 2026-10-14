@@ -969,10 +969,14 @@ const docsRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSecti
 /* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
    reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
-/* spec 074 T008: probe the operator list once the reader's role is known */
+/* spec 074 T008: probe the operator list once the reader's role is known.
+   SPL-1797: wait for /v1/view/me first; a probe sent before it answered gave
+   every member a 403 on the operator route (load() shares its pending read). */
 const operatorPane = useOperatorPane()
-watch(() => [session.state, access.me?.role ?? null] as const, ([st, role]) => {
-  if (st === 'in' || api.mock) void operatorPane.probe(role)
+watch(() => [session.state, access.me?.role ?? null] as const, async ([st, role]) => {
+  if (st !== 'in' && !api.mock) return
+  if (!role) await access.load()
+  void operatorPane.probe(access.me?.role ?? null)
 }, { immediate: true })
 const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id !== 'dm') : RAIL.value))
 // specs/054: the DM tab is hidden while acting; never leave it selected.

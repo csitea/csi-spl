@@ -22,6 +22,23 @@ const ok = (name, pass, ev) => {
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${pass || ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/** Poll read() until want(state) has held, unchanged, for `hold` ms (a Back
+ *  that re-opens a level does so asynchronously), or `max` ms pass; returns the
+ *  last state either way, so the check that follows still decides. */
+async function until(read, want, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let s = await read()
+  while (Date.now() < end) {
+    const k = want(s) ? JSON.stringify(s) : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return s
+    await sleep(100)
+    s = await read()
+  }
+  return s
+}
+const BACK_HOLD = 600
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -93,69 +110,58 @@ try {
 
     await page.goto(`${srv.base}/`, { waitUntil: 'networkidle2' })
     await page.waitForSelector('.spool-shell')
-    await sleep(1000)
-    let s = await state(page)
+    let s = await until(() => state(page), (x) => only(x, 1))
     ok(`${at} the app opens on level 1 only`, only(s, 1), s)
     const small = await page.evaluate(() => [...document.querySelectorAll('.sidebar-tab')]
       .map((e) => e.getBoundingClientRect()).filter((r) => r.width < 44 || r.height < 44).length)
     ok(`${at} every section is a >= 44 px target`, small === 0, small)
 
     await page.click('[data-testid=sidebar-tab-channels]')
-    await sleep(400)
+    await page.waitForSelector('#sidebar-panel-channels .nav-item')
     await page.evaluate(() => document.querySelector('#sidebar-panel-channels .nav-item')?.click())
-    await sleep(1200)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 2) && x.path.includes('/channel/') && x.back === 1)
     ok(`${at} a channel tap pushes level 2`, only(s, 2) && s.path.includes('/channel/') && s.back === 1, s)
 
     await openTopic(page)
-    await sleep(1000)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 3) && x.back === 1)
     ok(`${at} a topic pushes level 3`, only(s, 3) && s.back === 1, s)
 
     await page.goBack()
-    await sleep(1000)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 2), BACK_HOLD)
     ok(`${at} browser Back: 3 -> 2`, only(s, 2), s)
 
     await page.click('.spool-main [data-testid=mobile-back]')
-    await sleep(1000)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 1) && x.tab === 'sidebar-tab-channels', BACK_HOLD)
     ok(`${at} the chevron: 2 -> 1, the section the reader left from`, only(s, 1) && s.tab === 'sidebar-tab-channels', s)
 
     await page.evaluate(() => document.querySelector('#sidebar-panel-channels .nav-item')?.click())
-    await sleep(1000)
+    await until(() => state(page), (x) => only(x, 2))
     await swipeRight(page, width)
-    await sleep(1000)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 1), BACK_HOLD)
     ok(`${at} a swipe right: 2 -> 1`, only(s, 1), s)
 
     /* a #lobby row opens the OTHER topic store (the live pane): the push
        must leave a history entry too (measured missing on 0.9.7) */
     await page.goto(`${srv.base}/lobby`, { waitUntil: 'networkidle2' })
-    await sleep(1200)
+    await until(() => state(page), (x) => only(x, 2) && x.path.startsWith('/lobby'))
     await page.evaluate((id) => {
       const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
       void pinia?._s.get('live-pane')?.open(id)
     }, TASK)
-    await sleep(1200)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 3))
     ok(`${at} a lobby topic (live pane) pushes level 3`, only(s, 3), s)
     await page.goBack()
-    await sleep(1000)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 2) && x.path.startsWith('/lobby'), BACK_HOLD)
     ok(`${at} browser Back from the lobby topic stays on /lobby, level 2`, only(s, 2) && s.path.startsWith('/lobby'), s)
 
     await page.goto(`${srv.base}/channel/lobby?topic=${TASK}`, { waitUntil: 'networkidle2' })
-    await sleep(1500)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 3))
     ok(`${at} a ?topic= deep link opens on level 3`, only(s, 3), s)
     await page.click('.topic [data-testid=mobile-back]')
-    await sleep(1000)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 2) && x.path.startsWith('/channel/lobby'), BACK_HOLD)
     ok(`${at} deep link Back: 3 -> 2 (the channel)`, only(s, 2) && s.path.startsWith('/channel/lobby'), s)
     await page.click('.spool-main [data-testid=mobile-back]')
-    await sleep(1000)
-    s = await state(page)
+    s = await until(() => state(page), (x) => only(x, 1), BACK_HOLD)
     ok(`${at} deep link Back: 2 -> 1`, only(s, 1), s)
     await page.close()
   }
@@ -164,8 +170,7 @@ try {
   const page = await browser.newPage()
   await page.setViewport({ width: 1440, height: 900 })
   await page.goto(`${srv.base}/channel/lobby?topic=${TASK}`, { waitUntil: 'networkidle2' })
-  await sleep(1500)
-  const s = await state(page)
+  const s = await until(() => state(page), (x) => x.side && x.main && x.topic && x.back === 0)
   ok('1440px desktop keeps all three panels and no Back chevron', s.side && s.main && s.topic && s.back === 0, s)
   await page.close()
 } finally {

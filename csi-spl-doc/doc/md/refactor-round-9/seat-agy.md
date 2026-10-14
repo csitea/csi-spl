@@ -31,3 +31,7 @@ Every count was measured on ONE trunk sha, **`e05383148`** (`origin/master`, 202
 ## 3. Left out
 
 The plan's section 8, each with the command that measured it.
+
+## 4. Signature
+
+`signed: a-497 on 9296e7b99`

@@ -1,4 +1,4 @@
-// The Docs section (owner, prd t1 9f0d751c): the rail's book opens /docs,
+// The Docs viewer (owner, prd t1 9f0d751c): a doc's /docs/<repo path> shows
 // an explorer tree of the repo's folders on the left (doc/md, doc/help,
 // specs), the doc rendered on the right in the current theme; a relative
 // .md link opens the target doc at its stable /docs/<repo path>; an unknown
@@ -10,7 +10,12 @@
 // beside the channel the reader came from closes. The sidebar keeps its
 // icon rail only. Each pane scrolls on its own. A phone stays one pane.
 //
-// Control: before the section there is no [data-testid=docs-open].
+// SPL-1882 (owner HUM-10, t1 2a2a4694: "remove the simple docs section from
+// the WUI and leave only the qto docs"): no rail, strip, palette or login
+// entry opens /docs any more; /docs alone lands on /workspace/docs, and a
+// doc's own /docs/<path> (a chat link) still reads here. Control: on
+// 278c5f53d the rail carries [data-testid=docs-open] and /docs stays /docs,
+// so the SPL-1882 checks FAIL.
 // Before the two-pane change the channel list and the topic panel both
 // stay beside Docs, so the 1440 px pane checks FAIL.
 //
@@ -199,14 +204,14 @@ try {
   const p = await browser.newPage()
   await p.setViewport({ width: 1280, height: 800 })
   await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  const open = await p.waitForSelector('[data-testid=docs-open]', { visible: true, timeout: 15000 }).catch(() => null)
-  ok('the left rail carries a Docs entry', Boolean(open))
-  if (open) {
-    ok('it is named for assistive tech', (await open.evaluate((el) => el.getAttribute('aria-label'))) === 'Docs')
-    await open.click()
-    await p.waitForFunction(() => location.pathname === '/docs', { timeout: 10000 }).catch(() => {})
-    ok('one click lands on /docs', new URL(p.url()).pathname === '/docs', p.url())
-    ok('/docs renders the repo README', await page(p, 'README.md'))
+  await p.waitForSelector('[data-testid=qto-open]', { visible: true, timeout: 15000 }).catch(() => null)
+  ok('SPL-1882: the rail carries Docs (Qto) and no Docs entry', Boolean(await p.$('[data-testid=qto-open]')) && !(await p.$('[data-testid=docs-open]')) && !(await p.$('.sidebar-rail [href="/docs"]')))
+  await p.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForFunction(() => location.pathname === '/workspace/docs', { timeout: 10000 }).catch(() => {})
+  ok('SPL-1882: /docs lands on Docs (Qto), /workspace/docs', new URL(p.url()).pathname === '/workspace/docs', p.url())
+  await p.goto(server.base + '/docs/README.md', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  {
+    ok('/docs/README.md renders the repo README', await page(p, 'README.md'))
     ok('the doc path is shown', (await p.$eval('[data-test=docs-path]', (e) => e.textContent.trim())) === 'README.md')
     await p.waitForSelector('[data-test=docs-tree] [data-test=docs-dir]', { timeout: 10000 }).catch(() => null)
     ok('the tree opens on csi-spl-doc', (await dirs(p)).includes('csi-spl-doc/doc'))
@@ -280,12 +285,13 @@ try {
     const third = await d.waitForSelector('[data-test=topic-section]', { visible: true, timeout: 8000 }).catch(() => null)
     ok(`${theme}: setup - a right pane is open on the channel view`, armed === 'ok' && Boolean(third), armed)
 
-    await d.click('[data-testid=docs-open]')
-    await d.waitForFunction(() => location.pathname === '/docs', { timeout: 10000 }).catch(() => {})
+    /* SPL-1882: a doc opens from a link in the app (no rail entry any more) */
+    await d.evaluate(() => document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router?.push('/docs/README.md'))
+    await d.waitForFunction(() => location.pathname === '/docs/README.md', { timeout: 10000 }).catch(() => {})
     await d.waitForSelector('[data-test=docs-content] [data-testid=md-block][data-rendered=true]', { timeout: 15000 }).catch(() => null)
     await d.waitForSelector('[data-test=docs-tree] [data-test=docs-file]', { timeout: 10000 }).catch(() => null)
     await sleep(500)
-    ok(`${theme}: Docs opens /docs`, new URL(d.url()).pathname === '/docs', d.url())
+    ok(`${theme}: the link opens /docs/README.md`, new URL(d.url()).pathname === '/docs/README.md', d.url())
     const cols = await panes(d)
     const names = cols.map((c) => c.name)
     const tree = cols.find((c) => c.name === 'docs-tree')
@@ -320,33 +326,14 @@ try {
   const m = await browser.newPage()
   await m.setViewport({ width: 390, height: 740, isMobile: true, hasTouch: true })
   await m.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  const mo = await m.waitForSelector('[data-testid=docs-open]', { timeout: 15000 }).catch(() => null)
-  ok('the phone strip carries Docs', Boolean(mo))
-  /* the phone strip rolls endlessly (CLE-77886): swipe until a Docs link is in view, tap it */
-  const spot = async () => m.evaluate(() => {
-    const rail = document.querySelector('[data-testid=sidebar-rail]')
-    const rb = rail.getBoundingClientRect()
-    for (const h of document.querySelectorAll('.sidebar-rail__docs')) {
-      const r = h.getBoundingClientRect()
-      if (r.width && r.left >= Math.max(rb.left, 0) && r.right <= Math.min(rb.right, window.innerWidth)) {
-        return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }
-      }
-    }
-    return null
-  })
-  let at = await spot()
-  for (let i = 0; !at && i < 60; i++) {
-    await m.evaluate(() => { document.querySelector('[data-testid=sidebar-rail]').scrollLeft += 40 })
-    await new Promise((r) => setTimeout(r, 50))
-    at = await spot()
-  }
-  ok('a swipe brings Docs into view, a 44 px target', Boolean(at && at.w >= 44 && at.h >= 44), at)
-  if (at) await m.touchscreen.tap(at.x, at.y)
-  await m.waitForFunction(() => location.pathname === '/docs', { timeout: 10000 }).catch(() => {})
-  ok('one tap lands on /docs', new URL(m.url()).pathname === '/docs', m.url())
+  await m.waitForSelector('[data-testid=sidebar-rail]', { timeout: 15000 }).catch(() => null)
+  ok('SPL-1882: the phone strip carries no Docs entry', !(await m.$('[data-testid=docs-open]')) && !(await m.$('.sidebar-rail__docs')))
+  await m.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await m.waitForFunction(() => location.pathname === '/workspace/docs', { timeout: 10000 }).catch(() => {})
+  ok('SPL-1882: /docs on a phone lands on /workspace/docs', new URL(m.url()).pathname === '/workspace/docs', m.url())
+  await m.goto(server.base + '/docs/README.md', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   ok('the README renders on a phone', await page(m, 'README.md'))
   ok('phone: still one pane (the tree stacks, it is not a column beside the doc)', (await phoneStack(m)).ok, await phoneStack(m))
-  ok('/docs on a phone shows the folders', await m.$eval('[data-test=docs-tree]', (e) => getComputedStyle(e).display !== 'none'))
   await m.goto(server.base + '/docs/' + SPEC, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   ok('a doc renders on a phone', await page(m, SPEC))
   ok('the tree is folded under a doc', await m.$eval('[data-test=docs-tree]', (e) => getComputedStyle(e).display === 'none'))
@@ -370,12 +357,12 @@ try {
   const api = { mode: 'ok', hits: 0, spec: existsSync(OPENAPI) ? readFileSync(OPENAPI, 'utf8') : '' }
   ok('the hub\'s embedded OpenAPI document is the fixture', api.spec.includes('"openapi"'), OPENAPI)
   const a = await apiPage(browser, csp, api)
-  const resp = await a.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const resp = await a.goto(server.base + '/docs/README.md', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await a.waitForSelector('[data-test=docs-tree] [data-test=docs-api-row]', { timeout: 15000 }).catch(() => null)
   const first = await a.evaluate(() => document.querySelector('[data-test=docs-tree] a, [data-test=docs-tree] button')?.getAttribute('data-test') || '')
   ok('the API Reference row is the first row of the Docs tree', first === 'docs-api-row', first)
   ok('it is named API Reference', (await a.$eval('[data-test=docs-api-row]', (e) => e.textContent.trim()).catch(() => '')) === 'API Reference')
-  ok('CONTROL /docs makes no spec fetch (the viewer is lazy)', api.hits === 0, api.hits)
+  ok('CONTROL /docs/README.md makes no spec fetch (the viewer is lazy)', api.hits === 0, api.hits)
   const row = await a.$('[data-test=docs-api-row]')
   if (row) await row.click()
   await a.waitForFunction(() => location.pathname === '/docs/api', { timeout: 10000 }).catch(() => {})
@@ -449,15 +436,15 @@ try {
   ok('signed-out: the copy does not hold the feature doc', !/^# csi-spl|# Spool feature/m.test(copy), copy.slice(0, 80))
 
   /* Owner HUM-10 (t1 41881574, da8869e6 + de4f3d4e): README.md and DEPLOY.md
-     are public, and the public main page (/login) links the docs. Signed out:
-     /login -> 'Docs' -> /docs shows README (DOCS_HOME), the tree lists both,
-     each opens. Control: on master README is not public, so /docs goes back
-     to /login and there is no login-docs link: these FAIL. */
+     are public: signed out, /docs/README.md shows README, the tree lists
+     both, each opens. SPL-1882: the public main page (/login) no longer
+     links /docs. Control: on 278c5f53d the login-docs and login-link-docs
+     links are there, so the SPL-1882 check FAILS. */
   await o.goto(server.base + '/login', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  const docsLink = await o.waitForSelector('[data-test=login-docs]', { visible: true, timeout: 10000 }).catch(() => null)
-  ok('signed-out: the main page shows a Docs link', Boolean(docsLink))
-  if (docsLink) await docsLink.click()
-  ok('signed-out: the Docs link opens the docs, README first', await page(o, 'README.md') && new URL(o.url()).pathname.endsWith('/docs') && (await h1(o)) === 'spool-hub', o.url())
+  await o.waitForSelector('[data-test=login-help]', { visible: true, timeout: 10000 }).catch(() => null)
+  ok('SPL-1882: signed-out: the main page links no Docs', Boolean(await o.$('[data-test=login-help]')) && !(await o.$('[data-test=login-docs]')) && !(await o.$('[data-test=login-link-docs]')))
+  await o.goto(server.base + '/docs/README.md', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok('signed-out: /docs/README.md reads, README first', await page(o, 'README.md') && (await h1(o)) === 'spool-hub', o.url())
   const listed = await o.$$eval('[data-test=docs-tree] a', (as) => as.map((a) => a.getAttribute('href') || '')).catch(() => [])
   ok('signed-out: the docs list shows README and DEPLOY', ['README.md', 'DEPLOY.md'].every((d) => listed.some((h) => h.endsWith('/docs/' + d))), listed)
   await shot(o, 'signed-out-login-docs')

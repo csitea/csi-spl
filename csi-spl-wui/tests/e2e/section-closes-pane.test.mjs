@@ -3,7 +3,7 @@
 // Runs against the lde mock (no hub).
 //
 // Desktop 1440x900, a topic open on /channel/lobby, then a forward (non-Back)
-// navigation to each of People, Search (/search?q=x), Docs and Boxes:
+// navigation to each of People, Search (/search?q=x), a doc and Boxes:
 //   1  the channel topic pane closes on each
 //   2  the live pane closes the same way
 //   3  the operator console, opened from its rail button, closes too (spec Q3)
@@ -27,7 +27,8 @@ import { OPERATOR_MOCK_KEY } from '../../src/utils/operator-console.mjs'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
 const TASK_A = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-const SECTIONS = ['/people', '/search?q=x', '/docs', '/boxes']
+/* SPL-1882: /docs alone is Docs (Qto) now; a doc page is what a link opens */
+const SECTIONS = ['/people', '/search?q=x', '/docs/README.md', '/boxes']
 
 if (OUT) mkdirSync(OUT, { recursive: true })
 

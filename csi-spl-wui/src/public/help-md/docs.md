@@ -1,9 +1,16 @@
 # Docs
 
-The **Docs** icon sits under **Help** on the left rail. It opens the
+**Docs (Qto)** (`/workspace/docs`, the page icon under **Help** on the left
+rail) is the one docs section. Its **Repository** branch holds the
 repository's markdown — readme files, specifications and the other `.md`
-pages — rendered in the same theme as the rest of the app. You have to be
-signed in. If this server has not published the docs yet, the page says so.
+pages. The rail has no separate **Docs** icon any more, and `/docs` on its
+own opens Docs (Qto).
+
+This page describes the document page a link opens: a document's own
+address, `/docs/` plus its path in the repository (a message, an issue or a
+search result links there). It renders the document in the same theme as the
+rest of the app. If this server has not published the docs yet, the page says
+so.
 
 ## Two panes
 
@@ -13,11 +20,10 @@ On a wide screen Docs is two panes, and each one scrolls on its own:
   what is inside it.
 - **Right**: the document.
 
-Opening Docs keeps the icon rail and closes a topic that was open beside a
-channel, so the document has the width.
+Opening a document keeps the icon rail and closes a topic that was open
+beside a channel, so the document has the width.
 
-`/docs` opens the repository readme. A document's own address is `/docs/`
-plus its path in the repository, so a link to it stays stable. A link inside
+A document's address stays stable, so a link to it keeps working. A link inside
 a document that points at another markdown file opens that file here. A link
 that points at some other file opens it in the public repository.
 
@@ -26,4 +32,4 @@ that points at some other file opens it in the public repository.
 One column. **Folders** shows or hides the explorer above the document.
 **Back** (the chevron, a swipe right or the browser's Back) leaves Docs.
 
-<!-- version: 1.0.0 · updated: 2026-10-04 -->
+<!-- version: 1.1.0 · updated: 2026-10-14 -->

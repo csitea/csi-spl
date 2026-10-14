@@ -143,8 +143,15 @@
 /* the catch-all route, set here rather than by a [...path].vue file name:
    that name makes a "_...path_" chunk, and a static server that refuses
    ".." in a request path (the e2e gate's serve-generated.mjs) then fails
-   the chunk and Nuxt reloads the page in a loop */
+   the chunk and Nuxt reloads the page in a loop.
+   SPL-1882 (owner HUM-10, t1 2a2a4694): Docs (Qto) is the one docs section.
+   /docs alone goes there (/<lang>/docs to /<lang>/workspace/docs); a doc's
+   own address, /docs/<path>, still reads here, as chat links name it.
+   The redirect is here, not a route middleware: that would sit in the
+   route record, the entry chunk (+97 B gzip measured), and initial JS may
+   not rise. */
 definePageMeta({ path: '/docs/:path(.*)*' })
+import { docsHomeTarget } from '~/utils/docs-home.mjs'
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
 import DocsWorkspaceDoc from '~/components/DocsWorkspaceDoc.vue'
 import DocsWorkspaceTree from '~/components/DocsWorkspaceTree.vue'
@@ -186,6 +193,10 @@ const docPath = computed(() => {
   return s || DOCS_HOME
 })
 const route = (p: string) => localePath('/docs/' + p)
+/* SPL-1882: /docs alone is Docs (Qto); nothing below loads for it. A watch,
+   as the page is reused when a doc's link leads to /docs alone */
+const home = docsHomeTarget(current.path)
+watch(() => current.path, (p) => { if (docsHomeTarget(p)) void navigateTo(docsHomeTarget(p), { replace: true }) }, { immediate: true })
 const pub = useRuntimeConfig().public
 /* the doc on the repository (cnf repo_web_url + repo_help_path's branch) */
 const repoUrl = computed(() => docsRepoUrl(docPath.value, pub.repoWebUrl, pub.repoHelpPath))
@@ -375,8 +386,8 @@ function onResolved(md: string) {
   onSaved(md)
 }
 
-watch(docPath, () => { if (import.meta.client) void load() })
-onMounted(() => { void loadTree(); void load() })
+watch(docPath, () => { if (import.meta.client && !home) void load() })
+onMounted(() => { if (!home) { void loadTree(); void load() } })
 /* t1 c13e8023 (owner): a topic panel open beside the channel the reader
    came from closes when Docs opens. No third pane, whichever store holds it. */
 const topic = useTopicStore()

@@ -62,18 +62,9 @@
       >
         <UiIcon name="help" :size="20" />
       </NuxtLink>
-      <!-- Docs (owner, prd t1 9f0d751c): the repo's markdown, under Help -->
-      <NuxtLink
-        class="sidebar-rail__docs"
-        data-testid="docs-open"
-        :to="localePath('/docs')"
-        :title="t('docs.title')"
-        :aria-label="t('docs.title')"
-      >
-        <UiIcon name="book-open" :size="20" />
-      </NuxtLink>
       <!-- Docs (Qto) (owner HUM-10, t1 4296200d): the workspace documents of
-           spec 113 (/workspace/docs), for a signed-in member -->
+           spec 113 (/workspace/docs), for a signed-in member. SPL-1882 (t1
+           2a2a4694): the one docs entry; the simple Docs (/docs) is gone -->
       <NuxtLink
         v-if="qtoShown"
         class="sidebar-rail__qto"
@@ -136,9 +127,6 @@
           </button>
           <NuxtLink class="sidebar-rail__help" tabindex="-1" :to="localePath('/help')">
             <UiIcon name="help" :size="20" />
-          </NuxtLink>
-          <NuxtLink class="sidebar-rail__docs" tabindex="-1" :to="localePath('/docs')">
-            <UiIcon name="book-open" :size="20" />
           </NuxtLink>
           <NuxtLink v-if="qtoShown" class="sidebar-rail__qto" tabindex="-1" :to="localePath('/workspace/docs')">
             <UiIcon name="file-text" :size="20" />
@@ -1737,7 +1725,6 @@ async function onCreate() {
    screen); Help takes the push, the gear sits under it */
 .sidebar-rail__help { margin-block-start: auto; }
 .sidebar-rail__help,
-.sidebar-rail__docs,
 .sidebar-rail__qto,
 .sidebar-rail__settings {
   display: grid;
@@ -1750,15 +1737,12 @@ async function onCreate() {
   container-type: size;
 }
 .sidebar-rail__help:hover,
-.sidebar-rail__docs:hover,
 .sidebar-rail__qto:hover,
 .sidebar-rail__settings:hover { background: var(--color-surface-hover); color: var(--color-fg); }
 .sidebar-rail__help.router-link-active,
-.sidebar-rail__docs.router-link-active,
 .sidebar-rail__qto.router-link-active,
 .sidebar-rail__settings.router-link-active { color: var(--color-fg); }
 .sidebar-rail__help :deep(svg),
-.sidebar-rail__docs :deep(svg),
 .sidebar-rail__qto :deep(svg),
 .sidebar-rail__settings :deep(svg) {
   width: min(22px, 70cqi);
@@ -2194,7 +2178,6 @@ async function onCreate() {
   .sidebar-tab[aria-selected="true"],
   .sidebar-tab[data-on="true"],
   .sidebar-rail__help.router-link-active,
-  .sidebar-rail__docs.router-link-active,
   .sidebar-rail__qto.router-link-active,
   .sidebar-rail__settings.router-link-active {
     margin: 1px;
@@ -2224,12 +2207,10 @@ async function onCreate() {
   .sidebar-tab--movable { touch-action: pan-x; }
   /* the phone strip: the gear ends the row, a 44 px target */
   .sidebar-rail__help,
-  .sidebar-rail__docs,
   .sidebar-rail__qto,
   .sidebar-rail__settings { margin-block-start: 0; flex: 0 0 auto; width: 52px; min-height: 52px; aspect-ratio: auto; container-type: normal; }
   .sidebar-rail__help { margin-inline-start: auto; }
   .sidebar-rail__help :deep(svg),
-  .sidebar-rail__docs :deep(svg),
   .sidebar-rail__qto :deep(svg),
   .sidebar-rail__settings :deep(svg) { width: 22px; height: 22px; }
   .sidebar.sidebar--rail { width: 100%; max-width: 100%; }

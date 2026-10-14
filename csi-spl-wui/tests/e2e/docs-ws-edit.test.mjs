@@ -126,7 +126,8 @@ try {
     await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
     await p.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
     await catchDownloads(p)
-    await p.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    /* SPL-1882: /docs alone is Docs (Qto); the viewer's tree is on a doc page */
+    await p.goto(server.base + '/docs/README.md', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const section = await p.waitForSelector('[data-test=ws-docs][data-state=ready]', { timeout: 15000 }).catch(() => null)
     ok(`${theme}: the explorer has a Workspace docs section`, Boolean(section))
     ok(`${theme}: it sits above the repo tree, in the left pane`, await p.$eval('[data-test=docs-tree]', (t) => {
@@ -210,9 +211,9 @@ try {
     await p.waitForSelector('[data-testid=ws-doc-delete-confirm-confirm]', { visible: true, timeout: 5000 })
     ok(`${theme}: Delete asks first, naming the doc`, (await p.$eval('[data-testid=ws-doc-delete-confirm-body]', (e) => e.textContent)).includes('notes/today.md'))
     await p.click('[data-testid=ws-doc-delete-confirm-confirm]')
-    await p.waitForFunction(() => location.pathname === '/docs', { timeout: 8000 }).catch(() => {})
+    await p.waitForFunction(() => location.pathname === '/docs/README.md', { timeout: 8000 }).catch(() => {})
     await sleep(300)
-    ok(`${theme}: confirmed, it is gone from the tree`, new URL(p.url()).pathname === '/docs' && !(await wsFiles(p)).includes('notes/today.md'), await wsFiles(p))
+    ok(`${theme}: confirmed, it is gone from the tree`, new URL(p.url()).pathname === '/docs/README.md' && !(await wsFiles(p)).includes('notes/today.md'), await wsFiles(p))
 
     /* non-writers */
     await go(p, '/docs/ws/' + WELCOME)
@@ -242,8 +243,10 @@ try {
     await m.setViewport({ width: 390, height: 740, isMobile: true, hasTouch: true })
     await m.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
     await m.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
-    await m.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-    ok(`phone ${theme}: the folded-open tree shows Workspace docs`, Boolean(await m.waitForSelector('[data-test=ws-docs][data-state=ready]', { visible: true, timeout: 15000 }).catch(() => null)))
+    await m.goto(server.base + '/docs/README.md', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    /* SPL-1882: a doc page folds the tree; its Folders button unfolds it */
+    await m.waitForSelector('[data-test=docs-tree-toggle]', { visible: true, timeout: 15000 }).then((b) => b.tap()).catch(() => {})
+    ok(`phone ${theme}: the unfolded tree shows Workspace docs`, Boolean(await m.waitForSelector('[data-test=ws-docs][data-state=ready]', { visible: true, timeout: 15000 }).catch(() => null)))
     const mb = await newDocButton(m)
     ok(`phone ${theme}: New doc is labelled, in the first screen, a 44 px target`, Boolean(mb && mb.text === 'New doc' && mb.bottom <= 740 && mb.right <= 390 && mb.h >= 44), mb)
     const f = await m.$(`[data-test=ws-docs-file][data-path="${WELCOME}"]`)

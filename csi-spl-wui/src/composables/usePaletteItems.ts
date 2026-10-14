@@ -74,7 +74,6 @@ function sectionRows(t: Translate, opts: { acting: boolean, tenantSettings: bool
     rows.push(row)
   }
   rows.push({ id: 'page:help', group: 'sections', label: t('help.title'), icon: 'help', to: '/help' })
-  rows.push({ id: 'page:docs', group: 'sections', label: t('docs.title'), icon: 'book-open', to: '/docs' })
   if (opts.tenantSettings) {
     rows.push({ id: 'page:tenant-settings', group: 'sections', label: t('tenant_settings.title'), icon: 'settings', to: '/tenant-settings' })
   }

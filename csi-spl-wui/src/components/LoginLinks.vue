@@ -9,9 +9,6 @@
         <a class="ll__link" :href="localePath('/blog')" data-test="login-link-blog">{{ t('auth.login.links.blog') }}</a>
       </li>
       <li class="ll__item">
-        <a class="ll__link" :href="localePath('/docs')" data-test="login-link-docs">{{ t('auth.login.links.docs') }}</a>
-      </li>
-      <li class="ll__item">
         <a class="ll__link" :href="localePath('/public-calendar')" data-test="login-link-calendar">{{ t('auth.login.links.calendar') }}</a>
       </li>
       <li class="ll__item">

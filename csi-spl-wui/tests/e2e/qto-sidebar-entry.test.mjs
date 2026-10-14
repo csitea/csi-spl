@@ -616,7 +616,9 @@ try {
   ok('the rail carries a Docs (Qto) entry', Boolean(open))
   if (open) {
     ok('it is named for assistive tech', (await open.evaluate((el) => el.getAttribute('aria-label'))) === 'Docs (Qto)')
-    ok('it sits right after Docs', await p.evaluate(() => document.querySelector('[data-testid=docs-open]')?.nextElementSibling?.getAttribute('data-testid') === 'qto-open'))
+    /* SPL-1882: the one docs entry, right after Help; no Docs (/docs) link.
+       Control: on 278c5f53d Help is followed by docs-open: this FAILS. */
+    ok('SPL-1882: it sits right after Help, the rail has no Docs entry', await p.evaluate(() => document.querySelector('[data-testid=help-open]')?.nextElementSibling?.getAttribute('data-testid') === 'qto-open' && !document.querySelector('[data-testid=docs-open]')))
     await open.click()
     await p.waitForFunction(() => location.pathname === '/workspace/docs', { timeout: STEP }).catch(() => {})
     ok('one click lands on /workspace/docs', new URL(p.url()).pathname === '/workspace/docs', p.url())
@@ -690,8 +692,9 @@ try {
   await o.setViewport({ width: 1280, height: 800 })
   await o.evaluateOnNewDocument((key) => { try { localStorage.setItem(key, 'true') } catch { /* no storage: the checks below fail */ } }, MOCK_SIGNED_OUT_KEY)
   await o.goto(server.base + '/docs/' + PUBLIC_DOC, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  const docs = await o.waitForSelector('[data-testid=docs-open]', { timeout: STEP }).catch(() => null)
-  ok('signed out: CONTROL the rail is drawn (Docs is there)', Boolean(docs))
+  /* SPL-1882: Help proves the rail is drawn (the Docs icon is gone) */
+  const help = await o.waitForSelector('[data-testid=help-open]', { timeout: STEP }).catch(() => null)
+  ok('signed out: CONTROL the rail is drawn (Help is there)', Boolean(help))
   ok('signed out: no Docs (Qto) entry', !(await o.$('[data-testid=qto-open]')) && !(await o.$('.sidebar-rail__qto')))
   await o.close()
 } finally {

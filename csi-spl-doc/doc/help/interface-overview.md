@@ -95,7 +95,7 @@ and it is the one icon you cannot drag.
 > step. Archive stays last either way. (On a phone the rail does not drag —
 > reorder it from Settings.)
 
-### 3.2 Help, Docs and Workspace settings
+### 3.2 Help, Docs (Qto) and Workspace settings
 
 Three links sit under the icons. They are not sections of the list above.
 
@@ -104,8 +104,10 @@ Three links sit under the icons. They are not sections of the list above.
   scrolling on its own. The icon rail stays, and a topic that was open
   beside a channel closes. On a phone you get one pane; the index page
   lists every page.
-- **Docs** (the book, under Help) opens the repository's markdown the same
-  way: folders on the left, the document on the right. See [Docs](./docs.md).
+- **Docs (Qto)** (the page, under Help) opens the workspace documents and,
+  in its **Repository** branch, the repository's markdown: the file tree on
+  the left, the document on the right. It is the one docs section; `/docs`
+  opens it too. See [Docs](./docs.md).
 - **Workspace settings** (the gear) is there for an admin. See
   [User Settings](./user-settings.md).
 
@@ -177,7 +179,7 @@ channels does not force the same width on Issues:
 | **Channels** | every channel (`/channel/…`) and every direct message (`/dm/…`) |
 | **Issues** | the issue list and an issue (`/issues…`) |
 | **Help** | these pages (`/help…`) |
-| **Docs** | the repository docs (`/docs…`) |
+| **Docs** | a repository document (`/docs/…`) |
 | **Everything else** | Flow, People, Boxes and the other sections share one set |
 
 Dragging a divider changes only the view you are in. A view you never resized
@@ -254,6 +256,6 @@ Spool adapts gracefully to different screen sizes:
 
 To master composing messages, smart routing, and commanding agents, see [Top Omnibox & Smart Routing](./omnibox-and-navigation.md).
 
-<!-- version: 1.2.0 · updated: 2026-10-05 -->
+<!-- version: 1.3.0 · updated: 2026-10-14 -->
 
 <!-- public: true -->

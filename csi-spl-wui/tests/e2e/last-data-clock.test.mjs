@@ -23,7 +23,7 @@ const PAGES = [
   ['channels', '/channel/lobby'],
   ['topic', `/t/${TOPIC}`],
   ['thread', `/channel/lobby?topic=${TOPIC}`],
-  ['docs', '/docs'],
+  ['docs', '/docs/README.md'],
   ['help', '/help'],
   ['settings', '/settings'],
 ]
@@ -249,7 +249,7 @@ try {
         if (row) await row.screenshot({ path: `${OUT}/row-lobby-${vp.name}-${theme}.png` })
       }
       await p.setViewport({ width: 1440, height: 900 })
-      for (const path of ['/help', '/settings', '/docs']) {
+      for (const path of ['/help', '/settings', '/docs/README.md']) {
         await openPage(p, server.base, path)
         await p.evaluate((id) => document.documentElement.setAttribute('data-theme', id), theme)
         const slug = path.replace(/\//g, '') || 'home'

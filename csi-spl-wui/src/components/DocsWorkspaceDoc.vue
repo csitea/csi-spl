@@ -84,7 +84,7 @@
 
 <script setup lang="ts">
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
-import { rewriteDocsLinks } from '~/utils/docs.mjs'
+import { DOCS_HOME, rewriteDocsLinks } from '~/utils/docs.mjs'
 import { canWriteDocs, newDocBody, wsDocsRoute } from '~/utils/ws-docs.mjs'
 import { useWorkspaceDocs } from '~/composables/useWorkspaceDocs'
 import { useAccessStore } from '~/stores/access'
@@ -163,8 +163,9 @@ function cancel() {
   error.value = ''
   mode.value = 'view'
   dropEditQuery()
-  /* a new doc that was never saved: nothing to show, back to Docs */
-  if (state.value === 'missing') void router.push(localePath('/docs'))
+  /* a new doc that was never saved: nothing to show, back to Docs (SPL-1882:
+     its README, as /docs alone is Docs (Qto) now) */
+  if (state.value === 'missing') void router.push(localePath('/docs/' + DOCS_HOME))
 }
 
 async function del() {
@@ -175,7 +176,7 @@ async function del() {
     await docs.remove(props.path)
     confirmOpen.value = false
     void docs.loadTree()
-    await router.push(localePath('/docs'))
+    await router.push(localePath('/docs/' + DOCS_HOME))
   } catch (e) {
     error.value = (e as { status?: number }).status === 403 ? t('docs.ws.forbidden') : t('docs.ws.delete_failed')
   } finally {

@@ -95,10 +95,13 @@ describe('the mock tenant', () => {
 
 describe('wiring', () => {
   const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8')
-  it('the rail links Docs (desktop + the phone strip copy)', () => {
+  it('SPL-1882: no surface links /docs any more; Docs (Qto) is the one entry', () => {
     const s = read('src/components/ChannelSidebar.vue')
-    assert.match(s, /class="sidebar-rail__docs"\s+data-testid="docs-open"/)
-    assert.match(s, /class="sidebar-rail__docs" tabindex="-1" :to="localePath\('\/docs'\)"/)
+    assert.equal(/sidebar-rail__docs|docs-open|localePath\('\/docs'\)/.test(s), false)
+    assert.match(s, /data-testid="qto-open"/)
+    assert.equal(/'page:docs'|to: '\/docs'/.test(read('src/composables/usePaletteItems.ts')), false)
+    assert.equal(/localePath\('\/docs'\)/.test(read('src/components/LoginLinks.vue') + read('src/pages/login.vue')), false)
+    assert.match(read('src/pages/docs.vue'), /watch\(\(\) => current\.path, \(p\) => \{ if \(docsHomeTarget\(p\)\) void navigateTo\(docsHomeTarget\(p\), \{ replace: true \}\) \}, \{ immediate: true \}\)/)
   })
   it('every locale names the section', () => {
     for (const loc of ['en', 'fi', 'he', 'ru', 'uk', 'bg']) {

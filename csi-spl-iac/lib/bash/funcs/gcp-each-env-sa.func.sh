@@ -1,4 +1,7 @@
 #!/bin/bash
+# shellcheck source=gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/gcp-temp-sdk-config.func.sh"
+
 #------------------------------------------------------------------------------
 # @description Run a callback once per env of <ORG>-<APP>, each time as that
 # @description env's project SA (owner rule 2026-09-19: the per-env service
@@ -19,10 +22,9 @@ do_gcp_each_env_sa() {
   [[ -n "${callback}" ]] && declare -F "${callback}" >/dev/null \
     || { do_log "FATAL do_gcp_each_env_sa: give a callback function, got '${callback}'"; return 1; }
 
-  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
-  _spl_sdk_dir="$(mktemp -d)"
-  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
-  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
+  local _spl_sdk_saved _spl_sdk_dir
+  spl_gcp_temp_sdk_config || return 1
+  trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
 
   do_resolve_oap ORG
   do_resolve_oap APP

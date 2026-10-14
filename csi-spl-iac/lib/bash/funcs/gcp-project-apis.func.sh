@@ -1,4 +1,7 @@
 #!/bin/bash
+# shellcheck source=gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/gcp-temp-sdk-config.func.sh"
+
 #------------------------------------------------------------------------------
 # @description Enable or disable a list of GCP APIs on <ORG>-<APP>-<ENV>: the
 # @description one body behind do_gcp_project_apis_{enable,disable} and
@@ -22,10 +25,9 @@ do_gcp_project_apis() {
   command -v gcloud &>/dev/null || { echo "gcloud is not installed"; return 1; }
   command -v gsutil &>/dev/null || { echo "gsutil is not installed"; return 1; }
 
-  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
-  _spl_sdk_dir="$(mktemp -d)"
-  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
-  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
+  local _spl_sdk_saved _spl_sdk_dir
+  spl_gcp_temp_sdk_config || return 1
+  trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
   # Pin the gcloud identity for this run (spec 012 C-2): resolved ONCE, passed
   # to each call, logged before the first one.
   local account

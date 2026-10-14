@@ -1,4 +1,7 @@
 #!/bin/bash
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
+
 #------------------------------------------------------------------------------
 # @description Prove the marketing KMS key (step 055, spec 090 T002) works
 # @description for the hub: encrypt a fixed test string AS the hub's runtime
@@ -15,10 +18,9 @@
 # @example ENV=dev ./run -a do_spl_kms_check
 #------------------------------------------------------------------------------
 do_spl_kms_check() {
-  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
-  _spl_sdk_dir="$(mktemp -d)"
-  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
-  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
+  local _spl_sdk_saved _spl_sdk_dir
+  spl_gcp_temp_sdk_config || return 1
+  trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
 
   local p region ring key rt
   if ! spl_kms_check_target >&2; then

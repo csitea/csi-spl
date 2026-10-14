@@ -105,7 +105,7 @@ for f in "$RUN"/gcp-*.func.sh "$PROJ_ROOT"/lib/bash/funcs/gcp-each-env-sa.func.s
   n_files=$((n_files + 1)); n_sites=$((n_sites + acts))
   pins=$(grep -c 'do_gcp_isolated_active_account' "$f")
   [[ "$pins" -eq "$acts" ]] || fail "$(basename "$f"): $acts activation/login statement(s), $pins re-pin(s)"
-  grep -q 'export CLOUDSDK_CONFIG="\$_spl_sdk_dir"' "$f" || fail "$(basename "$f") activates without isolating its gcloud config"
+  grep -qE 'export CLOUDSDK_CONFIG="\$_spl_sdk_dir"|^\s*spl_gcp_temp_sdk_config \|\| return 1$' "$f" || fail "$(basename "$f") activates without isolating its gcloud config"
 done
 # 16 files since CLE-77915 folded 11 actions onto the 2 helpers (was 25).
 [[ $n_files -ge 12 ]] && pass "static: $n_sites activation/login statement(s) in $n_files action(s), each re-pinned in an isolated config" \

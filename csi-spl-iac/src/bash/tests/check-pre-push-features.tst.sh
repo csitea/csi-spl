@@ -106,7 +106,7 @@ cp "$PROJ_ROOT/../csi-spl-orc/src/bash/features/run-ci-tests.sh" "$F6/"
 printf 'exit 0\n' >"$F6/quick/tests/test-quick.sh"
 printf 'sleep 30\n' >"$F6/slow/tests/test-slow.sh"
 printf '#!/bin/sh\nexit 0\n' >"$ROOT/bin/tmux"; chmod +x "$ROOT/bin/tmux"
-_pp_budget() { echo 3; }
+_pp_budget() { echo 6; }
 _PPF_FEATS="quick slow"; s6=$SECONDS
 out="$(PATH="$ROOT/bin:$PATH" _pp_part_orc_features "$T6")"; rc=$?
 eq "a part that runs out of time fails with 124" 124 "$rc"
@@ -115,6 +115,18 @@ grep -qx 'FAILED: slow/test-slow.sh (still running at the timeout)' <<<"$out" \
 grep -q 'FAILED: quick/' <<<"$out" && fail "CONTROL: a finished file is not named" "$out" \
   || pass "CONTROL: a finished file is not named"
 (( SECONDS - s6 < 20 )) && pass "the timeout stops the run (no 30 s wait)" || fail "the timeout stops the run" "$((SECONDS - s6)) s"
+# 7: TERM before the runner lists its files (wf 10 38537641629, a loaded
+# runner: no trap yet, "Terminated", nothing named) still names one. A stale
+# spool build check that sleeps holds the runner in that phase.
+mkdir -p "$F6/spawn-agents/lib" "$T6/csi-spl-api/src/go/spool-hub-api/bin"
+printf '_spool_bin_stale() { sleep 10; return 1; }\n' >"$F6/spawn-agents/lib/spool-env.inc.sh"
+printf '#!/bin/sh\n' >"$T6/csi-spl-api/src/go/spool-hub-api/bin/spool"; chmod +x "$T6/csi-spl-api/src/go/spool-hub-api/bin/spool"
+_pp_budget() { echo 2; }
+out="$(PATH="$ROOT/bin:$PATH" _pp_part_orc_features "$T6")"; rc=$?
+rm -rf "$F6/spawn-agents" "$T6/csi-spl-api"
+eq "a timeout during the listing fails with 124" 124 "$rc"
+grep -q '^FAILED: .* (still running at the timeout)$' <<<"$out" \
+  && pass "a timeout during the listing still names what it stopped" || fail "a timeout during the listing names something" "$out"
 _pp_budget() { echo 60; }
 
 echo "-- check-pre-push-features.tst.sh: $fails failed"

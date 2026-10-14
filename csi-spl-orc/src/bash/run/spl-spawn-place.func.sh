@@ -15,7 +15,18 @@
 # @description      target does not say hold (do_spl_box_pick) and the last
 # @description      placement started SPAWN_PLACE_GAP_MIN ago. No room: it stays
 # @description      queued, one INFO line says why
-# @description   4. TAKE - the head is acked by the orch holder (placing), then
+# @description   0. SUPPLY (SPL-1817) - at most once an hour per class: when the
+# @description      live share of refactor or bug is under its band and no row of
+# @description      that class is queued, the dispatch lease holder gets ONE
+# @description      blocker asking for the next rows of that class
+# @description   3b. BANDS (SPL-1817) - a ci head (CI-red on trunk) or a flagged
+# @description      one (urgent bug, owner bypass feature) is taken as it is;
+# @description      otherwise the queued row of the class furthest under its band
+# @description      of the live lanes (do_spl_spawn_share) is taken, a class over
+# @description      its band only when no other class waits; ties refactor > bug
+# @description      > feature, then the queue's order. The rule's one home:
+# @description      csi-spl-doc/doc/md/fleet-rules-index.md
+# @description   4. TAKE - the row is acked by the orch holder (placing), then
 # @description      a. with a placement <vendor>:<slug> and its brief file: the
 # @description         existing launcher, `spawn-window.sh <vendor> auto
 # @description         <SPAWN_PLACE_WORKDIR> <brief> <slug>`; the new id -> done
@@ -34,6 +45,9 @@
 # @param SPAWN_PLACE_WORKDIR (optional) - the launcher's WORKDIR, default the checkout this action runs from
 # @param SPAWN_PLACE_TMUX_SOCKET (optional) - the box user's tmux socket, default /tmp/tmux-<uid>/default
 # @param SPAWN_PLACE_WINDOWS_CMD SPAWN_PLACE_PICK_CMD SPAWN_PLACE_LAUNCH_CMD (optional, tests) - print the window count / the box pick / run the launch
+# @param SPAWN_SHARE_SUPPLY_MIN (optional) - minutes between two supply blockers of one class, default 60
+# @param SPAWN_SHARE_DISPATCH (optional) - the dispatch lease holder <ID>@<box>; default the lease file <spool root>/dispatch/lease
+# @param SPAWN_SHARE_LANES_CMD (optional, tests) - as do_spl_spawn_share
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD ASKS_HOLDER (optional) - as do_spl_asks_tick
 # @example ./run -a do_spl_spawn_place
 # @example SPAWN_PLACE_GAP_MIN=0 ./run -a do_spl_spawn_place
@@ -42,6 +56,7 @@ do_spl_spawn_place() {
   spl_asks_init || return 1
   [[ "$LANE_MODE" == hub ]] || { do_log "INFO no fleet hub here: no spawn queue to place"; return 0; }
   local holder rows head why
+  SPAWN_PLACE_SHARE=""
   holder="$(spl_asks_holder)"
   [[ -n "$holder" ]] || { do_log "INFO nobody holds the orch role right now: nothing placed"; return 0; }
   [[ "${holder##*@}" == "$ASKS_BOX" ]] || { do_log "INFO the orch role is held on ${holder##*@} ($holder): its machine places"; return 0; }
@@ -51,6 +66,7 @@ do_spl_spawn_place() {
   if spl_spawn_place_stalled "$holder" "$rows"; then
     rows="$(spl_spawn_q_rows)" || return 0
   fi
+  spl_spawn_place_supply "$holder" "$rows"
   if jq -e 'any(.[]; .state == "acked")' >/dev/null <<<"$rows"; then
     do_log "INFO placing $(jq -r '[.[] | select(.state == "acked") | .ask_id[0:8]] | join(" ")' <<<"$rows"): one at a time, $(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued"
     return 0
@@ -61,7 +77,64 @@ do_spl_spawn_place() {
     do_log "INFO hold: $why; ask $(jq -r '.ask_id[0:8]' <<<"$head") stays position 1 of $(jq -r '.queue_len' <<<"$head")"
     return 0
   fi
+  head="$(spl_spawn_place_band "$head" "$rows")"
   spl_spawn_place_take "$holder" "$head"
+}
+
+# 0. The supply blocker: refactor or bug under its band, nothing of it
+# queued -> ONE blocker to the dispatch lease holder per class per
+# SPAWN_SHARE_SUPPLY_MIN. Leaves the share it read in SPAWN_PLACE_SHARE.
+spl_spawn_place_supply() {  # HOLDER ROWS
+  local d c due=() gap=$(( ${SPAWN_SHARE_SUPPLY_MIN:-60} * 60 )) now share to line
+  d="$(spool_asks_dir)"; now="$(date +%s)"
+  for c in refactor bug; do
+    (( now - $(stat -c %Y "$d/.share.$c.last" 2>/dev/null || echo 0) >= gap )) && due+=("$c")
+  done
+  (( ${#due[@]} > 0 )) || return 0
+  share="$(spl_spawn_share)" || { do_log "WARN the live share could not be read: no supply check this tick"; return 0; }
+  SPAWN_PLACE_SHARE="$share"
+  (( $(jq '.known' <<<"$share") > 0 )) || return 0
+  for c in "${due[@]}"; do
+    line="$(jq -r --arg c "$c" --argjson rows "$2" '
+      def cls: (.class // "") | if . == "" or . == "ci" then "bug" else . end;
+      .by[$c] as $b | select($b.pct < $b.lo and ([$rows[] | select(.state == "queued" and cls == $c)] | length) == 0)
+      | "\($c) share \($b.pct)% < \($b.lo)% (\($b.n) of \(.known) live lanes with a class) and no \($c) row is queued"' <<<"$share")"
+    [[ -n "$line" ]] || continue
+    to="$(spl_spawn_place_dispatch)"
+    [[ -n "$to" ]] || { do_log "WARN $line, and nobody holds the dispatch lease: not told"; continue; }
+    if spl_spawn_q_send "$1" "$to" blocker spawn-share "**SPAWN SHARE: $line.** Request the next $c rows (a $c round / its rows) and queue them with \`SPAWN_CLASS=$c ./run -a do_spl_spawn_enqueue\`. The bands: fleet-rules-index.md (owner msg 8cb6cc7d); the report: \`./run -a do_spl_spawn_share\`."; then
+      touch "$d/.share.$c.last"
+      do_log "OK supply: $line; $to told"
+    fi
+  done
+}
+
+# The dispatch lease holder as <ID>@<box>, or nothing.
+spl_spawn_place_dispatch() {
+  local h="${SPAWN_SHARE_DISPATCH:-}"
+  [[ -n "$h" ]] || { [[ -r "$SPOOL_ROOT/dispatch/lease" ]] && read -r h _ <"$SPOOL_ROOT/dispatch/lease"; }
+  case "$h" in none@*|unknown:*|'') return 0 ;; *@*) ;; *) h="$h@$ASKS_BOX" ;; esac
+  [[ "$h" =~ ^${SPOOL_PARTICIPANT_RX}@[a-z0-9][a-z0-9-]{0,31}$ ]] && printf '%s' "$h"
+  return 0
+}
+
+# 3b. The row the bands pick, HEAD when it is ci or flagged, or when the
+# share cannot be read (the hub's order holds).
+spl_spawn_place_band() {  # HEAD ROWS
+  local share pick
+  if jq -e '(.class // "") == "ci" or (.flag // "") != ""' >/dev/null <<<"$1"; then printf '%s' "$1"; return 0; fi
+  share="${SPAWN_PLACE_SHARE:-}"
+  [[ -n "$share" ]] || share="$(spl_spawn_share)" || { do_log "WARN the live share could not be read: the queue's order holds" >&2; printf '%s' "$1"; return 0; }
+  pick="$(jq -c --argjson share "$share" '
+    def cls: (.class // "") | if . == "" or . == "ci" then "bug" else . end;
+    [.[] | select(.state == "queued") | cls as $c | $share.by[$c] as $b
+     | (if $b.pct < $b.lo then 0 elif $c == "feature" or $b.pct < $b.hi then 1 else 3 end) as $t
+     | . + {_t: $t, _o: ({"refactor": 0, "bug": 1, "feature": 2}[$c]), _c: $c, _p: $b.pct,
+            _s: (if $t == 0 then ($b.lo - $b.pct) / $b.lo elif $t == 1 and $c != "feature" then ($b.hi - $b.pct) / $b.hi else 0 end)}]
+    | sort_by(._t, -._s, ._o, .position) | .[0] // empty' <<<"$2")"
+  [[ -n "$pick" ]] || { printf '%s' "$1"; return 0; }
+  do_log "INFO band pick: ask $(jq -r '"\(.ask_id[0:8]) (\(._c) at \(._p)%, queue position \(.position))"' <<<"$pick") of $(spl_spawn_share_line "$share")" >&2
+  jq -c 'del(._t, ._o, ._c, ._p, ._s)' <<<"$pick"
 }
 
 # 1. Placing requests quiet SPAWN_PLACE_LOCK_MIN go back in line. 0 = one did.

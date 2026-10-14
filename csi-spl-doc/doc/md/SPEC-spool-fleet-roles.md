@@ -706,6 +706,12 @@ Only a whole vendor out moves seats to the other vendor. Tests (hub,
 spawn and takeover stubbed, each with a mutation control):
 `od-pool-spof.tst.sh`, `od-pool-replace.tst.sh` and `od-pool-vendor.tst.sh`.
 
+**The spawn queue places by work class (SPL-1817).** A queued spawn request
+carries its class (rdb 0195) and the placer keeps the owner's bands of the
+live lanes; the rule, its numbers and its commands live in one place:
+[fleet-rules-index.md](fleet-rules-index.md) section 2, the row "spawn queue:
+work classes and bands".
+
 ### 4.4 Hourly rotation: a fresh session per role (spec 060)
 
 Every role gets a FRESH session under the SAME id once an hour, so no

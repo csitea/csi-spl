@@ -99,6 +99,17 @@ nobody acted on the findings (SPL-1768, SPL-1803).
   `REPORT-TO` line.
 - `GC_REPORT_TO` pins one addressee instead (no cc, no fallback).
 
+### 2.4 The work share in the summary
+
+Owner HUM-10, t1 3209f8b8, msg ad816f96: the GC "must know something" about
+the work-class bands of the spawn queue (the rule:
+[fleet-rules-index.md](fleet-rules-index.md), row "spawn queue: work classes
+and bands"). Before `done` the GC runs the read-only
+`SPAWN_SHARE_FORMAT=line ./run -a do_spl_spawn_share` and puts its line in
+`GC_SUMMARY`, flagging a class whose verdict is `UNDER` or `OVER` and the lanes
+with no class (placed outside the queue: an unrecorded placement or bypass).
+It never re-classes or places anything itself.
+
 ## 3. Operations
 
 ### 3.1 Install the cron row on a box

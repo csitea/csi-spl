@@ -46,9 +46,17 @@ inbox, whether the GC poked it on an earlier pass, and its pane tail.
 
 ## 3. Close
 
+First read the work share of the live lanes (read only, the same `sudo -u
+<box user> env ...` form, no `GC_CMD`): `SPAWN_SHARE_FORMAT=line ./run -a
+do_spl_spawn_share`. The rule behind it: csi-spl-doc/doc/md/fleet-rules-index.md,
+row "spawn queue: work classes and bands". Copy its line into the summary, and
+name as worth a look a class whose verdict is `UNDER` or `OVER`, and lanes
+with no class (placed outside the queue: an unrecorded bypass). If it fails,
+say "share: unread" instead. Never act on it yourself.
+
 When every agent is walked, run once:
 
-`GC_CMD=done GC_SUMMARY="<n> agents: <w> working, <p> poked, <r> restarted, <c> close asked; <ids worth a look>"`
+`GC_CMD=done GC_SUMMARY="<n> agents: <w> working, <p> poked, <r> restarted, <c> close asked; share: <the line>; <ids worth a look>"`
 
 It logs the line, sends it to the dispatch lease holder (the orch lease
 holder when that lease is stale), and closes this window. You

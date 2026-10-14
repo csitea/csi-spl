@@ -21,6 +21,14 @@
 #      closes it and tells the sender
 #   7. the launcher's HOLD (exit 10) puts it back at position 1
 #   8. do_spl_spawn_queue lists POS, sender and summary
+#  10. SPL-1817 (rdb 0195, owner t1 3209f8b8 msg 8cb6cc7d): an enqueue with
+#      no class, a bad one, an urgent feature or a bypass of a bug is refused;
+#      the queue orders by class; the placer takes the class furthest under
+#      its band of the live lanes (CONTROL: the queue's own head is another
+#      row), a ci head or a bypass as it is; unknown lanes are left out; the
+#      supply blocker goes to the dispatch holder once per gap (CONTROL: none
+#      while a row of that class is queued); do_spl_spawn_share lists the
+#      shares, verdicts and the bypass
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -52,9 +60,11 @@ rows = json.load(open(path)) if os.path.exists(path) else []
 now = time.time() + float(os.environ.get("HUB_SKEW", "0"))
 iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t)) if t else ""
 OPEN = ("open", "acked", "queued")
+RANK = {"ci": 0, "refactor": 2, "bug": 3, "feature": 4}
+def rank(r): return 1 if r.get("flag") and r.get("class") != "ci" else RANK.get(r.get("class", ""), 5)
 def positions():
     for role in set(r["role"] for r in rows):
-        q = sorted([r for r in rows if r["role"] == role and r["state"] == "queued"], key=lambda r: (r["q"], r["ask_id"]))
+        q = sorted([r for r in rows if r["role"] == role and r["state"] == "queued"], key=lambda r: (rank(r), r["q"], r["ask_id"]))
         for n, r in enumerate(q): r["position"], r["queue_len"] = n + 1, len(q)
     for r in rows:
         if r["state"] != "queued": r["position"], r["queue_len"] = 0, 0
@@ -91,6 +101,10 @@ for r in rows:
     elif op == "release":
         if r["state"] == "acked": r["state"] = "open"
     elif op == "queue":
+        if not (kv.get("class") or r.get("class")):
+            print("hub refused: bad_frame (400): a queued ask needs class ci, refactor, bug or feature", file=sys.stderr); sys.exit(1)
+        if kv.get("class"): r["class"] = kv["class"]
+        if kv.get("flag"): r["flag"], r["flag_msg"], r["flag_by"], r["flag_at"] = kv["flag"], kv.get("flag-msg", ""), kv["by"], iso(now)
         r["state"], r["u"] = "queued", now
         r.setdefault("q", now)
         if kv.get("placement"): r["placement"] = kv["placement"]
@@ -115,6 +129,9 @@ cat >"$T/bin/owner" <<'STUB'
 cat >>"$OWNER_LOG"
 STUB
 chmod +x "$T/bin/owner"
+# the lane map stub: {lanes: $LANES} (an array of {agent_id, agent_box, state})
+# shellcheck disable=SC2016 # expanded by the stub, not here
+printf '#!/usr/bin/env bash\necho "{\\"lanes\\": ${LANES:-[]}}"\n' >"$T/bin/lanes"; chmod +x "$T/bin/lanes"
 # the launcher stub: prints "<ID> <PANE>" (LAUNCH_ID), or exits LAUNCH_RC
 cat >"$T/bin/launch" <<'STUB'
 #!/usr/bin/env bash
@@ -142,7 +159,8 @@ menv() {
     "ASKS_HOLDER=c-001@box-desk" "SPAWN_QUEUE_SEND=$T/bin/send" "ASKS_SEND=$T/bin/send" "SEND_LOG=$T/send.log" \
     "ASKS_OWNER_CMD=$T/bin/owner" "OWNER_LOG=$T/owner.log" "ASKS_MAX_RAISES=4" \
     "SPAWN_PLACE_WINDOWS_CMD=$T/bin/windows" "SPAWN_PLACE_PICK_CMD=$T/bin/pick" "SPAWN_PLACE_LAUNCH_CMD=$T/bin/launch" \
-    "LAUNCH_LOG=$T/launch.log" "SPAWN_PLACE_BRIEF_DIR=$T/briefs" "SPAWN_PLACE_WORKDIR=$T" "SPAWN_PLACE_GAP_MIN=0" "SPOOL_AGENT_ID="
+    "LAUNCH_LOG=$T/launch.log" "SPAWN_PLACE_BRIEF_DIR=$T/briefs" "SPAWN_PLACE_WORKDIR=$T" "SPAWN_PLACE_GAP_MIN=0" "SPOOL_AGENT_ID=" \
+    "SPAWN_SHARE_LANES_CMD=$T/bin/lanes" "SPAWN_SHARE_DISPATCH=c-002@box-desk"
 }
 on() {  # <machine> <action> [env...]
   local m="$1" a="$2"; shift 2
@@ -151,7 +169,7 @@ on() {  # <machine> <action> [env...]
   env "${e[@]}" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
-    for f in spl-lane-map spl-asks-open spl-ask-ack spl-asks-tick spl-spawn-queue spl-spawn-enqueue spl-spawn-placed spl-spawn-place; do
+    for f in spl-lane-map spl-asks-open spl-ask-ack spl-asks-tick spl-spawn-queue spl-spawn-share spl-spawn-enqueue spl-spawn-placed spl-spawn-place; do
       source "'"$PROJ_ROOT"'/src/bash/run/$f.func.sh"
     done
     '"$a"
@@ -171,19 +189,19 @@ OWNER_TOPIC=c9beaa77-1111-4222-8333-444455556666
 # 1. enqueue --------------------------------------------------------------------
 put "$A1" c-002@box-desk "$OWNER_TOPIC" "SPAWN REQUEST hub-pg-split"
 put "$A2" c-002@sat dispatch-c9beaa77-x "SPAWN REQUEST gmail checkboxes"
-out="$(on pc do_spl_spawn_enqueue ASK_ID="${A1:0:8}" SPAWN_PLACE=claude:hub-pg-split 2>&1)"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="${A1:0:8}" SPAWN_CLASS=bug SPAWN_PLACE=claude:hub-pg-split 2>&1)"
 r="$(hubrow "$A1")"
 if [[ "$(jq -r .state <<<"$r")" == queued && "$(jq -r .placement <<<"$r")" == claude:hub-pg-split ]] &&
    grep -q "^c-001 c-002 note dispatch-c9beaa77 queued, position 1 of 1, placed when the box has room" "$T/send.log"; then
   pass "enqueue: queued with its placement; the sender is told 'position 1 of 1' on dispatch-<topic8>, never the owner topic"
 else fail "enqueue: $out | $r | $(sends)"; fi
-on pc do_spl_spawn_enqueue ASK_ID="$A2" >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$A2" SPAWN_CLASS=bug >/dev/null 2>&1
 if grep -q "^c-001 c-002@sat note dispatch-c9beaa77-x queued, position 2 of 2," "$T/send.log"; then
   pass "enqueue: the second request is position 2 of 2, told on its own task, another box's sender as <ID>@<box>"
 else fail "second enqueue: $(sends)"; fi
 [[ "$(jq -r .state "$T/pc/spool/asks/$A1.json" 2>/dev/null)" == queued ]] &&
   pass "enqueue: the journal mirrors the queued row" || fail "journal: $(cat "$T/pc/spool/asks/$A1.json" 2>&1)"
-if ! on pc do_spl_spawn_enqueue ASK_ID="$A2" SPAWN_PLACE='claude:x;rm' >/dev/null 2>&1; then
+if ! on pc do_spl_spawn_enqueue ASK_ID="$A2" SPAWN_CLASS=bug SPAWN_PLACE='claude:x;rm' >/dev/null 2>&1; then
   pass "enqueue: a placement that is not <vendor>:<slug> is refused"
 else fail "a bad placement was taken"; fi
 
@@ -235,7 +253,7 @@ out="$(on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 2>&1)"
 # 6. no placement: handed to the holder, one at a time, the lock, placed by hand ------
 : >"$T/send.log"
 put "$A4" c-002@box-desk dispatch-c9beaa77-z "SPAWN REQUEST perf5"
-on pc do_spl_spawn_enqueue ASK_ID="$A4" >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$A4" SPAWN_CLASS=bug >/dev/null 2>&1
 : >"$T/send.log"
 out="$(on pc do_spl_spawn_place 2>&1)"
 if [[ "$(jq -r .state <<<"$(hubrow "$A2")")" == acked ]] &&
@@ -267,10 +285,96 @@ r4="$(listrow "$A4")"
 
 # 8. the queue view --------------------------------------------------------------------
 out="$(on pc do_spl_spawn_queue 2>&1)"
-grep -qE "^1/1 +${A4:0:8} +c-002@box-desk .*claude:hub-pg-split .*SPAWN REQUEST perf5" <<<"$out" &&
-  pass "do_spl_spawn_queue: POS, ask, sender, placement and summary" || fail "queue view: $out"
+grep -qE "^1/1 +bug +${A4:0:8} +c-002@box-desk .*claude:hub-pg-split .*SPAWN REQUEST perf5" <<<"$out" &&
+  pass "do_spl_spawn_queue: POS, CLASS, ask, sender, placement and summary" || fail "queue view: $out"
 [[ "$(on pc do_spl_spawn_queue SPAWN_QUEUE_FORMAT=json 2>/dev/null | jq -r '.queue[0].position')" == 1 ]] &&
   pass "do_spl_spawn_queue json" || fail "queue json"
+
+# 10. SPL-1817: classes, bands, supply, the share report ---------------------------
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$A4" --by c-001@box-desk --reason "placed: c-283@box-desk" >/dev/null
+BYPASS_MSG=8cb6cc7d-7628-4ac3-be00-86e427bb3487
+n=0
+# placed ID CLASS AGENT: a lane placed from the queue with that class
+placed() {
+  HUB_DIR="$T/hub" "$T/bin/hub" ask put --fleet main --id "$1" --kind task --role orch --from c-002@box-desk --topic t --summary "lane $3" >/dev/null
+  HUB_DIR="$T/hub" "$T/bin/hub" ask queue --fleet main --id "$1" --by c-001@box-desk --class "$2" >/dev/null
+  HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$1" --by c-001@box-desk --reason "placed: $3@box-desk" >/dev/null
+}
+lane_ids=()
+for c in refactor refactor refactor bug feature feature feature feature feature feature; do
+  n=$((n + 1)); id="$(printf 'b%07d-0000-4000-8000-%012d' "$n" "$n")"; placed "$id" "$c" "c-3$(printf %02d "$n")"
+  lane_ids+=("c-3$(printf %02d "$n")")
+done
+# 10 classed lanes (refactor 30%, bug 10%, feature 60%) + 2 placed before the class existed
+LANES="$(printf '%s\n' "${lane_ids[@]}" c-398 c-399 | jq -R -s -c '[split("\n")[] | select(length > 0) | {agent_id: ., agent_box: "box-desk", state: "live"}]')"
+export LANES
+F1=f1f1f1f1-0000-4000-8000-000000000001; R1=f2f2f2f2-0000-4000-8000-000000000002; B1=f3f3f3f3-0000-4000-8000-000000000003
+put "$F1" c-002@box-desk dispatch-3209f8b8-f "SPAWN REQUEST a feature"
+put "$R1" c-002@box-desk dispatch-3209f8b8-r "SPAWN REQUEST a refactor"
+put "$B1" c-002@box-desk dispatch-3209f8b8-b "SPAWN REQUEST a bug"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$F1" 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$F1")")" == open ]] && grep -q "FATAL SPAWN_CLASS must be ci, refactor, bug or feature" <<<"$out" &&
+  pass "enqueue with no SPAWN_CLASS: refused with the four values, the ask stays open" || fail "no class: $out | $(hubrow "$F1")"
+on pc do_spl_spawn_enqueue ASK_ID="$F1" SPAWN_CLASS=chore >/dev/null 2>&1 && fail "class chore taken" || pass "enqueue: SPAWN_CLASS=chore refused"
+on pc do_spl_spawn_enqueue ASK_ID="$B1" SPAWN_CLASS=bug SPAWN_BYPASS=$BYPASS_MSG >/dev/null 2>&1 && fail "a bypass on a bug was taken" ||
+  pass "enqueue: SPAWN_BYPASS on a bug refused"
+on pc do_spl_spawn_enqueue ASK_ID="$F1" SPAWN_CLASS=feature SPAWN_BYPASS=8cb6cc7d >/dev/null 2>&1 && fail "a short bypass id was taken" ||
+  pass "enqueue: SPAWN_BYPASS must be a full owner msg id"
+on pc do_spl_spawn_enqueue ASK_ID="$F1" SPAWN_CLASS=feature SPAWN_URGENT=1 >/dev/null 2>&1 && fail "an urgent feature was taken" ||
+  pass "enqueue: SPAWN_URGENT on a feature refused"
+on pc do_spl_spawn_enqueue ASK_ID="$F1" SPAWN_CLASS=feature >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$R1" SPAWN_CLASS=refactor >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$B1" SPAWN_CLASS=bug >/dev/null 2>&1
+[[ "$(jq -r .position <<<"$(listrow "$R1")") $(jq -r .position <<<"$(listrow "$B1")") $(jq -r .position <<<"$(listrow "$F1")")" == "1 2 3" ]] &&
+  pass "the queue orders by class: refactor 1, bug 2, the older feature 3" || fail "class order: $(listrow "$R1") $(listrow "$B1") $(listrow "$F1")"
+: >"$T/send.log"
+out="$(on pc do_spl_spawn_place SPAWN_SHARE_SUPPLY_MIN=60 2>&1)"
+if [[ "$(jq -r .state <<<"$(hubrow "$B1")")" == acked && "$(jq -r .state <<<"$(hubrow "$R1")")" == queued ]] &&
+   grep -q "band pick: ask ${B1:0:8} (bug at 10%, queue position 2)" <<<"$out" && grep -q "SPAWN QUEUE: place ask ${B1:0:8} now" "$T/send.log"; then
+  pass "bands: bug at 10% (< 20%) is taken before the queue's head, refactor at 30% (control: position 1 is the refactor)"
+else fail "band pick: $out | $(sends)"; fi
+grep -q "of 10 known live lanes (2 unknown, left out)" <<<"$out" && pass "lanes placed before the class existed are unknown, left out of the denominator" ||
+  fail "unknown lanes: $out"
+grep -q "SPAWN SHARE" "$T/send.log" && fail "a supply blocker while bug is queued and refactor is in band: $(sends)" ||
+  pass "supply control: no blocker while the class under its band has a queued row"
+on pc do_spl_spawn_placed ASK_ID="$B1" PLACED_AS=c-311@box-desk >/dev/null 2>&1
+# bug now 2 of 11: refactor 27%, bug 18%, feature 54%: still bug-short, nothing of it queued
+LANES="$(jq -c '. + [{agent_id: "c-311", agent_box: "box-desk", state: "live"}]' <<<"$LANES")"
+: >"$T/send.log"
+out="$(on pc do_spl_spawn_place WINDOWS=40 SPAWN_SHARE_SUPPLY_MIN=60 2>&1)"
+if grep -q "^c-001 c-002 blocker spawn-share \*\*SPAWN SHARE: bug share 18% < 20% (2 of 11 live lanes with a class) and no bug row is queued" "$T/send.log" &&
+   [[ "$(grep -c "SPAWN SHARE" "$T/send.log")" == 1 ]]; then
+  pass "supply: bug under its band with none queued -> ONE blocker to the dispatch holder (refactor in band: none)"
+else fail "supply: $out | $(sends)"; fi
+on pc do_spl_spawn_place WINDOWS=40 SPAWN_SHARE_SUPPLY_MIN=60 >/dev/null 2>&1
+[[ "$(grep -c "SPAWN SHARE" "$T/send.log")" == 1 ]] && pass "supply: no second blocker within SPAWN_SHARE_SUPPLY_MIN" || fail "supply repeat: $(sends)"
+# a CI-red fix and an owner bypass are taken as they are, ci first
+C1=f4f4f4f4-0000-4000-8000-000000000004; X1=f5f5f5f5-0000-4000-8000-000000000005
+put "$C1" c-002@box-desk dispatch-3209f8b8-c "SPAWN REQUEST trunk is red"
+put "$X1" c-002@box-desk dispatch-3209f8b8-x "SPAWN REQUEST the owner's fast feature"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$X1" SPAWN_CLASS=feature SPAWN_BYPASS=$BYPASS_MSG 2>&1)"
+grep -q "BYPASS on owner msg 8cb6cc7d: recorded" <<<"$out" && [[ "$(jq -r .flag_msg <<<"$(hubrow "$X1")")" == "$BYPASS_MSG" ]] &&
+  grep -q "$X1"$'\t'"$BYPASS_MSG"$'\t'"c-001@box-desk" "$T/pc/spool/asks/bypass.tsv" &&
+  pass "bypass: on the hub row and in the local bypass log (ask, owner msg, who)" || fail "bypass record: $out | $(hubrow "$X1")"
+on pc do_spl_spawn_enqueue ASK_ID="$C1" SPAWN_CLASS=ci >/dev/null 2>&1
+out="$(on pc do_spl_spawn_place 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$C1")")" == acked && "$(jq -r .state <<<"$(hubrow "$R1")")" == queued ]] && ! grep -q "band pick" <<<"$out" &&
+  pass "a ci head is taken as it is, before the bands" || fail "ci: $out"
+on pc do_spl_spawn_placed ASK_ID="$C1" PLACED_AS=c-312@box-desk >/dev/null 2>&1
+out="$(on pc do_spl_spawn_place 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$X1")")" == acked && "$(jq -r .state <<<"$(hubrow "$R1")")" == queued ]] &&
+  pass "an owner bypass feature is taken outside the bands (feature over its share, refactor queued)" || fail "bypass place: $out"
+on pc do_spl_spawn_placed ASK_ID="$X1" PLACED_AS=c-313@box-desk >/dev/null 2>&1
+out="$(on pc do_spl_spawn_share 2>&1)"
+if grep -qE "^\| refactor \| 3 \| 27% \| 20-30% \| ok \|" <<<"$out" && grep -qE "^\| bug \| 2 \| 18% \| 20-30% \| UNDER \|" <<<"$out" &&
+   grep -qE "^\| 8cb6cc7d \| ${X1:0:8} \| c-313@box-desk \| c-001@box-desk \|" <<<"$out" && grep -q "2 placed before the class existed" <<<"$out"; then
+  pass "do_spl_spawn_share: live lanes by class with %, the band verdict, the unknown count and the bypass (owner msg, ask, lane, who)"
+else fail "share report: $out"; fi
+[[ "$(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>/dev/null | jq -r '.by.feature.n, .known' | tr '\n' ' ')" == "6 11 " ]] &&
+  pass "do_spl_spawn_share json" || fail "share json: $(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>&1)"
+mkdir -p "$T/pc/spool/c-398/lifetime"; printf '# a brief\nClass: refactor\n' >"$T/pc/spool/c-398/lifetime/brief.md"
+[[ "$(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>/dev/null | jq -r '.by.refactor.n, .unknown' | tr '\n' ' ')" == "4 1 " ]] &&
+  pass "a lane's brief 'Class:' line classes it (a standing seat)" || fail "brief class: $(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>&1)"
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

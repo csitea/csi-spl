@@ -373,7 +373,7 @@ async function lookA(browser) {
         else if (m.features.length && m.linksRow.t < m.features[0].b - 1) fail(`${label} links row`, `top ${m.linksRow.t} above the features bottom ${m.features[0].b}`)
         else {
           ok(`${label} links row`, `under the features, ${m.links.length} links`)
-          const want = ['blog', 'docs', 'calendar', 'help', 'source']
+          const want = ['blog', 'calendar', 'help', 'source']
           const got = m.links.map((l) => l.test.replace('login-link-', ''))
           const order = got.every((v, i) => v === want[i])
           if (!order) fail(`${label} links order`, `got [${got.join(', ')}], want [${want.join(', ')}]`)

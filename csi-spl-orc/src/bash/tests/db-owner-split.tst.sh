@@ -196,6 +196,8 @@ CREATE TABLE spool_schema_migrations (filename text PRIMARY KEY);
 INSERT INTO tenants VALUES ('t1'), ('t2');
 -- rdb 0143's search door: runtime-grants.sql names it, so a migrated schema has it
 CREATE FUNCTION spool_search_candidates(q tsquery, cap int) RETURNS SETOF text LANGUAGE sql STABLE AS 'SELECT NULL::text LIMIT 0';
+-- rdb 0197's channel-rule group (SPL-1832): runtime-grants.sql grants it to the runtime login
+CREATE ROLE spool_channel_scoped NOLOGIN NOBYPASSRLS;
 -- rdb 0157's doc revision log: runtime-grants.sql revokes UPDATE, DELETE on it by name
 CREATE TABLE workspace_doc_rev_log (tenant_id text NOT NULL REFERENCES tenants);
 -- rdb 0168's personal realm (spec 119 7.5): runtime-grants.sql grants on its tables and functions by name
@@ -226,6 +228,12 @@ EOF
     && pass "6. spl_db_runtime_verify accepts the real runtime login (owns 0, both lift probes refused by Postgres)" || fail "6. verify runtime: rc=$rc $out"
   out=$(real "SPL_DB_USER=own spl_db_runtime_verify 'postgres://own:own@127.0.0.1:$PORT/spool'"); rc=$?
   [[ $rc -ne 0 ]] && grep -q 'NOT split' <<<"$out" && pass "6. CONTROL: the owner itself fails spl_db_runtime_verify" || fail "6. owner control: rc=$rc $out"
+  PGPASSWORD=own psql -X -q -At -h 127.0.0.1 -p "$PORT" -U own -d spool -c "select pg_has_role('rt', 'spool_channel_scoped', 'MEMBER')" 2>/dev/null | grep -x t >/dev/null \
+    && pass "6. SPL-1832: the runtime login is a member of spool_channel_scoped and still verifies as split" || fail "6. rt is not in spool_channel_scoped"
+  docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U su -d spool -c "CREATE ROLE other_group NOLOGIN; GRANT other_group TO rt" >/dev/null
+  out=$(real "spl_db_runtime_verify 'postgres://rt:$RPW@127.0.0.1:$PORT/spool'"); rc=$?
+  [[ $rc -ne 0 ]] && grep -q 'member_of=1' <<<"$out" && pass "6. CONTROL: any other membership still fails the verify (member_of=1)" || fail "6. other-membership control: rc=$rc $out"
+  docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U su -d spool -c "REVOKE other_group FROM rt; DROP ROLE other_group" >/dev/null
   out=$(real "spl_db_roles_psql '$ODSN' runtime-grants.sql && echo again-ok"); grep -q again-ok <<<"$out" && pass "6. runtime-grants.sql is idempotent" || fail "6. re-grant: $out"
   docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U su -d spool -c "SET ROLE own; CREATE TABLE later (tenant_id text)" >/dev/null
   PGPASSWORD="$RPW" psql -X -q -At -h 127.0.0.1 -p "$PORT" -U rt -d spool -c "insert into later values ('t1') returning 1" 2>/dev/null | grep -x 1 >/dev/null \

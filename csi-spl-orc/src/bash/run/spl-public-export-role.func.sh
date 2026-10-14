@@ -138,7 +138,8 @@ SELECT json_build_object(
     'login', r.rolcanlogin, 'superuser', r.rolsuper, 'bypassrls', r.rolbypassrls,
     'createrole', r.rolcreaterole, 'createdb', r.rolcreatedb, 'inherit', r.rolinherit,
     'replication', r.rolreplication,
-    'member_of', (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid),
+    'member_of', (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid
+                   AND m.roleid::regrole IS DISTINCT FROM to_regrole('spool_channel_scoped')),
     'owns', (SELECT count(*) FROM pg_class c WHERE c.relowner = r.oid)
           + (SELECT count(*) FROM pg_namespace n WHERE n.nspowner = r.oid)
           + (SELECT count(*) FROM pg_proc p WHERE p.proowner = r.oid),
@@ -201,7 +202,7 @@ for name, (cols, tables) in want.items():
     if bad:
         print("FAIL %s: %s" % (name, ", ".join(bad)))
     else:
-        print("OK %s: login, noinherit, no superuser/bypassrls/createrole/createdb/replication, 0 memberships, owns 0, exactly %d column grant(s) and %d table grant(s)" % (name, len(cols), len(tables)))
+        print("OK %s: login, noinherit, no superuser/bypassrls/createrole/createdb/replication, 0 memberships but spool_channel_scoped, owns 0, exactly %d column grant(s) and %d table grant(s)" % (name, len(cols), len(tables)))
 pub = d.get("public_grants") or []
 print(("FAIL PUBLIC holds %d privilege(s) every login inherits: %s" % (len(pub), ", ".join(pub[:10]))) if pub else
       "OK PUBLIC holds no table or column privilege in schema public")

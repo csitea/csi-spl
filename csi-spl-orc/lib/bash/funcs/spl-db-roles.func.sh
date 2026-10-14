@@ -184,14 +184,17 @@ print("postgres://%s:%s@%s:%s/%s?sslmode=disable" % (
 }
 
 # spl_db_runtime_facts_sql -> one JSON line about the CURRENT login: its
-# flags, memberships, anything it owns or can act as the owner of, CREATE on
-# the schema, and that it can read rows (operator scope, count only).
+# flags, memberships (but spool_channel_scoped: rdb 0197's NOLOGIN group that
+# holds no privilege, only the target of the channel rule), anything it owns
+# or can act as the owner of, CREATE on the schema, and that it can read rows
+# (operator scope, count only).
 spl_db_runtime_facts_sql() {
   cat <<'EOF_SQL'
 SELECT json_build_object(
   'role', r.rolname, 'superuser', r.rolsuper, 'bypassrls', r.rolbypassrls,
   'createrole', r.rolcreaterole, 'createdb', r.rolcreatedb,
-  'member_of', (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid),
+  'member_of', (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid
+                 AND m.roleid::regrole IS DISTINCT FROM to_regrole('spool_channel_scoped')),
   'owns', (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = current_schema() AND pg_has_role(current_user, c.relowner, 'MEMBER')),
   'schema_create', has_schema_privilege(current_schema(), 'CREATE'),
@@ -212,7 +215,7 @@ bad = [k for k in ("superuser", "bypassrls", "createrole", "createdb", "schema_c
 bad += ["%s=%s" % (k, d.get(k)) for k in ("member_of", "owns") if d.get(k)]
 if not isinstance(d.get("tenants"), int): bad.append("cannot read tenants")
 print(("1 runtime %s is NOT split: %s" % (d.get("role"), ", ".join(bad))) if bad else
-      ("0 runtime %s: no superuser/bypassrls/createrole/createdb, 0 memberships, owns 0, no schema CREATE, reads %d tenant row(s)" % (d.get("role"), d["tenants"])))
+      ("0 runtime %s: no superuser/bypassrls/createrole/createdb, 0 memberships but spool_channel_scoped, owns 0, no schema CREATE, reads %d tenant row(s)" % (d.get("role"), d["tenants"])))
 ')" || { do_log "FATAL cannot parse the runtime facts: $1"; return 1; }
   if [[ "${v%% *}" == 0 ]]; then do_log "OK ${v#* }"; return 0; fi
   do_log "FAIL ${v#* }"; return 1

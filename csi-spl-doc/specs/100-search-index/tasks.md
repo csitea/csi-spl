@@ -342,6 +342,11 @@ T015 Q3 cold n>=5 on a prd clone (c-001, owner go; optional)
   `TestRLSChannelScopeHubNotReader`: the policy roles, the memberships, and
   the reader's plan holds `search_tsv` in an Index Cond. CONTROL: with the
   policy back `TO public` (rolled back) the Index Cond is gone.
+- Verifiers: `spl_db_runtime_verify` and the public-export role check count
+  every membership but `spool_channel_scoped` (it holds no privilege, it only
+  names who the rule binds). Before that, wf 10 on 940b3fad9 was red in
+  `db-owner-split.tst.sh`. Test: that file's real-Postgres leg. CONTROL: a
+  membership in any other role still fails (`member_of=1`).
 
 ## Coverage
 

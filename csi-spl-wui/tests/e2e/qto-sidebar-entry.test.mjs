@@ -34,13 +34,17 @@
 // [data-testid=qto-folder-menu] / [data-testid=qto-section-menu], so those
 // checks FAIL.
 //
-// Owner t1 3b8891e0 (msgs 62c51def, 411480f9, e3b5a06a): a + New folder in
-// the explorer pane only, desktop and phone, "the same type and shape" as
-// the page's + New document, "on the top". At 1440 px it sits at the top of
-// the tree: a folder made there lists first; a folder picked, the page's +
-// New document lands inside it. At 390 px it tops each drill-down level and
-// makes the folder in the level shown. Control: before the button there is
-// no [data-test=qto-new-folder], so every folder check FAILS.
+// Owner t1 3b8891e0 (msgs 62c51def, 411480f9): folders in the explorer
+// pane; a folder picked, the page's + New document lands inside it.
+// Owner t1 f6bec016 (msg 9663760c: "remove the + button on the file explorer
+// on the left side of the qto view, also add the root dir - which / , the
+// creation of the files and dirs should happen only via the right click";
+// msg b06f13ad: "but keep the + button of the creae new document"): no +
+// at the top of the tree; a `/` row at level 1, open, holds the top level
+// (level 2), desktop and phone. Its menu (right-click, a long press) has New
+// document and New folder only, landing at the top level; a folder row's
+// New folder makes one inside it. Control: before it the tree has no `/`
+// row and no [data-testid=qto-root-menu], so those checks FAIL.
 //
 // Control: before the entry there is no [data-testid=qto-open], so every
 // signed-in check FAILS on the earlier master. The channel list check has
@@ -115,9 +119,9 @@ async function fileTree(p) {
     const d = document.querySelector('[data-test=ws-docs-page]')?.getBoundingClientRect()
     return Boolean(t && d && t.right <= d.left + 1)
   }))
-  await p.waitForSelector('[data-test=qto-file-tree] [aria-level="2"]', { timeout: STEP }).catch(() => null)
+  await p.waitForSelector('[data-test=qto-file-tree] [aria-level="3"]', { timeout: STEP }).catch(() => null)
   const rows = await rowKeys(p)
-  ok('the open document is the active row, expanded to its sections', rows[0] === '1 Handbook' && rows.includes('2 Introduction') && rows.includes('2 Glossary'), rows)
+  ok('the open document is the active row under /, expanded to its sections', rows[0] === '1 /' && rows[1] === '2 Handbook' && rows.includes('3 Introduction') && rows.includes('3 Glossary'), rows)
   ok('the active row is marked', await p.$eval('[data-test=qto-file-tree] [aria-selected=true]', (el) => el.textContent.trim()).catch(() => '') === 'Handbook')
 
   /* SPL-1731: a section with sections under it shows a plus, not a folder; a leaf section a list */
@@ -135,12 +139,12 @@ async function fileTree(p) {
   ok('a section with sections is collapsed', (await intro.evaluate((el) => el.getAttribute('aria-expanded'))) === 'false')
   await (await intro.$('[data-test=file-tree-toggle]'))?.click()
   await p.waitForFunction(() => [...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].some((el) => el.textContent.trim() === 'Scope'), { timeout: STEP }).catch(() => {})
-  ok('its chevron expands it', (await rowKeys(p)).includes('3 Scope'), await rowKeys(p))
+  ok('its chevron expands it', (await rowKeys(p)).includes('4 Scope'), await rowKeys(p))
   /* the keyboard: Left closes the open row, Down moves, Enter opens */
   await intro.evaluate((el) => el.focus())
   await p.keyboard.press('ArrowLeft')
   await p.waitForFunction(() => ![...document.querySelectorAll('[data-test=qto-file-tree] [data-test=file-tree-row]')].some((el) => el.textContent.trim() === 'Scope'), { timeout: STEP }).catch(() => {})
-  ok('Left collapses it', !(await rowKeys(p)).includes('3 Scope'))
+  ok('Left collapses it', !(await rowKeys(p)).includes('4 Scope'))
   await p.keyboard.press('ArrowRight')
   await p.keyboard.press('ArrowRight')
   ok('Right expands, Right again steps into it', await p.evaluate(() => document.activeElement?.textContent?.trim()) === 'Scope')
@@ -265,16 +269,32 @@ async function docMenu(p, browser) {
   ok('Delete: the document left opens', await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Notes', { timeout: STEP }).then(() => true, () => false))
 }
 
-const FOLDER_NEW = '[data-test=qto-new-folder]'
-/** the + buttons' look: the folder one must match the page's document one */
-const look = (p, sel) => p.$eval(sel, (el) => {
-  const c = getComputedStyle(el)
-  return [c.width, c.height, c.borderRadius, c.backgroundColor, el.querySelector('svg') ? 'icon' : 'none'].join(' ')
-}).catch(() => '')
+/** a held touch on the phone list's row named name (its menu, as a sheet) */
+async function holdRow(p, name) {
+  const at = await p.evaluate((sel, name) => {
+    const el = [...document.querySelectorAll(sel)].find((e) => e.textContent.trim() === name)
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    return { x: r.left + 60, y: r.top + r.height / 2 }
+  }, `${LIST} [data-test=file-tree-row]`, name)
+  if (!at) return
+  await p.touchscreen.touchStart(at.x, at.y)
+  await new Promise((r) => setTimeout(r, 800))
+  await p.touchscreen.touchEnd()
+}
 
-/** the folder dialog from the + in scope (the side tree, or the phone's list): a name, Create; '' = it closed */
-async function newFolder(p, name, scope = '#qto-file-tree') {
-  await p.click(`${scope} ${FOLDER_NEW}`)
+/** the menu of the row named row ('/' = the root's): a right-click, a long press on a phone; false = no menu */
+async function rowMenu(p, row, touch = false) {
+  if (touch) await holdRow(p, row)
+  else await rightClick(p, row)
+  return p.waitForSelector(`[data-testid=qto-${row === '/' ? 'root' : 'folder'}-menu]`, { visible: true, timeout: STEP }).then(Boolean, () => false)
+}
+
+/** the folder dialog from a row's New folder (the `/` row's by default): a name, Create; '' = it closed */
+async function newFolder(p, name, { row = '/', touch = false } = {}) {
+  if (!(await rowMenu(p, row, touch))) return 'no menu'
+  const item = `[data-testid=qto-${row === '/' ? 'root' : 'folder'}-menu-new_folder]`
+  await (touch ? p.tap(item) : p.click(item))
   const input = await p.waitForSelector('[data-test=qto-new-folder-name]', { visible: true, timeout: STEP }).catch(() => null)
   if (!input) return 'no dialog'
   await input.type(name)
@@ -305,24 +325,34 @@ async function shots(p, name) {
   await p.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'))
 }
 
-/** t1 3b8891e0 at 1440 px: the + New folder tops the tree; a folder, then a document inside it */
+const RMENU = '[data-testid=qto-root-menu]'
+
+/** t1 f6bec016 at 1440 px: no + on the tree, a `/` row tops it; its menu makes a folder, then a document inside it */
 async function desktopFolders(p) {
   await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await onPage(p)
   await p.waitForSelector('[data-test=qto-file-tree] [data-test=file-tree-row]', { visible: true, timeout: STEP }).catch(() => null)
-  ok('1440: a + New folder is in the explorer pane', await p.waitForSelector(`#qto-file-tree ${FOLDER_NEW}`, { visible: true, timeout: STEP }).then(Boolean, () => false))
-  ok('1440: ... named New folder', await p.$eval(FOLDER_NEW, (el) => el.getAttribute('aria-label')).catch(() => '') === 'New folder')
-  ok('1440: ... at the top, above every row', await p.evaluate((sel) => {
-    const b = document.querySelector(sel)?.getBoundingClientRect()
-    const r = document.querySelector('#qto-file-tree [data-test=file-tree-row]')?.getBoundingClientRect()
-    return Boolean(b && r && b.bottom <= r.top + 1)
-  }, FOLDER_NEW))
-  const want = await look(p, '[data-test=ws-docs-new]')
-  ok('1440: ... the same type and shape as + New document', Boolean(want) && await look(p, FOLDER_NEW) === want, [await look(p, FOLDER_NEW), want])
-  ok('1440: a folder is made', await newFolder(p, 'Plans') === '')
-  ok('1440: ... and listed first in the tree, a folder row', await p.waitForFunction(() => {
-    const first = document.querySelector('#qto-file-tree [data-test=file-tree-row]')
-    return first?.textContent.trim() === 'Plans' && first.getAttribute('data-kind') === 'folder'
+  ok('1440: no + at the top of the explorer (msg 9663760c)', !(await p.$('#qto-file-tree button')), await p.$$eval('#qto-file-tree button', (els) => els.map((el) => el.getAttribute('aria-label'))))
+  ok('1440: the page keeps its + New document (msg b06f13ad)', await shown(p, '[data-test=ws-docs-new]'))
+  const top = await rowKeys(p)
+  ok('1440: a / row tops the tree, open, the top level one level under it', top[0] === '1 /' && top.slice(1).filter((r) => !r.endsWith(' Repository')).every((r) => !r.startsWith('1 '))
+    && await p.$eval('#qto-file-tree [data-key="/"]', (el) => el.getAttribute('aria-expanded')).catch(() => null) === 'true', top)
+  ok('1440: a right-click on / opens its menu', await rowMenu(p, '/'))
+  const ids = await p.$$eval(`${RMENU} [role=menuitem]`, (els) => els.map((el) => el.getAttribute('data-testid').replace('qto-root-menu-', ''))).catch(() => [])
+  ok('1440: ... New document and New folder only (no Rename, no Delete)', ids.join(',') === 'new_doc,new_folder', ids)
+  await shots(p, 'qto-root-menu-1440')
+  await p.keyboard.press('Escape')
+  await p.waitForFunction((sel) => !document.querySelector(sel), { timeout: STEP }, RMENU).catch(() => {})
+  await (await treeRow(p, '/')).click()
+  ok('1440: a click on / keeps it open', await p.$eval('#qto-file-tree [data-key="/"]', (el) => el.getAttribute('aria-expanded')).catch(() => null) === 'true')
+  await p.click('#qto-file-tree [data-key="/"] [data-test=file-tree-toggle]')
+  ok('1440: its chevron collapses it: / alone, then the Repository row', (await rowKeys(p)).join('|') === '1 /|1 Repository', await rowKeys(p))
+  await p.click('#qto-file-tree [data-key="/"] [data-test=file-tree-toggle]')
+  ok('1440: ... and expands it again', (await rowKeys(p))[1] === '2 Handbook', await rowKeys(p))
+  ok('1440: a folder is made from / New folder', await newFolder(p, 'Plans') === '')
+  ok('1440: ... and listed first under /, a folder row', await p.waitForFunction(() => {
+    const first = document.querySelectorAll('#qto-file-tree [data-test=file-tree-row]')[1]
+    return first?.textContent.trim() === 'Plans' && first.getAttribute('data-kind') === 'folder' && first.getAttribute('aria-level') === '2'
   }, { timeout: STEP }).then(() => true, () => false), await rowKeys(p))
   ok('1440: the same name again is refused, saying why', await newFolder(p, 'plans') === 'A folder with that name is already here.')
   await p.keyboard.press('Escape')
@@ -334,11 +364,22 @@ async function desktopFolders(p) {
   ok('1440: + New document makes a document', await newDoc(p, 'Roadmap'))
   ok('1440: ... inside the picked folder, one level under it', await p.waitForFunction(() => {
     const rows = [...document.querySelectorAll('#qto-file-tree [data-test=file-tree-row]')].map((el) => `${el.getAttribute('aria-level')} ${el.textContent.trim()}`)
-    const i = rows.indexOf('1 Plans')
-    return i >= 0 && rows[i + 1] === '2 Roadmap'
+    const i = rows.indexOf('2 Plans')
+    return i >= 0 && rows[i + 1] === '3 Roadmap'
   }, { timeout: STEP }).then(() => true, () => false), await rowKeys(p))
   const inside = await p.evaluate((id) => window.__wsDocTreeCall?.('GET', '/nodes?parent=' + id).then((r) => r.nodes.map((n) => n.title || n.name)), folderId)
   ok('1440: ... and the hub has it there', Array.isArray(inside) && inside.join() === 'Roadmap', inside)
+  /* / New document lands at the top level, whatever folder was picked */
+  await rowMenu(p, '/')
+  await p.click(`${RMENU} [data-testid=qto-root-menu-new_doc]`).catch(() => {})
+  const memo = await p.waitForSelector('[data-test=ws-docs-new-title]', { visible: true, timeout: STEP }).catch(() => null)
+  if (memo) {
+    await memo.type('Memo')
+    await p.click('[data-test=ws-docs-create]')
+  }
+  await p.waitForFunction(() => document.querySelector('[data-test=ws-doc-doctitle]')?.textContent.trim() === 'Memo', { timeout: STEP }).catch(() => {})
+  const atTop = await p.evaluate(() => window.__wsDocTreeCall?.('GET', '/nodes').then((r) => r.nodes.map((n) => n.title || n.name)))
+  ok('1440: / New document lands at the top level', Array.isArray(atTop) && atTop.includes('Memo') && atTop.includes('Plans'), atTop)
   await shots(p, 'qto-new-folder-1440')
   await folderMenu(p, folderId)
 }
@@ -427,21 +468,19 @@ async function folderMenu(p, folderId) {
   ok('1440: Delete: the hub lists neither of its documents', Array.isArray(listed) && !listed.includes('Roadmap') && !listed.includes('Budget'), listed)
 }
 
-/** t1 3b8891e0 at 390 px: the + New folder tops each drill-down level and makes the folder there */
+/** t1 f6bec016 at 390 px: / tops the first level; a long press on it, or on a folder, makes a folder there */
 async function phoneFolders(m) {
   await m.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await onPage(m)
-  await listIs(m, ['Handbook'])
-  ok('390: a + New folder tops the list', await m.evaluate((sel) => {
-    const b = document.querySelector(sel)?.getBoundingClientRect()
-    const r = document.querySelector('[data-test=ws-docs-page] [data-test=qto-file-tree] [data-test=file-tree-row]')?.getBoundingClientRect()
-    return Boolean(b && r && b.width > 0 && b.bottom <= r.top + 1)
-  }, `${LIST} ${FOLDER_NEW}`))
-  /* the page's + floats bottom right on a phone at 56 px; the folder one keeps the round accent + at the top */
-  const [w, h, radius, ...rest] = (await look(m, `${LIST} ${FOLDER_NEW}`)).split(' ')
-  const fab = (await look(m, '[data-test=ws-docs-new]')).split(' ')
-  ok('390: ... a round + of 40 px or more, the page\'s colour', parseFloat(w) >= 40 && w === h && radius === '50%' && rest.join(' ') === fab.slice(3).join(' '), [w, h, radius, rest.join(' '), fab.join(' ')])
-  ok('390: a folder made at the top level lists there, first', await newFolder(m, 'Plans', LIST) === '' && await listIs(m, ['Plans', 'Handbook']), await listRows(m))
+  await listIs(m, ['/', 'Handbook'])
+  ok('390: no + on the list, the page keeps its + New document', !(await m.$(`${LIST} button`)) && await shown(m, '[data-test=ws-docs-new]'))
+  ok('390: a long press on / opens its menu as a sheet: New document, New folder', await rowMenu(m, '/', true)
+    && await m.$eval(RMENU, (el) => el.classList.contains('touch-sheet')).catch(() => false)
+    && (await m.$$eval(`${RMENU} [role=menuitem]`, (els) => els.map((el) => el.getAttribute('data-testid')))).join() === 'qto-root-menu-new_doc,qto-root-menu-new_folder')
+  if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-root-menu-390.png` })
+  await m.touchscreen.tap(195, 120)
+  await m.waitForFunction((sel) => !document.querySelector(sel), { timeout: STEP }, RMENU).catch(() => {})
+  ok('390: a folder made from / lists at the top level, first', await newFolder(m, 'Plans', { touch: true }) === '' && await listIs(m, ['/', 'Plans', 'Handbook']), await listRows(m))
   const held = await m.$eval(`${LIST} [data-kind=folder]`, (el) => { const r = el.getBoundingClientRect(); return { x: r.left + 60, y: r.top + r.height / 2 } }).catch(() => null)
   if (held) {
     await m.touchscreen.touchStart(held.x, held.y)
@@ -455,9 +494,12 @@ async function phoneFolders(m) {
   ok('390: a tap above the sheet closes it', await m.waitForFunction(() => !document.querySelector('[data-testid=qto-folder-menu]'), { timeout: STEP }).then(() => true, () => false))
   await tapRow(m, 'Plans')
   ok('390: a tap on the folder drills into it, titled with its name', await m.waitForFunction(() => new URL(location.href).searchParams.get('in')?.startsWith('f:'), { timeout: STEP }).then(() => true, () => false) && await heading(m) === 'Plans', m.url())
-  ok('390: ... the + New folder tops that level too', await shown(m, `${LIST} ${FOLDER_NEW}`))
-  ok('390: ... and a folder level offers no Edit (it is no document)', !(await m.$('[data-test=ws-docs-drill-open]')))
-  ok('390: a folder made there lands in the level shown', await newFolder(m, '2026', LIST) === '' && await listIs(m, ['2026']), await listRows(m))
+  ok('390: ... no / there, and a folder level offers no Edit (it is no document)', await listIs(m, []) && !(await m.$('[data-test=ws-docs-drill-open]')), await listRows(m))
+  await back(m)
+  await listIs(m, ['/', 'Plans', 'Handbook'])
+  ok('390: a folder\'s New folder makes one inside it', await newFolder(m, '2026', { row: 'Plans', touch: true }) === '')
+  await tapRow(m, 'Plans')
+  ok('390: ... it lists in that folder\'s level', await listIs(m, ['2026']) && await heading(m) === 'Plans', await listRows(m))
   if (process.env.SHOT_DIR) await shots(m, 'qto-new-folder-390')
   ok('390: + New document makes a document in that level', await newDoc(m, 'Roadmap'))
   await back(m)
@@ -485,7 +527,7 @@ async function back(p) {
 /** t1 8bf89f96: the phone drills down, one level a screen, Back walks up */
 async function drillDown(m) {
   ok('phone: no side tree and no Documents button', !(await shown(m, '#qto-file-tree')) && !(await m.$('[data-test=qto-file-tree-toggle]')))
-  ok('phone: the first screen lists the top level only', await listIs(m, ['Handbook']) && (await listRows(m)).every((r) => r.startsWith('1 ')), await listRows(m))
+  ok('phone: the first screen lists / and the top level under it only', await listIs(m, ['/', 'Handbook']) && (await listRows(m)).join('|') === '1 /|2 Handbook', await listRows(m))
   ok('phone: ... titled Documents, with the Back chevron', await heading(m) === 'Documents' && await shown(m, '[data-test=ws-docs-page] [data-testid=mobile-back]'))
   if (process.env.SHOT_DIR) await m.screenshot({ path: `${process.env.SHOT_DIR}/qto-drill-phone-top.png` })
   await tapRow(m, 'Handbook')
@@ -504,7 +546,7 @@ async function drillDown(m) {
   await back(m)
   ok('phone: Back from the document returns to its level', await listIs(m, ['Introduction', 'Operations', 'Glossary']), await listRows(m))
   await back(m)
-  ok('phone: Back again, the top level', await listIs(m, ['Handbook']) && await heading(m) === 'Documents', await listRows(m))
+  ok('phone: Back again, the top level', await listIs(m, ['/', 'Handbook']) && await heading(m) === 'Documents', await listRows(m))
   return level
 }
 
@@ -525,7 +567,7 @@ async function freshBack(browser, url) {
   ok('390 fresh: Back goes up one level, to the document', await listIs(n, ['Introduction', 'Operations', 'Glossary']) && await headingIs(n, 'Handbook'), [n.url(), await listRows(n)])
   if (process.env.SHOT_DIR) await n.screenshot({ path: `${process.env.SHOT_DIR}/qto-fresh-back-390.png` })
   await back(n)
-  ok('390 fresh: Back again, the top of Documents', await listIs(n, ['Handbook']) && await headingIs(n, 'Documents') && !new URL(n.url()).searchParams.has('in'), [n.url(), await listRows(n)])
+  ok('390 fresh: Back again, the top of Documents', await listIs(n, ['/', 'Handbook']) && await headingIs(n, 'Documents') && !new URL(n.url()).searchParams.has('in'), [n.url(), await listRows(n)])
   await back(n)
   ok('390 fresh: only from the top does Back leave Documents', await n.waitForFunction(() => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') === '1', { timeout: STEP }).then(() => true, () => false), n.url())
   await n.close()

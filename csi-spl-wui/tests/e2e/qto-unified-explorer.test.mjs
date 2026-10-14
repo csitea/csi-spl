@@ -93,7 +93,7 @@ try {
   await p.waitForSelector('[data-test=ws-docs-page]', { visible: true, timeout: STEP }).catch(() => null)
   await p.waitForSelector(`${TREE} [data-kind=doc]`, { visible: true, timeout: STEP }).catch(() => null)
   const first = await rowKeys(p)
-  ok('the workspace documents come first, then one Repository row, closed', first[0] === '1 Handbook' && first.at(-1) === '1 Repository'
+  ok('the workspace documents come first, under the / row (t1 f6bec016), then one Repository row, closed', first[0] === '1 /' && first[1] === '2 Handbook' && first.at(-1) === '1 Repository'
     && await p.$eval(rowSel('r:'), (el) => el.getAttribute('aria-expanded')).catch(() => null) === 'false', first)
   ok('CONTROL: the Qto document shows, no repo pane', await qtoShown(p) && !(await repoPane(p)))
 

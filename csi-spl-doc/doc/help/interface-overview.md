@@ -198,6 +198,13 @@ put the tree back to `260px`. It stops where the channel sidebar's divider stops
 (from `180px` to about a third of the window), and the width is kept in this
 browser. On a phone the page shows one pane at a time, so there is no bar.
 
+The tree starts with one **`/`** row, the workspace's top level, open, with
+its folders and documents under it; it opens and closes like a folder. There is
+no **+** at the top of the tree: right-click **`/`** (a long press on a phone,
+or Shift+F10) and pick **New document here** or **New folder here** to make one
+at the top level, or do the same on a folder to make one inside it. The page's
+**+** for a new document stays where it is.
+
 ---
 
 ## 7. Collapsing a Panel

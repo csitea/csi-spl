@@ -158,10 +158,17 @@ def harness():
         return "unknown"
 
 def last_assistant(path):
-    """The transcript's last assistant entry (claude jsonl), read from its tail."""
+    """The transcript's last assistant entry (claude jsonl), read from its tail.
+    None when the file is not there yet: a fresh session's first prompt (a
+    rotation's seed) fires UserPromptSubmit before claude writes its jsonl
+    (SPL-1843: hook 02:06:02Z, file born 02:06:04Z)."""
     if not path:
         return None
-    with open(path, "rb") as f:
+    try:
+        f = open(path, "rb")
+    except FileNotFoundError:
+        return None
+    with f:
         f.seek(0, 2)
         f.seek(max(0, f.tell() - 256 * 1024))
         lines = f.read().splitlines()

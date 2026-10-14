@@ -10,6 +10,8 @@
 #      shape): the next UserPromptSubmit sets api_error from the transcript
 #      (control: a good last reply leaves it null); StopFailure sets it from
 #      its payload (last_assistant_message, else the error code)
+#  2c. a transcript not written yet (a fresh session's first prompt): no
+#      hook.err, the heartbeat still written (control: 2b reads one)
 #   3. no tool input or output in the files (control: the planted text is in
 #      the payload the hook read)
 #   4. inject: 3 messages / 12 KB per injection, oldest first, body cut at
@@ -136,6 +138,11 @@ eq "2b. a tool call clears it" null "$(hb api_error)"
 TRG="$T_TMP/good.jsonl"; transcript "$TRG" 0 "done, all green"
 hook UserPromptSubmit $((T0 + 98)) "{\"prompt\":\"x\",\"transcript_path\":\"$TRG\"}" >/dev/null
 eq "2b. CONTROL: a poke after a good reply leaves api_error null" null "$(hb api_error)"
+# a fresh session's first prompt (a rotation seed) fires before claude writes
+# its jsonl (SPL-1843: hook 02:06:02Z, file born 02:06:04Z): skipped quietly
+hook UserPromptSubmit $((T0 + 99)) "{\"prompt\":\"x\",\"transcript_path\":\"$T_TMP/not-yet.jsonl\"}" >/dev/null
+check "2c. a transcript not written yet: no hook.err" test ! -e "$D/hook.err"
+eq "2c. ... the heartbeat is still written" "working $(iso $((T0 + 99)))" "$(hb state) $(hb ts)"
 hook StopFailure $((T0 + 99)) '{"error":"rate_limit","last_assistant_message":"You'"'"'ve hit your session limit · resets 3:20pm (Europe/Helsinki)"}' >/dev/null
 eq "2b. StopFailure: idle, api_error = last_assistant_message" "idle You've hit your session limit · resets 3:20pm (Europe/Helsinki)" "$(hb state) $(hb api_error)"
 eq "2b. StopFailure: progress_ts unchanged" "$(iso $((T0 + 97)))" "$(hb progress_ts)"

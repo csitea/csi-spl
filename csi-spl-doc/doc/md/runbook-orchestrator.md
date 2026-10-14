@@ -192,6 +192,11 @@ No line means no live hang. `ScheduleWakeup` is a wait the seat asked for, so it
   `do_spl_orch_inbox`. Finally it runs the ACK-COMMAND from its seed within
   600 s. It posts nothing about the rotation and picks up what the old
   session left.
+- A rotation run by hand from the orch pane itself (a tool call) re-runs
+  itself detached, because its QUIESCE Escape would kill it: read the
+  outcome in `/var/spool-hub/dispatch/rotate.orch.detached.log` and
+  `rotate.log`. A rotation whose run died before SPAWN ends as
+  `ABORT STALE` on the next run, with no owner alert (SPL-1837).
 
 - **Shadow feed limitations:** The shadow feed mirrors `c-001`, `c-002`, and `c-003` only. Lane mailboxes, handoff files (`/var/spool-hub/dispatch/handoff/`), and heartbeats are absent. A GO or FIX sent to a lane is visible only as the leader's outbox copy.
 

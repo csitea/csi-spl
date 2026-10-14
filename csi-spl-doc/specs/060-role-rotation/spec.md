@@ -85,7 +85,20 @@ its weekly limit on 2026-10-01.
 - **FR-003** A run can be resumed. The next run reads the `.state` file and
   either continues the phase, when its effect can be checked (such as "the
   new pid is live"), or runs that phase's failure path. A role never has two
-  rotations at once.
+  rotations at once. The ctx records the run's pid and start tick
+  (`ROTATE_RUN_PID`, `ROTATE_RUN_START`). A ctx whose run is gone before
+  anything was spawned (GATE, HOLD, QUIESCE, HANDOFF, REFRESH, no new pid) is
+  not resumed: it ends as `ABORT STALE` (a switched lease.conf and the hold go
+  back), with no FAIL and no owner alert, and the run starts a new rotation
+  under its own id. A ctx whose run is still alive is left to it
+  (`GATE SKIP ... is still run by pid`). SPL-1837, 2026-10-14: a resumed
+  GATE of a killed run raised a false owner alert.
+- **FR-003a** A run started from inside a pane its QUIESCE interrupts (the
+  orch pane; the master or failover pane) re-runs itself detached (`setsid`,
+  same environment), logs `GATE SKIP inside: ... re-run detached`, and ends;
+  its output goes to `<spool root>/dispatch/rotate.<orch|dispatch>.detached.log`.
+  The Escape would otherwise kill the run with its own tool call (SPL-1837,
+  `20261014T0914Z-orch`). A detached run still inside refuses, never loops.
 - **FR-004** One `flock` per role (`rotate.orch.lock`, `rotate.dispatch.lock`).
   A busy lock = `SKIP locked`, exit 0.
 - **FR-005** `DRY_RUN=1` is the default from a shell: one `PLAN` line per
@@ -477,7 +490,7 @@ REFRESH-F --fail--> keep old F, ALERT --> DONE
 | two machines | each rotates only the roles it holds (FR-044) | the same |
 | usage-limit stall (CLE-77935) | `SKIP stalled`, one note | `SKIP stalled`; the lease has already gone to F |
 | a message arrives mid-rotation | it lands in the same inbox and its poke rings the new window from SPAWN on; the new session reads the inbox before it acks | it lands in M's inbox; F works it under the hold; the new M skips what F's outbox shows handled |
-| the script is killed | the `.state` file resumes or fails the phase (FR-003) | the same; a dead hold ages out (FR-024) |
+| the script is killed | the `.state` file resumes or fails the phase (FR-003); killed before SPAWN = `ABORT STALE`, the next run starts clean, no alert | the same; the hold goes with the STALE ctx, a dead hold ages out (FR-024) |
 | the hub is unreachable | the local `lease.orch` mirror rules apply (fleet-roles 4.1) | in fleet mode the HOLD CAS cannot land: `FAIL promote`, and M keeps acting |
 
 ## 6. The handoff file

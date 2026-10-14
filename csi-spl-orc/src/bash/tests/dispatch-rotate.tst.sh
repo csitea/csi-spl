@@ -25,7 +25,9 @@
 #      ROTATE_HOLD_MAX ignored with one WARN (FR-023, FR-024); a hold whose
 #      rotation is dead (written before the boot, its pid gone) removed at
 #      once. Control: a live rotation's hold still holds
-#   9. resume (FR-003) and abort (FR-091)
+#   9. resume (FR-003) and abort (FR-091); SPL-1837: a GATE left by a gone
+#      run = ABORT STALE, hold removed, no FAIL/alert, a new rotation;
+#      control: its run alive = SKIP
 #  10. T-CRON: :15, idempotent, check, CRON_REMOVE=1; the heal line every 3 min
 #      off the rotation's minute, the cron script's --heal
 #  11. ROTATE_CMD=heal: dead -> healed (rotate.log, no rotation), alive or on
@@ -68,6 +70,9 @@
 #      Controls: a dry run plans it and moves nothing; the guard picking the
 #      dead vendor again = no replacement, the reason logged; a verdict older
 #      than the seat's process, or a healthy seat = GATE SKIP standby
+#  20. SPL-1837: a run inside the master or the failover pane re-runs itself
+#      detached (setsid), both locks let go first, no hold; a detached run
+#      still inside refuses (no loop); control: a run outside rotates
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -428,11 +433,22 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
   pass "9. GATE before the last boot: 'interrupted by boot', ctx + hold removed, no FAIL blocker" || fail "9. boot rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
 act DRY_RUN=0 >"$T/o" 2>&1
 ! grep -q RESUME "$T/o" && pass "9. ... and the next run does not RESUME" || fail "9. boot resumed again: $(cat "$T/o")"
+# SPL-1837 (2): GATE on this boot, left by a run that is gone (a ctx with no
+# run pid): ABORT STALE, the hold gone, no FAIL, no blocker, and the forced
+# run rotates under a new rid to DONE
 at_gate 7200
+act DRY_RUN=0 ROTATE_FORCE=1 >"$T/o" 2>&1; rc=$?
+nrid="$(ctx ROTATE_RID)"
+[[ $rc -eq 0 && "$nrid" != "$rid" && "$(ctx ROTATE_PHASE)" == DONE && "$(holder)" == c-902 && ! -e "$D/rotate.hold" ]] &&
+  grep -q " $rid ABORT STALE at GATE: run pid unknown is gone, nothing was spawned; ctx and hold removed" "$T/o" &&
+  grep -q " ${nrid%-*}-master GATE OK c-902 pid 102" "$T/o" && ! grep -qE " (RESUME|FAIL) " "$T/o" && ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
+  pass "9. SPL-1837: GATE left by a gone run: ABORT STALE, hold removed, no FAIL, no blocker, a new rotation to DONE" || fail "9. stale rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+# CONTROL: the recorded run is alive (pid 3100, same start tick): no STALE, no resume
+at_gate 7200; "$T/bin/proc" 3100 none 50 bash
+printf 'ROTATE_RUN_PID=3100\nROTATE_RUN_START=%s\n' "$(( (UP - 50) * TCK ))" >>"$D/rotate.dispatch.ctx"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -ne 0 ]] && grep -q " $rid FAIL FAIL GATE: resumed with no live new session" "$T/o" && ! grep -q 'interrupted by boot' "$T/o" &&
-  grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-902 ASK_TOPIC=dispatch-rotate-$rid" "$T/run.log" &&
-  pass "9. CONTROL: GATE on this boot, no new session: FAIL + blocker as before" || fail "9. control rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == GATE && -e "$D/rotate.hold" && ! -e "$T/spawn.log" ]] && grep -q " GATE SKIP rotation $rid is still run by pid 3100" "$T/o" &&
+  ! grep -qE ' (STALE|FAIL) ' "$T/o" && pass "9. CONTROL: its run still alive: SKIP, ctx and hold kept, nothing alerted" || fail "9. alive rc=$rc $(cat "$T/o")"
 rm -f "$T/proc/stat"
 
 # --- 10. T-CRON ---------------------------------------------------------------------------------
@@ -778,6 +794,39 @@ act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
 grep -q ' GATE SKIP standby (dispatch lease: g-002@sat)' "$T/o" && [[ ! -e "$T/spawn.log" ]] && ! grep -q STANDBY "$T/o" &&
   pass "19. control: healthy standby seats -> GATE SKIP standby (FR-044)" || fail "19. healthy: $(cat "$T/o")"
 rm -rf "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00* "$D/wd"
+
+# --- 20. SPL-1837 (1): a run started INSIDE a dispatcher pane re-runs itself detached ------------
+cat >"$T/bin/setsid" <<'EOF'
+#!/usr/bin/env bash
+echo "setsid $* DRY_RUN=${DRY_RUN:-} ROTATE_FORCE=${ROTATE_FORCE:-}" >>"$T/setsid.log"
+flock -n 9 9>>"$SPOOL_ROOT/dispatch/rotate.dispatch.lock" && echo "rotate lock free" >>"$T/setsid.log"
+flock -n 8 8>>"$SPOOL_ROOT/c-902/lifetime/restart.lock" && echo "id lock free" >>"$T/setsid.log"
+exit 0
+EOF
+chmod +x "$T/bin/setsid"
+inside() {  # PPID: pid 3001, a bash whose parent is PPID
+  world; rm -f "$T/setsid.log"; mkdir -p "$T/proc/3001"; echo bash >"$T/proc/3001/comm"
+  echo "3001 (bash) S $1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $(( (UP - 5) * TCK ))" >"$T/proc/3001/stat"
+}
+for in_pid in 102 103; do
+  inside "$in_pid"
+  act DRY_RUN=0 ROTATE_FORCE=1 ROTATE_SELF_PID=3001 ROTATE_SETSID="$T/bin/setsid" >"$T/o" 2>&1; rc=$?
+  pn="%${in_pid#10}"
+  [[ $rc -eq 0 && ! -e "$T/spawn.log" && ! -e "$D/rotate.hold" && ! -e "$D/rotate.dispatch.ctx" ]] &&
+    grep -q " GATE SKIP inside: this run is in $pn, which QUIESCE would interrupt; re-run detached (setsid), log $D/rotate.dispatch.detached.log" "$T/o" &&
+    grep -q "^setsid env ROTATE_DETACHED=1 $T/bin/run -a do_spl_dispatch_rotate DRY_RUN=0 ROTATE_FORCE=1\$" "$T/setsid.log" &&
+    grep -qx 'rotate lock free' "$T/setsid.log" && grep -qx 'id lock free' "$T/setsid.log" && ! grep -q 'Escape' "$T/tmux/log" 2>/dev/null &&
+    pass "20. SPL-1837: run inside $pn: re-run detached, both locks free, no hold, no Escape" || fail "20. inside $pn rc=$rc $(cat "$T/o") $(cat "$T/setsid.log" 2>&1) | $(cat "$T/tmux/log" 2>&1) | $(ls "$T" "$D")"
+done
+inside 102
+act DRY_RUN=0 ROTATE_FORCE=1 ROTATE_SELF_PID=3001 ROTATE_SETSID="$T/bin/setsid" ROTATE_DETACHED=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && ! -e "$T/setsid.log" && ! -e "$D/rotate.hold" ]] && grep -q " GATE SKIP inside: this detached run is still in %2" "$T/o" &&
+  pass "20. a detached run still inside the pane: refused, no second re-run" || fail "20. loop rc=$rc $(cat "$T/o")"
+# CONTROL: a run outside every pane rotates as before
+inside 1
+act DRY_RUN=0 ROTATE_FORCE=1 ROTATE_SELF_PID=3001 ROTATE_SETSID="$T/bin/setsid" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/setsid.log" && "$(ctx ROTATE_PHASE)" == DONE ]] &&
+  pass "20. CONTROL: a run outside the panes rotates to DONE, no re-run" || fail "20. control rc=$rc $(cat "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

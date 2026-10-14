@@ -19,7 +19,11 @@
 # @description             <ID>/outbox) -> RETIRE (/exit-clean, TERM, KILL) ->
 # @description             CLOSE -> DONE. A failure keeps the old session in the
 # @description             role and ALERTS (an ask + an owner DM, owner D2). A
-# @description             re-run resumes a rotation left mid-way (FR-003).
+# @description             re-run resumes a rotation left mid-way (FR-003); one
+# @description             whose run is gone before SPAWN starts clean (ABORT
+# @description             STALE, no alert). A run from inside the orch pane
+# @description             (QUIESCE would kill it) re-runs itself detached
+# @description             (setsid), log rotate.orch.detached.log (SPL-1837).
 # @description   ack     - run BY the new session: ROTATE_ID=<rid> from its seed
 # @description   abort   - run the current phase's failure path (FR-091)
 # @description   handoff - print the handoff a rotation would write now
@@ -85,11 +89,8 @@ spl_orch_rotate_auto() {
   spl_agent_id_lock "$id" do_spl_orch_rotate "$rid" || idl=$?
   (( idl == 0 )) || { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$idl"; }
   # a rotation left mid-way is resumed or failed first (FR-003)
-  if spl_rotate_ctx_load orch && [[ -n "$ROTATE_PHASE" && "$ROTATE_PHASE" != DONE && "$ROTATE_PHASE" != FAIL && "$ROTATE_PHASE" != ABORT ]]; then
-    if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$ROTATE_RID" RESUME PLAN "from $ROTATE_PHASE"; return 0; fi
-    spl_orch_rotate_resume || return 1
-    return 0
-  fi
+  spl_orch_rotate_left "$rid" || return 1
+  [[ "$ROTATE_GO" == 1 ]] || return 0
   [[ "$ROTATE" != 0 && "$ROTATE_ORCH" != 0 ]] || { spl_rotate_log "$rid" GATE SKIP "disabled (ROTATE=$ROTATE ROTATE_ORCH=$ROTATE_ORCH)"; return 0; }
   if [[ -n "${LEASE_FLEET:-}" ]]; then
     holder="$(spl_orch_rotate_holder)"
@@ -146,6 +147,9 @@ spl_orch_rotate_auto() {
     echo "---- end of preview: DRY_RUN, nothing was touched. Re-run with DRY_RUN=0."
     return 0
   fi
+  # SPL-1837: run from inside the pane QUIESCE interrupts = re-run detached
+  spl_rotate_detach_if_inside orch "$id" "$pane" || { local dc=$?; return $(( dc == 3 ? 0 : dc )); }
+  spl_rotate_run_mark
   spl_orch_rotate_step GATE OK "pid $pid, ${age}s old, pane $pane; successor $ROTATE_KIND: $ROTATE_VENDOR_WHY"
   spl_orch_rotate_run || return 1
 }
@@ -386,6 +390,38 @@ spl_orch_rotate_fail() {
     spl_rotate_tmux send-keys -t "$ROTATE_OLD_PANE" Enter 2>/dev/null || true
   fi
   return 0
+}
+
+# spl_orch_rotate_left RID: a rotation left mid-way (the ctx in flight) is
+# resumed (FR-003), or, when its run is gone before SPAWN (spl_rotate_stale)
+# and no boot cut it off (the resume ends that: ABORT BOOT),
+# ended as STALE so this run starts clean (SPL-1837). ROTATE_GO=1: the caller
+# gates afresh; 0: it is done (rc 1 = the resume failed).
+spl_orch_rotate_left() {
+  ROTATE_GO=1
+  spl_rotate_ctx_load orch && [[ -n "$ROTATE_PHASE" && "$ROTATE_PHASE" != DONE && "$ROTATE_PHASE" != FAIL && "$ROTATE_PHASE" != ABORT ]] || return 0
+  if ! spl_rotate_booted_after "$ROTATE_RID" >/dev/null && spl_rotate_stale; then
+    [[ "${DRY_RUN:-1}" == 1 ]] || { spl_orch_rotate_stale; return 0; }
+    ROTATE_GO=0; spl_rotate_log "$ROTATE_RID" ABORT PLAN "STALE at $ROTATE_PHASE: its run is gone, nothing spawned; a new rotation starts"; return 0
+  fi
+  ROTATE_GO=0
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$ROTATE_RID" RESUME PLAN "from $ROTATE_PHASE"; return 0; fi
+  spl_rotate_run_alive && { spl_rotate_log "$1" GATE SKIP "rotation $ROTATE_RID is still run by pid $ROTATE_RUN_PID"; return 0; }
+  spl_rotate_run_mark
+  spl_orch_rotate_resume || return 1
+}
+
+# spl_orch_rotate_stale: the ctx of a run that is gone before its SPAWN
+# (spl_rotate_stale): a switched lease.conf goes back, the old window gets
+# its name back, the ctx goes; no FAIL, no alert. The caller gates afresh
+# under its own rid (SPL-1837).
+spl_orch_rotate_stale() {
+  local why="run pid ${ROTATE_RUN_PID:-unknown} is gone"
+  spl_orch_rotate_unswitch
+  why+="$ROTATE_UNSWITCH_WHY"
+  [[ -n "${ROTATE_OLD_PANE:-}" && -n "${ROTATE_OLD_NAME:-}" ]] && spl_rotate_restore "$LEASE_ORCH" "$ROTATE_OLD_PANE" ""
+  spl_rotate_log "$ROTATE_RID" ABORT STALE "at $ROTATE_PHASE: $why, nothing was spawned; ctx removed, no alert, a new rotation starts"
+  rm -f "$LEASE_DIR/rotate.orch.ctx"
 }
 
 # A rotation left mid-way (FR-003): continue from what can be checked.

@@ -7,7 +7,9 @@
 # @description never written). Mechanical (FR-001): every step reads files,
 # @description /proc, tmux or a run action, and nothing calls a model; one line
 # @description per step in <spool root>/dispatch/rotate.log, the phase in
-# @description rotate.dispatch.state / .ctx (resumable, FR-003). The shared
+# @description rotate.dispatch.state / .ctx (resumable, FR-003; a ctx whose run
+# @description is gone before SPAWN starts clean, ABORT STALE, no alert; a run
+# @description from inside a pane it quiesces re-runs itself detached: SPL-1837). The shared
 # @description pieces are spl-rotate-lib.func.sh (CLE-77939).
 # @description   GATE     switch, lease.conf, this
 # @description            machine holds the dispatch lease (FR-044; a standby box only replaces a
@@ -101,13 +103,8 @@ spl_disp_rotate_auto() {
   rid="$(spl_rotate_new_rid master)"
   exec 7>> "$LEASE_DIR/rotate.dispatch.lock"
   flock -n 7 || { spl_rotate_log "$rid" GATE SKIP "locked"; return 0; }
-  if spl_rotate_ctx_load dispatch && spl_disp_in_flight "$ROTATE_PHASE"; then
-    spl_disp_id_lock "$(spl_rotate_role_id "$(spl_disp_role)")" "$ROTATE_RID" ||
-      { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
-    if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$ROTATE_RID" RESUME PLAN "from $ROTATE_PHASE"; return 0; fi
-    spl_disp_rotate_resume || return 1
-    return 0
-  fi
+  spl_disp_rotate_left "$rid" || return $?
+  [[ "$ROTATE_GO" == 1 ]] || return 0
   spl_dispatch_rotate_on || { spl_rotate_log "$rid" GATE SKIP "disabled (ROTATE=$ROTATE ROTATE_DISPATCH=$ROTATE_DISPATCH)"; return 0; }
   # FR-044: only the machine that holds the dispatch lease rotates its pair;
   # a standby seat whose vendor is out is replaced (SPL-1777)
@@ -157,6 +154,10 @@ spl_disp_rotate_auto() {
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_disp_plan "$rid" "$m" "$mpid" "$pane" "$age" "$f" "$fpid"; return 0
   fi
+  # SPL-1837: run from inside a pane QUIESCE interrupts (the master's, or the
+  # failover's at REFRESH) = re-run detached
+  ROTATE_RID="$rid" spl_rotate_detach_if_inside dispatch "$m" "$pane" "$(spl_rotate_pane_of_pid "$fpid")" ||
+    { local dc=$?; return $(( dc == 3 ? 0 : dc )); }
   spl_disp_begin master "$rid" "$mpid" "$pane"
   spl_disp_step GATE OK "$m pid $mpid, ${age}s old, pane $pane; $f pid $fpid; lease $LH"
   spl_disp_hold || return 1
@@ -399,6 +400,7 @@ spl_disp_begin() {  # ROLE RID OLD_PID OLD_PANE
   local id; id="$(spl_rotate_role_id "$1")"
   ROTATE_RID="$2" ROTATE_OLD_PID="$3" ROTATE_OLD_PANE="$4" ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_QUIESCE=""
   ROTATE_SWITCH_FROM="" ROTATE_SWITCH_TO=""
+  spl_rotate_run_mark
   # shellcheck disable=SC2034 # read by spl_rotate_restore (spl-rotate-lib)
   ROTATE_OLD_NAME="$(spl_rotate_tmux display-message -p -t "$4" '#{window_name}' 2>/dev/null || true)"
   ROTATE_HANDOFF="$ROTATE_HANDOFF_DIR/$2-$id.md"
@@ -809,6 +811,43 @@ spl_disp_master_lost() {
 }
 
 # ---- resume (FR-003) and abort (FR-091) ------------------------------------------
+
+# spl_disp_rotate_left RID: a rotation left mid-way (the ctx in flight)
+# takes its role's id lock and is resumed (FR-003), or, when its run is gone
+# before SPAWN (spl_rotate_stale) and no boot cut it off (the resume ends
+# that: ABORT BOOT), ended as STALE (the lock let go again) so
+# this run starts clean (SPL-1837). ROTATE_GO=1: the caller gates afresh; 0:
+# it is done. Non-zero: the id lock is held (DISP_IDL) or the resume failed.
+spl_disp_rotate_left() {
+  local sid
+  ROTATE_GO=1
+  spl_rotate_ctx_load dispatch && spl_disp_in_flight "$ROTATE_PHASE" || return 0
+  sid="$(spl_rotate_role_id "$(spl_disp_role)")"
+  spl_disp_id_lock "$sid" "$ROTATE_RID" || { ROTATE_GO=0; spl_rotate_log "$1" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
+  if ! spl_rotate_booted_after "$ROTATE_RID" >/dev/null && spl_rotate_stale; then
+    [[ "${DRY_RUN:-1}" == 1 ]] || { spl_disp_stale; spl_agent_id_unlock "$sid"; return 0; }
+    ROTATE_GO=0; spl_rotate_log "$ROTATE_RID" ABORT PLAN "STALE at $ROTATE_PHASE: its run is gone, nothing spawned; a new rotation starts"; return 0
+  fi
+  ROTATE_GO=0
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$ROTATE_RID" RESUME PLAN "from $ROTATE_PHASE"; return 0; fi
+  spl_rotate_run_alive && { spl_rotate_log "$1" GATE SKIP "rotation $ROTATE_RID is still run by pid $ROTATE_RUN_PID"; return 0; }
+  spl_rotate_run_mark
+  spl_disp_rotate_resume || return 1
+}
+
+# spl_disp_stale: the ctx of a run that is gone before its SPAWN
+# (spl_rotate_stale): the seat switch and the hold go back, the old window
+# gets its name back, the ctx goes; no FAIL, no alert. The caller gates
+# afresh under its own rid (SPL-1837).
+spl_disp_stale() {
+  local why="run pid ${ROTATE_RUN_PID:-unknown} is gone"
+  spl_disp_unswitch
+  why+="$ROTATE_UNSWITCH_WHY"
+  [[ "$(spl_disp_role)" == master ]] && spl_disp_release
+  [[ -n "${ROTATE_OLD_PANE:-}" && -n "${ROTATE_OLD_NAME:-}" ]] && spl_rotate_restore "$(spl_rotate_role_id "$(spl_disp_role)")" "$ROTATE_OLD_PANE" ""
+  spl_rotate_log "$ROTATE_RID" ABORT STALE "at $ROTATE_PHASE: $why, nothing was spawned; ctx and hold removed, no alert, a new rotation starts"
+  rm -f "$LEASE_DIR/rotate.dispatch.ctx"
+}
 
 spl_disp_rotate_resume() {
   local old=0 new=0 role why

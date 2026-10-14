@@ -14,6 +14,8 @@
 #   spl_rotate_log RID PHASE RESULT DETAIL  one rotate.log line + the .state file (FR-002)
 #   spl_agent_id_lock ID [ACTOR] [RID] [WAIT] the id lock of every start/stop actor (spec 102 4.2), 4 when held
 #   spl_agent_id_unlock ID                  lets an id lock this shell holds go before the shell ends
+#   spl_rotate_stale                        a gone run's pre-spawn ctx starts clean, never resumed (SPL-1837)
+#   spl_rotate_detach_if_inside FAM ID PANE.. a run inside a pane it quiesces re-runs itself detached (SPL-1837)
 #   spl_rotate_quiesce PANE                 grace, Escape, re-wait; prints idle|interrupted|busy-rotated (FR-011)
 #   spl_rotate_handoff ROLE ID RID OUT      the handoff file, spec section 6 (FR-012, FR-025)
 #   spl_rotate_spawn ID SEED                rename the old window, spawn under the same id, adopt it in the map (FR-006, FR-007, FR-013)
@@ -333,7 +335,8 @@ spl_agent_id_unlock() {
 }
 
 # The resume context: rotate.<family>.ctx, KEY=value, read, never sourced.
-ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF ROTATE_SWITCH_FROM ROTATE_SWITCH_TO)
+# ROTATE_RUN_PID / ROTATE_RUN_START: the run that writes it (spl_rotate_run_mark).
+ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF ROTATE_SWITCH_FROM ROTATE_SWITCH_TO ROTATE_RUN_PID ROTATE_RUN_START)
 spl_rotate_ctx_save() {  # FAMILY
   local k f="${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$1.ctx"
   { for k in "${ROTATE_CTX_KEYS[@]}"; do printf '%s=%s\n' "$k" "${!k:-}"; done; } > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
@@ -346,6 +349,68 @@ spl_rotate_ctx_load() {  # FAMILY -> non-zero when there is none
     [[ " ${ROTATE_CTX_KEYS[*]} " == *" $k "* ]] && printf -v "$k" '%s' "$v"
   done < "$f"
   return 0
+}
+
+# spl_rotate_run_mark: this process is the run that owns the ctx from here
+# (its pid and start tick, so a reused pid never reads as the same run).
+spl_rotate_run_mark() {
+  ROTATE_RUN_PID="$$"
+  ROTATE_RUN_START="$(spl_rotate_start "$$")"
+}
+
+# spl_rotate_run_alive: 0 while the run recorded in the loaded ctx is alive.
+# A ctx with no run pid (written before SPL-1837) never is.
+spl_rotate_run_alive() {
+  local st
+  [[ "${ROTATE_RUN_PID:-}" =~ ^[0-9]+$ ]] || return 1
+  st="$(spl_rotate_start "$ROTATE_RUN_PID")"
+  [[ -n "$st" && "$st" == "${ROTATE_RUN_START:-}" ]]
+}
+
+# spl_rotate_stale: 0 when the loaded ctx belongs to a run that is gone and
+# nothing was spawned yet (GATE, HOLD, QUIESCE, HANDOFF, REFRESH, no new
+# pid): there is nothing to finish, so the next run starts clean instead of
+# resuming it into a FAIL and an owner alert. SPL-1837: a run killed by its
+# own QUIESCE left GATE, and the forced run after it logged "FAIL GATE:
+# resumed with no live new session" + ALERT (rotate.log 2026-10-14T09:15:39Z).
+spl_rotate_stale() {
+  spl_rotate_run_alive && return 1
+  [[ -z "${ROTATE_NEW_PID:-}" ]] || return 1
+  case "${ROTATE_PHASE:-}" in GATE|HOLD|QUIESCE|HANDOFF|REFRESH) return 0 ;; esac
+  return 1
+}
+
+# spl_rotate_detach_if_inside FAMILY ID PANE...: QUIESCE sends Escape to the
+# old pane; a run started from a tool call IN that pane is interrupted and
+# killed by it (SPL-1837, 20261014T0914Z-orch died at GATE). So such a run
+# re-runs itself detached (setsid, its own session, the same environment),
+# logs where, and returns 3: the caller ends with 0. A re-exec, not a refusal: the
+# caller wanted a rotation now, and the detached run is exactly what
+# succeeded by hand (20261014T0923Z-orch DONE OK). It lets the rotation lock
+# (fd 7) and the id lock of ID go first, so the detached run takes them.
+# A run that is ALREADY detached (ROTATE_DETACHED=1) and still in the pane
+# refuses (1): never a loop. 0 = not inside any of the panes: go on.
+spl_rotate_detach_if_inside() {
+  local fam="$1" id="$2" me pane log
+  shift 2
+  me="$(spl_rotate_pane_of_pid "${ROTATE_SELF_PID:-$$}")"
+  [[ -n "$me" ]] || return 0
+  for pane in "$@"; do [[ "$me" == "$pane" ]] && break; pane=""; done
+  [[ -n "$pane" ]] || return 0
+  if [[ "${ROTATE_DETACHED:-0}" == 1 ]]; then
+    spl_rotate_log "$ROTATE_RID" GATE SKIP "inside: this detached run is still in $pane, which QUIESCE would interrupt; run it from outside that pane"
+    return 1
+  fi
+  log="${ROTATE_DETACH_LOG:-$LEASE_DIR/rotate.$fam.detached.log}"
+  exec 7>&-
+  spl_agent_id_unlock "$id"
+  if ! ( cd "$PROJ_PATH" && ${ROTATE_SETSID:-setsid -f} env ROTATE_DETACHED=1 "$ROTATE_RUN" -a "do_spl_${fam}_rotate" \
+      >>"$log" 2>&1 </dev/null 7>&- 8>&- 9>&- ); then
+    spl_rotate_log "$ROTATE_RID" GATE SKIP "inside: this run is in $pane, which QUIESCE would interrupt, and the detached re-run did not start"
+    return 1
+  fi
+  spl_rotate_log "$ROTATE_RID" GATE SKIP "inside: this run is in $pane, which QUIESCE would interrupt; re-run detached (setsid), log $log"
+  return 3
 }
 
 # ---- processes and panes -------------------------------------------------------
@@ -407,6 +472,11 @@ spl_rotate_alive() {
   [[ "$1" =~ ^[0-9]+$ ]] || return 1
   { read -r comm < "${LEASE_PROC_ROOT:-/proc}/$1/comm"; } 2>/dev/null || true
   spl_rotate_cli "${LEASE_PROC_ROOT:-/proc}/$1" "$comm"
+}
+
+# spl_rotate_start PID: its start time in clock ticks since boot; empty when it is gone.
+spl_rotate_start() {
+  awk '{sub(/^.*\) /, ""); print $20}' "${LEASE_PROC_ROOT:-/proc}/$1/stat" 2>/dev/null || true
 }
 
 # spl_rotate_age PID: its age in seconds; empty when it is gone.

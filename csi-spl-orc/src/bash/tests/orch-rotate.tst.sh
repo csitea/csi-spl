@@ -58,6 +58,10 @@
 #      spawn, the old id is a link so a message sent to it mid-rotation lands
 #      in the live inbox, the desk dir moves, the old identity record is
 #      retired at CLOSE; a failed spawn / no ack puts lease.conf and the dirs back
+#  19. SPL-1837: a run inside the orch pane re-runs itself detached (setsid),
+#      the locks let go first; a detached run still inside refuses (no loop);
+#      control: a run outside rotates as before. Case 8 also holds the
+#      STALE start: a GATE left by a gone run = ABORT STALE, no FAIL/alert
 #  18. SPL-1820, a grok successor on its weekly limit: (1) the pause expired
 #      but a grok seat's newest verdict is S2 kind=limit = claude (controls: a
 #      newer clean verdict, a week-old one); (2) grok's limit menu on the new
@@ -410,11 +414,30 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && ! -e "$D/rotate.orch.ctx" ]] && grep -q " $rid ABORT BOOT interrupted by boot at GATE: the box booted after its GATE" "$T/o" &&
   grep -q " $rid ABORT BOOT interrupted by boot" "$D/rotate.log" && ! grep -q 'FAIL' "$T/o" && ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
   pass "8. GATE before the last boot: 'interrupted by boot', ctx removed, no FAIL blocker" || fail "8. boot rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+# SPL-1837 (2): GATE on this boot, left by a run that is gone (the
+# 20261014T0914Z-orch shape: its run killed by its own QUIESCE, a ctx with no
+# run pid): ABORT STALE, no FAIL, no blocker, and the forced run rotates
+# under a new rid to DONE (it logged "RESUME OK from GATE" + FAIL + ALERT)
 at_gate 7200
+act DRY_RUN=0 ROTATE_FORCE=1 >"$T/o" 2>&1; rc=$?
+nrid="$(ctx ROTATE_RID)"
+[[ $rc -eq 0 && "$nrid" != "$rid" && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q " $rid ABORT STALE at GATE: run pid unknown is gone, nothing was spawned" "$T/o" &&
+  grep -q " $nrid GATE OK pid 1001" "$T/o" && ! grep -qE " (RESUME|FAIL) " "$T/o" && ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
+  pass "8. SPL-1837: GATE left by a gone run: ABORT STALE, no FAIL, no blocker, a new rotation to DONE" || fail "8. stale rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+read -r _ ph _ <"$D/rotate.orch.state"; [[ "$ph" == DONE && "$(ctx ROTATE_RUN_PID)" =~ ^[0-9]+$ ]] &&
+  pass "8. ... .state ends DONE, the ctx names its run pid" || fail "8. state=$ph run=$(ctx ROTATE_RUN_PID)"
+# the run pid recorded and gone (its start tick differs: a reused pid) = stale too
+at_gate 7200; "$T/bin/proc" 3100 50 none bash
+sed -i 's/^ROTATE_PHASE=.*/ROTATE_PHASE=QUIESCE/' "$D/rotate.orch.ctx"; printf 'ROTATE_RUN_PID=3100\nROTATE_RUN_START=1\n' >>"$D/rotate.orch.ctx"
+act >"$T/o" 2>&1
+grep -q " $rid ABORT PLAN STALE at QUIESCE" "$T/o" && [[ -e "$D/rotate.orch.ctx" ]] &&
+  pass "8. a reused run pid reads as gone; the dry run names the STALE, keeps the ctx" || fail "8. reused: $(cat "$T/o")"
+# CONTROL: the recorded run is alive (pid 3100, same start tick): no STALE, no resume
+sed -i "s/^ROTATE_RUN_START=.*/ROTATE_RUN_START=$(( (UP - 50) * TCK ))/" "$D/rotate.orch.ctx"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -ne 0 ]] && grep -q " $rid FAIL FAIL GATE: resumed with no live new session" "$T/o" && ! grep -q 'interrupted by boot' "$T/o" &&
-  grep -q '^do_spl_ask_put' "$T/run.log" &&
-  pass "8. CONTROL: GATE on this boot, no new session: FAIL + blocker as before" || fail "8. control rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == QUIESCE && -d "$T/proc/1001" && ! -e "$T/spawn.log" ]] && grep -q " GATE SKIP rotation $rid is still run by pid 3100" "$T/o" &&
+  ! grep -qE ' (STALE|FAIL) ' "$T/o" && pass "8. CONTROL: its run still alive: SKIP, the ctx kept, nothing alerted" || fail "8. alive rc=$rc $(cat "$T/o")"
+# CONTROL: a new session was spawned (SPAWN, new pid dead): still the FAIL path above
 rm -f "$T/proc/stat"
 
 # --- 9. T-ACK-FORGED --------------------------------------------------------------------------
@@ -779,6 +802,41 @@ act DRY_RUN=0 ROTATE_RENAME="$T/bin/rename" >"$T/o" 2>&1
 grep -qx 'LEASE_ORCH=CLE-900' "$D/lease.conf" && grep -q 'lease.conf LEASE_ORCH back to CLE-900' "$T/o" && [[ -d "$T/proc/1001" ]] &&
   pass "13. a failed spawn after the switch: lease.conf back to CLE-900, the old session kept" || fail "13. fail path: $(grep -E 'FAIL|SWITCH' "$T/o"; cat "$D/lease.conf")"
 rm -f "$T/spawn.mode" "$S/agent-id-aliases.tsv"
+
+# --- 19. SPL-1837 (1): a run started INSIDE the orch pane re-runs itself detached ----------------
+# 20261014T0914Z-orch: run from a tool call in the orch pane, its QUIESCE sent
+# Escape to that pane, which interrupted the tool call and killed the run.
+cat >"$T/bin/setsid" <<'EOF'
+#!/usr/bin/env bash
+echo "setsid $* pwd=$PWD DRY_RUN=${DRY_RUN:-} ROTATE_FORCE=${ROTATE_FORCE:-}" >>"$T/setsid.log"
+flock -n 9 9>>"$SPOOL_ROOT/dispatch/rotate.orch.lock" && echo "rotate lock free" >>"$T/setsid.log"
+flock -n 8 8>>"$SPOOL_ROOT/c-900/lifetime/restart.lock" && echo "id lock free" >>"$T/setsid.log"
+exit 0
+EOF
+chmod +x "$T/bin/setsid"
+inside() {  # PPID: pid 3001, a bash whose parent is PPID
+  world; rm -f "$T/setsid.log"; mkdir -p "$T/proc/3001"; echo bash >"$T/proc/3001/comm"
+  echo "3001 (bash) S $1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $(( (UP - 5) * TCK ))" >"$T/proc/3001/stat"
+}
+inside 1001
+act DRY_RUN=0 ROTATE_FORCE=1 ROTATE_SELF_PID=3001 ROTATE_SETSID="$T/bin/setsid" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q " GATE SKIP inside: this run is in %2, which QUIESCE would interrupt; re-run detached (setsid), log $D/rotate.orch.detached.log" "$T/o" &&
+  grep -q "^setsid env ROTATE_DETACHED=1 $T/bin/run -a do_spl_orch_rotate pwd=$PROJ_ROOT DRY_RUN=0 ROTATE_FORCE=1\$" "$T/setsid.log" &&
+  pass "19. SPL-1837: run inside the orch pane: re-run detached (setsid, same env), log named" || fail "19. inside rc=$rc $(cat "$T/o") $(cat "$T/setsid.log" 2>&1)"
+grep -qx 'rotate lock free' "$T/setsid.log" && grep -qx 'id lock free' "$T/setsid.log" &&
+  pass "19. ... the rotation lock and the id lock are free for the detached run" || fail "19. locks: $(cat "$T/setsid.log" 2>&1)"
+! grep -q 'keys %2 Escape' "$T/tmux/log" 2>/dev/null && [[ ! -e "$T/spawn.log" && ! -e "$D/rotate.orch.ctx" && -d "$T/proc/1001" ]] &&
+  pass "19. ... no Escape into its own pane, nothing spawned, no ctx left" || fail "19. touched: $(cat "$T/tmux/log" 2>&1) | $(ls "$T" "$D")"
+# the detached run itself still inside (never a loop): refused, named
+inside 1001
+act DRY_RUN=0 ROTATE_FORCE=1 ROTATE_SELF_PID=3001 ROTATE_SETSID="$T/bin/setsid" ROTATE_DETACHED=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && ! -e "$T/setsid.log" ]] && grep -q " GATE SKIP inside: this detached run is still in %2" "$T/o" && ! grep -q 'keys %2 Escape' "$T/tmux/log" 2>/dev/null &&
+  pass "19. a detached run still inside the pane: refused, no second re-run" || fail "19. loop rc=$rc $(cat "$T/o")"
+# CONTROL: a run outside every pane rotates as before, no re-run
+inside 1
+act DRY_RUN=0 ROTATE_FORCE=1 ROTATE_SELF_PID=3001 ROTATE_SETSID="$T/bin/setsid" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/setsid.log" && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q 'keys %2 Escape' "$T/tmux/log" &&
+  pass "19. CONTROL: a run outside the pane rotates to DONE, no re-run" || fail "19. control rc=$rc $(cat "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "orch-rotate: all passed"; exit 0; }

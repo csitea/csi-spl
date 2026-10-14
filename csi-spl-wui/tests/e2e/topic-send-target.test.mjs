@@ -258,7 +258,7 @@ async function pollRadioCase(browser, vp, tag) {
   }, form)
   ok(`${tag} poll: a radio form, radios only, no Send, "Chat about this" last; inputs small (<= 20px)`,
     shape.kind === 'radio' && shape.radios === 3 && shape.checks === 0 && shape.send === 0 && shape.last === 'Chat about this' && shape.input.w <= 20 && shape.input.h <= 20, shape)
-  await clickIn(p, `${form} [data-testid=poll-option][data-key=B]`, touch)
+  await clickIn(p, `${form} [data-testid=poll-option][data-poll-key=B]`, touch)
   const after = await pollReplies(p, seeded.msg_id)
   const shown = await p.evaluate((form) => ({
     checked: document.querySelector(`${form} input[value=B]`)?.checked,
@@ -268,7 +268,7 @@ async function pollRadioCase(browser, vp, tag) {
     after.length === 1 && /^Poll: [0-9a-f-]+\nAnswer: B — Wait for CI$/.test(after[0].body) && after[0].is_parent === 0
       && (after[0].parent_task_id === seeded.task_id || after[0].task_id === seeded.task_id)
       && shown.checked === true && shown.answers.length === 1 && /— B$/.test(shown.answers[0]), { after, shown })
-  await clickIn(p, `${form} [data-testid=poll-option][data-key=A]`, touch)
+  await clickIn(p, `${form} [data-testid=poll-option][data-poll-key=A]`, touch)
   const again = await pollReplies(p, seeded.msg_id)
   const shownAgain = await p.evaluate((form) => [...document.querySelectorAll(`${form} [data-testid=poll-answer]`)].map((e) => e.textContent.trim()), form)
   ok(`${tag} poll: re-answer posts again and replaces the shown answer`,
@@ -339,8 +339,8 @@ async function pollCheckCase(browser, vp, tag) {
     radios: document.querySelectorAll(`${form} input[type=radio]`).length,
     checks: document.querySelectorAll(`${form} input[type=checkbox]`).length,
   }), form)
-  await clickIn(p, `${form} [data-testid=poll-option][data-key=A]`, touch)
-  await clickIn(p, `${form} [data-testid=poll-option][data-key=C]`, touch)
+  await clickIn(p, `${form} [data-testid=poll-option][data-poll-key=A]`, touch)
+  await clickIn(p, `${form} [data-testid=poll-option][data-poll-key=C]`, touch)
   const held = await pollReplies(p, seeded.msg_id)
   const lock = await p.evaluate((form) => document.querySelector(`${form} [data-testid=poll-lock]`)?.textContent.trim() || '', form)
   ok(`${tag} poll: a checkbox form, checkboxes only; two picks wait for the lock-in (45 s per question), nothing posted yet`,

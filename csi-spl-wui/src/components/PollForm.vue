@@ -22,7 +22,7 @@
           type="button"
           class="btn poll-go"
           data-testid="poll-go-button"
-          :data-key="q.options[0].key"
+          :data-poll-key="q.options[0].key"
           :aria-pressed="goDone(qi) ? 'true' : 'false'"
           @click="onGo(qi, q.options[0].key)"
         >
@@ -33,7 +33,9 @@
         <button type="button" class="poll-chat-link" data-testid="poll-chat" @click="onChat(qi)">{{ t('poll.chat') }}</button>
       </div>
       <template v-else>
-        <label v-for="o in q.options" :key="o.key" class="poll-opt" data-testid="poll-option" :data-key="o.key">
+        <!-- SPL-1769: data-poll-key, never data-key: the feed's scroll anchor
+             reads [data-key] as its row ids and held the page on an option -->
+        <label v-for="o in q.options" :key="o.key" class="poll-opt" data-testid="poll-option" :data-poll-key="o.key">
           <input
             :type="form.multi ? 'checkbox' : 'radio'"
             class="poll-opt__input"
@@ -84,6 +86,7 @@ import { dmPeerOf, shownPerson } from '~/utils/channel-feed.mjs'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { POLL_HOST, POLL_ROWS } from '~/utils/poll-fence.mjs'
 import { answerBody, chatBody, lockSeconds, pollAnswers } from '~/utils/poll.mjs'
+import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import type { PollShape } from '~/components/PollBody.vue'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -96,6 +99,7 @@ import type { SpoolMessage } from '~/types/spool'
    f20e1dc1: not too big), labels the click target, Tab / arrows / Space as
    the browser gives them. */
 const props = defineProps<{ form: PollShape }>()
+const formEl = ref<HTMLFormElement | null>(null)
 const { t } = useI18n({ useScope: 'global' })
 const uid = `poll-${useId()}`
 
@@ -141,12 +145,52 @@ async function post() {
   if (!m || !canAnswer.value) return
   const text = answerBody(props.form, picks.value, msgId.value)
   state.value = ''
+  const release = holdPlace()
   try {
     await channel.send(text, String(m.task_id), [], m.channel ? String(m.channel) : undefined, 0, m.channel ? undefined : (dmPeerOf(m, me.value) || undefined))
     state.value = 'sent'
   } catch {
     state.value = 'failed'
+  } finally {
+    release()
   }
+}
+
+/* SPL-1769 (owner 92149f81): an answer must not move the reader, who may be
+   halfway down a long form. The answer reply lands in the feed around the
+   form: above it in a newest-first thread (which anchors nothing), or as our
+   own row the feed follows to its newest end. Until the reply has settled,
+   every frame puts the form back where the reader had it on screen. A touch,
+   wheel or key of the reader's own ends the hold at once; so does a form
+   that was off screen (the reader is elsewhere). */
+const HOLD_SETTLE_MS = 1200
+const HOLD_MAX_MS = 15000
+function holdPlace() {
+  const el = formEl.value
+  if (!el || typeof window === 'undefined' || !el.isConnected) return () => {}
+  const s = scrollerOf(el) as HTMLElement
+  const { top, bottom } = el.getBoundingClientRect()
+  if (bottom < 0 || top > window.innerHeight) return () => {}
+  let until = performance.now() + HOLD_MAX_MS
+  let frame = 0
+  const inputs = ['touchstart', 'wheel', 'keydown'] as const
+  const stop = () => {
+    if (frame) cancelAnimationFrame(frame)
+    frame = 0
+    for (const ev of inputs) window.removeEventListener(ev, stop, true)
+  }
+  const tick = () => {
+    frame = 0
+    if (!el.isConnected) return stop()
+    const shift = el.getBoundingClientRect().top - top
+    if (Math.abs(shift) >= 1) s.scrollTop += shift
+    if (performance.now() < until) frame = requestAnimationFrame(tick)
+    else stop()
+  }
+  for (const ev of inputs) window.addEventListener(ev, stop, { capture: true, passive: true })
+  frame = requestAnimationFrame(tick)
+  /* the send is done: hold a little longer for the echo and late heights */
+  return () => { until = Math.min(until, performance.now() + HOLD_SETTLE_MS) }
 }
 
 /* checkbox lock-in: one deadline for the whole form, from its first click */
@@ -197,7 +241,6 @@ function onPick(qi: number, key: string, on: boolean) {
   else void post()
 }
 
-const formEl = ref<HTMLFormElement | null>(null)
 /* "Chat about this": the topic opens, the reply box takes the caret with the
    marker and the question quoted; the reader's picks stay as they were */
 function onChat(qi: number, input?: HTMLInputElement) {

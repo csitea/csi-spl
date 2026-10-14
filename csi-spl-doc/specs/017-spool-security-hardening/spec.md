@@ -2,7 +2,7 @@
 
 **Feature ID**: `017-spool-security-hardening` · **Milestone**: M3/M4 Consolidation · **Status**: Partial
 **Created**: 2026-09-19 · **Lane**: SECURITY · **Owner ask**: Comprehensive IT security analysis & remediation spec
-**Builds on**: `001-relay-bucket-estate`, `002-box-agent-messaging`, `003-spool-message-bus`, `004-spool-identity-routing`, `006-spool-hub-rental`, `007-spool-hub-api-infra`, `010-spool-social-auth`, `014-spool-wui-dispatch`, `015-spool-native-auth`.
+**Builds on**: `002-box-agent-messaging`, `003-spool-message-bus`, `004-spool-identity-routing`, `006-spool-hub-rental`, `007-spool-hub-api-infra`, `010-spool-social-auth`, `014-spool-wui-dispatch`, `015-spool-native-auth`.
 **Authority**: `./contracts/security-baseline.md`
 
 Status vocabulary follows `../README.md` §2.3: **Implemented** (cited), **Partial** (missing part named), **Planned**.
@@ -297,7 +297,7 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   box holds or handles. Added: xAI / GitLab / npm / Stripe (`sk_|rk_live|test_`, `whsec_`) / Google OAuth client
   secret (`GOCSPX-`), access (`ya29.`) and refresh (`1//0`) tokens; PGP private key blocks and a key cut short
   (no END line); the raw base64 ed25519 private key a spool box or root key file holds (86 + `==`, a public key
-  stays); credentials in any `scheme://user:pass@`; signed-URL signatures (`X-Goog-Signature=`, git-rel relay);
+  stays); credentials in any `scheme://user:pass@`; signed-URL signatures (`X-Goog-Signature=`);
   `Bearer`; `Cookie:`; JSON `"…token|secret|password|api_key|access_key": "…"`; `*_ACCESS_KEY=`.
   `test-spool-redact.sh` holds one row per class plus look-alike controls (sha, sha256, uuid, public key, plain
   URL, prose after a cut key); against the previous pass 38 of its 68 checks are red.

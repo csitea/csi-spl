@@ -1,8 +1,8 @@
 # csi-spl — "the spool"
 
 One git repository (`github.com/csitea/csi-spl`, trunk `master`) for the spool:
-the GCP estate that carries **git-rel**, the gpg-encrypted signed-URL relay
-between the hub and the boxes. Nothing else lives here: no api, no wui, no rdb.
+the agent-messaging hub, its box CLI and web UI, and the GCP estate that runs
+them.
 
 | dir | holds |
 |---|---|
@@ -84,10 +84,8 @@ How to apply:
 - **Every gcloud call carries `--account`, or runs under a throwaway
   `CLOUDSDK_CONFIG`.** The box's `~/.config/gcloud` is shared by every agent;
   never `gcloud config set` anything in it.
-- **No key in git, in terraform state or in a log.** The relay SA key is minted
-  out of band (doc section 6.3); terraform never creates it.
-- The relay contract is git-rel's, not ours: before changing bucket semantics
-  read the git-rel sources named in the doc, section 4.
+- **No key in git, in terraform state or in a log.** A service account key is
+  minted out of band; terraform never creates it.
 - Tests: `bash csi-spl-iac/src/bash/tests/run-all-tests.sh`. Keep them green.
 - **Run the cheap gate for the tree you touched, before you push.** Measured
   2026-09-21 (`csi-spl-doc/specs/016-spool-testability/ci-gate-reliability-2026-09-21.md`):

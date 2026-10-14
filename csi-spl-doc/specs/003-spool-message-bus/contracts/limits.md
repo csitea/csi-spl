@@ -27,7 +27,7 @@ number is a spec edit.
 |---|---|
 | `#alerts` channel messages | 7 days then purged |
 | Task threads, issue discussions & standard channels (`#lobby`, `#feedback`) | 30 days (cnf-configurable per plan tier) |
-| GCS `t/<tenant>/files/` (one bucket) | 30 days (lifecycle). Distinct from git-rel 001 (1 day). |
+| GCS `t/<tenant>/files/` (one bucket) | 30 days (lifecycle). |
 | Offline box queue (`deliveries`) | 7 days or 1,000 messages per box, whichever comes first |
 | Local `$SPOOL_ROOT` | operator’s problem; no auto-delete in 002 |
 
@@ -36,6 +36,6 @@ partial file.
 
 ## Not limited here
 
-Model-token SSE (not spool). git-rel object size (001).
+Model-token SSE (not spool).
 
 <!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->

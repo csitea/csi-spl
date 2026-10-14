@@ -114,14 +114,13 @@ The ONE exception is the DNS zone step: applied prd (apex) before
 dev (sub-zone) and destroyed dev before prd.
 
 A rebuild destroys and re-applies every step EXCEPT
-`020-gcp-relay-bucket` (its SA key lives on every box) and
 `040-cloud-sql-postgres` (a deleted instance name can be held up to a
-week); those two are re-imported into terraform state under the new
+week); it is re-imported into terraform state under the new
 key instead. Owner choice: everything except 020 + SQL.
 
 **Source**: "destroy first all of the objects and then re-apply with the new auth", "re-run all of the terraform steps from the beginning till the end", "apply at the same time to both of the environments in all of the steps, but always dev first and then prd ... except for the dns STEP, which requires the order to be otherwise", "Everything except 020 + SQL"
 
-**CHECK**: `ls -1d csi-spl-iac/src/terraform/[0-9]* | sort` is the step order; for each step except DNS, apply `ENV=dev` then `ENV=prd` (destroy `prd` then `dev`); `025-gcp-dns-zone` is applied on prd (apex) before any dev DNS apply, and destroyed on dev before prd; a rebuild destroy/apply skips `020-gcp-relay-bucket` and `040-cloud-sql-postgres` (`ls -1d csi-spl-iac/src/terraform/020-gcp-relay-bucket csi-spl-iac/src/terraform/040-cloud-sql-postgres` -> both exist) and `terraform import`s them under the new state key instead; backups exist before the first destroy.
+**CHECK**: `ls -1d csi-spl-iac/src/terraform/[0-9]* | sort` is the step order; for each step except DNS, apply `ENV=dev` then `ENV=prd` (destroy `prd` then `dev`); `025-gcp-dns-zone` is applied on prd (apex) before any dev DNS apply, and destroyed on dev before prd; a rebuild destroy/apply skips `040-cloud-sql-postgres` (`ls -1d csi-spl-iac/src/terraform/040-cloud-sql-postgres` -> exists) and `terraform import`s it under the new state key instead; backups exist before the first destroy.
 
 
 ## R8 Owner realm; per-env service accounts only, never the owner account

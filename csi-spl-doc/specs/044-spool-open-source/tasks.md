@@ -81,7 +81,7 @@ by the owner. No decision needed; none of them runs against GCP without the owne
 | [ ] T070 | `do_oss_security_signals`, read-only: `v*` tags not minted by a workflow 20 / 30 run, runner jobs from forks or unknown refs, open secret-scanning alerts on the public and the ops repo | §1.1 |
 | [ ] T071 | Revoke the `GCP_KEY_CSI_SPL_<ENV>` GitHub Actions secrets (`gh secret delete`, per env, dry run default) | §2.1 |
 | [ ] T072 | Rotate a per-env project SA key: mint a new key, re-publish via 120, delete the old key ids, SA kept (`do_gcp_002_*` only create or delete the SA) | §2.2 |
-| [ ] T073 | Mint + rotate the relay SA key as actions (today the gcloud lines of feature doc §6.3) | §2.3, §3.3.8 |
+| [x] T073 | Dropped 2026-10-15 (SPL-1910): the relay key left this repository | §2.3, §3.3.8 |
 | [ ] T074 | Rotate the hub runtime DB password (`do_spl_db_owner_split` rotates only the owner's) | §2.4 |
 | [ ] T075 | Rotate the session key and the box-wui key on purpose (the seed actions mint only into an empty slot) | §2.6 |
 | [ ] T076 | `do_oss_runners_remove`: every self-hosted runner off every repo and out of the org runner group (`do_oss_runners_move` only moves) | §2.8 |

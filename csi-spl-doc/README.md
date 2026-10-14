@@ -12,7 +12,7 @@ consistency record: `specs/README.md`.**
 |---|---|
 | `doc/help/index.md` | **Spool User Help Center & Interface Guide** (end-user documentation) |
 | `doc/md/glossary.md` | **the app's lingo**: topic message, reply, card, channel, DM, section … one table, each term cited to en.json or code |
-| `doc/md/csi-spl.feature.md` | git-rel GCS estate (operator how-to) |
+| `doc/md/csi-spl.feature.md` | the spool's layout, environments and how to operate its GCP estate |
 | `doc/md/SPEC-spool-milestones.md` | **M1 technical proto → M2 public MVP (buy) → M3 rollout Slack UI** |
 | `doc/md/SPEC-spool-hub-api-infra.md` | copy csi-rel/sibling-prj infra+DNS, not the shop |
 | `doc/md/SPEC-spool-hub-rental.md` | paid tenant product |
@@ -29,7 +29,6 @@ consistency record: `specs/README.md`.**
 | `specs/009-spool-m4/` | git-spec for M4 (spec + tasks, all Planned) |
 | `doc/md/SPEC-spool-cicd-logs.md` | **later:** `gh` fetches CI logs into chat |
 | `doc/md/SPEC-spool-chat-reverse.md` | **M3 default:** type at top, prepend messages (013 shipped) |
-| `specs/001-relay-bucket-estate/` | git-spec for the relay bucket |
 | `specs/002-box-agent-messaging/` | git-spec for local folder spool (MVP) |
 | `specs/003-spool-message-bus/` | git-spec for the hosted hub |
 | `specs/004-spool-identity-routing/` | git-spec for pins + routing |

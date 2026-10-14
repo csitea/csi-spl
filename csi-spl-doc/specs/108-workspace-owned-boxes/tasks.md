@@ -93,9 +93,7 @@ is the milestone that proves it.
       tasks.md T006.
 - [ ] T011 **hub + iac** (after T002): relay signed URLs (spec 3.4). The
       hub mints per-object signed URLs under a hub-chosen `<tenant_id>/`
-      prefix; the relay SA key never reaches a box. Read the git-rel sources
-      (`csi-spl-doc/doc/md/csi-spl.feature.md` section 4) before changing
-      bucket semantics. Files: `internal/hub/relay_url.go` *new* and its
+      prefix; the relay SA key never reaches a box. Files: `internal/hub/relay_url.go` *new* and its
       test, a `wire` type, the iac step granting the hub SA the sign
       permission (an IAM change: owner's go). Done: pair (f) relay prefix,
       n=6: a box cannot get a URL for another workspace's prefix; control:

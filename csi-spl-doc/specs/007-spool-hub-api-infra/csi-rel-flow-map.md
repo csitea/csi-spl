@@ -132,7 +132,7 @@ mount the tree that last ran `make do-setup-app-inf`.
 
 - `do_tf_import_existing` + the 020 / 040 import table (CLE-3360, ae8d2bc,
   fixed at 4bae1ca). The owner chose re-import over rebuild for
-  `020-gcp-relay-bucket` and the `040-cloud-sql-postgres` instance. It runs
+  the `040-cloud-sql-postgres` instance. It runs
   `do_tf_state_list`, then `do_tf_import` in the tf-runner for each missing
   address. It never applies.
 - The ported `gcp-*` actions each run under a throwaway `CLOUDSDK_CONFIG`

@@ -35,7 +35,7 @@
 | Terraform, DNS, Cloud Run/SQL/GCS, secrets, WIF, lde | 007 (003 names cnf keys only) |
 | GitHub Actions build + deploy | 008 |
 
-git-rel (001) is a different plane (gpg-encrypted file relay). `directive` and slack-as-pager stay on ysg-box. This spec does not migrate `$MSGS_ROOT` piecemeal.
+`directive` and slack-as-pager stay on ysg-box. This spec does not migrate `$MSGS_ROOT` piecemeal.
 
 ## Trust model in one table
 
@@ -295,7 +295,6 @@ Historical snapshot, kept for the record. Current values (sync 2026-09-25, tree 
 ## Out of Scope
 
 - Implementing or modifying ysg-box.
-- git-rel / spec 001 bucket semantics.
 - Kafka, Pinbox, Slack-as-bus, token SSE on spool, MCP server per tmux window.
 - Per-agent keys on the hub, per-agent IAM identities, per-agent object-store keys.
 - Encrypt-to-recipient (the hub can read bodies).

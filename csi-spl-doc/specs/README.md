@@ -89,7 +89,6 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 
 | Dir | Area | Milestone | Redo lane |
 |---|---|---|---|
-| `001-relay-bucket-estate/` | git-rel GCS relay estate (retro) | pre-M1 | area lane 001 |
 | `002-box-agent-messaging/` | local folder spool, CLI + MCP, `trust-modes.md` | M1 (shipped) | **frozen** |
 | `003-spool-message-bus/` | the hub: `spool serve` WS + REST, `hubclient`, store, blob, `spool migrate`, read-only viewer API for the WUI | M1 (+ viewer API for M3) | area lane 003 |
 | `004-spool-identity-routing/` | agent ids, box ids/keys, pins, tenant root, `BOX-` forbidden | M1 | area lane 004 |
@@ -215,10 +214,6 @@ needs a name, and ingress comes **last**:
 | 8 | DB user + DSN secret version + `spool migrate` | `do_spl_db_bootstrap` |
 | 9 | Cloud Run hub | `030-cloud-run-hub` |
 | 10 | ingress: LB + wildcard managed cert + apex / `*.` records | `031-gcp-hub-ingress` |
-
-`020-gcp-relay-bucket` (the git-rel relay, spec 001) is **not in this chain**: it
-depends only on step 2 and nothing in the hub chain depends on it, so it is an
-independent branch after step 2.
 
 007 numbered the new DNS-zone dir `025-gcp-dns-zone` (csi-rel/sibling-prj call it
 `007-dns`); the full gate-per-step table is

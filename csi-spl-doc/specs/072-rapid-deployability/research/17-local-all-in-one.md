@@ -48,7 +48,7 @@ From `ls csi-spl-iac/src/terraform` (18 steps) and the hub config.
 | Cloud DNS, domain mapping, certs (005, 025, 032) | names and TLS | no | Caddy ACME when `SPOOL_SITE_ADDRESS` is a domain | `docker-compose.yml:147` |
 | Artifact Registry (028) | hub image | no | local `build:`; no published image (spec F1, A1) | `grep -nE '^\s+build:' docker-compose.yml` -> 49, 79, 137 |
 | GCS DB backups (045, 046) | dumps, off-project copy | no | README `pg_dump` one-liner, by hand | README "Backup, restore and upgrade" |
-| GCS relay bucket (020) | git-rel's signed-URL relay | **not used by the hub** | none needed; git-rel owns that contract | `git grep -l relay_bucket -- ':!*.md'` -> cnf, tfvars, 2 iac audit/backup actions; 0 `.go` |
+| GCS relay bucket (020) | the signed-URL relay (retired since) | **not used by the hub** | none needed | `git grep -l 'relay_bu''cket' -- ':!*.md'` -> cnf, tfvars, 2 iac audit/backup actions; 0 `.go` |
 | WIF + GitHub secrets (017, 120) | CI deploy identity | no | nothing: compose has no CI deploy | - |
 | Satellite VM + budget (059, 060) | our second box | no | out of scope (spec A12) | - |
 | Cloud Monitoring | - | no | `cloud.google.com/go/monitoring` is `// indirect` (pulled by the storage SDK) | `grep monitoring csi-spl-api/src/go/spool-hub-api/go.mod` |

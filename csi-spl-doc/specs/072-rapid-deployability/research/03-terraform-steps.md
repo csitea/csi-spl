@@ -27,7 +27,7 @@ that shows it. Costs are **estimates** from spec 047 §4.2, not invoices.
 | 016-firebase-deploy-iam | 3 | env | 001 |
 | 017-github-wif-deploy | 7 | env | 028 |
 | 019-firebase-static-site | 7 | env | 025, 005 |
-| 020-gcp-relay-bucket | 3 | env | 001; then the relay key minted out of band |
+| 020 (retired, SPL-1910) | 3 | env | 001; then the relay key minted out of band |
 | 025-gcp-dns-zone | 4 | env (prd before dev, for delegation) | 001; NS at the registrar |
 | 028-gcp-artifact-registry | 1 | env | 001 |
 | 030-cloud-run-hub | 7 (service, SA, secrets IAM) | env | **028 + a pushed image, 040, 050**, the DSN secret seeded |

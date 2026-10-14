@@ -44,10 +44,7 @@ Keep the **same step numbers** so operators are not re-trained.
 | `030-gcp-cloud-run` | **spool-hub-api** service | HTTPS + WebSocket; min instances cnf (default 1) |
 | `031-gcp-cloud-run-domain-mapping` | map host → Cloud Run | **wildcard TLS** `*.spool-hub.ai` (and `*.dev.spool-hub.ai`) from M1. If Cloud Run mapping is per-host, use LB + wildcard cert — still M1, not later. |
 | `040-gcp-cloud-sql` | Postgres | spool schema only (`tenants`, `pins`, `messages`, …) |
-| files bucket | object store | one bucket, prefix `t/<tenant>/files/`; copy bucket TF from `015` / `020`, not public-site ACLs |
-
-csi-spl already has `020-gcp-relay-bucket` for **git-rel**. That stays a
-**different** bucket. Do not mix relay objects and spool files.
+| files bucket | object store | one bucket, prefix `t/<tenant>/files/`; copy bucket TF from `015`, not public-site ACLs |
 
 **Do not copy:** `019-firebase-static-site` (shop), `032-recaptcha`,
 `021-bin-dataset`, `060-stock-janitor`, `061-vertex-*`, `062`/`063` agent

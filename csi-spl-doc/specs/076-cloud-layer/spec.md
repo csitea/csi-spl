@@ -5,7 +5,6 @@
 **Authority**: this file for the behaviour and its rules; `tasks.md` for what is built, with the sha and the check for each item. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 
 Builds on, and does not repeat:
-- [001 relay bucket estate](../001-relay-bucket-estate/spec.md) (git-rel GCS relay estate)
 - [002 box-agent messaging](../002-box-agent-messaging/spec.md) (local folder spool, CLI + MCP contracts)
 - [003 message bus](../003-spool-message-bus/spec.md) (the hub, store, blob storage, viewer API)
 - [007 hub API infra](../007-spool-hub-api-infra/spec.md) (cloud estate, provisioning order, lde, rdb)
@@ -161,7 +160,7 @@ grep -rn "google-github-actions/auth\|GCP_WIF" .github/       # 76 occurrences i
 | **SM-15** | Blob Storage | `csi-spl-orc/src/bash/run/publish-docs.func.sh:94` | Mirrors docs using `gcloud storage rsync` | **No** (direct `gcloud storage rsync`) | `grep -n "gcloud storage rsync" csi-spl-orc/src/bash/run/publish-docs.func.sh` |
 | **SM-16** | Blob Storage | `csi-spl-iac/src/terraform/050-gcs-files/03-bucket.tf:1` | Provisions user file storage GCS bucket | **No** (GCP Terraform resource) | `test -f csi-spl-iac/src/terraform/050-gcs-files/03-bucket.tf` |
 | **SM-17** | Blob Storage | `csi-spl-iac/src/terraform/051-gcs-docs/03-bucket.tf:1` | Provisions repository documentation GCS bucket | **No** (GCP Terraform resource) | `test -f csi-spl-iac/src/terraform/051-gcs-docs/03-bucket.tf` |
-| **SM-18** | Blob Storage | `csi-spl-iac/src/terraform/020-gcp-relay-bucket/03-bucket.tf:1` | Provisions git-rel encrypted message relay bucket | **No** (GCP Terraform resource) | `test -f csi-spl-iac/src/terraform/020-gcp-relay-bucket/03-bucket.tf` |
+| **SM-18** | Blob Storage | retired 2026-10-15 (SPL-1910) | the relay bucket step left this repository | n/a | n/a |
 | **SM-19** | Database | `csi-spl-api/src/go/spool-hub-api/go.mod:12` | PostgreSQL wire protocol client (`jackc/pgx/v5`) | **Yes** (cloud agnostic) | `grep -n "jackc/pgx/v5" csi-spl-api/src/go/spool-hub-api/go.mod` |
 | **SM-20** | Database | `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh:386` | Starts Cloud SQL Auth Proxy on free local port | **No** (couples to Cloud SQL connection) | `grep -n "spl_sql_proxy_start()" csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh` |
 | **SM-21** | Database | `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh:453` | Wraps command execution via `spl_via_proxy` | **Partial** (abstracts proxy for scripts) | `grep -n "spl_via_proxy()" csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh` |

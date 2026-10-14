@@ -40,8 +40,7 @@ is not a gate.
 - **The apex is the WUI**: `019` binds `env.dns.fqdn` as its Firebase custom
   domain (`bind_custom_domain: true`); no hub record is written on the apex.
 - **No secret material in terraform.** `040` makes an empty secret slot; the
-  version is written by step 8 over stdin. The relay SA key is out of band
-  (feature doc §6.3).
+  version is written by step 8 over stdin.
 - **dev before prd** (except step 3: prd apex before the dev subzone). prd
   starts only after dev's step 10 gate is green.
 

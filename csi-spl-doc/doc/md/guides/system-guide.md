@@ -19,7 +19,6 @@ flowchart TD
     subgraph Cloud[GCP Cloud]
         Hub[Cloud Run: Hub API]
         Postgres[(Cloud SQL: Postgres 16)]
-        RelayBucket[(GCS: Relay Bucket)]
         WUI[Firebase Hosting: WUI]
     end
 
@@ -42,8 +41,6 @@ flowchart TD
     Csitea -- "iframe /embed/v1/chat" --> Hub
     Sidecar -- "socket /v1/ws" --> Hub
     Hub -- "pgx pool (RLS)" --> Postgres
-    Hub -- "signed URLs" --> RelayBucket
-    CLI -- "signed URLs" --> RelayBucket
     Agent -- "inbox/outbox, tmux poke" --> Spool
     Spool -.-> Sidecar
     Spool -.-> CLI
@@ -61,13 +58,12 @@ flowchart TD
 | 4 | boxes, desks, sidecars | any machine with agents | `GO/cmd/spool`, `csi-spl-orc/src/bash/run/spl-desk-*.func.sh` | [002](../../../specs/002-box-agent-messaging/), [028](../../../specs/028-spool-terminal-delivery/), [058](../../../specs/058-multi-machine-fleet/) |
 | 5 | spool CLI and MCP server | each box | `GO/cmd/spool`, `GO/internal/mcp` | [003](../../../specs/003-spool-message-bus/) |
 | 6 | agents and fleet roles | each box | `csi-spl-orc/src/bash/features/{spawn-agents,dispatch,watchdog,spool-install}` | [060](../../../specs/060-role-rotation/), [101](../../../specs/101-four-orchestrator-dispatchers/), [093](../../../specs/093-agent-watchdog/) |
-| 7 | git-rel relay bucket | GCS | `csi-spl-iac/src/terraform/020-gcp-relay-bucket` | [001](../../../specs/001-relay-bucket-estate/) |
-| 8 | infrastructure | terraform in the tf-runner container | `csi-spl-iac/src/terraform/`, `csi-spl-orc` | [007](../../../specs/007-spool-hub-api-infra/), [047](../../../specs/047-spool-deployability/) |
-| 9 | configuration | yaml, rendered to tfvars | `csi-spl-cnf/csi-spl/` | [011](../../../specs/011-spool-project-refactor/) |
-| 10 | CI/CD and versions | GitHub Actions | `.github/workflows/` | [008](../../../specs/008-spool-cicd-logs/), [056](../../../specs/056-devsecops-ci/) |
-| 11 | backups | GCS buckets, a daily workflow | `csi-spl-orc/src/bash/run/spl-db-backup.func.sh` | [029](../../../specs/029-spool-db-backup-health/), [092](../../../specs/092-box-power-loss/) |
-| 12 | tenants (workspaces) | rows + RLS, a host per workspace | `GO/internal/store`, `spl-tenant-*.func.sh` | [024](../../../specs/024-spool-tenant-hosts/), [025](../../../specs/025-spool-tenant-rbac/), [105](../../../specs/105-wildcard-tenant-hosts/) |
-| 13 | csitea.net sales channel | hub `/embed/*` + a tag on csitea.net | `csi-spl-rdb/.../0169_embed_channel_scope.sql`, cnf `env.hub.embed` | [121](../../../specs/121-sales-channel/spec.md) |
+| 7 | infrastructure | terraform in the tf-runner container | `csi-spl-iac/src/terraform/`, `csi-spl-orc` | [007](../../../specs/007-spool-hub-api-infra/), [047](../../../specs/047-spool-deployability/) |
+| 8 | configuration | yaml, rendered to tfvars | `csi-spl-cnf/csi-spl/` | [011](../../../specs/011-spool-project-refactor/) |
+| 9 | CI/CD and versions | GitHub Actions | `.github/workflows/` | [008](../../../specs/008-spool-cicd-logs/), [056](../../../specs/056-devsecops-ci/) |
+| 10 | backups | GCS buckets, a daily workflow | `csi-spl-orc/src/bash/run/spl-db-backup.func.sh` | [029](../../../specs/029-spool-db-backup-health/), [092](../../../specs/092-box-power-loss/) |
+| 11 | tenants (workspaces) | rows + RLS, a host per workspace | `GO/internal/store`, `spl-tenant-*.func.sh` | [024](../../../specs/024-spool-tenant-hosts/), [025](../../../specs/025-spool-tenant-rbac/), [105](../../../specs/105-wildcard-tenant-hosts/) |
+| 12 | csitea.net sales channel | hub `/embed/*` + a tag on csitea.net | `csi-spl-rdb/.../0169_embed_channel_scope.sql`, cnf `env.hub.embed` | [121](../../../specs/121-sales-channel/spec.md) |
 
 How they connect:
 
@@ -78,7 +74,6 @@ How they connect:
 | box (sidecar `spool hub-run`) | hub | socket `/v1/ws` | messages signed by the box key, pinned via `/v1/pins` |
 | agent | its box | spool dirs `inbox/outbox/archive`, a tmux poke | the local spool, no network |
 | hub | Postgres | Cloud SQL, pgx pool | every row under a tenant RLS scope |
-| hub / boxes | relay bucket | signed GCS URLs | gpg-encrypted git bundles (git-rel) |
 | CI | Cloud Run, Firebase | GitHub OIDC (WIF, step 017) | build and deploy dev and prd |
 | csitea.net | hub | iframe on `/embed/v1/chat` | the visitor channel (10, planned) |
 
@@ -157,7 +152,7 @@ and `GO/internal/auth`:
 - Every page refuses framing: `frame-ancestors 'none'` in
   `csi-spl-wui/nuxt.config.ts` and `firebase.json`, pinned by
   `csi-spl-wui/tests/unit/csp-policy.test.mjs`. This is why the csitea.net
-  embed (10) is served by the hub, not by the WUI.
+  embed (9) is served by the hub, not by the WUI.
 - Locales: `csi-spl-wui/i18n/` (spec 021).
 
 ## 1.5 Boxes, desks, sidecars, the spool CLI
@@ -214,18 +209,9 @@ hooks and skills, and seats it. Self-hosted: [README.md](../../../README.md),
 Fleet rules and their one home: [fleet-rules-index.md](../fleet-rules-index.md).
 How a lane's change reaches master: [developer-guide.md](../developer-guide.md).
 
-## 1.7 git-rel: the relay bucket
+## 1.7 Infrastructure, configuration, CI/CD
 
-A private GCS bucket that carries gpg-encrypted git bundles between the hub
-and the boxes, by signed URLs only: GET 1..240 min, single-use PUT 1..60
-min, objects expire after 1 day. Step
-`csi-spl-iac/src/terraform/020-gcp-relay-bucket`; the contract and the key
-rotation are in [csi-spl.feature.md](../csi-spl.feature.md) sections 4 to 6.
-The relay key is minted out of band, never by terraform.
-
-## 1.8 Infrastructure, configuration, CI/CD
-
-### 1.8.1 Configuration
+### 1.7.1 Configuration
 
 `csi-spl-cnf/csi-spl/<env>.env.yaml` (envs `dev`, `prd`, plus `all` and
 `lde`) is the single source of truth; tpl-gen renders
@@ -234,7 +220,7 @@ The relay key is minted out of band, never by terraform.
 `env.dns.BASE_DOMAIN` in `all.env.yaml`: prd serves the apex, dev serves
 `dev.<BASE_DOMAIN>` (`prd.env.yaml`).
 
-### 1.8.2 Terraform steps
+### 1.7.2 Terraform steps
 
 Each GCP part is a numbered step in `csi-spl-iac/src/terraform/`, run only in
 the tf-runner container (`cd csi-spl-orc && ENV=<env> STEP=<step> make
@@ -246,7 +232,6 @@ do-tf-plan`), with the env's own service account key, never the owner account
 | 000, 001 | state bucket, APIs |
 | 005, 025, 032 | domain verification, DNS zone, Cloud Run domain mapping |
 | 016, 017, 019 | Firebase deploy IAM, GitHub OIDC for CI, Firebase site |
-| 020 | git-rel relay bucket (7) |
 | 028, 030 | image registry, the hub on Cloud Run |
 | 036 | demo workspace |
 | 040 | Cloud SQL Postgres |
@@ -257,7 +242,7 @@ do-tf-plan`), with the env's own service account key, never the owner account
 | 070 | monitoring |
 | 120 | GitHub secrets |
 
-### 1.8.3 CI/CD and versions
+### 1.7.3 CI/CD and versions
 
 | workflow | does |
 |---|---|
@@ -265,7 +250,7 @@ do-tf-plan`), with the env's own service account key, never the owner account
 | `20_hub-build-deploy.yml`, `21_hub-deploy-catchup.yml` | build the hub image, deploy dev then prd |
 | `30_wui-build-deploy.yml`, `31_wui-edge-warm.yml` | generate and deploy the WUI to dev and prd |
 | `22_deploy-verify.yml`, `00_deploy-lag-watch.yml` | check what is live against master |
-| `40_tenant-host-reconcile.yml` | per-workspace hosts (9) |
+| `40_tenant-host-reconcile.yml` | per-workspace hosts (8) |
 | `45_db-backup.yml`, `47_db-maint.yml` | daily backup, DB maintenance |
 | `60..68`, `70`, `85` | security scanners (CodeQL, semgrep, gosec, trufflehog, checkov, hadolint, shellcheck, DAST, supply chain, actionlint) |
 
@@ -274,7 +259,7 @@ Every hub and WUI deploy mints a `v<X.Y.Z>` tag
 and the WUI footer show it. Before a push, the pre-push gate:
 [pre-push-gate.md](../pre-push-gate.md).
 
-### 1.8.4 Backups
+### 1.7.4 Backups
 
 - Database: `do_spl_db_backup` (`spl-db-backup.func.sh`) daily from
   `45_db-backup.yml` into the step-045 bucket, verified by
@@ -283,7 +268,7 @@ and the WUI footer show it. Before a push, the pre-push gate:
 - Box state: `spl-box-state-backup.func.sh` into the step-056 bucket,
   [box-state-backup.md](../box-state-backup.md).
 
-## 1.9 Tenants (workspaces)
+## 1.8 Tenants (workspaces)
 
 - A workspace is a tenant: every tenant row carries `tenant_id` and RLS keeps
   tenants apart (3). Created with `do_spl_tenant_create`; members with
@@ -295,9 +280,9 @@ and the WUI footer show it. Before a push, the pre-push gate:
   across tenants only through `asOperator` (spec 074).
 - A box can be enrolled into one workspace (spec 108).
 
-## 1.10 The csitea.net integration (spec 121)
+## 1.9 The csitea.net integration (spec 121)
 
-### 1.10.1 What it is
+### 1.9.1 What it is
 
 csitea.net is the Csitea website, a separate repo (`csi-web`). Spec 121 makes
 the Spool Hub its sales channel: a signed-out visitor opens a pop-up on
@@ -306,7 +291,7 @@ see; later a business that bought a workspace embeds the same chat in its own
 site. csitea.net is customer #1 of the embed, paid by Csitea's own workspace
 (spec 121 sections 1.3, 3).
 
-### 1.10.2 How it plugs in
+### 1.9.2 How it plugs in
 
 | piece | who owns it | detail (spec 121) |
 |---|---|---|
@@ -322,7 +307,7 @@ site. csitea.net is customer #1 of the embed, paid by Csitea's own workspace
 The loader takes the hub host from `BASE_DOMAIN`, never a literal (spec 121
 section 5).
 
-### 1.10.3 Auth and isolation
+### 1.9.3 Auth and isolation
 
 - The visitor has no account. The hub mints a random 256-bit token, stores
   only its sha256 (`embed_visitors.token_hash`), and the iframe keeps it in
@@ -340,7 +325,7 @@ section 5).
   CORS header for csitea.net; parent and iframe exchange UI events only
   (open, close, unread count) by `postMessage` with an exact origin.
 
-### 1.10.4 Status as of 2026-10-10
+### 1.9.4 Status as of 2026-10-10
 
 | done | open |
 |---|---|
@@ -350,7 +335,7 @@ section 5).
 
 Until T208 lands nothing on csitea.net calls the hub.
 
-## 1.11 How the four guides fit
+## 1.10 How the four guides fit
 
 This System guide is one of four guides designed to rebuild the fleet from scratch:
 1. **Installation and configuration guide** (G1): Provisions the boxes and dependencies from an empty Debian 13 box.

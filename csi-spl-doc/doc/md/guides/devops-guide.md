@@ -183,7 +183,7 @@ One env and one step at a time, from the checkout the tf-runner mounts. State li
 
 ## 5.5 The steps
 
-`find csi-spl-iac/src/terraform -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | sort` is the numeric order. Apply dev then prd for each step, except where the table says otherwise. Spec 007 R7: on a rebuild of an estate that already exists, do not destroy `020-gcp-relay-bucket` or `040-cloud-sql-postgres`; import them. A from-scratch project creates them. The import make target is gap D4.
+`find csi-spl-iac/src/terraform -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | sort` is the numeric order. Apply dev then prd for each step, except where the table says otherwise. Spec 007 R7: on a rebuild of an estate that already exists, do not destroy `040-cloud-sql-postgres`; import it. A from-scratch project creates it. The import make target is gap D4.
 
 | step | env | what it creates |
 |---|---|---|
@@ -193,7 +193,6 @@ One env and one step at a time, from the checkout the tf-runner mounts. State li
 | 016-firebase-deploy-iam | dev, then prd | IAM for the Firebase deploy |
 | 017-github-wif-deploy | dev, then prd | GitHub workload identity for deploy |
 | 019-firebase-static-site | dev, then prd | the Firebase Hosting site |
-| 020-gcp-relay-bucket | dev, then prd | the git-rel relay bucket; its sender key is not created here (gap D5) |
 | 025-gcp-dns-zone | prd, then dev | DNS; the apex zone before the dev sub-zone |
 | 028-gcp-artifact-registry | dev, then prd | the hub image registry |
 | 030-cloud-run-hub | dev, then prd | the hub service; hold until the database bootstrap below |
@@ -225,7 +224,7 @@ One env and one step at a time, from the checkout the tf-runner mounts. State li
 This list holds 030, 032, 036, 025, 058, 059, 060 and 061 out. Read the plan log before the apply.
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && ENVS="dev prd" STEPS="000-gcp-remote-bucket 001-enable-gcp-services 005-gcp-domain-verification 016-firebase-deploy-iam 017-github-wif-deploy 019-firebase-static-site 020-gcp-relay-bucket 028-gcp-artifact-registry 040-cloud-sql-postgres 045-gcs-db-backups 046-gcs-offsite-backups 050-gcs-files 051-gcs-docs 052-gcs-workspace-docs 054-gcs-blog-media 055-gcp-kms-marketing 056-gcs-box-state 057-gcp-kms-vendor-keys 070-gcp-monitoring 120-github-general-secrets" ./run -a do_tf_sweep_steps
+cd <CHECKOUT>/csi-spl-orc && ENVS="dev prd" STEPS="000-gcp-remote-bucket 001-enable-gcp-services 005-gcp-domain-verification 016-firebase-deploy-iam 017-github-wif-deploy 019-firebase-static-site 028-gcp-artifact-registry 040-cloud-sql-postgres 045-gcs-db-backups 046-gcs-offsite-backups 050-gcs-files 051-gcs-docs 052-gcs-workspace-docs 054-gcs-blog-media 055-gcp-kms-marketing 056-gcs-box-state 057-gcp-kms-vendor-keys 070-gcp-monitoring 120-github-general-secrets" ./run -a do_tf_sweep_steps
 ```
 
 ## 5.8 Apply the shared steps
@@ -233,7 +232,7 @@ cd <CHECKOUT>/csi-spl-orc && ENVS="dev prd" STEPS="000-gcp-remote-bucket 001-ena
 The owner's approval is required. Same `STEPS` and `ENVS` as the plan. `DRY_RUN=0` applies only a plan that adds or changes, and stops on a destroy or a replace.
 
 ```bash
-cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS="dev prd" STEPS="000-gcp-remote-bucket 001-enable-gcp-services 005-gcp-domain-verification 016-firebase-deploy-iam 017-github-wif-deploy 019-firebase-static-site 020-gcp-relay-bucket 028-gcp-artifact-registry 040-cloud-sql-postgres 045-gcs-db-backups 046-gcs-offsite-backups 050-gcs-files 051-gcs-docs 052-gcs-workspace-docs 054-gcs-blog-media 055-gcp-kms-marketing 056-gcs-box-state 057-gcp-kms-vendor-keys 070-gcp-monitoring 120-github-general-secrets" ./run -a do_tf_sweep_steps
+cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS="dev prd" STEPS="000-gcp-remote-bucket 001-enable-gcp-services 005-gcp-domain-verification 016-firebase-deploy-iam 017-github-wif-deploy 019-firebase-static-site 028-gcp-artifact-registry 040-cloud-sql-postgres 045-gcs-db-backups 046-gcs-offsite-backups 050-gcs-files 051-gcs-docs 052-gcs-workspace-docs 054-gcs-blog-media 055-gcp-kms-marketing 056-gcs-box-state 057-gcp-kms-vendor-keys 070-gcp-monitoring 120-github-general-secrets" ./run -a do_tf_sweep_steps
 ```
 
 # 6 Cloud SQL
@@ -602,7 +601,7 @@ A step with no action, or an action that refuses the from-scratch case. Each one
 | D2 | no single action applies every step in the legal env order | `do_tf_sweep_steps` with an explicit `STEPS` and `ENVS`, as the sections above |
 | D3 | the first `make do-provision` of 030 returns 1 when the service does not exist yet | `do_check_hub_image_regress` describes the live service before it decides; `ALLOW_IMAGE_REGRESS` does not cover a missing service |
 | D4 | `make do-import` requires `AWS_PROFILE` | `do_tf_import` exists (`grep -c '^do_tf_import()' csi-spl-iac/src/bash/run/tf-import.func.sh` -> 1) but the make target is not a GCP path, and terraform on the host is forbidden |
-| D5 | the relay sender key is not created by terraform | repo `CLAUDE.md`: minted out of band; feature doc section 6.3 |
+| D5 | closed 2026-10-15 (SPL-1910): the step it named left this repository | none |
 | D6 | no `do_*` restores a Cloud SQL PITR timestamp | `do_spl_db_restore` restores the logical dump |
 | D7 | `make do-provision-and-update-gh-keys` calls `do_github_update_gcp_keys` | `grep -c '^do_github_update_gcp_keys()' csi-spl-iac/src/bash/run/*.func.sh csi-spl-orc/src/bash/run/*.func.sh` -> 0; step 120 is the action that sets the secrets |
 | D8 | the owner's approval is spoken for that call; no action records it | every apply section above waits for it |

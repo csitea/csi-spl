@@ -70,8 +70,7 @@ the SA dies with it and gcp-002 mints a fresh one; in *contain only* the gap bit
 
 ### 2.3 The relay SA key
 
-Minted out of band by design (terraform never creates it, `csi-spl-doc/doc/md/csi-spl.feature.md` §6.3).
-Rotation is the three gcloud commands of feature doc §6.3.2 (mint new, switch, delete old by id): **GAP** T073.
+Not in this repository since 2026-10-15 (SPL-1910): the relay estate and its key left it.
 
 ### 2.4 Cloud SQL passwords
 
@@ -140,7 +139,7 @@ until then it says "not enabled yet" and the RPO of §4.1 holds only if the `do_
 The dry run (it lists what each step holds):
 
 ```bash
-STEPS="050-gcs-files 045-gcs-db-backups 040-cloud-sql-postgres 032-gcp-cloud-run-domain-mapping 030-cloud-run-hub 028-gcp-artifact-registry 020-gcp-relay-bucket 019-firebase-static-site 017-github-wif-deploy 016-firebase-deploy-iam 120-github-general-secrets" ENVS=dev ./run -a do_tf_deprovision_steps
+STEPS="050-gcs-files 045-gcs-db-backups 040-cloud-sql-postgres 032-gcp-cloud-run-domain-mapping 030-cloud-run-hub 028-gcp-artifact-registry 019-firebase-static-site 017-github-wif-deploy 016-firebase-deploy-iam 120-github-general-secrets" ENVS=dev ./run -a do_tf_deprovision_steps
 ```
 
 With the owner's go, the same line with `DRY_RUN=0`. `do_tf_deprovision_steps` goes through
@@ -182,7 +181,7 @@ cd csi-spl-orc && ENV=dev STEP=<step> make do-provision
 | 3.3.5 | `050-gcs-files`, `045-gcs-db-backups` | new, empty buckets |
 | 3.3.6 | `028-gcp-artifact-registry` | `ENV=<env> ./run -a do_build_push_hub_image` |
 | 3.3.7 | DB logins + schema | `do_spl_db_bootstrap`, then `do_spl_db_owner_split` (new owner + runtime passwords), then §4.2 |
-| 3.3.8 | `020-gcp-relay-bucket` | mint the relay key (feature doc §6.3.1; T073) |
+| 3.3.8 | none | retired 2026-10-15 (SPL-1910): the relay step left this repository |
 | 3.3.9 | `030-cloud-run-hub` | seed every secret slot (the §2.5 .. §2.7 actions, and `do_spl_wui_key_seed`), then `do_check_hub_deploy` |
 | 3.3.10 | `120-github-general-secrets` (and `017-github-wif-deploy` if WIF is used) | the new key reaches workflow 20 |
 | 3.3.11 | `032-gcp-cloud-run-domain-mapping` | `do_spl_wait_for_mapping_cert`, `do_spl_lb_absent_check` |
@@ -306,7 +305,7 @@ That is why the runners are hardened **before** the flip to public, not after an
 | T070 | `do_oss_security_signals`: tags vs deploy runs, fork / unknown-ref runner jobs, secret-scanning alerts, read-only | 1.1 |
 | T071 | revoke the `GCP_KEY_*` GitHub Actions secrets | 2.1 |
 | T072 | rotate a per-env project SA key (mint new, delete old ids, SA kept) | 2.2 |
-| T073 | mint + rotate the relay SA key as actions (feature doc §6.3) | 2.3, 3.3.8 |
+| T073 | dropped 2026-10-15 (SPL-1910): the relay key left this repository | 2.3, 3.3.8 |
 | T074 | rotate the hub runtime DB password | 2.4 |
 | T075 | rotate the session key and the box-wui key on purpose | 2.6 |
 | T076 | `do_oss_runners_remove`: every runner off every repo and out of the org runner group | 2.8 |

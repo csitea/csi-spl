@@ -258,7 +258,7 @@ so MCP is additive and lower priority than a working CLI.
 ## Out of Scope (belongs to 003 or later)
 
 - Cloud Run hub, Postgres, GCS upload, NATS live tail/replay, IAM/OIDC.
-- Cross-box delivery and the signed-URL file relay (that is git-rel / 001 + 003).
+- Cross-box delivery (that is 003).
 - A live `SendMessage`/tmux notification integration with delivery semantics.
 - Any change to ysg-box.
 

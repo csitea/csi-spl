@@ -59,8 +59,8 @@ practice today (listed so the next reader does not re-measure it).
 
 | # | item | status | evidence |
 |---|---|---|---|
-| 2.3.1 | every bucket, the off-project copy included, is in ONE region | **gap** | `location = upper(var.gcp_region)` in 000 (`03-state-bucket.tf:4`), 020 (`03-relay-bucket.tf:22`), 045 (`03-backups-bucket.tf:28`), 046 (`03-offsite-bucket.tf:20`), 050 (`03-files-bucket.tf:18`), 051 (`03-docs-bucket.tf:18`); region europe-north1 |
-| 2.3.2 | versioning | ok by design | off in 020/045/050/051 (relay transient, dumps uniquely named, files content-addressed, docs are git's); on in 046 and 000. Soft delete 7 d (30 d on 046) |
+| 2.3.1 | every bucket, the off-project copy included, is in ONE region | **gap** | `location = upper(var.gcp_region)` in 000 (`03-state-bucket.tf:4`), 045 (`03-backups-bucket.tf:28`), 046 (`03-offsite-bucket.tf:20`), 050 (`03-files-bucket.tf:18`), 051 (`03-docs-bucket.tf:18`); region europe-north1 |
+| 2.3.2 | versioning | ok by design | off in 045/050/051 (dumps uniquely named, files content-addressed, docs are git's); on in 046 and 000. Soft delete 7 d (30 d on 046) |
 | 2.3.3 | off-project copy: byte restore never run | **gap** | g-225: listed as the env SA, 17 dumps per env; `BACKUP_SOURCE=bkp DRY_RUN=1` exit 1 `no key for csi-spl-bkp` on the satellite. Spec 044 T077 unmeasured |
 | 2.3.4 | off-project copy exists and runs daily | ok | cnf `046 copy_enabled: true` (`prd.env.yaml:136`, `dev.env.yaml:132`); 30-day retention policy, unlocked (`03-offsite-bucket.tf:31-33`) |
 

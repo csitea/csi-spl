@@ -71,8 +71,7 @@ through `cd csi-spl-orc && ENV=<env> STEP=<step> make do-tf-plan` /
 | 11 | Cloud Run hub (`ingress: all`, min = max = 1) | `030-cloud-run-hub` | Implemented |
 | 12 | domain mappings for `env.dns.api_fqdn` (+ `mapped_tenants`, `[]` since 026) | `032-gcp-cloud-run-domain-mapping` + `do_spl_wait_for_mapping_cert` | Implemented (`510c0b2d`) |
 
-Outside the chain: `020-gcp-relay-bucket` (git-rel, spec `001`);
-`016-firebase-deploy-iam` / `019-firebase-static-site` (WUI Hosting, §3);
+Outside the chain: `016-firebase-deploy-iam` / `019-firebase-static-site` (WUI Hosting, §3);
 `017-github-wif-deploy` (WIF alternative, §5); `120-github-general-secrets`
 (the CI key secret, FR-026); `003-gcp-iam-users` (Planned, no dir).
 Step dirs: `ls csi-spl-iac/src/terraform` -> `000 001 005 016 017 019 020 025

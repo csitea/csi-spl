@@ -26,7 +26,7 @@ The minutes are a reading estimate, not a stopwatch; the checks are measured.
 | 8 | sign up on `localhost:8080` | works; the form shows the confirmation link | `README.md:24-27` |
 | 10 | Connect an agent | one 290-character line that copies the root key out of the container and runs the installer | `awk 'NR==75{print length}' README.md` -> 290 |
 | 15 | "what about GCP, the hosted shape?" | **no link**: the README never names the P2 path, spec 047, 072 or the GCP how-to | `grep -ciE 'gcp\|terraform\|047\|072\|byo' README.md` -> 0 |
-| 16 | Repository layout -> `csi-spl-doc` | `csi-spl-doc/README.md` opens on `csi-spl.feature.md`, the **git-rel relay bucket** operator doc, not the spool | `csi-spl-doc/README.md:3-4`, `:15` |
+| 16 | Repository layout -> `csi-spl-doc` | `csi-spl-doc/README.md` opens on `csi-spl.feature.md`, the **relay bucket** operator doc, not the spool | `csi-spl-doc/README.md:3-4`, `:15` |
 | 18 | the spec table in `csi-spl-doc/README.md` | lists specs 001..011 of **72** dirs; last edit 2026-09-18 | `ls csi-spl-doc/specs \| wc -l` -> 72; `csi-spl-doc/README.md:44` |
 | 20 | `csi-spl-iac/README.md` | lists 8 terraform steps of **18**; points at `csi-spl.feature.md` sections 5-7 | `grep -c 'src/terraform/' csi-spl-iac/README.md` -> 8; `ls -d csi-spl-iac/src/terraform/[0-9]* \| wc -l` -> 18 |
 | 22 | `csi-spl-api/README.md` | names verbs that no longer exist (`spool-send`, `spool-pin`); the binary has `spool send`, `spool pin` | `csi-spl-api/README.md:4` vs the `spool` usage text |
@@ -93,7 +93,7 @@ rows in 3 groups by who runs them ("on a box", "a box and its hub",
 Each one is a stop for a newcomer, cited.
 
 1. **No P2 or contributor entry point from the README.** `grep -ciE 'gcp|terraform|047|072|byo' README.md` -> 0.
-2. **`csi-spl-doc/README.md` opens on the relay-bucket doc** (`csi-spl-doc/README.md:3-4`), and its spec table stops at 011 of 72 (`:11-42`).
+2. **`csi-spl-doc/README.md` opens on the relay doc** (`csi-spl-doc/README.md:3-4`), and its spec table stops at 011 of 72 (`:11-42`).
 3. **Module READMEs are stale against the tree**: iac lists 8 of 18 steps (`csi-spl-iac/README.md:11-18`); api names removed verbs (`csi-spl-api/README.md:4`).
 4. **`./run --help` cannot be navigated**: 337 flat rows, no groups, no "start here", 22 cut, 10 name-echo descriptions, 17 destructive-sounding actions with 0 warnings (1.2).
 5. **The help footer advertises an action that does not exist** (`do_help_with`, E2) in both modules, and there is no per-action help.

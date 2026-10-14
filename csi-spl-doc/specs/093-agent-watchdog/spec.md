@@ -651,7 +651,7 @@ No panelist disagreed with section 6 (situations), 6.3 (who kills whom), 8
 
 ## 13. Out of scope
 
-Code (the lanes of [tasks.md](tasks.md)); the relay contract (git-rel); the
+Code (the lanes of [tasks.md](tasks.md)); the
 WUI beyond showing a job's state (a later lane); headless stream-json agents.
 
 <!-- version: 0.2.0 · updated: 2026-10-05 · last-edit: 2026-10-05T21:06:00Z -->

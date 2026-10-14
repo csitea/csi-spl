@@ -67,7 +67,7 @@ M2 **removes** the IAP/IP allowlist so paying strangers can connect with box key
 
 ### Out of M1
 
-Buy-from-the-site (M2). Slack web UI (M3). NATS, ysg-box adapter, git-rel,
+Buy-from-the-site (M2). Slack web UI (M3). NATS, ysg-box adapter,
 Kafka, per-agent hub keys.
 
 ### Demo (M1 acceptance) — then M2 may start

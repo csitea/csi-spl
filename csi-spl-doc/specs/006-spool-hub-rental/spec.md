@@ -264,7 +264,7 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
 
 ## Out of Scope
 
-NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
+NATS, Kafka, ysg-box, customer GCP accounts, card storage, custom
 domains, seats (M4), WUI (005).
 
 <!-- version: 1.4.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:43:36Z -->

@@ -76,10 +76,9 @@ csi-spl-doc/doc/md/csi-spl.feature.md:23:| `csi-spl-wui` | Nuxt 3 SSR + TypeScri
 csi-spl-wui/i18n/locales/en.json:263:      "where_humans_meet": "where people meet with ai",
 ```
 
-Not used, on purpose: `csi-spl-doc/doc/md/csi-spl.feature.md:7` ("The spool
-is the GCP estate that carries **git-rel**, the relay that moves gpg-encrypted
-files ..."). That line describes the repository's internal infrastructure, not
-what a visitor signs in to.
+Not used, on purpose: `csi-spl-doc/doc/md/csi-spl.feature.md` section 1. It
+describes the repository's internal infrastructure, not what a visitor signs
+in to.
 
 ## 2. The text
 

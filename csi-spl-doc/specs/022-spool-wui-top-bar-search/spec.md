@@ -64,6 +64,9 @@
   Enter opens; the list is a `listbox` with `aria-activedescendant`.
 - **FR-025** States: empty query (help with operator examples), loading, no results, errors (400 `bad_query`
   shows the hub's detail and the bad token, 429 / 503 their own line, 401 the view-door form).
+  SPL-1833 (owner, t1 659e3927): a timeout (503 `search_budget`, 504, 408) or any other failure shows one
+  plain sentence and Try again (`SearchErrorNotice.vue`), never the red error box or snackbar; status,
+  token, detail, duration and the error reference only with the Debug pane on.
 - **FR-026** Mock mode (lde, no hub) searches the local mock corpus with a tiny free-text + `from:` / `in:` /
   `is:` matcher so the UI and tests run offline. The live path never uses it.
 

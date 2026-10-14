@@ -1051,8 +1051,6 @@
     "count_messages": "{n} sõnum | {n} sõnumit",
     "revoked": "tühistatud",
     "rate_limited": "Liiga palju otsinguid. Proovi uuesti {s} s pärast.",
-    "budget": "See otsing kestis kauem kui {s} sekundit. Proovi vähem või täpsemaid sõnu või otsi mõne hetke pärast uuesti.",
-    "failed": "Otsing ebaõnnestus ({detail}).",
     "group": {
       "robots": "Robotid",
       "users": "Inimesed",
@@ -1105,7 +1103,12 @@
       "copy_link": "Kopeeri link"
     },
     "left_hint": "{n} tulemus vasakul paneelil. Üles / Alla sirvimiseks, Enter avab selle oma kohal. | {n} tulemust vasakul paneelil. Üles / Alla sirvimiseks, Enter avab ühe oma kohal.",
-    "close_results": "Sulge otsingutulemused"
+    "close_results": "Sulge otsingutulemused",
+    "err": {
+      "slow": "Otsing võttis liiga kaua aega. Proovi vähemate või täpsemate sõnadega ja proovi uuesti.",
+      "failed": "Otsing ei tööta praegu. Proovi hetke pärast uuesti.",
+      "retry": "Proovi uuesti"
+    }
   },
   "role": {
     "biz_owner": "Äriomanik",

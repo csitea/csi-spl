@@ -88,7 +88,9 @@ describe('loader gates', () => {
     assert.ok(!isFirstScreenRoute({ name: undefined }))
   })
   it('the Settings modal is mounted only on ?settings=, which the loader awaits', () => {
-    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue'])
+    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue', 'components/SearchErrorNotice.vue'])
+    /* SPL-1833: a failed search's notice says the core "Something went wrong" until its own strings are merged */
+    assert.match(read('src/components/SearchErrorNotice.vue'), /if \(!te\('search\.err\.slow'\)\) return t\('error\.title_other'\)/)
     /* SPL-1637: a ```poll form renders only once its strings are merged; until then its fence text */
     assert.match(read('src/components/PollBody.vue'), /te\('poll\.chat'\) \? splitPolls/)
     /* spec 116 T3: the sign-in page mounts the demo intro only once its strings are merged */

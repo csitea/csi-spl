@@ -1051,8 +1051,6 @@
     "count_messages": "{n} žinutė | {n} žinutės",
     "revoked": "atšauktas",
     "rate_limited": "Per daug paieškų. Bandykite po {s} s.",
-    "budget": "Ši paieška truko ilgiau nei {s} sek. Pabandykite mažiau arba tikslesnių žodžių arba ieškokite dar kartą po akimirkos.",
-    "failed": "Paieška nepavyko ({detail}).",
     "group": {
       "robots": "Robotai",
       "users": "Žmonės",
@@ -1105,7 +1103,12 @@
       "copy_link": "Kopijuoti nuorodą"
     },
     "left_hint": "{n} rezultatas kairiajame skydelyje. Aukštyn / Žemyn naršyti, Enter atveria jį vietoje. | {n} rezultatai kairiajame skydelyje. Aukštyn / Žemyn naršyti, Enter atveria vieną vietoje.",
-    "close_results": "Uždaryti paieškos rezultatus"
+    "close_results": "Uždaryti paieškos rezultatus",
+    "err": {
+      "slow": "Paieška užtruko per ilgai. Pabandykite mažiau arba tikslesnių žodžių ir bandykite dar kartą.",
+      "failed": "Paieška šiuo metu neveikia. Bandykite dar kartą po akimirkos.",
+      "retry": "Bandyti dar kartą"
+    }
   },
   "role": {
     "biz_owner": "Verslo savininkas",

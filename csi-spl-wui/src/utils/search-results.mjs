@@ -378,3 +378,18 @@ export function mockSearch(messages, q, channels = []) {
   return { query: String(q || ''), sort: 'newest', types: ['message', 'channel'], warnings,
     groups: { messages: { results, next: null }, channels: { results: chans, next: null } } }
 }
+
+/**
+ * SPL-1833 test hook (mock only): localStorage `spool.mock.search-fault` =
+ * `{ status, token, detail, delayMs }` makes the mock search wait `delayMs`,
+ * then fail as the hub would, so an e2e drives the real store and page path.
+ */
+export async function mockSearchFault() {
+  let f = null
+  try { f = JSON.parse(localStorage.getItem('spool.mock.search-fault') || 'null') } catch { f = null }
+  if (!f || typeof f !== 'object') return
+  if (Number(f.delayMs) > 0) await new Promise((r) => setTimeout(r, Number(f.delayMs)))
+  throw Object.assign(new Error(`spool ${f.status} ${f.token || 'search'}`), {
+    status: Number(f.status) || 0, token: String(f.token || ''), detail: String(f.detail || ''),
+  })
+}

@@ -1051,8 +1051,6 @@
     "count_messages": "{n} meddelande | {n} meddelanden",
     "revoked": "återkallad",
     "rate_limited": "För många sökningar. Försök igen om {s} s.",
-    "budget": "Sökningen tog längre tid än {s} sekunder. Prova färre eller mer specifika ord, eller sök igen om en stund.",
-    "failed": "Sökningen misslyckades ({detail}).",
     "group": {
       "robots": "Robotar",
       "users": "Personer",
@@ -1105,7 +1103,12 @@
       "copy_link": "Kopiera länk"
     },
     "left_hint": "{n} träff i vänsterpanelen. Upp / Ner för att bläddra, Enter öppnar den på sin plats. | {n} träffar i vänsterpanelen. Upp / Ner för att bläddra, Enter öppnar en på sin plats.",
-    "close_results": "Stäng sökresultaten"
+    "close_results": "Stäng sökresultaten",
+    "err": {
+      "slow": "Sökningen tog för lång tid. Prova färre eller mer specifika ord och försök igen.",
+      "failed": "Sökningen fungerar inte just nu. Försök igen om en stund.",
+      "retry": "Försök igen"
+    }
   },
   "role": {
     "biz_owner": "Affärsägare",

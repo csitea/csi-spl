@@ -7,9 +7,23 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 /** The hub's search time budget in seconds (hub searchBudgetDefault, search-v1 §5.1): a 503 search_budget says it. */
 export const SEARCH_BUDGET_S = 7
 
-type SearchError = { status: number, token: string, detail: string, pos: number, badToken: string, retryAfter: number, raw: unknown }
+/** `ms` = how long the failed call ran (0 = not measured), for the debug pane only. */
+export type SearchError = { status: number, token: string, detail: string, pos: number, badToken: string, retryAfter: number, ms: number, raw: unknown }
 
-function toError(e: unknown): SearchError {
+/**
+ * SPL-1833: the one plain sentence a failed search gets (SearchErrorNotice):
+ * `slow` = the hub's own budget (503 search_budget) or a gateway that gave up
+ * (504, 408); `busy` = 429; `offline` = no HTTP answer the page may read;
+ * `failed` = anything else.
+ */
+export function searchErrorKind(e: Pick<SearchError, 'status' | 'token'>): 'slow' | 'busy' | 'offline' | 'failed' {
+  if (e.status === 429) return 'busy'
+  if (e.status === 503 || e.status === 504 || e.status === 408 || e.token === 'search_budget' || e.token === 'timeout') return 'slow'
+  if (!e.status && !e.token) return 'offline'
+  return 'failed'
+}
+
+function toError(e: unknown, ms = 0): SearchError {
   const x = (e || {}) as { status?: number, token?: string, detail?: string, pos?: number, badToken?: string, retryAfter?: number }
   return {
     status: Number(x.status) || 0,
@@ -18,6 +32,7 @@ function toError(e: unknown): SearchError {
     pos: Number.isInteger(x.pos) ? Number(x.pos) : -1,
     badToken: String(x.badToken || ''),
     retryAfter: Number(x.retryAfter) || 0,
+    ms,
     raw: e,
   }
 }
@@ -79,13 +94,14 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
     loading.value = true
+    const t0 = Date.now()
     try {
       const r = await searchFirstPage(query)
       if (mine === seq) result.value = r
     } catch (e) {
       if (mine === seq) {
         result.value = null
-        error.value = toError(e)
+        error.value = toError(e, Date.now() - t0)
       }
     } finally {
       if (mine === seq) loading.value = false
@@ -98,13 +114,14 @@ export const useSearchStore = defineStore('search', () => {
     if (!cur || !g || !g.next || loadingMore.value) return
     const mine = seq
     loadingMore.value = type
+    const t0 = Date.now()
     try {
       const page = await searchNextPage(q, String(g.next || ''))
       if (mine !== seq || !result.value) return
       const { mergeSearchPage } = await import('~/utils/search-results.mjs') // off the first paint (027 budget)
       result.value = mergeSearchPage(result.value, page)
     } catch (e) {
-      if (mine === seq) error.value = toError(e)
+      if (mine === seq) error.value = toError(e, Date.now() - t0)
     } finally {
       loadingMore.value = ''
     }

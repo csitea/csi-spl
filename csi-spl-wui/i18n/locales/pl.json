@@ -1051,8 +1051,6 @@
     "count_messages": "{n} wiadomość | {n} wiadomości",
     "revoked": "unieważniony",
     "rate_limited": "Zbyt wiele wyszukiwań. Spróbuj ponownie za {s} s.",
-    "budget": "To wyszukiwanie trwało dłużej niż {s} s. Spróbuj użyć mniej lub bardziej konkretnych słów albo wyszukaj ponownie za chwilę.",
-    "failed": "Wyszukiwanie nie powiodło się ({detail}).",
     "group": {
       "robots": "Roboty",
       "users": "Osoby",
@@ -1105,7 +1103,12 @@
       "copy_link": "Kopiuj link"
     },
     "left_hint": "{n} wynik w lewym panelu. Góra / Dół, aby przeglądać, Enter otwiera go na miejscu. | {n} wyników w lewym panelu. Góra / Dół, aby przeglądać, Enter otwiera jeden na miejscu.",
-    "close_results": "Zamknij wyniki wyszukiwania"
+    "close_results": "Zamknij wyniki wyszukiwania",
+    "err": {
+      "slow": "Wyszukiwanie trwało zbyt długo. Spróbuj użyć mniej słów lub bardziej konkretnych i spróbuj ponownie.",
+      "failed": "Wyszukiwanie nie działa w tej chwili. Spróbuj ponownie za chwilę.",
+      "retry": "Spróbuj ponownie"
+    }
   },
   "role": {
     "biz_owner": "Właściciel biznesowy",

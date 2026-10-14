@@ -245,6 +245,8 @@ export function bindSnackbarToJournal(queue, journal) {
       const s = seqOf(r)
       if (s <= lastSeq) continue
       lastSeq = s
+      // SPL-1833: the page already says this one in place (search errors)
+      if (r.inline === true) continue
       if (replay) {
         const at = Date.parse(String(r.at || ''))
         if (!Number.isFinite(at) || now() - at > SNACKBAR_REPLAY_MS) continue

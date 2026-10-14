@@ -390,9 +390,10 @@ const MAX_TRAIL_CHARS = 200
  * @param {{
  *   source?: unknown, method?: unknown, url?: unknown, status?: unknown,
  *   code?: unknown, message?: unknown, name?: unknown, route?: unknown,
- *   error?: unknown, trail?: unknown
+ *   error?: unknown, trail?: unknown, inline?: unknown
  * }} [input]  `trail`: a Vue error's component trail, kept in `path` when
- *   the record has no URL (utils/vue-error-trail.mjs)
+ *   the record has no URL (utils/vue-error-trail.mjs); `inline: true` = the
+ *   page already says it in place, so the snackbar skips it (SPL-1833)
  * @returns {object | null}
  */
 export function buildErrorRecord(input) {
@@ -456,6 +457,7 @@ export function buildErrorRecord(input) {
     name,
     // `route` is a pathname too — scrubbed per segment like `path`.
     route: input.route === undefined ? currentRoute() : redactPath(input.route, 200),
+    ...(input.inline === true ? { inline: true } : {}),
   }
 }
 

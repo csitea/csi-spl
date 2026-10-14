@@ -1051,8 +1051,6 @@
     "count_messages": "{n} mesaj | {n} mesaje",
     "revoked": "revocat",
     "rate_limited": "Prea multe căutări. Încercați din nou peste {s} s.",
-    "budget": "Această căutare a durat mai mult de {s} secunde. Încercați mai puține cuvinte sau cuvinte mai specifice, ori căutați din nou peste câteva clipe.",
-    "failed": "Căutarea a eșuat ({detail}).",
     "group": {
       "robots": "Roboți",
       "users": "Persoane",
@@ -1105,7 +1103,12 @@
       "copy_link": "Copiază linkul"
     },
     "left_hint": "{n} rezultat în panoul din stânga. Sus / Jos pentru a răsfoi, Enter îl deschide la locul lui. | {n} rezultate în panoul din stânga. Sus / Jos pentru a răsfoi, Enter deschide unul la locul lui.",
-    "close_results": "Închide rezultatele căutării"
+    "close_results": "Închide rezultatele căutării",
+    "err": {
+      "slow": "Căutarea a durat prea mult. Încearcă mai puține cuvinte sau mai precise, apoi încearcă din nou.",
+      "failed": "Căutarea nu funcționează acum. Încearcă din nou peste puțin timp.",
+      "retry": "Încearcă din nou"
+    }
   },
   "role": {
     "biz_owner": "Proprietar de business",

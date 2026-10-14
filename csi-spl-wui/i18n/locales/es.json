@@ -1051,8 +1051,6 @@
     "count_messages": "{n} mensaje | {n} mensajes",
     "revoked": "revocado",
     "rate_limited": "Demasiadas búsquedas. Inténtalo de nuevo en {s} s.",
-    "budget": "Esta búsqueda tardó más de {s} segundos. Prueba con menos palabras o más específicas, o vuelve a buscar en un momento.",
-    "failed": "La búsqueda falló ({detail}).",
     "group": {
       "robots": "Robots",
       "users": "Personas",
@@ -1105,7 +1103,12 @@
       "copy_link": "Copiar enlace"
     },
     "left_hint": "{n} resultado en el panel izquierdo. Arriba / Abajo para recorrerlo, Enter lo abre en su sitio. | {n} resultados en el panel izquierdo. Arriba / Abajo para recorrerlos, Enter abre uno en su sitio.",
-    "close_results": "Cerrar los resultados de búsqueda"
+    "close_results": "Cerrar los resultados de búsqueda",
+    "err": {
+      "slow": "La búsqueda tardó demasiado. Prueba con menos palabras o más concretas y vuelve a intentarlo.",
+      "failed": "La búsqueda no funciona ahora mismo. Vuelve a intentarlo en un momento.",
+      "retry": "Reintentar"
+    }
   },
   "role": {
     "biz_owner": "Propietario de negocio",

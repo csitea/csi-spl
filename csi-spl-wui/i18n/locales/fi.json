@@ -1051,8 +1051,6 @@
     "count_messages": "{n} viesti | {n} viestiä",
     "revoked": "peruttu",
     "rate_limited": "Liian monta hakua. Yritä uudelleen {s} s kuluttua.",
-    "budget": "Haku kesti yli {s} sekuntia. Kokeile vähemmän tai tarkempia sanoja tai hae hetken päästä uudelleen.",
-    "failed": "Haku epäonnistui ({detail}).",
     "group": {
       "robots": "Robotit",
       "users": "Ihmiset",
@@ -1105,7 +1103,12 @@
       "copy_link": "Kopioi linkki"
     },
     "left_hint": "{n} tulos vasemmassa paneelissa. Ylös / Alas selaa, Enter avaa sen paikallaan. | {n} tulosta vasemmassa paneelissa. Ylös / Alas selaa, Enter avaa yhden paikallaan.",
-    "close_results": "Sulje hakutulokset"
+    "close_results": "Sulje hakutulokset",
+    "err": {
+      "slow": "Haku kesti liian kauan. Kokeile vähemmillä tai tarkemmilla sanoilla ja yritä uudelleen.",
+      "failed": "Haku ei toimi juuri nyt. Yritä hetken päästä uudelleen.",
+      "retry": "Yritä uudelleen"
+    }
   },
   "role": {
     "biz_owner": "Liiketoiminnan omistaja",

@@ -42,13 +42,9 @@
           <p>{{ t('search.bad_query', { detail: search.error.detail }) }}</p>
           <p v-if="badAt" class="search-bad-q" dir="ltr"><code>{{ badAt.before }}<mark>{{ badAt.bad }}</mark>{{ badAt.after }}</code></p>
         </div>
-        <ErrorNotice
-          v-else
-          :message="errorLine"
-          :error="search.error.raw"
-          source="search"
-          test-id="search-error"
-        />
+        <!-- SPL-1833: one plain sentence + Try again; the technical part only
+             with the Debug pane on (SearchErrorNotice) -->
+        <LazySearchErrorNotice v-else :error="search.error" @retry="rerun" />
       </template>
 
       <p v-else-if="result && !rows.length" class="muted" data-test="search-empty">{{ t('search.no_results') }}</p>
@@ -65,9 +61,8 @@
 </template>
 
 <script setup lang="ts">
-import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
-import { SEARCH_BUDGET_S, useSearchStore } from '~/stores/search'
+import { useSearchStore } from '~/stores/search'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
 import { operatorHelpRows, searchPath } from '~/utils/search.mjs'
@@ -113,15 +108,6 @@ const helpRows = computed(() => operatorHelpRows(search.operators))
 const query = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
 const result = computed(() => search.result)
 const rows = computed(() => (result.value ? flattenGroups(result.value.groups) : []))
-const errorLine = computed(() => {
-  const e = search.error
-  if (!e) return ''
-  if (e.status === 429) return t('search.rate_limited', { s: e.retryAfter || 60 })
-  if (e.status === 503) return t('search.budget', { s: SEARCH_BUDGET_S })
-  // status 0 = no HTTP answer the page may read (network, CORS on a hub without the route)
-  if (!e.status && !e.token) return t('search.unreachable')
-  return t('search.failed', { detail: e.detail || e.token || String(e.status || '') })
-})
 
 /** the bad token of a 400, marked inside the query (pos is a UTF-16 offset = String.slice) */
 const badAt = computed(() => {

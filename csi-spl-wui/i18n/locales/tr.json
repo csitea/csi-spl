@@ -1051,8 +1051,6 @@
     "count_messages": "{n} mesaj | {n} mesaj",
     "revoked": "iptal edildi",
     "rate_limited": "Çok fazla arama. {s} sn sonra tekrar deneyin.",
-    "budget": "Bu arama {s} saniyeden uzun sürdü. Daha az veya daha belirli kelimeler deneyin ya da biraz sonra yeniden arayın.",
-    "failed": "Arama başarısız ({detail}).",
     "group": {
       "robots": "Robotlar",
       "users": "Kişiler",
@@ -1105,7 +1103,12 @@
       "copy_link": "Bağlantıyı kopyala"
     },
     "left_hint": "Sol panelde {n} sonuç. Gezinmek için Yukarı / Aşağı, Enter yerinde açar. | Sol panelde {n} sonuç. Gezinmek için Yukarı / Aşağı, Enter birini yerinde açar.",
-    "close_results": "Arama sonuçlarını kapat"
+    "close_results": "Arama sonuçlarını kapat",
+    "err": {
+      "slow": "Arama çok uzun sürdü. Daha az veya daha belirgin kelimeler deneyin, sonra tekrar deneyin.",
+      "failed": "Arama şu anda çalışmıyor. Biraz sonra tekrar deneyin.",
+      "retry": "Tekrar deneyin"
+    }
   },
   "role": {
     "biz_owner": "İşletme sahibi",

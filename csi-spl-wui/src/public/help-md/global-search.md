@@ -119,8 +119,19 @@ You can explore search results entirely from the keyboard:
 
 ---
 
+## 6. When a Search Fails
+
+A search that takes too long or fails says so in one plain sentence, with a **Try again** button, where the results would be. The rest of the app keeps working.
+
+- **Too slow**: try fewer or more specific words, then try again.
+- **Not working**: try again in a moment.
+
+The technical details (status code, error, how long it ran, and the error reference to quote) show under the sentence only when **Debug pane** is ticked in [User Settings](./user-settings.md#44-debug-pane).
+
+---
+
 ## Next Steps
 
 To customize your workspace appearance, font sizes, language, and cryptographic keys, see [User Settings & Key Management](./user-settings.md).
 
-<!-- version: 1.1.0 · updated: 2026-10-12 -->
+<!-- version: 1.2.0 · updated: 2026-10-14 -->

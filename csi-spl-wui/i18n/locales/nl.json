@@ -1051,8 +1051,6 @@
     "count_messages": "{n} bericht | {n} berichten",
     "revoked": "ingetrokken",
     "rate_limited": "Te veel zoekopdrachten. Probeer het over {s} s opnieuw.",
-    "budget": "Deze zoekopdracht duurde langer dan {s} seconden. Probeer minder of specifiekere woorden, of zoek zo meteen opnieuw.",
-    "failed": "Zoeken mislukt ({detail}).",
     "group": {
       "robots": "Robots",
       "users": "Mensen",
@@ -1105,7 +1103,12 @@
       "copy_link": "Link kopiëren"
     },
     "left_hint": "{n} resultaat in het linkerpaneel. Omhoog / Omlaag om te bladeren, Enter opent het op zijn plek. | {n} resultaten in het linkerpaneel. Omhoog / Omlaag om te bladeren, Enter opent er een op zijn plek.",
-    "close_results": "Zoekresultaten sluiten"
+    "close_results": "Zoekresultaten sluiten",
+    "err": {
+      "slow": "Het zoeken duurde te lang. Probeer minder of specifiekere woorden en probeer het opnieuw.",
+      "failed": "Zoeken werkt nu niet. Probeer het zo meteen opnieuw.",
+      "retry": "Opnieuw proberen"
+    }
   },
   "role": {
     "biz_owner": "Bedrijfseigenaar",

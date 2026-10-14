@@ -37,6 +37,9 @@ export const ON_DEMAND_COMPONENTS = {
   // until then it shows as its fence text, so first paint is unchanged
   "components/PollBody.vue": "idle",
   "components/PollForm.vue": "idle",
+  // SPL-1833: a failed search's plain sentence + Try again; it says the core
+  // "Something went wrong" until its own keys are merged
+  "components/SearchErrorNotice.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

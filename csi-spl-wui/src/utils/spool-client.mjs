@@ -666,8 +666,11 @@ export function createSpoolClient({
      */
     async search({ q = '', cursor = '', limit = 0, sort = '' } = {}) {
       // The result half loads on the first search, never on the first paint (027 budget).
-      const { mockSearch, normalizeSearchResponse } = await import('./search-results.mjs')
-      if (mock) return normalizeSearchResponse(mockSearch(state.messages, q, state.channels))
+      const { mockSearch, mockSearchFault, normalizeSearchResponse } = await import('./search-results.mjs')
+      if (mock) {
+        await mockSearchFault()
+        return normalizeSearchResponse(mockSearch(state.messages, q, state.channels))
+      }
       // 027 budget: the search grammar (search.mjs + its mention autocomplete)
       // rides the first search, not the initial chunk.
       const { searchApiQuery } = await import('./search.mjs')

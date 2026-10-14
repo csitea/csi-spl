@@ -1051,8 +1051,6 @@
     "count_messages": "{n} message | {n} messages",
     "revoked": "revoked",
     "rate_limited": "Too many searches. Try again in {s} s.",
-    "budget": "This search took longer than {s} seconds. Try fewer or more specific words, or search again in a moment.",
-    "failed": "Search failed ({detail}).",
     "group": {
       "robots": "Robots",
       "users": "People",
@@ -1105,7 +1103,12 @@
       "copy_link": "Copy link"
     },
     "left_hint": "{n} result, in the left panel. Up / Down to browse, Enter to open it in place. | {n} results, in the left panel. Up / Down to browse, Enter to open one in place.",
-    "close_results": "Close the search results"
+    "close_results": "Close the search results",
+    "err": {
+      "slow": "The search took too long. Try fewer or more specific words, then try again.",
+      "failed": "Search is not working right now. Try again in a moment.",
+      "retry": "Try again"
+    }
   },
   "role": {
     "biz_owner": "Business owner",

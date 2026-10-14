@@ -70,6 +70,8 @@
 #      Controls: a dry run plans it and moves nothing; the guard picking the
 #      dead vendor again = no replacement, the reason logged; a verdict older
 #      than the seat's process, or a healthy seat = GATE SKIP standby
+#      SPL-1869: claude seats under ROTATE_ROLE_VENDOR=claude, one on its
+#      limit = the grok standby; control: ROTATE_GROK_STANDBY=0 = no swap
 #  20. SPL-1837: a run inside the master or the failover pane re-runs itself
 #      detached (setsid), both locks let go first, no hold; a detached run
 #      still inside refuses (no loop); control: a run outside rotates
@@ -793,6 +795,25 @@ sb; : >"$D/wd/ctx.1/g-002/out.s2"
 act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
 grep -q ' GATE SKIP standby (dispatch lease: g-002@sat)' "$T/o" && [[ ! -e "$T/spawn.log" ]] && ! grep -q STANDBY "$T/o" &&
   pass "19. control: healthy standby seats -> GATE SKIP standby (FR-044)" || fail "19. healthy: $(cat "$T/o")"
+# SPL-1869 (owner t1 e799211c, answer A): claude seats under
+# ROTATE_ROLE_VENDOR=claude, c-002 on its limit, grok able: the grok standby
+# replaces it; control: ROTATE_GROK_STANDBY=0 = claude again, no replacement
+printf '#!/bin/sh\n' >"$T/bin/claude-cli"; chmod +x "$T/bin/claude-cli"
+sbc() {
+  w18 c; rm -rf "$D/wd" "$T/mix.out"
+  echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "c-002@sat $(date +%s)" >"$D/lease"
+  mkdir -p "$D/wd/ctx.1/c-002" "$D/wd/ctx.1/c-003"
+  echo "HIT S2 kind=limit pane: You've hit your session limit · resets 8:20pm" >"$D/wd/ctx.1/c-002/out.s2"; : >"$D/wd/ctx.1/c-003/out.s2"
+  echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+}
+sbc; act "${V18[@]}" ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-cli" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q -- "-master STANDBY PLAN c-002 (claude, pid 102) is out (S2 kind=limit [0-9]*s ago: pane: You've hit your session limit · resets 8:20pm): the master seat goes to g-002 (grok: ROTATE_ROLE_VENDOR=claude, claude cannot act (c-002 S2 kind=limit 0m ago: pane: You've hit your session limit · resets 8:20pm): the grok standby); the dispatch lease stays c-002@sat" "$T/o" &&
+  ! grep -q 'failover STANDBY' "$T/o" && [[ ! -e "$T/spawn.log" ]] && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" &&
+  pass "19. SPL-1869 claude seat c-002 on its limit, ROTATE_ROLE_VENDOR=claude: the grok standby g-002 is planned" || fail "19. standby rc=$rc: $(cat "$T/o")"
+sbc; act "${V18[@]}" ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-cli" ROTATE_GROK_STANDBY=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" ]] && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" &&
+  grep -q -- '-master STANDBY SKIP c-002 (claude) is out (S2 kind=limit .*), but its successor would be claude too (ROTATE_ROLE_VENDOR=claude, ROTATE_GROK_STANDBY=0: claude): no replacement' "$T/o" &&
+  pass "19. SPL-1869 control: ROTATE_GROK_STANDBY=0 -> claude again, no replacement" || fail "19. standby off rc=$rc: $(cat "$T/o")"
 rm -rf "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00* "$D/wd"
 
 # --- 20. SPL-1837 (1): a run started INSIDE a dispatcher pane re-runs itself detached ------------

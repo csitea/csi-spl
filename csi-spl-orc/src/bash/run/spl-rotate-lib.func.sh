@@ -8,6 +8,8 @@
 #   spl_rotate_conf                         settings: env > rotate.conf > defaults (FR-074, FR-090)
 #   spl_rotate_role_vendor                  ROTATE_ROLE_VENDOR: the role successor's vendor (claude|grok), guarded
 #   spl_rotate_grok_out                     why grok is out: a grok seat's newest watchdog verdict is its limit (SPL-1820)
+#   spl_rotate_claude_out                   why claude cannot act: no CLI, its newest verdict a limit, a silent lease (SPL-1869)
+#   spl_rotate_grok_why                     why grok cannot take a role seat (lane-mix, its limit, the lease); nothing = it can
 #   spl_rotate_vendor_id ID                 the seat id the successor's vendor gives it (SPL-1685), when it differs
 #   spl_rotate_seat_switch OLD NEW          role-seat-switch.sh: the seat's spool dir to NEW, the other letters link to it
 #   spl_rotate_conf_flip KEY OLD NEW        lease.conf KEY=OLD -> NEW and the shell's KEY
@@ -105,36 +107,119 @@ spl_rotate_role_id() {
 # ROTATE_ROLE_VENDOR (env > rotate.conf): the successor's vendor for the orch
 # AND both dispatch seats, ahead of ROTATE_ORCH_SPLIT. Owner HUM-10 (t1
 # ee1e58d5, msgs f93e7f2a, edd7c810, c43b98f1): Grok as orchestrator and
-# dispatcher for a test. claude; or grok through the split's guards:
-# do_spl_lane_mix with a grok=100 row (no CLI, no sign-in or a limit = claude,
-# its skip reason named) and a fleet lease that counts a grok holder
-# (spl_rotate_lease_sees). Any other value = claude. Non-zero when it is
+# dispatcher for a test. claude; or grok through the split's guards
+# (spl_rotate_grok_why). Any other value = claude. Non-zero when it is
 # unset: the caller's own rule (today's behaviour).
+# claude = claude active, grok standby (SPL-1869, owner HUM-10 t1 e799211c,
+# poll a4d166a9 answer A): the successor is grok ONLY while claude cannot act
+# (spl_rotate_claude_out) and grok passes the same guards; else claude, both
+# reasons named. The first rotation after claude is able again is claude.
+# ROTATE_GROK_STANDBY=0 keeps claude whatever its state.
 # shellcheck disable=SC2034 # ROTATE_KIND / ROTATE_VENDOR_WHY are read by the caller
 spl_rotate_role_vendor() {
-  local v="${ROTATE_ROLE_VENDOR:-}" out pick why
+  local v="${ROTATE_ROLE_VENDOR:-}" why cwhy
   [[ -n "$v" ]] || return 1
   ROTATE_KIND=claude
   case "$v" in
-    claude) ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=claude: claude"; return 0 ;;
+    claude)
+      ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=claude: claude"
+      [[ "${ROTATE_GROK_STANDBY:-1}" == 1 ]] || { ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=claude, ROTATE_GROK_STANDBY=0: claude"; return 0; }
+      cwhy="$(spl_rotate_claude_out)"
+      [[ -n "$cwhy" ]] || return 0
+      why="$(spl_rotate_grok_why)"
+      if [[ -n "$why" ]]; then
+        ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=claude, claude cannot act ($cwhy), but the grok standby cannot either ($why): claude"; return 0
+      fi
+      ROTATE_KIND=grok ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=claude, claude cannot act ($cwhy): the grok standby"; return 0 ;;
     grok) ;;
     *) ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR='$v' is not claude or grok: claude"; return 0 ;;
   esac
+  why="$(spl_rotate_grok_why)"
+  if [[ -n "$why" ]]; then
+    ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok, but $why: claude"; return 0
+  fi
+  ROTATE_KIND=grok ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok: grok"
+}
+
+# spl_rotate_grok_why: why grok cannot take a role seat, nothing when it can:
+# do_spl_lane_mix with a grok=100 row (no CLI, no sign-in or a limit = its
+# skip reason), spl_rotate_grok_out (the weekly limit lane-mix forgets), and a
+# fleet lease that counts a grok holder (spl_rotate_lease_sees).
+spl_rotate_grok_why() {
+  local out pick why
   out="$(env LANE_MIX_KIND=orchestration LANE_MIX_SPLIT_KIND="claude=0 grok=100 agy=0 qwen=0 mistral=0 backup=claude" \
     timeout "${ROTATE_SRC_TIMEOUT:-120}" "$ROTATE_RUN" -a do_spl_lane_mix 2>&1 7>&- 8>&- 9>&-)" || true
   pick="$(grep -m1 -oE '^pick=[a-z]+' <<<"$out" | cut -d= -f2 || true)"
   if [[ "$pick" != grok ]]; then
     why="$(sed -nE 's/^grok .* skip \((.*)\); share to .*/\1/p' <<<"$out")"; why="${why%%$'\n'*}"
-    ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok, but ${why:-lane-mix gave '${pick:-no pick}'}: claude"; return 0
+    echo "${why:-lane-mix gave '${pick:-no pick}'}"; return 0
   fi
   why="$(spl_rotate_grok_out)"
-  if [[ -n "$why" ]]; then
-    ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok, but grok is on its limit ($why): claude"; return 0
-  fi
-  if ! spl_rotate_lease_sees grok; then
-    ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok, but the fleet lease does not count a grok process as the holder: claude"; return 0
-  fi
-  ROTATE_KIND=grok ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok: grok"
+  [[ -z "$why" ]] || { echo "grok is on its limit ($why)"; return 0; }
+  spl_rotate_lease_sees grok || echo "the fleet lease does not count a grok process as the holder"
+  return 0
+}
+
+# spl_rotate_claude_out: why claude cannot act on this box, nothing when it
+# can (SPL-1869). File reads, no model call, no lane-mix (to lane-mix claude
+# is always there):
+# - no claude CLI: ROTATE_CLAUDE_BIN, else CLAUDE_BIN, else the agent user's
+#   ~/.local/bin/claude (the binary the spawn would start) is not executable;
+# - a limit: among the claude seats of this box (registry kind claude, else a
+#   c- or CLE- id), the newest watchdog verdict (ctx*/<id>/out.s2, newest per
+#   seat) within ROTATE_CLAUDE_LIMIT_FRESH s (default 21600, lane-mix's limit
+#   window) that says S2 kind=limit or kind=auth is not older than every
+#   clean one. A claude seat that works again writes a newer clean verdict:
+#   claude is back;
+# - silence: this box's dispatch lease is held by a claude seat that has not
+#   renewed it for more than LEASE_STALE s (180): no claude seat of the box,
+#   the failover included, keeps it fresh.
+spl_rotate_claude_out() {
+  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" bin f id t now hit hitt=-1 hitl="" clean=-1 age
+  local -A newest=() newf=()
+  bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-${ROTATE_AGENT_HOME:-$HOME}/.local/bin/claude}}"
+  [[ "$bin" == /* ]] || bin="$(command -v "$bin" 2>/dev/null || true)"
+  [[ -n "$bin" && -x "$bin" ]] || { echo "no claude cli${bin:+ at $bin}"; return 0; }
+  for f in "$wd"/ctx*/*/out.s2; do
+    [[ -f "$f" ]] || continue
+    id="$(basename "$(dirname "$f")")"
+    [[ "$(spl_rotate_id_kind "$id")" == claude ]] || continue
+    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
+    (( t > ${newest[$id]:--1} )) || continue
+    newest[$id]="$t" newf[$id]="$f"
+  done
+  now="$(date +%s)"
+  for id in "${!newest[@]}"; do
+    t="${newest[$id]}"
+    (( now - t <= ${ROTATE_CLAUDE_LIMIT_FRESH:-21600} )) || continue
+    hit="$(grep -m1 -E '^HIT S2 kind=(limit|auth)( |$)' "${newf[$id]}" 2>/dev/null || true)"
+    if [[ -z "$hit" ]]; then
+      (( t <= clean )) || clean="$t"
+      continue
+    fi
+    (( t > hitt )) || continue
+    hit="${hit#HIT S2 }"
+    hitt="$t" hitl="$id S2 ${hit%% *} $(( (now - t) / 60 ))m ago: ${hit#* }"
+  done
+  (( hitt < 0 || hitt < clean )) || { echo "$hitl"; return 0; }
+  spl_lease_read
+  (( LT > 0 )) || return 0
+  ! spl_lease_remote || return 0
+  id="$(spl_lease_holder_id)"
+  [[ "$(spl_rotate_id_kind "$id")" == claude ]] || return 0
+  age=$(( $(spl_lease_now) - LT ))
+  (( age <= LEASE_STALE )) || echo "the dispatch lease holder $id (claude) is silent ${age}s, past LEASE_STALE ${LEASE_STALE}s"
+  return 0
+}
+
+# spl_rotate_id_kind ID: the vendor of a seat id: its registry kind, else
+# its letter (a legacy CLE- id is claude).
+spl_rotate_id_kind() {
+  local k
+  k="$(awk -F'\t' -v i="$1" '$1 == i {k = $2} END {print k}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"
+  [[ -n "$k" ]] && { echo "$k"; return 0; }
+  case "$1" in c-*|CLE-*) echo claude ;; g-*) echo grok ;; a-*) echo agy ;; m-*) echo mistral ;; q-*) echo qwen ;; esac
+  return 0
 }
 
 # spl_rotate_grok_out: "<id> S2 kind=limit <age>m ago: <evidence>" when the

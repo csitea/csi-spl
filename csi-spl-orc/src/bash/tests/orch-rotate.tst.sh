@@ -67,6 +67,13 @@
 #      newer clean verdict, a week-old one); (2) grok's limit menu on the new
 #      pane fails the spawn at once, named, no SWITCH; (3) no ack = lease.conf
 #      names the old seat at every moment (control: flipped after ACK OK)
+#  20. SPL-1869, claude active + grok standby (ROTATE_ROLE_VENDOR=claude):
+#      claude able = claude, lane-mix not asked; claude on its limit (newest
+#      verdict) + grok able = grok; + grok on its limit (402) or lane-mix
+#      skipping grok = claude, both reasons named; claude back (a newer clean
+#      verdict) = claude; no claude CLI, a claude lease holder silent past
+#      LEASE_STALE = grok; controls: a fresh or remote lease, a limit older
+#      than ROTATE_CLAUDE_LIMIT_FRESH, ROTATE_GROK_STANDBY=0 = claude
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -716,6 +723,67 @@ act DRY_RUN=0 ROTATE_ROLE_VENDOR=claude >"$T/o" 2>&1
 grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" || fail "18. could not rotate back to c-001: $(grep -E 'FAIL' "$T/o")"
 export OLD_ID=c-900; unset DESK_STATE_ROOT
 printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
+
+# --- 20. SPL-1869: claude active, grok only while claude cannot act ----------------------------
+# owner HUM-10 (t1 e799211c, poll a4d166a9, answer A): "claude stays active,
+# grok takes over only when claude is silent"
+printf '#!/bin/sh\n' >"$T/bin/claude-cli"; chmod +x "$T/bin/claude-cli"
+SB=(ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-cli" ROTATE_LEASE_KINDS="claude grok")
+CLIM="HIT S2 kind=limit pane: You've hit your session limit · resets 8:20pm"
+GRIM='HIT S2 kind=limit pane: 402 Grok Build usage balance exhausted'
+sb20() { world; rm -rf "$D/wd" "$D/lease"; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; }
+plan() { grep 'SPAWN PLAN' "$T/o"; }
+sb20; act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude: claude$" "$T/o" && [[ ! -e "$T/mix2.log" ]] &&
+  pass "20. claude able: claude, lane-mix not asked" || fail "20. able: $(plan; cat "$T/mix2.log" 2>&1)"
+sb20; wds2 c-777 ctx.1 120 "$CLIM"; wds2 c-778 ctx.1 120 ''
+act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*vendor: ROTATE_ROLE_VENDOR=claude, claude cannot act (c-777 S2 kind=limit 2m ago: pane: You've hit your session limit · resets 8:20pm): the grok standby$" "$T/o" &&
+  grep -qx 'LANE_MIX_SPLIT_KIND=claude=0 grok=100 agy=0 qwen=0 mistral=0 backup=claude' "$T/mix2.log" &&
+  pass "20. claude on its limit, grok able: the grok standby (through lane-mix's grok=100 row)" || fail "20. standby: $(plan; cat "$T/mix2.log" 2>&1)"
+wds2 g-002 ctx.1 300 "$GRIM"
+act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude, claude cannot act (c-777 S2 kind=limit 2m ago: .*), but the grok standby cannot either (grok is on its limit (g-002 S2 kind=limit 5m ago: pane: 402 Grok Build usage balance exhausted)): claude$" "$T/o" &&
+  pass "20. claude on its limit, grok 402: claude, both reasons named" || fail "20. both out: $(plan)"
+rm -rf "$D/wd/ctx.1/g-002"
+printf 'grok      100%%        0%%     0%%     0 yes  skip (grok limit (g-002 S2 kind=limit 5m ago)); share to claude\npick=claude reason=claude under\n' >"$T/mix.out"
+act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*claude cannot act (c-777 S2 kind=limit .*), but the grok standby cannot either (grok limit (g-002 S2 kind=limit 5m ago)): claude$" "$T/o" &&
+  pass "20. claude on its limit, lane-mix skips grok: claude, lane-mix's reason named" || fail "20. mix skip: $(plan)"
+sb20; wds2 c-777 ctx.1 600 "$CLIM"; wds2 c-777 ctx.2 30 ''
+act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude: claude$" "$T/o" &&
+  pass "20. claude back (a newer clean verdict on that seat): claude" || fail "20. back: $(plan)"
+sb20; wds2 c-777 ctx.1 600 "$CLIM"; wds2 c-778 ctx.1 30 ''
+act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude: claude$" "$T/o" &&
+  pass "20. claude back (another claude seat clean after the hit): claude" || fail "20. back other: $(plan)"
+sb20; wds2 c-777 ctx.1 $(( 7 * 3600 )) "$CLIM"
+act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude: claude$" "$T/o" &&
+  pass "20. control: a claude limit older than ROTATE_CLAUDE_LIMIT_FRESH (6 h): claude" || fail "20. old: $(plan)"
+sb20; wds2 c-777 ctx.1 120 "$CLIM"
+act "${SB[@]}" ROTATE_GROK_STANDBY=0 >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude, ROTATE_GROK_STANDBY=0: claude$" "$T/o" && [[ ! -e "$T/mix2.log" ]] &&
+  pass "20. control: ROTATE_GROK_STANDBY=0 keeps claude on its limit, named" || fail "20. off: $(plan)"
+sb20
+act "${SB[@]}" ROTATE_CLAUDE_BIN="$T/bin/no-claude" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*claude cannot act (no claude cli at $T/bin/no-claude): the grok standby$" "$T/o" &&
+  pass "20. no claude CLI: the grok standby" || fail "20. no cli: $(plan)"
+sb20; echo "c-902 $(( $(date +%s) - 400 ))" >"$D/lease"
+act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*claude cannot act (the dispatch lease holder c-902 (claude) is silent 40[0-9]s, past LEASE_STALE 180s): the grok standby$" "$T/o" &&
+  pass "20. a claude lease holder silent past LEASE_STALE: the grok standby" || fail "20. silent: $(plan)"
+echo "c-902 $(( $(date +%s) - 30 ))" >"$D/lease"
+act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude: claude$" "$T/o" &&
+  pass "20. control: a fresh claude lease: claude" || fail "20. fresh: $(plan)"
+echo "c-902@elsewhere $(( $(date +%s) - 400 ))" >"$D/lease"
+act "${SB[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude: claude$" "$T/o" &&
+  pass "20. control: a stale lease held on another machine says nothing of this box: claude" || fail "20. remote: $(plan)"
+rm -rf "$D/wd" "$D/lease"
+! grep -q ERRTRAP "$T/o" && pass "20. no stray failing command under the ERR trap" || fail "20. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 # --- 10. T-CRON ----------------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

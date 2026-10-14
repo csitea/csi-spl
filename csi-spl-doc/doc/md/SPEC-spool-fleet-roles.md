@@ -744,6 +744,23 @@ it is not restated here.
   failed rotation puts `lease.conf` and the dirs back. CLOSE retires the old
   id's identity record. The knob is `ROTATE_ROLE_ID_FOLLOWS_VENDOR` (default
   1; `0` keeps the claude id for every vendor);
+- **the successor's vendor**: `ROTATE_ROLE_VENDOR` (section 1) decides it
+  for all three role seats (`spl_rotate_role_vendor`,
+  `csi-spl-orc/src/bash/run/spl-rotate-lib.func.sh`), and the SPAWN line
+  names why. `grok` = grok through its guards (lane-mix's CLI, sign-in and
+  limit checks, the seat verdicts' weekly limit, a fleet lease that counts a
+  grok holder), else claude. `claude` = **claude active, grok standby**
+  (SPL-1869, owner HUM-10 t1 e799211c, poll answer A): claude, and grok ONLY
+  while claude cannot act and grok passes the same guards. Claude cannot act
+  when there is no claude CLI, when the newest watchdog verdict of this
+  box's claude seats is `S2 kind=limit` or `kind=auth` (within
+  `ROTATE_CLAUDE_LIMIT_FRESH`, 6 h, and newer than every clean verdict), or
+  when this box's dispatch lease names a claude seat silent past
+  `LEASE_STALE` (180 s). Once claude is able again, the next rotation is
+  claude. Both out = claude, both reasons named. The standby swap (a seat
+  out on its limit) follows the same rule. `ROTATE_GROK_STANDBY=0` in
+  `rotate.conf` keeps claude whatever its state. Tests: `orch-rotate.tst.sh`
+  sections 15, 18, 20 and `dispatch-rotate.tst.sh` 19;
 - what ran: `<spool root>/dispatch/rotate.log`, one line per step;
 - stop it: `ROTATE=0` (or `ROTATE_DISPATCH=0`) in
   `<spool root>/dispatch/rotate.conf` (060 FR-090);
@@ -785,4 +802,4 @@ end to end in every seated workspace.
 | asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.9.0 · updated: 2026-10-12 · last-edit: 2026-10-12T20:20:00Z -->
+<!-- version: 0.9.1 · updated: 2026-10-14 · last-edit: 2026-10-14T17:30:00Z -->

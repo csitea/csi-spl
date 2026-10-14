@@ -104,18 +104,33 @@ function seedPoll(p, body) {
 async function openPoll(p, seeded, touch) {
   const sel = `.spool-main article.msg[data-msg-id="${seeded.msg_id}"]`
   await p.waitForSelector(`${sel} [data-testid=poll-form]`, { timeout: 15000 })
-  const spot = await p.evaluate((sel) => {
-    /* the card is taller than the screen: bring its first line, not its middle, into view */
-    const el = document.querySelector(sel)
-    const para = el.querySelector('.msg-para') || el
-    para.scrollIntoView({ block: 'center' })
-    const r = para.getBoundingClientRect()
-    return { x: Math.round(r.left + Math.min(20, r.width / 2)), y: Math.round(r.top + r.height / 2) }
-  }, sel)
-  if (touch) await p.touchscreen.tap(spot.x, spot.y)
-  else await p.mouse.click(spot.x, spot.y)
   const form = `aside.live-pane article.msg[data-msg-id="${seeded.msg_id}"] [data-testid=poll-form]`
-  await p.waitForSelector(form, { timeout: 10000 })
+  /* cards off screen are laid out at a 72 px estimate (content-visibility)
+     and take their real height once scrolled in, so the spot is read only
+     after it holds still for two frames; a tap that lands while the feed
+     still moves is repeated */
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const spot = await p.evaluate(async (sel) => {
+      const frame = () => new Promise((r) => requestAnimationFrame(() => r()))
+      /* the card is taller than the screen: bring its first line, not its middle, into view */
+      const para = () => { const el = document.querySelector(sel); return el.querySelector('.msg-para') || el }
+      let last = ''
+      for (let i = 0; i < 40; i++) {
+        para().scrollIntoView({ block: 'center' })
+        await frame(); await frame()
+        const r = para().getBoundingClientRect()
+        const now = `${Math.round(r.left)},${Math.round(r.top)}`
+        if (now === last) return { x: Math.round(r.left + Math.min(20, r.width / 2)), y: Math.round(r.top + r.height / 2) }
+        last = now
+      }
+      const r = para().getBoundingClientRect()
+      return { x: Math.round(r.left + Math.min(20, r.width / 2)), y: Math.round(r.top + r.height / 2) }
+    }, sel)
+    if (touch) await p.touchscreen.tap(spot.x, spot.y)
+    else await p.mouse.click(spot.x, spot.y)
+    if (await p.waitForSelector(form, { timeout: 10000 }).then(() => true, () => false)) break
+  }
+  await p.waitForSelector(form, { timeout: 5000 })
   await sleep(800)
   return form
 }

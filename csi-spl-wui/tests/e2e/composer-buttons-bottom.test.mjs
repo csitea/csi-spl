@@ -48,6 +48,25 @@ const ok = (name, pass, ev) => {
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. A layout that is still moving (a sheet sliding in,
+    a font swap) is not yet the one the checks measure. */
+async function until(read, want = () => true, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let v = await read()
+  while (Date.now() < end) {
+    const k = want(v) ? JSON.stringify(v) ?? 'undefined' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return v
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+/* the omnibox's buttons are laid out */
+const laidOut = (g) => Boolean(g && g.send && g.attach && g.field)
 const near = (a, b, tol = 1) => typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= tol
 const shot = async (p, name) => { if (SHOTS) await p.screenshot({ path: join(SHOTS, `composer-buttons-bottom-${name}.png`) }) }
 
@@ -112,28 +131,24 @@ const opensPicker = async (p, tap) => {
 async function sends(p, how) {
   await p.focus(`${FORM} textarea`)
   await p.keyboard.type('c-110 bottom-bar send')
-  await sleep(200)
+  await until(() => p.$eval(`${FORM} textarea`, (t) => t.value), (v) => v.endsWith('c-110 bottom-bar send'), 100, 3000)
   if (how === 'enter') await p.keyboard.press('Enter')
   else if (how === 'tap') await p.tap(`${FORM} [data-testid=send]`)
   else await p.click(`${FORM} [data-testid=send]`)
-  for (let i = 0; i < 20; i++) {
-    await sleep(250)
-    if (await p.$eval(`${FORM} textarea`, (t) => t.value === '')) return true
-  }
-  return false
+  return (await until(() => p.$eval(`${FORM} textarea`, (t) => t.value), (v) => v === '', 0, 5000)) === ''
 }
 
 /** 085 AC3 (owner msg b2e7c197): with a draft in the box, is a target chip drawn? */
 async function draftChip(p, sel) {
   await p.focus(`${sel} textarea`)
   await p.keyboard.type('x')
-  await sleep(300)
-  const chip = await p.evaluate((sel) => {
+  /* the chip (or its absence) once it has stopped changing */
+  const chip = await until(() => p.evaluate((sel) => {
     const el = [...document.querySelectorAll(`${sel} [data-test=composer-target-chip]`)].find((e) => e.getClientRects().length > 0)
     return el ? el.textContent.trim() : null
-  }, sel)
+  }, sel))
   await p.keyboard.press('Backspace')
-  await sleep(200)
+  await until(() => p.$eval(`${sel} textarea`, (t) => t.value), (v) => v === '', 0, 3000)
   return chip
 }
 
@@ -175,7 +190,7 @@ async function page(browser, vp, path) {
   await p.setViewport(vp)
   await p.goto(server.base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(`${FORM} [data-testid=send]`, { timeout: NAV_TIMEOUT })
-  await sleep(600)
+  await until(() => layout(p), laidOut)
   return { p, errors }
 }
 
@@ -184,9 +199,7 @@ async function phone(browser) {
   const { p, errors } = await page(browser, vp, '/channel/alerts')
 
   await seedLongThread(p)
-  await p.waitForFunction(() => document.querySelector('[data-testid=thread-jump]'), { timeout: 5000 }).catch(() => {})
-  await sleep(600)
-  const t = await layout(p)
+  const t = await until(() => layout(p), (g) => laidOut(g) && Boolean(g.jump))
   await shot(p, '390-thread-arrow')
   ok('390px 1 long thread: GO\'s right edge lines up with the scroll-to-bottom arrow (1 px); Back, Attach, GO after the field, Back 2 px under Attach',
     Boolean(t && t.jump && t.send && near(t.send.r, t.jump.r) && t.back && t.attach && t.field.r <= t.back.l
@@ -195,27 +208,24 @@ async function phone(browser) {
 
   const where = {}
   await p.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await sleep(800)
-  where.channel = await layout(p)
+  where.channel = await until(() => layout(p), laidOut)
   await shot(p, '390-channel')
   await openTopic(p)
-  await sleep(1200)
-  where.topic = await layout(p)
+  /* the topic sheet has slid in: its section is on screen and the bar is still */
+  await p.waitForSelector('[data-test=topic-section]', { visible: true, timeout: 5000 }).catch(() => {})
+  where.topic = await until(() => layout(p), laidOut)
   await shot(p, '390-topic')
   const topicChip = await draftChip(p, FORM)
   ok('390px 3b a topic open, a draft typed: no target chip in the bar (085 AC3)', topicChip === null, { chip: topicChip })
   await p.goto(`${server.base}/`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await sleep(1000)
   /* the phone's front door is the Channels list since the Topics view went
      (t1 e4bfddb1): the DM list is one tap away */
+  await p.waitForSelector('[data-testid=sidebar-tab-dm]', { visible: true, timeout: 5000 }).catch(() => {})
   await p.click('[data-testid=sidebar-tab-dm]').catch(() => {})
-  await sleep(600)
-  const dm = await p.evaluate(() => [...document.querySelectorAll('a[href^="/dm/"]')].map((a) => a.getAttribute('href'))[0] || null)
-  if (dm) {
-    await p.goto(server.base + dm, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-    await sleep(1200)
-  }
-  where.dm = dm ? await layout(p) : null
+  const firstDm = () => p.evaluate(() => [...document.querySelectorAll('a[href^="/dm/"]')].map((a) => a.getAttribute('href'))[0] || null)
+  const dm = await until(firstDm, Boolean, 0, 5000)
+  if (dm) await p.goto(server.base + dm, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  where.dm = dm ? await until(() => layout(p), laidOut) : null
   await shot(p, '390-dm')
   for (const [k, g] of Object.entries(where)) {
     ok(`390px 2 ${k}: Attach then GO at the bottom bar's right end, GO ${PHONE_END} px in`,
@@ -223,7 +233,7 @@ async function phone(browser) {
   }
 
   await p.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await sleep(800)
+  await until(() => layout(p), laidOut)
   const picker = await opensPicker(p, true)
   const sent = await sends(p, 'tap')
   ok('390px 3 Attach opens the picker, Send sends', picker && sent, { picker, sent })
@@ -245,8 +255,7 @@ async function desktop(browser) {
 
   await setPosition(p, 'bottom')
   await p.waitForFunction(() => document.getElementById('spl-omnibox-dock')?.querySelector('form.composer.omnibox--bottom'), { timeout: 10000 }).catch(() => {})
-  await sleep(600)
-  const g = await layout(p, '#spl-omnibox-dock')
+  const g = await until(() => layout(p, '#spl-omnibox-dock'), (v) => laidOut(v) && v.inBar)
   await shot(p, '1440-bottom')
   ok(`1440px 4 bottom dock: Attach then GO at the bar's right end, GO ${DESKTOP_END} px in`, trails(g, DESKTOP_END) && g.bar.b >= g.vh - 4, g)
 

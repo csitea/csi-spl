@@ -70,6 +70,46 @@ async function waitReload(p, ms) {
   }
   return false
 }
+/* the watcher's state (useState 'build-watch'): live = the last /build.json it read */
+const watchState = (p) => p.evaluate(() => {
+  const app = document.querySelector('#__nuxt')?.__vue_app__
+  const nuxt = app && (app.$nuxt || app.config.globalProperties.$nuxt)
+  const s = nuxt?.payload?.state?.['$sbuild-watch']
+  return s ? { live: s.live, prompt: s.prompt } : null
+}).catch(() => null)
+/* poke until the watcher's state is `want`: it loads after the app is ready,
+   so the first pokes can land before it listens. A reload ends it too. */
+async function pokeUntil(p, want, ms = 10000) {
+  const t0 = Date.now()
+  while (Date.now() - t0 < ms) {
+    if (await reloaded(p)) return 'reloaded'
+    const s = await watchState(p)
+    if (s && want(s)) return 'read'
+    await poke(p).catch(() => {})
+    await sleep(100)
+  }
+  return 'timeout'
+}
+/* the decision is made once the state is read; a reload would start at once,
+   so it must not come within HOLD_MS */
+const HOLD_MS = 750
+async function heldNoReload(p) {
+  const t0 = Date.now()
+  while (Date.now() - t0 < HOLD_MS) {
+    if (await reloaded(p)) return false
+    await sleep(100)
+  }
+  return !(await reloaded(p))
+}
+async function until(read, want, ms = 5000) {
+  const t0 = Date.now()
+  let v = await read()
+  while (!want(v) && Date.now() - t0 < ms) {
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
 const barState = (p) => p.evaluate(() => {
   const bar = document.querySelector('[data-test=build-update-bar]')
   const btn = bar?.querySelector('[data-test=build-update-reload]')
@@ -102,7 +142,6 @@ async function open(browser, base, width, touch, served, path) {
   await p.goto(`${base}${path || (touch ? '/' : '/lobby')}`, { waitUntil: 'load' })
   await p.waitForSelector('[data-test=top-bar]')
   if (!(await signIn(p))) throw new Error('no session store')
-  await sleep(500)
   return { ctx, p }
 }
 
@@ -117,10 +156,11 @@ async function run(browser, base, width, touch) {
   if (!running) { await ctx.close(); return }
   served.commit = running
   await mark(p)
-  await poke(p)
-  await sleep(1500)
+  const read1 = await pokeUntil(p, (w) => w.live === running)
+  check(`${tag}: the watcher read build.json`, read1 === 'read', read1)
+  const held1 = await heldNoReload(p)
   let s = await barState(p)
-  check(`${tag}: CONTROL same commit - no reload`, !(await reloaded(p)))
+  check(`${tag}: CONTROL same commit - no reload`, held1)
   check(`${tag}: CONTROL same commit - no bar`, s.bar === null, s.bar)
   await ctx.close();
 
@@ -129,18 +169,17 @@ async function run(browser, base, width, touch) {
   served.commit = NEWER
   const path0 = await p.evaluate(() => location.pathname)
   await mark(p)
-  await poke(p)
+  await pokeUntil(p, (w) => w.live === NEWER, 8000)
   const didReload = await waitReload(p, 8000)
   check(`${tag}: idle + a newer build -> the tab reloads by itself`, didReload)
   const path1 = await p.evaluate(() => location.pathname)
   check(`${tag}: the route is kept`, path1 === path0, { path0, path1 })
   if (!(await signIn(p))) throw new Error('no session store after reload')
-  await sleep(500)
   await mark(p)
-  await poke(p)
-  await sleep(6000)
-  s = await barState(p)
-  check(`${tag}: still the old bundle after the reload -> no second reload (guard)`, !(await reloaded(p)))
+  await pokeUntil(p, (w) => w.live === NEWER && w.prompt)
+  const held2 = await heldNoReload(p)
+  s = await until(() => barState(p), (b) => Boolean(b.bar))
+  check(`${tag}: still the old bundle after the reload -> no second reload (guard)`, held2)
   check(`${tag}: ... the bar says a new version is available instead`, Boolean(s.bar && /new version/i.test(s.bar.text)), s.bar)
   await ctx.close();
 
@@ -154,11 +193,11 @@ async function run(browser, base, width, touch) {
   await ta.type('half a thought')
   served.commit = NEWER
   await mark(p)
-  await poke(p)
-  await sleep(5000)
-  s = await barState(p)
-  const kept = await ta.evaluate((t) => t.value)
-  check(`${tag}: a draft + a newer build -> NO reload`, !(await reloaded(p)))
+  await pokeUntil(p, (w) => w.live === NEWER && w.prompt)
+  const held3 = await heldNoReload(p)
+  s = await until(() => barState(p), (b) => Boolean(b.bar))
+  const kept = await ta.evaluate((t) => t.value).catch(() => '')
+  check(`${tag}: a draft + a newer build -> NO reload`, held3)
   check(`${tag}: the draft is kept`, kept === 'half a thought', kept)
   check(`${tag}: the bar shows`, Boolean(s.bar), s.bar)
   if (s.bar) {

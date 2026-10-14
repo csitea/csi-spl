@@ -15,6 +15,10 @@
 #   7. AGENT_ID in the caller's env never reaches the hook (SPL-1583): a hook
 #      that fails when it is set -> PUSHED; control: the same hook fails when
 #      AGENT_ID is exported to it
+#   8. the R7 review-line gate (round 10 row 10): a `refactor(r99-01-x)` commit
+#      with no `review:` line -> REFUSED round row <sha>, not on origin; the
+#      same commit with the line -> PUSHED; a `chore(r99-01-x)` and a
+#      `docs(...)` commit with no line -> PUSHED
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -134,6 +138,24 @@ out="$(AGENT_ID=c-999 "$T/hooks/pre-push" 2>&1)"; rc=$?
 run AGENT_ID=c-999 >/dev/null; v="$(verdict)"; vrc=$?
 [ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" && grep -qx 'agent=unset' "$T/hook.calls" \
   && pass "7. AGENT_ID=c-999 in the caller's env never reaches the hook -> PUSHED" || fail "7. AGENT_ID ($(cat "$T/hook.calls") | $v)"
+
+# 8 red control first: a round row with no review line is refused
+echo ok >"$T/hook.mode"
+rcommit() { printf '%s\n' "$1" >"$L/$1.txt"; git -C "$L" add "$1.txt" && git -C "$L" "${G[@]}" commit -qm "$2" ${3:+-m "$3"}; }
+rcommit eight 'refactor(r99-01-x): a round row' 'review: m-999 mistral FAIL 0123456 no box, no PASS'
+run >/dev/null; v="$(verdict)"; vrc=$?
+short="$(git -C "$L" rev-parse --short HEAD)"
+[ "$vrc" -eq 1 ] && grep -qx "REFUSED round row $short has no R7 review line" <<<"$v" && ! on_origin "$(git -C "$L" rev-parse HEAD)" \
+  && pass "8. red control: refactor(r99-01-x) with no review line -> REFUSED round row $short, not on origin" || fail "8. red control (rc $vrc: $v)"
+git -C "$L" "${G[@]}" commit -q --amend -m 'refactor(r99-01-x): a round row' -m 'review: m-999@sat mistral PASS 0123456 ran: tests | read: diff'
+run >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" \
+  && pass "8. the same row with its review line -> PUSHED" || fail "8. with line (rc $vrc: $v)"
+rcommit eight-c 'chore(r99-01-x): not a round row type'
+rcommit eight-d 'docs(doc): not a round row'
+run >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" \
+  && pass "8. a chore(r99-01-x) and a docs(...) commit with no line -> PUSHED" || fail "8. chore/docs (rc $vrc: $v)"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

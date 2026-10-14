@@ -9,7 +9,9 @@
 # @description returns at once; PUSH_CMD=status prints the verdict, for short polls.
 # @description The worker loops: FETCH (git-fetch-fresh.sh, --force on a retry)
 # @description -> `git -c user.name -c user.email rebase origin/<branch>` -> the
-# @description identity check (%ae and %ce, --no-mailmap) -> `git push <remote>
+# @description identity check (%ae and %ce, --no-mailmap) -> the R7 review-line
+# @description check (a round row `<type>(rNN-NN-...` needs a `review: ... PASS
+# @description <sha> ` body line; rounds-rulebook.md R7) -> `git push <remote>
 # @description HEAD:<branch>`; a push refused because the branch moved is retried
 # @description up to PUSH_RETRIES times. It ends by writing ONE status file:
 # @description `PUSHED <sha>` (+ `landed_rc=` of `git-fetch-fresh.sh --landed`),
@@ -125,6 +127,17 @@ _spl_push_master_moved() {
   grep -qE '\[rejected\].*\((fetch first|non-fast-forward)\)|\[remote rejected\].*(cannot lock ref|incorrect old value|failed to update ref|but expected)' "$1"
 }
 
+# _spl_push_master_unreviewed <range> - prints the short sha of each round row
+# in <range> (subject `test|refactor|ci|fix|feat|perf(rNN-NN-...`) whose body
+# has no R7 review line (`review: <id>@<box> <vendor> PASS <sha> ...`).
+_spl_push_master_unreviewed() {
+  local h
+  for h in $(git rev-list --reverse "$1"); do
+    grep -qE '^(test|refactor|ci|fix|feat|perf)\(r[0-9]+-[0-9]{2}-' <<<"$(git log -1 --format=%s "$h")" || continue
+    grep -qE '^review: \S+@\S+ \S+ PASS [0-9a-f]{7,40} ' <<<"$(git log -1 --format=%b "$h")" || git rev-parse --short "$h"
+  done
+}
+
 _spl_push_master_worker() {
   local remote="${PUSH_REMOTE:-origin}" branch="${PUSH_BRANCH:-master}" max="${PUSH_RETRIES:-4}"
   local try=0 out="$PUSH_STATE/push.out" sha bad landed_rc
@@ -152,6 +165,11 @@ _spl_push_master_worker() {
     if [[ -n "$bad" ]]; then
       printf '%s\n' "$bad" >"$out"
       _spl_push_master_end "REFUSED WRONG-IDENTITY-DO-NOT-PUSH (want $PUSH_EMAIL as author and committer)" "$out"; return 1
+    fi
+    bad="$(_spl_push_master_unreviewed "$remote/$branch..HEAD")"
+    if [[ -n "$bad" ]]; then
+      printf '%s\n' "$bad" >"$out"
+      _spl_push_master_end "REFUSED round row $(head -n 1 <<<"$bad") has no R7 review line" "$out"; return 1
     fi
     sha="$(git rev-parse HEAD)"
     echo "$(date -u +%TZ) try $try/$max: push $sha -> $remote $branch"

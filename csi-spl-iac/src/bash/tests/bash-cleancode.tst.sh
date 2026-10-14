@@ -34,7 +34,6 @@ LONG="
   csi-spl-orc/src/bash/run/run.sh execute_step 99
   csi-spl-orc/src/bash/run/spl-checkout-fake-buy.func.sh do_spl_checkout_fake_buy 114
   csi-spl-orc/src/bash/run/spl-checkout-stripe-test-buy.func.sh do_spl_checkout_stripe_test_buy 108
-  csi-spl-orc/src/bash/run/spl-provision-stripe-endpoints.func.sh _spl_stripe_json_get 130
 "
 
 fails=0
@@ -43,14 +42,18 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # measure <file>... -> "<lines> <file> <function>" per top-level function. A
 # one-line function (`f() { ...; }`) closes on its own line, length 1 (r8-04):
-# left open, it swallowed every function up to the next `^}`.
+# left open, it swallowed every function up to the next `^}`. A column-1 header
+# closes the function still open (length = header line - start), and `^) }`
+# closes like `^}` (r9-05): a body closed inline (`' "$1"; }`) or a subshell
+# body (`f() { (` ... `) }`) hid every function after it.
 measure() {
   local f
   for f in "$@"; do
     awk -v f="${f#$APP_ROOT/}" '
-      /^[A-Za-z_][A-Za-z0-9_:.-]*\(\)[[:space:]]*\{/ { if (!n) { n = $1; sub(/\(\).*/, "", n); s = NR
-        if ($0 ~ /\}[[:space:]]*(#.*)?$/) { print 1, f, n; n = "" } } }
-      /^\}/ { if (n) { print NR - s + 1, f, n; n = "" } }' "$f"
+      /^[A-Za-z_][A-Za-z0-9_:.-]*\(\)[[:space:]]*\{/ { if (n) print NR - s, f, n
+        n = $1; sub(/\(\).*/, "", n); s = NR
+        if ($0 ~ /\}[[:space:]]*(#.*)?$/) { print 1, f, n; n = "" } }
+      /^(\)[[:space:]]*)?\}/ { if (n) { print NR - s + 1, f, n; n = "" } }' "$f"
   done
 }
 
@@ -103,6 +106,17 @@ got=$(APP_ROOT="$T" measure "$T/x.sh" | sed -n 1p)
 { echo 'one() { :; }'; echo 'big() {'; for ((i = 0; i < 98; i++)); do echo '  :'; done; echo '}'; } >"$T/o.sh"
 got=$(APP_ROOT="$T" measure "$T/o.sh")
 [[ "$got" == $'1 o.sh one\n100 o.sh big' ]] && pass "CONTROL: a one-liner measures 1 and the 100-line function after it measures 100" || fail "CONTROL: one-liner then 100 lines measured '$got'"
+
+# Red control (r9-05): a body closed inline (`' "$1"; }`) and a subshell body
+# (`f() { (` ... `) }`), each followed by a 100-line function. The old awk left
+# both open, so the 100-line function after them was never listed.
+big100() { echo 'big() {'; for ((i = 0; i < 98; i++)); do echo '  :'; done; echo '}'; }
+{ printf '%s\n' 'q() { python3 -c '"'" 'print(1)' "'"' "$1"; }'; big100; } >"$T/q.sh"
+got=$(APP_ROOT="$T" measure "$T/q.sh")
+[[ "$got" == $'3 q.sh q\n100 q.sh big' ]] && pass "CONTROL: a body closed inline measures 3 and the 100-line function after it measures 100" || fail "CONTROL: inline close then 100 lines measured '$got'"
+{ printf '%s\n' 'p() { (' '  :' ') }'; big100; } >"$T/p.sh"
+got=$(APP_ROOT="$T" measure "$T/p.sh")
+[[ "$got" == $'3 p.sh p\n100 p.sh big' ]] && pass "CONTROL: a subshell body measures 3 and the 100-line function after it measures 100" || fail "CONTROL: subshell body then 100 lines measured '$got'"
 
 # Red control (r5-06): a listed function one line over its ceiling fails, at the
 # ceiling passes, one line under prints the NOTE to lower it.

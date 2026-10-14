@@ -68,23 +68,23 @@ if d is not None:
     print(d if not isinstance(d, bool) else str(d).lower())
 ' "$1"; }
 
-do_spl_provision_stripe_endpoints() {
-  do_require_bin yq curl python3 sha256sum || return 1
-  do_spl_cloud_cnf || return 1
-  local dry=1
-  if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
+# The steps below read and set the locals of do_spl_provision_stripe_endpoints
+# (bash scoping is dynamic): api_base, wh_slot, api_version, hook_url, h, slug, have.
+
+# _spl_stripe_ep_base -> api_base: https, or plain http to a local mock only.
+_spl_stripe_ep_base() {
   : "${STRIPE_API_BASE:?STRIPE_API_BASE must be set (no default) - the Stripe REST base URL, or a local mock}"
-  local api_base="${STRIPE_API_BASE%/}"
+  api_base="${STRIPE_API_BASE%/}"
   case "$api_base" in
     https://?*) ;;
     http://127.0.0.1*|http://localhost*) do_log "WARN non-TLS Stripe base: only valid against a local mock" ;;
     *) do_log "FATAL STRIPE_API_BASE must be an https:// URL (got '$api_base')"; return 1 ;;
   esac
+}
 
-  local org="${SPL_ORG_APP%%-*}" app="${SPL_ORG_APP#*-}" slug="$SPL_ORG_APP"
-  spl_stripe_key_dir "$org" "$app" || return 1
-  local envf="$SPL_STRIPE_KEY_DIR/stripe-$ENV.env"
-  local wh_slot api_fqdn api_version hook_url
+# _spl_stripe_ep_resolve -> wh_slot, api_version, hook_url from cnf (WEBHOOK_URL overrides).
+_spl_stripe_ep_resolve() {
+  local api_fqdn
   wh_slot="$(yq -r '.env.payment.secret_env.SPOOL_HUB_STRIPE_WEBHOOK_SECRET // ""' "$SPL_CNF")"
   api_fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   api_version="$(yq -r '.env.hub.env.SPOOL_HUB_STRIPE_API_VERSION // ""' "$SPL_CNF")"
@@ -101,6 +101,80 @@ do_spl_provision_stripe_endpoints() {
     hook_url="https://$api_fqdn/api/v1/webhooks/payment/stripe"
   fi
   [[ "$hook_url" == https://?* ]] || { do_log "FATAL WEBHOOK_URL must be an https:// URL (got '$hook_url')"; return 1; }
+}
+
+# _spl_stripe_ep_find -> have: the id of the endpoint on hook_url tagged
+# managed_by=<slug> role=hub, or ""; untagged endpoints on the URL are reported.
+_spl_stripe_ep_find() {
+  local out status body existing untagged=0 role epid
+  out="$(_spl_stripe_api GET "/v1/webhook_endpoints?limit=100" "$api_base" "$h/sk")" ||
+    { do_log "FATAL could not reach $api_base to list webhook endpoints"; return 1; }
+  status="${out##*$'\n'}" body="${out%$'\n'*}"
+  [[ "$status" == 200 ]] ||
+    { do_log "FATAL listing webhook endpoints failed with HTTP $status: $(printf '%s' "$body" | _spl_stripe_json_get error.message)"; return 1; }
+
+  existing="$(printf '%s' "$body" | python3 -c '
+import json,sys
+d = json.loads(sys.stdin.read() or "{}")
+url, slug = sys.argv[1], sys.argv[2]
+for ep in d.get("data", []):
+    if ep.get("url") != url:
+        continue
+    md = ep.get("metadata") or {}
+    role = md.get("role", "") if md.get("managed_by") == slug else "untagged"
+    print(role + "\t" + ep.get("id", ""))
+' "$hook_url" "$slug")"
+  while IFS=$'\t' read -r role epid; do
+    case "$role" in
+      hub) have="$epid" ;;
+      untagged) untagged=$((untagged + 1)) ;;
+    esac
+  done <<<"$existing"
+  if (( untagged > 0 )); then
+    do_log "WARN $untagged endpoint(s) already point at $hook_url without this action's tag: made by hand, left untouched."
+    do_log "WARN   Stripe delivers each event to every endpoint on the URL; remove the duplicates once this run is verified."
+  fi
+}
+
+# _spl_stripe_ep_create: create the hub endpoint, capture its whsec_ into a 0600
+# scratch file and store it in wh_slot in the same run (never printed).
+_spl_stripe_ep_create() {
+  local out status body created
+  local -a form=("url=$hook_url" "description=$slug $ENV hub endpoint (006 T022)"
+    "metadata[managed_by]=$slug" "metadata[role]=hub" "metadata[env]=$ENV")
+  form+=("api_version=$api_version")
+  local i=0 ev
+  for ev in "${_SPL_STRIPE_WEBHOOK_EVENTS[@]}"; do form+=("enabled_events[$i]=$ev"); i=$((i + 1)); done
+  out="$(_spl_stripe_api POST "/v1/webhook_endpoints" "$api_base" "$h/sk" "${form[@]}")"
+  status="${out##*$'\n'}" body="${out%$'\n'*}"
+  [[ "$status" == 200 ]] ||
+    { do_log "FATAL creating the hub endpoint failed with HTTP $status: $(printf '%s' "$body" | _spl_stripe_json_get error.message)"; return 1; }
+  created="$(printf '%s' "$body" | _spl_stripe_json_get id)"
+  (umask 077 && printf '%s' "$body" | _spl_stripe_json_get secret | tr -d '\n' >"$h/wh") || return 1
+  if [[ "$(head -c 6 "$h/wh")" != whsec_ ]]; then
+    do_log "FATAL the endpoint was created ($created) but the response carried no signing secret: Stripe never returns it again, re-run with RECREATE=1"
+    return 1
+  fi
+  do_log "INFO created the hub endpoint $created (signing secret captured, not printed)"
+
+  spl_secret_put "$wh_slot" "$h/wh" 0 ||
+    { do_log "FATAL the endpoint $created exists but its signing secret could NOT be stored: re-run with RECREATE=1 to roll it"; return 1; }
+  do_log "OK hub endpoint $created for $ENV, signing secret in $wh_slot. Next: do_spl_payment_secret_seed (the secret key), PROVIDER stripe, render, 030 apply"
+}
+
+do_spl_provision_stripe_endpoints() {
+  do_require_bin yq curl python3 sha256sum || return 1
+  do_spl_cloud_cnf || return 1
+  local dry=1
+  if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
+  local api_base
+  _spl_stripe_ep_base || return 1
+
+  local org="${SPL_ORG_APP%%-*}" app="${SPL_ORG_APP#*-}" slug="$SPL_ORG_APP"
+  spl_stripe_key_dir "$org" "$app" || return 1
+  local envf="$SPL_STRIPE_KEY_DIR/stripe-$ENV.env"
+  local wh_slot api_version hook_url
+  _spl_stripe_ep_resolve || return 1
 
   local h
   h="$(mktemp -d)" && chmod 700 "$h" || return 1
@@ -123,35 +197,8 @@ do_spl_provision_stripe_endpoints() {
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   gcloud secrets describe "$wh_slot" --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" >/dev/null 2>&1 ||
     { do_log "FATAL no slot $wh_slot in $SPL_PROJECT (030 creates it): no endpoint created"; return 1; }
-  local out status body
-  out="$(_spl_stripe_api GET "/v1/webhook_endpoints?limit=100" "$api_base" "$h/sk")" ||
-    { do_log "FATAL could not reach $api_base to list webhook endpoints"; return 1; }
-  status="${out##*$'\n'}" body="${out%$'\n'*}"
-  [[ "$status" == 200 ]] ||
-    { do_log "FATAL listing webhook endpoints failed with HTTP $status: $(printf '%s' "$body" | _spl_stripe_json_get error.message)"; return 1; }
-
-  local existing have="" untagged=0 role epid
-  existing="$(printf '%s' "$body" | python3 -c '
-import json,sys
-d = json.loads(sys.stdin.read() or "{}")
-url, slug = sys.argv[1], sys.argv[2]
-for ep in d.get("data", []):
-    if ep.get("url") != url:
-        continue
-    md = ep.get("metadata") or {}
-    role = md.get("role", "") if md.get("managed_by") == slug else "untagged"
-    print(role + "\t" + ep.get("id", ""))
-' "$hook_url" "$slug")"
-  while IFS=$'\t' read -r role epid; do
-    case "$role" in
-      hub) have="$epid" ;;
-      untagged) untagged=$((untagged + 1)) ;;
-    esac
-  done <<<"$existing"
-  if (( untagged > 0 )); then
-    do_log "WARN $untagged endpoint(s) already point at $hook_url without this action's tag: made by hand, left untouched."
-    do_log "WARN   Stripe delivers each event to every endpoint on the URL; remove the duplicates once this run is verified."
-  fi
+  local have="" out
+  _spl_stripe_ep_find || return 1
 
   if [[ "${RECREATE:-0}" == 1 && -n "$have" ]]; then
     out="$(_spl_stripe_api DELETE "/v1/webhook_endpoints/$have" "$api_base" "$h/sk")"
@@ -163,26 +210,5 @@ for ep in d.get("data", []):
     do_log "OK the hub endpoint already exists ($have): reused, secret unchanged, $wh_slot left alone"
     return 0
   fi
-
-  local -a form=("url=$hook_url" "description=$slug $ENV hub endpoint (006 T022)"
-    "metadata[managed_by]=$slug" "metadata[role]=hub" "metadata[env]=$ENV")
-  form+=("api_version=$api_version")
-  local i=0 ev
-  for ev in "${_SPL_STRIPE_WEBHOOK_EVENTS[@]}"; do form+=("enabled_events[$i]=$ev"); i=$((i + 1)); done
-  out="$(_spl_stripe_api POST "/v1/webhook_endpoints" "$api_base" "$h/sk" "${form[@]}")"
-  status="${out##*$'\n'}" body="${out%$'\n'*}"
-  [[ "$status" == 200 ]] ||
-    { do_log "FATAL creating the hub endpoint failed with HTTP $status: $(printf '%s' "$body" | _spl_stripe_json_get error.message)"; return 1; }
-  local created
-  created="$(printf '%s' "$body" | _spl_stripe_json_get id)"
-  (umask 077 && printf '%s' "$body" | _spl_stripe_json_get secret | tr -d '\n' >"$h/wh") || return 1
-  if [[ "$(head -c 6 "$h/wh")" != whsec_ ]]; then
-    do_log "FATAL the endpoint was created ($created) but the response carried no signing secret: Stripe never returns it again, re-run with RECREATE=1"
-    return 1
-  fi
-  do_log "INFO created the hub endpoint $created (signing secret captured, not printed)"
-
-  spl_secret_put "$wh_slot" "$h/wh" 0 ||
-    { do_log "FATAL the endpoint $created exists but its signing secret could NOT be stored: re-run with RECREATE=1 to roll it"; return 1; }
-  do_log "OK hub endpoint $created for $ENV, signing secret in $wh_slot. Next: do_spl_payment_secret_seed (the secret key), PROVIDER stripe, render, 030 apply"
+  _spl_stripe_ep_create
 }

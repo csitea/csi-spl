@@ -118,8 +118,8 @@ Actions schedule"**, and gave a standing go for these applies.
 |---|---|---|
 | `pending` | trigger on `tenants` INSERT (also a re-created slug) | the tenant exists; its host is not provisioned yet |
 | `ready` | reconcile, after the cert and the probe | mapping + record applied, cert provisioned, host answers |
-| `failed` | reconcile | the last attempt failed (`detail`); retried on the next run; the buyer still sees `pending` |
-| `removing` | trigger on `tenants` DELETE | the reconcile takes the host down |
+| `failed` | reconcile | the last attempt to ADD failed (`detail`); retried on the next run; the buyer still sees `pending` |
+| `removing` | trigger on `tenants` DELETE | the reconcile takes the host down; a failed push or apply keeps it `removing`, the failure in `detail` (SPL-1811) |
 | `removed` | reconcile | deprovisioned |
 
 There is no FK to `tenants`, because the row must outlive a deleted tenant.
@@ -131,8 +131,8 @@ Existing tenants were queued once by the migration.
 | action | does |
 |---|---|
 | `do_spl_tenant_host_provision TENANT_ID= ENV= [DRY_RUN=1]` | add the slug to `mapped_tenants` → render 032 + 025 (`make do-generate-config-for-step`) → per step `make do-tf-plan` + gate + `make do-provision` → `do_spl_wait_for_mapping_cert` → `do_spl_probe_hub_host` until it passes → `tenant_hosts` ready |
-| `do_spl_tenant_host_deprovision TENANT_ID= ENV= [DRY_RUN=1] [FORCE=1]` | the twin. The gate admits ONLY `google_cloud_run_domain_mapping.additional["<host>"]` and `google_dns_record_set.cloud_run_mapping["<tenant>/CNAME"]`. Refuses while the tenant row exists. |
-| `do_spl_tenant_host_reconcile ENV= [DRY_RUN=1] [CNF_PUSH=1]` | reads the open rows as the env SA: pending/failed → add, removing → remove, an unpaid tenant is held. With CNF_PUSH=1 it commits + pushes the cnf change **before** the apply, so a run that dies mid-apply leaves trunk declaring the host and the next run completes it. Then one gated apply, per tenant cert + probe → ready/failed. Nothing open → exit 0 with no terraform. Prints `open=<n>`. |
+| `do_spl_tenant_host_deprovision TENANT_ID= ENV= [DRY_RUN=1] [FORCE=1]` | the twin. The gate admits ONLY `google_cloud_run_domain_mapping.additional["<host>"]` and `google_dns_record_set.cloud_run_mapping["<tenant>/CNAME"]`. Refuses while the tenant row exists; it reads only the tagged `exists <n>` line, never the proxy's log line on stdout (SPL-1811). |
+| `do_spl_tenant_host_reconcile ENV= [DRY_RUN=1] [CNF_PUSH=1]` | reads the open rows as the env SA: pending/failed → add, removing → remove, an unpaid tenant is held. A pending/failed row with no `tenants` row (deleted) is a remove, never an add (SPL-1811). The cnf push runs as the caller's `AGENT_ID` (the pre-push hook checks its developer-guide ack); with a hook installed and no id it fails before any worktree. With CNF_PUSH=1 it commits + pushes the cnf change **before** the apply, so a run that dies mid-apply leaves trunk declaring the host and the next run completes it. Then one gated apply, per tenant cert + probe → ready/failed. Nothing open → exit 0 with no terraform. Prints `open=<n>`. |
 
 The cnf edit changes only the one flow-style `mapped_tenants: [..]` line.
 `yq -i` would drop every blank line of the file. The cnf commit carries the

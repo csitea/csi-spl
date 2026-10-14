@@ -55,12 +55,17 @@ do_spl_tenant_host_reconcile() {
   local -a add=() chk=() del=() held=()
   local -a off=()
   local tag t st bill act
-  # only `row <tenant> <status> <billing> <on|off>` lines: the proxy start
-  # logs to stdout too, and a log line must never read as a tenant
+  # only `row <tenant> <status> <billing> <on|off|gone>` lines: the proxy
+  # start logs to stdout too, and a log line must never read as a tenant
   while read -r tag t st bill act; do
     [[ "$tag" == row && -n "$t" ]] || continue
     spl_th_valid_slug "$t" 2>/dev/null || { do_log "WARN skipping invalid tenant id '$t'"; continue; }
     if [[ "$st" == removing ]]; then del+=("$t")
+    # no tenants row (deleted): never an add, its host comes down (SPL-1811,
+    # seed-search on dev: a failed row of a deleted tenant read as an add)
+    elif [[ "$act" == gone ]]; then
+      do_log "WARN $t is $st but has no tenants row (deleted): removing its host, never adding it"
+      del+=("$t")
     elif [[ "$act" == off ]]; then off+=("$t")
     elif [[ "$bill" == unpaid ]]; then held+=("$t")
     elif spl_th_cnf_has "$cnf" "$t" || spl_th_is_apex "$cnf" "$t"; then chk+=("$t")
@@ -101,15 +106,25 @@ spl_th_reconcile_apply() {
   for t in "${del[@]}"; do spl_th_tenant_set "$cnf" del "$t" || return 1; done
   spl_th_render || return 1
   spl_th_cnf_publish "cnf(024): $ENV tenant hosts${add[*]:+ +${add[*]}}${del[*]:+ -${del[*]}} (do_spl_tenant_host_reconcile)" || {
-    for t in "${add[@]}" "${del[@]}"; do spl_th_mark_one "$t" failed "cnf push to the trunk failed"; done
+    spl_th_mark_failed "cnf push to the trunk failed"
     return 1
   }
   if ! spl_th_apply "$(spl_th_destroy_allow "${del[@]}")"; then
-    for t in "${add[@]}" "${del[@]}"; do spl_th_mark_one "$t" failed "plan / apply refused or failed"; done
+    spl_th_mark_failed "plan / apply refused or failed"
     return 1
   fi
   for t in "${del[@]}"; do spl_th_mark_one "$t" removed ""; done
   for t in "${add[@]}"; do spl_th_finish "$t" || fails=$((fails + 1)); done
+}
+
+# spl_th_mark_failed <detail>: the caller's add rows -> failed; its del rows
+# keep their intent -> removing, the failure in detail (SPL-1811: a failed
+# push turned seed-search's removing row into a failed one, which the next
+# run read as an add)
+spl_th_mark_failed() {
+  local t
+  for t in "${add[@]}"; do spl_th_mark_one "$t" failed "$1"; done
+  for t in "${del[@]}"; do spl_th_mark_one "$t" removing "$1"; done
 }
 
 # spl_th_output <key> <value>: key=value on stdout and to GITHUB_OUTPUT
@@ -125,7 +140,8 @@ _spl_th_open_rows() {
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
 SELECT 'row', h.tenant_id, h.status, coalesce(t.billing_status, '-'),
-       CASE WHEN t.suspended_at IS NOT NULL OR t.archived_at IS NOT NULL THEN 'off' ELSE 'on' END
+       CASE WHEN t.tenant_id IS NULL THEN 'gone'
+            WHEN t.suspended_at IS NOT NULL OR t.archived_at IS NOT NULL THEN 'off' ELSE 'on' END
   FROM tenant_hosts h LEFT JOIN tenants t USING (tenant_id)
  WHERE h.status IN ('pending', 'failed', 'removing')
  ORDER BY h.requested_at, h.tenant_id;
@@ -184,7 +200,7 @@ spl_th_cnf_paths() {
 # aleko-gik hour). Afterwards the tree is brought onto the trunk
 # (spl_th_root_sync). Sets SPL_TH_PUSHED to the landed sha.
 spl_th_cnf_push() {
-  local th_msg="$1" br="${CNF_GIT_BRANCH:-master}" root tmp rc
+  local th_msg="$1" br="${CNF_GIT_BRANCH:-master}" root tmp rc agent
   root="$(git -C "$APP_PATH" rev-parse --show-toplevel)" || return 1
   local -a paths; mapfile -t paths < <(spl_th_cnf_paths)
   git -C "$root" fetch -q origin "$br" || { do_log "FATAL CNF push: cannot fetch origin/$br"; return 1; }
@@ -194,6 +210,7 @@ spl_th_cnf_push() {
   if git -C "$root" diff --quiet "origin/$br" -- "${paths[@]}"; then
     do_log "INFO cnf already equals origin/$br: nothing to push"; return 0
   fi
+  agent="$(spl_th_push_agent "$root")" || return 1
   # next to the checkout, on its filesystem: under /tmp the pre-push gate's
   # pnpm install picks /tmp/.pnpm-store, owned by another user (EACCES, the
   # wui part red on all 5 tries, dev demo 2026-10-07)
@@ -202,7 +219,7 @@ spl_th_cnf_push() {
   git -C "$root" worktree add -q --detach "$tmp/wt" "origin/$br" 2>"$tmp/err" ||
     { do_log "FATAL CNF push: cannot add a throwaway worktree: $(cat "$tmp/err")"; rm -rf "$tmp"; return 1; }
   do_log "INFO cnf push from the throwaway worktree $tmp/wt (origin/$br)"
-  _spl_th_push_in "$tmp" "$br" "$th_msg" "$root"; rc=$?
+  _spl_th_push_in "$tmp" "$br" "$th_msg" "$root" "$agent"; rc=$?
   git -C "$root" worktree remove --force "$tmp/wt" 2>/dev/null; git -C "$root" worktree prune 2>/dev/null
   rm -rf "$tmp"
   (( rc == 0 )) || return "$rc"
@@ -210,10 +227,28 @@ spl_th_cnf_push() {
   return 0
 }
 
-# _spl_th_push_in <tmp> <br> <message> <root>: commit + push from <tmp>/wt,
-# up to 5 tries; the push's own output is shown when the last one fails.
+# spl_th_push_agent <root> -> the agent id the trunk push runs as: AGENT_ID,
+# else SPOOL_AGENT_ID. The throwaway worktree is detached, so the pre-push
+# hook's developer-guide check would fall back to $USER and refuse an
+# operator run (SPL-1811); an ack is never recorded as the human user. With a
+# pre-push hook installed and no id this FAILS; with no hook (CI) it prints
+# nothing and the push goes as before.
+spl_th_push_agent() {
+  local id="${AGENT_ID:-${SPOOL_AGENT_ID:-}}" hook
+  [[ -n "$id" ]] && { printf '%s\n' "$id"; return 0; }
+  hook="$(git -C "$1" rev-parse --path-format=absolute --git-path hooks/pre-push 2>/dev/null)"
+  [[ -x "$hook" ]] || return 0
+  do_log "FATAL CNF push: no AGENT_ID (the pre-push hook $hook checks the pushing agent's developer-guide ack) - re-run with AGENT_ID=<your agent id>" >&2
+  return 1
+}
+
+# _spl_th_push_in <tmp> <br> <message> <root> [agent]: commit + push from
+# <tmp>/wt as AGENT_ID=<agent>, up to 5 tries; the push's own output is shown
+# when the last one fails.
 _spl_th_push_in() {
-  local tmp="$1" br="$2" th_msg="$3" root="$4" wt="$1/wt" name email i
+  local tmp="$1" br="$2" th_msg="$3" root="$4" agent="${5:-}" wt="$1/wt" name email i
+  local -a penv=(env)
+  [[ -n "$agent" ]] && penv+=("AGENT_ID=$agent")
   name="$(git -C "$wt" log -1 --no-mailmap --format=%an -- "$SPL_ORG_APP-cnf")"
   email="$(git -C "$wt" log -1 --no-mailmap --format=%ae -- "$SPL_ORG_APP-cnf")"
   [[ -n "$name" && -n "$email" && "$email" != *noreply* ]] || { do_log "FATAL CNF push: cannot read the cnf author from the history"; return 1; }
@@ -225,7 +260,7 @@ _spl_th_push_in() {
       do_log "OK cnf already on origin/$br: nothing to push"; return 0
     fi
     git -C "$wt" "${id[@]}" commit -q -m "$th_msg" || { do_log "FATAL CNF push: commit failed"; return 1; }
-    git -C "$wt" push origin "HEAD:$br" >"$tmp/push.out" 2>&1
+    "${penv[@]}" git -C "$wt" push origin "HEAD:$br" >"$tmp/push.out" 2>&1
     git -C "$wt" fetch -q origin "$br"
     if git -C "$wt" merge-base --is-ancestor HEAD "origin/$br"; then
       SPL_TH_PUSHED="$(git -C "$wt" rev-parse HEAD)"

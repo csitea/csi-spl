@@ -42,9 +42,13 @@ do_spl_tenant_host_deprovision() {
   fi
 
   if [[ "${FORCE:-0}" != 1 && "${MARK_DB:-1}" == 1 ]]; then
-    local n
+    local out n
     do_gcp_pin_account "$SPL_CNF" || return 1
-    n="$(spl_via_proxy _spl_th_tenant_exists "$tenant")" || { do_log "FATAL cannot read tenants for $tenant"; return 1; }
+    # only the `exists <n>` line: the proxy start logs to stdout too (SPL-1811,
+    # seed-search on dev: count 0 read as "still exists")
+    out="$(spl_via_proxy _spl_th_tenant_exists "$tenant")" || { do_log "FATAL cannot read tenants for $tenant"; return 1; }
+    n="$(awk '$1 == "exists" { print $2 }' <<<"$out" | tail -1)"
+    [[ -n "$n" ]] || { do_log "FATAL cannot read tenants for $tenant: no count in the answer"; return 1; }
     [[ "$n" == 0 ]] || { do_log "FATAL tenant $tenant still exists in the $ENV hub DB; delete it first (or FORCE=1)"; return 1; }
   fi
 
@@ -71,10 +75,10 @@ spl_th_destroy_allow() {
 
 _spl_th_tenant_exists() {
   PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" \
-    psql -X -q -At -v ON_ERROR_STOP=1 -v t="$1" <<'SQL' | tail -1
+    psql -X -q -At -F ' ' -v ON_ERROR_STOP=1 -v t="$1" <<'SQL'
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
-SELECT count(*) FROM tenants WHERE tenant_id = :'t';
+SELECT 'exists', count(*) FROM tenants WHERE tenant_id = :'t';
 ROLLBACK;
 SQL
 }

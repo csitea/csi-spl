@@ -27,7 +27,12 @@
 #      a moved trunk and a dirty unrelated file; the tree that kept the edit
 #      ends clean on the trunk; a rejected push and an unpushed local cnf
 #      commit both FAIL loudly; provision marks the tenant failed on it
-#   7. deprovision refuses while the tenant row exists
+#   5d. SPL-1811: a failed row with no tenants row (deleted) is a remove,
+#      never an add; a failed cnf push / apply keeps a removing row removing
+#   6a. SPL-1811: the cnf push hands AGENT_ID to the pre-push hook; with a
+#      hook and no id it fails before any worktree or commit
+#   7. deprovision refuses while the tenant row exists; the proxy's log line
+#      on stdout never reads as "still exists" (SPL-1811)
 #   8. do_spl_tenant_create chains the host only when cnf wui_tenant_hosts is on
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -95,7 +100,7 @@ in_orc() {
     do_gcp_pin_account() { GCP_ACCOUNT=sa@example.test; }
     do_gcp_require_live_account() { :; }
     do_require_bin() { :; }
-    spl_via_proxy() { case "$1" in _spl_th_open_rows) printf "%s" "${STUB_ROWS:-}" ;; _spl_th_tenant_exists) echo "${STUB_EXISTS:-0}" ;; _spl_th_owners_sql) printf "INFO proxy up\n%s" "${STUB_OWNERS-owner HUM-3
+    spl_via_proxy() { case "$1" in _spl_th_open_rows) printf "%s" "${STUB_ROWS:-}" ;; _spl_th_tenant_exists) if [[ -n "${STUB_EXISTS_RAW:-}" ]]; then printf "%s\n" "$STUB_EXISTS_RAW"; else printf "INFO Cloud SQL proxy up\nexists %s\n" "${STUB_EXISTS:-0}"; fi ;; _spl_th_owners_sql) printf "INFO proxy up\n%s" "${STUB_OWNERS-owner HUM-3
 }" ;; esac; }
     spl_th_mark_one() { echo "MARK $1 $2" >>'"$T"'/mark.log; SPL_TH_PREV="${STUB_PREV:-pending}"; }
     [[ "${REAL_PUSH:-0}" == 1 ]] || spl_th_cnf_push() { echo "PUSH $1" >>'"$T"'/mark.log; [[ "${STUB_PUSH_RC:-0}" == 0 ]]; }
@@ -231,6 +236,27 @@ lst=$(yq -r '.env.dns.mapped_tenants | join(",")' "$CNF")
 lst=$(yq -r '.env.steps."052-gcs-workspace-docs".workspaces | join(",")' "$CNF")
 [[ "$lst" == "m2proof1,p1gone" ]] && pass "reconcile: the 052 docs buckets follow (+m2proof1 +p1gone -t1)" || fail "reconcile docs list: $lst"
 
+# --- 5d. SPL-1811: a deleted tenant is never added; a failed push keeps removing --
+grep -q "WHEN t.tenant_id IS NULL THEN 'gone'" <<<"$rows_sql" && grep -q 'BEGIN TRANSACTION READ ONLY' <<<"$rows_sql" && ! grep -qE '^(INSERT|UPDATE|DELETE|COMMIT)' <<<"$rows_sql" &&
+  pass "reconcile: the open-rows read marks a row with no tenants row 'gone', still read only" || fail "open-rows SQL: $rows_sql"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc STUB_ROWS=$'row seedgone failed - gone\nrow newt pending active on' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -q 'add \[newt\] remove \[seedgone\]' <<<"$out" && grep -q 'WARN seedgone is failed but has no tenants row' <<<"$out" &&
+  pass "reconcile CONTROL: a failed row of a deleted tenant (seed-search) is a remove, never an add" || fail "deleted tenant rc=$rc: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_ROWS=$'row seedgone failed - gone' 2>&1); rc=$?
+[[ $rc == 0 ]] && grep -qx 'MARK seedgone removed' "$T/mark.log" && ! grep -q 'MARK seedgone ready' "$T/mark.log" && ! grep -q seedgone "$CNF" &&
+  ! grep -q 'seedgone' "$STUB_TFV" && pass "reconcile: the deleted tenant gets no host and no docs bucket; its row ends removed" || fail "deleted tenant applied rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_PUSH_RC=1 STUB_ROWS=$'row newt pending active on\nrow t1 removing - gone' 2>&1); rc=$?
+[[ $rc != 0 ]] && grep -qx 'MARK newt failed' "$T/mark.log" && grep -qx 'MARK t1 removing' "$T/mark.log" && ! grep -q 'MARK t1 failed' "$T/mark.log" &&
+  ! grep -q do-provision "$STUB_LOG" && pass "reconcile CONTROL: a failed cnf push -> the add failed, the removing row stays removing, no apply" ||
+  fail "failed push rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_ROWS=$'row t1 removing - gone' STUB_PLAN_019="${P_DEL//t1.dev/other.dev}" 2>&1); rc=$?
+[[ $rc != 0 ]] && grep -qx 'MARK t1 removing' "$T/mark.log" && ! grep -q 'MARK t1 failed' "$T/mark.log" && ! grep -q do-provision "$STUB_LOG" &&
+  pass "reconcile CONTROL: a refused plan keeps the removing row removing" || fail "refused plan rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
+
 # --- 5a. reconcile: a mapped pending row is only checked (niba-consult) -------
 reset
 out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_ROWS=$'row t1 pending manual' 2>&1); rc=$?
@@ -345,6 +371,20 @@ git -C "$G/wc" add csi-spl-cnf/csi-spl/dev.env.yaml && git -C "$G/wc" -c user.na
 out=$(push); rc=$?
 [[ $rc != 0 ]] && grep -q 'local commit(s) of the dev cnf that origin/master lacks' <<<"$out" &&
   pass "CONTROL: an unpushed local cnf commit (the aleko-gik hour) is refused loudly" || fail "local commit rc=$rc :: $out"
+# --- 6a. SPL-1811: the push runs as the caller's AGENT_ID, never as $USER ---------
+git -C "$G/wc" reset -q --hard origin/master
+sed -i 's/^    mapped_tenants: \[\(.*\)\]$/    mapped_tenants: [\1, hk]/' "$G/wc/csi-spl-cnf/csi-spl/dev.env.yaml"
+HOOK="$(git -C "$G/wc" rev-parse --path-format=absolute --git-path hooks/pre-push)"
+printf '#!/bin/sh\necho "AGENT_ID=${AGENT_ID:-none}" >>"%s"\nexit 0\n' "$T/hook.log" >"$HOOK"; chmod +x "$HOOK"; : >"$T/hook.log"
+before=$(git -C "$G/origin.git" rev-parse master)
+out=$(SNIPPET='do_spl_cloud_cnf; spl_th_cnf_push "cnf(024): dev tenant hosts +hk"' in_orc REAL_PUSH=1 SPL_TH_PUSH_BACKOFF=0 APP_PATH="$G/wc" AGENT_ID= SPOOL_AGENT_ID= 2>&1); rc=$?
+[[ $rc != 0 && "$(git -C "$G/origin.git" rev-parse master)" == "$before" && ! -s "$T/hook.log" ]] && grep -q 'FATAL CNF push: no AGENT_ID' <<<"$out" &&
+  ! compgen -G "$G/.wc-cnf-push.*" >/dev/null &&
+  pass "CONTROL: a pre-push hook and no AGENT_ID -> FATAL before any worktree or push (never an ack as \$USER)" || fail "no AGENT_ID rc=$rc hook=[$(cat "$T/hook.log")] :: $out"
+out=$(SNIPPET='do_spl_cloud_cnf; unset AGENT_ID; AGENT_ID=c-test; spl_th_cnf_push "cnf(024): dev tenant hosts +hk"' in_orc REAL_PUSH=1 SPL_TH_PUSH_BACKOFF=0 APP_PATH="$G/wc" SPOOL_AGENT_ID= 2>&1); rc=$?
+[[ $rc == 0 && "$(cat "$T/hook.log")" == "AGENT_ID=c-test" ]] && grep -q 'hk\]' <<<"$(git -C "$G/origin.git" show master:csi-spl-cnf/csi-spl/dev.env.yaml)" &&
+  pass "the cnf push hands the caller's AGENT_ID (even unexported) to the pre-push hook, and lands" || fail "AGENT_ID pass-through rc=$rc hook=[$(cat "$T/hook.log")] :: $out"
+rm -f "$HOOK"
 # provision: a push that does not land fails the run and marks the tenant failed, no apply
 reset
 out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STUB_PUSH_RC=1 STUB_PLAN_019="$P_ADD" 2>&1); rc=$?
@@ -359,6 +399,16 @@ out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 CNF
 reset
 out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=1 2>&1); rc=$?
 [[ $rc != 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && pass "deprovision refuses while the tenant row exists" || fail "deprovision of a live tenant rc=$rc: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=0 2>&1); rc=$?
+[[ $rc == 0 ]] && ! grep -q 'still exists' <<<"$out" && grep -q 'MARK t1 removed' "$T/mark.log" &&
+  pass "deprovision CONTROL: count 0 behind the proxy's INFO line on stdout is a deleted tenant (seed-search), not 'still exists'" || fail "deleted tenant refused rc=$rc: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS_RAW='INFO Cloud SQL proxy up' 2>&1); rc=$?
+[[ $rc != 0 && ! -s "$STUB_LOG" ]] && grep -q 'no count in the answer' <<<"$out" && pass "deprovision: an answer with no count fails closed" || fail "no count rc=$rc: $out"
+ex_sql="$(sed -n '/^_spl_th_tenant_exists()/,/^}/p' "$PROJ_ROOT/src/bash/run/spl-tenant-host-deprovision.func.sh")"
+grep -q "SELECT 'exists', count(\*) FROM tenants" <<<"$ex_sql" && grep -q 'BEGIN TRANSACTION READ ONLY' <<<"$ex_sql" &&
+  pass "deprovision: the exists read is tagged and read only" || fail "exists SQL: $ex_sql"
 reset
 out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=0 STUB_PLAN_019="$P_DEL" 2>&1); rc=$?
 [[ $rc == 0 ]] && ! yq -e '.env.dns.mapped_tenants | any_c(. == "t1")' "$CNF" >/dev/null 2>&1 && grep -q 'MARK t1 removed' "$T/mark.log" &&

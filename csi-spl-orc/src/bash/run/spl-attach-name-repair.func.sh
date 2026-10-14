@@ -69,6 +69,7 @@ _spl_anr_tenant() {
   (( dry )) && flag=(--dry-run)
   rows="$(spl_via_proxy _spl_anr_candidates_run "$tenant" "$box")" ||
     { do_log "FATAL listing the hash-named files of $box in $tenant failed"; return 1; }
+  rows="$(_spl_anr_rows <<<"$rows")"
   res="$(mktemp)" || return 1
   while read -r id _; do
     [[ -n "$id" ]] || continue
@@ -81,11 +82,17 @@ _spl_anr_tenant() {
   if (( ! dry )); then
     left="$(spl_via_proxy _spl_anr_candidates_run "$tenant" "$box")" ||
       { rm -f "$res"; do_log "FATAL re-counting $box in $tenant after the rename failed"; return 1; }
-    left="$(awk '{s += $2} END {print s + 0}' <<<"$left")"
+    left="$(_spl_anr_rows <<<"$left" | awk '{s += $2} END {print s + 0}')"
   fi
   _spl_anr_summary "$tenant" "$box" "$dry" "$rows" "$left" <"$res"; local src=$?
   rm -f "$res"
   return $src
+}
+
+# _spl_anr_rows: only the "<msg_id> <n>" lines of stdin; spl_via_proxy also
+# prints the proxy's own log lines on stdout.
+_spl_anr_rows() {
+  grep -E '^[0-9a-f-]{36} [0-9]+$' || true
 }
 
 # _spl_anr_candidates_run <tenant> <box>: "<msg_id> <n>" per message <box> sent

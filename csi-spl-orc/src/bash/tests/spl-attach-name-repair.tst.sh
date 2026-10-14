@@ -34,7 +34,7 @@ run() {
 spl_host_spool() { :; }
 do_gcp_pin_account() { GCP_ACCOUNT=sa; }
 do_gcp_require_live_account() { :; }
-spl_via_proxy() { SPL_PROXY_DSN=x "$@"; }
+spl_via_proxy() { echo "Cloud SQL proxy ready on 127.0.0.1:5433"; SPL_PROXY_DSN=x "$@"; }
 spl_pg_env() { shift; cat >>"$SQL_LOG"; echo "PGOPTIONS=$PGOPTIONS $*" >>"$SQL_LOG"
   if [[ -s "$T_DIR/ran" ]]; then cat "$T_DIR/left"; else cat "$T_DIR/cands"; fi; }
 spl_desk_spool() {

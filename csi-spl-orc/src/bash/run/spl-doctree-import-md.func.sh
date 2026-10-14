@@ -6,7 +6,8 @@
 # @description an optional YAML front matter, one '# ' title, a preamble, then
 # @description sections '## ' .. '###### ', numbered ('## 1. x', '### 1.1 y')
 # @description or not ('## Overview': attrs.numbered false, no outline
-# @description number); each section becomes a heading node at its level with
+# @description number; "## 1." keeps its dot, --dotted, SPL-1900); each section
+# @description becomes a heading node at its level with
 # @description its text as the node's body, the preamble the body of the doc's
 # @description hidden root and the front matter its attrs.front_matter.
 # @description Refused before any hub call: a path that is not a repo-relative
@@ -87,7 +88,7 @@ _spl_doctree_import_write() {
 # _spl_doctree_import_items <split dir> <plan> <doc> <root>: the writes into
 # the created doc; stops at the first failure, its reason on stdout.
 _spl_doctree_import_items() {
-  local dir="$1" plan="$2" doc="$3" root="$4" out lvl num title body flag
+  local dir="$1" plan="$2" doc="$3" root="$4" out lvl num title body gap flag
   if [[ -f "$dir/front_matter.yml" ]]; then
     out="$(_spl_doctree_call "edit $doc $root --field attrs.front_matter" "$dir/front_matter.yml")" ||
       { echo "the front matter: $out"; return 1; }
@@ -95,9 +96,12 @@ _spl_doctree_import_items() {
   if [[ -s "$dir/preamble.md" && -n "$(tr -d '[:space:]' <"$dir/preamble.md")" ]]; then
     out="$(_spl_doctree_call "edit $doc $root --field body" "$dir/preamble.md")" || { echo "the preamble: $out"; return 1; }
   fi
-  while IFS=$'\t' read -r lvl num title body; do
+  while IFS=$'\t' read -r lvl num title body gap; do
     flag=""
     [[ "$num" != "-" ]] || flag=" --unnumbered"
+    [[ "$num" != *. ]] || flag=" --dotted"
+    [[ ",$gap," != *,tight,* ]] || flag+=" --tight"
+    [[ ",$gap," != *,tight_end,* ]] || flag+=" --tight-end"
     out="$(_spl_doctree_call "add $doc --kind heading --level $lvl$flag --title $(_spl_doctree_q "$title")" "$body")" ||
       { echo "section $num $title: $out"; return 1; }
   done <<<"$plan"

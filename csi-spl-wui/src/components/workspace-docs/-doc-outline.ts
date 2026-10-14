@@ -29,9 +29,10 @@ export function outlineOf(path: number[]): string {
   return path.length && !path.includes(0) ? path.join('.') : ''
 }
 
-/** a heading's text: the outline number and the title, the title alone when it has no number */
-export function headingText(outline: string, title: string): string {
-  return outline ? `${outline} ${title}` : title
+/** a heading's text: the outline number and the title, the title alone when it has no number;
+    dot writes the number "1." (attrs.outline_dot, the md author's form, SPL-1900) */
+export function headingText(outline: string, title: string, dot = false): string {
+  return outline ? `${outline}${dot ? '.' : ''} ${title}` : title
 }
 
 /** the item and everything under it, in document order: the items after it that are deeper (by depth: an unnumbered item has no outline prefix) */

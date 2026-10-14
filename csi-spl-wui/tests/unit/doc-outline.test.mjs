@@ -86,6 +86,8 @@ describe('the outline prefix and the branch', () => {
   it('an unnumbered heading shows its title alone; a numbered one keeps its number', () => {
     assert.equal(o.headingText('', 'Overview'), 'Overview')
     assert.equal(o.headingText('1.1', 'First'), '1.1 First')
+    assert.equal(o.headingText('1', 'Goals', true), '1. Goals')
+    assert.equal(o.headingText('', 'Overview', true), 'Overview')
   })
 
   it('the branch of an unnumbered item is it and the deeper items after it', () => {

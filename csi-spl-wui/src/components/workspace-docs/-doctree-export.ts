@@ -16,9 +16,20 @@ function bodyWithFigures(it: DocItem, f: MdFigures): string {
   return picRuns(it.body, f.doc).map((r) => (r.kind === 'text' ? r.text : `${picToken(r.caption, r.path)}\n\n*${f.figure(n++)} ${r.caption}*\n`)).join('')
 }
 
+/** a body's lines under its heading's blank line, kept as stored (SPL-1900): one trailing newline ends
+    the last line, every other blank line and the first line's indent are the author's; a body with text
+    closes with a blank line (none when tightEnd, attrs.tight_end), a blank body is its blank lines alone
+    (cmd/spool docTreeBodyLines) */
+export function bodyLines(body: string, tightEnd = false): string[] {
+  if (!body) return []
+  const lines = (body.endsWith('\n') ? body.slice(0, -1) : body).split('\n')
+  return body.trim() && !tightEnd ? [...lines, ''] : lines
+}
+
 /** the branch as Markdown: the preamble first when given (the hidden root's body, the text before section 1:
-    a whole-document export, SPL-1612), then one heading per item (# by level, no number when unnumbered),
-    its text, its code (fenced with its lang), its image */
+    a whole-document export, SPL-1612), then one heading per item (# by level, no number when unnumbered,
+    "1." when attrs.outline_dot), a blank line (none when attrs.tight), its text as stored, its code
+    (fenced with its lang), its image */
 export function branchToMarkdown(items: DocItem[], untitled: string, f?: MdFigures, preamble?: DocItem): string {
   const out: string[] = []
   const pre = preamble ? (f ? bodyWithFigures(preamble, f) : preamble.body).trim() : ''
@@ -27,9 +38,9 @@ export function branchToMarkdown(items: DocItem[], untitled: string, f?: MdFigur
   const base = Math.min(...items.map((it) => it.depth))
   for (const it of items) {
     const level = Math.min(6, it.depth - base + 1)
-    out.push(`${'#'.repeat(level)} ${headingText(it.outline, it.title || untitled)}`, '')
-    const body = f ? bodyWithFigures(it, f) : it.body
-    if (body.trim()) out.push(body.trim(), '')
+    out.push(`${'#'.repeat(level)} ${headingText(it.outline, it.title || untitled, it.attrs?.outline_dot === true)}`)
+    if (it.attrs?.tight !== true) out.push('')
+    out.push(...bodyLines(f ? bodyWithFigures(it, f) : it.body, it.attrs?.tight_end === true))
     const src = typeof it.attrs?.src === 'string' ? it.attrs.src : ''
     const lang = typeof it.attrs?.lang === 'string' ? it.attrs.lang.trim() : ''
     if (src) out.push('```' + lang, src, '```', '')

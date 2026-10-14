@@ -1,0 +1,82 @@
+{
+ "_about": "SPL-1900: one fixture for every qto md exporter (cmd/spool docTreeMarkdown, the WUI's branchToMarkdown, spl-doctree-md.py split + compose). md is the page; items are what its import stores (the read answer, the hidden root first); export is what every exporter writes for them, byte for byte; compose of export gives md back.",
+ "doc": "d1",
+ "title": "Fidelity",
+ "md": "# Fidelity\n\n> Generated from qto doc `d1`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.\n\nWho holds it.\n\n## 1. The job\n\nKeep moving.\n\n### 1.1 Read\n\n    SPOOL_ROOT=/var/spool-hub spool recv\n\n### 1.2. Blank run\n\n\n\n\n\n\n## 2. Edges\n\n\nText.\n\n\n\n## Overview\nRight under.\n## 3 Last\n\nEnds the page.\n\n",
+ "items": [
+  {
+   "id": "r00t",
+   "parent": "",
+   "depth": 0,
+   "outline": "",
+   "title": "",
+   "body": "Who holds it.\n",
+   "attrs": {}
+  },
+  {
+   "id": "a",
+   "parent": "r00t",
+   "depth": 1,
+   "outline": "1",
+   "title": "The job",
+   "body": "Keep moving.\n",
+   "attrs": {
+    "outline_dot": true
+   }
+  },
+  {
+   "id": "b",
+   "parent": "a",
+   "depth": 2,
+   "outline": "1.1",
+   "title": "Read",
+   "body": "    SPOOL_ROOT=/var/spool-hub spool recv\n",
+   "attrs": {}
+  },
+  {
+   "id": "c",
+   "parent": "a",
+   "depth": 2,
+   "outline": "1.2",
+   "title": "Blank run",
+   "body": "\n\n\n\n\n",
+   "attrs": {
+    "outline_dot": true
+   }
+  },
+  {
+   "id": "d",
+   "parent": "r00t",
+   "depth": 1,
+   "outline": "2",
+   "title": "Edges",
+   "body": "\nText.\n\n\n",
+   "attrs": {
+    "outline_dot": true
+   }
+  },
+  {
+   "id": "e",
+   "parent": "r00t",
+   "depth": 1,
+   "outline": "",
+   "title": "Overview",
+   "body": "Right under.\n",
+   "attrs": {
+    "numbered": false,
+    "tight": true,
+    "tight_end": true
+   }
+  },
+  {
+   "id": "f",
+   "parent": "r00t",
+   "depth": 1,
+   "outline": "3",
+   "title": "Last",
+   "body": "Ends the page.\n\n",
+   "attrs": {}
+  }
+ ],
+ "export": "Who holds it.\n\n# 1. The job\n\nKeep moving.\n\n## 1.1 Read\n\n    SPOOL_ROOT=/var/spool-hub spool recv\n\n## 1.2. Blank run\n\n\n\n\n\n\n# 2. Edges\n\n\nText.\n\n\n\n# Overview\nRight under.\n# 3 Last\n\nEnds the page.\n\n"
+}

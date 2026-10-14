@@ -9,9 +9,16 @@ never by hand. Two verbs:
       then '## ' .. '###### ' sections) cut into what the import writes:
       <out>/title, <out>/preamble.md, <out>/front_matter.yml (only when the
       page has one) and per section <out>/NNNN.body.md, plus one TSV line per
-      section on stdout: level, outline ('-' = unnumbered), title, body file
-      ('' = none). A "generated from qto doc" line in the preamble (a page
-      that is already an export) is dropped: compose writes the new one.
+      section on stdout: level, outline ('-' = unnumbered; '1.' = the author
+      wrote '## 1. x', the qto item gets attrs.outline_dot and the export
+      writes the dot back, SPL-1900), title, body file ('' = none), gaps
+      ('tight' = no blank line under the heading: attrs.tight; 'tight_end' =
+      none after its text: attrs.tight_end; comma-separated, '' = both). A
+      body is the section's lines as written, less the one blank line under
+      its heading and the one before the next: its other blank lines and its
+      first line's indent stay (the export writes them back, SPL-1900), each
+      line newline-ended. A "generated from qto doc" line in the preamble (a
+      page that is already an export) is dropped: compose writes the new one.
       A section is numbered ('## 1. x', '### 1.1 y') or not ('## Overview':
       the qto item gets attrs.numbered false and no outline number); a
       heading under an unnumbered one is unnumbered too, its text kept whole
@@ -25,7 +32,10 @@ never by hand. Two verbs:
       `spool doctree export` (which opens with the preamble, the root's body;
       added here when an older spool left it out) with every heading one
       level down (outside code fences), so the sections are '##' under the
-      page's '#'. One trailing newline: byte-stable.
+      page's '#'. It ends as the md did (SPL-1900): the last section's
+      trailing blank lines, or no final newline (attrs.tight_end), come from
+      the read, since the export reaches compose with its trailing newlines
+      cut; one newline otherwise. Byte-stable.
 
 Code fences are tracked by their opening run (CommonMark): a fence opened by
 '````' closes only on a '````' or longer line of the same character, so a
@@ -38,7 +48,7 @@ import re
 import sys
 
 HEAD = re.compile(r"^(#{1,6}) (.*)$")
-NUM = re.compile(r"^(\d+(?:\.\d+)*)\.? +(.+)$")
+NUM = re.compile(r"^(\d+(?:\.\d+)*)(\.?) +(.+)$")
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 FM_END = ("---", "...")
 # compose's generated-from line; split drops it from a page that is an export
@@ -104,11 +114,31 @@ def split(md_path, out):
     if fm is not None:
         write(os.path.join(out, "front_matter.yml"), fm)
     for i, s in enumerate(sections, 1):
-        body, name = "\n".join(s["body"]).strip(), ""
+        lines = s["body"]
+        tight = not lines or lines[0] != ""
+        tight_end = bool("".join(lines).strip()) and lines[-1] != ""
+        body, name = section_body(lines, tight), ""
         if body:
             name = os.path.join(out, f"{i:04d}.body.md")
-            write(name, body + "\n")
-        print("\t".join([str(s["level"]), s["outline"] or "-", s["title"], name]))
+            write(name, body)
+        num = s["outline"] + ("." if s["dot"] else "") if s["outline"] else "-"
+        gaps = ",".join(
+            g for g, on in (("tight", tight), ("tight_end", tight_end)) if on
+        )
+        print("\t".join([str(s["level"]), num, s["title"], name, gaps]))
+
+
+def section_body(lines, tight):
+    """A section's body as the qto item stores it (SPL-1900): its lines less
+    the blank line under the heading (none when tight) and, when it has text,
+    the blank line that closes it, each line newline-ended. The export
+    (cmd/spool docTreeBodyLines) frames it with those blank lines again, so a
+    blank-line run at either edge and the first line's indent come back."""
+    if not tight:
+        lines = lines[1:]
+    if lines and lines[-1] == "" and "".join(lines).strip():
+        lines = lines[:-1]
+    return "".join(line + "\n" for line in lines)
 
 
 def section(m):
@@ -117,7 +147,8 @@ def section(m):
     return {
         "level": len(m.group(1)) - 1,
         "outline": n.group(1) if n else None,
-        "title": n.group(2).strip() if n else text,
+        "dot": bool(n and n.group(2)),
+        "title": n.group(3).strip() if n else text,
         "text": text,
         "body": [],
     }
@@ -141,7 +172,7 @@ def check_outline(md_path, sections):
         while len(counts) < lvl:
             counts.append(0)
         if s["outline"] is None or not numbered[-1]:
-            s["outline"], s["title"] = None, s["text"]
+            s["outline"], s["title"], s["dot"] = None, s["text"], False
             numbered.append(False)
             continue
         counts[-1] += 1
@@ -155,11 +186,14 @@ def check_outline(md_path, sections):
 
 def first_heading(items):
     """The export's line for the doc's first section (items[1] of the root
-    read): '# ', its outline number when it has one, its title."""
+    read): '# ', its outline number when it has one ('1.' with
+    attrs.outline_dot), its title."""
     if len(items) < 2:
         return None
     it = items[1]
     num = it.get("outline") or ""
+    if num and (it.get("attrs") or {}).get("outline_dot") is True:
+        num += "."
     return "# " + (num + " " if num else "") + (it.get("title") or "Untitled")
 
 
@@ -200,7 +234,28 @@ def compose(head_path, root_path, export_path, doc):
     for text in (pre, "\n".join(out).strip()):
         if text:
             parts.append(text)
-    sys.stdout.write("\n\n".join(parts) + "\n")
+    sys.stdout.write("\n\n".join(parts) + page_end(items))
+
+
+def page_end(items):
+    """What follows the export's last line (SPL-1900): the last section's
+    body as stored ends the page as the md did, its trailing blank lines
+    kept, no newline when it had none (attrs.tight_end, or a tight empty
+    section); one newline otherwise (no section, or a code block or image
+    after the body)."""
+    it = items[-1] if len(items) > 1 else {}
+    attrs, body = it.get("attrs") or {}, it.get("body") or ""
+    if not it or attrs.get("src") or attrs.get("img_http_path"):
+        return "\n"
+    if body.strip():
+        return (
+            ""
+            if attrs.get("tight_end") is True
+            else "\n" * (len(body) - len(body.rstrip("\n")))
+        )
+    if not body:
+        return "" if attrs.get("tight") is True else "\n"
+    return "\n" * (len(body) + 1)
 
 
 if __name__ == "__main__":

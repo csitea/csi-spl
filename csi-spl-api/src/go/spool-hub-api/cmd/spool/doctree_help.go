@@ -36,7 +36,7 @@ var docTreeVerbs = []dtVerb{
 		"usage: spool doctree read <doc> [--item id]"},
 	{"add", dtAdd, "add a heading, or a paragraph, table, code block or picture to an item",
 		"usage: spool doctree add <doc> --kind heading|para|code|table|picture " +
-			"[--title t] [--level n | --under id | --after id] [--unnumbered] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]"},
+			"[--title t] [--level n | --under id | --after id] [--unnumbered] [--dotted] [--tight] [--tight-end] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]"},
 	{"edit", dtEdit, "replace an item's title or body, or set one key of its attrs",
 		"usage: spool doctree edit <doc> <item> --field title|body|attrs.<key> [--value v | --file f] [--json]"},
 	{"move", dtMove, "move an item to another parent or position",

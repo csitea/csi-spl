@@ -43,9 +43,12 @@ import (
 // The item kinds of add (the WUI's model: an item is a heading; its body is
 // the paragraph text; its attrs carry one code block and one image):
 //
-//	heading  --title t [--level n | --under item | --after item] [--text t] [--unnumbered]
+//	heading  --title t [--level n | --under item | --after item] [--text t] [--unnumbered] [--dotted] [--tight] [--tight-end]
 //	         a new item; --level n appends it at depth n, under the last item at n-1;
-//	         --unnumbered sets attrs.numbered false: no outline number (spec 137)
+//	         --unnumbered sets attrs.numbered false: no outline number (spec 137);
+//	         --dotted sets attrs.outline_dot true: the export writes "1. x" (SPL-1900);
+//	         --tight sets attrs.tight true: no blank line between the heading and its text;
+//	         --tight-end sets attrs.tight_end true: no blank line after its text
 //	para     --text t | --file f [--item id]     text appended to the item's body
 //	table    --text t | --file f [--item id]     a Markdown table appended to the body
 //	code     --text t | --file f [--lang l] [--item id] [--replace]
@@ -620,12 +623,12 @@ type dtAddOpts struct {
 	item, under, after                           string
 	level                                        int
 	rev                                          int64
-	replace, unnumbered                          bool
+	replace, unnumbered, dotted, tight, tightEnd bool
 }
 
 func dtAdd(ctx context.Context, cfg *config.Config, args []string) error {
 	fs := newDTFlags("add", "usage: spool doctree add <doc> --kind heading|para|code|table|picture "+
-		"[--title t] [--level n | --under id | --after id] [--unnumbered] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]")
+		"[--title t] [--level n | --under id | --after id] [--unnumbered] [--dotted] [--tight] [--tight-end] [--text t | --file f] [--lang l] [--path img] [--caption c] [--item id]")
 	var o dtAddOpts
 	fs.StringVar(&o.kind, "kind", "", "heading, para, code, table or picture")
 	fs.StringVar(&o.title, "title", "", "the heading's title")
@@ -641,6 +644,9 @@ func dtAdd(ctx context.Context, cfg *config.Config, args []string) error {
 	fs.Int64Var(&o.rev, "rev", 0, "heading: the doc rev read (0 = no precondition)")
 	fs.BoolVar(&o.replace, "replace", false, "code: replace the item's code block")
 	fs.BoolVar(&o.unnumbered, "unnumbered", false, "heading: no outline number (attrs.numbered false)")
+	fs.BoolVar(&o.dotted, "dotted", false, `heading: the export writes its number "1." (attrs.outline_dot true)`)
+	fs.BoolVar(&o.tight, "tight", false, "heading: the export writes its text right under it, no blank line (attrs.tight true)")
+	fs.BoolVar(&o.tightEnd, "tight-end", false, "heading: the export writes no blank line after its text (attrs.tight_end true)")
 	pos, err := fs.parse(args, 1, 1)
 	if err != nil {
 		return err
@@ -702,8 +708,21 @@ func dtAddHeading(ctx context.Context, doc string, o dtAddOpts) (func(*dtClient)
 			anchor = p
 		}
 		in := map[string]any{"rev": o.rev, "anchor": anchor, "where": where, "ord": 0, "title": o.title, "body": body}
+		attrs := map[string]any{}
 		if o.unnumbered {
-			in["attrs"] = map[string]any{"numbered": false}
+			attrs["numbered"] = false
+		}
+		if o.dotted {
+			attrs["outline_dot"] = true
+		}
+		if o.tight {
+			attrs["tight"] = true
+		}
+		if o.tightEnd {
+			attrs["tight_end"] = true
+		}
+		if len(attrs) > 0 {
+			in["attrs"] = attrs
 		}
 		return c.json(ctx, http.MethodPost, dtDoc(doc)+"/items", in, nil)
 	}, nil

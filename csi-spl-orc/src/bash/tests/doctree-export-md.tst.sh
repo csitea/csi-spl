@@ -16,7 +16,7 @@
 #      section at its level; the map row; the md file now says
 #      "generated from qto doc <id>; edit it there"
 #   5. the export keeps every section and its text: only the generated-from
-#      line and the dot after a top-level number differ from the page
+#      line differs from the page ('## 1.' keeps its dot, SPL-1900)
 #   6. export twice = no diff, and an unchanged doc leaves the file untouched
 #      (its mtime too)
 #   7. CONTROL: an edited node changes the md, in that section only
@@ -39,6 +39,12 @@
 #      body); a preamble with a second '# ' line and a fenced '## ' line
 #      round-trips byte-stable; an older spool's export (no preamble) still
 #      composes the same page
+#  18. SPL-1900 (Qto gaps G1 + G2), on the shared fixture
+#      csi-spl-api/.../cmd/spool/testdata/doctree-export-fidelity.json: split
+#      stores what the fixture's items hold ('1.' -> --dotted, the spacing
+#      -> --tight / --tight-end, bodies as written); compose of the fixture's
+#      export is the fixture's md; the page round-trips with only its
+#      generated-from line changed (the doc id)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -102,6 +108,9 @@ elif v == "edit":
 elif v == "add":
     body = open(flag("--file")).read() if "--file" in a else ""
     attrs = {"numbered": False} if "--unnumbered" in a else {}
+    # SPL-1900: the author's heading form and spacing, as the hub stores them
+    for f, k in (("--dotted", "outline_dot"), ("--tight", "tight"), ("--tight-end", "tight_end")):
+        if f in a: attrs[k] = True
     db["items"].append({"id": "i%d" % len(db["items"]), "depth": int(flag("--level")), "title": flag("--title"), "body": body, "attrs": attrs})
 elif v == "delete":
     db = {"items": [], "deleted": a[1]}
@@ -202,11 +211,11 @@ run do_spl_doctree_import_md MD_PATH=csi-spl-doc/doc/md/skip.md DRY_RUN=0
 run do_spl_doctree_import_md MD_PATH="$PAGE" DRY_RUN=0
 want_calls="create --title 'Runbook: the x seat'
 edit d0c r00t --field body --file
-add d0c --kind heading --level 1 --title 'The job' --file
-add d0c --kind heading --level 1 --title 'The commands'
+add d0c --kind heading --level 1 --dotted --title 'The job' --file
+add d0c --kind heading --level 1 --dotted --title 'The commands'
 add d0c --kind heading --level 2 --title Read --file
 add d0c --kind heading --level 2 --title Write --file
-add d0c --kind heading --level 1 --title Traps --file
+add d0c --kind heading --level 1 --dotted --title Traps --file
 head d0c
 read d0c --item r00t
 export d0c"
@@ -228,13 +237,7 @@ grep -qxF "$GEN" "$R/$PAGE" &&
 # --- 5. nothing lost -------------------------------------------------------------------------------
 d="$(diff "$T/page.orig" "$R/$PAGE" | grep '^[<>]' | sed 's/ *$//')"
 want_d="> $GEN
->
-< ## 1. The job
-> ## 1 The job
-< ## 2. The commands
-> ## 2 The commands
-< ## 3. Traps
-> ## 3 Traps"
+>"
 [[ "$d" == "$want_d" ]] && pass "the export keeps every section and its text" || fail "round trip diff: $d"
 
 # --- 6. idempotent -----------------------------------------------------------------------------------
@@ -290,9 +293,7 @@ One.
 Kept as the title.
 EOF_MD
 roundtrip "T012/T012a: unnumbered headings round-trip with no number" "$P" "> $GEN
->
-< ## 1. Goals
-> ## 1 Goals" 10
+>" 10
 grep -q "add d0c --kind heading --level 1 --unnumbered --title Overview" "$T/calls" &&
   grep -q "add d0c --kind heading --level 2 --unnumbered --title 'Notes'\|add d0c --kind heading --level 2 --unnumbered --title Notes" "$T/calls" &&
   grep -q "add d0c --kind heading --level 2 --unnumbered --title '2. Not a section number here'" "$T/calls" &&
@@ -319,12 +320,8 @@ Deepest text.
 
 ## 2. Back up
 EOF_MD
-roundtrip "T013: a 5-level outline round-trips, '#####' and '######' kept" "$P" "< ## 1. One
-> $GEN
->
-> ## 1 One
-< ## 2. Back up
-> ## 2 Back up" 11
+roundtrip "T013: a 5-level outline round-trips, '#####' and '######' kept" "$P" "> $GEN
+>" 11
 
 # --- 12. T014: YAML front matter ---------------------------------------------------------------------
 P="csi-spl-doc/doc/md/fm.md"
@@ -343,9 +340,7 @@ Preamble.
 Text.
 EOF_MD
 roundtrip "T014: the front matter is written back on top of the page" "$P" "> $GEN
->
-< ## 1. Body
-> ## 1 Body" 12
+>" 12
 python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["root_attrs"]; sys.exit(a != {"front_matter": "title: Front matter\ntags: [a, b]"})' "$T/dt.12.json" &&
   pass "T014: the front matter is the root item's attrs.front_matter" || fail "T014 root attrs: $(cat "$T/dt.12.json")"
 
@@ -368,12 +363,8 @@ After the fence.
 
 ## 2. Next
 EOF_MD
-roundtrip "T015: a '\`\`\`\`' fence holding '\`\`\`' and '## ' stays one body" "$P" "< ## 1. Example
-> $GEN
->
-> ## 1 Example
-< ## 2. Next
-> ## 2 Next" 13
+roundtrip "T015: a '\`\`\`\`' fence holding '\`\`\`' and '## ' stays one body" "$P" "> $GEN
+>" 13
 [[ "$(calls | grep -c '^add ')" == 2 ]] && pass "T015: two sections, the fenced '## ' is text" ||
   fail "T015: $(calls | grep '^add ')"
 
@@ -451,5 +442,42 @@ python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose <(echo '{"title":"Pr
 [[ "$(grep -c '^Read this first\.$' "$T/old17.out")" == 1 ]] && cmp -s "$T/old17.out" "$R/$P" &&
   pass "SPL-1612: an older spool's export (no preamble) composes the same page" ||
   fail "older spool compose: $(diff "$R/$P" "$T/old17.out")"
+
+# --- 18. SPL-1900: the author's heading dot and spacing come back ---------------------------------
+FX="$APP_ROOT/csi-spl-api/src/go/spool-hub-api/cmd/spool/testdata/doctree-export-fidelity.json"
+P="csi-spl-doc/doc/md/fidelity.md"
+python3 -c 'import json,sys; sys.stdout.write(json.load(open(sys.argv[1]))["md"])' "$FX" >"$R/$P"
+python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" split "$R/$P" "$T/split18" >"$T/plan18" 2>&1
+if python3 - "$FX" "$T/plan18" "$T/split18" <<'EOF_PY'
+import json, sys
+fx = json.load(open(sys.argv[1]))
+want = []
+for it in fx["items"][1:]:
+    a = it["attrs"]
+    num = "-" if a.get("numbered") is False else it["outline"] + ("." if a.get("outline_dot") else "")
+    gaps = ",".join(k for k in ("tight", "tight_end") if a.get(k))
+    want.append((num, it["title"], it["body"], gaps))
+got = []
+for line in open(sys.argv[2]).read().splitlines():
+    lvl, num, title, body, gaps = line.split("\t")
+    got.append((num, title, open(body).read() if body else "", gaps))
+pre = open(sys.argv[3] + "/preamble.md").read()
+sys.exit(0 if got == want and pre == fx["items"][0]["body"] else f"split:\n got {got} {pre!r}\nwant {want}")
+EOF_PY
+then pass "SPL-1900: split stores the fixture's items: '1.' dotted, bodies as written, the tight edges"
+else fail "SPL-1900 split: $(cat "$T/plan18")"
+fi
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); json.dump({"title": d["title"]}, open(sys.argv[2], "w")); json.dump({"items": d["items"]}, open(sys.argv[3], "w")); open(sys.argv[4], "w").write(d["export"].rstrip("\n") + "\n")' \
+  "$FX" "$T/head18.json" "$T/read18.json" "$T/export18.md"
+python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose "$T/head18.json" "$T/read18.json" "$T/export18.md" d1 >"$T/out18.md" 2>&1
+cmp -s "$T/out18.md" "$R/$P" && pass "SPL-1900: compose of the fixture's export is the fixture's md, byte for byte" ||
+  fail "SPL-1900 compose: $(diff "$R/$P" "$T/out18.md")"
+roundtrip "SPL-1900: the fixture page round-trips, only the generated-from line's doc id changes" "$P" "< ${GEN/d0c/d1}
+> $GEN" 18
+grep -q "add d0c --kind heading --level 1 --dotted --title 'The job'" "$T/calls" &&
+  grep -q "add d0c --kind heading --level 2 --title Read" "$T/calls" &&
+  grep -q "add d0c --kind heading --level 1 --unnumbered --tight --tight-end --title Overview" "$T/calls" &&
+  pass "SPL-1900: the import adds '1.' --dotted, text right under / above a heading --tight / --tight-end" ||
+  fail "SPL-1900 add flags: $(cat "$T/calls")"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

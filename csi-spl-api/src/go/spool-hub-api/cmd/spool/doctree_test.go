@@ -453,9 +453,11 @@ func TestDocTreeMarkdownWUIParity(t *testing.T) {
 }
 
 // The goldens: branchToMarkdown (-doctree-export.ts) run under node on the
-// fixture of TestDocTreeMarkdownWUIParity, verbatim.
+// fixture of TestDocTreeMarkdownWUIParity, verbatim. Since SPL-1900 a body is
+// written as stored: Intro keeps its indent and its trailing spaces, End's
+// blank body ("\n") is its one blank line.
 var (
 	dtZ64       = strings.Repeat("0", 64)
-	dtWUIWhole  = "# 1 Intro\n\nHello ![one](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 1: one*\n tail\n![x](/v1/workspace/doctree/other/images/" + dtZ64 + ".png)\n\n![Sec img](https://example.com/i.png)\n\n*Figure 2: Sec [img]*\n\n## 1.1 Untitled\n\n```bash\necho hi\n```\n\n### 1.1.1 Deep\n\n![two](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 3: two*\n\n# 2 End\n\n# 3 Flow\n\n```mermaid\ngraph TD\n  A --> B\n```\n"
+	dtWUIWhole  = "# 1 Intro\n\n  Hello ![one](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 1: one*\n tail\n![x](/v1/workspace/doctree/other/images/" + dtZ64 + ".png)  \n\n![Sec img](https://example.com/i.png)\n\n*Figure 2: Sec [img]*\n\n## 1.1 Untitled\n\n```bash\necho hi\n```\n\n### 1.1.1 Deep\n\n![two](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 3: two*\n\n# 2 End\n\n\n# 3 Flow\n\n```mermaid\ngraph TD\n  A --> B\n```\n"
 	dtWUIBranch = "# 1.1 Untitled\n\n```bash\necho hi\n```\n\n## 1.1.1 Deep\n\n![two](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 3: two*\n"
 )

@@ -77,3 +77,34 @@ describe('branchToMarkdown: the preamble opens a whole-document export', () => {
     assert.equal(branchToMarkdown([], 'Untitled', f, root), 'Who holds it.\n\n' + pic + '\n\n*Figure 1: map*\n')
   })
 })
+
+// SPL-1900 (Qto gaps G1 + G2): the export gives back the md file as the
+// author wrote it. The fixture is the one every exporter is held to
+// (cmd/spool TestDocTreeMarkdownFidelity, csi-spl-orc doctree-export-md.tst.sh
+// for spl-doctree-md.py): "1." kept (attrs.outline_dot), an indented first
+// line, 6 blank lines under a heading, blank runs at a body's edges, text
+// right under a heading and right above the next (attrs.tight, tight_end).
+describe('branchToMarkdown: the export keeps the heading dot and the spacing (SPL-1900)', () => {
+  const FX = join(WUI, '../csi-spl-api/src/go/spool-hub-api/cmd/spool/testdata/doctree-export-fidelity.json')
+  const fx = JSON.parse(readFileSync(FX, 'utf8'))
+  const [root, ...items] = fx.items
+
+  it('writes the fixture export byte for byte, as cmd/spool does', () => {
+    assert.equal(branchToMarkdown(items, 'Untitled', undefined, root), fx.export)
+  })
+
+  it('keeps "1." where attrs.outline_dot is set, "1.1" where not', () => {
+    const md = branchToMarkdown(items, 'Untitled')
+    assert.match(md, /^# 1\. The job$/m)
+    assert.match(md, /^## 1\.1 Read$/m)
+  })
+
+  it('a body stored trimmed (the old import, the WUI) exports as before', () => {
+    const old = [
+      { id: 'a', outline: '1', depth: 1, title: 'A', body: 'Text.', attrs: {} },
+      { id: 'b', outline: '2', depth: 1, title: 'B', body: 'More.\n', attrs: {} },
+      { id: 'c', outline: '3', depth: 1, title: 'C', body: '', attrs: {} },
+    ]
+    assert.equal(branchToMarkdown(old, 'Untitled'), '# 1 A\n\nText.\n\n# 2 B\n\nMore.\n\n# 3 C\n')
+  })
+})

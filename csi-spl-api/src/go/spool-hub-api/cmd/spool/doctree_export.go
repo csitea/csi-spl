@@ -18,8 +18,13 @@ import (
 //
 // Per item, in document order: a heading (# by level, from the branch's top
 // level, at most ######) with the outline number and the title (no number
-// for an unnumbered item, spec 137 T012a: the hub sends it no outline); the body
-// with each picture token followed by its "*Figure N: caption*" line; the
+// for an unnumbered item, spec 137 T012a: the hub sends it no outline; "1."
+// when the item's attrs.outline_dot is true, the author's form kept by the md
+// import, SPL-1900); a blank line, none when attrs.tight is true (the md had
+// its text right under the heading); the body as it is stored, its edge
+// blank lines and its first line's indent kept (docTreeBodyLines; no blank
+// line after it when attrs.tight_end is true), with each picture token
+// followed by its "*Figure N: caption*" line; the
 // code block (attrs.src) fenced with ```<attrs.lang> (bare when no lang); the
 // section image (attrs.img_http_path) as a token and its figure line. Figure
 // numbers run through the whole document, inline pictures first, then the
@@ -138,12 +143,34 @@ func docTreeBranch(items []dtItem, item string) ([]dtItem, error) {
 }
 
 // docTreeHeading is one item's heading line: the outline number and the
-// title, the title alone when the item is unnumbered (no outline).
-func docTreeHeading(level int, outline, title string) string {
+// title, the title alone when the item is unnumbered (no outline); dot
+// writes the number as "1." (attrs.outline_dot).
+func docTreeHeading(level int, outline, title string, dot bool) string {
 	if outline == "" {
 		return strings.Repeat("#", level) + " " + title
 	}
+	if dot {
+		outline += "."
+	}
 	return strings.Repeat("#", level) + " " + outline + " " + title
+}
+
+// docTreeBodyLines is a body's lines under its heading's blank line, the body
+// kept as it is stored (SPL-1900): one trailing newline ends its last line
+// (the md import stores each line newline-ended), every other blank line and
+// the first line's indent are the author's. A body with text closes with a
+// blank line, none when tightEnd (attrs.tight_end: the md had the next
+// heading right under it); a blank body is its blank lines alone, so the
+// md's blank-line run under the heading comes back as it was.
+func docTreeBodyLines(body string, tightEnd bool) []string {
+	if body == "" {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
+	if strings.TrimSpace(body) == "" || tightEnd {
+		return lines
+	}
+	return append(lines, "")
 }
 
 // docTreeSplitRoot is the hidden root, when items carry it (first, no parent,
@@ -184,10 +211,11 @@ func docTreeMarkdown(items []dtItem, doc, item string) (string, error) {
 			title = docTreeUntitled
 		}
 		level := min(6, it.Depth-base+1)
-		out = append(out, docTreeHeading(level, it.Outline, title), "")
-		if body := strings.TrimSpace(bodyWithFigures(it, doc, figs)); body != "" {
-			out = append(out, body, "")
+		out = append(out, docTreeHeading(level, it.Outline, title, it.Attrs["outline_dot"] == true))
+		if it.Attrs["tight"] != true {
+			out = append(out, "")
 		}
+		out = append(out, docTreeBodyLines(bodyWithFigures(it, doc, figs), it.Attrs["tight_end"] == true)...)
 		if src := it.attr("src"); src != "" {
 			out = append(out, "```"+strings.TrimSpace(it.attr("lang")), src, "```", "")
 		}

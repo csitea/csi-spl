@@ -125,7 +125,11 @@ printf '{"%s":[%s]}' "$SPOOL_BOX_ID" "$ids" >"$SPOOL_ROOT/.hub/roster.json"
 sleep 60
 EOF
 chmod +x "$T_TMP/bin/spool"
-export SPOOL_BIN="$T_TMP/bin/spool" SPOOL_HARNESS_WAIT_SECS=5
+# The cap is a ceiling, not a cost: the harness returns at the first roster
+# that lists the agent, so a green run waits no longer. 5 s flaked under CI
+# load (wf 10 runs 38080037175, 38118720855: no "announced"); the cases that
+# test the timeout set their own 1 s.
+export SPOOL_BIN="$T_TMP/bin/spool" SPOOL_HARNESS_WAIT_SECS=30
 kill_sidecar() { kill "$(cat "$SPOOL_ROOT/.hub/hub-run.pid" 2>/dev/null)" 2>/dev/null || true; }
 trap 'kill_sidecar; t_cleanup' EXIT
 

@@ -27,7 +27,8 @@
 # @param   readable by this run user, are different FATALS)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_KIND (optional) - note (default) | task | result | blocker | msg
-# @param DESK_FILES (optional) - space-separated paths to attach (each blobbed under its own name)
+# @param DESK_FILES (optional) - space-separated paths to attach (each blobbed under its own name;
+# @param   a path with no known extension is refused, how-to-post.md rule 13)
 # @param DESK_TYPED_BY (optional) - HUM-<n>: the human this post speaks for, the
 # @param   agent recorded as the typist (specs/036 `spool send --typed-by`). The hub
 # @param   refuses it (typed_by_not_bound) unless do_spl_box_operator_grant bound
@@ -54,6 +55,7 @@ do_spl_desk_post() {
   for f in "${files[@]}"; do
     [[ -f "$f" && -r "$f" ]] || { do_log "FATAL DESK_FILES entry is not a readable file: '$f'"; return 1; }
   done
+  spl_desk_attach_check "${files[@]}" || return 1
 
   local hub d
   hub="$SPL_HUB_URL"

@@ -78,6 +78,20 @@ comments and issue descriptions.
    8-character id (`1f5e074b`) stays text; it reads like a commit sha.
 12. A discussion stays on its subject; a side issue that pops up in it is a
    tangent that gets its own topic (section 8).
+13. **Every attached file keeps its real extension** (owner HUM-10,
+   2026-10-14, t1 topic 4f98d07c, msg:33435b09-b31f-4227-b50b-8312f4795a38):
+   "why cann't you provide the files with their real png or jpg file
+   extension ... no more hidden txt files - the real file extensions are
+   needed". A screenshot goes out as `shot.png`, a photo as `.jpg`, a report
+   as `.pdf` or `.md`: the WUI shows an image inline and offers anything else
+   under its own name. Never attach a hash-named blob copy, a temp file
+   without an extension, or a file renamed to `.txt`. Attach with
+   `do_spl_desk_reply` / `do_spl_desk_post` `DESK_FILES` or
+   `spool send --put-file <path>`, which keep the name; both desk actions
+   refuse (FATAL) a path with no known extension. `spool send --file-id
+   <id>` and the MCP `spool_send` `file_ids` name the file by its 64-hex
+   hash, so a reader gets an extension-less download that opens as
+   gibberish (SPL-1776): do not use them for a file a human reads.
 
 
 

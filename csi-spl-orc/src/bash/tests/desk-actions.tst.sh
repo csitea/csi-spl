@@ -569,6 +569,30 @@ out=$(SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_
 ! grep -qE -- '^put-file|--file-id' "$T/fake.log" &&
   pass "do_spl_desk_reply never attaches by --file-id (a hash name, no extension)" ||
   fail "reply attached by id: $(cat "$T/fake.log")"
+# how-to-post.md rule 13 (owner, t1 4f98d07c msg 33435b09): a path with no
+# known extension - a hash-named blob copy, a .tmp - is refused before any
+# send, by the reply and by the post; a .PNG in upper case is fine.
+HASHF="$T/88f5b3f7a56dc2d65802d3c9b13b1151d8e2d6d280683d39bf46351a90867ce5"
+echo x >"$HASHF"; echo x >"$T/x.tmp"; echo x >"$T/SHOT.PNG"
+for bad in "$HASHF" "$T/x.tmp"; do
+  : >"$T/fake.log"; rm -f "$T/state/dev/desk/t1/box-desk/answered"
+  out=$(SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+    DESK_BODY='here' DESK_FILES="$T/shot.png $bad" DRY_RUN=0 2>&1); rc=$?
+  [[ $rc -ne 0 && "$out" == *"no known file extension: '$bad'"* ]] && ! grep -q -- '^send ' "$T/fake.log" &&
+    pass "do_spl_desk_reply refuses an attachment with no known extension (${bad##*/})" ||
+    fail "reply with ${bad##*/} (rc=$rc): $out / $(cat "$T/fake.log")"
+  : >"$T/fake.log"
+  out=$(SNIPPET="$POST" in_orc FAKE="$T/fakespool" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+    DESK_CHANNEL=ops DESK_BODY='here' DESK_FILES="$bad" DRY_RUN=0 2>&1); rc=$?
+  [[ $rc -ne 0 && "$out" == *"no known file extension"* ]] && ! grep -q -- '^send ' "$T/fake.log" &&
+    pass "do_spl_desk_post refuses an attachment with no known extension (${bad##*/})" ||
+    fail "post with ${bad##*/} (rc=$rc): $out / $(cat "$T/fake.log")"
+done
+: >"$T/fake.log"; rm -f "$T/state/dev/desk/t1/box-desk/answered"
+out=$(SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DESK_BODY='here' DESK_FILES="$T/SHOT.PNG" DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -q -- "--put-file $T/SHOT.PNG" "$T/fake.log" &&
+  pass "CONTROL an upper-case .PNG is a known extension" || fail "CONTROL .PNG (rc=$rc): $out"
 # CONTROL: no DESK_FILES, no put-file and no --file-id.
 : >"$T/fake.log"; rm -f "$T/state/dev/desk/t1/box-desk/answered"
 SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \

@@ -77,7 +77,8 @@
 # @param   DESK_TO. Given with a full UUID and DESK_TO, no inbox is read.
 # @param DESK_FILES (optional) - space-separated paths to attach to the answer
 # @param   (each sent with `send --put-file`, so it keeps its own name and
-# @param   extension, e.g. shot.png; SPL-1776)
+# @param   extension, e.g. shot.png; SPL-1776). A path with no known
+# @param   extension is refused (how-to-post.md rule 13)
 # @param DESK_ACK (optional) - 1 = archive the answered message, default 0
 # @param DESK_ANY (optional) - 1 = answer the newest human message even when
 # @param   several conversations are waiting (the pre-2026-09-21 behaviour)
@@ -327,6 +328,7 @@ _spl_desk_reply_check_args() {
   for f in "$@"; do
     [[ -f "$f" && -r "$f" ]] || { do_log "FATAL DESK_FILES entry is not a readable file: '$f'"; return 1; }
   done
+  spl_desk_attach_check "$@" || return 1
   _spl_desk_reply_release_warn "$body"
   return 0
 }

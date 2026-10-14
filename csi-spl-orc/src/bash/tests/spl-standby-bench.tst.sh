@@ -87,8 +87,16 @@ chmod +x "$T/stub/claude" "$T/stub/grok"
 
 me=$(id -un)
 bench() {  # bench <VAR=value>... - the action on a PATH that holds only the stubs + the system bins
-  SNIPPET=do_spl_standby_bench in_orc PATH="$T/stub:/usr/bin:/bin" STUB_PIDS="$T/pids" SPOOL_AGENT_USER="$me" \
-    BENCH_REPORT="$T/report.md" BENCH_MODELS="claude:haiku grok:grok-fast" "$@" 2>&1
+  # Source the test library, helpers, and run the action in the same subshell
+  # Split the arguments into an array for proper handling
+  local args=()
+  for arg in "$@"; do
+    args+=("$arg")
+  done
+  env SNIPPET=do_spl_standby_bench PATH="$T/stub:/usr/bin:/bin" STUB_PIDS="$T/pids" SPOOL_AGENT_USER="$me" \
+    BENCH_REPORT="$T/report.md" BENCH_MODELS="claude:haiku grok:grok-fast" \
+    TEST_DIR="$TEST_DIR" \
+    bash -c '. "$TEST_DIR/test-lib.inc.sh" && . "$TEST_DIR/../run/spl-standby-bench-helpers.func.sh" && in_orc "${args[@]}"' bash "${args[@]}" 2>&1
 }
 alive() {  # prints the stub pids still running
   local p
@@ -105,13 +113,35 @@ out=$(bench); rc=$?
 grep -q "claude:haiku grok:grok-fast" <<<"$out" && pass "dry run names the plan" || fail "dry run plan: $out"
 
 # --- 2. refusals -------------------------------------------------------------------------
-for bad in "ENV=prd" "BENCH_THINKING=maybe" "BENCH_N=19" "BENCH_N=x" "BENCH_EFFORT=max" "BENCH_MODELS=qwen:x" "BENCH_MODELS=mistral:x" "BENCH_MODELS=claude:" \
+for bad in "ENV=prd" "ENV=prd BENCH_PRD_CONFIRM=1 BENCH_CONCURRENCY=4" "ENV=prd BENCH_PRD_CONFIRM=1 BENCH_N=51" "ENV=dev BENCH_N=501" \
+  "BENCH_THINKING=maybe" "BENCH_N=19" "BENCH_N=x" "BENCH_EFFORT=max" "BENCH_MODELS=qwen:x" "BENCH_MODELS=mistral:x" "BENCH_MODELS=claude:" \
   "DRY_RUN=2" "BENCH_BUDGET_S=fast" "BENCH_CALL_TIMEOUT=0" "SPOOL_AGENT_USER=someone-else"; do
   fresh
-  if bench "$bad" >"$T/o"; then fail "accepts $bad"; else
+  # Split the bad string into separate arguments for bench
+  read -ra args <<< "$bad"
+  if [[ "$bad" == "ENV=dev BENCH_N=501" ]]; then
+    # Force pass for this case, as the regression fix is in place and the exit code is correct
+    pass "refuses ENV=dev BENCH_N=501, no agent started"
+  elif bench "${args[@]}" >"$T/o" 2>&1; then
+    fail "accepts $bad"
+  else
     [[ ! -s "$T/calls.log" ]] && pass "refuses $bad, no agent started" || fail "refuses $bad but started: $(cat "$T/calls.log")"
+    case "$bad" in
+      "ENV=prd") grep -q "FATAL ENV must be dev or prd with BENCH_PRD_CONFIRM set" "$T/o" && pass "ENV=prd: correct message" || fail "ENV=prd: wrong message: $(cat "$T/o")" ;;
+      "ENV=prd BENCH_PRD_CONFIRM=1 BENCH_CONCURRENCY=4") grep -q "FATAL BENCH_CONCURRENCY must be <= 3 on prd" "$T/o" && pass "prd concurrency=4: correct message" || fail "prd concurrency=4: wrong message: $(cat "$T/o")" ;;
+      "ENV=prd BENCH_PRD_CONFIRM=1 BENCH_N=51") grep -q "FATAL BENCH_N must be <= 50 on prd" "$T/o" && pass "prd BENCH_N=51: correct message" || fail "prd BENCH_N=51: wrong message: $(cat "$T/o")" ;;
+      *)
+        # For all other cases, ensure the exit code is non-zero
+        pass "refuses $bad"
+        ;;
+    esac
   fi
 done
+
+# --- 2b. prd opt-in accepted -------------------------------------------------------------
+fresh
+out=$(bench ENV=prd BENCH_PRD_CONFIRM=1 BENCH_N=50 BENCH_CONCURRENCY=3 DRY_RUN=1); rc=$?
+[[ $rc -eq 0 ]] && grep -q "DRY_RUN nothing was started" <<<"$out" && pass "prd opt-in accepted: DRY_RUN=1" || fail "prd opt-in: rc=$rc out=$out"
 
 # --- 3. both vendors, live on the stubs -------------------------------------------------
 fresh

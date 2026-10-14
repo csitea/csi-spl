@@ -1,6 +1,6 @@
 # Runbook: the orchestrator seat (any vendor)
 
-> Generated from qto doc `f10a4274-1ef7-489a-8a9b-cec09fdddf32`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `83485572-ec10-40dd-ba40-8c96624ec81c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 For whoever holds the orchestrator role (`c-001`), on any agent vendor: a
 Claude seat, a Grok seat or another. Everything here is a shell command, a

@@ -63,12 +63,10 @@ export interface SessionClaims {
 
 type SessionAuth = ReturnType<typeof useAuthClient>
 
-type SessionRefs = { state: Ref<SessionState>, claims: Ref<SessionClaims | null> }
-
 /* P3-02: the document-head script sends a reader to /login before any JS
    loads when this browser last read 'out' (utils/signed-out-hint.mjs).
    'unknown' and 'loading' say nothing, so they leave the hint as it is. */
-function watchSignedOutHint({ state }: SessionRefs) {
+function watchSignedOutHint(state: Ref<SessionState>) {
   if (import.meta.client && !useSpoolApi().mock) {
     const siteUrl = String(useRuntimeConfig().public.siteUrl || '')
     watch(state, (s) => {
@@ -91,7 +89,7 @@ function signedIn() {
 }
 
 /* Probe, adopt and drop the sign-in state. */
-function probeActions({ state, claims }: SessionRefs, auth: SessionAuth) {
+function probeActions(state: Ref<SessionState>, claims: Ref<SessionClaims | null>, auth: SessionAuth) {
   /* The route middleware and the shell both probe on arrival; one request serves both. */
   let probing: Promise<void> | null = null
   function probe() {
@@ -134,10 +132,14 @@ function probeActions({ state, claims }: SessionRefs, auth: SessionAuth) {
 }
 
 /* Mirror a saved (or optimistic) account choice into the claims without another probe. */
-function claimMirrors({ claims }: SessionRefs) {
+function claimMirrors(claims: Ref<SessionClaims | null>) {
+  function mirror(patch: Partial<SessionClaims>) {
+    if (claims.value) claims.value = { ...claims.value, ...patch }
+  }
+
   /** spec 021: mirror a saved preference without another probe. */
   function setPreferredLocale(code: string) {
-    if (claims.value) claims.value = { ...claims.value, preferred_locale: code }
+    mirror({ preferred_locale: code })
   }
 
   /** mirror the "Debug pane" checkbox (optimistic; reverted on a failed save). */
@@ -147,64 +149,64 @@ function claimMirrors({ claims }: SessionRefs) {
 
   /** mirror a saved display name (the hub answers it as `name`). */
   function setName(name: string) {
-    if (claims.value) claims.value = { ...claims.value, name }
+    mirror({ name })
   }
 
   /** mirror a palette pick saved on the account. */
   function setPreferredTheme(theme: string) {
-    if (claims.value) claims.value = { ...claims.value, preferred_theme: theme }
+    mirror({ preferred_theme: theme })
   }
 
   /** SPL-976: mirror the "Text fields" choice (optimistic; reverted on a failed save). */
   function setSubmitKey(key: string) {
-    if (claims.value) claims.value = { ...claims.value, submit_key: key }
+    mirror({ submit_key: key })
   }
 
   /** SPL-979: mirror the rail order (optimistic; reverted on a failed save). */
   function setRailOrder(order: string[] | null) {
-    if (claims.value) claims.value = { ...claims.value, rail_order: order }
+    mirror({ rail_order: order })
   }
 
   /** Topic c6994436: mirror a layout choice (optimistic; reverted on a failed save). */
   function setViewPref(key: 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons' | 'link_previews' | 'email_client' | 'phone_app', value: string) {
-    if (claims.value) claims.value = { ...claims.value, [key]: value }
+    mirror({ [key]: value })
   }
 
   /** SPL-1132: mirror the Issues sheet column widths (optimistic; reverted on a failed save). */
   function setIssuesColumns(cols: Record<string, number> | null) {
-    if (claims.value) claims.value = { ...claims.value, issues_columns: cols }
+    mirror({ issues_columns: cols })
   }
 
   /** SPL-1181: mirror the Issues default sort (optimistic; reverted on a failed save). */
   function setIssuesSort(sort: { col: string, dir: string } | null) {
-    if (claims.value) claims.value = { ...claims.value, issues_sort: sort }
+    mirror({ issues_sort: sort })
   }
 
   /** SPL-1182: mirror the divider widths (optimistic; reverted on a failed save). */
   function setPaneSizes(sizes: Record<string, number | Record<string, number>> | null) {
-    if (claims.value) claims.value = { ...claims.value, pane_sizes: sizes }
+    mirror({ pane_sizes: sizes })
   }
 
   /** CLE-77908: mirror the time zone (optimistic; reverted on a failed save). */
   function setTimeZone(zone: string | null) {
-    if (claims.value) claims.value = { ...claims.value, time_zone: zone }
+    mirror({ time_zone: zone })
   }
 
   /** HUM-10 ae2e5093: mirror the shortcuts switch (optimistic; reverted on a failed save). */
   function setKeyboardShortcuts(on: boolean | null) {
-    if (claims.value) claims.value = { ...claims.value, keyboard_shortcuts: on }
+    mirror({ keyboard_shortcuts: on })
   }
 
   /** Spec 107 1.2: mirror "Count my reading time" (optimistic; reverted on a failed save). */
   function setHoursReading(on: boolean | null) {
-    if (claims.value) claims.value = { ...claims.value, hours_reading: on }
+    mirror({ hours_reading: on })
   }
 
   return { setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, setTimeZone, setKeyboardShortcuts, setHoursReading }
 }
 
 /* Sign out by hand, or stop acting as someone. */
-function signOutActions({ state, claims }: SessionRefs, auth: SessionAuth) {
+function signOutActions(state: Ref<SessionState>, claims: Ref<SessionClaims | null>, auth: SessionAuth) {
   async function logout() {
     const hum = claims.value?.hum
     await auth.logout()
@@ -248,7 +250,6 @@ export const useSessionStore = defineStore('session', () => {
 
   const label = computed(() => claims.value?.hum || claims.value?.name || claims.value?.email || '')
 
-  const refs = { state, claims }
-  watchSignedOutHint(refs)
-  return { state, claims, label, ...probeActions(refs, auth), ...claimMirrors(refs), ...signOutActions(refs, auth) }
+  watchSignedOutHint(state)
+  return { state, claims, label, ...probeActions(state, claims, auth), ...claimMirrors(claims), ...signOutActions(state, claims, auth) }
 })

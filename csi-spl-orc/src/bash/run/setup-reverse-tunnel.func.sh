@@ -15,7 +15,12 @@
 # @description               row reverse-tunnel runs it every minute; no
 # @description               recorded tunnel = nothing to do
 # @description   stop      - stop the tunnel and drop its record
-# @description   status    - one line per recorded tunnel: up | down
+# @description   status    - one line per recorded tunnel: up | stuck | down
+# @description A forward the other box refuses ("remote port forwarding
+# @description failed": a stale listener holds its port) is STUCK: recorded in
+# @description <state>/<box>.stuck and reported as one WARN line at most every
+# @description REVERSE_TUNNEL_STUCK_EVERY minutes (SPL-1802); the other box frees
+# @description the port with do_clear_reverse_tunnel_listener.
 # @description start/reconcile/stop are a dry run unless DRY_RUN=0.
 # @param REVERSE_TUNNEL_CMD (optional) - start (default) | reconcile | stop | status
 # @param TO_BOX (optional) - the box that gets the tunnel (its BOX_TAG), default sat
@@ -24,6 +29,7 @@
 # @param REVERSE_TUNNEL_PORT (optional) - the port on the other box's 127.0.0.1, default 2222
 # @param REVERSE_TUNNEL_STATE_DIR (optional) - default /var/csi/csi-spl/reverse-tunnel
 # @param REVERSE_TUNNEL_START_WAIT (optional) - seconds a new tunnel must stay up, default 5
+# @param REVERSE_TUNNEL_STUCK_EVERY (optional) - minutes between two reports of a stuck tunnel, default 15
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_setup_reverse_tunnel
 # @example DRY_RUN=0 ./run -a do_setup_reverse_tunnel
@@ -58,7 +64,9 @@ do_setup_reverse_tunnel() {
       local f rc=0
       for f in "$dir"/*.conf; do
         [[ -f "$f" ]] || continue
-        spl_rt_reconcile_one "$dir" "$(basename "$f" .conf)" "$dry" || rc=1
+        # 3 = stuck: recorded and reported by spl_rt_stuck, not a failure of
+        # this run (a per-minute FATAL would bury the one line that says why)
+        spl_rt_reconcile_one "$dir" "$(basename "$f" .conf)" "$dry" || { [[ $? -eq 3 ]] || rc=1; }
       done
       return "$rc" ;;
     stop)
@@ -69,7 +77,7 @@ do_setup_reverse_tunnel() {
         return 0
       fi
       [[ -n "$pid" ]] && kill "$pid" 2>/dev/null
-      rm -f "$dir/$box.conf" "$dir/$box.pid"
+      rm -f "$dir/$box.conf" "$dir/$box.pid" "$dir/$box.stuck"
       do_log "OK tunnel to $box stopped and its record dropped" ;;
     status)
       local f b
@@ -77,6 +85,8 @@ do_setup_reverse_tunnel() {
         [[ -f "$f" ]] || { echo "reverse-tunnel: none recorded in $dir"; return 0; }
         b="$(basename "$f" .conf)"
         if [[ -n "$(spl_rt_pid "$dir" "$b")" ]]; then echo "reverse-tunnel: $b up ($(spl_rt_spec "$f"))"
+        elif [[ -f "$dir/$b.stuck" ]]; then
+          echo "reverse-tunnel: $b stuck since $(sed -n 's/^since=//p' "$dir/$b.stuck") ($(sed -n 's/^count=//p' "$dir/$b.stuck") tries; $(spl_rt_spec "$f"))"
         else echo "reverse-tunnel: $b down ($(spl_rt_spec "$f"))"; fi
       done ;;
   esac
@@ -106,7 +116,7 @@ spl_rt_reconcile_one() {
   dest="$(sed -n 's/^dest=//p' "$conf")"; port="$(sed -n 's/^port=//p' "$conf")"
   [[ "$dest" =~ ^[A-Za-z0-9_.@-]+$ && "$port" =~ ^[0-9]+$ ]] || { do_log "FATAL $conf is malformed"; return 1; }
   pid="$(spl_rt_pid "$dir" "$box")"
-  [[ -n "$pid" ]] && { do_log "OK tunnel to $box is up (pid $pid)"; return 0; }
+  [[ -n "$pid" ]] && { rm -f "$dir/$box.stuck"; do_log "OK tunnel to $box is up (pid $pid)"; return 0; }
   (( dry )) && { do_log "INFO DRY_RUN would: start ssh $dest -R 127.0.0.1:$port:127.0.0.1:22"; return 0; }
   # setsid + every fd above 2 closed: the ssh outlives this action and must
   # not hold ./run's tee pipes open (a ./run that never returns). Its own
@@ -128,6 +138,35 @@ spl_rt_reconcile_one() {
     [[ -n "$(spl_rt_pid "$dir" "$box")" ]] || break
   done
   pid="$(spl_rt_pid "$dir" "$box")"
-  [[ -n "$pid" ]] || { do_log "FATAL tunnel to $box exited at once: $(tail -n1 "$dir/$box.log" 2>/dev/null)"; rm -f "$dir/$box.pid"; return 1; }
-  do_log "OK tunnel to $box started (pid $pid): its 127.0.0.1:$port reaches this box's sshd"
+  if [[ -z "$pid" ]]; then
+    local why; why="$(tail -n1 "$dir/$box.log" 2>/dev/null)"; rm -f "$dir/$box.pid"
+    [[ "$why" == *"remote port forwarding failed"* ]] && { spl_rt_stuck "$dir" "$box" "$dest" "$port"; return 3; }
+    do_log "FATAL tunnel to $box exited at once: $why"; return 1
+  fi
+  local was=""; [[ -f "$dir/$box.stuck" ]] && was=", recovered from stuck since $(sed -n 's/^since=//p' "$dir/$box.stuck")"
+  rm -f "$dir/$box.stuck"
+  do_log "OK tunnel to $box started (pid $pid)$was: its 127.0.0.1:$port reaches this box's sshd"
+}
+
+# spl_rt_stuck <dir> <box> <dest> <port> - the forward was refused: something
+# already listens on the other box's 127.0.0.1:<port> (a dead session sshd
+# never reaped, SPL-1802). Retrying alone never frees it, so it is recorded in
+# <dir>/<box>.stuck (since, count, reported: the health check reads it) and
+# reported as ONE WARN line at most every REVERSE_TUNNEL_STUCK_EVERY minutes
+# (default 15); the minutes between stay quiet.
+spl_rt_stuck() {
+  local dir="$1" box="$2" dest="$3" port="$4" f="$1/$2.stuck" since count rep now every
+  every="${REVERSE_TUNNEL_STUCK_EVERY:-15}"; [[ "$every" =~ ^[0-9]+$ ]] || every=15
+  now="$(date -u +%s)"
+  since="$(sed -n 's/^since=//p' "$f" 2>/dev/null)"; [[ -n "$since" ]] || since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  count="$(sed -n 's/^count=//p' "$f" 2>/dev/null)"; [[ "$count" =~ ^[0-9]+$ ]] || count=0
+  rep="$(sed -n 's/^reported=//p' "$f" 2>/dev/null)"; [[ "$rep" =~ ^[0-9]+$ ]] || rep=0
+  count=$((count + 1))
+  if (( now - rep >= every * 60 )); then
+    rep="$now"
+    do_log "WARN STUCK tunnel to $box: $dest's 127.0.0.1:$port is held by another listener since $since ($count tries); on $box run REVERSE_TUNNEL_FROM_BOX=<this box> TUNNEL_LOGIN_USER=<tunnel login> DRY_RUN=0 ./run -a do_clear_reverse_tunnel_listener"
+  else
+    do_log "INFO tunnel to $box still stuck since $since ($count tries, reported at $(date -u -d "@$rep" +%H:%M:%SZ))"
+  fi
+  printf 'since=%s\ncount=%s\nreported=%s\ndest=%s\nport=%s\n' "$since" "$count" "$rep" "$dest" "$port" >"$f"
 }

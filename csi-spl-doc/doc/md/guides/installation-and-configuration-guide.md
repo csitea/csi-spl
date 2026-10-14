@@ -511,6 +511,22 @@ As the satellite's agent user, must print `pong <agent user>@<this box> from sat
 ssh <THIS_BOX>-tunnel ping
 ```
 
+### 12.4.4 Let the satellite's sshd drop a dead tunnel
+
+On the satellite, as the owner user, from its checkout. A tunnel session whose ssh on this box died must not keep holding the satellite's `127.0.0.1:2222` (SPL-1802). This writes `/etc/ssh/sshd_config.d/65-spl-reverse-tunnel.conf`: a `Match User <TUNNEL_LOGIN>` block with `ClientAliveInterval 15` and `ClientAliveCountMax 4`, checked with `sshd -t` before the reload. `<TUNNEL_LOGIN>` is the `user` that `ssh -G satellite` prints on this box:
+
+```bash
+cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && TUNNEL_LOGIN_USER=<TUNNEL_LOGIN> DRY_RUN=0 ./run -a do_setup_tunnel_sshd_keepalive
+```
+
+### 12.4.5 Free a stuck tunnel port
+
+When something else already listens on the satellite's `127.0.0.1:2222`, every forward is refused. This box's cron then records `<state>/sat.stuck` (`/var/csi/csi-spl/reverse-tunnel`), logs one `WARN STUCK` line at most every 15 minutes (`REVERSE_TUNNEL_STUCK_EVERY`), and `REVERSE_TUNNEL_CMD=status` prints `stuck since`. On the satellite, this frees the port, but only when the holder is an `sshd-session` of the tunnel login and the tunnel does not answer `ping`. It kills that one pid; this box's cron forwards again within a minute:
+
+```bash
+cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && REVERSE_TUNNEL_FROM_BOX=<THIS_BOX> TUNNEL_LOGIN_USER=<TUNNEL_LOGIN> DRY_RUN=0 ./run -a do_clear_reverse_tunnel_listener
+```
+
 # 13 First boot checks
 
 Run these after the build and after every restart of the box. Each must read green.

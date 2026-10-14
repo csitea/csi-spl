@@ -16,6 +16,13 @@
 #   8. the gate runs ping and lease, refuses anything else (exit 3)
 #   9. the cron row reverse-tunnel; its script is a no-op with nothing recorded
 #  10. CONTROL: a tunnel started through the stub IS recorded in the stub log
+#  11. SPL-1802: a refused forward (stale listener on the other box) = STUCK:
+#      one WARN + a stamp, quiet for REVERSE_TUNNEL_STUCK_EVERY, retried,
+#      cleared on recovery; reconcile does not fail on it
+#  12. SPL-1802: do_setup_tunnel_sshd_keepalive writes the Match User drop-in,
+#      checks it with sshd -t (a refusal removes it), reloads, idempotent
+#  13. SPL-1802: do_clear_reverse_tunnel_listener kills the ONE holder pid only
+#      when it is an sshd-session of the tunnel user AND the ping fails
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # n, PID2, AK, PUB, M, out and rc are read inside the check strings (eval)
 set -uo pipefail
@@ -37,7 +44,7 @@ echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOTHERKEYOTHERKEYOTHERKEYOTHERKEYOTHER
 cat >"$T/stub/tunnel-ssh" <<'EOF'
 #!/usr/bin/env bash
 printf 'ssh %s\n' "$*" >>"$STUB_LOG"
-[[ "${FAKE_TUNNEL_DIE:-0}" == 1 ]] && { echo "remote port forwarding failed for listen port 2222"; exit 255; }
+[[ "${FAKE_TUNNEL_DIE:-0}" == 1 ]] && { echo "${FAKE_TUNNEL_DIE_MSG:-Error: remote port forwarding failed for listen port 2222}"; exit 255; }
 trap 'kill $! 2>/dev/null; exit 0' TERM
 sleep 300 & wait
 EOF
@@ -106,7 +113,8 @@ rt REVERSE_TUNNEL_CMD=status
 check "6. status: none recorded" 'grep -q "none recorded" "$T/o"'
 
 # --- 5. a tunnel that dies at once ------------------------------------------------------------
-check "5. exits at once = FATAL" '! rt DRY_RUN=0 FAKE_TUNNEL_DIE=1 && grep -q "FATAL tunnel to sat exited at once: remote port forwarding failed" "$T/o"'
+check "5. exits at once = FATAL" '! rt DRY_RUN=0 FAKE_TUNNEL_DIE=1 FAKE_TUNNEL_DIE_MSG="Permission denied (publickey)." && grep -q "FATAL tunnel to sat exited at once: Permission denied" "$T/o"'
+check "5. not a stale listener: no stuck stamp" '[[ ! -e $T/rt/sat.stuck ]]'
 rt REVERSE_TUNNEL_CMD=stop DRY_RUN=0
 
 # --- 7. grant ---------------------------------------------------------------------------------
@@ -154,6 +162,96 @@ check "9. cron with nothing recorded: exit 0, silent" '[[ $rc == 0 && -z "$out" 
 rt DRY_RUN=0
 check "10. CONTROL: a started tunnel is in the stub log" '[[ $(calls) == 1 ]]'
 rt REVERSE_TUNNEL_CMD=stop DRY_RUN=0
+
+# --- 11. stuck: the other box refuses the forward ------------------------------------------
+printf 'dest=satellite\nport=2222\n' >"$T/rt/sat.conf"
+: >"$T/calls.log"
+rt REVERSE_TUNNEL_CMD=reconcile DRY_RUN=0 FAKE_TUNNEL_DIE=1; rc=$?
+check "11. stuck: reconcile exit 0, one WARN STUCK naming the clear action" '[[ $rc == 0 && $(grep -c "WARN STUCK tunnel to sat" "$T/o") == 1 ]] && grep -q do_clear_reverse_tunnel_listener "$T/o" && ! grep -q FATAL "$T/o"'
+check "11. stuck: the stamp says since, count=1, port" 'grep -q "^since=20" "$T/rt/sat.stuck" && grep -qx "count=1" "$T/rt/sat.stuck" && grep -qx "port=2222" "$T/rt/sat.stuck"'
+rt REVERSE_TUNNEL_CMD=reconcile DRY_RUN=0 FAKE_TUNNEL_DIE=1
+check "11. stuck again within N min: retried, but no second WARN" '[[ $(calls) == 2 ]] && ! grep -q WARN "$T/o" && grep -qx "count=2" "$T/rt/sat.stuck"'
+rt REVERSE_TUNNEL_CMD=status
+check "11. status: stuck since" 'grep -q "reverse-tunnel: sat stuck since 20.* (2 tries" "$T/o"'
+sed -i 's/^reported=.*/reported=1/' "$T/rt/sat.stuck"
+rt REVERSE_TUNNEL_CMD=reconcile DRY_RUN=0 FAKE_TUNNEL_DIE=1
+check "11. after N min: reported again" 'grep -q "WARN STUCK .*(3 tries)" "$T/o"'
+out="$(REVERSE_TUNNEL_ALLOW_WORKTREE=1 REVERSE_TUNNEL_STATE_DIR="$T/rt" REVERSE_TUNNEL_START_WAIT=1 SSH_BIN="$T/stub/tunnel-ssh" \
+  STUB_LOG="$T/calls.log" FAKE_TUNNEL_DIE=1 bash "$PROJ_ROOT/src/bash/scripts/reverse-tunnel-cron.sh" 2>&1)"
+check "11. a cron minute while stuck and reported: silent (no per-minute FATAL)" '[[ -z "$out" ]] || { echo "$out"; false; }'
+rt REVERSE_TUNNEL_CMD=reconcile DRY_RUN=0
+check "11. recovery: started, says it was stuck, stamp gone" 'grep -q "started (pid [0-9]*), recovered from stuck since" "$T/o" && [[ ! -e $T/rt/sat.stuck ]]'
+rt REVERSE_TUNNEL_CMD=stop DRY_RUN=0
+
+# --- 12. sshd keep-alive for the tunnel login ----------------------------------------------
+mkdir -p "$T/sshd.d"
+cat >"$T/stub/fake-sshd" <<'STUB'
+#!/usr/bin/env bash
+echo "sshd $*" >>"$STUB_LOG"
+[[ "$1" == -t ]] && { [[ "${FAKE_SSHD_BAD:-0}" == 1 ]] && { echo "bad config"; exit 255; }; exit 0; }
+[[ "$1" == -T ]] && sed -n 's/^  ClientAliveInterval /clientaliveinterval /p' "$SSHD_CONF_D"/*.conf
+exit 0
+STUB
+chmod +x "$T/stub/fake-sshd"
+ka() {
+  SNIPPET=do_setup_tunnel_sshd_keepalive in_orc RT_SUDO="" SSHD_CONF_D="$T/sshd.d" SSHD_BIN="$T/stub/fake-sshd" \
+    SSHD_RELOAD_CMD="$T/stub/fake-sshd reload" "$@" >"$T/o" 2>&1
+}
+KA="$T/sshd.d/65-spl-reverse-tunnel.conf"
+check "12. refused: no TUNNEL_LOGIN_USER" '! ka DRY_RUN=0 && grep -q "FATAL TUNNEL_LOGIN_USER" "$T/o" && [[ ! -e $KA ]]'
+check "12. refused: interval 0" '! ka DRY_RUN=0 TUNNEL_LOGIN_USER=tun TUNNEL_CLIENT_ALIVE_INTERVAL=0 && [[ ! -e $KA ]]'
+: >"$T/calls.log"
+ka TUNNEL_LOGIN_USER=tun
+check "12. dry run: nothing written, no reload" 'grep -q "DRY_RUN would" "$T/o" && [[ ! -e $KA && ! -s $T/calls.log ]]'
+ka TUNNEL_LOGIN_USER=tun DRY_RUN=0
+check "12. Match User tun, ClientAlive 15 x 4, closed by Match all" 'grep -qx "Match User tun" "$KA" && grep -qx "  ClientAliveInterval 15" "$KA" && grep -qx "  ClientAliveCountMax 4" "$KA" && [[ $(tail -n1 "$KA") == "Match all" ]]'
+check "12. sshd -t, then the reload, then sshd -T for that user" '[[ $(grep -c "^sshd -t" "$T/calls.log") == 1 ]] && grep -q "^sshd reload" "$T/calls.log" && grep -q "^sshd -T -C user=tun," "$T/calls.log" && grep -q "^OK .*installed" "$T/o"'
+: >"$T/calls.log"
+ka TUNNEL_LOGIN_USER=tun DRY_RUN=0
+check "12. idempotent: unchanged, no reload" 'grep -q unchanged "$T/o" && ! grep -q reload "$T/calls.log"'
+rm -f "$KA"
+check "12. sshd -t refuses: FATAL, file removed again, no reload" '! ka TUNNEL_LOGIN_USER=tun DRY_RUN=0 FAKE_SSHD_BAD=1 && [[ ! -e $KA ]] && ! grep -q "^sshd reload" "$T/calls.log"'
+
+# --- 13. clear the stale listener ----------------------------------------------------------
+# ss: the holder (FAKE_HOLDER_PID) listens while alive; ps: says what it is;
+# ssh <from>-tunnel ping: answers only with FAKE_PING_OK=1
+cat >"$T/stub/ss" <<'STUB'
+#!/usr/bin/env bash
+echo "ss $*" >>"$STUB_LOG"
+kill -0 "$FAKE_HOLDER_PID" 2>/dev/null &&
+  printf 'LISTEN 0 128 127.0.0.1:2222 0.0.0.0:* users:(("sshd-session",pid=%s,fd=10))\n' "$FAKE_HOLDER_PID"
+exit 0
+STUB
+cat >"$T/stub/ps" <<'STUB'
+#!/usr/bin/env bash
+echo "$FAKE_PS"
+STUB
+cat >"$T/stub/ping-ssh" <<'STUB'
+#!/usr/bin/env bash
+printf 'ssh %s\n' "$*" >>"$STUB_LOG"
+[[ "${FAKE_PING_OK:-0}" == 1 ]] && { echo "pong x@hub1 from sat"; exit 0; }
+echo "Connection timed out during banner exchange" >&2; exit 255
+STUB
+chmod +x "$T/stub/ss" "$T/stub/ps" "$T/stub/ping-ssh"
+sleep 300 & HOLDER=$!
+cl() {
+  SNIPPET=do_clear_reverse_tunnel_listener in_orc RT_SUDO="" SSH_BIN="$T/stub/ping-ssh" REVERSE_TUNNEL_PING_GAP=0 \
+    FAKE_HOLDER_PID="$HOLDER" TUNNEL_PING_AS="$ME" SATELLITE_ENV_FILE="$T/none" "$@" >"$T/o" 2>&1
+}
+check "13. refused: no REVERSE_TUNNEL_FROM_BOX / TUNNEL_LOGIN_USER" '! cl TUNNEL_LOGIN_USER=tun && ! cl REVERSE_TUNNEL_FROM_BOX=hub1 && kill -0 "$HOLDER"'
+: >"$T/calls.log"
+cl REVERSE_TUNNEL_FROM_BOX=hub1 TUNNEL_LOGIN_USER=tun FAKE_PS="tun sshd-session" FAKE_PING_OK=1 DRY_RUN=0
+check "13. the tunnel answers: nothing killed" 'grep -q answers "$T/o" && kill -0 "$HOLDER" && grep -q "ssh .*hub1-tunnel ping" "$T/calls.log"'
+check "13. another process holds the port: refused, not killed" '! cl REVERSE_TUNNEL_FROM_BOX=hub1 TUNNEL_LOGIN_USER=tun FAKE_PS="tun python3" DRY_RUN=0 && grep -q "not touched" "$T/o" && kill -0 "$HOLDER"'
+check "13. an sshd-session of another user: refused, not killed" '! cl REVERSE_TUNNEL_FROM_BOX=hub1 TUNNEL_LOGIN_USER=tun FAKE_PS="root sshd-session" DRY_RUN=0 && kill -0 "$HOLDER"'
+: >"$T/calls.log"
+cl REVERSE_TUNNEL_FROM_BOX=hub1 TUNNEL_LOGIN_USER=tun FAKE_PS="tun sshd-session"
+check "13. dry run: would kill that pid, nothing killed, pinged twice" 'grep -q "would: kill -TERM $HOLDER" "$T/o" && kill -0 "$HOLDER" && [[ $(grep -c "hub1-tunnel ping" "$T/calls.log") == 2 ]]'
+cl REVERSE_TUNNEL_FROM_BOX=hub1 TUNNEL_LOGIN_USER=tun FAKE_PS="tun sshd-session" DRY_RUN=0
+check "13. stale and not answering: that ONE pid killed, port free" 'grep -q "^OK freed 127.0.0.1:2222 (stale sshd-session $HOLDER" "$T/o" && ! kill -0 "$HOLDER" 2>/dev/null'
+cl REVERSE_TUNNEL_FROM_BOX=hub1 TUNNEL_LOGIN_USER=tun FAKE_PS="tun sshd-session" DRY_RUN=0
+check "13. nothing listening: nothing to clear" 'grep -q "nothing listens" "$T/o"'
+kill "$HOLDER" 2>/dev/null
 
 [[ $fails -eq 0 ]] && echo "reverse-tunnel: ALL PASS" || echo "reverse-tunnel: $fails FAIL"
 exit "$fails"

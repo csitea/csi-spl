@@ -80,8 +80,16 @@
                   <UiIcon name="user" :size="20" />
                   <span class="users-row__main">
                     <span class="users-row__name">{{ i.email }}</span>
-                    <span class="users-row__sub muted" data-test="users-invite-sub">{{ i.expired ? t('users.expired') : t('users.pending') }} · {{ i.mailedAt ? t('users.mailed_short_at', { at: isoDateTime(i.mailedAt) }) : i.mailCount > 0 ? t('users.mailed_short') : t('users.not_mailed_short') }}<template v-if="i.createdAt && !i.mailedAt"> · {{ isoDate(i.createdAt) }}</template></span>
+                    <span v-if="i.mailedAt || i.createdAt" class="users-row__sub muted" data-test="users-invite-sub">{{ i.mailedAt ? t('users.mailed_short_at', { at: isoDateTime(i.mailedAt) }) : isoDate(i.createdAt) }}</span>
                   </span>
+                  <!-- SPL-1232: the invite's status column (inviteStatus) -->
+                  <span
+                    class="users-status"
+                    :class="'users-status--' + inviteStatus(i)"
+                    :data-status="inviteStatus(i)"
+                    :title="t('users.status')"
+                    data-test="users-invite-status"
+                  >{{ t(INVITE_STATUS_KEY[inviteStatus(i) || 'not_sent']) }}</span>
                   <span class="users-role" data-test="users-row-role">{{ roleName(i.role) }}</span>
                 </button>
               </li>
@@ -111,7 +119,7 @@ import { useSessionStore } from '~/stores/session'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useRoleName } from '~/composables/useRoleName'
 import { isoDate, isoDateTime } from '~/utils/date-iso.mjs'
-import { USER_PANE_SIDE, memberLabel, normalizeDirectory, userErrorKey } from '~/utils/tenant-users.mjs'
+import { INVITE_STATUS_KEY, USER_PANE_SIDE, inviteStatus, memberLabel, normalizeDirectory, userErrorKey } from '~/utils/tenant-users.mjs'
 import type { UserRow } from '~/utils/tenant-users.mjs'
 
 const props = withDefaults(defineProps<{
@@ -261,6 +269,17 @@ watch(() => session.state, (st) => {
   font-size: 0.75rem;
   color: var(--color-muted);
 }
+.users-status {
+  flex: 0 0 auto;
+  padding: 0 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: var(--color-muted);
+}
+.users-status--sent { color: var(--color-fg); border-color: var(--color-accent); }
+.users-status--expired { color: var(--color-danger); border-color: var(--color-danger); }
 .users-role {
   flex: 0 0 auto;
   font-size: 0.8125rem;

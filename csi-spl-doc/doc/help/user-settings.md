@@ -264,7 +264,9 @@ permission. Its sections are:
   **Remove the end date** clears it, and a membership that has passed the day
   reads **access ended**. A pending invite shows **Mailed**: **Sent** and the
   time the invitation email went out, or **Not sent**. A resend is possible
-  10 minutes after that time.
+  10 minutes after that time. In the list, each pending invite has a status
+  next to its role: **expired**, **sent** (an invitation email went out) or
+  **not sent**. An accepted invite leaves the list: the person is then a member.
   **Reset password** emails a member who signs in with a password a one-time
   link to set a new one (you never see it); by default it also signs them out
   everywhere. A member who signs in with Google or another provider has no

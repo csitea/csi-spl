@@ -147,6 +147,21 @@ export function inviteMailed(row) {
 }
 
 /**
+ * SPL-1232: the status column of one invite row. 'expired' wins; else 'sent'
+ * once an invitation mail went out, else 'not_sent'. The hub lists pending
+ * invites only (an accepted one is a member row) and records no delivery or
+ * open of the mail, so there is no 'delivered', 'opened' or 'accepted' here.
+ */
+export function inviteStatus(row) {
+  if (!row) return ''
+  if (row.expired) return 'expired'
+  return inviteMailed(row) ? 'sent' : 'not_sent'
+}
+
+/** The i18n key of an inviteStatus() value (existing words, no new strings). */
+export const INVITE_STATUS_KEY = { expired: 'users.expired', sent: 'users.mailed_short', not_sent: 'users.not_mailed_short' }
+
+/**
  * The open (unexpired) pending invite for `email` in a normalizeDirectory()
  * result, or null. HUM-10: re-submitting the invite form for such an address
  * used to re-create it silently (and reset its mail count); the page opens

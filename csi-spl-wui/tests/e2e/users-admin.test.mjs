@@ -59,6 +59,19 @@ const rowKeys = (p) => p.$$eval('[data-test=users-row]', (els) => els.map((e) =>
 const rowRole = (p, key) => p.$eval(`[data-test=users-row][data-key="${key}"] [data-test=users-row-role]`, (e) => e.textContent.trim()).catch(() => '')
 const text = (p, sel) => p.$eval(sel, (e) => e.textContent.trim()).catch(() => '')
 const row = (key) => `[data-test=users-row][data-key="${key}"]`
+// SPL-1232: an invite row's status column - its value, words, and whether it
+// sits inside the row and the viewport with the row not scrolling sideways
+const statusOf = (p, key) => p.$eval(`${row(key)} [data-test=users-invite-status]`, (e) => {
+  const r = e.getBoundingClientRect()
+  const rowEl = e.closest('[data-test=users-row]')
+  const rr = rowEl.getBoundingClientRect()
+  const name = rowEl.querySelector('.users-row__name').getBoundingClientRect()
+  return {
+    status: e.getAttribute('data-status'), text: e.textContent.trim(),
+    fits: r.width > 0 && r.left >= rr.left && r.right <= rr.right + 0.5 && r.right <= window.innerWidth && r.left >= name.left,
+    noScroll: rowEl.scrollWidth <= rowEl.clientWidth + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1,
+  }
+}).catch(() => null)
 
 async function confirm(p, yes) {
   await p.waitForSelector('[data-test=users-confirm-ok]', { visible: true, timeout: 5000 })
@@ -101,6 +114,20 @@ try {
   const keys = await rowKeys(p)
   ok('3 one row per member and per pending invite', keys.includes('m:HUM-1') && keys.includes('m:HUM-3') && keys.includes('i:pending@example.com'), keys)
   ok('4 no pane before a click', !(await p.$('[data-test=users-pane]')))
+
+  // SPL-1232: each invite row has a status column (expired / sent / not sent)
+  // next to its role, at 1440 px and on a 390 px phone. The mock's seed invite
+  // expired on 2026-10-01 and was never mailed: expired wins.
+  for (const width of [1440, 390]) {
+    await p.setViewport({ width, height: 900 })
+    await sleep(400)
+    const st = await statusOf(p, 'i:pending@example.com')
+    ok(`4b ${width} px: the expired invite's status column reads expired, inside the row, no sideways scroll`,
+      Boolean(st && st.status === 'expired' && st.text === 'expired' && st.fits && st.noScroll), st)
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/users-invite-status-${width}.png` })
+  }
+  await p.setViewport({ width: 1400, height: 900 })
+  await sleep(300)
 
   // 2. click a row -> that user's edit form, beside the list
   await p.click(row('m:HUM-3'))
@@ -192,6 +219,8 @@ try {
   await p.click('[data-test=users-invite-send]')
   await p.waitForSelector(row('i:e2e-invitee@example.com'), { visible: true, timeout: 5000 }).catch(() => null)
   ok('10 invite adds a pending row with its role', /regular/i.test(await rowRole(p, 'i:e2e-invitee@example.com')), await rowKeys(p))
+  const newStatus = await statusOf(p, 'i:e2e-invitee@example.com')
+  ok('10a SPL-1232 the new, unmailed invite reads not sent', newStatus?.status === 'not_sent' && newStatus.text === 'not sent', newStatus)
   const notice = await text(p, '[data-test=users-pane-notice]')
   ok('10b the pane moves to the new invite and keeps the notice', notice.includes('e2e-invitee@example.com') && (await text(p, '[data-test=users-pane-email]')) === 'e2e-invitee@example.com', { notice })
   // 047 W13: the invite's sign-in link, for when no mail arrived
@@ -215,6 +244,8 @@ try {
   ok('10d Send the invite email mails it and the button turns into Resend',
     /sent/i.test(sentNotice) && Boolean(await p.$('[data-test=users-pane-resend]')) && !(await p.$('[data-test=users-pane-send-mail]')),
     { sentNotice })
+  const sentStatus = await statusOf(p, 'i:e2e-invitee@example.com')
+  ok('10d2 SPL-1232 once mailed the status column reads sent', sentStatus?.status === 'sent' && sentStatus.text === 'sent', sentStatus)
 
   // 6c. HUM-10 2026-10-03: the prd sequence. After the mail went out the owner
   // submitted the invite form again for the same address and pressed Resend

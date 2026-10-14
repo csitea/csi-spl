@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { accessDateOf, accessUntilOfDate, inviteMailed, looksLikeEmail, mailOutcomeKey, memberLabel, normalizeDirectory, openInviteFor, passwordResetState, signInProviderName, USER_PANE_SIDE, userErrorKey, usersEntryVisible } from '../../src/utils/tenant-users.mjs'
+import { accessDateOf, accessUntilOfDate, INVITE_STATUS_KEY, inviteMailed, inviteStatus, looksLikeEmail, mailOutcomeKey, memberLabel, normalizeDirectory, openInviteFor, passwordResetState, signInProviderName, USER_PANE_SIDE, userErrorKey, usersEntryVisible } from '../../src/utils/tenant-users.mjs'
 import { createMockDirectory, MOCK_MAIL_GAP_MS, MOCK_RESET_GAP_MS } from '../../src/utils/tenant-users-mock.mjs'
 import { normalizeMe } from '../../src/utils/access.mjs'
 import { tabForPath, USERS_TAB } from '../../src/utils/sidebar-tabs.mjs'
@@ -81,6 +81,17 @@ const used = [...code.matchAll(/t\('(users\.[a-z_.]+|sidebar\.users)'/g)].map((x
 const get = (k) => k.split('.').reduce((o, p) => (o && typeof o === 'object' ? o[p] : undefined), en)
 const missing = used.filter((k) => typeof get(k) !== 'string')
 ok('every users key the code names is in en.json', used.length > 20 && missing.length === 0, missing.join(','))
+// SPL-1232: the status column. Expired wins over mailed; a mail ever sent
+// (mail_count or mailed_at) reads sent; else not sent. Each has its words.
+const st = normalizeDirectory({ invites: [
+  { email: 'n@example.com', mail_count: 0, mailed_at: null },
+  { email: 's@example.com', mail_count: 1 },
+  { email: 'r@example.com', mail_count: 0, mailed_at: '2026-10-03T05:02:45Z' },
+  { email: 'x@example.com', expired: true, mail_count: 2, mailed_at: '2026-10-03T05:02:45Z' },
+] }).invites.map(inviteStatus)
+ok('SPL-1232 invite status: not_sent, sent, sent after a re-invite, expired', st.join() === 'not_sent,sent,sent,expired', st.join())
+ok('SPL-1232 every status has its words', ['expired', 'sent', 'not_sent'].every((k) => INVITE_STATUS_KEY[k] && en.users[INVITE_STATUS_KEY[k].slice(6)]))
+ok('CONTROL SPL-1232: no row, no status', inviteStatus(null) === '')
 for (const tok of ['forbidden', 'last_admin', 'last_owner', 'self', 'bad_email', 'bad_role', 'role_changed', 'not_found', 'bad_access_until', 'not_migrated', 'generic']) {
   ok('error word ' + tok, typeof get('users.error.' + tok) === 'string')
 }

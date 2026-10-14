@@ -1636,6 +1636,9 @@ declare module '~/utils/tenant-users.mjs' {
   export function looksLikeEmail(s: unknown): boolean
   export function inviteLink(origin: unknown, tenant: unknown, email?: unknown): string
   export function inviteMailed(row: UserInvite | null | undefined): boolean
+  export type InviteStatus = 'expired' | 'sent' | 'not_sent'
+  export function inviteStatus(row: UserInvite | null | undefined): InviteStatus | ''
+  export const INVITE_STATUS_KEY: Record<InviteStatus, string>
   export function openInviteFor(dir: { invites: UserInvite[] } | null | undefined, email: unknown): UserInvite | null
   export function mailOutcomeKey(outcome: unknown): string
   export function signInProviderName(slug: unknown): string

@@ -321,7 +321,11 @@ sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_I
 ```
 
 `DESK_KIND` is `note` (default), `task` or `result`; `DESK_FILES` takes
-space-separated paths to attach. The MCP form is `spool_send` with `channel`
+space-separated paths to attach. Each one rides as `spool send --put-file
+<path>` (repeatable) and keeps its own name and extension, so a `.png` shows
+in the web UI as an image (SPL-1776). `send --file-id <id>` names the file by
+its 64-hex hash, with no extension: the web UI then offers a nameless download.
+The MCP form is `spool_send` with `channel`
 set and `to` empty; the CLI form is `spool send --from <AGENT_ID> --channel
 <channel id> --body "..."`. The MCP server and the host `spool` must be built
 from a tree that has 038: an older binary rejects the field.

@@ -4,7 +4,8 @@
 # @description agent's broadcast, the same thing a human does from the WUI
 # @description composer (specs/038). do_spl_desk_reply answers inside a topic
 # @description a human opened; this one starts the topic.
-# @description   1. `spool put-file` for each DESK_FILES path (optional)
+# @description   1. `--put-file` for each DESK_FILES path (optional): each file
+# @description      keeps its own name and extension (SPL-1776)
 # @description   2. `spool send --from <agent> --channel <channel> --kind <kind>`:
 # @description      msg.to ALL-0, to_box box-wui, the channel signed into the
 # @description      envelope; the hub stores it as a level-1 topic of the
@@ -26,7 +27,7 @@
 # @param   readable by this run user, are different FATALS)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_KIND (optional) - note (default) | task | result | blocker | msg
-# @param DESK_FILES (optional) - space-separated paths to attach (each put as a blob)
+# @param DESK_FILES (optional) - space-separated paths to attach (each blobbed under its own name)
 # @param DESK_TYPED_BY (optional) - HUM-<n>: the human this post speaks for, the
 # @param   agent recorded as the typist (specs/036 `spool send --typed-by`). The hub
 # @param   refuses it (typed_by_not_bound) unless do_spl_box_operator_grant bound
@@ -66,14 +67,8 @@ do_spl_desk_post() {
   [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
 
-  local ids=() put id
-  for f in "${files[@]}"; do
-    put="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- put-file "$f" 2>&1)" ||
-      { do_log "FATAL put-file $f: $put"; return 1; }
-    id="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["file_id"])' "$put" 2>/dev/null)" ||
-      { do_log "FATAL put-file $f returned no file_id: $put"; return 1; }
-    ids+=(--file-id "$id")
-  done
+  local ids=()
+  spl_desk_attach_args "${files[@]}"
 
   local sent rc=0
   [[ -n "$typed_by" ]] && ids+=(--typed-by "$typed_by")

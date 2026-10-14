@@ -76,7 +76,8 @@
 # @param   human is DESK_TO, else the topic's opener, else it refuses naming
 # @param   DESK_TO. Given with a full UUID and DESK_TO, no inbox is read.
 # @param DESK_FILES (optional) - space-separated paths to attach to the answer
-# @param   (each put as a blob first, exactly as do_spl_desk_post does)
+# @param   (each sent with `send --put-file`, so it keeps its own name and
+# @param   extension, e.g. shot.png; SPL-1776)
 # @param DESK_ACK (optional) - 1 = archive the answered message, default 0
 # @param DESK_ANY (optional) - 1 = answer the newest human message even when
 # @param   several conversations are waiting (the pre-2026-09-21 behaviour)
@@ -112,7 +113,7 @@ do_spl_desk_reply() {
   _spl_desk_reply_choose || return $?
 
   local ids=()
-  _spl_desk_reply_put_files "$d" "$box" "$tenant" "$hub" "${files[@]}" || return 1
+  spl_desk_attach_args "${files[@]}"
 
   local sent route=dm sent_task="$ans_task"
   _spl_desk_reply_send || return 1
@@ -351,20 +352,6 @@ _spl_desk_reply_release_warn() {
   done < <(sed -E 's/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}//g; s#/releases/[0-9a-f]+##g' <<<"$body" |
     grep -oE '\b[0-9a-f]{7,40}\b')
   return 0
-}
-
-# _spl_desk_reply_put_files <state dir> <box> <tenant> <hub> <file>...: upload
-# each file through the desk's spool and append "--file-id <id>" to the
-# caller's ids[] (do_spl_desk_reply's local); 1 with the FATAL on a failure.
-_spl_desk_reply_put_files() {
-  local d="$1" box="$2" tenant="$3" hub="$4" f put id; shift 4
-  for f in "$@"; do
-    put="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- put-file "$f" 2>&1)" ||
-      { do_log "FATAL put-file $f: $put"; return 1; }
-    id="$(printf '%s' "$put" | python3 -c 'import json,sys; print(json.load(sys.stdin)["file_id"])' 2>/dev/null)" ||
-      { do_log "FATAL put-file $f returned no file_id: $put"; return 1; }
-    ids+=(--file-id "$id")
-  done
 }
 
 # spl_desk_pick <recv file> <to override> <task override> <answered file> <any>:

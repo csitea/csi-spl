@@ -27,7 +27,7 @@ func TestSendArgRefusals(t *testing.T) {
 		{hub, SendArgs{From: "CLE-1", Channel: "ops", To: "CLE-2"}, `--channel posts to every member of the channel: --to must be empty or ALL-0, got "CLE-2"`},
 		{"", SendArgs{From: "CLE-1", To: "CLE-2", TypedBy: "HUM-1"}, "--typed-by needs hub mode ($SPOOL_HUB_URL)"},
 		{hub, SendArgs{From: "CLE-1", To: "CLE-2", TypedBy: "CLE-9"}, `--typed-by must be a HUM-<n> id, got "CLE-9"`},
-		{"", SendArgs{From: "CLE-1", To: "CLE-2", PutFile: "/nonexistent/x"}, "stat /nonexistent/x: no such file or directory"},
+		{"", SendArgs{From: "CLE-1", To: "CLE-2", PutFiles: []string{"/nonexistent/x"}}, "stat /nonexistent/x: no such file or directory"},
 		// spec 061 3.3.1: --to <ID>@<box>
 		{"", SendArgs{From: "CLE-1", To: "c-004@sat"}, `--to "c-004@sat" names box sat; local mode reaches only this machine (no $SPOOL_HUB_URL)`},
 		{hub, SendArgs{From: "CLE-1", To: "c-004@Sat"}, `--to "c-004@Sat" is not <agent id>@<box id>`},
@@ -91,7 +91,7 @@ func TestSendLocalAttachmentOrder(t *testing.T) {
 	}
 	write("sub/a.txt", "a")
 	res, err := Send(cfg, SendArgs{From: "CLE-1", To: "CLE-2", Kind: "note", Body: "hi",
-		FileIDs: []string{blob.FileID}, PutFile: write("put.txt", "put"), DirBlobs: []string{sub},
+		FileIDs: []string{blob.FileID}, PutFiles: []string{write("put.txt", "put"), write("shot.png", "png")}, DirBlobs: []string{sub},
 		FileRefs: []string{write("ref.txt", "ref")}, DirRefs: []string{sub}})
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestSendLocalAttachmentOrder(t *testing.T) {
 		got = append(got, a.Mode+"/"+a.Kind+"/"+a.Name)
 	}
 	want := []string{"blob/file/" + blob.FileID, // a referenced blob is named by its id
-		"blob/file/put.txt", "blob/dir/sub", "path/file/ref.txt", "path/dir/sub"}
+		"blob/file/put.txt", "blob/file/shot.png", "blob/dir/sub", "path/file/ref.txt", "path/dir/sub"}
 	if len(got) != len(want) {
 		t.Fatalf("attachments %v, want %v", got, want)
 	}

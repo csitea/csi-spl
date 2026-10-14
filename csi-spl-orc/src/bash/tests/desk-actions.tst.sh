@@ -505,7 +505,8 @@ for bad in "DESK_CHANNEL=" "DESK_CHANNEL=no spaces" "DESK_CHANNEL=x;rm" "DESK_KI
       fail "do_spl_desk_post refuses $bad without saying why: $(cat "$T/o")"
   fi
 done
-# A fake spool that records its arguments: put-file answers a file_id, send
+# A fake spool that records its arguments: put-file answers a file_id (the
+# desk no longer calls it, SPL-1776; kept so a regression is logged), send
 # answers a delivery - or, with FAKE_REFUSE, the hub's non-member refusal.
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
 cat >"$T/fakespool" <<'FAKE'
@@ -517,13 +518,14 @@ case "$1" in
         echo '{"delivery":"sent","msg_id":"m1","task_id":"t1","ts":"2026-09-25T00:00:00Z"}' ;;
 esac
 FAKE
-chmod +x "$T/fakespool"; echo x >"$T/att.txt"; : >"$T/fake.log"
+chmod +x "$T/fakespool"; echo x >"$T/att.txt"; printf '\x89PNG\r\n' >"$T/shot.png"; : >"$T/fake.log"
 POST='spl_host_spool() { SPL_SPOOL="$FAKE"; }; do_spl_desk_post'
 out=$(SNIPPET="$POST" in_orc FAKE="$T/fakespool" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
   DESK_CHANNEL='#Spool-Hub-Devel' DESK_BODY='0.5.6 is out' DESK_FILES="$T/att.txt" DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 ]] && pass "do_spl_desk_post posts through the desk's spool" || fail "do_spl_desk_post (rc=$rc): $out"
-grep -qx -- "send --from CLE-00 --channel spool-hub-devel --kind note --body 0.5.6 is out --file-id f00d" "$T/fake.log" &&
-  pass "…as spool send --channel with the normalized channel and the file id" ||
+grep -qx -- "send --from CLE-00 --channel spool-hub-devel --kind note --body 0.5.6 is out --put-file $T/att.txt" "$T/fake.log" &&
+  ! grep -qE -- '^put-file|--file-id' "$T/fake.log" &&
+  pass "…as spool send --channel with the normalized channel and --put-file (the file keeps its name, SPL-1776)" ||
   fail "the send was not a channel post: $(cat "$T/fake.log")"
 [[ "$out" == *'"channel": "spool-hub-devel"'* && "$out" == *'"delivery": "sent"'* ]] &&
   pass "…and prints the channel and the hub's delivery" || fail "post output: $out"
@@ -557,10 +559,16 @@ FAKE
 chmod +x "$T/fakereply"; : >"$T/fake.log"
 REPLY='spl_host_spool() { SPL_SPOOL="$FAKE"; }; do_spl_desk_reply'
 out=$(SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
-  DESK_BODY='here' DESK_FILES="$T/att.txt $T/att.txt" DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 ]] && grep -qx -- "send --from CLE-00 --to HUM-9 --task 0f8fad5b-d9cb-469f-a165-70867728950e --to-box box-wui --kind note --body here --file-id beef --file-id beef" "$T/fake.log" &&
-  pass "do_spl_desk_reply DESK_FILES: each file is put, its id rides on the answer" ||
+  DESK_BODY='here' DESK_FILES="$T/shot.png $T/att.txt" DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx -- "send --from CLE-00 --to HUM-9 --task 0f8fad5b-d9cb-469f-a165-70867728950e --to-box box-wui --kind note --body here --put-file $T/shot.png --put-file $T/att.txt" "$T/fake.log" &&
+  pass "do_spl_desk_reply DESK_FILES: each file rides on the answer as --put-file" ||
   fail "reply with files (rc=$rc): $out / $(cat "$T/fake.log")"
+# SPL-1776 (owner, t1 4f98d07c): a blob attached by --file-id is named by its
+# 64-hex sha, so a .png reached the owner as a nameless download. The answer
+# never attaches by id: no put-file call, no --file-id.
+! grep -qE -- '^put-file|--file-id' "$T/fake.log" &&
+  pass "do_spl_desk_reply never attaches by --file-id (a hash name, no extension)" ||
+  fail "reply attached by id: $(cat "$T/fake.log")"
 # CONTROL: no DESK_FILES, no put-file and no --file-id.
 : >"$T/fake.log"; rm -f "$T/state/dev/desk/t1/box-desk/answered"
 SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \

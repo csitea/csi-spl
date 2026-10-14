@@ -57,7 +57,9 @@ type SendArgs struct {
 	ToBox                        string
 	FileIDs, FileRefs            []string
 	DirBlobs, DirRefs            []string
-	PutFile                      string
+	// PutFiles are blobbed and attached under their own base name (.png
+	// stays .png), unlike FileIDs, which carry only the hash (SPL-1776).
+	PutFiles []string
 	// TypedBy is the HUM-* who typed this line at the agent's terminal
 	// (specs/036 FR-009, `spool send --typed-by`). Hub mode only: it rides on
 	// the send frame and the hub accepts it only for a bound box operator.
@@ -279,21 +281,17 @@ func splitToBox(cfg *config.Config, in *SendArgs) error {
 }
 
 // attachments builds the message's files in a fixed order: blob ids, the
-// put file, dir blobs, file refs, dir refs.
+// put files, dir blobs, file refs, dir refs.
 func attachments(cfg *config.Config, in SendArgs) ([]msg.Attachment, error) {
 	var atts []msg.Attachment
 	for _, id := range in.FileIDs {
 		atts = append(atts, files.RefBlob(cfg.FilesDir(), id))
 	}
-	var puts []string
-	if in.PutFile != "" {
-		puts = []string{in.PutFile}
-	}
 	for _, src := range []struct {
 		paths []string
 		make  func(string) (msg.Attachment, error)
 	}{
-		{puts, func(p string) (msg.Attachment, error) { return files.PutFile(cfg.FilesDir(), p) }},
+		{in.PutFiles, func(p string) (msg.Attachment, error) { return files.PutFile(cfg.FilesDir(), p) }},
 		{in.DirBlobs, func(p string) (msg.Attachment, error) { return files.PutDir(cfg.FilesDir(), p) }},
 		{in.FileRefs, files.RefFile},
 		{in.DirRefs, files.RefDir},

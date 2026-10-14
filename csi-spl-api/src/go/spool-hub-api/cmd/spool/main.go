@@ -12,7 +12,7 @@
 //	join    [--box <box_id>] [<hub-url>] [-]   seat this box with a join token from
 //	          $SPOOL_JOIN_TOKEN or stdin (-); the box makes its own key (spec 073 4.4)
 //	send    --from <id> --to <id> [--task <uuid>] --kind <k> --body <text>
-//	          [--file-id <id>]... [--file-ref <path>]... [--dir-blob <path>]... [--dir-ref <path>]...
+//	          [--file-id <id>]... [--put-file <path>]... [--file-ref <path>]... [--dir-blob <path>]... [--dir-ref <path>]...
 //	          [--to-box <box_id>]   (hub mode only, spec 003)
 //	          [--answers <msg_id> [--if-gen <n>]]   (hub mode, spec 068 4.2)
 //	          [--accept <msg_id>]   (--kind result: accepts that result, spec 130)
@@ -391,12 +391,12 @@ func cmdSend(cfg *config.Config, args []string) int {
 	task := fs.String("task", "", "task id (uuid); minted if empty")
 	kind := fs.String("kind", "", msg.KindList)
 	body := fs.String("body", "", "message body")
-	var fileIDs, fileRefs, dirBlobs, dirRefs stringList
+	var fileIDs, fileRefs, dirBlobs, dirRefs, putFiles stringList
 	fs.Var(&fileIDs, "file-id", "attach an existing blob by file_id (repeatable)")
 	fs.Var(&fileRefs, "file-ref", "attach a file by on-box path reference (repeatable)")
 	fs.Var(&dirBlobs, "dir-blob", "pack a dir into a blob and attach it (repeatable)")
 	fs.Var(&dirRefs, "dir-ref", "attach a dir by on-box path reference (repeatable)")
-	putFile := fs.String("put-file", "", "convenience: blob this file then attach it")
+	fs.Var(&putFiles, "put-file", "blob this file and attach it under its own name, e.g. shot.png (repeatable); --file-id names a blob by its hash")
 	toBox := fs.String("to-box", "", "hub mode: recipient box id (needed when --to exists on several boxes)")
 	answers := fs.String("answers", "", "hub mode: this post answers that msg_id (spec 068 4.2); never queued; exit 5 answered, 6 not_responsible")
 	ifGen := fs.Int64("if-gen", 0, "with --answers: the responsible_gen the seat claimed the message on (spool claim --poll)")
@@ -415,7 +415,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 	out, err := action.SendCtx(ctx, cfg, action.SendArgs{
 		From: *from, To: *to, TaskID: *task, Kind: *kind, Body: *body,
 		FileIDs: fileIDs, FileRefs: fileRefs, DirBlobs: dirBlobs, DirRefs: dirRefs,
-		PutFile: *putFile, ToBox: *toBox, TypedBy: *typedBy, Channel: *channel,
+		PutFiles: putFiles, ToBox: *toBox, TypedBy: *typedBy, Channel: *channel,
 		Answers: *answers, IfGen: *ifGen, Ref: *ref, Accepts: *accept,
 	})
 	if err != nil {

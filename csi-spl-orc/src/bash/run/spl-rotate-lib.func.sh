@@ -1230,7 +1230,7 @@ spl_rotate_owner_say() {
 # that found it healthy (never the failed run's id: its .state would read the
 # failed rotation as in flight again).
 spl_rotate_recovered() {
-  local id="$1" rid="$2" action="$3" pid="$4" f ask arid last="" line ts n=0
+  local id="$1" rid="$2" action="$3" pid="$4" f ask arid last="" line ts n=0 rc
   f="$SPOOL_ROOT/$id/lifetime/alerts.open"
   [[ -s "$f" ]] || return 0
   ts="$(date -u +%FT%TZ)"
@@ -1238,10 +1238,16 @@ spl_rotate_recovered() {
   while read -r ask arid _; do
     [[ "$ask" =~ ^[0-9a-f-]{36}$ ]] || continue
     n=$((n + 1)); last="$ask"
-    if env ASK_ID="$ask" ASK_STATE=done ASK_REASON="$line" ASK_BY="$id@$ROTATE_BOX" \
-        timeout 120 "$ROTATE_RUN" -a do_spl_ask_close >/dev/null 2>&1 7>&- 8>&- 9>&-; then
-      spl_rotate_log "$rid" RECOVERED OK "ask ${ask:0:8} of $arid closed: $line"
-    else spl_rotate_log "$rid" RECOVERED FAIL "ask ${ask:0:8} of $arid: do_spl_ask_close failed ($line)"; fi
+    rc=0
+    env ASK_ID="$ask" ASK_STATE=done ASK_REASON="$line" ASK_BY="$id@$ROTATE_BOX" \
+      timeout 120 "$ROTATE_RUN" -a do_spl_ask_close >/dev/null 2>&1 7>&- 8>&- 9>&- || rc=$?
+    # exit 3 = another holder closed it first (SPL-1890: all 6 "RECOVERED
+    # FAIL" lines of 10-11..10-14 were asks the orchestrator had closed)
+    case "$rc" in
+      0) spl_rotate_log "$rid" RECOVERED OK "ask ${ask:0:8} of $arid closed: $line" ;;
+      3) spl_rotate_log "$rid" RECOVERED OK "ask ${ask:0:8} of $arid was already closed: $line" ;;
+      *) spl_rotate_log "$rid" RECOVERED FAIL "ask ${ask:0:8} of $arid: do_spl_ask_close failed, exit $rc ($line)" ;;
+    esac
   done < "$f"
   rm -f "$f"
   (( n )) || return 0

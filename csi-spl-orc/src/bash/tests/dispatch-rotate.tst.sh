@@ -45,7 +45,9 @@
 #  15. a seat with an open FAIL alert (lifetime/alerts.open) whose rotation
 #      acks: the ask closed + one "recovered at <ts> by rotation <rid>, now
 #      pid <pid>" line on the ask's thread, the file gone. Control: no open
-#      alert -> no ask close, no line
+#      alert -> no ask close, no line. SPL-1890: ask close exit 3 (closed
+#      first by the orchestrator) = RECOVERED OK "already closed"; control:
+#      any other exit = FAIL with its code
 #  16. the seed's workspace list is the live pinned desks at write time, not
 #      the stale list the brief was rendered with (sienna missed, 2026-10-10):
 #      test and other-box desks left out; a desk pinned after a rotation is in
@@ -75,6 +77,9 @@
 #  20. SPL-1837: a run inside the master or the failover pane re-runs itself
 #      detached (setsid), both locks let go first, no hold; a detached run
 #      still inside refuses (no loop); control: a run outside rotates
+#  21. SPL-1890: a failover on a fresh watchdog HIT = GATE SKIP failover not
+#      able, no hold, no spawn, no ask/DM, one orchestrator note (not twice);
+#      the dry run shows it. Controls: an old HIT or an OK verdict rotates
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -166,7 +171,8 @@ case "$a" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
   do_spl_lane_map) echo '{"lanes":[]}' ;;
   do_spl_dispatch_setup) sleep "${SETUP_SLEEP:-0}"; [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
-  do_spl_ask_put|do_spl_desk_reply|do_spl_ask_close) exit 0 ;;
+  do_spl_ask_put|do_spl_desk_reply) exit 0 ;;
+  do_spl_ask_close) exit "$(cat "$T/askclose.rc" 2>/dev/null || echo 0)" ;;
   do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_SPLIT_KIND=${LANE_MIX_SPLIT_KIND:-}" >>"$T/mix.log"; cat "$T/mix.out" 2>/dev/null ;;
   *) exit 1 ;;
 esac
@@ -630,6 +636,18 @@ grep -q "^do_spl_ask_close ASK_ID=0e5a2c1b-1111-4222-8333-944455556666 ASK_STATE
   [[ "$(grep -c 'recovered at' "$T/run2.log")" == 2 && ! -e "$S/c-902/lifetime/alerts.open" ]] &&
   grep -q " $rid RECOVERED OK ask 0e5a2c1b of 20261007T1715Z-master closed" "$D/rotate.log" &&
   pass "15. an open alert + an ACK OK: the ask closed, one recovered line to the owner on its thread, the file gone" || fail "15. $(cat "$T/run2.log") $(grep RECOVERED "$D/rotate.log")"
+# SPL-1890: exit 3 = the orchestrator closed the ask first (6 of 6 live
+# "RECOVERED FAIL" lines, 10-11..10-14): OK "already closed", not FAIL;
+# control: any other exit is still a FAIL, with its code
+for want in "3:RECOVERED OK ask 0e5a2c1b of 20261007T1715Z-master was already closed: c-902@box-desk recovered" \
+            "1:RECOVERED FAIL ask 0e5a2c1b of 20261007T1715Z-master: do_spl_ask_close failed, exit 1 (c-902@box-desk recovered"; do
+  world; rm -f "$T/run2.log"; mkdir -p "$S/c-902/lifetime"; echo "${want%%:*}" >"$T/askclose.rc"
+  echo "0e5a2c1b-1111-4222-8333-944455556666 20261007T1715Z-master ACK" >"$S/c-902/lifetime/alerts.open"
+  act DRY_RUN=0 >"$T/o" 2>&1
+  grep -q " RECOVERED ${want#*:RECOVERED }" "$D/rotate.log" && [[ "$(grep -c 'recovered at' "$T/run2.log")" == 2 ]] &&
+    pass "15. ask close exit ${want%%:*}: '${want#*:}'" || fail "15. ask close exit ${want%%:*}: $(grep RECOVERED "$D/rotate.log")"
+done
+rm -f "$T/askclose.rc"
 world; rm -f "$T/run2.log"; act DRY_RUN=0 >"$T/o" 2>&1
 ! grep -q 'do_spl_ask_close\|recovered at' "$T/run2.log" && ! grep -q RECOVERED "$D/rotate.log" &&
   pass "15. control: no open alert, no ask close and no line" || fail "15. control: $(cat "$T/run2.log")"
@@ -848,6 +866,34 @@ inside 1
 act DRY_RUN=0 ROTATE_FORCE=1 ROTATE_SELF_PID=3001 ROTATE_SETSID="$T/bin/setsid" >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && ! -e "$T/setsid.log" && "$(ctx ROTATE_PHASE)" == DONE ]] &&
   pass "20. CONTROL: a run outside the panes rotates to DONE, no re-run" || fail "20. control rc=$rc $(cat "$T/o")"
+
+# --- 21. SPL-1890: a failover that cannot take the lease = GATE SKIP, no HOLD, no owner page ------
+# 20261014T0215Z-master on sat: c-003 on its weekly limit (wd S2 HIT every 30 s),
+# HOLD waited 240 s for a lease move that never came, then FAIL + ask + DM.
+world; rm -f "$D"/rotate.dispatch.told.*; echo "HIT S2 $(date +%s)" >"$D/wd.c-903"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" && ! -e "$D/rotate.hold" && "$(holder)" == c-902 && -d "$T/proc/102" ]] &&
+  grep -q ' GATE SKIP failover not able: c-903 wd S2: HIT [0-9]*s ago' "$T/o" && ! grep -q ' FAIL ' "$T/o" &&
+  pass "21. SPL-1890: failover on a fresh watchdog HIT: GATE SKIP, no hold, no spawn, the lease stays on c-902" ||
+  fail "21. unable failover rc=$rc $(cat "$T/o")"
+! grep -q '^do_spl_ask_put\|^do_spl_desk_reply' "$T/run.log" 2>/dev/null &&
+  [[ "$(grep -c 'send c-900 -> c-900 note dispatch-rotate .*ROTATION SKIP failover not able: c-903' "$T/send.log" 2>/dev/null)" == 1 ]] &&
+  pass "21. ... no ask, no owner DM; the orchestrator gets one note" || fail "21. alert legs: $(cat "$T/run.log" "$T/send.log" 2>&1)"
+act DRY_RUN=0 >"$T/o" 2>&1
+grep -q ' GATE SKIP failover not able' "$T/o" && [[ "$(grep -c 'ROTATION SKIP failover not able' "$T/send.log")" == 1 ]] &&
+  pass "21. ... the next hour skips again without a second note" || fail "21. second run: $(cat "$T/o") $(cat "$T/send.log")"
+world; echo "HIT S2 $(date +%s)" >"$D/wd.c-903"
+act >"$T/o" 2>&1
+grep -q ' GATE SKIP failover not able: c-903' "$T/o" && ! grep -q ' HOLD PLAN ' "$T/o" &&
+  pass "21. ... a dry run shows the same SKIP, no HOLD PLAN" || fail "21. dry: $(cat "$T/o")"
+# CONTROLS: a watchdog HIT older than WD_FRESH, or an OK verdict, rotates as before
+for v in "HIT S2 $(( $(date +%s) - 600 ))" "OK $(date +%s)"; do
+  world; rm -f "$D"/rotate.dispatch.told.*; echo "$v" >"$D/wd.c-903"
+  act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+  [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && ! grep -q 'failover not able' "$T/o" &&
+    pass "21. CONTROL: wd.c-903 '${v%% [0-9]*}' (old or OK) rotates to DONE" || fail "21. control '$v' rc=$rc $(cat "$T/o")"
+done
+rm -f "$D/wd.c-903"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

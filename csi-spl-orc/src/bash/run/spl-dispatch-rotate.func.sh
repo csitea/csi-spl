@@ -15,7 +15,8 @@
 # @description            machine holds the dispatch lease (FR-044; a standby box only replaces a
 # @description            seat whose vendor is out, watchdog S2 limit/auth: SPL-1777), boot grace, the last rotation and
 # @description            the master at least ROTATE_MIN_AGE old, no orch
-# @description            rotation in flight (FR-051), not stalled (FR-022),
+# @description            rotation in flight (FR-051), not stalled (FR-022), the failover
+# @description            able to take the lease (SPL-1890: no fresh watchdog HIT, no stall),
 # @description            then the master's id lock (spec 102 4.2; held =
 # @description            exit 4), held from HOLD to its CLOSE only; the
 # @description            failover's is taken for its REFRESH .. CLOSE (held
@@ -145,6 +146,16 @@ spl_disp_rotate_auto() {
   if [[ -n "$why" ]]; then
     spl_rotate_log "$rid" GATE SKIP "stalled $why"
     spl_disp_once "stall.$(tr -c 'a-z0-9' '_' <<<"${why,,}")" "ROTATION SKIP stalled: $m@$ROTATE_BOX pane shows '$why'; the lease has moved to $f and a new session would stall too"
+    return 0
+  fi
+  # SPL-1890: HOLD hands the lease to F, so F must be able to take it (the
+  # lease's own test: a hold, a fresh watchdog HIT, its pane; no key pressed).
+  # 20261014T0215Z-master on sat: c-003 on its weekly limit (wd S2 HIT every
+  # 30 s), HOLD waited 240 s, "FAIL HOLD: the lease did not move" + owner page.
+  why="$(spl_lease_agent_why "$f" "$fpid")"
+  if [[ -n "$why" ]]; then
+    spl_rotate_log "$rid" GATE SKIP "failover not able: $f $why"
+    spl_disp_once "unable.$f.$(tr -c 'a-z0-9' '_' <<<"${why%%:*}")" "ROTATION SKIP failover not able: $f@$ROTATE_BOX ($why); $m keeps the lease, no rotation until $f can take it"
     return 0
   fi
   # the master's id lock, for its swap only: the failover's stays free, so a

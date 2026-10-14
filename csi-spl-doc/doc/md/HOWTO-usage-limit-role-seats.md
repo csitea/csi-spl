@@ -78,6 +78,22 @@ The transitions (`renew stop`, `NO-LOCAL-AGENT`, `FLEET <role>: ... takes over`)
 tail -n 50 /var/spool-hub/dispatch/lease.log
 ```
 
+### 2.1.1 The dispatch rotation checks the failover first
+
+The hourly dispatch rotation (`do_spl_dispatch_rotate`) hands the lease to the
+failover seat while the master gets a fresh session. Its GATE runs the lease's
+own test on the failover (`spl_lease_agent_why`: a hold, a watchdog HIT under
+90 s old, the pane; no key is pressed). A failover that is not able is
+`GATE SKIP failover not able: <id> <why>` in `rotate.log`, with one note to the
+orchestrator and no owner page. The master keeps the lease; the next hour
+tries again.
+
+Why (SPL-1890): rotation `20261014T0215Z-master` on the satellite started its
+HOLD while `c-003` was on its weekly limit (`wd.log`: `HIT S2 kind=limit` every
+30 s since the day before). The fleet loop never chose `c-003`, the HOLD waited
+240 s, and the run ended `FAIL HOLD: the lease did not move to c-003` and paged
+the owner.
+
 ### 2.2 How close a login is to its limit
 
 The pane banner shows only that a seat HAS hit the limit. To see a limit

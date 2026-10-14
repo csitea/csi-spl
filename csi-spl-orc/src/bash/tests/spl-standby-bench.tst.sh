@@ -16,6 +16,9 @@
 #   9. mistral (spec 110 T013b): a vibe CLI on PATH is named as mistral and
 #      skipped (no headless adapter), never started; BENCH_MODELS=mistral:x
 #      is refused; control: no vibe, no such line
+#  10. prd opt-in (SPL-1789, dry run only): no BENCH_PRD_CONFIRM refused,
+#      confirm passes; prd caps BENCH_N <= 50 and BENCH_CONCURRENCY <= 3; a
+#      non-number gets the FATAL, not a bash error; dev caps BENCH_N <= 500
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -189,6 +192,30 @@ out=$(bench BENCH_MODELS="claude:haiku" STUB_LOG="$T/calls.log"); rc=$?
 [[ $rc -eq 0 ]] && grep -q "skip mistral (vibe): CLI present, no headless adapter in L1" <<<"$out" && ! grep -q '^vibe' "$T/calls.log" \
   && pass "mistral: vibe on PATH is skipped by its kind, never started" || fail "mistral skip: rc=$rc $out $(cat "$T/calls.log")"
 rm -f "$T/stub/vibe"
+
+# --- 10. prd opt-in caps (dry run only, nothing started) -------------------------------
+optin() {  # optin <want ok|refused> <label> <VAR=value>...
+  local want="$1" label="$2"; shift 2
+  fresh
+  local out rc; out=$(bench BENCH_MODELS="claude:haiku" "$@"); rc=$?
+  if grep -qE 'integer expression|syntax error|unbound variable' <<<"$out"; then fail "$label: bash error, not a FATAL: $out"
+  elif [[ -s "$T/calls.log" ]]; then fail "$label: an agent was started: $(cat "$T/calls.log")"
+  elif [[ $want == ok ]]; then
+    [[ $rc -eq 0 ]] && grep -q "DRY_RUN nothing was started" <<<"$out" && pass "$label: passes" || fail "$label: rc=$rc out=$out"
+  else
+    [[ $rc -ne 0 ]] && [[ $(grep -c FATAL <<<"$out") -eq 1 ]] && pass "$label: refused with one FATAL" || fail "$label: rc=$rc out=$out"
+  fi
+}
+optin refused "prd without BENCH_PRD_CONFIRM" ENV=prd
+optin ok "prd with BENCH_PRD_CONFIRM" ENV=prd BENCH_PRD_CONFIRM=1
+optin refused "prd BENCH_N=51" ENV=prd BENCH_PRD_CONFIRM=1 BENCH_N=51
+optin ok "prd BENCH_N=50" ENV=prd BENCH_PRD_CONFIRM=1 BENCH_N=50
+optin refused "prd BENCH_CONCURRENCY=4" ENV=prd BENCH_PRD_CONFIRM=1 BENCH_CONCURRENCY=4
+optin ok "prd BENCH_CONCURRENCY=3" ENV=prd BENCH_PRD_CONFIRM=1 BENCH_CONCURRENCY=3
+optin refused "prd BENCH_CONCURRENCY=abc" ENV=prd BENCH_PRD_CONFIRM=1 BENCH_CONCURRENCY=abc
+optin refused "prd BENCH_N=abc" ENV=prd BENCH_PRD_CONFIRM=1 BENCH_N=abc
+optin refused "dev BENCH_N=501" BENCH_N=501
+optin ok "dev BENCH_N=500" BENCH_N=500
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all spl-standby-bench.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

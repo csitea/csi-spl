@@ -1,21 +1,37 @@
-# DAST against the DEV environment only (never prd). Two jobs:
+# DAST against dev by default; prd only on an explicit, confirmed dispatch. Two jobs:
 #   headers  - do_sec_headers: verifies HSTS / X-Content-Type-Options /
-#              Referrer-Policy / CSP|X-Frame-Options on the dev WUI host
-#              (dev.<BASE_DOMAIN>, derived from cnf), with a negative control
-#              (a header-less local mock must be flagged).
-#              Read-only, one request. Self-hosted (uses the ./run harness).
-#   zap      - OWASP ZAP baseline (passive) against dev, conservative + bounded so
-#              it stays well under the owner's 5 req/s dev cap. Report-only for the
-#              first iteration (findings triaged via .zap/rules.tsv, then flip
-#              fail_action). Runs on GitHub-hosted ubuntu (needs Docker); it only
-#              reaches the PUBLIC dev URL and uses no repo secrets.
+#              Referrer-Policy / CSP|X-Frame-Options on the WUI host
+#              (dev.<BASE_DOMAIN> or, for prd, the apex <BASE_DOMAIN>, derived
+#              from cnf), with a negative control (a header-less local mock must
+#              be flagged). Read-only, one request. Uses the ./run harness.
+#   zap      - OWASP ZAP baseline (passive), conservative + bounded: a ZAP
+#              rate-limit rule caps the target host at 5 req/s (owner cap) and the
+#              spider runs 2 threads. Report-only for the first iteration
+#              (findings triaged via .zap/rules.tsv, then flip fail_action). Runs
+#              on GitHub-hosted ubuntu (needs Docker); it only reaches the PUBLIC
+#              WUI URL and uses no repo secrets.
 #
-# Owner-go (topic 875651f8): ZAP against the dev WUI host only, <=5 req/s, never
-# prd. Schedule + workflow_dispatch only -- never on a fleet push.
-name: "68 sec: DAST (headers + ZAP) vs dev"
+# Owner-go (topic 875651f8): ZAP against the dev WUI host, <=5 req/s.
+# prd opt-in (owner HUM-10, t1 cd592c84, msgs 4dfc19b5 + 05d5d1b6; devops guide
+# section 16, row T2): tests never run on prd by default, an operator picks them.
+# The schedule always scans dev. prd needs a workflow_dispatch with
+# environment=prd AND confirm_prd=prd, else the run fails before any request:
+#   gh workflow run 68_dast.yml -f environment=prd -f confirm_prd=prd
+# Schedule + workflow_dispatch only -- never on a fleet push.
+name: "68 sec: DAST (headers + ZAP) vs dev, prd opt-in"
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "target environment (prd needs confirm_prd=prd)"
+        type: choice
+        options: [dev, prd]
+        default: dev
+      confirm_prd:
+        description: "type prd to confirm a scan of prd; ignored for dev"
+        type: string
+        default: ""
   schedule:
     - cron: "53 3 * * 1"
 
@@ -23,12 +39,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: sec-dast-${{ github.ref }}
+  group: sec-dast-${{ github.ref }}-${{ inputs.environment || 'dev' }}
   cancel-in-progress: true
+
+# A schedule has no inputs: it is always dev.
+env:
+  TARGET_ENV: ${{ inputs.environment || 'dev' }}
+  CONFIRM_PRD: ${{ inputs.confirm_prd || '' }}
 
 jobs:
   headers:
-    name: "sec: security headers vs dev"
+    name: "sec: security headers vs ${{ inputs.environment || 'dev' }}"
     # Estate guard (spec 072 A34): this job reads or changes OUR live estate, so it
     # runs only where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
     if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
@@ -36,14 +57,25 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      # SEC_HEADERS_URL is left unset: do_sec_headers derives the dev host from
-      # cnf (env.dns.BASE_DOMAIN), so no host literal lives in this workflow.
-      - name: security-headers (control + dev)
+      - name: prd opt-in gate
+        run: |
+          set -euo pipefail
+          case "$TARGET_ENV" in
+            dev) ;;
+            prd) [ "$CONFIRM_PRD" = prd ] || { echo "::error::environment=prd needs confirm_prd=prd (opt-in, devops guide section 16)"; exit 1; } ;;
+            *) echo "::error::environment must be dev or prd, got '$TARGET_ENV'"; exit 1 ;;
+          esac
+      # SEC_HEADERS_URL is left unset: do_sec_headers derives the host from cnf
+      # (env.dns.BASE_DOMAIN; dev. prefix for dev, apex for ENV=prd), so no host
+      # literal lives in this workflow.
+      - name: security-headers (control + target)
         working-directory: csi-spl-iac
+        env:
+          ENV: ${{ env.TARGET_ENV }}
         run: ./run -a do_sec_headers
 
   zap:
-    name: "sec: OWASP ZAP baseline vs dev"
+    name: "sec: OWASP ZAP baseline vs ${{ inputs.environment || 'dev' }}"
     # Estate guard (spec 072 A34): this job reads or changes OUR live estate, so it
     # runs only where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
     if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
@@ -53,20 +85,30 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      # Derive the dev target from cnf so the host literal lives ONLY in
-      # csi-spl-cnf (env.dns.BASE_DOMAIN); dev serves dev.<BASE_DOMAIN>.
-      - name: Derive dev target from cnf
+      # Derive the target from cnf so the host literal lives ONLY in
+      # csi-spl-cnf (env.dns.BASE_DOMAIN); dev serves dev.<BASE_DOMAIN>, prd the
+      # apex. The prd opt-in gate is the first thing it checks.
+      - name: Derive target from cnf (prd opt-in gate)
         id: tgt
         run: |
           set -euo pipefail
+          case "$TARGET_ENV" in
+            dev) pre="dev." ;;
+            prd) [ "$CONFIRM_PRD" = prd ] || { echo "::error::environment=prd needs confirm_prd=prd (opt-in, devops guide section 16)"; exit 1; }
+                 pre="" ;;
+            *) echo "::error::environment must be dev or prd, got '$TARGET_ENV'"; exit 1 ;;
+          esac
           d=$(awk '/^[[:space:]]*BASE_DOMAIN:/{print $2; exit}' csi-spl-cnf/csi-spl/all.env.yaml)
           [ -n "$d" ] || { echo "::error::could not read env.dns.BASE_DOMAIN from cnf"; exit 1; }
-          echo "url=https://dev.$d" >> "$GITHUB_OUTPUT"
-      - name: ZAP baseline (passive, bounded, dev only)
+          echo "host=$pre$d" >> "$GITHUB_OUTPUT"
+          echo "url=https://$pre$d" >> "$GITHUB_OUTPUT"
+      # ZAP network rate-limit rule 0: every request to the target host, one
+      # shared budget (groupBy=rule), 5 req/s. matchStr is the exact host.
+      - name: ZAP baseline (passive, <=5 req/s)
         uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
         with:
           target: ${{ steps.tgt.outputs.url }}
           rules_file_name: .zap/rules.tsv
           allow_issue_writing: false
           fail_action: false
-          cmd_options: '-T 5 -z "-config spider.maxChildren=10 -config spider.maxDepth=5 -config spider.threadCount=2"'
+          cmd_options: '-T 5 -z "-config spider.maxChildren=10 -config spider.maxDepth=5 -config spider.threadCount=2 -config network.ratelimit.rules.rule(0).enabled=true -config network.ratelimit.rules.rule(0).matchStr=${{ steps.tgt.outputs.host }} -config network.ratelimit.rules.rule(0).regex=false -config network.ratelimit.rules.rule(0).reqsPerSec=5 -config network.ratelimit.rules.rule(0).groupBy=rule"'

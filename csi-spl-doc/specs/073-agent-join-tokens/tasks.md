@@ -66,7 +66,8 @@ its lane, the files it owns and its done check. Status vocabulary:
       `env.box.join_check_email` / `join_check_tenant` signs in, mints a
       token bound to a throwaway box, the box joins with `install.sh --join`
       (seat < 60 s enforced, AC8), the token lists as used, the seat is
-      removed (second DELETE 404). Password: the secret
+      removed (200 revoked; a second DELETE is the hub's no-op 200 revoked,
+      a never-seated box id 404). Password: the secret
       `SPL_PROBE_ADMIN_PW_<ENV>` only. Test `csi-spl-orc` `join-check.tst.sh`
       (fake hub + fake installer).
 - [ ] T008 **membership end** (after T003): spec 4.8. On `RemoveMember`, in

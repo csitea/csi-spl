@@ -6,7 +6,8 @@
 #
 # The controls are the point:
 #   - no secret / no cnf member -> ::notice::, rc 0, nothing called
-#   - the happy path: sign in, mint, the box joins, used, removed, 404, sign out
+#   - the happy path: sign in, mint, the box joins, used, removed, a second
+#     removal is the hub's no-op 200, a never-seated box answers 404, sign out
 #   - the password only in the login body: never in the output, argv or the
 #     installer's env; the token only in the installer's env (never its
 #     argv) and masked in its output; the temp dir is gone afterwards
@@ -70,7 +71,11 @@ class H(BaseHTTPRequestHandler):
             return self.ans(200, {"tokens": [{"id": "0123abcd", "state": s, "consumed_box": st.get("box") if st["used"] else ""}]})
         if m == "DELETE" and p.startswith("/v1/tenant/agents/pins/"):
             box = p.rsplit("/", 1)[1]
-            if box in st["seated"]: st["seated"].discard(box); return self.ans(200, {"box_id": box})
+            # the hub's contract (store RevokeSeat): a revoked pin answers 200
+            # again (a no-op), 404 only for a box never pinned
+            if box in st["seated"] and os.environ.get("FAKE_NO_REVOKE") == "1": return self.ans(200, {"box_id": box})
+            if box in st["seated"]: st["seated"].discard(box); st.setdefault("gone", set()).add(box); return self.ans(200, {"box_id": box, "revoked": "true"})
+            if box in st.get("gone", set()): return self.ans(200, {"box_id": box, "revoked": "true"})
             return self.ans(404, {"error": "not_found"})
         if m == "DELETE" and p == "/v1/tenant/agents/join-tokens/0123abcd":
             if st["used"]: return self.ans(409, {"error": "join_token_used"})
@@ -111,7 +116,7 @@ HUB_PID=""
 start_hub() {
   [[ -n "$HUB_PID" ]] && kill "$HUB_PID" 2>/dev/null && wait "$HUB_PID" 2>/dev/null
   rm -f "$T/port" "$T/req.log"
-  FAKE_PW="$PW" FAKE_TOK="$TOK" FAKE_MINT_CODE="${1:-}" python3 "$T/hub.py" "$T/port" "$T/req.log" &
+  FAKE_PW="$PW" FAKE_TOK="$TOK" FAKE_MINT_CODE="${1:-}" FAKE_NO_REVOKE="${2:-}" python3 "$T/hub.py" "$T/port" "$T/req.log" &
   HUB_PID=$!
   for _ in $(seq 50); do [[ -s "$T/port" ]] && break; sleep 0.1; done
 }
@@ -151,8 +156,8 @@ cnf admin@example.com t1
 act SPL_PROBE_ADMIN_PW="$PW" SPL_PROBE_ADMIN_PW_DEV="$PW"; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'join check: minted, joined, verified and removed ci-join-42-dev in t1' "$T/stdout" \
   && pass "happy path: rc 0, every step" || fail "happy path: rc=$rc $(cat "$T/stdout")"
-want='POST /api/v1/auth/login;POST /v1/tenant/agents/join-tokens;POST /v1/pins/join;GET /v1/tenant/agents/join-tokens;DELETE /v1/tenant/agents/pins/ci-join-42-dev;DELETE /v1/tenant/agents/pins/ci-join-42-dev;POST /api/v1/auth/logout;'
-[[ "$(reqs)" == "$want" ]] && pass "sign in, mint, join, list, remove, 404, sign out - in that order" || fail "calls: $(reqs)"
+want='POST /api/v1/auth/login;POST /v1/tenant/agents/join-tokens;POST /v1/pins/join;GET /v1/tenant/agents/join-tokens;DELETE /v1/tenant/agents/pins/ci-join-42-dev;DELETE /v1/tenant/agents/pins/ci-join-42-dev;DELETE /v1/tenant/agents/pins/ci-join-42-dev-never;POST /api/v1/auth/logout;'
+[[ "$(reqs)" == "$want" ]] && pass "sign in, mint, join, list, remove, remove again (200), never-seated 404, sign out - in that order" || fail "calls: $(reqs)"
 grep -q 'INFO 4/6 ci-join-42-dev joined in [0-9]*s (AC8: < 60s)' "$T/stdout" && pass "the seat's wall clock is logged against AC8" || fail "no AC8 line"
 grep -q '^claim=t1 home=.*/home hub=http://127.0.0.1' "$T/fake.log" && pass "the box is throwaway: its own HOME, a dedicated claim of t1, the hub" \
   || fail "box env: $(cat "$T/fake.log")"
@@ -199,6 +204,12 @@ act SPL_PROBE_ADMIN_PW="$PW" JOIN_CHECK_SEAT_MAX_S=1 FAKE_SLEEP=1; rc=$?
   && grep -q 'INFO cleanup: removed seat ci-join-42-dev' "$T/stdout" \
   && [[ "$(grep -c 'DELETE /v1/tenant/agents/pins/ci-join-42-dev' "$T/req.log")" == 1 ]] \
   && pass "AC8 over time: rc 1, the seat removed by the cleanup" || fail "AC8: rc=$rc $(reqs) $(cat "$T/stdout")"
+
+# 6b. control: a removal the hub did not record (200 without revoked) fails
+start_hub "" 1
+act SPL_PROBE_ADMIN_PW="$PW"; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'FAIL 6/6 remove seat ci-join-42-dev answered no revoke' "$T/stdout" \
+  && pass "a removal answered without revoked=true: rc 1" || fail "no-revoke control: rc=$rc $(cat "$T/stdout")"
 
 # 7. the workflow wires it: per-env secret through env, the named action
 WF="$PROJ_ROOT/../.github/workflows/23_join-check.yml"

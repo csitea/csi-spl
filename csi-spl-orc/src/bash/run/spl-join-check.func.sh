@@ -13,7 +13,8 @@
 # @description      its environment (never argv); its wall clock is AC8's
 # @description      "seated in < 1 min" and is enforced
 # @description   5. verify: the token lists as used by that box
-# @description   6. remove: DELETE the seat; a second DELETE answers 404
+# @description   6. remove: DELETE the seat (200 revoked); a second DELETE is
+# @description      the hub's no-op 200, a never-seated box id answers 404
 # @description On any exit the seat is removed, an unused token revoked and
 # @description the session signed out.
 # @description The member's email and workspace are cnf env.box.join_check_email
@@ -124,12 +125,18 @@ sys.exit(0 if t and t[0].get("state") == "used" and t[0].get("consumed_box") in 
     "$w/resp" "$JC_TOK_ID" "$JC_BOX" || { echo "FAIL 5/6 token $JC_TOK_ID is not listed as used by $JC_BOX"; return 1; }
   JC_TOK_ID=""
   do_log "INFO 5/6 token used, $JC_BOX seated"
-  # 6. remove the seat; a second removal finds nothing
+  # 6. remove the seat. The hub answers a revoke of an already revoked pin
+  # as a no-op 200 and 404 only for a box never pinned (store RevokeSeat), so
+  # a second removal answers 200 revoked, and a never-seated id answers 404.
   code="$(spl_join_check_http DELETE "/v1/tenant/agents/pins/$JC_BOX")"
   [[ "$code" == 200 ]] || { echo "FAIL 6/6 remove seat $JC_BOX -> HTTP $code $(spl_join_check_err)"; return 1; }
+  spl_join_check_revoked "$JC_BOX" || { echo "FAIL 6/6 remove seat $JC_BOX answered no revoke"; return 1; }
   JC_SEATED=0
   code="$(spl_join_check_http DELETE "/v1/tenant/agents/pins/$JC_BOX")"
-  [[ "$code" == 404 ]] || { echo "FAIL 6/6 $JC_BOX still seated after its removal (second DELETE -> HTTP $code)"; return 1; }
+  [[ "$code" == 200 ]] && spl_join_check_revoked "$JC_BOX" ||
+    { echo "FAIL 6/6 a second removal of $JC_BOX -> HTTP $code, want the no-op 200 revoked"; return 1; }
+  code="$(spl_join_check_http DELETE "/v1/tenant/agents/pins/$JC_BOX-never")"
+  [[ "$code" == 404 ]] || { echo "FAIL 6/6 a never-seated box $JC_BOX-never -> HTTP $code, want 404"; return 1; }
   do_log "INFO 6/6 seat $JC_BOX removed"
 }
 
@@ -152,6 +159,12 @@ spl_join_check_http() {
   local -a a=(-sS -o "$JC_W/resp" -w '%{http_code}' --max-time 30 -b "$JC_W/jar" -c "$JC_W/jar" -X "$1")
   [[ -n "${3:-}" ]] && a+=(-H 'Content-Type: application/json' --data-binary "@$3")
   (umask 077; curl "${a[@]}" "$JC_HUB$2" 2>/dev/null) || true
+}
+
+# spl_join_check_revoked <box>: the last answer is {"box_id": box, "revoked": "true"}.
+spl_join_check_revoked() {
+  python3 -c 'import json, sys; r = json.load(open(sys.argv[1]))
+sys.exit(0 if r.get("box_id") == sys.argv[2] and r.get("revoked") == "true" else 1)' "$JC_W/resp" "$1" 2>/dev/null
 }
 
 # spl_join_check_err: the hub's error code and message of the last answer.

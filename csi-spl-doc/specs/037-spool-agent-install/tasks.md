@@ -29,5 +29,6 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       Found and fixed on the way: a bare re-run forgot the saved tenant/box
       (`8da778f`); `--update` ran the OLD file (`c5c05a0`); a named revoke
       (`5c3226f`, desk-pin.tst.sh 26 PASS)
-- [ ] T005 OPEN (owner): a hub-side join token so a pending user needs no
-      admin shell. Not built without a go.
+- [x] T005 a hub-side join token so a pending user needs no admin shell.
+      Built as spec 073; AC8 green on dev and prd 2026-10-14 (073 T007,
+      wf 23 run 38523130851).

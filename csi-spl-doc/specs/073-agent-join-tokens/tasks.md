@@ -59,7 +59,10 @@ its lane, the files it owns and its done check. Status vocabulary:
       join-token control. **AC8 open**: needs T004 `spool join` (108 T003)
       and an admin test session on dev / prd e2e (both test members lack
       `agents.join`).
-- [ ] T007 **close 037 T005** and 072 A5 once AC8 is green.
+- [x] T007 **close 037 T005** and 072 A5 once AC8 is green.
+      **Green** 2026-10-14, wf 23 run 38523130851 (da617d3f8), t1 switch on
+      (spec 108, owner msg 2786d0f5): dev and prd each joined in 6 s, every
+      step 1-6 PASS. https://github.com/csitea/csi-spl/actions/runs/38523130851
       **Check** (c-916, SPL-907): workflow 23 (`23_join-check.yml`, daily,
       dispatch, and a push to the check or the installer) runs
       `do_spl_join_check` per env: the admin member of cnf

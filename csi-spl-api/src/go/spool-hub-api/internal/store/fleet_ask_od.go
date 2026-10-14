@@ -194,6 +194,8 @@ func askGate(a FleetAsk, u AskUpdate, now time.Time) error {
 		switch u.Op {
 		case AskRenew, AskReopen:
 			return ErrAskRole
+		case AskQueue:
+			return askClassGate(a, u)
 		case AskAck:
 			// another holder's live lock: a book ack holds until the tick
 			// releases it (no lock_until), an od lock until lock_until

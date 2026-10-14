@@ -31,7 +31,9 @@ import (
 //	                  as dead (Kafka's archived), reason required
 //	ask_op queue    - a spawn request waits for room (rdb 0180): queued, with
 //	                  its position; never raised or escalated. placement
-//	                  "<vendor>:<slug>" is optional
+//	                  "<vendor>:<slug>" is optional; class (ci, refactor,
+//	                  bug, feature; rdb 0195) is required unless stored,
+//	                  flag urgent | bypass (+ flag_msg, the owner's msg id)
 //
 // The OD pool's jobs, role od (spec 134 3.3-3.4, rdb 0183; nothing calls them
 // before P3/P4, the lease keeps doing all OD work):
@@ -76,6 +78,11 @@ type AskRow struct {
 	EscalatedAt string `json:"escalated_at,omitempty"`
 	EnqueuedAt  string `json:"enqueued_at,omitempty"`
 	Placement   string `json:"placement,omitempty"`
+	Class       string `json:"class,omitempty"`
+	Flag        string `json:"flag,omitempty"`
+	FlagMsg     string `json:"flag_msg,omitempty"`
+	FlagBy      string `json:"flag_by,omitempty"`
+	FlagAt      string `json:"flag_at,omitempty"`
 	Position    int    `json:"position,omitempty"`
 	QueueLen    int    `json:"queue_len,omitempty"`
 	WriterBox   string `json:"writer_box,omitempty"`
@@ -100,6 +107,9 @@ type askUpdate struct {
 	By        string `json:"by"`
 	Reason    string `json:"reason"`
 	Placement string `json:"placement"`
+	Class     string `json:"class"`    // queue (rdb 0195)
+	Flag      string `json:"flag"`     // queue: urgent | bypass
+	FlagMsg   string `json:"flag_msg"` // queue, bypass: the owner message id
 	Role      string `json:"role"`
 	All       bool   `json:"all"`
 	Free      bool   `json:"free"`   // list, role od: only the jobs a seat could lock now
@@ -156,7 +166,8 @@ func askRow(a store.FleetAsk) AskRow {
 	return AskRow{AskID: a.AskID, Role: a.Role, Kind: a.Kind, From: a.From, Topic: a.Topic, Summary: a.Summary, State: a.State,
 		DeadlineAt: askTime(a.DeadlineAt), AckedBy: a.AckedBy, ClosedBy: a.ClosedBy, Reason: a.Reason,
 		RaisedN: a.RaisedN, RaisedAt: askTime(a.RaisedAt), EscalatedAt: askTime(a.EscalatedAt),
-		EnqueuedAt: askTime(a.EnqueuedAt), Placement: a.Placement, Position: a.Position, QueueLen: a.QueueLen, WriterBox: a.WriterBox,
+		EnqueuedAt: askTime(a.EnqueuedAt), Placement: a.Placement,
+		Class: a.Class, Flag: a.Flag, FlagMsg: a.FlagMsg, FlagBy: a.FlagBy, FlagAt: askTime(a.FlagAt), Position: a.Position, QueueLen: a.QueueLen, WriterBox: a.WriterBox,
 		LockUntil: askTime(a.LockUntil), LeaseS: a.LeaseS, Gen: a.Gen, DedupeKey: a.DedupeKey, IssueKey: a.IssueKey,
 		VendorAllow: a.VendorAllow, Needs: a.Needs, NotBy: a.NotBy,
 		CreatedAt: askTime(a.CreatedAt), UpdatedAt: askTime(a.UpdatedAt),
@@ -303,8 +314,14 @@ func (s *Server) askUpdate(ctx context.Context, x *session, f wire.Frame) (askAn
 	if !store.AskPlacementRe.MatchString(in.Placement) {
 		return askAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "placement must be <vendor>:<slug> (lowercase)"}
 	}
+	if why := store.CheckAskClass(in.Class, in.Flag, in.FlagMsg); why != "" {
+		return askAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", why}
+	}
+	if (in.Class != "" || in.Flag != "") && f.AskOp != store.AskQueue {
+		return askAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "class and flag go with a queue op only"}
+	}
 	u := store.AskUpdate{Fleet: f.Fleet, AskID: in.AskID, Op: f.AskOp, By: in.By, Reason: in.Reason, Placement: in.Placement,
-		Gen: in.Gen, Refuse: in.Refuse}
+		Class: in.Class, Flag: in.Flag, FlagMsg: in.FlagMsg, Gen: in.Gen, Refuse: in.Refuse}
 	got, err := s.o.Store.UpdateFleetAsk(ctx, x.tenant, u, x.box, s.o.Now())
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -314,6 +331,9 @@ func (s *Server) askUpdate(ctx context.Context, x *session, f wire.Frame) (askAn
 			"already " + got.State + " by " + got.ClosedBy + ": " + got.Reason}
 	case errors.Is(err, store.ErrAskHeld):
 		return askAnswer{}, &issueErr{http.StatusConflict, "ask_held", askHeldDetail(got)}
+	case errors.Is(err, store.ErrAskClass):
+		return askAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame",
+			"a queued ask needs class ci, refactor, bug or feature (stored: '" + got.Class + "'); flag urgent goes with bug, bypass with feature"}
 	case errors.Is(err, store.ErrAskRole):
 		return askAnswer{}, &issueErr{http.StatusConflict, "ask_op_refused",
 			f.AskOp + " does not apply to a role " + got.Role + " ask in state " + got.State}

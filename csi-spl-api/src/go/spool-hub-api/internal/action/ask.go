@@ -19,7 +19,8 @@ import (
 //	ack | done | decline          work it, By = the acting <ID>@<box>
 //	raise | escalate              the lease tick's re-raise / owner leg
 //	release | dead                the lease tick's lock timeout / dead-letter (CLE-77942)
-//	queue                         a spawn request waits for room (rdb 0180), Placement optional
+//	queue                         a spawn request waits for room (rdb 0180), Placement optional;
+//	                              Class required unless stored, Flag urgent | bypass (+ FlagMsg) (rdb 0195)
 //
 // The OD pool's jobs, role od (spec 134 3.4, rdb 0183):
 //
@@ -43,6 +44,9 @@ type AskArgs struct {
 	By       string
 	Reason   string
 	Place    string // queue: "<vendor>:<slug>"
+	Class    string // queue: ci | refactor | bug | feature
+	Flag     string // queue: urgent | bypass
+	FlagMsg  string // queue, bypass: the owner message id
 	All      bool
 	// role od
 	Gen         int64
@@ -132,9 +136,20 @@ func askBody(in AskArgs) (json.RawMessage, error) {
 		if !store.AskPlacementRe.MatchString(in.Place) {
 			return nil, fmt.Errorf("ask: --placement must be <vendor>:<slug> (lowercase)")
 		}
+		if why := store.CheckAskClass(in.Class, in.Flag, in.FlagMsg); why != "" {
+			return nil, fmt.Errorf("ask: %s", why)
+		}
+		if (in.Class != "" || in.Flag != "") && in.Op != store.AskQueue {
+			return nil, fmt.Errorf("ask: --class and --flag go with queue only")
+		}
 		m := map[string]any{"ask_id": in.AskID, "by": in.By, "reason": in.Reason}
 		if in.Place != "" {
 			m["placement"] = in.Place
+		}
+		for k, v := range map[string]string{"class": in.Class, "flag": in.Flag, "flag_msg": in.FlagMsg} {
+			if v != "" {
+				m[k] = v
+			}
 		}
 		if in.Gen != 0 {
 			m["gen"] = in.Gen

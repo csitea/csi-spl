@@ -134,7 +134,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, _, err := pg.PutFleetAsk(ctx, s.tenant, FleetAsk{Fleet: "main", AskID: queued, Role: "orch", Kind: "task", From: "c-002"}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pg.UpdateFleetAsk(ctx, s.tenant, AskUpdate{Fleet: "main", AskID: queued, Op: AskQueue, By: "c-001", Placement: "claude:x-" + s.marker[:8]}, "box-a", now); err != nil {
+	if _, err := pg.UpdateFleetAsk(ctx, s.tenant, AskUpdate{Fleet: "main", AskID: queued, Op: AskQueue, By: "c-001", Class: "bug", Placement: "claude:x-" + s.marker[:8]}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
 	// od_pool and an od job (rdb 0185, spec 134): one pool row and one open

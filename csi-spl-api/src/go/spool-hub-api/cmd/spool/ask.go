@@ -35,6 +35,9 @@ func cmdAsk(cfg *config.Config, args []string) int {
 	by := fs.String("by", "", "ack|done|decline|raise|escalate|release|dead|queue|renew|reopen|pool --set: the acting agent, <ID>@<box>")
 	reason := fs.String("reason", "", "done|decline|dead: why (a decline and a dead-letter need one)")
 	placement := fs.String("placement", "", "queue: what the placer launches, <vendor>:<slug> (optional)")
+	class := fs.String("class", "", "queue: the work class, ci, refactor, bug or feature (required unless stored)")
+	flagF := fs.String("flag", "", "queue: urgent (a bug over its band) or bypass (a feature outside the bands, the owner's ask)")
+	flagMsg := fs.String("flag-msg", "", "queue --flag bypass: the owner message id that asked for it")
 	all := fs.Bool("all", false, "list: also the closed asks of the last week")
 	// role od (spec 134, rdb 0183)
 	gen := fs.Int64("gen", 0, "renew|done|decline|release of an od job: the gen lock-next gave the holder")
@@ -51,12 +54,7 @@ func cmdAsk(cfg *config.Config, args []string) int {
 	lease := fs.Int("lease", 0, "enqueue: the lease in seconds, 15..86400 (default 120)")
 	needsOwner := fs.Bool("needs-owner", false, "enqueue: the job waits for a human (needs_owner), never locked")
 	set := fs.Bool("set", false, "pool: write the fields given below (with --by)")
-	claudeN := fs.Int("claude-n", 0, "pool --set: the Claude seat target")
-	grokN := fs.Int("grok-n", 0, "pool --set: the Grok seat target")
-	minBoxes := fs.Int("min-boxes", 0, "pool --set: the boxes the seats spread over")
-	vendorOut := fs.String("vendor-out", "", "pool --set: the vendor that is out (claude, grok, or empty)")
-	outUntil := fs.String("out-until", "", "pool --set: until when, RFC 3339 (empty clears it)")
-	kinds := fs.String("kinds", "", "pool --set: the job kinds the seats lock, comma-separated (empty: none)")
+	poolFields := askPoolFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -67,35 +65,50 @@ func cmdAsk(cfg *config.Config, args []string) int {
 	if err := edgeIDs(cfg, map[string]*string{"from": from, "by": by, "seat": seat}); err != nil {
 		return fail(err)
 	}
-	pool := map[string]any{}
-	fs.Visit(func(f *flag.Flag) {
-		switch f.Name {
-		case "claude-n":
-			pool["claude_n"] = *claudeN
-		case "grok-n":
-			pool["grok_n"] = *grokN
-		case "min-boxes":
-			pool["min_boxes"] = *minBoxes
-		case "vendor-out":
-			pool["vendor_out"] = *vendorOut
-		case "out-until":
-			pool["out_until"] = *outUntil
-		case "kinds":
-			pool["kinds"] = splitList(*kinds)
-		}
-	})
 	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.Ask(ctx, cfg, action.AskArgs{Fleet: *fleet, Op: op, AskID: *id, Role: *role, Kind: *kind, From: *from,
 		Topic: *topic, Summary: *summary, Deadline: *deadline, By: *by, Reason: *reason, Place: *placement, All: *all,
+		Class: *class, Flag: *flagF, FlagMsg: *flagMsg,
 		Gen: *gen, Refuse: *refuse, Free: *free, Seat: *seat, Vendor: *vendor, Harness: *harness, Caps: splitList(*caps),
 		IssueKey: *issue, DedupeKey: *dedupe, VendorAllow: *vendorAllow, Needs: *needs, LeaseS: *lease, NeedsOwner: *needsOwner,
-		PoolSet: *set, Pool: pool})
+		PoolSet: *set, Pool: poolFields()})
 	if err != nil {
 		return fail(err)
 	}
 	fmt.Println(string(out))
 	return 0
+}
+
+// askPoolFlags declares the pool --set fields on fs; the func it returns,
+// called after fs.Parse, reads the ones given as od_pool fields.
+func askPoolFlags(fs *flag.FlagSet) func() map[string]any {
+	claudeN := fs.Int("claude-n", 0, "pool --set: the Claude seat target")
+	grokN := fs.Int("grok-n", 0, "pool --set: the Grok seat target")
+	minBoxes := fs.Int("min-boxes", 0, "pool --set: the boxes the seats spread over")
+	vendorOut := fs.String("vendor-out", "", "pool --set: the vendor that is out (claude, grok, or empty)")
+	outUntil := fs.String("out-until", "", "pool --set: until when, RFC 3339 (empty clears it)")
+	kinds := fs.String("kinds", "", "pool --set: the job kinds the seats lock, comma-separated (empty: none)")
+	return func() map[string]any {
+		pool := map[string]any{}
+		fs.Visit(func(f *flag.Flag) {
+			switch f.Name {
+			case "claude-n":
+				pool["claude_n"] = *claudeN
+			case "grok-n":
+				pool["grok_n"] = *grokN
+			case "min-boxes":
+				pool["min_boxes"] = *minBoxes
+			case "vendor-out":
+				pool["vendor_out"] = *vendorOut
+			case "out-until":
+				pool["out_until"] = *outUntil
+			case "kinds":
+				pool["kinds"] = splitList(*kinds)
+			}
+		})
+		return pool
+	}
 }
 
 // splitList is a comma-separated flag as a list ("" = empty, never nil).

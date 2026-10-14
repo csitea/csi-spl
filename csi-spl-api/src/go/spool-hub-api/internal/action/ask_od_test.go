@@ -44,6 +44,11 @@ func TestAskOd(t *testing.T) {
 			"", map[string]string{"refuse": `"claude"`}},
 		{"queue placement", AskArgs{Fleet: "csi", Op: "queue", AskID: askID, By: "c-001@sat", Place: "claude:s134"},
 			"", map[string]string{"placement": `"claude:s134"`}},
+		{"queue class bypass", AskArgs{Fleet: "csi", Op: "queue", AskID: askID, By: "c-001@sat", Class: "feature", Flag: "bypass", FlagMsg: askID},
+			"", map[string]string{"class": `"feature"`, "flag": `"bypass"`, "flag_msg": `"` + askID + `"`}},
+		{"queue bad class", AskArgs{Fleet: "csi", Op: "queue", AskID: askID, By: "c-001@sat", Class: "chore"}, "class must be", nil},
+		{"bypass no msg", AskArgs{Fleet: "csi", Op: "queue", AskID: askID, By: "c-001@sat", Class: "feature", Flag: "bypass"}, "a bypass needs flag_msg", nil},
+		{"class on ack", AskArgs{Fleet: "csi", Op: "ack", AskID: askID, By: "c-001@sat", Class: "bug"}, "go with queue only", nil},
 	}
 	for _, c := range cases {
 		raw, err := Ask(context.Background(), cfg, c.in)

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"sort"
 	"strings"
@@ -27,7 +28,9 @@ import (
 //
 // A spawn request waits in a queue (rdb 0180, owner HUM-10 t1 c9beaa77):
 // queued is open for the ops but the tick never raises it, and Position is
-// its rank by EnqueuedAt among its role's queued asks, filled on a list.
+// its rank among its role's queued asks, filled on a list: by Class (rdb
+// 0195, SPL-1817: ci, a flagged row, refactor, bug, feature), then by
+// EnqueuedAt.
 //
 // Age is now - CreatedAt and Quiet is now - the newest of UpdatedAt and
 // RaisedAt, both on the hub's clock, so the machines' clocks never have to
@@ -50,6 +53,11 @@ type FleetAsk struct {
 	EscalatedAt time.Time
 	EnqueuedAt  time.Time // set once by the first AskQueue: a stalled placement keeps its place
 	Placement   string    // "<vendor>:<slug>" the placer launches; "" = the orchestrator decides
+	Class       string    // ci | refactor | bug | feature (rdb 0195); "" = never queued
+	Flag        string    // "" | urgent (a bug over its band) | bypass (a feature outside the bands, the owner's ask)
+	FlagMsg     string    // bypass: the owner message id that asked for it
+	FlagBy      string    // who set Flag
+	FlagAt      time.Time // when Flag was set
 	Position    int       // 1 = next to place; 0 = not queued (filled by ListFleetAsks)
 	QueueLen    int       // the queued asks of its role (filled with Position)
 	WriterBox   string    // the box that last wrote it (from the authenticated hello)
@@ -97,6 +105,7 @@ const (
 type AskUpdate struct {
 	Fleet, AskID, Op, By, Reason string
 	Placement                    string // AskQueue: "<vendor>:<slug>", "" keeps the stored one
+	Class, Flag, FlagMsg         string // AskQueue: "" keeps the stored one (rdb 0195)
 	Gen                          int64  // role od: the holder's fence (renew, done, decline, release)
 	Refuse                       string // role od release: the holder's harness joins not_by
 }
@@ -107,6 +116,77 @@ var (
 	// AskPlacementRe is 0180's placement: "" or <vendor>:<slug>.
 	AskPlacementRe = regexp.MustCompile(`^([a-z]{2,16}:[a-z0-9][a-z0-9._-]{0,63})?$`)
 )
+
+// The work classes of a queued spawn request (rdb 0195, SPL-1817), in the
+// queue's order; the bands of the live lanes are the placer's. The rule's
+// one home: csi-spl-doc/doc/md/fleet-rules-index.md.
+var AskClasses = []string{"ci", "refactor", "bug", "feature"}
+
+// ErrAskClass: a queue op that would leave the row without a class, or with
+// a flag its class does not take.
+var ErrAskClass = errors.New("a queued ask needs a class and a flag its class takes")
+
+// CheckAskClass names the first thing wrong with a queue op's class, flag
+// and flag_msg as sent ("" = fine; "" fields keep the stored ones).
+func CheckAskClass(class, flag, msg string) string {
+	switch {
+	case class != "" && askClassRank(class, "") < 0:
+		return "class must be ci, refactor, bug or feature"
+	case flag != "" && flag != "urgent" && flag != "bypass":
+		return "flag must be urgent (a bug) or bypass (a feature, the owner's ask)"
+	case msg != "" && !AskIDRe.MatchString(msg):
+		return "flag_msg must be the owner message id (a lowercase UUID)"
+	case flag == "bypass" && msg == "":
+		return "a bypass needs flag_msg, the owner message that asked for it"
+	case flag != "bypass" && msg != "":
+		return "flag_msg goes with flag bypass only"
+	}
+	return ""
+}
+
+// askClassGate checks the row a queue op would leave: a class, and a flag
+// that class takes (0195's fleet_asks_flag_class_check).
+func askClassGate(a FleetAsk, u AskUpdate) error {
+	class, flag := a.Class, a.Flag
+	if u.Class != "" {
+		class = u.Class
+	}
+	if u.Flag != "" {
+		flag = u.Flag
+	}
+	if class == "" || (flag == "urgent" && class != "bug") || (flag == "bypass" && class != "feature") {
+		return ErrAskClass
+	}
+	return nil
+}
+
+// askQueueRank is a queued row's place in the class order; a row with no
+// class (never classed) sorts last.
+func askQueueRank(a FleetAsk) int {
+	if r := askClassRank(a.Class, a.Flag); r >= 0 {
+		return r
+	}
+	return len(AskClasses) + 1
+}
+
+// askClassRank is the queue's class order: ci, a flagged row (urgent bug,
+// bypass feature), refactor, bug, feature; -1 = not a class.
+func askClassRank(class, flag string) int {
+	if flag != "" && class != "ci" {
+		return 1
+	}
+	switch class {
+	case "ci":
+		return 0
+	case "refactor":
+		return 2
+	case "bug":
+		return 3
+	case "feature":
+		return 4
+	}
+	return -1
+}
 
 // ValidAskAgent is an ask's from / acked_by / closed_by as 0097 accepts it:
 // <ID> or <ID>@<box>, the id in either grammar (spec 061, agentid).
@@ -165,8 +245,9 @@ func sortAsks(as []FleetAsk) {
 	})
 }
 
-// askPositions numbers each role's queued asks by EnqueuedAt (then AskID):
-// position 1 is placed next. Both drivers call it on a list.
+// askPositions numbers each role's queued asks by class rank (rdb 0195),
+// then EnqueuedAt, then AskID: position 1 is placed next unless the placer's
+// bands pick another class. Both drivers call it on a list.
 func askPositions(as []FleetAsk) {
 	byRole := map[string][]int{}
 	for i, a := range as {
@@ -177,6 +258,9 @@ func askPositions(as []FleetAsk) {
 	for _, ix := range byRole {
 		sort.SliceStable(ix, func(i, j int) bool {
 			a, b := as[ix[i]], as[ix[j]]
+			if ra, rb := askQueueRank(a), askQueueRank(b); ra != rb {
+				return ra < rb
+			}
 			if !a.EnqueuedAt.Equal(b.EnqueuedAt) {
 				return a.EnqueuedAt.Before(b.EnqueuedAt)
 			}
@@ -282,6 +366,12 @@ func applyAskOp(a *FleetAsk, u AskUpdate, box string, now time.Time) {
 		if u.Placement != "" {
 			a.Placement = u.Placement
 		}
+		if u.Class != "" {
+			a.Class = u.Class
+		}
+		if u.Flag != "" {
+			a.Flag, a.FlagMsg, a.FlagBy, a.FlagAt = u.Flag, u.FlagMsg, u.By, now
+		}
 	}
 	a.WriterBox = box
 	// the tick's own ops are not the holder's activity: quiet keeps counting
@@ -309,6 +399,7 @@ func (s *Memory) PutFleetAsk(_ context.Context, tenant string, a FleetAsk, box s
 	}
 	a.State, a.AckedBy, a.ClosedBy, a.Reason, a.RaisedN = "open", "", "", "", 0
 	a.RaisedAt, a.EscalatedAt, a.EnqueuedAt, a.Placement = time.Time{}, time.Time{}, time.Time{}, ""
+	a.Class, a.Flag, a.FlagMsg, a.FlagBy, a.FlagAt = "", "", "", "", time.Time{}
 	a.WriterBox, a.CreatedAt, a.UpdatedAt = box, now, now
 	s.asks[k] = a
 	askTimes(&a, now)

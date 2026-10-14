@@ -15,13 +15,15 @@ import (
 
 const askCols = `ask_id, role, kind, from_agent, topic, summary, state, deadline_at, acked_by, closed_by, reason,
 	raised_n, raised_at, escalated_at, writer_box, created_at, updated_at, enqueued_at, placement,
+	class, flag, flag_msg, flag_by, flag_at,
 	lock_until, lease_s, gen, dedupe_key, issue_key, vendor_allow, needs, not_by`
 
 func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 	a := FleetAsk{Fleet: fleet}
-	var deadline, raised, escalated, enqueued, lockUntil *time.Time
+	var deadline, raised, escalated, enqueued, flagAt, lockUntil *time.Time
 	if err := row.Scan(&a.AskID, &a.Role, &a.Kind, &a.From, &a.Topic, &a.Summary, &a.State, &deadline, &a.AckedBy, &a.ClosedBy,
 		&a.Reason, &a.RaisedN, &raised, &escalated, &a.WriterBox, &a.CreatedAt, &a.UpdatedAt, &enqueued, &a.Placement,
+		&a.Class, &a.Flag, &a.FlagMsg, &a.FlagBy, &flagAt,
 		&lockUntil, &a.LeaseS, &a.Gen, &a.DedupeKey, &a.IssueKey, &a.VendorAllow, &a.Needs, &a.NotBy); err != nil {
 		return a, err
 	}
@@ -31,7 +33,7 @@ func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 	for _, p := range []struct {
 		src *time.Time
 		dst *time.Time
-	}{{deadline, &a.DeadlineAt}, {raised, &a.RaisedAt}, {escalated, &a.EscalatedAt}, {enqueued, &a.EnqueuedAt}, {lockUntil, &a.LockUntil}} {
+	}{{deadline, &a.DeadlineAt}, {raised, &a.RaisedAt}, {escalated, &a.EscalatedAt}, {enqueued, &a.EnqueuedAt}, {flagAt, &a.FlagAt}, {lockUntil, &a.LockUntil}} {
 		if p.src != nil {
 			*p.dst = p.src.UTC()
 		}
@@ -110,11 +112,13 @@ func (s *Postgres) UpdateFleetAsk(ctx context.Context, tenant string, u AskUpdat
 func writeAsk(ctx context.Context, tx pgx.Tx, tenant string, a FleetAsk) error {
 	_, err := tx.Exec(ctx, `UPDATE fleet_asks SET state = $4, acked_by = $5, closed_by = $6, reason = $7,
 		raised_n = $8, raised_at = $9, escalated_at = $10, writer_box = $11, updated_at = $12,
-		enqueued_at = $13, placement = $14, lock_until = $15, gen = $16, not_by = $17
+		enqueued_at = $13, placement = $14, lock_until = $15, gen = $16, not_by = $17,
+		class = $18, flag = $19, flag_msg = $20, flag_by = $21, flag_at = $22
 		WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3`,
 		tenant, a.Fleet, a.AskID, a.State, a.AckedBy, a.ClosedBy, a.Reason, a.RaisedN,
 		nullTime(a.RaisedAt), nullTime(a.EscalatedAt), a.WriterBox, a.UpdatedAt,
-		nullTime(a.EnqueuedAt), a.Placement, nullTime(a.LockUntil), a.Gen, notByArr(a.NotBy))
+		nullTime(a.EnqueuedAt), a.Placement, nullTime(a.LockUntil), a.Gen, notByArr(a.NotBy),
+		a.Class, a.Flag, a.FlagMsg, a.FlagBy, nullTime(a.FlagAt))
 	return err
 }
 

@@ -182,20 +182,31 @@ func TestBoxFleetAskQueuePosition(t *testing.T) {
 	for _, id := range []string{a1, a2} {
 		askCall(t, home, action.AskArgs{Fleet: "main", Op: "put", AskID: id, Kind: "task", From: "c-002@box-b", Summary: "SPAWN REQUEST " + id[:2]})
 	}
-	got := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a1, By: "c-001@box-c", Place: "claude:hub-pg-split"})
-	if r := got.Asks[0]; r.State != "queued" || r.Position != 1 || r.QueueLen != 1 || r.Placement != "claude:hub-pg-split" || r.EnqueuedAt == "" {
+	_, err := action.Ask(context.Background(), sat.cfg, action.AskArgs{Fleet: "main", Op: "queue", AskID: a1, By: "c-001@box-c", Hub: sat.c})
+	if err == nil || !strings.Contains(err.Error(), "class") {
+		t.Fatalf("a queue with no class (rdb 0195): %v", err)
+	}
+	got := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a1, By: "c-001@box-c", Place: "claude:hub-pg-split", Class: "bug"})
+	if r := got.Asks[0]; r.State != "queued" || r.Position != 1 || r.QueueLen != 1 || r.Placement != "claude:hub-pg-split" || r.EnqueuedAt == "" || r.Class != "bug" {
 		t.Fatalf("queue a1: %+v", r)
 	}
-	if r := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a2, By: "c-001@box-c"}).Asks[0]; r.Position != 2 || r.QueueLen != 2 || r.Placement != "" {
+	if r := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a2, By: "c-001@box-c", Class: "feature"}).Asks[0]; r.Position != 2 || r.QueueLen != 2 || r.Placement != "" {
 		t.Fatalf("queue a2: %+v", r)
 	}
+	// SPL-1817: a later refactor row goes ahead of the older bug (FIFO would not)
+	const a3 = "a3a3a3a3-0000-4000-8000-000000000003"
+	askCall(t, home, action.AskArgs{Fleet: "main", Op: "put", AskID: a3, Kind: "task", From: "c-002@box-b", Summary: "SPAWN REQUEST a3"})
+	if r := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a3, By: "c-001@box-c", Class: "refactor"}).Asks[0]; r.Position != 1 || r.QueueLen != 3 {
+		t.Fatalf("queue a3 refactor: %+v", r)
+	}
+	askCall(t, sat, action.AskArgs{Fleet: "main", Op: "ack", AskID: a3, By: "c-001@box-c"})
 	askCall(t, sat, action.AskArgs{Fleet: "main", Op: "ack", AskID: a1, By: "c-001@box-c"})
 	for _, r := range askCall(t, home, action.AskArgs{Fleet: "main", Role: "orch"}).Asks {
 		if r.AskID == a2 && (r.Position != 1 || r.QueueLen != 1) || r.AskID == a1 && (r.State != "acked" || r.Position != 0) {
 			t.Fatalf("after the head left: %+v", r)
 		}
 	}
-	_, err := action.Ask(context.Background(), sat.cfg, action.AskArgs{Fleet: "main", Op: "queue", AskID: a2, By: "c-001@box-c", Place: "claude:x;rm", Hub: sat.c})
+	_, err = action.Ask(context.Background(), sat.cfg, action.AskArgs{Fleet: "main", Op: "queue", AskID: a2, By: "c-001@box-c", Place: "claude:x;rm", Hub: sat.c})
 	if err == nil || !strings.Contains(err.Error(), "placement") {
 		t.Fatalf("a bad placement: %v", err)
 	}

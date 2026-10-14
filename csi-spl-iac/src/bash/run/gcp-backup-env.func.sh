@@ -1,4 +1,6 @@
 #!/bin/bash
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description READ-ONLY backup of one env's GCP estate to a 0700 local dir,
 # @description as the env's project service account in a private gcloud
@@ -27,10 +29,9 @@
 # @example ENV=prd RESTORE_CHECK_PG_CONTAINER=csi-spl-lde-main-pg-1 ./run -a do_gcp_backup_env
 #------------------------------------------------------------------------------
 do_gcp_backup_env() {
-  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
-  _spl_sdk_dir="$(mktemp -d)"
-  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
-  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
+  local _spl_sdk_saved _spl_sdk_dir
+  spl_gcp_temp_sdk_config || return 1
+  trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
 
   do_gcp_spl_proj_id || return 1
   local p="$PROJ_ID" cnf="$_spl_sdk_dir/cnf.yaml"

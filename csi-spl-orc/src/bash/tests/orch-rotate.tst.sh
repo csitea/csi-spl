@@ -770,6 +770,29 @@ sb20
 act "${SB[@]}" ROTATE_CLAUDE_BIN="$T/bin/no-claude" >"$T/o" 2>&1
 grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*claude cannot act (no claude cli at $T/bin/no-claude): the grok standby$" "$T/o" &&
   pass "20. no claude CLI: the grok standby" || fail "20. no cli: $(plan)"
+# sat: the agent user's home is 0700 to the box user, so -x as the box user
+# fails on a live claude; the check asks the agent user too (stub sudo: it
+# answers for agent-home from agent-seen, which the test can remove)
+mkdir -p "$T/agent-home" "$T/agent-seen" "$T/sudo-bin"
+printf '#!/bin/sh\n' >"$T/agent-home/claude"; cp "$T/agent-home/claude" "$T/agent-seen/claude"
+chmod +x "$T/agent-home/claude" "$T/agent-seen/claude"; chmod 000 "$T/agent-home"
+cat >"$T/sudo-bin/sudo" <<'STUB'
+#!/bin/bash
+[[ "$1 $2 $3" == "-n -u agentx" ]] || exit 1
+shift 3; echo "$*" >>"$T/sudo.log"
+[[ "$1" == test ]] && set -- "${@/#$T\/agent-home/$T/agent-seen}"
+exec "$@"
+STUB
+chmod +x "$T/sudo-bin/sudo"
+AS=(PATH="$T/sudo-bin:$PATH" ROTATE_AS_AGENT_DIRECT= SPOOL_AGENT_USER=agentx ROTATE_CLAUDE_BIN="$T/agent-home/claude")
+sb20; rm -f "$T/sudo.log"; act "${SB[@]}" "${AS[@]}" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=claude: claude$" "$T/o" &&
+  { (( EUID == 0 )) || grep -qx "test -x $T/agent-home/claude" "$T/sudo.log"; } &&
+  pass "20. a claude CLI only the agent user reaches (0700 home): claude, asked as the agent user" || fail "20. agent cli: $(plan; cat "$T/sudo.log" 2>&1)"
+rm -rf "$T/agent-seen"; sb20; act "${SB[@]}" "${AS[@]}" >"$T/o" 2>&1
+(( EUID == 0 )) || grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*claude cannot act (no claude cli at $T/agent-home/claude): the grok standby$" "$T/o" &&
+  pass "20. control: the agent user cannot run it either: no claude CLI, the grok standby" || fail "20. agent no cli: $(plan)"
+chmod 700 "$T/agent-home"
 sb20; echo "c-902 $(( $(date +%s) - 400 ))" >"$D/lease"
 act "${SB[@]}" >"$T/o" 2>&1
 grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*claude cannot act (the dispatch lease holder c-902 (claude) is silent 40[0-9]s, past LEASE_STALE 180s): the grok standby$" "$T/o" &&

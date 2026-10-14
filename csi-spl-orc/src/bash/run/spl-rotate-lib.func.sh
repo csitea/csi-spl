@@ -164,7 +164,9 @@ spl_rotate_grok_why() {
 # can (SPL-1869). File reads, no model call, no lane-mix (to lane-mix claude
 # is always there):
 # - no claude CLI: ROTATE_CLAUDE_BIN, else CLAUDE_BIN, else the agent user's
-#   ~/.local/bin/claude (the binary the spawn would start) is not executable;
+#   ~/.local/bin/claude (the binary the spawn would start) is not executable,
+#   asked as the agent user too (its home is 0700 to the box user on sat:
+#   asked as the box user alone, a live claude read as "no claude cli");
 # - a limit: among the claude seats of this box (registry kind claude, else a
 #   c- or CLE- id), the newest watchdog verdict (ctx*/<id>/out.s2, newest per
 #   seat) within ROTATE_CLAUDE_LIMIT_FRESH s (default 21600, lane-mix's limit
@@ -179,7 +181,8 @@ spl_rotate_claude_out() {
   local -A newest=() newf=()
   bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-${ROTATE_AGENT_HOME:-$HOME}/.local/bin/claude}}"
   [[ "$bin" == /* ]] || bin="$(command -v "$bin" 2>/dev/null || true)"
-  [[ -n "$bin" && -x "$bin" ]] || { echo "no claude cli${bin:+ at $bin}"; return 0; }
+  [[ -n "$bin" ]] && { [[ -x "$bin" ]] || spl_rotate_as_agent test -x "$bin" 2>/dev/null; } ||
+    { echo "no claude cli${bin:+ at $bin}"; return 0; }
   for f in "$wd"/ctx*/*/out.s2; do
     [[ -f "$f" ]] || continue
     id="$(basename "$(dirname "$f")")"

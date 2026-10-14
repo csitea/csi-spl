@@ -240,18 +240,22 @@ func (s *Postgres) DocFolderCreate(ctx context.Context, tenant string, f DocFold
 }
 
 // docNodeSelect reads a listing's rows: the folders first, then the
-// documents, each by name (the file system view, spec 5 "order").
+// documents (the file system view, spec 5 "order"), each in the folder's
+// own order, its bounds (the re-order of DocNodeMoveAt, owner t1 1a9a14b6
+// msg 32d5ea87); a document an older hub made without a node goes last,
+// by title.
 const docNodeSelect = `SELECT n.id::text, n.kind, n.name, n.title, n.description, coalesce(n.doc_id::text, ''),
 		coalesce(d.title, ''), coalesce(d.description, ''),
-		(SELECT count(*) FROM workspace_doc_node c WHERE c.tenant_id = n.tenant_id AND c.parent_id = n.id)::integer
+		(SELECT count(*) FROM workspace_doc_node c WHERE c.tenant_id = n.tenant_id AND c.parent_id = n.id)::integer,
+		n.lft
 	FROM workspace_doc_node n LEFT JOIN workspace_doc d ON d.id = n.doc_id
 	WHERE n.tenant_id = $1 AND n.parent_id = $2
 	UNION ALL
-	SELECT '', 'doc', '', '', '', d.id::text, d.title, d.description, 0
+	SELECT '', 'doc', '', '', '', d.id::text, d.title, d.description, 0, NULL
 	FROM workspace_doc d
 	WHERE $3 AND d.tenant_id = $1
 	  AND NOT EXISTS (SELECT 1 FROM workspace_doc_node x WHERE x.doc_id = d.id)
-	ORDER BY 2 DESC, 3, 7, 6, 1
+	ORDER BY 2 DESC, 10 NULLS LAST, 7, 6, 1
 	LIMIT $4`
 
 // DocNodes lists one folder's children (parent "" = the workspace's root),
@@ -280,7 +284,8 @@ func (s *Postgres) DocNodes(ctx context.Context, tenant, parent string) (string,
 		out, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (DocNode, error) {
 			var n DocNode
 			var docTitle, docDesc string
-			err := r.Scan(&n.ID, &n.Kind, &n.Name, &n.Title, &n.Description, &n.DocID, &docTitle, &docDesc, &n.Children)
+			var lft *int
+			err := r.Scan(&n.ID, &n.Kind, &n.Name, &n.Title, &n.Description, &n.DocID, &docTitle, &docDesc, &n.Children, &lft)
 			if n.Kind == "doc" {
 				n.Title, n.Description = docTitle, docDesc
 			}

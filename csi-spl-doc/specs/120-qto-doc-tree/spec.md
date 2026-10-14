@@ -333,6 +333,20 @@ system view, sorted at read). `?order=tree` returns `lft` order, which is
 what the future "file system as its own doc" view will read (owner, msg
 d44d08f8). A rename never moves bounds.
 
+**Re-order (2026-10-14, SPL-1873).** The owner asked for the drag-to-reorder
+that section 3 left for later (t1 1a9a14b6, msg 32d5ea87: "enable drag and
+drop aka re-order of files within folders in the qto file explorer"). No
+`ord` column was needed: the order is `lft` itself. The move takes an
+optional place, `{parent, before}` or `{parent, after}` naming a child of
+`parent`; the node's `lft` goes to that sibling's `lft` (before) or one past
+its `rgt` (after), by the same one-`UPDATE` shift. A place under the node's
+own parent only re-orders it; a place it already holds is a no-op. `/nodes`
+now lists folders first, then documents, each in `lft` order (a document of
+an older hub, without a node, last, by title), so a new node shows last and a
+re-order survives a reload. The explorer drags a row onto the gap between two
+siblings, or onto a folder to move it in; Alt+Up / Alt+Down move the focused
+row within its folder.
+
 **Concurrency.** All structural writes of one workspace queue on its root
 row, each holding it ~0.4 s at 10,000 documents (section 3). Two people
 creating at once wait at most about one write each. Reads never take the
@@ -398,7 +412,7 @@ Under the existing `/v1/workspace/doctree` prefix, with the same caller rule
 | `POST /v1/workspace/doctree` | gains optional `parent` | 201; 409 `doc_cap_reached` |
 | `POST /v1/workspace/doctree/folders` | `{parent, name, title?, description?}` | 201; 409 `name_taken`, `folder_cap_reached`, depth |
 | `PATCH /v1/workspace/doctree/folders/{folder}` | any of `{name, title, description}` | 200; 409 `name_taken`; 400 over a length limit |
-| `POST /v1/workspace/doctree/nodes/{node}/move` | `{parent}` | 200; 409 `move_into_own_subtree`; 400 parent is a document |
+| `POST /v1/workspace/doctree/nodes/{node}/move` | `{parent}`, optional `before` or `after` (a child of `parent`, section 5 "Re-order") | 200; 409 `move_into_own_subtree` / `not_a_sibling`; 400 parent is a document, or both `before` and `after` |
 | `DELETE /v1/workspace/doctree/{doc}` | | 204; the context menu's Delete for a document (closes F3) |
 | `DELETE /v1/workspace/doctree/folders/{folder}` | `?recursive=1` | 204; 409 `folder_not_empty {folders, documents}` |
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -182,4 +183,91 @@ func TestWorkspaceDocNodeMoveDepth(t *testing.T) {
 		t.Fatalf("a leaf to level 33 of the set (32 under the root): %v", err)
 	}
 	nodeTreeCheck(t, pg, tid)
+}
+
+// TestWorkspaceDocNodeMoveAt (owner t1 1a9a14b6, msg 32d5ea87: re-order the
+// files within a folder): a node before or after a sibling, left and right
+// in its own folder, a folder with its subtree, into another folder at a
+// place, out again; a place it holds is a no-op; the listing follows the
+// order, folders first. CONTROL: SPOOL_TEST_WSDOC_MOVE_AT_PLANT=placelast
+// drops the place (every placed move lands last); the run must go red.
+//
+//	go test ./internal/store -run WorkspaceDocNodeMoveAt -v
+func TestWorkspaceDocNodeMoveAt(t *testing.T) {
+	pg, tid := wsNodesPG(t)
+	if p := os.Getenv("SPOOL_TEST_WSDOC_MOVE_AT_PLANT"); p == "placelast" {
+		docNodeMovePlant.ignorePlace = true
+		t.Logf("CONTROL plant=%s is on: this run must go red", p)
+		t.Cleanup(func() { docNodeMovePlant.ignorePlace = false })
+	}
+	ctx := context.Background()
+	doc := func(parent, title string) string {
+		t.Helper()
+		if _, _, err := pg.DocCreateIn(ctx, tid, parent, title, "", "t"); err != nil {
+			t.Fatalf("doc %s: %v", title, err)
+		}
+		_, ns, _ := pg.DocNodes(ctx, tid, parent)
+		for _, n := range ns {
+			if n.Kind == "doc" && n.Title == title {
+				return n.ID
+			}
+		}
+		t.Fatalf("doc %s has no node", title)
+		return ""
+	}
+	d1, d2, d3 := doc("", "d1"), doc("", "d2"), doc("", "d3")
+	sys, err := pg.DocFolderCreate(ctx, tid, DocFolder{Name: "sys", Actor: "t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s1 := doc(sys, "s1")
+	if got := nodeTreeCheck(t, pg, tid); got != "root(doc:d1 doc:d2 doc:d3 sys(doc:s1))" {
+		t.Fatalf("start = %s", got)
+	}
+	steps := []struct {
+		what string
+		m    DocNodeMoveReq
+		want string
+	}{
+		{"left in its folder, before the first", DocNodeMoveReq{Node: d3, Before: d1}, "root(doc:d3 doc:d1 doc:d2 sys(doc:s1))"},
+		{"right in its folder, after a later one", DocNodeMoveReq{Node: d3, After: d2}, "root(doc:d1 doc:d2 doc:d3 sys(doc:s1))"},
+		{"a folder with its subtree, first", DocNodeMoveReq{Node: sys, Before: d1}, "root(sys(doc:s1) doc:d1 doc:d2 doc:d3)"},
+		{"into another folder, before its child", DocNodeMoveReq{Node: d2, Parent: sys, Before: s1}, "root(sys(doc:d2 doc:s1) doc:d1 doc:d3)"},
+		{"out to the top, after a node there", DocNodeMoveReq{Node: s1, After: d1}, "root(sys(doc:d2) doc:d1 doc:s1 doc:d3)"},
+		{"before itself: a no-op", DocNodeMoveReq{Node: d1, Before: d1}, "root(sys(doc:d2) doc:d1 doc:s1 doc:d3)"},
+		{"after the node before it: a no-op", DocNodeMoveReq{Node: d1, After: sys}, "root(sys(doc:d2) doc:d1 doc:s1 doc:d3)"},
+		{"no place, its own folder: a no-op", DocNodeMoveReq{Node: d1}, "root(sys(doc:d2) doc:d1 doc:s1 doc:d3)"},
+	}
+	for _, s := range steps {
+		if err := pg.DocNodeMoveAt(ctx, tid, s.m); err != nil {
+			t.Fatalf("%s: %v", s.what, err)
+		}
+		if got := nodeTreeCheck(t, pg, tid); got != s.want {
+			t.Fatalf("%s: tree = %s, want %s", s.what, got, s.want)
+		}
+	}
+	if _, ns, err := pg.DocNodes(ctx, tid, ""); err != nil || nodeNames(ns) != "sys(1), doc:d1(0), doc:s1(0), doc:d3(0)" {
+		t.Fatalf("the listing does not follow the order: %s, %v", nodeNames(ns), err)
+	}
+	for _, c := range []struct {
+		what string
+		m    DocNodeMoveReq
+		want error
+	}{
+		{"before a node of another folder", DocNodeMoveReq{Node: d1, Before: d2}, ErrDocNodeNotSibling},
+		{"after a node of another folder", DocNodeMoveReq{Node: d1, Parent: sys, After: d3}, ErrDocNodeNotSibling},
+		{"before no such node", DocNodeMoveReq{Node: d1, Before: "00000000-0000-0000-0000-000000000000"}, ErrDocNodeNotSibling},
+		{"before a node that is no id", DocNodeMoveReq{Node: d1, Before: "x"}, ErrDocNodeNotSibling},
+		{"a folder into itself, placed", DocNodeMoveReq{Node: sys, Parent: sys, Before: d2}, ErrDocNodeMoveIntoSelf},
+		{"another workspace's node", DocNodeMoveReq{Node: d1, Before: d3}, ErrDocNodeNotFound},
+	} {
+		tn := tid
+		if c.want == ErrDocNodeNotFound {
+			tn = newTenant(t, pg)
+		}
+		if err := pg.DocNodeMoveAt(ctx, tn, c.m); !errors.Is(err, c.want) {
+			t.Fatalf("%s: err = %v, want %v", c.what, err, c.want)
+		}
+	}
+	t.Logf("8 placed moves, bounds 1..2n after each: %s; 6 refusals named", nodeTreeCheck(t, pg, tid))
 }

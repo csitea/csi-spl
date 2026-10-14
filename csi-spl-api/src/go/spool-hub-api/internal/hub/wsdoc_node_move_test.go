@@ -57,3 +57,53 @@ func TestWorkspaceDocNodeMove(t *testing.T) {
 	}
 	t.Logf("moved in and back out; 5 refusals with their codes")
 }
+
+// TestWorkspaceDocNodeMoveAt (owner t1 1a9a14b6, msg 32d5ea87: re-order the
+// files within a folder): before / after a sibling re-orders the top level
+// and /nodes lists the new order, folders first. CONTROL: the order before
+// each move differs from the one after it, and the same before with the
+// wrong parent is 409 not_a_sibling while with its own parent it is 200.
+func TestWorkspaceDocNodeMoveAt(t *testing.T) {
+	e, tid, as := docTreeEnv(t)
+	folder := dtStr(mustCall(t, e, tid, http.MethodPost, docTreeAPI+"/folders", as, map[string]any{"name": "f"}, 201), "id")
+	ids := map[string]string{}
+	for _, title := range []string{"a", "b", "c"} {
+		mustCall(t, e, tid, http.MethodPost, docTreeAPI, as, map[string]any{"title": title}, 200)
+	}
+	list := func() string {
+		top := mustCall(t, e, tid, http.MethodGet, docTreeAPI+"/nodes", as, nil, 200)
+		for _, n := range dtList(top, "nodes") {
+			ids[dtStr(n, "title")] = dtStr(n, "id")
+		}
+		return nodeRows(top)
+	}
+	if got := list(); got != "folder:f(0), doc:a(0), doc:b(0), doc:c(0)" {
+		t.Fatalf("start: %q", got)
+	}
+	move := func(node string, body map[string]any, code int) map[string]any {
+		return mustCall(t, e, tid, http.MethodPost, docTreeAPI+"/nodes/"+node+"/move", as, body, code)
+	}
+	if out := move(ids["c"], map[string]any{"parent": folder, "before": ids["a"]}, 409); dtStr(out, "error") != "not_a_sibling" {
+		t.Fatalf("before a node of another folder: %v", out)
+	}
+	if got := list(); got != "folder:f(0), doc:a(0), doc:b(0), doc:c(0)" {
+		t.Fatalf("a refused move changed the order: %q", got)
+	}
+	if out := move(ids["c"], map[string]any{"parent": "", "before": ids["a"]}, 200); dtStr(out, "before") != ids["a"] {
+		t.Fatalf("move answer = %v", out)
+	}
+	if got := list(); got != "folder:f(0), doc:c(0), doc:a(0), doc:b(0)" {
+		t.Fatalf("c before a: %q", got)
+	}
+	move(ids["c"], map[string]any{"parent": "", "after": ids["b"]}, 200)
+	if got := list(); got != "folder:f(0), doc:a(0), doc:b(0), doc:c(0)" {
+		t.Fatalf("c after b: %q", got)
+	}
+	move(ids["b"], map[string]any{"parent": "", "before": ids["a"], "after": ids["c"]}, 400)
+	other, _ := e.tenant()
+	bs := seat(t, e, other, "developer")
+	if out := mustCall(t, e, other, http.MethodPost, docTreeAPI+"/nodes/"+ids["b"]+"/move", bs, map[string]any{"parent": "", "before": ids["a"]}, 404); dtStr(out, "error") != "not_found" {
+		t.Fatalf("another workspace's node: %v", out)
+	}
+	t.Logf("2 re-orders listed in order; refusals 409 not_a_sibling, 400 both places, 404 another workspace")
+}

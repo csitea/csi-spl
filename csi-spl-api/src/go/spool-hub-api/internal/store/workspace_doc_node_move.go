@@ -10,8 +10,10 @@ import (
 
 // The Qto explorer's move (spec 120 section 5 "move X under P", section 7
 // POST /v1/workspace/doctree/nodes/{node}/move): a folder with its subtree,
-// or a document, becomes the last child of another folder or of the root.
-// Gap topic t1 b67d5dc7: no route could move a document into a folder.
+// or a document, becomes the last child of another folder or of the root,
+// or lands before / after one of its children (DocNodeMoveAt, a re-order
+// within the same folder too). Gap topic t1 b67d5dc7: no route could move a
+// document into a folder.
 //
 // ONE UPDATE sets lft, rgt, and X's parent_id / parent_kind together (the
 // immediate CHECKs refuse the two-step and negate forms; the deferred
@@ -23,9 +25,11 @@ var ErrDocNodeMoveIntoSelf = fmt.Errorf("%w: move_into_own_subtree", ErrDocNodeC
 
 // docNodeMovePlant is the move's control (SPOOL_TEST_WSDOC_NODE_PLANT=
 // movekeepparent, tests only): the shift runs but X keeps its old
-// parent_id, so the commit check must refuse it.
+// parent_id, so the commit check must refuse it. ignorePlace
+// (SPOOL_TEST_WSDOC_MOVE_AT_PLANT=placelast) drops before / after: every
+// placed move lands last, so the re-order test must go red.
 var docNodeMovePlant struct {
-	keepParent bool
+	keepParent, ignorePlace bool
 }
 
 // docNodeMoving is the node to move, read under the root lock: its bounds,
@@ -58,8 +62,8 @@ func docNodeMovingOf(ctx context.Context, tx pgx.Tx, tenant, node string) (docNo
 }
 
 // docNodeMoveSQL is spec 5's shift for both directions: right when the
-// parent's rgt r lies past X ($5 > $3), left otherwise. $2/$3 are X's bounds,
-// $4 the width, $5 r; $6 X's id, $7/$8 its new parent and parent kind; $9
+// slot r (the parent's rgt, or a sibling's lft / rgt+1) lies past X
+// ($5 > $3), left otherwise. $2/$3 are X's bounds, $4 the width, $5 r; $6 X's id, $7/$8 its new parent and parent kind; $9
 // is the control plant (true keeps the old parent).
 const docNodeMoveSQL = `UPDATE workspace_doc_node SET
 	lft = CASE WHEN $5::integer > $3::integer THEN
@@ -84,16 +88,35 @@ const docNodeMoveSQL = `UPDATE workspace_doc_node SET
 // a document as parent, a result deeper than 32 levels, a sibling folder of
 // the same name (409 name_taken).
 func (s *Postgres) DocNodeMove(ctx context.Context, tenant, node, parent string) error {
+	return s.DocNodeMoveAt(ctx, tenant, DocNodeMoveReq{Node: node, Parent: parent})
+}
+
+// ErrDocNodeNotSibling: the before / after node is not a child of the
+// new parent (or no node of this workspace).
+var ErrDocNodeNotSibling = fmt.Errorf("%w: not_a_sibling", ErrDocNodeConflict)
+
+// DocNodeMoveReq is a move with an optional place (owner t1 1a9a14b6, msg
+// 32d5ea87: re-order the files within a folder): Before or After names a
+// child of Parent the node lands next to; neither = the last child.
+type DocNodeMoveReq struct {
+	Node, Parent, Before, After string
+}
+
+// DocNodeMoveAt is DocNodeMove at a place among parent's children. With a
+// place, the node may stay under its parent and only change its order; a
+// place the node already holds is a no-op. Refused as DocNodeMove, plus a
+// before / after node that is not a child of parent (409 not_a_sibling).
+func (s *Postgres) DocNodeMoveAt(ctx context.Context, tenant string, m DocNodeMoveReq) error {
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		root, err := docNodeLockRoot(ctx, tx, tenant)
 		if err != nil {
 			return err
 		}
-		x, err := docNodeMovingOf(ctx, tx, tenant, node)
+		x, err := docNodeMovingOf(ctx, tx, tenant, m.Node)
 		if err != nil {
 			return err
 		}
-		p, err := docNodeParentOf(ctx, tx, tenant, root, parent)
+		p, err := docNodeParentOf(ctx, tx, tenant, root, m.Parent)
 		if err != nil && !errors.Is(err, ErrDocNodeTooDeep) { // depth: the subtree's height, below
 			return err
 		}
@@ -101,17 +124,49 @@ func (s *Postgres) DocNodeMove(ctx context.Context, tenant, node, parent string)
 		if err := tx.QueryRow(ctx, `SELECT lft FROM workspace_doc_node WHERE tenant_id = $1 AND id = $2`, tenant, p.id).Scan(&plft); err != nil {
 			return err
 		}
-		switch {
-		case x.lft <= plft && plft <= x.rgt:
+		if x.lft <= plft && plft <= x.rgt {
 			return ErrDocNodeMoveIntoSelf
-		case p.id == x.parent:
+		}
+		at, err := docNodeMoveSlot(ctx, tx, tenant, p, m)
+		if err != nil {
+			return err
+		}
+		placed := m.Before != "" || m.After != ""
+		switch {
+		case p.id == x.parent && (!placed || x.lft <= at && at <= x.rgt+1):
 			return nil
-		case p.level+x.height > docNodeMaxDepth:
+		case p.id != x.parent && p.level+x.height > docNodeMaxDepth:
 			return ErrDocNodeTooDeep
 		}
-		_, err = tx.Exec(ctx, docNodeMoveSQL, tenant, x.lft, x.rgt, x.rgt-x.lft+1, p.rgt,
-			node, p.id, p.kind, docNodeMovePlant.keepParent)
+		_, err = tx.Exec(ctx, docNodeMoveSQL, tenant, x.lft, x.rgt, x.rgt-x.lft+1, at,
+			m.Node, p.id, p.kind, docNodeMovePlant.keepParent)
 		return err
 	})
 	return docNodeErr(err)
+}
+
+// docNodeMoveSlot is the bound the node's lft takes, in the numbering before
+// the move: the sibling's lft (before), one past its rgt (after), or the
+// parent's rgt (the last child).
+func docNodeMoveSlot(ctx context.Context, tx pgx.Tx, tenant string, p docNodeParent, m DocNodeMoveReq) (int, error) {
+	sib, after := m.Before, false
+	if m.After != "" {
+		sib, after = m.After, true
+	}
+	if sib == "" || docNodeMovePlant.ignorePlace {
+		return p.rgt, nil
+	}
+	if !isUUID(sib) {
+		return 0, ErrDocNodeNotSibling
+	}
+	var lft, rgt int
+	err := tx.QueryRow(ctx, `SELECT lft, rgt FROM workspace_doc_node
+		WHERE tenant_id = $1 AND id = $2 AND parent_id = $3`, tenant, sib, p.id).Scan(&lft, &rgt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrDocNodeNotSibling
+	}
+	if after {
+		return rgt + 1, err
+	}
+	return lft, err
 }

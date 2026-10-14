@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -77,9 +78,18 @@ func (s *Server) handleDocTreeFolderCreate(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "kind": "folder", "name": f.Name, "parent": in.Parent})
 }
 
+// docNodeMoverAt is the store's placed move (store.DocNodeMoveAt), apart
+// from docTreeStore so a store without it keeps the plain move.
+type docNodeMoverAt interface {
+	DocNodeMoveAt(ctx context.Context, tenant string, m store.DocNodeMoveReq) error
+}
+
 // handleDocTreeNodeMove makes a folder (with its subtree) or a document the
-// last child of parent ("" = the root): 200, or 409 move_into_own_subtree /
-// name_taken / depth, 400 parent_is_document, 404 for no such node.
+// last child of parent ("" = the root), or with before / after (a child of
+// parent) lands it next to that child, a re-order within its own folder too
+// (owner t1 1a9a14b6, msg 32d5ea87): 200, or 409 move_into_own_subtree /
+// name_taken / depth / not_a_sibling, 400 parent_is_document or both
+// before and after, 404 for no such node.
 func (s *Server) handleDocTreeNodeMove(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.docTreeCaller(w, r, rbac.DocsWrite)
 	if !ok {
@@ -87,16 +97,34 @@ func (s *Server) handleDocTreeNodeMove(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Parent string `json:"parent"`
+		Before string `json:"before"`
+		After  string `json:"after"`
 	}
-	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only parent)") {
+	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only parent, before, after)") {
 		return
 	}
 	node := r.PathValue("node")
-	if err := c.st.DocNodeMove(r.Context(), c.tenant, node, in.Parent); err != nil {
+	out := map[string]any{"id": node, "parent": in.Parent}
+	mv, placed := c.st.(docNodeMoverAt)
+	var err error
+	switch {
+	case in.Before == "" && in.After == "":
+		err = c.st.DocNodeMove(r.Context(), c.tenant, node, in.Parent)
+	case in.Before != "" && in.After != "":
+		writeErr(w, http.StatusBadRequest, "bad_request", "before or after, not both")
+		return
+	case !placed:
+		writeErr(w, http.StatusNotImplemented, "not_implemented", "this store has no placed move")
+		return
+	default:
+		err = mv.DocNodeMoveAt(r.Context(), c.tenant, store.DocNodeMoveReq{Node: node, Parent: in.Parent, Before: in.Before, After: in.After})
+		out["before"], out["after"] = in.Before, in.After
+	}
+	if err != nil {
 		docTreeFail(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": node, "parent": in.Parent})
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handleDocTreeFolderEdit renames a folder, or sets its title or

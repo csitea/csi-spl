@@ -60,8 +60,10 @@ func nodeNames(ns []DocNode) string {
 }
 
 // TestWorkspaceDocNodesCreateAndList: folders and documents land where they
-// were created, listed folders first; a document made by an older hub (no
-// node) still lists at the top; the refusals carry their own errors.
+// were created, listed folders first, each in the order made (the folder's
+// order, DocNodeMoveAt); a document made by an older hub (no
+// node) still lists at the top, after them; the refusals carry their own
+// errors.
 func TestWorkspaceDocNodesCreateAndList(t *testing.T) {
 	pg, tid := wsNodesPG(t)
 	ctx := context.Background()
@@ -99,7 +101,7 @@ func TestWorkspaceDocNodesCreateAndList(t *testing.T) {
 	if err != nil || root == "" {
 		t.Fatalf("root listing: root=%q %v", root, err)
 	}
-	if got := nodeNames(top); got != "Archive(0), plans(2), doc:legacy(0), doc:readme(0)" {
+	if got := nodeNames(top); got != "plans(2), Archive(0), doc:readme(0), doc:legacy(0)" {
 		t.Fatalf("root = %q", got)
 	}
 	_, in, err := pg.DocNodes(ctx, tid, plans)

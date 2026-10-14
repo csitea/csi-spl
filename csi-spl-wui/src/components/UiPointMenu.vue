@@ -132,7 +132,7 @@ const emit = defineEmits<{
   choose: [id: string]
 }>()
 const { t } = useI18n({ useScope: 'global' })
-const { root, sheet, onMenuKey } = usePointMenu({
+const { sheet, onMenuKey } = usePointMenu({
   open: () => props.open, x: () => props.x, y: () => props.y,
   close: () => emit('close'), escape: () => emit('escape'),
   followPoint: props.followPoint,

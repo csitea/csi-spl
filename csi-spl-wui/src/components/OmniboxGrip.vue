@@ -43,7 +43,7 @@
         :data-pos="p"
         :aria-checked="pos === p ? 'true' : 'false'"
         @mousedown.prevent
-        @click="pick(p)"
+        @click="pick(p as PhonePosition)"
       >{{ t(`composer.move_${p}`) }}</button>
       <div role="separator" class="omni-grip__sep" />
       <button
@@ -55,7 +55,7 @@
         :data-size="z"
         :aria-checked="currentPreset === z ? 'true' : 'false'"
         @mousedown.prevent
-        @click="pickSize(z)"
+        @click="pickSize(z as SizePreset)"
       >{{ t(`composer.size_${z}`) }}</button>
     </div>
   </div>
@@ -77,12 +77,14 @@
 </template>
 
 <script setup lang="ts">
-import { PHONE_POSITIONS, SIZE_PRESETS, isPhoneDrag, presetSize, resizePhoneSize, sizePreset, snapPhonePosition } from '~/utils/omnibox-dock.mjs'
+import { isPhoneDrag, presetSize, resizePhoneSize, sizePreset, snapPhonePosition } from '~/utils/omnibox-dock.mjs'
 import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 
-type PhonePosition = 'bottom' | 'top' | 'right'
-type SizePreset = 'small' | 'medium' | 'large'
+const PHONE_POSITIONS = ['bottom', 'top', 'right'] as const
+type PhonePosition = typeof PHONE_POSITIONS[number]
+const SIZE_PRESETS = ['small', 'medium', 'large'] as const
+type SizePreset = typeof SIZE_PRESETS[number]
 
 /** The docked form that moves with the finger. */
 const props = defineProps<{ box: HTMLElement | null }>()

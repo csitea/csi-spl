@@ -2,10 +2,10 @@
 # spool-strip-resize-proof.sh — why the notice pane is a RIGHT strip and not a
 # BOTTOM bar, measured rather than argued.
 #
-# The distortion reported by the owner (2026-09-22) was caused by splitting the pane with -v AFTER the CLI had painted its UI. A -v split destroys the top rows and moves everything under them, corrupting the screen. A -h split leaves every row where it is, so the CLI's row anchor survives.
-# spool-hub the terminal gets kind of distorted at the end". Seating an agent
-# splits a notice pane into its window, and until 2026-09-22 that split was
-# `-v`, which takes the height away from a LIVE, already-painted CLI.
+# The distortion reported by the owner (2026-09-22) was caused by splitting the
+# pane with -v AFTER the CLI had painted its UI. A -v split destroys the top
+# rows and moves everything under them, corrupting the screen. A -h split leaves
+# every row where it is, so the CLI's row anchor survives.
 #
 # This script draws a numbered screen on the ALTERNATE screen buffer - the one
 # every full-screen CLI paints on; measured on this box, every live agent pane
@@ -18,18 +18,13 @@
 # what is already drawn" - because a CLI that repaints only its own live frame
 # is anchored to a row, and a row that moved is the corruption.
 #
+# The script also verifies that SIGWINCH reaches the subject after the strip is
+# split, ensuring the Ink-style CLI repaints its frame correctly.
+#
 #   spool-strip-resize-proof.sh [--cols 48] [--rows 8] [--keep]
 #
 # Exit 0 when the measurement came out the way the code assumes (height moves
 # rows, width does not), 1 when it did not - so this is a gate as well as a
-# The script also verifies that SIGWINCH reaches the subject after the strip is
-# split, ensuring the Ink-style CLI repaints its frame correctly.
-# The script also verifies that SIGWINCH reaches the subject after the strip is
-# split, ensuring the Ink-style CLI repaints its frame correctly.
-# The script also verifies that SIGWINCH reaches the subject after the strip is
-# split, ensuring the Ink-style CLI repaints its frame correctly.
-# The script also verifies that SIGWINCH reaches the subject after the strip is
-# split, ensuring the Ink-style CLI repaints its frame correctly.
 # demonstration, and a tmux that stops behaving this way fails it loudly.
 set -uo pipefail
 
@@ -55,7 +50,7 @@ trap cleanup EXIT
 # The subject: a full-screen painter that does NOT redraw on SIGWINCH, which is
 # the worst case a partially-redrawing CLI degrades towards. It numbers every
 # row so a shift of even one line is visible in the capture.
-cat >"$T/painter.sh" <<'EOF'
+cat > "$T/painter.sh" << 'INNEREOF'
 #!/usr/bin/env bash
 set -u
 esc=$'\033'
@@ -65,7 +60,7 @@ for ((i = 1; i < rows; i++)); do printf 'ROW-%03d\n' "$i"; done
 printf 'ROW-END'
 trap 'exit 0' TERM INT
 while :; do sleep 0.2; done
-EOF
+INNEREOF
 chmod +x "$T/painter.sh"
 
 # The SECOND subject, and the one that models a real agent CLI: a STATIC
@@ -77,30 +72,32 @@ chmod +x "$T/painter.sh"
 # The transcript lines are longer than the narrowed pane on purpose: a width
 # change is where they are at risk, and the point of this case is to show which
 # part of the screen survives which resize.
-cat >"$T/inkish.sh" <<'EOF'
+cat > "$T/inkish.sh" << 'INNEREOF'
 #!/usr/bin/env bash
 set -u
-esc=$''
 FRAME=3
 frame() {
   local rows i
   rows="$(tput lines 2>/dev/null)"; [[ "$rows" =~ ^[0-9]+$ ]] || rows=24
   for ((i = 0; i < FRAME; i++)); do
-    printf '%s[%d;1H%s[2K' "$esc" "$((rows - FRAME + 1 + i))" "$esc"
+    printf '\033[%d;1H\033[2K' "$((rows - FRAME + 1 + i))"
     printf 'FRAME-%d ready >' "$i"
   done
 }
+
+# Frame counter: bumped on SIGWINCH
+FRAME_COUNTER=0
+trap 'FRAME_COUNTER=$((FRAME_COUNTER + 1)); frame' WINCH
+
 rows="$(tput lines 2>/dev/null)"; [[ "$rows" =~ ^[0-9]+$ ]] || rows=24
-printf '%s[?1049h%s[H%s[2J' "$esc" "$esc" "$esc"
+printf '\033[?1049h\033[H\033[2J'
 for ((i = 1; i <= rows - FRAME - 1; i++)); do
-  printf 'TX-%03d %s-TXEND-%03d
-' "$i" "$(printf 'w%.0s' $(seq 1 165))" "$i"
+  printf 'TX-%03d %s-TXEND-%03d\n' "$i" "$(printf 'w%.0s' $(seq 1 165))" "$i"
 done
 frame
-trap 'frame' WINCH
 trap 'exit 0' TERM INT
 while :; do sleep 0.2; done
-EOF
+INNEREOF
 chmod +x "$T/inkish.sh"
 
 fails=0
@@ -132,21 +129,9 @@ wait_painted() {
   done
 }
 # wait_settled: the split has reached the pane (it is no longer ${W}x${H})
-# Capture the frame BEFORE the SIGWINCH
-  before_frame="["]
-  # Send SIGWINCH to the subject
-  tmux -S "" send-keys -t w.0 C-z "kill -WINCH $PPID" Enter
-  # Wait for the frame to repaint
-  wait_sigwinch "" "FRAME-" || true
 # and two captures in a row are equal, so whatever the subject repaints on
 # SIGWINCH is on screen.
 wait_settled() {
-# Capture the frame BEFORE the SIGWINCH
-  before_frame="["]
-  # Send SIGWINCH to the subject
-  tmux -S "" send-keys -t w.0 C-z "kill -WINCH $PPID" Enter
-  # Wait for the frame to repaint
-  wait_sigwinch "" "FRAME-" || true
   local cap prev="" geom end; end="$(deadline_us)"
   while :; do
     geom="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}' 2>/dev/null)"
@@ -154,6 +139,20 @@ wait_settled() {
     [ -n "$geom" ] && [ "$geom" != "${W}x${H}" ] && [ -n "$prev" ] && [ "$cap" = "$prev" ] && return 0
     [ "$(now_us)" -lt "$end" ] || timeout_out "the pane never settled after the split"
     prev="$cap"
+    sleep "$POLL"
+  done
+}
+
+# wait_sigwinch: the Ink-style subject has repainted its frame after a SIGWINCH.
+# The frame lines start with "FRAME-", so a repaint is visible in the capture.
+wait_sigwinch() {  # BEFORE_AFTER
+  local cap end; end="$(deadline_us)"
+  while :; do
+    cap="$(capture)"
+    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]]; then
+      return 0
+    fi
+    [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never repainted its frame after SIGWINCH"
     sleep "$POLL"
   done
 }
@@ -171,12 +170,6 @@ case_split() {  # -v|-h SIZE LABEL
   before="$(tmux -S "$SOCK" capture-pane -p -t w.0 | sed -n '1p')"
   tmux -S "$SOCK" split-window -d "$dir" -l "$size" -t w.0 'sleep 600' 2>/dev/null
   wait_settled
-# Capture the frame BEFORE the SIGWINCH
-  before_frame="["]
-  # Send SIGWINCH to the subject
-  tmux -S "" send-keys -t w.0 C-z "kill -WINCH $PPID" Enter
-  # Wait for the frame to repaint
-  wait_sigwinch "" "FRAME-" || true
   geom="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}')"
   after="$(tmux -S "$SOCK" capture-pane -p -t w.0)"
   first="$(printf '%s\n' "$after" | sed -n '1p')"
@@ -225,12 +218,6 @@ ink_case() {  # -v|-h SIZE LABEL
   wait_painted TX-001 FRAME-2
   tmux -S "$SOCK" split-window -d "$dir" -l "$size" -t w.0 'sleep 600' 2>/dev/null
   wait_settled
-# Capture the frame BEFORE the SIGWINCH
-  before_frame="["]
-  # Send SIGWINCH to the subject
-  tmux -S "" send-keys -t w.0 C-z "kill -WINCH $PPID" Enter
-  # Wait for the frame to repaint
-  wait_sigwinch "" "FRAME-" || true
   cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)"
   rows="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_height}')"
   frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | sed -n 1p | cut -d: -f1)"
@@ -240,13 +227,22 @@ ink_case() {  # -v|-h SIZE LABEL
   say "    pane is now       : $(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}')"
   say "    top transcript row: ${tx_first:-<not TX-001, it MOVED>}"
   say "    live frame lands  : row ${frame_row:-?} of ${rows} (it belongs on row $(( rows - 2 )))"
-  say "    SIGWINCH test     : $( [ -n "$before_frame" ] && echo "PASS (frame repainted)" || echo "SKIP (no frame to test)" )"
-  say "    SIGWINCH test     : $( [ -n "$before_frame" ] && echo "PASS (frame repainted)" || echo "SKIP (no frame to test)" )"
-  say "    SIGWINCH test     : $( [ -n "$before_frame" ] && echo "PASS (frame repainted)" || echo "SKIP (no frame to test)" )"
-  say "    SIGWINCH test     : $( [ -n "$before_frame" ] && echo "PASS (frame repainted)" || echo "SKIP (no frame to test)" )"
-  say "    SIGWINCH test     : $( [ -n "$before_frame" ] && echo "PASS (frame repainted)" || echo "SKIP (no frame to test)" )"
-  say "    SIGWINCH test     : $( [ -n "$before_frame" ] && echo "PASS (frame repainted)" || echo "SKIP (no frame to test)" )"
-  say "    SIGWINCH test     : $( [ -n "$before_frame" ] && echo "PASS (frame repainted)" || echo "SKIP (no frame to test)" )"
+  
+  # Capture the frame BEFORE the SIGWINCH
+  before_frame="$(printf '%s\n' "$cap" | grep -o '^FRAME-[0-9] .*')"
+  # Send SIGWINCH to the subject via tmux resize
+  tmux -S "$SOCK" resize-pane -t w.0 -x $((W - 10))
+  # Wait for the frame to repaint
+  wait_sigwinch "$before_frame" "FRAME-" || true
+  
+  # Assert on the frame counter
+  frame_counter="$(tmux -S "$SOCK" capture-pane -p -t w.0 | grep -c 'FRAME-')"
+  if [ "$frame_counter" -gt 3 ]; then
+    say "    SIGWINCH test     : PASS (frame repainted, counter bumped)"
+  else
+    say "    SIGWINCH test     : FAIL (frame not repainted)"
+    fails=$((fails + 1))
+  fi
   say "    transcript lines still showing their END marker: ${tx_intact}"
 }
 say ""
@@ -271,88 +267,3 @@ say "spawn-window.sh splits the strip BEFORE the CLI paints, so an agent spawned
 say "from now on never takes the resize. An agent already running when its strip"
 say "arrives takes exactly one width change, once."
 [ "$fails" -eq 0 ]
-
-# wait_sigwinch: the Ink-style subject has repainted its frame after a SIGWINCH.
-# The frame lines start with "FRAME-", so a repaint is visible in the capture.
-wait_sigwinch() {  # BEFORE_AFTER
-  local cap end; end="$(deadline_us)"
-  while :; do
-    cap="$(capture)"
-    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]]; then
-      return 0
-    fi
-    [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never repainted its frame after SIGWINCH"
-    sleep "$POLL"
-  done
-}
-
-# wait_sigwinch: the Ink-style subject has repainted its frame after a SIGWINCH.
-# The frame lines start with "FRAME-", so a repaint is visible in the capture.
-wait_sigwinch() {  # BEFORE_AFTER
-  local cap end; end="$(deadline_us)"
-  while :; do
-    cap="$(capture)"
-    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]]; then
-      return 0
-    fi
-    [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never repainted its frame after SIGWINCH"
-    sleep "$POLL"
-  done
-}
-
-# wait_sigwinch: the Ink-style subject has repainted its frame after a SIGWINCH.
-# The frame lines start with "FRAME-", so a repaint is visible in the capture.
-wait_sigwinch() {  # BEFORE_AFTER
-  local cap end; end="$(deadline_us)"
-  while :; do
-    cap="$(capture)"
-    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]]; then
-      return 0
-    fi
-    [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never repainted its frame after SIGWINCH"
-    sleep "$POLL"
-  done
-}
-
-# wait_sigwinch: the Ink-style subject has repainted its frame after a SIGWINCH.
-# The frame lines start with "FRAME-", so a repaint is visible in the capture.
-wait_sigwinch() {  # BEFORE_AFTER
-  local cap end; end="$(deadline_us)"
-  while :; do
-    cap="$(capture)"
-    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]]; then
-      return 0
-    fi
-    [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never repainted its frame after SIGWINCH"
-    sleep "$POLL"
-  done
-}
-
-# wait_sigwinch: the Ink-style subject has repainted its frame after a SIGWINCH.
-# The frame lines start with "FRAME-", so a repaint is visible in the capture.
-wait_sigwinch() {
-  local cap end; end="$(deadline_us)"
-  while :; do
-    cap="$(capture)"
-    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]]; then
-      return 0
-    fi
-    [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never repainted its frame after SIGWINCH"
-    sleep "$POLL"
-  done
-}
-# The script also verifies that SIGWINCH reaches the subject after the strip is\n# split, ensuring the Ink-style CLI repaints its frame correctly.
-
-# wait_sigwinch: the Ink-style subject has repainted its frame after a SIGWINCH.
-# The frame lines start with "FRAME-", so a repaint is visible in the capture.
-wait_sigwinch() {
-  local cap end; end="$(deadline_us)"
-  while :; do
-    cap="$(capture)"
-    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]]; then
-      return 0
-    fi
-    [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never repainted its frame after SIGWINCH"
-    sleep "$POLL"
-  done
-}

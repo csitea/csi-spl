@@ -434,7 +434,9 @@ pane="$(printf '%s\n' "$out" | grep -m1 -xE '%[0-9]+')"
 #
 # Splitting BEFORE the CLI paints costs nothing: the pane has drawn nothing yet,
 # and there is no later resize to survive. A CLI already running when its strip
-# arrives takes exactly one width change, once.
+# arrives takes exactly one width change, once, and it is still not free: a WIDTH
+# split clips every transcript line at the new width, permanently, because no
+# process holds a copy to repaint.
 #
 # Never fatal: a window with no strip is still a window, the notifier will
 # split one on the first message, and a spawn that failed for this would be a

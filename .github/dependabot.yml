@@ -6,14 +6,18 @@
 #   github-actions   the SHA-pinned uses: in .github/workflows/* — Dependabot
 #                    bumps the pin AND the version comment together, so pinning
 #                    to a SHA (spec 056 #12) stays maintainable.
-# Weekly, security label, small PR cap so the fleet gate is not flooded.
+# Weekly, security label.
+# open-pull-requests-limit: 0 (owner HUM-10, 2026-10-14, SPL-1862): the fleet
+# pushes to trunk and never merges a PR, so version-update PRs only pile up.
+# A limit of 0 stops version-update PRs; Dependabot security-update PRs keep
+# their own limit (a repo setting). Bumps are applied on trunk by a lane.
 version: 2
 updates:
   - package-ecosystem: "gomod"
     directory: "/csi-spl-api/src/go/spool-hub-api"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - "security"
     commit-message:
@@ -23,7 +27,7 @@ updates:
     directory: "/csi-spl-wui"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - "security"
     commit-message:
@@ -33,7 +37,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - "security"
     commit-message:

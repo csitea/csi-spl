@@ -370,7 +370,7 @@ One tagged line each in `<OWNER_USER>`'s crontab, matched by the tag at the end 
 | `agent-identity-reconcile` | the identity map, every minute | `do_spl_agent_identity_install` |
 | `agent-boot-restore` | `@reboot`: brings back the agents a reboot killed, as `<AGENT_USER>` | `do_spl_agent_boot_restore_install_cron` |
 | `weekly-full-scan` | the weekly full lint scan | `do_install_weekly_full_scan_cron` (iac) |
-| `box-cron:*` | sessions save, graft index, box-state backup, CI red note, agent login check, lane rotate (`csi-spl-orc/cnf/box-crons/box-crons.manifest`) | `do_install_box_crons` |
+| `box-cron:*` | sessions save, graft index, box-state backup, CI red note, agent login check, lane rotate, reverse tunnel (`csi-spl-orc/cnf/box-crons/box-crons.manifest`) | `do_install_box_crons` |
 | `box-update` | the box and both envs to trunk twice a day | `do_spl_box_update_install_cron` |
 
 ## 9.4 Crons installed on their own
@@ -482,6 +482,34 @@ cd /opt/csi/csi-spl/csi-spl-iac && ./run -a do_satellite_verify
 ## 12.3 After verify
 
 The agent user's AI CLI logins on the satellite (interactive, 7.5), its desks (10.1, with its own desk box), its fleet lease lines (10.5) and its own GCP keys if role 06 had none (`do_box_copy_gcp_key`).
+
+## 12.4 Let the satellite reach this box
+
+The satellite has no route to this box. This box keeps a reverse ssh tunnel to it instead (SPL-1766): the satellite reaches this box's sshd at its own `127.0.0.1:2222`, and its key may run only the verbs of the forced command `csi-spl-orc/src/bash/scripts/peer-ssh-gate.sh` (`ping`, `lease`). Both actions run on this box, as the owner user, from the main checkout; each is a dry run until `DRY_RUN=0`.
+
+### 12.4.1 Grant the satellite's key
+
+Makes the satellite agent user's key on the satellite if it is missing (the private key stays there), adds a `Host <this box>-tunnel` block to its `~/.ssh/config`, and puts the public key in this box's agent user's `authorized_keys` as one `from="127.0.0.1,::1",restrict,command=...` line:
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-orc && DRY_RUN=0 ./run -a do_box_peer_ssh_grant
+```
+
+### 12.4.2 Start the tunnel
+
+Records the tunnel and starts it; the `box-cron:reverse-tunnel` row (9.3) restarts it every minute when it dropped:
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-orc && DRY_RUN=0 ./run -a do_setup_reverse_tunnel
+```
+
+### 12.4.3 Check it from the satellite
+
+As the satellite's agent user, must print `pong <agent user>@<this box> from sat`:
+
+```bash
+ssh <THIS_BOX>-tunnel ping
+```
 
 # 13 First boot checks
 

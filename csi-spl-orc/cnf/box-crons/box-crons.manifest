@@ -28,3 +28,4 @@ owner-digest      | 7 * * * *       | src/bash/scripts/owner-digest-cron.sh     
 issue-close-landed | 37 * * * *      | src/bash/scripts/issue-close-landed-cron.sh             | issue-close-landed/cron.log |
 issue-key-rate    | 53 6 * * 1      | src/bash/scripts/issue-key-rate-cron.sh                 | issue-key-rate/cron.log |
 gc                | * * * * *       | src/bash/scripts/gc-cron.sh                             | gc/cron.log           |
+reverse-tunnel    | * * * * *       | src/bash/scripts/reverse-tunnel-cron.sh                 | reverse-tunnel/cron.log |

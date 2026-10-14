@@ -564,6 +564,7 @@ function tapState(p) {
       ta: rr(ta),
       btn: rr(form.querySelector('[data-test=search-syntax-help]')),
       field: rr(form.querySelector('.omnibox-field') || ta.parentElement),
+      clicks: window.__tapClicks,
     }
   }, TA)
 }
@@ -582,6 +583,20 @@ async function resetBox(p) {
   }
 }
 const entered = (s) => Boolean(s && (s.search || s.panel || s.value !== HELLO))
+/* spec 133 round 31: after a press that did not enter, the box already reads
+   "hello world" with search off and the list closed - all the two edits
+   above restore - and only the focus the dropped click gave it is left to
+   undo. So such a press is undone by a blur and one frame, the state the
+   edits end in; a press that entered keeps the full reset. settleReset still
+   follows every press, and an entry that lands after it shows as a wrong
+   point at the next press. */
+async function undoPress(p, s) {
+  if (entered(s)) return resetBox(p)
+  await p.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    return new Promise((r) => requestAnimationFrame(() => r()))
+  })
+}
 /* spec 133 round 12: a grid press waits for its own click, not a fixed 120 ms.
    The click is the last event of a press (search starts on pointerup, before
    it; the click handler is synchronous plus one nextTick), so the click and
@@ -630,16 +645,15 @@ async function tapCase(browser, vp, tag) {
   await countClicks(p)
   for (const [x, y] of pts) {
     /* the square where it is drawn right now, before this press */
-    const now = (await tapState(p)).btn
+    const { btn: now, clicks: before } = await tapState(p)
     const isIn = x >= now.l && x <= now.r && y >= now.t && y <= now.b
     if (isIn) inside++
-    const before = await p.evaluate(() => window.__tapClicks)
     if (touch) await p.touchscreen.tap(x, y)
     else await p.mouse.click(x, y)
     await settlePress(p, before)
     const s = await tapState(p)
     if (entered(s) !== isIn) wrong.push({ x, y, inside: isIn, value: s && s.value, panel: s && s.panel })
-    await resetBox(p)
+    await undoPress(p, s)
     if (!(await settleReset(p))) {
       wrong.push({ x, y, inside: isIn, reset: 'the box did not return to "hello world" within 2 s (a late entry)' })
       break

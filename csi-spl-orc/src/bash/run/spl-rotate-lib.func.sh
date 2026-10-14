@@ -293,6 +293,10 @@ spl_agent_id_lock() {
     if ! kill -0 "$hp" 2>/dev/null; then
       rc=0; wait "$hp" 2>/dev/null || rc=$?
       if (( rc != 4 )); then SPL_ID_LOCK_WHY="flock on $lock exited $rc"; return 1; fi
+      # the winner writes restart.holder just AFTER its flock: refused in that
+      # gap the file is still empty (wf 10 38537641629, "held by another
+      # actor"), so give it a second to name itself
+      for _ in {1..20}; do [[ -s "$dir/restart.holder" ]] && break; sleep 0.05; done
       held="$(head -c 300 "$dir/restart.holder" 2>/dev/null | sed 's/ \[[^]]*\]$//' || true)"
       # the actor that holds it has ended and its holder follows within
       # 0.2 s: one more try, waiting a second

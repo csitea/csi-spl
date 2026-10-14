@@ -397,7 +397,7 @@ admin only):
 | 2 | no progress: `heartbeat.progress_ts` older than `stuck_min` (093 5.2) | heartbeat | a model event, not a screen |
 | 3 | not in a tool within its cap (`state != in-tool`, or past 093 S4's cap) | heartbeat | - |
 | 4 | the pane did not change **since the input of condition 5 was delivered**: the same hash of `capture-pane -p` on every tick, after removing poke lines (`: 'SPOOL ...'`) and the bottom `WD_S9_STATUS_ROWS` (default 1) status row | tmux | a moving spinner, timer or output breaks it; a poke's echo or a ticking clock does not (agy-2, claude-2) |
-| 5 | **a keystroke reached the pane and not the model**: a poke or a 1 h / 1 h 50 notice was typed (each sender logs it with its ts in `<id>/lifetime/input.log`), and no `UserPromptSubmit` followed it | `input.log` + `heartbeat.log` | a dialog of any wording swallows the keystroke: the prompt never reaches the model |
+| 5 | **a keystroke reached the pane and not the model**: a poke or a 1 h / 1 h 50 notice was typed (each sender logs it with its ts in `<id>/lifetime/input.log`), and no `UserPromptSubmit` followed it | `input.log` + `heartbeat.log` | a dialog of any wording swallows the keystroke: the prompt never reaches the model. A poke the sender REFUSED (`refused-<kind>`) stops counting once progress followed it and no unread inbox file as old as it is left: it was read through `spool recv` (c-003 2026-10-14, SPL-1786); a seat on a dialog makes no progress, so its refusals still count |
 
 - Condition 5 asks "did what we typed reach the model", which no dialog can
   fake. An idle agent at its prompt with nothing typed into it fails 5 and

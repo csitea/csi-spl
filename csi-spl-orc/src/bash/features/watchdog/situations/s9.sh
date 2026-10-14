@@ -12,7 +12,9 @@
 #      <id>/lifetime/input.log ("<ts> <kind>", written by every poke sender;
 #      "refused-<kind>" when the sender refused it because the screen reads as
 #      unsent text, as a select dialog's "❯ 1. ..." row does) after the last
-#      UserPromptSubmit (heartbeat turn_since + heartbeat.log)
+#      UserPromptSubmit (heartbeat turn_since + heartbeat.log). A refused line
+#      stops counting once progress followed it and no unread file as old
+#      as it is left (its message was read; a dialog makes no progress)
 # A harness whose hook emits no UserPromptSubmit (heartbeat harness is not
 # claude, or no heartbeat) reads 5 as "an input after the last progress" and
 # waits 2 x WD_STUCK_MIN. A dialog of any wording swallows the keystroke; an
@@ -62,7 +64,22 @@ else
 fi
 [[ "$base" =~ ^[0-9]+$ ]] || base=0
 inputs="$(wd_f input_log | s9_epochs)"
-first="$(awk -v b="$base" '$1 > b' <<<"$inputs" | sort -n | head -1)"
+# A refused poke stays S9 input only while its message may still wait: once
+# the seat made progress after it AND no unread file from another sender is
+# as old as it (mtime <= its ts: the file it announced), the message was read
+# through spool recv. c-003 2026-10-14 (n=1): a refused-note while mid-turn,
+# read and archived 20 s later, then taken over after 10 idle min. A seat
+# parked on a dialog makes no progress, so its refusals still count (3a60d4ca8).
+unread="$(wd_f inbox | awk -v me="$WD_ID" '$4 != me && $4 !~ ("^" me "@") { print $1 }' | sort -n | head -1)"
+s9_handled() {  # s9_handled EPOCH: a refused poke at EPOCH was taken in
+  [[ -n "$prog" ]] && (( prog > $1 )) && { [[ -z "$unread" ]] || (( unread > $1 )); }
+}
+counted="$( { wd_f input_log | awk 'NF && $2 !~ /^refused-/' | s9_epochs
+  wd_f input_log | awk 'NF && $2 ~ /^refused-/ { print $1 }' | while read -r ts; do
+    e="$(date -u -d "$ts" +%s 2>/dev/null)" || continue
+    s9_handled "$e" || echo "$e"
+  done; } )"
+first="$(awk -v b="$base" '$1 > b' <<<"$counted" | sort -n | head -1)"
 
 if [[ -z "$first" ]]; then
   # nothing typed waits for the model: an unpoked unread file gets ONE poke

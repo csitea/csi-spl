@@ -704,6 +704,15 @@ grep -q '^HIT S9 input=600s prog=660s pane=600s rule=ups$' <<<"$(run_s s9)" && p
 nohit "8 control 1: today's S7 misses the same pane (the list-based guard)" s7
 echo "$(iso $((T0 - 600))) refused-note" > "$C/input_log"
 hit "8 S9 a poke refused on the dialog's cursor row (refused-note) counts as input that never reached the model" s9
+# c-003 2026-10-14 (n=1): a note refused while the seat was mid-turn, read
+# and archived by spool recv 20 s later, then an idle empty prompt
+s9ctx s9r 645 625 601; hb idle 625 "| .harness = \"claude\" | .turn_since = \"$(iso $((T0 - 650)))\""
+echo "$(iso $((T0 - 650))) task" > "$C/input_log"; echo "$(iso $((T0 - 645))) refused-note" >> "$C/input_log"
+nohit "8 S9 c-003: a refused poke with progress after it and its file read is no input" s9
+echo "$((T0 - 646)) m9.json note c-001" > "$C/inbox"
+hit "8 S9 control: the same refusal with its file still unread counts" s9
+rm -f "$C/inbox"; hb idle 660 "| .harness = \"claude\" | .turn_since = \"$(iso $((T0 - 650)))\""
+hit "8 S9 control: a refusal on a dialog, no progress after it, inbox empty: still a hit" s9
 echo "$(iso $((T0 - 600))) note" > "$C/input_log"
 echo "$(iso $((T0 - 3600))) SessionStart starting" > "$C/hblog"
 hit "8 S9 an old UserPromptSubmit before the poke does not answer it" s9

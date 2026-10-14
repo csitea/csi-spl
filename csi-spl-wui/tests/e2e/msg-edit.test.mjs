@@ -90,6 +90,17 @@ const ok = (name, pass, ev) => {
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/* read until want(value) holds or ms pass; the last read is returned either
+   way, so a check that never comes true still fails on what was seen */
+async function until(read, want, ms = 5000) {
+  const t0 = Date.now()
+  let v = await read()
+  while (!want(v) && Date.now() - t0 < ms) {
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -263,16 +274,15 @@ try {
   await openLobbyShell(page)
   await applyViewport(page, vp)
   await page.waitForSelector(`article.msg[data-msg-id="${OWN_MSG}"]`, { timeout: NAV_TIMEOUT })
-  await sleep(600)
+  await until(() => rowFromStore(page, OWN_MSG), Boolean)
 
   /* ---- 1. the 3rd panel: open the topic rooted at our own message ------ */
   const row = await rowFromStore(page, OWN_MSG)
   ok('the lobby feed holds our own message', Boolean(row), { msg_id: row && row.msg_id, from: row && row.from, from_box: row && row.from_box })
   await drive(page, 'openPane', { taskId: OWN_MSG, msgId: OWN_MSG, parent: LOBBY_TASK, row })
   await page.waitForSelector('[data-test=topic-section] [data-test=topic-root] article.msg', { timeout: NAV_TIMEOUT })
-  await sleep(800)
   const PANE = '[data-test=topic-section] [data-test=topic-root]'
-  let seen = await readRow(page, OWN_MSG, PANE)
+  let seen = await until(() => readRow(page, OWN_MSG, PANE), (r) => r.found && r.bodyText.length > 0)
   /*
    * The ORIGINAL is read from the STORE, not from `.msg-body`.
    *
@@ -296,7 +306,7 @@ try {
   const focused = await focusRow(page, OWN_MSG, PANE)
   ok('the row takes keyboard focus', focused)
   await page.keyboard.press('e')
-  await sleep(400)
+  await until(() => readRow(page, OWN_MSG, PANE), (r) => r.editing && r.focusedIsBox && r.boxValue === ORIGINAL)
   await plantPrefill(page, OWN_MSG)
   seen = await readRow(page, OWN_MSG, PANE)
   ok('pressing e turns the message into a textbox', seen.editing, { editing: seen.editing })
@@ -310,10 +320,9 @@ try {
 
   /* ---- 4. Escape restores the original and hands focus back ------------ */
   await page.keyboard.type(' SCRIBBLE')
-  await sleep(150)
+  await until(() => readRow(page, OWN_MSG, PANE), (r) => String(r.boxValue).endsWith(' SCRIBBLE'))
   if (RED !== 'no-escape') await page.keyboard.press('Escape')
-  await sleep(400)
-  seen = await readRow(page, OWN_MSG, PANE)
+  seen = await until(() => readRow(page, OWN_MSG, PANE), (r) => !r.editing && r.focusedIsRow)
   ok('Escape closes the editor', !seen.editing, { editing: seen.editing })
   ok('Escape restores the ORIGINAL body — the scribble is gone', seen.bodyText === RENDERED,
     { expected: RENDERED.slice(0, 60), got: seen.bodyText.slice(0, 60) })
@@ -324,37 +333,33 @@ try {
   const threadBody = await page.$(`${PANE} article.msg[data-msg-id="${OWN_MSG}"] .msg-body`)
   ok('the thread row is on screen to double-click', Boolean(threadBody))
   if (threadBody) await threadBody.click({ count: 2 })
-  await sleep(400)
-  seen = await readRow(page, OWN_MSG, PANE)
+  seen = await until(() => readRow(page, OWN_MSG, PANE), (r) => r.editing && r.focusedIsBox && r.boxValue === ORIGINAL)
   ok('double-clicking the thread message turns it into a textbox', seen.editing, { editing: seen.editing })
   ok('the caret is IN the box after a double-click, the same as after e', seen.focusedIsBox, { focusedIsBox: seen.focusedIsBox })
   ok('a double-click pre-fills the old message, the same as e',
     seen.boxValue === ORIGINAL,
     { expected: ORIGINAL.slice(0, 60), got: String(seen.boxValue).slice(0, 60) })
   await page.keyboard.press('Escape')
-  await sleep(400)
-  seen = await readRow(page, OWN_MSG, PANE)
+  seen = await until(() => readRow(page, OWN_MSG, PANE), (r) => !r.editing)
   ok('Escape after a double-click edit closes the editor', !seen.editing, { editing: seen.editing })
 
   /* ---- 5. type a new message and press Enter --------------------------- */
   const NEW = `edited by CLE-3445 ${Date.now().toString(36)}`
   await focusRow(page, OWN_MSG, PANE)
   await page.keyboard.press('e')
-  await sleep(400)
+  await until(() => readRow(page, OWN_MSG, PANE), (r) => r.editing && r.focusedIsBox)
   await page.keyboard.down('Control')
   await page.keyboard.press('KeyA')
   await page.keyboard.up('Control')
   await page.keyboard.type(NEW)
-  await sleep(150)
-  seen = await readRow(page, OWN_MSG, PANE)
+  seen = await until(() => readRow(page, OWN_MSG, PANE), (r) => r.boxValue === NEW)
   ok('the box holds what was typed', seen.boxValue === NEW, { got: String(seen.boxValue).slice(0, 60) })
   await page.keyboard.press('Enter')
   await page.waitForFunction((id, want) => {
     const b = document.querySelector(`[data-test=topic-section] [data-test=topic-root] article.msg[data-msg-id="${id}"] .msg-body`)
     return Boolean(b && b.textContent.includes(want))
   }, { polling: 'mutation', timeout: 20000 }, OWN_MSG, NEW).catch(() => {})
-  await sleep(500)
-  seen = await readRow(page, OWN_MSG, PANE)
+  seen = await until(() => readRow(page, OWN_MSG, PANE), (r) => !r.editing && r.bodyText === NEW && r.marker.length > 0)
   ok('Enter sends it: the editor closes', !seen.editing, { editing: seen.editing, error: seen.error })
   ok('the row now shows the NEW message', seen.bodyText === NEW, { expected: NEW, got: seen.bodyText.slice(0, 60) })
   const markerSeen = RED === 'no-marker' ? '' : seen.marker
@@ -362,7 +367,7 @@ try {
   if (OUT) await page.screenshot({ path: `${OUT}/3-after-edit.png` })
 
   /* ---- 6. the same row in the FEED behind the panel was updated too ---- */
-  const inFeed = await readRow(page, OWN_MSG, '.feed-col')
+  const inFeed = await until(() => readRow(page, OWN_MSG, '.feed-col'), (r) => r.found && r.bodyText === NEW && r.marker.length > 0)
   ok('the same message in the feed shows the new body (one edit, every copy)',
     inFeed.found && inFeed.bodyText === NEW, { found: inFeed.found, got: inFeed.bodyText.slice(0, 60) })
   ok('and it carries the edited marker there too', inFeed.marker.length > 0, { marker: inFeed.marker })
@@ -435,11 +440,10 @@ try {
       && menuIds.slice(-7).every((id) => String(id).startsWith('msg-menu-ai-')),
     { menuIds, replyReady })
   await page.click('[data-testid=msg-menu-edit]')
-  await sleep(400)
-  seen = await readRow(page, REPLY, PANE)
+  seen = await until(() => readRow(page, REPLY, PANE), (r) => r.editing)
   ok('Edit in the right-click menu opens the reply', seen.editing, { editing: seen.editing })
   await page.keyboard.press('Escape')
-  await sleep(300)
+  await until(() => readRow(page, REPLY, PANE), (r) => !r.editing)
 
   /* ---- 7c. Delete on the focused thread row removes that message ------ */
   /* CLE-77840 (owner, topic bc1fd547): this row is the topic's OPENING message
@@ -455,10 +459,9 @@ try {
   await page.waitForFunction((id) => {
     return !document.querySelector(`[data-test=topic-section] [data-test=topic-root] article.msg[data-msg-id="${id}"]`)
   }, { timeout: 5000 }, OWN_MSG).catch(() => {})
-  await sleep(300)
   seen = await readRow(page, OWN_MSG, PANE)
   ok('Delete removes the selected thread message', !seen.found, { found: seen.found })
-  const feedAfterDelete = await readRow(page, OWN_MSG, '.feed-col')
+  const feedAfterDelete = await until(() => readRow(page, OWN_MSG, '.feed-col'), (r) => !r.found)
   ok('the same message is gone from the feed behind the pane', !feedAfterDelete.found, { found: feedAfterDelete.found })
   const broughtBack = await page.evaluate(async (id) => {
     const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
@@ -475,7 +478,7 @@ try {
      would open an editor that cannot save */
   await openLobbyShell(page)
   await drive(page, 'openTask', THEIR_TASK)
-  await sleep(1500)
+  await until(() => readRow(page, THEIR_MSG, '[data-test=topic-section]'), (r) => r.found)
   const theirFocused = await focusRow(page, THEIR_MSG, '[data-test=topic-section]')
   if (theirFocused) {
     await page.keyboard.press('e')
@@ -527,26 +530,22 @@ try {
    */
   await openLobbyShell(page)
   await page.waitForSelector(`article.msg[data-msg-id="${OWN_MSG}"]`, { timeout: NAV_TIMEOUT })
-  await sleep(600)
-  const ownRow2 = await rowFromStore(page, OWN_MSG)
+  const ownRow2 = await until(() => rowFromStore(page, OWN_MSG), Boolean)
 
   /* Learn the bot row first, from the store, so the swap below carries a REAL
      row rather than one this test invented. CLE-07@box-a fails both clauses of
      the published predicate (`m.from === <my HUM-id> && m.from_box === 'box-wui'`). */
   await drive(page, 'openTask', THEIR_TASK)
-  await sleep(1200)
-  const botRow = await rowFromPane(page, BOT_MSG)
+  const botRow = await until(() => rowFromPane(page, BOT_MSG), Boolean)
   ok('8.1 setup: the bot row is real and fails BOTH clauses of the predicate',
     Boolean(botRow) && botRow.from === 'CLE-07' && botRow.from_box === 'box-a',
     { from: botRow && botRow.from, from_box: botRow && botRow.from_box })
 
   await drive(page, 'openPane', { taskId: OWN_MSG, msgId: OWN_MSG, parent: LOBBY_TASK, row: ownRow2 })
   await page.waitForSelector(`${PANE} article.msg`, { timeout: NAV_TIMEOUT })
-  await sleep(800)
-  await focusRow(page, OWN_MSG, PANE)
+  await until(() => focusRow(page, OWN_MSG, PANE), Boolean)
   await page.keyboard.press('e')
-  await sleep(400)
-  const armed = await readRow(page, OWN_MSG, PANE)
+  const armed = await until(() => readRow(page, OWN_MSG, PANE), (r) => r.editing)
   ok('8.1 setup: the editor is open on our OWN root row', armed.editing, { editing: armed.editing })
 
   /* Swap the pinned root to the BOT message, the way clicking a row does:
@@ -555,7 +554,10 @@ try {
      is never torn down -- which is the whole point: a remount would build a
      fresh MessageCard and hide the defect, exactly as step 8's page.goto does. */
   await drive(page, 'openPane', { taskId: BOT_MSG, msgId: BOT_MSG, parent: THEIR_TASK, row: botRow })
-  await sleep(1500)
+  /* the swap is done once the pinned root IS the bot row; the editor rode
+     across in the same patch, so a short hold is enough to see it */
+  await until(() => paneRootIdentity(page), (r) => r.found && r.msg_id === BOT_MSG)
+  await sleep(400)
   await plantKeepEditor(page)
   const swapped = await readRow(page, BOT_MSG, PANE)
   const botIdentity = await paneRootIdentity(page)

@@ -28,9 +28,6 @@
       <button type="button" class="wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)" :aria-label="t('ws_doctree.print_doc')" :title="t('ws_doctree.print_doc')">
         <UiIcon name="file-text" :size="16" />
       </button>
-      <button type="button" class="wsdoc__tool" data-test="ws-doc-export-doc" :disabled="!items.length" @click="exportDoc" :aria-label="t('ws_doctree.menu.export_md')" :title="t('ws_doctree.menu.export_md')">
-        <UiIcon name="file-code" :size="16" />
-      </button>
       <button
         type="button"
         class="wsdoc__tool"
@@ -42,6 +39,10 @@
         :title="t('ws_doctree.toc')"
       >
         <UiIcon name="menu" :size="16" />
+      </button>
+      <!-- after TOC: print and TOC stay one tight pair (owner t1 28155201) -->
+      <button type="button" class="wsdoc__tool" data-test="ws-doc-export-doc" :disabled="!items.length" @click="exportDoc" :aria-label="t('ws_doctree.menu.export_md')" :title="t('ws_doctree.menu.export_md')">
+        <UiIcon name="file-code" :size="16" />
       </button>
     </div>
 

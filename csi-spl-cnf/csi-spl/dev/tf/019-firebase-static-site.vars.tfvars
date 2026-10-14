@@ -8,6 +8,6 @@ fqdn        = "dev.spool-hub.ai"
 site_id = "csi-spl-dev-site"
 cert_preference = "GROUPED"
 wait_dns_verification = false
-additional_fqdns = ["csitea.dev.spool-hub.ai", "e2e.dev.spool-hub.ai", "demo.dev.spool-hub.ai", "marinov-taxi.dev.spool-hub.ai"]
+additional_fqdns = ["csitea.dev.spool-hub.ai", "e2e.dev.spool-hub.ai", "demo.dev.spool-hub.ai", "marinov-taxi.dev.spool-hub.ai", "p1proof164658.dev.spool-hub.ai", "p1proof171204.dev.spool-hub.ai", "p1site174600.dev.spool-hub.ai", "m2card1.dev.spool-hub.ai", "m2card3.dev.spool-hub.ai", "m2card4.dev.spool-hub.ai", "m1devfi.dev.spool-hub.ai", "m1deven.dev.spool-hub.ai", "spl68-093728.dev.spool-hub.ai", "spl57b1.dev.spool-hub.ai", "spl57b2.dev.spool-hub.ai", "w1paid1.dev.spool-hub.ai", "w12live1.dev.spool-hub.ai", "b5paid1.dev.spool-hub.ai", "own1stripe.dev.spool-hub.ai", "spool.dev.spool-hub.ai", "bj108.dev.spool-hub.ai"]
 redirect_fqdns = ["www.dev.spool-hub.ai"]
 bind_custom_domain = true

@@ -1,5 +1,6 @@
 #!/bin/bash
-source "/opt/csi/csi-spl/csi-spl-iac/lib/bash/funcs/gcp-temp-sdk-config.func.sh" || exit 1
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 
 #------------------------------------------------------------------------------
 # @description sync GCS bucket contents to local directory

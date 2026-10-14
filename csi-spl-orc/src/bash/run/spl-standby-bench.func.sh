@@ -19,7 +19,7 @@
 # @description (p50 / p95 / max per vendor and model, n, the tree sha, the CLI
 # @description versions, a verdict per vendor) to BENCH_REPORT. Model calls
 # @description only: no hub, no spool, no cloud. Dry run unless DRY_RUN=0.
-# @param ENV - required: dev (the bench is dev only, spec 070 section 10)
+# @param ENV - required: dev or prd (opt-in with BENCH_PRD_CONFIRM, concurrency <= 3, n <= 50)
 # @param BENCH_N (optional) - call responses per model, >= 20, default 20
 # @param BENCH_MODELS (optional) - vendor:model list, default
 # @param                           "claude:haiku claude:sonnet grok:grok-4.7-build-fast grok:grok-4.7"
@@ -31,20 +31,27 @@
 # @param SPOOL_AGENT_USER (optional) - the agent user; default from the box.env
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_standby_bench
+# @example ENV=prd BENCH_PRD_CONFIRM=1 BENCH_CONCURRENCY=2 DRY_RUN=0 ./run -a do_spl_standby_bench
 #------------------------------------------------------------------------------
 do_spl_standby_bench() {
   do_require_bin python3 || return 1
-  [[ "${ENV:-}" == dev ]] || { do_log "FATAL ENV must be dev (the standby bench is dev only), got: '${ENV:-}'"; return 1; }
+  [[ "${ENV:-}" == dev || ( "${ENV:-}" == prd && -n "${BENCH_PRD_CONFIRM:-}" ) ]] || { do_log "FATAL ENV must be dev or prd with BENCH_PRD_CONFIRM set (opt-in), got: '${ENV:-}'"; return 1; }
+  if [[ "${ENV:-}" == prd ]]; then
+    [[ "${BENCH_CONCURRENCY:-1}" -le 3 ]] || { do_log "FATAL BENCH_CONCURRENCY must be <= 3 on prd, got: '${BENCH_CONCURRENCY:-1}'"; return 1; }
+    [[ "${BENCH_N:-20}" -le 50 ]] || { do_log "FATAL BENCH_N must be <= 50 on prd, got: '${BENCH_N:-20}'"; return 1; }
+  fi
   local dry=1 d="${DRY_RUN:-1}"
   [[ "$d" == 0 || "$d" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $d"; return 1; }
   [[ "$d" == 0 ]] && dry=0
-  local n="${BENCH_N:-20}" effort="${BENCH_EFFORT:-low}" thinking="${BENCH_THINKING:-off}" budget="${BENCH_BUDGET_S:-0.9}" tmo="${BENCH_CALL_TIMEOUT:-60}"
+  local n="${BENCH_N:-20}" effort="${BENCH_EFFORT:-low}" thinking="${BENCH_THINKING:-off}" budget="${BENCH_BUDGET_S:-0.9}" tmo="${BENCH_CALL_TIMEOUT:-60}" concurrency="${BENCH_CONCURRENCY:-1}"
   local models="${BENCH_MODELS:-claude:haiku claude:sonnet grok:grok-4.7-build-fast grok:grok-4.7}"
-  [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 20 && n <= 500 )) || { do_log "FATAL BENCH_N must be 20..500 (spec 070 L1: n >= 20), got: '$n'"; return 1; }
+  [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 20 )) || { do_log "FATAL BENCH_N must be >= 20, got: '$n'"; return 1; }
+  [[ "${ENV:-}" == prd ]] && (( n <= 50 )) || (( n <= 500 ))
   [[ "$effort" =~ ^(low|medium|high)$ ]] || { do_log "FATAL BENCH_EFFORT must be low, medium or high, got: '$effort'"; return 1; }
   [[ "$thinking" =~ ^(on|off)$ ]] || { do_log "FATAL BENCH_THINKING must be on or off, got: '$thinking'"; return 1; }
   [[ "$budget" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { do_log "FATAL BENCH_BUDGET_S must be seconds, got: '$budget'"; return 1; }
   [[ "$tmo" =~ ^[0-9]+$ ]] && (( tmo >= 1 )) || { do_log "FATAL BENCH_CALL_TIMEOUT must be whole seconds >= 1, got: '$tmo'"; return 1; }
+  [[ "$concurrency" =~ ^[0-9]+$ ]] && (( concurrency >= 1 )) || { do_log "FATAL BENCH_CONCURRENCY must be whole >= 1, got: '$concurrency'"; return 1; }
   local m
   for m in $models; do
     [[ "$m" =~ ^(claude|grok):[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { do_log "FATAL BENCH_MODELS entry is not <claude|grok>:<model>: '$m'"; return 1; }

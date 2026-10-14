@@ -10,6 +10,9 @@
 #      key is wip (no landed commit citing it in its subject scope, no end
 #      reason) and when the landed commits change behaviour with neither a
 #      csi-spl-doc/ change nor a `Docs: none (<why>)` line.
+#   D. the same gate, no landed commit and no end reason: the hub's status
+#      (SPL-1813, a stub read, no network): done passes; wip, a failed read,
+#      a slow read and another key's done are refused.
 # Control per refusal: the same case with the gate cut out of a copy of the
 # scripts passes, so each check proves the gate, not the fixture.
 set -uo pipefail
@@ -188,4 +191,68 @@ Closes: SPL-10
 Docs: none (internal)" csi-spl-api/z.go
 gate "$T_SCRIPTS" c-076
 eq "C9 a 'Closes: SPL-10' trailer closes it: exits" 0 "$RC"
+
+# --- D. the hub's status, when nothing landed (SPL-1813) ----------------------
+# The stub hub: prints the do_spl_issue_status line for HUB_KEY (default the
+# asked key) with HUB_STATUS; HUB_STATUS=down fails, =slow outlasts the timeout.
+cat >"$T_TMP/hub-stub" <<'EOS'
+#!/bin/sh
+echo "$1" >>"$HUB_CALLS"
+case "$HUB_STATUS" in
+  down) echo "FATAL spool issue get: hub unreachable"; exit 1 ;;
+  slow) sleep 5 ;;
+esac
+printf 'issue-status\t%s\t%s\n' "${HUB_KEY:-$1}" "$HUB_STATUS"
+EOS
+chmod +x "$T_TMP/hub-stub"
+# A copy of the scripts with the hub step cut out: today's code before SPL-1813.
+CTL_HUB="$T_TMP/ctl-hub/spawn-agents"; mkdir -p "$CTL_HUB"
+cp -r "$T_FEAT/scripts" "$T_FEAT/lib" "$CTL_HUB/"
+python3 - "$CTL_HUB/lib/lane-issue.inc.sh" <<'EOP'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+s2 = re.sub(r'    if \[ "\$\(li_hub_status "\$key"\)" = "done" \]; then\n.*?\n    fi\n', '', s, count=1, flags=re.S)
+assert s2 != s
+open(p, 'w').write(s2)
+EOP
+check "control: the copy has no hub step" sh -c "! grep -q 'li_hub_status \"' '$CTL_HUB/lib/lane-issue.inc.sh'"
+hub() {  # SCRIPTS ID STATUS [VAR=value]... -> rc in $RC, stderr in $T_TMP/e
+  local d="$1" id="$2" st="$3"; shift 3
+  : >"$T_TMP/hub-calls"
+  (cd "$R" && env HUB_CALLS="$T_TMP/hub-calls" HUB_STATUS="$st" LI_HUB_STATUS_CMD="$T_TMP/hub-stub" "$@" \
+    SPOOL_AGENT_ID="$id" bash "$d/kill-your-self-report.sh" --gate "$R" 2>"$T_TMP/e" >/dev/null); RC=$?
+}
+
+accepted c-077; echo SPL-11 >"$SPOOL_ROOT/c-077/lifetime/issue"
+hub "$T_SCRIPTS" c-077 "done"
+eq "D1 no landed commit, done on the hub: exits" 0 "$RC"
+has "D1 ... the line says so" "issue gate: SPL-11 done on the hub (no landed commit)" "$(cat "$T_TMP/e")"
+eq "D1 ... the hub was asked for that key, once" "SPL-11" "$(cat "$T_TMP/hub-calls")"
+hub "$CTL_HUB/scripts" c-077 "done"
+eq "D1 control (no hub step, today's code): the same lane is refused" 3 "$RC"
+
+hub "$T_SCRIPTS" c-077 wip
+eq "D2 wip on the hub: refused, exit 3" 3 "$RC"
+has "D2 ... with today's line" "issue SPL-11 is still wip" "$(cat "$T_TMP/e")"
+hub "$T_SCRIPTS" c-077 diss
+eq "D2 diss on the hub (not done): refused" 3 "$RC"
+
+hub "$T_SCRIPTS" c-077 down
+eq "D3 the hub unreachable: refused, exit 3" 3 "$RC"
+has "D3 ... with today's line" "issue SPL-11 is still wip" "$(cat "$T_TMP/e")"
+hub "$T_SCRIPTS" c-077 slow LI_HUB_TIMEOUT=1
+eq "D3 the hub slower than LI_HUB_TIMEOUT: refused" 3 "$RC"
+hub "$T_SCRIPTS" c-077 "done" HUB_KEY=SPL-12
+eq "D4 another key's done in the answer: refused" 3 "$RC"
+hub "$T_SCRIPTS" c-077 "done" LI_HUB_STATUS_CMD=
+eq "D5 a sandbox (SPOOL_TEST=1) with no stub reads no hub: refused" 3 "$RC"
+eq "D5 ... and the stub was never called" "" "$(cat "$T_TMP/hub-calls")"
+
+# A landed commit or an end reason is decided before the hub is asked.
+hub "$T_SCRIPTS" c-071 wip
+eq "D6 an end reason: exits" 0 "$RC"
+eq "D6 ... without a hub read" "" "$(cat "$T_TMP/hub-calls")"
+hub "$T_SCRIPTS" c-072 wip
+eq "D6 a landed commit: exits without a hub read" 0 "$RC"
+eq "D6 ... and no hub read" "" "$(cat "$T_TMP/hub-calls")"
 t_done

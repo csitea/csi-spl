@@ -6,11 +6,14 @@
 # date as well"). The rule's one home: spool-install/assets/claude/claude-md/
 # 27-lane-issue-and-docs.md; how it is enforced: csi-spl-doc/doc/md/lane-issue-and-docs.md.
 #
-# Offline helpers only (no hub call): the hub legs are do_spl_lane_issue
-# (csi-spl-orc/src/bash/run/spl-lane-issue.func.sh). Callers:
+# Offline helpers, but for one hub read: li_hub_status asks
+# do_spl_issue_status (csi-spl-orc/src/bash/run/spl-issue-status.func.sh) for
+# the key's status when a lane landed nothing. The hub writes are
+# do_spl_lane_issue (csi-spl-orc/src/bash/run/spl-lane-issue.func.sh). Callers:
 #   spawn-core.inc.sh        li_key_from_brief: a lane without a key does not start
 #   kill-your-self-report.sh li_gate: /exit-clean refuses a wip issue with no
-#                            landed sha and no end reason, and a behaviour
+#                            landed sha, no end reason and no done on the
+#                            hub, and a behaviour
 #                            change with no doc change and no `Docs: none (<why>)`
 #
 # Files, per lane, in <spool root>/<id>/lifetime/:
@@ -101,13 +104,40 @@ li_docs_verdict() {
   echo "ok no behaviour change"
 }
 
+# li_hub_status KEY -> the key's status on the hub, best effort: nothing when
+# the read fails or takes over LI_HUB_TIMEOUT (default 20) seconds. The read is
+# do_spl_issue_status in this tree's orc, as the box user (the desk's keys are
+# theirs); LI_HUB_STATUS_CMD replaces it (tests: a stub, no network), called
+# with the key and expected to print the same `issue-status<TAB>KEY<TAB>status`.
+# A test sandbox (SPOOL_TEST=1) with no stub reads nothing.
+LI_ORC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
+li_hub_status() {
+  local key="$1" out home
+  local -a cmd=()
+  if [ -n "${LI_HUB_STATUS_CMD:-}" ]; then
+    out="$(timeout "${LI_HUB_TIMEOUT:-20}" "$LI_HUB_STATUS_CMD" "$key" 2>/dev/null </dev/null)"
+  else
+    [ "${SPOOL_TEST:-}" != 1 ] && [ -x "$LI_ORC/run" ] || return 0
+    if [ -n "${SPOOL_BOX_USER:-}" ] && [ "$(id -un)" != "$SPOOL_BOX_USER" ]; then
+      home="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)"
+      cmd=(sudo -n -u "$SPOOL_BOX_USER" env HOME="$home")
+    fi
+    out="$(cd "$LI_ORC" && timeout "${LI_HUB_TIMEOUT:-20}" "${cmd[@]}" env ISSUE_REF="$key" \
+      SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" ./run -a do_spl_issue_status 2>/dev/null </dev/null)"
+  fi
+  awk -F'\t' -v k="$key" '$1 == "issue-status" && $2 == k && $3 ~ /^[a-z_]+$/ { s = $3 } END { if (s != "") print s }' <<<"$out"
+}
+
 # li_end_cmd ID -> the command that ends a lane's issue without landing.
 li_end_cmd() {
   printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=diss LANE_ISSUE_REASON='<why>' DRY_RUN=0 ./run -a do_spl_lane_issue" "${SPOOL_BOX_USER:-<box user>}" "$1"
 }
 
 # li_gate SPOOL_ROOT ID WORKDIR: 0 = the lane may exit; 3 = refused, one line
-# on stderr naming what is missing and the command that fixes it.
+# on stderr naming what is missing and the command that fixes it. With no
+# landed commit and no end reason it asks the hub last: an issue the
+# orchestrator already set done there (an apply-only lane, no code commit)
+# passes; any other status, or no answer, is refused as before (SPL-1813).
 li_gate() {
   local root="$1" id="$2" w="$3" key end v
   local -a shas=()
@@ -121,6 +151,10 @@ li_gate() {
   if [ "${#shas[@]}" -eq 0 ]; then
     if [ -s "$end" ]; then
       echo "issue gate: $key ended without landing: $(cut -f1,2 "$end" | tr '\t' ' ')" >&2
+      return 0
+    fi
+    if [ "$(li_hub_status "$key")" = "done" ]; then
+      echo "issue gate: $key done on the hub (no landed commit)" >&2
       return 0
     fi
     echo "exit-clean refused: issue $key is still wip: no commit on $(li_trunk "$w" || echo origin/master) closes it (a fix|feat|perf|refactor subject with $key in its scope, or a 'Closes: $key' trailer; fetch first) and no end reason; land a commit citing $key, or end it: $(li_end_cmd "$id")" >&2

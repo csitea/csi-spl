@@ -188,6 +188,12 @@ const END_SLACK_PX = 32
 const atTop = (a, b) => Boolean(a && b && b.windowY === a.windowY && (Math.abs(b.qTop - b.paneTop - NEXT_GAP_PX) <= TOLERANCE_PX
   || (b.atEnd && b.qTop - b.paneTop >= NEXT_GAP_PX - TOLERANCE_PX && b.qTop <= a.qTop + END_SLACK_PX)))
 const still = (a, b) => Boolean(a && b && Math.abs(a.qTop - b.qTop) <= TOLERANCE_PX && b.windowY === a.windowY)
+/* the same at the pane's end: with no room left to scroll, a shorter answers
+   line below the question (a wider font wraps "6: none" on two lines and
+   "6: A" on one: 61 -> 41 px on the hosted runners' DejaVu Sans) lets the
+   question down by what it gives back, never up and never more */
+const stillOrEnd = (a, b) => still(a, b) || Boolean(a && b && a.atEnd && b.atEnd && b.windowY === a.windowY
+  && b.qTop >= a.qTop && b.qTop - a.qTop <= END_SLACK_PX)
 
 /* the live store's send: our row at once, pending, then the echo */
 function liveSend(p) {
@@ -251,7 +257,7 @@ async function radioCase(browser, vp, tag, order, live = false) {
   await tapOption(p, form, 5, 'A', touch)
   await sleep(1500)
   const after3 = await where(p, form, 5)
-  ok(`${tag} ${order} radio: answering the last question (6) does not move the reader (<= ${TOLERANCE_PX} px)`, still(before3, after3), { before3, after3 })
+  ok(`${tag} ${order} radio: answering the last question (6) does not move the reader (<= ${TOLERANCE_PX} px; at the pane's end <= ${END_SLACK_PX} px down)`, stillOrEnd(before3, after3), { before3, after3 })
   ok(`${tag} ${order} radio: no page error`, errors.length === 0, errors)
   await p.close()
 }

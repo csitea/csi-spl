@@ -96,26 +96,46 @@ const openTopic = (p) => p.evaluate((id) => {
   return true
 }, TASK)
 
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. A stack still sliding between levels is not yet the
+    place a tap landed. */
+async function until(read, want = () => true, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let v = await read()
+  while (Date.now() < end) {
+    const k = want(v) ? JSON.stringify(v) ?? 'undefined' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return v
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+
 async function toChannel(p) {
   await settle(p)
   await p.goto(`${server.base}/`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
-  await sleep(800)
+  await until(() => where(p), (v) => v.level === '1')
   await p.click('[data-testid=sidebar-tab-channels]')
-  await sleep(400)
+  await p.waitForSelector('#sidebar-panel-channels .nav-item', { visible: true, timeout: 5000 }).catch(() => {})
   await p.evaluate(() => document.querySelector('#sidebar-panel-channels .nav-item')?.click())
-  await sleep(1200)
+  await until(() => where(p), (v) => v.level === '2' && v.path.startsWith('/channel/'))
 }
 
 async function toTopic(p) {
   await toChannel(p)
   await openTopic(p)
-  await sleep(1000)
+  await until(() => where(p), (v) => v.level === '3')
 }
 
+/* the tap's landing place: the level moved off where it was and holds still
+   (a Back that does nothing times out on the old level, and the check fails) */
 const tapBack = async (p, sel) => {
+  const from = await where(p)
   await p.tap(sel)
-  await sleep(1000)
+  await until(() => where(p), (v) => v.level !== from.level, 300, 5000)
   await settle(p)
   return where(p)
 }
@@ -128,8 +148,7 @@ async function phone(browser) {
 
   await p.goto(`${server.base}/`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('[data-testid=dock-back]', { timeout: NAV_TIMEOUT }).catch(() => {})
-  await sleep(600)
-  const r1 = await rowFacts(p)
+  const r1 = await until(() => rowFacts(p), (r) => Boolean(r && r.buttons.length))
   const ids = r1 ? r1.buttons.map((b) => b.id) : []
   const [back, attach, send] = r1 ? r1.buttons : []
   ok('390px 1 no camera; Back, Attach, Send left to right; Attach 2 px left of centre; 44 px targets',
@@ -164,11 +183,11 @@ async function phone(browser) {
      in thumb reach, nothing covers it, and a tap steps back */
   await toTopic(p)
   await p.setViewport({ width: 390, height: 480, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
-  await sleep(400)
+  await until(() => p.evaluate(() => innerHeight), (h) => h === 480)
   await p.focus('form.composer.omnibox--global textarea')
   await p.keyboard.type('draft')
-  await sleep(400)
-  const kb = await p.evaluate(() => {
+  /* the dock once it has stopped moving under the short viewport */
+  const kb = await until(() => p.evaluate(() => {
     const b = document.querySelector('[data-testid=dock-back]')
     if (!b) return null
     const r = b.getBoundingClientRect()
@@ -180,7 +199,7 @@ async function phone(browser) {
       disabled: b.disabled,
       chip: [...document.querySelectorAll('form.composer [data-test=composer-target-chip]')].some((e) => e.getClientRects().length > 0),
     }
-  })
+  }))
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'dock-buttons-390-omnibox-focused.png') })
   const kbBack = await tapBack(p, '[data-testid=dock-back]')
   ok('390px 5 omnibox focused, short viewport: Back on screen, on top, and a tap steps 3 -> 2',
@@ -196,17 +215,15 @@ async function desktop(browser) {
   await p.setViewport({ width: 1440, height: 900 })
   await p.goto(`${server.base}/lobby`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('form.composer.omnibox--global', { timeout: NAV_TIMEOUT })
-  await sleep(400)
-  const r = await rowFacts(p)
+  const r = await until(() => rowFacts(p), (v) => Boolean(v && v.buttons.length))
   ok('1440px 6 CONTROL: the desktop row is unchanged - Attach + Send, no Back, no camera',
     Boolean(r && !r.docked && !r.camera && r.buttons.map((b) => b.id).join(',') === 'attach,send'), r)
   await p.focus('form.composer.omnibox--global textarea')
   await p.keyboard.type('x')
-  await sleep(300)
-  const chip = await p.evaluate(() => {
+  const chip = await until(() => p.evaluate(() => {
     const el = [...document.querySelectorAll('form.composer.omnibox--global [data-test=composer-target-chip]')].find((e) => e.getClientRects().length > 0)
     return el ? el.textContent.trim() : null
-  })
+  }))
   ok('1440px 6b a draft on /lobby still draws the target chip "#lobby"', chip === '#lobby', { chip })
   await p.close()
 }

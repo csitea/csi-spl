@@ -60,6 +60,27 @@ async function launch() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** The most sections any read saw, including the reads a wait made between steps. */
+let peak = 0
+
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. Every read counts toward `peak`, so a second section
+    that shows up only for a moment is still caught. */
+async function until(read, want, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let s = await read()
+  while (Date.now() < end) {
+    if (s && typeof s.n === 'number') peak = Math.max(peak, s.n, s.byClass)
+    const k = want(s) ? JSON.stringify(s) : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return s
+    await sleep(100)
+    s = await read()
+  }
+  return s
+}
+
 /** The shell's own stores, reached the way the page's click handlers reach them. */
 const drive = (p, fn, arg) => p.evaluate((fn, arg) => {
   const app = document.querySelector('#__nuxt')?.__vue_app__
@@ -87,16 +108,20 @@ const sections = (p) => p.evaluate(() => {
   }
 })
 
-/** SPA navigation through the shell's own links — a full load would reset the stores. */
-async function spaNav(p, href) {
-  const went = await p.evaluate((href) => {
+/** SPA navigation through the shell's own links — a full load would reset the stores.
+    The rail has no plain <a> for every route any more, so without one it calls the
+    router, which is what a RouterLink click does. `lands` is where the page
+    sends it on (pages/index.vue: a desktop `/` goes on to /lobby). Returns
+    where it landed. */
+const pathOf = (path) => path.replace(/\?.*$/, '').replace(/\/+$/, '')
+async function spaNav(p, href, lands = href) {
+  await p.evaluate((href) => {
     const a = [...document.querySelectorAll('a')].find((el) => (el.getAttribute('href') || '').replace(/\/+$/, '') === href.replace(/\/+$/, ''))
-    if (!a) return false
-    a.click()
-    return true
+    if (a) return a.click()
+    return document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router?.push(href)
   }, href)
-  await sleep(1200)
-  return went
+  const s = await until(() => sections(p), (v) => pathOf(v.path) === pathOf(lands))
+  return pathOf(s.path) === pathOf(lands) ? s.path : `stayed on ${s.path}`
 }
 
 const srv = await startServer()
@@ -110,45 +135,50 @@ try {
     await page.goto(`${srv.base}/channel/lobby`, { waitUntil: 'networkidle2' })
     await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
     await applyViewport(page, vp)
-    await sleep(1200)
+    await until(() => drive(page, 'ready'), (v) => v === 'ok')
+    peak = 0
 
     const seen = []
-    const step = async (label) => {
-      const s = await sections(page)
+    /* a step reads the settled state; `want` names the section it waits for */
+    const step = async (label, want = () => true) => {
+      const s = await until(() => sections(page), want)
       seen.push({ label, ...s })
       ok(`${vp.name} — ${label}: ${s.n} topic section(s) ${JSON.stringify(s.which)}`, s.n <= 1 && s.byClass <= 1, s.n > 1 ? s : undefined)
       return s
     }
 
     await step('/channel/lobby, nothing open')
+    /* a route step that never left the page proves nothing: say so */
+    const went = async (p, href, lands = href) => {
+      const at = await spaNav(p, href, lands)
+      ok(`${vp.name} — SPA-nav reached ${lands}`, !at.startsWith('stayed'), at)
+    }
 
     /* 1. a channel topic — the store MessageFeed's @open-topic calls */
+    const shows = (which) => (v) => v.n === 1 && v.which[0] === which
     await drive(page, 'openChannel', TASK_A)
-    await sleep(800)
-    let s = await step('opened a topic on /channel/lobby')
+    let s = await step('opened a topic on /channel/lobby', shows('channel'))
     ok(`${vp.name} — the channel topic is the section on screen`, s.n === 1 && s.which[0] === 'channel', s.which)
 
     /* 2. route change must not add one: the stores survive an SPA nav */
-    await spaNav(page, '/lobby')
+    await went(page, '/lobby')
     await step('SPA-nav to /lobby with the channel topic still open')
 
     /* 3. open a live-pane topic there — this is where the second aside appeared */
     await drive(page, 'openLive', TASK_A)
-    await sleep(1200)
-    s = await step('opened a topic from the /lobby rows (the reported bug)')
+    s = await step('opened a topic from the /lobby rows (the reported bug)', shows('live'))
     ok(`${vp.name} — the live pane replaced the channel topic, it did not join it`, s.n === 1 && s.which[0] === 'live', s.which)
     if (OUT) await page.screenshot({ path: `${OUT}/e2e-one-section-${vp.width}.png` })
 
     /* 4. carry on through the routes the owner named */
-    await spaNav(page, '/')
+    await went(page, '/', vp.width > 700 ? '/lobby' : '/')
     await step('SPA-nav to /')
-    await spaNav(page, '/channel/lobby')
+    await went(page, '/channel/lobby')
     await step('SPA-nav back to /channel/lobby')
 
     /* 5. and back the other way: a channel topic must outrank a stale live pane */
     await drive(page, 'openChannel', TASK_B)
-    await sleep(800)
-    s = await step('opened a channel topic while the live pane was still armed')
+    s = await step('opened a channel topic while the live pane was still armed', shows('channel'))
     ok(`${vp.name} — the section the reader opened LAST is the one shown`, s.n === 1 && s.which[0] === 'channel', s.which)
 
     /* 6. rapid alternating clicks — no frame may leave two behind */
@@ -156,8 +186,7 @@ try {
       await drive(page, i % 2 ? 'openChannel' : 'openLive', i % 2 ? TASK_B : TASK_A)
       await sleep(120)
     }
-    await sleep(900)
-    await step('after 6 rapid alternating opens')
+    await step('after 6 rapid alternating opens', shows('channel'))
 
     /* 7. a divider resize must not duplicate the pane (GRK-3366's --topic-w) */
     await page.evaluate(() => {
@@ -167,24 +196,21 @@ try {
     })
     await page.keyboard.press('ArrowLeft')
     await page.keyboard.press('ArrowLeft')
-    await sleep(600)
     await step('after a divider resize')
 
     /* 8. both themes */
     for (const theme of ['dark', 'light']) {
       await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
-      await sleep(300)
       await step(`in the ${theme} theme`)
     }
 
     /* 9. closing leaves none, and reopening leaves one */
     await drive(page, 'closeChannel')
     await drive(page, 'closeLive')
-    await sleep(800)
-    s = await step('after closing both')
+    s = await step('after closing both', (v) => v.n === 0)
     ok(`${vp.name} — closing everything leaves no topic section`, s.n === 0, s)
 
-    const worst = Math.max(...seen.map((x) => Math.max(x.n, x.byClass)))
+    const worst = Math.max(peak, ...seen.map((x) => Math.max(x.n, x.byClass)))
     ok(`${vp.name} — the 1..1 invariant held over ${seen.length} states (worst count ${worst})`, worst <= 1, worst > 1 ? seen.filter((x) => x.n > 1) : undefined)
   }
 } finally {

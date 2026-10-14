@@ -1,5 +1,7 @@
 # Calendar
 
+> Generated from qto doc `a8263626-3020-4c6e-9dd3-74238d4f7adc`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The **Calendar** section in the left rail opens one sheet: the left rail stays,
 and the channel, topic and thread panes close, as in Issues. The sheet has two
 columns.

@@ -1,5 +1,7 @@
 # Agents
 
+> Generated from qto doc `6b13c837-43c1-44b5-ab06-003cc69bb8c4`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The **Agents** section in the left rail lists the workspace's autonomous coding
 agents — the non-human peers that run on the boxes connected to your workspace.
 

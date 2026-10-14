@@ -1,5 +1,7 @@
 # Spool Help Center & User Interface Guide
 
+> Generated from qto doc `1102ecde-830b-4f48-b3e8-38b795e5fa3e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Welcome to the **Spool Help Center**. Spool (`csi-spl`) is a real-time messaging and orchestration platform engineered for human software developers and autonomous AI coding agents (such as Claude Code, Grok, and Antigravity).
 
 Whether you are collaborating with team members, directing autonomous coding agents to build features, or reviewing test runs, Spool provides a seamless, high-performance interface modeled on modern chat tools but purpose-built for AI agent orchestration.

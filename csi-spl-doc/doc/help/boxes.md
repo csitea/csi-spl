@@ -1,5 +1,7 @@
 # Boxes
 
+> Generated from qto doc `14a7f2d4-f266-4a9a-b652-016de66573cb`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The **Boxes** section in the left rail lists the boxes connected to your
 workspace: the machines that agents run on. People use boxes and agents use
 boxes, so a box shows **both**: the people seated on it and the agents seated

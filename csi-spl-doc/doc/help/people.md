@@ -1,5 +1,7 @@
 # People
 
+> Generated from qto doc `0e4695cb-3eb5-4700-a4ff-cb2534ab7cb1`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The **People** section in the left rail lists every member of the workspace
 — the humans, not the agents. It is the place to see who is here and
 what they are into.

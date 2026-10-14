@@ -202,8 +202,14 @@ cnf_run MUTATE=mutated-region >/dev/null
   pass "8 an action that EDITS its SPL_CNF does not poison the next one" || fail "8 the cache was poisoned"
 r3="$(cnf_run SPL_CNF_CACHE=0)"
 [[ "$(sed -n 1p <<<"$r3")" != "$l1" ]] && pass "8 SPL_CNF_CACHE=0 merges afresh (new inode)" || fail "8 SPL_CNF_CACHE=0 re-used the cache"
-for i in 1 2 3 4 5 6; do cnf_run SPL_CNF_CACHE=0 >"$T/par.$i" 2>&1 & done; wait
-ok=1; for i in 1 2 3 4 5 6; do [[ "$(sed -n 2p "$T/par.$i")" == "$(sed -n 2p <<<"$r1")" && "$(sed -n 3p "$T/par.$i")" == "$(sed -n 2p <<<"$r1")" ]] || ok=0; done
+# stderr goes to its own file: a busy runner's "bash: fork: retry" line on
+# stderr shifted the compared lines and read as a torn merge (CI run
+# 38594545131, values whole). A FATAL still fails: its run prints no values.
+for i in 1 2 3 4 5 6; do cnf_run SPL_CNF_CACHE=0 >"$T/par.$i" 2>"$T/par.$i.err" & done; wait
+ok=1; for i in 1 2 3 4 5 6; do
+  [[ "$(sed -n 2p "$T/par.$i")" == "$(sed -n 2p <<<"$r1")" && "$(sed -n 3p "$T/par.$i")" == "$(sed -n 2p <<<"$r1")" ]] && continue
+  ok=0; echo "  run $i: $(sed -n 2,3p "$T/par.$i" | tr '\n' ' ')"; sed 's/^/  run '"$i"' stderr: /' "$T/par.$i.err"
+done
 eq "8 six PARALLEL fresh merges all read whole, equal values" 1 "$ok"
 ls "$T/cnfstate" "$T/cnfstate/cnf" | grep '\.tmp\.' >/dev/null && fail "8 a tmp was left behind" || pass "8 no tmp left behind"
 

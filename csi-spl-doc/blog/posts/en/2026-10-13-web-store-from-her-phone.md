@@ -35,5 +35,5 @@ For a small business, a change to the web store usually means a chain of people:
 
 A new version has gone out about every 15 minutes since 2026-09-28, day and night. That is software development running 24 hours a day, 7 days a week.
 
-The spool is a product of Csitea Oy. If you run a business and would rather say what you need than file a ticket for it, this is what it looks like today.
+The spool-hub is a product of [Csitea Oy](https://csitea.net). Anybody can deploy and install the spool-hub source code with the help of smart AI agents, because the project is open source and well documented.
 

@@ -10,6 +10,8 @@
 #      under a revoked pin; NOT a post from before the live pin
 #   3. posts: a signed one counts, an agent's, a DM, #issues, #probe, a
 #      typed_by line and one outside the window do not
+#   4. the roster rows: the OD seats and the role seats 001..003 under any
+#      vendor letter (SPL-1756), no other agent
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -55,7 +57,8 @@ INSERT INTO pins (tenant_id, box_id, pubkey, updated_at) VALUES
 UPDATE pins SET revoked_at = now() - interval '80 minutes' WHERE tenant_id = 'wr';
 INSERT INTO boxes (tenant_id, box_id) VALUES ('wp', 'box-desk'), ('wp', 'box-sat'), ('wn', 'box-desk');
 INSERT INTO roster (tenant_id, box_id, agent_id) VALUES ('wp', 'box-desk', 'c-001'), ('wp', 'box-desk', 'c-002'),
-  ('wp', 'box-sat', 'c-003'), ('wp', 'box-desk', 'c-077'), ('wn', 'box-desk', 'c-002');
+  ('wp', 'box-sat', 'c-003'), ('wp', 'box-desk', 'c-077'), ('wn', 'box-desk', 'c-002'),
+  ('wp', 'box-sat', 'g-002'), ('wp', 'box-sat', 'm-004');
 PSQL
 n=0
 # m <tenant> <channel|''> <from> <sig|''> <minutes ago>
@@ -112,9 +115,10 @@ touch -d "@$(( $(date +%s) - 720 ))" "$T/sr/dispatch/fleet.dispatch.holder"
 rm -f "$T/sr/dispatch/fleet.dispatch.holder"
 
 # owner 2026-10-03 (every OD seat in every channel): the read names the
-# roster rows of the OD seats, on every box, and no other agent's
-[[ "$(grep '^ros|' <<<"$out" | tr '\n' ' ')" == 'ros|box-desk|c-001 ros|box-desk|c-002 ros|box-sat|c-003 ' ]] &&
-  pass "4. the OD seats' roster rows, every box, no other agent, no other workspace" || fail "4. ros: $(grep '^ros|' <<<"$out")"
+# roster rows of the OD seats, on every box, and no other agent's; a role
+# seat 001..003 under another vendor letter is another box's OD seat (SPL-1756)
+[[ "$(grep '^ros|' <<<"$out" | tr '\n' ' ')" == 'ros|box-desk|c-001 ros|box-desk|c-002 ros|box-sat|c-003 ros|box-sat|g-002 ' ]] &&
+  pass "4. the OD and role seats' roster rows, every box, no other agent, no other workspace" || fail "4. ros: $(grep '^ros|' <<<"$out")"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

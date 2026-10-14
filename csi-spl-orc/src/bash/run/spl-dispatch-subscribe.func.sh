@@ -77,7 +77,9 @@ do_spl_dispatch_subscribe() {
 # subscriptions and call <fn> <tenant> <data>. <data> lines:
 #   chan|<channel>            one per live channel (defaults included)
 #   sub|<channel>|<box>|<agent>|<origin>   one per live subscription
-#   ros|<box>|<agent>         one per roster row of an OD seat (any box)
+#   ros|<box>|<agent>         one per roster row of an OD seat (any box), and
+#                             of a role seat 001..003 under any vendor letter:
+#                             another box's OD seat (SPL-1756)
 #   hum|<posts>|<unsigned>    human channel posts the hub stored between
 #                             DISPATCH_SILENCE_WINDOW and _GRACE minutes ago,
 #                             and how many of them unsigned and not older
@@ -134,7 +136,8 @@ SELECT 'sub|' || s.channel_id || '|' || s.box_id || '|' || s.agent_id || '|' || 
    AND NOT (s.origin = 'announce' AND s.channel_id IN ('lobby', 'alerts', 'feedback'))
  ORDER BY 1;
 SELECT 'ros|' || r.box_id || '|' || r.agent_id FROM roster r
- WHERE r.tenant_id = :'tenant' AND r.agent_id = ANY (string_to_array(:'ods', ' '))
+ WHERE r.tenant_id = :'tenant'
+   AND (r.agent_id = ANY (string_to_array(:'ods', ' ')) OR r.agent_id ~ '^[acgmq]-00[1-3]$')
  ORDER BY 1;
 -- unsigned leaves out a post stored before the live box-wui pin was set: a
 -- post stored before the pin is the replay's (do_spl_replay_unsigned), not a

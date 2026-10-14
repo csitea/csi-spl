@@ -66,10 +66,9 @@ pull request (no secrets) warns. Controls:
 `csi-spl-iac/src/bash/tests/hygiene-hidden-workspaces.tst.sh` and
 `spl-private-cnf.tst.sh`.
 
-Skipped for now, named in the Sweep: the git-rel files (the git-rel scrub
-lane's), and rdb migration 0051, whose sha256 is pinned in every env's
-`spool_schema_migrations` (forward-only: a changed comment fails the hub's
-migrate).
+Skipped, named in the Sweep: rdb migration 0051, whose sha256 is pinned in
+every env's `spool_schema_migrations` (forward-only: a changed comment fails
+the hub's migrate).
 
 ## 4. Where the copies are, and the backup
 

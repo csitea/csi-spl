@@ -1268,12 +1268,9 @@ jobs:
           if [[ -f "$lib" ]] && source "$lib" && [[ -s "$(spl_private_cnf_path)" ]]; then
             base="$(sed -n 's/^ *BASE_DOMAIN: *"\{0,1\}\([^"# ]*\).*/\1/p' csi-spl-cnf/csi-spl/all.env.yaml | head -1)"
             if pats="$(spl_private_gate_patterns "$base")" && [[ -n "$pats" ]]; then
-              # The git-rel files are the git-rel scrub lane's (c-001 ask
-              # 4c230c4b), not SPL-1874's: skipped until that lane lands, then
-              # this line goes. Every other file is swept.
               # 0051 is a forward-only migration: its sha256 is pinned in every
               # env's spool_schema_migrations, so its comment cannot change.
-              skip_re='^\./(csi-spl-doc/(doc/md/csi-spl\.feature\.md|specs/001-relay-bucket-estate/)|csi-spl-rdb/src/sql/postgres/spool-hub/0051_tenants_sort_order\.sql$)'
+              skip_re='^\./csi-spl-rdb/src/sql/postgres/spool-hub/0051_tenants_sort_order\.sql$'
               sweep "hidden workspace or private literal (SPL-1874)" "$(paste -sd'|' <<<"$pats")"
               skip_re=''
             else
@@ -1284,6 +1281,13 @@ jobs:
           else
             echo "::warning::hygiene: hidden workspaces NOT swept -- no private overlay or no $lib (SPL-1874)"
           fi
+          # SPL-1910 (owner order 2026-10-14: "remove all of the traces for
+          # this code from the spool-hub"): the retired relay estate, its
+          # client's repo and the box it ran on left the tree; this keeps them
+          # out. The box name is bounded by hand, not by \b: grep -P reads the
+          # accented byte of Spanish "línea" as a boundary (30 false hits in
+          # es.json). CONTROL: csi-spl-iac/src/bash/tests/hygiene-retired-relay.tst.sh
+          sweep "retired relay estate (SPL-1910)"  '(?i)git-rel|git_rel|gitrel|nea-nfs|relay[-_]?bucket|(?<![A-Za-z0-9_\x80-\xff])nea(?![A-Za-z0-9_\x80-\xff])'
           # Spec 110 2.3: no TRACKED .vibe/ dir anywhere in the tree. Every
           # worktree is a trusted Vibe folder whose .vibe/{config.toml,
           # hooks.toml,AGENTS.md} is read first, so one commit could change the

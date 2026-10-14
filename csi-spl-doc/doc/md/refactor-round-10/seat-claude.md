@@ -65,4 +65,4 @@ below).
 
 ## 4. Signature
 
-Pending the editor's v1.0 sha.
+signed v1.0 40057b1a5

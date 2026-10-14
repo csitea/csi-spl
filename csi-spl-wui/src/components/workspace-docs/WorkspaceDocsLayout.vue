@@ -26,6 +26,7 @@
         :repo="repoPath"
         @repo="openRepo"
         @open="openFromTree"
+        @moved="(doc, rev) => page?.docMoved(doc, rev)"
         @renamed="renamedFromTree"
         @deleted="deletedFromTree"
         @new-doc="page.newOpen = true"

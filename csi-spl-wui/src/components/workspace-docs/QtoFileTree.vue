@@ -60,7 +60,17 @@
      folder row or `/` to go into it; the hub's nodes/{node}/move with
      before / after keeps the order. Escape cancels; Alt+Up / Alt+Down move
      the focused row within its folder; on a phone, a long press opens the
-     menu and a drag after it moves the row. -->
+     menu and a drag after it moves the row.
+     Sections (SPL-1892, owner t1 089630f7 msg fcf24997: "enable drag and
+     drop of sections of documents in the qto view in a single document"):
+     a section row drags the same way within its own document only: onto
+     the gap by a section (a re-order, or onto that section's level), onto
+     a section (its last child) or onto its document's row (the top level,
+     last). Another document or a folder refuses it. The drop is the hub's
+     items/{item}/move {rev, parent, ord} under the rev the tree read; a
+     stale rev (412) reads the document again and says so, it never
+     overwrites. `moved` tells the page, so the open document shows the
+     new order and numbers. -->
 <template>
   <nav class="qto-tree" data-test="qto-file-tree" :aria-label="t('ws_doctree.title')">
     <WorkspaceDocNewDialog v-model:open="folderOpen" folder :create="makeFolder" />
@@ -139,7 +149,7 @@ import { useRepoDocs } from './-repo-docs'
 import { buildDocsTree, docsAncestors, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
 
 const props = defineProps<{ docs: DocHead[], active: string, rev: number, client: DocTreeClient, drill?: string | null, repo?: string }>()
-const emit = defineEmits<{ open: [doc: string, item: string], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string], newDoc: [], refresh: [], repo: [path: string] }>()
+const emit = defineEmits<{ open: [doc: string, item: string], moved: [doc: string, rev: number], renamed: [doc: string, title: string, rev: number], deleted: [doc: string], drill: [key: string], title: [path: string], newDoc: [], refresh: [], repo: [path: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
 /* row keys: / the root, f:<node> for a folder, d:<doc> for a document, i:<doc>:<item> for a section;
@@ -153,14 +163,21 @@ const itemKey = (doc: string, item: string) => `i:${doc}:${item}`
 const opened = ref<Set<string>>(new Set([ROOT]))
 /* each loaded document's items grouped by parent, in outline order */
 const kids = ref<Record<string, Map<string, DocItem[]>>>({})
+/* each loaded document's rev and root item, as its subtree read them: a section move's precondition and top level */
+const revOf: Record<string, number> = {}
+const rootOf: Record<string, string> = {}
 const activeItem = ref('')
 
 async function load(doc: string) {
   try {
     const r = await props.client.subtree(doc)
     const m = new Map<string, DocItem[]>()
+    revOf[doc] = r.rev
     for (const it of r.items) {
-      if (!it.parent) continue
+      if (!it.parent) {
+        rootOf[doc] = it.id
+        continue
+      }
       const list = m.get(it.parent) || []
       list.push(it)
       m.set(it.parent, list)
@@ -185,12 +202,12 @@ function sectionRow(doc: string, it: DocItem, m: Map<string, DocItem[]>, depth: 
   const key = itemKey(doc, it.id)
   const sub = (m.get(it.id) || []).length > 0
   const name = itemName(it)
-  return { key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'plus' : 'list', kind: 'section', menu: true, expandable: sub, open: sub && opened.value.has(key), active: doc === props.active && it.id === activeItem.value }
+  return { key, depth, name, title: it.title.trim() ? `${it.outline} ${name}` : name, icon: sub ? 'plus' : 'list', kind: 'section', menu: true, drag: true, into: true, expandable: sub, open: sub && opened.value.has(key), active: doc === props.active && it.id === activeItem.value }
 }
 
 function docRow(d: DocHead, depth = 0): FileTreeRow {
   const m = kids.value[d.id]
-  return { key: docKey(d.id), depth, name: docName(d), icon: 'file-text', kind: 'doc', menu: true, drag: Boolean(nodeOfDoc(d.id)), expandable: !m || (m.get(d.root) || []).length > 0, open: opened.value.has(docKey(d.id)), active: d.id === props.active && !activeItem.value && !folderPicked.value }
+  return { key: docKey(d.id), depth, name: docName(d), icon: 'file-text', kind: 'doc', menu: true, drag: Boolean(nodeOfDoc(d.id)), into: true, expandable: !m || (m.get(d.root) || []).length > 0, open: opened.value.has(docKey(d.id)), active: d.id === props.active && !activeItem.value && !folderPicked.value }
 }
 
 /* the folders: each loaded folder's children ('' = the top level), and each
@@ -494,6 +511,7 @@ function within(f: string, node: string): boolean {
 
 /** where a dragged row may land: into a folder or `/`, or next to a row of its own kind (folders stay first) */
 function canDrop(key: string, target: string, where: FileTreeDrop): boolean {
+  if (key.startsWith('i:')) return canDropSection(key, target, where)
   const node = nodeOfKey(key)
   if (!node || nodesOff.value) return false
   const folderMove = key.startsWith('f:')
@@ -507,6 +525,7 @@ function canDrop(key: string, target: string, where: FileTreeDrop): boolean {
 
 /** a drop or Alt+Up / Alt+Down: the hub's move at that place, then both folders' listings read again */
 async function moveRow(key: string, target: string, where: FileTreeDrop) {
+  if (key.startsWith('i:')) return moveSection(key, target, where)
   const node = nodeOfKey(key)
   const from = parentOfKey(key)
   const into = where === 'into'
@@ -522,6 +541,47 @@ async function moveRow(key: string, target: string, where: FileTreeDrop) {
   await Promise.all([...read].map(loadNodes))
   if (into) setOpen(parent ? folderKey(parent) : ROOT, true)
   if (props.active) reveal(props.active)
+}
+
+/* a section's move (SPL-1892): its document's items by id, from the loaded subtree */
+function itemsOf(doc: string): Map<string, DocItem> {
+  const byId = new Map<string, DocItem>()
+  for (const list of kids.value[doc]?.values() || []) for (const it of list) byId.set(it.id, it)
+  return byId
+}
+
+/** a section of the same document: by or onto a section, or onto its document's row; never into its own subtree */
+function canDropSection(key: string, target: string, where: FileTreeDrop): boolean {
+  const [, doc, item] = key.split(':')
+  if (target === docKey(doc)) return where === 'into' && Boolean(rootOf[doc])
+  const [kind, tdoc, titem] = target.split(':')
+  if (kind !== 'i' || tdoc !== doc) return false
+  const byId = itemsOf(doc)
+  for (let it = byId.get(titem); it; it = byId.get(it.parent)) if (it.id === item) return false
+  return true
+}
+
+/** the hub's items/{item}/move: the parent and the final place under it (0 = last); a stale rev reads the document again */
+async function moveSection(key: string, target: string, where: FileTreeDrop) {
+  const [, doc, item] = key.split(':')
+  const titem = target.split(':')[2] || ''
+  const parent = where === 'into' ? titem || rootOf[doc] : itemsOf(doc).get(titem)?.parent
+  const sibs = (parent && kids.value[doc]?.get(parent) || []).filter((it) => it.id !== item)
+  const ord = where === 'into' ? 0 : sibs.findIndex((it) => it.id === titem) + (where === 'after' ? 2 : 1)
+  if (!parent || ord < 0) return
+  try {
+    const r = await props.client.move(doc, revOf[doc] ?? 0, item, parent, ord)
+    await load(doc)
+    if (where === 'into') setOpen(titem ? itemKey(doc, titem) : docKey(doc), true)
+    emit('moved', doc, r.rev)
+  } catch (e) {
+    const stale = e instanceof DocTreeError && e.status === 412
+    if (stale) {
+      await load(doc)
+      emit('moved', doc, revOf[doc] ?? 0)
+    }
+    say(stale ? 'ws_doctree.stale' : 'ws_doctree.err_failed')
+  }
 }
 
 /* each row kind's menu (UiPointMenu, the WUI's one menu at a point) */

@@ -309,7 +309,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, triggerRef } from 'vue'
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, triggerRef, watch } from 'vue'
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
 import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
@@ -323,7 +323,8 @@ import { figureNumbers, paraRuns, picPaths, picToken, setPicCaption, type ParaRu
 import { insertBlock, previewLinks, quoteBlock, tableBlock, type Block } from './-doc-blocks'
 import { branchOf as branchIn, isNumbered } from './-doc-outline'
 
-const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[] }>()
+/* changed: the page counts a structural change made elsewhere (the tree's section drag, SPL-1892); each one reads the document again */
+const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[], changed?: number }>()
 const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string], renamed: [title: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 
@@ -850,6 +851,8 @@ function trackEdit(e: FocusEvent) {
 
 let ro: ResizeObserver | null = null
 let lastWidth = 0
+watch(() => props.changed, () => { void load() })
+
 onMounted(async () => {
   tocOpen.value = !narrow()
   state.value = (await load()) ? 'ready' : 'failed'

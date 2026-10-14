@@ -82,7 +82,7 @@
         @title="(v) => { drillTitle = v }"
       />
       <template v-if="session && root && !phoneList">
-        <WorkspaceDocView v-if="view === 'doc'" :key="'doc' + mount" :session="session" :root="root" :title="docTitle" :docs="docs" @print="printBranch" @list="openList" @open="openAt" @renamed="renamed" />
+        <WorkspaceDocView v-if="view === 'doc'" :key="'doc' + mount" :changed="changed" :session="session" :root="root" :title="docTitle" :docs="docs" @print="printBranch" @list="openList" @open="openAt" @renamed="renamed" />
         <WorkspaceGridView v-else :key="'grid' + mount" :session="session" :filter="String(route.query.q || '')" @print="printBranch" />
       </template>
     </div>
@@ -117,6 +117,8 @@ const state = ref<'loading' | 'ready' | 'off' | 'failed'>('loading')
 const session = shallowRef<DocSession | null>(null)
 const root = ref('')
 const mount = ref(0)
+/* the tree moved a section of the open document: the doc view reads it again (SPL-1892) */
+const changed = ref(0)
 const newOpen = ref(false)
 const printItems = ref<DocItem[]>([])
 /* the printed images' sources, resolved before the browser prints */
@@ -291,7 +293,17 @@ onBeforeUnmount(() => {
 })
 
 /* the Qto file tree (WorkspaceDocsLayout, t1 efde25bb) reads the list and drives the page */
-defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs })
+/** the tree moved a section: the open document takes the hub's rev and shows the new order (the grid remounts) */
+function docMoved(doc: string, rev: number) {
+  const s = session.value
+  if (!s || doc !== s.doc) return
+  s.rev.value = rev
+  s.stale.value = false
+  if (view.value === 'doc') changed.value++
+  else mount.value++
+}
+
+defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs, docMoved })
 </script>
 
 <style scoped>

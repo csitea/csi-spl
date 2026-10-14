@@ -8,6 +8,11 @@
 // a long press alone still only opens the menu.
 // Control: before it the rows have no drag, so no drop line shows and every
 // order check FAILS.
+// SPL-1892 (owner t1 089630f7 msg fcf24997): a document's section rows drag
+// the same way within that document: between two sections (a re-order) or
+// onto a section (its child); the open document shows the new order and
+// numbers; another document refuses it; a stale rev (412) reads the document
+// again and says so. Control: before it section rows have no drag.
 //
 //   node tests/e2e/qto-tree-reorder.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/qto-tree-reorder.test.mjs
@@ -94,6 +99,101 @@ async function mouseDrag(p, from, to, frac, release = true) {
 }
 
 const shot = async (p, name) => { if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/${name}.png` }) }
+
+/** the open document's sections as the right pane shows them: "1 Introduction|1.1 Scope|..." */
+const DOC_ROWS = '[data-test=ws-doc-view] [data-test=ws-doc-row]'
+const docIs = (p, want) => p.waitForFunction((sel, want) => [...document.querySelectorAll(sel)]
+  .map((el) => `${el.querySelector('[data-test=ws-doc-num]')?.textContent.trim()} ${el.querySelector('[data-test=ws-doc-title]')?.value}`).join('|') === want.join('|'),
+{ timeout: STEP }, DOC_ROWS, want).then(() => true, () => false)
+const docRows = (p) => p.$$eval(DOC_ROWS, (els) => els.map((el) => `${el.querySelector('[data-test=ws-doc-num]')?.textContent.trim()} ${el.querySelector('[data-test=ws-doc-title]')?.value}`)).catch(() => [])
+const SEED = ['1 Introduction', '1.1 Scope', '1.1.1 In scope', '1.1.2 Out of scope', '1.2 Audience', '2 Operations', '2.1 Deploy', '3 Glossary']
+
+/** SPL-1892: the sections of one document, in a fresh tab (the mock's seed again) */
+async function sections() {
+  console.log('-- 1280x800 sections within one document')
+  const p = await browser.newPage()
+  await p.setViewport({ width: 1280, height: 800 })
+  await p.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector(`${DESK} [data-kind=section]`, { visible: true, timeout: STEP }).catch(() => null)
+  ok('start: the seed document, its sections in the tree and the page', await levelIs(p, DESK, 3, ['Introduction', 'Operations', 'Glossary']) && await docIs(p, SEED), [await level(p, DESK, 3), await docRows(p)])
+
+  await mouseDrag(p, 'Glossary', 'Introduction', 0.15, false)
+  ok('a section over the top of a sibling marks the gap before it', await dropShown(p, DESK) === 'Introduction:before', await dropShown(p, DESK))
+  await shot(p, 'qto-sections-1280-drag')
+  await p.mouse.up()
+  ok('the drop re-orders the sections in the tree', await levelIs(p, DESK, 3, ['Glossary', 'Introduction', 'Operations']), await level(p, DESK, 3))
+  ok('... and the open document shows the new order and numbers, no reload', await docIs(p, ['1 Glossary', '2 Introduction', '2.1 Scope', '2.1.1 In scope', '2.1.2 Out of scope', '2.2 Audience', '3 Operations', '3.1 Deploy']), await docRows(p))
+  await shot(p, 'qto-sections-1280-dropped')
+
+  await mouseDrag(p, 'Glossary', 'Operations', 0.5, false)
+  ok('the middle of a section row marks the section itself', await dropShown(p, DESK) === 'Operations:into', await dropShown(p, DESK))
+  await p.mouse.up()
+  ok('the drop makes it the section\'s last child, opened', await levelIs(p, DESK, 3, ['Introduction', 'Operations']) && await levelIs(p, DESK, 4, ['Deploy', 'Glossary']), [await level(p, DESK, 3), await level(p, DESK, 4)])
+  const RE_PARENTED = ['1 Introduction', '1.1 Scope', '1.1.1 In scope', '1.1.2 Out of scope', '1.2 Audience', '2 Operations', '2.1 Deploy', '2.2 Glossary']
+  ok('... the open document too', await docIs(p, RE_PARENTED), await docRows(p))
+
+  const glossary = await p.$$eval(`${DESK} [data-test=file-tree-row]`, (els) => els.find((el) => el.textContent.trim() === 'Glossary')?.getAttribute('data-key')).catch(() => '')
+  await p.focus(`${DESK} [data-key="${glossary}"]`)
+  await p.keyboard.down('Alt')
+  await p.keyboard.press('ArrowUp')
+  await p.keyboard.up('Alt')
+  ok('Alt+Up moves a section before its previous sibling', await levelIs(p, DESK, 4, ['Glossary', 'Deploy']) && await docIs(p, [...RE_PARENTED.slice(0, 6), '2.1 Glossary', '2.2 Deploy']), await level(p, DESK, 4))
+  await p.keyboard.down('Alt')
+  await p.keyboard.press('ArrowDown')
+  await p.keyboard.up('Alt')
+  ok('Alt+Down moves it back', await levelIs(p, DESK, 4, ['Deploy', 'Glossary']) && await docIs(p, RE_PARENTED), await level(p, DESK, 4))
+
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector(`${DESK} [data-kind=section]`, { visible: true, timeout: STEP }).catch(() => null)
+  ok('the order survives a reload', await levelIs(p, DESK, 3, ['Introduction', 'Operations']) && await docIs(p, RE_PARENTED), await docRows(p))
+
+  await p.evaluate((sel) => [...document.querySelectorAll(sel)].find((el) => el.textContent.trim() === 'Introduction')?.querySelector('[data-test=file-tree-toggle]')?.click(), `${DESK} [data-test=file-tree-row]`)
+  await levelIs(p, DESK, 4, ['Scope', 'Audience', 'Deploy', 'Glossary'])
+  await mouseDrag(p, 'Introduction', 'Scope', 0.5, false)
+  ok('CONTROL: a section over its own subsection shows no drop', await dropShown(p, DESK) === '', await dropShown(p, DESK))
+  await p.keyboard.press('Escape')
+  await p.mouse.up()
+
+  await p.evaluate(() => window.__wsDocTreeBump())
+  await mouseDrag(p, 'Operations', 'Introduction', 0.15)
+  ok('a stale rev (412): nothing is overwritten, the tree says so', await p.waitForFunction(() => document.querySelector('[data-test=qto-tree-status]')?.textContent.trim().length > 0, { timeout: STEP }).then(() => true, () => false)
+    && await levelIs(p, DESK, 3, ['Introduction', 'Operations']) && await docIs(p, RE_PARENTED), [await p.$eval('[data-test=qto-tree-status]', (el) => el.textContent.trim()).catch(() => ''), await level(p, DESK, 3)])
+  await mouseDrag(p, 'Operations', 'Introduction', 0.15)
+  ok('... the document was read again: the next drop lands', await levelIs(p, DESK, 3, ['Operations', 'Introduction'])
+    && await docIs(p, ['1 Operations', '1.1 Deploy', '1.2 Glossary', '2 Introduction', '2.1 Scope', '2.1.1 In scope', '2.1.2 Out of scope', '2.2 Audience']), await docRows(p))
+
+  await newDoc(p, 'Gamma')
+  await mouseDrag(p, 'Audience', 'Gamma', 0.5, false)
+  const other = await dropShown(p, DESK)
+  const root = await at(p, DESK, '/')
+  await p.mouse.move(root.x, root.y, { steps: 8 })
+  ok('CONTROL: a section over another document or `/` shows no drop', other === '' && await dropShown(p, DESK) === '', other)
+  await p.mouse.up()
+  await sleep(300)
+  const handbook = await p.$$eval(`${DESK} [data-test=file-tree-row]`, (els) => els.find((el) => el.textContent.trim() === 'Handbook')?.getAttribute('data-key')).catch(() => '')
+  ok('... and the release moves nothing', await p.$$eval(`${DESK} [data-test=file-tree-row]`, (els, k) => {
+    const i = els.findIndex((el) => el.getAttribute('data-key') === k)
+    return els.slice(i + 1).filter((el) => el.getAttribute('aria-level') === '3').map((el) => el.textContent.trim()).slice(0, 2).join('|')
+  }, handbook).catch(() => '') === 'Operations|Introduction', handbook)
+
+  console.log('-- 390x844 sections on the phone')
+  await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
+  const doc = await p.evaluate((k) => k?.slice(2), handbook)
+  await p.goto(server.base + '/workspace/docs?in=d:' + doc, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok('390: the document\'s level lists its sections', await levelIs(p, LIST, 1, ['Operations', 'Introduction']), await level(p, LIST, 1))
+  const a = await at(p, LIST, 'Introduction')
+  const b = await at(p, LIST, 'Operations', 0.15)
+  await p.touchscreen.touchStart(a.x, a.y)
+  await sleep(800)
+  await p.touchscreen.touchMove(a.x, a.y - 15)
+  await p.touchscreen.touchMove(b.x, b.y)
+  const lit = await dropShown(p, LIST)
+  await shot(p, 'qto-sections-390-drag')
+  await p.touchscreen.touchEnd()
+  ok('390: a long press, then a drag re-orders the sections', lit === 'Operations:before' && await levelIs(p, LIST, 1, ['Introduction', 'Operations']), { lit, rows: await level(p, LIST, 1) })
+  await shot(p, 'qto-sections-390-dropped')
+  await p.close()
+}
 
 const server = await startServer()
 const browser = await launch()
@@ -183,6 +283,7 @@ try {
   ok('390: CONTROL: a long press alone opens the menu and moves nothing', await p.waitForSelector('[data-testid=qto-doc-menu]', { visible: true, timeout: STEP }).then(Boolean, () => false)
     && await levelIs(p, LIST, 2, ['Plans', 'Alpha', 'Beta']), await level(p, LIST, 2))
   await p.close()
+  await sections()
 } finally {
   await browser.close()
   await server.stop()

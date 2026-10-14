@@ -213,6 +213,7 @@ To re-order, drag a document or folder onto the gap between two rows of its
 kind (a line marks the spot; folders stay first), or onto a folder or **`/`**
 to move it in; the order is kept. **Escape** cancels; **Alt+Up** / **Alt+Down**
 move the focused row within its folder; on a phone, long-press a row, then drag.
+A document's sections drag the same way within that document: between two sections, or onto a section to go under it; the open document shows the new order and numbers.
 
 ---
 

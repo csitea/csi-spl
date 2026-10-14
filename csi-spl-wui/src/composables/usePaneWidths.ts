@@ -20,6 +20,8 @@ import {
   topicShown,
   viewOf,
 } from '~/utils/pane-widths.mjs'
+
+const DOCS_DEFAULT = 260
 import { MOBILE_STACK_MAX_PX } from '~/utils/mobile-stack.mjs'
 
 /* SPL-1182: below this width the layout is one pane (phone); pane sizes are
@@ -28,13 +30,14 @@ const PANE_ACCOUNT_MIN_W = MOBILE_STACK_MAX_PX
 /* fractions are rounded here so "did it change?" is stable and the payload small. */
 const FRAC = (px: number, w: number) => (w > 0 ? Math.round((px / w) * 1e4) / 1e4 : 0)
 
-type PaneOpts = { topicOpen: Ref<boolean> }
+type PaneOpts = { topicOpen?: Ref<boolean>, docsOpen?: Ref<boolean> }
 
 /* The widths in force and where they come from: the view, the session, the
    window, and what this browser or the account stored. */
 function paneState(opts: PaneOpts) {
   const viewportW = ref(import.meta.client && typeof window !== 'undefined' ? window.innerWidth : 1280)
   const storedSidebar = ref(SIDEBAR_DEFAULT)
+  const storedDocs = ref<number | null>(null)
   /* Spec 078 FR-006: null = never dragged; the pane then takes the
      proportional default, which follows the window. */
   const storedTopic = ref<number | null>(null)
@@ -48,52 +51,75 @@ function paneState(opts: PaneOpts) {
      of the left pane (spec 078 FR-006). */
   const topicW = computed(() => storedTopic.value ?? topicDefaultFor(mainWidthFor(
     viewportW.value,
-    clampSidebar(storedSidebar.value, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value }),
+    clampSidebar(storedSidebar.value, { viewportW: viewportW.value, topicOpen: opts.topicOpen?.value ?? false }),
   )))
-  return { opts, viewportW, storedSidebar, storedTopic, session, auth, view, topicW }
+  /* The docs width in force: the dragged one, else the default. */
+  const docsW = computed(() => {
+    if (view.value === 'docs') {
+      return storedDocs.value ?? DOCS_DEFAULT
+    }
+    return storedSidebar.value
+  })
+  return { opts, viewportW, storedSidebar, storedDocs, storedTopic, session, auth, view, topicW, docsW }
 }
 type PaneState = ReturnType<typeof paneState>
 
 /* What the shell draws: the clamped pair, each divider's range and the CSS vars. */
 function paneLayout(s: PaneState) {
-  const { opts, viewportW, storedSidebar, topicW } = s
+  const { opts, viewportW, storedSidebar, storedDocs, topicW } = s
   const ctx = computed(() => ({
     viewportW: viewportW.value,
-    topicOpen: opts.topicOpen.value,
+    topicOpen: opts.topicOpen?.value ?? false,
     sidebarW: storedSidebar.value,
     topicW: topicW.value,
+    docsW: storedDocs.value,
   }))
 
-  const displayed = computed(() => clampPair(
-    storedSidebar.value,
-    topicW.value,
-    { viewportW: viewportW.value, topicOpen: opts.topicOpen.value },
-  ))
+  const displayed = computed(() => {
+    if (s.view.value === 'docs') {
+      return {
+        sidebar: clampSidebar(storedDocs.value ?? DOCS_DEFAULT, { viewportW: viewportW.value }),
+        topic: 0,
+      }
+    }
+    return clampPair(
+      storedSidebar.value,
+      topicW.value,
+      { viewportW: viewportW.value, topicOpen: opts.topicOpen?.value ?? false },
+    )
+  })
 
-  const sidebarBounds = computed(() => sidebarRange({
-    ...ctx.value,
-    topicW: displayed.value.topic,
-  }))
+  const sidebarBounds = computed(() => {
+    if (s.view.value === 'docs') {
+      return sidebarRange({ viewportW: viewportW.value })
+    }
+    return sidebarRange({
+      ...ctx.value,
+      topicW: displayed.value.topic,
+    })
+  })
   const topicBounds = computed(() => topicRange({
     ...ctx.value,
     sidebarW: displayed.value.sidebar,
   }))
 
   const showSidebarDivider = computed(() => sidebarShown(viewportW.value))
-  const showTopicDivider = computed(() => topicShown(viewportW.value, opts.topicOpen.value))
+  const showDocsDivider = computed(() => s.view.value === 'docs' && sidebarShown(viewportW.value))
+  const showTopicDivider = computed(() => topicShown(viewportW.value, opts.topicOpen?.value ?? false))
 
   const shellStyle = computed(() => ({
     '--sidebar-w': `${displayed.value.sidebar}px`,
     '--topic-w': `${displayed.value.topic}px`,
   }))
-  return { displayed, sidebarBounds, topicBounds, showSidebarDivider, showTopicDivider, shellStyle }
+  return { displayed, sidebarBounds, topicBounds, showSidebarDivider, showDocsDivider, showTopicDivider, shellStyle }
 }
 
 /* SPL-1182: the current widths as window fractions (screen-independent).
-   An undragged topic is left out, so the account keeps the default too. */
-function paneFractions(s: PaneState): { sidebar: number, topic?: number } {
-  const f: { sidebar: number, topic?: number } = { sidebar: FRAC(s.storedSidebar.value, s.viewportW.value) }
+   An undragged pane is left out, so the account keeps the default too. */
+function paneFractions(s: PaneState): { sidebar: number, topic?: number, docs?: number } {
+  const f: { sidebar: number, topic?: number, docs?: number } = { sidebar: FRAC(s.storedSidebar.value, s.viewportW.value) }
   if (s.storedTopic.value !== null) f.topic = FRAC(s.storedTopic.value, s.viewportW.value)
+  if (s.view.value === 'docs' && s.storedDocs.value !== null) f.docs = FRAC(s.storedDocs.value, s.viewportW.value)
   return f
 }
 
@@ -103,7 +129,7 @@ function paneFractions(s: PaneState): { sidebar: number, topic?: number } {
    (62.7..65.8 ms self on /issues, m390 CPU 4x). A later width change comes
    through the resize listener. Returns true when the account's set won. */
 function hydratePanes(s: PaneState): boolean {
-  const { opts, viewportW, storedSidebar, storedTopic, session } = s
+  const { opts, viewportW, storedSidebar, storedDocs, storedTopic, session } = s
   const v = s.view.value
   const loaded = loadPaneWidths(undefined, v)
   const loadedTopic = loadStoredTopic(undefined, v)
@@ -112,31 +138,42 @@ function hydratePanes(s: PaneState): boolean {
      new device draws their kept layout. The result is written back to
      localStorage so the next load on this device paints it before hydrate.
      Spec 078 FR-007: the set is this view's, else the account's default. */
-  const acct = paneSetFor(paneViews(session.claims?.pane_sizes), v)
+  const acct = paneSetFor(paneViews(session.claims?.pane_sizes) as any, v)
   if (session.state === 'in' && acct && viewportW.value > PANE_ACCOUNT_MIN_W) {
     const sb = acct.sidebar ? Math.round(acct.sidebar * viewportW.value) : loaded.sidebar
     const tp = acct.topic ? Math.round(acct.topic * viewportW.value) : loadedTopic
-    storedSidebar.value = clampSidebar(sb, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value, topicW: tp ?? undefined })
-    storedTopic.value = tp === null ? null : clampTopic(tp, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value, sidebarW: storedSidebar.value })
-    savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value }, undefined, v)
+    const docs = acct && 'docs' in acct ? Math.round((acct as any).docs * viewportW.value) : null
+    storedSidebar.value = clampSidebar(sb, { viewportW: viewportW.value, topicOpen: opts.topicOpen?.value ?? false, topicW: tp ?? undefined })
+    storedTopic.value = tp === null ? null : clampTopic(tp, { viewportW: viewportW.value, topicOpen: opts.topicOpen?.value ?? false, sidebarW: storedSidebar.value })
+    if (v === 'docs') {
+      storedDocs.value = docs === null ? null : clampSidebar(docs, { viewportW: viewportW.value })
+    }
+    savePaneWidths(v === 'docs' ? { sidebar: storedDocs.value ?? DOCS_DEFAULT, topic: null } : { sidebar: storedSidebar.value, topic: storedTopic.value ?? null }, undefined, v)
     return true
   }
   storedSidebar.value = loaded.sidebar
   storedTopic.value = loadedTopic
+  if (v === 'docs') {
+    storedDocs.value = loaded.sidebar
+  }
   return false
 }
 
 /* The account copy of the widths: the debounced save, the full reset, the
    hydrate that marks the account's set as already saved, and the view watch. */
 function paneAccount(s: PaneState) {
-  const { viewportW, storedSidebar, storedTopic, session, auth, view } = s
+  const { viewportW, storedSidebar, storedDocs, storedTopic, session, auth, view } = s
   /* SPL-1182: the last fractions written to the account for a view, so a drag
      that ends where it began writes nothing (skip the no-op PUT). */
-  let lastSaved: { view: string, sidebar: number, topic?: number } | null = null
+  let lastSaved: { view: string, sidebar: number, topic?: number, docs?: number } | null = null
   let commitTimer: ReturnType<typeof setTimeout> | null = null
 
   function persist() {
-    savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value }, undefined, view.value)
+    if (s.view.value === 'docs') {
+      savePaneWidths({ sidebar: storedDocs.value, topic: null } as any, undefined, view.value)
+    } else {
+      savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value ?? null }, undefined, view.value)
+    }
     scheduleCommit()
   }
 
@@ -151,9 +188,9 @@ function paneAccount(s: PaneState) {
     if (commitTimer) { clearTimeout(commitTimer); commitTimer = null }
     if (session.state !== 'in' || viewportW.value <= PANE_ACCOUNT_MIN_W) return
     const f = paneFractions(s)
-    if (lastSaved && lastSaved.view === v && lastSaved.sidebar === f.sidebar && lastSaved.topic === f.topic) return
+    if (lastSaved && lastSaved.view === v && lastSaved.sidebar === f.sidebar && lastSaved.topic === f.topic && lastSaved.docs === f.docs) return
     lastSaved = { view: v, ...f }
-    const next = { ...paneViews(session.claims?.pane_sizes), [v]: f }
+    const next = { ...(paneViews(session.claims?.pane_sizes) as any), [v]: f }
     session.setPaneSizes(next)
     void auth.savePaneSizes(next).catch(() => { lastSaved = null })
   }
@@ -168,6 +205,7 @@ function paneAccount(s: PaneState) {
      the account override (the read then falls back to the product default). */
   function resetAll() {
     storedSidebar.value = resetPane('sidebar')
+    storedDocs.value = null
     storedTopic.value = null
     clearPaneWidths()
     if (commitTimer) { clearTimeout(commitTimer); commitTimer = null }
@@ -200,20 +238,33 @@ function paneAccount(s: PaneState) {
 
 /* The divider gestures: a drag or a key sets a width, a double click resets it. */
 function paneSetters(s: PaneState, persist: () => void) {
-  const { opts, viewportW, storedSidebar, storedTopic, topicW } = s
+  const { opts, viewportW, storedSidebar, storedDocs, storedTopic, topicW, view } = s
   function setSidebar(n: number) {
     storedSidebar.value = clampSidebar(n, {
       viewportW: viewportW.value,
-      topicOpen: opts.topicOpen.value,
+      topicOpen: opts.topicOpen?.value ?? false,
       topicW: topicW.value,
     })
+    persist()
+  }
+
+  function setDocs(n: number) {
+    if (view.value === 'docs') {
+      storedDocs.value = clampSidebar(n, { viewportW: viewportW.value })
+    } else {
+      storedSidebar.value = clampSidebar(n, {
+        viewportW: viewportW.value,
+        topicOpen: opts.topicOpen?.value ?? false,
+        topicW: topicW.value,
+      })
+    }
     persist()
   }
 
   function setTopic(n: number) {
     storedTopic.value = clampTopic(n, {
       viewportW: viewportW.value,
-      topicOpen: opts.topicOpen.value,
+      topicOpen: opts.topicOpen?.value ?? false,
       sidebarW: storedSidebar.value,
     })
     persist()
@@ -224,11 +275,20 @@ function paneSetters(s: PaneState, persist: () => void) {
     persist()
   }
 
+  function resetDocs() {
+    if (view.value === 'docs') {
+      storedDocs.value = null
+    } else {
+      storedSidebar.value = resetPane('sidebar')
+    }
+    persist()
+  }
+
   function resetTopic() {
     storedTopic.value = null
     persist()
   }
-  return { setSidebar, setTopic, resetSidebar, resetTopic }
+  return { setSidebar, setDocs, setTopic, resetSidebar, resetDocs, resetTopic }
 }
 
 export function usePaneWidths(opts: PaneOpts) {
@@ -257,11 +317,14 @@ export function usePaneWidths(opts: PaneOpts) {
     sidebarBounds: layout.sidebarBounds,
     topicBounds: layout.topicBounds,
     showSidebarDivider: layout.showSidebarDivider,
+    showDocsDivider: layout.showDocsDivider,
     showTopicDivider: layout.showTopicDivider,
     shellStyle: layout.shellStyle,
     setSidebar: setters.setSidebar,
+    setDocs: setters.setDocs,
     setTopic: setters.setTopic,
     resetSidebar: setters.resetSidebar,
+    resetDocs: setters.resetDocs,
     resetTopic: setters.resetTopic,
     resetAll: account.resetAll,
     hydrate: account.hydrate,

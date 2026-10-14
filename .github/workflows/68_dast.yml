@@ -104,6 +104,9 @@ jobs:
           echo "url=https://$pre$d" >> "$GITHUB_OUTPUT"
       # ZAP network rate-limit rule 0: every request to the target host, one
       # shared budget (groupBy=rule), 5 req/s. matchStr is the exact host.
+      # '-c .zap/rules.tsv' is passed here because the action adds -c only when
+      # the file has an IGNORE row; without it ZAP never read the OUTOFSCOPE
+      # triage (SPL-1807, prd run 38525373141 still raised 10099).
       - name: ZAP baseline (passive, <=5 req/s)
         uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
         with:
@@ -111,4 +114,4 @@ jobs:
           rules_file_name: .zap/rules.tsv
           allow_issue_writing: false
           fail_action: false
-          cmd_options: '-T 5 -z "-config spider.maxChildren=10 -config spider.maxDepth=5 -config spider.threadCount=2 -config network.ratelimit.rules.rule(0).enabled=true -config network.ratelimit.rules.rule(0).matchStr=${{ steps.tgt.outputs.host }} -config network.ratelimit.rules.rule(0).regex=false -config network.ratelimit.rules.rule(0).reqsPerSec=5 -config network.ratelimit.rules.rule(0).groupBy=rule"'
+          cmd_options: '-c .zap/rules.tsv -T 5 -z "-config spider.maxChildren=10 -config spider.maxDepth=5 -config spider.threadCount=2 -config network.ratelimit.rules.rule(0).enabled=true -config network.ratelimit.rules.rule(0).matchStr=${{ steps.tgt.outputs.host }} -config network.ratelimit.rules.rule(0).regex=false -config network.ratelimit.rules.rule(0).reqsPerSec=5 -config network.ratelimit.rules.rule(0).groupBy=rule"'

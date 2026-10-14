@@ -14,6 +14,13 @@
 #      leaves r8 alone (round 9 plan row 08)
 #   6. a bad list (ROUND="7,x", "7,0", ",", ROUND and ROUNDS both set) is
 #      refused and deletes nothing
+#   7. lane-prefixed <id>-r7-* and review/<id>-r7-* are listed and deleted;
+#      the near misses (c-1434-r7, x-143-r7, c-143-r70) kept (round 10 row 09)
+#   8. an unlanded tip and a squash-landed tip (commits not cherry-equal to
+#      master) print KEEP <branch> <n> unlanded and stay with DRY_RUN=0;
+#      PRUNE_UNLANDED=1 deletes them
+#   9. CONTROLS: without the lane-prefix match the lane branches are missed;
+#      without the cherry check the unlanded tip is deleted
 # The remote is a local bare repo; nothing touches a real origin.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -34,7 +41,7 @@ R8=(review/r8-02-c wip/c-200-r8-02-y)
 
 # fixture <name> [extra branch ...]: a bare remote $T/<name>.git and a clone
 # $T/<name> with every branch of R7, KEEP and the extras on the remote, each
-# on its own commit.
+# on its own commit; master ends on the last one, so every tip is landed.
 fixture() {
   local d="$T/$1" b i=0
   shift
@@ -45,6 +52,18 @@ fixture() {
     echo "$i" >"$d/f" && git -C "$d" add f && git -C "$d" commit -qm "c$i"
     git -C "$d" push -q origin "HEAD:refs/heads/$b"
   done
+  git -C "$d" push -q origin HEAD:refs/heads/master
+}
+
+# side <clone> <branch> <file>...: push <branch> = master + one commit per
+# file (a new file each), off trunk; master does not move.
+side() {
+  local d="$1" b="$2" f
+  shift 2
+  git -C "$d" checkout -q -b "$b" master
+  for f in "$@"; do echo "$f" >"$d/$f" && git -C "$d" add "$f" && git -C "$d" commit -qm "$f"; done
+  git -C "$d" push -q origin "HEAD:refs/heads/$b"
+  git -C "$d" checkout -q master
 }
 
 # run_prune <func file> <clone> [VAR=value ...]
@@ -91,7 +110,7 @@ else
 fi
 kept_all "$T/a" >/dev/null && pass "keep check: every KEEP branch is on the remote" || fail "keep check: $(kept_all "$T/a")"
 out="$(run_prune "$FUNC" "$T/a" ROUND=7 DRY_RUN=0)"; rc=$?
-[[ $rc -eq 0 && "$out" == *'no review/r7-* or wip/*r7* branch'* ]] && pass "a second run finds nothing to do" || fail "second run: rc=$rc out=$out"
+[[ $rc -eq 0 && "$out" == *'no review/r7-*, wip/*r7* or [review/]<id>-r7-* branch'* ]] && pass "a second run finds nothing to do" || fail "second run: rc=$rc out=$out"
 
 # 3. bad inputs ---------------------------------------------------------------
 fixture b
@@ -151,6 +170,68 @@ for args in "ROUND=7,x" "ROUND=7,0" "ROUND=," "ROUNDS=8,-1" "ROUND=7 ROUNDS=8"; 
   [[ $rc -ne 0 && "$(heads "$T/n")" == "$before" && "$out" == *FATAL* ]] \
     && pass "refused, nothing deleted: '${args} DRY_RUN=0'" || fail "'${args}': rc=$rc out=$out"
 done
+
+# 7. lane-prefixed branches ---------------------------------------------------
+LANE7=(c-143-r7-09-x review/c-104-r7-02-y m-946-r7-01)
+NEAR=(c-1434-r7-x x-143-r7-y c-143-r70-x review/c-104-r17-y)
+fixture l "${LANE7[@]}" "${NEAR[@]}"
+out="$(run_prune "$FUNC" "$T/l" ROUND=7)"; rc=$?
+got="$(grep '^REF ' <<<"$out" | cut -d' ' -f2 | sort)"
+want="$(printf '%s\n' "${R7[@]}" "${LANE7[@]}" | sort)"
+[[ $rc -eq 0 && "$got" == "$want" ]] \
+  && pass "ROUND=7 lists the 3 lane-prefixed refs too, no near miss" || fail "lane-prefixed: rc=$rc got=$(paste -sd' ' - <<<"$got")"
+out="$(run_prune "$FUNC" "$T/l" ROUND=7 DRY_RUN=0)"; rc=$?
+want="$(printf '%s\n' "${KEEP[@]}" "${NEAR[@]}" | sort)"
+[[ $rc -eq 0 && "$(heads "$T/l")" == "$want" ]] \
+  && pass "ROUND=7 DRY_RUN=0 deletes the lane-prefixed refs; near misses kept" || fail "lane-prefixed delete: rc=$rc heads=$(heads "$T/l" | paste -sd' ' -)"
+
+# 8. unlanded and squash-landed tips ------------------------------------------
+fixture u
+side "$T/u" wip/c-9-r7-unlanded u1 u2
+side "$T/u" review/r7-05-squash s1 s2
+# master lands s1+s2 as ONE squash commit: same tree, not cherry-equal
+git -C "$T/u" checkout -q master && echo s1 >"$T/u/s1" && echo s2 >"$T/u/s2"
+git -C "$T/u" add s1 s2 && git -C "$T/u" commit -qm squash && git -C "$T/u" push -q origin HEAD:refs/heads/master
+out="$(run_prune "$FUNC" "$T/u" ROUND=7)"; rc=$?
+if [[ $rc -eq 0 && "$out" == *'KEEP wip/c-9-r7-unlanded 2 unlanded'* && "$out" == *'KEEP review/r7-05-squash 2 unlanded'* \
+  && "$(grep -c '^REF ' <<<"$out")" == 3 && "$out" == *'3 branch(es) listed, 2 kept unlanded'* ]]; then
+  pass "dry run: KEEP lines for the unlanded and the squash-landed tip, 3 REF"
+else
+  fail "unlanded dry run: rc=$rc out=$out"
+fi
+out="$(run_prune "$FUNC" "$T/u" ROUND=7 DRY_RUN=0)"; rc=$?
+want="$(printf '%s\n' "${KEEP[@]}" wip/c-9-r7-unlanded review/r7-05-squash | sort)"
+[[ $rc -eq 0 && "$(heads "$T/u")" == "$want" && "$(grep -c '^DELETED ' <<<"$out")" == 3 ]] \
+  && pass "DRY_RUN=0: the 3 landed r7 refs gone, the 2 KEEP tips stay" || fail "unlanded delete: rc=$rc heads=$(heads "$T/u" | paste -sd' ' -) out=$out"
+out="$(run_prune "$FUNC" "$T/u" ROUND=7 DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'nothing to delete'* && "$out" != *DELETED* ]] \
+  && pass "a second run deletes nothing, keeps the 2" || fail "unlanded second run: rc=$rc out=$out"
+out="$(run_prune "$FUNC" "$T/u" ROUND=7 DRY_RUN=0 PRUNE_UNLANDED=1)"; rc=$?
+want="$(printf '%s\n' "${KEEP[@]}" | sort)"
+[[ $rc -eq 0 && "$(heads "$T/u")" == "$want" && "$(grep -c '^DELETED ' <<<"$out")" == 2 ]] \
+  && pass "PRUNE_UNLANDED=1 deletes the 2 unlanded tips" || fail "PRUNE_UNLANDED=1: rc=$rc out=$out"
+
+# 9. CONTROLS: the old matcher and no cherry check -----------------------------
+fixture cl "${LANE7[@]}"
+sed '/\[acgmq\]-\[0-9\]{3}-r/d' "$FUNC" >"$T/nolane.func.sh"
+if cmp -s "$FUNC" "$T/nolane.func.sh"; then
+  fail "control: the sed did not drop the lane-prefix match"
+else
+  out="$(run_prune "$T/nolane.func.sh" "$T/cl" ROUND=7)"
+  [[ "$(grep -c '^REF ' <<<"$out")" == 3 && "$out" != *c-143-r7-09-x* ]] \
+    && pass "control: without the lane-prefix match the 3 lane refs are missed" || fail "control lane: $out"
+fi
+fixture cu
+side "$T/cu" wip/c-9-r7-unlanded u1
+sed 's|u="$(prune_round_unlanded [^)]*)"|u=0|' "$FUNC" >"$T/nocherry.func.sh"
+if cmp -s "$FUNC" "$T/nocherry.func.sh"; then
+  fail "control: the sed did not drop the cherry check"
+else
+  run_prune "$T/nocherry.func.sh" "$T/cu" ROUND=7 DRY_RUN=0 >/dev/null
+  git --git-dir="$T/cu.git" rev-parse -q --verify refs/heads/wip/c-9-r7-unlanded >/dev/null \
+    && fail "control: without the cherry check the unlanded tip survived" \
+    || pass "control: without the cherry check the unlanded tip is deleted"
+fi
 
 if (( fails )); then
   echo "FAILED: $fails"

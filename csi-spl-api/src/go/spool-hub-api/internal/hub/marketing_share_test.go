@@ -428,3 +428,86 @@ func TestMarketingShareOnlyTheOwnerPublishes(t *testing.T) {
 		t.Fatalf("publish of a post not live: %d, want 404", code)
 	}
 }
+
+// agentToken mints b's upload token under the real clock (the hello is
+// signed now; the share clock is fixed), then puts the share clock back.
+func (e *shareEnv) agentToken(tid string, b *box) string {
+	e.clock.mu.Lock()
+	saved := e.clock.now
+	e.clock.now = time.Now()
+	e.clock.mu.Unlock()
+	defer func() { e.clock.mu.Lock(); e.clock.now = saved; e.clock.mu.Unlock() }()
+	return e.uploadToken(tid, b)
+}
+
+// agentPublish POSTs the publish of id with an agent's upload token, naming
+// requester (none when "") in X-Spool-Requester.
+func (e *shareEnv) agentPublish(t *testing.T, tid, tok, requester, id string) (int, map[string]any) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodPost, e.url(tid)+"/v1/marketing/posts/"+id+"/publish", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	if requester != "" {
+		req.Header.Set(hub.RequesterHeader, requester)
+	}
+	resp, err := e.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	out := map[string]any{}
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return resp.StatusCode, out
+}
+
+// SPL-1855 (owner HUM-10, topic f46301d4 msgs 54795a30, c5ed6345): an agent
+// publishes a live post for the workspace owner, on the owner's connected
+// channel, once. It is refused for anyone but the owner, and outside the
+// allow-list; the sweep still starts nothing.
+func TestMarketingShareAgentPublishesForTheOwner(t *testing.T) {
+	e := newShareEnv(t)
+	e.sweep()
+	e.newPostWaits(t, "2026-10-14-agent")
+	b := e.box(e.tid, "box-od", "c-002")
+	e.pin(e.tid, b)
+	tok := e.agentToken(e.tid, b)
+	dev := seat(t, e.env, e.tid, rbac.Developer)
+	for _, who := range []string{"", e.admin, dev, "HUM-999999999"} {
+		if code, body := e.agentPublish(t, e.tid, tok, who, "2026-10-14-agent"); code != http.StatusForbidden {
+			t.Fatalf("agent for %q: %d %v, want 403", who, code, body)
+		}
+	}
+	if n := e.fake.shareCount(); n != 0 {
+		t.Fatalf("a refused agent publish reached LinkedIn: %d shares", n)
+	}
+	code, body := e.agentPublish(t, e.tid, tok, e.owner, "2026-10-14-agent")
+	if code != http.StatusOK || body["published"] != float64(1) || e.fake.shareCount() != 1 {
+		t.Fatalf("agent for the owner: %d %v, %d shares; want 200, one share", code, body, e.fake.shareCount())
+	}
+	e.fake.mu.Lock()
+	commentary, _ := e.fake.shares[0]["commentary"].(string)
+	author, _ := e.fake.shares[0]["author"].(string)
+	e.fake.mu.Unlock()
+	if author != "urn:li:person:"+fakeLinkedInSub || !strings.HasPrefix(commentary, "\U0001F4DD ") {
+		t.Fatalf("share: author %q commentary %q; want the owner's channel and the emoji commentary", author, commentary)
+	}
+	if !strings.Contains(e.logBuf.String(), `"agent":"box-od"`) {
+		t.Fatalf("the agent's publish is not attributed in the log: %s", e.logBuf.String())
+	}
+	// once: a second publish, by the agent or the owner, is refused; the sweep adds nothing
+	if code, _ := e.agentPublish(t, e.tid, tok, e.owner, "2026-10-14-agent"); code != http.StatusConflict {
+		t.Fatalf("second agent publish: %d, want 409", code)
+	}
+	if code, _ := call(t, e.env, e.tid, http.MethodPost, "/v1/marketing/posts/2026-10-14-agent/publish", e.owner, nil); code != http.StatusConflict {
+		t.Fatalf("owner publish after the agent's: %d, want 409", code)
+	}
+	if r := e.sweep(); r != (hub.MarketingShareResult{}) || e.fake.shareCount() != 1 {
+		t.Fatalf("sweep after the publish: %+v, %d shares; want nothing, one", r, e.fake.shareCount())
+	}
+	// a workspace outside the allow-list: 404, nothing shared
+	other, _ := e.tenant()
+	ob := e.box(other, "box-x", "c-003")
+	e.pin(other, ob)
+	if code, _ := e.agentPublish(t, other, e.agentToken(other, ob), e.owner, "2026-10-01-first"); code != http.StatusNotFound || e.fake.shareCount() != 1 {
+		t.Fatalf("agent outside the allow-list: %d, %d shares; want 404, still one", code, e.fake.shareCount())
+	}
+}

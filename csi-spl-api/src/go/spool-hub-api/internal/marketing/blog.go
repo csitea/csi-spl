@@ -106,12 +106,24 @@ func FetchBlogPicture(ctx context.Context, c *http.Client, appURL string, p Blog
 	return b.Bytes(), nil
 }
 
+// The emojis that lead the commentary's three lines (SPL-1855; owner
+// HUM-10, topic f46301d4 msg 8c3e0a83: "add some emojis on the LinkedIn
+// post as well"). None is a little-text reserved character, so
+// EscapeLittleText passes them through unchanged.
+const (
+	emojiTitle   = "\U0001F4DD " // memo
+	emojiSummary = "\U0001F4A1 " // light bulb
+	emojiLink    = "\U0001F449 " // pointing right
+)
+
 // BlogArticle is the share of p: its title and summary above the card, and
-// the card linking to the post. English, no generated text.
+// the card linking to the post, each line led by an emoji. English, no
+// generated text.
 func BlogArticle(appURL string, p BlogPost, picture []byte) Article {
 	link := BlogPostURL(appURL, p.ID)
 	return Article{
-		Commentary:  strings.TrimSpace(p.Title) + "\n\n" + strings.TrimSpace(p.Summary) + "\n\n" + link,
+		Commentary: emojiTitle + strings.TrimSpace(p.Title) + "\n\n" + emojiSummary + strings.TrimSpace(p.Summary) +
+			"\n\n" + emojiLink + link,
 		URL:         link,
 		Title:       strings.TrimSpace(p.Title),
 		Description: strings.TrimSpace(p.Summary),

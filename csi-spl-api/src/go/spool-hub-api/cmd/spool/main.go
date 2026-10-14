@@ -55,6 +55,8 @@
 //	doc-read <path>            print one workspace doc
 //	doc-write <path> [--file f]  save one (stdin when --file is absent); last write wins
 //	doc-delete <path>          delete one workspace doc
+//	marketing-publish <post-id> --for <HUM-id>   publish a live blog post on the
+//	          owner's connected LinkedIn, for that owner (SPL-1855)
 //	doctree <verb> ...         the Qto outline documents (doctree.go): create, add, edit, export
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
@@ -157,6 +159,7 @@ on a box (an agent's machine):
   doc-read            print one workspace document to stdout
   doc-write           save one workspace document (last write wins)
   doc-delete          delete one workspace document
+  marketing-publish   publish a live blog post on the workspace owner's LinkedIn, for them (--for HUM-...)
   doctree             the outline documents: list, nodes, folder, create, head, read, add, edit, move, delete, rename, export
   layout              list the agent ids with a mailbox under $SPOOL_ROOT (<ID> or <ID>@<box>)
 
@@ -308,7 +311,7 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdAsk(cfg, rest)
 	case "claim": // spec 068 4.1
 		return cmdClaim(cfg, rest)
-	case "doc-list", "doc-read", "doc-write", "doc-delete": // spec 075 T009
+	case "doc-list", "doc-read", "doc-write", "doc-delete", "marketing-publish": // spec 075 T009, SPL-1855
 		return cmdDoc(cfg, cmd, rest)
 	case "doctree": // spec 113, the Qto doc API for agents
 		return cmdDocTree(cfg, rest)
@@ -320,9 +323,12 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 	}
 }
 
-// cmdDoc runs the doc verbs (spec 075 T009).
+// cmdDoc runs the doc verbs (spec 075 T009) and marketing-publish (SPL-1855),
+// the REST verbs on the box's upload token.
 func cmdDoc(cfg *config.Config, cmd string, rest []string) int {
 	switch cmd {
+	case "marketing-publish":
+		return cmdMarketingPublish(cfg, rest)
 	case "doc-list":
 		return cmdDocList(cfg, rest)
 	case "doc-read":

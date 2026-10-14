@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
@@ -13,13 +14,18 @@ import (
 
 // The blog share sweep (spec 090 T015, SPL-1634; owner HUM-10, topic
 // add4fbf4 msgs 06f5fd99, 489d18e6) and the owner's publish (SPL-40; owner
-// HUM-10, topic add4fbf4 msg 3a3f366b: only they can post to LinkedIn).
+// HUM-10, topic add4fbf4 msg 3a3f366b: only they can post to LinkedIn),
+// widened by SPL-1855 (owner HUM-10, topic f46301d4 msgs 54795a30,
+// c5ed6345: "you SHOULD be able to push to LinkedIn without me") to an
+// agent publishing FOR the owner.
 //
 //   - The sweep never starts a share. A new English post in the live blog
-//     index goes to LinkedIn only when the workspace owner who connected
-//     the channel publishes it: POST /v1/marketing/posts/{id}/publish
-//     (PublishMarketingPost). An agent, any other member and the sweep
-//     cannot.
+//     index goes to LinkedIn only when it is published on
+//     POST /v1/marketing/posts/{id}/publish: by the workspace owner who
+//     connected the channel (PublishMarketingPost), or by an agent whose
+//     box upload token names that owner in X-Spool-Requester
+//     (AgentPublishMarketingPost). The share always goes out on the
+//     owner's own connected channel. Any other member and the sweep cannot.
 //   - The publish uses the one publisher there is: it schedules the post's
 //     row, claims it and shares it (dispatchDue, shareOne). The sweep only
 //     finishes what the owner started: the retries below.
@@ -194,9 +200,10 @@ func blogByID(posts []marketing.BlogPost) map[string]marketing.BlogPost {
 	return byID
 }
 
-// Why an owner's publish was refused (PublishMarketingPost).
+// Why a publish was refused (PublishMarketingPost, AgentPublishMarketingPost).
 var (
-	ErrMarketingNotOwner  = errors.New("only the workspace owner publishes to LinkedIn")
+	ErrMarketingNotOwner  = errors.New("only the workspace owner publishes to LinkedIn, or an agent for them")
+	ErrMarketingSeatOther = errors.New("this agent's box was joined for another member than the requester")
 	ErrMarketingNoChannel = errors.New("the workspace owner has no connected LinkedIn account")
 	ErrMarketingNoPost    = errors.New("the post is not in the live blog index")
 	ErrMarketingRecorded  = errors.New("the post is already published, or recorded for LinkedIn")
@@ -209,6 +216,23 @@ var (
 // workspace owner (rbac TenantOwner) may. The share goes through the same
 // claim and dispatch as the sweep's retries.
 func (s *Server) PublishMarketingPost(ctx context.Context, tenant, hum, postID string) (MarketingShareResult, error) {
+	return s.publishMarketingPost(ctx, tenant, hum, "", postID)
+}
+
+// AgentPublishMarketingPost is the same publish by an agent, seat (the box
+// of its upload token), acting for hum (SPL-1855). Every gate of the
+// owner's publish holds: the workspace allow-listed (cnf
+// marketing.workspaces) and switched on, hum its owner, and only hum's own
+// connected channels. A seat joined for a member (its join token's
+// for_human) acts only for that member.
+func (s *Server) AgentPublishMarketingPost(ctx context.Context, tenant, seat, hum, postID string) (MarketingShareResult, error) {
+	if seat == "" {
+		return MarketingShareResult{}, ErrMarketingNotOwner
+	}
+	return s.publishMarketingPost(ctx, tenant, hum, seat, postID)
+}
+
+func (s *Server) publishMarketingPost(ctx context.Context, tenant, hum, seat, postID string) (MarketingShareResult, error) {
 	var res MarketingShareResult
 	m := s.o.MarketingLinkedIn
 	mk, ok := s.o.Store.(store.Marketing)
@@ -220,6 +244,9 @@ func (s *Server) PublishMarketingPost(ctx context.Context, tenant, hum, postID s
 	}
 	if a, err := s.access(ctx, hum, tenant); hum == "" || err != nil || !a.TenantOwner {
 		return res, ErrMarketingNotOwner
+	}
+	if err := s.seatActsFor(ctx, tenant, seat, hum); err != nil {
+		return res, err
 	}
 	chs, err := s.ownerChannels(ctx, mk, tenant, hum)
 	if err != nil {
@@ -250,7 +277,7 @@ func (s *Server) PublishMarketingPost(ctx context.Context, tenant, hum, postID s
 			continue
 		}
 		res.Scheduled++
-		s.o.Log.Info().Str("tenant", tenant).Str("channel", ch.ID).Str("post", postID).Str("by", hum).Msg("marketing: the owner publishes a blog post on LinkedIn")
+		s.o.Log.Info().Str("tenant", tenant).Str("channel", ch.ID).Str("post", postID).Str("by", hum).Str("agent", seat).Msg("marketing: a blog post is published on the owner's LinkedIn")
 		if due, err := mk.ClaimMarketingPosts(ctx, tenant, ch.ID, now); err == nil && len(due) > 0 {
 			s.dispatchDue(ctx, m, mk, ch, due, byID, &res)
 		}
@@ -259,6 +286,25 @@ func (s *Server) PublishMarketingPost(ctx context.Context, tenant, hum, postID s
 		return res, ErrMarketingRecorded
 	}
 	return res, nil
+}
+
+// seatActsFor refuses an agent seat joined for another member than hum; the
+// owner's own publish (seat "") and a seat joined for no one pass.
+func (s *Server) seatActsFor(ctx context.Context, tenant, seat, hum string) error {
+	st, ok := s.o.Store.(interface {
+		RepoDocSeatHuman(ctx context.Context, tenant, box string) (string, error)
+	})
+	if seat == "" || !ok {
+		return nil
+	}
+	forHuman, err := st.RepoDocSeatHuman(ctx, tenant, seat)
+	if err != nil {
+		return err
+	}
+	if forHuman != "" && forHuman != hum {
+		return ErrMarketingSeatOther
+	}
+	return nil
 }
 
 // ownerChannels: tenant's active LinkedIn channels that hum connected.
@@ -281,8 +327,26 @@ func (s *Server) handleMarketingPublish(w http.ResponseWriter, r *http.Request, 
 	w.Header().Set("Cache-Control", "no-store")
 	hum, _ := s.memberID(r, tenant)
 	res, err := s.PublishMarketingPost(r.Context(), tenant, hum, r.PathValue("id"))
+	writeMarketingPublish(w, r, res, err)
+}
+
+// The same route called with a box upload token: an agent publishes for the
+// owner it names in X-Spool-Requester. The workspace is the token's; the
+// allow-list and the switch are read by the publish (404 when off).
+func (s *Server) handleAgentMarketingPublish(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	t, seat, ok := s.tokenTenant(w, r)
+	if !ok {
+		return
+	}
+	hum := strings.TrimSpace(r.Header.Get(RequesterHeader))
+	res, err := s.AgentPublishMarketingPost(r.Context(), t.ID, seat, hum, r.PathValue("id"))
+	writeMarketingPublish(w, r, res, err)
+}
+
+func writeMarketingPublish(w http.ResponseWriter, r *http.Request, res MarketingShareResult, err error) {
 	switch {
-	case errors.Is(err, ErrMarketingNotOwner):
+	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingSeatOther):
 		writeForbidden(w, permTenantOwner, err.Error())
 	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingNoPost), errors.Is(err, ErrMarketingOff):
 		writeErr(w, http.StatusNotFound, "not_found", err.Error())
@@ -298,9 +362,18 @@ func (s *Server) handleMarketingPublish(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
-// routeMarketingShare registers the owner's publish (from routeMarketing).
+// routeMarketingShare registers the publish (from routeMarketing): an
+// upload token of a box (not the WUI's own) is an agent, anyone else goes
+// through the member door behind marketingRoute's switch.
 func (s *Server) routeMarketingShare(mux *http.ServeMux) {
-	s.marketingRoute(mux, "POST /v1/marketing/posts/{id}/publish", s.handleMarketingPublish)
+	member := s.marketingHandlerFunc(s.handleMarketingPublish)
+	mux.HandleFunc("POST /v1/marketing/posts/{id}/publish", func(w http.ResponseWriter, r *http.Request) {
+		if _, box, _, ok := s.bearerAny(r); ok && box != WUIBox {
+			s.handleAgentMarketingPublish(w, r)
+			return
+		}
+		member(w, r)
+	})
 }
 
 // dispatchDue opens the token once and shares each claimed post.

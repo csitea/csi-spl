@@ -213,7 +213,7 @@ func TestFetchBlogIndexAndPicture(t *testing.T) {
 	}
 	a := BlogArticle(app+"/", posts[0], pic)
 	if a.URL != app+"/blog/2026-10-12-new-post" || a.Title != "New post" || a.Description != "One line." ||
-		a.Commentary != "New post\n\nOne line.\n\n"+a.URL || a.Picture == nil {
+		a.Commentary != "📝 New post\n\n💡 One line.\n\n👉 "+a.URL || a.Picture == nil {
 		t.Fatalf("article: %+v", a)
 	}
 }
@@ -230,5 +230,34 @@ func TestFetchBlogIndexErrors(t *testing.T) {
 			t.Errorf("%s: %v, want a blog index error", name, err)
 		}
 		srv.Close()
+	}
+}
+
+// SPL-1855 (owner HUM-10, topic f46301d4 msg 8c3e0a83): the share's
+// commentary carries emojis, and the little-text escaping keeps them while
+// it still escapes the title's markup.
+func TestBlogArticleEmojisSurviveLittleText(t *testing.T) {
+	p := BlogPost{ID: "2026-10-14-emoji", Title: "Ship it (v2) #fast", Summary: "One [line] @all."}
+	a := BlogArticle("https://app.example.com", p, nil)
+	for _, e := range []string{"\U0001F4DD", "\U0001F4A1", "\U0001F449"} {
+		if strings.Count(a.Commentary, e) != 1 {
+			t.Fatalf("commentary %q: want %q once", a.Commentary, e)
+		}
+	}
+	want := "\U0001F4DD Ship it \\(v2\\) \\#fast\n\n\U0001F4A1 One \\[line\\] \\@all.\n\n\U0001F449 https://app.example.com/blog/2026-10-14-emoji"
+	if got := EscapeLittleText(a.Commentary); got != want {
+		t.Fatalf("escaped:\n got %q\nwant %q", got, want)
+	}
+	var body map[string]any
+	l := fakeLinkedIn(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("X-Restli-Id", "urn:li:share:43")
+		w.WriteHeader(http.StatusCreated)
+	})
+	if _, err := l.Share(context.Background(), NewPlaintext(testOAuthToken), "abc", a, ""); err != nil {
+		t.Fatal(err)
+	}
+	if body["commentary"] != want {
+		t.Fatalf("posted commentary %q, want %q", body["commentary"], want)
 	}
 }

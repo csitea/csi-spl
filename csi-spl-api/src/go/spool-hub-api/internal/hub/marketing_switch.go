@@ -63,7 +63,12 @@ type marketingHandler func(w http.ResponseWriter, r *http.Request, tenant string
 // marketingRoute registers h behind the effective switch: the caller's
 // workspace must be allow-listed AND switched on, else 404.
 func (s *Server) marketingRoute(mux *http.ServeMux, pattern string, h marketingHandler) {
-	mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(pattern, s.marketingHandlerFunc(h))
+}
+
+// marketingHandlerFunc is h behind the member door and the effective switch.
+func (s *Server) marketingHandlerFunc(h marketingHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		s.allowOrigin(w, r)
 		t, _, ok := s.humanTenant(w, r)
 		if !ok || s.marketingDemo(w, t.ID) {
@@ -83,7 +88,7 @@ func (s *Server) marketingRoute(mux *http.ServeMux, pattern string, h marketingH
 			return
 		}
 		h(w, r, t.ID)
-	})
+	}
 }
 
 type marketingSwitchBody struct {

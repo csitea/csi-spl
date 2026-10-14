@@ -4744,7 +4744,7 @@
             "description": "the LinkedIn app is not configured on this hub"
           }
         },
-        "summary": "Publish a blog post on LinkedIn (workspace owner only)",
+        "summary": "Publish a blog post on LinkedIn (the workspace owner, or an agent for them with X-Spool-Requester, SPL-1855)",
         "tags": [
           "marketing"
         ]

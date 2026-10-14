@@ -2,12 +2,16 @@
 // not move the reader. "After each answer, the whole screen gets scrolled up
 // ... the scroll should stay whatever it is, because there might be a lot of
 // questions which one must scroll through manually."
+// Follow-ups (msgs 4778f585, e0e4a5ac): desktop has the same bug; "after each
+// [answer] it will scroll up till the next question's beginning so that IT
+// will be the one of the top of the screen ... the same on mobile".
 //
 // A 6-question ```poll form, taller than the phone screen, in the open topic
 // pane (where the form's answers land as replies). The reader scrolls to
-// question 3 and picks an option; after the answer reply is in the feed, the
-// question they tapped sits where it was (within a few px), in both message
-// orders. Then a checkbox form (lock-in on Send) the same way, and desktop.
+// question 3 and picks an option; after the answer reply is in the feed,
+// question 4's start sits at the top of the pane (within a few px), in both
+// message orders. The last question (6) answered: it stays where it was. Then
+// a checkbox form (lock-in on Send): the form stays put. Desktop the same.
 // "live send": the mock store appends the reply as a plain row; the live
 // store first shows OUR row pending (the feed follows its own sends to the
 // newest end), then the echo replaces it. That case swaps the store's send
@@ -135,7 +139,9 @@ function where(p, form, qi) {
     if (!q) return null
     let s = q.parentElement
     while (s && !/(auto|scroll)/.test(getComputedStyle(s).overflowY)) s = s.parentElement
-    return { qTop: Math.round(q.getBoundingClientRect().top), scrollTop: Math.round(s ? s.scrollTop : -1), windowY: Math.round(window.scrollY) }
+    const paneTop = s && s !== document.scrollingElement ? s.getBoundingClientRect().top : 0
+    const atEnd = Boolean(s && s.scrollHeight - s.clientHeight - s.scrollTop <= 2)
+    return { qTop: Math.round(q.getBoundingClientRect().top), paneTop: Math.round(paneTop), scrollTop: Math.round(s ? s.scrollTop : -1), atEnd, windowY: Math.round(window.scrollY) }
   }, form, qi)
 }
 
@@ -157,6 +163,15 @@ async function tapOption(p, form, qi, key, touch) {
   else await p.mouse.click(spot.x, spot.y)
 }
 
+/* the next question's start at the top of the pane (8 px gap), the page
+   itself unmoved; a pane already scrolled to its end (newest-first: the
+   thread's root is the last row) takes it as high as it can: never above
+   the top, and lower than before only by what the form's own answers line
+   gives back below it (no room left to scroll) */
+const NEXT_GAP_PX = 8
+const END_SLACK_PX = 32
+const atTop = (a, b) => Boolean(a && b && b.windowY === a.windowY && (Math.abs(b.qTop - b.paneTop - NEXT_GAP_PX) <= TOLERANCE_PX
+  || (b.atEnd && b.qTop - b.paneTop >= NEXT_GAP_PX - TOLERANCE_PX && b.qTop <= a.qTop + END_SLACK_PX)))
 const still = (a, b) => Boolean(a && b && Math.abs(a.qTop - b.qTop) <= TOLERANCE_PX && b.windowY === a.windowY)
 
 /* the live store's send: our row at once, pending, then the echo */
@@ -198,24 +213,30 @@ async function radioCase(browser, vp, tag, order, live = false) {
   }, form)
   await placeQuestion(p, form, 2, Math.round(vp.height * 0.4))
   await sleep(500)
-  const before = await where(p, form, 2)
+  const before = await where(p, form, 3)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-no-scroll-${tag}-${order}-radio-before.png`) })
   const n0 = await replies(p, seeded.msg_id)
   await tapOption(p, form, 2, 'B', touch)
   await sleep(1500)
-  const after = await where(p, form, 2)
+  const after = await where(p, form, 3)
   const n1 = await replies(p, seeded.msg_id)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-no-scroll-${tag}-${order}-radio-after.png`) })
   ok(`${tag} ${order} radio: the form is taller than its pane and the answer reply landed`, tall.form > tall.pane && n1 === n0 + 1, { tall, n0, n1 })
-  ok(`${tag} ${order} radio: question 3 stays where the reader had it after the answer (<= ${TOLERANCE_PX} px)`, still(before, after), { before, after })
-  /* a second answer, to question 4: the reader keeps going down the form */
-  await placeQuestion(p, form, 3, Math.round(vp.height * 0.5))
-  await sleep(500)
-  const before2 = await where(p, form, 3)
+  ok(`${tag} ${order} radio: after answering question 3, question 4 starts at the top of the pane (<= ${TOLERANCE_PX} px)`, atTop(before, after), { before, after })
+  /* the next answer, to question 4: question 5 comes up the same way */
+  const before2 = await where(p, form, 4)
   await tapOption(p, form, 3, 'C', touch)
   await sleep(1500)
-  const after2 = await where(p, form, 3)
-  ok(`${tag} ${order} radio: the next answer (question 4) does not move the reader either`, still(before2, after2), { before2, after2 })
+  const after2 = await where(p, form, 4)
+  ok(`${tag} ${order} radio: the next answer (question 4) brings question 5 to the top too`, atTop(before2, after2), { before2, after2 })
+  /* the last question: nothing below it, the reader stays where they are */
+  await placeQuestion(p, form, 5, Math.round(vp.height * 0.4))
+  await sleep(500)
+  const before3 = await where(p, form, 5)
+  await tapOption(p, form, 5, 'A', touch)
+  await sleep(1500)
+  const after3 = await where(p, form, 5)
+  ok(`${tag} ${order} radio: answering the last question (6) does not move the reader (<= ${TOLERANCE_PX} px)`, still(before3, after3), { before3, after3 })
   ok(`${tag} ${order} radio: no page error`, errors.length === 0, errors)
   await p.close()
 }

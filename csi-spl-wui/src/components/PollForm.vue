@@ -140,12 +140,12 @@ watch(answers, (list) => {
 }, { immediate: true })
 
 const state = ref<'' | 'sent' | 'failed'>('')
-async function post() {
+async function post(qi = -1) {
   const m = msg.value
   if (!m || !canAnswer.value) return
   const text = answerBody(props.form, picks.value, msgId.value)
   state.value = ''
-  const release = holdPlace()
+  const release = holdPlace(qi)
   try {
     await channel.send(text, String(m.task_id), [], m.channel ? String(m.channel) : undefined, 0, m.channel ? undefined : (dmPeerOf(m, me.value) || undefined))
     state.value = 'sent'
@@ -156,21 +156,31 @@ async function post() {
   }
 }
 
-/* SPL-1769 (owner 92149f81): an answer must not move the reader, who may be
-   halfway down a long form. The answer reply lands in the feed around the
-   form: above it in a newest-first thread (which anchors nothing), or as our
-   own row the feed follows to its newest end. Until the reply has settled,
-   every frame puts the form back where the reader had it on screen. A touch,
-   wheel or key of the reader's own ends the hold at once; so does a form
-   that was off screen (the reader is elsewhere). */
+/* SPL-1769 (owner 92149f81, 4778f585, e0e4a5ac): an answer must not throw
+   the reader around, on the phone or on desktop. The answer reply lands in
+   the feed around the form: above it in a newest-first thread (which anchors
+   nothing), or as our own row the feed follows to its newest end. Until the
+   reply has settled, every frame puts the form where the reader wants it:
+   after a radio answer with a question below it, that next question's start
+   glides to the top of the pane ("it will scroll till the next question's
+   beginning"); after the last question or a checkbox Send, the form stays
+   where it was on screen. A touch, wheel or key of the reader's own ends the
+   hold at once; so does a form that was off screen (the reader is elsewhere). */
 const HOLD_SETTLE_MS = 1200
 const HOLD_MAX_MS = 15000
-function holdPlace() {
+const NEXT_GAP_PX = 8
+const GLIDE = 0.25
+function holdPlace(qi = -1) {
   const el = formEl.value
   if (!el || typeof window === 'undefined' || !el.isConnected) return () => {}
   const s = scrollerOf(el) as HTMLElement
   const { top, bottom } = el.getBoundingClientRect()
   if (bottom < 0 || top > window.innerHeight) return () => {}
+  const next = qi >= 0 ? el.querySelectorAll<HTMLElement>('[data-testid=poll-question]')[qi + 1] : undefined
+  const anchor = next || el
+  const paneTop = () => (s === document.scrollingElement || s === document.documentElement ? 0 : s.getBoundingClientRect().top)
+  const at = next ? () => paneTop() + NEXT_GAP_PX : () => top
+  const glide = next && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? GLIDE : 1
   let until = performance.now() + HOLD_MAX_MS
   let frame = 0
   const inputs = ['touchstart', 'wheel', 'keydown'] as const
@@ -181,9 +191,9 @@ function holdPlace() {
   }
   const tick = () => {
     frame = 0
-    if (!el.isConnected) return stop()
-    const shift = el.getBoundingClientRect().top - top
-    if (Math.abs(shift) >= 1) s.scrollTop += shift
+    if (!el.isConnected || !anchor.isConnected) return stop()
+    const shift = anchor.getBoundingClientRect().top - at()
+    if (Math.abs(shift) >= 1) s.scrollTop += Math.abs(shift) <= 2 ? shift : Math.round(shift * glide) || Math.sign(shift)
     if (performance.now() < until) frame = requestAnimationFrame(tick)
     else stop()
   }
@@ -238,7 +248,7 @@ function onPick(qi: number, key: string, on: boolean) {
   picks.value = next
   state.value = ''
   if (props.form.multi) arm()
-  else void post()
+  else void post(qi)
 }
 
 /* "Chat about this": the topic opens, the reply box takes the caret with the

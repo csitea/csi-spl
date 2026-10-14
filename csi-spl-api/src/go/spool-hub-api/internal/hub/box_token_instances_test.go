@@ -170,8 +170,11 @@ func TestBoxTokenRetiredRevisionStillStrands(t *testing.T) {
 	bx.c.SessionProbe = 50 * time.Millisecond
 	rctx, cancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
-	go func() { done <- bx.c.Run(rctx) }()
+	// base is read before Run starts: read after, a fast first dial was
+	// already in it and the wait below looked for a second one that never
+	// comes (CI flake, wf 10 run 38567360021, 5.43 s).
 	base := sp.dials.Load()
+	go func() { done <- bx.c.Run(rctx) }()
 	eventually(t, "the hold loop's dial", func() bool { return sp.dials.Load() == base+1 })
 	time.Sleep(200 * time.Millisecond)
 	sp.rest.Store(b.client)

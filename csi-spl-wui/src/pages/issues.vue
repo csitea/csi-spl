@@ -732,7 +732,7 @@
             ref="titleEl"
             class="issues-detail__title"
             data-test="issues-detail-title"
-            :value="form.title"
+            :value="detailTitleEdit ?? form.title"
             :placeholder="t('issues.title_placeholder')"
             :aria-label="t('issues.title_placeholder')"
             @input="onDraftInput($event, 'title')"
@@ -1299,6 +1299,12 @@ const menuIndex = ref(0)
 const menuPos = ref({ top: 80, left: 80 })
 const labelName = ref('')
 const titleEl = ref<HTMLInputElement | null>(null)
+/* the open issue's title as typed, until it is saved. Vue writes `value` on
+   every re-render, so with form.title alone a re-render while typing (the
+   comments, subtasks or opened mark loading as the modal opens) put the old
+   title back under the cursor: "Beta row" + "al" (spec 133 round 19) */
+const detailTitleEdit = ref<string | null>(null)
+watch(() => detail.value?.key, () => { detailTitleEdit.value = null })
 const newTitleEl = ref<HTMLInputElement | null>(null)
 const descEl = ref<{ edit: () => Promise<void> } | null>(null)
 const scrollerEl = ref<HTMLElement | null>(null)
@@ -1924,14 +1930,17 @@ async function runEpicClose() {
   epicClose.value = null
 }
 function onDraftInput(ev: Event, field: 'title') {
-  if (!creating.value) return
-  draft[field] = (ev.target as HTMLInputElement).value
+  const value = (ev.target as HTMLInputElement).value
+  if (creating.value) draft[field] = value
+  else detailTitleEdit.value = value
 }
-function onTitle(ev: Event) {
+async function onTitle(ev: Event) {
   const value = (ev.target as HTMLInputElement).value
   if (creating.value) { draft.title = value; return }
-  if (!detail.value || value === detail.value.title) return
-  void save(detail.value.key, { title: value })
+  if (!detail.value || value === detail.value.title) { detailTitleEdit.value = null; return }
+  await save(detail.value.key, { title: value })
+  /* keys typed while the save was out stay */
+  if (detailTitleEdit.value === value) detailTitleEdit.value = null
 }
 /* the submit key in the description: a new issue is created, an existing
    one's text is already saved by IssueDescription */

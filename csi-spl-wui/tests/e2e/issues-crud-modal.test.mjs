@@ -304,7 +304,35 @@ try {
     await p.screenshot({ path: `${SHOTS}/modal-${W}.png` })
 
     await p.$eval('[data-test=issues-detail-title]', (el) => { el.focus(); el.select() })
-    await p.type('[data-test=issues-detail-title]', 'Beta via modal')
+    await p.type('[data-test=issues-detail-title]', 'Beta via')
+    /* the page re-renders while the title is typed (comments, subtasks and the
+       opened mark load as the modal opens): Vue wrote form.title back over the
+       typed text, "Beta row" + "al" (wf 10 run 38513492239, spec 133 round 19).
+       Force that re-render here, then type the rest. */
+    const reRendered = await p.evaluate(async () => {
+      const host = [...document.querySelectorAll('*')].find((e) => e.__vue_app__)
+      const inp = document.querySelector('[data-test=issues-detail-title]')
+      const hit = []
+      const walk = (i) => {
+        const el = i.subTree?.el
+        if (el?.nodeType === 1 && el.contains(inp) && i.proxy) hit.push(i)
+        const visit = (v) => {
+          if (!v || typeof v !== 'object') return
+          if (v.component) walk(v.component)
+          if (v.suspense) visit(v.suspense.activeBranch)
+          if (Array.isArray(v.children)) v.children.forEach(visit)
+        }
+        visit(i.subTree)
+      }
+      const app = host.__vue_app__
+      walk(app._instance || app._container._vnode.component)
+      hit.forEach((i) => i.proxy.$forceUpdate())
+      await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 50)))
+      return hit.length
+    })
+    await p.type('[data-test=issues-detail-title]', ' modal')
+    const typed = await p.$eval('[data-test=issues-detail-title]', (el) => el.value)
+    ok(`M2a ${W}: a page re-render while the title is typed keeps the typed text`, reRendered > 0 && typed === 'Beta via modal', { reRendered, typed })
     await p.click('[data-test=issues-detail-rendered]')
     await p.waitForSelector('[data-test=issues-detail-body]', { visible: true, timeout: 5000 })
     await p.type('[data-test=issues-detail-body]', 'described in the modal')

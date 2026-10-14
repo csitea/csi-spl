@@ -41,7 +41,8 @@ moved are folded (rows 01, 08, 09; section 7.2). Input:
   backup claude after 2 tries (owner 10-12).
 - **Subject** (R6 reads it): `<type>(r10-NN-<slug>, SPL-<row issue>): ...`.
 - **R7.4:** the `review:` line is in the landing commit, never a later
-  `chore(...)` (round 9: 6 of 10 rows did that, retro 4.1).
+  `chore(...)` (round 9: 6 of 10 rows did that, retro 4.1); trunk-red
+  takeover: see rulebook 2.11.3.
 
 ## 2. Where the rows come from (measured on `43688a782`)
 

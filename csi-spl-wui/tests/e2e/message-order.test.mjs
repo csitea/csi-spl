@@ -48,6 +48,17 @@ async function launch() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/* read until want(value) holds or ms pass; the last read is returned either
+   way, so a check that never comes true still fails on what was seen */
+async function until(read, want, ms = 5000) {
+  const t0 = Date.now()
+  let v = await read()
+  while (!want(v) && Date.now() - t0 < ms) {
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
 const NAV = Number(process.env.NAV_TIMEOUT ?? 90000)
 
 /** Sign in as a member; `order` undefined = never picked (the claim is absent). */
@@ -132,14 +143,12 @@ async function run(browser, base, width, touch) {
   if (!(await signIn(p))) throw new Error('no session store')
   await p.waitForSelector('.live-rows > article.msg', { timeout: NAV })
   await inject(p, 40, 'seed')
-  await sleep(600)
-  let m = await measure(p)
+  let m = await until(() => measure(p), (x) => /seed 39/.test(x.firstBody))
   check(`${tag} control: no claim draws newest first, Load more under the rows`, m.order === 'newest-first' && m.desc && !m.asc && m.more === 'below', m)
 
   /* A13 + A4 + A2: flip to newest last on the open feed */
   await setOrder(p, 'newest-last')
-  await sleep(800)
-  m = await measure(p)
+  m = await until(() => measure(p), (x) => x.order === 'newest-last' && /seed 39/.test(x.lastBody) && x.fromBottom <= 2)
   check(`${tag} A4: newest last draws oldest first, Load more above the rows`, m.order === 'newest-last' && m.asc && !m.desc && m.more === 'above', m)
   check(`${tag} A13/A2: the flip lands the open feed at its bottom`, m.fromBottom <= 2, m)
   check(`${tag} A4: the newest row is the last one drawn`, /seed 39/.test(m.lastBody), m)
@@ -148,8 +157,7 @@ async function run(browser, base, width, touch) {
 
   /* A5: at the bottom a new row is followed */
   await inject(p, 2, 'follow')
-  await sleep(900)
-  m = await measure(p)
+  m = await until(() => measure(p), (x) => /follow 1/.test(x.lastBody) && x.fromBottom <= 2)
   const pill0 = await p.$('[data-testid=new-pill]')
   check(`${tag} A5: at the bottom new rows are followed, no pill`, m.fromBottom <= 2 && /follow 1/.test(m.lastBody) && !pill0, m)
 
@@ -162,10 +170,11 @@ async function run(browser, base, width, touch) {
     pad.setAttribute('data-e2e-late', '1')
     last.appendChild(pad)
   })
-  await sleep(500)
-  m = await measure(p)
+  m = await until(() => measure(p), (x) => x.fromBottom <= 2)
   check(`${tag} A2: a late height change is followed at the bottom`, m.fromBottom <= 2, m)
   await p.evaluate(() => document.querySelector('[data-e2e-late]')?.remove())
+  /* a settle, not a wait for a state: the clamp scroll of the removal must
+     be handled before the next growth, or that growth reads as the reader */
   await sleep(300)
 
   /* A2 (prd e2e 2026-09-28): content grows AND a scroll event fires while the
@@ -180,8 +189,7 @@ async function run(browser, base, width, touch) {
     rows[rows.length - 1].appendChild(pad)
     sc.scrollTop = sc.scrollTop + 40
   })
-  await sleep(600)
-  m = await measure(p)
+  m = await until(() => measure(p), (x) => x.fromBottom <= 2)
   check(`${tag} A2: growth with a scroll event far from the bottom still follows`, m.fromBottom <= 2, m)
   await p.evaluate(() => document.querySelector('[data-e2e-late2]')?.remove())
 
@@ -196,7 +204,9 @@ async function run(browser, base, width, touch) {
   })
   await sleep(400)
   await inject(p, 2, 'below')
-  await sleep(1000)
+  /* the pill is the sign the rows landed; then a hold for a late jump */
+  await until(() => p.evaluate(() => Boolean(document.querySelector('[data-testid=new-pill]'))), Boolean)
+  await sleep(300)
   const after = await p.evaluate(() => {
     const el = document.querySelector('[data-testid=new-pill]')
     const r = el ? el.getBoundingClientRect() : null
@@ -213,9 +223,9 @@ async function run(browser, base, width, touch) {
   if (process.env.OUT) await p.screenshot({ path: `${process.env.OUT}/message-order-pill-${width}.png` })
   if (after.hit) {
     await p.click('[data-testid=new-pill]')
-    await sleep(1200)
-    m = await measure(p)
-    const gone = !(await p.$('[data-testid=new-pill]'))
+    const pillGone = async () => ({ ...(await measure(p)), gone: !(await p.$('[data-testid=new-pill]')) })
+    m = await until(pillGone, (x) => x.fromBottom <= 2 && x.gone && /below 1/.test(x.lastBody))
+    const gone = m.gone
     check(`${tag} A5: the pill jumps to the newest row at the bottom and goes away`, m.fromBottom <= 2 && gone && /below 1/.test(m.lastBody), m)
   }
 
@@ -234,7 +244,9 @@ async function run(browser, base, width, touch) {
     return { y: row ? Math.round(row.getBoundingClientRect().top) : null, n: document.querySelectorAll('.live-rows > article.msg').length, clicked: Boolean(b) }
   })
   const clicked = olderBefore.clicked
-  await sleep(1000)
+  /* the older page is in when the row count grows; then a hold for a late jump */
+  await until(() => p.evaluate(() => document.querySelectorAll('.live-rows > article.msg').length), (n) => n > olderBefore.n)
+  await sleep(300)
   const olderAfter = await p.evaluate(() => ({ y: window.__anchor ? Math.round(window.__anchor.getBoundingClientRect().top) : null, n: document.querySelectorAll('.live-rows > article.msg').length }))
   check(`${tag} A1: Load more above adds older rows without moving the row in view`,
     clicked && olderAfter.n > olderBefore.n && olderBefore.y !== null && Math.abs(olderAfter.y - olderBefore.y) < 2, { clicked, olderBefore, olderAfter })
@@ -260,7 +272,6 @@ async function run(browser, base, width, touch) {
       s.messages = [...s.messages, ...rows]
     }, n, tag, (clock += 120e3))
     await replyTo(20, 'reply')
-    await sleep(900)
     const thread = () => p.evaluate(() => {
       const sc = document.querySelector('[data-pane="topic"] .feed-body')
       const rows = [...sc.querySelectorAll('.live-rows > article.msg')]
@@ -273,21 +284,19 @@ async function run(browser, base, width, touch) {
         scrolls: sc.scrollHeight > sc.clientHeight + 1,
       }
     })
-    let th = await thread()
+    let th = await until(thread, (x) => /^reply-19-/.test(x.last) && x.fromBottom <= 2)
     check(`${tag} A6: the thread reads oldest to newest and sits at its bottom`, th.asc && /^reply-19-/.test(th.last) && th.fromBottom <= 2 && th.scrolls, th)
     await replyTo(1, 'late')
-    await sleep(900)
-    th = await thread()
+    th = await until(thread, (x) => /^late-0-/.test(x.last) && x.fromBottom <= 2)
     check(`${tag} A6: at the bottom of a thread a new reply is followed`, /^late-0-/.test(th.last) && th.fromBottom <= 2, th)
     if (process.env.OUT) await p.screenshot({ path: `${process.env.OUT}/message-order-thread-${width}.png` })
     await p.click('[data-test=live-topic-close]')
-    await sleep(500)
+    await until(() => p.$('[data-test=live-topic-close]'), (x) => !x)
   }
 
   /* A13: back to newest first on the open feed */
   await setOrder(p, 'newest-first')
-  await sleep(800)
-  m = await measure(p)
+  m = await until(() => measure(p), (x) => x.order === 'newest-first' && x.desc && x.top <= 2)
   check(`${tag} A13: flipping back draws newest first at the top`, m.order === 'newest-first' && m.desc && m.top <= 2, m)
 
   const errs = await p.evaluate(() => window.__errs || [])
@@ -301,8 +310,7 @@ async function run(browser, base, width, touch) {
   const checked = await p.$$eval('[data-test=view-pref-message_order] input[type=radio]:checked, [data-test=view-pref-composer_position] input[type=radio]:checked', (els) => els.map((e) => e.value))
   check(`${tag} settings: both radios show the account's choices`, checked.join(',') === 'newest-last,bottom', { checked })
   await signIn(p)
-  await sleep(200)
-  const checkedDefault = await p.$$eval('[data-test=view-pref-message_order] input[type=radio]:checked, [data-test=view-pref-composer_position] input[type=radio]:checked', (els) => els.map((e) => e.value))
+  const checkedDefault = await until(() => p.$$eval('[data-test=view-pref-message_order] input[type=radio]:checked, [data-test=view-pref-composer_position] input[type=radio]:checked', (els) => els.map((e) => e.value)), (v) => v.join(',') === 'newest-first,top')
   check(`${tag} settings: never picked shows the defaults checked`, checkedDefault.join(',') === 'newest-first,top', { checkedDefault })
 
   /* SPL-1609: pick Gmail in Settings -> Behaviour, then an email address in a
@@ -318,12 +326,11 @@ async function run(browser, base, width, touch) {
         const id = `${tagMail}-${Date.now()}`
         s.messages = [...s.messages, { v: 1, msg_id: id, task_id: `t-${id}`, ts, received_at: ts, from: 'HUM-7', from_box: 'box-wui', to: 'ALL-0', kind: 'note', body: `${tagMail} write to someone@example.com`, files: [] }]
       }, tagMail, (clock += 120e3))
-      await sleep(800)
-      return p.evaluate((tagMail) => {
+      return until(() => p.evaluate((tagMail) => {
         const row = [...document.querySelectorAll('.live-rows > article.msg')].find((r) => r.textContent.includes(tagMail))
         const a = row && [...row.querySelectorAll('a[href]')].find((el) => /someone/.test(el.textContent))
         return a ? { href: a.getAttribute('href'), target: a.getAttribute('target') || '' } : null
-      }, tagMail)
+      }, tagMail), Boolean)
     }
     await p.evaluate(() => {
       const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
@@ -348,8 +355,7 @@ async function run(browser, base, width, touch) {
     await go(p, '/settings/behaviour')
     await p.waitForSelector('[data-test=email_client-gmail]', { timeout: 10000 })
     await p.click('[data-test=email_client-gmail]')
-    await sleep(600)
-    const picked = await p.$eval('[data-test=view-pref-email_client] input[type=radio]:checked', (e) => e.value).catch(() => '')
+    const picked = await until(() => p.$eval('[data-test=view-pref-email_client] input[type=radio]:checked', (e) => e.value).catch(() => ''), (v) => v === 'gmail' && puts.some((b) => b.email_client === 'gmail'))
     check(`${tag} SPL-1609: Gmail is picked in Settings -> Behaviour and saved`, picked === 'gmail' && puts.some((b) => b.email_client === 'gmail'), { picked, puts })
     p.off('request', onReq)
     await p.setRequestInterception(false)

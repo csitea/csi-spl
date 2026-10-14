@@ -82,9 +82,14 @@ const TopBarTenant = defineAsyncComponent(() => import('@/components/TopBarTenan
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const config = useRuntimeConfig()
-const title = loginBarTitle(config.public.envName, import.meta.dev)
+/* SPL-1797: the env comes from the served /config.json, merged on the client
+   before hydration; the prerendered /login was built without it. Name it
+   only once mounted, so the first client render matches that document. */
+const mounted = ref(false)
+onMounted(() => { mounted.value = true })
+const title = computed(() => loginBarTitle(mounted.value ? config.public.envName : '', import.meta.dev))
 /* spool-dev -> dev beside the logo; prd (spool-hub) shows the logo alone */
-const envTag = title === 'spool-hub' ? '' : title.replace(/^spool-/, '')
+const envTag = computed(() => title.value === 'spool-hub' ? '' : title.value.replace(/^spool-/, ''))
 const logoOpen = ref(false)
 /* SPL-1025: signed in with a tenant named -> the tenant box; else the title */
 const session = useSessionStore()

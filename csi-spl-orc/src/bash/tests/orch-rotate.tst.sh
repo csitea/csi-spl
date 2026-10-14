@@ -310,6 +310,7 @@ grep -qx 'adopt c-900 2001' "$T/ai.log" && grep -q " SPAWN OK new pid 2001 pane 
   pass "3. T-ORCH-POKE-ROUTE: the map adopts the new pid before ACK" || fail "3. adopt: $(cat "$T/ai.log" 2>/dev/null)"
 grep -q "^spawn claude c-900 .* $D/handoff/$rid-c-900.seed.md rotate SPAWN_REUSE_ID=1 SPOOL_SESSION=\$0 SPOOL_BOX_TAG=box\$" "$T/spawn.log" &&
   grep -q "^You are the new c-900@box-desk, rotated at $rid. Read $D/handoff/$rid-c-900.md, then run" "$D/handoff/$rid-c-900.seed.md" &&
+  grep -q "The orchestrator never runs terraform itself: .* section 1.4" "$D/handoff/$rid-c-900.seed.md" &&
   pass "3. same id (SPAWN_REUSE_ID=1), same tmux session and box tag, the FR-040 rotation line" || fail "3. spawn: $(cat "$T/spawn.log")"
 grep -q "send c-900 -> c-900 result orch-rotate-$rid: ACK" "$T/send.log" && grep -q " ACK OK acked by pid 2001" "$T/o" &&
   pass "3. ack = a result in c-900/outbox on orch-rotate-<rid>" || fail "3. ack: $(cat "$T/send.log") $(cat "$T/ack.out")"

@@ -27,7 +27,7 @@ the parameter's letter. Test: `spawn-agents/tests/test-role-seat-vendor-param.sh
 
 | id | role | does | never does |
 |---|---|---|---|
-| `c-001` | orchestrator | decides; spawns, re-seats and closes agents; verifies "live" claims; runs the production operations agents' harnesses refuse (prd reads, prd desk and issue writes, deploys the owner pre-approved); in every channel (2.1), it takes a post only as section 3 says | takes a post the dispatch lease holder has taken; routes routine traffic |
+| `c-001` | orchestrator | decides; spawns, re-seats and closes agents; verifies "live" claims; runs the production operations agents' harnesses refuse (prd reads, prd desk and issue writes, deploys the owner pre-approved); in every channel (2.1), it takes a post only as section 3 says | takes a post the dispatch lease holder has taken; routes routine traffic; runs terraform jobs itself (plan, apply, reconcile: spawns a lane for them, section 1.4) |
 | `c-002` | master dispatcher | takes every new post (section 3): answers it itself and owns its topic; does the work itself when it fits its session, spawns a new lane when it is real lane work; delivers agents' owner texts to their topics after checking the claim; escalates decisions to `c-001` | runs the prd operations its harness refuses (those stay `c-001`'s); decides for the owner |
 | `c-003` | failover dispatcher | the same as `c-002`, but only while it holds the lease (section 4) | dispatches while on standby |
 | `c-NNN` | lane agents | one brief each: build, test, land, prove live, report to `c-001` | route other lanes' traffic |
@@ -110,6 +110,20 @@ The key is enforced at the lane's exit and its rate measured weekly (Q6);
 `qas` is only for a review a human asked for (Q7); the branch model is
 unchanged ([developer guide](developer-guide.md) 1.1-1.4, Q5). Commands for
 lanes: [lane issue and docs](lane-issue-and-docs.md).
+
+### 1.4 The orchestrator never runs terraform itself
+
+Owner, HUM-10, t1 topic cd592c84-45ab-49a6-927c-0864718e53b9, msg 116ab2b5-90e3-4905-9317-10397a3c4d35 (2026-10-14), verbatim:
+
+> "I don't understand why the orchestrator must run Terraform jobs. The orchestrator must spawn agents to run Terraform jobs, and then they should report to him."
+
+The orchestrator never runs a terraform plan, apply or reconcile (any `do_tf_*`,
+`make do-tf-*`, `make do-provision`, `do_spl_tenant_host_reconcile`, or another
+infra action that runs terraform) in its own session. When an infra task or an
+owner apply go comes to the orchestrator (or is placed on it), it places a
+lane (kind `complex_coding`, claude) that carries the owner's go msg id,
+re-plans, applies only the plan the owner approved, and reports back to the
+orchestrator.
 
 ## 2. Where messages come from
 

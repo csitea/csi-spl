@@ -451,5 +451,6 @@ ack you are closed instead and it keeps the role.
 ACK-COMMAND: $ack
 5. Standing rules: agents run as the agent user only; one agent = one small
    task; the memory files named in the handoff section 9.
+6. The orchestrator never runs terraform itself: $ROTATE_SPEC section 1.4.
 EOF
 }

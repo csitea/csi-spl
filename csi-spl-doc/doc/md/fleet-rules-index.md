@@ -41,6 +41,7 @@ mention is a one-line pointer.
 | refactoring rounds need no owner go: round N served -> the dispatcher requests round N+1's planner; panel and row lanes follow (owner, HUM-10 msg 3d22fcea) | 1.3 section 1.2 | the round plans `refactor-round-<N>-plan.md` (one line in their header) |
 | the dispatcher and orchestrator runbooks are qto docs (t1, System documentation / Runbooks); `runbook-dispatcher.md` and `runbook-orchestrator.md` are only their export: edit the qto doc, then `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` (owner, HUM-10 t1 ee1e58d5, msg 0512415c) | the qto docs, mapped to their md paths in `csi-spl-doc/doc/md/qto-docs.tsv` | each md file's "generated from qto doc" line |
 | tests do not run in prd by default; prd has an opt-in way to run any or all of them, operator picks which tests (owner, HUM-10 t1 cd592c84 msgs 4dfc19b5, 05d5d1b6) | 1.10 section 16 | none (the DevOps guide is its home) |
+| the orchestrator never runs terraform jobs (plan, apply, reconcile) itself: spawn a lane to run them and report back (owner, HUM-10 t1 cd592c84, msg 116ab2b5) | 1.3 section 1.4 | the orchestrator rotation brief (`spl-orch-rotate.func.sh`) |
 
 ## 3. The drift check
 

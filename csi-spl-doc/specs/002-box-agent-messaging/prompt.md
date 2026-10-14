@@ -82,7 +82,7 @@ ysg-box.** Write a fresh implementation that you own.
 9. **MCP library:** the official `github.com/modelcontextprotocol/go-sdk`
    (v1.8.0), using `mcp.StdioTransport`. Do not use `mark3labs/mcp-go`. The SDK
    requires `go 1.25.0`. Set that as the module's `go` directive from the start.
-10. **Patterns:** follow pas-psf for config (`caarlos0/env`, fail-fast),
+10. **Patterns:** follow sibling-prj for config (`caarlos0/env`, fail-fast),
     logging (`zerolog`), `internal/testkit` temp-root fixtures, and bash
     `*.tst.sh` tests (NFR-005).
 11. **Repo rules** (repo `CLAUDE.md`):
@@ -244,7 +244,7 @@ in the send result, which is always `"local"` here.
 | NFR-002 no private key in root/git/log | DRIFT | The default is fine (`config.go:64-70`), and the key is never printed or logged. A keys dir inside the root is accepted (probe above). |
 | NFR-003 disk == wire bytes | DRIFT | 003 `internal/wire/wire.go:131` uses `SetEscapeHTML(false)`; 002 `msg.Marshal` does not. |
 | NFR-004 atomic renames | VERIFIED | `spool.go:288` (`os.Rename`; the cross-filesystem fallback is outside the NFR's one-filesystem scope) |
-| NFR-005 pas-psf patterns | VERIFIED | `config.go` (caarlos0/env), `internal/logging`, `internal/testkit`, `*.tst.sh` |
+| NFR-005 sibling-prj patterns | VERIFIED | `config.go` (caarlos0/env), `internal/logging`, `internal/testkit`, `*.tst.sh` |
 | SC-006 schema unchanged | DRIFT | `files[]` carries `mode`, `kind` and `path`, which are not in `message-schema.md`. A `--file-id` attach has `name=<file_id>` and no `bytes`. |
 | canonical-json golden test | MISSING | `internal/msg/msg_test.go` has no golden-vector or escaping-vector test (003 has one in `internal/wire/wire_test.go:29`). |
 

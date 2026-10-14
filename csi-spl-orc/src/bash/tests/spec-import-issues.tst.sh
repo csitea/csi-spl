@@ -170,7 +170,7 @@ PY
 then pass "real-tree smoke"; else fail "real-tree smoke"; fi
 
 # A foreign spec tree may wrap the id in bold and lead with an [FR-nnn] tag:
-# `- [X] **T001** [FR-009] text` (pas-psf). The id must still be captured and
+# `- [X] **T001** [FR-009] text` (sibling-prj). The id must still be captured and
 # the tag dropped from the title; the Source line names that tree's doc repo.
 if python3 - <<PY
 import importlib.util
@@ -183,7 +183,7 @@ text = "\n".join([
     "- [ ] **T006** [n/a] No task here yet.",
     "- [~] **T007a** [FR-001, FR-012] Half-built work in flight.",
 ])
-items = {i.tid: i for i in mod.parse_tasks(text, "007", "pas-psf-doc/specs/007-x/tasks.md")}
+items = {i.tid: i for i in mod.parse_tasks(text, "007", "sibling-prj-doc/specs/007-x/tasks.md")}
 ok = True
 for tid, status, has in (("T001", "done", "Fork the runner"), ("T006", "eval", "No task"), ("T007a", "wip", "Half-built work")):
     it = items.get(tid)
@@ -243,7 +243,7 @@ plan = {"specs": [
 ], "items": [
     {"spec": "001", "dir": "001-alpha", "id": "T001", "key": "001-alpha/T001", "kind": "task",
      "status": "done", "title": "[001 T001] a task", "labels": ["task", "security"],
-     "description": "x\n\nSource: pas-psf-doc/specs/001-alpha/tasks.md", "parent_id": ""},
+     "description": "x\n\nSource: sibling-prj-doc/specs/001-alpha/tasks.md", "parent_id": ""},
 ]}
 # only spec 001 has an epic; 002 is missing
 listed = {"result": {"epics": [{"key": "SPL-9", "title": "Spec 001 - Alpha feature"}],

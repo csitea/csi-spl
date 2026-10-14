@@ -679,7 +679,7 @@ spl_disp_live_workspaces() {
 }
 
 # The brief's workspace list replaced by the live one: the brief is rendered
-# once by do_spl_dispatch_setup, so a desk pinned since then (sienna,
+# once by do_spl_dispatch_setup, so a desk pinned since then (ws-b,
 # 2026-10-10) was missing from every rotation's seed.
 spl_disp_seed_workspaces() {
   local ws; ws="$(spl_disp_live_workspaces)"

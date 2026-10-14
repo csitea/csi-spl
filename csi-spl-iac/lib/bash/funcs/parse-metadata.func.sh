@@ -108,4 +108,4 @@ do_has_metadata() {
   count=$(do_parse_metadata "$file_path" "description" | grep -c "^description=") || count=0
   [[ $count -gt 0 ]]
 }
-# csi-spl ::: copied from pas-psf-utl
+# csi-spl ::: copied from sibling-prj-utl

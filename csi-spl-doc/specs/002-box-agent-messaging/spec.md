@@ -220,7 +220,7 @@ so MCP is additive and lower priority than a working CLI.
   put on the wire, so no migration is needed when the hub arrives.
 - **NFR-004**: All file moves that convey delivery (ack) MUST be atomic renames
   within one filesystem.
-- **NFR-005**: Go configuration, structured logging, test harness (`internal/testkit`), and shell function utilities (`run-bsh` conventions, `src/bash/`) MUST refer to and follow the patterns in `/opt/pas/pas-psf/pas-psf-api` (`src/internal/config/config.go`, `src/internal/logging/logging.go`, `src/internal/testkit/`, and `src/bash/`).
+- **NFR-005**: Go configuration, structured logging, test harness (`internal/testkit`), and shell function utilities (`run-bsh` conventions, `src/bash/`) MUST refer to and follow the patterns in `/opt/<org>/<sibling-prj>/sibling-prj-api` (`src/internal/config/config.go`, `src/internal/logging/logging.go`, `src/internal/testkit/`, and `src/bash/`).
 
 ### Key Entities
 

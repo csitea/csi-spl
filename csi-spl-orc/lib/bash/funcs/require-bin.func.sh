@@ -60,4 +60,4 @@ do_require_bin() {
     return 11
   fi
 }
-# csi-spl ::: copied from pas-psf-utl
+# csi-spl ::: copied from sibling-prj-utl

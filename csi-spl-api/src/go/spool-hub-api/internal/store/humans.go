@@ -283,7 +283,7 @@ type Invite struct {
 }
 
 // ProvisionInput seats a member by email for a person who has NEVER signed in
-// (CLE-77781, owner niba-consult: "added, not invited"). The operator asserts
+// (CLE-77781, owner ws-c: "added, not invited"). The operator asserts
 // the address; the person still proves they own it at their first real sign-in
 // (a provider-verified email, or the native password below), which LINKS to the
 // human this seats rather than minting a second one.

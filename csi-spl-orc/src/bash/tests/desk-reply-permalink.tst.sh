@@ -24,7 +24,7 @@ mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00" "$T/state/dev/desk/csitea/
   "$T/state/dev/desk/w9/box-desk/spool/CLE-00"
 # cnf <tenant hosts on?>: the merged cnf the resolver reads (prd's shape)
 cnf() {
-  printf 'env:\n  dns:\n    mapped_tenants: [leiden, csitea]\n  steps:\n    019-firebase-static-site:\n      wui_default_tenant: "t1"\n      wui_tenant_hosts: %s\n' "$1" >"$T/cnf.yaml"
+  printf 'env:\n  dns:\n    mapped_tenants: [ws-a, csitea]\n  steps:\n    019-firebase-static-site:\n      wui_default_tenant: "t1"\n      wui_tenant_hosts: %s\n' "$1" >"$T/cnf.yaml"
 }
 
 # send <wui base for the cnf stub> [VAR=val ...] -> output in $T/o, rc in $rc

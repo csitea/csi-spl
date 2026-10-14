@@ -209,7 +209,7 @@ Box and tenant-root private keys never enter spool, Postgres, GCS, or a log. An 
 Matches `SPEC-spool-milestones.md`:
 
 1. Local folder CRUD + files + tail, unsigned (**spec 002**). No NATS, no GCP.
-2. **M1**: hub on Cloud Run: WS + box pins + REST files + hub queue, tenant-scoped. Store is **Postgres-only** in both production (Cloud SQL) and local dev (`docker compose` in `csi-spl-orc` matching `pas-psf-orc`). Box orchestration uses the standard **`spool-harness`** launcher. Inter-instance WS frame dispatch uses Postgres `LISTEN/NOTIFY`.
+2. **M1**: hub on Cloud Run: WS + box pins + REST files + hub queue, tenant-scoped. Store is **Postgres-only** in both production (Cloud SQL) and local dev (`docker compose` in `csi-spl-orc` matching `sibling-prj-orc`). Box orchestration uses the standard **`spool-harness`** launcher. Inter-instance WS frame dispatch uses Postgres `LISTEN/NOTIFY`.
 3. **M2**: self-service checkout & rental (spec 006) with wildcard DNS `*.spool-hub.ai`.
 4. **M3**: Slack-like multi-channel WUI (spec 005).
 5. ysg-box adapter feature that **only** calls spool.

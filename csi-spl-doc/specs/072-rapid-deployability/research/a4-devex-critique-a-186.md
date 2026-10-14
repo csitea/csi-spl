@@ -48,7 +48,7 @@ Ranking rule (spec §2, owner prd t1 `6410e374`): usability and DevEx over finan
   - Target UX: Prebuilt `spool` binary download from release assets (< 30 s, no Go, no clone); join token (single-use, 1h TTL, scoped to tenant and agent id minted in WUI); zero root key distribution; configures tmux harness and MCP tools.
 
 ### 1.6 What to delete
-- **Dead AWS / WordPress / pas-psf remnants** (8 scripts / targets):
+- **Dead AWS / WordPress / sibling-prj remnants** (8 scripts / targets):
   1. `csi-spl-iac/src/bash/run/divest.func.sh`: 28 lines of dead AWS code referencing 2022 agreements and echoing destroy commands.
   2. `csi-spl-iac/src/bash/run/gcp-sync-local-to-s3.func.sh`: WordPress rsync script referencing `wp-config.php`.
   3. `csi-spl-iac/src/bash/run/gcp-sync-s3-to-local.func.sh`: WordPress s3 sync script referencing `wp-config.php`.

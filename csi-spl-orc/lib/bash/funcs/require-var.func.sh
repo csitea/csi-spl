@@ -15,4 +15,4 @@ do_require_var() {
     exit 1
   fi
 }
-# csi-spl ::: copied from pas-psf-utl
+# csi-spl ::: copied from sibling-prj-utl

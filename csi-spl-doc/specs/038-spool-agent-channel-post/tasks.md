@@ -54,7 +54,7 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       "added to #<ch>: 3 earlier messages in 3 topics, newest from PRB-9871";
       the re-invite added nothing. Desk sidecars: dev t1 and prd t1 restarted
       on the rebuilt binary by the reconcile cron (12:00 / 12:02 EEST); the
-      prd csi-rel / leiden / csitea desk sidecars still run the pre-SPL-987
+      prd csi-rel / ws-a / csitea desk sidecars still run the pre-SPL-987
       binary, so seats on them stay owed until those restart (FR-024).
 
 ## SPL-997 fallback responder (FR-030..FR-038)

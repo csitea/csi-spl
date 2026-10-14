@@ -3,7 +3,7 @@
 # @description Snapshot every Cloud DNS managed zone (and each zone's
 # @description record-sets) to JSON, per cloud env, for backup / drift review.
 # @description
-# @description Morph of pas-psf-orc / csi-rel-orc do_export_all_dns_settings
+# @description Morph of sibling-prj-orc / csi-rel-orc do_export_all_dns_settings
 # @description (spec 033). The donor pinned identity by writing the shared
 # @description gcloud config and a JSON key on disk — both are forbidden here.
 # @description Every gcloud call passes --account and --project. Projects come

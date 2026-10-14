@@ -38,8 +38,8 @@ check. **Remaining**: none for 002.
 
 ## Phase 2: Foundational (blocking — shared by every story)
 
-- [x] T004a [P] `internal/config`: fail-fast loader (`caarlos0/env`) for `$SPOOL_ROOT`, `$SPOOL_KEYS_DIR`, `$SPOOL_PINS_DIR`, log level (`pas-psf` pattern)
-- [x] T004b [P] `internal/logging`: `zerolog` structured logger, console/JSON, service tag, RFC3339 (`pas-psf` pattern)
+- [x] T004a [P] `internal/config`: fail-fast loader (`caarlos0/env`) for `$SPOOL_ROOT`, `$SPOOL_KEYS_DIR`, `$SPOOL_PINS_DIR`, log level (`sibling-prj` pattern)
+- [x] T004b [P] `internal/logging`: `zerolog` structured logger, console/JSON, service tag, RFC3339 (`sibling-prj` pattern)
 - [x] T004c [P] `internal/testkit`: temp spool root fixtures + keygen/pin helper (no import cycle)
 - [x] T004 [P] `internal/spool`: `$SPOOL_ROOT` layout `<id>/{inbox,outbox,archive}` + shared `files/`/`pins/`, mode 0664; atomic-rename helper
 - [x] T005 [P] `internal/msg`: `v:1` struct, strict JSON, canonicaliser == `jq -cS 'del(.sig)'`, filename builder with same-second tie-break, schema limits

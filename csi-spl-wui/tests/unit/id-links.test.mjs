@@ -245,7 +245,7 @@ describe('type:id links (SPL-1693, owner t1 ae38a1a6)', () => {
     apexTenant: 't1',
     labels: { topic: 'Topic', 'channel-message': 'Channel message', 'direct-message': 'direct message', archived: 'Archived' },
     topics: [{ task_id: OTHER, channel: 'lobby' }],
-    messages: [channelMsg, { ...dmRoot, tenant_id: 'leiden' }],
+    messages: [channelMsg, { ...dmRoot, tenant_id: 'ws-a' }],
   })
 
   it('msg:<uuid> opens the message on its workspace host: the apex for t1', () => {
@@ -268,7 +268,7 @@ describe('type:id links (SPL-1693, owner t1 ae38a1a6)', () => {
 
   it('a row that names its workspace wins over the page one', () => {
     assert.deepEqual(linkifyText(`msg:${DM_MSG}`, ws('csitea')), [
-      link(`msg:${DM_MSG}`, `https://leiden.spool-hub.example/dm/GRK-03%40box-a?topic=${DM_TOPIC}#${DM_MSG}`),
+      link(`msg:${DM_MSG}`, `https://ws-a.spool-hub.example/dm/GRK-03%40box-a?topic=${DM_TOPIC}#${DM_MSG}`),
     ])
   })
 

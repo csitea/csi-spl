@@ -34,7 +34,7 @@
 # @description key under the new tenant (do_spl_cloud_pin_box_wui, signed with
 # @description the root key while it is still in hand). Without that pin every
 # @description browser post is stored unsigned and no agent receives it (prd
-# @description csitea, leiden, pas-psf and four more, found 2026-10-01,
+# @description csitea, ws-a, sibling-prj and four more, found 2026-10-01,
 # @description CLE-77876). Exit 4 = created, box-wui not pinned.
 # @param TENANT_PIN_WUI (optional) - 1 (default): pin box-wui; 0: skip it
 # @example TENANT_ID=acme ./run -a do_spl_tenant_create --json

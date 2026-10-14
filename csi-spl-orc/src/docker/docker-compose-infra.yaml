@@ -1,5 +1,5 @@
 # csi-spl lde ::: shared network + the GCS emulator (spec 007 T001; the
-# pas-psf-orc compose split: -infra / -rdb / -api). Every ${LDE_*} comes from
+# sibling-prj-orc compose split: -infra / -rdb / -api). Every ${LDE_*} comes from
 # the compose.env do_gen_docker_env renders from csi-spl-cnf lde.env.yaml; the
 # project name (-p) is per git tree, so volumes and containers are too.
 #

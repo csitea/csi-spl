@@ -17,7 +17,7 @@ mock-only, until their gaps (spec §5) close.
 ## Technical context
 
 - **Stack**: Nuxt 3 (`^3.16`), Vue 3, TypeScript strict, Pinia, pnpm 9 — the
-  pas-psf / csi-rel WUI shape (read-only reference).
+  sibling-prj / csi-rel WUI shape (read-only reference).
 - **Build / host**: `nuxt generate` → Firebase Hosting site `csi-spl-<env>-site`
   (007 step `019`, `site_id` validated in its `variables.tf`), deploy SA from step
   `016`; hub on Cloud Run (007 step `030`). Terraform and DNS belong to 007.
@@ -44,7 +44,7 @@ mock-only, until their gaps (spec §5) close.
 - No key in git / state / log / browser: only UI preferences are stored (spec FR-003 list). ✔
 - Uniform API, no invented fields: ✔ — `channel` / `parent_task_id` are hub-envelope
   fields (003 `channels-v1.md`, OQ-W1).
-- Reference read-only (pas-psf / csi-rel copied, not imported). ✔
+- Reference read-only (sibling-prj / csi-rel copied, not imported). ✔
 
 ## Order of work
 

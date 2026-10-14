@@ -183,7 +183,7 @@ func (s *Server) docsCaller(w http.ResponseWriter, r *http.Request, perm string)
 
 // docsUnavailable logs why a workspace's docs store failed (the workspace,
 // its bucket, the operation and the store's error; never the caller's
-// session or token) and answers 503. sienna's Docs answered 503 with nothing
+// session or token) and answers 503. ws-b's Docs answered 503 with nothing
 // in the log: its bucket did not exist.
 func (s *Server) docsUnavailable(w http.ResponseWriter, tenant, op string, err error) {
 	loc, _ := s.o.WorkspaceDocs.Location(tenant)

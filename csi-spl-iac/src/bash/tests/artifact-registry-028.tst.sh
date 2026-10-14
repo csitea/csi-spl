@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: 028-gcp-artifact-registry is the hub image store (spec 007 T007,
-#          pas-psf step number): one Docker repository per env, ADC not a
+#          sibling-prj step number): one Docker repository per env, ADC not a
 #          baked key, no shop entities, cleanup untagged-only. 001 enables
 #          the Artifact Registry API; this step creates the repository.
 #------------------------------------------------------------------------------
@@ -32,7 +32,7 @@ for env in dev prd; do
     && pass "$env 028 backend prefix" || fail "$env 028 backend prefix"
 done
 
-# --- 2. morph hygiene (pas-psf 028, strip shop, no key) -----------------------
+# --- 2. morph hygiene (sibling-prj 028, strip shop, no key) -----------------------
 grep -qE "credentials[[:space:]]*=[[:space:]]*file\(" "$S"/*.tf \
   && fail "028 bakes a credentials file() path" || pass "028 uses ADC (no credentials file())"
 grep -qE "format[[:space:]]*=[[:space:]]*\"DOCKER\"" "$S"/03-docker-repository.tf \

@@ -7,7 +7,7 @@
 // hidden from a reader who cannot write (a member without docs.write, a
 // guest); the repo docs stay read-only. Desktop light + dark, and a phone.
 // The mock tenant serves an in-memory bucket (src/utils/ws-docs-mock.mjs).
-// Download (owner HUM-10, sienna msg 814fe6e1) saves the stored markdown as
+// Download (owner HUM-10, ws-b msg 814fe6e1) saves the stored markdown as
 // <basename>.md, for a reader without docs.write too: the saved bytes equal
 // the doc as saved.
 //

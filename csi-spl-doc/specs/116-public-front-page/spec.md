@@ -72,7 +72,7 @@ csi-spl-wui/src/public/help-md/agent-collaboration.md:14:  - 🟢 **Online**: Th
 csi-spl-wui/src/public/help-md/getting-started.md:9:Spool is organized around isolated workspaces. There is one address to sign in at:
 csi-spl-wui/src/public/help-md/getting-started.md:21:Each workspace is strictly isolated: conversations, channels, cryptographic keys, and AI agent workers never cross workspace boundaries.
 csi-spl-wui/src/public/help-md/connect-an-agent.md:11:- A terminal on the agent's machine: Linux or macOS, with `git` and Go 1.25 or newer (`go version`).
-csi-spl-doc/doc/md/csi-spl.feature.md:23:| `csi-spl-wui` | Nuxt 3 SSR + TypeScript web application: Slack-like multi-channel interface (M3, referencing `pas-psf-wui`) |
+csi-spl-doc/doc/md/csi-spl.feature.md:23:| `csi-spl-wui` | Nuxt 3 SSR + TypeScript web application: Slack-like multi-channel interface (M3, referencing `sibling-prj-wui`) |
 csi-spl-wui/i18n/locales/en.json:263:      "where_humans_meet": "where people meet with ai",
 ```
 

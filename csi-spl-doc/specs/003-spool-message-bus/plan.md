@@ -13,9 +13,9 @@ Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API
 
 **Language/Version**: Go 1.25 (`grep '^go ' csi-spl-api/src/go/spool-hub-api/go.mod` -> `go 1.25.0`; same module as 002: `csi-spl-api/src/go/spool-hub-api`).
 
-**Primary Dependencies**: 002 internal packages (`msg` for the inner object and canonical JSON, `sign` for Ed25519); HTTP server harness on `net/http` (pas-psf lifecycle pattern; Fiber dropped because the WebSocket library `github.com/coder/websocket` is `net/http`-native); structured logging (`github.com/rs/zerolog`); Postgres (`pgx/v5`); GCS client. No notify client in M1.
+**Primary Dependencies**: 002 internal packages (`msg` for the inner object and canonical JSON, `sign` for Ed25519); HTTP server harness on `net/http` (sibling-prj lifecycle pattern; Fiber dropped because the WebSocket library `github.com/coder/websocket` is `net/http`-native); structured logging (`github.com/rs/zerolog`); Postgres (`pgx/v5`); GCS client. No notify client in M1.
 
-**Server Harness & Logging**: Derived from the `pas-psf` Go architecture (read-only reference):
+**Server Harness & Logging**: Derived from the `sibling-prj` Go architecture (read-only reference):
 - `config.Load()`: typed, fail-fast configuration from environment variables.
 - `logging.New(cfg)`: root `zerolog.Logger`, RFC3339 timestamps, standard fields (`service: spool-hub-api`, `env`, `version`), JSON in cloud and console in dev/CLI.
 - Server lifecycle: `runUntilShutdown` catching `SIGINT`/`SIGTERM`, graceful drain within `API_GRACEFUL_SHUTDOWN_SECONDS` (which must also close WS sockets cleanly), clean shutdown or fatal exit.
@@ -24,12 +24,12 @@ Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API
 **Storage**: Postgres only (tenants, boxes, pins, roster, messages, deliveries; `data-model.md`; DDL in `csi-spl-rdb/src/sql/postgres/spool-hub/`, applied by `spool migrate`); GCS one bucket `t/<tenant>/files/<sha256>`; local `$SPOOL_ROOT` on the box; **nothing** on container disk.
 
 **Testing & Test Harness**:
-- `go test ./...` with `internal/testkit` (pas-psf pattern: `testkit.NewApp(t)` builds an in-memory app, `testkit.AssertEnvelopeError`). 002 already created `internal/testkit`; 003 extends it and does not fork it.
+- `go test ./...` with `internal/testkit` (sibling-prj pattern: `testkit.NewApp(t)` builds an in-memory app, `testkit.AssertEnvelopeError`). 002 already created `internal/testkit`; 003 extends it and does not fork it.
 - Contract tests against `contracts/http-v1.md` with golden frames under `internal/hub/testdata/`. Golden vectors for the envelope and hello signing payloads (OQ-03).
 - Two-box tests: two temp `$SPOOL_ROOT`s, two box keys, tested against local Postgres test DB (docker compose).
 - Shell tests under `csi-spl-api/src/bash/tests/` (run by `run-all-tests.sh`).
 
-**Local Dev Setup (`lde`) Reference** (modelled on `pas-psf`):
+**Local Dev Setup (`lde`) Reference** (modelled on `sibling-prj`):
 - **Terraform (`csi-spl-iac`)**: containerised runner or host `./run` actions (`do_tf_init`, `do_tf_validate`, `do_tf_plan`) rendering tfvars via `tpl-gen` from `csi-spl-cnf`. No apply action (repo rule).
 - **Backend (`csi-spl-api`)**: local Postgres test DB (container), fail-fast `.env`, `go run ./cmd/spool hub` (or `cmd/hub`, see Structure Decision).
 - **Frontend**: none in this feature. The WUI (spec 005, M3) consumes `contracts/view-v1.md`.
@@ -50,7 +50,7 @@ Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API
 - [x] **VII. No key in git/state/log**: box and tenant-root private keys never reach the hub; signed URLs not logged; the WS hello `sig` is not a secret but no private material is logged.
 - [x] **VIII. Uniform API**: no per-kind routes, frames or fields. OQ-01 resolved: `--to-box` / `delivery` are an additive, allowed change.
 - [x] **V. Hygiene**: placeholders in examples (`<DEV_BOX>`, `FirstName LastName`, `box-a`).
-- [x] **Reference read-only**: no ysg-box imports; pas-psf patterns are copied, never imported.
+- [x] **Reference read-only**: no ysg-box imports; sibling-prj patterns are copied, never imported.
 
 Checked against the implemented M1 hub: T029 hygiene test, CI `distribution-hygiene` sweep, `no-ysg-box-ref.tst.sh`. US7 adds two cnf keys (`hub.view_cors_origins`, `hub.view_token_max_ttl`) and must keep all seven boxes ticked.
 
@@ -87,7 +87,7 @@ csi-spl-api/src/go/spool-hub-api/   # same module as 002
 
 csi-spl-rdb/src/sql/postgres/spool-hub/   # NEW: ordered forward-only DDL (`spool migrate`)
 
-csi-spl-api/src/bash/              # shell tests and utils (pas-psf pattern)
+csi-spl-api/src/bash/              # shell tests and utils (sibling-prj pattern)
 csi-spl-iac/                        # Cloud Run, Cloud SQL, GCS: apply only with the owner's go
 ```
 

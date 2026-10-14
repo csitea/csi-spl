@@ -96,7 +96,7 @@ describe('placement (t1 199cafc7: the owner could not find Edit / New doc)', () 
   })
 })
 
-describe('Download (owner HUM-10, sienna msg 814fe6e1: "download the specifications")', () => {
+describe('Download (owner HUM-10, ws-b msg 814fe6e1: "download the specifications")', () => {
   it('saves <basename>.md', () => {
     assert.equal(wsDocFileName('specs/round-6/spec.md'), 'spec.md')
     assert.equal(wsDocFileName('welcome.md'), 'welcome.md')

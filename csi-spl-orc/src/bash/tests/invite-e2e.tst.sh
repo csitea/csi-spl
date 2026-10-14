@@ -153,7 +153,7 @@ run_wrap() {
     do_spl_invite_e2e' in_orc SPL_TENANTS_DIR="$T/no-tenants" SPOOL_ROOT="$T/spool" "$@" >"$T/wrap.out" 2>&1
 }
 mkdir -p "$T/spool/dispatch"; printf '# test workspaces\nw12live1  # a listed one\n' >"$T/spool/dispatch/test-workspaces"
-for t in t1 leiden e2ex ''; do
+for t in t1 ws-a e2ex ''; do
   run_wrap ENV=prd TENANT_ID="$t"; rc=$?
   [[ $rc != 0 && ! -s "$T/calls.log" ]] && grep -q "only in a test workspace" "$T/wrap.out" \
     && pass "4. prd TENANT_ID='$t' refused before any call" || fail "4. prd $t: rc=$rc $(cat "$T/wrap.out" "$T/calls.log")"

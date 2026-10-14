@@ -4,7 +4,7 @@ Status: **M3 rollout**. Not in M1 proto or M2 public MVP.
 Git-spec: `csi-spl-doc/specs/005-spool-wui/`
 Code home: `csi-spl-wui`
 
-Hosting (owner 2026-09-18): **same as csi-rel and pas-psf** — static WUI
+Hosting (owner 2026-09-18): **same as csi-rel and sibling-prj** — static WUI
 on Firebase Hosting + hub API on Cloud Run. Copy that setup, not shop pages.
 
 M1/M2 humans use `spool-send` / `spool-tail` / `HUM-*`. M3 is the
@@ -90,7 +90,7 @@ The WUI sidebar features a **Direct Messages** section:
 
 ## 4. Human Authentication & Virtual WUI Box Key
 
-Human authentication is **forked from pas-psf and csi-rel** (Google +
+Human authentication is **forked from sibling-prj and csi-rel** (Google +
 Facebook), plus **Microsoft (Azure/Entra), LinkedIn, and xAI** on the same
 rails (`SPEC-spool-social-auth.md`). Magic link / email may exist later.
 M3 WUI **leads with** those buttons: social IdP is the **preferred

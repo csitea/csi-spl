@@ -1,6 +1,6 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Per-workspace END-TO-END delivery probe (gap M4 of the sienna
+# @description Per-workspace END-TO-END delivery probe (gap M4 of the ws-b
 # @description miss, RCA m/9f554415): in EVERY non-test workspace with a live
 # @description desk on this machine, a probe human DMs the dispatcher in a
 # @description hidden probe topic (one fixed topic per env, workspace and box;
@@ -11,7 +11,7 @@
 # @description               archive), its notices log holds it and the seat
 # @description               is not muted: the dispatcher was TOLD
 # @description   muted     - it arrived, and the seat has .no-poke or its
-# @description               sidecar runs SPOOL_POKE=0 (the sienna case: a
+# @description               sidecar runs SPOOL_POKE=0 (the ws-b case: a
 # @description               desk that receives and never tells)
 # @description   unnoticed - it arrived, and no notice was written
 # @description   missed    - it never arrived in time

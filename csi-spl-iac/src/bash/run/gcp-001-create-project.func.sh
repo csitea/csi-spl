@@ -4,7 +4,7 @@
 # @description Create the env's GCP project (cnf env.gcp.gcp_project) and link its billing account.
 # @description Idempotent, and a DRY RUN unless DRY_RUN=0.
 # @description
-# @description Adapted from pas-psf-iac gcp-001-create-project.func.sh, keeping
+# @description Adapted from sibling-prj-iac gcp-001-create-project.func.sh, keeping
 # @description its safety property and dropping everything the spool does not
 # @description need:
 # @description   1. A pre-flight proves GCP_ACCOUNT can mint an access token
@@ -15,7 +15,7 @@
 # @description      tell" aborts, so a dead or refused credential is never read
 # @description      as "the project does not exist".
 # @description   3. EVERY gcloud call carries --account (or runs under the
-# @description      caller's CLOUDSDK_CONFIG). Unlike pas-psf, nothing is written
+# @description      caller's CLOUDSDK_CONFIG). Unlike sibling-prj, nothing is written
 # @description      to the shared gcloud config: no `config set account`, no
 # @description      `config set project`, no interactive login.
 # @description Who runs it and where the project goes come from cnf env.gcp

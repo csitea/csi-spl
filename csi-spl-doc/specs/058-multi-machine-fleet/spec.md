@@ -317,7 +317,7 @@ Lessons of the home box's `box-desk` -> `<box>` window (2026-10-02, dev first):
 
 Between `drain` and `seat` an agent is on no roster for seconds. A box send to it is refused loudly, not queued and lost. After `retire`, a DM from an old `<ID>@box-desk` page is refused (`unpinned_box`); the DM list shows the `<ID>@<new box>` peers.
 
-Desks on the home box today (2026-10-02, `<state>/desk/<tenant>/box-desk`): dev `t1`, `w12live1`; prd `t1`, `csi-rel`, `csitea`, `e2e`, `leiden`, `niba-consult`, `pas-psf`. The other boxes there (`box-rsp`, `box-ci`, `box-lat`, `box-mirror`) are not `box-desk` and are not touched.
+Desks on the home box today (2026-10-02, `<state>/desk/<tenant>/box-desk`): dev `t1`, `w12live1`; prd `t1`, `csi-rel`, `csitea`, `e2e`, `ws-a`, `ws-c`, `sibling-prj`. The other boxes there (`box-rsp`, `box-ci`, `box-lat`, `box-mirror`) are not `box-desk` and are not touched.
 
 Outside this lane, for the window: `dispatch/lease.conf` names `LEASE_MACHINE` / `LEASE_DESK_BOX` / `LEASE_PRIORITY` with `box-desk` (CLE-77911's file), and the dispatcher seats come over through `copy`.
 

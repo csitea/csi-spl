@@ -9,7 +9,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 )
 
-// CLE-77781 (owner niba-consult): an operator seats a member by email for a
+// CLE-77781 (owner ws-c): an operator seats a member by email for a
 // person who has NEVER signed in ("added, not invited"). ProvisionMember must
 // list them at once, accept a pending invite, and — the point — make a later
 // real sign-in with the same verified address LINK to the SAME human, not mint

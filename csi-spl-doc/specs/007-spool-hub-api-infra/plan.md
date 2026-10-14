@@ -25,7 +25,7 @@ in spec §7.
   rendered `<env>/tf/*.tfvars`), `csi-spl-orc` (lde, `make do-tf-plan` /
   `do-provision` via tf-runner, image build, DB bootstrap, DNS ops),
   `csi-spl-rdb` (spool DDL), `csi-spl-api` (Go hub).
-- **References, read-only**: `csi-rel-{iac,orc,cnf}`, `pas-psf-{iac,orc,cnf}`.
+- **References, read-only**: `csi-rel-{iac,orc,cnf}`, `sibling-prj-{iac,orc,cnf}`.
 - **Terraform** pinned `1.9.8` (`env.versions.terraform_version`), provider
   `google ~> 6.0`, GCS backend per env.
 - **Region** `europe-north1`; projects `csi-spl-dev`, `csi-spl-prd`.

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_spl_workspace_delivery_probe (gap M4 of the sienna miss) over a
+# Purpose: do_spl_workspace_delivery_probe (gap M4 of the ws-b miss) over a
 #          scratch desk tree, a fake poster and a fake spool sender; and
 #          do_spl_workspace_delivery_probe_install_cron over a fake crontab.
 #          No hub, no spool binary, no real crontab is touched.
 #   1. dry run: one PLAN line per live desk workspace, the test workspace
 #      (e2e) left out, a workspace with no probe login named unprobed;
 #      nothing posted, sent or written
-#   2. RED CONTROL, the sienna case: the sienna dispatcher seat is muted
+#   2. RED CONTROL, the ws-b case: the ws-b dispatcher seat is muted
 #      (.no-poke) and still receives -> verdict muted, ONE blocker ask to the
 #      orchestrator and ONE #alerts post in t1, exit 1; t1 itself is ok
 #   3. an unchanged red is not re-alerted; a red older than PROBE_REALERT is
@@ -42,8 +42,8 @@ printf 'LEASE_MASTER=c-002\nLEASE_FAILOVER=c-003\nLEASE_ORCH=c-001\nLEASE_TENANT
 seat() { mkdir -p "$D/$1/sat/spool/$2/inbox" "$D/$1/sat/spool/$2/archive" "$D/$1/sat/spool/$2/.pokes" "$D/$1/sat/spool/.hub"; touch "$D/$1/sat/spool/.hub/alive"; }
 dead() { rm -f "$D/$1/sat/spool/.hub/alive"; }
 login() { mkdir -p "$L/$1"; echo "probe-$1@example.com" >"$L/$1/human-email"; echo pw >"$L/$1/pw-human"; }
-for w in t1 sienna e2e; do seat "$w" c-002; seat "$w" c-003; login "$w"; done
-seat leiden c-002
+for w in t1 ws-b e2e; do seat "$w" c-002; seat "$w" c-003; login "$w"; done
+seat ws-a c-002
 
 # the fake poster: logs "POST <tenant> to=<to> ch=<ch>"; per tenant $T/mode.<t>
 # deliver (default) | nodeliver | nonotice | fail
@@ -90,37 +90,37 @@ alerts() { grep -c '^POST t1 to= ch=alerts$' "$T/posts" 2>/dev/null || echo 0; }
 row() { grep -E "^\| $1 \| $2 \|" "$T/o" >/dev/null; }
 
 # --- 1. dry run ----------------------------------------------------------------------
-rm -rf "$L/leiden"
+rm -rf "$L/ws-a"
 probe >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && grep -q '^PLAN t1: DM c-002 in topic [0-9a-f-]\{36\}, check 1 seat dir(s)' "$T/o" &&
-  grep -q '^PLAN leiden: unprobed' "$T/o" && grep -q '^PLAN sienna: DM c-002' "$T/o" && ! grep -q '^PLAN e2e' "$T/o" &&
+  grep -q '^PLAN ws-a: unprobed' "$T/o" && grep -q '^PLAN ws-b: DM c-002' "$T/o" && ! grep -q '^PLAN e2e' "$T/o" &&
   [[ ! -e "$T/posts" && ! -e "$T/sent" && ! -e "$S/dispatch/delivery-probe.state" ]] &&
   pass "1. dry run: a plan per live desk workspace, e2e out, nothing posted or written" || fail "1. dry: rc=$rc $(cat "$T/o")"
-rm -rf "$D/leiden"
+rm -rf "$D/ws-a"
 
-# --- 2. RED CONTROL: the sienna seat is muted ------------------------------------------
-touch "$D/sienna/sat/spool/c-002/.no-poke"
+# --- 2. RED CONTROL: the ws-b seat is muted ------------------------------------------
+touch "$D/ws-b/sat/spool/c-002/.no-poke"
 probe DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -ne 0 ]] && row sienna muted && row t1 ok && [[ "$(asks)" == 1 && "$(alerts)" == 1 ]] &&
-  grep -q '^| sienna | muted |$' "$T/sent" && ! grep -q '^| t1 |' "$T/sent" &&
-  pass "2. a muted dispatcher seat in sienna: verdict muted, one ask to c-001, one t1 #alerts post, exit 1" ||
+[[ $rc -ne 0 ]] && row ws-b muted && row t1 ok && [[ "$(asks)" == 1 && "$(alerts)" == 1 ]] &&
+  grep -q '^| ws-b | muted |$' "$T/sent" && ! grep -q '^| t1 |' "$T/sent" &&
+  pass "2. a muted dispatcher seat in ws-b: verdict muted, one ask to c-001, one t1 #alerts post, exit 1" ||
   fail "2. red: rc=$rc asks=$(asks) alerts=$(alerts) $(cat "$T/o")"
 
 # --- 3. no re-alert while unchanged; re-alert after PROBE_REALERT -----------------------
 probe DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -ne 0 && "$(asks)" == 1 && "$(alerts)" == 1 ]] && row sienna muted &&
+[[ $rc -ne 0 && "$(asks)" == 1 && "$(alerts)" == 1 ]] && row ws-b muted &&
   pass "3. an unchanged red is not re-alerted" || fail "3. dedup: rc=$rc asks=$(asks) $(cat "$T/o")"
-sed -i 's/^\(sienna\tmuted\t\).*/\11000/' "$S/dispatch/delivery-probe.state"
+sed -i 's/^\(ws-b\tmuted\t\).*/\11000/' "$S/dispatch/delivery-probe.state"
 probe DRY_RUN=0 >"$T/o" 2>&1
 [[ "$(asks)" == 2 && "$(alerts)" == 2 ]] && pass "3. a red older than PROBE_REALERT is alerted again" || fail "3. realert: asks=$(asks) $(cat "$S/dispatch/delivery-probe.state")"
 
 # --- 4. control: un-muted -> ok, silent; acks for the sweep ------------------------------
-rm -f "$D/sienna/sat/spool/c-002/.no-poke"
+rm -f "$D/ws-b/sat/spool/c-002/.no-poke"
 probe DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && "$(asks)" == 2 ]] && row sienna ok && row t1 ok &&
+[[ $rc -eq 0 && "$(asks)" == 2 ]] && row ws-b ok && row t1 ok &&
   pass "4. control: every seat told -> ok, no alert, exit 0" || fail "4. control: rc=$rc asks=$(asks) $(cat "$T/o")"
-topic="$(grep -oE '^\| sienna \| ok \| [0-9a-f]{8} \| [0-9a-f]{8}' "$T/o" | awk '{print $NF}')"
-[[ -n "$topic" ]] && grep -q $'\t'"$topic"'[0-9a-f-]*'$'\tc-002\tdelivery probe (sienna, ok)$' "$S/dispatch/unanswered.acks" &&
+topic="$(grep -oE '^\| ws-b \| ok \| [0-9a-f]{8} \| [0-9a-f]{8}' "$T/o" | awk '{print $NF}')"
+[[ -n "$topic" ]] && grep -q $'\t'"$topic"'[0-9a-f-]*'$'\tc-002\tdelivery probe (ws-b, ok)$' "$S/dispatch/unanswered.acks" &&
   pass "4. the probe topic is acked for the unanswered sweep" || fail "4. ack: topic=$topic $(cat "$S/dispatch/unanswered.acks" 2>&1 | tail -3)"
 probe DRY_RUN=0 >"$T/o" 2>&1
 t1a="$(grep -oE '^\| t1 \| ok \| [0-9a-f]{8} \| [0-9a-f]{8}' "$T/o" | awk '{print $NF}')"
@@ -128,35 +128,35 @@ t1a="$(grep -oE '^\| t1 \| ok \| [0-9a-f]{8} \| [0-9a-f]{8}' "$T/o" | awk '{prin
   pass "4. the topic is fixed per env, workspace and box (re-used every probe)" || fail "4. fixed topic: $t1a"
 
 # --- 5. each failure is its own verdict -----------------------------------------------------
-seat leiden c-002; login leiden; echo nodeliver >"$T/mode.leiden"
-echo nonotice >"$T/mode.sienna"
+seat ws-a c-002; login ws-a; echo nodeliver >"$T/mode.ws-a"
+echo nonotice >"$T/mode.ws-b"
 mkdir -p "$D/niba/sat/spool/c-003"; login niba
 mkdir -p "$D/csitea/sat/spool/c-002"
 probe DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -ne 0 ]] && row leiden missed && row sienna unnoticed && row niba remote && row csitea unprobed && row t1 ok &&
-  grep -q '^| leiden | missed |$' "$T/sent" && grep -q '^| csitea | unprobed |$' "$T/sent" && ! grep -q '^| niba |' "$T/sent" &&
+[[ $rc -ne 0 ]] && row ws-a missed && row ws-b unnoticed && row niba remote && row csitea unprobed && row t1 ok &&
+  grep -q '^| ws-a | missed |$' "$T/sent" && grep -q '^| csitea | unprobed |$' "$T/sent" && ! grep -q '^| niba |' "$T/sent" &&
   pass "5. missed, unnoticed and unprobed are each a verdict, each alerted; no seat here is remote" || fail "5. verdicts: rc=$rc $(cat "$T/o")"
-echo fail >"$T/mode.leiden"
+echo fail >"$T/mode.ws-a"
 probe DRY_RUN=0 >"$T/o" 2>&1
-row leiden post-failed && grep -q '^| leiden | post-failed |$' "$T/sent" &&
+row ws-a post-failed && grep -q '^| ws-a | post-failed |$' "$T/sent" &&
   pass "5. a refused probe login is post-failed (a change, so alerted)" || fail "5. post-failed: $(cat "$T/o")"
-rm -rf "$D/leiden" "$D/niba" "$D/csitea" "$T/mode."*
+rm -rf "$D/ws-a" "$D/niba" "$D/csitea" "$T/mode."*
 
 # --- 6. a failed ask is retried on the next probe -----------------------------------------
-touch "$D/sienna/sat/spool/c-002/.no-poke" "$T/sent.fail"
+touch "$D/ws-b/sat/spool/c-002/.no-poke" "$T/sent.fail"
 n="$(asks)"
 probe DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 rm -f "$T/sent.fail"
 probe DRY_RUN=0 >"$T/o2" 2>&1
 [[ $rc -ne 0 ]] && grep -q 'FATAL the ask to c-001 was not delivered' "$T/o" && [[ "$(asks)" == $((n + 1)) ]] &&
   pass "6. a failed ask keeps the alert; the next probe sends it" || fail "6. retry: asks=$(asks) n=$n $(cat "$T/o")"
-rm -f "$D/sienna/sat/spool/c-002/.no-poke"
+rm -f "$D/ws-b/sat/spool/c-002/.no-poke"
 
 # --- 9. the dispatcher on another box: a dead leftover dir is remote, never missed --
 seat dev1 c-002; login dev1; dead dev1
 : >"$T/posts"; n="$(asks)"
 probe DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 ]] && row dev1 remote && row t1 ok && row sienna ok && [[ "$(asks)" == "$n" ]] &&
+[[ $rc -eq 0 ]] && row dev1 remote && row t1 ok && row ws-b ok && [[ "$(asks)" == "$n" ]] &&
   ! grep -q '^POST dev1 ' "$T/posts" && ! grep -q 'ch=alerts' "$T/posts" &&
   pass "9. a leftover desk dir with no sidecar: remote, nothing posted, no alert, exit 0" ||
   fail "9. remote: rc=$rc asks=$(asks)/$n $(cat "$T/o") $(cat "$T/posts")"

@@ -97,7 +97,7 @@
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ENV=prd ./run -a do_spl_unanswered_sweep
 # @example ENV=prd DELIVER=1 ./run -a do_spl_unanswered_sweep
-# @example ENV=prd SWEEP_MIN_AGE=60 SWEEP_SKIP_TENANTS='e2e leiden' ./run -a do_spl_unanswered_sweep
+# @example ENV=prd SWEEP_MIN_AGE=60 SWEEP_SKIP_TENANTS='e2e ws-a' ./run -a do_spl_unanswered_sweep
 #------------------------------------------------------------------------------
 # spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
 declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"

@@ -436,33 +436,33 @@ tick sat 31900 LEASE_ACTIVITY_CMD="$T/bin/act" LEASE_OWNER= ASKS_OWNER=
 rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane"
 agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
 agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
-T16=(LEASE_MIRROR_TENANTS="csitea leiden")
+T16=(LEASE_MIRROR_TENANTS="csitea ws-a")
 copy() { cut -d' ' -f"${3:-1}" "$T/hub/$1.main.$2" 2>/dev/null; }
 tick pc 40000 "${T16[@]}"; tick sat 40000 "${T16[@]}"
-[[ "$(hubh dispatch)" == CLE-002@pc && "$(copy csitea dispatch)" == CLE-002@pc && "$(copy leiden dispatch)" == CLE-002@pc &&
-   "$(copy csitea orch)" == CLE-001@pc && "$(copy leiden orch)" == CLE-001@pc ]] &&
-  pass "16. the holder copies both roles into every served tenant (csitea, leiden)" ||
-  fail "16. copies csitea $(copy csitea dispatch)/$(copy csitea orch) leiden $(copy leiden dispatch)/$(copy leiden orch): $(tail -5 "$T/out")"
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(copy csitea dispatch)" == CLE-002@pc && "$(copy ws-a dispatch)" == CLE-002@pc &&
+   "$(copy csitea orch)" == CLE-001@pc && "$(copy ws-a orch)" == CLE-001@pc ]] &&
+  pass "16. the holder copies both roles into every served tenant (csitea, ws-a)" ||
+  fail "16. copies csitea $(copy csitea dispatch)/$(copy csitea orch) ws-a $(copy ws-a dispatch)/$(copy ws-a orch): $(tail -5 "$T/out")"
 [[ "$(copy csitea dispatch 2)" == 1 ]] && pass "16. the standby machine copies nothing (gen 1 after both ticks)" || fail "16. standby wrote: gen $(copy csitea dispatch 2)"
 tick pc 40060 "${T16[@]}"
-[[ "$(copy csitea dispatch 2)" == 2 && "$(copy csitea dispatch 3)" == 40060 && "$(copy leiden orch 3)" == 40060 ]] &&
+[[ "$(copy csitea dispatch 2)" == 2 && "$(copy csitea dispatch 3)" == 40060 && "$(copy ws-a orch 3)" == 40060 ]] &&
   pass "16. every renewal renews the copies (they go stale only with the holder)" || fail "16. renewal: $(cat "$T/hub/csitea.main.dispatch")"
 tick sat 40241 "${T16[@]}"
-[[ "$(hubh dispatch)" == CLE-002@sat && "$(copy csitea dispatch)" == CLE-002@sat && "$(copy leiden dispatch)" == CLE-002@sat &&
+[[ "$(hubh dispatch)" == CLE-002@sat && "$(copy csitea dispatch)" == CLE-002@sat && "$(copy ws-a dispatch)" == CLE-002@sat &&
    "$(copy csitea orch)" == CLE-001@sat ]] &&
-  pass "16. a take-over moves the copies to the new holder" || fail "16. take-over: csitea $(copy csitea dispatch) leiden $(copy leiden dispatch)"
+  pass "16. a take-over moves the copies to the new holder" || fail "16. take-over: csitea $(copy csitea dispatch) ws-a $(copy ws-a dispatch)"
 : >"$T/hub/calls"
 tick sat 40300 "${T16[@]}" HUB_DOWN_TENANT=csitea; tick sat 40360 "${T16[@]}" HUB_DOWN_TENANT=csitea
 [[ "$(hubh dispatch)" == CLE-002@sat && "$(hubh dispatch | wc -l)" == 1 && "$(cut -d' ' -f3 "$T/hub/main.dispatch")" == 40360 &&
-   "$(logc sat 'COPY-FAILED dispatch in csitea: dial: i/o timeout')" == 1 && "$(grep -c leiden "$T/hub/calls")" == 0 ]] &&
+   "$(logc sat 'COPY-FAILED dispatch in csitea: dial: i/o timeout')" == 1 && "$(grep -c ws-a "$T/hub/calls")" == 0 ]] &&
   pass "16. a failing tenant: logged once, ends the tick's copies, the lease itself still renews" ||
   fail "16. down: calls $(tr '\n' ' ' <"$T/hub/calls") log: $(grep COPY "$T/sat/spool/dispatch/lease.log")"
 tick sat 40420 "${T16[@]}"
-[[ "$(copy csitea dispatch 3)" == 40420 && "$(copy leiden dispatch 3)" == 40420 && "$(logc sat 'COPY dispatch in csitea: written again')" == 1 ]] &&
+[[ "$(copy csitea dispatch 3)" == 40420 && "$(copy ws-a dispatch 3)" == 40420 && "$(logc sat 'COPY dispatch in csitea: written again')" == 1 ]] &&
   pass "16. the tenant back: the copies are written again, logged once" || fail "16. back: $(grep COPY "$T/sat/spool/dispatch/lease.log")"
 S="$T/state"
-for p in t1/box-desk csitea/box-desk e2e/box-desk leiden/box-desk niba-consult/box-rsp acme-proof/box-desk; do mkdir -p "$S/desk/$p"; echo pinned >"$S/desk/$p/pinned"; done
-: >"$S/desk/leiden/box-desk/pinned"
+for p in t1/box-desk csitea/box-desk e2e/box-desk ws-a/box-desk ws-c/box-rsp acme-proof/box-desk; do mkdir -p "$S/desk/$p"; echo pinned >"$S/desk/$p/pinned"; done
+: >"$S/desk/ws-a/box-desk/pinned"
 got=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/pc/spool" SPL_STATE_DIR="$S" LEASE_DESK_BOX=box-desk LEASE_TENANT=t1 bash -c '
   do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; spl_fleet_mirror_tenants')
 [[ "$got" == "csitea " ]] &&

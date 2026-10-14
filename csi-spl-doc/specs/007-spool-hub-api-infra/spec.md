@@ -32,7 +32,7 @@ trail, not as current state.
 provisioning requirements R1–R9 (FR-025–FR-033).
 
 **Narrative**: `../../doc/md/SPEC-spool-hub-api-infra.md` (copy csi-rel +
-pas-psf infra, not the shop). **Index, seams, canon**: `../README.md`.
+sibling-prj infra, not the shop). **Index, seams, canon**: `../README.md`.
 
 **Depends on**: `002` (local mode, frozen), `003` (hub binary: `spool serve`,
 `spool migrate`), `026` (tenant from identity: one API host, no tenant DNS).
@@ -152,7 +152,7 @@ question (§7).
 
 ---
 
-## User Story 1 — lde matches pas-psf / csi-rel (P1) — Implemented
+## User Story 1 — lde matches sibling-prj / csi-rel (P1) — Implemented
 
 `cd csi-spl-orc && make do-setup-app-inf` brings up the lde and the tf infra
 stack (`ls csi-spl-orc/src/docker` -> `conf-validator docker-compose-api.yaml

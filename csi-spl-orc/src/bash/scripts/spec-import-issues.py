@@ -57,7 +57,7 @@ PERSONAL_LOCAL = re.compile(r"^[A-Za-z]{2,}[._][A-Za-z]{2,}$")
 # --redact words, set once by main(); scrub() reads them.
 REDACT: list = []
 ID_RE = r"(?:T\d+[a-z]?|US\d+|D\d+|P\d+(?:-\d+)?|OA-\d+|\d+\.\d+)"
-# A task id may be wrapped in bold or strikethrough — `**T001**` (pas-psf) or
+# A task id may be wrapped in bold or strikethrough — `**T001**` (sibling-prj) or
 # `~~T033~~` (a dropped csi-spl task). EMPH swallows either, on both sides.
 EMPH = r"(?:\*\*|~~)?"
 CHECK = re.compile(rf"^- \[([ xX~])\]\s+{EMPH}({ID_RE}){EMPH}\s*(.*)$")
@@ -167,7 +167,7 @@ def cell_status(cell: str) -> str | None:
 
 def first_sentence(text: str) -> str:
     s = " ".join(text.replace("\n", " ").split())
-    # Drop leading requirement tags: [FR-009], [n/a], [FR-001, FR-012] (pas-psf).
+    # Drop leading requirement tags: [FR-009], [n/a], [FR-001, FR-012] (sibling-prj).
     s = re.sub(r"^(?:\[[^\]]*\]\s*)+", "", s)
     s = re.sub(r"^[\s\-\u2014\u2013:]+", "", s).strip()
     s = re.sub(
@@ -601,7 +601,7 @@ def parse_tree(specs: Path, docs: bool = False) -> dict:
     if not specs.is_dir():
         raise SystemExit(f"specs dir is not a directory: {specs}")
     # The Source line names the doc repo this tree lives in, derived from the
-    # SPEC_DIR (…/<doc-repo>/specs) — csi-spl-doc/specs here, pas-psf-doc/specs
+    # SPEC_DIR (…/<doc-repo>/specs) — csi-spl-doc/specs here, sibling-prj-doc/specs
     # for that tree — never hardcoded to one repo.
     base = specs.resolve()
     src_root = f"{base.parent.name}/{base.name}"

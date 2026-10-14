@@ -17,9 +17,9 @@ existing file protocol (reference only, never modified).
 
 **Language/Version**: Go 1.25+ (go-sdk v1.8.0 floor).
 
-**Primary Dependencies**: standard library (`crypto/ed25519`, `crypto/sha256`, `encoding/json`, `os`); `github.com/rs/zerolog` for structured logging (modeled on `pas-psf`); MCP stdio: `github.com/modelcontextprotocol/go-sdk` v1.8.0 (`research.md`). No NATS/Postgres/GCS SDKs in 002.
+**Primary Dependencies**: standard library (`crypto/ed25519`, `crypto/sha256`, `encoding/json`, `os`); `github.com/rs/zerolog` for structured logging (modeled on `sibling-prj`); MCP stdio: `github.com/modelcontextprotocol/go-sdk` v1.8.0 (`research.md`). No NATS/Postgres/GCS SDKs in 002.
 
-**Logging & Config Pattern**: Adopts the `pas-psf` convention:
+**Logging & Config Pattern**: Adopts the `sibling-prj` convention:
 - `internal/config`: fail-fast loading of env vars (`$SPOOL_ROOT`, `$SPOOL_KEYS_DIR`, `$SPOOL_BOX_ID`, log settings).
 - `internal/logging`: `zerolog.Logger` with RFC3339 timestamps, service tag, log levels, console formatting for CLI, JSON formatting when deployed.
 
@@ -27,13 +27,13 @@ existing file protocol (reference only, never modified).
 `/var/spool-hub`). The optional box key under `$HOME` (outside the spool root).
 
 **Testing & Harness**:
-- `go test ./...`: unit tests + table-driven round-trip harness using `internal/testkit` (assertions, fixture loaders, isolated temp spool roots), modeled on `/opt/pas/pas-psf/pas-psf-api/src/internal/testkit/`.
-- Shell function utilities and tests: under `csi-spl-api/src/bash/` following the `run-bsh` conventions and test scripts (`*.tst.sh`) from `/opt/pas/pas-psf/pas-psf-api/src/bash/`.
+- `go test ./...`: unit tests + table-driven round-trip harness using `internal/testkit` (assertions, fixture loaders, isolated temp spool roots), modeled on `/opt/<org>/<sibling-prj>/sibling-prj-api/src/internal/testkit/`.
+- Shell function utilities and tests: under `csi-spl-api/src/bash/` following the `run-bsh` conventions and test scripts (`*.tst.sh`) from `/opt/<org>/<sibling-prj>/sibling-prj-api/src/bash/`.
 
 **Local Dev Setup (`lde`) Reference**:
-Follows the local development conventions from `/opt/pas/pas-psf`:
-- Host and containerized Go development (`go run`, `go test ./...`, `go mod tidy`) matching `/opt/pas/pas-psf/pas-psf-api`.
-- Shell function utilities and test runners executed via `./run` actions matching `pas-psf-utl` / `pas-psf-iac`.
+Follows the local development conventions from `/opt/<org>/<sibling-prj>`:
+- Host and containerized Go development (`go run`, `go test ./...`, `go mod tidy`) matching `/opt/<org>/<sibling-prj>/sibling-prj-api`.
+- Shell function utilities and test runners executed via `./run` actions matching `sibling-prj-utl` / `sibling-prj-iac`.
 
 **Target Platform**: Linux box (any box that runs agents). Single filesystem.
 
@@ -85,9 +85,9 @@ specs/002-box-agent-messaging/
 ```text
 csi-spl-api/src/go/spool-hub-api/  # the Go module home
 ├── cmd/spool/main.go              # subcommand dispatch: send|recv|put-file|get-file|tail|keygen|pin|mcp
-├── internal/config/               # fail-fast typed config (pas-psf pattern)
-├── internal/logging/              # zerolog structured logger (pas-psf pattern)
-├── internal/testkit/              # test harness, assertions, temp-root fixtures (pas-psf pattern)
+├── internal/config/               # fail-fast typed config (sibling-prj pattern)
+├── internal/logging/              # zerolog structured logger (sibling-prj pattern)
+├── internal/testkit/              # test harness, assertions, temp-root fixtures (sibling-prj pattern)
 ├── internal/msg/                  # v1 message object: build, canonicalise, (de)serialise
 ├── internal/sign/                 # per-box ed25519 keygen, sign, verify; box pin store (hub mode)
 ├── internal/action/               # the one verb layer the CLI and MCP both call
@@ -96,7 +96,7 @@ csi-spl-api/src/go/spool-hub-api/  # the Go module home
 ├── internal/mcp/                  # stdio MCP server wrapping the CLI actions
 └── internal/spool/spool_test.go   # temp-root round-trip harness
 
-csi-spl-api/src/bash/              # shell scripts and function utils (pas-psf pattern)
+csi-spl-api/src/bash/              # shell scripts and function utils (sibling-prj pattern)
 ├── scripts/                       # helper scripts
 └── tests/spool-smoke.tst.sh       # end-to-end smoke mirroring agent-msg
 ```

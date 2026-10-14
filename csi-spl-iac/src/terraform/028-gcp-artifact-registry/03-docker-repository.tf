@@ -1,4 +1,4 @@
-# The hub image registry (spec 007 T007, pas-psf's 028): one Docker repository
+# The hub image registry (spec 007 T007, sibling-prj's 028): one Docker repository
 # per env project, in the spool's region. csi-spl-orc do_build_push_hub_image
 # builds the image (the static `spool` binary + the csi-spl-rdb DDL) and pushes
 # <region>-docker.pkg.dev/<project>/<repository_id>/<hub.image.name>:<hub.image.tag>;

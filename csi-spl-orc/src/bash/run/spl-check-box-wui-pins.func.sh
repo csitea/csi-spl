@@ -7,7 +7,7 @@
 # @description of that workspace post, and no agent ever receives it.
 # @description Measured on prd 2026-10-01 (CLE-77876): csitea had no box-wui
 # @description pin since its creation, 128 human channel posts from 2026-09-29
-# @description reached no agent; pas-psf the same. The fix for one workspace is
+# @description reached no agent; sibling-prj the same. The fix for one workspace is
 # @description do_spl_cloud_pin_box_wui (the tenant root key signs the pin).
 # @description Prints one markdown row per workspace: the pin state and how
 # @description many human channel posts the hub stored unsigned in the last

@@ -79,4 +79,4 @@ EOF_USAGE
   echo ""
   export EXIT_CODE=0
 }
-# csi-spl ::: copied from pas-psf-utl
+# csi-spl ::: copied from sibling-prj-utl

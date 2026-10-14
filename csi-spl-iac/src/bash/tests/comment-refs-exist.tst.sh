@@ -42,7 +42,7 @@ PATTERN=(
 # oss-runners-move and gh-runner-remove.
 # zip-jira-ticket.func.sh remains in the row-28 validate-params copies.
 # The harvest notes (destroy.sh, sweep.sh, d-tenants.sh, t1-owner.sh,
-# inbox-send.sh, agent-id-restart.sh) and the pas-psf log.func.sh history
+# inbox-send.sh, agent-id-restart.sh) and the sibling-prj log.func.sh history
 # line name scripts that were never files of this tree.
 KNOWN=(
   "agent-id-restart.sh csi-spl-orc/src/bash/features/spawn-agents/scripts/agent-name-resume.sh"

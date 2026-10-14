@@ -1,5 +1,5 @@
 /**
- * Download a workspace doc (owner HUM-10, sienna msg 814fe6e1: the business
+ * Download a workspace doc (owner HUM-10, ws-b msg 814fe6e1: the business
  * owner downloads the spec to compare it with his own AI): the stored
  * markdown as GET /v1/workspace/docs/<path> returned it, UTF-8, saved as
  * <basename>.md. Its own module, imported on the click, so none of it ships

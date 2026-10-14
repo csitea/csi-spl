@@ -32,4 +32,4 @@ do_load_config() {
   # csi-spl: no dat/log -> /var symlink manifest. Logs fall back to
   # $PROJ_PATH/dat/log/bash (git-ignored) when /var is not writable.
 }
-# csi-spl ::: copied from pas-psf-utl
+# csi-spl ::: copied from sibling-prj-utl

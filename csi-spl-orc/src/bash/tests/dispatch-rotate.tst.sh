@@ -49,7 +49,7 @@
 #      first by the orchestrator) = RECOVERED OK "already closed"; control:
 #      any other exit = FAIL with its code
 #  16. the seed's workspace list is the live pinned desks at write time, not
-#      the stale list the brief was rendered with (sienna missed, 2026-10-10):
+#      the stale list the brief was rendered with (dsk-b missed, 2026-10-10):
 #      test and other-box desks left out; a desk pinned after a rotation is in
 #      the next seed with no code change. Control: no pinned desk -> the
 #      brief's own list stays
@@ -667,14 +667,14 @@ echo "- **Web UI**: you have a desk (DESK_AGENT=c-902) in every workspace: csi-r
 world; act DRY_RUN=0 >"$T/o" 2>&1; rid="$(rid1)"
 [[ "$(seedws "$rid")" == "csi-rel, t1" ]] &&
   pass "16. control: no pinned desk under the state dir -> the brief's own list stays" || fail "16. control: '$(seedws "$rid")'"
-for w in csi-rel sienna t1 e2e; do pin "$w" box-desk; done; pin other-box-only sat
+for w in csi-rel dsk-b t1 e2e; do pin "$w" box-desk; done; pin other-box-only sat
 world; act DRY_RUN=0 >"$T/o" 2>&1; rid="$(rid1)"
-[[ "$(seedws "$rid")" == "csi-rel, sienna, t1" ]] &&
-  pass "16. the seed lists every pinned desk of this box (sienna in), not the brief's stale list; e2e and other-box left out" ||
+[[ "$(seedws "$rid")" == "csi-rel, dsk-b, t1" ]] &&
+  pass "16. the seed lists every pinned desk of this box (dsk-b in), not the brief's stale list; e2e and other-box left out" ||
   fail "16. seed list: '$(seedws "$rid")'"
 pin zeta-new box-desk
 world; act DRY_RUN=0 >"$T/o" 2>&1; rid="$(rid1)"
-[[ "$(seedws "$rid")" == "csi-rel, sienna, t1, zeta-new" ]] &&
+[[ "$(seedws "$rid")" == "csi-rel, dsk-b, t1, zeta-new" ]] &&
   pass "16. a desk pinned after the last rotation is in the next seed, no code change" || fail "16. new desk: '$(seedws "$rid")'"
 cp "$T/brief.keep" "$D/briefs/brief-dispatcher-c-902.md"; rm -rf "$T/state"
 

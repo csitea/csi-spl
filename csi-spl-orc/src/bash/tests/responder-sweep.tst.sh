@@ -33,14 +33,14 @@ sweep_with() {
 # --- 1. two seated RSP tenants + one desk-only tenant ------------------------------
 mkdir -p "$T/a/desk/t1/box-rsp/spool" \
          "$T/a/desk/csitea/box-rsp/spool" \
-         "$T/a/desk/leiden/box-desk/spool"
+         "$T/a/desk/ws-a/box-desk/spool"
 : >"$T/run.log"
 sweep_with "$T/a/desk/.." >"$T/o" 2>&1 || true   # STATE is the state dir (parent of desk/)
 : >"$T/run.log"
 sweep_with "$T/a" >"$T/o" 2>&1
 rc=$?
 if [ "$rc" -eq 0 ] && grep -q "TENANT_ID=t1 " "$T/run.log" && grep -q "TENANT_ID=csitea " "$T/run.log" \
-   && ! grep -q "TENANT_ID=leiden " "$T/run.log" && [ "$(grep -c '^run ' "$T/run.log")" = "2" ]; then
+   && ! grep -q "TENANT_ID=ws-a " "$T/run.log" && [ "$(grep -c '^run ' "$T/run.log")" = "2" ]; then
   pass "sweeps the two seated RSP tenants only (not the desk-only tenant)"
 else
   fail "seated sweep wrong: rc=$rc log=[$(tr '\n' ';' <"$T/run.log")] out=$(cat "$T/o")"

@@ -143,7 +143,7 @@ opening it.
 ## 2. Functional requirements
 
 - **FR-001** — Implemented: code in `csi-spl-wui`, Nuxt 3 + TS strict + Pinia +
-  pnpm, modelled on the pas-psf / csi-rel WUI (read-only reference, not imported).
+  pnpm, modelled on the sibling-prj / csi-rel WUI (read-only reference, not imported).
   Check: `grep -c '"nuxt"' csi-spl-wui/package.json -> 1`.
 - **FR-002** — Partial: hub **reads** go through 003 `contracts/view-v1.md`
   (`/v1/view/*`), `GET /v1/files/{file_id}` and `GET /v1/health` (003 FR-023; `/healthz` is shadowed on Cloud Run). Live chat uses `/v1/wui/ws` (`../003-spool-message-bus/contracts/wui-live-ws.md`; `command grep -n "WS_PATH" csi-spl-wui/src/utils/live-ws.mjs` → `export const WS_PATH = '/v1/wui/ws'`). Story → section

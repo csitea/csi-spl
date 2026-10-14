@@ -220,7 +220,7 @@ needs a name, and ingress comes **last**:
 depends only on step 2 and nothing in the hub chain depends on it, so it is an
 independent branch after step 2.
 
-007 numbered the new DNS-zone dir `025-gcp-dns-zone` (csi-rel/pas-psf call it
+007 numbered the new DNS-zone dir `025-gcp-dns-zone` (csi-rel/sibling-prj call it
 `007-dns`); the full gate-per-step table is
 `007-spool-hub-api-infra/contracts/provisioning-order.md`.
 

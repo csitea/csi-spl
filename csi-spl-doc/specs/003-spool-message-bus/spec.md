@@ -245,7 +245,7 @@ A signed-in member types `/search <query>` in the WUI top-bar omnibox and gets g
 - **NFR-002**: Verify/refuse maps to CLI exit `78`; HTTP/WS error tokens per `contracts/error-envelope.md`.
 - **NFR-003**: The inner object on the wire is 002's on-disk `v:1` (no schema fork); the envelope is additive and hub-only.
 - **NFR-004**: No Kafka. No NATS in Milestone 1.
-- **NFR-005**: Server harness, startup/shutdown lifecycle, structured logging, configuration, test harness (`internal/testkit`), ops probes, and shell function utilities (`src/bash/`) MUST follow the patterns in the `pas-psf` reference API (`src/cmd/api/main.go`, `src/cmd/api/wire.go` `runUntilShutdown`, `src/internal/config/config.go`, `src/internal/logging/logging.go`, `src/internal/httpapp/httpapp.go`, `src/internal/testkit/`, `src/bash/`). Read-only reference.
+- **NFR-005**: Server harness, startup/shutdown lifecycle, structured logging, configuration, test harness (`internal/testkit`), ops probes, and shell function utilities (`src/bash/`) MUST follow the patterns in the `sibling-prj` reference API (`src/cmd/api/main.go`, `src/cmd/api/wire.go` `runUntilShutdown`, `src/internal/config/config.go`, `src/internal/logging/logging.go`, `src/internal/httpapp/httpapp.go`, `src/internal/testkit/`, `src/bash/`). Read-only reference.
 - **NFR-006**: Limits and retention per `contracts/limits.md`.
 
 ### Key Entities

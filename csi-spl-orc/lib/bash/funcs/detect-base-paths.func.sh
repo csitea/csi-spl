@@ -35,4 +35,4 @@ _do_probe_writable_root() {
   mkdir -p "$fallback" 2>/dev/null || true
   echo "$fallback"
 }
-# csi-spl ::: copied from pas-psf-utl
+# csi-spl ::: copied from sibling-prj-utl

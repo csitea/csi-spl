@@ -62,7 +62,7 @@ check 052 bucket_prefix "csi-spl-dev-docs-,acme-spool-dev-7f3a-docs-" "csi-spl-d
 f52="$TF/052-gcs-workspace-docs/02-variables.tf"
 re52=$(sed -n 's/.*for w in var.workspaces : can(regex("\(.*\)", w)).*/\1/p' "$f52" | sed -n 1p)
 if [[ -z "$re52" ]]; then fail "052: no slug regex on var.workspaces"; else
-  for v in t1 csi-rel niba-consult; do grep -qE "$re52" <<<"$v" && pass "052 workspaces accepts $v" || fail "052 workspaces refuses $v ($re52)"; done
+  for v in t1 csi-rel ws-c; do grep -qE "$re52" <<<"$v" && pass "052 workspaces accepts $v" || fail "052 workspaces refuses $v ($re52)"; done
   for v in T1 -x x- a_b; do grep -qE "$re52" <<<"$v" && fail "052 workspaces accepts $v ($re52)" || pass "052 workspaces refuses $v"; done
 fi
 grep -qF 'length(distinct(var.workspaces)) == length(var.workspaces)' "$f52" && pass "052 workspaces refuses a duplicate slug" || fail "052 workspaces allows a duplicate slug"

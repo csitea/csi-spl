@@ -62,7 +62,7 @@ and counts, so n=1 is enough).
 | R1f | extensions available (installed/default) | `btree_gin -/1.3`, `pg_trgm -/1.6`, `vector -/0.8.5`, `unaccent 1.1/1.1` | `btree_gin` is offered on prd (whether the migrate login may create it: still P0) |
 | R2 | `messages` | relpages 4,939, reltuples 22,038, heap 39 MB, TOAST 76 MB, indexes 16 MB | 2/3 of the table is TOAST: the cost driver of 1.2 |
 | R3 | t1 | 19,244 msgs, **1,580,634** word postings, avg 82.1, max 1,024, long rows 3,366 with avg 228.6 | B on prd (replaces the dev arithmetic); Bloom fill on long rows ~20% (2.1.4) |
-| R3 | other tenants | niba-consult 1,133 / 89,626; e2e 1,050 / 63,448; csi-rel 542 / 41,549; csitea 366 / 11,281; two under 20 msgs | t1 is 88% of rows: today's 10x-B is far off |
+| R3 | other tenants | ws-c 1,133 / 89,626; e2e 1,050 / 63,448; csi-rel 542 / 41,549; csitea 366 / 11,281; two under 20 msgs | t1 is 88% of rows: today's 10x-B is far off |
 
 ## 2. The existing code paths, and whether each is correct
 

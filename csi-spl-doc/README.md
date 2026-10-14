@@ -14,7 +14,7 @@ consistency record: `specs/README.md`.**
 | `doc/md/glossary.md` | **the app's lingo**: topic message, reply, card, channel, DM, section … one table, each term cited to en.json or code |
 | `doc/md/csi-spl.feature.md` | git-rel GCS estate (operator how-to) |
 | `doc/md/SPEC-spool-milestones.md` | **M1 technical proto → M2 public MVP (buy) → M3 rollout Slack UI** |
-| `doc/md/SPEC-spool-hub-api-infra.md` | copy csi-rel/pas-psf infra+DNS, not the shop |
+| `doc/md/SPEC-spool-hub-api-infra.md` | copy csi-rel/sibling-prj infra+DNS, not the shop |
 | `doc/md/SPEC-spool-hub-rental.md` | paid tenant product |
 | `specs/002-box-agent-messaging/contracts/trust-modes.md` | local unsigned vs hub box keys (SSH-like) |
 | `doc/md/SPEC-spool-message-bus.md` | agent message bus architecture (binding) |

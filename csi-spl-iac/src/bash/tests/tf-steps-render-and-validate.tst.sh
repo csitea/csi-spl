@@ -4,7 +4,7 @@
 #------------------------------------------------------------------------------
 # Purpose: the committed tfvars are what tpl-gen renders from the committed
 #          yaml TODAY (an edited yaml that was never re-rendered fails here),
-#          the relay bucket carries the measured bnc-cpt-all-relay access model,
+#          the relay bucket carries the measured donor relay bucket's access model,
 #          and every step is terraform-fmt clean and validates.
 #          A missing tpl-gen clone or terraform binary is a FAIL (spec 007
 #          T070): the suite used to SKIP both from any worktree or any user
@@ -61,7 +61,7 @@ else
   skip "no tpl-gen venv (TPL_GEN_DIR, $APP_ROOT/tpl-gen, ${main_root:-<main checkout>}/tpl-gen)"
 fi
 
-# --- 2. the relay bucket is bnc-cpt-all-relay's access model ------------------
+# --- 2. the relay bucket is the donor relay bucket's access model ------------------
 for env in dev prd; do
   v="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/020-gcp-relay-bucket.vars.tfvars"
   grep -qx "relay_bucket_name = \"csi-spl-$env-rel\"" "$v" && pass "$env relay bucket is csi-spl-$env-rel" || fail "$env relay bucket name"
@@ -173,7 +173,7 @@ done
 grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key)"|resource "google_sql_user"' "$TFD"/*/*.tf >/dev/null \
   && fail "a state-borne secret resource appears in src/terraform: $(grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key|google_sql_user)"' "$TFD"/*/*.tf | tr '\n' ' ')" \
   || pass "no password, secret version, SQL user or SA key resource in any step"
-# M3 WUI Hosting (016/019): copy pas-psf/csi-rel Hosting shape, not the shop.
+# M3 WUI Hosting (016/019): copy sibling-prj/csi-rel Hosting shape, not the shop.
 [[ -d "$TFD/016-firebase-deploy-iam" && -d "$TFD/019-firebase-static-site" ]] \
   && pass "016 and 019 WUI firebase steps exist" || fail "016/019 WUI firebase steps missing"
 grep -qE 'credentials\s*=\s*file\(' "$TFD"/016-firebase-deploy-iam/*.tf "$TFD"/019-firebase-static-site/*.tf \

@@ -27,7 +27,7 @@ _dns_ensure_helpers() {
 }
 
 # Resolve con-<org>-<app>[-<tree-slug>]-tf-runner. TREE_SLUG covers the
-# ora-cam `main` naming; CON_TF_RUNNER wins when tests/operators set it.
+# ws-f `main` naming; CON_TF_RUNNER wins when tests/operators set it.
 _dns_tf_runner_name() {
   if [[ -n "${CON_TF_RUNNER:-}" ]]; then
     printf '%s\n' "$CON_TF_RUNNER"

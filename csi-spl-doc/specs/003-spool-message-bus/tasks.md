@@ -170,7 +170,7 @@ Contract `contracts/search-v1.md` v1.0. WUI omnibox is lane CLE-3410 (reads the 
 | NFR-002 error mapping | T012, T020 | Implemented |
 | NFR-003 no schema fork | T003, T030 | Implemented |
 | NFR-004 no Kafka / no NATS in M1 | T024 | Implemented |
-| NFR-005 pas-psf harness | T004, T005 | Implemented |
+| NFR-005 sibling-prj harness | T004, T005 | Implemented |
 | NFR-006 limits | T013, T016, T021a, T034 | Implemented |
 
 | Contract endpoint | FR | Status |

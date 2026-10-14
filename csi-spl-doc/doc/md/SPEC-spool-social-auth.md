@@ -3,7 +3,7 @@
 Status: **preferred registration and login** for humans (M2 checkout +
 M3 WUI). Not M1 (IAP/IP allowlist).
 
-**Google and Facebook are forked from pas-psf and csi-rel.** Microsoft
+**Google and Facebook are forked from sibling-prj and csi-rel.** Microsoft
 (Azure / Entra ID), **LinkedIn**, and **xAI** use the **same federated
 rails** (new IdP adapters, not a second stack). Do **not** `go get` the
 shop modules.
@@ -30,7 +30,7 @@ sign-up form.
 
 | Slug | Kind | Source |
 |---|---|---|
-| `google` | OIDC | Fork csi-rel 045 + pas-psf/csi-rel 052 |
+| `google` | OIDC | Fork csi-rel 045 + sibling-prj/csi-rel 052 |
 | `facebook` | OAuth 2.0 | Fork 052 (`facebook_idp.go`, deauthorize) |
 | `microsoft` | OIDC (Azure AD / Entra ID) | Same `federatedSpec` / `oauth_handlers` as Google |
 | `linkedin` | OAuth 2.0 | Same rails as Facebook (authorization code) |
@@ -55,15 +55,15 @@ Wire (all of them):
 | Donor | What it already is |
 |---|---|
 | **csi-rel** `045-admin-login` + `052-social-authentication-google-facebook` | Google OIDC (`google_idp.go`, `oauth_handlers.go`, `oauth_state.go`); Facebook on the same rails |
-| **pas-psf** `052-social-authentication-google-facebook` | Same API + WUI `SocialAuthButtons.vue` / `useSocialProviders.ts` |
+| **sibling-prj** `052-social-authentication-google-facebook` | Same API + WUI `SocialAuthButtons.vue` / `useSocialProviders.ts` |
 
 | Donor path | Take |
 |---|---|
 | `csi-rel-api/src/internal/auth/google_idp.go` | Google OIDC |
 | `csi-rel-api/src/internal/auth/facebook_idp.go` | Facebook Login |
 | `csi-rel-api/src/internal/auth/oauth_handlers.go` | start/callback (extend `<slug>`) |
-| `pas-psf-wui/src/components/SocialAuthButtons.vue` | Buttons; cnf list — **add Microsoft, LinkedIn, xAI** |
-| `pas-psf-wui/src/composables/useSocialProviders.ts` | start URLs |
+| `sibling-prj-wui/src/components/SocialAuthButtons.vue` | Buttons; cnf list — **add Microsoft, LinkedIn, xAI** |
+| `sibling-prj-wui/src/composables/useSocialProviders.ts` | start URLs |
 | both `052` specs | scopes, deauthorize, fail-closed secrets |
 
 New files in the fork: `microsoft_idp.go`, `linkedin_idp.go`, `xai_idp.go`

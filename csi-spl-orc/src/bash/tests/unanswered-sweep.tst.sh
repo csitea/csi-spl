@@ -92,7 +92,7 @@ ROWS="$T/rows.tsv"
   r t1 "" lobby 00000000-0000-4000-8000-0000000000e1 10000000-0000-4000-8000-0000000000e1 $H HUM-10 box-desk terminal open live - ""
   r t1 "" dev 00000000-0000-4000-8000-0000000000e2 10000000-0000-4000-8000-0000000000e2 $H HUM-3 HUM-5 human open live - "for you, not an agent"
   r t1 "" dev 00000000-0000-4000-8000-0000000000e3 10000000-0000-4000-8000-0000000000e3 $H HUM-1 box-desk human open live - "probe post"
-  r leiden "" "" 00000000-0000-4000-8000-00000000000d 10000000-0000-4000-8000-00000000000d $H HUM-9 CLE-5 human open dm files ""
+  r ws-a "" "" 00000000-0000-4000-8000-00000000000d 10000000-0000-4000-8000-00000000000d $H HUM-9 CLE-5 human open dm files ""
   r t1 "" "" 00000000-0000-4000-8000-0000000000e4 10000000-0000-4000-8000-0000000000e4 $H HUM-10 ALL-0 human open thread - "null channel after an agent"
   r t1 "" "" 00000000-0000-4000-8000-0000000000e7 10000000-0000-4000-8000-0000000000e7 $H HUM-8 HUM-9 human open thread - "addressed to a human even after an agent"
   r csitea "" "" 00000000-0000-4000-8000-0000000000e6 10000000-0000-4000-8000-0000000000e6 $H HUM-3 ALL-0 human open dm - "humans only, no agent in the topic"
@@ -118,7 +118,7 @@ open_rows="$(grep -c '^| open |' "$T/o")"
 [[ $rc -eq 0 && "$open_rows" == 4 ]] &&
   grep -q '^| open | t1 | #development | 00000000-0000-4000-8000-000000000001 |' "$T/o" &&
   grep -q '^| open | csitea | #spool-hub | 00000000-0000-4000-8000-00000000000c | .* | yes |' "$T/o" &&
-  grep -q '^| open | leiden | dm CLE-5 | .* | (files) |' "$T/o" &&
+  grep -q '^| open | ws-a | dm CLE-5 | .* | (files) |' "$T/o" &&
   grep -q '^| open | t1 | dm ALL-0 | 00000000-0000-4000-8000-0000000000e4 |' "$T/o" &&
   pass "1. human-last topics are listed (a 'yes', a files-only DM, a null-channel follow-up)" || fail "1. open rows=$open_rows rc=$rc $(cat "$T/o")"
 grep -q 'broken on the release page \\| please look' "$T/o" && pass "1. a | in a body is escaped in the table" || fail "1. pipe escape"
@@ -151,7 +151,7 @@ sweep DELIVER=1 >"$T/o" 2>&1; rc=$?
   pass "3. ONE note to the lease holder, the 4 NEW items, no ack" || fail "3. rc=$rc $(cat "$T/o") $(cat "$T/sent" 2>/dev/null)"
 [[ "$(wc -l <"$S/dispatch/unanswered.state")" == 4 ]] && grep -qx "ts=$NOW" "$S/dispatch/unanswered.last" &&
   grep -qx 'open=4' "$S/dispatch/unanswered.last" && grep -qx 'sent=ok' "$S/dispatch/unanswered.last" &&
-  grep -qx 'per=csitea=1,leiden=1,t1=2' "$S/dispatch/unanswered.last" &&
+  grep -qx 'per=csitea=1,t1=2,ws-a=1' "$S/dispatch/unanswered.last" &&
   pass "3. state (4 items) and last written" || fail "3. state/last: $(cat "$S/dispatch/unanswered.state" "$S/dispatch/unanswered.last")"
 sweep DELIVER=1 SWEEP_NOW=$((NOW + 600)) >"$T/o" 2>&1
 [[ "$(sends)" == 1 ]] && pass "3. the next sweep re-sends nothing" || fail "3. re-sent: $(cat "$T/sent")"
@@ -187,12 +187,12 @@ ack TOPIC=$LD REASON="a link, no question" >"$T/o" 2>&1 && grep -q "^ACK $LD by 
   grep -qP "^$NOW\t$LD\tCLE-002\ta link, no question$" "$S/dispatch/unanswered.acks" &&
   pass "5b. the ack is recorded with its time, topic, who and why" || fail "5b. ack: $(cat "$T/o") $(cat "$S/dispatch/unanswered.acks" 2>/dev/null)"
 sweep >"$T/o" 2>&1
-! grep -q "^| open | leiden" "$T/o" && grep -q '^| leiden | 0 | 0 | 1 |' "$T/o" &&
-  pass "5b. an acked item is handled: not listed, not sent" || fail "5b. handled: $(grep leiden "$T/o")"
+! grep -q "^| open | ws-a" "$T/o" && grep -q '^| ws-a | 0 | 0 | 1 |' "$T/o" &&
+  pass "5b. an acked item is handled: not listed, not sent" || fail "5b. handled: $(grep ws-a "$T/o")"
 cp "$ROWS" "$T/rows.keep"
 sed -i "s/10000000-0000-4000-8000-00000000000d\t[0-9]*/10000000-0000-4000-8000-0000000000fd\t$((NOW + 100))/" "$ROWS"
 sweep SWEEP_NOW=$((NOW + 2000)) >"$T/o" 2>&1
-grep -q "^| open | leiden | dm CLE-5 | $LD |" "$T/o" && pass "5b. a new human post after the ack opens it again" || fail "5b. reopen: $(grep leiden "$T/o")"
+grep -q "^| open | ws-a | dm CLE-5 | $LD |" "$T/o" && pass "5b. a new human post after the ack opens it again" || fail "5b. reopen: $(grep ws-a "$T/o")"
 cp "$T/rows.keep" "$ROWS"
 ack TOPIC=$LD >"$T/o" 2>&1 && fail "5b. an ack without REASON accepted" || pass "5b. REASON is required"
 ack TOPIC=zz REASON=x >"$T/o" 2>&1 && fail "5b. a bad TOPIC accepted" || pass "5b. a bad TOPIC is refused"

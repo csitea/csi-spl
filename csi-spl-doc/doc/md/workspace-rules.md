@@ -10,11 +10,11 @@ This page is the one home of each rule below
 `csi-spl` is public: no company, customer or person names here, only the
 workspace id. The owner's words are paraphrased and cited by message id.
 
-## 1. sienna
+## 1. ws-b
 
 ### 1.1 Every doc is bilingual: English and Bulgarian
 
-Owner, HUM-10 in the sienna workspace (topic eb7f4883, msg c3ae5158),
+Owner, HUM-10 in the ws-b workspace (topic eb7f4883, msg c3ae5158),
 paraphrased: all of the workspace's documentation is written in both
 Bulgarian and English. A doc is named `<doc name>.en.md` or
 `<doc name>.bg.md`. English is the default, and the documentation exists in
@@ -23,7 +23,7 @@ speakers.
 
 How to apply:
 
-- Every sienna doc, in the workspace Docs and in its private repo, exists
+- Every ws-b doc, in the workspace Docs and in its private repo, exists
   twice: `<name>.en.md` (the default, written first) AND `<name>.bg.md`.
 - The `.bg.md` is written by agy, which has the final word on the Bulgarian
   (the fleet language rule, global rule `20-spawn-an-agent.md`). With no agy

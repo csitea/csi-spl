@@ -2,7 +2,7 @@
 
 Local dev orchestration (`lde`) for the spool **hub**: Postgres, a GCS
 emulator and `spool serve` in docker compose, wired from `csi-spl-cnf` and
-nothing else. Shaped like `pas-psf-orc` (compose split -infra / -rdb / -api,
+nothing else. Shaped like `sibling-prj-orc` (compose split -infra / -rdb / -api,
 `gen-docker-env`). The lde actions are LOCAL ONLY: they call no gcloud and
 no terraform. The few CLOUD actions (below) are owner-gated dry runs by default.
 The WUI joins it with `do_wui_up`; `do_lde_up` brings up both. Docker is the

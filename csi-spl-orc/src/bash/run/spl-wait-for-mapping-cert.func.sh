@@ -8,7 +8,7 @@
 # @description
 # @description One change from the donor, not a new behaviour: its
 # @description --format='value(status.conditions[?type=...].status)' is always
-# @description empty on this gcloud (pas-psf F-28, wait-for-cert-parses-
+# @description empty on this gcloud (sibling-prj F-28, wait-for-cert-parses-
 # @description conditions.tst.sh), so the conditions are read as json with jq.
 # @description Also prints the DNS records the mapping asks for.
 # @description

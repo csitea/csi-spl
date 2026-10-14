@@ -71,7 +71,7 @@ plus indexes, i.e. healthy.
 | prd | t1 | 3 732 | 3 919 | 196 | 10 | 985 | 39 | 17 MB | 288 |
 | prd | e2e | 114 | 126 | 2 | 4 | 40 | 15 | 144 kB | 67 |
 | prd | csi-rel | 55 | 55 | 5 | 1 | 12 | 1 | 152 kB | 7 |
-| prd | leiden | 0 | 0 | 0 | 0 | 71 | 0 | 0 | 0 |
+| prd | ws-a | 0 | 0 | 0 | 0 | 71 | 0 | 0 | 0 |
 | dev | t1 | 3 995 | 4 203 | 19 | 5 | 33 | 53 | 17 MB | 316 |
 
 Every other tenant (5 on prd, 14 on dev) is empty. Retention is 30 days on

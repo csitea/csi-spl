@@ -16,7 +16,7 @@ import (
 // prd 2026-10-01: csitea had never pinned box-wui, so wuiEnvelope stored every
 // browser channel post UNSIGNED and routeChannel - which needs a signature a
 // box will verify - built no box delivery (wui_unpinned, fallback_unsigned:
-// 144 human posts from 2026-09-29 on, and leiden and pas-psf the same). The
+// 144 human posts from 2026-09-29 on, and ws-a and sibling-prj the same). The
 // pin fixes the posts after it; this route delivers the ones before it.
 //
 // POST /v1/operator/replay-unsigned {tenant, since, dry_run}

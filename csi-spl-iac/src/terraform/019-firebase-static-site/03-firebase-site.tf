@@ -1,5 +1,5 @@
 # Firebase Hosting for the M3 WUI (SPEC-spool-wui.md). Copy of the
-# pas-psf/csi-rel Hosting *shape* — site + custom domain + managed cert —
+# sibling-prj/csi-rel Hosting *shape* — site + custom domain + managed cert —
 # without shop pages or public-site ACLs.
 #
 # Hub API stays on Cloud Run (030). The product hosts (<fqdn>, *.<fqdn>) are

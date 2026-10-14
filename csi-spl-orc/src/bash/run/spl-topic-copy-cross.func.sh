@@ -362,7 +362,7 @@ EOF_PY
 # failure: a re-run continues there. Each post waits for a later second than
 # the one before: the hub orders a topic by (ts, msg_id) and ts has 1 s
 # resolution, so posts sent within one second were shuffled by their random
-# msg_id (measured on prd sienna, 2026-10-10: the title landed 3rd of 18).
+# msg_id (measured on prd ws-b, 2026-10-10: the title landed 3rd of 18).
 _spl_tcc_post_rest() {
   local dd="$1" task="$2" i="$3" body sent delivery ids=() last
   last="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

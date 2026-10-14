@@ -38,7 +38,7 @@ private alias). There is **no buy button** yet.
 
 ### Hub (M1 hosting)
 
-Infra/DNS/docker/lde: **copy csi-rel + pas-psf**, not the shop —
+Infra/DNS/docker/lde: **copy csi-rel + sibling-prj**, not the shop —
 `SPEC-spool-hub-api-infra.md` / `specs/007-spool-hub-api-infra/`.
 
 Stateless **Cloud Run** (HTTPS + WebSocket) + **Postgres** + **GCS**. Nothing
@@ -89,7 +89,7 @@ Kafka, per-agent hub keys.
 **Same mesh as M1**, plus a stranger can **buy the service on the site**.
 
 - **The site** is a **thin checkout page only** (landing + pay). Not the M3
-  Slack UI. Not a SKU inside csi-rel/pas-psf.
+  Slack UI. Not a SKU inside csi-rel/sibling-prj.
 - **Payment: copy csi-rel** — `specs/006-spool-hub-rental/contracts/payment.md`.
   M2 is **buy a tenant**, not per-seat. Seats are **M4**.
 - After pay: **success page and one email** contain the tenant URL and the
@@ -121,10 +121,10 @@ default — **this file takes (a)**, matching `SPEC-spool-chat-reverse.md`
 ("adopted as default M3 UX") and 013. (b) keep append-at-bottom as the M3
 default and leave reverse as a later option (the v0.3.0 Later text).
 
-**Hosting: the same setup as csi-rel and pas-psf** — static WUI (Firebase
+**Hosting: the same setup as csi-rel and sibling-prj** — static WUI (Firebase
 Hosting path) + Cloud Run API. Copy that WUI infra, not the shop pages.
 Authenticated renter: **Google, Facebook, Microsoft, LinkedIn, xAI**
-(`SPEC-spool-social-auth.md`; Google/Facebook forked from pas-psf and
+(`SPEC-spool-social-auth.md`; Google/Facebook forked from sibling-prj and
 csi-rel). Not GCP IAM per agent.
 Not started until M1 is done (dev+prd infra) and M2 can sell.
 

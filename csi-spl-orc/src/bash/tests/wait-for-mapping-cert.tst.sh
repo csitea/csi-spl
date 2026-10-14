@@ -3,7 +3,7 @@
 # Purpose: do_spl_wait_for_mapping_cert's poll SEES a provisioned Cloud Run
 #          domain-mapping cert, driven with a stubbed gcloud (not a grep):
 #          CertificateProvisioned True -> 0; False / absent / describe error
-#          at the deadline -> 1. Control for the donor bug (pas-psf F-28): the
+#          at the deadline -> 1. Control for the donor bug (sibling-prj F-28): the
 #          csi-rel [?type=...] format predicate is empty on this gcloud, so a
 #          poll built on it could never return 0 -- this one parses json.
 #          Every stubbed call carries --account; none writes gcloud config.

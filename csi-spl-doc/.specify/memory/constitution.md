@@ -142,7 +142,7 @@ behaviour, same exit codes (verify/refuse = exit `78`).
   standard library; signing done locally.
 - **Go reference architecture & test harness:** Server harness, start/stop lifecycle,
   structured logging (`zerolog`), config (`caarlos0/env`), test harness (`testkit`),
-  and shell function utilities MUST reference and follow the patterns in `/opt/pas/pas-psf/pas-psf-api`.
+  and shell function utilities MUST reference and follow the patterns in `/opt/<org>/<sibling-prj>/sibling-prj-api`.
 - **IaC (`-iac`):** **Terraform** (1.9+). State in a GCS bucket
   (europe-north1) with versioning; per-step run dirs.
 - **Hub (end vision):** stateless **Cloud Run**; **PostgreSQL** for
@@ -152,7 +152,7 @@ behaviour, same exit codes (verify/refuse = exit `78`).
   `/var/spool-hub`) so agents can queue when the hub is down — and, for
   the near-term MVP (spec 002), the ONLY backing store.
 - **Docs (`-doc`):** Markdown under `doc/md/` and specs under `specs/`.
-- **Local Dev Setup (`lde`):** Local development environment for Terraform (`-iac`), backend Go API (`-api`), and frontend (`-wui`) MUST reference and follow the patterns in `/opt/pas/pas-psf` (`pas-psf-orc`, `pas-psf-iac`, `pas-psf-api`, `pas-psf-wui`), including containerized tf-runner, local test database setup, and frontend dev server tooling.
+- **Local Dev Setup (`lde`):** Local development environment for Terraform (`-iac`), backend Go API (`-api`), and frontend (`-wui`) MUST reference and follow the patterns in `/opt/<org>/<sibling-prj>` (`sibling-prj-orc`, `sibling-prj-iac`, `sibling-prj-api`, `sibling-prj-wui`), including containerized tf-runner, local test database setup, and frontend dev server tooling.
 
 Alternatives explicitly rejected: Kafka, Slack-as-a-bus, Mattermost, per-agent
 cloud keys, an MCP server per tmux window, a second message schema, and any

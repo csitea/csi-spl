@@ -1,10 +1,10 @@
-# SPEC: spool-hub-api infra — copy csi-rel + pas-psf (not the shop)
+# SPEC: spool-hub-api infra — copy csi-rel + sibling-prj (not the shop)
 
 Status: binding for Milestone 1 hub hosting and Milestone 2 public DNS  
 Git-spec: `csi-spl-doc/specs/007-spool-hub-api-infra/`  
 Code: `csi-spl-api` (Go hub), `csi-spl-iac` (terraform + `./run`), `csi-spl-orc` (lde / docker / deploy), `csi-spl-cnf`, `csi-spl-rdb` (Postgres **spool** schema only)
 
-**Re-implement the same infra and DNS as `csi-rel` and `pas-psf`.** Local
+**Re-implement the same infra and DNS as `csi-rel` and `sibling-prj`.** Local
 dev, terraform, docker, Cloud Run, Cloud SQL, secrets, GitHub WIF — the
 lot. **Do not copy** online-store business logic or store tables.
 
@@ -15,10 +15,10 @@ Reference only (do not import those modules):
 | `csi-rel-iac/src/terraform/` | Numbered TF steps, tpl-gen, `./run` tf-plan |
 | `csi-rel-orc/` | Deploy actions, `wait-for-cert`, DNS export/flush, Cloud Run ship |
 | `csi-rel-cnf/` | `dev`/`prd`/`all` yaml + tfvars; fail-fast; no keys in git |
-| `pas-psf-iac/src/terraform/` | Same step numbers; Artifact Registry `028`; Cloud SQL `040` |
-| `pas-psf-orc/src/docker/` | `docker-compose-api.yaml`, `-rdb.yaml`, `-infra.yaml`; `gen-docker-env` |
-| `pas-psf-orc/src/bash/run/` | lde bring-up, docker install checks, `wait-for-cert`, DNS export |
-| `pas-psf-doc/specs/001-gcp-infrastructure/` | Project bootstrap pattern (`dev`/`prd`/`all`) |
+| `sibling-prj-iac/src/terraform/` | Same step numbers; Artifact Registry `028`; Cloud SQL `040` |
+| `sibling-prj-orc/src/docker/` | `docker-compose-api.yaml`, `-rdb.yaml`, `-infra.yaml`; `gen-docker-env` |
+| `sibling-prj-orc/src/bash/run/` | lde bring-up, docker install checks, `wait-for-cert`, DNS export |
+| `sibling-prj-doc/specs/001-gcp-infrastructure/` | Project bootstrap pattern (`dev`/`prd`/`all`) |
 | `csi-rel-doc/specs/022-orc-app-deployment/` | Cloud Run / CI deploy |
 | `csi-rel-doc/specs/033-orc-dns-certificates/` | DNS snapshot, flush, wait for managed TLS |
 
@@ -37,9 +37,9 @@ Keep the **same step numbers** so operators are not re-trained.
 | `001-enable-gcp-services` | APIs | already; add run, sql, dns, secretmanager, artifactregistry |
 | `003-gcp-iam-users` | operators | copy |
 | `005-gcp-domain-verification` | Google domain verify | copy for spool-hub.ai |
-| `025-gcp-dns-zone` (csi-rel/pas-psf call it `007-dns`) | Cloud DNS zone (imported, never recreated) + records | **product zone** `spool-hub.ai`; **wildcard `*.spool-hub.ai` from M1** (not one host then migrate) |
+| `025-gcp-dns-zone` (csi-rel/sibling-prj call it `007-dns`) | Cloud DNS zone (imported, never recreated) + records | **product zone** `spool-hub.ai`; **wildcard `*.spool-hub.ai` from M1** (not one host then migrate) |
 | `017-github-wif-deploy` | CI deploy identity | copy |
-| `028-gcp-artifact-registry` | API images | copy (pas-psf) |
+| `028-gcp-artifact-registry` | API images | copy (sibling-prj) |
 | `029-create-gcp-secrets` | Secret Manager slots | copy; **no** store captcha/BIN; payment slots in **M2** |
 | `030-gcp-cloud-run` | **spool-hub-api** service | HTTPS + WebSocket; min instances cnf (default 1) |
 | `031-gcp-cloud-run-domain-mapping` | map host → Cloud Run | **wildcard TLS** `*.spool-hub.ai` (and `*.dev.spool-hub.ai`) from M1. If Cloud Run mapping is per-host, use LB + wildcard cert — still M1, not later. |
@@ -57,7 +57,7 @@ shop alarms, `130`/`131` WordPress VM, store report buckets as shop dumps.
 
 ## 2. Copy (local dev / docker)
 
-From `pas-psf-orc` (and the same compose shapes in `csi-rel-orc`):
+From `sibling-prj-orc` (and the same compose shapes in `csi-rel-orc`):
 
 | Artifact | Spool |
 |---|---|
@@ -69,7 +69,7 @@ From `pas-psf-orc` (and the same compose shapes in `csi-rel-orc`):
 
 **Do not copy:** `docker-compose-wui.yaml`, WordPress compose, shop mail
 pipeline, **stripe-mock** (that arrives with M2 payment copy if still
-wanted). Adminer optional (pas-psf has it; allowed as lde-only).
+wanted). Adminer optional (sibling-prj has it; allowed as lde-only).
 M1 image need **not** include `gh`. That binary is the **later** CI-logs
 feature (`SPEC-spool-cicd-logs.md`).
 
@@ -84,10 +84,10 @@ proof).
 
 | Action family | Source |
 |---|---|
-| `do_wait_for_cert` | csi-rel-orc / pas-psf-orc `033` |
+| `do_wait_for_cert` | csi-rel-orc / sibling-prj-orc `033` |
 | `do_export_all_dns_settings` / `do_flush_dns` | same |
 | Cloud Run deploy (CI WIF + owner laptop escape) | `022` |
-| `gcp-sm-secrets-to-env-file` | pas-psf-orc (placeholders in logs) |
+| `gcp-sm-secrets-to-env-file` | sibling-prj-orc (placeholders in logs) |
 
 DNS: the product domain is registered at **Gandi** and must stay on **Gandi
 nameservers** (`*.gandi.net` / LiveDNS). **Apex HTTP stays Gandi parking**
@@ -112,7 +112,7 @@ terraform host each time.
 
 - Catalogue, cart, orders, customers, invoices, stock, shipping, B2B
   pricelists, WordPress, Nuxt shop pages
-- SQL under `csi-rel-rdb` / `pas-psf-rdb` **except** the migration *runner*
+- SQL under `csi-rel-rdb` / `sibling-prj-rdb` **except** the migration *runner*
   and the idea of numbered `.sql` files — contents are spool tables only
   (`003/data-model.md`, `006`)
 - Payment **drivers** wait for M2 (`contracts/payment.md`); M1 secrets

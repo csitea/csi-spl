@@ -108,7 +108,7 @@ else in section 3.3, and the flapping while the PC is on a weak uplink.
 | 15 | hub relay (desk sidecars) | sat `ps`: 6 `spool hub-run` | nothing for sat | yes | none | the hub (Cloud Run prd) is the one dependency both machines share; it is not on the PC |
 | 16 | MCP servers | sat: the agent user's `~/.claude.json` `mcpServers` -> empty; the repo has no `.mcp.json` | **not measured on the PC** | n/a | none found that a csi-spl brief requires | none measured |
 | 17 | Claude session save (every minute) + boot restore, graft index refresh | PC `crontab -l` (box user): `claude-save-sessions.sh`, `claude-sessions-boot.sh`, `graft-cron.sh` x2; sat: `agent-boot-restore` only | resuming PC sessions after a PC reboot; the graft code index on the PC | partly (sat has its own boot restore) | none for the target; graft on sat is the owner's call | out of csi-spl's tree (box tooling) |
-| 18 | other projects' crons: creds backup (10:00, 19:00), bnc completion-cache warm, csi-rel price refresh, monitoring watchdog (5 min), uptime alert drill | PC `crontab -l` lines 1-7 | each of those stops | no | **out of scope, owner to decide** (Q10) | the csi-rel monitoring watchdog and creds backup stop silently with the PC |
+| 18 | other projects' crons: creds backup (10:00, 19:00), another project's completion-cache warm, csi-rel price refresh, monitoring watchdog (5 min), uptime alert drill | PC `crontab -l` lines 1-7 | each of those stops | no | **out of scope, owner to decide** (Q10) | the csi-rel monitoring watchdog and creds backup stop silently with the PC |
 
 **Rows that block the target** (the PC off for a working day): 8 (no "Seen"
 ack), 9 (workflow 10 never runs), 4 (dev desks unreconciled), 5 (no weekly
@@ -208,7 +208,7 @@ loop's timing (180 s); other projects' crons (row 18, Q10).
   pushes every 20 min" enough before you switch the PC off? (yes / no)
 - **Q9.** While the PC is on, should it still take lanes? (yes / no)
 - **Q10.** The other projects' crons on the PC (creds backup, csi-rel
-  watchdog / price refresh / uptime drill, bnc cache warm): move them to sat
+  watchdog / price refresh / uptime drill, another project's cache warm): move them to sat
   too? (yes / no)
 
 <!-- last-edit: 2026-10-03T03:35:00Z — c-048 -->

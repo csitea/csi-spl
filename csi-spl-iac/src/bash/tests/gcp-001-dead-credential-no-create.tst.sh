@@ -6,7 +6,7 @@
 #          CALLING it against a stubbed gcloud and inspecting the recorded argv,
 #          not by grepping the source.
 #
-#          Adapted from pas-psf-iac/src/bash/tests/gcp-001-dead-credential-no-create.tst.sh.
+#          Adapted from sibling-prj-iac/src/bash/tests/gcp-001-dead-credential-no-create.tst.sh.
 #          Kept: the dead-credential, exit-0-but-empty, unreadable-describe and
 #          happy-path cases. Added for the spool: dry run is the default, every
 #          gcloud call pins --account, the shared gcloud config is never

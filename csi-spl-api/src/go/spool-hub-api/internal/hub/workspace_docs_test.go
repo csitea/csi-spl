@@ -246,7 +246,7 @@ func TestNewWorkspaceDocsNeedsTenant(t *testing.T) {
 	}
 }
 
-// downStore is a workspace's docs store whose bucket is gone (sienna's 404).
+// downStore is a workspace's docs store whose bucket is gone (ws-b's 404).
 type downStore struct{ blob.Dir }
 
 var errBucketGone = errors.New("storage: bucket doesn't exist")
@@ -258,7 +258,7 @@ func (downStore) List(context.Context, string, func(string, time.Time) error) er
 func (downStore) Get(context.Context, string) (io.ReadCloser, error) { return nil, errBucketGone }
 
 // A docs 503 logs the workspace, its bucket, the operation and the store's
-// error, and never the caller's session (sienna's Docs 503 logged nothing).
+// error, and never the caller's session (ws-b's Docs 503 logged nothing).
 func TestWorkspaceDocsUnavailableIsLogged(t *testing.T) {
 	var buf bytes.Buffer
 	root := t.TempDir()

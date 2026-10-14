@@ -40,14 +40,14 @@ per probe unless stated.
 - A new tenant needs a cnf edit, a push, workflow `40` (019 + 025
   terraform), then Firebase's certificate. Spec 024 §1 measured ~9-11 min to
   issue plus ~5-8 min edge propagation per host (n=1 per host, CLE-3382).
-  On 2026-10-07 aleko-gik lost 1 h 40 min because the cnf commit was never
+  On 2026-10-07 ws-d lost 1 h 40 min because the cnf commit was never
   pushed (c-002, `491b6def`).
 - **"The current certificate" is not one certificate.** `openssl s_client
-  -servername <host>` on 2026-10-07: the apex and `luka.<fqdn>` are each
+  -servername <host>` on 2026-10-07: the apex and `ws-e.<fqdn>` are each
   served a Google Trust Services WR3 certificate whose SAN list holds ~100
   unrelated customers' domains (Firebase batches custom domains into shared
-  certificates). The apex certificate also carries `dev.<fqdn>`; the `luka`
-  one also carries `csitea.dev`, `spool`, `ora-cam`, `csi-rel`, `pas-psf` and
+  certificates). The apex certificate also carries `dev.<fqdn>`; the `ws-e`
+  one also carries `csitea.dev`, `spool`, `ws-f`, `csi-rel`, `sibling-prj` and
   `csitea`. Expiry: Dec 18 and Dec 25 2026. `api.<fqdn>` has its own
   single-SAN certificate. So "keep the current certificate working" means:
   keep each host's Firebase custom domain (and with it its SAN entry) alive

@@ -546,28 +546,28 @@ main "$@"
 #==============================================================================
 # run.sh — minimalistic bash framework
 # Version:  3.8.2
-# Upstream: https://github.com/csitea/pas-psf (pas-psf-utl, v3.8.2)
+# Upstream: a sibling project (its -utl, v3.8.2)
 #------------------------------------------------------------------------------
 # Version history (newest first):
 #   3.8.2  2026-09-18  Copied unchanged into csi-spl-orc from csi-spl-iac.
-#   3.8.2  2026-09-17  Copied unchanged into csi-spl-iac from pas-psf-utl (the
-#                      newest of the pas-psf and csi-rel copies).
+#   3.8.2  2026-09-17  Copied unchanged into csi-spl-iac from sibling-prj-utl (the
+#                      newest of the sibling-prj and csi-rel copies).
 #   3.8.0  2026-04-30  Sync framework primitives from app-edw-utl: write-probe
 #                      in do_detect_base_paths (more reliable than -w on some
 #                      FUSE/NFS filesystems); path-derived LOG_DIR formula in
 #                      do_log (both lib/bash/funcs/log.func.sh and run.sh
-#                      inline copy) — removes hardcoded /var/pas/pas-psf/
-#                      pas-psf-utl literal so logs land at
+#                      inline copy) — removes hardcoded /var/<org>/<project>/
+#                      sibling-prj-utl literal so logs land at
 #                      \${VAR_DIR}/\${ORG}/\${APP}/\${PROJ}/dat/log/bash for
 #                      whichever project clones this framework; +docker hint
 #                      in do_require_bin install map.
-#   3.7.0  2026-04-30  Forked back to csitea/pas-psf as a minimal bootstrap.
+#   3.7.0  2026-04-30  Forked back to csitea/sibling-prj as a minimal bootstrap.
 #                      Slimmed: dropped Make, Docker, Confluence/Jira/GCP
-#                      actions; nested under pas-psf-utl/. Imported from
-#                      pas-psf-utl: auto-discovered actions, named-args + PRE/
+#                      actions; nested under sibling-prj-utl/. Imported from
+#                      sibling-prj-utl: auto-discovered actions, named-args + PRE/
 #                      POST hooks, do_load_config, do_detect_base_paths,
 #                      do_verify_symlinks, do_help_with, test fixtures.
-#   3.6.4  2026-04-30  Sync point with pas-psf-utl (full feature set, downstream).
+#   3.6.4  2026-04-30  Sync point with sibling-prj-utl (full feature set, downstream).
 #   2.x    2024-08     RUN_UNIT var resolution, OS-distro vars hardening
 #                      (debian/suse/fedora), do_set_vars_v204 era.
 #   1.1    2024-02     do_log split into a truly re-usable helper; DIR -> PATH

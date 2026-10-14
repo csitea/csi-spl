@@ -79,7 +79,7 @@ do_spl_desk_up() {
   [[ "$poke" == 0 || "$poke" == 1 ]] || { do_log "FATAL DESK_POKE must be 0 or 1, got: '$poke'"; return 1; }
   [[ "$boxpoke" == 0 || "$boxpoke" == 1 ]] || { do_log "FATAL DESK_BOX_POKE must be 0 or 1, got: '$boxpoke'"; return 1; }
   if [[ "$poke" == 0 ]] && spl_desk_is_od "$agent"; then
-    do_log "FATAL $agent is an orchestrator or dispatcher seat in lease.conf: such a seat is never muted, so DESK_POKE=0 is refused (prd 2026-10-11: a hand mute kept six sienna posts from every dispatcher prompt)"
+    do_log "FATAL $agent is an orchestrator or dispatcher seat in lease.conf: such a seat is never muted, so DESK_POKE=0 is refused (prd 2026-10-11: a hand mute kept six ws-b posts from every dispatcher prompt)"
     return 1
   fi
 
@@ -220,7 +220,7 @@ spl_desk_is_od() {
 # spl_desk_od_unmute <state dir> <agent>: 0 when <agent> is an orchestrator or
 # dispatcher seat, whose .no-poke marker it removes and logs; 1 for any other
 # seat, whose marker it leaves alone. Those seats are never muted: on prd
-# 2026-10-10 a hand DESK_POKE=0 muted c-001..003 in sienna and aleko-gik, the
+# 2026-10-10 a hand DESK_POKE=0 muted c-001..003 in ws-b and ws-d, the
 # seated-only reconcile kept that mute on every tick, and six human posts of
 # 2026-10-11 reached no dispatcher prompt.
 spl_desk_od_unmute() {

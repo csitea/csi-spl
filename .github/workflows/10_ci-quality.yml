@@ -1179,6 +1179,9 @@ jobs:
         run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
 
       - name: Sweep
+        env:
+          SPL_PRIVATE_CNF_YAML: ${{ secrets.SPL_PRIVATE_CNF_YAML }}
+          SPL_PRIVATE_REQUIRED: ${{ github.repository == 'csitea/csi-spl' && github.event_name != 'pull_request' && '1' || '0' }}
         run: |
           set -uo pipefail
           excl=(--exclude=CLAUDE.md --exclude=GEMINI.md --exclude=AGENTS.md
@@ -1227,6 +1230,7 @@ jobs:
             fi
             while IFS= read -r h; do
               [[ -n "$h" ]] || continue
+              [[ -n "${skip_re:-}" && "${h%%:*}" =~ $skip_re ]] && continue
               if allowed "$h" "$re"; then n_allowed=$((n_allowed + 1)); else kept+="$h"$'\n'; fi
             done <<<"$hits"
             hits="${kept%$'\n'}"
@@ -1247,6 +1251,39 @@ jobs:
           sweep "personal home directory"          '/home/(?!runner\b)[a-z][a-z0-9_-]*/'
           sweep "owner mail address or domain"     '(?i)@gmail\.com|flok\.fi' \
                 "$allow_line" "gcp_account_owner_email key"
+          # SPL-1874 (owner HUM-10, poll 6c701ac9): the hidden workspaces. Their
+          # names are never in git, so the patterns come from the PRIVATE
+          # overlay: here the secret SPL_PRIVATE_CNF_YAML, in
+          # do_check_dist_hygiene the box's overlay file; one pattern builder,
+          # csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh. A label and
+          # file:line are printed, never the name. A pull request has no
+          # secret: it warns; a master push without one fails.
+          # CONTROL: csi-spl-iac/src/bash/tests/hygiene-hidden-workspaces.tst.sh
+          if [[ -n "${SPL_PRIVATE_CNF_YAML:-}" ]]; then
+            SPL_PRIVATE_CNF="$(mktemp)"; export SPL_PRIVATE_CNF
+            printf '%s\n' "$SPL_PRIVATE_CNF_YAML" >"$SPL_PRIVATE_CNF"
+          fi
+          lib=./csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh
+          # shellcheck source=/dev/null
+          if [[ -f "$lib" ]] && source "$lib" && [[ -s "$(spl_private_cnf_path)" ]]; then
+            base="$(sed -n 's/^ *BASE_DOMAIN: *"\{0,1\}\([^"# ]*\).*/\1/p' csi-spl-cnf/csi-spl/all.env.yaml | head -1)"
+            if pats="$(spl_private_gate_patterns "$base")" && [[ -n "$pats" ]]; then
+              # The git-rel files are the git-rel scrub lane's (c-001 ask
+              # 4c230c4b), not SPL-1874's: skipped until that lane lands, then
+              # this line goes. Every other file is swept.
+              # 0051 is a forward-only migration: its sha256 is pinned in every
+              # env's spool_schema_migrations, so its comment cannot change.
+              skip_re='^\./(csi-spl-doc/(doc/md/csi-spl\.feature\.md|specs/001-relay-bucket-estate/)|csi-spl-rdb/src/sql/postgres/spool-hub/0051_tenants_sort_order\.sql$)'
+              sweep "hidden workspace or private literal (SPL-1874)" "$(paste -sd'|' <<<"$pats")"
+              skip_re=''
+            else
+              echo "::error::hygiene: the private overlay does not parse -- the hidden-workspace sweep proved nothing"; fail=1
+            fi
+          elif [[ "${SPL_PRIVATE_REQUIRED:-0}" == 1 ]]; then
+            echo "::error::hygiene: no private overlay (secret SPL_PRIVATE_CNF_YAML) or no $lib -- the hidden-workspace sweep proved nothing"; fail=1
+          else
+            echo "::warning::hygiene: hidden workspaces NOT swept -- no private overlay or no $lib (SPL-1874)"
+          fi
           # Spec 110 2.3: no TRACKED .vibe/ dir anywhere in the tree. Every
           # worktree is a trusted Vibe folder whose .vibe/{config.toml,
           # hooks.toml,AGENTS.md} is read first, so one commit could change the

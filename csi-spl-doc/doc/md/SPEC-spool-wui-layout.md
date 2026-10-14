@@ -85,14 +85,14 @@ Implemented `76f66b5`. Unit: `csi-spl-wui/tests/unit/pane-widths.test.mjs`.
 ### 1.3 Top-Right User Control & Settings (CLE-3402, owner 2026-09-19)
 
 > Owner: "we must change the interface on the top right corner to be the user
-> avatar of the logged in user - the same way in the pas-psf project it is
+> avatar of the logged in user - the same way in the sibling-prj project it is
 > implemented" and "once you click on this there is a drop down and there is
 > the settings part of the drop down".
 
-Reference: pas-psf `pas-psf-wui/src/components/UserAccountControl.vue`
+Reference: sibling-prj `sibling-prj-wui/src/components/UserAccountControl.vue`
 (avatar :26-60 — stored social photo, else initials :102-118, else a
 silhouette; guest → `/login` :61-76) and `pages/account/index.vue` (its
-settings). pas-psf's avatar links straight to `/account`; the spool adds the
+settings). sibling-prj's avatar links straight to `/account`; the spool adds the
 dropdown the owner asked for.
 
 - **Where**: one fixed cluster `.app-corner` (`layouts/default.vue`), top-right
@@ -110,9 +110,9 @@ dropdown the owner asked for.
   closes and returns focus to the button; Tab, a click outside or a route
   change closes.
 - **Signed out**: the corner is the sign-in entry (`/login?redirect=<here>`).
-- **`/settings`** (`pages/settings.vue`), from pas-psf `/account`:
+- **`/settings`** (`pages/settings.vue`), from sibling-prj `/account`:
 
-  | pas-psf `/account` | spool `/settings` | why |
+  | sibling-prj `/account` | spool `/settings` | why |
   |---|---|---|
   | email (read-only), first/last name (editable) | name, email, member id, workspace — read-only | the hub has no profile PATCH; the name comes from the IdP / registration |
   | avatar (header) | profile picture (IdP picture or identicon) | same source as the corner |

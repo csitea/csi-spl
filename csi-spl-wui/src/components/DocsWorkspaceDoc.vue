@@ -8,7 +8,7 @@
      that does not exist yet is created by its first Save. Delete asks first.
      Edit and Delete show only to a reader who can write (canWriteDocs); the
      hub's docs.write check is the control.
-     Download (owner HUM-10, sienna msg 814fe6e1) shows to every reader: it
+     Download (owner HUM-10, ws-b msg 814fe6e1) shows to every reader: it
      saves the stored markdown the reader fetched, as <basename>.md. -->
 <template>
   <div class="ws-doc" data-test="ws-doc" :data-state="state" :data-mode="mode">

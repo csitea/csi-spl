@@ -27,11 +27,12 @@ _sec_headers_need() {
   return 1
 }
 
-# The dev WUI host, derived from cnf so the domain literal lives ONLY in
-# csi-spl-cnf (env.dns.BASE_DOMAIN). Convention: dev serves dev.<BASE_DOMAIN>.
+# The WUI host, derived from cnf so the domain literal lives ONLY in
+# csi-spl-cnf (env.dns.BASE_DOMAIN). Convention: dev serves dev.<BASE_DOMAIN>,
+# prd serves the apex <BASE_DOMAIN>.
 # Prints the https URL, or nothing if cnf cannot be read.
 _sec_headers_default_url() {
-  local base="${APP_PATH:-}" cnf="" dom
+  local base="${APP_PATH:-}" cnf="" dom env_subdomain
   for cnf in "$base/../csi-spl-cnf/csi-spl/all.env.yaml" \
              "$base/csi-spl-cnf/csi-spl/all.env.yaml" \
              "${SEC_HEADERS_CNF:-}"; do
@@ -40,7 +41,14 @@ _sec_headers_default_url() {
       dom=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$cnf" 2>/dev/null)
     fi
     [[ -z "${dom:-}" ]] && dom=$(sed -n 's/^[[:space:]]*BASE_DOMAIN:[[:space:]]*//p' "$cnf" | sed -n 1p | tr -d '"'"'"' ')
-    [[ -n "${dom:-}" ]] && { printf 'https://dev.%s\n' "$dom"; return 0; }
+    [[ -n "${dom:-}" ]] || continue
+    if [[ "${ENV:-dev}" == "prd" ]]; then
+      env_subdomain=""
+    else
+      env_subdomain="dev."
+    fi
+    printf 'https://%s%s\n' "${env_subdomain}" "$dom"
+    return 0
   done
   return 1
 }

@@ -183,12 +183,17 @@ const pops = (p) => p.evaluate(() => window.__swipePops || 0)
 async function closeMenu(p) {
   const shown = (s) => [...document.querySelectorAll(s)].some((e) => e.getClientRects().length)
   for (let i = 0; i < 3; i++) {
-    /* the sheet slides up: read its top once it has settled */
-    await sleep(400)
-    const top = await p.evaluate((s) => {
+    /* the sheet slides up: read its top once two reads 100 ms apart agree */
+    const read = () => p.evaluate((s) => {
       const e = [...document.querySelectorAll(s)].find((x) => x.getClientRects().length)
-      return e ? e.getBoundingClientRect().top : -1
+      return e ? Math.round(e.getBoundingClientRect().top) : -1
     }, menu)
+    let top = await read()
+    for (let t0 = Date.now(), prev = NaN; top !== prev && Date.now() - t0 < 3000;) {
+      await sleep(100)
+      prev = top
+      top = await read()
+    }
     if (top < 0) return true
     await p.touchscreen.tap(Math.round(innerW / 2), Math.max(8, Math.round(top / 2)))
     if (await until(p, (s) => ![...document.querySelectorAll(s)].some((e) => e.getClientRects().length), menu, 1500)) return true
@@ -198,6 +203,16 @@ async function closeMenu(p) {
 
 const level = (p) => p.evaluate(() => document.querySelector('[data-mobile-level]')?.getAttribute('data-mobile-level') || '')
 const toast = '[data-testid=archive-toast]'
+/** The row `sel` is back in place after a gesture: no strip, no offset. */
+const restedIn = (p, sel) => until(p, (sel) => {
+  const e = [...document.querySelectorAll(sel)].find((x) => x.getClientRects().length)
+  if (!e) return false
+  const m = getComputedStyle(e).transform
+  return !e.querySelector('[data-testid=swipe-archive-reveal], [data-testid=swipe-menu-reveal], [data-testid=swipe-hide-reveal]')
+    && (!m || m === 'none' || /matrix\(1, 0, 0, 1, 0, 0\)/.test(m))
+}, sel, 3000)
+/** The app is mounted and its channel store is up: a store call before that is lost. */
+const mounted = (p) => until(p, () => Boolean(document.querySelector('#__nuxt')?.__vue_app__?.config.globalProperties.$pinia?._s.get('channel')), null, NAV_TIMEOUT)
 
 const srv = await startServer()
 const browser = await launch()
@@ -219,14 +234,14 @@ try {
   /* warm a throwaway load: a cold nuxi dev drops the first dynamic import */
   await p.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
-  await sleep(600)
+  await mounted(p)
   await p.evaluate(() => { const ch = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel'); ch.refresh = async () => {} })
   ok('the page is a touch UI (pointer: coarse)', await p.evaluate(() => matchMedia('(pointer: coarse)').matches))
 
   /* ---- A. cards view ------------------------------------------------------ */
   const a = await seed(p, 'A')
   await p.waitForSelector(card(a.top), { visible: true, timeout: 10000 })
-  await sleep(400)
+  await until(p, (sel) => Boolean(document.querySelector(sel)), `${card(a.top)}[data-swipe-archive]`, 3000)
   ok('A the card offers the swipe (data-swipe-archive)', await has(p, `${card(a.top)}[data-swipe-archive]`))
   ok('A the card leaves the vertical pan to the browser (touch-action: pan-y)',
     await p.evaluate((sel) => getComputedStyle(document.querySelector(sel)).touchAction === 'pan-y', card(a.top)))
@@ -234,18 +249,18 @@ try {
   const short = await slideLeft(p, card(a.top), 50, { mid: midState(card(a.top)) })
   ok('A a short LEFT slide moves the card left and shows the archive strip with its icon',
     short && short.strip && short.icon && short.shifted && short.tx < 0 && !short.armed, short)
-  await sleep(400)
+  await restedIn(p, card(a.top))
   ok('A ... below the threshold it snaps back: no strip, card kept, no snackbar',
     !(await has(p, `${card(a.top)} [data-testid=swipe-archive-reveal]`)) && (await has(p, card(a.top))) && !(await has(p, toast)))
 
   const vert = await slideLeft(p, card(a.top), 4, { dy: -120, mid: midState(card(a.top)) })
   ok('A a vertical drag (a scroll) never moves the card', vert && !vert.strip && !vert.menuStrip && !vert.shifted, vert)
-  await sleep(300)
+  await restedIn(p, card(a.top))
   ok('A ... and archives nothing', (await has(p, card(a.top))) && !(await has(p, toast)))
 
   const rshort = await slideRight(p, card(a.top), 40, { mid: midState(card(a.top)) })
   ok('A a short RIGHT slide shows the menu strip, never the archive one', rshort && rshort.menuStrip && !rshort.strip && rshort.tx > 0, rshort)
-  await sleep(400)
+  await restedIn(p, card(a.top))
   ok('A ... snaps back: no menu, card kept, no snackbar',
     !(await has(p, menu)) && (await has(p, card(a.top))) && !(await has(p, toast)))
 
@@ -284,7 +299,6 @@ try {
   /* ---- B. topic view ------------------------------------------------------ */
   const b = await seed(p, 'B')
   ok('B the topic view opens', await openTopic(p, b))
-  await sleep(500)
   const opener = `.topic ${card(b.top)}`
   const latest = `.topic ${card(b.r2)}`
   ok('B the topic view\'s latest reply offers the swipe', await has(p, `${latest}[data-swipe-archive]`))
@@ -302,14 +316,14 @@ try {
     }, `.topic ${card(b.r1)}`),
   })
   ok('B a short LEFT slide on an older reply shows the hide strip, never the archive one', reply && reply.hide && !reply.archive, reply)
-  await sleep(400)
+  await restedIn(p, `.topic ${card(b.r1)}`)
   ok('B ... snaps back and archives nothing', (await has(p, opener)) && (await has(p, `.topic ${card(b.r1)}`)) && !(await has(p, toast)))
 
   const lv0 = await level(p)
   const bpops = await pops(p)
   const bshort = await slideLeft(p, latest, 100, { mid: midState(latest) })
   ok('B a 100 px LEFT slide on the latest reply shows the strip, not armed', bshort && bshort.strip && !bshort.armed, bshort)
-  await sleep(500)
+  await restedIn(p, latest)
   ok('B ... snaps back, and the phone did NOT change level',
     (await has(p, latest)) && (await level(p)) === lv0 && !(await has(p, toast)), { before: lv0, after: await level(p) })
 
@@ -330,7 +344,6 @@ try {
     }
   }
   ok('B the topic view opens again', again, { level: await level(p) })
-  await sleep(500)
 
   await slideLeft(p, latest, 260, {
     mid: async (p) => { await shot(p, 'swipe-topic-armed') },
@@ -341,7 +354,6 @@ try {
      transition runs: wait for both before reading the list (slow runners) */
   const gone = await until(p, (sel) => ![...document.querySelectorAll(sel)].some((e) => e.getClientRects().length), card(b.top), 5000)
   ok('B the card left the cards view', gone, { level: await level(p), toast: await has(p, toast) })
-  await sleep(600)
   await shot(p, 'swipe-topic-snackbar')
   const back = (sel) => Boolean([...document.querySelectorAll(sel)].find((e) => e.getClientRects().length))
   let came = false
@@ -365,11 +377,10 @@ try {
   await d.setViewport({ width: 1280, height: 800 })
   await d.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
   await d.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
-  await sleep(600)
+  await mounted(d)
   await d.evaluate(() => { const ch = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel'); ch.refresh = async () => {} })
   const c = await seed(d, 'C')
   await d.waitForSelector(card(c.top), { visible: true, timeout: 10000 })
-  await sleep(400)
   ok('C desktop: the card offers no swipe and keeps its default touch-action',
     await d.evaluate((sel) => { const e = document.querySelector(sel); return !e.hasAttribute('data-swipe-archive') && getComputedStyle(e).touchAction !== 'pan-y' }, card(c.top)))
   const cb = await boxOf(d, `${card(c.top)} .msg-main`)
@@ -379,7 +390,7 @@ try {
   const dm = await midState(card(c.top))(d)
   await d.mouse.up()
   ok('C desktop: a mouse drag shows no strip', dm && !dm.strip && !dm.shifted, dm)
-  await sleep(400)
+  await restedIn(d, card(c.top))
   ok('C desktop: ... and archives nothing', (await has(d, card(c.top))) && !(await has(d, toast)))
 } finally {
   await browser.close()

@@ -37,8 +37,6 @@ const LONG = new Map([
   ['src/stores/live.ts setup', 304],
   ['src/stores/notification.ts <anon>', 430],
   ['src/stores/session.ts <anon>', 167],
-  ['src/stores/topic.ts <anon>', 117],
-  ['src/stores/viewer.ts <anon>', 173],
   ['src/utils/auth-client.mjs createAuthClient', 326],
   ['src/utils/live-ws.mjs createLiveClient', 499],
   ['src/utils/spool-client.mjs createSpoolClient', 565],

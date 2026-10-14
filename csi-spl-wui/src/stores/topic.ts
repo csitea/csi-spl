@@ -34,7 +34,8 @@ async function readOpened(taskId: string, count: number) {
   sync.pushReads(useSpoolApi())
 }
 
-export const useTopicStore = defineStore('topic', () => {
+/* The pane's state: the refs the store hands out as they are. */
+function topicState() {
   const open = ref(false)
   const parentTaskId = ref<string | null>(null)
 
@@ -57,33 +58,37 @@ export const useTopicStore = defineStore('topic', () => {
   const paneSelected = ref(false)
   /** New Omnibox topics shown at the top of the right pane, newest first. */
   const born = ref<SpoolMessage[]>([])
+  return { open, parentTaskId, target, rootMsg, paneSelected, born }
+}
 
+type TopicState = ReturnType<typeof topicState>
+
+function bornActions(s: TopicState) {
   function noteBorn(paneOpen: boolean, topicId: string | undefined, row: SpoolMessage | null | undefined) {
-    born.value = noteBornTopic(born.value, paneOpen, topicId, row) as SpoolMessage[]
+    s.born.value = noteBornTopic(s.born.value, paneOpen, topicId, row) as SpoolMessage[]
   }
   function dismissBorn(msgId: string) {
-    born.value = dismissBornTopic(born.value, msgId) as SpoolMessage[]
+    s.born.value = dismissBornTopic(s.born.value, msgId) as SpoolMessage[]
   }
   function clearBorn() {
-    born.value = []
+    s.born.value = []
   }
+  return { noteBorn, dismissBorn, clearBorn }
+}
 
-  const channel = useChannelStore()
-
-  const messages = computed(() => topicOf(channel.messages, parentTaskId.value))
-
+function openActions(s: TopicState, channel: ReturnType<typeof useChannelStore>) {
   /** A click on the topic pane selects the pane. The topic that opened it stays selected too. */
   function selectPane() {
-    paneSelected.value = true
+    s.paneSelected.value = true
   }
 
   /** The channel / DM pane: open this target and show the pane. */
   function openTarget(next: TopicTarget, root: SpoolMessage | null = null) {
-    target.value = next
-    rootMsg.value = root
-    parentTaskId.value = next.taskId
-    open.value = true
-    paneSelected.value = false
+    s.target.value = next
+    s.rootMsg.value = root
+    s.parentTaskId.value = next.taskId
+    s.open.value = true
+    s.paneSelected.value = false
     usePaneFocus().openedTopic()
     /* CLE-77804 (topic 35053f95): opening the thread reads it — snapshot the
        current reply total so the card's "<unread>/<total>" clears to plain. */
@@ -97,26 +102,29 @@ export const useTopicStore = defineStore('topic', () => {
 
   /** Any pane: the target a click (or a ?topic= URL) resolved to. */
   function setTarget(next: TopicTarget | null, root: SpoolMessage | null = null) {
-    target.value = next
-    rootMsg.value = root
+    s.target.value = next
+    s.rootMsg.value = root
     /* opening or re-clicking a message selects that message, not the pane */
-    paneSelected.value = false
+    s.paneSelected.value = false
     /* the channel / DM pane is driven by `open`; the live pane by its own store */
     if (!next) {
-      open.value = false
-      parentTaskId.value = null
+      s.open.value = false
+      s.parentTaskId.value = null
     }
   }
 
   function close() {
-    open.value = false
-    parentTaskId.value = null
-    target.value = null
-    rootMsg.value = null
-    born.value = []
-    paneSelected.value = false
+    s.open.value = false
+    s.parentTaskId.value = null
+    s.target.value = null
+    s.rootMsg.value = null
+    s.born.value = []
+    s.paneSelected.value = false
   }
+  return { selectPane, openTarget, openTopic, setTarget, close }
+}
 
+function rootActions(s: TopicState, dismissBorn: (msgId: string) => void) {
   /**
    * the pinned root of a MESSAGE-rooted topic is held here, not in
    * the feed store — so an edit to that message has to be applied here too or
@@ -124,8 +132,8 @@ export const useTopicStore = defineStore('topic', () => {
    */
   function applyEditedRoot(row: { msg_id?: string } | null) {
     const id = String((row && row.msg_id) || '')
-    if (!id || !rootMsg.value || String(rootMsg.value.msg_id || '') !== id) return
-    rootMsg.value = { ...rootMsg.value, ...(row as Partial<SpoolMessage>) }
+    if (!id || !s.rootMsg.value || String(s.rootMsg.value.msg_id || '') !== id) return
+    s.rootMsg.value = { ...s.rootMsg.value, ...(row as Partial<SpoolMessage>) }
   }
 
   /** An emoji on the pinned root, or on a born card, which neither feed owns. */
@@ -133,11 +141,11 @@ export const useTopicStore = defineStore('topic', () => {
     const id = String((update && update.msg_id) || '')
     if (!id) return
     const reactions = Array.isArray(update?.reactions) ? update.reactions : []
-    if (rootMsg.value && String(rootMsg.value.msg_id || '') === id) {
-      rootMsg.value = { ...rootMsg.value, reactions }
+    if (s.rootMsg.value && String(s.rootMsg.value.msg_id || '') === id) {
+      s.rootMsg.value = { ...s.rootMsg.value, reactions }
     }
-    if (born.value.some((m) => String(m.msg_id || '') === id)) {
-      born.value = patchReactions(born.value, update) as SpoolMessage[]
+    if (s.born.value.some((m) => String(m.msg_id || '') === id)) {
+      s.born.value = patchReactions(s.born.value, update) as SpoolMessage[]
     }
   }
 
@@ -145,9 +153,23 @@ export const useTopicStore = defineStore('topic', () => {
   function dropRoot(msgId: string) {
     const id = String(msgId || '')
     if (!id) return
-    if (rootMsg.value && String(rootMsg.value.msg_id || '') === id) rootMsg.value = null
+    if (s.rootMsg.value && String(s.rootMsg.value.msg_id || '') === id) s.rootMsg.value = null
     dismissBorn(id)
   }
+  return { applyEditedRoot, applyReactionsUpdate, dropRoot }
+}
+
+export const useTopicStore = defineStore('topic', () => {
+  const s = topicState()
+  const { open, parentTaskId, target, rootMsg, paneSelected, born } = s
+  const { noteBorn, dismissBorn, clearBorn } = bornActions(s)
+
+  const channel = useChannelStore()
+
+  const messages = computed(() => topicOf(channel.messages, parentTaskId.value))
+
+  const { selectPane, openTarget, openTopic, setTarget, close } = openActions(s, channel)
+  const { applyEditedRoot, applyReactionsUpdate, dropRoot } = rootActions(s, dismissBorn)
 
   return { open, parentTaskId, messages, target, rootMsg, born, paneSelected, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, selectPane, applyEditedRoot, applyReactionsUpdate, dropRoot, close }
 })

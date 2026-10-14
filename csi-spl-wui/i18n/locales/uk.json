@@ -1651,6 +1651,7 @@
     "marketing_title": "Маркетинг",
     "marketing_on": "Маркетинг увімкнено для цього робочого простору",
     "marketing_hint": "Типово вимкнено. Поки його вимкнено, нічого не готується і не публікується від чийогось імені.",
+    "marketing_not_available": "Маркетинг недоступний у цьому робочому просторі.",
     "marketing_publish_title": "Опублікувати в LinkedIn",
     "marketing_publish_hint": "Дописи блогу, ще не поширені в LinkedIn. Публікувати їх може лише власник робочого простору, який підключив LinkedIn.",
     "marketing_publish_button": "Опублікувати в LinkedIn",

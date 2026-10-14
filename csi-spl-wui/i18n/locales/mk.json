@@ -1651,6 +1651,7 @@
     "marketing_title": "Маркетинг",
     "marketing_on": "Маркетингот е вклучен за овој работен простор",
     "marketing_hint": "Исклучен по основно. Додека е исклучен, ништо не се подготвува ниту објавува во ничие име.",
+    "marketing_not_available": "Маркетингот не е достапен во овој работен простор.",
     "marketing_publish_title": "Објави на LinkedIn",
     "marketing_publish_hint": "Објави од блогот што сè уште не се споделени на LinkedIn. Само сопственикот на работниот простор што го поврза LinkedIn може да ги објави.",
     "marketing_publish_button": "Објави на LinkedIn",

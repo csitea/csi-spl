@@ -1651,6 +1651,7 @@
     "marketing_title": "Marknadsföring",
     "marketing_on": "Marknadsföring är på för den här arbetsytan",
     "marketing_hint": "Av som standard. Så länge den är av skrivs eller publiceras ingenting för någons räkning.",
+    "marketing_not_available": "Marknadsföring är inte tillgänglig i den här arbetsytan.",
     "marketing_publish_title": "Publicera på LinkedIn",
     "marketing_publish_hint": "Blogginlägg som inte har delats på LinkedIn ännu. Bara arbetsytans ägare som anslöt LinkedIn kan publicera dem.",
     "marketing_publish_button": "Publicera på LinkedIn",

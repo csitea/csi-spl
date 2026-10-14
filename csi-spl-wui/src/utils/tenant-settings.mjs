@@ -101,6 +101,20 @@ export function tenantSettingsErrorKey(err) {
   return 'tenant_settings.error.' + (known.includes(token) ? token : 'generic')
 }
 
+/**
+ * SPL-1856: does a refused Marketing part say why, in ONE plain line, instead
+ * of hiding? The switch says 404 (outside the cnf allow-list: the hub answers
+ * it before any role check); the Publish list says 403 (not the owner who
+ * connected LinkedIn). The list's own 404 (outside the allow-list, or switched
+ * off) stays hidden: the switch already says it. The lines' i18n keys stay in
+ * the components: this file is reachable from the first screen, and a key
+ * named here would ride in the core catalogue.
+ */
+export function marketingSaysWhy(part, err) {
+  const status = err && typeof err === 'object' ? err.status : 0
+  return (part === 'switch' && status === 404) || (part === 'publish' && status === 403)
+}
+
 /** spec 115 (rdb 0163, 0178): the task kinds, in the order the Vendor split table lists them. */
 export const SPLIT_TASK_KINDS = Object.freeze(['specs_and_docs', 'tests', 'simple_coding', 'complex_coding', 'i18n', 'secret', 'orchestration'])
 

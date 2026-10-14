@@ -1651,6 +1651,7 @@
     "marketing_title": "Marketing",
     "marketing_on": "El marketing está activado en este espacio de trabajo",
     "marketing_hint": "Desactivado por defecto. Mientras esté desactivado, no se redacta ni se publica nada en nombre de nadie.",
+    "marketing_not_available": "El marketing no está disponible en este espacio de trabajo.",
     "marketing_publish_title": "Publicar en LinkedIn",
     "marketing_publish_hint": "Entradas del blog aún no compartidas en LinkedIn. Solo el propietario del espacio de trabajo que conectó LinkedIn puede publicarlas.",
     "marketing_publish_button": "Publicar en LinkedIn",

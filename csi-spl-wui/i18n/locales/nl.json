@@ -1651,6 +1651,7 @@
     "marketing_title": "Marketing",
     "marketing_on": "Marketing staat aan voor deze werkruimte",
     "marketing_hint": "Standaard uit. Zolang het uit staat, wordt er namens niemand iets opgesteld of geplaatst.",
+    "marketing_not_available": "Marketing is niet beschikbaar in deze werkruimte.",
     "marketing_publish_title": "Publiceren op LinkedIn",
     "marketing_publish_hint": "Blogberichten die nog niet op LinkedIn zijn gedeeld. Alleen de eigenaar van de werkruimte die LinkedIn heeft gekoppeld, kan ze publiceren.",
     "marketing_publish_button": "Publiceren op LinkedIn",

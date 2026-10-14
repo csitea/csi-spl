@@ -1651,6 +1651,7 @@
     "marketing_title": "Markkinointi",
     "marketing_on": "Markkinointi on käytössä tässä työtilassa",
     "marketing_hint": "Oletuksena pois päältä. Kun se on pois päältä, mitään ei laadita eikä julkaista kenenkään puolesta.",
+    "marketing_not_available": "Markkinointi ei ole käytettävissä tässä työtilassa.",
     "marketing_publish_title": "Julkaise LinkedInissä",
     "marketing_publish_hint": "Blogikirjoitukset, joita ei ole vielä jaettu LinkedInissä. Vain työtilan omistaja, joka yhdisti LinkedInin, voi julkaista ne.",
     "marketing_publish_button": "Julkaise LinkedInissä",

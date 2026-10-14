@@ -4,10 +4,15 @@
      live blog posts not shared yet (GET /v1/marketing/posts), each with a
      Publish button (POST /v1/marketing/posts/{id}/publish). Shown only to
      the workspace owner who connected the LinkedIn channel: the hub answers
-     403 to anyone else and 404 while marketing is off or no channel is
-     connected, and either one hides it. -->
+     403 to anyone else, and the section says so in one line (SPL-1856); a
+     404 (marketing off, outside the allow-list or no channel connected)
+     hides it, the switch above says why. -->
 <template>
-  <div v-if="shown" class="mp" data-test="tenant-marketing-publish">
+  <div v-if="why" class="mp" data-test="tenant-marketing-publish-unavailable">
+    <h4 class="mp-title">{{ t('tenant_settings.marketing_publish_title') }}</h4>
+    <p class="muted mp-why">{{ t('tenant_settings.marketing_publish_forbidden') }}</p>
+  </div>
+  <div v-else-if="shown" class="mp" data-test="tenant-marketing-publish">
     <h4 class="mp-title">{{ t('tenant_settings.marketing_publish_title') }}</h4>
     <small class="muted">{{ t('tenant_settings.marketing_publish_hint') }}</small>
     <p v-if="!posts.length" class="muted" data-test="tenant-marketing-publish-empty">{{ t('tenant_settings.marketing_publish_empty') }}</p>
@@ -30,6 +35,7 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { marketingSaysWhy } from '~/utils/tenant-settings.mjs'
 
 type Post = { id: string, title?: string }
 
@@ -37,6 +43,8 @@ const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 
 const shown = ref(false)
+// SPL-1856: the hub refused with 403, so one line says why there is no list
+const why = ref(false)
 const posts = ref<Post[]>([])
 const busy = ref('')
 const notice = ref('')
@@ -74,8 +82,9 @@ onMounted(async () => {
     const r = await api.listMarketingPosts()
     posts.value = Array.isArray(r?.posts) ? r.posts.filter((p) => p && typeof p.id === 'string') : []
     shown.value = true
-  } catch {
+  } catch (e) {
     shown.value = false
+    why.value = marketingSaysWhy('publish', e)
   }
 })
 </script>
@@ -83,6 +92,7 @@ onMounted(async () => {
 <style scoped>
 .mp { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--color-border); }
 .mp-title { margin: 0 0 4px; font-size: 0.875rem; }
+.mp-why { margin: 0; }
 .mp-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .mp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--tap, 44px); }
 .mp-name { overflow-wrap: anywhere; }

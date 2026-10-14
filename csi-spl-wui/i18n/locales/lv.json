@@ -1651,6 +1651,7 @@
     "marketing_title": "Mārketings",
     "marketing_on": "Mārketings šajā darbvietā ir ieslēgts",
     "marketing_hint": "Pēc noklusējuma izslēgts. Kamēr tas ir izslēgts, neviena vārdā nekas netiek sagatavots vai publicēts.",
+    "marketing_not_available": "Mārketings šajā darbvietā nav pieejams.",
     "marketing_publish_title": "Publicēt LinkedIn",
     "marketing_publish_hint": "Bloga ieraksti, kas vēl nav kopīgoti LinkedIn. Tos var publicēt tikai darbvietas īpašnieks, kurš pievienoja LinkedIn.",
     "marketing_publish_button": "Publicēt LinkedIn",

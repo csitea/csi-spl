@@ -2,8 +2,8 @@
 // gates (strict, not fail-open), the section-of-path reader, the body
 // readers, the responder id rule, the mock hub rules.
 // Run: node tests/unit/tenant-settings.test.mjs
-import { readFileSync } from 'node:fs'
-import { issuePrefixOf, moveItem, normalizeTenantChannels, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from '../../src/utils/tenant-settings.mjs'
+import { readFileSync, readdirSync } from 'node:fs'
+import { issuePrefixOf, marketingSaysWhy, moveItem, normalizeTenantChannels, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from '../../src/utils/tenant-settings.mjs'
 import { TENANT_SETTINGS_SECTIONS, tenantSettingsSectionOf, tenantSettingsSections, tenantSettingsVisible } from '../../src/utils/tenant-settings-nav.mjs'
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
 import { mockPerfSummary, normalizePerfSummary, perfCompareRows, perfSummaryQuery } from '../../src/utils/perf-summary.mjs'
@@ -137,6 +137,34 @@ ok('066 L7: the Performance page reads the summary and shows n beside the percen
   perfPage.includes('data-test="tenant-perf-build-b"'))
 const lazy = readFileSync(new URL('../../src/utils/spool-client-lazy.mjs', import.meta.url), 'utf8')
 ok('066 L7: the client calls the admin summary route', lazy.includes('/v1/admin/perf/summary?'))
+
+// SPL-1856 (owner msg d657f49d): General says why Marketing is not shown,
+// in one plain line, instead of hiding it silently.
+{
+  ok('SPL-1856 switch 404 (off the allow-list) says why', marketingSaysWhy('switch', { status: 404 }) === true)
+  ok('SPL-1856 publish 403 (not the LinkedIn owner) says why', marketingSaysWhy('publish', { status: 403 }) === true)
+  ok('SPL-1856 normal case and the rest say nothing: the switch 403, the list 404, a 500, no error', !marketingSaysWhy('switch', { status: 403 }) &&
+    !marketingSaysWhy('publish', { status: 404 }) && !marketingSaysWhy('switch', { status: 500 }) &&
+    !marketingSaysWhy('switch', null) && !marketingSaysWhy('publish', undefined))
+  const en = JSON.parse(readFileSync(new URL('../../i18n/locales/en.json', import.meta.url), 'utf8')).tenant_settings
+  ok('SPL-1856 the two lines read as the owner asked', en.marketing_not_available === 'Marketing is not available in this workspace.' &&
+    en.marketing_publish_forbidden === 'Only the workspace owner who connected LinkedIn can publish.')
+  const dir = new URL('../../i18n/locales/', import.meta.url)
+  const missing = readdirSync(dir).filter((f) => f.endsWith('.json')).filter((f) => {
+    const ts = JSON.parse(readFileSync(new URL(f, dir), 'utf8')).tenant_settings || {}
+    return !ts.marketing_not_available || !ts.marketing_publish_forbidden
+  })
+  ok('SPL-1856 every locale carries both lines', missing.length === 0, missing.join())
+  const sw = readFileSync(new URL('../../src/components/MarketingSwitch.vue', import.meta.url), 'utf8')
+  const pub = readFileSync(new URL('../../src/components/MarketingPublish.vue', import.meta.url), 'utf8')
+  ok('SPL-1856 the switch and the list show the line instead of hiding', sw.includes("marketingSaysWhy('switch', e)") &&
+    sw.includes("t('tenant_settings.marketing_not_available')") && sw.includes('data-test="tenant-marketing-unavailable"') &&
+    pub.includes("marketingSaysWhy('publish', e)") && pub.includes("t('tenant_settings.marketing_publish_forbidden')") &&
+    pub.includes('data-test="tenant-marketing-publish-unavailable"') && !/:style/.test(sw + pub))
+  // the settings page is not a first screen: the new line stays out of the core catalogue
+  const ts = readFileSync(new URL('../../src/utils/tenant-settings.mjs', import.meta.url), 'utf8')
+  ok('SPL-1856 the eagerly reachable util names no marketing line key', !/tenant_settings\.marketing_/.test(ts))
+}
 
 const m = createMockTenant()
 m.patch({ display_name: ' New ', responders: ['GRK-3', 'GRK-3', 'CLE-01'] })

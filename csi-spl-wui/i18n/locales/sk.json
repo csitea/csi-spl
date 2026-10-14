@@ -1651,6 +1651,7 @@
     "marketing_title": "Marketing",
     "marketing_on": "Marketing je v tomto pracovnom priestore zapnutý",
     "marketing_hint": "Predvolene vypnutý. Kým je vypnutý, nič sa v nikoho mene nepripravuje ani nezverejňuje.",
+    "marketing_not_available": "Marketing nie je v tomto pracovnom priestore k dispozícii.",
     "marketing_publish_title": "Zverejniť na LinkedIn",
     "marketing_publish_hint": "Príspevky blogu, ktoré ešte nie sú zdieľané na LinkedIn. Zverejniť ich môže iba vlastník pracovného priestoru, ktorý pripojil LinkedIn.",
     "marketing_publish_button": "Zverejniť na LinkedIn",

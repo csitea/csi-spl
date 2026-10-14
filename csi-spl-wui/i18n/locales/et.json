@@ -1651,6 +1651,7 @@
     "marketing_title": "Turundus",
     "marketing_on": "Turundus on selles tööruumis sees",
     "marketing_hint": "Vaikimisi väljas. Kui see on väljas, ei koostata ega postitata midagi kellegi nimel.",
+    "marketing_not_available": "Turundus ei ole selles tööruumis saadaval.",
     "marketing_publish_title": "Avalda LinkedInis",
     "marketing_publish_hint": "Blogipostitused, mida pole veel LinkedInis jagatud. Neid saab avaldada ainult tööruumi omanik, kes LinkedIni ühendas.",
     "marketing_publish_button": "Avalda LinkedInis",

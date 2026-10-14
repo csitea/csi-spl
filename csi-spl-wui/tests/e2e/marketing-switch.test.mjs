@@ -9,13 +9,18 @@
 //      LinkedIn channel) sees the unshared live posts, each with a Publish
 //      button; a 409 and a 403 answer show as plain messages, a publish
 //      that goes out removes its row; switched off, the list is gone;
-//   3. CONTROL: a workspace outside the cnf allow-list (the mock answers 404,
-//      as the hub does) shows no toggle at all, while General still renders.
+//   P6. SPL-1856: a member who is not the LinkedIn owner (the mock answers
+//      403) sees one plain line under "Publish to LinkedIn", not a gap;
+//   3. a workspace outside the cnf allow-list (the mock answers 404, as the
+//      hub does) shows no toggle, but ONE line saying Marketing is not
+//      available here (SPL-1856, owner msg d657f49d), at 1440 and at 390,
+//      while General still renders.
 // The hub half (403 for a non-admin, 404 off the allow-list) is
 // TestMarketingSwitch in csi-spl-api/.../hub/marketing_switch_test.go.
 //
 // Plant the defect and watch step 3 go red (the unlisted flag is not set):
 //   PROVE_RED=listed node tests/e2e/marketing-switch.test.mjs
+// (SPL-1856's red control is the old components: steps P6 and 3 fail on them.)
 // or step P2 (the mock answers 200 instead of 409):
 //   PROVE_RED=recorded node tests/e2e/marketing-switch.test.mjs
 //
@@ -66,6 +71,25 @@ async function clickPublish(p) {
   await p.click(PUB_BTN)
   await p.waitForFunction((s) => !document.querySelector(s)?.disabled, { timeout: 5000 }, PUB_BTN).catch(() => null)
   await new Promise((r) => setTimeout(r, 200))
+}
+
+const UNAVAILABLE = '[data-test=tenant-marketing-unavailable]'
+const PUB_UNAVAILABLE = '[data-test=tenant-marketing-publish-unavailable]'
+
+// SPL-1856: switched on, a member who is not the LinkedIn owner (403) reads
+// one line under "Publish to LinkedIn" instead of a silent gap
+async function publishForbiddenSteps(p) {
+  await mockPublish(p, 'forbidden')
+  await p.click(TOGGLE)
+  await p.waitForSelector(PUB_UNAVAILABLE, { visible: true, timeout: 5000 }).catch(() => null)
+  const line = await text(p, PUB_UNAVAILABLE + ' p')
+  ok('P6 a 403 on the list shows one line, no list', line === 'Only the workspace owner who connected LinkedIn can publish.' &&
+    !(await p.$(PUB)) && !(await p.$(UNAVAILABLE)), { line })
+  await mockPublish(p, '')
+  await p.click(TOGGLE)
+  await p.waitForFunction((s) => document.querySelector(s)?.checked === false && !document.querySelector(s)?.disabled, { timeout: 5000 }, TOGGLE).catch(() => null)
+  await new Promise((r) => setTimeout(r, 300))
+  ok('P6b switched off, the line is gone too (the list 404 stays silent)', !(await p.$(PUB_UNAVAILABLE)) && !(await p.$(PUB)))
 }
 
 // SPL-1698: the owner's Publish to LinkedIn list, while marketing is on
@@ -120,14 +144,21 @@ try {
     ok('2b and off again', !(await checked(p)) && !(await p.$('[data-test=tenant-marketing-error]')))
     await new Promise((r) => setTimeout(r, 300))
     ok('P5 switched off, the Publish list is gone', !(await p.$(PUB)))
+    await publishForbiddenSteps(p)
   }
 
-  // 3. CONTROL: outside the allow-list there is no toggle, General still renders
+  // 3. outside the allow-list: no toggle, one line saying why, General still renders
   if (RED !== 'listed') await p.evaluate(() => localStorage.setItem('spool.mock.marketing', 'unlisted'))
-  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await p.waitForSelector('[data-test=tenant-general-name]', { visible: true, timeout: NAV_TIMEOUT })
-  await new Promise((r) => setTimeout(r, 500))
-  ok('3 CONTROL: a workspace off the allow-list shows no toggle', !(await p.$('[data-test=tenant-settings-marketing]')))
+  for (const [w, h] of [[1440, 900], [390, 844]]) {
+    await p.setViewport({ width: w, height: h })
+    await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=tenant-general-name]', { visible: true, timeout: NAV_TIMEOUT })
+    await p.waitForSelector(UNAVAILABLE, { visible: true, timeout: 5000 }).catch(() => null)
+    const line = await text(p, UNAVAILABLE + ' p')
+    const lines = (await p.$$(UNAVAILABLE)).length + (await p.$$(PUB_UNAVAILABLE)).length
+    ok(`3 ${w}px: off the allow-list, no toggle and one line says why`, !(await p.$('[data-test=tenant-settings-marketing]')) && !(await p.$(TOGGLE)) &&
+      line === 'Marketing is not available in this workspace.' && lines === 1, { line, lines })
+  }
   ok('4 no page errors', errors.length === 0, errors)
 } finally {
   await browser.close()

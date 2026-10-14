@@ -1651,6 +1651,7 @@
     "marketing_title": "שיווק",
     "marketing_on": "השיווק פעיל בסביבת עבודה זו",
     "marketing_hint": "כבוי כברירת מחדל. כל עוד הוא כבוי, שום דבר לא מנוסח או מתפרסם בשם אף אחד.",
+    "marketing_not_available": "שיווק אינו זמין בסביבת עבודה זו.",
     "marketing_publish_title": "פרסום ב-LinkedIn",
     "marketing_publish_hint": "פוסטים בבלוג שעדיין לא שותפו ב-LinkedIn. רק בעל סביבת העבודה שחיבר את LinkedIn יכול לפרסם אותם.",
     "marketing_publish_button": "פרסום ב-LinkedIn",

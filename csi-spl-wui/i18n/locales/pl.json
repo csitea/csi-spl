@@ -1651,6 +1651,7 @@
     "marketing_title": "Marketing",
     "marketing_on": "Marketing jest włączony w tym obszarze roboczym",
     "marketing_hint": "Domyślnie wyłączony. Dopóki jest wyłączony, nic nie jest przygotowywane ani publikowane w niczyim imieniu.",
+    "marketing_not_available": "Marketing nie jest dostępny w tym obszarze roboczym.",
     "marketing_publish_title": "Opublikuj na LinkedIn",
     "marketing_publish_hint": "Wpisy na blogu, które nie zostały jeszcze udostępnione na LinkedIn. Może je opublikować tylko właściciel obszaru roboczego, który połączył LinkedIn.",
     "marketing_publish_button": "Opublikuj na LinkedIn",

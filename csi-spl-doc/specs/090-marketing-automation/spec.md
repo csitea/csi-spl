@@ -385,6 +385,7 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.3.2 | 2026-10-05 | a-273 | Harmonized appendix RLS policies with csi-spl-rdb 0091_member_activity.sql shape (NULLIF empty guard on app.tenant_id and operator_scope). |
 | v0.3.3 | 2026-10-05 | c-286 | claude-a's third edit, completed: AC-08 no longer uses `rejected` (a final state) for a draft that is sent back. The stale draft stays `draft`, and the `draft_stale` audit event is added. Claude-a's other edits were already in v0.3.1/v0.3.2: quoted SQL literals, per-workspace FORCE RLS policies, and §2.3 matching FR-005. Added the build plan in `tasks.md`. |
 | v0.4.0 | 2026-10-05 | c-334 | Added §15, the per-workspace switch (owner msgs `37bcb88b` item 4 and `5cd2e544`): the cnf allow-list AND the db flag `tenants.marketing_enabled`, which defaults off; the flag never widens the list; `all` is supported but unused; the demo workspace is never on. |
+| v0.4.1 | 2026-10-14 | c-516 | §15 item 5: the WUI says why Marketing is missing (one line on the switch's `404`, one on the Publish list's `403`) instead of hiding it silently (SPL-1856). |
 
 ---
 
@@ -402,7 +403,7 @@ Owner HUM-10, msg `5cd2e544`, on letting dev use "all":
 2. **Default OFF**: the flag starts `false`. A workspace on the allow-list posts nothing until one of its admins turns marketing on.
 3. **The flag never widens the allow-list**: outside the list the flag is never read, and every `/v1/marketing` route answers `404`, the switch included. The demo workspace (spec 077) never gets marketing, even under `all`: it gets `403`.
 4. **`all`** is supported but no environment sets it: dev is `[t1, spool]`, prd is `[spool]`. `all` must stand alone in the list; the hub refuses to start otherwise.
-5. **Who may switch**: a member holding `tenant.settings` (the workspace admin), through `GET` / `PATCH /v1/marketing/settings {enabled}`. Anyone else gets `403`. The WUI shows the toggle in Tenant settings -> General, and hides it on `404` or `403`.
+5. **Who may switch**: a member holding `tenant.settings` (the workspace admin), through `GET` / `PATCH /v1/marketing/settings {enabled}`. Anyone else gets `403`. The WUI shows the toggle in Tenant settings -> General. On `404` (outside the allow-list) it shows, instead, one plain line: "Marketing is not available in this workspace." On `403` (not an admin) it hides the toggle. The owner's Publish to LinkedIn list below it shows "Only the workspace owner who connected LinkedIn can publish." on its own `403`, and stays hidden on its `404`, which the switch's line already explains (SPL-1856, owner msg `d657f49d`: a silent gap read as "do I have the wrong role").
 6. **Every marketing route honours it**: every later route (T006..T010) is registered through the hub's `marketingRoute` gate, which answers `404` unless the effective value is on. `GET /v1/marketing` is the member probe, and it is `200` only while marketing is on.
 
-<!-- version: 0.4.0 · updated: 2026-10-05 · last-edit: 2026-10-05T12:30:00Z -->
+<!-- version: 0.4.1 · updated: 2026-10-14 · last-edit: 2026-10-14T00:00:00Z -->

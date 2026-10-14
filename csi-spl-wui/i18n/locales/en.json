@@ -1651,6 +1651,7 @@
     "marketing_title": "Marketing",
     "marketing_on": "Marketing is on for this workspace",
     "marketing_hint": "Off by default. While it is off, nothing is drafted or posted on anyone's behalf.",
+    "marketing_not_available": "Marketing is not available in this workspace.",
     "marketing_publish_title": "Publish to LinkedIn",
     "marketing_publish_hint": "Live blog posts not shared on LinkedIn yet. Only the workspace owner who connected LinkedIn can publish them.",
     "marketing_publish_button": "Publish to LinkedIn",

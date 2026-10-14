@@ -1651,6 +1651,7 @@
     "marketing_title": "Marketing",
     "marketing_on": "Marketingul este activat pentru acest spațiu de lucru",
     "marketing_hint": "Dezactivat implicit. Cât timp este dezactivat, nimic nu se redactează și nu se publică în numele nimănui.",
+    "marketing_not_available": "Marketingul nu este disponibil în acest spațiu de lucru.",
     "marketing_publish_title": "Publică pe LinkedIn",
     "marketing_publish_hint": "Articole de blog încă nedistribuite pe LinkedIn. Doar proprietarul spațiului de lucru care a conectat LinkedIn le poate publica.",
     "marketing_publish_button": "Publică pe LinkedIn",

@@ -1651,6 +1651,7 @@
     "marketing_title": "Pazarlama",
     "marketing_on": "Bu çalışma alanında pazarlama açık",
     "marketing_hint": "Varsayılan olarak kapalı. Kapalıyken kimin adına hiçbir şey hazırlanmaz veya paylaşılmaz.",
+    "marketing_not_available": "Pazarlama bu çalışma alanında kullanılamıyor.",
     "marketing_publish_title": "LinkedIn'de yayınla",
     "marketing_publish_hint": "Henüz LinkedIn'de paylaşılmamış blog yazıları. Bunları yalnızca LinkedIn'i bağlayan çalışma alanı sahibi yayınlayabilir.",
     "marketing_publish_button": "LinkedIn'de yayınla",

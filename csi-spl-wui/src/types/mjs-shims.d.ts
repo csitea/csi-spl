@@ -1668,6 +1668,7 @@ declare module '~/utils/tenant-settings.mjs' {
   export function issuePrefixOf(s: unknown): string
   export function moveItem<T>(list: T[], i: number, delta: number): T[]
   export function tenantSettingsErrorKey(err: unknown): string
+  export function marketingSaysWhy(part: 'switch' | 'publish', err: unknown): boolean
   export type SplitKindRow = { kind: string, weights: AgentSplit, backup: string, main: string, set: boolean, updatedBy: string, updatedAt: string }
   export const SPLIT_TASK_KINDS: readonly string[]
   export const DEFAULT_SPLIT_KINDS: Readonly<Record<string, { weights: AgentSplit, backup: string }>>

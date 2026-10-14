@@ -1,11 +1,17 @@
 <!-- The workspace's marketing switch (spec 090 §15; owner HUM-10, t1
      f0c3927e msg 37bcb88b item 4), inside Tenant settings -> General.
-     Shown only to an admin of a workspace on the cnf allow-list: the hub
-     answers 404 outside it and 403 to a non-admin, and either one hides it.
+     Shown to an admin of a workspace on the cnf allow-list. Outside it the
+     hub answers 404 and the section says so in one line (SPL-1856, owner
+     msg d657f49d: a silent gap read as "do I have the wrong role"); a 403
+     (a non-admin) still hides it.
      It starts off (owner msg 5cd2e544): nothing is posted until an admin
      turns it on. -->
 <template>
-  <div v-if="shown" class="mk" data-test="tenant-settings-marketing">
+  <div v-if="why" class="mk" data-test="tenant-marketing-unavailable">
+    <h4 class="mk-title">{{ t('tenant_settings.marketing_title') }}</h4>
+    <p class="muted mk-why">{{ t('tenant_settings.marketing_not_available') }}</p>
+  </div>
+  <div v-else-if="shown" class="mk" data-test="tenant-settings-marketing">
     <h4 class="mk-title">{{ t('tenant_settings.marketing_title') }}</h4>
     <label class="mk-row">
       <input
@@ -24,7 +30,7 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { tenantSettingsErrorKey } from '~/utils/tenant-settings.mjs'
+import { marketingSaysWhy, tenantSettingsErrorKey } from '~/utils/tenant-settings.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
@@ -32,6 +38,8 @@ const api = useSpoolApi()
 const emit = defineEmits<{ changed: [] }>()
 
 const shown = ref(false)
+// SPL-1856: the hub refused with 404, so one line says why there is no switch
+const why = ref(false)
 const enabled = ref(false)
 const busy = ref(false)
 const error = ref('')
@@ -57,8 +65,9 @@ onMounted(async () => {
     const s = await api.getMarketingSwitch()
     enabled.value = s?.enabled === true
     shown.value = true
-  } catch {
+  } catch (e) {
     shown.value = false
+    why.value = marketingSaysWhy('switch', e)
   }
 })
 </script>
@@ -66,6 +75,7 @@ onMounted(async () => {
 <style scoped>
 .mk { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--color-border); }
 .mk-title { margin: 0 0 4px; font-size: 0.875rem; }
+.mk-why { margin: 0; }
 .mk-row { display: flex; align-items: center; gap: 8px; min-height: var(--tap, 44px); }
 .mk-error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; }
 </style>

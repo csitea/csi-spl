@@ -1,4 +1,5 @@
 #!/bin/bash
+source "/opt/csi/csi-spl/csi-spl-iac/lib/bash/funcs/gcp-temp-sdk-config.func.sh" || exit 1
 
 #------------------------------------------------------------------------------
 # @description sync local directory to GCS bucket (dry-run by default)
@@ -6,10 +7,9 @@
 # @example ORG=csi APP=csi-spl ENV=dev SRC_DIR=/path/to/local ./run -a do_gcp_sync_local_to_s3
 #------------------------------------------------------------------------------
 do_gcp_sync_local_to_s3() {
-  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
-  _spl_sdk_dir="$(mktemp -d)"
-  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
-  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
+  local _spl_sdk_saved _spl_sdk_dir
+  spl_gcp_temp_sdk_config || return 1
+  trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
   # Pin the gcloud identity for this run (spec 012 C-2). `--project` says WHERE
   # a call lands, never WHO it lands as, and `~/.config/gcloud` is one directory
   # shared by every agent on this box — `gcloud config set account` and

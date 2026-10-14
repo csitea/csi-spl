@@ -61,4 +61,14 @@ However, rapid feature accretion resulted in structural coupling, duplicated rep
 
 ---
 
+## 4. Refactoring & Bug-Fix Rounds Rulebook
+
+All refactoring rounds and bug-fix rounds follow the binding rules in [rounds-rulebook.md](rounds-rulebook.md):
+- At most 10 logical items per round.
+- Git push caps: aim for 1, up to 3 for complex items, never more than 5.
+- Continuous execution without an owner go.
+- Standing round rules R1–R16 (disjoint batches, cross-vendor review seats that outlive the round, C1–C7 criteria, CI verdicts, and hourly checks).
+
+---
+
 <!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:34:00Z -->

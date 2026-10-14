@@ -91,7 +91,16 @@ const browser = await launch()
 try {
   const p = await browser.newPage()
   const errors = []
-  p.on('pageerror', (e) => errors.push(String(e && e.message)))
+  /* a page error says which step it followed, on which page, and where it
+     was thrown: wf 10 run 38552104153 (schedule, 9314743ff) failed check 7
+     twice with "Cannot read properties of null (reading 'insertBefore')",
+     while 0 of 33 runs on the box did, so the next CI one must name its source */
+  p.on('pageerror', (e) => errors.push({
+    message: String(e && e.message),
+    after: results.length ? results[results.length - 1].name.slice(0, 40) : '(before step 0)',
+    url: p.url().replace(server.base, ''),
+    stack: String((e && e.stack) || '').split('\n').slice(1, 9).map((l) => l.trim()),
+  }))
   await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(OMNI, { visible: true, timeout: NAV_TIMEOUT })
   ok('0 the names are in the people store', await setNames(p, NAMES))

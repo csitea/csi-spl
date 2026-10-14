@@ -269,6 +269,15 @@ picker would choose the starved box, or when the owner orders a box.
 
 - **Spawn HOLD:** A spawn answered HOLD (rc 10, "nothing was spawned") still leaves a remote request behind. Drop the duplicate before it spawns.
 
+### 5.1 Work classes and bands (SPL-1817)
+
+Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down into the runbook of the orchestrators and the dispatchers"). The rule, its bands and its commands have ONE home: [fleet-rules-index.md](fleet-rules-index.md), section 2, row "spawn queue: work classes and bands". What the orchestrator does with it:
+
+- **Queue with the class.** Every spawn request is queued with its class: `ASK_ID=<id8> SPAWN_CLASS=<ci|refactor|bug|feature> ./run -a do_spl_spawn_enqueue`. The class comes with the request (the dispatcher states it); a request without one goes back to the dispatcher, never guessed. The enqueue refuses an empty class.
+- **Let the placer keep the bands.** `do_spl_spawn_place` takes the next row by class, not by age. A lane placed by hand outside the queue carries no class and shows in the report as "no class": place through the queue.
+- **Record bypasses.** `SPAWN_BYPASS=<owner msg id>` only when the owner explicitly asked for that feature to go first; it is stored on the hub row and in the bypass log, and listed in the report. Never on your own judgement.
+- **Watch the share.** `./run -a do_spl_spawn_share` (live lanes by class, verdict per band, bypasses). The placer's "SPAWN SHARE" supply blocker goes to the dispatch holder; when it reaches you, ask the dispatcher for the next rows of that class.
+
 ## 6 Production operations
 
 | operation | needs |

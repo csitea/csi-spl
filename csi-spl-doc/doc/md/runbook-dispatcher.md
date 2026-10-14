@@ -229,6 +229,15 @@ closed by the orchestrator, not kept open "in case".
 
 - **Spawn HOLD:** A spawn answered HOLD (rc 10, "nothing was spawned") still leaves a remote request behind. Drop the duplicate before it spawns.
 
+### 6.1 Work classes and bands (SPL-1817)
+
+Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down into the runbook of the orchestrators and the dispatchers"). The rule, its bands and its commands have ONE home: [fleet-rules-index.md](fleet-rules-index.md), section 2, row "spawn queue: work classes and bands". What the dispatcher does with it:
+
+- **Classify every new spawn request** as `refactor`, `bug` or `feature` (`ci` for a CI-red fix on trunk) and state the class in the request and in the brief (a line `Class: <class>`), so the orchestrator queues it with `SPAWN_CLASS=<class>`. Owner-reported prd breakage is `bug`; mark it urgent (`SPAWN_URGENT=1`) only when it must go over the band.
+- **A feature bypass only on the owner's explicit ask**, with that message id: `SPAWN_BYPASS=<owner msg id>`. Never on your own judgement, and never for an agent's request.
+- **Keep the refactor and bug supply.** The placer's "SPAWN SHARE" blocker says a class is under its floor with nothing of it queued: request the next refactoring round or rows (or bug rows) at once.
+- **Post the share report** when the owner asks, or with a band breach: `./run -a do_spl_spawn_share` prints it in markdown, ready to post (`do_spl_desk_reply`).
+
 ## 7 The data rule
 
 Owner rule (2026-10-08, msg 803c3b38, spec 110 D2), extended by the owner on

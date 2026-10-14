@@ -109,13 +109,16 @@ spl_rt_reconcile_one() {
   [[ -n "$pid" ]] && { do_log "OK tunnel to $box is up (pid $pid)"; return 0; }
   (( dry )) && { do_log "INFO DRY_RUN would: start ssh $dest -R 127.0.0.1:$port:127.0.0.1:22"; return 0; }
   # setsid + every fd above 2 closed: the ssh outlives this action and must
-  # not hold ./run's tee pipes open (a ./run that never returns)
+  # not hold ./run's tee pipes open (a ./run that never returns). Its own
+  # connection: through a ControlMaster the -R goes to the shared master and
+  # the client exits at once (measured on the first start, 2026-10-14)
   (
     for fdp in /proc/self/fd/*; do
       fd="${fdp##*/}"
       (( fd > 2 )) && eval "exec $fd>&-" 2>/dev/null
     done
     exec setsid "${SSH_BIN:-ssh}" -N -o BatchMode=yes -o ExitOnForwardFailure=yes \
+      -o ControlMaster=no -o ControlPath=none \
       -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
       -R "127.0.0.1:$port:127.0.0.1:22" "$dest" </dev/null >>"$dir/$box.log" 2>&1
   ) &

@@ -80,6 +80,7 @@ rt DRY_RUN=0
 check "3. start: OK started" 'grep -q "OK tunnel to sat started" "$T/o"'
 check "3. one ssh -N -R 127.0.0.1:2222:127.0.0.1:22 satellite" '[[ $(calls) == 1 ]] && grep -q -- "-R 127.0.0.1:2222:127.0.0.1:22 satellite\$" "$T/calls.log"'
 check "3. ExitOnForwardFailure + keepalive" 'grep -q "ExitOnForwardFailure=yes" "$T/calls.log" && grep -q "ServerAliveInterval=30" "$T/calls.log"'
+check "3. its own connection, never a shared ControlMaster" 'grep -q "ControlMaster=no -o ControlPath=none" "$T/calls.log"'
 PID1="$(cat "$T/rt/sat.pid" 2>/dev/null)"
 check "3. the tunnel pid is alive" 'kill -0 "$PID1" 2>/dev/null'
 rt REVERSE_TUNNEL_CMD=stop DRY_RUN=0

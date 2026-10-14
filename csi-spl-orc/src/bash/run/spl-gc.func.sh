@@ -79,7 +79,7 @@ spl_gc_init() {
   GC_FROM="${GC_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
   # Resolve the current dispatch lease holder at send time; fall back to the orchestrator lease holder if stale or missing.
 spl_gc_resolve_report_to() {
-  local lease_holder="none" lease_age=-1 lease_file="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease"
+  local lease_holder="none" lease_age=-1 lease_file="${GC_LEASE_FILE:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease}"
   if [[ -s "$lease_file" ]]; then
     read -r lease_holder lease_age < "$lease_file" 2>/dev/null || true
     [[ "$lease_age" =~ ^[0-9]+$ ]] || lease_age=-1

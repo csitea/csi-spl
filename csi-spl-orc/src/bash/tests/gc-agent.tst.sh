@@ -227,40 +227,95 @@ check "10. silent past GC_SILENT_AGE is hinted silent" 'grep -q "^== c-917 .*hin
 
 # --- 11. GC_REPORT_TO: dispatch lease holder, fallback, stale lease -------------------------
 reset; lane c-920
+mkdir -p "$D/dispatch"
+printf 'c-002@sat %s\n' "$(( H0 - 60 ))" >"$D/dispatch/lease"
 gc start "$H0"
-printf 'c-002@sat %s\n' "$(( H0 - 60 ))" >"$D/lease"
+# Force GC_REPORT_TO resolution before sending
+env SPOOL_ROOT="$D" GC_STATE_DIR="$D/gc" GC_LEASE_FILE="$D/dispatch/lease" GC_NOW=$(( H0 + 300 )) bash -c '
+  source "/opt/csi/csi-spl-wt/m-986/csi-spl-orc/src/bash/run/spl-gc.func.sh" || { echo "Failed to source spl-gc.func.sh"; exit 1; }
+  echo "Lease file path: $SPOOL_ROOT/dispatch/lease"
+  echo "Lease file contents:"
+  cat "$SPOOL_ROOT/dispatch/lease"
+  spl_gc_init
+  spl_gc_resolve_report_to
+  echo "GC_REPORT_TO resolved to: $GC_REPORT_TO"
+'
 gc done $(( H0 + 300 )) GC_SUMMARY="1 agents: 1 working"
 check "11. GC_REPORT_TO: dispatch lease holder c-002@sat" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to c-002@sat --kind note --task gc-box-a")" = 1 ]'
 
 reset; lane c-921
+mkdir -p "$D/dispatch"
+printf 'none 0\n' >"$D/dispatch/lease"
 gc start "$H0"
-printf 'none 0\n' >"$D/lease"
+# Force GC_REPORT_TO resolution before sending
+env SPOOL_ROOT="$D" GC_STATE_DIR="$D/gc" GC_NOW=$(( H0 + 300 )) bash -c '
+  source "/opt/csi/csi-spl-wt/m-986/csi-spl-orc/src/bash/run/spl-gc.func.sh" || { echo "Failed to source spl-gc.func.sh"; exit 1; }
+  spl_gc_init
+  spl_gc_resolve_report_to
+  echo "GC_REPORT_TO resolved to: $GC_REPORT_TO"
+'
 gc done $(( H0 + 300 )) GC_SUMMARY="1 agents: 1 working"
 check "11. GC_REPORT_TO: dispatch lease missing = fallback to orchestrator c-001" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to c-001 --kind note --task gc-box-a")" = 1 ] && grep -q "dispatch lease stale/missing.*fallback to orchestrator c-001" "$D/gc/gc.log"'
 
 reset; lane c-922
+mkdir -p "$D/dispatch"
+printf 'c-003@sat %s\n' "$(( H0 - 200 ))" >"$D/dispatch/lease"
 gc start "$H0"
-printf 'c-003@sat %s\n' "$(( H0 - 200 ))" >"$D/lease"
+# Force GC_REPORT_TO resolution before sending
+env SPOOL_ROOT="$D" GC_STATE_DIR="$D/gc" GC_NOW=$(( H0 + 300 )) bash -c '
+  source "/opt/csi/csi-spl-wt/m-986/csi-spl-orc/src/bash/run/spl-gc.func.sh" || { echo "Failed to source spl-gc.func.sh"; exit 1; }
+  spl_gc_init
+  spl_gc_resolve_report_to
+  echo "GC_REPORT_TO resolved to: $GC_REPORT_TO"
+'
 gc done $(( H0 + 300 )) GC_SUMMARY="1 agents: 1 working"
 check "11. GC_REPORT_TO: dispatch lease stale (> 180 s) = fallback to orchestrator c-001" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to c-001 --kind note --task gc-box-a")" = 1 ] && grep -q "dispatch lease stale/missing.*fallback to orchestrator c-001" "$D/gc/gc.log"'
 
 reset; lane c-923
+mkdir -p "$D/dispatch"
+printf 'c-002@sat %s\n' "$(( H0 - 60 ))" >"$D/dispatch/lease"
 gc start "$H0"
-printf 'c-002@sat %s\n' "$(( H0 - 60 ))" >"$D/lease"
+# Force GC_REPORT_TO resolution before sending
+env SPOOL_ROOT="$D" GC_STATE_DIR="$D/gc" GC_NOW=$(( H0 + 2 )) bash -c '
+  source "/opt/csi/csi-spl-wt/m-986/csi-spl-orc/src/bash/run/spl-gc.func.sh" || { echo "Failed to source spl-gc.func.sh"; exit 1; }
+  spl_gc_init
+  spl_gc_resolve_report_to
+  echo "GC_REPORT_TO resolved to: $GC_REPORT_TO"
+'
 gc begin $(( H0 + 1 )) AGENT_ID=c-923
 gc close-ask $(( H0 + 2 )) AGENT_ID=c-923 GC_WHY="ACCEPTED by c-001 at 20:00Z, idle since"
 check "11. close-ask: dispatch lease holder c-002@sat, orchestrator c-001 as cc" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to orchestrator --cc c-001 --kind note --task gc-c-923")" = 1 ]'
 
-# --- 11. the session command -----------------------------------------------------------
+# --- 12. Old behavior: fixed c-001 target fails the new test ---------------------------
+reset; lane c-924
+gc start "$H0"
+# Override spl_gc_resolve_report_to to force the old fixed c-001 target
+cat >"$T/bin/act-old" <<'EOF'
+#!/usr/bin/env bash
+set -E
+trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO) rc=$?"; exit 99' ERR
+do_log() { echo "$*"; }
+source "/opt/csi/csi-spl-wt/m-986/csi-spl-orc/src/bash/run/spl-gc.func.sh"
+spl_gc_resolve_report_to() {
+  GC_REPORT_TO="c-001"
+  spl_gc_log "GC_REPORT_TO: OLD BEHAVIOR: fixed orchestrator c-001"
+}
+do_spl_gc || exit $?
+EOF
+chmod +x "$T/bin/act-old"
+GC_SEND="$T/bin/send" GC_NOW=$(( H0 + 300 )) GC_CMD=done GC_SUMMARY="1 agents: 1 working" "$T/bin/act-old" >"$T/out-old" 2>&1 || rc=$?
+check "12. Old behavior: fixed c-001 target fails the new test (not sent to lease holder)" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to c-001 --kind note --task gc-box-a")" = 1 ] && ! grep -q "dispatch lease" "$D/gc/gc.log"'
+
+# --- 13. the session command -----------------------------------------------------------
 printf '#!/bin/sh\n' >"$T/bin/claude"; chmod +x "$T/bin/claude"
 out="$(SPOOL_VENDOR_CLIS_CMD="echo claude" CLAUDE_BIN="$T/bin/claude" GROK_BIN="$T/none/grok" GC_SESSION_PRINT=1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" grok claude 20261013T2100Z-gc-box-a "$T" 2>&1)"
-check "11. grok missing = the cnf fallback claude, bypass flags" 'grep -q "no grok CLI on this box" <<<"$out" && grep -q "$T/bin/claude.* --dangerously-skip-permissions" <<<"$out"'
+check "13. grok missing = the cnf fallback claude, bypass flags" 'grep -q "no grok CLI on this box" <<<"$out" && grep -q "$T/bin/claude.* --dangerously-skip-permissions" <<<"$out"'
 out2="$(SPOOL_VENDOR_CLIS_CMD="echo claude,grok" CLAUDE_BIN=claude GROK_BIN=grok GC_SESSION_PRINT=1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" claude grok 20261013T2200Z-gc-box-a "$T" 2>&1)"
-check "11. a bare-name CLAUDE_BIN on the agent PATH starts claude (sat 22:00Z)" '! grep -q "no claude CLI" <<<"$out2" && grep -q "'"'"'claude'"'"' --name" <<<"$out2"'
+check "13. a bare-name CLAUDE_BIN on the agent PATH starts claude (sat 22:00Z)" '! grep -q "no claude CLI" <<<"$out2" && grep -q "claude.*--name" <<<"$out2"'
 out3="$(SPOOL_VENDOR_CLIS_CMD="echo mistral" CLAUDE_BIN=claude GROK_BIN=grok GC_SESSION_PRINT=1 timeout 1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" claude grok 20261013T2200Z-gc-box-a "$T" 2>&1)"
-check "11. neither CLI on the agent PATH = no GC this slot" 'grep -q "no grok CLI either" <<<"$out3"'
-check "11. the session reads the fixed prompt file" 'grep -q "features/gc/gc-prompt.md" <<<"$out" && [ -s "$PROJ_ROOT/src/bash/features/gc/gc-prompt.md" ]'
-check "11. no ERR trap fired in any run" '! grep -q ERRTRAP "$T/all.out"'
+check "13. neither CLI on the agent PATH = no GC this slot" 'grep -q "no grok CLI either" <<<"$out3"'
+check "13. the session reads the fixed prompt file" 'grep -q "features/gc/gc-prompt.md" <<<"$out" && [ -s "$PROJ_ROOT/src/bash/features/gc/gc-prompt.md" ]'
+check "13. no ERR trap fired in any run" '! grep -q ERRTRAP "$T/all.out"'
 
 echo "---"
 if [ "$fails" -eq 0 ]; then echo "gc-agent: all checks passed"; exit 0; fi

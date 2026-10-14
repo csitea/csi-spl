@@ -238,7 +238,9 @@ ink_case() {  # -v|-h SIZE LABEL
   cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)" || { say "    capture-pane failed"; return 1; }
   rows="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_height}')"
   frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | sed -n 1p | cut -d: -f1)"
+  tx_first="$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9][0-9][0-9]' || printf '%s' "$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9]')")"
   say "  ${label}"
+  say "    top transcript row: ${tx_first:-<not TX-001, it MOVED>}"
   say "    pane is now       : $(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}')"
   say "    live frame lands  : row ${frame_row:-?} of ${rows} (it belongs on row $(( rows - 2 )))"
   

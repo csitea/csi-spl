@@ -59,8 +59,9 @@ spl_cnf_copy_cache() {
 # spl_cnf_private_resolve <iac lib dir> <cnf> (SPL-1874): the hidden workspaces
 # stand as placeholders in the public cnf; SPL_CNF (a private state dir)
 # carries the real slugs when the overlay is here. Without it the placeholders
-# stay, WARNED, and the readers that must not guess (do_spl_tenant_test_purge)
-# refuse on spl_private_has_tokens.
+# stay, WARNED (not under the test harness: SPL_PRIVATE_WARN=0), and the
+# readers that must not guess (do_spl_tenant_test_purge) refuse on
+# spl_private_has_tokens.
 spl_cnf_private_resolve() {
   # shellcheck disable=SC1091
   source "$1/spl-private-cnf.func.sh" || return 1
@@ -69,7 +70,8 @@ spl_cnf_private_resolve() {
     spl_private_resolve "$2" "$2.res" && mv -f "$2.res" "$2" && return 0
     rm -f "$2.res"; do_log "FATAL cannot resolve the hidden workspaces of the $ENV cnf"; return 1
   fi
-  do_log "WARN no private overlay ($(spl_private_cnf_path)): the hidden workspaces of $ENV stay placeholders in SPL_CNF" >&2
+  [[ "${SPL_PRIVATE_WARN:-1}" == 0 ]] ||
+    do_log "WARN no private overlay ($(spl_private_cnf_path)): the hidden workspaces of $ENV stay placeholders in SPL_CNF" >&2
 }
 
 do_spl_cloud_cnf() {

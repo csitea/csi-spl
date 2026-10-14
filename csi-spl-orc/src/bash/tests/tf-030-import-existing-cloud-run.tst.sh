@@ -130,6 +130,13 @@ exit 0
 EOF
 chmod +x "$T/stub/docker"
 
+# SPL-1874: the 030 tfvars carry hidden-workspace placeholders; do_tf_init
+# resolves them, so the action needs an overlay: a synthetic one per placeholder.
+export SPL_PRIVATE_CNF="$T/overlay.yaml"
+{ echo workspaces:
+  grep -ohE 'ws-hidden-[0-9]+' "$APP_ROOT"/csi-spl-cnf/csi-spl/*/tf/030-cloud-run-hub.vars.tfvars | sort -u |
+    sed 's/^ws-hidden-\(.*\)$/  ws-hidden-\1: zz-ws-\1/'; } >"$SPL_PRIVATE_CNF"
+
 run_action() { # env assignments...
   : >"$T/docker.log"
   env DOCKER_LOG="$T/docker.log" PATH="$T/stub:$PATH" "$@" bash -c '

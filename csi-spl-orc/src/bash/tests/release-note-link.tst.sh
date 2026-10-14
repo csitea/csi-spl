@@ -26,7 +26,7 @@ IAC_LIB="$APP_ROOT/csi-spl-iac/lib/bash/funcs"
 REPO="$T/repo"
 mkdir -p "$REPO/csi-spl-cnf/csi-spl" "$REPO/csi-spl-iac/lib/bash/funcs"
 cp "$CNF_SRC"/all.env.yaml "$CNF_SRC"/dev.env.yaml "$CNF_SRC"/prd.env.yaml "$REPO/csi-spl-cnf/csi-spl/"
-cp "$IAC_LIB"/spl-merged-cnf.func.sh "$IAC_LIB"/gcp-require-live-account.func.sh "$REPO/csi-spl-iac/lib/bash/funcs/"
+cp "$IAC_LIB"/spl-merged-cnf.func.sh "$IAC_LIB"/gcp-require-live-account.func.sh "$IAC_LIB"/spl-private-cnf.func.sh "$REPO/csi-spl-iac/lib/bash/funcs/"
 git -C "$REPO" init -q -b master
 git -C "$REPO" config user.email t@example.com
 git -C "$REPO" config user.name "FirstName LastName"

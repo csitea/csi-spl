@@ -72,13 +72,24 @@ const card = (id) => `.topic article.msg[data-msg-id="${id}"]`
 const midCard = (id) => `.spool-main article.msg[data-msg-id="${id}"]`
 const visible = (sel) => Boolean([...document.querySelectorAll(sel)].find((e) => e.getClientRects().length))
 
-const select = (p, sel) => p.evaluate((sel) => {
-  const el = document.querySelector(sel)
-  if (!el) return false
-  el.scrollIntoView({ block: 'center' })
-  el.focus({ preventScroll: true })
-  return document.activeElement === el
-}, sel)
+/* A reader picks a row with a key or a click. A shortcut (Shift + ?) holds the
+   focus in its panel for a while (holdPanel) and lets go only on the reader's
+   next key or click, so a bare el.focus() into another panel is pulled back by
+   the hold's next 50 ms tick when that tick lands before the Shift + R keydown
+   (CI flake, middle Esc check). A bare Shift is the reader's key: it ends the
+   hold first and does nothing else. HOLD_GAP (ms) widens that window, to prove it. */
+const select = async (p, sel) => {
+  await p.keyboard.press('Shift')
+  const ok = await p.evaluate((sel) => {
+    const el = document.querySelector(sel)
+    if (!el) return false
+    el.scrollIntoView({ block: 'center' })
+    el.focus({ preventScroll: true })
+    return document.activeElement === el
+  }, sel)
+  if (ok && process.env.HOLD_GAP) await sleep(Number(process.env.HOLD_GAP))
+  return ok
+}
 
 async function shiftR(p) {
   await p.keyboard.down('Shift')

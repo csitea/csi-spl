@@ -280,21 +280,26 @@ PY
 # box that serves <t> in it (a missing one is a GAP), and one row for the OD
 # seats of those boxes <t> does not seat (the hub refuses their subscription).
 # A box with no OD seat in <t> at all is its own desks row's business.
+# Another box's OD seat counts under any vendor letter (spl_dispatch_seat_on).
 spl_dispatch_check_tenant() {
-  local t="$1" data="$2" ch fb a want have miss unseated="" boxes
-  boxes="$(spl_dispatch_served_boxes "$data")"
+  local t="$1" data="$2" ch fb a s want have miss unseated="" boxes=""
+  for fb in $(spl_dispatch_fleet_boxes); do
+    for a in $(spl_dispatch_od_ids); do
+      spl_dispatch_seat_on "$data" "$fb" "$a" >/dev/null && { boxes+=" $fb"; break; }
+    done
+  done
   for fb in $boxes; do
     for a in $(spl_dispatch_od_ids); do
-      spl_dispatch_rostered "$data" "$fb" "$a" || unseated+=" $a@$fb"
+      spl_dispatch_seat_on "$data" "$fb" "$a" >/dev/null || unseated+=" $a@$fb"
     done
   done
   for ch in $(sed -n 's/^chan|//p' <<<"$data"); do
     want=0 have=0 miss=""
     for fb in $boxes; do
       for a in $(spl_dispatch_od_ids); do
-        spl_dispatch_rostered "$data" "$fb" "$a" || continue
+        s="$(spl_dispatch_seat_on "$data" "$fb" "$a")" || continue
         want=$((want + 1))
-        if spl_dispatch_subbed "$data" "$ch" "$fb" "$a"; then have=$((have + 1)); else miss+=" $a@$fb"; fi
+        if spl_dispatch_subbed "$data" "$ch" "$fb" "$s"; then have=$((have + 1)); else miss+=" $s@$fb"; fi
       done
     done
     if [[ -z "$miss" ]]; then
@@ -319,6 +324,20 @@ spl_dispatch_check_tenant() {
   else
     while IFS= read -r l; do row "$t inbound" "${l#* "$t" }" "GAP ${l%% *}"; done <<<"$bad"
   fi
+}
+
+# The id that holds OD seat <id> on <box> in the roster of <data>: <id>
+# itself, else, on another box than this desk box, the role seat of the same
+# number (001..003) under any vendor letter - each box runs its role seats as
+# its own vendor (agentid.IsRoleSeat; the hub maps the alias, SPL-1716). prd
+# 2026-10-14: the box whose master is g-002 read the other, which seats c-002,
+# as "unseated: g-002@<box> g-003@<box>" on every workspace (SPL-1756). 1 when none.
+spl_dispatch_seat_on() {
+  local data="$1" box="$2" id="$3" s
+  spl_dispatch_rostered "$data" "$box" "$id" && { echo "$id"; return 0; }
+  [[ "$box" != "$DISPATCH_DESK_BOX" && "$id" =~ ^[acgmq]-(00[1-3])$ ]] || return 1
+  s="$(sed -n "s/^ros|$box|\([acgmq]-${BASH_REMATCH[1]}\)\$/\1/p" <<<"$data" | sed -n 1p)"
+  [[ -n "$s" ]] && echo "$s"
 }
 
 # The dispatcher's worktree: the identity map's (<spool root>/agents/<id>.json,

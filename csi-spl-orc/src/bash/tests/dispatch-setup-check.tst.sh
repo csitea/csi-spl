@@ -14,7 +14,9 @@
 #      over the max, stale lease, holder not a dispatcher, a loop down,
 #      settings not loaded, model mismatch, the unanswered sweep never ran,
 #      a hub / WUI input unserved past the grace (CLE-77918); the rotation
-#      age counts from a takeover from another box (c-330)
+#      age counts from a takeover from another box (c-330); another box's
+#      role seat under another vendor letter is seated, a missing number is
+#      not (SPL-1756)
 #   8. setup step 11: the sweep cron line is PLANned, then written once
 #   9. the desk-reply rule (2026-10-03, c-002's prd reply refused while the
 #      check said "loaded ok"): the brief teaches ONE command, run from the
@@ -291,6 +293,20 @@ gap "a dispatcher missing from a channel" '\| w2 #lobby \| OD seats 2/3, missing
 grep -v 'c-003' "$T/w2.keep" >"$SUBS/w2.txt"
 gap "an OD seat the workspace does not seat" '\| w2 OD seats \| unseated: c-003@box-desk \| GAP seat it'
 cp "$T/w2.keep" "$SUBS/w2.txt"
+# SPL-1756 (prd 2026-10-14: master g-002 on one box, c-002 on the other): another box
+# runs its role seats under its own vendor letter; the same number seats it
+for a in c-001 g-002 g-003; do printf 'ros|other-box|%s\nsub|lobby|other-box|%s|invite\nsub|team|other-box|%s|invite\n' "$a" "$a" "$a"; done >"$T/other"
+cat "$T/w2.keep" "$T/other" >"$SUBS/w2.txt"
+check DISPATCH_FLEET_BOXES=box-desk,other-box >"$T/o" 2>&1
+grep -qF '| w2 OD seats | every fleet OD seat seated | ok |' "$T/o" && grep -qF '| w2 #team | OD seats 6/6 | ok |' "$T/o" &&
+  pass "7. another box's role seats under another vendor letter are seated and subscribed (SPL-1756)" ||
+  fail "7. vendor alias: $(grep 'w2' "$T/o")"
+{ cat "$T/w2.keep"; grep -v 'sub|team|other-box|g-002' "$T/other"; } >"$SUBS/w2.txt"
+gap "another box's aliased seat missing from a channel names its own id" '\| w2 #team \| OD seats 5/6, missing: g-002@other-box \| GAP' DISPATCH_FLEET_BOXES=box-desk,other-box
+{ cat "$T/w2.keep"; grep -v 'g-003' "$T/other"; echo 'ros|other-box|m-004'; } >"$SUBS/w2.txt"
+gap "another box with no seat of that number is still unseated" '\| w2 OD seats \| unseated: c-003@other-box \| GAP seat it' DISPATCH_FLEET_BOXES=box-desk,other-box
+{ sed 's/c-003/g-003/' "$T/w2.keep"; cat "$T/other"; } >"$SUBS/w2.txt"
+gap "this box's own seat is never aliased" '\| w2 OD seats \| unseated: c-003@box-desk \| GAP seat it' DISPATCH_FLEET_BOXES=box-desk,other-box
 echo 'hum|6|2' >>"$SUBS/w2.txt"
 gap "people post, the desk receives nothing (CLE-77876)" '\| w2 inbound \| 6 human posts in 120 min, 0 inbound files .*\| GAP SILENT \|'
 gap "unsigned human posts (CLE-77876)" '\| w2 inbound \| 2 of 6 human posts .*\| GAP UNSIGNED \|'

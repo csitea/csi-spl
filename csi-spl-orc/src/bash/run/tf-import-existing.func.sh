@@ -9,13 +9,13 @@
 #   reported and skipped, non-fatal -- the next apply creates it.
 #   A NEW TOOL, not a csi-rel port (csi-rel has no importer for these steps);
 #   its model is csi-rel's tf-030 importer.
-#   Steps: 020-gcp-relay-bucket, 040-cloud-sql-postgres.
+#   Steps: 040-cloud-sql-postgres.
 # @param ENV - dev or prd [required]
-# @param STEP - 020-gcp-relay-bucket | 040-cloud-sql-postgres [required]
+# @param STEP - 040-cloud-sql-postgres [required]
 # @param DRY_RUN - 1 = read the state and print the plan, import nothing [default: 0]
 # @param CON_TF_RUNNER - tf-runner container [default: con-<ORG>-<APP>-tf-runner]
 # @example ENV=dev STEP=040-cloud-sql-postgres DRY_RUN=1 ./run -a do_tf_import_existing
-# @example ENV=prd STEP=020-gcp-relay-bucket ./run -a do_tf_import_existing
+# @example ENV=prd STEP=040-cloud-sql-postgres ./run -a do_tf_import_existing
 #------------------------------------------------------------------------------
 # do_tf_import (iac) reports its verdict only in its log line, not in its exit
 # code. The iac do_log rewrites that line: `do_log "OK Resource imported
@@ -34,8 +34,8 @@ do_tf_import_existing() {
     *) do_log "FATAL ENV must be one of dev|prd (got '${env_name}')"; return 1 ;;
   esac
   case "$step" in
-    020-gcp-relay-bucket|040-cloud-sql-postgres) ;;
-    *) do_log "FATAL STEP must be 020-gcp-relay-bucket or 040-cloud-sql-postgres (got '${step}')"; return 1 ;;
+    040-cloud-sql-postgres) ;;
+    *) do_log "FATAL STEP must be 040-cloud-sql-postgres (got '${step}')"; return 1 ;;
   esac
 
   # tfvars from THIS checkout (as do_tf_030_import_existing_cloud_run does).

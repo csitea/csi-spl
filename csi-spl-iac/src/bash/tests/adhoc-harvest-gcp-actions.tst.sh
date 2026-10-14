@@ -142,8 +142,7 @@ grep -q "PGOPTIONS='-c app.rls_scope=operator'" <<<"$bs" && grep -q 'export .*PG
 
 # --- 5. analyzer ---------------------------------------------------------------------
 cat >"$T/cnf.json" <<'EOF'
-{"env":{"gcp":{"gcp_project":"x-y-dev"},"hub":{"runtime_sa_account_id":"hubsa","secret_env":{"SPOOL_HUB_DB_DSN":"dsn"}},
- "steps":{"020-gcp-relay-bucket":{"relay_sa_account_id":"relsa"}}}}
+{"env":{"gcp":{"gcp_project":"x-y-dev"},"hub":{"runtime_sa_account_id":"hubsa","secret_env":{"SPOOL_HUB_DB_DSN":"dsn"}}}}
 EOF
 mk() { printf '{"project":"x-y-dev","as":"a","tag":"%s","taken_utc":"z","policies":{"project":{"bindings":[%s]}}}' "$1" "$2"; }
 mk b '{"role":"roles/cloudsql.client","members":["serviceAccount:hubsa@x-y-dev.iam.gserviceaccount.com","user:u@example.com"]}' >"$T/b.json"
@@ -151,7 +150,7 @@ mk a '{"role":"roles/cloudsql.client","members":["serviceAccount:hubsa@x-y-dev.i
 out=$(python3 "$PROJ_ROOT/src/bash/scripts/iam-analyze.py" "$T/cnf.json" "$T/b.json" "$T/a.json")
 grep -q 'hubsa@x-y-dev.iam.gserviceaccount.com` | 030 hub runtime' <<<"$out" && pass "5. the hub runtime SA id comes from the cnf (030 owns cloudsql.client)" || fail "5. owner rule: $out"
 grep -q 'user:u@example.com` | yes | - |' <<<"$out" && pass "5. the diff shows the removed user binding" || fail "5. diff: $out"
-grep -q 'bucket:relay | roles/storage.objectUser | `serviceAccount:relsa@' <<<"$out" && pass "5. a grant 020 expects but the policy lacks is listed" || fail "5. expected: $out"
+grep -q 'bucket:files | roles/storage.objectUser | `serviceAccount:hubsa@' <<<"$out" && pass "5. a grant 030 expects but the policy lacks is listed" || fail "5. expected: $out"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

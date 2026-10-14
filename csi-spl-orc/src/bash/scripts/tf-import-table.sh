@@ -12,7 +12,7 @@
 # (csi-spl-orc/src/bash/tests/tf-import-existing.tst.sh) fails when a step
 # declares a resource this table does not cover, or the reverse.
 #
-# Steps: 020-gcp-relay-bucket, 040-cloud-sql-postgres. Any other step -> exit 2.
+# Steps: 040-cloud-sql-postgres. Any other step -> exit 2.
 #
 # Usage:
 #   tf-import-table.sh <step> <vars.tfvars>
@@ -46,15 +46,6 @@ need gcp_project
 project=$(tf_get gcp_project)
 
 case "$STEP" in
-  020-gcp-relay-bucket)
-    need relay_bucket_name relay_sa_account_id
-    bucket=$(tf_get relay_bucket_name)
-    sa="$(tf_get relay_sa_account_id)@${project}.iam.gserviceaccount.com"
-    row "google_storage_bucket.relay" "${project}/${bucket}"
-    row "google_service_account.relay" "projects/${project}/serviceAccounts/${sa}"
-    row "google_storage_bucket_iam_member.relay_object_user" \
-      "b/${bucket} roles/storage.objectUser serviceAccount:${sa}"
-    ;;
   040-cloud-sql-postgres)
     need instance_name database_name dsn_secret_id owner_dsn_secret_id
     instance=$(tf_get instance_name)
@@ -65,7 +56,7 @@ case "$STEP" in
     row "google_secret_manager_secret.hub_db_owner_dsn" "projects/${project}/secrets/$(tf_get owner_dsn_secret_id)"
     ;;
   *)
-    echo "FATAL: no import table for step '$STEP' (have: 020-gcp-relay-bucket 040-cloud-sql-postgres; 030 has do_tf_030_import_existing_cloud_run)" >&2
+    echo "FATAL: no import table for step '$STEP' (have: 040-cloud-sql-postgres; 030 has do_tf_030_import_existing_cloud_run)" >&2
     exit 2
     ;;
 esac

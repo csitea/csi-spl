@@ -40,7 +40,7 @@ check() {
 }
 
 # --- 2. env: any cnf env name, never lde --------------------------------------
-for s in 019 020 028 040 045 046 050 051 052; do
+for s in 019 028 040 045 046 050 051 052; do
   check "$s" env "dev,prd,stg" "Dev,x,dev-1"
   f=$(ls "$TF"/"$s"-*/02-variables.tf)
   grep -qF 'var.env != "lde"' "$f" && pass "$s env refuses lde" || fail "$s env does not refuse lde"
@@ -48,7 +48,6 @@ done
 
 # --- 3. each resource's own id rule -------------------------------------------
 check 019 site_id "csi-spl-dev-site,acme-spool-dev-7f3a-site" "short,Bad_Site,-acme-site"
-check 020 relay_bucket_name "csi-spl-dev-rel,acme-spool-dev-7f3a-rel" "Bad-Rel,-rel,rel-"
 check 028 repository_id "csi-spl-dev-hub,acme-spool-dev-7f3a-hub" "1hub,hub-,Hub"
 check 040 instance_name "csi-spl-dev-pg,acme-spool-dev-7f3a-pg" "1pg,pg-,Pg"
 check 045 instance_name "csi-spl-prd-pg,acme-spool-dev-7f3a-pg" "1pg,pg-"
@@ -68,9 +67,9 @@ fi
 grep -qF 'length(distinct(var.workspaces)) == length(var.workspaces)' "$f52" && pass "052 workspaces refuses a duplicate slug" || fail "052 workspaces allows a duplicate slug"
 
 # CONTROL: the extraction is live - an old pinned regex refuses the clone name
-grep -qE '^csi-spl-(dev|prd)-rel$' <<<"acme-spool-dev-7f3a-rel" \
+grep -qE '^csi-spl-(dev|prd)-files$' <<<"acme-spool-dev-7f3a-files" \
   && fail "CONTROL: the old pinned regex accepted a clone name" \
-  || pass "CONTROL: the old pinned regex refuses acme-spool-dev-7f3a-rel"
+  || pass "CONTROL: the old pinned regex refuses acme-spool-dev-7f3a-files"
 
 if [[ "$fails" -eq 0 ]]; then
   echo "PASS: all $(basename "$0") assertions"

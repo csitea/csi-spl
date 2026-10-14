@@ -11,7 +11,7 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 # @description              each (the VALUE is never printed or logged; a
 # @description              secret with no readable version is logged as a slot)
 # @description   dns-*.zone every Cloud DNS zone, zone-file format, + its NS
-# @description   buckets/   the relay (020) and files (050) buckets
+# @description   buckets/   the files (050) bucket
 # @description   artifact-tags.txt  the 028 registry's images and tags
 # @description   sql/       pg_dump of the hub DB (040) through the Cloud SQL
 # @description              proxy, with per-table row counts
@@ -37,9 +37,8 @@ do_gcp_backup_env() {
   local p="$PROJ_ID" cnf="$_spl_sdk_dir/cnf.yaml"
   do_spl_merged_cnf "$APP_PATH/$ORG-$APP-cnf/$ORG-$APP" "$ENV" "$cnf" || return 1
   _bk() { yq -r "$1 // \"\"" "$cnf"; }
-  local state_bucket relay files region repo dsn_secret proxy_image
+  local state_bucket files region repo dsn_secret proxy_image
   state_bucket="$(_bk .env.gcp.state_bucket)"
-  relay="$(_bk '.env.steps."020-gcp-relay-bucket".relay_bucket_name')"
   files="$(_bk '.env.steps."050-gcs-files".files_bucket_name')"
   region="$(_bk .env.gcp.gcp_region)"
   repo="$(_bk '.env.steps."028-gcp-artifact-registry".repository_id')"
@@ -62,7 +61,7 @@ do_gcp_backup_env() {
   _gcp_backup_state "$out" "$sa" "$state_bucket"; errs=$((errs + $?))
   _gcp_backup_secrets "$out" "$sa" "$p"
   _gcp_backup_dns "$out" "$sa" "$p"; errs=$((errs + $?))
-  _gcp_backup_buckets "$out" "$sa" "$relay" "$files"; errs=$((errs + $?))
+  _gcp_backup_buckets "$out" "$sa" "$files"; errs=$((errs + $?))
   _gcp_backup_registry "$out" "$sa" "$p" "$region" "$repo"
 
   # Cloud SQL: pg_dump through the proxy, with the DSN from its secret file

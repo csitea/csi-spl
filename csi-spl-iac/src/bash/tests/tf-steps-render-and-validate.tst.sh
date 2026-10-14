@@ -4,8 +4,7 @@
 #------------------------------------------------------------------------------
 # Purpose: the committed tfvars are what tpl-gen renders from the committed
 #          yaml TODAY (an edited yaml that was never re-rendered fails here),
-#          the relay bucket carries the measured donor relay bucket's access model,
-#          and every step is terraform-fmt clean and validates.
+#          the bucket steps keep their access model, and every step is terraform-fmt clean and validates.
 #          A missing tpl-gen clone or terraform binary is a FAIL (spec 007
 #          T070): the suite used to SKIP both from any worktree or any user
 #          but the owner and still print "PASS: all", having validated
@@ -60,28 +59,6 @@ if [[ -n "$TPG" ]]; then
 else
   skip "no tpl-gen venv (TPL_GEN_DIR, $APP_ROOT/tpl-gen, ${main_root:-<main checkout>}/tpl-gen)"
 fi
-
-# --- 2. the relay bucket is the donor relay bucket's access model ------------------
-for env in dev prd; do
-  v="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/020-gcp-relay-bucket.vars.tfvars"
-  grep -qx "relay_bucket_name = \"csi-spl-$env-rel\"" "$v" && pass "$env relay bucket is csi-spl-$env-rel" || fail "$env relay bucket name"
-  # spec 001 FR-002/FR-003: the one deliberate difference (1-day lifecycle),
-  # the measured soft delete, and the relay SA id git-rel's key is named for.
-  grep -qx 'object_max_age_days = 1' "$v" && pass "$env relay objects expire after 1 day" || fail "$env relay object_max_age_days is not 1"
-  grep -qx 'soft_delete_retention_seconds = 604800' "$v" && pass "$env relay soft delete is 604800 s" || fail "$env relay soft delete is not 604800 s"
-  grep -qx "relay_sa_account_id = \"csi-spl-rel-$env\"" "$v" && pass "$env relay SA is csi-spl-rel-$env" || fail "$env relay SA id"
-done
-b="$PROJ_ROOT/src/terraform/020-gcp-relay-bucket/03-relay-bucket.tf"
-grep -qE '^\s*uniform_bucket_level_access\s*=\s*true' "$b" && pass "uniform bucket-level access on" || fail "uniform bucket-level access is not true"
-grep -qE '^\s*public_access_prevention\s*=\s*"enforced"' "$b" && pass "public access prevention enforced" || fail "public access prevention is not enforced"
-grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers' "$PROJ_ROOT/src/terraform/020-gcp-relay-bucket/"*.tf && fail "a public/ACL grant appears in 020" || pass "no ACL or allUsers grant in 020"
-# spec 001 FR-003: the relay SA gets exactly ONE role, bucket-scoped, and no
-# project-level IAM resource exists in 020.
-r="$PROJ_ROOT/src/terraform/020-gcp-relay-bucket"
-[[ "$(cat "$r"/*.tf | grep -cE '^resource "google_storage_bucket_iam_member"')" == 1 ]] \
-  && grep -qE '^\s*role\s*=\s*"roles/storage.objectUser"' "$r/04-relay-sa.tf" \
-  && pass "relay SA holds exactly one binding, roles/storage.objectUser" || fail "relay SA binding is not exactly one roles/storage.objectUser"
-grep -qE '^resource "google_project_iam_' "$r"/*.tf && fail "020 grants a project-level role" || pass "020 grants no project-level role"
 
 # --- 2b. the hub steps (030/040/050) ------------------------------------------
 TFD="$PROJ_ROOT/src/terraform"

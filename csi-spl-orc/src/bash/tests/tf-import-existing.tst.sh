@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: the 020 / 040 import tools import, through the tf-runner, and only import.
+# Purpose: the 040 import tool imports, through the tf-runner, and only import.
 #   table (src/bash/scripts/tf-import-table.sh), by sh, real dev + prd tfvars:
 #   1. drift guard both ways: every row is a resource the step declares, and
 #      every resource the step declares has a row
-#   2. ids derived from the tfvars (bucket, SA email, instance, db, secret)
+#   2. ids derived from the tfvars (instance, db, secret)
 #   3. an unknown step -> exit 2; missing tfvars -> exit 1
 #   action (do_tf_import_existing), docker stubbed:
 #   4. ENV / STEP outside the allowed sets -> refused, docker never called
@@ -32,9 +32,10 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+STEPS=(040-cloud-sql-postgres) # the steps the table covers
 
 # ---- the table --------------------------------------------------------------
-for s in 020-gcp-relay-bucket 040-cloud-sql-postgres; do
+for s in "${STEPS[@]}"; do
   declared=$(command grep -hoE '^resource "[^"]+" "[^"]+"' "$APP_ROOT/csi-spl-iac/src/terraform/$s"/*.tf |
     sed -E 's/^resource "([^"]+)" "([^"]+)"/\1.\2/' | sort -u)
   for e in dev prd; do
@@ -47,8 +48,6 @@ for s in 020-gcp-relay-bucket 040-cloud-sql-postgres; do
     project=$(sed -nE 's/^gcp_project *= *"([^"]+)".*/\1/p' "$vars")
     get() { sed -nE "s/^$1 *= *\"([^\"]+)\".*/\1/p" "$vars"; }
     case $s in
-      020-*) sa="$(get relay_sa_account_id)@$project.iam.gserviceaccount.com"; b=$(get relay_bucket_name)
-             want=$'google_storage_bucket.relay\t'"$project/$b"$'\ngoogle_service_account.relay\tprojects/'"$project/serviceAccounts/$sa"$'\ngoogle_storage_bucket_iam_member.relay_object_user\tb/'"$b roles/storage.objectUser serviceAccount:$sa" ;;
       040-*) i=$(get instance_name)
              want=$'google_sql_database_instance.hub\tprojects/'"$project/instances/$i"$'\ngoogle_sql_database.spool\tprojects/'"$project/instances/$i/databases/$(get database_name)"$'\ngoogle_secret_manager_secret.hub_db_dsn\tprojects/'"$project/secrets/$(get dsn_secret_id)"$'\ngoogle_secret_manager_secret.hub_db_owner_dsn\tprojects/'"$project/secrets/$(get owner_dsn_secret_id)" ;;
     esac
@@ -111,11 +110,11 @@ done
 out=$(run_action ENV=dev STEP=040-cloud-sql-postgres RUNNING=other-con); rc=$?
 [[ $rc -ne 0 && "$out" == *"is not running"* && ! -s "$T/docker.log" ]] && pass "tf-runner down -> refused" || fail "tf-runner down: rc=$rc"
 
-# 6. happy path, both steps, both envs
-for s in 020-gcp-relay-bucket 040-cloud-sql-postgres; do
+# 6. happy path, both envs
+for s in "${STEPS[@]}"; do
   for e in dev prd; do
     out=$(run_action ENV=$e STEP=$s); rc=$?
-    n=3; [[ $s == 040-* ]] && n=4 # 040: + the 017 T029 owner DSN slot
+    n=4 # 040: + the 017 T029 owner DSN slot
     [[ $rc -eq 0 && "$out" == *"imported=$n skipped=0 failed=0"* ]] && pass "$s $e: $n imported" || fail "$s $e: rc=$rc $(tail -3 <<<"$out")"
     [[ $(command grep -c . "$T/docker.log") -eq $((n + 1)) ]] && pass "$s $e: 1 state list + $n imports" || fail "$s $e: calls: $(cat "$T/docker.log")"
     command grep -v "^EXEC $CON ./run -a do_tf_\(state_list\|import\) | ORG=csi APP=spl ENV=$e STEP=$s " "$T/docker.log" | command grep . >/dev/null \
@@ -133,8 +132,8 @@ out=$(run_action ENV=dev STEP=040-cloud-sql-postgres STATE_FIXTURE="$T/state.txt
 command grep -q 'TARGET=google_sql_database_instance.hub' "$T/docker.log" && fail "in-state instance re-imported" || pass "in-state instance not re-imported"
 
 # 8.
-out=$(run_action ENV=dev STEP=020-gcp-relay-bucket FAIL_ADDRS="google_storage_bucket.relay google_service_account.relay"); rc=$?
-[[ $rc -eq 0 && "$out" == *"imported=1 skipped=0 failed=2"* && "$out" == *"WARN  could not import google_storage_bucket.relay"* ]] \
+out=$(run_action ENV=dev STEP=040-cloud-sql-postgres FAIL_ADDRS="google_sql_database_instance.hub google_sql_database.spool"); rc=$?
+[[ $rc -eq 0 && "$out" == *"imported=2 skipped=0 failed=2"* && "$out" == *"WARN  could not import google_sql_database_instance.hub"* ]] \
   && pass "NotFound imports non-fatal (rc 0, failed=2)" || fail "failed imports: rc=$rc $(tail -3 <<<"$out")"
 
 # 9.

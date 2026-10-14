@@ -10,7 +10,6 @@
 | `src/bash/run/tf-*.func.sh`, `provision`, `divest` | the csi-rel terraform wrappers, run inside the tf-runner by `../csi-spl-orc` make targets (see [Usage](#usage)) |
 | `src/terraform/000-gcp-remote-bucket` | the tf state bucket (local state) |
 | `src/terraform/001-enable-gcp-services` | storage + iam APIs |
-| `src/terraform/020-gcp-relay-bucket` | the git-rel relay bucket + sender SA |
 | `src/terraform/030-cloud-run-hub` | the spool hub on Cloud Run (HTTPS + WS, min/max instances 1) + its runtime SA |
 | `src/terraform/040-cloud-sql-postgres` | the hub's Cloud SQL Postgres + database + the empty DSN secret slot |
 | `src/terraform/050-gcs-files` | the hub's `file_id` bucket (private, uniform, PAP enforced) |

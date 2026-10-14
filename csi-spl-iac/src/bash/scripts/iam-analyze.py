@@ -34,7 +34,6 @@ def ids(cnf):
     return {
         "project": e["gcp"]["gcp_project"],
         "hub": g(e.get("hub"), "runtime_sa_account_id"),
-        "relay": g(st.get("020-gcp-relay-bucket"), "relay_sa_account_id"),
         "fb": g(st.get("016-firebase-deploy-iam"), "deploy_sa_account_id"),
         "fb_roles": (st.get("016-firebase-deploy-iam") or {}).get("deploy_roles") or [],
         "ci": g(st.get("017-github-wif-deploy"), "deploy_sa_account_id"),
@@ -73,12 +72,6 @@ def owner(res, role, m, i):
             and role == "roles/storage.objectUser"
             and m == sa(i, i["hub"]),
             "030 hub runtime",
-        ),
-        (
-            res == "bucket:relay"
-            and role == "roles/storage.objectUser"
-            and m == sa(i, i["relay"]),
-            "020 relay SA",
         ),
         (res == "run-service" and role == "roles/run.invoker", "030 invoker"),
         (
@@ -142,10 +135,6 @@ def expected(i):
                     "030",
                 )
             )
-    if i["relay"]:
-        exp.append(
-            ("bucket:relay", "roles/storage.objectUser", sa(i, i["relay"]), "020")
-        )
     for r in i["fb_roles"] if i["fb"] else []:
         exp.append(("project", r, sa(i, i["fb"]), "016"))
     return exp

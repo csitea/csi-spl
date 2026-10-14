@@ -33,7 +33,7 @@ variable "gcp_region" {
 
 variable "files_bucket_name" {
   type        = string
-  description = "The hub's file_id content bucket, <project>-files by default. NOT the git-rel relay bucket (020)."
+  description = "The hub's file_id content bucket, <project>-files by default."
 
   validation {
     condition     = can(regex("^[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]$", var.files_bucket_name)) && !startswith(var.files_bucket_name, "goog")

@@ -70,12 +70,12 @@ do_spl_merged_cnf "$CNF" lde "$tmp/lde.yaml" || fail "lde: cannot merge cnf"
 # --- CONTROLS: a planted duplicate and an empty slot are caught ------------------------
 mkdir -p "$tmp/ctl"
 cp "$CNF"/all.env.yaml "$CNF"/dev.env.yaml "$CNF"/prd.env.yaml "$tmp/ctl/"
-for e in dev prd; do yq -i '.env.steps."020-gcp-relay-bucket".object_max_age_days = 3' "$tmp/ctl/$e.env.yaml"; done
-grep -q '^020-gcp-relay-bucket.object_max_age_days = 3$' <<<"$(same_step_keys "$tmp/ctl")" &&
+for e in dev prd; do yq -i '.env.steps."050-gcs-files".object_max_age_days = 3' "$tmp/ctl/$e.env.yaml"; done
+grep -q '^050-gcs-files.object_max_age_days = 3$' <<<"$(same_step_keys "$tmp/ctl")" &&
   pass "CONTROL: a step setting planted in both env files is caught" || fail "CONTROL: a planted duplicate was not caught"
-yq -i 'del(.env.steps."020-gcp-relay-bucket".relay_bucket_name)' "$tmp/ctl/dev.env.yaml"
+yq -i 'del(.env.steps."050-gcs-files".files_bucket_name)' "$tmp/ctl/dev.env.yaml"
 do_spl_merged_cnf "$tmp/ctl" dev "$tmp/ctl.yaml" &&
-  grep -qx 'env.steps.020-gcp-relay-bucket.relay_bucket_name' <(null_slots "$tmp/ctl.yaml") &&
+  grep -qx 'env.steps.050-gcs-files.files_bucket_name' <(null_slots "$tmp/ctl.yaml") &&
   pass "CONTROL: an env file that leaves a slot empty is caught" || fail "CONTROL: an empty slot was not caught"
 
 (( fails == 0 )) && echo "PASS: all" || { echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1; }

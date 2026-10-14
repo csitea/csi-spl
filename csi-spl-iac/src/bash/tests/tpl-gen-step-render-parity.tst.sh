@@ -81,11 +81,11 @@ done
 cnf="$tmp/ctl/dev.env.yaml"
 mkdir -p "$tmp/ctl"
 do_spl_merged_cnf "$CNF_DIR" dev "$cnf"
-yq -i '.env.steps."020-gcp-relay-bucket".object_max_age_days = 2' "$cnf"
+yq -i '.env.steps."050-gcs-files".object_max_age_days = 2' "$cnf"
 tgt=$(mk_tgt "$tmp/ctlout") || tgt="$tmp/ctlout"
-render dev 020-gcp-relay-bucket "$cnf" "$tgt"
-if ! cmp -s "$CNF_DIR/dev/tf/020-gcp-relay-bucket.vars.tfvars" "$tgt/csi-spl/dev/tf/020-gcp-relay-bucket.vars.tfvars" &&
-  grep -qx 'object_max_age_days = 2' "$tgt/csi-spl/dev/tf/020-gcp-relay-bucket.vars.tfvars"; then
+render dev 050-gcs-files "$cnf" "$tgt"
+if ! cmp -s "$CNF_DIR/dev/tf/050-gcs-files.vars.tfvars" "$tgt/csi-spl/dev/tf/050-gcs-files.vars.tfvars" &&
+  grep -qx 'object_max_age_days = 2' "$tgt/csi-spl/dev/tf/050-gcs-files.vars.tfvars"; then
   pass "CONTROL: a planted object_max_age_days = 2 is caught"
 else
   fail "CONTROL: a planted value was not caught"

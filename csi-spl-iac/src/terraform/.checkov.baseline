@@ -23,18 +23,6 @@
             ]
         },
         {
-            "file": "/020-gcp-relay-bucket/03-relay-bucket.tf",
-            "findings": [
-                {
-                    "resource": "google_storage_bucket.relay",
-                    "check_ids": [
-                        "CKV_GCP_62",
-                        "CKV_GCP_78"
-                    ]
-                }
-            ]
-        },
-        {
             "file": "/025-gcp-dns-zone/03-dns-zone.tf",
             "findings": [
                 {

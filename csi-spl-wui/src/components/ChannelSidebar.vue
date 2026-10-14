@@ -971,11 +971,13 @@ const docsRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSecti
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
 /* spec 074 T008: probe the operator list once the reader's role is known.
    SPL-1797: wait for /v1/view/me first; a probe sent before it answered gave
-   every member a 403 on the operator route (load() shares its pending read). */
+   every member a 403 on the operator route (load() shares its pending read).
+   SPL-1804: only while me has not answered; a known guest (role null) must
+   not re-read it, or the read overwrites the guest with the member it was. */
 const operatorPane = useOperatorPane()
-watch(() => [session.state, access.me?.role ?? null] as const, async ([st, role]) => {
+watch(() => [session.state, access.me?.role ?? null] as const, async ([st]) => {
   if (st !== 'in' && !api.mock) return
-  if (!role) await access.load()
+  if (!access.me) await access.load()
   void operatorPane.probe(access.me?.role ?? null)
 }, { immediate: true })
 const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id !== 'dm') : RAIL.value))

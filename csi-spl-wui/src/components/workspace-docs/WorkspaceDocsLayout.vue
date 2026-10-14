@@ -11,7 +11,7 @@
      document as before. -->
 <template>
   <div class="wsdocs-layout" data-test="ws-docs-layout">
-    <div id="qto-file-tree" class="wsdocs-layout__tree">
+    <div id="qto-file-tree" class="wsdocs-layout__tree" :style="{ flex: `0 0 ${displayed.sidebar}px` }">
       <QtoFileTree
         v-if="page"
         :docs="page.docs"
@@ -27,6 +27,15 @@
         @refresh="page.refreshDocs()"
       />
     </div>
+    <PaneDivider
+      v-if="showDocsDivider"
+      pane="docs"
+      :value="displayed.sidebar"
+      :min="sidebarBounds.min"
+      :max="sidebarBounds.max"
+      @input="setDocs"
+      @reset="resetDocs"
+    />
     <WorkspaceRepoDoc v-if="repoPath" :path="repoPath" class="wsdocs-layout__page" />
     <WorkspaceDocsPage v-show="!repoPath" ref="page" class="wsdocs-layout__page" />
   </div>
@@ -36,10 +45,14 @@
 import { computed, defineAsyncComponent, nextTick, ref } from 'vue'
 import WorkspaceDocsPage from './WorkspaceDocsPage.vue'
 import QtoFileTree from './QtoFileTree.vue'
+import PaneDivider from '~/components/PaneDivider.vue'
+import { usePaneWidths } from '~/composables/usePaneWidths'
 import { useDocTree } from './-doctree-api'
 
 /* T023: the repo doc pane loads when a repo doc is first opened */
 const WorkspaceRepoDoc = defineAsyncComponent(() => import('./WorkspaceRepoDoc.vue'))
+
+const { displayed, sidebarBounds, showDocsDivider, setDocs, resetDocs } = usePaneWidths({})
 
 const route = useRoute()
 const router = useRouter()
@@ -97,7 +110,6 @@ async function openFromTree(doc: string, item: string) {
   height: 100%;
 }
 .wsdocs-layout__tree {
-  flex: 0 0 260px;
   min-width: 0;
   min-height: 0;
   overflow-x: clip;

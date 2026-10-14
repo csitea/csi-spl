@@ -25,7 +25,7 @@
 import { applySeparatorKey, pointerDelta } from '~/utils/pane-widths.mjs'
 
 const props = defineProps<{
-  pane: 'sidebar' | 'topic' | 'issue'
+  pane: 'sidebar' | 'topic' | 'issue' | 'docs'
   value: number
   min: number
   max: number
@@ -38,10 +38,11 @@ const emit = defineEmits<{
 
 const { t } = useI18n({ useScope: 'global' })
 
-const RESIZE_LABEL_KEY: Record<'sidebar' | 'topic' | 'issue', string> = {
+const RESIZE_LABEL_KEY: Record<'sidebar' | 'topic' | 'issue' | 'docs', string> = {
   sidebar: 'pane.resize_sidebar',
   topic: 'pane.resize_topic',
   issue: 'pane.resize_issue',
+  docs: 'pane.resize_docs',
 }
 
 const dragging = ref(false)
@@ -67,7 +68,7 @@ function onMove(e: PointerEvent) {
     moved.value = true
     document.documentElement.classList.add('pane-dragging')
   }
-  emit('input', pointerDelta(props.pane, startW.value, startX.value, e.clientX))
+  emit('input', pointerDelta(props.pane === 'docs' ? 'sidebar' : props.pane, startW.value, startX.value, e.clientX))
 }
 
 const lastTapAt = ref(0)
@@ -100,6 +101,6 @@ function onUp(e: PointerEvent) {
 function onKey(e: KeyboardEvent) {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
   e.preventDefault()
-  emit('input', applySeparatorKey(props.pane, e.key, props.value, props.min, props.max))
+  emit('input', applySeparatorKey(props.pane === 'docs' ? 'sidebar' : props.pane, e.key, props.value, props.min, props.max))
 }
 </script>

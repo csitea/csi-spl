@@ -9,6 +9,8 @@ import { storageGetJson, storageSetJson } from './prefs.mjs'
 export const SIDEBAR_DEFAULT = 260
 /** The topic pane's width before any viewport is known (prerender, tests). */
 export const TOPIC_DEFAULT = 380
+/** The docs pane's width before any viewport is known (prerender, tests). */
+export const DOCS_DEFAULT = 260
 /** Spec 078 FR-006: an undragged topic pane takes this share of the space
     right of the left pane. */
 export const TOPIC_DEFAULT_RATIO = 0.4
@@ -201,9 +203,10 @@ export const PANE_VIEWS = ['default', 'channel', 'issues', 'help', 'docs']
 export function viewOf(route) {
   const path = String((typeof route === 'string' ? route : route && route.path) || '').split(/[?#]/)[0]
   if (path.startsWith('/channel/') || path.startsWith('/dm/')) return 'channel'
-  for (const view of ['issues', 'help', 'docs']) {
+  for (const view of ['issues', 'help']) {
     if (path === `/${view}` || path.startsWith(`/${view}/`)) return view
   }
+  if (path === '/docs' || path.startsWith('/docs/') || path === '/workspace/docs' || path.startsWith('/workspace/docs/')) return 'docs'
   return 'default'
 }
 
@@ -211,11 +214,11 @@ function isObj(v) {
   return Boolean(v) && typeof v === 'object' && !Array.isArray(v)
 }
 
-/* One view's set: only finite sidebar / topic numbers; null when it has none. */
+/* One view's set: only finite sidebar / topic / docs numbers; null when it has none. */
 function paneSet(v) {
   if (!isObj(v)) return null
   const out = {}
-  for (const k of ['sidebar', 'topic']) {
+  for (const k of ['sidebar', 'topic', 'docs']) {
     const n = v[k] == null ? NaN : Number(v[k])
     if (Number.isFinite(n)) out[k] = n
   }
@@ -223,13 +226,13 @@ function paneSet(v) {
 }
 
 /**
- * Spec 078 FR-007: a stored value as {view: {sidebar?, topic?}}. Units are the
+ * Spec 078 FR-007: a stored value as {view: {sidebar?, topic?, docs?}}. Units are the
  * caller's (px in the browser, window fractions on the account). An old flat
  * {sidebar, topic} reads as default; junk reads as {}.
  */
 export function paneViews(raw) {
   if (!isObj(raw)) return {}
-  if ('sidebar' in raw || 'topic' in raw) {
+  if ('sidebar' in raw || 'topic' in raw || 'docs' in raw) {
     const flat = paneSet(raw)
     return flat ? { default: flat } : {}
   }
@@ -283,13 +286,15 @@ export function savePaneWidths(widths, store, view = 'default') {
   const prev = isObj(raw) ? raw : {}
   const views = storedViews(prev)
   const set = { sidebar: Math.round(num(widths && widths.sidebar, SIDEBAR_DEFAULT)) }
-  /* A null topic is "never dragged": leave it out so the default applies. */
+  /* A null topic/docs is "never dragged": leave it out so the default applies. */
   if (!(widths && widths.topic === null)) set.topic = Math.round(num(widths && widths.topic, TOPIC_DEFAULT))
+  if (widths && 'docs' in widths && widths.docs !== null) set.docs = Math.round(num(widths.docs, DOCS_DEFAULT))
   views[PANE_VIEWS.includes(view) ? view : 'default'] = set
   // Keep keys this helper does not own (the issue detail width); drop the old flat pair.
   const next = { ...prev, views }
   delete next.sidebar
   delete next.topic
+  delete next.docs
   return storageSetJson(PANE_WIDTHS_KEY, next, store)
 }
 

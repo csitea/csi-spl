@@ -45,6 +45,31 @@ const ok = (name, pass, ev) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/* the page at rest: `read` answers the same for STILL_FRAMES frames in a
+   row, a little more than the app's own hold (parent-section-open.mjs lets
+   a card go after 10 still frames) */
+const STILL_FRAMES = 12
+async function rest(p, read, ...args) {
+  const t0 = Date.now()
+  let last = ''
+  let still = 0
+  while (Date.now() - t0 < NAV_TIMEOUT) {
+    const now = JSON.stringify(await p.evaluate(read, ...args))
+    still = now === last ? still + 1 : 0
+    if (still >= STILL_FRAMES) return
+    last = now
+    await p.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())))
+  }
+  throw new Error(`the page did not come to rest in ${NAV_TIMEOUT} ms`)
+}
+/* the feed as drawn: its rows in order, the store's row count, the scroll */
+const feedNow = () => {
+  const pinia = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia
+  const ids = [...document.querySelectorAll('.spool-main article.msg[data-msg-id]')].map((a) => a.dataset.msgId)
+  const s = document.querySelector('.spool-main .feed-body')
+  return [ids.join(), (pinia.state.value.channel.messages || []).length, s ? s.scrollTop : -1]
+}
+
 async function launch() {
   const require = createRequire(import.meta.url)
   for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
@@ -78,7 +103,7 @@ async function open(browser, vp, order) {
     const session = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
     session.adopt({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', message_order: order })
   }, order)
-  await sleep(400)
+  await rest(p, feedNow)
   return { p, errors }
 }
 
@@ -131,7 +156,7 @@ async function openPoll(p, seeded, touch) {
     if (await p.waitForSelector(form, { timeout: 10000 }).then(() => true, () => false)) break
   }
   await p.waitForSelector(form, { timeout: 5000 })
-  await sleep(800)
+  await rest(p, (form) => { const r = document.querySelector(form).getBoundingClientRect(); return [r.top, r.height] }, form)
   return form
 }
 
@@ -149,15 +174,18 @@ function placeQuestion(p, form, qi, at) {
 }
 
 function where(p, form, qi) {
-  return p.evaluate((form, qi) => {
-    const q = document.querySelectorAll(`${form} [data-testid=poll-question]`)[qi]
-    if (!q) return null
-    let s = q.parentElement
-    while (s && !/(auto|scroll)/.test(getComputedStyle(s).overflowY)) s = s.parentElement
-    const paneTop = s && s !== document.scrollingElement ? s.getBoundingClientRect().top : 0
-    const atEnd = Boolean(s && s.scrollHeight - s.clientHeight - s.scrollTop <= 2)
-    return { qTop: Math.round(q.getBoundingClientRect().top), paneTop: Math.round(paneTop), scrollTop: Math.round(s ? s.scrollTop : -1), atEnd, windowY: Math.round(window.scrollY) }
-  }, form, qi)
+  return p.evaluate(whereNow, form, qi)
+}
+
+/* question `qi`'s top, the pane's top and scroll, the page's scroll */
+function whereNow(form, qi) {
+  const q = document.querySelectorAll(`${form} [data-testid=poll-question]`)[qi]
+  if (!q) return null
+  let s = q.parentElement
+  while (s && !/(auto|scroll)/.test(getComputedStyle(s).overflowY)) s = s.parentElement
+  const paneTop = s && s !== document.scrollingElement ? s.getBoundingClientRect().top : 0
+  const atEnd = Boolean(s && s.scrollHeight - s.clientHeight - s.scrollTop <= 2)
+  return { qTop: Math.round(q.getBoundingClientRect().top), paneTop: Math.round(paneTop), scrollTop: Math.round(s ? s.scrollTop : -1), atEnd, windowY: Math.round(window.scrollY) }
 }
 
 function replies(p, id) {
@@ -233,7 +261,7 @@ async function radioCase(browser, vp, tag, order, live = false) {
     return { form: Math.round(f.getBoundingClientRect().height), pane: f.closest('.feed-body')?.clientHeight || innerHeight }
   }, form)
   await placeQuestion(p, form, 2, Math.round(vp.height * 0.4))
-  await sleep(500)
+  await rest(p, whereNow, form, 3)
   const before = await where(p, form, 3)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-no-scroll-${tag}-${order}-radio-before.png`) })
   const n0 = await replies(p, seeded.msg_id)
@@ -252,7 +280,7 @@ async function radioCase(browser, vp, tag, order, live = false) {
   ok(`${tag} ${order} radio: the next answer (question 4) brings question 5 to the top too`, atTop(before2, after2), { before2, after2 })
   /* the last question: nothing below it, the reader stays where they are */
   await placeQuestion(p, form, 5, Math.round(vp.height * 0.4))
-  await sleep(500)
+  await rest(p, whereNow, form, 5)
   const before3 = await where(p, form, 5)
   await tapOption(p, form, 5, 'A', touch)
   await sleep(1500)
@@ -268,9 +296,9 @@ async function checkCase(browser, vp, tag, order) {
   const seeded = await seedPoll(p, POLL_CHECK)
   const form = await openPoll(p, seeded, touch)
   await placeQuestion(p, form, 2, Math.round(vp.height * 0.3))
-  await sleep(500)
+  await rest(p, whereNow, form, 2)
   await tapOption(p, form, 2, 'A', touch)
-  await sleep(300)
+  await rest(p, whereNow, form, 2)
   const before = await where(p, form, 2)
   /* Send locks the picks in at once (the 45 s lock-in posts the same reply) */
   await p.evaluate((form) => document.querySelector(`${form} [data-testid=poll-send]`).click(), form)

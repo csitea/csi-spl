@@ -4,3 +4,10 @@
 # report-only (fail_action: false). After the first dispatch run, triage each
 # finding here (IGNORE a reviewed false positive, FAIL a must-fix) and flip
 # fail_action to true so new findings gate.
+#
+# 10099 Source Code Disclosure - SQL: out of scope on /blog/ pages only.
+# Reviewed false positive (SPL-1807, run 38515436607 on prd): the regex hit the
+# English sentence "Select your preferred language from the searchable list"
+# in /blog/2026-10-09-feature-19-languages, prose not SQL. ZAP takes
+# <ruleId> TAB OUTOFSCOPE TAB <url regex>; the rule stays active elsewhere.
+10099	OUTOFSCOPE	^https?://[^/]+/blog/.*

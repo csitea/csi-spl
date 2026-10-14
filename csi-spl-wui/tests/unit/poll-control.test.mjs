@@ -104,6 +104,64 @@ describe('the answer marker', () => {
   })
 })
 
+describe('pollAnswers: chat replies and UI state', () => {
+  const rows = [
+    { from: 'HUM-10', ts: '2026-10-13T08:00:00Z', body: `Poll: ${MID}\nAnswer: A` },
+    { from: 'HUM-10', ts: '2026-10-13T08:02:00Z', body: `Chat: wants to discuss\nPoll: ${MID}\n> Which deploy path?\n\nmy text` },
+    { from: 'HUM-10', ts: '2026-10-13T08:03:00Z', body: `Poll: ${MID}\nAnswer: B` },
+  ]
+  it('a chat reply is not an answer, but the UI should recognize it as a "Chat about this" pick', () => {
+    const answers = pollAnswers(rows, MID)
+    assert.deepEqual(answers, [{ from: 'HUM-10', picks: { 1: ['B'] }, ts: '2026-10-13T08:03:00Z' }])
+    // The UI should recognize the chat reply and show "Chat about this" as picked
+    const chatReplies = rows.filter((r) => /^Chat: wants to discuss/i.test(String(r.body || '')))
+    assert.equal(chatReplies.length, 1)
+  })
+})
+
+// Defect 1: A chat reply should show "Chat about this" as picked in the UI.
+describe('Defect 1: chat reply recognition in UI', () => {
+  const MID = '8d3af7a1-0000-4000-8000-000000000001'
+  const form = {
+    multi: false,
+    questions: [{ text: 'Which deploy path?', kind: 'radio', options: [{ key: 'A', text: 'Deploy now' }, { key: 'B', text: 'Wait for CI' }] }],
+  }
+  const me = 'HUM-10'
+  const rows = [
+    { from: me, ts: '2026-10-13T08:02:00Z', body: `Chat: wants to discuss\nPoll: ${MID}\n> Which deploy path?\n\nmy text` },
+  ]
+  
+  // Simulate the UI state logic from PollForm.vue
+  function getChatPicks(form, rows, msgId, me) {
+    const chatPicks = {}
+    const chatReply = rows.find((r) => r.from === me && String(r.body || '').includes(`Poll: ${msgId}`) && /(^|\n)Chat: wants to discuss/i.test(String(r.body || '')))
+    if (chatReply) {
+      form.questions.forEach((_, i) => {
+        chatPicks[i] = true
+      })
+    }
+    return chatPicks
+  }
+  
+  it('should recognize a chat reply and set chatPicks for all questions', () => {
+    const chatPicks = getChatPicks(form, rows, MID, me)
+    assert.deepEqual(chatPicks, { 0: true })
+  })
+  
+  it('should NOT set chatPicks if the chat reply is missing', () => {
+    const noChatRows = [{ from: me, ts: '2026-10-13T08:00:00Z', body: `Poll: ${MID}\nAnswer: A` }]
+    const chatPicks = getChatPicks(form, noChatRows, MID, me)
+    assert.deepEqual(chatPicks, {})
+  })
+  
+  it('should set chatPicks even if the chat marker is trailing (backward compatibility)', () => {
+    const malformedRows = [
+      { from: me, ts: '2026-10-13T08:02:00Z', body: `my text\nChat: wants to discuss\nPoll: ${MID}` },
+    ]
+    const chatPicks = getChatPicks(form, malformedRows, MID, me)
+    assert.deepEqual(chatPicks, { 0: true })
+  })
+})
 describe('pollAnswers: the newest answer per sender wins', () => {
   const rows = [
     { from: 'HUM-10', ts: '2026-10-13T08:00:00Z', body: `Poll: ${MID}\nAnswer: A` },

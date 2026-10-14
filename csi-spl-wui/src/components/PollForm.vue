@@ -55,7 +55,7 @@
             class="poll-opt__input"
             :name="`${uid}-${qi}`"
             value=""
-            :checked="false"
+            :checked="chatPicks[qi] || false"
             @change="onChat(qi, $event.target as HTMLInputElement)"
           >
           <span class="poll-opt__text">{{ t('poll.chat') }}</span>
@@ -89,6 +89,8 @@ import { answerBody, chatBody, lockSeconds, pollAnswers } from '~/utils/poll.mjs
 import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import type { PollShape } from '~/components/PollBody.vue'
 import type { SpoolMessage } from '~/types/spool'
+
+const chatPicks = ref<Record<number, boolean>>({})
 
 /* SPL-1637 poll-control (owner HUM-10, t1 aab3d88b). One form per message.
    A radio click posts the answer at once, fire and forget (owner 87b56449);
@@ -136,7 +138,20 @@ const dirty = ref(false)
 watch(answers, (list) => {
   if (dirty.value) return
   const mine = list.find((a) => a.from === me.value)
-  if (mine) picks.value = props.form.questions.map((_, i) => (mine.picks[i + 1] || []).slice())
+  if (mine) {
+    picks.value = props.form.questions.map((_, i) => (mine.picks[i + 1] || []).slice())
+  }
+  // Always check for a chat reply, regardless of whether an answer exists
+  // Recognize both leading and trailing markers for backward compatibility
+  const chatReply = rows.value.find((r) => r.from === me.value && String(r.body || '').includes(`Poll: ${msgId.value}`) && /(^|\n)Chat: wants to discuss/i.test(String(r.body || '')))
+  if (chatReply) {
+    chatPicks.value = props.form.questions.reduce((acc, _, i) => {
+      acc[i] = true
+      return acc
+    }, {} as Record<number, boolean>)
+  } else {
+    chatPicks.value = {}
+  }
 }, { immediate: true })
 
 const state = ref<'' | 'sent' | 'failed'>('')

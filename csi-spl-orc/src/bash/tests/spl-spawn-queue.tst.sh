@@ -375,6 +375,19 @@ else fail "share report: $out"; fi
 mkdir -p "$T/pc/spool/c-398/lifetime"; printf '# a brief\nClass: refactor\n' >"$T/pc/spool/c-398/lifetime/brief.md"
 [[ "$(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>/dev/null | jq -r '.by.refactor.n, .unknown' | tr '\n' ' ')" == "4 1 " ]] &&
   pass "a lane's brief 'Class:' line classes it (a standing seat)" || fail "brief class: $(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>&1)"
+# SPL-1854: the hub's asks list over ARG_MAX (779 KB on sat) went to jq as one
+# argument: "Argument list too long". Same rows plus 3 MB of closed ones.
+want="$(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>/dev/null)"
+HUB_DIR="$T/hub" "$T/bin/hub" ask list --fleet main --role orch --all |
+  jq -c --arg pad "$(printf '%01000d' 0)" '.asks += [range(3000) | {ask_id: "dead-\(.)", state: "dead", summary: $pad}]' >"$T/big-asks.json"
+printf '#!/usr/bin/env bash\ncat "%s"\n' "$T/big-asks.json" >"$T/bin/bighub"; chmod +x "$T/bin/bighub"
+mkdir -p "$T/sharetmp"
+got="$(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json ASKS_HUB_CMD="$T/bin/bighub" TMPDIR="$T/sharetmp" 2>&1)"
+[[ "$(stat -c %s "$T/big-asks.json")" -gt "$(getconf ARG_MAX)" && -n "$want" && "$got" == "$want" ]] &&
+  pass "an asks list over ARG_MAX: the same share, read from a file (SPL-1854)" || fail "big asks: $(head -c 300 <<<"$got")"
+[[ -z "$(ls -A "$T/sharetmp")" ]] && pass "the share leaves no temp dir" || fail "temp left: $(ls -A "$T/sharetmp")"
+on pc do_spl_spawn_share ASKS_HUB_CMD=false TMPDIR="$T/sharetmp" >/dev/null 2>&1 && fail "a dead hub gave a share" ||
+  { [[ -z "$(ls -A "$T/sharetmp")" ]] && pass "a dead hub: no share and no temp dir left" || fail "temp left on a hub error: $(ls -A "$T/sharetmp")"; }
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

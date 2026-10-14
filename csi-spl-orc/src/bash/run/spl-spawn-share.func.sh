@@ -36,14 +36,29 @@ do_spl_spawn_share() {
 
 # The share as JSON: {known, unknown, by: {refactor|bug|feature: {n, pct,
 # lo, hi, verdict}}, lanes: [{id, class}], bypasses: [...]}.
+# The inputs go to jq as files, never as arguments: the hub's asks list (all
+# states, a week of closed rows) is far over one argument's size limit
+# (MAX_ARG_STRLEN, 128 KiB; 779 KB on sat 2026-10-14, "Argument list too long").
 spl_spawn_share() {
-  local lanes asks
+  local lanes tmpdir rc=0
   lanes="$(spl_spawn_share_lanes)" || return 1
-  asks="$(spl_asks_hub list --fleet "$LANE_FLEET" --role orch --all 2>"${ASKS_ERR:-/dev/null}")" || return 1
-  jq -e -c -n --argjson lanes "$lanes" --argjson asks "$asks" --argjson bands "$SPL_SPAWN_BANDS" \
-    --argjson briefs "$(spl_spawn_share_briefs "$lanes")" --argjson log "$(spl_spawn_share_bypass_log)" '
+  tmpdir="$(mktemp -d)" || return 1
+  printf '%s' "$lanes" >"$tmpdir/lanes.json" || rc=1
+  ((rc == 0)) && { spl_asks_hub list --fleet "$LANE_FLEET" --role orch --all >"$tmpdir/asks.json" 2>"${ASKS_ERR:-/dev/null}" || rc=1; }
+  ((rc == 0)) && { spl_spawn_share_briefs "$lanes" >"$tmpdir/briefs.json" || rc=1; }
+  ((rc == 0)) && { spl_spawn_share_bypass_log >"$tmpdir/log.json" || rc=1; }
+  ((rc == 0)) && { spl_spawn_share_jq "$tmpdir"; rc=$?; }
+  rm -rf "$tmpdir"
+  return "$rc"
+}
+
+# The share from the input files in DIR (lanes, asks, briefs, log .json).
+spl_spawn_share_jq() {  # DIR
+  jq -e -c -n --slurpfile lanes "$1/lanes.json" --slurpfile asks "$1/asks.json" --argjson bands "$SPL_SPAWN_BANDS" \
+    --slurpfile briefs "$1/briefs.json" --slurpfile log "$1/log.json" '
     def cls: if . == "ci" then "bug" else . end;
-    ([$asks.asks[] | select(.state == "done" and ((.reason // "") | test("^placed: ")) and (.class // "") != "")
+    $lanes[0] as $lanes | $asks[0] as $asks | $briefs[0] as $briefs | $log[0] as $log
+    | ([$asks.asks[] | select(.state == "done" and ((.reason // "") | test("^placed: ")) and (.class // "") != "")
       | {key: (.reason | sub("^placed: "; "") | split(" ")[0]), value: (.class | cls)}] | from_entries) as $placed
     | [$lanes[] | (.agent_id + "@" + .agent_box) as $id
        | {id: $id, class: ($placed[$id] // ($briefs[$id] // "" | cls) | if . == "" then "unknown" else . end)}] as $l

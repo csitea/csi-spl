@@ -13,7 +13,7 @@
 //   and first, a file dialog closed with nothing shows the no-file notice
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=t1] [CHANNEL=lobby] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home] \
+//     [TENANT=t1] [CHANNEL=lobby] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home] [WIDTH=1440|390] \
 //     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/attach-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -27,6 +27,8 @@ const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
 const CHANNEL = process.env.CHANNEL || 'lobby'
 const PEER = process.env.PEER || ''
+/* SPL-1815: the owner's failed uploads came from a phone; WIDTH=390 runs the phone layout */
+const WIDTH = Number(process.env.WIDTH || 1440)
 const SURFACES = (process.env.SURFACES || 'channel,dm,lobby,home').split(',').map((s) => s.trim()).filter(Boolean)
 mkdirSync(OUT, { recursive: true })
 
@@ -86,7 +88,7 @@ async function download(p, apiRoot, id) {
 
 async function signIn(ctx) {
   const p = await ctx.newPage()
-  await p.setViewport({ width: 1440, height: 900 })
+  await p.setViewport({ width: WIDTH, height: WIDTH < 800 ? 844 : 900 })
   p.on('console', (m) => { if (m.type() === 'error') res.console.push(m.text().slice(0, 300)) })
   p.on('pageerror', (e) => res.console.push('pageerror: ' + String(e).slice(0, 300)))
   p.on('request', (req) => {

@@ -1,7 +1,8 @@
 # g-439 rotation state
 
-Written 2026-10-13T23:56Z by rotation 20261013T2352Z-lane-g-439.
-The 23:51Z warn record is the parent commit c468eec5f.
+Written 2026-10-14T00:39Z for the lane-rotate warn (rotation at 00:53Z UTC).
+The 23:56Z rotation record is the parent commit a8da61cba.
+The 23:51Z warn record is c468eec5f.
 The 22:47Z rotation record is bc8f429a6.
 The 21:43Z rotation record is 5ab59b90a.
 The 20:42Z rotation record is b66ae379d.
@@ -29,26 +30,29 @@ Do not send the result again.
 - The Documents heading is gone. Outline and Grid sit at the right end of the header row. The new-document plus and the new-folder plus are on that same row. The left app-rail plus was not moved.
 - On a phone the new-document button stays the floating action and the new-folder button stays above the list. The tree aria-label is still Documents.
 - pnpm run typecheck exited 0 before the views-last reorder. The unit test passed 3/3 after that reorder.
+- This session, 2026-10-14T00:34Z: `node --test tests/unit/ws-docs-header.test.mjs` pass 3, fail 0. `git diff b97cb4e9a --` those two Vue files and the unit test is empty.
 - Headless Chrome, n=1, this tree, before the product commit: at 1440 the four controls share the header row and the views are at the right end; at 390 the top level has no Documents heading. The full e2e file was not re-run green. The booting dev server uses the main checkout node_modules, which lacks markdown-it, so a vite overlay swallows clicks. A fresh install here does not boot (simple-git 4). Do not patch that shared tree. The worktree node_modules symlink is gitignored.
 
-## Why this session did not push
+## Why this warn did not push
 
 - g-002 note 461ae438 (2026-10-13T23:37:39Z) restates the hold: stay idle, do not push, do not deploy. Their check: 2026-10-13T23:36Z, n=1, b97cb4e9a is not an ancestor of origin/master 647ea6054. This session did not reply.
+- g-001 note 5b40fe6d (2026-10-14T00:35:17Z, task gc-g-439) confirms that hold: local origin/master 4aa64b607, no fetch, b97cb4e9a is not an ancestor, 461ae438 stands, do not push, do not deploy, not an accept. Archived and not answered.
 - g-002 note df451778 (2026-10-13T17:08:18Z) says the sha was posted in the topic: stay idle, do not push, do not deploy.
-- The brief forbids push and deploy. Nothing on task 0d910440 starts with ACCEPTED (thread re-read 2026-10-13T23:56Z, n=6, accepted_prefix=0). The thread's last line is note 461ae438.
-- Result already sent to g-002: msg 57aa005e-cdc9-427a-8523-dbc87467f4cf at 2026-10-13T17:07:40Z. Not sent again.
+- The brief forbids push and deploy. Nothing on task 0d910440 starts with ACCEPTED (thread re-read 2026-10-14T00:34:25Z, n=6, accepted_prefix=0). The thread's last line is note 461ae438.
+- Result already sent to g-002: msg 57aa005e-cdc9-427a-8523-dbc87467f4cf at 2026-10-13T17:07:40Z. Not sent again. GC note 1f41eaf1 claimed there was no result; reply 8d40904d at 2026-10-14T00:34:37Z pointed at the archive copy. Do not send either again.
 - Note 91896f9d (views at the right end) was followed and archived with df451778.
 - A push of b97cb4e9a would land a feat subject with SPL-1697 and close the issue before ACCEPTED. The warn says push what is green; this lane's brief and g-002 override that for this commit.
-- Fetched origin/master at 2026-10-13T23:56Z via git-fetch-fresh.sh --force. Tip 86ec6dd31a1af15cf07c4ebcf8c8dd5973855429. rev-list --left-right --count origin/master...HEAD was 66 9. Not rebased. git merge-base --is-ancestor b97cb4e9a80eb0179057bae2bd55ba5126db4486 origin/master exited 1. 28f25dfd4 is an ancestor of that tip (exit 0). 647ea6054 is an ancestor (exit 0). The 23:38Z reading (28f25dfd4, behind 64) is stale.
-- lane-map --check g-439-rotation-state.md --agent g-439 exited 4 at 2026-10-13T23:56Z (12 unknown lanes, none list that path: c-889, c-908, c-915, c-916, c-919, c-943, c-955, c-963, c-968, c-973, c-974, c-976, all @sat). That does not cancel this note.
+- Fetched origin/master at 2026-10-14T00:39:27Z via git-fetch-fresh.sh --force. Tip b077fc75f4a76b62796314f6dbb86780737b9240. rev-list --left-right --count origin/master...HEAD was 74 10. Not rebased. git merge-base --is-ancestor b97cb4e9a80eb0179057bae2bd55ba5126db4486 origin/master exited 1. 4aa64b607 is an ancestor of that tip (exit 0). 86ec6dd31 is an ancestor (exit 0). The 23:56Z reading (86ec6dd31, behind 66) is stale.
+- lane-map --check g-439-rotation-state.md --agent g-439 exited 4 at 2026-10-14T00:39Z (7 unknown lanes, none list that path: c-889, c-908, c-915, c-916, c-963, c-968, c-973, all @sat). That does not cancel this note.
 
 ## This rotation
 
-- Rotation 20261013T2352Z-lane-g-439 was ACK OK at 2026-10-13T23:54:05Z by pid 1737282. Do not ack it again.
-- Self-ack 0c0f89e0-5899-4ed9-a3ea-cc4e5b5851c9 was archived and not answered. Inbox empty after that ack.
+- Note 47b07c4d-4b1b-46f9-9c8b-3baf6b42c1c7 (g-001, task lane-rotate-g-439, ts 2026-10-14T00:39:03Z, rotation at 00:53Z) is recorded and not replied to.
+- Rotation 20261013T2352Z-lane-g-439 was ACK OK at 2026-10-13T23:54:05Z by pid 1737282. Do not ack it again. That record is a8da61cba.
+- Self-ack 0c0f89e0-5899-4ed9-a3ea-cc4e5b5851c9 was archived and not answered.
 - Note 855933ae-454f-418e-821a-538a05d6b8bc (g-001, task lane-rotate-g-439, ts 2026-10-13T23:36:34Z, rotation at 23:51Z) was recorded in c468eec5f and not replied to.
-- Live window main index 26, title `g-439@tnk > wait accept`, pane %1949. Session pid 1737282. Retiring window is main index 13, pane %1940, title `g-439@tnk ! -2352Z-retiring`.
-- The first riname reported pane %1910 with an empty window name. The second riname, after the map showed %1949, set `g-439@tnk wait accept` and dropped the badge. tmux rename-window -t %1949 restored `g-439@tnk > wait accept`.
+- Live window main index 13, title `g-439@tnk > wait accept`, pane %1949. Session pid 1737282.
+- The first riname of the 23:52Z session reported pane %1910 with an empty window name. The second riname, after the map showed %1949, set `g-439@tnk wait accept` and dropped the badge. tmux rename-window -t %1949 restored `g-439@tnk > wait accept`.
 - Rotation 20261013T2249Z-lane-g-439 was ACK OK at 2026-10-13T22:51:25Z by pid 150479. Do not ack it again. Self-ack 6019ea61 was archived and not answered.
 - Rotation 20261013T2145Z-lane-g-439 was ACK OK at 2026-10-13T21:48:18Z by pid 2345785. Do not ack it again. Self-ack 8b93e5b9 was archived and not answered.
 - Rotation 20261013T2042Z-lane-g-439 was ACK OK at 2026-10-13T20:43:23Z by pid 4051089. Do not ack it again. Self-ack 87a9ac99 was archived and not answered. That takeover is commit b66ae379d. The retiring pane from that rotation was %1789.

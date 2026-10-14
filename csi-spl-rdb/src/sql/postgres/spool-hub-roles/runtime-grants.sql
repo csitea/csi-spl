@@ -24,6 +24,10 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO :"runtime_role";
 -- schema owner holds EXECUTE on it WITH GRANT OPTION (rdb 0143). The runtime
 -- login is never a member of spool_search_reader.
 GRANT EXECUTE ON FUNCTION public.spool_search_candidates(tsquery, int) TO :"runtime_role";
+-- SPL-1832 (rdb 0197): the channel rule on messages binds the members of
+-- spool_channel_scoped, never spool_search_reader; the runtime login is one,
+-- by inheritance, so a visitor session still reads its one channel only.
+GRANT spool_channel_scoped TO :"runtime_role" WITH INHERIT TRUE;
 
 -- The migrator's ledger is read (do_spl_db_rls_check), never written, by the hub.
 REVOKE INSERT, UPDATE, DELETE ON spool_schema_migrations FROM :"runtime_role";

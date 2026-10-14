@@ -320,6 +320,29 @@ T015 Q3 cold n>=5 on a prd clone (c-001, owner go; optional)
   **Needs owner go** (Q3 is pending). Without it, G4 stays open and T012
   reports "first sample after an idle gap" instead.
 
+### T016 SPL-1832: channel_scope on messages binds the hub logins, not the reader
+
+- Status: **done** (2026-10-14), owner HUM-10 answer A (t1 659e3927, poll
+  49b211d7).
+- Cause, measured on prd t1 (n=5 per word, 2026-10-14): rdb 0169 made
+  `channel_scope` on messages RESTRICTIVE `TO public`, so it also bound
+  `spool_search_reader`. `@@` is not LEAKPROOF, so under that restrictive
+  qual the word match became a heap Filter after a tenant-only scan: about
+  73,700 buffers for a rare word or two words, 4,300..39,000 for `archive`
+  (the scan stops at `cap + 1` matches).
+- Fix: rdb 0197 creates `spool_channel_scoped` (NOLOGIN), makes the migrator
+  and every login that reads messages a member WITH INHERIT TRUE, and moves
+  the messages policy `TO spool_channel_scoped`. The reader is never a
+  member. `roles/runtime-grants.sql` re-grants the runtime login after every
+  migrate. The other ten `channel_scope` tables keep `TO public`.
+- Safe because the function returns candidate ids only; the hub's own
+  statement re-reads each row as the runtime login under every policy,
+  `channel_scope` included (spec 121).
+- Test: `store/channel_scope_reader_test.go`,
+  `TestRLSChannelScopeHubNotReader`: the policy roles, the memberships, and
+  the reader's plan holds `search_tsv` in an Index Cond. CONTROL: with the
+  policy back `TO public` (rolled back) the Index Cond is gone.
+
 ## Coverage
 
 | task | spec item |

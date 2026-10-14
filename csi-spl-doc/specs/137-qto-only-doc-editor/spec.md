@@ -472,7 +472,7 @@ Phase 1: Gap Closure ──► Phase 2: Bulk Import ──► Phase 3: Export Pa
 
 ### 5.3 Publishing the export: the Publish button (addendum)
 
-Owner HUM-10 (t1 `2a2a4694`, msg `b04f0ab5`): *"the aim is to slowly make the master storage format of our docs to be qto and the '*.md' files to be published to the github repo , once desired via a pubblish button"*. The `.md` export reaches `master` when a person presses **Publish** in the Qto doc view: the hub exports the doc, gates the bytes and commits them fast-forward under its GitHub App, the presser as author. Owner decisions (poll `72d2b3da`, msg `86c7b888`): any `docs.write` member presses; any workspace doc may be published to a picked path after an admin review and a public-repo guard; a changed repo file is 3-way merged and the result written back into Qto; prd only; no rev in the stamp; Publish and the lane export both write, under one same-rev rule. Design: [publish.md](publish.md); tasks T060..T067 in [tasks.md](tasks.md) §7.
+Owner HUM-10 (t1 `2a2a4694`, msg `b04f0ab5`): *"the aim is to slowly make the master storage format of our docs to be qto and the '*.md' files to be published to the github repo , once desired via a pubblish button"*. The `.md` export reaches `master` when a person presses **Publish** in the Qto doc view: the hub exports the doc, gates the bytes and commits them fast-forward under its GitHub App, the presser as author. Owner decisions (poll `72d2b3da`, msg `86c7b888`): any `docs.write` member presses; any workspace doc may be published to a picked path at once, no review (msg `af133e9c`), behind the automatic public-repo guard; a changed repo file is 3-way merged and the result written back into Qto; prd only; no rev in the stamp; Publish and the lane export both write, under one same-rev rule. Design: [publish.md](publish.md); tasks T060..T067 in [tasks.md](tasks.md) §7.
 
 ---
 
@@ -599,5 +599,6 @@ The complete consensus rationale, weighing of Mistral's P-Q3 vote, and 5 verifie
 | v0.2.0 | 2026-10-14 | a-965 | Step 2 panel consensus folded (SPL-1743): P-Q1..P-Q5 decided (A A A A A), 5 verified corrections applied (RLS GUCs corrected to app.tenant_id/app.rls_scope, front matter stored in root item attrs.front_matter, spec 075 repo-edit deprecation tasked, Go export test moved to Phase 1, bulk import decomposed into 4 slices). Tasks marked ready to build with disjoint lane groups. |
 | v0.2.1 | 2026-10-14 | c-526 | §5.3 Publish button addendum linked to [publish.md](publish.md) (SPL-1887, owner msg b04f0ab5); tasks T060..T067 Planned. |
 | v0.2.2 | 2026-10-14 | c-526 | §5.3: owner decisions on the Publish button folded (poll 72d2b3da, msg 86c7b888); publish.md v0.2.0. |
+| v0.2.3 | 2026-10-14 | c-526 | §5.3: no review step for Publish (owner msg af133e9c); publish.md v0.3.0. |
 
-<!-- version: 0.2.2 · updated: 2026-10-14 · last-edit: 2026-10-14T22:30:00Z -->
+<!-- version: 0.2.3 · updated: 2026-10-14 · last-edit: 2026-10-14T23:30:00Z -->

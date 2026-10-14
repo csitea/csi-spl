@@ -4,6 +4,13 @@
 //
 // Run (lde hub with the door off):
 //   HUB_URL=http://t1.localhost:58080 node --experimental-websocket tests/e2e/live-interop.test.mjs
+// Run (dev / prd, session door; SPL-1782, devops guide section 16, gap T5):
+// a test workspace member's session, from a 0600 cookie file or a sign-in.
+//   ENV=dev HUB_URL=https://api.dev.<BASE_DOMAIN> SESSION_COOKIE_FILE=<0600 file> pnpm run test:live
+//   ENV=prd LIVE_INTEROP_PRD_GO=1 HUB_URL=https://api.<BASE_DOMAIN> TENANT=e2e \
+//     EMAIL=<probe member> PW_FILE=<0600 file> pnpm run test:live
+// It WRITES: three lobby posts and one small file, in the session's
+// workspace; on prd that must be e2e or e2e-<x> (src/node/test/live-interop-target.mjs).
 // Optional: BOX_POST_BODY=<text> — also wait for a box-agent lobby post with that body
 // (send it with: spool send --to ALL-0 --to-box box-wui --task-id <lobby> --kind note --body <text>).
 // Without HUB_URL the test is skipped (exit 0) locally. When CI is set,
@@ -11,9 +18,9 @@
 
 import { createLiveClient, wsUrl } from '../../src/utils/live-ws.mjs'
 import { createSpoolClient, sha256Hex } from '../../src/utils/spool-client.mjs'
+import { interopTarget, openSession, cookieFetch, cookieWebSocket } from '../../src/node/test/live-interop-target.mjs'
 
-const HUB = (process.env.HUB_URL || '').replace(/\/+$/, '')
-if (!HUB) {
+if (!process.env.HUB_URL) {
   if (process.env.CI) {
     console.error('FAIL live-interop: HUB_URL is unset in CI (016 T006). Set HUB_URL or do not wire test:live into CI.')
     process.exit(1)
@@ -25,6 +32,27 @@ if (typeof WebSocket !== 'function') {
   console.error('FAIL: no WebSocket global — run with node --experimental-websocket (Node 20) or Node >= 22')
   process.exit(1)
 }
+const target = interopTarget(process.env)
+if (target.error) {
+  console.error(`REFUSED live-interop: ${target.error}`)
+  process.exit(2)
+}
+const HUB = target.hub
+let sess = null
+if (target.door === 'session') {
+  try {
+    sess = await openSession(target, process.env)
+  } catch (e) {
+    console.error(`REFUSED live-interop: ${e.message}`)
+    process.exit(2)
+  }
+  console.log(`live-interop: ${target.env || 'lde'} ${HUB}, session member ${sess.hum} in workspace ${sess.tenant || '?'}`)
+}
+// session door: the hub names every socket by the session's member, never hello.as
+const fetchFn = sess ? cookieFetch(sess.cookie) : globalThis.fetch
+const WebSocketImpl = sess ? cookieWebSocket(sess.cookie) : globalThis.WebSocket
+const door = sess ? 'session' : ''
+const idA = sess ? sess.hum : 'HUM-801'
 
 const results = []
 const ok = (n) => { results.push(true); console.log(`  OK   ${n}`) }
@@ -37,6 +65,7 @@ function session(as) {
   const c = createLiveClient({
     url: wsUrl(HUB),
     as,
+    WebSocketImpl,
     onWelcome: (w) => { welcome = w },
     onMessage: (m) => {
       got.push(m)
@@ -74,7 +103,7 @@ try {
   else throw new Error(`sockets not open: A=${A.c.state} B=${B.c.state}`)
   const lobby = A.welcome.lobby_task_id
   lobby ? ok(`welcome carries lobby_task_id ${lobby}`) : bad('welcome carries lobby_task_id')
-  A.welcome.as === 'HUM-801' ? ok('welcome.as honours hello.as') : bad('welcome.as', A.welcome.as)
+  A.welcome.as === idA ? ok(sess ? 'welcome.as = the session member' : 'welcome.as honours hello.as') : bad('welcome.as', A.welcome.as)
   A.c.subscribe(lobby)
   B.c.subscribe(lobby)
   await new Promise((r) => setTimeout(r, 300))
@@ -84,7 +113,7 @@ try {
   await A.c.send({ task_id: lobby, body: bodyA })
   const seenB = await B.waitFor((m) => m.body === bodyA).catch(() => null)
   seenB ? ok('B receives A live') : bad('B receives A live')
-  seenB && seenB.from === 'HUM-801' ? ok('from = HUM-801') : bad('from', seenB && seenB.from)
+  seenB && seenB.from === idA ? ok(`from = ${idA}`) : bad('from', seenB && seenB.from)
   seenB && seenB.from_box === 'box-wui' ? ok('from_box = box-wui') : bad('from_box', seenB && seenB.from_box)
 
   // B -> A live
@@ -93,7 +122,7 @@ try {
   ;(await A.waitFor((m) => m.body === bodyB).catch(() => null)) ? ok('A receives B live') : bad('A receives B live')
 
   // persistence
-  const api = createSpoolClient({ base: HUB, mock: false })
+  const api = createSpoolClient({ base: HUB, mock: false, fetchFn, door })
   const hist = await api.getTopic(lobby)
   const bodies = hist.messages.map((m) => m.body)
   bodies.includes(bodyA) && bodies.includes(bodyB) ? ok('both persist (view-v1 re-fetch)') : bad('persist', `${bodies.length} stored`)
@@ -110,7 +139,7 @@ try {
   if (!ref) bad('B receives the file ref')
   else {
     ok('B receives the file ref')
-    const got = await createSpoolClient({ base: HUB, mock: false }).downloadFile(ref.file_id)
+    const got = await createSpoolClient({ base: HUB, mock: false, fetchFn, door }).downloadFile(ref.file_id)
     ;(await sha256Hex(got)) === want ? ok('B downloads identical bytes (sha256)') : bad('download sha256')
   }
 

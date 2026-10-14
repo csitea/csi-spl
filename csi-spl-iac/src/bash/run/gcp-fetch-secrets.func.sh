@@ -35,6 +35,32 @@ do_gcp_fetch_secrets() {
   local filter="${SECRETS_FILTER:-}"
   local key_file="${GCP_KEY_FILE:-$HOME/.gcp/.${org}/key-${org}-${app}-${env_name}.json}"
 
+  _gcp_fetch_secrets_check_env || return 1
+
+  do_log "INFO Fetching secrets from GCP Secret Manager (project: $project)"
+
+  # The steps below read and set these locals of this function (bash dynamic
+  # scope): account is re-pinned by the auth step, secrets and gcloud_filter
+  # come from the list step, count and failed from the export step.
+  _gcp_fetch_secrets_auth
+
+  local gcloud_filter secrets
+  _gcp_fetch_secrets_list
+
+  if [[ -z "$secrets" ]]; then
+    do_log "WARN No secrets found matching '$gcloud_filter' in project $project"
+    return 0
+  fi
+
+  local count=0
+  local failed=0
+  _gcp_fetch_secrets_export
+
+  _gcp_fetch_secrets_report
+}
+
+# Refuse a run with no ENV, and any run against prd.
+_gcp_fetch_secrets_check_env() {
   if [[ -z "$env_name" ]]; then
     do_log "FATAL ENV is required. Usage: ENV=dev ./run -a do_gcp_fetch_secrets"
   return 1
@@ -44,10 +70,11 @@ do_gcp_fetch_secrets() {
     do_log "FATAL Refusing to fetch production secrets. Use Cloud Run secret injection for prd."
   return 1
   fi
+}
 
-  do_log "INFO Fetching secrets from GCP Secret Manager (project: $project)"
-
-  # Authenticate with GCP
+# Authenticate with GCP: activate the env key in the isolated gcloud config and
+# re-pin account to it, then point that config at the project.
+_gcp_fetch_secrets_auth() {
   if [[ -f "$key_file" ]]; then
     gcloud auth activate-service-account --key-file="$key_file" --quiet 2>/dev/null
     account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
@@ -57,30 +84,25 @@ do_gcp_fetch_secrets() {
   fi
 
   gcloud config set project "$project" --quiet 2>/dev/null
+}
 
-  # Build filter for gcloud secrets list
-  local gcloud_filter="name:${prefix}"
+# Build the gcloud filter and list the matching secret ids into secrets.
+_gcp_fetch_secrets_list() {
+  gcloud_filter="name:${prefix}"
   if [[ -n "$filter" ]]; then
     gcloud_filter="${gcloud_filter} AND name:${filter}"
     do_log "INFO Filtering secrets by: $filter"
   fi
 
-  # List matching secrets
-  local secrets
   secrets=$(gcloud secrets list \
     --filter="$gcloud_filter" \
     --format="value(name)" \
     --project="$project" \
     --account="${account}" 2>/dev/null)
+}
 
-  if [[ -z "$secrets" ]]; then
-    do_log "WARN No secrets found matching '$gcloud_filter' in project $project"
-    return 0
-  fi
-
-  local count=0
-  local failed=0
-
+# Export each listed secret's latest value; count the exported and the failed.
+_gcp_fetch_secrets_export() {
   while IFS= read -r secret_id; do
     [[ -z "$secret_id" ]] && continue
 
@@ -101,7 +123,10 @@ do_gcp_fetch_secrets() {
       do_log "WARN Failed to fetch: $secret_id"
     fi
   done <<< "$secrets"
+}
 
+# Print the summary banner and log the count.
+_gcp_fetch_secrets_report() {
   echo ""
   echo "═══════════════════════════════════════════════════════════════════════"
   echo "FETCHED $count secrets from $project ($failed failed)"

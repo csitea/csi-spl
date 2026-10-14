@@ -203,6 +203,11 @@ Which deploy path?
    450 s), or at once on its Send.
 6. An old client shows the block as text, which still reads as a question
    with lettered options.
+7. **A form takes the reader's card height like any card** (SPL-1871, owner
+   t1 c3396e3c). At 5 rows the card shows 5 rows, the form's answers line
+   first; the rest fades out and the grip under the card shows all of it,
+   the same as a card with link previews. Put the question the owner must
+   answer first.
 
 **A question that waits on the owner's go is a poll with one option
 `(GO) Go`; never "Reply go"** (SPL-1654, owner t1 d16ba428). A radio

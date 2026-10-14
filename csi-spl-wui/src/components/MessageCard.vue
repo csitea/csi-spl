@@ -505,7 +505,7 @@ import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
 import { ownerAllows } from '~/utils/access.mjs'
-import { POLL_HOST, mayHavePoll } from '~/utils/poll-fence.mjs'
+import { POLL_HOST } from '~/utils/poll-fence.mjs'
 import { COMPOSER_FOCUS_EVENT, LONG_PRESS_MS, LONG_PRESS_SLOP_PX, createLongPress } from '~/utils/touch-ui.mjs'
 import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone, swipeLeftAction } from '~/utils/swipe-archive.mjs'
 import { useHiddenCards } from '~/composables/useHiddenCards'
@@ -1600,10 +1600,11 @@ const titleOnly = computed(() => props.clipMode === 'titles' && !editing.value)
 const linkPreviews = useLinkPreviewRefs(() => String(props.msg.body || ''), {
   skip: () => [String(props.msg.msg_id || ''), String(props.msg.task_id || ''), String(props.msg.parent_task_id || '')],
 })
-/* SPL-1637: a card holding a ```poll form is never clipped: its options are
-   to click, and a cut would hide them behind the grip */
-const hasPoll = computed(() => mayHavePoll(String(props.msg.body || '')))
-const clipOn = computed(() => props.clipMode === 'rows' && !editing.value && !hasPoll.value)
+/* SPL-1871 (owner t1 c3396e3c): a card holding a ```poll form takes the
+   reader's 5 rows like any card, "the same as with the links previews": the
+   options under the cut fade out and the grip shows them all (SPL-1637 had
+   left the form unclipped, so it drew at full height past the limit) */
+const clipOn = computed(() => props.clipMode === 'rows' && !editing.value)
 const title = computed(() => {
   const own = cardTitle(String(props.msg.body || ''))
   if (own) return own
@@ -2120,6 +2121,10 @@ async function save() {
   overflow: hidden;
 }
 .card-clip--picture { max-height: max(calc(5 * 1.45 * 0.875rem), 30vh); }
+/* SPL-1871: a ```poll form in a clipped card puts its answers line first,
+   so who answered what reads within the 5 rows; the options follow */
+.card-clip :deep(.poll) { display: flex; flex-direction: column; }
+.card-clip :deep(.poll-answers) { order: -1; margin: 0 0 4px; }
 /* with a picture the text keeps its own 5 rows, so the picture is in view;
    a grip drag or Enter lifts it with the rest */
 .card-clip--pic-text :deep(.msg-body) {

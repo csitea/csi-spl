@@ -107,3 +107,32 @@ describe('spec 137 T018: task lists, footnotes, heading ids', () => {
     assert.match(html, /<h1 id="md-quoted">&quot;quoted&quot;<\/h1>/)
   })
 })
+
+// spec 137 T019 gap (owner, t1 bed3ed0a 2026-10-13: "the tables should have
+// the Table: <<table desc>>"): a "Table: <desc>" line under a pipe table is
+// its caption, in a doc paragraph and a message alike
+describe('table caption', () => {
+  const T = '| a | b |\n| --- | --- |\n| 1 | 2 |'
+  const CAP = '<caption><strong>Table:</strong> Results by <em>run</em></caption>'
+  it('a Table: line on the next line is the caption, not a row', () => {
+    const html = renderMarkdown(`${T}\nTable: Results by *run*\n\nafter`)
+    assert.equal(html, `<table>${CAP}<thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table><p>after</p>`)
+  })
+  it('a Table: paragraph after a blank line is the caption too', () => {
+    const html = renderMarkdown(`${T}\n\nTable: Results by *run*`)
+    assert.equal(html, `<table>${CAP}<thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>`)
+  })
+  it('a table with only a header keeps the caption and no empty tbody', () => {
+    assert.equal(renderMarkdown('| a |\n| --- |\nTable: x'), '<table><caption><strong>Table:</strong> x</caption><thead><tr><th>a</th></tr></thead></table>')
+  })
+  it('CONTROL: a row whose other cells hold text, or a Table: line far from a table, stays as written', () => {
+    assert.doesNotMatch(renderMarkdown('| a | b |\n| --- | --- |\n| Table: x | y |'), /caption/)
+    assert.equal(renderMarkdown('text\n\nTable: alone'), '<p>text</p><p>Table: alone</p>')
+    assert.doesNotMatch(renderMarkdown(`${T}\n\nmid\n\nTable: late`), /caption/)
+  })
+  it('CONTROL: the second Table: paragraph is text, one caption per table', () => {
+    const html = renderMarkdown(`${T}\nTable: one\n\nTable: two`)
+    assert.equal(html.match(/<caption>/g).length, 1)
+    assert.match(html, /<p>Table: two<\/p>$/)
+  })
+})

@@ -2599,7 +2599,9 @@
       "export_csv": "Eksportuoti į skaičiuoklę (CSV)",
       "add_code": "Pridėti kodo bloką",
       "add_image": "Pridėti paveikslėlį",
-      "replace_image": "Pakeisti paveikslėlį"
+      "replace_image": "Pakeisti paveikslėlį",
+      "numbering_off": "Išjungti numeravimą",
+      "numbering_on": "Įjungti numeravimą"
     },
     "doc_menu": {
       "label": "Dokumento veiksmai",

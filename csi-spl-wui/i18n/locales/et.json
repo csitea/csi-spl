@@ -2599,7 +2599,9 @@
       "export_csv": "Ekspordi arvutustabelisse (CSV)",
       "add_code": "Lisa koodiplokk",
       "add_image": "Lisa pilt",
-      "replace_image": "Asenda pilt"
+      "replace_image": "Asenda pilt",
+      "numbering_off": "Lülita nummerdamine välja",
+      "numbering_on": "Lülita nummerdamine sisse"
     },
     "doc_menu": {
       "label": "Dokumendi toimingud",

@@ -332,6 +332,14 @@ MdNodes.props = ['nodes', 'stamp']
   overflow-wrap: normal;
 }
 .md-block :deep(th) { background: var(--color-bg-2); font-weight: 600; }
+/* spec 137: a "Table: <desc>" line is the table's caption, read under it */
+.md-block :deep(caption) {
+  caption-side: bottom;
+  padding-top: 0.35em;
+  font-size: 0.875em;
+  color: var(--color-muted);
+  text-align: start;
+}
 .md-block :deep([data-align="center"]) { text-align: center; }
 .md-block :deep([data-align="right"]) { text-align: right; }
 .md-block :deep(.msg-link) {

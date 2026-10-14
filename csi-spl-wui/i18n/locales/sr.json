@@ -2599,7 +2599,9 @@
       "export_csv": "Извези у табелу (CSV)",
       "add_code": "Додај блок кода",
       "add_image": "Додај слику",
-      "replace_image": "Замени слику"
+      "replace_image": "Замени слику",
+      "numbering_off": "Искључи нумерисање",
+      "numbering_on": "Укључи нумерисање"
     },
     "doc_menu": {
       "label": "Акције документа",

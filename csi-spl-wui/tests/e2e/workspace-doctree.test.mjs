@@ -596,6 +596,54 @@ try {
   const blkMd = await p.evaluate(() => window.__exports.find((x) => x.startsWith('# ')) || '')
   ok('T010/T011: the Markdown export carries the table and the quote as written', blkMd.includes(WANT_BODY), blkMd)
 
+  /* spec 137 T019 gaps (SPL-1881; the prd proof's t019-desktop.png, owner
+     t1 bed3ed0a 2026-10-13 "the tables should have the Table: <<table
+     desc>>"): a "Table: <desc>" line under the table is its <caption>
+     (first child, drawn under the rows), and a quote's source link is not
+     listed again as a bare URL under the paragraph; a plain link still is.
+     CONTROL: on the old bundle the Table: line is a table row and the
+     source URL shows under the quote (FAIL). */
+  const T019_BODY = '| Name | Header 2 | Header 3 |\n|---|---|---|\n| Cell 1 | Cell 2 | Cell 3 |\nTable: Results by run\n\n'
+    + '> To be, or not to be.\n>\n> — [Hamlet](https://example.com/spec-137)\n\nSee https://example.com/plain'
+  await typeInto(`${blkRow} [data-test=ws-doc-text]`, T019_BODY)
+  await p.waitForFunction(async (d, id, want) => (await window.__wsDocTreeCall('GET', `/${d}/subtree`)).items.find((x) => x.id === id)?.body === want, { timeout: STEP, polling: 200 }, docOf, blkId, T019_BODY).catch(() => null)
+  const t019Hub = (await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}/subtree`), docOf)).items.find((x) => x.id === blkId)?.body
+  await p.waitForFunction((row) => document.querySelector(`${row} [data-test=ws-doc-para] [data-testid=md-block][data-rendered=true] table`), { timeout: STEP }, blkRow).catch(() => null)
+  const t019 = await p.evaluate((row) => {
+    const table = document.querySelector(`${row} [data-test=ws-doc-para] table`)
+    const cap = table?.querySelector('caption')
+    const rows = table?.querySelectorAll('tbody tr') ?? []
+    return {
+      caption: cap?.textContent?.trim() ?? null,
+      first: table?.firstElementChild?.tagName ?? null,
+      under: cap && rows.length ? Math.round(cap.getBoundingClientRect().top) >= Math.round(rows[rows.length - 1].getBoundingClientRect().bottom) : false,
+      rows: rows.length,
+      links: [...document.querySelectorAll(`${row} [data-test=ws-doc-links] a`)].map((a) => a.href),
+      cite: document.querySelector(`${row} [data-test=ws-doc-para] blockquote p[data-cite] a`)?.href ?? null,
+    }
+  }, blkRow)
+  ok('T019: the Table: line is the table\'s caption, under its rows; the hub keeps the line as typed',
+    t019Hub === T019_BODY && t019.caption === 'Table: Results by run' && t019.first === 'CAPTION' && t019.under && t019.rows === 1, { t019Hub, t019 })
+  ok('T019: the quote\'s source link shows once, in the quote; a plain link is still listed under the paragraph',
+    t019.cite === 'https://example.com/spec-137' && JSON.stringify(t019.links) === JSON.stringify(['https://example.com/plain']), t019)
+  await shoot(p, 't019-caption-cite')
+
+  /* T019 gap: the heading menu's numbering switch PATCHes attrs.numbered
+     (false off, the key dropped on); the siblings after it re-number at
+     once. CONTROL: on the old bundle the menu has no such entry (FAIL). */
+  const deltaId = await p.$eval(titleSel('2'), (e) => e.dataset.id)
+  const numAttr = async () => (await p.evaluate((d) => window.__wsDocTreeCall('GET', `/${d}/subtree`), docOf)).items.find((x) => x.id === deltaId)?.attrs?.numbered
+  const wantUnnum = ['1 Alpha (other writer)', 'Delta', '2 Beta renamed', '3 After reload', '4 Beta child', '4.1 New parent', '4.1.1 New child']
+  await menu(p, 'doc', 'Delta', 'numbered').catch(() => null)
+  const unnum = await outlineIs(p, 'doc', wantUnnum)
+  const offAttr = await numAttr()
+  await menu(p, 'doc', 'Delta', 'numbered').catch(() => null)
+  const renum = await outlineIs(p, 'doc', wantReloaded)
+  const onAttr = await numAttr()
+  ok('T019: "Turn numbering off" takes the heading\'s number away and the siblings after it re-number (attrs.numbered = false on the hub)',
+    JSON.stringify(unnum) === JSON.stringify(wantUnnum) && offAttr === false, { unnum, offAttr })
+  ok('T019: "Turn numbering on" gives it back (the key dropped on the hub)', JSON.stringify(renum) === JSON.stringify(wantReloaded) && onAttr === undefined, { renum, onAttr })
+
   /* rename in place (the hub's PATCH /{doc}); cleared, it is the default title.
      The CONTROL reads the title back from the hub, not from the page */
   const renameTo = async (text) => {

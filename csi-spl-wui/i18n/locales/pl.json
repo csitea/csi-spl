@@ -2599,7 +2599,9 @@
       "export_csv": "Eksportuj do arkusza kalkulacyjnego (CSV)",
       "add_code": "Dodaj blok kodu",
       "add_image": "Dodaj obraz",
-      "replace_image": "Zastąp obraz"
+      "replace_image": "Zastąp obraz",
+      "numbering_off": "Wyłącz numerowanie",
+      "numbering_on": "Włącz numerowanie"
     },
     "doc_menu": {
       "label": "Akcje dokumentu",

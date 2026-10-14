@@ -308,12 +308,12 @@ import UiConfirm from '~/components/UiConfirm.vue'
 import { useEditModeStore } from '~/stores/editMode'
 import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import {
-  DOC_IMAGE_MAX, DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget,
+  DOC_IMAGE_MAX, DOC_IMAGE_TYPES, docMenuItems, editDocAttrs, editDocItem, removeDocItem, runDocOp, moveTarget, setDocNumbered,
   type DocHead, type DocItem, type DocMenuId, type DocSession, type DocShape,
 } from './-doctree-api'
 import { figureNumbers, paraRuns, picPaths, picToken, setPicCaption, type ParaRun } from './-doc-pics'
-import { insertBlock, quoteBlock, tableBlock, type Block } from './-doc-blocks'
-import { branchOf as branchIn } from './-doc-outline'
+import { insertBlock, previewLinks, quoteBlock, tableBlock, type Block } from './-doc-blocks'
+import { branchOf as branchIn, isNumbered } from './-doc-outline'
 
 const props = defineProps<{ session: DocSession, root: string, title: string, docs: DocHead[] }>()
 const emit = defineEmits<{ print: [item: DocItem | null], list: [outline: string], open: [doc: string, item: string], renamed: [title: string] }>()
@@ -406,9 +406,8 @@ function branchOf(it: DocItem): DocItem[] {
 const shown = computed(() => (branchItem.value ? branchOf(branchItem.value) : items.value))
 
 const anchor = (id: string) => ANCHOR + id
-/* Qto's lnkMayBe: the web links in a text, clickable under it */
-const LINK = /https?:\/\/[^\s<>"'`)\]]+/g
-const links = (text: string) => [...new Set(text.match(LINK) ?? [])].slice(0, 20)
+/* Qto's lnkMayBe: the web links in a text, clickable under it (a quote's source line's are not) */
+const links = previewLinks
 const attr = (it: DocItem, k: string) => {
   const v = it.attrs?.[k]
   return typeof v === 'string' ? v : ''
@@ -657,6 +656,8 @@ const menuItems = computed(() => {
     { id: 'add_paragraph', icon: 'pencil', labelKey: 'ws_doctree.menu.add_paragraph' },
     { id: 'add_code', icon: 'file-code', labelKey: 'ws_doctree.menu.add_code' },
     { id: 'add_image', icon: 'file-image', labelKey: attr(it, 'img_http_path') ? 'ws_doctree.menu.replace_image' : 'ws_doctree.menu.add_image' },
+    /* spec 137 T019 gap: the heading's Numbered switch, attrs.numbered (T012a) */
+    { id: 'numbered', icon: 'hash', labelKey: isNumbered(it) ? 'ws_doctree.menu.numbering_off' : 'ws_doctree.menu.numbering_on' },
     { id: 'open_branch', icon: 'book-open', labelKey: 'ws_doctree.menu.open_branch' },
     { id: 'open_list', icon: 'file-spreadsheet', labelKey: 'ws_doctree.menu.open_list' },
     { id: 'export_md', icon: 'file-code', labelKey: 'ws_doctree.menu.export_md' },
@@ -664,7 +665,7 @@ const menuItems = computed(() => {
   ]
   for (const m of more) ops.set(m.id, m)
   /* the owner's order (msg dd291fb8): add paragraph, promote, demote, delete, and so on */
-  const order = ['add_paragraph', 'add_code', 'add_image', 'outdent', 'indent', 'delete', 'add_sibling', 'add_child', 'add_parent', 'up', 'down',
+  const order = ['add_paragraph', 'add_code', 'add_image', 'outdent', 'indent', 'delete', 'add_sibling', 'add_child', 'add_parent', 'up', 'down', 'numbered',
     'open_branch', 'open_list', 'export_md', 'export_csv', 'print']
   const hasCode = Boolean(attr(it, 'src')) || codeOpen.has(it.id)
   return order.filter((id) => (id !== 'add_paragraph' || !paraShown(it)) && (id !== 'add_code' || !hasCode)).map((id) => ops.get(id)).filter((m): m is PointMenuItem => Boolean(m))
@@ -682,6 +683,16 @@ async function viewOp(id: string, it: DocItem): Promise<boolean> {
     codeOpen.add(it.id)
     await nextTick()
     rootEl.value?.querySelector<HTMLTextAreaElement>(`[data-id="${it.id}"] [data-test=ws-doc-src]`)?.focus()
+    return true
+  }
+  if (id === 'numbered') {
+    /* the hub re-numbers the siblings after it (and everything under them): read the document again */
+    busy.value = true
+    try {
+      if (await setDocNumbered(props.session, it, !isNumbered(it))) await load()
+    } finally {
+      busy.value = false
+    }
     return true
   }
   if (id === 'add_image') {

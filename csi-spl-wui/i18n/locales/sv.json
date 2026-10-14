@@ -2599,7 +2599,9 @@
       "export_csv": "Exportera till ett kalkylblad (CSV)",
       "add_code": "Lägg till kodblock",
       "add_image": "Lägg till bild",
-      "replace_image": "Ersätt bild"
+      "replace_image": "Ersätt bild",
+      "numbering_off": "Stäng av numrering",
+      "numbering_on": "Slå på numrering"
     },
     "doc_menu": {
       "label": "Dokumentåtgärder",

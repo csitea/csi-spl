@@ -2599,7 +2599,9 @@
       "export_csv": "Vie taulukkolaskentaan (CSV)",
       "add_code": "Lisää koodilohko",
       "add_image": "Lisää kuva",
-      "replace_image": "Vaihda kuva"
+      "replace_image": "Vaihda kuva",
+      "numbering_off": "Poista numerointi",
+      "numbering_on": "Lisää numerointi"
     },
     "doc_menu": {
       "label": "Asiakirjan toiminnot",

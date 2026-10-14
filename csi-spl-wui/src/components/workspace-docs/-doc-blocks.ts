@@ -48,3 +48,17 @@ export function insertBlock(value: string, start: number, end: number, make: (se
   const after = post ? '\n\n' + post : ''
   return { value: before + text + after, selStart: before.length + pick[0], selEnd: before.length + pick[1] }
 }
+
+/* a quote's source line, "> — [text](url)" (nested "> > —" too): markdown.mjs
+   renders it as the quote's p[data-cite], its link already shown there */
+const CITE_LINE = /^[ \t]*(?:>[ \t]?)+[ \t]*(?:—|―|--)(?:[ \t]|$)/
+/* Qto's lnkMayBe: the web links in a text */
+const LINK = /https?:\/\/[^\s<>"'`)\]]+/g
+
+/** the web links listed under a paragraph (at most 20, each once): every link
+    in its text but a quote's source line, so the source is not shown twice
+    (spec 137 T019 gap: the bare URL under the quote) */
+export function previewLinks(text: string): string[] {
+  const body = text.split('\n').filter((l) => !CITE_LINE.test(l)).join('\n')
+  return [...new Set(body.match(LINK) ?? [])].slice(0, 20)
+}

@@ -2599,7 +2599,9 @@
       "export_csv": "Exportă într-o foaie de calcul (CSV)",
       "add_code": "Adaugă bloc de cod",
       "add_image": "Adaugă imagine",
-      "replace_image": "Înlocuiește imaginea"
+      "replace_image": "Înlocuiește imaginea",
+      "numbering_off": "Dezactivează numerotarea",
+      "numbering_on": "Activează numerotarea"
     },
     "doc_menu": {
       "label": "Acțiuni document",

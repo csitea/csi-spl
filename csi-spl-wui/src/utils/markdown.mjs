@@ -410,6 +410,50 @@ function markCite(q) {
   if (typeof last.children[0] === 'string' && CITE.test(last.children[0])) last.attrs = { ...last.attrs, 'data-cite': 'true' }
 }
 
+/* spec 137 T019 gap (owner, t1 bed3ed0a 2026-10-13: "the tables should have
+   the Table: <<table desc>>"): a "Table: <desc>" line directly under a pipe
+   table is that table's caption, as pandoc reads it. Typed on the next line
+   it arrives as the table's last row (its first cell, the others empty);
+   after a blank line, as the paragraph that follows the table. Either way it
+   becomes the table's <caption> (first child, so a screen reader names the
+   table by it; the component draws it under). The source is not touched. */
+const CAPTION = /^Table:/
+
+function isCaptionRow(tr) {
+  const cells = tr.children.filter((c) => typeof c !== 'string')
+  if (!cells.length || !cells.slice(1).every((c) => !c.children.length)) return false
+  return typeof cells[0].children[0] === 'string' && CAPTION.test(cells[0].children[0])
+}
+
+function captionOf(children) {
+  const [first, ...rest] = children
+  const text = first.replace(CAPTION, '').replace(/^[ \t]+/, '')
+  return el('caption', {}, [el('strong', {}, ['Table:']), ...(text || rest.length ? [' '] : []), ...(text ? [text] : []), ...rest])
+}
+
+function tableCaptions(list) {
+  const out = []
+  for (const n of list) {
+    const prev = out.at(-1)
+    if (prev && typeof prev !== 'string' && prev.tag === 'table' && !prev.children.some((c) => c.tag === 'caption')
+      && typeof n !== 'string' && n.tag === 'p' && typeof n.children[0] === 'string' && CAPTION.test(n.children[0])) {
+      prev.children = [captionOf(n.children), ...prev.children]
+      continue
+    }
+    if (typeof n !== 'string' && n.tag === 'table') {
+      const body = n.children.find((c) => typeof c !== 'string' && c.tag === 'tbody')
+      const last = body?.children.at(-1)
+      if (last && typeof last !== 'string' && last.tag === 'tr' && isCaptionRow(last)) {
+        body.children = body.children.slice(0, -1)
+        const cell = last.children.find((c) => typeof c !== 'string')
+        n.children = [captionOf(cell.children), ...n.children.filter((c) => c !== body || body.children.length)]
+      }
+    }
+    out.push(n)
+  }
+  return out
+}
+
 const HEADING = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
 
 /**
@@ -444,7 +488,7 @@ function gfmExtras(nodes, notes, noteTree, anchors) {
     out.push(s.slice(last))
     return out.filter((c) => c !== '')
   }
-  const walk = (list, inText) => list.flatMap((n) => {
+  const walk = (list, inText) => tableCaptions(list).flatMap((n) => {
     if (typeof n === 'string') return inText && notes.size ? refs(n) : [n]
     if (n.tag === 'li') markTask(n)
     if (n.tag === 'blockquote') markCite(n)

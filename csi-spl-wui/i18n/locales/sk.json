@@ -2599,7 +2599,9 @@
       "export_csv": "Exportovať do tabuľky (CSV)",
       "add_code": "Pridať blok kódu",
       "add_image": "Pridať obrázok",
-      "replace_image": "Nahradiť obrázok"
+      "replace_image": "Nahradiť obrázok",
+      "numbering_off": "Vypnúť číslovanie",
+      "numbering_on": "Zapnúť číslovanie"
     },
     "doc_menu": {
       "label": "Akcie dokumentu",

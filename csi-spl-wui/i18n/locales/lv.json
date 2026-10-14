@@ -2599,7 +2599,9 @@
       "export_csv": "Eksportēt uz izklājlapu (CSV)",
       "add_code": "Pievienot koda bloku",
       "add_image": "Pievienot attēlu",
-      "replace_image": "Aizstāt attēlu"
+      "replace_image": "Aizstāt attēlu",
+      "numbering_off": "Izslēgt numurēšanu",
+      "numbering_on": "Ieslēgt numurēšanu"
     },
     "doc_menu": {
       "label": "Dokumenta darbības",

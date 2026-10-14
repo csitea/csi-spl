@@ -2599,7 +2599,9 @@
       "export_csv": "Exporteren naar een spreadsheet (CSV)",
       "add_code": "Codeblok toevoegen",
       "add_image": "Afbeelding toevoegen",
-      "replace_image": "Afbeelding vervangen"
+      "replace_image": "Afbeelding vervangen",
+      "numbering_off": "Nummering uitzetten",
+      "numbering_on": "Nummering aanzetten"
     },
     "doc_menu": {
       "label": "Documentacties",

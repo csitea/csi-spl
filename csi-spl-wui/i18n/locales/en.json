@@ -2599,7 +2599,9 @@
       "export_csv": "Export to a spreadsheet (CSV)",
       "add_code": "Add code block",
       "add_image": "Add image",
-      "replace_image": "Replace image"
+      "replace_image": "Replace image",
+      "numbering_off": "Turn numbering off",
+      "numbering_on": "Turn numbering on"
     },
     "doc_menu": {
       "label": "Document actions",

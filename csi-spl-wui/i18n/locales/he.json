@@ -2599,7 +2599,9 @@
       "export_csv": "ייצא לגיליון אלקטרוני (CSV)",
       "add_code": "הוספת בלוק קוד",
       "add_image": "הוספת תמונה",
-      "replace_image": "החלפת התמונה"
+      "replace_image": "החלפת התמונה",
+      "numbering_off": "כיבוי מספור",
+      "numbering_on": "הפעלת מספור"
     },
     "doc_menu": {
       "label": "פעולות מסמך",

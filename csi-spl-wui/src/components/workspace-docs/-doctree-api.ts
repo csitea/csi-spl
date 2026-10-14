@@ -315,14 +315,14 @@ export async function removeDocItem(s: DocSession, it: DocItem): Promise<boolean
 }
 
 /**
- * set (a string) or drop ('') attrs keys of an item, the others kept, as one
- * attrs edit under the item's rev; the item is updated in place.
+ * set (a string, or false) or drop ('') attrs keys of an item, the others
+ * kept, as one attrs edit under the item's rev; the item is updated in place.
  */
-export async function editDocAttrs(s: DocSession, it: DocItem, set: Record<string, string>): Promise<boolean> {
+export async function editDocAttrs(s: DocSession, it: DocItem, set: Record<string, string | false>): Promise<boolean> {
   const next: Record<string, unknown> = { ...(it.attrs || {}) }
   for (const [k, v] of Object.entries(set)) {
-    if (v) next[k] = v
-    else delete next[k]
+    if (v === '') delete next[k]
+    else next[k] = v
   }
   const value = JSON.stringify(next)
   if (value === JSON.stringify(it.attrs || {})) return true
@@ -331,6 +331,12 @@ export async function editDocAttrs(s: DocSession, it: DocItem, set: Record<strin
   it.attrs = next
   it.rev = r.item_rev
   return true
+}
+
+/** the heading's Numbered switch (spec 137 T019 gap): off stores
+    attrs.numbered = false, on drops the key (absent = numbered, T012a) */
+export function setDocNumbered(s: DocSession, it: DocItem, on: boolean): Promise<boolean> {
+  return editDocAttrs(s, it, { numbered: on ? '' : false })
 }
 
 /** a text edit under the item's own rev; the item is updated in place. */

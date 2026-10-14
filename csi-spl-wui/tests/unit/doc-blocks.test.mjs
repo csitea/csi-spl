@@ -31,7 +31,7 @@ async function loadBlocks() {
   }
 }
 
-const { insertBlock, quoteBlock, tableBlock } = await loadBlocks()
+const { insertBlock, previewLinks, quoteBlock, tableBlock } = await loadBlocks()
 const head = (n) => `Header ${n}`
 const cell = (n) => `Cell ${n}`
 const table = () => tableBlock(head, cell)
@@ -87,5 +87,19 @@ describe('T011: Insert quote', () => {
     assert.doesNotMatch(renderMarkdown('> just a quote\n>\n> more'), /data-cite/)
     assert.doesNotMatch(renderMarkdown('> -- only line'), /data-cite/)
     assert.doesNotMatch(renderMarkdown('> a\n>\n> --not a dash line'), /data-cite/)
+  })
+})
+
+// spec 137 T019 gap (t019-desktop.png): the quote's source link showed twice,
+// as the cite line and again as a bare URL in the links under the paragraph
+describe('T019: links listed under a paragraph', () => {
+  it('a quote\'s source line adds no link under the paragraph', () => {
+    assert.deepEqual(previewLinks('> To be.\n>\n> — [Hamlet](https://example.com/spec-137)'), [])
+    assert.deepEqual(previewLinks('> > nested\n> >\n> > -- [src](https://example.com/a)'), [])
+  })
+  it('CONTROL: a plain link keeps its preview, the same URL too when it is also written outside the cite', () => {
+    assert.deepEqual(previewLinks('See https://example.com/x and [y](https://example.com/y).'), ['https://example.com/x', 'https://example.com/y'])
+    assert.deepEqual(previewLinks('> q\n>\n> — [s](https://example.com/s)\n\nAlso https://example.com/s'), ['https://example.com/s'])
+    assert.deepEqual(previewLinks('> a quote line with https://example.com/q'), ['https://example.com/q'])
   })
 })

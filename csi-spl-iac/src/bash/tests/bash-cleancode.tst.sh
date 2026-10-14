@@ -32,8 +32,6 @@ LONG="
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh spawn_main 185
   csi-spl-orc/src/bash/run/run.sh do_log 143
   csi-spl-orc/src/bash/run/run.sh execute_step 99
-  csi-spl-orc/src/bash/run/spl-checkout-fake-buy.func.sh do_spl_checkout_fake_buy 114
-  csi-spl-orc/src/bash/run/spl-checkout-stripe-test-buy.func.sh do_spl_checkout_stripe_test_buy 108
 "
 
 fails=0

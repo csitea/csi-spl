@@ -42,16 +42,8 @@ do_spl_checkout_stripe_test_buy() {
   do_spl_cloud_cnf || return 1
   local base="https://${SPL_FQDN}" sbase="${STRIPE_API_BASE%/}" state="${SPL_STATE_DIR}"
   local api="$base/api/v1/checkout"
-
-  local plan
-  plan="$(curl -fsS --connect-timeout 10 --max-time 30 "$api/plan")" || { do_log "FATAL GET $api/plan failed"; return 1; }
-  [[ "$(jq -r .rail <<<"$plan")" == card && "$(jq -r .available <<<"$plan")" == true ]] ||
-    { do_log "FATAL dev checkout is not an available card rail: $(jq -c '{rail, available}' <<<"$plan")"; return 1; }
-  if [[ "$dry" == 1 ]]; then
-    jq -c --arg t "$tenant" '{dry_run:true, tenant:$t, rail, amount_cents, currency, would:"checkout, confirm with a test card, wait for the webhook, claim once"}' <<<"$plan"
-    do_log "OK DRY_RUN dev rail=card available; nothing bought"
-    return 0
-  fi
+  _spl_stripe_buy_plan || return 1
+  [[ "$dry" == 1 ]] && return 0
 
   local org="${SPL_ORG_APP%%-*}" app="${SPL_ORG_APP#*-}" h
   spl_stripe_key_dir "$org" "$app" || return 1
@@ -76,7 +68,43 @@ do_spl_checkout_stripe_test_buy() {
   hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   _tenant() { _req GET "$hub/v1/ws" "" "X-Spool-Tenant: $tenant"; }
 
-  local id tok pi
+  local id tok pi before waited status_json kept kout keylen again
+  _spl_stripe_buy_checkout || return 1
+  _spl_stripe_buy_confirm || return 1
+  _spl_stripe_buy_wait_paid || return 1
+  _spl_stripe_buy_claim || return 1
+  _tenant || return 1
+  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $tenant is still unknown_tenant"; return 1; }
+
+  jq -nc --arg t "$tenant" --arg c "$id" --arg p "$pi" --arg u "$turl" --arg f "$kout" --arg b "$before" \
+    --arg a "$_code" --arg r "$again" --arg l "$keylen" --arg w "$waited" --argjson s "$status_json" --arg loc "$kept" \
+    '{tenant:$t, checkout_id:$c, payment_intent:$p, tenant_url:$u, key_file:$f, tenant_before:($b|tonumber),
+      confirm:"succeeded", webhook_paid_after_s:($w|tonumber), status:$s, claim:200, key_b64_len:($l|tonumber),
+      claim_again:($r|tonumber), tenant_after:($a|tonumber), locale:$loc}'
+  do_log "OK bought $tenant on the dev Stripe TEST card rail ($pi) in locale '${kept:-<hub default>}'; paid by the real webhook; root key in $kout (0600)"
+}
+
+# The steps below run inside do_spl_checkout_stripe_test_buy and read and set
+# its locals (tenant, email, dry, locale, base, sbase, state, api, h, id, tok,
+# pi, turl, before, waited, status_json, kept, kout, keylen, again) the way
+# _req sets _code and _body.
+
+# _spl_stripe_buy_plan: the plan must be an available card rail; DRY_RUN=1
+# prints the plan summary.
+_spl_stripe_buy_plan() {
+  local plan
+  plan="$(curl -fsS --connect-timeout 10 --max-time 30 "$api/plan")" || { do_log "FATAL GET $api/plan failed"; return 1; }
+  [[ "$(jq -r .rail <<<"$plan")" == card && "$(jq -r .available <<<"$plan")" == true ]] ||
+    { do_log "FATAL dev checkout is not an available card rail: $(jq -c '{rail, available}' <<<"$plan")"; return 1; }
+  if [[ "$dry" == 1 ]]; then
+    jq -c --arg t "$tenant" '{dry_run:true, tenant:$t, rail, amount_cents, currency, would:"checkout, confirm with a test card, wait for the webhook, claim once"}' <<<"$plan"
+    do_log "OK DRY_RUN dev rail=card available; nothing bought"
+  fi
+}
+
+# _spl_stripe_buy_checkout: POST the checkout (sets id, tok, turl, pi); the
+# tenant must still be unknown (sets before).
+_spl_stripe_buy_checkout() {
   # `locale` rides the BODY (checkout-v1 1.2): never a header, so no CORS
   # allow-list can refuse the checkout.
   _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" --arg l "$locale" \
@@ -88,9 +116,12 @@ do_spl_checkout_stripe_test_buy() {
   [[ "$pi" == pi_* ]] || { do_log "FATAL the checkout answer carries no PaymentIntent client secret"; return 1; }
   _tenant || return 1
   [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" == unknown_tenant ]] || { do_log "FATAL before payment tenant $tenant must be unknown_tenant, got HTTP $_code"; return 1; }
-  local before="$_code"
+  before="$_code"
+}
 
-  # the browser's confirmPayment, server-side: test card, return_url = the success page
+# _spl_stripe_buy_confirm: the browser's confirmPayment, server-side: test
+# card, return_url = the success page. The key reaches curl on stdin only.
+_spl_stripe_buy_confirm() {
   local pm="${TEST_PAYMENT_METHOD:-pm_card_visa}" out status
   out="$(printf 'header = "Authorization: Bearer %s"\n' "$(cat "$h/sk")" |
     curl -sS --connect-timeout 10 --max-time 30 --config - -w '\n%{http_code}' -X POST --data-urlencode "payment_method=$pm" \
@@ -99,43 +130,41 @@ do_spl_checkout_stripe_test_buy() {
   [[ "$status" == 200 && "$(jq -r .status <<<"${out%$'\n'*}")" == succeeded ]] ||
     { do_log "FATAL confirm $pi: HTTP $status $(jq -c '{status, error: .error.message}' <<<"${out%$'\n'*}" 2>/dev/null)"; return 1; }
   do_log "INFO $pi succeeded in Stripe test mode; waiting for the signed webhook"
+}
 
-  local waited=0 wait="${PAID_WAIT:-90}"
+# _spl_stripe_buy_wait_paid: poll until the real webhook marks it paid (sets
+# waited, status_json), then the row kept the buyer's locale (sets kept).
+_spl_stripe_buy_wait_paid() {
+  local wait="${PAID_WAIT:-90}"
+  waited=0
   while :; do
     _req GET "$api/$id" || return 1
     [[ "$(jq -r .status <<<"$_body")" == paid ]] && break
     (( waited >= wait )) && { do_log "FATAL checkout $id not paid ${wait}s after the confirm: the webhook did not arrive or was refused (see the hub log)"; return 1; }
     sleep 3; waited=$((waited + 3))
   done
-  local status_json="$_body"
+  status_json="$_body"
   # spec 021 T022: the row kept the buyer's locale (or "" when none was sent),
   # which is what the claim mail and its link prefix follow.
-  local kept
   kept="$(jq -r '.locale // ""' <<<"$_body")"
   [[ "$kept" == "$locale" ]] || {
     do_log "FATAL checkout $id kept locale '$kept', sent '${locale:-<none>}' (hub too old for checkout-v1 1.3 locale, or it dropped the value)"
     return 1
   }
+}
 
-  local kout="${KEY_OUT:-$state/tenants/$tenant.$(date -u +%Y%m%dT%H%M%SZ).json}"
+# _spl_stripe_buy_claim: claim once into the 0600 key file (sets kout,
+# keylen); a second claim must be 410 (sets again).
+_spl_stripe_buy_claim() {
+  kout="${KEY_OUT:-$state/tenants/$tenant.$(date -u +%Y%m%dT%H%M%SZ).json}"
   mkdir -p "$(dirname "$kout")" && chmod 700 "$(dirname "$kout")" || return 1
   _req POST "$api/claim" "$(jq -nc --arg c "$id" --arg k "$tok" '{checkout_id:$c, claim_token:$k}')" || return 1
   [[ "$_code" == 200 ]] || { do_log "FATAL claim $id: HTTP $_code $(jq -c 'del(.root_private_key)' <<<"$_body" 2>/dev/null)"; return 1; }
   (umask 077 && printf '%s\n' "$_body" >"$kout") || return 1
-  local keylen
   keylen="$(jq -r '.root_private_key | length' <<<"$_body")"
   _body=""
   _req POST "$api/claim" "$(jq -nc --arg c "$id" --arg k "$tok" '{checkout_id:$c, claim_token:$k}')" || return 1
-  local again="$_code"
+  again="$_code"
   tok=""
   [[ "$again" == 410 ]] || { do_log "FATAL a second claim answered HTTP $again, want 410"; return 1; }
-  _tenant || return 1
-  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $tenant is still unknown_tenant"; return 1; }
-
-  jq -nc --arg t "$tenant" --arg c "$id" --arg p "$pi" --arg u "$turl" --arg f "$kout" --arg b "$before" \
-    --arg a "$_code" --arg r "$again" --arg l "$keylen" --arg w "$waited" --argjson s "$status_json" --arg loc "$kept" \
-    '{tenant:$t, checkout_id:$c, payment_intent:$p, tenant_url:$u, key_file:$f, tenant_before:($b|tonumber),
-      confirm:"succeeded", webhook_paid_after_s:($w|tonumber), status:$s, claim:200, key_b64_len:($l|tonumber),
-      claim_again:($r|tonumber), tenant_after:($a|tonumber), locale:$loc}'
-  do_log "OK bought $tenant on the dev Stripe TEST card rail ($pi) in locale '${kept:-<hub default>}'; paid by the real webhook; root key in $kout (0600)"
 }

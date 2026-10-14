@@ -40,36 +40,11 @@ do_spl_checkout_fake_buy() {
   spl_checkout_require_locale "$locale" || return 1
 
   local base="${BASE_URL:-}" state
-  case "$env" in
-    lde)
-      if [[ -z "$base" ]]; then do_lde_cnf || return 1; base="http://127.0.0.1:${LDE_HUB_PORT}"; fi
-      state="${LDE_STATE_DIR:-$HOME/.local/share/csi-spl/lde}"
-      ;;
-    dev)
-      if [[ -z "$base" ]]; then ENV=dev do_spl_cloud_cnf || return 1; base="https://${SPL_FQDN}"; fi
-      state="${SPL_STATE_DIR:-$HOME/.local/share/csi-spl/cloud/dev}"
-      ;;
-    prd)
-      do_log "FATAL ENV=prd: fake-pay does not exist on prd (the hub refuses to boot with it); buy on a real rail instead"
-      return 1
-      ;;
-    *)
-      do_log "FATAL ENV must be lde or dev, got: '$env'"
-      return 1
-      ;;
-  esac
+  _spl_fake_buy_target "$env" || return 1
   base="${base%/}"
   local api="$base/api/v1/checkout"
-
-  local plan rail
-  plan="$(curl -fsS -m 30 "$api/plan")" || { do_log "FATAL GET $api/plan failed"; return 1; }
-  rail="$(jq -r .rail <<<"$plan")"
-  [[ "$rail" == fake ]] || { do_log "FATAL $env checkout rail is '$rail', not fake (SPOOL_HUB_ENABLE_FAKE_PAY off or not deployed)"; return 1; }
-  if [[ "$dry" == 1 ]]; then
-    jq -c --arg t "$tenant" '{dry_run:true, tenant:$t, rail, amount_cents, currency, would:"checkout, fake-pay, claim once"}' <<<"$plan"
-    do_log "OK DRY_RUN $env rail=fake; nothing bought"
-    return 0
-  fi
+  _spl_fake_buy_plan || return 1
+  [[ "$dry" == 1 ]] && return 0
 
   # one curl helper: body in $_body, HTTP code in $_code (never logs a body)
   local _code _body
@@ -83,8 +58,70 @@ do_spl_checkout_fake_buy() {
     _body="$(cat "$out")"
     rm -f "$out"
   }
+  # tenant probe (specs/026): the box door names a tenant in X-Spool-Tenant
+  # and resolves it before any upgrade: unknown -> 404 unknown_tenant, known
+  # -> the websocket refusal of a plain GET (426). No tenant host involved.
+  _tenant() { _req GET "$base/v1/ws" "" "X-Spool-Tenant: $tenant"; }
 
-  local id tok turl
+  local id tok turl before kept out keylen again after
+  _spl_fake_buy_checkout || return 1
+  _spl_fake_buy_pay || return 1
+  _spl_fake_buy_claim || return 1
+
+  _tenant || return 1
+  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $tenant is still unknown_tenant"; return 1; }
+  after="$_code"
+
+  jq -nc --arg t "$tenant" --arg c "$id" --arg u "$turl" --arg f "$out" --arg b "$before" --arg a "$after" \
+    --arg r "$again" --arg l "$keylen" --arg loc "$kept" \
+    '{tenant:$t, checkout_id:$c, tenant_url:$u, key_file:$f, tenant_before:($b|tonumber), fake_pay:"applied",
+      status:"paid", claim:200, key_b64_len:($l|tonumber), claim_again:($r|tonumber), tenant_after:($a|tonumber),
+      locale:$loc}'
+  do_log "OK bought $tenant on the $env fake rail in locale '${kept:-<hub default>}'; root key in $out (0600), shown once, second claim $again"
+}
+
+# The steps below run inside do_spl_checkout_fake_buy and read and set its
+# locals (tenant, email, env, dry, locale, base, state, api, id, tok, turl,
+# before, kept, out, keylen, again) the way _req sets _code and _body.
+
+# _spl_fake_buy_target <env>: sets base (unless BASE_URL gave it) and state;
+# refuses prd (no fake-pay there) and any env but lde and dev.
+_spl_fake_buy_target() {
+  case "$1" in
+    lde)
+      if [[ -z "$base" ]]; then do_lde_cnf || return 1; base="http://127.0.0.1:${LDE_HUB_PORT}"; fi
+      state="${LDE_STATE_DIR:-$HOME/.local/share/csi-spl/lde}"
+      ;;
+    dev)
+      if [[ -z "$base" ]]; then ENV=dev do_spl_cloud_cnf || return 1; base="https://${SPL_FQDN}"; fi
+      state="${SPL_STATE_DIR:-$HOME/.local/share/csi-spl/cloud/dev}"
+      ;;
+    prd)
+      do_log "FATAL ENV=prd: fake-pay does not exist on prd (the hub refuses to boot with it); buy on a real rail instead"
+      return 1
+      ;;
+    *)
+      do_log "FATAL ENV must be lde or dev, got: '$1'"
+      return 1
+      ;;
+  esac
+}
+
+# _spl_fake_buy_plan: the rail must be fake; DRY_RUN=1 prints the plan summary.
+_spl_fake_buy_plan() {
+  local plan rail
+  plan="$(curl -fsS -m 30 "$api/plan")" || { do_log "FATAL GET $api/plan failed"; return 1; }
+  rail="$(jq -r .rail <<<"$plan")"
+  [[ "$rail" == fake ]] || { do_log "FATAL $env checkout rail is '$rail', not fake (SPOOL_HUB_ENABLE_FAKE_PAY off or not deployed)"; return 1; }
+  if [[ "$dry" == 1 ]]; then
+    jq -c --arg t "$tenant" '{dry_run:true, tenant:$t, rail, amount_cents, currency, would:"checkout, fake-pay, claim once"}' <<<"$plan"
+    do_log "OK DRY_RUN $env rail=fake; nothing bought"
+  fi
+}
+
+# _spl_fake_buy_checkout: POST the checkout (sets id, tok, turl); the tenant
+# must still be unknown (sets before).
+_spl_fake_buy_checkout() {
   # `locale` rides the BODY (checkout-v1 1.2): never a header, so no CORS
   # allow-list can refuse the checkout.
   _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" --arg l "$locale" \
@@ -93,18 +130,18 @@ do_spl_checkout_fake_buy() {
   id="$(jq -r .checkout_id <<<"$_body")"
   tok="$(jq -r .claim_token <<<"$_body")"
   turl="$(jq -r .tenant_url <<<"$_body")"  # the WUI sign-in page (checkout-v1 1.4)
-  # tenant probe (specs/026): the box door names a tenant in X-Spool-Tenant
-  # and resolves it before any upgrade: unknown -> 404 unknown_tenant, known
-  # -> the websocket refusal of a plain GET (426). No tenant host involved.
-  _tenant() { _req GET "$base/v1/ws" "" "X-Spool-Tenant: $tenant"; }
 
   _tenant || return 1
   [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" == unknown_tenant ]] || {
     do_log "FATAL before payment tenant $tenant must be unknown_tenant, got HTTP $_code"
     return 1
   }
-  local before="$_code"
+  before="$_code"
+}
 
+# _spl_fake_buy_pay: fake-pay, then the checkout reads paid and kept the
+# buyer's locale (sets kept).
+_spl_fake_buy_pay() {
   _req POST "$api/fake-pay" "$(jq -nc --arg c "$id" '{checkout_id:$c}')" || return 1
   [[ "$_code" == 200 && "$(jq -r .applied <<<"$_body")" == true ]] || { do_log "FATAL fake-pay $id: HTTP $_code $_body"; return 1; }
 
@@ -112,36 +149,27 @@ do_spl_checkout_fake_buy() {
   [[ "$(jq -r .status <<<"$_body")" == paid ]] || { do_log "FATAL checkout $id is not paid after fake-pay: $_body"; return 1; }
   # spec 021 T022: the row kept the buyer's locale (or "" when none was sent),
   # which is what the claim mail and its link prefix follow.
-  local kept
   kept="$(jq -r '.locale // ""' <<<"$_body")"
   [[ "$kept" == "$locale" ]] || {
     do_log "FATAL checkout $id kept locale '$kept', sent '${locale:-<none>}' (hub too old for checkout-v1 1.3 locale, or it dropped the value)"
     return 1
   }
+}
 
-  local out="${KEY_OUT:-$state/tenants/$tenant.$(date -u +%Y%m%dT%H%M%SZ).json}"
+# _spl_fake_buy_claim: claim once into the 0600 key file (sets out, keylen);
+# a second claim must be 410 (sets again).
+_spl_fake_buy_claim() {
+  out="${KEY_OUT:-$state/tenants/$tenant.$(date -u +%Y%m%dT%H%M%SZ).json}"
   mkdir -p "$(dirname "$out")" && chmod 700 "$(dirname "$out")" || return 1
   _req POST "$api/claim" "$(jq -nc --arg c "$id" --arg k "$tok" '{checkout_id:$c, claim_token:$k}')" || return 1
   [[ "$_code" == 200 ]] || { do_log "FATAL claim $id: HTTP $_code $(jq -c 'del(.root_private_key)' <<<"$_body" 2>/dev/null)"; return 1; }
   (umask 077 && printf '%s\n' "$_body" >"$out") || return 1
   chmod 600 "$out"
-  local keylen
   keylen="$(jq -r '.root_private_key | length' <<<"$_body")"
   _body=""
 
   _req POST "$api/claim" "$(jq -nc --arg c "$id" --arg k "$tok" '{checkout_id:$c, claim_token:$k}')" || return 1
-  local again="$_code"
+  again="$_code"
   tok=""
   [[ "$again" == 410 ]] || { do_log "FATAL a second claim answered HTTP $again, want 410"; return 1; }
-
-  _tenant || return 1
-  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $tenant is still unknown_tenant"; return 1; }
-  local after="$_code"
-
-  jq -nc --arg t "$tenant" --arg c "$id" --arg u "$turl" --arg f "$out" --arg b "$before" --arg a "$after" \
-    --arg r "$again" --arg l "$keylen" --arg loc "$kept" \
-    '{tenant:$t, checkout_id:$c, tenant_url:$u, key_file:$f, tenant_before:($b|tonumber), fake_pay:"applied",
-      status:"paid", claim:200, key_b64_len:($l|tonumber), claim_again:($r|tonumber), tenant_after:($a|tonumber),
-      locale:$loc}'
-  do_log "OK bought $tenant on the $env fake rail in locale '${kept:-<hub default>}'; root key in $out (0600), shown once, second claim $again"
 }

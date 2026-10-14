@@ -224,7 +224,8 @@ describe('the composer line (spec 5.1)', () => {
     assert.deepEqual(draftMentionIds('no mentions', people), [])
   })
   it('the composer mounts the line lazily, Busy softer than Unavailable', () => {
-    assert.match(read('src/components/MessageComposer.vue'), /<LazyComposerStatusLine v-if="statusLineDue"/)
+    /* the v-if is on an element of its own, never bare on the lazy line (names-not-ids flake) */
+    assert.match(read('src/components/MessageComposer.vue'), /<div v-if="statusLineDue" class="lazy-slot" style="display: contents"><LazyComposerStatusLine /)
     assert.doesNotMatch(read('src/components/MessageComposer.vue'), /human-status\.mjs'/, 'the composer itself never imports the status helpers')
     assert.match(read('src/components/ComposerStatusLine.vue'), /\[data-state=busy\][^}]*color: var\(--color-muted\)/)
   })

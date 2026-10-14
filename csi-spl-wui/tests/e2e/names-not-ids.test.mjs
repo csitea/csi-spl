@@ -28,6 +28,7 @@ import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
+const CHUNK_HOLD_MS = Number(process.env.CHUNK_HOLD_MS ?? 400)
 const OMNI = 'form.omnibox--global textarea'
 const NAMES = { 'HUM-2': 'Ann Example', 'HUM-3': 'Bo Example', 'HUM-12': 'Bo Example' }
 
@@ -103,6 +104,19 @@ try {
   }))
   await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(OMNI, { visible: true, timeout: NAV_TIMEOUT })
+  /* a lazy chunk that arrives late is the case that broke: '@Exam' asks
+     for the composer's status line, the field is cleared while its chunk
+     loads, and a bare v-if then threw "null (reading 'insertBefore')"
+     (wf 10 run 38552104153). Every chunk asked for from here on is held
+     CHUNK_HOLD_MS, so each run takes that path instead of 1 in 63; the
+     narrow reloads in step 5 load at full speed (hold = 0) */
+  let hold = CHUNK_HOLD_MS
+  await p.setRequestInterception(true)
+  p.on('request', (r) => {
+    const go = () => r.continue().catch(() => { /* page gone */ })
+    if (hold && /\/_nuxt\/[^?]+\.js(\?|$)/.test(r.url())) setTimeout(go, hold)
+    else go()
+  })
   ok('0 the names are in the people store', await setNames(p, NAMES))
   const run = Date.now().toString(36)
 
@@ -154,6 +168,7 @@ try {
     !!poke && poke.text.includes('(HUM-9, CLE-07)'), poke)
 
   // 5 narrow viewports: the same pick
+  hold = 0
   for (const w of [360, 820]) {
     await p.setViewport({ width: w, height: 800, isMobile: w < 800, hasTouch: w < 800 })
     await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

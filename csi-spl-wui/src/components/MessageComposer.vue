@@ -15,7 +15,7 @@
   >
     <!-- owner, t1 2026-10-02: the grip that drags the phone dock to the
          top, the right corner or back to the bottom (OmniboxGrip) -->
-    <OmniboxGrip v-if="docked" :box="formEl" />
+    <div v-if="docked" class="lazy-slot" style="display: contents"><OmniboxGrip :box="formEl" /></div>
     <div class="composer-box">
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
@@ -179,8 +179,14 @@
           @blur="onOmniboxBlur"
           @paste="onPaste"
         />
-        <!-- t1 3558e416: `inline` and ``` blocks look like code while typing -->
-        <LazyComposerCodeMarks v-if="codeMarksDue" :el="inputEl" :text="text" />
+        <!-- t1 3558e416: `inline` and ``` blocks look like code while typing.
+             Each lazy component behind a v-if sits in an element of its own
+             (display: contents, no box): bare, a v-if that flips while its
+             chunk loads left Vue's Suspense placeholder outside the field,
+             and the patch threw "null (reading 'insertBefore')" - the
+             names-not-ids flake (wf 10 run 38552104153), 12 of 12 locally
+             with the status-line chunk held 100..600 ms -->
+        <div v-if="codeMarksDue" class="lazy-slot" style="display: contents"><LazyComposerCodeMarks :el="inputEl" :text="text" /></div>
         <p :id="hintId" class="code-hint muted" aria-live="polite">{{ inCode ? t('composer.code_hint') : '' }}</p>
         <p v-if="global" :id="slashHintId" class="sr-only">{{ t('search.slash_shortcut') }}</p>
         <ul v-if="picked.length" class="file-chips">
@@ -234,7 +240,7 @@
         </p>
         <!-- spec 096 §5.1: the DM peer / an @mentioned member is Busy or
              Unavailable - one line, read before sending; loaded on demand -->
-        <LazyComposerStatusLine v-if="statusLineDue" :dm-peer="statusDmPeer" :text="text" />
+        <div v-if="statusLineDue" class="lazy-slot" style="display: contents"><LazyComposerStatusLine :dm-peer="statusDmPeer" :text="text" /></div>
         <ComposerOpenAsk
           v-if="openAsk.hit"
           :name="openAsk.hit.name"

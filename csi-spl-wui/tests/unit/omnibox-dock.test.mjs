@@ -144,7 +144,8 @@ describe('the phone dock grip', async () => {
     assert.match(grip, /:aria-label="t\('composer\.move_handle'\)"/)
     assert.match(grip, /role="menuitemradio"/)
     const composer = read('components/MessageComposer.vue')
-    assert.match(composer, /<OmniboxGrip v-if="docked"/)
+    /* the v-if is on an element of its own, never bare on the async grip (names-not-ids flake) */
+    assert.match(composer, /<div v-if="docked" class="lazy-slot" style="display: contents"><OmniboxGrip /)
     assert.match(composer, /data-phone-pos=top\][^{]*\{[^}]*top: var\(--top-bar-h\)/)
     assert.match(read('assets/css/main.css'), /\.spool-shell \{ padding-top: var\(--composer-dock-top-h, 0px\); \}/)
   })

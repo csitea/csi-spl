@@ -48,6 +48,14 @@ do_spl_cloud_provider() {
   esac
 }
 
+# Copy the merged cnf cache through ONE open. A parallel merge renames a new
+# cache over its path, and GNU cp (9.x) then refuses ("replaced while being
+# copied"): a FATAL in do_spl_cloud_cnf (CI run 38599627586). An open fd keeps
+# the inode it opened, whole: the cache is only ever replaced by rename.
+spl_cnf_copy_cache() {
+  cat <"$1" >"$2"
+}
+
 do_spl_cloud_cnf() {
   spl_require_cloud_env || return 1
   local proj_base
@@ -90,7 +98,7 @@ do_spl_cloud_cnf() {
   fi
   SPL_CNF="$SPL_STATE_DIR/$ENV.env.yaml"
   tmp="$SPL_CNF.tmp.$$"
-  cp "$cache" "$tmp" && mv -f "$tmp" "$SPL_CNF" || { rm -f "$tmp"; do_log "FATAL cannot write $SPL_CNF"; return 1; }
+  spl_cnf_copy_cache "$cache" "$tmp" && mv -f "$tmp" "$SPL_CNF" || { rm -f "$tmp"; do_log "FATAL cannot write $SPL_CNF"; return 1; }
 
   # Every value in ONE yq call: a yq process per value was ~50 ms each.
   local -a vals=()

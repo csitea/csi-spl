@@ -17,7 +17,8 @@
 #   7. the real reader: main.commit out of a real Go binary's build info
 #   8. cnf cache: the second call re-uses the SAME cache file; the values
 #      equal a yq read per value; an edited SPL_CNF does not leak into the next
-#      call; SPL_CNF_CACHE=0 merges afresh; parallel merges agree
+#      call; SPL_CNF_CACHE=0 merges afresh; parallel merges agree; a copy
+#      survives a cache renamed over it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -212,6 +213,28 @@ ok=1; for i in 1 2 3 4 5 6; do
 done
 eq "8 six PARALLEL fresh merges all read whole, equal values" 1 "$ok"
 ls "$T/cnfstate" "$T/cnfstate/cnf" | grep '\.tmp\.' >/dev/null && fail "8 a tmp was left behind" || pass "8 no tmp left behind"
+# A parallel merge renames a new cache over the path while another action
+# copies it. GNU cp refused that ("replaced while being copied") and the
+# action FATALed (CI run 38599627586, n=1 per ~600 locally). A loop renames
+# over the cache as fast as it can while 30 calls copy it; with cp 51/100
+# calls failed, with the one-open read 0/200.
+c="$(ls "$T"/cnfstate/cnf/dev.*.env.yaml)"
+touch "$T/race.go"
+python3 -c '
+import os, shutil, sys
+c, go = sys.argv[1], sys.argv[2]
+for k in range(16): shutil.copy(c, c + ".r%d" % k)
+k = 0
+while os.path.exists(go):
+    os.link(c + ".r%d" % (k % 16), c + ".n"); os.rename(c + ".n", c); k += 1
+' "$c" "$T/race.go" &
+racer=$!
+bad="$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/cnfstate" ENV=dev bash -c '
+  do_log() { echo "$*" >&2; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
+  n=0; for i in $(seq 30); do do_spl_cloud_cnf 2>/dev/null && [[ "$SPL_PROJECT" == csi-spl-dev ]] || n=$((n + 1)); done; echo "$n"')"
+rm -f "$T/race.go"; wait "$racer"
+eq "8 a cache renamed over WHILE 30 actions copy it: none fails" 0 "$bad"
 
 echo "--- $fails failure(s)"
 [[ "$fails" -eq 0 ]]

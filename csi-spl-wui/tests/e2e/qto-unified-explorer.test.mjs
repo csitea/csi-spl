@@ -7,6 +7,14 @@
 // opens the Qto document again, and the Repository branch can be walked with
 // the same keys. A fresh load of ?repo=<path> opens the branch down to it.
 //
+// SPL-1857 (owner HUM-10, t1 6b980c46 msg 4f8d5e43): the bar between the
+// explorer and the content drags "the same ways as the panel for the
+// channels, or the issues": the shared pane divider, the channel sidebar's
+// clamp (180 px .. 35 % of the window), the width kept on this device over a
+// reload. At 390 px the phone keeps its one pane: no tree column, no bar.
+// Control: before it the tree is a fixed 260 px with no divider, so every
+// drag check FAILS.
+//
 //   node tests/e2e/qto-unified-explorer.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/qto-unified-explorer.test.mjs
 import { createRequire } from 'node:module'
@@ -56,6 +64,20 @@ const paneIs = (p, path) => p.waitForFunction((path) => {
   const el = document.querySelector('[data-test=ws-repo-doc]')
   return el && el.getAttribute('data-path') === path && el.querySelector('[data-testid=md-block][data-rendered=true] h1')
 }, { timeout: STEP }, path).then(() => true, () => false)
+const DIVIDER = '[data-test=ws-docs-layout] [data-testid=pane-divider-sidebar]'
+const treeW = (p) => p.$eval('#qto-file-tree', (el) => Math.round(el.getBoundingClientRect().width)).catch(() => 0)
+/** a mouse drag of the tree's divider by dx px, as issues.test.mjs drags the sidebar's */
+async function drag(p, dx) {
+  const box = await p.$eval(DIVIDER, (el) => {
+    const b = el.getBoundingClientRect()
+    return { x: b.x + b.width / 2, y: b.y + Math.min(220, b.height / 2) }
+  }).catch(() => null)
+  if (!box) return
+  await p.mouse.move(box.x, box.y)
+  await p.mouse.down()
+  await p.mouse.move(box.x + dx, box.y, { steps: 10 })
+  await p.mouse.up()
+}
 const qtoShown = (p) => p.evaluate(() => {
   const el = document.querySelector('[data-test=ws-docs-page]')
   return Boolean(el && el.getBoundingClientRect().width > 0)
@@ -121,6 +143,55 @@ try {
   await f.goto(server.base + '/workspace/docs?repo=no/such.md', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   ok('CONTROL: a path tree.json does not have says so', await f.waitForSelector('[data-test=ws-repo-missing]', { visible: true, timeout: STEP }).then(Boolean, () => false))
   await f.close()
+
+  /* SPL-1857 (owner HUM-10, t1 6b980c46 msg 4f8d5e43): the tree | doc bar
+     drags like the channel and issue panes: the same PaneDivider, the same
+     clamp as the channel sidebar, the width kept on this device. */
+  console.log('-- 1440x900 the tree | doc divider')
+  const d = await browser.newPage()
+  await d.setViewport({ width: 1440, height: 900 })
+  await d.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await d.evaluate(() => localStorage.removeItem('spool.pane-widths'))
+  await d.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await d.waitForSelector(`${TREE} [data-kind=doc]`, { visible: true, timeout: STEP }).catch(() => null)
+  const bar = await d.waitForSelector(DIVIDER, { visible: true, timeout: STEP }).catch(() => null)
+  const w0 = await treeW(d)
+  ok('a drag bar sits between the tree and the doc, the shared pane divider', Boolean(bar) && await d.$eval(DIVIDER, (el) => {
+    const t = document.querySelector('#qto-file-tree').getBoundingClientRect()
+    const b = el.getBoundingClientRect()
+    return el.classList.contains('pane-divider') && Math.abs(b.left - t.right) <= 1 && getComputedStyle(el).cursor === 'col-resize'
+  }).catch(() => false), w0)
+  if (process.env.SHOT_DIR) await d.screenshot({ path: `${process.env.SHOT_DIR}/qto-divider-1440-before.png` })
+  await drag(d, 80)
+  const w1 = await treeW(d)
+  ok('dragging it right widens the tree', w1 >= w0 + 60, { w0, w1 })
+  if (process.env.SHOT_DIR) await d.screenshot({ path: `${process.env.SHOT_DIR}/qto-divider-1440-after.png` })
+  await d.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await d.waitForSelector(DIVIDER, { visible: true, timeout: STEP }).catch(() => null)
+  const w2 = await treeW(d)
+  ok('... the width survives a reload (kept on this device)', Math.abs(w2 - w1) <= 1, { w1, w2 })
+  const range = await d.$eval(DIVIDER, (el) => ({ min: Number(el.getAttribute('aria-valuemin')), max: Number(el.getAttribute('aria-valuemax')) })).catch(() => ({}))
+  await drag(d, -1000)
+  const wMin = await treeW(d)
+  ok('... clamped at the channel sidebar min', range.min === 180 && Math.abs(wMin - range.min) <= 1, { range, wMin })
+  await drag(d, 2000)
+  const wMax = await treeW(d)
+  ok('... clamped at the channel sidebar max (35 % of the window)', range.max === Math.round(1440 * 0.35) && Math.abs(wMax - range.max) <= 1, { range, wMax })
+  await d.focus(DIVIDER).catch(() => null)
+  await d.keyboard.press('Home')
+  ok('... the keys move it too (Home = min)', Math.abs(await treeW(d) - range.min) <= 1, await treeW(d))
+  await d.$eval(DIVIDER, (el) => el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))).catch(() => null)
+  ok('... a double click resets it to the default', Math.abs(await treeW(d) - 260) <= 1, await treeW(d))
+  await drag(d, 80)
+  await d.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
+  await d.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await d.waitForSelector('[data-test=ws-docs-page]', { visible: true, timeout: STEP }).catch(() => null)
+  if (process.env.SHOT_DIR) await d.screenshot({ path: `${process.env.SHOT_DIR}/qto-divider-390.png` })
+  ok('390: the phone keeps its one pane: no tree column, no drag bar', await d.evaluate((sel) => {
+    const shown = (el) => Boolean(el) && el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== 'none'
+    return !shown(document.querySelector('#qto-file-tree')) && !shown(document.querySelector(sel)) && shown(document.querySelector('[data-test=ws-docs-page]'))
+  }, DIVIDER))
+  await d.close()
 } finally {
   await browser.close()
   await server.stop()

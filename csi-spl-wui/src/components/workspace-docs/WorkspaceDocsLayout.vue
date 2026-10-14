@@ -8,10 +8,15 @@
      Spec 137 T023: the tree's Repository branch opens a repository doc in
      the right pane (?repo=<path>, WorkspaceRepoDoc) while the Qto page
      stays mounted behind it; a workspace row drops ?repo= and opens the
-     document as before. -->
+     document as before.
+     SPL-1857: the tree | page bar is the shell's PaneDivider, so it drags,
+     takes the keys and resets on a double click like the channel sidebar's,
+     on the same clamp; the width is kept on this device (useDocsTreeWidth
+     in usePaneWidths). Not drawn at <= 820 px (main.css hides a sidebar
+     divider there), as the tree is not. -->
 <template>
   <div class="wsdocs-layout" data-test="ws-docs-layout">
-    <div id="qto-file-tree" class="wsdocs-layout__tree">
+    <div id="qto-file-tree" class="wsdocs-layout__tree" :style="{ flexBasis: `${tree.width.value}px` }">
       <QtoFileTree
         v-if="page"
         :docs="page.docs"
@@ -27,6 +32,14 @@
         @refresh="page.refreshDocs()"
       />
     </div>
+    <PaneDivider
+      pane="sidebar"
+      :value="tree.width.value"
+      :min="tree.bounds.value.min"
+      :max="tree.bounds.value.max"
+      @input="tree.set"
+      @reset="tree.reset"
+    />
     <WorkspaceRepoDoc v-if="repoPath" :path="repoPath" class="wsdocs-layout__page" />
     <WorkspaceDocsPage v-show="!repoPath" ref="page" class="wsdocs-layout__page" />
   </div>
@@ -37,6 +50,7 @@ import { computed, defineAsyncComponent, nextTick, ref } from 'vue'
 import WorkspaceDocsPage from './WorkspaceDocsPage.vue'
 import QtoFileTree from './QtoFileTree.vue'
 import { useDocTree } from './-doctree-api'
+import { useDocsTreeWidth } from '~/composables/usePaneWidths'
 
 /* T023: the repo doc pane loads when a repo doc is first opened */
 const WorkspaceRepoDoc = defineAsyncComponent(() => import('./WorkspaceRepoDoc.vue'))
@@ -46,6 +60,7 @@ const router = useRouter()
 /** the repository doc open in the right pane ('' = the Qto page) */
 const repoPath = computed(() => (typeof route.query.repo === 'string' ? route.query.repo : ''))
 const client = useDocTree()
+const tree = useDocsTreeWidth()
 const page = ref<InstanceType<typeof WorkspaceDocsPage> | null>(null)
 
 /** the tree's Rename: the list (and the open document's title and rev) take the hub's answer */
@@ -103,6 +118,7 @@ async function openFromTree(doc: string, item: string) {
   overflow-x: clip;
   overflow-y: auto;
   border-inline-end: 1px solid var(--color-border);
+  /* the width comes from useDocsTreeWidth (inline flex-basis) */
   background: var(--color-bg);
 }
 .wsdocs-layout__page { flex: 1 1 auto; }

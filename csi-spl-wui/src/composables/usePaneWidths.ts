@@ -1,6 +1,7 @@
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import {
+  PANE_WIDTHS_KEY,
   SIDEBAR_DEFAULT,
   clampPair,
   clampSidebar,
@@ -21,6 +22,7 @@ import {
   viewOf,
 } from '~/utils/pane-widths.mjs'
 import { MOBILE_STACK_MAX_PX } from '~/utils/mobile-stack.mjs'
+import { storageGetJson, storageSetJson } from '~/utils/prefs.mjs'
 
 /* SPL-1182: below this width the layout is one pane (phone); pane sizes are
    neither saved to nor read from the account. */
@@ -266,4 +268,47 @@ export function usePaneWidths(opts: PaneOpts) {
     resetAll: account.resetAll,
     hydrate: account.hydrate,
   }
+}
+
+/* SPL-1857 (owner HUM-10, t1 6b980c46 msg 4f8d5e43): the Qto doc view's
+   tree | doc bar drags "the same ways as the panel for the channels, or the
+   issues". One more pane key, nothing above changes: the tree takes the
+   channel sidebar's clamp (clampSidebar / sidebarRange) and a PaneDivider
+   pane="sidebar" drives it; its width is kept on this device beside the
+   other pane widths, key docsTree (as the issue detail keeps `issues`). */
+function storedPanes(): Record<string, unknown> {
+  const raw = storageGetJson(PANE_WIDTHS_KEY, null)
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+}
+
+export function useDocsTreeWidth() {
+  const viewportW = ref(1280)
+  const width = ref(SIDEBAR_DEFAULT)
+  const ctx = () => ({ viewportW: viewportW.value, topicOpen: false })
+  const shown = computed(() => clampSidebar(width.value, ctx()))
+  const bounds = computed(() => sidebarRange(ctx()))
+
+  function save(n?: number) {
+    const { docsTree: _old, ...rest } = storedPanes()
+    storageSetJson(PANE_WIDTHS_KEY, n === undefined ? rest : { ...rest, docsTree: n })
+  }
+  function set(n: number) {
+    width.value = clampSidebar(n, ctx())
+    save(width.value)
+  }
+  function reset() {
+    width.value = SIDEBAR_DEFAULT
+    save()
+  }
+  const onResize = () => { viewportW.value = window.innerWidth }
+
+  onMounted(() => {
+    onResize()
+    const n = Number(storedPanes().docsTree)
+    if (Number.isFinite(n)) width.value = n
+    window.addEventListener('resize', onResize)
+  })
+  onUnmounted(() => window.removeEventListener('resize', onResize))
+
+  return { width: shown, bounds, set, reset }
 }

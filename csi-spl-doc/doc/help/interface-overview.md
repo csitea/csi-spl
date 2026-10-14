@@ -190,6 +190,14 @@ uses the defaults above.
 > **Everything else** set. Double-click a divider to put that pane of the
 > current view back to its default.
 
+### 6.4 The Docs (Qto) Explorer
+
+On **Docs (Qto)** (`/workspace/docs`) the bar between the file tree and the
+document is the same divider: drag it, use the keys above, or double-click it to
+put the tree back to `260px`. It stops where the channel sidebar's divider stops
+(from `180px` to about a third of the window), and the width is kept in this
+browser. On a phone the page shows one pane at a time, so there is no bar.
+
 ---
 
 ## 7. Collapsing a Panel

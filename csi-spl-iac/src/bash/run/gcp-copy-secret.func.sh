@@ -1,4 +1,6 @@
 #!/bin/bash
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description Copy the latest version of one Secret Manager secret into a
 # @description secret of this env's project (harvested from the 2026-09-19
@@ -19,10 +21,9 @@
 # @example ENV=prd SRC_PROJECT=csi-rel-prd SRC_SECRET=csi-rel-smtp-pass TGT_SECRET=csi-spl-hub-mail-smtp-password ./run -a do_gcp_copy_secret
 #------------------------------------------------------------------------------
 do_gcp_copy_secret() {
-  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
-  _spl_sdk_dir="$(mktemp -d)"
-  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
-  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
+  local _spl_sdk_saved _spl_sdk_dir
+  spl_gcp_temp_sdk_config || return 1
+  trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
 
   : "${SRC_PROJECT:?SRC_PROJECT must be set (the source GCP project)}"
   : "${SRC_SECRET:?SRC_SECRET must be set (the source secret id)}"

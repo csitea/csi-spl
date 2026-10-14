@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 #------------------------------------------------------------------------------
 # @description Put the Docs GitHub App private key (spec 075 §9) into this env's
 # @description Secret Manager secret GH_APP_SECRET (default
@@ -17,10 +19,9 @@
 # @example ENV=dev KEY_FILE=$HOME/.github/.csi/<app-slug>.pem DRY_RUN=0 ./run -a do_spl_gh_app_key_put
 #------------------------------------------------------------------------------
 do_spl_gh_app_key_put() {
-  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
-  _spl_sdk_dir="$(mktemp -d)"
-  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
-  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
+  local _spl_sdk_saved _spl_sdk_dir
+  spl_gcp_temp_sdk_config || return 1
+  trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
 
   local dry="${DRY_RUN:-1}" sec="${GH_APP_SECRET:-spool-hub-github-app-key}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $dry"; return 2; }

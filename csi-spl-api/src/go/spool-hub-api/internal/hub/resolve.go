@@ -201,21 +201,17 @@ func (s *Server) tenantConsistent(w http.ResponseWriter, r *http.Request, tenant
 
 // bearerAny checks the WS-issued upload token (OQ-10) and returns its tenant
 // and box, and — when it refuses — a reason code for the log (CLE-77795):
-// no_bearer (no Authorization), unknown_token (not in the per-process map:
-// a hub restart wiped it), expired_token (a plain TTL lapse).
+// no_bearer (no Authorization), unknown_token (neither in the per-process
+// map nor signed with this hub's key: a restart wiped an unsigned one),
+// expired_token (a plain TTL lapse).
 func (s *Server) bearerAny(r *http.Request) (string, string, string, bool) {
 	tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !ok || tok == "" {
 		return "", "", "no_bearer", false
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	t, ok := s.tokens[tok]
-	if !ok {
-		return "", "", "unknown_token", false
-	}
-	if s.o.Now().After(t.expires) {
-		return "", "", "expired_token", false
+	t, reason := s.uploadTokenOf(tok)
+	if reason != "" {
+		return "", "", reason, false
 	}
 	return t.tenant, t.box, "", true
 }

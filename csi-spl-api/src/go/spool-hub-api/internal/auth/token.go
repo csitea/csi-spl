@@ -24,6 +24,19 @@ var (
 	errExpiredToken = errors.New("auth: token expired")
 )
 
+// labelUpload signs the hub's upload token (SPL-1815, hub/upload_token.go).
+const labelUpload = "spool-hub-upload-token-v1"
+
+// UploadTokenKey is the key every hub instance signs and checks the upload
+// token with, derived from SPOOL_HUB_AUTH_SESSION_KEY; nil when no session
+// key is set (the hub then keeps its per-process token map).
+func UploadTokenKey(c *Config) []byte {
+	if c == nil || len(c.SessionKey) < minSessionKeyLen || isPlaceholder(c.SessionKey) {
+		return nil
+	}
+	return subkey(c.SessionKey, labelUpload)
+}
+
 func subkey(key, label string) []byte {
 	m := hmac.New(sha256.New, []byte(key))
 	m.Write([]byte(label))

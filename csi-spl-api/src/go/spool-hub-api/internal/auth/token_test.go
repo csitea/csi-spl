@@ -73,3 +73,22 @@ func TestValidTenant(t *testing.T) {
 		}
 	}
 }
+
+// SPL-1815: every hub instance derives the same upload-token key from the
+// session key, distinct from the session and state keys; no usable session
+// key = no key, and the hub keeps its per-process token map.
+func TestUploadTokenKey(t *testing.T) {
+	k := strings.Repeat("k", 32)
+	got := UploadTokenKey(&Config{SessionKey: k})
+	if len(got) != 32 || string(got) != string(UploadTokenKey(&Config{SessionKey: k})) {
+		t.Fatalf("key not stable: %x", got)
+	}
+	if string(got) == string(subkey(k, labelSession)) || string(got) == string(subkey(k, labelState)) {
+		t.Fatal("upload key equals a session or state key")
+	}
+	for _, c := range []*Config{nil, {SessionKey: "short"}, {SessionKey: strings.Repeat("PLACEHOLDER", 4)}} {
+		if UploadTokenKey(c) != nil {
+			t.Fatalf("key from unusable config %+v", c)
+		}
+	}
+}

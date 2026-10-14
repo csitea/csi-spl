@@ -207,6 +207,7 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	if err != nil {
 		return opts, err
 	}
+	opts.UploadTokenKey = auth.UploadTokenKey(ac) // SPL-1815: any instance checks the upload token
 	logRLSPosture(ctx, log, st)
 	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
 	// The IdP picture lands in the same tenant blob store (010 T044).

@@ -48,13 +48,11 @@ func (s *Server) selfKeys(w http.ResponseWriter, r *http.Request, hum string) bo
 // on an open socket.
 func (s *Server) tokenMayWriteFiles(w http.ResponseWriter, r *http.Request, tenant string) bool {
 	tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	s.mu.Lock()
-	member := s.tokens[tok].member
-	s.mu.Unlock()
-	if member == "" {
+	t, _ := s.uploadTokenOf(tok)
+	if t.member == "" {
 		return true
 	}
-	return s.permit(w, r, tenant, member, rbac.FilesWrite)
+	return s.permit(w, r, tenant, t.member, rbac.FilesWrite)
 }
 
 // memberRoles is roles without demo_user and channel_guest: no member route

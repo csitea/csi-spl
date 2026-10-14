@@ -56,6 +56,9 @@ type Options struct {
 	HelloSkew         time.Duration
 	HelloTimeout      time.Duration
 	UploadTokenTTL    time.Duration
+	// UploadTokenKey signs a WUI socket's upload token so every instance
+	// checks it (SPL-1815, upload_token.go); nil = the per-process map only.
+	UploadTokenKey []byte
 	// JoinTokenTTL is an agent join token's lifetime (spec 073 4.1, cnf
 	// SPOOL_HUB_JOIN_TOKEN_TTL, bounds in config.checkLimits); 0 = the mint
 	// route answers 503 join_tokens_off.
@@ -591,6 +594,10 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 }
 
 func (s *Server) mintToken(tenant, box, member string) (string, time.Time) {
+	if box == WUIBox && len(s.o.UploadTokenKey) > 0 { // SPL-1815, upload_token.go
+		exp := s.o.Now().Add(s.o.UploadTokenTTL)
+		return signUploadToken(s.o.UploadTokenKey, uploadToken{tenant: tenant, box: box, member: member, expires: exp}), exp
+	}
 	b := make([]byte, 32)
 	// crypto/rand.Read never returns an error since Go 1.24: a failed read fatals inside.
 	rand.Read(b) //nolint:errcheck

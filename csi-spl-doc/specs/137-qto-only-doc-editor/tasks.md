@@ -95,6 +95,7 @@ To allow multiple lanes to execute simultaneously without worktree merge collisi
 ## 7. Publish to GitHub (addendum, [publish.md](publish.md))
 
 Owner HUM-10, t1 2a2a4694: ask msg b04f0ab5; decisions poll 72d2b3da, final msg 86c7b888 (Q1 B, Q2 B, Q3 B, Q4 A, Q5 A, Q6 B; publish.md §8); no review step, every press publishes at once (poll 6f7ce1d7, msg af133e9c). Prd only (Q4 A): dev and CI tests run against the `githubtest` fake.
+Spec landed (SPL-1887): `1bc469307` (addendum), `f8998a0ba` (decisions 86c7b888), `130608b2b` (no review, af133e9c); accepted by the dispatch holder (msg c901ae90).
 
 | ID | Status | Area | Lane | Summary & Gate |
 |---|---|---|---|---|

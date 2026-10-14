@@ -56,8 +56,20 @@ comments and issue descriptions.
    question again, cite that link (or `msg:<uuid>`, rule 11), never "see above".
    A click opens exactly that message, scrolled into view and highlighted,
    on a phone and on a desktop, even inside the same topic.
-10. A question with fixed answers to pick from is a `poll` form (section 7):
-   the reader clicks a radio button or a checkbox instead of typing `a`.
+10. **Every question or choice put to the owner is a `poll` form**
+   (section 7), by default (owner HUM-10, 2026-10-14, t1 topic 0bb05176,
+   msg:03d0ef42-e8c0-4e4f-b12d-a03f9bbd9bf7): "Would you please provide me
+   with forms for these choices? List all of the choices you were suggesting
+   to me and provide them in forms. Make that the default mode. Every time
+   you ask me something, it should be in forms for the interface." The
+   reader clicks a radio button or a checkbox instead of typing `a`. List
+   every choice as an option; never prose options such as "(a) ... (b) ...
+   say 1 or 2". A go is `(GO) Go`. The form has no free-text field
+   (`poll.mjs`: radio and checkbox options only), so a free-text question
+   is a form too: its likely answers as options, and the "Chat about this"
+   the WUI adds to every form opens the reply box for the owner's own words.
+   The daily needs-owner list (`do_spl_owner_digest_post`) asks its steps
+   so: one form, Go / Hold / No go per step.
 11. An internal object is written `type:id` (owner HUM-10, 2026-10-13, t1
    topic ae38a1a6): `msg:<uuid>` for a message, `topic:<uuid>` for a topic,
    the full uuid. The WUI links it to that object on its workspace's host

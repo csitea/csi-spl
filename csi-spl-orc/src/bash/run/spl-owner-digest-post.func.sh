@@ -6,6 +6,8 @@
 # @description oldest first: its link, how long it has waited, and the exact
 # @description command or click from its "**Needs owner** since ..." line. An
 # @description item with no such line says so. Nothing waiting = no post.
+# @description Under the list ONE ```poll form asks each item with a step:
+# @description Go / Hold / No go (owner msg 03d0ef42, how-to-post.md rule 10).
 # @description It is a digest, never a page: a plain note in a channel, no
 # @description mention, no blocker (asks never page the owner).
 # @description Run every hour by the box cron row owner-digest; it acts only
@@ -138,6 +140,15 @@ print(f"The daily list of every `{label}` issue, oldest first ({stamp}). "
 for n, (t, key, title, since, step) in enumerate(rows, 1):
     print(f"{n}. [{key}](/issues?issue={key}) {short(title)} - waiting **{age(now - t)}** (since {since})")
     print(f"  Step: {step}")
+# owner HUM-10 msg 03d0ef42: every question to the owner is a form; one
+# question per item that has a step (how-to-post.md rule 10, section 7)
+asks = [(key, step) for _, key, _, _, step in rows if not step.startswith("no step written")]
+if asks:
+    print("\nYour call per step:\n\n```poll")
+    for key, step in asks:
+        print(f"{key}: {short(step, 80)}")
+        print("(GO) Go\n(HLD) Hold\n(NO) No go")
+    print("```")
 PY
 }
 

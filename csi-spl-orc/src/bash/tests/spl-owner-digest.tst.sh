@@ -24,6 +24,10 @@
 #    16. nothing waiting -> no post, the day is stamped
 #    17. DRY_RUN=1 prints the post, sends nothing, no stamp
 #    18. CONTROL: the stamp is what stops the second post
+#   form (owner HUM-10 msg 03d0ef42, how-to-post.md rule 10)
+#    19. the digest ends with ONE ```poll form: Go / Hold / No go per item with a step
+#    20. poll.mjs (the WUI's own parser, through node) accepts it as a radio form
+#    21. CONTROL: prose options and no poll block fail the same check
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -189,6 +193,39 @@ out="$(digest 1)"
 # 18. CONTROL: without the stamp the second run of the day posts again
 digest 0 >/dev/null; rm -f "$T/stamp"; digest 0 >/dev/null
 eq "18. CONTROL: no stamp -> a second post (the stamp is the guard)" 1 "$(grep -c '^post' "$CALLS")"
+
+# --- the form: every question to the owner is a poll (msg 03d0ef42) ---
+POLL_MJS="$PROJ_ROOT/../csi-spl-wui/src/utils/poll.mjs"
+# poll_form <body>: "<questions> <keys of each>" of the body's ONE form, or "none"
+poll_form() {
+  if command -v node >/dev/null 2>&1 && [ -f "$POLL_MJS" ]; then
+    node --input-type=module -e '
+      const { splitPolls } = await import(process.argv[1])
+      const p = splitPolls(process.argv[2]).filter((s) => s.type === "poll")
+      if (p.length !== 1 || p[0].poll.multi) { console.log("none"); process.exit(0) }
+      const q = p[0].poll.questions
+      console.log(`${q.length} ${q.map((x) => x.options.map((o) => o.key).join(",")).join(" ")}`)
+    ' "$POLL_MJS" "$1"
+  else
+    # no node on this runner: the exact marker lines
+    local n; n="$(grep -c '^(GO) Go$' <<<"$1")"
+    grep -qx '```poll' <<<"$1" && [ "$n" -gt 0 ] && [ "$n" = "$(grep -c '^(HLD) Hold$' <<<"$1")" ] &&
+      [ "$n" = "$(grep -c '^(NO) No go$' <<<"$1")" ] && echo "$n$(for ((i = 0; i < n; i++)); do printf " GO,HLD,NO"; done)" || echo none
+  fi
+}
+
+# 19
+eq "19. one form, one question per item with a step (SPL-2 has none)" "SPL-595: register the Azure app|SPL-1126: \`make do-provision\`" \
+  "$(sed -n '/^```poll$/,/^```$/p' <<<"$body" | grep -E '^SPL-' | paste -sd'|')"
+eq "19. the form comes after the list" "1" "$(grep -c '^```poll$' <<<"$body")"
+has "19. the list text is kept" "  Step: \`make do-provision\`" "$body"
+
+# 20
+eq "20. poll.mjs accepts the form: 2 radio questions, Go / Hold / No go" "2 GO,HLD,NO GO,HLD,NO" "$(poll_form "$body")"
+
+# 21. CONTROL: the same check refuses prose options with no poll block
+prose="$(printf '%s\n' "## Waiting for you: 1 step(s)" "" "1. [SPL-595](/issues?issue=SPL-595) Azure app" "  Step: register the Azure app" "" "(a) go (b) hold - say 1 or 2")"
+eq "21. CONTROL: prose options, no poll block -> no form" "none" "$(poll_form "$prose")"
 
 echo
 [ "$fails" -eq 0 ] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAILED"; exit 1; }

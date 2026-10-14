@@ -37,6 +37,10 @@
 #      a renewal clears it; the sample log (cred.log) gets one line per
 #      change, sha prefix and expiresAt only
 #  19. a peer with no credential to read (unreachable): one alert per state
+#  20. a seat parked on the usage-limit choice dialog (banner 9 non-blank
+#      lines up, above the dialog) with an API-error transcript is stuck;
+#      controls: the same pane with an ok transcript, and a banner 9 lines up
+#      with no dialog under it, are not
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -309,6 +313,38 @@ out="$(tick)"; out2="$(tick)"
 [ "$(grep -c '^send ' "$T/calls")" = 1 ] && grep -q '^- peer sat: no credential to compare' "$T/calls" \
   && grep -q 'alerted=1' <<<"$out" && grep -q 'alerted=0' <<<"$out2" \
   && pass "19. a peer with no credential to read: one alert, none on the same state again" || fail "19. ($out / $out2; $(cat "$T/calls"))"
+
+# 20. the usage-limit choice dialog (pane text of c-001@sat, 2026-10-14)
+limit_dialog() {
+  cat <<'PANE'
+❯ : 'SPOOL c-001: note from c-001 task dispatch-lease msg b96351ef :: FLEET LEASE dispatch: c-002 -> c-003. ::
+  run: spool recv --as c-001'
+  ⎿  You've hit your weekly limit · resets Oct 17, 11am (Europe/Helsinki)
+     Use your limit reset to reset it now: clau.de/reset
+
+✻ Churned for 1s · done 1:35 PM
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   What do you want to do?
+
+   ❯ 1. Stop and wait for limit to reset
+     2. Wait here, then continue automatically at Oct 17, 11am
+     3. Add funds to continue with usage credits
+
+   Enter to confirm · Esc to cancel
+
+PANE
+}
+reset; limit_dialog >"$T/panes/%12"; echo error >"$T/turn/999999702"
+out="$(DRY=1 tick)"
+grep -q 'stuck_login=0 stuck_limit=1 ' <<<"$out" && grep -q 'PLAN stop c-702 (pane %12, pid 999999702, limit)' <<<"$out" \
+  && pass "20. a seat parked on the limit choice dialog is stuck (limit)" || fail "20. dialog ($out)"
+reset; limit_dialog >"$T/panes/%12"
+out="$(DRY=1 tick)"
+grep -q 'stuck_login=0 stuck_limit=0 ' <<<"$out" && pass "20. control: the dialog with an ok last turn is not stuck" || fail "20. ok turn ($out)"
+reset; { limit_dialog | sed -n '1,4p'; printf 'line %s\n' 1 2 3 4 5 6 7 8; } >"$T/panes/%12"; echo error >"$T/turn/999999702"
+out="$(DRY=1 tick)"
+grep -q 'stuck_login=0 stuck_limit=0 ' <<<"$out" && pass "20. control: a banner 9 lines up with no dialog under it is not read" || fail "20. no dialog ($out)"
 
 echo "spl-agent-login-check: $fails failed"
 exit $(( fails > 0 ))

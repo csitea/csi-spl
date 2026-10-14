@@ -140,12 +140,24 @@ _lc_scan() {
 # answer is an API error; non-zero otherwise.
 _lc_stuck_now() {
   local pid="$1" pane="$2" foot what
-  foot="$(_lc_capture "$pane" | grep -v '^[[:space:]]*$' | tail -n "${LOGIN_PANE_TAIL:-8}")"
+  foot="$(_lc_capture "$pane" | grep -v '^[[:space:]]*$' | _lc_foot "${LOGIN_PANE_TAIL:-8}")"
   if grep -qiE "$LC_FOOT_LOGIN_RE" <<<"$foot"; then what=login
   elif grep -qiE "$LC_FOOT_LIMIT_RE" <<<"$foot"; then what=limit
   else return 1; fi
   [[ "$(_lc_turn "$pid")" == error ]] || return 1
   echo "$what"
+}
+
+# The footer of the non-blank pane lines on stdin: the last N. When those end
+# on the usage-limit choice dialog ("What do you want to do?" over "1. Stop
+# and wait for limit to reset"), the N lines above the dialog and the dialog:
+# its 8 lines push the banner out of the last N (c-001@sat, c-003@sat
+# 2026-10-14, about 15 h unrepaired).
+_lc_foot() {
+  awk -v n="$1" '{ l[NR] = $0 }
+    /^[[:space:]]*What do you want to do\?[[:space:]]*$/ { q = NR }
+    /^[[:space:]]*(❯[[:space:]]*)?1\. Stop and wait for limit to reset[[:space:]]*$/ && q && NR - q <= 2 { d = q }
+    END { s = NR - n + 1; if (d && d > NR - n) s = d - n; if (s < 1) s = 1; for (i = s; i <= NR; i++) print l[i] }'
 }
 
 _lc_capture() {

@@ -63,6 +63,25 @@ async function launch() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** Read until want() holds on the SAME value for `hold` ms (a sheet slides in),
+    or `max` runs out; returns the last read. A close waits CLOSED ms: a Back
+    may re-open something late. */
+async function until(read, want, hold = 100, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let s = await read()
+  while (Date.now() < end) {
+    const k = want(s) ? JSON.stringify(s) ?? 'null' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return s
+    await sleep(100)
+    s = await read()
+  }
+  return s
+}
+const gone = (v) => v === null
+const CLOSED = 400
+
 function composerFacts(page) {
   return page.evaluate(() => {
     const f = document.querySelector('form.composer.omnibox--global')
@@ -197,7 +216,6 @@ async function longPress(page, x, y, ms = 750) {
   await page.touchscreen.touchStart(x, y)
   await sleep(ms)
   await page.touchscreen.touchEnd()
-  await sleep(250)
 }
 
 async function phone(browser, width, height) {
@@ -208,40 +226,37 @@ async function phone(browser, width, height) {
   await p.setViewport({ width, height, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
   await p.goto(server.base + PATH, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
-  await sleep(400)
 
-  const c = await composerFacts(p)
-  ok(`${tag} 1 composer docked at the bottom, full width, 44 px controls, 16 px text`,
-    Boolean(c && c.docked && c.left === 0 && c.width === c.vw && Math.abs(c.bottom - (c.vh - c.strip)) <= 1
-      && c.send && c.send.w >= TAP && c.send.h >= TAP && c.attach && c.attach.h >= TAP
-      && c.back && c.back.h >= TAP && c.syntax && c.syntax.w >= TAP && c.syntax.h >= TAP
-      && c.field && c.field.h >= TAP && c.font >= 16 && c.dockVar !== '0px'), c)
+  const docked = (c) => Boolean(c && c.docked && c.left === 0 && c.width === c.vw && Math.abs(c.bottom - (c.vh - c.strip)) <= 1
+    && c.send && c.send.w >= TAP && c.send.h >= TAP && c.attach && c.attach.h >= TAP
+    && c.back && c.back.h >= TAP && c.syntax && c.syntax.w >= TAP && c.syntax.h >= TAP
+    && c.field && c.field.h >= TAP && c.font >= 16 && c.dockVar !== '0px')
+  const c = await until(() => composerFacts(p), docked)
+  ok(`${tag} 1 composer docked at the bottom, full width, 44 px controls, 16 px text`, docked(c), c)
 
-  const card = await cardFacts(p)
-  ok(`${tag} 2 card header controls >= 44 px, the menu at the right edge, no sideways scroll`,
-    Boolean(card && card.menuBtn && card.menuBtn.w >= TAP && card.menuBtn.h >= TAP
-      && card.scrollW <= card.vw && card.menuRight >= 0 && card.menuRight <= 24), card)
+  const header = (card) => Boolean(card && card.menuBtn && card.menuBtn.w >= TAP && card.menuBtn.h >= TAP
+    && card.scrollW <= card.vw && card.menuRight >= 0 && card.menuRight <= 24)
   /* SPL-1000 (owner, topic e0b12a2c): Add emoji stays in the header on a
      phone (SPL-982), a 44 px target 5 px after the time; the header is one
      line; the avatar sits 4 px from the card's left edge; this year's date
      drops its year (hover keeps the whole value) */
+  const smile = (card) => Boolean(card && card.emojiBtn && card.emojiBtn.shown && card.emojiBtn.w >= TAP && card.emojiBtn.h >= TAP
+    && card.emojiGap != null && Math.abs(card.emojiGap - 5) <= 2 && card.headerRows === 1 && card.avatarLeft === 4
+    && /^(\d{2}-\d{2} )?\d{2}:\d{2}/.test(card.time) && card.timeTitle.length > card.time.length)
+  const card = await until(() => cardFacts(p), (v) => header(v) && smile(v))
+  ok(`${tag} 2 card header controls >= 44 px, the menu at the right edge, no sideways scroll`, header(card), card)
   ok(`${tag} 15 Add emoji visible in the header, 44 px, ~5 px after the time; header one line; avatar 4 px in; time without this year`,
-    Boolean(card && card.emojiBtn && card.emojiBtn.shown && card.emojiBtn.w >= TAP && card.emojiBtn.h >= TAP
-      && card.emojiGap != null && Math.abs(card.emojiGap - 5) <= 2 && card.headerRows === 1 && card.avatarLeft === 4
-      && /^(\d{2}-\d{2} )?\d{2}:\d{2}/.test(card.time) && card.timeTitle.length > card.time.length), card)
+    smile(card), card)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `mobile-messages-${width}.png`) })
   if (!card) return p.close()
+  const picker = () => sheetFacts(p, '[data-testid=emoji-picker]')
+  const pickerSheet = (v) => Boolean(v && v.sheet && Math.abs(v.bottom - v.vh) <= 1 && v.minItem >= TAP)
   /* 16 SPL-1000: a tap on the header's Add emoji opens the picker as a sheet; Back closes it */
   await p.tap(`article.msg[data-msg-id="${card.id}"] [data-testid=msg-emoji-btn]`).catch(() => {})
-  await sleep(350)
-  const hs = await sheetFacts(p, '[data-testid=emoji-picker]')
-  ok(`${tag} 16 the header's Add emoji opens the picker as a bottom sheet (44 px glyphs)`,
-    Boolean(hs && hs.sheet && Math.abs(hs.bottom - hs.vh) <= 1 && hs.minItem >= TAP), hs)
-  if (hs) {
-    await p.goBack().catch(() => {})
-    await sleep(700)
-  }
-  const hsGone = await sheetFacts(p, '[data-testid=emoji-picker]')
+  const hs = await until(picker, pickerSheet)
+  ok(`${tag} 16 the header's Add emoji opens the picker as a bottom sheet (44 px glyphs)`, pickerSheet(hs), hs)
+  if (hs) await p.goBack().catch(() => {})
+  const hsGone = await until(picker, gone, CLOSED)
   ok(`${tag} 17 Back closes that sheet, the page stays`, hsGone === null, hsGone)
 
   /* 19-20 SPL-1007 (owner, topic 70c82b54): a reaction chip is half size (a
@@ -249,22 +264,22 @@ async function phone(browser, width, height) {
      Add-emoji button - one 44 px target (its 44 px square answers a finger)
      that opens the emoji sheet; the header stays one line */
   await p.tap(`article.msg[data-msg-id="${card.id}"] [data-testid=msg-emoji-btn]`).catch(() => {})
-  await sleep(350)
+  await until(picker, pickerSheet)
   await p.tap('[data-testid=emoji-picker] .emoji-picker__glyph').catch(() => {})
-  await sleep(600)
-  const chip = await chipFacts(p, card.id)
+  const pill = (chip) => Boolean(chip && chip.inBtn && chip.pill.h === 22 && chip.font <= 10 && Math.abs(chip.gap - 3) <= 1 && chip.sameLine
+    && chip.btn.w >= TAP && chip.btn.h >= TAP && chip.hit44 && chip.headerRows === 1 && chip.scrollW <= chip.vw
+    && Math.abs(chip.timeGap - 5) <= 2)
+  /* the pick closes the sheet: wait for both, so the next tap lands on the card */
+  const chip = await until(async () => ((await picker()) ? null : chipFacts(p, card.id)), pill)
   ok(`${tag} 19 a reaction chip: 22 px pill, 0.5rem glyph, 3 px after the smile on its line, inside Add emoji (44 px square), header one line`,
-    Boolean(chip && chip.inBtn && chip.pill.h === 22 && chip.font <= 10 && Math.abs(chip.gap - 3) <= 1 && chip.sameLine
-      && chip.btn.w >= TAP && chip.btn.h >= TAP && chip.hit44 && chip.headerRows === 1 && chip.scrollW <= chip.vw
-      && Math.abs(chip.timeGap - 5) <= 2), chip)
+    pill(chip), chip)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `mobile-messages-${width}-chip.png`) })
   await p.tap(`article.msg[data-msg-id="${card.id}"] [data-testid=msg-reaction]`).catch(() => {})
-  await sleep(350)
-  const cs = await sheetFacts(p, '[data-testid=emoji-picker]')
+  const cs = await until(picker, pickerSheet)
   ok(`${tag} 20 a tap on the chips opens the emoji sheet`, Boolean(cs && cs.sheet), cs)
   if (cs) {
     await p.goBack().catch(() => {})
-    await sleep(700)
+    await until(picker, gone, CLOSED)
   }
 
   const url0 = p.url()
@@ -278,21 +293,20 @@ async function phone(browser, width, height) {
   /* the tap may have opened the topic (a clickable card): start again clean */
   await p.goto(server.base + PATH, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(`article.msg[data-msg-id="${card.id}"]`, { timeout: NAV_TIMEOUT })
-  await sleep(300)
-  const again = await cardFacts(p)
+  const again = await until(() => cardFacts(p), Boolean)
 
+  const menu = () => sheetFacts(p, '[data-testid=msg-menu]')
+  const menuSheet = (m) => Boolean(m && m.sheet && m.left === 0 && m.width === m.vw && Math.abs(m.bottom - m.vh) <= 1
+    && m.minItem >= TAP && m.ids[0] === 'msg-menu-reply' && m.ids.includes('msg-menu-react') && m.backdrop)
   await longPress(p, again.x, again.y)
-  const m = await sheetFacts(p, '[data-testid=msg-menu]')
-  ok(`${tag} 3 long press opens the menu as a bottom sheet, 44 px items, Reply first`,
-    Boolean(m && m.sheet && m.left === 0 && m.width === m.vw && Math.abs(m.bottom - m.vh) <= 1
-      && m.minItem >= TAP && m.ids[0] === 'msg-menu-reply' && m.ids.includes('msg-menu-react') && m.backdrop), m)
+  const m = await until(menu, menuSheet)
+  ok(`${tag} 3 long press opens the menu as a bottom sheet, 44 px items, Reply first`, menuSheet(m), m)
   ok(`${tag} 4 the lifting finger did not open the topic`, p.url() === url0, { before: url0, after: p.url() })
   if (SHOTS && m) await p.screenshot({ path: join(SHOTS, `mobile-messages-${width}-sheet.png`) })
 
   /* 5: a tap on the dimmed page, well above the sheet */
   await p.touchscreen.tap(Math.round(again.x), 20)
-  await sleep(300)
-  const closed = await sheetFacts(p, '[data-testid=msg-menu]')
+  const closed = await until(menu, gone, CLOSED)
   ok(`${tag} 5 a tap on the backdrop closes the sheet and opens nothing`,
     closed === null && p.url() === url0, { closed, url: p.url() })
   /* SPL-994: closing it that way stepped back over its history entry */
@@ -300,57 +314,52 @@ async function phone(browser, width, height) {
   ok(`${tag} 11 the backdrop close leaves no overlay entry in history (SPL-994)`, !drift, drift)
 
   await longPress(p, again.x, again.y)
+  await until(menu, Boolean)
   await p.tap('[data-testid=msg-menu-react]').catch(() => {})
-  await sleep(300)
-  const e = await sheetFacts(p, '[data-testid=emoji-picker]')
-  ok(`${tag} 6 Add emoji opens the picker as a sheet with 44 px glyphs`,
-    Boolean(e && e.sheet && Math.abs(e.bottom - e.vh) <= 1 && e.minItem >= TAP), e)
+  const e = await until(picker, pickerSheet)
+  ok(`${tag} 6 Add emoji opens the picker as a sheet with 44 px glyphs`, pickerSheet(e), e)
   /* SPL-994: browser Back closes the emoji sheet (the menu is gone already), page and level stay */
-  const lv0 = await p.evaluate(() => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'))
+  const level = () => p.evaluate(() => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'))
+  const lv0 = await level()
   await p.goBack().catch(() => {})
-  await sleep(700)
-  const eb = await sheetFacts(p, '[data-testid=emoji-picker]')
-  const mb = await sheetFacts(p, '[data-testid=msg-menu]')
-  const lv1 = await p.evaluate(() => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'))
+  /* the hold proves no menu comes back after the picker closed */
+  const b = await until(async () => ({ eb: await picker(), mb: await menu(), url: p.url(), lv1: await level() }),
+    (v) => v.eb === null && v.mb === null, CLOSED)
   ok(`${tag} 12 Back closes the emoji sheet, no menu comes back, URL and level unchanged (SPL-994)`,
-    eb === null && mb === null && p.url() === url0 && lv1 === lv0, { eb, mb, url: p.url(), lv0, lv1 })
+    b.eb === null && b.mb === null && b.url === url0 && b.lv1 === lv0, { ...b, lv0 })
   await longPress(p, again.x, again.y)
+  await until(menu, Boolean)
   await p.goBack().catch(() => {})
-  await sleep(700)
-  const mBack = await sheetFacts(p, '[data-testid=msg-menu]')
+  const mBack = await until(menu, gone, CLOSED)
   ok(`${tag} 13 Back closes the long-press menu, URL unchanged (SPL-994)`, mBack === null && p.url() === url0, { mBack, url: p.url() })
   /* 10: the left panel (level 1) - a row's menu is a bottom sheet too */
   await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await sleep(400)
-  const row = await p.evaluate(() => {
+  const row = await until(() => p.evaluate(() => {
     const b = [...document.querySelectorAll('[data-testid="sidebar-row-menu"]')]
       .find((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.top > 0 && r.bottom < window.innerHeight })
     if (!b) return null
     const r = b.getBoundingClientRect()
     return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
-  })
-  if (row) {
-    await p.touchscreen.tap(row.x, row.y)
-    await sleep(350)
-  }
-  const side = await p.evaluate(() => {
+  }), Boolean)
+  if (row) await p.touchscreen.tap(row.x, row.y)
+  const rowSheet = (side) => Boolean(side && side.sheet && side.inBody && side.width === side.vw
+    && Math.abs(side.bottom - side.vh) <= 1 && side.minItem >= TAP)
+  const side = await until(() => p.evaluate(() => {
     const el = [...document.querySelectorAll('[data-testid="sidebar-row-menu-panel"]')].find((n) => getComputedStyle(n).display !== 'none')
     if (!el) return null
     const r = el.getBoundingClientRect()
     const items = [...el.querySelectorAll('[role=menuitem]')].map((b) => Math.round(b.getBoundingClientRect().height))
     return { sheet: el.classList.contains('touch-sheet'), inBody: el.parentElement === document.body, width: Math.round(r.width), bottom: Math.round(r.bottom), vw: window.innerWidth, vh: window.innerHeight, minItem: items.length ? Math.min(...items) : 0 }
-  })
+  }), rowSheet)
   ok(`${tag} 10 a left-panel row menu: 44 px button, opens a bottom sheet with 44 px items`,
-    Boolean(row && row.w >= TAP && row.h >= TAP && side && side.sheet && side.inBody && side.width === side.vw
-      && Math.abs(side.bottom - side.vh) <= 1 && side.minItem >= TAP), { row, side })
+    Boolean(row && row.w >= TAP && row.h >= TAP && rowSheet(side)), { row, side })
   if (side) {
     await p.goBack().catch(() => {})
-    await sleep(700)
-    const after = await p.evaluate(() => ({
+    const after = await until(() => p.evaluate(() => ({
       open: [...document.querySelectorAll('[data-testid="sidebar-row-menu-panel"]')].some((n) => getComputedStyle(n).display !== 'none'),
       level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level'),
       path: location.pathname,
-    }))
+    })), (v) => !v.open && v.level === '1' && v.path === '/', CLOSED)
     ok(`${tag} 14 Back closes the row-menu sheet, level 1 stays (SPL-994)`, !after.open && after.level === '1' && after.path === '/', after)
   }
   ok(`${tag} no page error`, errors.length === 0, errors)
@@ -362,11 +371,10 @@ async function desktop(browser) {
   await p.setViewport({ width: 1440, height: 900 })
   await p.goto(server.base + PATH, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
-  await sleep(300)
-  const c = await composerFacts(p)
-  ok('1440px 8 composer stays in the top bar (not docked, --composer-dock-h 0)',
-    Boolean(c && !c.docked && c.bottom < 120 && (c.dockVar === '0px' || c.dockVar === '')), c)
-  const card = await cardFacts(p)
+  const topBar = (c) => Boolean(c && !c.docked && c.bottom < 120 && (c.dockVar === '0px' || c.dockVar === ''))
+  const c = await until(() => composerFacts(p), topBar)
+  ok('1440px 8 composer stays in the top bar (not docked, --composer-dock-h 0)', topBar(c), c)
+  const card = await until(() => cardFacts(p), Boolean)
   ok('1440px 18 the desktop time keeps its year (SPL-1000 is phones only)', Boolean(card && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(card.time)), card && card.time)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'mobile-messages-1440.png') })
   /* right-click the card, not a control on it: the header's empty spacer.
@@ -377,8 +385,7 @@ async function desktop(browser) {
     return r && r.width > 4 ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } : null
   }, card.id)
   await p.mouse.click(gap ? gap.x : card.x, gap ? gap.y : card.y, { button: 'right' })
-  await sleep(300)
-  const m = await sheetFacts(p, '[data-testid=msg-menu]')
+  const m = await until(() => sheetFacts(p, '[data-testid=msg-menu]'), Boolean)
   ok('1440px 9 right-click menu is the old popover: no sheet, no Reply; menu button 32 px',
     Boolean(m && !m.sheet && !m.backdrop && !m.ids.includes('msg-menu-reply') && m.ids[0] === 'msg-menu-open'
       && card.menuBtn && card.menuBtn.w === 32 && card.emojiBtn && card.emojiBtn.shown), { m, card })

@@ -119,7 +119,7 @@ _spl_dispatch_with_subs_all() {
 # grant nothing since rdb 0036 and are left out, as ChannelMembers does.
 _spl_dispatch_subs_read() {
   spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v tenant="$1" -v ods="$(spl_dispatch_od_ids)" \
-    -v win="$(spl_dispatch_silence_win)" -v grace="${DISPATCH_SILENCE_GRACE:-5}" <<'SQL'
+    -v rs="^$(spl_dispatch_role_rx)\$" -v win="$(spl_dispatch_silence_win)" -v grace="${DISPATCH_SILENCE_GRACE:-5}" <<'SQL'
 BEGIN READ ONLY;
 SET LOCAL app.tenant_id = :'tenant';
 SELECT 'chan|' || c.channel_id FROM channels c
@@ -137,7 +137,7 @@ SELECT 'sub|' || s.channel_id || '|' || s.box_id || '|' || s.agent_id || '|' || 
  ORDER BY 1;
 SELECT 'ros|' || r.box_id || '|' || r.agent_id FROM roster r
  WHERE r.tenant_id = :'tenant'
-   AND (r.agent_id = ANY (string_to_array(:'ods', ' ')) OR r.agent_id ~ '^[acgmq]-00[1-3]$')
+   AND (r.agent_id = ANY (string_to_array(:'ods', ' ')) OR r.agent_id ~ :'rs')
  ORDER BY 1;
 -- unsigned leaves out a post stored before the live box-wui pin was set: a
 -- post stored before the pin is the replay's (do_spl_replay_unsigned), not a
@@ -207,6 +207,16 @@ spl_dispatch_subscribe_tenant() {
   [[ -n "$unseated" ]] && echo "UNSEATED $t $unseated (no roster row in $t: seat it with do_spl_desk_up; report only)"
   spl_dispatch_inbound "$t" "$data"
   echo "SUM  $t: ${#chans[@]} channel(s), $n_ok already right, $n_add OD seat add(s), $n_leg legacy role row(s) to remove, $n_dead with dead subscriptions, $(wc -w <<<"$unseated") OD seat(s) unseated"
+}
+
+# The role seat RX (SPL_ROLE_SEAT_RX): the ONE list, spool-env.inc.sh's.
+spl_dispatch_role_rx() {
+  if [[ -z "${SPL_ROLE_SEAT_RX:-}" ]]; then
+    # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
+    SPL_ROLE_SEAT_RX="$(source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh" >/dev/null 2>&1
+      printf '%s' "${SPL_ROLE_SEAT_RX:-}")"
+  fi
+  printf '%s' "$SPL_ROLE_SEAT_RX"
 }
 
 # The OD seats: the orchestrator, the master and the failover dispatcher.

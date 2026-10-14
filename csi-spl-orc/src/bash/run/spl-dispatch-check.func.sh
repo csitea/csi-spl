@@ -333,10 +333,11 @@ spl_dispatch_check_tenant() {
 # 2026-10-14: the box whose master is g-002 read the other, which seats c-002,
 # as "unseated: g-002@<box> g-003@<box>" on every workspace (SPL-1756). 1 when none.
 spl_dispatch_seat_on() {
-  local data="$1" box="$2" id="$3" s
+  local data="$1" box="$2" id="$3" rx s
   spl_dispatch_rostered "$data" "$box" "$id" && { echo "$id"; return 0; }
-  [[ "$box" != "$DISPATCH_DESK_BOX" && "$id" =~ ^[acgmq]-(00[1-3])$ ]] || return 1
-  s="$(sed -n "s/^ros|$box|\([acgmq]-${BASH_REMATCH[1]}\)\$/\1/p" <<<"$data" | sed -n 1p)"
+  rx="$(spl_dispatch_role_rx)"
+  [[ "$box" != "$DISPATCH_DESK_BOX" && -n "$rx" && "$id" =~ ^${rx}$ ]] || return 1
+  s="$(sed -n "s/^ros|$box|\(${rx}\)\$/\1/p" <<<"$data" | grep -- "-${id##*-}\$" | sed -n 1p)"
   [[ -n "$s" ]] && echo "$s"
 }
 

@@ -150,7 +150,7 @@ async function withCard(page, vp, theme, route) {
     document.documentElement.setAttribute('data-theme', t)
     try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ }
   }, theme)
-  await sleep(120)
+  await frames(page)
   return measure(page, route)
 }
 
@@ -235,6 +235,24 @@ const OLD_ONE_COLUMN = `.login-front { width: min(760px, 100%) !important }
 .login-front__main { grid-template-columns: minmax(0, 1fr) !important; grid-template-areas: "intro" "hero" "card" !important }
 .login-front__card { width: min(520px, 100%) !important; justify-self: center !important }`
 
+// two animation frames: a style or a scroll made before it is laid out
+const frames = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+
+// LOOK_A_MEASURE once the page rests: two reads a frame apart agree (a
+// desktop's feature cards rise for 0.6 s; a scroll lands at once)
+async function restingMeasure(p) {
+  const t0 = Date.now()
+  let prev = ''
+  while (Date.now() - t0 < NAV_TIMEOUT) {
+    const m = await p.evaluate(new Function('return ' + LOOK_A_MEASURE))
+    const s = JSON.stringify(m)
+    if (s === prev) return m
+    prev = s
+    await p.evaluate(() => new Promise((r) => requestAnimationFrame(r)))
+  }
+  throw new Error(`the page did not come to rest in ${NAV_TIMEOUT} ms`)
+}
+
 async function lookAPage(browser, vp, theme, reduce, prefix = '') {
   const p = await browser.newPage()
   await p.setViewport({ width: vp.width, height: vp.height, isMobile: Boolean(vp.phone), hasTouch: Boolean(vp.phone) })
@@ -288,8 +306,7 @@ async function poweredNarrow(browser) {
     try {
       p = await lookAPage(browser, c, c.theme, false, c.lang === 'en' ? '' : `/${c.lang}`)
       await p.evaluate(() => document.querySelector('[data-test=login-powered-by]')?.scrollIntoView({ block: 'end' }))
-      await sleep(300)
-      const m = await p.evaluate(new Function('return ' + LOOK_A_MEASURE))
+      const m = await restingMeasure(p)
       const pw = poweredBy(m, c.lang)
       if (pw) fail(label, pw)
       else if (m.xScroll) fail(label, 'the page scrolls sideways')
@@ -323,8 +340,7 @@ async function lookA(browser) {
         // the worst case for the overlap: the last demo button at the body's
         // bottom edge, right above the footer row
         await p.evaluate(() => [...document.querySelectorAll('[data-test^=demo-try-]')].pop()?.scrollIntoView({ block: 'end' }))
-        await sleep(300)
-        const m = await p.evaluate(new Function('return ' + LOOK_A_MEASURE))
+        const m = await restingMeasure(p)
         if (m.logo && m.logoLoaded) ok(`${label} logo`)
         else fail(`${label} logo`, `logo not shown (${JSON.stringify(m.logo)}, loaded ${m.logoLoaded})`)
         const col = vp.phone ? oneColumn(m) : twoPanels(m)
@@ -384,8 +400,7 @@ async function lookA(browser) {
     try {
       p = await lookAPage(browser, LOOK_A[1], 'dark', true)
       await p.addStyleTag({ content: OLD_ONE_COLUMN })
-      await sleep(200)
-      const m = await p.evaluate(new Function('return ' + LOOK_A_MEASURE))
+      const m = await restingMeasure(p)
       const col = twoPanels(m)
       if (col) ok(label, `the check fails it: ${col}`)
       else fail(label, 'the two-panel check passed the old one-column layout')
@@ -398,7 +413,7 @@ async function lookA(browser) {
     let p
     try {
       p = await lookAPage(browser, vp, 'dark', true)
-      await sleep(300)
+      await frames(p)
       const r = await p.evaluate(() => ({
         running: document.getAnimations().filter((a) => a.playState === 'running').map((a) => `${a.animationName || a.constructor.name} on ${a.effect?.target?.className || '?'}`),
         posts: [...document.querySelectorAll('[data-test=login-front-post]')].filter((el) => getComputedStyle(el).display !== 'none').map((el) => getComputedStyle(el).opacity),

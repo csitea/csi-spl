@@ -2855,5 +2855,8 @@
     "share_reddit": "Compartir en Reddit",
     "share_substack": "Compartir en Substack",
     "share_email": "Compartir por correo electrónico"
+  },
+  "footer": {
+    "powered_by": "Con tecnología de {link}"
   }
 }

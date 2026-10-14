@@ -69,8 +69,13 @@
         <span>{{ t('build.newer_live', { commit: newerLive }) }}</span>
         <button type="button" class="status-strip__reload" @click="reloadForBuild(buildWatch.live)">{{ t('build.reload') }}</button>
       </span>
-      <!-- spec 065 L6: the desktop card's "Release notes", the same modal -->
-      <button type="button" class="status-strip__reload" data-test="status-strip-version-notes" @click="openReleaseNotes">{{ t('release_notes.open') }}</button>
+      <!-- SPL-1787: as on the desktop card, "Powered by Csitea" left, the
+           Release notes right -->
+      <span class="status-strip__foot" data-test="status-strip-version-foot">
+        <PoweredBy class="status-strip__powered" />
+        <!-- spec 065 L6: the desktop card's "Release notes", the same modal -->
+        <button type="button" class="status-strip__reload" data-test="status-strip-version-notes" @click="openReleaseNotes">{{ t('release_notes.open') }}</button>
+      </span>
     </div>
   </footer>
   <!-- outside the strip: it unmounts while the keyboard is up (the filter box) -->
@@ -81,6 +86,7 @@
 import NotificationCenter from '@/components/NotificationCenter.vue'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
 import LastDataClock from '@/components/LastDataClock.vue'
+import PoweredBy from '@/components/PoweredBy.vue'
 import { useLive } from '~/composables/useLive'
 import { useCopyText } from '~/composables/useCopyText'
 import { useKeyboardInset } from '~/composables/useTouchUi'
@@ -260,5 +266,8 @@ onBeforeUnmount(() => {
 }
 .status-strip__meta { color: var(--color-muted); overflow-wrap: anywhere; }
 .status-strip__newer { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; color: var(--color-warn); }
+/* SPL-1787: one row, powered-by at the start, Release notes at the end */
+.status-strip__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.status-strip__powered { color: var(--color-muted); }
 .status-strip__reload { font: inherit; color: var(--color-accent); background: none; border: 0; min-height: 44px; text-decoration: underline; cursor: pointer; }
 </style>

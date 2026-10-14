@@ -94,6 +94,12 @@
       <!-- spec 116-T5: the links row (its own chunk, still in the prerendered HTML) -->
       <LazyLoginLinks />
     </div>
+    <!-- SPL-1787 (owner HUM-10, t1 03fc4a65): "Powered by Csitea" at the
+         foot of the sign-in page, muted and small, the same link as the
+         version pop-up's -->
+    <footer class="login-front__powered" data-test="login-powered-by">
+      <PoweredBy />
+    </footer>
   </div>
 </template>
 
@@ -102,6 +108,7 @@ import { hintedProvider, loginHintOf, safeRedirect } from '~/utils/auth-client.m
 import SocialAuthButtons from '~/components/SocialAuthButtons.vue'
 import NativeAuthForm from '~/components/NativeAuthForm.vue'
 import ChangePasswordForm from '~/components/ChangePasswordForm.vue'
+import PoweredBy from '~/components/PoweredBy.vue'
 import { useSessionStore } from '~/stores/session'
 import { hostTenant, useSpoolApi } from '~/composables/useSpoolApi'
 import { useSettledQuery } from '~/composables/useSettledQuery'
@@ -299,6 +306,15 @@ if (earlyLogin) {
 }
 .login-front__more { width: 100%; min-width: 0; }
 .login-front__more:empty { display: none; }
+/* SPL-1787: the powered-by line, muted small text, centred at the bottom */
+.login-front__powered {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
 
 /* The compact sign-in card (C2, C3; the owner, HUM-10 cc7c952a: the buttons
    "much much smaller"): the same components in the same order, sized down. */

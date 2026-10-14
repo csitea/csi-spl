@@ -2855,5 +2855,8 @@
     "share_reddit": "Споделяне в Reddit",
     "share_substack": "Споделяне в Substack",
     "share_email": "Споделяне по имейл"
+  },
+  "footer": {
+    "powered_by": "Разработено от {link}"
   }
 }

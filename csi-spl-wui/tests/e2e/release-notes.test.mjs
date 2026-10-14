@@ -64,6 +64,10 @@
 //   12c the version band sticks at the top of the scrolled list
 //   12d no horizontal overflow; a tap on the row (beside the title) opens it
 //   12e control: the time elements removed -> the 12a check fails
+// SPL-1787 (owner HUM-10, t1 03fc4a65 msg 833bccea): the version card shows
+// "Powered by Csitea" on the LEFT of the Release notes button, one row, the
+// Csitea link https://csitea.net in a new tab, on desktop and phone
+//   0a/0b, control 0c: the line removed -> the 0a check fails
 // and no horizontal overflow in the modal, no page error.
 //
 // Run:
@@ -240,11 +244,23 @@ const phoneFacts = (p) => p.evaluate(() => {
 })
 const phoneTimesOk = (ph) => ph.heads === 0 && ph.bands.length > 0 && ph.bands.every(Boolean) && ph.rows.length === 30 && ph.rows.every((r) => r.time)
 
-async function openFromCard(p, vp) {
+/* SPL-1787: the powered-by line beside the open card's Release notes button */
+const poweredFacts = (p, vp) => p.evaluate((notesSel) => {
+  const notes = [...document.querySelectorAll(notesSel)].find((x) => x.getClientRects().length)
+  const a = notes?.parentElement?.querySelector('a[data-test=footer-csitea-link]')
+  if (!notes || !a) return null
+  const ra = a.getBoundingClientRect()
+  const rn = notes.getBoundingClientRect()
+  return { text: a.closest('[data-test=powered-by]')?.textContent.replace(/\s+/g, ' ').trim() || '', href: a.getAttribute('href'), target: a.getAttribute('target'), rel: a.getAttribute('rel') || '', left: ra.right <= rn.left + 1, oneRow: Math.abs((ra.top + ra.bottom) / 2 - (rn.top + rn.bottom) / 2) <= 4 }
+}, vp.mobile ? '[data-test=status-strip-version-notes]' : '[data-test=app-version-notes]')
+const poweredOk = (w) => Boolean(w && w.text === 'Powered by Csitea' && w.href === 'https://csitea.net' && w.target === '_blank' && /noopener/.test(w.rel) && w.left && w.oneRow)
+
+async function openFromCard(p, vp, inspect) {
   if (vp.mobile) {
     await until(p, () => Boolean(document.querySelector('[data-test=status-strip-version]')), null, 15000)
     await press(p, vp, '[data-test=status-strip-version]')
     await until(p, () => Boolean(document.querySelector('[data-test=status-strip-version-notes]')), null, 3000)
+    if (inspect) await inspect()
     return press(p, vp, '[data-test=status-strip-version-notes]')
   }
   await p.click('[data-test=app-version-wrap]').catch(() => null)
@@ -252,6 +268,7 @@ async function openFromCard(p, vp) {
     const b = document.querySelector('[data-test=app-version-notes]')
     return Boolean(b && getComputedStyle(b.closest('[data-test=app-version-card]')).visibility === 'visible')
   }, null, 3000)
+  if (inspect) await inspect()
   return press(p, vp, '[data-test=app-version-notes]')
 }
 
@@ -276,8 +293,29 @@ try {
     await signIn(p)
     await sleep(800)
 
-    /* 1 the button opens the modal */
-    ok(`${vp.name} 1a the version card has a "Release notes" button`, await openFromCard(p, vp))
+    /* 0 SPL-1787: "Powered by Csitea" left of Release notes, then 1 the button opens the modal */
+    let pw = null
+    const opener = await openFromCard(p, vp, async () => {
+      pw = await poweredFacts(p, vp)
+      ok(`${vp.name} 0a the card shows "Powered by Csitea" left of Release notes, one row`, poweredOk(pw), pw)
+      ok(`${vp.name} 0b Csitea links https://csitea.net in a new tab`, pw?.href === 'https://csitea.net' && pw?.target === '_blank', pw && { href: pw.href, target: pw.target })
+      if (SHOT_DIR) { mkdirSync(SHOT_DIR, { recursive: true }); await p.screenshot({ path: `${SHOT_DIR}/version-popup-powered-by-${vp.mobile ? 'phone' : 'desktop'}-${vp.name}.png` }) }
+      /* control: the line gone -> the 0a check must fail */
+      /* detached and put back, so Vue's DOM is whole again for the press */
+      await p.evaluate(() => {
+        const el = [...document.querySelectorAll('[data-test=powered-by]')].find((x) => x.getClientRects().length)
+        if (!el) return
+        window.__poweredCtl = { el, parent: el.parentElement, next: el.nextSibling }
+        el.remove()
+      })
+      const ctl = await poweredFacts(p, vp)
+      await p.evaluate(() => {
+        const c = window.__poweredCtl
+        if (c) c.parent.insertBefore(c.el, c.next)
+      })
+      ok(`${vp.name} 0c control: the line removed -> 0a fails`, !poweredOk(ctl), ctl)
+    })
+    ok(`${vp.name} 1a the version card has a "Release notes" button`, opener)
     const opened = await until(p, () => document.querySelectorAll('[data-test=release-version]').length > 0, null, 10000)
     const f = await listFacts(p)
     ok(`${vp.name} 1b it opens the release notes modal`, opened && f.open && f.title === 'Release notes', { title: f.title })

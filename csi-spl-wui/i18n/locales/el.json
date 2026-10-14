@@ -2855,5 +2855,8 @@
     "share_reddit": "Κοινοποίηση στο Reddit",
     "share_substack": "Κοινοποίηση στο Substack",
     "share_email": "Κοινοποίηση μέσω email"
+  },
+  "footer": {
+    "powered_by": "Με τεχνολογία {link}"
   }
 }

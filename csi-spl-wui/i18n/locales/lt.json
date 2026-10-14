@@ -2855,5 +2855,8 @@
     "share_reddit": "Bendrinti per Reddit",
     "share_substack": "Bendrinti per Substack",
     "share_email": "Bendrinti el. paštu"
+  },
+  "footer": {
+    "powered_by": "Naudojama {link}"
   }
 }

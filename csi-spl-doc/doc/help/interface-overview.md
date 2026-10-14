@@ -117,7 +117,7 @@ At the bottom of the Left Pane:
   - 🟡 **Reconnecting**: Temporary network drop; Spool is automatically attempting exponential backoff reconnection.
   - 🔴 **Disconnected**: Network unreachable or session expired.
 - **Notification Center**: Quick access to mention badges, alerts, and unread counts.
-- **Version Stamp**: The deployed application version. Click it for the commit and **Release notes**, the list of every version and the note on each commit. The address `/releases/<ref>` opens that same list on one version or one commit. See [Release notes](./release-notes.md).
+- **Version Stamp**: The deployed application version. Click it for the commit and **Release notes**, the list of every version and the note on each commit. The same card shows **Powered by Csitea** on the left; Csitea opens the csitea.net site in a new tab. The sign-in page shows that line at its foot. The address `/releases/<ref>` opens that same list on one version or one commit. See [Release notes](./release-notes.md).
 
 ---
 

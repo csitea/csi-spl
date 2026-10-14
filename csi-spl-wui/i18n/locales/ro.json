@@ -2855,5 +2855,8 @@
     "share_reddit": "Distribuie pe Reddit",
     "share_substack": "Distribuie pe Substack",
     "share_email": "Distribuie prin e-mail"
+  },
+  "footer": {
+    "powered_by": "Realizat cu {link}"
   }
 }

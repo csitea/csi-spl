@@ -2855,5 +2855,8 @@
     "share_reddit": "Zdieľať na Reddit",
     "share_substack": "Zdieľať na Substack",
     "share_email": "Zdieľať cez e-mail"
+  },
+  "footer": {
+    "powered_by": "Poháňa {link}"
   }
 }

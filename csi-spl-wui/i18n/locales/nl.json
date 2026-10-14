@@ -2855,5 +2855,8 @@
     "share_reddit": "Delen op Reddit",
     "share_substack": "Delen op Substack",
     "share_email": "Delen via e-mail"
+  },
+  "footer": {
+    "powered_by": "Mogelijk gemaakt door {link}"
   }
 }

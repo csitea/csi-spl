@@ -682,8 +682,13 @@
               <span>{{ t('build.newer_live', { commit: newerLive }) }}</span>
               <button type="button" class="vs-pop__reload" data-test="app-version-reload" @click.stop="reloadForBuild(buildWatch.live)">{{ t('build.reload') }}</button>
             </span>
-            <!-- spec 065 L6: every version and its commits' notes, one modal -->
-            <button type="button" class="vs-pop__reload" data-test="app-version-notes" @click.stop="releaseNotesOpen = true">{{ t('release_notes.open') }}</button>
+            <!-- SPL-1787 (owner HUM-10, t1 03fc4a65 msg 833bccea): "Powered by
+                 Csitea" on the left, the Release notes on the right -->
+            <span class="vs-pop__foot" data-test="app-version-foot">
+              <PoweredBy class="vs-pop__powered" />
+              <!-- spec 065 L6: every version and its commits' notes, one modal -->
+              <button type="button" class="vs-pop__reload" data-test="app-version-notes" @click.stop="releaseNotesOpen = true">{{ t('release_notes.open') }}</button>
+            </span>
           </span>
         </span>
         <!-- owner, t1 be316fdc: the last-updated clock right of the version, at
@@ -740,6 +745,7 @@ import { useLive } from '~/composables/useLive'
 import { withDmPeers } from '~/utils/live-follow.mjs'
 import HumanName from '~/components/HumanName.vue'
 import LastDataClock from '~/components/LastDataClock.vue'
+import PoweredBy from '~/components/PoweredBy.vue'
 import { useClockHost } from '~/composables/useClockHost'
 import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
@@ -2133,6 +2139,9 @@ async function onCreate() {
 .foot-row .vs-pop__meta { color: var(--color-muted); overflow-wrap: anywhere; }
 /* SPL-1006: a newer build is live than the one this tab runs */
 .foot-row .vs-pop__newer { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; color: var(--color-warn); overflow-wrap: anywhere; }
+/* SPL-1787: one row, powered-by at the start, Release notes at the end */
+.foot-row .vs-pop__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.foot-row .vs-pop__powered { color: var(--color-muted); }
 .foot-row .vs-pop__reload { font: inherit; color: var(--color-accent); background: none; border: 0; padding: 0.25rem 0; text-decoration: underline; cursor: pointer; }
 @media (pointer: coarse) { .foot-row .vs-pop__reload { min-height: 44px; } }
 /* em, so the font-size setting still scales both; the muted colour of

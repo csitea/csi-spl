@@ -2855,5 +2855,8 @@
     "share_reddit": "Jaga Redditis",
     "share_substack": "Jaga Substackis",
     "share_email": "Jaga e-posti teel"
+  },
+  "footer": {
+    "powered_by": "Teostus: {link}"
   }
 }

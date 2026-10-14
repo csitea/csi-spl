@@ -2855,5 +2855,8 @@
     "share_reddit": "Dela på Reddit",
     "share_substack": "Dela på Substack",
     "share_email": "Dela via e-post"
+  },
+  "footer": {
+    "powered_by": "Drivs av {link}"
   }
 }

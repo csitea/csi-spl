@@ -2855,5 +2855,8 @@
     "share_reddit": "Поділитися на Reddit",
     "share_substack": "Поділитися на Substack",
     "share_email": "Поділитися електронною поштою"
+  },
+  "footer": {
+    "powered_by": "Розроблено {link}"
   }
 }

@@ -2855,5 +2855,8 @@
     "share_reddit": "Kopīgot Reddit",
     "share_substack": "Kopīgot Substack",
     "share_email": "Kopīgot pa e-pastu"
+  },
+  "footer": {
+    "powered_by": "Darbina {link}"
   }
 }

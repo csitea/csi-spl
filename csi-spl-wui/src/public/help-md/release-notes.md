@@ -11,7 +11,8 @@ as trailers; the hub reads them into the release notes table the WUI shows.
 ## Reading them in the app
 
 Click the version at the bottom of the left pane. On a phone it is on the
-status strip. Choose **Release notes**.
+status strip. Choose **Release notes**, on the right of the card's last
+row (**Powered by Csitea** is on its left).
 
 The dialog is one table of the 30 latest changes, newest first, already
 open: nothing to expand. **Load older versions** at the end of the table

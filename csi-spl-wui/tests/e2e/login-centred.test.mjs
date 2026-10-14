@@ -37,6 +37,11 @@
 // no sideways scroll, choosing a theme sets html[data-theme], and a reload
 // keeps it, already on <html> when <body> is parsed (the early head script: no
 // dark flash before the app runs).
+// SPL-1787 (owner HUM-10, t1 03fc4a65): "Powered by Csitea" at the foot of
+// /login, in the served HTML, below the links row, centred, muted small text,
+// the Csitea link https://csitea.net in a new tab, at every look A size, at
+// 320 and 360 px and in he (RTL) with no sideways scroll; the control drops
+// the footer and the check must FAIL.
 //   SHOT_DIR=/var/tmp/x ... also writes a screenshot per look A case
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
@@ -176,9 +181,32 @@ const LOOK_A_MEASURE = `(() => {
     linksRows: document.querySelectorAll('[data-test=login-links]').length,
     links: [...document.querySelectorAll('[data-test^=login-link-]')].filter(shown).map((a) => ({ test: a.dataset.test, href: a.getAttribute('href'), target: a.getAttribute('target'), ...box(a) })),
     xScroll: document.documentElement.scrollWidth > window.innerWidth + 1,
+    // SPL-1787: the powered-by footer and its Csitea link
+    powered: (() => {
+      const f = document.querySelector('[data-test=login-powered-by]')
+      const a = f?.querySelector('a[data-test=footer-csitea-link]')
+      if (!f || !a || !shown(a)) return null
+      const front = box(document.querySelector('[data-test=login-front]'))
+      return { foot: box(f), link: box(a), line: box(f.querySelector('[data-test=powered-by]')), text: f.textContent.replace(/\\s+/g, ' ').trim(), href: a.getAttribute('href'), target: a.getAttribute('target'), rel: a.getAttribute('rel') || '', size: parseFloat(getComputedStyle(f).fontSize), root: parseFloat(getComputedStyle(document.documentElement).fontSize), mid: front ? (front.l + front.r) / 2 : -1, dir: document.documentElement.getAttribute('dir') || 'ltr' }
+    })(),
   }
 })()`
 const hits = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b
+// SPL-1787: the powered-by line at the foot, centred, small, the link. '' = ok.
+const POWERED_TEXT = { en: 'Powered by Csitea', he: 'מופעל על ידי Csitea' }
+const poweredBy = (m, lang = 'en') => {
+  const w = m.powered
+  if (!w) return 'no footer-csitea-link shown'
+  if (w.href !== 'https://csitea.net') return `href ${w.href}, want https://csitea.net`
+  if (w.target !== '_blank' || !/noopener/.test(w.rel)) return `target ${w.target} rel ${w.rel}, want _blank + noopener`
+  if (w.text !== POWERED_TEXT[lang]) return `text "${w.text}", want "${POWERED_TEXT[lang]}"`
+  if (m.linksRow && w.foot.t < m.linksRow.b - 1) return `footer top ${w.foot.t} above the links row bottom ${m.linksRow.b}`
+  const lineMid = w.line ? (w.line.l + w.line.r) / 2 : -999
+  if (Math.abs(lineMid - w.mid) > TOL) return `line centre ${lineMid.toFixed(1)} off the page centre ${w.mid.toFixed(1)} (tol ${TOL})`
+  if (!(w.size < w.root)) return `font ${w.size} px, want smaller than the root ${w.root} px`
+  if (lang === 'he' && w.dir !== 'rtl') return `dir ${w.dir}, want rtl`
+  return ''
+}
 // One column: the card under the channel, centred with the headline. '' = ok.
 const oneColumn = (m) => {
   if (!m.hero || !m.card || !m.slogan) return 'no hero, card or headline'
@@ -207,7 +235,7 @@ const OLD_ONE_COLUMN = `.login-front { width: min(760px, 100%) !important }
 .login-front__main { grid-template-columns: minmax(0, 1fr) !important; grid-template-areas: "intro" "hero" "card" !important }
 .login-front__card { width: min(520px, 100%) !important; justify-self: center !important }`
 
-async function lookAPage(browser, vp, theme, reduce) {
+async function lookAPage(browser, vp, theme, reduce, prefix = '') {
   const p = await browser.newPage()
   await p.setViewport({ width: vp.width, height: vp.height, isMobile: Boolean(vp.phone), hasTouch: Boolean(vp.phone) })
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: reduce ? 'reduce' : 'no-preference' }])
@@ -236,10 +264,46 @@ async function lookAPage(browser, vp, theme, reduce) {
   })
   p.pageErrors = []
   p.on('pageerror', (e) => p.pageErrors.push(String(e).slice(0, 160)))
-  await p.goto(`${SERVER}/login?redirect=%2F`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.goto(`${SERVER}${prefix}/login?redirect=%2F`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
   await p.waitForSelector('[data-test^=demo-try-]', { visible: true, timeout: NAV_TIMEOUT })
   return p
+}
+
+// SPL-1787: the narrow phones and RTL, then the control (no footer -> FAIL)
+async function poweredNarrow(browser) {
+  try {
+    const html = await (await fetch(`${SERVER}/login`)).text()
+    if (/data-test="footer-csitea-link"/.test(html)) ok('/login HTML powered by', 'footer-csitea-link in the served HTML')
+    else fail('/login HTML powered by', 'footer-csitea-link not in the served HTML')
+  } catch (e) { fail('/login HTML powered by', e.message) }
+  const CASES = [
+    { name: '320x640', width: 320, height: 640, phone: true, lang: 'en', theme: 'dark' },
+    { name: '360x740', width: 360, height: 740, phone: true, lang: 'en', theme: 'light' },
+    { name: '360x740', width: 360, height: 740, phone: true, lang: 'he', theme: 'dark' },
+  ]
+  for (const c of CASES) {
+    const label = `powered by ${c.lang} ${c.theme} ${c.name}`
+    let p
+    try {
+      p = await lookAPage(browser, c, c.theme, false, c.lang === 'en' ? '' : `/${c.lang}`)
+      await p.evaluate(() => document.querySelector('[data-test=login-powered-by]')?.scrollIntoView({ block: 'end' }))
+      await sleep(300)
+      const m = await p.evaluate(new Function('return ' + LOOK_A_MEASURE))
+      const pw = poweredBy(m, c.lang)
+      if (pw) fail(label, pw)
+      else if (m.xScroll) fail(label, 'the page scrolls sideways')
+      else ok(label, `"${m.powered.text}", ${m.powered.dir}, no sideways scroll`)
+      if (SHOT_DIR) await p.screenshot({ path: join(SHOT_DIR, `login-powered-by-${c.lang}-${c.theme}-${c.name}.png`) })
+      if (c === CASES[0]) {
+        await p.evaluate(() => document.querySelector('[data-test=login-powered-by]')?.remove())
+        const ctl = poweredBy(await p.evaluate(new Function('return ' + LOOK_A_MEASURE)))
+        if (ctl) ok(`${label} control`, `the check fails it: ${ctl}`)
+        else fail(`${label} control`, 'the check passed with the footer removed')
+      }
+    } catch (e) { fail(label, e.message) }
+    finally { await p?.close().catch(() => {}) }
+  }
 }
 
 async function lookA(browser) {
@@ -279,6 +343,9 @@ async function lookA(browser) {
           if (over.length) fail(`${label} overlap`, over.join(', '))
           else ok(`${label} overlap`, `${m.links.length} links clear of ${m.demo.length} demo buttons`)
         }
+        const pw = poweredBy(m)
+        if (pw) fail(`${label} powered by`, pw)
+        else ok(`${label} powered by`, 'Csitea link centred at the foot, new tab')
         const errs = [...p.pageErrors, ...await p.evaluate(() => window.__loginDomErrors || [])]
         if (errs.length) fail(`${label} errors`, errs.join(' | '))
         else ok(`${label} errors`, 'no page or DOM insert error')
@@ -464,6 +531,7 @@ async function themePicker(browser) {
       } catch (e) { fail(label, e.message) }
     }
     await lookA(browser)
+    await poweredNarrow(browser)
     await themePicker(browser)
   } finally {
     await browser.close().catch(() => {})

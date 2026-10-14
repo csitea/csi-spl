@@ -2855,5 +2855,8 @@
     "share_reddit": "Jaa Redditissä",
     "share_substack": "Jaa Substackissa",
     "share_email": "Jaa sähköpostitse"
+  },
+  "footer": {
+    "powered_by": "Toteutus: {link}"
   }
 }

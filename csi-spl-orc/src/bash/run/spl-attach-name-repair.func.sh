@@ -65,12 +65,12 @@ _spl_anr_tenants() {
 
 # _spl_anr_tenant <tenant> <box> <dry>: one workspace, end to end.
 _spl_anr_tenant() {
-  local tenant="$1" box="$2" dry="$3" d="$SPL_STATE_DIR/desk/$1/$2" rows id n out res left="" flag=()
+  local tenant="$1" box="$2" dry="$3" d="$SPL_STATE_DIR/desk/$1/$2" rows id out res left="" flag=()
   (( dry )) && flag=(--dry-run)
   rows="$(spl_via_proxy _spl_anr_candidates_run "$tenant" "$box")" ||
     { do_log "FATAL listing the hash-named files of $box in $tenant failed"; return 1; }
   res="$(mktemp)" || return 1
-  while read -r id n; do
+  while read -r id _; do
     [[ -n "$id" ]] || continue
     if out="$(spl_desk_spool "$d" "$box" "$tenant" "$SPL_HUB_URL" -- attach-rename --msg-id "$id" "${flag[@]}" 2>&1)"; then
       printf '%s\n' "$out" | tail -n 1 >>"$res"

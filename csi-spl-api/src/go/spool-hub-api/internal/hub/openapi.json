@@ -7238,6 +7238,30 @@
         ]
       }
     },
+    "/v1/operator/attachment-names/repair": {
+      "post": {
+        "operationId": "postOperatorAttachmentNamesRepair",
+        "responses": {
+          "200": {
+            "description": "OK: per-workspace counts (found, live_box, messages, renamed, unknown, by_type, samples, failed, more); contract spec 032 section 10.3a"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Name the sha-named attachments of a revoked box (SPL-1808)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/calendar/events": {
       "post": {
         "operationId": "postOperatorCalendarEvents",

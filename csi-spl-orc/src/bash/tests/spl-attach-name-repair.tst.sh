@@ -20,7 +20,7 @@ fails=0
 
 orc_stub 1 gcloud curl docker cloud-sql-proxy spool tmux
 for t in t1 csitea; do mkdir -p "$T/state/dev/desk/$t/sat/spool"; echo pub >"$T/state/dev/desk/$t/sat/pinned"; done
-mkdir -p "$T/state/dev/desk/leiden/tnk"; echo pub >"$T/state/dev/desk/leiden/tnk/pinned"
+mkdir -p "$T/state/dev/desk/leiden/box2"; echo pub >"$T/state/dev/desk/leiden/box2/pinned"
 
 H=$(printf 'a%.0s' {1..64}); U=$(printf 'b%.0s' {1..64})
 # Seven messages, each with one hash-named png, and one with an unknown blob.
@@ -87,7 +87,7 @@ line="$(grep '^{' "$T/o")"
 run
 [[ $rc -eq 0 && "$(grep '^{' "$T/o" | python3 -c 'import json,sys; print(" ".join(json.loads(l)["tenant"] for l in sys.stdin))')" == "csitea t1" ]] &&
   ! grep -q '^leiden|' "$T/calls" &&
-  pass "default: every workspace with a pinned sat desk (csitea t1), not tnk's" || fail "default tenants (rc=$rc): $(cat "$T/o")"
+  pass "default: every workspace with a pinned sat desk (csitea t1), not box2's" || fail "default tenants (rc=$rc): $(cat "$T/o")"
 
 # --- 6. the query ---------------------------------------------------------------------
 grep -q 'default_transaction_read_only=on' "$T/sql" && grep -q 'BEGIN TRANSACTION READ ONLY' "$T/sql" &&

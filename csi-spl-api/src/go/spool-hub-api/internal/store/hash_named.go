@@ -49,6 +49,7 @@ func hasHashNamed(files []byte) bool {
 	return false
 }
 
+// HashNamedCarriers lists the msg_ids that carry a sha-named file (HashNamedFiles).
 func (s *Memory) HashNamedCarriers(_ context.Context, tenant string, now time.Time, limit int) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -69,6 +70,7 @@ func (s *Memory) HashNamedCarriers(_ context.Context, tenant string, now time.Ti
 	return out, nil
 }
 
+// HashNamedCarriers lists the msg_ids that carry a sha-named file (HashNamedFiles).
 func (s *Postgres) HashNamedCarriers(ctx context.Context, tenant string, now time.Time, limit int) ([]string, error) {
 	out := []string{}
 	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text FROM messages m

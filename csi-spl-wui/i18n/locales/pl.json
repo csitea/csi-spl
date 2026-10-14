@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Ta dyskusja już nie istnieje",
     "body": "Została usunięta, więc nie można jej otworzyć. Zgłoszenie zachowuje pozostałe dyskusje; jeśli była ostatnia, zgłoszenie jest teraz połączone z domyślną dyskusją przestrzeni roboczej.",
-    "topic": "Temat {id}",
-    "back": "Wróć do {key}",
-    "back_issues": "Wróć do zgłoszeń"
+    "topic": "Temat {id}"
   }
 }

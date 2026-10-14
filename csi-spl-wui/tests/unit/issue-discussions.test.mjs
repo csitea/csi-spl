@@ -6,7 +6,7 @@
 // Run: node tests/unit/issue-discussions.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -32,13 +32,14 @@ describe('discussionRef reads what a member pastes', () => {
   })
 })
 
-describe('a link opens its topic, a deleted one the "no longer exists" page', () => {
+describe('a link opens its topic, a deleted one the "no longer exists" note in place', () => {
   it('live and archived open /t/<id>', () => {
-    assert.equal(discussionPath({ task_id: LIVE, state: 'live' }, 'SPL-9'), `/t/${LIVE}`)
-    assert.equal(discussionPath({ task_id: LIVE, state: 'archived' }, 'SPL-9'), `/t/${LIVE}`)
+    assert.equal(discussionPath({ task_id: LIVE, state: 'live' }), `/t/${LIVE}`)
+    assert.equal(discussionPath({ task_id: LIVE, state: 'archived' }), `/t/${LIVE}`)
   })
-  it('gone opens /discussion-gone with the topic and the issue', () => {
-    assert.equal(discussionPath({ task_id: LIVE, state: 'gone' }, 'SPL-9'), `/discussion-gone?topic=${LIVE}&issue=SPL-9`)
+  it('no route of its own for a deleted one: a route record ships in the initial JS (ci_initial_gzip_kb)', () => {
+    assert.ok(!existsSync(join(WUI, 'src/pages/discussion-gone.vue')))
+    assert.match(src('src/components/IssueDiscussions.vue'), /data-test="discussion-gone"/)
   })
   it('normalizes the hub rows, a list row reading as live', () => {
     const ds = normalizeDiscussions([{ task_id: LIVE }, { task_id: '' }, null, { task_id: LOBBY, state: 'gone', title: 'x' }])
@@ -89,6 +90,5 @@ describe('the WUI sends discussions on every create', () => {
   })
   it('no inline :style in the section (CSP)', () => {
     assert.doesNotMatch(src('src/components/IssueDiscussions.vue'), /:style=/)
-    assert.doesNotMatch(src('src/pages/discussion-gone.vue'), /:style=/)
   })
 })

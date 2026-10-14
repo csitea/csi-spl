@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Deze bespreking bestaat niet meer",
     "body": "Ze is verwijderd en kan dus niet worden geopend. De kwestie houdt haar andere besprekingen; was dit de laatste, dan is de kwestie nu gekoppeld aan de standaardbespreking van de werkruimte.",
-    "topic": "Onderwerp {id}",
-    "back": "Terug naar {key}",
-    "back_issues": "Terug naar kwesties"
+    "topic": "Onderwerp {id}"
   }
 }

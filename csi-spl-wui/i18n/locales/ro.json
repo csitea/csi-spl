@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Această discuție nu mai există",
     "body": "A fost ștearsă, deci nu poate fi deschisă. Problema își păstrează celelalte discuții; dacă aceasta era ultima, problema este acum asociată discuției implicite a spațiului de lucru.",
-    "topic": "Tema {id}",
-    "back": "Înapoi la {key}",
-    "back_issues": "Înapoi la probleme"
+    "topic": "Tema {id}"
   }
 }

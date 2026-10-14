@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Šī diskusija vairs nepastāv",
     "body": "Tā tika dzēsta, tāpēc to nevar atvērt. Problēma saglabā pārējās diskusijas; ja šī bija pēdējā, problēma tagad ir piesaistīta darbvietas noklusējuma diskusijai.",
-    "topic": "Tēma {id}",
-    "back": "Atpakaļ uz {key}",
-    "back_issues": "Atpakaļ uz problēmām"
+    "topic": "Tēma {id}"
   }
 }

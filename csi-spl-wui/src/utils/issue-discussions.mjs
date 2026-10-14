@@ -56,17 +56,11 @@ export function shortTopic(id) {
 }
 
 /**
- * Where a link opens: the topic page, or for a deleted discussion the page
- * that says it no longer exists (the issue it came from rides along).
- * @param {{ task_id: string, state: string }} d
- * @param {string} issueKey
+ * Where a link opens: the topic page. A deleted discussion opens no page:
+ * the panel says it no longer exists, in place.
+ * @param {{ task_id: string }} d
  */
-export function discussionPath(d, issueKey = '') {
-  if (d.state === 'gone') {
-    const q = new URLSearchParams({ topic: d.task_id })
-    if (issueKey) q.set('issue', issueKey)
-    return `/discussion-gone?${q.toString()}`
-  }
+export function discussionPath(d) {
   return `/t/${d.task_id}`
 }
 

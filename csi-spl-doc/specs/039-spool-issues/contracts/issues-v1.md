@@ -142,7 +142,7 @@ description line only).
 - Remove: the last one is refused, `last_discussion` 409.
 - The WUI (SPL-1593): a "Discussions" section in the issue's bottom panel,
   above the comment box, lists them (each opens its topic; an archived one
-  is marked and opens; a deleted one opens `/discussion-gone`), links one
+  is marked and opens; a deleted one opens a "no longer exists" note in place, no route of its own), links one
   (a pasted topic link or id) and unlinks one (never the last). A new issue
   starts linked to `default_discussion`; a subtask links its parent's; "make
   an issue" from a message links that message's topic.

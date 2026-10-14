@@ -1,18 +1,19 @@
 // SPL-1593 (owner HUM-10, t1 topic fcf09921, msgs 3e75e13e, 9a8e4764,
 // 28b479fd): every issue links to one or more discussions, listed in the
 // issue's bottom panel above the comment box, each one a click away; a
-// deleted one opens the "no longer exists" page.
+// deleted one opens the "no longer exists" note in place.
 //
 // In a real browser on the mock tenant, desktop (1440 px) and phone (390 px):
 //   1 SPL-1 (the mock seed links a live topic and a deleted one) shows both in
 //     the Discussions section, above the comment box, the live one by its title
 //   2 a click on the live one opens its topic (/t/<id>, the thread on screen)
-//   3 a click on the deleted one opens /discussion-gone, which links back to SPL-1
+//   3 a click on the deleted one opens the "no longer exists" note in the panel,
+//     the page stays on SPL-1; Close shuts it
 //   4 (desktop) a new issue starts linked to the workspace's default
 //     discussion and is created with it; its panel then lists it
 //   5 no page errors
 // CONTROL: before SPL-1593 the issue view had no [data-test=issue-discussions]
-// and no /discussion-gone page, so 1-4 fail.
+// and no "no longer exists" note, so 1-4 fail.
 //
 // Run:
 //   node tests/e2e/issue-discussions.test.mjs
@@ -73,7 +74,7 @@ async function openSpl1(p, base) {
 /* click a link inside the section's row for task, scrolled into view */
 const clickRow = (p, state) => p.evaluate((sec, row, state) => {
   const r = [...document.querySelectorAll(`${sec} ${row}`)].find((x) => x.dataset.state === state)
-  const a = r && r.querySelector('a')
+  const a = r && r.querySelector('[data-test=issue-discussion-link]')
   if (!a) return false
   a.scrollIntoView({ block: 'center' })
   a.click()
@@ -110,9 +111,11 @@ try {
     await rowsOf(p)
     const clickedGone = await clickRow(p, 'gone')
     const gone = await p.waitForSelector('[data-test=discussion-gone]', { visible: true, timeout: 10000 }).then(() => true).catch(() => false)
-    const back = gone ? await p.$eval('[data-test=discussion-gone-back]', (a) => a.getAttribute('href')).catch(() => '') : ''
-    ok(`3 ${W}: a click on the deleted discussion opens the "no longer exists" page, which links back to SPL-1`,
-      clickedGone && gone && /\/issues\?issue=SPL-1$/.test(back), { back })
+    const where = await p.evaluate(() => location.pathname + location.search)
+    if (gone) await p.click('[data-test=discussion-gone-close]')
+    const shut = gone ? await p.waitForSelector('[data-test=discussion-gone]', { hidden: true, timeout: 5000 }).then(() => true).catch(() => false) : false
+    ok(`3 ${W}: a click on the deleted discussion opens the "no longer exists" note in place, Close shuts it`,
+      clickedGone && gone && /\/issues\?issue=SPL-1$/.test(where) && shut, { where, shut })
 
     if (W > 820) {
       await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

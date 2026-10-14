@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Den här diskussionen finns inte längre",
     "body": "Den har tagits bort och kan därför inte öppnas. Ärendet behåller sina andra diskussioner; om detta var den sista är ärendet nu länkat till arbetsytans standarddiskussion.",
-    "topic": "Ämne {id}",
-    "back": "Tillbaka till {key}",
-    "back_issues": "Tillbaka till ärenden"
+    "topic": "Ämne {id}"
   }
 }

@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Seda arutelu enam ei ole",
     "body": "See kustutati, seega ei saa seda avada. Probleem säilitab oma teised arutelud; kui see oli viimane, on probleem nüüd seotud tööruumi vaikearuteluga.",
-    "topic": "Teema {id}",
-    "back": "Tagasi: {key}",
-    "back_issues": "Tagasi probleemide juurde"
+    "topic": "Teema {id}"
   }
 }

@@ -2065,7 +2065,7 @@ declare module '~/utils/issue-discussions.mjs' {
   export function normalizeDiscussions(raw: unknown): IssueDiscussion[]
   export function discussionRef(input: unknown): string
   export function shortTopic(id: string): string
-  export function discussionPath(d: { task_id: string, state: string }, issueKey?: string): string
+  export function discussionPath(d: { task_id: string }): string
   export function discussionErrorKey(e: { status?: number, token?: string }): string
 }
 

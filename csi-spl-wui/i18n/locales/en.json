@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "This discussion no longer exists",
     "body": "It was deleted, so it cannot be opened. The issue keeps its other discussions; if this was its last one, it now links the workspace's default discussion.",
-    "topic": "Topic {id}",
-    "back": "Back to {key}",
-    "back_issues": "Back to Issues"
+    "topic": "Topic {id}"
   }
 }

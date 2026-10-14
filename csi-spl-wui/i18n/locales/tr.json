@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Bu tartışma artık yok",
     "body": "Silindiği için açılamaz. Kayıt diğer tartışmalarını korur; bu sonuncusuysa kayıt artık çalışma alanının varsayılan tartışmasına bağlıdır.",
-    "topic": "Konu {id}",
-    "back": "{key} kaydına dön",
-    "back_issues": "Kayıtlara dön"
+    "topic": "Konu {id}"
   }
 }

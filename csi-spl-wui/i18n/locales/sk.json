@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Táto diskusia už neexistuje",
     "body": "Bola odstránená, takže ju nemožno otvoriť. Úloha si ponecháva ostatné diskusie; ak bola posledná, úloha je teraz prepojená s predvolenou diskusiou pracovného priestoru.",
-    "topic": "Téma {id}",
-    "back": "Späť na {key}",
-    "back_issues": "Späť na úlohy"
+    "topic": "Téma {id}"
   }
 }

@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Tätä keskustelua ei enää ole",
     "body": "Se on poistettu, joten sitä ei voi avata. Asia säilyttää muut keskustelunsa; jos tämä oli viimeinen, asia on nyt linkitetty työtilan oletuskeskusteluun.",
-    "topic": "Aihe {id}",
-    "back": "Takaisin: {key}",
-    "back_issues": "Takaisin asioihin"
+    "topic": "Aihe {id}"
   }
 }

@@ -4,7 +4,8 @@
      or more discussions." It sits in the issue's bottom panel, above the
      comment box, on a phone and on a desktop. Each one opens its topic; an
      archived one still opens (msg 28b479fd); a deleted one opens the "no
-     longer exists" page. Live mode (issueKey) reads and changes the hub's
+     longer exists" note in place (no route of its own: a route record ships
+     in the initial JS, ci_initial_gzip_kb). Live mode (issueKey) reads and changes the hub's
      links; draft mode (v-model, a new issue) only collects them. -->
 <template>
   <section class="issue-discussions" data-test="issue-discussions" :aria-label="t('issue_discussions.title')">
@@ -20,11 +21,19 @@
         :data-state="d.state"
       >
         <UiIcon name="messages" :size="14" class="issue-discussions__icon" />
+        <button
+          v-if="!draft && d.state === 'gone'"
+          type="button"
+          class="issue-discussions__link issue-discussions__gone-btn"
+          data-test="issue-discussion-link"
+          :aria-expanded="gone === d.task_id"
+          @click="gone = gone === d.task_id ? '' : d.task_id"
+        >{{ labelOf(d) }}</button>
         <NuxtLink
-          v-if="!draft"
+          v-else-if="!draft"
           class="issue-discussions__link"
           data-test="issue-discussion-link"
-          :to="localePath(discussionPath(d, issueKey))"
+          :to="localePath(discussionPath(d))"
         >{{ labelOf(d) }}</NuxtLink>
         <span v-else class="issue-discussions__link" data-test="issue-discussion-draft">{{ labelOf(d) }}</span>
         <span v-if="d.state === 'archived'" class="issue-discussions__badge" data-test="issue-discussion-archived">{{ t('issue_discussions.archived') }}</span>
@@ -41,6 +50,12 @@
         ><UiIcon name="x" :size="14" /></button>
       </li>
     </ul>
+    <div v-if="gone" class="issue-discussions__gone" role="status" data-test="discussion-gone">
+      <strong>{{ t('discussion_gone.title') }}</strong>
+      <p>{{ t('discussion_gone.body') }}</p>
+      <p class="muted" data-test="discussion-gone-topic">{{ t('discussion_gone.topic', { id: gone }) }}</p>
+      <button type="button" class="btn" data-test="discussion-gone-close" @click="gone = ''">{{ t('common.close') }}</button>
+    </div>
     <form class="issue-discussions__add" data-test="issue-discussion-add" @submit.prevent="add">
       <input
         v-model="text"
@@ -86,6 +101,8 @@ const linked = ref<IssueDiscussion[]>([])
 const text = ref('')
 const busy = ref(false)
 const error = ref('')
+/** the deleted discussion whose "no longer exists" note is open */
+const gone = ref('')
 
 const items = computed<IssueDiscussion[]>(() => draft.value
   ? (props.modelValue || []).map((id) => ({ task_id: id, state: 'live', title: '', channel: '', linked_by: '', linked_at: '' }))
@@ -199,6 +216,22 @@ async function change(call: () => Promise<{ issue: unknown }>) {
 .issue-discussions__row[data-state="gone"] .issue-discussions__link {
   text-decoration: line-through;
   color: var(--color-muted);
+}
+.issue-discussions__gone-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.issue-discussions__gone {
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.issue-discussions__gone p {
+  margin: 4px 0;
 }
 .issue-discussions__badge {
   flex: none;

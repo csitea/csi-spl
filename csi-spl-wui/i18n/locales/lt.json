@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Šio aptarimo nebėra",
     "body": "Jis ištrintas, todėl jo atidaryti negalima. Problema išlaiko kitus savo aptarimus; jei šis buvo paskutinis, problema dabar susieta su numatytuoju darbo srities aptarimu.",
-    "topic": "Tema {id}",
-    "back": "Grįžti į {key}",
-    "back_issues": "Grįžti į problemas"
+    "topic": "Tema {id}"
   }
 }

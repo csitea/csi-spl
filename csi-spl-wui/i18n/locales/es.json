@@ -2902,8 +2902,6 @@
   "discussion_gone": {
     "title": "Esta conversación ya no existe",
     "body": "Se eliminó, así que no se puede abrir. La incidencia conserva sus otras conversaciones; si era la última, ahora enlaza la conversación predeterminada del espacio de trabajo.",
-    "topic": "Tema {id}",
-    "back": "Volver a {key}",
-    "back_issues": "Volver a Incidencias"
+    "topic": "Tema {id}"
   }
 }

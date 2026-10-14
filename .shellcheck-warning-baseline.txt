@@ -123,3 +123,9 @@ SC2034|csi-spl-orc/src/bash/tests/responder-run.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/responder-run.tst.sh|1
 SC1010|csi-spl-orc/src/bash/tests/spec-import-issues.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/spec-import-issues.tst.sh|3
+SC2034 csi-spl-orc/src/bash/run/spl-spawn-share.func.sh:40: rc appears unused. Verify use (or export if used externally).
+SC2034 csi-spl-orc/src/bash/run/spl-spawn-share.func.sh:41: lanes_file appears unused. Verify use (or export if used externally).
+SC2034 csi-spl-orc/src/bash/run/spl-spawn-share.func.sh:42: asks_file appears unused. Verify use (or export if used externally).
+SC2034 csi-spl-orc/src/bash/run/spl-spawn-share.func.sh:43: briefs_file appears unused. Verify use (or export if used externally).
+SC2034 csi-spl-orc/src/bash/run/spl-spawn-share.func.sh:44: log_file appears unused. Verify use (or export if used externally).
+SC2064 csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh:418: Use single quotes, otherwise this expands now rather than when signalled.

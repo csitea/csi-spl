@@ -212,18 +212,22 @@ _ppe_parts() {
 }
 
 # _ppe_bundle_key <tree> - the bundle's cache key: the WUI tree without
-# e2e/bench contents (_pp_wui_tree_id) and the node version; empty when a
+# e2e/bench contents (_pp_wui_tree_id), the node version and the stamp
+# marker (bundles cached before the stamp carry no commit); empty when a
 # WUI input is dirty (then HEAD is not what would be built).
 _ppe_bundle_key() {
   local dirty
   dirty="$(git -C "$1" status --porcelain -- csi-spl-wui 2>/dev/null | awk '{ print $NF }' |
            grep -vE '^csi-spl-wui/tests/(e2e|bench)/' | grep -vE '^csi-spl-wui/(\.output|\.nuxt|node_modules)')"
   [[ -z "$dirty" ]] || return 0
-  printf '%s' "$(_pp_wui_tree_id "$1") $(node -v 2>/dev/null)" | sha1sum | cut -c1-40
+  printf '%s' "$(_pp_wui_tree_id "$1") $(node -v 2>/dev/null) stamped" | sha1sum | cut -c1-40
 }
 
 # _ppe_generate - the mock bundle, as wf 10's wui-generate job builds it.
+# wf 10 stamps it with GITHUB_SHA; here HEAD does (build-watch.test.mjs needs
+# a 40-hex window.__BUILD__.commit, else it fails on every tree).
 _ppe_generate() {
+  NUXT_PUBLIC_BUILD_COMMIT="$(git rev-parse HEAD 2>/dev/null)" \
   NUXT_PUBLIC_USE_MOCK=1 NUXT_PUBLIC_DEFAULT_LOCALE=en \
   NUXT_PUBLIC_REPO_WEB_URL="https://git.example.org/acme/spool" NUXT_PUBLIC_REPO_COMMIT_PATH="/commit/" \
   NUXT_PUBLIC_REPO_CLONE_URL="https://git.example.org/acme/spool" NUXT_PUBLIC_REPO_HELP_PATH="/blob/master/csi-spl-doc/doc/help/" \

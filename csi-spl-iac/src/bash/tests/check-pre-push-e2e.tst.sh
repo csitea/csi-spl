@@ -18,10 +18,13 @@
 #      tree re-uses the bundle (1 build for 2 runs); a .output that was there
 #      before is put back; none is left behind
 #   8. the cap in time: a runner past PRE_PUSH_E2E_TIMEOUT -> rc 124
+#   9. the real _ppe_generate stamps the bundle with the tree's HEAD (wf 10:
+#      GITHUB_SHA), so build-watch.test.mjs finds a 40-hex commit
 #   CONTROL a. with the users-of step off (_ppe_names prints nothing) check 2
 #              selects nothing: the closure is what finds it
 #   CONTROL b. a dirty WUI source -> no cache key -> 2 builds for 2 runs, so
 #              check 7's single build comes from the key
+#   CONTROL c. outside a git tree the stamp is empty: check 9 reads HEAD
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -129,6 +132,16 @@ rm -rf "$W/.output"
 PPE_SLEEP=20 PRE_PUSH_E2E_TIMEOUT=2 part; r=$?
 [[ "$r" == 124 ]] && pass "8. a run past PRE_PUSH_E2E_TIMEOUT stops with rc 124" || fail "8. time cap: rc $r"
 
+# --- 9. the stamp -----------------------------------------------------------------------------
+cat >"$T/pnpm" <<'EOF2'
+#!/bin/bash
+echo "${NUXT_PUBLIC_BUILD_COMMIT:-}"
+EOF2
+chmod +x "$T/pnpm"
+got="$( _pp_pnpm() { echo "$T/pnpm"; }; cd "$W" && _ppe_generate )"
+[[ "$got" =~ ^[0-9a-f]{40}$ && "$got" == "$(g rev-parse HEAD)" ]] && pass "9. _ppe_generate stamps the bundle with HEAD ($got)" \
+  || fail "9. the bundle stamp is '$got', want HEAD $(g rev-parse HEAD)"
+
 # --- CONTROL a. no users-of step ----------------------------------------------------------
 got="$( _ppe_names() { :; }; sel csi-spl-wui/src/composables/useThing.ts | runs )"
 [[ -z "$got" ]] && pass "CONTROL a. without the users-of step useThing.ts selects nothing, so check 2 needs the closure" \
@@ -138,6 +151,12 @@ got="$( _ppe_names() { :; }; sel csi-spl-wui/src/composables/useThing.ts | runs 
 part; part
 [[ "$(wc -l <"$T/builds")" == 2 ]] && pass "CONTROL b. a dirty WUI source builds every run (2 for 2), so check 7's re-use comes from the key" \
   || fail "CONTROL b. want 2 builds on a dirty tree, got $(wc -l <"$T/builds")"
+
+# --- CONTROL c. no git tree -> no stamp -----------------------------------------------------
+mkdir -p "$T/nogit"
+got="$( _pp_pnpm() { echo "$T/pnpm"; }; cd "$T/nogit" && GIT_CEILING_DIRECTORIES="$T" _ppe_generate )"
+[[ -z "$got" ]] && pass "CONTROL c. outside a git tree the stamp is empty, so check 9's commit comes from HEAD" \
+  || fail "CONTROL c. want no stamp outside a git tree, got '$got'"
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all check-pre-push-e2e.tst.sh assertions"

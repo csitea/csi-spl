@@ -71,3 +71,14 @@ func Delete(ctx context.Context, cfg *config.Config, in EditArgs) (string, error
 	}
 	return hc.DeleteMessage(ctx, in.MsgID, in.As)
 }
+
+// AttachRename names the attachments of a message this box sent that are
+// still named by their own sha256 (SPL-1808, `spool attach-rename`). Hub
+// mode only; dry sends nothing.
+func AttachRename(ctx context.Context, cfg *config.Config, in EditArgs, dry bool) (hubclient.RenameResult, error) {
+	hc, err := in.check(cfg)
+	if err != nil {
+		return hubclient.RenameResult{}, err
+	}
+	return hc.RenameHashNamedFiles(ctx, in.MsgID, in.As, dry)
+}

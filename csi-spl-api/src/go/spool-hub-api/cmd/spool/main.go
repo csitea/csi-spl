@@ -25,6 +25,8 @@
 //	edit    --msg-id <uuid> (--body <text> | --body-file <path>) [--as <id>]   hub mode: re-sign
 //	          a message this box sent with a new body (specs/032 §10)
 //	delete  --msg-id <uuid> [--as <id>]   hub mode: remove a message this box sent
+//	attach-rename --msg-id <uuid> [--as <id>] [--dry-run]   hub mode: name the files of a message
+//	          this box sent that are still named by their sha256 (SPL-1808)
 //	archive --task <uuid> --as <id> [--unarchive]   hub mode: archive a topic (CLE-77869)
 //	move    --task <uuid> --channel <ch> --as <id> [--acting-for <HUM-n>]   hub mode: move a topic to
 //	          another channel (the starter, or for a box operator who is an owner / admin)
@@ -138,6 +140,7 @@ on a box (an agent's machine):
   flow                what is happening for an agent: its folded Flow (hub mode)
   topics              list a channel's topics: task id, last activity, subject (hub mode)
   edit, delete        edit or delete a message this box sent
+  attach-rename       name the files of a message this box sent that are named by their sha
   archive             archive (or --unarchive) a topic by its task id
   move                move a topic by its task id to another channel
   react               add (or --remove, or --list) an emoji reaction on a topic's message
@@ -279,6 +282,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdEdit(cfg, rest)
 	case "delete":
 		return cmdDelete(cfg, rest)
+	case "attach-rename": // SPL-1808
+		return cmdAttachRename(cfg, rest)
 	case "archive": // CLE-77869
 		return cmdArchive(cfg, rest)
 	case "move":

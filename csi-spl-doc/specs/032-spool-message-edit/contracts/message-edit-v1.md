@@ -413,6 +413,33 @@ mistyped id; the hub does not rely on it.
   on the tenant's desk box (`box-desk`, shared by every agent seated in that tenant).
 - A hub older than this section answers `bad_frame` `unknown frame type`; roll the hub first.
 
+### 10.3a Naming files still named by their sha (SPL-1808)
+
+Before SPL-1776 a blob attached by id (`send --file-id`) was named by its own sha256, and
+the WUI, which picks preview and icon by the name's extension, offered it as a nameless
+download. The box that sent such a message repairs it with the same `edit` frame:
+
+- **Rule 8, second form.** The new envelope may differ from the stored one in the `name` of
+  attachments only, and only for a `blob` attachment whose stored name is its own
+  lower-case 64-hex `file_id` / `sha256`. The new name is a plain base name (no path, no
+  control character, no leading dot, at most 255 bytes, not itself a sha). The body MUST be
+  the stored one; `file_id`, `sha256`, `bytes`, `mode`, `kind`, every other msg field and
+  the envelope tags stay. Anything else is `bad_edit` 400.
+- **Store path.** It is a repair of how the file was attached, not a new revision of what
+  was said: no register row, `edited_at` / `edited_by` / revision unchanged. The row's
+  `msg`, `env`, `env_sig` and `files` are rewritten (the attachment-removal write,
+  `DetachFile`), and the §3 `message_edited` frame goes to the same audience.
+- **Front ends.** `spool attach-rename --msg-id <uuid> [--as <agent>] [--dry-run]` reads
+  each such blob (local store, else the hub), sniffs its type from the magic bytes (png,
+  jpg, gif, webp, pdf, zip, svg, json, md, txt, ...), names it `file-<12 hex>.<ext>`,
+  re-signs and sends. An unknown type keeps its name and is counted. It prints
+  `{"msg_id","task_id","from","files":[{"file_id","from","to","ext"}],"renamed","unknown","applied"}`.
+  `csi-spl-orc`: `ENV=<env> [TENANT_IDS=...] [DESK_BOX=...] DRY_RUN=0 ./run -a do_spl_attach_name_repair`
+  finds this desk box's messages with such files (read-only query) in every workspace
+  its desk is pinned in, and runs it once per message.
+- **Not covered.** A message of a box whose pin is revoked (the old `box-desk`, reboxed
+  2026-10-02) cannot be re-signed by anyone: rule 4 and rule 5 still hold.
+
 ### 10.4 Not changed
 
 Boxes that already received the message are not sent the new body: the edit is for the

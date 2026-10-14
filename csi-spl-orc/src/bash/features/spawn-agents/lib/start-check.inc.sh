@@ -31,6 +31,10 @@
 #   not logged in      the input box IS drawn, its footer "Not logged in · Run /login"
 # and, from the lease's stall pattern (LEASE_STALL_RE_DEFAULT), the usage
 # limit and the login / API key failures.
+# grok's weekly limit (SPL-1820, sat 2026-10-14 0807Z, n=1): a menu, no input
+# box, "Buy more credits" / "Try Again" over "↑/↓ navigate · y copy"; the
+# watchdog's text for it is "You hit your weekly limit" (spec 102 T029).
+# Never a bare "weekly limit": grok's normal footer reads "Weekly limit left: 1%".
 
 # The known dialogs, "<name>|<extended regex>"; the first match wins.
 SPOOL_START_DIALOGS=(
@@ -40,6 +44,7 @@ SPOOL_START_DIALOGS=(
   'bypass-permissions confirm|Yes, I accept'
   'auth/login|Not logged in|Select login method|[Pp]lease run /login|Invalid API key|OAuth token (has )?expired'
   'usage limit|[Uu]sage limit reached|limit reached[[:space:]]*·|limit resets'
+  'grok weekly limit|[Yy]ou hit your weekly limit|Buy more credits'
   'session ended|session .+ ended\. Pane kept open'
 )
 
@@ -49,6 +54,7 @@ spool_start_hint() {
     'Settings Warning') printf ', the allow rules in the agent user'"'"'s and the box user'"'"'s ~/.claude/settings.json' ;;
     'auto-mode offer') printf ', permissions.disableAutoMode in ~/.claude/settings.json' ;;
     'auth/login') printf ', the agent user'"'"'s claude login' ;;
+    'grok weekly limit') printf ', grok has no quota until its weekly reset: the successor must be claude' ;;
   esac
 }
 

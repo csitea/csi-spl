@@ -7,6 +7,7 @@
 #
 #   spl_rotate_conf                         settings: env > rotate.conf > defaults (FR-074, FR-090)
 #   spl_rotate_role_vendor                  ROTATE_ROLE_VENDOR: the role successor's vendor (claude|grok), guarded
+#   spl_rotate_grok_out                     why grok is out: a grok seat's newest watchdog verdict is its limit (SPL-1820)
 #   spl_rotate_vendor_id ID                 the seat id the successor's vendor gives it (SPL-1685), when it differs
 #   spl_rotate_seat_switch OLD NEW          role-seat-switch.sh: the seat's spool dir to NEW, the other letters link to it
 #   spl_rotate_conf_flip KEY OLD NEW        lease.conf KEY=OLD -> NEW and the shell's KEY
@@ -124,10 +125,48 @@ spl_rotate_role_vendor() {
     why="$(sed -nE 's/^grok .* skip \((.*)\); share to .*/\1/p' <<<"$out")"; why="${why%%$'\n'*}"
     ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok, but ${why:-lane-mix gave '${pick:-no pick}'}: claude"; return 0
   fi
+  why="$(spl_rotate_grok_out)"
+  if [[ -n "$why" ]]; then
+    ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok, but grok is on its limit ($why): claude"; return 0
+  fi
   if ! spl_rotate_lease_sees grok; then
     ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok, but the fleet lease does not count a grok process as the holder: claude"; return 0
   fi
   ROTATE_KIND=grok ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=grok: grok"
+}
+
+# spl_rotate_grok_out: "<id> S2 kind=limit <age>m ago: <evidence>" when the
+# NEWEST watchdog verdict (any instance, ctx*/<id>/out.s2) of a grok seat of
+# this box (registry kind grok, else a g- id) is S2 kind=limit within
+# ROTATE_GROK_LIMIT_FRESH s (default 604800: grok's limit is weekly); nothing
+# otherwise. lane-mix's own check is no guard here: its hub pause and its
+# verdict window (LANE_MIX_LIMIT_FRESH, 6 h) run out together while the
+# weekly quota is still out (SPL-1820, sat 2026-10-14 0805Z: paused until
+# 08:05:01Z, grok picked 56 s later, g-001 opened on grok's limit menu). A
+# seat that works again writes a newer verdict without the hit, so the
+# newest verdict per seat is the live signal. A file read, no model call.
+spl_rotate_grok_out() {
+  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" f id k t now hit out="" best=-1
+  local -A newest=() newf=()
+  for f in "$wd"/ctx*/*/out.s2; do
+    [[ -f "$f" ]] || continue
+    id="$(basename "$(dirname "$f")")"
+    k="$(awk -F'\t' -v i="$id" '$1 == i {k = $2} END {print k}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"
+    [[ "$k" == grok || ( -z "$k" && "$id" == g-* ) ]] || continue
+    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
+    (( t > ${newest[$id]:--1} )) || continue
+    newest[$id]="$t" newf[$id]="$f"
+  done
+  now="$(date +%s)"
+  for id in "${!newest[@]}"; do
+    t="${newest[$id]}"
+    (( now - t <= ${ROTATE_GROK_LIMIT_FRESH:-604800} && t > best )) || continue
+    hit="$(grep -m1 -E '^HIT S2 kind=limit( |$)' "${newf[$id]}" 2>/dev/null || true)"
+    [[ -n "$hit" ]] || continue
+    best="$t" out="$id S2 kind=limit $(( (now - t) / 60 ))m ago: ${hit#HIT S2 kind=limit }"
+  done
+  [[ -z "$out" ]] || echo "$out"
+  return 0
 }
 
 # spl_rotate_lease_sees KIND: 0 when spl_lease_agent_pid finds a KIND

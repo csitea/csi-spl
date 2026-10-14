@@ -176,6 +176,10 @@ spl_orch_rotate_vendor() {
     claude|grok|mistral) ;;
     *) ROTATE_VENDOR_WHY="lane-mix orchestration gave '${pick:-no pick}': claude"; return 0 ;;
   esac
+  if [[ "$pick" == grok ]] && out="$(spl_rotate_grok_out)" && [[ -n "$out" ]]; then
+    ROTATE_VENDOR_WHY="lane-mix orchestration picked grok, but grok is on its limit ($out): claude"
+    return 0
+  fi
   if [[ "$pick" != claude ]] && ! spl_rotate_lease_sees "$pick"; then
     ROTATE_VENDOR_WHY="lane-mix orchestration picked $pick ($why), but the fleet lease does not count a $pick process as the holder: claude"
     return 0
@@ -262,8 +266,8 @@ spl_orch_rotate_run() {
     sed -i "s/\b$ROTATE_SWITCH_FROM\b/$id/g" "$seed" 2>/dev/null || true
   elif new="$(spl_rotate_vendor_id "$id")" && [[ -n "$new" ]]; then
     # SPL-1685: the dirs move BEFORE the spawn (it reuses <spool>/<new>);
-    # lease.conf follows once the new pid shows (spl_orch_rotate_flip), so the
-    # old pid keeps the lease until then
+    # lease.conf follows once the new session ACKED (spl_orch_rotate_flip,
+    # SPL-1820), so the old pid keeps the role until then
     spl_rotate_seat_switch "$id" "$new" || { spl_orch_rotate_fail SWITCH "$ROTATE_ERR"; return 1; }
     ROTATE_SWITCH_FROM="$id" ROTATE_SWITCH_TO="$new"
     spl_orch_rotate_step HANDOFF OK "seat switch $id -> $new ($ROTATE_SWITCH_OUT): the $ROTATE_KIND successor starts as $new"
@@ -280,7 +284,6 @@ spl_orch_rotate_run() {
 
 spl_orch_rotate_from_spawn() {
   local rc=0
-  spl_orch_rotate_flip || { spl_orch_rotate_fail SWITCH "$ROTATE_ERR"; return 1; }
   spl_orch_rotate_step ACK WAIT "up to ${ROTATE_ACK_TIMEOUT}s for $(spl_rotate_ack_task "$ROTATE_RID")"
   spl_rotate_ack_wait "$LEASE_ORCH" "$ROTATE_RID" "$ROTATE_ACK_TIMEOUT" || rc=$?
   case "$rc" in
@@ -293,8 +296,10 @@ spl_orch_rotate_from_spawn() {
 }
 
 # spl_orch_rotate_flip: SPL-1685, lease.conf LEASE_ORCH=<ROTATE_SWITCH_TO>
-# once the new pid carries it (the spawn is OK). Idempotent, so a resume
-# flips it too. Non-zero = lease.conf did not take it, ROTATE_ERR.
+# once the new session ACKED, never before (SPL-1820: flipped at SPAWN OK, a
+# grok successor stuck on its limit menu carried the role through the whole
+# ack wait and the fleet orch lease fell to the other box). Idempotent, so a
+# resume flips it too. Non-zero = lease.conf did not take it, ROTATE_ERR.
 spl_orch_rotate_flip() {
   [[ -n "${ROTATE_SWITCH_TO:-}" && "$LEASE_ORCH" != "$ROTATE_SWITCH_TO" ]] || return 0
   spl_rotate_conf_flip LEASE_ORCH "$LEASE_ORCH" "$ROTATE_SWITCH_TO" || return 1
@@ -322,6 +327,7 @@ spl_orch_rotate_unswitch() {
 }
 
 spl_orch_rotate_from_ack() {
+  spl_orch_rotate_flip || { spl_orch_rotate_fail SWITCH "$ROTATE_ERR"; return 1; }
   spl_orch_rotate_step RETIRE WAIT "/exit-clean into $ROTATE_OLD_PANE (pid $ROTATE_OLD_PID)"
   if ! spl_rotate_retire "$ROTATE_OLD_PANE" "$ROTATE_OLD_PID"; then
     spl_orch_rotate_step RETIRE FAIL "pid $ROTATE_OLD_PID survived SIGKILL; the duplicate gate refuses until a human clears it"
@@ -400,7 +406,9 @@ spl_orch_rotate_resume() {
   case "$ROTATE_PHASE:$old$new" in
     SPAWN:11|ACK:11)    spl_orch_rotate_from_spawn || return 1 ;;
     RETIRE:11)          spl_orch_rotate_from_ack || return 1 ;;
-    RETIRE:01|CLOSE:01|ACK:01) spl_orch_rotate_close ;;
+    RETIRE:01|CLOSE:01|ACK:01)
+      spl_orch_rotate_flip || spl_rotate_log "$ROTATE_RID" SWITCH FAIL "$ROTATE_ERR"
+      spl_orch_rotate_close ;;
     *:10|GATE:*|QUIESCE:*|HANDOFF:*) spl_orch_rotate_fail "$ROTATE_PHASE" "resumed with no live new session"; return 1 ;;
     *) spl_orch_rotate_step FAIL FAIL "resumed at $ROTATE_PHASE with neither session alive - nothing acts as $LEASE_ORCH here"
        spl_rotate_alert orch "$ROTATE_RID" "$ROTATE_PHASE" "neither session alive"; return 1 ;;

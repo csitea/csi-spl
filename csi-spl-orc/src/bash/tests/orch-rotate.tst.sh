@@ -58,6 +58,11 @@
 #      spawn, the old id is a link so a message sent to it mid-rotation lands
 #      in the live inbox, the desk dir moves, the old identity record is
 #      retired at CLOSE; a failed spawn / no ack puts lease.conf and the dirs back
+#  18. SPL-1820, a grok successor on its weekly limit: (1) the pause expired
+#      but a grok seat's newest verdict is S2 kind=limit = claude (controls: a
+#      newer clean verdict, a week-old one); (2) grok's limit menu on the new
+#      pane fails the spawn at once, named, no SWITCH; (3) no ack = lease.conf
+#      names the old seat at every moment (control: flipped after ACK OK)
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -618,9 +623,74 @@ rm -f "$T/spawn.mode"
 world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo no >"$T/ack.mode"
 act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1
 grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" && [[ -d "$S/c-001" && ! -L "$S/c-001" && -d "$T/proc/1001" ]] &&
-  grep -q 'lease.conf LEASE_ORCH back to c-001; seat switch back g-001 -> c-001' "$T/o" && [[ "$(cat "$T/ai.c-001")" == 1001 ]] &&
-  pass "17. no ack: lease.conf and the dirs back to c-001, the old claude keeps the role" || fail "17. no-ack: $(grep -E 'FAIL|SWITCH' "$T/o"; cat "$D/lease.conf"; ls -l "$S")"
+  grep -q 'FAIL ACK: no ack within 6s; seat switch back g-001 -> c-001' "$T/o" && [[ "$(cat "$T/ai.c-001")" == 1001 ]] &&
+  pass "17. no ack: lease.conf never left c-001 (SPL-1820), the dirs back to c-001, the old claude keeps the role" || fail "17. no-ack: $(grep -E 'FAIL|SWITCH' "$T/o"; cat "$D/lease.conf"; ls -l "$S")"
 ! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "17. no stray failing command under the ERR trap" || fail "17. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+export OLD_ID=c-900; unset DESK_STATE_ROOT
+printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
+
+# --- 18. SPL-1820: a grok successor on its weekly limit never takes the orch role ----------------
+# (sat 2026-10-14 0805Z: the hub pause had just expired, lane-mix picked grok,
+# g-001 opened on grok's limit menu, SPAWN OK, lease.conf flipped before any ack)
+wds2() {  # <id> <ctx> <age-s> [verdict]: a watchdog S2 verdict file that old
+  mkdir -p "$D/wd/$2/$1"; printf '%s\n' "${4:-}" >"$D/wd/$2/$1/out.s2"
+  touch -d "@$(( $(date +%s) - $3 ))" "$D/wd/$2/$1/out.s2"
+}
+LIM='HIT S2 kind=limit pane: You hit your weekly limit'
+world; rm -rf "$D/wd"; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+wds2 g-002 ctx.1 25200 "$LIM"
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*ROTATE_ROLE_VENDOR=grok, but grok is on its limit (g-002 S2 kind=limit 420m ago: pane: You hit your weekly limit): claude" "$T/o" &&
+  pass "18.1 the pause expired (lane-mix picks grok) but a grok seat's newest verdict is its 7 h old weekly limit: claude" || fail "18.1 limit: $(grep 'SPAWN PLAN' "$T/o")"
+act ROTATE_ORCH_SPLIT=1 ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*lane-mix orchestration picked grok, but grok is on its limit (g-002 S2 kind=limit" "$T/o" &&
+  pass "18.1 the same guard on the orchestration split" || fail "18.1 split: $(grep 'SPAWN PLAN' "$T/o")"
+wds2 g-002 ctx.2 60
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*ROTATE_ROLE_VENDOR=grok: grok" "$T/o" &&
+  pass "18.1 control: a newer verdict on that seat without the hit (it works again): grok" || fail "18.1 recovered: $(grep 'SPAWN PLAN' "$T/o")"
+rm -rf "$D/wd"; wds2 g-002 ctx.1 $(( 8 * 86400 )) "$LIM"; wds2 c-777 ctx.1 60 'HIT S2 kind=limit pane: Usage limit reached'
+act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn grok c-900 .*ROTATE_ROLE_VENDOR=grok: grok" "$T/o" &&
+  pass "18.1 control: a grok limit older than a week, and a claude seat's limit, do not stop grok" || fail "18.1 old: $(grep 'SPAWN PLAN' "$T/o")"
+rm -rf "$D/wd"
+! grep -q ERRTRAP "$T/o" && pass "18.1 no stray failing command under the ERR trap" || fail "18.1 ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+export OLD_ID=c-001 DESK_STATE_ROOT="$T/desk"
+printf 'LEASE_ORCH=c-001\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
+# lease.conf, sampled while the action runs: the role's holder at every moment
+sample() { : >"$T/samples"; ( while [ -e "$T/sampling" ]; do grep '^LEASE_ORCH=' "$D/lease.conf" >>"$T/samples"; sleep 0.2; done ) & }
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo no >"$T/ack.mode"
+printf '  You hit your weekly limit.\n  ❯ Buy more credits\n    Try Again\n  ↑/↓ navigate · y copy\n' >"$T/tmux/screen.%20"; touch "$T/tmux/nobox.%20"
+t0=$SECONDS; act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_START_CHECK_WAIT=30 >"$T/o" 2>&1; rc=$?; dt=$(( SECONDS - t0 ))
+[[ $rc -ne 0 ]] && grep -q "FAIL FAIL SPAWN: the new session in %20 is stopped on a 'grok weekly limit' dialog" "$T/o" && (( dt < 25 )) &&
+  ! grep -q ' SPAWN OK\| SWITCH OK\| ACK WAIT' "$T/o" && grep -q 'kill -TERM 2001' "$T/kill.log" &&
+  pass "18.2 grok's limit menu on the new pane: SPAWN fails at once (${dt}s), named; no SPAWN OK, no SWITCH, no ack wait" ||
+  fail "18.2 dialog rc=$rc dt=$dt: $(grep -E 'SPAWN|SWITCH|ACK|FAIL' "$T/o")"
+grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" && [[ -d "$T/proc/1001" && -d "$S/c-001" && ! -L "$S/c-001" ]] && [[ "$(cat "$T/ai.c-001")" == 1001 ]] &&
+  pass "18.2 ... lease.conf, the seat dir and the map stay with the old claude c-001" || fail "18.2 kept: $(cat "$D/lease.conf"; ls -l "$S")"
+(
+  source "$PROJ_ROOT/src/bash/features/spawn-agents/lib/start-check.inc.sh"
+  [[ "$(printf 'grok\n  Weekly limit left: 1%%\n' | spool_start_dialog)" == "" ]]
+) && pass "18.2 control: grok's normal 'Weekly limit left' footer is no dialog" || fail "18.2 the footer reads as a dialog"
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo no >"$T/ack.mode"
+touch "$T/sampling"; sample
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1
+rm -f "$T/sampling"; wait
+grep -q 'FAIL FAIL ACK: no ack within 6s' "$T/o" && ! grep -q ' SWITCH OK lease.conf' "$T/o" &&
+  [[ -s "$T/samples" ]] && ! grep -q 'g-001' "$T/samples" && grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" &&
+  pass "18.3 no ack: lease.conf names c-001 at every moment of the ack wait ($(wc -l <"$T/samples") samples), the old claude keeps the role" ||
+  fail "18.3 no-ack: $(grep -E 'SWITCH|ACK|FAIL' "$T/o"; sort "$T/samples" | uniq -c)"
+world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1; rc=$?
+order="$(grep -oE ' (ACK OK|SWITCH OK lease.conf|RETIRE WAIT)' "$D/rotate.log" | tail -3 | tr -d ' ' | tr '\n' ' ')"
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && "$order" == "ACKOK SWITCHOKlease.conf RETIREWAIT " ]] && grep -qx 'LEASE_ORCH=g-001' "$D/lease.conf" &&
+  pass "18.3 control: an acked grok successor takes lease.conf after its ACK, before RETIRE" || fail "18.3 order rc=$rc '$order': $(grep -E 'SWITCH|ACK' "$T/o")"
+! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "18. no stray failing command under the ERR trap" || fail "18. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+# back to claude c-001, then the c-900 world of the sections below
+export OLD_ID=g-001; world
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=claude >"$T/o" 2>&1
+grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" || fail "18. could not rotate back to c-001: $(grep -E 'FAIL' "$T/o")"
 export OLD_ID=c-900; unset DESK_STATE_ROOT
 printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
 

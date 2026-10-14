@@ -754,9 +754,16 @@ sb; act DRY_RUN=0 "${V18[@]}" ROTATE_CMD=heal ROTATE_HEAL_CONFIRM=0 ROTATE_ROLE_
 [[ $rc -eq 0 ]] && grep -q "^spawn claude c-002 " "$T/spawn.log" && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && cmp -s "$D/lease" "$T/lease.before" &&
   ! grep -q 'HEAL SKIP standby' "$T/o" &&
   pass "19. the heal cron (ROTATE_CMD=heal) replaces it the same way" || fail "19. heal rc=$rc: $(cat "$T/o")"
-# control: the guard picks the dead vendor again
+# SPL-1820: ROTATE_ROLE_VENDOR=grok with lane-mix still picking grok: the
+# guard reads g-002's limit verdict itself (spl_rotate_grok_out) -> claude
 sb; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
 act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=grok >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q "^spawn claude c-002 " "$T/spawn.log" && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" &&
+  grep -q 'ROTATE_ROLE_VENDOR=grok, but grok is on its limit (g-002 S2 kind=limit' "$T/o" &&
+  pass "19. ROTATE_ROLE_VENDOR=grok, lane-mix picks grok, g-002 on its limit: the guard gives claude, c-002 replaces it" || fail "19. grok guard rc=$rc: $(cat "$T/o")"
+# control: a guard that picks the dead vendor again (blind to the verdict: ROTATE_GROK_LIMIT_FRESH=-1)
+sb; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=grok ROTATE_GROK_LIMIT_FRESH=-1 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && ! -e "$T/spawn.log" && -d "$T/proc/102" ]] && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" && cmp -s "$D/lease" "$T/lease.before" &&
   grep -q -- '-master STANDBY SKIP g-002 (grok) is out (S2 kind=limit .*), but its successor would be grok too (ROTATE_ROLE_VENDOR=grok: grok): no replacement' "$D/rotate.log" &&
   pass "19. control: the guard picks grok again -> no replacement, the reason in rotate.log" || fail "19. same vendor rc=$rc: $(cat "$T/o")"

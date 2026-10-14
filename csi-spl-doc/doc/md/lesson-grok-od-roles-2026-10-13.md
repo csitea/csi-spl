@@ -228,6 +228,23 @@ real tmux pane in a sandbox socket. **Fixed** for the role seat spawn
   counts as an agent reply, so the unanswered sweep stops although no
   answer was posted (14:42Z .. 14:46Z, hold note 1405).
 
+### 4.5 2026-10-14: the orch role handed to a Grok seat on its weekly limit
+
+Rotation `20261014T0805Z-orch` on sat (`rotate.log`, n=1): the successor
+`g-001` opened on Grok's limit menu ("Buy more credits / Try Again"), the
+rotation logged SPAWN OK and flipped `LEASE_ORCH=g-001` before any ack, and
+the fleet orch lease fell to the other box for about 10 minutes. Three
+causes, all **fixed** by SPL-1820:
+
+| cause | fix | test (`orch-rotate.tst.sh` section 18) |
+|---|---|---|
+| the vendor guard trusted lane-mix, whose hub pause and 6 h verdict window (`LANE_MIX_LIMIT_FRESH`) ran out together at 08:05:01Z while the weekly quota was still out | `spl_rotate_grok_out`: the newest watchdog verdict of each Grok seat (`ctx*/<id>/out.s2`) saying `S2 kind=limit` within `ROTATE_GROK_LIMIT_FRESH` (a week) = claude, for `ROTATE_ROLE_VENDOR=grok`, the orchestration split and the dispatch seats | 18.1; controls: a newer clean verdict, a week-old one |
+| the start check knew no Grok limit screen: "no known dialog", then SPAWN OK | the `grok weekly limit` dialog in `start-check.inc.sh` ("You hit your weekly limit", "Buy more credits"; never a bare "weekly limit", Grok's footer reads "Weekly limit left") | 18.2: fails at once, named, no SWITCH |
+| `LEASE_ORCH=<successor>` was written at SPAWN OK, before the ack | `spl_orch_rotate_flip` runs after ACK OK, before RETIRE; an unacked successor never carries the role | 18.3: lease.conf sampled through the ack wait |
+
+The dispatch rotation still flips at SPAWN OK (`spl_disp_flip`); its
+Grok successor now meets the same two guards before it gets there.
+
 ## 5. Follow-ups
 
 | # | follow-up | state |
@@ -244,5 +261,6 @@ real tmux pane in a sandbox socket. **Fixed** for the role seat spawn
 | 10 | a take in an owner topic does not count as the answer for the unanswered sweep | open, no issue yet |
 | 11 | workflow 21 catch-up re-dispatches once after a red hub run on a new sha | open, `c-001-<box>-1743-orch.md` "Idea, not placed" |
 | 12 | before the next vendor trial of a role: one forced rotation per role on the real spawn in a sandbox, then the trial; the owner's check-in time becomes a scheduled post, not a promise | open, process; for the dispatcher of the next trial |
+| 13 | the dispatch rotation flips `LEASE_MASTER` / `LEASE_FAILOVER` after the ack too, as the orch rotation does since SPL-1820 | open, no issue yet; for the orchestrator to place |
 
 Fixed on master as of `origin/master` `94e5fb5b5`: rows 1 to 5.

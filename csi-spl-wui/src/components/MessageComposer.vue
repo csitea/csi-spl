@@ -968,6 +968,10 @@ function syncMultiline(): boolean {
   const endSel = el.selectionEnd
   const dir = el.selectionDirection
   const focused = document.activeElement === el
+  /* SPL-1851: a text set by code (setText: a poll's "Chat about this") is
+     not in the field yet, so this caret belongs to the old text; restoring
+     it put the caret at 0, before the marker, and the reader typed there */
+  const ownCaret = el.value === value
   const next = omniboxIsMultiline({
     text: value,
     textWidth: draftWidth(el, value),
@@ -979,7 +983,7 @@ function syncMultiline(): boolean {
     const box = inputEl.value
     if (!box) return
     if (focused && document.activeElement !== box) box.focus({ preventScroll: true })
-    if (box.selectionStart !== start || box.selectionEnd !== endSel) {
+    if (ownCaret && (box.selectionStart !== start || box.selectionEnd !== endSel)) {
       try { box.setSelectionRange(start, endSel, dir || 'none') } catch { /* the box was replaced */ }
     }
   })

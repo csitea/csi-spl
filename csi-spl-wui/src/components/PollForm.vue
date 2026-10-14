@@ -41,21 +41,22 @@
             class="poll-opt__input"
             :name="`${uid}-${qi}`"
             :value="o.key"
-            :checked="(picks[qi] || []).includes(o.key)"
+            :checked="optChecked(qi, o.key)"
             @change="onPick(qi, o.key, ($event.target as HTMLInputElement).checked)"
           >
           <span class="poll-opt__key">{{ o.key }}</span>
           <span class="poll-opt__text">{{ o.text }}</span>
         </label>
         <!-- owner 6cd5873a: every question ALWAYS ends with "Chat about this";
-             picking it is not an answer, it opens the reply box -->
+             picking it is not an answer, it opens the reply box. SPL-1851:
+             it shows picked once the reader's chat reply exists -->
         <label class="poll-opt poll-opt--chat" data-testid="poll-chat">
           <input
             :type="form.multi ? 'checkbox' : 'radio'"
             class="poll-opt__input"
             :name="`${uid}-${qi}`"
             value=""
-            :checked="false"
+            :checked="chatChecked(qi)"
             @change="onChat(qi, $event.target as HTMLInputElement)"
           >
           <span class="poll-opt__text">{{ t('poll.chat') }}</span>
@@ -85,7 +86,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { dmPeerOf, shownPerson } from '~/utils/channel-feed.mjs'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { POLL_HOST, POLL_ROWS } from '~/utils/poll-fence.mjs'
-import { answerBody, chatBody, lockSeconds, pollAnswers } from '~/utils/poll.mjs'
+import { answerBody, chatBody, chatPicks, lockSeconds, pollAnswers } from '~/utils/poll.mjs'
 import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import type { PollShape } from '~/components/PollBody.vue'
 import type { SpoolMessage } from '~/types/spool'
@@ -138,6 +139,19 @@ watch(answers, (list) => {
   const mine = list.find((a) => a.from === me.value)
   if (mine) picks.value = props.form.questions.map((_, i) => (mine.picks[i + 1] || []).slice())
 }, { immediate: true })
+
+/* SPL-1851 (owner t1 d64c762a): the reader's chat reply newer than their
+   answer shows "Chat about this" picked on its question; a click on an
+   option after it hides that chat (its ts) until a newer chat comes */
+const chats = computed(() => (msgId.value && me.value ? chatPicks(props.form, rows.value, msgId.value, me.value) : []) as string[])
+const chatSeen = ref<Record<number, string>>({})
+function chatChecked(qi: number) {
+  const ts = chats.value[qi] || ''
+  return Boolean(ts) && chatSeen.value[qi] !== ts
+}
+function optChecked(qi: number, key: string) {
+  return (picks.value[qi] || []).includes(key) && (props.form.multi || !chatChecked(qi))
+}
 
 const state = ref<'' | 'sent' | 'failed'>('')
 async function post(qi = -1) {
@@ -242,6 +256,7 @@ function onGo(qi: number, key: string) {
 
 function onPick(qi: number, key: string, on: boolean) {
   dirty.value = true
+  chatSeen.value = { ...chatSeen.value, [qi]: chats.value[qi] || '' }
   const next = picks.value.map((p) => p.slice())
   if (props.form.multi) next[qi] = on ? [...new Set([...next[qi], key])].sort() : next[qi].filter((k) => k !== key)
   else next[qi] = [key]
@@ -252,11 +267,12 @@ function onPick(qi: number, key: string, on: boolean) {
 }
 
 /* "Chat about this": the topic opens, the reply box takes the caret with the
-   marker and the question quoted; the reader's picks stay as they were */
+   marker and the question quoted; the form shows what was posted until the
+   reply exists */
 function onChat(qi: number, input?: HTMLInputElement) {
-  if (input) input.checked = false
+  if (input) input.checked = chatChecked(qi)
   for (const el of formEl.value?.querySelectorAll<HTMLInputElement>(`input[name="${uid}-${qi}"]`) || []) {
-    el.checked = Boolean(el.value) && (picks.value[qi] || []).includes(el.value)
+    el.checked = el.value ? optChecked(qi, el.value) : chatChecked(qi)
   }
   if (!canAnswer.value) return
   host?.open?.()

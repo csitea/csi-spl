@@ -20,6 +20,9 @@
 //   SPL-1637 poll-control, 1440 and 390: a ```poll radio form posts its answer
 //     on the click (no Send), re-answer replaces, "Chat about this" opens the
 //     reply box; a checkbox form waits for its lock-in or its Send.
+//   SPL-1851, 1440 and 390: "Chat about this" + text sends one reply that
+//     starts with the marker; the form shows the chat option picked, also
+//     after a reload.
 //   SPL-1654 go-button, 1440 and 390: a one-option question is a Go button;
 //     one click posts `Answer: GO — Go`, the button shows done; a second
 //     click posts nothing. CONTROL: the two-option form above stays radios.
@@ -289,6 +292,47 @@ async function pollRadioCase(browser, vp, tag) {
   await p.close()
 }
 
+/* SPL-1851 (owner HUM-10, t1 d64c762a): a poll answered through "Chat about
+   this" with text shows that option picked once the reply exists, and still
+   after a reload (the pick comes from the stored reply); the sent body starts
+   with the marker, the reader's text after it, and goes once. */
+async function pollChatCase(browser, vp, tag) {
+  const touch = Boolean(vp.hasTouch)
+  let { p, errors } = await open(browser, vp)
+  const seeded = await seedPoll(p, POLL_RADIO)
+  let form = await openPoll(p, seeded, touch)
+  await clickIn(p, `${form} [data-testid=poll-chat]`, touch)
+  await p.keyboard.type('I did reset it manually')
+  await p.click('form.composer.omnibox--global [data-testid=send]')
+  await sleep(900)
+  const sent = await pollReplies(p, seeded.msg_id)
+  const picked = (form) => p.evaluate((form) => ({
+    chat: document.querySelector(`${form} [data-testid=poll-chat] input`)?.checked,
+    options: [...document.querySelectorAll(`${form} [data-testid=poll-option] input`)].filter((i) => i.checked).length,
+  }), form)
+  const shown = await picked(form)
+  ok(`${tag} poll chat: the reply goes once and starts with the marker, the reader's text after it`,
+    sent.length === 1 && sent[0].body.startsWith(`Chat: wants to discuss\nPoll: ${seeded.msg_id}\n> Which deploy path?`) && /\nI did reset it manually$/.test(sent[0].body), sent)
+  ok(`${tag} poll chat: the form shows "Chat about this" as the reader's pick`, shown.chat === true && shown.options === 0, shown)
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `poll-chat-${tag}.png`) })
+  /* the hub keeps the reply: the mock's test hook stands in for it on the reload */
+  await p.evaluate((bodies) => {
+    const pinia = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia
+    const mine = (pinia.state.value.channel.messages || []).filter((m) => bodies.includes(m.body))
+    const extra = JSON.parse(localStorage.getItem('spool.mock.extra-messages') || '[]')
+    localStorage.setItem('spool.mock.extra-messages', JSON.stringify([...extra, ...mine.map((m) => ({ ...m, pending: undefined }))]))
+  }, sent.map((r) => r.body))
+  const pageErrors = errors.slice()
+  await p.close()
+  ;({ p, errors } = await open(browser, vp))
+  form = await openPoll(p, seeded, touch)
+  await sleep(400)
+  const reloaded = await picked(form)
+  ok(`${tag} poll chat: after a reload the form still shows "Chat about this" picked`, reloaded.chat === true && reloaded.options === 0, reloaded)
+  ok(`${tag} poll chat: no page error`, pageErrors.length + errors.length === 0, [...pageErrors, ...errors])
+  await p.close()
+}
+
 async function pollGoCase(browser, vp, tag) {
   const touch = Boolean(vp.hasTouch)
   const { p, errors } = await open(browser, vp)
@@ -388,6 +432,8 @@ try {
   await phoneCase(browser, 820, 1180)
   await pollRadioCase(browser, { width: 1440, height: 900 }, '1440px')
   await pollRadioCase(browser, { width: 390, height: 844, isMobile: true, hasTouch: true }, '390px')
+  await pollChatCase(browser, { width: 1440, height: 900 }, '1440px')
+  await pollChatCase(browser, { width: 390, height: 844, isMobile: true, hasTouch: true }, '390px')
   await pollGoCase(browser, { width: 1440, height: 900 }, '1440px')
   await pollGoCase(browser, { width: 390, height: 844, isMobile: true, hasTouch: true }, '390px')
   await pollCheckCase(browser, { width: 1440, height: 900 }, '1440px')

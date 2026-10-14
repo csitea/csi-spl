@@ -25,11 +25,13 @@
  *   Poll: <msg_id>                the form's message
  *   Answer: A — Deploy now        one question (checkbox: `A,C — x; y`, `none`)
  *   Answer 2: B — Later           a form of several questions, one line each
- *   Chat: wants to discuss        "Chat about this" (owner msg 6cd5873a): text follows
+ *   Chat: wants to discuss        "Chat about this" (owner msg 6cd5873a): leads, the
+ *   > <question>                  question quoted, the reader's text after it
  *
  * Each answer reply carries the sender's whole current form; the newest one
- * of a sender is that sender's answer (re-answer replaces). The one rule for
- * writers: csi-spl-doc/doc/help/how-to-post.md.
+ * of a sender is that sender's answer (re-answer replaces). A chat reply
+ * newer than it shows "Chat about this" picked on the question it quotes
+ * (SPL-1851). The one rule for writers: csi-spl-doc/doc/help/how-to-post.md.
  */
 
 /** owner msg 8f0da7ca: checkbox picks lock in 45 s per question after the first click */
@@ -42,7 +44,10 @@ const OPTION_RE = /^(?:[-*][ \t]+)?([([])[ \t]*([A-Za-z0-9]{1,3})[ \t]*([)\]])[ 
 const CHAT_RE = /^chat about this\.?$/i
 const KEYS_SRC = String.raw`([A-Za-z0-9]{1,3}(?:[ \t]*,[ \t]*[A-Za-z0-9]{1,3})*|none)\b`
 const MARKER_ANSWER_RE = new RegExp(String.raw`^Answer(?:[ \t]+(\d+))?:[ \t]*${KEYS_SRC}`, 'gim')
-const MARKER_CHAT_RE = /^Chat:[ \t]*wants to discuss\b/im
+/* SPL-1851: anywhere, not only leading: a reply sent while the caret sat
+   before the marker (t1 d64c762a msg b09c5a8c) still counts as the chat */
+const MARKER_CHAT_RE = /Chat:[ \t]*wants to discuss\b/i
+const MARKER_QUOTE_RE = /^>[ \t]?(.*\S)[ \t]*$/m
 const MARKER_POLL_RE = /^Poll:[ \t]*([0-9A-Za-z-]{8,})[ \t]*$/im
 
 export { mayHavePoll } from './poll-fence.mjs'
@@ -160,13 +165,17 @@ export function chatBody(poll, msgId, question = 0) {
 
 /**
  * A reply's marker -> { msgId, chat, picks } or null; `picks` maps the
- * question number (1-based) to its keys ([] for `none`).
+ * question number (1-based) to its keys ([] for `none`). A chat also
+ * carries `quote`, the question it quotes ('' when none).
  */
 export function parseAnswer(body) {
   const s = String(body || '')
   const p = MARKER_POLL_RE.exec(s)
   if (!p) return null
-  if (MARKER_CHAT_RE.test(s)) return { msgId: p[1], chat: true, picks: {} }
+  if (MARKER_CHAT_RE.test(s)) {
+    const q = MARKER_QUOTE_RE.exec(s.slice(p.index))
+    return { msgId: p[1], chat: true, picks: {}, quote: q ? q[1] : '' }
+  }
   const picks = {}
   for (const a of s.matchAll(MARKER_ANSWER_RE)) {
     picks[a[1] ? Number(a[1]) : 1] = a[2].toLowerCase() === 'none' ? [] : a[2].split(',').map((k) => k.trim().toUpperCase())
@@ -190,6 +199,30 @@ export function pollAnswers(rows, msgId) {
     if (!prev || prev.ts <= ts) latest.set(from, { from, picks: a.picks, ts, first: prev ? prev.first : ts })
   }
   return [...latest.values()].sort((a, b) => (a.first < b.first ? -1 : 1)).map(({ from, picks, ts }) => ({ from, picks, ts }))
+}
+
+/**
+ * SPL-1851: per question of `poll`, the ts of `from`'s chat reply when it is
+ * newer than their newest answer ('' otherwise): the form shows "Chat about
+ * this" picked there. A chat names its question by the quote chatBody wrote
+ * (the first question when it quotes none); a row with no ts yet is the
+ * newest (our own reply on its way).
+ */
+export function chatPicks(poll, rows, msgId, from) {
+  let answered = ''
+  const chats = poll.questions.map(() => '')
+  for (const r of rows || []) {
+    const a = r && String(r.from || '') === String(from) ? parseAnswer(r.body) : null
+    if (!a || a.msgId !== String(msgId)) continue
+    const ts = String(r.ts || '~')
+    if (!a.chat) {
+      if (ts > answered) answered = ts
+      continue
+    }
+    const i = Math.max(0, poll.questions.findIndex((q) => q.text && q.text === a.quote))
+    if (ts > chats[i]) chats[i] = ts
+  }
+  return chats.map((ts) => (ts > answered ? ts : ''))
 }
 
 /** the lock-in wait of a checkbox form: 45 s per question in it */

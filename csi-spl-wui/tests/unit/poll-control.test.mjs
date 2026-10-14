@@ -8,7 +8,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  answerBody, chatBody, lockSeconds, mayHavePoll, parseAnswer, parsePoll, pollAnswers, splitPolls,
+  answerBody, chatBody, chatPicks, lockSeconds, mayHavePoll, parseAnswer, parsePoll, pollAnswers, splitPolls,
 } from '../../src/utils/poll.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -99,6 +99,15 @@ describe('the answer marker', () => {
     assert.match(b, /> Which deploy path\?/)
     assert.equal(parseAnswer(b + 'my text').chat, true)
   })
+  it('SPL-1851: the chat marker leads, the question quoted, the reader\'s text after it', () => {
+    const b = chatBody(p, MID) + 'my text'
+    assert.equal(b, `Chat: wants to discuss\nPoll: ${MID}\n> Which deploy path?\n\nmy text`)
+    assert.deepEqual(parseAnswer(b), { msgId: MID, chat: true, picks: {}, quote: 'Which deploy path?' })
+  })
+  it('SPL-1851: a chat sent with text before the marker (t1 d64c762a msg b09c5a8c) still counts as the chat', () => {
+    const b = `I did reset it manually Chat: wants to discuss\nPoll: ${MID}\n> Which deploy path?`
+    assert.deepEqual(parseAnswer(b), { msgId: MID, chat: true, picks: {}, quote: 'Which deploy path?' })
+  })
   it('no Poll line, no marker', () => {
     assert.equal(parseAnswer('Answer: A'), null)
   })
@@ -118,6 +127,31 @@ describe('pollAnswers: the newest answer per sender wins', () => {
       { from: 'HUM-10', picks: { 1: ['B'] }, ts: '2026-10-13T08:02:00Z' },
       { from: 'HUM-4', picks: { 1: ['B'] }, ts: '2026-10-13T08:01:00Z' },
     ])
+  })
+})
+
+describe('SPL-1851 chatPicks: a chat reply newer than the answer is the reader\'s pick', () => {
+  const p = parsePoll(RADIO)
+  const two = parsePoll('First?\n(A) a\n(B) b\nSecond?\n(A) c\n(B) d')
+  const chat = (q) => `Chat: wants to discuss\nPoll: ${MID}\n> ${q}\n\nhm`
+  it('a chat counts as the "chat" pick on the question it quotes', () => {
+    assert.deepEqual(chatPicks(p, [{ from: 'HUM-10', ts: 't1', body: chat('Which deploy path?') }], MID, 'HUM-10'), ['t1'])
+    assert.deepEqual(chatPicks(two, [{ from: 'HUM-10', ts: 't1', body: chat('Second?') }], MID, 'HUM-10'), ['', 't1'])
+  })
+  it('the owner\'s reply with the marker after the text is picked too', () => {
+    const body = `I did reset it manually Chat: wants to discuss\nPoll: ${MID}\n> Which deploy path?`
+    assert.deepEqual(chatPicks(p, [{ from: 'HUM-10', ts: 't1', body }], MID, 'HUM-10'), ['t1'])
+  })
+  it('a newer answer replaces it; a newer chat replaces the answer; a row with no ts yet is the newest', () => {
+    const ans = (ts) => ({ from: 'HUM-10', ts, body: `Poll: ${MID}\nAnswer: A` })
+    const ch = (ts) => ({ from: 'HUM-10', ts, body: chat('Which deploy path?') })
+    assert.deepEqual(chatPicks(p, [ch('t1'), ans('t2')], MID, 'HUM-10'), [''])
+    assert.deepEqual(chatPicks(p, [ans('t1'), ch('t2')], MID, 'HUM-10'), ['t2'])
+    assert.deepEqual(chatPicks(p, [ans('t1'), { from: 'HUM-10', body: chat('Which deploy path?') }], MID, 'HUM-10'), ['~'])
+  })
+  it('other senders and other forms do not count', () => {
+    const rows = [{ from: 'HUM-4', ts: 't1', body: chat('Which deploy path?') }, { from: 'HUM-10', ts: 't2', body: 'Chat: wants to discuss\nPoll: bbbbbbbb-0000' }]
+    assert.deepEqual(chatPicks(p, rows, MID, 'HUM-10'), [''])
   })
 })
 

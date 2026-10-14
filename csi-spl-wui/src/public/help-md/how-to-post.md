@@ -195,7 +195,9 @@ Which deploy path?
 4. **"Chat about this" is always the last option**, added by the WUI (do not
    write it). Picking it is not an answer: it opens the reply box in the
    topic with `Chat: wants to discuss`, the `Poll:` line and the question
-   quoted, and the reader types their text.
+   quoted, and the reader types their text after them. Once that reply is
+   posted, the form shows "Chat about this" as the reader's pick on that
+   question, until a newer answer of theirs replaces it.
 5. **A radio click posts the answer at once** (no Send). **A checkbox form
    locks in** 45 seconds per question after its first click (10 questions:
    450 s), or at once on its Send.

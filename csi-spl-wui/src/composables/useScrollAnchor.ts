@@ -21,6 +21,8 @@ interface Anchor {
   lastTop: number
   resize: ResizeObserver | null
   watched: HTMLElement | null
+  /* the rows observed one by one (see observeRows) */
+  rows: Set<Element>
   frame: number
   /* the document scroll listener, one function so it can be removed */
   onScroll: (ev?: Event) => void
@@ -97,9 +99,34 @@ function observe(a: Anchor, s: HTMLElement) {
   }
   if (a.watched === s) return
   a.resize.disconnect()
+  a.rows.clear()
   a.watched = s
   a.resize.observe(s)
   if (a.root.value) a.resize.observe(a.root.value)
+  observeRows(a)
+}
+
+/* SPL-1762: each row too, not only the list. A card off screen is laid out
+   at its contain-intrinsic-size estimate (content-visibility: auto) and grows
+   once drawn. When a live frame drops rows at the top as it adds them at the
+   bottom, the list can end the frame at the height it had before, so an
+   observer on the list alone never fires and the feed stays short of the
+   new bottom (message-order A5). A row that grows always fires its own. */
+function observeRows(a: Anchor) {
+  const ro = a.resize
+  const r = a.root.value
+  if (!ro || !r) return
+  for (const el of a.rows) {
+    if (!el.isConnected) {
+      ro.unobserve(el)
+      a.rows.delete(el)
+    }
+  }
+  for (const el of r.querySelectorAll('[data-key]')) {
+    if (a.rows.has(el)) continue
+    a.rows.add(el)
+    ro.observe(el)
+  }
 }
 
 function toBottom(a: Anchor, smooth = false) {
@@ -157,6 +184,7 @@ function afterPatch(a: Anchor, next: string[], prev: string[]) {
   const b = a.before
   a.before = null
   if (a.newestLast()) {
+    observeRows(a)
     afterAppend(a, b, prev, next)
     return
   }
@@ -203,6 +231,7 @@ function flipOrder(a: Anchor, on: boolean) {
   if (!on) {
     a.resize?.disconnect()
     a.watched = null
+    a.rows.clear()
   }
   void nextTick(() => {
     if (!a.enabled()) return
@@ -214,6 +243,7 @@ function flipOrder(a: Anchor, on: boolean) {
 function teardown(a: Anchor) {
   if (a.listening) document.removeEventListener('scroll', a.onScroll, { capture: true })
   a.resize?.disconnect()
+  a.rows.clear()
   if (a.frame) cancelAnimationFrame(a.frame)
 }
 
@@ -241,7 +271,7 @@ export function useScrollAnchor(
 ) {
   const a: Anchor = {
     root, isOwn, enabled, newestLast, pill: ref(0), before: null, listening: false,
-    stuck: true, lastTop: 0, resize: null, watched: null, frame: 0, onScroll: () => {},
+    stuck: true, lastTop: 0, resize: null, watched: null, rows: new Set(), frame: 0, onScroll: () => {},
   }
   a.onScroll = (ev?: Event) => onScroll(a, ev)
 

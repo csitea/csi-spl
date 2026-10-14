@@ -117,6 +117,42 @@ export const REVEAL_PAGES = 10
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** Frames the card must keep its place before the hold lets go, and the cap. */
+const HOLD_STILL_FRAMES = 10
+const HOLD_MAX_MS = 2000
+
+/** SPL-1762: keep the card at the reader's edge while the feed settles. The
+    tail under the list lands a frame late, and a card off screen is laid out
+    at its content-visibility estimate until it is drawn: once the card is in
+    view the rows beside it are drawn at their real height and move it, on a
+    slow machine after the first re-measure. Re-apply every frame until the
+    card has kept its place HOLD_STILL_FRAMES frames (at most HOLD_MAX_MS);
+    the reader's own wheel, touch, key or pointer lets go at once. */
+function holdCard(card, scroller, apply) {
+  if (typeof requestAnimationFrame !== 'function') return
+  const until = Date.now() + HOLD_MAX_MS
+  const inputs = ['wheel', 'touchstart', 'keydown', 'pointerdown']
+  let done = false
+  const stop = () => {
+    done = true
+    for (const t of inputs) scroller.removeEventListener(t, stop)
+  }
+  for (const t of inputs) scroller.addEventListener(t, stop, { passive: true })
+  let last = NaN
+  let still = 0
+  const tick = () => {
+    if (done) return
+    if (!card.isConnected || Date.now() > until) return stop()
+    apply()
+    const at = card.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+    still = Math.abs(at - last) < 1 ? still + 1 : 0
+    last = at
+    if (still >= HOLD_STILL_FRAMES) return stop()
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
+
 /** Scroll the parent card to the reader's edge, reading older pages for it,
     and keep the thread open on it - or, with no target, select the card
     `msgId` itself and open nothing. */
@@ -141,8 +177,7 @@ async function revealCard(topic, target, { router, hash, newestLast, msgId = '' 
           scroller.scrollTop += cardScrollDelta(card.getBoundingClientRect(), scroller.getBoundingClientRect(), newestLast, pad)
         }
         apply()
-        /* the tail under the list lands on the next frame; measure again then */
-        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(apply)
+        holdCard(card, scroller, apply)
       }
       if (!target) card.focus({ preventScroll: true, focusVisible: true })
       return

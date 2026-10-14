@@ -125,6 +125,7 @@ Ranked by impact-to-effort ratio, lowest-hanging certainty first:
 - **Effort:** **S**
 - **Measurement Command:**
   Headless Chrome CDP `Performance.getMetrics` (`LayoutDuration` + `RecalcStyleDuration`) on a 300-message mock topic before and after.
+- **Built (SPL-1750, then SPL-1762):** the rule shipped in b4ebb24eb and was dropped in 2b0beeda4. A newest-last feed that drops rows at the top as it adds rows at the bottom can end a frame at the same list height. The list's ResizeObserver then never fired, the new row grew from its 72px estimate after the feed had followed it, and the feed stopped 57-69px short of the bottom (`message-order.test.mjs` A5, 3 of 3 widths). SPL-1762 has `useScrollAnchor.ts` observe every row (`[data-key]`) after each patch as well as the list, so a row that grows re-follows the bottom, and puts the card rule back. Mock bundle: A5 passes 3 of 3 widths with both changes and fails 3 of 3 with the rule alone.
 
 ---
 

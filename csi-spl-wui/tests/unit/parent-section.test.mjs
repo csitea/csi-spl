@@ -280,6 +280,14 @@ describe('wiring', () => {
     assert.match(nav, /topic\.openTarget\(target, topic\.rootMsg\)/)
   })
 
+  it('SPL-1762: holds the card at the edge until it keeps its place, and lets go on the reader\'s own input', () => {
+    const nav = src('src/utils/parent-section-open.mjs')
+    assert.match(nav, /apply\(\)\n\s+holdCard\(card, scroller, apply\)/)
+    assert.match(nav, /HOLD_STILL_FRAMES = \d+/)
+    assert.match(nav, /HOLD_MAX_MS = \d+/)
+    assert.match(nav, /\['wheel', 'touchstart', 'keydown', 'pointerdown'\]/)
+  })
+
   it('the card test agrees with parentSection on who has a parent', () => {
     const cases = [
       { channel: 'dev', task_id: TOPIC },

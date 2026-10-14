@@ -58,6 +58,33 @@ const ok = (name, pass, ev) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const settle = (p) => p.waitForNetworkIdle({ idleTime: 400, timeout: 15000 }).catch(() => {})
+/* read until want(value) holds or ms pass; the last read is returned either
+   way, so a check that never comes true still fails on what was seen */
+async function until(read, want, ms = 5000) {
+  const t0 = Date.now()
+  let v = await read()
+  while (!want(v) && Date.now() - t0 < ms) {
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+/* read until two reads 100 ms apart agree (the box has no transition, so a
+   snap or a resize has landed) and want(value) holds */
+async function stable(read, want = () => true, ms = 5000) {
+  const t0 = Date.now()
+  let prev = JSON.stringify(await read())
+  for (;;) {
+    await sleep(100)
+    const v = await read()
+    const now = JSON.stringify(v)
+    if ((now === prev && want(v)) || Date.now() - t0 > ms) return v
+    prev = now
+  }
+}
+const settled = (p, want) => stable(() => facts(p), (f) => Boolean(f) && (!want || want(f)))
+/* the feed's scroller once it scrolls; its scrollTop */
+const feedTop = (p) => p.evaluate(() => Math.round([...document.querySelectorAll('.spool-main .feed-body')].find((e) => e.getClientRects().length && e.scrollHeight > e.clientHeight + 40)?.scrollTop ?? -1))
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -126,21 +153,20 @@ async function dragGrip(p, x, y, handle = 'grip') {
     await sleep(16)
   }
   await p.touchscreen.touchEnd()
-  await sleep(500)
-  return facts(p)
+  return settled(p)
 }
 
 async function toChannel(p) {
   await settle(p)
   await p.goto(`${server.base}/`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
-  await sleep(800)
+  /* a click before the app is mounted (hydrated) is lost */
+  await p.waitForFunction(() => Boolean(document.querySelector('#__nuxt')?.__vue_app__), { timeout: NAV_TIMEOUT })
   await p.click('[data-testid=sidebar-tab-channels]')
-  await sleep(400)
+  await p.waitForSelector('#sidebar-panel-channels .nav-item', { visible: true, timeout: NAV_TIMEOUT })
   await p.evaluate(() => document.querySelector('#sidebar-panel-channels .nav-item')?.click())
-  await sleep(1200)
   await p.waitForSelector('[data-testid=omnibox-grip]', { timeout: NAV_TIMEOUT })
-  await sleep(300)
+  await settled(p)
 }
 
 async function phone(browser) {
@@ -171,20 +197,19 @@ async function phone(browser) {
     document.head.appendChild(s)
   }, PROBE)
   await p.waitForSelector('[data-test=error-snackbar-item]', { timeout: 4000 }).catch(() => {})
-  await sleep(500)
-  const snack = await p.evaluate(() => {
+  /* it slides in: read it once it stands still */
+  const snack = await stable(() => p.evaluate(() => {
     const it = document.querySelector('[data-test=error-snackbar-item]')
     if (!it) return null
     const r = it.getBoundingClientRect()
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
     return { top: Math.round(r.top), bottom: Math.round(r.bottom), onTop: Boolean(hit && it.contains(hit)) }
-  })
+  }))
   ok('390px 2 drag up: the box is right under the top bar, the panes start under it, a snackbar is readable over it',
     Boolean(f2 && f2.pos === 'top' && f2.stored === 'top' && Math.abs(f2.box.top - f2.barBottom) <= 2 && f2.box.w === f2.vw
       && Math.abs(f2.shellPadTop - f2.box.h) <= 2 && snack && snack.onTop), { f2, snack })
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'omnibox-grip-390-top.png') })
   await p.evaluate(() => document.querySelector('[data-test=error-snackbar-dismiss]')?.click())
-  await sleep(300)
 
   /* 3: reload keeps it */
   await toChannel(p)
@@ -209,7 +234,7 @@ async function phone(browser) {
     const ch = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
     for (let i = 0; i < 30; i++) await ch.send(`HUM-10 grip filler ${i}`, undefined, undefined, undefined, 1)
   })
-  await sleep(1200)
+  await until(() => feedTop(p), (t) => t >= 0)
   const body = await p.evaluate(() => {
     const els = [...document.querySelectorAll('.spool-main .feed-body')].filter((e) => e.getClientRects().length && e.scrollHeight > e.clientHeight + 40)
     const el = els[0]
@@ -228,21 +253,18 @@ async function phone(browser) {
       await sleep(16)
     }
     await p.touchscreen.touchEnd()
-    await sleep(700)
-    const after = await p.evaluate(() => Math.round([...document.querySelectorAll('.spool-main .feed-body')].find((e) => e.getClientRects().length && e.scrollHeight > e.clientHeight + 40)?.scrollTop ?? -1))
+    const after = await until(() => feedTop(p), (t) => t < before - 20, 3000)
     scrolled = { before, after }
   }
-  const f6 = await facts(p)
+  const f6 = await settled(p)
   ok('390px 6 CONTROL: a touch swipe on the feed scrolls it and leaves the box at the bottom',
     Boolean(scrolled && scrolled.after < scrolled.before - 20 && f6.pos === 'bottom'), { scrolled, pos: f6 && f6.pos })
 
   /* 7: the menu by tap */
-  await p.tap('[data-testid=omnibox-grip]')
-  await sleep(300)
-  const menu = await p.evaluate(() => [...document.querySelectorAll('[data-testid=omnibox-grip-menu] [role=menuitemradio][data-pos]')].map((b) => ({ pos: b.getAttribute('data-pos'), checked: b.getAttribute('aria-checked'), text: b.textContent.trim() })))
+  await openMenu(p)
+  const menu = await until(() => p.evaluate(() => [...document.querySelectorAll('[data-testid=omnibox-grip-menu] [role=menuitemradio][data-pos]')].map((b) => ({ pos: b.getAttribute('data-pos'), checked: b.getAttribute('aria-checked'), text: b.textContent.trim() }))), (m) => m.length === 3)
   await p.tap('[data-testid=omnibox-grip-menu] [data-pos=top]')
-  await sleep(400)
-  const f7 = await facts(p)
+  const f7 = await settled(p, (f) => f.pos === 'top')
   ok('390px 7 a tap opens the menu (top / right / bottom, bottom checked); "Move to top" moves it',
     Boolean(menu.length === 3 && menu.find((m) => m.pos === 'bottom')?.checked === 'true' && menu.every((m) => m.text)
       && f7.pos === 'top' && f7.stored === 'top'), { menu, pos: f7.pos })
@@ -250,12 +272,10 @@ async function phone(browser) {
   /* 8: the keyboard */
   await p.focus('[data-testid=omnibox-grip]')
   await p.keyboard.press('Enter')
-  await sleep(300)
-  const focused = await p.evaluate(() => document.activeElement?.getAttribute('data-pos'))
+  const focused = await until(() => p.evaluate(() => document.activeElement?.getAttribute('data-pos')), Boolean)
   await p.keyboard.press('ArrowDown')
   await p.keyboard.press('Enter')
-  await sleep(400)
-  const f8 = await facts(p)
+  const f8 = await settled(p, (f) => f.pos === 'right')
   ok('390px 8 keyboard: Enter opens the menu on the current place, ArrowDown + Enter picks the next (right)',
     focused === 'top' && f8.pos === 'right', { focused, pos: f8.pos })
 
@@ -270,6 +290,14 @@ async function phone(browser) {
 /** The room a height share is of: under the top bar, no keyboard here. */
 const room = (f) => f.vh - f.barBottom
 
+/* tap the grip until its menu is up: a tap right after a swipe can be lost */
+async function openMenu(p) {
+  for (let i = 0; i < 3; i++) {
+    if (!(await p.$('[data-testid=omnibox-grip-menu]'))) await p.tap('[data-testid=omnibox-grip]')
+    if (await p.waitForSelector('[data-testid=omnibox-grip-menu]', { timeout: 2000 }).catch(() => null)) return
+  }
+}
+
 /* the menu by tap; waits for it and taps the grip again when a tap was lost */
 async function pickMenu(p, sel) {
   for (let i = 0; i < 3; i++) {
@@ -280,8 +308,8 @@ async function pickMenu(p, sel) {
       break
     }
   }
-  await sleep(500)
-  return facts(p)
+  await until(() => p.$('[data-testid=omnibox-grip-menu]'), (m) => !m, 3000)
+  return settled(p)
 }
 
 /* owner, t1 21:53Z: "it should be possible to resize it" */
@@ -308,7 +336,7 @@ async function sizes(p) {
     const ch = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
     for (let i = 0; i < 30; i++) await ch.send(`HUM-10 size filler ${i}`, undefined, undefined, undefined, 1)
   })
-  await sleep(1200)
+  await until(() => feedTop(p), (t) => t >= 0)
   const sc = await p.evaluate(() => {
     const el = [...document.querySelectorAll('.spool-main .feed-body')].find((e) => e.getClientRects().length && e.scrollHeight > e.clientHeight + 40)
     if (!el) return null
@@ -319,18 +347,16 @@ async function sizes(p) {
   let scrolled = null
   if (sc) {
     await sleep(300)
-    const top = () => p.evaluate(() => Math.round([...document.querySelectorAll('.spool-main .feed-body')].find((e) => e.getClientRects().length && e.scrollHeight > e.clientHeight + 40)?.scrollTop ?? -1))
-    const before = await top()
+    const before = await feedTop(p)
     await p.touchscreen.touchStart(sc.x, sc.y)
     for (let i = 1; i <= 8; i++) {
       await p.touchscreen.touchMove(sc.x, sc.y + i * 25)
       await sleep(16)
     }
     await p.touchscreen.touchEnd()
-    await sleep(700)
-    scrolled = { before, after: await top() }
+    scrolled = { before, after: await until(() => feedTop(p), (t) => t < before - 20, 3000) }
   }
-  const f13 = await facts(p)
+  const f13 = await settled(p)
   ok('390px 13 CONTROL: with the large box a swipe on the feed still scrolls it, the size stays',
     Boolean(scrolled && scrolled.after < scrolled.before - 20 && Math.abs(f13.field - f12.field) <= 2), { scrolled, field: f13.field })
 
@@ -361,8 +387,8 @@ async function sizes(p) {
   }
   const items = await p.evaluate(() => [...document.querySelectorAll('[data-testid=omnibox-grip-menu] [data-size]')].map((b) => ({ size: b.getAttribute('data-size'), checked: b.getAttribute('aria-checked'), text: b.textContent.trim() })))
   await p.tap('[data-testid=omnibox-grip-menu] [data-size=medium]')
-  await sleep(400)
-  const f16a = await facts(p)
+  await until(() => p.$('[data-testid=omnibox-grip-menu]'), (m) => !m, 3000)
+  const f16a = await settled(p)
   const f16b = await pickMenu(p, '[data-pos=bottom]')
   const f16c = await pickMenu(p, '[data-size=small]')
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'omnibox-size-390-bottom-small.png') })
@@ -378,8 +404,7 @@ async function desktop(browser) {
   await p.setViewport({ width: 1440, height: 900 })
   await p.goto(`${server.base}/lobby`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('form.composer.omnibox--global', { timeout: NAV_TIMEOUT })
-  await sleep(400)
-  const f = await facts(p)
+  const f = await settled(p)
   ok('1440px 9 CONTROL: no grip on a desktop, the box in the top bar, no phone place',
     Boolean(f && !f.docked && !f.grip && !f.size && f.pos === null && f.box.top < f.barBottom), f)
   await p.close()

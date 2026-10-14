@@ -9,6 +9,11 @@
 #   3. a bad ROUND or DRY_RUN is refused and deletes nothing
 #   4. CONTROL: the review pattern widened to review/* deletes review/r6-x,
 #      and the keep check of (2) reports it
+#   5. ROUND="7,8" (and ROUNDS="7 8"): both rounds' refs listed in one run,
+#      DRY_RUN=0 deletes exactly those; master and r6 kept; ROUND=7 alone
+#      leaves r8 alone (round 9 plan row 08)
+#   6. a bad list (ROUND="7,x", "7,0", ",", ROUND and ROUNDS both set) is
+#      refused and deletes nothing
 # The remote is a local bare repo; nothing touches a real origin.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -25,14 +30,17 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 R7=(review/r7-01-a review/r7-10-b wip/c-163-r7-10-x)
 KEEP=(master review/r6-x wip/c-1-r6-y review/r70-z wip/c-2-r17-q wip/c-3-r70 review/r7)
+R8=(review/r8-02-c wip/c-200-r8-02-y)
 
-# fixture <name>: a bare remote $T/<name>.git and a clone $T/<name> with every
-# branch of R7 and KEEP on the remote, each on its own commit.
+# fixture <name> [extra branch ...]: a bare remote $T/<name>.git and a clone
+# $T/<name> with every branch of R7, KEEP and the extras on the remote, each
+# on its own commit.
 fixture() {
   local d="$T/$1" b i=0
+  shift
   git init -q --bare "$d.git"
   git init -q -b master "$d" && git -C "$d" remote add origin "$d.git"
-  for b in "${R7[@]}" "${KEEP[@]}"; do
+  for b in "${R7[@]}" "${KEEP[@]}" "$@"; do
     i=$((i + 1))
     echo "$i" >"$d/f" && git -C "$d" add f && git -C "$d" commit -qm "c$i"
     git -C "$d" push -q origin "HEAD:refs/heads/$b"
@@ -43,7 +51,7 @@ fixture() {
 run_prune() {
   local f="$1" g="$2"
   shift 2
-  env -u ROUND -u DRY_RUN PRUNE_GIT_DIR="$g" "$@" bash -c '
+  env -u ROUND -u ROUNDS -u DRY_RUN PRUNE_GIT_DIR="$g" "$@" bash -c '
     set -uo pipefail
     do_log() { printf "%s\n" "$*"; }
     source "$1"
@@ -108,6 +116,41 @@ else
     fail "control: a widened pattern was not caught ($(kept_all "$T/c"))"
   fi
 fi
+
+# 5. several rounds in one run -----------------------------------------------
+fixture m "${R8[@]}"
+before="$(heads "$T/m")"
+out="$(run_prune "$FUNC" "$T/m" ROUND=7)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c '^REF ' <<<"$out")" == 3 && "$out" != *r8-* ]] \
+  && pass "ROUND=7 alone lists the 3 r7 refs, no r8 ref" || fail "single round on the multi fixture: rc=$rc out=$out"
+out="$(run_prune "$FUNC" "$T/m" ROUND="7,8")"; rc=$?
+got="$(grep '^REF ' <<<"$out" | cut -d' ' -f2 | sort)"
+want="$(printf '%s\n' "${R7[@]}" "${R8[@]}" | sort)"
+if [[ $rc -eq 0 && "$got" == "$want" && "$(heads "$T/m")" == "$before" && "$out" == *'nothing deleted'* ]]; then
+  pass "ROUND=\"7,8\" dry run: the 5 r7 + r8 refs listed, 0 deletes"
+else
+  fail "ROUND=\"7,8\" dry run: rc=$rc got=$(paste -sd' ' - <<<"$got") out=$out"
+fi
+out2="$(run_prune "$FUNC" "$T/m" ROUNDS="7 8")"; rc=$?
+[[ $rc -eq 0 && "$(grep '^REF ' <<<"$out2")" == "$(grep '^REF ' <<<"$out")" ]] \
+  && pass "ROUNDS=\"7 8\" lists the same refs as ROUND=\"7,8\"" || fail "ROUNDS=\"7 8\": rc=$rc out=$out2"
+out="$(run_prune "$FUNC" "$T/m" ROUND="7,8" DRY_RUN=0)"; rc=$?
+want="$(printf '%s\n' "${KEEP[@]}" | sort)"
+if [[ $rc -eq 0 && "$(heads "$T/m")" == "$want" && "$(grep -c '^DELETED ' <<<"$out")" == 5 ]] && kept_all "$T/m" >/dev/null; then
+  pass "ROUND=\"7,8\" DRY_RUN=0: the 5 r7 + r8 refs gone; master and r6 kept"
+else
+  fail "ROUND=\"7,8\" delete: rc=$rc heads=$(heads "$T/m" | paste -sd' ' -) out=$out"
+fi
+
+# 6. bad round lists ----------------------------------------------------------
+fixture n "${R8[@]}"
+before="$(heads "$T/n")"
+for args in "ROUND=7,x" "ROUND=7,0" "ROUND=," "ROUNDS=8,-1" "ROUND=7 ROUNDS=8"; do
+  # shellcheck disable=SC2086 # the args are separate VAR=value words
+  out="$(run_prune "$FUNC" "$T/n" $args DRY_RUN=0)"; rc=$?
+  [[ $rc -ne 0 && "$(heads "$T/n")" == "$before" && "$out" == *FATAL* ]] \
+    && pass "refused, nothing deleted: '${args} DRY_RUN=0'" || fail "'${args}': rc=$rc out=$out"
+done
 
 if (( fails )); then
   echo "FAILED: $fails"

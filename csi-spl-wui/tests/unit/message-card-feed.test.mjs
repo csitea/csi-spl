@@ -1,9 +1,7 @@
 // SPL-1750 (ui panel 34f4da14, consensus items 4 and 5): the message card
-//   - skips style/layout/paint off screen (content-visibility), except while
-//     it swipes or holds the focus, where paint containment would clip the
-//     swipe strip and the edit box's mention list. SPL-1762: the feed
-//     re-follows a row that grows from its 72px estimate, because the scroll
-//     anchor observes every row, not only the list (message-order A5);
+//   - does NOT set content-visibility: a new row at the feed's end is laid
+//     out at the intrinsic estimate, grows, and the feed stops short of the
+//     bottom (message-order.test.mjs A5);
 //   - on a desktop pointer shows Open topic, an empty "0 >>", the smile and
 //     the menu on hover / focus only (opacity, so Tab and clicks are kept);
 //     a reply count above 0 stays;
@@ -17,9 +15,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const here = dirname(fileURLToPath(import.meta.url))
-const src = readFileSync(join(here, '../../src/components/MessageCard.vue'), 'utf8')
-const anchor = readFileSync(join(here, '../../src/composables/useScrollAnchor.ts'), 'utf8')
+const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
 const css = src.slice(src.indexOf('<style scoped>'))
 const block = (head) => {
   const i = css.indexOf(head)
@@ -32,17 +28,9 @@ const block = (head) => {
   return ''
 }
 
-describe('MessageCard feed rendering (SPL-1750, SPL-1762)', () => {
-  it('an idle card is content-visibility: auto with a remembered 72px size', () => {
-    const b = block('.msg:not(.msg--swiping):not(.msg--swipe-settle):not(:focus-within) {')
-    assert.match(b, /content-visibility:\s*auto;/)
-    assert.match(b, /contain-intrinsic-size:\s*auto 72px;/)
-    assert.equal((css.match(/content-visibility:/g) || []).length, 1, 'only the guarded rule sets it')
-  })
-  it('SPL-1762: the scroll anchor observes each row after every patch, and lets go of removed ones', () => {
-    assert.match(anchor, /function observeRows\(a: Anchor\)[\s\S]*?querySelectorAll\('\[data-key\]'\)[\s\S]*?ro\.observe\(el\)/)
-    assert.match(anchor, /if \(!el\.isConnected\) \{\s*ro\.unobserve\(el\)/)
-    assert.match(anchor, /if \(a\.newestLast\(\)\) \{\s*observeRows\(a\)\s*afterAppend/)
+describe('MessageCard feed rendering (SPL-1750)', () => {
+  it('the card sets no content-visibility (the feed must re-follow first)', () => {
+    assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ''), /(content-visibility|contain-intrinsic-size)\s*:/)
   })
   it('the replies button marks an empty count', () => {
     assert.match(src, /data-test="topic-replies"[\s\S]{0,120}:data-zero="count === 0 \? 'true' : undefined"/)

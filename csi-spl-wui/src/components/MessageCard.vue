@@ -2077,16 +2077,12 @@ async function save() {
   background: var(--color-surface-hover);
 }
 .msg-reaction__n { font-variant-numeric: tabular-nums; font-size: 0.75rem; }
-/* SPL-1762 (ui panel 34f4da14, item 4): a card off screen skips its style,
-   layout and paint; 72px is the one-line card's height until it has been
-   drawn once, then the browser keeps its real size (`auto`). Paint
-   containment clips at the card's edge, so a card that is swiping (its strip
-   sits just outside) or holds the focus (the edit box's mention list, the
-   open menu) draws normally. */
-.msg:not(.msg--swiping):not(.msg--swipe-settle):not(:focus-within) {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 72px;
-}
+/* SPL-1750 (ui panel 34f4da14, item 4) is NOT set on the card: with
+   content-visibility: auto a new row at the feed's end is laid out at its
+   intrinsic estimate when the feed follows it, then grows, and the feed stops
+   57-69px short of the bottom (message-order.test.mjs A5, 3 of 3 widths).
+   It needs the feed to re-follow after a row resizes, which is the feed's
+   code, not the card's. */
 /* SPL-1750 (item 5, desktop): Open topic, an empty "0 >>", the smile and the
    menu show on hover or keyboard focus only, so a quiet feed has no column of
    icons. opacity, not display: they keep their place (no shift on hover),

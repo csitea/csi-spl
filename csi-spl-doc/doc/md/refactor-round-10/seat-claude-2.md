@@ -70,4 +70,6 @@ and `spl-cloud-cnf.func.sh` +9/-1 (`b8a8afa5e`). Rows 01 and 08 below.
 
 ## 4. Signature
 
-Pending the editor's v1.0 sha.
+signed v1.0 40057b1a5
+
+Checked on `40057b1a5`: every change of sections 2 and 3 is in (rows 01, 08, 09; sections 3.2, 5, 9; section 7.2).

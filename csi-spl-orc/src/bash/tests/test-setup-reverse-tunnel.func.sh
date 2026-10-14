@@ -13,13 +13,12 @@ set -euo pipefail
 PROJ_ROOT="/opt/csi/csi-spl-wt/m-464"
 RUN="$PROJ_ROOT/csi-spl-orc/src/bash/run/run.sh"
 TEST_DIR="$PROJ_ROOT/csi-spl-orc/src/bash/tests"
-TUNNEL_DEST="satellite"
 TUNNEL_PORT="2222"
 AGENT_USER="ai-usr"
 
 # --- Test Tunnel Establishment ---
 echo "=== Testing tunnel establishment ==="
-if ! TUNNEL_DEST="$TUNNEL_DEST" "$RUN" -a setup_reverse_tunnel &>/dev/null & 
+if ! "$RUN" -a do_setup_reverse_tunnel &>/dev/null & 
 then
     echo "test-setup-reverse-tunnel: FAILED to start tunnel"
     exit 1

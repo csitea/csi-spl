@@ -10,7 +10,8 @@
 # @description rotate.dispatch.state / .ctx (resumable, FR-003). The shared
 # @description pieces are spl-rotate-lib.func.sh (CLE-77939).
 # @description   GATE     switch, lease.conf, this
-# @description            machine holds the dispatch lease (FR-044), boot grace, the last rotation and
+# @description            machine holds the dispatch lease (FR-044; a standby box only replaces a
+# @description            seat whose vendor is out, watchdog S2 limit/auth: SPL-1777), boot grace, the last rotation and
 # @description            the master at least ROTATE_MIN_AGE old, no orch
 # @description            rotation in flight (FR-051), not stalled (FR-022),
 # @description            then the master's id lock (spec 102 4.2; held =
@@ -108,9 +109,14 @@ spl_disp_rotate_auto() {
     return 0
   fi
   spl_dispatch_rotate_on || { spl_rotate_log "$rid" GATE SKIP "disabled (ROTATE=$ROTATE ROTATE_DISPATCH=$ROTATE_DISPATCH)"; return 0; }
-  # FR-044: only the machine that holds the dispatch lease rotates its pair
+  # FR-044: only the machine that holds the dispatch lease rotates its pair;
+  # a standby seat whose vendor is out is replaced (SPL-1777)
   spl_lease_read
-  if spl_lease_remote; then spl_rotate_log "$rid" GATE SKIP "standby (dispatch lease: $LH)"; return 0; fi
+  if spl_lease_remote; then
+    local src=0; spl_disp_standby_swap "$rid" || src=$?
+    (( src == 3 )) || return "$src"
+    spl_rotate_log "$rid" GATE SKIP "standby (dispatch lease: $LH)"; return 0
+  fi
   if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
     spl_rotate_log "$rid" GATE SKIP "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 0
   fi
@@ -228,7 +234,11 @@ spl_disp_heal_only() {
     spl_disp_heal_say "$rid" "rotation $ROTATE_RID in flight at $ROTATE_PHASE"; return 0
   fi
   spl_lease_read
-  if spl_lease_remote; then spl_disp_heal_say "$rid" "standby (dispatch lease: $LH)"; return 0; fi
+  if spl_lease_remote; then
+    local src=0; spl_disp_standby_swap "$rid" || src=$?
+    (( src == 3 )) || return "$src"
+    spl_disp_heal_say "$rid" "standby (dispatch lease: $LH)"; return 0
+  fi
   if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
     spl_disp_heal_say "$rid" "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 0
   fi
@@ -245,6 +255,98 @@ spl_disp_heal_only() {
 spl_disp_heal_count() {
   nm="$(spl_rotate_pids "$LEASE_MASTER" | grep -c . || true)"
   nf="$(spl_rotate_pids "$LEASE_FAILOVER" | grep -c . || true)"
+}
+
+# ---- the standby swap (SPL-1777) ----------------------------------------------
+
+# spl_disp_standby_swap RID: on a box whose dispatch lease another machine
+# holds (FR-044), a role seat whose vendor is OUT (spl_disp_seat_out) is
+# replaced by the guard's vendor (spl_disp_vendor) through the rotation's own
+# QUIESCE .. CLOSE and seat switch, so the standby pair works again
+# (2026-10-14: the standby box's g-002 / g-003 on grok's weekly limit, 8 unseated GAP
+# rows, and this gate skipped them). No HOLD, RELEASE, REFRESH or lease note:
+# the dispatch lease is never written, and a healthy seat is never touched.
+# rc 3 = no seat is out (the caller logs its standby skip).
+spl_disp_standby_swap() {
+  local base="${1%-master}" role id pid why n=0 rc=0
+  for role in master failover; do
+    id="$(spl_rotate_role_id "$role")"
+    pid="$(spl_rotate_pids "$id" | sed -n 1p)"
+    [[ -n "$pid" ]] || continue
+    why="$(spl_disp_seat_out "$id" "$pid")"
+    [[ -n "$why" ]] || continue
+    n=$((n + 1))
+    spl_disp_standby_one "$base-$role" "$role" "$id" "$pid" "$why" || rc=$?
+  done
+  (( n )) || return 3
+  return "$rc"
+}
+
+# spl_disp_seat_out ID PID: "S2 kind=<limit|auth> <age>s ago: <evidence>"
+# when ID's newest watchdog verdict (any instance, ctx*/<id>/out.s2) is S2
+# kind=limit or kind=auth, within lane-mix's windows (LANE_MIX_LIMIT_FRESH,
+# LANE_MIX_AUTH_FRESH) and newer than PID (a verdict on an earlier process
+# says nothing of this one); nothing otherwise. A file read: one lane-mix
+# call took 72 s (measured 2026-10-14 on sat), too slow for the heal cron.
+spl_disp_seat_out() {
+  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" f t best=-1 bestf="" now age hit k fresh
+  for f in "$wd"/ctx*/"$1"/out.s2; do
+    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
+    if (( t > best )); then best="$t" bestf="$f"; fi
+  done
+  [[ -n "$bestf" ]] || return 0
+  hit="$(grep -m1 -E '^HIT S2 kind=(limit|auth)( |$)' "$bestf" 2>/dev/null || true)"
+  [[ -n "$hit" ]] || return 0
+  k="${hit#HIT S2 kind=}"; k="${k%% *}"
+  fresh="${LANE_MIX_AUTH_FRESH:-604800}"
+  [[ "$k" == limit ]] && fresh="${LANE_MIX_LIMIT_FRESH:-21600}"
+  now="$(date +%s)"; age="$(spl_rotate_age "$2")"; age="${age:-0}"
+  (( now - best <= fresh && now - best <= age )) || return 0
+  echo "S2 kind=$k $(( now - best ))s ago: ${hit#HIT S2 kind=$k }"
+}
+
+# The vendor an id's letter names (a legacy CLE- id is claude).
+spl_disp_seat_vendor() {
+  case "${1:0:2}" in g-) echo grok ;; a-) echo agy ;; m-) echo mistral ;; q-) echo qwen ;; *) echo claude ;; esac
+}
+
+# A standby swap that changes nothing: rotate.log on the hourly run, stdout
+# only on the heal cron (a heal that changes nothing writes nothing).
+spl_disp_standby_say() {
+  if [[ "${ROTATE_CMD:-auto}" == heal ]]; then printf '%s %s STANDBY SKIP %s\n' "$(date -u +%FT%TZ)" "$1" "$2"
+  else spl_rotate_log "$1" STANDBY SKIP "$2"; fi
+}
+
+# spl_disp_standby_one RID ROLE ID PID WHY: one out seat replaced; the guard
+# picking the same dead vendor = no replacement, the reason logged.
+spl_disp_standby_one() {
+  local rid="$1" role="$2" id="$3" pid="$4" why="$5" was pane new rc=0
+  was="$(spl_disp_seat_vendor "$id")"
+  spl_disp_vendor
+  if [[ "$ROTATE_KIND" == "$was" ]]; then
+    spl_disp_standby_say "$rid" "$id ($was) is out ($why), but its successor would be $was too ($ROTATE_VENDOR_WHY): no replacement"
+    return 0
+  fi
+  pane="$(spl_rotate_pane_of_pid "$pid")"
+  [[ -n "$pane" ]] || { spl_disp_standby_say "$rid" "absent: $id pid $pid is in no tmux pane"; return 0; }
+  new="$(spl_rotate_vendor_id "$id")"
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then
+    spl_rotate_log "$rid" STANDBY PLAN "$id ($was, pid $pid) is out ($why): the $role seat goes to ${new:-$id} ($ROTATE_KIND: $ROTATE_VENDOR_WHY); the dispatch lease stays $LH"
+    return 0
+  fi
+  spl_disp_id_lock "$id" "$rid" || { spl_disp_standby_say "$rid" "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
+  spl_disp_begin "$role" "$rid" "$pid" "$pane"
+  spl_disp_step STANDBY OK "$id ($was, pid $pid, pane $pane) is out ($why); the dispatch lease is $LH: $ROTATE_KIND replaces it, no hold"
+  if spl_disp_run; then
+    new="$(spl_rotate_role_id "$role")"
+    spl_disp_step DONE OK "standby $role seat: $new ($ROTATE_KIND, pid $ROTATE_NEW_PID) replaces $id; the dispatch lease stays $LH"
+    spl_rotate_note "$LEASE_ORCH" "$(spl_rotate_ack_task "$rid")" \
+      "STANDBY SWAP $rid on $ROTATE_BOX: $id ($was) was out ($why); $new ($ROTATE_KIND) now holds the standby $role seat. The dispatch lease stays $LH. Seat its desks: do_spl_desk_up. Log: $LEASE_DIR/rotate.log" result
+  else
+    rc=1
+  fi
+  spl_agent_id_unlock "$id"
+  return "$rc"
 }
 
 # spl_disp_id_lock ID RID: the id lock of spec 102 4.2 on the ONE dispatcher
@@ -358,6 +460,9 @@ spl_disp_release() {
   local m="$LEASE_MASTER"
   rm -f "$LEASE_DIR/rotate.hold"
   spl_lease_log "ROTATE ${ROTATE_RID:-}: release $m"
+  # a standby box (SPL-1777) never writes the lease another machine holds
+  spl_lease_read
+  spl_lease_remote && return 0
   if [[ -z "${LEASE_FLEET:-}" && -n "$(spl_lease_agent_able "$m")" ]]; then spl_lease_locked spl_disp_lease_to "$m"; fi
   return 0
 }
@@ -529,7 +634,8 @@ spl_disp_fail() {
   spl_rotate_restore "$id" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
   if [[ "$role" == master ]]; then
     spl_disp_release
-    spl_rotate_note "$id" dispatch-lease "DISPATCH LEASE: you are ACTIVE again - rotation $ROTATE_RID failed and you keep the master role."
+    spl_lease_remote ||
+      spl_rotate_note "$id" dispatch-lease "DISPATCH LEASE: you are ACTIVE again - rotation $ROTATE_RID failed and you keep the master role."
   fi
   spl_disp_step FAIL FAIL "$phase: $reason; the old session (pid $ROTATE_OLD_PID) keeps the role"
   spl_rotate_alert "$role" "$ROTATE_RID" "$phase" "$reason"

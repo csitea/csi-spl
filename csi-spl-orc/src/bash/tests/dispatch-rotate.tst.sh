@@ -61,6 +61,13 @@
 #      inbox), the seed reads the c-00N brief as g-00N; back to claude: g-002
 #      -> c-002 reads c-002's brief; a grok M with no ack: lease.conf, the
 #      hold and the dirs back to c-002, the old M keeps the lease
+#  19. T-STANDBY-SWAP (SPL-1777): the dispatch lease on another machine and
+#      g-002's vendor out (watchdog S2 kind=limit): g-002 -> c-002 by the
+#      guard's vendor, g-003 (healthy) untouched, the lease file unchanged, no
+#      hold, release, refresh or lease note; the same through the heal cron.
+#      Controls: a dry run plans it and moves nothing; the guard picking the
+#      dead vendor again = no replacement, the reason logged; a verdict older
+#      than the seat's process, or a healthy seat = GATE SKIP standby
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -716,6 +723,54 @@ grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && [[ "$(holder)" == c-002 && ! -e
   pass "18. a grok M with no ack: lease.conf, hold and dirs back to c-002, the old M keeps the lease" || fail "18. no-ack: $(grep -E 'FAIL|SWITCH' "$T/o"; cat "$D/lease.conf"; ls -l "$S")"
 ! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "18. no stray failing command under the ERR trap" || fail "18. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
 rm -rf "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00*
+
+# --- 19. T-STANDBY-SWAP (SPL-1777): a standby box replaces a seat whose vendor is out ----------
+# sb: grok seats g-002 / g-003, the dispatch lease on sat, g-002 on grok's limit
+sb() {
+  w18 g; rm -rf "$D/wd" "$T/mix.out"
+  echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "g-002@sat $(date +%s)" >"$D/lease"; cp "$D/lease" "$T/lease.before"
+  mkdir -p "$D/wd/ctx.1/g-002" "$D/wd/ctx.1/g-003"
+  echo 'HIT S2 kind=limit pane: You hit your weekly limit' >"$D/wd/ctx.1/g-002/out.s2"; : >"$D/wd/ctx.1/g-003/out.s2"
+}
+sb; act "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q -- '-master STANDBY PLAN g-002 (grok, pid 102) is out (S2 kind=limit [0-9]*s ago: pane: You hit your weekly limit): the master seat goes to c-002 (claude: dispatch seats: claude); the dispatch lease stays g-002@sat' "$T/o" &&
+  ! grep -q 'failover STANDBY' "$T/o" && [[ ! -e "$T/spawn.log" && ! -e "$S/c-002" ]] && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" &&
+  pass "19. dry run: plans g-002 -> c-002, leaves g-003, moves nothing" || fail "19. dry rc=$rc: $(cat "$T/o")"
+sb; act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1; rc=$?
+rid="$(awk '$3 == "STANDBY" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
+[[ $rc -eq 0 && "$rid" == *-master ]] && grep -q "^spawn claude c-002 " "$T/spawn.log" && ! grep -q ' g-003 ' "$T/spawn.log" &&
+  [[ "$(cat "$T/proc/2002/comm" 2>/dev/null)" == claude && ! -d "$T/proc/102" && -d "$T/proc/103" ]] &&
+  grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && grep -qx 'LEASE_FAILOVER=g-003' "$D/lease.conf" && [[ "$(readlink "$S/g-002")" == c-002 ]] &&
+  grep -q " $rid DONE OK standby master seat: c-002 (claude, pid 2002) replaces g-002; the dispatch lease stays g-002@sat" "$T/o" &&
+  pass "19. lease remote + g-002 on its limit: replaced by c-002 (claude, the guard's vendor), g-003 untouched ($rid)" ||
+  fail "19. swap rc=$rc: $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null); conf: $(cat "$D/lease.conf")"
+cmp -s "$D/lease" "$T/lease.before" && [[ ! -e "$D/rotate.hold" ]] && ! grep -q 'dispatch-lease' "$T/send.log" &&
+  ! grep -qE " $rid (HOLD|RELEASE OK|REFRESH)" "$D/rotate.log" &&
+  pass "19. the lease file unchanged, no hold, no release, no refresh, no lease note" || fail "19. lease: $(cat "$D/lease") / $(cat "$T/lease.before"); $(grep -E 'dispatch-lease' "$T/send.log"; grep -E 'HOLD|RELEASE|REFRESH' "$D/rotate.log")"
+grep -q "send c-900 -> c-900 result dispatch-rotate-$rid .*STANDBY SWAP $rid on box-desk: g-002 (grok) was out .*c-002 (claude) now holds the standby master seat. The dispatch lease stays g-002@sat. Seat its desks: do_spl_desk_up" "$T/send.log" &&
+  pass "19. the orchestrator gets one STANDBY SWAP result naming do_spl_desk_up" || fail "19. note: $(cat "$T/send.log")"
+! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "19. no stray failing command under the ERR trap" || fail "19. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+sb; act DRY_RUN=0 "${V18[@]}" ROTATE_CMD=heal ROTATE_HEAL_CONFIRM=0 ROTATE_ROLE_VENDOR= >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q "^spawn claude c-002 " "$T/spawn.log" && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && cmp -s "$D/lease" "$T/lease.before" &&
+  ! grep -q 'HEAL SKIP standby' "$T/o" &&
+  pass "19. the heal cron (ROTATE_CMD=heal) replaces it the same way" || fail "19. heal rc=$rc: $(cat "$T/o")"
+# control: the guard picks the dead vendor again
+sb; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=grok >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" && -d "$T/proc/102" ]] && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" && cmp -s "$D/lease" "$T/lease.before" &&
+  grep -q -- '-master STANDBY SKIP g-002 (grok) is out (S2 kind=limit .*), but its successor would be grok too (ROTATE_ROLE_VENDOR=grok: grok): no replacement' "$D/rotate.log" &&
+  pass "19. control: the guard picks grok again -> no replacement, the reason in rotate.log" || fail "19. same vendor rc=$rc: $(cat "$T/o")"
+# control: a verdict older than the seat's process (pid 102 is 2 h old)
+sb; touch -d '3 hours ago' "$D/wd/ctx.1/g-002/out.s2"
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
+grep -q ' GATE SKIP standby (dispatch lease: g-002@sat)' "$T/o" && [[ ! -e "$T/spawn.log" ]] && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" &&
+  pass "19. control: a verdict older than the seat's process -> GATE SKIP standby" || fail "19. stale: $(cat "$T/o")"
+# control: healthy seats on the standby box
+sb; : >"$D/wd/ctx.1/g-002/out.s2"
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
+grep -q ' GATE SKIP standby (dispatch lease: g-002@sat)' "$T/o" && [[ ! -e "$T/spawn.log" ]] && ! grep -q STANDBY "$T/o" &&
+  pass "19. control: healthy standby seats -> GATE SKIP standby (FR-044)" || fail "19. healthy: $(cat "$T/o")"
+rm -rf "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00* "$D/wd"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

@@ -9,9 +9,13 @@
 #      its pane (the wrapper) and its own pid stopped, ONE restore of that
 #      id, one alert
 #   3. the words on a pane whose transcript is fine: not stuck
-#   4. a dead login here with a newer one on the peer: reported, never pulled
-#      (one refresher, g-839), no stop, no restore, an alert
-#   5. the peer's newer login does not work either -> the same: alert only
+#   4. a dead login here (the refresher) with a live one on the peer: the
+#      peer's is pulled once (temp + mv, .bak-login-<UTC> kept, mode 600),
+#      the re-probe is ok, the stuck seat restored, one "pulled peer" alert
+#      line; DRY_RUN=1 plans it and changes nothing; a limited login here
+#      pulls nothing (10-14: the refresher expired, its peer live, 5 lanes
+#      stopped on "Login expired")
+#   5. the peer's newer login does not work either -> no pull: alert only
 #   6. both boxes limited -> no copy, no stop, one alert; the same state on the
 #      next tick sends nothing (deduplicated)
 #   7. this box newer and working: pushed TO the peer (temp + mv,
@@ -154,20 +158,35 @@ reset; printf 'we discussed: Login expired · Please run /login\n' >"$T/panes/%1
 out="$(tick)"
 [ "$(acts)" = 0 ] && grep -q 'stuck_login=0' <<<"$out" && pass "3. the words alone are not a stuck pane" || fail "3. ($out; $(cat "$T/calls"))"
 
-# 4. dead here, newer working on the peer: reported, never pulled
+# 4. dead here, live on the peer: the refresher pulls the peer's
 reset; cred "$T/here/cred.json" DEAD 1000; stuck_login %11 999999701
+psha="$(sha256sum "$T/peer/cred.json" | cut -c1-12)"
 out="$(tick)"; rc=$?
-grep -q rt-DEAD-secret "$T/here/cred.json" && ! grep -qE '^(kill|restore)|peer [^ ]+ (get|put)' "$T/calls" \
-  && grep -q 'probe=expired stuck_login=1 stuck_limit=0 copied=0 stopped=0 restored=0 failed=0 alerted=1' <<<"$out" \
-  && pass "4. a newer peer login is not pulled; no stop, no restore on a dead login" || fail "4. (rc $rc: $out; $(cat "$T/calls"))"
-grep -q '^- peer sat holds a NEWER credential' "$T/calls" && grep -q '^- 1 stuck agent(s) left as they are' "$T/calls" \
-  && pass "4. the alert reports the newer peer and the stuck agent" || fail "4. alert ($(cat "$T/calls"))"
+cmp -s "$T/here/cred.json" "$T/peer/cred.json" && grep -q 'peer satellite get' "$T/calls" && ! grep -q 'peer satellite put' "$T/calls" \
+  && grep -q 'probe=ok stuck_login=1 stuck_limit=0 copied=1 stopped=1 restored=1 failed=0 alerted=1' <<<"$out" \
+  && pass "4. a dead login here, live on the peer: pulled, re-probe ok, the stuck seat restored" || fail "4. (rc $rc: $out; $(cat "$T/calls"))"
+[ "$(grep -c "^- pulled peer sat $psha because own probe expired$" "$T/calls")" = 1 ] && grep -q '^send .*claude login expired -> ok' "$T/calls" \
+  && pass "4. one alert line: pulled peer <tag> <sha12> because own probe expired" || fail "4. alert ($(cat "$T/calls"))"
+b="$(find "$T/here" -maxdepth 1 -name 'cred.json.bak-login-*' | wc -l)"
+[ "$b" = 1 ] && grep -q rt-DEAD "$T/here/"cred.json.bak-login-* && [ "$(stat -c %a "$T/here/cred.json")" = 600 ] \
+  && [ -z "$(find "$T/here" -maxdepth 1 -name '.cred-in*')" ] && grep -q rt-GOOD-secret "$T/peer/cred.json" \
+  && pass "4. the dead one kept as .bak-login-<UTC>, mode 600, no temp file, the peer's untouched" || fail "4. backup ($(ls -la "$T/here"))"
+printf '%s\n' "$out" >"$T/out4"
+[ "$(leaks "$T/out4" "$T/calls" "$T/state")" = 0 ] && pass "4. no credential content in any output, call or state" || fail "4. leak"
+reset; cred "$T/here/cred.json" DEAD 1000; stuck_login %11 999999701
+out="$(DRY=1 tick)"
+grep -q rt-DEAD-secret "$T/here/cred.json" && [ "$(acts)" = 0 ] && grep -q 'PLAN pull the credential of sat -> here' <<<"$out" \
+  && pass "4. DRY_RUN=1 plans the pull and changes nothing" || fail "4. dry ($out; $(cat "$T/calls"))"
+reset; cred "$T/here/cred.json" LIM 1000; echo "You've hit your weekly limit · resets Oct 14, 8pm" >"$T/here/probe-dead"
+out="$(tick)"
+grep -q rt-LIM-secret "$T/here/cred.json" && ! grep -qE 'peer [^ ]+ (get|put)' "$T/calls" && grep -q 'probe=limited .*copied=0' <<<"$out" \
+  && pass "4. control: a limited login here pulls nothing" || fail "4. limited ($out; $(cat "$T/calls"))"
 
 # 5. the peer is dead too
 reset; cred "$T/here/cred.json" DEAD 1000; cred "$T/peer/cred.json" DEAD2 3000
 echo "OAuth session expired and could not be refreshed" >"$T/peer/probe"; stuck_login %11 999999701
 out="$(tick)"
-grep -q rt-DEAD-secret "$T/here/cred.json" && ! grep -qE '^(kill|restore|close)' "$T/calls" && grep -q '^send ' "$T/calls" \
+grep -q rt-DEAD-secret "$T/here/cred.json" && ! grep -qE '^(kill|restore|close)|peer [^ ]+ (get|put)' "$T/calls" && grep -q '^send ' "$T/calls" \
   && grep -q 'copied=0 stopped=0 restored=0 failed=0 alerted=1' <<<"$out" \
   && pass "5. no working login anywhere: no copy, no stop, an alert only" || fail "5. ($out; $(cat "$T/calls"))"
 

@@ -17,7 +17,13 @@
 # @description      prefix differs from a peer's and it probes ok here, it is
 # @description      pushed (temp + mv, the old one kept as .bak-login-<UTC>,
 # @description      mode 600). A NEWER peer credential is reported, never
-# @description      overwritten or pulled. Limited = no push, alert only.
+# @description      overwritten. One exception: when this box probes
+# @description      expired and a peer's differing credential probes ok
+# @description      there, the refresher PULLS it, once per tick (the same
+# @description      temp + mv, .bak-login-<UTC>, mode 600), and re-probes
+# @description      (10-14: refresher expired, peer live, 5 lanes stopped). It
+# @description      pulls because the refresher can ssh its peers, a peer
+# @description      may not reach it (NAT). Limited = no copy, alert only.
 # @description   4. repair, only while the probe says ok: stop each stuck
 # @description      agent - its pane (and the wrapper that would relaunch
 # @description      claude in it), then ITS OWN claude pid (TERM, KILL after
@@ -76,7 +82,7 @@ do_spl_agent_login_check() {
   LC_TAG="$(ai_tag)"; LC_DRY="$dry"
   LC_COOL="$(_lc_cooldown_min)" || return 1; LC_COOL=$((LC_COOL * 60))
   [[ -n "${SPOOL_AGENT_USER:-}" ]] || SPOOL_AGENT_USER="$(SPOOL_AGENT_USER=''; _spool_box_env_load; printf '%s' "${SPOOL_AGENT_USER:-}")"
-  LC_NOTE=() ; LC_WARN=() ; LC_WKEY="" ; LC_COPIED=0 ; LC_STOPPED=0 ; LC_RESTORED=0 ; LC_FAILED=0
+  LC_NOTE=() ; LC_WARN=() ; LC_WKEY="" ; LC_COPIED=0 ; LC_PULLED=0 ; LC_STOPPED=0 ; LC_RESTORED=0 ; LC_FAILED=0
 
   local stuck0 verdict0 verdict stuck1="" alerted=0
   stuck0="$(_lc_scan)"
@@ -219,7 +225,8 @@ _lc_peers() {
 # Push this box's credential to peer TAG when their sha prefixes differ and
 # this one works (g-839 / owner 09e6331e: the box that names peers is the one
 # refresher). A peer whose credential is NEWER, or differs with the same
-# expiry, is reported (LC_WARN), never overwritten and never pulled.
+# expiry, is reported (LC_WARN), never overwritten. When this box's own
+# login is expired, a live peer credential is pulled instead (_lc_pull).
 _lc_peer_one() {
   local tag="$1" dest="$2" vname="$3" ls ps lsha lexp psha pexp got
   local -n _pv="$vname"
@@ -229,6 +236,7 @@ _lc_peer_one() {
     LC_WARN+=("peer $tag: no credential to compare (here ${lsha:-none}, there ${psha:-unreachable})"); LC_WKEY+=" peer-nocred:$tag"; return 1
   fi
   [[ "$lsha" == "$psha" ]] && return 0
+  if [[ "${_pv%% *}" == expired && "$LC_PULLED" == 0 ]]; then _lc_pull "$tag" "$dest" "$vname" "$lsha" "$psha" && return 0; fi
   if (( pexp > lexp )); then LC_WARN+=("peer $tag holds a NEWER credential ($psha there, $lsha here): reported, not overwritten"); return 1; fi
   if (( pexp == lexp )); then LC_WARN+=("peer $tag: credentials differ ($lsha here, $psha there) with the same expiry: not copied"); return 1; fi
   if [[ "${_pv%% *}" != ok ]]; then LC_WARN+=("peer $tag: this box's newer credential does not work (${_pv%% *}): not pushed"); return 1; fi
@@ -239,6 +247,28 @@ _lc_peer_one() {
   else
     LC_FAILED=$((LC_FAILED + 1)); LC_NOTE+=("FAILED to push the credential here -> $tag")
   fi
+}
+
+# This box's login is expired and peer TAG's credential differs: pull it when
+# it probes ok THERE (10-14: the refresher held a dead login, its peer a live
+# one it renewed itself; the peer names no peers and cannot ssh back, so
+# nothing pushed and 5 lanes stopped). The same put as a push (temp + mv, the
+# old one kept as .bak-login-<UTC>, mode 600), then a fresh probe here into
+# the caller's verdict VNAME. Once per tick. Non-zero = the peer's is not
+# live either: the caller reports as before.
+_lc_pull() {
+  local tag="$1" dest="$2" vname="$3" lsha="$4" psha="$5" pv got
+  local -n _qv="$vname"
+  pv="$(_lc_cred_at "$dest" probe 2>/dev/null | sed -n 1p)"
+  [[ "${pv%% *}" == ok ]] || { LC_WARN+=("peer $tag: this box's login is expired and the peer's ($psha) does not work there either (${pv%% *}): not pulled"); return 1; }
+  LC_PULLED=1
+  if [[ "$LC_DRY" == 1 ]]; then LC_NOTE+=("PLAN pull the credential of $tag -> here ($psha there, $lsha here, own probe expired)"); return 0; fi
+  got="$(_lc_cred_at "$dest" get 2>/dev/null | _lc_cred_at "" put 2>/dev/null | tail -n 1)"
+  if [[ "$got" != "$psha" ]]; then
+    LC_FAILED=$((LC_FAILED + 1)); LC_NOTE+=("FAILED to pull the credential of $tag -> here"); return 0
+  fi
+  LC_COPIED=$((LC_COPIED + 1)); LC_NOTE+=("pulled peer $tag $psha because own probe expired")
+  _qv="$(_lc_probe 0 "")"
 }
 
 # This box's credential, spec 132 section 3: a sample line in <state>/cred.log

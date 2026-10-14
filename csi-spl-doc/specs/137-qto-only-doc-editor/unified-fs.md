@@ -19,7 +19,8 @@ status: [tasks.md](tasks.md).
 - Write: unchanged. Only `tenant_scope` and `operator_scope` grant
   INSERT, UPDATE and DELETE, so a workspace session cannot write a system row
   (insert: SQL error 42501; update, delete, `FOR UPDATE`: 0 rows). The import
-  writes it under the operator scope (`do_spl_doctree_import_md`, T030a).
+  (`do_spl_doctree_import_md QTO_FS=repo`, T030a) writes it through the hub,
+  whose store opens the `system` tenant scope only for the callers of §3.
 - The store's doc list (`DocList`, `DocHeadOf`) and search (`DocSearch`)
   filter the caller's own tenant, so system rows never mix into a
   workspace's tree.
@@ -43,7 +44,7 @@ The doctree routes (`/v1/workspace/doctree/...`) take `?fs=`:
 | `fs` | tree | reads | writes |
 |---|---|---|---|
 | `workspace` (default) | the caller's workspace | `docs.read` | `docs.write` |
-| `repo` | the `system` tenant (repo docs) | `docs.read` in the caller's workspace | 403 `repo_docs_read_only` |
+| `repo` | the `system` tenant (repo docs) | `docs.read` in the caller's workspace | an agent or an admin of the operator workspace (T030a); anyone else 403 `repo_docs_read_only` |
 
 Any other value answers 400 `bad_query`. Example:
 `GET /v1/workspace/doctree/nodes?fs=repo` lists the repo tree's top level.
@@ -77,4 +78,22 @@ it to be live:
 - Docs not yet imported keep the spec 075 edit path until their slice of the
   import lands (spec §5.2 Phase 4).
 
-<!-- version: 0.1.0 · updated: 2026-10-14 -->
+## 5. A page into the repo tree (T030a)
+
+The CLI picks the tree with `SPOOL_DOCTREE_FS=repo` (every doctree request
+then carries `?fs=repo`); the desk action takes it as `DOCTREE_FS=repo`. The
+import runs as a desk agent of the operator workspace (`t1`), so its box token
+is the writer the hub admits:
+
+`cd csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<seat> MD_PATH=<page> QTO_FS=repo DRY_RUN=0 ./run -a do_spl_doctree_import_md`
+
+- The map row gets a third column, `repo`; `do_spl_doctree_export_md` reads
+  it and exports that row from the repo tree. A two-column row stays in the
+  workspace tree.
+- A page that is already an export (it carries a generated-from line) can be
+  imported again: the splitter drops the old line and the export writes the
+  new doc's. Remove its old map row first: the import refuses a mapped page.
+- The ids in the map are prd's. A dev import is a rehearsal: give it its own
+  `QTO_MAP` and restore the md file after it.
+
+<!-- version: 0.2.0 · updated: 2026-10-14 -->

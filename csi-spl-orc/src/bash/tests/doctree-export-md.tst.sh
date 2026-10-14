@@ -31,6 +31,10 @@
 #  14. T016: a write that fails deletes the created doc: nothing left, no
 #      map row, the page untouched
 #  15. T017: a page at the repo root (README.md) imports and exports
+#  16. T030a: QTO_FS=repo imports a page that is already an export into the
+#      repo tree: every spool call carries SPOOL_DOCTREE_FS=repo, the map row
+#      a third column "repo", the md one generated-from line (the new doc's);
+#      the export reads the column; a bad QTO_FS or column is refused
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -60,6 +64,7 @@ import json, os, shlex, subprocess, sys
 st = os.environ["DT_STATE"]
 db = json.load(open(st)) if os.path.exists(st) else {"items": []}
 open(os.environ["CALLS"], "a").write(shlex.join(sys.argv[1:]) + "\n")
+open(os.environ["CALLS"] + ".fs", "a").write(os.environ.get("SPOOL_DOCTREE_FS", "") + "\n")
 a = sys.argv[2:]
 def flag(n):
     return a[a.index(n) + 1] if n in a else ""
@@ -143,6 +148,7 @@ run() {
   local act="$1"; shift
   : >"$T/calls"
   : >"$T/calls.go"
+  : >"$T/calls.fs"
   SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
 '"$act" in_orc APP_PATH="$R" TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT=a-177 \
     CALLS="$T/calls" DT_STATE="$T/dt.json" SPOOL_GO="$SPOOL_GO" "$@" >"$T/o" 2>&1
@@ -384,5 +390,30 @@ fi
 cp "$T/page.orig" "$R/README.md"
 roundtrip "T017: README.md at the repo root imports and exports" README.md "$want_d" 15
 grep -qx "d0c	README.md" "$T/map.15" && pass "T017: the map row names README.md" || fail "T017 map: $(cat "$T/map.15" 2>&1)"
+
+# --- 16. T030a: into the repo tree ----------------------------------------------------------------
+P="csi-spl-doc/doc/md/runbook-repo.md"
+sed 's/`d0c`/`old-workspace-doc`/' "$R/$PAGE" >"$R/$P"
+run do_spl_doctree_import_md MD_PATH="$P" DRY_RUN=0 QTO_FS=repo QTO_MAP="$T/map.16" DT_STATE="$T/dt.16.json"
+if [[ $rc -eq 0 ]] && [[ "$(sort -u "$T/calls.fs")" == repo ]] && [[ "$(wc -l <"$T/calls.fs")" -ge 8 ]] &&
+  [[ "$(cat "$T/map.16")" == "d0c	$P	repo" ]] && [[ "$(grep -c '^> Generated from qto doc' "$R/$P")" == 1 ]] &&
+  grep -qxF "$GEN" "$R/$P" && cmp -s "$R/$PAGE" "$R/$P"; then
+  pass "T030a: QTO_FS=repo: every call fs=repo, map row 'repo', one generated-from line, the same md"
+else
+  fail "T030a import (rc=$rc): $(cat "$T/o") / fs: $(sort <"$T/calls.fs" | uniq -c) / map: $(cat "$T/map.16" 2>&1) / $(diff "$R/$PAGE" "$R/$P")"
+fi
+run do_spl_doctree_export_md QTO_MAP="$T/map.16" DT_STATE="$T/dt.16.json"
+[[ $rc -eq 0 && "$(sort -u "$T/calls.fs")" == repo ]] && grep -q "unchanged (qto doc d0c)" "$T/o" &&
+  pass "T030a: the export reads the map's repo column" || fail "T030a export (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.fs")"
+run do_spl_doctree_export_md QTO_MAP="$T/map.10" DT_STATE="$T/dt.10.json"
+[[ $rc -eq 0 && -z "$(sort -u "$T/calls.fs")" ]] && pass "CONTROL: a two-column row stays in the workspace tree" ||
+  fail "T030a control (rc=$rc): $(cat "$T/calls.fs")"
+run do_spl_doctree_import_md MD_PATH="$PAGE" DRY_RUN=0 QTO_FS=git QTO_MAP="$T/map.16b"
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q "a qto tree is workspace or repo, not 'git'" "$T/o" &&
+  pass "T030a: import refuses QTO_FS=git, no spool call" || fail "QTO_FS=git (rc=$rc): $(cat "$T/o")"
+printf 'd0c\t%s\tgit\n' "$P" >"$T/map.16c"
+run do_spl_doctree_export_md QTO_MAP="$T/map.16c" DT_STATE="$T/dt.16.json"
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q "a qto tree is workspace or repo, not 'git'" "$T/o" &&
+  pass "T030a: export refuses a map row whose tree is not workspace or repo" || fail "map git (rc=$rc): $(cat "$T/o")"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

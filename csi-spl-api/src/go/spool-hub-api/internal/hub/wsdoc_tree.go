@@ -69,8 +69,9 @@ import (
 // fs=repo is the repository docs, the reserved system tenant (rdb 0191),
 // which every caller allowed docs.read in its own workspace reads through the
 // same read routes. The repo tree is written only by its import
-// (do_spl_doctree_import_md, operator scope), so a write route with fs=repo
-// answers 403 repo_docs_read_only; any other fs value is 400 bad_query.
+// (do_spl_doctree_import_md, spec 137 T030a), which runs as an agent or an
+// admin of the operator workspace; any other caller's write with fs=repo
+// answers 403 repo_docs_read_only. Any other fs value is 400 bad_query.
 
 // DocTreeMaxItems is the whole-document read limit (spec 113 section 2.1).
 const DocTreeMaxItems = 20000
@@ -169,7 +170,7 @@ func (s *Server) docTreeCaller(w http.ResponseWriter, r *http.Request, perm stri
 		writeErr(w, http.StatusBadRequest, "bad_query", "fs is workspace (the default) or repo")
 		return docTreeCall{}, false
 	}
-	tenant, who, ok := s.docTreeWho(w, r, perm)
+	tenant, who, agent, ok := s.docTreeWho(w, r, perm)
 	if !ok {
 		return docTreeCall{}, false
 	}
@@ -179,9 +180,10 @@ func (s *Server) docTreeCaller(w http.ResponseWriter, r *http.Request, perm stri
 		return docTreeCall{}, false
 	}
 	if fs == docTreeFSRepo {
-		if perm != rbac.DocsRead {
+		if perm != rbac.DocsRead && !s.repoDocsWriter(r.Context(), tenant, who, agent) {
 			writeErr(w, http.StatusForbidden, "repo_docs_read_only",
-				"the repo docs are read-only here: their import (do_spl_doctree_import_md) writes them")
+				"the repo docs are read-only here: their import (do_spl_doctree_import_md) writes them, "+
+					"as an agent or an admin of the operator workspace")
 			return docTreeCall{}, false
 		}
 		tenant = store.SystemTenant
@@ -189,31 +191,47 @@ func (s *Server) docTreeCaller(w http.ResponseWriter, r *http.Request, perm stri
 	return docTreeCall{tenant: tenant, who: who, st: st}, true
 }
 
-// docTreeWho is the caller's verified tenant and id (a box, or a member).
-func (s *Server) docTreeWho(w http.ResponseWriter, r *http.Request, perm string) (string, string, bool) {
+// repoDocsWriter reports whether the caller may write the repo docs (spec
+// 137 T030a): an agent or an admin of the operator workspace, the identity
+// their import runs as. Every other caller only reads them.
+func (s *Server) repoDocsWriter(ctx context.Context, tenant, who string, agent bool) bool {
+	op, err := s.operatorTenant(ctx)
+	if err != nil || op == "" || tenant != op {
+		return false
+	}
+	if agent {
+		return true
+	}
+	a, err := s.access(ctx, who, tenant)
+	return err == nil && a.Role == rbac.Admin
+}
+
+// docTreeWho is the caller's verified tenant and id (a box, or a member), and
+// whether it is a box.
+func (s *Server) docTreeWho(w http.ResponseWriter, r *http.Request, perm string) (string, string, bool, bool) {
 	if _, box, _, ok := s.bearerAny(r); ok && box != WUIBox {
 		t, _, ok := s.tokenTenant(w, r)
 		if !ok {
-			return "", "", false
+			return "", "", false, false
 		}
 		if !agentDocs(perm) {
 			writeForbidden(w, perm, "agents are not granted "+perm)
-			return "", "", false
+			return "", "", false, false
 		}
-		return t.ID, box, true
+		return t.ID, box, true, true
 	}
 	t, hum, ok := s.humanTenant(w, r)
 	if !ok {
-		return "", "", false
+		return "", "", false, false
 	}
 	if hum == "" {
 		writeForbidden(w, perm, "workspace documents need a signed-in member session or an agent token")
-		return "", "", false
+		return "", "", false, false
 	}
 	if !s.permit(w, r, t.ID, hum, perm) {
-		return "", "", false
+		return "", "", false, false
 	}
-	return t.ID, hum, true
+	return t.ID, hum, false, true
 }
 
 // docTreeFail answers err as its outcome: 412, 404, 409, 400, 422, else 500.

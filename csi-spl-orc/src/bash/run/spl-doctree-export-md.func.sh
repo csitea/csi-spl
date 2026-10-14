@@ -5,7 +5,9 @@
 # @description md file is its export and says so in its second line ("generated
 # @description from qto doc <id>; edit it there"). Which doc goes to which file
 # @description is the map csi-spl-doc/doc/md/qto-docs.tsv (doc id, TAB, md path
-# @description relative to the repo root); do_spl_doctree_import_md adds a row.
+# @description relative to the repo root, and a third column "repo" for a doc
+# @description of the repository docs, the system tenant, spec 137 T030a);
+# @description do_spl_doctree_import_md adds a row.
 # @description Per doc it reads, through do_spl_desk_doctree (so no key or desk
 # @description path reaches the caller), the head (title, hidden root), the
 # @description root's body (the preamble before section 1) and the Markdown of
@@ -25,12 +27,13 @@
 #------------------------------------------------------------------------------
 do_spl_doctree_export_md() {
   do_require_bin python3 || return 1
-  local map="${QTO_MAP:-$APP_PATH/csi-spl-doc/doc/md/qto-docs.tsv}" want="${QTO_DOC:-}" doc rel n=0
+  local map="${QTO_MAP:-$APP_PATH/csi-spl-doc/doc/md/qto-docs.tsv}" want="${QTO_DOC:-}" doc rel fs n=0
   [[ -r "$map" ]] || { do_log "FATAL no qto doc map: $map"; return 1; }
-  while IFS=$'\t' read -r doc rel; do
+  while IFS=$'\t' read -r doc rel fs; do
     [[ -n "$doc" && "$doc" != \#* ]] || continue
     [[ -z "$want" || "$doc" == "$want" ]] || continue
-    _spl_doctree_export_one "$doc" "$rel" || return 1
+    _spl_doctree_fs "$fs" || return 1
+    QTO_FS="$fs" _spl_doctree_export_one "$doc" "$rel" || return 1
     n=$((n + 1))
   done <"$map"
   (( n > 0 )) || { do_log "FATAL no row${want:+ for qto doc $want} in $map"; return 1; }
@@ -60,10 +63,19 @@ _spl_doctree_export_one() {
   return "$rc"
 }
 
-# _spl_doctree_call <doctree args> [DOCTREE_IN]: one do_spl_desk_doctree verb,
-# its output on stdout; writes run (DRY_RUN=0): the caller decided already.
+# _spl_doctree_call <doctree args> [DOCTREE_IN]: one do_spl_desk_doctree verb
+# in the tree QTO_FS names, its output on stdout; writes run (DRY_RUN=0): the
+# caller decided already.
 _spl_doctree_call() {
-  DOCTREE_ARGS="$1" DOCTREE_IN="${2:-}" DRY_RUN=0 do_spl_desk_doctree
+  DOCTREE_ARGS="$1" DOCTREE_IN="${2:-}" DOCTREE_FS="${QTO_FS:-}" DRY_RUN=0 do_spl_desk_doctree
+}
+
+# _spl_doctree_fs <fs>: 0 for a qto tree: "" or workspace (the workspace's
+# docs) or repo (the repository docs, spec 137 T030a).
+_spl_doctree_fs() {
+  [[ "$1" == "" || "$1" == workspace || "$1" == repo ]] && return 0
+  do_log "FATAL a qto tree is workspace or repo, not '$1'"
+  return 1
 }
 
 # _spl_doctree_md_path <rel>: 0 for a repo-relative .md path (no leading /,

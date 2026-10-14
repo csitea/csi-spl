@@ -35,6 +35,9 @@
 # @param DOCTREE_IN (optional) - the one file the verb may read (a body, a
 # @param   picture). When DOCTREE_ARGS names no --file / --path it is passed as
 # @param   --path for `add --kind picture`, else as --file.
+# @param DOCTREE_FS (optional) - the tree: workspace (default) or repo, the
+# @param   repository docs (spec 137); the hub lets only the operator
+# @param   workspace's agents and admins write repo
 # @param DESK_BOX (optional) - default this machine's desk box (spl_desk_box_default)
 # @param DRY_RUN (optional) - 1 (default) or 0; reads ignore it
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=a-177 DOCTREE_ARGS=list ./run -a do_spl_desk_doctree
@@ -47,7 +50,9 @@ do_spl_desk_doctree() {
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local args=()
   _spl_desk_doctree_split args || return 1
-  local verb="${args[0]}"
+  local verb="${args[0]}" fs="${DOCTREE_FS:-}"
+  [[ "$fs" == "" || "$fs" == workspace || "$fs" == repo ]] ||
+    { do_log "FATAL DOCTREE_FS is workspace or repo, not '$fs'"; return 1; }
   [[ " list nodes folder move-node create head read add edit move delete rename export " == *" $verb "* ]] ||
     { do_log "FATAL '$verb' is not a doctree verb (list nodes folder move-node create head read add edit move delete rename export)"; return 1; }
   local in=""
@@ -63,7 +68,7 @@ do_spl_desk_doctree() {
     if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   fi
   if (( dry )); then
-    do_log "INFO DRY_RUN would: spool doctree ${args[*]} for $agent on $box in $tenant"
+    do_log "INFO DRY_RUN would: spool doctree ${args[*]} for $agent on $box in $tenant${fs:+ (fs=$fs)}"
     do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0 to run it."
     return 0
   fi
@@ -71,7 +76,7 @@ do_spl_desk_doctree() {
   SPL_SPOOL="$SPL_STATE_DIR/bin/spool"
   [[ -x "$SPL_SPOOL" ]] || { do_log "FATAL no installed spool binary for ENV=$ENV on this box: run do_spl_desk_up first"; return 1; }
   local out rc=0
-  out="$(spl_desk_spool "$d" "$box" "$tenant" "$SPL_HUB_URL" -- doctree "${args[@]}" 2>&1)" || rc=$?
+  out="$(SPOOL_DOCTREE_FS="$fs" spl_desk_spool "$d" "$box" "$tenant" "$SPL_HUB_URL" -- doctree "${args[@]}" 2>&1)" || rc=$?
   # The desk state (and with it keys/) never reaches the caller, not even
   # inside an error message the binary built from SPOOL_KEYS_DIR.
   out="${out//"$d"/<desk>}"

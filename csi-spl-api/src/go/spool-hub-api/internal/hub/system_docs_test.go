@@ -128,18 +128,56 @@ func TestWorkspaceDocRepoFS(t *testing.T) {
 }
 
 // TestWorkspaceDocRepoFSOperator: the admin of the operator workspace reads
-// the repo docs like any member and is refused the same writes: the hub has
-// no write path into the system tenant.
+// the repo docs like any member, and the operator workspace (its admin and
+// its agents) is the one writer of them (spec 137 T030a, the import's door):
+// a create with fs=repo lands in the system tenant, not in the workspace.
+// CONTROL: a developer of the operator workspace, the admin and an agent of
+// another workspace are refused the same writes, and the doc is unchanged.
 func TestWorkspaceDocRepoFSOperator(t *testing.T) {
-	e, op, _, who, _ := operatorEnv(t, func(op, _ string) string { return op })
-	if _, ok := e.st.(*store.Postgres); !ok {
+	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
+	pg, ok := e.st.(*store.Postgres)
+	if !ok {
 		t.Skip("workspace documents need Postgres (SPOOL_TEST_PG_DSN)")
 	}
 	doc, folder := sysDoc(t, e, op)
 	repoFSReads(t, e, op, who[rbac.Admin], doc, folder)
-	repoFSWritesRefused(t, e, op, who[rbac.Admin], doc)
+	repoFSWritesRefused(t, e, op, who[rbac.Developer], doc)
+	repoFSWritesRefused(t, e, other, whoOther[rbac.Admin], doc)
+	ob := e.box(other, "box-other", "c-002")
+	e.pin(other, ob)
+	otherAgent := e.uploadToken(other, ob)
+	if code, out := opCall(t, e, other, http.MethodPost, docTreeAPI+"?fs=repo", otherAgent, map[string]any{"title": "planted"}); code != http.StatusForbidden || errOf(out) != "repo_docs_read_only" {
+		t.Errorf("another workspace's agent: %d %v, want 403 repo_docs_read_only", code, out)
+	}
+
+	// The operator workspace's admin writes the repo tree.
+	out := mustCall(t, e, op, http.MethodPost, docTreeAPI+"?fs=repo", who[rbac.Admin], map[string]any{"title": "Imported " + op}, 200)
+	made := dtStr(out, "id")
+	mustCall(t, e, op, http.MethodPost, docTreeAPI+"/"+made+"/items?fs=repo", who[rbac.Admin],
+		map[string]any{"rev": 1, "where": "child", "title": "Section"}, 200)
+	if h, err := pg.DocHeadOf(context.Background(), store.SystemTenant, made); err != nil || h.Title != "Imported "+op || h.Items != 2 {
+		t.Errorf("the admin's fs=repo create is not a system doc: %+v %v", h, err)
+	}
+	if code, _ := call(t, e, op, http.MethodGet, docTreeAPI+"/"+made, who[rbac.Admin], nil); code != http.StatusNotFound {
+		t.Errorf("the fs=repo create is in the operator workspace tree: %d, want 404", code)
+	}
+	// And so does its agent (the desk box the import runs as).
+	b := e.box(op, "box-desk", "c-001")
+	e.pin(op, b)
+	agent := e.uploadToken(op, b)
+	code, out := opCall(t, e, op, http.MethodPost, docTreeAPI+"?fs=repo", agent, map[string]any{"title": "Agent " + op})
+	if code != http.StatusOK {
+		t.Fatalf("the operator workspace's agent: %d %v, want 200", code, out)
+	}
+	if _, err := pg.DocHeadOf(context.Background(), store.SystemTenant, dtStr(out, "id")); err != nil {
+		t.Errorf("the agent's fs=repo create is not a system doc: %v", err)
+	}
+	h, err := pg.DocHeadOf(context.Background(), store.SystemTenant, doc)
+	if err != nil || h.Rev != 2 || !strings.HasPrefix(h.Title, "Repo guide ") {
+		t.Errorf("the refused writes changed the system doc: %+v %v", h, err)
+	}
 	// The operator workspace list leaves the system tenant out.
-	out := mustCall(t, e, op, http.MethodGet, opPath, who[rbac.Admin], nil, 200)
+	out = mustCall(t, e, op, http.MethodGet, opPath, who[rbac.Admin], nil, 200)
 	for _, w := range dtList(out, "workspaces") {
 		if dtStr(w, "id") == store.SystemTenant {
 			t.Errorf("the operator workspace list holds the system tenant")

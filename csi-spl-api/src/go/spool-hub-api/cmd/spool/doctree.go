@@ -55,6 +55,11 @@ import (
 // --item defaults to the last item of the document. A structural op sends
 // --rev (0 = no precondition, the default); a text edit always sends the
 // item rev it just read, so a concurrent edit is a 412, never lost.
+//
+// $SPOOL_DOCTREE_FS picks the tree every verb works on (the hub's ?fs=, spec
+// 137 T022): workspace (unset, the default) or repo, the repository docs.
+// The hub lets only the operator workspace's agents and admins write repo
+// (the import, do_spl_doctree_import_md); everyone else reads it.
 
 const (
 	docTreeAPI      = "/v1/workspace/doctree"
@@ -81,11 +86,23 @@ func (it dtItem) attr(k string) string {
 	return s
 }
 
-// dtClient is one verb's hub session: the upload token is minted once.
+// dtClient is one verb's hub session: the upload token is minted once. fs
+// is the tree ($SPOOL_DOCTREE_FS), "" = the workspace.
 type dtClient struct {
 	cfg   *config.Config
 	http  *http.Client
 	token string
+	fs    string
+}
+
+// dtFS is $SPOOL_DOCTREE_FS checked: "", workspace or repo.
+func dtFS() (string, error) {
+	switch v := os.Getenv("SPOOL_DOCTREE_FS"); v {
+	case "", "workspace", "repo":
+		return v, nil
+	default:
+		return "", fmt.Errorf("SPOOL_DOCTREE_FS is workspace or repo, not %q", v)
+	}
 }
 
 // dtDial opens the role=cli session and mints the upload token.
@@ -95,6 +112,10 @@ func dtDial(ctx context.Context, cfg *config.Config) (*dtClient, func(), error) 
 	}
 	if cfg.TenantID() == "" {
 		return nil, nil, errors.New("workspace documents need a tenant ($SPOOL_TENANT, or a tenant host in $SPOOL_HUB_URL)")
+	}
+	fs, err := dtFS()
+	if err != nil {
+		return nil, nil, err
 	}
 	c := hubclient.New(cfg)
 	sess, err := c.Dial(ctx, wire.RoleCLI)
@@ -106,7 +127,7 @@ func dtDial(ctx context.Context, cfg *config.Config) (*dtClient, func(), error) 
 		sess.Close()
 		return nil, nil, err
 	}
-	return &dtClient{cfg: cfg, http: c.HTTPClient(), token: tok}, func() { sess.Close() }, nil
+	return &dtClient{cfg: cfg, http: c.HTTPClient(), token: tok, fs: fs}, func() { sess.Close() }, nil
 }
 
 // do sends one request; body is JSON unless ctype says otherwise. out, when
@@ -115,6 +136,13 @@ func (c *dtClient) do(ctx context.Context, method, path, ctype string, body []by
 	var rdr io.Reader
 	if body != nil {
 		rdr = bytes.NewReader(body)
+	}
+	if c.fs != "" {
+		sep := "?"
+		if strings.Contains(path, "?") {
+			sep = "&"
+		}
+		path += sep + "fs=" + url.QueryEscape(c.fs)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, docEndpoint(c.cfg.HubURL, path), rdr)
 	if err != nil {

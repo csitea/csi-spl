@@ -23,6 +23,7 @@ type dtHub struct {
 	docs  map[string]*dtDocRec
 	n     int
 	calls []string
+	fs    []string // each request's ?fs=
 }
 
 type dtDocRec struct {
@@ -96,6 +97,7 @@ func (h *dtHub) serve(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.calls = append(h.calls, r.Method+" "+r.URL.Path)
+	h.fs = append(h.fs, r.URL.Query().Get("fs"))
 	if r.Header.Get("Authorization") != "Bearer tok" || r.Header.Get("X-Spool-Tenant") != "t1" {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "door", "detail": "a valid upload token is required"})
 		return
@@ -391,6 +393,32 @@ func TestDocTreeRefusals(t *testing.T) {
 		t.Errorf("second code block: rc %d %q", rc, errOut)
 	}
 	dtOK(t, "add", dtDocID, "--kind", "code", "--text", "two", "--replace")
+}
+
+// TestDocTreeFS: $SPOOL_DOCTREE_FS=repo sends ?fs=repo on every request,
+// a read with its own query and a write alike (spec 137 T030a: the import of
+// the repo docs); unset sends none; any other value is refused before a call.
+func TestDocTreeFS(t *testing.T) {
+	h := newDTHub(t)
+	dtOK(t, "create", "--title", "T")
+	t.Setenv("SPOOL_DOCTREE_FS", "repo")
+	dtOK(t, "add", dtDocID, "--kind", "heading", "--title", "H")
+	captureRun(t, []string{"doctree", "read", dtDocID, "--item", "x"}) // a path with its own query: ?item=x&fs=repo
+	h.mu.Lock()
+	if h.fs[0] != "" || len(h.fs) < 3 || strings.Join(h.fs[1:], ",") != strings.TrimSuffix(strings.Repeat("repo,", len(h.fs)-1), ",") {
+		t.Errorf("fs per request = %q, want none on the first then repo on every one (%v)", h.fs, h.calls)
+	}
+	n := len(h.calls)
+	h.mu.Unlock()
+	t.Setenv("SPOOL_DOCTREE_FS", "git")
+	if rc, _, errOut := captureRun(t, []string{"doctree", "head", dtDocID}); rc == 0 || !strings.Contains(errOut, "SPOOL_DOCTREE_FS is workspace or repo") {
+		t.Errorf("SPOOL_DOCTREE_FS=git: rc %d %q", rc, errOut)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.calls) != n {
+		t.Errorf("a bad SPOOL_DOCTREE_FS still called the hub: %v", h.calls[n:])
+	}
 }
 
 // TestDocTreeMarkdownWUIParity pins branchToMarkdown's output (the WUI's

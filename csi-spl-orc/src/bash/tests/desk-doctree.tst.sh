@@ -15,6 +15,8 @@
 #   6. DOCTREE_IN is passed as --file, as --path for a picture, and replaces
 #      an explicit --file naming it
 #   7. DRY_RUN=1 (the default) writing verbs make no spool call; reads run
+#   8. DOCTREE_FS=repo reaches the spool as SPOOL_DOCTREE_FS (spec 137
+#      T030a); unset passes none; any other value is refused, no spool call
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -33,7 +35,7 @@ echo '{"box-desk":["a-177"]}' >"$D/spool/.hub/roster.json"
 echo secret-key >"$D/keys/box.key"
 cat >"$T/state/dev/bin/spool" <<'EOF_STUB'
 #!/usr/bin/env bash
-{ printf 'argv|%s\n' "$*"; printf 'env|%s|%s|%s|%s|%s\n' "$SPOOL_ROOT" "$SPOOL_HUB_URL" "$SPOOL_TENANT" "$SPOOL_KEYS_DIR" "$SPOOL_BOX_ID"; } >>"$CALLS"
+{ printf 'argv|%s\n' "$*"; printf 'env|%s|%s|%s|%s|%s\n' "$SPOOL_ROOT" "$SPOOL_HUB_URL" "$SPOOL_TENANT" "$SPOOL_KEYS_DIR" "$SPOOL_BOX_ID"; printf 'fs|%s\n' "${SPOOL_DOCTREE_FS:-}"; } >>"$CALLS"
 if [[ "${STUB_FAIL:-0}" == 1 ]]; then echo "open $SPOOL_KEYS_DIR/box.key: permission denied" >&2; exit 1; fi
 echo '{"docs":[{"id":"42","title":"Rebuild guide"}]}'
 EOF_STUB
@@ -115,6 +117,16 @@ done
 run DOCTREE_ARGS='read 42'
 [[ $rc -eq 0 && "$(argv)" == "doctree read 42" ]] &&
   pass "a read runs under the default DRY_RUN" || fail "read (rc=$rc): $(cat "$T/o")"
+
+# --- 8. DOCTREE_FS ------------------------------------------------------------------------
+fs_of() { sed -n 's/^fs|//p' "$T/calls"; }
+run DOCTREE_ARGS='read 42'
+[[ $rc -eq 0 && "$(fs_of)" == "" ]] && pass "no DOCTREE_FS: no SPOOL_DOCTREE_FS" || fail "fs unset: $(cat "$T/calls")"
+run DOCTREE_ARGS='create --title X' DOCTREE_FS=repo DRY_RUN=0
+[[ $rc -eq 0 && "$(fs_of)" == repo && "$(argv)" == "doctree create --title X" ]] &&
+  pass "DOCTREE_FS=repo reaches the spool as SPOOL_DOCTREE_FS=repo" || fail "fs repo (rc=$rc): $(cat "$T/calls") / $(cat "$T/o")"
+run DOCTREE_ARGS='read 42' DOCTREE_FS=git
+refused "DOCTREE_FS=git is refused" "DOCTREE_FS is workspace or repo, not 'git'"
 
 echo "desk-doctree: $fails failure(s)"
 ((fails == 0))

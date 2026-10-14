@@ -10,7 +10,8 @@ never by hand. Two verbs:
       <out>/title, <out>/preamble.md, <out>/front_matter.yml (only when the
       page has one) and per section <out>/NNNN.body.md, plus one TSV line per
       section on stdout: level, outline ('-' = unnumbered), title, body file
-      ('' = none).
+      ('' = none). A "generated from qto doc" line in the preamble (a page
+      that is already an export) is dropped: compose writes the new one.
       A section is numbered ('## 1. x', '### 1.1 y') or not ('## Overview':
       the qto item gets attrs.numbered false and no outline number); a
       heading under an unnumbered one is unnumbered too, its text kept whole
@@ -39,6 +40,8 @@ HEAD = re.compile(r"^(#{1,6}) (.*)$")
 NUM = re.compile(r"^(\d+(?:\.\d+)*)\.? +(.+)$")
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 FM_END = ("---", "...")
+# compose's generated-from line; split drops it from a page that is an export
+STAMP = re.compile(r"^> Generated from qto doc `[^`]+`; edit it there\.")
 
 
 class Fences:
@@ -90,6 +93,9 @@ def split(md_path, out):
         (cur["body"] if cur else pre).append(line)
     if title is None:
         sys.exit(f"FATAL {md_path}: no '# ' title line")
+    # a page that is already an export (a re-import into another tree, spec
+    # 137 T030a) drops its old generated-from line: compose writes the new one
+    pre = [line for line in pre if not STAMP.match(line)]
     check_outline(md_path, sections)
     os.makedirs(out, exist_ok=True)
     write(os.path.join(out, "title"), title)

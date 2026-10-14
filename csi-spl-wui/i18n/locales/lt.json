@@ -2903,5 +2903,13 @@
     "title": "Šio aptarimo nebėra",
     "body": "Jis ištrintas, todėl jo atidaryti negalima. Problema išlaiko kitus savo aptarimus; jei šis buvo paskutinis, problema dabar susieta su numatytuoju darbo srities aptarimu.",
     "topic": "Tema {id}"
+  },
+  "plain_err": {
+    "offline": "Nepavyksta prisijungti prie serverio. Patikrinkite ryšį ir bandykite dar kartą.",
+    "slow": "Serveris per ilgai neatsakė. Bandykite dar kartą po akimirkos.",
+    "denied": "Neturite prieigos prie to. Pabandykite prisijungti iš naujo.",
+    "load": "Nepavyko įkelti. Bandykite dar kartą po akimirkos.",
+    "other": "Kažkas nepavyko. Bandykite dar kartą po akimirkos.",
+    "retry": "Bandyti dar kartą"
   }
 }

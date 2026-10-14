@@ -2903,5 +2903,13 @@
     "title": "Bu tartışma artık yok",
     "body": "Silindiği için açılamaz. Kayıt diğer tartışmalarını korur; bu sonuncusuysa kayıt artık çalışma alanının varsayılan tartışmasına bağlıdır.",
     "topic": "Konu {id}"
+  },
+  "plain_err": {
+    "offline": "Sunucuya ulaşılamıyor. Bağlantınızı kontrol edin, sonra tekrar deneyin.",
+    "slow": "Sunucu yanıt vermekte çok gecikti. Biraz sonra tekrar deneyin.",
+    "denied": "Buna erişiminiz yok. Yeniden oturum açmayı deneyin.",
+    "load": "Bu yüklenemedi. Biraz sonra tekrar deneyin.",
+    "other": "Bir şey çalışmadı. Biraz sonra tekrar deneyin.",
+    "retry": "Tekrar deneyin"
   }
 }

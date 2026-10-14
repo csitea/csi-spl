@@ -111,6 +111,12 @@ A checkbox that shows or hides the diagnostics panel at the bottom of the app.
 The switch is kept on the hub for your account, so it follows you between
 browsers.
 
+It also decides how much an error says. With it off, a screen that could not
+load says one plain sentence with a **Try again** button, and the error bar
+at the top says what went wrong in plain words. With it on, the technical
+details show under that sentence: the status code, the error text and the
+error reference to quote when you report it.
+
 ### 4.5 Time zone
 Pick a zone, or leave **Browser time zone**. Every time in this workspace
 shows in that zone, including an ISO time that carries a zone inside a
@@ -297,4 +303,4 @@ permission. Its sections are:
 To learn how human developers orchestrate and command AI coding agents, continue
 to [Collaborating with AI Agents](./agent-collaboration.md).
 
-<!-- version: 1.2.0 · updated: 2026-10-07 -->
+<!-- version: 1.3.0 · updated: 2026-10-14 -->

@@ -264,7 +264,8 @@ describe('wiring', () => {
     assert.equal(/ResizeObserver\/|\.includes\('ResizeObserver'\)|test\(/.test(src.replace(/\/\/.*$/gm, '')), false)
   })
 
-  it('viewer, topic, lobby, channel and live pane errors go through ErrorNotice', () => {
+  /* SPL-1839: through PlainErrorNotice, one plain sentence; the technical part with the Debug pane */
+  it('viewer, topic, lobby, channel and live pane errors go through PlainErrorNotice', () => {
     for (const rel of [
       /* `/` and the list beside /t/<id> went with the Topics view (t1
          e4bfddb1); /t/<id> is TopicPane alone, which says its own error */
@@ -273,7 +274,7 @@ describe('wiring', () => {
       'src/components/MessageFeed.vue',
       'src/components/LiveTopicPane.vue',
     ]) {
-      assert.ok(read(rel).includes('<ErrorNotice'), rel)
+      assert.ok(read(rel).includes('<LazyPlainErrorNotice'), rel)
     }
   })
 

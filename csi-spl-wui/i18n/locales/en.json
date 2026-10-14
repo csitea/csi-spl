@@ -2903,5 +2903,13 @@
     "title": "This discussion no longer exists",
     "body": "It was deleted, so it cannot be opened. The issue keeps its other discussions; if this was its last one, it now links the workspace's default discussion.",
     "topic": "Topic {id}"
+  },
+  "plain_err": {
+    "offline": "Cannot reach the server. Check your connection, then try again.",
+    "slow": "The server took too long to answer. Try again in a moment.",
+    "denied": "You do not have access to this. Try signing in again.",
+    "load": "This could not be loaded. Try again in a moment.",
+    "other": "Something did not work. Try again in a moment.",
+    "retry": "Try again"
   }
 }

@@ -2903,5 +2903,13 @@
     "title": "Ta dyskusja już nie istnieje",
     "body": "Została usunięta, więc nie można jej otworzyć. Zgłoszenie zachowuje pozostałe dyskusje; jeśli była ostatnia, zgłoszenie jest teraz połączone z domyślną dyskusją przestrzeni roboczej.",
     "topic": "Temat {id}"
+  },
+  "plain_err": {
+    "offline": "Brak połączenia z serwerem. Sprawdź połączenie i spróbuj ponownie.",
+    "slow": "Serwer zbyt długo nie odpowiadał. Spróbuj ponownie za chwilę.",
+    "denied": "Nie masz do tego dostępu. Spróbuj zalogować się ponownie.",
+    "load": "Nie udało się tego wczytać. Spróbuj ponownie za chwilę.",
+    "other": "Coś nie zadziałało. Spróbuj ponownie za chwilę.",
+    "retry": "Spróbuj ponownie"
   }
 }

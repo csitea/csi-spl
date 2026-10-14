@@ -10,7 +10,12 @@
            "No lobby configured" for 2-4 s while the socket came up -->
       <p v-if="!lobbyId && (api.mock || live.welcomed.value)" class="muted" data-testid="lobby-none">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
-      <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
+      <!-- SPL-1839: one plain sentence + Try again; the technical part only with
+           the Debug pane on. The v-if sits on a box of its own: on the bare
+           lazy component Vue threw insertBefore at 390 (as FirstRunChecklist below) -->
+      <div v-if="store.error" class="plain-err-slot">
+        <LazyPlainErrorNotice :message="store.error" retry source="lobby" test-id="lobby-error" @retry="lobbyId && store.open(lobbyId)" />
+      </div>
       <!-- W15 (spec 047): the next 3 steps for whoever may set the tenant up;
            here since `/` (the Topics list) went (t1 e4bfddb1). The v-if sits
            on a box of its own (display: contents, no layout): on the bare
@@ -45,7 +50,6 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
-import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
 import { useSessionStore } from '~/stores/session'

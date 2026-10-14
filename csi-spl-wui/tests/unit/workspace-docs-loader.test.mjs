@@ -34,7 +34,8 @@ describe('B9: TopicPane shows catalogue text, not the English error', () => {
   it('the three loaders map the failure to an i18n key', () => {
     assert.ok(loaders.length > 0, 'catchUp through loadOlder are still in TopicPane')
     assert.doesNotMatch(loaders, /e instanceof Error \? e\.message/)
-    assert.equal((loaders.match(/loadError\.value = t\('topic\.load_failed'\)/g) || []).length, 2)
+    /* SPL-1839: + the mock fault hook's catch (spool.mock.read-fault), for the e2e */
+    assert.equal((loaders.match(/loadError\.value = t\('topic\.load_failed'\)/g) || []).length, 3)
     assert.equal((loaders.match(/loadError\.value = t\('feed\.error\.load_older_failed'\)/g) || []).length, 1)
   })
 

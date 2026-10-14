@@ -2903,5 +2903,13 @@
     "title": "Šī diskusija vairs nepastāv",
     "body": "Tā tika dzēsta, tāpēc to nevar atvērt. Problēma saglabā pārējās diskusijas; ja šī bija pēdējā, problēma tagad ir piesaistīta darbvietas noklusējuma diskusijai.",
     "topic": "Tēma {id}"
+  },
+  "plain_err": {
+    "offline": "Nevar sazināties ar serveri. Pārbaudiet savienojumu un mēģiniet vēlreiz.",
+    "slow": "Serveris atbildēja pārāk ilgi. Mēģiniet vēlreiz pēc brīža.",
+    "denied": "Jums nav piekļuves šim. Mēģiniet pieteikties vēlreiz.",
+    "load": "To neizdevās ielādēt. Mēģiniet vēlreiz pēc brīža.",
+    "other": "Kaut kas neizdevās. Mēģiniet vēlreiz pēc brīža.",
+    "retry": "Mēģināt vēlreiz"
   }
 }

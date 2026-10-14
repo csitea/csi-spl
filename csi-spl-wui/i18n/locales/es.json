@@ -2903,5 +2903,13 @@
     "title": "Esta conversación ya no existe",
     "body": "Se eliminó, así que no se puede abrir. La incidencia conserva sus otras conversaciones; si era la última, ahora enlaza la conversación predeterminada del espacio de trabajo.",
     "topic": "Tema {id}"
+  },
+  "plain_err": {
+    "offline": "No se puede conectar con el servidor. Comprueba tu conexión y vuelve a intentarlo.",
+    "slow": "El servidor tardó demasiado en responder. Vuelve a intentarlo en un momento.",
+    "denied": "No tienes acceso a esto. Prueba a iniciar sesión de nuevo.",
+    "load": "No se ha podido cargar. Vuelve a intentarlo en un momento.",
+    "other": "Algo no ha funcionado. Vuelve a intentarlo en un momento.",
+    "retry": "Reintentar"
   }
 }

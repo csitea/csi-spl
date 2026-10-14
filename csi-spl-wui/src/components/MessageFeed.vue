@@ -11,7 +11,10 @@
     :data-move-id="promotable && promoteDrag ? 'promote' : undefined"
     :data-move-ok="promotable && promoteDrag ? 'true' : undefined"
   >
-    <ErrorNotice v-if="channel.error" :message="channel.error" source="channel" test-id="channel-error" />
+    <!-- SPL-1839: one plain sentence + Try again; the technical part only with the Debug pane on (own box: a bare lazy v-if threw insertBefore in #lobby) -->
+    <div v-if="channel.error" class="plain-err-slot">
+      <LazyPlainErrorNotice :message="channel.error" retry source="channel" test-id="channel-error" @retry="channel.refresh()" />
+    </div>
     <LiveFeed
       :label="label"
       :rows="channel.newestFirst"
@@ -40,7 +43,6 @@
 </template>
 
 <script setup lang="ts">
-import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useChannelStore } from '~/stores/channel'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'

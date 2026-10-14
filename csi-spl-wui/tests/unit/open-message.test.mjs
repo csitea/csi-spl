@@ -333,8 +333,8 @@ test('TopicPane: a #<msg_id> older than the first page is paged to (at most HASH
   assert.match(fn, /liveRows\.value\.some\(\(r\) => String\(r\.msg_id\) === want\)\) return/)
   assert.match(fn, /await loadOlder\(\)/)
   /* declared before the immediate topic watch that calls it (no TDZ), and called after the first page */
-  assert.ok(src.indexOf('async function reachHash') < src.indexOf('watch(() => [topic.open, topic.parentTaskId]'))
-  const first = src.slice(src.indexOf('watch(() => [topic.open, topic.parentTaskId]'), src.indexOf('async function loadOlder'))
+  assert.ok(src.indexOf('async function reachHash') < src.indexOf('watch(() => [topic.open, topic.parentTaskId'))
+  const first = src.slice(src.indexOf('watch(() => [topic.open, topic.parentTaskId'), src.indexOf('async function loadOlder'))
   assert.match(first, /loading\.value = false\n  \}\n  void reachHash\(\)\n\}, \{ immediate: true \}\)/)
 })
 

@@ -2903,5 +2903,13 @@
     "title": "Tätä keskustelua ei enää ole",
     "body": "Se on poistettu, joten sitä ei voi avata. Asia säilyttää muut keskustelunsa; jos tämä oli viimeinen, asia on nyt linkitetty työtilan oletuskeskusteluun.",
     "topic": "Aihe {id}"
+  },
+  "plain_err": {
+    "offline": "Palvelimeen ei saada yhteyttä. Tarkista yhteytesi ja yritä uudelleen.",
+    "slow": "Palvelin vastasi liian hitaasti. Yritä hetken päästä uudelleen.",
+    "denied": "Sinulla ei ole pääsyä tähän. Kokeile kirjautua uudelleen.",
+    "load": "Tätä ei voitu ladata. Yritä hetken päästä uudelleen.",
+    "other": "Jokin ei toiminut. Yritä hetken päästä uudelleen.",
+    "retry": "Yritä uudelleen"
   }
 }

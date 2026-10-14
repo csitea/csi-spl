@@ -28,7 +28,10 @@
          at the newest end of the pane. -->
     <BornTopics v-if="!newestLast" />
     <div class="pinned-root feed-body" data-test="topic-root">
-      <ErrorNotice v-if="loadError" :message="loadError" source="topic" test-id="topic-error" />
+      <!-- SPL-1839: one plain sentence + Try again; the technical part only with the Debug pane on (own box: a bare lazy v-if threw insertBefore in #lobby) -->
+      <div v-if="loadError" class="plain-err-slot">
+        <LazyPlainErrorNotice :message="loadError" :error="loadErr" retry source="topic" test-id="topic-error" @retry="retryTick++" />
+      </div>
       <LiveFeed
         clip
         clip-pane="thread"
@@ -62,7 +65,6 @@
 </template>
 
 <script setup lang="ts">
-import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useTopicStore } from '~/stores/topic'
 import { WINDOW, useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -101,6 +103,9 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const liveRows = ref<SpoolMessage[]>([])
 const loadError = ref('')
+/* SPL-1839: the rejection behind loadError, for the Debug pane line; Try again bumps the tick */
+const loadErr = ref<unknown>(null)
+const retryTick = ref(0)
 const loading = ref(false)
 const search = ref('')
 const lastLive = ref<SpoolMessage | null>(null)
@@ -175,7 +180,8 @@ async function catchUp() {
       liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
       archivedAt.value = archiveStamp(data)
     }
-  } catch {
+  } catch (e) {
+    loadErr.value = e
     loadError.value = t('topic.load_failed')
   }
 }
@@ -196,7 +202,7 @@ async function reachHash() {
 }
 watch(() => route.hash, () => { if (!loading.value) void reachHash() })
 
-watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
+watch(() => [topic.open, topic.parentTaskId, retryTick.value] as const, async ([open, id]) => {
   liveRows.value = []
   loadError.value = ''
   search.value = ''
@@ -213,7 +219,14 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
       archivedAt.value = archiveStamp(d)
       mockHead.value = (d.messages || []) as SpoolMessage[]
       olderCursor.value = d.next || null
-    }).catch(() => {}) /* no answer: the pane shows the held rows, unmarked, without Load more */
+    }).catch((e) => {
+      /* no answer: the pane shows the held rows, unmarked, without Load more;
+         SPL-1839: the e2e fault hook (spool.mock.read-fault) says it */
+      if ((e as { mockFault?: boolean })?.mockFault) {
+        loadErr.value = e
+        loadError.value = t('topic.load_failed')
+      }
+    })
 
     return
   }
@@ -225,7 +238,8 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
     olderCursor.value = data.next || null
     archivedAt.value = archiveStamp(data)
     if (olderCursor.value && !topic.rootMsg) void loadOldestRow(id)
-  } catch {
+  } catch (e) {
+    loadErr.value = e
     loadError.value = t('topic.load_failed')
   } finally {
     loading.value = false
@@ -245,7 +259,8 @@ async function loadOlder() {
     mockHead.value = []
 
     olderCursor.value = data.next || null
-  } catch {
+  } catch (e) {
+    loadErr.value = e
     loadError.value = t('feed.error.load_older_failed')
     olderCursor.value = null
   } finally {

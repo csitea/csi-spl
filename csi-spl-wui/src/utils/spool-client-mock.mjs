@@ -11,6 +11,7 @@ import { mockDmPointers } from './dm-pointer.mjs'
 import { isAgentId } from './agent-id.mjs'
 import { topicMessages, topicsFromMessages } from './view-api.mjs'
 import { storageGetJson } from './prefs.mjs'
+import { mockReadFault } from './plain-error.mjs'
 
 /** view-v1 §4.3 over the mock messages: one row per topic, no server pages. */
 export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
@@ -26,6 +27,7 @@ export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
 
 /** view-v1 §4.4 over the mock messages, `order: 'desc'` paged by `before`. */
 export function mockGetTopic(state, id, { limit = 200, after, order, before, viewToken } = {}) {
+  mockReadFault('topic') // SPL-1839 e2e hook: `spool.mock.read-fault`
   /* e2e hook (topic-view-door): `spool.mock.view-door` = { detail } stands in
      for a hub whose door this session does not open (view-v1 section 2): a
      401 view_door until a view token is set */
@@ -47,6 +49,7 @@ export function mockGetTopic(state, id, { limit = 200, after, order, before, vie
 
 /** The flat messages of a channel or a DM peer, oldest first; mock has no server pages. */
 export function mockListMessages(state, { channel, peer, limit = 50, since } = {}) {
+  mockReadFault('list') // SPL-1839 e2e hook: `spool.mock.read-fault`
   /* the same test hook, read again: a line an e2e adds after boot is
      held as the hub would hold a reply its socket just delivered */
   const extra = storageGetJson('spool.mock.extra-messages', [])

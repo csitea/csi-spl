@@ -16,7 +16,7 @@
 //   E2 the page stays usable while it shows: a point on the feed is the feed
 //   E3 a tap on the feed dismisses it AND collapses the Omnibox (blurred,
 //      back to one line)
-//   F1 an error raises the error snackbar at the TOP with its text
+//   F1 an error raises the error snackbar at the TOP with its plain sentence (SPL-1839: the raw text only with the Debug pane)
 //   F2 a tap on the feed dismisses it, and the feed under it took the tap
 //
 // Run:
@@ -169,7 +169,8 @@ try {
   await sleep(500) /* past the 0.28 s slide-in */
   const f = errUp ? await geometry(p, '[data-test=error-snackbar-item]') : null
   await shot(p, 'f1-error-snackbar-top')
-  ok(`F1 it is at the TOP (top <= ${TOP_BAND}px) with the error text`, f && f.top >= 0 && f.top <= TOP_BAND && /upload failed/.test(f.text), f)
+  /* SPL-1839: a reader without the Debug pane gets the plain sentence, not the raw text */
+  ok(`F1 it is at the TOP (top <= ${TOP_BAND}px) with the plain sentence`, f && f.top >= 0 && f.top <= TOP_BAND && /Something (did not work|went wrong)/.test(f.text) && !/upload failed/.test(f.text), f)
   ok('F1 the page stays usable: a point on the feed is the feed', f && !f.feedPointIsSnackbar, f)
   await tapFeed(p)
   ok('F2 a tap on the feed dismisses the error snackbar', await until(p, () => !document.querySelector('[data-test=error-snackbar-item]'), null, 3000))

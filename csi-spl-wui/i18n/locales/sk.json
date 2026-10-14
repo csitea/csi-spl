@@ -2903,5 +2903,13 @@
     "title": "Táto diskusia už neexistuje",
     "body": "Bola odstránená, takže ju nemožno otvoriť. Úloha si ponecháva ostatné diskusie; ak bola posledná, úloha je teraz prepojená s predvolenou diskusiou pracovného priestoru.",
     "topic": "Téma {id}"
+  },
+  "plain_err": {
+    "offline": "Server je nedostupný. Skontrolujte pripojenie a skúste to znova.",
+    "slow": "Server príliš dlho neodpovedal. Skúste to znova o chvíľu.",
+    "denied": "Nemáte k tomu prístup. Skúste sa prihlásiť znova.",
+    "load": "Nepodarilo sa to načítať. Skúste to znova o chvíľu.",
+    "other": "Niečo nefungovalo. Skúste to znova o chvíľu.",
+    "retry": "Skúsiť znova"
   }
 }

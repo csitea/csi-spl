@@ -9,7 +9,11 @@
      do anything". It must never trap a phone: only a MOUSE hover holds a row
      (a finger's pointerenter has no reliable pointerleave), a tap anywhere
      outside it dismisses every row (utils/outside-tap.mjs), and it sits
-     under the safe-area inset (the notch / status bar). -->
+     under the safe-area inset (the notch / status bar).
+
+     SPL-1839 (owner HUM-10, t1 659e3927, msg 4de3b04e): a row says ONE plain
+     sentence (PlainErrorNotice, compact); its text (item.text), HTTP status
+     and error id show under it only with the Debug pane setting on. -->
 <template>
   <div
     v-if="items.length"
@@ -33,8 +37,14 @@
     >
       <UiIcon class="error-snackbar__icon" name="alert-triangle" :size="18" />
       <div class="error-snackbar__body">
-        <p class="error-snackbar__text">{{ item.text }}</p>
-        <p v-if="item.errorId" class="error-snackbar__id" dir="ltr">{{ item.errorId }}</p>
+        <LazyPlainErrorNotice
+          compact
+          what="other"
+          :message="item.text"
+          :status="item.status"
+          :error-id="item.errorId"
+          test-id="error-snackbar-text"
+        />
       </div>
       <span
         v-if="item.count > 1"
@@ -141,19 +151,7 @@ onMounted(() => {
   animation: error-snackbar-in 0.28s ease-out;
 }
 .error-snackbar__icon { flex: none; color: var(--color-danger); }
-.error-snackbar__body { min-width: 0; flex: 1 1 auto; }
-.error-snackbar__text {
-  margin: 0;
-  font-size: 0.875rem;
-  overflow-wrap: anywhere;
-}
-.error-snackbar__id {
-  margin: 0.15rem 0 0;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  opacity: 0.85;
-  overflow-wrap: anywhere;
-}
+.error-snackbar__body { min-width: 0; flex: 1 1 auto; font-size: 0.875rem; overflow-wrap: anywhere; }
 .error-snackbar__count {
   flex: none;
   font-size: 0.75rem;

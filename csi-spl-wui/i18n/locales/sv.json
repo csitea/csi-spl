@@ -2903,5 +2903,13 @@
     "title": "Den här diskussionen finns inte längre",
     "body": "Den har tagits bort och kan därför inte öppnas. Ärendet behåller sina andra diskussioner; om detta var den sista är ärendet nu länkat till arbetsytans standarddiskussion.",
     "topic": "Ämne {id}"
+  },
+  "plain_err": {
+    "offline": "Det går inte att nå servern. Kontrollera anslutningen och försök igen.",
+    "slow": "Servern tog för lång tid att svara. Försök igen om en stund.",
+    "denied": "Du har inte åtkomst till det här. Försök logga in igen.",
+    "load": "Det gick inte att läsa in. Försök igen om en stund.",
+    "other": "Något fungerade inte. Försök igen om en stund.",
+    "retry": "Försök igen"
   }
 }

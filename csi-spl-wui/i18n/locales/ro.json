@@ -2903,5 +2903,13 @@
     "title": "Această discuție nu mai există",
     "body": "A fost ștearsă, deci nu poate fi deschisă. Problema își păstrează celelalte discuții; dacă aceasta era ultima, problema este acum asociată discuției implicite a spațiului de lucru.",
     "topic": "Tema {id}"
+  },
+  "plain_err": {
+    "offline": "Serverul nu poate fi contactat. Verifică conexiunea, apoi încearcă din nou.",
+    "slow": "Serverul nu a răspuns la timp. Încearcă din nou peste puțin timp.",
+    "denied": "Nu ai acces la acest lucru. Încearcă să te autentifici din nou.",
+    "load": "Nu s-a putut încărca. Încearcă din nou peste puțin timp.",
+    "other": "Ceva nu a funcționat. Încearcă din nou peste puțin timp.",
+    "retry": "Încearcă din nou"
   }
 }

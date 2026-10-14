@@ -2903,5 +2903,13 @@
     "title": "Seda arutelu enam ei ole",
     "body": "See kustutati, seega ei saa seda avada. Probleem säilitab oma teised arutelud; kui see oli viimane, on probleem nüüd seotud tööruumi vaikearuteluga.",
     "topic": "Teema {id}"
+  },
+  "plain_err": {
+    "offline": "Serveriga ei saa ühendust. Kontrolli ühendust ja proovi uuesti.",
+    "slow": "Server vastas liiga aeglaselt. Proovi hetke pärast uuesti.",
+    "denied": "Sul pole sellele ligipääsu. Proovi uuesti sisse logida.",
+    "load": "Seda ei õnnestunud laadida. Proovi hetke pärast uuesti.",
+    "other": "Midagi ei toiminud. Proovi hetke pärast uuesti.",
+    "retry": "Proovi uuesti"
   }
 }

@@ -80,6 +80,7 @@
         :error="sendError.err"
         source="omnibox-send"
         test-id="omnibox-send-error"
+        :debug="debugOn"
       >
         <template #detail>
           <button type="button" class="btn ghost" data-test="omnibox-send-retry" @click="retrySend">
@@ -123,6 +124,7 @@ import { retryWith } from '~/utils/offline-queue.mjs'
 import { useChannelStore } from '~/stores/channel'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSessionStore } from '~/stores/session'
+import { debugPanelVisibleFor } from '~/composables/debugAudience.mjs'
 import TopBarTenant from '~/components/TopBarTenant.vue'
 import LastDataClock from '@/components/LastDataClock.vue'
 import { useClockHost } from '~/composables/useClockHost'
@@ -142,6 +144,8 @@ const omnibox = useOmniboxStore()
 const logoOpen = ref(false)
 const search = useSearchStore()
 const session = useSessionStore()
+/* SPL-1839: the send error's reference row only with the Debug pane on */
+const debugOn = computed(() => session.state === 'in' && debugPanelVisibleFor(session.claims ?? null))
 const api = useSpoolApi()
 const composer = ref<InstanceType<typeof MessageComposer> | null>(null)
 const slashHintId = useId()

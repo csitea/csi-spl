@@ -29,7 +29,10 @@
     <BornTopics v-if="!newestLast" />
     <div class="pinned-root feed-body" data-test="topic-root">
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
-      <ErrorNotice v-if="pane.error" :message="pane.error" source="live-pane" test-id="live-pane-error" />
+      <!-- SPL-1839: one plain sentence + Try again; the technical part only with the Debug pane on (own box: a bare lazy v-if threw insertBefore in #lobby) -->
+      <div v-if="pane.error" class="plain-err-slot">
+        <LazyPlainErrorNotice :message="pane.error" retry source="live-pane" test-id="live-pane-error" @retry="pane.taskId && pane.open(pane.taskId)" />
+      </div>
       <LiveFeed
         clip
         clip-pane="thread"
@@ -61,7 +64,6 @@
 </template>
 
 <script setup lang="ts">
-import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
 import { useNotificationStore } from '~/stores/notification'

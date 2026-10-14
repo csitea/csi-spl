@@ -16,7 +16,14 @@
 
      THE ID IS TECHNICAL TEXT and never passes through `t()`; `dir="ltr"`
      keeps it un-mirrored. The MESSAGE is the caller's — this component does
-     not classify errors, it only presents one. -->
+     not classify errors, it only presents one.
+
+     SPL-1839 (owner HUM-10, t1 659e3927, msg 4de3b04e): the reference is
+     technical text too, so it shows only when the caller passes `debug` (its
+     Debug pane setting, debugAudience.mjs); it is still minted and journaled
+     for every reader. A prop, not the session store: that import put one more
+     preload in the initial JS (ci_initial_gzip_kb).
+     A screen whose message is the raw store error uses PlainErrorNotice. -->
 <template>
   <div class="error-notice" role="alert" :data-test="testId">
     <UiIcon class="error-notice__icon" name="alert-triangle" :size="18" />
@@ -27,7 +34,7 @@
 
       <slot name="detail" />
 
-      <p v-if="errorId" class="error-notice__meta">
+      <p v-if="errorId && debug" class="error-notice__meta">
         <span class="error-notice__label">{{ t('common.error_ref') }}</span>
         <code
           class="error-notice__code"
@@ -82,8 +89,10 @@ const props = withDefaults(
     testId?: string
     /** Where the minted client id says it came from, in the journal. */
     source?: string
+    /** SPL-1839: the reader's Debug pane is on; only then the reference row shows. */
+    debug?: boolean
   }>(),
-  { message: '', errorId: '', error: undefined, testId: 'error-notice', source: 'ui' },
+  { message: '', errorId: '', error: undefined, testId: 'error-notice', source: 'ui', debug: false },
 )
 
 const { t } = useI18n({ useScope: 'global' })

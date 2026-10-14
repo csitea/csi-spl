@@ -2903,5 +2903,13 @@
     "title": "Deze bespreking bestaat niet meer",
     "body": "Ze is verwijderd en kan dus niet worden geopend. De kwestie houdt haar andere besprekingen; was dit de laatste, dan is de kwestie nu gekoppeld aan de standaardbespreking van de werkruimte.",
     "topic": "Onderwerp {id}"
+  },
+  "plain_err": {
+    "offline": "Kan de server niet bereiken. Controleer je verbinding en probeer het opnieuw.",
+    "slow": "De server deed er te lang over om te antwoorden. Probeer het zo meteen opnieuw.",
+    "denied": "Je hebt hier geen toegang toe. Probeer opnieuw in te loggen.",
+    "load": "Dit kon niet worden geladen. Probeer het zo meteen opnieuw.",
+    "other": "Er werkte iets niet. Probeer het zo meteen opnieuw.",
+    "retry": "Opnieuw proberen"
   }
 }

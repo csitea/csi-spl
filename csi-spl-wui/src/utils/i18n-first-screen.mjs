@@ -40,6 +40,9 @@ export const ON_DEMAND_COMPONENTS = {
   // SPL-1833: a failed search's plain sentence + Try again; it says the core
   // "Something went wrong" until its own keys are merged
   "components/SearchErrorNotice.vue": "idle",
+  // SPL-1839: every other screen's plain error sentence + Try again, and the
+  // snackbar row; it says the core "Something went wrong" until merged
+  "components/PlainErrorNotice.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

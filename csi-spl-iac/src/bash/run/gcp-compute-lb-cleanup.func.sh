@@ -1,4 +1,6 @@
 #!/bin/bash
+# shellcheck source=../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh
+declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 
 #------------------------------------------------------------------------------
 # @description Cleanup GCP Load Balancer resources that may be orphaned This action deletes load balancer components in the correct dependency order: 1. Forwarding rules 2. Target proxies 3. URL maps 4. Backend buckets 5. SSL certificates 6. Storage bucket (optional) Resources are named with pattern: ${ORG}-${APP}-${ENV}-wui-*
@@ -6,10 +8,9 @@
 # @example ENV=dev ./run -a do_gcp_compute_lb_cleanup
 #------------------------------------------------------------------------------
 do_gcp_compute_lb_cleanup() {
-  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
-  _spl_sdk_dir="$(mktemp -d)"
-  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
-  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
+  local _spl_sdk_saved _spl_sdk_dir
+  spl_gcp_temp_sdk_config || return 1
+  trap 'spl_gcp_temp_sdk_config_restore; trap - RETURN' RETURN
   # Pin the gcloud identity for this run (spec 012 C-2). `--project` says WHERE
   # a call lands, never WHO it lands as, and `~/.config/gcloud` is one directory
   # shared by every agent on this box — `gcloud config set account` and

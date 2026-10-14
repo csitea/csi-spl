@@ -19,7 +19,8 @@
     "test:unit": "node src/node/test/run-unit-tests.mjs",
     "test": "node src/node/test/run-unit-tests.mjs",
     "test:e2e": "node src/node/test/run-e2e-tests.mjs",
-    "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
+    "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs",
+    "test:live:proofs": "node src/node/test/run-live-proofs.mjs"
   },
   "dependencies": {
     "@headlessui/vue": "^1.7.23",

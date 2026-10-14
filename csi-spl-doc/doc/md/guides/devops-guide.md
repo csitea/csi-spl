@@ -543,7 +543,54 @@ cd <CHECKOUT>/csi-spl-orc && ./run -a do_release_version
 
 `do_spl_gh_master_ruleset` is how the `master-no-force` ruleset is managed. Lifting it is the owner's, by hand. This guide does not run it. `grep -c '^do_spl_gh_master_ruleset()' csi-spl-iac/src/bash/run/spl-gh-master-ruleset.func.sh` -> 1. What a push to master must do is the developer guide.
 
-# 16 Gaps
+# 16 Tests in production (opt-in rule)
+
+## 16.1 The opt-in rule
+
+Tests do not run in production by default. CI quality gates (such as workflow `10_ci-quality.yml`) and pre-push hooks execute unit, lint, mock, and local integration tests, leaving production unexercised unless an explicit action or workflow is dispatched.
+
+Production has an opt-in way to run any or all of the tests, where the operator picks which tests to run.
+
+Owner words (HUM-10, t1 topic cd592c84-45ab-49a6-927c-0864718e53b9):
+
+- 03:20Z msg 4dfc19b5-0118-4c7e-86b2-a04b26c995a1: "And regardless of the fact that these workspaces are test workspaces, we should have the capability to run all of the tests also in production."
+- 03:21Z msg 05d5d1b6-3682-475b-88c5-cc37f37f0321: "They should not be run all of the time in production, but there should be a capability, if desired, to run all of the tests to pick what tests to run in production. Write down somewhere in some DevOps guide or somewhere else."
+
+### Guardrails for production testing
+- **Test workspaces only:** Production tests and proofs never target primary, owner, or tenant customer workspaces (`t1`, etc.). On `prd`, any test that writes state, creates sessions, seats members, or posts messages runs strictly inside dedicated test workspaces (default `e2e` or `e2e-*`, configured via `spl_test_workspaces`).
+- **Destructive operations forbidden or gated:** Tests that drop tables, alter schemas (DDL), purge tenants, or mutate production data are forbidden on `prd` or protected by explicit confirmation flags (e.g. `PROBE_PRD_GO=1`, `ALLOW_PRD_RESTORE=1`).
+- **Rate and load limits:** Active scanning, load tests, or crawler probes must respect strict rate limits (e.g. <= 5 req/s) to prevent degrading user service.
+- **Non-blocking post-deploy verification:** Post-deploy probes running in CI on `prd` (such as `invite-e2e-prd` in workflow 20 or `verify` in workflow 22) run non-blocking (`continue-on-error: true`) so transient probe or network issues do not mark an already successful deploy as failed.
+
+## 16.2 Current test suite inventory and production readiness
+
+Read-only inventory of test suites, proofs, and probes across the estate: which can target `prd` today, which cannot, the commands to run them, and the gaps to follow up.
+
+| suite / proof | command | file & evidence | targets prd today? | gap (follow-up) |
+|---|---|---|---|---|
+| Hub acceptance smoke | `ENV_NAME=prd bash csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh` (or CI workflow `22_deploy-verify.yml`) | `csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh:48` (`: "${ENV_NAME:?ENV_NAME must be set (dev \| prd)}"`) | yes | none (verifies `GET /` and `GET /version` over HTTPS on prd) |
+| Member invite flow E2E | `cd csi-spl-orc && ENV=prd TENANT_ID=e2e ./run -a do_spl_invite_e2e` (or CI `20_hub-build-deploy.yml:815`) | `csi-spl-orc/src/bash/run/spl-invite-e2e.func.sh:44` (`# @example ENV=prd TENANT_ID=e2e ./run -a do_spl_invite_e2e`), line 50 (`spl_invite_e2e_test_workspace`) | yes (test workspace only) | none (runs invite -> mail -> sign-in -> bound; refuses `t1` and customer workspaces) |
+| WUI live proof / parent-level | `cd csi-spl-orc && ENV=prd SPL_PROBE_PW=<secret> ./run -a do_spl_wui_live_proof` (or CI `30_wui-build-deploy.yml:565`) | `csi-spl-orc/src/bash/run/spl-wui-live-proof.func.sh:23` (`# @param ENV - required: dev or prd`), line 59 (refuses `#lobby`, uses `live_proof_channel`) | yes (with probe secret) | none (executes `parent-level-live.proof.mjs` against deployed WUI in hidden test channel) |
+| M3 full E2E | `cd csi-spl-orc && ENV=prd M3_CREATE_TENANT=1 ./run -a do_spl_m3_e2e` | `csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh:85` (`# @example ENV=prd M3_CREATE_TENANT=1 ./run -a do_spl_m3_e2e`), line 89 (`[[ "${ENV:-}" == prd ]] && TENANT_ID="${TENANT_ID:-e2e}"`) | yes (test workspace only) | none (exercises hub auth, seating, channels, agents, messages in test tenant `e2e`) |
+| WUI runtime first-load timing | `cd csi-spl-orc && ENV=prd PF_N=10 ./run -a do_spl_wui_perf_first_load` | `csi-spl-orc/src/bash/run/spl-wui-perf-first-load.func.sh:28` (`# @example ENV=prd PF_N=10 FL_CPU_PROFILE=1 ./run -a do_spl_wui_perf_first_load`), line 34 (`[[ "$ENV" == prd ]] && tenant=e2e \|\| tenant=t1`) | yes (test workspace only) | none (benchmarks first-load runtime timing on `e2e` workspace; refuses `t1` on prd) |
+| WUI first-load network map | `cd csi-spl-orc && ENV=prd ./run -a do_spl_wui_perf_first_load_net` | `csi-spl-orc/src/bash/run/spl-wui-perf-first-load-net.func.sh:27` (`# @example ENV=prd ./run -a do_spl_wui_perf_first_load_net`), line 35 | yes (test workspace only) | none (measures network map on `e2e` workspace; refuses `t1` on prd) |
+| WUI Flow + Event log timing | `cd csi-spl-orc && ENV=prd ./run -a do_spl_wui_perf_flow_events` | `csi-spl-orc/src/bash/run/spl-wui-perf-flow-events.func.sh:26` (`# @example ENV=prd ./run -a do_spl_wui_perf_flow_events`), line 33 | yes (test workspace only) | none (measures render timing on `e2e` workspace; refuses `t1` on prd) |
+| WUI perf summary report | `cd csi-spl-orc && ENV=prd PERF_DAYS=7 ./run -a do_spl_wui_perf_report` | `csi-spl-orc/src/bash/run/spl-wui-perf-report.func.sh:28` (`# @example ENV=prd PERF_DAYS=7 ./run -a do_spl_wui_perf_report`) | yes | none (queries `GET /v1/admin/perf/summary` on prd) |
+| Probe member seating | `cd csi-spl-orc && ENV=prd TENANT_ID=e2e PROBE_MEMBER_ROLE=developer DRY_RUN=0 ./run -a do_spl_probe_member_seat` | `csi-spl-orc/src/bash/run/spl-probe-member-seat.func.sh:38` (`# @example ENV=prd TENANT_ID=e2e-2 PROBE_MEMBER_ROLE=biz_owner DRY_RUN=0 ./run -a do_spl_probe_member_seat`), line 44 | yes (test workspace only) | none (seats probe human in prd test workspace) |
+| Deploy lag & hub image check | `cd csi-spl-orc && ENV=prd ./run -a do_check_deploy_lag` / `ENV=prd ./run -a do_check_hub_deploy` | `csi-spl-orc/src/bash/run/check-deploy-lag.func.sh:32`, `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh:25` | yes | none (checks live `/version` and `build.json` in prd) |
+| Database backup verification & restore drill | `cd csi-spl-orc && ENV=prd ./run -a do_spl_db_backup_verify` / `ENV=prd TARGET=local DRY_RUN=0 ./run -a do_spl_db_restore` | `csi-spl-orc/src/bash/run/spl-db-backup-verify.func.sh:31`, `csi-spl-orc/src/bash/run/spl-db-restore.func.sh:63` | yes | none (restores prd GCS dump into local throwaway container and compares against live prd DB) |
+| Message delivery probes | `cd csi-spl-orc && ENV=prd TENANT_ID=e2e ./run -a do_spl_delivery_probe` / `ENV=prd PROBE_PRD_GO=1 ./run -a do_spl_workspace_delivery_probe` | `csi-spl-orc/src/bash/run/spl-delivery-probe.func.sh:32`, `csi-spl-orc/src/bash/run/spl-workspace-delivery-probe.func.sh:70` | yes (test workspace only; `PROBE_PRD_GO=1` required) | none (exercises message delivery loop; gated on prd) |
+| Stripe webhook probe | `cd csi-spl-orc && ENV=prd STRIPE_API_BASE=<base> DRY_RUN=0 ./run -a do_spl_stripe_webhook_probe` | `csi-spl-orc/src/bash/run/spl-stripe-webhook-probe.func.sh:27` (`# @example ENV=prd STRIPE_API_BASE=<stripe rest base> DRY_RUN=0 ./run -a do_spl_stripe_webhook_probe`), line 31 | yes | none (fires test payment webhook against prd without charging) |
+| DAST security headers | `cd csi-spl-iac && ./run -a do_sec_headers` (workflow `68_dast.yml:43`) | `csi-spl-iac/src/bash/run/sec-headers.func.sh:33` (`_sec_headers_default_url`), line 130 | no | **Gap T1**: `do_sec_headers` ignores `ENV=prd` and hardcodes default to `https://dev.<BASE_DOMAIN>`. Operator must manually construct and pass `SEC_HEADERS_URL=https://<BASE_DOMAIN>`. Follow-up: update `do_sec_headers` to resolve the apex domain when `ENV=prd`. |
+| OWASP ZAP baseline scan | Workflow `.github/workflows/68_dast.yml:65` | `.github/workflows/68_dast.yml:13` ("Owner-go (topic 875651f8): ZAP against the dev WUI host only, <=5 req/s, never prd.") | no | **Gap T2**: Workflow 68 is pinned to dev target only (`https://dev.$d`). No workflow or CLI action allows running a passive ZAP scan against prd. Follow-up: add opt-in workflow input (`environment: dev \| prd`) with conservative rate caps (<=5 req/s). |
+| Database search index probe | `cd csi-spl-orc && ./run -a do_spl_search_index_probe` | `csi-spl-orc/src/bash/run/spl-search-index-probe.func.sh:96` (`[[ "${ENV:-}" != prd ]] \|\| { do_log "FATAL ENV=prd is refused: the probe runs DDL (rolled back) on dev only; prd gets P1 through rdb T002 with the owner's go"; return 1; }`) | no | **Gap T3**: Hardcoded refusal for `ENV=prd` because it creates test indexes via DDL. Follow-up: add a read-only query-plan check (`EXPLAIN`) that verifies index usage on prd without executing DDL. |
+| WUI browser E2E test suite | `cd csi-spl-wui && pnpm run test:e2e` | `csi-spl-wui/src/node/test/run-e2e-tests.mjs:16` ("`*.proof.mjs files are never discovered — they drive live sites`") | no | **Gap T4**: Discovers ~95 tests designed for local mock/dev server (`localhost:3000`), excluding live proofs (`*.proof.mjs`). No aggregator or runner executes a selected suite of live proofs against prd. Follow-up: build a live proof runner (e.g. `pnpm test:live:suite` or `do_spl_wui_live_suite`) targeting `BASE_URL=https://<BASE_DOMAIN>` or a test workspace. |
+| Live chat WebSocket interop test | `cd csi-spl-wui && pnpm run test:live` | `csi-spl-wui/tests/e2e/live-interop.test.mjs:5` ("`Run (lde hub with the door off): HUB_URL=http://t1.localhost:58080 node --experimental-websocket tests/e2e/live-interop.test.mjs`") | no | **Gap T5**: Requires hub authentication door to be disabled (`door off`). Fails against prd because prd enforces production auth. Follow-up: support passing test workspace credentials/tokens so interop can run against prd. |
+| Go API module test suite | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` | `csi-spl-api/src/bash/tests/run-all-tests.sh:2` | no | **Gap T6**: Entire Go test suite is pure unit/local integration using SQLite, local throwaway Postgres, or fake-gcs. There is no CLI or test harness to run API integration tests against a live prd Cloud Run endpoint. Follow-up: provide a live API smoke/integration suite runnable against `api.<BASE_DOMAIN>`. |
+| Standby agent benchmark | `cd csi-spl-orc && ./run -a do_spl_standby_bench` | `csi-spl-orc/src/bash/run/spl-standby-bench.func.sh:37` (`[[ "${ENV:-}" == dev ]] \|\| { do_log "FATAL ENV must be dev (the standby bench is dev only), got: '${ENV:-}'"; return 1; }`) | no | **Gap T7**: Hardcoded refusal for `ENV=prd`. Follow-up: allow operator opt-in with strict concurrency caps if benchmarking against prd agents is needed. |
+| Test workspace purge | `cd csi-spl-orc && ./run -a do_spl_tenant_test_purge` | `csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh:26` (`[[ "${ENV:-}" == dev ]] \|\| { do_log "FATAL removing test workspaces is DEV only (ENV=${ENV:-})"; return 1; }`) | no | **Gap T8**: Hardcoded refusal for `ENV=prd`. Follow-up: allow cleanup of explicitly designated test workspaces (`e2e-*`) on prd under operator confirmation. |
+
+# 17 Gaps
 
 A step with no action, or an action that refuses the from-scratch case. Each one is a candidate lane. None of these was written above as if it already worked.
 
@@ -558,7 +605,7 @@ A step with no action, or an action that refuses the from-scratch case. Each one
 | D7 | `make do-provision-and-update-gh-keys` calls `do_github_update_gcp_keys` | `grep -c '^do_github_update_gcp_keys()' csi-spl-iac/src/bash/run/*.func.sh csi-spl-orc/src/bash/run/*.func.sh` -> 0; step 120 is the action that sets the secrets |
 | D8 | the owner's approval is spoken for that call; no action records it | every apply section above waits for it |
 
-# 17 Docs this guide replaces
+# 18 Docs this guide replaces
 
 | doc | what happens to it |
 |---|---|
@@ -568,7 +615,7 @@ A step with no action, or an action that refuses the from-scratch case. Each one
 | `csi-spl-doc/doc/md/box-state-backup.md` | stays; box state is the installation guide |
 | the system guide, the installation guide, the operations guide | the other three guides |
 
-# 18 How a count was taken
+# 19 How a count was taken
 
 The `grep -c` figures in this guide are the count of the function line `^<action>()` in the file named next to it. They were taken on commit `b51567f09`. Those function files are unchanged through `396613b00`. The count for `do_spl_wine_box_budget_tf` is on commit `bfede0918`, in the wine-box section. The form is one action, one file.
 

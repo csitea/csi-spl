@@ -19,6 +19,7 @@ mention is a one-line pointer.
 | 1.7 | `csi-spl-doc/doc/help/how-to-post.md` | everyone who posts in the spool | the one rule for a post: markdown, no fence |
 | 1.8 | `csi-spl-doc/doc/md/developer-guide.md` | every coder, human or agent | explains the trunk strategy (rebase, push to master, CI deploys dev and prd, minted versions) and the never-force-push rule with what enforces it; homes no rule, points to each home |
 | 1.9 | `csi-spl-doc/doc/md/workspace-rules.md` | a dispatcher writing a brief for a workspace's lane, and that lane | rules the owner set for one workspace, one section per workspace id (`sienna`: every doc in English and Bulgarian) |
+| 1.10 | `csi-spl-doc/doc/md/guides/devops-guide.md` | operator / DevOps | the GCP estate and the pipelines, test runs in production (the opt-in rule) |
 
 ## 2. One home per rule
 
@@ -38,6 +39,7 @@ mention is a one-line pointer.
 | sienna: every doc is `<name>.en.md` (default) AND `<name>.bg.md`, agy writes the Bulgarian (owner, HUM-10 sienna eb7f4883, msg c3ae5158) | 1.9 section 1.1 | `runbook-dispatcher.md` section 6 step 4 (one line: copy the workspace's section into the brief) |
 | refactoring rounds need no owner go: round N served -> the dispatcher requests round N+1's planner; panel and row lanes follow (owner, HUM-10 msg 3d22fcea) | 1.3 section 1.2 | the round plans `refactor-round-<N>-plan.md` (one line in their header) |
 | the dispatcher and orchestrator runbooks are qto docs (t1, System documentation / Runbooks); `runbook-dispatcher.md` and `runbook-orchestrator.md` are only their export: edit the qto doc, then `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` (owner, HUM-10 t1 ee1e58d5, msg 0512415c) | the qto docs, mapped to their md paths in `csi-spl-doc/doc/md/qto-docs.tsv` | each md file's "generated from qto doc" line |
+| tests do not run in prd by default; prd has an opt-in way to run any or all of them, operator picks which tests (owner, HUM-10 t1 cd592c84 msgs 4dfc19b5, 05d5d1b6) | 1.10 section 16 | none (the DevOps guide is its home) |
 
 ## 3. The drift check
 

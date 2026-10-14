@@ -7,5 +7,5 @@ gcp_region  = "europe-north1"
 hub_runtime_sa_account_id = "csi-spl-hub-prd"
 
 bucket_prefix = "csi-spl-prd-docs-"
-workspaces = ["t1", "leiden", "csi-rel", "csitea", "luka", "ora-cam", "pas-psf", "spool", "e2e", "bnc-cpt", "niba-consult", "sienna", "aleko-gik", "demo", "e2e-2", "marinov-taxi"]
+workspaces = ["t1", "ws-hidden-01", "csi-rel", "csitea", "ws-hidden-02", "ws-hidden-03", "ws-hidden-04", "ws-hidden-05", "e2e", "ws-hidden-06", "ws-hidden-07", "ws-hidden-08", "ws-hidden-09", "demo", "e2e-2", "ws-hidden-10"]
 soft_delete_retention_seconds = 604800

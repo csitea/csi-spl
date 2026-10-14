@@ -115,10 +115,14 @@ jobs:
         env:
           KEY_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV }}
           KEY_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD }}
+          # SPL-1874: the hidden workspaces (csi-spl-doc/doc/md/private-overlay.md)
+          PRIVATE_CNF: ${{ secrets.SPL_PRIVATE_CNF_YAML }}
         run: |
           set -euo pipefail
           umask 077
           mkdir -p "$HOME/.gcp/.csi"
+          [[ -n "$PRIVATE_CNF" ]] || { echo "::error::no secret SPL_PRIVATE_CNF_YAML: the hidden workspaces cannot resolve"; exit 1; }
+          printf '%s\n' "$PRIVATE_CNF" >"$HOME/.gcp/.csi/csi-spl-private.yaml"
           if [[ "$ENV" == dev ]]; then printf '%s' "$KEY_DEV" >"$HOME/.gcp/.csi/key-csi-spl-dev.json"; fi
           # prd's key: the prd job, and dev's 025 delegation record in the prd apex zone
           if [[ -n "$KEY_PRD" ]]; then printf '%s' "$KEY_PRD" >"$HOME/.gcp/.csi/key-csi-spl-prd.json"; fi

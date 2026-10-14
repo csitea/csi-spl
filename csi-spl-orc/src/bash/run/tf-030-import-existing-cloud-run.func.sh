@@ -74,6 +74,7 @@ do_tf_030_import_existing_cloud_run() {
   mkdir -p "$work"
   cp -a "${tf_src}/." "$work/"
   cp -a "$vars" "$backend" "$script" "$work/"
+  _tf030_private_vars "$root" "$vars" "$work/${step}.vars.tfvars" || return 1
 
   local tf_image="${TF_IMAGE:-hashicorp/terraform:1.9}"
   local tf_home="/home/tf"
@@ -95,6 +96,15 @@ do_tf_030_import_existing_cloud_run() {
 
   do_log "OK ${step} ${env_name} import finished (import only). Next: terraform plan. Do NOT apply."
   return 0
+}
+
+# _tf030_private_vars <root> <tracked tfvars> <work copy> (SPL-1874): a
+# hidden-workspace placeholder resolves through the private overlay
+_tf030_private_vars() {
+  # shellcheck source=/dev/null
+  source "$1/csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh" || return 1
+  spl_private_has_tokens "$2" || return 0
+  spl_private_resolve "$2" "$3" || { do_log "FATAL cannot resolve $2"; return 1; }
 }
 
 # _tf030_docker <work dir> <container home> <key in container> <step> <args...>:

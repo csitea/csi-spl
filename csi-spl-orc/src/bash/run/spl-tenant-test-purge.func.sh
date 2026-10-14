@@ -47,6 +47,9 @@ do_spl_tenant_test_purge() {
       { do_log "FATAL on prd only e2e-<x> test workspaces are purged, got '$t'"; return 1; }
   done
   do_spl_cloud_cnf || return 1
+  # SPL-1874: an unresolved placeholder could hide a mapped tenant
+  ! spl_private_has_tokens "$SPL_CNF" ||
+    { do_log "FATAL $SPL_CNF still names hidden-workspace placeholders: restore the private overlay ($(spl_private_cnf_path))"; return 1; }
   local mapped
   mapped=" $(yq -r '.env.dns.mapped_tenants // [] | .[]' "$SPL_CNF" | tr '\n' ' ') "
   for t in "${list[@]}"; do

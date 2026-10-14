@@ -6,7 +6,9 @@
 # as its own class, and are deliberately not repeated here.
 # An estate VALUE is never written here: {{cnf:<yq path>}} is resolved by the
 # gate from csi-spl-cnf (domain-single-source + gcloud-account-pinned gates).
-other-org	another organisation prefix	(?i)\bbnc(-[a-z0-9]+)*\b
+# A hidden name is never written here either (SPL-1874): {{private:<list>}} is
+# resolved from the private overlay (csi-spl-doc/doc/md/private-overlay.md).
+other-org	another organisation prefix	(?i)\b({{private:orgs}})(-[a-z0-9]+)*\b
 private-host	hosted product domain	(?i){{cnf:.env.dns.BASE_DOMAIN}}
 private-host	org domain	(?i)csitea\.net
 private-host	Cloud Run default host	(?i)[a-z0-9-]+\.[a-z]\.run\.app\b
@@ -18,7 +20,7 @@ gcp-sa	service-account e-mail	(?i)iam\.gserviceaccount\.com
 gcp-org	GCP org id key	gcp_org_id
 gcp-org	GCP org id value	\b{{cnf:.env.gcp.gcp_org_id}}\b
 gcp-billing	billing account id	\b[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}\b|billingAccounts/
-tenant-data	hosted tenant slug or display name	(?i)\b(leiden|luka|ora-cam|pas-psf|relishbg|pawspoon)\b
+tenant-data	hosted tenant slug or display name	(?i)(?<![a-z0-9])({{private:workspaces}})(?![a-z0-9])
 # 1-2 digit ids (HUM-1, CLE-07) are the product's own id format: allowed (spec 044 FR-OS-002, e6e85f93)
 fleet-id	fleet id cited as provenance (3+ digits)	\b(CLE|HUM|AGY|GRK)-[0-9]{3,}\b
 box-path	box path under /opt (the hub image's /opt/spool excepted)	/opt/(?!spool/)

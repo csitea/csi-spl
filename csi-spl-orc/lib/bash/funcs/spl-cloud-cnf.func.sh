@@ -56,6 +56,22 @@ spl_cnf_copy_cache() {
   cat <"$1" >"$2"
 }
 
+# spl_cnf_private_resolve <iac lib dir> <cnf> (SPL-1874): the hidden workspaces
+# stand as placeholders in the public cnf; SPL_CNF (a private state dir)
+# carries the real slugs when the overlay is here. Without it the placeholders
+# stay, WARNED, and the readers that must not guess (do_spl_tenant_test_purge)
+# refuse on spl_private_has_tokens.
+spl_cnf_private_resolve() {
+  # shellcheck disable=SC1091
+  source "$1/spl-private-cnf.func.sh" || return 1
+  spl_private_has_tokens "$2" || return 0
+  if [[ -s "$(spl_private_cnf_path)" ]]; then
+    spl_private_resolve "$2" "$2.res" && mv -f "$2.res" "$2" && return 0
+    rm -f "$2.res"; do_log "FATAL cannot resolve the hidden workspaces of the $ENV cnf"; return 1
+  fi
+  do_log "WARN no private overlay ($(spl_private_cnf_path)): the hidden workspaces of $ENV stay placeholders in SPL_CNF" >&2
+}
+
 do_spl_cloud_cnf() {
   spl_require_cloud_env || return 1
   local proj_base
@@ -98,7 +114,7 @@ do_spl_cloud_cnf() {
   fi
   SPL_CNF="$SPL_STATE_DIR/$ENV.env.yaml"
   tmp="$SPL_CNF.tmp.$$"
-  spl_cnf_copy_cache "$cache" "$tmp" && mv -f "$tmp" "$SPL_CNF" || { rm -f "$tmp"; do_log "FATAL cannot write $SPL_CNF"; return 1; }
+  spl_cnf_copy_cache "$cache" "$tmp" && spl_cnf_private_resolve "$iac_lib" "$tmp" && mv -f "$tmp" "$SPL_CNF" || { rm -f "$tmp"; do_log "FATAL cannot write $SPL_CNF"; return 1; }
 
   # Every value in ONE yq call: a yq process per value was ~50 ms each.
   local -a vals=()

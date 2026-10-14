@@ -8,7 +8,7 @@
 # @description   pending / failed, already mapped -> CHECK only: custom domain
 # @description                      + WUI probe (DNS, TLS, HTTP 200) -> ready
 # @description                      / failed, no terraform (dispatch c7b6e8db:
-# @description                      niba-consult sat pending for a week)
+# @description                      ws-c sat pending for a week)
 # @description   pending / failed, not mapped -> add to env.dns.mapped_tenants
 # @description                      + steps.052 workspaces (its Docs bucket)
 # @description   removing         -> drop from both
@@ -174,7 +174,9 @@ spl_th_entry_check() {
 # spl_th_cnf_publish <message>: spl_th_cnf_push, or with CNF_PUSH=0 a loud
 # warning that the trunk does not declare the hosts the apply is about to make.
 spl_th_cnf_publish() {
-  [[ "${CNF_PUSH:-1}" == 1 ]] && { spl_th_cnf_push "$1"; return; }
+  local m
+  m="$(spl_th_mask "$1")" || return 1
+  [[ "${CNF_PUSH:-1}" == 1 ]] && { spl_th_cnf_push "$m"; return; }
   do_log "WARN CNF_PUSH=0: the cnf edit stays UNCOMMITTED in $APP_PATH and the trunk does not declare it; the next render from trunk drops it"
 }
 
@@ -197,7 +199,7 @@ spl_th_cnf_paths() {
 # own cnf history carries (no literal in the tree, no AI trailer), pushed,
 # rebased + retried on a race. Landed is read from merge-base, never the push
 # text. A local commit of those paths that the trunk lacks is refused (the
-# aleko-gik hour). Afterwards the tree is brought onto the trunk
+# ws-d hour). Afterwards the tree is brought onto the trunk
 # (spl_th_root_sync). Sets SPL_TH_PUSHED to the landed sha.
 spl_th_cnf_push() {
   local th_msg="$1" br="${CNF_GIT_BRANCH:-master}" root tmp rc agent

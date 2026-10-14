@@ -8,6 +8,6 @@ fqdn        = "spool-hub.ai"
 site_id = "csi-spl-prd-site"
 cert_preference = "GROUPED"
 wait_dns_verification = false
-additional_fqdns = ["leiden.spool-hub.ai", "csi-rel.spool-hub.ai", "csitea.spool-hub.ai", "luka.spool-hub.ai", "ora-cam.spool-hub.ai", "pas-psf.spool-hub.ai", "spool.spool-hub.ai", "e2e.spool-hub.ai", "bnc-cpt.spool-hub.ai", "niba-consult.spool-hub.ai", "aleko-gik.spool-hub.ai", "demo.spool-hub.ai", "sienna.spool-hub.ai", "e2e-2.spool-hub.ai", "marinov-taxi.spool-hub.ai"]
+additional_fqdns = ["ws-hidden-01.spool-hub.ai", "csi-rel.spool-hub.ai", "csitea.spool-hub.ai", "ws-hidden-02.spool-hub.ai", "ws-hidden-03.spool-hub.ai", "ws-hidden-04.spool-hub.ai", "ws-hidden-05.spool-hub.ai", "e2e.spool-hub.ai", "ws-hidden-06.spool-hub.ai", "ws-hidden-07.spool-hub.ai", "ws-hidden-09.spool-hub.ai", "demo.spool-hub.ai", "ws-hidden-08.spool-hub.ai", "e2e-2.spool-hub.ai", "ws-hidden-10.spool-hub.ai"]
 redirect_fqdns = ["www.spool-hub.ai"]
 bind_custom_domain = true

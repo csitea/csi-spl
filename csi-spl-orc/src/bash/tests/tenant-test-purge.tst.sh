@@ -19,6 +19,10 @@ set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=test-lib.inc.sh
 source "$TEST_DIR/test-lib.inc.sh"
+# SPL-1874: the real cnf names the hidden workspaces by placeholder; a
+# synthetic overlay maps each to a fake slug (no real name in a test)
+{ echo workspaces:; grep -rhoE '\bws-hidden-[0-9][0-9]+\b' "$APP_ROOT/csi-spl-cnf/csi-spl" | sort -u | sed -E 's/ws-hidden-([0-9]+)/  &: zq-\1/'; } >"$T/ovl.yaml"
+export SPL_PRIVATE_CNF="$T/ovl.yaml"
 fails=0
 mkdir -p "$T/bin" "$T/db"
 

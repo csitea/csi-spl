@@ -52,3 +52,6 @@ __pycache__/
 csi-spl-iac/src/terraform/*/inventory.*.ini
 !csi-spl-iac/src/terraform/*/inventory.example.ini
 csi-spl-iac/src/bash/scripts/run-ansible-*.sh
+
+# the private overlay (SPL-1874) lives in ~/.gcp/.csi, never in a tree
+**/csi-spl-private.yaml

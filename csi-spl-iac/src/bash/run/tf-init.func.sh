@@ -59,9 +59,6 @@ do_tf_init() {
   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gcp/.$ORG/key-${key_project:-$GCP_PROJECT}.json"
   export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache/$ORG/$APP/$ENV/$STEP"
 
-  # env | sort
-  # sleep 10
-
   if [[ ! -d "$TF_PLUGIN_CACHE_DIR" ]]; then mkdir -p "$TF_PLUGIN_CACHE_DIR"; fi
 
   flock /tmp/tfswitch.lock tfswitch ${TERRAFORM_VERSION}
@@ -97,4 +94,24 @@ do_tf_init() {
 
   do_log "INFO copying ${tf_src_path} to ${tf_run_path}"
 
+  tf_init_private_vars
+}
+
+# tf_init_private_vars (SPL-1874): the step's tfvars as terraform reads them,
+# in tf_vars_path. A tracked file with a hidden-workspace placeholder
+# (ws-hidden-NN) is resolved through the private overlay into the run dir
+# (removed with it, mode 600). No overlay, or a placeholder it does not map:
+# FATAL and EXIT, never a plan or an apply with placeholders.
+tf_init_private_vars() {
+  local tracked="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars"
+  tf_vars_path="$tracked"
+  if [[ -f "$tracked" ]] && spl_private_has_tokens "$tracked"; then
+    tf_vars_path="${tf_run_path}/$tf_proj.private.vars.tfvars"
+    spl_private_resolve "$tracked" "$tf_vars_path" || {
+      do_log "FATAL $tf_proj: the tfvars name hidden workspaces and the private overlay cannot resolve them"
+      exit 1
+    }
+    do_log "INFO $tf_proj.vars.tfvars: placeholders resolved from the private overlay"
+  fi
+  export tf_vars_path
 }

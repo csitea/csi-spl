@@ -22,7 +22,7 @@ do_tf_destroy_local_step_bucket() {
   do_export_json_section_vars "$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV.env.json" '.env.steps."'${main_step}'"' || return 1
   #do_export_json_section_vars "$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV.env.json" '.env.steps."'${tf_proj}'"'
 
-  vars_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars"
+  vars_path="${tf_vars_path:-$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars}"
 
   ts=$(date "+%Y%m%d_%H%M%S")
   state_path_to_load="$PROJ_PATH/cnf/terraform/$tf_proj/$ORG.$APP.$ENV.tfstate"

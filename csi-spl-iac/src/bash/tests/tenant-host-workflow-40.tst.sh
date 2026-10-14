@@ -5,7 +5,7 @@
 #          schedule every 15 min plus dispatch; one run per env
 #          (concurrency group per env, never cancelled mid-apply); dev before
 #          prd (max-parallel 1, matrix order); only the existing per-env key
-#          secrets GCP_KEY_CSI_SPL_<ENV> are read; terraform only through the
+#          secrets GCP_KEY_CSI_SPL_<ENV> (+ the private overlay, SPL-1874) are read; terraform only through the
 #          orc make targets (no terraform binary / setup-terraform / host
 #          tf run); the apply is gated on open rows and runs the named action;
 #          the tf stack (tpl-gen, make do-setup-app-inf) is built only when a
@@ -41,7 +41,7 @@ if "matrix.environment" not in str(c.get("group", "")) or c.get("cancel-in-progr
 st = j["strategy"]
 if st.get("max-parallel") != 1 or st["matrix"]["environment"] != ["dev", "prd"]: bad.append("not dev then prd, one at a time")
 for s in re.findall(r"secrets(?:\.[A-Za-z0-9_]+|\[[^\]]*\])", raw):
-    if not re.search(r"GCP_KEY_CSI_SPL_(DEV|PRD|\{0\})", s): bad.append("reads another secret: " + s)
+    if not re.search(r"GCP_KEY_CSI_SPL_(DEV|PRD|\{0\})|SPL_PRIVATE_CNF_YAML\b", s): bad.append("reads another secret: " + s)
 for step in j["steps"]:
     run = step.get("run", "") or ""
     uses = step.get("uses", "") or ""

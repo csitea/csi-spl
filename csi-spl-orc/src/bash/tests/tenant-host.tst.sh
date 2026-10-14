@@ -10,13 +10,13 @@
 #      an in-place update and ANY destroy outside the allow list are refused (CONTROL: the same
 #      destroy passes once it is on the allow list)
 #   4. provision: render 052 + 019 + 025, plan + provision each through make,
-#      the tenant gets its 052 docs bucket (sienna's Docs 503), then
+#      the tenant gets its 052 docs bucket (ws-b's Docs 503), then
 #      custom domain -> WUI probe -> ready; a plan that destroys another tenant's host
 #      is refused BEFORE any do-provision and marks the tenant failed
 #   5. reconcile: pending/failed -> add, removing -> del, unpaid held; nothing
 #      open -> no make call at all; DRY_RUN touches nothing
 #   5a. reconcile: a pending row already mapped is CHECKED only (no make,
-#      no cnf) -> ready (niba-consult); CHECK_ONLY never applies an unmapped one
+#      no cnf) -> ready (ws-c); CHECK_ONLY never applies an unmapped one
 #   5b. every WUI entry point (052 workspaces, the enabled demo) must be
 #      mapped: the reconcile fails naming the missing one; the live dev + prd
 #      cnf pass (CONTROL: an unmapped demo is caught)
@@ -40,6 +40,8 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=test-lib.inc.sh
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
+# SPL-1874: the fixture tenants are public; 2b tests the hidden default
+export TENANT_VISIBLE=1
 
 for f in spl-tenant-host-provision spl-tenant-host-deprovision spl-tenant-host-reconcile; do
   bash -n "$PROJ_ROOT/src/bash/run/$f.func.sh" || { echo "FAIL: bash -n $f"; exit 1; }
@@ -132,6 +134,24 @@ d=$(diff "$ORIG" "$CNF" | grep -c '^[<>]')
 [[ $(grep -c '^$' "$CNF") == $(grep -c '^$' "$ORIG") ]] && pass "blank lines kept" || fail "blank lines lost"
 SNIPPET='spl_th_cnf_set "$C" del newt' in_orc C="$CNF" >/dev/null 2>&1
 cmp -s "$ORIG" "$CNF" && pass "add + del round-trips to the original bytes" || fail "round-trip differs: $(diff "$ORIG" "$CNF")"
+# --- 2b. SPL-1874: a new tenant is HIDDEN by default ---------------------------
+reset
+printf 'workspaces:\n  ws-hidden-01: zq-old\n' >"$T/ovl.yaml"
+SNIPPET='spl_th_tenant_set "$C" add newh && spl_th_cnf_has "$C" newh && spl_th_docs_has "$C" newh' \
+  in_orc C="$CNF" TENANT_VISIBLE=0 SPL_PRIVATE_CNF="$T/ovl.yaml" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && $(yq -r '.env.dns.mapped_tenants[-1]' "$CNF") == ws-hidden-02 ]] && ! grep -q newh "$CNF" &&
+  grep -qx '  ws-hidden-02: newh' "$T/ovl.yaml" &&
+  pass "2b. a new tenant goes into the cnf as its placeholder, its slug only into the overlay" || fail "2b. hidden add rc=$rc: $(cat "$T/o")"
+out=$(SNIPPET='spl_th_mask "cnf(orc): dev tenant host +newh"' in_orc TENANT_VISIBLE=0 SPL_PRIVATE_CNF="$T/ovl.yaml" 2>&1)
+[[ "$out" == "cnf(orc): dev tenant host +ws-hidden-02" ]] && pass "2b. the commit message names the placeholder" || fail "2b. mask: $out"
+SNIPPET='spl_th_tenant_set "$C" del newh' in_orc C="$CNF" TENANT_VISIBLE=0 SPL_PRIVATE_CNF="$T/ovl.yaml" >/dev/null 2>&1
+cmp -s "$ORIG" "$CNF" && pass "2b. del by slug removes the placeholder" || fail "2b. del: $(diff "$ORIG" "$CNF")"
+out=$(SNIPPET='spl_th_cnf_set "$C" add newci' in_orc C="$CNF" TENANT_VISIBLE=0 GITHUB_ACTIONS=true SPL_PRIVATE_CNF="$T/ovl.yaml" 2>&1); rc=$?
+[[ $rc -ne 0 ]] && ! grep -q newci "$CNF" "$T/ovl.yaml" && pass "2b. CONTROL: CI never adds a hidden tenant" || fail "2b. ci rc=$rc: $out"
+out=$(SNIPPET='spl_th_cnf_set "$C" add newno' in_orc C="$CNF" TENANT_VISIBLE=0 2>&1); rc=$?
+[[ $rc -ne 0 ]] && ! grep -q newno "$CNF" && grep -q 'private overlay is missing' <<<"$out" &&
+  pass "2b. CONTROL: no overlay -> a new tenant is refused, never listed publicly" || fail "2b. no overlay rc=$rc: $out"
+reset
 printf 'env:\n  dns:\n    mapped_tenants:\n      - t1\n' >"$T/block.yaml"
 SNIPPET='spl_th_cnf_set "$C" add x' in_orc C="$T/block.yaml" >/dev/null 2>&1 && fail "block-style list edited blindly" || pass "a non flow-style list is refused, not guessed"
 # the 052 docs list: only its own line, never another step's `workspaces:`
@@ -181,9 +201,9 @@ grep -q '"t1.dev.example.test"' "$STUB_TFV" && grep -q '"newt.dev.example.test"'
   pass "rendered 019 keeps t1 next to the new tenant" || fail "rendered tfvars: $(cat "$STUB_TFV")"
 TFV52="$FAKE/csi-spl-cnf/csi-spl/dev/tf/052-gcs-workspace-docs.vars.tfvars"
 [[ $(yq -r '.env.steps."052-gcs-workspace-docs".workspaces | join(",")' "$CNF") == "t1,newt" ]] && grep -qx 'workspaces = \["t1","newt"\]' "$TFV52" &&
-  pass "provision gives the new tenant its 052 docs bucket: cnf workspaces + rendered 052 (sienna's Docs 503)" ||
+  pass "provision gives the new tenant its 052 docs bucket: cnf workspaces + rendered 052 (ws-b's Docs 503)" ||
   fail "no docs bucket for newt: cnf=$(yq -r '.env.steps."052-gcs-workspace-docs".workspaces' "$CNF") tfvars=$(cat "$TFV52")"
-# a tenant already mapped but without a docs bucket (aleko-gik, demo): the re-run adds the bucket
+# a tenant already mapped but without a docs bucket (ws-d, demo): the re-run adds the bucket
 reset; sed -i 's/^    mapped_tenants: \[t1\]$/    mapped_tenants: [t1, oldt]/' "$CNF"
 out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=oldt DRY_RUN=0 STUB_PLAN_052="$P_ADD" 2>&1); rc=$?
 [[ $rc == 0 ]] && yq -e '.env.steps."052-gcs-workspace-docs".workspaces | any_c(. == "oldt")' "$CNF" >/dev/null &&
@@ -257,7 +277,7 @@ out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_ROWS=$'row t1
 [[ $rc != 0 ]] && grep -qx 'MARK t1 removing' "$T/mark.log" && ! grep -q 'MARK t1 failed' "$T/mark.log" && ! grep -q do-provision "$STUB_LOG" &&
   pass "reconcile CONTROL: a refused plan keeps the removing row removing" || fail "refused plan rc=$rc marks=[$(cat "$T/mark.log")] :: $out"
 
-# --- 5a. reconcile: a mapped pending row is only checked (niba-consult) -------
+# --- 5a. reconcile: a mapped pending row is only checked (ws-c) -------
 reset
 out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_ROWS=$'row t1 pending manual' 2>&1); rc=$?
 [[ $rc == 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && grep -q '^open=1$' <<<"$out" && grep -q '^apply=0$' <<<"$out" &&
@@ -313,7 +333,7 @@ SNIPPET='do_spl_cloud_cnf; export SPL_STATE_DIR SPL_CNF; GCP_ACCOUNT=dev-sa@exam
 # the lookup: the biz_owner members (047 W1, the buyer), else the admins - never a role name that does not exist
 sql=$(sed -n '/^_spl_th_owners_sql()/,/^}/p' "$PROJ_ROOT/src/bash/run/spl-tenant-host-provision.func.sh")
 grep -q "THEN 'biz_owner' ELSE 'admin' END" <<<"$sql" && ! grep -q "role = 'owner'" <<<"$sql" &&
-  pass "owner lookup: biz_owner, else admin (live prd n=2: niba-consult -> HUM-36, aleko-gik -> its 3 admins)" || fail "owner lookup SQL: $sql"
+  pass "owner lookup: biz_owner, else admin (live prd n=2: ws-c -> HUM-36, ws-d -> its 3 admins)" || fail "owner lookup SQL: $sql"
 
 # --- 6. cnf push from a throwaway worktree onto a local bare trunk --------------------
 G="$T/git"; mkdir -p "$G"
@@ -370,7 +390,7 @@ rm -f "$G/origin.git/hooks/pre-receive"
 git -C "$G/wc" add csi-spl-cnf/csi-spl/dev.env.yaml && git -C "$G/wc" -c user.name=X -c user.email=x@example.test commit -qm 'local only'
 out=$(push); rc=$?
 [[ $rc != 0 ]] && grep -q 'local commit(s) of the dev cnf that origin/master lacks' <<<"$out" &&
-  pass "CONTROL: an unpushed local cnf commit (the aleko-gik hour) is refused loudly" || fail "local commit rc=$rc :: $out"
+  pass "CONTROL: an unpushed local cnf commit (the ws-d hour) is refused loudly" || fail "local commit rc=$rc :: $out"
 # --- 6a. SPL-1811: the push runs as the caller's AGENT_ID, never as $USER ---------
 git -C "$G/wc" reset -q --hard origin/master
 sed -i 's/^    mapped_tenants: \[\(.*\)\]$/    mapped_tenants: [\1, hk]/' "$G/wc/csi-spl-cnf/csi-spl/dev.env.yaml"

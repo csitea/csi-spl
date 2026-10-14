@@ -27,7 +27,7 @@
 # @description key. One run per env at a time (flock). The cnf / tfvars change
 # @description is PUSHED to the trunk by the action itself, from a throwaway
 # @description worktree, before the apply (spl_th_cnf_push; dispatch c7b6e8db:
-# @description aleko-gik's commit sat unpushed in the shared checkout for 1h40m);
+# @description ws-d's commit sat unpushed in the shared checkout for 1h40m);
 # @description a push that does not land fails the run, the tenant marked failed.
 # @description DRY_RUN=1 (default): print what would change, touch nothing.
 # @param TENANT_ID - the tenant slug (^[a-z0-9][a-z0-9-]{0,31}$, not reserved)
@@ -131,17 +131,62 @@ spl_th_is_apex() {
 }
 
 spl_th_cnf_has() {
-  yq -e "(.env.dns.mapped_tenants // []) | any_c(. == \"$2\")" "$1" >/dev/null 2>&1
+  local t
+  t="$(spl_th_token "$2")" || return 1
+  yq -e "(.env.dns.mapped_tenants // []) | any_c(. == \"$t\")" "$1" >/dev/null 2>&1
 }
 
 # spl_th_docs_has <file> <tenant>: the tenant has a 052 docs bucket in cnf
 spl_th_docs_has() {
-  yq -e "(.env.steps.\"052-gcs-workspace-docs\".workspaces // []) | any_c(. == \"$2\")" "$1" >/dev/null 2>&1
+  local t
+  t="$(spl_th_token "$2")" || return 1
+  yq -e "(.env.steps.\"052-gcs-workspace-docs\".workspaces // []) | any_c(. == \"$t\")" "$1" >/dev/null 2>&1
+}
+
+# SPL-1874 (owner HUM-10, poll 6c701ac9: "csitea and relishbg visible, and the
+# rest not visible"): a hidden workspace stands in the PUBLIC cnf as its
+# placeholder (ws-hidden-NN), mapped in the private overlay
+# (csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh).
+spl_th_private_lib() {
+  declare -f spl_private_token >/dev/null && return 0
+  # shellcheck source=/dev/null
+  source "${BASH_SOURCE[0]%/*}/../../../../csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh"
+}
+
+# spl_th_token <tenant|placeholder> [new] -> what the cnf lists for it: its
+# placeholder when hidden, a placeholder as is, else the slug. With "new" an
+# unknown slug is HIDDEN by default (a new placeholder line in the overlay),
+# except e2e* test workspaces and TENANT_VISIBLE=1; never in CI, where the
+# overlay is a copy of a secret and the line would be lost.
+spl_th_token() {
+  local t="$1" tok
+  spl_th_private_lib || return 1
+  [[ "$t" =~ ^$SPL_PRIVATE_TOKEN_RE$ ]] && { printf '%s\n' "$t"; return 0; }
+  tok="$(spl_private_token "$t")" || return 1
+  if [[ "${2:-}" == new && "$tok" == "$t" && "${TENANT_VISIBLE:-0}" != 1 && "$t" != e2e* ]]; then
+    [[ "${GITHUB_ACTIONS:-}" != true ]] ||
+      { do_log "FATAL $(spl_th_mask "$t") would be a new HIDDEN workspace: add it on the operator box (overlay $(spl_private_cnf_path)), or TENANT_VISIBLE=1" >&2; return 1; }
+    tok="$(spl_private_add "$t")" || return 1
+    do_log "INFO a new hidden workspace: $tok in the private overlay (TENANT_VISIBLE=1 to list the slug publicly)" >&2
+  fi
+  printf '%s\n' "$tok"
+}
+
+# spl_th_mask <text> -> the text with every hidden slug as its placeholder
+# (commit messages and logs that reach the public trunk)
+spl_th_mask() {
+  local txt="$1" k v
+  spl_th_private_lib || return 1
+  [[ -s "$(spl_private_cnf_path)" ]] || { printf '%s\n' "$txt"; return 0; }
+  while IFS=$'\t' read -r k v; do
+    [[ -n "$v" ]] && txt="$(sed -E "s/(^|[^a-z0-9-])$v([^a-z0-9-]|\$)/\1$k\2/g" <<<"$txt")"
+  done < <(spl_private_map)
+  printf '%s\n' "$txt"
 }
 
 # spl_th_tenant_set <file> <add|del> <tenant>: a tenant's host AND its
 # workspace docs bucket, together: env.dns.mapped_tenants and
-# steps.052-gcs-workspace-docs.workspaces. sienna's Docs answered 503 because
+# steps.052-gcs-workspace-docs.workspaces. ws-b's Docs answered 503 because
 # provision mapped its host but never listed it for 052: no bucket (c9af31f4f).
 spl_th_tenant_set() {
   spl_th_cnf_set "$1" "$2" "$3" mapped && spl_th_cnf_set "$1" "$2" "$3" docs
@@ -154,6 +199,7 @@ spl_th_tenant_set() {
 #   docs             `      workspaces: [a, b]` of `    052-gcs-workspace-docs:`
 spl_th_cnf_set() {
   local f="$1" op="$2" t="$3" which="${4:-mapped}" out
+  t="$(spl_th_token "$t" "$([[ "$op" == add ]] && echo new)")" || return 1
   out="$(python3 - "$f" "$op" "$t" "$which" <<'PY'
 import re, sys
 path, op, t, which = sys.argv[1:]

@@ -129,6 +129,22 @@ oss_gate_cnf_vars() {
     [[ -n "$val" && "$val" != null ]] || { echo "$tok has no value in $cnf" >&2; return 1; }
     json=$(jq -c --arg k "$tok" --arg v "$val" '. + {($k): $v}' <<<"$json")
   done < <(grep -v '^#' "$rules" | grep -oE '\{\{cnf:[^}]+\}\}' | sort -u)
+  # SPL-1874: {{private:workspaces}} (the hidden slugs that are words, not
+  # the forms_only ones) and {{private:orgs}}, from the private overlay
+  local lib="${BASH_SOURCE[0]%/*}/../../../../csi-spl-iac/lib/bash/funcs/spl-private-cnf.func.sh" list
+  while IFS= read -r tok; do
+    [[ -n "$tok" ]] || continue
+    # shellcheck source=/dev/null
+    declare -f spl_private_map >/dev/null || source "$lib" || return 1
+    case "$tok" in
+      '{{private:workspaces}}')
+        list=$(spl_private_map | cut -f2 | grep -vxF -f <(spl_private_list forms_only; echo '-')) || true ;;
+      '{{private:orgs}}') list=$(spl_private_list orgs) ;;
+      *) echo "$tok is not a private list" >&2; return 1 ;;
+    esac
+    [[ -n "$list" ]] || { echo "$tok has no value in the private overlay $(spl_private_cnf_path)" >&2; return 1; }
+    json=$(jq -c --arg k "$tok" --arg v "$list" '. + {($k): ($v | split("\n"))}' <<<"$json")
+  done < <(grep -v '^#' "$rules" | grep -oE '\{\{private:[^}]+\}\}' | sort -u)
   printf '%s\n' "$json" >"$out"
 }
 

@@ -230,7 +230,9 @@ if [[ -f "$cnf_real" ]]; then
     v=$(yq -r "$k // \"\"" "$cnf_real"); [[ -n "$v" ]] && grep -qF -- "$v" "$PROJ_ROOT/cnf/oss/banned-literals.tsv" && leak=1
   done
   (( leak == 0 )) && ok "the real rules file holds no cnf value" || no "the real rules file hard-codes a cnf value"
-  if oss_gate_cnf_vars "$PROJ_ROOT/cnf/oss/banned-literals.tsv" "$cnf_real" "$tmp/vars.json" && [[ $(jq length "$tmp/vars.json") -ge 2 ]]; then
+  # SPL-1874: the {{private:...}} lists come from a synthetic overlay here
+  printf 'workspaces:\n  ws-hidden-01: zq-a\norgs:\n  - zq-org\n' >"$tmp/ovl.yaml"
+  if SPL_PRIVATE_CNF="$tmp/ovl.yaml" oss_gate_cnf_vars "$PROJ_ROOT/cnf/oss/banned-literals.tsv" "$cnf_real" "$tmp/vars.json" && [[ $(jq length "$tmp/vars.json") -ge 2 ]]; then
     ok "every real {{cnf:...}} token resolves"
   else
     no "a real {{cnf:...}} token does not resolve"

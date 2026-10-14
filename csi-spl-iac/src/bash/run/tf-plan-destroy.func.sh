@@ -11,7 +11,7 @@
 do_tf_plan_destroy() {
   do_log "INFO START ::: plan -destroy for step ${STEP:?}"
   do_tf_init
-  vars_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars"
+  vars_path="${tf_vars_path:-$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars}"
   backend_config_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.backend-config.tfvars"
   local rc=0
   terraform -chdir="${tf_run_path}" init -backend-config="$backend_config_path" -upgrade -reconfigure >/dev/null || rc=$?

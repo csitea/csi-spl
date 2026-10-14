@@ -14,7 +14,7 @@ do_tf_import() {
 
   do_tf_init
 
-  local vars_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/${STEP}.vars.tfvars"
+  local vars_path="${tf_vars_path:-$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/${STEP}.vars.tfvars}"
   local backend_config_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/${STEP}.backend-config.tfvars"
 
   do_log "INFO START ::: importing resource into step ${STEP}"

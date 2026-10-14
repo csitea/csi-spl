@@ -12,6 +12,10 @@
 #------------------------------------------------------------------------------
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+# SPL-1874: a test never reads or writes the box's private overlay (a
+# provision test would add its fake tenant to it); a test that needs one
+# points SPL_PRIVATE_CNF at its own synthetic file.
+export SPL_PRIVATE_CNF="${SPL_PRIVATE_CNF_FOR_TESTS:-/nonexistent/spl-private-cnf-for-tests.yaml}"
 # specs/061 FR-004: pin the clock the legacy agent-id cutoff reads, so the
 # CLE-/PRB-/ORC- fixtures here do not turn the suite red at
 # SPOOL_LEGACY_ID_UNTIL on their own. The cutoff itself is tested in

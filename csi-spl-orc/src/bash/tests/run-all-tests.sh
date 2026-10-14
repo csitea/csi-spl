@@ -66,6 +66,8 @@ fi
 # SPOOL_TEST_GUARD_LOG and fails the suite: callers often send 2>/dev/null, so
 # a test can pass while a send of its own tried to reach the live root.
 export SPOOL_TEST=1
+# SPL-1874: no test reads or writes the box's private overlay (test-lib.inc.sh too)
+export SPL_PRIVATE_CNF="${SPL_PRIVATE_CNF_FOR_TESTS:-/nonexistent/spl-private-cnf-for-tests.yaml}"
 # specs/061 FR-004: pin the clock the legacy agent-id cutoff reads, so the
 # CLE-/PRB-/ORC- fixtures here do not turn the suite red at
 # SPOOL_LEGACY_ID_UNTIL on their own. The cutoff itself is tested in

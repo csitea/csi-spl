@@ -29,6 +29,8 @@
 # the pre-push part iac-cross (check-pre-push-cross.func.sh) runs the tests
 # that read the files an orc/api/doc push touched. A name with no file FAILS.
 set -uo pipefail
+# SPL-1874: no test reads or writes the box's private overlay (test-lib.inc.sh too)
+export SPL_PRIVATE_CNF="${SPL_PRIVATE_CNF_FOR_TESTS:-/nonexistent/spl-private-cnf-for-tests.yaml}"
 # A git hook (pre-push) exports GIT_DIR (+ GIT_PREFIX): inherited, it turns a
 # test fixture's `git -C "$T/app" init/remote` into a write on the CALLER's
 # repo (2026-10-06: a shared .git/config got core.bare=true and a fixture origin).

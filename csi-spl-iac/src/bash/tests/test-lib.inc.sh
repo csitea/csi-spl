@@ -15,6 +15,10 @@
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 # shellcheck disable=SC2034
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
+# SPL-1874: a test never reads or writes the box's private overlay (a
+# provision test would add its fake tenant to it); a test that needs one
+# points SPL_PRIVATE_CNF at its own synthetic file.
+export SPL_PRIVATE_CNF="${SPL_PRIVATE_CNF_FOR_TESTS:-/nonexistent/spl-private-cnf-for-tests.yaml}"
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 

@@ -107,7 +107,8 @@ def read(path):
 def load_rules(path, cnf_vars=None):
     """class<TAB>label<TAB>regex; {{cnf:<yq path>}} in a regex is replaced by the
     escaped cnf value (resolved by the caller), so an estate literal lives only
-    in csi-spl-cnf and never in this file."""
+    in csi-spl-cnf and never in this file; {{private:<list>}} likewise by the
+    private overlay's list (SPL-1874), so a hidden name lives in no file here."""
     vals = json.loads(read(cnf_vars)) if cnf_vars else {}
     rules = []
     with open(path, encoding="utf-8") as fh:
@@ -123,6 +124,12 @@ def load_rules(path, cnf_vars=None):
                 if not vals.get(tok):
                     sys.exit(f"FATAL {path}:{n}: {tok} has no cnf value")
                 rx = rx.replace(tok, re.escape(vals[tok]))
+            # SPL-1874: {{private:<list>}} is a list from the private overlay,
+            # each item escaped, joined as an alternation
+            for tok in re.findall(r"\{\{private:[^}]+\}\}", rx):
+                if not isinstance(vals.get(tok), list) or not vals[tok]:
+                    sys.exit(f"FATAL {path}:{n}: {tok} has no private overlay value")
+                rx = rx.replace(tok, "|".join(re.escape(v) for v in vals[tok]))
             rules.append((cls, label, re.compile(rx)))
     if not rules:
         sys.exit(f"FATAL {path}: no rules -- the literal classes would prove nothing")

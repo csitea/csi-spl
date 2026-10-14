@@ -89,7 +89,7 @@ followed by running the R5 verification commands per commit sha.
 
 - **2.7.1 Reviewer seats outlive the round:** The panel reviewer seats stay active after plan signing until R6 shows all 10 rows on trunk. They are not closed at signing.
 - **2.7.2 Cross-vendor assignment:** The reviewer is assigned per row before spawn in the row brief. Review lines must be cross-vendor (e.g. agy reviews claude; mistral reviews agy/grok; claude reviews mistral). A non-author panel seat acts as primary reviewer, with another non-author seat as backup.
-- **2.7.3 Seat replacement:** If the assigned reviewer seat and its backup are absent or unresponsive for 15 minutes, the lane reports a blocker to the orchestrator, which spawns a replacement reviewer of an eligible vendor within the hour (R10). A row never pushes to master without a cross-vendor review PASS.
+- **2.7.3 Seat replacement:** If the assigned reviewer seat and its backup are absent or unresponsive for 15 minutes, the lane reports a blocker to the orchestrator, which spawns a replacement reviewer of an eligible vendor within the hour (R10). A row never pushes to master without a cross-vendor review PASS; the one exception is a trunk-red fix (2.11.3).
 - **2.7.4 Review evidence format:** Before pushing, the lane pushes a review branch `review/<round>-NN` and requests review. The reviewer verifies the diff against criteria C1–C7 and emits:
   `review: <reviewer-id>@<box> <vendor> PASS <reviewed-sha> ran: <tests-run> | read: <output-read>`
   If no test was executed directly, it must say `ran: none` and cite the command output read. The review branch `review/<round>-NN` remains on origin until the retro runs C7.
@@ -129,7 +129,7 @@ From plan signing until every row is landed:
 
 - **2.11.1** A row's CI verdict is taken from the first COMPLETED workflow 10 run whose head commit contains the row's sha (`gh run list --workflow 10_ci-quality.yml --branch master --status completed`, checked with `git merge-base --is-ancestor <row-sha> <head>`), rather than a run on the row's individual sha.
 - **2.11.2** That run must be green, or its first red job must not execute any of the row's tests, and the job running the row's tests must have reached and passed them (confirmed by test file name in the log).
-- **2.11.3 Trunk-red watch:** In the hourly check, run `CI_GATE_RUNS=40 ./run -a do_report_ci_gate`. A first-red job observed in 2 consecutive completed runs is assigned an owning lane that hour. Flakes are assigned a fixing lane on their 3rd sighting.
+- **2.11.3 Trunk-red watch:** In the hourly check, run `CI_GATE_RUNS=40 ./run -a do_report_ci_gate`. A first-red job observed in 2 consecutive completed runs is assigned an owning lane that hour. Flakes are assigned a fixing lane on their 3rd sighting. A trunk-red fix lands at once under a non-row subject, `fix(<area>, SPL-<n>)`, with `Refs: r<NN>-<row>` in its body (a row subject is refused by `do_spl_push_master` until a `review:` line exists); its R7 review (2.7.4) follows on the landed sha.
 - **2.11.4** Workflow concurrency is preserved unless supported by prior measurement and a dedicated plan row.
 
 ### 2.12 R12: Verification command included with reported counts

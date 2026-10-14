@@ -61,6 +61,9 @@ lane() {
   progress "$id" "$H0"
   printf '%%%s\t%s@%s some title\n' "$n" "$id" "$box" >>"$T/tmux/windows"
 }
+# lease <holder> <epoch> / lease_orch <holder> <epoch>: the fleet lease mirrors
+lease() { printf '%s %s\n' "$1" "$2" >"$D/lease"; }
+lease_orch() { printf '%s %s\n' "$1" "$2" >"$D/lease.orch"; }
 progress() { jq -n --arg p "$(date -u -d "@$2" +%FT%TZ)" '{state: "idle", progress_ts: $p, tool: null, api_error: null}' >"$S/$1/heartbeat.json"; }
 
 # tmux: windows "<pane>\t<name>"; new-window appends, kill-window drops
@@ -197,17 +200,24 @@ check "7. a human hold is refused" '[ "$rc" = 4 ] && grep -q "human hold" "$T/ou
 reset; lane c-915
 gc start "$H0"
 gc begin $(( H0 + 1 )) AGENT_ID=c-915
+lease c-002@sat $(( H0 - 30 )); lease_orch c-001@box-c $(( H0 - 20 ))
 gc close-ask $(( H0 + 2 )) AGENT_ID=c-915 GC_WHY="ACCEPTED by c-001 at 20:00Z, idle since"
-check "8. close-ask = one note to the orchestrator" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to orchestrator --kind note --task gc-c-915")" = 1 ]'
+check "8. close-ask = one note to the dispatch lease holder" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to c-002@sat --kind note --task gc-c-915 --body GC")" = 1 ]'
+check "8. close-ask = one cc to the orch lease holder" '[ "$(n "$T/send.log" "--to c-001@box-c --kind note --task gc-c-915 --body cc (sent to the dispatch lease holder c-002@sat)")" = 1 ] && [ "$(n "$T/send.log")" = 2 ]'
 gc begin $(( H0 + 1800 )) AGENT_ID=c-915
 gc close-ask $(( H0 + 1801 )) AGENT_ID=c-915 GC_WHY="again"
-check "8. a 2nd close-ask within 24 h = refused" '[ "$rc" = 4 ] && [ "$(n "$T/send.log")" = 1 ]'
+check "8. a 2nd close-ask within 24 h = refused" '[ "$rc" = 4 ] && [ "$(n "$T/send.log")" = 2 ]'
+reset; lane c-915
+gc start "$H0"; gc begin $(( H0 + 1 )) AGENT_ID=c-915
+lease c-002@sat $(( H0 - 600 )); lease_orch c-001@box-c $(( H0 - 20 ))
+gc close-ask $(( H0 + 2 )) AGENT_ID=c-915 GC_WHY="idle"
+check "8. close-ask, stale dispatch lease = one note to the orch holder, no cc twice" '[ "$rc" = 0 ] && [ "$(n "$T/send.log")" = 1 ] && [ "$(n "$T/send.log" "--to c-001@box-c --kind note --task gc-c-915 .*sent to the orch lease holder c-001@box-c")" = 1 ]'
 
 # --- 9. done ---------------------------------------------------------------------------
 reset; lane c-916
 gc start "$H0"; gp="$(awk '{print $2}' "$D/gc/run")"
 gc "done" $(( H0 + 300 )) GC_SUMMARY="1 agents: 1 working"
-check "9. done = one summary line to c-001 on task gc-box-a" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to c-001 --kind note --task gc-box-a")" = 1 ] && grep -q "DONE .*1 agents: 1 working" "$D/gc/gc.log"'
+check "9. done, no dispatch lease = one summary to the orch seat c-001@box-a, saying so" '[ "$rc" = 0 ] && [ "$(n "$T/send.log")" = 1 ] && [ "$(n "$T/send.log" "--to c-001@box-a --kind note --task gc-box-a .*1 agents: 1 working -- no dispatch lease: sent to the orch lease holder c-001@box-a")" = 1 ] && grep -q "DONE .* to c-001@box-a: 1 agents: 1 working" "$D/gc/gc.log" && grep -q "REPORT-TO no dispatch lease" "$D/gc/gc.log"'
 check "9. done closes the GC window" 'grep -q "kill-window -t $gp" "$T/tmux/log" && [ "$(gcwin)" = 0 ]'
 
 # --- 10. scan --------------------------------------------------------------------------
@@ -219,16 +229,55 @@ check "10. an ACCEPTED lane is hinted done" 'grep -q "^== c-918 .*hint=accepted"
 gc scan $(( H0 + 1000 ))
 check "10. silent past GC_SILENT_AGE is hinted silent" 'grep -q "^== c-917 .*hint=silent" "$T/out"'
 
-# --- 11. the session command -----------------------------------------------------------
+# --- 11. the report goes to the dispatch lease holder, read at send time --------------
+# (owner HUM-10, form 84d604dd: the 10-13 night every sat summary went to a fixed
+# c-001 on a limit dialog). summary <now>: one done run, a fresh send.log.
+summary() { rm -f "$T/send.log"; gc "done" "$1" GC_SUMMARY="2 agents: 2 working" "${@:2}"; }
+reset; lane c-916; gc start "$H0"
+lease c-002@box-a $(( H0 - 30 ))
+summary $(( H0 + 10 ))
+check "11. holder on this box = sent there, qualified, nothing to c-001" '[ "$rc" = 0 ] && [ "$(n "$T/send.log")" = 1 ] && [ "$(n "$T/send.log" "--to c-002@box-a --kind note --task gc-box-a")" = 1 ] && ! grep -q -- "-- " "$T/send.log"'
+lease c-002@sat $(( H0 - 30 ))
+summary $(( H0 + 10 )); s_new="$(cat "$T/send.log")"
+check "11. holder c-002@sat on the other box = the qualified id" '[ "$(n "$T/send.log" "--to c-002@sat --kind note --task gc-box-a")" = 1 ] && [ "$(n "$T/send.log")" = 1 ]'
+lease c-003 $(( H0 - 30 ))
+summary $(( H0 + 10 ))
+check "11. a bare-id lease (no fleet) = this box qualifies it" '[ "$(n "$T/send.log" "--to c-003@box-a --kind note")" = 1 ]'
+lease c-002@sat $(( H0 - 400 )); lease_orch c-001@sat $(( H0 - 20 ))
+summary $(( H0 + 10 ))
+check "11. stale lease (410 s > 180 s) = the orch lease holder, said in the line" '[ "$(n "$T/send.log")" = 1 ] && [ "$(n "$T/send.log" "--to c-001@sat --kind note --task gc-box-a .* -- dispatch lease c-002@sat 410s old > 180s: sent to the orch lease holder c-001@sat")" = 1 ]'
+check "11. the fallback is logged" 'grep -q "REPORT-TO dispatch lease c-002@sat 410s old > 180s: sent to the orch lease holder c-001@sat" "$D/gc/gc.log"'
+lease_orch c-001@sat $(( H0 - 900 ))
+summary $(( H0 + 10 ))
+check "11. stale lease and stale lease.orch = lease.conf LEASE_ORCH at this box" '[ "$(n "$T/send.log" "--to c-001@box-a --kind note .*orch lease holder c-001@box-a")" = 1 ]'
+lease none@unreachable $(( H0 - 5 ))
+summary $(( H0 + 10 ))
+check "11. none@unreachable = no holder: the fallback" '[ "$(n "$T/send.log" "--to c-001@box-a .*dispatch lease none@unreachable")" = 1 ]'
+lease c-002@sat $(( H0 - 30 ))
+summary $(( H0 + 10 )) GC_REPORT_TO=c-009
+check "11. GC_REPORT_TO set = that id, no fallback text" '[ "$(n "$T/send.log" "--to c-009 --kind note")" = 1 ] && [ "$(n "$T/send.log")" = 1 ]'
+# CONTROL: the old fixed addressee (role seat 001, GC_REPORT_TO=c-001) fails the
+# holder check above on the same lease
+summary $(( H0 + 10 )) GC_REPORT_TO=c-001
+check "11. CONTROL: a fixed c-001 does not reach the holder c-002@sat (the new run did)" '[ "$(n "$T/send.log" "--to c-002@sat")" = 0 ] && grep -q -- "--to c-002@sat" <<<"$s_new"'
+# read at SEND time: the holder moves between two sends of one pass
+reset; lane c-915; gc start "$H0"; gc begin $(( H0 + 1 )) AGENT_ID=c-915
+lease c-002@sat $(( H0 - 30 )); lease_orch c-002@sat $(( H0 - 30 ))
+gc close-ask $(( H0 + 2 )) AGENT_ID=c-915 GC_WHY="idle"
+lease c-003@box-c $(( H0 + 100 ))
+gc "done" $(( H0 + 120 )) GC_SUMMARY="1 agents: 1 close asked"
+check "11. holder = orch holder: no cc; the holder moved: done follows it" '[ "$(n "$T/send.log")" = 2 ] && [ "$(n "$T/send.log" "--to c-002@sat --kind note --task gc-c-915")" = 1 ] && [ "$(n "$T/send.log" "--to c-003@box-c --kind note --task gc-box-a")" = 1 ]'
+
+# --- 12. the session command -----------------------------------------------------------
 printf '#!/bin/sh\n' >"$T/bin/claude"; chmod +x "$T/bin/claude"
 out="$(SPOOL_VENDOR_CLIS_CMD="echo claude" CLAUDE_BIN="$T/bin/claude" GROK_BIN="$T/none/grok" GC_SESSION_PRINT=1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" grok claude 20261013T2100Z-gc-box-a "$T" 2>&1)"
-check "11. grok missing = the cnf fallback claude, bypass flags" 'grep -q "no grok CLI on this box" <<<"$out" && grep -q "$T/bin/claude.* --dangerously-skip-permissions" <<<"$out"'
+check "12. grok missing = the cnf fallback claude, bypass flags" 'grep -q "no grok CLI on this box" <<<"$out" && grep -q "$T/bin/claude.* --dangerously-skip-permissions" <<<"$out"'
 out2="$(SPOOL_VENDOR_CLIS_CMD="echo claude,grok" CLAUDE_BIN=claude GROK_BIN=grok GC_SESSION_PRINT=1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" claude grok 20261013T2200Z-gc-box-a "$T" 2>&1)"
-check "11. a bare-name CLAUDE_BIN on the agent PATH starts claude (sat 22:00Z)" '! grep -q "no claude CLI" <<<"$out2" && grep -q "'"'"'claude'"'"' --name" <<<"$out2"'
+check "12. a bare-name CLAUDE_BIN on the agent PATH starts claude (sat 22:00Z)" '! grep -q "no claude CLI" <<<"$out2" && grep -q "'"'"'claude'"'"' --name" <<<"$out2"'
 out3="$(SPOOL_VENDOR_CLIS_CMD="echo mistral" CLAUDE_BIN=claude GROK_BIN=grok GC_SESSION_PRINT=1 timeout 1 bash "$PROJ_ROOT/src/bash/features/gc/gc-session.sh" claude grok 20261013T2200Z-gc-box-a "$T" 2>&1)"
-check "11. neither CLI on the agent PATH = no GC this slot" 'grep -q "no grok CLI either" <<<"$out3"'
-check "11. the session reads the fixed prompt file" 'grep -q "features/gc/gc-prompt.md" <<<"$out" && [ -s "$PROJ_ROOT/src/bash/features/gc/gc-prompt.md" ]'
-check "11. no ERR trap fired in any run" '! grep -q ERRTRAP "$T/all.out"'
+check "12. neither CLI on the agent PATH = no GC this slot" 'grep -q "no grok CLI either" <<<"$out3"'
+check "12. the session reads the fixed prompt file" 'grep -q "features/gc/gc-prompt.md" <<<"$out" && [ -s "$PROJ_ROOT/src/bash/features/gc/gc-prompt.md" ]'
+check "12. no ERR trap fired in any run" '! grep -q ERRTRAP "$T/all.out"'
 
 echo "---"
 if [ "$fails" -eq 0 ]; then echo "gc-agent: all checks passed"; exit 0; fi

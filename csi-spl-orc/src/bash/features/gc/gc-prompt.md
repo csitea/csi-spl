@@ -50,5 +50,6 @@ When every agent is walked, run once:
 
 `GC_CMD=done GC_SUMMARY="<n> agents: <w> working, <p> poked, <r> restarted, <c> close asked; <ids worth a look>"`
 
-It logs the line, sends it to the orchestrator, and closes this window. You
+It logs the line, sends it to the dispatch lease holder (the orch lease
+holder when that lease is stale), and closes this window. You
 are done: stop there.

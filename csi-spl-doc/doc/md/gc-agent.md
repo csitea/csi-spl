@@ -66,8 +66,8 @@ GC session only decides which one to call:
 | `begin` | starts the agent's 3-minute clock, prints its issue and last errors |
 | `poke` | `GC_HINT` as a spool note on task `gc-<id>` (the send rings the pane) |
 | `restart` | only after a poke from an earlier pass and no heartbeat progress since: `do_spl_agent_restart CAUSE=gc`, detached, with its own guards |
-| `close-ask` | `GC_WHY` to the orchestrator: close this finished lane (once a day per id) |
-| `done` | `GC_SUMMARY`: one log line, one note to c-001 on task `gc-<box>`, then the GC window closes |
+| `close-ask` | `GC_WHY` to the report addressee (2.3): close this finished lane (once a day per id); the orch lease holder gets a cc |
+| `done` | `GC_SUMMARY`: one log line, one note to the report addressee (2.3) on task `gc-<box>`, then the GC window closes |
 | `status` | the last pass and the log tail |
 
 ### 2.2 Guards
@@ -80,6 +80,24 @@ GC session only decides which one to call:
 - **A human hold** (`<id>/.human-hold`) refuses every step; the restart also
   applies the watchdog's human-activity gate.
 - **Never kill by pattern**: the restart is the fleet's one restart path.
+
+### 2.3 Who reads the report
+
+Owner HUM-10, form 84d604dd (msg 1c446016, 2026-10-14): the GC report goes
+to whoever holds the lease, not a fixed orchestrator seat. On the 10-13 night
+every sat pass sent its summary to c-001, which sat on a limit dialog, and
+nobody acted on the findings (SPL-1768, SPL-1803).
+
+- The summary and every close-ask go to the **dispatch lease holder**, read
+  at send time (`do_spl_dispatch_lease` `LEASE_CMD=show`), as `<ID>@<box>`
+  (a bare id is this box's).
+- A close-ask also sends a **cc to the orch lease holder** when that is
+  another seat.
+- A **stale** (older than `LEASE_STALE`, 180 s) or **missing** lease falls
+  back to the orch lease holder (`lease.orch` while fresh, else lease.conf
+  `LEASE_ORCH` at this box); the line ends with why, and `gc.log` gets a
+  `REPORT-TO` line.
+- `GC_REPORT_TO` pins one addressee instead (no cc, no fallback).
 
 ## 3. Operations
 

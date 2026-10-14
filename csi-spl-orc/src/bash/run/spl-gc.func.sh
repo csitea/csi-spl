@@ -19,9 +19,15 @@
 # @description               with no heartbeat progress since: do_spl_agent_restart
 # @description               CAUSE=gc, detached (its own guards: human, rotation,
 # @description               held out, limits)
-# @description   close-ask - GC_WHY to the orchestrator: close this finished lane
-# @description   done      - GC_SUMMARY: one log line + one note to GC_REPORT_TO,
-# @description               then the GC window is closed
+# @description   close-ask - GC_WHY to the report addressee (below): close this
+# @description               finished lane; the orch lease holder gets a cc
+# @description   done      - GC_SUMMARY: one log line + one note to the report
+# @description               addressee, then the GC window is closed
+# @description The report addressee is read at send time (owner HUM-10, form
+# @description 84d604dd, msg 1c446016): the fleet DISPATCH lease holder
+# @description (do_spl_dispatch_lease LEASE_CMD=show) as <ID>@<box>; a stale
+# @description (> LEASE_STALE s) or missing lease = the ORCH lease holder
+# @description (lease.orch, else lease.conf LEASE_ORCH), and the line says so.
 # @description   status    - the current pass and the log tail
 # @description Role seats (001..003) are scanned, never poked, restarted or
 # @description closed (rotation and the watchdog own them); a human hold
@@ -34,7 +40,7 @@
 # @param GC_VENDOR (optional) - start: this vendor instead of the slot's
 # @param GC_CONF (optional) - default <orc>/cnf/gc/gc.conf
 # @param GC_STATE_DIR (optional) - default <spool root>/dispatch/gc
-# @param GC_REPORT_TO (optional) - the summary's addressee, default role seat 001 (spl_role_seat 1; c-001 under claude)
+# @param GC_REPORT_TO (optional) - a fixed addressee instead of the dispatch lease holder (no cc, no fallback)
 # @param GC_NOW / GC_CLOSE_DELAY / GC_RESTART_CMD / GC_SEND / ROTATE_TMUX (optional) - seams for the tests
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example GC_CMD=start ./run -a do_spl_gc
@@ -77,7 +83,7 @@ spl_gc_init() {
   GC_BOX="${SPOOL_BOX_TAG:-$ROTATE_BOX}"
   GC_WIN="gc@$GC_BOX"
   GC_FROM="${GC_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
-  GC_REPORT_TO="${GC_REPORT_TO:-$(spl_role_seat 1)}"
+  GC_REPORT_TO="${GC_REPORT_TO:-}"
   GC_SEND="${GC_SEND:-$ROTATE_SEND}"
   GC_RUN="${GC_RUN:-$ROTATE_RUN}"
   GC_DRY="${DRY_RUN:-1}"
@@ -295,6 +301,47 @@ spl_gc_send() {  # TO TASK BODY
   (( rc < 10 && rc != 2 ))
 }
 
+# ---- the report addressee -------------------------------------------------------
+
+# A lease holder "<holder> <age s>" as <ID>@<box> (a bare id is this box's),
+# or nothing when there is none: none, none@unreachable, no age, or older
+# than LEASE_STALE (the lease's own failover threshold).
+spl_gc_fresh_holder() {
+  local h="${1:-}" age="${2:-}"
+  [[ -n "$h" && "$h" != none && "$h" != none@* && "$h" != unknown:* ]] || return 0
+  [[ "$age" =~ ^[0-9]+$ ]] && (( age <= LEASE_STALE )) || return 0
+  [[ "$h" == *@* ]] || h="$h@$ROTATE_BOX"
+  printf '%s' "$h"
+}
+
+# The orch lease holder: lease.orch while fresh, else lease.conf LEASE_ORCH
+# (role seat 001) at this box.
+spl_gc_orch_holder() {
+  local h="" t="" o
+  if [[ -r "$LEASE_DIR/lease.orch" ]]; then read -r h t < "$LEASE_DIR/lease.orch" || true; fi
+  [[ "$t" =~ ^[0-9]+$ ]] || t=$(( GC_NOW + 1 ))
+  o="$(spl_gc_fresh_holder "$h" "$(( GC_NOW - t ))")"
+  [[ -n "$o" ]] || o="$(spl_role_seat 1 || true)"
+  [[ -z "$o" || "$o" == *@* ]] || o="$o@$ROTATE_BOX"
+  printf '%s' "${o:-orchestrator}"
+}
+
+# GC_TO: the addressee of the summary and the close-asks, read at send time
+# (the night of 10-13 a fixed c-001 sat on a limit dialog and nobody read the
+# GC). GC_TO_NOTE is set when it is the fallback, and goes into the line.
+spl_gc_report_to() {
+  local h="" a=""
+  GC_TO_NOTE=""
+  if [[ -n "$GC_REPORT_TO" ]]; then GC_TO="$GC_REPORT_TO"; return 0; fi
+  read -r h a < <(LEASE_NOW="$GC_NOW" spl_lease_show) || true
+  GC_TO="$(spl_gc_fresh_holder "$h" "$a")"
+  [[ -z "$GC_TO" ]] || return 0
+  GC_TO="$(spl_gc_orch_holder)"
+  if [[ "${h:-none}" == none ]]; then a="no dispatch lease"; else a="dispatch lease $h ${a}s old > ${LEASE_STALE}s"; fi
+  GC_TO_NOTE="$a: sent to the orch lease holder $GC_TO"
+  spl_gc_log "REPORT-TO $GC_TO_NOTE"
+}
+
 spl_gc_rid() { local r; read -r _ _ _ r 2>/dev/null < "$GC_DIR/run" || true; echo "${r:-${GC_RUN_ID:-manual}}"; }
 
 spl_gc_progress() { jq -r '.progress_ts // "-"' "$SPOOL_ROOT/$1/heartbeat.json" 2>/dev/null || echo -; }
@@ -339,10 +386,18 @@ spl_gc_close_ask() {
   if read -r t 2>/dev/null < "$GC_DIR/$id.closeask" && [[ "$t" =~ ^[0-9]+$ ]] && (( GC_NOW - t < GC_CLOSE_ASK_EVERY )); then
     spl_gc_refuse close-ask "$id" "asked $(( GC_NOW - t ))s ago"; return
   fi
-  spl_gc_send orchestrator "gc-$id" "GC ($GC_BOX, $(spl_gc_rid)): $id@$GC_BOX looks done and idle: $GC_WHY. Close it if you agree." ||
-    { spl_gc_log "FAIL close-ask $id: not delivered"; echo "FAIL close-ask $id: not delivered"; return 1; }
+  local body orch
+  body="GC ($GC_BOX, $(spl_gc_rid)): $id@$GC_BOX looks done and idle: $GC_WHY. Close it if you agree."
+  spl_gc_report_to
+  spl_gc_send "$GC_TO" "gc-$id" "$body${GC_TO_NOTE:+ -- $GC_TO_NOTE}" ||
+    { spl_gc_log "FAIL close-ask $id to $GC_TO: not delivered"; echo "FAIL close-ask $id to $GC_TO: not delivered"; return 1; }
+  orch="$(spl_gc_orch_holder)"
+  if [[ -z "$GC_REPORT_TO" && "$orch" != "$GC_TO" ]]; then
+    spl_gc_send "$orch" "gc-$id" "cc (sent to the dispatch lease holder $GC_TO): $body" ||
+      spl_gc_log "FAIL close-ask cc $id to $orch: not delivered"
+  fi
   [[ "$GC_DRY" == 0 ]] && echo "$GC_NOW" > "$GC_DIR/$id.closeask"
-  spl_gc_log "CLOSE-ASK $id: $(cut -c1-200 <<<"$GC_WHY")"
+  spl_gc_log "CLOSE-ASK $id to $GC_TO: $(cut -c1-200 <<<"$GC_WHY")"
   echo "CLOSE-ASK $id"
 }
 
@@ -350,13 +405,14 @@ spl_gc_close_ask() {
 
 spl_gc_done() {
   local rid t pane v
-  [[ -n "${GC_SUMMARY:-}" ]] || { do_log "FATAL GC_SUMMARY is required: one line for the orchestrator"; return 1; }
+  [[ -n "${GC_SUMMARY:-}" ]] || { do_log "FATAL GC_SUMMARY is required: one line for the dispatch lease holder"; return 1; }
   rid="$(spl_gc_rid)"
   [[ "$GC_DRY" == 0 ]] && spl_gc_end_cur
   read -r t pane v _ 2>/dev/null < "$GC_DIR/run" || true
-  spl_gc_send "$GC_REPORT_TO" "gc-$GC_BOX" "GC $GC_BOX $rid (${v:-?}): $GC_SUMMARY" || spl_gc_log "FAIL summary to $GC_REPORT_TO: not delivered"
+  spl_gc_report_to
+  spl_gc_send "$GC_TO" "gc-$GC_BOX" "GC $GC_BOX $rid (${v:-?}): $GC_SUMMARY${GC_TO_NOTE:+ -- $GC_TO_NOTE}" || spl_gc_log "FAIL summary to $GC_TO: not delivered"
   [[ "$GC_DRY" == 1 ]] && { echo "PLAN close ${pane:-?} ($GC_WIN)"; return 0; }
-  spl_gc_log "DONE $rid: $(cut -c1-300 <<<"$GC_SUMMARY")"
+  spl_gc_log "DONE $rid to $GC_TO: $(cut -c1-300 <<<"$GC_SUMMARY")"
   echo "DONE $rid: the window closes"
   [[ -n "$(spl_gc_live_pane "${pane:-}")" ]] || return 0
   if [[ "${GC_CLOSE_DELAY:-5}" == 0 ]]; then

@@ -1,6 +1,6 @@
 /**
  * SPL-1592 (owner HUM-10, t1 cda174ef): a repo doc written as plain text,
- * "Source: csi-spl-doc/specs/001-relay-bucket-estate/tasks.md", is a link to
+ * "Source: csi-spl-doc/specs/002-box-agent-messaging/tasks.md", is a link to
  * that doc's page, /docs/<path>, in every message card, every issue field
  * and every doc the docs pages render.
  *

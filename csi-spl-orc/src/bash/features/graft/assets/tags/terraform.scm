@@ -17,7 +17,7 @@
 ; kind here is `type` (resource/variable/output block labels), and `type` is not
 ; in graft's callKinds, so a call edge could not resolve even in principle.
 ;
-; Caught by test-graft-contract.sh, which nea wrote and which this box only
+; Caught by test-graft-contract.sh, which another box wrote and this box only
 ; started running once the suite stopped falsely skipping. An index that emits
 ; edges resolving to nothing is worse than one that emits none: it reports
 ; coverage it does not have.

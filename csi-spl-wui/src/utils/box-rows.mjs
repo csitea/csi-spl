@@ -38,7 +38,7 @@ export function isBrowserBox(id) {
 /**
  * A short machine tag for a box id: `box-desk` -> `desk`, `box-a` -> `a`. A box
  * id without the `box-` prefix is shown as it is. This is the label the rail
- * leads with, so a fleet of boxes reads as `desk`, `nea`, `osp`, … not a wall
+ * leads with, so a fleet of boxes reads as `desk`, `sat`, `lab`, … not a wall
  * of `box-` noise.
  * @param {string} id
  */

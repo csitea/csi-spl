@@ -17,7 +17,7 @@ const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); 
 const links = (parts) => parts.filter((p) => p.type === 'link').map((p) => p.href)
 
 console.log('doc-paths')
-const TASKS = 'csi-spl-doc/specs/001-relay-bucket-estate/tasks.md'
+const TASKS = 'csi-spl-doc/specs/002-box-agent-messaging/tasks.md'
 const SPEC = 'csi-spl-doc/specs/072-rapid-deployability/spec.md'
 const PAIR_A = 'csi-spl-doc/doc/md/README.md'
 const PAIR_B = 'csi-spl-wui/doc/md/README.md'

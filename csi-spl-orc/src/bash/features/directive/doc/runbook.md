@@ -47,7 +47,7 @@ available there is no reason to send one: signing is a single command.
 
 ### 2.1 Why the existing keys cannot be reused
 
-The per-box `git-rel.<box>` keys are **transport** keys. They are
+The per-box relay keys are **transport** keys. They are
 present on every box, so they prove a file was not tampered with in flight and
 say nothing about **who wrote it**. Any box holding one could have produced the
 message.

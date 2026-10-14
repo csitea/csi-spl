@@ -59,7 +59,7 @@ SECRETS = [
         r"\1<redacted>@",
         "url-password",
     ),
-    # A signed URL (git-rel's relay, S3/GCS) is a bearer credential until it
+    # A signed URL (S3/GCS) is a bearer credential until it
     # expires: the signature is what grants the read.
     (
         r"(?i)((?:X-Goog-Signature|X-Amz-Signature|Signature|sig)=)[A-Za-z0-9%+/=_-]{16,}",

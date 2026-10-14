@@ -38,7 +38,7 @@ describe('boxTag / isBrowserBox', () => {
   it('drops the box- prefix for the tag, keeps a bare id', () => {
     assert.equal(boxTag('box-desk'), 'desk')
     assert.equal(boxTag('box-wui'), 'wui')
-    assert.equal(boxTag('nea'), 'nea')
+    assert.equal(boxTag('lab'), 'lab')
     assert.equal(boxTag(''), '')
   })
   it('only box-wui is the browser box', () => {
@@ -80,10 +80,10 @@ describe('boxRows', () => {
     assert.deepEqual(rows.map((r) => r.id), ['box-a', 'box-desk', 'box-b'])
   })
   it('a box named only in the detail (no seat yet) still lists, with zero users', () => {
-    const withEmpty = boxRows([], { 'box-nea': { online: true, last_hello_at: '' } })
+    const withEmpty = boxRows([], { 'box-lab': { online: true, last_hello_at: '' } })
     assert.equal(withEmpty.length, 1)
     assert.equal(withEmpty[0].userCount, 0)
-    assert.equal(withEmpty[0].tag, 'nea')
+    assert.equal(withEmpty[0].tag, 'lab')
   })
   it('tolerates no input', () => {
     assert.deepEqual(boxRows(null, null), [])

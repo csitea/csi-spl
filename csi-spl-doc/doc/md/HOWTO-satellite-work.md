@@ -171,6 +171,31 @@ installed with `DRY_RUN=0`), request to its own box with a no-op brief:
 Not yet proven: the satellite -> PC leg through the hub relay (same code path
 as the tested relay of 1.4; needs the orchestrator lease on the satellite).
 
+### 2.3 A Go dependency bump on the box that did not build it (SPL-1866)
+
+`csi-spl-api/src/bash/build.sh` builds offline (`GOPROXY=off`). Before
+SPL-1866, a go.mod / go.sum bump left every other box's module cache without
+the new modules, and the next spawn there was refused with
+`module lookup disabled by GOPROXY=off` (sat 2026-10-13, the PC 2026-10-14 after
+43688a782).
+
+Now `build.sh` first warms the module cache of the OS user that runs it
+(`spl_warm_go_mod_cache`, `csi-spl-api/src/bash/warm-go-mod-cache.sh`):
+
+- A warm cache costs one offline `go mod download`: 16..22 ms, n=3. A whole
+  build took 2.10..2.58 s before and 2.14..2.62 s after, n=3 each: noise.
+- Only a cache that lacks a module goes online, with the caller's `GOPROXY` /
+  `GOSUMDB` (go's defaults when unset). The `go build` itself stays offline.
+- No network: one `FATAL build.sh: box <box> user <user>: ...` line names the
+  cache, the go.sum hash and the commit that last changed it, and the build
+  stops. A caller that exported `GOPROXY=off` gets the same refusal.
+- Each user warms its own cache when it builds, so both the box user and the
+  agent user are covered with no stamp to go stale.
+
+Test: `csi-spl-api/src/bash/tests/build-warm-mod-cache.tst.sh` (full tier of
+`run-all-tests.sh`): a throwaway `GOMODCACHE` plays the second box, this
+box's own cache served as `file://` plays the network.
+
 ## 3. Split proposal: what stays on the PC, what moves to the satellite
 
 Classified from the live lane map at 06:21Z: n=36 scoped lane agents on the

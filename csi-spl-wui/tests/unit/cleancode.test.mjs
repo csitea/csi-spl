@@ -33,7 +33,6 @@ const MAX_PARAMS = 6
 // its length on 2026-10-10 (r5-06): a listed function may not grow past it.
 const LONG = new Map([
   ['src/stores/channel.ts <anon>', 576],
-  ['src/stores/flow.ts <anon>', 317],
   ['src/stores/live.ts setup', 304],
   ['src/stores/notification.ts <anon>', 430],
   ['src/utils/auth-client.mjs createAuthClient', 326],

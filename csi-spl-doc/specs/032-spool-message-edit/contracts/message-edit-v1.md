@@ -437,8 +437,16 @@ download. The box that sent such a message repairs it with the same `edit` frame
   `csi-spl-orc`: `ENV=<env> [TENANT_IDS=...] [DESK_BOX=...] DRY_RUN=0 ./run -a do_spl_attach_name_repair`
   finds this desk box's messages with such files (read-only query) in every workspace
   its desk is pinned in, and runs it once per message.
-- **Not covered.** A message of a box whose pin is revoked (the old `box-desk`, reboxed
-  2026-10-02) cannot be re-signed by anyone: rule 4 and rule 5 still hold.
+- **A revoked box's rows: the hub, on the owner's pick.** A message of a box whose pin is
+  revoked (the old `box-desk`, reboxed 2026-10-02) cannot be re-signed by anyone, and
+  rules 4 and 5 still hold for the frame. Owner HUM-10, t1 b1af5f5c msg 8d4cf989 (option
+  A): "Rename them on the hub; their old signature no longer matches". So the
+  operator-only `POST /v1/operator/attachment-names/repair` `{tenant, dry_run?}` names
+  those files the same way and KEEPS the stored sig, which then no longer verifies
+  against the revoked key. It touches only rows whose `from_box` has no live pin; a live
+  box's rows are counted in `live_box` and left to that box. It answers `{found,
+  live_box, messages, renamed, unknown, by_type, samples, failed, more}`.
+  `csi-spl-orc`: `ENV=<env> TENANT_IDS=... DRY_RUN=0 ./run -a do_spl_attach_name_repair_revoked`.
 
 ### 10.4 Not changed
 

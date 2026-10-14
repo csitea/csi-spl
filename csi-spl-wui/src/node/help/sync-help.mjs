@@ -43,6 +43,16 @@ export function tokenizeHosts(md, domain) {
     .replace(new RegExp('\\b' + d + '\\b', 'g'), '{{site}}')
 }
 
+/* SPL-1904: a page exported from a qto doc carries the export stamp under its
+   title (do_spl_doctree_export_md); it is for the repo's editors, not the
+   reader, so the copy drops that line and the blank line after it. */
+const QTO_STAMP = /^> Generated from qto doc `?[0-9a-fA-F-]+`?; edit it there\..*\n(?:[ \t]*\n)?/m
+
+/** The page without its qto export stamp line; any other page unchanged. */
+export function dropQtoStamp(md) {
+  return md.replace(QTO_STAMP, '')
+}
+
 /** The page title: the first "# " heading, else the slug. */
 export function helpTitle(md, slug) {
   const m = /^#\s+(.+?)\s*$/m.exec(md)
@@ -56,7 +66,7 @@ export function helpFiles(src = HELP_SRC, domain = helpDomain()) {
   const pages = []
   for (const n of names) {
     /* a page's frontmatter (`public: true`, sync-public-docs.mjs) is not page text */
-    const md = tokenizeHosts(docsBody(readFileSync(join(src, n), 'utf8')), domain)
+    const md = tokenizeHosts(dropQtoStamp(docsBody(readFileSync(join(src, n), 'utf8'))), domain)
     out.set(n, md)
     const slug = n.slice(0, -3)
     if (slug !== 'index') pages.push({ slug, title: helpTitle(md, slug) })

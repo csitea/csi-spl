@@ -50,6 +50,23 @@ if (!existsSync(HELP_SRC)) {
     rmSync(tmp, { recursive: true, force: true })
   }
 }
+/* SPL-1904: a page exported from a qto doc carries the export stamp under its
+   title; the copy drops that line (and the blank after it), nothing else */
+{
+  const tmp = mkdtempSync(join(tmpdir(), 'help-stamp-'))
+  try {
+    const stamp = '> Generated from qto doc `8bb1751e-b89a-41be-939b-02485ae86d3e`; edit it there. ' +
+      'This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.'
+    const plain = '# Agents\n\nThe body.\n\n> A quote stays.\n'
+    writeFileSync(join(tmp, 'agents.md'), '# Agents\n\n' + stamp + '\n\nThe body.\n\n> A quote stays.\n')
+    writeFileSync(join(tmp, 'boxes.md'), plain)
+    const got = helpFiles(tmp, '')
+    ok('a qto-stamped page is copied without the stamp line', got.get('agents.md') === plain, JSON.stringify(got.get('agents.md')))
+    ok('an unstamped page is copied byte-identical', got.get('boxes.md') === plain, JSON.stringify(got.get('boxes.md')))
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+}
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)
 ok('title is the first # heading', helpTitle('intro\n# How to Post\n## x', 'how-to-post') === 'How to Post' && helpTitle('none', 'x') === 'x')

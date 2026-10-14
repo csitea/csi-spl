@@ -40,10 +40,20 @@
 # @description Locks on dev while it runs: SHARE on messages (hub writes wait)
 # @description from the index step to the ROLLBACK, ACCESS EXCLUSIVE for the
 # @description last second. lock_timeout (PROBE_LOCK_TIMEOUT) bounds each wait.
-# @description ENV=prd is REFUSED: prd gets P1 only through rdb T002, with the
-# @description owner's go.
-# @param ENV - required: dev (prd is refused)
-# @param TENANT_ID (optional) - the tenant probed, default t1
+# @description ENV=prd runs NO DDL: without PROBE_PRD_GO=1 it is refused; with
+# @description it, a read-only check (gap T3, devops guide section 16) runs two
+# @description `BEGIN TRANSACTION READ ONLY` sessions, each ending in ROLLBACK:
+# @description the runtime login, on its own DSN, EXPLAIN (ANALYZE, BUFFERS) a
+# @description rare-word call (G1) and counts its messages_search scans; then
+# @description the owner reads the catalog (btree_gin, messages_search,
+# @description spool_search_candidates, its owner, the runtime login's EXECUTE)
+# @description and the body's plan as spool_search_reader. No GRANT, no SET
+# @description ROLE to the runtime login, no insert, no temp
+# @description table; a script holding a write statement is refused before
+# @description psql runs. prd probes a test workspace only (e2e, e2e-*).
+# @param ENV - required: dev (the DDL probe) or prd (read-only, PROBE_PRD_GO=1)
+# @param PROBE_PRD_GO (optional) - 1 = run the read-only check on prd
+# @param TENANT_ID (optional) - the tenant probed, default t1 (dev), e2e (prd)
 # @param PROBE_WORD (optional) - the rare word; default: a word found in one
 # @param   of the tenant's latest 2000 messages only
 # @param PROBE_N (optional) - timed inserts per phase, 20..200, default 20
@@ -55,6 +65,7 @@
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_search_index_probe
 # @example ENV=dev TENANT_ID=t1 PROBE_N=40 ./run -a do_spl_search_index_probe
+# @example ENV=prd PROBE_PRD_GO=1 ./run -a do_spl_search_index_probe
 #------------------------------------------------------------------------------
 do_spl_search_index_probe() {
   spl_search_index_probe_check || return 1
@@ -72,6 +83,10 @@ do_spl_search_index_probe() {
   user="$(spl_dsn_user "$owner_dsn")"
   [[ "$user" == "$SPL_DB_OWNER_USER" ]] ||
     { do_log "FATAL $SPL_OWNER_DSN_SECRET logs in as '$user', not the owner $SPL_DB_OWNER_USER"; return 1; }
+  if [[ "$ENV" == prd ]]; then
+    spl_search_index_probe_ro "$owner_dsn" "$user"
+    return
+  fi
   local rc=0 pdsn out
   spl_sql_proxy_start || return 1
   pdsn="$(spl_local_dsn "$owner_dsn" "$SPL_PROXY_PORT")" ||
@@ -90,12 +105,18 @@ do_spl_search_index_probe() {
   return $rc
 }
 
-# spl_search_index_probe_check -> 0 when ENV is dev and every PROBE_* knob is
-# well formed; refuses prd before any cnf, gcloud or psql call.
+# spl_search_index_probe_check -> 0 when ENV is dev, or prd with
+# PROBE_PRD_GO=1 on a test workspace, and every PROBE_* knob is well formed;
+# refuses before any cnf, gcloud or psql call.
 spl_search_index_probe_check() {
-  [[ "${ENV:-}" != prd ]] ||
-    { do_log "FATAL ENV=prd is refused: the probe runs DDL (rolled back) on dev only; prd gets P1 through rdb T002 with the owner's go"; return 1; }
-  [[ "${ENV:-}" == dev ]] || { do_log "FATAL ENV must be dev, got '${ENV:-}'"; return 1; }
+  if [[ "${ENV:-}" == prd ]]; then
+    [[ "${PROBE_PRD_GO:-0}" == 1 ]] ||
+      { do_log "FATAL ENV=prd is refused without PROBE_PRD_GO=1: dev runs the DDL probe (rolled back); prd runs only the read-only check, no DDL"; return 1; }
+    spl_invite_e2e_test_workspace "${TENANT_ID:-e2e}" ||
+      { do_log "FATAL on prd the probe reads a test workspace only (e2e, e2e-*), got '${TENANT_ID:-}'"; return 1; }
+  else
+    [[ "${ENV:-}" == dev ]] || { do_log "FATAL ENV must be dev or prd, got '${ENV:-}'"; return 1; }
+  fi
   [[ "${TENANT_ID:-t1}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got '${TENANT_ID:-}'"; return 1; }
   [[ -z "${PROBE_WORD:-}" || "$PROBE_WORD" =~ ^[a-z0-9]{2,40}$ ]] || { do_log "FATAL PROBE_WORD must be one lowercase word, got '$PROBE_WORD'"; return 1; }
   local n="${PROBE_N:-20}" cap="${PROBE_CAP:-500}" b="${PROBE_BODY_CHARS:-3072}"
@@ -277,6 +298,163 @@ EXPLAIN (ANALYZE, BUFFERS) SELECT m.msg_id, m.received_at FROM public.messages m
 RESET ROLE;
 \\endif
 EOF_SQL
+}
+
+# spl_search_index_probe_ro <owner dsn> <owner login> -> the prd read-only
+# check, two READ ONLY sessions: the runtime login (its own DSN, no SET ROLE,
+# so no grant) EXPLAINs the call and counts its scans; then the owner reads
+# the catalog and, as spool_search_reader, the body's plan for the same word.
+# Each script is refused before psql when it holds a write statement.
+spl_search_index_probe_ro() {
+  local owner_dsn="$1" user="$2" rt_dsn rc=0 pdsn rdsn out word sql_rt sql_ow
+  rt_dsn="$(spl_read_dsn runtime)"
+  [[ -n "$rt_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET: G1 runs as the runtime login"; return 1; }
+  [[ "$(spl_dsn_user "$rt_dsn")" == "$SPL_DB_USER" ]] ||
+    { do_log "FATAL $SPL_DSN_SECRET logs in as '$(spl_dsn_user "$rt_dsn")', not the runtime login $SPL_DB_USER"; return 1; }
+  sql_rt="$(spl_search_index_probe_ro_rt_sql "${TENANT_ID:-e2e}" "$SPL_DB_USER" "${PROBE_WORD:-}")"
+  spl_search_index_probe_ro_guard <<<"$sql_rt" || return 1
+  spl_sql_proxy_start || return 1
+  pdsn="$(spl_local_dsn "$owner_dsn" "$SPL_PROXY_PORT")" && rdsn="$(spl_local_dsn "$rt_dsn" "$SPL_PROXY_PORT")" ||
+    { spl_sql_proxy_stop; do_log "FATAL a DSN is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"; return 1; }
+  do_log "INFO $ENV: read-only check, no DDL: a READ ONLY transaction as $SPL_DB_USER, then one as $user, each ending in ROLLBACK"
+  out="$(spl_pg_env "$rdsn" psql -X -q -At -P pager=off -f - <<<"$sql_rt" 2>&1)" || rc=1
+  word="$(sed -n 's/^@@word \([a-z]\{2,40\}\)$/\1/p;T;q' <<<"$out")"
+  sql_ow="$(spl_search_index_probe_ro_sql "${TENANT_ID:-e2e}" "$SPL_DB_USER" "${word:-zzqprobe}")"
+  if spl_search_index_probe_ro_guard <<<"$sql_ow"; then
+    out+=$'\n'"$(spl_pg_env "$pdsn" psql -X -q -At -P pager=off -f - <<<"$sql_ow" 2>&1)" || rc=1
+  else
+    rc=1
+  fi
+  spl_sql_proxy_stop
+  printf '%s\n' "$out"
+  [[ "$(grep -cx '@@rolled_back' <<<"$out")" == 2 ]] ||
+    { do_log "FATAL the read-only check did not reach both ROLLBACKs"; return 1; }
+  spl_search_index_probe_ro_verdict <<<"$out"
+  return $rc
+}
+
+# spl_search_index_probe_ro_guard <- a psql script -> 1 (FATAL) when a line
+# starts a write, DDL or transaction-ending statement, or the READ ONLY
+# BEGIN is missing.
+spl_search_index_probe_ro_guard() {
+  local s bad
+  s="$(cat)"
+  bad="$(grep -inE '^\s*(CREATE|ALTER|DROP|GRANT|REVOKE|INSERT|UPDATE|DELETE|TRUNCATE|COPY|COMMIT|END|DO|VACUUM|ANALYZE|REINDEX|CLUSTER|REFRESH|LOCK|SECURITY|COMMENT|\\set AUTOCOMMIT)\b' <<<"$s")"
+  [[ -z "$bad" ]] || { do_log "FATAL the read-only check script holds a write statement: $bad"; return 1; }
+  grep -qx 'BEGIN TRANSACTION READ ONLY;' <<<"$s" ||
+    { do_log "FATAL the read-only check script does not BEGIN TRANSACTION READ ONLY"; return 1; }
+}
+
+# spl_search_index_probe_ro_begin <tenant> -> the READ ONLY transaction head.
+spl_search_index_probe_ro_begin() {
+  cat <<EOF_SQL
+\\set ON_ERROR_STOP 0
+\\set ON_ERROR_ROLLBACK on
+BEGIN TRANSACTION READ ONLY;
+SELECT set_config('app.tenant_id', '$1', true),
+       set_config('statement_timeout', '${PROBE_STATEMENT_TIMEOUT:-10min}', true) \\g /dev/null
+EOF_SQL
+}
+
+# spl_search_index_probe_ro_rt_sql <tenant> <runtime role> [word] -> the
+# runtime login's script: the rare word, the EXPLAIN of the call (G1) and
+# this transaction's scans of messages_search, ROLLBACK.
+spl_search_index_probe_ro_rt_sql() {
+  local t="$1" rt="$2" word="${3:-}" q="plainto_tsquery('spool_search', :'w')"
+  spl_search_index_probe_ro_begin "$t"
+  cat <<EOF_SQL
+SELECT '@@ctx_rt login=' || current_user || ' read_only=' || current_setting('transaction_read_only');
+EOF_SQL
+  if [[ -n "$word" ]]; then
+    echo "\\set w '$word'"
+  else
+    cat <<EOF_SQL
+SELECT COALESCE((SELECT word FROM ts_stat(\$s\$SELECT search_tsv FROM public.messages WHERE tenant_id = '$t' ORDER BY received_at DESC LIMIT 2000\$s\$)
+  WHERE ndoc = 1 AND word ~ '^[a-z]{7,30}\$' ORDER BY word LIMIT 1), 'zzqprobe') AS w \\gset
+EOF_SQL
+  fi
+  cat <<EOF_SQL
+\\echo @@word :w
+SELECT COALESCE(pg_stat_get_xact_numscans(to_regclass('public.messages_search'))::text, 'none') AS probe_idx0 \\gset
+SELECT current_user = '$rt' AS probe_as_rt \\gset
+\\if :probe_as_rt
+\\echo @@plan runtime begin
+EXPLAIN (ANALYZE, BUFFERS) SELECT msg_id FROM public.spool_search_candidates($q, ${PROBE_CAP:-500});
+\\if :ERROR
+  \\echo @@step g1_call error :LAST_ERROR_MESSAGE
+\\else
+  \\echo @@step g1_call ok
+\\endif
+\\echo @@plan runtime end
+\\else
+\\echo @@step g1_call error not the runtime login $rt
+\\endif
+SELECT '@@idx_scan messages_search before=' || :'probe_idx0'
+    || ' after=' || COALESCE(pg_stat_get_xact_numscans(to_regclass('public.messages_search'))::text, 'none');
+ROLLBACK;
+\\echo @@rolled_back
+EOF_SQL
+}
+
+# spl_search_index_probe_ro_sql <tenant> <runtime role> <word> -> the owner's
+# script: catalog reads, then the body's plan as spool_search_reader, ROLLBACK.
+spl_search_index_probe_ro_sql() {
+  local t="$1" rt="$2" word="$3" c
+  local fn="to_regprocedure('public.spool_search_candidates(tsquery,integer)')"
+  spl_search_index_probe_ro_begin "$t"
+  cat <<EOF_SQL
+SELECT '@@ctx login=' || current_user || ' server=' || current_setting('server_version')
+    || ' read_only=' || current_setting('transaction_read_only')
+    || ' messages_rows~' || (SELECT reltuples::bigint FROM pg_class WHERE oid = 'public.messages'::regclass)
+    || ' btree_gin_installed=' || COALESCE((SELECT extversion FROM pg_extension WHERE extname = 'btree_gin'), 'no')
+    || ' reader_role=' || EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'spool_search_reader')
+    || ' index=' || COALESCE(to_regclass('public.messages_search')::text, 'none')
+    || ' fn=' || COALESCE($fn::text, 'none')
+    || ' fn_owner=' || COALESCE((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = $fn), 'none');
+SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'btree_gin') AS c_ext,
+       to_regclass('public.messages_search') IS NOT NULL AS c_index,
+       $fn IS NOT NULL AS c_fn,
+       COALESCE((SELECT pg_get_userbyid(proowner) = 'spool_search_reader' FROM pg_proc WHERE oid = $fn), false) AS c_owner,
+       COALESCE((SELECT has_function_privilege('$rt', oid, 'EXECUTE') FROM pg_proc WHERE oid = $fn), false) AS c_fn_grant \\gset
+EOF_SQL
+  for c in ext index fn owner fn_grant; do
+    printf '\\if :c_%s\n  \\echo @@step %s ok\n\\else\n  \\echo @@step %s error missing\n\\endif\n' "$c" "$c" "$c"
+  done
+  cat <<EOF_SQL
+\\set w '$word'
+SET LOCAL ROLE spool_search_reader;
+\\if :ERROR
+\\echo @@step body_plan error SET ROLE spool_search_reader refused
+\\else
+\\echo @@plan reader begin
+EXPLAIN (ANALYZE, BUFFERS) SELECT m.msg_id, m.received_at FROM public.messages m
+ WHERE m.tenant_id = NULLIF(current_setting('app.tenant_id', true), '') AND m.search_tsv @@ plainto_tsquery('spool_search', :'w') LIMIT ${PROBE_CAP:-500} + 1;
+\\echo @@plan reader end
+RESET ROLE;
+\\endif
+ROLLBACK;
+\\echo @@rolled_back
+EOF_SQL
+}
+
+# spl_search_index_probe_ro_verdict <- the read-only check output -> one line
+# per check.
+spl_search_index_probe_ro_verdict() {
+  awk '
+    /^@@step / { st[$2] = $3 }
+    /^@@idx_scan / { split($3, x0, "="); split($4, x1, "="); used = x1[2] ~ /^[0-9]+$/ && x1[2] + 0 > (x0[2] ~ /^[0-9]+$/ ? x0[2] + 0 : 0) }
+    /^@@plan reader begin/ { inr = 1 }
+    /^@@plan reader end/ { inr = 0 }
+    inr && /messages_search/ { rplan = 1 }
+    function ok(k) { return st[k] == "ok" ? "ok" : "MISSING" }
+    END {
+      print "mode: read-only (no DDL, READ ONLY transaction, rolled back)"
+      print "G6 btree_gin: " ok("ext")
+      print "index messages_search: " ok("index") ", fn spool_search_candidates: " ok("fn")
+      print "G7 fn owned by spool_search_reader: " ok("owner") ", EXECUTE for the runtime login: " ok("fn_grant")
+      print "G1 runtime call: " (st["g1_call"] == "ok" ? "ok" : "FAILED") \
+        ", messages_search scanned by the call: " (used ? "yes" : "NO") ", in the reader plan: " (rplan ? "yes" : "NO")
+    }'
 }
 
 # spl_search_index_probe_after_sql -> a read in a NEW session: none of the

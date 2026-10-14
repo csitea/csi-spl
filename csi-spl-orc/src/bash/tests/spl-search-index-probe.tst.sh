@@ -12,6 +12,12 @@
 #      before the proxy starts; a run whose output lacks the ROLLBACK marker
 #      fails (and the script it was sent still ended in ROLLBACK)
 #   4. the verdict lines read G1 / G2 / G3 / G6 / G7 from the markers
+#   5. prd opt-in (gap T3): refused without PROBE_PRD_GO=1 or off a test
+#      workspace, before any call; with it, two psql sessions, each a READ
+#      ONLY transaction ending in ROLLBACK, the SQL sent holding no DDL or
+#      write; G1 runs as the runtime login on its own DSN, never SET ROLE;
+#      the guard refuses the dev DDL script (CONTROL); dev still sends
+#      BEGIN + the DDL + its fallbacks
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -33,7 +39,7 @@ done
 cat >"$T/stub/psql-fake" <<'EOF_STUB'
 #!/bin/bash
 echo "psql $*" >>"$STUB_LOG"
-if [[ " $* " == *" -f - "* ]]; then cat >"$SQL_IN"; fi
+if [[ " $* " == *" -f - "* ]]; then cat >>"$SQL_IN"; fi
 printf '%b\n' "${PSQL_OUT:-}"
 exit "${PSQL_RC:-0}"
 EOF_STUB
@@ -51,9 +57,10 @@ in_orc() {
 
 # STUBS: the cloud seams, so the action runs to psql offline.
 STUBS='
-do_spl_cloud_cnf() { echo "cnf" >>"$STUB_LOG"; SPL_DB_USER=spool_rt; SPL_DB_OWNER_USER=spool_owner; SPL_OWNER_DSN_SECRET=owner-dsn; SPL_CNF=x; }
+do_spl_cloud_cnf() { echo "cnf" >>"$STUB_LOG"; SPL_DB_USER=spool_rt; SPL_DB_OWNER_USER=spool_owner; SPL_OWNER_DSN_SECRET=owner-dsn; SPL_DSN_SECRET=rt-dsn; SPL_CNF=x; }
 do_spl_cloud_provider() { echo none; }
 spl_read_owner_dsn() { echo "postgres://${OWNER_LOGIN:-spool_owner}:pw@/db?host=/cloudsql/p:r:i"; }
+spl_read_dsn() { echo "postgres://${RT_LOGIN:-spool_rt}:pw@/db?host=/cloudsql/p:r:i"; }
 spl_sql_proxy_start() { echo "proxy start" >>"$STUB_LOG"; SPL_PROXY_PORT=1; }
 spl_sql_proxy_stop() { echo "proxy stop" >>"$STUB_LOG"; }
 spl_local_dsn() { echo "postgres://x@127.0.0.1:1/db"; }
@@ -154,5 +161,58 @@ v=$(printf '%b\n' '@@step ext error permission denied\n@@step owner ok\n@@step i
 grep -qx 'G6 btree_gin: FAILED' <<<"$v" && grep -qx 'G7 OWNER TO spool_search_reader: ok (direct)' <<<"$v" &&
   grep -qx 'G2 build: FAILED' <<<"$v" && grep -q 'G1 runtime call: FAILED.*scanned by the call: NO' <<<"$v" &&
   pass "failed steps read FAILED, a direct OWNER TO reads direct" || fail "failure verdict: $v"
+
+# --- 5. prd opt-in: read-only, no DDL ----------------------------------------------------
+for go in "" 0 yes; do
+  : >"$T/calls.log"
+  SNIPPET="$STUBS do_spl_search_index_probe" in_orc ENV=prd PROBE_PRD_GO="$go" PSQL_OUT='@@rolled_back' >"$T/o" 2>&1 &&
+    fail "prd PROBE_PRD_GO='$go' ran" || pass "prd PROBE_PRD_GO='$go' refused"
+  grep -q 'refused without PROBE_PRD_GO=1' "$T/o" && [[ ! -s "$T/calls.log" ]] &&
+    pass "prd PROBE_PRD_GO='$go': says so, no call" || fail "prd PROBE_PRD_GO='$go': $(cat "$T/o") / $(cat "$T/calls.log")"
+done
+for t in t1 acme; do
+  : >"$T/calls.log"
+  SNIPPET="$STUBS do_spl_search_index_probe" in_orc ENV=prd PROBE_PRD_GO=1 TENANT_ID=$t >"$T/o" 2>&1 &&
+    fail "prd TENANT_ID=$t ran" || pass "prd TENANT_ID=$t refused (not a test workspace)"
+  [[ ! -s "$T/calls.log" ]] && pass "prd TENANT_ID=$t: no call" || fail "prd TENANT_ID=$t called: $(cat "$T/calls.log")"
+done
+RO_OUT='@@step ext ok\n@@step index ok\n@@step fn ok\n@@step owner ok\n@@step fn_grant ok\n@@step g1_call ok
+@@idx_scan messages_search before=0 after=1\n@@plan reader begin\n  ->  Bitmap Index Scan on messages_search\n@@plan reader end\n@@rolled_back'
+: >"$T/calls.log"; rm -f "$T/sql.in"
+SNIPPET="$STUBS do_spl_search_index_probe" in_orc ENV=prd PROBE_PRD_GO=1 PSQL_OUT="$RO_OUT" >"$T/o" 2>&1 &&
+  pass "prd PROBE_PRD_GO=1 with a stubbed psql succeeds" || fail "prd opt-in run: $(cat "$T/o")"
+[[ -s "$T/sql.in" ]] && pass "prd: psql was fed a script" || fail "prd: no script sent"
+[[ "$(grep -c '^BEGIN TRANSACTION READ ONLY;$' "$T/sql.in")" == 2 && "$(grep -c '^ROLLBACK;$' "$T/sql.in")" == 2 ]] &&
+  ! grep -q '^BEGIN;$' "$T/sql.in" && pass "prd: two BEGIN TRANSACTION READ ONLY ... ROLLBACK, no plain BEGIN" || fail "prd: BEGIN"
+! grep -q 'SET LOCAL ROLE spool_rt' "$T/sql.in" && pass "prd: never SET ROLE to the runtime login" || fail "prd: SET ROLE spool_rt"
+W='^\s*(CREATE|ALTER|DROP|GRANT|REVOKE|INSERT|UPDATE|DELETE|TRUNCATE|COPY|COMMIT|END|DO|VACUUM|REINDEX|LOCK|\\set AUTOCOMMIT)\b'
+! grep -qiE "$W" "$T/sql.in" && pass "prd: no DDL, write, DO block or COMMIT in the SQL sent" ||
+  fail "prd: a write in the SQL sent: $(grep -iE "$W" "$T/sql.in")"
+! grep -qiE '\b(CREATE|GRANT|INSERT|ALTER|POLICY)\b' "$T/sql.in" && pass "prd: not even inside a line: CREATE / GRANT / INSERT / ALTER / POLICY" ||
+  fail "prd: $(grep -iE '\b(CREATE|GRANT|INSERT|ALTER|POLICY)\b' "$T/sql.in")"
+[[ "$(last_sql "$T/sql.in")" == "ROLLBACK;" && "$(rollback_depth "$T/sql.in")" == 0 ]] &&
+  pass "prd: ROLLBACK the last SQL statement, outside every \\if" || fail "prd: last SQL: $(last_sql "$T/sql.in")"
+grep -qF 'EXPLAIN (ANALYZE, BUFFERS) SELECT msg_id FROM public.spool_search_candidates(' "$T/sql.in" && grep -q "current_user = 'spool_rt'" "$T/sql.in" &&
+  pass "prd: the runtime login EXPLAINs the call (G1)" || fail "prd: no G1 EXPLAIN"
+grep -q "set_config('app.tenant_id', 'e2e', true)" "$T/sql.in" && pass "prd: the default workspace is e2e" || fail "prd: tenant"
+[[ "$(grep -c '^psql .* -f -' "$T/calls.log")" == 2 && "$(grep -c '^psql ' "$T/calls.log")" == 2 ]] && grep -q 'proxy stop' "$T/calls.log" &&
+  pass "prd: two psql sessions fed on stdin, proxy stopped" || fail "prd calls: $(cat "$T/calls.log")"
+grep -qx 'G1 runtime call: ok, messages_search scanned by the call: yes, in the reader plan: yes' "$T/o" &&
+  grep -q '^mode: read-only' "$T/o" && grep -qx 'G6 btree_gin: ok' "$T/o" && pass "prd: the read-only verdict is printed" ||
+  fail "prd verdict: $(cat "$T/o")"
+: >"$T/calls.log"
+SNIPPET="$STUBS do_spl_search_index_probe" in_orc ENV=prd PROBE_PRD_GO=1 RT_LOGIN=spool_owner PSQL_OUT="$RO_OUT" >"$T/o" 2>&1 &&
+  fail "prd: a runtime DSN that is not the runtime login ran" || pass "prd: a runtime DSN that is not the runtime login is refused"
+! grep -qE 'proxy start|^psql' "$T/calls.log" && pass "prd: refused before the proxy or psql" || fail "prd non-runtime called: $(cat "$T/calls.log")"
+v=$(printf '%b\n' '@@step ext ok\n@@step index error missing\n@@step fn error missing\n@@step g1_call error x' |
+  SNIPPET=spl_search_index_probe_ro_verdict in_orc ENV=prd 2>&1)
+grep -qx 'index messages_search: MISSING, fn spool_search_candidates: MISSING' <<<"$v" && grep -q '^G1 runtime call: FAILED' <<<"$v" &&
+  pass "prd: a missing object reads MISSING" || fail "prd missing verdict: $v"
+SNIPPET='spl_search_index_probe_sql t1 spool_rt | spl_search_index_probe_ro_guard' in_orc ENV=dev >"$T/o" 2>&1 &&
+  fail "CONTROL: the guard let the dev DDL script through" || pass "CONTROL: the guard refuses the dev DDL script"
+grep -q 'CREATE INDEX messages_search' "$T/o" && pass "CONTROL: the refusal names the DDL line" || fail "CONTROL text: $(cat "$T/o")"
+SNIPPET="spl_search_index_probe_sql t1 spool_rt" in_orc ENV=dev >"$T/s" 2>&1
+grep -q '^BEGIN;$' "$T/s" && ! grep -q 'READ ONLY' "$T/s" && grep -q 'GRANT spool_rt TO CURRENT_USER' "$T/s" &&
+  pass "dev unchanged: plain BEGIN, the DDL and the SET ROLE self-grant fallback" || fail "dev script changed"
 
 (( fails == 0 )) && echo "OK spl-search-index-probe: all checks passed" || { echo "FAIL spl-search-index-probe: $fails check(s)"; exit 1; }

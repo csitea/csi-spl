@@ -1,0 +1,6 @@
+Lay-What: An internal quality check now measures the length of every script step correctly, and one long payment setup step was split into smaller parts.
+Lay-How: The check now knows where each step ends even when the next one starts right after it, and the long step was broken into named pieces.
+Lay-Why: The check was silently missing some steps that were too long, so it could not warn about them.
+Tech-What: bash-cleancode.tst.sh walker closes an open function at the next function header or a one-line ') }' close; spl-provision-stripe-endpoints split; LONG list 18->17.
+Tech-How: The awk walker ends the current function on a new header or a ') }' line instead of only on a lone '}', with two red controls proving the old walker missed a 103-line function.
+Tech-Why: Functions closed by ') }' or followed directly by another header were merged or never ended, so over-80-line functions went unlisted.

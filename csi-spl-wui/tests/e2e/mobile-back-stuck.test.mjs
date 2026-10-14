@@ -28,7 +28,8 @@
 // Each round, and the desktop control, runs on a fresh tab in its own browser
 // context, ROUND_JOBS at a time (default 3); the lines still print in order.
 // A round is mostly settle waits, not CPU: one after another, the 6 rounds
-// spent about 150 of 161 s in fixed sleeps (spec 133 round 14).
+// spent about 150 of 161 s in fixed sleeps (spec 133 round 14). Each step
+// now waits for the state its check expects (until(), round 22).
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
@@ -48,6 +49,25 @@ const check = (out) => (name, pass, ev) => {
   out.lines.push(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${pass || ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/* Polls read() until want(s) holds and the state stays the same for hold ms;
+   gives up after max ms and returns the last state for the check. The bug
+   this file guards re-opened the topic a few hundred ms AFTER Back, so a
+   Back step holds 600 ms, longer than a plain two-poll settle. The fixed
+   400..1500 ms sleeps were ~28 s of every round (spec 133 round 22). */
+async function until(read, want, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let s = await read()
+  while (Date.now() < end) {
+    const k = want(s) ? JSON.stringify(s) : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return s
+    await sleep(100)
+    s = await read()
+  }
+  return s
+}
+const BACK_HOLD = 600
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -93,7 +113,8 @@ const press = (p, testid) => p.evaluate((id) => {
 
 async function channel(p, name) {
   await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-channels]')?.click())
-  await sleep(400)
+  await p.waitForFunction((n) => [...document.querySelectorAll('#sidebar-panel-channels .nav-item')]
+    .some((e) => (e.getAttribute('href') || '').endsWith(`/channel/${n}`)), { timeout: 8000 }, name).catch(() => null)
   return p.evaluate((n) => {
     const row = [...document.querySelectorAll('#sidebar-panel-channels .nav-item')].find((e) => (e.getAttribute('href') || '').endsWith(`/channel/${n}`))
     if (!row) return false
@@ -140,82 +161,83 @@ async function round(browser, base, width, r, ok) {
     await signIn(page)
 
     /* 1. a link to ?topic= from another channel */
+    const st = (want, hold) => until(() => state(page), want, hold)
+    const onAlerts = (x) => x.level === '2' && x.path === '/channel/alerts'
     await channel(page, 'alerts')
-    await sleep(1200)
-    let s = await state(page)
-    ok(`${at} setup: #alerts on level 2`, s.level === '2' && s.path === '/channel/alerts', s)
+    let s = await st(onAlerts)
+    ok(`${at} setup: #alerts on level 2`, onAlerts(s), s)
     await linkToTopic(page)
-    await sleep(1500)
-    s = await state(page)
-    ok(`${at} a link to ?topic= opens level 3`, s.level === '3' && s.topic && s.path.includes(`topic=${TASK}`), s)
+    let want = (x) => x.level === '3' && x.topic && x.path.includes(`topic=${TASK}`)
+    s = await st(want)
+    ok(`${at} a link to ?topic= opens level 3`, want(s), s)
     await press(page, first)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} ${first} from the linked topic: 3 -> 2, its channel, the topic stays closed`, s.level === '2' && !s.topic && s.path === '/channel/lobby', s)
+    want = (x) => x.level === '2' && !x.topic && x.path === '/channel/lobby'
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${first} from the linked topic: 3 -> 2, its channel, the topic stays closed`, want(s), s)
     await press(page, second)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} ${second}: back to #alerts, where the link was`, s.level === '2' && !s.topic && s.path === '/channel/alerts', s)
+    want = (x) => x.level === '2' && !x.topic && x.path === '/channel/alerts'
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${second}: back to #alerts, where the link was`, want(s), s)
     await press(page, first)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} ${first}: 2 -> 1`, s.level === '1', s)
+    want = (x) => x.level === '1'
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${first}: 2 -> 1`, want(s), s)
 
     /* 2. the URL names the topic first, on the page's own entry (router.replace),
        for a topic the loaded feed does not hold (older than its first page, or
        another channel's): the old build stayed on level 3 for every Back */
     await channel(page, 'alerts')
-    await sleep(1200)
+    await st(onAlerts)
     await page.evaluate((id) => {
       const router = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router
       void router?.replace({ query: { topic: id } })
     }, TASK)
-    await sleep(1500)
-    s = await state(page)
-    ok(`${at} setup: ?topic= written first opens level 3`, s.level === '3' && s.topic, s)
+    want = (x) => x.level === '3' && x.topic
+    s = await st(want)
+    ok(`${at} setup: ?topic= written first opens level 3`, want(s), s)
     await press(page, second)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} ${second}: 3 -> 2, the topic stays closed`, s.level === '2' && !s.topic && s.path === '/channel/alerts', s)
+    want = (x) => x.level === '2' && !x.topic && x.path === '/channel/alerts'
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${second}: 3 -> 2, the topic stays closed`, want(s), s)
     await press(page, first)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} ${first}: 2 -> 1`, s.level === '1', s)
+    want = (x) => x.level === '1'
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${first}: 2 -> 1`, want(s), s)
 
     /* 3. an entry an older build left tagged 2 with ?topic= still on it */
     await channel(page, 'alerts')
-    await sleep(1200)
+    await st(onAlerts)
     await page.evaluate((id) => { window.history.replaceState(window.history.state, '', `${location.pathname}?topic=${id}`) }, TASK)
     await openTopic(page)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} setup: a topic over a stale level-2 ?topic= entry`, s.level === '3' && s.topic, s)
+    want = (x) => x.level === '3' && x.topic
+    s = await st(want)
+    ok(`${at} setup: a topic over a stale level-2 ?topic= entry`, want(s), s)
     await press(page, second)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} ${second} over the stale entry: 3 -> 2, the topic stays closed`, s.level === '2' && !s.topic && !s.path.includes('topic='), s)
+    want = (x) => x.level === '2' && !x.topic && !x.path.includes('topic=')
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${second} over the stale entry: 3 -> 2, the topic stays closed`, want(s), s)
     await press(page, first)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} ${first}: 2 -> 1`, s.level === '1', s)
+    want = (x) => x.level === '1'
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${first}: 2 -> 1`, want(s), s)
 
     /* 4. an open overlay goes first, then the level */
     await channel(page, 'lobby')
-    await sleep(1200)
+    await st((x) => x.level === '2' && x.path === '/channel/lobby')
     await openTopic(page)
-    await sleep(1200)
+    await st((x) => x.level === '3' && x.topic)
     await page.evaluate(() => document.querySelector('[data-test=user-menu-trigger]')?.click())
-    await sleep(800)
-    s = await state(page)
-    ok(`${at} setup: the avatar sheet over level 3`, s.level === '3' && s.menu, s)
+    want = (x) => x.level === '3' && x.menu
+    s = await st(want)
+    ok(`${at} setup: the avatar sheet over level 3`, want(s), s)
     await press(page, first)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} ${first} closes the sheet, level 3 stays`, s.level === '3' && !s.menu && s.topic, s)
+    want = (x) => x.level === '3' && !x.menu && x.topic
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${first} closes the sheet, level 3 stays`, want(s), s)
     await press(page, second)
-    await sleep(1200)
-    s = await state(page)
-    ok(`${at} ${second}: then 3 -> 2`, s.level === '2' && !s.topic, s)
+    want = (x) => x.level === '2' && !x.topic
+    s = await st(want, BACK_HOLD)
+    ok(`${at} ${second}: then 3 -> 2`, want(s), s)
   } finally {
     await ctx.close().catch(() => {})
   }
@@ -229,18 +251,19 @@ async function desktop(browser, base, ok) {
     await page.setViewport({ width: 1440, height: 900 })
     await page.goto(`${base}/channel/alerts`, { waitUntil: 'networkidle2' })
     await sleep(1500)
+    const st = (want, hold) => until(() => state(page), want, hold)
     await linkToTopic(page)
-    await sleep(1500)
-    let s = await state(page)
-    ok('1440px a link to ?topic= opens the topic, no chevron, no dock Back', s.topic && s.path.includes(`topic=${TASK}`) && !s.chevron && !s.dock, s)
+    let want = (x) => x.topic && x.path.includes(`topic=${TASK}`) && !x.chevron && !x.dock
+    let s = await st(want)
+    ok('1440px a link to ?topic= opens the topic, no chevron, no dock Back', want(s), s)
     await page.goBack()
-    await sleep(1200)
-    s = await state(page)
-    ok('1440px browser Back returns to #alerts', s.path === '/channel/alerts', s)
+    want = (x) => x.path === '/channel/alerts'
+    s = await st(want, BACK_HOLD)
+    ok('1440px browser Back returns to #alerts', want(s), s)
     await page.goForward()
-    await sleep(1200)
-    s = await state(page)
-    ok('1440px Forward lands on the ?topic= URL unchanged', s.path === `/channel/lobby?topic=${TASK}` && s.topic, s)
+    want = (x) => x.path === `/channel/lobby?topic=${TASK}` && x.topic
+    s = await st(want, BACK_HOLD)
+    ok('1440px Forward lands on the ?topic= URL unchanged', want(s), s)
   } finally {
     await ctx.close().catch(() => {})
   }

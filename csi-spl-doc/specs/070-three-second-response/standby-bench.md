@@ -6,11 +6,11 @@ Written by `ENV=dev DRY_RUN=0 ./run -a do_spl_standby_bench` (csi-spl-orc); reru
 
 | field | value |
 |---|---|
-| run (UTC) | 20261003T192939Z |
-| tree | `febc0e46e8b5f3fa885aa7382f2375c339579aa2` |
+| run (UTC) | 20261014T034503Z |
+| tree | `a409baab1528b6a6b956b444e98b7314388526b5+dirty` |
 | env | dev, no workspace (an empty scratch dir), no hub, no spool: the model call alone |
-| claude CLI | 2.1.288 (Claude Code) |
-| grok CLI | grok 1.0.46 (2765805b9442) [stable] |
+| claude CLI | 2.1.292 (Claude Code) |
+| grok CLI | grok 1.0.52 (0920c8169e27) |
 | n per model | 20 call responses after one warm-up turn, sent one at a time to ONE standby |
 | effort | low; claude extended thinking off; grok has no off switch (its lowest reasoning effort is used) |
 | runs as | the agent user, never the human's; every agent stopped at the end: yes |
@@ -19,10 +19,13 @@ Written by `ENV=dev DRY_RUN=0 ./run -a do_spl_standby_bench` (csi-spl-orc); reru
 
 | vendor | model (reported) | n ok | errors | first token p50 | p95 | max | last token p50 | p95 | max | output tokens p50 | p95 | tool calls | start + warm-up |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| claude | haiku (claude-haiku-4-5-20251001) | 20 | 0 | 0.58 | **0.69** | 0.71 | 1.86 | 2.08 | 2.12 | 92 | 111 | 0 | 1.57 + 1.57 |
-| claude | sonnet (claude-sonnet-5-5) | 20 | 0 | 0.78 | **0.92** | 1.03 | 2.31 | 2.62 | 2.78 | 141 | 164 | 0 | 2.18 + 2.17 |
-| grok | grok-4.7-build-fast (grok-4.7-build-fast) | 20 | 0 | 2.20 | **4.07** | 5.00 | 3.22 | 4.23 | 5.00 | 160 | 274 | 0 | 2.53 + 2.08 |
-| grok | grok-4.7 (grok-4.7) | 20 | 0 | 2.64 | **4.79** | 5.73 | 3.69 | 6.12 | 6.23 | 176 | 338 | 0 | 2.79 + 2.46 |
+| claude | haiku (-) | 0 | 20 | - | **-** | - | - | - | - | - | - | 0 | 0.54 + 0.54 |
+| claude | sonnet (-) | 0 | 20 | - | **-** | - | - | - | - | - | - | 0 | 0.78 + 0.78 |
+| grok | grok-4.7-build-fast (-) | 0 | 0 | - | **-** | - | - | - | - | - | - | 0 | - + - |
+| grok | grok-4.7 (-) | 0 | 0 | - | **-** | - | - | - | - | - | - | 0 | - + - |
+
+- grok:grok-4.7-build-fast stopped early: RuntimeError: session/prompt: {"code": -32603, "message": "Internal error", "data": {"message": "API error (status 402 Payment Required): Grok Build usage balance exhausted", "http_status": 402}}
+- grok:grok-4.7 stopped early: RuntimeError: session/prompt: {"code": -32603, "message": "Internal error", "data": {"message": "API error (status 402 Payment Required): Grok Build usage balance exhausted", "http_status": 402}}
 
 ## 2. Verdict per vendor
 
@@ -31,13 +34,13 @@ Fits = the first token p95 <= 0.9 s with n >= 20 and no tool call. The full call
 
 | vendor | fastest model by first-token p95 | p95 | fits ~0.9 s? | last token p95 <= 1.5 s? |
 |---|---|---:|---|---|
-| claude | haiku | 0.69 | **yes** | no (2.08) |
-| grok | grok-4.7-build-fast | 4.07 | **no** | no (4.23) |
+| claude | - | - | **unmeasured** (fewer than 20 good calls) | - |
+| grok | - | - | **unmeasured** (fewer than 20 good calls) | - |
 
 ## 3. What it answers
 
-- **Q1** (the standby model per vendor): the fastest model per vendor in section 2. It fits for: claude.
-- **Q11**: raised for grok: a warm standby turn does not reach the first token in budget; options (a), (b), (c) of section 6.2 are the owner's.
+- **Q1** (the standby model per vendor): the fastest model per vendor in section 2. No vendor's warm turn fits the budget on this run.
+- **Q11**: raised for claude, grok: a warm standby turn does not reach the first token in budget; options (a), (b), (c) of section 6.2 are the owner's.
 
 ## 4. Method
 
@@ -47,12 +50,6 @@ Fits = the first token p95 <= 0.9 s with n >= 20 and no tool call. The full call
 - Times are stamped on read, in the bench process, from the moment the line is written to the agent's stdin (hop 3 included).
 - p50 / p95 are nearest-rank. Raw rows: the state dir, `standby-bench/<run>.jsonl` (not committed).
 
-## 5. Reading (hand-written, this run)
+Skipped on this box: qwen: CLI present, no headless adapter in L1; gemini: CLI present, no headless adapter in L1; agy: CLI present, no headless adapter in L1; mistral (vibe): CLI present, no headless adapter in L1.
 
-- **First token fits for claude haiku** (0.69 s p95, n=20); sonnet sits on the line (0.92 s p95). Both grok models miss it by 3..4 s (4.07 / 4.79 s p95, n=20 each).
-- **The full answer does not fit yet.** Haiku's last token is 2.08 s p95 at ~92 output tokens (p50): ~1.3 s of streaming against hop 5's 0.6 s. With section 6.1's other hops (0.40 + 0.16 + 0.01 + 0.40 + 0.30 s) the R1 sum is ~3.35 s p95: over 3 s by ~0.35 s. A tighter cap (~40 tokens) or Q11 (b), first words visible, closes it; the owner's call.
-- **Thinking must be off.** An aborted earlier run (tree `70d01299`, haiku, effort low, thinking on by default) spent ~500 output tokens before the first text: ~5 s first token on the rows read (n=12 run, stopped). `--effort low` alone does not turn it off.
-- **grok spends its time before the first text**: its turns report reasoning tokens even at the lowest effort, and the CLI sends its own ~16k+ token prompt (a probe turn reported 15.9k input tokens); no system-prompt override exists on `grok agent stdio` in 1.0.46 (*unchecked* beyond `--help`).
-- **W1 holds for both**: start + warm-up is 3..5 s, paid once per standby, off the critical path.
-
-<!-- last-edit: 2026-10-03T19:33:47Z -->
+<!-- last-edit: 2026-10-14T03:45:10Z -->

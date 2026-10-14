@@ -41,6 +41,7 @@
         :rows="messages"
         :has-older="hasOlder"
         :loading="loading"
+        :failed="!!loadError"
         :loading-older="loadingOlder"
         :search="search"
         :last-live="lastLive"

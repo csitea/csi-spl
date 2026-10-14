@@ -44,6 +44,7 @@
         :loading-older="pane.loadingOlder"
         @older="pane.loadOlder()"
         :loading="pane.loading"
+        :failed="!!pane.error"
         :search="pane.search"
         :last-live="pane.lastLive"
         :empty-text="t('topic.no_replies')"

@@ -112,8 +112,9 @@ The switch is kept on the hub for your account, so it follows you between
 browsers.
 
 It also decides how much an error says. With it off, a screen that could not
-load says one plain sentence with a **Try again** button, and the error bar
-at the top says what went wrong in plain words. With it on, the technical
+load says one plain sentence with a **Try again** button, and no "No messages
+yet." under it (a list that did not load is not empty). The error bar at the
+top says what went wrong in plain words. With it on, the technical
 details show under that sentence: the status code, the error text and the
 error reference to quote when you report it.
 

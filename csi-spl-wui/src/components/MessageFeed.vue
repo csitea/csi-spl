@@ -20,6 +20,7 @@
       :rows="channel.newestFirst"
       :has-older="channel.hasOlder"
       :loading="channel.loading"
+      :failed="!!channel.error"
       :search="channel.search"
       :last-live="channel.lastLive"
       :count-for="channel.repliesFor"

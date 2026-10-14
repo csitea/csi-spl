@@ -8,6 +8,7 @@
 //   box, no status, no ERR id; with the Debug pane on the technical line
 //   (HTTP status, raw message, ERR id) shows under the same sentence; Try
 //   again reads again and the error goes.
+//   under the error no list also says it is empty ("No messages yet.").
 //   the top snackbar: a page error shows the plain sentence, not its text or
 //   id; with the Debug pane on, both.
 //   the top-bar send error: its own plain line, the ERR reference only with
@@ -34,6 +35,8 @@ const OTHER = 'Something did not work. Try again in a moment.'
 const FAULT = { status: 500, token: 'internal', detail: 'view query failed' }
 /* what a reader without the Debug pane must never see */
 const TECH_WORDS = /\b(500|HTTP|ERR-|spool|internal)\b/
+/* c-002 send-back (msg 5d6cbb5a): after a failed read no list may also say it is empty */
+const EMPTY_LINES = ['No messages yet.', 'No messages match.', 'Empty topic.', 'No replies yet']
 const NOBODY_TASK = 'e1170000-0000-4000-8000-000000000002'
 const EXTRA = [
   /* the viewer's own channel-less root with no addressee: a reply is refused (dm-reply-topic-to) */
@@ -86,7 +89,10 @@ const debugOn = (p) => p.evaluate(() => {
 const notice = (p, id) => p.evaluate((id) => {
   const box = document.querySelector(`[data-test=${id}]`)
   const text = (sel) => (document.querySelector(sel)?.textContent || '').trim()
+  const empty = [...document.querySelectorAll('p.empty, .muted')]
+    .filter((e) => e.getClientRects().length).map((e) => (e.textContent || '').trim())
   return {
+    empty,
     shown: Boolean(box && box.getClientRects().length),
     msg: text(`[data-test=${id}-message]`),
     all: (box?.textContent || '').trim(),
@@ -146,6 +152,7 @@ try {
       ok(`${tag}: no status, id or raw message without the Debug pane`, !TECH_WORDS.test(n.all) && !n.tech, n.all)
       ok(`${tag}: no red error box`, !n.redBox)
       ok(`${tag}: a Try again button`, n.retry)
+      ok(`${tag}: no empty-list line under the error`, !n.empty.some((e) => EMPTY_LINES.some((w) => e.includes(w))), n.empty)
       if (shown) await shot(page, `plain-${s.name}-${width}-after`)
 
       const on = await debugOn(page)

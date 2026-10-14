@@ -109,7 +109,7 @@
         />
       </template>
     </TransitionGroup>
-    <p v-if="!loading && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
+    <p v-if="!loading && !failed && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
     <div v-if="newestLast" class="new-pill-wrap new-pill-wrap--bottom">
       <button v-if="showUnreadJump" class="btn new-pill" type="button" :aria-label="t('feed.unread_jump_label')" data-testid="unread-jump" @click="jumpToUnread">
         ↓ {{ t('feed.unread_jump', { n: newCount }) }}
@@ -204,6 +204,8 @@ const props = defineProps<{
   clickable?: boolean
   /** what "no rows" says here — in a topic pane that is "no replies yet". */
   emptyText?: string
+  /** SPL-1839: the load failed; the error notice above says so, "no rows" would be false. */
+  failed?: boolean
   /** topic-pane clock (Date.now()); omitted on channel / lobby cards */
   sinceMs?: number
   /** A thread. A new row must not move this list, and nothing scrolls it back. */

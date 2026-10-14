@@ -31,6 +31,7 @@
         :rows="store.lobbyRows"
         :has-older="store.lobbyHasOlder"
         :loading="store.loading"
+        :failed="!!store.error"
         :search="store.search"
         :last-live="store.lastLive"
         :current-task-id="store.taskId"

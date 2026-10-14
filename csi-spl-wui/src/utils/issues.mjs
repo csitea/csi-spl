@@ -7,6 +7,7 @@
  */
 
 import { ISSUE_CHANNEL } from './parent-section.mjs'
+import { MOCK_DEFAULT_TOPIC, MOCK_GONE_TOPIC, mockCreateDiscussions, mockFullDiscussions, mockLinkDiscussion, mockUnlinkDiscussion, normalizeDiscussions } from './issue-discussions.mjs'
 /** issues-v1 §8: the tree's kinds. Level 1 = epic | feature. */
 export const ISSUE_KINDS = ['epic', 'feature', 'issue', 'subtask']
 export const isTopKind = (k) => k === 'epic' || k === 'feature'
@@ -54,6 +55,9 @@ export function normalizeIssue(raw) {
     /* SPL-1559 (rdb 0184): the viewer has not opened it yet (the hub's
        per-viewer mark on a list or single read; a live frame has none) */
     unopened: r.unopened === true,
+    /* SPL-1593 (rdb 0194): the discussions it links, at least one on the hub;
+       a list read carries the links, a single read their state and title */
+    discussions: normalizeDiscussions(r.discussions),
   }
 }
 
@@ -383,19 +387,41 @@ function mockStoredCount(key, max) {
 /** The mock tenant's first issues, numbered from 1 with no gap. */
 function mockSeedIssues(me, now) {
   const issues = [normalizeIssue({ key: 'SPL-1', number: 1, title: 'random', kind: 'epic', labels: ['epic'], status: 'in_progress',
-    task_id: '00000000-0000-4000-8000-000000000001', created_by: me, updated_by: me, created_at: now(), updated_at: now() })]
+    task_id: '00000000-0000-4000-8000-000000000001', created_by: me, updated_by: me, created_at: now(), updated_at: now(),
+    /* SPL-1593: a live topic of the mock feed and one that was deleted */
+    discussions: [{ task_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', linked_by: me }, { task_id: MOCK_GONE_TOPIC, linked_by: me }] })]
   /* t1 d5d00918: localStorage `spool.mock.issues-seed` = N plays a tenant
      with N more issues (SPL-2 ..), so a test reaches a second page */
   const seed = mockStoredCount(MOCK_ISSUES_SEED_KEY, 500)
   for (let k = 1; k <= seed; k++) {
-    issues.push(mockNewIssue({ title: `mock issue ${k}`, description: `mock issue ${k} text`, priority: 1 + (k % 5) }, issues.length + 1, me, now()))
+    issues.push(mockNewIssue({ title: `mock issue ${k}`, description: `mock issue ${k} text`, priority: 1 + (k % 5), discussions: [{ task_id: MOCK_DEFAULT_TOPIC }] }, issues.length + 1, me, now()))
   }
   /* SPL-1559: `spool.mock.issues-new` = N issues a teammate assigned to me, none opened */
   const fresh = mockStoredCount(MOCK_ISSUES_NEW_KEY, 50)
   for (let k = 1; k <= fresh; k++) {
-    issues.push(mockNewIssue({ title: `new for me ${k}`, assignee: me, status: 'todo' }, issues.length + 1, MOCK_TEAMMATE, now()))
+    issues.push(mockNewIssue({ title: `new for me ${k}`, assignee: me, status: 'todo', discussions: [{ task_id: MOCK_DEFAULT_TOPIC }] }, issues.length + 1, MOCK_TEAMMATE, now()))
   }
   return issues
+}
+
+/* SPL-1027 / SPL-1226: the hub's soft delete (remove) and archive - for the
+   mock (no archived store) both hide the row. Without cascade a parent with
+   a live child is refused; with it the whole epic / feature and its
+   descendants go, and the answer names them. */
+function mockDrop(issues, i, cascade, view) {
+  if (!i) throw mockErr(404, 'not_found')
+  const kids = mockSubtree(issues, i.key)
+  if (!cascade && kids.length) throw mockErr(409, 'issue_has_children')
+  const gone = cascade ? new Set([i.key, ...kids]) : new Set([i.key])
+  return { issues: issues.filter((x) => !gone.has(x.key)), answer: { issue: view(i), descendants: cascade ? kids : [] } }
+}
+
+/** a new label from the mock's label call, or the hub's refusal */
+function mockNewLabel(labels, { name = '', color = '' } = {}) {
+  const id = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+  if (!id) throw mockErr(400, 'bad_issue')
+  if (labels.some((l) => l.id === id)) throw mockErr(409, 'label_exists')
+  return normalizeLabel({ id, name: String(name).trim(), color: color || '#6b7280' })
 }
 
 /* SPL-1643, the hub's epic close: null when the update closes no epic; a
@@ -448,19 +474,15 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
   const find = (ref) => mockFind(issues, ref)
   const view = (i) => mockView(issues, i)
   const log = mockHistoryLog(issues) /* rdb 0181; a gone issue's history reads 404 */
-  /* SPL-1027 / SPL-1226: the hub's soft delete (remove) and archive - for the
-     mock (no archived store) both hide the row. Without cascade a parent with
-     a live child is refused; with it the whole epic / feature and its
-     descendants go, and the answer names them. */
-  const drop = (ref, cascade) => {
+  const full = (i) => ({ ...i, discussions: mockFullDiscussions(i.discussions) }) /* SPL-1593: a single read's links */
+  const relink = (ref, change) => {
     const i = find(ref)
     if (!i) throw mockErr(404, 'not_found')
-    const kids = mockSubtree(issues, i.key)
-    if (!cascade && kids.length) throw mockErr(409, 'issue_has_children')
-    const gone = cascade ? new Set([i.key, ...kids]) : new Set([i.key])
-    issues = issues.filter((x) => !gone.has(x.key))
-    return { issue: view(i), descendants: cascade ? kids : [] }
+    const next = change(i)
+    issues = issues.map((x) => (x.key === i.key ? next : x))
+    return { issue: full(view(next)) }
   }
+  const drop = (ref, cascade) => { const r = mockDrop(issues, find(ref), cascade, view); issues = r.issues; return r.answer }
   return {
     list(query = '') {
       const q = new URLSearchParams(query)
@@ -471,13 +493,16 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       /* P5-06: like the hub's sheet read, a listed row carries no description;
          the open issue is get(ref) */
       return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: rows.map((i) => ({ ...i, description: '' })), labels: labels.slice(), channel: ISSUE_CHANNEL, epics: mockSummaries(issues),
-        total: matched.length, next_cursor: next }
+        total: matched.length, next_cursor: next, default_discussion: MOCK_DEFAULT_TOPIC }
     },
     get(ref) {
       const i = find(ref)
       if (!i) throw mockErr(404, 'not_found')
-      return { issue: mine(view(i)) }
+      return { issue: full(mine(view(i))) }
     },
+    /* SPL-1593: POST /v1/issues/{ref}/discussions, DELETE .../discussions/{task} */
+    link(ref, discussion) { return relink(ref, (i) => mockLinkDiscussion(i, discussion, me, now())) },
+    unlink(ref, task) { return relink(ref, (i) => mockUnlinkDiscussion(i, task)) },
     /* SPL-1559: POST /v1/issues/{ref}/opened */
     opened(ref) {
       const i = find(ref)
@@ -487,13 +512,14 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     },
     create(body = {}) {
       mockEpicField(issues, body)
-      const i = mockNewIssue(body, last + 1, me, now())
+      const discussions = mockCreateDiscussions(body, me, now())
+      const i = mockNewIssue({ ...body, discussions }, last + 1, me, now())
       mockCheck(issues, labels, i)
       mockLevelField(issues, body, i, true)
       last++
       issues = [...issues, i]
       log.created(i)
-      return { issue: view(i) }
+      return { issue: full(view(i)) }
     },
     update(ref, body = {}) {
       const out = mockUpdate({ issues, labels, log, me, now }, ref, body)
@@ -503,11 +529,8 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     history(ref) { return mockHistoryOf(find(ref), log) },
     remove(ref, cascade = false) { return drop(ref, cascade) },
     archive(ref, cascade = false) { return drop(ref, cascade) },
-    label({ name = '', color = '' } = {}) {
-      const id = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
-      if (!id) throw mockErr(400, 'bad_issue')
-      if (labels.some((l) => l.id === id)) throw mockErr(409, 'label_exists')
-      const l = normalizeLabel({ id, name: String(name).trim(), color: color || '#6b7280' })
+    label(body = {}) {
+      const l = mockNewLabel(labels, body)
       labels = [...labels, l]
       return { label: { ...l } }
     },

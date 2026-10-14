@@ -322,6 +322,10 @@
                 </span>
               </td>
             </tr>
+            <!-- SPL-1593: a new issue links at least one discussion -->
+            <tr class="issues-newrow issues-newrow--disc" data-test="issues-newrow-discussions">
+              <td colspan="10"><LazyIssueDiscussions v-model="draft.discussions" :default-discussion="defaultDiscussion" /></td>
+            </tr>
           </tbody>
           <tbody v-if="(loading && !issues.length) || loadError || !rowCount">
             <tr>
@@ -750,6 +754,7 @@
             @draft="onDescriptionDraft"
             @submit="onDescriptionSubmit"
           />
+          <LazyIssueDiscussions v-if="creating && phone" v-model="draft.discussions" :default-discussion="defaultDiscussion" />
           <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError, { reason: saveReason }) }}</p>
           <button v-if="creating" type="button" class="btn issues-detail-create" data-test="issues-create" :disabled="busy || !draft.title.trim()" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
         </div>
@@ -913,7 +918,7 @@
           </button>
           <!-- not Lazy: a click before a lazy chunk lands mounts the dialog
                already open, so UiDialog's open watch never runs (no focus, no trap) -->
-          <IssueSubtaskDialog v-model:open="subtaskOpen" :parent-key="form.key" :assignees="assigneeOptions" @created="onSubtaskCreated" />
+          <IssueSubtaskDialog v-model:open="subtaskOpen" :parent-key="form.key" :assignees="assigneeOptions" :discussions="parentDiscussions" @created="onSubtaskCreated" />
         </section>
         <section v-if="!creating && form.task_id" class="issues-talk issues-detail-talk" data-test="issues-talk">
           <!-- SPL-963: the discussion takes its titles / 5 rows / full -->
@@ -955,6 +960,9 @@
             @deleted="onCommentDeleted"
             @reacted="onCommentReacted"
           />
+          <!-- SPL-1593 (owner t1 fcf09921, msg 9a8e4764): the discussions it
+               links, in the bottom panel above the comment box -->
+          <LazyIssueDiscussions :issue-key="form.key" :stamp="historyStamp" />
           <label class="issues-field">
             <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
             <!-- owner, topic 593a804a (SPL-973): no Comment button. Which key
@@ -1337,7 +1345,14 @@ const draft = reactive({
   title: '', description: '', status: 'todo', priority: PRIO_DEFAULT,
   assignee: '', labels: [] as string[], deadlineLocal: '',
   epic: '', kind: 'issue' as 'issue' | 'epic' | 'feature',
+  /* SPL-1593: the discussions the new issue links (topic ids, short ids) */
+  discussions: [] as string[],
 })
+/* SPL-1593: the workspace's default discussion (the hub's list answer); a
+   new issue starts linked to it, and the member may link others instead */
+const defaultDiscussion = ref('')
+/* SPL-1593: a subtask links the discussions of the issue it is under */
+const parentDiscussions = computed(() => (detail.value?.discussions || []).map((d) => d.task_id))
 const subtasks = ref<Issue[]>([])
 const subtaskOpen = ref(false)
 /* SPL-18: the epics of the tenant (the hub's summary), shared with the
@@ -1644,6 +1659,7 @@ async function load() {
     issues.value = (data.issues || []).map((row) => normalizeIssue(row))
     labels.value = (data.labels || []).map((row) => normalizeLabel(row))
     epics.value = data.epics || []
+    defaultDiscussion.value = String((data as { default_discussion?: string }).default_discussion || '')
     if (cursorKey.value && !flat.value.some((i) => i.key === cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
     void openLinkedIssue()
   } catch (e) {
@@ -1799,6 +1815,7 @@ function startCreate(status = '') {
   draft.labels = []
   draft.deadlineLocal = ''
   draft.kind = 'issue'
+  draft.discussions = defaultDiscussion.value ? [defaultDiscussion.value] : []
   draft.epic = epicF.value || epics.value.find((e) => e.status !== 'done' && e.status !== 'diss')?.key || epics.value[0]?.key || ''
   menu.value = null
   saveError.value = ''
@@ -2088,6 +2105,12 @@ async function addLabel() {
 async function createIssue() {
   const title = draft.title.trim()
   if (!title || busy.value) return
+  /* SPL-1593: the hub refuses an issue that links no discussion */
+  if (!draft.discussions.length) {
+    saveReason.value = ''
+    saveError.value = 'issue_discussions.required'
+    return
+  }
   busy.value = true
   saveError.value = ''
   const body: Record<string, unknown> = {
@@ -2096,6 +2119,7 @@ async function createIssue() {
     status: draft.status,
     priority: draft.priority,
   }
+  body.discussions = draft.discussions.slice()
   if (draft.assignee) body.assignee = draft.assignee
   if (draft.labels.length) body.labels = draft.labels.slice()
   /* The label and parent forms work on every hub since 0.7.0 (issues-v1 §8:

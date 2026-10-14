@@ -8,6 +8,10 @@
 import { MOCK_ISSUES_NEW_KEY, createMockIssues, normalizeIssue, unopenedCandidate } from '../../src/utils/issues.mjs'
 import { applyIssueFrame } from '../../src/utils/issues-view.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
+import { MOCK_DEFAULT_TOPIC } from '../../src/utils/issue-discussions.mjs'
+
+/* SPL-1593 (rdb 0194): the mock hub, like the hub, refuses an issue with no discussion */
+const LINK = { discussions: [MOCK_DEFAULT_TOPIC] }
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
@@ -40,7 +44,7 @@ const marks = () => Object.fromEntries(m.list('').issues.map((i) => [i.key, i.un
 ok('the single read carries it', m.get('SPL-2').issue.unopened === true)
 ok('opened answers the key', JSON.stringify(m.opened('SPL-2')) === JSON.stringify({ key: 'SPL-2', unopened: false }))
 ok('opening clears it for that issue only', marks()['SPL-2'] === false && marks()['SPL-3'] === true)
-const mine = m.create({ title: 'mine', assignee: 'HUM-1' }).issue
+const mine = m.create({ ...LINK, title: 'mine', assignee: 'HUM-1' }).issue
 ok('CONTROL: an issue I create for myself is not new', marks()[mine.key] === false)
 let threw = ''
 try { m.opened('SPL-99') } catch (e) { threw = e.token || String(e.status) }

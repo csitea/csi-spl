@@ -7,6 +7,10 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { ISSUE_STATUSES, issueQuery, matchIssue, normalizeIssue, sortIssues } from '../../src/utils/issues.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
+import { MOCK_DEFAULT_TOPIC } from '../../src/utils/issue-discussions.mjs'
+
+/* SPL-1593 (rdb 0194): the mock hub, like the hub, refuses an issue with no discussion */
+const LINK = { discussions: [MOCK_DEFAULT_TOPIC] }
 import {
   applyIssueFrame, applyLabelFrame, clampIssuePane, deadlineToLocalInput, groupIssues, isOverdue,
   controlLabel, loadIssuePane, localInputToDeadline, saveIssuePane, stepKey, visibleOrder,
@@ -173,19 +177,19 @@ describe('SPL-18 epics', async () => {
   })
   it('W16 (spec 047): an issue needs no epic, and a lone one takes subtasks', () => {
     const hub = createMockIssues({ me: 'HUM-1', now: () => '2026-09-29T09:00:00Z' })
-    const lone = hub.create({ title: 'x' }).issue
+    const lone = hub.create({ ...LINK, title: 'x' }).issue
     assert.equal(lone.level, 2)
     assert.equal(lone.epic, '')
-    const step = hub.create({ title: 'step', parent: lone.key }).issue
+    const step = hub.create({ ...LINK, title: 'step', parent: lone.key }).issue
     assert.equal(step.kind, 'subtask')
     assert.equal(step.level, 3)
-    assert.throws(() => hub.create({ title: 'deeper', parent: step.key }), (e) => e.token === 'bad_epic')
+    assert.throws(() => hub.create({ ...LINK, title: 'deeper', parent: step.key }), (e) => e.token === 'bad_epic')
   })
   it('the mock hub keeps the rule and answers the summary', () => {
     const hub = createMockIssues({ me: 'HUM-1', now: () => '2026-09-26T09:00:00Z' })
-    const a = hub.create({ title: 'a', epic: 'SPL-1', status: 'done' }).issue
-    assert.throws(() => hub.create({ title: 'b', epic: a.key }), (e) => e.token === 'bad_epic')
-    const e = hub.create({ title: 'E', kind: 'epic' }).issue
+    const a = hub.create({ ...LINK, title: 'a', epic: 'SPL-1', status: 'done' }).issue
+    assert.throws(() => hub.create({ ...LINK, title: 'b', epic: a.key }), (e) => e.token === 'bad_epic')
+    const e = hub.create({ ...LINK, title: 'E', kind: 'epic' }).issue
     assert.equal(e.kind, 'epic')
     assert.throws(() => hub.update('SPL-1', { kind: 'issue', epic: e.key }), (x) => x.token === 'epic_has_issues')
     assert.equal(hub.update(a.key, { epic: e.key }).issue.epic, e.key)
@@ -207,12 +211,12 @@ describe('SPL-18 three levels (owner 09:08)', async () => {
   })
   it('the mock hub builds and guards the tree', () => {
     const hub = createMockIssues({ me: 'HUM-1', now: () => '2026-09-26T09:00:00Z' })
-    const f = hub.create({ title: 'F', kind: 'feature' }).issue
-    const a = hub.create({ title: 'a', epic: f.key }).issue
-    const s = hub.create({ title: 's', parent: a.key }).issue
+    const f = hub.create({ ...LINK, title: 'F', kind: 'feature' }).issue
+    const a = hub.create({ ...LINK, title: 'a', epic: f.key }).issue
+    const s = hub.create({ ...LINK, title: 's', parent: a.key }).issue
     assert.deepEqual([f.kind, a.kind, s.kind, s.epic], ['feature', 'issue', 'subtask', f.key])
-    assert.throws(() => hub.create({ title: 'x', parent: s.key }), (e) => e.token === 'bad_epic')
-    assert.throws(() => hub.create({ title: 'x', epic: a.key }), (e) => e.token === 'bad_epic')
+    assert.throws(() => hub.create({ ...LINK, title: 'x', parent: s.key }), (e) => e.token === 'bad_epic')
+    assert.throws(() => hub.create({ ...LINK, title: 'x', epic: a.key }), (e) => e.token === 'bad_epic')
     assert.deepEqual(hub.list(`parent=${a.key}`).issues.map((i) => i.key), [s.key])
     assert.deepEqual(hub.list('kind=issue').issues.map((i) => i.key), [a.key])
     assert.deepEqual(hub.list('').epics.map((e) => [e.key, e.kind, e.total]), [['SPL-1', 'epic', 0], [f.key, 'feature', 1]])
@@ -282,7 +286,7 @@ describe('the owner statuses and prio 1..5 (rdb 0054, topics f2c32da2 + d81cbf47
     assert.equal(PRIO_DEFAULT, 5)
     assert.equal(n5({ key: 'SPL-1' }).priority, 5)
     const hub = createMockIssues({ me: 'HUM-1', now: () => '2026-09-26T10:00:00Z' })
-    const i = hub.create({ title: 'x', epic: 'SPL-1' }).issue
+    const i = hub.create({ ...LINK, title: 'x', epic: 'SPL-1' }).issue
     assert.deepEqual([i.status, i.priority], ['eval', 5])
     assert.throws(() => hub.update(i.key, { priority: 6 }), (e) => e.token === 'bad_issue')
     assert.equal(hub.update(i.key, { priority: 0 }).issue.priority, 5) // 0 = unset, like the hub
@@ -348,7 +352,7 @@ describe('SPL-966: 05-blocked and 06-onhold', async () => {
   })
   it('the mock lists an issue under 05-blocked and counts it', () => {
     const m = createMockIssues({ me: 'HUM-1' })
-    const i = m.create({ title: 'waits', epic: 'SPL-1', status: 'blocked' }).issue
+    const i = m.create({ ...LINK, title: 'waits', epic: 'SPL-1', status: 'blocked' }).issue
     assert.equal(i.status, 'blocked')
     assert.equal(m.update(i.key, { status: 'onhold' }).issue.status, 'onhold')
     const l = m.list('status=onhold')
@@ -379,8 +383,8 @@ describe('SPL-1027: delete (issues-v1 op delete, the mock soft delete)', async (
   })
   it('the mock refuses a parent with a live child, then deletes; a deleted issue reads 404', () => {
     const m = createMockIssues({ me: 'HUM-1' })
-    const parent = m.create({ title: 'parent', epic: 'SPL-1' }).issue
-    const child = m.create({ title: 'child', parent: parent.key }).issue
+    const parent = m.create({ ...LINK, title: 'parent', epic: 'SPL-1' }).issue
+    const child = m.create({ ...LINK, title: 'child', parent: parent.key }).issue
     assert.throws(() => m.remove(parent.key), (e) => e.token === 'issue_has_children' && e.status === 409)
     assert.equal(m.remove(child.key).issue.key, child.key)
     assert.throws(() => m.get(child.key), (e) => e.status === 404)
@@ -400,9 +404,9 @@ describe('SPL-1027: delete (issues-v1 op delete, the mock soft delete)', async (
     assert.match(client, /async function deleteIssue\(ctx, ref, \{ cascade = false \} = \{\}\)/)
     assert.match(client, /async function archiveIssue\(ctx, ref, \{ cascade = false \} = \{\}\)[\s\S]*?\/archive/)
     const m = createMockIssues({ me: 'HUM-1' })
-    const epic = m.create({ title: 'Epic', kind: 'epic' }).issue
-    const child = m.create({ title: 'Child', epic: epic.key }).issue
-    const sub = m.create({ title: 'Sub', parent: child.key }).issue
+    const epic = m.create({ ...LINK, title: 'Epic', kind: 'epic' }).issue
+    const child = m.create({ ...LINK, title: 'Child', epic: epic.key }).issue
+    const sub = m.create({ ...LINK, title: 'Sub', parent: child.key }).issue
     // without cascade a parent with a child is refused
     assert.throws(() => m.remove(epic.key), (e) => e.status === 409 && e.token === 'issue_has_children')
     // cascade delete takes the whole subtree and names the descendants
@@ -412,8 +416,8 @@ describe('SPL-1027: delete (issues-v1 op delete, the mock soft delete)', async (
     assert.ok(res.descendants.includes(child.key) && res.descendants.includes(sub.key))
     assert.equal(m.list().issues.some((i) => [epic.key, child.key, sub.key].includes(i.key)), false)
     // archive cascades the same way
-    const e2 = m.create({ title: 'Epic2', kind: 'epic' }).issue
-    m.create({ title: 'C2', epic: e2.key })
+    const e2 = m.create({ ...LINK, title: 'Epic2', kind: 'epic' }).issue
+    m.create({ ...LINK, title: 'C2', epic: e2.key })
     assert.equal(m.archive(e2.key, true).descendants.length, 1)
     assert.equal(m.list().issues.some((i) => i.key === e2.key), false)
   })
@@ -435,7 +439,7 @@ describe('t1 d5d00918: the list is paged (limit, cursor, dir)', async () => {
   it('the mock pages like the hub: 30, a cursor, then the rest; counts stay whole', () => {
     let t = 0
     const hub = createMockIssues({ me: 'HUM-1', now: () => new Date(Date.UTC(2026, 9, 1, 0, 0, t++)).toISOString() })
-    for (let k = 0; k < 64; k++) hub.create({ title: `r${k}`, priority: 1 + (k % 5) })
+    for (let k = 0; k < 64; k++) hub.create({ ...LINK, title: `r${k}`, priority: 1 + (k % 5) })
     const all = hub.list('sort=default&dir=asc').issues.map((i) => i.key)
     assert.equal(all.length, 65)
     const p1 = hub.list('sort=default&dir=asc&limit=30')

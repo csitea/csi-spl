@@ -7,6 +7,10 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { epicCloseOpenCount, epicClosedKeys } from '../../src/utils/issue-epic-close.mjs'
 import { createMockIssues } from '../../src/utils/issues.mjs'
+import { MOCK_DEFAULT_TOPIC } from '../../src/utils/issue-discussions.mjs'
+
+/* SPL-1593 (rdb 0194): the mock hub, like the hub, refuses an issue with no discussion */
+const LINK = { discussions: [MOCK_DEFAULT_TOPIC] }
 
 describe('epicCloseOpenCount', () => {
   it('reads the count of the hub refusal', () => {
@@ -31,10 +35,10 @@ describe('epicClosedKeys', () => {
 describe('the mock hub closes an epic like the hub', () => {
   const rig = () => {
     const m = createMockIssues({ me: 'HUM-1' })
-    const epic = m.create({ title: 'Epic', kind: 'epic' }).issue.key
-    const open = m.create({ title: 'Open', epic, status: 'wip' }).issue.key
-    const done = m.create({ title: 'Done', epic, status: 'done' }).issue.key
-    const plain = m.create({ title: 'Plain' }).issue.key
+    const epic = m.create({ title: 'Epic', kind: 'epic', ...LINK }).issue.key
+    const open = m.create({ title: 'Open', epic, status: 'wip', ...LINK }).issue.key
+    const done = m.create({ title: 'Done', epic, status: 'done', ...LINK }).issue.key
+    const plain = m.create({ title: 'Plain', ...LINK }).issue.key
     const keys = () => m.list('').issues.map((i) => i.key)
     return { m, epic, open, done, plain, keys }
   }

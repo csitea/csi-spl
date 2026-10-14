@@ -7,7 +7,7 @@ agents use their own socket (§6). Errors are `{error, detail}`.
 
 | method | path | permission | answer |
 |---|---|---|---|
-| GET | `/v1/view/issues?<filters>` | topics.read | 200 `{prefix, statuses, counts, issues, labels, channel}` |
+| GET | `/v1/view/issues?<filters>` | topics.read | 200 `{prefix, statuses, counts, issues, labels, channel, default_discussion}` |
 | GET | `/v1/view/issues/{ref}` | topics.read | 200 `{issue}`; 404 `not_found` |
 | POST | `/v1/issues` | notes.send | 201 `{issue}` |
 | PATCH | `/v1/issues/{ref}` | notes.send | 200 `{issue}`; 404 `not_found` |
@@ -140,6 +140,12 @@ description line only).
   read the topic (`unknown_discussion` otherwise). The default discussion is
   always accepted. A second add is a no-op. At most 20 per issue.
 - Remove: the last one is refused, `last_discussion` 409.
+- The WUI (SPL-1593): a "Discussions" section in the issue's bottom panel,
+  above the comment box, lists them (each opens its topic; an archived one
+  is marked and opens; a deleted one opens `/discussion-gone`), links one
+  (a pasted topic link or id) and unlinks one (never the last). A new issue
+  starts linked to `default_discussion`; a subtask links its parent's; "make
+  an issue" from a message links that message's topic.
 
 ## 3. Create and patch body
 
@@ -149,9 +155,10 @@ deadline, parent, epic, kind, discussions`; unknown fields are refused
 `discussions` is a list of topic ids, short ids or `/t/` links, each one
 resolved as an add is, `discussion_required` 400 for none. A create with no
 `discussions` field links the `/t/` links of its description that resolve (the
-spec 135 card's `Source` line, which an older `spool` binary sends); while
-the WUI still sends neither (the rollout step of SPL-1593), such a create
-links the tenant's default and the hub logs it. A PATCH ignores
+spec 135 card's `Source` line, which an older `spool` binary sends); none
+of either is `discussion_required`. The list answer's `default_discussion`
+is the workspace's default (§2.2): the WUI starts a new issue linked to it.
+A PATCH ignores
 `discussions` (§1 add / remove change them). `epic` (or `parent`) is optional since W16 (spec 047): an issue
 without one stands alone at level 2 and may take subtasks. In a PATCH an absent (or null) field is left alone; `deadline ""`,
 `parent ""`, `assignee ""`, `labels []` clear. `deadline` is RFC 3339 with a

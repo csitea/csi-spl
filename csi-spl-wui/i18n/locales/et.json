@@ -2881,5 +2881,29 @@
   },
   "footer": {
     "powered_by": "Teostus: {link}"
+  },
+  "issue_discussions": {
+    "default": "Tööruumi vaikimisi",
+    "title": "Arutelud",
+    "hint_draft": "Seo vähemalt üks arutelu: kleebi teema link või selle id.",
+    "add_placeholder": "Kleebi teema link või id",
+    "add": "Seo",
+    "remove": "Eemalda seos: {name}",
+    "untitled": "Teema {id}",
+    "archived": "arhiveeritud",
+    "gone": "kustutatud",
+    "required": "Seo kõigepealt vähemalt üks arutelu.",
+    "error_bad": "See ei ole teema link ega id.",
+    "error_unknown": "Sellist arutelu selles tööruumis pole või sul pole sellele ligipääsu.",
+    "error_ambiguous": "Selle id-ga algab rohkem kui üks teema: kleebi täielik link.",
+    "error_last": "Probleemil jääb alati vähemalt üks arutelu: seo esmalt mõni teine.",
+    "error_failed": "Arutelusid ei õnnestunud muuta."
+  },
+  "discussion_gone": {
+    "title": "Seda arutelu enam ei ole",
+    "body": "See kustutati, seega ei saa seda avada. Probleem säilitab oma teised arutelud; kui see oli viimane, on probleem nüüd seotud tööruumi vaikearuteluga.",
+    "topic": "Teema {id}",
+    "back": "Tagasi: {key}",
+    "back_issues": "Tagasi probleemide juurde"
   }
 }

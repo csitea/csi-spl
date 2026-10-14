@@ -71,6 +71,8 @@ const props = defineProps<{
   open: boolean
   parentKey: string
   assignees: { id: string, label: string }[]
+  /** SPL-1593: the parent's discussions, which the subtask links too */
+  discussions?: string[]
 }>()
 const emit = defineEmits<{ 'update:open': [boolean], created: [Issue] }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -110,6 +112,8 @@ async function submit() {
   busy.value = true
   error.value = ''
   const body: Record<string, unknown> = { title: text, parent: props.parentKey, status: status.value, priority: priority.value }
+  /* SPL-1593: the subtask links the discussions of the issue it is under */
+  if (props.discussions?.length) body.discussions = props.discussions.slice()
   if (assignee.value) body.assignee = assignee.value
   try {
     const data = await withSessionRetry(api, () => api.createIssue(body))

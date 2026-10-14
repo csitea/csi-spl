@@ -2881,5 +2881,29 @@
   },
   "footer": {
     "powered_by": "Realizat cu {link}"
+  },
+  "issue_discussions": {
+    "default": "Implicită a spațiului de lucru",
+    "title": "Discuții",
+    "hint_draft": "Asociază cel puțin o discuție: lipește linkul unei teme sau ID-ul ei.",
+    "add_placeholder": "Lipește linkul sau ID-ul unei teme",
+    "add": "Asociază",
+    "remove": "Elimină asocierea cu {name}",
+    "untitled": "Tema {id}",
+    "archived": "arhivată",
+    "gone": "ștearsă",
+    "required": "Asociază mai întâi cel puțin o discuție.",
+    "error_bad": "Acesta nu este un link sau un ID de temă.",
+    "error_unknown": "Nu există o astfel de discuție în acest spațiu de lucru sau nu ai acces la ea.",
+    "error_ambiguous": "Mai multe teme încep cu acest ID: lipește linkul complet.",
+    "error_last": "O problemă păstrează cel puțin o discuție: asociază mai întâi alta.",
+    "error_failed": "Discuțiile nu au putut fi modificate."
+  },
+  "discussion_gone": {
+    "title": "Această discuție nu mai există",
+    "body": "A fost ștearsă, deci nu poate fi deschisă. Problema își păstrează celelalte discuții; dacă aceasta era ultima, problema este acum asociată discuției implicite a spațiului de lucru.",
+    "topic": "Tema {id}",
+    "back": "Înapoi la {key}",
+    "back_issues": "Înapoi la probleme"
   }
 }

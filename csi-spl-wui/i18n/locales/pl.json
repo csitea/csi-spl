@@ -2881,5 +2881,29 @@
   },
   "footer": {
     "powered_by": "Obsługiwane przez {link}"
+  },
+  "issue_discussions": {
+    "default": "Domyślna przestrzeni roboczej",
+    "title": "Dyskusje",
+    "hint_draft": "Połącz co najmniej jedną dyskusję: wklej link do tematu lub jego identyfikator.",
+    "add_placeholder": "Wklej link lub identyfikator tematu",
+    "add": "Połącz",
+    "remove": "Odłącz {name}",
+    "untitled": "Temat {id}",
+    "archived": "zarchiwizowany",
+    "gone": "usunięty",
+    "required": "Najpierw połącz co najmniej jedną dyskusję.",
+    "error_bad": "To nie jest link ani identyfikator tematu.",
+    "error_unknown": "Nie ma takiej dyskusji w tej przestrzeni roboczej lub nie masz do niej dostępu.",
+    "error_ambiguous": "Więcej niż jeden temat zaczyna się od tego identyfikatora: wklej pełny link.",
+    "error_last": "Zgłoszenie zawsze ma co najmniej jedną dyskusję: najpierw połącz inną.",
+    "error_failed": "Nie udało się zmienić dyskusji."
+  },
+  "discussion_gone": {
+    "title": "Ta dyskusja już nie istnieje",
+    "body": "Została usunięta, więc nie można jej otworzyć. Zgłoszenie zachowuje pozostałe dyskusje; jeśli była ostatnia, zgłoszenie jest teraz połączone z domyślną dyskusją przestrzeni roboczej.",
+    "topic": "Temat {id}",
+    "back": "Wróć do {key}",
+    "back_issues": "Wróć do zgłoszeń"
   }
 }

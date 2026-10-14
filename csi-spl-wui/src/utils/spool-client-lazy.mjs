@@ -1091,7 +1091,13 @@ async function makeBlockerIssue(ctx, msgId) {
     if (made) return issues.get(made)
     try { issues.label({ name: 'blocker', color: '#dc2626' }) } catch { /* label_exists */ }
     const line = String(row.body || '').split('\n').map((l) => l.replace(/^[\s#>]+/, '').trim()).find(Boolean) || `Blocker from ${row.from}`
+    /* SPL-1593: the issue links the blocker's topic, as the hub does; a
+       topic the mock does not know links the mock default instead. */
+    const { MOCK_DEFAULT_TOPIC, mockResolveTopic } = await import('./issue-discussions.mjs')
+    let topic = MOCK_DEFAULT_TOPIC
+    try { topic = mockResolveTopic(String(row.task_id || '')) } catch { /* unknown to the mock */ }
     const out = issues.create({ title: line.slice(0, 200), status: 'todo', labels: ['blocker'], assignee: state.me.id,
+      discussions: [topic],
       description: `Blocker from ${row.from}: ${state.me.id} made it this issue.\n\n[Open the message](/m/${id})` })
     mockMadeIssues.set(id, out.issue.key)
     return out
@@ -1422,6 +1428,26 @@ async function markIssueOpened(ctx, ref) {
   return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}/opened`, { method: 'POST' })
 }
 
+/** SPL-1593 (issues-v1 §2.2): link one discussion (a topic id, its short id
+ *  or a /t/ link) → `{ issue }` with its discussions; 400 unknown_discussion /
+ *  ambiguous_discussion. */
+async function linkIssueDiscussion(ctx, ref, discussion) {
+  const { live, mock, issuesMock } = ctx
+  if (mock) return issuesMock().link(ref, discussion)
+  return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}/discussions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ discussion: String(discussion || '') }),
+  })
+}
+
+/** SPL-1593: unlink one discussion → `{ issue }`; 409 last_discussion for the last one. */
+async function unlinkIssueDiscussion(ctx, ref, taskId) {
+  const { live, mock, issuesMock } = ctx
+  if (mock) return issuesMock().unlink(ref, taskId)
+  return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}/discussions/${encodeURIComponent(String(taskId || ''))}`, { method: 'DELETE' })
+}
+
 /** issues-v1 §1: a new label in the tenant's catalogue → `{ label }`; 409 label_exists. */
 async function createIssueLabel(ctx, { name = '', color = '' } = {}) {
   const { live, mock, issuesMock } = ctx
@@ -1720,5 +1746,7 @@ export const lazySpoolMethods = {
   deleteIssue,
   archiveIssue,
   markIssueOpened,
+  linkIssueDiscussion,
+  unlinkIssueDiscussion,
   createIssueLabel,
 }

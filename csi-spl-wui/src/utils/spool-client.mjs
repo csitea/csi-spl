@@ -99,6 +99,8 @@ const LAZY_METHODS = [
   'deleteIssue',
   'archiveIssue',
   'markIssueOpened',
+  'linkIssueDiscussion',
+  'unlinkIssueDiscussion',
   'createIssueLabel',
   'listFlow',
   'markFlow',

@@ -160,13 +160,15 @@ func TestIssueDiscussionShortID(t *testing.T) {
 	if ds := discussionsOf(t, issueOf(t, out)); code != http.StatusCreated || len(ds) != 1 || ds[0]["task_id"] != one {
 		t.Fatalf("a card with an ambiguous, a unique and an unknown link: %d %v", code, out)
 	}
-	// A card none of whose links resolves, from a client that sends no
-	// discussions field: the tenant's default (the rollout step,
-	// legacyCreateDefault), never a guess between the twins.
-	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", dev, map[string]any{"title": "none", "discussions": nil,
-		"description": "## Source\n/t/a1b2c3d4"})
-	if ds := discussionsOf(t, issueOf(t, out)); code != http.StatusCreated || len(ds) != 1 || ds[0]["task_id"] != store.IssueDiscussionDefault(tid) {
-		t.Fatalf("a card with only an ambiguous link: %d %v, want the default", code, out)
+	// Control: a card none of whose links resolves is refused, never a
+	// guess between the twins.
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/issues", dev, map[string]any{"title": "none", "discussions": nil,
+		"description": "## Source\n/t/a1b2c3d4"}); code != http.StatusBadRequest || out["error"] != "discussion_required" {
+		t.Fatalf("a card with only an ambiguous link: %d %v", code, out)
+	}
+	// The list names the workspace's default discussion for a new issue.
+	if code, out := call(t, e, tid, http.MethodGet, "/v1/view/issues", dev, nil); code != 200 || out["default_discussion"] != store.IssueDiscussionDefault(tid) {
+		t.Fatalf("list default_discussion: %d %v", code, out["default_discussion"])
 	}
 }
 

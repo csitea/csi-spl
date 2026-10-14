@@ -166,13 +166,31 @@ func (s *Server) fileCascadeBug(ctx context.Context, tenant, actor string, epic 
 		fmt.Fprintf(&b, "- %s\n", r)
 	}
 	desc, status, labels := b.String(), store.IssueTodo, []string{epicCloseBugLabel}
-	q := issueRequest{Title: &title, Description: &desc, Status: &status, Labels: &labels}
+	ds := s.cascadeBugDiscussions(ctx, tenant, epic.Number)
+	q := issueRequest{Title: &title, Description: &desc, Status: &status, Labels: &labels, Discussions: &ds}
 	if s.checkAssignee(ctx, tenant, actor) == nil {
 		q.Assignee = &actor
 	}
 	if _, ie := s.createIssue(ctx, tenant, actor, q); ie != nil {
 		s.o.Log.Error().Str("tenant", tenant).Str("epic", epic.Key()).Str("err", ie.Error()).Msg("epic cascade bug: file")
 	}
+}
+
+// cascadeBugDiscussions is what the cascade bug links (SPL-1593): the
+// epic's own discussions, or the tenant's default when it has none.
+func (s *Server) cascadeBugDiscussions(ctx context.Context, tenant string, epic int) []string {
+	var ds []string
+	if d, ok := s.issueDiscussionStore(); ok {
+		if links, err := d.IssueDiscussionLinks(ctx, tenant, []int{epic}); err == nil {
+			for _, l := range links[epic] {
+				ds = append(ds, l.TaskID)
+			}
+		}
+	}
+	if len(ds) == 0 {
+		ds = []string{store.IssueDiscussionDefault(tenant)}
+	}
+	return ds
 }
 
 // epicCloseAnswer adds the cascade's outcome to an update's answer.

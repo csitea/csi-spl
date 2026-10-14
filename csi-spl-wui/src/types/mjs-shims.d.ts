@@ -212,6 +212,9 @@ declare module '~/utils/spool-client.mjs' {
     archiveIssue(ref: string, opts?: { cascade?: boolean }): Promise<{ issue: import('~/utils/issues.mjs').Issue, descendants?: string[] }>
     /** SPL-1559: the signed-in member opened the issue (clears its unopened mark). */
     markIssueOpened(ref: string): Promise<{ key: string, unopened: boolean }>
+    /** SPL-1593: link / unlink one discussion of the issue. */
+    linkIssueDiscussion(ref: string, discussion: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
+    unlinkIssueDiscussion(ref: string, taskId: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     createIssueLabel(opts: { name: string, color?: string }): Promise<{ label: import('~/utils/issues.mjs').IssueLabel }>
     /** spec 062 §4.2: the viewer's flow events (a page, or the counts alone). */
     listFlow(opts?: { limit?: number, before?: string, kind?: string, countsOnly?: boolean, self?: string, fold?: boolean }): Promise<{
@@ -2044,6 +2047,28 @@ declare module '~/utils/event-log.mjs' {
   export function eventsErrorKey(error: string): string
 }
 
+declare module '~/utils/issue-discussions.mjs' {
+  /** SPL-1593 (issues-v1 §2.2): one discussion an issue links to. */
+  export interface IssueDiscussion {
+    task_id: string
+    state: 'live' | 'archived' | 'gone' | string
+    title: string
+    channel: string
+    linked_by: string
+    linked_at: string
+  }
+  export const DISCUSSION_STATES: string[]
+  export const MOCK_TOPICS: Record<string, string>
+  export const MOCK_GONE_TOPIC: string
+  export const MOCK_DEFAULT_TOPIC: string
+  export function normalizeDiscussion(raw: unknown): IssueDiscussion
+  export function normalizeDiscussions(raw: unknown): IssueDiscussion[]
+  export function discussionRef(input: unknown): string
+  export function shortTopic(id: string): string
+  export function discussionPath(d: { task_id: string, state: string }, issueKey?: string): string
+  export function discussionErrorKey(e: { status?: number, token?: string }): string
+}
+
 declare module '~/utils/issues.mjs' {
   export type IssueStatus = 'eval' | 'todo' | 'wip' | 'diss' | 'blocked' | 'onhold' | 'qas' | 'done'
   export interface Issue {
@@ -2070,6 +2095,8 @@ declare module '~/utils/issues.mjs' {
     canceled_at: string
     /** SPL-1559 (rdb 0184): the viewer has not opened it yet. */
     unopened: boolean
+    /** SPL-1593 (rdb 0194): the discussions it links, at least one on the hub. */
+    discussions: import('~/utils/issue-discussions.mjs').IssueDiscussion[]
   }
   export interface IssueLabel { id: string, name: string, color: string }
   /** rdb 0181: one row of an issue's History tab (GET /v1/view/issues/{ref}/history). */
@@ -2106,8 +2133,12 @@ declare module '~/utils/issues.mjs' {
     parent?: string
     epic?: string
     kind?: 'epic' | 'feature' | 'issue'
+    /** SPL-1593: a create's discussions (topic ids, short ids or /t/ links) */
+    discussions?: string[]
   }
   export interface IssueList {
+    /** SPL-1593: the workspace's default discussion (rdb 0194 issue_discussion_default) */
+    default_discussion?: string
     prefix: string
     statuses: IssueStatus[]
     counts: Record<string, number>

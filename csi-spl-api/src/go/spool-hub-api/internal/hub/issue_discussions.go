@@ -80,14 +80,12 @@ func (s *Server) resolveDiscussion(ctx context.Context, tenant, actor, ref strin
 	return ref, nil
 }
 
-// legacyCreateDefault is the rollout step (SPL-1593): until every client
-// sends `discussions` (the WUI's create form, its "make an issue" and the
-// subtask dialog land in the WUI step), a create that carries no
-// `discussions` field and no /t/ link that resolves links the tenant's
-// default discussion, the one the backfill and the relink use, and the hub
-// logs it. An explicit `discussions: []` is refused either way. The WUI step
-// turns it off.
-var legacyCreateDefault = true
+// legacyCreateDefault was the rollout step of SPL-1593: while the WUI sent
+// no `discussions`, a create naming none linked the tenant's default. Every
+// WUI create sends them since the WUI step, so it is off: a create with no
+// discussion is refused (discussion_required). Kept as a switch so a rollback
+// of the WUI alone is one line.
+var legacyCreateDefault = false
 
 // discussionsFor is a create's discussions, resolved and checked. The
 // `discussions` field is strict: every entry must resolve. Without it, the

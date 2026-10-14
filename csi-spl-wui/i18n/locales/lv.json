@@ -2881,5 +2881,29 @@
   },
   "footer": {
     "powered_by": "Darbina {link}"
+  },
+  "issue_discussions": {
+    "default": "Darbvietas noklusējums",
+    "title": "Diskusijas",
+    "hint_draft": "Piesaistiet vismaz vienu diskusiju: ielīmējiet tēmas saiti vai tās ID.",
+    "add_placeholder": "Ielīmējiet tēmas saiti vai ID",
+    "add": "Piesaistīt",
+    "remove": "Atsaistīt: {name}",
+    "untitled": "Tēma {id}",
+    "archived": "arhivēta",
+    "gone": "dzēsta",
+    "required": "Vispirms piesaistiet vismaz vienu diskusiju.",
+    "error_bad": "Tā nav tēmas saite vai ID.",
+    "error_unknown": "Šādas diskusijas šajā darbvietā nav, vai jums nav tai piekļuves.",
+    "error_ambiguous": "Ar šo ID sākas vairāk nekā viena tēma: ielīmējiet pilno saiti.",
+    "error_last": "Problēmai vienmēr paliek vismaz viena diskusija: vispirms piesaistiet citu.",
+    "error_failed": "Diskusijas neizdevās mainīt."
+  },
+  "discussion_gone": {
+    "title": "Šī diskusija vairs nepastāv",
+    "body": "Tā tika dzēsta, tāpēc to nevar atvērt. Problēma saglabā pārējās diskusijas; ja šī bija pēdējā, problēma tagad ir piesaistīta darbvietas noklusējuma diskusijai.",
+    "topic": "Tēma {id}",
+    "back": "Atpakaļ uz {key}",
+    "back_issues": "Atpakaļ uz problēmām"
   }
 }

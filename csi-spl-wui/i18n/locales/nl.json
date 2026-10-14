@@ -2881,5 +2881,29 @@
   },
   "footer": {
     "powered_by": "Mogelijk gemaakt door {link}"
+  },
+  "issue_discussions": {
+    "default": "Standaard van de werkruimte",
+    "title": "Besprekingen",
+    "hint_draft": "Koppel minstens één bespreking: plak een onderwerplink of de id ervan.",
+    "add_placeholder": "Plak een onderwerplink of id",
+    "add": "Koppelen",
+    "remove": "{name} ontkoppelen",
+    "untitled": "Onderwerp {id}",
+    "archived": "gearchiveerd",
+    "gone": "verwijderd",
+    "required": "Koppel eerst minstens één bespreking.",
+    "error_bad": "Dat is geen onderwerplink of id.",
+    "error_unknown": "Deze bespreking bestaat niet in deze werkruimte, of je hebt er geen toegang toe.",
+    "error_ambiguous": "Meer dan één onderwerp begint met die id: plak de volledige link.",
+    "error_last": "Een kwestie houdt altijd minstens één bespreking: koppel eerst een andere.",
+    "error_failed": "De besprekingen konden niet worden gewijzigd."
+  },
+  "discussion_gone": {
+    "title": "Deze bespreking bestaat niet meer",
+    "body": "Ze is verwijderd en kan dus niet worden geopend. De kwestie houdt haar andere besprekingen; was dit de laatste, dan is de kwestie nu gekoppeld aan de standaardbespreking van de werkruimte.",
+    "topic": "Onderwerp {id}",
+    "back": "Terug naar {key}",
+    "back_issues": "Terug naar kwesties"
   }
 }

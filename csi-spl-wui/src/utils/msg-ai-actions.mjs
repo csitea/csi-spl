@@ -226,7 +226,10 @@ function titleOf(m) {
 export function aiIssueBody(msg, where = {}) {
   const m = msg && typeof msg === 'object' ? msg : {}
   const body = String(m.body || '').trim()
-  return { title: titleOf(m), description: [body, '---', sourceLine(m, where)].filter(Boolean).join('\n\n') }
+  /* SPL-1593: the issue links the topic the message is in */
+  const topic = String(m.task_id || '')
+  return { title: titleOf(m), description: [body, '---', sourceLine(m, where)].filter(Boolean).join('\n\n'),
+    ...(topic ? { discussions: [topic] } : {}) }
 }
 
 /**

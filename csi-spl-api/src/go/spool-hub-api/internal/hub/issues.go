@@ -692,7 +692,9 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 	}
 	return map[string]any{"prefix": prefix, "statuses": store.IssueStatuses, "counts": counts, "epics": epicSummaries(all),
 		"issues": out, "labels": lj, "channel": IssueChannel,
-		"total": len(kept), "next_cursor": next}, nil
+		"total": len(kept), "next_cursor": next,
+		// SPL-1593: the workspace's default discussion; a new issue starts linked to it
+		"default_discussion": store.IssueDiscussionDefault(tenant)}, nil
 }
 
 func writeIssueErr(w http.ResponseWriter, ie *issueErr) {

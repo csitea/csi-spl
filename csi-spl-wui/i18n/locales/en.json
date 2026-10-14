@@ -2881,5 +2881,29 @@
   },
   "footer": {
     "powered_by": "Powered by {link}"
+  },
+  "issue_discussions": {
+    "default": "Workspace default",
+    "title": "Discussions",
+    "hint_draft": "Link at least one discussion: paste a topic link or its id.",
+    "add_placeholder": "Paste a topic link or id",
+    "add": "Link",
+    "remove": "Unlink {name}",
+    "untitled": "Topic {id}",
+    "archived": "archived",
+    "gone": "deleted",
+    "required": "Link at least one discussion first.",
+    "error_bad": "That is not a topic link or id.",
+    "error_unknown": "No such discussion in this workspace, or you cannot read it.",
+    "error_ambiguous": "More than one topic starts with that id: paste the full link.",
+    "error_last": "An issue keeps at least one discussion: link another one first.",
+    "error_failed": "The discussions could not be changed."
+  },
+  "discussion_gone": {
+    "title": "This discussion no longer exists",
+    "body": "It was deleted, so it cannot be opened. The issue keeps its other discussions; if this was its last one, it now links the workspace's default discussion.",
+    "topic": "Topic {id}",
+    "back": "Back to {key}",
+    "back_issues": "Back to Issues"
   }
 }

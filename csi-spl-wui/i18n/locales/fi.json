@@ -2881,5 +2881,29 @@
   },
   "footer": {
     "powered_by": "Toteutus: {link}"
+  },
+  "issue_discussions": {
+    "default": "Työtilan oletus",
+    "title": "Keskustelut",
+    "hint_draft": "Linkitä vähintään yksi keskustelu: liitä aiheen linkki tai sen tunniste.",
+    "add_placeholder": "Liitä aiheen linkki tai tunniste",
+    "add": "Linkitä",
+    "remove": "Poista linkitys: {name}",
+    "untitled": "Aihe {id}",
+    "archived": "arkistoitu",
+    "gone": "poistettu",
+    "required": "Linkitä ensin vähintään yksi keskustelu.",
+    "error_bad": "Tämä ei ole aiheen linkki eikä tunniste.",
+    "error_unknown": "Tällaista keskustelua ei ole tässä työtilassa, tai sinulla ei ole siihen pääsyä.",
+    "error_ambiguous": "Useampi kuin yksi aihe alkaa tällä tunnisteella: liitä koko linkki.",
+    "error_last": "Asialla on aina vähintään yksi keskustelu: linkitä ensin toinen.",
+    "error_failed": "Keskusteluja ei voitu muuttaa."
+  },
+  "discussion_gone": {
+    "title": "Tätä keskustelua ei enää ole",
+    "body": "Se on poistettu, joten sitä ei voi avata. Asia säilyttää muut keskustelunsa; jos tämä oli viimeinen, asia on nyt linkitetty työtilan oletuskeskusteluun.",
+    "topic": "Aihe {id}",
+    "back": "Takaisin: {key}",
+    "back_issues": "Takaisin asioihin"
   }
 }

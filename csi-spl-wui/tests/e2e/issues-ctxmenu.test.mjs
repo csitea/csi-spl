@@ -180,7 +180,14 @@ try {
   await p.$eval(rowSel(spl3), (el) => el.focus())
   await shiftKey(p, 'O')
   const opened = await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: 3000 }).then(Boolean, () => false)
-  ok('4j Shift+O opens the issue', opened && (await p.evaluate(() => location.search)).includes(`issue=${spl3}`))
+  /* red once in 63 CI jobs (wf 10, 0b2aa499a, first run and retry), never
+     locally: on a red, say where the key went and what was still open */
+  const oState = await p.evaluate(() => ({
+    search: location.search,
+    focus: document.activeElement?.closest?.('[data-test=issues-row]')?.getAttribute('data-key') || document.activeElement?.tagName || '',
+    open: [...document.querySelectorAll('.kind-picker, .point-menu, [data-test=issues-menu], [data-test=issues-ctxmenu], [role=dialog]')].map((e) => e.getAttribute('data-test') || e.className),
+  }))
+  ok('4j Shift+O opens the issue', opened && oState.search.includes(`issue=${spl3}`), opened ? undefined : oState)
   await p.keyboard.press('Escape')
   await p.waitForFunction(() => !document.querySelector('[data-test=issues-detail]'), { timeout: 3000 }).catch(() => {})
   if (process.env.SHOT_DIR) {

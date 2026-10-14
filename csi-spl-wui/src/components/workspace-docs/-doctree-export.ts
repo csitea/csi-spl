@@ -16,10 +16,15 @@ function bodyWithFigures(it: DocItem, f: MdFigures): string {
   return picRuns(it.body, f.doc).map((r) => (r.kind === 'text' ? r.text : `${picToken(r.caption, r.path)}\n\n*${f.figure(n++)} ${r.caption}*\n`)).join('')
 }
 
-/** the branch as Markdown: one heading per item (# by level, no number when unnumbered), its text, its code (fenced with its lang), its image */
-export function branchToMarkdown(items: DocItem[], untitled: string, f?: MdFigures): string {
-  const base = Math.min(...items.map((it) => it.depth))
+/** the branch as Markdown: the preamble first when given (the hidden root's body, the text before section 1:
+    a whole-document export, SPL-1612), then one heading per item (# by level, no number when unnumbered),
+    its text, its code (fenced with its lang), its image */
+export function branchToMarkdown(items: DocItem[], untitled: string, f?: MdFigures, preamble?: DocItem): string {
   const out: string[] = []
+  const pre = preamble ? (f ? bodyWithFigures(preamble, f) : preamble.body).trim() : ''
+  if (pre) out.push(pre, '')
+  if (!items.length) return out.join('\n')
+  const base = Math.min(...items.map((it) => it.depth))
   for (const it of items) {
     const level = Math.min(6, it.depth - base + 1)
     out.push(`${'#'.repeat(level)} ${headingText(it.outline, it.title || untitled)}`, '')

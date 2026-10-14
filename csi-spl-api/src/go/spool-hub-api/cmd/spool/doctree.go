@@ -562,8 +562,10 @@ func dtExport(ctx context.Context, cfg *config.Config, args []string) error {
 	return nil
 }
 
-// dtExportItems is the whole document's items: from the hub, or from a
-// saved read answer (--from: offline, no hub; the hidden root dropped).
+// dtExportItems is the whole document's items, the hidden root first (its
+// body is the preamble): from the hub (head for the root, then the root's
+// subtree), or from a saved read answer (--from: offline, no hub; a `read
+// <doc> --item <root>` answer carries the root, a plain `read <doc>` none).
 func dtExportItems(ctx context.Context, cfg *config.Config, doc, from string) ([]dtItem, error) {
 	if from == "" {
 		c, done, err := dtDial(ctx, cfg)
@@ -571,7 +573,13 @@ func dtExportItems(ctx context.Context, cfg *config.Config, doc, from string) ([
 			return nil, err
 		}
 		defer done()
-		_, items, err := c.subtree(ctx, doc, "")
+		var head struct {
+			Root string `json:"root"`
+		}
+		if _, err := c.json(ctx, http.MethodGet, dtDoc(doc), nil, &head); err != nil {
+			return nil, err
+		}
+		_, items, err := c.subtree(ctx, doc, head.Root)
 		return items, err
 	}
 	b, err := os.ReadFile(from)
@@ -584,13 +592,7 @@ func dtExportItems(ctx context.Context, cfg *config.Config, doc, from string) ([
 	if err := json.Unmarshal(b, &res); err != nil {
 		return nil, fmt.Errorf("--from %s: not a doctree read answer: %w", from, err)
 	}
-	items := res.Items[:0]
-	for _, it := range res.Items {
-		if it.Parent != "" || it.Depth > 0 {
-			items = append(items, it)
-		}
-	}
-	return items, nil
+	return res.Items, nil
 }
 
 // dtText is --value / --text, or --file, or stdin when neither is given.

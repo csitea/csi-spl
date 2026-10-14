@@ -10,7 +10,8 @@ import (
 // Spec 137 T012a and the import's verbs (T012, T014, T032): an unnumbered
 // item exports with no outline number and its branch is found by depth; add
 // --unnumbered and edit --field attrs.<key> write attrs; export --from
-// renders a saved read answer with no hub. Red before: the heading carried
+// renders a saved read answer with no hub, the root's body first as the
+// preamble (SPL-1612). Red before: the heading carried
 // a blank outline (two spaces), the branch of an unnumbered item was the
 // item alone, and the three flags did not exist.
 
@@ -69,7 +70,7 @@ func TestDocTreeExportFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 	rc, md, errOut := captureRun(t, []string{"doctree", "export", "d1", "--from", read})
-	if rc != 0 || md != "# Overview\n\nWhy.\n\n# 1 Goals\n" {
+	if rc != 0 || md != "preamble\n\n# Overview\n\nWhy.\n\n# 1 Goals\n" {
 		t.Fatalf("export --from: rc %d %q %s", rc, md, errOut)
 	}
 	if rc, _, errOut := captureRun(t, []string{"doctree", "export", "d1", "--from", filepath.Join(dir, "none")}); rc == 0 ||

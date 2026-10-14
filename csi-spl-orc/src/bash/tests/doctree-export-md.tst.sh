@@ -35,6 +35,10 @@
 #      repo tree: every spool call carries SPOOL_DOCTREE_FS=repo, the map row
 #      a third column "repo", the md one generated-from line (the new doc's);
 #      the export reads the column; a bad QTO_FS or column is refused
+#  17. SPL-1612: the compiled export opens with the preamble (the root's
+#      body); a preamble with a second '# ' line and a fenced '## ' line
+#      round-trips byte-stable; an older spool's export (no preamble) still
+#      composes the same page
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -415,5 +419,37 @@ printf 'd0c\t%s\tgit\n' "$P" >"$T/map.16c"
 run do_spl_doctree_export_md QTO_MAP="$T/map.16c" DT_STATE="$T/dt.16.json"
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q "a qto tree is workspace or repo, not 'git'" "$T/o" &&
   pass "T030a: export refuses a map row whose tree is not workspace or repo" || fail "map git (rc=$rc): $(cat "$T/o")"
+
+# --- 17. SPL-1612: the preamble comes from the export itself ---------------------------------------
+# the compiled spool's export opens with the root's body; compose keeps it as
+# it is (a second '# ' line and a fenced '## ' line stay preamble text, never
+# a section), and an older spool's export (no preamble) still gets it once
+P="csi-spl-doc/doc/md/preamble.md"
+cat >"$R/$P" <<'EOF_MD'
+# Preamble page
+
+Read this first.
+
+# Not a section
+
+```text
+## not a heading
+```
+
+## 1 The job
+
+Keep moving.
+EOF_MD
+roundtrip "SPL-1612: a preamble with a '# ' line and a fence round-trips byte-stable" "$P" "> $GEN
+>" 17
+"$SPOOL_GO" doctree export d0c --from "$T/dt.17.json.read.json" >"$T/go17.md" 2>&1
+[[ "$(head -1 "$T/go17.md")" == "Read this first." ]] && grep -qx '# 1 The job' "$T/go17.md" &&
+  pass "SPL-1612: the spool export itself opens with the preamble" || fail "go export: $(cat "$T/go17.md")"
+printf '%s\n' "$(sed -n '/^# 1 The job$/,$p' "$T/go17.md")" >"$T/old17.md"
+python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose <(echo '{"title":"Preamble page"}') \
+  "$T/dt.17.json.read.json" "$T/old17.md" d0c >"$T/old17.out" 2>&1
+[[ "$(grep -c '^Read this first\.$' "$T/old17.out")" == 1 ]] && cmp -s "$T/old17.out" "$R/$P" &&
+  pass "SPL-1612: an older spool's export (no preamble) composes the same page" ||
+  fail "older spool compose: $(diff "$R/$P" "$T/old17.out")"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

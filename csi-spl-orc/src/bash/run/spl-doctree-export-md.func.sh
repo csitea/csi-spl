@@ -10,11 +10,11 @@
 # @description do_spl_doctree_import_md adds a row.
 # @description Per doc it reads, through do_spl_desk_doctree (so no key or desk
 # @description path reaches the caller), the head (title, hidden root), the
-# @description root's body (the preamble before section 1) and the Markdown of
-# @description `spool doctree export` (the WUI's export rules), and composes:
-# @description front matter (the root's attrs.front_matter), title,
-# @description generated-from line, preamble, the sections one heading level
-# @description down. Any repo-relative .md path (spec 137 T017). Byte-stable: an unchanged doc leaves the file as it
+# @description root read (its attrs.front_matter) and the Markdown of
+# @description `spool doctree export` (the WUI's export rules: it opens with
+# @description the preamble, the root's body before section 1, SPL-1612), and
+# @description composes: front matter, title, generated-from line, preamble,
+# @description the sections one heading level down. Any repo-relative .md path (spec 137 T017). Byte-stable: an unchanged doc leaves the file as it
 # @description is (not even rewritten); a changed node changes only its lines.
 # @description It writes the worktree only; committing the result is the
 # @description caller's (explicit pathspec).

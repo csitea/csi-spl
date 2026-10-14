@@ -52,3 +52,28 @@ describe('branchToMarkdown: a code item keeps its language', () => {
     assert.equal(md, '# 1 Flow\n\n```mermaid\ngraph TD\n  A --> B\n```\n\n# 2 Plain\n\n```\necho hi\n```\n')
   })
 })
+
+// SPL-1612: a whole-document export opens with the preamble, the hidden
+// root's body, its pictures numbered first; a branch export has none. The
+// same fixture and output as cmd/spool/doctree_preamble_test.go
+// (TestDocTreeMarkdownPreamble): change both together.
+describe('branchToMarkdown: the preamble opens a whole-document export', () => {
+  const pic = '![map](/v1/workspace/doctree/d1/images/' + '0'.repeat(64) + '.png)'
+  const root = { id: 'r', outline: '', depth: 0, title: '', body: '  Who holds it.\n\n' + pic + '\n', attrs: {} }
+  const items = [{ id: 'a', outline: '1', depth: 1, title: 'Job', body: 'x ' + pic, attrs: {} }]
+  const figs = new Map([['r', { first: 1, image: 0 }], ['a', { first: 2, image: 0 }]])
+  const f = { doc: 'd1', figs, figure: (n) => `Figure ${n}:` }
+
+  it('puts the preamble before section 1, verbatim', () => {
+    assert.equal(branchToMarkdown(items, 'Untitled', f, root),
+      'Who holds it.\n\n' + pic + '\n\n*Figure 1: map*\n\n# 1 Job\n\nx ' + pic + '\n\n*Figure 2: map*\n')
+  })
+
+  it('a branch export (no preamble given) has none', () => {
+    assert.equal(branchToMarkdown(items, 'Untitled', f), '# 1 Job\n\nx ' + pic + '\n\n*Figure 2: map*\n')
+  })
+
+  it('a doc with a preamble only', () => {
+    assert.equal(branchToMarkdown([], 'Untitled', f, root), 'Who holds it.\n\n' + pic + '\n\n*Figure 1: map*\n')
+  })
+})

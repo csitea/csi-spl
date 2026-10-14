@@ -21,8 +21,9 @@ never by hand. Two verbs:
 
   compose <head.json> <root read.json> <export.md> <doc id>
       The md file the export writes: the front matter (the hidden root's
-      attrs.front_matter), the title, the "generated from" line, the preamble
-      (the root's body), then `spool doctree export` with every heading one
+      attrs.front_matter), the title, the "generated from" line, then
+      `spool doctree export` (which opens with the preamble, the root's body;
+      added here when an older spool left it out) with every heading one
       level down (outside code fences), so the sections are '##' under the
       page's '#'. One trailing newline: byte-stable.
 
@@ -152,12 +153,35 @@ def check_outline(md_path, sections):
             )
 
 
+def first_heading(items):
+    """The export's line for the doc's first section (items[1] of the root
+    read): '# ', its outline number when it has one, its title."""
+    if len(items) < 2:
+        return None
+    it = items[1]
+    num = it.get("outline") or ""
+    return "# " + (num + " " if num else "") + (it.get("title") or "Untitled")
+
+
 def compose(head_path, root_path, export_path, doc):
     head = json.load(open(head_path, encoding="utf-8"))
     items = json.load(open(root_path, encoding="utf-8")).get("items") or []
     root = items[0] if items and not items[0].get("parent") else {}
+    lines = open(export_path, encoding="utf-8").read().split("\n")
+    # the export opens with the preamble (the root's body, SPL-1612), kept as
+    # it is: only the sections, from the first one's heading on, go one level
+    # down. An installed spool older than that starts at that heading and
+    # leaves the preamble out, so the root's body is taken then.
+    want, cut, fences = first_heading(items), len(lines), Fences()
+    if want:
+        cut = 0
+        for i, line in enumerate(lines):
+            if not fences.inside(line) and line == want:
+                cut = i
+                break
+    pre = "\n".join(lines[:cut]).strip() or (root.get("body") or "").strip()
     out, fences = [], Fences()
-    for line in open(export_path, encoding="utf-8").read().split("\n"):
+    for line in lines[cut:]:
         down = (
             not fences.inside(line)
             and HEAD.match(line)
@@ -173,7 +197,7 @@ def compose(head_path, root_path, export_path, doc):
         f"> Generated from qto doc `{doc}`; edit it there. This file is its export: "
         "`cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.",
     ]
-    for text in ((root.get("body") or "").strip(), "\n".join(out).strip()):
+    for text in (pre, "\n".join(out).strip()):
         if text:
             parts.append(text)
     sys.stdout.write("\n\n".join(parts) + "\n")

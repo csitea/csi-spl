@@ -12,6 +12,10 @@ import (
 // ws_doctree.untitled / ws_doctree.figure), so a copy made by the CLI is the
 // file the WUI saves. Change both together.
 //
+// A whole-document export opens with the preamble, the hidden root's body
+// (the text before section 1, SPL-1612), its pictures numbered first; a
+// branch export has none.
+//
 // Per item, in document order: a heading (# by level, from the branch's top
 // level, at most ######) with the outline number and the title (no number
 // for an unnumbered item, spec 137 T012a: the hub sends it no outline); the body
@@ -142,19 +146,38 @@ func docTreeHeading(level int, outline, title string) string {
 	return strings.Repeat("#", level) + " " + outline + " " + title
 }
 
+// docTreeSplitRoot is the hidden root, when items carry it (first, no parent,
+// depth 0), and the items under it.
+func docTreeSplitRoot(items []dtItem) (*dtItem, []dtItem) {
+	if len(items) > 0 && items[0].Parent == "" && items[0].Depth == 0 {
+		return &items[0], items[1:]
+	}
+	return nil, items
+}
+
 // docTreeMarkdown is branchToMarkdown over the whole document's items (in
-// document order, without the hidden root), for item's branch ("" = all).
+// document order, the hidden root first when it was read), for item's branch
+// ("" = all, the root's body first as the preamble).
 func docTreeMarkdown(items []dtItem, doc, item string) (string, error) {
-	branch, err := docTreeBranch(items, item)
-	if err != nil || len(branch) == 0 {
+	root, under := docTreeSplitRoot(items)
+	branch, err := docTreeBranch(under, item)
+	if err != nil {
 		return "", err
 	}
 	figs := figureNumbers(items, doc)
+	var out []string
+	if root != nil && item == "" {
+		if pre := strings.TrimSpace(bodyWithFigures(*root, doc, figs)); pre != "" {
+			out = append(out, pre, "")
+		}
+	}
+	if len(branch) == 0 {
+		return strings.Join(out, "\n"), nil
+	}
 	base := branch[0].Depth
 	for _, it := range branch {
 		base = min(base, it.Depth)
 	}
-	var out []string
 	for _, it := range branch {
 		title := it.Title
 		if title == "" {

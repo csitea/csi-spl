@@ -18,12 +18,18 @@
      edit is one of the hub's ops with the doc rev it read, and a 412 sets
      the session stale (the page shows its reload prompt). No search box of
      its own: the omnibox is the only search, on a phone too (the owner, t1
-     3cf88d1c). -->
+     3cf88d1c). The preamble, the text before section 1, is the hidden root's
+     body (SPL-1612): shown and edited above section 1 as a paragraph with no
+     heading (the whole document only, not a branch), and the bar's Export to
+     Markdown puts it first, as `spool doctree export` does. -->
 <template>
   <div ref="rootEl" class="wsdoc" :class="{ 'wsdoc--toc': tocOpen }" data-test="ws-doc-view">
     <div ref="barEl" class="wsdoc__bar">
       <button type="button" class="wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)" :aria-label="t('ws_doctree.print_doc')" :title="t('ws_doctree.print_doc')">
         <UiIcon name="file-text" :size="16" />
+      </button>
+      <button type="button" class="wsdoc__tool" data-test="ws-doc-export-doc" :disabled="!items.length" @click="exportDoc" :aria-label="t('ws_doctree.menu.export_md')" :title="t('ws_doctree.menu.export_md')">
+        <UiIcon name="file-code" :size="16" />
       </button>
       <button
         type="button"
@@ -66,16 +72,17 @@
           @blur="renameDoc"
           v-text="title || t('ws_doctree.default_doc_title')"
         />
+        <!-- the preamble (the hidden root, first in docRows) is a section with no heading -->
         <section
-          v-for="it in shown"
+          v-for="it in docRows"
           :key="it.id"
           class="wsdoc__item"
-          data-test="ws-doc-row"
+          :data-test="it.id === root ? 'ws-doc-preamble' : 'ws-doc-row'"
           :data-id="it.id"
           :data-outline="it.outline"
           :data-depth="it.depth"
         >
-          <h3 :id="anchor(it.id)" class="wsdoc__h">
+          <h3 v-if="it.id !== root" :id="anchor(it.id)" class="wsdoc__h">
             <button
               type="button"
               class="wsdoc__dots"
@@ -301,7 +308,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, triggerRef } from 'vue'
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
 import UiPointMenu from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
@@ -328,6 +335,8 @@ const barEl = ref<HTMLElement | null>(null)
 /* on a narrow screen the contents drop down under the sticky bar, wherever the document is scrolled */
 const tocTop = ref(0)
 const items = shallowRef<DocItem[]>([])
+/* the hidden root: its body is the preamble, the text before section 1 (SPL-1612) */
+const preamble = shallowRef<DocItem | null>(null)
 const state = ref<'loading' | 'ready' | 'failed'>('loading')
 const busy = ref(false)
 /* Qto's "open as doc": one branch shown alone ('' = the whole document) */
@@ -369,13 +378,16 @@ const byParent = computed(() => {
   return m
 })
 
-/** every picture's figure number, counted through the whole document (owner msg 3c874763) */
-const figs = computed(() => figureNumbers(items.value, props.session.doc))
+/** the preamble, then the items: the document as the CLI export reads it */
+const withPreamble = computed(() => (preamble.value ? [preamble.value, ...items.value] : items.value))
+
+/** every picture's figure number, counted through the whole document, the preamble's first (owner msg 3c874763) */
+const figs = computed(() => figureNumbers(withPreamble.value, props.session.doc))
 
 /** per item with text: its read view, text runs (markdown) and figures; a blank body has none and stays its textarea */
 const paras = computed(() => {
   const m = new Map<string, ParaRun[]>()
-  for (const it of items.value) {
+  for (const it of withPreamble.value) {
     const runs = paraRuns(it.body, props.session.doc, figs.value.get(it.id)?.first ?? 1)
     if (runs) m.set(it.id, runs)
   }
@@ -404,6 +416,8 @@ function branchOf(it: DocItem): DocItem[] {
 
 /** the items shown: the open branch, else the whole document */
 const shown = computed(() => (branchItem.value ? branchOf(branchItem.value) : items.value))
+/** the sections drawn: the shown items, the preamble first when the whole document is shown */
+const docRows = computed(() => (branchItem.value || !preamble.value ? shown.value : [preamble.value, ...shown.value]))
 
 const anchor = (id: string) => ANCHOR + id
 /* Qto's lnkMayBe: the web links in a text, clickable under it (a quote's source line's are not) */
@@ -415,7 +429,7 @@ const attr = (it: DocItem, k: string) => {
 
 /** resolve each image's src once (the hub path is read with the session's credentials) */
 function resolveImages() {
-  for (const it of items.value) {
+  for (const it of withPreamble.value) {
     for (const p of [attr(it, 'img_http_path'), ...picPaths(it.body, props.session.doc)]) {
       if (p && !(p in imgUrl)) {
         imgUrl[p] = ''
@@ -425,12 +439,14 @@ function resolveImages() {
   }
 }
 
-/** the whole document, in document order (false = it did not load) */
+/** the whole document, in document order, read as the root's subtree: the root (the preamble) first (false = it did not load) */
 async function load(): Promise<boolean> {
   const s = props.session
-  const r = await s.run(() => s.client.subtree(s.doc))
+  const r = await s.run(() => s.client.subtree(s.doc, props.root))
   if (!r) return false
-  items.value = r.items
+  const top = r.items[0]
+  preamble.value = top?.id === props.root ? top : null
+  items.value = preamble.value ? r.items.slice(1) : r.items
   s.rev.value = r.rev
   resolveImages()
   await nextTick()
@@ -459,7 +475,10 @@ function revert(el: HTMLTextAreaElement, was: string) {
 
 async function commit(it: DocItem, field: 'title' | 'body', value: string) {
   if (it[field] === value) return
-  if (await editDocItem(props.session, it, field, value)) items.value = [...items.value]
+  if (await editDocItem(props.session, it, field, value)) {
+    if (it === preamble.value) triggerRef(preamble)
+    else items.value = [...items.value]
+  }
   editMode.setEditing(false)
 }
 
@@ -720,6 +739,14 @@ async function viewOp(id: string, it: DocItem): Promise<boolean> {
   }
   else x.saveText(x.exportName(doc, it.outline || it.title, 'csv'), x.branchToCsv(part, [t('ws_doctree.col_outline'), t('ws_doctree.col_level'), t('ws_doctree.col_title'), t('ws_doctree.col_body')]), 'text/csv;charset=utf-8')
   return true
+}
+
+/** the bar's Export to Markdown: the whole document, the preamble first, the file `spool doctree export` writes */
+async function exportDoc() {
+  const x = await import('./-doctree-export')
+  const figure = (n: number) => t('ws_doctree.figure', { n })
+  const md = x.branchToMarkdown(items.value, t('ws_doctree.untitled'), { doc: props.session.doc, figs: figs.value, figure }, preamble.value ?? undefined)
+  x.saveText(x.exportName(props.title || t('ws_doctree.default_doc_title'), '', 'md'), md, 'text/markdown;charset=utf-8')
 }
 
 function openMenu(item: DocItem, x: number, y: number) {

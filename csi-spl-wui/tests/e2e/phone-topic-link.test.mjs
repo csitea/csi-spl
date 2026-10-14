@@ -28,6 +28,24 @@ const ok = (name, pass, ev) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
+    returns the last read. */
+async function until(read, want = () => true, hold = 300, max = 8000) {
+  const end = Date.now() + max
+  let key = ''
+  let since = 0
+  let v = await read()
+  while (Date.now() < end) {
+    const k = want(v) ? JSON.stringify(v) ?? 'undefined' : ''
+    if (!k) { key = ''; since = 0 } else if (k !== key) { key = k; since = Date.now() } else if (Date.now() - since >= hold) return v
+    await sleep(100)
+    v = await read()
+  }
+  return v
+}
+/* the page settled somewhere other than `from`: where it went is the check's to judge */
+const moved = (p, from) => until(() => state(p), (v) => v.path !== from.path)
+
 async function launch() {
   const require = createRequire(import.meta.url)
   for (const spec of [process.env.PUPPETEER_CORE, 'puppeteer-core'].filter(Boolean)) {
@@ -70,7 +88,8 @@ const state = (p) => p.evaluate(() => {
 async function openLinkPost(p, base) {
   await p.goto(`${base}/channel/lobby?topic=${FROM}`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('.spool-shell')
-  await sleep(1500)
+  /* the reply that becomes the link post is in the store before it is edited */
+  await until(() => p.evaluate((id) => Boolean(document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('channel')?.messages.some((m) => m.msg_id === id)), REPLY), Boolean, 0, 10000)
   await p.evaluate((id, body) => {
     const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
     const ch = pinia?._s.get('channel')
@@ -92,18 +111,15 @@ try {
   ok(`${at} the link post shows in the topic pane, level 3`, s.level === '3' && s.pane && !s.main && s.link, s)
 
   await phone.tap('.spool-shell > .topic a.msg-link')
-  await sleep(1500)
-  s = await state(phone)
+  s = await moved(phone, s)
   ok(`${at} a tap on the topic link opens that topic on screen, in its channel`, s.path.startsWith(`/channel/lobby?topic=${TO}`) && s.level === '3' && s.pane && !s.main, s)
 
   await phone.goBack()
-  await sleep(1500)
-  s = await state(phone)
+  s = await moved(phone, s)
   ok(`${at} Back returns to the post the link was tapped in`, s.path.includes(`topic=${FROM}`) && s.level === '3' && s.pane && !s.main, s)
 
   await phone.goto(`${srv.base}/t/${TO}`, { waitUntil: 'networkidle2' })
-  await sleep(1500)
-  s = await state(phone)
+  s = await until(() => state(phone), (v) => v.page || v.main)
   ok(`${at} the /t/ link typed into the address bar opens the topic`, s.page && s.main, s)
   await phone.close()
 
@@ -111,9 +127,9 @@ try {
   desk.setDefaultNavigationTimeout(NAV_TIMEOUT)
   await desk.setViewport({ width: 1440, height: 900 })
   await openLinkPost(desk, srv.base)
+  const before = await state(desk)
   await desk.click('.spool-shell > .topic a.msg-link')
-  await sleep(1500)
-  s = await state(desk)
+  s = await moved(desk, before)
   ok('1440px desktop: a click on the topic link opens that topic in its channel', s.path.startsWith(`/channel/lobby?topic=${TO}`) && s.pane && s.main, s)
   await desk.close()
 } finally {

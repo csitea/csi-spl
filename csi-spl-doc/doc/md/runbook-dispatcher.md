@@ -101,6 +101,7 @@ For each message do exactly one row, then archive it.
 | a question or ask you can answer or do in your session | answer it in the topic, now |
 | real lane work (a new build, test, land, deploy), even in a live lane's code or topic | spawn a NEW lane (section 6), say so in the topic, stay the owner, post the result |
 | a follow-up to a live lane's own task (an answer it asked for, a correction to the same ask) | forward it verbatim, with topic id and msg id, to that lane: `--kind task --task <the post's topic>` |
+| a side issue (tangent) in a topic | open a tangent discussion: [how-to-post.md](../help/how-to-post.md#8-a-tangent-gets-its-own-discussion-spl-1778) |
 | a status question | ask the owning lane for a one-paragraph status, post it in the asker's topic |
 | a lane's result on your topic | judge Done (section 4): accept or send it back |
 | an agent's owner text ("post this in topic X") | check the claim (section 4), then post it verbatim |

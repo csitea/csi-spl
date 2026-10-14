@@ -76,6 +76,9 @@ comments and issue descriptions.
    (`https://csitea.<fqdn>` for csitea, the apex for t1). An id whose
    workspace the reader's page does not know stays text: no host is guessed. A bare
    8-character id (`1f5e074b`) stays text; it reads like a commit sha.
+12. A discussion stays on its subject; a side issue that pops up in it is a
+   tangent that gets its own topic (section 8).
+
 
 
 ## 2. Example
@@ -221,3 +224,22 @@ Answer: B — Wait for CI
 
 An agent posts a form with the syntax in the body, through any send path:
 `spool send`, the MCP `spool_send`, or `do_spl_desk_reply`.
+
+## 8. A tangent gets its own discussion (SPL-1778)
+
+Owner HUM-10, t1 topic `4f98d07c-ea7e-4a7d-9dc5-a89faab37948`:
+- msg `fc6edfdb-c3ca-42d2-90f3-257e8764b99f`: "/create a bug fix discussion and an issue and refer to this disussoin"
+- msg `3e5d2bb1-206b-4b26-a4ee-85a64bf47ce3`: "/keep this discussion content solel for the purpose of the refactoring of the Desktop ..."
+- msg `33ad90a1-b52b-45fb-bfbe-605bd45d0231`: "let's define the ling of a tangent in the discussoin - so this was a tangent , we should keep focus in each disucssion on the discussion's topic , but handle this type of \"pop-up\"s in the tangent discussions"
+
+Told the owner: https://spool-hub.ai/m/caf2aa5d-9961-40de-844d-9ffb770add84 . Worked example: tangent topic `b1af5f5c-378e-460d-a7be-742640bbe1be` (`#spool-hub-bugs`, issue SPL-1776) from `4f98d07c-ea7e-4a7d-9dc5-a89faab37948`.
+
+A discussion (topic) stays on its subject. A side issue that pops up in it is a **tangent**:
+
+1. **A discussion stays on its subject.** Keep focus in each discussion solely on that discussion's topic.
+2. **Open a NEW discussion** in the fitting channel (bugs -> `#spool-hub-bugs`, etc.):
+   `ENV=prd TENANT_ID=<workspace> DESK_AGENT=<id> DESK_CHANNEL=<channel_id> DESK_BODY='<text>' DRY_RUN=0 ./run -a do_spl_desk_post`
+3. **Link back in the first post**: the opening post of the tangent links back to the original topic and the message that raised it (`topic:<uuid>` + `msg:<uuid>`).
+4. **Link the issue**: if it is work, open or link its own tracked issue linking both discussions (`do_spl_issue_create` / `do_spl_issue_comment`).
+5. **One line in the original topic**: leave exactly one pointer line in the original topic pointing to the tangent (`do_spl_desk_reply`).
+6. **All follow-ups to the tangent**: all follow-up messages and the result go to the tangent, not the original.

@@ -18,14 +18,21 @@
 # what is already drawn" - because a CLI that repaints only its own live frame
 # is anchored to a row, and a row that moved is the corruption.
 #
-# The script also verifies that SIGWINCH reaches the subject after the strip is
-# split, ensuring the Ink-style CLI repaints its frame correctly.
+# The second subject, shaped like an agent CLI, runs behind a pty relay the way
+# an agent launched with `su --pty` does, and the proof requires its frame
+# counter to show that the split's SIGWINCH reached it: a subject that never
+# heard the resize would make every number below meaningless.
 #
 #   spool-strip-resize-proof.sh [--cols 48] [--rows 8] [--keep]
 #
 # Exit 0 when the measurement came out the way the code assumes (height moves
-# rows, width does not), 1 when it did not - so this is a gate as well as a
-# demonstration, and a tmux that stops behaving this way fails it loudly.
+# rows, width does not, the subject hears both resizes), 1 when it did not - so
+# this is a gate as well as a demonstration, and a tmux that stops behaving
+# this way fails it loudly.
+#
+# STRIP_PROOF_MUTANT=no-winch is the control: the subject starts with SIGWINCH
+# ignored, as one behind a relay that does not forward the resize, and the
+# proof must then exit 1.
 set -uo pipefail
 
 COLS=48 ROWS=8 KEEP=0 W=189 H=51
@@ -36,11 +43,14 @@ while [ "$#" -gt 0 ]; do
     --width) W="${2:?}"; shift 2 ;;
     --height) H="${2:?}"; shift 2 ;;
     --keep) KEEP=1; shift ;;
-    -h|--help) sed -n '24p' "$0" | sed 's/^# *//'; exit 2 ;;
+    -h|--help) sed -n '26p' "$0" | sed 's/^# *//'; exit 2 ;;
     *) echo "spool-strip-resize-proof: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 command -v tmux >/dev/null || { echo "spool-strip-resize-proof: tmux is not installed" >&2; exit 2; }
+command -v script >/dev/null || { echo "spool-strip-resize-proof: script (util-linux) is not installed" >&2; exit 2; }
+MUTANT="${STRIP_PROOF_MUTANT:-}"
+case "$MUTANT" in ''|no-winch) ;; *) echo "spool-strip-resize-proof: unknown STRIP_PROOF_MUTANT: $MUTANT" >&2; exit 2 ;; esac
 
 T="$(mktemp -d)"
 SOCK="$T/tmux.sock"
@@ -75,23 +85,18 @@ chmod +x "$T/painter.sh"
 cat > "$T/inkish.sh" << 'INNEREOF'
 #!/usr/bin/env bash
 set -u
-FRAME=3
+FRAME=3 WINCH=0
 frame() {
   local rows i
   rows="$(tput lines 2>/dev/null)"; [[ "$rows" =~ ^[0-9]+$ ]] || rows=24
   for ((i = 0; i < FRAME; i++)); do
     printf '\033[%d;1H\033[2K' "$((rows - FRAME + 1 + i))"
-    printf 'FRAME-%d ready >' "$i"
+    printf 'FRAME-%d ready > winch=%d' "$i" "$WINCH"
   done
 }
-
-# Frame counter: bumped on SIGWINCH
-FRAME_COUNTER=0
-trap 'FRAME_COUNTER=$((FRAME_COUNTER + 1)); frame' WINCH
-
-# Write PID to a file so the parent can send SIGWINCH
-echo $$ > "$T/inkish.pid"
-
+# The frame counter: every SIGWINCH is counted and shown in the repainted
+# frame, so the capture says whether the resize reached this process.
+trap 'WINCH=$((WINCH + 1)); frame' WINCH
 rows="$(tput lines 2>/dev/null)"; [[ "$rows" =~ ^[0-9]+$ ]] || rows=24
 printf '\033[?1049h\033[H\033[2J'
 for ((i = 1; i <= rows - FRAME - 1; i++)); do
@@ -103,14 +108,18 @@ while :; do sleep 0.2; done
 INNEREOF
 chmod +x "$T/inkish.sh"
 
-# SIGWINCH delivery wrapper: su --pty to ensure the signal reaches the subject
-cat > "$T/sigwinch-wrapper.sh" << 'INNEREOF'
-#!/usr/bin/env bash
-set -u
-# Forward the command and deliver SIGWINCH via tmux resize
-su --pty -s /bin/bash -c "$*" "$USER"
-INNEREOF
-chmod +x "$T/sigwinch-wrapper.sh"
+# How the subject is started: behind a pty relay, as an agent CLI is. An agent
+# runs under `su - <agent> --pty -c <cli>`; su then sits between the tmux pane
+# and a pty of its own, and the CLI hears a split only because su copies the
+# new size onto that inner pty. `script` is util-linux's other user of that
+# same relay and needs no second OS user, so a CI runner can run it too. The
+# mutant ignores SIGWINCH before the subject starts (bash cannot trap a signal
+# ignored on entry), which is what a relay that drops the resize looks like.
+ink_cmd() {
+  local inner="$T/inkish.sh"
+  [ "$MUTANT" = no-winch ] && inner="bash -c 'trap \"\" WINCH; exec $T/inkish.sh'"
+  printf 'script -qfec %q /dev/null' "$inner"
+}
 
 fails=0
 say() { printf '%s\n' "$*"; }
@@ -155,16 +164,16 @@ wait_settled() {
   done
 }
 
-# wait_sigwinch: the Ink-style subject has repainted its frame after a SIGWINCH.
-# The frame lines start with "FRAME-", so a repaint is visible in the capture.
-wait_sigwinch() {  # BEFORE_AFTER
-  local cap end; end="$(deadline_us)"
+# wait_winch N: the subject's frame shows winch=N or more, i.e. it heard N
+# resizes and repainted. Returns 1 on timeout, so the caller can print the
+# measurement that failed before the proof ends with exit 1.
+wait_winch() {
+  local cap n end; end="$(deadline_us)"
   while :; do
     cap="$(capture)"
-    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]] && [[ "$cap" == *"FRAME_COUNTER="* ]]; then
-      return 0
-    fi
-    [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never repainted its frame after SIGWINCH"
+    n="$(printf '%s\n' "$cap" | grep -o 'FRAME-0 ready > winch=[0-9]*' | sed -n '1s/.*=//p')"
+    [ -n "$n" ] && [ "$n" -ge "$1" ] && return 0
+    [ "$(now_us)" -lt "$end" ] || return 1
     sleep "$POLL"
   done
 }
@@ -224,91 +233,51 @@ say ""
 # case the owner sees, and it is the one that says what the -h split does NOT
 # fix, so that nobody later reads this file as "the distortion is gone".
 ink_case() {  # -v|-h SIZE LABEL
-  local dir="$1" size="$2" label="$3" cap rows frame_row
+  local dir="$1" size="$2" label="$3" cap rows frame_row tx_first tx_intact winch heard
   tmux -S "$SOCK" kill-server 2>/dev/null; sleep 0.2
-  tmux -S "$SOCK" -f /dev/null new-session -d -s p -x "$W" -y "$H" -n w "$T/inkish.sh" || return 1
-  sleep 2
-  # Ensure the tmux server is running
-  tmux -S "$SOCK" list-sessions >/dev/null 2>&1 || return 1
-  # Force a capture to ensure the screen is painted
-  tmux -S "$SOCK" capture-pane -p -t w.0 >/dev/null
-  cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)"
+  tmux -S "$SOCK" -f /dev/null new-session -d -s p -x "$W" -y "$H" -n w "$(ink_cmd)" || return 1
+  wait_painted TX-001 FRAME-2
   tmux -S "$SOCK" split-window -d "$dir" -l "$size" -t w.0 'sleep 600' 2>/dev/null
-  wait_settled || { say "    wait_settled failed"; return 1; }
-  cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)" || { say "    capture-pane failed"; return 1; }
+  if wait_winch 1; then heard=yes; else heard=no; fi
+  wait_settled
+  cap="$(capture)"
   rows="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_height}')"
   frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | sed -n 1p | cut -d: -f1)"
-  tx_first="$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9][0-9][0-9]' || printf '%s' "$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9]')")"
+  tx_first="$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9]*' || true)"
+  tx_intact="$(printf '%s\n' "$cap" | grep -c 'TXEND' || true)"
+  winch="$(printf '%s\n' "$cap" | grep -o 'FRAME-0 ready > winch=[0-9]*' | sed -n '1s/.*=//p')"
   say "  ${label}"
-  say "    top transcript row: ${tx_first:-<not TX-001, it MOVED>}"
   say "    pane is now       : $(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}')"
+  say "    top transcript row: ${tx_first:-<not TX-001, it MOVED>}"
   say "    live frame lands  : row ${frame_row:-?} of ${rows} (it belongs on row $(( rows - 2 )))"
-  
-  # Capture the frame BEFORE the SIGWINCH
-  before_frame="$(printf '%s\n' "$cap" | grep -o '^FRAME-[0-9] .*')"
-  say "    before frame     : ${before_frame:-<none>}"
-  
-  # Send SIGWINCH to the subject via kill -WINCH
-  kill -WINCH "$(cat "$T/inkish.pid")" 2>/dev/null || true
-  sleep 1
-  
-  # Assert on the frame counter
-  frame_counter="$(tmux -S "$SOCK" capture-pane -p -t w.0 | grep -c 'FRAME-[0-9]')"
-  if [ "$frame_counter" -gt 3 ]; then
-    say "    SIGWINCH test     : PASS (frame repainted)"
+  say "    transcript lines still showing their END marker: ${tx_intact}"
+  if [ "$heard" = yes ]; then
+    say "    SIGWINCH          : received through the pty relay (frame counter winch=${winch})"
   else
-    say "    SIGWINCH test     : FAIL (frame not repainted)"
+    say "    SIGWINCH          : NOT received - frame counter winch=${winch:-?} after ${WAIT_S} s"
     fails=$((fails + 1))
   fi
-  say "    frame counter     : $frame_counter"
-  
-  # Send SIGWINCH to the subject via kill -WINCH
-  kill -WINCH "$(cat "$T/inkish.pid")" 2>/dev/null || true
-  sleep 1
-  
-  # Assert on the frame counter
-  frame_counter="$(tmux -S "$SOCK" capture-pane -p -t w.0 | grep -c 'FRAME-[0-9]')"
-  if [ "$frame_counter" -gt 3 ]; then
-    say "    SIGWINCH test     : PASS (frame repainted)"
-  else
-    say "    SIGWINCH test     : FAIL (frame not repainted)"
-    fails=$((fails + 1))
-  fi
-  say "    frame counter     : $frame_counter"
-  
-  # Capture the frame BEFORE the SIGWINCH
-  before_frame="$(printf '%s\n' "$cap" | grep -o '^FRAME-[0-9] .*')"
-  # Ensure the pane is settled before sending SIGWINCH
-  wait_settled
-  # Send SIGWINCH to the subject via kill -WINCH
-  kill -WINCH "$(cat "$T/inkish.pid")" 2>/dev/null || true
-  # Wait for the frame to repaint
-  wait_sigwinch "$before_frame" "FRAME-" || {
-    say "    SIGWINCH test     : FAIL (frame not repainted or counter not bumped)"
-    fails=$((fails + 1))
-  }
-  
-  # Assert on the frame counter
-  frame_counter="$(tmux -S "$SOCK" capture-pane -p -t w.0 | grep -c 'FRAME-[0-9]')"
-  if [ "$frame_counter" -gt 3 ]; then
-    say "    SIGWINCH test     : PASS (frame repainted)"
-  else
-    say "    SIGWINCH test     : FAIL (frame not repainted)"
-    fails=$((fails + 1))
-  fi
-  say "    frame counter     : $frame_counter"
-
+  TX_FIRST="$tx_first"
 }
+TX_FIRST=""
 say ""
 say "the SECOND subject - a static transcript plus a live frame repainted on"
 say "SIGWINCH, which is the shape of an agent CLI rather than of a full repaint:"
 say ""
 say "  bottom bar, split -v -l ${ROWS}:"
-say "    top transcript row: TX-0"
+ink_case -v "$ROWS" "the transcript is asked to survive a HEIGHT change"; tx_v="$TX_FIRST"
 say ""
 say "  right strip, split -h -l ${COLS}:"
-say "    top transcript row: TX-001"
+ink_case -h "$COLS" "the transcript is asked to survive a WIDTH change"; tx_h="$TX_FIRST"
 say ""
+if [ "$tx_v" = TX-001 ]; then
+  say "UNEXPECTED: the height change left the transcript's top row in place."
+  fails=$((fails + 1))
+fi
+if [ "$tx_h" != TX-001 ]; then
+  say "UNEXPECTED: the width change moved the transcript's top row (${tx_h:-none})."
+  fails=$((fails + 1))
+fi
 say "read it like this. A HEIGHT change moves the rows, so the live frame is"
 say "repainted onto a screen whose anchor has shifted and the bottom of the"
 say "terminal is wrong. A WIDTH change leaves every row where it is and the live"

@@ -77,7 +77,24 @@ spl_gc_init() {
   GC_BOX="${SPOOL_BOX_TAG:-$ROTATE_BOX}"
   GC_WIN="gc@$GC_BOX"
   GC_FROM="${GC_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
-  GC_REPORT_TO="${GC_REPORT_TO:-$(spl_role_seat 1)}"
+  # Resolve the current dispatch lease holder at send time; fall back to the orchestrator lease holder if stale or missing.
+spl_gc_resolve_report_to() {
+  local lease_holder="none" lease_age=-1 lease_file="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease"
+  if [[ -s "$lease_file" ]]; then
+    read -r lease_holder lease_age < "$lease_file" 2>/dev/null || true
+    [[ "$lease_age" =~ ^[0-9]+$ ]] || lease_age=-1
+    lease_age=$(( $(date +%s) - lease_age ))
+  fi
+  if [[ "$lease_holder" == "none" || "$lease_age" -lt 0 || "$lease_age" -gt 180 ]]; then
+    GC_REPORT_TO="$(spl_role_seat 1)"
+    spl_gc_log "GC_REPORT_TO: dispatch lease stale/missing (holder=$lease_holder, age=${lease_age}s), fallback to orchestrator $GC_REPORT_TO"
+  else
+    GC_REPORT_TO="$lease_holder"
+    spl_gc_log "GC_REPORT_TO: dispatch lease holder $GC_REPORT_TO (age=${lease_age}s)"
+  fi
+}
+
+spl_gc_resolve_report_to
   GC_SEND="${GC_SEND:-$ROTATE_SEND}"
   GC_RUN="${GC_RUN:-$ROTATE_RUN}"
   GC_DRY="${DRY_RUN:-1}"
@@ -187,11 +204,11 @@ spl_gc_epoch() { date -u -d "${1:-x}" +%s 2>/dev/null || echo 0; }
 spl_gc_scan() {
   local id pane n=0
   echo "GC SCAN box=$GC_BOX at=$(date -u -d "@$GC_NOW" +%FT%TZ) cap=${GC_AGENT_CAP}s silent>=${GC_SILENT_AGE}s"
-  while IFS=$'\t' read -r id pane; do
+  spl_gc_agents | while IFS=$'\t' read -r id pane; do
     [[ -n "$id" ]] || continue
     spl_gc_scan_one "$id" "$pane"
     n=$(( n + 1 ))
-  done < <(spl_gc_agents)
+  done
   echo "GC SCAN END agents=$n"
 }
 
@@ -199,7 +216,9 @@ spl_gc_scan_one() {
   local id="$1" pane="$2" d="$SPOOL_ROOT/$1" role=lane st prog tool err sil wt cm post pa acc hint
   spl_is_role_seat "$id" && role="role-seat (scan only)"
   [[ -n "$(spl_gc_human "$id")" ]] && role="$role, $(spl_gc_human "$id")"
-  IFS=$'\t' read -r st prog tool err < <(jq -r '[.state // "-", .progress_ts // "-", .tool // "-", (.api_error // "-" | tostring)] | @tsv' "$d/heartbeat.json" 2>/dev/null || printf -- '-\t-\t-\t-\n')
+  IFS=$'\t' read -r st prog tool err <<EOF
+$(jq -r '[.state // "-", .progress_ts // "-", .tool // "-", (.api_error // "-" | tostring)] | @tsv' "$d/heartbeat.json" 2>/dev/null || printf -- '-\t-\t-\t-\n')
+EOF
   sil=$(( GC_NOW - $(spl_gc_epoch "$prog") ))
   wt="$(awk -F'\t' -v i="$id" '$1 == i {w = $4} END {print w}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"
   cm="$( [[ -d "$wt" ]] && git -c safe.directory='*' -C "$wt" log -1 --format='%ct %h %s' 2>/dev/null || true)"
@@ -339,7 +358,12 @@ spl_gc_close_ask() {
   if read -r t 2>/dev/null < "$GC_DIR/$id.closeask" && [[ "$t" =~ ^[0-9]+$ ]] && (( GC_NOW - t < GC_CLOSE_ASK_EVERY )); then
     spl_gc_refuse close-ask "$id" "asked $(( GC_NOW - t ))s ago"; return
   fi
-  spl_gc_send orchestrator "gc-$id" "GC ($GC_BOX, $(spl_gc_rid)): $id@$GC_BOX looks done and idle: $GC_WHY. Close it if you agree." ||
+  spl_gc_resolve_report_to
+  local cc=""
+  if [[ "$GC_REPORT_TO" != "$(spl_role_seat 1)" ]]; then
+    cc=" --cc $(spl_role_seat 1)"
+  fi
+  spl_gc_send "orchestrator$cc" "gc-$id" "GC ($GC_BOX, $(spl_gc_rid)): $id@$GC_BOX looks done and idle: $GC_WHY. Close it if you agree." ||
     { spl_gc_log "FAIL close-ask $id: not delivered"; echo "FAIL close-ask $id: not delivered"; return 1; }
   [[ "$GC_DRY" == 0 ]] && echo "$GC_NOW" > "$GC_DIR/$id.closeask"
   spl_gc_log "CLOSE-ASK $id: $(cut -c1-200 <<<"$GC_WHY")"

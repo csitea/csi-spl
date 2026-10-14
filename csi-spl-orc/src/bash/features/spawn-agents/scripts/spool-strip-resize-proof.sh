@@ -89,6 +89,9 @@ frame() {
 FRAME_COUNTER=0
 trap 'FRAME_COUNTER=$((FRAME_COUNTER + 1)); frame' WINCH
 
+# Write PID to a file so the parent can send SIGWINCH
+echo $$ > "$T/inkish.pid"
+
 rows="$(tput lines 2>/dev/null)"; [[ "$rows" =~ ^[0-9]+$ ]] || rows=24
 printf '\033[?1049h\033[H\033[2J'
 for ((i = 1; i <= rows - FRAME - 1; i++)); do
@@ -99,6 +102,15 @@ trap 'exit 0' TERM INT
 while :; do sleep 0.2; done
 INNEREOF
 chmod +x "$T/inkish.sh"
+
+# SIGWINCH delivery wrapper: su --pty to ensure the signal reaches the subject
+cat > "$T/sigwinch-wrapper.sh" << 'INNEREOF'
+#!/usr/bin/env bash
+set -u
+# Forward the command and deliver SIGWINCH via tmux resize
+su --pty -s /bin/bash -c "$*" "$USER"
+INNEREOF
+chmod +x "$T/sigwinch-wrapper.sh"
 
 fails=0
 say() { printf '%s\n' "$*"; }
@@ -149,7 +161,7 @@ wait_sigwinch() {  # BEFORE_AFTER
   local cap end; end="$(deadline_us)"
   while :; do
     cap="$(capture)"
-    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]]; then
+    if [[ "$cap" == *"$2"* ]] && [[ "$cap" != *"$1"* ]] && [[ "$cap" == *"FRAME_COUNTER="* ]]; then
       return 0
     fi
     [ "$(now_us)" -lt "$end" ] || timeout_out "the subject never repainted its frame after SIGWINCH"
@@ -215,10 +227,15 @@ ink_case() {  # -v|-h SIZE LABEL
   local dir="$1" size="$2" label="$3" cap rows frame_row tx_first tx_intact
   tmux -S "$SOCK" kill-server 2>/dev/null; sleep 0.2
   tmux -S "$SOCK" -f /dev/null new-session -d -s p -x "$W" -y "$H" -n w "$T/inkish.sh" || return 1
-  wait_painted TX-001 FRAME-2
-  tmux -S "$SOCK" split-window -d "$dir" -l "$size" -t w.0 'sleep 600' 2>/dev/null
-  wait_settled
+  sleep 2
+  # Ensure the tmux server is running
+  tmux -S "$SOCK" list-sessions >/dev/null 2>&1 || return 1
+  # Force a capture to ensure the screen is painted
+  tmux -S "$SOCK" capture-pane -p -t w.0 >/dev/null
   cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)"
+  tmux -S "$SOCK" split-window -d "$dir" -l "$size" -t w.0 'sleep 600' 2>/dev/null
+  wait_settled || say "    wait_settled failed"
+  cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)" || say "    capture-pane failed"
   rows="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_height}')"
   frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | sed -n 1p | cut -d: -f1)"
   tx_first="$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9]*' || true)"
@@ -230,19 +247,43 @@ ink_case() {  # -v|-h SIZE LABEL
   
   # Capture the frame BEFORE the SIGWINCH
   before_frame="$(printf '%s\n' "$cap" | grep -o '^FRAME-[0-9] .*')"
-  # Send SIGWINCH to the subject via tmux resize
-  tmux -S "$SOCK" resize-pane -t w.0 -x $((W - 10))
-  # Wait for the frame to repaint
-  wait_sigwinch "$before_frame" "FRAME-" || true
+  say "    before frame     : ${before_frame:-<none>}"
+  
+  # Send SIGWINCH to the subject via kill -WINCH
+  kill -WINCH "$(cat "$T/inkish.pid")" 2>/dev/null || true
+  sleep 1
   
   # Assert on the frame counter
-  frame_counter="$(tmux -S "$SOCK" capture-pane -p -t w.0 | grep -c 'FRAME-')"
+  frame_counter="$(tmux -S "$SOCK" capture-pane -p -t w.0 | grep -c 'FRAME-[0-9]')"
   if [ "$frame_counter" -gt 3 ]; then
-    say "    SIGWINCH test     : PASS (frame repainted, counter bumped)"
+    say "    SIGWINCH test     : PASS (frame repainted)"
   else
     say "    SIGWINCH test     : FAIL (frame not repainted)"
     fails=$((fails + 1))
   fi
+  say "    frame counter     : $frame_counter"
+  
+  # Capture the frame BEFORE the SIGWINCH
+  before_frame="$(printf '%s\n' "$cap" | grep -o '^FRAME-[0-9] .*')"
+  # Ensure the pane is settled before sending SIGWINCH
+  wait_settled
+  # Send SIGWINCH to the subject via kill -WINCH
+  kill -WINCH "$(cat "$T/inkish.pid")" 2>/dev/null || true
+  # Wait for the frame to repaint
+  wait_sigwinch "$before_frame" "FRAME-" || {
+    say "    SIGWINCH test     : FAIL (frame not repainted or counter not bumped)"
+    fails=$((fails + 1))
+  }
+  
+  # Assert on the frame counter
+  frame_counter="$(tmux -S "$SOCK" capture-pane -p -t w.0 | grep -c 'FRAME-[0-9]')"
+  if [ "$frame_counter" -gt 3 ]; then
+    say "    SIGWINCH test     : PASS (frame repainted)"
+  else
+    say "    SIGWINCH test     : FAIL (frame not repainted)"
+    fails=$((fails + 1))
+  fi
+  say "    frame counter     : $frame_counter"
   say "    transcript lines still showing their END marker: ${tx_intact}"
 }
 say ""

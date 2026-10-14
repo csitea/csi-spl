@@ -17,14 +17,15 @@
 set -euo pipefail
 
 # --- Parameters ---
-TUNNEL_DEST="${TUNNEL_DEST:-}"
+# Derive the SSH destination for sat from existing actions (BOX_SSH_SAT)
+TUNNEL_DEST="${BOX_SSH_SAT:-satellite}"
 TUNNEL_PORT="${TUNNEL_PORT:-2222}"
 AGENT_USER="${AGENT_USER:-ai-usr}"
 RECONCILE_INTERVAL="${RECONCILE_INTERVAL:-60}"
 
 # --- Validate ---
 [[ -z "$TUNNEL_DEST" ]] && {
-    echo "setup-reverse-tunnel: ERROR TUNNEL_DEST is required"
+    echo "setup-reverse-tunnel: ERROR TUNNEL_DEST is required (set BOX_SSH_SAT or SATELLITE_ALIAS)"
     exit 1
 }
 

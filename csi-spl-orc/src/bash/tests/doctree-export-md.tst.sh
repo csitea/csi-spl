@@ -45,6 +45,8 @@
 #      -> --tight / --tight-end, bodies as written); compose of the fixture's
 #      export is the fixture's md; the page round-trips with only its
 #      generated-from line changed (the doc id)
+#  19. SPL-1909 (Qto gap G7): a page with a preamble and no section imports
+#      as the root body only, no heading add, and round-trips
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -479,5 +481,18 @@ grep -q "add d0c --kind heading --level 1 --dotted --title 'The job'" "$T/calls"
   grep -q "add d0c --kind heading --level 1 --unnumbered --tight --tight-end --title Overview" "$T/calls" &&
   pass "SPL-1900: the import adds '1.' --dotted, text right under / above a heading --tight / --tight-end" ||
   fail "SPL-1900 add flags: $(cat "$T/calls")"
+
+# --- 19. SPL-1909: a page with a preamble and no section -------------------------------------------
+# the split's plan is empty: the import writes the root body only, no heading
+P="csi-spl-doc/doc/md/preamble-only.md"
+cat >"$R/$P" <<'EOF_MD'
+# Preamble only
+
+Just text, no section.
+EOF_MD
+roundtrip "SPL-1909: a preamble-only page imports as the root body and round-trips" "$P" "> $GEN
+>" 19
+grep -q -- '--field body' "$T/calls" && ! grep -q '^doctree add ' "$T/calls" &&
+  pass "SPL-1909: the root body is written, no heading is added" || fail "SPL-1909 calls: $(cat "$T/calls")"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

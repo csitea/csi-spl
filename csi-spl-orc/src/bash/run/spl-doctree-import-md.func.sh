@@ -97,6 +97,7 @@ _spl_doctree_import_items() {
     out="$(_spl_doctree_call "edit $doc $root --field body" "$dir/preamble.md")" || { echo "the preamble: $out"; return 1; }
   fi
   while IFS=$'\t' read -r lvl num title body gap; do
+    [[ -n "$lvl" ]] || continue # a page with no section: an empty plan (SPL-1909)
     flag=""
     [[ "$num" != "-" ]] || flag=" --unnumbered"
     [[ "$num" != *. ]] || flag=" --dotted"

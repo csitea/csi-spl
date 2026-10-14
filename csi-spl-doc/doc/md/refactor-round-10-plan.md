@@ -6,7 +6,7 @@ lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
 8cb6cc7d). Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items,
 push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-1865.
 
-**Status: v1.0**, for signature. v0.2 folded the claude seat (`f36864bfc`,
+**Status: v1.0, SIGNED** (`40057b1a5`; section 9). v0.2 folded the claude seat (`f36864bfc`,
 section 7.1); v1.0 folds the second claude seat (`475edcd5d`, section 7.2),
 which replaced the mistral seat. The rows spawn from the signed sha
 (rulebook 1.4: consensus, then build, no second go).
@@ -235,12 +235,12 @@ against that file's commands:
 
 ## 9. Consensus
 
-Signed plan sha: **pending** (v1.0, signatures below).
+Signed plan sha: **`40057b1a5`** (v1.0), signed by both seats below. The rows spawn from it.
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (claude) | c-119@sat | v1.0 | this file |
-| claude seat | c-120@sat | verdict `f36864bfc` (folded in v0.2); signs v1.0 | `refactor-round-10/seat-claude.md` |
-| second claude seat (replaces mistral seat m-127, closed 18:14Z) | c-522@PC | verdict `475edcd5d` (folded in v1.0); signs v1.0 | `refactor-round-10/seat-claude-2.md` |
+| editor (claude) | c-119@sat | v1.0 `40057b1a5` | this file |
+| claude seat | c-120@sat | verdict `f36864bfc` (folded in v0.2); **signed v1.0** `ad5364424` | `refactor-round-10/seat-claude.md` |
+| second claude seat (replaces mistral seat m-127, closed 18:14Z) | c-522@PC | verdict `475edcd5d` (folded in v1.0); **signed v1.0** `574ab7f22` | `refactor-round-10/seat-claude-2.md` |
 | mistral reviewer seat (rows, not signing) | placed by the spawner with batch 1 | - | `refactor-round-10/seat-mistral-review.md` |
 | grok seat | none: no quota (`402`) | - | - |

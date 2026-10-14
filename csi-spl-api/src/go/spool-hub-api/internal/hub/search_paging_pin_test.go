@@ -119,3 +119,53 @@ func TestSearchGroupedLimit(t *testing.T) {
 		}
 	}
 }
+
+// TestSearchPageLimit pins the owner's paging (HUM-10, t1 659e3927 msg
+// 834e098b): one section shows its first 30, and each Load more (its cursor)
+// the next 30. ?limit still sets it, capped at the view max. CONTROL: with
+// the old default (the view limit, 50) the first page is 50 rows: red.
+func TestSearchPageLimit(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorOff
+		o.SearchRatePerMin = 10000
+		o.Authorizer = rbac.Fixed(rbac.Developer)
+		o.SessionID = func(r *http.Request, _ string) (string, error) { return "", nil }
+	})
+	ctx := context.Background()
+	ta, _ := e.tenant()
+	at := fixtureAt()
+	pub, _, _ := ed25519.GenerateKey(nil)
+	if err := e.st.PutPin(ctx, ta, "box-a", pub, false, at, at); err != nil {
+		t.Fatal(err)
+	}
+	var agents []string
+	for i := 0; i < 65; i++ {
+		agents = append(agents, fmt.Sprintf("CLE-%02d", i))
+	}
+	e.st.SetRoster(ctx, ta, "box-a", agents, at) //nolint:errcheck
+	var pages []int
+	extra := ""
+	for n := 0; n < 5; n++ {
+		code, _, r, _ := searchGet(t, e, ta, "type:robot CLE", extra)
+		if code != http.StatusOK {
+			t.Fatalf("page %d: %d", n, code)
+		}
+		g := r.Groups["robots"]
+		pages = append(pages, len(g.Results))
+		if g.Next == nil {
+			break
+		}
+		extra = "&cursor=" + url.QueryEscape(*g.Next)
+	}
+	if want := []int{30, 30, 5}; !reflect.DeepEqual(pages, want) {
+		t.Errorf("pages %v, want %v", pages, want)
+	}
+	for _, c := range []struct {
+		extra string
+		n     int
+	}{{"&limit=0", 30}, {"&limit=x", 30}, {"&limit=7", 7}, {"&limit=60", 60}} {
+		if _, _, r, _ := searchGet(t, e, ta, "type:robot CLE", c.extra); len(r.Groups["robots"].Results) != c.n {
+			t.Errorf("%q: %d robots, want %d", c.extra, len(r.Groups["robots"].Results), c.n)
+		}
+	}
+}

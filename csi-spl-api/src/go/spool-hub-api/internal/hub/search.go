@@ -31,6 +31,7 @@ const (
 	searchBudgetDefault  = 7 * time.Second // owner, t1 a55d2f57 (was 5 s, t1 6d5bd334; 2 s before)
 	searchGroupedDefault = 5
 	searchGroupedMax     = 20
+	searchPageDefault    = 30 // one section, or its Load more: owner HUM-10, t1 659e3927 msg 834e098b ("the first 30 ... the next 30")
 )
 
 // SearchIndexEnv is the search index kill switch (spec 100 T006): on (the
@@ -204,10 +205,13 @@ func searchPage(q *search.Query, cursor, hash string) ([]search.Type, *searchCur
 	return []search.Type{dc.T}, &dc, true
 }
 
-// searchLimit is the page size: the view limit for one section, the grouped
-// default (or ?limit, capped) for several.
+// searchLimit is the page size: 30 for one section (or ?limit, capped at the
+// view max), the grouped default (or ?limit, capped) for several.
 func searchLimit(r *http.Request, sections int) int {
 	if sections <= 1 {
+		if n, err := strconv.Atoi(r.URL.Query().Get("limit")); err != nil || n <= 0 {
+			return searchPageDefault
+		}
 		return viewLimit(r)
 	}
 	limit := searchGroupedDefault

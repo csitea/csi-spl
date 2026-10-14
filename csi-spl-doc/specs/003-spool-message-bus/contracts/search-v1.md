@@ -50,7 +50,7 @@ GET  /v1/view/search/operators                              FR-031 (machine-read
 | param | meaning |
 |---|---|
 | `q` | the raw query (§2). Required; empty / whitespace only → `400 bad_query`. Max **512** UTF-16 code units, max **32** terms (operators + words) → else `400 bad_query`. |
-| `limit` | per section. Grouped (no `type:`, no `cursor`): default **5**, max **20**. One type (`type:` with one value, or `cursor`): default **50**, max **200**. Above max → clamped, like view-v1. |
+| `limit` | per section. Grouped (no `type:`, no `cursor`): default **5**, max **20**. One type (`type:` with one value, or `cursor`, i.e. Load more): default **30** (owner HUM-10, t1 659e3927: "the first 30 ... the next 30"; was 50 until SPL-1832), max **200**. Above max → clamped, like view-v1. |
 | `sort` | `newest` (default) or `relevance`. `relevance` ranks **messages** by Postgres `ts_rank_cd` over the positive text terms, newest first on ties; every other type always sorts by its own order (§4). Anything else → `400 bad_query`. |
 | `cursor` | a section's `next` from an earlier answer **for the same `q` and `sort`**. With a cursor the hub answers **that one section only**. A cursor it cannot decode, or one minted for another `q` / `sort` → `400 bad_cursor`. |
 

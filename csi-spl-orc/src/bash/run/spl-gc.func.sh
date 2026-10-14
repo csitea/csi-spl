@@ -49,11 +49,13 @@ SPL_GC_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPL_GC_KNOBS="GC_AGENT_CAP GC_MAX_AGE GC_POKE_WAIT GC_SILENT_AGE GC_CLOSE_ASK_EVERY"
 
 do_spl_gc() {
+  echo "DEBUG: do_spl_gc called with GC_CMD=$GC_CMD, DRY_RUN=${DRY_RUN:-1}"
   local cmd="${GC_CMD:-status}"
   case "$cmd" in start|scan|begin|poke|restart|close-ask|done|status) ;;
     *) do_log "FATAL GC_CMD must be start, scan, begin, poke, restart, close-ask, done or status, got: '$cmd'"; return 1 ;;
   esac
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
+  echo "DEBUG: DRY_RUN in do_spl_gc=${DRY_RUN:-1}"
   spl_gc_init || return 1
   case "$cmd" in
     start) spl_gc_start ;;
@@ -78,26 +80,34 @@ spl_gc_init() {
   GC_WIN="gc@$GC_BOX"
   GC_FROM="${GC_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
   # Resolve the current dispatch lease holder at send time; fall back to the orchestrator lease holder if stale or missing.
-spl_gc_resolve_report_to() {
-  local lease_holder="none" lease_age=-1 lease_file="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease"
-  if [[ -s "$lease_file" ]]; then
-    read -r lease_holder lease_age < "$lease_file" 2>/dev/null || true
-    [[ "$lease_age" =~ ^[0-9]+$ ]] || lease_age=-1
-    lease_age=$(( $(date +%s) - lease_age ))
-  fi
-  if [[ "$lease_holder" == "none" || "$lease_age" -lt 0 || "$lease_age" -gt 180 ]]; then
-    GC_REPORT_TO="$(spl_role_seat 1)"
-    spl_gc_log "GC_REPORT_TO: dispatch lease stale/missing (holder=$lease_holder, age=${lease_age}s), fallback to orchestrator $GC_REPORT_TO"
-  else
-    GC_REPORT_TO="$lease_holder"
-    spl_gc_log "GC_REPORT_TO: dispatch lease holder $GC_REPORT_TO (age=${lease_age}s)"
-  fi
-}
+  spl_gc_resolve_report_to() {
+    echo "DEBUG: spl_gc_resolve_report_to called at $(date +%s)" >&2
+    local lease_holder="none" lease_age=-1 lease_file="${GC_LEASE_FILE:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease}"
+    echo "DEBUG: lease_file=$lease_file" >&2
+    if [[ -s "$lease_file" ]]; then
+      read -r lease_holder lease_age < "$lease_file" 2>/dev/null || true
+      echo "DEBUG: lease_holder=$lease_holder, lease_age=$lease_age" >&2
+      [[ "$lease_age" =~ ^[0-9]+$ ]] || lease_age=-1
+      lease_age=$(( GC_NOW - lease_age ))
+      echo "DEBUG: lease_age after calc=$lease_age" >&2
+    fi
+    if [[ "$lease_holder" == "none" || "$lease_age" -lt 0 || "$lease_age" -gt 180 ]]; then
+      GC_REPORT_TO="$(spl_role_seat 1)"
+      spl_gc_log "GC_REPORT_TO: dispatch lease stale/missing (holder=$lease_holder, age=${lease_age}s), fallback to orchestrator $GC_REPORT_TO"
+    else
+      GC_REPORT_TO="$lease_holder"
+      spl_gc_log "GC_REPORT_TO: dispatch lease holder $GC_REPORT_TO (age=${lease_age}s)"
+    fi
+    echo "DEBUG: GC_REPORT_TO set to $GC_REPORT_TO" >&2
+  }
 
-spl_gc_resolve_report_to
+  spl_gc_resolve_report_to
+  echo "DEBUG: GC_REPORT_TO after spl_gc_resolve_report_to: $GC_REPORT_TO"
   GC_SEND="${GC_SEND:-$ROTATE_SEND}"
   GC_RUN="${GC_RUN:-$ROTATE_RUN}"
   GC_DRY="${DRY_RUN:-1}"
+  echo "DEBUG: GC_DRY in spl_gc_init=$GC_DRY, DRY_RUN=${DRY_RUN:-1}"
+  echo "DEBUG: GC_REPORT_TO after spl_gc_init: $GC_REPORT_TO"
   mkdir -p "$GC_DIR" || { do_log "FATAL cannot create $GC_DIR"; return 1; }
 }
 
@@ -310,6 +320,7 @@ spl_gc_cap() {
 spl_gc_send() {  # TO TASK BODY
   if [[ "$GC_DRY" == 1 ]]; then echo "PLAN note to $1 on $2: $3"; return 0; fi
   local rc=0
+  echo "DEBUG: spl_gc_send --from $GC_FROM --to $1 --kind note --task $2 --body $3" >&2
   bash "$GC_SEND" --from "$GC_FROM" --to "$1" --kind note --task "$2" --body "$3" >/dev/null 2>&1 7>&- || rc=$?
   (( rc < 10 && rc != 2 ))
 }
@@ -358,7 +369,15 @@ spl_gc_close_ask() {
   if read -r t 2>/dev/null < "$GC_DIR/$id.closeask" && [[ "$t" =~ ^[0-9]+$ ]] && (( GC_NOW - t < GC_CLOSE_ASK_EVERY )); then
     spl_gc_refuse close-ask "$id" "asked $(( GC_NOW - t ))s ago"; return
   fi
+  echo "DEBUG: GC_REPORT_TO before resolve=$GC_REPORT_TO"
+  echo "DEBUG: GC_NOW before resolve=$GC_NOW"
+  echo "DEBUG: GC_LEASE_FILE before resolve=$GC_LEASE_FILE"
+  echo "DEBUG: GC_DRY before resolve=$GC_DRY"
   spl_gc_resolve_report_to
+  echo "DEBUG: GC_REPORT_TO after resolve=$GC_REPORT_TO"
+  echo "DEBUG: GC_NOW after resolve=$GC_NOW"
+  echo "DEBUG: GC_LEASE_FILE after resolve=$GC_LEASE_FILE"
+  echo "DEBUG: GC_DRY after resolve=$GC_DRY"
   local cc=""
   if [[ "$GC_REPORT_TO" != "$(spl_role_seat 1)" ]]; then
     cc=" --cc $(spl_role_seat 1)"
@@ -378,6 +397,16 @@ spl_gc_done() {
   rid="$(spl_gc_rid)"
   [[ "$GC_DRY" == 0 ]] && spl_gc_end_cur
   read -r t pane v _ 2>/dev/null < "$GC_DIR/run" || true
+  echo "DEBUG: GC_REPORT_TO before resolve=$GC_REPORT_TO"
+  echo "DEBUG: GC_NOW before resolve=$GC_NOW"
+  echo "DEBUG: GC_LEASE_FILE before resolve=$GC_LEASE_FILE"
+  echo "DEBUG: GC_DRY before resolve=$GC_DRY"
+  echo "DEBUG: GC_REPORT_TO before spl_gc_resolve_report_to=$GC_REPORT_TO"
+  spl_gc_resolve_report_to
+  echo "DEBUG: GC_REPORT_TO after spl_gc_resolve_report_to=$GC_REPORT_TO"
+  echo "DEBUG: GC_NOW after resolve=$GC_NOW"
+  echo "DEBUG: GC_LEASE_FILE after resolve=$GC_LEASE_FILE"
+  echo "DEBUG: GC_DRY after resolve=$GC_DRY"
   spl_gc_send "$GC_REPORT_TO" "gc-$GC_BOX" "GC $GC_BOX $rid (${v:-?}): $GC_SUMMARY" || spl_gc_log "FAIL summary to $GC_REPORT_TO: not delivered"
   [[ "$GC_DRY" == 1 ]] && { echo "PLAN close ${pane:-?} ($GC_WIN)"; return 0; }
   spl_gc_log "DONE $rid: $(cut -c1-300 <<<"$GC_SUMMARY")"

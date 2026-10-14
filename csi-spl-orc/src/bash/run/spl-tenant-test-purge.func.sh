@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # @description Remove unused DEV test workspaces (owner, t1 bea3a4e6,
 # @description 2026-10-01: "if they just create clutter, remove them"). DEV
-# @description only, an explicit list, never a mapped tenant (env.dns.
+# @description (prd opt-in, below), an explicit list, never a mapped tenant (env.dns.
 # @description mapped_tenants) and never one with a message or a ready host.
 # @description BEFORE any delete every row of every table with a tenant_id
 # @description column for those tenants goes to a 0600 JSON-lines backup
@@ -15,15 +15,27 @@
 # @description that never existed. payment_checkouts has no FK: the audit
 # @description rows stay. A list entry with no tenant row only closes its host
 # @description row. Dry run unless DRY_RUN=0 (the backup is written either way).
-# @param ENV - required: dev (prd is refused)
-# @param PURGE_TENANTS - required: space-separated tenant ids
+# @description prd is opt-in (devops guide section 16, row T8): ENV=prd needs
+# @description PURGE_PRD_GO=1 and every id must be an e2e-<x> test workspace
+# @description (never the shared e2e, t1 or a customer workspace); both are
+# @description checked before any cnf, gcloud or psql call. A prd run with
+# @description DRY_RUN=0 writes: it needs the owner's go first.
+# @param ENV - required: dev, or prd with PURGE_PRD_GO=1
+# @param PURGE_PRD_GO (prd only) - 1 confirms the prd purge
+# @param PURGE_TENANTS - required: space-separated tenant ids (prd: e2e-<x> only)
 # @param PURGE_BACKUP (optional) - backup file, default <state dir>/backups/tenant-test-purge.<utc>.jsonl
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev PURGE_TENANTS="m2card3 m2card4" DRY_RUN=0 ./run -a do_spl_tenant_test_purge
+# @example ENV=prd PURGE_PRD_GO=1 PURGE_TENANTS="e2e-old1" ./run -a do_spl_tenant_test_purge
 #------------------------------------------------------------------------------
 do_spl_tenant_test_purge() {
   do_require_bin yq jq psql || return 1
-  [[ "${ENV:-}" == dev ]] || { do_log "FATAL removing test workspaces is DEV only (ENV=${ENV:-})"; return 1; }
+  case "${ENV:-}" in
+    dev) ;;
+    prd) [[ "${PURGE_PRD_GO:-}" == 1 ]] ||
+           { do_log "FATAL ENV=prd purges only with PURGE_PRD_GO=1 (opt-in; a DRY_RUN=0 run needs the owner's go)"; return 1; } ;;
+    *) do_log "FATAL ENV must be dev or prd (ENV=${ENV:-})"; return 1 ;;
+  esac
   local dry=1 t
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local -a list=()
@@ -31,6 +43,8 @@ do_spl_tenant_test_purge() {
   (( ${#list[@]} )) || { do_log "FATAL PURGE_TENANTS is empty (no default)"; return 1; }
   for t in "${list[@]}"; do
     [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL invalid tenant id '$t'"; return 1; }
+    spl_tenant_test_purge_prd_ok "$t" ||
+      { do_log "FATAL on prd only e2e-<x> test workspaces are purged, got '$t'"; return 1; }
   done
   do_spl_cloud_cnf || return 1
   local mapped
@@ -43,6 +57,12 @@ do_spl_tenant_test_purge() {
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   spl_via_proxy _spl_tenant_test_purge_run "$dry" "$bk" "${list[@]}"
+}
+
+# spl_tenant_test_purge_prd_ok <id> -> 0 off prd, or on prd for an e2e-<x> id
+# (the shared e2e workspace carries the prd probes and is never purged)
+spl_tenant_test_purge_prd_ok() {
+  [[ "${ENV:-}" != prd || "$1" =~ ^e2e-[a-z0-9][a-z0-9-]*$ ]]
 }
 
 # spl_tenant_test_purge_arr <id...> -> ARRAY['a','b']::text[] (ids are slug-checked)
@@ -112,5 +132,5 @@ SQL
 )" || return 1
   read -r _ t host < <(grep '^after ' <<<"$after")
   [[ "$t" == 0 && "$host" == 0 ]] || { do_log "FATAL after the purge: $t tenant(s) and $host open host row(s) remain"; return 1; }
-  do_log "OK removed $# dev test workspace(s): $* (host rows closed as removed; backup $bk)"
+  do_log "OK removed $# $ENV test workspace(s): $* (host rows closed as removed; backup $bk)"
 }

@@ -2,8 +2,11 @@
 #------------------------------------------------------------------------------
 # Purpose: do_spl_tenant_test_purge (owner, t1 bea3a4e6: unused dev test
 #          workspaces are clutter), CALLED against a stub psql:
-#          - refused before any SQL: ENV=prd, an empty list, an invalid id,
+#          - refused before any SQL: ENV=prd without PURGE_PRD_GO=1, a prd
+#            id that is not e2e-<x> (e2e, t1), an empty list, an invalid id,
 #            a mapped tenant (env.dns.mapped_tenants)
+#          - prd opt-in (devops guide 16, T8): PURGE_PRD_GO=1 + e2e-<x> ids
+#            take the same backup-first path
 #          - refused after the guard read, before any backup or delete: a
 #            workspace with a message, one with a ready host
 #          - dry run (default): a 0600 backup with one object per tenant_id
@@ -58,8 +61,15 @@ run_act() {  # [VAR=value ...]
   printf '%s\n' "$o"; return $rc
 }
 
-out=$(run_act ENV=prd DRY_RUN=0); rc=$?
-[[ $rc -ne 0 && ! -f "$T/bk.jsonl" ]] && pass "refused: prd" || fail "prd: rc=$rc $out"
+out=$(run_act ENV=prd PURGE_TENANTS="e2e-a1" DRY_RUN=0); rc=$?
+[[ $rc -ne 0 && ! -f "$T/bk.jsonl" ]] && grep -q PURGE_PRD_GO <<<"$out" && pass "refused: prd without PURGE_PRD_GO=1" || fail "prd no go: rc=$rc $out"
+for bad in "e2e" "t1" "e2e-a1 t1" "xe2e-a1"; do
+  out=$(run_act ENV=prd PURGE_PRD_GO=1 PURGE_TENANTS="$bad" DRY_RUN=0); rc=$?
+  [[ $rc -ne 0 && ! -f "$T/bk.jsonl" ]] && grep -q "only e2e-<x>" <<<"$out" &&
+    pass "refused on prd even with the go: '$bad'" || fail "prd '$bad': rc=$rc $out"
+done
+out=$(run_act ENV=staging DRY_RUN=0); rc=$?
+[[ $rc -ne 0 && ! -f "$T/bk.jsonl" ]] && pass "refused: an env that is neither dev nor prd" || fail "staging: rc=$rc $out"
 out=$(run_act PURGE_TENANTS="" DRY_RUN=0); rc=$?
 [[ $rc -ne 0 && ! -f "$T/bk.jsonl" ]] && pass "refused: an empty list (no default)" || fail "empty: rc=$rc $out"
 out=$(run_act PURGE_TENANTS="a1 'x;drop" DRY_RUN=0); rc=$?
@@ -86,5 +96,15 @@ w="$(cat "$T/db/writes" 2>/dev/null)"
 
 out=$(run_act DRY_RUN=0 AFTER_LEFT=1); rc=$?
 [[ $rc -ne 0 ]] && grep -q "remain" <<<"$out" && pass "CONTROL: a tenant still present after the purge fails the run" || fail "after: rc=$rc $out"
+
+out=$(run_act ENV=prd PURGE_PRD_GO=1 PURGE_TENANTS="e2e-a1 e2e-b2"); rc=$?
+[[ $rc -eq 0 && -f "$T/bk.jsonl" && ! -f "$T/db/writes" ]] &&
+  pass "prd opt-in dry run: e2e-<x> ids, a backup, no DELETE" || fail "prd dry: rc=$rc $out"
+out=$(run_act ENV=prd PURGE_PRD_GO=1 PURGE_TENANTS="e2e-a1 e2e-b2" DRY_RUN=0); rc=$?
+w="$(cat "$T/db/writes" 2>/dev/null)"
+[[ $rc -eq 0 && -f "$T/bk.jsonl" ]] && grep -q "ANY(ARRAY\['e2e-a1','e2e-b2'\]::text\[\])" <<<"$w" && grep -q "removed 2 prd test" <<<"$out" &&
+  pass "prd opt-in DRY_RUN=0: backup first, then the one transaction" || fail "prd wet: rc=$rc $out / $w"
+out=$(run_act ENV=prd PURGE_PRD_GO=1 PURGE_TENANTS="e2e-a1" MSG_TENANT=e2e-a1 DRY_RUN=0); rc=$?
+[[ $rc -ne 0 && ! -f "$T/db/writes" ]] && pass "prd: an e2e-<x> workspace with messages is still refused" || fail "prd msgs: rc=$rc $out"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

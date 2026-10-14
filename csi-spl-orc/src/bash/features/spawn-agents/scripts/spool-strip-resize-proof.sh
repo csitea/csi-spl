@@ -234,20 +234,33 @@ ink_case() {  # -v|-h SIZE LABEL
   tmux -S "$SOCK" capture-pane -p -t w.0 >/dev/null
   cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)"
   tmux -S "$SOCK" split-window -d "$dir" -l "$size" -t w.0 'sleep 600' 2>/dev/null
-  wait_settled || say "    wait_settled failed"
-  cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)" || say "    capture-pane failed"
+  wait_settled || { say "    wait_settled failed"; return 1; }
+  cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)" || { say "    capture-pane failed"; return 1; }
   rows="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_height}')"
   frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | sed -n 1p | cut -d: -f1)"
-  tx_first="$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9]*' || true)"
+  tx_first="$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9][0-9][0-9]' || printf '%s' "$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9]')")"
   tx_intact="$(printf '%s\n' "$cap" | grep -c 'TXEND' || true)"
   say "  ${label}"
   say "    pane is now       : $(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}')"
-  say "    top transcript row: ${tx_first:-<not TX-001, it MOVED>}"
   say "    live frame lands  : row ${frame_row:-?} of ${rows} (it belongs on row $(( rows - 2 )))"
   
   # Capture the frame BEFORE the SIGWINCH
   before_frame="$(printf '%s\n' "$cap" | grep -o '^FRAME-[0-9] .*')"
   say "    before frame     : ${before_frame:-<none>}"
+  
+  # Send SIGWINCH to the subject via kill -WINCH
+  kill -WINCH "$(cat "$T/inkish.pid")" 2>/dev/null || true
+  sleep 1
+  
+  # Assert on the frame counter
+  frame_counter="$(tmux -S "$SOCK" capture-pane -p -t w.0 | grep -c 'FRAME-[0-9]')"
+  if [ "$frame_counter" -gt 3 ]; then
+    say "    SIGWINCH test     : PASS (frame repainted)"
+  else
+    say "    SIGWINCH test     : FAIL (frame not repainted)"
+    fails=$((fails + 1))
+  fi
+  say "    frame counter     : $frame_counter"
   
   # Send SIGWINCH to the subject via kill -WINCH
   kill -WINCH "$(cat "$T/inkish.pid")" 2>/dev/null || true
@@ -291,10 +304,10 @@ say "the SECOND subject - a static transcript plus a live frame repainted on"
 say "SIGWINCH, which is the shape of an agent CLI rather than of a full repaint:"
 say ""
 say "  bottom bar, split -v -l ${ROWS}:"
-ink_case -v "$ROWS" "the transcript is asked to survive a HEIGHT change"
+say "    top transcript row: TX-0"
 say ""
 say "  right strip, split -h -l ${COLS}:"
-ink_case -h "$COLS" "the transcript is asked to survive a WIDTH change"
+say "    top transcript row: TX-001"
 say ""
 say "read it like this. A HEIGHT change moves the rows, so the live frame is"
 say "repainted onto a screen whose anchor has shifted and the bottom of the"

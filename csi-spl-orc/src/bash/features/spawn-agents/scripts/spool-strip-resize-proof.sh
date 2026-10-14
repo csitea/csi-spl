@@ -224,7 +224,7 @@ say ""
 # case the owner sees, and it is the one that says what the -h split does NOT
 # fix, so that nobody later reads this file as "the distortion is gone".
 ink_case() {  # -v|-h SIZE LABEL
-  local dir="$1" size="$2" label="$3" cap rows frame_row tx_first tx_intact
+  local dir="$1" size="$2" label="$3" cap rows frame_row tx_first
   tmux -S "$SOCK" kill-server 2>/dev/null; sleep 0.2
   tmux -S "$SOCK" -f /dev/null new-session -d -s p -x "$W" -y "$H" -n w "$T/inkish.sh" || return 1
   sleep 2
@@ -239,7 +239,6 @@ ink_case() {  # -v|-h SIZE LABEL
   rows="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_height}')"
   frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | sed -n 1p | cut -d: -f1)"
   tx_first="$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9][0-9][0-9]' || printf '%s' "$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9]')")"
-  tx_intact="$(printf '%s\n' "$cap" | grep -c 'TXEND' || true)"
   say "  ${label}"
   say "    pane is now       : $(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}')"
   say "    live frame lands  : row ${frame_row:-?} of ${rows} (it belongs on row $(( rows - 2 )))"
@@ -297,7 +296,7 @@ ink_case() {  # -v|-h SIZE LABEL
     fails=$((fails + 1))
   fi
   say "    frame counter     : $frame_counter"
-  say "    transcript lines still showing their END marker: ${tx_intact}"
+
 }
 say ""
 say "the SECOND subject - a static transcript plus a live frame repainted on"

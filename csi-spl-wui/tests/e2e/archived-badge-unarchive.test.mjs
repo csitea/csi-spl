@@ -87,8 +87,8 @@ const snap = () => {
   }
   /* relative to the header: the phone pane may still be sliding in */
   const h = header ? header.getBoundingClientRect() : { left: 0, top: 0 }
-  const items = header ? [...header.children].filter((el) => el !== badge).map((el) => {
-    const b = el.getBoundingClientRect()
+  /* a 0x0 child (sr-only, off-screen) cannot jump; it moved with the slide-in (pre-push 04:43Z) */
+  const items = header ? [...header.children].filter((el) => el !== badge).map((el) => el.getBoundingClientRect()).filter((b) => b.width > 0 && b.height > 0).map((b) => {
     return [Math.round(b.left - h.left), Math.round(b.top - h.top), Math.round(b.width), Math.round(b.height)].join(',')
   }) : []
   return {

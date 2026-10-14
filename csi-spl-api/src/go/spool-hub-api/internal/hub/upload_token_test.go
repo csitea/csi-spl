@@ -27,17 +27,22 @@ import (
 var uploadKey = bytes.Repeat([]byte{7}, 32)
 
 // newUploadPeer is a second hub process on e's store and blobs, reached by
-// its own client: Cloud Run's other instance.
-func newUploadPeer(t *testing.T, e *env, key []byte, now func() time.Time) *env {
+// its own client: Cloud Run's other instance. Its revision is its own
+// unless mut sets one (SPL-1826: a sibling of the same revision).
+func newUploadPeer(t *testing.T, e *env, key []byte, now func() time.Time, mut ...func(*hub.Options)) *env {
 	t.Helper()
-	srv, err := hub.New(hub.Options{
+	o := hub.Options{
 		Store: e.st, Blob: blob.Dir{Root: e.blobs}, Log: zerolog.Nop(),
 		TenantHostPattern: "{tenant}" + domain, HelloSkew: 300 * time.Second, HelloTimeout: 2 * time.Second,
 		UploadTokenTTL: 5 * time.Minute, QueueTTL: 7 * 24 * time.Hour, QueueMaxPerBox: 1000,
 		RetentionAlerts: 7 * 24 * time.Hour, RetentionChannels: 30 * 24 * time.Hour, Version: "test-peer",
 		ViewDoor: hub.ViewDoorOff, LobbyTaskID: lobby, ViewCORSOrigins: []string{wuiOrigin},
 		UploadTokenKey: key, Now: now,
-	})
+	}
+	for _, m := range mut {
+		m(&o)
+	}
+	srv, err := hub.New(o)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,8 +102,9 @@ func TestWUIUploadTokenWorksOnTheOtherInstance(t *testing.T) {
 
 // A signed token is still a credential: a forged MAC, a token past its TTL,
 // another tenant's host, and a box's token on the other instance are all
-// refused. The box token stays per process on purpose: the box's session
-// probe reads that 401 door as a redeploy strand (redeploy_test.go).
+// refused. A box token is bound to its revision (SPL-1826): the peer here
+// runs another one, and the box's session probe reads that 401 door as a
+// redeploy strand (redeploy_test.go).
 func TestWUIUploadTokenSignedRefusals(t *testing.T) {
 	var mu sync.Mutex
 	now := time.Now()
@@ -126,11 +132,8 @@ func TestWUIUploadTokenSignedRefusals(t *testing.T) {
 	bx := a.box(tid, "box-a", "GRK-03")
 	a.pin(tid, bx)
 	boxTok := a.uploadToken(tid, bx)
-	if strings.Contains(boxTok, ".") {
-		t.Errorf("a box token is signed: %q", boxTok)
-	}
 	if code := postFileOn(t, b, tid, boxTok); code != http.StatusUnauthorized {
-		t.Errorf("box token on the other instance: %d, want 401 (the probe's strand signal)", code)
+		t.Errorf("box token on another revision: %d, want 401 (the probe's strand signal)", code)
 	}
 
 	mu.Lock()

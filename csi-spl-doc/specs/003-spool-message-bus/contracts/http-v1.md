@@ -291,15 +291,18 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 
 - POST requires `Authorization: Bearer <upload_token>` (OQ-10). The token is
   minted by the hub on `welcome` / `token`, bound to `(tenant, box_id)`, TTL
-  **5 minutes**, reusable until expiry, never logged. A box's token is held
-  in hub memory (a restart simply makes the box ask again; the box's session
-  probe reads the `401 door` from a process that never minted it as a
-  redeploy strand). A browser socket's token (`box_id` = `box-wui`) is signed
-  instead, `<b64url(json)>.<b64url(hmac)>` with a key derived from
+  **5 minutes**, reusable until expiry, never logged. The token is signed,
+  `<b64url(json)>.<b64url(hmac)>` with a key derived from
   `SPOOL_HUB_AUTH_SESSION_KEY`, so every instance checks it (SPL-1815: under
   `max_instances 2` the upload, sent without cookies, missed the socket's
-  instance and got `401 door`). No or bad token → `401 door`. Anonymous PUT
-  is forbidden.
+  instance and got `401 door`). A browser socket's token (`box_id` =
+  `box-wui`) is valid on every revision. A box's token also names the
+  revision that minted it (`$K_REVISION`) and is valid only there
+  (SPL-1826): a sibling instance of that revision accepts the box's probe,
+  pin sync and put-file, and the next revision answers `401 door`, which the
+  box's session probe reads as a redeploy strand and redials. Without a key
+  (lde with auth off) tokens are held in process memory. No or bad token →
+  `401 door`. Anonymous PUT is forbidden.
 - Body = raw bytes (`application/octet-stream`), ≤ the per-file limit
   (`./limits.md`), else `413 limit_file`.
 - Bytes stored at `t/<tenant_id>/files/<sha256>` in **one** bucket. No
@@ -391,10 +394,11 @@ the default; Windows = right), and asks before it calls this.
 - The hub stores and forwards the envelope it verified; it never mutates a
   signed field.
 - Cloud Run is stateless: no mail, queue or file bytes on container disk. The
-  live-socket map and box upload tokens are per-process memory, rebuilt on
-  reconnect; a browser upload token is signed and valid on every instance (§3).
+  live-socket map is per-process memory, rebuilt on reconnect; an upload
+  token is signed: a browser's valid on every instance, a box's on every
+  instance of its revision (§3).
 - Kind of agent is not a field, only the `from`/`to` id prefix. No per-kind routes.
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.7.0 · updated: 2026-10-12 · last-edit: 2026-10-12T20:30:00Z -->
+<!-- version: 0.7.1 · updated: 2026-10-14 · last-edit: 2026-10-14T08:49:30Z -->

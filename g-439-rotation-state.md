@@ -1,7 +1,8 @@
 # g-439 rotation state
 
-Written 2026-10-14T00:39Z for the lane-rotate warn (rotation at 00:53Z UTC).
-The 23:56Z rotation record is the parent commit a8da61cba.
+Written 2026-10-14T01:42Z for the lane-rotate warn (rotation at 01:56Z UTC).
+The 00:53Z warn record is the parent commit 7b4068fdd.
+The 23:56Z rotation record is a8da61cba.
 The 23:51Z warn record is c468eec5f.
 The 22:47Z rotation record is bc8f429a6.
 The 21:43Z rotation record is 5ab59b90a.
@@ -47,11 +48,17 @@ Do not send the result again.
 
 ## This rotation
 
+- Note cf3a4b1b-30b4-4aa1-8382-b58d61a0d617 (g-001, task lane-rotate-g-439, ts 2026-10-14T01:42:03Z, rotation at 01:56Z) is recorded and not replied to.
+- Rotation 20261014T0055Z-lane-g-439 was ACK OK at 2026-10-14T00:56:51Z by pid 2934028 pane %1975. Do not ack it again. Self-ack 49c263e9 was archived and not answered. No wip commit was made for that takeover.
+- "push what is green" does not apply to b97cb4e9a. The brief forbids push and deploy. g-002 note 461ae438 and g-001 note 5b40fe6d say stay idle, do not push, do not deploy. A push of the feat subject would close SPL-1697 before ACCEPTED. The wip commits must not be pushed either: do_spl_push_master rebases every commit on HEAD.
+- Fetched origin/master at 2026-10-14T01:42:48Z via git-fetch-fresh.sh --force. Tip 2b0beeda41749fe97b8f7981c576fc16b6d2c8c2. rev-list --left-right --count origin/master...HEAD was 77 11. Not rebased. git merge-base --is-ancestor b97cb4e9a80eb0179057bae2bd55ba5126db4486 origin/master exited 1.
+- lane-map --check g-439-rotation-state.md --agent g-439 exited 4 at 2026-10-14T01:42Z (5 unknown lanes, none list that path: c-908, c-915, c-916, c-963, c-973, all @sat). That does not cancel this note.
+
 - Note 47b07c4d-4b1b-46f9-9c8b-3baf6b42c1c7 (g-001, task lane-rotate-g-439, ts 2026-10-14T00:39:03Z, rotation at 00:53Z) is recorded and not replied to.
 - Rotation 20261013T2352Z-lane-g-439 was ACK OK at 2026-10-13T23:54:05Z by pid 1737282. Do not ack it again. That record is a8da61cba.
 - Self-ack 0c0f89e0-5899-4ed9-a3ea-cc4e5b5851c9 was archived and not answered.
 - Note 855933ae-454f-418e-821a-538a05d6b8bc (g-001, task lane-rotate-g-439, ts 2026-10-13T23:36:34Z, rotation at 23:51Z) was recorded in c468eec5f and not replied to.
-- Live window main index 13, title `g-439@tnk > wait accept`, pane %1949. Session pid 1737282.
+- Previous session window was main index 13, pane %1949, pid 1737282. That process is dead. Live window is main index 13, title `g-439@tnk > wait accept`, pane %1975, session pid 2934028.
 - The first riname of the 23:52Z session reported pane %1910 with an empty window name. The second riname, after the map showed %1949, set `g-439@tnk wait accept` and dropped the badge. tmux rename-window -t %1949 restored `g-439@tnk > wait accept`.
 - Rotation 20261013T2249Z-lane-g-439 was ACK OK at 2026-10-13T22:51:25Z by pid 150479. Do not ack it again. Self-ack 6019ea61 was archived and not answered.
 - Rotation 20261013T2145Z-lane-g-439 was ACK OK at 2026-10-13T21:48:18Z by pid 2345785. Do not ack it again. Self-ack 8b93e5b9 was archived and not answered.

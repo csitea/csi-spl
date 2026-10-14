@@ -87,6 +87,29 @@ set -e
 [[ "$rc" -ne 0 ]] && grep -q 'missing on' <<<"$out" \
   && pass "a target missing headers fails the gate" || fail "missing-headers target did not fail (rc=$rc)"
 
+# --- the default target follows ENV: prd = apex, dev/unset = dev (SPL-1772) -
+# A fixture cnf with a placeholder domain; APP_PATH is cleared so the real cnf
+# (searched before SEC_HEADERS_CNF) cannot win.
+mkdir -p "$T/cnf"
+cat >"$T/cnf/all.env.yaml" <<'YAML'
+env:
+  dns:
+    BASE_DOMAIN: "example.com"
+YAML
+# default_url_is <ENV value|-unset-> <expected URL>
+default_url_is() {
+  local got
+  if [[ "$1" == "-unset-" ]]; then
+    got=$(unset ENV; APP_PATH='' SEC_HEADERS_CNF="$T/cnf/all.env.yaml" _sec_headers_default_url)
+  else
+    got=$(APP_PATH='' SEC_HEADERS_CNF="$T/cnf/all.env.yaml" ENV="$1" _sec_headers_default_url)
+  fi
+  [[ "$got" == "$2" ]] && pass "ENV=$1 -> $2" || fail "ENV=$1 -> expected $2, got '$got'"
+}
+default_url_is prd "https://example.com"
+default_url_is dev "https://dev.example.com"
+default_url_is -unset- "https://dev.example.com"
+
 # --- an unreachable target fails closed -------------------------------------
 deadport=$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')
 set +e

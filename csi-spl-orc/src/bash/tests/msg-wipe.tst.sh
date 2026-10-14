@@ -126,7 +126,7 @@ wipe t1 0; rc=$?
   && pass "TENANT_ID=t1 reports 3 -> 0 and commits" || fail "t1: rc=$rc $(cat "$T/out")"
 [[ "$(counts t1)" == "0 0 0 0 0" ]] && pass "t1: messages gone, deliveries/revisions/reactions cascaded, meter back to 0" || fail "t1 after: $(counts t1)"
 [[ "$(counts t2)" == "2 2 2 2 2" ]] && pass "CONTROL: t2 is untouched by a t1 wipe" || fail "t2 after a t1 wipe: $(counts t2)"
-[[ "$(psql_owner -c "SELECT count(*) FROM pins")" == 2 && "$(psql_owner -c "SELECT count(*) FROM tenants")" == 2 ]] \
+[[ "$(psql_owner -c "SELECT count(*) FROM pins")" == 2 && "$(psql_owner -c "SELECT count(*) FROM tenants WHERE tenant_id <> 'system'")" == 2 ]] \
   && pass "identities survive: both tenants and both pins are still there" || fail "identity lost"
 
 wipe "" 0; rc=$?

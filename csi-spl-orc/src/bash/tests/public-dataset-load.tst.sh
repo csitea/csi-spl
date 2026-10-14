@@ -181,12 +181,12 @@ make_case good
 fresh db_head
 make_case oldhead "" '.migration_head = "0001_init.sql"'
 refused "a database at another migration head names the release" "check out release 1.2.3" oldhead
-[[ "$(q 'SELECT count(*) FROM tenants')" == 0 ]] && pass "  ... and nothing was loaded" || fail "head refusal loaded rows"
+[[ "$(q "SELECT count(*) FROM tenants WHERE tenant_id <> 'system'")" == 0 ]] && pass "  ... and nothing was loaded" || fail "head refusal loaded rows"
 
 fresh db_count
 make_case badcount "" '.row_counts.messages = 4'
 refused "a manifest count that differs from the file rolls back" "seed: messages has 3 rows, the manifest says 4" badcount
-[[ "$(q 'SELECT count(*) FROM tenants') $(q 'SELECT count(*) FROM humans')" == "0 0" ]] \
+[[ "$(q "SELECT count(*) FROM tenants WHERE tenant_id <> 'system'") $(q 'SELECT count(*) FROM humans')" == "0 0" ]] \
   && pass "  ... the transaction rolled back: no workspace, no human" || fail "count refusal kept rows"
 compgen -G "$T/home/.spool/seed/*" >/dev/null && fail "  ... a root key was kept for a refused load" || pass "  ... and no root key was kept"
 
@@ -200,16 +200,16 @@ chmod +x "$T/zero-spool"
 BIN_SAVE="$BIN"; BIN="$T/zero-spool"
 refused "a root_pubkey still 32 zero bytes refuses to commit" "root_pubkey is still 32 zero bytes" good
 BIN="$BIN_SAVE"
-[[ "$(q 'SELECT count(*) FROM tenants')" == 0 ]] && pass "  ... and the zero-key load rolled back" || fail "zero key committed"
+[[ "$(q "SELECT count(*) FROM tenants WHERE tenant_id <> 'system'")" == 0 ]] && pass "  ... and the zero-key load rolled back" || fail "zero key committed"
 
 fresh db_good
 load good; rc=$?
 [[ $rc -eq 0 ]] && grep -q "Seed loaded: workspace $TID" "$T/out" && pass "a clean load succeeds" || fail "clean load: rc=$rc $(cat "$T/out")"
 pw="$(sed -n 's/^Password (shown once, never stored in clear): //p' "$T/out")"
 [[ ${#pw} -ge 20 && "$(grep -c -- "$pw" "$T/out")" == 1 ]] && pass "the generated password is printed exactly once" || fail "password line: '$pw'"
-[[ "$(q 'SELECT count(*) FROM tenants')" == 1 && "$(q 'SELECT tenant_id FROM tenants')" == "$TID" ]] \
-  && pass "exactly one workspace, the file's" || fail "workspaces: $(q 'SELECT string_agg(tenant_id, ",") FROM tenants')"
-[[ "$(q "SELECT count(*) FROM tenants WHERE billing_status = 'internal' AND plan_id = 'default'")" == 1 ]] \
+[[ "$(q "SELECT count(*) FROM tenants WHERE tenant_id <> 'system'")" == 1 && "$(q "SELECT tenant_id FROM tenants WHERE tenant_id <> 'system'")" == "$TID" ]] \
+  && pass "exactly one workspace, the file's" || fail "workspaces: $(q "SELECT string_agg(tenant_id, ',') FROM tenants WHERE tenant_id <> 'system'")"
+[[ "$(q "SELECT count(*) FROM tenants WHERE tenant_id <> 'system' AND billing_status = 'internal' AND plan_id = 'default'")" == 1 ]] \
   && pass "billing_status internal, plan default" || fail "tenant constants"
 admin="$(q "SELECT human_id FROM human_identities WHERE provider = 'password' AND subject = 'admin@example.com'")"
 [[ "$admin" == HUM-8 ]] && pass "the first admin is a new human past the highest loaded HUM-n (HUM-8)" || fail "admin id '$admin'"
@@ -235,14 +235,14 @@ admin="$(q "SELECT human_id FROM human_identities WHERE provider = 'password' AN
   && pass "a loaded channel replaces the default the tenant trigger seeds" || fail "lobby upsert"
 key="$T/home/.spool/seed/$TID-root.key"
 [[ -f "$key" && "$(stat -c %a "$key")" == 600 ]] && pass "the root private key is at the operator path, mode 0600" || fail "key file"
-pub="$(q "SELECT encode(root_pubkey, 'base64') FROM tenants")"
+pub="$(q "SELECT encode(root_pubkey, 'base64') FROM tenants WHERE tenant_id <> 'system'")"
 [[ "$pub" != "$(head -c 32 /dev/zero | base64)" ]] && ! grep -rq -- "$(cat "$key")" "$T/out" \
   && pass "root_pubkey is the new key, and the private key is not printed" || fail "root key"
 [[ "$(base64 -d "$key" | tail -c 32 | base64)" == "$pub" ]] \
   && pass "the database holds only the public half of the new keypair (the private key stays in the file)" || fail "key pair mismatch"
 
 refused "a second load into a database with a workspace" "already holds a workspace" good SEED_ROOT_KEY_OUT="$T/other.key"
-[[ "$(q 'SELECT count(*) FROM tenants')" == 1 ]] && pass "  ... the first load is untouched" || fail "second load changed tenants"
+[[ "$(q "SELECT count(*) FROM tenants WHERE tenant_id <> 'system'")" == 1 ]] && pass "  ... the first load is untouched" || fail "second load changed tenants"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $n $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails of $n assertion(s)"; exit 1

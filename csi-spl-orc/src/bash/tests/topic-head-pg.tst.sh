@@ -76,8 +76,8 @@ heads() { psql_owner -c "SELECT count(*) FROM topic_heads"; }
 
 [[ "$(heads)" == 7 ]] && pass "0. the triggers wrote 7 heads for 7 topics" || fail "0. heads=$(heads)"
 act _spl_topic_head_verify_run; rc=$?
-[[ $rc -eq 0 ]] && grep -q 'topics=7 tenants=2 marked=0 mismatches=0' "$T/out" \
-  && pass "0. verify as the runtime login: 7 topics, 0 mismatches" || fail "0. verify: rc=$rc $(cat "$T/out")"
+[[ $rc -eq 0 ]] && grep -q 'topics=7 tenants=3 marked=0 mismatches=0' "$T/out" \
+  && pass "0. verify as the runtime login: 7 topics, t1 + t2 + rdb 0191's system tenant, 0 mismatches" || fail "0. verify: rc=$rc $(cat "$T/out")"
 
 # 1 --------------------------------------------------------------------------
 psql_owner -c "DELETE FROM topic_head_parts; DELETE FROM topic_heads" >/dev/null
@@ -87,14 +87,14 @@ act _spl_topic_head_verify_run; rc=$?
 
 # 2 --------------------------------------------------------------------------
 act _spl_topic_head_backfill_dry SPL_TH_ALL=false; rc=$?
-[[ $rc -eq 0 ]] && grep -q 'would pass topics=7 heads=0 tenants=2 marked=0' "$T/out" && [[ "$(heads)" == 0 ]] \
+[[ $rc -eq 0 ]] && grep -q 'would pass topics=7 heads=0 tenants=3 marked=0' "$T/out" && [[ "$(heads)" == 0 ]] \
   && pass "2. the dry run counts 7 topics and writes nothing" || fail "2. dry: rc=$rc $(cat "$T/out") heads=$(heads)"
 act _spl_topic_head_backfill_run; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'backfill done: chunks=5 topics=7 rebuild_all=false' "$T/out" \
   && pass "2. the backfill, chunk 2: 4 chunks + the empty one, 7 topics" || fail "2. rc=$rc $(cat "$T/out")"
 act _spl_topic_head_verify_run; rc=$?
-[[ $rc -eq 0 ]] && grep -q 'topics=7 tenants=2 marked=2 mismatches=0' "$T/out" \
-  && pass "2. ...then verify: 0 mismatches, both tenants marked" || fail "2. verify: rc=$rc $(cat "$T/out")"
+[[ $rc -eq 0 ]] && grep -q 'topics=7 tenants=3 marked=3 mismatches=0' "$T/out" \
+  && pass "2. ...then verify: 0 mismatches, every tenant marked (t1, t2, system)" || fail "2. verify: rc=$rc $(cat "$T/out")"
 
 # 3 --------------------------------------------------------------------------
 psql_owner -c "ALTER TABLE messages DISABLE TRIGGER USER" -c "DELETE FROM messages WHERE task_id='bbbbbbbb-0000-4000-8000-000000000002'" \
@@ -121,7 +121,7 @@ act _spl_topic_head_triggers_run SPL_PROXY_DSN="$OWNER_DSN" SPL_TH_OP=enable; rc
 [[ $rc -eq 0 ]] && grep -q 'triggers enabled: topic_head_apply=O topic_head_mark_del=O topic_head_mark_ins=O topic_head_mark_upd=O' "$T/out" \
   && grep -q 'topics=6 rebuild_all=true' "$T/out" && pass "4. OP=enable: on again, then the REBUILD=all backfill" || fail "4. enable: rc=$rc $(cat "$T/out")"
 act _spl_topic_head_verify_run; rc=$?
-[[ $rc -eq 0 ]] && grep -q 'marked=2 mismatches=0' "$T/out" && pass "4. ...verify 0, both tenants marked again" || fail "4. verify: rc=$rc $(cat "$T/out")"
+[[ $rc -eq 0 ]] && grep -q 'marked=3 mismatches=0' "$T/out" && pass "4. ...verify 0, every tenant marked again" || fail "4. verify: rc=$rc $(cat "$T/out")"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

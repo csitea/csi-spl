@@ -427,7 +427,7 @@ q "DROP TABLE ctl_node_ref" >/dev/null
 
 echo "--- T9. the migration on existing rows"
 mkdir -p "$T/sql"
-for f in "$SQL_DIR"/*.sql; do [[ "$(basename "$f")" == 0165_workspace_doc_node.sql ]] || cp "$f" "$T/sql/"; done
+for f in "$SQL_DIR"/*.sql; do [[ "$(basename "$f")" < 0165_ ]] && cp "$f" "$T/sql/"; done
 migrate_to() { "$BIN" migrate --db "$(dsn spool:spool "$1")" --sql-dir "$T/sql" 2>&1; }
 for db in spool_mig spool_cap; do q "CREATE DATABASE $db" >/dev/null; migrate_to $db >/dev/null || fail "migrate $db to 0164"; done
 MIG="$(dsn spool:spool spool_mig)" CAP="$(dsn spool:spool spool_cap)"

@@ -252,7 +252,7 @@ spl_pdl_db_precheck() {
     return 1
   }
   n="$(_spl_pdl_psql "$dsn" -c 'BEGIN' -c "SET LOCAL app.rls_scope = 'operator'" \
-      -c 'SELECT (SELECT count(*) FROM tenants) + (SELECT count(*) FROM humans)' -c 'ROLLBACK')" || {
+      -c "SELECT (SELECT count(*) FROM tenants WHERE tenant_id <> 'system') + (SELECT count(*) FROM humans)" -c 'ROLLBACK')" || {
     do_log "FATAL cannot read the database"
     return 1
   }
@@ -283,7 +283,7 @@ BEGIN;
 SET LOCAL app.rls_scope = 'operator';
 LOCK TABLE tenants, humans IN SHARE ROW EXCLUSIVE MODE;
 DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM tenants) OR EXISTS (SELECT 1 FROM humans) THEN
+  IF EXISTS (SELECT 1 FROM tenants WHERE tenant_id <> 'system') OR EXISTS (SELECT 1 FROM humans) THEN
     RAISE EXCEPTION 'seed: the database already holds a workspace or a human; a seed loads into a fresh database only';
   END IF;
 END $$;
@@ -347,7 +347,7 @@ INSERT INTO messages (tenant_id, msg_id, task_id, parent_task_id, channel, ts, f
   FROM seed_messages;
 SELECT setval('humans_seq', max(substr(human_id, 5)::bigint)) FROM humans HAVING count(*) > 0;
 DO $$ BEGIN
-  IF (SELECT count(*) FROM tenants) <> 1 THEN RAISE EXCEPTION 'seed: the load must leave exactly one workspace'; END IF;
+  IF (SELECT count(*) FROM tenants WHERE tenant_id <> 'system') <> 1 THEN RAISE EXCEPTION 'seed: the load must leave exactly one workspace'; END IF;
   IF (SELECT count(*) FROM humans) <> (SELECT count(*) FROM seed_humans)
      OR (SELECT count(*) FROM tenant_memberships) <> (SELECT count(*) FROM seed_tenant_memberships)
      OR (SELECT count(*) FROM messages) <> (SELECT count(*) FROM seed_messages)

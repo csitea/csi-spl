@@ -477,7 +477,7 @@ The file is `.github/workflows/<file>`. Runner is the literal `runs-on` in that 
 | 20_hub-build-deploy.yml | mint, build, migrate, roll the hub; then, non-blocking, the invite e2e (`do_spl_invite_e2e`) on dev t1 and on prd in the test workspace `e2e` only (`vars.INVITE_E2E_TENANT_PRD`; t1 and customer workspaces are refused) | ubuntu-latest |
 | 21_hub-deploy-catchup.yml | a trunk hub or WUI that never got served | ubuntu-latest |
 | 22_deploy-verify.yml | HTTPS smoke of the hub and the WUI | ubuntu-latest |
-| 30_wui-build-deploy.yml | mint and Firebase Hosting | ubuntu-latest |
+| 30_wui-build-deploy.yml | mint and Firebase Hosting; a push (or "all") run stands down, green, when its commit is older than the one the site's `build.json` serves (`wui-deploy-guard.sh`, SPL-1829), so a late older run never rolls the site back | ubuntu-latest |
 | 31_wui-edge-warm.yml | warm the WUI edge | ubuntu-latest |
 | 32_docs-publish.yml | publish the repo docs | ubuntu-latest |
 | 40_tenant-host-reconcile.yml | tenant hosts (specs/024) | ubuntu-latest |

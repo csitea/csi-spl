@@ -40,6 +40,7 @@ on:
       - 'csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh'
       - 'csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh'
       - 'csi-spl-orc/src/bash/scripts/wui-deploy-newest.sh'
+      - 'csi-spl-orc/src/bash/scripts/wui-deploy-guard.sh'
       - 'csi-spl-orc/src/bash/run/publish-docs.func.sh'
       - 'csi-spl-doc/blog/posts/**'           # spec 111: a post commit deploys (sync-blog.mjs)
       - '.github/workflows/30_wui-build-deploy.yml'
@@ -500,8 +501,40 @@ jobs:
           BLOG_MEDIA_OUT: ${{ github.workspace }}/csi-spl-wui/.output/public
         run: GCP_SA_KEY_FILE="$GOOGLE_APPLICATION_CREDENTIALS" ./csi-spl-orc/run -a do_copy_blog_media
 
-      - name: firebase deploy --only hosting
+      # Forward-only guard (csi-spl-orc/src/bash/scripts/wui-deploy-guard.sh,
+      # SPL-1829). The deploy lock is taken in the order jobs reach it, not in
+      # commit order, so an older run can arrive after a newer one has
+      # deployed: it stands down (green) when its commit is a strict ancestor
+      # of the one the site's build.json serves. Read right before the deploy,
+      # after the hub wait, so it sees every roll that finished meanwhile. A
+      # push or "all" is guarded; a dispatch naming one env is an operator
+      # action (a deliberate rollback included) and is not, as in 20.
+      - name: Forward-only guard (never an older commit over the served one)
+        id: fwd
         if: steps.ver.outputs.stale != 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+          SITE: ${{ steps.cfg.outputs.site }}
+        run: |
+          set -uo pipefail
+          ok=true
+          if [[ "$EVENT" == push || "$INPUT_ENV" == all ]]; then
+            served="$(curl -fsS --max-time 15 "https://${SITE}.web.app/build.json?run=${GITHUB_RUN_ID}" 2>/dev/null |
+              jq -r 'if type == "object" and (.commit | type) == "string" then .commit else "" end' 2>/dev/null)" || served=""
+            rc=0
+            verdict="$(SHA="$GITHUB_SHA" SERVED="$served" bash csi-spl-orc/src/bash/scripts/wui-deploy-guard.sh decide)" || rc=$?
+            echo "$verdict"
+            case "$rc" in
+              0) ;;
+              10) ok=false; echo "::warning::${{ matrix.environment }}: $verdict" ;;
+              *) echo "::error::forward guard could not decide (rc $rc)"; exit 1 ;;
+            esac
+          fi
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+
+      - name: firebase deploy --only hosting
+        if: steps.ver.outputs.stale != 'true' && steps.fwd.outputs.ok == 'true'
         working-directory: csi-spl-wui
         run: |
           set -euo pipefail
@@ -510,7 +543,7 @@ jobs:
             --project "${{ steps.cfg.outputs.project }}" --non-interactive
 
       - name: Probe the deployed commit
-        if: steps.ver.outputs.stale != 'true'
+        if: steps.ver.outputs.stale != 'true' && steps.fwd.outputs.ok == 'true'
         env:
           SITE: ${{ steps.cfg.outputs.site }}
           FQDN: ${{ steps.cfg.outputs.fqdn }}
@@ -559,7 +592,7 @@ jobs:
       # env.wui.live_proof_email / live_proof_tenant. An absent secret skips
       # with a ::notice::; a proof that runs and fails fails the job.
       - name: Live proof, signed in (do_spl_wui_live_proof)
-        if: steps.ver.outputs.stale != 'true'
+        if: steps.ver.outputs.stale != 'true' && steps.fwd.outputs.ok == 'true'
         timeout-minutes: 15
         env:
           ENV: ${{ matrix.environment }}
@@ -571,7 +604,7 @@ jobs:
       # (the WIF fallback is the Firebase deploy SA, which is not), so only
       # the key path ingests. Never holds the deploy back.
       - name: Ingest the release notes (do_release_note_ingest)
-        if: steps.ver.outputs.stale != 'true' && steps.auth_key.outcome == 'success'
+        if: steps.ver.outputs.stale != 'true' && steps.auth_key.outcome == 'success' && steps.fwd.outputs.ok == 'true'
         continue-on-error: true
         env:
           ENV: ${{ matrix.environment }}

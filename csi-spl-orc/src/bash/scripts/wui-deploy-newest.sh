@@ -70,6 +70,7 @@ else
     csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh \
     csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh \
     csi-spl-orc/src/bash/scripts/wui-deploy-newest.sh \
+    csi-spl-orc/src/bash/scripts/wui-deploy-guard.sh \
     .github/workflows/30_wui-build-deploy.yml
   grc=$?
   set -e

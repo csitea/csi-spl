@@ -36,10 +36,9 @@ const LONG = new Map([
   ['src/stores/flow.ts <anon>', 317],
   ['src/stores/live.ts setup', 304],
   ['src/stores/notification.ts <anon>', 430],
-  ['src/stores/session.ts <anon>', 167],
   ['src/utils/auth-client.mjs createAuthClient', 326],
   ['src/utils/live-ws.mjs createLiveClient', 499],
-  ['src/utils/spool-client.mjs createSpoolClient', 565],
+  ['src/utils/spool-client.mjs createSpoolClient', 545],
 ])
 
 const NEST = new Set([

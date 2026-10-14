@@ -61,17 +61,14 @@ export interface SessionClaims {
   hours_reading?: boolean | null
 }
 
-/** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
-export const useSessionStore = defineStore('session', () => {
-  const auth = useAuthClient()
-  const state = ref<SessionState>('loading')
-  const claims = ref<SessionClaims | null>(null)
+type SessionAuth = ReturnType<typeof useAuthClient>
 
-  const label = computed(() => claims.value?.hum || claims.value?.name || claims.value?.email || '')
+type SessionRefs = { state: Ref<SessionState>, claims: Ref<SessionClaims | null> }
 
-  /* P3-02: the document-head script sends a reader to /login before any JS
-     loads when this browser last read 'out' (utils/signed-out-hint.mjs).
-     'unknown' and 'loading' say nothing, so they leave the hint as it is. */
+/* P3-02: the document-head script sends a reader to /login before any JS
+   loads when this browser last read 'out' (utils/signed-out-hint.mjs).
+   'unknown' and 'loading' say nothing, so they leave the hint as it is. */
+function watchSignedOutHint({ state }: SessionRefs) {
   if (import.meta.client && !useSpoolApi().mock) {
     const siteUrl = String(useRuntimeConfig().public.siteUrl || '')
     watch(state, (s) => {
@@ -79,19 +76,22 @@ export const useSessionStore = defineStore('session', () => {
       writeSignedOutHint(document, s === 'out', { hostname: location.hostname, protocol: location.protocol, siteUrl })
     })
   }
+}
 
-  /*
-   * a member session means the view reads ride the cookie, so the
-   * client's door is guessed as `session` BEFORE the state flips and every
-   * watcher of 'in' fires its reads. Without it a cold load sent each shell
-   * read once with no credentials, took a 401 for each (7 on dev), and only
-   * then armed the door. withSessionRetry takes a wrong guess back.
-   */
-  function signedIn() {
-    const api = useSpoolApi()
-    if (!api.mock) api.guessDoor('session')
-  }
+/*
+ * a member session means the view reads ride the cookie, so the
+ * client's door is guessed as `session` BEFORE the state flips and every
+ * watcher of 'in' fires its reads. Without it a cold load sent each shell
+ * read once with no credentials, took a 401 for each (7 on dev), and only
+ * then armed the door. withSessionRetry takes a wrong guess back.
+ */
+function signedIn() {
+  const api = useSpoolApi()
+  if (!api.mock) api.guessDoor('session')
+}
 
+/* Probe, adopt and drop the sign-in state. */
+function probeActions({ state, claims }: SessionRefs, auth: SessionAuth) {
   /* The route middleware and the shell both probe on arrival; one request serves both. */
   let probing: Promise<void> | null = null
   function probe() {
@@ -130,6 +130,11 @@ export const useSessionStore = defineStore('session', () => {
     claims.value = null
   }
 
+  return { probe, adopt, signedOut }
+}
+
+/* Mirror a saved (or optimistic) account choice into the claims without another probe. */
+function claimMirrors({ claims }: SessionRefs) {
   /** spec 021: mirror a saved preference without another probe. */
   function setPreferredLocale(code: string) {
     if (claims.value) claims.value = { ...claims.value, preferred_locale: code }
@@ -195,6 +200,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, hours_reading: on }
   }
 
+  return { setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, setTimeZone, setKeyboardShortcuts, setHoursReading }
+}
+
+/* Sign out by hand, or stop acting as someone. */
+function signOutActions({ state, claims }: SessionRefs, auth: SessionAuth) {
   async function logout() {
     const hum = claims.value?.hum
     await auth.logout()
@@ -227,5 +237,18 @@ export const useSessionStore = defineStore('session', () => {
     await logout()
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, setTimeZone, setKeyboardShortcuts, setHoursReading, logout, stopActingAs }
+  return { logout, stopActingAs }
+}
+
+/** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
+export const useSessionStore = defineStore('session', () => {
+  const auth = useAuthClient()
+  const state = ref<SessionState>('loading')
+  const claims = ref<SessionClaims | null>(null)
+
+  const label = computed(() => claims.value?.hum || claims.value?.name || claims.value?.email || '')
+
+  const refs = { state, claims }
+  watchSignedOutHint(refs)
+  return { state, claims, label, ...probeActions(refs, auth), ...claimMirrors(refs), ...signOutActions(refs, auth) }
 })

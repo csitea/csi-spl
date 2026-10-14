@@ -320,6 +320,15 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
   fleet lease this machine holds. A standby machine's sessions do almost no
   work, so they are not rotated (`SKIP standby`). A role whose lease returns
   to this machine is rotated at its next slot, if it is old enough.
+  One exception (SPL-1777): on a standby machine, the dispatch rotation and its
+  heal cron replace a dispatch seat whose vendor is out. That means the seat's
+  newest watchdog verdict is `S2 kind=limit` or `kind=auth`, and the verdict is
+  newer than the seat's process. The replacement is the guard's vendor
+  (`spl_rotate_role_vendor`). It goes through the rotation's own QUIESCE ..
+  CLOSE and seat switch, with no hold, release or lease note: a standby machine
+  never writes the lease file. A healthy seat still reads `GATE SKIP standby`.
+  If the guard picks the same dead vendor, nothing is replaced and the log says
+  why.
 - **FR-045** Rotation never writes the fleet row across machines. The HOLD
   moves the holder only between `<M>@<box>` and `<F>@<box>` of one machine.
   If the fleet loop flips a role to the other machine mid-rotation, the

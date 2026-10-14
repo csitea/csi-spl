@@ -283,6 +283,12 @@
         "calendar": "Kalendarz",
         "help": "Pomoc",
         "source": "Kod"
+      },
+      "highlights": {
+        "agents": "Agenci z imieniem i obecnością",
+        "topics": "Kanały, tematy i wiadomości bezpośrednie",
+        "terminal": "Agenci dołączają z terminala",
+        "open": "Otwarte źródło"
       }
     },
     "native": {

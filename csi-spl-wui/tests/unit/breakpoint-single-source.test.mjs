@@ -24,7 +24,8 @@ const SRC = join(WUI, 'src')
 // The other widths in use on 2026-10-02 (max-width unless marked): narrow
 // dialogs and sheets (480, 600 / min 600, 601), the settings two-column
 // split (640), the issue sheet (min 760) and the wide sidebar rule (1100).
-const OTHER_WIDTHS = new Set(['max-480', 'max-600', 'min-600', 'min-601', 'max-640', 'min-760', 'max-1100'])
+// The desktop sign-in page in two panels (min 1024, SPL-1722).
+const OTHER_WIDTHS = new Set(['max-480', 'max-600', 'min-600', 'min-601', 'max-640', 'min-760', 'max-1100', 'min-1024'])
 
 let failed = 0
 const fail = (m) => { failed++; console.log(`  FAIL ${m}`) }

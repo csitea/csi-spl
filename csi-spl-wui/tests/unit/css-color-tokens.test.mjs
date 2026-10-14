@@ -15,6 +15,7 @@ const ALLOWED = {
   'src/components/ThemeToggle.vue': 'each swatch previews ANOTHER theme, so it cannot read the current one',
   'src/layouts/login.vue': 'the sign-in wallpaper and its glow artwork',
   'src/components/MessageCard.vue': '#000 is a mask alpha, not a colour',
+  'src/pages/login.vue': '#000 is the mask alpha of the light running along the panel edges',
   'src/components/ChannelSidebar.vue': '#000 is the darkening operand of color-mix',
   'src/components/MessageComposer.vue': 'file-kind colours: move to --color-file-* once CLE-77917 lands',
 }

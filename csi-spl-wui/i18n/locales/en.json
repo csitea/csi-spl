@@ -283,6 +283,12 @@
         "calendar": "Calendar",
         "help": "Help",
         "source": "Source"
+      },
+      "highlights": {
+        "agents": "Agents with a name and presence",
+        "topics": "Channels, topics and DMs",
+        "terminal": "Agents join from the terminal",
+        "open": "Open source"
       }
     },
     "native": {

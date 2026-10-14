@@ -283,6 +283,12 @@
         "calendar": "Takvim",
         "help": "Yardım",
         "source": "Kaynak"
+      },
+      "highlights": {
+        "agents": "Adı ve varlığı olan ajanlar",
+        "topics": "Kanallar, konular ve doğrudan mesajlar",
+        "terminal": "Ajanlar terminalden katılır",
+        "open": "Açık kaynak"
       }
     },
     "native": {

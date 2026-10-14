@@ -116,6 +116,26 @@ const cards = computed(() => data.value || [])
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 .lf__card:hover { border-color: var(--color-accent); transform: translateY(-2px); }
+/* SPL-1722: a desktop gets the posts rising in one by one, a glow and a
+   slow zoom of the picture on hover */
+@media (min-width: 1024px) {
+  .lf__title { font-size: 1.375rem; }
+  .lf__item { animation: lf-up 0.6s ease-out both; }
+  .lf__item:nth-child(2) { animation-delay: 0.08s; }
+  .lf__item:nth-child(3) { animation-delay: 0.16s; }
+  .lf__item:nth-child(4) { animation-delay: 0.24s; }
+  .lf__item:nth-child(5) { animation-delay: 0.32s; }
+  .lf__item:nth-child(6) { animation-delay: 0.4s; }
+  .lf__card { transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; }
+  .lf__card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px -22px var(--color-accent), 0 0 0 1px var(--color-accent); }
+  .lf__tile { overflow: hidden; }
+  .lf__img { transition: transform 0.6s ease; }
+  .lf__card:hover .lf__img { transform: scale(1.06); }
+}
+@keyframes lf-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
 .lf__tile {
   display: block;
   aspect-ratio: 2 / 1;
@@ -144,6 +164,9 @@ const cards = computed(() => data.value || [])
   .lf__text { padding: 8px 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .lf__item { animation: none; }
+  .lf__img { transition: none; }
+  .lf__card:hover .lf__img { transform: none; }
   .lf__card { transition: none; }
   .lf__card:hover { transform: none; }
 }

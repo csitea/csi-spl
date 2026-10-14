@@ -1,9 +1,11 @@
 <template>
   <!-- spec 116 T3: the front page, look A "Live channel" (section 4.1; the
        owner's pick, t1 2242b163 msg 696412ec). The logo on top (msg
-       0c104c07), then the slogan and the text, the mock channel and the
-       sign-in card under it: one centred column at every width, the phone's
-       layout made wider on a desktop (owner HUM-10 3e952daf, 099d8794). -->
+       0c104c07), then the slogan, the text and the highlights. A phone (and a
+       tablet) reads one centred column: the mock channel, the sign-in card
+       under it. A desktop (>= 1024 px, owner HUM-10 t1 4f98d07c, SPL-1722):
+       two panels of the same width side by side, the channel LEFT and the
+       sign-in RIGHT, the feature posts under both. -->
   <div class="login-front" data-test="login-front">
     <header class="login-front__brand" data-test="login-front-logo">
       <img class="login-front__logo" src="/logo.webp" alt="" width="64" height="64" decoding="async">
@@ -14,6 +16,10 @@
         <!-- spec 116 section 2: the slogan S1 and the text T1 (116-T2) -->
         <h1 data-test="login-front-slogan">{{ t('auth.login.slogan') }}</h1>
         <p class="login-front__about" data-test="login-front-about">{{ t('auth.login.about') }}</p>
+        <!-- SPL-1722: what spool-hub is, a few words each -->
+        <ul class="login-front__chips" data-test="login-front-chips">
+          <li v-for="h in highlights" :key="h" class="login-front__chip">{{ h }}</li>
+        </ul>
       </section>
       <!-- Fixture strings only, never a real agent, workspace or person. CSS
            motion, about 8 s once, then still; reduced motion: the finished
@@ -39,6 +45,8 @@
             </div>
           </li>
         </ol>
+        <!-- the channel's composer, still: the panel reads as the app -->
+        <div class="hc__composer"><span class="hc__type">Message #release-train</span><i class="hc__caret" /></div>
       </div>
       <div class="login-front__card" data-test="login-front-card">
         <div class="login-card login-landing-card">
@@ -126,6 +134,9 @@ const HERO_POSTS: { who: string, agent?: boolean, tone: 'lead' | 'build' | 'revi
   { who: 'review-agent', agent: true, tone: 'review', time: '09:45', text: [{ s: 'joined the topic · reviewing the diff' }] },
   { who: 'team-lead', tone: 'lead', time: '09:46', text: [{ s: 'thanks both, ship it' }] },
 ]
+/* SPL-1722: the hero's highlight chips; literal keys, so the catalogue
+   split (i18n-first-screen.mjs) finds them for the core catalogue */
+const highlights = computed(() => [t('auth.login.highlights.agents'), t('auth.login.highlights.topics'), t('auth.login.highlights.terminal'), t('auth.login.highlights.open')])
 /* spec 116 T7: the front page's search-engine head (robots, canonical, og, JSON-LD) */
 usePublicSeo()
 /* the auth_error code, rendered in the active locale (spec 021) */
@@ -196,8 +207,9 @@ if (earlyLogin) {
 
 
 <style scoped>
-/* One centred column, desktop as the phone (owner HUM-10 3e952daf, 099d8794:
-   "just a bit wider"): 760 px reads well at 1280..1440, the card 520 px. */
+/* One centred column on a phone and a tablet (owner HUM-10 3e952daf,
+   099d8794): 760 px, the card 520 px. A desktop widens it to two panels
+   (the media query at the end). */
 .login-front {
   --lf-col-w: 760px;
   --lf-card-w: 520px;
@@ -250,6 +262,33 @@ if (earlyLogin) {
   line-height: 1.08;
   letter-spacing: -0.02em;
   color: var(--color-heading);
+}
+/* SPL-1722: the highlight chips under the text, one after the other */
+.login-front__chips {
+  display: none;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.login-front__chip {
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-heading);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  animation: lf-rise 0.6s ease-out both;
+}
+.login-front__chip:nth-child(2) { animation-delay: 0.12s; }
+.login-front__chip:nth-child(3) { animation-delay: 0.24s; }
+.login-front__chip:nth-child(4) { animation-delay: 0.36s; }
+@keyframes lf-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 .login-front__about {
   margin: 0 auto;
@@ -347,7 +386,27 @@ if (earlyLogin) {
 .hc__chan { font-weight: 700; color: var(--color-heading); }
 .hc__topic { color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .hc__live { margin-inline-start: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--color-muted); white-space: nowrap; font-size: 0.8125rem; }
-.hc__feed { list-style: none; margin: 0; padding: 8px 6px 12px; display: grid; gap: 2px; }
+.hc__feed { list-style: none; margin: 0; padding: 8px 6px 12px; display: grid; gap: 2px; align-content: start; }
+/* the still composer at the channel's foot (SPL-1722) */
+.hc__composer {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin: 0 8px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-2);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+.hc__caret {
+  width: 2px;
+  height: 1.1em;
+  background: var(--color-accent);
+  animation: hc-blink 1s steps(1) 8;
+}
+@keyframes hc-blink { 50% { opacity: 0; } }
 .hc__post {
   display: flex;
   gap: 10px;
@@ -424,6 +483,98 @@ if (earlyLogin) {
   50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-ok) 30%, transparent); }
 }
 
+/* SPL-1722 (owner HUM-10, t1 4f98d07c): a desktop shows two panels of the
+   same width, the channel LEFT and the sign-in RIGHT, mirrored on the page
+   centre and stretched to the same height; the feature posts under both.
+   Effects are CSS only and paint after the text (no script, no image): the
+   headline's sheen and the panels' light run a few times, then hold still. */
+@property --lf-turn {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@media (min-width: 1024px) {
+  .login-front {
+    --lf-col-w: 1160px;
+    gap: 18px;
+  }
+  /* the logo and the name in one row: the panels start higher */
+  .login-front__brand { flex-direction: row; gap: 12px; }
+  .login-front__logo { width: 48px; height: 48px; }
+  .login-front__name { font-size: 1.125rem; }
+  .login-front__about { font-size: 1rem; }
+  .login-front__chips { display: flex; }
+  .login-front__main {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "intro intro" "hero card";
+    gap: 32px 40px;
+    align-items: stretch;
+  }
+  .login-front__intro { max-width: 52rem; justify-self: center; }
+  /* the headline's sheen: a band of light the compositor slides across
+     (transform only). Never a background-clip: text gradient on the
+     headline: its raster cost the first paint ~0.5 s (trace, n=6). */
+  .login-front__intro h1 {
+    font-size: clamp(2.75rem, 4.4vw, 4rem);
+    position: relative;
+    overflow: hidden;
+    /* as wide as its words: the light crosses the text, not empty space */
+    width: fit-content;
+    margin-inline: auto;
+  }
+  .login-front__intro h1::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 35%;
+    background: linear-gradient(100deg, transparent 10%, color-mix(in srgb, var(--color-accent) 40%, transparent) 50%, transparent 90%);
+    transform: translateX(-110%);
+    animation: lf-sheen 3.2s ease-in-out 1.2s 2 both;
+    pointer-events: none;
+  }
+  .login-front__card { width: auto; justify-self: stretch; display: flex; }
+  .login-front__card > .login-landing-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 28px 32px 22px;
+  }
+  /* the two panels share one frame: a turning light along the edge */
+  .login-front__hero,
+  .login-front__card > .login-landing-card {
+    position: relative;
+    isolation: isolate;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 30px 80px -36px rgba(0, 0, 0, 0.7), 0 0 60px -20px var(--color-glow);
+  }
+  .login-front__hero::before,
+  .login-front__card > .login-landing-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    padding: 1px;
+    border-radius: inherit;
+    background: conic-gradient(from var(--lf-turn), transparent 0deg, var(--color-accent) 60deg, transparent 120deg, transparent 180deg, var(--color-accent-2) 240deg, transparent 300deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: lf-turn 6s linear 1.2s 3;
+    pointer-events: none;
+  }
+  .login-front__hero { display: flex; flex-direction: column; }
+  .hc__feed { flex: 1 1 auto; padding: 14px 10px 16px; gap: 6px; }
+  .hc__composer { display: flex; }
+  .login-front__more { margin-top: 8px; }
+}
+@keyframes lf-sheen {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(300%); }
+}
+@keyframes lf-turn {
+  to { --lf-turn: 360deg; }
+}
+
 /* Phone (spec 116 4.1, quote 12): the same column, tighter, the channel's
    last 3 posts full width, the card under it; touch targets stay usable but
    compact. */
@@ -448,6 +599,11 @@ if (earlyLogin) {
 @media (prefers-reduced-motion: reduce) {
   .hc__post,
   .hc__post--agent .hc__avatar,
-  .hc__dot--on { animation: none; }
+  .hc__dot--on,
+  .hc__caret,
+  .login-front__chip,
+  .login-front__hero::before,
+  .login-front__card > .login-landing-card::before { animation: none; }
+  .login-front__intro h1::after { display: none; }
 }
 </style>

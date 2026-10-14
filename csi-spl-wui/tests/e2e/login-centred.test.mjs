@@ -15,10 +15,13 @@
 // Uses puppeteer-core (a committed devDependency); a missing driver is a
 // failure, never a silent skip.
 //
-// Look A (/login): the logo shows, and at every size the page is the phone's
-// one centred column (owner HUM-10 3e952daf): the sign-in card sits under the
-// channel hero, its centre on the headline's (TOL px). The control puts the
-// old two-column grid back at 1440 and the check must FAIL on it. No link of the page
+// Look A (/login): the logo shows. A phone is one centred column (owner HUM-10
+// 3e952daf): the sign-in card sits under the channel hero, its centre on the
+// headline's (TOL px). A desktop (SPL-1722, owner HUM-10 t1 4f98d07c) shows
+// two panels of the same width, the channel LEFT and the sign-in card RIGHT,
+// same top and height, mirrored on the headline's centre, the channel
+// narrower than the old 760 px column. The control puts the old one-column
+// page back at 1440 and the two-panel check must FAIL on it. No link of the page
 // (the frame's Blog footer, the card's help row) ever lies over a "Try the
 // demo" button, at 390x844, 1440x900, 2560x1600 and two short desktops
 // (1280x800, 1440x640: where the card outgrows the room). The overlap check
@@ -27,7 +30,8 @@
 // nothing is animating and every channel post shows.
 // Spec 116 T4: the features row (1..6 feature-post cards) is in the served
 // /login HTML itself (prerendered, not fetched after hydration) and shows
-// under the sign-in card at every look A size.
+// under the sign-in card AND the channel at every look A size (SPL-1722: the
+// blog posts at the bottom).
 // Theme picker (owner, t1 2242b163): the app's ThemeToggle sits in the
 // sign-in bar beside the language at 390 and 1440, the bar stays one row with
 // no sideways scroll, choosing a theme sets html[data-theme], and a reload
@@ -183,11 +187,25 @@ const oneColumn = (m) => {
   if (Math.abs(dx) > TOL) return `card centre ${dx.toFixed(1)} px off the headline centre`
   return ''
 }
-// The layout before HUM-10 3e952daf: text and channel left, the card right.
-const OLD_TWO_COLUMN = `.login-front { width: min(1180px, 100%) !important }
-.login-front__main { grid-template-columns: minmax(0, 1fr) 360px !important; grid-template-areas: "intro card" "hero card" !important; grid-template-rows: auto 1fr !important; gap: 24px 40px !important }
-.login-front__intro { text-align: start !important }
-.login-front__card { width: auto !important; justify-self: stretch !important; align-self: center !important }`
+// SPL-1722, a desktop: the channel left, the card right, the same width
+// (4 %), top and height (TOL), the pair centred on the headline, the channel
+// narrower than the old 760 px column. '' = ok.
+const HERO_MAX_W = 620
+const twoPanels = (m) => {
+  if (!m.hero || !m.card || !m.slogan) return 'no hero, card or headline'
+  if (m.hero.r > m.card.l + 1) return `channel right edge ${m.hero.r} past the card left ${m.card.l}`
+  if (Math.abs(m.hero.w - m.card.w) > Math.max(TOL, 0.04 * Math.max(m.hero.w, m.card.w))) return `widths differ: channel ${m.hero.w} card ${m.card.w}`
+  if (Math.abs(m.hero.t - m.card.t) > TOL) return `tops differ: channel ${m.hero.t} card ${m.card.t}`
+  if (Math.abs(m.hero.h - m.card.h) > TOL) return `heights differ: channel ${m.hero.h} card ${m.card.h}`
+  const dx = (m.hero.l + m.card.r) / 2 - (m.slogan.l + m.slogan.r) / 2
+  if (Math.abs(dx) > TOL) return `pair centre ${dx.toFixed(1)} px off the headline centre`
+  if (m.hero.w > HERO_MAX_W) return `channel ${m.hero.w} px wide, want <= ${HERO_MAX_W}`
+  return ''
+}
+// The layout before SPL-1722: one column, the card under the channel.
+const OLD_ONE_COLUMN = `.login-front { width: min(760px, 100%) !important }
+.login-front__main { grid-template-columns: minmax(0, 1fr) !important; grid-template-areas: "intro" "hero" "card" !important }
+.login-front__card { width: min(520px, 100%) !important; justify-self: center !important }`
 
 async function lookAPage(browser, vp, theme, reduce) {
   const p = await browser.newPage()
@@ -245,13 +263,15 @@ async function lookA(browser) {
         const m = await p.evaluate(new Function('return ' + LOOK_A_MEASURE))
         if (m.logo && m.logoLoaded) ok(`${label} logo`)
         else fail(`${label} logo`, `logo not shown (${JSON.stringify(m.logo)}, loaded ${m.logoLoaded})`)
-        const col = oneColumn(m)
+        const col = vp.phone ? oneColumn(m) : twoPanels(m)
         if (col) fail(`${label} layout`, col)
-        else ok(`${label} layout`, `card ${Math.round(m.card.w)} px under the channel, column ${Math.round(m.hero.w)} px`)
+        else if (vp.phone) ok(`${label} layout`, `card ${Math.round(m.card.w)} px under the channel, column ${Math.round(m.hero.w)} px`)
+        else ok(`${label} layout`, `channel ${Math.round(m.hero.w)} px left, card ${Math.round(m.card.w)} px right`)
         if (m.xScroll) fail(`${label} x-scroll`, 'the page scrolls sideways')
         if (!m.features.length || m.features.length > 6) fail(`${label} features`, `${m.features.length} feature cards, want 1..6`)
         else if (m.card && m.features.some((f) => f.t < m.card.b - 1)) fail(`${label} features`, 'a feature card lies above the sign-in card bottom')
-        else ok(`${label} features`, `${m.features.length} cards under the card`)
+        else if (m.hero && m.features.some((f) => f.t < m.hero.b - 1)) fail(`${label} features`, 'a feature card lies above the channel bottom')
+        else ok(`${label} features`, `${m.features.length} cards under the card and the channel`)
         if (!m.demo.length) fail(`${label} overlap`, 'no demo button shown')
         else {
           const over = []
@@ -290,18 +310,18 @@ async function lookA(browser) {
       finally { await p?.close().catch(() => {}) }
     }
   }
-  // control: the old two-column layout at 1440 must fail the one-column check
+  // control: the old one-column page at 1440 must fail the two-panel check
   {
-    const label = 'look A control two-column 1440x900'
+    const label = 'look A control one-column 1440x900'
     let p
     try {
       p = await lookAPage(browser, LOOK_A[1], 'dark', true)
-      await p.addStyleTag({ content: OLD_TWO_COLUMN })
+      await p.addStyleTag({ content: OLD_ONE_COLUMN })
       await sleep(200)
       const m = await p.evaluate(new Function('return ' + LOOK_A_MEASURE))
-      const col = oneColumn(m)
+      const col = twoPanels(m)
       if (col) ok(label, `the check fails it: ${col}`)
-      else fail(label, 'the one-column check passed the old two-column layout')
+      else fail(label, 'the two-panel check passed the old one-column layout')
     } catch (e) { fail(label, e.message) }
     finally { await p?.close().catch(() => {}) }
   }

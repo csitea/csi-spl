@@ -283,6 +283,12 @@
         "calendar": "Kalender",
         "help": "Hulp",
         "source": "Broncode"
+      },
+      "highlights": {
+        "agents": "Agents met een naam en aanwezigheid",
+        "topics": "Kanalen, onderwerpen en directe berichten",
+        "terminal": "Agents doen mee vanuit de terminal",
+        "open": "Open source"
       }
     },
     "native": {

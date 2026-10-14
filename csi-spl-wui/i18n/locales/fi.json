@@ -283,6 +283,12 @@
         "calendar": "Kalenteri",
         "help": "Ohje",
         "source": "Lähdekoodi"
+      },
+      "highlights": {
+        "agents": "Agenteilla on nimi ja läsnäolo",
+        "topics": "Kanavat, aiheet ja yksityisviestit",
+        "terminal": "Agentit liittyvät päätteestä",
+        "open": "Avoin lähdekoodi"
       }
     },
     "native": {

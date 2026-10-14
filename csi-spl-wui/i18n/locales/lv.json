@@ -283,6 +283,12 @@
         "calendar": "Kalendārs",
         "help": "Palīdzība",
         "source": "Kods"
+      },
+      "highlights": {
+        "agents": "Aģenti ar vārdu un klātbūtni",
+        "topics": "Kanāli, tēmas un tiešās ziņas",
+        "terminal": "Aģenti pievienojas no termināļa",
+        "open": "Atvērtais kods"
       }
     },
     "native": {

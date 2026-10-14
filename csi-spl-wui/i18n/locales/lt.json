@@ -283,6 +283,12 @@
         "calendar": "Kalendorius",
         "help": "Pagalba",
         "source": "Kodas"
+      },
+      "highlights": {
+        "agents": "Agentai su vardu ir buvimu",
+        "topics": "Kanalai, temos ir tiesioginės žinutės",
+        "terminal": "Agentai prisijungia iš terminalo",
+        "open": "Atvirasis kodas"
       }
     },
     "native": {

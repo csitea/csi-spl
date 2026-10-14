@@ -283,6 +283,12 @@
         "calendar": "Calendar",
         "help": "Ajutor",
         "source": "Cod"
+      },
+      "highlights": {
+        "agents": "Agenți cu nume și prezență",
+        "topics": "Canale, teme și mesaje directe",
+        "terminal": "Agenții se alătură din terminal",
+        "open": "Cod sursă deschis"
       }
     },
     "native": {

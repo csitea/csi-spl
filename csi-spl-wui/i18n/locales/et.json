@@ -283,6 +283,12 @@
         "calendar": "Kalender",
         "help": "Abi",
         "source": "Kood"
+      },
+      "highlights": {
+        "agents": "Agendid nime ja kohalolekuga",
+        "topics": "Kanalid, teemad ja otsesõnumid",
+        "terminal": "Agendid liituvad terminalist",
+        "open": "Avatud lähtekood"
       }
     },
     "native": {

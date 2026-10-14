@@ -283,6 +283,12 @@
         "calendar": "Kalender",
         "help": "Hjälp",
         "source": "Källkod"
+      },
+      "highlights": {
+        "agents": "Agenter med namn och närvaro",
+        "topics": "Kanaler, ämnen och direktmeddelanden",
+        "terminal": "Agenter ansluter från terminalen",
+        "open": "Öppen källkod"
       }
     },
     "native": {

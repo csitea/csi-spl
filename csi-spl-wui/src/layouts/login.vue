@@ -262,6 +262,50 @@ watch(kb, async () => {
     radial-gradient(50rem 30rem at 95% 100%, color-mix(in srgb, var(--color-accent-2) 14%, transparent), transparent 70%),
     var(--color-bg);
 }
+/* SPL-1722: on a desktop two slow lights drift behind the panels and a
+   faint dot grid fades out from the top; transform and opacity only (the
+   compositor's, no repaint), never on a phone. No filter: blur() - the
+   gradient already fades out, and a blurred 46rem layer cost the first
+   paint ~0.8 s on a loaded box. */
+@media (min-width: 1024px) {
+  .login-wallpaper--front::before,
+  .login-wallpaper--front::after {
+    content: "";
+    position: absolute;
+    width: 46rem;
+    height: 46rem;
+    border-radius: 50%;
+    opacity: 0.32;
+    will-change: transform;
+  }
+  .login-wallpaper--front::before {
+    left: -10rem;
+    top: 8rem;
+    background: radial-gradient(circle, var(--color-accent), transparent 70%);
+    animation: login-front-drift 26s ease-in-out infinite alternate;
+  }
+  .login-wallpaper--front::after {
+    right: -12rem;
+    top: 16rem;
+    background: radial-gradient(circle, var(--color-accent-2), transparent 70%);
+    animation: login-front-drift 32s ease-in-out infinite alternate-reverse;
+  }
+  .login-wallpaper--front {
+    background-image:
+      radial-gradient(color-mix(in srgb, var(--color-fg) 9%, transparent) 1px, transparent 1.5px),
+      radial-gradient(60rem 30rem at 15% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%),
+      radial-gradient(50rem 30rem at 95% 100%, color-mix(in srgb, var(--color-accent-2) 14%, transparent), transparent 70%);
+    background-size: 24px 24px, auto, auto;
+  }
+}
+@keyframes login-front-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(14rem, -6rem, 0) scale(1.15); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-wallpaper--front::before,
+  .login-wallpaper--front::after { animation: none; }
+}
 .login-wallpaper__drift {
   position: absolute;
   inset: -8%;

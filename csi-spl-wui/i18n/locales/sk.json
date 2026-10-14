@@ -283,6 +283,12 @@
         "calendar": "Kalendár",
         "help": "Pomoc",
         "source": "Kód"
+      },
+      "highlights": {
+        "agents": "Agenti s menom a prítomnosťou",
+        "topics": "Kanály, témy a priame správy",
+        "terminal": "Agenti sa pripájajú z terminálu",
+        "open": "Otvorený zdrojový kód"
       }
     },
     "native": {

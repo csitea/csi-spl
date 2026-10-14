@@ -102,3 +102,73 @@ func TestChannelUnreadSkipsLinesReadInTheirThread(t *testing.T) {
 		})
 	}
 }
+
+// perf round 5 P5-10 (SPL-1761): the WUI re-sends a member's marks every 5 s
+// (csi-spl-wui/src/utils/read-sync.mjs), most of them unchanged. A re-sent
+// mark that moves nothing writes no row, so the change stamp (rdb 0103/0190)
+// settles and GET /v1/view/channels can answer 304; a mark that advances, a
+// higher Seen or a new key still moves it (the control). The stamp is
+// Postgres only; the memory store checks the marks themselves.
+func TestReadMarksUnchangedResendKeepsStamp(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			rm := s.(ReadMarks)
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			tid := newTenant(t, s)
+			cs, stamped := s.(ChangeStamper)
+			stamp := func() ChangeStamp {
+				if !stamped {
+					return ChangeStamp{}
+				}
+				c, err := cs.ChangeStamp(ctx, tid, now, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return c
+			}
+			save := func(marks map[string]ReadMark, at time.Time) {
+				if err := rm.SaveReadMarks(ctx, tid, "HUM-1", marks, at); err != nil {
+					t.Fatal(err)
+				}
+			}
+			mark := ReadMark{At: now, MsgID: "m2", Seen: 3}
+			save(map[string]ReadMark{"ch:devel": mark, "t:T1": mark}, now)
+			cases := []struct {
+				what  string
+				marks map[string]ReadMark
+				moves bool
+			}{
+				{"unchanged re-send", map[string]ReadMark{"ch:devel": mark, "t:T1": mark}, false},
+				{"older re-send", map[string]ReadMark{"ch:devel": {At: now.Add(-time.Hour), MsgID: "m1", Seen: 1}}, false},
+				{"advancing mark", map[string]ReadMark{"ch:devel": {At: now.Add(time.Second), MsgID: "m3", Seen: 3}}, true},
+				{"higher seen", map[string]ReadMark{"t:T1": {At: now, MsgID: "m2", Seen: 4}}, true},
+				{"new key", map[string]ReadMark{"dm:CLE-07@box-a": mark}, true},
+			}
+			for i, c := range cases {
+				before := stamp()
+				save(c.marks, now.Add(time.Duration(i+1)*5*time.Second))
+				after := stamp()
+				if moved := after.NoDeliveries != before.NoDeliveries; stamped && moved != c.moves {
+					t.Errorf("%s: no-deliveries stamp %d -> %d, want moved=%v", c.what, before.NoDeliveries, after.NoDeliveries, c.moves)
+				}
+				if moved := after.Stamp != before.Stamp; stamped && moved != c.moves {
+					t.Errorf("%s: stamp %d -> %d, want moved=%v", c.what, before.Stamp, after.Stamp, c.moves)
+				}
+			}
+			got, err := rm.ReadMarksOf(ctx, tid, "HUM-1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if m := got["ch:devel"]; m.MsgID != "m3" || m.Seen != 3 {
+				t.Errorf("ch:devel = %+v, want m3 seen 3", m)
+			}
+			if m := got["t:T1"]; m.MsgID != "m2" || m.Seen != 4 {
+				t.Errorf("t:T1 = %+v, want m2 seen 4", m)
+			}
+			if len(got) != 3 {
+				t.Errorf("marks = %v, want 3 keys", got)
+			}
+		})
+	}
+}

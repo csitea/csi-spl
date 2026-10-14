@@ -76,14 +76,20 @@ func (s *Memory) SaveReadMarks(_ context.Context, tenant, humanID string, marks 
 	if s.readMarks == nil {
 		s.readMarks = map[[3]string]ReadMark{}
 	}
+	moved := false
 	for key, m := range marks {
 		k := [3]string{tenant, humanID, key}
 		if was, ok := s.readMarks[k]; ok {
-			m = forward(was, m)
+			if m = forward(was, m); m == was {
+				continue // moves nothing: no write, no wake (as Postgres' DO UPDATE WHERE)
+			}
 		}
 		s.readMarks[k] = m
+		moved = true
 	}
-	s.wake.notifyWUI(tenant, "f:"+humanID) // spec 062: as the Postgres statement announces it
+	if moved {
+		s.wake.notifyWUI(tenant, "f:"+humanID) // spec 062: as the Postgres statement announces it
+	}
 	return nil
 }
 
@@ -168,6 +174,10 @@ func (s *Postgres) SaveReadMarks(ctx context.Context, tenant, humanID string, ma
 	// spec 062 FR-007: the write announces "<tenant>|f:<member>" on the
 	// browser wake channel (sent on commit), so every hub process pushes that
 	// member's sockets their new flow counts.
+	// A key that moves nothing (the WUI re-sends unchanged marks every 5 s)
+	// writes no row: the DO UPDATE WHERE skips it, so the change stamp
+	// trigger (rdb 0103/0190) does not fire and the stamp settles, and no wake
+	// is sent (perf round 5 P5-10, SPL-1761: prd 0 of 739 channels 304s).
 	_, err := s.execTenant(ctx, tenant, `WITH up AS (INSERT INTO read_marks (tenant_id, member_id, mark_key, at, msg_id, seen, updated_at)
 			SELECT $1, $2, k, a, i, n, $7 FROM unnest($3::text[], $4::timestamptz[], $5::text[], $6::int[]) AS u(k, a, i, n) ORDER BY k
 			ON CONFLICT (tenant_id, member_id, mark_key) DO UPDATE SET
@@ -175,8 +185,9 @@ func (s *Postgres) SaveReadMarks(ctx context.Context, tenant, humanID string, ma
 				msg_id = CASE WHEN (EXCLUDED.at, EXCLUDED.msg_id) > (read_marks.at, read_marks.msg_id) THEN EXCLUDED.msg_id ELSE read_marks.msg_id END,
 				seen = GREATEST(read_marks.seen, EXCLUDED.seen),
 				updated_at = EXCLUDED.updated_at
+			WHERE (EXCLUDED.at, EXCLUDED.msg_id) > (read_marks.at, read_marks.msg_id) OR EXCLUDED.seen > read_marks.seen
 			RETURNING 1)
-			SELECT pg_notify('`+WUIWakeChannel+`', $1 || '|f:' || $2), (SELECT count(*) FROM up)`,
+			SELECT pg_notify('`+WUIWakeChannel+`', $1 || '|f:' || $2) WHERE EXISTS (SELECT 1 FROM up)`,
 		tenant, humanID, keys, ats, ids, seen, now)
 	return err
 }

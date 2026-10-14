@@ -12,7 +12,8 @@
 # @description   pending / failed, not mapped -> add to env.dns.mapped_tenants
 # @description                      + steps.052 workspaces (its Docs bucket)
 # @description   removing         -> drop from both
-# @description   (a tenant whose billing_status is unpaid is left pending)
+# @description   (a tenant whose billing_status is unpaid, or that is
+# @description   suspended or archived, is left pending: never provisioned)
 # @description render 052 + 019 + 025, push that cnf change to the trunk from a
 # @description throwaway worktree BEFORE the apply (a run that dies mid-apply
 # @description leaves trunk declaring the host, and the next run completes it),
@@ -52,13 +53,15 @@ do_spl_tenant_host_reconcile() {
   local rows
   rows="$(spl_via_proxy _spl_th_open_rows)" || { do_log "FATAL cannot read tenant_hosts in $ENV"; return 1; }
   local -a add=() chk=() del=() held=()
-  local tag t st bill
-  # only `row <tenant> <status> <billing>` lines: the proxy start logs to
-  # stdout too, and a log line must never read as a tenant
-  while read -r tag t st bill; do
+  local -a off=()
+  local tag t st bill act
+  # only `row <tenant> <status> <billing> <on|off>` lines: the proxy start
+  # logs to stdout too, and a log line must never read as a tenant
+  while read -r tag t st bill act; do
     [[ "$tag" == row && -n "$t" ]] || continue
     spl_th_valid_slug "$t" 2>/dev/null || { do_log "WARN skipping invalid tenant id '$t'"; continue; }
     if [[ "$st" == removing ]]; then del+=("$t")
+    elif [[ "$act" == off ]]; then off+=("$t")
     elif [[ "$bill" == unpaid ]]; then held+=("$t")
     elif spl_th_cnf_has "$cnf" "$t" || spl_th_is_apex "$cnf" "$t"; then chk+=("$t")
     else add+=("$t"); fi
@@ -67,6 +70,7 @@ do_spl_tenant_host_reconcile() {
   [[ "${CHECK_ONLY:-0}" == 1 ]] && apply=0
   spl_th_output open "$open"; spl_th_output apply "$apply"
   (( ${#held[@]} )) && do_log "INFO left pending (billing unpaid): ${held[*]}"
+  (( ${#off[@]} )) && do_log "INFO left pending (tenant suspended or archived): ${off[*]}"
   if (( open == 0 )); then
     do_log "OK nothing to reconcile in $ENV"
     return 0
@@ -120,7 +124,8 @@ _spl_th_open_rows() {
     psql -X -q -At -F ' ' -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
-SELECT 'row', h.tenant_id, h.status, coalesce(t.billing_status, '-')
+SELECT 'row', h.tenant_id, h.status, coalesce(t.billing_status, '-'),
+       CASE WHEN t.suspended_at IS NOT NULL OR t.archived_at IS NOT NULL THEN 'off' ELSE 'on' END
   FROM tenant_hosts h LEFT JOIN tenants t USING (tenant_id)
  WHERE h.status IN ('pending', 'failed', 'removing')
  ORDER BY h.requested_at, h.tenant_id;

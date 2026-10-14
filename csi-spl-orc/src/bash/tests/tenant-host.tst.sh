@@ -213,6 +213,15 @@ out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc STUB_ROWS="$ROWS" 2>&1); rc=
   grep -q 'add \[m2proof1 p1gone\] remove \[t1\]' <<<"$out" && grep -q 'unpaid): broke' <<<"$out" &&
   pass "reconcile DRY_RUN: add pending+failed, remove removing, hold unpaid; nothing touched" || fail "reconcile dry rc=$rc: $out"
 reset
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc STUB_ROWS=$'row g226arch pending manual off\nrow t1 removing - off' 2>&1); rc=$?
+[[ $rc == 0 && ! -s "$STUB_LOG" ]] && grep -q '^open=1$' <<<"$out" && grep -q '^apply=1$' <<<"$out" &&
+  grep -q 'suspended or archived): g226arch' <<<"$out" && ! grep -q 'add \[g226arch' <<<"$out" &&
+  pass "reconcile: a suspended / archived tenant is never provisioned (SPL-697 g226c36f21); its removing row still counts" ||
+  fail "reconcile suspended rc=$rc: $out"
+rows_sql="$(sed -n '/^_spl_th_open_rows()/,/^}/p' "$PROJ_ROOT/src/bash/run/spl-tenant-host-reconcile.func.sh")"
+grep -q 'suspended_at IS NOT NULL OR t.archived_at IS NOT NULL' <<<"$rows_sql" &&
+  pass "reconcile: the open-rows read carries suspended_at / archived_at" || fail "open-rows SQL lacks suspended_at / archived_at"
+reset
 out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_ROWS="$ROWS" STUB_PLAN_019="$P_DEL" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
 lst=$(yq -r '.env.dns.mapped_tenants | join(",")' "$CNF")
 [[ $rc == 0 && "$lst" == "m2proof1,p1gone" ]] && grep -q 'do-provision 019' "$STUB_LOG" &&

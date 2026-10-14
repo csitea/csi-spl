@@ -34,6 +34,23 @@ const ok = (name, pass, ev) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+/* Polls read() until want(s) holds on two polls in a row with the same
+   state, so a late second change still shows; gives up after max ms and
+   returns the last state for the check. A fixed 600..1200 ms sleep after
+   each step was about 25 s of the file's run (spec 133 round 18). */
+async function until(read, want, max = 8000) {
+  const end = Date.now() + max
+  let prev = ''
+  let s = await read()
+  while (Date.now() < end) {
+    const key = want(s) ? JSON.stringify(s) : ''
+    if (key && key === prev) return s
+    prev = key
+    await sleep(150)
+    s = await read()
+  }
+  return s
+}
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -244,14 +261,14 @@ try {
       /* the control may sit off screen in the rolling strip: click it in the page */
       await p.evaluate((sel) => document.querySelector(sel)?.click(), s.sel)
       if (!s.list) await p.waitForFunction((path) => location.pathname === path, { timeout: 15000 }, s.path).catch(() => null)
-      await sleep(1200)
-      const st = await state(p, s.sel, s.name, s.list)
+      const want = s.list
+        ? (st) => st.level === '1' && st.strip && st.stripUnderBar && st.on && st.others === 0 && st.list && !st.xscroll
+        : (st) => st.level === '2' && st.section === '1' && st.strip && st.stripUnderBar && st.on && st.others === 0 && st.title === 0 && st.back === 0 && !st.xscroll
+      const st = await until(() => state(p, s.sel, s.name, s.list), want)
       if (s.list) {
-        ok(`${scheme} ${s.name}: its list at level 1 under the section strip, the section selected`,
-          st.level === '1' && st.strip && st.stripUnderBar && st.on && st.others === 0 && st.list && !st.xscroll, st)
+        ok(`${scheme} ${s.name}: its list at level 1 under the section strip, the section selected`, want(st), st)
       } else {
-        ok(`${scheme} ${s.name}: level 2 under the section strip, the section selected, no title, no Back`,
-          st.level === '2' && st.section === '1' && st.strip && st.stripUnderBar && st.on && st.others === 0 && st.title === 0 && st.back === 0 && !st.xscroll, st)
+        ok(`${scheme} ${s.name}: level 2 under the section strip, the section selected, no title, no Back`, want(st), st)
       }
       if (st.bold !== null) ok(`${scheme} ${s.name}: the selected control is 1px in, raised and bold`, st.margin === '1px' && st.shadow && st.bold, st)
       ok(`${scheme} ${s.name}: the top bar is the same as on Channels`, (await topBar(p)) === home, { home, here: await topBar(p) })
@@ -263,10 +280,10 @@ try {
     await sleep(600)
     await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-issues]')?.click())
     await p.waitForSelector('[data-test=issues-page]', { visible: true })
-    await sleep(800)
+    const issuesL = () => p.evaluate(() => ({ level: document.querySelector('.spool-shell').getAttribute('data-mobile-level'), panel: Boolean(document.getElementById('sidebar-panel-issues')?.offsetParent) }))
+    await until(issuesL, (l) => l.level === '2')
     await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-issues]')?.click())
-    await sleep(800)
-    const l1 = await p.evaluate(() => ({ level: document.querySelector('.spool-shell').getAttribute('data-mobile-level'), panel: Boolean(document.getElementById('sidebar-panel-issues')?.offsetParent) }))
+    const l1 = await until(issuesL, (l) => l.level === '1' && l.panel)
     ok(`${scheme}: a tap on the selected Issues control shows the Issues section at level 1`, l1.level === '1' && l1.panel, l1)
 
     /* an open issue keeps its own header and actions; the top bar stays */
@@ -277,15 +294,14 @@ try {
     await p.type('[data-test=issues-detail-title]', 'Section strip check')
     await p.click('[data-test=issues-create]')
     await p.waitForFunction(() => /^SPL-\d+$/.test(document.querySelector('[data-test=issues-detail-key]')?.textContent.trim() || ''), { timeout: 10000 }).catch(() => null)
-    await sleep(600)
-    const l3 = await p.evaluate(() => {
+    const l3 = await until(() => p.evaluate(() => {
       const vis = (e) => Boolean(e) && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0
       return {
         level: document.querySelector('.spool-shell').getAttribute('data-mobile-level'),
         back: vis(document.querySelector('[data-test=issues-detail-back]')),
         stripCovered: !vis(document.querySelector('.spool-shell > .sidebar')),
       }
-    })
+    }), (l) => l.level === '3' && l.back && l.stripCovered)
     ok(`${scheme}: an open issue is level 3 with its own Back, over the strip`, l3.level === '3' && l3.back && l3.stripCovered, l3)
     ok(`${scheme}: an open issue keeps the same top bar`, (await topBar(p)) === home, { home, here: await topBar(p) })
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `390-${scheme}-issue-open.png`) })

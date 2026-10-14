@@ -31,7 +31,13 @@ PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
-check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
+check() {
+  if eval "$2" >/dev/null 2>&1; then
+    pass "$1"
+  else
+    fail "$1"
+  fi
+}
 command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
@@ -218,6 +224,32 @@ check "10. scan lists this box's agents only" '[ "$rc" = 0 ] && grep -q "^== c-9
 check "10. an ACCEPTED lane is hinted done" 'grep -q "^== c-918 .*hint=accepted" "$T/out" && grep -q "^== c-917 .*hint=working" "$T/out"'
 gc scan $(( H0 + 1000 ))
 check "10. silent past GC_SILENT_AGE is hinted silent" 'grep -q "^== c-917 .*hint=silent" "$T/out"'
+
+# --- 11. GC_REPORT_TO: dispatch lease holder, fallback, stale lease -------------------------
+reset; lane c-920
+gc start "$H0"
+printf 'c-002@sat %s\n' "$(( H0 - 60 ))" >"$D/lease"
+gc done $(( H0 + 300 )) GC_SUMMARY="1 agents: 1 working"
+check "11. GC_REPORT_TO: dispatch lease holder c-002@sat" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to c-002@sat --kind note --task gc-box-a")" = 1 ]'
+
+reset; lane c-921
+gc start "$H0"
+printf 'none 0\n' >"$D/lease"
+gc done $(( H0 + 300 )) GC_SUMMARY="1 agents: 1 working"
+check "11. GC_REPORT_TO: dispatch lease missing = fallback to orchestrator c-001" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to c-001 --kind note --task gc-box-a")" = 1 ] && grep -q "dispatch lease stale/missing.*fallback to orchestrator c-001" "$D/gc/gc.log"'
+
+reset; lane c-922
+gc start "$H0"
+printf 'c-003@sat %s\n' "$(( H0 - 200 ))" >"$D/lease"
+gc done $(( H0 + 300 )) GC_SUMMARY="1 agents: 1 working"
+check "11. GC_REPORT_TO: dispatch lease stale (> 180 s) = fallback to orchestrator c-001" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to c-001 --kind note --task gc-box-a")" = 1 ] && grep -q "dispatch lease stale/missing.*fallback to orchestrator c-001" "$D/gc/gc.log"'
+
+reset; lane c-923
+gc start "$H0"
+printf 'c-002@sat %s\n' "$(( H0 - 60 ))" >"$D/lease"
+gc begin $(( H0 + 1 )) AGENT_ID=c-923
+gc close-ask $(( H0 + 2 )) AGENT_ID=c-923 GC_WHY="ACCEPTED by c-001 at 20:00Z, idle since"
+check "11. close-ask: dispatch lease holder c-002@sat, orchestrator c-001 as cc" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--to orchestrator --cc c-001 --kind note --task gc-c-923")" = 1 ]'
 
 # --- 11. the session command -----------------------------------------------------------
 printf '#!/bin/sh\n' >"$T/bin/claude"; chmod +x "$T/bin/claude"

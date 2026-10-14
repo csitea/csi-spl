@@ -17,7 +17,9 @@
 # most 6), except the files named in ci-serial.txt (a timing check or a race
 # that sibling load breaks), which run one by one after the pool. Output is
 # buffered and printed in name order, then a table of file / verdict /
-# seconds. Exit 1 when any file fails.
+# seconds. Exit 1 when any file fails. Stopped by SIGTERM (the pre-push
+# part's `timeout`), it prints `UNFINISHED <feature>/<file>` for every file
+# still running, so a timed-out gate names what it waited on, and exits 124.
 # Needs tmux (the spawn-agents tests drive a private tmux server each) and a
 # short TMPDIR: a tmux socket path over 107 bytes fails to bind.
 #
@@ -97,8 +99,22 @@ done
 (( ${#list[@]} + ${#alone[@]} )) || { echo "FAIL: no feature test found"; exit 1; }
 
 out=$(mktemp -d); trap 'rm -rf "$out"' EXIT
+on_term() {
+  local f
+  trap - TERM
+  for f in "$out"/*.start; do
+    [[ -f "$f" ]] || continue
+    [[ -f "${f%.start}.rc" ]] && ! grep -qE '^(124|137|143) ' "${f%.start}.rc" && continue
+    echo "UNFINISHED $(cat "$f")"
+  done
+  # shellcheck disable=SC2046 # one pid per word
+  kill $(jobs -p) 2>/dev/null
+  exit 124
+}
+trap on_term TERM
 run_one() {  # <index> <file>
   local i="$1" t="$2" s e r
+  echo "$(basename "$(dirname "$(dirname "$t")")")/${t##*/}" >"$out/$i.start"
   s=$(date +%s%N)
   bash "$t" </dev/null >"$out/$i.log" 2>&1; r=$?
   e=$(date +%s%N)

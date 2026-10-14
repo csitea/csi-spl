@@ -12,6 +12,9 @@
 #      the full-tier iac suite passed 300 s inside the gate and TIMED OUT)
 #   7. fast tier, iac part          -> 300 s; PRE_PUSH_IAC_FULL_TIMEOUT=1200 -> 1200
 #   8. orc part: full tier 1800 s, fast tier 300 s
+#   8b. orc-features part: full tier 900 s (every feature ran 308 s on a
+#      loaded sat and TIMED OUT at 300 s), fast tier 300 s;
+#      PRE_PUSH_FEATURES_TIMEOUT wins on both tiers
 #   9. CONTROL, real timeout: an iac suite that runs 2 s is TIMED OUT (rc 124)
 #      under a planted 1 s full-tier budget (the 300 s that was too short) and
 #      passes under the default
@@ -37,7 +40,7 @@ fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
 
 do_log() { :; }
 do_check_dist_hygiene() { return 0; }
-unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_API_FULL_CAP PRE_PUSH_IAC_FULL_TIMEOUT PRE_PUSH_ORC_FULL_TIMEOUT
+unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_API_FULL_CAP PRE_PUSH_IAC_FULL_TIMEOUT PRE_PUSH_ORC_FULL_TIMEOUT PRE_PUSH_FEATURES_TIMEOUT
 # shellcheck source=../run/check-pre-push.func.sh
 . "$FUNC"
 # timeout -k 10 <budget> bash <script>: print the budget, run nothing.
@@ -63,6 +66,10 @@ check "7. iac fast tier -> 300"                 300  "$(budget _pp_part_iac fast
 check "7. iac full + PRE_PUSH_IAC_FULL_TIMEOUT" 1200 "$(budget _pp_part_iac full PRE_PUSH_IAC_FULL_TIMEOUT=1200)"
 check "8. orc full tier -> 1800"                1800 "$(_PP_TIER=full _pp_budget _pp_part_orc)"
 check "8. orc fast tier -> 300"                 300  "$(_PP_TIER=fast _pp_budget _pp_part_orc)"
+check "8b. orc-features full tier -> 900"        900  "$(_PP_TIER=full _pp_budget _pp_part_orc_features)"
+check "8b. orc-features fast tier -> 300"        300  "$(_PP_TIER=fast _pp_budget _pp_part_orc_features)"
+check "8b. orc-features full + PRE_PUSH_FEATURES_TIMEOUT" 1800 "$(PRE_PUSH_FEATURES_TIMEOUT=1800 _PP_TIER=full _pp_budget _pp_part_orc_features)"
+check "8b. orc-features fast + PRE_PUSH_FEATURES_TIMEOUT" 50   "$(PRE_PUSH_FEATURES_TIMEOUT=50 _PP_TIER=fast _pp_budget _pp_part_orc_features)"
 
 check "10. api full, load 8/16 (0.5 per cpu) -> 900"      900  "$(budget _pp_part_api full PLANT_LOAD=8)"
 check "10. api full, load 32/16 (2 per cpu) -> 1800"       1800 "$(budget _pp_part_api full PLANT_LOAD=32)"
@@ -86,6 +93,6 @@ check "9. CONTROL: planted 1 s full-tier budget -> TIMED OUT (rc 124)" 124 "$rc"
 rc=0; ( _PP_TIER=full _pp_part_iac "$T" ) || rc=$?
 check "9. the default full-tier budget -> the 2 s suite passes" 0 "$rc"
 
-total=22
+total=26
 echo "--- $((total - fails))/$total passed ---"
 [[ "$fails" -eq 0 ]]

@@ -21,7 +21,9 @@
 # @description PRE_PUSH_FEATURES_TIMEOUT. Measured 2026-10-12 on the first box
 # @description (16 cpus, load 15.7, n=1): spawn-agents, 80 files, 85 s.
 # @param PRE_PUSH_FEATURES (optional) - 0 = never select the part, default 1
-# @param PRE_PUSH_FEATURES_TIMEOUT (optional) - seconds for the part, default 300
+# @description A part that runs out of time names every file still running
+# @description (FAILED: <feature>/<file> (still running at the timeout)).
+# @param PRE_PUSH_FEATURES_TIMEOUT (optional) - seconds for the part, default 300, full tier 900
 # @example FEATURES_CHANGED="csi-spl-orc/src/bash/run/spl-lane-map.func.sh" ./run -a do_check_pre_push_features
 # @example FEATURES_RANGE=origin/master..HEAD ./run -a do_check_pre_push_features
 #------------------------------------------------------------------------------
@@ -98,7 +100,8 @@ _pp_part_orc_features() {
     timeout -k 10 "$(_pp_budget _pp_part_orc_features)" "${envv[@]}" TMPDIR="$tmp" \
       bash csi-spl-orc/src/bash/features/run-ci-tests.sh $feats ) >"$tmp.out" 2>&1 || rc=$?
   cat "$tmp.out"
-  awk '$2 ~ /^FAIL\(rc=/ { print "FAILED: " $1 }' "$tmp.out"
+  awk '$2 ~ /^FAIL\(rc=/ { print "FAILED: " $1 }
+    $1 == "UNFINISHED" { print "FAILED: " $2 " (still running at the timeout)" }' "$tmp.out"
   rm -rf "$tmp" "$tmp.out"
   return "$rc"
 }

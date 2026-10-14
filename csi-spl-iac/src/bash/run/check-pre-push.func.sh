@@ -474,7 +474,9 @@ _pp_budget() {  # <part-fn>
     _pp_part_orc) _pp_full_timeout "${PRE_PUSH_ORC_FULL_TIMEOUT:-1800}" ;;
     _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
     _pp_part_wui_e2e) echo "${PRE_PUSH_E2E_TIMEOUT:-600}" ;;
-    _pp_part_orc_features) echo "${PRE_PUSH_FEATURES_TIMEOUT:-$_pp_timeout}" ;;
+    # the full tier runs every feature: 308 s on sat at load 65..118 (16
+    # cpus, c-981, n=1) TIMED OUT at 300 s; 900 s is ~2.9x that
+    _pp_part_orc_features) if [[ -n "${PRE_PUSH_FEATURES_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_FEATURES_TIMEOUT"; else _pp_full_timeout 900; fi ;;
     *) echo "$_pp_timeout" ;;
   esac
 }

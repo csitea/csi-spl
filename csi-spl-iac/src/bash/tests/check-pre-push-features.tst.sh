@@ -16,6 +16,10 @@
 #      the agent's SPOOL_* env dropped and a TMPDIR short enough for tmux
 #   5. a red file fails the part and prints FAILED: <feature>/<file>; a
 #      feature absent in the tree (new in the push) runs nothing and passes
+#   6. the REAL runner under a part budget that runs out: the part fails
+#      (rc 124) and names each file still running as FAILED: <feature>/<file>
+#      (still running at the timeout), never a file that finished (a full-tier
+#      run on a loaded sat TIMED OUT naming nothing, c-981, n=1)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -94,6 +98,24 @@ grep -qx 'FAILED: alpha/test-alpha.sh' <<<"$out" && pass "the red file is named 
 _PPF_FEATS="newfeat"; : >"$T/calls"
 out="$(_pp_part_orc_features "$T")"; rc=$?
 eq "a feature absent in the tree runs nothing" "" "$(cat "$T/calls")"; eq "... and passes" 0 "$rc"
+
+# 6
+T6="$ROOT/real"; F6="$T6/csi-spl-orc/src/bash/features"
+mkdir -p "$F6/quick/tests" "$F6/slow/tests" "$T6/csi-spl-orc/src/bash/tests" "$ROOT/bin"
+cp "$PROJ_ROOT/../csi-spl-orc/src/bash/features/run-ci-tests.sh" "$F6/"
+printf 'exit 0\n' >"$F6/quick/tests/test-quick.sh"
+printf 'sleep 30\n' >"$F6/slow/tests/test-slow.sh"
+printf '#!/bin/sh\nexit 0\n' >"$ROOT/bin/tmux"; chmod +x "$ROOT/bin/tmux"
+_pp_budget() { echo 3; }
+_PPF_FEATS="quick slow"; s6=$SECONDS
+out="$(PATH="$ROOT/bin:$PATH" _pp_part_orc_features "$T6")"; rc=$?
+eq "a part that runs out of time fails with 124" 124 "$rc"
+grep -qx 'FAILED: slow/test-slow.sh (still running at the timeout)' <<<"$out" \
+  && pass "the file still running is named" || fail "the file still running is named" "$out"
+grep -q 'FAILED: quick/' <<<"$out" && fail "CONTROL: a finished file is not named" "$out" \
+  || pass "CONTROL: a finished file is not named"
+(( SECONDS - s6 < 20 )) && pass "the timeout stops the run (no 30 s wait)" || fail "the timeout stops the run" "$((SECONDS - s6)) s"
+_pp_budget() { echo 60; }
 
 echo "-- check-pre-push-features.tst.sh: $fails failed"
 [[ "$fails" -eq 0 ]]

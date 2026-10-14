@@ -1,5 +1,7 @@
 # Help docs catch-up — 2026-10-04
 
+> Generated from qto doc `804e6f2c-6313-466f-a5b0-812878d230bf`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Inventory for the help pages in `csi-spl-doc/doc/help/`, checked against the
 code on `origin/master` (the web app and the `spool` command). A row is a
 user-visible feature from `git log origin/master --since=2026-10-02T19:00Z`,

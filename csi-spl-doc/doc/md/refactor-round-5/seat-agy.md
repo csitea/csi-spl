@@ -1,5 +1,7 @@
 # Refactor Round 5 Proposal - agy (PC)
 
+> Generated from qto doc `2f1c42ba-c3ac-4232-984e-900ee95bff37`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 1. **Practice**: 3. eliminate dead code, duplicate logic (DRY), unnecessary comments
    **Sites**: `csi-spl-iac/src/bash/run/gcp-sync-s3-to-local.func.sh`, `csi-spl-iac/src/bash/run/gcp-sync-local-to-s3.func.sh`
    **Measure**: 6 on `d5d136053ac58a95c5d9f40e8463c4c9ee3f2d28` via `grep -E 'SC2034.*(gcp-sync-s3-to-local|gcp-sync-local-to-s3)' .shellcheck-warning-baseline.txt | wc -l`

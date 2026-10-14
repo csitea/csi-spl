@@ -140,10 +140,10 @@ Seat reviews on `afbd48aaa`:
 
 ## 10. Consensus
 
-Signed plan sha: **`afbd48aaa`** (the draft; objections 1-5 folded into this signed v1.0).
+Signed plan sha: **`9296e7b99`** (v1.0; all 3 vendor seats re-checked and signed).
 
 | seat | signed | how |
 |---|---|---|
-| agy (planner and editor a-497@PC) | `afbd48aaa` | proposal `refactor-round-9/seat-agy.md`, 10 agree; this fold commit |
-| claude (c-500@PC) | `afbd48aaa` | `refactor-round-9/seat-claude.md` (`db56c80ea`): objections 1-5 folded in v1.0 |
-| mistral (m-501@PC) | `afbd48aaa` | `refactor-round-9/seat-mistral.md` (`39a662c30`): 8 agree, 2 objections settled, signed sha `afbd48aaa` |
+| agy (planner and editor a-497@PC) | `9296e7b99` | proposal `refactor-round-9/seat-agy.md`, signed at `a45d82597` |
+| claude (c-500@PC) | `9296e7b99` | `refactor-round-9/seat-claude.md`: re-checked objections 1-5 folded, signed at `6fd5ba611` |
+| mistral (m-501@PC) | `9296e7b99` | `refactor-round-9/seat-mistral.md`: re-checked, objections settled/withdrawn, signed at `6deade0ef` |

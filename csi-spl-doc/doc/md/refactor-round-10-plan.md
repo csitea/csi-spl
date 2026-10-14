@@ -6,7 +6,8 @@ lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,
 8cb6cc7d). Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items,
 push caps, bands, R1-R16), by pointer, not copied. Issue: SPL-1865.
 
-**Status: DRAFT v0.1**, for the panel. The rows spawn from the signed sha
+**Status: DRAFT v0.2**, for the panel. v0.2 folds the claude seat
+(`f36864bfc`, section 7.1); v1.0 follows the mistral seat. The rows spawn from the signed sha
 (rulebook 1.4: consensus, then build, no second go).
 
 Editor: **c-119@sat** (claude), re-placed from a-115@sat (agy, out of quota
@@ -29,9 +30,10 @@ was the start; what changed is in section 7.
 - **Vendor:** the owner mix (`LANE_MIX_KIND=<kind> ./run -a do_spl_lane_mix`
   on `43688a782`: tests -> claude; simple_coding -> grok, backup claude;
   cnf `agent_split_by_kind.simple_coding` = grok 41, mistral 39, claude 20),
-  then R14. Rounds 7-9 landed 30 of 30 rows on claude; this round puts the
-  3 most mechanical rows (04, 05, 06) on grok and mistral, so the mix gets a
-  measured try. Each has claude as its backup after 2 tries (owner 10-12).
+  then R14. Rounds 7-9 landed 30 of 30 rows on claude. grok has no quota
+  (`402 Payment Required`, c-001 on dispatch-3209f8b8, 2026-10-14 16:32Z),
+  so its rows 04 and 06 go to its backup, claude; row 05 stays on mistral,
+  backup claude after 2 tries (owner 10-12).
 - **Subject** (R6 reads it): `<type>(r10-NN-<slug>, SPL-<row issue>): ...`.
 - **R7.4:** the `review:` line is in the landing commit, never a later
   `chore(...)` (round 9: 6 of 10 rows did that, retro 4.1).
@@ -40,27 +42,27 @@ was the start; what changed is in section 7.
 
 | source | command | n | row |
 |---|---|---|---|
-| retro 6.1: pure CLI verbs at 0.0 % | `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -coverprofile=cov.out ./cmd/spool/ && go tool cover -func=cov.out \| awk '$3=="0.0%"'` | 26 functions at 0.0 %, 5 of them CLI verbs; total 68.7 %, floor 68.5 | 01 |
+| retro 6.1: pure CLI verbs at 0.0 % | `cd csi-spl-api/src/go/spool-hub-api && go test -count=1 -coverprofile=cov.out ./cmd/spool/ && go tool cover -func=cov.out \| awk '$3=="0.0%"'` | 26 functions at 0.0 %, 5 of them CLI verbs and 2 `ask` helpers; total 68.7 %, floor 68.5 | 01 |
 | retro 6.2 | `sed -n '/^const LONG/,/^])/p' csi-spl-wui/tests/unit/cleancode.test.mjs` | `flow.ts <anon>` 317 (7 entries) | 02 |
 | retro 6.3 | same | `auth-client.mjs createAuthClient` 326 | 03 |
 | retro 6.4 | `git grep -l 'local _spl_sdk_saved="${CLOUDSDK_CONFIG-}"' 43688a782 -- csi-spl-iac \| wc -l` | 23 files | 04, 05, 06, 07 (20 files) |
 | retro 6.5 | `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh` | 14 listed; `do_spl_cloud_cnf` 96 (`spl-cloud-cnf.func.sh:51-146`) | 08 |
-| retro 6.8 | `ROUND="7,8,9" DRY_RUN=1 ./run -a do_git_prune_round_branches` vs `git ls-remote origin` | 33 listed of 36 round branches; 3 r7 `wip/` tips with unlanded commits | 09 |
+| retro 6.8 | `ROUND="7,8,9" DRY_RUN=1 ./run -a do_git_prune_round_branches` vs `git ls-remote origin` | 33 listed of 36 round branches; 7 r7 tips with `git cherry` `+` lines (3 `wip/`, 4 `review/r7-05*`) | 09 |
 | retro 6.9 | `git grep -nE "\^review: " -- 'csi-spl-orc/src/**' 'csi-spl-iac/src/**' '.github/**'` | 0 gates; round 9: 3 rows with no review line | 10 |
 
 ## 3. The 10 rows
 
 | # | practice | why | sites file:line (max 5) | n | test or red control | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 `test(r10-01-go-coverage-spool-cli-verbs)` | tests, coverage | 5 CLI verbs at 0.0 % | `api:cmd/spool/issue.go:35`<br>`api:cmd/spool/ask.go:21`<br>`api:cmd/spool/lease.go:16`<br>`api:cmd/spool/fleet_load.go:34`<br>`api:cmd/spool/edit.go:58` | 5 functions at 0.0 % | new `cmd/spool/cli_verbs_test.go` on `newScriptHub` (`scripthub_test.go:39`); raise `cmd/spool` in `csi-spl-api/src/bash/tests/go-coverage-floor.txt` to the measured value (n=3 reads). **Red control:** without the new test file the raised floor fails | PC | claude | tests | 1 |
+| 01 `test(r10-01-go-coverage-spool-cli-verbs)` | tests, coverage | 5 CLI verbs at 0.0 % | `api:cmd/spool/issue.go:35`<br>`api:cmd/spool/ask.go:21`<br>`api:cmd/spool/lease.go:16`<br>`api:cmd/spool/fleet_load.go:34`<br>`api:cmd/spool/edit.go:58` | 7 functions at 0.0 % (the 5 verbs, `askPoolFlags` `ask.go:85`, `splitList` `ask.go:115`) | new `cmd/spool/cli_verbs_test.go` on `newScriptHub` (`scripthub_test.go:39`), covering the 5 verbs and the 2 `ask` helpers; raise `cmd/spool` in `csi-spl-api/src/bash/tests/go-coverage-floor.txt` to the measured value (n=3 reads). **Red control:** without the new test file the raised floor fails | PC | claude | tests | 1 |
 | 02 `refactor(r10-02-wui-small-store-flow)` | small functions | store setup 317 lines | `wui:src/stores/flow.ts:50`<br>`wui:tests/unit/cleancode.test.mjs:36` | 1 LONG entry | named module functions under 80 lines; delete the LONG entry (7 -> 6). Tests: `cleancode.test.mjs`, `flow-badge.test.mjs`, `pnpm run typecheck`, **`perf-budget.py bundle`** on the generated bundle (retro 4.3) | PC | claude | simple_coding (R14) | 1 |
 | 03 `refactor(r10-03-wui-small-auth-client)` | small functions | factory 326 lines | `wui:src/utils/auth-client.mjs:222`<br>`wui:tests/unit/cleancode.test.mjs:39` | 1 LONG entry | named factory helpers under 80 lines; delete the LONG entry (6 -> 5). Tests: the 13 unit tests that import it (`git grep -lE "auth-client(\.mjs)?['\"]\|createAuthClient" -- csi-spl-wui/tests`), typecheck, **`perf-budget.py bundle`** | PC | claude | simple_coding (R14) | 2 (after 02: `cleancode.test.mjs`) |
-| 04 `refactor(r10-04-bash-temp-sdk-config-compute-dns)` | DRY | the 4-line block, 5 copies | `iac:src/bash/run/gcp-compute-lb-cleanup.func.sh:9`<br>`…/gcp-compute-lb-list.func.sh:9`<br>`…/gcp-export-dns-settings.func.sh:7`<br>`…/gcp-export-dns.func.sh:8`<br>`…/gcp-tail-logs.func.sh:23` | 5 files | `spl_gcp_temp_sdk_config` + caller RETURN trap, as `af3dfe623`. Tests: `gcp-actions-isolated-config.tst.sh`, `gcp-temp-sdk-config.tst.sh`, `return-not-exit-gcp.tst.sh`. **Control:** the old-literal grep on the 5 files -> 0; `wc -l` per file within +3/-4 (C3) | sat | grok (backup claude) | simple_coding | 1 |
+| 04 `refactor(r10-04-bash-temp-sdk-config-compute-dns)` | DRY | the 4-line block, 5 copies | `iac:src/bash/run/gcp-compute-lb-cleanup.func.sh:9`<br>`…/gcp-compute-lb-list.func.sh:9`<br>`…/gcp-export-dns-settings.func.sh:7`<br>`…/gcp-export-dns.func.sh:8`<br>`…/gcp-tail-logs.func.sh:23` | 5 files | `spl_gcp_temp_sdk_config` + caller RETURN trap, as `af3dfe623`. Tests: `gcp-actions-isolated-config.tst.sh`, `gcp-temp-sdk-config.tst.sh`, `return-not-exit-gcp.tst.sh`. **Control:** the old-literal grep on the 5 files -> 0; `wc -l` per file within +3/-4 (C3) | sat | claude (grok out) | simple_coding | 1 |
 | 05 `refactor(r10-05-bash-temp-sdk-config-storage-sync)` | DRY | 5 copies | `iac:src/bash/run/gcp-s3-download-all.func.sh:13`<br>`…/gcp-sync-local-to-s3.func.sh:9`<br>`…/gcp-sync-s3-to-local.func.sh:9`<br>`…/gcp-sync-src-bucket-data-to-tgt-bucket.func.sh:8`<br>`…/gcp-sync-src-s3-to-tgt-s3.func.sh:8` | 5 files | as 04. Tests: `gcp-actions-isolated-config.tst.sh`, `gcp-key-path-no-eval.tst.sh`, `gcp-s3-download-all-mkdir.tst.sh`, `gcp-exit-status-checks.tst.sh`. Control as 04 | sat | mistral (backup claude) | simple_coding | 1 |
-| 06 `refactor(r10-06-bash-temp-sdk-config-secrets-keys)` | DRY | 5 copies | `iac:src/bash/run/gcp-copy-secret.func.sh:22`<br>`…/gcp-fetch-secrets.func.sh:12`<br>`…/spl-gh-app-key-put.func.sh:20`<br>`…/spl-vendor-key-grant-check.func.sh:26`<br>`…/spl-vendor-key-pepper-put.func.sh:21` | 5 files | as 04. Tests: `gcp-actions-isolated-config.tst.sh`, `adhoc-harvest-gcp-actions.tst.sh`, `gcp-exit-status-checks.tst.sh`, `github-app-key-put-rotate.tst.sh`, `hub-github-app-key-030.tst.sh`, `spl-gh-app.tst.sh`, `spl-vendor-key-grant-check.tst.sh`, `spl-vendor-key-pepper-put.tst.sh`. Control as 04 | sat | grok (backup claude) | simple_coding | 1 |
+| 06 `refactor(r10-06-bash-temp-sdk-config-secrets-keys)` | DRY | 5 copies | `iac:src/bash/run/gcp-copy-secret.func.sh:22`<br>`…/gcp-fetch-secrets.func.sh:12`<br>`…/spl-gh-app-key-put.func.sh:20`<br>`…/spl-vendor-key-grant-check.func.sh:26`<br>`…/spl-vendor-key-pepper-put.func.sh:21` | 5 files | as 04. Tests: `gcp-actions-isolated-config.tst.sh`, `adhoc-harvest-gcp-actions.tst.sh`, `gcp-exit-status-checks.tst.sh`, `github-app-key-put-rotate.tst.sh`, `hub-github-app-key-030.tst.sh`, `spl-gh-app.tst.sh`, `spl-vendor-key-grant-check.tst.sh`, `spl-vendor-key-pepper-put.tst.sh`. Control as 04 | sat | claude (grok out) | simple_coding | 1 |
 | 07 `refactor(r10-07-bash-temp-sdk-config-projects-iam)` | DRY | 5 copies | `iac:src/bash/run/gcp-002-delete-project-service-account.func.sh:6`<br>`…/gcp-audit-iam.func.sh:24`<br>`…/gcp-backup-env.func.sh:30`<br>`…/gcp-delete-service-account.func.sh:7`<br>`…/gcp-hub-restart.func.sh:24` | 5 files | as 04. Tests: `gcp-actions-isolated-config.tst.sh`, `adhoc-harvest-gcp-actions.tst.sh`, `gcp-hub-restart.tst.sh`, `heal-hub-deploy.tst.sh`, `bash-cleancode.tst.sh` (run, **not edited**: `do_gcp_002_delete_project_service_account 133` may only print its NOTE) | sat | claude | simple_coding (R14) | 1 |
 | 08 `refactor(r10-08-bash-small-spl-cloud-cnf)` | small functions | 96 lines | `orc:lib/bash/funcs/spl-cloud-cnf.func.sh:51`<br>`iac:src/bash/tests/bash-cleancode.tst.sh:30` | 1 LONG entry | named steps under 80 lines, same exports and exits; delete the LONG line (14 -> 13). Tests: `bash-cleancode.tst.sh`, `cloud-actions.tst.sh`, and the 71 other `.tst.sh` naming it (`git grep -lw do_spl_cloud_cnf -- '*.tst.sh' \| grep -v bash-cleancode \| wc -l` -> 71; run the orc suite) | sat | claude | simple_coding (R14) | 1 |
-| 09 `ci(r10-09-round-branch-prune-lane-prefixed)` | nothing ad hoc, branch hygiene | 3 of 36 round branches escape the matcher; unlanded commits deleted silently | `orc:src/bash/run/git-prune-round-branches.func.sh:27-33`<br>`orc:src/bash/run/git-prune-round-branches.func.sh:58`<br>`orc:src/bash/tests/git-prune-round-branches.tst.sh` | 3 missed, 3 unlanded tips | `prune_round_match` also takes `<id>-r<N>-*` and `review/<id>-r<N>-*` (`<id>` = `[acgmq]-[0-9]{3}`); a tip with `git cherry origin/master <tip>` `+` lines prints `KEEP <branch> <n> unlanded` and stays unless `PRUNE_UNLANDED=1`. **Red control:** fixtures for a lane-prefixed branch (missed before) and an unlanded tip (deleted before) fail on the old code. After landing: `ROUND="7,8,9" DRY_RUN=1` lists 33 (36 - 3 kept), then `DRY_RUN=0` (rulebook R8 step 2) | sat | claude | simple_coding (R14) | 1 |
+| 09 `ci(r10-09-round-branch-prune-lane-prefixed)` | nothing ad hoc, branch hygiene | 3 of 36 round branches escape the matcher; unlanded commits deleted silently | `orc:src/bash/run/git-prune-round-branches.func.sh:27-33`<br>`orc:src/bash/run/git-prune-round-branches.func.sh:58`<br>`orc:src/bash/tests/git-prune-round-branches.tst.sh` | 3 missed, 7 unlanded tips | `prune_round_match` also takes `<id>-r<N>-*` and `review/<id>-r<N>-*` (`<id>` = `[acgmq]-[0-9]{3}`); a tip with `git cherry origin/master <tip>` `+` lines prints `KEEP <branch> <n> unlanded` and stays unless `PRUNE_UNLANDED=1`. **Red control:** fixtures for a lane-prefixed branch (missed before) and an unlanded tip (deleted before) fail on the old code; a squash-landed fixture (its commits not cherry-equal to trunk) stays KEPT. After landing: `ROUND="7,8,9" DRY_RUN=1` matches 36, prints 7 KEEP and lists 29, then `DRY_RUN=0` (rulebook R8 step 2) | sat | claude | simple_coding (R14) | 1 |
 | 10 `ci(r10-10-push-master-review-line)` | review before merge, gate | round rows land without a review line, no gate | `orc:src/bash/run/spl-push-master.func.sh:128`<br>`orc:src/bash/tests/spl-push-master.tst.sh` | 0 gates; 3 of 10 r9 rows with no line | the push worker refuses, beside the identity check (line 151), a commit in `<remote>/<branch>..HEAD` whose subject matches `^(test\|refactor\|ci\|fix\|feat\|perf)\(r[0-9]+-[0-9]{2}-` and whose body has no `^review: \S+@\S+ \S+ PASS [0-9a-f]{7,40} `: `REFUSED round row <sha> has no R7 review line`. **Red control:** a fixture `refactor(r99-01-x)` commit with no line is refused, with the line it pushes; a `chore(r99-01-x)` and a `docs(...)` commit pass. R9: `PRE_PUSH_TIER=full` | sat | claude | simple_coding (R14) | 1 |
 
 ### 3.1 Disjoint files (R1)
@@ -80,7 +82,9 @@ was the start; what changed is in section 7.
 `lane-map.sh --check <every row path> --agent c-119` on `43688a782` -> rc 4:
 no live lane lists any of them; one live lane records no files: c-296@PC
 (`c-296-cga-editor`, CI gate analysis, spec 133, then the standing
-CI-refactor seat). Its brief (`dispatch/briefs/c001-cga-editor.md`) names
+CI-refactor seat). The claude seat also saw c-519 there with no files; on
+`391aa6569` (v0.2) the same check -> rc 4, only c-296 (`c-296-cga-editor`,
+now on the other box) with no files recorded. Its brief (`dispatch/briefs/c001-cga-editor.md`) names
 `.github/workflows/10_ci-quality.yml`, `pre-push-gate.md` and spec 131/133,
 none of the row paths; asked on the spool before the plan was posted. The
 spawner re-runs `--check` per row (R3).
@@ -118,8 +122,8 @@ spawner re-runs `--check` per row (R3).
 
 ## 5. Panel and reviewers (R7)
 
-agy has no quota until about 2026-10-15T09:50Z, so the panel is **claude +
-mistral + grok** (grok if it has quota at spawn; else claude + mistral). The
+agy has no quota until about 2026-10-15T09:50Z and grok has none at all
+(`402`), so the panel is **claude + mistral**. The
 plan has no multilingual text: no agy language review is needed.
 
 - Seats write `refactor-round-10/seat-<vendor>.md` (verdict per row: agree,
@@ -127,21 +131,22 @@ plan has no multilingual text: no agy language review is needed.
   that file only (R7.6), then sign the editor's v1.0 sha.
 - Seats stay up after signing: they are this round's reviewers until R6
   shows 10 of 10 rows on trunk (R7.1).
-- Reviewer per row, cross-vendor (R7.2): claude rows (01, 02, 03, 07, 08,
-  09, 10) -> the mistral seat, backup the grok seat; grok rows (04, 06) ->
-  the claude seat, backup the mistral seat; the mistral row (05) -> the
-  claude seat, backup the grok seat. Where round 9 named agy, a claude or
-  mistral seat of the other vendor takes it.
+- Reviewer per row, cross-vendor (R7.2): claude rows (01, 02, 03, 04, 06,
+  07, 08, 09, 10) -> the mistral seat; the mistral row (05) -> the claude
+  seat c-120@sat. No backup seat: if a seat closes, the spawner places a
+  reviewer of the other vendor. Where round 9 named agy, a claude or mistral
+  seat of the other vendor takes it.
 
 ## 6. Left out, measured
 
 | what | why | measured by |
 |---|---|---|
 | 3 CLOUDSDK_CONFIG files: `gcp-import-to-cloudsql`, `gcp-project-delete`, `gcp-sync-src-s3-to-tgt-s3-silent` | 5 sites per row, 10 rows per round; round 11 | the 23-file grep, section 2 |
-| `cmd/spool` `hub.go`, `key.go`, `main` (21 functions at 0.0 %) | need Postgres, a key daemon or the process entry | `go tool cover -func`, section 2 |
+| `cmd/spool` `hub.go` 12, `key.go` 4, `main.go` 1, `hub_repo_edit.go` 2 (19 functions at 0.0 %) | need Postgres, a key daemon or the process entry | `go tool cover -func`, section 2 |
 | WUI LONG `channel.ts` 576, `notification.ts` 430, `live.ts setup` 304, `live-ws.mjs` 499, `spool-client.mjs` 545 | larger live stores; 02 and 03 first | LONG map |
 | bash LONG `check-pre-push 137`, `spawn_main 185`, `run.sh do_log 143` (x2) and the gcp-001/002 actions | the pre-push gate is c-296's CI area; the rest next rounds | `bash-cleancode.tst.sh` |
-| a-115's draft row "prune rounds 7-9 now" | it would delete 3 unlanded r7 tips and miss 3 r9 branches; row 09 fixes the matcher first | retro section 5 |
+| a-115's draft row "prune rounds 7-9 now" | it would delete 7 unlanded r7 tips and miss 3 r9 branches; row 09 fixes the matcher first | retro section 5 |
+| a review-line check in the pre-push hook | row 10 gates `do_spl_push_master` only; a hand push skips it; round 11 | `git grep -n review -- csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push \| wc -l` -> 0 (claude seat) |
 
 ## 7. What changed from the a-115 draft
 
@@ -161,12 +166,27 @@ plan has no multilingual text: no agy language review is needed.
 - a-115's `seat-agy.md` is not landed: its seat is closed and its numbers
   were not re-measured.
 
+### 7.1 v0.2: the claude seat folded
+
+From `refactor-round-10/seat-claude.md` (c-120@sat, `f36864bfc`, 8 agree,
+2 agree with changes), each re-checked by the editor:
+
+- Row 01 names `askPoolFlags` and `splitList` (7 functions, not 5); the
+  left-out set is 19, not 21 (section 6).
+- Row 09: `git cherry` keeps 7 tips, not 3 (retro section 5 fixed too):
+  36 matched, 7 KEEP, 29 listed, plus a squash-landed fixture.
+- grok out of quota: rows 04 and 06 to claude; no grok seat or backup.
+- Section 3.2 re-checked on `391aa6569`; the pre-push hook review check
+  goes to round 11 (section 6).
+- The seat's note on rows 02 and 03 (trunk on typescript 6.0.3 at
+  `3cd461397`, cleancode and typecheck pass) needs no change.
+
 ## 8. Counts
 
 | | n |
 |---|---|
 | rows | 10 (tests 1, refactor 7, ci 2) |
-| vendor | claude 7, grok 2, mistral 1 |
+| vendor | claude 9, mistral 1 |
 | box (preferred) | sat 7, PC 3 |
 | batches | batch 1: 9; batch 2: 1 |
 
@@ -176,7 +196,7 @@ Signed plan sha: **pending**.
 
 | seat | id | signed | file |
 |---|---|---|---|
-| editor (claude) | c-119@sat | draft v0.1 | this file |
-| claude seat | pending | - | `refactor-round-10/seat-claude.md` |
-| mistral seat | pending | - | `refactor-round-10/seat-mistral.md` |
-| grok seat | pending (if quota) | - | `refactor-round-10/seat-grok.md` |
+| editor (claude) | c-119@sat | draft v0.2 | this file |
+| claude seat | c-120@sat | verdict `f36864bfc` (folded in v0.2); signs v1.0 | `refactor-round-10/seat-claude.md` |
+| mistral seat | pending (queued, ask 34f3c665) | - | `refactor-round-10/seat-mistral.md` |
+| grok seat | none: no quota (`402`) | - | - |

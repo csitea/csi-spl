@@ -147,10 +147,14 @@ bundle before the push (the CI job's command), with the CI node version.
   (`csi-spl-orc/src/bash/run/git-prune-round-branches.func.sh:32-33` matches
   only `review/r<N>-*` and `wip/*r<N>*`): `c-517-r9-10-bash-temp-sdk-config-helper`,
   `c-996-r9-05-bash-cleancode-walker`, `review/c-104-r9-02-go-coverage-spool-cli-inspect`.
-- 3 r7 `wip/` branches carry commits that are not on master:
+- 7 r7 branches carry commits that `git cherry` does not find on master:
   `git cherry 43688a782 <tip> | grep -c '^+'` -> `wip/m-947-r7-09` 1,
-  `wip/review/r7-01` 1, `wip/review/r7-09` 2. A DRY_RUN=0 prune deletes them
-  without a word.
+  `wip/review/r7-01` 1, `wip/review/r7-09` 2, `review/r7-05` 5,
+  `review/r7-05-clean` 2, `review/r7-05-final` 2, `review/r7-05-squashed` 2.
+  The 4 `review/r7-05*` tips landed squashed as `ae6991bf4`, so `git cherry`
+  cannot match their commits (found by the claude seat c-120, re-checked by
+  c-119 on `43688a782`, n=1 per tip). A DRY_RUN=0 prune deletes all 7 without
+  a word.
 - Not pruned by this retro: the prune would delete unlanded r7 work, and the
   matcher misses 3 r9 branches. Both go to round 10 (input 8); the prune runs
   from that row.

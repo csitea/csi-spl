@@ -23,7 +23,14 @@ func stampBoth(t *testing.T, pg *Postgres, tenant string) ChangeStamp {
 }
 
 // TestChangeStampNoDeliveriesEveryTable: a write to a covered table moves
-// both stamps, except deliveries, which moves the 0103 stamp alone.
+// both stamps, except the rows narrowSkips names, which move the 0103 stamp
+// alone.
+//
+// narrowSkips: deliveries (rdb 0190); issues, and the seeded messages row (a
+// DM: outside every channel, not archived), rdb 0196. Which rows of messages
+// and read_marks move it: TestChangeStampNarrowChannelRows.
+var narrowSkips = map[string]bool{"deliveries": true, "issues": true, "messages": true}
+
 func TestChangeStampNoDeliveriesEveryTable(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
@@ -45,10 +52,10 @@ func TestChangeStampNoDeliveriesEveryTable(t *testing.T) {
 				t.Fatalf("%s: the 0103 stamp stayed at %d", tb, after.Stamp)
 			}
 			moved := after.NoDeliveries > before.NoDeliveries
-			if tb == "deliveries" && moved {
-				t.Errorf("a deliveries write moved the no-deliveries stamp %d -> %d", before.NoDeliveries, after.NoDeliveries)
+			if narrowSkips[tb] && moved {
+				t.Errorf("a %s write moved the no-deliveries stamp %d -> %d", tb, before.NoDeliveries, after.NoDeliveries)
 			}
-			if tb != "deliveries" && !moved {
+			if !narrowSkips[tb] && !moved {
 				t.Errorf("a %s write left the no-deliveries stamp at %d: a channels 304 would be stale", tb, after.NoDeliveries)
 			}
 		})
@@ -68,7 +75,7 @@ func TestChangeStampNoDeliveriesEveryTable(t *testing.T) {
 }
 
 // TestChangeStampNoDeliveriesOrderAndSettle: in one transaction a
-// deliveries row before a messages row still moves the no-deliveries stamp
+// deliveries row before a read_marks row (the seeded ch: mark) still moves the no-deliveries stamp
 // (the per-transaction marks are kept apart), and a deliveries-only commit
 // unsettles the 0103 stamp but not the no-deliveries one.
 func TestChangeStampNoDeliveriesOrderAndSettle(t *testing.T) {
@@ -89,9 +96,9 @@ func TestChangeStampNoDeliveriesOrderAndSettle(t *testing.T) {
 		}
 	}
 	before := stampBoth(t, pg, a.tenant)
-	touch("deliveries", "messages")
+	touch("deliveries", "read_marks")
 	if after := stampBoth(t, pg, a.tenant); after.NoDeliveries <= before.NoDeliveries {
-		t.Fatalf("deliveries then messages in one transaction left the no-deliveries stamp at %d", after.NoDeliveries)
+		t.Fatalf("deliveries then read_marks in one transaction left the no-deliveries stamp at %d", after.NoDeliveries)
 	}
 	// Age every change past ChangeStampSettle (the operator scope).
 	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
@@ -111,8 +118,8 @@ func TestChangeStampNoDeliveriesOrderAndSettle(t *testing.T) {
 		t.Fatalf("after a deliveries write: settled %v, no-deliveries settled %v, %d -> %d; want false, true, unchanged",
 			c.Settled, c.NoDeliveriesSettled, before.NoDeliveries, c.NoDeliveries)
 	}
-	touch("messages")
+	touch("read_marks")
 	if c := stampBoth(t, pg, a.tenant); c.NoDeliveriesSettled || c.NoDeliveries <= before.NoDeliveries {
-		t.Fatalf("after a messages write: no-deliveries settled %v at %d, want unsettled and moved", c.NoDeliveriesSettled, c.NoDeliveries)
+		t.Fatalf("after a read_marks write: no-deliveries settled %v at %d, want unsettled and moved", c.NoDeliveriesSettled, c.NoDeliveries)
 	}
 }

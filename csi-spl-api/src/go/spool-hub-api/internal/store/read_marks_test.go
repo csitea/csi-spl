@@ -107,8 +107,10 @@ func TestChannelUnreadSkipsLinesReadInTheirThread(t *testing.T) {
 // (csi-spl-wui/src/utils/read-sync.mjs), most of them unchanged. A re-sent
 // mark that moves nothing writes no row, so the change stamp (rdb 0103/0190)
 // settles and GET /v1/view/channels can answer 304; a mark that advances, a
-// higher Seen or a new key still moves it (the control). The stamp is
-// Postgres only; the memory store checks the marks themselves.
+// higher Seen or a new key still moves it (the control). The controls are
+// ch: marks: a t: mark of a topic outside every channel and a dm: mark move
+// the 0103 stamp alone (rdb 0196, TestChangeStampNarrowChannelRows). The
+// stamp is Postgres only; the memory store checks the marks themselves.
 func TestReadMarksUnchangedResendKeepsStamp(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
@@ -142,8 +144,8 @@ func TestReadMarksUnchangedResendKeepsStamp(t *testing.T) {
 				{"unchanged re-send", map[string]ReadMark{"ch:devel": mark, "t:T1": mark}, false},
 				{"older re-send", map[string]ReadMark{"ch:devel": {At: now.Add(-time.Hour), MsgID: "m1", Seen: 1}}, false},
 				{"advancing mark", map[string]ReadMark{"ch:devel": {At: now.Add(time.Second), MsgID: "m3", Seen: 3}}, true},
-				{"higher seen", map[string]ReadMark{"t:T1": {At: now, MsgID: "m2", Seen: 4}}, true},
-				{"new key", map[string]ReadMark{"dm:CLE-07@box-a": mark}, true},
+				{"higher seen", map[string]ReadMark{"ch:devel": {At: now.Add(time.Second), MsgID: "m3", Seen: 4}}, true},
+				{"new key", map[string]ReadMark{"ch:ops": mark}, true},
 			}
 			for i, c := range cases {
 				before := stamp()
@@ -160,11 +162,11 @@ func TestReadMarksUnchangedResendKeepsStamp(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if m := got["ch:devel"]; m.MsgID != "m3" || m.Seen != 3 {
-				t.Errorf("ch:devel = %+v, want m3 seen 3", m)
+			if m := got["ch:devel"]; m.MsgID != "m3" || m.Seen != 4 {
+				t.Errorf("ch:devel = %+v, want m3 seen 4", m)
 			}
-			if m := got["t:T1"]; m.MsgID != "m2" || m.Seen != 4 {
-				t.Errorf("t:T1 = %+v, want m2 seen 4", m)
+			if m := got["t:T1"]; m.MsgID != "m2" || m.Seen != 3 {
+				t.Errorf("t:T1 = %+v, want m2 seen 3", m)
 			}
 			if len(got) != 3 {
 				t.Errorf("marks = %v, want 3 keys", got)

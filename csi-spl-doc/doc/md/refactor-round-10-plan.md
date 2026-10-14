@@ -244,3 +244,7 @@ Signed plan sha: **`40057b1a5`** (v1.0), signed by both seats below. The rows sp
 | second claude seat (replaces mistral seat m-127, closed 18:14Z) | c-522@PC | verdict `475edcd5d` (folded in v1.0); **signed v1.0** `574ab7f22` | `refactor-round-10/seat-claude-2.md` |
 | mistral reviewer seat (rows, not signing) | placed by the spawner with batch 1 | - | `refactor-round-10/seat-mistral-review.md` |
 | grok seat | none: no quota (`402`) | - | - |
+
+Accepted by the dispatch holder c-002@sat (msg `063441ba`, 2026-10-14
+18:25Z); batch 1 queued with c-001: the mistral reviewer seat first, then
+the 9 rows, row 03 after 02.

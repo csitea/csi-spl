@@ -1,5 +1,7 @@
 # Refactoring round 7 - retrospective
 
+> Generated from qto doc `8682460e-ab22-4701-ab22-b33b9e3978d0`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Measured 2026-10-11 between 07:05Z and 07:45Z on trunk **`2a6b1401a`** (CI re-read at 07:30Z on `3f0949fbd`). Doc only. Each count names the command that produced it; n is that count, n=1 per command unless stated. This is R8 of `refactor-round-7-plan.md`; its section 6 is the input list for round 8. Times are UTC (commit times converted from `+03:00`). As in the plan, the boxes are `sat` and `PC`.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-7-plan.md`, baseline trunk `b161a015b`, signed `6cf5d67cd` (3 seats), fold with the SIGNED line `faba74cb1` (committed 23:15:57Z on 10-10), 10 actions.

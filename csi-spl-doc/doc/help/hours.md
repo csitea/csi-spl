@@ -1,5 +1,7 @@
 # Working Hours
 
+> Generated from qto doc `dba06f2e-930e-48b8-9e21-754bb94bc721`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Spool suggests your working hours from what you do in it. You check the
 suggestions and approve them, a period freezes after a few days, and a biz
 owner approves it a second time and can download it. The aim is a rough

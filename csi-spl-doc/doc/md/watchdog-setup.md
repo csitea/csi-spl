@@ -1,5 +1,7 @@
 # Spool Watchdog Setup and Operations Guide (Spec 102 v1.2)
 
+> Generated from qto doc `918be4de-e52f-4996-9ace-64b0e4c6c0b5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 This document describes how the spool watchdog architecture operates under
 Spec 102 v1.2, how its components fit together, the layout of files and locks,
 how to install the setup on a box, and how to diagnose and recover from failures.

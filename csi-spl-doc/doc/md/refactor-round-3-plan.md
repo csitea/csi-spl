@@ -1,5 +1,7 @@
 # Refactoring round 3 - plan (30 practices x up to 5 sites)
 
+> Generated from qto doc `f9e348ce-1a41-4894-a893-f28b244ab2f5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner HUM-10, prd t1, topic `3e0809fe-16f6-46e3-a225-616ac6cd555b`, verbatim, in order:
 
 1. msg 5461b323: "New refactoring for clean code round"

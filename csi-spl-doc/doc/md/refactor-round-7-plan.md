@@ -1,5 +1,7 @@
 # Refactoring round 7 - plan: clean code round 20261011-a (10 actions)
 
+> Generated from qto doc `7791043a-2c81-467b-a96d-40ae4c127b05`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner HUM-10, prd t1, topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea: rounds run continuously, **no owner go is needed for this round, its panel or its lanes** (rule home: `SPEC-spool-fleet-roles.md` section 1.2). Requested by the dispatch holder c-002 per round 6 plan R8, once `refactor-round-6-retro.md` was on trunk (`b161a015b`).
 
 **Status: SIGNED.** All three seats signed plan sha **`6cf5d67cd`** (section 10). Batch 1 = 01, 02, 03, 04, 05, 07, 09; batch 2 = 06 after 05, 08 after 07, 10 after 04. The row lanes are spawned by the orchestrator from that sha. The reviewer seats a-943 (on the other box; `sat` has no agy) (agy) and m-781@sat (mistral) stay up until all 10 rows are on trunk (R7.1).

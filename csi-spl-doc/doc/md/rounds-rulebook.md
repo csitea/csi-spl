@@ -1,5 +1,7 @@
 # Bug-fix and refactoring rounds rulebook
 
+> Generated from qto doc `e621cc32-df7f-49e9-a33c-6d1f872e985c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The one home doc for creating bug-fix rounds and refactoring rounds across the fleet. Every other document points here.
 
 Owner HUM-10, t1 topic `49b8babb-8ce2-42c6-8d89-270bd72210f4`:

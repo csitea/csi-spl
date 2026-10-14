@@ -1,5 +1,7 @@
 # UI Panel: Mistral Seat (SPL-1727)
 
+> Generated from qto doc `1a0418fd-6f6e-4129-85c6-257b28c20c99`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 ## Baseline Measurements
 - **Initial chunk KB**: 300 KB (largest chunk), 5073 KB (total uncompressed JS).
 - **First-paint time**: ~1.2s (simulated cold start, 3G network).

@@ -1,5 +1,7 @@
 # Refactor round 9 - agy seat proposal (a-497, PC)
 
+> Generated from qto doc `7b353a6a-2ebc-47ee-a728-60caec93f8ca`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 A proposal, not the plan. The editor (this seat) merges the three seats into `../refactor-round-9-plan.md`. The claude and mistral seats write `seat-claude.md` and `seat-mistral.md` beside this file, measured on `origin/master`, give a verdict per row (agree / agree with changes / disagree, with the command behind any change), then sign. **Both seats stay up after signing: under the plan's R7.1 you are this round's cross-vendor reviewers until every row is on trunk. A seat commits its seat file and nothing else (R7.6).**
 
 Every count was measured on ONE trunk sha, **`e05383148`** (`origin/master`, 2026-10-14T08:09:42Z), n=1 per count unless stated otherwise. The command for each is in the plan, section 2. Round 8 is closed and held: `refactor-round-8-retro.md` section 1 (10 of 10 actions).

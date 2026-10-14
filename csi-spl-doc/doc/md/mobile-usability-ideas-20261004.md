@@ -1,5 +1,7 @@
 # Mobile usability: 14 spec ideas, ranked (2026-10-04)
 
+> Generated from qto doc `32b951ed-b706-48bd-95f2-c034377d4cf9`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner request (HUM-10, prd t1 topic `c893c3a9`, msg `cb3a56c0`): "ideas for specs to improve the ui usability
 for mobile". Owner DoD (msg `44ff08f3`): "the DoD for this discussion will be the ready specs to implement".
 

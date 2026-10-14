@@ -1,5 +1,7 @@
 # Help docs by role: the plan
 
+> Generated from qto doc `e503c310-d592-4d3c-bf2e-20309c517999`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner request (HUM-10, t1 `5c430061`): "refactor the docs ... based on the
 target audience for the docs on per human role basis". This file is Phase 1:
 the roles, the audiences, the target tree, the page map and how the in-app Help

@@ -1,5 +1,7 @@
 # Performance round 4: 30 practices x 2 changes (plan, 2026-10-03)
 
+> Generated from qto doc `bb2177c6-a234-4b35-bbd8-8524ff24bf42`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner, t1 #spool-hub-ops: "Performance round" / "30 best practices for performace. For each one perform 2 changes on the src. 4 agents per box at atime".
 
 This lane plans and measures. It changes no product code. Each row is one lane with its own brief; the run order below is the biggest measured gain first. Sources: round 3 (`perf-audit-round3-2026-10-02.md`) and the DB payload rounds; open round-3 items are reused where they fit a practice (P3-05, P3-07, P3-08, P3-09, P3-10, P3-11, P3-12, P3-18, P3-28, P3-29). P3-26 is dropped: its 25..40 ms is a sourcemap mis-mapping onto the composer dock, which another lane owns.

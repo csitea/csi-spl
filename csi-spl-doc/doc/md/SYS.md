@@ -1,5 +1,7 @@
 # csi-spl — System Guide
 
+> Generated from qto doc `1d232e87-e430-4bc6-9ff9-0f313eb032c0`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The system guide describes what is running, where it is defined, and how to
 operate it. It is the operator's reference. The specs under
 `csi-spl-doc/specs/` hold the design history behind each part.

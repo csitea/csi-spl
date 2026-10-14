@@ -1,5 +1,7 @@
 # Refactoring round 10 - plan (10 actions)
 
+> Generated from qto doc `55f7a0ff-79e4-4063-ae77-8e336ab7a701`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner HUM-10, t1 topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea:
 rounds run continuously, **no owner go for the round, its panel or its
 lanes**. Refactoring share: owner t1 3209f8b8 (msgs a25bfdd6, 36ee9cec,

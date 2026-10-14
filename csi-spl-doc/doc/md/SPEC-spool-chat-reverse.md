@@ -1,5 +1,7 @@
 # SPEC: Reverse chat flow & Top Omnibox
 
+> Generated from qto doc `60e989b2-26ab-46b2-a758-dc6d3c34649c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: **Binding M3 Architecture** — adopted as default M3 UX (owner direction 2026-09-18).  
 Related: `SPEC-spool-wui.md`, `SPEC-spool-wui-layout.md`, `SPEC-spool-avatars.md`
 

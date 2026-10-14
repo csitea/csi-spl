@@ -1,5 +1,7 @@
 # Performance edition 20261004, DBX: index audit and cheap database tactics (prd + dev)
 
+> Generated from qto doc `0d407ad9-1b7f-4e0e-b450-eec75026b2e5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner question (HUM-10, t1 `7d7e86a9`, msg `2e38197b`): *"are there any indexes which should be created as well, or other cheap tactics on the db site"*.
 
 **Short answer.**

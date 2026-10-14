@@ -1,5 +1,7 @@
 # Antigravity Review: Spec 064 (Fleet Without the PC)
 
+> Generated from qto doc `c35ec274-c94e-4de0-a7a4-8f5a724c4201`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Review of `csi-spl-doc/specs/064-fleet-without-the-pc/spec.md` (c-048, sha `5a63e8d8`).
 
 ## 1. Failover, Correctness & Gaps

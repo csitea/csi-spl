@@ -1,5 +1,7 @@
 # DB + API round 5: plan (2026-10-12)
 
+> Generated from qto doc `0ea82e64-bb64-4f71-9e4f-52cf823082f7`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner, t1 #refactoring eafc9b15:
 - msg 9a9394b7: "DB and API improvements in speed, code refactoring round 5"
 - msg f7499bb6: a panel of two agents per vendor kind.

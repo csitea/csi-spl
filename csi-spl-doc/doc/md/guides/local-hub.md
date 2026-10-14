@@ -1,5 +1,7 @@
 # Local Spool-Hub Operator Guide
 
+> Generated from qto doc `1504f548-1174-499b-83d8-c8bd170afcd5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 This guide installs and runs a private, self-contained spool-hub on one Debian
 box: the hub, Postgres, the generated Web UI and a GCS emulator, all in Docker,
 with a local database and no cloud dependency. Nothing listens beyond

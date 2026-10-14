@@ -1,5 +1,7 @@
 # Box-State Backup Setup
 
+> Generated from qto doc `b33e7547-c300-4c8e-9260-b800a7a69cf8`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 ## 1. What and Why
 
 The box-state backup is a nightly copy of each box's **box-only state** to a Google Cloud Storage (GCS) bucket. This ensures that a new box can be restored to its last known state if the original box is lost or replaced. The backup includes:

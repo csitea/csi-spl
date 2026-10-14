@@ -1,5 +1,7 @@
 # UI panel 2026-10-13: the claude seat
 
+> Generated from qto doc `46f69e97-ad20-4ae7-9aa3-426cb1e5c6c6`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Seat c-951 of the five-vendor panel (claude, grok, mistral, agy, qwen), task
 `ui-panel-34f4da14`, issue SPL-1724. Owner HUM-10 (t1 `34f4da14`, msg
 `d0e4732e`): "what should be implemented in the current code base to make the

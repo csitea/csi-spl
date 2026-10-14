@@ -1,5 +1,7 @@
 # Review: auth.login.highlights Chips in 19 Locales (2026-10-13)
 
+> Generated from qto doc `b2417dc3-0126-4200-bc01-b63dd9964b7e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 **Task**: Language review of the 4 sign-in chips `auth.login.highlights.*` across 19 locales (SPL-1741, brief `9e5533ec-f551-42e5-a6ec-8eac2fae2026.md`, for c-451's SPL-1722).  
 **Reviewer**: Antigravity (`a-964@sat`).  
 **Source**: English (`en`).

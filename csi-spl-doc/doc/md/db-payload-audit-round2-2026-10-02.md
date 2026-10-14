@@ -1,5 +1,7 @@
 # DB payload audit, round 2: dig more, or are we at diminishing returns? (2026-10-02)
 
+> Generated from qto doc `31e8cb76-4f99-464b-ac16-887c1f9ef4b0`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner topic t1 #spool-hub-devel `66233cdc`. After round 1
 (`db-payload-audit-2026-10-02.md`) shipped cuts 1, 2, 3, 6, 7 and 8 (5 has
 also landed since; 4 is in flight), HUM-10 asked:

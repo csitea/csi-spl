@@ -1,5 +1,7 @@
 # Lesson: Grok as orchestrator and dispatcher, 2026-10-13
 
+> Generated from qto doc `5e74f859-8a75-4441-8089-d4136c047889`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner ask (t1 topic `ee1e58d5`, msg `47cafee8`): "We need some kind of report
 for lessons learned when Grok was dispatcher and orchestrator." Issue
 SPL-1706. Lessons first, then the timeline, the measurements and the root

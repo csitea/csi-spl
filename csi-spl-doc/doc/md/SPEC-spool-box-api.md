@@ -1,5 +1,7 @@
 # SPEC: Uniform box API to spool
 
+> Generated from qto doc `f47aa49e-7064-4f94-aa37-aac5e185ee34`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: binding for all agent kinds  
 Related: `SPEC-spool-message-bus.md`, `SPEC-spool-identity-routing.md`, `SPEC-spool-task-lifecycle.md`
 

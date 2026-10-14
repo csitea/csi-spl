@@ -1,5 +1,7 @@
 # Fleet hot commands, 2026-10-07
 
+> Generated from qto doc `3bc44431-daf2-46da-b05d-7a8b4683d8d1`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Where the fleet's agents spent their time **waiting on Bash calls** over 24
 hours, measured from their own transcripts, and what to do about the top 10.
 The method is the one in

@@ -1,5 +1,7 @@
 # UI Panel Consensus: Lowest-Hanging Fruit Proposals (2026-10-13)
 
+> Generated from qto doc `c93968fb-aeed-4830-9abf-7abe52c1f361`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 - **Topic:** Owner t1 `34f4da14-adc0-4670-891e-02e26e72eed0` (dispatch task `dispatch-34f4da14`, panel task `ui-panel-34f4da14`, tracked issue `SPL-1748`)
 - **Mandate:** HUM-10 verbatim:
   > "panel of 1 of every kind of agent - what should be implemented in the current code base to make the UI faster, more aesthetic and the code cleaner - 10 subtasks"

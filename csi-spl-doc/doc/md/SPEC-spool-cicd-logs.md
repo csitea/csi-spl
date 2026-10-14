@@ -1,5 +1,7 @@
 # SPEC: CI/CD run logs in chat (long-term)
 
+> Generated from qto doc `711540a0-0255-4b73-a35e-97c00f405e3a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: **after M3**. Not in M1 proto, M2 public MVP, or M3 Slack rollout.
 Git-spec: `csi-spl-doc/specs/008-spool-cicd-logs/`
 

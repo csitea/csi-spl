@@ -1,5 +1,7 @@
 # How to write the release note of a commit (agents and humans)
 
+> Generated from qto doc `1a149a6e-9ded-40a5-87ee-b05668d169a0`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 This is the ONE place that says how a commit carries its release note. Seed
 prompts, gate messages and other docs point here instead of repeating it.
 

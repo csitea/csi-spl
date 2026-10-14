@@ -1,5 +1,7 @@
 # Refactor round 6 - claude seat proposal (c-709, sat)
 
+> Generated from qto doc `01fd4957-68a3-4a65-8dee-d6613f8a6fcd`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 A proposal, not the plan. The editor (this seat) merges the three seats into `../refactor-round-6-plan.md`. The agy and mistral seats write `seat-agy.md` and `seat-mistral.md` beside this file, measured on the same sha, then sign.
 
 Every count was measured on ONE trunk sha, **`da36dad94`**, n=1 per count unless stated otherwise. The command for each is in the plan, section 2. Round 5 is closed and held: `refactor-round-5-retro.md` section 1 (10 of 10 actions).

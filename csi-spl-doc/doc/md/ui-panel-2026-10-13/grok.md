@@ -1,5 +1,7 @@
 # UI panel, grok seat, 2026-10-13
 
+> Generated from qto doc `48977e37-fa2a-4c0a-923d-4bffc5114cee`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Lowest-hanging cuts in `csi-spl-wui` on `origin/master` `4ac30d59b`. Doc only.
 The sign-in page, its layout, and `LoginFeatures.vue` / `LoginLinks.vue` are
 left out (live redesign, SPL-1722).

@@ -1,5 +1,7 @@
 # How-to: give the satellite real work
 
+> Generated from qto doc `a667f739-f9b3-4321-b7f3-8b4138c01858`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The box PC (desk box `box-desk`) leads the fleet; the satellite (desk box
 `sat`, `ssh satellite` over IAP) stands by with its own trio. This page is the
 measured recipe for passing messages between the two machines and for running

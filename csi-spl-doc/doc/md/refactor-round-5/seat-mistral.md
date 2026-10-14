@@ -1,5 +1,7 @@
 # Refactoring round 5 - mistral seat proposal (action 02)
 
+> Generated from qto doc `efdfa1f8-1cda-4677-b291-ff431ca984f0`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 **Agent**: `m-689@sat` (mistral)
 **Action**: `r5-02-go-dead-code` (eliminate dead code and comments that lie in Go)
 **Sites**:

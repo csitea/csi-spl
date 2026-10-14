@@ -1,5 +1,7 @@
 # Refactor round 7 - agy seat
 
+> Generated from qto doc `50123ed5-4b63-4ab2-bb32-10a13138fa02`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 ## 1. The 10 actions
 
 | # | slug | verdict |

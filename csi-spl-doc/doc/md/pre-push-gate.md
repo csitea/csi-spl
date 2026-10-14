@@ -1,5 +1,7 @@
 # Pre-push gate — fast tier and lint parts
 
+> Generated from qto doc `82ec98e2-5ad7-4561-bfc2-58c0856483f0`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The reference for what `./run -a do_check_pre_push_lint` (and the lint leg of
 the pre-push hook, `./run -a do_check_pre_push`) runs. The rule itself lives in
 the repo [CLAUDE.md](../../../CLAUDE.md): run the cheap gate for the tree you

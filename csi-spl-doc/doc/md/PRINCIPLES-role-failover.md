@@ -1,5 +1,7 @@
 # Proposal: role failover, the HDFS way
 
+> Generated from qto doc `3da4d68a-4a32-41be-9832-f4e7c924344d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 **Status: PROPOSAL, for the owner's review. No code until it is approved.**
 
 The owner, t1 topic 27f01e16 ("The orchestrator is a single point of failure"),

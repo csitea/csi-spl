@@ -1,5 +1,7 @@
 # Antigravity (Gemini) Opinion: Context Lifecycle, Restarts, and Handovers
 
+> Generated from qto doc `fbd58c38-83a1-4b44-bb79-fce0a2505239`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Review of `specs/063-agent-context-lifecycle` from the perspective of an Antigravity (Gemini) CLI agent.
 
 ## Gemini vs Claude Differences

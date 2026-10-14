@@ -1,5 +1,7 @@
 # The shadow feed and the shadow seat
 
+> Generated from qto doc `7bad66b5-e796-4c90-a857-bad89811e97c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 A shadow seat is a second leader in training: it reads what the orchestrator
 and the dispatcher read, decides what it would have done, and posts nothing.
 The shadow feed is the one thing it reads.

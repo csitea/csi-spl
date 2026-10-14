@@ -1,5 +1,7 @@
 # Refactor round 9 - claude seat review (c-500)
 
+> Generated from qto doc `3b18deac-b00d-484f-8812-8f0e6059d518`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The claude seat's review of `../refactor-round-9-plan.md` at plan sha **`afbd48aaa`**. A seat commits this file and nothing else (R7.6). Editor: a-497.
 
 **Trees measured:** the plan's trunk `e05383148` and today's `origin/master` = `afbd48aaa`. Between them no row site changed: `git diff --stat e05383148 afbd48aaa -- csi-spl-api csi-spl-wui/src csi-spl-wui/tests/unit csi-spl-orc/src/bash/run csi-spl-orc/src/bash/features/spawn-agents/tests csi-spl-iac/lib csi-spl-iac/src/bash/run csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh` -> 1 file, `check-pre-push-e2e.func.sh`, which is in no row. So every count below holds for both shas. n=1 per count unless stated otherwise.

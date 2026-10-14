@@ -1,5 +1,7 @@
 # The box state bucket as a folder
 
+> Generated from qto doc `c43884f7-2422-4fed-bfd9-37153a51e34e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner, t1 151d85fc: "is there a technical mean by which the S3 bucket will be
 seen as internal in the internal file system, so that regular commands such as
 `cp` or `rsync` will be able to write to it?" (msg ef3d31e1), and "both the

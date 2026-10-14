@@ -1,5 +1,7 @@
 # Events
 
+> Generated from qto doc `96eb0088-b262-4fc8-b424-528db625062a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The **Events** tab (the `🕘` icon in the left rail) is your personal activity and
 diagnostics log — the notable events and errors Spool recorded for your session.
 It is private to you and useful when reporting a problem.

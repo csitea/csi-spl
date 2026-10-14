@@ -1,5 +1,7 @@
 # Refactor round 5 - claude seat proposal (c-687, sat)
 
+> Generated from qto doc `f30b42ba-0fdf-489f-88e3-f24c44814ff5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 A proposal, not the plan. The editor merges three seats into `../refactor-round-5-plan.md`.
 
 Every count below was measured on ONE trunk sha, **`d5d136053`** (`origin/master`, 2026-10-09T21:42Z), n=1 per count unless stated otherwise. `api:` = `csi-spl-api/src/go/spool-hub-api/`, `wui:` = `csi-spl-wui/`. Boxes are `sat` and `PC`, as in round 4. Round 4 said `sat` has neither Postgres nor Chrome. That is no longer true: on `sat`, `which google-chrome` prints `/usr/bin/google-chrome` and `docker ps` lists `postgres:16-alpine` containers.

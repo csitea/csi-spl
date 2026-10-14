@@ -1,5 +1,7 @@
 # Refactoring round 3 - retrospective
 
+> Generated from qto doc `7d2e99a3-c93a-46f8-92cf-9a0cfbf32258`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Measured 2026-10-06T09:31:12Z. Doc only. Each count names the command that produced it. n is that count.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, baseline trunk `755e86235`. 30 practices and 19 behaviour bugs (plan section 4). The plan already marked six bugs (B7, B10, B11, B12, B13, B15) as fixed by an earlier row.

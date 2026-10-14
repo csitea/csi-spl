@@ -1,5 +1,7 @@
 # Desktop WUI usability: the consensus list, 2026-10-05
 
+> Generated from qto doc `962f09e9-ec1f-4d74-b508-aa11b5005237`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Topic: t1 `3a74320e-b5b0-44b8-bf1e-6d1b9c84d5ed`. Owner HUM-10, 7d842610:
 *"you should build a consensus with at least one grok agent participating in
 this discussion"*. The owner has already picked starter ideas 1, 2, 3, 4, 5,

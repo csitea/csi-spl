@@ -1,5 +1,7 @@
 # Glossary — the app's lingo
 
+> Generated from qto doc `6282df2b-b784-4183-befe-18e9d239688b`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The words we use for the things in the spool app, so a spec, a post and the
 screen all say the same thing. Each term is taken from what the app itself
 shows (its English labels, `csi-spl-wui/i18n/locales/en.json`) or from the code

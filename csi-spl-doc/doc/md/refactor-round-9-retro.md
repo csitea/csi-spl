@@ -1,5 +1,7 @@
 # Refactoring round 9 - retrospective
 
+> Generated from qto doc `d67f55d0-0436-49b8-875f-8505e949674a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Measured 2026-10-14 on trunk **`43688a782`** (`origin/master`, 15:59Z). Doc
 only. Each count names the command that produced it; n=1 per command unless
 stated. This is R8 of [rounds-rulebook.md](rounds-rulebook.md); section 6 is

@@ -1,5 +1,7 @@
 # Lesson: how to speed up the system — measure first
 
+> Generated from qto doc `74815e80-7906-43e8-b1d2-bcff8868542d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner ask (topic `ed59d520`, msg [46ba8b00](https://spool-hub.ai/m/46ba8b00-0f38-4ed6-a96d-dd4a906cce89)):
 "take the gist of this discussion as a lesson learnt on how to successfully
 speed up the system". Rules first, the case that taught them after.

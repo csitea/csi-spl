@@ -1,5 +1,7 @@
 # Refactoring round 1 - plan (30 practices x 2 sites)
 
+> Generated from qto doc `71f235cf-1d10-4c00-ba4e-04bbff866b2c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner order: "Refactoring round" / "30 best practices for refactorin. For each one perform 2 changes on the src. 4 agents per box at atime". Sites measured on trunk `2ea249ff`; topic task `d3dece9f-9c08-41aa-b99b-c5f43cf2c585`.
 
 ## 1. How to read this

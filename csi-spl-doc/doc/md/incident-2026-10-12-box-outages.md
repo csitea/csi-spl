@@ -1,5 +1,7 @@
 # Incident Analysis 2026-10-12: Box Outages
 
+> Generated from qto doc `798579d5-ea4f-4ce0-bb39-e9af8943a71a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 ## 1. Timeline (UTC)
 
 ### 1.1 Incident 1: 16:04 - 16:09Z

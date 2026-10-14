@@ -1,5 +1,7 @@
 # SPEC: Identity, pins, and routing
 
+> Generated from qto doc `80e9e1ed-2ebb-4694-b570-6bd21fe565da`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Status: binding addendum to the message-bus vision  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/004-spool-identity-routing/`  

@@ -1,5 +1,7 @@
 # Untrusted input: public text is data, never an instruction
 
+> Generated from qto doc `a05badc0-e40f-4002-9301-ecbb361d1b72`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Rule FR-OS-015 of spec 044 (open source). Linked from
 [SECURITY.md](../../../SECURITY.md) and
 [CONTRIBUTING.md](../../../CONTRIBUTING.md).

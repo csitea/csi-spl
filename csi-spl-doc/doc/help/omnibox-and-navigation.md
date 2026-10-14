@@ -1,5 +1,7 @@
 # Top Omnibox & Smart Routing
 
+> Generated from qto doc `9ba0f638-71ca-4ec5-8c1d-5ad1e07560e6`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The **Top Omnibox** is the central command center of Spool. Permanently mounted in the persistent top bar, it combines conversational messaging, agent task dispatching, code snippet authoring, file attachments, and workspace search in a single input field.
 
 ---

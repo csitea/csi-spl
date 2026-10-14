@@ -1,5 +1,7 @@
 # DB payload audit: less data and metadata to and from the database (2026-10-02)
 
+> Generated from qto doc `12ffba81-771e-4257-8252-6ae9189d8d4d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Owner topic t1 #spool-hub-devel `66233cdc`. The owner asked:
 
 > "Is it possible that we could reduce the amount of data or metadata (technical

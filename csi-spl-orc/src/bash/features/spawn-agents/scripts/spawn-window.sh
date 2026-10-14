@@ -426,19 +426,15 @@ pane="$(printf '%s\n' "$out" | grep -m1 -xE '%[0-9]+')"
 # The notice strip is split NOW, before the CLI has painted anything, so the
 # TUI starts at the size it will keep and never takes a mid-session resize.
 #
-# That ordering is the fix, and the ONLY complete one. Measured on tmux 3.5a
-# against a pane already on the alternate screen at 189x51, with a subject
-# shaped like an agent CLI - static transcript, live frame repainted on
-# SIGWINCH (spool-strip-resize-proof.sh):
+# This is the fix for the distortion reported by the owner (2026-09-22): a
+# HEIGHT split (-v) of a pane that has already painted its UI destroys the
+# top rows and moves everything under them, corrupting the screen. A WIDTH
+# split (-h) leaves every row where it is, so the CLI's row anchor survives.
+# Measured by spool-strip-resize-proof.sh on tmux 3.5a.
 #
-#   a HEIGHT split destroys the top rows and moves everything under them
-#   a WIDTH split moves nothing, and clips every transcript line at the new
-#     width, permanently - no process holds a copy to repaint
-#
-# So a right-hand strip is strictly better than a bottom bar for a CLI that is
-# already running, and it is still not free. Splitting BEFORE the CLI paints
-# costs nothing at all: the pane has drawn nothing yet, and there is no later
-# resize to survive.
+# Splitting BEFORE the CLI paints costs nothing: the pane has drawn nothing yet,
+# and there is no later resize to survive. A CLI already running when its strip
+# arrives takes exactly one width change, once.
 #
 # Never fatal: a window with no strip is still a window, the notifier will
 # split one on the first message, and a spawn that failed for this would be a

@@ -90,8 +90,8 @@ spool_poke_retry_ensure() {  # ID
 #      agent's input.
 #
 #      RIGHT, not BOTTOM, and that is a correctness matter as well as the
-#      owner's instruction (2026-09-22). Measured on tmux 3.5a against a pane
-#      on the ALTERNATE screen, 189x51, with 51 numbered rows drawn:
+#      correctness matter. Measured on tmux 3.5a against a pane on the ALTERNATE
+#      screen, 189x51, with 51 numbered rows drawn:
 #
 #        split -v -l 8  -> agent 189x42: the top 9 rows are GONE and every
 #                          surviving row has moved up 9. A TUI that repaints

@@ -12,7 +12,9 @@
 #   3. Static: no command line of the action carries an unquoted <UPPER_CASE>
 #      placeholder (a redirection in disguise).
 # The action's absolute /opt/google-cloud-sdk/bin is pointed at the stubs in
-# a copy of the action; nothing reaches GCP.
+# a copy of the action; nothing reaches GCP. The copy's relative helper source
+# would resolve under $T, so the tree's own helper is sourced first and the
+# action's `declare -F` guard skips it.
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -21,6 +23,7 @@ source "$TEST_DIR/test-lib.inc.sh"
 RUN="$PROJ_ROOT/src/bash/run"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 export T
+export HELPER="$PROJ_ROOT/lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 
 fails=0
 ACTION="$RUN/gcp-s3-download-all.func.sh"
@@ -44,7 +47,7 @@ drive() {
   ( cd "$T" && env -u GCP_PROJECT -u TARGET_BASE HOME="$T/home" PATH="$T/bin:$PATH" \
       STUB_LOG="$T/calls.log" ORG=csi APP=spl ENV=dev TARGET_BASE="$T/var" \
     bash -c 'do_log() { echo "$*"; }; do_require_var() { :; }
-      source "$T/action.sh"; do_gcp_s3_download_all' >"$T/out.log" 2>&1 )
+      source "$HELPER" || exit 1; source "$T/action.sh"; do_gcp_s3_download_all' >"$T/out.log" 2>&1 )
   echo $?
 }
 TGT="$T/var/csi-spl-dev/dat/s3/b1"
